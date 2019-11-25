@@ -1,3 +1,20 @@
+### local .gitignore file use by https://github.com/zxdavb
+
+!.gitignore
+
+secrets*
+secrets*.*
+
+*.json
+*.old
+*.out
+*.txt
+.vscode/*
+
+
+### github's default .gitignore file
+# https://raw.githubusercontent.com/github/gitignore/master/Python.gitignore
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

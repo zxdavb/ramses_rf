@@ -1,0 +1,5 @@
+# .hound.yml file for https://github.com/zxdavb
+
+python:
+  enabled: true
+  config_file: .flake8
