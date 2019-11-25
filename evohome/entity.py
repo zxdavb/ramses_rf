@@ -1,7 +1,7 @@
 """The entities for Honeywell's RAMSES II / Residential Network Protocol."""
-from typing import Any, List, Optional
-import time
 import queue
+import time
+from typing import Any, List, Optional
 
 from .command import Command
 from .const import (
@@ -367,6 +367,7 @@ class RadValve(Zone):
 
     For radiators controlled by HR92s or HR80s (will also call for heat).
     """
+
     # 3150 (heat_demand) but no 0008 (relay_demand)
 
     def _discover(self):
@@ -405,6 +406,7 @@ class Electric(Zone):
 
     For a small (5A) electric load controlled by a BDR91 (never calls for heat).
     """
+
     # 0004 (zone_name)
     # 0008 (relay_demand) but no 3150 (heat_demand)
     # 0009 (ch_failsafe)
@@ -455,4 +457,3 @@ class System(Domain):
     @property
     def heat_demand(self):  # 3150
         return self._get_value("3150", "heat_demand")
-

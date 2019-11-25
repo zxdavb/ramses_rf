@@ -1,39 +1,38 @@
 """Evohome serial."""
+import queue
 import signal
 import sys
+import threading
 import time
 from curses.ascii import isprint
 from datetime import datetime as dt
 from typing import Tuple
-import queue
-import threading
 
+import serial
+
+from .command import Command
+from .const import (
+    COMMAND_EXPOSES_ZONE,
+    COMMAND_FORMAT,
+    COMMAND_LOOKUP,
+    COMMAND_MAP,
+    COMMAND_SCHEMA,
+    CTL_DEV_ID,
+    DEVICE_LOOKUP,
+    DEVICE_MAP,
+    HGI_DEV_ID,
+    MESSAGE_REGEX,
+    PACKETS_FILE,
+)
+from .entity import System
+from .logger import _LOGGER
+from .message import Message
 
 # https://gist.github.com/Dobiasd/37705392b4aaa3a3539ba1a61efec6b6
 # https://codereview.stackexchange.com/questions/202393/a-thread-safe-priority-queue-keeping-its-elements-unique
 
 # from typing import Optional
 
-import serial
-import threading
-
-from .command import Command
-from .const import (
-    COMMAND_MAP,
-    COMMAND_EXPOSES_ZONE,
-    COMMAND_FORMAT,
-    COMMAND_LOOKUP,
-    COMMAND_SCHEMA,
-    CTL_DEV_ID,
-    HGI_DEV_ID,
-    DEVICE_LOOKUP,
-    DEVICE_MAP,
-    MESSAGE_REGEX,
-    PACKETS_FILE,
-)
-from .logger import _LOGGER
-from .message import Message
-from .entity import System
 
 PORT_NAME = "/dev/ttyUSB0"
 PORT_BAUDRATE = 115200

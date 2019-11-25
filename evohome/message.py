@@ -5,35 +5,35 @@ from datetime import datetime as dt
 from typing import Optional
 
 from .const import (
+    ALL_DEV_ID,
     COMMAND_EXPOSES_ZONE,
     COMMAND_LENGTH,
     COMMAND_LOOKUP,
     COMMAND_MAP,
     DEVICE_LOOKUP,
     DEVICE_MAP,
-    MESSAGE_REGEX,
-    MESSAGE_FORMAT,
-    SYSTEM_MODE_MAP,
-    ZONE_TYPE_MAP,
-    ZONE_MODE_MAP,
-    ALL_DEV_ID,
     HGI_DEV_ID,
+    MESSAGE_FORMAT,
+    MESSAGE_REGEX,
     NO_DEV_ID,
+    SYSTEM_MODE_MAP,
+    ZONE_MODE_MAP,
+    ZONE_TYPE_MAP,
 )
 from .entity import (
+    Bdr,
     Controller,
     Device,
-    Bdr,
     DhwSensor,
     DhwZone,
+    Domain,
+    RadValve,
+    System,
     Thermostat,
     Trv,
-    Domain,
-    System,
-    RadValve,
+    dev_hex_to_id,
 )
 from .logger import _LOGGER
-from .entity import dev_hex_to_id
 
 
 def _update_entity(entity_id, msg, EntityClass, attrs=None):  # TODO: remove
@@ -178,9 +178,7 @@ class Message:
     def _get_zone(self, zone_idx):
         """Get a Zone, create it if required.."""
         if zone_idx != "dhw":
-            assert zone_idx in ["F9", "FA", "FC"] or (
-                0 <= int(zone_idx, 16) <= 11
-            )
+            assert zone_idx in ["F9", "FA", "FC"] or (0 <= int(zone_idx, 16) <= 11)
 
         try:  # does the system already know about this entity?
             entity = self._gateway.domain_by_id[zone_idx]

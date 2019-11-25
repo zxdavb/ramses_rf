@@ -1,10 +1,10 @@
 """Honeywell RAMSES II / Residential Network Protocol entities."""
 import time
-from datetime import datetime as dt, timedelta
+from datetime import datetime as dt
+from datetime import timedelta
 
 from .const import COMMAND_LOOKUP, DEVICE_LOOKUP, DEVICE_MAP
 from .logger import _LOGGER
-
 
 SYNC_CYCLE_DURATION = timedelta(seconds=185.5)
 

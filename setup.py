@@ -6,25 +6,21 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="ramses",
+    name="evohome",
     version=VERSION,
-
     author="David Bonnes",
     author_email="zxdavb@gmail.com",
-
-    description="A Honeywell RAMSES II client",
+    description="A Honeywell evohome RF agent (compliant with RAMSES II).",
     long_description=long_description,
     long_description_content_type="text/markdown",
-
-    url="https://github.com/zxdavb/ramses-client",
-    download_url="https://github.com/zxdavb/ramses-client/archive/VERSION.tar.gz",
-
-    packages=['ramsesclient'],
+    url="https://github.com/zxdavb/evohome",
+    download_url="https://github.com/zxdavb/evohome/archive/VERSION.tar.gz",
+    packages=["evohome"],
     keywords=["evohome", "ramses"],
     classifiers=[
         "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
+        "License :: OSI Approved :: GPL License",
         "Operating System :: OS Independent",
-        "Development Status :: 4 - Beta",
+        "Development Status :: 3 - Alpha",
     ],
 )
