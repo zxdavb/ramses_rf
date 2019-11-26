@@ -236,7 +236,7 @@ class Message:
                     assert self.device_type[0] in ["DHW", "HGI"]
                     assert self.device_type[1] == "CTL"  # in ["CTL", "ALL"]
                     if self.command_code == "10A0":
-                        assert len(payload) / 2 in [1, 5]  # TODO: why RQ has a payload
+                        assert len(payload) / 2 in [1, 6]  # TODO: why RQ has a payload
                     else:
                         assert len(payload) / 2 == 1
                     return
@@ -315,37 +315,6 @@ class Message:
                 "domain_id": payload[:2],
                 "actuator_check": {"00": False, "C8": True}[payload[2:]],
             }  # TODO: update domain?
-
-        # @system_decorator?
-        def boiler_params(payload) -> dict:  # 1100 (boiler CH config, c.f. 0009)
-            # cat cat pkts.log | grep ' 1100 '
-            # 20:27:06.558 055  I --- CTL:145038  --:------ CTL:145038 1100 008 FC 1804 0000 7FFF 01
-            # 20:27:06.581 053  W --- CTL:145038 BDR:237335  --:------ 1100 008 00 1804 0000 7FFF 01
-            # 20:27:06.623 047  I --- BDR:237335  --:------ BDR:237335 1100 008 00 1804 0000 7FFF 01
-            # 20:27:09.671 048  I --- BDR:237335  --:------ BDR:237335 1100 008 00 1804 0000 7FFF 01
-            # When changing 'System Parameters'...
-
-            # 04:18:23.603 095  I ---  --:------  --:------  12:249582 1100 005 00 1804 0400
-            # 04:18:24.602 094  I ---  --:------  --:------  12:249582 1100 005 00 1804 0400
-            # 04:18:25.600 094  I ---  --:------  --:------  12:249582 1100 005 00 1804 0400
-            # 04:35:07.195 095  I ---  --:------  --:------  12:227486 1100 005 00 1804 0400
-            # 04:35:08.193 095  I ---  --:------  --:------  12:227486 1100 005 00 1804 0400
-            # 04:35:09.191 095  I ---  --:------  --:------  12:227486 1100 005 00 1804 0400
-
-            if self.type == "RQ":
-                return
-
-            assert self.type in [" I", " W", "RP"]
-            assert len(payload) / 2 in [5, 8]
-            assert payload[2:4] in ["0C", "18", "24", "30"]
-            assert payload[4:6] in ["04", "08", "0C", "10", "14"]
-
-            return {
-                "domain_id": payload[:2],
-                "cycle_rate": int(payload[2:4], 16) / 4,  # in cycles per hour
-                "minimum_on_time": int(payload[4:6], 16) / 4,  # in minutes
-                "unknown_0": payload[6:],
-            }
 
         # housekeeping
         def bind_device(payload) -> dict:  # 1FC9
@@ -489,8 +458,47 @@ class Message:
             self._get_device(device_id=list(result)[0]).update(result, self)
             return result
 
-        # device (12:xxxxxx) or a domain 00-0B (e.g. has a BDR), F9, FA, FC)
-        def relay_demand(payload) -> dict:  # 0008 (of a device, or a zone/s)
+        # of a domain (F9, FA, FC), or zones (00-0B) with a BDR, or a device (12:xxxxxx)
+        def boiler_params(payload) -> dict:  # 1100
+
+            @device_decorator
+            def _device_boiler_params(payload) -> dict:  # 1100
+                assert self.type == " I"
+                assert len(payload) / 2 == 5
+                assert payload[2:4] in ["0C", "18", "24", "30"]
+                assert payload[4:6] in ["04", "08", "0C", "10", "14"]
+                assert payload[6:10] == "0400"
+
+                attrs = {
+                    "cycle_rate": int(payload[2:4], 16) / 4,  # in cycles per hour
+                    "minimum_on_time": int(payload[4:6], 16) / 4,  # in minutes
+                    "unknown_0": payload[6:],
+                }
+                return {self.device_id[2]: attrs}
+
+            @zone_decorator
+            def _zone_boiler_params(payload) -> dict:  # 1100
+                # assert self.type in [" I", " W", "RQ", "RP"]
+                assert len(payload) / 2 == 8
+                assert payload[2:4] in ["0C", "18", "24", "30"]
+                assert payload[4:6] in ["04", "08", "0C", "10", "14"]
+                assert payload[6:10] == "0000"  # seen: "0400"
+                assert payload[10:] == "7FFF01"
+
+                attrs = {
+                    "cycle_rate": int(payload[2:4], 16) / 4,  # in cycles per hour
+                    "minimum_on_time": int(payload[4:6], 16) / 4,  # in minutes
+                    "unknown_0": payload[6:10],
+                    "unknown_1": payload[10:],
+                }
+                return [{payload[:2]: attrs}]
+
+            if self.device_type[2] == " 12":
+                return _device_boiler_params(payload)
+            return _zone_boiler_params(payload)
+
+        # of a domain (F9, FA, FC), or zones (00-0B) with a BDR, or a device (12:xxxxxx)
+        def relay_demand(payload) -> dict:  # 0008
             # https://www.domoticaforum.eu/viewtopic.php?f=7&t=5806&start=105#p73681
             assert len(payload) / 2 == 2
             assert self.type == " I"
@@ -508,7 +516,7 @@ class Message:
                 assert payload[:2] in ["F9", "FA", "FC"] or (
                     0 <= int(payload[:2], 16) <= 11
                 )
-                assert self.device_type[2] != " 12"
+
                 attrs = {"relay_demand": _dec(payload[2:4]) / 2}
                 return [{payload[:2]: attrs}]
 
@@ -516,14 +524,36 @@ class Message:
                 return _device_relay_demand(payload)
             return _zone_relay_demand(payload)
 
-        # of a domain 00-0B, F9, FA, FC)
-        def relay_failsafe(payload) -> dict:  # 0009 (failsafe, c.f. 1100, 0008)
-            assert len(payload) / 2 == 3
+        # of a domain (F9, FA, FC), or zones (00-0B) with a BDR, or a device (12:xxxxxx)
+        def relay_failsafe(payload) -> dict:  # 0009
+            # seems there can only be max one relay per domain/zone
 
-            return {
-                "domain_id": payload[:2],
-                "failsafe": {"00": False, "01": True}[payload[2:4]],
-            }
+            @device_decorator
+            def _device_relay_failsafe(payload) -> dict:  # 0009
+                assert self.device_type[2] == " 12"
+                assert payload == "0000FF"
+
+                failsafe = {"00": False, "01": True}.get(payload[i + 2 : i + 4])
+                attrs = {"failsafe_enabled": failsafe}
+                return {self.device_id[2]: attrs}
+
+            @zone_decorator
+            def _zone_relay_failsafe(payload) -> dict:  # 0009
+                assert len(payload) / 2 % 3 == 0
+                assert payload[:2] in ["F9", "FA", "FC"] or (
+                    0 <= int(payload[:2], 16) <= 11
+                )
+
+                domains = []
+                for i in range(0, len(payload), 6):
+                    failsafe = {"00": False, "01": True}.get(payload[i + 2 : i + 4])
+                    attrs = {"failsafe_enabled": failsafe}
+                    domains.append({payload[i : i + 2]: attrs})
+                return domains
+
+            if self.device_type[2] == " 12":
+                return _device_relay_failsafe(payload)
+            return _zone_relay_failsafe(payload)
 
         # @device_decorator - decorator not used as len(RQ) = 2
         def rf_check(payload) -> dict:  # 0016 - DONE
@@ -550,21 +580,6 @@ class Message:
             # this is the end of the device_decorator
             self._get_device(device_id=list(result)[0]).update(result, self)
             return result
-
-        # @device_decorator # ventilation?
-        def sensor_humidity(payload) -> dict:  # 12A0 (Nuaire sensor)
-            # cat pkts.log | grep 12A0 (every 879.5s, from 168090, humidity sensor)
-            # 11:05:50.027 045  I --- VNT:168090  --:------ VNT:168090 12A0 006 00 3C 07A8 049C
-
-            assert len(payload) / 2 == 6
-            assert payload[:2] == "00"  # domain?
-
-            return {
-                "domain_id": payload[:2],
-                "relative_humidity": _dec(payload[2:4]),
-                "temperature": _dec(payload[4:8]),
-                "dewpoint": _dec(payload[8:12]),
-            }
 
         # device or zone
         def setpoint(payload) -> dict:  # 2309 (of a device, or a zone/s)
@@ -818,6 +833,21 @@ class Message:
                 "device_id": dev_hex_to_id(payload[38:]),
             }
             return {"device_id": self.device_id[0], **attrs}
+
+        # ventilation? # @device_decorator
+        def sensor_humidity(payload) -> dict:  # 12A0 (Nuaire RH sensor)
+            # cat pkts.log | grep 12A0 (every 879.5s, from 168090, humidity sensor)
+            # 11:05:50.027 045  I --- VNT:168090  --:------ VNT:168090 12A0 006 00 3C 07A8 049C
+
+            assert len(payload) / 2 == 6
+            assert payload[:2] == "00"  # domain?
+
+            return {
+                "domain_id": payload[:2],
+                "relative_humidity": _dec(payload[2:4]),
+                "temperature": _dec(payload[4:8]),
+                "dewpoint": _dec(payload[8:12]),
+            }
 
         # ventilation?
         def message_22f1(payload) -> dict:  # 22F1 (Nuaire switch)

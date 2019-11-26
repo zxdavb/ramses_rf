@@ -8,6 +8,9 @@ from curses.ascii import isprint
 from datetime import datetime as dt
 from typing import Tuple
 
+import asyncio
+import serial_asyncio
+
 import serial
 
 from .command import Command
@@ -100,7 +103,9 @@ def open_serial_port(serial_port_name):
 class Gateway:
     """The gateway class."""
 
-    def __init__(self, serial_port=PORT_NAME):
+    def __init__(self, serial_port=PORT_NAME, loop=None):
+        self.loop = loop
+
         self.device_by_id = {}
         self.domain_by_id = {}
         self.system = None
@@ -109,10 +114,10 @@ class Gateway:
         self.message_queue = queue.Queue(maxsize=400)
 
         self._packet_log = open(PACKETS_FILE, "a+")
-        self.ser = open_serial_port(serial_port)  # TODO: move out of __init__
+        self.ser = None
         self.fake_port = None
 
-        signal.signal(signal.SIGINT, self.signal_handler)
+        self.reader = self.writer = None
 
     def print_database(self):
         print("zones = %s", {k: v.name for k, v in self.domain_by_id.items()})
@@ -126,96 +131,79 @@ class Gateway:
 
         sys.exit()
 
-    def _get_packet(self, timeout=0.1) -> Tuple[str, str]:
-        """Get the next packet, along with an isoformat dt string."""
+    async def _get_packet(self) -> Tuple[str, str]:
+        """Get the next packet, along with an isoformat datetime string."""
 
-        if self.fake_port:
-            raw_packet = self.fake_port.readline().strip()
+        # if self.fake_port:
+        #     raw_packet = self.fake_port.readline().strip()
 
-            if raw_packet:
-                packet_dt = raw_packet[:26]
-                raw_packet = raw_packet[27:]
-            else:
-                return "EOF", None
+        #     if raw_packet:
+        #         packet_dt = raw_packet[:26]
+        #         raw_packet = raw_packet[27:]
+        #     else:
+        #         return "EOF", None
 
-        else:
-            self.ser.timeout = timeout
-
+        # else:
+        while True:
             try:
-                raw_packet = self.ser.readline().decode("ascii").strip()
-            except UnicodeDecodeError:
-                return None, None
+                raw_packet = await self.reader.readline()
+                raw_packet = raw_packet.decode("ascii").strip()
+            except (serial.SerialException, UnicodeDecodeError):
+                continue
 
             raw_packet = "".join(char for char in raw_packet if isprint(char))
 
             if not raw_packet:
-                return None, None
-
-            if not isinstance(raw_packet, str):
-                _LOGGER.warning("Packet datatype is not a string, >> %s <<", raw_packet)
-                return None, None
+                continue
 
             packet_dt = dt.now().isoformat()
 
-            if self._packet_log:
+            if self._packet_log:  # TODO: make this async
                 self._packet_log.write(f"{packet_dt} {raw_packet}\r\n")
 
-        if not MESSAGE_REGEX.match(raw_packet):
-            _LOGGER.warning("Packet structure is not valid, >> %s <<", raw_packet)
-            return None, None
-
-        if len(raw_packet[50:]) != 2 * int(raw_packet[46:49]):
-            _LOGGER.warning("Packet payload length is not valid, >> %s <<", raw_packet)
-            return None, None
-
-        if int(raw_packet[46:49]) > 48:
-            _LOGGER.warning("Packet payload length is excessive, >> %s <<", raw_packet)
-            return None, None
-
-        return raw_packet, packet_dt
-
-    def start(self):
-        """Enumerate the Controller, all Zones, and the DHW relay (if any)."""
-        x = threading.Thread(target=self.main_loop, daemon=True)
-        x.start()
-
-        # y = threading.Thread(target=self.process_packets, daemon=True)
-        # y.start()
-
-        x.join()
-
-    def main_loop(self):
-        """The main loop."""
-        # self.fake_port = open(PACKETS_FILE, "r")  # TODO: set a flag
-
-        while True:
-            if self.ser.in_waiting != 0:  # or self.fake_port:
-                raw_packet, pkt_datetime = self._get_packet()
-
-                if raw_packet:
-                    # print(pkt_datetime, raw_packet)
-                    # self.message_queue.put((raw_packet, pkt_datetime))
-                    self.process_packets(raw_packet, pkt_datetime)
-
+            if not MESSAGE_REGEX.match(raw_packet):
+                _LOGGER.warning("Packet structure is not valid, >> %s <<", raw_packet)
                 continue
 
-            if not self.command_queue.empty():
-                _cmd = self.command_queue.get()
-                self.ser.write(bytearray(f"{_cmd}\r\n".encode("ascii")))
+            if len(raw_packet[50:]) != 2 * int(raw_packet[46:49]):
+                _LOGGER.warning("Packet payload length not valid, >> %s <<", raw_packet)
+                continue
 
-                # time.sleep(0.1)  # 0.1 works reliably
-                self.command_queue.task_done()
-                time.sleep(0.1)  # 0.1 works reliably
+            if int(raw_packet[46:49]) > 48:  # TODO: a ?corrupt pkt of 55 seen
+                _LOGGER.warning("Packet payload length excessive, >> %s <<", raw_packet)
+                continue
 
-    def process_packets(self, raw_packet, pkt_datetime):
-        """The main loop."""
+            return packet_dt, raw_packet
 
-        # while True:
-        # if not self.message_queue.empty():
-        # raw_packet, pkt_datetime = self.message_queue.get()
-        # self.message_queue.task_done()
+    async def start(self):
+        """Enumerate the Controller, all Zones, and the DHW relay (if any)."""
+        # self.fake_port = open(PACKETS_FILE, "r")  # TODO: set a flag
 
-        msg = Message(raw_packet, self, pkt_dt=pkt_datetime)
+        # self.ser = open_serial_port(PORT_NAME)
+
+        self.reader, self.writer = await serial_asyncio.open_serial_connection(
+            url=PORT_NAME, baudrate=PORT_BAUDRATE
+        )
+
+        signal.signal(signal.SIGINT, self.signal_handler)
+
+        await self.main_loop()
+
+        # x = threading.Thread(target=self.main_loop, daemon=True)
+        # x.start()
+
+        # # y = threading.Thread(target=self.process_packets, daemon=True)
+        # # y.start()
+
+        # x.join()
+
+    async def recv_message(self):
+        """Receive a message."""
+        await asyncio.sleep(0.01)
+
+        packet_dt, raw_packet = await self._get_packet()
+
+        msg = Message(raw_packet, self, pkt_dt=packet_dt)
 
         if COMMAND_SCHEMA.get(msg.command_code):
             if COMMAND_SCHEMA[msg.command_code].get("non_evohome"):
@@ -224,12 +212,30 @@ class Gateway:
         if {msg.device_type[0], msg.device_type[1]} & {"GWY", "VNT"}:
             return  # continue  # ignore non-evohome device types
 
-        # if "HGI" in [msg.device_type[0], msg.device_type[1]]:
-        #     continue  # ignore the HGI
+        if self.fake_port:
+            if "HGI" in [msg.device_type[0], msg.device_type[1]]:
+                return  # continue  # ignore the HGI
 
         if not msg.payload:  # not a (currently) decodable payload
-            # _LOGGER.info("RAW: %s | %-8s ||", str(msg)[:80], msg.raw_payload)
             _LOGGER.info("%s  RAW: %s %s", msg._pkt_dt, msg, msg.raw_payload)
             return  # continue
         else:
             _LOGGER.info("%s  MSG: %s %s", msg._pkt_dt, msg, msg.payload)
+
+    async def send_command(self):
+        """Send a command."""
+        if not self.command_queue.empty():
+            cmd = self.command_queue.get()
+
+            if not cmd.entity._data.get(cmd.command_code):
+                self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
+
+            self.command_queue.task_done()
+
+        await asyncio.sleep(0.1)
+
+    async def main_loop(self):
+        """The main loop."""
+        while True:
+            await self.recv_message()
+            await self.send_command()

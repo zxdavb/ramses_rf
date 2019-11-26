@@ -7,6 +7,11 @@ CTL_DEV_ID = "01:145038"  # 06368E
 HGI_DEV_ID = "18:730"  # default type and address of HGI
 NO_DEV_ID = "--:------"
 
+# Domains
+# FC - Heat Demand
+# FF 
+
+
 # Test devices
 # BDR:106039 (359E37)
 # STA:064023 (88FA17)
@@ -31,13 +36,13 @@ COMMAND_SCHEMA = {
     "0004": {"name": "zone_name", "exposes_zone": True},
     "0005": {"name": "system_zone"},
     "0006": {"name": "schedule_sync"},
-    "0008": {"name": "relay_demand"},  # for CH/DHW/Boiler (F9/FA/FC), also F8/FF
-    "0009": {"name": "ch_failsafe", "exposes_zone": None},
+    "0008": {"name": "relay_demand"},  # for CH/DHW/Boiler (F9/FA/FC), also zone_idx for BDR, F8/FF (for all)
+    "0009": {"name": "relay_failsafe", "exposes_zone": None},
     "000A": {"name": "zone_config", "exposes_zone": True},
     "0016": {"name": "rf_check"},
     "0100": {"name": "localisation"},
     "0404": {"name": "zone_schedule"},
-    "0418": {"name": "message_0418"},
+    "0418": {"name": "message_0418"},  # ticker
     # 1030": {"name": "unknown_1030"},  # seen when a BDR91 lost its binding
     "1060": {"name": "device_battery", "exposes_zone": None},
     "10A0": {"name": "dhw_params"},

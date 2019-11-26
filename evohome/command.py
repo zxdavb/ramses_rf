@@ -20,20 +20,19 @@ class Command:
     """The command class."""
 
     #
-    def __init__(self, command_code, gateway, destination, payload) -> None:
-        self._gateway = gateway
-
-        self._command_code = command_code
-        self._payload = payload
-        self._destination = destination
+    def __init__(self, entity, command_code, destination, payload="00") -> None:
+        self.entity = entity
+        self.command_code = command_code
+        self.destination = destination
+        self.payload = payload
 
     def __str__(self) -> str:
         _cmd = COMMAND_FORMAT.format(
             HGI_DEV_ID,
-            self._destination,
-            self._command_code,
-            len(self._payload) / 2,
-            self._payload,
+            self.destination,
+            self.command_code,
+            len(self.payload) / 2,
+            self.payload,
         )
 
         # if not COMMAND_REGEX.match(_cmd):
@@ -43,4 +42,4 @@ class Command:
 
     def execute(self) -> int:
         """Send a command to the RF bus."""
-        self._gateway.command_queue.put(str(self), timeout=5)
+        self.entity._gateway.command_queue.put(self)

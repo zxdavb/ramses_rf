@@ -74,13 +74,10 @@ class Device(Entity):
 
     def _discover(self):
         if self._type not in ["BDR", "STA", "TRV", " 12"]:
-            if not self._data.get("10E0"):
-                try:
-                    self._queue.put_nowait(
-                        Command("10E0", self._gateway, self._id, "00")
-                    )
-                except queue.Full:
-                    pass
+            try:
+                self._queue.put_nowait(Command(self, "10E0", self._id, "00"))
+            except queue.Full:
+                pass
 
     @property
     def description(self):  # 0100, 10E0,
@@ -123,22 +120,18 @@ class Controller(Device):
         super()._discover()
 
         for zone_idx in range(12):
-            if not self._gateway.domain_by_id.get(f"{zone_idx:02x}"):
-                try:
-                    self._queue.put_nowait(
-                        Command("0004", self._gateway, CTL_DEV_ID, f"{zone_idx:02x}00")
-                    )
-                except queue.Full:
-                    pass
+            try:
+                self._queue.put_nowait(
+                    Command(self, "0004", CTL_DEV_ID, f"{zone_idx:02x}00")
+                )
+            except queue.Full:
+                pass
 
         for cmd in ["1100", "1260", "1F41"]:
-            if not self._data.get(cmd):
-                try:
-                    self._queue.put_nowait(
-                        Command(cmd, self._gateway, CTL_DEV_ID, "00")
-                    )
-                except queue.Full:
-                    pass
+            try:
+                self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, "00"))
+            except queue.Full:
+                pass
 
 
 class DhwSensor(Device):
@@ -152,13 +145,10 @@ class DhwSensor(Device):
 
     def _discover(self):
         for cmd in ["10A0", "1260", "1F41"]:
-            if not self._data.get(cmd):
-                try:
-                    self._queue.put_nowait(
-                        Command(cmd, self._gateway, CTL_DEV_ID, "00")
-                    )
-                except queue.Full:
-                    pass
+            try:
+                self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, "00"))
+            except queue.Full:
+                pass
 
     @property
     def battery(self):  # 1060
@@ -273,13 +263,10 @@ class DhwZone(Domain):
 
     def _discover(self):
         for cmd in ["10A0", "1260", "1F41"]:
-            if not self._data.get(cmd):
-                try:
-                    self._queue.put_nowait(
-                        Command(cmd, self._gateway, CTL_DEV_ID, "00")
-                    )
-                except queue.Full:
-                    pass
+            try:
+                self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, "00"))
+            except queue.Full:
+                pass
 
     @property
     def name(self) -> Optional[str]:
@@ -315,14 +302,11 @@ class Zone(Domain):
 
     def _discover(self):
         for cmd in ["0004", "000A", "2349", "30C9"]:  # 2349 includes 2309
-            if not self._data.get(cmd):
-                zone_idx = f"{self._id}00" if cmd == "0004" else self._id
-                try:
-                    self._queue.put_nowait(
-                        Command(cmd, self._gateway, CTL_DEV_ID, zone_idx)
-                    )
-                except queue.Full:
-                    pass
+            zone_idx = f"{self._id}00" if cmd == "0004" else self._id
+            try:
+                self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, zone_idx))
+            except queue.Full:
+                pass
 
     @property
     def name(self) -> Optional[str]:
@@ -374,13 +358,10 @@ class RadValve(Zone):
         super()._discover()
 
         for cmd in ["12B0"]:
-            if not self._data.get(cmd):
-                try:
-                    self._queue.put_nowait(
-                        Command(cmd, self._gateway, CTL_DEV_ID, self._id)
-                    )
-                except queue.Full:
-                    pass
+            try:
+                self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, self._id))
+            except queue.Full:
+                pass
 
     @property
     def configuration(self):
