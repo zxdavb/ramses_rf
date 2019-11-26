@@ -14,7 +14,7 @@ DEBUG_MODE = True
 
 
 _LOGGER.setLevel(logging.DEBUG)
-_LOGGER.warning("The debugger is enabled.")
+print("The debugger is enabled.")
 ptvsd.enable_attach(address=("172.27.0.138", 5679))
 
 if DEBUG_MODE is True:
@@ -25,7 +25,7 @@ if DEBUG_MODE is True:
     # ptvsd.enable_attach(address=("172.27.0.138", 5679))
 
     ptvsd.wait_for_attach()
-    _LOGGER.debug("Debugger is attached!")
+    print("Debugger is attached!")
 
 
 def _parse_args():
@@ -55,7 +55,7 @@ async def main(loop):
     """Main loop."""
     args = _parse_args()
 
-    gateway = Gateway(loop=loop)
+    gateway = Gateway(serial_port="/dev/ttyUSB0", console_log=True)
 
     if not args.command or args.monitor:
         await gateway.start()
@@ -64,5 +64,4 @@ async def main(loop):
 if __name__ == "__main__":  # called from CLI?
     LOOP = asyncio.get_event_loop()
     LOOP.run_until_complete(main(LOOP))
-    # LOOP.run_forever()
     LOOP.close()

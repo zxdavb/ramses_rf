@@ -21,4 +21,4 @@ _CONSOLE.setLevel(logging.DEBUG)
 _CONSOLE.setFormatter(logging.Formatter(CON_FORMAT, datefmt="%H:%M:%S"))
 
 _LOGGER = logging.getLogger(__name__)
-_LOGGER.addHandler(_CONSOLE)
+# _LOGGER.addHandler(_CONSOLE)

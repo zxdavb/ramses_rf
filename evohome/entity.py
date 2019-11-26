@@ -65,6 +65,7 @@ class Device(Entity):
         super().__init__(device_id, gateway)
 
         gateway.device_by_id.update({device_id: self})
+        gateway.devices.append(self)
 
         self._type = DEVICE_MAP.get(device_id[:2])
         self._parent_zone = None
@@ -254,6 +255,7 @@ class DhwZone(Domain):
         super().__init__(zone_idx, gateway)
 
         gateway.domain_by_id.update({zone_idx: self})
+        gateway.domains.append(self)
 
         self._type = None
         self._discover()
@@ -299,6 +301,9 @@ class Zone(Domain):
     def __init__(self, zone_idx, gateway) -> None:
         # _LOGGER.debug("Creating a new Zone %s", zone_idx)
         super().__init__(zone_idx, gateway)
+
+        gateway.zone_by_id.update({zone_idx: self})
+        gateway.zones.append(self)
 
     def _discover(self):
         for cmd in ["0004", "000A", "2349", "30C9"]:  # 2349 includes 2309

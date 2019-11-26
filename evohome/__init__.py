@@ -28,11 +28,8 @@ from .const import (
     PACKETS_FILE,
 )
 from .entity import System
-from .logger import _LOGGER
+from .logger import _CONSOLE, _LOGGER
 from .message import Message
-
-# https://gist.github.com/Dobiasd/37705392b4aaa3a3539ba1a61efec6b6
-# https://codereview.stackexchange.com/questions/202393/a-thread-safe-priority-queue-keeping-its-elements-unique
 
 # from typing import Optional
 
@@ -45,7 +42,7 @@ PORT_STOPBITS = serial.STOPBITS_ONE
 PORT_TIMEOUT = 0.1
 
 
-def close_serial_port(serial_port):
+def close_serial_port(serial_port=None):
     def close_port(port):
         if port.is_open:
             # port.reset_input_buffer()
@@ -103,33 +100,95 @@ def open_serial_port(serial_port_name):
 class Gateway:
     """The gateway class."""
 
-    def __init__(self, serial_port=PORT_NAME, loop=None):
-        self.loop = loop
+    def __init__(self, serial_port, console_log=False, fake_port=False, logfile=PACKETS_FILE):
+        self.serial_port = serial_port if serial_port else PORT_NAME
+        self.fake_port = fake_port
+        self.logfile = logfile
+
+        if console_log is True:
+            _LOGGER.addHandler(_CONSOLE)
 
         self.device_by_id = {}
         self.domain_by_id = {}
+        self.zone_by_id = {}
+        self.devices = []
+        self.domains = []
+        self.zones = []
         self.system = None
 
         self.command_queue = queue.Queue(maxsize=200)
         self.message_queue = queue.Queue(maxsize=400)
 
-        self._packet_log = open(PACKETS_FILE, "a+")
-        self.ser = None
-        self.fake_port = None
-
         self.reader = self.writer = None
 
-    def print_database(self):
-        print("zones = %s", {k: v.name for k, v in self.domain_by_id.items()})
-        print("devices = %s", {k: v.type for k, v in self.device_by_id.items()})
+    async def start(self):
+        """Enumerate the Controller, all Zones, and the DHW relay (if any)."""
+        # self.fake_port = open(PACKETS_FILE, "r")  # TODO: set a flag
+
+        self.reader, self.writer = await serial_asyncio.open_serial_connection(
+            url=PORT_NAME, baudrate=PORT_BAUDRATE
+        )
+
+        self._packet_log = open(self.logfile, "a+")
+
+        signal.signal(signal.SIGINT, self.signal_handler)
+
+        await self.main_loop()
+
+    async def main_loop(self) -> None:
+        """The main loop."""
+        while True:
+            await self._recv_message()
+            await self._send_command()
 
     def signal_handler(self, signum, frame):
-        self.print_database()  # TODO: deleteme
+        def print_database(self):
+            print("zones = %s", {k: v.name for k, v in self.domain_by_id.items()})
+            print("devices = %s", {k: v.type for k, v in self.device_by_id.items()})
 
-        close_serial_port(self.ser)
+        print_database()  # TODO: deleteme
+
+        close_serial_port()
         self._packet_log.close()
 
         sys.exit()
+
+    async def _recv_message(self) -> None:
+        """Receive a message."""
+        await asyncio.sleep(0.01)
+
+        packet_dt, raw_packet = await self._get_packet()
+
+        msg = Message(raw_packet, self, pkt_dt=packet_dt)
+
+        if COMMAND_SCHEMA.get(msg.command_code):
+            if COMMAND_SCHEMA[msg.command_code].get("non_evohome"):
+                return  # continue  # ignore non-evohome commands
+
+        if {msg.device_type[0], msg.device_type[1]} & {"GWY", "VNT"}:
+            return  # continue  # ignore non-evohome device types
+
+        if self.fake_port:
+            if "HGI" in [msg.device_type[0], msg.device_type[1]]:
+                return  # continue  # ignore the HGI
+
+        if not msg.payload:  # not a (currently) decodable payload
+            _LOGGER.info("%s  RAW: %s %s", msg._pkt_dt, msg, msg.raw_payload)
+            return  # continue
+        else:
+            _LOGGER.info("%s  MSG: %s %s", msg._pkt_dt, msg, msg.payload)
+
+    async def _send_command(self) -> None:
+        """Send a command."""
+        if not self.command_queue.empty():
+            cmd = self.command_queue.get()
+
+            if not cmd.entity._data.get(cmd.command_code):
+                self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
+
+            self.command_queue.task_done()
+
+        await asyncio.sleep(0.1)
 
     async def _get_packet(self) -> Tuple[str, str]:
         """Get the next packet, along with an isoformat datetime string."""
@@ -174,68 +233,3 @@ class Gateway:
                 continue
 
             return packet_dt, raw_packet
-
-    async def start(self):
-        """Enumerate the Controller, all Zones, and the DHW relay (if any)."""
-        # self.fake_port = open(PACKETS_FILE, "r")  # TODO: set a flag
-
-        # self.ser = open_serial_port(PORT_NAME)
-
-        self.reader, self.writer = await serial_asyncio.open_serial_connection(
-            url=PORT_NAME, baudrate=PORT_BAUDRATE
-        )
-
-        signal.signal(signal.SIGINT, self.signal_handler)
-
-        await self.main_loop()
-
-        # x = threading.Thread(target=self.main_loop, daemon=True)
-        # x.start()
-
-        # # y = threading.Thread(target=self.process_packets, daemon=True)
-        # # y.start()
-
-        # x.join()
-
-    async def recv_message(self):
-        """Receive a message."""
-        await asyncio.sleep(0.01)
-
-        packet_dt, raw_packet = await self._get_packet()
-
-        msg = Message(raw_packet, self, pkt_dt=packet_dt)
-
-        if COMMAND_SCHEMA.get(msg.command_code):
-            if COMMAND_SCHEMA[msg.command_code].get("non_evohome"):
-                return  # continue  # ignore non-evohome commands
-
-        if {msg.device_type[0], msg.device_type[1]} & {"GWY", "VNT"}:
-            return  # continue  # ignore non-evohome device types
-
-        if self.fake_port:
-            if "HGI" in [msg.device_type[0], msg.device_type[1]]:
-                return  # continue  # ignore the HGI
-
-        if not msg.payload:  # not a (currently) decodable payload
-            _LOGGER.info("%s  RAW: %s %s", msg._pkt_dt, msg, msg.raw_payload)
-            return  # continue
-        else:
-            _LOGGER.info("%s  MSG: %s %s", msg._pkt_dt, msg, msg.payload)
-
-    async def send_command(self):
-        """Send a command."""
-        if not self.command_queue.empty():
-            cmd = self.command_queue.get()
-
-            if not cmd.entity._data.get(cmd.command_code):
-                self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
-
-            self.command_queue.task_done()
-
-        await asyncio.sleep(0.1)
-
-    async def main_loop(self):
-        """The main loop."""
-        while True:
-            await self.recv_message()
-            await self.send_command()
