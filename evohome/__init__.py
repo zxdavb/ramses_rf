@@ -39,29 +39,6 @@ BAUDRATE = 115200
 READ_TIMEOUT = 0
 
 
-def close_serial_port(serial_port=None):
-    def close_port(port):
-        if port.is_open:
-            # port.reset_input_buffer()
-            # port.reset_output_buffer()
-            port.close()
-
-        if port.is_open:
-            return port
-        return None
-
-    print("Closing serial port...")
-    for _ in range(3):
-        not_closed = close_port(serial_port)
-        if not_closed:
-            time.sleep(3)
-
-    if not_closed:
-        print("port *not* closed")
-    else:
-        print("port closed (clean exit)")
-
-
 class Gateway:
     """The gateway class."""
 
@@ -121,14 +98,13 @@ class Gateway:
 
         print_database()  # TODO: deleteme
 
-        close_serial_port()
         self._packet_log.close()
 
         sys.exit()
 
     async def _recv_message(self) -> None:
         """Receive a message."""
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0.001)
 
         packet_dt, raw_packet = await self._get_packet()
 
