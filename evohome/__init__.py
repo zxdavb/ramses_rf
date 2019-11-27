@@ -35,11 +35,8 @@ from .message import Message
 
 
 PORT_NAME = "/dev/ttyUSB0"
-PORT_BAUDRATE = 115200
-PORT_BTYTESIZE = serial.EIGHTBITS
-PORT_PARITY = serial.PARITY_NONE
-PORT_STOPBITS = serial.STOPBITS_ONE
-PORT_TIMEOUT = 0.1
+BAUDRATE = 115200
+READ_TIMEOUT = 0
 
 
 def close_serial_port(serial_port=None):
@@ -65,48 +62,29 @@ def close_serial_port(serial_port=None):
         print("port closed (clean exit)")
 
 
-def open_serial_port(serial_port_name):
-    def open_port(port_name):
-        try:
-            port = serial.Serial(
-                port=port_name,
-                baudrate=PORT_BAUDRATE,
-                # bytesize=serial.EIGHTBITS,
-                # parity=serial.PARITY_NONE,
-                # stopbits=serial.STOPBITS_ONE,
-                timeout=0.1,
-                # write_timeout=0
-            )
-
-        except serial.serialutil.SerialException as exc:
-            _LOGGER.exception("Exception: %s", exc)
-            return None
-
-        if port.is_open:
-            # _LOGGER.debug("Port opened: %s", port)
-            return port
-
-        _LOGGER.error("No port: %s", port)
-
-    # _LOGGER.debug("Opening port: %s", port)
-    for _ in range(2):
-        serial_port = open_port(serial_port_name)
-        if serial_port:
-            break
-    assert serial_port is not None
-    return serial_port
-
-
 class Gateway:
     """The gateway class."""
 
-    def __init__(self, serial_port, console_log=False, fake_port=False, logfile=PACKETS_FILE):
+    def __init__(
+        self,
+        serial_port,
+        loop=None,
+        console_log=False,
+        fake_port=False,
+        logfile=PACKETS_FILE
+    ):
         self.serial_port = serial_port if serial_port else PORT_NAME
         self.fake_port = fake_port
         self.logfile = logfile
+        self._loop = loop
 
         if console_log is True:
             _LOGGER.addHandler(_CONSOLE)
+
+        self.command_queue = queue.Queue(maxsize=200)
+        self.message_queue = queue.Queue(maxsize=400)
+
+        self.reader = self.writer = None
 
         self.device_by_id = {}
         self.domain_by_id = {}
@@ -116,17 +94,12 @@ class Gateway:
         self.zones = []
         self.system = None
 
-        self.command_queue = queue.Queue(maxsize=200)
-        self.message_queue = queue.Queue(maxsize=400)
-
-        self.reader = self.writer = None
-
     async def start(self):
         """Enumerate the Controller, all Zones, and the DHW relay (if any)."""
         # self.fake_port = open(PACKETS_FILE, "r")  # TODO: set a flag
 
         self.reader, self.writer = await serial_asyncio.open_serial_connection(
-            url=PORT_NAME, baudrate=PORT_BAUDRATE
+            loop=self._loop, url=PORT_NAME, baudrate=BAUDRATE, timeout=READ_TIMEOUT
         )
 
         self._packet_log = open(self.logfile, "a+")
@@ -142,9 +115,9 @@ class Gateway:
             await self._send_command()
 
     def signal_handler(self, signum, frame):
-        def print_database(self):
-            print("zones = %s", {k: v.name for k, v in self.domain_by_id.items()})
-            print("devices = %s", {k: v.type for k, v in self.device_by_id.items()})
+        def print_database():
+            print("zones = %s", {k: v.zone_type for k, v in self.domain_by_id.items()})
+            print("devices = %s", {k: v.device_type for k, v in self.device_by_id.items()})
 
         print_database()  # TODO: deleteme
 

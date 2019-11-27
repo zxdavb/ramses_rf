@@ -81,6 +81,14 @@ class Device(Entity):
                 pass
 
     @property
+    def device_id(self) -> Optional[str]:
+        return self._id
+
+    @property
+    def device_type(self) -> Optional[str]:
+        return self._type
+
+    @property
     def description(self):  # 0100, 10E0,
         return self._get_value("10E0)", "description")
 
@@ -208,6 +216,11 @@ class Thermostat(Device):
     def __init__(self, device_id, gateway) -> None:
         # _LOGGER.debug("Creating a new STA %s", device_id)
         super().__init__(device_id, gateway)
+
+    @property
+    def battery(self):  # 1060
+        return self._get_value("1060", "battery_level")
+        # return self._get_value("1060", "low_battery")
 
     @property
     def setpoint(self):  # 2309
@@ -343,7 +356,7 @@ class Zone(Domain):
     @property
     def heat_demand(self):
         zone_demand = 0.0
-        for dev in [v for v in self._gateway.device_by_id.values() if v.type == "TRV"]:
+        for dev in [v for v in self._gateway.device_by_id.values() if v._type == "TRV"]:
             if dev.parent_zone == self._id:
                 device_demand = dev.heat_demand if dev.heat_demand else 0
                 zone_demand = max(zone_demand, device_demand)

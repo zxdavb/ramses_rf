@@ -21,7 +21,7 @@ if DEBUG_MODE is True:
     # import ptvsd  # pylint: disable=import-error
 
     # _LOGGER.setLevel(logging.DEBUG)
-    # _LOGGER.warning("Waiting for debugger to attach...")
+    print("Waiting for debugger to attach...")
     # ptvsd.enable_attach(address=("172.27.0.138", 5679))
 
     ptvsd.wait_for_attach()
