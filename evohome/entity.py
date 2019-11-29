@@ -8,6 +8,7 @@ from .const import (
     COMMAND_EXPOSES_ZONE,
     COMMAND_LOOKUP,
     COMMAND_MAP,
+    ALL_DEV_ID,
     CTL_DEV_ID,
     DEVICE_LOOKUP,
     DEVICE_MAP,
@@ -57,6 +58,71 @@ class Entity:
             return self._data[code][key]
 
 
+class Domain(Entity):
+    """Base for the named Zones and the other domains (e.g. DHW).
+
+    Domains include F8(rare), F9, FA, FC & FF."""
+
+    def __init__(self, domain_id, gateway) -> None:
+        # _LOGGER.debug("Creating a new Device %s", device_id)
+        super().__init__(domain_id, gateway)
+
+        gateway.domain_by_id.update({domain_id: self})
+        gateway.domains.append(self)
+
+        self._type = None
+        self._discover()
+
+    def _discover(self):
+        pass
+
+    @property
+    def parent_zone(self) -> Optional[str]:  # 0004
+        return None
+
+    @property
+    def heat_demand(self):  # 3150
+        return self._get_value("3150", "heat_demand")
+
+    @property
+    def relay_demand(self):  # 3150
+        return self._get_value("0008", "relay_demand")
+
+    @property
+    def zone_idx(self):
+        return self._id
+
+    @property
+    def device_id(self):
+        return self._id
+
+    @property
+    def zone_type(self) -> Optional[str]:
+        return self._type
+
+
+class System(Domain):
+    """Base for the central heating (FC) domain."""
+
+    def __init__(self, domain_id, gateway):
+        # _LOGGER.debug("Creating a new System %s", CTL_DEV_ID)
+        super().__init__(domain_id, gateway)
+
+    def _discover(self):
+        pass
+
+    @property
+    def setpoint_status(self):
+        return {
+            "mode": self._get_value("2E04", "mode"),
+            "until": self._get_value("2E04", "until"),
+        }
+
+    @property
+    def heat_demand(self):  # 3150
+        return self._get_value("3150", "heat_demand")
+
+
 class Device(Entity):
     """The Device class."""
 
@@ -74,11 +140,12 @@ class Device(Entity):
         self._discover()
 
     def _discover(self):
-        if self._type not in ["BDR", "STA", "TRV", " 12"]:
-            try:
-                self._queue.put_nowait(Command(self, "10E0", self._id, "00"))
-            except queue.Full:
-                pass
+        pass
+        # if self._type not in ["BDR", "STA", "TRV", " 12"]:
+        #     try:
+        #         self._queue.put_nowait(Command(self, "10E0", self._id, "00"))
+        #     except queue.Full:
+        #         pass
 
     @property
     def device_id(self) -> Optional[str]:
@@ -128,19 +195,35 @@ class Controller(Device):
     def _discover(self):
         super()._discover()
 
+        # these are an attempt to actively discover the CTL rather than by eavesdropping
+        # for cmd in ["313F"]:
+        #     try:
+        #         self._queue.put_nowait(Command(self, cmd, ALL_DEV_ID, "FF"))
+        #     except queue.Full:
+        #         pass
+
+        # a 'real' Zone will return 0004/zone_name != None
         for zone_idx in range(12):
+            _zone = f"{zone_idx:02x}00"
             try:
-                self._queue.put_nowait(
-                    Command(self, "0004", CTL_DEV_ID, f"{zone_idx:02x}00")
-                )
+                self._queue.put_nowait(Command(self, "0004", CTL_DEV_ID, _zone))
             except queue.Full:
                 pass
 
-        for cmd in ["1100", "1260", "1F41"]:
+        # # the 'real' DHW controller will return 1260/dhw_temp != None
+        for _zone in ["FA"]:
             try:
-                self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, "00"))
+                self._queue.put_nowait(Command(self, "1260", CTL_DEV_ID, _zone))
             except queue.Full:
                 pass
+
+        # the Controller, and 'real' Relays will respond to 0016/rf_check - to device ID
+        # try:
+        #     self._queue.put_nowait(
+        #         Command(self, "0016", CTL_DEV_ID, f"{domain_id}FF")
+        #     )
+        # except queue.Full:
+        #     pass
 
 
 class DhwSensor(Device):
@@ -231,84 +314,7 @@ class Thermostat(Device):
         return self._get_value("30C9", "temperature")
 
 
-class Domain(Entity):
-    """Base for the named Zones and the other domains (e.g. DHW).
-
-    Domains include F8(rare), F9, FA, FC & FF."""
-
-    def __init__(self, domain_id, gateway) -> None:
-        # _LOGGER.debug("Creating a new Device %s", device_id)
-        super().__init__(domain_id, gateway)
-
-        gateway.domain_by_id.update({domain_id: self})
-
-        self._type = None
-        self._discover()
-
-    def update(self, payload, msg):
-        super().update(payload, msg)
-
-    def _discover(self):
-        pass
-
-    @property
-    def zone_idx(self):
-        return self._id
-
-    @property
-    def zone_type(self) -> Optional[str]:
-        return self._type
-
-
-class DhwZone(Domain):
-    """Base for the DHW (Fx) domain."""
-
-    def __init__(self, zone_idx, gateway) -> None:
-        # _LOGGER.debug("Creating a new Zone %s", zone_idx)
-        super().__init__(zone_idx, gateway)
-
-        gateway.domain_by_id.update({zone_idx: self})
-        gateway.domains.append(self)
-
-        self._type = None
-        self._discover()
-
-    def update(self, entity_dict, msg):
-        super().update(entity_dict, msg)
-
-    def _discover(self):
-        for cmd in ["10A0", "1260", "1F41"]:
-            try:
-                self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, "00"))
-            except queue.Full:
-                pass
-
-    @property
-    def name(self) -> Optional[str]:
-        return "DHW Controller"
-
-    @property
-    def configuration(self):
-        return {
-            "setpoint": self._get_value("10A0", "setpoint"),
-            "overrun": self._get_value("10A0", "overrun"),
-            "differential": self._get_value("10A0", "differential"),
-        }
-
-    @property
-    def setpoint_status(self):
-        return {
-            "active": self._get_value("1F41", "active"),
-            "mode": self._get_value("1F41", "mode"),
-            "until": self._get_value("1F41", "until"),
-        }
-
-    @property
-    def temperature(self):
-        return self._get_value("1260", "temperature")
-
-
-class Zone(Domain):
+class Zone(Entity):
     """Base for the 12 named Zones."""
 
     def __init__(self, zone_idx, gateway) -> None:
@@ -317,6 +323,9 @@ class Zone(Domain):
 
         gateway.zone_by_id.update({zone_idx: self})
         gateway.zones.append(self)
+
+        self._type = None
+        self._discover()
 
     def _discover(self):
         for cmd in ["0004", "000A", "2349", "30C9"]:  # 2349 includes 2309
@@ -362,6 +371,48 @@ class Zone(Domain):
                 zone_demand = max(zone_demand, device_demand)
 
         return zone_demand
+
+
+class DhwZone(Zone):
+    """Base for the DHW (Fx) domain."""
+
+    def __init__(self, zone_idx, gateway) -> None:
+        # _LOGGER.debug("Creating a new Zone %s", zone_idx)
+        super().__init__(zone_idx, gateway)
+
+        self._type = None
+        self._discover()
+
+    def _discover(self):
+        for cmd in ["10A0", "1260", "1F41"]:  # TODO: what about 1100?
+            try:
+                self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, "00"))
+            except queue.Full:
+                pass
+
+    @property
+    def name(self) -> Optional[str]:
+        return "DHW Controller"
+
+    @property
+    def configuration(self):
+        return {
+            "setpoint": self._get_value("10A0", "setpoint"),
+            "overrun": self._get_value("10A0", "overrun"),
+            "differential": self._get_value("10A0", "differential"),
+        }
+
+    @property
+    def setpoint_status(self):
+        return {
+            "active": self._get_value("1F41", "active"),
+            "mode": self._get_value("1F41", "mode"),
+            "until": self._get_value("1F41", "until"),
+        }
+
+    @property
+    def temperature(self):
+        return self._get_value("1260", "temperature")
 
 
 class RadValve(Zone):
@@ -436,23 +487,18 @@ class MixValve(Zone):
     """
 
 
-class System(Domain):
-    """Base for the central heating (FC) domain."""
+DEVICE_CLASSES = {
+    DEVICE_LOOKUP["CTL"]: Controller,
+    DEVICE_LOOKUP["TRV"]: Trv,
+    DEVICE_LOOKUP["DHW"]: DhwSensor,
+    DEVICE_LOOKUP["BDR"]: Bdr,
+    DEVICE_LOOKUP["STA"]: Thermostat,
+}
 
-    def __init__(self, domain_id, gateway):
-        # _LOGGER.debug("Creating a new System %s", CTL_DEV_ID)
-        super().__init__(domain_id, gateway)
-
-    def _discover(self):
-        pass
-
-    @property
-    def setpoint_status(self):
-        return {
-            "mode": self._get_value("2E04", "mode"),
-            "until": self._get_value("2E04", "until"),
-        }
-
-    @property
-    def heat_demand(self):  # 3150
-        return self._get_value("3150", "heat_demand")
+ZONE_CLASSES = {
+    "01": Controller,
+    "04": Trv,
+    "07": DhwSensor,
+    "13": Bdr,
+    "34": Thermostat,
+}

@@ -4,29 +4,22 @@ import asyncio
 import argparse
 import logging
 
-# if DEBUG_MODE is True:
 import ptvsd  # pylint: disable=import-error
 
-from evohome import _LOGGER, Gateway
+from evohome import _CONSOLE, _LOGGER, Gateway
 
-DEBUG_MODE = True
-# _LOGGER.setLevel(logging.DEBUG)
-
+DEBUG_MODE = False
 
 _LOGGER.setLevel(logging.DEBUG)
-print("The debugger is enabled.")
+print("Debugging is enabled.")
 ptvsd.enable_attach(address=("172.27.0.138", 5679))
+_LOGGER.addHandler(_CONSOLE)
 
 if DEBUG_MODE is True:
-    # import ptvsd  # pylint: disable=import-error
-
-    # _LOGGER.setLevel(logging.DEBUG)
     print("Waiting for debugger to attach...")
-    # ptvsd.enable_attach(address=("172.27.0.138", 5679))
-
     ptvsd.wait_for_attach()
-    print("Debugger is attached!")
 
+    print("Debugger is attached!")
 
 def _parse_args():
     parser = argparse.ArgumentParser()

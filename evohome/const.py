@@ -9,7 +9,7 @@ NO_DEV_ID = "--:------"
 
 # Domains
 # FC - Heat Demand
-# FF 
+# FF
 
 
 # Test devices
@@ -32,11 +32,14 @@ NO_DEV_ID = "--:------"
 
 # use: cat packets.log | grep -v " 18:" | grep -E ' [0-9]{3} [0-9][1-9A-F]' | grep -v ' \-\-\- 01' > test.log
 COMMAND_SCHEMA = {
+    # 0001: {"name": "unknown_0001"},  #
     "0002": {"name": "sensor_outside"},
     "0004": {"name": "zone_name", "exposes_zone": True},
     "0005": {"name": "system_zone"},
     "0006": {"name": "schedule_sync"},
-    "0008": {"name": "relay_demand"},  # for CH/DHW/Boiler (F9/FA/FC), also zone_idx for BDR, F8/FF (for all)
+    "0008": {
+        "name": "relay_demand"
+    },  # for CH/DHW/Boiler (F9/FA/FC), also zone_idx for BDR, F8/FF (for all)
     "0009": {"name": "relay_failsafe", "exposes_zone": None},
     "000A": {"name": "zone_config", "exposes_zone": True},
     "0016": {"name": "rf_check"},
@@ -53,13 +56,13 @@ COMMAND_SCHEMA = {
     "1F09": {"name": "sync_cycle"},
     "1F41": {"name": "dhw_mode"},
     "1FC9": {"name": "bind_device"},  # aka bind
-    # 2249": {"name": "unknown"},  # programmer now/next setpoint (jrosser/honeymon)
+    # 2249: {"name": "unknown"},  # programmer now/next setpoint (jrosser/honeymon)
     "22C9": {"name": "ufh_setpoint"},
     "2309": {"name": "setpoint", "exposes_zone": True},  # "device_or_zone": True
     "2349": {"name": "zone_mode"},
     "2E04": {"name": "system_mode"},
     "30C9": {"name": "temperature", "exposes_zone": False},  # "device_or_zone": True
-    # 3120": {"name": "message_unknown", "exposes_zone": False},  # STA, every ~3:45:00
+    # 3120: {"name": "message_unknown", "exposes_zone": False},  # STA, every ~3:45:00
     "313F": {"name": "sync_datetime"},  # aka ping, datetime_req
     "3150": {"name": "heat_demand", "exposes_zone": True},
     "3B00": {"name": "actuator_check"},  # was_req - start of TPI cycle
@@ -70,8 +73,8 @@ COMMAND_SCHEMA = {
     # VNT:206250 // VNT:168090 // GWY:082155
     #
     # cat pkts.log | grep -E '(206250|168090|082155)'
-    # shared: | grep -v 1060 | grep -v 10E0 | grep -v 1F09
-    # excl.:  | grep -v 12A0 | grep -v 22F1 | grep -v 31D9 | grep -v 31DA | grep -v 31E0
+    # shared: | grep -vE ' (1060|10E0|1F09) '
+    # excl.:  | grep -vE ' (12A0|22F1|31D9|31DA|31E0) '
     #
     # These are only ever from 32:206250 (the 4-way switch), or 32:206250 (the CO2 monitor?)
     "12A0": {"name": "sensor_humidity", "non_evohome": True},

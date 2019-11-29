@@ -48,7 +48,7 @@ class Gateway:
         loop=None,
         console_log=False,
         fake_port=False,
-        logfile=PACKETS_FILE
+        logfile=PACKETS_FILE,
     ):
         self.serial_port = serial_port if serial_port else PORT_NAME
         self.fake_port = fake_port
@@ -94,7 +94,9 @@ class Gateway:
     def signal_handler(self, signum, frame):
         def print_database():
             print("zones = %s", {k: v.zone_type for k, v in self.domain_by_id.items()})
-            print("devices = %s", {k: v.device_type for k, v in self.device_by_id.items()})
+            print(
+                "devices = %s", {k: v.device_type for k, v in self.device_by_id.items()}
+            )
 
         print_database()  # TODO: deleteme
 

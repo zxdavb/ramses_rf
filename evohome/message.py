@@ -21,17 +21,13 @@ from .const import (
     ZONE_TYPE_MAP,
 )
 from .entity import (
-    Bdr,
-    Controller,
     Device,
-    DhwSensor,
     DhwZone,
     Domain,
     RadValve,
     System,
-    Thermostat,
-    Trv,
     dev_hex_to_id,
+    DEVICE_CLASSES,
 )
 from .logger import _LOGGER
 
@@ -158,46 +154,43 @@ class Message:
         return message
 
     def _get_device(self, device_id):
-        """Get a Device, create it if required.."""
+        """Get a Device, create it if required."""
         assert device_id not in [ALL_DEV_ID, HGI_DEV_ID, NO_DEV_ID]
 
         try:  # does the system already know about this entity?
             entity = self._gateway.device_by_id[device_id]
         except KeyError:  # no, this is a new entity, so create it
-            DeviceClass = {
-                "01": Controller,
-                "04": Trv,
-                "07": DhwSensor,
-                "13": Bdr,
-                "34": Thermostat,
-            }.get(device_id[:2], Device)
-            entity = DeviceClass(device_id, self._gateway)
+            device_class = DEVICE_CLASSES.get(device_id[:2], Device)
+            entity = device_class(device_id, self._gateway)
+
+        return entity
+
+    def _get_domain(self, domain_id):
+        """Get a Domain, create it if required."""
+        assert domain_id in ["F9", "FA", "FC"]  # CH/DHW/Boiler (?), FF=??
+
+        try:  # does the system already know about this entity?
+            entity = self._gateway.domain_by_id[domain_id]
+        except KeyError:  # no, this is a new entity, so create it
+            entity = Domain(domain_id, self._gateway)
 
         return entity
 
     def _get_zone(self, zone_idx):
-        """Get a Zone, create it if required.."""
-        if zone_idx != "dhw":
-            assert zone_idx in ["F9", "FA", "FC"] or (0 <= int(zone_idx, 16) <= 11)
+        """Get a Zone, create it if required."""
+        if zone_idx != "HW":
+            assert 0 <= int(zone_idx, 16) <= 11
 
         try:  # does the system already know about this entity?
-            entity = self._gateway.domain_by_id[zone_idx]
+            entity = self._gateway.zone_by_id[zone_idx]
         except KeyError:  # no, this is a new entity, so create it
-            if zone_idx == "dhw":
-                entity = DhwZone(zone_idx, self._gateway)
-            elif zone_idx in ["F9", "FA", "FC"]:
-                entity = Domain(zone_idx, self._gateway)
-            else:
-                entity = RadValve(zone_idx, self._gateway)
+            domain_class = DhwZone if zone_idx == "HW" else RadValve
+            entity = domain_class(zone_idx, self._gateway)  # TODO: other zone types?
 
         return entity
 
-    def _update_system(self, domain_id, attrs=None):  # TODO convert to _get_xxx()
-        """Create/Update a Domain with its latest state data.
-
-        FC - central heating
-        """
-        assert domain_id in ["F9", "FA", "FC"]  # CH/DHW/Boiler (?), FF=??
+    def _update_system(self, domain_id, attrs=None):  # TODO convert to _get_xxx()?
+        """Create/Update the System with its latest state data."""
 
         if not self._gateway.system:
             self._gateway.system = System("system", self._gateway)
@@ -208,6 +201,45 @@ class Message:
     @property
     def payload(self) -> dict:
         """Create a structured payload from a raw payload."""
+
+        def payload_decorator(func):
+            """Docstring."""
+
+            def wrapper(*args, **kwargs):
+                result = func(*args, **kwargs)
+
+                _get_xxx_map = {
+                    "device_id": self._get_device,
+                    "domain_id": self._get_domain,
+                    # "system": self._get_system,
+                    "zone_idx": self._get_zone,
+                }
+
+                for x in list(_get_xxx_map):
+                    if x in list(result):
+                        # _get_xxx_map.get(result[x]).update(result["payload"], self)
+                        xxx = {result[x]: result["payload"]}
+                        _get_xxx_map.get(result[x]).update(xxx, self)
+
+                return result
+
+            return wrapper
+
+        def domain_decorator(func):
+            """Docstring."""
+
+            def wrapper(*args, **kwargs):
+                payload = args[0]
+                if self.type == "RQ":
+                    assert self.device_type[1] == "CTL"
+                    return {"domain_id": payload[:2]}
+
+                result = func(*args, **kwargs)
+
+                self._get_domain(domain_id=list(result)[0]).update(result, self)
+                return result
+
+            return wrapper
 
         def device_decorator(func):
             """Docstring."""
@@ -243,7 +275,15 @@ class Message:
 
                 result = func(*args, **kwargs)
 
-                self._get_zone(zone_idx="dhw").update(result, self)
+                # do not create any DHW domain found via discover() if there is no temp
+                if self.type == "RP":
+                    if (
+                        self.command_code == "1260"
+                        and result["HW"]["temperature"] is None
+                    ):
+                        return result  # this was a result of discover()
+
+                self._get_zone(zone_idx="HW").update(result, self)
                 return result
 
             return wrapper
@@ -259,6 +299,13 @@ class Message:
                     return {"zone_idx": payload[:2]}
 
                 result = func(*args, **kwargs)
+
+                # do not create any zone found via discover() if there is no name
+                if self.type == "RP":
+                    zone = result[0]
+                    zone_idx = list(zone)[0]
+                    if self.command_code == "0004" and zone[zone_idx]["name"] is None:
+                        return result  # this was a result of discover()
 
                 for zone in result:
                     self._get_zone(zone_idx=list(zone)[0]).update(zone, self)
@@ -302,7 +349,7 @@ class Message:
         def _temp(seqx) -> Optional[float]:
             return int(seqx, 16) / 100 if seqx != "7FFF" else None
 
-        # housekeeping
+        @domain_decorator  # housekeeping?
         def actuator_check(payload) -> dict:  # 3B00 (TPI cycle HB/sync)
             # https://www.domoticaforum.eu/viewtopic.php?f=7&t=5806&start=105#p73681
             # TODO: alter #cycles/hour & check interval between 3B00/3EF0 changes
@@ -377,7 +424,7 @@ class Message:
                 "overrun": _dec(payload[6:8]),  # 0-10 (0)
                 "differential": _dec(payload[8:12]),  # 1.0-10.0 (10.0)
             }
-            return {"dhw": attrs}
+            return {"HW": attrs}
 
         @dhw_decorator
         def dhw_mode(payload) -> dict:  # 1F41
@@ -393,7 +440,7 @@ class Message:
                 "mode": ZONE_MODE_MAP.get(payload[4:6]),
                 "until": _dt(payload[12:24]) if payload[4:6] == "04" else None,
             }
-            return {"dhw": attrs}
+            return {"HW": attrs}
 
         # device or system
         def dhw_temp(payload) -> dict:  # 1260
@@ -410,7 +457,7 @@ class Message:
                 assert self.type == "RP"
                 assert self.device_type[0] == "CTL"
                 attrs = {"temperature": _temp(payload[2:])}
-                return {"dhw": attrs}
+                return {"HW": attrs}
 
             if self.device_type[0] in ["DHW"]:
                 return _device_dhw_temp(payload)
@@ -430,13 +477,13 @@ class Message:
                 attrs = {"heat_demand": _dec(payload[2:4]) / 2}
                 return {self.device_id[0]: attrs}
 
-            # @system_decorator
+            @domain_decorator
             def _system_heat_demand(payload) -> dict:  # 3150
                 assert self.device_type[0] == "CTL"
-                assert payload[:2] == "FC"  # TODO: also for Zone valves?
+                assert payload[:2] == "FC"
 
                 attrs = {"heat_demand": _dec(payload[2:4]) / 2}
-                return self._update_system(payload[:2], attrs)
+                return {payload[:2]: attrs}
 
             if self.device_type[0] in ["CTL"]:
                 return _system_heat_demand(payload)
@@ -460,7 +507,6 @@ class Message:
 
         # of a domain (F9, FA, FC), or zones (00-0B) with a BDR, or a device (12:xxxxxx)
         def boiler_params(payload) -> dict:  # 1100
-
             @device_decorator
             def _device_boiler_params(payload) -> dict:  # 1100
                 assert self.type == " I"
@@ -513,18 +559,24 @@ class Message:
 
             @zone_decorator
             def _zone_relay_demand(payload) -> dict:  # 0008
-                assert payload[:2] in ["F9", "FA", "FC"] or (
-                    0 <= int(payload[:2], 16) <= 11
-                )
+                assert 0 <= int(payload[:2], 16) <= 11
 
                 attrs = {"relay_demand": _dec(payload[2:4]) / 2}
                 return [{payload[:2]: attrs}]
 
+            @domain_decorator
+            def _domain_relay_demand(payload) -> dict:  # 0008
+                assert payload[:2] in ["F9", "FA", "FC"]
+
+                attrs = {"relay_demand": _dec(payload[2:4]) / 2}
+                return {payload[:2]: attrs}
+
             if self.device_type[2] == " 12":
                 return _device_relay_demand(payload)
-            return _zone_relay_demand(payload)
+            if 0 <= int(payload[:2], 16) <= 11:
+                return _zone_relay_demand(payload)  # e.g. Electric Heat Zone
+            return _domain_relay_demand(payload)
 
-        # of a domain (F9, FA, FC), or zones (00-0B) with a BDR, or a device (12:xxxxxx)
         def relay_failsafe(payload) -> dict:  # 0009
             # seems there can only be max one relay per domain/zone
 
@@ -533,7 +585,7 @@ class Message:
                 assert self.device_type[2] == " 12"
                 assert payload == "0000FF"
 
-                failsafe = {"00": False, "01": True}.get(payload[i + 2 : i + 4])
+                failsafe = {"00": False, "01": True}.get(payload[2:4])
                 attrs = {"failsafe_enabled": failsafe}
                 return {self.device_id[2]: attrs}
 
@@ -555,17 +607,10 @@ class Message:
                 return _device_relay_failsafe(payload)
             return _zone_relay_failsafe(payload)
 
-        # @device_decorator - decorator not used as len(RQ) = 2
+        @device_decorator
         def rf_check(payload) -> dict:  # 0016 - DONE
-            assert self.type in ["RQ", "RP"]
+            assert self.type == "RP"  # TODO: some RQs also contain a payload with data
             assert len(payload) / 2 == 2
-            assert payload[:2] == "00"
-
-            # RQ from CTL: payload == "00FF"
-            # RQ *to* CTL: payload == "00xx"
-
-            if payload[2:] == "FF":
-                return  # is RQ from CTL
 
             strength = int(payload[2:4], 16)
             attrs = {
@@ -575,11 +620,7 @@ class Message:
                 }
             }
 
-            result = {self.device_id[0]: attrs}
-
-            # this is the end of the device_decorator
-            self._get_device(device_id=list(result)[0]).update(result, self)
-            return result
+            return {self.device_id[0]: attrs}
 
         # device or zone
         def setpoint(payload) -> dict:  # 2309 (of a device, or a zone/s)
@@ -724,30 +765,50 @@ class Message:
                 return _device_temperature(payload)
             return _zone_temperature(payload)  # a zone (RQ/RP), or [zones] (I)
 
-        # device or zone
+        @payload_decorator  # device or zone
+        def new_window_state(payload) -> dict:  # 12B0 (of a device, or a zone)
+            def _payload(segment) -> dict:
+                assert segment in ["0000", "C800", "FFFF"]  # "FFFF" means N/A
+                return {
+                    "window_open": {"00": False, "C8": True}.get(segment[2:4]),
+                }
+
+            if self.type == "RQ":
+                assert len(payload) / 2 == 1
+                assert self.device_type[0] in ["HGI"]
+                return
+
+            if self.type == " I":
+                assert self.device_type[0] in ["CTL", "TRV"]
+            elif self.type == "RP":
+                assert self.device_type[0] == "CTL"
+
+            id_type = "device_id" if self.device_type[0] == "TRV" else "zone_idx"
+            return [{id_type: payload[:2], "payload": _payload(payload)}]
+
+        # device or zone - REFACTORED for _payload()
         def window_state(payload) -> dict:  # 12B0 (of a device, or a zone)
+            def _payload(segment) -> dict:
+                assert 0 <= int(segment[:2], 16) <= 11  # also true for devices
+                assert segment[2:] in ["0000", "C800", "FFFF"]  # "FFFF" means N/A
+                return {
+                    "window_open": {"00": False, "C8": True}.get(segment[2:4]),
+                }
+
             @device_decorator
             def _device_window_state(payload) -> dict:
                 assert self.type == " I"
-                assert len(payload) / 2 == 3
-                assert payload[2:] in ["0000", "C800", "FFFF"]  # "FFFF" if N/A
-
-                attrs = {"window_open": {"00": False, "C8": True}.get(payload[2:4])}
-                return {self.device_id[0]: attrs}
+                assert self.device_type[0] == "TRV"
+                return {self.device_id[0]: _payload(payload)}
 
             @zone_decorator
             def _zone_window_state(payload) -> dict:
                 assert self.type in [" I", "RP"]
-                assert self.device_type[0] == "CTL"
-                assert len(payload) / 2 == 3
-                assert payload[2:] in ["0000", "C800", "FFFF"]  # "FFFF" if N/A
+                return [{payload[:2]: _payload(payload)}]
 
-                attrs = {"window_open": {"00": False, "C8": True}.get(payload[2:4])}
-                return [{payload[:2]: attrs}]
-
-            if self.device_type[0] == "TRV":
-                return _device_window_state(payload)
-            return _zone_window_state(payload)  # a zone (RQ/RP)
+            if self.device_type[0] == "CTL":
+                return _zone_window_state(payload)  # a zone (RQ/RP)
+            return _device_window_state(payload)
 
         @zone_decorator
         def zone_config(payload) -> dict:  # 000A (of a zone / all zones)
@@ -917,6 +978,7 @@ class Message:
 
         # unknown
         def message_unknown(payload) -> dict:
+            # it might be useful to auto-search payloads for hex_ids, commands, etc.
             return
 
         if self._payload:
