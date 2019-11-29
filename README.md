@@ -2,4 +2,4 @@
 
 (WIP) Emulates a Honeywell evohome controller.
 
-Uses https://github.com/zxdavb/evohome_cc/edit/master/README.md.
+requires a Honeywell HGI80 or similar. Uses https://github.com/zxdavb/evohome_cc.
