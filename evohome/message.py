@@ -294,7 +294,7 @@ class Message:
             def wrapper(*args, **kwargs):
                 payload = args[0]
                 if self.type == "RQ":  # seen: 0004|000A|2309, works: 12B0|2349|30C9
-                    assert self.device_type[1] == "CTL"
+                    assert self.device_type[1] in ["CTL", "BDR"]
                     assert len(payload) / 2 == 2 if self.command_code == "0004" else 1
                     return {"zone_idx": payload[:2]}
 
