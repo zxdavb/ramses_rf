@@ -1,8 +1,8 @@
 """Evohome serial."""
-import queue
+from queue import Queue
 import signal
 import sys
-import threading
+from threading import Thread
 import time
 from curses.ascii import isprint
 from datetime import datetime as dt
@@ -39,27 +39,71 @@ BAUDRATE = 115200
 READ_TIMEOUT = 0
 
 
+class MessageWorker(Thread):
+    """Fake docstring."""
+
+    def __init__(self, gateway, queue):
+        Thread.__init__(self)
+        self.gateway = queue
+        self.queue = queue
+
+
+class RecvPacketWorker(MessageWorker):
+    """Fake docstring."""
+
+    def run(self):
+        while True:
+            try:
+                pass
+            finally:
+                pass
+
+
+class ProcMessageWorker(MessageWorker):
+    """Fake docstring."""
+
+    def run(self):
+        while True:
+            message = self.queue.get()
+            try:
+                pass
+            finally:
+                self.queue.task_done()
+
+
+class SendCommandWorker(MessageWorker):
+    """Fake docstring."""
+
+    def run(self):
+        while True:
+            command = self.queue.get()
+            try:
+                pass
+            finally:
+                self.queue.task_done()
+
+
 class Gateway:
     """The gateway class."""
 
     def __init__(
         self,
         serial_port,
-        loop=None,
-        console_log=False,
         fake_port=False,
-        logfile=PACKETS_FILE,
+        console_log=False,
+        packet_log=PACKETS_FILE,
+        loop=None,
     ):
         self.serial_port = serial_port if serial_port else PORT_NAME
         self.fake_port = fake_port
-        self.logfile = logfile
-        self._loop = loop
+        self.logfile = packet_log
+        self._loop = loop if loop else asyncio.get_event_loop()
 
         if console_log is True:
             _LOGGER.addHandler(_CONSOLE)
 
-        self.command_queue = queue.Queue(maxsize=200)
-        self.message_queue = queue.Queue(maxsize=400)
+        self.command_queue = Queue(maxsize=200)
+        self.message_queue = Queue(maxsize=400)
 
         self.reader = self.writer = None
 

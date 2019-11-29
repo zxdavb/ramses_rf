@@ -48,7 +48,7 @@ async def main(loop):
     """Main loop."""
     args = _parse_args()
 
-    gateway = Gateway(serial_port="/dev/ttyUSB0", console_log=True)
+    gateway = Gateway(serial_port="/dev/ttyUSB0", console_log=True, loop=loop)
 
     if not args.command or args.monitor:
         await gateway.start()

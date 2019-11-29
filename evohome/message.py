@@ -167,7 +167,7 @@ class Message:
 
     def _get_domain(self, domain_id):
         """Get a Domain, create it if required."""
-        assert domain_id in ["F9", "FA", "FC"]  # CH/DHW/Boiler (?), FF=??
+        assert domain_id in ["00", "F9", "FA", "FC"]  # CH/DHW/Boiler (?), FF=??
 
         try:  # does the system already know about this entity?
             entity = self._gateway.domain_by_id[domain_id]
@@ -358,10 +358,11 @@ class Message:
             assert payload[:2] in ["00", "FC"]
             assert payload[2:] == "C8"  # Could be a percentage?
 
-            return {
-                "domain_id": payload[:2],
+            attrs = {
                 "actuator_check": {"00": False, "C8": True}[payload[2:]],
-            }  # TODO: update domain?
+            }
+
+            return {payload[:2]: attrs}  # TODO: update domain?
 
         # housekeeping
         def bind_device(payload) -> dict:  # 1FC9
@@ -522,7 +523,7 @@ class Message:
                 }
                 return {self.device_id[2]: attrs}
 
-            @zone_decorator
+            @domain_decorator
             def _zone_boiler_params(payload) -> dict:  # 1100
                 # assert self.type in [" I", " W", "RQ", "RP"]
                 assert len(payload) / 2 == 8
