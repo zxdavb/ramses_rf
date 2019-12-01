@@ -9,10 +9,13 @@ import ptvsd  # pylint: disable=import-error
 from evohome import _CONSOLE, _LOGGER, Gateway
 
 DEBUG_MODE = False
+DEBUG_ADDR = "172.27.0.138"
+DEBUG_PORT = 5679
+
 
 _LOGGER.setLevel(logging.DEBUG)
-print("Debugging is enabled.")
-ptvsd.enable_attach(address=("172.27.0.138", 5679))
+print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
+ptvsd.enable_attach(address=(DEBUG_ADDR, DEBUG_PORT))
 _LOGGER.addHandler(_CONSOLE)
 
 if DEBUG_MODE is True:
@@ -20,6 +23,7 @@ if DEBUG_MODE is True:
     ptvsd.wait_for_attach()
 
     print("Debugger is attached!")
+
 
 def _parse_args():
     parser = argparse.ArgumentParser()

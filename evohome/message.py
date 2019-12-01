@@ -24,7 +24,7 @@ from .entity import (
     Device,
     DhwZone,
     Domain,
-    RadValve,
+    Zone,
     System,
     dev_hex_to_id,
     DEVICE_CLASSES,
@@ -32,13 +32,13 @@ from .entity import (
 from .logger import _LOGGER
 
 
-def _update_entity(entity_id, msg, EntityClass, attrs=None):  # TODO: remove
+def OUT_update_entity(entity_id, msg, entity_class, attrs=None):  # TODO: remove
     """Create/Update an Entity with its latest state data."""
 
     try:  # does the system already know about this entity?
         entity = msg._gateway.domain_by_id[entity_id]
     except KeyError:  # this is a new entity, so create it
-        entity = EntityClass(entity_id, msg)
+        entity = entity_class(entity_id, msg)
         msg._gateway.domain_by_id.update({entity_id: entity})
     if attrs is not None:
         entity.update(attrs, msg)
@@ -80,12 +80,9 @@ class Message:
     def _harvest(self):
 
         # Harvest a device for discovery
-        # if self.type == "RQ" and self.device_type[0] == "HGI":
-        #     pass  # either already known, or maybe a guess
-        # else:
         for dev in range(3):
             if self.device_type[dev] == "HGI":
-                break
+                break  # DEV -> HGI is OK
             if self.device_type[dev] in [" --", "ALL"]:
                 continue
             # elif self.device_type[dev] == "CTL":
@@ -94,14 +91,11 @@ class Message:
 
         # Harvest the parent zone of a device
         if self.command_code in COMMAND_EXPOSES_ZONE:
-            if self.device_type[0] in [
-                "STA",
-                "TRV",
-            ]:  # TODO: what about UFH, Elec, etc.
+            if self.device_type[0] in ["STA", "TRV"]:  # TODO: what about BDR, etc.
                 device = self._gateway.device_by_id[self.device_id[0]]
                 device.parent_zone = self.raw_payload[:2]
         # also for 1060, iff (TRV->)CTL
-        elif self.command_code == "1060":
+        elif self.command_code == "1060":  # device_battery
             if self.device_type[2] == "CTL":
                 device = self._gateway.device_by_id[self.device_id[0]]
                 device.parent_zone = self.raw_payload[:2]
@@ -111,14 +105,13 @@ class Message:
             device = self._gateway.device_by_id[self.device_id[0]]
             if device.parent_zone:
                 try:
-                    zone = self._gateway.domain_by_id[self.raw_payload[:2]]
+                    zone = self._gateway.zone_by_id[self.raw_payload[:2]]
                 except LookupError:  # nothing to update yet
                     pass
                 else:
                     zone_type = ZONE_TYPE_MAP.get(self.device_type[0])
-
                     if zone_type:
-                        zone._type = zone_type
+                        zone.zone_type = zone_type
 
     def __str__(self) -> str:
         def _dev_name(idx) -> str:
@@ -184,8 +177,8 @@ class Message:
         try:  # does the system already know about this entity?
             entity = self._gateway.zone_by_id[zone_idx]
         except KeyError:  # no, this is a new entity, so create it
-            domain_class = DhwZone if zone_idx == "HW" else RadValve
-            entity = domain_class(zone_idx, self._gateway)  # TODO: other zone types?
+            zone_class = DhwZone if zone_idx == "HW" else Zone  # RadValve
+            entity = zone_class(zone_idx, self._gateway)  # TODO: other zone types?
 
         return entity
 
@@ -203,7 +196,7 @@ class Message:
         """Create a structured payload from a raw payload."""
 
         def payload_decorator(func):
-            """Docstring."""
+            """WIP: Absorb any RQ, else update the entity with the payload."""
 
             def wrapper(*args, **kwargs):
                 result = func(*args, **kwargs)
@@ -226,7 +219,7 @@ class Message:
             return wrapper
 
         def domain_decorator(func):
-            """Docstring."""
+            """Absorb any RQ, else update the domain with the payload."""
 
             def wrapper(*args, **kwargs):
                 payload = args[0]
@@ -242,14 +235,14 @@ class Message:
             return wrapper
 
         def device_decorator(func):
-            """Docstring."""
+            """Absorb any RQ, else update the device with the payload."""
 
             def wrapper(*args, **kwargs):
                 if self.type == "RQ":
                     code = self.command_code  # TODO: check length for 0100
                     length = 5 if code == "0100" else 2 if code == "0016" else 1
                     assert len(args[0]) / 2 == length
-                    return {self.device_id[1]: {}}
+                    return {"device_id": self.device_id[1]}
 
                 result = func(*args, **kwargs)
 
@@ -260,7 +253,7 @@ class Message:
             return wrapper
 
         def dhw_decorator(func):
-            """Docstring."""
+            """Absorb any RQ, else update the DHW zone with the payload."""
 
             def wrapper(*args, **kwargs):
                 payload = args[0]
@@ -271,7 +264,7 @@ class Message:
                         assert len(payload) / 2 in [1, 6]  # TODO: why RQ has a payload
                     else:
                         assert len(payload) / 2 == 1
-                    return
+                    return {"zone_idx": "HW"}
 
                 result = func(*args, **kwargs)
 
@@ -289,7 +282,7 @@ class Message:
             return wrapper
 
         def zone_decorator(func):
-            """Docstring."""
+            """Absorb any RQ, else update the zone with the payload."""
 
             def wrapper(*args, **kwargs):
                 payload = args[0]

@@ -134,7 +134,7 @@ ZONE_MODE_MAP = {
 ZONE_TYPE_MAP = {
     "TRV": "Radiator Valve",
     "UFH": "Underfloor Heating",
-    "BDR": "Electric Heat/Zone Valve",
+    "BDR": "Electric Heat",  # /Zone Valve",
     "???": "Mixing Valve",
 }
 

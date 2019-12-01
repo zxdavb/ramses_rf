@@ -15,6 +15,7 @@ import serial
 
 from .command import Command
 from .const import (
+    ALL_DEV_ID,
     COMMAND_EXPOSES_ZONE,
     COMMAND_FORMAT,
     COMMAND_LOOKUP,
@@ -25,6 +26,7 @@ from .const import (
     DEVICE_MAP,
     HGI_DEV_ID,
     MESSAGE_REGEX,
+    NO_DEV_ID,
     PACKETS_FILE,
 )
 from .entity import System
@@ -150,17 +152,23 @@ class Gateway:
 
     async def _recv_message(self) -> None:
         """Receive a message."""
-        await asyncio.sleep(0.001)
+        await asyncio.sleep(0.01)
 
-        packet_dt, raw_packet = await self._get_packet()
+        raw_packet = await self._get_packet()
 
-        msg = Message(raw_packet, self, pkt_dt=packet_dt)
+        if raw_packet is None:
+            return
+
+        msg = Message(raw_packet[27:], self, pkt_dt=raw_packet[:26])
 
         if COMMAND_SCHEMA.get(msg.command_code):
             if COMMAND_SCHEMA[msg.command_code].get("non_evohome"):
                 return  # continue  # ignore non-evohome commands
 
         if {msg.device_type[0], msg.device_type[1]} & {"GWY", "VNT"}:
+            return  # continue  # ignore non-evohome device types
+
+        if msg.device_id[0] == NO_DEV_ID and msg.device_type[2] == " 12":
             return  # continue  # ignore non-evohome device types
 
         if self.fake_port:
@@ -183,10 +191,43 @@ class Gateway:
 
             self.command_queue.task_done()
 
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.05)
 
     async def _get_packet(self) -> Tuple[str, str]:
-        """Get the next packet, along with an isoformat datetime string."""
+        """Get the next valid packet, along with an isoformat datetime string."""
+
+        try:
+            raw_packet = await self.reader.readline()
+            raw_packet = raw_packet.decode("ascii").strip()
+        except (serial.SerialException, UnicodeDecodeError):
+            return
+
+        raw_packet = "".join(char for char in raw_packet if isprint(char))
+
+        if not raw_packet:
+            return
+
+        packet_dt = dt.now().isoformat()
+
+        if self._packet_log:  # TODO: make this async
+            self._packet_log.write(f"{packet_dt} {raw_packet}\r\n")
+
+        if not MESSAGE_REGEX.match(raw_packet):
+            _LOGGER.warning("Packet structure is not valid, >> %s <<", raw_packet)
+            return
+
+        if len(raw_packet[50:]) != 2 * int(raw_packet[46:49]):
+            _LOGGER.warning("Packet payload length not valid, >> %s <<", raw_packet)
+            return
+
+        if int(raw_packet[46:49]) > 48:  # TODO: a ?corrupt pkt of 55 seen
+            _LOGGER.warning("Packet payload length excessive, >> %s <<", raw_packet)
+            return
+
+        return f"{packet_dt} {raw_packet}"
+
+    async def OLD_get_packet(self) -> Tuple[str, str]:
+        """Get the next valid packet, along with an isoformat datetime string."""
 
         # if self.fake_port:
         #     raw_packet = self.fake_port.readline().strip()
@@ -227,4 +268,4 @@ class Gateway:
                 _LOGGER.warning("Packet payload length excessive, >> %s <<", raw_packet)
                 continue
 
-            return packet_dt, raw_packet
+            return f"{packet_dt} {raw_packet}"

@@ -77,8 +77,8 @@ class Domain(Entity):
         pass
 
     @property
-    def parent_zone(self) -> Optional[str]:  # 0004
-        return None
+    def domain_id(self):
+        return self._id
 
     @property
     def heat_demand(self):  # 3150
@@ -89,16 +89,12 @@ class Domain(Entity):
         return self._get_value("0008", "relay_demand")
 
     @property
-    def zone_idx(self):
+    def device_id(self) -> Optional[str]:  # TODO: delete me
         return self._id
 
     @property
-    def device_id(self):
-        return self._id
-
-    @property
-    def zone_type(self) -> Optional[str]:
-        return self._type
+    def parent_zone(self) -> Optional[str]:  # TODO: delete me
+        return None
 
 
 class System(Domain):
@@ -195,7 +191,7 @@ class Controller(Device):
     def _discover(self):
         super()._discover()
 
-        # these are an attempt to actively discover the CTL rather than by eavesdropping
+        # # WIP: these are an attempt to actively discover the CTL rather than by eavesdropping
         # for cmd in ["313F"]:
         #     try:
         #         self._queue.put_nowait(Command(self, cmd, ALL_DEV_ID, "FF"))
@@ -210,14 +206,14 @@ class Controller(Device):
             except queue.Full:
                 pass
 
-        # # the 'real' DHW controller will return 1260/dhw_temp != None
+        # the 'real' DHW controller will return 1260/dhw_temp != None
         for _zone in ["FA"]:
             try:
                 self._queue.put_nowait(Command(self, "1260", CTL_DEV_ID, _zone))
             except queue.Full:
                 pass
 
-        # the Controller, and 'real' Relays will respond to 0016/rf_check - to device ID
+        # # WIP: the Controller, and 'real' Relays will respond to 0016/rf_check - to device ID
         # try:
         #     self._queue.put_nowait(
         #         Command(self, "0016", CTL_DEV_ID, f"{domain_id}FF")
@@ -328,12 +324,27 @@ class Zone(Entity):
         self._discover()
 
     def _discover(self):
-        for cmd in ["0004", "000A", "2349", "30C9"]:  # 2349 includes 2309
+        # 2349 includes 2309, controller wont respond to a zone/3150
+        for cmd in ["0004", "000A", "2349", "30C9"]:
             zone_idx = f"{self._id}00" if cmd == "0004" else self._id
             try:
                 self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, zone_idx))
             except queue.Full:
                 pass
+
+    def update(self, payload, msg):
+        super().update(payload, msg)
+
+        # # cast a new type (which _is_ based upon the current type)
+        # if isinstance(self, Zone):
+        #     if self._data.get("12B0"):
+        #         self.__class__ = RadValve
+        #     if self._data.get("0008"):  # TODO:check
+        #         self.__class__ = Electric
+
+    @property
+    def zone_idx(self):
+        return self._id
 
     @property
     def name(self) -> Optional[str]:
@@ -342,6 +353,32 @@ class Zone(Entity):
     @property
     def zone_type(self) -> Optional[str]:
         return self._type
+
+    @zone_type.setter
+    def zone_type(self, zone_type):
+        zone_class = {
+            "Electric Heat": Electric,
+            "Radiator Valve": RadValve,
+            "Underfloor Heating": Underfloor,
+            "Zone Valve": ZoneValve,
+        }.get(zone_type)
+        if zone_class:
+            self.__class__ = zone_class
+        self._type = zone_type
+
+    @property
+    def configuration(self):
+        # if self._type != "Radiator Valve":
+        #     return {}
+
+        attrs = ["local_override", "multi_room_mode", "openwindow_function"]
+        if self._data.get("zone_config"):
+            return {
+                k: v
+                for k, v in self._data["zone_config"]["flags"].items()
+                if k in attrs
+            }
+        return {k: None for k in attrs}
 
     @property
     def setpoint_capabilities(self):
@@ -431,20 +468,6 @@ class RadValve(Zone):
                 self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, self._id))
             except queue.Full:
                 pass
-
-    @property
-    def configuration(self):
-        if self._type != "Radiator Valve":
-            return {}
-
-        attrs = ["local_override", "multi_room_mode", "openwindow_function"]
-        if self._data.get("zone_config"):
-            return {
-                k: v
-                for k, v in self._data["zone_config"]["flags"].items()
-                if k in attrs
-            }
-        return {k: None for k in attrs}
 
     @property
     def window_open(self):
