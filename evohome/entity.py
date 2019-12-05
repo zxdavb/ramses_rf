@@ -198,7 +198,7 @@ class Controller(Device):
         # WIP: try to discover fault codes
         for num in range(0, 16):
             try:
-                self._queue.put_nowait(Command(self, "0418", CTL_DEV_ID, f"00{num:02X}"))
+                self._queue.put_nowait(Command(self, "0418", CTL_DEV_ID, f"0000{num:02X}"))
             except queue.Full:
                 pass
 
