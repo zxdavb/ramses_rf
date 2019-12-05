@@ -67,6 +67,7 @@ COMMAND_SCHEMA = {
     "3150": {"name": "heat_demand", "exposes_zone": True},
     "3B00": {"name": "actuator_check"},  # was_req - start of TPI cycle
     "3EF0": {"name": "device_actuator"},
+    # 3EF1: {"name": "device_actuator???"},  # from 12: to (missing) 13:
     #
     # ######################################################
     # cat pkts.log | grep 'GWY:' | grep VNT | grep -v 004
@@ -101,14 +102,14 @@ COMMAND_LENGTH = max([len(k) for k in list(COMMAND_LOOKUP)])
 DEVICE_MAP = {
     "01": "CTL",  # Controller
     "02": "UFH",  # Underfloor heating (HCC80, HCE80)
-    "04": "TRV",  # Thermostatic radiator valve (HR80, HR91, HR92)
+    "04": "TRV",  # Thermostatic radiator valve (HR80, HR91, HR92)  # 0100, 1060, 12B0, 2309, 30C9, 3150
     "07": "DHW",  # DHW sensor (CS92)
     "12": " 12",  # 0008, 0009, 1030, 1100, 2309, 313F // 12:249582, 12:227486, 12:259810
-    "13": "BDR",  # Wireless relay box (BDR91)
+    "13": "BDR",  # Wireless relay box (BDR91)  # 3EF0
     "18": "HGI",  # Honeywell Gateway Interface (HGI80, HGS80)
     "30": "GWY",  # Gateway (e.g. ???)
     "32": "VNT",  # (Nuaire PIV) ventilation (VMS-23HB33)
-    "34": "STA",  # Thermostat (T87RF)
+    "34": "STA",  # Thermostat (T87RF)  # 1060, 10E0, 30C9
     "63": "ALL",  # 10E0, 1FC9
     "--": " --",
 }  # Mixing valve (HM80)

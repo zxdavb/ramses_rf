@@ -152,7 +152,7 @@ class Gateway:
 
     async def _recv_message(self) -> None:
         """Receive a message."""
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0.05)  # 0.01 was working
 
         raw_packet = await self._get_packet()
 
@@ -191,7 +191,7 @@ class Gateway:
 
             self.command_queue.task_done()
 
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(0.1)  # 0.05 was working
 
     async def _get_packet(self) -> Tuple[str, str]:
         """Get the next valid packet, along with an isoformat datetime string."""

@@ -8,7 +8,7 @@ import ptvsd  # pylint: disable=import-error
 
 from evohome import _CONSOLE, _LOGGER, Gateway
 
-DEBUG_MODE = False
+DEBUG_MODE = True
 DEBUG_ADDR = "172.27.0.138"
 DEBUG_PORT = 5679
 
@@ -39,6 +39,9 @@ def _parse_args():
         "-c", "--command", type=str, required=False, help="command to send",
     )
 
+    parser.add_argument(
+        "-p", "--port", type=str, required=False, help="serial port to use",
+    )
     args = parser.parse_args()
 
     if bool(args.monitor) & bool(args.command):
@@ -52,7 +55,7 @@ async def main(loop):
     """Main loop."""
     args = _parse_args()
 
-    gateway = Gateway(serial_port="/dev/ttyUSB0", console_log=True, loop=loop)
+    gateway = Gateway(serial_port=args.port, console_log=True, loop=loop)
 
     if not args.command or args.monitor:
         await gateway.start()

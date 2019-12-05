@@ -686,22 +686,17 @@ class Message:
         # housekeeping?
         def sync_datetime(payload) -> dict:  # 313F
             # https://www.automatedhome.co.uk/vbulletin/showthread.php?5085-My-HGI80-equivalent-Domoticz-setup-without-HGI80&p=36422&viewfull=1#post36422
-
-            # 2019-11-05T04:00:05.503217 065 RQ --- TRV:189078 CTL:145038   --:------ 313F 001 00
-            # 2019-11-05T04:00:05.519859 045 RP --- CTL:145038 TRV:189078   --:------ 313F 009 00FC0F0024050B07E3
-            # 2019-11-05T04:00:12.712658 045 RQ --- TRV:056061 CTL:145038   --:------ 313F 001 00
-            # 2019-11-05T04:00:12.728824 045 RP --- CTL:145038 TRV:056061   --:------ 313F 009 00FC160024050B07E3
-            # every day at 4am TRV/RQ->CTL/RP, approx 5-10secs apart (CTL will respond at any time)
+            # every day at ~4am TRV/RQ->CTL/RP, approx 5-10secs apart (CTL will respond at any time)
 
             assert payload[:2] == "00"
 
             if self.type == "RQ":
+                assert len(payload) == 2
                 assert self.device_type[0] == "TRV"  # TRV
                 return
 
             assert len(payload) / 2 == 9
-            attrs = {"datetime": _dt(payload[4:18])}
-            return {"domain_id": payload[:2], **attrs}
+            return {"datetime": _dt(payload[4:18])}
 
         # @system_decorator?
         def system_mode(payload) -> dict:  # 2E04

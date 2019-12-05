@@ -136,7 +136,11 @@ class Device(Entity):
         self._discover()
 
     def _discover(self):
-        pass
+        if self._type == "BDR":
+            try:
+                self._queue.put_nowait(Command(self, "3EF1", self._id, "0000"))
+            except queue.Full:
+                pass
         # if self._type not in ["BDR", "STA", "TRV", " 12"]:
         #     try:
         #         self._queue.put_nowait(Command(self, "10E0", self._id, "00"))
@@ -162,7 +166,7 @@ class Device(Entity):
 
         for code in COMMAND_EXPOSES_ZONE:
             if self._data.get(code):
-                self._parent_zzzz = self._data[code]["_raw_payload"][:2]
+                self._parent_zzzz = self._data[code]["_msg"].raw_payload[:2]
                 break
 
         return self._parent_zzzz
@@ -190,6 +194,19 @@ class Controller(Device):
 
     def _discover(self):
         super()._discover()
+
+        # WIP: try to discover fault codes
+        # _zone = "01"
+        # _pkt_num = "01"
+        # Tried: 00/000-032, "00"
+        for cmd in range(0,32): 
+            try:
+                self._queue.put_nowait(Command(self, f"00{cmd:02X}", CTL_DEV_ID, "00"))
+                # self._queue.put_nowait(Command(self, f"04{cmd:02X}", CTL_DEV_ID, f"{_zone}20000800{_pkt_num}00"))
+            except queue.Full:
+                pass
+
+        return
 
         # # WIP: these are an attempt to actively discover the CTL rather than by eavesdropping
         # for cmd in ["313F"]:
@@ -221,6 +238,10 @@ class Controller(Device):
         # except queue.Full:
         #     pass
 
+    def handle_313f(self):
+        """Controllers will RP to a RQ at anytime."""
+        pass
+
 
 class DhwSensor(Device):
     """The DHW class, such as a CS92."""
@@ -250,6 +271,8 @@ class DhwSensor(Device):
 
 class Trv(Device):
     """The TRV class, such as a HR92."""
+    # 045 RQ     TRV:056057 CTL:145038            313F 001 00
+    # at ~4:00:00, gets RP from CTL
 
     def __init__(self, device_id, gateway) -> None:
         # _LOGGER.debug("Creating a new TRV %s", device_id)
@@ -291,6 +314,9 @@ class Bdr(Device):
 
 class Thermostat(Device):
     """The STA class, such as a TR87RF."""
+    # 045  I     STA:092243            >broadcast 3120 007 0070B0000000FF
+    # every ~3:45:00 (each STA different, but each keeps its interval to the second)
+    # payload never changes
 
     def __init__(self, device_id, gateway) -> None:
         # _LOGGER.debug("Creating a new STA %s", device_id)
