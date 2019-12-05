@@ -8,7 +8,7 @@ import ptvsd  # pylint: disable=import-error
 
 from evohome import _CONSOLE, _LOGGER, Gateway
 
-DEBUG_MODE = True
+DEBUG_MODE = False
 DEBUG_ADDR = "172.27.0.138"
 DEBUG_PORT = 5679
 

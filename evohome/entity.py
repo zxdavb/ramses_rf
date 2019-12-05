@@ -196,13 +196,9 @@ class Controller(Device):
         super()._discover()
 
         # WIP: try to discover fault codes
-        # _zone = "01"
-        # _pkt_num = "01"
-        # Tried: 00/000-032, "00"
-        for cmd in range(0,32): 
+        for num in range(0, 16):
             try:
-                self._queue.put_nowait(Command(self, f"00{cmd:02X}", CTL_DEV_ID, "00"))
-                # self._queue.put_nowait(Command(self, f"04{cmd:02X}", CTL_DEV_ID, f"{_zone}20000800{_pkt_num}00"))
+                self._queue.put_nowait(Command(self, "0418", CTL_DEV_ID, f"00{num:02X}"))
             except queue.Full:
                 pass
 
