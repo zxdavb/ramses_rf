@@ -5,8 +5,9 @@ import logging
 from .const import LOGGING_FILE
 
 # CON_FORMAT = "%(message).164s"  # Virtual
-CON_FORMAT = "%(message).220s"  # Laptop
+# CON_FORMAT = "%(message).220s"  # Laptop
 # CON_FORMAT = "%(message).292s"  # Monitor
+CON_FORMAT = "%(message)s"  # Whenever
 LOG_FORMAT = "%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s"
 
 logging.basicConfig(

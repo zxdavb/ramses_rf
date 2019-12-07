@@ -32,24 +32,12 @@ from .entity import (
 from .logger import _LOGGER
 
 
-def OUT_update_entity(entity_id, msg, entity_class, attrs=None):  # TODO: remove
-    """Create/Update an Entity with its latest state data."""
-
-    try:  # does the system already know about this entity?
-        entity = msg._gateway.domain_by_id[entity_id]
-    except KeyError:  # this is a new entity, so create it
-        entity = entity_class(entity_id, msg)
-        msg._gateway.domain_by_id.update({entity_id: entity})
-    if attrs is not None:
-        entity.update(attrs, msg)
-
-
 class Message:
     """The message class."""
 
     def __init__(self, packet, gateway, pkt_dt=None) -> None:
-        self._packet = packet
         self._gateway = gateway
+        self._packet = packet
         self._pkt_dt = pkt_dt
 
         self.val1 = packet[0:3]  # ???
@@ -72,10 +60,9 @@ class Message:
 
         self.payload_length = int(packet[46:49])
         self.raw_payload = packet[50:]
+        assert len(self.raw_payload) / 2 == self.payload_length
 
         self._payload = None
-
-        self._harvest()
 
     def _harvest(self):
 
@@ -100,7 +87,7 @@ class Message:
                 device = self._gateway.device_by_id[self.device_id[0]]
                 device.parent_zone = self.raw_payload[:2]
 
-        # Harvest zone's type - TODO: a hack
+        # Harvest zone's type via a component device - TODO: a hack
         if self.device_type[0] in ["STA", "TRV", "UFH"]:  # TODO: what about Elec/BDR
             device = self._gateway.device_by_id[self.device_id[0]]
             if device.parent_zone:
@@ -171,7 +158,7 @@ class Message:
 
     def _get_zone(self, zone_idx):
         """Get a Zone, create it if required."""
-        if zone_idx != "HW":
+        if zone_idx not in ["HW", "FC"]:
             assert 0 <= int(zone_idx, 16) <= 11
 
         try:  # does the system already know about this entity?
@@ -224,7 +211,7 @@ class Message:
             def wrapper(*args, **kwargs):
                 payload = args[0]
                 if self.type == "RQ":
-                    assert self.device_type[1] == "CTL"
+                    assert self.device_type[1] in ["CTL", "HGI", "BDR"]
                     return {"domain_id": payload[:2]}
 
                 result = func(*args, **kwargs)
@@ -238,10 +225,11 @@ class Message:
             """Absorb any RQ, else update the device with the payload."""
 
             def wrapper(*args, **kwargs):
+                payload = args[0]
                 if self.type == "RQ":
                     code = self.command_code  # TODO: check length for 0100
-                    length = 5 if code == "0100" else 2 if code == "0016" else 1
-                    assert len(args[0]) / 2 == length
+                    length = 5 if code == "0100" else 2 if code in ["0016", "3EF1"] else 1
+                    assert len(payload) / 2 == length
                     return {"device_id": self.device_id[1]}
 
                 result = func(*args, **kwargs)
@@ -357,6 +345,34 @@ class Message:
 
             return {payload[:2]: attrs}  # TODO: update domain?
 
+        @device_decorator
+        def actuator_state(payload) -> dict:  # 3EF1
+            assert self.type == "RP"
+            assert len(payload) / 2 == 7
+            assert payload[:2] == "00"
+            assert payload[10:] in ["00FF", "C8FF"]
+
+            attrs = {
+                "unknown_0": payload[:2],
+                "actuator_dunno": _dec(payload[2:4]) / 2,
+                "unknown_1": int(payload[2:6], 16),
+                "unknown_2": int(payload[6:10], 16),
+                "unknown_3": {"00": False, "C8": True}.get(payload[10:12]),
+                }
+            return {self.device_id[0]: attrs}
+
+        @device_decorator
+        def actuator_enabled(payload) -> dict:  # 3EF0
+            assert self.type in [" I", " W", "RP"]
+            assert len(payload) / 2 == 3
+            assert payload[:2] == "00"
+            assert payload[2:] in ["00FF", "C8FF"]
+
+            attrs = {
+                "actuator_enabled": {"00": False, "C8": True}.get(payload[2:4])
+            }
+            return {self.device_id[0]: attrs}
+
         # housekeeping
         def bind_device(payload) -> dict:  # 1FC9
             assert self.type in [" I", " W"]
@@ -372,15 +388,6 @@ class Message:
                 }
                 cmds.append(attrs)
             return cmds
-
-        @device_decorator
-        def device_actuator(payload) -> dict:  # 3EF0
-            assert self.type in [" I", " W", "RP"]
-            assert len(payload) / 2 == 3
-            assert payload in ["0000FF", "00C8FF"]
-
-            attrs = {"actuator_enabled": {"00": False, "C8": True}[payload[2:4]]}
-            return {self.device_id[0]: attrs}
 
         @device_decorator
         def device_battery(payload) -> dict:  # 1060
@@ -504,7 +511,7 @@ class Message:
             @device_decorator
             def _device_boiler_params(payload) -> dict:  # 1100
                 assert self.type == " I"
-                assert len(payload) / 2 == 5
+                assert len(payload) / 2 in [5, 8]
                 assert payload[2:4] in ["0C", "18", "24", "30"]
                 assert payload[4:6] in ["04", "08", "0C", "10", "14"]
                 assert payload[6:10] == "0400"
@@ -522,7 +529,7 @@ class Message:
                 assert len(payload) / 2 == 8
                 assert payload[2:4] in ["0C", "18", "24", "30"]
                 assert payload[4:6] in ["04", "08", "0C", "10", "14"]
-                assert payload[6:10] == "0000"  # seen: "0400"
+                assert payload[6:10] in ["0000", "0400"]
                 assert payload[10:] == "7FFF01"
 
                 attrs = {
@@ -531,7 +538,7 @@ class Message:
                     "unknown_0": payload[6:10],
                     "unknown_1": payload[10:],
                 }
-                return [{payload[:2]: attrs}]
+                return {payload[:2]: attrs}
 
             if self.device_type[2] == " 12":
                 return _device_boiler_params(payload)
@@ -699,6 +706,49 @@ class Message:
             return {"datetime": _dt(payload[4:18])}
 
         # @system_decorator?
+        def system_fault(payload) -> dict:  # 0418 (system_fault) - WIP
+            def _timestamp(seqx):
+                _seqx = int(seqx, 16)
+                return dt(
+                    year=(_seqx & 0b1111111 << 24) >> 24,
+                    month=(_seqx & 0b1111 << 36) >> 36,
+                    day=(_seqx & 0b11111 << 31) >> 31,
+                    hour=(_seqx & 0b11111 << 19) >> 19,
+                    minute=(_seqx & 0b111111 << 13) >> 13,
+                    second=(_seqx & 0b111111 << 7) >> 7,
+                ).strftime("%Y-%m-%d %H:%M:%S")
+
+            if self.type == "RQ":
+                assert len(payload) / 2 == 3
+                return {"log_idx": payload[4:6]}
+
+            if payload == "000000B0000000000000000000007FFFFF7000000000":
+                return {"log_idx": None}  # a null log entry
+
+            assert self.type in [" I", "RP"]
+            assert len(payload) / 2 == 22
+
+            assert payload[:2] == "00"
+            assert payload[2:4] in ["00", "40"]
+            assert payload[6:8] == "B0"
+            assert payload[14:18] == "0000"
+            assert payload[28:38] in ["7FFFFF7000", "FFFFFF7000"]
+
+            attrs = {
+                "log_idx": payload[4:6],  # is "00" for null entry
+                "state": {"00": "Fault  ", "40": "Restore"}.get(payload[2:4]),
+                "timestamp": _timestamp(payload[18:30]),
+                "device_id": dev_hex_to_id(payload[38:]),  # is "00:000001/2 for CTL?
+                "zone_idx": payload[10:12],
+
+                "unknown_0": payload[:2],
+                "unknown_1": payload[6:10],
+                "unknown_2": payload[12:18],
+                "unknown_3": payload[30:38],
+            }
+            return attrs
+
+        # @system_decorator?
         def system_mode(payload) -> dict:  # 2E04
             # if self.type == " W":
 
@@ -721,7 +771,7 @@ class Message:
             else:
                 assert self.device_type[0] == "CTL"
                 assert len(payload) / 2 == 4
-                assert payload[:4] in ["0000", "000D"]  # TODO: 00=Radiator, 0D=Electri
+                assert payload[:4] in ["0000", "000D", "000F"]  # TODO: 00=Radiator, 0D=Electri
 
             return {"device_id": self.device_id[0], "payload": payload}
 
@@ -865,25 +915,6 @@ class Message:
                 cmds.append(attrs)
             return cmds
 
-        # housekeeping?
-        def message_0418(payload) -> dict:  # 0418 (ticker) - WIP
-            if self.type == "RQ":
-                # assert len(payload) / 2 == 3
-                return
-
-            assert len(payload) / 2 == 22
-            assert payload[:2] == "00"
-            assert payload[14:18] == "0000"
-
-            attrs = {
-                "domain_id": payload[:2],
-                "unknown_0": payload[4:18],
-                "ticker": _dec(payload[18:26]),
-                "unknown_1": payload[26:38],
-                "device_id": dev_hex_to_id(payload[38:]),
-            }
-            return {"device_id": self.device_id[0], **attrs}
-
         # ventilation? # @device_decorator
         def sensor_humidity(payload) -> dict:  # 12A0 (Nuaire RH sensor)
             # cat pkts.log | grep 12A0 (every 879.5s, from 168090, humidity sensor)
@@ -972,6 +1003,8 @@ class Message:
 
         if self._payload:
             return self._payload
+
+        self._harvest()
 
         # determine which parser to use
         try:  # use locals() to get the relevant parser: e.g. zone_name()

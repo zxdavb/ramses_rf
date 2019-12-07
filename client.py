@@ -18,47 +18,41 @@ print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
 ptvsd.enable_attach(address=(DEBUG_ADDR, DEBUG_PORT))
 _LOGGER.addHandler(_CONSOLE)
 
-if DEBUG_MODE is True:
-    print("Waiting for debugger to attach...")
-    ptvsd.wait_for_attach()
-
-    print("Debugger is attached!")
-
 
 def _parse_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument(
-        "-m",
-        "--monitor",
-        action="store_true",
-        required=False,
-        help="listen to packets",
-    )
-    parser.add_argument(
-        "-c", "--command", type=str, required=False, help="command to send",
-    )
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("-p", "--port_name", help="serial port to monitor")
+    group.add_argument("-i", "--input_file", help="packet file to parse")
 
-    parser.add_argument(
-        "-p", "--port", type=str, required=False, help="serial port to use",
-    )
-    args = parser.parse_args()
+    parser.add_argument("-o", "--output_file", help="log packets to file")
+    parser.add_argument("-m", "--message_file", help="log messages to file")
 
-    if bool(args.monitor) & bool(args.command):
-        parser.error("--monitor and --command ...")
-        return None
+    parser.add_argument("-x", "--debug_mode", action="store_true", help="debug mode")
 
-    return args
+    return parser.parse_args()
 
 
 async def main(loop):
     """Main loop."""
     args = _parse_args()
 
-    gateway = Gateway(serial_port=args.port, console_log=True, loop=loop)
+    if args.debug_mode is True or DEBUG_MODE is True:
+        print("Waiting for debugger to attach...")
+        ptvsd.wait_for_attach()
+        print("Debugger is attached!")
 
-    if not args.command or args.monitor:
-        await gateway.start()
+    gateway = Gateway(
+        serial_port=args.port_name,
+        input_file=args.input_file,
+        output_file=args.output_file,
+        message_file=args.message_file,
+        console_log=True,
+        loop=loop
+    )
+
+    await gateway.start()
 
 
 if __name__ == "__main__":  # called from CLI?

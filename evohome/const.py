@@ -8,6 +8,10 @@ HGI_DEV_ID = "18:730"  # default type and address of HGI
 NO_DEV_ID = "--:------"
 
 # Domains
+DOMAIN_MAP = {
+    "FA": "Hot Water",
+    "FC": "Heat Demand"
+}
 # FC - Heat Demand
 # FF
 
@@ -45,7 +49,7 @@ COMMAND_SCHEMA = {
     "0016": {"name": "rf_check"},
     "0100": {"name": "localisation"},
     "0404": {"name": "zone_schedule"},
-    "0418": {"name": "message_0418"},  # ticker
+    "0418": {"name": "system_fault"},
     # 1030": {"name": "unknown_1030"},  # seen when a BDR91 lost its binding
     "1060": {"name": "device_battery", "exposes_zone": None},
     "10A0": {"name": "dhw_params"},
@@ -66,8 +70,8 @@ COMMAND_SCHEMA = {
     "313F": {"name": "sync_datetime"},  # aka ping, datetime_req
     "3150": {"name": "heat_demand", "exposes_zone": True},
     "3B00": {"name": "actuator_check"},  # was_req - start of TPI cycle
-    "3EF0": {"name": "device_actuator"},
-    # 3EF1: {"name": "device_actuator???"},  # from 12: to (missing) 13:
+    "3EF0": {"name": "actuator_enabled"},
+    "3EF1": {"name": "actuator_state"},  # from 12: to (missing) 13:
     #
     # ######################################################
     # cat pkts.log | grep 'GWY:' | grep VNT | grep -v 004
@@ -150,7 +154,7 @@ COMMAND_REGEX = re.compile(f"^{b} {a} {c} {c} {c} {d} {e} {f}$")
 MESSAGE_REGEX = re.compile(f"^{a} {b} {a} {c} {c} {c} {d} {e} {f}$")
 
 COMMAND_FORMAT = "RQ --- {} {} --:------ {} {:03.0f} {}"
-MESSAGE_FORMAT = "|| {} | {} | {} | {:<10} | {:<10} | {:<10} | {:<15} | {} | {:<8} ||"
+MESSAGE_FORMAT = "|| {} | {} | {} | {:<10} | {:<10} | {:<10} | {:<16} | {} | {:<8} ||"
 
 LOGGING_FILE = "message.log"
 PACKETS_FILE = "packets.log"

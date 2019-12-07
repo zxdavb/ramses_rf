@@ -136,16 +136,11 @@ class Device(Entity):
         self._discover()
 
     def _discover(self):
-        if self._type == "BDR":
+        if self._type not in ["BDR", "STA", "TRV", " 12"]:
             try:
-                self._queue.put_nowait(Command(self, "3EF1", self._id, "0000"))
+                self._queue.put_nowait(Command(self, "10E0", self._id, "00"))
             except queue.Full:
                 pass
-        # if self._type not in ["BDR", "STA", "TRV", " 12"]:
-        #     try:
-        #         self._queue.put_nowait(Command(self, "10E0", self._id, "00"))
-        #     except queue.Full:
-        #         pass
 
     @property
     def device_id(self) -> Optional[str]:
@@ -196,7 +191,7 @@ class Controller(Device):
         super()._discover()
 
         # WIP: try to discover fault codes
-        for num in range(0, 16):
+        for num in range(0, 15):
             try:
                 self._queue.put_nowait(Command(self, "0418", CTL_DEV_ID, f"0000{num:02X}"))
             except queue.Full:
@@ -307,6 +302,21 @@ class Bdr(Device):
         # _LOGGER.debug("Creating a new BDR %s", device_id)
         super().__init__(device_id, gateway)
 
+    def _discover(self):
+        super()._discover()
+
+        for cmd in ["3B00", "3EF0"]:
+            try:
+                self._queue.put_nowait(Command(self, cmd, self._id, "00"))
+            except queue.Full:
+                pass
+
+        for cmd in ["3EF1"]:
+            try:
+                self._queue.put_nowait(Command(self, cmd, self._id, "0000"))
+            except queue.Full:
+                pass
+
 
 class Thermostat(Device):
     """The STA class, such as a TR87RF."""
@@ -346,7 +356,6 @@ class Zone(Entity):
         self._discover()
 
     def _discover(self):
-        # 2349 includes 2309, controller wont respond to a zone/3150
         for cmd in ["0004", "000A", "2349", "30C9"]:
             zone_idx = f"{self._id}00" if cmd == "0004" else self._id
             try:
