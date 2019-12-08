@@ -60,7 +60,9 @@ class Message:
 
         self.payload_length = int(packet[46:49])
         self.raw_payload = packet[50:]
+
         assert len(self.raw_payload) / 2 == self.payload_length
+        assert all(c in "0123456789ABCDEF" for c in self.raw_payload)
 
         self._payload = None
 
