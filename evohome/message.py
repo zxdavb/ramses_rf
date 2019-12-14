@@ -385,8 +385,8 @@ class Message:
                 cmd_code = payload[i + 2 : i + 6]
                 attrs = {
                     "domain_id": payload[i : i + 2],
-                    "command": COMMAND_LOOKUP.get(cmd_code, f"unknown_{cmd_code}"),
-                    "device_id": dev_hex_to_id(payload[i + 6 : i + 12]),
+                    "command": COMMAND_MAP.get(cmd_code, f"unknown_{cmd_code}"),
+                    "device_id": dev_hex_to_id(payload[i + 6 : i + 12], friendly_id=True),
                 }
                 cmds.append(attrs)
             return cmds
@@ -911,8 +911,8 @@ class Message:
                 cmd_code = payload[i + 2 : i + 6]
                 attrs = {
                     "domain_id": payload[i : i + 2],
-                    "command": COMMAND_LOOKUP.get(cmd_code, f"unknown_{cmd_code}"),
-                    "device_id": dev_hex_to_id(payload[i + 6 : i + 12]),
+                    "command": COMMAND_MAP.get(cmd_code, f"unknown_{cmd_code}"),
+                    "device_id": dev_hex_to_id(payload[i + 6 : i + 12], friendly_id=True),
                 }
                 cmds.append(attrs)
             return cmds

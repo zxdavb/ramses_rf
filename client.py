@@ -15,7 +15,7 @@ DEBUG_PORT = 5679
 
 _LOGGER.setLevel(logging.DEBUG)
 print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
-ptvsd.enable_attach(address=(DEBUG_ADDR, DEBUG_PORT))
+# ptvsd.enable_attach(address=(DEBUG_ADDR, DEBUG_PORT))
 _LOGGER.addHandler(_CONSOLE)
 
 

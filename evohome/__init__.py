@@ -37,7 +37,7 @@ from .message import Message
 
 
 PORT_NAME = "/dev/ttyUSB0"
-BAUDRATE = 115200
+BAUDRATE = 115200  # 38400  #  57600  # 76800  # 38400  # 115200
 READ_TIMEOUT = 0
 
 
@@ -189,19 +189,19 @@ class Gateway:
         except (ValueError, AssertionError):
             return
 
-        if COMMAND_SCHEMA.get(msg.command_code):
-            if COMMAND_SCHEMA[msg.command_code].get("non_evohome"):
-                return  # ignore non-evohome commands
+        # if COMMAND_SCHEMA.get(msg.command_code):
+        #     if COMMAND_SCHEMA[msg.command_code].get("non_evohome"):
+        #         return  # ignore non-evohome commands
 
-        if {msg.device_type[0], msg.device_type[1]} & {"GWY", "VNT"}:
-            return  # ignore non-evohome device types
+        # if {msg.device_type[0], msg.device_type[1]} & {"GWY", "VNT"}:
+        #     return  # ignore non-evohome device types
 
-        if msg.device_id[0] == NO_DEV_ID and msg.device_type[2] == " 12":
-            return  # ignore non-evohome device types
+        # if msg.device_id[0] == NO_DEV_ID and msg.device_type[2] == " 12":
+        #     return  # ignore non-evohome device types
 
-        if self.input_file:
-            if "HGI" in [msg.device_type[0], msg.device_type[1]]:
-                return  # ignore the HGI
+        # if self.input_file:
+        #     if "HGI" in [msg.device_type[0], msg.device_type[1]]:
+        #         return  # ignore the HGI
 
         if not msg.payload:
             _LOGGER.info("%s  RAW: %s %s", msg._pkt_dt, msg, msg.raw_payload)
@@ -214,8 +214,8 @@ class Gateway:
         if not self.command_queue.empty():
             cmd = self.command_queue.get()
 
-            if not cmd.entity._data.get(cmd.command_code):
-                self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
+            # if not cmd.entity._data.get(cmd.command_code):
+            #     self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
 
             self.command_queue.task_done()
 
@@ -243,6 +243,8 @@ class Gateway:
             return
 
         packet_dt = dt.now().isoformat()
+
+        # raw_packet = raw_packet.replace("18:730", "18:000730", 1)
 
         if self._output_fp:  # TODO: make this async
             self._output_fp.write(f"{packet_dt} {raw_packet}\r\n")
