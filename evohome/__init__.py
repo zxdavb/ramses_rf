@@ -36,7 +36,7 @@ from .message import Message
 # from typing import Optional
 
 
-PORT_NAME = "/dev/ttyUSB0"
+DEFAULT_PORT_NAME = "/dev/ttyUSB0"
 BAUDRATE = 115200  # 38400  #  57600  # 76800  # 38400  # 115200
 READ_TIMEOUT = 0
 
@@ -90,33 +90,33 @@ class Gateway:
 
     def __init__(
         self,
-        serial_port=None,
-        input_file=None,
-        console_log=False,
-        output_file=PACKETS_FILE,
-        message_file=None,
-        loop=None,
+        port_name=None,
+        **kwargs
     ):
-        if serial_port and input_file:  # must be mutually exclusive
+        self.serial_port = port_name
+        # self.debug_mode = kwargs.get("debug_mode")
+        self.input_file = kwargs.get("input_file")
+        self.output_file = kwargs.get("output_file", PACKETS_FILE)
+        self.read_only = kwargs.get("read_only", False)
+        self._loop = kwargs.get("loop", asyncio.get_event_loop())
+
+        self._config = kwargs
+
+        if self.serial_port and self.input_file:  # must be mutually exclusive
             _LOGGER.warning(
                 "Ignoring packet file (%s) as a port (%s) has been specified",
-                input_file,
-                serial_port
+                self.input_file,
+                self.serial_port
             )
-            input_file = None
+            self.input_file = None
 
-        elif not (serial_port or input_file):
-            _LOGGER.warning("Using default port (%s)", PORT_NAME)
-            serial_port = PORT_NAME
-
-        self.serial_port = serial_port
-        self.input_file = input_file
-        self.output_file = output_file if output_file else PACKETS_FILE
-        self._loop = loop if loop else asyncio.get_event_loop()
+        elif not (self.serial_port or self.input_file):
+            _LOGGER.warning("Using default port (%s)", DEFAULT_PORT_NAME)
+            self.serial_port = DEFAULT_PORT_NAME
 
         self._input_fp = self._output_fp = None
 
-        if console_log is True:
+        if kwargs.get("console_log") is True:
             _LOGGER.addHandler(_CONSOLE)
 
         self.command_queue = Queue(maxsize=200)
@@ -184,6 +184,10 @@ class Gateway:
             if raw_packet is None:
                 return
 
+        if self._config.get("raw_packets"):
+            _LOGGER.info("%s PKT: %s", raw_packet[:26], raw_packet[27:])
+            return
+
         try:
             msg = Message(raw_packet[27:], self, pkt_dt=raw_packet[:26])
         except (ValueError, AssertionError):
@@ -204,18 +208,19 @@ class Gateway:
         #         return  # ignore the HGI
 
         if not msg.payload:
-            _LOGGER.info("%s  RAW: %s %s", msg._pkt_dt, msg, msg.raw_payload)
+            _LOGGER.info("%s RAW: %s %s", msg._pkt_dt, msg, msg.raw_payload)
             return  # not a (currently) decodable payload
         else:
-            _LOGGER.info("%s  MSG: %s %s", msg._pkt_dt, msg, msg.payload)
+            _LOGGER.info("%s MSG: %s %s", msg._pkt_dt, msg, msg.payload)
 
     async def _send_command(self) -> None:
         """Send a command."""
         if not self.command_queue.empty():
             cmd = self.command_queue.get()
 
-            # if not cmd.entity._data.get(cmd.command_code):
-            #     self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
+            if not self.read_only:
+                if not cmd.entity._data.get(cmd.command_code):
+                    self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
 
             self.command_queue.task_done()
 
@@ -233,6 +238,7 @@ class Gateway:
 
         try:
             raw_packet = await self.reader.readline()
+            # _LOGGER.warning("XXX, >> %s <<", raw_packet)
             raw_packet = raw_packet.decode("ascii").strip()
         except (serial.SerialException, UnicodeDecodeError):
             return
@@ -244,17 +250,21 @@ class Gateway:
 
         packet_dt = dt.now().isoformat()
 
-        # raw_packet = raw_packet.replace("18:730", "18:000730", 1)
+        # any packet hacks, for non-HGI80 firmware, should be here
+        # raw_packet = re.sub(r"", "", raw_packet)
 
         if self._output_fp:  # TODO: make this async
             self._output_fp.write(f"{packet_dt} {raw_packet}\r\n")
+
+        if self._config.get("raw_packets"):
+            return f"{packet_dt} {raw_packet}"
 
         if not MESSAGE_REGEX.match(raw_packet):
             _LOGGER.warning("Packet structure is not valid, >> %s <<", raw_packet)
             return
 
         if len(raw_packet[50:]) != 2 * int(raw_packet[46:49]):
-            _LOGGER.warning("Packet payload length not valid, >> %s <<", raw_packet)
+            _LOGGER.warning("Packet payload length is incorrect, >> %s <<", raw_packet)
             return
 
         if int(raw_packet[46:49]) > 48:  # TODO: a ?corrupt pkt of 55 seen

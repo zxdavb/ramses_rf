@@ -4,7 +4,7 @@ import re
 
 ALL_DEV_ID = "63:262142"  # 7FFFFF - send here if not bound?
 CTL_DEV_ID = "01:145038"  # 06368E
-HGI_DEV_ID = "18:730"  # default type and address of HGI
+HGI_DEV_ID = "18:000730"  # default type and address of HGI, 18:013393
 NO_DEV_ID = "--:------"
 
 # Domains
@@ -147,7 +147,7 @@ a = "(-{3}|\d{3})"  # #          noqa: W605; pylint: disable=invalid-name, W1401
 b = "( I|RP|RQ| W)"  # #                     pylint: disable=invalid-name
 c = "(-{2}:-{6}|\d{2}:\d{6})"  # noqa: W605; pylint: disable=invalid-name, W1401
 d = "[0-9A-F]{4}"  # #                       pylint: disable=invalid-name
-e = "[0-9]{3}"  # #                          pylint: disable=invalid-name
+e = "\d{3}"     # #                          pylint: disable=invalid-name
 f = "([0-9A-F]{2})+"  # #                    pylint: disable=invalid-name
 
 COMMAND_REGEX = re.compile(f"^{b} {a} {c} {c} {c} {d} {e} {f}$")

@@ -14,8 +14,6 @@ DEBUG_PORT = 5679
 
 
 _LOGGER.setLevel(logging.DEBUG)
-print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
-# ptvsd.enable_attach(address=(DEBUG_ADDR, DEBUG_PORT))
 _LOGGER.addHandler(_CONSOLE)
 
 
@@ -29,6 +27,9 @@ def _parse_args():
     parser.add_argument("-o", "--output_file", help="log packets to file")
     parser.add_argument("-m", "--message_file", help="log messages to file")
 
+    parser.add_argument("-r", "--raw_packets", action="store_true", help="don't display messages")
+    parser.add_argument("-l", "--listen_only", action="store_true", help="only listen")
+
     parser.add_argument("-x", "--debug_mode", action="store_true", help="debug mode")
 
     return parser.parse_args()
@@ -38,17 +39,17 @@ async def main(loop):
     """Main loop."""
     args = _parse_args()
 
-    if args.debug_mode is True or DEBUG_MODE is True:
+    if args.debug_mode is True:
+        print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
+        ptvsd.enable_attach(address=(DEBUG_ADDR, DEBUG_PORT))
+
+    if args.debug_mode and DEBUG_MODE is True:
         print("Waiting for debugger to attach...")
         ptvsd.wait_for_attach()
         print("Debugger is attached!")
 
     gateway = Gateway(
-        serial_port=args.port_name,
-        input_file=args.input_file,
-        output_file=args.output_file,
-        message_file=args.message_file,
-        console_log=True,
+        **vars(args),
         loop=loop
     )
 
