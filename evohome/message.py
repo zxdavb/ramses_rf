@@ -10,6 +10,7 @@ from .const import (
     COMMAND_LENGTH,
     COMMAND_LOOKUP,
     COMMAND_MAP,
+    COMMAND_SCHEMA,
     DEVICE_LOOKUP,
     DEVICE_MAP,
     HGI_DEV_ID,
@@ -40,20 +41,18 @@ class Message:
         self._packet = packet
         self._pkt_dt = pkt_dt
 
-        self.val1 = packet[0:3]  # ???
+        self.rssi_val = packet[0:3]  # RSSI value
         self.type = packet[4:6]  # -I, RP, RQ, or -W
-        self.val2 = packet[7:10]  # sequence number (as used by 31D9)?
+        self.seq_no = packet[7:10]  # sequence number (as used by 31D9)?
 
         self.device_id = {}  # dev1: source (for relay_demand, is: --:------)
         self.device_type = {}  # dev2: destination of RQ, RP and -W
         self.device_number = {}  # dev3: destination of -I; for broadcasts, dev3 == dev1
 
-        self.command_code = packet[41:45]  # .upper()  # hex
+        self.command_code = packet[41:45]
 
         for dev, i in enumerate(range(11, 32, 10)):
             self.device_id[dev] = packet[i : i + 9]  # noqa: E203
-            self.device_number[dev] = self.device_id[dev][3:]
-
             self.device_type[dev] = DEVICE_MAP.get(
                 self.device_id[dev][:2], f"{self.device_id[dev][:2]:>3}"
             )
@@ -61,46 +60,29 @@ class Message:
         self.payload_length = int(packet[46:49])
         self.raw_payload = packet[50:]
 
-        assert len(self.raw_payload) / 2 == self.payload_length
-        assert all(c in "0123456789ABCDEF" for c in self.raw_payload)
-
         self._payload = None
 
     def _harvest(self):
 
-        # Harvest a device for discovery
+        # Discover unknown devices
         for dev in range(3):
             if self.device_type[dev] == "HGI":
                 break  # DEV -> HGI is OK
             if self.device_type[dev] in [" --", "ALL"]:
                 continue
-            # elif self.device_type[dev] == "CTL":
-            #     pass
             self._get_device(self.device_id[dev])  # create if not already exists
 
-        # Harvest the parent zone of a device
-        if self.command_code in COMMAND_EXPOSES_ZONE:
-            if self.device_type[0] in ["STA", "TRV"]:  # TODO: what about BDR, etc.
-                device = self._gateway.device_by_id[self.device_id[0]]
-                device.parent_zone = self.raw_payload[:2]
-        # also for 1060, iff (TRV->)CTL
-        elif self.command_code == "1060":  # device_battery
-            if self.device_type[2] == "CTL":
-                device = self._gateway.device_by_id[self.device_id[0]]
-                device.parent_zone = self.raw_payload[:2]
+        # Discover unknown zones
+        if self.device_type[0] == "CTL" and self.type == " I":
+            if self.command_code in ["2309", "30C9"]:
+                # treat as an array of 003
+                for i in range(0, len(self.raw_payload), 6):
+                    self._get_zone(self.raw_payload[i : i + 2])
 
-        # Harvest zone's type via a component device - TODO: a hack
-        if self.device_type[0] in ["STA", "TRV", "UFH"]:  # TODO: what about Elec/BDR
-            device = self._gateway.device_by_id[self.device_id[0]]
-            if device.parent_zone:
-                try:
-                    zone = self._gateway.zone_by_id[self.raw_payload[:2]]
-                except LookupError:  # nothing to update yet
-                    pass
-                else:
-                    zone_type = ZONE_TYPE_MAP.get(self.device_type[0])
-                    if zone_type:
-                        zone.zone_type = zone_type
+            elif self.command_code == "000A":  # isn't every sync cycle
+                # treat as an array of 006
+                for i in range(0, len(self.raw_payload), 12):
+                    self._get_zone(self.raw_payload[i : i + 2])
 
     def __str__(self) -> str:
         def _dev_name(idx) -> str:
@@ -114,7 +96,7 @@ class Message:
             if idx == 2 and self.device_id[2] == self.device_id[0]:
                 return ">broadcast"
 
-            return f"{self.device_type[idx]}:{self.device_number[idx]}"
+            return f"{self.device_type[idx]}:{self.device_id[idx][3:]}"
 
         if len(self.raw_payload) < 9:
             payload = self.raw_payload
@@ -122,12 +104,10 @@ class Message:
             payload = (self.raw_payload[:5] + "...")[:9]
 
         message = MESSAGE_FORMAT.format(
-            self.val1,
+            self.rssi_val,
             self.type,
-            "   " if self.val2 == "---" else self.val2,
-            _dev_name(0),
-            _dev_name(1),
-            _dev_name(2),
+            "   " if self.seq_no == "---" else self.seq_no,
+            *[_dev_name(x) for x in range(3)],
             COMMAND_MAP.get(self.command_code, f"unknown_{self.command_code}"),
             self._packet[46:49],
             payload,
@@ -179,6 +159,31 @@ class Message:
 
         self._gateway.system.update(attrs if attrs else {}, self)
         return {"domain_id": domain_id, **attrs}
+
+    @property
+    def non_evohome(self) -> bool:
+        """Return True if not an evohome message."""
+        # if COMMAND_SCHEMA.get(self.command_code):
+        #     if COMMAND_SCHEMA[self.command_code].get("non_evohome"):
+        #         return True  # ignore non-evohome commands
+
+        if self.device_id[2] in ["12:249582", "13:171587"]:
+            return True  # ignore neighbours's devices
+
+        if self.device_id[0] == "30:082155":
+            return True  # ignore nuaire devices (PIV)
+
+        if self.device_type[0] == "VNT":
+            return True  # ignore nuaire devices (switches, senors)
+
+        # if self.device_id[0] == NO_DEV_ID and self.device_type[2] == " 12":
+        #     return True  # ignore non-evohome device types
+
+        # if self.input_file:
+        #     if "HGI" in [msg.device_type[0], msg.device_type[1]]:
+        #         return True  # ignore the HGI
+
+        return False
 
     @property
     def payload(self) -> dict:
@@ -332,6 +337,22 @@ class Message:
         def _temp(seqx) -> Optional[float]:
             return int(seqx, 16) / 100 if seqx != "7FFF" else None
 
+        # @packet_decorator
+        def sync_cycle(payload) -> dict:  # 1F09
+            # TODO: Try RQ/1F09 with domain_id of "F8-FF"
+
+            if self.type == "RQ":
+                assert payload[:2] == "00"
+                return
+
+            assert len(payload) / 2 == 3
+            assert payload[:2] in ["00", "F8", "FF"]  # non-Honeywell devices use '00'
+
+            return {
+                "device_id": self.device_id[0],
+                "countdown": int(payload[2:6], 16) / 10,
+            }
+
         @domain_decorator  # housekeeping?
         def actuator_check(payload) -> dict:  # 3B00 (TPI cycle HB/sync)
             # https://www.domoticaforum.eu/viewtopic.php?f=7&t=5806&start=105#p73681
@@ -406,12 +427,12 @@ class Message:
         @device_decorator
         def device_info(payload) -> dict:  # 10E0
             assert self.type in [" I", "RP"]
-            assert len(payload) / 2 == 38
+            assert len(payload) / 2 in [30, 38]  # a non-evohome seen with 30
 
             attrs = {  # TODO: add version?
                 "description": _str(payload[36:]),
-                "date_2": _date(payload[28:36]),
                 "date_1": _date(payload[20:28]),  # could be 'FFFFFFFF'
+                "date_2": _date(payload[28:36]),
                 "unknown_0": payload[:20],
             }
             return {self.device_id[0]: attrs}
@@ -606,7 +627,7 @@ class Message:
                     domains.append({payload[i : i + 2]: attrs})
                 return domains
 
-            if self.device_type[2] == " 12":
+            if self.device_type[2] == " 12":  # TODO: is this a hack?
                 return _device_relay_failsafe(payload)
             return _zone_relay_failsafe(payload)
 
@@ -653,44 +674,6 @@ class Message:
             if self.device_type[0] in ["STA", "TRV"]:
                 return _device_setpoint(payload)
             return _zone_setpoint(payload)  # a zone (RQ/RP), or [zones] (I)
-
-        # housekeeping?
-        def sync_cycle(payload) -> dict:  # 1F09
-            # seconds until next controller cycle: TRVs (any with batteries) can sleep until then
-            # the times are not universal across systems
-
-            # cat packets.log | grep 1F09 | grep -v ' I '
-            # 21:34:49.537 045 RQ --- TRV:056053 CTL:145038  --:------ 1F09 001 00
-            # 21:34:49.550 045 RP --- CTL:145038 TRV:056053  --:------ 1F09 003 00 0497
-            # event driven, seconds until sync
-
-            if self.type == "RQ":
-                assert len(payload) / 2 == 1
-                assert payload[:2] == "00"
-                return
-
-            # cat pkts.log | grep 1F09 | grep ' 003 '
-            # 11:08:48.660 054  I --- GWY:082155  --:------ >broadcast 1F09 003 00 0537
-            # 11:09:11.744 045  I --- CTL:145038  --:------ >broadcast 1F09 003 FF 073F
-            # periodic, seconds until sync, 0537 = 133.5 (3*89/2), 073F = 185.5 (7*53/2)
-
-            # cat pkts.log | grep ' 1F09 003 FF' -C4
-            # 11:15:22.734 045  I --- CTL:145038  --:------ CTL:145038 1F09 003 FF 073F
-            # 11:15:22.760 045  I --- CTL:145038  --:------ CTL:145038 2309 024 00 076C 01 ... 02...
-            # 11:15:22.781 045  I --- CTL:145038  --:------ CTL:145038 30C9 024 00 07BB 01 ... 02...
-            # periodic, seconds until next sync, 073F = 185.5 (7*53/2), then 2309/C0C9
-
-            # 19:45:19.045 045  I     CTL:145038            >broadcast 0004 022 00004... {'zone_idx': '00', 'name': 'Main Room'}
-            # 19:45:19.057 045  W     CTL:145038            >broadcast 1F09 003 F80514
-            # 19:45:19.067 045  I     CTL:145038            >broadcast 2309 003 0007D0   {'zone_idx': '00', 'setpoint': 20.0}
-
-            assert len(payload) / 2 == 3
-            assert payload[:2] in ["00", "F8", "FF"]
-
-            return {
-                "device_id": self.device_id[0],
-                "countdown": int(payload[2:6], 16) / 10,
-            }
 
         # housekeeping?
         def sync_datetime(payload) -> dict:  # 313F
@@ -1000,7 +983,7 @@ class Message:
 
         # unknown
         def message_unknown(payload) -> dict:
-            # it might be useful to auto-search payloads for hex_ids, commands, etc.
+            # TODO: it may be useful to search payloads for hex_ids, commands, etc.
             return
 
         if self._payload:
@@ -1008,22 +991,25 @@ class Message:
 
         self._harvest()
 
-        # determine which parser to use
-        try:  # use locals() to get the relevant parser: e.g. zone_name()
-            payload_parser = locals()[COMMAND_MAP.get(self.command_code)]
-        except KeyError:
-            payload_parser = message_unknown
+        # # determine which parser to use
+        # try:  # use locals() to get the relevant parser: e.g. zone_name()
+        #     payload_parser = locals()[COMMAND_MAP.get(self.command_code)]
+        # except KeyError:
+        #     payload_parser = message_unknown
 
-        # use that parser
-        try:
-            self._payload = payload_parser(self.raw_payload) if payload_parser else None
+        # # use that parser
+        # try:
+        #     self._payload = payload_parser(self.raw_payload) if payload_parser else None
 
-        except AssertionError:  # for dev only?
-            _LOGGER.exception("ASSERT failure, raw_packet = >>> %s <<<", self._packet)
-            return None
+        # except AssertionError:  # for dev only?
+        #     _LOGGER.exception("ASSERT failure, raw_packet = >>> %s <<<", self._packet)
+        #     return None
 
-        except (LookupError, TypeError, ValueError):
-            _LOGGER.exception("EXCEPTION, raw_packet = >>> %s <<<", self._packet)
-            return None
+        # except (LookupError, TypeError, ValueError):
+        #     _LOGGER.exception("EXCEPTION, raw_packet = >>> %s <<<", self._packet)
+        #     return None
+
+        if self.device_type[0] not in ["HGI", "ALL", " --"]:
+            self._gateway.device_by_id[self.device_id[0]].update2(self)
 
         return self._payload

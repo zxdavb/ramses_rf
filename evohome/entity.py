@@ -12,6 +12,7 @@ from .const import (
     CTL_DEV_ID,
     DEVICE_LOOKUP,
     DEVICE_MAP,
+    ZONE_TYPE_MAP,
 )
 from .logger import _LOGGER
 
@@ -48,14 +49,19 @@ class Entity:
 
         self._data = {}
 
+    def _get_value(self, code, key) -> Optional[Any]:
+        if self._data.get(code):
+            return self._data[code][key]
+
     def update(self, payload, msg):
         value = {"_dtm": msg._pkt_dt, "_msg": msg}
         value.update(payload.get(self._id, {}) if payload else {})
         self._data.update({msg.command_code: value})
 
-    def _get_value(self, code, key) -> Optional[Any]:
-        if self._data.get(code):
-            return self._data[code][key]
+    def update2(self, msg):
+        value = {"_dtm": msg._pkt_dt, "_msg": msg}
+        value.update()
+        self._data.update({msg.command_code: value})
 
 
 class Domain(Entity):
@@ -64,17 +70,18 @@ class Domain(Entity):
     Domains include F8(rare), F9, FA, FC & FF."""
 
     def __init__(self, domain_id, gateway) -> None:
-        # _LOGGER.debug("Creating a new Device %s", device_id)
+        # _LOGGER.debug("Creating a new Domain %s", device_id)
         super().__init__(domain_id, gateway)
 
         gateway.domain_by_id.update({domain_id: self})
         gateway.domains.append(self)
 
         self._type = None
-        self._discover()
+        # self.discover()
 
-    def _discover(self):
-        pass
+    @property
+    def device_id(self) -> Optional[str]:  # TODO: delete me
+        return self._id
 
     @property
     def domain_id(self):
@@ -85,16 +92,12 @@ class Domain(Entity):
         return self._get_value("3150", "heat_demand")
 
     @property
-    def relay_demand(self):  # 3150
-        return self._get_value("0008", "relay_demand")
-
-    @property
-    def device_id(self) -> Optional[str]:  # TODO: delete me
-        return self._id
-
-    @property
     def parent_zone(self) -> Optional[str]:  # TODO: delete me
         return None
+
+    @property
+    def relay_demand(self):  # 3150
+        return self._get_value("0008", "relay_demand")
 
 
 class System(Domain):
@@ -104,8 +107,20 @@ class System(Domain):
         # _LOGGER.debug("Creating a new System %s", CTL_DEV_ID)
         super().__init__(domain_id, gateway)
 
-    def _discover(self):
-        pass
+    @property
+    def fault_log(self):
+        # WIP: try to discover fault codes
+        for num in range(0, 15):
+            try:
+                self._queue.put_nowait(Command(self, "0418", CTL_DEV_ID, f"0000{num:02X}"))
+            except queue.Full:
+                pass
+
+        return
+
+    @property
+    def heat_demand(self):  # 3150
+        return self._get_value("3150", "heat_demand")
 
     @property
     def setpoint_status(self):
@@ -113,10 +128,6 @@ class System(Domain):
             "mode": self._get_value("2E04", "mode"),
             "until": self._get_value("2E04", "until"),
         }
-
-    @property
-    def heat_demand(self):  # 3150
-        return self._get_value("3150", "heat_demand")
 
 
 class Device(Entity):
@@ -129,18 +140,14 @@ class Device(Entity):
         gateway.device_by_id.update({device_id: self})
         gateway.devices.append(self)
 
-        self._type = DEVICE_MAP.get(device_id[:2])
+        self._device_type = DEVICE_MAP.get(device_id[:2])
         self._parent_zone = None
-        self._parent_zzzz = None
 
-        self._discover()
+        self._discover()  # needs self._device_type
 
-    def _discover(self):
-        if self._type not in ["BDR", "STA", "TRV", " 12"]:
-            try:
-                self._queue.put_nowait(Command(self, "10E0", self._id, "00"))
-            except queue.Full:
-                pass
+    @property
+    def description(self):  # 0100, 10E0,
+        return self._get_value("10E0)", "description")
 
     @property
     def device_id(self) -> Optional[str]:
@@ -148,31 +155,27 @@ class Device(Entity):
 
     @property
     def device_type(self) -> Optional[str]:
-        return self._type
+        return self._device_type
 
     @property
-    def description(self):  # 0100, 10E0,
-        return self._get_value("10E0)", "description")
-
-    @property
-    def parent_zzzz(self) -> Optional[str]:
-        if self._parent_zzzz:
-            return self._parent_zzzz  # once set, never changes
+    def parent_zone(self) -> Optional[str]:
+        if self._parent_zone:
+            return self._parent_zone  # once set, never changes
 
         for code in COMMAND_EXPOSES_ZONE:
+            # also 1060 if dev[2] == CTL
             if self._data.get(code):
-                self._parent_zzzz = self._data[code]["_msg"].raw_payload[:2]
+                self._parent_zone = self._data[code]["_msg"].raw_payload[:2]
                 break
 
-        return self._parent_zzzz
-
-    @property
-    def parent_zone(self) -> Optional[str]:  # 0004
         return self._parent_zone
 
-    @parent_zone.setter
-    def parent_zone(self, zone_idx) -> None:
-        self._parent_zone = zone_idx
+    def _discover(self):
+        if self._device_type not in ["BDR", "STA", "TRV", " 12"]:
+            try:
+                self._queue.put_nowait(Command(self, "10E0", self._id, "00"))
+            except queue.Full:
+                pass
 
 
 class Controller(Device):
@@ -182,22 +185,14 @@ class Controller(Device):
         # _LOGGER.debug("Creating a new Controller %s", device_id)
         super().__init__(device_id, gateway)
 
-        self._discover()
+        # self._discover()
 
-    def update(self, entity_dict, msg):
-        super().update(entity_dict, msg)
+    @property
+    def parent_zone(self) -> None:
+        return None
 
     def _discover(self):
         super()._discover()
-
-        # WIP: try to discover fault codes
-        for num in range(0, 15):
-            try:
-                self._queue.put_nowait(Command(self, "0418", CTL_DEV_ID, f"0000{num:02X}"))
-            except queue.Full:
-                pass
-
-        return
 
         # # WIP: these are an attempt to actively discover the CTL rather than by eavesdropping
         # for cmd in ["313F"]:
@@ -233,6 +228,9 @@ class Controller(Device):
         """Controllers will RP to a RQ at anytime."""
         pass
 
+    def update(self, entity_dict, msg):
+        super().update(entity_dict, msg)
+
 
 class DhwSensor(Device):
     """The DHW class, such as a CS92."""
@@ -241,14 +239,7 @@ class DhwSensor(Device):
         # _LOGGER.debug("Creating a new DHW %s", dhw_id)
         super().__init__(dhw_id, gateway)
 
-        self._discover()
-
-    def _discover(self):
-        for cmd in ["10A0", "1260", "1F41"]:
-            try:
-                self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, "00"))
-            except queue.Full:
-                pass
+        # self._discover()
 
     @property
     def battery(self):  # 1060
@@ -258,6 +249,13 @@ class DhwSensor(Device):
     @property
     def temperature(self):  # 1260
         return self._get_value("1260", "temperature")
+
+    def _discover(self):
+        for cmd in ["10A0", "1260", "1F41"]:
+            try:
+                self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, "00"))
+            except queue.Full:
+                pass
 
 
 class Trv(Device):
@@ -352,54 +350,12 @@ class Zone(Entity):
         gateway.zone_by_id.update({zone_idx: self})
         gateway.zones.append(self)
 
-        self._type = None
+        self._zone_type = None
         self._discover()
-
-    def _discover(self):
-        for cmd in ["0004", "000A", "2349", "30C9"]:
-            zone_idx = f"{self._id}00" if cmd == "0004" else self._id
-            try:
-                self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, zone_idx))
-            except queue.Full:
-                pass
-
-    def update(self, payload, msg):
-        super().update(payload, msg)
-
-        # # cast a new type (which _is_ based upon the current type)
-        # if isinstance(self, Zone):
-        #     if self._data.get("12B0"):
-        #         self.__class__ = RadValve
-        #     if self._data.get("0008"):  # TODO:check
-        #         self.__class__ = Electric
-
-    @property
-    def zone_idx(self):
-        return self._id
-
-    @property
-    def name(self) -> Optional[str]:
-        return self._get_value("0004", "name")
-
-    @property
-    def zone_type(self) -> Optional[str]:
-        return self._type
-
-    @zone_type.setter
-    def zone_type(self, zone_type):
-        zone_class = {
-            "Electric Heat": Electric,
-            "Radiator Valve": RadValve,
-            "Underfloor Heating": Underfloor,
-            "Zone Valve": ZoneValve,
-        }.get(zone_type)
-        if zone_class:
-            self.__class__ = zone_class
-        self._type = zone_type
 
     @property
     def configuration(self):
-        # if self._type != "Radiator Valve":
+        # if self._zone_type != "Radiator Valve":
         #     return {}
 
         attrs = ["local_override", "multi_room_mode", "openwindow_function"]
@@ -410,6 +366,20 @@ class Zone(Entity):
                 if k in attrs
             }
         return {k: None for k in attrs}
+
+    @property
+    def heat_demand(self):
+        zone_demand = 0.0
+        for dev in [v for v in self._gateway.device_by_id.values() if v._zone_type == "TRV"]:
+            if dev.parent_zone == self._id:
+                device_demand = dev.heat_demand if dev.heat_demand else 0
+                zone_demand = max(zone_demand, device_demand)
+
+        return zone_demand
+
+    @property
+    def name(self) -> Optional[str]:
+        return self._get_value("0004", "name")
 
     @property
     def setpoint_capabilities(self):
@@ -431,14 +401,45 @@ class Zone(Entity):
         return self._get_value("30C9", "temperature")
 
     @property
-    def heat_demand(self):
-        zone_demand = 0.0
-        for dev in [v for v in self._gateway.device_by_id.values() if v._type == "TRV"]:
-            if dev.parent_zone == self._id:
-                device_demand = dev.heat_demand if dev.heat_demand else 0
-                zone_demand = max(zone_demand, device_demand)
+    def zone_idx(self):
+        return self._id
 
-        return zone_demand
+    @property
+    def zone_type(self) -> Optional[str]:
+        return self._zone_type
+
+    def _discover(self):
+        for cmd in ["0004", "000A", "2349", "30C9"]:
+            zone_idx = f"{self._id}00" if cmd == "0004" else self._id
+            try:
+                self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, zone_idx))
+            except queue.Full:
+                pass
+
+    def update(self, payload, msg):
+        super().update(payload, msg)
+
+        if self._zone_type:  # isinstance(self, ???)
+            return
+
+        child_devices = [x for x in self._gateway.devices if x.parent_zone == self._id]
+
+        # cast a new type (must be a superclass of the current type)
+        if "TRV" in [x.device_type for x in child_devices]:
+            self.__class__ = RadValve
+            self._zone_type = ZONE_TYPE_MAP["TRV"]
+
+        if "BDR" in [x.device_type for x in child_devices]:
+            self.__class__ = Electric  # if also call for heat, is a ZoneValve
+            self._zone_type = ZONE_TYPE_MAP["BDR"]
+
+        if "UFH" in [x.device_type for x in child_devices]:
+            self.__class__ = Underfloor
+            self._zone_type = ZONE_TYPE_MAP["UFH"]
+
+        # if "TRV" in [x.device_type for x in child_devices]:
+        #     self.__class__ = MixValve
+        #     self._zone_type = ZONE_TYPE_MAP["MIX"]
 
 
 class DhwZone(Zone):
@@ -448,19 +449,8 @@ class DhwZone(Zone):
         # _LOGGER.debug("Creating a new Zone %s", zone_idx)
         super().__init__(zone_idx, gateway)
 
-        self._type = None
-        self._discover()
-
-    def _discover(self):
-        for cmd in ["10A0", "1260", "1F41"]:  # TODO: what about 1100?
-            try:
-                self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, "00"))
-            except queue.Full:
-                pass
-
-    @property
-    def name(self) -> Optional[str]:
-        return "DHW Controller"
+        self._zone_type = None  # or _domain_type
+        # self._discover()
 
     @property
     def configuration(self):
@@ -469,6 +459,10 @@ class DhwZone(Zone):
             "overrun": self._get_value("10A0", "overrun"),
             "differential": self._get_value("10A0", "differential"),
         }
+
+    @property
+    def name(self) -> Optional[str]:
+        return "DHW Controller"
 
     @property
     def setpoint_status(self):
@@ -482,6 +476,13 @@ class DhwZone(Zone):
     def temperature(self):
         return self._get_value("1260", "temperature")
 
+    def _discover(self):
+        for cmd in ["10A0", "1260", "1F41"]:  # TODO: what about 1100?
+            try:
+                self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, "00"))
+            except queue.Full:
+                pass
+
 
 class RadValve(Zone):
     """Base for Radiator Valve zones.
@@ -491,6 +492,10 @@ class RadValve(Zone):
 
     # 3150 (heat_demand) but no 0008 (relay_demand)
 
+    @property
+    def window_open(self):
+        return self._get_value("12B0", "window_open")
+
     def _discover(self):
         super()._discover()
 
@@ -499,10 +504,6 @@ class RadValve(Zone):
                 self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, self._id))
             except queue.Full:
                 pass
-
-    @property
-    def window_open(self):
-        return self._get_value("12B0", "window_open")
 
 
 class Electric(Zone):
@@ -518,6 +519,14 @@ class Electric(Zone):
     # 1FC9 (bind_device)
     # 2309 (setpoint)
     # 2349 (zone_mode)
+
+    def update(self, payload, msg):
+        super().update(payload, msg)
+
+        # does it also call for heat?
+        if self._data.get("3150"):
+            self.__class__ = ZoneValve
+            self._zone_type = ZONE_TYPE_MAP["ZON"]
 
 
 class ZoneValve(Electric):

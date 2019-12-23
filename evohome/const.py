@@ -108,13 +108,15 @@ DEVICE_MAP = {
     "02": "UFH",  # Underfloor heating (HCC80, HCE80)
     "04": "TRV",  # Thermostatic radiator valve (HR80, HR91, HR92)  # 0100, 1060, 12B0, 2309, 30C9, 3150
     "07": "DHW",  # DHW sensor (CS92)
-    "12": " 12",  # 0008, 0009, 1030, 1100, 2309, 313F // 12:249582, 12:227486, 12:259810
+    "10": "OTB",  # OpenTherm bridge (R8810)
+    "12": "THM",  # Thermostat with setpoint schedule control (DTS92E)
     "13": "BDR",  # Wireless relay box (BDR91)  # 3EF0
     "18": "HGI",  # Honeywell Gateway Interface (HGI80, HGS80)
+    "22": "THm",  # Thermostat with setpoint schedule control (DTS92E)
     "30": "GWY",  # Gateway (e.g. ???)
-    "32": "VNT",  # (Nuaire PIV) ventilation (VMS-23HB33)
+    "32": "VNT",  # Ventilation (Nuaire VMS-23HB33, VMN-23LMH23)
     "34": "STA",  # Thermostat (T87RF)  # 1060, 10E0, 30C9
-    "63": "ALL",  # 10E0, 1FC9
+    "63": "ALL",  # receives: 10E0, 1FC9
     "--": " --",
 }  # Mixing valve (HM80)
 DEVICE_LOOKUP = {v: k for k, v in DEVICE_MAP.items()}
@@ -138,9 +140,10 @@ ZONE_MODE_MAP = {
 # Zone Valve    - on/off relay (to operate the valve) AND requests heat from the boiler
 ZONE_TYPE_MAP = {
     "TRV": "Radiator Valve",
-    "UFH": "Underfloor Heating",
     "BDR": "Electric Heat",  # /Zone Valve",
-    "???": "Mixing Valve",
+    "UFH": "Underfloor Heating",
+    "MIX": "Mixing Valve",
+    "ZON": "Zone Valve",
 }
 
 a = "(-{3}|\d{3})"  # #          noqa: W605; pylint: disable=invalid-name, W1401
