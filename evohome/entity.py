@@ -19,6 +19,8 @@ from .logger import _LOGGER
 
 def dev_hex_to_id(device_hex: str, friendly_id=False) -> str:
     """Convert (say) '06368E' to '01:145038' (or 'CTL:145038')."""
+    # if device_hex == "FFFFFF":
+    #     return f"{'':9}" if friendly_id else "--:------"
     if not device_hex:
         return f"{'':9}" if friendly_id else "--:------"
     _tmp = int(device_hex, 16)
@@ -33,7 +35,7 @@ def dev_id_to_hex(device_id: str) -> str:
     if len(device_id) == 9:  # e.g. '01:123456'
         dev_type = device_id[:2]
         dev_number = device_id[3:]
-    else:  # len(device_id) == 10, e.g. 'CTL:123456', or ' 63:123456'
+    else:  # len(device_id) == 10, e.g. 'CTL:123456', or ' 63:262143'
         dev_type = DEVICE_LOOKUP.get(device_id[:3], device_id[1:3])
         dev_number = device_id[4:]
     return f"{(int(dev_type) << 18) + int(dev_number):0>6X}"  # without preceeding 0x
@@ -47,27 +49,31 @@ class Entity:
         self._gateway = gateway
         self._queue = gateway.command_queue
 
-        self._data = {}
+        self._pkts = {}
+
+    def _discover(self):
+        raise NotImplementedError
+
+    def _get_ctl_value(self, code, key) -> Optional[Any]:
+        controller = self._gateway.device_by_id["01:145038"]
+        # pylint: disable=protected-access
+        if controller._pkts.get(code):
+            return controller._pkts[code].payload[key]
+        else:
+            pass  # TODO: send an RQ
 
     def _get_value(self, code, key) -> Optional[Any]:
-        if self._data.get(code):
-            return self._data[code][key]
+        if self._pkts.get(code):
+            return self._pkts[code].payload[key]
 
-    def update(self, payload, msg):
-        value = {"_dtm": msg._pkt_dt, "_msg": msg}
-        value.update(payload.get(self._id, {}) if payload else {})
-        self._data.update({msg.command_code: value})
-
-    def update2(self, msg):
-        value = {"_dtm": msg._pkt_dt, "_msg": msg}
-        value.update()
-        self._data.update({msg.command_code: value})
+    def update(self, msg):
+        self._pkts.update({msg.code: msg})
 
 
 class Domain(Entity):
     """Base for the named Zones and the other domains (e.g. DHW).
 
-    Domains include F8(rare), F9, FA, FC & FF."""
+    Domains include F8 (rare), F9, FA, FC & FF."""
 
     def __init__(self, domain_id, gateway) -> None:
         # _LOGGER.debug("Creating a new Domain %s", device_id)
@@ -100,21 +106,34 @@ class Domain(Entity):
         return self._get_value("0008", "relay_demand")
 
 
-class System(Domain):
+class System(Entity):
     """Base for the central heating (FC) domain."""
 
-    def __init__(self, domain_id, gateway):
+    def __init__(self, gateway):
         # _LOGGER.debug("Creating a new System %s", CTL_DEV_ID)
-        super().__init__(domain_id, gateway)
+        super().__init__("", gateway)
+
+    @property
+    def database(self) -> Optional[dict]:
+        pass
+
+    @property
+    def schedule(self):
+        for zone_idx in range(0, 15):
+            try:
+                pass
+            except queue.Full:
+                pass
+
+        return
 
     @property
     def fault_log(self):
         # WIP: try to discover fault codes
-        for num in range(0, 15):
-            try:
-                self._queue.put_nowait(Command(self, "0418", CTL_DEV_ID, f"0000{num:02X}"))
-            except queue.Full:
-                pass
+        for num in range(0x00, 0x3C):  # 10 pages of 6
+            self._queue.put_nowait(
+                Command(self._gateway, "0418", CTL_DEV_ID, f"{num:06X}")
+            )
 
         return
 
@@ -124,10 +143,25 @@ class System(Domain):
 
     @property
     def setpoint_status(self):
+        attrs = ["mode", "until"]
+        return {x: self._get_value("2E04", x) for x in attrs}
+
+    @property
+    def dhw_config(self) -> dict:
+        sensors = [d.device_id for d in self._gateway.devices if d.device_type == "DHW"]
+        assert len(sensors) < 2
+
+        relays = [d.device_id for d in self._gateway.devices if d.device_type == "TPI"]
+        assert len(relays) < 2
+
         return {
-            "mode": self._get_value("2E04", "mode"),
-            "until": self._get_value("2E04", "until"),
+            "dhw_sensor": sensors[0] if sensors else None,
+            "tpi_relay": relays[0] if relays else None,
         }
+
+    @property
+    def dhw_state(self) -> dict:
+        pass
 
 
 class Device(Entity):
@@ -143,7 +177,7 @@ class Device(Entity):
         self._device_type = DEVICE_MAP.get(device_id[:2])
         self._parent_zone = None
 
-        self._discover()  # needs self._device_type
+        # self._discover()  # needs self._device_type
 
     @property
     def description(self):  # 0100, 10E0,
@@ -159,23 +193,37 @@ class Device(Entity):
 
     @property
     def parent_zone(self) -> Optional[str]:
+        # once set, never changes
         if self._parent_zone:
-            return self._parent_zone  # once set, never changes
+            return self._parent_zone
 
+        # from eavesdropping...
         for code in COMMAND_EXPOSES_ZONE:
-            # also 1060 if dev[2] == CTL
-            if self._data.get(code):
-                self._parent_zone = self._data[code]["_msg"].raw_payload[:2]
+            # for TRV, also 1060 iff dev[2] == CTL
+            if self._pkts.get(code):
+                self._parent_zone = self._pkts[code].raw_payload[:2]
                 break
+
+        # # from the database...
+        # if not self._parent_zone:
+        #     self._parent_zone = {
+        #         self._gateway.database["zones"][zone_idx].sensor: zone_idx
+        #         for zone_idx in self._gateway.database["zones"]
+        #     }.get(self._id)
 
         return self._parent_zone
 
-    def _discover(self):
+    def TBD_discover(self):
         if self._device_type not in ["BDR", "STA", "TRV", " 12"]:
-            try:
-                self._queue.put_nowait(Command(self, "10E0", self._id, "00"))
-            except queue.Full:
-                pass
+            self._queue.put_nowait(Command(self._gateway, "10E0", self._id, "00"))
+
+    def update(self, msg):
+        # if type(msg.payload) == dict:  # isinstance(msg.payload, dict):
+        #     if "zone_idx" in msg.payload:
+        #         self._gateway.data[msg.payload["zone_idx"]].update(msg.payload)
+
+        if msg.verb == " I":
+            self._pkts.update({msg.code: msg})
 
 
 class Controller(Device):
@@ -189,47 +237,70 @@ class Controller(Device):
 
     @property
     def parent_zone(self) -> None:
-        return None
+        return "FF"
 
-    def _discover(self):
+    def zone_properties(self, zone_idx) -> dict:
+        # 0004/name, 000A/properties, 2309/setpoint, 30C9/temp
+        pass
+
+    def TBD_discover(self):
         super()._discover()
 
         # # WIP: these are an attempt to actively discover the CTL rather than by eavesdropping
         # for cmd in ["313F"]:
-        #     try:
-        #         self._queue.put_nowait(Command(self, cmd, ALL_DEV_ID, "FF"))
-        #     except queue.Full:
-        #         pass
+        #     self._queue.put_nowait(Command(self._gateway, cmd, ALL_DEV_ID, "FF"))
 
         # a 'real' Zone will return 0004/zone_name != None
         for zone_idx in range(12):
             _zone = f"{zone_idx:02x}00"
-            try:
-                self._queue.put_nowait(Command(self, "0004", CTL_DEV_ID, _zone))
-            except queue.Full:
-                pass
+            self._queue.put_nowait(Command(self._gateway, "0004", CTL_DEV_ID, _zone))
 
         # the 'real' DHW controller will return 1260/dhw_temp != None
         for _zone in ["FA"]:
-            try:
-                self._queue.put_nowait(Command(self, "1260", CTL_DEV_ID, _zone))
-            except queue.Full:
-                pass
+            self._queue.put_nowait(Command(self._gateway, "1260", CTL_DEV_ID, _zone))
 
         # # WIP: the Controller, and 'real' Relays will respond to 0016/rf_check - to device ID
-        # try:
-        #     self._queue.put_nowait(
-        #         Command(self, "0016", CTL_DEV_ID, f"{domain_id}FF")
-        #     )
-        # except queue.Full:
-        #     pass
+        # self._queue.put_nowait(Command(self._gateway, "0016", CTL_DEV_ID, f"{domain_id}FF"))
+
+        self._queue.put_nowait(Command(self._gateway, "0000", verb="XX"))
+
+    def update(self, msg):
+        super().update(msg)
+
+        if type(msg.payload) == list:  # isinstance(msg.payload, list):
+            if msg.code in ["000A", "2309", "30C9"]:
+                [self._gateway.data[z["zone_idx"]].update(z) for z in msg.payload]
+
+        elif type(msg.payload) == dict:  # isinstance(msg.payload, dict):
+            if "zone_idx" in msg.payload:
+                self._gateway.data[msg.payload["zone_idx"]].update(msg.payload)
+
+            # if "domain_id" in msg.payload:
+            #     self._gateway.data[msg.payload["domain_id"]].update(msg.payload)
+
+        else:
+            pass
+
+        # TODO: take this out?
+        if msg.code in ["000A", "30C9"] and msg.verb == " I":  # the payload is an array
+            # if not self._gateway.config["input_file"]:
+            self._gateway.loop.call_later(5, print, self._gateway.database)
 
     def handle_313f(self):
         """Controllers will RP to a RQ at anytime."""
         pass
 
-    def update(self, entity_dict, msg):
-        super().update(entity_dict, msg)
+    @property
+    def tpi_relay(self) -> Optional[str]:
+        relays = [d.device_id for d in self._gateway.devices if d.device_type == "TPI"]
+        assert len(relays) < 2
+        return relays[0] if relays else None
+
+    @property
+    def dhw_sensor(self) -> Optional[str]:
+        sensors = [d.device_id for d in self._gateway.devices if d.device_type == "DHW"]
+        assert len(sensors) < 2
+        return sensors[0] if sensors else None
 
 
 class DhwSensor(Device):
@@ -242,26 +313,25 @@ class DhwSensor(Device):
         # self._discover()
 
     @property
-    def battery(self):  # 1060
+    def battery(self):
         return self._get_value("1060", "battery_level")
         # return self._get_value("1060", "low_battery")
 
     @property
-    def temperature(self):  # 1260
+    def parent_zone(self) -> None:
+        return "FC"
+
+    @property
+    def temperature(self):
         return self._get_value("1260", "temperature")
 
-    def _discover(self):
+    def TBD_discover(self):
         for cmd in ["10A0", "1260", "1F41"]:
-            try:
-                self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, "00"))
-            except queue.Full:
-                pass
+            self._queue.put_nowait(Command(self._gateway, cmd, CTL_DEV_ID, "00"))
 
 
-class Trv(Device):
+class TrvActuator(Device):
     """The TRV class, such as a HR92."""
-    # 045 RQ     TRV:056057 CTL:145038            313F 001 00
-    # at ~4:00:00, gets RP from CTL
 
     def __init__(self, device_id, gateway) -> None:
         # _LOGGER.debug("Creating a new TRV %s", device_id)
@@ -277,11 +347,12 @@ class Trv(Device):
         return self._get_value("0100", "language")
 
     @property
-    def heat_demand(self):  # 3150
+    def heat_demand(self) -> Optional[float]:  # 3150
         return self._get_value("3150", "heat_demand")
 
     @property
     def setpoint(self):  # 2309
+        # TODO: differientiate between Off and Unknown
         return self._get_value("2309", "setpoint")
 
     @property
@@ -292,32 +363,53 @@ class Trv(Device):
     def window_state(self):  # 12B0
         return self._get_value("12B0", "window_open")
 
+    def update(self, msg):
+        super().update(msg)
 
-class Bdr(Device):
+        # if msg.code == "1060" and msg.device_type[2] != "CTL":
+        #     return  # these do not contain a zone_idx
+
+        # if msg.code in ["12B0", "2309"]:
+        #     [self._gateway.data[z["zone_idx"]].update(z) for z in msg.payload]
+
+        # if msg.code in ["3150"]:
+        #     [self._gateway.data[z["zone_idx"]].update(z) for z in msg.payload]
+
+        if msg.verb == " I":
+            self._pkts.update({msg.code: msg})
+
+
+class BdrSwitch(Device):
     """The BDR class, such as a BDR91."""
 
     def __init__(self, device_id, gateway) -> None:
         # _LOGGER.debug("Creating a new BDR %s", device_id)
         super().__init__(device_id, gateway)
 
-    def _discover(self):
+    def TBD_discover(self):
         super()._discover()
 
-        for cmd in ["3B00", "3EF0"]:
-            try:
-                self._queue.put_nowait(Command(self, cmd, self._id, "00"))
-            except queue.Full:
-                pass
+        # for cmd in ["3B00", "3EF0"]:  # these don't work, for 00 or 0000
+        #     self._queue.put_nowait(Command(self._gateway, cmd, self._id, "00"))
 
-        for cmd in ["3EF1"]:
-            try:
-                self._queue.put_nowait(Command(self, cmd, self._id, "0000"))
-            except queue.Full:
-                pass
+        for cmd in ["0008", "1100", "3EF1"]:  # these work, for any payload
+            self._queue.put_nowait(Command(self._gateway, cmd, self._id, "0000"))
+
+    def update(self, msg):
+        super().update(msg)
+
+        if msg.code == "3B00":  # the TPI relay for the boiler
+            self._device_type = "TPI"
+            self._parent_zone = "FC"
+
+
+class TpiSwitch(Device):
+    """The BDR class, such as a BDR91."""
 
 
 class Thermostat(Device):
     """The STA class, such as a TR87RF."""
+
     # 045  I     STA:092243            >broadcast 3120 007 0070B0000000FF
     # every ~3:45:00 (each STA different, but each keeps its interval to the second)
     # payload never changes
@@ -359,46 +451,48 @@ class Zone(Entity):
         #     return {}
 
         attrs = ["local_override", "multi_room_mode", "openwindow_function"]
-        if self._data.get("zone_config"):
+        if self._pkts.get("zone_config"):
             return {
                 k: v
-                for k, v in self._data["zone_config"]["flags"].items()
+                for k, v in self._pkts["zone_config"]["flags"].items()
                 if k in attrs
             }
         return {k: None for k in attrs}
 
     @property
-    def heat_demand(self):
-        zone_demand = 0.0
-        for dev in [v for v in self._gateway.device_by_id.values() if v._zone_type == "TRV"]:
-            if dev.parent_zone == self._id:
-                device_demand = dev.heat_demand if dev.heat_demand else 0
-                zone_demand = max(zone_demand, device_demand)
+    def devices(self):  # TODO: use 000C
+        return [d for d in self._gateway.devices if d.parent_zone == self._id]
 
-        return zone_demand
+    @property
+    def heat_demand(self) -> Optional[float]:
+        return max(
+            [
+                d.heat_demand if d.heat_demand else 0
+                for d in self.devices
+                if d._device_type == "TRV"
+            ]
+            + [0]
+        )
 
     @property
     def name(self) -> Optional[str]:
-        return self._get_value("0004", "name")
+        return self._gateway.data[self._id]["name"]
+        # return self._get_ctl_value(f"0004-{self._id}", "name")
 
     @property
     def setpoint_capabilities(self):
-        return {
-            "max_heat_setpoint": self._get_value("000A", "max_temp"),
-            "min_heat_setpoint": self._get_value("000A", "min_temp"),
-        }
+        attrs = ["max_heat_setpoint", "min_heat_setpoint"]
+        return {x: self._get_value("000A", x) for x in attrs}
 
     @property
     def setpoint_status(self):
-        return {
-            "setpoint": self._get_value("2349", "setpoint"),
-            "mode": self._get_value("2349", "mode"),
-            "until": self._get_value("2349", "until"),
-        }
+        attrs = ["setpoint", "mode", "until"]
+        return {x: self._get_value("2349", x) for x in attrs}
 
     @property
     def temperature(self):
-        return self._get_value("30C9", "temperature")
+        # turn self._get_value("30C9", "temperature")
+        return self._gateway.data[self._id].get("temperature")
 
     @property
     def zone_idx(self):
@@ -409,15 +503,14 @@ class Zone(Entity):
         return self._zone_type
 
     def _discover(self):
-        for cmd in ["0004", "000A", "2349", "30C9"]:
-            zone_idx = f"{self._id}00" if cmd == "0004" else self._id
-            try:
-                self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, zone_idx))
-            except queue.Full:
-                pass
+        # get name, config, mode, temp
+        # can't do: "3150" (TODO: 12B0/window_state only if enabled, or only if TRV?)
+        for code in ["0004", "000A", "000C", "12B0"]:  # also: "2349", "30C9"]:
+            zone_idx = f"{self._id}00" if code != "0000" else self._id
+            self._queue.put_nowait(Command(self._gateway, code, payload=zone_idx))
 
-    def update(self, payload, msg):
-        super().update(payload, msg)
+    def update(self, msg):
+        super().update(msg)
 
         if self._zone_type:  # isinstance(self, ???)
             return
@@ -454,11 +547,8 @@ class DhwZone(Zone):
 
     @property
     def configuration(self):
-        return {
-            "setpoint": self._get_value("10A0", "setpoint"),
-            "overrun": self._get_value("10A0", "overrun"),
-            "differential": self._get_value("10A0", "differential"),
-        }
+        attrs = ["setpoint", "overrun", "differential"]
+        return {x: self._get_value("10A0", x) for x in attrs}
 
     @property
     def name(self) -> Optional[str]:
@@ -466,22 +556,17 @@ class DhwZone(Zone):
 
     @property
     def setpoint_status(self):
-        return {
-            "active": self._get_value("1F41", "active"),
-            "mode": self._get_value("1F41", "mode"),
-            "until": self._get_value("1F41", "until"),
-        }
+        attrs = ["active", "mode", "until"]
+        return {x: self._get_value("1F41", x) for x in attrs}
 
     @property
     def temperature(self):
         return self._get_value("1260", "temperature")
 
-    def _discover(self):
-        for cmd in ["10A0", "1260", "1F41"]:  # TODO: what about 1100?
-            try:
-                self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, "00"))
-            except queue.Full:
-                pass
+    def TBD_discover(self):
+        # get config, mode, temp
+        for cmd in ["10A0", "1F41", "1260"]:  # TODO: what about 1100?
+            self._queue.put_nowait(Command(self._gateway, cmd, CTL_DEV_ID, "00"))
 
 
 class RadValve(Zone):
@@ -494,16 +579,13 @@ class RadValve(Zone):
 
     @property
     def window_open(self):
-        return self._get_value("12B0", "window_open")
+        return self._gateway.data[f"{self._id:02X}"]["window_open"]
 
-    def _discover(self):
+    def TBD_discover(self):
         super()._discover()
 
         for cmd in ["12B0"]:
-            try:
-                self._queue.put_nowait(Command(self, cmd, CTL_DEV_ID, self._id))
-            except queue.Full:
-                pass
+            self._queue.put_nowait(Command(self._gateway, cmd, CTL_DEV_ID, self._id))
 
 
 class Electric(Zone):
@@ -512,19 +594,11 @@ class Electric(Zone):
     For a small (5A) electric load controlled by a BDR91 (never calls for heat).
     """
 
-    # 0004 (zone_name)
-    # 0008 (relay_demand) but no 3150 (heat_demand)
-    # 0009 (ch_failsafe)
-    # 000A (zone_config)
-    # 1FC9 (bind_device)
-    # 2309 (setpoint)
-    # 2349 (zone_mode)
-
     def update(self, payload, msg):
         super().update(payload, msg)
 
         # does it also call for heat?
-        if self._data.get("3150"):
+        if self._pkts.get("3150"):
             self.__class__ = ZoneValve
             self._zone_type = ZONE_TYPE_MAP["ZON"]
 
@@ -549,19 +623,28 @@ class MixValve(Zone):
     For a modulating valve controlled by a HM80 (will also call for heat).
     """
 
+    @property
+    def configuration(self):
+        attrs = ["max_flow_temp", "pump_rum_time", "actuator_run_time", "min_flow_temp"]
+        return {x: self._get_value("1030", x) for x in attrs}
+
 
 DEVICE_CLASSES = {
+    DEVICE_LOOKUP["BDR"]: BdrSwitch,
     DEVICE_LOOKUP["CTL"]: Controller,
-    DEVICE_LOOKUP["TRV"]: Trv,
     DEVICE_LOOKUP["DHW"]: DhwSensor,
-    DEVICE_LOOKUP["BDR"]: Bdr,
     DEVICE_LOOKUP["STA"]: Thermostat,
+    DEVICE_LOOKUP["THM"]: Thermostat,
+    DEVICE_LOOKUP["TRV"]: TrvActuator,
 }
 
 ZONE_CLASSES = {
     "01": Controller,
-    "04": Trv,
+    "04": TrvActuator,
     "07": DhwSensor,
-    "13": Bdr,
+    "10": Device,
+    "12": Thermostat,
+    "13": BdrSwitch,
+    "22": Thermostat,
     "34": Thermostat,
 }

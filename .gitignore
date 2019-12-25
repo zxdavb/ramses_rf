@@ -2,8 +2,7 @@
 
 !.gitignore
 
-secrets*
-secrets*.*
+.secrets/*
 
 *.json
 *.old

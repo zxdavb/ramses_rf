@@ -20,17 +20,23 @@ class Command:
     """The command class."""
 
     #
-    def __init__(self, entity, command_code, destination, payload="00") -> None:
-        self.entity = entity
-        self.command_code = command_code
-        self.destination = destination
+    def __init__(
+        self, gateway, code, verb="RQ", dest_id=CTL_DEV_ID, payload="00"
+    ) -> None:
+        self._gateway = gateway
+        self.code = code
+        self.verb = verb
+        self.device_id = (
+            dest_id if dest_id else CTL_DEV_ID
+        )  # TODO: self._gateway.controller_id
         self.payload = payload
 
     def __str__(self) -> str:
         _cmd = COMMAND_FORMAT.format(
+            self.verb,
             HGI_DEV_ID,
-            self.destination,
-            self.command_code,
+            self.device_id,
+            self.code,
             len(self.payload) / 2,
             self.payload,
         )
@@ -39,7 +45,3 @@ class Command:
         #     raise ValueError(f"Message is not valid, >>{_cmd}<<")
 
         return _cmd
-
-    def execute(self) -> int:
-        """Send a command to the RF bus."""
-        self.entity._gateway.command_queue.put(self)
