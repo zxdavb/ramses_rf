@@ -428,9 +428,8 @@ class Gateway:
             now = time_stamp()  # 1580212639.4933238
             mil = f"{now%1:.6f}".lstrip('0')  # .493123
             packet_dt = time.strftime(f"%Y-%m-%dT%H:%M:%S{mil}", time.localtime(now))
+            # packet_dt2 = dt.now().isoformat()
 
-            packet_dt2 = dt.now().isoformat()
-            print(packet_dt, packet_dt2)
             try:
                 raw_packet = raw_packet.decode("ascii").strip()
             except UnicodeDecodeError:
