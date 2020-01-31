@@ -786,12 +786,12 @@ def parser_3220(payload, msg) -> Optional[dict]:  # opentherm_3220?
 
     if msg.verb == "RQ":
         assert ot_msg_type < 48
-        return {**result, "value_raw": payload[6:10], "description": message["en"]}
+        assert payload[6:10] == "0000"
+        return {**result, "description": message["en"]}
 
     assert ot_msg_type > 48
 
     if isinstance(message["var"], dict):
-        # x = message["val"]["hb"] if "hb" in message["val"] else message["val"]
         if isinstance(message["val"], dict):
             result["value_hb"] = ot_msg_value(
                 payload[6:8], message["val"].get("hb", message["val"])
