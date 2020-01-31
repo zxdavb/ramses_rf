@@ -1,8 +1,11 @@
 """Evohome serial."""
+import ctypes
+import os
 from queue import Queue
 import signal
 import sys
 from threading import Thread
+import time
 
 from string import printable
 from datetime import datetime as dt
@@ -60,6 +63,22 @@ INSERT_SQL = """
     INSERT INTO packets(dt, rssi, verb, seq, dev_1, dev_2, dev_3, code, len, payload)
     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 """
+
+
+class FILETIME(ctypes.Structure):
+    """Data structure for GetSystemTimePreciseAsFileTime()."""
+    _fields_ = [("dwLowDateTime", ctypes.c_uint), ("dwHighDateTime", ctypes.c_uint)]
+
+
+def time_stamp():
+    """Return an accurate time, even for Windows-based systems."""
+    if os.name == "nt":
+        file_time = FILETIME()
+        ctypes.windll.kernel32.GetSystemTimePreciseAsFileTime(ctypes.byref(file_time))
+        _time = (file_time.dwLowDateTime + (file_time.dwHighDateTime << 32)) / 1.0e7
+        return _time - 134774 * 24 * 60 * 60  # since 01/01/1601
+    else:  # if os.name == "posix":
+        return time.time()
 
 
 class MessageWorker(Thread):
@@ -406,16 +425,12 @@ class Gateway:
             except serial.SerialException:
                 return
 
-            packet_dt = dt.now().isoformat()
+            now = time_stamp()  # 1580212639.4933238
+            mil = f"{now%1:.6f}".lstrip('0')  # .493123
+            packet_dt = time.strftime(f"%Y-%m-%dT%H:%M:%S{mil}", time.localtime(now))
 
-            # # TODO: delete this block
-            # import time
-            # now = time.time()  # 1580212639.4933238
-            # # now = time.time_ns() / 1e9  # 1580212639.4933238
-            # mil = f"{now%1:.6f}".lstrip('0')  # .493123
-            # packet_dt = time.strftime(f"%Y-%m-%dT%H:%M:%S{mil}", time.localtime(now))
-            # print(packet_dt, packet_dt2)
-
+            packet_dt2 = dt.now().isoformat()
+            print(packet_dt, packet_dt2)
             try:
                 raw_packet = raw_packet.decode("ascii").strip()
             except UnicodeDecodeError:
