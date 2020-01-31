@@ -252,7 +252,7 @@ class Gateway:
                 return
 
             if self.config["raw_output"]:
-                _LOGGER.info("%s %s", raw_packet[:23], raw_packet[27:])
+                _LOGGER.info("%s  %s", raw_packet[:26], raw_packet[27:])
                 return
 
             try:
