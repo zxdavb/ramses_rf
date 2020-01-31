@@ -24,7 +24,7 @@ from .const import (
     ZONE_TYPE_MAP,
 )
 from .entity import Device, DhwZone, Domain, Zone, dev_hex_to_id, DEVICE_CLASSES
-from .opentherm import OPENTHERM_MESSAGES, ot_msg_value
+from .opentherm import OPENTHERM_MSG_TYPE, OPENTHERM_MESSAGES, ot_msg_value, parity
 
 
 def _dtm(seqx) -> str:
@@ -758,53 +758,59 @@ def parser_31e0(payload, msg) -> Optional[dict]:  # ???? (Nuaire on/off)
     }
 
 
-def parity(x):
-    shiftamount = 1
-    while x >> shiftamount:
-        x ^= x >> shiftamount
-        shiftamount <<= 1
-    return x & 1
-
-
 @parser_decorator
 def parser_3220(payload, msg) -> Optional[dict]:  # opentherm_3220?
     assert len(payload) / 2 == 5
     assert payload[:2] == "00"
-    assert int(payload[2:4], 16) & 0x80 == parity(int(payload[2:], 16) & 0x7FFFFFFF)
-    # assert str(ot_msg_id) in OPENTHERM_MESSAGES["messages"]
 
-    # ot_msg_type = int(payload[2:4], 16) & 0x7F
+    # these are OpenTherm-specific assertions
+    assert int(payload[2:4], 16) // 0x80 == parity(int(payload[2:], 16) & 0x7FFFFFFF)
+
+    ot_msg_type = int(payload[2:4], 16) & 0x70
+    assert ot_msg_type in OPENTHERM_MSG_TYPE
+
+    assert int(payload[2:4], 16) & 0x0F == 0
+
     ot_msg_id = int(payload[4:6], 16)
+    assert str(ot_msg_id) in OPENTHERM_MESSAGES["messages"]
+
     message = OPENTHERM_MESSAGES["messages"].get(str(ot_msg_id))
 
-    payload = {
+    result = {
         "id": ot_msg_id,
-        "msg_type": payload[2:4],
+        "msg_type": OPENTHERM_MSG_TYPE[ot_msg_type],
     }
 
     if not message:
-        return {**payload, "value_raw": payload[6:]}
+        return {**result, "value_raw": payload[6:]}
 
     if msg.verb == "RQ":
-        assert payload[2:4] in ["00", "80"]
-        return {**payload, "value_raw": payload[6:10], "description": message["en"]}
+        assert ot_msg_type < 48
+        return {**result, "value_raw": payload[6:10], "description": message["en"]}
 
-    assert payload[2:4] in ["40", "70", "C0", "F0"]
+    assert ot_msg_type > 48
 
     if isinstance(message["var"], dict):
-        x = message["val"]["hb"] if "hb" in message["val"] else message["val"]
-        payload["value_hb"] = ot_msg_value(
-            payload[6:8], message["val"].get("hb", message["val"])
-        )
-        payload["value_lb"] = ot_msg_value(
-            payload[8:10], message["val"].get("lb", message["val"])
-        )
+        # x = message["val"]["hb"] if "hb" in message["val"] else message["val"]
+        if isinstance(message["val"], dict):
+            result["value_hb"] = ot_msg_value(
+                payload[6:8], message["val"].get("hb", message["val"])
+            )
+            result["value_lb"] = ot_msg_value(
+                payload[8:10], message["val"].get("lb", message["val"])
+            )
+        else:
+            result["value_hb"] = ot_msg_value(payload[6:8], message["val"])
+            result["value_lb"] = ot_msg_value(payload[8:10], message["val"])
 
     else:
-        payload["value"] = ot_msg_value(payload[6:10], message["val"])
+        if message["val"] in ["flag8", "u8", "s8"]:
+            result["value"] = ot_msg_value(payload[6:8], message["val"])
+        else:
+            result["value"] = ot_msg_value(payload[6:10], message["val"])
 
     return {
-        **payload,
+        **result,
         "description": message["en"],
     }
 

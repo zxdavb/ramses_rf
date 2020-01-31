@@ -167,10 +167,10 @@ class Gateway:
         self.data = {f"{i:02X}": {} for i in range(12)}
 
     def _signal_handler(self, signum, frame):
-        if not self.config["listen_only"]:
-            print(f"\r\n{self.database}")  # TODO: deleteme
+        print(f"\r\n{self.database}")  # TODO: deleteme
 
-        self._output_fp.close()
+        if self._output_fp:
+            self._output_fp.close()
         sys.exit()
 
     @property
@@ -327,7 +327,7 @@ class Gateway:
             except OSError:
                 raise  # TODO: do something better
 
-            while True:  # main loop when packets from file
+            while self._input_fp:
                 await _recv_message()
                 await _send_command()
 
@@ -413,7 +413,7 @@ class Gateway:
                 return False
             return True
 
-        async def get_packet_from_file() -> Optional[str]:  # ?async
+        def get_packet_from_file() -> Optional[str]:  # ?async
             """Get the next valid packet from a log file."""
             raw_packet = self._input_fp.readline()
             return raw_packet.strip()  # includes a timestamp
@@ -450,7 +450,11 @@ class Gateway:
 
         # get the next packet
         if self._input_fp:
-            timestamped_packet = await get_packet_from_file()
+            timestamped_packet = get_packet_from_file()
+            if not timestamped_packet:  # EOF?
+                self._input_fp = None
+                return
+
         else:  # self.serial_port
             timestamped_packet = await get_packet_from_port()
             if not timestamped_packet:  # may have read timeout'd

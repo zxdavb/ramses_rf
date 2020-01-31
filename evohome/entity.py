@@ -283,8 +283,8 @@ class Controller(Device):
 
         # TODO: take this out?
         if msg.code in ["000A", "30C9"] and msg.verb == " I":  # the payload is an array
-            # if not self._gateway.config["input_file"]:
-            self._gateway.loop.call_later(5, print, self._gateway.database)
+            if not self._gateway.config["input_file"]:
+                self._gateway.loop.call_later(5, print, self._gateway.database)
 
     def handle_313f(self):
         """Controllers will RP to a RQ at anytime."""

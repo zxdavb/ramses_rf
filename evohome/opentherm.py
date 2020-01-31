@@ -11,8 +11,21 @@ from typing import Any
 
 # pylint: disable=missing-function-docstring
 
+OPENTHERM_MSG_TYPE = {
+    0: "Read-Data",
+    16: "Write-Data",
+    32: "Invalid-Data",
+    48: "-reserved-",
+    64: "Read-Ack",
+    80: "Write-Ack",
+    96: "Data-Invalid",
+    112: "Unknown-DataId",
+}
+
+
 OPENTHERM_MESSAGES = {
-    "status_flags": {  # OpenTherm status flags [ID 0: Master status (HB) & Slave status (LB)]
+    # OpenTherm status flags [ID 0: Master status (HB) & Slave status (LB)]
+    "status_flags": {
         "0x0100": {
             "en": "Central heating enable",
             "nl": "Centrale verwarming aan",
@@ -84,10 +97,12 @@ OPENTHERM_MESSAGES = {
             "var": "StatusDiagnostic",
         },  # no diagnostics/diagnostics event
     },
-    "Master_config_flags": {  # OpenTherm Master configuration flags [ID 2: master config flags (HB)]
+    # OpenTherm Master configuration flags [ID 2: master config flags (HB)]
+    "Master_config_flags": {
         "0x0100": {"en": "Smart Power", "var": "ConfigSmartPower"}
     },
-    "Slave_Config_flags": {  # OpenTherm Slave configuration flags [ID 3: slave config flags (HB)]
+    # OpenTherm Slave configuration flags [ID 3: slave config flags (HB)]
+    "Slave_Config_flags": {
         "0x0100": {"en": "Domestic hot water present", "var": "ConfigDHWpresent"},
         "0x0200": {
             "en": "Control type (modulating on/off)",
@@ -101,7 +116,8 @@ OPENTHERM_MESSAGES = {
         },
         "0x2000": {"en": "Central heating 2 present", "var": "ConfigCH2"},
     },
-    "fault_flags": {  # OpenTherm fault flags [ID 5: Application-specific fault flags (HB)]
+    # OpenTherm fault flags [ID 5: Application-specific fault flags (HB)]
+    "fault_flags": {
         "0x0100": {
             "en": "Service request",
             "nl": "Onderhoudsvraag",
@@ -133,13 +149,15 @@ OPENTHERM_MESSAGES = {
             "var": "FaultOverTemperature",
         },
     },
-    "Remote_flags": {  # OpenTherm remote flags [ID 6: Remote parameter flags (HB)]
+    # OpenTherm remote flags [ID 6: Remote parameter flags (HB)]
+    "Remote_flags": {
         "0x0100": {"en": "DHW setpoint enable", "var": "RemoteDHWEnabled"},
         "0x0200": {"en": "Max. CH setpoint enable", "var": "RemoteMaxCHEnabled"},
         "0x0001": {"en": "DHW setpoint read/write", "var": "RemoteDHWReadWrite"},
         "0x0002": {"en": "Max. CH setpoint read/write", "var": "RemoteMaxCHReadWrite"},
     },
-    "messages": {  # OpenTherm messages
+    # OpenTherm messages
+    "messages": {
         "0": {"en": "Status", "dir": "R-", "val": "flag8", "flags": "StatusFlags"},
         "1": {
             "en": "Control setpoint",
@@ -634,7 +652,15 @@ OPENTHERM_MESSAGES = {
 }
 
 
-def ot_msg_value(val_seqx, val_type="f8.8") -> Any:
+def parity(x):
+    shiftamount = 1
+    while x >> shiftamount:
+        x ^= x >> shiftamount
+        shiftamount <<= 1
+    return x & 1
+
+
+def ot_msg_value(val_seqx, val_type) -> Any:
     def _get_flag8(byte) -> list:
         """Split a byte (as a str) into a list of 8 bits (1/0)."""
         ret = [0] * 8
@@ -666,22 +692,22 @@ def ot_msg_value(val_seqx, val_type="f8.8") -> Any:
         buf = struct.pack(">bB", _get_s8(msb), _get_u8(lsb))
         return int(struct.unpack(">h", buf)[0])
 
+    if val_type == "flag8":
+        return _get_flag8(val_seqx)
+
+    if val_type == "u8":
+        return _get_u8(val_seqx)
+
+    if val_type == "s8":
+        return _get_s8(val_seqx)
+
     if val_type == "f8.8":
         return _get_f8_8(val_seqx[:2], val_seqx[2:])
 
-    elif val_type == "u8":
-        return _get_u8(val_seqx[2:])
-
-    elif val_type == "s8":
-        return _get_s8(val_seqx[2:])
-
-    elif val_type == "u16":
+    if val_type == "u16":
         return _get_u16(val_seqx[:2], val_seqx[2:])
 
-    elif val_type == "s16":
+    if val_type == "s16":
         return _get_s16(val_seqx[:2], val_seqx[2:])
-
-    elif val_type == "flag8":
-        return _get_flag8(val_seqx[2:])
 
     return val_seqx
