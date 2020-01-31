@@ -406,15 +406,15 @@ class Gateway:
             except serial.SerialException:
                 return
 
-            packet_dt2 = dt.now().isoformat()
+            packet_dt = dt.now().isoformat()
 
-            # TODO: delete this block
-            import time
-            now = time.time()  # 1580212639.4933238
-            # now = time.time_ns() / 1e9  # 1580212639.4933238
-            mil = f"{now%1:.6f}".lstrip('0')  # .493123
-            packet_dt = time.strftime(f"%Y-%m-%dT%H:%M:%S{mil}", time.localtime(now))
-            print(packet_dt, packet_dt2)
+            # # TODO: delete this block
+            # import time
+            # now = time.time()  # 1580212639.4933238
+            # # now = time.time_ns() / 1e9  # 1580212639.4933238
+            # mil = f"{now%1:.6f}".lstrip('0')  # .493123
+            # packet_dt = time.strftime(f"%Y-%m-%dT%H:%M:%S{mil}", time.localtime(now))
+            # print(packet_dt, packet_dt2)
 
             try:
                 raw_packet = raw_packet.decode("ascii").strip()
