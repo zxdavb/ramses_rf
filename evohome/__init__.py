@@ -425,8 +425,10 @@ class Gateway:
             # print(packet_dt, packet_dt2)
 
             # firmware-level packet hacks, i.e. non-HGI80 devices, should be here
-            # if COMMAND_REGEX.match(raw_packet):
-            #     raw_packet = f"000 {raw_packet}"
+            if "???" in raw_packet:
+                _LOGGER.debug("Forcing database off")
+                self.config["database"] = None
+                raw_packet = f"000 {raw_packet[4:]}"
 
             return f"{packet_dt} {raw_packet}"
 

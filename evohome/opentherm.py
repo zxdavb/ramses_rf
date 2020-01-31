@@ -634,8 +634,6 @@ OPENTHERM_MESSAGES = {
 }
 
 
-
-
 def ot_msg_value(val_seqx, val_type="f8.8") -> Any:
     def _get_flag8(byte) -> list:
         """Split a byte (as a str) into a list of 8 bits (1/0)."""

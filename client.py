@@ -4,15 +4,13 @@ import asyncio
 import argparse
 import logging
 
-import ptvsd  # pylint: disable=import-error
-
 from evohome import _CONSOLE, _LOGGER, Gateway
 
 DEBUG_ADDR = "172.27.0.138"
 DEBUG_PORT = 5679
 
 BLACK_LIST = ["12:227486", "12:249582", "12:259810", "13:171587"]  # nextdoor
-BLACK_LIST += ["30:082155", "32:206250", "32:168090"]  # Nuaire
+# BLACK_LIST += ["30:082155", "32:206250", "32:168090"]  # Nuaire
 
 WHITE_LIST = [
     "01:145038",
@@ -51,7 +49,7 @@ def _parse_args():
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "--black_list",
-        # default=BLACK_LIST,
+        default=BLACK_LIST,
         help="discard all packets to/from these devices, e.g. ['32:654321']",
     )
     group.add_argument(
@@ -96,6 +94,8 @@ async def main(loop):
     args = _parse_args()
 
     if args.debug_mode > 0:
+        import ptvsd  # pylint: disable=import-error
+
         print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
         ptvsd.enable_attach(address=(DEBUG_ADDR, DEBUG_PORT))
 

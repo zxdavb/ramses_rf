@@ -3,7 +3,7 @@
 !.gitignore
 
 .secrets/*
-
+*.db
 *.json
 *.old
 *.out

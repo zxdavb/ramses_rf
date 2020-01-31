@@ -758,47 +758,54 @@ def parser_31e0(payload, msg) -> Optional[dict]:  # ???? (Nuaire on/off)
     }
 
 
+def parity(x):
+    shiftamount = 1
+    while x >> shiftamount:
+        x ^= x >> shiftamount
+        shiftamount <<= 1
+    return x & 1
+
+
 @parser_decorator
 def parser_3220(payload, msg) -> Optional[dict]:  # opentherm_3220?
     assert len(payload) / 2 == 5
     assert payload[:2] == "00"
+    assert int(payload[2:4], 16) & 0x80 == parity(int(payload[2:], 16) & 0x7FFFFFFF)
+    # assert str(ot_msg_id) in OPENTHERM_MESSAGES["messages"]
 
-    ot_msg_id = str(int(payload[4:6], 16))
-    # assert ot_msg_id in OPENTHERM_MESSAGES["messages"]
+    # ot_msg_type = int(payload[2:4], 16) & 0x7F
+    ot_msg_id = int(payload[4:6], 16)
+    message = OPENTHERM_MESSAGES["messages"].get(str(ot_msg_id))
 
-    message = OPENTHERM_MESSAGES["messages"].get(ot_msg_id)
+    payload = {
+        "id": ot_msg_id,
+        "msg_type": payload[2:4],
+    }
 
     if not message:
-        return {
-            "param_id": ot_msg_id,
-            "value_raw": payload[6:],
-            "unknown_0": payload[2:4],
-        }
+        return {**payload, "value_raw": payload[6:]}
 
     if msg.verb == "RQ":
         assert payload[2:4] in ["00", "80"]
-
-        return {
-            "parameter": message["en"],
-            "unknown_0": payload[2:4],
-        }
+        return {**payload, "value_raw": payload[6:10], "description": message["en"]}
 
     assert payload[2:4] in ["40", "70", "C0", "F0"]
 
     if isinstance(message["var"], dict):
-        return {
-            "param_id": ot_msg_id,
-            "value_raw": payload[6:],
-            "unknown_0": payload[2:4],
-        }
+        x = message["val"]["hb"] if "hb" in message["val"] else message["val"]
+        payload["value_hb"] = ot_msg_value(
+            payload[6:8], message["val"].get("hb", message["val"])
+        )
+        payload["value_lb"] = ot_msg_value(
+            payload[8:10], message["val"].get("lb", message["val"])
+        )
+
+    else:
+        payload["value"] = ot_msg_value(payload[6:10], message["val"])
 
     return {
-        "param_id": ot_msg_id,
-        "param_desc": message["en"],
-        "value": ot_msg_value(payload[6:10], message["val"]),
-        "value_raw": payload[6:],
-        "value_type": message["val"],
-        "unknown_0": payload[2:4],
+        **payload,
+        "description": message["en"],
     }
 
 
