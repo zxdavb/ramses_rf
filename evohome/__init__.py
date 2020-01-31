@@ -440,9 +440,9 @@ class Gateway:
                 return
 
             # firmware-level packet hacks, i.e. non-HGI80 devices, should be here
-            if "???" in raw_packet:
+            if raw_packet[:3] == "???":  # do'nt send nanoCUL packets to DB
                 if self.config["database"]:
-                    _LOGGER.debug("Forcing database off")
+                    _LOGGER.warning("Forcing database off")
                     self.config["database"] = None
                 raw_packet = f"000 {raw_packet[4:]}"
 
