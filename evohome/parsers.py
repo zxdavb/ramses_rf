@@ -27,48 +27,6 @@ from .entity import Device, DhwZone, Domain, Zone, dev_hex_to_id, DEVICE_CLASSES
 from .opentherm import OPENTHERM_MSG_TYPE, OPENTHERM_MESSAGES, ot_msg_value, parity
 
 
-def _dtm(seqx) -> str:
-    #        00141B0A07E3  (...HH:MM:00)    for system_mode, zone_mode (schedules?)
-    #      0400041C0A07E3  (...HH:MM:SS)    for sync_datetime
-    if len(seqx) == 12:
-        seqx = f"00{seqx}"
-
-    return dt(
-        year=int(seqx[10:14], 16),
-        month=int(seqx[8:10], 16),
-        day=int(seqx[6:8], 16),
-        hour=int(seqx[4:6], 16) & 0b11111,  # 1st 3 bits: DayOfWeek
-        minute=int(seqx[2:4], 16),
-        second=int(seqx[:2], 16),
-    ).strftime("%Y-%m-%d %H:%M:%S")
-
-
-def _date(seqx) -> Optional[str]:
-    try:  # the seqx might be "FFFFFFFF"
-        return dt(
-            year=int(seqx[4:8], 16), month=int(seqx[2:4], 16), day=int(seqx[:2], 16)
-        ).strftime("%Y-%m-%d")
-    except ValueError:
-        return None
-
-
-def _cent(seqx) -> float:
-    return int(seqx, 16) / 100
-
-
-def _str(seqx) -> Optional[str]:  # printable
-    _string = bytearray([x for x in bytearray.fromhex(seqx) if 31 < x < 128])
-    return _string.decode() if _string else None
-
-
-def _temp(seqx) -> Optional[float]:
-    "Temperatures are two's complement numbers."
-    if seqx == "7FFF":
-        return None
-    temp = int(seqx, 16)
-    return (temp if temp < 2 ** 15 else temp - 2 ** 16) / 100
-
-
 def parser_decorator(func):
     """WIP: Preprocess packets.
 
@@ -125,12 +83,54 @@ def parser_decorator(func):
 
         if msg.verb == "RQ":
             assert int(payload[:2], 16) <= 11
-            return
+            return {} if payload == "00" else None
 
         # TODO: god knows
         raise NotImplementedError
 
     return wrapper
+
+
+def _dtm(seqx) -> str:
+    #        00141B0A07E3  (...HH:MM:00)    for system_mode, zone_mode (schedules?)
+    #      0400041C0A07E3  (...HH:MM:SS)    for sync_datetime
+    if len(seqx) == 12:
+        seqx = f"00{seqx}"
+
+    return dt(
+        year=int(seqx[10:14], 16),
+        month=int(seqx[8:10], 16),
+        day=int(seqx[6:8], 16),
+        hour=int(seqx[4:6], 16) & 0b11111,  # 1st 3 bits: DayOfWeek
+        minute=int(seqx[2:4], 16),
+        second=int(seqx[:2], 16),
+    ).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _date(seqx) -> Optional[str]:
+    try:  # the seqx might be "FFFFFFFF"
+        return dt(
+            year=int(seqx[4:8], 16), month=int(seqx[2:4], 16), day=int(seqx[:2], 16)
+        ).strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+
+
+def _cent(seqx) -> float:
+    return int(seqx, 16) / 100
+
+
+def _str(seqx) -> Optional[str]:  # printable
+    _string = bytearray([x for x in bytearray.fromhex(seqx) if 31 < x < 128])
+    return _string.decode() if _string else None
+
+
+def _temp(seqx) -> Optional[float]:
+    "Temperatures are two's complement numbers."
+    if seqx == "7FFF":
+        return None
+    temp = int(seqx, 16)
+    return (temp if temp < 2 ** 15 else temp - 2 ** 16) / 100
 
 
 @parser_decorator
@@ -570,7 +570,7 @@ def parser_1fc9(payload, msg) -> Optional[dict]:  # bind_device
 
 
 @parser_decorator
-def parser_1fd4(payload, msg) -> Optional[dict]:  # otb_ticker
+def parser_1fd4(payload, msg) -> Optional[dict]:  # opentherm_sync
     assert msg.verb in " I"
     assert len(payload) / 2 == 3
     assert payload[:2] == "00"
@@ -579,7 +579,7 @@ def parser_1fd4(payload, msg) -> Optional[dict]:  # otb_ticker
 
 
 @parser_decorator
-def parser_22d9(payload, msg) -> Optional[dict]:  # opentherm_setpoint
+def parser_22d9(payload, msg) -> Optional[dict]:  # opentherm_setpt
     assert len(payload) / 2 == 3
     assert payload[:2] == "00"
 
@@ -759,7 +759,7 @@ def parser_31e0(payload, msg) -> Optional[dict]:  # ???? (Nuaire on/off)
 
 
 @parser_decorator
-def parser_3220(payload, msg) -> Optional[dict]:  # opentherm_3220?
+def parser_3220(payload, msg) -> Optional[dict]:  # opentherm_msg
     assert len(payload) / 2 == 5
     assert payload[:2] == "00"
 
@@ -787,7 +787,10 @@ def parser_3220(payload, msg) -> Optional[dict]:  # opentherm_3220?
     if msg.verb == "RQ":
         assert ot_msg_type < 48
         assert payload[6:10] == "0000"
-        return {**result, "description": message["en"]}
+        return {
+            **result,
+            # "description": message["en"]
+        }
 
     assert ot_msg_type > 48
 
@@ -811,7 +814,7 @@ def parser_3220(payload, msg) -> Optional[dict]:  # opentherm_3220?
 
     return {
         **result,
-        "description": message["en"],
+        # "description": message["en"],
     }
 
 

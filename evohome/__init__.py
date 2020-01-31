@@ -280,7 +280,7 @@ class Gateway:
                 _LOGGER.exception("%s  ERR: %s", raw_packet[:23], raw_packet[27:])
                 return True
 
-            if not msg.payload:
+            if msg.payload is None:
                 _LOGGER.info("%s RAW: %s %s", raw_packet[:23], msg, msg.raw_payload)
             else:
                 _LOGGER.info("%s MSG: %s %s", raw_packet[:23], msg, msg.payload)
@@ -329,7 +329,7 @@ class Gateway:
 
             while self._input_fp:
                 await _recv_message()
-                await _send_command()
+                await _send_command()  # to empty the buffer
 
         else:  # self.config["serial_port"]
             try:
