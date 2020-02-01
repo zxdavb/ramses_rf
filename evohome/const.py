@@ -147,7 +147,7 @@ a = "(-{3}|\d{3})"  # #          noqa: W605; pylint: disable=invalid-name, W1401
 b = "( I|RP|RQ| W)"  # #                     pylint: disable=invalid-name
 c = "(-{2}:-{6}|\d{2}:\d{6})"  # noqa: W605; pylint: disable=invalid-name, W1401
 d = "[0-9A-F]{4}"  # #                       pylint: disable=invalid-name
-e = "\d{3}"  # #                          pylint: disable=invalid-name
+e = "\d{3}"  # #                             pylint: disable=invalid-name
 f = "([0-9A-F]{2})+"  # #                    pylint: disable=invalid-name
 
 COMMAND_REGEX = re.compile(f"^{b} {a} {c} {c} {c} {d} {e} {f}$")

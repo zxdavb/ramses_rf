@@ -67,6 +67,7 @@ INSERT_SQL = """
 
 class FILETIME(ctypes.Structure):
     """Data structure for GetSystemTimePreciseAsFileTime()."""
+
     _fields_ = [("dwLowDateTime", ctypes.c_uint), ("dwHighDateTime", ctypes.c_uint)]
 
 
@@ -77,8 +78,8 @@ def time_stamp():
         ctypes.windll.kernel32.GetSystemTimePreciseAsFileTime(ctypes.byref(file_time))
         _time = (file_time.dwLowDateTime + (file_time.dwHighDateTime << 32)) / 1.0e7
         return _time - 134774 * 24 * 60 * 60  # since 01/01/1601
-    else:  # if os.name == "posix":
-        return time.time()
+    # if os.name == "posix":
+    return time.time()
 
 
 class MessageWorker(Thread):
@@ -271,13 +272,13 @@ class Gateway:
                 return
 
             if self.config["raw_output"]:
-                _LOGGER.info("%s  %s", raw_packet[:26], raw_packet[27:])
+                _LOGGER.info("%s %s", raw_packet[:23], raw_packet[27:])
                 return
 
             try:
                 msg = Message(raw_packet[27:], self, pkt_dt=raw_packet[:26])
             except (ValueError, AssertionError):
-                _LOGGER.exception("%s  ERR: %s", raw_packet[:23], raw_packet[27:])
+                _LOGGER.exception("%s ERR: %s", raw_packet[:23], raw_packet[27:])
                 return True
 
             if msg.payload is None:
@@ -400,16 +401,29 @@ class Gateway:
                 return any(dev in raw_packet for dev in self.config["white_list"])
             return True  # the two lists are mutex
 
-        def valid_packet(raw_packet) -> bool:
+        def valid_packet(timestamped_packet) -> bool:
             """Return True only if a packet is valid."""
+            raw_packet = timestamped_packet[27:]
             if not MESSAGE_REGEX.match(raw_packet):
-                _LOGGER.debug("Invalid packet: Invalid structure, >> %s <<", raw_packet)
+                _LOGGER.debug(
+                    "%s Invalid: Packet structure bad: %s",
+                    timestamped_packet[:23],
+                    raw_packet,
+                )
                 return False
             if int(raw_packet[46:49]) > 48:
-                _LOGGER.warning("Invalid packet: Excessive length >> %s <<", raw_packet)
+                _LOGGER.warning(
+                    "%s Invalid: Payload is too long: %s",
+                    timestamped_packet[:23],
+                    raw_packet,
+                )
                 return False
             if len(raw_packet[50:]) != 2 * int(raw_packet[46:49]):
-                _LOGGER.warning("Invalid packet: Incorrect length >> %s <<", raw_packet)
+                _LOGGER.warning(
+                    "%s Invalid: Payload wrong length: %s",
+                    timestamped_packet[:23],
+                    raw_packet,
+                )
                 return False
             return True
 
@@ -425,10 +439,10 @@ class Gateway:
             except serial.SerialException:
                 return
 
+            # dt.now().isoformat() doesn't work well on Windows
             now = time_stamp()  # 1580212639.4933238
-            mil = f"{now%1:.6f}".lstrip('0')  # .493123
+            mil = f"{now%1:.6f}".lstrip("0")  # .493123
             packet_dt = time.strftime(f"%Y-%m-%dT%H:%M:%S{mil}", time.localtime(now))
-            # packet_dt2 = dt.now().isoformat()
 
             try:
                 raw_packet = raw_packet.decode("ascii").strip()
@@ -461,7 +475,7 @@ class Gateway:
                 return None
 
         # dont keep/process invalid packets
-        if not valid_packet(timestamped_packet[27:]):
+        if not valid_packet(timestamped_packet):
             return None
 
         # log all valid packets (even if not wanted) to DB if enabled

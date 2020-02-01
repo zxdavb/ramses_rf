@@ -98,9 +98,7 @@ OPENTHERM_MESSAGES = {
         },  # no diagnostics/diagnostics event
     },
     # OpenTherm Master configuration flags [ID 2: master config flags (HB)]
-    "Master_config_flags": {
-        "0x0100": {"en": "Smart Power", "var": "ConfigSmartPower"}
-    },
+    "Master_config_flags": {"0x0100": {"en": "Smart Power", "var": "ConfigSmartPower"}},
     # OpenTherm Slave configuration flags [ID 3: slave config flags (HB)]
     "Slave_Config_flags": {
         "0x0100": {"en": "Domestic hot water present", "var": "ConfigDHWpresent"},

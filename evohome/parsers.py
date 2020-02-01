@@ -776,10 +776,7 @@ def parser_3220(payload, msg) -> Optional[dict]:  # opentherm_msg
 
     message = OPENTHERM_MESSAGES["messages"].get(str(ot_msg_id))
 
-    result = {
-        "id": ot_msg_id,
-        "msg_type": OPENTHERM_MSG_TYPE[ot_msg_type],
-    }
+    result = {"id": ot_msg_id, "msg_type": OPENTHERM_MSG_TYPE[ot_msg_type]}
 
     if not message:
         return {**result, "value_raw": payload[6:]}
