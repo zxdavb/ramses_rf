@@ -76,10 +76,10 @@ def time_stamp():
     if os.name == "nt":
         file_time = FILETIME()
         ctypes.windll.kernel32.GetSystemTimePreciseAsFileTime(ctypes.byref(file_time))
-        _time = (file_time.dwLowDateTime + (file_time.dwHighDateTime << 32)) / 1.0e7
-        return _time - 134774 * 24 * 60 * 60  # since 01/01/1601
+        _time = (file_time.dwLowDateTime + (file_time.dwHighDateTime << 32)) / 1e7
+        return _time - 134774 * 24 * 60 * 60  # since 1601-01-01T00:00:00Z
     # if os.name == "posix":
-    return time.time()
+    return time.time()  # since 1970-01-01T00:00:00Z
 
 
 class MessageWorker(Thread):
@@ -406,21 +406,21 @@ class Gateway:
             raw_packet = timestamped_packet[27:]
             if not MESSAGE_REGEX.match(raw_packet):
                 _LOGGER.debug(
-                    "%s Invalid: Packet structure bad: %s",
+                    "%s Invalid packet: Structure is bad: >>>%s<<<",
                     timestamped_packet[:23],
                     raw_packet,
                 )
                 return False
             if int(raw_packet[46:49]) > 48:
                 _LOGGER.warning(
-                    "%s Invalid: Payload is too long: %s",
+                    "%s Invalid packet: Payload too long: >>>%s<<<",
                     timestamped_packet[:23],
                     raw_packet,
                 )
                 return False
             if len(raw_packet[50:]) != 2 * int(raw_packet[46:49]):
                 _LOGGER.warning(
-                    "%s Invalid: Payload wrong length: %s",
+                    "%s Invalid packet: Length mismatch: >>>%s<<<",
                     timestamped_packet[:23],
                     raw_packet,
                 )
@@ -440,8 +440,10 @@ class Gateway:
                 return
 
             # dt.now().isoformat() doesn't work well on Windows
-            now = time_stamp()  # 1580212639.4933238
-            mil = f"{now%1:.6f}".lstrip("0")  # .493123
+            now = time.time()  # 1580666877.7795346
+            if os.name == "nt":
+                now = time_stamp()  # 1580666877.7795346
+            mil = f"{now%1:.6f}".lstrip("0")  # .779535
             packet_dt = time.strftime(f"%Y-%m-%dT%H:%M:%S{mil}", time.localtime(now))
 
             try:
