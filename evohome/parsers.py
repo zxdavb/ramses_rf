@@ -425,7 +425,7 @@ def parser_1060(payload, msg) -> Optional[dict]:  # battery_state (of device)
     assert payload[4:6] in ["00", "01"]
 
     result = {
-        "battery_level": 1 if payload[2:4] == "FF" else _cent(payload[2:4]) / 2,
+        "battery_level": None if payload[2:4] == "FF" else _cent(payload[2:4]) / 2,
         "low_battery": payload[4:] == "00",
     }
 
@@ -588,6 +588,23 @@ def parser_1fd4(payload, msg) -> Optional[dict]:  # opentherm_sync
     assert payload[:2] == "00"
 
     return {"ticker": int(payload[2:], 16)}
+
+
+@parser_decorator
+def parser_22c9(payload, msg) -> Optional[dict]:  # ufh_setpoint
+    def _parser(seqx) -> dict:
+        assert int(seqx[:2], 16) <= 11
+        assert seqx[10:] == "01"
+#
+        return {
+            "ufh_idx": int(seqx[:2], 16),
+            "temp_low": _temp(seqx[2:6]),
+            "temp_high": _temp(seqx[6:10]),
+            "unknown_0": seqx[10:],
+        }
+#
+    assert len(payload) % 12 == 0
+    return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
 
 
 @parser_decorator

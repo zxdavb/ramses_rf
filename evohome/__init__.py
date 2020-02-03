@@ -129,7 +129,7 @@ class SendCommandWorker(MessageWorker):
 class Gateway:
     """The gateway class."""
 
-    def __init__(self, serial_port=None, loop=None, **kwargs):
+    def __init__(self, serial_port, loop=None, **kwargs):
         self.serial_port = serial_port
         self.loop = kwargs.get("loop", asyncio.get_event_loop())
         self.config = kwargs
