@@ -271,7 +271,7 @@ class Gateway:
             if raw_packet is None:
                 return
 
-            if self.config["raw_output"]:
+            if self.config.get("raw_output"):
                 _LOGGER.info("%s %s", raw_packet[:23], raw_packet[27:])
                 return
 
@@ -302,7 +302,7 @@ class Gateway:
             if not self.command_queue.empty():
                 cmd = self.command_queue.get()
 
-                if not self.config["listen_only"]:
+                if not self.config.get("listen_only"):
                     # TODO: if not cmd.entity._pkts.get(cmd.code):
                     self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
                     await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
@@ -311,18 +311,18 @@ class Gateway:
 
         signal.signal(signal.SIGINT, self._signal_handler)
 
-        if self.config["database"]:
+        if self.config.get("database"):
             self._output_db = sqlite3.connect("evohome_rf.db")  # TODO: self.config...
             self._db_cursor = self._output_db.cursor()
             _ = self._db_cursor.execute(TABLE_SQL)
             _ = self._db_cursor.execute(INDEX_SQL)
             self._output_db.commit()
 
-        if self.config["output_file"]:
+        if self.config.get("output_file"):
             self._output_fp = open(self.config["output_file"], "a+")
 
         # source of packets is either a text file, or a serial port:
-        if self.config["input_file"]:
+        if self.config.get("input_file"):
             try:
                 self._input_fp = open(self.config["input_file"], "r")
             except OSError:
@@ -343,7 +343,7 @@ class Gateway:
             except serial.serialutil.SerialException:
                 raise  # TODO: do something better
 
-            if self.config["execute_cmd"]:  # e.g. "RQ 01:145038 0418 000000"
+            if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 0418 000000"
                 cmd = self.config["execute_cmd"]
                 cmd = Command(
                     self, cmd[13:17], verb=cmd[:2], dest_id=cmd[3:12], payload=cmd[18:]
@@ -395,9 +395,9 @@ class Gateway:
 
         def wanted_packet(raw_packet) -> bool:
             """Return True only if a packet is wanted."""
-            if self.config["black_list"]:
+            if self.config.get("black_list"):
                 return not any(dev in raw_packet for dev in self.config["black_list"])
-            if self.config["white_list"]:
+            if self.config.get("white_list"):
                 return any(dev in raw_packet for dev in self.config["white_list"])
             return True  # the two lists are mutex
 
@@ -455,7 +455,7 @@ class Gateway:
 
             # firmware-level packet hacks, i.e. non-HGI80 devices, should be here
             if raw_packet[:3] == "???":  # do'nt send nanoCUL packets to DB
-                if self.config["database"]:
+                if self.config.get("database"):
                     _LOGGER.warning("Forcing database off")
                     self.config["database"] = None
                 raw_packet = f"000 {raw_packet[4:]}"
