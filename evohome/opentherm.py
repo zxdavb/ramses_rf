@@ -650,7 +650,7 @@ OPENTHERM_MESSAGES = {
 }
 
 
-def parity(x):
+def parity(x: int) -> int:
     shiftamount = 1
     while x >> shiftamount:
         x ^= x >> shiftamount
@@ -709,3 +709,61 @@ def ot_msg_value(val_seqx, val_type) -> Any:
         return _get_s16(val_seqx[:2], val_seqx[2:])
 
     return val_seqx
+
+
+# See: https://www.opentherm.eu/request-details/?post_ids=2944
+#
+# ID0:HB0: Master status: CH enable
+# ID0:HB1: Master status: DHW enable
+# ID0:HB2: Master status: Cooling enable
+# ID0:HB3: Master status: OTC active
+# ID0:HB5: Master status: Summer/winter mode
+# ID0:HB6: Master status: DHW blocking
+
+# ID0:LB0: Slave Status: Fault indication
+# ID0:LB1: Slave Status: CH mode
+# ID0:LB2: Slave Status: DHW mode
+# ID0:LB3: Slave Status: Flame status
+
+# ID1: Control Setpoint i.e. CH water temperature Setpoint (°C)
+
+# ID2:HB0: Master configuration: Smart power
+# ID2:LB: Master MemberID Code
+
+# ID3:HB0: Slave configuration: DHW present
+# ID3:HB1: Slave configuration: Control type
+# ID3:HB4: Slave configuration: Master low-off&pump control
+
+# ID5:HB0: Service request
+# ID5:HB1: Lockout-reset
+# ID5:HB2: Low water pressure
+# ID5:HB3: Gas/flame fault
+# ID5:HB4: Air pressure fault
+# ID5:HB5: Water over-temperature
+# ID5:LB: OEM fault code
+
+# ID6:HB0: Remote boiler parameter transfer-enable: DHW setpoint
+# ID6:HB1: Remote boiler parameter transfer-enable: max. CH setpoint
+# ID6:LB0: Remote boiler parameter read/write: DHW setpoint
+# ID6:LB1: Remote boiler parameter read/write: max. CH setpoint
+
+# ID9: Remote override room Setpoint
+# ID10: Number of Transparent-Slave-Parameters supported by slave
+# ID12: Size of Fault-History-Buffer supported by slave
+# ID14: Maximum relative modulation level setting (%)
+# ID16: Room Setpoint (°C)
+# ID17: Relative Modulation Level (%)
+# ID18: Water pressure in CH circuit (bar)
+# ID19: Water flow rate in DHW circuit. (litres/minute)
+# ID24: Room temperature (°C)
+# ID25: Boiler flow water temperature (°C)
+# ID26: DHW temperature (°C)
+# ID27: Outside temperature (°C)
+# ID28: Return water temperature (°C)
+# ID48: DHW Setpoint upper & lower bounds for adjustment (°C)
+# ID49: Max CH water Setpoint upper & lower bounds for adjustment (°C)
+# ID56: DHW Setpoint (°C) (Remote parameter 1)
+# ID57: Max CH water Setpoint (°C) (Remote parameters 2)
+
+# ID126: Master product version number and type
+# ID127: Slave product version number and type

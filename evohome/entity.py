@@ -246,7 +246,7 @@ class Controller(Device):
     def TBD_discover(self):
         super()._discover()
 
-        # # WIP: these are an attempt to actively discover the CTL rather than by eavesdropping
+        # # WIP: an attempt to actively discover the CTL rather than by eavesdropping
         # for cmd in ["313F"]:
         #     self._queue.put_nowait(Command(self._gateway, cmd, ALL_DEV_ID, "FF"))
 

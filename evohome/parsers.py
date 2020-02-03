@@ -126,7 +126,7 @@ def _str(seqx) -> Optional[str]:  # printable
 
 
 def _temp(seqx) -> Optional[float]:
-    "Temperatures are two's complement numbers."
+    """Temperatures are two's complement numbers."""
     if seqx == "7FFF":
         return None
     temp = int(seqx, 16)
@@ -144,6 +144,12 @@ def parser_0001(payload, msg) -> Optional[dict]:  # rf_unknown
     # 13:48:38.518 080  W --- 12:010740 --:------ 12:010740 0001 005 0000000501
     # 13:48:45.518 074  W --- 12:010740 --:------ 12:010740 0001 005 0000000505
     # 13:48:50.518 077  W --- 12:010740 --:------ 12:010740 0001 005 0000000505
+
+    # sent by a HGI80 whenever its button is pressed
+    # 00:22:41.540 ---  I --- --:------ --:------ --:------ 0001 005 00FFFF02FF
+    # 00:22:41.757 ---  I --- --:------ --:------ --:------ 0001 005 00FFFF0200
+    # 00:22:43.320 ---  I --- --:------ --:------ --:------ 0001 005 00FFFF02FF
+    # 00:22:43.415 ---  I --- --:------ --:------ --:------ 0001 005 00FFFF0200
 
     assert len(payload) / 2 == 5
     assert payload[:2] in ["00", "FC", "FF"]
@@ -251,10 +257,10 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:  # zone_config (zone/s
 
 
 @parser_decorator
-def parser_000c(payload, msg) -> Optional[dict]:  # zone_devices (not sensors)
+def parser_000c(payload, msg) -> Optional[dict]:  # zone_actuators (not sensors)
     def _parser(seqx) -> dict:
         assert int(seqx[:2], 16) <= 11
-        # assert seqx[2:4] in ["00", "0A", "0F", "10"]
+        # assert seqx[2:4] in ["00", "0A", "0F", "10"] # usus. 00 - subzone?
         assert seqx[4:6] in ["00", "7F"]
 
         return {dev_hex_to_id(seqx[6:12]): seqx[4:6]}
@@ -366,6 +372,12 @@ def parser_0418(payload, msg) -> Optional[dict]:  # system_fault
 
 @parser_decorator
 def parser_042f(payload, msg) -> Optional[dict]:  # unknown - WIP
+    # 055  I --- 34:064023 --:------ 34:064023 042F 008 00000000230023F5
+    # 063  I --- 34:064023 --:------ 34:064023 042F 008 00000000240024F5
+    # 049  I --- 34:064023 --:------ 34:064023 042F 008 00000000250025F5
+    # 045  I --- 34:064023 --:------ 34:064023 042F 008 00000000260026F5
+    # 045  I --- 34:092243 --:------ 34:092243 042F 008 0000010021002201
+
     assert len(payload) / 2 in [8, 9]  # non-evohome are 9
     assert payload[:2] == "00"
 
@@ -413,7 +425,7 @@ def parser_1060(payload, msg) -> Optional[dict]:  # battery_state (of device)
     assert payload[4:6] in ["00", "01"]
 
     result = {
-        "battery_level": 1 if payload[2:4] == "FF" else _cent(payload[2:4]) / 2,
+        "battery_level": None if payload[2:4] == "FF" else _cent(payload[2:4]) / 2,
         "low_battery": payload[4:] == "00",
     }
 
@@ -474,7 +486,7 @@ def parser_1100(payload, msg) -> Optional[dict]:  # boiler_params (domain/zone/d
     assert payload[14:] == "01"
     return {
         **_parser(payload[:10]),
-        "proportional_band_width": _cent(payload[10:14]),  # in degrees C
+        "proportional_band_width": _temp(payload[10:14]),  # in degrees C
         "unknown_1": payload[14:],  # always 01?
     }
 
@@ -576,6 +588,23 @@ def parser_1fd4(payload, msg) -> Optional[dict]:  # opentherm_sync
     assert payload[:2] == "00"
 
     return {"ticker": int(payload[2:], 16)}
+
+
+@parser_decorator
+def parser_22c9(payload, msg) -> Optional[dict]:  # ufh_setpoint
+    def _parser(seqx) -> dict:
+        assert int(seqx[:2], 16) <= 11
+        assert seqx[10:] == "01"
+#
+        return {
+            "ufh_idx": int(seqx[:2], 16),
+            "temp_low": _temp(seqx[2:6]),
+            "temp_high": _temp(seqx[6:10]),
+            "unknown_0": seqx[10:],
+        }
+#
+    assert len(payload) % 12 == 0
+    return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
 
 
 @parser_decorator
