@@ -1,15 +1,19 @@
 """Evohome serial."""
+import ctypes
+import os
 from queue import Queue
 import signal
 import sys
 from threading import Thread
 import time
-from curses.ascii import isprint
+
+from string import printable
 from datetime import datetime as dt
-from typing import Tuple
+from typing import Optional
 
 import asyncio
 import serial_asyncio
+import sqlite3
 
 import serial
 
@@ -20,7 +24,7 @@ from .const import (
     COMMAND_FORMAT,
     COMMAND_LOOKUP,
     COMMAND_MAP,
-    COMMAND_SCHEMA,
+    COMMAND_REGEX,
     CTL_DEV_ID,
     DEVICE_LOOKUP,
     DEVICE_MAP,
@@ -39,6 +43,43 @@ from .message import Message
 DEFAULT_PORT_NAME = "/dev/ttyUSB0"
 BAUDRATE = 115200  # 38400  #  57600  # 76800  # 38400  # 115200
 READ_TIMEOUT = 0
+
+TABLE_SQL = """
+    CREATE TABLE IF NOT EXISTS packets (
+        dt      TEXT PRIMARY KEY,
+        rssi    TEXT NOT NULL,
+        verb    TEXT NOT NULL,
+        seq     TEXT NOT NULL,
+        dev_1   TEXT NOT NULL,
+        dev_2   TEXT NOT NULL,
+        dev_3   TEXT NOT NULL,
+        code    TEXT NOT NULL,
+        len     TEXT NOT NULL,
+        payload TEXT NOT NULL
+    ) WITHOUT ROWID;
+"""
+INDEX_SQL = "CREATE INDEX IF NOT EXISTS code_idx ON packets(code);"
+INSERT_SQL = """
+    INSERT INTO packets(dt, rssi, verb, seq, dev_1, dev_2, dev_3, code, len, payload)
+    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+"""
+
+
+class FILETIME(ctypes.Structure):
+    """Data structure for GetSystemTimePreciseAsFileTime()."""
+
+    _fields_ = [("dwLowDateTime", ctypes.c_uint), ("dwHighDateTime", ctypes.c_uint)]
+
+
+def time_stamp():
+    """Return an accurate time, even for Windows-based systems."""
+    if os.name == "nt":
+        file_time = FILETIME()
+        ctypes.windll.kernel32.GetSystemTimePreciseAsFileTime(ctypes.byref(file_time))
+        _time = (file_time.dwLowDateTime + (file_time.dwHighDateTime << 32)) / 1e7
+        return _time - 134774 * 24 * 60 * 60  # since 1601-01-01T00:00:00Z
+    # if os.name == "posix":
+    return time.time()  # since 1970-01-01T00:00:00Z
 
 
 class MessageWorker(Thread):
@@ -88,187 +129,371 @@ class SendCommandWorker(MessageWorker):
 class Gateway:
     """The gateway class."""
 
-    def __init__(
-        self,
-        port_name=None,
-        **kwargs
-    ):
-        self.serial_port = port_name
-        # self.debug_mode = kwargs.get("debug_mode")
-        self.input_file = kwargs.get("input_file")
-        self.output_file = kwargs.get("output_file", PACKETS_FILE)
-        self.read_only = kwargs.get("read_only", False)
-        self._loop = kwargs.get("loop", asyncio.get_event_loop())
+    def __init__(self, serial_port, loop=None, **kwargs):
+        self.serial_port = serial_port
+        self.loop = kwargs.get("loop", asyncio.get_event_loop())
+        self.config = kwargs
 
-        self._config = kwargs
+        self._input_fp = self._output_fp = None
+        self._output_db = self._db_cursor = None
 
-        if self.serial_port and self.input_file:  # must be mutually exclusive
-            _LOGGER.warning(
-                "Ignoring packet file (%s) as a port (%s) has been specified",
-                self.input_file,
-                self.serial_port
-            )
-            self.input_file = None
+        if self.serial_port and kwargs.get("input_file"):
+            _LOGGER.warning("Ignoring packet file (%s)", kwargs["input_file"])
+            kwargs["input_file"] = None
 
-        elif not (self.serial_port or self.input_file):
+        if kwargs.get("input_file"):  # TODO:
+            _LOGGER.debug("Forcing listen_only mode")
+            self.config["listen_only"] = True
+
+        elif not self.serial_port:
             _LOGGER.warning("Using default port (%s)", DEFAULT_PORT_NAME)
             self.serial_port = DEFAULT_PORT_NAME
 
-        self._input_fp = self._output_fp = None
-
-        if kwargs.get("console_log") is True:
-            _LOGGER.addHandler(_CONSOLE)
+        self.reader = self.writer = None
 
         self.command_queue = Queue(maxsize=200)
         self.message_queue = Queue(maxsize=400)
 
-        self.reader = self.writer = None
+        self.system = System(self)
 
-        self.device_by_id = {}
-        self.domain_by_id = {}
-        self.zone_by_id = {}
-        self.devices = []
-        self.domains = []
         self.zones = []
-        self.system = None
+        self.zone_by_id = {}
 
-    async def start(self):
-        """Enumerate the Controller, all Zones, and the DHW relay (if any)."""
-        signal.signal(signal.SIGINT, self.signal_handler)
+        self.domains = []
+        self.domain_by_id = {}
 
-        if self.output_file:
-            self._output_fp = open(self.output_file, "a+")
+        self.devices = []
+        self.device_by_id = {}
 
-        if self.input_file:
-            self._input_fp = open(self.input_file, "r")
-            while True:
-                await self._recv_message()
+        self.data = {f"{i:02X}": {} for i in range(12)}
 
-        else:
-            self.reader, self.writer = await serial_asyncio.open_serial_connection(
-                loop=self._loop,
-                url=self.serial_port,
-                baudrate=BAUDRATE,
-                timeout=READ_TIMEOUT
-            )
+    def _signal_handler(self, signum, frame):
+        print(f"\r\n{self.database}")  # TODO: deleteme
 
-            while True:
-                await self._recv_message()
-                await self._send_command()
-
-    def signal_handler(self, signum, frame):
-        def print_database():
-            print("zones = %s", {k: v.zone_type for k, v in self.domain_by_id.items()})
-            print(
-                "devices = %s", {k: v.device_type for k, v in self.device_by_id.items()}
-            )
-
-        print_database()  # TODO: deleteme
-
-        self._output_fp.close()
-
+        if self._output_fp:
+            self._output_fp.close()
         sys.exit()
 
-    async def _recv_message(self) -> None:
-        """Receive a message."""
-        if self.input_file:
-            raw_packet = await self._get_packet_from_file()
+    @property
+    def database(self) -> Optional[dict]:
+        controllers = [d for d in self.devices if d.device_type == "CTL"]
+        if len(controllers) != 1:
+            print("fail test 0: more/less than 1 controller")
+            return
 
-            if not raw_packet:
-                return
+        database = {
+            "controller": controllers[0].device_id,
+            "boiler": {
+                "dhw_sensor": controllers[0].dhw_sensor,
+                "tpi_relay": controllers[0].tpi_relay,
+            },
+            "zones": {},
+            #  "devices": {},
+        }
 
-        else:
-            await asyncio.sleep(0.01)  # 0.05 was working well
-            raw_packet = await self._get_packet_from_port()
+        orphans = database["orphans"] = [
+            d.device_id for d in self.devices if d.parent_zone is None
+        ]
+
+        database["heat_demand"] = {
+            d.device_id: d.heat_demand
+            for d in self.devices
+            if hasattr(d, "heat_demand")
+        }
+
+        thermometers = database["thermometers"] = {
+            d.device_id: d.temperature
+            for d in self.devices
+            if hasattr(d, "temperature")
+        }
+        thermometers.pop(database["boiler"]["dhw_sensor"], None)
+
+        for z in self.zone_by_id:  # [z.zone_idx for z in self.zones]:
+            actuators = [k for d in self.data[z].get("actuators", []) for k in d.keys()]
+            children = [d.device_id for d in self.devices if d.parent_zone == z]
+
+            zone = database["zones"][z] = {
+                "name": self.data[z].get("name"),  # TODO: do it this way
+                "temperature": self.zone_by_id[z].temperature,  # TODO: or this way
+                "heat_demand": self.zone_by_id[z].heat_demand,
+                "sensor": None,
+                "actuators": actuators,
+                "children": children,  # TODO: could this include non-actuators?
+                "devices": list(set(actuators) | set(children)),
+            }
+            orphans = list(set(orphans) - set(zone["devices"]))
+
+        # check each zones has a unique (and non-null) temperature
+        zone_map = {
+            str(v["temperature"]): k
+            for k, v in database["zones"].items()
+            if v["temperature"] is not None
+        }
+
+        # for z in self.zone_by_id:  # [z.zone_idx for z in self.zones]:
+        #     if
+
+        # TODO: needed? or just process only those with a unique temp?
+        if len(zone_map) != len(database["zones"]):  # duplicate/null temps
+            print("fail test 1: non-unique (null) zone temps")
+            return database
+
+        # check all possible sensors have a unique temp - how?
+        temp_map = [t for t in thermometers.values() if t is not None]
+        if len(temp_map) != len(thermometers):  # duplicate/null temps
+            print("fail test 2: null device temps")
+            return database
+
+        temp_map = {str(v): k for k, v in thermometers.items() if v is not None}
+
+        for zone_idx in database["zones"]:
+            zone = database["zones"][zone_idx]
+            sensor = temp_map.get(str(zone["temperature"]))
+            if sensor:
+                zone["sensor"] = sensor
+                # if sensor in database["orphans"]:
+                #     database["orphans"].remove(sensor)
+                orphans = list(set(orphans) - set(sensor))
+
+        # TODO: max 1 remaining zone without a sensor
+        # if len(thermometers) == 0:
+        # database.pop("thermometers")
+
+        return database
+
+    async def start(self):
+        """This is a docstring."""
+
+        async def _recv_message() -> None:
+            """Receive a packet and validate it as a message."""
+            raw_packet = await self._get_packet()
 
             if raw_packet is None:
                 return
 
-        if self._config.get("raw_packets"):
-            _LOGGER.info("%s PKT: %s", raw_packet[:26], raw_packet[27:])
-            return
+            if self.config.get("raw_output"):
+                _LOGGER.info("%s %s", raw_packet[:23], raw_packet[27:])
+                return
 
-        try:
-            msg = Message(raw_packet[27:], self, pkt_dt=raw_packet[:26])
-        except (ValueError, AssertionError):
-            return
+            try:
+                msg = Message(raw_packet[27:], self, pkt_dt=raw_packet[:26])
+            except (ValueError, AssertionError):
+                _LOGGER.exception("%s ERR: %s", raw_packet[:23], raw_packet[27:])
+                return True
 
-        # if COMMAND_SCHEMA.get(msg.command_code):
-        #     if COMMAND_SCHEMA[msg.command_code].get("non_evohome"):
-        #         return  # ignore non-evohome commands
+            if msg.payload is None:
+                _LOGGER.info("%s RAW: %s %s", raw_packet[:23], msg, msg.raw_payload)
+            else:
+                _LOGGER.info("%s MSG: %s %s", raw_packet[:23], msg, msg.payload)
 
-        # if {msg.device_type[0], msg.device_type[1]} & {"GWY", "VNT"}:
-        #     return  # ignore non-evohome device types
+            # UPDATE: only certain packets should become part of the canon
+            try:
+                if "HGI" in msg.device_type:  # leave in anyway?
+                    return
+                elif msg.device_type[0] == " --":
+                    self.device_by_id[msg.device_id[2]].update(msg)
+                else:
+                    self.device_by_id[msg.device_id[0]].update(msg)
+            except KeyError:
+                pass
 
-        # if msg.device_id[0] == NO_DEV_ID and msg.device_type[2] == " 12":
-        #     return  # ignore non-evohome device types
+        async def _send_command() -> None:
+            """Send a command unless in listen_only mode."""
+            if not self.command_queue.empty():
+                cmd = self.command_queue.get()
 
-        # if self.input_file:
-        #     if "HGI" in [msg.device_type[0], msg.device_type[1]]:
-        #         return  # ignore the HGI
-
-        if not msg.payload:
-            _LOGGER.info("%s RAW: %s %s", msg._pkt_dt, msg, msg.raw_payload)
-            return  # not a (currently) decodable payload
-        else:
-            _LOGGER.info("%s MSG: %s %s", msg._pkt_dt, msg, msg.payload)
-
-    async def _send_command(self) -> None:
-        """Send a command."""
-        if not self.command_queue.empty():
-            cmd = self.command_queue.get()
-
-            if not self.read_only:
-                if not cmd.entity._data.get(cmd.command_code):
+                if not self.config.get("listen_only"):
+                    # TODO: if not cmd.entity._pkts.get(cmd.code):
                     self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
+                    await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
 
-            self.command_queue.task_done()
+                self.command_queue.task_done()
 
-        await asyncio.sleep(0.05)  # 0.1 was working well
+        signal.signal(signal.SIGINT, self._signal_handler)
 
-    async def _get_packet_from_file(self) -> Tuple[str, str]:
-        """Get the next valid packet, along with an isoformat datetime string."""
+        if self.config.get("database"):
+            self._output_db = sqlite3.connect("evohome_rf.db")  # TODO: self.config...
+            self._db_cursor = self._output_db.cursor()
+            _ = self._db_cursor.execute(TABLE_SQL)
+            _ = self._db_cursor.execute(INDEX_SQL)
+            self._output_db.commit()
 
-        raw_packet = self._input_fp.readline()
+        if self.config.get("output_file"):
+            self._output_fp = open(self.config["output_file"], "a+")
 
-        return raw_packet.strip()
+        # source of packets is either a text file, or a serial port:
+        if self.config.get("input_file"):
+            try:
+                self._input_fp = open(self.config["input_file"], "r")
+            except OSError:
+                raise  # TODO: do something better
 
-    async def _get_packet_from_port(self) -> Tuple[str, str]:
-        """Get the next valid packet, along with an isoformat datetime string."""
+            while self._input_fp:
+                await _recv_message()
+                await _send_command()  # to empty the buffer
 
-        try:
-            raw_packet = await self.reader.readline()
-            # _LOGGER.warning("XXX, >> %s <<", raw_packet)
-            raw_packet = raw_packet.decode("ascii").strip()
-        except (serial.SerialException, UnicodeDecodeError):
-            return
+        else:  # self.config["serial_port"]
+            try:
+                self.reader, self.writer = await serial_asyncio.open_serial_connection(
+                    loop=self.loop,
+                    url=self.serial_port,
+                    baudrate=BAUDRATE,
+                    timeout=READ_TIMEOUT,
+                )
+            except serial.serialutil.SerialException:
+                raise  # TODO: do something better
 
-        raw_packet = "".join(char for char in raw_packet if isprint(char))
+            if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 0418 000000"
+                cmd = self.config["execute_cmd"]
+                cmd = Command(
+                    self, cmd[13:17], verb=cmd[:2], dest_id=cmd[3:12], payload=cmd[18:]
+                )
+                self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
+                await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
 
-        if not raw_packet:
-            return
+                # # BEGIN crazy test block
+                # i = 0x0
+                # while i < 0x4010:
+                #     await _recv_message()
+                #     # pylint: disable=protected-access
+                #     if self.reader._transport.serial.in_waiting != 0:
+                #         continue
 
-        packet_dt = dt.now().isoformat()
+                #     cmd = Command(self, "0418", verb="RQ", dest_id="01:145038", payload=f"{i:06X}")
+                #     self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
+                #     await asyncio.sleep(0.3)  # 0.5 too short
 
-        # any packet hacks, for non-HGI80 firmware, should be here
-        # raw_packet = re.sub(r"", "", raw_packet)
+                #     # code = f"{i:04X}"
+                #     # cmd = Command(self, code, verb="RQ", dest_id="01:145038", payload="00")  # TODO: "0000", "FC"
+                #     # self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
+                #     # await asyncio.sleep(1)  # 0.5 too short
+                #     # cmd = Command(self, code, verb="RQ", dest_id="01:145038", payload="0100")  # TODO: "0000", "FC"
+                #     # self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
+                #     # await asyncio.sleep(1)  # 0.5 too short
+                #     # cmd = Command(self, code, verb="RQ", dest_id="01:145038", payload="FC")  # TODO: "0000", "FC"
+                #     # self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
+                #     # await asyncio.sleep(1)  # 0.5 too short
 
-        if self._output_fp:  # TODO: make this async
-            self._output_fp.write(f"{packet_dt} {raw_packet}\r\n")
+                #     if i % 20 == 19:
+                #         await asyncio.sleep(30)
 
-        if self._config.get("raw_packets"):
+                #     if not self.command_queue.empty():
+                #         self.command_queue.get()
+                #         self.command_queue.task_done()
+
+                #     i += 1
+                # # ENDS crazy test block
+
+            while True:  # main loop when packets from serial port
+                await _recv_message()
+                # pylint: disable=protected-access
+                if self.reader._transport.serial.in_waiting == 0:
+                    await _send_command()
+
+    async def _get_packet(self) -> Optional[str]:
+        """Get the next valid/wanted packet, stamped with an isoformat datetime."""
+
+        def wanted_packet(raw_packet) -> bool:
+            """Return True only if a packet is wanted."""
+            if self.config.get("black_list"):
+                return not any(dev in raw_packet for dev in self.config["black_list"])
+            if self.config.get("white_list"):
+                return any(dev in raw_packet for dev in self.config["white_list"])
+            return True  # the two lists are mutex
+
+        def valid_packet(timestamped_packet) -> bool:
+            """Return True only if a packet is valid."""
+            raw_packet = timestamped_packet[27:]
+            if not MESSAGE_REGEX.match(raw_packet):
+                _LOGGER.debug(
+                    "%s Invalid packet: Structure is bad: >>>%s<<<",
+                    timestamped_packet[:23],
+                    raw_packet,
+                )
+                return False
+            if int(raw_packet[46:49]) > 48:
+                _LOGGER.warning(
+                    "%s Invalid packet: Payload too long: >>>%s<<<",
+                    timestamped_packet[:23],
+                    raw_packet,
+                )
+                return False
+            if len(raw_packet[50:]) != 2 * int(raw_packet[46:49]):
+                _LOGGER.warning(
+                    "%s Invalid packet: Length mismatch: >>>%s<<<",
+                    timestamped_packet[:23],
+                    raw_packet,
+                )
+                return False
+            return True
+
+        def get_packet_from_file() -> Optional[str]:  # ?async
+            """Get the next valid packet from a log file."""
+            raw_packet = self._input_fp.readline()
+            return raw_packet.strip()  # includes a timestamp
+
+        async def get_packet_from_port() -> Optional[str]:
+            """Get the next valid packet from a serial port."""
+            try:
+                raw_packet = await self.reader.readline()
+            except serial.SerialException:
+                return
+
+            # dt.now().isoformat() doesn't work well on Windows
+            now = time.time()  # 1580666877.7795346
+            if os.name == "nt":
+                now = time_stamp()  # 1580666877.7795346
+            mil = f"{now%1:.6f}".lstrip("0")  # .779535
+            packet_dt = time.strftime(f"%Y-%m-%dT%H:%M:%S{mil}", time.localtime(now))
+
+            try:
+                raw_packet = raw_packet.decode("ascii").strip()
+            except UnicodeDecodeError:
+                return
+
+            raw_packet = "".join(c for c in raw_packet if c in printable)
+            if not raw_packet:
+                return
+
+            # firmware-level packet hacks, i.e. non-HGI80 devices, should be here
+            if raw_packet[:3] == "???":  # do'nt send nanoCUL packets to DB
+                if self.config.get("database"):
+                    _LOGGER.warning("Forcing database off")
+                    self.config["database"] = None
+                raw_packet = f"000 {raw_packet[4:]}"
+
             return f"{packet_dt} {raw_packet}"
 
-        if not MESSAGE_REGEX.match(raw_packet):
-            _LOGGER.warning("Packet structure is not valid, >> %s <<", raw_packet)
-            return
+        # get the next packet
+        if self._input_fp:
+            timestamped_packet = get_packet_from_file()
+            if not timestamped_packet:  # EOF?
+                self._input_fp = None
+                return
 
-        if len(raw_packet[50:]) != 2 * int(raw_packet[46:49]):
-            _LOGGER.warning("Packet payload length is incorrect, >> %s <<", raw_packet)
-            return
+        else:  # self.serial_port
+            timestamped_packet = await get_packet_from_port()
+            if not timestamped_packet:  # may have read timeout'd
+                return None
 
-        if int(raw_packet[46:49]) > 48:  # TODO: a ?corrupt pkt of 55 seen
-            _LOGGER.warning("Packet payload length excessive, >> %s <<", raw_packet)
-            return
+        # dont keep/process invalid packets
+        if not valid_packet(timestamped_packet):
+            return None
 
-        return f"{packet_dt} {raw_packet}"
+        # log all valid packets (even if not wanted) to DB if enabled
+        if self._output_db:
+            w = [0, 27, 31, 34, 38, 48, 58, 68, 73, 77, 199]  # 165?
+            data = tuple(
+                [timestamped_packet[w[i - 1] : w[i] - 1] for i in range(1, len(w))]
+            )
+
+            _ = self._db_cursor.execute(INSERT_SQL, data)
+            self._output_db.commit()
+
+        # log all valid packets (even if not wanted) to file if enabled
+        if self._output_fp:
+            self._output_fp.write(f"{timestamped_packet}\n")  # TODO: make async
+
+        # only return wanted packets for further processing
+        if wanted_packet(timestamped_packet[27:]):
+            return timestamped_packet  # in whitelist or not in blacklist
