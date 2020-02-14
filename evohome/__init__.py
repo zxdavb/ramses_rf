@@ -392,18 +392,18 @@ class Gateway:
                 self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
                 await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
 
-            for code in COMMAND_SCHEMA:
-                # pylint: disable=protected-access
-                while self.reader._transport.serial.in_waiting > 0:
-                    await _recv_message(source=self.reader)
+            # for code in COMMAND_SCHEMA:
+            #     # pylint: disable=protected-access
+            #     while self.reader._transport.serial.in_waiting > 0:
+            #         await _recv_message(source=self.reader)
 
-                cmd = Command(self, code, verb="RQ", dest_id=CTL_DEV_ID, payload="FF")
-                self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
-                await asyncio.sleep(0.7)  # 0.8, 1.0 OK, 0.5 too short
+            #     cmd = Command(self, code, verb="RQ", dest_id=CTL_DEV_ID, payload="FF")
+            #     self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
+            #     await asyncio.sleep(0.7)  # 0.8, 1.0 OK, 0.5 too short
 
-                while not self.command_queue.empty():
-                    self.command_queue.get()
-                    self.command_queue.task_done()
+            #     while not self.command_queue.empty():
+            #         self.command_queue.get()
+            #         self.command_queue.task_done()
 
             while True:  # main loop when packets from serial port
                 await _recv_message(source=self.reader)
