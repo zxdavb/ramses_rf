@@ -59,6 +59,14 @@ def _parse_args():
     )
 
     parser.add_argument(
+        "-c",
+        "--controller_id",
+        type=str,
+        action="store",
+        help="controller to use in favour of discovery",
+    )
+
+    parser.add_argument(
         "-r",
         "--raw_output",
         action="store_true",

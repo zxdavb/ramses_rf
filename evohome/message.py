@@ -1,6 +1,6 @@
 """Evohome serial."""
 from .const import (
-    ALL_DEV_ID,
+    NUL_DEV_ID,
     COMMAND_EXPOSES_ZONE,
     COMMAND_LENGTH,
     COMMAND_LOOKUP,
@@ -11,7 +11,7 @@ from .const import (
     HGI_DEV_ID,
     MESSAGE_FORMAT,
     MESSAGE_REGEX,
-    NO_DEV_ID,
+    NON_DEV_ID,
     SYSTEM_MODE_MAP,
     ZONE_MODE_MAP,
     ZONE_TYPE_MAP,
@@ -54,10 +54,10 @@ class Message:
     def __str__(self) -> str:
         def _dev_name(idx) -> str:
             """Return a friendly device name."""
-            if self.device_id[idx] == NO_DEV_ID:
+            if self.device_id[idx] == NON_DEV_ID:
                 return f"{'':<10}"
 
-            if self.device_id[idx] == ALL_DEV_ID:
+            if self.device_id[idx] == NUL_DEV_ID:
                 return "ALL:------"
 
             if idx == 2 and self.device_id[2] == self.device_id[0]:
@@ -98,7 +98,7 @@ class Message:
         if self.device_type[0] == "VNT":
             return True  # ignore nuaire devices (switches, senors)
 
-        # if self.device_id[0] == NO_DEV_ID and self.device_type[2] == " 12":
+        # if self.device_id[0] == NON_DEV_ID and self.device_type[2] == " 12":
         #     return True  # ignore non-evohome device types
 
         # if self.input_file:
@@ -112,7 +112,7 @@ class Message:
         def harvest_new_entities(self):
             def get_device(gateway, device_id):
                 """Get a Device, create it if required."""
-                assert device_id not in [ALL_DEV_ID, HGI_DEV_ID, NO_DEV_ID]
+                assert device_id not in [NUL_DEV_ID, HGI_DEV_ID, NON_DEV_ID]
 
                 try:  # does the system already know about this entity?
                     entity = gateway.device_by_id[device_id]

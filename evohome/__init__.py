@@ -19,18 +19,19 @@ import serial
 
 from .command import Command
 from .const import (
-    ALL_DEV_ID,
+    NUL_DEV_ID,
     COMMAND_EXPOSES_ZONE,
     COMMAND_FORMAT,
     COMMAND_LOOKUP,
     COMMAND_MAP,
     COMMAND_REGEX,
+    COMMAND_SCHEMA,
     CTL_DEV_ID,
     DEVICE_LOOKUP,
     DEVICE_MAP,
     HGI_DEV_ID,
     MESSAGE_REGEX,
-    NO_DEV_ID,
+    NON_DEV_ID,
     PACKETS_FILE,
 )
 from .entity import System
@@ -40,7 +41,7 @@ from .message import Message
 # from typing import Optional
 
 
-DEFAULT_PORT_NAME = "/dev/ttyUSB0"
+DEFAULT_DATABASE = "evohome_rf.db"
 BAUDRATE = 115200  # 38400  #  57600  # 76800  # 38400  # 115200
 READ_TIMEOUT = 0
 
@@ -138,16 +139,12 @@ class Gateway:
         self._output_db = self._db_cursor = None
 
         if self.serial_port and kwargs.get("input_file"):
-            _LOGGER.warning("Ignoring packet file (%s)", kwargs["input_file"])
+            _LOGGER.warning("Ignoring input file (%s)", kwargs["input_file"])
             kwargs["input_file"] = None
 
-        if kwargs.get("input_file"):  # TODO:
-            _LOGGER.debug("Forcing listen_only mode")
+        if kwargs.get("input_file") and not self.config.get("listen_only"):
+            _LOGGER.warning("Forcing listen_only mode on")
             self.config["listen_only"] = True
-
-        elif not self.serial_port:
-            _LOGGER.warning("Using default port (%s)", DEFAULT_PORT_NAME)
-            self.serial_port = DEFAULT_PORT_NAME
 
         self.reader = self.writer = None
 
@@ -264,9 +261,49 @@ class Gateway:
     async def start(self):
         """This is a docstring."""
 
-        async def _recv_message() -> None:
+        def scan_tight(dest_id):
+            for code in COMMAND_SCHEMA:
+                cmd = Command(self, code, verb="RQ", dest_id=dest_id, payload="0100")
+                yield cmd
+
+        async def scan_loose():
+            # # BEGIN crazy test block
+            dest_id = "01:145038"  # "07:045960"  # "13:106039"  # "13:237335"  #
+
+            i = 0x0
+            while i < 0x4010:
+                await _recv_message(source=self.reader)
+                # pylint: disable=protected-access
+                if self.reader._transport.serial.in_waiting != 0:
+                    continue
+
+                code = f"{i:04X}"
+
+                cmd = Command(self, code, verb="RQ", dest_id=dest_id, payload="F9")
+                self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
+                await asyncio.sleep(0.7)  # 0.8, 1.0 OK, 0.5 too short
+
+                cmd = Command(self, code, verb="RQ", dest_id=dest_id, payload="FA")
+                self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
+                await asyncio.sleep(0.7)  # 0.8, 1.0 OK, 0.5 too short
+
+                cmd = Command(self, code, verb="RQ", dest_id=dest_id, payload="FC")
+                self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
+                await asyncio.sleep(0.7)  # 0.8, 1.0 OK, 0.5 too short
+
+                if i % 20 == 19:
+                    await asyncio.sleep(20)  #  20 OK with 0.8, 30 OK with 1.0
+
+                if not self.command_queue.empty():
+                    self.command_queue.get()
+                    self.command_queue.task_done()
+
+                i += 1
+            # # ENDS crazy test block
+
+        async def _recv_message(source) -> None:
             """Receive a packet and validate it as a message."""
-            raw_packet = await self._get_packet()
+            raw_packet = await self._get_packet(source)
 
             if raw_packet is None:
                 return
@@ -297,22 +334,24 @@ class Gateway:
             except KeyError:
                 pass
 
-        async def _send_command() -> None:
+        async def _send_command(destination) -> None:
             """Send a command unless in listen_only mode."""
             if not self.command_queue.empty():
                 cmd = self.command_queue.get()
 
-                if not self.config.get("listen_only"):
+                if destination is self.writer:
                     # TODO: if not cmd.entity._pkts.get(cmd.code):
                     self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
                     await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
+                elif destination is None:
+                    pass
 
                 self.command_queue.task_done()
 
         signal.signal(signal.SIGINT, self._signal_handler)
 
         if self.config.get("database"):
-            self._output_db = sqlite3.connect("evohome_rf.db")  # TODO: self.config...
+            self._output_db = sqlite3.connect(DEFAULT_DATABASE)  # TODO: self.config...
             self._db_cursor = self._output_db.cursor()
             _ = self._db_cursor.execute(TABLE_SQL)
             _ = self._db_cursor.execute(INDEX_SQL)
@@ -329,8 +368,8 @@ class Gateway:
                 raise  # TODO: do something better
 
             while self._input_fp:
-                await _recv_message()
-                await _send_command()  # to empty the buffer
+                await _recv_message(source=self._input_fp)
+                await _send_command(destination=None)  # to empty the buffer
 
         else:  # self.config["serial_port"]
             try:
@@ -339,58 +378,40 @@ class Gateway:
                     url=self.serial_port,
                     baudrate=BAUDRATE,
                     timeout=READ_TIMEOUT,
+                    xonxoff=True
                 )
             except serial.serialutil.SerialException:
                 raise  # TODO: do something better
 
             if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 0418 000000"
                 cmd = self.config["execute_cmd"]
-                cmd = Command(
-                    self, cmd[13:17], verb=cmd[:2], dest_id=cmd[3:12], payload=cmd[18:]
-                )
+                # self.command_queue.put_nowait(
+                #     Command(self, cmd[13:17], cmd[:2], cmd[3:12], cmd[18:])
+                # )
+                cmd = Command(self, cmd[13:17], cmd[:2], cmd[3:12], cmd[18:])
                 self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
                 await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
 
-                # # BEGIN crazy test block
-                # i = 0x0
-                # while i < 0x4010:
-                #     await _recv_message()
-                #     # pylint: disable=protected-access
-                #     if self.reader._transport.serial.in_waiting != 0:
-                #         continue
+            for code in COMMAND_SCHEMA:
+                # pylint: disable=protected-access
+                while self.reader._transport.serial.in_waiting > 0:
+                    await _recv_message(source=self.reader)
 
-                #     cmd = Command(self, "0418", verb="RQ", dest_id="01:145038", payload=f"{i:06X}")
-                #     self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
-                #     await asyncio.sleep(0.3)  # 0.5 too short
+                cmd = Command(self, code, verb="RQ", dest_id=CTL_DEV_ID, payload="FF")
+                self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
+                await asyncio.sleep(0.7)  # 0.8, 1.0 OK, 0.5 too short
 
-                #     # code = f"{i:04X}"
-                #     # cmd = Command(self, code, verb="RQ", dest_id="01:145038", payload="00")  # TODO: "0000", "FC"
-                #     # self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
-                #     # await asyncio.sleep(1)  # 0.5 too short
-                #     # cmd = Command(self, code, verb="RQ", dest_id="01:145038", payload="0100")  # TODO: "0000", "FC"
-                #     # self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
-                #     # await asyncio.sleep(1)  # 0.5 too short
-                #     # cmd = Command(self, code, verb="RQ", dest_id="01:145038", payload="FC")  # TODO: "0000", "FC"
-                #     # self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
-                #     # await asyncio.sleep(1)  # 0.5 too short
-
-                #     if i % 20 == 19:
-                #         await asyncio.sleep(30)
-
-                #     if not self.command_queue.empty():
-                #         self.command_queue.get()
-                #         self.command_queue.task_done()
-
-                #     i += 1
-                # # ENDS crazy test block
+                while not self.command_queue.empty():
+                    self.command_queue.get()
+                    self.command_queue.task_done()
 
             while True:  # main loop when packets from serial port
-                await _recv_message()
+                await _recv_message(source=self.reader)
                 # pylint: disable=protected-access
                 if self.reader._transport.serial.in_waiting == 0:
-                    await _send_command()
+                    await _send_command(destination=self.writer)
 
-    async def _get_packet(self) -> Optional[str]:
+    async def _get_packet(self, source) -> Optional[str]:
         """Get the next valid/wanted packet, stamped with an isoformat datetime."""
 
         def wanted_packet(raw_packet) -> bool:
@@ -412,14 +433,14 @@ class Gateway:
                 )
                 return False
             if int(raw_packet[46:49]) > 48:
-                _LOGGER.warning(
+                _LOGGER.debug(
                     "%s Invalid packet: Payload too long: >>>%s<<<",
                     timestamped_packet[:23],
                     raw_packet,
                 )
                 return False
             if len(raw_packet[50:]) != 2 * int(raw_packet[46:49]):
-                _LOGGER.warning(
+                _LOGGER.debug(
                     "%s Invalid packet: Length mismatch: >>>%s<<<",
                     timestamped_packet[:23],
                     raw_packet,
@@ -465,13 +486,13 @@ class Gateway:
             return f"{packet_dt} {raw_packet}"
 
         # get the next packet
-        if self._input_fp:
+        if source == self._input_fp:
             timestamped_packet = get_packet_from_file()
-            if not timestamped_packet:  # EOF?
+            if not timestamped_packet:  # is EOF
                 self._input_fp = None
                 return
 
-        else:  # self.serial_port
+        elif source == self.reader:  # self.serial_port
             timestamped_packet = await get_packet_from_port()
             if not timestamped_packet:  # may have read timeout'd
                 return None

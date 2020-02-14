@@ -8,7 +8,7 @@ from .const import (
     COMMAND_EXPOSES_ZONE,
     COMMAND_LOOKUP,
     COMMAND_MAP,
-    ALL_DEV_ID,
+    NUL_DEV_ID,
     CTL_DEV_ID,
     DEVICE_LOOKUP,
     DEVICE_MAP,
@@ -248,7 +248,7 @@ class Controller(Device):
 
         # # WIP: an attempt to actively discover the CTL rather than by eavesdropping
         # for cmd in ["313F"]:
-        #     self._queue.put_nowait(Command(self._gateway, cmd, ALL_DEV_ID, "FF"))
+        #     self._queue.put_nowait(Command(self._gateway, cmd, NUL_DEV_ID, "FF"))
 
         # a 'real' Zone will return 0004/zone_name != None
         for zone_idx in range(12):

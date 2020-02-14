@@ -2,10 +2,11 @@
 
 import re
 
-ALL_DEV_ID = "63:262142"  # 7FFFFF - send here if not bound?
+NUL_DEV_ID = "63:262142"  # 7FFFFF - send here if not bound?
 CTL_DEV_ID = "01:145038"  # 06368E
 HGI_DEV_ID = "18:000730"  # default type and address of HGI, 18:013393
-NO_DEV_ID = "--:------"
+TPI_DEV_ID = "13:237335"  # Boiler relay
+NON_DEV_ID = "--:------"
 
 # Domains
 DOMAIN_MAP = {"FA": "Hot Water", "FC": "Heat Demand"}
@@ -37,12 +38,11 @@ COMMAND_SCHEMA = {
     "0002": {"name": "sensor_weather"},
     "0004": {"name": "zone_name", "exposes_zone": True, "rq_length": 2},
     "0005": {"name": "system_zone", "rq_length": 2},
-    "0006": {"name": "schedule_sync"},
-    # for CH/DHW/Boiler (F9/FA/FC), also zone_idx for BDR, F8/FF (for all)
+    "0006": {"name": "schedule_sync"},  # for F9/FA/FC, zone_idx for BDR, F8/FF (all?)
     "0008": {"name": "relay_demand"},
     "0009": {"name": "relay_failsafe", "exposes_zone": None},
     "000A": {"name": "zone_config", "exposes_zone": True},
-    "000C": {"name": "zone_devices", "exposes_zone": True},
+    "000C": {"name": "zone_actuators", "exposes_zone": True},
     "000E": {"name": "message_000E", "exposes_zone": False},
     "0016": {"name": "rf_check", "rq_length": 2},
     "0100": {"name": "localisation", "rq_length": 5},
@@ -55,7 +55,7 @@ COMMAND_SCHEMA = {
     "10E0": {"name": "device_info"},
     "1100": {"name": "boiler_params"},  # boiler CH config
     "1260": {"name": "dhw_temp"},
-    # 1260: {"name": "outdoor_humidity"},
+    "1280": {"name": "outdoor_humidity"},
     "1290": {"name": "outdoor_temp"},
     "12A0": {"name": "indoor_humidity"},  # Nuaire ventilation
     "12B0": {"name": "window_state", "exposes_zone": True},  # "device_or_zone": True
@@ -63,19 +63,21 @@ COMMAND_SCHEMA = {
     "1F41": {"name": "dhw_mode"},
     "1FC9": {"name": "bind_device"},  # aka bind
     "1FD4": {"name": "opentherm_sync"},
-    # 2249: {"name": "unknown"},  # programmer now/next setpoint (jrosser/honeymon)
+    "2249": {"name": "unknown"},  # programmer now/next setpoint (jrosser/honeymon)
     "22C9": {"name": "ufh_setpoint"},
     "22D9": {"name": "opentherm_setpt"},  # OTB
     "22F1": {"name": "message_22f1"},
     "2309": {"name": "setpoint", "exposes_zone": True},  # "device_or_zone": True
     "2349": {"name": "zone_mode"},
+    "2389": {"name": "unknown_2389"},  # not real?
+    "2D49": {"name": "unknown_2d49"},  # hometronics only?
     "2E04": {"name": "system_mode"},
     "30C9": {"name": "temperature", "exposes_zone": False},  # "device_or_zone": True
     "3120": {"name": "message_3120", "exposes_zone": False},
     "313F": {"name": "datetime"},  # aka ping, datetime_req
     "3150": {"name": "heat_demand", "exposes_zone": True},  # "device_or_zone": ????
-    "31DA": {"name": "message_31da"},  # from HCE80, also Nuaire: Contains R/humidity??
     "31D9": {"name": "message_31d9"},  # Nuaire ventilation
+    "31DA": {"name": "message_31da"},  # from HCE80, also Nuaire: Contains R/humidity??
     "31E0": {"name": "message_31e0"},  # Nuaire ventilation
     "3220": {"name": "opentherm_msg"},  # OTB
     "3B00": {"name": "sync_tpi"},  # was actuator_req - start of TPI cycle
@@ -117,6 +119,8 @@ DEVICE_MAP = {
     "--": " --",
 }  # Mixing valve (HM80)
 DEVICE_LOOKUP = {v: k for k, v in DEVICE_MAP.items()}
+
+DOMAIN_MAP = {"F9": "CH", "FA": "DHW", "FC": "Boiler"}
 
 SYSTEM_MODE_MAP = {
     "00": "Auto",
