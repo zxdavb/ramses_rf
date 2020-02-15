@@ -3,14 +3,14 @@
 import logging
 from logging.handlers import TimedRotatingFileHandler
 
-from .const import LOGGING_FILE
+LOGGING_FILE = "debug_logging.log"
 
 # CON_FORMAT = "%(message).164s"  # Virtual
 # CON_FORMAT = "%(message).236s"  # Laptop
 # CON_FORMAT = "%(message).292s"  # Monitor
-CON_FORMAT = "%(message)s"  # Whenever
-# LOG_FORMAT = "%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s"
-LOG_FORMAT = "%(message)s"
+CON_FORMAT = "%(asctime)s.%(msecs)03d %(message)s"  # Whenever
+LOG_FORMAT = "%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s"
+# LOG_FORMAT = "%(message)s"
 
 logging.basicConfig(
     level=logging.INFO,

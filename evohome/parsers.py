@@ -184,14 +184,12 @@ def parser_0002(payload, msg) -> Optional[dict]:  # sensor_weather
     assert payload[:2] == "00"
     assert payload[6:] in ["00", "01"]
 
-    return {
-        "temperature": _temp(payload[2:6]),
-        "unknown_0": payload[6:]
-    }
+    return {"temperature": _temp(payload[2:6]), "unknown_0": payload[6:]}
 
 
 @parser_decorator
 def parser_0004(payload, msg) -> Optional[dict]:  # zone_name
+    # appears limited to 12 characters in evohome UI
     assert len(payload) / 2 == 22
     assert int(payload[:2], 16) <= 11
     assert payload[2:4] == "00"

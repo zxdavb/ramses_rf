@@ -107,15 +107,15 @@ DEVICE_MAP = {
     "04": "TRV",  # Thermostatic radiator valve (HR80, HR91, HR92)  # 0100, 1060, 12B0, 2309, 30C9, 3150
     "07": "DHW",  # DHW sensor (CS92)
     "10": "OTB",  # OpenTherm bridge (R8810)
-    "12": "THM",  # Thermostat with setpoint schedule control (DTS92E)
+    "12": "THm",  # Thermostat with setpoint schedule control (DTS92E)
     "13": "BDR",  # Wireless relay box (BDR91)  # 3EF0=relay/TPI; 3B00=TPI (also: HC60NG?)
     "17": " 17",  # Dunno - Outside weather sensor?
     "18": "HGI",  # Honeywell Gateway Interface (HGI80, HGS80)
-    "22": "THm",  # Thermostat with setpoint schedule control (DTS92E)
+    "22": "THM",  # Thermostat with setpoint schedule control (DTS92E)
     "30": "GWY",  # Gateway (e.g. RFG100?)
     "32": "VNT",  # (HCE80) Ventilation (Nuaire VMS-23HB33, VMN-23LMH23)
     "34": "STA",  # Thermostat (T87RF)  # 1060, 10E0, 30C9
-    "63": "ALL",  # is sent: 10E0, 1FC9
+    "63": "NUL",  # is sent: 10E0, 1FC9
     "--": " --",
 }  # Mixing valve (HM80)
 DEVICE_LOOKUP = {v: k for k, v in DEVICE_MAP.items()}
@@ -158,7 +158,5 @@ COMMAND_REGEX = re.compile(f"^{b} {a} {c} {c} {c} {d} {e} {f}$")
 MESSAGE_REGEX = re.compile(f"^{a} {b} {a} {c} {c} {c} {d} {e} {f}$")
 
 COMMAND_FORMAT = "{:<2} --- {} {} --:------ {} {:03.0f} {}"
-MESSAGE_FORMAT = "|| {} | {} | {} | {:<10} | {:<10} | {:<10} | {:<16} | {} | {:<8} ||"
+MESSAGE_FORMAT = "|| {:<15} | {:<15} | {} | {:<16} | {:<10} || {}"
 
-LOGGING_FILE = "message.log"
-PACKETS_FILE = "packets.log"

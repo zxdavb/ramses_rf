@@ -177,6 +177,10 @@ class Device(Entity):
         self._device_type = DEVICE_MAP.get(device_id[:2])
         self._parent_zone = None
 
+        attrs = gateway.device_lookup.get(device_id)
+        self._friendly_name = attrs.get("friendly_name") if attrs else None
+        self._blacklist = attrs.get("blacklist", False) if attrs else False
+
         # self._discover()  # needs self._device_type
 
     @property
@@ -281,10 +285,10 @@ class Controller(Device):
         else:
             pass
 
-        # TODO: take this out?
-        if msg.code in ["000A", "30C9"] and msg.verb == " I":  # the payload is an array
-            if not self._gateway.config["input_file"]:
-                self._gateway.loop.call_later(5, print, self._gateway.database)
+        # # TODO: take this out?
+        # if msg.code in ["000A", "30C9"] and msg.verb == " I":  # the payload is an array
+        #     if not self._gateway.config["input_file"]:
+        #         self._gateway.loop.call_later(5, print, self._gateway.database)
 
     def handle_313f(self):
         """Controllers will RP to a RQ at anytime."""

@@ -58,26 +58,31 @@ class Message:
                 return f"{'':<10}"
 
             if self.device_id[idx] == NUL_DEV_ID:
-                return "ALL:------"
+                return "NUL:------"
 
             if idx == 2 and self.device_id[2] == self.device_id[0]:
-                return ">broadcast"
+                return "<announce>"  # "<broadcast"
+
+            friendly_name = self._gateway.device_by_id[self.device_id[idx]]._friendly_name
+            if friendly_name:
+                return f"{friendly_name[:10]}"
 
             return f"{self.device_type[idx]}:{self.device_id[idx][3:]}"
 
         if len(self.raw_payload) < 9:
-            payload = self.raw_payload
+            raw_payload = self.raw_payload
         else:
-            payload = (self.raw_payload[:5] + "...")[:9]
+            raw_payload = (self.raw_payload[:7] + "...")[:11]
+
+        device_names = [_dev_name(x) for x in range(3) if _dev_name(x) != f"{'':<10}"]
 
         message = MESSAGE_FORMAT.format(
-            self.rssi_val,
+            device_names[0] if device_names[0] else "",
+            device_names[1] if device_names[0] else "",
             self.verb,
-            "   " if self.seq_no == "---" else self.seq_no,
-            *[_dev_name(x) for x in range(3)],
             COMMAND_MAP.get(self.code, f"unknown_{self.code}"),
-            self._packet[46:49],
-            payload,
+            raw_payload,
+            self.payload if self.payload else self.raw_payload if len(self.raw_payload) > 8 else ""
         )
 
         return message

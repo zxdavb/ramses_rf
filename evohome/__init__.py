@@ -14,6 +14,7 @@ from typing import Optional
 import asyncio
 import serial_asyncio
 import sqlite3
+import json
 
 import serial
 
@@ -32,7 +33,6 @@ from .const import (
     HGI_DEV_ID,
     MESSAGE_REGEX,
     NON_DEV_ID,
-    PACKETS_FILE,
 )
 from .entity import System
 from .logger import _CONSOLE, _LOGGER
@@ -40,8 +40,6 @@ from .message import Message
 
 # from typing import Optional
 
-
-DEFAULT_DATABASE = "evohome_rf.db"
 BAUDRATE = 115200  # 38400  #  57600  # 76800  # 38400  # 115200
 READ_TIMEOUT = 0
 
@@ -130,28 +128,48 @@ class SendCommandWorker(MessageWorker):
 class Gateway:
     """The gateway class."""
 
-    def __init__(self, serial_port, loop=None, **kwargs):
+    def __init__(self, serial_port, loop=None, **config):
         self.serial_port = serial_port
-        self.loop = kwargs.get("loop", asyncio.get_event_loop())
-        self.config = kwargs
+        self.loop = config.get("loop", asyncio.get_event_loop())
+        self.config = config
 
-        self._input_fp = self._output_fp = None
-        self._output_db = self._db_cursor = None
+        if self.serial_port and config.get("input_file"):
+            _LOGGER.warning(
+                "Serial port specified (%s): Ignoring input file (%s)",
+                self.serial_port,
+                config["input_file"]
+            )
+            config["input_file"] = None
 
-        if self.serial_port and kwargs.get("input_file"):
-            _LOGGER.warning("Ignoring input file (%s)", kwargs["input_file"])
-            kwargs["input_file"] = None
+        if config.get("input_file"):
+            if not config.get("listen_only"):
+                _LOGGER.warning(
+                    "Input file specified (%s): Enabling listen_only mode",
+                    config["input_file"]
+                )
+                config["listen_only"] = True
 
-        if kwargs.get("input_file") and not self.config.get("listen_only"):
-            _LOGGER.warning("Forcing listen_only mode on")
-            self.config["listen_only"] = True
+            if config.get("execute_cmd"):
+                _LOGGER.warning(
+                    "Input file specified (%s): Disabling command (%s)",
+                    config["input_file"],
+                    config["execute_cmd"]
+                )
+                config["execute_cmd"] = None
+
+        if config.get("raw_output") and config.get("message_file"):
+            _LOGGER.warning(
+                "Raw output specified: Disabling message log (%s)",
+                config["message_log"]
+            )
+            config["message_log"] = False
 
         self.reader = self.writer = None
+        self._input_fp = self._output_fp = self._message_fp = None
+        self._output_db = self._db_cursor = None
 
         self.command_queue = Queue(maxsize=200)
         self.message_queue = Queue(maxsize=400)
-
-        self.system = System(self)
 
         self.zones = []
         self.zone_by_id = {}
@@ -161,14 +179,34 @@ class Gateway:
 
         self.devices = []
         self.device_by_id = {}
+        self.device_lookup = {}
 
+        self.system = System(self)
         self.data = {f"{i:02X}": {} for i in range(12)}
+
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
 
     def _signal_handler(self, signum, frame):
         print(f"\r\n{self.database}")  # TODO: deleteme
 
         if self._output_fp:
             self._output_fp.close()
+
+        if self._message_fp:
+            self._message_fp.close()
+
+        if self.config.get("lookup_file"):
+            self.device_lookup.update(
+                {d.device_id: {
+                    "friendly_name": d._friendly_name,
+                    "blacklist": d._blacklist,
+                } for d in self.devices}
+            )
+
+            with open(self.config["lookup_file"], "w") as outfile:
+                json.dump(self.device_lookup, outfile, sort_keys=True, indent=4)
+
         sys.exit()
 
     @property
@@ -258,7 +296,7 @@ class Gateway:
 
         return database
 
-    async def start(self):
+    async def start(self) -> None:
         """This is a docstring."""
 
         def scan_tight(dest_id):
@@ -272,7 +310,7 @@ class Gateway:
 
             i = 0x0
             while i < 0x4010:
-                await _recv_message(source=self.reader)
+                await self._recv_message(source=self.reader)
                 # pylint: disable=protected-access
                 if self.reader._transport.serial.in_waiting != 0:
                     continue
@@ -301,57 +339,8 @@ class Gateway:
                 i += 1
             # # ENDS crazy test block
 
-        async def _recv_message(source) -> None:
-            """Receive a packet and validate it as a message."""
-            raw_packet = await self._get_packet(source)
-
-            if raw_packet is None:
-                return
-
-            if self.config.get("raw_output"):
-                _LOGGER.info("%s %s", raw_packet[:23], raw_packet[27:])
-                return
-
-            try:
-                msg = Message(raw_packet[27:], self, pkt_dt=raw_packet[:26])
-            except (ValueError, AssertionError):
-                _LOGGER.exception("%s ERR: %s", raw_packet[:23], raw_packet[27:])
-                return True
-
-            if msg.payload is None:
-                _LOGGER.info("%s RAW: %s %s", raw_packet[:23], msg, msg.raw_payload)
-            else:
-                _LOGGER.info("%s MSG: %s %s", raw_packet[:23], msg, msg.payload)
-
-            # UPDATE: only certain packets should become part of the canon
-            try:
-                if "HGI" in msg.device_type:  # leave in anyway?
-                    return
-                elif msg.device_type[0] == " --":
-                    self.device_by_id[msg.device_id[2]].update(msg)
-                else:
-                    self.device_by_id[msg.device_id[0]].update(msg)
-            except KeyError:
-                pass
-
-        async def _send_command(destination) -> None:
-            """Send a command unless in listen_only mode."""
-            if not self.command_queue.empty():
-                cmd = self.command_queue.get()
-
-                if destination is self.writer:
-                    # TODO: if not cmd.entity._pkts.get(cmd.code):
-                    self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
-                    await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
-                elif destination is None:
-                    pass
-
-                self.command_queue.task_done()
-
-        signal.signal(signal.SIGINT, self._signal_handler)
-
         if self.config.get("database"):
-            self._output_db = sqlite3.connect(DEFAULT_DATABASE)  # TODO: self.config...
+            self._output_db = sqlite3.connect(self.config["database"])
             self._db_cursor = self._output_db.cursor()
             _ = self._db_cursor.execute(TABLE_SQL)
             _ = self._db_cursor.execute(INDEX_SQL)
@@ -360,28 +349,45 @@ class Gateway:
         if self.config.get("output_file"):
             self._output_fp = open(self.config["output_file"], "a+")
 
-        # source of packets is either a text file, or a serial port:
+        if self.config.get("message_log"):
+            self._message_fp = open(self.config["message_log"], "a+")
+
+        if self.config.get("lookup_file"):
+            try:
+                with open(self.config["lookup_file"]) as json_file:
+                    self.device_lookup = json.load(json_file)
+            except FileNotFoundError:
+                self.device_lookup = {}
+
+            self.config["black_list"] = list(
+                set(
+                    self.config.get("black_list")
+                    + [k for k, v in self.device_lookup.items() if v.get("blacklist")]
+                )
+            )
+
+        # Finally, source of packets is either a text file, or a serial port:
         if self.config.get("input_file"):
             try:
                 self._input_fp = open(self.config["input_file"], "r")
-            except OSError:
-                raise  # TODO: do something better
+            except FileNotFoundError:
+                raise FileNotFoundError("Missing input file") # TODO: do better
 
             while self._input_fp:
-                await _recv_message(source=self._input_fp)
-                await _send_command(destination=None)  # to empty the buffer
+                await self._recv_message(source=self._input_fp)
+                await self._send_command(destination=None)  # to empty the buffer
 
-        else:  # self.config["serial_port"]
+        else:  # if self.config["serial_port"] or if self.serial_port
             try:
                 self.reader, self.writer = await serial_asyncio.open_serial_connection(
                     loop=self.loop,
                     url=self.serial_port,
                     baudrate=BAUDRATE,
                     timeout=READ_TIMEOUT,
-                    xonxoff=True
+                    xonxoff=True,
                 )
             except serial.serialutil.SerialException:
-                raise  # TODO: do something better
+                raise  # TODO: do better
 
             if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 0418 000000"
                 cmd = self.config["execute_cmd"]
@@ -395,7 +401,7 @@ class Gateway:
             # for code in COMMAND_SCHEMA:
             #     # pylint: disable=protected-access
             #     while self.reader._transport.serial.in_waiting > 0:
-            #         await _recv_message(source=self.reader)
+            #         await self._recv_message(source=self.reader)
 
             #     cmd = Command(self, code, verb="RQ", dest_id=CTL_DEV_ID, payload="FF")
             #     self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
@@ -406,21 +412,77 @@ class Gateway:
             #         self.command_queue.task_done()
 
             while True:  # main loop when packets from serial port
-                await _recv_message(source=self.reader)
+                await self._recv_message(source=self.reader)
                 # pylint: disable=protected-access
                 if self.reader._transport.serial.in_waiting == 0:
-                    await _send_command(destination=self.writer)
+                    await self._send_command(destination=self.writer)
+
+    async def _recv_message(self, source) -> None:
+        """Receive a packet and validate it as a message."""
+        raw_packet = await self._get_packet(source)
+
+        if raw_packet is None:
+            return
+
+        if self.config.get("raw_output"):
+            print(f"{raw_packet[11:23]} {raw_packet[27:]}")
+            # _LOGGER.info("%s %s", raw_packet[:23], raw_packet[27:])
+            return
+
+        try:
+            msg = Message(raw_packet[27:], self, pkt_dt=raw_packet[:26])
+        except (ValueError, AssertionError):
+            _LOGGER.exception("%s %s", raw_packet[11:23], raw_packet[27:])
+            return True
+
+        # if msg.payload is None:
+        #     # _LOGGER.info("%s %s %s", raw_packet[11:23], msg, msg.raw_payload)
+        # else:
+        #     # _LOGGER.info("%s %s %s", raw_packet[11:23], msg, msg.payload)
+
+        message = f"{raw_packet[11:23]} {msg}"
+        print(message)
+        if self._message_fp:
+            self._message_fp.write(f"{message}\n")  # TODO: make async
+
+
+        # UPDATE: only certain packets should become part of the canon
+        try:
+            if "HGI" in msg.device_type:  # leave in anyway?
+                return
+            elif msg.device_type[0] == " --":
+                self.device_by_id[msg.device_id[2]].update(msg)
+            else:
+                self.device_by_id[msg.device_id[0]].update(msg)
+        except KeyError:
+            pass
+
+    async def _send_command(self, destination) -> None:
+        """Send a command unless in listen_only mode."""
+        if not self.command_queue.empty():
+            cmd = self.command_queue.get()
+
+            if destination is self.writer:
+                # TODO: if not cmd.entity._pkts.get(cmd.code):
+                self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
+                await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
+            elif destination is None:
+                pass
+
+            self.command_queue.task_done()
 
     async def _get_packet(self, source) -> Optional[str]:
         """Get the next valid/wanted packet, stamped with an isoformat datetime."""
 
         def wanted_packet(raw_packet) -> bool:
             """Return True only if a packet is wanted."""
-            if self.config.get("black_list"):
-                return not any(dev in raw_packet for dev in self.config["black_list"])
             if self.config.get("white_list"):
-                return any(dev in raw_packet for dev in self.config["white_list"])
-            return True  # the two lists are mutex
+                if not any(dev in raw_packet for dev in self.config["white_list"]):
+                    return False
+            if self.config.get("black_list"):
+                if any(dev in raw_packet for dev in self.config["black_list"]):
+                    return False
+            return True
 
         def valid_packet(timestamped_packet) -> bool:
             """Return True only if a packet is valid."""
@@ -477,11 +539,14 @@ class Gateway:
                 return
 
             # firmware-level packet hacks, i.e. non-HGI80 devices, should be here
-            if raw_packet[:3] == "???":  # do'nt send nanoCUL packets to DB
-                if self.config.get("database"):
-                    _LOGGER.warning("Forcing database off")
-                    self.config["database"] = None
+            if raw_packet[:3] == "???":  # HACK: don't send nanoCUL packets to DB
                 raw_packet = f"000 {raw_packet[4:]}"
+
+                if self.config.get("database"):
+                    _LOGGER.warning(
+                        "Using non-HGI firmware: Forcing database logging off"
+                        )
+                    self.config["database"] = None
 
             return f"{packet_dt} {raw_packet}"
 
@@ -495,13 +560,13 @@ class Gateway:
         elif source == self.reader:  # self.serial_port
             timestamped_packet = await get_packet_from_port()
             if not timestamped_packet:  # may have read timeout'd
-                return None
+                return
 
-        # dont keep/process invalid packets
+        # dont keep/process any invalid packets
         if not valid_packet(timestamped_packet):
-            return None
+            return
 
-        # log all valid packets (even if not wanted) to DB if enabled
+        # if enabled, log all valid packets (even if not wanted) to DB
         if self._output_db:
             w = [0, 27, 31, 34, 38, 48, 58, 68, 73, 77, 199]  # 165?
             data = tuple(
@@ -511,10 +576,10 @@ class Gateway:
             _ = self._db_cursor.execute(INSERT_SQL, data)
             self._output_db.commit()
 
-        # log all valid packets (even if not wanted) to file if enabled
+        # if enabled, log all valid packets (even if not wanted) to file
         if self._output_fp:
             self._output_fp.write(f"{timestamped_packet}\n")  # TODO: make async
 
-        # only return wanted packets for further processing
+        # only return *wanted* valid packets for further processing
         if wanted_packet(timestamped_packet[27:]):
             return timestamped_packet  # in whitelist or not in blacklist
