@@ -1,6 +1,7 @@
 """Message processor."""
 
 import logging
+from typing import Optional
 
 from . import parsers
 from .const import (
@@ -54,6 +55,7 @@ class Message:
         self.raw_payload = packet[50:]
 
         self._payload = None
+        self._is_valid_payload = None
 
     def __str__(self) -> str:
         def _dev_name(idx) -> str:
@@ -80,36 +82,28 @@ class Message:
 
         device_names = [_dev_name(x) for x in range(3) if _dev_name(x) != f"{'':<10}"]
 
+        payload = self._payload
+
         message = MESSAGE_FORMAT.format(
             device_names[0] if device_names[0] else "",
-            device_names[1] if device_names[0] else "",
+            device_names[1] if device_names[1] else "",
             self.verb,
             COMMAND_MAP.get(self.code, f"unknown_{self.code}"),
             raw_payload,
-            self.payload if self.payload else (
-                self.raw_payload if len(self.raw_payload) > 8 else ""
-            ),
+            payload if payload else raw_payload if len(raw_payload) > 8 else "",
         )
 
         return message
 
     @property
     def is_valid_payload(self) -> bool:
-        # if msg.payload is None:
-        #     _LOGGER.info("%s %s %s", raw_packet[11:23], msg, msg.raw_payload)
-        # else:
-        #     _LOGGER.info("%s %s %s", raw_packet[11:23], msg, msg.payload)
+        if self._is_valid_payload is None:
+            self._is_valid_payload = bool(self.payload)
 
-        # message = f"{self._timestamp} {self}"
-
-        # print(message)
-        # # if self._message_fp:
-        # #     self._message_fp.write(f"{message}\n")  # TODO: make async
-
-        return bool(self.payload)
+        return self._is_valid_payload
 
     @property
-    def payload(self) -> dict:
+    def payload(self) -> Optional[dict]:
         def harvest_new_entities(self):
             def get_device(gateway, device_id):
                 """Get a Device, create it if required."""
@@ -155,7 +149,9 @@ class Message:
                         # TODO: add only if payload valid
                         get_zone(self._gateway, self.raw_payload[i : i + 2])
 
-        if self._payload:
+        if self._is_valid_payload is False:
+            return
+        if self._is_valid_payload is True:
             return self._payload
 
         try:  # determine which parser to use
@@ -173,26 +169,23 @@ class Message:
                 self._payload = payload_parser(self.raw_payload, self)
 
         except AssertionError:  # for dev only?
-            if "HGI" not in [self.device_type[0], self.device_type[1]]:
-                _LOGGER.exception(
-                    "ASSERT failure, raw_packet = >>> %s <<<", self._packet
-                )
-                return None
+            self._is_valid_payload = False
+
+            # if "HGI" not in [self.device_type[0], self.device_type[1]]:
+            _LOGGER.exception(
+                "%s", str(self),
+                extra={"date": self._timestamp[:10], "time": self._timestamp[11:]}
+            )
+            return
 
         except (LookupError, TypeError, ValueError):
-            # _LOGGER.info("dt = %s", self._timestamp)  # TODO: delete me
-            _LOGGER.exception("EXCEPT, raw_packet = >>> %s <<<", self._packet)
-            return None
+            self._is_valid_payload = False
 
-        # # only certain packets should become part of the canon
-        # if "HGI" in [self.device_type[0]]:
-        #     return self._payload
-
-        # elif self.device_type[0] == " --":
-        #     self._gateway.device_by_id[self.device_id[2]].update(self)
-
-        # else:
-        #     self._gateway.device_by_id[self.device_id[0]].update(self)
+            _LOGGER.exception(
+                "%s", str(self),
+                extra={"date": self._timestamp[:10], "time": self._timestamp[11:]}
+            )
+            return
 
         _LOGGER.info(
             "%s", str(self),

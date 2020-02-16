@@ -11,17 +11,22 @@ LOGFILE_FORMAT = "%(date)sT%(time)s %(message)s"
 
 def set_logging(logger, stream=sys.stderr, file_name=None):
     """Create/configure handlers, formatters, etc."""
-    logger.propagate = False  # pass on up?
+    logger.propagate = False
 
-    if stream:
-        cols = shutil.get_terminal_size(fallback=(132, 24)).columns - 13
+    cons_cols = shutil.get_terminal_size(fallback=(132, 24)).columns - 13
+    cons_fmt = f"{CONSOLE_FORMAT[:-1]}.{cons_cols}s"
+
+    x_handler = logging.StreamHandler(stream=sys.stderr)
+    x_handler.setFormatter(logging.Formatter(fmt=cons_fmt))
+    x_handler.setLevel(logging.WARNING)
+
+    logger.addHandler(x_handler)
+
+    if stream == sys.stdout:
         c_handler = logging.StreamHandler(stream=stream)
-        c_handler.setFormatter(logging.Formatter(fmt=f"{CONSOLE_FORMAT[:-1]}.{cols}s"))
+        c_handler.setFormatter(logging.Formatter(fmt=cons_fmt))
         c_handler.setLevel(logging.DEBUG)
-        # if stream == sys.stdout:
-        #     c_handler.setLevel(logging.INFO)
-        # else:
-        #     c_handler.setLevel(logging.DEBUG)
+        c_handler.addFilter(InfoFilter())
 
         logger.addHandler(c_handler)
 
@@ -37,7 +42,7 @@ def set_logging(logger, stream=sys.stderr, file_name=None):
 class InfoFilter(logging.Filter):
     """Log only INFO-level messages."""
     def filter(self, record):
-        return record.levelno == logging.INFO
+        return record.levelno in [logging.INFO, logging.DEBUG]
 
 
 # class TimestampFormatter(logging.Formatter):

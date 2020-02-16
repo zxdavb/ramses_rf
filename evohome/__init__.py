@@ -15,12 +15,12 @@ import serial
 import serial_asyncio
 
 
-_LOGGER = logging.getLogger(__name__)
-_LOGGER.setLevel(logging.WARNING)  # INFO for files, WARNING for console
-
 logging.basicConfig(
     level=logging.WARNING,
 )
+
+_LOGGER = logging.getLogger(__name__)
+_LOGGER.setLevel(logging.WARNING)  # INFO for files, WARNING for console
 
 from .command import Command
 from .const import (
@@ -124,18 +124,26 @@ class Gateway:
                 )
                 config["execute_cmd"] = None
 
-        if config.get("raw_output") and config.get("message_file"):
+        if config.get("raw_output") and config.get("message_log"):
             _LOGGER.warning(
                 "Raw output specified: Disabling message log (%s)",
                 config["message_log"],
             )
             config["message_log"] = False
 
-        set_logging(msg_logger, file_name="msg_test.tst", stream=sys.stdout)  # config.get("message_file"))
-        set_logging(pkt_logger, file_name="pkt_test.tst", stream=None)  # config.get("output_file"))
+        set_logging(
+            msg_logger,
+            file_name=self.config.get("message_log"),
+            stream=None if config.get("raw_output") else sys.stdout
+        )
+        set_logging(
+            pkt_logger,
+            file_name=self.config.get("output_file"),
+            stream=sys.stdout if config.get("raw_output") else None
+        )
 
         self.reader = self.writer = None
-        self._input_fp = self._output_fp = self._message_fp = None
+        self._input_fp = None
         self._output_db = self._db_cursor = None
 
         self.command_queue = Queue(maxsize=200)
@@ -159,12 +167,6 @@ class Gateway:
 
     def _signal_handler(self, signum, frame):
         print(f"\r\n{self.database}")  # TODO: deleteme
-
-        if self._output_fp:
-            self._output_fp.close()
-
-        if self._message_fp:
-            self._message_fp.close()
 
         if self.config.get("lookup_file"):
             self.device_lookup.update(
@@ -319,12 +321,6 @@ class Gateway:
                 _ = self._db_cursor.execute(TABLE_SQL)
                 _ = self._db_cursor.execute(INDEX_SQL)
                 self._output_db.commit()
-
-            if self.config.get("output_file"):
-                self._output_fp = open(self.config["output_file"], "a+")
-
-            if self.config.get("message_log"):
-                self._message_fp = open(self.config["message_log"], "a+")
 
             if self.config.get("lookup_file"):
                 try:

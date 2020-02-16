@@ -152,9 +152,6 @@ async def get_next_packet(gateway, source) -> Optional[str]:
         _ = gateway._db_cursor.execute(INSERT_SQL, data)
         gateway._output_db.commit()
 
-    if gateway._output_fp:
-        gateway._output_fp.write(f"{timestamped_packet}\n")  # TODO: make async
-
     _LOGGER.info(packet, extra={"date": timestamp[:10], "time": timestamp[11:]})
 
     # only return *wanted* valid packets for further processing

@@ -10,7 +10,7 @@ DEBUG_ADDR = "172.27.0.138"
 DEBUG_PORT = 5679
 
 BLACK_LIST = ["12:227486", "12:249582", "12:259810", "13:171587"]  # nextdoor
-BLACK_LIST += ["30:082155", "32:206250", "32:168090"]  # Nuaire
+# BLACK_LIST += ["30:082155", "32:206250", "32:168090"]  # Nuaire
 
 WHITE_LIST = [
     "01:145038",
@@ -37,23 +37,28 @@ def _parse_args():
     parser = argparse.ArgumentParser()
 
     group = parser.add_mutually_exclusive_group(required=True)  # one is required
-    group.add_argument("-s", "--serial_port", help="port to poll for packets")
-    group.add_argument("-i", "--input_file",  help="file to read for packets (implies listen_only)")
+    group.add_argument("-s", "--serial_port",
+        help="port to poll for packets")
+    group.add_argument("-i", "--input_file",
+        help="file to read for packets (implies listen_only)")
 
     parser.add_argument("-l", "--listen_only", action="store_true",
         help="don't send any discovery packets (eavesdrop only)",
     )
 
-    parser.add_argument("-o", "--output_file",  default="packets.log",  help="copy all valid packets to file")
-    parser.add_argument("-d", "--database",     default="packets.db",   help="copy all valid packets to sqlite DB")
+    parser.add_argument("-o", "--output_file",  # default="packets.log",
+        help="copy all valid packets to file")
+    parser.add_argument("-d", "--database",     # default="packets.db",
+        help="copy all valid packets to sqlite DB")
 
     group = parser.add_mutually_exclusive_group()  # OK to have neither
     group.add_argument("-r", "--raw_output", action="store_true",
         help="display packets rather than decoded messages")
-    group.add_argument("-m", "--message_log", default="messages.log",
-        help="copy all decoded messages to file (in addition to stdout)")
+    group.add_argument("-m", "--message_log",   # default="messages.log",
+        help="copy all decoded messages to file (in addition to stdout/stderr)")
 
-    parser.add_argument("-n", "--lookup_file",  default="devices.json", help="friendly names, etc.")
+    parser.add_argument("-n", "--lookup_file",  # default="devices.json",
+        help="friendly names, etc.")
 
     group = parser.add_mutually_exclusive_group()  # OK to have neither
     group.add_argument("--black_list", default=BLACK_LIST,
