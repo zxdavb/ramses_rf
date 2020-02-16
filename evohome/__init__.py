@@ -1,26 +1,29 @@
 """Evohome serial."""
-import ctypes
-import os
-from queue import Queue
+import asyncio
+import json
 import signal
+import sqlite3
 import sys
+from queue import Queue
 from threading import Thread
-import time
-
-from string import printable
-from datetime import datetime as dt
 from typing import Optional
 
-import asyncio
-import serial_asyncio
-import sqlite3
-import json
+import logging
+from logging.handlers import TimedRotatingFileHandler
 
 import serial
+import serial_asyncio
+
+
+_LOGGER = logging.getLogger(__name__)
+_LOGGER.setLevel(logging.WARNING)  # INFO for files, WARNING for console
+
+logging.basicConfig(
+    level=logging.WARNING,
+)
 
 from .command import Command
 from .const import (
-    NUL_DEV_ID,
     COMMAND_EXPOSES_ZONE,
     COMMAND_FORMAT,
     COMMAND_LOOKUP,
@@ -33,52 +36,16 @@ from .const import (
     HGI_DEV_ID,
     MESSAGE_REGEX,
     NON_DEV_ID,
+    NUL_DEV_ID,
+    TABLE_SQL, INDEX_SQL
 )
 from .entity import System
-from .logger import _CONSOLE, _LOGGER
-from .message import Message
-
-# from typing import Optional
+from .message import Message, _LOGGER as msg_logger
+from .packet import get_next_packet, _LOGGER as pkt_logger
+from .logger import set_logging
 
 BAUDRATE = 115200  # 38400  #  57600  # 76800  # 38400  # 115200
 READ_TIMEOUT = 0
-
-TABLE_SQL = """
-    CREATE TABLE IF NOT EXISTS packets (
-        dt      TEXT PRIMARY KEY,
-        rssi    TEXT NOT NULL,
-        verb    TEXT NOT NULL,
-        seq     TEXT NOT NULL,
-        dev_1   TEXT NOT NULL,
-        dev_2   TEXT NOT NULL,
-        dev_3   TEXT NOT NULL,
-        code    TEXT NOT NULL,
-        len     TEXT NOT NULL,
-        payload TEXT NOT NULL
-    ) WITHOUT ROWID;
-"""
-INDEX_SQL = "CREATE INDEX IF NOT EXISTS code_idx ON packets(code);"
-INSERT_SQL = """
-    INSERT INTO packets(dt, rssi, verb, seq, dev_1, dev_2, dev_3, code, len, payload)
-    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-"""
-
-
-class FILETIME(ctypes.Structure):
-    """Data structure for GetSystemTimePreciseAsFileTime()."""
-
-    _fields_ = [("dwLowDateTime", ctypes.c_uint), ("dwHighDateTime", ctypes.c_uint)]
-
-
-def time_stamp():
-    """Return an accurate time, even for Windows-based systems."""
-    if os.name == "nt":
-        file_time = FILETIME()
-        ctypes.windll.kernel32.GetSystemTimePreciseAsFileTime(ctypes.byref(file_time))
-        _time = (file_time.dwLowDateTime + (file_time.dwHighDateTime << 32)) / 1e7
-        return _time - 134774 * 24 * 60 * 60  # since 1601-01-01T00:00:00Z
-    # if os.name == "posix":
-    return time.time()  # since 1970-01-01T00:00:00Z
 
 
 class MessageWorker(Thread):
@@ -137,7 +104,7 @@ class Gateway:
             _LOGGER.warning(
                 "Serial port specified (%s): Ignoring input file (%s)",
                 self.serial_port,
-                config["input_file"]
+                config["input_file"],
             )
             config["input_file"] = None
 
@@ -145,7 +112,7 @@ class Gateway:
             if not config.get("listen_only"):
                 _LOGGER.warning(
                     "Input file specified (%s): Enabling listen_only mode",
-                    config["input_file"]
+                    config["input_file"],
                 )
                 config["listen_only"] = True
 
@@ -153,16 +120,19 @@ class Gateway:
                 _LOGGER.warning(
                     "Input file specified (%s): Disabling command (%s)",
                     config["input_file"],
-                    config["execute_cmd"]
+                    config["execute_cmd"],
                 )
                 config["execute_cmd"] = None
 
         if config.get("raw_output") and config.get("message_file"):
             _LOGGER.warning(
                 "Raw output specified: Disabling message log (%s)",
-                config["message_log"]
+                config["message_log"],
             )
             config["message_log"] = False
+
+        set_logging(msg_logger, file_name="msg_test.tst", stream=sys.stdout)  # config.get("message_file"))
+        set_logging(pkt_logger, file_name="pkt_test.tst", stream=None)  # config.get("output_file"))
 
         self.reader = self.writer = None
         self._input_fp = self._output_fp = self._message_fp = None
@@ -198,10 +168,13 @@ class Gateway:
 
         if self.config.get("lookup_file"):
             self.device_lookup.update(
-                {d.device_id: {
-                    "friendly_name": d._friendly_name,
-                    "blacklist": d._blacklist,
-                } for d in self.devices}
+                {
+                    d.device_id: {
+                        "friendly_name": d._friendly_name,
+                        "blacklist": d._blacklist,
+                    }
+                    for d in self.devices
+                }
             )
 
             with open(self.config["lookup_file"], "w") as outfile:
@@ -339,39 +312,46 @@ class Gateway:
                 i += 1
             # # ENDS crazy test block
 
-        if self.config.get("database"):
-            self._output_db = sqlite3.connect(self.config["database"])
-            self._db_cursor = self._output_db.cursor()
-            _ = self._db_cursor.execute(TABLE_SQL)
-            _ = self._db_cursor.execute(INDEX_SQL)
-            self._output_db.commit()
+        def _setup_files() -> None:
+            if self.config.get("database"):
+                self._output_db = sqlite3.connect(self.config["database"])
+                self._db_cursor = self._output_db.cursor()
+                _ = self._db_cursor.execute(TABLE_SQL)
+                _ = self._db_cursor.execute(INDEX_SQL)
+                self._output_db.commit()
 
-        if self.config.get("output_file"):
-            self._output_fp = open(self.config["output_file"], "a+")
+            if self.config.get("output_file"):
+                self._output_fp = open(self.config["output_file"], "a+")
 
-        if self.config.get("message_log"):
-            self._message_fp = open(self.config["message_log"], "a+")
+            if self.config.get("message_log"):
+                self._message_fp = open(self.config["message_log"], "a+")
 
-        if self.config.get("lookup_file"):
-            try:
-                with open(self.config["lookup_file"]) as json_file:
-                    self.device_lookup = json.load(json_file)
-            except FileNotFoundError:
-                self.device_lookup = {}
+            if self.config.get("lookup_file"):
+                try:
+                    with open(self.config["lookup_file"]) as json_file:
+                        self.device_lookup = json.load(json_file)
+                except FileNotFoundError:
+                    self.device_lookup = {}
 
-            self.config["black_list"] = list(
-                set(
-                    self.config.get("black_list")
-                    + [k for k, v in self.device_lookup.items() if v.get("blacklist")]
+                self.config["black_list"] = list(
+                    set(
+                        self.config.get("black_list")
+                        + [
+                            k
+                            for k, v in self.device_lookup.items()
+                            if v.get("blacklist")
+                        ]
+                    )
                 )
-            )
+
+        _setup_files()
 
         # Finally, source of packets is either a text file, or a serial port:
         if self.config.get("input_file"):
             try:
                 self._input_fp = open(self.config["input_file"], "r")
             except FileNotFoundError:
-                raise FileNotFoundError("Missing input file") # TODO: do better
+                raise FileNotFoundError("Missing input file")  # TODO: do better
 
             while self._input_fp:
                 await self._recv_message(source=self._input_fp)
@@ -419,32 +399,22 @@ class Gateway:
 
     async def _recv_message(self, source) -> None:
         """Receive a packet and validate it as a message."""
-        raw_packet = await self._get_packet(source)
+        raw_packet = await get_next_packet(self, source)
 
         if raw_packet is None:
             return
 
-        if self.config.get("raw_output"):
-            print(f"{raw_packet[11:23]} {raw_packet[27:]}")
-            # _LOGGER.info("%s %s", raw_packet[:23], raw_packet[27:])
+        if self.config.get("raw_output"):  # TODO: remove?
             return
 
         try:
-            msg = Message(raw_packet[27:], self, pkt_dt=raw_packet[:26])
+            msg = Message(self, packet=raw_packet[27:], timestamp=raw_packet[:26])
         except (ValueError, AssertionError):
             _LOGGER.exception("%s %s", raw_packet[11:23], raw_packet[27:])
-            return True
+            return
 
-        # if msg.payload is None:
-        #     # _LOGGER.info("%s %s %s", raw_packet[11:23], msg, msg.raw_payload)
-        # else:
-        #     # _LOGGER.info("%s %s %s", raw_packet[11:23], msg, msg.payload)
-
-        message = f"{raw_packet[11:23]} {msg}"
-        print(message)
-        if self._message_fp:
-            self._message_fp.write(f"{message}\n")  # TODO: make async
-
+        if not msg.is_valid_payload:
+            return
 
         # UPDATE: only certain packets should become part of the canon
         try:
@@ -470,116 +440,3 @@ class Gateway:
                 pass
 
             self.command_queue.task_done()
-
-    async def _get_packet(self, source) -> Optional[str]:
-        """Get the next valid/wanted packet, stamped with an isoformat datetime."""
-
-        def wanted_packet(raw_packet) -> bool:
-            """Return True only if a packet is wanted."""
-            if self.config.get("white_list"):
-                if not any(dev in raw_packet for dev in self.config["white_list"]):
-                    return False
-            if self.config.get("black_list"):
-                if any(dev in raw_packet for dev in self.config["black_list"]):
-                    return False
-            return True
-
-        def valid_packet(timestamped_packet) -> bool:
-            """Return True only if a packet is valid."""
-            raw_packet = timestamped_packet[27:]
-            if not MESSAGE_REGEX.match(raw_packet):
-                _LOGGER.debug(
-                    "%s Invalid packet: Structure is bad: >>>%s<<<",
-                    timestamped_packet[:23],
-                    raw_packet,
-                )
-                return False
-            if int(raw_packet[46:49]) > 48:
-                _LOGGER.debug(
-                    "%s Invalid packet: Payload too long: >>>%s<<<",
-                    timestamped_packet[:23],
-                    raw_packet,
-                )
-                return False
-            if len(raw_packet[50:]) != 2 * int(raw_packet[46:49]):
-                _LOGGER.debug(
-                    "%s Invalid packet: Length mismatch: >>>%s<<<",
-                    timestamped_packet[:23],
-                    raw_packet,
-                )
-                return False
-            return True
-
-        def get_packet_from_file() -> Optional[str]:  # ?async
-            """Get the next valid packet from a log file."""
-            raw_packet = self._input_fp.readline()
-            return raw_packet.strip()  # includes a timestamp
-
-        async def get_packet_from_port() -> Optional[str]:
-            """Get the next valid packet from a serial port."""
-            try:
-                raw_packet = await self.reader.readline()
-            except serial.SerialException:
-                return
-
-            # dt.now().isoformat() doesn't work well on Windows
-            now = time.time()  # 1580666877.7795346
-            if os.name == "nt":
-                now = time_stamp()  # 1580666877.7795346
-            mil = f"{now%1:.6f}".lstrip("0")  # .779535
-            packet_dt = time.strftime(f"%Y-%m-%dT%H:%M:%S{mil}", time.localtime(now))
-
-            try:
-                raw_packet = raw_packet.decode("ascii").strip()
-            except UnicodeDecodeError:
-                return
-
-            raw_packet = "".join(c for c in raw_packet if c in printable)
-            if not raw_packet:
-                return
-
-            # firmware-level packet hacks, i.e. non-HGI80 devices, should be here
-            if raw_packet[:3] == "???":  # HACK: don't send nanoCUL packets to DB
-                raw_packet = f"000 {raw_packet[4:]}"
-
-                if self.config.get("database"):
-                    _LOGGER.warning(
-                        "Using non-HGI firmware: Forcing database logging off"
-                        )
-                    self.config["database"] = None
-
-            return f"{packet_dt} {raw_packet}"
-
-        # get the next packet
-        if source == self._input_fp:
-            timestamped_packet = get_packet_from_file()
-            if not timestamped_packet:  # is EOF
-                self._input_fp = None
-                return
-
-        elif source == self.reader:  # self.serial_port
-            timestamped_packet = await get_packet_from_port()
-            if not timestamped_packet:  # may have read timeout'd
-                return
-
-        # dont keep/process any invalid packets
-        if not valid_packet(timestamped_packet):
-            return
-
-        # if enabled, log all valid packets (even if not wanted) to DB
-        if self._output_db:
-            w = [0, 27, 31, 34, 38, 48, 58, 68, 73, 77, 199]  # 165?
-            data = tuple(
-                [timestamped_packet[w[i - 1] : w[i] - 1] for i in range(1, len(w))]
-            )
-
-            _ = self._db_cursor.execute(INSERT_SQL, data)
-            self._output_db.commit()
-
-        # if enabled, log all valid packets (even if not wanted) to file
-        if self._output_fp:
-            self._output_fp.write(f"{timestamped_packet}\n")  # TODO: make async
-
-        # only return *wanted* valid packets for further processing
-        if wanted_packet(timestamped_packet[27:]):
-            return timestamped_packet  # in whitelist or not in blacklist

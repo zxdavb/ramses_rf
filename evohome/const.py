@@ -1,5 +1,4 @@
 """Evohome serial."""
-
 import re
 
 NUL_DEV_ID = "63:262142"  # 7FFFFF - send here if not bound?
@@ -120,7 +119,7 @@ DEVICE_MAP = {
 }  # Mixing valve (HM80)
 DEVICE_LOOKUP = {v: k for k, v in DEVICE_MAP.items()}
 
-DOMAIN_MAP = {"F9": "CH", "FA": "DHW", "FC": "Boiler"}
+DOMAIN_MAP = {"F9": "Heating", "FA": "HotWater", "FC": "Boiler"}
 
 SYSTEM_MODE_MAP = {
     "00": "Auto",
@@ -159,4 +158,27 @@ MESSAGE_REGEX = re.compile(f"^{a} {b} {a} {c} {c} {c} {d} {e} {f}$")
 
 COMMAND_FORMAT = "{:<2} --- {} {} --:------ {} {:03.0f} {}"
 MESSAGE_FORMAT = "|| {:<15} | {:<15} | {} | {:<16} | {:<10} || {}"
+
+TABLE_SQL = """
+    CREATE TABLE IF NOT EXISTS packets (
+        dt      TEXT PRIMARY KEY,
+        rssi    TEXT NOT NULL,
+        verb    TEXT NOT NULL,
+        seq     TEXT NOT NULL,
+        dev_1   TEXT NOT NULL,
+        dev_2   TEXT NOT NULL,
+        dev_3   TEXT NOT NULL,
+        code    TEXT NOT NULL,
+        len     TEXT NOT NULL,
+        payload TEXT NOT NULL
+    ) WITHOUT ROWID;
+"""
+
+INDEX_SQL = "CREATE INDEX IF NOT EXISTS code_idx ON packets(code);"
+
+INSERT_SQL = """
+    INSERT INTO packets(dt, rssi, verb, seq, dev_1, dev_2, dev_3, code, len, payload)
+    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+"""
+
 

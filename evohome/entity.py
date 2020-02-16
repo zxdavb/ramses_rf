@@ -8,13 +8,12 @@ from .const import (
     COMMAND_EXPOSES_ZONE,
     COMMAND_LOOKUP,
     COMMAND_MAP,
-    NUL_DEV_ID,
     CTL_DEV_ID,
     DEVICE_LOOKUP,
     DEVICE_MAP,
+    NUL_DEV_ID,
     ZONE_TYPE_MAP,
 )
-from .logger import _LOGGER
 
 
 def dev_hex_to_id(device_hex: str, friendly_id=False) -> str:

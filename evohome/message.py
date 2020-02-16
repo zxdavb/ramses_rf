@@ -1,6 +1,9 @@
-"""Evohome serial."""
+"""Message processor."""
+
+import logging
+
+from . import parsers
 from .const import (
-    NUL_DEV_ID,
     COMMAND_EXPOSES_ZONE,
     COMMAND_LENGTH,
     COMMAND_LOOKUP,
@@ -12,31 +15,32 @@ from .const import (
     MESSAGE_FORMAT,
     MESSAGE_REGEX,
     NON_DEV_ID,
+    NUL_DEV_ID,
     SYSTEM_MODE_MAP,
     ZONE_MODE_MAP,
     ZONE_TYPE_MAP,
 )
-from .entity import Device, DhwZone, Domain, Zone, System, dev_hex_to_id, DEVICE_CLASSES
-from .logger import _LOGGER
+from .entity import DEVICE_CLASSES, Device, DhwZone, Zone
 
-from . import parsers
+_LOGGER = logging.getLogger(__name__)  # evohome.message
+_LOGGER.setLevel(logging.INFO)  # INFO or DEBUG
 
 
 class Message:
     """The message class."""
 
-    def __init__(self, packet, gateway, pkt_dt=None) -> None:
+    def __init__(self, gateway, packet, timestamp) -> None:
         self._gateway = gateway
         self._packet = packet
-        self._pkt_dt = pkt_dt
+        self._timestamp = timestamp
 
         self.rssi_val = packet[0:3]  # RSSI value
         self.verb = packet[4:6]  # -I, RP, RQ, or -W
         self.seq_no = packet[7:10]  # sequence number (as used by 31D9)?
 
-        self.device_id = {}  # dev1: source (for relay_demand, is: --:------)
-        self.device_type = {}  # dev2: destination of RQ, RP and -W
-        self.device_number = {}  # dev3: destination of -I; for broadcasts, dev3 == dev1
+        self.device_id = {}
+        self.device_type = {}
+        self.device_number = {}
 
         self.code = packet[41:45]
 
@@ -63,9 +67,9 @@ class Message:
             if idx == 2 and self.device_id[2] == self.device_id[0]:
                 return "<announce>"  # "<broadcast"
 
-            friendly_name = self._gateway.device_by_id[self.device_id[idx]]._friendly_name
-            if friendly_name:
-                return f"{friendly_name[:10]}"
+            # friendly_name = self._gateway.device_by_id[self.device_id[idx]]._friendly_name
+            # if friendly_name:
+            #     return f"{friendly_name[:10]}"
 
             return f"{self.device_type[idx]}:{self.device_id[idx][3:]}"
 
@@ -82,35 +86,27 @@ class Message:
             self.verb,
             COMMAND_MAP.get(self.code, f"unknown_{self.code}"),
             raw_payload,
-            self.payload if self.payload else self.raw_payload if len(self.raw_payload) > 8 else ""
+            self.payload if self.payload else (
+                self.raw_payload if len(self.raw_payload) > 8 else ""
+            ),
         )
 
         return message
 
     @property
-    def non_evohome(self) -> bool:
-        """Return True if not an evohome message."""
-        # if COMMAND_SCHEMA.get(self.code):
-        #     if COMMAND_SCHEMA[self.code].get("non_evohome"):
-        #         return True  # ignore non-evohome commands
+    def is_valid_payload(self) -> bool:
+        # if msg.payload is None:
+        #     _LOGGER.info("%s %s %s", raw_packet[11:23], msg, msg.raw_payload)
+        # else:
+        #     _LOGGER.info("%s %s %s", raw_packet[11:23], msg, msg.payload)
 
-        if self.device_id[2] in ["12:249582", "13:171587"]:
-            return True  # ignore neighbours's devices
+        # message = f"{self._timestamp} {self}"
 
-        if self.device_id[0] == "30:082155":
-            return True  # ignore nuaire devices (PIV)
+        # print(message)
+        # # if self._message_fp:
+        # #     self._message_fp.write(f"{message}\n")  # TODO: make async
 
-        if self.device_type[0] == "VNT":
-            return True  # ignore nuaire devices (switches, senors)
-
-        # if self.device_id[0] == NON_DEV_ID and self.device_type[2] == " 12":
-        #     return True  # ignore non-evohome device types
-
-        # if self.input_file:
-        #     if "HGI" in [msg.device_type[0], msg.device_type[1]]:
-        #         return True  # ignore the HGI
-
-        return False
+        return bool(self.payload)
 
     @property
     def payload(self) -> dict:
@@ -184,7 +180,7 @@ class Message:
                 return None
 
         except (LookupError, TypeError, ValueError):
-            # _LOGGER.info("dt = %s", self._pkt_dt)  # TODO: delete me
+            # _LOGGER.info("dt = %s", self._timestamp)  # TODO: delete me
             _LOGGER.exception("EXCEPT, raw_packet = >>> %s <<<", self._packet)
             return None
 
@@ -197,5 +193,10 @@ class Message:
 
         # else:
         #     self._gateway.device_by_id[self.device_id[0]].update(self)
+
+        _LOGGER.info(
+            "%s", str(self),
+            extra={"date": self._timestamp[:10], "time": self._timestamp[11:]}
+        )
 
         return self._payload

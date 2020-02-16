@@ -1,18 +1,16 @@
 """Evohome serial."""
 # https://stackoverflow.com/questions/18499497/how-to-process-sigterm-signal-gracefully
 
+import argparse
 import asyncio
 
-import argparse
-import logging
-
-from evohome import _CONSOLE, _LOGGER, Gateway
+from evohome import Gateway
 
 DEBUG_ADDR = "172.27.0.138"
 DEBUG_PORT = 5679
 
 BLACK_LIST = ["12:227486", "12:249582", "12:259810", "13:171587"]  # nextdoor
-# BLACK_LIST += ["30:082155", "32:206250", "32:168090"]  # Nuaire
+BLACK_LIST += ["30:082155", "32:206250", "32:168090"]  # Nuaire
 
 WHITE_LIST = [
     "01:145038",
@@ -33,9 +31,6 @@ WHITE_LIST = [
     "04:189078",
     "04:056061",
 ]
-
-_LOGGER.setLevel(logging.DEBUG)
-_LOGGER.addHandler(_CONSOLE)
 
 
 def _parse_args():
@@ -81,7 +76,6 @@ def _parse_args():
 
     return parser.parse_args()
 
-
 async def main(loop):
     """Main loop."""
     args = _parse_args()
@@ -103,6 +97,7 @@ async def main(loop):
 
 
 if __name__ == "__main__":  # called from CLI?
+
     LOOP = asyncio.get_event_loop()
     LOOP.run_until_complete(main(LOOP))
     LOOP.close()

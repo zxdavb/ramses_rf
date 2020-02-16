@@ -2,12 +2,12 @@
 
 # pylint: disable=missing-function-docstring
 
-from datetime import datetime as dt, timedelta
+from datetime import datetime as dt
+from datetime import timedelta
 from string import printable
 from typing import Optional, Union
 
 from .const import (
-    NUL_DEV_ID,
     COMMAND_EXPOSES_ZONE,
     COMMAND_LENGTH,
     COMMAND_LOOKUP,
@@ -20,12 +20,13 @@ from .const import (
     MESSAGE_FORMAT,
     MESSAGE_REGEX,
     NON_DEV_ID,
+    NUL_DEV_ID,
     SYSTEM_MODE_MAP,
     ZONE_MODE_MAP,
     ZONE_TYPE_MAP,
 )
-from .entity import Device, DhwZone, Domain, Zone, dev_hex_to_id, DEVICE_CLASSES
-from .opentherm import OPENTHERM_MSG_TYPE, OPENTHERM_MESSAGES, ot_msg_value, parity
+from .entity import DEVICE_CLASSES, Device, DhwZone, Domain, Zone, dev_hex_to_id
+from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
 
 
 def parser_decorator(func):
@@ -569,8 +570,8 @@ def parser_1f09(payload, msg) -> Optional[dict]:  # sync_cycle
     assert payload[:2] in ["00", "F8", "FF"]  # W uses F8, non-Honeywell devices use 00
 
     seconds = int(payload[2:6], 16) / 10
-    # TODO: delete me print(msg._pkt_dt)
-    next_sync = dt.fromisoformat(msg._pkt_dt) + timedelta(seconds=seconds)
+    # TODO: delete me print(msg._timestamp)
+    next_sync = dt.fromisoformat(msg._timestamp) + timedelta(seconds=seconds)
 
     return {
         "remaining_seconds": seconds,

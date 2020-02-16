@@ -1,12 +1,13 @@
 from __future__ import print_function
-import serial
-import time
+
 import datetime
 import struct
 import textwrap
+import time
 import zlib
-
 from array import array
+
+import serial
 
 ##### Start of user configuration setup
 ##### Note: file and serial port settings below are all for Windows OS
