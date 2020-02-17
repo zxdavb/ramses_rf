@@ -69,9 +69,10 @@ class Message:
             if idx == 2 and self.device_id[2] == self.device_id[0]:
                 return "<announce>"  # "<broadcast"
 
-            friendly_name = self._gateway.device_by_id[self.device_id[idx]]._friendly_name
-            if friendly_name:
-                return f"{friendly_name}"
+            dev = self._gateway.device_by_id.get(self.device_id[idx])
+            if dev:
+                if dev._friendly_name:
+                    return f"{dev._friendly_name}"
 
             return f"{self.device_type[idx]}:{self.device_id[idx][3:]}"
 
