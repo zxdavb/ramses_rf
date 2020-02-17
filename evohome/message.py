@@ -69,9 +69,9 @@ class Message:
             if idx == 2 and self.device_id[2] == self.device_id[0]:
                 return "<announce>"  # "<broadcast"
 
-            # friendly_name = self._gateway.device_by_id[self.device_id[idx]]._friendly_name
-            # if friendly_name:
-            #     return f"{friendly_name[:10]}"
+            friendly_name = self._gateway.device_by_id[self.device_id[idx]]._friendly_name
+            if friendly_name:
+                return f"{friendly_name}"
 
             return f"{self.device_type[idx]}:{self.device_id[idx][3:]}"
 
@@ -90,7 +90,9 @@ class Message:
             self.verb,
             COMMAND_MAP.get(self.code, f"unknown_{self.code}"),
             raw_payload,
-            payload if payload else raw_payload if len(raw_payload) > 8 else "",
+            payload if payload else (
+                self.raw_payload if len(self.raw_payload) > 8 else ""
+            ),
         )
 
         return message
