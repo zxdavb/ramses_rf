@@ -158,6 +158,7 @@ MESSAGE_REGEX = re.compile(f"^{a} {b} {a} {c} {c} {c} {d} {e} {f}$")
 
 COMMAND_FORMAT = "{:<2} --- {} {} --:------ {} {:03.0f} {}"
 MESSAGE_FORMAT = "|| {:<15} | {:<15} | {} | {:<16} | {:<10} || {}"
+# MESSAGE_FORMAT = " {:<15} {:<15} {} {:<16} {:<10}  {}"
 
 TABLE_SQL = """
     CREATE TABLE IF NOT EXISTS packets (

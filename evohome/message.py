@@ -187,6 +187,8 @@ class Message:
             )
             return
 
+        self._is_valid_payload = bool(self._payload)
+
         _LOGGER.info(
             "%s", str(self),
             extra={"date": self._timestamp[:10], "time": self._timestamp[11:]}
