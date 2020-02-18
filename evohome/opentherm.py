@@ -32,7 +32,7 @@ OPENTHERM_MESSAGES = {
             "var": "StatusCHEnabled",
         },
         "0x0200": {
-            "en": "Domestic hot water enable",
+            "en": "DHW enable",
             "nl": "Tapwater aan",
             "var": "StatusDHWEnabled",
         },
@@ -57,7 +57,7 @@ OPENTHERM_MESSAGES = {
             "var": "StatusSummerWinter",
         },
         "0x4000": {
-            "en": "Domestic hot water blocking",
+            "en": "DHW blocking",
             "nl": "Tapwater blokkade",
             "var": "StatusDHWBlocked",
         },
@@ -72,7 +72,7 @@ OPENTHERM_MESSAGES = {
             "var": "StatusCHMode",
         },  # not active/active
         "0x0004": {
-            "en": "Domestic hot water mode",
+            "en": "DHW mode",
             "nl": "Tapwater mode",
             "var": "StatusDHWMode",
         },  # not active/active
@@ -101,13 +101,13 @@ OPENTHERM_MESSAGES = {
     "Master_config_flags": {"0x0100": {"en": "Smart Power", "var": "ConfigSmartPower"}},
     # OpenTherm Slave configuration flags [ID 3: slave config flags (HB)]
     "Slave_Config_flags": {
-        "0x0100": {"en": "Domestic hot water present", "var": "ConfigDHWpresent"},
+        "0x0100": {"en": "DHW present", "var": "ConfigDHWpresent"},
         "0x0200": {
             "en": "Control type (modulating on/off)",
             "var": "ConfigControlType",
         },
         "0x0400": {"en": "Cooling supported", "var": "ConfigCooling"},
-        "0x0800": {"en": "Domestic hot water storage tank", "var": "ConfigDHW"},
+        "0x0800": {"en": "DHW storage tank", "var": "ConfigDHW"},
         "0x1000": {
             "en": "Master low-off & pump control allowed",
             "var": "ConfigMasterPump",
@@ -278,7 +278,7 @@ OPENTHERM_MESSAGES = {
             "sensor": "pressure",
         },
         "19": {
-            "en": "Domestic hot water flow rate (litres/minute)",
+            "en": "DHW flow rate (litres/minute)",
             "dir": "R-",
             "val": "f8.8",
             "var": "DHWFlowRate",
@@ -311,7 +311,7 @@ OPENTHERM_MESSAGES = {
             "sensor": "temperature",
         },
         "26": {
-            "en": "Domestic hot water temperature",
+            "en": "DHW temperature",
             "nl": "Tapwatertemperatuur",
             "dir": "R-",
             "val": "f8.8",
@@ -356,7 +356,7 @@ OPENTHERM_MESSAGES = {
             "sensor": "temperature",
         },
         "32": {
-            "en": "Domestic hot water 2 temperature",
+            "en": "DHW 2 temperature",
             "dir": "R-",
             "val": "f8.8",
             "var": "DHW2Temperature",
@@ -370,7 +370,7 @@ OPENTHERM_MESSAGES = {
             "sensor": "temperature",
         },
         "48": {
-            "en": "Domestic hot water setpoint boundaries",
+            "en": "DHW setpoint boundaries",
             "dir": "R-",
             "val": "s8",
             "var": "DHWBounadries",
@@ -390,7 +390,7 @@ OPENTHERM_MESSAGES = {
             "var": "OTCBoundaries",
         },
         "56": {
-            "en": "Domestic hot water setpoint",
+            "en": "DHW setpoint",
             "nl": "Tapwater doeltemperatuur",
             "dir": "RW",
             "val": "f8.8",
@@ -581,42 +581,42 @@ OPENTHERM_MESSAGES = {
             "sensor": "counter",
         },
         "118": {
-            "en": "Number of starts domestic hot water pump/valve",
+            "en": "Number of starts DHW pump/valve",
             "dir": "RW",
             "val": "u16",
             "var": "StartsHDWPump",
             "sensor": "counter",
         },
         "119": {
-            "en": "Number of starts burner during domestic hot water mode",
+            "en": "Number of starts burner during DHW mode",
             "dir": "RW",
             "val": "u16",
             "var": "StartsBurnerDHW",
             "sensor": "counter",
         },
         "120": {
-            "en": "Number of hours that burner is in operation (i.e. flame on)",
+            "en": "Number of hours burner is in operation (i.e. flame on)",
             "dir": "RW",
             "val": "u16",
             "var": "HoursBurner",
             "sensor": "counter",
         },
         "121": {
-            "en": "Number of hours that central heating pump has been running",
+            "en": "Number of hours central heating pump has been running",
             "dir": "RW",
             "val": "u16",
             "var": "HoursCHPump",
             "sensor": "counter",
         },
         "122": {
-            "en": "Number of hours that domestic hot water pump has been running/valve has been opened",
+            "en": "Number of hours DHW pump has been running/valve has been opened",
             "dir": "RW",
             "val": "u16",
             "var": "HoursDHWPump",
             "sensor": "counter",
         },
         "123": {
-            "en": "Number of hours that domestic hot water burner is in operation during DHW mode",
+            "en": "Number of hours DHW burner is in operation during DHW mode",
             "dir": "RW",
             "val": "u16",
             "var": "HoursDHWBurner",
@@ -661,7 +661,7 @@ OPENTHERM_MESSAGES = {
             "var": "LowSignalsFlame?",
             "sensor": "counter",
         },
-     },
+    },
 }
 
 

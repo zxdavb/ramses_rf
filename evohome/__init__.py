@@ -13,9 +13,7 @@ import serial
 import serial_asyncio
 
 
-logging.basicConfig(
-    level=logging.WARNING,
-)
+logging.basicConfig(level=logging.WARNING,)
 
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(logging.WARNING)  # INFO for files, WARNING for console
@@ -35,7 +33,8 @@ from .const import (
     MESSAGE_REGEX,
     NON_DEV_ID,
     NUL_DEV_ID,
-    TABLE_SQL, INDEX_SQL
+    TABLE_SQL,
+    INDEX_SQL,
 )
 from .entity import System
 from .message import Message, _LOGGER as msg_logger
@@ -132,12 +131,12 @@ class Gateway:
         set_logging(
             msg_logger,
             file_name=self.config.get("message_log"),
-            stream=None if config.get("raw_output") else sys.stdout
+            stream=None if config.get("raw_output") else sys.stdout,
         )
         set_logging(
             pkt_logger,
             file_name=self.config.get("output_file"),
-            stream=sys.stdout if config.get("raw_output") else None
+            stream=sys.stdout if config.get("raw_output") else None,
         )
 
         self.reader = self.writer = None

@@ -1,6 +1,7 @@
 """Logging utility."""
 
 import logging
+
 # from logging.handlers import TimedRotatingFileHandler
 import shutil
 import sys
@@ -46,5 +47,6 @@ def set_logging(logger, stream=sys.stderr, file_name=None):
 
 class InfoFilter(logging.Filter):
     """Log only INFO-level messages."""
+
     def filter(self, record):
         return record.levelno in [logging.INFO, logging.DEBUG]

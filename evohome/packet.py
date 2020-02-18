@@ -19,6 +19,7 @@ _LOGGER.setLevel(logging.INFO)  # INFO or DEBUG
 
 class FILETIME(ctypes.Structure):
     """Data structure for GetSystemTimePreciseAsFileTime()."""
+
     _fields_ = [("dwLowDateTime", ctypes.c_uint), ("dwHighDateTime", ctypes.c_uint)]
 
 
@@ -39,18 +40,22 @@ async def get_next_packet(gateway, source) -> Optional[str]:
 
     def is_wanted_packet(raw_packet, timestamp) -> bool:
         """Return True if a packet is wanted."""
+        # in whitelist (if there is one) and not in blacklist
+
         if gateway.config.get("white_list"):
             if not any(dev in raw_packet for dev in gateway.config["white_list"]):
                 _LOGGER.debug(
-                    "*** Unwanted packet: Not in whitelist: >>>%s<<<", raw_packet,
-                    extra={"date": timestamp[:10], "time": timestamp[11:]}
+                    "*** Unwanted packet: Not in whitelist: >>>%s<<<",
+                    raw_packet,
+                    extra={"date": timestamp[:10], "time": timestamp[11:]},
                 )
                 return False
         if gateway.config.get("black_list"):
             if any(dev in raw_packet for dev in gateway.config["black_list"]):
                 _LOGGER.debug(
-                    "*** Unwanted packet: Blacklisted: >>>%s<<<", raw_packet,
-                    extra={"date": timestamp[:10], "time": timestamp[11:]}
+                    "*** Unwanted packet: Blacklisted: >>>%s<<<",
+                    raw_packet,
+                    extra={"date": timestamp[:10], "time": timestamp[11:]},
                 )
                 return False
         return True
@@ -59,20 +64,23 @@ async def get_next_packet(gateway, source) -> Optional[str]:
         """Return True if a packet is valid."""
         if not MESSAGE_REGEX.match(raw_packet):
             _LOGGER.warning(
-                "*** Invalid packet: Packet structure bad: >>>%s<<<", raw_packet,
-                extra={"date": timestamp[:10], "time": timestamp[11:]}
+                "*** Invalid packet: Packet structure bad: >>>%s<<<",
+                raw_packet,
+                extra={"date": timestamp[:10], "time": timestamp[11:]},
             )
             return False
         if int(raw_packet[46:49]) > 48:
             _LOGGER.warning(
-                "*** Invalid packet: Payload too long: >>>%s<<<", raw_packet,
-                extra={"date": timestamp[:10], "time": timestamp[11:]}
+                "*** Invalid packet: Payload too long: >>>%s<<<",
+                raw_packet,
+                extra={"date": timestamp[:10], "time": timestamp[11:]},
             )
             return False
         if len(raw_packet[50:]) != 2 * int(raw_packet[46:49]):
             _LOGGER.warning(
-                "*** Invalid packet: Payload length mismatch: >>>%s<<<", raw_packet,
-                extra={"date": timestamp[:10], "time": timestamp[11:]}
+                "*** Invalid packet: Payload length mismatch: >>>%s<<<",
+                raw_packet,
+                extra={"date": timestamp[:10], "time": timestamp[11:]},
             )
             return False
         return True
@@ -112,7 +120,7 @@ async def get_next_packet(gateway, source) -> Optional[str]:
             if gateway.config.get("database"):
                 _LOGGER.warning(
                     "*** Using non-HGI firmware: Disabling database logging",
-                    extra={"date": timestamp[:10], "time": timestamp[11:]}
+                    extra={"date": timestamp[:10], "time": timestamp[11:]},
                 )
                 gateway.config["database"] = gateway._output_db = None
 
@@ -155,5 +163,5 @@ async def get_next_packet(gateway, source) -> Optional[str]:
     _LOGGER.info(packet, extra={"date": timestamp[:10], "time": timestamp[11:]})
 
     # only return *wanted* valid packets for further processing
-    if is_wanted_packet(packet, timestamp):  # in whitelist (if there is one) and not in blacklist
+    if is_wanted_packet(packet, timestamp):
         return timestamped_packet

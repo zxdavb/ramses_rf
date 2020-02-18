@@ -37,45 +37,73 @@ def _parse_args():
     parser = argparse.ArgumentParser()
 
     group = parser.add_mutually_exclusive_group(required=True)  # one is required
-    group.add_argument("-s", "--serial_port",
-        help="port to poll for packets")
-    group.add_argument("-i", "--input_file",
-        help="file to read for packets (implies listen_only)")
+    group.add_argument("-s", "--serial_port", help="port to poll for packets")
+    group.add_argument(
+        "-i", "--input_file", help="file to read for packets (implies listen_only)"
+    )
 
-    parser.add_argument("-l", "--listen_only", action="store_true",
+    parser.add_argument(
+        "-l",
+        "--listen_only",
+        action="store_true",
         help="don't send any discovery packets (eavesdrop only)",
     )
 
-    parser.add_argument("-o", "--output_file",  # default="packets.log",
-        help="copy all valid packets to file")
-    parser.add_argument("-d", "--database",     # default="packets.db",
-        help="copy all valid packets to sqlite DB")
+    parser.add_argument(
+        "-o",
+        "--output_file",  # default="packets.log",
+        help="copy all valid packets to file",
+    )
+    parser.add_argument(
+        "-d",
+        "--database",  # default="packets.db",
+        help="copy all valid packets to sqlite DB",
+    )
 
     group = parser.add_mutually_exclusive_group()  # OK to have neither
-    group.add_argument("-r", "--raw_output", action="store_true",
-        help="display packets rather than decoded messages")
-    group.add_argument("-m", "--message_log",   # default="messages.log",
-        help="copy all decoded messages to file (in addition to stdout/stderr)")
+    group.add_argument(
+        "-r",
+        "--raw_output",
+        action="store_true",
+        help="display packets rather than decoded messages",
+    )
+    group.add_argument(
+        "-m",
+        "--message_log",  # default="messages.log",
+        help="copy all decoded messages to file (in addition to stdout/stderr)",
+    )
 
-    parser.add_argument("-n", "--lookup_file",  # default="devices.json",
-        help="friendly names, etc.")
+    parser.add_argument(
+        "-n", "--lookup_file", help="friendly names, etc."  # default="devices.json",
+    )
 
     group = parser.add_mutually_exclusive_group()  # OK to have neither
-    group.add_argument("--black_list", default=BLACK_LIST,
+    group.add_argument(
+        "--black_list",
+        default=BLACK_LIST,
         help="TODO: ignore all packets sent to/from these devices",
     )
-    group.add_argument("--white_list",  # default=WHITE_LIST,
+    group.add_argument(
+        "--white_list",  # default=WHITE_LIST,
         help="TODO: accept only packets sent to/from these devices",
     )
 
     # parser.add_argument("-c", "--controller_id", type=str, action="store",
     #     help="controller to use in favour of discovery",
     # )
-    parser.add_argument("-x", "--execute_cmd", action="store", type=str,
+    parser.add_argument(
+        "-x",
+        "--execute_cmd",
+        action="store",
+        type=str,
         # default="RQ 01:145038 1F09 00",
         help="VERB DEVICE_ID CODE PAYLOAD",
     )
-    parser.add_argument("-z", "--debug_mode", action="count", default=0,
+    parser.add_argument(
+        "-z",
+        "--debug_mode",
+        action="count",
+        default=0,
         help="0=disabled, 1=enabled (no wait), 2=wait for attach",
     )
 

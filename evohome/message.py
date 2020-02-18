@@ -85,9 +85,9 @@ class Message:
             self.verb,
             COMMAND_MAP.get(self.code, f"unknown_{self.code}"),
             raw_payload,
-            payload if payload else (
-                self.raw_payload if len(self.raw_payload) > 8 else ""
-            ),
+            payload
+            if payload
+            else (self.raw_payload if len(self.raw_payload) > 8 else ""),
         )
 
         return message
@@ -171,8 +171,9 @@ class Message:
             # users can send valid (but unparseable) packets & get odd reply
             if "18" not in [self.device_id[0][:2], self.device_id[1][:2]]:
                 _LOGGER.exception(
-                    "%s", str(self),
-                    extra={"date": self._timestamp[:10], "time": self._timestamp[11:]}
+                    "%s",
+                    str(self),
+                    extra={"date": self._timestamp[:10], "time": self._timestamp[11:]},
                 )
             return
 
@@ -180,16 +181,18 @@ class Message:
             self._is_valid_payload = False
 
             _LOGGER.exception(
-                "%s", str(self),
-                extra={"date": self._timestamp[:10], "time": self._timestamp[11:]}
+                "%s",
+                str(self),
+                extra={"date": self._timestamp[:10], "time": self._timestamp[11:]},
             )
             return
 
         self._is_valid_payload = bool(self._payload)  # Should just be True?
 
         _LOGGER.info(
-            "%s", str(self),
-            extra={"date": self._timestamp[:10], "time": self._timestamp[11:]}
+            "%s",
+            str(self),
+            extra={"date": self._timestamp[:10], "time": self._timestamp[11:]},
         )
 
         return self._payload
