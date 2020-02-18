@@ -13,30 +13,30 @@ def set_logging(logger, stream=sys.stderr, file_name=None):
     """Create/configure handlers, formatters, etc."""
     logger.propagate = False
 
-    cons_cols = shutil.get_terminal_size(fallback=(132, 24)).columns - 13
+    cons_cols = shutil.get_terminal_size(fallback=(1e4, 24)).columns - 13
     cons_fmt = f"{CONSOLE_FORMAT[:-1]}.{cons_cols}s"
 
-    x_handler = logging.StreamHandler(stream=sys.stderr)
-    x_handler.setFormatter(logging.Formatter(fmt=cons_fmt))
-    x_handler.setLevel(logging.WARNING)
+    handler = logging.StreamHandler(stream=sys.stderr)
+    handler.setFormatter(logging.Formatter(fmt=cons_fmt))
+    handler.setLevel(logging.WARNING)
 
-    logger.addHandler(x_handler)
+    logger.addHandler(handler)
 
     if stream == sys.stdout:
-        c_handler = logging.StreamHandler(stream=stream)
-        c_handler.setFormatter(logging.Formatter(fmt=cons_fmt))
-        c_handler.setLevel(logging.DEBUG)
-        c_handler.addFilter(InfoFilter())
+        handler = logging.StreamHandler(stream=stream)
+        handler.setFormatter(logging.Formatter(fmt=cons_fmt))
+        handler.setLevel(logging.DEBUG)
+        handler.addFilter(InfoFilter())
 
-        logger.addHandler(c_handler)
+        logger.addHandler(handler)
 
     if file_name:
-        f_handler = logging.FileHandler(file_name)
-        f_handler.setFormatter(logging.Formatter(fmt=LOGFILE_FORMAT))
-        f_handler.setLevel(logging.INFO)
-        f_handler.addFilter(InfoFilter())
+        handler = logging.FileHandler(file_name)
+        handler.setFormatter(logging.Formatter(fmt=LOGFILE_FORMAT))
+        handler.setLevel(logging.INFO)
+        handler.addFilter(InfoFilter())
 
-        logger.addHandler(f_handler)
+        logger.addHandler(handler)
 
 
 class InfoFilter(logging.Filter):
