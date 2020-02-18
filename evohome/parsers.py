@@ -52,7 +52,7 @@ def parser_decorator(func):
         # TODO: some RQs have a payload...
 
         # TRV will RQ zone_name *sans* payload...
-        if msg.code in ["0004"] and msg.device_type[0] == "TRV":
+        if msg.code in ["0004"] and msg.device_id[0][:2] == "04":  # TRV
             assert len(payload) / 2 == 2 if msg.code == "0004" else 1
             return {"zone_idx": payload[:2]}
 
@@ -62,12 +62,12 @@ def parser_decorator(func):
             return func(*args, **kwargs)
 
         # STA will RQ zone_config, setpoint *sans* payload...
-        if msg.code in ["000A", "2309"] and msg.device_type[0] == "STA":
+        if msg.code in ["000A", "2309"] and msg.device_id[0][:2] == "34":  # STA
             assert len(payload) / 2 == 1
             return {"zone_idx": payload[:2]}
 
         # TRV? will RQ localisation
-        if msg.code == "0100":  # and msg.device_type[0] == "TRV"
+        if msg.code == "0100":  # and msg.device_id[0][:2] == "04"  # TRV
             assert len(payload) / 2 == 5
             return func(*args, **kwargs)
 
@@ -77,14 +77,11 @@ def parser_decorator(func):
             assert int(payload[4:6], 16) <= 63
             return {"log_idx": payload[4:6]}
         #
-        if msg.code == "10A0" and msg.device_type[0] == "DHW":
+        if msg.code == "10A0" and msg.device_id[0][:2] == "07":  # DHW
             return func(*args, **kwargs)
 
         if msg.code == "3220":  # CTL -> OTB
             return func(*args, **kwargs)
-
-        # if msg.verb == "RQ" and msg.device_type[0] == "HGI":
-        #     return {}
 
         if msg.verb == "RQ":
             # will the following break harvesting?
@@ -97,6 +94,9 @@ def parser_decorator(func):
                 return {"zone_idx": payload[:2]}
 
             return {} if payload == "00" else None
+
+        # if msg.verb == "RQ" and msg.device_id[0][:2] == "18":  # HGI
+        #     return {}  # User can easily construct valid / albeit unparseable packets
 
         # TODO: god knows
         raise NotImplementedError
@@ -204,11 +204,11 @@ def parser_0004(payload, msg) -> Optional[dict]:  # zone_name
 @parser_decorator
 def tbd_er_0005(payload, msg) -> Optional[dict]:  # system_zone (add/del a zone?)
     assert msg.verb in [" I"]
-    if msg.device_id[0] == "STA":
+    if msg.device_id[0][:2] == "34":  # STA
         assert len(payload) / 2 == 12  # or % 4?
 
     else:
-        assert msg.device_type[0] == "CTL"
+        assert msg.device_id[0][:2] == "01"  # CTL
         assert len(payload) / 2 == 4
         assert payload[:4] in ["0000", "000D", "000F"]  # TODO: 00=Radiator, 0D=Electri
 
@@ -462,7 +462,7 @@ def parser_1060(payload, msg) -> Optional[dict]:  # battery_state (of device)
         "low_battery": payload[4:] == "00",
     }
 
-    if msg.device_type[0] == "TRV" and msg.device_type[2] == "CTL":
+    if msg.device_id[0][:2] == "04" and msg.device_id[2][:2] == "01":  # TRV, CTL
         assert int(payload[:2], 16) <= 11
         result.update({"parent_zone": payload[:2]})
     else:
@@ -608,7 +608,7 @@ def parser_1fc9(payload, msg) -> Optional[dict]:  # bind_device
             "device_id": dev_hex_to_id(seqx[6:]),
         }
 
-    assert msg.verb in [" I", " W"]
+    assert msg.verb in [" I", " W", "RP"]  # devices will respond to a RQ
     assert len(payload) / 2 % 6 == 0
 
     return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
@@ -682,13 +682,13 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:  # setpoint (of device
     if len(payload) / 2 == 1:  # some RQs (e.g. from 12/22: to 13:) have a payload
         return
 
-    if msg.device_type[0] == "CTL" and msg.verb == " I":  # the payload is an array
+    if msg.device_id[0][:2] == "01" and msg.verb == " I":  # the payload is an array
         assert len(payload) / 2 % 3 == 0
         return [_parser(payload[i : i + 6]) for i in range(0, len(payload), 6)]
 
     assert len(payload) / 2 == 3
 
-    # if msg.device_type[0] != "CTL" and msg.verb == " W":
+    # if msg.device_id[0] != "01" and msg.verb == " W":
     #     return
 
     return _parser(payload)
@@ -731,7 +731,7 @@ def parser_30c9(payload, msg) -> Optional[dict]:  # temp (of device, zone/s)
 
         return {"temperature": _temp(seqx[2:]), "zone_idx": seqx[:2]}
 
-    if msg.device_type[0] == "CTL" and msg.verb == " I":  # the payload is an array
+    if msg.device_id[0][:2] == "01" and msg.verb == " I":  # the payload is an array
         assert len(payload) / 2 % 3 == 0
         return [
             _parser(payload[i : i + 6])
@@ -741,7 +741,7 @@ def parser_30c9(payload, msg) -> Optional[dict]:  # temp (of device, zone/s)
 
     assert len(payload) / 2 == 3
 
-    if msg.device_id[0] == "CTL":
+    if msg.device_id[0][:2] == "01":
         assert msg.verb == "RP"  # RP for a zone, TODO: send RQ to a device when awake
         return _parser(payload)
 
@@ -774,12 +774,12 @@ def parser_3150(payload, msg) -> Optional[dict]:  # heat_demand (of device, FC d
     # event-driven, and periodically; FC domain is highest of all TRVs
     # TODO: all have a valid domain will UFH/CTL respond to an RQ, for FC, for a zone?
 
-    if msg.device_type[0] == "UFH" and payload[:2] != "FC":
+    if msg.device_id[0][:2] == "02" and payload[:2] != "FC":  # UFH
         assert len(payload) % 4 == 0  # I are arrays, sent periodically? are RPs arrays?
     else:
         assert len(payload) / 2 == 2
 
-    if msg.device_type[0] in ["CTL", "OTB", "UFH"]:
+    if msg.device_id[0][:2] in ["01", "02", "10"]:
         assert payload[:2] == "FC" or (int(payload[:2], 16) <= 11)
     else:
         assert int(payload[:2], 16) <= 11
@@ -884,7 +884,7 @@ def parser_3b00(payload, msg) -> Optional[dict]:  # sync_tpi (TPI cycle HB/sync)
     # TODO: alter #cycles/hour & check interval between 3B00/3EF0 changes
 
     assert len(payload) / 2 == 2
-    assert payload[:2] in {"CTL": "FC", "BDR": "00"}.get(msg.device_type[0])
+    assert payload[:2] in {"01": "FC", "13": "00"}.get(msg.device_id[0][:2])
     assert payload[2:] == "C8"  # Could it be a percentage?
 
     return {
@@ -895,7 +895,7 @@ def parser_3b00(payload, msg) -> Optional[dict]:  # sync_tpi (TPI cycle HB/sync)
 
 @parser_decorator
 def parser_3ef0(payload, msg) -> dict:  # actuator_enabled (state)
-    if msg.device_type[0] == "OTB":
+    if msg.device_id[0][:2] == "10":  # OTB
         assert len(payload) / 2 == 6
         assert payload[4:6] in ["10", "11"]
     else:
@@ -903,7 +903,7 @@ def parser_3ef0(payload, msg) -> dict:  # actuator_enabled (state)
     assert payload[:2] == "00"  # first two characters
     assert payload[-2:] == "FF"  # last two characters
 
-    if msg.device_type[0] == "OTB":
+    if msg.device_id[0][:2] == "10":
         return {
             "modulation_level": _cent(payload[2:4]),
             "flame_active": {"0A": True}.get(payload[2:4], False),

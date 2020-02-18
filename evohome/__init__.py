@@ -414,9 +414,9 @@ class Gateway:
 
         # UPDATE: only certain packets should become part of the canon
         try:
-            if "HGI" in msg.device_type:  # leave in anyway?
+            if "18" in msg.device_id:  # leave in anyway?
                 return
-            elif msg.device_type[0] == " --":
+            elif msg.device_id[0][:2] == "--":
                 self.device_by_id[msg.device_id[2]].update(msg)
             else:
                 self.device_by_id[msg.device_id[0]].update(msg)

@@ -12,11 +12,8 @@ from .const import (
     COMMAND_SCHEMA,
     DEVICE_LOOKUP,
     DEVICE_MAP,
-    HGI_DEV_ID,
     MESSAGE_FORMAT,
     MESSAGE_REGEX,
-    NON_DEV_ID,
-    NUL_DEV_ID,
     SYSTEM_MODE_MAP,
     ZONE_MODE_MAP,
     ZONE_TYPE_MAP,
@@ -35,46 +32,38 @@ class Message:
         self._packet = packet
         self._timestamp = timestamp
 
-        self.rssi_val = packet[0:3]  # RSSI value
+        self.rssi = packet[0:3]
         self.verb = packet[4:6]  # -I, RP, RQ, or -W
         self.seq_no = packet[7:10]  # sequence number (as used by 31D9)?
 
         self.device_id = {}
-        self.device_type = {}
-        self.device_number = {}
-
-        self.code = packet[41:45]
-
         for dev, i in enumerate(range(11, 32, 10)):
             self.device_id[dev] = packet[i : i + 9]  # noqa: E203
-            self.device_type[dev] = DEVICE_MAP.get(
-                self.device_id[dev][:2], f"{self.device_id[dev][:2]:>3}"
-            )
+
+        self.code = packet[41:45]
 
         self.payload_length = int(packet[46:49])
         self.raw_payload = packet[50:]
 
-        self._payload = None
-        self._is_valid_payload = None
+        self._payload = self._is_valid_payload = None
 
     def __str__(self) -> str:
         def _dev_name(idx) -> str:
             """Return a friendly device name."""
-            if self.device_id[idx] == NON_DEV_ID:
+            if self.device_id[idx][:2] == "--": # No device ID
                 return f"{'':<10}"
 
-            if self.device_id[idx] == NUL_DEV_ID:
+            if self.device_id[idx][:2] == "63":  # Null device ID
                 return "<null dev>"
 
             if idx == 2 and self.device_id[2] == self.device_id[0]:
                 return "<announce>"  # "<broadcast>"
 
             dev = self._gateway.device_by_id.get(self.device_id[idx])
-            if dev:
-                if dev._friendly_name:
-                    return f"{dev._friendly_name}"
+            if dev and dev._friendly_name:
+                return f"{dev._friendly_name}"
 
-            return f"{self.device_type[idx]}:{self.device_id[idx][3:]}"
+            return f"{DEVICE_MAP[self.device_id[idx][:2]]}:{self.device_id[idx][3:]}"
 
         if len(self.raw_payload) < 9:
             raw_payload = self.raw_payload
@@ -110,7 +99,7 @@ class Message:
         def harvest_new_entities(self):
             def get_device(gateway, device_id):
                 """Get a Device, create it if required."""
-                assert device_id not in [NUL_DEV_ID, HGI_DEV_ID, NON_DEV_ID]
+                assert device_id[:2] not in ["18", "63", "--"]
 
                 try:  # does the system already know about this entity?
                     entity = gateway.device_by_id[device_id]
@@ -134,14 +123,14 @@ class Message:
 
             # Discover new (unknown) devices
             for dev in range(3):
-                if self.device_type[dev] == "HGI":
+                if self.device_id[dev][:2] == "18":
                     break  # DEV -> HGI is OK?
-                if self.device_type[dev] in [" --", "ALL"]:
+                if self.device_id[dev][:2] in ["--", "63"]:
                     continue
                 get_device(self._gateway, self.device_id[dev])
 
             # Discover new (unknown) zones
-            if self.device_type[0] == "CTL" and self.verb == " I":
+            if self.device_id[0][:2] == "01" and self.verb == " I":
                 if self.code == "2309":  # almost all sync cycles with 30C9
                     for i in range(0, len(self.raw_payload), 6):
                         # TODO: add only is payload valid
@@ -163,8 +152,8 @@ class Message:
             payload_parser = getattr(parsers, "parser_unknown")
 
         try:  # use that parser and (naughty) harvest
-            # if "HGI" not in [self.device_type[0], self.device_type[1]]:
-            if self.device_type[0] != "HGI":
+            # if "18" not in [self.device_id[0][:2], self.device_id[1][:2]]:
+            if self.device_id[0][:2] != "18":
                 # TODO: may interfere with discovery
                 harvest_new_entities(self)  # TODO: shouldn't be sharing this try block
 
@@ -174,11 +163,12 @@ class Message:
         except AssertionError:  # for dev only?
             self._is_valid_payload = False
 
-            # if "HGI" not in [self.device_type[0], self.device_type[1]]:
-            _LOGGER.exception(
-                "%s", str(self),
-                extra={"date": self._timestamp[:10], "time": self._timestamp[11:]}
-            )
+            # users can send valid (but unparseable) packets & get odd reply
+            if "18" not in [self.device_id[0][:2], self.device_id[1][:2]]:
+                _LOGGER.exception(
+                    "%s", str(self),
+                    extra={"date": self._timestamp[:10], "time": self._timestamp[11:]}
+                )
             return
 
         except (LookupError, TypeError, ValueError):
@@ -190,7 +180,7 @@ class Message:
             )
             return
 
-        self._is_valid_payload = bool(self._payload)
+        self._is_valid_payload = bool(self._payload)  # Should just be True?
 
         _LOGGER.info(
             "%s", str(self),
