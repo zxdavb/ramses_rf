@@ -146,12 +146,13 @@ ZONE_TYPE_MAP = {
     "ZON": "Zone Valve",
 }
 
-a = "(-{3}|\d{3})"  # #          noqa: W605; pylint: disable=invalid-name, W1401
-b = "( I|RP|RQ| W)"  # #                     pylint: disable=invalid-name
-c = "(-{2}:-{6}|\d{2}:\d{6})"  # noqa: W605; pylint: disable=invalid-name, W1401
-d = "[0-9A-F]{4}"  # #                       pylint: disable=invalid-name
-e = "\d{3}"  # #                             pylint: disable=invalid-name
-f = "([0-9A-F]{2})+"  # #                    pylint: disable=invalid-name
+# pylint: disable=invalid-name, anomalous-backslash-in-string
+a = "(-{3}|\d{3})"  # noqa: W605
+b = "( I|RP|RQ| W)"
+c = "(-{2}:-{6}|\d{2}:\d{6})"  # noqa: W605
+d = "[0-9A-F]{4}"
+e = "\d{3}"  # noqa: W605
+f = "([0-9A-F]{2})+"
 
 COMMAND_REGEX = re.compile(f"^{b} {a} {c} {c} {c} {d} {e} {f}$")
 MESSAGE_REGEX = re.compile(f"^{a} {b} {a} {c} {c} {c} {d} {e} {f}$")
@@ -180,5 +181,3 @@ INSERT_SQL = """
     INSERT INTO packets(dt, rssi, verb, seq, dev_1, dev_2, dev_3, code, len, payload)
     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 """
-
-
