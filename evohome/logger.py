@@ -13,7 +13,7 @@ def set_logging(logger, stream=sys.stderr, file_name=None):
     """Create/configure handlers, formatters, etc."""
     logger.propagate = False
 
-    cons_cols = shutil.get_terminal_size(fallback=(1e4, 24)).columns - 13
+    cons_cols = shutil.get_terminal_size(fallback=(2000, 24)).columns - 13
     cons_fmt = f"{CONSOLE_FORMAT[:-1]}.{cons_cols}s"
 
     handler = logging.StreamHandler(stream=sys.stderr)
