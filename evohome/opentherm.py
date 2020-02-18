@@ -619,7 +619,7 @@ OPENTHERM_MESSAGES = {
             "en": "Number of hours that domestic hot water burner is in operation during DHW mode",
             "dir": "RW",
             "val": "u16",
-            "var": "HoursPumpDHW",
+            "var": "HoursDHWBurner",
             "sensor": "counter",
         },
         "124": {
@@ -646,7 +646,22 @@ OPENTHERM_MESSAGES = {
             "val": "u8",
             "var": {"hb": "SlaveProductType", "lb": "SlaveProductVersion"},
         },
-    },
+        # ZX-DAVB extras
+        "113": {
+            "en": "Number of un-successful burner starts",
+            "dir": "RW",
+            "val": "u16",
+            "var": "BadStartsBurner?",
+            "sensor": "counter",
+        },
+        "114": {
+            "en": "Number of times flame signal was too low",
+            "dir": "RW",
+            "val": "u16",
+            "var": "LowSignalsFlame?",
+            "sensor": "counter",
+        },
+     },
 }
 
 

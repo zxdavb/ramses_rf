@@ -9,8 +9,6 @@ from threading import Thread
 from typing import Optional
 
 import logging
-from logging.handlers import TimedRotatingFileHandler
-
 import serial
 import serial_asyncio
 

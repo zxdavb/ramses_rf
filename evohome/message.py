@@ -50,7 +50,7 @@ class Message:
     def __str__(self) -> str:
         def _dev_name(idx) -> str:
             """Return a friendly device name."""
-            if self.device_id[idx][:2] == "--": # No device ID
+            if self.device_id[idx][:2] == "--":  # No device ID
                 return f"{'':<10}"
 
             if self.device_id[idx][:2] == "63":  # Null device ID
@@ -60,23 +60,28 @@ class Message:
                 return "<announce>"  # "<broadcast>"
 
             dev = self._gateway.device_by_id.get(self.device_id[idx])
+            # pylint: disable:protected-access
             if dev and dev._friendly_name:
                 return f"{dev._friendly_name}"
 
             return f"{DEVICE_MAP[self.device_id[idx][:2]]}:{self.device_id[idx][3:]}"
+
+        device_names = [_dev_name(x) for x in range(3) if _dev_name(x) != f"{'':<10}"]
+        if len(device_names) < 2:
+            # ---  I --- --:------ --:------ 10:138822 1FD4 003 000EC6
+            # ---  x --- --:------ --:------ --:------ .... from HGI
+            device_names += ["", ""]
 
         if len(self.raw_payload) < 9:
             raw_payload = self.raw_payload
         else:
             raw_payload = (self.raw_payload[:7] + "...")[:11]
 
-        device_names = [_dev_name(x) for x in range(3) if _dev_name(x) != f"{'':<10}"]
-
         payload = self._payload
 
         message = MESSAGE_FORMAT.format(
-            device_names[0] if device_names[0] else "",
-            device_names[1] if device_names[1] else "",
+            device_names[0],
+            device_names[1],
             self.verb,
             COMMAND_MAP.get(self.code, f"unknown_{self.code}"),
             raw_payload,
