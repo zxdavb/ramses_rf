@@ -779,7 +779,7 @@ def parser_3150(payload, msg) -> Optional[dict]:  # heat_demand (of device, FC d
     else:
         assert len(payload) / 2 == 2
 
-    if msg.device_id[0][:2] in ["01", "02", "10"]:
+    if msg.device_id[0][:2] in ["01", "02", "10"]:  # CTL, UFH, OTB
         assert payload[:2] == "FC" or (int(payload[:2], 16) <= 11)
     else:
         assert int(payload[:2], 16) <= 11
