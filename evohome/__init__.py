@@ -428,11 +428,11 @@ class Gateway:
         if not self.command_queue.empty():
             cmd = self.command_queue.get()
 
-            if destination is self.writer:
+            if destination is None:
+                pass
+            elif destination is self.writer:
                 # TODO: if not cmd.entity._pkts.get(cmd.code):
                 self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
                 await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
-            elif destination is None:
-                pass
 
             self.command_queue.task_done()

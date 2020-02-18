@@ -64,10 +64,10 @@ class Message:
                 return f"{'':<10}"
 
             if self.device_id[idx] == NUL_DEV_ID:
-                return "NUL:------"
+                return "<null dev>"
 
             if idx == 2 and self.device_id[2] == self.device_id[0]:
-                return "<announce>"  # "<broadcast"
+                return "<announce>"  # "<broadcast>"
 
             dev = self._gateway.device_by_id.get(self.device_id[idx])
             if dev:
