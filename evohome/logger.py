@@ -21,6 +21,7 @@ def set_logging(logger, stream=sys.stderr, file_name=None):
     handler = logging.StreamHandler(stream=sys.stderr)
     handler.setFormatter(logging.Formatter(fmt=cons_fmt))
     handler.setLevel(logging.WARNING)
+    # handler.addFilter(DebugFilter())
 
     logger.addHandler(handler)
 
@@ -39,7 +40,7 @@ def set_logging(logger, stream=sys.stderr, file_name=None):
 
         handler = logging.FileHandler(file_name)
         handler.setFormatter(logging.Formatter(fmt=LOGFILE_FORMAT))
-        handler.setLevel(logging.INFO)
+        handler.setLevel(logging.DEBUG)
         handler.addFilter(InfoFilter())
 
         logger.addHandler(handler)
@@ -50,3 +51,10 @@ class InfoFilter(logging.Filter):
 
     def filter(self, record):
         return record.levelno in [logging.INFO, logging.DEBUG]
+
+
+class DebugFilter(logging.Filter):
+    """Don't Log DEBUG-level messages."""
+
+    def filter(self, record):
+        return record.levelno != logging.DEBUG

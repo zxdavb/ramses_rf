@@ -347,7 +347,7 @@ def tbd_parser_0404(payload, msg) -> Optional[dict]:  # schedule - WIP
     return {}
 
 
-FAULT_STATE = {"00": "Fault  ", "40": "Restore", "C0": "Unknown (C0)"}
+FAULT_STATE = {"00": "Fault", "40": "Restore", "C0": "Unknown (C0)"}
 FAULT_DEVICE_CLASS = {
     "00": "Controller?",
     "01": "Sensor",
@@ -570,7 +570,6 @@ def parser_1f09(payload, msg) -> Optional[dict]:  # sync_cycle
     assert payload[:2] in ["00", "F8", "FF"]  # W uses F8, non-Honeywell devices use 00
 
     seconds = int(payload[2:6], 16) / 10
-    # TODO: delete me print(msg._timestamp)
     next_sync = dt.fromisoformat(msg._timestamp) + timedelta(seconds=seconds)
 
     return {
@@ -642,11 +641,11 @@ def parser_22c9(payload, msg) -> Optional[dict]:  # ufh_setpoint
 
 
 @parser_decorator
-def parser_22d9(payload, msg) -> Optional[dict]:  # opentherm_setpt
+def parser_22d9(payload, msg) -> Optional[dict]:  # boiler_setpoint
     assert len(payload) / 2 == 3
     assert payload[:2] == "00"
 
-    return {"opentherm_setpoint": _cent(payload[2:6])}
+    return {"boiler_setpoint": _cent(payload[2:6])}
 
 
 @parser_decorator

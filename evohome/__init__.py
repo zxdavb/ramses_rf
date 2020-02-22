@@ -155,6 +155,8 @@ class Gateway:
         self.devices = []
         self.device_by_id = {}
         self.device_lookup = {}
+        self.device_black_list = []
+        self.device_white_list = []
 
         self.system = System(self)
         self.data = {f"{i:02X}": {} for i in range(12)}
@@ -163,9 +165,9 @@ class Gateway:
         signal.signal(signal.SIGTERM, self._signal_handler)
 
     def _signal_handler(self, signum, frame):
-        print(f"\r\n{self.database}")  # TODO: deleteme
+        print(f"\r\n{json.dumps(self.structure, indent=4)}")  # TODO: deleteme
 
-        if self.config.get("lookup_file"):
+        if self.config.get("known_devices"):
             self.device_lookup.update(
                 {
                     d.device_id: {
@@ -176,19 +178,19 @@ class Gateway:
                 }
             )
 
-            with open(self.config["lookup_file"], "w") as outfile:
+            with open(self.config["known_devices"], "w") as outfile:
                 json.dump(self.device_lookup, outfile, sort_keys=True, indent=4)
 
         sys.exit()
 
     @property
-    def database(self) -> Optional[dict]:
+    def structure(self) -> Optional[dict]:
         controllers = [d for d in self.devices if d.device_type == "CTL"]
         if len(controllers) != 1:
             print("fail test 0: more/less than 1 controller")
             return
 
-        database = {
+        structure = {
             "controller": controllers[0].device_id,
             "boiler": {
                 "dhw_sensor": controllers[0].dhw_sensor,
@@ -198,28 +200,28 @@ class Gateway:
             #  "devices": {},
         }
 
-        orphans = database["orphans"] = [
+        orphans = structure["orphans"] = [
             d.device_id for d in self.devices if d.parent_zone is None
         ]
 
-        database["heat_demand"] = {
+        structure["heat_demand"] = {
             d.device_id: d.heat_demand
             for d in self.devices
             if hasattr(d, "heat_demand")
         }
 
-        thermometers = database["thermometers"] = {
+        thermometers = structure["thermometers"] = {
             d.device_id: d.temperature
             for d in self.devices
             if hasattr(d, "temperature")
         }
-        thermometers.pop(database["boiler"]["dhw_sensor"], None)
+        thermometers.pop(structure["boiler"]["dhw_sensor"], None)
 
         for z in self.zone_by_id:  # [z.zone_idx for z in self.zones]:
             actuators = [k for d in self.data[z].get("actuators", []) for k in d.keys()]
             children = [d.device_id for d in self.devices if d.parent_zone == z]
 
-            zone = database["zones"][z] = {
+            zone = structure["zones"][z] = {
                 "name": self.data[z].get("name"),  # TODO: do it this way
                 "temperature": self.zone_by_id[z].temperature,  # TODO: or this way
                 "heat_demand": self.zone_by_id[z].heat_demand,
@@ -233,40 +235,44 @@ class Gateway:
         # check each zones has a unique (and non-null) temperature
         zone_map = {
             str(v["temperature"]): k
-            for k, v in database["zones"].items()
+            for k, v in structure["zones"].items()
             if v["temperature"] is not None
         }
+
+        structure["orphans"] = orphans
 
         # for z in self.zone_by_id:  # [z.zone_idx for z in self.zones]:
         #     if
 
         # TODO: needed? or just process only those with a unique temp?
-        if len(zone_map) != len(database["zones"]):  # duplicate/null temps
+        if len(zone_map) != len(structure["zones"]):  # duplicate/null temps
             print("fail test 1: non-unique (null) zone temps")
-            return database
+            return structure
 
         # check all possible sensors have a unique temp - how?
         temp_map = [t for t in thermometers.values() if t is not None]
         if len(temp_map) != len(thermometers):  # duplicate/null temps
             print("fail test 2: null device temps")
-            return database
+            return structure
 
         temp_map = {str(v): k for k, v in thermometers.items() if v is not None}
 
-        for zone_idx in database["zones"]:
-            zone = database["zones"][zone_idx]
+        for zone_idx in structure["zones"]:
+            zone = structure["zones"][zone_idx]
             sensor = temp_map.get(str(zone["temperature"]))
             if sensor:
                 zone["sensor"] = sensor
-                # if sensor in database["orphans"]:
-                #     database["orphans"].remove(sensor)
+                # if sensor in structure["orphans"]:
+                #     structure["orphans"].remove(sensor)
                 orphans = list(set(orphans) - set(sensor))
 
         # TODO: max 1 remaining zone without a sensor
         # if len(thermometers) == 0:
-        # database.pop("thermometers")
+        # structure.pop("thermometers")
 
-        return database
+        structure["orphans"] = orphans
+
+        return structure
 
     async def start(self) -> None:
         """This is a docstring."""
@@ -275,6 +281,19 @@ class Gateway:
             for code in COMMAND_SCHEMA:
                 cmd = Command(self, code, verb="RQ", dest_id=dest_id, payload="0100")
                 yield cmd
+
+            # for code in COMMAND_SCHEMA:
+            #     # pylint: disable=protected-access
+            #     while self.reader._transport.serial.in_waiting > 0:
+            #         await self._recv_message(source=self.reader)
+
+            #     cmd = Command(self, code, verb="RQ", dest_id=CTL_DEV_ID, payload="FF")
+            #     self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
+            #     await asyncio.sleep(0.7)  # 0.8, 1.0 OK, 0.5 too short
+
+            #     while not self.command_queue.empty():
+            #         self.command_queue.get()
+            #         self.command_queue.task_done()
 
         async def scan_loose():
             # # BEGIN crazy test block
@@ -315,27 +334,25 @@ class Gateway:
             if self.config.get("database"):
                 self._output_db = sqlite3.connect(self.config["database"])
                 self._db_cursor = self._output_db.cursor()
-                _ = self._db_cursor.execute(TABLE_SQL)
-                _ = self._db_cursor.execute(INDEX_SQL)
+                _ = self._db_cursor.execute(TABLE_SQL)  # create if not existant
+                _ = self._db_cursor.execute(INDEX_SQL)  # index if not existant
                 self._output_db.commit()
 
-            if self.config.get("lookup_file"):
+            if self.config.get("known_devices"):
                 try:
-                    with open(self.config["lookup_file"]) as json_file:
-                        self.device_lookup = json.load(json_file)
+                    with open(self.config["known_devices"]) as json_file:
+                        devices = self.device_lookup = json.load(json_file)
                 except FileNotFoundError:
                     self.device_lookup = {}
-
-                self.config["black_list"] = list(
-                    set(
-                        self.config.get("black_list")
-                        + [
-                            k
-                            for k, v in self.device_lookup.items()
-                            if v.get("blacklist")
+                else:
+                    if self.config["white_list"]:
+                        self.device_white_list = [
+                            k for k, v in devices.items() if not v.get("blacklist")
                         ]
-                    )
-                )
+                    else:
+                        self.device_black_list = [
+                            k for k, v in devices.items() if v.get("blacklist")
+                        ]
 
         _setup_files()
 
@@ -370,19 +387,6 @@ class Gateway:
                 cmd = Command(self, cmd[13:17], cmd[:2], cmd[3:12], cmd[18:])
                 self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
                 await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
-
-            # for code in COMMAND_SCHEMA:
-            #     # pylint: disable=protected-access
-            #     while self.reader._transport.serial.in_waiting > 0:
-            #         await self._recv_message(source=self.reader)
-
-            #     cmd = Command(self, code, verb="RQ", dest_id=CTL_DEV_ID, payload="FF")
-            #     self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
-            #     await asyncio.sleep(0.7)  # 0.8, 1.0 OK, 0.5 too short
-
-            #     while not self.command_queue.empty():
-            #         self.command_queue.get()
-            #         self.command_queue.task_done()
 
             while True:  # main loop when packets from serial port
                 await self._recv_message(source=self.reader)

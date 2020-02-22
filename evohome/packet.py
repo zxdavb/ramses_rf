@@ -38,52 +38,53 @@ async def get_next_packet(gateway, source) -> Optional[str]:
     """Get the next valid/wanted packet, stamped with an isoformat datetime."""
     # pylint: disable=protected-access
 
-    def is_wanted_packet(raw_packet, timestamp) -> bool:
-        """Return True if a packet is wanted."""
+    def is_wanted_device(raw_packet, dtm=None) -> bool:
+        """Return True if a packet doesn't contain black-listed packets."""
+        if " 18:" in raw_packet:
+            return True
+        if gateway.device_white_list:
+            return any(device in raw_packet for device in gateway.device_white_list)
+        return not any(device in raw_packet for device in gateway.device_black_list)
+
+    def is_parsing_packet(raw_packet, dtm) -> bool:
+        """Return True if a packet is to be parsed."""
         # in whitelist (if there is one) and not in blacklist
 
-        if gateway.config.get("white_list"):
-            if not any(dev in raw_packet for dev in gateway.config["white_list"]):
-                _LOGGER.debug(
-                    "*** Unwanted packet: Not in whitelist: >>>%s<<<",
-                    raw_packet,
-                    extra={"date": timestamp[:10], "time": timestamp[11:]},
-                )
-                return False
-        if gateway.config.get("black_list"):
-            if any(dev in raw_packet for dev in gateway.config["black_list"]):
-                _LOGGER.debug(
-                    "*** Unwanted packet: Blacklisted: >>>%s<<<",
-                    raw_packet,
-                    extra={"date": timestamp[:10], "time": timestamp[11:]},
-                )
-                return False
+        # whitelist = gateway.config["white_list"]
+        # if whitelist and not any(x in raw_packet for x in whitelist):
+        #     err_msg = "is not in whitelist"
+        # elif any(x in raw_packet for x in gateway.config["black_list"]):
+        #     err_msg = "is in blacklist"
+        # else:
+        #     return True
+
+        # _LOGGER.debug(
+        #     "*** Ignored packet: >>>%s<<< (%s)",
+        #     raw_packet,
+        #     err_msg,
+        #     extra={"date": dtm[:10], "time": dtm[11:]},
+        # )
+        # return False
         return True
 
-    def is_valid_packet(raw_packet, timestamp) -> bool:
+    def is_valid_packet(raw_packet, dtm) -> bool:
         """Return True if a packet is valid."""
         if not MESSAGE_REGEX.match(raw_packet):
-            _LOGGER.warning(
-                "*** Invalid packet: Packet structure bad: >>>%s<<<",
-                raw_packet,
-                extra={"date": timestamp[:10], "time": timestamp[11:]},
-            )
-            return False
-        if int(raw_packet[46:49]) > 48:
-            _LOGGER.warning(
-                "*** Invalid packet: Payload too long: >>>%s<<<",
-                raw_packet,
-                extra={"date": timestamp[:10], "time": timestamp[11:]},
-            )
-            return False
-        if len(raw_packet[50:]) != 2 * int(raw_packet[46:49]):
-            _LOGGER.warning(
-                "*** Invalid packet: Payload length mismatch: >>>%s<<<",
-                raw_packet,
-                extra={"date": timestamp[:10], "time": timestamp[11:]},
-            )
-            return False
-        return True
+            err_msg = "packet structure bad"
+        elif int(raw_packet[46:49]) > 48:
+            err_msg = "payload too long"
+        elif len(raw_packet[50:]) != 2 * int(raw_packet[46:49]):
+            err_msg = "payload length mismatch"
+        else:
+            return True
+
+        _LOGGER.warning(
+            "*** Invalid packet: >>>%s<<< (%s)",
+            raw_packet,
+            err_msg,
+            extra={"date": dtm[:10], "time": dtm[11:]},
+        )
+        return False
 
     def get_packet_from_file(source) -> Optional[str]:  # ?async
         """Get the next valid packet from a log file."""
@@ -150,7 +151,11 @@ async def get_next_packet(gateway, source) -> Optional[str]:
     if not is_valid_packet(packet, timestamp):
         return
 
-    # if enabled, log all valid packets (even if not wanted) to DB/file
+    # drop packets containing black-listed devices
+    if not is_wanted_device(packet):
+        return
+
+    # if archiving is enabled, store all valid packets, even those not to be parsed
     if gateway._output_db:
         w = [0, 27, 31, 34, 38, 48, 58, 68, 73, 77, 199]  # 165?
         data = tuple(
@@ -163,5 +168,5 @@ async def get_next_packet(gateway, source) -> Optional[str]:
     _LOGGER.info(packet, extra={"date": timestamp[:10], "time": timestamp[11:]})
 
     # only return *wanted* valid packets for further processing
-    if is_wanted_packet(packet, timestamp):
+    if is_parsing_packet(packet, timestamp):
         return timestamped_packet

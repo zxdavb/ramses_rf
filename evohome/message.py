@@ -6,10 +6,7 @@ from typing import Optional
 from . import parsers
 from .const import (
     COMMAND_EXPOSES_ZONE,
-    COMMAND_LENGTH,
-    COMMAND_LOOKUP,
     COMMAND_MAP,
-    COMMAND_SCHEMA,
     DEVICE_LOOKUP,
     DEVICE_MAP,
     MESSAGE_FORMAT,
@@ -184,7 +181,7 @@ class Message:
                 "%s",
                 str(self),
                 extra={"date": self._timestamp[:10], "time": self._timestamp[11:]},
-            )
+            )  # same as _LOGGER.error
             return
 
         self._is_valid_payload = bool(self._payload)  # Should just be True?
