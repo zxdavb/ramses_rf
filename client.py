@@ -13,27 +13,22 @@ DEBUG_PORT = 5679
 def _parse_args():
     parser = argparse.ArgumentParser()
 
-    group = parser.add_mutually_exclusive_group(required=True)  # one is required
-    group.add_argument("-s", "--serial_port", help="port to poll for packets")
-    group.add_argument(
+    group = parser.add_argument_group(title="packet source")
+    mutex = group.add_mutually_exclusive_group(required=True)  # one is required
+    mutex.add_argument("-s", "--serial_port", help="port to poll for packets")
+    mutex.add_argument(
         "-i", "--input_file", help="file to read for packets (implies listen_only)"
     )
 
-    parser.add_argument(
-        "-l",
-        "--listen_only",
-        action="store_true",
-        help="don't send any discovery packets (eavesdrop only)",
-    )
-
-    parser.add_argument(
+    group = parser.add_argument_group(title="packet logging")
+    group.add_argument(
         "-o",
         "--output_file",
         nargs="?",
         const="packets.log",
         help="copy all valid/filtered packets to file",
     )
-    parser.add_argument(
+    group.add_argument(
         "-d",
         "--database",
         nargs="?",
@@ -41,14 +36,15 @@ def _parse_args():
         help="archive all valid packets to sqlite DB",
     )
 
-    group = parser.add_mutually_exclusive_group()  # OK to have neither
-    group.add_argument(
+    group = parser.add_argument_group(title="payload parsing")
+    mutex = group.add_mutually_exclusive_group()  # OK to have neither
+    mutex.add_argument(
         "-r",
         "--raw_output",
         action="store_true",
         help="display packets rather than decoded messages",
     )
-    group.add_argument(
+    mutex.add_argument(
         "-m",
         "--message_log",
         nargs="?",
@@ -56,9 +52,7 @@ def _parse_args():
         help="copy all decoded messages to file (in addition to stdout/stderr)",
     )
 
-    group = parser.add_argument_group(
-        title="Known devices", description="use a device lookup file"
-    )
+    group = parser.add_argument_group(title="known devices")
     group.add_argument(
         "-k",
         "--known_devices",
@@ -90,7 +84,14 @@ def _parse_args():
     #     help="DONT USE - don't parse any packets matching these regular expressions",
     # )
 
-    parser.add_argument(
+    group = parser.add_argument_group(title="debugging bits")
+    group.add_argument(
+        "-l",
+        "--listen_only",
+        action="store_true",
+        help="don't send any discovery packets (eavesdrop only)",
+    )
+    group.add_argument(
         "-x",
         "--execute_cmd",
         action="store",
@@ -98,12 +99,12 @@ def _parse_args():
         # default="RQ 01:145038 1F09 00",
         help="<verb> <device_id> <code> <payload>",
     )
-    parser.add_argument(
+    group.add_argument(
         "-z",
         "--debug_mode",
         action="count",
         default=0,
-        help="0=none, 1=debug logging, 2=enabled (no wait), 3=wait for attach",
+        help="1=debug logging, 2=enabled, 3=wait for attach",
     )
 
     args = parser.parse_args()
