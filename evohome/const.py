@@ -62,7 +62,7 @@ COMMAND_SCHEMA = {
     "1F41": {"name": "dhw_mode"},
     "1FC9": {"name": "bind_device"},  # aka bind
     "1FD4": {"name": "opentherm_sync"},
-    "2249": {"name": "unknown"},  # programmer now/next setpoint (jrosser/honeymon)
+    "2249": {"name": "unknown_2249"},  # programmer now/next setpoint (jrosser/honeymon)
     "22C9": {"name": "ufh_setpoint"},
     "22D9": {"name": "boiler_setpoint"},  # used with OTB
     "22F1": {"name": "message_22f1"},
@@ -72,7 +72,7 @@ COMMAND_SCHEMA = {
     "2D49": {"name": "unknown_2d49"},  # hometronics only?
     "2E04": {"name": "system_mode"},
     "30C9": {"name": "temperature", "exposes_zone": False},  # "device_or_zone": True
-    "3120": {"name": "alarm", "exposes_zone": False},
+    "3120": {"name": "message_3120", "exposes_zone": False},  # From STA
     "313F": {"name": "datetime"},  # aka ping, datetime_req
     "3150": {"name": "heat_demand", "exposes_zone": True},  # "device_or_zone": ????
     "31D9": {"name": "message_31d9"},  # Nuaire ventilation

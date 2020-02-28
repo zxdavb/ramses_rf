@@ -410,6 +410,7 @@ def parser_042f(payload, msg) -> Optional[dict]:  # unknown - WIP
     # 049  I --- 34:064023 --:------ 34:064023 042F 008 00000000250025F5
     # 045  I --- 34:064023 --:------ 34:064023 042F 008 00000000260026F5
     # 045  I --- 34:092243 --:------ 34:092243 042F 008 0000010021002201
+    # 000  I     34:011469 --:------ 34:011469 042F 008 00000100030004BC
 
     assert len(payload) / 2 in [8, 9]  # non-evohome are 9
     assert payload[:2] == "00"
@@ -490,9 +491,9 @@ def parser_10e0(payload, msg) -> Optional[dict]:  # device_info
 
     return {  # TODO: add version?
         "description": _str(payload[36:]),
-        "date_1": _date(payload[20:28]),  # could be 'FFFFFFFF'
-        "date_2": _date(payload[28:36]),
-        "unknown_0": payload[:20],
+        "manufactured": _date(payload[20:28]),  # could be 'FFFFFFFF'
+        "firmware": _date(payload[28:36]),
+        "unknown": payload[:20],
     }
 
 
