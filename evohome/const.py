@@ -67,12 +67,12 @@ COMMAND_SCHEMA = {
     "22D9": {"name": "boiler_setpoint"},  # used with OTB
     "22F1": {"name": "message_22f1"},
     "2309": {"name": "setpoint", "exposes_zone": True},  # "device_or_zone": True
-    "2349": {"name": "zone_mode"},
+    "2349": {"name": "zone_mode", "exposes_zone": True},  # TODO: confirm
     "2389": {"name": "unknown_2389"},  # not real?
     "2D49": {"name": "unknown_2d49"},  # hometronics only?
     "2E04": {"name": "system_mode"},
     "30C9": {"name": "temperature", "exposes_zone": False},  # "device_or_zone": True
-    "3120": {"name": "message_3120", "exposes_zone": False},
+    "3120": {"name": "alarm", "exposes_zone": False},
     "313F": {"name": "datetime"},  # aka ping, datetime_req
     "3150": {"name": "heat_demand", "exposes_zone": True},  # "device_or_zone": ????
     "31D9": {"name": "message_31d9"},  # Nuaire ventilation
@@ -146,13 +146,13 @@ ZONE_TYPE_MAP = {
     "ZON": "Zone Valve",
 }
 
-# pylint: disable=invalid-name, anomalous-backslash-in-string
-a = "(-{3}|\d{3})"  # noqa: W605
-b = "( I|RP|RQ| W)"
-c = "(-{2}:-{6}|\d{2}:\d{6})"  # noqa: W605
-d = "[0-9A-F]{4}"
-e = "\d{3}"  # noqa: W605
-f = "([0-9A-F]{2})+"
+# pylint: disable=invalid-name
+a = r"(-{3}|\d{3})"
+b = r"( I|RP|RQ| W)"
+c = r"(-{2}:-{6}|\d{2}:\d{6})"
+d = r"[0-9A-F]{4}"
+e = r"\d{3}"
+f = r"([0-9A-F]{2})+"
 
 COMMAND_REGEX = re.compile(f"^{b} {a} {c} {c} {c} {d} {e} {f}$")
 MESSAGE_REGEX = re.compile(f"^{a} {b} {a} {c} {c} {c} {d} {e} {f}$")

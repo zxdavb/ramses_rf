@@ -40,8 +40,8 @@ def parser_decorator(func):
         payload = args[0]
         msg = args[1]
 
-        if msg.verb == " W":
-            if msg.code in ["1100", "1F09", "1FC9", "2309"]:
+        if msg.verb == " W":  # WIP
+            if msg.code in ["1100", "1F09", "1FC9", "2309", "2349"]:
                 return func(*args, **kwargs)
             else:
                 return
@@ -386,7 +386,7 @@ def parser_0418(payload, msg) -> Optional[dict]:  # system_fault
     assert int(payload[4:6], 16) <= 63  # TODO: upper limit is: 60? 63? more?
     assert payload[6:8] == "B0"  # unknown_1, ?priority
     assert payload[8:10] in list(FAULT_TYPE)
-    assert int(payload[10:12], 16) <= 11 or payload[10:12] in ["FA"]
+    assert int(payload[10:12], 16) <= 11 or payload[10:12] in ["FA", "FC"]
     assert payload[12:14] in list(FAULT_DEVICE_CLASS)
     assert payload[14:18] == "0000"  # unknown_2
     assert payload[28:30] in ["7F", "FF"]  # last bit in dt field
@@ -396,7 +396,7 @@ def parser_0418(payload, msg) -> Optional[dict]:  # system_fault
         "state": FAULT_STATE.get(payload[2:4], payload[2:4]),
         "timestamp": _timestamp(payload[18:30]),
         "fault_type": FAULT_TYPE.get(payload[8:10], payload[8:10]),
-        "zone_idx" if int(payload[:2], 16) <= 11 else "domain": _id(payload[:2]),
+        "zone_idx" if int(payload[10:12], 16) <= 11 else "domain": _id(payload[10:12]),
         "device_class": FAULT_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
         "device_id": dev_hex_to_id(payload[38:]),  # is "00:000001/2 for CTL?
         "log_idx": int(payload[4:6], 16),
@@ -695,7 +695,7 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:  # setpoint (of device
 
 @parser_decorator
 def parser_2349(payload, msg) -> Optional[dict]:  # zone_mode
-    assert msg.verb in [" I", "RP"]
+    assert msg.verb in [" I", "RP", " W"]
     assert len(payload) / 2 in [7, 13]
     assert payload[6:8] in list(ZONE_MODE_MAP)
     assert payload[8:14] == "FFFFFF"

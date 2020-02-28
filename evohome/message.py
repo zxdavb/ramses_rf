@@ -147,6 +147,7 @@ class Message:
             return
         if self._is_valid_payload is True:
             return self._payload
+        # self._is_valid_payload is None...
 
         try:  # determine which parser to use
             payload_parser = getattr(parsers, f"parser_{self.code}".lower())

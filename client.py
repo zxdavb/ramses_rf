@@ -91,6 +91,18 @@ def _parse_args():
         action="store_true",
         help="don't send any discovery packets (eavesdrop only)",
     )
+    # group.add_argument(
+    #     "--execute_script",
+    #     action="store",
+    #     type=str,
+    #     help="execute a defined script (discover, fault-log, schedule)",
+    # )
+    # group.add_argument(
+    #     "--execute_file",
+    #     action="store",
+    #     type=str,
+    #     help="execute a file of commands",
+    # )
     group.add_argument(
         "-x",
         "--execute_cmd",

@@ -11,6 +11,7 @@ from typing import Optional
 import serial
 
 from .const import INSERT_SQL, MESSAGE_REGEX
+from .message import Message
 
 
 _LOGGER = logging.getLogger(__name__)  # evohome.packet
@@ -34,7 +35,7 @@ def time_stamp():
     return time.time()  # since 1970-01-01T00:00:00Z
 
 
-async def get_next_packet(gateway, source) -> Optional[str]:
+async def get_next_packet(gateway, source, dont_parse=False) -> Optional[str]:
     """Get the next valid/wanted packet, stamped with an isoformat datetime."""
     # pylint: disable=protected-access
 
@@ -93,17 +94,36 @@ async def get_next_packet(gateway, source) -> Optional[str]:
 
     async def get_packet_from_port(source) -> Optional[str]:
         """Get the next valid packet from a serial port."""
-        try:
-            raw_packet = await source.readline()
-        except serial.SerialException:
-            return
+        def _timestamp() -> str:
+            # dt.now().isoformat() doesn't work well on Windows
+            now = time.time()  # 1580666877.7795346
+            if os.name == "nt":
+                now = time_stamp()  # 1580666877.7795346
+            mil = f"{now%1:.6f}".lstrip("0")  # .779535
+            return time.strftime(f"%Y-%m-%dT%H:%M:%S{mil}", time.localtime(now))
 
-        # dt.now().isoformat() doesn't work well on Windows
-        now = time.time()  # 1580666877.7795346
-        if os.name == "nt":
-            now = time_stamp()  # 1580666877.7795346
-        mil = f"{now%1:.6f}".lstrip("0")  # .779535
-        timestamp = time.strftime(f"%Y-%m-%dT%H:%M:%S{mil}", time.localtime(now))
+        if False:  # old method
+            try:
+                raw_packet = await source.readline()
+            except serial.SerialException:
+                return
+            timestamp = _timestamp()  # at end of packet
+
+        else:  # new method
+            raw_packet = b''
+            while True:
+                try:
+                    raw_packet += await source.read(1)
+                except serial.SerialException:
+                    return
+                if raw_packet:
+                    timestamp = _timestamp()  # at start of packet
+                if raw_packet[-2:] == b"\r\n":
+                    break
+            # timestamp = _timestamp()  # at end of packet
+
+        # print(timestamp)
+        # print(_timestamp())
 
         try:
             raw_packet = raw_packet.decode("ascii").strip()
@@ -115,21 +135,21 @@ async def get_next_packet(gateway, source) -> Optional[str]:
             return
 
         # firmware-level packet hacks, i.e. non-HGI80 devices, should be here
-        if raw_packet[:3] == "???":  # HACK: don't send nanoCUL packets to DB
-            raw_packet = f"000 {raw_packet[4:]}"
+        # if raw_packet[:3] == "???":  # HACK: don't send nanoCUL packets to DB
+        #     raw_packet = f"000 {raw_packet[4:]}"
 
-            if gateway.config.get("database"):
-                _LOGGER.warning(
-                    "*** Using non-HGI firmware: Disabling database logging",
-                    extra={"date": timestamp[:10], "time": timestamp[11:]},
-                )
-                gateway.config["database"] = gateway._output_db = None
+        #     if gateway.config.get("database"):
+        #         _LOGGER.warning(
+        #             "*** Using non-HGI firmware: Disabling database logging",
+        #             extra={"date": timestamp[:10], "time": timestamp[11:]},
+        #         )
+        #         gateway.config["database"] = gateway._output_db = None
 
-            # if not gateway.config.get("listen_only"):  # TODO: make this once-only
-            #     _LOGGER.warning(
-            #         "*** Using non-HGI firmware: Packet sending may not work",
-            #         extra={"date": timestamp[:10], "time": timestamp[11:]}
-            #     )
+        #     # if not gateway.config.get("listen_only"):  # TODO: make this once-only
+        #     #     _LOGGER.warning(
+        #     #         "*** Using non-HGI firmware: Packet sending may not work",
+        #     #         extra={"date": timestamp[:10], "time": timestamp[11:]}
+        #     #     )
 
         return f"{timestamp} {raw_packet}"  # timestamped_packet
 
@@ -167,6 +187,27 @@ async def get_next_packet(gateway, source) -> Optional[str]:
 
     _LOGGER.info(packet, extra={"date": timestamp[:10], "time": timestamp[11:]})
 
-    # only return *wanted* valid packets for further processing
-    if is_parsing_packet(packet, timestamp):
-        return timestamped_packet
+    if dont_parse or not is_parsing_packet(packet, timestamp):
+        return
+
+    try:
+        msg = Message(gateway, packet, timestamp)
+    except (ValueError, AssertionError):
+        _LOGGER.exception("%s %s", packet, timestamp)
+        return
+
+    if not msg.is_valid_payload:
+        return
+
+    # UPDATE: only certain packets should become part of the canon
+    try:
+        if "18" in msg.device_id:  # leave in anyway?
+            return
+        elif msg.device_id[0][:2] == "--":
+            gateway.device_by_id[msg.device_id[2]].update(msg)
+        else:
+            gateway.device_by_id[msg.device_id[0]].update(msg)
+    except KeyError:
+        pass
+
+    return timestamped_packet

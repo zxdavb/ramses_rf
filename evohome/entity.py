@@ -479,7 +479,7 @@ class Zone(Entity):
 
     @property
     def name(self) -> Optional[str]:
-        return self._gateway.data[self._id]["name"]
+        return self._gateway.data[self._id].get("name")
         # return self._get_ctl_value(f"0004-{self._id}", "name")
 
     @property

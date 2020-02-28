@@ -10,6 +10,14 @@ import sys
 CONSOLE_FORMAT = "%(time).12s %(message)s"
 LOGFILE_FORMAT = "%(date)sT%(time)s %(message)s"
 
+LOG_COLORS = {
+    'DEBUG': 'cyan',
+    'INFO': 'green',
+    'WARNING': 'yellow',
+    'ERROR': 'red',
+    'CRITICAL': 'red',
+}
+
 
 def set_logging(logger, stream=sys.stderr, file_name=None):
     """Create/configure handlers, formatters, etc."""
@@ -18,8 +26,21 @@ def set_logging(logger, stream=sys.stderr, file_name=None):
     cons_cols = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns)
     cons_fmt = f"{CONSOLE_FORMAT[:-1]}.{cons_cols - 13}s"
 
+    try:
+        from colorlog import ColoredFormatter  # pylint: disable=import-outside-toplevel
+    except ModuleNotFoundError:
+        formatter = logging.Formatter(fmt=cons_fmt)
+    else:
+        # # basicConfig must be called after importing colorlog in order to
+        # # ensure that the handlers it sets up wraps the correct streams.
+        # logging.basicConfig(level=logging.INFO)
+
+        formatter = ColoredFormatter(
+            f"%(log_color)s{cons_fmt}", reset=True, log_colors=LOG_COLORS
+        )
+
     handler = logging.StreamHandler(stream=sys.stderr)
-    handler.setFormatter(logging.Formatter(fmt=cons_fmt))
+    handler.setFormatter(formatter)
     handler.setLevel(logging.WARNING)
     # handler.addFilter(DebugFilter())
 
@@ -27,16 +48,22 @@ def set_logging(logger, stream=sys.stderr, file_name=None):
 
     if stream == sys.stdout:
         handler = logging.StreamHandler(stream=stream)
-        handler.setFormatter(logging.Formatter(fmt=cons_fmt))
+        handler.setFormatter(formatter)
         handler.setLevel(logging.DEBUG)
         handler.addFilter(InfoFilter())
 
         logger.addHandler(handler)
 
     if file_name:
-        # handler = logging.TimedRotatingFileHandler(
-        #   file_name, when="d", interval=1, backupCount=7
-        # )  # TODO: rotate logs
+        # if log_rotate_days:
+        #     err_handler: logging.FileHandler = logging.handlers.TimedRotatingFileHandler(
+        #         err_log_file_name, when="midnight", backupCount=log_rotate_days
+        #     )
+        # else:
+        #     err_handler = logging.FileHandler(err_log_path, mode="w", delay=True)
+
+        # err_handler.setLevel(logging.INFO if verbose else logging.WARNING)
+        # err_handler.setFormatter(logging.Formatter(fmt, datefmt=datefmt))
 
         handler = logging.FileHandler(file_name)
         handler.setFormatter(logging.Formatter(fmt=LOGFILE_FORMAT))

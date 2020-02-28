@@ -185,6 +185,7 @@ class Gateway:
 
     @property
     def structure(self) -> Optional[dict]:
+        """Calculate a system schema."""
         controllers = [d for d in self.devices if d.device_type == "CTL"]
         if len(controllers) != 1:
             print("fail test 0: more/less than 1 controller")
@@ -394,35 +395,21 @@ class Gateway:
                 if self.reader._transport.serial.in_waiting == 0:
                     await self._send_command(destination=self.writer)
 
+                    # cmd = Command(self, "2349", verb="RQ", dest_id="04:056059", payload="0100")
+                    # self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
+                    # await asyncio.sleep(0.05)  # 0.8, 1.0 OK, 0.5 too short
+
+                    # cmd = Command(self, "2309", verb="RQ", dest_id="04:056059", payload="00")
+                    # self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
+                    # await asyncio.sleep(0.7)  # 0.8, 1.0 OK, 0.5 too short
+
+                    # cmd = Command(self, "3150", verb="RQ", dest_id="04:056059", payload="0100")
+                    # self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
+                    # await asyncio.sleep(0.7)  # 0.8, 1.0 OK, 0.5 too short
+
     async def _recv_message(self, source) -> None:
         """Receive a packet and validate it as a message."""
-        raw_packet = await get_next_packet(self, source)
-
-        if raw_packet is None:
-            return
-
-        if self.config.get("raw_output"):  # TODO: remove?
-            return
-
-        try:
-            msg = Message(self, packet=raw_packet[27:], timestamp=raw_packet[:26])
-        except (ValueError, AssertionError):
-            _LOGGER.exception("%s %s", raw_packet[11:23], raw_packet[27:])
-            return
-
-        if not msg.is_valid_payload:
-            return
-
-        # UPDATE: only certain packets should become part of the canon
-        try:
-            if "18" in msg.device_id:  # leave in anyway?
-                return
-            elif msg.device_id[0][:2] == "--":
-                self.device_by_id[msg.device_id[2]].update(msg)
-            else:
-                self.device_by_id[msg.device_id[0]].update(msg)
-        except KeyError:
-            pass
+        await get_next_packet(self, source, dont_parse=self.config.get("raw_output"))
 
     async def _send_command(self, destination) -> None:
         """Send a command unless in listen_only mode."""
@@ -437,3 +424,6 @@ class Gateway:
                 await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
 
             self.command_queue.task_done()
+
+    async def _get_fault_log() -> None:
+        pass
