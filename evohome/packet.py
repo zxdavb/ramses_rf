@@ -89,44 +89,39 @@ async def get_next_packet(gateway, source, dont_parse=False) -> Optional[str]:
 
     def get_packet_from_file(source) -> Optional[str]:  # ?async
         """Get the next valid packet from a log file."""
-        raw_packet = source.readline()
-        return raw_packet.strip()  # includes a timestamp
+        timestamped_packet = source.readline()
+        return timestamped_packet[:26], timestamped_packet[27:]
 
     async def get_packet_from_port(source) -> Optional[str]:
         """Get the next valid packet from a serial port."""
 
         def _timestamp() -> str:
-            # dt.now().isoformat() doesn't work well on Windows
             now = time_stamp()  # 1580666877.7795346
             mil = f"{now%1:.6f}".lstrip("0")  # .779535
             return time.strftime(f"%Y-%m-%dT%H:%M:%S{mil}", time.localtime(now))
 
-        if False:  # old method
-            try:
-                raw_packet = await source.readline()
-            except serial.SerialException:
-                return
-            timestamp = _timestamp()  # at end of packet
+        try:
+            raw_packet = await source.readline()
+        except serial.SerialException:
+            return None, None
 
+        timestamp = _timestamp()  # at end of packet
         raw_packet = "".join(c for c in raw_packet.decode().strip() if c in printable)
 
         if raw_packet:
             # firmware-level packet hacks, i.e. non-HGI80 devices, should be here
-            return f"{timestamp} {raw_packet}"  # timestamped_packet
+            return timestamp, raw_packet
 
     # get the next packet
     if isinstance(source, asyncio.streams.StreamReader):
-        timestamped_packet = await get_packet_from_port(source)
+        timestamp, packet = await get_packet_from_port(source)
     else:
-        timestamped_packet = get_packet_from_file(source)
-        if not timestamped_packet:
+        timestamp, packet = get_packet_from_file(source)
+        if not packet:
             source = None  # EOF
 
-    if not timestamped_packet:
+    if not packet:
         return  # read timeout'd (serial port), or EOF (input file)
-
-    packet = timestamped_packet[27:]
-    timestamp = timestamped_packet[:26]
 
     # dont keep/process any invalid packets
     if not is_valid_packet(packet, timestamp):
@@ -136,11 +131,10 @@ async def get_next_packet(gateway, source, dont_parse=False) -> Optional[str]:
     if not is_wanted_device(packet):
         return
 
-    tsp = timestamped_packet
-
     # if archiving is enabled, store all valid packets, even those not to be parsed
     if gateway._output_db:
-        w = [0, 27, 31, 34, 38, 48, 58, 68, 73, 77, 199]  # 165?
+        tsp = f"{timestamp} {packet}"
+        w = [0, 27, 31, 34, 38, 48, 58, 68, 73, 77, 165]  # 165? 199 works
         data = tuple([tsp[w[i - 1] : w[i] - 1] for i in range(1, len(w))])  # noqa: E203
 
         _ = gateway._db_cursor.execute(INSERT_SQL, data)
@@ -172,5 +166,3 @@ async def get_next_packet(gateway, source, dont_parse=False) -> Optional[str]:
             gateway.device_by_id[msg.device_id[0]].update(msg)
     except KeyError:
         pass
-
-    return timestamped_packet
