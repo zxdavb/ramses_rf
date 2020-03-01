@@ -666,6 +666,7 @@ OPENTHERM_MESSAGES = {
 
 
 def parity(x: int) -> int:
+    """Make this the docstring."""
     shiftamount = 1
     while x >> shiftamount:
         x ^= x >> shiftamount
@@ -674,6 +675,8 @@ def parity(x: int) -> int:
 
 
 def ot_msg_value(val_seqx, val_type) -> Any:
+    """Make this the docstring."""
+
     def _get_flag8(byte) -> list:
         """Split a byte (as a str) into a list of 8 bits (1/0)."""
         ret = [0] * 8
