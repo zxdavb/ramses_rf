@@ -35,82 +35,79 @@ def time_stamp():
     return time.time()  # since 1970-01-01T00:00:00Z
 
 
-async def get_next_packet(gateway, source, dont_parse=False) -> Optional[str]:
-    """Get the next valid/wanted packet, stamped with an isoformat datetime."""
-
-    def is_wanted_device(raw_packet, dtm=None) -> bool:
-        """Return True if a packet doesn't contain black-listed packets."""
-        if " 18:" in raw_packet:
-            return True
-        if gateway.device_white_list:
-            return any(device in raw_packet for device in gateway.device_white_list)
-        return not any(device in raw_packet for device in gateway.device_black_list)
-
-    def is_parsing_packet(raw_packet, dtm) -> bool:
-        """Return True if a packet is to be parsed."""
-        # in whitelist (if there is one) and not in blacklist
-
-        # whitelist = gateway.config["white_list"]
-        # if whitelist and not any(x in raw_packet for x in whitelist):
-        #     err_msg = "is not in whitelist"
-        # elif any(x in raw_packet for x in gateway.config["black_list"]):
-        #     err_msg = "is in blacklist"
-        # else:
-        #     return True
-
-        # _LOGGER.debug(
-        #     "*** Ignored packet: >>>%s<<< (%s)",
-        #     raw_packet,
-        #     err_msg,
-        #     extra={"date": dtm[:10], "time": dtm[11:]},
-        # )
-        # return False
+def is_wanted_packet(raw_packet, dtm, black_list=None) -> bool:
+    """Return False if any blacklisted text is in packet."""
+    if not any(x in raw_packet for x in ([] if black_list is None else black_list)):
+        _LOGGER.info(
+            "%s", raw_packet, extra={"date": dtm[:10], "time": dtm[11:]},
+        )
         return True
 
-    def is_valid_packet(raw_packet, dtm) -> bool:
-        """Return True if a packet is valid."""
-        if not MESSAGE_REGEX.match(raw_packet):
-            err_msg = "packet structure bad"
-        elif int(raw_packet[46:49]) > 48:
-            err_msg = "payload too long"
-        elif len(raw_packet[50:]) != 2 * int(raw_packet[46:49]):
-            err_msg = "payload length mismatch"
-        else:
-            return True
+    _LOGGER.debug(
+        "*** Ignored packet: >>>%s<<< (is in text blacklist)",
+        raw_packet,
+        extra={"date": dtm[:10], "time": dtm[11:]},
+    )
 
-        _LOGGER.warning(
-            "*** Invalid packet: >>>%s<<< (%s)",
-            raw_packet,
-            err_msg,
-            extra={"date": dtm[:10], "time": dtm[11:]},
-        )
-        return False
 
-    def get_packet_from_file(source) -> Optional[str]:  # ?async
-        """Get the next valid packet from a log file."""
-        timestamped_packet = source.readline()
-        return timestamped_packet[:26], timestamped_packet[27:]
+def is_valid_packet(raw_packet, dtm) -> bool:
+    """Return True if a packet is valid."""
+    if not MESSAGE_REGEX.match(raw_packet):
+        err_msg = "packet structure bad"
+    elif int(raw_packet[46:49]) > 48:
+        err_msg = "payload too long"
+    elif len(raw_packet[50:]) != 2 * int(raw_packet[46:49]):
+        err_msg = "payload length mismatch"
+    else:
+        return True
 
-    async def get_packet_from_port(source) -> Optional[str]:
-        """Get the next valid packet from a serial port."""
+    _LOGGER.warning(
+        "*** Invalid packet: >>>%s<<< (%s)",
+        raw_packet,
+        err_msg,
+        extra={"date": dtm[:10], "time": dtm[11:]},
+    )
+    return False
 
-        def _timestamp() -> str:
-            now = time_stamp()  # 1580666877.7795346
-            mil = f"{now%1:.6f}".lstrip("0")  # .779535
-            return time.strftime(f"%Y-%m-%dT%H:%M:%S{mil}", time.localtime(now))
 
-        try:
-            raw_packet = await source.readline()
-        except serial.SerialException:
-            return None, None
+def is_wanted_device(raw_packet, white_list=None, black_list=None) -> bool:
+    """Return True if a packet doesn't contain black-listed devices."""
+    if " 18:" in raw_packet:
+        return True
+    if white_list:
+        return any(device in raw_packet for device in white_list)
+    return not any(device in raw_packet for device in black_list)
 
-        timestamp = _timestamp()  # at end of packet
-        raw_packet = "".join(c for c in raw_packet.decode().strip() if c in printable)
 
-        if raw_packet:
-            # firmware-level packet hacks, i.e. non-HGI80 devices, should be here
-            return timestamp, raw_packet
+def get_packet_from_file(source) -> Optional[str]:  # ?async
+    """Get the next valid packet from a log file."""
+    timestamped_packet = source.readline()
+    return timestamped_packet[:26], timestamped_packet[27:].strip()
 
+
+async def get_packet_from_port(source) -> Optional[str]:
+    """Get the next valid packet from a serial port."""
+
+    def _timestamp() -> str:
+        now = time_stamp()  # 1580666877.7795346
+        mil = f"{now%1:.6f}".lstrip("0")  # .779535
+        return time.strftime(f"%Y-%m-%dT%H:%M:%S{mil}", time.localtime(now))
+
+    try:
+        raw_packet = await source.readline()
+    except serial.SerialException:
+        return None, None
+
+    timestamp = _timestamp()  # at end of packet
+    raw_packet = "".join(c for c in raw_packet.decode().strip() if c in printable)
+
+    if raw_packet:
+        # firmware-level packet hacks, i.e. non-HGI80 devices, should be here
+        return timestamp, raw_packet
+
+
+async def get_next_packet(gateway, source, dont_parse=False) -> Optional[str]:
+    """Get the next valid/wanted packet, stamped with an isoformat datetime."""
     if isinstance(source, asyncio.streams.StreamReader):
         timestamp, packet = await get_packet_from_port(source)
     else:
@@ -122,7 +119,7 @@ async def get_next_packet(gateway, source, dont_parse=False) -> Optional[str]:
         return  # read timeout'd (serial port), or EOF (input file)
 
     # dont keep/process any invalid packets
-    if not is_valid_packet(packet, timestamp):
+    if not is_valid_packet(timestamp, packet):
         return
 
     # drop packets containing black-listed devices
@@ -140,11 +137,11 @@ async def get_next_packet(gateway, source, dont_parse=False) -> Optional[str]:
 
     _LOGGER.info("%s", packet, extra={"date": timestamp[:10], "time": timestamp[11:]})
 
-    if dont_parse or not is_parsing_packet(packet, timestamp):
+    if dont_parse or not is_wanted_packet(packet, timestamp):
         return
 
     try:
-        msg = Message(gateway, packet, timestamp)
+        msg = Message(gateway, timestamp, packet)
     except (ValueError, AssertionError):
         _LOGGER.exception(
             "%s", packet, extra={"date": timestamp[:10], "time": timestamp[11:]}
@@ -164,3 +161,28 @@ async def get_next_packet(gateway, source, dont_parse=False) -> Optional[str]:
             gateway.device_by_id[msg.device_id[0]].update(msg)
     except KeyError:
         pass
+
+
+async def process_packet(gateway, timestamped_packet) -> Optional[str]:
+    """Process the packet, stamped with an isoformat datetime."""
+    timestamp, packet = timestamped_packet[:26], timestamped_packet[27:]
+
+    if not is_valid_packet(timestamp, packet):
+        return  # dont keep/process any invalid packets
+
+    if not is_wanted_device(timestamp, packet):
+        return  # drop packets containing black-listed devices
+
+    if not is_wanted_packet(packet, timestamp):
+        return
+
+    # if archiving is enabled, store all valid packets, even those not to be parsed
+    if gateway._output_db:
+        tsp = f"{timestamp} {packet}"
+        w = [0, 27, 31, 34, 38, 48, 58, 68, 73, 77, 165]  # 165? 199 works
+        data = tuple([tsp[w[i - 1] : w[i] - 1] for i in range(1, len(w))])  # noqa: E203
+
+        _ = gateway._db_cursor.execute(INSERT_SQL, data)
+        gateway._output_db.commit()
+
+    _LOGGER.info("%s", packet, extra={"date": timestamp[:10], "time": timestamp[11:]})

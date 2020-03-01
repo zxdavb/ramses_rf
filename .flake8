@@ -7,6 +7,7 @@
   max-line-length = 88
 
   per-file-ignores =
+    evohome/__init__.py:E203
     evohome/entity.py:D102,D107
     evohome/message.py:E203
     evohome/parsers.py:D103,E203

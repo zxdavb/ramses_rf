@@ -77,12 +77,11 @@ def _parse_args():
     #     default="",
     #     help="DONT USE - parse only packets matching these regular expressions",
     # )
-    # group.add_argument(
-    #     "--black_list",
-    #     nargs="*",
-    #     default=BLACK_LIST,
-    #     help="DONT USE - don't parse any packets matching these regular expressions",
-    # )
+    group.add_argument(
+        "--black_list",
+        nargs="*",
+        help="DONT USE - don't parse any packets matching these strings",
+    )
 
     group = parser.add_argument_group(title="debugging bits")
     group.add_argument(
