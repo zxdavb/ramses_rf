@@ -4,17 +4,7 @@ import logging
 from typing import Optional
 
 from . import parsers
-from .const import (
-    COMMAND_EXPOSES_ZONE,
-    COMMAND_MAP,
-    DEVICE_LOOKUP,
-    DEVICE_MAP,
-    MESSAGE_FORMAT,
-    MESSAGE_REGEX,
-    SYSTEM_MODE_MAP,
-    ZONE_MODE_MAP,
-    ZONE_TYPE_MAP,
-)
+from .const import COMMAND_MAP, DEVICE_MAP, MESSAGE_FORMAT
 from .entity import DEVICE_CLASSES, Device, DhwZone, Zone
 
 _LOGGER = logging.getLogger(__name__)  # evohome.message
@@ -25,6 +15,7 @@ class Message:
     """The message class."""
 
     def __init__(self, gateway, packet, timestamp) -> None:
+        """Initialse the class."""
         self._gateway = gateway
         self._packet = packet
         self._timestamp = timestamp
@@ -45,6 +36,8 @@ class Message:
         self._payload = self._is_valid_payload = None
 
     def __str__(self) -> str:
+        """Represent the entity as a string."""
+
         def _dev_name(idx) -> str:
             """Return a friendly device name."""
             if self.device_id[idx][:2] == "--":  # No device ID
@@ -57,7 +50,6 @@ class Message:
                 return "<announce>"  # "<broadcast>"
 
             dev = self._gateway.device_by_id.get(self.device_id[idx])
-            # pylint: disable:protected-access
             if dev and dev._friendly_name:
                 return f"{dev._friendly_name}"
 
@@ -91,6 +83,7 @@ class Message:
 
     @property
     def is_valid_payload(self) -> bool:
+        """Return True if the payload is valid."""
         if self._is_valid_payload is None:
             self._is_valid_payload = bool(self.payload)
 
@@ -98,6 +91,8 @@ class Message:
 
     @property
     def payload(self) -> Optional[dict]:
+        """Return the payload."""
+
         def harvest_new_entities(self):
             def get_device(gateway, device_id):
                 """Get a Device, create it if required."""

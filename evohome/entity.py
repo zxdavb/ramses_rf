@@ -1,17 +1,13 @@
 """The entities for Honeywell's RAMSES II / Residential Network Protocol."""
 import queue
-import time
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 from .command import Command
 from .const import (
     COMMAND_EXPOSES_ZONE,
-    COMMAND_LOOKUP,
-    COMMAND_MAP,
     CTL_DEV_ID,
     DEVICE_LOOKUP,
     DEVICE_MAP,
-    NUL_DEV_ID,
     ZONE_TYPE_MAP,
 )
 
@@ -55,7 +51,6 @@ class Entity:
 
     def _get_ctl_value(self, code, key) -> Optional[Any]:
         controller = self._gateway.device_by_id["01:145038"]
-        # pylint: disable=protected-access
         if controller._pkts.get(code):
             return controller._pkts[code].payload[key]
         else:
@@ -72,7 +67,8 @@ class Entity:
 class Domain(Entity):
     """Base for the named Zones and the other domains (e.g. DHW).
 
-    Domains include F8 (rare), F9, FA, FC & FF."""
+    Domains include F8 (rare), F9, FA, FC & FF.
+    """
 
     def __init__(self, domain_id, gateway) -> None:
         # _LOGGER.debug("Creating a new Domain %s", device_id)
@@ -262,8 +258,10 @@ class Controller(Device):
         for _zone in ["FA"]:
             self._queue.put_nowait(Command(self._gateway, "1260", CTL_DEV_ID, _zone))
 
-        # # WIP: the Controller, and 'real' Relays will respond to 0016/rf_check - to device ID
-        # self._queue.put_nowait(Command(self._gateway, "0016", CTL_DEV_ID, f"{domain_id}FF"))
+        # WIP: the Controller, and 'real' Relays will respond to 0016/rf_check ???
+        # self._queue.put_nowait(
+        #   Command(self._gateway, "0016", CTL_DEV_ID, f"{domain_id}FF")
+        # )
 
         self._queue.put_nowait(Command(self._gateway, "0000", verb="XX"))
 
@@ -285,12 +283,12 @@ class Controller(Device):
             pass
 
         # # TODO: take this out?
-        # if msg.code in ["000A", "30C9"] and msg.verb == " I":  # the payload is an array
+        # if msg.code in ["000A", "30C9"] and msg.verb == " I":  # payload is an array
         #     if not self._gateway.config["input_file"]:
         #         self._gateway.loop.call_later(5, print, self._gateway.database)
 
     def handle_313f(self):
-        """Controllers will RP to a RQ at anytime."""
+        """Controllers will RP to a RQ at anytime."""  # noqa: D401
         pass
 
     @property

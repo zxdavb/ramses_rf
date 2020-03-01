@@ -279,7 +279,6 @@ class Gateway:
 
             while True:  # main loop when packets from serial port
                 await self._recv_message(source=self.reader)
-                # pylint: disable=protected-access
                 if self.reader._transport.serial.in_waiting == 0:
                     await self._send_command(destination=self.writer)
 

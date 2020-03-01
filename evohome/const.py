@@ -27,11 +27,9 @@ DOMAIN_MAP = {"FA": "Hot Water", "FC": "Heat Demand"}
 # https://github.com/Evsdd/Evohome_Controller/blob/master/Evohome_Controller.py
 # https://github.com/jrosser/honeymon/blob/master/decoder.cpp
 # https://github.com/smar000/evohome-Listener
-
-# https://github.com/Evsdd/Evohome_Schedule_Restore/blob/e5c5f8ee52d8117804edcc220e474191bae287ae/Evohome_Schedule_Restore_v0.3.py#L53
+# https://github.com/Evsdd/Evohome_Schedule_Restore
 # https://www.domoticz.com/forum/viewtopic.php?f=34&t=16742&p=216168#p216168
 
-# use: cat packets.log | grep -v " 18:" | grep -E ' [0-9]{3} [0-9][1-9A-F]' | grep -v ' \-\-\- 01' > test.log
 COMMAND_SCHEMA = {
     "0001": {"name": "message_0001"},  #
     "0002": {"name": "sensor_weather"},
@@ -94,20 +92,22 @@ COMMAND_LOOKUP = {v: k for k, v in COMMAND_MAP.items()}
 COMMAND_LENGTH = max([len(k) for k in list(COMMAND_LOOKUP)])
 
 #
-# sed -e 's/ 01:/ CTL:/g' -e 's/ 02:/ UFH:/g' -e 's/ 04:/ TRV:/g' -e 's/ 07:/ DHW:/g' -i pkts.out
-# sed -e 's/ 10:/ OTB:/g' -e 's/ 12:/ THM:/g' -e 's/ 13:/ BDR:/g' -e 's/ 18:/ HGI:/g' -i pkts.out
-# sed -e 's/ 22:/ THm:/g' -e 's/ 30:/ GWY:/g' -e 's/ 32:/ VNT:/g' -e 's/ 34:/ STA:/g' -i pkts.out
+# sed -e 's/ 01:/ CTL:/g' -e 's/ 02:/ UFH:/g' -e 's/ 04:/ TRV:/g' -i pkts.out
+# sed -e 's/ 07:/ DHW:/g' -e 's/ 10:/ OTB:/g' -e 's/ 12:/ THM:/g' -i pkts.out
+# sed -e 's/ 13:/ BDR:/g' -e 's/ 18:/ HGI:/g' -e 's/ 22:/ THm:/g' -i pkts.out
+# sed -e 's/ 30:/ GWY:/g' -e 's/ 32:/ VNT:/g' -e 's/ 34:/ STA:/g' -i pkts.out
 # sed -e 's/ 63:/ ALL:/g' -e 's/ --:/  --:/g' -i pkts.out
 
+# T TODO: what devices send what packets
 DEVICE_MAP = {
     "01": "CTL",  # Controller
     "02": "UFH",  # Underfloor heating (HCC80, HCE80)
     "03": " 30",  # HCW82??
-    "04": "TRV",  # Thermostatic radiator valve (HR80, HR91, HR92)  # 0100, 1060, 12B0, 2309, 30C9, 3150
+    "04": "TRV",  # Thermostatic radiator valve (HR80, HR91, HR92)
     "07": "DHW",  # DHW sensor (CS92)
     "10": "OTB",  # OpenTherm bridge (R8810)
     "12": "THm",  # Thermostat with setpoint schedule control (DTS92E)
-    "13": "BDR",  # Wireless relay box (BDR91)  # 3EF0=relay/TPI; 3B00=TPI (also: HC60NG?)
+    "13": "BDR",  # Wireless relay box (BDR91)  # 3EF0=relay/TPI; 3B00=TPI (HC60NG too?)
     "17": " 17",  # Dunno - Outside weather sensor?
     "18": "HGI",  # Honeywell Gateway Interface (HGI80, HGS80)
     "22": "THM",  # Thermostat with setpoint schedule control (DTS92E)
@@ -146,7 +146,6 @@ ZONE_TYPE_MAP = {
     "ZON": "Zone Valve",
 }
 
-# pylint: disable=invalid-name
 a = r"(-{3}|\d{3})"
 b = r"( I|RP|RQ| W)"
 c = r"(-{2}:-{6}|\d{2}:\d{6})"

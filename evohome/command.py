@@ -68,7 +68,6 @@ class Command:
 #         yield cmd
 
 #     # for code in COMMAND_SCHEMA:
-#     #     # pylint: disable=protected-access
 #     #     while self.reader._transport.serial.in_waiting > 0:
 #     #         await self._recv_message(source=self.reader)
 
@@ -87,7 +86,6 @@ class Command:
 #     i = 0x0
 #     while i < 0x4010:
 #         await self._recv_message(source=self.reader)
-#         # pylint: disable=protected-access
 #         if self.reader._transport.serial.in_waiting != 0:
 #             continue
 

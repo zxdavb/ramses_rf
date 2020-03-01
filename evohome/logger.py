@@ -6,16 +6,15 @@ import logging
 import shutil
 import sys
 
-
 CONSOLE_FORMAT = "%(time).12s %(message)s"
 LOGFILE_FORMAT = "%(date)sT%(time)s %(message)s"
 
 LOG_COLORS = {
-    'DEBUG': 'cyan',
-    'INFO': 'green',
-    'WARNING': 'yellow',
-    'ERROR': 'red',
-    'CRITICAL': 'red',
+    "DEBUG": "cyan",
+    "INFO": "green",
+    "WARNING": "yellow",
+    "ERROR": "red",
+    "CRITICAL": "red",
 }
 
 
@@ -27,7 +26,7 @@ def set_logging(logger, stream=sys.stderr, file_name=None):
     cons_fmt = f"{CONSOLE_FORMAT[:-1]}.{cons_cols - 13}s"
 
     try:
-        from colorlog import ColoredFormatter  # pylint: disable=import-outside-toplevel
+        from colorlog import ColoredFormatter
     except ModuleNotFoundError:
         formatter = logging.Formatter(fmt=cons_fmt)
     else:
@@ -56,7 +55,7 @@ def set_logging(logger, stream=sys.stderr, file_name=None):
 
     if file_name:
         # if log_rotate_days:
-        #     err_handler: logging.FileHandler = logging.handlers.TimedRotatingFileHandler(
+        #     err_handler = logging.handlers.TimedRotatingFileHandler(
         #         err_log_file_name, when="midnight", backupCount=log_rotate_days
         #     )
         # else:
@@ -77,6 +76,7 @@ class InfoFilter(logging.Filter):
     """Log only INFO-level messages."""
 
     def filter(self, record):
+        """Filter only INFO/DEBUG packets."""
         return record.levelno in [logging.INFO, logging.DEBUG]
 
 
@@ -84,4 +84,5 @@ class DebugFilter(logging.Filter):
     """Don't Log DEBUG-level messages."""
 
     def filter(self, record):
-        return record.levelno != logging.DEBUG
+        """Filter only all but DEBUG packets."""
+        return record.levelno != logging.DEBUG  # TODO: use less than / more than?

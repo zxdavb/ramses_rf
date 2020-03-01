@@ -136,7 +136,7 @@ async def main(loop):
         pass
 
     elif args.debug_mode > 1:
-        import ptvsd  # pylint: disable=import-error
+        import ptvsd
 
         print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
         ptvsd.enable_attach(address=(DEBUG_ADDR, DEBUG_PORT))

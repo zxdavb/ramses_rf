@@ -37,7 +37,6 @@ def time_stamp():
 
 async def get_next_packet(gateway, source, dont_parse=False) -> Optional[str]:
     """Get the next valid/wanted packet, stamped with an isoformat datetime."""
-    # pylint: disable=protected-access
 
     def is_wanted_device(raw_packet, dtm=None) -> bool:
         """Return True if a packet doesn't contain black-listed packets."""
@@ -112,7 +111,6 @@ async def get_next_packet(gateway, source, dont_parse=False) -> Optional[str]:
             # firmware-level packet hacks, i.e. non-HGI80 devices, should be here
             return timestamp, raw_packet
 
-    # get the next packet
     if isinstance(source, asyncio.streams.StreamReader):
         timestamp, packet = await get_packet_from_port(source)
     else:

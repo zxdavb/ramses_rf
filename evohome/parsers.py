@@ -1,32 +1,14 @@
 """Evohome serial."""
 
-# pylint: disable=missing-function-docstring
-
 from datetime import datetime as dt
 from datetime import timedelta
-from string import printable
 from typing import Optional, Union
 
-from .const import (
-    COMMAND_EXPOSES_ZONE,
-    COMMAND_LENGTH,
-    COMMAND_LOOKUP,
-    COMMAND_MAP,
-    COMMAND_SCHEMA,
-    DEVICE_LOOKUP,
-    DEVICE_MAP,
-    DOMAIN_MAP,
-    HGI_DEV_ID,
-    MESSAGE_FORMAT,
-    MESSAGE_REGEX,
-    NON_DEV_ID,
-    NUL_DEV_ID,
-    SYSTEM_MODE_MAP,
-    ZONE_MODE_MAP,
-    ZONE_TYPE_MAP,
-)
-from .entity import DEVICE_CLASSES, Device, DhwZone, Domain, Zone, dev_hex_to_id
+from .const import COMMAND_MAP, DOMAIN_MAP, SYSTEM_MODE_MAP, ZONE_MODE_MAP
+from .entity import dev_hex_to_id
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
+
+# noqa:
 
 
 def parser_decorator(func):
@@ -359,10 +341,10 @@ FAULT_TYPE = {"04": "BatteryLow", "06": "CommsFault", "0A": "SensorError"}
 
 @parser_decorator
 def parser_0418(payload, msg) -> Optional[dict]:  # system_fault
-    """10 * 6 log entries in the UI, but 63 via RQs"""
+    """10 * 6 log entries in the UI, but 63 via RQs."""
 
     def _timestamp(seqx):
-        """In the controller UI: YYYY-MM-DD HH:MM"""
+        """In the controller UI: YYYY-MM-DD HH:MM."""
         _seqx = int(seqx, 16)
         return dt(
             year=(_seqx & 0b1111111 << 24) >> 24,
