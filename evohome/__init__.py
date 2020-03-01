@@ -270,12 +270,10 @@ class Gateway:
 
             if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 0418 000000"
                 cmd = self.config["execute_cmd"]
-                # self.command_queue.put_nowait(
-                #     Command(self, cmd[13:17], cmd[:2], cmd[3:12], cmd[18:])
-                # )
-                cmd = Command(self, cmd[13:17], cmd[:2], cmd[3:12], cmd[18:])
-                self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
-                await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
+                self.command_queue.put_nowait(
+                    Command(self, cmd[13:17], cmd[:2], cmd[3:12], cmd[18:])
+                )
+                await self._send_command(destination=self.writer)
 
             while True:  # main loop when packets from serial port
                 await self._recv_message(source=self.reader)
