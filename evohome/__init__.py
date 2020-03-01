@@ -314,7 +314,7 @@ class Gateway:
         def _decode_packet(timestamp, packet) -> bool:
             """Decode the packet and its payload."""
             try:
-                msg = Message(self, packet, timestamp)
+                msg = Message(packet, timestamp, self)
             except (ValueError, AssertionError):
                 _LOGGER.exception(
                     "%s", packet, extra={"date": timestamp[:10], "time": timestamp[11:]}
@@ -325,15 +325,15 @@ class Gateway:
                 return
 
             # UPDATE: only certain packets should become part of the canon
-            # try:
-            if "18" in msg.device_id:  # leave in anyway?
-                return
-            elif msg.device_id[0][:2] == "--":
-                self.device_by_id[msg.device_id[2]].update(msg)
-            else:
-                self.device_by_id[msg.device_id[0]].update(msg)
-            # except KeyError:
-            #     pass
+            try:
+                if "18" in msg.device_id:  # not working, see KeyError
+                    return
+                elif msg.device_id[0][:2] == "--":
+                    self.device_by_id[msg.device_id[2]].update(msg)
+                else:
+                    self.device_by_id[msg.device_id[0]].update(msg)
+            except KeyError:  # TODO: KeyError: '18:013393'
+                pass
 
         if _useful_packet(timestamp, packet):
             if not self.config.get("raw_output"):

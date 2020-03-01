@@ -30,6 +30,27 @@ DOMAIN_MAP = {"FA": "Hot Water", "FC": "Heat Demand"}
 # https://github.com/Evsdd/Evohome_Schedule_Restore
 # https://www.domoticz.com/forum/viewtopic.php?f=34&t=16742&p=216168#p216168
 
+HARVEST_PKTS = {
+    "061 RQ --- 04:189082 01:145038 --:------ 0004 002 0400",
+    "045 RP --- 01:145038 04:189082 --:------ 0004 022 04004265616E7320526F6F6D00000000000000000000"  # noqa: E501
+    "045 RQ --- 34:092243 01:145038 --:------ 000A 001 01",
+    "045 RP --- 01:145038 34:092243 --:------ 000A 006 011001F40DAC",
+    "063  I --- 04:189080 --:------ 01:145038 1060 003 056401",
+    "045  I --- 04:056059 --:------ 01:145038 12B0 003 010000",
+    "045  I --- 04:056057 --:------ 01:145038 2309 003 03073A",
+    "063  I --- 01:145038 --:------ 01:145038 2309 003 0105DC",
+    "069 RQ --- 34:092243 01:145038 --:------ 2309 001 01",
+    "072 RP --- 01:145038 34:092243 --:------ 2309 003 0107D0",
+    "049  W --- 34:092243 01:145038 --:------ 2309 003 0105DC",
+    "064  I --- 01:145038 34:092243 --:------ 2309 003 0105DC",
+    "000  I --- 01:145038 --:------ 01:145038 2349 013 03079E04FFFFFF1E15100207E4",
+    "000  I --- 01:145038 --:------ 01:145038 2349 007 03079E00FFFFFF",
+    "045  I --- 04:056059 --:------ 01:145038 3150 002 0120",
+}
+
+x = {f"{p[4:6]}{p[41:45]}": "" for p in HARVEST_PKTS}
+
+
 COMMAND_SCHEMA = {
     "0001": {"name": "message_0001"},  #
     "0002": {"name": "sensor_weather"},
@@ -39,7 +60,7 @@ COMMAND_SCHEMA = {
     "0008": {"name": "relay_demand"},
     "0009": {"name": "relay_failsafe", "exposes_zone": None},
     "000A": {"name": "zone_config", "exposes_zone": True},
-    "000C": {"name": "zone_actuators", "exposes_zone": True},
+    "000C": {"name": "zone_actuators", "exposes_zone": None},  # special case
     "000E": {"name": "message_000E", "exposes_zone": False},
     "0016": {"name": "rf_check", "rq_length": 2},
     "0100": {"name": "localisation", "rq_length": 5},
@@ -47,7 +68,7 @@ COMMAND_SCHEMA = {
     "0418": {"name": "system_fault"},
     "042F": {"name": "message_042F", "exposes_zone": False},
     "1030": {"name": "mixvalve_config"},
-    "1060": {"name": "device_battery", "exposes_zone": None},
+    "1060": {"name": "device_battery", "exposes_zone": True},
     "10A0": {"name": "dhw_params"},
     "10E0": {"name": "device_info"},
     "1100": {"name": "boiler_params"},  # boiler CH config

@@ -14,7 +14,7 @@ _LOGGER.setLevel(logging.INFO)  # INFO or DEBUG
 class Message:
     """The message class."""
 
-    def __init__(self, gateway, packet, timestamp) -> None:
+    def __init__(self, packet, timestamp, gateway) -> None:
         """Initialse the class."""
         self._gateway = gateway
         self._packet = packet
