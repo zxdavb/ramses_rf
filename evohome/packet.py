@@ -1,17 +1,14 @@
 """Packet processor."""
 
-import asyncio
 import ctypes
 import logging
 import os
 import time
 from string import printable
-from typing import Optional
 
 import serial
 
-from .const import INSERT_SQL, MESSAGE_REGEX
-from .message import Message
+from .const import MESSAGE_REGEX
 
 _LOGGER = logging.getLogger(__name__)  # evohome.packet
 _LOGGER.setLevel(logging.INFO)  # INFO or DEBUG
@@ -79,13 +76,7 @@ def is_wanted_device(raw_packet, white_list=None, black_list=None) -> bool:
     return not any(device in raw_packet for device in black_list)
 
 
-def get_packet_from_file(source) -> Optional[str]:  # ?async
-    """Get the next valid packet from a log file."""
-    timestamped_packet = source.readline()
-    return timestamped_packet[:26], timestamped_packet[27:].strip()
-
-
-async def get_packet_from_port(source) -> Optional[str]:
+async def get_packet_from_port(source):
     """Get the next valid packet from a serial port."""
 
     def _timestamp() -> str:
@@ -105,84 +96,4 @@ async def get_packet_from_port(source) -> Optional[str]:
         # firmware-level packet hacks, i.e. non-HGI80 devices, should be here
         return timestamp, raw_packet
 
-
-async def get_next_packet(gateway, source, dont_parse=False) -> Optional[str]:
-    """Get the next valid/wanted packet, stamped with an isoformat datetime."""
-    if isinstance(source, asyncio.streams.StreamReader):
-        timestamp, packet = await get_packet_from_port(source)
-    else:
-        timestamp, packet = get_packet_from_file(source)
-        if not packet:
-            source = None  # EOF
-
-    if not packet:
-        return  # read timeout'd (serial port), or EOF (input file)
-
-    # dont keep/process any invalid packets
-    if not is_valid_packet(timestamp, packet):
-        return
-
-    # drop packets containing black-listed devices
-    if not is_wanted_device(packet):
-        return
-
-    # if archiving is enabled, store all valid packets, even those not to be parsed
-    if gateway._output_db:
-        tsp = f"{timestamp} {packet}"
-        w = [0, 27, 31, 34, 38, 48, 58, 68, 73, 77, 165]  # 165? 199 works
-        data = tuple([tsp[w[i - 1] : w[i] - 1] for i in range(1, len(w))])  # noqa: E203
-
-        _ = gateway._db_cursor.execute(INSERT_SQL, data)
-        gateway._output_db.commit()
-
-    _LOGGER.info("%s", packet, extra={"date": timestamp[:10], "time": timestamp[11:]})
-
-    if dont_parse or not is_wanted_packet(packet, timestamp):
-        return
-
-    try:
-        msg = Message(gateway, timestamp, packet)
-    except (ValueError, AssertionError):
-        _LOGGER.exception(
-            "%s", packet, extra={"date": timestamp[:10], "time": timestamp[11:]}
-        )
-        return
-
-    if not msg.is_valid_payload:
-        return
-
-    # UPDATE: only certain packets should become part of the canon
-    try:
-        if "18" in msg.device_id:  # leave in anyway?
-            return
-        elif msg.device_id[0][:2] == "--":
-            gateway.device_by_id[msg.device_id[2]].update(msg)
-        else:
-            gateway.device_by_id[msg.device_id[0]].update(msg)
-    except KeyError:
-        pass
-
-
-async def process_packet(gateway, timestamped_packet) -> Optional[str]:
-    """Process the packet, stamped with an isoformat datetime."""
-    timestamp, packet = timestamped_packet[:26], timestamped_packet[27:]
-
-    if not is_valid_packet(timestamp, packet):
-        return  # dont keep/process any invalid packets
-
-    if not is_wanted_device(timestamp, packet):
-        return  # drop packets containing black-listed devices
-
-    if not is_wanted_packet(packet, timestamp):
-        return
-
-    # if archiving is enabled, store all valid packets, even those not to be parsed
-    if gateway._output_db:
-        tsp = f"{timestamp} {packet}"
-        w = [0, 27, 31, 34, 38, 48, 58, 68, 73, 77, 165]  # 165? 199 works
-        data = tuple([tsp[w[i - 1] : w[i] - 1] for i in range(1, len(w))])  # noqa: E203
-
-        _ = gateway._db_cursor.execute(INSERT_SQL, data)
-        gateway._output_db.commit()
-
-    _LOGGER.info("%s", packet, extra={"date": timestamp[:10], "time": timestamp[11:]})
+    return timestamp, None

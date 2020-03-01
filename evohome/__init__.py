@@ -279,7 +279,7 @@ class Gateway:
             while True:  # main loop when packets from serial port
                 timestamp, packet = await get_packet_from_port(self.reader)
 
-                self._proc_packet(self, timestamp, packet)
+                self._proc_packet(timestamp, packet)
                 if self.reader._transport.serial.in_waiting == 0:
                     await self._send_packet(destination=self.writer)
 
@@ -306,7 +306,6 @@ class Gateway:
 
                 self._output_db.commit()
 
-            # self.config["black_list"] = ['31DA', '10E0']
             if not is_wanted_packet(packet, timestamp, self.config["black_list"]):
                 return  # drop packets containing black-listed text
 
@@ -315,7 +314,7 @@ class Gateway:
         def _decode_packet(timestamp, packet) -> bool:
             """Decode the packet and its payload."""
             try:
-                msg = Message(self, timestamp, packet)
+                msg = Message(self, packet, timestamp)
             except (ValueError, AssertionError):
                 _LOGGER.exception(
                     "%s", packet, extra={"date": timestamp[:10], "time": timestamp[11:]}
@@ -326,15 +325,15 @@ class Gateway:
                 return
 
             # UPDATE: only certain packets should become part of the canon
-            try:
-                if "18" in msg.device_id:  # leave in anyway?
-                    return
-                elif msg.device_id[0][:2] == "--":
-                    self.device_by_id[msg.device_id[2]].update(msg)
-                else:
-                    self.device_by_id[msg.device_id[0]].update(msg)
-            except KeyError:
-                pass
+            # try:
+            if "18" in msg.device_id:  # leave in anyway?
+                return
+            elif msg.device_id[0][:2] == "--":
+                self.device_by_id[msg.device_id[2]].update(msg)
+            else:
+                self.device_by_id[msg.device_id[0]].update(msg)
+            # except KeyError:
+            #     pass
 
         if _useful_packet(timestamp, packet):
             if not self.config.get("raw_output"):

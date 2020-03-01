@@ -466,14 +466,12 @@ class Zone(Entity):
 
     @property
     def heat_demand(self) -> Optional[float]:
-        return max(
-            [
-                d.heat_demand if d.heat_demand else 0
-                for d in self.devices
-                if d._device_type == "TRV"
-            ]
-            + [0]
-        )
+        demands = [
+            d.heat_demand if d.heat_demand else 0
+            for d in self.devices
+            if d._device_type == "TRV"
+        ]
+        return max(demands + [0])
 
     @property
     def name(self) -> Optional[str]:
