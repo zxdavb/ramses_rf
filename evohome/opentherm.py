@@ -9,8 +9,6 @@ from typing import Any
 # Other code shamelessy copied, with thanks to @mvn23, from:
 # github.com/mvn23/pyotgw (protocol.py),
 
-# pylint: disable=missing-function-docstring
-
 OPENTHERM_MSG_TYPE = {
     0: "Read-Data",
     16: "Write-Data",
@@ -21,7 +19,6 @@ OPENTHERM_MSG_TYPE = {
     96: "Data-Invalid",
     112: "Unknown-DataId",
 }
-
 
 OPENTHERM_MESSAGES = {
     # OpenTherm status flags [ID 0: Master status (HB) & Slave status (LB)]
