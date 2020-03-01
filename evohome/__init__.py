@@ -1,98 +1,39 @@
 """Evohome serial."""
 import asyncio
 import json
+import logging
 import signal
 import sqlite3
 import sys
 from queue import Queue
-from threading import Thread
 from typing import Optional
 
-import logging
 import serial
 import serial_asyncio
 
+from .command import Command
+from .const import INDEX_SQL, TABLE_SQL
+from .entity import System
+from .logger import set_logging
+from .message import _LOGGER as msg_logger
+from .packet import _LOGGER as pkt_logger
+from .packet import get_next_packet
 
 logging.basicConfig(level=logging.WARNING,)
 
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(logging.WARNING)  # INFO for files, WARNING for console
 
-from .command import Command
-from .const import (
-    COMMAND_EXPOSES_ZONE,
-    COMMAND_FORMAT,
-    COMMAND_LOOKUP,
-    COMMAND_MAP,
-    COMMAND_REGEX,
-    COMMAND_SCHEMA,
-    CTL_DEV_ID,
-    DEVICE_LOOKUP,
-    DEVICE_MAP,
-    HGI_DEV_ID,
-    MESSAGE_REGEX,
-    NON_DEV_ID,
-    NUL_DEV_ID,
-    TABLE_SQL,
-    INDEX_SQL,
-)
-from .entity import System
-from .message import Message, _LOGGER as msg_logger
-from .packet import get_next_packet, _LOGGER as pkt_logger
-from .logger import set_logging
 
 BAUDRATE = 115200  # 38400  #  57600  # 76800  # 38400  # 115200
 READ_TIMEOUT = 0
-
-
-class MessageWorker(Thread):
-    """Fake docstring."""
-
-    def __init__(self, gateway, queue):
-        Thread.__init__(self)
-        self.gateway = queue
-        self.queue = queue
-
-
-class RecvPacketWorker(MessageWorker):
-    """Fake docstring."""
-
-    def run(self):
-        while True:
-            try:
-                pass
-            finally:
-                pass
-
-
-class ProcMessageWorker(MessageWorker):
-    """Fake docstring."""
-
-    def run(self):
-        while True:
-            message = self.queue.get()
-            try:
-                pass
-            finally:
-                self.queue.task_done()
-
-
-class SendCommandWorker(MessageWorker):
-    """Fake docstring."""
-
-    def run(self):
-        while True:
-            command = self.queue.get()
-            try:
-                pass
-            finally:
-                self.queue.task_done()
 
 
 class Gateway:
     """The gateway class."""
 
     def __init__(self, serial_port, loop=None, **config):
+        """Initialise the  class."""
         self.serial_port = serial_port
         self.loop = config.get("loop", asyncio.get_event_loop())
         self.config = config
@@ -276,60 +217,7 @@ class Gateway:
         return structure
 
     async def start(self) -> None:
-        """This is a docstring."""
-
-        def scan_tight(dest_id):
-            for code in COMMAND_SCHEMA:
-                cmd = Command(self, code, verb="RQ", dest_id=dest_id, payload="0100")
-                yield cmd
-
-            # for code in COMMAND_SCHEMA:
-            #     # pylint: disable=protected-access
-            #     while self.reader._transport.serial.in_waiting > 0:
-            #         await self._recv_message(source=self.reader)
-
-            #     cmd = Command(self, code, verb="RQ", dest_id=CTL_DEV_ID, payload="FF")
-            #     self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
-            #     await asyncio.sleep(0.7)  # 0.8, 1.0 OK, 0.5 too short
-
-            #     while not self.command_queue.empty():
-            #         self.command_queue.get()
-            #         self.command_queue.task_done()
-
-        async def scan_loose():
-            # # BEGIN crazy test block
-            dest_id = "01:145038"  # "07:045960"  # "13:106039"  # "13:237335"  #
-
-            i = 0x0
-            while i < 0x4010:
-                await self._recv_message(source=self.reader)
-                # pylint: disable=protected-access
-                if self.reader._transport.serial.in_waiting != 0:
-                    continue
-
-                code = f"{i:04X}"
-
-                cmd = Command(self, code, verb="RQ", dest_id=dest_id, payload="F9")
-                self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
-                await asyncio.sleep(0.7)  # 0.8, 1.0 OK, 0.5 too short
-
-                cmd = Command(self, code, verb="RQ", dest_id=dest_id, payload="FA")
-                self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
-                await asyncio.sleep(0.7)  # 0.8, 1.0 OK, 0.5 too short
-
-                cmd = Command(self, code, verb="RQ", dest_id=dest_id, payload="FC")
-                self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
-                await asyncio.sleep(0.7)  # 0.8, 1.0 OK, 0.5 too short
-
-                if i % 20 == 19:
-                    await asyncio.sleep(20)  #  20 OK with 0.8, 30 OK with 1.0
-
-                if not self.command_queue.empty():
-                    self.command_queue.get()
-                    self.command_queue.task_done()
-
-                i += 1
-            # # ENDS crazy test block
+        """Fake the docstring."""
 
         def _setup_files() -> None:
             if self.config.get("database"):
@@ -395,18 +283,6 @@ class Gateway:
                 if self.reader._transport.serial.in_waiting == 0:
                     await self._send_command(destination=self.writer)
 
-                    # cmd = Command(self, "2349", verb="RQ", dest_id="04:056059", payload="0100")
-                    # self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
-                    # await asyncio.sleep(0.05)  # 0.8, 1.0 OK, 0.5 too short
-
-                    # cmd = Command(self, "2309", verb="RQ", dest_id="04:056059", payload="00")
-                    # self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
-                    # await asyncio.sleep(0.7)  # 0.8, 1.0 OK, 0.5 too short
-
-                    # cmd = Command(self, "3150", verb="RQ", dest_id="04:056059", payload="0100")
-                    # self.writer.write(bytearray(f"{str(cmd)}\r\n".encode("ascii")))
-                    # await asyncio.sleep(0.7)  # 0.8, 1.0 OK, 0.5 too short
-
     async def _recv_message(self, source) -> None:
         """Receive a packet and validate it as a message."""
         await get_next_packet(self, source, dont_parse=self.config.get("raw_output"))
@@ -425,5 +301,5 @@ class Gateway:
 
             self.command_queue.task_done()
 
-    async def _get_fault_log() -> None:
+    async def _get_fault_log(self) -> None:
         pass
