@@ -469,7 +469,7 @@ def parser_10a0(payload, msg) -> Optional[dict]:  # dhw_params
 
 @parser_decorator
 def parser_10e0(payload, msg) -> Optional[dict]:  # device_info
-    assert len(payload) / 2 in [30, 38]  # a non-evohome seen with 30
+    assert len(payload) / 2 in [30, 36, 38]  # a non-evohome seen with 30
 
     return {  # TODO: add version?
         "description": _str(payload[36:]),
@@ -517,6 +517,7 @@ def parser_1260(payload, msg) -> Optional[dict]:  # dhw_temp
 
 @parser_decorator
 def parser_1290(payload, msg) -> Optional[dict]:  # outdoor_temp
+    # evohome responds to an RQ
     assert len(payload) / 2 == 3
     assert payload[:2] == "00"  # no domain
 
@@ -756,6 +757,18 @@ def parser_3150(payload, msg) -> Optional[dict]:  # heat_demand (of device, FC d
     # event-driven, and periodically; FC domain is highest of all TRVs
     # TODO: all have a valid domain will UFH/CTL respond to an RQ, for FC, for a zone?
 
+    def _parser(seqx) -> dict:
+        assert len(seqx) == 4
+        assert payload[:2] == "FC" or (int(payload[:2], 16) <= 11)  # 4 for UFH
+
+        return {
+            "zone_idx" if int(seqx[:2], 16) <= 11 else "domain": _id(seqx[:2]),
+            "heat_demand": _cent(seqx[2:]) / 2,
+        }
+
+    if len(payload) / 2 == 10:  # UFH array
+        return [_parser(payload[i : i + 4]) for i in range(0, len(payload), 4)]
+
     if msg.device_id[0][:2] == "02" and payload[:2] != "FC":  # UFH
         assert len(payload) % 4 == 0  # I are arrays, sent periodically? are RPs arrays?
     else:
@@ -766,10 +779,7 @@ def parser_3150(payload, msg) -> Optional[dict]:  # heat_demand (of device, FC d
     else:
         assert int(payload[:2], 16) <= 11
 
-    return {
-        "zone_idx" if int(payload[:2], 16) <= 11 else "domain": _id(payload[:2]),
-        "heat_demand": _cent(payload[2:]) / 2,
-    }
+    return _parser(payload)
 
 
 @parser_decorator

@@ -326,7 +326,7 @@ class Gateway:
 
             # UPDATE: only certain packets should become part of the canon
             try:
-                if "18" in msg.device_id:  # not working, see KeyError
+                if "18" in msg.device_id[0][:2]:  # not working?, see KeyError
                     return
                 elif msg.device_id[0][:2] == "--":
                     self.device_by_id[msg.device_id[2]].update(msg)
