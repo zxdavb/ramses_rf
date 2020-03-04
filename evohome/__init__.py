@@ -383,7 +383,7 @@ class SerialPortManager:
         """Get the next valid packet from a serial port."""
         from string import printable
 
-        print(time_stamp(), "doing something")
+        # print(time_stamp(), "doing something")
 
         try:
             raw_packet = await self.reader.readline()
@@ -393,7 +393,7 @@ class SerialPortManager:
         timestamp = time_stamp()  # at end of packet
         raw_packet = "".join(c for c in raw_packet.decode().strip() if c in printable)
 
-        print(timestamp, "done something")
+        # print(timestamp, "done something")
 
         if raw_packet:
             # firmware-level packet hacks, i.e. non-HGI80 devices, should be here

@@ -28,22 +28,37 @@ def is_wanted_packet(raw_packet, dtm, black_list=None) -> bool:
 
 def is_valid_packet(raw_packet, dtm) -> bool:
     """Return True if a packet is valid."""
-    if not MESSAGE_REGEX.match(raw_packet):
-        err_msg = "packet structure bad"
-    elif int(raw_packet[46:49]) > 48:
-        err_msg = "payload too long"
-    elif len(raw_packet[50:]) != 2 * int(raw_packet[46:49]):
-        err_msg = "payload length mismatch"
-    else:
-        return True
+    if raw_packet is None:
+        return False
 
-    _LOGGER.warning(
-        "*** Invalid packet: >>>%s<<< (%s)",
-        raw_packet,
-        err_msg,
-        extra={"date": dtm[:10], "time": dtm[11:]},
-    )
-    return False
+    try:
+        _ = MESSAGE_REGEX.match(raw_packet)
+    except TypeError:
+        _LOGGER.warning(
+            "*** Invalid packet: >>>%s<<< (%s)",
+            raw_packet,
+            f"raw packet bad ({type(raw_packet)})",
+            extra={"date": dtm[:10], "time": dtm[11:]},
+        )
+        return False
+
+    else:
+        if not MESSAGE_REGEX.match(raw_packet):
+            err_msg = "packet structure bad"
+        elif int(raw_packet[46:49]) > 48:
+            err_msg = "payload too long"
+        elif len(raw_packet[50:]) != 2 * int(raw_packet[46:49]):
+            err_msg = "payload length mismatch"
+        else:
+            return True
+
+        _LOGGER.warning(
+            "*** Invalid packet: >>>%s<<< (%s)",
+            raw_packet,
+            err_msg,
+            extra={"date": dtm[:10], "time": dtm[11:]},
+        )
+        return False
 
 
 def is_wanted_device(raw_packet, white_list=None, black_list=None) -> bool:
