@@ -8,15 +8,12 @@ import sys
 from queue import Queue
 from typing import Optional
 
-import serial
-import serial_asyncio
-
 from .command import Command
 from .const import INDEX_SQL, TABLE_SQL, INSERT_SQL
 from .entity import System
-from .logger import set_logging, time_stamp
+from .logger import set_logging
 from .message import _LOGGER as msg_logger, Message
-from .packet import _LOGGER as pkt_logger
+from .packet import _LOGGER as pkt_logger, SerialPortManager
 from .packet import is_valid_packet, is_wanted_device, is_wanted_packet
 
 
@@ -24,9 +21,6 @@ logging.basicConfig(level=logging.WARNING,)
 
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(logging.WARNING)  # INFO for files, WARNING for console
-
-BAUDRATE = 115200  # 38400  #  57600  # 76800  # 38400  # 115200
-READ_TIMEOUT = 0.5
 
 
 class Gateway:
@@ -226,20 +220,20 @@ class Gateway:
 
             async with aiofiles.open(self.config["input_file"]) as self._input_fp:
                 async for ts_packet in self._input_fp:
-                    await self._get_packet(ts_packet[:26], ts_packet[27:].strip())
-                    await self._put_packet(destination=None)  # to empty the buffer
+                    await self._process_packet(ts_packet[:26], ts_packet[27:].strip())
+                    await self._dispatch_packet(destination=None)  # to empty the buffer
 
         async def proc_packets_from_port() -> None:
             """Fake the docstring."""
 
             async def port_reader():
                 while True:  # main loop
-                    await self._get_packet(*(await manager.get_next_packet()))
+                    await self._process_packet(*(await manager.get_next_packet()))
 
             async def port_writer(manager):
                 while True:  # main loop
                     if manager.reader._transport.serial.in_waiting == 0:
-                        await self._put_packet(destination=manager.writer)
+                        await self._dispatch_packet(destination=manager.writer)
                     else:
                         await asyncio.sleep(0.05)
 
@@ -249,7 +243,7 @@ class Gateway:
                     self.command_queue.put_nowait(
                         Command(self, cmd[13:17], cmd[:2], cmd[3:12], cmd[18:])
                     )
-                    await self._put_packet(destination=manager.writer)
+                    await self._dispatch_packet(destination=manager.writer)
 
                 await asyncio.gather(port_reader(), port_writer(manager))
 
@@ -289,8 +283,8 @@ class Gateway:
                 "%s", f"\r\n{json.dumps(self.structure, indent=4)}"
             )  # TODO: deleteme
 
-    async def _get_packet(self, timestamp, packet) -> None:
-        """Receive a packet and validate it as a message."""
+    async def _process_packet(self, timestamp, packet) -> None:
+        """Receive a packet and optionally validate it as a message."""
 
         async def _is_useful_packet(timestamp, packet) -> bool:
             """Process the packet."""
@@ -316,35 +310,11 @@ class Gateway:
 
             return True
 
-        def _decode_packet(timestamp, packet) -> bool:
-            """Decode the packet and its payload."""
-            try:
-                msg = Message(packet, timestamp, self)
-            except (ValueError, AssertionError):
-                _LOGGER.exception(
-                    "%s", packet, extra={"date": timestamp[:10], "time": timestamp[11:]}
-                )
-                return
-
-            if not msg.is_valid_payload:
-                return
-
-            # UPDATE: only certain packets should become part of the canon
-            try:
-                if "18" in msg.device_id[0][:2]:  # not working?, see KeyError
-                    return
-                elif msg.device_id[0][:2] == "--":
-                    self.device_by_id[msg.device_id[2]].update(msg)
-                else:
-                    self.device_by_id[msg.device_id[0]].update(msg)
-            except KeyError:  # TODO: KeyError: '18:013393'
-                pass
-
         if await _is_useful_packet(timestamp, packet):
             if not self.config.get("raw_output"):
-                _decode_packet(timestamp, packet)
+                self._decode_packet(timestamp, packet)
 
-    async def _put_packet(self, destination) -> None:
+    async def _dispatch_packet(self, destination=None) -> None:
         """Send a command unless in listen_only mode."""
         if not self.command_queue.empty():
             cmd = self.command_queue.get()
@@ -356,53 +326,26 @@ class Gateway:
 
             self.command_queue.task_done()
 
-
-class SerialPortManager:
-    """Fake class docstring."""
-
-    def __init__(self, serial_port, loop, timeout=READ_TIMEOUT) -> None:
-        """Fake method docstring."""
-        self.serial_port = serial_port
-        self.baudrate = BAUDRATE
-        self.timeout = timeout
-        self.xonxoff = True
-        self.loop = loop
-
-        self.reader = self.write = None
-
-    async def __aenter__(self):
-        """Fake method docstring."""
-        self.reader, self.writer = await serial_asyncio.open_serial_connection(
-            loop=self.loop,
-            url=self.serial_port,
-            baudrate=self.baudrate,
-            timeout=self.timeout,
-            xonxoff=True,
-        )
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb) -> None:
-        """Fake method docstring."""
-        pass
-
-    async def get_next_packet(self):
-        """Get the next valid packet from a serial port."""
-        from string import printable
-
-        # print(time_stamp(), "doing something")
-
+    def _decode_packet(self, timestamp, packet) -> bool:
+        """Decode the packet and its payload."""
         try:
-            raw_packet = await self.reader.readline()
-        except serial.SerialException:
-            return (None, None)
+            msg = Message(packet, timestamp, self)
+        except (ValueError, AssertionError):
+            _LOGGER.exception(
+                "%s", packet, extra={"date": timestamp[:10], "time": timestamp[11:]}
+            )
+            return
 
-        timestamp = time_stamp()  # at end of packet
-        raw_packet = "".join(c for c in raw_packet.decode().strip() if c in printable)
+        if not msg.is_valid_payload:
+            return
 
-        # print(timestamp, "done something")
-
-        if raw_packet:
-            # firmware-level packet hacks, i.e. non-HGI80 devices, should be here
-            return (timestamp, raw_packet)
-
-        return (timestamp, None)
+        # UPDATE: only certain packets should become part of the canon
+        try:
+            if "18" in msg.device_id[0][:2]:  # not working?, see KeyError
+                return
+            elif msg.device_id[0][:2] == "--":
+                self.device_by_id[msg.device_id[2]].update(msg)
+            else:
+                self.device_by_id[msg.device_id[0]].update(msg)
+        except KeyError:  # TODO: KeyError: '18:013393'
+            pass
