@@ -219,7 +219,6 @@ class Gateway:
 
     async def start(self) -> None:
         """Fake the docstring."""
-        pass
 
         async def proc_packets_from_file() -> None:
             """Process packets from a file, asynchonously."""
@@ -232,7 +231,6 @@ class Gateway:
 
         async def proc_packets_from_port() -> None:
             """Fake the docstring."""
-            pass
 
             async def port_reader():
                 while True:  # main loop
