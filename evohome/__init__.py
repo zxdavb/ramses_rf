@@ -2,6 +2,7 @@
 import asyncio
 import json
 import logging
+import os
 import signal
 import sqlite3
 import sys
@@ -102,7 +103,10 @@ class Gateway:
         self.system = System(self)
         self.data = {f"{i:02X}": {} for i in range(12)}
 
-        for s in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+        # Windows don't like: AttributeError: module 'signal' has no attribute 'SIGHUP'
+        if os.name == "posix":
+            signal.signal(signal.SIGHUP, self._signal_handler)
+        for s in (signal.SIGINT, signal.SIGTERM):  # signal:SIGHUP
             signal.signal(s, self._signal_handler)
 
     def _signal_handler(self, signum, frame):

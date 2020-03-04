@@ -5,6 +5,7 @@
 .secrets/*
 *.db
 *.json
+*.log
 *.old
 *.out
 *.txt
