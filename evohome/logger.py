@@ -1,13 +1,16 @@
 """Logging utility."""
 
+import ctypes
 import logging
+import os
+import time
 
 # from logging.handlers import TimedRotatingFileHandler
 import shutil
 import sys
 
-CONSOLE_FORMAT = "%(time).12s %(message)s"
-LOGFILE_FORMAT = "%(date)sT%(time)s %(message)s"
+CONSOLE_FORMAT = "%(time).12s %(message)s"  # HH:MM:SS.sss
+LOGFILE_FORMAT = "%(date)sT%(time)s %(message)s"  # YYYY-mm-ddTHH:MM:SS.ssssss
 
 LOG_COLORS = {
     "DEBUG": "cyan",
@@ -16,6 +19,31 @@ LOG_COLORS = {
     "ERROR": "red",
     "CRITICAL": "red",
 }
+
+
+class FILETIME(ctypes.Structure):
+    """Data structure for GetSystemTimePreciseAsFileTime()."""
+
+    _fields_ = [("dwLowDateTime", ctypes.c_uint), ("dwHighDateTime", ctypes.c_uint)]
+
+
+def time_stamp() -> str:
+    """Return a time stamp as a string."""
+    now = time_time()
+    mil = f"{now%1:.6f}".lstrip("0")
+    return time.strftime(f"%Y-%m-%dT%H:%M:%S{mil}", time.localtime(now))
+
+
+def time_time():
+    """Return an accurate time, even for Windows-based systems."""
+    # see: https://www.python.org/dev/peps/pep-0564/
+    if os.name == "nt":
+        file_time = FILETIME()
+        ctypes.windll.kernel32.GetSystemTimePreciseAsFileTime(ctypes.byref(file_time))
+        _time = (file_time.dwLowDateTime + (file_time.dwHighDateTime << 32)) / 1e7
+        return _time - 134774 * 24 * 60 * 60  # since 1601-01-01T00:00:00Z
+    # if os.name == "posix":
+    return time.time()  # since 1970-01-01T00:00:00Z
 
 
 def set_logging(logger, stream=sys.stderr, file_name=None):

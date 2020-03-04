@@ -14,9 +14,9 @@ import serial_asyncio
 from .command import Command
 from .const import INDEX_SQL, TABLE_SQL, INSERT_SQL
 from .entity import System
-from .logger import set_logging
+from .logger import set_logging, time_stamp
 from .message import _LOGGER as msg_logger, Message
-from .packet import _LOGGER as pkt_logger, get_packet_from_port
+from .packet import _LOGGER as pkt_logger
 from .packet import is_valid_packet, is_wanted_device, is_wanted_packet
 
 
@@ -26,13 +26,13 @@ _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(logging.WARNING)  # INFO for files, WARNING for console
 
 BAUDRATE = 115200  # 38400  #  57600  # 76800  # 38400  # 115200
-READ_TIMEOUT = 0
+READ_TIMEOUT = 0.5
 
 
 class Gateway:
     """The gateway class."""
 
-    def __init__(self, serial_port, loop=None, **config):
+    def __init__(self, serial_port, **config):
         """Initialise the  class."""
         self.serial_port = serial_port
         self.loop = config.get("loop", asyncio.get_event_loop())
@@ -102,12 +102,10 @@ class Gateway:
         self.system = System(self)
         self.data = {f"{i:02X}": {} for i in range(12)}
 
-        signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
+        for s in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+            signal.signal(s, self._signal_handler)
 
     def _signal_handler(self, signum, frame):
-        print(f"\r\n{json.dumps(self.structure, indent=4)}")  # TODO: deleteme
-
         if self.config.get("known_devices"):
             self.device_lookup.update(
                 {
@@ -121,6 +119,8 @@ class Gateway:
 
             with open(self.config["known_devices"], "w") as outfile:
                 json.dump(self.device_lookup, outfile, sort_keys=True, indent=4)
+
+        print(f"\r\n{json.dumps(self.structure, indent=4)}")  # TODO: deleteme
 
         sys.exit()
 
@@ -204,89 +204,86 @@ class Gateway:
             sensor = temp_map.get(str(zone["temperature"]))
             if sensor:
                 zone["sensor"] = sensor
-                # if sensor in structure["orphans"]:
-                #     structure["orphans"].remove(sensor)
+                if sensor in structure["orphans"]:
+                    structure["orphans"].remove(sensor)
                 orphans = list(set(orphans) - set(sensor))
 
-        # TODO: max 1 remaining zone without a sensor
-        # if len(thermometers) == 0:
-        # structure.pop("thermometers")
+                # TODO: max 1 remaining zone without a sensor
+                # if len(thermometers) == 0:
+                # structure.pop("thermometers")
 
-        structure["orphans"] = orphans
+                structure["orphans"] = orphans
 
         return structure
 
     async def start(self) -> None:
         """Fake the docstring."""
+        pass
 
-        def _setup_files() -> None:
-            if self.config.get("database"):
-                self._output_db = sqlite3.connect(self.config["database"])
-                self._db_cursor = self._output_db.cursor()
-                _ = self._db_cursor.execute(TABLE_SQL)  # create if not existant
-                _ = self._db_cursor.execute(INDEX_SQL)  # index if not existant
-                self._output_db.commit()
+        async def proc_packets_from_file() -> None:
+            """Fake the docstring."""
+            with open(self.config["input_file"]) as self._input_fp:
+                for ts_packet in self._input_fp:  # main loop when packets from file
+                    self._get_packet(ts_packet[:26], ts_packet[27:].strip())
+                    await self._put_packet(destination=None)  # to empty the buffer
 
-            if self.config.get("known_devices"):
-                try:
-                    with open(self.config["known_devices"]) as json_file:
-                        devices = self.device_lookup = json.load(json_file)
-                except FileNotFoundError:
-                    self.device_lookup = {}
+        async def proc_packets_from_port() -> None:
+            """Fake the docstring."""
+            async with SerialPortManager(self.serial_port, loop=self.loop) as manager:
+                self.reader, self.writer = manager.reader, manager.writer
+
+                if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 0418 000000"
+                    cmd = self.config["execute_cmd"]
+                    self.command_queue.put_nowait(
+                        Command(self, cmd[13:17], cmd[:2], cmd[3:12], cmd[18:])
+                    )
+                    await self._put_packet(destination=self.writer)
+
+                while True:  # main loop when packets from serial port
+                    timestamp, raw_packet = await manager.get_next_packet()
+                    self._get_packet(timestamp, raw_packet)
+
+                    # if self.reader._transport.serial.in_waiting == 0:
+                    #     await self._put_packet(destination=self.writer)
+
+        if self.config.get("database"):
+            self._output_db = sqlite3.connect(self.config["database"])
+            self._db_cursor = self._output_db.cursor()
+            _ = self._db_cursor.execute(TABLE_SQL)  # create if not existant
+            _ = self._db_cursor.execute(INDEX_SQL)  # index if not existant
+            self._output_db.commit()
+
+        if self.config.get("known_devices"):
+            try:
+                with open(self.config["known_devices"]) as json_file:
+                    devices = self.device_lookup = json.load(json_file)
+            except FileNotFoundError:
+                self.device_lookup = {}
+            else:
+                if self.config["white_list"]:
+                    self.device_white_list = [
+                        k for k, v in devices.items() if not v.get("blacklist")
+                    ]
                 else:
-                    if self.config["white_list"]:
-                        self.device_white_list = [
-                            k for k, v in devices.items() if not v.get("blacklist")
-                        ]
-                    else:
-                        self.device_black_list = [
-                            k for k, v in devices.items() if v.get("blacklist")
-                        ]
-
-        _setup_files()
+                    self.device_black_list = [
+                        k for k, v in devices.items() if v.get("blacklist")
+                    ]
 
         # Finally, source of packets is either a text file, or a serial port:
         if self.config.get("input_file"):
-            with open(self.config["input_file"]) as self._input_fp:
-                for ts_packet in self._input_fp:  # main loop when packets from file
-                    timestamp, packet = ts_packet[:26], ts_packet[27:].strip()
-
-                    self._proc_packet(timestamp, packet)
-                    await self._send_packet(destination=None)  # to empty the buffer
-
+            await proc_packets_from_file()
         else:  # if self.config["serial_port"] or if self.serial_port
-            try:
-                self.reader, self.writer = await serial_asyncio.open_serial_connection(
-                    loop=self.loop,
-                    url=self.serial_port,
-                    baudrate=BAUDRATE,
-                    timeout=READ_TIMEOUT,
-                    xonxoff=True,
-                )
-            except serial.serialutil.SerialException:
-                raise  # TODO: do better
+            await proc_packets_from_port()
 
-            if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 0418 000000"
-                cmd = self.config["execute_cmd"]
-                self.command_queue.put_nowait(
-                    Command(self, cmd[13:17], cmd[:2], cmd[3:12], cmd[18:])
-                )
-                await self._send_packet(destination=self.writer)
+        if True or _LOGGER.isenabledfor(logging.warning):
+            _LOGGER.error(
+                "%s", f"\r\n{json.dumps(self.structure, indent=4)}"
+            )  # TODO: deleteme
 
-            # with open(self.config["serial_port"]) as serial_port:
-            #     self.reader, self.writer = serial_port
-
-            while True:  # main loop when packets from serial port
-                timestamp, packet = await get_packet_from_port(self.reader)
-
-                self._proc_packet(timestamp, packet)
-                if self.reader._transport.serial.in_waiting == 0:
-                    await self._send_packet(destination=self.writer)
-
-    def _proc_packet(self, timestamp, packet) -> None:
+    def _get_packet(self, timestamp, packet) -> None:
         """Receive a packet and validate it as a message."""
 
-        def _useful_packet(timestamp, packet) -> bool:
+        def _is_useful_packet(timestamp, packet) -> bool:
             """Process the packet."""
             if not is_valid_packet(packet, timestamp):
                 return  # drop all invalid packets, log if so
@@ -335,11 +332,11 @@ class Gateway:
             except KeyError:  # TODO: KeyError: '18:013393'
                 pass
 
-        if _useful_packet(timestamp, packet):
+        if _is_useful_packet(timestamp, packet):
             if not self.config.get("raw_output"):
                 _decode_packet(timestamp, packet)
 
-    async def _send_packet(self, destination) -> None:
+    async def _put_packet(self, destination) -> None:
         """Send a command unless in listen_only mode."""
         if not self.command_queue.empty():
             cmd = self.command_queue.get()
@@ -352,3 +349,54 @@ class Gateway:
                 await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
 
             self.command_queue.task_done()
+
+
+class SerialPortManager:
+    """Fake class docstring."""
+
+    def __init__(self, serial_port, loop, timeout=READ_TIMEOUT) -> None:
+        """Fake method docstring."""
+        self.serial_port = serial_port
+        self.baudrate = BAUDRATE
+        self.timeout = timeout
+        self.xonxoff = True
+        self.loop = loop
+
+        self.reader = self.write = None
+
+    async def __aenter__(self):
+        """Fake method docstring."""
+        self.reader, self.writer = await serial_asyncio.open_serial_connection(
+            loop=self.loop,
+            url=self.serial_port,
+            baudrate=self.baudrate,
+            timeout=self.timeout,
+            xonxoff=True,
+        )
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        """Fake method docstring."""
+        pass
+
+    async def get_next_packet(self):
+        """Get the next valid packet from a serial port."""
+        from string import printable
+
+        print(time_stamp(), "doing something")
+
+        try:
+            raw_packet = await self.reader.readline()
+        except serial.SerialException:
+            return (None, None)
+
+        timestamp = time_stamp()  # at end of packet
+        raw_packet = "".join(c for c in raw_packet.decode().strip() if c in printable)
+
+        print(timestamp, "done something")
+
+        if raw_packet:
+            # firmware-level packet hacks, i.e. non-HGI80 devices, should be here
+            return (timestamp, raw_packet)
+
+        return (timestamp, None)
