@@ -95,7 +95,7 @@ def set_logging(logger, stream=sys.stderr, file_name=None):
         handler = logging.FileHandler(file_name)
         handler.setFormatter(logging.Formatter(fmt=LOGFILE_FORMAT))
         handler.setLevel(logging.DEBUG)
-        handler.addFilter(InfoFilter())
+        handler.addFilter(DebugFilter())  # TODO: was InfoFilter()
 
         logger.addHandler(handler)
 
