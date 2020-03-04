@@ -4,7 +4,6 @@ import json
 import logging
 import os
 import signal
-import sqlite3
 import sys
 from queue import Queue
 from typing import Optional
@@ -81,7 +80,6 @@ class Gateway:
             stream=sys.stdout if config.get("raw_output") else None,
         )
 
-        self.reader = self.writer = None
         self._input_fp = None
         self._output_db = self._db_cursor = None
 
@@ -103,10 +101,9 @@ class Gateway:
         self.system = System(self)
         self.data = {f"{i:02X}": {} for i in range(12)}
 
-        # Windows don't like: AttributeError: module 'signal' has no attribute 'SIGHUP'
         if os.name == "posix":
             signal.signal(signal.SIGHUP, self._signal_handler)
-        for s in (signal.SIGINT, signal.SIGTERM):  # signal:SIGHUP
+        for s in (signal.SIGINT, signal.SIGTERM):
             signal.signal(s, self._signal_handler)
 
     def _signal_handler(self, signum, frame):
@@ -225,37 +222,47 @@ class Gateway:
         pass
 
         async def proc_packets_from_file() -> None:
-            """Fake the docstring."""
-            with open(self.config["input_file"]) as self._input_fp:
-                for ts_packet in self._input_fp:  # main loop when packets from file
-                    self._get_packet(ts_packet[:26], ts_packet[27:].strip())
+            """Process packets from a file, asynchonously."""
+            import aiofiles
+
+            async with aiofiles.open(self.config["input_file"]) as self._input_fp:
+                async for ts_packet in self._input_fp:
+                    await self._get_packet(ts_packet[:26], ts_packet[27:].strip())
                     await self._put_packet(destination=None)  # to empty the buffer
 
         async def proc_packets_from_port() -> None:
             """Fake the docstring."""
-            async with SerialPortManager(self.serial_port, loop=self.loop) as manager:
-                self.reader, self.writer = manager.reader, manager.writer
+            pass
 
+            async def port_reader():
+                while True:  # main loop
+                    await self._get_packet(*(await manager.get_next_packet()))
+
+            async def port_writer(manager):
+                while True:  # main loop
+                    if manager.reader._transport.serial.in_waiting == 0:
+                        await self._put_packet(destination=manager.writer)
+                    else:
+                        await asyncio.sleep(0.05)
+
+            async with SerialPortManager(self.serial_port, loop=self.loop) as manager:
                 if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 0418 000000"
                     cmd = self.config["execute_cmd"]
                     self.command_queue.put_nowait(
                         Command(self, cmd[13:17], cmd[:2], cmd[3:12], cmd[18:])
                     )
-                    await self._put_packet(destination=self.writer)
+                    await self._put_packet(destination=manager.writer)
 
-                while True:  # main loop when packets from serial port
-                    timestamp, raw_packet = await manager.get_next_packet()
-                    self._get_packet(timestamp, raw_packet)
-
-                    # if self.reader._transport.serial.in_waiting == 0:
-                    #     await self._put_packet(destination=self.writer)
+                await asyncio.gather(port_reader(), port_writer(manager))
 
         if self.config.get("database"):
-            self._output_db = sqlite3.connect(self.config["database"])
-            self._db_cursor = self._output_db.cursor()
-            _ = self._db_cursor.execute(TABLE_SQL)  # create if not existant
-            _ = self._db_cursor.execute(INDEX_SQL)  # index if not existant
-            self._output_db.commit()
+            import aiosqlite as sqlite3
+
+            self._output_db = await sqlite3.connect(self.config["database"])
+            self._db_cursor = await self._output_db.cursor()
+            await self._db_cursor.execute(TABLE_SQL)  # create if not existant
+            await self._db_cursor.execute(INDEX_SQL)  # index if not already
+            await self._output_db.commit()
 
         if self.config.get("known_devices"):
             try:
@@ -275,19 +282,19 @@ class Gateway:
 
         # Finally, source of packets is either a text file, or a serial port:
         if self.config.get("input_file"):
-            await proc_packets_from_file()
+            await proc_packets_from_file()  # main loop
         else:  # if self.config["serial_port"] or if self.serial_port
-            await proc_packets_from_port()
+            await proc_packets_from_port()  # main loop
 
-        if True or _LOGGER.isenabledfor(logging.warning):
+        if _LOGGER.isenabledfor(logging.warning):
             _LOGGER.error(
                 "%s", f"\r\n{json.dumps(self.structure, indent=4)}"
             )  # TODO: deleteme
 
-    def _get_packet(self, timestamp, packet) -> None:
+    async def _get_packet(self, timestamp, packet) -> None:
         """Receive a packet and validate it as a message."""
 
-        def _is_useful_packet(timestamp, packet) -> bool:
+        async def _is_useful_packet(timestamp, packet) -> bool:
             """Process the packet."""
             if not is_valid_packet(packet, timestamp):
                 return  # drop all invalid packets, log if so
@@ -303,9 +310,8 @@ class Gateway:
                 w = [0, 27, 31, 34, 38, 48, 58, 68, 73, 77, 165]  # 165? 199 works
                 data = tuple([tsp[w[i - 1] : w[i] - 1] for i in range(1, len(w))])
 
-                _ = self._db_cursor.execute(INSERT_SQL, data)
-
-                self._output_db.commit()
+                await self._db_cursor.execute(INSERT_SQL, data)
+                await self._output_db.commit()
 
             if not is_wanted_packet(packet, timestamp, self.config["black_list"]):
                 return  # drop packets containing black-listed text
@@ -336,7 +342,7 @@ class Gateway:
             except KeyError:  # TODO: KeyError: '18:013393'
                 pass
 
-        if _is_useful_packet(timestamp, packet):
+        if await _is_useful_packet(timestamp, packet):
             if not self.config.get("raw_output"):
                 _decode_packet(timestamp, packet)
 
@@ -345,11 +351,9 @@ class Gateway:
         if not self.command_queue.empty():
             cmd = self.command_queue.get()
 
-            if destination is None:
-                pass
-            elif destination is self.writer:
+            if destination is not None:
                 # TODO: if not cmd.entity._pkts.get(cmd.code):
-                self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
+                destination.write(bytearray(f"{cmd}\r\n".encode("ascii")))
                 await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
 
             self.command_queue.task_done()
