@@ -102,7 +102,8 @@ class Gateway:
         self.system = System(self)
         self.data = {f"{i:02X}": {} for i in range(12)}
 
-        for s in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+        # Windows doesn't like SIGHUP - AttributeError
+        for s in (signal.SIGINT, signal.SIGTERM):
             signal.signal(s, self._signal_handler)
 
     def _signal_handler(self, signum, frame):
