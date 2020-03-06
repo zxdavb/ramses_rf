@@ -29,6 +29,7 @@ def is_wanted_packet(raw_packet, dtm, black_list=None) -> bool:
         raw_packet,
         extra={"date": dtm[:10], "time": dtm[11:]},
     )
+    return False
 
 
 def is_valid_packet(raw_packet, dtm, logging=True) -> bool:

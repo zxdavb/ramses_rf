@@ -278,7 +278,7 @@ class Gateway:
         else:  # if self.config["serial_port"] or if self.serial_port
             await proc_packets_from_port()  # main loop
 
-        if _LOGGER.isenabledfor(logging.warning):
+        if _LOGGER.isEnabledFor(logging.WARNING):
             _LOGGER.error(
                 "%s", f"\r\n{json.dumps(self.structure, indent=4)}"
             )  # TODO: deleteme
@@ -310,7 +310,7 @@ class Gateway:
 
             return True
 
-        if self.config.get("raw_output") > 1:
+        if self.config.get("raw_output") > 1:  # TODO: Bruce's hack
             if is_valid_packet(packet, timestamp, logging=False):
                 pkt_logger.info(
                     "%s", packet, extra={"date": timestamp[:10], "time": timestamp[11:]}

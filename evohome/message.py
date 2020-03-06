@@ -40,20 +40,23 @@ class Message:
 
         def _dev_name(idx) -> str:
             """Return a friendly device name."""
-            if self.device_id[idx][:2] == "--":  # No device ID
-                return f"{'':<10}"
+            device_id = self.device_id[idx]
 
-            if self.device_id[idx][:2] == "63":  # Null device ID
-                return "<null dev>"
+            if device_id[:2] == "--":
+                return f"{'':<10}"  # No device ID
 
-            if idx == 2 and self.device_id[2] == self.device_id[0]:
-                return "<announce>"  # "<broadcast>"
+            if device_id[:2] == "63":
+                return "<null dev>"  # Null device ID
 
-            dev = self._gateway.device_by_id.get(self.device_id[idx])
+            if idx == 2 and device_id == self.device_id[0]:
+                return "<announce>"  # Broadcast?
+
+            dev = self._gateway.device_by_id.get(device_id)
             if dev and dev._friendly_name:
                 return f"{dev._friendly_name}"
 
-            return f"{DEVICE_MAP[self.device_id[idx][:2]]}:{self.device_id[idx][3:]}"
+            device_type = DEVICE_MAP.get(device_id[:2], f"{device_id[:2]:>3}")
+            return f"{device_type}:{self.device_id[idx][3:]}"
 
         device_names = [_dev_name(x) for x in range(3) if _dev_name(x) != f"{'':<10}"]
         if len(device_names) < 2:
@@ -96,7 +99,8 @@ class Message:
         def harvest_new_entities(self):
             def get_device(gateway, device_id):
                 """Get a Device, create it if required."""
-                assert device_id[:2] not in ["18", "63", "--"]
+                assert device_id[:2] not in ["63", "--"]
+                assert device_id[:2] in DEVICE_MAP
 
                 try:  # does the system already know about this entity?
                     entity = gateway.device_by_id[device_id]
@@ -149,12 +153,21 @@ class Message:
         except AttributeError:
             payload_parser = getattr(parsers, "parser_unknown")
 
-        try:  # use that parser and (naughty) harvest
-            # if "18" not in [self.device_id[0][:2], self.device_id[1][:2]]:
-            if self.device_id[0][:2] != "18":
-                # TODO: may interfere with discovery
-                harvest_new_entities(self)  # TODO: shouldn't be sharing this try block
+        try:
+            if self.device_id[0][:2] != "18":  # TODO: may interfere with discovery
+                harvest_new_entities(self)
 
+        except AssertionError:  # for dev only?
+            self._is_valid_payload = False
+
+            _LOGGER.exception(
+                "%s",
+                str(self),
+                extra={"date": self._timestamp[:10], "time": self._timestamp[11:]},
+            )
+            return
+
+        try:
             if payload_parser:
                 self._payload = payload_parser(self.raw_payload, self)
 
