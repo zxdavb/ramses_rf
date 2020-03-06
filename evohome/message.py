@@ -120,10 +120,10 @@ class Message:
 
             # Discover new (unknown) devices
             for dev in range(3):
-                if self.device_id[dev][:2] == "18":
-                    break  # DEV -> HGI is OK?
                 if self.device_id[dev][:2] in ["--", "63"]:
                     continue
+                if dev == 0 and self.device_id[dev][:2] == "18":
+                    break  # DEV -> HGI is OK?
                 get_device(self._gateway, self.device_id[dev])
 
             # Discover new (unknown) zones

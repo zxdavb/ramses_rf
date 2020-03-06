@@ -2,9 +2,9 @@
 
 import logging
 
-# from string import printable
 import serial
 import serial_asyncio
+from string import printable
 
 from .const import MESSAGE_REGEX
 from .logger import time_stamp
@@ -31,12 +31,12 @@ def is_wanted_packet(raw_packet, dtm, black_list=None) -> bool:
     )
 
 
-def is_valid_packet(raw_packet, dtm) -> bool:
+def is_valid_packet(raw_packet, dtm, logging=True) -> bool:
     """Return True if a packet is valid."""
     if raw_packet is None:
         return False
 
-    try:
+    try:  # TODO: this entire block shouldn't be needed
         _ = MESSAGE_REGEX.match(raw_packet)
     except TypeError:
         _LOGGER.warning(
@@ -56,6 +56,9 @@ def is_valid_packet(raw_packet, dtm) -> bool:
             err_msg = "payload length mismatch"
         else:
             return True
+
+        if logging is False:
+            return False
 
         _LOGGER.warning(
             "*** Invalid packet: >>>%s<<< (%s)",
@@ -105,10 +108,6 @@ class SerialPortManager:
 
     async def get_next_packet(self):
         """Get the next valid packet from a serial port."""
-        from string import printable
-
-        # print(time_stamp(), "doing something")
-
         try:
             raw_packet = await self.reader.readline()
         except serial.SerialException:
@@ -117,10 +116,8 @@ class SerialPortManager:
         timestamp = time_stamp()  # at end of packet
         raw_packet = "".join(c for c in raw_packet.decode().strip() if c in printable)
 
-        # print(timestamp, "done something")
+        if not raw_packet:
+            return (timestamp, None)
 
-        if raw_packet:
-            # firmware-level packet hacks, i.e. non-HGI80 devices, should be here
-            return (timestamp, raw_packet)
-
-        return (timestamp, None)
+        # firmware-level packet hacks, i.e. non-HGI80 devices, should be here
+        return (timestamp, raw_packet)

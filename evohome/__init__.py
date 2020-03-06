@@ -310,9 +310,20 @@ class Gateway:
 
             return True
 
+        if self.config.get("raw_output") > 1:
+            if is_valid_packet(packet, timestamp, logging=False):
+                pkt_logger.info(
+                    "%s", packet, extra={"date": timestamp[:10], "time": timestamp[11:]}
+                )
+            else:
+                pkt_logger.warning(
+                    "%s", packet, extra={"date": timestamp[:10], "time": timestamp[11:]}
+                )
+            return
+
         if await _is_useful_packet(timestamp, packet):
             if not self.config.get("raw_output"):
-                self._decode_packet(timestamp, packet)
+                self._decode_payload(timestamp, packet)
 
     async def _dispatch_packet(self, destination=None) -> None:
         """Send a command unless in listen_only mode."""
@@ -326,7 +337,7 @@ class Gateway:
 
             self.command_queue.task_done()
 
-    def _decode_packet(self, timestamp, packet) -> bool:
+    def _decode_payload(self, timestamp, packet) -> bool:
         """Decode the packet and its payload."""
         try:
             msg = Message(packet, timestamp, self)
