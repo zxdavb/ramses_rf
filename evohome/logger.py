@@ -37,13 +37,13 @@ def time_stamp() -> str:
 def time_time():
     """Return an accurate time, even for Windows-based systems."""
     # see: https://www.python.org/dev/peps/pep-0564/
-    if os.name == "nt":
-        file_time = FILETIME()
-        ctypes.windll.kernel32.GetSystemTimePreciseAsFileTime(ctypes.byref(file_time))
-        _time = (file_time.dwLowDateTime + (file_time.dwHighDateTime << 32)) / 1e7
-        return _time - 134774 * 24 * 60 * 60  # since 1601-01-01T00:00:00Z
-    # if os.name == "posix":
-    return time.time()  # since 1970-01-01T00:00:00Z
+    if os.name == "posix":
+        return time.time()  # since 1970-01-01T00:00:00Z
+    # if os.name == "nt":
+    file_time = FILETIME()
+    ctypes.windll.kernel32.GetSystemTimePreciseAsFileTime(ctypes.byref(file_time))
+    _time = (file_time.dwLowDateTime + (file_time.dwHighDateTime << 32)) / 1e7
+    return _time - 134774 * 24 * 60 * 60  # since 1601-01-01T00:00:00Z
 
 
 def set_logging(logger, stream=sys.stderr, file_name=None):

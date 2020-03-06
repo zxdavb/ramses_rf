@@ -41,7 +41,8 @@ def _parse_args():
     mutex.add_argument(
         "-r",
         "--raw_output",
-        action="store_true",
+        action="count",
+        default=0,
         help="display packets rather than decoded messages",
     )
     mutex.add_argument(
