@@ -53,7 +53,7 @@ def _parse_args():
         "-w", "--window", default=1, type=pos_float, help="look ahead in secs (float)"
     )
     group.add_argument(
-        "-f", "--filter", default="*", type=str, help="drop blocks without this string",
+        "-f", "--filter", default="*", type=str, help="drop blocks without this string"
     )
 
     group = parser.add_argument_group(title="Debug options")
