@@ -4,6 +4,8 @@ import os
 import re
 from datetime import datetime as dt, timedelta
 
+RSSI_REGEXP = re.compile(r"(-{3}|\d{3})")
+
 DEBUG_ADDR = "172.27.0.138"
 DEBUG_PORT = 5679
 
@@ -17,10 +19,17 @@ def _parse_args():
 
     def positive_int(value):
         """Check that value is a positive int."""
-        ivalue = int(value)
-        if ivalue <= 0:
-            raise argparse.ArgumentTypeError(f"{value} is not a positive int value")
-        return ivalue
+        i_value = int(value)
+        if i_value <= 0:
+            raise argparse.ArgumentTypeError(f"{value} is not a positive int")
+        return i_value
+
+    def positive_float(value):
+        """Check that value is a positive float."""
+        f_value = float(value)
+        if f_value <= 0:
+            raise argparse.ArgumentTypeError(f"{value} is not a positive float")
+        return f_value
 
     parser = argparse.ArgumentParser()
 
@@ -36,6 +45,7 @@ def _parse_args():
     group = parser.add_argument_group(title="Context control")
     group.add_argument("-B", "--before", default=2, type=positive_int)
     group.add_argument("-A", "--after", default=2, type=positive_int)
+    group.add_argument("-W", "--window", default=1, type=positive_float)
 
     group = parser.add_argument_group(title="Debug options")
     group.add_argument(
@@ -71,10 +81,6 @@ def main():
     compare(args)
 
 
-RSSI_REGEXP = re.compile(r"(-{3}|\d{3})")
-TIME_WINDOW = timedelta(seconds=1)
-
-
 def compare(config) -> None:
     """Main loop."""
 
@@ -107,10 +113,12 @@ def compare(config) -> None:
             print(f"=== {un_parse(pkt)}")
         return []
 
+    TIME_WINDOW = timedelta(seconds=config.window)
+    pkt1_before = []
+    pkt2_list = []
+    counter = 0
+
     with open(config.file_one) as fh1, open(config.file_two) as fh2:
-        pkt1_before = []
-        pkt2_list = []
-        counter = 0
 
         for line in fh1.readlines():
             pkt1 = parse(line)
@@ -132,16 +140,16 @@ def compare(config) -> None:
                     del pkt2_list[0]  # the matching packet
                     break
 
-            if not matched:
-                counter = config.after
-                pkt1_before = print_before(pkt1_before)
-                print(f"<<< {un_parse(pkt1)}")  # only in the 1st file
-            else:
+            if matched:
                 if counter > 0:
                     counter -= 1
                     print(f"=== {un_parse(pkt1)}")
                 else:
                     fifo_pkt(pkt1_before, pkt1)
+            else:
+                counter = config.after
+                pkt1_before = print_before(pkt1_before)
+                print(f"<<< {un_parse(pkt1)}")  # only in the 1st file
 
 
 if __name__ == "__main__":  # called from CLI?
