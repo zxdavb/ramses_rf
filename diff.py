@@ -113,10 +113,26 @@ def compare(config) -> None:
             print(f"=== {un_parse(pkt)}")
         return []
 
+    def new_block(pkt_before, block_list):
+        if len(pkt_before) == config.before:
+            end_block(block_list)
+            block_list = [""]
+        for pkt in pkt_before:
+            # print(f"=== {un_parse(pkt)}")
+            block_list.append(f"=== {un_parse(pkt)}")
+        return []
+
+    def end_block(_block_list):
+        if any("*" in x for x in _block_list):
+            for log_line in block_list:
+                print(log_line)
+
     TIME_WINDOW = timedelta(seconds=config.window)
     pkt1_before = []
     pkt2_list = []
     counter = 0
+
+    block_list = []
 
     with open(config.file_one) as fh1, open(config.file_two) as fh2:
 
@@ -131,10 +147,11 @@ def compare(config) -> None:
                     if idx > 0:  # some unmatched pkt2s
                         counter = config.after
                         pkt1_before = print_before(pkt1_before)
+                        # pkt1_before = new_block(pkt1_before, block_list)
 
                         for i in range(idx):
-                            pkt = pkt2_list[0]
-                            print(f">>> {un_parse(pkt)}")  # only in the 2nd file
+                            print(f">>> {un_parse(pkt2_list[0])}")  # only in 2nd file
+                            # block_list.append(f">>> {un_parse(pkt2_list[0])}")
                             del pkt2_list[0]
 
                     del pkt2_list[0]  # the matching packet
@@ -144,12 +161,17 @@ def compare(config) -> None:
                 if counter > 0:
                     counter -= 1
                     print(f"=== {un_parse(pkt1)}")
+                    # block_list.append(f"=== {un_parse(pkt1)}")
                 else:
                     fifo_pkt(pkt1_before, pkt1)
             else:
                 counter = config.after
                 pkt1_before = print_before(pkt1_before)
-                print(f"<<< {un_parse(pkt1)}")  # only in the 1st file
+                print(f"<<< {un_parse(pkt1)}")  # only in 1st file
+                # pkt1_before = new_block(pkt1_before, block_list)
+                # block_list.append(f"<<< {un_parse(pkt1)}")
+
+    end_block(block_list)
 
 
 if __name__ == "__main__":  # called from CLI?
