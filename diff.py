@@ -43,10 +43,10 @@ def _parse_args():
     #   -C, --context=NUM         print NUM lines of output context
 
     group = parser.add_argument_group(title="Context control")
-    group.add_argument("-b", "--before", default=3, type=positive_int)
-    group.add_argument("-a", "--after", default=3, type=positive_int)
+    group.add_argument("-B", "--before", default=2, type=positive_int)
+    group.add_argument("-A", "--after", default=2, type=positive_int)
     group.add_argument("-w", "--window", default=1, type=positive_float)
-    group.add_argument("-m", "--marker", default="*", type=str)
+    group.add_argument("-f", "--filter", default="*", type=str)
 
     group = parser.add_argument_group(title="Debug options")
     group.add_argument(
@@ -124,8 +124,8 @@ def compare(config) -> None:
         return [], block_list
 
     def end_block(_block_list):
-        if any(config.marker in x for x in _block_list):
-            for log_line in block_list:  # print before this line
+        if any(config.filter in x for x in _block_list):
+            for log_line in block_list:
                 print(log_line)
             pass
 
