@@ -89,8 +89,8 @@ class Gateway:
         self.devices = []
         self.device_by_id = {}
         self.device_lookup = {}
-        self.device_black_list = []
-        self.device_white_list = []
+        self.device_blacklist = []
+        self.device_whitelist = []
 
         self.system = System(self)
         self.data = {f"{i:02X}": {} for i in range(12)}
@@ -220,7 +220,14 @@ class Gateway:
 
             async with aiofiles.open(self.config["input_file"]) as self._input_fp:
                 async for ts_packet in self._input_fp:
-                    await self._process_packet(ts_packet[:26], ts_packet[27:].strip())
+                    pkt = {
+                        "packet": ts_packet[27:].strip(),
+                        "packet_raw": None,
+                        "date": ts_packet[:10],
+                        "time": ts_packet[11:26],
+                    }
+
+                    await self._process_packet(pkt)
                     await self._dispatch_packet(destination=None)  # to empty the buffer
 
         async def proc_packets_from_port() -> None:
@@ -228,7 +235,7 @@ class Gateway:
 
             async def port_reader():
                 while True:  # main loop
-                    await self._process_packet(*(await manager.get_next_packet()))
+                    await self._process_packet(await manager.get_next_packet())
 
             async def port_writer(manager):
                 while True:  # main loop
@@ -263,12 +270,12 @@ class Gateway:
             except FileNotFoundError:
                 self.device_lookup = {}
             else:
-                if self.config["white_list"]:
-                    self.device_white_list = [
+                if self.config["whitelist"]:
+                    self.device_whitelist = [
                         k for k, v in devices.items() if not v.get("blacklist")
                     ]
                 else:
-                    self.device_black_list = [
+                    self.device_blacklist = [
                         k for k, v in devices.items() if v.get("blacklist")
                     ]
 
@@ -283,47 +290,41 @@ class Gateway:
                 "%s", f"\r\n{json.dumps(self.structure, indent=4)}"
             )  # TODO: deleteme
 
-    async def _process_packet(self, timestamp, packet) -> None:
+    async def _process_packet(self, pkt: dict) -> None:
         """Receive a packet and optionally validate it as a message."""
 
-        async def _is_useful_packet(timestamp, packet) -> bool:
+        async def _is_useful_packet(pkt: dict) -> bool:
             """Process the packet."""
-            if not is_valid_packet(packet, timestamp):
+            if not is_valid_packet(pkt):
                 return  # drop all invalid packets, log if so
 
-            if not is_wanted_device(
-                packet, self.device_white_list, self.device_black_list
-            ):
+            if not is_wanted_device(pkt, self.device_whitelist, self.device_blacklist):
                 return  # silently drop packets containing unwanted devices
 
             # if archiving, store all valid packets, even those not to be parsed
             if self._output_db:
-                tsp = f"{timestamp} {packet}"
+                tsp = f"{pkt['packet']} {pkt['date']}T{pkt['time']}"
                 w = [0, 27, 31, 34, 38, 48, 58, 68, 73, 77, 165]  # 165? 199 works
                 data = tuple([tsp[w[i - 1] : w[i] - 1] for i in range(1, len(w))])
 
                 await self._db_cursor.execute(INSERT_SQL, data)
                 await self._output_db.commit()
 
-            if not is_wanted_packet(packet, timestamp, self.config["black_list"]):
-                return  # drop packets containing black-listed text
+            if not is_wanted_packet(pkt, self.config["blacklist"]):
+                return  # drop packets containing blacklisted text
 
             return True
 
         if self.config.get("raw_output") > 1:  # TODO: Bruce's hack
-            if is_valid_packet(packet, timestamp, logging=False):
-                pkt_logger.info(
-                    "%s", packet, extra={"date": timestamp[:10], "time": timestamp[11:]}
-                )
+            if is_valid_packet(pkt, logging=False):
+                pkt_logger.info("%s", pkt["packet"], extra=pkt)
             else:
-                pkt_logger.warning(
-                    "%s", packet, extra={"date": timestamp[:10], "time": timestamp[11:]}
-                )
+                pkt_logger.warning("%s", pkt["packet"], extra=pkt)
             return
 
-        if await _is_useful_packet(timestamp, packet):
+        if await _is_useful_packet(pkt):
             if not self.config.get("raw_output"):
-                self._decode_payload(timestamp, packet)
+                self._decode_payload(pkt)
 
     async def _dispatch_packet(self, destination=None) -> None:
         """Send a command unless in listen_only mode."""
@@ -337,14 +338,12 @@ class Gateway:
 
             self.command_queue.task_done()
 
-    def _decode_payload(self, timestamp, packet) -> bool:
+    def _decode_payload(self, pkt: dict) -> bool:
         """Decode the packet and its payload."""
         try:
-            msg = Message(packet, timestamp, self)
+            msg = Message(pkt["packet"], f"{pkt['date']}T{pkt['time']}", self)
         except (ValueError, AssertionError):
-            _LOGGER.exception(
-                "%s", packet, extra={"date": timestamp[:10], "time": timestamp[11:]}
-            )
+            _LOGGER.exception("%s", pkt["packet"], extra=pkt)
             return
 
         if not msg.is_valid_payload:
