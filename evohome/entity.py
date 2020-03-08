@@ -14,10 +14,10 @@ from .const import (
 
 def dev_hex_to_id(device_hex: str, friendly_id=False) -> str:
     """Convert (say) '06368E' to '01:145038' (or 'CTL:145038')."""
-    # if device_hex == "FFFFFF":
-    #     return f"{'':9}" if friendly_id else "--:------"
-    if not device_hex:
-        return f"{'':9}" if friendly_id else "--:------"
+    if device_hex == "FFFFFF":  # aka '63:262143'
+        return f"{'':10}" if friendly_id else f"{'':9}"
+    if not device_hex.strip():  # aka '--:------'
+        return f"{'':10}" if friendly_id else "--:------"
     _tmp = int(device_hex, 16)
     dev_type = f"{(_tmp & 0xFC0000) >> 18:02d}"
     if friendly_id:
@@ -29,11 +29,9 @@ def dev_id_to_hex(device_id: str) -> str:
     """Convert (say) '01:145038' (or 'CTL:145038') to '06368E'."""
     if len(device_id) == 9:  # e.g. '01:123456'
         dev_type = device_id[:2]
-        dev_number = device_id[3:]
     else:  # len(device_id) == 10, e.g. 'CTL:123456', or ' 63:262143'
         dev_type = DEVICE_LOOKUP.get(device_id[:3], device_id[1:3])
-        dev_number = device_id[4:]
-    return f"{(int(dev_type) << 18) + int(dev_number):0>6X}"  # without preceeding 0x
+    return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # sans preceding 0x
 
 
 class Entity:
