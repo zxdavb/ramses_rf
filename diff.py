@@ -34,8 +34,8 @@ def _parse_args():
     parser = argparse.ArgumentParser()
 
     group = parser.add_argument_group(title="File names")
-    group.add_argument("file_one", type=extant_file)
-    group.add_argument("file_two", type=extant_file)
+    group.add_argument("file_one", type=extant_file, help="left file (<<<), say nanofw")
+    group.add_argument("file_two", type=extant_file, help="right file (>>>), say hgi80")
 
     # Context control:
     #   -B, --before-context=NUM  print NUM lines of leading context
@@ -43,10 +43,22 @@ def _parse_args():
     #   -C, --context=NUM         print NUM lines of output context
 
     group = parser.add_argument_group(title="Context control")
-    group.add_argument("-B", "--before", default=2, type=positive_int)
-    group.add_argument("-A", "--after", default=2, type=positive_int)
-    group.add_argument("-w", "--window", default=1, type=positive_float)
-    group.add_argument("-f", "--filter", default="*", type=str)
+    group.add_argument(
+        "-B", "--before", default=2, type=positive_int, help="lines before the block"
+    )
+    group.add_argument(
+        "-A", "--after", default=2, type=positive_int, help="lines after the block"
+    )
+    group.add_argument(
+        "-w", "--window", default=1, type=positive_float, help="look ahead in seconds"
+    )
+    group.add_argument(
+        "-f",
+        "--filter",
+        default="*",
+        type=str,
+        help="drop blocks without this character",
+    )
 
     group = parser.add_argument_group(title="Debug options")
     group.add_argument(
