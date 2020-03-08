@@ -43,9 +43,10 @@ def _parse_args():
     #   -C, --context=NUM         print NUM lines of output context
 
     group = parser.add_argument_group(title="Context control")
-    group.add_argument("-B", "--before", default=2, type=positive_int)
-    group.add_argument("-A", "--after", default=2, type=positive_int)
-    group.add_argument("-W", "--window", default=1, type=positive_float)
+    group.add_argument("-b", "--before", default=3, type=positive_int)
+    group.add_argument("-a", "--after", default=3, type=positive_int)
+    group.add_argument("-w", "--window", default=1, type=positive_float)
+    group.add_argument("-m", "--marker", default="*", type=str)
 
     group = parser.add_argument_group(title="Debug options")
     group.add_argument(
@@ -113,19 +114,20 @@ def compare(config) -> None:
             print(f"=== {un_parse(pkt)}")
         return []
 
-    def new_block(pkt_before, block_list):
+    def print_block(pkt_before, block_list) -> list:
         if len(pkt_before) == config.before:
             end_block(block_list)
             block_list = [""]
         for pkt in pkt_before:
             # print(f"=== {un_parse(pkt)}")
             block_list.append(f"=== {un_parse(pkt)}")
-        return []
+        return [], block_list
 
     def end_block(_block_list):
-        if any("*" in x for x in _block_list):
-            for log_line in block_list:
+        if any(config.marker in x for x in _block_list):
+            for log_line in block_list:  # print before this line
                 print(log_line)
+            pass
 
     TIME_WINDOW = timedelta(seconds=config.window)
     pkt1_before = []
@@ -146,12 +148,14 @@ def compare(config) -> None:
                 if matched:
                     if idx > 0:  # some unmatched pkt2s
                         counter = config.after
-                        pkt1_before = print_before(pkt1_before)
-                        # pkt1_before = new_block(pkt1_before, block_list)
+                        # t1_before = print_before(pkt1_before)
+                        pkt1_before, block_list = print_block(pkt1_before, block_list)
 
                         for i in range(idx):
-                            print(f">>> {un_parse(pkt2_list[0])}")  # only in 2nd file
-                            # block_list.append(f">>> {un_parse(pkt2_list[0])}")
+                            # print(f">>> {un_parse(pkt2_list[0])}")  # only in 2nd file
+                            block_list.append(
+                                f">>> {un_parse(pkt2_list[0])}"
+                            )  # only in 2nd file
                             del pkt2_list[0]
 
                     del pkt2_list[0]  # the matching packet
@@ -160,16 +164,17 @@ def compare(config) -> None:
             if matched:
                 if counter > 0:
                     counter -= 1
-                    print(f"=== {un_parse(pkt1)}")
-                    # block_list.append(f"=== {un_parse(pkt1)}")
+                    # print(f"=== {un_parse(pkt1)}")
+                    block_list.append(f"=== {un_parse(pkt1)}")
                 else:
                     fifo_pkt(pkt1_before, pkt1)
             else:
                 counter = config.after
-                pkt1_before = print_before(pkt1_before)
-                print(f"<<< {un_parse(pkt1)}")  # only in 1st file
-                # pkt1_before = new_block(pkt1_before, block_list)
-                # block_list.append(f"<<< {un_parse(pkt1)}")
+                # t1_before = print_before(pkt1_before)
+                pkt1_before, block_list = print_block(pkt1_before, block_list)
+                # int(f"<<< {un_parse(pkt1)}")  # only in 1st file
+                block_list.append(f"<<< {un_parse(pkt1)}")  # only in 1st file
+                pass
 
     end_block(block_list)
 
