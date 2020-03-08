@@ -17,14 +17,14 @@ def _parse_args():
             raise argparse.ArgumentTypeError(f"{file_name} does not exist")
         return file_name
 
-    def positive_int(value):
+    def pos_int(value):
         """Check that value is a positive int."""
         i_value = int(value)
         if i_value <= 0:
             raise argparse.ArgumentTypeError(f"{value} is not a positive int")
         return i_value
 
-    def positive_float(value):
+    def pos_float(value):
         """Check that value is a positive float."""
         f_value = float(value)
         if f_value <= 0:
@@ -44,13 +44,13 @@ def _parse_args():
 
     group = parser.add_argument_group(title="Context control")
     group.add_argument(
-        "-B", "--before", default=2, type=positive_int, help="lines before the block"
+        "-B", "--before", default=2, type=pos_int, help="matched lines before the block"
     )
     group.add_argument(
-        "-A", "--after", default=2, type=positive_int, help="lines after the block"
+        "-A", "--after", default=2, type=pos_int, help="matched lines after the block"
     )
     group.add_argument(
-        "-w", "--window", default=1, type=positive_float, help="look ahead in seconds"
+        "-w", "--window", default=1, type=pos_float, help="look ahead in secs (float)"
     )
     group.add_argument(
         "-f",
