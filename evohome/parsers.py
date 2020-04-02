@@ -2,7 +2,8 @@
 
 # pylint: disable=missing-function-docstring
 
-from datetime import datetime as dt, timedelta
+from datetime import datetime as dt
+from datetime import timedelta
 from string import printable
 from typing import Optional, Union
 
@@ -23,8 +24,8 @@ from .const import (
     ZONE_MODE_MAP,
     ZONE_TYPE_MAP,
 )
-from .entity import Device, DhwZone, Domain, Zone, dev_hex_to_id, DEVICE_CLASSES
-from .opentherm import OPENTHERM_MSG_TYPE, OPENTHERM_MESSAGES, ot_msg_value, parity
+from .entity import DEVICE_CLASSES, Device, DhwZone, Domain, Zone, dev_hex_to_id
+from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
 
 
 def parser_decorator(func):
@@ -110,7 +111,9 @@ def _dtm(seqx) -> str:
 def _date(seqx) -> Optional[str]:
     try:  # the seqx might be "FFFFFFFF"
         return dt(
-            year=int(seqx[4:8], 16), month=int(seqx[2:4], 16), day=int(seqx[:2], 16)
+            year=int(seqx[4:8], 16),
+            month=int(seqx[2:4], 16),
+            day=int(seqx[:2], 16) & 0b11111,
         ).strftime("%Y-%m-%d")
     except ValueError:
         return None
@@ -326,10 +329,10 @@ FAULT_TYPE = {"04": "BatteryLow", "06": "CommsFault", "0A": "SensorError"}
 
 @parser_decorator
 def parser_0418(payload, msg) -> Optional[dict]:  # system_fault
-    """10 * 6 log entries in the UI, but 63 via RQs"""
+    """10 * 6 log entries in the UI, but 63 via RQs."""
 
     def _timestamp(seqx):
-        """In the controller UI: YYYY-MM-DD HH:MM"""
+        """In the controller UI: YYYY-MM-DD HH:MM."""
         _seqx = int(seqx, 16)
         return dt(
             year=(_seqx & 0b1111111 << 24) >> 24,
@@ -454,7 +457,7 @@ def parser_10a0(payload, msg) -> Optional[dict]:  # dhw_params
 @parser_decorator
 def parser_10e0(payload, msg) -> Optional[dict]:  # device_info
     assert len(payload) / 2 in [30, 38]  # a non-evohome seen with 30
-
+    #
     return {  # TODO: add version?
         "description": _str(payload[36:]),
         "date_1": _date(payload[20:28]),  # could be 'FFFFFFFF'
@@ -595,14 +598,15 @@ def parser_22c9(payload, msg) -> Optional[dict]:  # ufh_setpoint
     def _parser(seqx) -> dict:
         assert int(seqx[:2], 16) <= 11
         assert seqx[10:] == "01"
-#
+        #
         return {
             "ufh_idx": int(seqx[:2], 16),
             "temp_low": _temp(seqx[2:6]),
             "temp_high": _temp(seqx[6:10]),
             "unknown_0": seqx[10:],
         }
-#
+
+    #
     assert len(payload) % 12 == 0
     return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
 
