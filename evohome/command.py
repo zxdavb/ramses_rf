@@ -1,8 +1,6 @@
 """Evohome serial."""
 
-import time
-
-from .const import COMMAND_FORMAT, COMMAND_REGEX, CTL_DEV_ID, HGI_DEV_ID
+from .const import COMMAND_FORMAT, CTL_DEV_ID, HGI_DEV_ID
 
 # from .logger import _LOGGER
 

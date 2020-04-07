@@ -1,12 +1,14 @@
 # .flake8 file for https://github.com/zxdavb
 
 [flake8]
-ignore = D103,E203,F401  # E226,E302,E41
+  ignore = D102,D103,D105,D107,E203,E501,F401  # E226,E302,E41
 
   # max-line-length as used by black
   max-line-length = 88
 
   per-file-ignores =
+    evohome/__init__.py:E501
     evohome/const.py:E501
+#   evohome/entity.py:E501
     evohome/message.py:E203,E501
     evohome/parsers.py:E203

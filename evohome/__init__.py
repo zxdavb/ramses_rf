@@ -8,7 +8,6 @@ from threading import Thread
 import time
 
 from string import printable
-from datetime import datetime as dt
 from typing import Optional
 
 import asyncio
@@ -18,21 +17,7 @@ import sqlite3
 import serial
 
 from .command import Command
-from .const import (
-    ALL_DEV_ID,
-    COMMAND_EXPOSES_ZONE,
-    COMMAND_FORMAT,
-    COMMAND_LOOKUP,
-    COMMAND_MAP,
-    COMMAND_REGEX,
-    CTL_DEV_ID,
-    DEVICE_LOOKUP,
-    DEVICE_MAP,
-    HGI_DEV_ID,
-    MESSAGE_REGEX,
-    NO_DEV_ID,
-    PACKETS_FILE,
-)
+from .const import MESSAGE_REGEX
 from .entity import System
 from .logger import _CONSOLE, _LOGGER
 from .message import Message
@@ -80,50 +65,6 @@ def time_stamp():
         return _time - 134774 * 24 * 60 * 60  # since 1601-01-01T00:00:00Z
     # if os.name == "posix":
     return time.time()  # since 1970-01-01T00:00:00Z
-
-
-class MessageWorker(Thread):
-    """Fake docstring."""
-
-    def __init__(self, gateway, queue):
-        Thread.__init__(self)
-        self.gateway = queue
-        self.queue = queue
-
-
-class RecvPacketWorker(MessageWorker):
-    """Fake docstring."""
-
-    def run(self):
-        while True:
-            try:
-                pass
-            finally:
-                pass
-
-
-class ProcMessageWorker(MessageWorker):
-    """Fake docstring."""
-
-    def run(self):
-        while True:
-            message = self.queue.get()
-            try:
-                pass
-            finally:
-                self.queue.task_done()
-
-
-class SendCommandWorker(MessageWorker):
-    """Fake docstring."""
-
-    def run(self):
-        while True:
-            command = self.queue.get()
-            try:
-                pass
-            finally:
-                self.queue.task_done()
 
 
 class Gateway:
@@ -262,8 +203,6 @@ class Gateway:
         return database
 
     async def start(self):
-        """This is a docstring."""
-
         async def _recv_message() -> None:
             """Receive a packet and validate it as a message."""
             raw_packet = await self._get_packet()

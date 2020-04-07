@@ -73,7 +73,8 @@ class Entity:
 class Domain(Entity):
     """Base for the named Zones and the other domains (e.g. DHW).
 
-    Domains include F8 (rare), F9, FA, FC & FF."""
+    Domains include F8 (rare), F9, FA, FC & FF.
+    """
 
     def __init__(self, domain_id, gateway) -> None:
         # _LOGGER.debug("Creating a new Domain %s", device_id)
@@ -102,7 +103,7 @@ class Domain(Entity):
         return None
 
     @property
-    def relay_demand(self):  # 3150
+    def relay_demand(self):  # 0008
         return self._get_value("0008", "relay_demand")
 
 
@@ -287,7 +288,7 @@ class Controller(Device):
                 self._gateway.loop.call_later(5, print, self._gateway.database)
 
     def handle_313f(self):
-        """Controllers will RP to a RQ at anytime."""
+        """Handle Controllers will RP to a RQ at anytime."""
         pass
 
     @property
@@ -471,7 +472,7 @@ class Zone(Entity):
                 for d in self.devices
                 if d._device_type == "TRV"
             ]
-            + [0]
+            + [0]  # noqa: W503
         )
 
     @property

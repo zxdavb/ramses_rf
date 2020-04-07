@@ -2,29 +2,11 @@
 
 # pylint: disable=missing-function-docstring
 
-from datetime import datetime as dt
-from datetime import timedelta
-from string import printable
+from datetime import datetime as dt, timedelta
 from typing import Optional, Union
 
-from .const import (
-    ALL_DEV_ID,
-    COMMAND_EXPOSES_ZONE,
-    COMMAND_LENGTH,
-    COMMAND_LOOKUP,
-    COMMAND_MAP,
-    COMMAND_SCHEMA,
-    DEVICE_LOOKUP,
-    DEVICE_MAP,
-    HGI_DEV_ID,
-    MESSAGE_FORMAT,
-    MESSAGE_REGEX,
-    NO_DEV_ID,
-    SYSTEM_MODE_MAP,
-    ZONE_MODE_MAP,
-    ZONE_TYPE_MAP,
-)
-from .entity import DEVICE_CLASSES, Device, DhwZone, Domain, Zone, dev_hex_to_id
+from .const import COMMAND_MAP, SYSTEM_MODE_MAP, ZONE_MODE_MAP
+from .entity import dev_hex_to_id
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
 
 
@@ -93,8 +75,8 @@ def parser_decorator(func):
 
 
 def _dtm(seqx) -> str:
-    #        00141B0A07E3  (...HH:MM:00)    for system_mode, zone_mode (schedules?)
-    #      0400041C0A07E3  (...HH:MM:SS)    for sync_datetime
+    #        00141B0A07E3  (...HH:MM:00) for system_mode, zone_mode (schedules?)
+    #      0400041C0A07E3  (...HH:MM:SS) for sync_datetime
     if len(seqx) == 12:
         seqx = f"00{seqx}"
 
@@ -109,21 +91,20 @@ def _dtm(seqx) -> str:
 
 
 def _date(seqx) -> Optional[str]:
-    try:  # the seqx might be "FFFFFFFF"
-        return dt(
-            year=int(seqx[4:8], 16),
-            month=int(seqx[2:4], 16),
-            day=int(seqx[:2], 16) & 0b11111,
-        ).strftime("%Y-%m-%d")
-    except ValueError:
+    if seqx == "FFFFFFFF":  # seen with non-honeywell kit
         return None
+    return dt(
+        year=int(seqx[4:8], 16),
+        month=int(seqx[2:4], 16),
+        day=int(seqx[:2], 16) & 0b11111,  # 1st 3 bits: DayOfWeek
+    ).strftime("%Y-%m-%d")
 
 
 def _cent(seqx) -> float:
     return int(seqx, 16) / 100
 
 
-def _str(seqx) -> Optional[str]:  # printable
+def _str(seqx) -> Optional[str]:
     _string = bytearray([x for x in bytearray.fromhex(seqx) if 31 < x < 128])
     return _string.decode() if _string else None
 
