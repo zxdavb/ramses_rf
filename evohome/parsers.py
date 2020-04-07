@@ -1,7 +1,6 @@
 """Evohome serial."""
 
-from datetime import datetime as dt
-from datetime import timedelta
+from datetime import datetime as dt, timedelta
 from typing import Optional, Union
 
 from .const import COMMAND_MAP, DOMAIN_MAP, SYSTEM_MODE_MAP, ZONE_MODE_MAP
