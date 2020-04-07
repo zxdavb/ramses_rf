@@ -95,7 +95,7 @@ class Domain(Entity):
         return None
 
     @property
-    def relay_demand(self):  # 3150
+    def relay_demand(self):  # 0008
         return self._get_value("0008", "relay_demand")
 
 
