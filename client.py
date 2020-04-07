@@ -43,7 +43,7 @@ def _parse_args():
         "--raw_output",
         action="count",
         default=0,
-        help="display packets rather than decoded messages",
+        help="0=parse payloads, 1=process packets, 3=no packet processing",
     )
     mutex.add_argument(
         "-m",
@@ -59,11 +59,11 @@ def _parse_args():
         "--known_devices",
         nargs="?",
         const="known_devices.json",
-        help="provide a friendly names (your) or blacklist (your neighbour's) devices",
+        help="friendly names for (your) or blacklist of (your neighbour's) devices",
     )
     group.add_argument(
         "-w",
-        "--white_list",
+        "--whitelist",
         action="store_true",
         help="accept only packets containing known devices that are not blacklisted",
     )
@@ -73,13 +73,13 @@ def _parse_args():
 
     # group = parser.add_argument_group(title="Filters", description="Parser filers")
     # group.add_argument(
-    #     "--white_list",  # default=WHITE_LIST,
+    #     "--whitelist",  # default=whitelist,
     #     nargs="*",
     #     default="",
     #     help="DONT USE - parse only packets matching these regular expressions",
     # )
     group.add_argument(
-        "--black_list",
+        "--blacklist",
         nargs="*",
         help="DONT USE - don't parse any packets matching these strings",
     )
@@ -121,13 +121,13 @@ def _parse_args():
 
     args = parser.parse_args()
 
-    if args.white_list and not args.known_devices:
-        parser.error("--white_list requires --known_devices")
+    if args.whitelist and not args.known_devices:
+        parser.error("--whitelist requires --known_devices")
 
-    return parser.parse_args()
+    return args
 
 
-async def main(loop):
+async def main(loop=None):
     """Main loop."""
     args = _parse_args()
 
@@ -152,7 +152,4 @@ async def main(loop):
 
 
 if __name__ == "__main__":  # called from CLI?
-
-    LOOP = asyncio.get_event_loop()
-    LOOP.run_until_complete(main(LOOP))
-    LOOP.close()
+    asyncio.run(main())

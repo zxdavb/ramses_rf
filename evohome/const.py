@@ -119,7 +119,7 @@ COMMAND_LENGTH = max([len(k) for k in list(COMMAND_LOOKUP)])
 # sed -e 's/ 30:/ GWY:/g' -e 's/ 32:/ VNT:/g' -e 's/ 34:/ STA:/g' -i pkts.out
 # sed -e 's/ 63:/ ALL:/g' -e 's/ --:/  --:/g' -i pkts.out
 
-# T TODO: what devices send what packets
+# TODO: what devices send what packets
 DEVICE_MAP = {
     "01": "CTL",  # Controller
     "02": "UFH",  # Underfloor heating (HCC80, HCE80)
@@ -181,14 +181,14 @@ COMMAND_FORMAT = "{:<2} --- {} {} --:------ {} {:03.0f} {}"
 MESSAGE_FORMAT = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:10s} || {}"
 
 TABLE_SQL = """
-    CREATE TABLE IF NOT EXISTS packets (
+    CREATE TABLE IF NOT EXISTS packets(
         dt      TEXT PRIMARY KEY,
         rssi    TEXT NOT NULL,
         verb    TEXT NOT NULL,
         seq     TEXT NOT NULL,
+        dev_0   TEXT NOT NULL,
         dev_1   TEXT NOT NULL,
         dev_2   TEXT NOT NULL,
-        dev_3   TEXT NOT NULL,
         code    TEXT NOT NULL,
         len     TEXT NOT NULL,
         payload TEXT NOT NULL
@@ -200,4 +200,40 @@ INDEX_SQL = "CREATE INDEX IF NOT EXISTS code_idx ON packets(code);"
 INSERT_SQL = """
     INSERT INTO packets(dt, rssi, verb, seq, dev_1, dev_2, dev_3, code, len, payload)
     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+"""
+
+# BEGIN TRANSACTION;
+RENAME_0 = """
+    CREATE TABLE IF NOT EXISTS pkts_temp(
+        dt      TEXT PRIMARY KEY,
+        rssi    TEXT NOT NULL,
+        verb    TEXT NOT NULL,
+        seq     TEXT NOT NULL,
+        dev_0   TEXT NOT NULL,
+        dev_1   TEXT NOT NULL,
+        dev_2   TEXT NOT NULL,
+        code    TEXT NOT NULL,
+        len     TEXT NOT NULL,
+        payload TEXT NOT NULL
+    ) WITHOUT ROWID;
+"""
+
+RENAME_1 = """
+    INSERT INTO pkts_temp(dt, rssi, verb, seq, dev_0, dev_1, dev_2, code, len, payload)
+    SELECT dt, rssi, verb, seq, dev_1, dev_2, dev_3, code, len, payload
+    FROM packets;
+"""
+
+RENAME_2 = """
+    DROP TABLE packets;
+"""
+
+RENAME_3 = """
+    ALTER TABLE pkts_temp
+    RENAME TO packets;
+"""
+# COMMIT;
+
+RENAME_3 = """
+    VACUUM;
 """

@@ -164,8 +164,6 @@ def parser_0001(payload, msg) -> Optional[dict]:  # rf_unknown
 @parser_decorator
 def parser_0002(payload, msg) -> Optional[dict]:  # sensor_weather
     assert len(payload) / 2 == 4
-    assert payload[:2] == "00"
-    assert payload[6:] in ["00", "01"]
 
     return {"temperature": _temp(payload[2:6]), "unknown_0": payload[6:]}
 
