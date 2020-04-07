@@ -43,7 +43,7 @@ def _parse_args():
         "--raw_output",
         action="count",
         default=0,
-        help="0=parse payloads, 1=process packets, 3=no packet processing",
+        help="0=parse payloads, 1=process packets, 2=no packet processing",
     )
     mutex.add_argument(
         "-m",
