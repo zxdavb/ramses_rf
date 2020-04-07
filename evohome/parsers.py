@@ -8,8 +8,6 @@ from .const import COMMAND_MAP, DOMAIN_MAP, SYSTEM_MODE_MAP, ZONE_MODE_MAP
 from .entity import dev_hex_to_id
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
 
-# noqa:
-
 
 def parser_decorator(func):
     """WIP: Preprocess packets.
@@ -88,10 +86,8 @@ def parser_decorator(func):
 
 def _id(seqx) -> dict:
     assert len(seqx) == 2
-
     if int(seqx, 16) <= 11:
         return seqx
-
     return DOMAIN_MAP.get(seqx, seqx)
 
 
@@ -100,7 +96,6 @@ def _dtm(seqx) -> str:
     #      0400041C0A07E3  (...HH:MM:SS)    for sync_datetime
     if len(seqx) == 12:
         seqx = f"00{seqx}"
-
     return dt(
         year=int(seqx[10:14], 16),
         month=int(seqx[8:10], 16),
@@ -112,12 +107,13 @@ def _dtm(seqx) -> str:
 
 
 def _date(seqx) -> Optional[str]:
-    try:  # the seqx might be "FFFFFFFF"
-        return dt(
-            year=int(seqx[4:8], 16), month=int(seqx[2:4], 16), day=int(seqx[:2], 16)
-        ).strftime("%Y-%m-%d")
-    except ValueError:
+    if seqx == "FFFFFFFF":
         return None
+    return dt(
+        year=int(seqx[4:8], 16),
+        month=int(seqx[2:4], 16),
+        day=int(seqx[:2], 16) & 0b11111,  # 1st 3 bits: DayOfWeek
+    ).strftime("%Y-%m-%d")
 
 
 def _cent(seqx) -> float:
