@@ -101,7 +101,7 @@ def _dtm(seqx) -> str:
         day=int(seqx[6:8], 16),
         hour=int(seqx[4:6], 16) & 0b11111,  # 1st 3 bits: DayOfWeek
         minute=int(seqx[2:4], 16),
-        second=int(seqx[:2], 16),
+        second=int(seqx[:2], 16) & 0b1111111,  # 1st bit: DST
     ).strftime("%Y-%m-%d %H:%M:%S")
 
 
@@ -738,10 +738,8 @@ def parser_3120(payload, msg) -> Optional[dict]:  # unknown - WIP
 def parser_313f(payload, msg) -> Optional[dict]:  # sync_datetime
     # https://www.automatedhome.co.uk/vbulletin/showthread.php?5085-My-HGI80-equivalent-Domoticz-setup-without-HGI80&p=36422&viewfull=1#post36422
     # every day at ~4am TRV/RQ->CTL/RP, approx 5-10secs apart (CTL respond at any time)
-
     assert len(payload) / 2 == 9
     assert payload[:2] == "00"
-
     return {"datetime": _dtm(payload[4:18])}
 
 

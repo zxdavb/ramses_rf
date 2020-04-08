@@ -112,11 +112,7 @@ def _parse_args():
         help="<verb> <device_id> <code> <payload>",
     )
     group.add_argument(
-        "-z",
-        "--debug_mode",
-        action="count",
-        default=0,
-        help="1=debug logging, 2=enabled, 3=wait for attach",
+        "-z", "--debug_mode", action="count", default=0, help="1=log, 2=enable, 3=wait",
     )
 
     args = parser.parse_args()
