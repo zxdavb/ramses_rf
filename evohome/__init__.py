@@ -303,7 +303,7 @@ class Gateway:
 
             # if archiving, store all valid packets, even those not to be parsed
             if self._output_db:
-                tsp = f"{pkt['packet']} {pkt['date']}T{pkt['time']}"
+                tsp = f"{pkt['date']}T{pkt['time']} {pkt['packet']} "
                 w = [0, 27, 31, 34, 38, 48, 58, 68, 73, 77, 165]  # 165? 199 works
                 data = tuple([tsp[w[i - 1] : w[i] - 1] for i in range(1, len(w))])
 

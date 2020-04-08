@@ -198,7 +198,7 @@ TABLE_SQL = """
 INDEX_SQL = "CREATE INDEX IF NOT EXISTS code_idx ON packets(code);"
 
 INSERT_SQL = """
-    INSERT INTO packets(dt, rssi, verb, seq, dev_1, dev_2, dev_3, code, len, payload)
+    INSERT INTO packets(dt, rssi, verb, seq, dev_0, dev_1, dev_2, code, len, payload)
     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 """
 
