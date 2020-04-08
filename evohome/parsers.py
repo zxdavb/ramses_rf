@@ -311,7 +311,8 @@ def parser_0100(payload, msg) -> Optional[dict]:  # localisation (of device/syst
 
     return {
         # "device_id": msg.device_id[0 if msg.verb == "RQ" else 1],
-        "language": _str(payload[2:6])
+        "language": _str(payload[2:6]),
+        "unknown_0": payload[6:],
     }
 
 
@@ -537,6 +538,7 @@ def parser_12b0(payload, msg) -> Optional[dict]:  # window_state (of a device/zo
     return {
         "zone_idx": payload[:2],  # devices also add their zone here
         "window_open": {"00": False, "C8": True}.get(payload[2:4]),
+        "unknown_0": payload[4:],
     }
 
 
