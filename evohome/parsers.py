@@ -739,7 +739,7 @@ def parser_313f(payload, msg) -> Optional[dict]:  # sync_datetime
     # https://www.automatedhome.co.uk/vbulletin/showthread.php?5085-My-HGI80-equivalent-Domoticz-setup-without-HGI80&p=36422&viewfull=1#post36422
     # every day at ~4am TRV/RQ->CTL/RP, approx 5-10secs apart (CTL respond at any time)
     assert len(payload) / 2 == 9
-    assert payload[:2] == "00"
+    assert payload[:4] == "00FC"
     return {"datetime": _dtm(payload[4:18])}
 
 
