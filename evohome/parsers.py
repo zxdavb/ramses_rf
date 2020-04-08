@@ -466,8 +466,8 @@ def parser_10e0(payload, msg) -> Optional[dict]:  # device_info
 
     return {  # TODO: add version?
         "description": _str(payload[36:]),
-        "manufactured": _date(payload[20:28]),  # could be 'FFFFFFFF'
-        "firmware": _date(payload[28:36]),
+        "firmware": _date(payload[20:28]),  # could be 'FFFFFFFF'
+        "manufactured": _date(payload[28:36]),
         "unknown": payload[:20],
     }
 
