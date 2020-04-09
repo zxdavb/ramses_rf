@@ -146,6 +146,9 @@ async def main(loop=None):
 
     await gateway.start()
 
+import os
+if os.name == 'nt':
+    asyncio.DefaultEventLoopPolicy = asyncio.WindowsSelectorEventLoopPolicy
 
 if __name__ == "__main__":  # called from CLI?
     asyncio.run(main())
