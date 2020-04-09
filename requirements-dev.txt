@@ -1,12 +1,8 @@
 black==19.10b0
+colorlog==4.1.0
 flake8==3.7.9
 isort==4.3.21
 pre-commit==2.1.1
 ptvsd==4.3.2
 pycodestyle==2.5.0
 pyflakes==2.1.1
-
-aiofiles==0.4.0
-aiohttp==3.6.2
-aiosqlite==0.11.0
-pyserial-asyncio==0.4
