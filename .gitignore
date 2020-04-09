@@ -1,15 +1,17 @@
 ### local .gitignore file use by https://github.com/zxdavb
 
 !.gitignore
+!requirements*.*
 
 .secrets/*
+.vscode/*
+*.bkp
 *.db
 *.json
 *.log
 *.old
 *.out
 *.txt
-.vscode/*
 
 
 ### github's default .gitignore file
