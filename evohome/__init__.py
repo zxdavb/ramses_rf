@@ -120,7 +120,7 @@ class Gateway:
         sys.exit()
 
     @property
-    def structure(self) -> Optional[dict]:
+    def status(self) -> Optional[dict]:
         """Calculate a system schema."""
         controllers = [d for d in self.devices if d.device_type == "CTL"]
         if len(controllers) != 1:
@@ -287,7 +287,7 @@ class Gateway:
 
         if _LOGGER.isEnabledFor(logging.WARNING):
             _LOGGER.error(
-                "%s", f"\r\n{json.dumps(self.structure, indent=4)}"
+                "%s", f"\r\n{json.dumps(self.status, indent=4)}"
             )  # TODO: deleteme
 
     async def _process_packet(self, pkt: dict) -> None:
