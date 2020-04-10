@@ -149,10 +149,9 @@ async def main(loop=None):
 
 
 if __name__ == "__main__":
-    # ERROR:asyncio:Cancelling an overlapped future failed
-    # future: ... cb=[BaseProactorEventLoop._loop_self_reading()]
-
     if sys.platform == "win32":  # better than os.name
+        # ERROR:asyncio:Cancelling an overlapped future failed
+        # future: ... cb=[BaseProactorEventLoop._loop_self_reading()]
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     asyncio.run(main())
