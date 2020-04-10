@@ -7,4 +7,5 @@
 
   per-file-ignores =
     evohome/entity.py:D102,D107
+    evohome/packet.py:D103
     evohome/parsers.py:D103

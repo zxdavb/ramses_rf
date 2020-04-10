@@ -18,7 +18,7 @@ READ_TIMEOUT = 0.5
 
 def is_wanted_packet(pkt, blacklist=None) -> bool:
     """Return False if any blacklisted text is in packet."""
-    packet = pkt["packet"]
+    packet = pkt.get("packet")
 
     if not any(x in packet for x in ([] if blacklist is None else blacklist)):
         _LOGGER.info("%s", packet, extra=pkt)
@@ -30,7 +30,15 @@ def is_wanted_packet(pkt, blacklist=None) -> bool:
 
 def is_valid_packet(pkt, logging=True) -> bool:
     """Return True if a packet is valid."""
-    packet = pkt["packet"]
+    packet = pkt.get("packet")
+
+    # if pkt.get("error_text"):
+    #     _LOGGER.warning("%s", packet, extra=pkt)
+    #     return False
+
+    # if not packet and pkt.get("comment"):
+    #     _LOGGER.warning("", extra=pkt)
+    #     return False
 
     if packet is None:
         return False
@@ -73,6 +81,16 @@ def is_wanted_device(pkt, whitelist=None, blacklist=None) -> bool:
     return not any(device in packet for device in blacklist)
 
 
+def split_pkt_line(packet_line: str):
+    def _split(text: str, char: str):
+        _list = text.split(char, maxsplit=1)
+        return _list[0].strip(), _list[1].strip() if len(_list) == 2 else ""
+
+    packet, comment = _split(packet_line, "#")
+    packet, error = _split(packet, "*")
+    return packet, f"* {error} " if error else "", f"# {comment} " if comment else ""
+
+
 class SerialPortManager:
     """Fake class docstring."""
 
@@ -108,13 +126,16 @@ class SerialPortManager:
         except serial.SerialException:
             return {}
 
-        timestamp = time_stamp()  # at end of packet
-        packet = "".join(c for c in raw_packet.decode().strip() if c in printable)
+        timestamp = time_stamp()
+        packet_line = "".join(c for c in raw_packet.decode().strip() if c in printable)
 
         # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
+        # packet, error_text, comment = split_pkt_line(packet_line)
 
         return {
-            "packet": packet,
+            "packet": packet_line,
+            # "error_text": error_text,
+            # "comment": comment,
             "packet_raw": raw_packet,
             "date": timestamp[:10],
             "time": timestamp[11:],
