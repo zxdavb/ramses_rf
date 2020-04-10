@@ -9,8 +9,13 @@ import time
 import shutil
 import sys
 
-CONSOLE_FORMAT = "%(time).12s %(message)s"  # HH:MM:SS.sss
-LOGFILE_FORMAT = "%(date)sT%(time)s %(message)s"  # YYYY-mm-ddTHH:MM:SS.ssssss
+# HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssssss
+CONSOLE_FORMAT = "%(time).12s %(message)s"
+LOGFILE_FORMAT = "%(date)sT%(time)s %(message)s"
+
+# color logging, or not
+COLOR_LOG_FORMAT = "%(red)s%(error_text)s%(cyan)s%(comment)s"
+BANDW_LOG_FORMAT = "%(error_text)s%(comment)s"
 
 LOG_COLORS = {
     "DEBUG": "cyan",
@@ -50,21 +55,28 @@ def set_logging(logger, stream=sys.stderr, file_name=None):
     """Create/configure handlers, formatters, etc."""
     logger.propagate = False
 
-    cons_cols = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns)
+    cons_cols = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
     cons_fmt = f"{CONSOLE_FORMAT[:-1]}.{cons_cols - 13}s"
 
     try:
-        from colorlog import ColoredFormatter
-    except ModuleNotFoundError:
-        formatter = logging.Formatter(fmt=cons_fmt)
-    else:
+        from colorlog import ColoredFormatter, default_log_colors
+
         # # basicConfig must be called after importing colorlog in order to
         # # ensure that the handlers it sets up wraps the correct streams.
         # logging.basicConfig(level=logging.INFO)
 
         formatter = ColoredFormatter(
+            f"%(log_color)s{cons_fmt}{COLOR_LOG_FORMAT}",
+            reset=True,
+            log_colors=default_log_colors,
+        )
+        formatter = ColoredFormatter(
             f"%(log_color)s{cons_fmt}", reset=True, log_colors=LOG_COLORS
         )
+
+    except ModuleNotFoundError:
+        formatter = logging.Formatter(fmt=f"{cons_fmt}{BANDW_LOG_FORMAT}")
+        formatter = logging.Formatter(fmt=cons_fmt)
 
     handler = logging.StreamHandler(stream=sys.stderr)
     handler.setFormatter(formatter)
