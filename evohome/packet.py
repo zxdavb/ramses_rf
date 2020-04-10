@@ -2,8 +2,8 @@
 
 import logging
 
-import serial
-import serial_asyncio
+import serial  # TODO: dont import unless required
+import serial_asyncio  # TODO: dont import unless required
 from string import printable
 
 from .const import MESSAGE_REGEX

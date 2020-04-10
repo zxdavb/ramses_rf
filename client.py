@@ -1,6 +1,7 @@
 """Evohome RF logger/parser."""
 import argparse
 import asyncio
+import os
 import sys
 
 from evohome import Gateway
