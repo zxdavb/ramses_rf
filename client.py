@@ -3,6 +3,7 @@
 
 import argparse
 import asyncio
+import sys
 
 from evohome import Gateway
 
@@ -146,9 +147,9 @@ async def main(loop=None):
 
     await gateway.start()
 
-import os
-if os.name == 'nt':
-    asyncio.DefaultEventLoopPolicy = asyncio.WindowsSelectorEventLoopPolicy
 
 if __name__ == "__main__":  # called from CLI?
+    if sys.platform == "win32":  # better than os.name
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
     asyncio.run(main())
