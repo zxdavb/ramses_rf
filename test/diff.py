@@ -1,13 +1,13 @@
 """Evohome RF log diff utility."""
 import argparse
+from datetime import datetime as dt, timedelta
 import os
 import re
-from datetime import datetime as dt, timedelta
-
-RSSI_REGEXP = re.compile(r"(-{3}|\d{3})")
 
 DEBUG_ADDR = "172.27.0.138"
 DEBUG_PORT = 5679
+
+RSSI_REGEXP = re.compile(r"(-{3}|\d{3})")
 
 
 def _parse_args():
@@ -58,11 +58,7 @@ def _parse_args():
 
     group = parser.add_argument_group(title="Debug options")
     group.add_argument(
-        "-z",
-        "--debug_mode",
-        action="count",
-        default=0,
-        help="1=debug logging, 2=enabled, 3=wait for attach",
+        "-z", "--debug_mode", action="count", default=0, help="1=log, 2=enable, 3=wait",
     )
 
     return parser.parse_args()
@@ -73,7 +69,7 @@ def main():
     args = _parse_args()
 
     if args.debug_mode == 1:
-        # print(f"Debugging is enabled, additional logging enabled.")
+        # print(f"Debugging not enabled, additional logging enabled.")
         pass
 
     elif args.debug_mode > 1:

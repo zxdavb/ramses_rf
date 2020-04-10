@@ -1,6 +1,4 @@
-"""Evohome serial."""
-# https://stackoverflow.com/questions/18499497/how-to-process-sigterm-signal-gracefully
-
+"""Evohome RF logger/parser."""
 import argparse
 import asyncio
 import sys
@@ -12,16 +10,25 @@ DEBUG_PORT = 5679
 
 
 def _parse_args():
+    def extant_file(file_name):
+        """Check that value is the name of a existant file."""
+        if not os.path.exists(file_name):
+            raise argparse.ArgumentTypeError(f"{file_name} does not exist")
+        return file_name
+
     parser = argparse.ArgumentParser()
 
-    group = parser.add_argument_group(title="packet source")
-    mutex = group.add_mutually_exclusive_group(required=True)  # one is required
+    group = parser.add_argument_group(title="Packet source")
+    mutex = group.add_mutually_exclusive_group(required=True)
     mutex.add_argument("-s", "--serial_port", help="port to poll for packets")
     mutex.add_argument(
-        "-i", "--input_file", help="file to read for packets (implies listen_only)"
+        "-i",
+        "--input_file",
+        type=extant_file,
+        help="file to read for packets (implies listen_only)",
     )
 
-    group = parser.add_argument_group(title="packet logging")
+    group = parser.add_argument_group(title="Packet logging")
     group.add_argument(
         "-o",
         "--output_file",
@@ -37,14 +44,14 @@ def _parse_args():
         help="archive all valid packets to sqlite DB",
     )
 
-    group = parser.add_argument_group(title="payload parsing")
-    mutex = group.add_mutually_exclusive_group()  # OK to have neither
+    group = parser.add_argument_group(title="Payload parsing")
+    mutex = group.add_mutually_exclusive_group()
     mutex.add_argument(
         "-r",
         "--raw_output",
         action="count",
         default=0,
-        help="0=parse payloads, 1=process packets, 2=no packet processing",
+        help="0=full payload parse, 1=validate structure, 2=no processing",
     )
     mutex.add_argument(
         "-m",
@@ -54,7 +61,7 @@ def _parse_args():
         help="copy all decoded messages to file (in addition to stdout/stderr)",
     )
 
-    group = parser.add_argument_group(title="known devices")
+    group = parser.add_argument_group(title="Known devices")
     group.add_argument(
         "-k",
         "--known_devices",
@@ -85,7 +92,7 @@ def _parse_args():
         help="DONT USE - don't parse any packets matching these strings",
     )
 
-    group = parser.add_argument_group(title="debugging bits")
+    group = parser.add_argument_group(title="Debug options")
     group.add_argument(
         "-l",
         "--listen_only",
@@ -93,7 +100,7 @@ def _parse_args():
         help="don't send any discovery packets (eavesdrop only)",
     )
     # group.add_argument(
-    #     "--execute_script",
+    #     "--execute_macro",
     #     action="store",
     #     type=str,
     #     help="execute a defined script (discover, fault-log, schedule)",
@@ -129,7 +136,7 @@ async def main(loop=None):
     args = _parse_args()
 
     if args.debug_mode == 1:
-        # print(f"Debugging is enabled, additional logging enabled.")
+        # print(f"Debugging not enabled, additional logging enabled.")
         pass
 
     elif args.debug_mode > 1:
