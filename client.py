@@ -148,7 +148,10 @@ async def main(loop=None):
     await gateway.start()
 
 
-if __name__ == "__main__":  # called from CLI?
+if __name__ == "__main__":
+    # ERROR:asyncio:Cancelling an overlapped future failed
+    # future: ... cb=[BaseProactorEventLoop._loop_self_reading()]
+
     if sys.platform == "win32":  # better than os.name
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
