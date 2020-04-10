@@ -14,7 +14,7 @@ from .entity import System
 from .logger import set_logging
 from .message import _LOGGER as msg_logger, Message
 from .packet import _LOGGER as pkt_logger, SerialPortManager
-from .packet import is_valid_packet, is_wanted_device, is_wanted_packet
+from .packet import is_valid_packet, is_wanted_device, is_wanted_packet, split_pkt_line
 
 
 logging.basicConfig(level=logging.WARNING,)
@@ -115,7 +115,8 @@ class Gateway:
             with open(self.config["known_devices"], "w") as outfile:
                 json.dump(self.device_lookup, outfile, sort_keys=True, indent=4)
 
-        print(f"\r\n{json.dumps(self.structure, indent=4)}")  # TODO: deleteme
+        if self.config.get("raw_output") > 1:
+            print(f"\r\n{json.dumps(self.structure, indent=4)}")  # TODO: deleteme
 
         sys.exit()
 
@@ -216,11 +217,15 @@ class Gateway:
 
         async def proc_packets_from_file() -> None:
             """Process packets from a file, asynchonously."""
-            import aiofiles
+            import aiofiles  # TODO: move to packet.py
 
             async with aiofiles.open(self.config["input_file"]) as self._input_fp:
                 async for ts_packet in self._input_fp:
+                    packet, error, comment = split_pkt_line(ts_packet[27:])
                     pkt = {
+                        # "packet": packet,
+                        # "error_text": error,
+                        # "comment": comment,
                         "packet": ts_packet[27:].strip(),
                         "packet_raw": None,
                         "date": ts_packet[:10],
@@ -285,7 +290,7 @@ class Gateway:
         else:  # if self.config["serial_port"] or if self.serial_port
             await proc_packets_from_port()  # main loop
 
-        if _LOGGER.isEnabledFor(logging.WARNING):
+        if self.config.get("raw_output") == 0 and _LOGGER.isEnabledFor(logging.WARNING):
             _LOGGER.error(
                 "%s", f"\r\n{json.dumps(self.status, indent=4)}"
             )  # TODO: deleteme
@@ -296,14 +301,14 @@ class Gateway:
         async def _is_useful_packet(pkt: dict) -> bool:
             """Process the packet."""
             if not is_valid_packet(pkt):
-                return  # drop all invalid packets, log if so
+                return  # drop all invalid packets, +/- logging
 
             if not is_wanted_device(pkt, self.device_whitelist, self.device_blacklist):
                 return  # silently drop packets containing unwanted devices
 
             # if archiving, store all valid packets, even those not to be parsed
             if self._output_db:
-                tsp = f"{pkt['date']}T{pkt['time']} {pkt['packet']} "
+                tsp = f"{pkt['date']}T{pkt['time']} {pkt['packet']}"
                 w = [0, 27, 31, 34, 38, 48, 58, 68, 73, 77, 165]  # 165? 199 works
                 data = tuple([tsp[w[i - 1] : w[i] - 1] for i in range(1, len(w))])
 

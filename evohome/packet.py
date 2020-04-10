@@ -130,10 +130,10 @@ class SerialPortManager:
         packet_line = "".join(c for c in raw_packet.decode().strip() if c in printable)
 
         # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
-        # packet, error_text, comment = split_pkt_line(packet_line)
+        packet, error_text, comment = split_pkt_line(packet_line)
 
         return {
-            "packet": packet_line,
+            "packet": packet_line,  # should be packet
             # "error_text": error_text,
             # "comment": comment,
             "packet_raw": raw_packet,
