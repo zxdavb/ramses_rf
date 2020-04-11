@@ -3,7 +3,15 @@
 from datetime import datetime as dt, timedelta
 from typing import Optional, Union
 
-from .const import COMMAND_MAP, DOMAIN_MAP, SYSTEM_MODE_MAP, ZONE_MODE_MAP
+from .const import (
+    COMMAND_MAP,
+    DOMAIN_MAP,
+    SYSTEM_MODE_MAP,
+    ZONE_MODE_MAP,
+    FAULT_DEVICE_CLASS,
+    FAULT_STATE,
+    FAULT_TYPE,
+)
 from .entity import dev_hex_to_id
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
 
@@ -321,16 +329,6 @@ def tbd_parser_0404(payload, msg) -> Optional[dict]:  # schedule - WIP
     assert len(payload) / 2 == 22
     assert payload[:2] == "00"
     return {}
-
-
-FAULT_STATE = {"00": "Fault", "40": "Restore", "C0": "Unknown (C0)"}
-FAULT_DEVICE_CLASS = {
-    "00": "Controller?",
-    "01": "Sensor",
-    "04": "Actuator",
-    "05": "DhwSensor?",
-}
-FAULT_TYPE = {"04": "BatteryLow", "06": "CommsFault", "0A": "SensorError"}
 
 
 @parser_decorator

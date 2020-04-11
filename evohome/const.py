@@ -1,56 +1,15 @@
 """Evohome serial."""
 import re
 
+NON_DEV_ID = "--:------"
 NUL_DEV_ID = "63:262142"  # 7FFFFF - send here if not bound?
+
 CTL_DEV_ID = "01:145038"  # 06368E
 HGI_DEV_ID = "18:000730"  # default type and address of HGI, 18:013393
 TPI_DEV_ID = "13:237335"  # Boiler relay
-NON_DEV_ID = "--:------"
-
-# Domains
-DOMAIN_MAP = {"FA": "Hot Water", "FC": "Heat Demand"}
-# FC - Heat Demand
-# FF
 
 
-# Test devices
-# BDR:106039 (359E37)
-# STA:064023 (88FA17)
-# HGI:013393 (483451)
-
-# System Information
-# App. S/W ver: 02.00.17.03
-# Wifi S/W ver: 02.00.17.00
-# Device ID: 06368E (01:145038)
-
-# https://github.com/domoticz/domoticz/blob/development/hardware/EvohomeRadio.cpp
-# https://github.com/Evsdd/Evohome_Controller/blob/master/Evohome_Controller.py
-# https://github.com/jrosser/honeymon/blob/master/decoder.cpp
-# https://github.com/smar000/evohome-Listener
-# https://github.com/Evsdd/Evohome_Schedule_Restore
-# https://www.domoticz.com/forum/viewtopic.php?f=34&t=16742&p=216168#p216168
-
-HARVEST_PKTS = {
-    "061 RQ --- 04:189082 01:145038 --:------ 0004 002 0400",
-    "045 RP --- 01:145038 04:189082 --:------ 0004 022 04004265616E7320526F6F6D00000000000000000000"  # noqa: E501
-    "045 RQ --- 34:092243 01:145038 --:------ 000A 001 01",
-    "045 RP --- 01:145038 34:092243 --:------ 000A 006 011001F40DAC",
-    "063  I --- 04:189080 --:------ 01:145038 1060 003 056401",
-    "045  I --- 04:056059 --:------ 01:145038 12B0 003 010000",
-    "045  I --- 04:056057 --:------ 01:145038 2309 003 03073A",
-    "063  I --- 01:145038 --:------ 01:145038 2309 003 0105DC",
-    "069 RQ --- 34:092243 01:145038 --:------ 2309 001 01",
-    "072 RP --- 01:145038 34:092243 --:------ 2309 003 0107D0",
-    "049  W --- 34:092243 01:145038 --:------ 2309 003 0105DC",
-    "064  I --- 01:145038 34:092243 --:------ 2309 003 0105DC",
-    "000  I --- 01:145038 --:------ 01:145038 2349 013 03079E04FFFFFF1E15100207E4",
-    "000  I --- 01:145038 --:------ 01:145038 2349 007 03079E00FFFFFF",
-    "045  I --- 04:056059 --:------ 01:145038 3150 002 0120",
-}
-
-x = {f"{p[4:6]}{p[41:45]}": "" for p in HARVEST_PKTS}
-
-
+# Packet codes/classes
 COMMAND_SCHEMA = {
     "0001": {"name": "message_0001"},  #
     "0002": {"name": "sensor_weather"},
@@ -140,6 +99,8 @@ DEVICE_MAP = {
 }  # Mixing valve (HM80)
 DEVICE_LOOKUP = {v: k for k, v in DEVICE_MAP.items()}
 
+# Domains
+# MAIN_MAP = {"FA": "Hot Water", "FC": "Heat Demand"}
 DOMAIN_MAP = {"F9": "Heating", "FA": "HotWater", "FC": "Boiler"}
 
 SYSTEM_MODE_MAP = {
@@ -167,6 +128,18 @@ ZONE_TYPE_MAP = {
     "ZON": "Zone Valve",
 }
 
+# Used by 0418/system_fault parser
+FAULT_DEVICE_CLASS = {
+    "00": "Controller?",
+    "01": "Sensor",
+    "04": "Actuator",
+    "05": "DhwSensor?",
+}
+FAULT_STATE = {"00": "Fault", "40": "Restore", "C0": "Unknown (C0)"}
+FAULT_TYPE = {"04": "BatteryLow", "06": "CommsFault", "0A": "SensorError"}
+
+
+# Used by packet structure validators
 a = r"(-{3}|\d{3})"
 b = r"( I|RP|RQ| W)"
 c = r"(-{2}:-{6}|\d{2}:\d{6})"
@@ -180,6 +153,8 @@ MESSAGE_REGEX = re.compile(f"^{a} {b} {a} {c} {c} {c} {d} {e} {f}$")
 COMMAND_FORMAT = "{:<2} --- {} {} --:------ {} {:03.0f} {}"
 MESSAGE_FORMAT = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:10s} || {}"
 
+
+# Used by SQL DB
 TABLE_SQL = """
     CREATE TABLE IF NOT EXISTS packets(
         dt      TEXT PRIMARY KEY,
@@ -237,3 +212,23 @@ RENAME_3 = """
 RENAME_3 = """
     VACUUM;
 """
+
+# HARVEST_PKTS = {
+#     "061 RQ --- 04:189082 01:145038 --:------ 0004 002 0400",
+#     "045 RP --- 01:145038 04:189082 --:------ 0004 022 04004265616E7320526F6F6D00000000000000000000"  # noqa: E501
+#     "045 RQ --- 34:092243 01:145038 --:------ 000A 001 01",
+#     "045 RP --- 01:145038 34:092243 --:------ 000A 006 011001F40DAC",
+#     "063  I --- 04:189080 --:------ 01:145038 1060 003 056401",
+#     "045  I --- 04:056059 --:------ 01:145038 12B0 003 010000",
+#     "045  I --- 04:056057 --:------ 01:145038 2309 003 03073A",
+#     "063  I --- 01:145038 --:------ 01:145038 2309 003 0105DC",
+#     "069 RQ --- 34:092243 01:145038 --:------ 2309 001 01",
+#     "072 RP --- 01:145038 34:092243 --:------ 2309 003 0107D0",
+#     "049  W --- 34:092243 01:145038 --:------ 2309 003 0105DC",
+#     "064  I --- 01:145038 34:092243 --:------ 2309 003 0105DC",
+#     "000  I --- 01:145038 --:------ 01:145038 2349 013 03079E04FFFFFF1E15100207E4",
+#     "000  I --- 01:145038 --:------ 01:145038 2349 007 03079E00FFFFFF",
+#     "045  I --- 04:056059 --:------ 01:145038 3150 002 0120",
+# }
+
+# x = {f"{p[4:6]}{p[41:45]}": "" for p in HARVEST_PKTS}

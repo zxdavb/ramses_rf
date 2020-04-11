@@ -68,50 +68,40 @@ def _parse_args():
         "--known_devices",
         nargs="?",
         const="known_devices.json",
-        help="friendly names for (your) or blacklist of (your neighbour's) devices",
+        help="name and/or blacklist known devices, unknown devices are not blacklisted",
     )
     group.add_argument(
         "-w",
-        "--whitelist",
+        "--device_whitelist",
         action="store_true",
-        help="accept only packets containing known devices that are not blacklisted",
+        help="process only packets to/from known devices non-blacklisted (requires known_devices)",
     )
     # group.add_argument("-c", "--controller_id", type=str, action="store",
     #     help="controller to use in favour of discovery",
     # )
 
-    # group = parser.add_argument_group(title="Filters", description="Parser filers")
-    # group.add_argument(
+    # group = parser.add_argument_group(title="Packet filtering")
+    # mutex = group.add_mutually_exclusive_group(required=True)
+    # mutex.add_argument(
     #     "--whitelist",  # default=whitelist,
     #     nargs="*",
     #     default="",
     #     help="DONT USE - parse only packets matching these regular expressions",
     # )
-    group.add_argument(
-        "--blacklist",
-        nargs="*",
-        help="DONT USE - don't parse any packets matching these strings",
-    )
+    # mutex.add_argument(
+    #     "--blacklist",
+    #     nargs="*",
+    #     help="DONT USE - don't parse any packets matching these strings",
+    # )  # TODO: need to flesh out whitelist/blacklist
 
-    group = parser.add_argument_group(title="Debug options")
+    group = parser.add_argument_group(title="Command options")
+    # mutex = group.add_mutually_exclusive_group()
     group.add_argument(
         "-l",
         "--listen_only",
         action="store_true",
-        help="don't send any discovery packets (eavesdrop only)",
+        help="don't send any command packets (eavesdrop only)",
     )
-    # group.add_argument(
-    #     "--execute_macro",
-    #     action="store",
-    #     type=str,
-    #     help="execute a defined script (discover, fault-log, schedule)",
-    # )
-    # group.add_argument(
-    #     "--execute_file",
-    #     action="store",
-    #     type=str,
-    #     help="execute a file of commands",
-    # )
     group.add_argument(
         "-x",
         "--execute_cmd",
@@ -120,14 +110,22 @@ def _parse_args():
         # default="RQ 01:145038 1F09 00",
         help="<verb> <device_id> <code> <payload>",
     )
+    # group.add_argument(
+    #     "--execute_macro", action="store", type=str, help="e.g. fault-log, schedule)",
+    # )
+    # group.add_argument(
+    #     "--execute_file", action="store", type=str, help="execute a file of commands",
+    # )
+
+    group = parser.add_argument_group(title="Debug options")
     group.add_argument(
         "-z", "--debug_mode", action="count", default=0, help="1=log, 2=enable, 3=wait",
     )
 
     args = parser.parse_args()
 
-    if args.whitelist and not args.known_devices:
-        parser.error("--whitelist requires --known_devices")
+    if args.device_whitelist and not args.known_devices:
+        parser.error("--device_whitelist requires --known_devices")
 
     return args
 

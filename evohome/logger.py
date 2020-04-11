@@ -70,13 +70,13 @@ def set_logging(logger, stream=sys.stderr, file_name=None):
             reset=True,
             log_colors=default_log_colors,
         )
-        formatter = ColoredFormatter(
-            f"%(log_color)s{cons_fmt}", reset=True, log_colors=LOG_COLORS
-        )
+        # formatter = ColoredFormatter(
+        #     f"%(log_color)s{cons_fmt}", reset=True, log_colors=LOG_COLORS
+        # )
 
     except ModuleNotFoundError:
         formatter = logging.Formatter(fmt=f"{cons_fmt}{BANDW_LOG_FORMAT}")
-        formatter = logging.Formatter(fmt=cons_fmt)
+        # formatter = logging.Formatter(fmt=cons_fmt)
 
     handler = logging.StreamHandler(stream=sys.stderr)
     handler.setFormatter(formatter)

@@ -6,6 +6,7 @@
   ignore = D202,E203
 
   per-file-ignores =
+    evohome/__init__.py:D102
     evohome/entity.py:D102,D107
     evohome/packet.py:D103
     evohome/parsers.py:D103

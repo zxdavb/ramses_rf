@@ -13,8 +13,8 @@ from .const import INDEX_SQL, TABLE_SQL, INSERT_SQL
 from .entity import System
 from .logger import set_logging
 from .message import _LOGGER as msg_logger, Message
-from .packet import _LOGGER as pkt_logger, SerialPortManager
-from .packet import is_valid_packet, is_wanted_device, is_wanted_packet, split_pkt_line
+from .packet import _LOGGER as pkt_logger, Packet, SerialPortManager
+from .packet import is_valid_packet, is_wanted_device
 
 
 logging.basicConfig(level=logging.WARNING,)
@@ -95,10 +95,10 @@ class Gateway:
         self.system = System(self)
         self.data = {f"{i:02X}": {} for i in range(12)}
 
-        if os.name == "posix":
-            signal.signal(signal.SIGHUP, self._signal_handler)
         for s in (signal.SIGINT, signal.SIGTERM):
             signal.signal(s, self._signal_handler)
+        if os.name == "posix":  # TODO: or sys.platform is better?
+            signal.signal(signal.SIGHUP, self._signal_handler)
 
     def _signal_handler(self, signum, frame):
         if self.config.get("known_devices"):
@@ -213,34 +213,29 @@ class Gateway:
         return structure
 
     async def start(self) -> None:
-        """Fake the docstring."""
-
         async def proc_packets_from_file() -> None:
             """Process packets from a file, asynchonously."""
             import aiofiles  # TODO: move to packet.py
 
             async with aiofiles.open(self.config["input_file"]) as self._input_fp:
-                async for ts_packet in self._input_fp:
-                    packet, error, comment = split_pkt_line(ts_packet[27:])
-                    pkt = {
-                        # "packet": packet,
-                        # "error_text": error,
-                        # "comment": comment,
-                        "packet": ts_packet[27:].strip(),
-                        "packet_raw": None,
-                        "date": ts_packet[:10],
-                        "time": ts_packet[11:26],
-                    }
-
-                    await self._process_packet(pkt)
+                async for ts_packet_line in self._input_fp:
+                    try:
+                        pkt = Packet(ts_packet_line)
+                    except ValueError:
+                        pass
+                    else:
+                        await self._process_packet(pkt)
                     await self._dispatch_packet(destination=None)  # to empty the buffer
 
         async def proc_packets_from_port() -> None:
-            """Fake the docstring."""
-
-            async def port_reader():
+            async def port_reader(manager):
                 while True:  # main loop
-                    await self._process_packet(await manager.get_next_packet())
+                    try:
+                        pkt = Packet(await manager.get_next_packet())
+                    except ValueError:
+                        pass
+                    else:
+                        await self._process_packet(pkt)
 
             async def port_writer(manager):
                 while True:  # main loop
@@ -257,7 +252,7 @@ class Gateway:
                     )
                     await self._dispatch_packet(destination=manager.writer)
 
-                await asyncio.gather(port_reader(), port_writer(manager))
+                await asyncio.gather(port_reader(manager), port_writer(manager))
 
         if self.config.get("database"):
             import aiosqlite as sqlite3
@@ -272,14 +267,16 @@ class Gateway:
             try:
                 with open(self.config["known_devices"]) as json_file:
                     devices = self.device_lookup = json.load(json_file)
-            except FileNotFoundError:
+            except FileNotFoundError:  # if it doesn't exist, we'll create it later
                 self.device_lookup = {}
             else:
-                if self.config["whitelist"]:
+                if self.config["device_whitelist"]:
+                    # discard packets unless to/from one of our devices
                     self.device_whitelist = [
                         k for k, v in devices.items() if not v.get("blacklist")
                     ]
                 else:
+                    # discard packets to/from any explicitly blacklisted device
                     self.device_blacklist = [
                         k for k, v in devices.items() if v.get("blacklist")
                     ]
@@ -290,15 +287,14 @@ class Gateway:
         else:  # if self.config["serial_port"] or if self.serial_port
             await proc_packets_from_port()  # main loop
 
+        # print schema TODO: deleteme
         if self.config.get("raw_output") == 0 and _LOGGER.isEnabledFor(logging.WARNING):
-            _LOGGER.error(
-                "%s", f"\r\n{json.dumps(self.status, indent=4)}"
-            )  # TODO: deleteme
+            _LOGGER.error("%s", f"\r\n{json.dumps(self.status, indent=4)}")
 
-    async def _process_packet(self, pkt: dict) -> None:
+    async def _process_packet(self, packet: Packet) -> None:
         """Receive a packet and optionally validate it as a message."""
 
-        async def _is_useful_packet(pkt: dict) -> bool:
+        async def _is_useful_packet(pkt: dict) -> Optional[bool]:
             """Process the packet."""
             if not is_valid_packet(pkt):
                 return  # drop all invalid packets, +/- logging
@@ -315,10 +311,18 @@ class Gateway:
                 await self._db_cursor.execute(INSERT_SQL, data)
                 await self._output_db.commit()
 
-            if not is_wanted_packet(pkt, self.config["blacklist"]):
-                return  # drop packets containing blacklisted text
+            # if not is_wanted_packet(pkt, self.config["blacklist"]):
+            #     return  # drop packets containing blacklisted text
 
             return True
+
+        pkt = {
+            "packet": packet.packet,
+            "error_text": packet.error,
+            "comment": packet.comment,
+            "date": packet.date,
+            "time": packet.time,
+        }
 
         if self.config.get("raw_output") > 1:  # TODO: Bruce's hack
             if is_valid_packet(pkt, logging=False):
@@ -329,7 +333,7 @@ class Gateway:
 
         if await _is_useful_packet(pkt):
             if not self.config.get("raw_output"):
-                self._decode_payload(pkt)
+                self._process_payload(pkt)
 
     async def _dispatch_packet(self, destination=None) -> None:
         """Send a command unless in listen_only mode."""
@@ -343,7 +347,7 @@ class Gateway:
 
             self.command_queue.task_done()
 
-    def _decode_payload(self, pkt: dict) -> bool:
+    def _process_payload(self, pkt: dict) -> bool:
         """Decode the packet and its payload."""
         try:
             msg = Message(pkt["packet"], f"{pkt['date']}T{pkt['time']}", self)
