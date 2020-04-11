@@ -294,46 +294,41 @@ class Gateway:
     async def _process_packet(self, packet: Packet) -> None:
         """Receive a packet and optionally validate it as a message."""
 
-        async def _is_useful_packet(pkt: dict) -> Optional[bool]:
+        async def _is_useful_packet(packet: Packet) -> Optional[bool]:
             """Process the packet."""
-            if not is_valid_packet(pkt):
+            if not is_valid_packet(packet.__dict__):
                 return  # drop all invalid packets, +/- logging
 
-            if not is_wanted_device(pkt, self.device_whitelist, self.device_blacklist):
+            if not is_wanted_device(
+                packet.__dict__, self.device_whitelist, self.device_blacklist
+            ):
                 return  # silently drop packets containing unwanted devices
 
             # if archiving, store all valid packets, even those not to be parsed
             if self._output_db:
-                tsp = f"{pkt['date']}T{pkt['time']} {pkt['packet']}"
+                # tsp = f"{pkt['date']}T{pkt['time']} {pkt['packet']}"
+                tsp = str(packet)
                 w = [0, 27, 31, 34, 38, 48, 58, 68, 73, 77, 165]  # 165? 199 works
                 data = tuple([tsp[w[i - 1] : w[i] - 1] for i in range(1, len(w))])
 
                 await self._db_cursor.execute(INSERT_SQL, data)
                 await self._output_db.commit()
 
-            # if not is_wanted_packet(pkt, self.config["blacklist"]):
+            # if not is_wanted_packet(packet.__dict__, self.config["blacklist"]):
             #     return  # drop packets containing blacklisted text
 
             return True
 
-        pkt = {
-            "packet": packet.packet,
-            "error_text": packet.error,
-            "comment": packet.comment,
-            "date": packet.date,
-            "time": packet.time,
-        }
-
         if self.config.get("raw_output") > 1:  # TODO: Bruce's hack
-            if is_valid_packet(pkt, logging=False):
-                pkt_logger.info("%s", pkt["packet"], extra=pkt)
+            if is_valid_packet(packet.__dict__, logging=False):
+                pkt_logger.info("%s", packet.packet, extra=packet.__dict__)
             else:
-                pkt_logger.warning("%s", pkt["packet"], extra=pkt)
+                pkt_logger.warning("%s", packet.packet, extra=packet.__dict__)
             return
 
-        if await _is_useful_packet(pkt):
+        if await _is_useful_packet(packet):
             if not self.config.get("raw_output"):
-                self._process_payload(pkt)
+                self._process_payload(packet.__dict__)
 
     async def _dispatch_packet(self, destination=None) -> None:
         """Send a command unless in listen_only mode."""

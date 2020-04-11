@@ -14,8 +14,8 @@ CONSOLE_FORMAT = "%(time).12s %(message)s"
 LOGFILE_FORMAT = "%(date)sT%(time)s %(message)s"
 
 # color logging, or not
-COLOR_LOG_FORMAT = "%(red)s%(error_text)s%(cyan)s%(comment)s"
-BANDW_LOG_FORMAT = "%(error_text)s%(comment)s"
+COLOR_LOG_FORMAT = " %(red)s%(error_text)s%(cyan)s%(comment)s"
+BANDW_LOG_FORMAT = " %(error_text)s%(comment)s"
 
 LOG_COLORS = {
     "DEBUG": "cyan",

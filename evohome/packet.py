@@ -38,11 +38,35 @@ class Packet:
             raise ValueError(f"there is no packet, nor packet metadata: {packet_line}")
 
         self.date, self.time = self._timestamp[:10], self._timestamp[11:26]
-        self.packet, self.error, self.comment = split_pkt_line(packet_line)
+        self.packet, self.error_text, self.comment = split_pkt_line(packet_line)
 
     def __str__(self) -> str:
         """Represent the entity as a string."""
         return f"{self._timestamp} {self.packet}{self.error}{self.comment}"
+
+    def is_valid(self) -> bool:
+        """Return True if a packet is valid in structure."""
+        if self.error_text:
+            _LOGGER.warning("%s", self.packet, extra=self.__dict__)
+            return False
+        if not self.packet:
+            if self.comment:
+                _LOGGER.warning("%s", self.packet, extra=self.__dict__)
+            return False
+
+        if not MESSAGE_REGEX.match(str(self)):
+            err_msg = "packet structure bad"
+        elif int(str(self)[46:49]) > 48:
+            err_msg = "payload too long"
+        elif len(str(self)[50:]) != 2 * int(str(self)[46:49]):
+            err_msg = "payload length mismatch"
+        else:
+            return True
+
+        _LOGGER.warning(
+            "%s < Invalid packet: %s", self.packet, err_msg, extra=self.__dict__
+        )
+        return False
 
 
 def is_wanted_packet(pkt, blacklist=None) -> bool:
