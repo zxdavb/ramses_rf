@@ -14,7 +14,6 @@ from .entity import System
 from .logger import set_logging
 from .message import _LOGGER as msg_logger, Message
 from .packet import _LOGGER as pkt_logger, Packet, SerialPortManager
-from .packet import is_valid_packet, is_wanted_device
 
 
 logging.basicConfig(level=logging.WARNING,)
@@ -291,44 +290,42 @@ class Gateway:
         if self.config.get("raw_output") == 0 and _LOGGER.isEnabledFor(logging.WARNING):
             _LOGGER.error("%s", f"\r\n{json.dumps(self.status, indent=4)}")
 
-    async def _process_packet(self, packet: Packet) -> None:
+    async def _process_packet(self, pkt: Packet) -> None:
         """Receive a packet and optionally validate it as a message."""
 
-        async def _is_useful_packet(packet: Packet) -> Optional[bool]:
-            """Process the packet."""
-            if not is_valid_packet(packet.__dict__):
-                return  # drop all invalid packets, +/- logging
+        def has_wanted_device(pkt, dev_whitelist=None, dev_blacklist=None) -> bool:
+            """Return True only if a packet contains 'wanted' devices."""
+            if " 18:" in pkt.packet:  # TODO: should we respect backlisting of a HGI80?
+                return True
+            if dev_whitelist:
+                return any(device in pkt.packet for device in dev_whitelist)
+            return not any(device in pkt.packet for device in dev_blacklist)
 
-            if not is_wanted_device(
-                packet.__dict__, self.device_whitelist, self.device_blacklist
-            ):
-                return  # silently drop packets containing unwanted devices
+        if not pkt.is_valid:
+            return  # drop all invalid packets (+/- logging)
 
-            # if archiving, store all valid packets, even those not to be parsed
-            if self._output_db:
-                # tsp = f"{pkt['date']}T{pkt['time']} {pkt['packet']}"
-                tsp = str(packet)
-                w = [0, 27, 31, 34, 38, 48, 58, 68, 73, 77, 165]  # 165? 199 works
-                data = tuple([tsp[w[i - 1] : w[i] - 1] for i in range(1, len(w))])
+        if not has_wanted_device(pkt, self.device_whitelist, self.device_blacklist):
+            return  # silently drop packets with unwanted (e.g. neighbour's) devices
 
-                await self._db_cursor.execute(INSERT_SQL, data)
-                await self._output_db.commit()
+        if self._output_db:  # archive all valid packets, even those not to be parsed
+            ts_pkt = f"{pkt.timestamp} {pkt.packet}"
+            w = [0, 27, 31, 34, 38, 48, 58, 68, 73, 77, 165]  # 165? 199 works
+            data = tuple([ts_pkt[w[i - 1] : w[i] - 1] for i in range(1, len(w))])
 
-            # if not is_wanted_packet(packet.__dict__, self.config["blacklist"]):
-            #     return  # drop packets containing blacklisted text
+            await self._db_cursor.execute(INSERT_SQL, data)
+            await self._output_db.commit()
 
-            return True
+        # if any(x in pkt.packet for x in self.config.get("blacklist", [])):
+        #     return  # drop packets containing blacklisted text
 
         if self.config.get("raw_output") > 1:  # TODO: Bruce's hack
-            if is_valid_packet(packet.__dict__, logging=False):
-                pkt_logger.info("%s", packet.packet, extra=packet.__dict__)
+            if pkt.is_valid:
+                pkt_logger.info("%s", pkt.packet, extra=pkt.__dict__)
             else:
-                pkt_logger.warning("%s", packet.packet, extra=packet.__dict__)
-            return
+                pkt_logger.warning("%s", pkt.packet, extra=pkt.__dict__)
 
-        if await _is_useful_packet(packet):
-            if not self.config.get("raw_output"):
-                self._process_payload(packet.__dict__)
+        if not self.config.get("raw_output"):
+            self._process_payload(pkt.__dict__)
 
     async def _dispatch_packet(self, destination=None) -> None:
         """Send a command unless in listen_only mode."""

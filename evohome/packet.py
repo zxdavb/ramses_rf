@@ -32,18 +32,19 @@ class Packet:
     def __init__(self, timestamp_packet) -> None:
         """Initialse the class."""
         packet_line = self._packet_line = timestamp_packet[27:]  # .strip()
-        self._timestamp = timestamp_packet[:26]
+        self.timestamp = timestamp_packet[:26]
 
         if not packet_line:  # TODO: validate timestamp
             raise ValueError(f"there is no packet, nor packet metadata: {packet_line}")
 
-        self.date, self.time = self._timestamp[:10], self._timestamp[11:26]
+        self.date, self.time = self.timestamp[:10], self.timestamp[11:26]
         self.packet, self.error_text, self.comment = split_pkt_line(packet_line)
 
     def __str__(self) -> str:
         """Represent the entity as a string."""
-        return f"{self._timestamp} {self.packet}{self.error}{self.comment}"
+        return f"{self.timestamp} {self.packet}{self.error_text}{self.comment}"
 
+    @property
     def is_valid(self) -> bool:
         """Return True if a packet is valid in structure."""
         if self.error_text:
@@ -54,12 +55,12 @@ class Packet:
                 _LOGGER.warning("%s", self.packet, extra=self.__dict__)
             return False
 
-        if not MESSAGE_REGEX.match(str(self)):
+        if not MESSAGE_REGEX.match(self.packet):
             err_msg = "packet structure bad"
-        elif int(str(self)[46:49]) > 48:
-            err_msg = "payload too long"
-        elif len(str(self)[50:]) != 2 * int(str(self)[46:49]):
-            err_msg = "payload length mismatch"
+        elif int(self.packet[46:49]) > 48:
+            err_msg = "payload length excessive"
+        elif int(self.packet[46:49]) * 2 != len(self.packet[50:]):
+            err_msg = f"payload length mismatch"
         else:
             return True
 
@@ -67,66 +68,6 @@ class Packet:
             "%s < Invalid packet: %s", self.packet, err_msg, extra=self.__dict__
         )
         return False
-
-
-def is_wanted_packet(pkt, blacklist=None) -> bool:
-    """Return False if any blacklisted text is in packet."""
-    packet = pkt.get("packet")
-
-    if not any(x in packet for x in ([] if blacklist is None else blacklist)):
-        _LOGGER.info("%s", packet, extra=pkt)
-        return True
-
-    _LOGGER.debug("%s < Ignored packet: blacklisted by text", packet, extra=pkt)
-    return False
-
-
-def is_valid_packet(pkt: dict, logging=True) -> bool:
-    """Return True if a packet is valid."""
-    packet = pkt.get("packet")
-
-    if pkt["error_text"]:
-        _LOGGER.warning("%s", packet, extra=pkt)
-        return False
-
-    if not packet:
-        if pkt["comment"]:
-            _LOGGER.warning("%s", packet, extra=pkt)
-        return False
-
-    # try:  # TODO: this entire block shouldn't be needed
-    #     _ = MESSAGE_REGEX.match(packet)
-    # except TypeError:
-    #     _LOGGER.warning(
-    #         "%s < Invalid packet: TypeError (%s)", packet, type(packet), extra=pkt
-    #     )
-    #     return False
-
-    # else:
-    if not MESSAGE_REGEX.match(packet):
-        err_msg = "packet structure bad"
-    elif int(packet[46:49]) > 48:
-        err_msg = "payload too long"
-    elif len(packet[50:]) != 2 * int(packet[46:49]):
-        err_msg = "payload length mismatch"
-    else:
-        return True
-
-    # if logging is False:  # TODO: is needed?
-    #     return False
-
-    _LOGGER.warning("%s < Invalid packet: %s", packet, err_msg, extra=pkt)
-    return False
-
-
-def is_wanted_device(pkt, whitelist=None, blacklist=None) -> bool:
-    """Return True if a packet doesn't contain blacklisted devices."""
-    packet = pkt["packet"]
-    # if " 18:" in packet:  # TODO: should we respect backlisting for this device?
-    #     return True
-    if whitelist:
-        return any(device in packet for device in whitelist)
-    return not any(device in packet for device in blacklist)
 
 
 class SerialPortManager:

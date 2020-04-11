@@ -185,7 +185,7 @@ def parser_0004(payload, msg) -> Optional[dict]:  # zone_name
 
 
 @parser_decorator
-def tbd_er_0005(payload, msg) -> Optional[dict]:  # system_zone (add/del a zone?)
+def parser_0005(payload, msg) -> Optional[dict]:  # system_zone (add/del a zone?)
     assert msg.verb in [" I"]
     if msg.device_id[0][:2] == "34":  # STA
         assert len(payload) / 2 == 12  # or % 4?
