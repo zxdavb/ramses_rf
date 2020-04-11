@@ -46,13 +46,15 @@ class Packet:
 
     @property
     def is_valid(self) -> bool:
-        """Return True if a packet is valid in structure."""
-        if self.error_text:
-            _LOGGER.warning("%s", self.packet, extra=self.__dict__)
-            return False
+        """Return True if a packet is valid in structure, log any baddies."""
         if not self.packet:
-            if self.comment:
-                _LOGGER.warning("%s", self.packet, extra=self.__dict__)
+            _LOGGER.warning("B< Invalid packet: null packet", extra=self.__dict__)
+            return False
+
+        if self.error_text:
+            _LOGGER.warning(
+                "A%s < Invalid packet: error", self.packet, extra=self.__dict__
+            )
             return False
 
         if not MESSAGE_REGEX.match(self.packet):
@@ -65,7 +67,7 @@ class Packet:
             return True
 
         _LOGGER.warning(
-            "%s < Invalid packet: %s", self.packet, err_msg, extra=self.__dict__
+            "C%s < Invalid packet: %s", self.packet, err_msg, extra=self.__dict__
         )
         return False
 

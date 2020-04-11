@@ -302,7 +302,7 @@ class Gateway:
             return not any(device in pkt.packet for device in dev_blacklist)
 
         if not pkt.is_valid:
-            return  # drop all invalid packets (+/- logging)
+            return  # drop all invalid packets (+/- logging of invalids)
 
         if not has_wanted_device(pkt, self.device_whitelist, self.device_blacklist):
             return  # silently drop packets with unwanted (e.g. neighbour's) devices
@@ -311,18 +311,16 @@ class Gateway:
             ts_pkt = f"{pkt.timestamp} {pkt.packet}"
             w = [0, 27, 31, 34, 38, 48, 58, 68, 73, 77, 165]  # 165? 199 works
             data = tuple([ts_pkt[w[i - 1] : w[i] - 1] for i in range(1, len(w))])
-
             await self._db_cursor.execute(INSERT_SQL, data)
             await self._output_db.commit()
 
         # if any(x in pkt.packet for x in self.config.get("blacklist", [])):
-        #     return  # drop packets containing blacklisted text
+        #     return  # silently drop packets containing blacklisted text
 
-        if self.config.get("raw_output") > 1:  # TODO: Bruce's hack
-            if pkt.is_valid:
-                pkt_logger.info("%s", pkt.packet, extra=pkt.__dict__)
-            else:
-                pkt_logger.warning("%s", pkt.packet, extra=pkt.__dict__)
+        if self.config.get("raw_output") > 1:
+            pkt_logger.info("Y%s", pkt.packet, extra=pkt.__dict__)
+        else:
+            pkt_logger.warning("Z%s", pkt.packet, extra=pkt.__dict__)
 
         if not self.config.get("raw_output"):
             self._process_payload(pkt.__dict__)
