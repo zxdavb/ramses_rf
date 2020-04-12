@@ -15,7 +15,7 @@ COLOR_SUFFIX = "%(red)s%(error_text)s%(cyan)s%(comment)s"
 # HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssss
 CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
 CONSOLE_FMT = "%(time).12s " + f"%(message).{CONSOLE_COLS - 13}s"
-LOGFILE_FMT = "%(date)sT%(time)s %(packet)s"
+LOGFILE_FMT = "%(date)sT%(time)s %(_packet)s"  # TODO: _packet is a hack for space @ end
 
 
 class FILETIME(ctypes.Structure):

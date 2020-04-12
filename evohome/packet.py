@@ -42,10 +42,11 @@ class Packet:
 
         self.date, self.time = self.timestamp[:10], self.timestamp[11:26]
         self.packet, self.error_text, self.comment = split_pkt_line(packet_line)
+        self._packet = self.packet + " " if self.packet else ""  # TODO: a hack 4 log
 
     def __str__(self) -> str:
         """Represent the entity as a string."""
-        return self.packet + " " if self.packet else ""
+        return self.packet if self.packet else ""  # TODO: ???
 
     # def __repr__(self) -> str:
     #     """Represent the entity as an umabiguous string."""
@@ -66,17 +67,17 @@ class Packet:
             return False
 
         if not MESSAGE_REGEX.match(self.packet):
-            err_msg = "packet structure bad "
+            err_msg = "packet structure invalid"
         elif int(self.packet[46:49]) > 48:
-            err_msg = "payload length excessive "
+            err_msg = "payload length excessive"
         elif int(self.packet[46:49]) * 2 != len(self.packet[50:]):
-            err_msg = f"payload length mismatch "
+            err_msg = f"payload length mismatch"
         else:
             # don't log good packets here: we may want to silently discard some
             # _LOGGER.info("G%s", self, extra=self.__dict__)
             return True
 
-        _LOGGER.warning("I%s< Bad packet: %s", self, err_msg, extra=self.__dict__)
+        _LOGGER.warning("I%s< Bad packet: %s ", self, err_msg, extra=self.__dict__)
         return False
 
 
