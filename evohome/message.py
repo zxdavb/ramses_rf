@@ -158,7 +158,7 @@ class Message:
                 harvest_new_entities(self)
         except AssertionError:  # for dev only?
             self._is_valid_payload = False
-            _LOGGER.exception("A%s", self, extra=self.__dict__)
+            _LOGGER.exception("%s", self, extra=self.__dict__)
             return
 
         try:  # determine which parser to use
@@ -174,16 +174,16 @@ class Message:
             self._is_valid_payload = False
             # users can send valid (but unparseable) packets & get odd reply
             # if "18" not in [self.device_id[0][:2], self.device_id[1][:2]]:
-            _LOGGER.exception("B%s", self, extra=self.__dict__)
+            _LOGGER.exception("%s", self, extra=self.__dict__)
             return
 
         except (LookupError, TypeError, ValueError):
             self._is_valid_payload = False
-            _LOGGER.exception("C%s", self, extra=self.__dict__)
+            _LOGGER.exception("%s", self, extra=self.__dict__)
             return
 
         # TODO: Should just be True by now? If not True, then what?
         self._is_valid_payload = bool(self._payload)
-        _LOGGER.info("D%s", self, extra=self.__dict__)
+        _LOGGER.info("%s", self, extra=self.__dict__)
 
         return self._payload
