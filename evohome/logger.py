@@ -9,13 +9,13 @@ import time
 import shutil
 import sys
 
-BANDW_SUFFIX = " %(error_text)s%(comment)s"
-COLOR_SUFFIX = " %(red)s%(error_text)s%(cyan)s%(comment)s"
+BANDW_SUFFIX = "%(error_text)s%(comment)s"
+COLOR_SUFFIX = "%(red)s%(error_text)s%(cyan)s%(comment)s"
 
 # HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssss
 CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
 CONSOLE_FMT = "%(time).12s " + f"%(message).{CONSOLE_COLS - 13}s"
-LOGFILE_FMT = "%(date)sT%(time)s %(message)s"
+LOGFILE_FMT = "%(date)sT%(time)s %(packet)s"
 
 
 class FILETIME(ctypes.Structure):
@@ -53,7 +53,7 @@ def set_logging(
     """Create/configure handlers, formatters, etc."""
     logger.propagate = False
 
-    try:
+    try:  # formatter = ...
         from colorlog import ColoredFormatter, default_log_colors
 
         # # basicConfig must be called after importing colorlog in order to
@@ -63,7 +63,6 @@ def set_logging(
         formatter = ColoredFormatter(
             f"%(log_color)s{cons_fmt}", reset=True, log_colors=default_log_colors,
         )
-
     except ModuleNotFoundError:
         formatter = logging.Formatter(fmt=cons_fmt)
 

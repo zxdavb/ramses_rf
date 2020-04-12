@@ -73,7 +73,7 @@ class Gateway:
         set_logging(
             pkt_logger,
             stream=sys.stdout if config.get("raw_output") else None,
-            file_name=self.config.get("output_file"),
+            file_name=self.config.get("packet_log"),
             file_fmt=LOGFILE_FMT + BANDW_SUFFIX,
             cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
         )
