@@ -31,35 +31,18 @@ def _parse_args():
 
     group = parser.add_argument_group(title="Packet logging")
     group.add_argument(
-        "-o",
-        "--output_file",
-        nargs="?",
-        const="packets.log",
-        help="copy all valid/filtered packets to file",
-    )
-    group.add_argument(
         "-d",
         "--database",
         nargs="?",
         const="packets.db",
-        help="archive all valid packets to sqlite DB",
+        help="archive valid/filtered packets to sqlite DB",
     )
-
-    group = parser.add_argument_group(title="Payload parsing")
-    mutex = group.add_mutually_exclusive_group()
-    mutex.add_argument(
-        "-r",
-        "--raw_output",
-        action="count",
-        default=0,
-        help="0=full payload parse, 1=validate structure, 2=no processing",
-    )
-    mutex.add_argument(
-        "-m",
-        "--message_log",
+    group.add_argument(
+        "-o",
+        "--packet_log",
         nargs="?",
-        const="messages.log",
-        help="copy all decoded messages to file (in addition to stdout/stderr)",
+        const="packets.log",
+        help="copy all valid packets to file",
     )
 
     group = parser.add_argument_group(title="Known devices")
@@ -68,13 +51,13 @@ def _parse_args():
         "--known_devices",
         nargs="?",
         const="known_devices.json",
-        help="name and/or blacklist known devices, unknown devices are not blacklisted",
+        help="name and/or blacklist known devices",
     )
     group.add_argument(
         "-w",
         "--device_whitelist",
         action="store_true",
-        help="process only packets to/from known devices non-blacklisted (requires known_devices)",
+        help="process only packets to/from non-blacklisted devices",
     )
     # group.add_argument("-c", "--controller_id", type=str, action="store",
     #     help="controller to use in favour of discovery",
@@ -93,6 +76,23 @@ def _parse_args():
     #     nargs="*",
     #     help="DONT USE - don't parse any packets matching these strings",
     # )  # TODO: need to flesh out whitelist/blacklist
+
+    group = parser.add_argument_group(title="Payload parsing")
+    mutex = group.add_mutually_exclusive_group()
+    mutex.add_argument(
+        "-r",
+        "--raw_output",
+        action="count",
+        default=0,
+        help="0=full parsing, 1=validate only, 2=none*",
+    )
+    mutex.add_argument(
+        "-m",
+        "--message_log",
+        nargs="?",
+        const="messages.log",
+        help="copy messages to file (includes errors)",
+    )
 
     group = parser.add_argument_group(title="Command options")
     # mutex = group.add_mutually_exclusive_group()

@@ -11,9 +11,9 @@ from typing import Optional
 from .command import Command
 from .const import INDEX_SQL, TABLE_SQL, INSERT_SQL
 from .entity import System
-from .logger import set_logging
+from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, LOGFILE_FMT
 from .message import _LOGGER as msg_logger, Message
-from .packet import _LOGGER as pkt_logger, Packet, SerialPortManager
+from .packet import _LOGGER as pkt_logger, Packet, PortPktProvider
 
 
 logging.basicConfig(level=logging.WARNING,)
@@ -33,7 +33,7 @@ class Gateway:
 
         if self.serial_port and config.get("input_file"):
             _LOGGER.warning(
-                "Serial port specified (%s): Ignoring input file (%s)",
+                "Serial port specified (%s), so ignoring input file (%s)",
                 self.serial_port,
                 config["input_file"],
             )
@@ -42,14 +42,14 @@ class Gateway:
         if config.get("input_file"):
             if not config.get("listen_only"):
                 _LOGGER.warning(
-                    "Input file specified (%s): Enabling listen_only mode",
+                    "Input file specified (%s), so forcing listen_only mode",
                     config["input_file"],
                 )
                 config["listen_only"] = True
 
             if config.get("execute_cmd"):
                 _LOGGER.warning(
-                    "Input file specified (%s): Disabling command (%s)",
+                    "Input file specified (%s), so disabling execute_cmd (%s)",
                     config["input_file"],
                     config["execute_cmd"],
                 )
@@ -57,23 +57,27 @@ class Gateway:
 
         if config.get("raw_output") and config.get("message_log"):
             _LOGGER.warning(
-                "Raw output specified: Disabling message log (%s)",
+                "Raw output specified, so disabling message_log (%s)",
                 config["message_log"],
             )
             config["message_log"] = False
 
         set_logging(
             msg_logger,
-            file_name=self.config.get("message_log"),
             stream=None if config.get("raw_output") else sys.stdout,
-        )
-        set_logging(
-            pkt_logger,
-            file_name=self.config.get("output_file"),
-            stream=sys.stdout if config.get("raw_output") else None,
+            file_name=self.config.get("message_log"),
+            file_fmt=LOGFILE_FMT,
+            cons_fmt=CONSOLE_FMT,
         )
 
-        self._input_fp = None
+        set_logging(
+            pkt_logger,
+            stream=sys.stdout if config.get("raw_output") else None,
+            file_name=self.config.get("output_file"),
+            file_fmt=LOGFILE_FMT + BANDW_SUFFIX,
+            cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
+        )
+
         self._output_db = self._db_cursor = None
 
         self.command_queue = Queue(maxsize=200)
@@ -214,27 +218,20 @@ class Gateway:
     async def start(self) -> None:
         async def proc_packets_from_file() -> None:
             """Process packets from a file, asynchonously."""
+            # async with FilePktProvider(self.config["input_file"]) as manager:
+            #     await asyncio.gather(port_reader(manager), port_writer(manager))
+
             import aiofiles  # TODO: move to packet.py
 
-            async with aiofiles.open(self.config["input_file"]) as self._input_fp:
-                async for ts_packet_line in self._input_fp:
-                    try:
-                        pkt = Packet(ts_packet_line)
-                    except ValueError:
-                        pass
-                    else:
-                        await self._process_packet(pkt)
+            async with aiofiles.open(self.config["input_file"]) as input_fp:
+                async for ts_packet_line in input_fp:
+                    await self._validate_packet(ts_packet_line)
                     await self._dispatch_packet(destination=None)  # to empty the buffer
 
         async def proc_packets_from_port() -> None:
             async def port_reader(manager):
                 while True:  # main loop
-                    try:
-                        pkt = Packet(await manager.get_next_packet())
-                    except ValueError:
-                        pass
-                    else:
-                        await self._process_packet(pkt)
+                    await self._validate_packet(await manager.get_next_packet())
 
             async def port_writer(manager):
                 while True:  # main loop
@@ -243,7 +240,7 @@ class Gateway:
                     else:
                         await asyncio.sleep(0.05)
 
-            async with SerialPortManager(self.serial_port, loop=self.loop) as manager:
+            async with PortPktProvider(self.serial_port, loop=self.loop) as manager:
                 if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 0418 000000"
                     cmd = self.config["execute_cmd"]
                     self.command_queue.put_nowait(
@@ -288,9 +285,9 @@ class Gateway:
 
         # print schema TODO: deleteme
         if self.config.get("raw_output") == 0 and _LOGGER.isEnabledFor(logging.WARNING):
-            _LOGGER.error("%s", f"\r\n{json.dumps(self.status, indent=4)}")
+            _LOGGER.warning("%s", f"\r\n{json.dumps(self.status, indent=4)}")
 
-    async def _process_packet(self, pkt: Packet) -> None:
+    async def _validate_packet(self, ts_packet_line: str) -> None:
         """Receive a packet and optionally validate it as a message."""
 
         def has_wanted_device(pkt, dev_whitelist=None, dev_blacklist=None) -> bool:
@@ -301,11 +298,19 @@ class Gateway:
                 return any(device in pkt.packet for device in dev_whitelist)
             return not any(device in pkt.packet for device in dev_blacklist)
 
+        try:
+            pkt = Packet(ts_packet_line)
+        except ValueError:
+            return
+
         if not pkt.is_valid:
             return  # drop all invalid packets (+/- logging of invalids)
 
         if not has_wanted_device(pkt, self.device_whitelist, self.device_blacklist):
             return  # silently drop packets with unwanted (e.g. neighbour's) devices
+
+        # any remaining packets are good; log them
+        pkt_logger.info("x%s", pkt, extra=pkt.__dict__)
 
         if self._output_db:  # archive all valid packets, even those not to be parsed
             ts_pkt = f"{pkt.timestamp} {pkt.packet}"
@@ -314,16 +319,8 @@ class Gateway:
             await self._db_cursor.execute(INSERT_SQL, data)
             await self._output_db.commit()
 
-        # if any(x in pkt.packet for x in self.config.get("blacklist", [])):
-        #     return  # silently drop packets containing blacklisted text
-
-        if self.config.get("raw_output") > 1:
-            pkt_logger.info("Y%s", pkt.packet, extra=pkt.__dict__)
-        else:
-            pkt_logger.warning("Z%s", pkt.packet, extra=pkt.__dict__)
-
         if not self.config.get("raw_output"):
-            self._process_payload(pkt.__dict__)
+            self._process_payload(pkt)
 
     async def _dispatch_packet(self, destination=None) -> None:
         """Send a command unless in listen_only mode."""
@@ -337,22 +334,25 @@ class Gateway:
 
             self.command_queue.task_done()
 
-    def _process_payload(self, pkt: dict) -> bool:
+    def _process_payload(self, pkt: Packet) -> bool:
         """Decode the packet and its payload."""
+        # if any(x in pkt.packet for x in self.config.get("blacklist", [])):
+        #     return  # silently drop packets with blacklisted text
+
         try:
-            msg = Message(pkt["packet"], f"{pkt['date']}T{pkt['time']}", self)
-        except (ValueError, AssertionError):
-            _LOGGER.exception("%s", pkt["packet"], extra=pkt)
+            msg = Message(pkt, self)
+        except (AssertionError, ValueError):
+            _LOGGER.exception("%s", pkt.packet, extra=pkt)
             return
 
         if not msg.is_valid_payload:
-            return
+            return  # will also log all messages appropriately
 
         # UPDATE: only certain packets should become part of the canon
         try:
             if "18" in msg.device_id[0][:2]:  # not working?, see KeyError
                 return
-            elif msg.device_id[0][:2] == "--":
+            if msg.device_id[0][:2] == "--":
                 self.device_by_id[msg.device_id[2]].update(msg)
             else:
                 self.device_by_id[msg.device_id[0]].update(msg)

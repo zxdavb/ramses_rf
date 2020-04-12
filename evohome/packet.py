@@ -5,6 +5,7 @@ import logging
 import serial  # TODO: dont import unless required
 import serial_asyncio  # TODO: dont import unless required
 from string import printable
+from typing import Optional
 
 from .const import MESSAGE_REGEX
 from .logger import time_stamp
@@ -34,27 +35,34 @@ class Packet:
         packet_line = self._packet_line = timestamp_packet[27:]  # .strip()
         self.timestamp = timestamp_packet[:26]
 
-        if not packet_line:  # TODO: validate timestamp
-            raise ValueError(f"there is no packet, nor packet metadata: {packet_line}")
+        if not packet_line:  # TODO: also validate timestamp
+            raise ValueError(
+                f"there is no packet, nor packet metadata: '{packet_line}'"
+            )
 
         self.date, self.time = self.timestamp[:10], self.timestamp[11:26]
         self.packet, self.error_text, self.comment = split_pkt_line(packet_line)
 
     def __str__(self) -> str:
         """Represent the entity as a string."""
-        return f"{self.timestamp} {self.packet}{self.error_text}{self.comment}"
+        return self.packet
+
+    # def __repr__(self) -> str:
+    #     """Represent the entity as an umabiguous string."""
+    #     return f"{self.timestamp} {self.packet}{self.error_text}{self.comment}"
 
     @property
     def is_valid(self) -> bool:
         """Return True if a packet is valid in structure, log any baddies."""
-        if not self.packet:
-            _LOGGER.warning("B< Invalid packet: null packet", extra=self.__dict__)
+        if self.error_text:
+            if self.packet:
+                _LOGGER.warning("E%s < Bad packet: error:", self, extra=self.__dict__)
+            else:
+                _LOGGER.warning("e< Bad packet: error:", extra=self.__dict__)
             return False
 
-        if self.error_text:
-            _LOGGER.warning(
-                "A%s < Invalid packet: error", self.packet, extra=self.__dict__
-            )
+        if not self.packet:
+            _LOGGER.warning("N< Bad packet: null packet", extra=self.__dict__)
             return False
 
         if not MESSAGE_REGEX.match(self.packet):
@@ -64,19 +72,18 @@ class Packet:
         elif int(self.packet[46:49]) * 2 != len(self.packet[50:]):
             err_msg = f"payload length mismatch"
         else:
+            # don't log good packets here: we may want to silently discard some
+            # _LOGGER.info("G%s", self, extra=self.__dict__)
             return True
 
-        _LOGGER.warning(
-            "C%s < Invalid packet: %s", self.packet, err_msg, extra=self.__dict__
-        )
+        _LOGGER.warning("I%s < Bad packet: %s", self, err_msg, extra=self.__dict__)
         return False
 
 
-class SerialPortManager:
-    """Fake class docstring."""
+class PortPktProvider:
+    """Base class for packets from a serial port."""
 
     def __init__(self, serial_port, loop, timeout=READ_TIMEOUT) -> None:
-        """Fake method docstring."""
         self.serial_port = serial_port
         self.baudrate = BAUDRATE
         self.timeout = timeout
@@ -86,7 +93,6 @@ class SerialPortManager:
         self.reader = self.write = None
 
     async def __aenter__(self):
-        """Fake method docstring."""
         self.reader, self.writer = await serial_asyncio.open_serial_connection(
             loop=self.loop,
             url=self.serial_port,
@@ -97,15 +103,14 @@ class SerialPortManager:
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
-        """Fake method docstring."""
         pass
 
-    async def get_next_packet(self) -> str:
-        """Get the next valid packet from a serial port."""
+    async def get_next_packet(self) -> Optional[str]:
+        """Get the next packet line from a serial port."""
         try:
             raw_packet = await self.reader.readline()
         except serial.SerialException:
-            return ""
+            return
 
         print(f"{raw_packet}")  # TODO: deleteme, only for debugging
 
@@ -114,4 +119,40 @@ class SerialPortManager:
 
         # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
 
-        return f"{timestamp} {packet_line}" if packet_line else ""
+        return f"{timestamp} {packet_line}" if packet_line else f"{timestamp}"
+
+
+class FilePktProvider:
+    """Base class for packets from a serial port."""
+
+    def __init__(self, file_name) -> None:
+        self.file_name = file_name
+
+    async def __aenter__(self):
+        self.reader, self.writer = await serial_asyncio.open_serial_connection(
+            loop=self.loop,
+            url=self.serial_port,
+            baudrate=self.baudrate,
+            timeout=self.timeout,
+            xonxoff=True,
+        )
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        pass
+
+    async def get_next_packet(self) -> Optional[str]:
+        """Get the next packet line from a serial port."""
+        try:
+            raw_packet = await self.reader.readline()
+        except serial.SerialException:
+            return
+
+        # print(f"{raw_packet}")  # TODO: deleteme, only for debugging
+
+        timestamp = time_stamp()
+        packet_line = "".join(c for c in raw_packet.decode().strip() if c in printable)
+
+        # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
+
+        return f"{timestamp} {packet_line}" if packet_line else f"{timestamp}"

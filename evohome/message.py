@@ -14,11 +14,13 @@ _LOGGER.setLevel(logging.INFO)  # INFO or DEBUG
 class Message:
     """The message class."""
 
-    def __init__(self, packet, timestamp, gateway) -> None:
-        """Initialse the class."""
+    def __init__(self, pkt, gateway) -> None:
+        """Initialse the class, assumes a valid packet."""
         self._gateway = gateway
-        self._packet = packet
-        self._timestamp = timestamp
+        self._packet = packet = pkt.packet
+        self._timestamp = pkt.timestamp
+        self.date = pkt.date
+        self.time = pkt.time
 
         self.rssi = packet[0:3]
         self.verb = packet[4:6]  # -I, RP, RQ, or -W
@@ -34,9 +36,13 @@ class Message:
         self.raw_payload = packet[50:]
 
         self._payload = self._is_valid_payload = None
+        self._repr = None
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         """Represent the entity as a string."""
+
+        if self._repr:
+            return self._repr
 
         def _dev_name(idx) -> str:
             """Return a friendly device name."""
@@ -65,31 +71,30 @@ class Message:
             device_names += ["", ""]
 
         if len(self.raw_payload) < 9:
-            raw_payload = self.raw_payload
+            raw_payload1 = self.raw_payload
+            raw_payload2 = ""
         else:
-            raw_payload = (self.raw_payload[:7] + "...")[:11]
+            raw_payload1 = f"{self.raw_payload[:7]}..."[:11]  # TODO: needs fixing
+            raw_payload2 = self.raw_payload
 
-        payload = self._payload
+        # raw_payload2 = self.raw_payload if len(self.raw_payload) > 8 else ""
 
-        message = MESSAGE_FORMAT.format(
+        self._repr = MESSAGE_FORMAT.format(
             device_names[0],
             device_names[1],
             self.verb,
             COMMAND_MAP.get(self.code, f"unknown_{self.code}"),
-            raw_payload,
-            payload
-            if payload
-            else (self.raw_payload if len(self.raw_payload) > 8 else ""),
+            raw_payload1,
+            self._payload if self._payload else raw_payload2,
         )
 
-        return message
+        return self._repr
 
     @property
     def is_valid_payload(self) -> bool:
         """Return True if the payload is valid."""
-        if self._is_valid_payload is None:
-            self._is_valid_payload = bool(self.payload)
-
+        if self._is_valid_payload is None:  # TODO: messy, needs fixing
+            self._is_valid_payload = bool(self.payload)  # TODO: remove bool()?
         return self._is_valid_payload
 
     @property
@@ -148,57 +153,37 @@ class Message:
             return self._payload
         # self._is_valid_payload is None...
 
+        try:
+            if self.device_id[0][:2] != "18":  # TODO: may interfere with discovery
+                harvest_new_entities(self)
+        except AssertionError:  # for dev only?
+            self._is_valid_payload = False
+            _LOGGER.exception("A%s", self, extra=self.__dict__)
+            return
+
         try:  # determine which parser to use
             payload_parser = getattr(parsers, f"parser_{self.code}".lower())
         except AttributeError:
             payload_parser = getattr(parsers, "parser_unknown")
 
         try:
-            if self.device_id[0][:2] != "18":  # TODO: may interfere with discovery
-                harvest_new_entities(self)
-
-        except AssertionError:  # for dev only?
-            self._is_valid_payload = False
-
-            _LOGGER.exception(
-                "%s",
-                str(self),
-                extra={"date": self._timestamp[:10], "time": self._timestamp[11:]},
-            )
-            return
-
-        try:
             if payload_parser:
                 self._payload = payload_parser(self.raw_payload, self)
 
-        except AssertionError:  # for dev only?
+        except AssertionError:  # for development only?
             self._is_valid_payload = False
-
             # users can send valid (but unparseable) packets & get odd reply
-            if "18" not in [self.device_id[0][:2], self.device_id[1][:2]]:
-                _LOGGER.exception(
-                    "%s",
-                    str(self),
-                    extra={"date": self._timestamp[:10], "time": self._timestamp[11:]},
-                )
+            # if "18" not in [self.device_id[0][:2], self.device_id[1][:2]]:
+            _LOGGER.exception("B%s", self, extra=self.__dict__)
             return
 
         except (LookupError, TypeError, ValueError):
             self._is_valid_payload = False
-
-            _LOGGER.exception(
-                "%s",
-                str(self),
-                extra={"date": self._timestamp[:10], "time": self._timestamp[11:]},
-            )  # same as _LOGGER.error
+            _LOGGER.exception("C%s", self, extra=self.__dict__)
             return
 
-        self._is_valid_payload = bool(self._payload)  # Should just be True?
-
-        _LOGGER.info(
-            "%s",
-            str(self),
-            extra={"date": self._timestamp[:10], "time": self._timestamp[11:]},
-        )
+        # TODO: Should just be True by now? If not True, then what?
+        self._is_valid_payload = bool(self._payload)
+        _LOGGER.info("D%s", self, extra=self.__dict__)
 
         return self._payload

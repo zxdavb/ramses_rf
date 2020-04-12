@@ -9,21 +9,13 @@ import time
 import shutil
 import sys
 
-# HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssssss
-CONSOLE_FORMAT = "%(time).12s %(message)s"
-LOGFILE_FORMAT = "%(date)sT%(time)s %(message)s"
+BANDW_SUFFIX = " %(error_text)s%(comment)s"
+COLOR_SUFFIX = " %(red)s%(error_text)s%(cyan)s%(comment)s"
 
-# color logging, or not
-COLOR_LOG_FORMAT = " %(red)s%(error_text)s%(cyan)s%(comment)s"
-BANDW_LOG_FORMAT = " %(error_text)s%(comment)s"
-
-LOG_COLORS = {
-    "DEBUG": "cyan",
-    "INFO": "green",
-    "WARNING": "yellow",
-    "ERROR": "red",
-    "CRITICAL": "red",
-}
+# HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssss
+CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
+CONSOLE_FMT = "%(time).12s " + f"%(message).{CONSOLE_COLS - 13}s"
+LOGFILE_FMT = "%(date)sT%(time)s %(message)s"
 
 
 class FILETIME(ctypes.Structure):
@@ -51,12 +43,15 @@ def time_time():
     return _time - 134774 * 24 * 60 * 60  # since 1601-01-01T00:00:00Z
 
 
-def set_logging(logger, stream=sys.stderr, file_name=None):
+def set_logging(
+    logger,
+    stream=sys.stderr,
+    cons_fmt=CONSOLE_FMT,
+    file_fmt=LOGFILE_FMT,
+    file_name=None,
+):
     """Create/configure handlers, formatters, etc."""
     logger.propagate = False
-
-    cons_cols = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
-    cons_fmt = f"{CONSOLE_FORMAT[:-1]}.{cons_cols - 13}s"
 
     try:
         from colorlog import ColoredFormatter, default_log_colors
@@ -66,17 +61,11 @@ def set_logging(logger, stream=sys.stderr, file_name=None):
         # logging.basicConfig(level=logging.INFO)
 
         formatter = ColoredFormatter(
-            f"%(log_color)s{cons_fmt}{COLOR_LOG_FORMAT}",
-            reset=True,
-            log_colors=default_log_colors,
+            f"%(log_color)s{cons_fmt}", reset=True, log_colors=default_log_colors,
         )
-        # formatter = ColoredFormatter(
-        #     f"%(log_color)s{cons_fmt}", reset=True, log_colors=LOG_COLORS
-        # )
 
     except ModuleNotFoundError:
-        formatter = logging.Formatter(fmt=f"{cons_fmt}{BANDW_LOG_FORMAT}")
-        # formatter = logging.Formatter(fmt=cons_fmt)
+        formatter = logging.Formatter(fmt=cons_fmt)
 
     handler = logging.StreamHandler(stream=sys.stderr)
     handler.setFormatter(formatter)
@@ -105,7 +94,7 @@ def set_logging(logger, stream=sys.stderr, file_name=None):
         # err_handler.setFormatter(logging.Formatter(fmt, datefmt=datefmt))
 
         handler = logging.FileHandler(file_name)
-        handler.setFormatter(logging.Formatter(fmt=LOGFILE_FORMAT))
+        handler.setFormatter(logging.Formatter(fmt=file_fmt))
         handler.setLevel(logging.DEBUG)
         handler.addFilter(DebugFilter())  # TODO: was InfoFilter()
 
