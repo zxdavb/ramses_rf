@@ -113,7 +113,7 @@ class PortPktProvider:
         except serial.SerialException:
             return
 
-        print(f"{raw_packet}")  # TODO: deleteme, only for debugging
+        # print(f"{raw_packet}")  # TODO: deleteme, only for debugging
 
         timestamp = time_stamp()
         packet_line = "".join(c for c in raw_packet.decode().strip() if c in printable)
