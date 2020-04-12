@@ -57,7 +57,7 @@ class Packet:
         """Return True if a packet is valid in structure, log any baddies."""
         if self.error_text:
             if self.packet:
-                _LOGGER.warning("E%s< Bad packet: ", self, extra=self.__dict__)
+                _LOGGER.warning("E%s < Bad packet: ", self, extra=self.__dict__)
             else:
                 _LOGGER.warning("e< Bad packet: ", extra=self.__dict__)
             return False
@@ -77,7 +77,7 @@ class Packet:
             # _LOGGER.info("G%s", self, extra=self.__dict__)
             return True
 
-        _LOGGER.warning("I%s< Bad packet: %s ", self, err_msg, extra=self.__dict__)
+        _LOGGER.warning("I%s < Bad packet: %s ", self, err_msg, extra=self.__dict__)
         return False
 
 
