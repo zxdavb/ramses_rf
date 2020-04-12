@@ -15,7 +15,8 @@ COLOR_SUFFIX = "%(red)s%(error_text)s%(cyan)s%(comment)s"
 # HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssss
 CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
 CONSOLE_FMT = "%(time).12s " + f"%(message).{CONSOLE_COLS - 13}s"
-LOGFILE_FMT = "%(date)sT%(time)s %(_packet)s"  # TODO: _packet is a hack for space @ end
+PKT_LOG_FMT = "%(date)sT%(time)s %(_packet)s"  # TODO: _packet is a hack for space @ end
+MSG_LOG_FMT = "%(date)sT%(time)s %(message)s"
 
 
 class FILETIME(ctypes.Structure):
@@ -47,7 +48,7 @@ def set_logging(
     logger,
     stream=sys.stderr,
     cons_fmt=CONSOLE_FMT,
-    file_fmt=LOGFILE_FMT,
+    file_fmt=MSG_LOG_FMT,
     file_name=None,
 ):
     """Create/configure handlers, formatters, etc."""

@@ -11,7 +11,7 @@ from typing import Optional
 from .command import Command
 from .const import INDEX_SQL, TABLE_SQL, INSERT_SQL
 from .entity import System
-from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, LOGFILE_FMT
+from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
 from .packet import _LOGGER as pkt_logger, Packet, PortPktProvider
 
@@ -66,7 +66,6 @@ class Gateway:
             msg_logger,
             stream=None if config.get("raw_output") else sys.stdout,
             file_name=self.config.get("message_log"),
-            file_fmt=LOGFILE_FMT,
             cons_fmt=CONSOLE_FMT,
         )
 
@@ -74,7 +73,7 @@ class Gateway:
             pkt_logger,
             stream=sys.stdout if config.get("raw_output") else None,
             file_name=self.config.get("packet_log"),
-            file_fmt=LOGFILE_FMT + BANDW_SUFFIX,
+            file_fmt=PKT_LOG_FMT + BANDW_SUFFIX,
             cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
         )
 
