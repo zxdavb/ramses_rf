@@ -116,8 +116,8 @@ class Gateway:
             with open(self.config["known_devices"], "w") as outfile:
                 json.dump(self.device_lookup, outfile, sort_keys=True, indent=4)
 
-        if self.config.get("raw_output") > 1:
-            print(f"\r\n{json.dumps(self.structure, indent=4)}")  # TODO: deleteme
+        if not self.config.get("raw_output"):
+            print(f"\r\n{json.dumps(self.status, indent=4)}")  # TODO: deleteme
 
         sys.exit()
 
@@ -280,10 +280,6 @@ class Gateway:
             await proc_packets_from_file()  # main loop
         else:  # if self.config["serial_port"] or if self.serial_port
             await proc_packets_from_port()  # main loop
-
-        # print schema TODO: deleteme
-        if self.config.get("raw_output") == 0 and _LOGGER.isEnabledFor(logging.WARNING):
-            _LOGGER.warning("%s", f"\r\n{json.dumps(self.status, indent=4)}")
 
     async def _validate_packet(self, ts_packet_line: str) -> None:
         """Receive a packet and optionally validate it as a message."""

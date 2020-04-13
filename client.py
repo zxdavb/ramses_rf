@@ -19,7 +19,7 @@ def _parse_args():
 
     parser = argparse.ArgumentParser()
 
-    group = parser.add_argument_group(title="Packet source")
+    group = parser.add_argument_group(title="Packet source (one is required)")
     mutex = group.add_mutually_exclusive_group(required=True)
     mutex.add_argument("-s", "--serial_port", help="port to poll for packets")
     mutex.add_argument(
@@ -82,9 +82,8 @@ def _parse_args():
     mutex.add_argument(
         "-r",
         "--raw_output",
-        action="count",
-        default=0,
-        help="0=validate & parse, 1=validate only",
+        action="store_true",
+        help="validate packets, but do not parse payloads",
     )
     mutex.add_argument(
         "-m",
@@ -119,7 +118,7 @@ def _parse_args():
 
     group = parser.add_argument_group(title="Debug options")
     group.add_argument(
-        "-z", "--debug_mode", action="count", default=0, help="1=log, 2=enable, 3=wait",
+        "-z", "--debug_mode", action="count", default=0, help="1=N/A, 2=enable, 3=wait",
     )
 
     args = parser.parse_args()
