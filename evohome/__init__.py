@@ -309,7 +309,7 @@ class Gateway:
             return  # silently drop packets with unwanted (e.g. neighbour's) devices
 
         # any remaining packets are good; log them
-        pkt_logger.info("x%s ", pkt, extra=pkt.__dict__)
+        pkt_logger.info("%s ", pkt, extra=pkt.__dict__)
 
         if self._output_db:  # archive all valid packets, even those not to be parsed
             ts_pkt = f"{pkt.timestamp} {pkt.packet}"
