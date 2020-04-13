@@ -9,12 +9,17 @@ import time
 import shutil
 import sys
 
+DEFAULT_FMT = "%(asctime)s.%(msecs)03d %(message)s"
+
 BANDW_SUFFIX = "%(error_text)s%(comment)s"
+COLOR_SUFFIX = "%(red)s%(error_text)s%(cyan)s%(comment)s"
 
 try:
     from colorlog import ColoredFormatter, default_log_colors
 
-    COLOR_SUFFIX = "%(red)s%(error_text)s%(cyan)s%(comment)s"
+    # basicConfig must be called after importing colorlog to ensure the handlers
+    # it sets up wrap the correct streams (logging.INFO is required, below)
+    logging.basicConfig(level=logging.INFO, format=DEFAULT_FMT, datefmt="%H:%M:%S")
 except ModuleNotFoundError:
     COLOR_SUFFIX = BANDW_SUFFIX
 
@@ -63,9 +68,6 @@ def set_logging(
     if COLOR_SUFFIX == BANDW_SUFFIX:
         formatter = logging.Formatter(fmt=cons_fmt)
     else:
-        # # basicConfig must be called after importing colorlog in order to
-        # # ensure that the handlers it sets up wraps the correct streams.
-        # logging.basicConfig(level=logging.INFO)
         formatter = ColoredFormatter(
             f"%(log_color)s{cons_fmt}", reset=True, log_colors=default_log_colors,
         )

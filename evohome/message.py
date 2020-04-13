@@ -8,7 +8,6 @@ from .const import COMMAND_MAP, DEVICE_MAP, MESSAGE_FORMAT
 from .entity import DEVICE_CLASSES, Device, DhwZone, Zone
 
 _LOGGER = logging.getLogger(__name__)  # evohome.message
-_LOGGER.setLevel(logging.INFO)  # INFO or DEBUG
 
 
 class Message:

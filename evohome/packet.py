@@ -11,7 +11,6 @@ from .const import MESSAGE_REGEX
 from .logger import time_stamp
 
 _LOGGER = logging.getLogger(__name__)  # evohome.packet
-_LOGGER.setLevel(logging.INFO)  # INFO or DEBUG
 
 BAUDRATE = 115200  # 38400  #  57600  # 76800  # 38400  # 115200
 READ_TIMEOUT = 0.5
