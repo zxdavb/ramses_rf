@@ -239,7 +239,7 @@ class Gateway:
                         await asyncio.sleep(0.05)
 
             async with PortPktProvider(self.serial_port, loop=self.loop) as manager:
-                if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 0418 000000"
+                if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 FF"
                     cmd = self.config["execute_cmd"]
                     self.command_queue.put_nowait(
                         Command(self, cmd[13:17], cmd[:2], cmd[3:12], cmd[18:])

@@ -6,8 +6,8 @@ import sys
 
 from evohome import Gateway
 
-DEBUG_ADDR = "172.27.0.138"
-DEBUG_PORT = 5679
+DEBUG_ADDR = "0.0.0.0"
+DEBUG_PORT = 5678
 
 
 def _parse_args():
@@ -77,14 +77,14 @@ def _parse_args():
     #     help="DONT USE - don't parse any packets matching these strings",
     # )  # TODO: need to flesh out whitelist/blacklist
 
-    group = parser.add_argument_group(title="Payload parsing")
+    group = parser.add_argument_group(title="Packet processing")
     mutex = group.add_mutually_exclusive_group()
     mutex.add_argument(
         "-r",
         "--raw_output",
         action="count",
         default=0,
-        help="0=full parsing, 1=validate only, 2=none*",
+        help="0=validate & parse, 1=validate only",
     )
     mutex.add_argument(
         "-m",
