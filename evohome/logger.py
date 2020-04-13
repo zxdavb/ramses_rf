@@ -14,10 +14,8 @@ BANDW_SUFFIX = "%(error_text)s%(comment)s"
 try:
     from colorlog import ColoredFormatter, default_log_colors
 
-    # formatter = ColoredFormatter
     COLOR_SUFFIX = "%(red)s%(error_text)s%(cyan)s%(comment)s"
 except ModuleNotFoundError:
-    # formatter = logging.Formatter
     COLOR_SUFFIX = BANDW_SUFFIX
 
 # HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssss
