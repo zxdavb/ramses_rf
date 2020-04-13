@@ -57,13 +57,13 @@ class Packet:
         """Return True if a packet is valid in structure, log any baddies."""
         if self.error_text:
             if self.packet:
-                _LOGGER.warning("E%s < Bad packet: ", self, extra=self.__dict__)
+                _LOGGER.warning("%s < Bad packet: ", self, extra=self.__dict__)
             else:
-                _LOGGER.warning("e< Bad packet: ", extra=self.__dict__)
+                _LOGGER.warning("< Bad packet: ", extra=self.__dict__)
             return False
 
         if not self.packet:
-            _LOGGER.warning("N< Bad packet: null packet ", extra=self.__dict__)
+            _LOGGER.warning("< Bad packet: null packet ", extra=self.__dict__)
             return False
 
         if not MESSAGE_REGEX.match(self.packet):
@@ -74,10 +74,10 @@ class Packet:
             err_msg = f"payload length mismatch"
         else:
             # don't log good packets here: we may want to silently discard some
-            # _LOGGER.info("G%s", self, extra=self.__dict__)
+            # _LOGGER.info("%s", self, extra=self.__dict__)
             return True
 
-        _LOGGER.warning("I%s < Bad packet: %s ", self, err_msg, extra=self.__dict__)
+        _LOGGER.warning("%s < Bad packet: %s ", self, err_msg, extra=self.__dict__)
         return False
 
 
