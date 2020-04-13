@@ -66,7 +66,6 @@ class Gateway:
             msg_logger,
             stream=None if config.get("raw_output") else sys.stdout,
             file_name=self.config.get("message_log"),
-            cons_fmt=CONSOLE_FMT,
         )
 
         set_logging(

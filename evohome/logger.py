@@ -10,12 +10,20 @@ import shutil
 import sys
 
 BANDW_SUFFIX = "%(error_text)s%(comment)s"
-COLOR_SUFFIX = "%(red)s%(error_text)s%(cyan)s%(comment)s"
+
+try:
+    from colorlog import ColoredFormatter, default_log_colors
+
+    # formatter = ColoredFormatter
+    COLOR_SUFFIX = "%(red)s%(error_text)s%(cyan)s%(comment)s"
+except ModuleNotFoundError:
+    # formatter = logging.Formatter
+    COLOR_SUFFIX = BANDW_SUFFIX
 
 # HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssss
 CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
 CONSOLE_FMT = "%(time).12s " + f"%(message).{CONSOLE_COLS - 13}s"
-PKT_LOG_FMT = "%(date)sT%(time)s %(_packet)s"  # TODO: _packet is a hack for space @ end
+PKT_LOG_FMT = "%(date)sT%(time)s %(_packet)s"
 MSG_LOG_FMT = "%(date)sT%(time)s %(message)s"
 
 
@@ -54,18 +62,15 @@ def set_logging(
     """Create/configure handlers, formatters, etc."""
     logger.propagate = False
 
-    try:  # formatter = ...
-        from colorlog import ColoredFormatter, default_log_colors
-
+    if COLOR_SUFFIX == BANDW_SUFFIX:
+        formatter = logging.Formatter(fmt=cons_fmt)
+    else:
         # # basicConfig must be called after importing colorlog in order to
         # # ensure that the handlers it sets up wraps the correct streams.
         # logging.basicConfig(level=logging.INFO)
-
         formatter = ColoredFormatter(
             f"%(log_color)s{cons_fmt}", reset=True, log_colors=default_log_colors,
         )
-    except ModuleNotFoundError:
-        formatter = logging.Formatter(fmt=cons_fmt)
 
     handler = logging.StreamHandler(stream=sys.stderr)
     handler.setFormatter(formatter)
