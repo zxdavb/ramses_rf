@@ -30,18 +30,18 @@ class Packet:
     """The packet class."""
 
     def __init__(self, timestamp_packet) -> None:
-        """Initialse the class."""
+        """Create a packet."""
         packet_line = self._packet_line = timestamp_packet[27:]  # .strip()
         self.timestamp = timestamp_packet[:26]
 
-        if not packet_line:  # TODO: also validate timestamp
-            raise ValueError(
-                f"there is no packet, nor packet metadata: '{packet_line}'"
-            )
+        assert bool(packet_line)  # TODO: also validate timestamp
 
         self.date, self.time = self.timestamp[:10], self.timestamp[11:26]
         self.packet, self.error_text, self.comment = split_pkt_line(packet_line)
         self._packet = self.packet + " " if self.packet else ""  # TODO: a hack 4 log
+
+        self._is_valid = None
+        self._is_valid = self.is_valid
 
     def __str__(self) -> str:
         """Represent the entity as a string."""
@@ -53,7 +53,13 @@ class Packet:
 
     @property
     def is_valid(self) -> bool:
-        """Return True if a packet is valid in structure, log any baddies."""
+        """Return True if the packet is valid in structure.
+
+        All exceptions are to be trapped, and logged appropriately.
+        """
+        if self._is_valid is not None:
+            return self._is_valid
+
         if self.error_text:
             if self.packet:
                 _LOGGER.warning("%s < Bad packet: ", self, extra=self.__dict__)

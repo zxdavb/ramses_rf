@@ -547,7 +547,7 @@ def parser_1f09(payload, msg) -> Optional[dict]:  # sync_cycle
     assert payload[:2] in ["00", "F8", "FF"]  # W uses F8, non-Honeywell devices use 00
 
     seconds = int(payload[2:6], 16) / 10
-    next_sync = dt.fromisoformat(msg._timestamp) + timedelta(seconds=seconds)
+    next_sync = dt.fromisoformat(f"{msg.date}T{msg.time}") + timedelta(seconds=seconds)
 
     return {
         "remaining_seconds": seconds,

@@ -30,6 +30,26 @@ MAX_CMDS_PER_MINUTE = 30
 # await asyncio.sleep(0.7)  # 0.8, 1.0 OK, 0.5 too short
 
 
+def get_schedule(zone_idx, controller, gateway):
+
+    packet_total = 0
+    packet_num = 0
+
+    # packet_list = []
+
+    payload = f"{zone_idx:02X}20000800{packet_num:02d}{packet_total:02d}"
+
+    gateway.command_queue.put_nowait(
+        Command(gateway, "0404", "RQ", controller, payload)
+    )
+
+    packet_total = 5  # TBA
+    for i in range(2, packet_total + 1):
+        gateway.command_queue.put_nowait(
+            Command(gateway, "0404", "RQ", controller, payload)
+        )
+
+
 class Command:
     """The command class."""
 

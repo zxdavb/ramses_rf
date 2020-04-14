@@ -290,16 +290,17 @@ class Gateway:
 
         try:
             pkt = Packet(ts_packet_line)
-        except ValueError:
+        except AssertionError:  # shouldn't happen
+            _LOGGER.exception("%s", ts_packet_line, extra=pkt)  # TODO: extra
             return
-
-        if not pkt.is_valid:
-            return  # drop all invalid packets (+/- logging of invalids)
+        else:
+            if not pkt.is_valid:  # this will trap/log all exceptions appropriately
+                return
 
         if not has_wanted_device(pkt, self.device_whitelist, self.device_blacklist):
             return  # silently drop packets with unwanted (e.g. neighbour's) devices
 
-        # any remaining packets are good; log them
+        # any remaining packets are both valid & wanted, so: log them
         pkt_logger.info("%s ", pkt, extra=pkt.__dict__)
 
         if self._output_db:  # archive all valid packets, even those not to be parsed
@@ -309,6 +310,7 @@ class Gateway:
             await self._db_cursor.execute(INSERT_SQL, data)
             await self._output_db.commit()
 
+        # finally, process packet payloads as messages
         if not self.config.get("raw_output"):
             self._process_payload(pkt)
 
@@ -331,14 +333,14 @@ class Gateway:
 
         try:
             msg = Message(pkt, self)
-        except (AssertionError, ValueError):
+        except AssertionError:  # shouldn't happen
             _LOGGER.exception("%s", pkt.packet, extra=pkt)
             return
+        else:
+            if not msg.is_valid:  # this will trap/log all exceptions appropriately
+                return
 
-        if not msg.is_valid_payload:
-            return  # will also log all messages appropriately
-
-        # UPDATE: only certain packets should become part of the canon
+        # finally, only certain packets should become part of the canon
         try:
             if "18" in msg.device_id[0][:2]:  # not working?, see KeyError
                 return

@@ -14,10 +14,9 @@ class Message:
     """The message class."""
 
     def __init__(self, pkt, gateway) -> None:
-        """Initialse the class, assumes a valid packet."""
+        """Create a message, assumes a valid packet."""
         self._gateway = gateway
         self._packet = packet = pkt.packet
-        self._timestamp = pkt.timestamp
         self.date = pkt.date
         self.time = pkt.time
 
@@ -33,18 +32,18 @@ class Message:
 
         self.payload_length = int(packet[46:49])
         self.raw_payload = packet[50:]
+        self._payload = None
 
-        self._payload = self._is_valid_payload = None
         self._repr = None
+
+        self._is_valid = None
+        self._is_valid = self.is_valid
 
     def __repr__(self) -> str:
         """Represent the entity as a string."""
 
-        if self._repr:
-            return self._repr
-
         def _dev_name(idx) -> str:
-            """Return a friendly device name."""
+            """Return a friendly device name, of length 10 characters."""
             device_id = self.device_id[idx]
 
             if device_id[:2] == "--":
@@ -63,19 +62,22 @@ class Message:
             device_type = DEVICE_MAP.get(device_id[:2], f"{device_id[:2]:>3}")
             return f"{device_type}:{self.device_id[idx][3:]}"
 
+        if self._repr:
+            return self._repr
+
         device_names = [_dev_name(x) for x in range(3) if _dev_name(x) != f"{'':<10}"]
         if len(device_names) < 2:
             # ---  I --- --:------ --:------ 10:138822 1FD4 003 000EC6
             # ---  x --- --:------ --:------ --:------ .... from HGI
             device_names += ["", ""]
 
+        # TODO: the following is a bit dodgy & needs fixing
         if len(self.raw_payload) < 9:
             raw_payload1 = self.raw_payload
             raw_payload2 = ""
         else:
-            raw_payload1 = f"{self.raw_payload[:7]}..."[:11]  # TODO: needs fixing
+            raw_payload1 = f"{self.raw_payload[:7]}..."[:11]
             raw_payload2 = self.raw_payload
-
         # raw_payload2 = self.raw_payload if len(self.raw_payload) > 8 else ""
 
         self._repr = MESSAGE_FORMAT.format(
@@ -90,15 +92,11 @@ class Message:
         return self._repr
 
     @property
-    def is_valid_payload(self) -> bool:
-        """Return True if the payload is valid."""
-        if self._is_valid_payload is None:  # TODO: messy, needs fixing
-            self._is_valid_payload = bool(self.payload)  # TODO: remove bool()?
-        return self._is_valid_payload
+    def is_valid(self) -> bool:
+        """Return True if the message payload is valid.
 
-    @property
-    def payload(self) -> Optional[dict]:
-        """Return the payload."""
+        All exceptions are to be trapped, and logged appropriately.
+        """
 
         def harvest_new_entities(self):
             def get_device(gateway, device_id):
@@ -146,19 +144,15 @@ class Message:
                         # TODO: add only if payload valid
                         get_zone(self._gateway, self.raw_payload[i : i + 2])
 
-        if self._is_valid_payload is False:
-            return
-        if self._is_valid_payload is True:
-            return self._payload
-        # self._is_valid_payload is None...
+        if self._is_valid is not None:
+            return self._is_valid
 
         try:
             if self.device_id[0][:2] != "18":  # TODO: may interfere with discovery
                 harvest_new_entities(self)
         except AssertionError:  # for dev only?
-            self._is_valid_payload = False
             _LOGGER.exception("%s", self, extra=self.__dict__)
-            return
+            return False
 
         try:  # determine which parser to use
             payload_parser = getattr(parsers, f"parser_{self.code}".lower())
@@ -166,23 +160,23 @@ class Message:
             payload_parser = getattr(parsers, "parser_unknown")
 
         try:
-            if payload_parser:
-                self._payload = payload_parser(self.raw_payload, self)
+            self._payload = payload_parser(self.raw_payload, self)  # TODO: messy
 
         except AssertionError:  # for development only?
-            self._is_valid_payload = False
-            # users can send valid (but unparseable) packets & get odd reply
+            # HGI80 can send valid (but unparseable) packets & get odd reply
             # if "18" not in [self.device_id[0][:2], self.device_id[1][:2]]:
             _LOGGER.exception("%s", self, extra=self.__dict__)
-            return
+            return False
 
         except (LookupError, TypeError, ValueError):
-            self._is_valid_payload = False
             _LOGGER.exception("%s", self, extra=self.__dict__)
-            return
+            return False
 
-        # TODO: Should just be True by now? If not True, then what?
-        self._is_valid_payload = bool(self._payload)
+        # any remaining messages are valid, so: log them
         _LOGGER.info("%s", self, extra=self.__dict__)
+        return True  # bool(self._payload)  # Should just be True by now
 
+    @property
+    def payload(self) -> Optional[dict]:
+        """Return the payload."""
         return self._payload
