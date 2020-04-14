@@ -68,7 +68,7 @@ class Packet:
             return False
 
         if not self.packet:
-            _LOGGER.warning("< Bad packet: null packet ", extra=self.__dict__)
+            _LOGGER.warning("", extra=self.__dict__)
             return False
 
         if not MESSAGE_REGEX.match(self.packet):
@@ -76,7 +76,7 @@ class Packet:
         elif int(self.packet[46:49]) > 48:
             err_msg = "payload length excessive"
         elif int(self.packet[46:49]) * 2 != len(self.packet[50:]):
-            err_msg = f"payload length mismatch"
+            err_msg = "payload length mismatch"
         else:
             # don't log good packets here: we may want to silently discard some
             # _LOGGER.info("%s", self, extra=self.__dict__)

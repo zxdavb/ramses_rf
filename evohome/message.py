@@ -98,10 +98,12 @@ class Message:
         All exceptions are to be trapped, and logged appropriately.
         """
 
-        def harvest_new_entities(self):
-            def get_device(gateway, device_id):
+        def harvest_new_entities() -> None:
+            """Discover and create new devices and zones (and domains?)."""
+            # TODO: what about domains, e.g. DHW
+
+            def get_device(gateway, device_id) -> Device:
                 """Get a Device, create it if required."""
-                assert device_id[:2] not in ["63", "--"]
                 assert device_id[:2] in DEVICE_MAP
 
                 try:  # does the system already know about this entity?
@@ -109,50 +111,36 @@ class Message:
                 except KeyError:  # no, this is a new entity, so create it
                     device_class = DEVICE_CLASSES.get(device_id[:2], Device)
                     entity = device_class(device_id, gateway)
-
                 return entity
 
-            def get_zone(gateway, zone_idx):
+            def get_zone(gateway, zone_idx) -> Zone:
                 """Get a Zone, create it if required."""
                 assert int(zone_idx, 16) <= 11  # TODO: not for Hometronic
 
                 try:  # does the system already know about this entity?
                     entity = gateway.zone_by_id[zone_idx]
                 except KeyError:  # no, this is a new entity, so create it
-                    zone_class = DhwZone if zone_idx == "HW" else Zone  # RadValve
+                    zone_class = DhwZone if zone_idx == "HW" else Zone
                     entity = zone_class(zone_idx, gateway)  # TODO: other zone types?
-
                 return entity
 
-            # Discover new (unknown) devices
-            for dev in range(3):
-                if self.device_id[dev][:2] in ["--", "63"]:
-                    continue
+            for dev in range(3):  # Discover devices
                 if dev == 0 and self.device_id[dev][:2] == "18":
-                    break  # DEV -> HGI is OK?
+                    break  # but DEV -> HGI would be OK
+                if self.device_id[dev][:2] in ["63", "--"]:
+                    continue
                 get_device(self._gateway, self.device_id[dev])
 
-            # Discover new (unknown) zones
-            if self.device_id[0][:2] == "01" and self.verb == " I":
-                if self.code == "2309":  # almost all sync cycles with 30C9
+            if self.device_id[0][:2] == "01" and self.verb == " I":  # Discover zones
+                if self.code == "2309":  # almost all sync cycles, with 30C9
                     for i in range(0, len(self.raw_payload), 6):
-                        # TODO: add only is payload valid
                         get_zone(self._gateway, self.raw_payload[i : i + 2])
-
                 elif self.code == "000A":  # the few remaining sync cycles
                     for i in range(0, len(self.raw_payload), 12):
-                        # TODO: add only if payload valid
                         get_zone(self._gateway, self.raw_payload[i : i + 2])
 
         if self._is_valid is not None:
             return self._is_valid
-
-        try:
-            if self.device_id[0][:2] != "18":  # TODO: may interfere with discovery
-                harvest_new_entities(self)
-        except AssertionError:  # for dev only?
-            _LOGGER.exception("%s", self, extra=self.__dict__)
-            return False
 
         try:  # determine which parser to use
             payload_parser = getattr(parsers, f"parser_{self.code}".lower())
@@ -161,20 +149,23 @@ class Message:
 
         try:
             self._payload = payload_parser(self.raw_payload, self)  # TODO: messy
-
         except AssertionError:  # for development only?
-            # HGI80 can send valid (but unparseable) packets & get odd reply
-            # if "18" not in [self.device_id[0][:2], self.device_id[1][:2]]:
+            # beware: HGI80 can send parseable but 'odd' packets & get invalid reply
+            _LOGGER.exception("%s", self, extra=self.__dict__)
+            return False
+        except (LookupError, TypeError, ValueError):  # shouldn't happen
             _LOGGER.exception("%s", self, extra=self.__dict__)
             return False
 
-        except (LookupError, TypeError, ValueError):
+        try:
+            harvest_new_entities()  # will ignore if: self.device_id[0][:2] != "18"
+        except AssertionError:  # unknown device type, or zone_idx > 12
             _LOGGER.exception("%s", self, extra=self.__dict__)
             return False
 
         # any remaining messages are valid, so: log them
         _LOGGER.info("%s", self, extra=self.__dict__)
-        return True  # bool(self._payload)  # Should just be True by now
+        return True
 
     @property
     def payload(self) -> Optional[dict]:
