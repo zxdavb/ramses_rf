@@ -164,8 +164,8 @@ class Device(Entity):
         # _LOGGER.debug("Creating a new Device %s", device_id)
         super().__init__(device_id, gateway)
 
-        gateway.device_by_id.update({device_id: self})
-        gateway.devices.append(self)
+        # gateway.device_by_id.update({device_id: self})
+        # gateway.devices.append(self)
 
         self._device_type = DEVICE_MAP.get(device_id[:2])
         self._parent_zone = None
@@ -438,8 +438,8 @@ class Zone(Entity):
         # _LOGGER.debug("Creating a new Zone %s", zone_idx)
         super().__init__(zone_idx, gateway)
 
-        gateway.zone_by_id.update({zone_idx: self})
-        gateway.zones.append(self)
+        # gateway.zone_by_id.update({zone_idx: self})
+        # gateway.zones.append(self)
 
         self._zone_type = None
         self._discover()

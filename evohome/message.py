@@ -42,7 +42,7 @@ class Message:
     def __repr__(self) -> str:
         """Represent the entity as a string."""
 
-        def _dev_name(idx) -> str:
+        def name(idx) -> str:
             """Return a friendly device name, of length 10 characters."""
             device_id = self.device_id[idx]
 
@@ -59,17 +59,14 @@ class Message:
             if dev and dev._friendly_name:
                 return f"{dev._friendly_name}"
 
+            # TODO: would we ever get here?
             device_type = DEVICE_MAP.get(device_id[:2], f"{device_id[:2]:>3}")
             return f"{device_type}:{self.device_id[idx][3:]}"
 
         if self._repr:
             return self._repr
 
-        device_names = [_dev_name(x) for x in range(3) if _dev_name(x) != f"{'':<10}"]
-        if len(device_names) < 2:
-            # ---  I --- --:------ --:------ 10:138822 1FD4 003 000EC6
-            # ---  x --- --:------ --:------ --:------ .... from HGI
-            device_names += ["", ""]
+        device_names = [name(x) for x in range(3) if name(x) != f"{'':<10}"] + [""] * 2
 
         # TODO: the following is a bit dodgy & needs fixing
         if len(self.raw_payload) < 9:
@@ -99,39 +96,40 @@ class Message:
         """
 
         def harvest_new_entities() -> None:
-            """Discover and create new devices and zones (and domains?)."""
+            """Discover and create new devices and zones (and domains?).
+
+            Assumes a valid payload.
+            """
             # TODO: what about domains, e.g. DHW
 
-            def get_device(gateway, device_id) -> Device:
+            def get_device(gateway, dev_id) -> None:
                 """Get a Device, create it if required."""
-                assert device_id[:2] in DEVICE_MAP
+                assert dev_id[:2] in DEVICE_MAP
 
                 try:  # does the system already know about this entity?
-                    entity = gateway.device_by_id[device_id]
-                except KeyError:  # no, this is a new entity, so create it
-                    device_class = DEVICE_CLASSES.get(device_id[:2], Device)
-                    entity = device_class(device_id, gateway)
-                return entity
+                    _ = gateway.device_by_id[dev_id]
+                except KeyError:  # this is a new entity, so create it
+                    device_cls = DEVICE_CLASSES.get(dev_id[:2], Device)
+                    gateway.device_by_id.update({dev_id: device_cls(dev_id, gateway)})
 
-            def get_zone(gateway, zone_idx) -> Zone:
-                """Get a Zone, create it if required."""
+            def get_zone(gateway, zone_idx) -> None:
+                """Get a Zone, create it if required."""  # TODO: other zone types?
                 assert int(zone_idx, 16) <= 11  # TODO: not for Hometronic
 
                 try:  # does the system already know about this entity?
-                    entity = gateway.zone_by_id[zone_idx]
-                except KeyError:  # no, this is a new entity, so create it
-                    zone_class = DhwZone if zone_idx == "HW" else Zone
-                    entity = zone_class(zone_idx, gateway)  # TODO: other zone types?
-                return entity
+                    _ = gateway.zone_by_id[zone_idx]
+                except KeyError:  # this is a new entity, so create it
+                    zone_cls = DhwZone if zone_idx == "HW" else Zone  # TODO: HW?
+                    gateway.zone_by_id.update({zone_idx: zone_cls(zone_idx, gateway)})
 
-            for dev in range(3):  # Discover devices
+            for dev in range(3):  # discover devices
                 if dev == 0 and self.device_id[dev][:2] == "18":
                     break  # but DEV -> HGI would be OK
                 if self.device_id[dev][:2] in ["63", "--"]:
                     continue
                 get_device(self._gateway, self.device_id[dev])
 
-            if self.device_id[0][:2] == "01" and self.verb == " I":  # Discover zones
+            if self.device_id[0][:2] == "01" and self.verb == " I":  # discover zones
                 if self.code == "2309":  # almost all sync cycles, with 30C9
                     for i in range(0, len(self.raw_payload), 6):
                         get_zone(self._gateway, self.raw_payload[i : i + 2])
