@@ -148,17 +148,17 @@ class Message:
         try:
             self._payload = payload_parser(self.raw_payload, self)  # TODO: messy
         except AssertionError:  # for development only?
-            # beware: HGI80 can send parseable but 'odd' packets & get invalid reply
-            _LOGGER.exception("%s", self, extra=self.__dict__)
+            # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
+            _LOGGER.exception("%s", self._packet, extra=self.__dict__)
             return False
         except (LookupError, TypeError, ValueError):  # shouldn't happen
-            _LOGGER.exception("%s", self, extra=self.__dict__)
+            _LOGGER.exception("%s", self._packet, extra=self.__dict__)
             return False
 
         try:
             harvest_new_entities()  # will ignore if: self.device_id[0][:2] != "18"
         except AssertionError:  # unknown device type, or zone_idx > 12
-            _LOGGER.exception("%s", self, extra=self.__dict__)
+            _LOGGER.exception("%s", self._packet, extra=self.__dict__)
             return False
 
         # any remaining messages are valid, so: log them

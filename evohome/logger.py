@@ -71,7 +71,7 @@ def set_logging(
         formatter = logging.Formatter(fmt=cons_fmt)
     else:
         formatter = ColoredFormatter(
-            f"%(log_color)s{cons_fmt}", reset=True, log_colors=default_log_colors,
+            f"%(log_color)s{cons_fmt}", reset=True, log_colors=default_log_colors
         )
 
     handler = logging.StreamHandler(stream=sys.stderr)

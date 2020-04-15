@@ -28,11 +28,7 @@ OPENTHERM_MESSAGES = {
             "nl": "Centrale verwarming aan",
             "var": "StatusCHEnabled",
         },
-        "0x0200": {
-            "en": "DHW enable",
-            "nl": "Tapwater aan",
-            "var": "StatusDHWEnabled",
-        },
+        "0x0200": {"en": "DHW enable", "nl": "Tapwater aan", "var": "StatusDHWEnabled"},
         "0x0400": {
             "en": "Cooling enable",
             "nl": "Koeling aan",

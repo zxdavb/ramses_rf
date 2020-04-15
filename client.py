@@ -118,7 +118,7 @@ def _parse_args():
 
     group = parser.add_argument_group(title="Debug options")
     group.add_argument(
-        "-z", "--debug_mode", action="count", default=0, help="1=N/A, 2=enable, 3=wait",
+        "-z", "--debug_mode", action="count", default=0, help="1=N/A, 2=enable, 3=wait"
     )
 
     args = parser.parse_args()

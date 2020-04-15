@@ -15,28 +15,44 @@ from .const import (
 from .entity import dev_hex_to_id
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
 
+MAGIC = {
+    "12B0": {"length": {"RQ": 3, "RP": 3, " I": None, " W": None}, "zone_idx": True},
+}
+
 
 def parser_decorator(func):
-    """WIP: Preprocess packets.
+    """Decode the payload (or meta-data) of any message with useful information.
 
-    Silently absorb anything without a parsable payload (e.g. W/RQs). Otherwise, parse
-    the payload, and update the entity with the message.
+    Also includes some basic payload validation via ASSERTs (e.g payload length).
     """
 
-    def wrapper(*args, **kwargs):
+    def wrapper(*args, **kwargs) -> Optional[dict]:
         payload = args[0]
         msg = args[1]
 
-        if msg.verb == " W":  # WIP
+        if msg.device_id[0] != "18:" and msg.code in MAGIC:
+            assert len(payload) / 2 == MAGIC[msg.code]["length"][msg.verb]
+
+        if msg.verb == " W":  # TODO: WIP
             if msg.code in ["1100", "1F09", "1FC9", "2309", "2349"]:
                 return func(*args, **kwargs)
-            else:
-                return
+            return
 
         if msg.verb != "RQ":
             return func(*args, **kwargs)
 
-        # TODO: some RQs have a payload...
+        # TODO: some zone RQs/Ws have a zone_idx...
+        if msg.device_id[0][:2] != "18":
+            if msg.verb in ["RQ", "RP", " W"] and msg.code in [
+                "0004",
+                "000A",
+                "000C",
+                "12B0",
+                "2309",
+                "2349",
+                "30C9",
+            ]:
+                assert int(payload[:2], 16) <= 11  # TODO: RPs/RQs/Ws are never arrays?
 
         # TRV will RQ zone_name *sans* payload...
         if msg.code in ["0004"] and msg.device_id[0][:2] == "04":  # TRV
@@ -63,30 +79,19 @@ def parser_decorator(func):
             assert payload[:4] == "0000"
             assert int(payload[4:6], 16) <= 63
             return {"log_idx": payload[4:6]}
-        #
+
         if msg.code == "10A0" and msg.device_id[0][:2] == "07":  # DHW
             return func(*args, **kwargs)
 
         if msg.code == "3220":  # CTL -> OTB
             return func(*args, **kwargs)
 
-        if msg.verb == "RQ":
-            # will the following break harvesting?
-            if msg.code == "3EF0":
-                assert payload[:2] == "00"
-                return {}
+        # will the following break harvesting?
+        if msg.code == "3EF0":
+            assert payload[:2] == "00"
+            return {}
 
-            if msg.code in ["0004", "000A", "000C", "12B0", "2309", "2349", "30C9"]:
-                assert int(payload[:2], 16) <= 11
-                return {"zone_idx": payload[:2]}
-
-            return {} if payload == "00" else None
-
-        # if msg.verb == "RQ" and msg.device_id[0][:2] == "18":  # HGI
-        #     return {}  # User can easily construct valid / albeit unparseable packets
-
-        # TODO: god knows
-        raise NotImplementedError
+        return {} if payload == "00" else None  # TODO: or just return None?
 
     return wrapper
 

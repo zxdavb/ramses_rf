@@ -340,11 +340,11 @@ class Gateway:
                 return
 
         # finally, only certain packets should become part of the state data
-        if "18" in msg.device_id[0][:2]:  # TODO: keep this, or not!
+        if msg.device_id[0][:2] == "18":  # TODO: keep this, or not!
             return
         # TODO: needs checking!
         idx = msg.device_id[2] if msg.device_id[0][:2] == "--" else msg.device_id[0]
         try:  # TODO: remove this try?
             self.device_by_id[idx].update(msg)
         except KeyError:  # shouldn't happen
-            _LOGGER.exception("%s", msg)
+            _LOGGER.exception("%s", pkt.packet)
