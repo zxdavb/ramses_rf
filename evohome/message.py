@@ -4,7 +4,7 @@ import logging
 from typing import Optional
 
 from . import parsers
-from .const import COMMAND_MAP, DEVICE_MAP, MESSAGE_FORMAT
+from .const import COMMAND_MAP, DEVICE_MAP, MSG_FORMAT_10, MSG_FORMAT_18
 from .entity import DEVICE_CLASSES, Device, DhwZone, Zone
 
 _LOGGER = logging.getLogger(__name__)  # evohome.message
@@ -77,7 +77,12 @@ class Message:
             raw_payload2 = self.raw_payload
         # raw_payload2 = self.raw_payload if len(self.raw_payload) > 8 else ""
 
-        self._repr = MESSAGE_FORMAT.format(
+        if self._gateway.config["known_devices"]:
+            msg_format = MSG_FORMAT_18
+        else:
+            msg_format = MSG_FORMAT_10
+
+        self._repr = msg_format.format(
             device_names[0],
             device_names[1],
             self.verb,

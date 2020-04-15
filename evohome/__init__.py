@@ -348,3 +348,4 @@ class Gateway:
             self.device_by_id[idx].update(msg)
         except KeyError:  # shouldn't happen
             _LOGGER.exception("%s", pkt.packet)
+            pass

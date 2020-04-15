@@ -16,7 +16,49 @@ from .entity import dev_hex_to_id
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
 
 MAGIC = {
-    "12B0": {"length": {"RQ": 3, "RP": 3, " I": None, " W": None}, "zone_idx": True},
+    "0004": {
+        "length": {"RQ": 2, "RP": 22, " I": 0, " W": 0},
+        "zone_idx": True,
+        "null_resp": "7F" * 20,
+    },
+    "000A": {
+        "length": {"RQ": 1, "RP": 6, " I": 0, " W": 0},
+        "zone_idx": True,
+        "null_resp": "007FFF7FFF",
+    },
+    "000C": {
+        "length": {"RQ": 2, "RP": 0, " I": 0, " W": 0},
+        "zone_idx": True,
+        "null_resp": "007FFFFFFF",
+    },  # array, 1+
+    "12B0": {
+        "length": {"RQ": 1, "RP": 3, " I": 0, " W": 0},
+        "zone_idx": True,
+        "null_resp": "7FFF",
+    },
+    "2309": {
+        "length": {"RQ": 1, "RP": 3, " I": 0, " W": 0},
+        "zone_idx": True,
+        "null_resp": "7FFF",
+    },
+    "2349": {
+        "length": {"RQ": 1, "RP": 7, " I": 0, " W": 0},
+        "zone_idx": True,
+        "null_resp": "7FFF00FFFFFF",
+    },
+    "30C9": {
+        "length": {"RQ": 1, "RP": 3, " I": 0, " W": 0},
+        "zone_idx": True,
+        "null_resp": "7FFF",
+    },
+    "0008": {"length": {"RQ": 0, "RP": 0, " I": 2, " W": 0}, "zone_idx": False},
+    "1060": {
+        "length": {"RQ": 0, "RP": 0, " I": 3, " W": 0},
+        "zone_idx": None,
+    },  # zone for 04:
+    "3150": {"length": {"RQ": 0, "RP": 0, " I": 2, " W": 0}, "zone_idx": False},
+    "1F09": {"length": {"RQ": 1, "RP": 3, " I": 0, " W": 0}, "zone_idx": False},
+    "2E04": {"length": {"RQ": 1, "RP": 8, " I": 0, " W": 0}, "zone_idx": False},
 }
 
 
@@ -30,8 +72,18 @@ def parser_decorator(func):
         payload = args[0]
         msg = args[1]
 
-        if msg.device_id[0] != "18:" and msg.code in MAGIC:
-            assert len(payload) / 2 == MAGIC[msg.code]["length"][msg.verb]
+        # TODO: RPs/RQs/Ws are never arrays?
+        # if msg.device_id[0][:2] != "18":
+
+        if msg.code in MAGIC:
+            length = MAGIC[msg.code]["length"][msg.verb]
+            if length:
+                assert len(payload) / 2 == MAGIC[msg.code]["length"][msg.verb]
+
+            if MAGIC[msg.code]["zone_idx"]:
+                assert int(payload[:2], 16) < 12
+                if payload == MAGIC[msg.code]["null_resp"]:
+                    return {"zone_idx": int(payload[:2], 16)}
 
         if msg.verb == " W":  # TODO: WIP
             if msg.code in ["1100", "1F09", "1FC9", "2309", "2349"]:
@@ -40,19 +92,6 @@ def parser_decorator(func):
 
         if msg.verb != "RQ":
             return func(*args, **kwargs)
-
-        # TODO: some zone RQs/Ws have a zone_idx...
-        if msg.device_id[0][:2] != "18":
-            if msg.verb in ["RQ", "RP", " W"] and msg.code in [
-                "0004",
-                "000A",
-                "000C",
-                "12B0",
-                "2309",
-                "2349",
-                "30C9",
-            ]:
-                assert int(payload[:2], 16) <= 11  # TODO: RPs/RQs/Ws are never arrays?
 
         # TRV will RQ zone_name *sans* payload...
         if msg.code in ["0004"] and msg.device_id[0][:2] == "04":  # TRV
@@ -206,7 +245,7 @@ def parser_0005(payload, msg) -> Optional[dict]:  # system_zone (add/del a zone?
 @parser_decorator
 def parser_0006(payload, msg) -> Optional[dict]:  # schedule_sync (any changes?)
     assert len(payload) / 2 == 4
-    assert payload == "00050000"
+    assert payload[2:] in ["050000", "FFFFFF"]
 
     return {"payload": payload}
 
@@ -250,11 +289,11 @@ def parser_0009(payload, msg) -> Optional[dict]:  # relay_failsafe
 @parser_decorator
 def parser_000a(payload, msg) -> Union[dict, list, None]:  # zone_config (zone/s)
     def _parser(seqx) -> dict:
-        # if seqx[2:] == "007FFF7FFF":
-        #     return  # a null zones
-
         assert len(seqx) == 12
         assert int(seqx[:2], 16) <= 11
+
+        if seqx[2:] == "007FFF7FFF":
+            return {}  # a null zones
 
         # you cannot determine zone_type from this information
         bitmap = int(seqx[2:4], 16)

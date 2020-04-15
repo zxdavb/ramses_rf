@@ -503,7 +503,7 @@ class Zone(Entity):
         # get name, config, mode, temp
         # can't do: "3150" (TODO: 12B0/window_state only if enabled, or only if TRV?)
         for code in ["0004", "000A", "000C", "12B0"]:  # also: "2349", "30C9"]:
-            zone_idx = f"{self._id}00" if code != "0000" else self._id
+            zone_idx = f"{self._id}00" if code in ["0004", "000C"] else self._id
             self._queue.put_nowait(Command(self._gateway, code, payload=zone_idx))
 
     def update(self, msg):
