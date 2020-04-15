@@ -289,8 +289,8 @@ class Gateway:
 
         try:
             pkt = Packet(ts_packet_line)
-        except AssertionError:  # shouldn't happen
-            _LOGGER.exception("%s", ts_packet_line, extra=pkt)  # TODO: extra
+        except AssertionError:
+            _LOGGER.exception("%s", ts_packet_line)
             return
         else:
             if not pkt.is_valid:  # this will trap/log all exceptions appropriately
@@ -332,19 +332,19 @@ class Gateway:
 
         try:
             msg = Message(pkt, self)
-        except AssertionError:  # shouldn't happen
-            _LOGGER.exception("%s", pkt.packet, extra=pkt)
+        except AssertionError:
+            _LOGGER.exception("%s", pkt.packet)
             return
         else:
             if not msg.is_valid:  # this will trap/log all exceptions appropriately
                 return
 
-        # TODO: needs checking!
-        # finally, only certain packets should become part of the state DB
+        # finally, only certain packets should become part of the state data
         if "18" in msg.device_id[0][:2]:  # TODO: keep this, or not!
             return
+        # TODO: needs checking!
         idx = msg.device_id[2] if msg.device_id[0][:2] == "--" else msg.device_id[0]
-        try:
+        try:  # TODO: remove this try?
             self.device_by_id[idx].update(msg)
-        except KeyError:  # shouldn't happen - maybe remove?
-            _LOGGER.exception("%s", msg, extra=pkt)
+        except KeyError:  # shouldn't happen
+            _LOGGER.exception("%s", msg)
