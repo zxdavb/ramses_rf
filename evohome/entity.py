@@ -165,7 +165,7 @@ class Device(Entity):
         super().__init__(device_id, gateway)
 
         # gateway.device_by_id.update({device_id: self})
-        # gateway.devices.append(self)
+        gateway.devices.append(self)
 
         self._device_type = DEVICE_MAP.get(device_id[:2])
         self._parent_zone = None

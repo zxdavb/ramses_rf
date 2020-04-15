@@ -77,7 +77,6 @@ class Gateway:
         self.command_queue = Queue(maxsize=200)
         self.message_queue = Queue(maxsize=400)
 
-        self.zones = []
         self.zone_by_id = {}
 
         self.domains = []
@@ -340,13 +339,12 @@ class Gateway:
             if not msg.is_valid:  # this will trap/log all exceptions appropriately
                 return
 
-        # finally, only certain packets should become part of the canon
+        # TODO: needs checking!
+        # finally, only certain packets should become part of the state DB
+        if "18" in msg.device_id[0][:2]:  # TODO: keep this, or not!
+            return
+        idx = msg.device_id[2] if msg.device_id[0][:2] == "--" else msg.device_id[0]
         try:
-            if "18" in msg.device_id[0][:2]:  # not working?, see KeyError
-                return
-            if msg.device_id[0][:2] == "--":
-                self.device_by_id[msg.device_id[2]].update(msg)
-            else:
-                self.device_by_id[msg.device_id[0]].update(msg)
-        except KeyError:  # TODO: KeyError: '18:013393'
-            pass
+            self.device_by_id[idx].update(msg)
+        except KeyError:  # shouldn't happen - maybe remove?
+            _LOGGER.exception("%s", msg, extra=pkt)
