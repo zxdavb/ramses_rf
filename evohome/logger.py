@@ -9,19 +9,21 @@ import time
 import shutil
 import sys
 
-DEFAULT_FMT = "%(asctime)s.%(msecs)03d %(message)s"
+BASIC_FMT = "%(asctime)s.%(msecs)03d %(message)s"
+BASIC_DATEFMT = "%H:%M:%S"
+BASIC_LEVEL = logging.INFO
 
 BANDW_SUFFIX = "%(error_text)s%(comment)s"
 COLOR_SUFFIX = "%(red)s%(error_text)s%(cyan)s%(comment)s"
 
 try:
     from colorlog import ColoredFormatter, default_log_colors
-
-    # basicConfig must be called after importing colorlog to ensure the handlers
-    # it sets up wrap the correct streams (logging.INFO is required, below)
-    logging.basicConfig(level=logging.INFO, format=DEFAULT_FMT, datefmt="%H:%M:%S")
 except ModuleNotFoundError:
     COLOR_SUFFIX = BANDW_SUFFIX
+
+# basicConfig must be called after importing colorlog to ensure its handlers wrap the
+# correct streams
+logging.basicConfig(level=BASIC_LEVEL, format=BASIC_FMT, datefmt=BASIC_DATEFMT)
 
 # HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssss
 CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
