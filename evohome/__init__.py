@@ -293,7 +293,7 @@ class Gateway:
             _LOGGER.exception("%s", raw_packet_line)
             return
         except ValueError:
-            return
+            return  # null packet line
         else:
             if not pkt.is_valid:  # this will trap/log all exceptions appropriately
                 return

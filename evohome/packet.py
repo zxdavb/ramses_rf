@@ -29,18 +29,17 @@ def split_pkt_line(packet_line: str) -> (str, str, str):
 class Packet:
     """The packet class."""
 
-    def __init__(self, timestamp, packet, raw_packet=None) -> None:
+    def __init__(self, timestamp, packet_line, raw_packet_line=None) -> None:
         """Create a packet."""
         self.timestamp = timestamp
-        self._packet = packet
-        self._raw_packet = raw_packet
+        self._raw_packet_line = raw_packet_line
 
         assert timestamp
-        if not bool(packet):
+        if not bool(packet_line):
             raise ValueError("packet line is null: ", repr(self))
 
         self.date, self.time = self.timestamp[:10], self.timestamp[11:26]
-        self.packet, self.error_text, self.comment = split_pkt_line(packet)
+        self.packet, self.error_text, self.comment = split_pkt_line(packet_line)
         self._packet = self.packet + " " if self.packet else ""  # TODO: a hack 4 log
 
         self._is_valid = None
@@ -52,7 +51,7 @@ class Packet:
 
     def __repr__(self):
         """Represent the packet in an umabiguous manner."""
-        return str(self._raw_packet if self._raw_packet else self._packet)
+        return str(self._raw_packet_line if self._raw_packet_line else self._packet)
 
     @property
     def is_valid(self) -> bool:
