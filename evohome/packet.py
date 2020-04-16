@@ -5,7 +5,7 @@ import logging
 import serial  # TODO: dont import unless required
 import serial_asyncio  # TODO: dont import unless required
 from string import printable
-from typing import Optional
+from typing import Any, Optional, Tuple
 
 from .const import MESSAGE_REGEX
 from .logger import time_stamp
@@ -29,27 +29,30 @@ def split_pkt_line(packet_line: str) -> (str, str, str):
 class Packet:
     """The packet class."""
 
-    def __init__(self, timestamp_packet) -> None:
+    def __init__(self, timestamp, packet, raw_packet=None) -> None:
         """Create a packet."""
-        packet_line = self._packet_line = timestamp_packet[27:]  # .strip()
-        self.timestamp = timestamp_packet[:26]
+        self.timestamp = timestamp
+        self._packet = packet
+        self._raw_packet = raw_packet
 
-        assert bool(packet_line)  # TODO: also validate timestamp
+        assert timestamp
+        if not bool(packet):
+            raise ValueError("packet line is null: ", repr(self))
 
         self.date, self.time = self.timestamp[:10], self.timestamp[11:26]
-        self.packet, self.error_text, self.comment = split_pkt_line(packet_line)
+        self.packet, self.error_text, self.comment = split_pkt_line(packet)
         self._packet = self.packet + " " if self.packet else ""  # TODO: a hack 4 log
 
         self._is_valid = None
         self._is_valid = self.is_valid
 
     def __str__(self) -> str:
-        """Represent the entity as a string."""
-        return self.packet if self.packet else ""  # TODO: ???
+        """Represent the packet as a string."""
+        return self.packet if self.packet else ""
 
-    # def __repr__(self) -> str:
-    #     """Represent the entity as an umabiguous string."""
-    #     return f"{self.timestamp} {self.packet}{self.error_text}{self.comment}"
+    def __repr__(self):
+        """Represent the packet in an umabiguous manner."""
+        return str(self._raw_packet if self._raw_packet else self._packet)
 
     @property
     def is_valid(self) -> bool:
@@ -111,7 +114,7 @@ class PortPktProvider:
     async def __aexit__(self, exc_type, exc, tb) -> None:
         pass
 
-    async def get_next_packet(self) -> Optional[str]:
+    async def get_next_packet(self) -> Tuple[str, Any]:
         """Get the next packet line from a serial port."""
         try:
             raw_packet = await self.reader.readline()
@@ -121,11 +124,11 @@ class PortPktProvider:
         # print(f"{raw_packet}")  # TODO: deleteme, only for debugging
 
         timestamp = time_stamp()
-        packet_line = "".join(c for c in raw_packet.decode().strip() if c in printable)
+        packet = "".join(c for c in raw_packet.decode().strip() if c in printable)
 
         # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
 
-        return f"{timestamp} {packet_line}" if packet_line else f"{timestamp}"
+        return f"{timestamp} {packet}" if packet else f"{timestamp}", raw_packet
 
 
 class FilePktProvider:

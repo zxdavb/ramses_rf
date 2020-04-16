@@ -224,7 +224,7 @@ class Gateway:
         async def proc_packets_from_port() -> None:
             async def port_reader(manager):
                 while True:  # main loop
-                    await self._validate_packet(await manager.get_next_packet())
+                    await self._validate_packet(*(await manager.get_next_packet()))
 
             async def port_writer(manager):
                 while True:  # main loop
@@ -276,7 +276,7 @@ class Gateway:
         else:  # if self.config["serial_port"] or if self.serial_port
             await proc_packets_from_port()  # main loop
 
-    async def _validate_packet(self, ts_packet_line: str) -> None:
+    async def _validate_packet(self, ts_packet_line, raw_packet_line) -> None:
         """Receive a packet and optionally validate it as a message."""
 
         def has_wanted_device(pkt, dev_whitelist=None, dev_blacklist=None) -> bool:
@@ -288,9 +288,11 @@ class Gateway:
             return not any(device in pkt.packet for device in dev_blacklist)
 
         try:
-            pkt = Packet(ts_packet_line)
+            pkt = Packet(ts_packet_line[:26], ts_packet_line[27:], raw_packet_line)
         except AssertionError:
-            _LOGGER.exception("%s", ts_packet_line)
+            _LOGGER.exception("%s", raw_packet_line)
+            return
+        except ValueError:
             return
         else:
             if not pkt.is_valid:  # this will trap/log all exceptions appropriately
