@@ -15,52 +15,6 @@ from .const import (
 from .entity import dev_hex_to_id
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
 
-MAGIC = {
-    "0004": {
-        "length": {"RQ": 2, "RP": 22, " I": 0, " W": 0},
-        "zone_idx": True,
-        "null_resp": "7F" * 20,
-    },
-    "000A": {
-        "length": {"RQ": 1, "RP": 6, " I": 0, " W": 0},
-        "zone_idx": True,
-        "null_resp": "007FFF7FFF",
-    },
-    "000C": {
-        "length": {"RQ": 2, "RP": 0, " I": 0, " W": 0},
-        "zone_idx": True,
-        "null_resp": "007FFFFFFF",
-    },  # array, 1+
-    "12B0": {
-        "length": {"RQ": 1, "RP": 3, " I": 0, " W": 0},
-        "zone_idx": True,
-        "null_resp": "7FFF",
-    },
-    "2309": {
-        "length": {"RQ": 1, "RP": 3, " I": 0, " W": 0},
-        "zone_idx": True,
-        "null_resp": "7FFF",
-    },
-    "2349": {
-        "length": {"RQ": 1, "RP": 7, " I": 0, " W": 0},
-        "zone_idx": True,
-        "null_resp": "7FFF00FFFFFF",
-    },
-    "30C9": {
-        "length": {"RQ": 1, "RP": 3, " I": 0, " W": 0},
-        "zone_idx": True,
-        "null_resp": "7FFF",
-    },
-    "0008": {"length": {"RQ": 0, "RP": 0, " I": 2, " W": 0}, "zone_idx": False},
-    "1060": {
-        "length": {"RQ": 0, "RP": 0, " I": 3, " W": 0},
-        "zone_idx": None,
-    },  # zone for 04:
-    "3150": {"length": {"RQ": 0, "RP": 0, " I": 2, " W": 0}, "zone_idx": False},
-    "1F09": {"length": {"RQ": 1, "RP": 3, " I": 0, " W": 0}, "zone_idx": False},
-    "2E04": {"length": {"RQ": 1, "RP": 8, " I": 0, " W": 0}, "zone_idx": False},
-}
-
 
 def parser_decorator(func):
     """Decode the payload (or meta-data) of any message with useful information.
@@ -71,19 +25,6 @@ def parser_decorator(func):
     def wrapper(*args, **kwargs) -> Optional[dict]:
         payload = args[0]
         msg = args[1]
-
-        # TODO: RPs/RQs/Ws are never arrays?
-        # if msg.device_id[0][:2] != "18":
-
-        if msg.code in MAGIC:  # some payload validation...
-            length = MAGIC[msg.code]["length"][msg.verb]
-            if length:
-                assert len(payload) / 2 == MAGIC[msg.code]["length"][msg.verb]
-
-            if MAGIC[msg.code]["zone_idx"]:
-                assert int(payload[:2], 16) < 12
-                if payload == MAGIC[msg.code]["null_resp"]:
-                    return {"zone_idx": int(payload[:2], 16)}
 
         if msg.verb == " W":  # TODO: WIP
             if msg.code in ["1100", "1F09", "1FC9", "2309", "2349"]:
@@ -125,12 +66,23 @@ def parser_decorator(func):
         if msg.code == "3220":  # CTL -> OTB
             return func(*args, **kwargs)
 
-        # will the following break harvesting?
-        if msg.code == "3EF0":
-            assert payload[:2] == "00"
-            return {}
+        if msg.verb == "RQ":
+            # will the following break harvesting?
+            if msg.code == "3EF0":
+                assert payload[:2] == "00"
+                return {}
 
-        return {} if payload == "00" else None  # TODO: or return {} or None?
+            if msg.code in ["0004", "000A", "000C", "12B0", "2309", "2349", "30C9"]:
+                assert int(payload[:2], 16) <= 11
+                return {"zone_idx": payload[:2]}
+
+            return {} if payload == "00" else None
+
+        # if msg.verb == "RQ" and msg.device_id[0][:2] == "18":  # HGI
+        #     return {}  # User can easily construct valid / albeit unparseable packets
+
+        # TODO: god knows
+        raise NotImplementedError
 
     return wrapper
 
