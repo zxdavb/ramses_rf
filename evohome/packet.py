@@ -32,6 +32,7 @@ class Packet:
     def __init__(self, timestamp, packet_line, raw_packet_line=None) -> None:
         """Create a packet."""
         self.timestamp = timestamp
+        self._packet_line = packet_line
         self._raw_packet_line = raw_packet_line
 
         assert timestamp
@@ -51,7 +52,9 @@ class Packet:
 
     def __repr__(self):
         """Represent the packet in an umabiguous manner."""
-        return str(self._raw_packet_line if self._raw_packet_line else self._packet)
+        return str(
+            self._raw_packet_line if self._raw_packet_line else self._packet_line
+        )
 
     @property
     def is_valid(self) -> bool:
