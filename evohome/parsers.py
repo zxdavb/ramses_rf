@@ -75,7 +75,7 @@ def parser_decorator(func):
         # TODO: RPs/RQs/Ws are never arrays?
         # if msg.device_id[0][:2] != "18":
 
-        if msg.code in MAGIC:
+        if msg.code in MAGIC:  # some payload validation...
             length = MAGIC[msg.code]["length"][msg.verb]
             if length:
                 assert len(payload) / 2 == MAGIC[msg.code]["length"][msg.verb]
@@ -98,7 +98,7 @@ def parser_decorator(func):
             assert len(payload) / 2 == 2 if msg.code == "0004" else 1
             return {"zone_idx": payload[:2]}
 
-        # THM will RQ zone_config, setpoint *with* payload...
+        # THM will RQ zone_config, setpoint *with* a payload...
         if msg.code in ["000A", "2309"] and len(payload) / 2 > 2:  # THM
             assert len(payload) / 2 == 6 if msg.code == "000A" else 3
             return func(*args, **kwargs)
@@ -130,7 +130,7 @@ def parser_decorator(func):
             assert payload[:2] == "00"
             return {}
 
-        return {} if payload == "00" else None  # TODO: or just return None?
+        return {} if payload == "00" else None  # TODO: or return {} or None?
 
     return wrapper
 
