@@ -230,8 +230,7 @@ class Gateway:
                 while True:  # main loop
                     if manager.reader._transport.serial.in_waiting == 0:
                         await self._dispatch_packet(destination=manager.writer)
-                    else:
-                        await asyncio.sleep(0.05)
+                    await asyncio.sleep(0.01)
 
             async with PortPktProvider(self.serial_port, loop=self.loop) as manager:
                 if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 FF"
