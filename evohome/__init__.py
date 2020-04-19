@@ -230,7 +230,9 @@ class Gateway:
                 while True:  # main loop
                     if manager.reader._transport.serial.in_waiting == 0:
                         await self._dispatch_packet(destination=manager.writer)
-                    await asyncio.sleep(0.01)
+                        await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
+                    else:
+                        await asyncio.sleep(0.01)
 
             async with PortPktProvider(self.serial_port, loop=self.loop) as manager:
                 if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 FF"
@@ -322,7 +324,6 @@ class Gateway:
             if not (destination is None or self.config.get("listen_only")):
                 # TODO: if not cmd.entity._pkts.get(cmd.code):
                 destination.write(bytearray(f"{cmd}\r\n".encode("ascii")))
-                await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
 
             self.command_queue.task_done()
 
