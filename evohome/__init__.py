@@ -295,7 +295,7 @@ class Gateway:
                 return any(device in pkt.packet for device in dev_whitelist)
             return not any(device in pkt.packet for device in dev_blacklist)
 
-        if self.config.get("debug_mode") < 2:  # TODO: mem leak
+        if self.config.get("debug_mode") > 0:  # TODO: mem leak
             gc.collect()
             print(psutil.Process(os.getpid()).memory_full_info())
             print(objgraph.most_common_types())
