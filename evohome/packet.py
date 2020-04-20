@@ -109,7 +109,7 @@ class PortPktProvider:
             url=self.serial_port,
             baudrate=self.baudrate,
             timeout=self.timeout,
-            xonxoff=True,
+            xonxoff=self.xonxoff,
         )
         return self
 
@@ -126,6 +126,7 @@ class PortPktProvider:
             try:
                 raw_packet = await self.reader.readline()
             except serial.SerialException:
+                _LOGGER.exception("SerialException", extra=self.__dict__)  # TODO: keep?
                 return
 
         # print(f"{raw_packet}")  # TODO: deleteme, only for debugging
