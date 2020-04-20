@@ -3,6 +3,10 @@ import asyncio
 import json
 import logging
 import os
+import psutil  # TODO: mem leak
+import objgraph  # TODO: mem leak
+import gc
+
 import signal
 import sys
 from queue import Queue
@@ -21,8 +25,8 @@ _LOGGER = logging.getLogger(__name__)
 class Gateway:
     """The gateway class."""
 
-    def __init__(self, serial_port, **config):
-        """Initialise the  class."""
+    def __init__(self, serial_port, **config) -> None:
+        """Initialise the class."""  # TODO: config.get() vs config[]
         self.serial_port = serial_port
         self.loop = config.get("loop", asyncio.get_event_loop())
         self.config = config
@@ -51,7 +55,7 @@ class Gateway:
                 )
                 config["execute_cmd"] = None
 
-        if config.get("raw_output") and config.get("message_log"):
+        if config.get("raw_output") > 1 and config.get("message_log"):
             _LOGGER.warning(
                 "Raw output specified, so disabling message_log (%s)",
                 config["message_log"],
@@ -60,13 +64,13 @@ class Gateway:
 
         set_logging(
             msg_logger,
-            stream=None if config.get("raw_output") else sys.stdout,
+            stream=None if config.get("raw_output") > 1 else sys.stdout,
             file_name=self.config.get("message_log"),
         )
 
         set_logging(
             pkt_logger,
-            stream=sys.stdout if config.get("raw_output") else None,
+            stream=sys.stdout if config.get("raw_output") == 2 else None,
             file_name=self.config.get("packet_log"),
             file_fmt=PKT_LOG_FMT + BANDW_SUFFIX,
             cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
@@ -111,7 +115,7 @@ class Gateway:
             with open(self.config["known_devices"], "w") as outfile:
                 json.dump(self.device_lookup, outfile, sort_keys=True, indent=4)
 
-        if not self.config.get("raw_output"):
+        if self.config.get("raw_output") == 0:  # TODO: ? == 0 ?
             print(f"\r\n{json.dumps(self.status, indent=4)}")  # TODO: deleteme
 
         sys.exit()
@@ -223,8 +227,11 @@ class Gateway:
 
         async def proc_packets_from_port() -> None:
             async def port_reader(manager):
+                raw_pkt = b""  # TODO: hack for testing
                 while True:  # main loop
-                    await self._validate_packet(*(await manager.get_next_packet()))
+                    ts_pkt, raw_pkt = await manager.get_next_packet(None)
+                    await self._validate_packet(ts_pkt, raw_pkt)
+                    # await asyncio.sleep(0.01)
 
             async def port_writer(manager):
                 while True:  # main loop
@@ -277,7 +284,7 @@ class Gateway:
         else:  # if self.config["serial_port"] or if self.serial_port
             await proc_packets_from_port()  # main loop
 
-    async def _validate_packet(self, ts_packet_line, raw_packet_line) -> None:
+    async def _validate_packet(self, ts_packet_line, raw_packet_line=None) -> None:
         """Receive a packet and optionally validate it as a message."""
 
         def has_wanted_device(pkt, dev_whitelist=None, dev_blacklist=None) -> bool:
@@ -287,6 +294,11 @@ class Gateway:
             if dev_whitelist:
                 return any(device in pkt.packet for device in dev_whitelist)
             return not any(device in pkt.packet for device in dev_blacklist)
+
+        if self.config.get("debug_mode") < 2:  # TODO: mem leak
+            gc.collect()
+            print(psutil.Process(os.getpid()).memory_full_info())
+            print(objgraph.most_common_types())
 
         try:
             pkt = Packet(ts_packet_line[:26], ts_packet_line[27:], raw_packet_line)
@@ -313,7 +325,7 @@ class Gateway:
             await self._output_db.commit()
 
         # finally, process packet payloads as messages
-        if not self.config.get("raw_output"):
+        if self.config.get("raw_output") < 2:
             self._process_payload(pkt)
 
     async def _dispatch_packet(self, destination=None) -> None:
@@ -340,6 +352,9 @@ class Gateway:
         else:
             if not msg.is_valid:  # this will trap/log all exceptions appropriately
                 return
+
+        if self.config.get("raw_output") != 0:
+            return
 
         # finally, only certain packets should become part of the state data
         if msg.device_id[0][:2] == "18":  # TODO: keep this, or not!

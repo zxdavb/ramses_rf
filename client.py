@@ -78,14 +78,15 @@ def _parse_args():
     # )  # TODO: need to flesh out whitelist/blacklist
 
     group = parser.add_argument_group(title="Packet processing")
-    mutex = group.add_mutually_exclusive_group()
-    mutex.add_argument(
+    # mutex = group.add_mutually_exclusive_group()
+    group.add_argument(
         "-r",
         "--raw_output",
-        action="store_true",
-        help="validate packets, but do not parse payloads",
+        action="count",
+        default=0,
+        help="1=parse payloads, but don't maintain state, 2=validate packets only",
     )
-    mutex.add_argument(
+    group.add_argument(
         "-m",
         "--message_log",
         nargs="?",
@@ -124,7 +125,10 @@ def _parse_args():
     args = parser.parse_args()
 
     if args.device_whitelist and not args.known_devices:
-        parser.error("--device_whitelist requires --known_devices")
+        parser.error("argument --device_whitelist: requires argument --known_devices")
+
+    if args.raw_output == 2 and args.message_log:
+        parser.error("argument --raw_output: not allowed with argument --message_log")
 
     return args
 
@@ -133,8 +137,9 @@ async def main(loop=None):
     """Main loop."""
     args = _parse_args()
 
-    if args.debug_mode == 1:
-        # print(f"Debugging not enabled, additional logging enabled.")
+    if args.debug_mode > 0:
+        print(f"Debugging not enabled, additional logging enabled.")
+        print(args)
         pass
 
     elif args.debug_mode > 1:
