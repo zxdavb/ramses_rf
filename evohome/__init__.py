@@ -374,7 +374,7 @@ class Gateway:
             if not (destination is None or self.config.get("listen_only")):
                 # TODO: if not cmd.entity._pkts.get(cmd.code):
                 destination.write(bytearray(f"{cmd}\r\n".encode("ascii")))
-                _LOGGER.warning("*** A Write was done ***")
+                _LOGGER.warning("# A Write was done to %s", self.serial_port)
 
             self.command_queue.task_done()
 
