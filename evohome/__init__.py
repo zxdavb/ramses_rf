@@ -104,35 +104,43 @@ class Gateway:
         signals = [signal.SIGINT, signal.SIGTERM]
         if os.name == "posix":  # TODO: or sys.platform is better?
             signals += [signal.SIGHUP, signal.SIGUSR1, signal.SIGUSR2]
-        for s in signals:
+        for sig in signals:
             self.loop.add_signal_handler(
-                s, lambda s=s: asyncio.create_task(self._signal_handler(s, self.loop))
+                sig, lambda sig=sig: asyncio.create_task(self._signal_handler(sig))
             )
 
-    async def _signal_handler(self, signum, loop):
+    async def _signal_handler(self, signal):
+        _LOGGER.debug(f"Received signal {signal.name}...")
 
-        if signum == signal.SIGUSR1 and not self.config.get("raw_output"):
+        if signal == signal.SIGUSR1 and not self.config.get("raw_output"):
+            _LOGGER.debug("State data is:")
             print(f"\r\n{json.dumps(self.status, indent=4)}")  # TODO: deleteme
 
-        if signum == signal.SIGUSR2 and self.config.get("debug_mode"):
+        if signal == signal.SIGUSR2:
+            _LOGGER.debug("Debug data is:")
             self._debug_info()
 
-        if signum in [signal.SIGHUP, signal.SIGINT, signal.SIGTERM]:
+        if signal in [signal.SIGHUP, signal.SIGINT, signal.SIGTERM]:
+            _LOGGER.debug("Exiting gracefully...")
             await self.shutdown()
             sys.exit()
 
     def _debug_info(self) -> None:
         gc.collect()
-        print(psutil.Process(os.getpid()).memory_full_info())
-        print(objgraph.most_common_types())
-        print(objgraph.count("dict", objgraph.get_leaking_objects()))
+        _LOGGER.info("mem_fullinfo: %s", psutil.Process(os.getpid()).memory_full_info())
+        _LOGGER.info("common_types: %s", objgraph.most_common_types())
+        _LOGGER.info(
+            "leaking_objs: %s", objgraph.count("dict", objgraph.get_leaking_objects())
+        )
 
     async def shutdown(self) -> None:
         if self.config.get("database"):
+            _LOGGER.info(f"Closing database connections...")
             await self._output_db.commit()
             await self._output_db.close()
 
         if self.config.get("known_devices"):
+            _LOGGER.info(f"Updating known_devices database...")
             self.device_lookup.update(
                 {
                     d.device_id: {
@@ -144,6 +152,11 @@ class Gateway:
             )
             with open(self.config["known_devices"], "w") as outfile:
                 json.dump(self.device_lookup, outfile, sort_keys=True, indent=4)
+
+        tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        logging.info(f"Cancelling {len(tasks)} outstanding tasks")
+        [task.cancel() for task in tasks]
+        await asyncio.gather(*tasks)
 
     @property
     def status(self) -> Optional[dict]:
