@@ -95,7 +95,7 @@ def _parse_args():
         "-x", "--execute_cmd", action="store", help='e.g.: "RQ 01:145038 1F09 00"',
     )
     group.add_argument(
-        "-l", "--learn_mode", action="store_true", help="send discovery packets",
+        "-p", "--probe_system", action="store_true", help="send discovery packets",
     )
     # group.add_argument(
     #     "--execute_macro", action="store", type=str, help="e.g. fault-log, schedule)",
