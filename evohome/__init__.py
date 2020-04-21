@@ -25,10 +25,10 @@ _LOGGER = logging.getLogger(__name__)
 class Gateway:
     """The gateway class."""
 
-    def __init__(self, serial_port, **config) -> None:
+    def __init__(self, serial_port, loop=None, **config) -> None:
         """Initialise the class."""  # TODO: config.get() vs config[]
         self.serial_port = serial_port
-        self.loop = config.get("loop", asyncio.get_event_loop())
+        self.loop = loop if loop else asyncio.get_event_loop()
         self.config = config
 
         if self.serial_port and config.get("input_file"):
@@ -38,6 +38,8 @@ class Gateway:
                 config["input_file"],
             )
             config["input_file"] = None
+
+        config["listen_only"] = not config.get("learn_mode")
 
         if config.get("input_file"):
             if not config.get("listen_only"):
@@ -76,8 +78,6 @@ class Gateway:
             cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
         )
 
-        self._output_db = self._db_cursor = None
-
         self.command_queue = Queue(maxsize=200)
         self.message_queue = Queue(maxsize=400)
 
@@ -89,18 +89,49 @@ class Gateway:
         self.devices = []
         self.device_by_id = {}
         self.device_lookup = {}
+
+        # if self.config.get("known_devices"):
         self.device_blacklist = []
         self.device_whitelist = []
 
+        # if self.config.get("database"):
+        self._output_db = self._db_cursor = None
+
+        # if self.config.get("raw_output") > 0:
         self.system = System(self)
         self.data = {f"{i:02X}": {} for i in range(12)}
 
-        for s in (signal.SIGINT, signal.SIGTERM):
-            signal.signal(s, self._signal_handler)
+        signals = [signal.SIGINT, signal.SIGTERM]
         if os.name == "posix":  # TODO: or sys.platform is better?
-            signal.signal(signal.SIGHUP, self._signal_handler)
+            signals += [signal.SIGHUP, signal.SIGUSR1, signal.SIGUSR2]
+        for s in signals:
+            self.loop.add_signal_handler(
+                s, lambda s=s: asyncio.create_task(self._signal_handler(s, self.loop))
+            )
 
-    def _signal_handler(self, signum, frame):
+    async def _signal_handler(self, signum, loop):
+
+        if signum == signal.SIGUSR1 and not self.config.get("raw_output"):
+            print(f"\r\n{json.dumps(self.status, indent=4)}")  # TODO: deleteme
+
+        if signum == signal.SIGUSR2 and self.config.get("debug_mode"):
+            self._debug_info()
+
+        if signum in [signal.SIGHUP, signal.SIGINT, signal.SIGTERM]:
+            await self.shutdown()
+            sys.exit()
+
+    def _debug_info(self) -> None:
+        gc.collect()
+        print(psutil.Process(os.getpid()).memory_full_info())
+        print(objgraph.most_common_types())
+        print(objgraph.count("dict", objgraph.get_leaking_objects()))
+
+    async def shutdown(self) -> None:
+        if self.config.get("database"):
+            await self._output_db.commit()
+            await self._output_db.close()
+
         if self.config.get("known_devices"):
             self.device_lookup.update(
                 {
@@ -111,14 +142,8 @@ class Gateway:
                     for d in self.devices
                 }
             )
-
             with open(self.config["known_devices"], "w") as outfile:
                 json.dump(self.device_lookup, outfile, sort_keys=True, indent=4)
-
-        if self.config.get("raw_output") == 0:  # TODO: ? == 0 ?
-            print(f"\r\n{json.dumps(self.status, indent=4)}")  # TODO: deleteme
-
-        sys.exit()
 
     @property
     def status(self) -> Optional[dict]:
@@ -216,7 +241,7 @@ class Gateway:
         async def proc_packets_from_file() -> None:
             """Process packets from a file, asynchonously."""
             # async with FilePktProvider(self.config["input_file"]) as manager:
-            #     await asyncio.gather(port_reader(manager), port_writer(manager))
+            #     await asyncio.gather(port_reader(manager), port_writer(None))
 
             import aiofiles  # TODO: move to packet.py
 
@@ -284,6 +309,8 @@ class Gateway:
         else:  # if self.config["serial_port"] or if self.serial_port
             await proc_packets_from_port()  # main loop
 
+        await self.shutdown()
+
     async def _validate_packet(self, ts_packet_line, raw_packet_line=None) -> None:
         """Receive a packet and optionally validate it as a message."""
 
@@ -295,10 +322,8 @@ class Gateway:
                 return any(device in pkt.packet for device in dev_whitelist)
             return not any(device in pkt.packet for device in dev_blacklist)
 
-        if self.config.get("debug_mode") > 0:  # TODO: mem leak
-            gc.collect()
-            print(psutil.Process(os.getpid()).memory_full_info())
-            print(objgraph.most_common_types())
+        if self.config.get("debug_mode") == 1:  # TODO: mem leak
+            self._debug_info()
 
         try:
             pkt = Packet(ts_packet_line[:26], ts_packet_line[27:], raw_packet_line)

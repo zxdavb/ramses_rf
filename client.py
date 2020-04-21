@@ -19,17 +19,21 @@ def _parse_args():
 
     parser = argparse.ArgumentParser()
 
-    group = parser.add_argument_group(title="Packet source (one is required)")
+    group = parser.add_argument_group(title="packet source (one is required)")
     mutex = group.add_mutually_exclusive_group(required=True)
     mutex.add_argument("-s", "--serial_port", help="port to poll for packets")
     mutex.add_argument(
-        "-i",
-        "--input_file",
-        type=extant_file,
-        help="file to read for packets (implies listen_only)",
+        "-i", "--input_file", type=extant_file, help="file to read for packets",
     )
 
-    group = parser.add_argument_group(title="Packet logging")
+    group = parser.add_argument_group(title="packet logging")
+    group.add_argument(
+        "-o",
+        "--packet_log",
+        nargs="?",
+        const="packets.log",
+        help="copy all received packets to file",
+    )
     group.add_argument(
         "-d",
         "--database",
@@ -37,15 +41,8 @@ def _parse_args():
         const="packets.db",
         help="archive valid/filtered packets to sqlite DB",
     )
-    group.add_argument(
-        "-o",
-        "--packet_log",
-        nargs="?",
-        const="packets.log",
-        help="copy all valid packets to file",
-    )
 
-    group = parser.add_argument_group(title="Known devices")
+    group = parser.add_argument_group(title="known devices")
     group.add_argument(
         "-k",
         "--known_devices",
@@ -57,7 +54,7 @@ def _parse_args():
         "-w",
         "--device_whitelist",
         action="store_true",
-        help="process only packets to/from non-blacklisted devices",
+        help="process only packets with known, non-blacklisted devices",
     )
     # group.add_argument("-c", "--controller_id", type=str, action="store",
     #     help="controller to use in favour of discovery",
@@ -77,7 +74,7 @@ def _parse_args():
     #     help="DONT USE - don't parse any packets matching these strings",
     # )  # TODO: need to flesh out whitelist/blacklist
 
-    group = parser.add_argument_group(title="Packet processing")
+    group = parser.add_argument_group(title="packet processing")
     # mutex = group.add_mutually_exclusive_group()
     group.add_argument(
         "-r",
@@ -94,21 +91,12 @@ def _parse_args():
         help="copy messages to file (includes errors)",
     )
 
-    group = parser.add_argument_group(title="Command options")
-    # mutex = group.add_mutually_exclusive_group()
+    group = parser.add_argument_group(title="command options")
     group.add_argument(
-        "-l",
-        "--listen_only",
-        action="store_true",
-        help="don't send any command packets (eavesdrop only)",
+        "-x", "--execute_cmd", action="store", help='e.g.: "RQ 01:145038 1F09 00"',
     )
     group.add_argument(
-        "-x",
-        "--execute_cmd",
-        action="store",
-        type=str,
-        # default="RQ 01:145038 1F09 00",
-        help="<verb> <device_id> <code> <payload>",
+        "-l", "--learn_mode", action="store_true", help="send discovery packets",
     )
     # group.add_argument(
     #     "--execute_macro", action="store", type=str, help="e.g. fault-log, schedule)",
@@ -117,28 +105,36 @@ def _parse_args():
     #     "--execute_file", action="store", type=str, help="execute a file of commands",
     # )
 
-    group = parser.add_argument_group(title="Debug options")
+    group = parser.add_argument_group(title="debug options")
     group.add_argument(
         "-z", "--debug_mode", action="count", default=0, help="1=N/A, 2=enable, 3=wait"
     )
 
     args = parser.parse_args()
 
+    if args.execute_cmd and args.input_file:
+        parser.error("argument --execute_cmd: not allowed with argument --input_file")
+
+    if args.learn_mode and args.input_file:
+        parser.error("argument --learn_mode: not allowed with argument --input_file")
+
     if args.device_whitelist and not args.known_devices:
         parser.error("argument --device_whitelist: requires argument --known_devices")
 
-    if args.raw_output == 2 and args.message_log:
-        parser.error("argument --raw_output: not allowed with argument --message_log")
+    if args.message_log and args.raw_output == 2:
+        parser.error("argument --message_log: not allowed with argument -rr")
 
     return args
 
 
-async def main(loop=None):
+async def main(loop=asyncio.get_event_loop()):
     """Main loop."""
     args = _parse_args()
 
-    if args.debug_mode > 0:
-        print(f"Debugging not enabled, additional logging enabled.")
+    print("AAA", args.debug_mode)
+
+    if args.debug_mode == 1:
+        print(f"Additional logging enabled (debugging not enabled).")
         print(args)
         pass
 
@@ -164,4 +160,7 @@ if __name__ == "__main__":
         # future: ... cb=[BaseProactorEventLoop._loop_self_reading()]
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        pass
