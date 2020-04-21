@@ -259,16 +259,16 @@ class Gateway:
             import aiofiles  # TODO: move to packet.py
 
             async with aiofiles.open(self.config["input_file"]) as input_fp:
-                async for ts_packet_line in input_fp:
-                    await self._validate_packet(ts_packet_line)
+                async for ts_pkt_line in input_fp:
+                    await self._process_packet(ts_pkt_line)
                     await self._dispatch_packet(destination=None)  # to empty the buffer
 
         async def proc_packets_from_port() -> None:
             async def port_reader(manager):
                 raw_pkt = b""  # TODO: hack for testing
                 while True:  # main loop
-                    ts_pkt, raw_pkt = await manager.get_next_packet(None)
-                    await self._validate_packet(ts_pkt, raw_pkt)
+                    ts_pkt_line, raw_pkt = await manager.get_next_packet(None)
+                    await self._process_packet(ts_pkt_line, raw_pkt)
                     # await asyncio.sleep(0.01)
 
             async def port_writer(manager):
@@ -324,7 +324,7 @@ class Gateway:
 
         await self.shutdown()
 
-    async def _validate_packet(self, ts_packet_line, raw_packet_line=None) -> None:
+    async def _process_packet(self, ts_packet_line, raw_packet_line=None) -> None:
         """Receive a packet and optionally validate it as a message."""
 
         def has_wanted_device(pkt, dev_whitelist=None, dev_blacklist=None) -> bool:
