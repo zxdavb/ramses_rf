@@ -114,7 +114,7 @@ class Gateway:
 
         if signal == signal.SIGUSR1 and not self.config.get("raw_output"):
             _LOGGER.debug("State data is:")
-            print(f"\r\n{json.dumps(self.status, indent=4)}")  # TODO: deleteme
+            _LOGGER.info(f"\r\n{json.dumps(self.status, indent=4)}")  # TODO: deleteme
 
         if signal == signal.SIGUSR2:
             _LOGGER.debug("Debug data is:")
@@ -374,6 +374,7 @@ class Gateway:
             if not (destination is None or self.config.get("listen_only")):
                 # TODO: if not cmd.entity._pkts.get(cmd.code):
                 destination.write(bytearray(f"{cmd}\r\n".encode("ascii")))
+                _LOGGER.warning("*** A Write was done ***")
 
             self.command_queue.task_done()
 
