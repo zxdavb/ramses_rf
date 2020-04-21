@@ -39,7 +39,7 @@ class Gateway:
             )
             config["input_file"] = None
 
-        config["listen_only"] = not config.get("learn_mode")
+        config["listen_only"] = not config.get("probe_system")
 
         if config.get("input_file"):
             if not config.get("listen_only"):

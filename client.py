@@ -114,8 +114,8 @@ def _parse_args():
     if args.execute_cmd and args.input_file:
         parser.error("argument --execute_cmd: not allowed with argument --input_file")
 
-    if args.learn_mode and args.input_file:
-        parser.error("argument --learn_mode: not allowed with argument --input_file")
+    if args.probe_system and args.input_file:
+        parser.error("argument --probe_system: not allowed with argument --input_file")
 
     if args.device_whitelist and not args.known_devices:
         parser.error("argument --device_whitelist: requires argument --known_devices")
