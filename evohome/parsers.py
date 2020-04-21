@@ -770,6 +770,18 @@ def parser_3150(payload, msg) -> Optional[dict]:  # heat_demand (of device, FC d
 
 
 @parser_decorator
+def parser_31d9(payload, msg) -> Optional[dict]:
+    assert len(payload) / 2 == 17  # usu: I 30:-->30:, with a seq#!
+    assert payload[:2] == "21"  # domain
+    assert payload[2:] == "00FF0000000000000000000000000000"
+
+    return {
+        "zone_idx" if int(payload[:2], 16) <= 11 else "domain": _id(payload[:2]),
+        "unknown_0": payload[2:],
+    }
+
+
+@parser_decorator
 def parser_31da(payload, msg) -> Optional[dict]:  # UFH HCE80 (Nuaire humidity)
     assert len(payload) / 2 == 29  # usu: I CTL-->CTL
     assert payload[:2] == "21"  # domain
