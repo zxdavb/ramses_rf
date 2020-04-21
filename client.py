@@ -75,7 +75,6 @@ def _parse_args():
     # )  # TODO: need to flesh out whitelist/blacklist
 
     group = parser.add_argument_group(title="packet processing")
-    # mutex = group.add_mutually_exclusive_group()
     group.add_argument(
         "-r",
         "--raw_output",
@@ -127,14 +126,13 @@ def _parse_args():
     return args
 
 
-async def main(loop=asyncio.get_event_loop()):
+async def main(loop=None):
+    # loop=asyncio.get_event_loop() causes: 'NoneType' object has no attribute 'serial'
     """Main loop."""
     args = _parse_args()
 
-    print("AAA", args.debug_mode)
-
     if args.debug_mode == 1:
-        print(f"Additional logging enabled (debugging not enabled).")
+        print("Additional logging enabled (debugging not enabled).")
         print(args)
         pass
 
