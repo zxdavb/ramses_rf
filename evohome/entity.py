@@ -173,7 +173,6 @@ class Device(Entity):
         attrs = gateway.device_lookup.get(device_id)
         self._friendly_name = attrs.get("friendly_name") if attrs else None
         self._blacklist = attrs.get("blacklist", False) if attrs else False
-        self._hex_id = dev_id_to_hex(device_id)
 
         # self._discover()  # needs self._device_type
 

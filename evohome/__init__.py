@@ -146,7 +146,6 @@ class Gateway:
                     d.device_id: {
                         "friendly_name": d._friendly_name,
                         "blacklist": d._blacklist,
-                        "attrs": {"hex_id": d._hex_id},
                     }
                     for d in self.devices
                 }
