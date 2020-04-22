@@ -94,7 +94,7 @@ class Message:
         return self._repr
 
     @property
-    def is_valid(self) -> bool:
+    def is_valid(self) -> bool:  # Main code here
         """Return True if the message payload is valid.
 
         All exceptions are to be trapped, and logged appropriately.
@@ -127,12 +127,10 @@ class Message:
                     zone_cls = DhwZone if zone_idx == "HW" else Zone  # TODO: HW?
                     gateway.zone_by_id.update({zone_idx: zone_cls(zone_idx, gateway)})
 
-            for dev in range(3):  # discover devices
-                if dev == 0 and self.device_id[dev][:2] == "18":
-                    break  # but DEV -> HGI would be OK
-                if self.device_id[dev][:2] in ["63", "--"]:
-                    continue
-                get_device(self._gateway, self.device_id[dev])
+            if self.device_id[0][:2] != "18":
+                for dev in range(3):  # discover devices
+                    if self.device_id[dev][:2] not in ["63", "--"]:
+                        get_device(self._gateway, self.device_id[dev])
 
             if self.device_id[0][:2] == "01" and self.verb == " I":  # discover zones
                 if self.code == "2309":  # almost all sync cycles, with 30C9

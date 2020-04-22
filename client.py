@@ -111,14 +111,17 @@ def _parse_args():
 
     args = parser.parse_args()
 
+    if args.device_whitelist and not args.known_devices:
+        parser.error("argument --device_whitelist: requires argument --known_devices")
+
     if args.execute_cmd and args.input_file:
         parser.error("argument --execute_cmd: not allowed with argument --input_file")
 
     if args.probe_system and args.input_file:
         parser.error("argument --probe_system: not allowed with argument --input_file")
 
-    if args.device_whitelist and not args.known_devices:
-        parser.error("argument --device_whitelist: requires argument --known_devices")
+    if args.probe_system and args.raw_output == 2:  # TODO: or is it 1
+        parser.error("argument --probe_system: not allowed with argument -rr")
 
     if args.message_log and args.raw_output == 2:
         parser.error("argument --message_log: not allowed with argument -rr")

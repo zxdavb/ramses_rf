@@ -115,7 +115,7 @@ class Gateway:
     async def _signal_handler(self, signal):
         _LOGGER.debug(f"Received signal {signal.name}...")
 
-        if signal == signal.SIGUSR1 and not self.config.get("raw_output"):
+        if signal == signal.SIGUSR1 and self.config.get("raw_output") < 2:
             _LOGGER.debug("State data is:")
             _LOGGER.info(f"\r\n{json.dumps(self.status, indent=4)}")  # TODO: deleteme
 
@@ -337,6 +337,18 @@ class Gateway:
 
         await self.shutdown()
 
+    async def _dispatch_packet(self, destination=None) -> None:
+        """Send a command unless in listen_only mode."""
+        if not self.command_queue.empty():
+            cmd = self.command_queue.get()
+
+            if not (destination is None or self.config.get("listen_only")):
+                # TODO: if not cmd.entity._pkts.get(cmd.code):
+                destination.write(bytearray(f"{cmd}\r\n".encode("ascii")))
+                _LOGGER.warning("# A write was done to %s", self.serial_port)
+
+            self.command_queue.task_done()
+
     async def _process_packet(self, ts_packet_line, raw_packet_line=None) -> None:
         """Receive a packet and optionally validate it as a message."""
 
@@ -379,19 +391,7 @@ class Gateway:
         if self.config.get("raw_output") < 2:
             self._process_payload(pkt)
 
-    async def _dispatch_packet(self, destination=None) -> None:
-        """Send a command unless in listen_only mode."""
-        if not self.command_queue.empty():
-            cmd = self.command_queue.get()
-
-            if not (destination is None or self.config.get("listen_only")):
-                # TODO: if not cmd.entity._pkts.get(cmd.code):
-                destination.write(bytearray(f"{cmd}\r\n".encode("ascii")))
-                _LOGGER.warning("# A write was done to %s", self.serial_port)
-
-            self.command_queue.task_done()
-
-    def _process_payload(self, pkt: Packet) -> bool:
+    def _process_payload(self, pkt: Packet) -> None:
         """Decode the packet and its payload."""
         # if any(x in pkt.packet for x in self.config.get("blacklist", [])):
         #     return  # silently drop packets with blacklisted text
@@ -405,16 +405,15 @@ class Gateway:
             if not msg.is_valid:  # this will trap/log all exceptions appropriately
                 return
 
-        if self.config.get("raw_output") != 0:
-            return
-
         # finally, only certain packets should become part of the state data
+        if self.config.get("raw_output") < 1:
+            self._process_message(msg)
+
+    def _process_message(self, msg: Message) -> None:
+        """Update the system state with the message data."""
         if msg.device_id[0][:2] == "18":  # or msg.device_id[1][:2] == "18" TODO: keep?
             return
-        # TODO: needs checking!
-        idx = msg.device_id[2] if msg.device_id[0][:2] == "--" else msg.device_id[0]
-        try:  # TODO: remove this try?
-            self.device_by_id[idx].update(msg)
-        except KeyError:  # shouldn't happen
-            _LOGGER.exception("%s", pkt.packet)
-            pass
+
+        # who was the message from?
+        idx = msg.device_id[0] if msg.device_id[0][:2] != "--" else msg.device_id[2]
+        self.device_by_id[idx].update(msg)
