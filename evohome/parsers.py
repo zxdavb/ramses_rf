@@ -449,9 +449,9 @@ def parser_10a0(payload, msg) -> Optional[dict]:  # dhw_params
     assert payload[:2] == "00"  # all DHW pkts have no domain
 
     return {
-        "setpoint": _cent(payload[2:6]),  # 30.0-85.0
+        "setpoint": _cent(payload[2:6]),  # 30.0-85.0 (30.0)
         "overrun": _cent(payload[6:8]),  # 0-10 (0)
-        "differential": _cent(payload[8:12]),  # 1.0-10.0 (10.0)
+        "differential": _cent(payload[8:12]),  # 1.0-10.0 (1.0)
     }
 
 

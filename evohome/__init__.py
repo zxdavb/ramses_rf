@@ -6,6 +6,7 @@ import os
 import psutil  # TODO: mem leak
 import objgraph  # TODO: mem leak
 import gc
+from guppy import hpy
 
 import signal
 import sys
@@ -30,6 +31,8 @@ class Gateway:
         self.serial_port = serial_port
         self.loop = loop if loop else asyncio.get_event_loop()
         self.config = config
+
+        self._h = self._hp = None
 
         if self.serial_port and config.get("input_file"):
             _LOGGER.warning(
@@ -127,11 +130,16 @@ class Gateway:
 
     def _debug_info(self) -> None:
         gc.collect()
+
         _LOGGER.info("mem_fullinfo: %s", psutil.Process(os.getpid()).memory_full_info())
         _LOGGER.info("common_types: %s", objgraph.most_common_types())
-        _LOGGER.info(
-            "leaking_objs: %s", objgraph.count("dict", objgraph.get_leaking_objects())
-        )
+        # _LOGGER.info(
+        #     "leaking_objs: %s", objgraph.count("dict", objgraph.get_leaking_objects())
+        # )
+
+        _LOGGER.warn("heap_stuff:")
+        _LOGGER.warn("%s", self._hp.heap())
+        _LOGGER.warn("%s", self._hp.heap().more)
 
     async def shutdown(self) -> None:
         if self.config.get("database"):
@@ -265,8 +273,13 @@ class Gateway:
 
         async def proc_packets_from_port() -> None:
             async def port_reader(manager):
+                self._hp = hpy()
+                self._hp.setrelheap()
+                # lf._h = self._hp.heap()
+
                 raw_pkt = b""  # TODO: hack for testing
                 while True:  # main loop
+                    gc.collect()
                     ts_pkt_line, raw_pkt = await manager.get_next_packet(None)
                     await self._process_packet(ts_pkt_line, raw_pkt)
                     # await asyncio.sleep(0.01)
@@ -396,7 +409,7 @@ class Gateway:
             return
 
         # finally, only certain packets should become part of the state data
-        if msg.device_id[0][:2] == "18":  # TODO: keep this, or not!
+        if msg.device_id[0][:2] == "18":  # or msg.device_id[1][:2] == "18" TODO: keep?
             return
         # TODO: needs checking!
         idx = msg.device_id[2] if msg.device_id[0][:2] == "--" else msg.device_id[0]
