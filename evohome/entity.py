@@ -164,13 +164,10 @@ class Device(Entity):
         # _LOGGER.debug("Creating a new Device %s", device_id)
         super().__init__(device_id, gateway)
 
-        # gateway.device_by_id.update({device_id: self})
-        gateway.devices.append(self)
-
         self._device_type = DEVICE_MAP.get(device_id[:2])
         self._parent_zone = None
 
-        attrs = gateway.device_lookup.get(device_id)
+        attrs = gateway.known_devices.get(device_id)
         self._friendly_name = attrs.get("friendly_name") if attrs else None
         self._blacklist = attrs.get("blacklist", False) if attrs else False
 
@@ -186,7 +183,8 @@ class Device(Entity):
 
     @property
     def device_type(self) -> Optional[str]:
-        return self._device_type
+        """Return a friendly device type string."""
+        return DEVICE_MAP.get(self._id[:2])
 
     @property
     def parent_zone(self) -> Optional[str]:
@@ -215,7 +213,7 @@ class Device(Entity):
             self._queue.put_nowait(Command(self._gateway, "10E0", self._id, "00"))
 
     def update(self, msg):
-        # if type(msg.payload) == dict:  # isinstance(msg.payload, dict):
+        # if isinstance(msg.payload, dict):
         #     if "zone_idx" in msg.payload:
         #         self._gateway.data[msg.payload["zone_idx"]].update(msg.payload)
 
@@ -263,7 +261,7 @@ class Controller(Device):
 
         self._queue.put_nowait(Command(self._gateway, "0000", verb="XX"))
 
-    def update(self, msg):
+    def x_update(self, msg):
         super().update(msg)
 
         if type(msg.payload) == list:  # isinstance(msg.payload, list):
@@ -362,7 +360,7 @@ class TrvActuator(Device):
     def window_state(self):  # 12B0
         return self._get_value("12B0", "window_open")
 
-    def update(self, msg):
+    def x_update(self, msg):
         super().update(msg)
 
         # if msg.code == "1060" and msg.device_type[2] != "CTL":
@@ -394,7 +392,7 @@ class BdrSwitch(Device):
         for cmd in ["0008", "1100", "3EF1"]:  # these work, for any payload
             self._queue.put_nowait(Command(self._gateway, cmd, self._id, "0000"))
 
-    def update(self, msg):
+    def x_update(self, msg):
         super().update(msg)
 
         if msg.code == "3B00":  # the TPI relay for the boiler
@@ -437,9 +435,6 @@ class Zone(Entity):
     def __init__(self, zone_idx, gateway) -> None:
         # _LOGGER.debug("Creating a new Zone %s", zone_idx)
         super().__init__(zone_idx, gateway)
-
-        # gateway.zone_by_id.update({zone_idx: self})
-        # gateway.zones.append(self)
 
         self._zone_type = None
         self._discover()

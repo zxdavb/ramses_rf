@@ -5,7 +5,7 @@ from typing import Optional
 
 from . import parsers
 from .const import COMMAND_MAP, DEVICE_MAP, MSG_FORMAT_10, MSG_FORMAT_18
-from .entity import DEVICE_CLASSES, Device, DhwZone, Zone
+from .entity import DEVICE_CLASSES, Device, Zone
 
 _LOGGER = logging.getLogger(__name__)  # evohome.message
 
@@ -36,7 +36,7 @@ class Message:
 
         self._repr = None
 
-        self._is_valid = None
+        self._is_valid = False
         self._is_valid = self.is_valid
 
     def __repr__(self) -> str:
@@ -94,53 +94,18 @@ class Message:
         return self._repr
 
     @property
+    def payload(self) -> Optional[dict]:
+        """Return the payload."""
+        return self._payload
+
+    @property
     def is_valid(self) -> bool:  # Main code here
         """Return True if the message payload is valid.
 
         All exceptions are to be trapped, and logged appropriately.
         """
 
-        def harvest_new_entities() -> None:
-            """Discover and create new devices and zones (and domains?).
-
-            Assumes a valid payload.
-            """
-            # TODO: what about domains, e.g. DHW
-
-            def get_device(gateway, dev_id) -> None:
-                """Get a Device, create it if required."""
-                assert dev_id[:2] in DEVICE_MAP
-
-                try:  # does the system already know about this entity?
-                    _ = gateway.device_by_id[dev_id]
-                except KeyError:  # this is a new entity, so create it
-                    device_cls = DEVICE_CLASSES.get(dev_id[:2], Device)
-                    gateway.device_by_id.update({dev_id: device_cls(dev_id, gateway)})
-
-            def get_zone(gateway, zone_idx) -> None:
-                """Get a Zone, create it if required."""  # TODO: other zone types?
-                assert int(zone_idx, 16) <= 11  # TODO: not for Hometronic
-
-                try:  # does the system already know about this entity?
-                    _ = gateway.zone_by_id[zone_idx]
-                except KeyError:  # this is a new entity, so create it
-                    zone_cls = DhwZone if zone_idx == "HW" else Zone  # TODO: HW?
-                    gateway.zone_by_id.update({zone_idx: zone_cls(zone_idx, gateway)})
-
-            if self.device_id[0][:2] != "18":
-                for dev in range(3):  # discover devices
-                    if self.device_id[dev][:2] not in ["63", "--"]:
-                        get_device(self._gateway, self.device_id[dev])
-
-            if self.device_id[0][:2] == "01" and self.verb == " I":  # discover zones
-                if self.code == "2309":  # almost all sync cycles, with 30C9
-                    for i in range(0, len(self.raw_payload), 6):
-                        get_zone(self._gateway, self.raw_payload[i : i + 2])
-                elif self.code == "000A":  # the few remaining sync cycles
-                    for i in range(0, len(self.raw_payload), 12):
-                        get_zone(self._gateway, self.raw_payload[i : i + 2])
-
-        if self._is_valid is not None:
+        if self._is_valid:
             return self._is_valid
 
         try:  # determine which parser to use
@@ -158,17 +123,93 @@ class Message:
             _LOGGER.exception("%s", self._packet, extra=self.__dict__)
             return False
 
+        self._is_valid = True  # TODO: here, or later?
+
         try:
-            harvest_new_entities()  # will ignore if: self.device_id[0][:2] != "18"
+            self.create_entities()  # but not if: self.device_id[0][:2] != "18"
         except AssertionError:  # unknown device type, or zone_idx > 12
             _LOGGER.exception("%s", self._packet, extra=self.__dict__)
             return False
 
         # any remaining messages are valid, so: log them
         _LOGGER.info("%s", self, extra=self.__dict__)
-        return True
+        return self._is_valid
 
-    @property
-    def payload(self) -> Optional[dict]:
-        """Return the payload."""
-        return self._payload
+    def create_entities(self) -> None:
+        """Discover and create new devices, domains and zones."""
+
+        def get_device(gateway, dev_id) -> None:
+            """Get a Device, create it if required."""
+            assert dev_id[:2] in DEVICE_MAP
+
+            try:  # does the system already know about this entity?
+                _ = gateway.device_by_id[dev_id]
+            except KeyError:  # this is a new entity, so create it
+                device_cls = DEVICE_CLASSES.get(dev_id[:2], Device)
+                gateway.device_by_id.update({dev_id: device_cls(dev_id, gateway)})
+                gateway.devices.append(gateway.device_by_id[dev_id])
+
+        def get_domain(gateway, domain_id) -> None:  # TODO
+            """Get a Domain, create it if required."""
+            pass
+
+        def get_zone(gateway, zone_idx) -> None:
+            """Get a Zone, create it if required."""  # TODO: other zone types?
+            assert int(zone_idx, 16) <= 11  # TODO: not for Hometronic
+
+            try:  # does the system already know about this entity?
+                _ = gateway.zone_by_id[zone_idx]
+            except KeyError:  # this is a new entity, so create it
+                # zone_cls = DhwZone if zone_idx == "HW" else Zone  # TODO: What?
+                gateway.zone_by_id.update({zone_idx: Zone(zone_idx, gateway)})
+                gateway.zones.append(gateway.zone_by_id[zone_idx])
+
+        if not self._is_valid or self.device_id[0][:2] == "18":
+            return
+
+        for dev in range(3):  # discover devices
+            if self.device_id[dev][:2] not in ["63", "--"]:
+                get_device(self._gateway, self.device_id[dev])
+
+        # discover zones and domains
+        if isinstance(self._payload, dict):
+            if self._payload.get("domain_id") is not None:
+                get_domain(self._gateway, self._payload["domain_id"])
+
+            if self._payload.get("zone_idx") is not None:
+                get_zone(self._gateway, self._payload["zone_idx"])
+
+        elif isinstance(self._payload, list):
+            if self.device_id[0][:2] == "01" and self.verb == " I":
+                if self.code == "2309":  # almost all sync cycles, with 30C9
+                    for i in range(0, len(self.raw_payload), 6):
+                        get_zone(self._gateway, self.raw_payload[i : i + 2])
+
+                elif self.code == "000A":  # the few remaining sync cycles
+                    for i in range(0, len(self.raw_payload), 12):
+                        get_zone(self._gateway, self.raw_payload[i : i + 2])
+
+    def update_entities(self) -> None:
+        """Update the system state with the message data."""
+
+        def _update_entity(data: dict) -> None:
+            if "domain_id" in self.payload:
+                self._gateway.domain_by_id[self.payload["domain_id"]].update(self)
+            if "zone_idx" in self.payload:
+                self._gateway.zone_by_id[self.payload["zone_idx"]].update(self)
+
+        if (
+            not self._is_valid or self.device_id[0][:2] == "18"
+        ):  # or msg.device_id[1][:2] == "18" TODO: keep?
+            return
+
+        # who was the message from? There's one special case...
+        idx = self.device_id[0] if self.device_id[0][:2] != "--" else self.device_id[2]
+        self._gateway.device_by_id[idx].update(self)
+
+        # what was the message about: system, domain, or zone?
+        if isinstance(self.payload, dict):
+            _update_entity(self.payload)
+
+        elif isinstance(self.payload, list):
+            [_update_entity(z) for z in self.payload]

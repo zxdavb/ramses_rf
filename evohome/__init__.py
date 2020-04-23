@@ -84,6 +84,7 @@ class Gateway:
         self.command_queue = Queue(maxsize=200)
         self.message_queue = Queue(maxsize=400)
 
+        self.zones = []  # not used
         self.zone_by_id = {}
 
         self.domains = []
@@ -91,7 +92,7 @@ class Gateway:
 
         self.devices = []
         self.device_by_id = {}
-        self.device_lookup = {}
+        self.known_devices = {}
 
         # if self.config.get("known_devices"):
         self.device_blacklist = []
@@ -116,8 +117,9 @@ class Gateway:
         _LOGGER.debug(f"Received signal {signal.name}...")
 
         if signal == signal.SIGUSR1 and self.config.get("raw_output") < 2:
-            _LOGGER.debug("State data is:")
-            _LOGGER.info(f"\r\n{json.dumps(self.status, indent=4)}")  # TODO: deleteme
+            _LOGGER.info("State data: %s", f"\r\n{json.dumps(self._devices, indent=4)}")
+            # _LOGGER.debug("State data is:")
+            # _LOGGER.info(f"\r\n{json.dumps(self.status, indent=4)}")  # TODO: deleteme
 
         if signal == signal.SIGUSR2:
             _LOGGER.debug("Debug data is:")
@@ -149,7 +151,7 @@ class Gateway:
 
         if self.config.get("known_devices"):
             _LOGGER.info(f"Updating known_devices database...")
-            self.device_lookup.update(
+            self.known_devices.update(
                 {
                     d.device_id: {
                         "friendly_name": d._friendly_name,
@@ -159,12 +161,22 @@ class Gateway:
                 }
             )
             with open(self.config["known_devices"], "w") as outfile:
-                json.dump(self.device_lookup, outfile, sort_keys=True, indent=4)
+                json.dump(self.known_devices, outfile, sort_keys=True, indent=4)
 
         tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
         logging.info(f"Cancelling {len(tasks)} outstanding tasks")
         [task.cancel() for task in tasks]
         await asyncio.gather(*tasks)
+
+        _LOGGER.info("State data: %s", f"\r\n{json.dumps(self._devices, indent=4)}")
+
+    @property
+    def _devices(self) -> Optional[dict]:
+        """Calculate a system schema."""
+        return {
+            d.device_id: {"device_type": d._device_type, "parent_zone": d._parent_zone}
+            for d in self.devices
+        }
 
     @property
     def status(self) -> Optional[dict]:
@@ -314,9 +326,9 @@ class Gateway:
         if self.config.get("known_devices"):
             try:
                 with open(self.config["known_devices"]) as json_file:
-                    devices = self.device_lookup = json.load(json_file)
+                    devices = self.known_devices = json.load(json_file)
             except FileNotFoundError:  # if it doesn't exist, we'll create it later
-                self.device_lookup = {}
+                self.known_devices = {}
             else:
                 if self.config["device_whitelist"]:
                     # discard packets unless to/from one of our devices
@@ -407,13 +419,4 @@ class Gateway:
 
         # finally, only certain packets should become part of the state data
         if self.config.get("raw_output") < 1:
-            self._process_message(msg)
-
-    def _process_message(self, msg: Message) -> None:
-        """Update the system state with the message data."""
-        if msg.device_id[0][:2] == "18":  # or msg.device_id[1][:2] == "18" TODO: keep?
-            return
-
-        # who was the message from?
-        idx = msg.device_id[0] if msg.device_id[0][:2] != "--" else msg.device_id[2]
-        self.device_by_id[idx].update(msg)
+            msg.update_entities()
