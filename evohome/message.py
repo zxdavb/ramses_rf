@@ -36,7 +36,7 @@ class Message:
 
         self._repr = None
 
-        self._is_valid = False
+        self._is_valid = None
         self._is_valid = self.is_valid
 
     def __repr__(self) -> str:
@@ -105,7 +105,7 @@ class Message:
         All exceptions are to be trapped, and logged appropriately.
         """
 
-        if self._is_valid:
+        if self._is_valid is not None:
             return self._is_valid
 
         try:  # determine which parser to use
@@ -119,23 +119,21 @@ class Message:
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
             _LOGGER.exception("%s", self._packet, extra=self.__dict__)
             return False
-        except (LookupError, TypeError, ValueError):  # shouldn't happen
-            _LOGGER.exception("%s", self._packet, extra=self.__dict__)
-            return False
+        # except (LookupError, TypeError, ValueError):  # shouldn't happen
+        #     _LOGGER.exception("%s", self._packet, extra=self.__dict__)
+        #     return False
 
         try:
-            self.create_entities()  # but not if: self.device_id[0][:2] != "18"
+            self._create_entities()  # but not if: self.device_id[0][:2] != "18"
         except AssertionError:  # unknown device type, or zone_idx > 12
             _LOGGER.exception("%s", self._packet, extra=self.__dict__)
             return False
 
-        self._is_valid = True  # TODO: here, or later?
-
         # any remaining messages are valid, so: log them
         _LOGGER.info("%s", self, extra=self.__dict__)
-        return self._is_valid
+        return True  # self._is_valid = True
 
-    def create_entities(self) -> None:
+    def _create_entities(self) -> None:
         """Discover and create new devices, domains and zones."""
 
         def get_device(gateway, dev_id) -> None:
@@ -198,7 +196,7 @@ class Message:
             if "zone_idx" in self.payload:
                 self._gateway.zone_by_id[self.payload["zone_idx"]].update(self)
 
-        if self.device_id[0][:2] == "18":  # or msg.device_id[1][:2] == "18" TODO: keep?
+        if not self.is_valid or self.device_id[0][:2] == "18":  # TODO: [2] too
             return
 
         # who was the message from? There's one special case...

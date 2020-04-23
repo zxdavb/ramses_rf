@@ -72,9 +72,6 @@ class Domain(Entity):
         # _LOGGER.debug("Creating a new Domain %s", device_id)
         super().__init__(domain_id, gateway)
 
-        gateway.domain_by_id.update({domain_id: self})
-        gateway.domains.append(self)
-
         self._type = None
         # self.discover()
 
