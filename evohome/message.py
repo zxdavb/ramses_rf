@@ -123,13 +123,13 @@ class Message:
             _LOGGER.exception("%s", self._packet, extra=self.__dict__)
             return False
 
-        self._is_valid = True  # TODO: here, or later?
-
         try:
             self.create_entities()  # but not if: self.device_id[0][:2] != "18"
         except AssertionError:  # unknown device type, or zone_idx > 12
             _LOGGER.exception("%s", self._packet, extra=self.__dict__)
             return False
+
+        self._is_valid = True  # TODO: here, or later?
 
         # any remaining messages are valid, so: log them
         _LOGGER.info("%s", self, extra=self.__dict__)
@@ -164,7 +164,7 @@ class Message:
                 gateway.zone_by_id.update({zone_idx: Zone(zone_idx, gateway)})
                 gateway.zones.append(gateway.zone_by_id[zone_idx])
 
-        if not self._is_valid or self.device_id[0][:2] == "18":
+        if self.device_id[0][:2] == "18":
             return
 
         for dev in range(3):  # discover devices
@@ -198,9 +198,7 @@ class Message:
             if "zone_idx" in self.payload:
                 self._gateway.zone_by_id[self.payload["zone_idx"]].update(self)
 
-        if (
-            not self._is_valid or self.device_id[0][:2] == "18"
-        ):  # or msg.device_id[1][:2] == "18" TODO: keep?
+        if self.device_id[0][:2] == "18":  # or msg.device_id[1][:2] == "18" TODO: keep?
             return
 
         # who was the message from? There's one special case...
