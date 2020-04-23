@@ -73,7 +73,7 @@ def parser_decorator(func):
                 return {}
 
             if msg.code in ["0004", "000A", "000C", "12B0", "2309", "2349", "30C9"]:
-                assert int(payload[:2], 16) <= 11
+                assert int(payload[:2], 16) < 12
                 return {"zone_idx": payload[:2]}
 
             return {} if payload == "00" else None
@@ -89,7 +89,7 @@ def parser_decorator(func):
 
 def _id(seqx) -> dict:
     assert len(seqx) == 2
-    if int(seqx, 16) <= 11:
+    if int(seqx, 16) < 12:
         return seqx
     return DOMAIN_MAP.get(seqx, seqx)
 
@@ -171,7 +171,7 @@ def parser_0002(payload, msg) -> Optional[dict]:  # sensor_weather
 def parser_0004(payload, msg) -> Optional[dict]:  # zone_name
     # appears limited to 12 characters in evohome UI
     assert len(payload) / 2 == 22
-    assert int(payload[:2], 16) <= 11
+    assert int(payload[:2], 16) < 12
     assert payload[2:4] == "00"
 
     return {
@@ -209,10 +209,10 @@ def parser_0008(payload, msg) -> Optional[dict]:  # relay_demand (domain/zone/de
     assert len(payload) / 2 == 2
 
     if payload[:2] not in ["F9", "FA", "FC"]:
-        assert int(payload[:2], 16) <= 11  # TODO: when 0, when FC, when zone
+        assert int(payload[:2], 16) < 12  # TODO: when 0, when FC, when zone
 
     return {
-        "zone_idx" if int(payload[:2], 16) <= 11 else "domain": _id(payload[:2]),
+        "zone_idx" if int(payload[:2], 16) < 12 else "domain": _id(payload[:2]),
         "relay_demand": _cent(payload[2:]) / 2,
     }
 
@@ -222,12 +222,12 @@ def parser_0009(payload, msg) -> Optional[dict]:  # relay_failsafe
     # seems there can only be max one relay per domain/zone
     # can get: 003 or 006: FC01FF-F901FF or FC00FF-F900FF
     def _parser(seqx) -> dict:
-        assert seqx[:2] in ["F9", "FC"] or (int(seqx[:2], 16) <= 11)
+        assert seqx[:2] in ["F9", "FC"] or (int(seqx[:2], 16) < 12)
         assert seqx[2:4] in ["00", "01"]
         assert seqx[4:] in ["00", "FF"]
 
         return {
-            "zone_idx" if int(seqx[:2], 16) <= 11 else "domain": _id(seqx[:2]),
+            "zone_idx" if int(seqx[:2], 16) < 12 else "domain": _id(seqx[:2]),
             "failsafe_enabled": {"00": False, "01": True}.get(seqx[2:4]),
         }
 
@@ -242,7 +242,7 @@ def parser_0009(payload, msg) -> Optional[dict]:  # relay_failsafe
 def parser_000a(payload, msg) -> Union[dict, list, None]:  # zone_config (zone/s)
     def _parser(seqx) -> dict:
         assert len(seqx) == 12
-        assert int(seqx[:2], 16) <= 11
+        assert int(seqx[:2], 16) < 12
 
         if seqx[2:] == "007FFF7FFF":
             return {}  # a null zones
@@ -271,7 +271,7 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:  # zone_config (zone/s
 @parser_decorator
 def parser_000c(payload, msg) -> Optional[dict]:  # zone_actuators (not sensors)
     def _parser(seqx) -> dict:
-        assert int(seqx[:2], 16) <= 11
+        assert int(seqx[:2], 16) < 12
         # assert seqx[2:4] in ["00", "0A", "0F", "10"] # usus. 00 - subzone?
         assert seqx[4:6] in ["00", "7F"]
 
@@ -356,7 +356,7 @@ def parser_0418(payload, msg) -> Optional[dict]:  # system_fault
     assert int(payload[4:6], 16) <= 63  # TODO: upper limit is: 60? 63? more?
     assert payload[6:8] == "B0"  # unknown_1, ?priority
     assert payload[8:10] in list(FAULT_TYPE)
-    assert int(payload[10:12], 16) <= 11 or payload[10:12] in ["FA", "FC"]
+    assert int(payload[10:12], 16) < 12 or payload[10:12] in ["FA", "FC"]
     assert payload[12:14] in list(FAULT_DEVICE_CLASS)
     assert payload[14:18] == "0000"  # unknown_2
     assert payload[28:30] in ["7F", "FF"]  # last bit in dt field
@@ -366,7 +366,7 @@ def parser_0418(payload, msg) -> Optional[dict]:  # system_fault
         "state": FAULT_STATE.get(payload[2:4], payload[2:4]),
         "timestamp": _timestamp(payload[18:30]),
         "fault_type": FAULT_TYPE.get(payload[8:10], payload[8:10]),
-        "zone_idx" if int(payload[10:12], 16) <= 11 else "domain": _id(payload[10:12]),
+        "zone_idx" if int(payload[10:12], 16) < 12 else "domain": _id(payload[10:12]),
         "device_class": FAULT_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
         "device_id": dev_hex_to_id(payload[38:]),  # is "00:000001/2 for CTL?
         "log_idx": int(payload[4:6], 16),
@@ -410,7 +410,7 @@ def parser_1030(payload, msg) -> Optional[dict]:  # mixvalve_config (zone)
         return {param_name: int(seqx[4:], 16)}
 
     assert len(payload) / 2 == 1 + 5 * 3
-    assert int(payload[:2], 16) <= 11
+    assert int(payload[:2], 16) < 12
     assert payload[30:] == "01"
 
     return {
@@ -434,7 +434,7 @@ def parser_1060(payload, msg) -> Optional[dict]:  # battery_state (of device)
     }
 
     if msg.device_id[0][:2] == "04" and msg.device_id[2][:2] == "01":  # TRV, CTL
-        assert int(payload[:2], 16) <= 11
+        assert int(payload[:2], 16) < 12
         result.update({"parent_zone": payload[:2]})
     else:
         assert payload[:2] == "00"
@@ -526,7 +526,7 @@ def parser_12a0(payload, msg) -> Optional[dict]:  # indoor_humidity (Nuaire RH s
 
 @parser_decorator
 def parser_12b0(payload, msg) -> Optional[dict]:  # window_state (of a device/zone)
-    assert int(payload[:2], 16) <= 11  # also for device state
+    assert int(payload[:2], 16) < 12  # also for device state
     assert payload[2:] in ["0000", "C800", "FFFF"]  # "FFFF" means N/A
 
     return {
@@ -573,9 +573,9 @@ def parser_1f41(payload, msg) -> Optional[dict]:  # dhw_mode
 def parser_1fc9(payload, msg) -> Optional[dict]:  # bind_device
     def _parser(seqx) -> dict:
         if seqx[:2] not in ["FB", "FC"]:
-            assert int(seqx[:2], 16) <= 11
+            assert int(seqx[:2], 16) < 12
         return {
-            "zone_idx" if int(payload[:2], 16) <= 11 else "domain": _id(payload[:2]),
+            "zone_idx" if int(payload[:2], 16) < 12 else "domain": _id(payload[:2]),
             "command": COMMAND_MAP.get(seqx[2:6], f"unknown_{seqx[2:6]}"),
             "device_id": dev_hex_to_id(seqx[6:]),
         }
@@ -598,7 +598,7 @@ def parser_1fd4(payload, msg) -> Optional[dict]:  # opentherm_sync
 @parser_decorator
 def parser_22c9(payload, msg) -> Optional[dict]:  # ufh_setpoint
     def _parser(seqx) -> dict:
-        assert int(seqx[:2], 16) <= 11
+        assert int(seqx[:2], 16) < 12
         assert seqx[10:] == "01"
         #
         return {
@@ -644,7 +644,7 @@ def parser_22f1(payload, msg) -> Optional[dict]:  # ???? (Nuaire 4-way switch)
 @parser_decorator
 def parser_2309(payload, msg) -> Union[dict, list, None]:  # setpoint (of device/zones)
     def _parser(seqx) -> dict:
-        assert int(seqx[:2], 16) <= 11
+        assert int(seqx[:2], 16) < 12
         # for a TRV, '7EFF' means off
         setpoint = (
             None if seqx[2:] == "7EFF" else _cent(seqx[2:])
@@ -699,7 +699,7 @@ def parser_2e04(payload, msg) -> Optional[dict]:  # system_mode
 def parser_30c9(payload, msg) -> Optional[dict]:  # temp (of device, zone/s)
     def _parser(seqx) -> dict:
         assert len(seqx) == 6
-        assert int(seqx[:2], 16) <= 11
+        assert int(seqx[:2], 16) < 12
 
         return {"temperature": _temp(seqx[2:]), "zone_idx": seqx[:2]}
 
@@ -746,10 +746,10 @@ def parser_3150(payload, msg) -> Optional[dict]:  # heat_demand (of device, FC d
 
     def _parser(seqx) -> dict:
         assert len(seqx) == 4
-        assert payload[:2] == "FC" or (int(payload[:2], 16) <= 11)  # 4 for UFH
+        assert payload[:2] == "FC" or (int(payload[:2], 16) < 12)  # 4 for UFH
 
         return {
-            "zone_idx" if int(seqx[:2], 16) <= 11 else "domain": _id(seqx[:2]),
+            "zone_idx" if int(seqx[:2], 16) < 12 else "domain": _id(seqx[:2]),
             "heat_demand": _cent(seqx[2:]) / 2,
         }
 
@@ -762,9 +762,9 @@ def parser_3150(payload, msg) -> Optional[dict]:  # heat_demand (of device, FC d
         assert len(payload) / 2 == 2
 
     if msg.device_id[0][:2] in ["01", "02", "10"]:  # CTL, UFH, OTB
-        assert payload[:2] == "FC" or (int(payload[:2], 16) <= 11)
+        assert payload[:2] == "FC" or (int(payload[:2], 16) < 12)
     else:
-        assert int(payload[:2], 16) <= 11
+        assert int(payload[:2], 16) < 12
 
     return _parser(payload)
 
@@ -776,7 +776,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
     assert payload[2:] == "00FF0000000000000000000000000000"
 
     return {
-        "zone_idx" if int(payload[:2], 16) <= 11 else "domain": _id(payload[:2]),
+        "zone_idx" if int(payload[:2], 16) < 12 else "domain": _id(payload[:2]),
         "unknown_0": payload[2:],
     }
 
@@ -787,7 +787,7 @@ def parser_31da(payload, msg) -> Optional[dict]:  # UFH HCE80 (Nuaire humidity)
     assert payload[:2] == "21"  # domain
 
     return {
-        "zone_idx" if int(payload[:2], 16) <= 11 else "domain": _id(payload[:2]),
+        "zone_idx" if int(payload[:2], 16) < 12 else "domain": _id(payload[:2]),
         "relative_humidity": _cent(payload[10:12]),
         "unknown_0": payload[2:10],
         "unknown_1": payload[12:],
@@ -879,7 +879,7 @@ def parser_3b00(payload, msg) -> Optional[dict]:  # sync_tpi (TPI cycle HB/sync)
     assert payload[2:] == "C8"  # Could it be a percentage?
 
     return {
-        "zone_idx" if int(payload[:2], 16) <= 11 else "domain": _id(payload[:2]),
+        "zone_idx" if int(payload[:2], 16) < 12 else "domain": _id(payload[:2]),
         "unknown_0": {"00": False, "C8": True}.get(payload[2:]),
     }
 
@@ -912,7 +912,7 @@ def parser_3ef1(payload, msg) -> Optional[dict]:  # actuator_state
     assert payload[10:] in ["00FF", "C8FF"]
 
     return {
-        "zone_idx" if int(payload[:2], 16) <= 11 else "domain": _id(payload[:2]),
+        "zone_idx" if int(payload[:2], 16) < 12 else "domain": _id(payload[:2]),
         "actuator_dunno": _cent(payload[2:4]) / 2,
         "unknown_1": int(payload[2:6], 16),
         "unknown_2": int(payload[6:10], 16),
@@ -923,4 +923,4 @@ def parser_3ef1(payload, msg) -> Optional[dict]:  # actuator_state
 @parser_decorator
 def parser_unknown(payload, msg) -> None:
     # TODO: it may be useful to search payloads for hex_ids, commands, etc.
-    return
+    raise AssertionError

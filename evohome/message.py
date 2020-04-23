@@ -110,7 +110,7 @@ class Message:
 
         try:  # determine which parser to use
             payload_parser = getattr(parsers, f"parser_{self.code}".lower())
-        except AttributeError:
+        except AttributeError:  # there's no parser for this command code!
             payload_parser = getattr(parsers, "parser_unknown")
 
         try:
