@@ -3,11 +3,55 @@ import re
 
 NON_DEV_ID = "--:------"
 NUL_DEV_ID = "63:262142"  # 7FFFFF - send here if not bound?
+HGI_DEV_ID = "18:000730"  # default type and address of HGI, 18:013393
 
 CTL_DEV_ID = "01:145038"  # 06368E
-HGI_DEV_ID = "18:000730"  # default type and address of HGI, 18:013393
 TPI_DEV_ID = "13:237335"  # Boiler relay
 
+
+# Packet codes/classes - lengths are in bytes, len(0xFF) == 1
+COMMAND_MAGIC = {
+    "0004": {
+        "length": {"RQ": 2, "RP": 22, " I": 22, " W": 22},
+        "zone_idx": 2 * 2,
+        "null_resp": "7F" * 20,
+    },
+    "000A": {
+        "length": {"RQ": [1, 6], "RP": 6, " I": 6, " W": 0},
+        "zone_idx": True,
+        "null_resp": "007FFF7FFF",
+    },  # CTL/I is an array
+    "000C": {
+        "length": {"RQ": 2, "RP": 6, " I": 0, " W": 0},
+        "zone_idx": True,
+        "null_resp": "007FFFFFFF",
+    },  # RP is an array
+    "2309": {
+        "length": {"RQ": 1, "RP": 3, " I": 3, " W": 0},
+        "zone_idx": True,
+        "null_resp": "7FFF",
+    },  # CTL/I is an array
+    "30C9": {
+        "length": {"RQ": 1, "RP": 3, " I": 0, " W": 0},
+        "zone_idx": True,
+        "null_resp": "7FFF",
+    },  # CTL/I is an array
+    "12B0": {
+        "length": {"RQ": 1, "RP": 3, " I": 0, " W": 0},
+        "zone_idx": True,
+        "null_resp": "7FFF",
+    },
+    "2349": {
+        "length": {"RQ": 1, "RP": 7, " I": 3, " W": 0},
+        "zone_idx": True,
+        "null_resp": "7FFF00FFFFFF",
+    },
+    "0008": {"length": {"RQ": 0, "RP": 0, " I": 2, " W": 0}},
+    "1060": {"length": {"RQ": 0, "RP": 0, " I": 3, " W": 0}},  # zone for 04:
+    "3150": {"length": {"RQ": 0, "RP": 0, " I": 2, " W": 0}},
+    "1F09": {"length": {"RQ": 1, "RP": 3, " I": 0, " W": 0}},
+    "2E04": {"length": {"RQ": 1, "RP": 8, " I": 0, " W": 0}},
+}
 
 # Packet codes/classes
 COMMAND_SCHEMA = {
