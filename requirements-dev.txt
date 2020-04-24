@@ -6,3 +6,8 @@ pre-commit==2.1.1
 ptvsd==4.3.2
 pycodestyle==2.5.0
 pyflakes==2.1.1
+
+guppy3==3.0.9
+objgraph==3.4.1
+psutil==5.7.0
+
