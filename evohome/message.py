@@ -82,13 +82,16 @@ class Message:
         else:
             msg_format = MSG_FORMAT_10
 
+        xxx = self._payload if self._payload else raw_payload2
+        xxx = {} if self._payload == {} else xxx
+
         self._repr = msg_format.format(
             device_names[0],
             device_names[1],
             self.verb,
             COMMAND_MAP.get(self.code, f"unknown_{self.code}"),
             raw_payload1,
-            self._payload if self._payload else raw_payload2,
+            xxx,
         )
 
         return self._repr
@@ -196,10 +199,10 @@ class Message:
             elif True:
                 pass
 
-        if not self.is_valid or self.device_id[0][:2] == "18":  # TODO: [2] too
+        if not self.is_valid or self.device_id[0][:2] == "18":  # TODO: [2] too?
             return
 
-        # who was the message from? There's one special case...
+        # who was the message from? There's one special (non-evohome) case...
         idx = self.device_id[0] if self.device_id[0][:2] != "--" else self.device_id[2]
         self._gateway.device_by_id[idx].update(self)
 
@@ -233,6 +236,6 @@ class Message:
             _codes = []
             _codes += ["0100", "042F", "1060", "10A0", "10E0", "1100", "1260", "12A0"]
             _codes += ["1F09", "1F41", "22F1", "2309", "2E04", "30C9", "313F", "31E0"]
-            _codes += ["3B00", "3EF0"]
+            _codes += ["3B00", "3EF0", "22D0"]
             assert self.code in _codes
             _update_entity(self.payload)

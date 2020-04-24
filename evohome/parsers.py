@@ -65,17 +65,11 @@ def parser_decorator(func):
         if msg.code == "3220":  # CTL -> OTB (OpenTherm)
             return func(*args, **kwargs)
 
-        if msg.verb == "RQ":
-            # will the following break harvesting?
-            if msg.code == "3EF0":
-                assert payload[:2] == "00"
-                return {}  # TODO: or None?
+        if msg.code in ["0004", "000A", "000C", "12B0", "2309", "2349", "30C9"]:
+            assert int(payload[:2], 16) < 12
+            return {"zone_idx": payload[:2]}
 
-            if msg.code in ["0004", "000A", "000C", "12B0", "2309", "2349", "30C9"]:
-                assert int(payload[:2], 16) < 12
-                return {"zone_idx": payload[:2]}
-
-            return {} if payload == "00" else None  # TODO: or just one
+        return {} if payload == "00" else None  # TODO: or just one
 
         # TODO: god knows
         raise NotImplementedError
@@ -614,6 +608,13 @@ def parser_22c9(payload, msg) -> Optional[dict]:  # ufh_setpoint
     #
     assert len(payload) % 12 == 0
     return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
+
+
+@parser_decorator
+def parser_22d0(payload, msg) -> Optional[dict]:  # message_22d0
+    assert payload == "00000002"
+
+    return {"unknown": payload}
 
 
 @parser_decorator

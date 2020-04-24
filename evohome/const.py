@@ -86,6 +86,7 @@ COMMAND_SCHEMA = {
     "1FD4": {"name": "opentherm_sync"},
     "2249": {"name": "unknown_2249"},  # programmer now/next setpoint (jrosser/honeymon)
     "22C9": {"name": "ufh_setpoint"},
+    "22D0": {"name": "message_22d0"},  # used with UFH, ~15min
     "22D9": {"name": "boiler_setpoint"},  # used with OTB
     "22F1": {"name": "vent_switch"},
     "2309": {"name": "setpoint", "exposes_zone": True},  # "device_or_zone": True
