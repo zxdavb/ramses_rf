@@ -87,7 +87,7 @@ COMMAND_SCHEMA = {
     "2249": {"name": "unknown_2249"},  # programmer now/next setpoint (jrosser/honeymon)
     "22C9": {"name": "ufh_setpoint"},
     "22D9": {"name": "boiler_setpoint"},  # used with OTB
-    "22F1": {"name": "message_22f1"},
+    "22F1": {"name": "vent_switch"},
     "2309": {"name": "setpoint", "exposes_zone": True},  # "device_or_zone": True
     "2349": {"name": "zone_mode", "exposes_zone": True},  # TODO: confirm
     "2389": {"name": "unknown_2389"},  # not real?
@@ -145,7 +145,7 @@ DEVICE_LOOKUP = {v: k for k, v in DEVICE_MAP.items()}
 
 # Domains
 # MAIN_MAP = {"FA": "Hot Water", "FC": "Heat Demand"}
-DOMAIN_MAP = {"F9": "Heating", "FA": "HotWater", "FC": "Boiler"}
+DOMAIN_MAP = {"21": "Ventilation", "F9": "Heating", "FA": "HotWater", "FC": "Boiler"}
 
 SYSTEM_MODE_MAP = {
     "00": "Auto",
