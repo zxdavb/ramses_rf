@@ -226,9 +226,13 @@ class Message:
         elif "parent_zone_idx" in self.payload:  # is for a device...
             pass
 
+        elif self.code in ["1FD4", "22D9", "3220"]:  # is for opentherm...
+            _update_entity(self.payload)  # TODO: needs checking
+
         else:  # is for a device...
-            _codes_1 = ["0100", "042F", "1060", "10A0", "10E0", "1100", "1260", "12A0"]
-            _codes_2 = ["1F09", "1F41", "22F1", "2309", "2E04", "30C9", "313F", "31E0"]
-            _codes_3 = ["3B00", "3EF0"]
-            assert self.code in _codes_1 + _codes_2 + _codes_3
+            _codes = []
+            _codes += ["0100", "042F", "1060", "10A0", "10E0", "1100", "1260", "12A0"]
+            _codes += ["1F09", "1F41", "22F1", "2309", "2E04", "30C9", "313F", "31E0"]
+            _codes += ["3B00", "3EF0"]
+            assert self.code in _codes
             _update_entity(self.payload)
