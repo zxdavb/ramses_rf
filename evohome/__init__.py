@@ -418,5 +418,10 @@ class Gateway:
                 return
 
         # finally, only certain packets should become part of the state data
-        if self.config.get("raw_output") < 1:
+        if self.config.get("raw_output") > 0:
+            return
+
+        try:
             msg.update_entities()
+        except AssertionError:
+            _LOGGER.exception("%s", msg)
