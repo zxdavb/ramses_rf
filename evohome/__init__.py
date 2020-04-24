@@ -126,7 +126,7 @@ class Gateway:
             self._debug_info()
 
         if signal in [signal.SIGHUP, signal.SIGINT, signal.SIGTERM]:
-            _LOGGER.debug("Exiting gracefully...")
+            _LOGGER.debug("Received a %s, exiting gracefully...", signal)
             await self.shutdown()
             sys.exit()
 
@@ -357,7 +357,7 @@ class Gateway:
             if not (destination is None or self.config.get("listen_only")):
                 # TODO: if not cmd.entity._pkts.get(cmd.code):
                 destination.write(bytearray(f"{cmd}\r\n".encode("ascii")))
-                _LOGGER.warning("# A write was done to %s", self.serial_port)
+                _LOGGER.warning("# A write was done to %s: %s", self.serial_port, cmd)
 
             self.command_queue.task_done()
 
