@@ -126,7 +126,7 @@ class Gateway:
             self._debug_info()
 
         if signal in [signal.SIGHUP, signal.SIGINT, signal.SIGTERM]:
-            _LOGGER.debug("Received a %s, exiting gracefully...", signal)
+            _LOGGER.info("Received a %s, exiting gracefully...", signal)
             await self.shutdown()
             sys.exit()
 

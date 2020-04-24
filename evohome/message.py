@@ -4,8 +4,8 @@ import logging
 from typing import Optional
 
 from . import parsers
-from .const import COMMAND_MAP, DEVICE_MAP, MSG_FORMAT_10, MSG_FORMAT_18
-from .entity import DEVICE_CLASSES, Device, Zone
+from .const import COMMAND_MAP, DEVICE_MAP, DOMAIN_MAP, MSG_FORMAT_10, MSG_FORMAT_18
+from .entity import DEVICE_CLASSES, Device, Domain, Zone
 
 _LOGGER = logging.getLogger(__name__)  # evohome.message
 
@@ -136,56 +136,54 @@ class Message:
     def _create_entities(self) -> None:
         """Discover and create new devices, domains and zones."""
 
-        def get_device(gateway, dev_id) -> None:
+        def _ent(ent_cls, ent_id, ent_by_id, ents) -> None:
+            try:  # does the system already know about this entity?
+                _ = ent_by_id[ent_id]
+            except KeyError:  # this is a new entity, so create it
+                ent_by_id.update({ent_id: ent_cls(ent_id, self._gateway)})
+                ents.append(ent_by_id[ent_id])
+
+        def get_device(dev_id) -> None:
             """Get a Device, create it if required."""
             assert dev_id[:2] in DEVICE_MAP
+            dev_cls = DEVICE_CLASSES.get(dev_id[:2], Device)
+            _ent(dev_cls, dev_id, self._gateway.device_by_id, self._gateway.devices)
 
-            try:  # does the system already know about this entity?
-                _ = gateway.device_by_id[dev_id]
-            except KeyError:  # this is a new entity, so create it
-                device_cls = DEVICE_CLASSES.get(dev_id[:2], Device)
-                gateway.device_by_id.update({dev_id: device_cls(dev_id, gateway)})
-                gateway.devices.append(gateway.device_by_id[dev_id])
-
-        def get_domain(gateway, domain_id) -> None:  # TODO
+        def get_domain(domain_id) -> None:  # TODO
             """Get a Domain, create it if required."""
-            pass
+            assert domain_id in DOMAIN_MAP
+            _ent(Domain, domain_id, self._gateway.domain_by_id, self._gateway.domains)
 
-        def get_zone(gateway, zone_idx) -> None:
+        def get_zone(zone_idx) -> None:
             """Get a Zone, create it if required."""  # TODO: other zone types?
-            assert int(zone_idx, 16) <= 11  # TODO: not for Hometronic
-
-            try:  # does the system already know about this entity?
-                _ = gateway.zone_by_id[zone_idx]
-            except KeyError:  # this is a new entity, so create it
-                # zone_cls = DhwZone if zone_idx == "HW" else Zone  # TODO: What?
-                gateway.zone_by_id.update({zone_idx: Zone(zone_idx, gateway)})
-                gateway.zones.append(gateway.zone_by_id[zone_idx])
+            assert int(zone_idx, 16) < 12  # TODO: > 11 not for Hometronic
+            zone_cls = Zone  # DhwZone if zone_idx == "HW" else Zone  # TODO
+            _ent(zone_cls, zone_idx, self._gateway.zone_by_id, self._gateway.zones)
 
         if self.device_id[0][:2] == "18":
             return
 
         for dev in range(3):  # discover devices
             if self.device_id[dev][:2] not in ["63", "--"]:
-                get_device(self._gateway, self.device_id[dev])
+                get_device(self.device_id[dev])
 
         # discover zones and domains
         if isinstance(self._payload, dict):
             if self._payload.get("domain_id") is not None:
-                get_domain(self._gateway, self._payload["domain_id"])
+                get_domain(self._payload["domain_id"])
 
             if self._payload.get("zone_idx") is not None:
-                get_zone(self._gateway, self._payload["zone_idx"])
+                get_zone(self._payload["zone_idx"])
 
         elif isinstance(self._payload, list):
             if self.device_id[0][:2] == "01" and self.verb == " I":
-                if self.code == "2309":  # almost all sync cycles, with 30C9
+                if self.code in ["2309", "30C9"]:  # almost all sync cycles
                     for i in range(0, len(self.raw_payload), 6):
-                        get_zone(self._gateway, self.raw_payload[i : i + 2])
+                        get_zone(self.raw_payload[i : i + 2])
 
                 elif self.code == "000A":  # the few remaining sync cycles
                     for i in range(0, len(self.raw_payload), 12):
-                        get_zone(self._gateway, self.raw_payload[i : i + 2])
+                        get_zone(self.raw_payload[i : i + 2])
 
     def update_entities(self) -> None:
         """Update the system state with the message data."""
