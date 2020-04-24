@@ -191,8 +191,10 @@ class Message:
         def _update_entity(data: dict) -> None:
             if "domain_id" in self.payload:
                 self._gateway.domain_by_id[self.payload["domain_id"]].update(self)
-            if "zone_idx" in self.payload:
+            elif "zone_idx" in self.payload:
                 self._gateway.zone_by_id[self.payload["zone_idx"]].update(self)
+            elif True:
+                pass
 
         if not self.is_valid or self.device_id[0][:2] == "18":  # TODO: [2] too
             return
@@ -202,8 +204,31 @@ class Message:
         self._gateway.device_by_id[idx].update(self)
 
         # what was the message about: system, domain, or zone?
-        if isinstance(self.payload, dict):
+        if self.payload is None:
+            return
+
+        if isinstance(self.payload, list):
+            # assert self.code in ["0009", "000A", "2309", "30C9"]
+            [_update_entity(z) for z in self.payload]
+            return
+
+        if "zone_idx" in self.payload:
+            if self.code == "0418":
+                return
+            elif self.code == "0008":
+                return
+            # assert self.code in ["12B0", "2309", "3150"]
             _update_entity(self.payload)
 
-        elif isinstance(self.payload, list):
-            [_update_entity(z) for z in self.payload]
+        elif "domain_id" in self.payload:
+            pass
+
+        elif "parent_zone_idx" in self.payload:  # is for a device...
+            pass
+
+        else:  # is for a device...
+            _codes_1 = ["0100", "042F", "1060", "10A0", "10E0", "1100", "1260", "12A0"]
+            _codes_2 = ["1F09", "1F41", "22F1", "2309", "2E04", "30C9", "313F", "31E0"]
+            _codes_3 = ["3B00", "3EF0"]
+            assert self.code in _codes_1 + _codes_2 + _codes_3
+            _update_entity(self.payload)
