@@ -23,7 +23,7 @@ def _parse_args():
     mutex = group.add_mutually_exclusive_group(required=True)
     mutex.add_argument("-s", "--serial_port", help="port to poll for packets")
     mutex.add_argument(
-        "-i", "--input_file", type=extant_file, help="file to read for packets",
+        "-i", "--input_file", type=extant_file, help="file to read for packets"
     )
 
     group = parser.add_argument_group(title="packet logging")
@@ -92,10 +92,10 @@ def _parse_args():
 
     group = parser.add_argument_group(title="command options")
     group.add_argument(
-        "-x", "--execute_cmd", action="store", help='e.g.: "RQ 01:145038 1F09 00"',
+        "-x", "--execute_cmd", action="store", help='e.g.: "RQ 01:145038 1F09 00"'
     )
     group.add_argument(
-        "-p", "--probe_system", action="store_true", help="send discovery packets",
+        "-p", "--probe_system", action="store_true", help="send discovery packets"
     )
     # group.add_argument(
     #     "--execute_macro", action="store", type=str, help="e.g. fault-log, schedule)",
