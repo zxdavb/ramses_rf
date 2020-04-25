@@ -217,7 +217,7 @@ class Controller(Device):
         # 0004/name, 000A/properties, 2309/setpoint, 30C9/temp
         pass
 
-    def TBD_discover(self):
+    def _TBD_discover(self):
         super()._discover()
 
         # # WIP: an attempt to actively discover the CTL rather than by eavesdropping
@@ -301,7 +301,7 @@ class DhwSensor(Device):
     def temperature(self):
         return self._get_pkt_value("1260", "temperature")
 
-    def TBD_discover(self):
+    def _TBD_discover(self):
         for cmd in ["10A0", "1260", "1F41"]:
             self._queue.put_nowait(Command(self._gateway, cmd, CTL_DEV_ID, "00"))
 
@@ -362,7 +362,7 @@ class BdrSwitch(Device):
         # _LOGGER.debug("Creating a new BDR %s", device_id)
         super().__init__(device_id, gateway)
 
-    def TBD_discover(self):
+    def _TBD_discover(self):
         super()._discover()
 
         # for cmd in ["3B00", "3EF0"]:  # these don't work, for 00 or 0000
@@ -416,7 +416,7 @@ class Zone(Entity):
         super().__init__(zone_idx, gateway)
 
         self._zone_type = None
-        self._discover()
+        # self._discover()
 
     @property
     def configuration(self):
@@ -473,7 +473,7 @@ class Zone(Entity):
     def zone_type(self) -> Optional[str]:
         return self._zone_type
 
-    def _discover(self):
+    def _TBD_discover(self):
         # get name, config, mode, temp
         # can't do: "3150" (TODO: 12B0/window_state only if enabled, or only if TRV?)
         for code in ["0004", "000A", "000C", "12B0"]:  # also: "2349", "30C9"]:
@@ -534,7 +534,7 @@ class DhwZone(Zone):
     def temperature(self):
         return self._get_pkt_value("1260", "temperature")
 
-    def TBD_discover(self):
+    def _TBD_discover(self):
         # get config, mode, temp
         for cmd in ["10A0", "1F41", "1260"]:  # TODO: what about 1100?
             self._queue.put_nowait(Command(self._gateway, cmd, CTL_DEV_ID, "00"))
@@ -552,7 +552,7 @@ class RadValveZone(Zone):
     def window_open(self):
         return self._gateway.data[f"{self._id:02X}"]["window_open"]
 
-    def TBD_discover(self):
+    def _TBD_discover(self):
         super()._discover()
 
         for cmd in ["12B0"]:
