@@ -3,13 +3,7 @@ import queue
 from typing import Any, Optional
 
 from .command import Command
-from .const import (
-    COMMAND_EXPOSES_ZONE,
-    CTL_DEV_ID,
-    DEVICE_LOOKUP,
-    DEVICE_MAP,
-    ZONE_TYPE_MAP,
-)
+from .const import CTL_DEV_ID, DEVICE_LOOKUP, DEVICE_MAP, ZONE_TYPE_MAP
 
 
 def dev_hex_to_id(device_hex: str, friendly_id=False) -> str:
@@ -54,9 +48,9 @@ class Entity:
         else:
             pass  # TODO: send an RQ
 
-    def _get_value(self, code, key) -> Optional[Any]:
+    def _get_pkt_value(self, code, key) -> Optional[Any]:
         if self._pkts.get(code):
-            return self._pkts[code].payload[key]
+            return self._pkts[code].payload.get(key)
 
     def update(self, msg):
         self._pkts.update({msg.code: msg})
@@ -85,7 +79,7 @@ class Domain(Entity):
 
     @property
     def heat_demand(self):  # 3150
-        return self._get_value("3150", "heat_demand")
+        return self._get_pkt_value("3150", "heat_demand")
 
     @property
     def parent_zone(self) -> Optional[str]:  # TODO: delete me
@@ -93,7 +87,7 @@ class Domain(Entity):
 
     @property
     def relay_demand(self):  # 0008
-        return self._get_value("0008", "relay_demand")
+        return self._get_pkt_value("0008", "relay_demand")
 
 
 class System(Entity):
@@ -129,12 +123,12 @@ class System(Entity):
 
     @property
     def heat_demand(self):  # 3150
-        return self._get_value("3150", "heat_demand")
+        return self._get_pkt_value("3150", "heat_demand")
 
     @property
     def setpoint_status(self):
         attrs = ["mode", "until"]
-        return {x: self._get_value("2E04", x) for x in attrs}
+        return {x: self._get_pkt_value("2E04", x) for x in attrs}
 
     @property
     def dhw_config(self) -> dict:
@@ -172,7 +166,7 @@ class Device(Entity):
 
     @property
     def description(self):  # 0100, 10E0,
-        return self._get_value("10E0)", "description")
+        return self._get_pkt_value("10E0", "description")
 
     @property
     def device_id(self) -> Optional[str]:
@@ -185,37 +179,25 @@ class Device(Entity):
 
     @property
     def parent_zone(self) -> Optional[str]:
-        # once set, never changes
-        if self._parent_zone:
+        if self._parent_zone:  # We assume that: once set, it never changes
             return self._parent_zone
-
-        # from eavesdropping...
-        for code in COMMAND_EXPOSES_ZONE:
-            # for TRV, also 1060 iff dev[2] == CTL
-            if self._pkts.get(code):
-                self._parent_zone = self._pkts[code].raw_payload[:2]
+        for msg in self._pkts.values():
+            if "parent_zone_idx" in msg.payload:
+                self._parent_zone = msg.payload["parent_zone_idx"]
                 break
-
-        # # from the database...
-        # if not self._parent_zone:
-        #     self._parent_zone = {
-        #         self._gateway.database["zones"][zone_idx].sensor: zone_idx
-        #         for zone_idx in self._gateway.database["zones"]
-        #     }.get(self._id)
-
         return self._parent_zone
 
-    def TBD_discover(self):
+    def _TDB_discover(self):
         if self._device_type not in ["BDR", "STA", "TRV", " 12"]:
             self._queue.put_nowait(Command(self._gateway, "10E0", self._id, "00"))
 
-    def update(self, msg):
+    def x_update(self, msg):
         # if isinstance(msg.payload, dict):
         #     if "zone_idx" in msg.payload:
         #         self._gateway.data[msg.payload["zone_idx"]].update(msg.payload)
 
-        if msg.verb == " I":
-            self._pkts.update({msg.code: msg})
+        # if msg.verb == " I":  # TODO: don't replace a I with an RQ!
+        self._pkts.update({msg.code: msg})
 
 
 class Controller(Device):
@@ -308,8 +290,8 @@ class DhwSensor(Device):
 
     @property
     def battery(self):
-        return self._get_value("1060", "battery_level")
-        # return self._get_value("1060", "low_battery")
+        return self._get_pkt_value("1060", "battery_level")
+        # return self._get_pkt_value("1060", "low_battery")
 
     @property
     def parent_zone(self) -> None:
@@ -317,7 +299,7 @@ class DhwSensor(Device):
 
     @property
     def temperature(self):
-        return self._get_value("1260", "temperature")
+        return self._get_pkt_value("1260", "temperature")
 
     def TBD_discover(self):
         for cmd in ["10A0", "1260", "1F41"]:
@@ -332,30 +314,30 @@ class TrvActuator(Device):
         super().__init__(device_id, gateway)
 
     @property
-    def battery(self):  # 1060
-        return self._get_value("1060", "battery_level")
-        # return self._get_value("1060", "low_battery")
+    def battery(self) -> Optional[float]:  # 1060
+        return self._get_pkt_value("1060", "battery_level")
+        # return self._get_pkt_value("1060", "low_battery")
 
     @property
-    def configuration(self):  # 0100, 10E0,
-        return self._get_value("0100", "language")
+    def language(self) -> Optional[str]:  # 0100,
+        return self._get_pkt_value("0100", "language")
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
-        return self._get_value("3150", "heat_demand")
+        return self._get_pkt_value("3150", "heat_demand")
 
     @property
-    def setpoint(self):  # 2309
+    def setpoint(self) -> Optional[Any]:  # 2309
         # TODO: differientiate between Off and Unknown
-        return self._get_value("2309", "setpoint")
+        return self._get_pkt_value("2309", "setpoint")
 
     @property
-    def temperature(self):  # 30C9
-        return self._get_value("30C9", "temperature")
+    def temperature(self) -> Optional[float]:  # 30C9
+        return self._get_pkt_value("30C9", "temperature")
 
     @property
-    def window_state(self):  # 12B0
-        return self._get_value("12B0", "window_open")
+    def window_state(self) -> Optional[bool]:  # 12B0
+        return self._get_pkt_value("12B0", "window_open")
 
     def x_update(self, msg):
         super().update(msg)
@@ -414,16 +396,16 @@ class Thermostat(Device):
 
     @property
     def battery(self):  # 1060
-        return self._get_value("1060", "battery_level")
-        # return self._get_value("1060", "low_battery")
+        return self._get_pkt_value("1060", "battery_level")
+        # return self._get_pkt_value("1060", "low_battery")
 
     @property
     def setpoint(self):  # 2309
-        return self._get_value("2309", "setpoint")
+        return self._get_pkt_value("2309", "setpoint")
 
     @property
     def temperature(self):  # 30C9
-        return self._get_value("30C9", "temperature")
+        return self._get_pkt_value("30C9", "temperature")
 
 
 class Zone(Entity):
@@ -471,16 +453,16 @@ class Zone(Entity):
     @property
     def setpoint_capabilities(self):
         attrs = ["max_heat_setpoint", "min_heat_setpoint"]
-        return {x: self._get_value("000A", x) for x in attrs}
+        return {x: self._get_pkt_value("000A", x) for x in attrs}
 
     @property
     def setpoint_status(self):
         attrs = ["setpoint", "mode", "until"]
-        return {x: self._get_value("2349", x) for x in attrs}
+        return {x: self._get_pkt_value("2349", x) for x in attrs}
 
     @property
     def temperature(self):
-        # turn self._get_value("30C9", "temperature")
+        # turn self._get_pkt_value("30C9", "temperature")
         return self._gateway.data[self._id].get("temperature")
 
     @property
@@ -498,7 +480,7 @@ class Zone(Entity):
             zone_idx = f"{self._id}00" if code != "0000" else self._id
             self._queue.put_nowait(Command(self._gateway, code, payload=zone_idx))
 
-    def update(self, msg):
+    def x_update(self, msg):
         super().update(msg)
 
         if self._zone_type:  # isinstance(self, ???)
@@ -508,19 +490,19 @@ class Zone(Entity):
 
         # cast a new type (must be a superclass of the current type)
         if "TRV" in [x.device_type for x in child_devices]:
-            self.__class__ = RadValve
+            self.__class__ = RadValveZone
             self._zone_type = ZONE_TYPE_MAP["TRV"]
 
         if "BDR" in [x.device_type for x in child_devices]:
-            self.__class__ = Electric  # if also call for heat, is a ZoneValve
+            self.__class__ = ElectricZone  # if also call for heat, is a ZoneValve
             self._zone_type = ZONE_TYPE_MAP["BDR"]
 
         if "UFH" in [x.device_type for x in child_devices]:
-            self.__class__ = Underfloor
+            self.__class__ = UnderfloorZone
             self._zone_type = ZONE_TYPE_MAP["UFH"]
 
         # if "TRV" in [x.device_type for x in child_devices]:
-        #     self.__class__ = MixValve
+        #     self.__class__ = MixValveZone
         #     self._zone_type = ZONE_TYPE_MAP["MIX"]
 
 
@@ -537,7 +519,7 @@ class DhwZone(Zone):
     @property
     def configuration(self):
         attrs = ["setpoint", "overrun", "differential"]
-        return {x: self._get_value("10A0", x) for x in attrs}
+        return {x: self._get_pkt_value("10A0", x) for x in attrs}
 
     @property
     def name(self) -> Optional[str]:
@@ -546,11 +528,11 @@ class DhwZone(Zone):
     @property
     def setpoint_status(self):
         attrs = ["active", "mode", "until"]
-        return {x: self._get_value("1F41", x) for x in attrs}
+        return {x: self._get_pkt_value("1F41", x) for x in attrs}
 
     @property
     def temperature(self):
-        return self._get_value("1260", "temperature")
+        return self._get_pkt_value("1260", "temperature")
 
     def TBD_discover(self):
         # get config, mode, temp
@@ -558,7 +540,7 @@ class DhwZone(Zone):
             self._queue.put_nowait(Command(self._gateway, cmd, CTL_DEV_ID, "00"))
 
 
-class RadValve(Zone):
+class RadValveZone(Zone):
     """Base for Radiator Valve zones.
 
     For radiators controlled by HR92s or HR80s (will also call for heat).
@@ -577,36 +559,36 @@ class RadValve(Zone):
             self._queue.put_nowait(Command(self._gateway, cmd, CTL_DEV_ID, self._id))
 
 
-class Electric(Zone):
+class ElectricZone(Zone):
     """Base for Electric Heat zones.
 
     For a small (5A) electric load controlled by a BDR91 (never calls for heat).
     """
 
-    def update(self, payload, msg):
+    def x_update(self, payload, msg):
         super().update(payload, msg)
 
         # does it also call for heat?
         if self._pkts.get("3150"):
-            self.__class__ = ZoneValve
+            self.__class__ = ZoneValveZone
             self._zone_type = ZONE_TYPE_MAP["ZON"]
 
 
-class ZoneValve(Electric):
+class ZoneValveZone(ElectricZone):
     """Base for Zone Valve zones.
 
     For a motorised valve controlled by a BDR91 (will also call for heat).
     """
 
 
-class Underfloor(Zone):
+class UnderfloorZone(Zone):
     """Base for Underfloor Heating zones.
 
     For underfloor heating controlled by an HCE80 or HCC80 (will also call for heat).
     """
 
 
-class MixValve(Zone):
+class MixValveZone(Zone):
     """Base for Mixing Valve zones.
 
     For a modulating valve controlled by a HM80 (will also call for heat).
@@ -615,7 +597,7 @@ class MixValve(Zone):
     @property
     def configuration(self):
         attrs = ["max_flow_temp", "pump_rum_time", "actuator_run_time", "min_flow_temp"]
-        return {x: self._get_value("1030", x) for x in attrs}
+        return {x: self._get_pkt_value("1030", x) for x in attrs}
 
 
 DEVICE_CLASSES = {

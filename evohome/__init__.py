@@ -116,7 +116,7 @@ class Gateway:
     async def _signal_handler(self, signal):
         _LOGGER.debug(f"Received signal {signal.name}...")
 
-        if signal == signal.SIGUSR1 and self.config.get("raw_output") < 2:
+        if signal == signal.SIGUSR1:  # and self.config.get("raw_output") < 2:
             _LOGGER.info("State data: %s", f"\r\n{json.dumps(self._devices, indent=4)}")
             # _LOGGER.debug("State data is:")
             # _LOGGER.info(f"\r\n{json.dumps(self.status, indent=4)}")  # TODO: deleteme
@@ -163,20 +163,31 @@ class Gateway:
             with open(self.config["known_devices"], "w") as outfile:
                 json.dump(self.known_devices, outfile, sort_keys=True, indent=4)
 
+        _LOGGER.info("State data: %s", f"\r\n{json.dumps(self._devices, indent=4)}")
+
         tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
         logging.info(f"Cancelling {len(tasks)} outstanding tasks")
         [task.cancel() for task in tasks]
         await asyncio.gather(*tasks)
 
-        _LOGGER.info("State data: %s", f"\r\n{json.dumps(self._devices, indent=4)}")
-
     @property
     def _devices(self) -> Optional[dict]:
         """Calculate a system schema."""
-        return {
-            d.device_id: {"device_type": d._device_type, "parent_zone": d._parent_zone}
-            for d in self.devices
-        }
+
+        def attrs(device) -> list:
+            return [
+                attr
+                for attr in dir(device)
+                if not attr.startswith("_") and not callable(getattr(device, attr))
+            ]
+
+        res = {d.device_id: {a: getattr(d, a) for a in attrs(d)} for d in self.devices}
+
+        codes = {d.device_id: {"codes": list(d._pkts.keys())} for d in self.devices}
+
+        res.update(codes)
+
+        return res
 
     @property
     def status(self) -> Optional[dict]:

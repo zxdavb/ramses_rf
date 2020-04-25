@@ -28,7 +28,7 @@ def parser_decorator(func):
         if msg.verb == " W":  # TODO: WIP
             if msg.code in ["1100", "1F09", "1FC9", "2309", "2349"]:
                 return func(*args, **kwargs)
-            return  # TODO: or {}?
+            return {}  # TODO: check, maybe not {}?
 
         if msg.verb != "RQ":
             return func(*args, **kwargs)
@@ -59,6 +59,13 @@ def parser_decorator(func):
             assert int(payload[4:6], 16) <= 63
             return {"log_idx": payload[4:6]}
 
+        if msg.code == "0404":
+            assert False  # raise NotImplementedError
+            # assert len(payload) / 2 == 3
+            # assert payload[:4] == "0000"
+            # assert int(payload[4:6], 16) <= 63
+            # return {}
+
         if msg.code == "10A0" and msg.device_id[0][:2] == "07":  # DHW
             return func(*args, **kwargs)
 
@@ -69,10 +76,8 @@ def parser_decorator(func):
             assert int(payload[:2], 16) < 12
             return {"zone_idx": payload[:2]}
 
-        return {} if payload == "00" else None  # TODO: or just one
-
-        # TODO: god knows
-        raise NotImplementedError
+        assert payload in ["00", "FF"]
+        return {}
 
     return wrapper
 
@@ -122,6 +127,8 @@ def _temp(seqx) -> Optional[float]:
     """Temperatures are two's complement numbers."""
     if seqx == "7FFF":
         return None
+    if seqx == "7EFF":  # TODO: possibly this is only for setpoints?
+        return False
     temp = int(seqx, 16)
     return (temp if temp < 2 ** 15 else temp - 2 ** 16) / 100
 
@@ -887,12 +894,10 @@ def parser_3b00(payload, msg) -> Optional[dict]:  # sync_tpi (TPI cycle HB/sync)
     assert payload[2:] == "C8"  # Could it be a percentage?
 
     if payload[:2] == "00":
-        return {
-            "unknown_0": {"00": False, "C8": True}.get(payload[2:]),
-        }
+        return {"sync_tpi": {"00": False, "C8": True}.get(payload[2:])}
     return {
         "domain_id": _id(payload[:2]),
-        "unknown_0": {"00": False, "C8": True}.get(payload[2:]),
+        "sync_tpi": {"00": False, "C8": True}.get(payload[2:]),
     }
 
 

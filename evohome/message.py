@@ -196,10 +196,10 @@ class Message:
                 self._gateway.domain_by_id[self.payload["domain_id"]].update(self)
             elif "zone_idx" in self.payload:
                 self._gateway.zone_by_id[self.payload["zone_idx"]].update(self)
-            elif True:
-                pass
+            else:
+                self._gateway.device_by_id[self.device_id[0]].update(self)
 
-        if not self.is_valid or self.device_id[0][:2] == "18":  # TODO: [2] too?
+        if not self.is_valid or self.device_id[0][:2] == "18":  # TODO: _id[2] too?
             return
 
         # who was the message from? There's one special (non-evohome) case...
@@ -210,9 +210,9 @@ class Message:
         if self.payload is None:
             return
 
-        if isinstance(self.payload, list):
+        if isinstance(self.payload, list):  # 0009 is domains, others are zones
             # assert self.code in ["0009", "000A", "2309", "30C9"]
-            [_update_entity(z) for z in self.payload]
+            [_update_entity(zone) for zone in self.payload]
             return
 
         if "zone_idx" in self.payload:
@@ -226,11 +226,11 @@ class Message:
         elif "domain_id" in self.payload:
             pass
 
-        elif "parent_zone_idx" in self.payload:  # is for a device...
-            pass
-
         elif self.code in ["1FD4", "22D9", "3220"]:  # is for opentherm...
             _update_entity(self.payload)  # TODO: needs checking
+
+        elif "parent_zone_idx" in self.payload:  # is for a device...
+            _update_entity(self.payload)
 
         else:  # is for a device...
             _codes = []
