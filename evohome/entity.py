@@ -167,7 +167,7 @@ class Device(Entity):
         self._friendly_name = attrs.get("friendly_name") if attrs else None
         self._blacklist = attrs.get("blacklist", False) if attrs else False
 
-        self._discover()  # needs self._device_type
+        # self._discover()  # needs self._device_type
 
     @property
     def description(self):  # 0100, 10E0,

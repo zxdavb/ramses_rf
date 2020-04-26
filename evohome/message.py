@@ -4,7 +4,14 @@ import logging
 from typing import Optional
 
 from . import parsers
-from .const import COMMAND_MAP, DEVICE_MAP, DOMAIN_MAP, MSG_FORMAT_10, MSG_FORMAT_18
+from .const import (
+    COMMAND_MAP,
+    DEVICE_MAP,
+    DOMAIN_MAP,
+    MSG_FORMAT_10,
+    MSG_FORMAT_18,
+    NON_DEV_ID,
+)
 from .entity import DEVICE_CLASSES, Device, Domain, Zone
 
 _LOGGER = logging.getLogger(__name__)  # evohome.message
@@ -28,6 +35,28 @@ class Message:
         for dev, i in enumerate(range(11, 32, 10)):
             self.device_id[dev] = packet[i : i + 9]  # noqa: E203
 
+        if self.device_id[0] != NON_DEV_ID:
+            self.from_device = self.device_id[0]
+            if self.device_id[1] != NON_DEV_ID:
+                self.dest_device = self.device_id[1]
+            elif self.device_id[2] == self.device_id[0]:
+                self.dest_device = ">multcast<"
+            elif self.device_id[2] != NON_DEV_ID:
+                self.dest_device = self.device_id[2]
+            else:
+                assert False  # TODO: never seen in the wild
+
+        elif self.device_id[1] != NON_DEV_ID:
+            assert False  # TODO: never seen in the wild
+
+        elif self.device_id[2] != NON_DEV_ID:
+            self.from_device = self.device_id[2]
+            self.dest_device = ">uni-cast<"
+
+        else:
+            self.from_device = ">nameless<"
+            self.dest_device = ">brodcast<"
+
         self.code = packet[41:45]
 
         self.payload_length = int(packet[46:49])
@@ -42,38 +71,30 @@ class Message:
     def __repr__(self) -> str:
         """Represent the entity as a string."""
 
-        def name(idx) -> str:
+        def name(device_name) -> str:
             """Return a friendly device name, of length 10 characters."""
-            device_id = self.device_id[idx]
+            if device_name.startswith(">"):
+                return f"{'':<10}"
 
-            if device_id[:2] == "--":
-                return f"{'':<10}"  # No device ID
+            if device_name.startswith("63"):
+                return ">null dev<"  # Null device ID
 
-            if device_id[:2] == "63":
-                return "<null dev>"  # Null device ID
-
-            if idx == 2 and device_id == self.device_id[0]:
-                return "<announce>"  # Broadcast?
-
-            dev = self._gateway.device_by_id.get(device_id)
+            dev = self._gateway.device_by_id.get(device_name)
             if dev and dev._friendly_name:
                 return f"{dev._friendly_name}"
 
-            # TODO: would we ever get here?
-            device_type = DEVICE_MAP.get(device_id[:2], f"{device_id[:2]:>3}")
-            return f"{device_type}:{self.device_id[idx][3:]}"
+            device_type = DEVICE_MAP.get(device_name[:2], f"{device_name[:2]:>3}")
+            return f"{device_type}:{device_name[3:]}"
 
         if self._repr:
             return self._repr
 
-        device_names = [name(x) for x in range(3) if name(x) != f"{'':<10}"] + [""] * 2
-
         # TODO: the following is a bit dodgy & needs fixing
-        if len(self.raw_payload) < 9:
+        if len(self.raw_payload) < 7:
             raw_payload1 = self.raw_payload
             raw_payload2 = ""
         else:
-            raw_payload1 = f"{self.raw_payload[:7]}..."[:11]
+            raw_payload1 = f"{self.raw_payload[:5]}..."[:9]
             raw_payload2 = self.raw_payload
         # raw_payload2 = self.raw_payload if len(self.raw_payload) > 8 else ""
 
@@ -86,8 +107,8 @@ class Message:
         xxx = {} if self._payload == {} else xxx
 
         self._repr = msg_format.format(
-            device_names[0],
-            device_names[1],
+            name(self.from_device),
+            name(self.dest_device),
             self.verb,
             COMMAND_MAP.get(self.code, f"unknown_{self.code}"),
             raw_payload1,
