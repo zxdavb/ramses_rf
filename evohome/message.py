@@ -120,11 +120,11 @@ class Message:
             self._payload = payload_parser(self.raw_payload, self)  # TODO: messy
         except AssertionError:  # for development only?
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
-            _LOGGER.exception("%s", self._packet, extra=self.__dict__)
+            if self.device_id[0][:2] == "18":
+                _LOGGER.warning("%s", self._packet, extra=self.__dict__)
+            else:
+                _LOGGER.exception("%s", self._packet, extra=self.__dict__)
             return False
-        # except (LookupError, TypeError, ValueError):  # shouldn't happen
-        #     _LOGGER.exception("%s", self._packet, extra=self.__dict__)
-        #     return False
 
         try:
             self._create_entities()  # but not if: self.device_id[0][:2] != "18"
@@ -163,11 +163,13 @@ class Message:
             zone_cls = Zone  # DhwZone if zone_idx == "HW" else Zone  # TODO
             _ent(zone_cls, zone_idx, self._gateway.zone_by_id, self._gateway.zones)
 
+        # exclude thes potentially didgy packets
         if self.device_id[0][:2] == "18":
             return
 
-        for dev in range(3):  # discover devices
-            if self.device_id[dev][:2] not in ["63", "--"]:
+        # discover devices
+        for dev in range(3):
+            if self.device_id[dev][:2] not in ["18", "63", "--"]:
                 get_device(self.device_id[dev])
 
         # discover zones and domains
@@ -234,8 +236,34 @@ class Message:
 
         else:  # is for a device...
             _codes = []
-            _codes += ["0100", "042F", "1060", "10A0", "10E0", "1100", "1260", "12A0"]
-            _codes += ["1F09", "1F41", "22F1", "2309", "2E04", "30C9", "313F", "31E0"]
-            _codes += ["3B00", "3EF0", "22D0"]
+            _codes += [
+                "0002",
+                "0005",
+                "0016",
+                "0100",
+                "042F",
+                "1060",
+                "10A0",
+                "10E0",
+            ]
+            _codes += [
+                "1100",
+                "1260",
+                "12A0",
+                "1F09",
+                "1F41",
+                "22D0",
+                "22F1",
+            ]
+            _codes += [
+                "2309",
+                "2E04",
+                "30C9",
+                "3120",
+                "313F",
+                "31E0",
+                "3B00",
+                "3EF0",
+            ]
             assert self.code in _codes
             _update_entity(self.payload)

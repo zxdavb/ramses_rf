@@ -127,7 +127,10 @@ class Gateway:
 
         if signal in [signal.SIGHUP, signal.SIGINT, signal.SIGTERM]:
             _LOGGER.info("Received a %s, exiting gracefully...", signal)
-            await self.shutdown()
+            try:
+                await self.shutdown()
+            except (TypeError):
+                pass
             sys.exit()
 
     def _debug_info(self) -> None:
@@ -181,13 +184,7 @@ class Gateway:
                 if not attr.startswith("_") and not callable(getattr(device, attr))
             ]
 
-        res = {d.device_id: {a: getattr(d, a) for a in attrs(d)} for d in self.devices}
-
-        codes = {d.device_id: {"codes": list(d._pkts.keys())} for d in self.devices}
-
-        res.update(codes)
-
-        return res
+        return {d.device_id: {a: getattr(d, a) for a in attrs(d)} for d in self.devices}
 
     @property
     def status(self) -> Optional[dict]:
@@ -368,7 +365,7 @@ class Gateway:
             if not (destination is None or self.config.get("listen_only")):
                 # TODO: if not cmd.entity._pkts.get(cmd.code):
                 destination.write(bytearray(f"{cmd}\r\n".encode("ascii")))
-                _LOGGER.warning("# A write was done to %s: %s", self.serial_port, cmd)
+                # _LOGGER.warning("# A write was done to %s: %s", self.serial_port, cmd)
 
             self.command_queue.task_done()
 
@@ -391,11 +388,10 @@ class Gateway:
         except AssertionError:
             _LOGGER.exception("%s", raw_packet_line)
             return
-        except ValueError:
+        except ValueError:  # (LookupError, TypeError, ValueError)
             return  # null packet line
-        else:
-            if not pkt.is_valid:  # this will trap/log all exceptions appropriately
-                return
+        if not pkt.is_valid:  # this will trap/log all exceptions appropriately
+            return
 
         if not has_wanted_device(pkt, self.device_whitelist, self.device_blacklist):
             return  # silently drop packets with unwanted (e.g. neighbour's) devices
@@ -424,9 +420,8 @@ class Gateway:
         except AssertionError:
             _LOGGER.exception("%s", pkt.packet)
             return
-        else:
-            if not msg.is_valid:  # this will trap/log all exceptions appropriately
-                return
+        if not msg.is_valid:  # trap/logs all exceptions appropriately
+            return
 
         # finally, only certain packets should become part of the state data
         if self.config.get("raw_output") > 0:
@@ -434,5 +429,7 @@ class Gateway:
 
         try:
             msg.update_entities()
-        except AssertionError:
+        except AssertionError:  # TODO: AssertionError should be enough!
+            _LOGGER.exception("%s", msg)
+        except (LookupError, TypeError, ValueError):
             _LOGGER.exception("%s", msg)

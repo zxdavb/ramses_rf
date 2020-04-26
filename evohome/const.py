@@ -146,7 +146,13 @@ DEVICE_LOOKUP = {v: k for k, v in DEVICE_MAP.items()}
 
 # Domains
 # MAIN_MAP = {"FA": "Hot Water", "FC": "Heat Demand"}
-DOMAIN_MAP = {"21": "Ventilation", "F9": "Heating", "FA": "HotWater", "FC": "Boiler"}
+DOMAIN_MAP = {
+    "21": "Ventilation",
+    "F9": "Heating",
+    "FB": "???",  # TODO: bind CS92 with BDRs in both modes
+    "FA": "HotWater",
+    "FC": "Boiler",
+}
 
 SYSTEM_MODE_MAP = {
     "00": "Auto",

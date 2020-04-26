@@ -3,7 +3,7 @@ import queue
 from typing import Any, Optional
 
 from .command import Command
-from .const import CTL_DEV_ID, DEVICE_LOOKUP, DEVICE_MAP, ZONE_TYPE_MAP
+from .const import COMMAND_SCHEMA, CTL_DEV_ID, DEVICE_LOOKUP, DEVICE_MAP, ZONE_TYPE_MAP
 
 
 def dev_hex_to_id(device_hex: str, friendly_id=False) -> str:
@@ -41,19 +41,24 @@ class Entity:
     def _discover(self):
         raise NotImplementedError
 
-    def _get_ctl_value(self, code, key) -> Optional[Any]:
-        controller = self._gateway.device_by_id["01:145038"]
-        if controller._pkts.get(code):
-            return controller._pkts[code].payload[key]
-        else:
-            pass  # TODO: send an RQ
+    # def _get_ctl_value(self, code, key) -> Optional[Any]:
+    #     controller = self._gateway.device_by_id["01:145038"]
+    #     if controller._pkts.get(code):
+    #         return controller._pkts[code].payload[key]
+    #     else:
+    #         pass  # TODO: send an RQ
 
     def _get_pkt_value(self, code, key) -> Optional[Any]:
         if self._pkts.get(code):
             return self._pkts[code].payload.get(key)
 
+    @property
+    def codes(self) -> list:
+        return list(self._pkts.keys())
+
     def update(self, msg):
-        self._pkts.update({msg.code: msg})
+        if msg.verb in [" I", "RP"]:
+            self._pkts.update({msg.code: msg})
 
 
 class Domain(Entity):
@@ -162,7 +167,7 @@ class Device(Entity):
         self._friendly_name = attrs.get("friendly_name") if attrs else None
         self._blacklist = attrs.get("blacklist", False) if attrs else False
 
-        # self._discover()  # needs self._device_type
+        self._discover()  # needs self._device_type
 
     @property
     def description(self):  # 0100, 10E0,
@@ -187,9 +192,21 @@ class Device(Entity):
                 break
         return self._parent_zone
 
-    def _TDB_discover(self):
-        if self._device_type not in ["BDR", "STA", "TRV", " 12"]:
-            self._queue.put_nowait(Command(self._gateway, "10E0", self._id, "00"))
+    def _discover(self):
+        # if self._device_type not in ["BDR", "STA", "TRV", " 12"]:
+
+        # # sync cycle FF & 00
+        # for payload in ["00", "0000", "FF"]:
+        # check: relay_demand, rf_check, sync_cycle, boiler_params, actuator_state
+        #     for code in ["0100", "10E0"]:  # battery-operated wont respond
+        #         self._queue.put_nowait(
+        #             Command(self._gateway, code, dest_id=self._id, payload=payload)
+        #         )
+
+        for code in COMMAND_SCHEMA:
+            self._queue.put_nowait(
+                Command(self._gateway, code, dest_id=self._id, payload="0000")
+            )
 
     def x_update(self, msg):
         # if isinstance(msg.payload, dict):
@@ -473,12 +490,16 @@ class Zone(Entity):
     def zone_type(self) -> Optional[str]:
         return self._zone_type
 
-    def _TBD_discover(self):
+    def _discover(self):
         # get name, config, mode, temp
         # can't do: "3150" (TODO: 12B0/window_state only if enabled, or only if TRV?)
+        for code in COMMAND_SCHEMA:
+            payload = f"{self._id}00" if code != "0000" else self._id
+            self._queue.put_nowait(Command(self._gateway, code, payload=payload))
+
         for code in ["0004", "000A", "000C", "12B0"]:  # also: "2349", "30C9"]:
-            zone_idx = f"{self._id}00" if code != "0000" else self._id
-            self._queue.put_nowait(Command(self._gateway, code, payload=zone_idx))
+            payload = f"{self._id}00" if code != "0000" else self._id
+            self._queue.put_nowait(Command(self._gateway, code, payload=payload))
 
     def x_update(self, msg):
         super().update(msg)

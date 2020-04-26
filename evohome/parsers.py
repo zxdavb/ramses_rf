@@ -76,7 +76,10 @@ def parser_decorator(func):
             assert int(payload[:2], 16) < 12
             return {"zone_idx": payload[:2]}
 
-        assert payload in ["00", "FF"]
+        if msg.code in ["3EF1"]:
+            assert payload in ["0000"]
+        else:
+            assert payload in ["00", "FF"]
         return {}
 
     return wrapper
@@ -232,6 +235,7 @@ def parser_0009(payload, msg) -> Optional[dict]:  # relay_failsafe
     if len(payload) / 2 == 3:
         return _parser(payload)
 
+    # if msg.device_id[0][:2] == "01" and msg.verb == " I":  # payload is usu. an array
     return [_parser(payload[i : i + 6]) for i in range(0, len(payload), 6)]
 
 
@@ -257,7 +261,7 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:  # zone_config (zone/s
         }
 
     assert msg.verb in [" I", "RQ", "RP"]  # TODO: handle W
-    if msg.verb == " I":  # the payload is an array
+    if msg.device_id[0][:2] == "01" and msg.verb == " I":  # payload is usu. an array
         assert len(payload) / 2 % 6 == 0
         return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
 
@@ -576,7 +580,7 @@ def parser_1f41(payload, msg) -> Optional[dict]:  # dhw_mode
 @parser_decorator
 def parser_1fc9(payload, msg) -> Optional[dict]:  # bind_device
     def _parser(seqx) -> dict:
-        if seqx[:2] not in ["FB", "FC"]:
+        if seqx[:2] not in ["FA", "FB", "FC"]:
             assert int(seqx[:2], 16) < 12
         return {
             "zone_idx" if int(payload[:2], 16) < 12 else "domain_id": _id(payload[:2]),
@@ -718,7 +722,7 @@ def parser_30c9(payload, msg) -> Optional[dict]:  # temp (of device, zone/s)
 
         return {"temperature": _temp(seqx[2:]), "zone_idx": seqx[:2]}
 
-    if msg.device_id[0][:2] == "01" and msg.verb == " I":  # the payload is an array
+    if msg.device_id[0][:2] == "01" and msg.verb == " I":  # payload is usu. an array
         assert len(payload) / 2 % 3 == 0
         return [
             _parser(payload[i : i + 6])
@@ -742,7 +746,7 @@ def parser_3120(payload, msg) -> Optional[dict]:  # unknown - WIP
     assert len(payload) / 2 == 7
     assert payload[:2] == "00"
     assert payload == "0070B0000000FF"
-    return
+    return {"unknown_3120": payload}
 
 
 @parser_decorator
