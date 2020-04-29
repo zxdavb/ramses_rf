@@ -118,11 +118,9 @@ class Gateway:
 
         if signal == signal.SIGUSR1:  # and self.config.get("raw_output") < 2:
             _LOGGER.info("State data: %s", f"\r\n{json.dumps(self._devices, indent=4)}")
-            # _LOGGER.debug("State data is:")
-            # _LOGGER.info(f"\r\n{json.dumps(self.status, indent=4)}")  # TODO: deleteme
 
         if signal == signal.SIGUSR2:
-            _LOGGER.debug("Debug data is:")
+            _LOGGER.info("Debug data is:")
             self._debug_info()
 
         if signal in [signal.SIGHUP, signal.SIGINT, signal.SIGTERM]:
@@ -138,13 +136,13 @@ class Gateway:
 
         _LOGGER.info("mem_fullinfo: %s", psutil.Process(os.getpid()).memory_full_info())
         _LOGGER.info("common_types: %s", objgraph.most_common_types())
-        # _LOGGER.info(
-        #     "leaking_objs: %s", objgraph.count("dict", objgraph.get_leaking_objects())
-        # )
+        _LOGGER.info(
+            "leaking_objs: %s", objgraph.count("dict", objgraph.get_leaking_objects())
+        )
 
-        _LOGGER.warn("heap_stuff:")
-        _LOGGER.warn("%s", self._hp.heap())
-        _LOGGER.warn("%s", self._hp.heap().more)
+        _LOGGER.info("heap_stuff:")
+        _LOGGER.info("%s", self._hp.heap())
+        _LOGGER.info("%s", self._hp.heap().more)
 
     async def shutdown(self) -> None:
         if self.config.get("database"):
@@ -299,7 +297,7 @@ class Gateway:
 
                 raw_pkt = b""  # TODO: hack for testing
                 while True:  # main loop
-                    gc.collect()
+                    gc.collect()  # TODO: mem leak
                     ts_pkt_line, raw_pkt = await manager.get_next_packet(None)
                     await self._process_packet(ts_pkt_line, raw_pkt)
                     # await asyncio.sleep(0.01)
@@ -382,6 +380,9 @@ class Gateway:
 
         if self.config.get("debug_mode") == 1:  # TODO: mem leak
             self._debug_info()
+
+        if ts_packet_line is None:
+            return
 
         try:
             pkt = Packet(ts_packet_line[:26], ts_packet_line[27:], raw_packet_line)

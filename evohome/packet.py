@@ -116,7 +116,7 @@ class PortPktProvider:
     async def __aexit__(self, exc_type, exc, tb) -> None:
         pass
 
-    async def get_next_packet(self, prev_pkt=None) -> Tuple[str, Any]:
+    async def get_next_packet(self, prev_pkt=None) -> Tuple[Optional[str], Any]:
         """Get the next packet line from a serial port."""
 
         if prev_pkt and self.reader._transport.serial.in_waiting == 0:  # TODO: mem leak
@@ -126,8 +126,7 @@ class PortPktProvider:
             try:
                 raw_packet = await self.reader.readline()
             except serial.SerialException:
-                _LOGGER.exception("SerialException", extra=self.__dict__)  # TODO: keep?
-                return
+                return (None, None)
 
         # print(f"{raw_packet}")  # TODO: deleteme, only for debugging
 
