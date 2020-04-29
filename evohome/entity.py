@@ -167,6 +167,7 @@ class Device(Entity):
         self._friendly_name = attrs.get("friendly_name") if attrs else None
         self._blacklist = attrs.get("blacklist", False) if attrs else False
 
+        # TODO: causing queue.Full exception with -i
         # self._discover()  # needs self._device_type
 
     @property
