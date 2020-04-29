@@ -26,7 +26,7 @@ _LOGGER = logging.getLogger(__name__)
 class Gateway:
     """The gateway class."""
 
-    def __init__(self, serial_port, loop=None, **config) -> None:
+    def __init__(self, serial_port=None, loop=None, **config) -> None:
         """Initialise the class."""  # TODO: config.get() vs config[]
         self.serial_port = serial_port
         self.loop = loop if loop else asyncio.get_event_loop()
@@ -279,15 +279,9 @@ class Gateway:
     async def start(self) -> None:
         async def proc_packets_from_file() -> None:
             """Process packets from a file, asynchonously."""
-            # async with FilePktProvider(self.config["input_file"]) as manager:
-            #     await asyncio.gather(port_reader(manager), port_writer(None))
-
-            import aiofiles  # TODO: move to packet.py
-
-            async with aiofiles.open(self.config["input_file"]) as input_fp:
-                async for ts_pkt_line in input_fp:
-                    await self._process_packet(ts_pkt_line)
-                    await self._dispatch_packet(destination=None)  # to empty the buffer
+            for ts_pkt_line in self.config["input_file"]:
+                await self._process_packet(ts_pkt_line)
+                await self._dispatch_packet(destination=None)  # to empty the buffer
 
         async def proc_packets_from_port() -> None:
             async def port_reader(manager):
@@ -357,15 +351,19 @@ class Gateway:
 
     async def _dispatch_packet(self, destination=None) -> None:
         """Send a command unless in listen_only mode."""
-        if not self.command_queue.empty():
+        # TODO: listen_only will clear the whole queue, not only the its next element
+        while not self.command_queue.empty():
             cmd = self.command_queue.get()
-
             if not (destination is None or self.config.get("listen_only")):
                 # TODO: if not cmd.entity._pkts.get(cmd.code):
                 destination.write(bytearray(f"{cmd}\r\n".encode("ascii")))
                 # _LOGGER.warning("# A write was done to %s: %s", self.serial_port, cmd)
 
             self.command_queue.task_done()
+            if not self.config.get("listen_only"):
+                break
+
+        await asyncio.sleep(0.001)
 
     async def _process_packet(self, ts_packet_line, raw_packet_line=None) -> None:
         """Receive a packet and optionally validate it as a message."""
@@ -431,6 +429,7 @@ class Gateway:
         try:
             msg.update_entities()
         except AssertionError:  # TODO: AssertionError should be enough!
-            _LOGGER.exception("%s", msg)
-        except (LookupError, TypeError, ValueError):
-            _LOGGER.exception("%s", msg)
+            _LOGGER.exception("%s", msg._packet)
+        # this bit only for testing???
+        # except (KeyError, LookupError, TypeError, ValueError):
+        #     _LOGGER.exception("%s", msg._packet)

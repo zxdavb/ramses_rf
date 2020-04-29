@@ -36,13 +36,13 @@ class Message:
             self.device_id[dev] = packet[i : i + 9]  # noqa: E203
 
         if self.device_id[0] != NON_DEV_ID:
-            self.from_device = self.device_id[0]
+            self.device_from = self.device_id[0]
             if self.device_id[1] != NON_DEV_ID:
-                self.dest_device = self.device_id[1]
+                self.device_dest = self.device_id[1]
             elif self.device_id[2] == self.device_id[0]:
-                self.dest_device = ">multcast<"
+                self.device_dest = ">multcast<"
             elif self.device_id[2] != NON_DEV_ID:
-                self.dest_device = self.device_id[2]
+                self.device_dest = self.device_id[2]
             else:
                 assert False  # TODO: never seen in the wild
 
@@ -50,12 +50,12 @@ class Message:
             assert False  # TODO: never seen in the wild
 
         elif self.device_id[2] != NON_DEV_ID:
-            self.from_device = self.device_id[2]
-            self.dest_device = ">uni-cast<"
+            self.device_from = self.device_id[2]
+            self.device_dest = ">uni-cast<"
 
         else:
-            self.from_device = ">nameless<"
-            self.dest_device = ">brodcast<"
+            self.device_from = ">nameless<"
+            self.device_dest = ">brodcast<"
 
         self.code = packet[41:45]
 
@@ -107,8 +107,8 @@ class Message:
         xxx = {} if self._payload == {} else xxx
 
         self._repr = msg_format.format(
-            name(self.from_device),
-            name(self.dest_device),
+            name(self.device_from),
+            name(self.device_dest),
             self.verb,
             COMMAND_MAP.get(self.code, f"unknown_{self.code}"),
             raw_payload1,
@@ -141,14 +141,14 @@ class Message:
             self._payload = payload_parser(self.raw_payload, self)  # TODO: messy
         except AssertionError:  # for development only?
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
-            if self.device_id[0][:2] == "18":
+            if self.device_from[:2] == "18":
                 _LOGGER.warning("%s", self._packet, extra=self.__dict__)
             else:
                 _LOGGER.exception("%s", self._packet, extra=self.__dict__)
             return False
 
         try:
-            self._create_entities()  # but not if: self.device_id[0][:2] != "18"
+            self._create_entities()  # but not if: self.device_from[:2] != "18"
         except AssertionError:  # unknown device type, or zone_idx > 12
             _LOGGER.exception("%s", self._packet, extra=self.__dict__)
             return False
@@ -184,8 +184,8 @@ class Message:
             zone_cls = Zone  # DhwZone if zone_idx == "HW" else Zone  # TODO
             _ent(zone_cls, zone_idx, self._gateway.zone_by_id, self._gateway.zones)
 
-        # exclude thes potentially didgy packets
-        if self.device_id[0][:2] == "18":
+        # exclude thes potentially dodgy packets
+        if self.device_from[:2] == "18":  # TODO: device_dest
             return
 
         # discover devices
@@ -202,7 +202,7 @@ class Message:
                 get_zone(self._payload["zone_idx"])
 
         elif isinstance(self._payload, list):
-            if self.device_id[0][:2] == "01" and self.verb == " I":
+            if self.device_from[:2] == "01" and self.verb == " I":
                 if self.code in ["2309", "30C9"]:  # almost all sync cycles
                     for i in range(0, len(self.raw_payload), 6):
                         get_zone(self.raw_payload[i : i + 2])
@@ -220,14 +220,13 @@ class Message:
             elif "zone_idx" in self.payload:
                 self._gateway.zone_by_id[self.payload["zone_idx"]].update(self)
             else:
-                self._gateway.device_by_id[self.device_id[0]].update(self)
+                self._gateway.device_by_id[self.device_from].update(self)
 
-        if not self.is_valid or self.device_id[0][:2] == "18":  # TODO: _id[2] too?
+        if not self.is_valid or self.device_from[:2] == "18":  # TODO: _id[2] too?
             return
 
         # who was the message from? There's one special (non-evohome) case...
-        idx = self.device_id[0] if self.device_id[0][:2] != "--" else self.device_id[2]
-        self._gateway.device_by_id[idx].update(self)
+        self._gateway.device_by_id[self.device_from].update(self)
 
         # what was the message about: system, domain, or zone?
         if self.payload is None:

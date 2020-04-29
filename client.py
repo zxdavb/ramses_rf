@@ -143,7 +143,6 @@ def _parse_args():
 @click.pass_context
 # async def main(loop=None, **kwargs):
 def cli(ctx, **kwargs):
-    # loop=asyncio.get_event_loop() causes: 'NoneType' object has no attribute 'serial'
     """A CLI for the evohome_rf library.
 
     evohome_rf is used to process RAMSES-II packets, either via RF or from a file.
@@ -158,7 +157,10 @@ def cli(ctx, **kwargs):
 def parse(obj, **kwargs):
     """Parse a file for packets."""
     print(f"parse: obj={obj}, kwargs={kwargs}")
-    main(**obj, **kwargs)
+    try:
+        asyncio.run(main(**obj, **kwargs))
+    except asyncio.CancelledError:  # TODO: rubbish workaround
+        pass
 
 
 @click.command()
@@ -169,32 +171,32 @@ def parse(obj, **kwargs):
 def monitor(obj, **kwargs):
     """Monitor a serial port for packets."""
     print(f"monitor: obj={obj}, kwargs={kwargs}")
-    main(**obj, **kwargs)
+
+    try:
+        asyncio.run(main(**obj, **kwargs))
+    except asyncio.CancelledError:  # TODO: rubbish workaround
+        pass
 
 
 cli.add_command(monitor)
 cli.add_command(parse)
 
 
-def main(loop=None, **kwargs):
+async def main(loop=None, **kwargs):
     # loop=asyncio.get_event_loop() causes: 'NoneType' object has no attribute 'serial'
     """A CLI for the evohome_rf library."""
 
-    # args = _parse_args()
-    # if args.debug_mode == 1:
     if kwargs.get("debug_mode") == 1:
         print("Additional logging enabled (debugging not enabled).")
-        # print(args)
+        # print(kwargs)
         pass
 
-    # elif args.debug_mode > 1:
     elif kwargs.get("debug_mode") > 1:
         import ptvsd
 
         print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
         ptvsd.enable_attach(address=(DEBUG_ADDR, DEBUG_PORT))
 
-        # if args.debug_mode > 2:
         if kwargs.get("debug_mode") > 2:
             print("Execution paused, waiting for debugger to attach...")
             ptvsd.wait_for_attach()
@@ -205,13 +207,9 @@ def main(loop=None, **kwargs):
         # future: ... cb=[BaseProactorEventLoop._loop_self_reading()]
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-    # gateway = Gateway(**vars(args), loop=loop)
     gateway = Gateway(**kwargs, loop=loop)
 
-    try:
-        asyncio.run(gateway.start())
-    except asyncio.CancelledError:  # TODO: rubbish workaround
-        pass
+    await gateway.start()
 
 
 if __name__ == "__main__":
