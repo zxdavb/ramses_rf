@@ -201,7 +201,7 @@ f = r"([0-9A-F]{2})+"
 COMMAND_REGEX = re.compile(f"^{b} {a} {c} {c} {c} {d} {e} {f}$")
 MESSAGE_REGEX = re.compile(f"^{a} {b} {a} {c} {c} {c} {d} {e} {f}$")
 
-COMMAND_FORMAT = "{:<2} --- {} {} --:------ {} {:03.0f} {}"
+COMMAND_FORMAT = "{:<2} --- {} {} --:------ {} {:03d} {}"
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:8s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:8s} || {}"
 

@@ -225,6 +225,11 @@ class Message:
         if not self.is_valid or self.device_from[:2] == "18":  # TODO: _id[2] too?
             return
 
+        if isinstance(self.payload, dict) and "parent_zone_new" in self.payload:
+            if self._gateway.known_devices.get(self.device_from):
+                zone_idx = self._gateway.known_devices[self.device_from].get("zone_idx")
+                assert zone_idx == self.payload["parent_zone_new"]
+
         # who was the message from? There's one special (non-evohome) case...
         self._gateway.device_by_id[self.device_from].update(self)
 
@@ -256,34 +261,10 @@ class Message:
 
         else:  # is for a device...
             _codes = []
-            _codes += [
-                "0002",
-                "0005",
-                "0016",
-                "0100",
-                "042F",
-                "1060",
-                "10A0",
-                "10E0",
-            ]
-            _codes += [
-                "1100",
-                "1260",
-                "12A0",
-                "1F09",
-                "1F41",
-                "22D0",
-                "22F1",
-            ]
-            _codes += [
-                "2309",
-                "2E04",
-                "30C9",
-                "3120",
-                "313F",
-                "31E0",
-                "3B00",
-                "3EF0",
-            ]
+            _codes += ["0002", "0005", "0016", "0100", "042F", "1060"]
+            _codes += ["10A0", "10E0", "1100", "1260", "12A0", "1F09"]
+            _codes += ["1F41", "22D0", "22F1", "2309", "2349", "2E04"]
+            _codes += ["30C9", "3120", "3150", "313F", "31E0", "3B00"]
+            _codes += ["3EF0"]
             assert self.code in _codes
             _update_entity(self.payload)

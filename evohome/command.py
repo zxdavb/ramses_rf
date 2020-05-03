@@ -70,7 +70,7 @@ class Command:
         _cmd = COMMAND_FORMAT.format(
             self.verb,
             HGI_DEV_ID,
-            self.device_id,
+            self.device_id,  # dest_addr
             self.code,
             len(self.payload) / 2,
             self.payload,

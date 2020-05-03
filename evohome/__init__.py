@@ -152,19 +152,16 @@ class Gateway:
 
         if self.config.get("known_devices"):
             _LOGGER.info(f"Updating known_devices database...")
-            self.known_devices.update(
-                {
-                    d.device_id: {
-                        "friendly_name": d._friendly_name,
-                        "blacklist": d._blacklist,
-                    }
-                    for d in self.devices
-                }
-            )
-            with open(self.config["known_devices"], "w") as outfile:
-                json.dump(self.known_devices, outfile, sort_keys=True, indent=4)
+            {
+                self.known_devices[d.device_id].update(
+                    {"friendly_name": d._friendly_name, "blacklist": d._blacklist}
+                )
+                for d in self.devices
+            }
+            with open(self.config["known_devices"], "w") as json_file:
+                json.dump(self.known_devices, json_file, sort_keys=True, indent=4)
 
-        _LOGGER.info("State data: %s", f"\r\n{json.dumps(self._devices, indent=4)}")
+        # print("State data: %s", f"\r\n{json.dumps(self._devices, indent=4)}")
 
         tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
         logging.info(f"Cancelling {len(tasks)} outstanding tasks")

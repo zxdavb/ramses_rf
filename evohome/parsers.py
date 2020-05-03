@@ -14,6 +14,10 @@ from .const import (
 from .entity import dev_hex_to_id
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
 
+CODES_ARRAY = ["000A", "2309", "30C9"]
+CODES_SANS_ZONE_IDX = ["2E04"]  # not sure about "0002", "1FC9", "22C9"
+CODES_WITH_ZONE_IDX = ["0004", "0008", "0009", "1030", "1060", "12B0", "2349", "3150"]
+
 
 def parser_decorator(func):
     """Decode the payload (or meta-data) of any message with useful information.
@@ -22,16 +26,26 @@ def parser_decorator(func):
     """
 
     def wrapper(*args, **kwargs) -> Optional[dict]:
+        def add_context(parsed_payload):
+
+            if (
+                msg.device_from[:2] != "01" and msg.code in CODES_WITH_ZONE_IDX
+            ):  # ["1060", "12B0", "2349"]:
+                # if msg.code in ["2349"]:
+                return {"parent_zone_new": payload[:2], **parsed_payload}
+            return parsed_payload
+
         payload = args[0]
         msg = args[1]
 
         if msg.verb == " W":  # TODO: WIP
             if msg.code in ["1100", "1F09", "1FC9", "2309", "2349"]:
                 return func(*args, **kwargs)
-            return {}  # TODO: check, maybe not {}?
+            return {}
 
         if msg.verb != "RQ":
-            return func(*args, **kwargs)
+            # return func(*args, **kwargs)
+            return add_context(func(*args, **kwargs))
 
         # TRV will RQ zone_name *sans* payload...
         if msg.code in ["0004"] and msg.device_from[:2] == "04":  # TRV
@@ -67,6 +81,10 @@ def parser_decorator(func):
             # return {}
 
         if msg.code == "10A0" and msg.device_from[:2] == "07":  # DHW
+            return func(*args, **kwargs)
+
+        if msg.code == "1100":  # boiler_params
+            assert payload[:2] in ["00", "FC"]
             return func(*args, **kwargs)
 
         if msg.code == "3220":  # CTL -> OTB (OpenTherm)
@@ -539,6 +557,10 @@ def parser_12a0(payload, msg) -> Optional[dict]:  # indoor_humidity (Nuaire RH s
 
 @parser_decorator
 def parser_12b0(payload, msg) -> Optional[dict]:  # window_state (of a device/zone)
+    # 09:10:43.403 080  I --- 04:189076 --:------ 01:145038 12B0 003 02C800
+    # 09:10:45.715 081  I --- 04:189076 --:------ 01:145038 12B0 003 02C800
+    # 09:10:53.256 065  I --- 01:145038 --:------ 01:145038 12B0 003 02C800
+
     assert int(payload[:2], 16) < 12  # also for device state
     assert payload[2:] in ["0000", "C800", "FFFF"]  # "FFFF" means N/A
 
@@ -585,6 +607,7 @@ def parser_1f41(payload, msg) -> Optional[dict]:  # dhw_mode
 
 @parser_decorator
 def parser_1fc9(payload, msg) -> Optional[dict]:  # bind_device
+    # this is an array of codes
     def _parser(seqx) -> dict:
         if seqx[:2] not in ["FA", "FB", "FC"]:
             assert int(seqx[:2], 16) < 12
@@ -694,7 +717,7 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:  # setpoint (of device
 @parser_decorator
 def parser_2349(payload, msg) -> Optional[dict]:  # zone_mode
     assert msg.verb in [" I", "RP", " W"]
-    assert len(payload) / 2 in [7, 13]
+    assert len(payload) / 2 in [7, 13]  # has a dtm if mode == "04"
     assert payload[6:8] in list(ZONE_MODE_MAP)
     assert payload[8:14] == "FFFFFF"
 

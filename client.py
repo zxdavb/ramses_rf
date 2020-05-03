@@ -134,7 +134,7 @@ def _parse_args():
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
-@click.option("-k", "--known-devices", help="TBD", type=click.File("r"))
+@click.option("-k", "--known-devices", help="TBD", type=click.Path("w"))
 @click.option("-w", "--device-whitelist", help="TBD", is_flag=True)
 @click.option("-d", "--database", help="TBD", type=click.Path("r"))
 @click.option("-m", "--message_log", help="TBD", type=click.Path("r"))
