@@ -2,8 +2,8 @@
 
 import logging
 
-import serial  # TODO: dont import unless required
-import serial_asyncio  # TODO: dont import unless required
+from serial import SerialException  # TODO: dont import unless required
+from serial_asyncio import open_serial_connection  # TODO: dont import unless required?
 from string import printable
 from typing import Any, Optional, Tuple
 
@@ -95,6 +95,7 @@ class PortPktProvider:
     """Base class for packets from a serial port."""
 
     def __init__(self, serial_port, loop, timeout=READ_TIMEOUT) -> None:
+        # self.serial_port = "rfc2217://localhost:5000"
         self.serial_port = serial_port
         self.baudrate = BAUDRATE
         self.timeout = timeout
@@ -104,11 +105,13 @@ class PortPktProvider:
         self.reader = self.write = None
 
     async def __aenter__(self):
-        self.reader, self.writer = await serial_asyncio.open_serial_connection(
+        # TODO: Add ValueError, SerialException wrapper
+        self.reader, self.writer = await open_serial_connection(
             loop=self.loop,
             url=self.serial_port,
             baudrate=self.baudrate,
             timeout=self.timeout,
+            # write_timeout=None,
             xonxoff=self.xonxoff,
         )
         return self
@@ -121,11 +124,11 @@ class PortPktProvider:
 
         if prev_pkt and self.reader._transport.serial.in_waiting == 0:  # TODO: mem leak
             raw_packet = prev_pkt
-        else:
 
+        else:
             try:
                 raw_packet = await self.reader.readline()
-            except serial.SerialException:
+            except SerialException:
                 return (None, None)
 
         # print(f"{raw_packet}")  # TODO: deleteme, only for debugging
@@ -139,36 +142,20 @@ class PortPktProvider:
 
 
 class FilePktProvider:
-    """Base class for packets from a serial port."""
+    """WIP: Base class for packets from a source file."""
 
     def __init__(self, file_name) -> None:
         self.file_name = file_name
 
     async def __aenter__(self):
-        self.reader, self.writer = await serial_asyncio.open_serial_connection(
-            loop=self.loop,
-            url=self.serial_port,
-            baudrate=self.baudrate,
-            timeout=self.timeout,
-            xonxoff=True,
-        )
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
         pass
 
     async def get_next_packet(self) -> Optional[str]:
-        """Get the next packet line from a serial port."""
-        try:
-            raw_packet = await self.reader.readline()
-        except serial.SerialException:
-            return
-
-        # print(f"{raw_packet}")  # TODO: deleteme, only for debugging
-
+        """Get the next packet line from a source file."""
         timestamp = time_stamp()
-        packet_line = "".join(c for c in raw_packet.decode().strip() if c in printable)
-
-        # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
+        packet_line = None
 
         return f"{timestamp} {packet_line}" if packet_line else f"{timestamp}"
