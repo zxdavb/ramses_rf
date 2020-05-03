@@ -8,8 +8,8 @@ from .const import COMMAND_SCHEMA, CTL_DEV_ID, DEVICE_LOOKUP, DEVICE_MAP, ZONE_T
 
 def dev_hex_to_id(device_hex: str, friendly_id=False) -> str:
     """Convert (say) '06368E' to '01:145038' (or 'CTL:145038')."""
-    if device_hex == "FFFFFF":  # aka '63:262143'
-        return f"{'':10}" if friendly_id else f"{'':9}"
+    if device_hex == "FFFFFE":  # aka '63:262142'
+        return ">null dev<" if friendly_id else "63:262142"
     if not device_hex.strip():  # aka '--:------'
         return f"{'':10}" if friendly_id else "--:------"
     _tmp = int(device_hex, 16)
@@ -23,7 +23,7 @@ def dev_id_to_hex(device_id: str) -> str:
     """Convert (say) '01:145038' (or 'CTL:145038') to '06368E'."""
     if len(device_id) == 9:  # e.g. '01:123456'
         dev_type = device_id[:2]
-    else:  # len(device_id) == 10, e.g. 'CTL:123456', or ' 63:262143'
+    else:  # len(device_id) == 10, e.g. 'CTL:123456', or ' 63:262142'
         dev_type = DEVICE_LOOKUP.get(device_id[:3], device_id[1:3])
     return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # sans preceding 0x
 
@@ -37,6 +37,11 @@ class Entity:
         self._queue = gateway.command_queue
 
         self._pkts = {}
+
+    def _command(self, code, **kwargs):
+        kwargs["code"] = code
+        kwargs["dest_addr"] = kwargs.get("dest_id")
+        self._queue.put_nowait(Command(self._gateway, **kwargs))
 
     def _discover(self):
         raise NotImplementedError
@@ -120,9 +125,7 @@ class System(Entity):
     def fault_log(self):
         # WIP: try to discover fault codes
         for num in range(0x00, 0x3C):  # 10 pages of 6
-            self._queue.put_nowait(
-                Command(self._gateway, "0418", CTL_DEV_ID, f"{num:06X}")
-            )
+            self._command("0418", CTL_DEV_ID, f"{num:06X}")
 
         return
 
@@ -200,14 +203,10 @@ class Device(Entity):
         # for payload in ["00", "0000", "FF"]:
         # check: relay_demand, rf_check, sync_cycle, boiler_params, actuator_state
         #     for code in ["0100", "10E0"]:  # battery-operated wont respond
-        #         self._queue.put_nowait(
-        #             Command(self._gateway, code, dest_id=self._id, payload=payload)
-        #         )
+        #         self._command(code, dest_id=self._id, payload=payload)
 
         for code in COMMAND_SCHEMA:
-            self._queue.put_nowait(
-                Command(self._gateway, code, dest_id=self._id, payload="0000")
-            )
+            self._command(code, dest_id=self._id, payload="0000")
 
     def x_update(self, msg):
         # if isinstance(msg.payload, dict):
@@ -223,6 +222,7 @@ class Controller(Device):
 
     def __init__(self, device_id, gateway) -> None:
         # _LOGGER.debug("Creating a new Controller %s", device_id)
+        gateway.ctl_dev_id = device_id
         super().__init__(device_id, gateway)
 
         # self._discover()
@@ -240,23 +240,21 @@ class Controller(Device):
 
         # # WIP: an attempt to actively discover the CTL rather than by eavesdropping
         # for cmd in ["313F"]:
-        #     self._queue.put_nowait(Command(self._gateway, cmd, NUL_DEV_ID, "FF"))
+        #     self._command(cmd, NUL_DEV_ID, "FF")
 
         # a 'real' Zone will return 0004/zone_name != None
         for zone_idx in range(12):
             _zone = f"{zone_idx:02x}00"
-            self._queue.put_nowait(Command(self._gateway, "0004", CTL_DEV_ID, _zone))
+            self._command("0004", CTL_DEV_ID, _zone)
 
         # the 'real' DHW controller will return 1260/dhw_temp != None
         for _zone in ["FA"]:
-            self._queue.put_nowait(Command(self._gateway, "1260", CTL_DEV_ID, _zone))
+            self._command("1260", CTL_DEV_ID, _zone)
 
         # WIP: the Controller, and 'real' Relays will respond to 0016/rf_check ???
-        # self._queue.put_nowait(
-        #   Command(self._gateway, "0016", CTL_DEV_ID, f"{domain_id}FF")
-        # )
+        # self._command("0016", CTL_DEV_ID, f"{domain_id}FF")
 
-        self._queue.put_nowait(Command(self._gateway, "0000", verb="XX"))
+        self._command("0000", verb="XX")
 
     def x_update(self, msg):
         super().update(msg)
@@ -321,7 +319,7 @@ class DhwSensor(Device):
 
     def _TBD_discover(self):
         for cmd in ["10A0", "1260", "1F41"]:
-            self._queue.put_nowait(Command(self._gateway, cmd, CTL_DEV_ID, "00"))
+            self._command(cmd, CTL_DEV_ID, "00")
 
 
 class TrvActuator(Device):
@@ -384,10 +382,10 @@ class BdrSwitch(Device):
         super()._discover()
 
         # for cmd in ["3B00", "3EF0"]:  # these don't work, for 00 or 0000
-        #     self._queue.put_nowait(Command(self._gateway, cmd, self._id, "00"))
+        #     self._command(cmd, self._id, "00")
 
         for cmd in ["0008", "1100", "3EF1"]:  # these work, for any payload
-            self._queue.put_nowait(Command(self._gateway, cmd, self._id, "0000"))
+            self._command(cmd, self._id, "0000")
 
     def x_update(self, msg):
         super().update(msg)
@@ -496,11 +494,11 @@ class Zone(Entity):
         # can't do: "3150" (TODO: 12B0/window_state only if enabled, or only if TRV?)
         for code in COMMAND_SCHEMA:
             payload = f"{self._id}00" if code != "0000" else self._id
-            self._queue.put_nowait(Command(self._gateway, code, payload=payload))
+            self._command(code, payload=payload)
 
         for code in ["0004", "000A", "000C", "12B0"]:  # also: "2349", "30C9"]:
             payload = f"{self._id}00" if code != "0000" else self._id
-            self._queue.put_nowait(Command(self._gateway, code, payload=payload))
+            self._command(code, payload=payload)
 
     def x_update(self, msg):
         super().update(msg)
@@ -559,7 +557,7 @@ class DhwZone(Zone):
     def _TBD_discover(self):
         # get config, mode, temp
         for cmd in ["10A0", "1F41", "1260"]:  # TODO: what about 1100?
-            self._queue.put_nowait(Command(self._gateway, cmd, CTL_DEV_ID, "00"))
+            self._command(cmd, CTL_DEV_ID, "00")
 
 
 class RadValveZone(Zone):
@@ -578,7 +576,7 @@ class RadValveZone(Zone):
         super()._discover()
 
         for cmd in ["12B0"]:
-            self._queue.put_nowait(Command(self._gateway, cmd, CTL_DEV_ID, self._id))
+            self._command(cmd, CTL_DEV_ID, self._id)
 
 
 class ElectricZone(Zone):

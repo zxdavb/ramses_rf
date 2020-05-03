@@ -1,6 +1,6 @@
 """Evohome serial."""
 
-from .const import COMMAND_FORMAT, CTL_DEV_ID, HGI_DEV_ID
+from .const import COMMAND_FORMAT, HGI_DEV_ID
 
 # from .logger import _LOGGER
 
@@ -30,47 +30,47 @@ MAX_CMDS_PER_MINUTE = 30
 # await asyncio.sleep(0.7)  # 0.8, 1.0 OK, 0.5 too short
 
 
-def get_schedule(zone_idx, controller, gateway):
+# def get_schedule(zone_idx, controller, gateway):
 
-    packet_total = 0
-    packet_num = 0
+#     packet_total = 0
+#     packet_num = 0
 
-    # packet_list = []
+#     # packet_list = []
 
-    payload = f"{zone_idx:02X}20000800{packet_num:02d}{packet_total:02d}"
+#     payload = f"{zone_idx:02X}20000800{packet_num:02d}{packet_total:02d}"
 
-    gateway.command_queue.put_nowait(
-        Command(gateway, "0404", "RQ", controller, payload)
-    )
+#     gateway.command_queue.put_nowait(
+#         Command(gateway, "0404", "RQ", controller, payload)
+#     )
 
-    packet_total = 5  # TBA
-    for i in range(2, packet_total + 1):
-        gateway.command_queue.put_nowait(
-            Command(gateway, "0404", "RQ", controller, payload)
-        )
+#     packet_total = 5  # TBA
+#     for i in range(2, packet_total + 1):
+#         gateway.command_queue.put_nowait(
+#             Command(gateway, "0404", "RQ", controller, payload)
+#         )
 
 
 class Command:
     """The command class."""
 
-    def __init__(
-        self, gateway, code, verb="RQ", dest_id=CTL_DEV_ID, payload="00"
-    ) -> None:
+    def __init__(self, gateway, **kwargs) -> None:
         """Initialise the  class."""
         self._gateway = gateway
-        self.code = code
-        self.verb = verb
-        self.device_id = (
-            dest_id if dest_id else CTL_DEV_ID
-        )  # TODO: self._gateway.controller_id
-        self.payload = payload
+        self.verb = kwargs.get("verb", "RQ")
+        self.from_addr = kwargs.get("from_addr", HGI_DEV_ID)
+        self.code = kwargs.get("code", "1F09")
+        self.payload = kwargs.get("payload", "FF")
+
+        dest = kwargs.get("dest_addr")
+
+        self.dest_addr = self._gateway.ctl_dev_id if dest is None else dest
 
     def __str__(self) -> str:
         """Represent as a string."""
         _cmd = COMMAND_FORMAT.format(
             self.verb,
-            HGI_DEV_ID,
-            self.device_id,  # dest_addr
+            self.from_addr,
+            self.dest_addr,
             self.code,
             len(self.payload) / 2,
             self.payload,

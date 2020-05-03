@@ -32,6 +32,8 @@ class Gateway:
         self.loop = loop if loop else asyncio.get_event_loop()
         self.config = config
 
+        self.ctl_dev_id = None
+
         self._h = self._hp = None
 
         if self.serial_port and config.get("input_file"):
@@ -304,9 +306,13 @@ class Gateway:
             async with PortPktProvider(self.serial_port, loop=self.loop) as manager:
                 if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 FF"
                     cmd = self.config["execute_cmd"]
-                    self.command_queue.put_nowait(
-                        Command(self, cmd[13:17], cmd[:2], cmd[3:12], cmd[18:])
-                    )
+                    kwargs = {
+                        "verb": cmd[:2],
+                        "dest_addr": cmd[3:12],
+                        "code": cmd[13:17],
+                        "payload": cmd[18:],
+                    }
+                    self.command_queue.put_nowait(Command(self, **kwargs))
                     await self._dispatch_packet(destination=manager.writer)
 
                 await asyncio.gather(port_reader(manager), port_writer(manager))
