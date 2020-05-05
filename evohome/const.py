@@ -189,6 +189,7 @@ FAULT_DEVICE_CLASS = {
 FAULT_STATE = {"00": "Fault", "40": "Restore", "C0": "Unknown (C0)"}
 FAULT_TYPE = {"04": "BatteryLow", "06": "CommsFault", "0A": "SensorError"}
 
+ISO_FORMAT_REGEX = r"\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d\.\d{6} ?"
 
 # Used by packet structure validators
 a = r"(-{3}|\d{3})"

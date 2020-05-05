@@ -231,7 +231,8 @@ class Message:
                     zone_idx = self._gateway.known_devices[self.device_from].get(
                         "zone_idx"
                     )
-                    assert zone_idx == self.payload["parent_zone_idx"]
+                    # check the zone against the data in known_devices.json
+                    # assert zone_idx == self.payload["parent_zone_idx"]
 
         if isinstance(self.payload, dict):
             if self._gateway.known_devices.get(self.device_from):
@@ -242,8 +243,8 @@ class Message:
                         b = "parent_zone_bbb" in self.payload
                         c = "parent_zone_ccc" in self.payload
                         assert any([a, b, c]), "parent_zone_idx, but no _xxx"
-                    # if f"parent_zone_{idx}" in self.payload:
-                    #     assert zone_idx == self.payload[f"parent_zone_{idx}"]
+                    if f"parent_zone_{idx}" in self.payload:
+                        assert zone_idx == self.payload[f"parent_zone_{idx}"]
 
         # who was the message from? There's one special (non-evohome) case...
         self._gateway.device_by_id[self.device_from].update(self)

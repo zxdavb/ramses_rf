@@ -1,6 +1,8 @@
 """Packet processor."""
 
+from datetime import datetime as dt
 import logging
+import re
 
 from serial import SerialException  # TODO: dont import unless required
 from serial_asyncio import open_serial_connection  # TODO: dont import unless required?
@@ -29,18 +31,16 @@ def split_pkt_line(packet_line: str) -> (str, str, str):
 class Packet:
     """The packet class."""
 
-    def __init__(self, timestamp, packet_line, raw_packet_line=None) -> None:
+    def __init__(self, ts_packet_line, raw_packet_line=None) -> None:
         """Create a packet."""
-        self.timestamp = timestamp
-        self._packet_line = packet_line
+        dt.fromisoformat(ts_packet_line[:26])  # shouldn't ValueError
+
+        self.date, self.time = ts_packet_line[:26].split("T")
+        self.packet, self.error_text, self.comment = split_pkt_line(ts_packet_line[27:])
+
+        self._packet_line = ts_packet_line[27:]
         self._raw_packet_line = raw_packet_line
 
-        assert timestamp
-        if not bool(packet_line):
-            raise ValueError("packet line is null: ", repr(self))
-
-        self.date, self.time = self.timestamp[:10], self.timestamp[11:26]
-        self.packet, self.error_text, self.comment = split_pkt_line(packet_line)
         self._packet = self.packet + " " if self.packet else ""  # TODO: a hack 4 log
 
         self._is_valid = None
@@ -65,18 +65,20 @@ class Packet:
         if self._is_valid is not None:
             return self._is_valid
 
+        if not self._packet_line:
+            return False
+
         if self.error_text:
-            return False  # ZZZ
+            # return False  # TODO: return here is only for TESTING
             if self.packet:
                 _LOGGER.warning("%s < Bad packet: ", self, extra=self.__dict__)
             else:
                 _LOGGER.warning("< Bad packet: ", extra=self.__dict__)
             return False
 
-        if not self.packet:
-            # _LOGGER.debug("", extra=self.__dict__)
+        if not self.packet:  # print lines with only a comment
+            _LOGGER.warning("", extra=self.__dict__)
             return False
-        import re
 
         if not MESSAGE_REGEX.match(self.packet):
             err_msg = "invalid packet structure"
@@ -88,9 +90,8 @@ class Packet:
             err_msg = "three device addresses"
         elif not re.match("(0[0-9AB]|21|F[89ABCF])", self.packet[50:53]):
             err_msg = "dodgy zone_idx/domain_id"
-        else:
-            # don't log good packets here: we may want to silently discard some
-            # _LOGGER.info("%s", self, extra=self.__dict__)
+        else:  # it is a valid packet!
+            # NOTE: don't log good packets here: we may want to silently discard some
             return True
 
         _LOGGER.warning("%s < Bad packet: %s ", self, err_msg, extra=self.__dict__)

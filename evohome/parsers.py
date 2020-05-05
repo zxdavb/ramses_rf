@@ -208,7 +208,7 @@ def parser_0001(payload, msg) -> Optional[dict]:  # rf_unknown
     assert len(payload) / 2 == 5
     assert payload[:2] in ["00", "FC", "FF"]
     assert payload[2:] == "00000505"
-    return
+    return {}
 
 
 @parser_decorator
@@ -349,7 +349,7 @@ def parser_000e(payload, msg) -> Optional[dict]:  # unknown
     # rarely from STA:xxxxxx
     assert len(payload) / 2 == 3
     assert payload == "000014"
-    return
+    return {}
 
 
 @parser_decorator
@@ -1006,4 +1006,4 @@ def parser_3ef1(payload, msg) -> Optional[dict]:  # actuator_state
 @parser_decorator
 def parser_unknown(payload, msg) -> None:
     # TODO: it may be useful to search payloads for hex_ids, commands, etc.
-    raise AssertionError
+    raise NotImplementedError

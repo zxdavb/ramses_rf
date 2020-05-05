@@ -1,8 +1,11 @@
 """Evohome serial."""
 import asyncio
+from datetime import datetime as dt
 import json
 import logging
 import os
+import re
+
 import psutil  # TODO: mem leak
 import objgraph  # TODO: mem leak
 import gc
@@ -14,7 +17,7 @@ from queue import Queue
 from typing import Optional
 
 from .command import Command
-from .const import INDEX_SQL, TABLE_SQL, INSERT_SQL
+from .const import INDEX_SQL, TABLE_SQL, INSERT_SQL, ISO_FORMAT_REGEX
 from .entity import System
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
@@ -116,7 +119,7 @@ class Gateway:
             )
 
     async def _signal_handler(self, signal):
-        _LOGGER.debug(f"Received signal {signal.name}...")
+        _LOGGER.debug("Received signal %s...", signal.name)
 
         if signal == signal.SIGUSR1:  # and self.config.get("raw_output") < 2:
             _LOGGER.info("State data: %s", f"\r\n{json.dumps(self._devices, indent=4)}")
@@ -287,9 +290,19 @@ class Gateway:
         async def proc_packets_from_file() -> None:
             """Process packets from a file, asynchonously."""
             for ts_pkt_line in self.config["input_file"]:
-                await self._process_packet(ts_pkt_line)
+                ts_pkt_line = ts_pkt_line.strip()
+                if ts_pkt_line:
+                    try:
+                        assert re.match(ISO_FORMAT_REGEX, ts_pkt_line[:27])
+                        dt.fromisoformat(ts_pkt_line[:26])
+                    except (AssertionError, ValueError):
+                        # _LOGGER.warn("Non-ISO format timestamp: %s", ts_pkt_line[:26])
+                        continue
+
+                    await self._process_packet(ts_pkt_line)
+
                 await self._dispatch_packet(destination=None)  # to empty the buffer
-                # await asyncio.sleep(0.001)  # to allow for Ctrl-C
+                # await asyncio.sleep(0.001)  # to allow for Ctrl-C?
 
         async def proc_packets_from_port() -> None:
             async def port_reader(manager):
@@ -391,17 +404,8 @@ class Gateway:
         if self.config.get("debug_mode") == 1:  # TODO: mem leak
             self._debug_info()
 
-        if ts_packet_line is None:
-            return
-
-        try:
-            pkt = Packet(ts_packet_line[:26], ts_packet_line[27:], raw_packet_line)
-        except AssertionError:
-            _LOGGER.exception("%s", raw_packet_line)
-            return
-        except ValueError:  # (LookupError, TypeError, ValueError)
-            return  # null packet line
-        if not pkt.is_valid:  # this will trap/log all exceptions appropriately
+        pkt = Packet(ts_packet_line, raw_packet_line)
+        if not pkt.is_valid:  # this will trap/log all bad pkts appropriately
             return
 
         if not has_wanted_device(pkt, self.device_whitelist, self.device_blacklist):
@@ -444,6 +448,7 @@ class Gateway:
             msg.update_entities()
         except AssertionError:  # TODO: AssertionError should be enough!
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
+            pass
         # this bit only for testing???
         # except (LookupError, TypeError, ValueError):
         #     msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
