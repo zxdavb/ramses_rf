@@ -26,21 +26,47 @@ def parser_decorator(func):
     """
 
     def wrapper(*args, **kwargs) -> Optional[dict]:
+        """Add a zone_idx or a domain_id to a payload whenever possible."""
+
         def add_context(parsed_payload):
 
-            if (
-                msg.device_from[:2] != "01" and msg.code in CODES_WITH_ZONE_IDX
-            ):  # ["1060", "12B0", "2349"]:
-                # if msg.code in ["2349"]:
-                return {"parent_zone_new": payload[:2], **parsed_payload}
+            if isinstance(parsed_payload, dict):
+                _dict = {}
+                if msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9"]:
+                    if msg.device_from[:2] != "01" and msg.device_dest[:2] == "01":
+                        _dict["parent_zone_aaa"] = payload[:2]
+
+                    if msg.device_from[:2] != "01":
+                        if msg.code in ["1060", "30C9"]:
+                            pass
+                        elif msg.device_from[:2] == "12":
+                            pass
+                        else:
+                            _dict["parent_zone_bbb"] = payload[:2]
+
+                    if msg.device_dest[:2] == "01":
+                        _dict["parent_zone_ccc"] = payload[:2]
+
+                    # if msg.device_from[:2] == "01":  # to STA
+                    #     if msg.device_dest[:2] in [">m", "18"]:
+                    #         pass
+                    #     else:
+                    #         _dict["parent_zone_ddd"] = payload[:2]
+
+                return {**_dict, **parsed_payload}
             return parsed_payload
 
         payload = args[0]
         msg = args[1]
 
         if msg.verb == " W":  # TODO: WIP
-            if msg.code in ["1100", "1F09", "1FC9", "2309", "2349"]:
-                return func(*args, **kwargs)
+            # if msg.code == "2309" and msg.device_from[:2] in ["12", "22", "34"]:
+            #     assert int(payload[:2], 16) < 12
+            #     return add_context(func(*args, **kwargs))
+            # if msg.code in ["1100", "1F09", "1FC9", "2309", "2349"]:
+            #     assert payload[:2] in ["00", "FC"]
+            #     return func(*args, **kwargs)
+            # assert payload[:2] in ["00", "FC"]
             return {}
 
         if msg.verb != "RQ":
@@ -50,17 +76,18 @@ def parser_decorator(func):
         # TRV will RQ zone_name *sans* payload...
         if msg.code in ["0004"] and msg.device_from[:2] == "04":  # TRV
             assert len(payload) / 2 == 2 if msg.code == "0004" else 1
-            return {"parent_zone_idx": payload[:2]}
+            return add_context({"parent_zone_idx": payload[:2]})
 
         # STA will RQ zone_config, setpoint *sans* payload...
         if msg.code in ["000A", "2309"] and msg.device_from[:2] == "34":  # STA
             assert len(payload) / 2 == 1
-            return {"parent_zone_idx": payload[:2]}
+            return add_context({"parent_zone_idx": payload[:2]})
 
         # THM will RQ zone_config, setpoint *with* a payload...
-        if msg.code in ["000A", "2309"] and len(payload) / 2 > 2:  # THM
+        #  msg.code in ["000A", "2309"] and len(payload) / 2 > 2:  # THM
+        if msg.code in ["000A", "2309"] and msg.device_from[:2] in ["12", "22"]:  # THM
             assert len(payload) / 2 == 6 if msg.code == "000A" else 3
-            return func(*args, **kwargs)
+            return add_context(func(*args, **kwargs))
 
         # TRV? will RQ localisation
         if msg.code == "0100":  # and msg.device_from[:2] == "04"  # TRV
@@ -74,7 +101,7 @@ def parser_decorator(func):
             return {"log_idx": payload[4:6]}
 
         if msg.code == "0404":
-            assert False  # raise NotImplementedError
+            raise NotImplementedError
             # assert len(payload) / 2 == 3
             # assert payload[:4] == "0000"
             # assert int(payload[4:6], 16) <= 63
@@ -91,6 +118,12 @@ def parser_decorator(func):
             return func(*args, **kwargs)
 
         if msg.code in ["0004", "000A", "000C", "12B0", "2309", "2349", "30C9"]:
+            assert len(payload) / 2 in [1, 2]
+            assert int(payload[:2], 16) < 12
+            return {"zone_idx": payload[:2]}
+
+        if msg.code == "0016":
+            assert len(payload) / 2 == 2
             assert int(payload[:2], 16) < 12
             return {"zone_idx": payload[:2]}
 
@@ -321,7 +354,7 @@ def parser_000e(payload, msg) -> Optional[dict]:  # unknown
 
 @parser_decorator
 def parser_0016(payload, msg) -> Optional[dict]:  # rf_check
-    # TODO: some RQs also contain a payload with data
+    # TODO: some RQs also contain a payload with data, zz00?
     assert len(payload) / 2 == 2
 
     rf_value = int(payload[2:4], 16)

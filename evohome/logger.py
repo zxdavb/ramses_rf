@@ -17,7 +17,7 @@ BANDW_SUFFIX = "%(error_text)s%(comment)s"
 COLOR_SUFFIX = "%(red)s%(error_text)s%(cyan)s%(comment)s"
 
 try:
-    from colorlog import ColoredFormatter, default_log_colors
+    from colorlog import ColoredFormatter  # default_log_colors
 except ModuleNotFoundError:
     COLOR_SUFFIX = BANDW_SUFFIX
 
@@ -30,6 +30,14 @@ CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
 CONSOLE_FMT = "%(time).12s " + f"%(message).{CONSOLE_COLS - 13}s"
 PKT_LOG_FMT = "%(date)sT%(time)s %(_packet)s"
 MSG_LOG_FMT = "%(date)sT%(time)s %(message)s"
+
+LOG_COLOURS = {
+    "DEBUG": "white",
+    "INFO": "green",
+    "WARNING": "yellow",
+    "ERROR": "bold_red",
+    "CRITICAL": "bold_red",
+}  # default_log_colors
 
 
 class FILETIME(ctypes.Structure):
@@ -71,7 +79,7 @@ def set_logging(
         formatter = logging.Formatter(fmt=cons_fmt)
     else:
         formatter = ColoredFormatter(
-            f"%(log_color)s{cons_fmt}", reset=True, log_colors=default_log_colors
+            f"%(log_color)s{cons_fmt}", reset=True, log_colors=LOG_COLOURS
         )
 
     handler = logging.StreamHandler(stream=sys.stderr)

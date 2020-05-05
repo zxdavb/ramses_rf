@@ -66,6 +66,7 @@ class Packet:
             return self._is_valid
 
         if self.error_text:
+            return False  # ZZZ
             if self.packet:
                 _LOGGER.warning("%s < Bad packet: ", self, extra=self.__dict__)
             else:
@@ -73,15 +74,20 @@ class Packet:
             return False
 
         if not self.packet:
-            _LOGGER.warning("", extra=self.__dict__)
+            # _LOGGER.debug("", extra=self.__dict__)
             return False
+        import re
 
         if not MESSAGE_REGEX.match(self.packet):
-            err_msg = "packet structure invalid"
+            err_msg = "invalid packet structure"
         elif int(self.packet[46:49]) > 48:
-            err_msg = "payload length excessive"
+            err_msg = "excessive payload length"
         elif int(self.packet[46:49]) * 2 != len(self.packet[50:]):
-            err_msg = "payload length mismatch"
+            err_msg = "mismatched payload length"
+        elif "--:------" not in self.packet:
+            err_msg = "three device addresses"
+        elif not re.match("(0[0-9AB]|21|F[89ABCF])", self.packet[50:53]):
+            err_msg = "dodgy zone_idx/domain_id"
         else:
             # don't log good packets here: we may want to silently discard some
             # _LOGGER.info("%s", self, extra=self.__dict__)

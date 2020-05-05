@@ -154,16 +154,21 @@ class Gateway:
 
         if self.config.get("known_devices"):
             _LOGGER.info(f"Updating known_devices database...")
-            {
-                self.known_devices[d.device_id].update(
-                    {"friendly_name": d._friendly_name, "blacklist": d._blacklist}
-                )
-                for d in self.devices
-            }
+            for d in self.devices:
+                if d.device_id in self.known_devices:
+                    self.known_devices[d.device_id].update(
+                        {"friendly_name": d._friendly_name, "blacklist": d._blacklist}
+                    )
+                else:
+                    self.known_devices[d.device_id] = {
+                        "friendly_name": d._friendly_name,
+                        "blacklist": d._blacklist,
+                    }
+
             with open(self.config["known_devices"], "w") as json_file:
                 json.dump(self.known_devices, json_file, sort_keys=True, indent=4)
 
-        # print("State data: %s", f"\r\n{json.dumps(self._devices, indent=4)}")
+        print("State data: %s", f"\r\n{json.dumps(self._devices, indent=4)}")
 
         tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
         logging.info(f"Cancelling {len(tasks)} outstanding tasks")
@@ -181,7 +186,10 @@ class Gateway:
                 if not attr.startswith("_") and not callable(getattr(device, attr))
             ]
 
-        return {d.device_id: {a: getattr(d, a) for a in attrs(d)} for d in self.devices}
+        # turn {d.device_id: {a: getattr(d, a) for a in attrs(d)} for d in self.devices}
+        x = {d.device_id: {a: getattr(d, a) for a in attrs(d)} for d in self.devices}
+
+        return {k: v.get("parent_zone") for k, v in x.items()}
 
     @property
     def status(self) -> Optional[dict]:
@@ -281,6 +289,7 @@ class Gateway:
             for ts_pkt_line in self.config["input_file"]:
                 await self._process_packet(ts_pkt_line)
                 await self._dispatch_packet(destination=None)  # to empty the buffer
+                # await asyncio.sleep(0.001)  # to allow for Ctrl-C
 
         async def proc_packets_from_port() -> None:
             async def port_reader(manager):
@@ -366,7 +375,7 @@ class Gateway:
             if not self.config.get("listen_only"):
                 break
 
-        await asyncio.sleep(0.001)
+        # await asyncio.sleep(0.001)  # TODO: why is this needed?
 
     async def _process_packet(self, ts_packet_line, raw_packet_line=None) -> None:
         """Receive a packet and optionally validate it as a message."""
@@ -419,8 +428,10 @@ class Gateway:
 
         try:
             msg = Message(pkt, self)
-        except AssertionError:
-            _LOGGER.exception("%s", pkt.packet)
+        except (AssertionError, NotImplementedError):
+            msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
+            return
+        except (LookupError, TypeError, ValueError):
             return
         if not msg.is_valid:  # trap/logs all exceptions appropriately
             return
@@ -432,7 +443,7 @@ class Gateway:
         try:
             msg.update_entities()
         except AssertionError:  # TODO: AssertionError should be enough!
-            _LOGGER.exception("%s", msg._packet)
+            msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
         # this bit only for testing???
-        # except (KeyError, LookupError, TypeError, ValueError):
-        #     _LOGGER.exception("%s", msg._packet)
+        # except (LookupError, TypeError, ValueError):
+        #     msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
