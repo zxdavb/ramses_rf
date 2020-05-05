@@ -148,11 +148,8 @@ class Message:
                 _LOGGER.exception("%s", self._packet, extra=self.__dict__)
             return False
 
-        try:  # TODO: put this in update_entities()? if so, how to validate device_ids
-            self._create_entities()  # but not if: self.device_from[:2] != "18"
-        except AssertionError:  # unknown device type, or zone_idx > 12
-            _LOGGER.exception("%s", self._packet, extra=self.__dict__)
-            return False
+        # for dev_id in self.device_id:  # TODO: leave in, or out?
+        #     assert dev_id[:2] in DEVICE_MAP  # incl. "--", "63"
 
         # any remaining messages are valid, so: log them
         _LOGGER.info("%s", self, extra=self.__dict__)
@@ -160,6 +157,7 @@ class Message:
 
     def _create_entities(self) -> None:
         """Discover and create new devices, domains and zones."""
+        # contains true, programmer's checking asserts, which are OK to -O
 
         def _ent(ent_cls, ent_id, ent_by_id, ents) -> None:
             try:  # does the system already know about this entity?
@@ -182,12 +180,8 @@ class Message:
         def get_zone(zone_idx) -> None:
             """Get a Zone, create it if required."""  # TODO: other zone types?
             assert int(zone_idx, 16) < 12  # TODO: > 11 not for Hometronic
-            zone_cls = Zone  # DhwZone if zone_idx == "HW" else Zone  # TODO
+            zone_cls = Zone  # TODO: DhwZone if zone_idx == "HW" else Zone?
             _ent(zone_cls, zone_idx, self._gateway.zone_by_id, self._gateway.zones)
-
-        # exclude these potentially dodgy packets
-        if self.device_from[:2] == "18":  # TODO: device_dest
-            return
 
         # discover devices
         for dev in range(3):
@@ -196,10 +190,10 @@ class Message:
 
         # discover zones and domains
         if isinstance(self._payload, dict):
-            if self._payload.get("domain_id") is not None:
+            if self._payload.get("domain_id"):  # is not None:
                 get_domain(self._payload["domain_id"])
 
-            if self._payload.get("zone_idx") is not None:
+            if self._payload.get("zone_idx"):  # is not None:  # TODO: parent_zone too?
                 get_zone(self._payload["zone_idx"])
 
         elif isinstance(self._payload, list):
@@ -212,7 +206,7 @@ class Message:
                     for i in range(0, len(self.raw_payload), 12):
                         get_zone(self.raw_payload[i : i + 2])
 
-    def update_entities(self) -> None:
+    def _update_entities(self) -> None:
         """Update the system state with the message data."""
 
         def _update_entity(data: dict) -> None:
@@ -222,9 +216,6 @@ class Message:
                 self._gateway.zone_by_id[self.payload["zone_idx"]].update(self)
             else:
                 self._gateway.device_by_id[self.device_from].update(self)
-
-        if not self.is_valid or self.device_from[:2] == "18":  # TODO: _id[2] too?
-            return
 
         if isinstance(self.payload, dict) and "parent_zone_idx" in self.payload:
             if self._gateway.known_devices.get(self.device_from):
