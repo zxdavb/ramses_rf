@@ -6,8 +6,9 @@ import logging
 import os
 import re
 
-import psutil  # TODO: mem leak
-import objgraph  # TODO: mem leak
+# these are used to test for memory leak
+import psutil
+import objgraph
 import gc
 from guppy import hpy
 
@@ -295,14 +296,14 @@ class Gateway:
                     try:
                         assert re.match(ISO_FORMAT_REGEX, ts_pkt_line[:27])
                         dt.fromisoformat(ts_pkt_line[:26])
-                    except (AssertionError, ValueError):
+                    except (AssertionError, ValueError):  # TODO: log these, or not?
                         # _LOGGER.warn("Non-ISO format timestamp: %s", ts_pkt_line[:26])
                         continue
 
                     await self._process_packet(ts_pkt_line)
 
                 await self._dispatch_packet(destination=None)  # to empty the buffer
-                # await asyncio.sleep(0.001)  # to allow for Ctrl-C?
+                # await asyncio.sleep(0.001)  # TODO: to allow for Ctrl-C?
 
         async def proc_packets_from_port() -> None:
             async def port_reader(manager):
@@ -310,9 +311,9 @@ class Gateway:
                 self._hp.setrelheap()
                 # lf._h = self._hp.heap()
 
-                raw_pkt = b""  # TODO: hack for testing
+                raw_pkt = b""  # TODO: hack for testing for ? mem leak
                 while True:  # main loop
-                    gc.collect()  # TODO: mem leak
+                    gc.collect()  # TODO: mem leak test only
                     ts_pkt_line, raw_pkt = await manager.get_next_packet(None)
                     await self._process_packet(ts_pkt_line, raw_pkt)
                     # await asyncio.sleep(0.01)
@@ -395,7 +396,7 @@ class Gateway:
 
         def has_wanted_device(pkt, dev_whitelist=None, dev_blacklist=None) -> bool:
             """Return True only if a packet contains 'wanted' devices."""
-            if " 18:" in pkt.packet:  # TODO: should we respect backlisting of a HGI80?
+            if " 18:" in pkt.packet:  # TODO: should we respect blacklisting of a HGI80?
                 return True
             if dev_whitelist:
                 return any(device in pkt.packet for device in dev_whitelist)
@@ -446,9 +447,8 @@ class Gateway:
 
         try:
             msg.update_entities()
-        except AssertionError:  # TODO: AssertionError should be enough!
+        except AssertionError:  # TODO: fro dev only?
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
             pass
-        # this bit only for testing???
-        # except (LookupError, TypeError, ValueError):
-        #     msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
+        except (LookupError, TypeError, ValueError):  # shouldn't be needed
+            msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)

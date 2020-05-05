@@ -139,6 +139,7 @@ class Message:
 
         try:
             self._payload = payload_parser(self.raw_payload, self)  # TODO: messy
+            assert self._payload is not None  # should be a dict or a list
         except AssertionError:  # for development only?
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
             if self.device_from[:2] == "18":
@@ -147,7 +148,7 @@ class Message:
                 _LOGGER.exception("%s", self._packet, extra=self.__dict__)
             return False
 
-        try:
+        try:  # TODO: put this in update_entities()? if so, how to validate device_ids
             self._create_entities()  # but not if: self.device_from[:2] != "18"
         except AssertionError:  # unknown device type, or zone_idx > 12
             _LOGGER.exception("%s", self._packet, extra=self.__dict__)
@@ -184,7 +185,7 @@ class Message:
             zone_cls = Zone  # DhwZone if zone_idx == "HW" else Zone  # TODO
             _ent(zone_cls, zone_idx, self._gateway.zone_by_id, self._gateway.zones)
 
-        # exclude thes potentially dodgy packets
+        # exclude these potentially dodgy packets
         if self.device_from[:2] == "18":  # TODO: device_dest
             return
 
@@ -250,7 +251,8 @@ class Message:
         self._gateway.device_by_id[self.device_from].update(self)
 
         # what was the message about: system, domain, or zone?
-        if self.payload is None:
+        assert self.payload is not None  # TODO: this should have been done before?
+        if not self.payload:  # maybe {}, but not []
             return
 
         if isinstance(self.payload, list):  # 0009 is domains, others are zones
