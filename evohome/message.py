@@ -40,7 +40,7 @@ class Message:
             if self.device_id[1] != NON_DEV_ID:
                 self.device_dest = self.device_id[1]
             elif self.device_id[2] == self.device_id[0]:
-                self.device_dest = ">multcast<"
+                self.device_dest = self.device_id[2]
             elif self.device_id[2] != NON_DEV_ID:
                 self.device_dest = self.device_id[2]
             else:
@@ -172,7 +172,7 @@ class Message:
             dev_cls = DEVICE_CLASSES.get(dev_id[:2], Device)
             _ent(dev_cls, dev_id, self._gateway.device_by_id, self._gateway.devices)
 
-        def get_domain(domain_id) -> None:  # TODO
+        def get_domain(domain_id) -> None:
             """Get a Domain, create it if required."""
             assert domain_id in DOMAIN_MAP
             _ent(Domain, domain_id, self._gateway.domain_by_id, self._gateway.domains)
@@ -183,20 +183,18 @@ class Message:
             zone_cls = Zone  # TODO: DhwZone if zone_idx == "HW" else Zone?
             _ent(zone_cls, zone_idx, self._gateway.zone_by_id, self._gateway.zones)
 
-        # discover devices
-        for dev in range(3):
+        for dev in range(3):  # discover devices
             if self.device_id[dev][:2] not in ["18", "63", "--"]:
                 get_device(self.device_id[dev])
 
-        # discover zones and domains
-        if isinstance(self._payload, dict):
+        if isinstance(self._payload, dict):  # discover zones and domains
             if self._payload.get("domain_id"):  # is not None:
                 get_domain(self._payload["domain_id"])
 
             if self._payload.get("zone_idx"):  # is not None:  # TODO: parent_zone too?
                 get_zone(self._payload["zone_idx"])
 
-        elif isinstance(self._payload, list):
+        elif isinstance(self._payload, list):  # discover zones
             if self.device_from[:2] == "01" and self.verb == " I":
                 if self.code in ["2309", "30C9"]:  # almost all sync cycles
                     for i in range(0, len(self.raw_payload), 6):
@@ -206,7 +204,7 @@ class Message:
                     for i in range(0, len(self.raw_payload), 12):
                         get_zone(self.raw_payload[i : i + 2])
 
-    def _update_entities(self) -> None:
+    def _update_entities(self) -> None:  # TODO: needs work
         """Update the system state with the message data."""
 
         def _update_entity(data: dict) -> None:
@@ -246,10 +244,18 @@ class Message:
         if not self.payload:  # maybe {}, but not []
             return
 
-        if isinstance(self.payload, list):  # 0009 is domains, others are zones
-            # assert self.code in ["0009", "000A", "2309", "30C9"]
-            [_update_entity(zone) for zone in self.payload]
-            return
+        if isinstance(self.payload, list):
+            if self.code in ["000A", "2309", "30C9"]:  # array of zones
+                [_update_entity(zone) for zone in self.payload]
+                return
+            if self.code in ["0009"]:  # array of domains
+                [_update_entity(domain) for domain in self.payload]
+                return
+            if self.code in ["22C9", "3150"]:  # array of UFH zones
+                return
+            if self.code in ["1FC9"]:  # TODO: array of domains/zones/???
+                return
+            assert False
 
         if "zone_idx" in self.payload:
             if self.code == "0418":

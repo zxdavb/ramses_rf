@@ -825,27 +825,40 @@ def parser_3150(payload, msg) -> Optional[dict]:  # heat_demand (of device, FC d
     # event-driven, and periodically; FC domain is highest of all TRVs
     # TODO: all have a valid domain will UFH/CTL respond to an RQ, for FC, for a zone?
 
-    def _parser(seqx) -> dict:
+    def _parser(name, seqx) -> dict:
         assert len(seqx) == 4
-        assert payload[:2] == "FC" or (int(payload[:2], 16) < 12)  # 4 for UFH
+        assert seqx[:2] == "FC" or (int(seqx[:2], 16) < 12)  # 5 or 8 for UFH
 
-        return {
-            "parent_zone_idx" if int(seqx[:2], 16) < 12 else "domain_id": _id(seqx[:2]),
-            "heat_demand": _cent(seqx[2:]) / 2,
-        }
+        return {name: _id(seqx[:2]), "heat_demand": _cent(seqx[2:]) / 2}
 
-    if len(payload) / 2 == 10:  # UFH array
-        return [_parser(payload[i : i + 4]) for i in range(0, len(payload), 4)]
-
-    if msg.device_from[:2] == "02" and payload[:2] != "FC":  # UFH
-        assert len(payload) % 4 == 0  # I are arrays, sent periodically? are RPs arrays?
-    else:
+    if msg.device_from[:2] == "01":  # CTL -> zone_idx/domain_id
+        assert msg.device_from == msg.device_dest  # TODO: is needed?
         assert len(payload) / 2 == 2
+        name = "zone_idx" if int(payload[:2], 16) < 12 else "domain_id"
+        return _parser(name, payload)
 
-    if msg.device_from[:2] in ["01", "02", "10"]:  # CTL, UFH, OTB
-        assert payload[:2] == "FC" or (int(payload[:2], 16) < 12)
+    elif msg.device_from[:2] == "02" and len(payload) / 2 in [10, 16]:  # UFH -> ufh_idx
+        return [
+            _parser("ufh_idx", payload[i : i + 4]) for i in range(0, len(payload), 4)
+        ]
+
+    elif msg.device_from[:2] == "02":  # UFH -> domain_id (zone_idx too?)
+        # TODO: UFH/FC not same as CTL/FC???
+        assert len(payload) / 2 == 2
+        name = "xxx" if int(payload[:2], 16) < 12 else "domain_id"
+        return _parser(name, payload)
+
+    elif msg.device_from[:2] == "10":  # OTB
+        assert len(payload) / 2 == 2
+        name = "xxx" if int(payload[:2], 16) < 12 else "domain_id"
+        return _parser(name, payload)
+
+    elif msg.device_from[:2] == "04":  # TRV:
+        assert len(payload) / 2 == 2
+        return _parser("parent_zone_idx", payload)
+
     else:
-        assert int(payload[:2], 16) < 12
+        assert False
 
     return _parser(payload)
 
