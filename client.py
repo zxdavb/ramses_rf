@@ -167,6 +167,7 @@ def parse(obj, **kwargs):
 @click.argument("serial-port")
 @click.option("-p", "--probe-system", help="TBD", is_flag=True)
 @click.option("-e", "--execute-cmd", help="TBD", is_flag=True)
+@click.option("-C", "--ser2net", help="addr:port, e.g. '127.0.0.1:5001'")
 @click.option(
     "-o", "--packet_log", help="TBD", type=click.Path(), default="packets.log"
 )

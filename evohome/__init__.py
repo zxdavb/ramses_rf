@@ -23,6 +23,7 @@ from .entity import System
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
 from .packet import _LOGGER as pkt_logger, Packet, PortPktProvider
+from .ser2net import Ser2NetProtocol
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -89,6 +90,7 @@ class Gateway:
 
         self.command_queue = Queue(maxsize=200)
         self.message_queue = Queue(maxsize=400)
+        self._server = None
 
         self.zones = []  # not used
         self.zone_by_id = {}
@@ -318,6 +320,8 @@ class Gateway:
                     await self._process_packet(ts_pkt_line, raw_pkt)
                     # await asyncio.sleep(0.01)
 
+                    self.xxx.transport.write(raw_pkt)
+
             async def port_writer(manager):
                 while True:  # main loop
                     if manager.reader._transport.serial.in_waiting == 0:
@@ -325,6 +329,14 @@ class Gateway:
                         await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
                     else:
                         await asyncio.sleep(0.01)
+
+            if self.config.get("ser2net"):
+                addr, port = self.config["ser2net"].split(":")
+                self.xxx = Ser2NetProtocol(self.command_queue)
+                self._server = await self.loop.create_server(
+                    lambda: self.xxx, addr, int(port)
+                )
+                _LOGGER.warning("ser2net listening on %s:%s", addr, port)
 
             async with PortPktProvider(self.serial_port, loop=self.loop) as manager:
                 if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 FF"
@@ -338,7 +350,11 @@ class Gateway:
                     self.command_queue.put_nowait(Command(self, **kwargs))
                     await self._dispatch_packet(destination=manager.writer)
 
-                await asyncio.gather(port_reader(manager), port_writer(manager))
+                await asyncio.gather(
+                    port_reader(manager),
+                    port_writer(manager),
+                    self._server.serve_forever(),
+                )  # TODO: use something other than a gather?
 
         if self.config.get("database"):
             import aiosqlite as sqlite3
