@@ -33,21 +33,22 @@ class Entity:
 
     def __init__(self, entity_id, gateway) -> None:
         self._id = entity_id
-        self._gateway = gateway
-        self._cmd_queue = gateway.cmd_queue
+        self._gwy = gateway
+        self._evo = gateway.evo
+        self._cmd_que = gateway.cmd_queue
 
         self._pkts = {}
 
     def _command(self, code, **kwargs):
         kwargs["code"] = code
         kwargs["dest_addr"] = kwargs.get("dest_id")
-        self._cmd_queue.put_nowait(Command(self._gateway, **kwargs))
+        self._cmd_que.put_nowait(Command(self._gwy, **kwargs))
 
     def _discover(self):
         raise NotImplementedError
 
     # def _get_ctl_value(self, code, key) -> Optional[Any]:
-    #     controller = self._gateway.device_by_id["01:145038"]
+    #     controller = self._evo.device_by_id["01:145038"]
     #     if controller._pkts.get(code):
     #         return controller._pkts[code].payload[key]
     #     else:
@@ -140,10 +141,10 @@ class System(Entity):
 
     @property
     def dhw_config(self) -> dict:
-        sensors = [d.device_id for d in self._gateway.devices if d.device_type == "DHW"]
+        sensors = [d.device_id for d in self._evo.devices if d.device_type == "DHW"]
         assert len(sensors) < 2
 
-        relays = [d.device_id for d in self._gateway.devices if d.device_type == "TPI"]
+        relays = [d.device_id for d in self._evo.devices if d.device_type == "TPI"]
         assert len(relays) < 2
 
         return {
@@ -211,7 +212,7 @@ class Device(Entity):
     def x_update(self, msg):
         # if isinstance(msg.payload, dict):
         #     if "zone_idx" in msg.payload:
-        #         self._gateway.data[msg.payload["zone_idx"]].update(msg.payload)
+        #         self._evo.data[msg.payload["zone_idx"]].update(msg.payload)
 
         # if msg.verb == " I":  # TODO: don't replace a I with an RQ!
         self._pkts.update({msg.code: msg})
@@ -261,22 +262,22 @@ class Controller(Device):
 
         if type(msg.payload) == list:  # isinstance(msg.payload, list):
             if msg.code in ["000A", "2309", "30C9"]:
-                [self._gateway.data[z["zone_idx"]].update(z) for z in msg.payload]
+                [self._evo.data[z["zone_idx"]].update(z) for z in msg.payload]
 
         elif type(msg.payload) == dict:  # isinstance(msg.payload, dict):
             if "zone_idx" in msg.payload:
-                self._gateway.data[msg.payload["zone_idx"]].update(msg.payload)
+                self._evo.data[msg.payload["zone_idx"]].update(msg.payload)
 
             # if "domain_id" in msg.payload:
-            #     self._gateway.data[msg.payload["domain_id"]].update(msg.payload)
+            #     self._evo.data[msg.payload["domain_id"]].update(msg.payload)
 
         else:
             pass
 
         # # TODO: take this out?
         # if msg.code in ["000A", "30C9"] and msg.verb == " I":  # payload is an array
-        #     if not self._gateway.config["input_file"]:
-        #         self._gateway.loop.call_later(5, print, self._gateway.database)
+        #     if not self._gwy.config["input_file"]:
+        #         self._gwy.loop.call_later(5, print, self._evo.database)
 
     def handle_313f(self):
         """Controllers will RP to a RQ at anytime."""  # noqa: D401
@@ -284,13 +285,13 @@ class Controller(Device):
 
     @property
     def tpi_relay(self) -> Optional[str]:
-        relays = [d.device_id for d in self._gateway.devices if d.device_type == "TPI"]
+        relays = [d.device_id for d in self._evo.devices if d.device_type == "TPI"]
         assert len(relays) < 2
         return relays[0] if relays else None
 
     @property
     def dhw_sensor(self) -> Optional[str]:
-        sensors = [d.device_id for d in self._gateway.devices if d.device_type == "DHW"]
+        sensors = [d.device_id for d in self._evo.devices if d.device_type == "DHW"]
         assert len(sensors) < 2
         return sensors[0] if sensors else None
 
@@ -362,10 +363,10 @@ class TrvActuator(Device):
         #     return  # these do not contain a zone_idx
 
         # if msg.code in ["12B0", "2309"]:
-        #     [self._gateway.data[z["zone_idx"]].update(z) for z in msg.payload]
+        #     [self._evo.data[z["zone_idx"]].update(z) for z in msg.payload]
 
         # if msg.code in ["3150"]:
-        #     [self._gateway.data[z["zone_idx"]].update(z) for z in msg.payload]
+        #     [self._evo.data[z["zone_idx"]].update(z) for z in msg.payload]
 
         if msg.verb == " I":
             self._pkts.update({msg.code: msg})
@@ -450,7 +451,7 @@ class Zone(Entity):
 
     @property
     def devices(self):  # TODO: use 000C
-        return [d for d in self._gateway.devices if d.parent_zone == self._id]
+        return [d for d in self._evo.devices if d.parent_zone == self._id]
 
     @property
     def heat_demand(self) -> Optional[float]:
@@ -463,7 +464,7 @@ class Zone(Entity):
 
     @property
     def name(self) -> Optional[str]:
-        return self._gateway.data[self._id].get("name")
+        return self._evo.data[self._id].get("name")
         # return self._get_ctl_value(f"0004-{self._id}", "name")
 
     @property
@@ -479,7 +480,7 @@ class Zone(Entity):
     @property
     def temperature(self):
         # turn self._get_pkt_value("30C9", "temperature")
-        return self._gateway.data[self._id].get("temperature")
+        return self._evo.data[self._id].get("temperature")
 
     @property
     def zone_idx(self):
@@ -506,7 +507,7 @@ class Zone(Entity):
         if self._zone_type:  # isinstance(self, ???)
             return
 
-        child_devices = [x for x in self._gateway.devices if x.parent_zone == self._id]
+        child_devices = [x for x in self._evo.devices if x.parent_zone == self._id]
 
         # cast a new type (must be a superclass of the current type)
         if "TRV" in [x.device_type for x in child_devices]:
@@ -570,7 +571,7 @@ class RadValveZone(Zone):
 
     @property
     def window_open(self):
-        return self._gateway.data[f"{self._id:02X}"]["window_open"]
+        return self._evo.data[f"{self._id:02X}"]["window_open"]
 
     def _TBD_discover(self):
         super()._discover()

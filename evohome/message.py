@@ -14,7 +14,7 @@ from .const import (
 )
 from .entity import DEVICE_CLASSES, Device, Domain, Zone
 
-_LOGGER = logging.getLogger(__name__)  # evohome.message
+_LOGGER = logging.getLogger(__name__)
 
 
 class Message:
@@ -22,8 +22,10 @@ class Message:
 
     def __init__(self, pkt, gateway) -> None:
         """Create a message, assumes a valid packet."""
-        self._gateway = gateway
+        self._gwy = gateway
+        self._evo = gateway.evo
         self._packet = packet = pkt.packet
+
         self.date = pkt.date
         self.time = pkt.time
 
@@ -79,7 +81,7 @@ class Message:
             if device_name.startswith("63"):
                 return ">null dev<"  # Null device ID
 
-            dev = self._gateway.device_by_id.get(device_name)
+            dev = self._evo.device_by_id.get(device_name)
             if dev and dev._friendly_name:
                 return f"{dev._friendly_name}"
 
@@ -98,12 +100,12 @@ class Message:
             raw_payload2 = self.raw_payload
         # raw_payload2 = self.raw_payload if len(self.raw_payload) > 8 else ""
 
-        if self._gateway.config["known_devices"]:
+        if self._gwy.config["known_devices"]:
             msg_format = MSG_FORMAT_18
         else:
             msg_format = MSG_FORMAT_10
 
-        xxx = self._payload if self._payload else raw_payload2
+        xxx = self._payload if self._payload else raw_payload2  # TODO: a hack
         xxx = {} if self._payload == {} else xxx
 
         self._repr = msg_format.format(
@@ -163,25 +165,25 @@ class Message:
             try:  # does the system already know about this entity?
                 _ = ent_by_id[ent_id]
             except KeyError:  # this is a new entity, so create it
-                ent_by_id.update({ent_id: ent_cls(ent_id, self._gateway)})
+                ent_by_id.update({ent_id: ent_cls(ent_id, self._gwy)})
                 ents.append(ent_by_id[ent_id])
 
         def get_device(dev_id) -> None:
             """Get a Device, create it if required."""
             assert dev_id[:2] in DEVICE_MAP
             dev_cls = DEVICE_CLASSES.get(dev_id[:2], Device)
-            _ent(dev_cls, dev_id, self._gateway.device_by_id, self._gateway.devices)
+            _ent(dev_cls, dev_id, self._evo.device_by_id, self._evo.devices)
 
         def get_domain(domain_id) -> None:
             """Get a Domain, create it if required."""
             assert domain_id in DOMAIN_MAP
-            _ent(Domain, domain_id, self._gateway.domain_by_id, self._gateway.domains)
+            _ent(Domain, domain_id, self._evo.domain_by_id, self._evo.domains)
 
         def get_zone(zone_idx) -> None:
             """Get a Zone, create it if required."""  # TODO: other zone types?
             assert int(zone_idx, 16) < 12  # TODO: > 11 not for Hometronic
             zone_cls = Zone  # TODO: DhwZone if zone_idx == "HW" else Zone?
-            _ent(zone_cls, zone_idx, self._gateway.zone_by_id, self._gateway.zones)
+            _ent(zone_cls, zone_idx, self._evo.zone_by_id, self._evo.zones)
 
         for dev in range(3):  # discover devices
             if self.device_id[dev][:2] not in ["18", "63", "--"]:
@@ -209,23 +211,21 @@ class Message:
 
         def _update_entity(data: dict) -> None:
             if "domain_id" in self.payload:
-                self._gateway.domain_by_id[self.payload["domain_id"]].update(self)
+                self._evo.domain_by_id[self.payload["domain_id"]].update(self)
             elif "zone_idx" in self.payload:
-                self._gateway.zone_by_id[self.payload["zone_idx"]].update(self)
+                self._evo.zone_by_id[self.payload["zone_idx"]].update(self)
             else:
-                self._gateway.device_by_id[self.device_from].update(self)
+                self._evo.device_by_id[self.device_from].update(self)
 
         if isinstance(self.payload, dict) and "parent_zone_idx" in self.payload:
-            if self._gateway.known_devices.get(self.device_from):
-                if "zone_idx" in self._gateway.known_devices[self.device_from]:
-                    zone_idx = self._gateway.known_devices[self.device_from].get(
-                        "zone_idx"
-                    )
+            if self._gwy.known_devices.get(self.device_from):
+                if "zone_idx" in self._gwy.known_devices[self.device_from]:
+                    zone_idx = self._gwy.known_devices[self.device_from].get("zone_idx")
                     # check the zone against the data in known_devices.json
                     # assert zone_idx == self.payload["parent_zone_idx"]
 
         if isinstance(self.payload, dict):
-            if self._gateway.known_devices.get(self.device_from):
+            if self._gwy.known_devices.get(self.device_from):
                 for idx in ["aaa", "bbb", "ccc"]:
                     if "parent_zone_idx" in self.payload:
                         a = "parent_zone_aaa" in self.payload
@@ -233,15 +233,13 @@ class Message:
                         c = "parent_zone_ccc" in self.payload
                         assert any([a, b, c]), "parent_zone_idx, but no _xxx"
 
-                    zone_idx = self._gateway.known_devices[self.device_from].get(
-                        "zone_idx"
-                    )
+                    zone_idx = self._gwy.known_devices[self.device_from].get("zone_idx")
                     if zone_idx and f"parent_zone_{idx}" in self.payload:
                         key = "parent_zone" if int(zone_idx, 16) < 12 else "domain"
                         assert zone_idx == self.payload[f"{key}_{idx}"]
 
         # who was the message from? There's one special (non-evohome) case...
-        self._gateway.device_by_id[self.device_from].update(self)
+        self._evo.device_by_id[self.device_from].update(self)
 
         # what was the message about: system, domain, or zone?
         assert self.payload is not None  # TODO: this should have been done before?
