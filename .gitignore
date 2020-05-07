@@ -3,7 +3,7 @@
 !.gitignore
 !requirements*.*
 
-.secrets/*
+.*/*
 .vscode/*
 *.bkp
 *.db

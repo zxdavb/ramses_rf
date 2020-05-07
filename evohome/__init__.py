@@ -23,7 +23,7 @@ from .entity import System
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
 from .packet import _LOGGER as pkt_logger, Packet, PortPktProvider
-from .ser2net import Ser2NetProtocol
+from .ser2net import Ser2NetServer
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class Gateway:
     def __init__(self, serial_port=None, loop=None, **config) -> None:
         """Initialise the class."""  # TODO: config.get() vs config[]
         self.serial_port = serial_port
-        self.loop = loop if loop else asyncio.get_event_loop()
+        self.loop = loop if loop else asyncio.get_running_loop()  # get_event_loop()
         self.config = config
 
         self.ctl_dev_id = None
@@ -90,7 +90,6 @@ class Gateway:
 
         self.command_queue = Queue(maxsize=200)
         self.message_queue = Queue(maxsize=400)
-        self._server = None
 
         self.zones = []  # not used
         self.zone_by_id = {}
@@ -101,6 +100,9 @@ class Gateway:
         self.devices = []
         self.device_by_id = {}
         self.known_devices = {}
+
+        # if self.config.get("ser2net"):
+        self._relay = None
 
         # if self.config.get("known_devices"):
         self.device_blacklist = []
@@ -320,23 +322,21 @@ class Gateway:
                     await self._process_packet(ts_pkt_line, raw_pkt)
                     # await asyncio.sleep(0.01)
 
-                    self.xxx.transport.write(raw_pkt)
+                    if self._relay:
+                        await self._relay.write(raw_pkt)
 
             async def port_writer(manager):
                 while True:  # main loop
                     if manager.reader._transport.serial.in_waiting == 0:
                         await self._dispatch_packet(destination=manager.writer)
-                        await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
                     else:
                         await asyncio.sleep(0.01)
 
             if self.config.get("ser2net"):
-                addr, port = self.config["ser2net"].split(":")
-                self.xxx = Ser2NetProtocol(self.command_queue)
-                self._server = await self.loop.create_server(
-                    lambda: self.xxx, addr, int(port)
+                self._relay = Ser2NetServer(
+                    self.config["ser2net"], self.command_queue, loop=self.loop
                 )
-                _LOGGER.warning("ser2net listening on %s:%s", addr, port)
+                await asyncio.create_task(self._relay.start())
 
             async with PortPktProvider(self.serial_port, loop=self.loop) as manager:
                 if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 FF"
@@ -351,9 +351,7 @@ class Gateway:
                     await self._dispatch_packet(destination=manager.writer)
 
                 await asyncio.gather(
-                    port_reader(manager),
-                    port_writer(manager),
-                    self._server.serve_forever(),
+                    port_reader(manager), port_writer(manager),
                 )  # TODO: use something other than a gather?
 
         if self.config.get("database"):
@@ -400,6 +398,7 @@ class Gateway:
                 # TODO: if not cmd.entity._pkts.get(cmd.code):
                 destination.write(bytearray(f"{cmd}\r\n".encode("ascii")))
                 _LOGGER.warning("# A packet was sent to %s: %s", self.serial_port, cmd)
+                await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
 
             self.command_queue.task_done()
             if not self.config.get("listen_only"):
