@@ -34,14 +34,14 @@ class Entity:
     def __init__(self, entity_id, gateway) -> None:
         self._id = entity_id
         self._gateway = gateway
-        self._queue = gateway.command_queue
+        self._cmd_queue = gateway.cmd_queue
 
         self._pkts = {}
 
     def _command(self, code, **kwargs):
         kwargs["code"] = code
         kwargs["dest_addr"] = kwargs.get("dest_id")
-        self._queue.put_nowait(Command(self._gateway, **kwargs))
+        self._cmd_queue.put_nowait(Command(self._gateway, **kwargs))
 
     def _discover(self):
         raise NotImplementedError

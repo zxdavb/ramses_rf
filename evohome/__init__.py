@@ -88,8 +88,8 @@ class Gateway:
             cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
         )
 
-        self.command_queue = Queue(maxsize=200)
-        self.message_queue = Queue(maxsize=400)
+        self.cmd_queue = Queue(maxsize=200)
+        self.msg_queue = Queue(maxsize=400)
 
         self.zones = []  # not used
         self.zone_by_id = {}
@@ -313,30 +313,28 @@ class Gateway:
             async def port_reader(manager):
                 self._hp = hpy()
                 self._hp.setrelheap()
-                # lf._h = self._hp.heap()
 
                 raw_pkt = b""  # TODO: hack for testing for ? mem leak
-                while True:  # main loop
+                while True:
                     gc.collect()  # TODO: mem leak test only
                     ts_pkt_line, raw_pkt = await manager.get_next_packet(None)
                     await self._process_packet(ts_pkt_line, raw_pkt)
-                    # await asyncio.sleep(0.01)
 
                     if self._relay:
                         await self._relay.write(raw_pkt)
+                    await asyncio.sleep(0.01)
 
             async def port_writer(manager):
-                while True:  # main loop
+                while True:
                     if manager.reader._transport.serial.in_waiting == 0:
                         await self._dispatch_packet(destination=manager.writer)
-                    else:
-                        await asyncio.sleep(0.01)
+                    await asyncio.sleep(0.01)
 
             if self.config.get("ser2net"):
                 self._relay = Ser2NetServer(
-                    self.config["ser2net"], self.command_queue, loop=self.loop
+                    self.config["ser2net"], self.cmd_queue, loop=self.loop
                 )
-                asyncio.create_task(self._relay.start())
+                await self._relay.start()
 
             async with PortPktProvider(self.serial_port, loop=self.loop) as manager:
                 if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 FF"
@@ -347,7 +345,7 @@ class Gateway:
                         "code": cmd[13:17],
                         "payload": cmd[18:],
                     }
-                    self.command_queue.put_nowait(Command(self, **kwargs))
+                    self.cmd_queue.put_nowait(Command(self, **kwargs))
                     await self._dispatch_packet(destination=manager.writer)
 
                 await asyncio.gather(
@@ -392,15 +390,15 @@ class Gateway:
     async def _dispatch_packet(self, destination=None) -> None:
         """Send a command unless in listen_only mode."""
         # TODO: listen_only will clear the whole queue, not only the its next element
-        while not self.command_queue.empty():
-            cmd = self.command_queue.get()
+        while not self.cmd_queue.empty():
+            cmd = self.cmd_queue.get()
             if not (destination is None or self.config.get("listen_only")):
                 # TODO: if not cmd.entity._pkts.get(cmd.code):
                 destination.write(bytearray(f"{cmd}\r\n".encode("ascii")))
                 _LOGGER.warning("# A packet was sent to %s: %s", self.serial_port, cmd)
                 await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
 
-            self.command_queue.task_done()
+            self.cmd_queue.task_done()
             if not self.config.get("listen_only"):
                 break
 

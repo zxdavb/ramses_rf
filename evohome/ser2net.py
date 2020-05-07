@@ -1,74 +1,80 @@
-"""Simple proxy for connecting over TCP or telnet to serial port."""
+"""A raw ser2net (local) serial_port to (remote) network relay."""
 import asyncio
 import logging
 from string import printable
+from typing import Optional
 
-# from .const import COMMAND_REGEX
-
-_LOGGER = logging.getLogger(__name__)  # evohome.ser2net
+_LOGGER = logging.getLogger(__name__)
+_LOGGER.setLevel(logging.WARNING)
 
 
 class Ser2NetProtocol(asyncio.Protocol):
-    def __init__(self, command_queue) -> None:
-        _LOGGER.warning("Ser2NetProtocol.__init__(%s)", command_queue)
+    """A TCP socket interface."""
 
-        self._command_queue = command_queue
+    def __init__(self, cmd_que) -> None:
+        _LOGGER.debug("Ser2NetProtocol.__init__(%s)", cmd_que)
+
+        self._cmd_que = cmd_que
         self.transport = None
 
-    def connection_made(self, transport):
-        _LOGGER.warning("Ser2NetProtocol.connection_made(%s)", transport)
+    def connection_made(self, transport) -> None:
+        _LOGGER.debug("Ser2NetProtocol.connection_made(%s)", transport)
 
         self.transport = transport
-        _LOGGER.warning(" - connection from: %s", transport.get_extra_info("peername"))
+        _LOGGER.debug(" - connection from: %s", transport.get_extra_info("peername"))
 
-    def data_received(self, data):
-        _LOGGER.warning("Ser2NetProtocol.data_received(%s)", data)
-        _LOGGER.warning(" - packet received from network: %s", data)
+    def data_received(self, data) -> None:
+        _LOGGER.debug("Ser2NetProtocol.data_received(%s)", data)
+        _LOGGER.debug(" - packet received from network: %s", data)
 
-        packet = "".join(c for c in data.decode().strip() if c in printable)
+        if data[0] == 0xFF:  # telnet IAC
+            _LOGGER.debug(" - received a telnet IAC (ignoring): %s", data)
+            return
 
-        # if not COMMAND_REGEX.match(packet):
-        #     _LOGGER.warning(" - command invalid: %s", packet)
-        #     return
+        try:
+            packet = "".join(c for c in data.decode().strip() if c in printable)
+        except UnicodeDecodeError:
+            return
 
-        self._command_queue.put_nowait(packet)
-        _LOGGER.warning(" - command sent to dispatch queue: %s", packet)
+        self._cmd_que.put_nowait(packet)
+        _LOGGER.debug(" - command sent to dispatch queue: %s", packet)
 
-    def eof_received(self):
-        _LOGGER.warning("Ser2NetProtocol.eof_received()")
+    def eof_received(self) -> Optional[bool]:
+        _LOGGER.debug("Ser2NetProtocol.eof_received()")
 
         # self.transport.close()
-        _LOGGER.warning(" - socket closed.")
+        _LOGGER.debug(" - socket closed.")
 
-    def connection_lost(self, exc):
-        _LOGGER.warning("Ser2NetProtocol.connection_lost(%s)", exc)
+    def connection_lost(self, exc) -> None:
+        _LOGGER.debug("Ser2NetProtocol.connection_lost(%s)", exc)
 
 
 class Ser2NetServer:
-    """Create a raw ser2net relay."""
+    """A raw ser2net (local) serial_port to (remote) network relay."""
 
-    def __init__(self, addr_port, cmd_que, loop) -> None:
-        _LOGGER.warning("Ser2NetServer.__init__(%s, %s)", addr_port, cmd_que)
+    def __init__(self, addr_port, cmd_que, loop=None) -> None:
+        _LOGGER.debug("Ser2NetServer.__init__(%s, %s)", addr_port, cmd_que)
 
-        self._loop = loop if loop else asyncio.get_running_loop()
         self._addr, self._port = addr_port.split(":")
-        self.protocol = Ser2NetProtocol(cmd_que)
-        self.server = None
+        self._cmd_que = cmd_que
+        self._loop = loop if loop else asyncio.get_running_loop()
+        self.protocol = self.server = None
 
     async def start(self) -> None:
-        _LOGGER.warning("Ser2NetServer.start()")
+        _LOGGER.debug("Ser2NetServer.start()")
 
+        self.protocol = Ser2NetProtocol(self._cmd_que)
         self.server = await self._loop.create_server(
             lambda: self.protocol, self._addr, int(self._port)
         )
-        await self.server.serve_forever(),
-        _LOGGER.warning(" - listening on %s:%s", self._addr, int(self._port))
+        asyncio.create_task(self.server.serve_forever())
+        _LOGGER.debug(" - listening on %s:%s", self._addr, int(self._port))
 
     async def write(self, data) -> None:
-        _LOGGER.warning("Ser2NetServer.write(%s)", data)
+        _LOGGER.debug("Ser2NetServer.write(%s)", data)
 
         if self.protocol.transport:
             self.protocol.transport.write(data)
-            _LOGGER.warning(" - data sent to socket: %s", data)
+            _LOGGER.debug(" - data sent to network: %s", data)
         else:
-            _LOGGER.warning(" - no active session, unable to send")
+            _LOGGER.debug(" - no active network socket, unable to relay")
