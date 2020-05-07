@@ -336,7 +336,7 @@ class Gateway:
                 self._relay = Ser2NetServer(
                     self.config["ser2net"], self.command_queue, loop=self.loop
                 )
-                await asyncio.create_task(self._relay.start())
+                asyncio.create_task(self._relay.start())
 
             async with PortPktProvider(self.serial_port, loop=self.loop) as manager:
                 if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 FF"
