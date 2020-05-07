@@ -4,6 +4,10 @@ import logging
 from string import printable
 from typing import Optional
 
+# timeouts in seconds, 0 means no timeout
+RECV_TIMEOUT = 0  # without hearing from client (from network) - not useful
+SEND_TIMEOUT = 0  # without hearing from server (from serial port)
+
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(logging.WARNING)
 
@@ -17,6 +21,20 @@ class Ser2NetProtocol(asyncio.Protocol):
         self._cmd_que = cmd_que
         self.transport = None
 
+        if RECV_TIMEOUT:
+            self._loop = asyncio.get_running_loop()
+            self.timeout_handle = self._loop.call_later(
+                RECV_TIMEOUT, self._recv_timeout
+            )
+        else:
+            self._loop = self.timeout_handle = None
+
+    def _recv_timeout(self):
+        _LOGGER.debug("Ser2NetProtocol._recv_timeout()")
+        self.transport.close()
+
+        _LOGGER.debug(" - socket closed by server (%ss of inactivity).", RECV_TIMEOUT)
+
     def connection_made(self, transport) -> None:
         _LOGGER.debug("Ser2NetProtocol.connection_made(%s)", transport)
 
@@ -27,7 +45,14 @@ class Ser2NetProtocol(asyncio.Protocol):
         _LOGGER.debug("Ser2NetProtocol.data_received(%s)", data)
         _LOGGER.debug(" - packet received from network: %s", data)
 
+        if self.timeout_handle:
+            self.timeout_handle.cancel()
+            self.timeout_handle = self._loop.call_later(
+                RECV_TIMEOUT, self._recv_timeout
+            )
+
         if data[0] == 0xFF:  # telnet IAC
+            # see: https://users.cs.cf.ac.uk/Dave.Marshall/Internet/node141.html
             _LOGGER.debug(" - received a telnet IAC (ignoring): %s", data)
             return
 
@@ -41,9 +66,7 @@ class Ser2NetProtocol(asyncio.Protocol):
 
     def eof_received(self) -> Optional[bool]:
         _LOGGER.debug("Ser2NetProtocol.eof_received()")
-
-        # self.transport.close()
-        _LOGGER.debug(" - socket closed.")
+        _LOGGER.debug(" - socket closed by client.")
 
     def connection_lost(self, exc) -> None:
         _LOGGER.debug("Ser2NetProtocol.connection_lost(%s)", exc)
@@ -59,6 +82,12 @@ class Ser2NetServer:
         self._cmd_que = cmd_que
         self._loop = loop if loop else asyncio.get_running_loop()
         self.protocol = self.server = None
+
+    def _send_timeout(self):
+        _LOGGER.debug("Ser2NetServer._send_timeout()")
+        self.protocol.transport.close()
+
+        _LOGGER.debug(" - socket closed by server (%ss of inactivity).", SEND_TIMEOUT)
 
     async def start(self) -> None:
         _LOGGER.debug("Ser2NetServer.start()")

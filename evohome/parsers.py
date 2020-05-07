@@ -33,8 +33,10 @@ def parser_decorator(func):
             if isinstance(parsed_payload, dict):
                 _dict = {}
                 if msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9"]:
+                    key = "parent_zone" if int(payload[:2], 16) < 12 else "domain"
+
                     if msg.device_from[:2] != "01" and msg.device_dest[:2] == "01":
-                        _dict["parent_zone_aaa"] = payload[:2]
+                        _dict[f"{key}_aaa"] = payload[:2]
 
                     if msg.device_from[:2] != "01":
                         if msg.code in ["1060", "30C9"]:
@@ -42,16 +44,11 @@ def parser_decorator(func):
                         elif msg.device_from[:2] == "12":
                             pass
                         else:
-                            _dict["parent_zone_bbb"] = payload[:2]
+                            _dict[f"{key}_bbb"] = payload[:2]
 
                     if msg.device_dest[:2] == "01":
-                        _dict["parent_zone_ccc"] = payload[:2]
-
-                    # if msg.device_from[:2] == "01":  # to STA
-                    #     if msg.device_dest[:2] in [">m", "18"]:
-                    #         pass
-                    #     else:
-                    #         _dict["parent_zone_ddd"] = payload[:2]
+                        key = "parent_zone" if int(payload[:2], 16) < 12 else "domain"
+                        _dict[f"{key}_ccc"] = payload[:2]
 
                 return {**_dict, **parsed_payload}
             return parsed_payload

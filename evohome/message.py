@@ -226,15 +226,19 @@ class Message:
 
         if isinstance(self.payload, dict):
             if self._gateway.known_devices.get(self.device_from):
-                zone_idx = self._gateway.known_devices[self.device_from].get("zone_idx")
                 for idx in ["aaa", "bbb", "ccc"]:
                     if "parent_zone_idx" in self.payload:
                         a = "parent_zone_aaa" in self.payload
                         b = "parent_zone_bbb" in self.payload
                         c = "parent_zone_ccc" in self.payload
                         assert any([a, b, c]), "parent_zone_idx, but no _xxx"
-                    if f"parent_zone_{idx}" in self.payload:
-                        assert zone_idx == self.payload[f"parent_zone_{idx}"]
+
+                    zone_idx = self._gateway.known_devices[self.device_from].get(
+                        "zone_idx"
+                    )
+                    if zone_idx and f"parent_zone_{idx}" in self.payload:
+                        key = "parent_zone" if int(zone_idx, 16) < 12 else "domain"
+                        assert zone_idx == self.payload[f"{key}_{idx}"]
 
         # who was the message from? There's one special (non-evohome) case...
         self._gateway.device_by_id[self.device_from].update(self)

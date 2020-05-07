@@ -311,12 +311,13 @@ class Gateway:
 
         async def proc_packets_from_port() -> None:
             async def port_reader(manager):
+                gc.collect()  # TODO: mem leak test only
                 self._hp = hpy()
                 self._hp.setrelheap()
 
                 raw_pkt = b""  # TODO: hack for testing for ? mem leak
                 while True:
-                    gc.collect()  # TODO: mem leak test only
+                    # gc.collect()  # TODO: mem leak test only
                     ts_pkt_line, raw_pkt = await manager.get_next_packet(None)
                     await self._process_packet(ts_pkt_line, raw_pkt)
 
