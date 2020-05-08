@@ -36,7 +36,7 @@ class Gateway:
         self.loop = loop if loop else asyncio.get_running_loop()  # get_event_loop()
         self.config = config
 
-        self._h = self._hp = None
+        self._h = self._hp = None  # TODO: mem leak code
 
         if self.serial_port and config.get("input_file"):
             _LOGGER.warning(
@@ -117,12 +117,12 @@ class Gateway:
     async def _signal_handler(self, signal):
         _LOGGER.debug("Received signal %s...", signal.name)
 
-        if signal == signal.SIGUSR1:  # and self.config.get("raw_output") < 2:
+        if signal == signal.SIGUSR1:  # TODO: and self.config.get("raw_output") < 2:
             _LOGGER.info("State data: %s", f"\r\n{json.dumps(self._devices, indent=4)}")
 
-        if signal == signal.SIGUSR2:
+        if signal == signal.SIGUSR2:  # output debug data
             _LOGGER.info("Debug data is:")
-            self._debug_info()
+            self._debug_info()  # TODO: should be %s in a _LOGGER
 
         if signal in [signal.SIGHUP, signal.SIGINT, signal.SIGTERM]:
             _LOGGER.info("Received a %s, exiting gracefully...", signal)
@@ -146,36 +146,53 @@ class Gateway:
         _LOGGER.info("%s", self._hp.heap().more)
 
     async def shutdown(self) -> None:
-        if self.config.get("database"):
-            _LOGGER.info(f"Closing database connections...")
+        """Perform a graceful shutdown."""
+
+        if self._output_db:
+            _LOGGER.info(f"Closing packets database...")
             await self._output_db.commit()
             await self._output_db.close()
+            self._output_db = None  # TDO: is this needed - is re-entrant?
 
-        if self.config.get("known_devices"):
-            _LOGGER.info(f"Updating known_devices database...")
-            for d in self.evo.devices:
-                if d.device_id in self.known_devices:
-                    self.known_devices[d.device_id].update(
-                        {"friendly_name": d._friendly_name, "blacklist": d._blacklist}
-                    )
-                else:
-                    self.known_devices[d.device_id] = {
-                        "friendly_name": d._friendly_name,
-                        "blacklist": d._blacklist,
-                    }
+        try:
+            if self.config.get("known_devices"):
+                _LOGGER.info("Updating known_devices file...")
+                for d in self.evo.devices:
+                    if d.device_id in self.known_devices:
+                        self.known_devices[d.device_id].update(
+                            {
+                                "friendly_name": d._friendly_name,
+                                "blacklist": d._blacklist,
+                            }
+                        )
+                    else:
+                        self.known_devices[d.device_id] = {
+                            "friendly_name": d._friendly_name,
+                            "blacklist": d._blacklist,
+                        }
 
-            with open(self.config["known_devices"], "w") as json_file:
-                json.dump(self.known_devices, json_file, sort_keys=True, indent=4)
+                with open(self.config["known_devices"], "w") as json_file:
+                    json.dump(self.known_devices, json_file, sort_keys=True, indent=4)
+        except (LookupError, TypeError, ValueError):
+            _LOGGER.warning(
+                "Failed to update %s", self.config.get("known_devices"), exc_info=True
+            )
 
-        print("State data: %s", f"\r\n{json.dumps(self.evo._devices, indent=4)}")
+        try:
+            print("State data is: %s", f"\r\n{json.dumps(self.evo._devices, indent=4)}")
+        except (LookupError, TypeError, ValueError):
+            _LOGGER.warning("Failed to print State data", exc_info=True)
 
         tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-        logging.info(f"Cancelling {len(tasks)} outstanding tasks")
+        logging.info(
+            f"Cancelling {len(tasks)} outstanding tasks, should next see 'done'..."
+        )
         [task.cancel() for task in tasks]
         await asyncio.gather(*tasks)
+        logging.info(" - done.")
 
     async def start(self) -> None:
-        async def proc_packets_from_file() -> None:
+        async def proc_pkts_from_file() -> None:
             """Process packets from a file, asynchonously."""
             for ts_pkt_line in self.config["input_file"]:
                 ts_pkt_line = ts_pkt_line.strip()
@@ -187,12 +204,12 @@ class Gateway:
                         # _LOGGER.warn("Non-ISO format timestamp: %s", ts_pkt_line[:26])
                         continue
 
-                    await self._process_packet(ts_pkt_line)
+                    await self._process_pkt(ts_pkt_line)
 
-                await self._dispatch_packet(destination=None)  # to empty the buffer
-                # await asyncio.sleep(0.001)  # TODO: to allow for Ctrl-C?
+                await self._dispatch_pkt(destination=None)  # to empty the buffer
+                await asyncio.sleep(0.001)  # TODO: to allow for Ctrl-C?
 
-        async def proc_packets_from_port() -> None:
+        async def proc_pkts_from_port() -> None:
             async def port_reader(manager):
                 gc.collect()  # TODO: mem leak test only
                 self._hp = hpy()
@@ -201,8 +218,8 @@ class Gateway:
                 raw_pkt = b""  # TODO: hack for testing for ? mem leak
                 while True:
                     # gc.collect()  # TODO: mem leak test only
-                    ts_pkt_line, raw_pkt = await manager.get_next_packet(None)
-                    await self._process_packet(ts_pkt_line, raw_pkt)
+                    ts_pkt_line, raw_pkt = await manager.get_next_pkt(None)
+                    await self._process_pkt(ts_pkt_line, raw_pkt)
 
                     if self._relay:
                         await self._relay.write(raw_pkt)
@@ -211,7 +228,7 @@ class Gateway:
             async def port_writer(manager):
                 while True:
                     if manager.reader._transport.serial.in_waiting == 0:
-                        await self._dispatch_packet(destination=manager.writer)
+                        await self._dispatch_pkt(destination=manager.writer)
                     await asyncio.sleep(0.01)
 
             if self.config.get("ser2net"):
@@ -230,7 +247,7 @@ class Gateway:
                         "payload": cmd[18:],
                     }
                     self.cmd_queue.put_nowait(Command(self, **kwargs))
-                    await self._dispatch_packet(destination=manager.writer)
+                    await self._dispatch_pkt(destination=manager.writer)
 
                 await asyncio.gather(
                     port_reader(manager), port_writer(manager),
@@ -265,13 +282,13 @@ class Gateway:
 
         # Finally, source of packets is either a text file, or a serial port:
         if self.config.get("input_file"):
-            await proc_packets_from_file()  # main loop
+            await proc_pkts_from_file()  # main loop
         else:  # if self.config["serial_port"] or if self.serial_port
-            await proc_packets_from_port()  # main loop
+            await proc_pkts_from_port()  # main loop
 
         await self.shutdown()
 
-    async def _dispatch_packet(self, destination=None) -> None:
+    async def _dispatch_pkt(self, destination=None) -> None:
         """Send a command unless in listen_only mode."""
         # TODO: listen_only will clear the whole queue, not only the its next element
         while not self.cmd_queue.empty():
@@ -288,7 +305,7 @@ class Gateway:
 
         # await asyncio.sleep(0.001)  # TODO: why is this needed?
 
-    async def _process_packet(self, ts_packet_line, raw_packet_line=None) -> None:
+    async def _process_pkt(self, ts_pkt_line, raw_pkt_line=None) -> None:
         """Receive a packet and optionally validate it as a message."""
 
         def has_wanted_device(pkt, dev_whitelist=None, dev_blacklist=None) -> bool:
@@ -302,7 +319,7 @@ class Gateway:
         if self.config.get("debug_mode") == 1:  # TODO: mem leak
             self._debug_info()
 
-        pkt = Packet(ts_packet_line, raw_packet_line)
+        pkt = Packet(ts_pkt_line, raw_pkt_line)
         if not pkt.is_valid:  # this will trap/log all bad pkts appropriately
             return
 
@@ -313,7 +330,7 @@ class Gateway:
         pkt_logger.info("%s ", pkt, extra=pkt.__dict__)
 
         if self._output_db:  # archive all valid packets, even those not to be parsed
-            ts_pkt = f"{pkt.timestamp} {pkt.packet}"
+            ts_pkt = f"{pkt.date}T{pkt.time} {pkt.packet}"
             w = [0, 27, 31, 34, 38, 48, 58, 68, 73, 77, 165]  # 165? 199 works
             data = tuple([ts_pkt[w[i - 1] : w[i] - 1] for i in range(1, len(w))])
             await self._db_cursor.execute(INSERT_SQL, data)
@@ -334,6 +351,7 @@ class Gateway:
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
             return
         except (LookupError, TypeError, ValueError):
+            msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
             return
 
         if not msg.is_valid:  # trap/logs all exceptions appropriately
