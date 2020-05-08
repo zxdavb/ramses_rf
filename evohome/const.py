@@ -1,6 +1,8 @@
 """Evohome serial."""
 import re
 
+__dev_mode__ = False
+
 NON_DEV_ID = "--:------"
 NUL_DEV_ID = "63:262142"  # 7FFFFF - send here if not bound?
 HGI_DEV_ID = "18:000730"  # default type and address of HGI, 18:013393

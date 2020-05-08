@@ -5,6 +5,7 @@ from typing import Optional
 
 from . import parsers
 from .const import (
+    __dev_mode__,
     COMMAND_MAP,
     DEVICE_MAP,
     DOMAIN_MAP,
@@ -225,7 +226,7 @@ class Message:
                     # assert zone_idx == self.payload["parent_zone_idx"]
 
         if isinstance(self.payload, dict):
-            if self._gwy.known_devices.get(self.device_from):
+            if __dev_mode__ and self._gwy.known_devices.get(self.device_from):
                 for idx in ["aaa", "bbb", "ccc"]:
                     if "parent_zone_idx" in self.payload:
                         a = "parent_zone_aaa" in self.payload

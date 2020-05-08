@@ -4,6 +4,7 @@ from datetime import datetime as dt, timedelta
 from typing import Optional, Union
 
 from .const import (
+    __dev_mode__,
     COMMAND_MAP,
     SYSTEM_MODE_MAP,
     ZONE_MODE_MAP,
@@ -30,7 +31,7 @@ def parser_decorator(func):
 
         def add_context(parsed_payload):
 
-            if isinstance(parsed_payload, dict):
+            if __dev_mode__ and isinstance(parsed_payload, dict):
                 _dict = {}
                 if msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9"]:
                     key = "parent_zone" if int(payload[:2], 16) < 12 else "domain"
