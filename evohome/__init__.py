@@ -354,18 +354,18 @@ class Gateway:
         if not msg.is_valid:  # trap/logs all exceptions appropriately
             return
 
-        # finally, only certain packets should become part of the state data
-        if self.config.get("raw_output") > 0:
-            return
-
-        if msg.device_from[:2] == "18":  # TODO: _id[2] too?
-            return
-
-        try:  # update state
+        try:  # only reliable packets should become part of the state data
             msg._create_entities()  # create the devices, zones, domains
+
+            if self.config.get("raw_output") > 0:
+                return
+
+            if msg.device_from[:2] == "18":  # TODO: _id[2] too?
+                return
+
             msg._update_entities()  # update the state database
+
         except AssertionError:  # TODO: for dev only?
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
-            pass
-        except (LookupError, TypeError, ValueError):  # shouldn't be needed
+        except (LookupError, TypeError, ValueError):  # TODO: shouldn't be needed?
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)

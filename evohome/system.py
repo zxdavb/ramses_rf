@@ -35,10 +35,11 @@ class EvohomeSystem:
                 if not attr.startswith("_") and not callable(getattr(device, attr))
             ]
 
-        # turn {d.device_id: {a: getattr(d, a) for a in attrs(d)} for d in self.devices}
-        x = {d.device_id: {a: getattr(d, a) for a in attrs(d)} for d in self.devices}
+        def attrz(device) -> list:
+            return [attr for attr in ["device_id", "device_type", "parent_zone"]]
 
-        return {k: v.get("parent_zone") for k, v in x.items()}
+        return {d.device_id: {a: getattr(d, a) for a in attrz(d)} for d in self.devices}
+        # turn {k: v.get("parent_zone") for k, v in x.items()}
 
     @property
     def status(self) -> Optional[dict]:
