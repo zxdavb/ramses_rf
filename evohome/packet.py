@@ -1,19 +1,21 @@
 """Packet processor."""
 
-from datetime import datetime as dt
+from collections import namedtuple
 import logging
 import re
 
 from serial import SerialException  # TODO: dont import unless required
 from serial_asyncio import open_serial_connection  # TODO: dont import unless required?
 from string import printable
-from typing import Any, Optional, Tuple
+from typing import Optional
 
 from .const import MESSAGE_REGEX
 from .logger import time_stamp
 
 BAUDRATE = 115200  # 38400  #  57600  # 76800  # 38400  # 115200
 READ_TIMEOUT = 0.5
+
+PACKET = namedtuple("Packet", ["datetime", "packet", "bytearray"])
 
 _LOGGER = logging.getLogger(__name__)  # evohome.packet
 # OGGER.setLevel(logging.WARNING)
@@ -32,16 +34,13 @@ def split_pkt_line(packet_line: str) -> (str, str, str):
 class Packet:
     """The packet class."""
 
-    def __init__(self, ts_pkt_line, raw_pkt_line=None) -> None:
+    def __init__(self, raw_pkt) -> None:
         """Create a packet."""
-        # TODO: here, or by caller?
-        dt.fromisoformat(ts_pkt_line[:26])  # will ValueError if invalid
+        self.date, self.time = raw_pkt.datetime.split("T")
+        self.packet, self.error_text, self.comment = split_pkt_line(raw_pkt.packet)
 
-        self.date, self.time = ts_pkt_line[:26].split("T")
-        self.packet, self.error_text, self.comment = split_pkt_line(ts_pkt_line[27:])
-
-        self._pkt_line = ts_pkt_line[27:]
-        self._raw_pkt_line = raw_pkt_line
+        self._pkt_line = raw_pkt.packet
+        self._raw_pkt_line = raw_pkt.bytearray
 
         self._packet = self.packet + " " if self.packet else ""  # TODO: hack 4 logging
 
@@ -126,26 +125,22 @@ class PortPktProvider:
     async def __aexit__(self, exc_type, exc, tb) -> None:
         pass
 
-    async def get_next_pkt(self, prev_pkt=None) -> Tuple[Optional[str], Any]:
+    async def get_next_pkt(self):
         """Get the next packet line from a serial port."""
 
-        if prev_pkt and self.reader._transport.serial.in_waiting == 0:  # TODO: mem leak
-            raw_pkt = prev_pkt
+        try:
+            raw_pkt = await self.reader.readline()
+        except SerialException:
+            return PACKET(time_stamp(), None, None)
 
-        else:
-            try:
-                raw_pkt = await self.reader.readline()
-            except SerialException:
-                return (None, None)
+        timestamp = time_stamp()  # done here & now for most-accurate timestamp
+        # print(f"{raw_pkt}")  # TODO: deleteme, only for debugging
 
-        print(f"{raw_pkt}")  # TODO: deleteme, only for debugging
-
-        timestamp = time_stamp()
         packet = "".join(c for c in raw_pkt.decode().strip() if c in printable)
 
         # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
 
-        return f"{timestamp} {packet}" if packet else f"{timestamp}", raw_pkt
+        return PACKET(timestamp, packet, raw_pkt)
 
 
 class FilePktProvider:
@@ -162,7 +157,4 @@ class FilePktProvider:
 
     async def get_next_pkt(self) -> Optional[str]:
         """Get the next packet line from a source file."""
-        timestamp = time_stamp()
-        packet_line = None
-
-        return f"{timestamp} {packet_line}" if packet_line else f"{timestamp}"
+        return

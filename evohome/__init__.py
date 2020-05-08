@@ -20,7 +20,7 @@ from .command import Command
 from .const import INDEX_SQL, TABLE_SQL, INSERT_SQL, ISO_FORMAT_REGEX
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
-from .packet import _LOGGER as pkt_logger, Packet, PortPktProvider
+from .packet import _LOGGER as pkt_logger, PACKET, Packet, PortPktProvider
 from .ser2net import Ser2NetServer
 from .system import EvohomeSystem
 
@@ -195,16 +195,16 @@ class Gateway:
         async def proc_pkts_from_file() -> None:
             """Process packets from a file, asynchonously."""
             for ts_pkt_line in self.config["input_file"]:
-                ts_pkt_line = ts_pkt_line.strip()
-                if ts_pkt_line:
+                if ts_pkt_line.strip():
                     try:
-                        assert re.match(ISO_FORMAT_REGEX, ts_pkt_line[:27])
+                        assert re.match(ISO_FORMAT_REGEX, ts_pkt_line[:26])
                         dt.fromisoformat(ts_pkt_line[:26])
                     except (AssertionError, ValueError):  # TODO: log these, or not?
                         # _LOGGER.warn("Non-ISO format timestamp: %s", ts_pkt_line[:26])
                         continue
-
-                    await self._process_pkt(ts_pkt_line)
+                    raw_pkt = PACKET(ts_pkt_line[:26], ts_pkt_line[27:].strip(), None)
+                    if raw_pkt.packet:
+                        await self._process_pkt(raw_pkt)
 
                 await self._dispatch_pkt(destination=None)  # to empty the buffer
                 await asyncio.sleep(0.001)  # TODO: to allow for Ctrl-C?
@@ -215,14 +215,13 @@ class Gateway:
                 self._hp = hpy()
                 self._hp.setrelheap()
 
-                raw_pkt = b""  # TODO: hack for testing for ? mem leak
                 while True:
                     # gc.collect()  # TODO: mem leak test only
-                    ts_pkt_line, raw_pkt = await manager.get_next_pkt(None)
-                    await self._process_pkt(ts_pkt_line, raw_pkt)
-
-                    if self._relay:
-                        await self._relay.write(raw_pkt)
+                    raw_pkt = await manager.get_next_pkt()
+                    if raw_pkt.packet:
+                        await self._process_pkt(raw_pkt)
+                        if self._relay:
+                            await self._relay.write(raw_pkt.packet)
                     await asyncio.sleep(0.01)
 
             async def port_writer(manager):
@@ -249,9 +248,7 @@ class Gateway:
                     self.cmd_queue.put_nowait(Command(self, **kwargs))
                     await self._dispatch_pkt(destination=manager.writer)
 
-                await asyncio.gather(
-                    port_reader(manager), port_writer(manager),
-                )  # TODO: use something other than a gather?
+                await asyncio.gather(port_reader(manager), port_writer(manager))
 
         if self.config.get("database"):
             import aiosqlite as sqlite3
@@ -305,7 +302,7 @@ class Gateway:
 
         # await asyncio.sleep(0.001)  # TODO: why is this needed?
 
-    async def _process_pkt(self, ts_pkt_line, raw_pkt_line=None) -> None:
+    async def _process_pkt(self, raw_pkt) -> None:  # ts_pkt_line, raw_pkt_line=None):
         """Receive a packet and optionally validate it as a message."""
 
         def has_wanted_device(pkt, dev_whitelist=None, dev_blacklist=None) -> bool:
@@ -319,7 +316,7 @@ class Gateway:
         if self.config.get("debug_mode") == 1:  # TODO: mem leak
             self._debug_info()
 
-        pkt = Packet(ts_pkt_line, raw_pkt_line)
+        pkt = Packet(raw_pkt)
         if not pkt.is_valid:  # this will trap/log all bad pkts appropriately
             return
 
