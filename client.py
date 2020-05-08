@@ -136,7 +136,6 @@ def _parse_args():
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.option("-k", "--known-devices", help="TBD", type=click.Path())
 @click.option("-w", "--device-whitelist", help="TBD", is_flag=True)
-@click.option("-d", "--database", help="TBD", type=click.Path())
 @click.option("-m", "--message_log", help="TBD", type=click.Path())
 @click.option("-r", "--raw-output", help="TBD", count=True)
 @click.option("-z", "--debug-mode", help="TBD", count=True)
@@ -165,6 +164,7 @@ def parse(obj, **kwargs):
 
 @click.command()
 @click.argument("serial-port")
+@click.option("-d", "--database", type=click.Path(), default="packets.db")
 @click.option("-p", "--probe-system", help="TBD", is_flag=True)
 @click.option("-e", "--execute-cmd", help="TBD", is_flag=True)
 @click.option("-C", "--ser2net", help="addr:port, e.g. '127.0.0.1:5001'")
