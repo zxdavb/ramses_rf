@@ -12,10 +12,11 @@ from typing import Any, Optional, Tuple
 from .const import MESSAGE_REGEX
 from .logger import time_stamp
 
-_LOGGER = logging.getLogger(__name__)  # evohome.packet
-
 BAUDRATE = 115200  # 38400  #  57600  # 76800  # 38400  # 115200
 READ_TIMEOUT = 0.5
+
+_LOGGER = logging.getLogger(__name__)  # evohome.packet
+# OGGER.setLevel(logging.WARNING)
 
 
 def split_pkt_line(packet_line: str) -> (str, str, str):
@@ -31,17 +32,18 @@ def split_pkt_line(packet_line: str) -> (str, str, str):
 class Packet:
     """The packet class."""
 
-    def __init__(self, ts_packet_line, raw_packet_line=None) -> None:
+    def __init__(self, ts_pkt_line, raw_pkt_line=None) -> None:
         """Create a packet."""
-        dt.fromisoformat(ts_packet_line[:26])  # shouldn't ValueError
+        # TODO: here, or by caller?
+        dt.fromisoformat(ts_pkt_line[:26])  # will ValueError if invalid
 
-        self.date, self.time = ts_packet_line[:26].split("T")
-        self.packet, self.error_text, self.comment = split_pkt_line(ts_packet_line[27:])
+        self.date, self.time = ts_pkt_line[:26].split("T")
+        self.packet, self.error_text, self.comment = split_pkt_line(ts_pkt_line[27:])
 
-        self._packet_line = ts_packet_line[27:]
-        self._raw_packet_line = raw_packet_line
+        self._pkt_line = ts_pkt_line[27:]
+        self._raw_pkt_line = raw_pkt_line
 
-        self._packet = self.packet + " " if self.packet else ""  # TODO: a hack 4 log
+        self._packet = self.packet + " " if self.packet else ""  # TODO: hack 4 logging
 
         self._is_valid = None
         self._is_valid = self.is_valid
@@ -52,9 +54,7 @@ class Packet:
 
     def __repr__(self):
         """Represent the packet in an umabiguous manner."""
-        return str(
-            self._raw_packet_line if self._raw_packet_line else self._packet_line
-        )
+        return str(self._raw_pkt_line if self._raw_pkt_line else self._pkt_line)
 
     @property
     def is_valid(self) -> bool:
@@ -65,10 +65,10 @@ class Packet:
         if self._is_valid is not None:
             return self._is_valid
 
-        if not self._packet_line:
+        if not self._pkt_line:  # don't log null packets at all
             return False
 
-        if self.error_text:
+        if self.error_text:  # log all packets with an error
             # return False  # TODO: return here is only for TESTING
             if self.packet:
                 _LOGGER.warning("%s < Bad packet: ", self, extra=self.__dict__)
@@ -76,7 +76,7 @@ class Packet:
                 _LOGGER.warning("< Bad packet: ", extra=self.__dict__)
             return False
 
-        if not self.packet:  # print lines with only a comment
+        if not self.packet and self.comment:  # log null packets only if has a comment
             _LOGGER.warning("", extra=self.__dict__)
             return False
 
@@ -126,26 +126,26 @@ class PortPktProvider:
     async def __aexit__(self, exc_type, exc, tb) -> None:
         pass
 
-    async def get_next_packet(self, prev_pkt=None) -> Tuple[Optional[str], Any]:
+    async def get_next_pkt(self, prev_pkt=None) -> Tuple[Optional[str], Any]:
         """Get the next packet line from a serial port."""
 
         if prev_pkt and self.reader._transport.serial.in_waiting == 0:  # TODO: mem leak
-            raw_packet = prev_pkt
+            raw_pkt = prev_pkt
 
         else:
             try:
-                raw_packet = await self.reader.readline()
+                raw_pkt = await self.reader.readline()
             except SerialException:
                 return (None, None)
 
-        # print(f"{raw_packet}")  # TODO: deleteme, only for debugging
+        print(f"{raw_pkt}")  # TODO: deleteme, only for debugging
 
         timestamp = time_stamp()
-        packet = "".join(c for c in raw_packet.decode().strip() if c in printable)
+        packet = "".join(c for c in raw_pkt.decode().strip() if c in printable)
 
         # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
 
-        return f"{timestamp} {packet}" if packet else f"{timestamp}", raw_packet
+        return f"{timestamp} {packet}" if packet else f"{timestamp}", raw_pkt
 
 
 class FilePktProvider:
@@ -160,7 +160,7 @@ class FilePktProvider:
     async def __aexit__(self, exc_type, exc, tb) -> None:
         pass
 
-    async def get_next_packet(self) -> Optional[str]:
+    async def get_next_pkt(self) -> Optional[str]:
         """Get the next packet line from a source file."""
         timestamp = time_stamp()
         packet_line = None

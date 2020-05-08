@@ -24,7 +24,7 @@ class Message:
         """Create a message, assumes a valid packet."""
         self._gwy = gateway
         self._evo = gateway.evo
-        self._packet = packet = pkt.packet
+        self._pkt = packet = pkt.packet
 
         self.date = pkt.date
         self.time = pkt.time
@@ -145,9 +145,9 @@ class Message:
         except AssertionError:  # for development only?
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
             if self.device_from[:2] == "18":
-                _LOGGER.warning("%s", self._packet, extra=self.__dict__)
+                _LOGGER.warning("%s", self._pkt, extra=self.__dict__)
             else:
-                _LOGGER.exception("%s", self._packet, extra=self.__dict__)
+                _LOGGER.exception("%s", self._pkt, extra=self.__dict__)
             return False
 
         # for dev_id in self.device_id:  # TODO: leave in, or out?
