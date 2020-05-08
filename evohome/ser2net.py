@@ -75,6 +75,8 @@ class Ser2NetProtocol(asyncio.Protocol):
 class Ser2NetServer:
     """A raw ser2net (local) serial_port to (remote) network relay."""
 
+    # goal: ser2net -C 127.0.0.1,5000:raw:0:/dev/ttyUSB0:115200,8DATABITS,NONE,1STOPBIT
+
     def __init__(self, addr_port, cmd_que, loop=None) -> None:
         _LOGGER.debug("Ser2NetServer.__init__(%s, %s)", addr_port, cmd_que)
 
@@ -99,11 +101,14 @@ class Ser2NetServer:
         asyncio.create_task(self.server.serve_forever())
         _LOGGER.debug(" - listening on %s:%s", self._addr, int(self._port))
 
-    async def write(self, data) -> None:
+    async def write(self, data: str) -> None:
         _LOGGER.debug("Ser2NetServer.write(%s)", data)
 
+        packet = f"{data}\r\n".encode()
+        _LOGGER.debug(" - packet is: %s", packet)
+
         if self.protocol.transport:
-            self.protocol.transport.write(data)
-            _LOGGER.debug(" - data sent to network: %s", data)
+            self.protocol.transport.write(packet)
+            _LOGGER.debug(" - data sent to network: %s", packet)
         else:
             _LOGGER.debug(" - no active network socket, unable to relay")
