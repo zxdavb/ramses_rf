@@ -302,7 +302,7 @@ class Gateway:
 
         # await asyncio.sleep(0.001)  # TODO: why is this needed?
 
-    async def _process_pkt(self, raw_pkt) -> None:  # ts_pkt_line, raw_pkt_line=None):
+    async def _process_pkt(self, raw_pkt) -> None:
         """Receive a packet and optionally validate it as a message."""
 
         def has_wanted_device(pkt, dev_whitelist=None, dev_blacklist=None) -> bool:
