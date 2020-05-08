@@ -37,6 +37,7 @@ class Gateway:
         self.loop = loop if loop else asyncio.get_running_loop()  # get_event_loop()
         self.config = config
 
+        self._tasks = []
         self._h = self._hp = None  # TODO: mem leak code
 
         if self.serial_port and config.get("input_file"):
@@ -106,6 +107,8 @@ class Gateway:
         self._setup_signal_handler()
 
     def _setup_signal_handler(self):
+        _LOGGER.info("Starting evohome_rf...")
+
         signals = [signal.SIGINT, signal.SIGTERM]
         if os.name == "posix":  # TODO: or sys.platform is better?
             signals += [signal.SIGHUP, signal.SIGUSR1, signal.SIGUSR2]
@@ -137,7 +140,7 @@ class Gateway:
                 f"Cancelling {len(tasks)} outstanding tasks, should next see 'done'..."
             )
             [task.cancel() for task in tasks]
-            await asyncio.gather(*tasks)
+            # await asyncio.gather(*tasks)
             logging.info(" - done.")
 
     def _debug_info(self) -> None:
@@ -162,7 +165,7 @@ class Gateway:
             _LOGGER.info(f"Closing packets database...")
             await self._output_db.commit()
             await self._output_db.close()
-            self._output_db = None  # TDO: is this needed - is re-entrant?
+            self._output_db = None  # TODO: is this needed - is re-entrant?
 
         try:
             if self.config.get("known_devices"):
@@ -238,7 +241,7 @@ class Gateway:
                 self._relay = Ser2NetServer(
                     self.config["ser2net"], self.cmd_queue, loop=self.loop
                 )
-                await self._relay.start()
+                self._tasks.append(asyncio.create_task(self._relay.start()))
 
             async with PortPktProvider(self.serial_port, loop=self.loop) as manager:
                 if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 FF"
@@ -252,7 +255,10 @@ class Gateway:
                     self.cmd_queue.put_nowait(Command(self, **kwargs))
                     await self._dispatch_pkt(destination=manager.writer)
 
-                await asyncio.gather(port_reader(manager), port_writer(manager))
+                self._tasks.append(asyncio.create_task(port_reader(manager)))
+                self._tasks.append(asyncio.create_task(port_writer(manager)))
+
+                await asyncio.gather(*self._tasks)
 
         if self.config.get("database"):
             import aiosqlite as sqlite3
