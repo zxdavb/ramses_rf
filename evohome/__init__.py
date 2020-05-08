@@ -25,6 +25,7 @@ from .ser2net import Ser2NetServer
 from .system import EvohomeSystem
 
 _LOGGER = logging.getLogger(__name__)
+# OGGER.setLevel(logging.WARNING)
 
 
 class Gateway:
@@ -127,10 +128,17 @@ class Gateway:
         if signal in [signal.SIGHUP, signal.SIGINT, signal.SIGTERM]:
             _LOGGER.info("Received a %s, exiting gracefully...", signal)
             try:
-                await self.shutdown()
+                await self.cleanup("_signal_handler")
             except (TypeError):
                 pass
-            sys.exit()
+
+            tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+            logging.info(
+                f"Cancelling {len(tasks)} outstanding tasks, should next see 'done'..."
+            )
+            [task.cancel() for task in tasks]
+            await asyncio.gather(*tasks)
+            logging.info(" - done.")
 
     def _debug_info(self) -> None:
         gc.collect()
@@ -145,8 +153,10 @@ class Gateway:
         _LOGGER.info("%s", self._hp.heap())
         _LOGGER.info("%s", self._hp.heap().more)
 
-    async def shutdown(self) -> None:
+    async def cleanup(self, xxx=None) -> None:
         """Perform a graceful shutdown."""
+
+        _LOGGER.debug("cleanup invoked by: %s", xxx)
 
         if self._output_db:
             _LOGGER.info(f"Closing packets database...")
@@ -179,17 +189,11 @@ class Gateway:
             )
 
         try:
-            print("State data is: %s", f"\r\n{json.dumps(self.evo._devices, indent=4)}")
+            _LOGGER.info(
+                "State data is: %s", f"\r\n{json.dumps(self.evo._devices, indent=4)}"
+            )
         except (LookupError, TypeError, ValueError):
             _LOGGER.warning("Failed to print State data", exc_info=True)
-
-        tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-        logging.info(
-            f"Cancelling {len(tasks)} outstanding tasks, should next see 'done'..."
-        )
-        [task.cancel() for task in tasks]
-        await asyncio.gather(*tasks)
-        logging.info(" - done.")
 
     async def start(self) -> None:
         async def proc_pkts_from_file() -> None:
@@ -283,7 +287,7 @@ class Gateway:
         else:  # if self.config["serial_port"] or if self.serial_port
             await proc_pkts_from_port()  # main loop
 
-        await self.shutdown()
+        await self.cleanup("start")
 
     async def _dispatch_pkt(self, destination=None) -> None:
         """Send a command unless in listen_only mode."""
