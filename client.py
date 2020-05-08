@@ -156,6 +156,7 @@ def cli(ctx, **kwargs):
 def parse(obj, **kwargs):
     """Parse a file for packets."""
     print(f"parse: obj={obj}, kwargs={kwargs}")
+
     try:
         asyncio.run(main(**obj, **kwargs))
     except asyncio.CancelledError:  # TODO: rubbish workaround
