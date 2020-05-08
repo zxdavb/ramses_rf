@@ -155,11 +155,11 @@ def cli(ctx, **kwargs):
 @click.pass_obj
 def parse(obj, **kwargs):
     """Parse a file for packets."""
-    print(f"parse: obj={obj}, kwargs={kwargs}")
+    # print(f"parse: obj={obj}, kwargs={kwargs}")
 
     try:
         asyncio.run(main(**obj, **kwargs))
-    except asyncio.CancelledError:  # TODO: rubbish workaround
+    except asyncio.CancelledError:
         pass
 
 
@@ -175,11 +175,11 @@ def parse(obj, **kwargs):
 @click.pass_obj
 def monitor(obj, **kwargs):
     """Monitor a serial port for packets."""
-    print(f"monitor: obj={obj}, kwargs={kwargs}")
+    # print(f"monitor: obj={obj}, kwargs={kwargs}")
 
     try:
         asyncio.run(main(**obj, **kwargs))
-    except asyncio.CancelledError:  # TODO: rubbish workaround
+    except asyncio.CancelledError:
         pass
 
 
