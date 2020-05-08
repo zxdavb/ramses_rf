@@ -201,20 +201,29 @@ class Gateway:
     async def start(self) -> None:
         async def proc_pkts_from_file() -> None:
             """Process packets from a file, asynchonously."""
-            for ts_pkt_line in self.config["input_file"]:
-                if ts_pkt_line.strip():
+
+            async def file_reader(manager):
+                for ts_pkt in self.config["input_file"]:
+                    await asyncio.sleep(0.001)  # to enable a Ctrl-C
+
+                    raw_pkt = PACKET(ts_pkt[:26], ts_pkt[27:].strip(), None)
                     try:
-                        assert re.match(ISO_FORMAT_REGEX, ts_pkt_line[:26])
-                        dt.fromisoformat(ts_pkt_line[:26])
+                        assert re.match(ISO_FORMAT_REGEX, raw_pkt.datetime)
+                        dt.fromisoformat(raw_pkt.datetime)
                     except (AssertionError, ValueError):  # TODO: log these, or not?
-                        # _LOGGER.warn("Non-ISO format timestamp: %s", ts_pkt_line[:26])
+                        _LOGGER.debug("Packet line has invalid timestamp: %s", raw_pkt)
                         continue
-                    raw_pkt = PACKET(ts_pkt_line[:26], ts_pkt_line[27:].strip(), None)
                     if raw_pkt.packet:
                         await self._process_pkt(raw_pkt)
 
-                await self._dispatch_pkt(destination=None)  # to empty the buffer
-                await asyncio.sleep(0.001)  # TODO: to allow for Ctrl-C?
+            async def port_writer(manager):
+                while True:
+                    await self._dispatch_pkt(destination=None)
+                    await asyncio.sleep(0.1)
+
+            reader = asyncio.create_task(file_reader(None))
+            self._tasks += [reader, asyncio.create_task(port_writer(None))]
+            await reader
 
         async def proc_pkts_from_port() -> None:
             async def port_reader(manager):
@@ -235,7 +244,7 @@ class Gateway:
                 while True:
                     if manager.reader._transport.serial.in_waiting == 0:
                         await self._dispatch_pkt(destination=manager.writer)
-                    await asyncio.sleep(0.01)
+                    await asyncio.sleep(0.1)
 
             if self.config.get("ser2net"):
                 self._relay = Ser2NetServer(
@@ -257,7 +266,6 @@ class Gateway:
 
                 self._tasks.append(asyncio.create_task(port_reader(manager)))
                 self._tasks.append(asyncio.create_task(port_writer(manager)))
-
                 await asyncio.gather(*self._tasks)
 
         if self.config.get("database"):
