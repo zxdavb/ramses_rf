@@ -48,7 +48,6 @@ def parser_decorator(func):
                             _dict[f"{key}_bbb"] = payload[:2]
 
                     if msg.device_dest[:2] == "01":
-                        key = "parent_zone" if int(payload[:2], 16) < 12 else "domain"
                         _dict[f"{key}_ccc"] = payload[:2]
 
                 return {**_dict, **parsed_payload}

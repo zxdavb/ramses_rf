@@ -227,14 +227,14 @@ class Message:
 
         if isinstance(self.payload, dict):
             if __dev_mode__ and self._gwy.known_devices.get(self.device_from):
-                for idx in ["aaa", "bbb", "ccc"]:
-                    if "parent_zone_idx" in self.payload:
-                        a = "parent_zone_aaa" in self.payload
-                        b = "parent_zone_bbb" in self.payload
-                        c = "parent_zone_ccc" in self.payload
-                        assert any([a, b, c]), "parent_zone_idx, but no _xxx"
+                if "parent_zone_idx" in self.payload:
+                    a = "parent_zone_aaa" in self.payload
+                    b = "parent_zone_bbb" in self.payload
+                    c = "parent_zone_ccc" in self.payload
+                    assert any([a, b, c]), "parent_zone_idx, but no _xxx"
 
-                    zone_idx = self._gwy.known_devices[self.device_from].get("zone_idx")
+                zone_idx = self._gwy.known_devices[self.device_from].get("zone_idx")
+                for idx in ["aaa", "bbb", "ccc"]:
                     if zone_idx and f"parent_zone_{idx}" in self.payload:
                         key = "parent_zone" if int(zone_idx, 16) < 12 else "domain"
                         assert zone_idx == self.payload[f"{key}_{idx}"]
