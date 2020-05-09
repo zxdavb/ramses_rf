@@ -178,7 +178,7 @@ class Gateway:
                     if d.device_id in self.known_devices:
                         self.known_devices[d.device_id].update(device)
                     else:
-                        self.known_devices[d.device_id] = {device}
+                        self.known_devices[d.device_id] = device
 
                 with open(self.config["known_devices"], "w") as json_file:
                     json.dump(self.known_devices, json_file, sort_keys=True, indent=4)
