@@ -161,37 +161,34 @@ class Gateway:
 
         _LOGGER.debug("cleanup invoked by: %s", xxx)
 
-        if self._output_db:
+        if self._output_db:  # close packet database
             _LOGGER.info(f"Closing packets database...")
             await self._output_db.commit()
             await self._output_db.close()
-            self._output_db = None  # TODO: is this needed - is re-entrant?
+            self._output_db = None  # TODO: is this needed - if re-entrant?
 
-        try:
-            if self.config.get("known_devices"):
+        if self.config.get("known_devices"):
+            try:
                 _LOGGER.info("Updating known_devices file...")
                 for d in self.evo.devices:
+                    device = {
+                        "friendly_name": d._friendly_name,
+                        "blacklist": d._blacklist,
+                    }
                     if d.device_id in self.known_devices:
-                        self.known_devices[d.device_id].update(
-                            {
-                                "friendly_name": d._friendly_name,
-                                "blacklist": d._blacklist,
-                            }
-                        )
+                        self.known_devices[d.device_id].update(device)
                     else:
-                        self.known_devices[d.device_id] = {
-                            "friendly_name": d._friendly_name,
-                            "blacklist": d._blacklist,
-                        }
+                        self.known_devices[d.device_id] = {device}
 
                 with open(self.config["known_devices"], "w") as json_file:
                     json.dump(self.known_devices, json_file, sort_keys=True, indent=4)
-        except (LookupError, TypeError, ValueError):
-            _LOGGER.warning(
-                "Failed to update %s", self.config.get("known_devices"), exc_info=True
-            )
 
-        try:
+            except (LookupError, TypeError, ValueError):
+                _LOGGER.exception(
+                    "Failed update of %s", self.config.get("known_devices")
+                )
+
+        try:  # print state data
             _LOGGER.info(
                 "State data is: %s", f"\r\n{json.dumps(self.evo._devices, indent=4)}"
             )
@@ -378,7 +375,7 @@ class Gateway:
             if self.config.get("raw_output") > 0:
                 return
 
-            if msg.device_from[:2] == "18":  # TODO: _id[2] too?
+            if msg.device_from[:2] == "18":  # TODO: _dest[:2] also?
                 return
 
             msg._update_entities()  # update the state database
