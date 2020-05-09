@@ -229,7 +229,6 @@ class Gateway:
                 self._hp.setrelheap()
 
                 while True:
-                    # gc.collect()  # TODO: mem leak test only
                     raw_pkt = await manager.get_next_pkt()
                     if raw_pkt.packet:
                         await self._process_pkt(raw_pkt)
