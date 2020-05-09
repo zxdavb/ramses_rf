@@ -234,6 +234,10 @@ class Gateway:
 
                 while True:
                     raw_pkt = await manager.get_next_pkt()
+                    if "evofw3" in raw_pkt.packet and self.config.get("evofw_flag"):
+                        cmd = self.config["evofw_flag"]
+                        manager.writer.write(f"{cmd}\r\n".encode("ascii"))
+
                     if raw_pkt.packet:
                         await self._process_pkt(raw_pkt)
                         if self._relay:
