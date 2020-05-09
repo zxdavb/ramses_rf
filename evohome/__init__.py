@@ -17,7 +17,7 @@ import sys
 from queue import Queue
 
 from .command import Command
-from .const import INDEX_SQL, TABLE_SQL, INSERT_SQL, ISO_FORMAT_REGEX
+from .const import INDEX_SQL, TABLE_SQL, INSERT_SQL, ISO_FORMAT_REGEX, __dev_mode__
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
 from .packet import _LOGGER as pkt_logger, PACKET, Packet, PortPktProvider
@@ -189,9 +189,13 @@ class Gateway:
                 )
 
         try:  # print state data
-            _LOGGER.info(
-                "State data is: %s", f"\r\n{json.dumps(self.evo._devices, indent=4)}"
-            )
+            if __dev_mode__:
+                print(f"State data is:\r\n{json.dumps(self.evo._devices, indent=4)}")
+            else:
+                _LOGGER.info(
+                    "State data is: %s",
+                    f"\r\n{json.dumps(self.evo._devices, indent=4)}",
+                )
         except (LookupError, TypeError, ValueError):
             _LOGGER.warning("Failed to print State data", exc_info=True)
 

@@ -218,26 +218,30 @@ class Message:
             else:
                 self._evo.device_by_id[self.device_from].update(self)
 
-        if isinstance(self.payload, dict) and "parent_zone_idx" in self.payload:
-            if self._gwy.known_devices.get(self.device_from):
-                if "zone_idx" in self._gwy.known_devices[self.device_from]:
-                    zone_idx = self._gwy.known_devices[self.device_from].get("zone_idx")
-                    # check the zone against the data in known_devices.json
-                    # assert zone_idx == self.payload["parent_zone_idx"]
+        if not __dev_mode__ or self.device_from not in self._gwy.known_devices:
+            assert self.device_from not in self._gwy.known_devices, "dev not in k_d DB"
+            return
 
         if isinstance(self.payload, dict):
-            if __dev_mode__ and self._gwy.known_devices.get(self.device_from):
-                if "parent_zone_idx" in self.payload:
-                    a = "parent_zone_aaa" in self.payload
-                    b = "parent_zone_bbb" in self.payload
-                    c = "parent_zone_ccc" in self.payload
-                    assert any([a, b, c]), "parent_zone_idx, but no _xxx"
+            zone_idx = self._gwy.known_devices[self.device_from].get("zone_idx")
 
-                zone_idx = self._gwy.known_devices[self.device_from].get("zone_idx")
-                for idx in ["aaa", "bbb", "ccc"]:
-                    if zone_idx and f"parent_zone_{idx}" in self.payload:
-                        key = "parent_zone" if int(zone_idx, 16) < 12 else "domain"
-                        assert zone_idx == self.payload[f"{key}_{idx}"]
+            if "parent_zone_idx" in self.payload:
+                # check the zone against the data in known_devices.json
+                assert self.payload["parent_zone_idx"] == zone_idx, "payload != k_d DB"
+
+            key = "parent_zone" if int(zone_idx, 16) < 100 else "domain"
+            if "parent_zone_aaa" in self.payload:
+                assert self.payload[f"{key}_aaa"] == zone_idx
+            if "parent_zone_bbb" in self.payload:
+                assert self.payload[f"{key}_bbb"] == zone_idx
+            if "parent_zone_ccc" in self.payload:
+                assert self.payload[f"{key}_ccc"] == zone_idx
+
+            if "parent_zone_idx" in self.payload:
+                a = "parent_zone_aaa" in self.payload
+                b = "parent_zone_bbb" in self.payload
+                c = "parent_zone_ccc" in self.payload
+                assert any([a, b, c]), "parent_zone_idx, but no _xxx"
 
         # who was the message from? There's one special (non-evohome) case...
         self._evo.device_by_id[self.device_from].update(self)

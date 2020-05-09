@@ -9,7 +9,7 @@ from serial_asyncio import open_serial_connection  # TODO: dont import unless re
 from string import printable
 from typing import Optional
 
-from .const import MESSAGE_REGEX
+from .const import MESSAGE_REGEX, __dev_mode__
 from .logger import time_stamp
 
 BAUDRATE = 115200  # 38400  #  57600  # 76800  # 38400  # 115200
@@ -76,7 +76,8 @@ class Packet:
             return False
 
         if not self.packet and self.comment:  # log null packets only if has a comment
-            _LOGGER.warning("", extra=self.__dict__)
+            if not __dev_mode__:
+                _LOGGER.warning("", extra=self.__dict__)
             return False
 
         if not MESSAGE_REGEX.match(self.packet):
