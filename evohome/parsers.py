@@ -317,11 +317,15 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:  # zone_config (zone/s
         }
 
     assert msg.verb in [" I", "RQ", "RP"]  # TODO: handle W
+
     if msg.device_from[:2] == "01" and msg.verb == " I":  # payload is usu. an array
-        assert len(payload) / 2 % 6 == 0
-        return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
+        if len(payload) / 12 > 1 or msg._evo._num_zones == 1:  # is reasonably an array
+            assert msg.device_from == msg.device_dest
+            assert len(payload) / 2 % 6 == 0
+            return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
 
     assert len(payload) / 2 == 6
+
     return _parser(payload)
 
 
@@ -721,31 +725,29 @@ def parser_22f1(payload, msg) -> Optional[dict]:  # ???? (Nuaire 4-way switch)
 
 @parser_decorator
 def parser_2309(payload, msg) -> Union[dict, list, None]:  # setpoint (of device/zones)
-    # TODO: how to differientiate between lowest & off?
     def _parser(seqx) -> dict:
         assert int(seqx[:2], 16) < 12
         return {"zone_idx": seqx[:2], "setpoint": _temp(seqx[2:])}
 
-    if len(payload) / 2 == 1:  # some RQs e.g. 34: to 01:, 12/22: to 13:
+    if msg.verb == "RQ":  # e.g. 34:->01:, 12/22:->13:
+        assert len(payload) / 2 == 1
         assert int(payload[:2], 16) < 12
         return {"parent_zone_idx": payload[:2]}
 
+    if msg.device_from[:2] == "01" and msg.verb == " I":  # payload is usually! an array
+        if len(payload) / 6 > 1 or msg._evo._num_zones == 1:  # is reasonably an array
+            assert msg.device_from == msg.device_dest
+            assert len(payload) / 2 % 3 == 0
+            return [_parser(payload[i : i + 6]) for i in range(0, len(payload), 6)]
+
     # TODO: special non-evohome case of 12:/22:
-    if msg.device_from[:2] != "01" or msg.device_id[2][:2] != "01" or msg.verb != " I":
-        assert len(payload) / 2 == 3
-        assert int(payload[:2], 16) < 12
-        return {
-            "zone_idx"
-            if msg.device_from[:2] == "01"
-            else "parent_zone_idx": payload[:2],
-            "setpoint": _temp(payload[2:]),
-        }
+    assert len(payload) / 2 == 3
+    assert int(payload[:2], 16) < 12
 
-    if msg.device_from[:2] == "01" and msg.verb == " I":  # payload is usu. an array
-        assert len(payload) / 2 % 3 == 0  # usu. all zones, but sometimes only 1!
-        return [_parser(payload[i : i + 6]) for i in range(0, len(payload), 6)]
-
-    assert False  # raise NotImplementedError, but wrapper suited for AssertError
+    return {
+        "zone_idx" if msg.device_from[:2] == "01" else "parent_zone_idx": payload[:2],
+        "setpoint": _temp(payload[2:]),
+    }
 
 
 @parser_decorator
@@ -783,15 +785,17 @@ def parser_30c9(payload, msg) -> Optional[dict]:  # temp (of device, zone/s)
         assert len(seqx) == 6
         assert int(seqx[:2], 16) < 12
 
-        return {"temperature": _temp(seqx[2:]), "zone_idx": seqx[:2]}
+        return {"zone_idx": seqx[:2], "temperature": _temp(seqx[2:])}
 
     if msg.device_from[:2] == "01" and msg.verb == " I":  # payload is usu. an array
-        assert len(payload) / 2 % 3 == 0
-        return [
-            _parser(payload[i : i + 6])
-            for i in range(0, len(payload), 6)
-            if payload[i + 2 : i + 6] != "FFFF"
-        ]
+        if len(payload) / 6 > 1 or msg._evo._num_zones == 1:  # is reasonably an array
+            assert msg.device_from == msg.device_dest
+            assert len(payload) / 2 % 3 == 0
+            return [
+                _parser(payload[i : i + 6])
+                for i in range(0, len(payload), 6)
+                if payload[i + 2 : i + 6] != "FFFF"
+            ]
 
     assert len(payload) / 2 == 3
 

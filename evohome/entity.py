@@ -223,8 +223,14 @@ class Controller(Device):
 
     def __init__(self, device_id, gateway) -> None:
         # _LOGGER.debug("Creating a new Controller %s", device_id)
-        gateway.ctl_dev_id = device_id
         super().__init__(device_id, gateway)
+
+        # STATE: update system state
+        gateway.evo.controller_id = device_id
+
+        # STATE: set controller state
+        self._num_zones = None
+        self._prev_code = None
 
         # self._discover()
 
@@ -257,7 +263,7 @@ class Controller(Device):
 
         self._command("0000", verb="XX")
 
-    def x_update(self, msg):
+    def update(self, msg):
         super().update(msg)
 
         if type(msg.payload) == list:  # isinstance(msg.payload, list):
@@ -488,6 +494,27 @@ class Zone(Entity):
 
     @property
     def zone_type(self) -> Optional[str]:
+        if self._zone_type:  # isinstance(self, ???)
+            return self._zone_type
+
+        # try to cast a new type (must be a superclass of the current type)
+        for device in self.devices:  # the following ar emutally exclusive
+            if device.device_type == "TRV":
+                self.__class__ = RadValveZone
+                self._zone_type = ZONE_TYPE_MAP["TRV"]
+
+            elif device.device_type == "BDR":
+                self.__class__ = ElectricZone  # if also call for heat, is a ZoneValve
+                self._zone_type = ZONE_TYPE_MAP["BDR"]
+
+            elif device.device_type == "UFH":
+                self.__class__ = UnderfloorZone
+                self._zone_type = ZONE_TYPE_MAP["UFH"]
+
+            # elif device.device_type == "???":
+            #     self.__class__ = MixValveZone
+            #     self._zone_type = ZONE_TYPE_MAP["MIX"]
+
         return self._zone_type
 
     def _discover(self):
@@ -501,30 +528,11 @@ class Zone(Entity):
             payload = f"{self._id}00" if code != "0000" else self._id
             self._command(code, payload=payload)
 
-    def x_update(self, msg):
+    def update(self, msg):
         super().update(msg)
 
-        if self._zone_type:  # isinstance(self, ???)
-            return
-
-        child_devices = [x for x in self._evo.devices if x.parent_zone == self._id]
-
-        # cast a new type (must be a superclass of the current type)
-        if "TRV" in [x.device_type for x in child_devices]:
-            self.__class__ = RadValveZone
-            self._zone_type = ZONE_TYPE_MAP["TRV"]
-
-        if "BDR" in [x.device_type for x in child_devices]:
-            self.__class__ = ElectricZone  # if also call for heat, is a ZoneValve
-            self._zone_type = ZONE_TYPE_MAP["BDR"]
-
-        if "UFH" in [x.device_type for x in child_devices]:
-            self.__class__ = UnderfloorZone
-            self._zone_type = ZONE_TYPE_MAP["UFH"]
-
-        # if "TRV" in [x.device_type for x in child_devices]:
-        #     self.__class__ = MixValveZone
-        #     self._zone_type = ZONE_TYPE_MAP["MIX"]
+        if self._zone_type is None:
+            _ = self.zone_type
 
 
 class DhwZone(Zone):

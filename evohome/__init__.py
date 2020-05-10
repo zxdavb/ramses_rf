@@ -33,6 +33,8 @@ class Gateway:
 
     def __init__(self, serial_port=None, loop=None, **config) -> None:
         """Initialise the class."""  # TODO: config.get() vs config[]
+        _LOGGER.debug("**config = %s", config)
+
         self.serial_port = serial_port
         self.loop = loop if loop else asyncio.get_running_loop()  # get_event_loop()
         self.config = config
@@ -66,7 +68,7 @@ class Gateway:
                 )
                 config["execute_cmd"] = None
 
-        if config.get("raw_output") > 1 and config.get("message_log"):
+        if config.get("raw_output", 0) > 1 and config.get("message_log"):
             _LOGGER.warning(
                 "Raw output specified, so disabling message_log (%s)",
                 config["message_log"],
@@ -75,13 +77,13 @@ class Gateway:
 
         set_logging(
             msg_logger,
-            stream=None if config.get("raw_output") > 1 else sys.stdout,
+            stream=None if config.get("raw_output", 0) > 1 else sys.stdout,
             file_name=self.config.get("message_log"),
         )
 
         set_logging(
             pkt_logger,
-            stream=sys.stdout if config.get("raw_output") == 2 else None,
+            stream=sys.stdout if config.get("raw_output", 0) == 2 else None,
             file_name=self.config.get("packet_log"),
             file_fmt=PKT_LOG_FMT + BANDW_SUFFIX,
             cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
@@ -101,8 +103,8 @@ class Gateway:
         # if self.config.get("database"):
         self._output_db = self._db_cursor = None
 
-        # if self.config.get("raw_output") > 0:
-        self.evo = EvohomeSystem()
+        # if self.config.get("raw_output", 0) > 0:
+        self.evo = EvohomeSystem(controller_id=None)
 
         self._setup_signal_handler()
 
@@ -121,7 +123,7 @@ class Gateway:
     async def _signal_handler(self, signal):
         _LOGGER.debug("Received signal %s...", signal.name)
 
-        if signal == signal.SIGUSR1:  # TODO: and self.config.get("raw_output") < 2:
+        if signal == signal.SIGUSR1:  # TODO: and self.config.get("raw_output", 0) < 2:
             _LOGGER.info("State data: %s", f"\r\n{json.dumps(self._devices, indent=4)}")
 
         if signal == signal.SIGUSR2:  # output debug data
@@ -301,9 +303,9 @@ class Gateway:
 
         # Finally, source of packets is either a text file, or a serial port:
         if self.config.get("input_file"):
-            await proc_pkts_from_file()  # main loop
+            await proc_pkts_from_file()
         else:  # if self.config["serial_port"] or if self.serial_port
-            await proc_pkts_from_port()  # main loop
+            await proc_pkts_from_port()
 
         await self.cleanup("start")
 
@@ -335,7 +337,7 @@ class Gateway:
                 return any(device in pkt.packet for device in dev_whitelist)
             return not any(device in pkt.packet for device in dev_blacklist)
 
-        if self.config.get("debug_mode") == 1:  # TODO: mem leak
+        if self.config.get("debug_mode", 0) == 1:  # TODO: mem leak
             self._debug_info()
 
         pkt = Packet(raw_pkt)
@@ -356,7 +358,7 @@ class Gateway:
             await self._output_db.commit()
 
         # finally, process packet payloads as messages
-        if self.config.get("raw_output") < 2:
+        if self.config.get("raw_output", 0) < 2:
             self._process_payload(pkt)
 
     def _process_payload(self, pkt: Packet) -> None:
@@ -379,7 +381,7 @@ class Gateway:
         try:  # only reliable packets should become part of the state data
             msg._create_entities()  # create the devices, zones, domains
 
-            if self.config.get("raw_output") > 0:
+            if self.config.get("raw_output", 0) > 0:
                 return
 
             if msg.device_from[:2] == "18":  # TODO: _dest[:2] also?
@@ -389,5 +391,6 @@ class Gateway:
 
         except AssertionError:  # TODO: for dev only?
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
+
         except (LookupError, TypeError, ValueError):  # TODO: shouldn't be needed?
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)

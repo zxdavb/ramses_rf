@@ -101,7 +101,7 @@ class Message:
             raw_payload2 = self.raw_payload
         # raw_payload2 = self.raw_payload if len(self.raw_payload) > 8 else ""
 
-        if self._gwy.config["known_devices"]:
+        if self._gwy.config.get("known_devices"):
             msg_format = MSG_FORMAT_18
         else:
             msg_format = MSG_FORMAT_10
@@ -135,6 +135,23 @@ class Message:
         if self._is_valid is not None:
             return self._is_valid
 
+        # STATE: update system state (controller ID)
+        if self._evo.ctl_id is None:
+            if self.device_from[:2] == "01":
+                self._evo.ctl_id = self.device_from
+            elif self.device_dest[:2] == "01":
+                self._evo.ctl_id = self.device_dest
+
+        # STATE: update system state (how many zones?)
+        if self._evo._num_zones is None:
+            if self.device_from == self._evo.ctl_id and self._evo._prev_code == "1F09":
+                if self.code == "2309" and self.verb == " I":
+                    assert len(self.raw_payload) % 6 == 0
+                    self._evo._num_zones = len(self.raw_payload) / 6
+                if self.code == "000A" and self.verb == " I":
+                    assert len(self.raw_payload) % 12 == 0
+                    self._evo._num_zones = len(self.raw_payload) / 12
+
         try:  # determine which parser to use
             payload_parser = getattr(parsers, f"parser_{self.code}".lower())
         except AttributeError:  # there's no parser for this command code!
@@ -153,6 +170,10 @@ class Message:
 
         # for dev_id in self.device_id:  # TODO: leave in, or out?
         #     assert dev_id[:2] in DEVICE_MAP  # incl. "--", "63"
+
+        # STATE: update system state (how many zones?)
+        if self.device_from == self._evo.ctl_id:
+            self._evo._prev_code = self.code if self.verb == " I" else None
 
         # any remaining messages are valid, so: log them
         _LOGGER.info("%s", self, extra=self.__dict__)
@@ -211,18 +232,18 @@ class Message:
         """Update the system state with the message data."""
 
         def _update_entity(data: dict) -> None:
-            if "domain_id" in self.payload:
-                self._evo.domain_by_id[self.payload["domain_id"]].update(self)
-            elif "zone_idx" in self.payload:
-                self._evo.zone_by_id[self.payload["zone_idx"]].update(self)
+            if "domain_id" in data:
+                self._evo.domain_by_id[data["domain_id"]].update(self)
+            elif "zone_idx" in data:
+                self._evo.zone_by_id[data["zone_idx"]].update(self)
             else:
                 self._evo.device_by_id[self.device_from].update(self)
 
-        if not __dev_mode__ or self.device_from not in self._gwy.known_devices:
-            assert self.device_from not in self._gwy.known_devices, "dev not in k_d DB"
-            return
+        # if not __dev_mode__ or self.device_from not in self._gwy.known_devices:
+        #     assert self.device_from in self._gwy.known_devices, "dev not in k_d DB"
+        #     return
 
-        if isinstance(self.payload, dict):
+        if __dev_mode__ and isinstance(self.payload, dict):
             zone_idx = self._gwy.known_devices[self.device_from].get("zone_idx")
 
             if "parent_zone_idx" in self.payload:
@@ -248,7 +269,7 @@ class Message:
 
         # what was the message about: system, domain, or zone?
         assert self.payload is not None  # TODO: this should have been done before?
-        if not self.payload:  # maybe {}, but not []
+        if not self.payload:  # shoudl be {} (possibly empty) or [] (never empty)
             return
 
         if isinstance(self.payload, list):
@@ -262,7 +283,7 @@ class Message:
                 return
             if self.code in ["1FC9"]:  # TODO: array of domains/zones/???
                 return
-            assert False
+            assert False  # should never reach here
 
         if "zone_idx" in self.payload:
             if self.code == "0418":
@@ -273,7 +294,7 @@ class Message:
             _update_entity(self.payload)
 
         elif "domain_id" in self.payload:
-            pass
+            _update_entity(self.payload)
 
         elif self.code in ["1FD4", "22D9", "3220"]:  # is for opentherm...
             _update_entity(self.payload)  # TODO: needs checking

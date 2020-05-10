@@ -11,11 +11,14 @@ _LOGGER = logging.getLogger(__name__)
 class EvohomeSystem:
     """The system class."""
 
-    def __init__(self) -> None:
+    def __init__(self, controller_id=None) -> None:
         """Initialise the class."""
-        self.dev_id = None
+        # STATE: set the initial system state
+        self.ctl_id = controller_id
+        self._num_zones = None
+        self._prev_code = None
 
-        self.zones = []  # not used
+        self.zones = []  # not used?
         self.zone_by_id = {}
 
         self.domains = []
@@ -25,6 +28,14 @@ class EvohomeSystem:
         self.device_by_id = {}
 
         self.data = {f"{i:02X}": {} for i in range(12)}
+
+    @property
+    def controller_id(self) -> Optional[str]:
+        self._controller_id
+
+    @controller_id.setter
+    def controller_id(self, var):
+        self._controller_id = var
 
     @property
     def _devices(self) -> Optional[dict]:
@@ -51,7 +62,7 @@ class EvohomeSystem:
         """Calculate a system schema."""
         controllers = [d for d in self.devices if d.device_type == "CTL"]
         if len(controllers) != 1:
-            print("fail test 0: more/less than 1 controller")
+            _LOGGER.debug("fail test 0: more/less than 1 controller")
             return
 
         structure = {
@@ -110,13 +121,13 @@ class EvohomeSystem:
 
         # TODO: needed? or just process only those with a unique temp?
         if len(zone_map) != len(structure["zones"]):  # duplicate/null temps
-            print("fail test 1: non-unique (null) zone temps")
+            _LOGGER.debug("fail test 1: non-unique (null) zone temps")
             return structure
 
         # check all possible sensors have a unique temp - how?
         temp_map = [t for t in thermometers.values() if t is not None]
         if len(temp_map) != len(thermometers):  # duplicate/null temps
-            print("fail test 2: null device temps")
+            _LOGGER.debug("fail test 2: null device temps")
             return structure
 
         temp_map = {str(v): k for k, v in thermometers.items() if v is not None}

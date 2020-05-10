@@ -1,20 +1,20 @@
 import setuptools
 
-VERSION = "0.0.9"
+VERSION = "0.2.0"
 
 with open("README.md", "r") as fh:
     LONG_DESCRIPTION = fh.read()
 
 setuptools.setup(
-    name="evohome",
+    name="evohome-rf",
     version=VERSION,
     author="David Bonnes",
     author_email="zxdavb@gmail.com",
     description="A Honeywell evohome RF agent (compliant with RAMSES II).",
     long_description=LONG_DESCRIPTION,
     long_description_content_type="text/markdown",
-    url="https://github.com/zxdavb/evohome",
-    download_url="https://github.com/zxdavb/evohome/archive/VERSION.tar.gz",
+    url="https://github.com/zxdavb/evohome_rf",
+    download_url="https://github.com/zxdavb/evohome_rf/archive/VERSION.tar.gz",
     packages=["evohome"],
     keywords=["evohome", "ramses"],
     classifiers=[

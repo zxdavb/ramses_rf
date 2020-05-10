@@ -1,7 +1,7 @@
 """Evohome serial."""
 import re
 
-__dev_mode__ = True
+__dev_mode__ = False
 
 NON_DEV_ID = "--:------"
 NUL_DEV_ID = "63:262142"  # 7FFFFF - send here if not bound?
