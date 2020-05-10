@@ -225,13 +225,6 @@ class Controller(Device):
         # _LOGGER.debug("Creating a new Controller %s", device_id)
         super().__init__(device_id, gateway)
 
-        # STATE: update system state
-        gateway.evo.controller_id = device_id
-
-        # STATE: set controller state
-        self._num_zones = None
-        self._prev_code = None
-
         # self._discover()
 
     @property
