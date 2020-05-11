@@ -49,11 +49,6 @@ class Entity:
 
         self._pkts = {}
 
-    def _command(self, code, **kwargs):
-        kwargs["code"] = code
-        kwargs["dest_addr"] = kwargs.get("dest_id")
-        self._cmd_que.put_nowait(Command(self._gwy, **kwargs))
-
     def _discover(self):
         # for code in COMMAND_SCHEMA:  # testing only
         #     payload = f"{self._id}00" if code != "0000" else self._id
@@ -67,6 +62,11 @@ class Entity:
     #         return controller._pkts[code].payload[key]
     #     else:
     #         pass  # TODO: send an RQ
+
+    def _command(self, code, **kwargs):
+        kwargs["code"] = code
+        kwargs["dest_addr"] = kwargs.get("dest_id")
+        self._cmd_que.put_nowait(Command(self._gwy, **kwargs))
 
     def _get_pkt_value(self, code, key) -> Optional[Any]:
         if self._pkts.get(code):
@@ -189,6 +189,27 @@ class Device(Entity):
         # TODO: causing queue.Full exception with -i
         self._discover()  # needs self._device_type
 
+    def _discover(self):
+        # if self._device_type not in ["BDR", "STA", "TRV", " 12"]:
+
+        # 0016 works (unsolicited) with 01:, 13:
+        # if self._id[:2] not in []:  # a device (e.g. a TRV) may be in rf_check mode
+        if not self._has_battery:
+            self._command("0016", dest_id=self._id, payload="00")
+
+        # # 10E0 works with 01:, 30:
+        # if self._id[:2] not in ["04", "12", "13", "32", "34"]:
+        #     self._command("10E0", dest_id=self._id, payload="0000")
+
+        # # # # sync cycle FF & 00
+        # for payload in ["00", "0000", "FF"]:
+        #     # check: relay_demand, rf_check, sync_cycle, boiler_params, actuator_state
+        #     for code in ["0016"]:  # battery-operated wont respond
+        #         self._command(code, dest_id=self._id, payload=payload)
+
+        # for code in COMMAND_SCHEMA:
+        #     self._command(code, dest_id=self._id, payload="0000")
+
     @property
     def description(self):  # 0100, 10E0,
         return self._get_pkt_value("10E0", "description")
@@ -211,27 +232,6 @@ class Device(Entity):
                 self._parent_zone = msg.payload["parent_zone_idx"]
                 break
         return self._parent_zone
-
-    def _discover(self):
-        # if self._device_type not in ["BDR", "STA", "TRV", " 12"]:
-
-        # 0016 works (unsolicited) with 01:, 13:
-        # if self._id[:2] not in []:  # a device (e.g. a TRV) may be in rf_check mode
-        if not self._has_battery:
-            self._command("0016", dest_id=self._id, payload="00")
-
-        # # 10E0 works with 01:, 30:
-        # if self._id[:2] not in ["04", "12", "13", "32", "34"]:
-        #     self._command("10E0", dest_id=self._id, payload="0000")
-
-        # # # # sync cycle FF & 00
-        # for payload in ["00", "0000", "FF"]:
-        #     # check: relay_demand, rf_check, sync_cycle, boiler_params, actuator_state
-        #     for code in ["0016"]:  # battery-operated wont respond
-        #         self._command(code, dest_id=self._id, payload=payload)
-
-        # for code in COMMAND_SCHEMA:
-        #     self._command(code, dest_id=self._id, payload="0000")
 
     def x_update(self, msg):
         # if isinstance(msg.payload, dict):
@@ -460,6 +460,33 @@ class Zone(Entity):
         self._zone_type = None
         # self._discover()
 
+    def _discover(self):
+        # get name, config, mode, temp
+        # can't do: "3150" (TODO: 12B0/window_state only if enabled, or only if TRV?)
+        for code in [
+            "0004",
+            "000A",
+            "000C",
+            "12B0",
+            "2349",
+            "30C9",
+            "3150",
+        ]:  # also: "2349", "30C9"]:
+            payload = f"{self._id}00" if code != "0000" else self._id
+            self._command(code, payload=payload)
+
+        for code in [
+            "0004",
+            "000A",
+            "000C",
+            "12B0",
+            "2349",
+            "30C9",
+            "3150",
+        ]:  # also: "2349", "30C9"]:
+            payload = f"{self._id}" if code != "0000" else self._id
+            self._command(code, payload=payload)
+
     @property
     def configuration(self):
         # if self._zone_type != "Radiator Valve":
@@ -535,33 +562,6 @@ class Zone(Entity):
             #     self._zone_type = ZONE_TYPE_MAP["MIX"]
 
         return self._zone_type
-
-    def _discover(self):
-        # get name, config, mode, temp
-        # can't do: "3150" (TODO: 12B0/window_state only if enabled, or only if TRV?)
-        for code in [
-            "0004",
-            "000A",
-            "000C",
-            "12B0",
-            "2349",
-            "30C9",
-            "3150",
-        ]:  # also: "2349", "30C9"]:
-            payload = f"{self._id}00" if code != "0000" else self._id
-            self._command(code, payload=payload)
-
-        for code in [
-            "0004",
-            "000A",
-            "000C",
-            "12B0",
-            "2349",
-            "30C9",
-            "3150",
-        ]:  # also: "2349", "30C9"]:
-            payload = f"{self._id}" if code != "0000" else self._id
-            self._command(code, payload=payload)
 
     def update(self, msg):
         super().update(msg)
