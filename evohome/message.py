@@ -135,7 +135,7 @@ class Message:
         if self._is_valid is not None:
             return self._is_valid
 
-        # STATE: update system state (controller ID)
+        # STATE: update system state (find controller ID)
         if self._evo.ctl_id is None:
             if self.device_from[:2] == "01":
                 self._evo.ctl_id = self.device_from
@@ -145,7 +145,7 @@ class Message:
         # STATE: update system state (how many zones?)
         if self._evo._num_zones is None:
             if self.device_from == self._evo.ctl_id and self._evo._prev_code == "1F09":
-                if self.code == "2309" and self.verb == " I":
+                if self.code == "2309" and self.verb == " I":  # TODO: and 3C09 too?
                     assert len(self.raw_payload) % 6 == 0
                     self._evo._num_zones = len(self.raw_payload) / 6
                 if self.code == "000A" and self.verb == " I":
@@ -157,7 +157,7 @@ class Message:
         except AttributeError:  # there's no parser for this command code!
             payload_parser = getattr(parsers, "parser_unknown")
 
-        try:
+        try:  # run the parser
             self._payload = payload_parser(self.raw_payload, self)  # TODO: messy
             assert self._payload is not None  # should be a dict or a list
         except AssertionError:  # for development only?
@@ -168,12 +168,12 @@ class Message:
                 _LOGGER.exception("%s", self._pkt, extra=self.__dict__)
             return False
 
-        # for dev_id in self.device_id:  # TODO: leave in, or out?
-        #     assert dev_id[:2] in DEVICE_MAP  # incl. "--", "63"
-
         # STATE: update system state (how many zones?)
         if self.device_from == self._evo.ctl_id:
             self._evo._prev_code = self.code if self.verb == " I" else None
+
+        # for dev_id in self.device_id:  # TODO: leave in, or out?
+        #     assert dev_id[:2] in DEVICE_MAP  # incl. "--", "63"
 
         # any remaining messages are valid, so: log them
         _LOGGER.info("%s", self, extra=self.__dict__)
