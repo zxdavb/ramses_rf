@@ -1,7 +1,7 @@
 """Evohome serial."""
 import re
 
-__dev_mode__ = False
+__dev_mode__ = True
 
 NON_DEV_ID = "--:------"
 NUL_DEV_ID = "63:262142"  # 7FFFFF - send here if not bound?
@@ -125,20 +125,20 @@ COMMAND_LENGTH = max([len(k) for k in list(COMMAND_LOOKUP)])
 # sed -e 's/ 30:/ GWY:/g' -e 's/ 32:/ VNT:/g' -e 's/ 34:/ STA:/g' -i pkts.out
 # sed -e 's/ 63:/ ALL:/g' -e 's/ --:/  --:/g' -i pkts.out
 
-# TODO: what devices send what packets # for 13: 3EF0=relay/TPI; 3B00=TPI (
+# TODO: which device type/config pairs send what packets?
 DEVICE_TABLE = {
     "01": {"type": "CTL", "battery": False},  # Evohome Controller
     "02": {"type": "UFH", "battery": False},  # Underfloor heating: HCC80, HCE80
-    "04": {"type": "TRV", "battery": True},  # Radiator valve: HR80, HR91, HR92
-    "07": {"type": "DHW", "battery": True},  # DHW sensor: CS92
+    "04": {"type": "TRV", "battery": True},  # .Radiator valve: HR80, HR91, HR92
+    "07": {"type": "DHW", "battery": True},  # .DHW sensor: CS92
     "10": {"type": "OTB", "battery": False},  # OpenTherm bridge: R8810
-    "12": {"type": "THm", "battery": True},  # Thermostat with setpoint schedule: DTS92E
+    "12": {"type": "THm", "battery": True},  # .Thermostat (with schedule?): DTS92E
     "13": {"type": "BDR", "battery": False},  # Wireless relay box: BDR91; HC60NG too?
     "18": {"type": "HGI", "battery": False},  # Honeywell Gwy Interface: HGI80, HGS80
-    "22": {"type": "THM", "battery": True},  # Thermostat with setpoint schedule: DTS92E
+    "22": {"type": "THM", "battery": True},  # .Thermostat (with schedule?): DTS92E
     "30": {"type": "GWY", "battery": False},  # Gateway: RFG100?
-    "32": {"type": "VMS", "battery": True},  # Ventilation Nuaire VMS-23HB33, -23LMH23
-    "34": {"type": "STA", "battery": True},  # Round Thermostat: T87RF
+    "32": {"type": "VMS", "battery": True},  # .Ventilation Nuaire VMS-23HB33, -23LMH23
+    "34": {"type": "STA", "battery": True},  # .Thermostat (without schedule?): T87RF
     "63": {"type": "NUL", "battery": False},
     "--": {"type": "---", "battery": False},
 }  # TODO: Mixing valve: HM80 (no battery)
