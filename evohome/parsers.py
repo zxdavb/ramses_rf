@@ -113,6 +113,8 @@ def parser_decorator(func):
 
         if msg.code == "1100":  # boiler_params
             assert payload[:2] in ["00", "FC"]
+            if len(payload) / 2 == 1:
+                return {"domain_id": payload}  # TODO: should be {}?
             return func(*args, **kwargs)
 
         if msg.code == "3220":  # CTL -> OTB (OpenTherm)
