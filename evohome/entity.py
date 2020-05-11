@@ -9,6 +9,7 @@ from .const import (
     CTL_DEV_ID,
     DEVICE_LOOKUP,
     DEVICE_TYPES,
+    DOMAIN_MAP,
     ZONE_TYPE_MAP,
 )
 
@@ -50,9 +51,12 @@ class Entity:
         self._pkts = {}
 
     def _discover(self):
-        # for code in COMMAND_SCHEMA:  # testing only
+        # for code in COMMAND_SCHEMA:  # TODO: testing only
         #     payload = f"{self._id}00" if code != "0000" else self._id
         #     self._command(code, payload=payload)
+
+        # TODO: an attempt to actively discover the CTL rather than by eavesdropping
+        # self._command("313F", dest_addr=NUL_DEV_ID, payload="FF")
 
         raise NotImplementedError
 
@@ -64,9 +68,9 @@ class Entity:
     #         pass  # TODO: send an RQ
 
     def _command(self, code, **kwargs):
-        kwargs["code"] = code
-        kwargs["dest_addr"] = kwargs.get("dest_id")
-        self._cmd_que.put_nowait(Command(self._gwy, **kwargs))
+        if kwargs.get("dest_addr") is None:
+            kwargs["dest_addr"] = self._id
+        self._cmd_que.put_nowait(Command(self._gwy, code=code, **kwargs))
 
     def _get_pkt_value(self, code, key) -> Optional[Any]:
         if self._pkts.get(code):
@@ -140,7 +144,7 @@ class System(Entity):
     def fault_log(self):
         # WIP: try to discover fault codes
         for num in range(0x00, 0x3C):  # 10 pages of 6
-            self._command("0418", CTL_DEV_ID, f"{num:06X}")
+            self._command("0418", payload=f"{num:06X}")
 
         return
 
@@ -190,25 +194,19 @@ class Device(Entity):
         self._discover()  # needs self._device_type
 
     def _discover(self):
-        # if self._device_type not in ["BDR", "STA", "TRV", " 12"]:
+        # 0016 works (unsolicited) with 01:, 13:, however:
+        # xf not self._has_battery:  # dont filter as any device may be in rf_check mode
+        self._command("0016", payload="00")
 
-        # 0016 works (unsolicited) with 01:, 13:
-        # if self._id[:2] not in []:  # a device (e.g. a TRV) may be in rf_check mode
-        if not self._has_battery:
-            self._command("0016", dest_id=self._id, payload="00")
+        # 10E0 works with 01:, 30:
+        if self._id[:2] not in ["04", "12", "13", "32", "34"]:
+            self._command("10E0", payload="0000")
 
-        # # 10E0 works with 01:, 30:
+        # TODO: 1FC9 works with 01:, 30:
         # if self._id[:2] not in ["04", "12", "13", "32", "34"]:
-        #     self._command("10E0", dest_id=self._id, payload="0000")
+        self._command("1FC9", payload="0000")
 
-        # # # # sync cycle FF & 00
-        # for payload in ["00", "0000", "FF"]:
-        #     # check: relay_demand, rf_check, sync_cycle, boiler_params, actuator_state
-        #     for code in ["0016"]:  # battery-operated wont respond
-        #         self._command(code, dest_id=self._id, payload=payload)
-
-        # for code in COMMAND_SCHEMA:
-        #     self._command(code, dest_id=self._id, payload="0000")
+        pass
 
     @property
     def description(self):  # 0100, 10E0,
@@ -251,7 +249,7 @@ class Controller(Device):
 
     def _discover(self):
         super()._discover()
-        self._command("0100", dest_id=self._id, payload="00")
+        self._command("0100", payload="00")
 
     @property
     def parent_zone(self) -> None:
@@ -264,23 +262,12 @@ class Controller(Device):
     def _TBD_discover(self):
         super()._discover()
 
-        # # WIP: an attempt to actively discover the CTL rather than by eavesdropping
-        # for cmd in ["313F"]:
-        #     self._command(cmd, NUL_DEV_ID, "FF")
-
-        # a 'real' Zone will return 0004/zone_name != None
+        # TODO: remove? a 'real' Zone will return 0004/zone_name != None
         for zone_idx in range(12):
-            _zone = f"{zone_idx:02x}00"
-            self._command("0004", CTL_DEV_ID, _zone)
+            self._command("0004", payload=f"{zone_idx:02x}00")
 
         # the 'real' DHW controller will return 1260/dhw_temp != None
-        for _zone in ["FA"]:
-            self._command("1260", CTL_DEV_ID, _zone)
-
-        # WIP: the Controller, and 'real' Relays will respond to 0016/rf_check ???
-        # self._command("0016", CTL_DEV_ID, f"{domain_id}FF")
-
-        self._command("0000", verb="XX")
+        [self._command("1260", payload=d) for d in DOMAIN_MAP]
 
     def update(self, msg):
         super().update(msg)
@@ -345,7 +332,7 @@ class DhwSensor(Device):
 
     def _TBD_discover(self):
         for cmd in ["10A0", "1260", "1F41"]:
-            self._command(cmd, CTL_DEV_ID, "00")
+            self._command(cmd, dest_addr=CTL_DEV_ID, payload="00")
 
 
 class TrvActuator(Device):
@@ -404,14 +391,18 @@ class BdrSwitch(Device):
         # _LOGGER.debug("Creating a new BDR %s", device_id)
         super().__init__(device_id, gateway)
 
-    def _TBD_discover(self):
+    def _discover(self):
         super()._discover()
 
         # for cmd in ["3B00", "3EF0"]:  # these don't work, for 00 or 0000
-        #     self._command(cmd, self._id, "00")
+        #     self._command(cmd, payload="00")  # for 13: 3EF0=relay/TPI; 3B00=TPI
+        # for cmd in ["3B00", "3EF0"]:  # these don't work, for 00 or 0000
+        #     self._command(cmd, payload="0000")  # for 13: 3EF0=relay/TPI; 3B00=TPI
+        # for cmd in ["3B00", "3EF0"]:  # these don't work, for 00 or 0000
+        #     self._command(cmd, payload="FF")  # for 13: 3EF0=relay/TPI; 3B00=TPI
 
-        for cmd in ["0008", "1100", "3EF1"]:  # these work, for any payload
-            self._command(cmd, self._id, "0000")
+        # for cmd in ["0008", "1100", "3EF1"]:  # these work, for any payload
+        #     self._command(cmd, payload="0000")
 
     def x_update(self, msg):
         super().update(msg)
@@ -458,34 +449,24 @@ class Zone(Entity):
         super().__init__(zone_idx, gateway)
 
         self._zone_type = None
-        # self._discover()
+        self._discover()
 
     def _discover(self):
-        # get name, config, mode, temp
-        # can't do: "3150" (TODO: 12B0/window_state only if enabled, or only if TRV?)
-        for code in [
-            "0004",
-            "000A",
-            "000C",
-            "12B0",
-            "2349",
-            "30C9",
-            "3150",
-        ]:  # also: "2349", "30C9"]:
-            payload = f"{self._id}00" if code != "0000" else self._id
-            self._command(code, payload=payload)
+        # if self._id != "01":  # TODO: testing only
+        #     return
 
-        for code in [
-            "0004",
-            "000A",
-            "000C",
-            "12B0",
-            "2349",
-            "30C9",
-            "3150",
-        ]:  # also: "2349", "30C9"]:
-            payload = f"{self._id}" if code != "0000" else self._id
-            self._command(code, payload=payload)
+        for code in ["0004", "000C"]:
+            self._command(code, dest_addr=CTL_DEV_ID, payload=f"{self._id}00")
+
+        for code in ["000A", "2349", "30C9"]:
+            self._command(code, dest_addr=CTL_DEV_ID, payload=self._id)
+
+        # TODO: 12B0: only if RadValve zone, or whenever window_state is enabled?
+        for code in ["12B0"]:
+            self._command(code, dest_addr=CTL_DEV_ID, payload=self._id)
+
+        # TODO: 3150(00?): how to do (if at all) & for what zone types?
+        # TODO: 0005(002), 0006(001), 0404(00?):
 
     @property
     def configuration(self):
@@ -502,8 +483,16 @@ class Zone(Entity):
         return {k: None for k in attrs}
 
     @property
-    def devices(self):  # TODO: use 000C
-        return [d for d in self._evo.devices if d.parent_zone == self._id]
+    def actuators(self) -> list:
+        actuators = self._get_pkt_value("000C", "actuators")
+        if actuators:
+            return [device for x in actuators for device in x]
+        return []
+
+    @property
+    def devices(self) -> list:
+        devices = {d for d in self._evo.devices if d.parent_zone == self._id}
+        return list(set(self.actuators) | devices)
 
     @property
     def heat_demand(self) -> Optional[float]:
@@ -544,22 +533,12 @@ class Zone(Entity):
             return self._zone_type
 
         # try to cast a new type (must be a superclass of the current type)
-        for device in self.devices:  # the following ar emutally exclusive
-            if device.device_type == "TRV":
-                self.__class__ = RadValveZone
-                self._zone_type = ZONE_TYPE_MAP["TRV"]
-
-            elif device.device_type == "BDR":
-                self.__class__ = ElectricZone  # if also call for heat, is a ZoneValve
-                self._zone_type = ZONE_TYPE_MAP["BDR"]
-
-            elif device.device_type == "UFH":
-                self.__class__ = UnderfloorZone
-                self._zone_type = ZONE_TYPE_MAP["UFH"]
-
-            # elif device.device_type == "???":
-            #     self.__class__ = MixValveZone
-            #     self._zone_type = ZONE_TYPE_MAP["MIX"]
+        for device in self.actuators:
+            device_type = DEVICE_TYPES[device[:2]]
+            if device_type in ZONE_CLASS_MAP:
+                self.__class__ = ZONE_CLASS_MAP[device_type]
+                self._zone_type = ZONE_TYPE_MAP[device_type]
+                break
 
         return self._zone_type
 
@@ -568,40 +547,6 @@ class Zone(Entity):
 
         if self._zone_type is None:
             _ = self.zone_type
-
-
-class DhwZone(Zone):
-    """Base for the DHW (Fx) domain."""
-
-    def __init__(self, zone_idx, gateway) -> None:
-        # _LOGGER.debug("Creating a new Zone %s", zone_idx)
-        super().__init__(zone_idx, gateway)
-
-        self._zone_type = None  # or _domain_type
-        # self._discover()
-
-    @property
-    def configuration(self):
-        attrs = ["setpoint", "overrun", "differential"]
-        return {x: self._get_pkt_value("10A0", x) for x in attrs}
-
-    @property
-    def name(self) -> Optional[str]:
-        return "DHW Controller"
-
-    @property
-    def setpoint_status(self):
-        attrs = ["active", "mode", "until"]
-        return {x: self._get_pkt_value("1F41", x) for x in attrs}
-
-    @property
-    def temperature(self):
-        return self._get_pkt_value("1260", "temperature")
-
-    def _TBD_discover(self):
-        # get config, mode, temp
-        for cmd in ["10A0", "1F41", "1260"]:  # TODO: what about 1100?
-            self._command(cmd, CTL_DEV_ID, "00")
 
 
 class RadValveZone(Zone):
@@ -616,18 +561,14 @@ class RadValveZone(Zone):
     def window_open(self):
         return self._evo.data[f"{self._id:02X}"]["window_open"]
 
-    def _TBD_discover(self):
-        super()._discover()
-
-        for cmd in ["12B0"]:
-            self._command(cmd, CTL_DEV_ID, self._id)
-
 
 class ElectricZone(Zone):
     """Base for Electric Heat zones.
 
     For a small (5A) electric load controlled by a BDR91 (never calls for heat).
     """
+
+    # if also call for heat, then is a ZoneValve
 
     def x_update(self, payload, msg):
         super().update(payload, msg)
@@ -664,7 +605,41 @@ class MixValveZone(Zone):
         return {x: self._get_pkt_value("1030", x) for x in attrs}
 
 
-DEVICE_CLASSES = {
+class DhwZone(Zone):
+    """Base for the DHW (Fx) domain."""
+
+    def __init__(self, zone_idx, gateway) -> None:
+        # _LOGGER.debug("Creating a new Zone %s", zone_idx)
+        super().__init__(zone_idx, gateway)
+
+        self._zone_type = None  # or _domain_type
+        # self._discover()
+
+    @property
+    def configuration(self):
+        attrs = ["setpoint", "overrun", "differential"]
+        return {x: self._get_pkt_value("10A0", x) for x in attrs}
+
+    @property
+    def name(self) -> Optional[str]:
+        return "DHW Controller"
+
+    @property
+    def setpoint_status(self):
+        attrs = ["active", "mode", "until"]
+        return {x: self._get_pkt_value("1F41", x) for x in attrs}
+
+    @property
+    def temperature(self):
+        return self._get_pkt_value("1260", "temperature")
+
+    def _TBD_discover(self):
+        # get config, mode, temp
+        for cmd in ["10A0", "1F41", "1260"]:  # TODO: what about 1100?
+            self._command(cmd, dest_addr=CTL_DEV_ID, payload="00")
+
+
+DEVICE_CLASS_MAP = {
     DEVICE_LOOKUP["BDR"]: BdrSwitch,
     DEVICE_LOOKUP["CTL"]: Controller,
     DEVICE_LOOKUP["DHW"]: DhwSensor,
@@ -673,13 +648,10 @@ DEVICE_CLASSES = {
     DEVICE_LOOKUP["TRV"]: TrvActuator,
 }
 
-ZONE_CLASSES = {
-    "01": Controller,
-    "04": TrvActuator,
-    "07": DhwSensor,
-    "10": Device,
-    "12": Thermostat,
-    "13": BdrSwitch,
-    "22": Thermostat,
-    "34": Thermostat,
+ZONE_CLASS_MAP = {
+    "TRV": RadValveZone,
+    "BDR": ElectricZone,
+    "ZON": ZoneValveZone,
+    "UFH": UnderfloorZone,
+    "MIX": MixValveZone,
 }
