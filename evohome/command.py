@@ -53,17 +53,16 @@ MAX_CMDS_PER_MINUTE = 30
 class Command:
     """The command class."""
 
-    def __init__(self, gateway, **kwargs) -> None:
+    def __init__(self, gateway, verb="RQ", from_addr=HGI_DEV_ID, **kwargs) -> None:
         """Initialise the  class."""
-        self._gateway = gateway
-        self.verb = kwargs.get("verb", "RQ")
-        self.from_addr = kwargs.get("from_addr", HGI_DEV_ID)
+        self._gwy = gateway
+        self._evo = gateway.evo
+
+        self.verb = verb
+        self.from_addr = from_addr
+        self.dest_addr = kwargs.get("dest_addr", gateway.evo.ctl_id)
         self.code = kwargs.get("code", "1F09")
         self.payload = kwargs.get("payload", "FF")
-
-        dest = kwargs.get("dest_addr")
-
-        self.dest_addr = self._gateway.ctl_dev_id if dest is None else dest
 
     def __str__(self) -> str:
         """Represent as a string."""
@@ -80,6 +79,12 @@ class Command:
         #     raise ValueError(f"Message is not valid, >>{_cmd}<<")
 
         return _cmd
+
+
+# 0100, payload = "00"
+# 1F09, payload = "FF"
+# 000A, payload = zz00
+# 000C, payload = zz00
 
 
 # def scan_tight(dest_id):
