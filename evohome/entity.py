@@ -9,7 +9,7 @@ from .const import (
     CTL_DEV_ID,
     DEVICE_LOOKUP,
     DEVICE_TYPES,
-    DOMAIN_MAP,
+    # DOMAIN_MAP,
     ZONE_TYPE_MAP,
 )
 
@@ -51,13 +51,6 @@ class Entity:
         self._pkts = {}
 
     def _discover(self):
-        # for code in COMMAND_SCHEMA:  # TODO: testing only
-        #     payload = f"{self._id}00" if code != "0000" else self._id
-        #     self._command(code, payload=payload)
-
-        # TODO: an attempt to actively discover the CTL rather than by eavesdropping
-        # self._command("313F", dest_addr=NUL_DEV_ID, payload="FF")
-
         raise NotImplementedError
 
     # def _get_ctl_value(self, code, key) -> Optional[Any]:
@@ -184,6 +177,7 @@ class Device(Entity):
 
         self._device_type = DEVICE_TYPES.get(device_id[:2])
         self._parent_zone = None
+        # TODO: does 01: have a battery - also use lookup from const
         self._has_battery = device_id[:2] in ["04", "12", "22", "30", "34"]
 
         attrs = gateway.known_devices.get(device_id)
@@ -201,15 +195,26 @@ class Device(Entity):
         # 10E0 works with 01:, 30:
         if self._id[:2] not in ["04", "12", "13", "32", "34"]:
             self._command("10E0", payload="0000")
+        # else:
+        #     # TODO: it's unlikely anything repsond to an RQ/1060 (an 01: doesn't)
+        #     self._command("1060", payload="00")  # check payload len()
 
         # TODO: 1FC9 works with 01:, 30:
         # if self._id[:2] not in ["04", "12", "13", "32", "34"]:
         self._command("1FC9", payload="0000")
 
+        # for code in COMMAND_SCHEMA:  # TODO: testing only
+        #     payload = f"{self._id}00" if code != "0000" else self._id
+        #     self._command(code, payload=payload)
+
+        # TODO: an attempt to actively discover the CTL rather than by eavesdropping
+        # self._command("313F", dest_addr=NUL_DEV_ID, payload="FF")
+
         pass
 
     @property
-    def description(self):  # 0100, 10E0,
+    def description(self):  # 10E0
+        # 01:, and (rarely) 04:
         return self._get_pkt_value("10E0", "description")
 
     @property
@@ -243,31 +248,51 @@ class Device(Entity):
 class Controller(Device):
     """The Controller class."""
 
+    """[
+            "10E0", "3150", "2309", "1F09", "30C9", "3B00", "0008", "000A",
+            "0418", "313F", "2349", "0100", "12B0", "0009", "1100", "2E04",
+            "0004"
+        ]
+    """
+
     def __init__(self, device_id, gateway) -> None:
         # _LOGGER.debug("Creating a new Controller %s", device_id)
         super().__init__(device_id, gateway)
 
     def _discover(self):
         super()._discover()
-        self._command("0100", payload="00")
+
+        # Note: could use this to discover zones
+        # for zone_idx in range(12):
+        #     self._command("0004", payload=f"{zone_idx:02x}00")
+
+        # system-related... (not working: 1280, 22D9, 2D49, 2E04, 3220, 3B00)
+        for code in ["0002", "0100", "10A0", "1260", "1F09", "1F41", "313F"]:
+            self._command(code, payload="00")
+
+        self._command("0005", payload="0000")
+        self._command("1100", payload="FC")
+
+        # TODO: 1100(), 1290(00x), 2E04(00x), 0418(00x):
+        # for code in ["000C"]:
+        #     for payload in ["F800", "F900", "FA00", "FB00", "FC00", "FF00"]:
+        #         self._command(code, payload=payload)
+
+        # for code in ["2E04"]:
+        #     for payload in ["0000", "00", "F8", "F9", "FA", "FB", "FC", "FF"]:
+        #         self._command(code, payload=payload)
 
     @property
     def parent_zone(self) -> None:
         return "FF"
 
+    @property
+    def language(self) -> Optional[str]:  # 0100,
+        return self._get_pkt_value("0100", "language")
+
     def zone_properties(self, zone_idx) -> dict:
         # 0004/name, 000A/properties, 2309/setpoint, 30C9/temp
         pass
-
-    def _TBD_discover(self):
-        super()._discover()
-
-        # TODO: remove? a 'real' Zone will return 0004/zone_name != None
-        for zone_idx in range(12):
-            self._command("0004", payload=f"{zone_idx:02x}00")
-
-        # the 'real' DHW controller will return 1260/dhw_temp != None
-        [self._command("1260", payload=d) for d in DOMAIN_MAP]
 
     def update(self, msg):
         super().update(msg)
@@ -331,8 +356,8 @@ class DhwSensor(Device):
         return self._get_pkt_value("1260", "temperature")
 
     def _TBD_discover(self):
-        for cmd in ["10A0", "1260", "1F41"]:
-            self._command(cmd, dest_addr=CTL_DEV_ID, payload="00")
+        for code in ["10A0", "1260", "1F41"]:
+            self._command(code, dest_addr=CTL_DEV_ID, payload="00")
 
 
 class TrvActuator(Device):
@@ -357,7 +382,6 @@ class TrvActuator(Device):
 
     @property
     def setpoint(self) -> Optional[Any]:  # 2309
-        # TODO: differientiate between Off and Unknown
         return self._get_pkt_value("2309", "setpoint")
 
     @property
@@ -394,15 +418,17 @@ class BdrSwitch(Device):
     def _discover(self):
         super()._discover()
 
-        # for cmd in ["3B00", "3EF0"]:  # these don't work, for 00 or 0000
-        #     self._command(cmd, payload="00")  # for 13: 3EF0=relay/TPI; 3B00=TPI
-        # for cmd in ["3B00", "3EF0"]:  # these don't work, for 00 or 0000
-        #     self._command(cmd, payload="0000")  # for 13: 3EF0=relay/TPI; 3B00=TPI
-        # for cmd in ["3B00", "3EF0"]:  # these don't work, for 00 or 0000
-        #     self._command(cmd, payload="FF")  # for 13: 3EF0=relay/TPI; 3B00=TPI
+        self._command("3B00", payload="00")
+        for code in ["3EF0", "3EF1"]:
+            self._command(code, payload="0000")  # for 13: 3EF0=relay/TPI; 3B00=TPI
+        # for code in ["3B00", "3EF0"]:  # these don't work, for 00 or 0000
+        #     self._command(code, payload="FF")  # for 13: 3EF0=relay/TPI; 3B00=TPI
 
-        # for cmd in ["0008", "1100", "3EF1"]:  # these work, for any payload
-        #     self._command(cmd, payload="0000")
+        # for code in ["0008", "1100", "3EF1"]:  # these work, for any payload
+        #     self._command(code, payload="0000")
+
+        # the 'real' DHW controller will return 1260/dhw_temp != None
+        # [self._command("1260", payload=d) for d in DOMAIN_MAP]
 
     def x_update(self, msg):
         super().update(msg)
@@ -635,8 +661,8 @@ class DhwZone(Zone):
 
     def _TBD_discover(self):
         # get config, mode, temp
-        for cmd in ["10A0", "1F41", "1260"]:  # TODO: what about 1100?
-            self._command(cmd, dest_addr=CTL_DEV_ID, payload="00")
+        for code in ["10A0", "1F41", "1260"]:  # TODO: what about 1100?
+            self._command(code, dest_addr=CTL_DEV_ID, payload="00")
 
 
 DEVICE_CLASS_MAP = {
