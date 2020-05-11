@@ -1,9 +1,13 @@
 """The entities for Honeywell's RAMSES II / Residential Network Protocol."""
+import logging
 import queue
 from typing import Any, Optional
 
 from .command import Command
 from .const import COMMAND_SCHEMA, CTL_DEV_ID, DEVICE_LOOKUP, DEVICE_MAP, ZONE_TYPE_MAP
+
+_LOGGER = logging.getLogger(__name__)
+_LOGGER.setLevel(logging.DEBUG)
 
 
 def dev_hex_to_id(device_hex: str, friendly_id=False) -> str:
@@ -45,6 +49,10 @@ class Entity:
         self._cmd_que.put_nowait(Command(self._gwy, **kwargs))
 
     def _discover(self):
+        # for code in COMMAND_SCHEMA:  # testing only
+        #     payload = f"{self._id}00" if code != "0000" else self._id
+        #     self._command(code, payload=payload)
+
         raise NotImplementedError
 
     # def _get_ctl_value(self, code, key) -> Optional[Any]:
@@ -74,7 +82,7 @@ class Domain(Entity):
     """
 
     def __init__(self, domain_id, gateway) -> None:
-        # _LOGGER.debug("Creating a new Domain %s", device_id)
+        _LOGGER.debug("Creating a new Domain %s", domain_id)
         super().__init__(domain_id, gateway)
 
         self._type = None
@@ -161,7 +169,7 @@ class Device(Entity):
     """The Device class."""
 
     def __init__(self, device_id, gateway) -> None:
-        # _LOGGER.debug("Creating a new Device %s", device_id)
+        _LOGGER.debug("Creating a new Device %s", device_id)
         super().__init__(device_id, gateway)
 
         self._device_type = DEVICE_MAP.get(device_id[:2])
@@ -428,7 +436,7 @@ class Zone(Entity):
     """Base for the 12 named Zones."""
 
     def __init__(self, zone_idx, gateway) -> None:
-        # _LOGGER.debug("Creating a new Zone %s", zone_idx)
+        _LOGGER.debug("Creating a new Zone %s", zone_idx)
         super().__init__(zone_idx, gateway)
 
         self._zone_type = None
@@ -513,12 +521,28 @@ class Zone(Entity):
     def _discover(self):
         # get name, config, mode, temp
         # can't do: "3150" (TODO: 12B0/window_state only if enabled, or only if TRV?)
-        for code in COMMAND_SCHEMA:
+        for code in [
+            "0004",
+            "000A",
+            "000C",
+            "12B0",
+            "2349",
+            "30C9",
+            "3150",
+        ]:  # also: "2349", "30C9"]:
             payload = f"{self._id}00" if code != "0000" else self._id
             self._command(code, payload=payload)
 
-        for code in ["0004", "000A", "000C", "12B0"]:  # also: "2349", "30C9"]:
-            payload = f"{self._id}00" if code != "0000" else self._id
+        for code in [
+            "0004",
+            "000A",
+            "000C",
+            "12B0",
+            "2349",
+            "30C9",
+            "3150",
+        ]:  # also: "2349", "30C9"]:
+            payload = f"{self._id}" if code != "0000" else self._id
             self._command(code, payload=payload)
 
     def update(self, msg):
