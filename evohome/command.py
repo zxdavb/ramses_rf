@@ -72,7 +72,7 @@ class Command:
             self.from_addr,
             self.dest_addr,
             self.code,
-            len(self.payload) / 2,
+            int(len(self.payload) / 2),
             self.payload,
         )
 
