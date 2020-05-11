@@ -4,7 +4,13 @@ import queue
 from typing import Any, Optional
 
 from .command import Command
-from .const import COMMAND_SCHEMA, CTL_DEV_ID, DEVICE_LOOKUP, DEVICE_MAP, ZONE_TYPE_MAP
+from .const import (
+    # COMMAND_SCHEMA,
+    CTL_DEV_ID,
+    DEVICE_LOOKUP,
+    DEVICE_TYPES,
+    ZONE_TYPE_MAP,
+)
 
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(logging.DEBUG)
@@ -19,7 +25,7 @@ def dev_hex_to_id(device_hex: str, friendly_id=False) -> str:
     _tmp = int(device_hex, 16)
     dev_type = f"{(_tmp & 0xFC0000) >> 18:02d}"
     if friendly_id:
-        dev_type = DEVICE_MAP.get(dev_type, f"{dev_type:<3}")
+        dev_type = DEVICE_TYPES.get(dev_type, f"{dev_type:<3}")
     return f"{dev_type}:{_tmp & 0x03FFFF:06d}"
 
 
@@ -172,15 +178,16 @@ class Device(Entity):
         _LOGGER.debug("Creating a new Device %s", device_id)
         super().__init__(device_id, gateway)
 
-        self._device_type = DEVICE_MAP.get(device_id[:2])
+        self._device_type = DEVICE_TYPES.get(device_id[:2])
         self._parent_zone = None
+        self._has_battery = device_id[:2] in ["04", "12", "22", "30", "34"]
 
         attrs = gateway.known_devices.get(device_id)
         self._friendly_name = attrs.get("friendly_name") if attrs else None
         self._blacklist = attrs.get("blacklist", False) if attrs else False
 
         # TODO: causing queue.Full exception with -i
-        # self._discover()  # needs self._device_type
+        self._discover()  # needs self._device_type
 
     @property
     def description(self):  # 0100, 10E0,
@@ -193,7 +200,7 @@ class Device(Entity):
     @property
     def device_type(self) -> Optional[str]:
         """Return a friendly device type string."""
-        return DEVICE_MAP.get(self._id[:2])
+        return DEVICE_TYPES.get(self._id[:2])
 
     @property
     def parent_zone(self) -> Optional[str]:
@@ -208,14 +215,23 @@ class Device(Entity):
     def _discover(self):
         # if self._device_type not in ["BDR", "STA", "TRV", " 12"]:
 
-        # # sync cycle FF & 00
+        # 0016 works (unsolicited) with 01:, 13:
+        # if self._id[:2] not in []:  # a device (e.g. a TRV) may be in rf_check mode
+        if not self._has_battery:
+            self._command("0016", dest_id=self._id, payload="00")
+
+        # # 10E0 works with 01:, 30:
+        # if self._id[:2] not in ["04", "12", "13", "32", "34"]:
+        #     self._command("10E0", dest_id=self._id, payload="0000")
+
+        # # # # sync cycle FF & 00
         # for payload in ["00", "0000", "FF"]:
-        # check: relay_demand, rf_check, sync_cycle, boiler_params, actuator_state
-        #     for code in ["0100", "10E0"]:  # battery-operated wont respond
+        #     # check: relay_demand, rf_check, sync_cycle, boiler_params, actuator_state
+        #     for code in ["0016"]:  # battery-operated wont respond
         #         self._command(code, dest_id=self._id, payload=payload)
 
-        for code in COMMAND_SCHEMA:
-            self._command(code, dest_id=self._id, payload="0000")
+        # for code in COMMAND_SCHEMA:
+        #     self._command(code, dest_id=self._id, payload="0000")
 
     def x_update(self, msg):
         # if isinstance(msg.payload, dict):
@@ -233,7 +249,9 @@ class Controller(Device):
         # _LOGGER.debug("Creating a new Controller %s", device_id)
         super().__init__(device_id, gateway)
 
-        # self._discover()
+    def _discover(self):
+        super()._discover()
+        self._command("0100", dest_id=self._id, payload="00")
 
     @property
     def parent_zone(self) -> None:

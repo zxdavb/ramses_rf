@@ -7,7 +7,7 @@ from . import parsers
 from .const import (
     __dev_mode__,
     COMMAND_MAP,
-    DEVICE_MAP,
+    DEVICE_TYPES,
     DOMAIN_MAP,
     MSG_FORMAT_10,
     MSG_FORMAT_18,
@@ -86,7 +86,7 @@ class Message:
             if dev and dev._friendly_name:
                 return f"{dev._friendly_name}"
 
-            device_type = DEVICE_MAP.get(device_name[:2], f"{device_name[:2]:>3}")
+            device_type = DEVICE_TYPES.get(device_name[:2], f"{device_name[:2]:>3}")
             return f"{device_type}:{device_name[3:]}"
 
         if self._repr:
@@ -173,7 +173,7 @@ class Message:
             self._evo._prev_code = self.code if self.verb == " I" else None
 
         # for dev_id in self.device_id:  # TODO: leave in, or out?
-        #     assert dev_id[:2] in DEVICE_MAP  # incl. "--", "63"
+        #     assert dev_id[:2] in DEVICE_TYPES  # incl. "--", "63"
 
         # any remaining messages are valid, so: log them
         _LOGGER.info("%s", self, extra=self.__dict__)
@@ -192,7 +192,7 @@ class Message:
 
         def get_device(dev_id) -> None:
             """Get a Device, create it if required."""
-            assert dev_id[:2] in DEVICE_MAP
+            assert dev_id[:2] in DEVICE_TYPES
             dev_cls = DEVICE_CLASSES.get(dev_id[:2], Device)
             _ent(dev_cls, dev_id, self._evo.device_by_id, self._evo.devices)
 
@@ -209,6 +209,7 @@ class Message:
 
         for dev in range(3):  # discover devices
             if self.device_id[dev][:2] not in ["18", "63", "--"]:
+                assert self.device_id[dev][:2] in DEVICE_TYPES
                 get_device(self.device_id[dev])
 
         if isinstance(self._payload, dict):  # discover zones and domains

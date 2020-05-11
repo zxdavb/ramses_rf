@@ -125,26 +125,27 @@ COMMAND_LENGTH = max([len(k) for k in list(COMMAND_LOOKUP)])
 # sed -e 's/ 30:/ GWY:/g' -e 's/ 32:/ VNT:/g' -e 's/ 34:/ STA:/g' -i pkts.out
 # sed -e 's/ 63:/ ALL:/g' -e 's/ --:/  --:/g' -i pkts.out
 
-# TODO: what devices send what packets
-DEVICE_MAP = {
-    "01": "CTL",  # Controller
-    "02": "UFH",  # Underfloor heating (HCC80, HCE80)
-    "03": " 30",  # HCW82??
-    "04": "TRV",  # Thermostatic radiator valve (HR80, HR91, HR92)
-    "07": "DHW",  # DHW sensor (CS92)
-    "10": "OTB",  # OpenTherm bridge (R8810)
-    "12": "THm",  # Thermostat with setpoint schedule control (DTS92E)
-    "13": "BDR",  # Wireless relay box (BDR91)  # 3EF0=relay/TPI; 3B00=TPI (HC60NG too?)
-    "17": " 17",  # Dunno - Outside weather sensor?
-    "18": "HGI",  # Honeywell Gateway Interface (HGI80, HGS80)
-    "22": "THM",  # Thermostat with setpoint schedule control (DTS92E)
-    "30": "GWY",  # Gateway (e.g. RFG100?)
-    "32": "VNT",  # (HCE80) Ventilation (Nuaire VMS-23HB33, VMN-23LMH23)
-    "34": "STA",  # Thermostat (T87RF)  # 1060, 10E0, 30C9
-    "63": "NUL",  # is sent: 10E0, 1FC9
-    "--": " --",
-}  # Mixing valve (HM80)
-DEVICE_LOOKUP = {v: k for k, v in DEVICE_MAP.items()}
+# TODO: what devices send what packets # for 13: 3EF0=relay/TPI; 3B00=TPI (
+DEVICE_TABLE = {
+    "01": {"type": "CTL", "battery": False},  # Evohome Controller
+    "02": {"type": "UFH", "battery": False},  # Underfloor heating: HCC80, HCE80
+    "04": {"type": "TRV", "battery": True},  # Radiator valve: HR80, HR91, HR92
+    "07": {"type": "DHW", "battery": True},  # DHW sensor: CS92
+    "10": {"type": "OTB", "battery": False},  # OpenTherm bridge: R8810
+    "12": {"type": "THm", "battery": True},  # Thermostat with setpoint schedule: DTS92E
+    "13": {"type": "BDR", "battery": False},  # Wireless relay box: BDR91; HC60NG too?
+    "18": {"type": "HGI", "battery": False},  # Honeywell Gwy Interface: HGI80, HGS80
+    "22": {"type": "THM", "battery": True},  # Thermostat with setpoint schedule: DTS92E
+    "30": {"type": "GWY", "battery": False},  # Gateway: RFG100?
+    "32": {"type": "VMS", "battery": True},  # Ventilation Nuaire VMS-23HB33, -23LMH23
+    "34": {"type": "STA", "battery": True},  # Round Thermostat: T87RF
+    "63": {"type": "NUL", "battery": False},
+    "--": {"type": "---", "battery": False},
+}  # TODO: Mixing valve: HM80 (no battery)
+#   "17": {"type": " 17", "battery": None},  # Dunno - Outside weather sensor?
+#   "03": {"type": " 03", "battery": None},  # (Wireless room stat: HCF82, HCW82)??
+DEVICE_TYPES = {k: v["type"] for k, v in DEVICE_TABLE.items()}
+DEVICE_LOOKUP = {v: k for k, v in DEVICE_TYPES.items()}
 
 # Domains
 # MAIN_MAP = {"FA": "Hot Water", "FC": "Heat Demand"}
