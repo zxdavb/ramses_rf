@@ -13,7 +13,7 @@ from .const import (
     MSG_FORMAT_18,
     NON_DEV_ID,
 )
-from .entity import DEVICE_CLASSES, Device, Domain, Zone
+from .entity import DEVICE_CLASS_MAP, Device, Domain, Zone
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -193,7 +193,7 @@ class Message:
         def get_device(dev_id) -> None:
             """Get a Device, create it if required."""
             assert dev_id[:2] in DEVICE_TYPES
-            dev_cls = DEVICE_CLASSES.get(dev_id[:2], Device)
+            dev_cls = DEVICE_CLASS_MAP.get(dev_id[:2], Device)
             _ent(dev_cls, dev_id, self._evo.device_by_id, self._evo.devices)
 
         def get_domain(domain_id) -> None:
@@ -245,19 +245,23 @@ class Message:
         #     return
 
         if __dev_mode__ and isinstance(self.payload, dict):
-            zone_idx = self._gwy.known_devices[self.device_from].get("zone_idx")
+            if self.device_from in self._gwy.known_devices:
+                zone_idx = self._gwy.known_devices[self.device_from].get("zone_idx")
+            else:
+                zone_idx = None
 
-            if "parent_zone_idx" in self.payload:
-                # check the zone against the data in known_devices.json
-                assert self.payload["parent_zone_idx"] == zone_idx, "payload != k_d DB"
+            if zone_idx:
+                key = "parent_zone" if int(zone_idx, 16) < 0x10 else "domain"
+                if "parent_zone_idx" in self.payload:
+                    # check the zone against the data in known_devices.json
+                    assert self.payload["parent_zone_idx"] == zone_idx, "z_idx!= k_d DB"
 
-            key = "parent_zone" if int(zone_idx, 16) < 100 else "domain"
-            if "parent_zone_aaa" in self.payload:
-                assert self.payload[f"{key}_aaa"] == zone_idx
-            if "parent_zone_bbb" in self.payload:
-                assert self.payload[f"{key}_bbb"] == zone_idx
-            if "parent_zone_ccc" in self.payload:
-                assert self.payload[f"{key}_ccc"] == zone_idx
+                if "parent_zone_aaa" in self.payload:
+                    assert self.payload[f"{key}_aaa"] == zone_idx
+                if "parent_zone_bbb" in self.payload:
+                    assert self.payload[f"{key}_bbb"] == zone_idx
+                if "parent_zone_ccc" in self.payload:
+                    assert self.payload[f"{key}_ccc"] == zone_idx
 
             if "parent_zone_idx" in self.payload:
                 a = "parent_zone_aaa" in self.payload
