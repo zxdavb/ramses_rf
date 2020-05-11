@@ -29,13 +29,13 @@ class EvohomeSystem:
 
         self.data = {f"{i:02X}": {} for i in range(12)}
 
-    @property
-    def controller_id(self) -> Optional[str]:
-        self._controller_id
+    # @property
+    # def controller_id(self) -> Optional[str]:
+    #     self.ctl_id
 
-    @controller_id.setter
-    def controller_id(self, var):
-        self._controller_id = var
+    # @controller_id.setter
+    # def controller_id(self, var):
+    #     self.ctl_id = var
 
     @property
     def _devices(self) -> Optional[dict]:
