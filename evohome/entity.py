@@ -6,7 +6,6 @@ from typing import Any, Optional
 from .command import Command
 from .const import (
     # COMMAND_SCHEMA,
-    CTL_DEV_ID,
     DEVICE_LOOKUP,
     DEVICE_TYPES,
     # DOMAIN_MAP,
@@ -62,7 +61,7 @@ class Entity:
 
     def _command(self, code, **kwargs):
         if kwargs.get("dest_addr") is None:
-            kwargs["dest_addr"] = self._id
+            kwargs["dest_addr"] = self._evo.ctl_id
         self._cmd_que.put_nowait(Command(self._gwy, code=code, **kwargs))
 
     def _get_pkt_value(self, code, key) -> Optional[Any]:
@@ -116,7 +115,7 @@ class System(Entity):
     """Base for the central heating (FC) domain."""
 
     def __init__(self, gateway):
-        # _LOGGER.debug("Creating a new System %s", CTL_DEV_ID)
+        _LOGGER.debug("Creating a new System %s", self._evo.ctl_id)
         super().__init__("", gateway)
 
     @property
@@ -190,22 +189,22 @@ class Device(Entity):
     def _discover(self):
         # 0016 works (unsolicited) with 01:, 13:, however:
         # xf not self._has_battery:  # dont filter as any device may be in rf_check mode
-        self._command("0016", payload="00")
+        self._command("0016", dest_addr=self._id, payload="00")
 
         # 10E0 works with 01:, 30:
         if self._id[:2] not in ["04", "12", "13", "32", "34"]:
-            self._command("10E0", payload="0000")
+            self._command("10E0", dest_addr=self._id, payload="0000")
         # else:
         #     # TODO: it's unlikely anything repsond to an RQ/1060 (an 01: doesn't)
-        #     self._command("1060", payload="00")  # check payload len()
+        #     self._command("1060", dest_addr=self._id, payload="00")  # payload len()?
 
         # TODO: 1FC9 works with 01:, 30:
         # if self._id[:2] not in ["04", "12", "13", "32", "34"]:
-        self._command("1FC9", payload="0000")
+        self._command("1FC9", dest_addr=self._id, payload="0000")
 
         # for code in COMMAND_SCHEMA:  # TODO: testing only
         #     payload = f"{self._id}00" if code != "0000" else self._id
-        #     self._command(code, payload=payload)
+        #     self._command(code, dest_addr=self._id, payload=payload)
 
         # TODO: an attempt to actively discover the CTL rather than by eavesdropping
         # self._command("313F", dest_addr=NUL_DEV_ID, payload="FF")
@@ -357,7 +356,7 @@ class DhwSensor(Device):
 
     def _TBD_discover(self):
         for code in ["10A0", "1260", "1F41"]:
-            self._command(code, dest_addr=CTL_DEV_ID, payload="00")
+            self._command(code, payload="00")
 
 
 class TrvActuator(Device):
@@ -418,17 +417,17 @@ class BdrSwitch(Device):
     def _discover(self):
         super()._discover()
 
-        self._command("3B00", payload="00")
+        self._command("3B00", dest_addr=self._id, payload="00")
         for code in ["3EF0", "3EF1"]:
-            self._command(code, payload="0000")  # for 13: 3EF0=relay/TPI; 3B00=TPI
+            self._command(code, dest_addr=self._id, payload="0000")
         # for code in ["3B00", "3EF0"]:  # these don't work, for 00 or 0000
-        #     self._command(code, payload="FF")  # for 13: 3EF0=relay/TPI; 3B00=TPI
+        #     self._command(code, dest_addr=self._id, payload="FF")
 
         # for code in ["0008", "1100", "3EF1"]:  # these work, for any payload
-        #     self._command(code, payload="0000")
+        #     self._command(code, dest_addr=self._id, payload="0000")
 
         # the 'real' DHW controller will return 1260/dhw_temp != None
-        # [self._command("1260", payload=d) for d in DOMAIN_MAP]
+        # [self._command("1260", dest_addr=self._id, payload=d) for d in DOMAIN_MAP]
 
     def x_update(self, msg):
         super().update(msg)
@@ -482,14 +481,14 @@ class Zone(Entity):
         #     return
 
         for code in ["0004", "000C"]:
-            self._command(code, dest_addr=CTL_DEV_ID, payload=f"{self._id}00")
+            self._command(code, payload=f"{self._id}00")
 
         for code in ["000A", "2349", "30C9"]:
-            self._command(code, dest_addr=CTL_DEV_ID, payload=self._id)
+            self._command(code, payload=self._id)
 
         # TODO: 12B0: only if RadValve zone, or whenever window_state is enabled?
         for code in ["12B0"]:
-            self._command(code, dest_addr=CTL_DEV_ID, payload=self._id)
+            self._command(code, payload=self._id)
 
         # TODO: 3150(00?): how to do (if at all) & for what zone types?
         # TODO: 0005(002), 0006(001), 0404(00?):
@@ -662,7 +661,7 @@ class DhwZone(Zone):
     def _TBD_discover(self):
         # get config, mode, temp
         for code in ["10A0", "1F41", "1260"]:  # TODO: what about 1100?
-            self._command(code, dest_addr=CTL_DEV_ID, payload="00")
+            self._command(code, payload="00")
 
 
 DEVICE_CLASS_MAP = {

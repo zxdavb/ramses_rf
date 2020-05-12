@@ -7,8 +7,8 @@ NON_DEV_ID = "--:------"
 NUL_DEV_ID = "63:262142"  # 7FFFFF - send here if not bound?
 HGI_DEV_ID = "18:000730"  # default type and address of HGI, 18:013393
 
-CTL_DEV_ID = "01:145038"  # 06368E
-TPI_DEV_ID = "13:237335"  # Boiler relay
+# CTL_DEV_ID = "01:145038"  # 06368E
+# TPI_DEV_ID = "13:237335"  # Boiler relay
 
 
 # Packet codes/classes - lengths are in bytes, len(0xFF) == 1
