@@ -69,7 +69,7 @@ class Entity:
             return self._pkts[code].payload.get(key)
 
     @property
-    def codes(self) -> list:
+    def _pkt_codes(self) -> list:
         return list(self._pkts.keys())
 
     def update(self, msg):
@@ -244,6 +244,18 @@ class Device(Entity):
         self._pkts.update({msg.code: msg})
 
 
+class Battery:
+    """Some devices have a battery."""
+
+    @property
+    def battery(self):
+        battery_level = self._get_pkt_value("1060", "battery_level")
+        low_battery = self._get_pkt_value("1060", "low_battery")
+        if battery_level is not None:
+            return {"low_battery": low_battery, "battery_level": battery_level}
+        return {"low_battery": low_battery}
+
+
 class Controller(Device):
     """The Controller class."""
 
@@ -332,7 +344,7 @@ class Controller(Device):
         return sensors[0] if sensors else None
 
 
-class DhwSensor(Device):
+class DhwSensor(Device, Battery):
     """The DHW class, such as a CS92."""
 
     def __init__(self, dhw_id, gateway) -> None:
@@ -340,11 +352,6 @@ class DhwSensor(Device):
         super().__init__(dhw_id, gateway)
 
         # self._discover()
-
-    @property
-    def battery(self):
-        return self._get_pkt_value("1060", "battery_level")
-        # return self._get_pkt_value("1060", "low_battery")
 
     @property
     def parent_zone(self) -> None:
@@ -359,17 +366,12 @@ class DhwSensor(Device):
             self._command(code, payload="00")
 
 
-class TrvActuator(Device):
+class TrvActuator(Device, Battery):
     """The TRV class, such as a HR92."""
 
     def __init__(self, device_id, gateway) -> None:
         # _LOGGER.debug("Creating a new TRV %s", device_id)
         super().__init__(device_id, gateway)
-
-    @property
-    def battery(self) -> Optional[float]:  # 1060
-        return self._get_pkt_value("1060", "battery_level")
-        # return self._get_pkt_value("1060", "low_battery")
 
     @property
     def language(self) -> Optional[str]:  # 0100,
@@ -437,11 +439,11 @@ class BdrSwitch(Device):
             self._parent_zone = "FC"
 
 
-class TpiSwitch(Device):
+class TpiSwitch(Device):  # TODO: superset of BDR switch?
     """The BDR class, such as a BDR91."""
 
 
-class Thermostat(Device):
+class Thermostat(Device, Battery):  # TODO: the THM, THm devices
     """The STA class, such as a TR87RF."""
 
     # 045  I     STA:092243            >broadcast 3120 007 0070B0000000FF
@@ -451,11 +453,6 @@ class Thermostat(Device):
     def __init__(self, device_id, gateway) -> None:
         # _LOGGER.debug("Creating a new STA %s", device_id)
         super().__init__(device_id, gateway)
-
-    @property
-    def battery(self):  # 1060
-        return self._get_pkt_value("1060", "battery_level")
-        # return self._get_pkt_value("1060", "low_battery")
 
     @property
     def setpoint(self):  # 2309

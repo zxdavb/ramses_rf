@@ -40,11 +40,8 @@ class EvohomeSystem:
         """Calculate a system schema."""
 
         def attrs(device) -> list:
-            return [
-                attr
-                for attr in dir(device)
-                if not attr.startswith("_") and not callable(getattr(device, attr))
-            ]
+            attr = [a for a in dir(device) if not callable(getattr(device, a))]
+            return [a for a in attr if not a.startswith("_") and a != "device_id"]
 
         return {d.device_id: {a: getattr(d, a) for a in attrs(d)} for d in self.devices}
 
