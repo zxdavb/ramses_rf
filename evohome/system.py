@@ -1,9 +1,7 @@
-"""Message processor."""
+"""The evohome system."""
 
 import logging
 from typing import Optional
-
-from .const import __dev_mode__
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -41,19 +39,12 @@ class EvohomeSystem:
     def _devices(self) -> Optional[dict]:
         """Calculate a system schema."""
 
-        def atrs(device) -> list:
+        def attrs(device) -> list:
             return [
                 attr
                 for attr in dir(device)
                 if not attr.startswith("_") and not callable(getattr(device, attr))
             ]
-
-        def attrs(device) -> list:
-            return [attr for attr in ["device_id", "device_type", "parent_zone"]]
-
-        if __dev_mode__:
-            x = {d.device_id: {a: getattr(d, a) for a in atrs(d)} for d in self.devices}
-            return {k: v.get("parent_zone") for k, v in x.items()}
 
         return {d.device_id: {a: getattr(d, a) for a in attrs(d)} for d in self.devices}
 
