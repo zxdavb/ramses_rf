@@ -74,20 +74,20 @@ class Message:
     def __repr__(self) -> str:
         """Represent the entity as a string."""
 
-        def name(device_name) -> str:
+        def display_name(device_id) -> str:
             """Return a friendly device name, of length 10 characters."""
-            if device_name.startswith(">"):
+            if device_id.startswith(">"):
                 return f"{'':<10}"
 
-            if device_name.startswith("63"):
+            if device_id.startswith("63"):
                 return ">null dev<"  # Null device ID
 
-            dev = self._evo.device_by_id.get(device_name)
-            if dev and dev._friendly_name:
-                return f"{dev._friendly_name}"
+            if device_id in self._gwy.known_devices:
+                if self._gwy.known_devices[device_id].get("friendly_name"):
+                    return self._gwy.known_devices[device_id]["friendly_name"]
 
-            device_type = DEVICE_TYPES.get(device_name[:2], f"{device_name[:2]:>3}")
-            return f"{device_type}:{device_name[3:]}"
+            device_type = DEVICE_TYPES.get(device_id[:2], f"{device_id[:2]:>3}")
+            return f"{device_type}:{device_id[3:]}"
 
         if self._repr:
             return self._repr
@@ -110,8 +110,8 @@ class Message:
         xxx = {} if self._payload == {} else xxx
 
         self._repr = msg_format.format(
-            name(self.device_from),
-            name(self.device_dest),
+            display_name(self.device_from),
+            display_name(self.device_dest),
             self.verb,
             COMMAND_MAP.get(self.code, f"unknown_{self.code}"),
             raw_payload1,
@@ -240,7 +240,7 @@ class Message:
             else:
                 self._evo.device_by_id[self.device_from].update(self)
 
-        # if not __dev_mode__ or self.device_from not in self._gwy.known_devices:
+        # if __dev_mode__ or self.device_from not in self._gwy.known_devices:
         #     assert self.device_from in self._gwy.known_devices, "dev not in k_d DB"
         #     return
 
