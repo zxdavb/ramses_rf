@@ -32,29 +32,29 @@ def parser_decorator(func):
         def add_context(parsed_payload):
 
             if __dev_mode__ and isinstance(parsed_payload, dict):
-                _dict = {}
-                if msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9"]:
-                    key = "parent_zone" if int(payload[:2], 16) < 12 else "domain"
+                if msg.verb not in ["RP", " W"]:  # and msg.device_dest[:2] != "18":
+                    _dict = {}
+                    if msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9"]:
+                        key = "parent_zone" if int(payload[:2], 16) < 12 else "domain"
 
-                    # if msg.device_dest[:2] == "01":
-                    #     # _dict[f"{key}_bad"] = payload[:2]  # No good
-                    #     if msg.device_dest[:2] == "01":
-                    #         _dict[f"{key}_aaa"] = payload[:2]
-                    #     if msg.device_dest == msg.device_from:
-                    #         _dict[f"{key}_bbb"] = payload[:2]
-                    #     if msg.device_dest != msg.device_from:
-                    #         _dict[f"{key}_ccc"] = payload[:2]
+                        if msg.device_dest != msg.device_from:
+                            _dict[f"{key}_aaa"] = payload[:2]
 
-                    if msg.device_from[:2] != "01":
-                        _dict[f"{key}_aaa"] = payload[:2]  # No good?
-                        if msg.code not in ["1060", "30C9"]:
-                            _dict[f"{key}_bbb"] = payload[:2]
-                        elif msg.device_from[:2] == "12":
-                            pass
-                        else:
-                            _dict[f"{key}_ccc"] = payload[:2]
+                        if msg.device_dest[:2] == "01":
+                            if msg.device_dest[:2] != "01":
+                                _dict[f"{key}_bbb"] = payload[:2]  # Looks good
+                        #     if msg.device_dest == msg.device_from:
+                        #         _dict[f"{key}_bbb"] = payload[:2]
 
-                return {**_dict, **parsed_payload}
+                        if msg.device_from[:2] != "01":
+                            if msg.device_from[:2] == "01":
+                                _dict[f"{key}_ccc"] = payload[:2]  # Looks good
+                            # if msg.code not in ["1060", "30C9"]:
+                            #     _dict[f"{key}_bbb"] = payload[:2]
+                            # elif msg.device_from[:2] == "12":
+                            #     _dict[f"{key}_ccc"] = payload[:2]
+
+                    return {**_dict, **parsed_payload}
             return parsed_payload
 
         payload = args[0]
