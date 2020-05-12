@@ -244,6 +244,7 @@ class Message:
         #     assert self.device_from in self._gwy.known_devices, "dev not in k_d DB"
         #     return
 
+        # check parent_zone_idx huerestics
         if __dev_mode__ and isinstance(self.payload, dict):
             if self.device_from in self._gwy.known_devices:
                 zone_idx = self._gwy.known_devices[self.device_from].get("zone_idx")
@@ -274,10 +275,11 @@ class Message:
 
         # what was the message about: system, domain, or zone?
         assert self.payload is not None  # TODO: this should have been done before?
-        if not self.payload:  # shoudl be {} (possibly empty) or [] (never empty)
+        if not self.payload:  # should be {} (possibly empty) or [] (never empty)
             return
 
         if isinstance(self.payload, list):
+            return  # I think the following was a bad idea
             if self.code in ["000A", "2309", "30C9"]:  # array of zones
                 [_update_entity(zone) for zone in self.payload]
                 return

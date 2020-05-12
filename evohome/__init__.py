@@ -124,7 +124,9 @@ class Gateway:
         _LOGGER.debug("Received signal %s...", signal.name)
 
         if signal == signal.SIGUSR1:  # TODO: and self.config.get("raw_output", 0) < 2:
-            _LOGGER.info("State data: %s", f"\r\n{json.dumps(self._devices, indent=4)}")
+            _LOGGER.info("Devices:%s", f"\r\n{json.dumps(self.evo._devices, indent=4)}")
+            _LOGGER.info("Domains:%s", f"\r\n{json.dumps(self.evo._domains, indent=4)}")
+            _LOGGER.info("Zones:  %s", f"\r\n{json.dumps(self.evo._zones, indent=4)}")
 
         if signal == signal.SIGUSR2:  # output debug data
             _LOGGER.info("Debug data is:")
@@ -192,7 +194,9 @@ class Gateway:
 
         try:  # print state data
             if __dev_mode__:
-                print(f"State data is:\r\n{json.dumps(self.evo._devices, indent=4)}")
+                print(f"State data:\r\n{json.dumps(self.evo._devices, indent=4)}")
+                print(f"State data:\r\n{json.dumps(self.evo._domains, indent=4)}")
+                print(f"State data:\r\n{json.dumps(self.evo._zones, indent=4)}")
             else:
                 _LOGGER.info(
                     "State data is: %s",

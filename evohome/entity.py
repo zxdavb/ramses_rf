@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 from .command import Command
 from .const import (
-    # COMMAND_SCHEMA,
+    COMMAND_SCHEMA,
     DEVICE_LOOKUP,
     DEVICE_TYPES,
     # DOMAIN_MAP,
@@ -52,16 +52,11 @@ class Entity:
     def _discover(self):
         raise NotImplementedError
 
-    # def _get_ctl_value(self, code, key) -> Optional[Any]:
-    #     controller = self._evo.device_by_id["01:145038"]
-    #     if controller._pkts.get(code):
-    #         return controller._pkts[code].payload[key]
-    #     else:
-    #         pass  # TODO: send an RQ
-
     def _command(self, code, **kwargs):
         if kwargs.get("dest_addr") is None:
             kwargs["dest_addr"] = self._evo.ctl_id
+        if kwargs.get("payload") is None:
+            kwargs["payload"] = "00"
         self._cmd_que.put_nowait(Command(self._gwy, code=code, **kwargs))
 
     def _get_pkt_value(self, code, key) -> Optional[Any]:
@@ -73,8 +68,14 @@ class Entity:
         return list(self._pkts.keys())
 
     def update(self, msg):
-        if msg.verb in [" I", "RP"]:
-            self._pkts.update({msg.code: msg})
+        if msg.verb == " W":
+            return
+        if msg.verb == "RQ":
+            if msg.payload == {}:
+                return
+            if msg.code in self._pkts and self._pkts[msg.code].verb != msg.verb:
+                return  # may get an RQ initially, but RP will override
+        self._pkts.update({msg.code: msg})
 
 
 class Domain(Entity):
@@ -174,10 +175,10 @@ class Device(Entity):
         _LOGGER.debug("Creating a new Device %s", device_id)
         super().__init__(device_id, gateway)
 
-        self._device_type = DEVICE_TYPES.get(device_id[:2])
-        self._parent_zone = None
-        # TODO: does 01: have a battery - also use lookup from const
+        # TODO: does 01: have a battery - could use a lookup from const.py
         self._has_battery = device_id[:2] in ["04", "12", "22", "30", "34"]
+        self._device_type = DEVICE_TYPES.get(device_id[:2], f"{device_id[:2]:>3}")
+        self._parent_zone = None
 
         attrs = gateway.known_devices.get(device_id)
         self._friendly_name = attrs.get("friendly_name") if attrs else None
@@ -187,43 +188,35 @@ class Device(Entity):
         self._discover()  # needs self._device_type
 
     def _discover(self):
-        # 0016 works (unsolicited) with 01:, 13:, however:
-        # xf not self._has_battery:  # dont filter as any device may be in rf_check mode
-        self._command("0016", dest_addr=self._id, payload="00")
-
-        # 10E0 works with 01:, 30:
-        if self._id[:2] not in ["04", "12", "13", "32", "34"]:
-            self._command("10E0", dest_addr=self._id, payload="0000")
-        # else:
-        #     # TODO: it's unlikely anything repsond to an RQ/1060 (an 01: doesn't)
-        #     self._command("1060", dest_addr=self._id, payload="00")  # payload len()?
-
-        # TODO: 1FC9 works with 01:, 30:
-        # if self._id[:2] not in ["04", "12", "13", "32", "34"]:
-        self._command("1FC9", dest_addr=self._id, payload="0000")
-
-        # for code in COMMAND_SCHEMA:  # TODO: testing only
-        #     payload = f"{self._id}00" if code != "0000" else self._id
-        #     self._command(code, dest_addr=self._id, payload=payload)
-
         # TODO: an attempt to actively discover the CTL rather than by eavesdropping
         # self._command("313F", dest_addr=NUL_DEV_ID, payload="FF")
 
-        pass
+        # for code in COMMAND_SCHEMA:  # TODO: testing only
+        #     self._command(code, dest_addr=self._id, payload="0000")
+        # return
+
+        # do these even if battery-powered (e.g. device might be in rf_check mode)
+        for code in ["0016", "1FC9"]:
+            self._command("0016", dest_addr=self._id)
+
+        if self._id[:2] not in ["04", "12", "13", "32", "34"]:  # battery-powered?
+            self._command("10E0", dest_addr=self._id, payload="0000")
+        # else:  # TODO: it's unlikely anything respond to an RQ/1060 (an 01: doesn't)
+        #     self._command("1060", dest_addr=self._id)  # payload len()?
 
     @property
-    def description(self):  # 10E0
+    def description(self) -> Optional[str]:  # 10E0
         # 01:, and (rarely) 04:
         return self._get_pkt_value("10E0", "description")
 
     @property
-    def device_id(self) -> Optional[str]:
+    def device_id(self) -> str:
         return self._id
 
     @property
-    def device_type(self) -> Optional[str]:
+    def device_type(self) -> str:
         """Return a friendly device type string."""
-        return DEVICE_TYPES.get(self._id[:2])
+        return self._device_type
 
     @property
     def parent_zone(self) -> Optional[str]:
@@ -235,10 +228,8 @@ class Device(Entity):
                 break
         return self._parent_zone
 
-    def x_update(self, msg):
-        # if isinstance(msg.payload, dict):
-        #     if "zone_idx" in msg.payload:
-        #         self._evo.data[msg.payload["zone_idx"]].update(msg.payload)
+    def update(self, msg) -> None:
+        # if msg.code == "1FC9":
 
         # if msg.verb == " I":  # TODO: don't replace a I with an RQ!
         self._pkts.update({msg.code: msg})
@@ -278,8 +269,8 @@ class Controller(Device):
         #     self._command("0004", payload=f"{zone_idx:02x}00")
 
         # system-related... (not working: 1280, 22D9, 2D49, 2E04, 3220, 3B00)
-        for code in ["0002", "0100", "10A0", "1260", "1F09", "1F41", "313F"]:
-            self._command(code, payload="00")
+        for code in ["1F09", "313F", "0100", "0002", "10A0", "1260", "1F41"]:
+            self._command(code)
 
         self._command("0005", payload="0000")
         self._command("1100", payload="FC")
@@ -303,32 +294,6 @@ class Controller(Device):
 
     def zone_properties(self, zone_idx) -> dict:
         # 0004/name, 000A/properties, 2309/setpoint, 30C9/temp
-        pass
-
-    def update(self, msg):
-        super().update(msg)
-
-        if type(msg.payload) == list:  # isinstance(msg.payload, list):
-            if msg.code in ["000A", "2309", "30C9"]:
-                [self._evo.data[z["zone_idx"]].update(z) for z in msg.payload]
-
-        elif type(msg.payload) == dict:  # isinstance(msg.payload, dict):
-            if "zone_idx" in msg.payload:
-                self._evo.data[msg.payload["zone_idx"]].update(msg.payload)
-
-            # if "domain_id" in msg.payload:
-            #     self._evo.data[msg.payload["domain_id"]].update(msg.payload)
-
-        else:
-            pass
-
-        # # TODO: take this out?
-        # if msg.code in ["000A", "30C9"] and msg.verb == " I":  # payload is an array
-        #     if not self._gwy.config["input_file"]:
-        #         self._gwy.loop.call_later(5, print, self._evo.database)
-
-    def handle_313f(self):
-        """Controllers will RP to a RQ at anytime."""  # noqa: D401
         pass
 
     @property
@@ -363,7 +328,7 @@ class DhwSensor(Device, Battery):
 
     def _TBD_discover(self):
         for code in ["10A0", "1260", "1F41"]:
-            self._command(code, payload="00")
+            self._command(code)
 
 
 class TrvActuator(Device, Battery):
@@ -393,21 +358,6 @@ class TrvActuator(Device, Battery):
     def window_state(self) -> Optional[bool]:  # 12B0
         return self._get_pkt_value("12B0", "window_open")
 
-    def x_update(self, msg):
-        super().update(msg)
-
-        # if msg.code == "1060" and msg.device_type[2] != "CTL":
-        #     return  # these do not contain a zone_idx
-
-        # if msg.code in ["12B0", "2309"]:
-        #     [self._evo.data[z["zone_idx"]].update(z) for z in msg.payload]
-
-        # if msg.code in ["3150"]:
-        #     [self._evo.data[z["zone_idx"]].update(z) for z in msg.payload]
-
-        if msg.verb == " I":
-            self._pkts.update({msg.code: msg})
-
 
 class BdrSwitch(Device):
     """The BDR class, such as a BDR91."""
@@ -419,7 +369,15 @@ class BdrSwitch(Device):
     def _discover(self):
         super()._discover()
 
-        self._command("3B00", dest_addr=self._id, payload="00")
+        return
+
+        for code in COMMAND_SCHEMA:  # TODO: testing only
+            # for payload in DOMAIN_MAP:  # TODO: testing only
+            self._command(code, dest_addr=self._id)
+
+        return
+
+        self._command("3B00", dest_addr=self._id)
         for code in ["3EF0", "3EF1"]:
             self._command(code, dest_addr=self._id, payload="0000")
         # for code in ["3B00", "3EF0"]:  # these don't work, for 00 or 0000
@@ -431,16 +389,27 @@ class BdrSwitch(Device):
         # the 'real' DHW controller will return 1260/dhw_temp != None
         # [self._command("1260", dest_addr=self._id, payload=d) for d in DOMAIN_MAP]
 
-    def x_update(self, msg):
+    def update(self, msg):
         super().update(msg)
 
-        if msg.code == "3B00":  # the TPI relay for the boiler
-            self._device_type = "TPI"
-            self._parent_zone = "FC"
+        # try to cast a new type (must be a superclass of the current type)
+        if msg.code == "1FC9":
+            # if COMMAND_MAP["3B00"] in [d['command'] for d in msg.payload]]:
+            if "3B00" in msg.raw_payload:
+                self.__class__ = TpiSwitch
+                self._device_type = "TPI"
+                self._parent_zone = "FC"
+                self._discover()
 
 
-class TpiSwitch(Device):  # TODO: superset of BDR switch?
-    """The BDR class, such as a BDR91."""
+class TpiSwitch(BdrSwitch):  # TODO: superset of BDR switch?
+    """The TPI class, the BDR91 that controlls the boiler."""
+
+    def _discover(self):
+        # NOTE: do not super()._discover()
+
+        for code in ["1100"]:
+            self._command(code, dest_addr=self._id, payload="FC")
 
 
 class Thermostat(Device, Battery):  # TODO: the THM, THm devices
@@ -513,22 +482,21 @@ class Zone(Entity):
 
     @property
     def devices(self) -> list:
-        devices = {d for d in self._evo.devices if d.parent_zone == self._id}
+        devices = {d.device_id for d in self._evo.devices if d.parent_zone == self._id}
         return list(set(self.actuators) | devices)
 
     @property
     def heat_demand(self) -> Optional[float]:
         demands = [
             d.heat_demand if d.heat_demand else 0
-            for d in self.devices
-            if d._device_type == "TRV"
+            for d in self._evo.devices
+            if d.device_id in self.devices and hasattr(d, "heat_demand")
         ]
-        return max(demands + [0])
+        return max(demands + [0]) if demands else None
 
     @property
     def name(self) -> Optional[str]:
-        return self._evo.data[self._id].get("name")
-        # return self._get_ctl_value(f"0004-{self._id}", "name")
+        return self._get_pkt_value("0004", "name")
 
     @property
     def setpoint_capabilities(self):
@@ -542,8 +510,7 @@ class Zone(Entity):
 
     @property
     def temperature(self):
-        # turn self._get_pkt_value("30C9", "temperature")
-        return self._evo.data[self._id].get("temperature")
+        return self._get_pkt_value("30C9", "temperature")
 
     @property
     def zone_idx(self):
@@ -581,7 +548,7 @@ class RadValveZone(Zone):
 
     @property
     def window_open(self):
-        return self._evo.data[f"{self._id:02X}"]["window_open"]
+        return self._get_pkt_value("12B0", "window_open")
 
 
 class ElectricZone(Zone):
@@ -658,7 +625,7 @@ class DhwZone(Zone):
     def _TBD_discover(self):
         # get config, mode, temp
         for code in ["10A0", "1F41", "1260"]:  # TODO: what about 1100?
-            self._command(code, payload="00")
+            self._command(code)
 
 
 DEVICE_CLASS_MAP = {
@@ -667,6 +634,7 @@ DEVICE_CLASS_MAP = {
     DEVICE_LOOKUP["DHW"]: DhwSensor,
     DEVICE_LOOKUP["STA"]: Thermostat,
     DEVICE_LOOKUP["THM"]: Thermostat,
+    DEVICE_LOOKUP["THm"]: Thermostat,
     DEVICE_LOOKUP["TRV"]: TrvActuator,
 }
 

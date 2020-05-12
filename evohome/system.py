@@ -16,34 +16,41 @@ class EvohomeSystem:
         self._num_zones = None
         self._prev_code = None
 
-        self.zones = []  # not used?
-        self.zone_by_id = {}
-
         self.domains = []
         self.domain_by_id = {}
 
         self.devices = []
         self.device_by_id = {}
 
-        self.data = {f"{i:02X}": {} for i in range(12)}
+        self.zones = []  # not used?
+        self.zone_by_id = {}
 
-    # @property
-    # def controller_id(self) -> Optional[str]:
-    #     self.ctl_id
-
-    # @controller_id.setter
-    # def controller_id(self, var):
-    #     self.ctl_id = var
-
-    @property
-    def _devices(self) -> Optional[dict]:
+    @staticmethod
+    def _entities(entities, id_attr) -> dict:
         """Calculate a system schema."""
 
-        def attrs(device) -> list:
-            attr = [a for a in dir(device) if not callable(getattr(device, a))]
-            return [a for a in attr if not a.startswith("_") and a != "device_id"]
+        def attrs(entity) -> list:
+            attr = [a for a in dir(entity) if not callable(getattr(entity, a))]
+            return [a for a in attr if not a.startswith("_") and a != id_attr]
 
-        return {d.device_id: {a: getattr(d, a) for a in attrs(d)} for d in self.devices}
+        return {
+            getattr(e, id_attr): {a: getattr(e, a) for a in attrs(e)} for e in entities
+        }
+
+    @property
+    def _devices(self) -> dict:
+        """Calculate a system schema."""
+        return self._entities(self.devices, "device_id")
+
+    @property
+    def _domains(self) -> dict:
+        """Calculate a system schema."""
+        return self._entities(self.domains, "domain_id")
+
+    @property
+    def _zones(self) -> dict:
+        """Calculate a system schema."""
+        return self._entities(self.zones, "zone_idx")
 
     @property
     def status(self) -> Optional[dict]:
