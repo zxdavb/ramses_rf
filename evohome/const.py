@@ -76,7 +76,7 @@ COMMAND_SCHEMA = {
     "1060": {"name": "device_battery", "exposes_zone": True},
     "10A0": {"name": "dhw_params"},
     "10E0": {"name": "device_info"},
-    "1100": {"name": "boiler_params"},  # boiler CH config
+    "1100": {"name": "tpi_params"},  # boiler CH config
     "1260": {"name": "dhw_temp"},
     "1280": {"name": "outdoor_humidity"},
     "1290": {"name": "outdoor_temp"},
@@ -142,8 +142,9 @@ DEVICE_TABLE = {
     "63": {"type": "NUL", "battery": False},
     "--": {"type": "---", "battery": False},
 }  # TODO: Mixing valve: HM80 (no battery)
-#   "17": {"type": " 17", "battery": None},  # Dunno - Outside weather sensor?
 #   "03": {"type": " 03", "battery": None},  # (Wireless room stat: HCF82, HCW82)??
+#   "17": {"type": " 17", "battery": None},  # Dunno - Outside weather sensor?
+#   "20": {"type": "VCE", "battery": None},  # VCE-RF ?ventilation
 DEVICE_TYPES = {k: v["type"] for k, v in DEVICE_TABLE.items()}
 DEVICE_LOOKUP = {v: k for k, v in DEVICE_TYPES.items()}
 

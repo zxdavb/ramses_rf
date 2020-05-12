@@ -535,7 +535,7 @@ def parser_10e0(payload, msg) -> Optional[dict]:  # device_info
 
 
 @parser_decorator
-def parser_1100(payload, msg) -> Optional[dict]:  # boiler_params (domain/zone/device)
+def parser_1100(payload, msg) -> Optional[dict]:  # tpi_params (domain/zone/device)
     assert len(payload) / 2 in [5, 8]
     assert payload[:2] in ["00", "FC"]
     assert payload[2:4] in ["0C", "18", "24", "30"]
@@ -873,7 +873,6 @@ def parser_3150(payload, msg) -> Optional[dict]:  # heat_demand (of device, FC d
 @parser_decorator
 def parser_31d9(payload, msg) -> Optional[dict]:
     assert len(payload) / 2 == 17  # usu: I 30:-->30:, with a seq#!
-    assert payload[:2] == "21"  # domain
     assert payload[2:] == "00FF0000000000000000000000000000"
 
     return {
@@ -885,7 +884,6 @@ def parser_31d9(payload, msg) -> Optional[dict]:
 @parser_decorator
 def parser_31da(payload, msg) -> Optional[dict]:  # UFH HCE80 (Nuaire humidity)
     assert len(payload) / 2 == 29  # usu: I CTL-->CTL
-    assert payload[:2] == "21"  # domain
 
     return {
         "zone_idx" if int(payload[:2], 16) < 12 else "domain_id": _id(payload[:2]),
@@ -1016,7 +1014,7 @@ def parser_3ef1(payload, msg) -> Optional[dict]:  # actuator_state
 
     return {
         "zone_idx" if int(payload[:2], 16) < 12 else "domain_id": _id(payload[:2]),
-        "actuator_dunno": _cent(payload[2:4]) / 2,
+        "actuator_state": _cent(payload[2:4]) / 2,
         "unknown_1": int(payload[2:6], 16),
         "unknown_2": int(payload[6:10], 16),
         "unknown_3": {"00": False, "C8": True}.get(payload[10:12]),
