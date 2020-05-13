@@ -240,11 +240,11 @@ class Message:
             else:
                 self._evo.device_by_id[self.device_from].update(self)
 
+        # STEP 1: check parent_zone_idx huerestics
         # if __dev_mode__ or self.device_from not in self._gwy.known_devices:
         #     assert self.device_from in self._gwy.known_devices, "dev not in k_d DB"
         #     return
 
-        # check parent_zone_idx huerestics
         if __dev_mode__ and isinstance(self.payload, dict):
             if self.device_from in self._gwy.known_devices:
                 zone_idx = self._gwy.known_devices[self.device_from].get("zone_idx")
@@ -270,25 +270,24 @@ class Message:
                 c = "parent_zone_ccc" in self.payload
                 assert any([a, b, c]), "parent_zone_idx, but no _xxx"
 
-        # who was the message from? There's one special (non-evohome) case...
-        self._evo.device_by_id[self.device_from].update(self)
-
-        # what was the message about: system, domain, or zone?
         assert self.payload is not None  # TODO: this should have been done before?
         if not self.payload:  # should be {} (possibly empty) or [] (never empty)
             return
 
+        # STEP 2: who was the message from? There's one special (non-evohome) case...
+        self._evo.device_by_id[self.device_from].update(self)
+
+        # STEP 3: what was the message about: system, domain, or zone?
         if isinstance(self.payload, list):
-            return  # I think the following was a bad idea
             if self.code in ["000A", "2309", "30C9"]:  # array of zones
-                [_update_entity(zone) for zone in self.payload]
+                # [_update_entity(zone) for zone in self.payload]  # TODO: is bad idea?
                 return
             if self.code in ["0009"]:  # array of domains
                 [_update_entity(domain) for domain in self.payload]
                 return
             if self.code in ["22C9", "3150"]:  # array of UFH zones
-                return
-            if self.code in ["1FC9"]:  # TODO: array of domains/zones/???
+                return  # TODO: something
+            if self.code in ["1FC9"]:  # TODO: array of codes
                 return
             assert False  # should never reach here
 
@@ -306,8 +305,8 @@ class Message:
         elif self.code in ["1FD4", "22D9", "3220"]:  # is for opentherm...
             _update_entity(self.payload)  # TODO: needs checking
 
-        elif "parent_zone_idx" in self.payload:  # is for a device...
-            _update_entity(self.payload)
+        elif "parent_zone_idx" in self.payload:  # is from/to a device...
+            _update_entity(self.payload)  # TODO; do I need this and step 2?
 
         else:  # is for a device...
             _update_entity(self.payload)

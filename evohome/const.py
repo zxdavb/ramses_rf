@@ -68,7 +68,7 @@ COMMAND_SCHEMA = {
     "000C": {"name": "zone_actuators", "exposes_zone": None},  # special case
     "000E": {"name": "message_000E", "exposes_zone": False},
     "0016": {"name": "rf_check", "rq_length": 2},
-    "0100": {"name": "localisation", "rq_length": 5},
+    "0100": {"name": "language", "rq_length": 5},
     "0404": {"name": "zone_schedule"},
     "0418": {"name": "system_fault"},
     "042F": {"name": "message_042F", "exposes_zone": False},
@@ -180,7 +180,7 @@ ZONE_TYPE_MAP = {
     "BDR": "Electric Heat",  # /Zone Valve",
     "UFH": "Underfloor Heating",
     "MIX": "Mixing Valve",
-    "ZON": "Zone Valve",
+    "VAL": "Zone Valve",
 }
 
 # Used by 0418/system_fault parser

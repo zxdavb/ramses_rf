@@ -59,15 +59,16 @@ class Entity:
             kwargs["payload"] = "00"
         self._cmd_que.put_nowait(Command(self._gwy, code=code, **kwargs))
 
-    def _get_pkt_value(self, code, key) -> Optional[Any]:
+    def _get_pkt_value(self, code, key=None) -> Optional[Any]:
+        key = key if key is not None else COMMAND_SCHEMA[code]["name"]
         if self._pkts.get(code):
             return self._pkts[code].payload.get(key)
 
     @property
-    def _pkt_codes(self) -> list:
+    def pkt_codes(self) -> list:
         return list(self._pkts.keys())
 
-    def update(self, msg):
+    def update(self, msg) -> None:
         if msg.verb == " W":
             return
         if msg.verb == "RQ":
@@ -79,9 +80,12 @@ class Entity:
 
 
 class Domain(Entity):
-    """Base for the named Zones and the other domains (e.g. DHW).
+    """Base for the domains: F8 (rare), F9, FA (not FC, FF).
 
-    Domains include F8 (rare), F9, FA, FC & FF.
+    F8 - 1F09/W (rare)
+    F9 - 0008
+    FA - 0008
+    FC - 0008, 0009, and others
     """
 
     def __init__(self, domain_id, gateway) -> None:
@@ -91,25 +95,43 @@ class Domain(Entity):
         self._type = None
         # self.discover()
 
+    def update(self, msg) -> None:
+        super().update(msg)
+
+        # try to cast a new type (must be a superclass of the current type)
+        if msg.code in ["1100", "3150", "3B00"]:
+            self.__class__ = TpiDomain
+
     @property
-    def device_id(self) -> Optional[str]:  # TODO: delete me
+    def domain_id(self) -> str:
         return self._id
 
     @property
-    def domain_id(self):
-        return self._id
+    def relay_demand(self) -> Optional[float]:  # 0008
+        return self._get_pkt_value("0008")
+
+    @property  # only seen with FC, but seems should pair with 0008?
+    def relay_failsafe(self) -> Optional[float]:  # 3150
+        return self._get_pkt_value("0009")
+
+
+class TpiDomain(Domain):
+    """Base for the FC domain.
+
+    FC - 0008, 0009, 1100, 3150, 3B00, (& rare: 0001, 1FC9)
+    """
 
     @property
-    def heat_demand(self):  # 3150
-        return self._get_pkt_value("3150", "heat_demand")
+    def tpi_params(self) -> Optional[float]:  # 1100
+        return self._get_pkt_value("1100")
 
     @property
-    def parent_zone(self) -> Optional[str]:  # TODO: delete me
-        return None
+    def heat_demand(self) -> Optional[float]:  # 3150
+        return self._get_pkt_value("3150")
 
     @property
-    def relay_demand(self):  # 0008
-        return self._get_pkt_value("0008", "relay_demand")
+    def sync_tpi(self) -> Optional[float]:  # 3B00
+        return self._get_pkt_value("3B00")
 
 
 class System(Entity):
@@ -140,10 +162,6 @@ class System(Entity):
             self._command("0418", payload=f"{num:06X}")
 
         return
-
-    @property
-    def heat_demand(self):  # 3150
-        return self._get_pkt_value("3150", "heat_demand")
 
     @property
     def setpoint_status(self):
@@ -235,7 +253,7 @@ class Device(Entity):
         self._pkts.update({msg.code: msg})
 
 
-class Battery:
+class HasBattery:
     """Some devices have a battery."""
 
     @property
@@ -245,6 +263,18 @@ class Battery:
         if battery_level is not None:
             return {"low_battery": low_battery, "battery_level": battery_level}
         return {"low_battery": low_battery}
+
+
+class HasTemperature:
+    """Some devices have a temperature sensor."""
+
+    @property
+    def setpoint(self) -> Optional[Any]:  # 2309
+        return self._get_pkt_value("2309", "setpoint")
+
+    @property
+    def temperature(self) -> Optional[float]:  # 30C9
+        return self._get_pkt_value("30C9", "temperature")
 
 
 class Controller(Device):
@@ -290,7 +320,7 @@ class Controller(Device):
 
     @property
     def language(self) -> Optional[str]:  # 0100,
-        return self._get_pkt_value("0100", "language")
+        return self._get_pkt_value("0100")
 
     def zone_properties(self, zone_idx) -> dict:
         # 0004/name, 000A/properties, 2309/setpoint, 30C9/temp
@@ -308,8 +338,15 @@ class Controller(Device):
         assert len(sensors) < 2
         return sensors[0] if sensors else None
 
+    def update(self, msg):
+        super().update(msg)
 
-class DhwSensor(Device, Battery):
+        if msg.code == "30C9":  # then try to find the zone sensors...
+            sensors = [d for d in self._evo.devices if hasattr(d, "temperature")]
+            any(sensors)
+
+
+class DhwSensor(Device, HasBattery):
     """The DHW class, such as a CS92."""
 
     def __init__(self, dhw_id, gateway) -> None:
@@ -317,6 +354,10 @@ class DhwSensor(Device, Battery):
         super().__init__(dhw_id, gateway)
 
         # self._discover()
+
+    def _TBD_discover(self):
+        for code in ["10A0", "1260", "1F41"]:
+            self._command(code)
 
     @property
     def parent_zone(self) -> None:
@@ -326,12 +367,16 @@ class DhwSensor(Device, Battery):
     def temperature(self):
         return self._get_pkt_value("1260", "temperature")
 
-    def _TBD_discover(self):
-        for code in ["10A0", "1260", "1F41"]:
-            self._command(code)
+
+class Thermostat(Device, HasTemperature, HasBattery):  # TODO: the THM, THm devices
+    """The STA class, such as a TR87RF."""
+
+    def __init__(self, device_id, gateway) -> None:
+        # _LOGGER.debug("Creating a new STA %s", device_id)
+        super().__init__(device_id, gateway)
 
 
-class TrvActuator(Device, Battery):
+class TrvActuator(Device, HasTemperature, HasBattery):
     """The TRV class, such as a HR92."""
 
     def __init__(self, device_id, gateway) -> None:
@@ -339,20 +384,12 @@ class TrvActuator(Device, Battery):
         super().__init__(device_id, gateway)
 
     @property
-    def language(self) -> Optional[str]:  # 0100,
-        return self._get_pkt_value("0100", "language")
+    def _language(self) -> Optional[str]:  # 0100,
+        return self._get_pkt_value("0100")
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
-        return self._get_pkt_value("3150", "heat_demand")
-
-    @property
-    def setpoint(self) -> Optional[Any]:  # 2309
-        return self._get_pkt_value("2309", "setpoint")
-
-    @property
-    def temperature(self) -> Optional[float]:  # 30C9
-        return self._get_pkt_value("30C9", "temperature")
+        return self._get_pkt_value("3150")
 
     @property
     def window_state(self) -> Optional[bool]:  # 12B0
@@ -401,6 +438,18 @@ class BdrSwitch(Device):
                 self._parent_zone = "FC"
                 self._discover()
 
+    @property
+    def sync_tpi(self) -> Optional[float]:  # 3B00
+        return self._get_pkt_value("3B00")
+
+    @property
+    def actuator_enabled(self) -> Optional[float]:  # 3EF0
+        return self._get_pkt_value("3EF0")
+
+    @property
+    def actuator_state(self) -> Optional[float]:  # 3EF1
+        return self._get_pkt_value("3EF1")
+
 
 class TpiSwitch(BdrSwitch):  # TODO: superset of BDR switch?
     """The TPI class, the BDR91 that controlls the boiler."""
@@ -412,26 +461,6 @@ class TpiSwitch(BdrSwitch):  # TODO: superset of BDR switch?
             self._command(code, dest_addr=self._id, payload="FC")
 
 
-class Thermostat(Device, Battery):  # TODO: the THM, THm devices
-    """The STA class, such as a TR87RF."""
-
-    # 045  I     STA:092243            >broadcast 3120 007 0070B0000000FF
-    # every ~3:45:00 (each STA different, but each keeps its interval to the second)
-    # payload never changes
-
-    def __init__(self, device_id, gateway) -> None:
-        # _LOGGER.debug("Creating a new STA %s", device_id)
-        super().__init__(device_id, gateway)
-
-    @property
-    def setpoint(self):  # 2309
-        return self._get_pkt_value("2309", "setpoint")
-
-    @property
-    def temperature(self):  # 30C9
-        return self._get_pkt_value("30C9", "temperature")
-
-
 class Zone(Entity):
     """Base for the 12 named Zones."""
 
@@ -439,6 +468,7 @@ class Zone(Entity):
         _LOGGER.debug("Creating a new Zone %s", zone_idx)
         super().__init__(zone_idx, gateway)
 
+        self._sensor = None
         self._zone_type = None
         self._discover()
 
@@ -486,31 +516,32 @@ class Zone(Entity):
         return list(set(self.actuators) | devices)
 
     @property
-    def heat_demand(self) -> Optional[float]:
-        demands = [
-            d.heat_demand if d.heat_demand else 0
-            for d in self._evo.devices
-            if d.device_id in self.devices and hasattr(d, "heat_demand")
-        ]
-        return max(demands + [0]) if demands else None
+    def name(self) -> Optional[str]:
+        return self._get_pkt_value("0004")
 
     @property
-    def name(self) -> Optional[str]:
-        return self._get_pkt_value("0004", "name")
+    def sensor(self) -> list:
+        if self._sensor:
+            return self._sensor
+
+        # attempt to determine sensor for the zone...
+        # self._sensor = ...
+
+        return self._sensor
 
     @property
     def setpoint_capabilities(self):
         attrs = ["max_heat_setpoint", "min_heat_setpoint"]
-        return {x: self._get_pkt_value("000A", x) for x in attrs}
+        return {a: self._get_pkt_value("000A", a) for a in attrs}
 
     @property
     def setpoint_status(self):
         attrs = ["setpoint", "mode", "until"]
-        return {x: self._get_pkt_value("2349", x) for x in attrs}
+        return {a: self._get_pkt_value("2349", a) for a in attrs}
 
     @property
     def temperature(self):
-        return self._get_pkt_value("30C9", "temperature")
+        return self._get_pkt_value("30C9")
 
     @property
     def zone_idx(self):
@@ -534,11 +565,27 @@ class Zone(Entity):
     def update(self, msg):
         super().update(msg)
 
+        if self._sensor is None:
+            _ = self.sensor
+
         if self._zone_type is None:
             _ = self.zone_type
 
 
-class RadValveZone(Zone):
+class HasHeatDemand:
+    """Base for the 12 named Zones."""
+
+    @property
+    def heat_demand(self) -> Optional[float]:
+        demands = [
+            d.heat_demand if d.heat_demand else 0
+            for d in self._evo.devices
+            if d.device_id in self.devices and hasattr(d, "heat_demand")
+        ]
+        return max(demands + [0]) if demands else None
+
+
+class TrvZone(Zone, HasHeatDemand):
     """Base for Radiator Valve zones.
 
     For radiators controlled by HR92s or HR80s (will also call for heat).
@@ -551,7 +598,7 @@ class RadValveZone(Zone):
         return self._get_pkt_value("12B0", "window_open")
 
 
-class ElectricZone(Zone):
+class BdrZone(Zone):
     """Base for Electric Heat zones.
 
     For a small (5A) electric load controlled by a BDR91 (never calls for heat).
@@ -559,30 +606,42 @@ class ElectricZone(Zone):
 
     # if also call for heat, then is a ZoneValve
 
-    def x_update(self, payload, msg):
+    @property
+    def actuator_enabled(self) -> Optional[float]:  # 3EF0
+        return self._get_pkt_value("3EF0")
+
+    @property
+    def actuator_state(self) -> Optional[float]:  # 3EF1
+        return self._get_pkt_value("3EF1")
+
+    def update(self, payload, msg):
         super().update(payload, msg)
 
         # does it also call for heat?
-        if self._pkts.get("3150"):
-            self.__class__ = ZoneValveZone
-            self._zone_type = ZONE_TYPE_MAP["ZON"]
+        if msg.code == "3150":
+            self.__class__ = ValZone
+            self._zone_type = ZONE_TYPE_MAP["VAL"]
 
 
-class ZoneValveZone(ElectricZone):
+class ValZone(BdrZone, HasHeatDemand):
     """Base for Zone Valve zones.
 
     For a motorised valve controlled by a BDR91 (will also call for heat).
     """
 
 
-class UnderfloorZone(Zone):
+class UfhZone(Zone, HasHeatDemand):
     """Base for Underfloor Heating zones.
 
     For underfloor heating controlled by an HCE80 or HCC80 (will also call for heat).
     """
 
+    @property
+    def ufh_setpoint(self) -> Optional[float]:  # 3B00
+        return self._get_pkt_value("22C9")
 
-class MixValveZone(Zone):
+
+class MixZone(Zone, HasHeatDemand):
     """Base for Mixing Valve zones.
 
     For a modulating valve controlled by a HM80 (will also call for heat).
@@ -594,7 +653,7 @@ class MixValveZone(Zone):
         return {x: self._get_pkt_value("1030", x) for x in attrs}
 
 
-class DhwZone(Zone):
+class DhwZone(Zone, HasHeatDemand):
     """Base for the DHW (Fx) domain."""
 
     def __init__(self, zone_idx, gateway) -> None:
@@ -639,9 +698,9 @@ DEVICE_CLASS_MAP = {
 }
 
 ZONE_CLASS_MAP = {
-    "TRV": RadValveZone,
-    "BDR": ElectricZone,
-    "ZON": ZoneValveZone,
-    "UFH": UnderfloorZone,
-    "MIX": MixValveZone,
+    "TRV": TrvZone,
+    "BDR": BdrZone,
+    "VAL": ValZone,
+    "UFH": UfhZone,
+    "MIX": MixZone,
 }
