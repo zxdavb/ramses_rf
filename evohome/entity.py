@@ -50,7 +50,8 @@ class Entity:
         self._pkts = {}
 
     def _discover(self):
-        raise NotImplementedError
+        pass
+        # raise NotImplementedError
 
     def _command(self, code, **kwargs):
         if kwargs.get("dest_addr") is None:
@@ -214,11 +215,14 @@ class Device(Entity):
         # return
 
         # do these even if battery-powered (e.g. device might be in rf_check mode)
-        for code in ["0016", "1FC9"]:
-            self._command("0016", dest_addr=self._id)
+        for code in ["1FC9"]:
+            self._command(code, dest_addr=self._id)
+
+        for code in ["0016"]:
+            self._command(code, dest_addr=self._id, payload="0000")
 
         if self._id[:2] not in ["04", "12", "13", "32", "34"]:  # battery-powered?
-            self._command("10E0", dest_addr=self._id, payload="0000")
+            self._command("10E0", dest_addr=self._id)
         # else:  # TODO: it's unlikely anything respond to an RQ/1060 (an 01: doesn't)
         #     self._command("1060", dest_addr=self._id)  # payload len()?
 
@@ -299,7 +303,10 @@ class Controller(Device):
         #     self._command("0004", payload=f"{zone_idx:02x}00")
 
         # system-related... (not working: 1280, 22D9, 2D49, 2E04, 3220, 3B00)
-        for code in ["1F09", "313F", "0100", "0002", "10A0", "1260", "1F41"]:
+        for code in ["1F09", "313F", "0100", "0002"]:
+            self._command(code)
+
+        for code in ["10A0", "1260", "1F41"]:  # stored DHW
             self._command(code)
 
         self._command("0005", payload="0000")
@@ -313,6 +320,13 @@ class Controller(Device):
         # for code in ["2E04"]:
         #     for payload in ["0000", "00", "F8", "F9", "FA", "FB", "FC", "FF"]:
         #         self._command(code, payload=payload)
+
+    def update(self, msg):
+        super().update(msg)
+
+        if msg.code == "30C9":  # then try to find the zone sensors...
+            sensors = [d for d in self._evo.devices if hasattr(d, "temperature")]
+            any(sensors)
 
     @property
     def parent_zone(self) -> None:
@@ -337,13 +351,6 @@ class Controller(Device):
         sensors = [d.device_id for d in self._evo.devices if d.device_type == "DHW"]
         assert len(sensors) < 2
         return sensors[0] if sensors else None
-
-    def update(self, msg):
-        super().update(msg)
-
-        if msg.code == "30C9":  # then try to find the zone sensors...
-            sensors = [d for d in self._evo.devices if hasattr(d, "temperature")]
-            any(sensors)
 
 
 class DhwSensor(Device, HasBattery):
@@ -614,8 +621,8 @@ class BdrZone(Zone):
     def actuator_state(self) -> Optional[float]:  # 3EF1
         return self._get_pkt_value("3EF1")
 
-    def update(self, payload, msg):
-        super().update(payload, msg)
+    def update(self, msg):
+        super().update(msg)
 
         # does it also call for heat?
         if msg.code == "3150":

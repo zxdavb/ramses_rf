@@ -162,8 +162,8 @@ class Message:
             assert self._payload is not None  # should be a dict or a list
         except AssertionError:  # for development only?
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
-            if self.device_from[:2] == "18":
-                _LOGGER.warning("%s", self._pkt, extra=self.__dict__)
+            if self.device_from[:2] == "18":  # TODO: should be a warning
+                _LOGGER.exception("%s", self._pkt, extra=self.__dict__)
             else:
                 _LOGGER.exception("%s", self._pkt, extra=self.__dict__)
             return False

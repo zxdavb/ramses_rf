@@ -194,9 +194,9 @@ class Gateway:
 
         try:  # print state data
             if __dev_mode__:
-                print(f"State data:\r\n{json.dumps(self.evo._devices, indent=4)}")
-                print(f"State data:\r\n{json.dumps(self.evo._domains, indent=4)}")
-                print(f"State data:\r\n{json.dumps(self.evo._zones, indent=4)}")
+                print(f"Devices:\r\n{json.dumps(self.evo._devices, indent=4)}")
+                print(f"Domains:\r\n{json.dumps(self.evo._domains, indent=4)}")
+                print(f"Zones  :\r\n{json.dumps(self.evo._zones, indent=4)}")
             else:
                 _LOGGER.info(
                     "State data is: %s",
@@ -271,8 +271,12 @@ class Gateway:
                         "code": cmd[13:17],
                         "payload": cmd[18:],
                     }
-                    self.cmd_queue.put_nowait(Command(self, **kwargs))
-                    await self._dispatch_pkt(destination=manager.writer)
+                    cmd = Command(self, **kwargs)
+                    manager.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
+                    _LOGGER.warning(
+                        "# A packet was sent to %s: %s", self.serial_port, cmd
+                    )
+                    await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
 
                 self._tasks.append(asyncio.create_task(port_reader(manager)))
                 self._tasks.append(asyncio.create_task(port_writer(manager)))
@@ -319,7 +323,7 @@ class Gateway:
         while not self.cmd_queue.empty():
             cmd = self.cmd_queue.get()
             if not (destination is None or self.config.get("listen_only")):
-                # TODO: if not cmd.entity._pkts.get(cmd.code):
+                # TODO: if not cmd.entity._pkts.get(cmd.code)
                 destination.write(bytearray(f"{cmd}\r\n".encode("ascii")))
                 _LOGGER.warning("# A packet was sent to %s: %s", self.serial_port, cmd)
                 await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
