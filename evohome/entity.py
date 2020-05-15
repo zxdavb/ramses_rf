@@ -400,7 +400,7 @@ class BdrSwitch(Device):
                 self._discover()
 
     @property
-    def sync_tpi(self) -> Optional[float]:  # 3B00
+    def is_tpi(self) -> Optional[float]:  # 3B00
         return self._get_pkt_value("3B00")
 
     @property
@@ -460,13 +460,7 @@ class Zone(Entity):
         #     return {}
 
         attrs = ["local_override", "multi_room_mode", "openwindow_function"]
-        if self._pkts.get("zone_config"):
-            return {
-                k: v
-                for k, v in self._pkts["zone_config"]["flags"].items()
-                if k in attrs
-            }
-        return {k: None for k in attrs}
+        return {a: self._get_pkt_value("000A", a) for a in attrs}
 
     @property
     def actuators(self) -> list:
@@ -482,7 +476,7 @@ class Zone(Entity):
 
     @property
     def name(self) -> Optional[str]:
-        return self._get_pkt_value("0004")
+        return self._get_pkt_value("0004", "name")
 
     @property
     def sensor(self) -> list:
@@ -496,7 +490,7 @@ class Zone(Entity):
 
     @property
     def setpoint_capabilities(self):
-        attrs = ["max_heat_setpoint", "min_heat_setpoint"]
+        attrs = ["max_temp", "min_temp"]
         return {a: self._get_pkt_value("000A", a) for a in attrs}
 
     @property
@@ -583,7 +577,7 @@ class BdrZone(Zone):
         super().update(msg)
 
         # does it also call for heat?
-        if msg.code == "3150":
+        if msg.code == "3150":  # or 1100/unkown_0 = 00
             self.__class__ = ValZone
             self._zone_type = ZONE_TYPE_MAP["VAL"]
 
