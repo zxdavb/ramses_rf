@@ -248,7 +248,6 @@ class Message:
                 for idx in l_idx:
                     if self.payload.get(f"{key}_{idx}"):
                         assert self.payload[f"{key}_{idx}"] == zone_idx, f"{key}_{idx}"
-                    l_idx += [f"{key}_{idx}" in self.payload]
 
             if "parent_zone_idx" in self.payload:
                 assert any([f"parent_zone_{i}" in self.payload] for i in l_idx)

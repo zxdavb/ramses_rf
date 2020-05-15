@@ -421,6 +421,10 @@ class TpiSwitch(BdrSwitch):  # TODO: superset of BDR switch?
         for code in ["1100"]:
             self._command(code, dest_addr=self._id, payload="FC")
 
+        for payload in ["00", "C8"]:
+            for code in ["00", "FC", "FF"]:
+                self._command("3B00", dest_addr=self._id, payload=f"{code}{payload}")
+
 
 class Zone(Entity):
     """Base for the 12 named Zones."""
