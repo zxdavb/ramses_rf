@@ -133,7 +133,7 @@ def parser_decorator(func):
         if msg.code in ["3EF1"]:
             assert payload in ["0000"]
         else:
-            assert payload in ["00", "FF"]
+            assert True or payload in ["00", "FF", "FC"]
         return {}
 
     return wrapper
@@ -372,10 +372,13 @@ def parser_0016(payload, msg) -> Optional[dict]:  # rf_check
     assert len(payload) / 2 == 2  # for both RQ/RP, but RQ/00 will work
     assert int(payload[:2], 16) < 12  # e.g. RQ/22:/0z00 (parent_zone), but RQ/07:/0000?
 
+    if msg.verb == "RQ":
+        return {"rf_request": msg.device_dest}
+
     rf_value = int(payload[2:4], 16)
     return {
-        "rf_check_from": msg.device_dest,
-        "rf_signal": min(int(rf_value / 5) + 1, 5),
+        "rf_source": msg.device_dest,
+        "rf_strength": min(int(rf_value / 5) + 1, 5),
         "rf_value": rf_value,
     }
 

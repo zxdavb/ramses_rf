@@ -17,7 +17,7 @@ import sys
 from queue import Queue
 
 from .command import Command
-from .const import INDEX_SQL, TABLE_SQL, INSERT_SQL, ISO_FORMAT_REGEX, __dev_mode__
+from .const import INDEX_SQL, TABLE_SQL, INSERT_SQL, ISO_FORMAT_REGEX
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
 from .packet import _LOGGER as pkt_logger, PACKET, Packet, PortPktProvider
@@ -123,7 +123,7 @@ class Gateway:
     async def _signal_handler(self, signal):
         _LOGGER.debug("Received signal %s...", signal.name)
 
-        if signal == signal.SIGUSR1:  # TODO: and self.config.get("raw_output", 0) < 2:
+        if signal == signal.SIGUSR1 and self.config.get("raw_output", 0) == 0:
             _LOGGER.info("Devices:%s", f"\r\n{json.dumps(self.evo._devices, indent=4)}")
             _LOGGER.info("Domains:%s", f"\r\n{json.dumps(self.evo._domains, indent=4)}")
             _LOGGER.info("Zones:  %s", f"\r\n{json.dumps(self.evo._zones, indent=4)}")
@@ -192,18 +192,13 @@ class Gateway:
                     "Failed update of %s", self.config.get("known_devices")
                 )
 
-        try:  # print state data
-            if __dev_mode__:
+        if self.config.get("raw_output", 0) == 0:
+            try:  # print state data
                 print(f"Devices:\r\n{json.dumps(self.evo._devices, indent=4)}")
                 print(f"Domains:\r\n{json.dumps(self.evo._domains, indent=4)}")
                 print(f"Zones  :\r\n{json.dumps(self.evo._zones, indent=4)}")
-            else:
-                _LOGGER.info(
-                    "State data is: %s",
-                    f"\r\n{json.dumps(self.evo._devices, indent=4)}",
-                )
-        except (LookupError, TypeError, ValueError):
-            _LOGGER.warning("Failed to print State data", exc_info=True)
+            except (LookupError, TypeError, ValueError):
+                _LOGGER.warning("Failed to print State data", exc_info=True)
 
     async def start(self) -> None:
         async def proc_pkts_from_file() -> None:

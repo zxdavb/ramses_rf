@@ -1,6 +1,5 @@
 """The entities for Honeywell's RAMSES II / Residential Network Protocol."""
 import logging
-import queue
 from typing import Any, Optional
 
 from .command import Command
@@ -48,6 +47,7 @@ class Entity:
         self._cmd_que = gateway.cmd_queue
 
         self._pkts = {}
+        self.last_pkt = None
 
     def _discover(self):
         pass
@@ -70,13 +70,12 @@ class Entity:
         return list(self._pkts.keys())
 
     def update(self, msg) -> None:
+        self.last_pkt = f"{msg.date}T{msg.time}"
         if msg.verb == " W":
             return
-        if msg.verb == "RQ":
-            if msg.payload == {}:
-                return
+        if msg.verb == "RQ" and msg.payload:
             if msg.code in self._pkts and self._pkts[msg.code].verb != msg.verb:
-                return  # may get an RQ initially, but RP will override
+                return  # may get an RQ initially, but RP/I will override
         self._pkts.update({msg.code: msg})
 
 
@@ -135,58 +134,6 @@ class TpiDomain(Domain):
         return self._get_pkt_value("3B00")
 
 
-class System(Entity):
-    """Base for the central heating (FC) domain."""
-
-    def __init__(self, gateway):
-        _LOGGER.debug("Creating a new System %s", self._evo.ctl_id)
-        super().__init__("", gateway)
-
-    @property
-    def database(self) -> Optional[dict]:
-        pass
-
-    @property
-    def schedule(self):
-        for zone_idx in range(0, 15):
-            try:
-                pass
-            except queue.Full:
-                pass
-
-        return
-
-    @property
-    def fault_log(self):
-        # WIP: try to discover fault codes
-        for num in range(0x00, 0x3C):  # 10 pages of 6
-            self._command("0418", payload=f"{num:06X}")
-
-        return
-
-    @property
-    def setpoint_status(self):
-        attrs = ["mode", "until"]
-        return {x: self._get_pkt_value("2E04", x) for x in attrs}
-
-    @property
-    def dhw_config(self) -> dict:
-        sensors = [d.device_id for d in self._evo.devices if d.device_type == "DHW"]
-        assert len(sensors) < 2
-
-        relays = [d.device_id for d in self._evo.devices if d.device_type == "TPI"]
-        assert len(relays) < 2
-
-        return {
-            "dhw_sensor": sensors[0] if sensors else None,
-            "tpi_relay": relays[0] if relays else None,
-        }
-
-    @property
-    def dhw_state(self) -> dict:
-        pass
-
-
 class Device(Entity):
     """The Device class."""
 
@@ -206,6 +153,8 @@ class Device(Entity):
         # TODO: causing queue.Full exception with -i
         self._discover()  # needs self._device_type
 
+        self.parent_000c = None
+
     def _discover(self):
         # TODO: an attempt to actively discover the CTL rather than by eavesdropping
         # self._command("313F", dest_addr=NUL_DEV_ID, payload="FF")
@@ -217,14 +166,16 @@ class Device(Entity):
         # do these even if battery-powered (e.g. device might be in rf_check mode)
         for code in ["1FC9"]:
             self._command(code, dest_addr=self._id)
-
         for code in ["0016"]:
             self._command(code, dest_addr=self._id, payload="0000")
 
-        if self._id[:2] not in ["04", "12", "13", "32", "34"]:  # battery-powered?
+        if self._id[:2] not in ["04", "07", "12", "22", "34"]:  # battery-powered?
             self._command("10E0", dest_addr=self._id)
         # else:  # TODO: it's unlikely anything respond to an RQ/1060 (an 01: doesn't)
         #     self._command("1060", dest_addr=self._id)  # payload len()?
+
+    def update(self, msg) -> None:
+        super().update(msg)
 
     @property
     def description(self) -> Optional[str]:  # 10E0
@@ -249,12 +200,6 @@ class Device(Entity):
                 self._parent_zone = msg.payload["parent_zone_idx"]
                 break
         return self._parent_zone
-
-    def update(self, msg) -> None:
-        # if msg.code == "1FC9":
-
-        # if msg.verb == " I":  # TODO: don't replace a I with an RQ!
-        self._pkts.update({msg.code: msg})
 
 
 class HasBattery:
@@ -311,13 +256,14 @@ class Controller(Device):
 
         self._command("0005", payload="0000")
         self._command("1100", payload="FC")
+        self._command("2E04", payload="FF")
 
-        # TODO: 1100(), 1290(00x), 2E04(00x), 0418(00x):
+        # TODO: 1100(), 1290(00x), 0418(00x):
         # for code in ["000C"]:
         #     for payload in ["F800", "F900", "FA00", "FB00", "FC00", "FF00"]:
         #         self._command(code, payload=payload)
 
-        # for code in ["2E04"]:
+        # for code in ["3B00"]:
         #     for payload in ["0000", "00", "F8", "F9", "FA", "FB", "FC", "FF"]:
         #         self._command(code, payload=payload)
 
@@ -329,16 +275,24 @@ class Controller(Device):
             any(sensors)
 
     @property
+    def fault_log(self):
+        # WIP: try to discover fault codes
+        # for num in range(0x00, 0x3C):  # 10 pages of 6
+        #     self._command("0418", payload=f"{num:06X}")
+        return None
+
+    @property
+    def system_mode(self):
+        attrs = ["mode", "until"]
+        return {x: self._get_pkt_value("2E04", x) for x in attrs}
+
+    @property
     def parent_zone(self) -> None:
         return "FF"
 
     @property
     def language(self) -> Optional[str]:  # 0100,
         return self._get_pkt_value("0100")
-
-    def zone_properties(self, zone_idx) -> dict:
-        # 0004/name, 000A/properties, 2309/setpoint, 30C9/temp
-        pass
 
     @property
     def tpi_relay(self) -> Optional[str]:

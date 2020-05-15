@@ -176,7 +176,7 @@ def parse(obj, **kwargs):
 @click.pass_obj
 def monitor(obj, **kwargs):
     """Monitor a serial port for packets."""
-    # print(f"monitor: obj={obj}, kwargs={kwargs}")
+    print(f"monitor: obj={obj}, kwargs={kwargs}")
 
     try:
         asyncio.run(main(**obj, **kwargs))
