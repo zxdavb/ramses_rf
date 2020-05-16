@@ -54,6 +54,8 @@ class Entity:
         # raise NotImplementedError
 
     def _command(self, code, **kwargs):
+        if self._gwy.config["listen_only"]:
+            return
         if kwargs.get("dest_addr") is None:
             kwargs["dest_addr"] = self._evo.ctl_id
         if kwargs.get("payload") is None:
@@ -72,10 +74,12 @@ class Entity:
     def update(self, msg) -> None:
         self.last_pkt = f"{msg.date}T{msg.time}"
         if msg.verb == " W":
-            return
-        if msg.verb == "RQ" and msg.payload:
             if msg.code in self._pkts and self._pkts[msg.code].verb != msg.verb:
-                return  # may get an RQ initially, but RP/I will override
+                return
+        if msg.verb == "RQ":  # and msg.payload:
+            if msg.code in self._pkts and self._pkts[msg.code].verb != msg.verb:
+                return
+        # may get an RQ/W initially, but RP/I will override
         self._pkts.update({msg.code: msg})
 
 
@@ -345,7 +349,7 @@ class TrvActuator(Device, HasTemperature, HasBattery):
         super().__init__(device_id, gateway)
 
     @property
-    def _language(self) -> Optional[str]:  # 0100,
+    def language(self) -> Optional[str]:  # 0100,
         return self._get_pkt_value("0100")
 
     @property
@@ -388,16 +392,21 @@ class BdrSwitch(Device):
         # [self._command("1260", dest_addr=self._id, payload=d) for d in DOMAIN_MAP]
 
     def update(self, msg):
+        def make_tpi():
+            self.__class__ = TpiSwitch
+            self._device_type = "TPI"
+            self._parent_zone = "FC"
+            self._discover()
+
         super().update(msg)
 
         # try to cast a new type (must be a superclass of the current type)
         if msg.code == "1FC9":
             # if COMMAND_MAP["3B00"] in [d['command'] for d in msg.payload]]:
-            if "3B00" in msg.raw_payload:
-                self.__class__ = TpiSwitch
-                self._device_type = "TPI"
-                self._parent_zone = "FC"
-                self._discover()
+            if "3B00" in msg.raw_payload:  # TODO: above better, needs reverse on parser
+                make_tpi()
+        if msg.code == "3B00" and msg.verb == " I":  #
+            make_tpi()
 
     @property
     def is_tpi(self) -> Optional[float]:  # 3B00
@@ -421,7 +430,7 @@ class TpiSwitch(BdrSwitch):  # TODO: superset of BDR switch?
         for code in ["1100"]:
             self._command(code, dest_addr=self._id, payload="FC")
 
-        for payload in ["00", "C8"]:
+        for payload in ["00", "C8"]:  # doesn't like like TPIs responding to a 3B00
             for code in ["00", "FC", "FF"]:
                 self._command("3B00", dest_addr=self._id, payload=f"{code}{payload}")
 
@@ -460,6 +469,7 @@ class Zone(Entity):
         #     return {}
 
         attrs = ["local_override", "multi_room_mode", "openwindow_function"]
+        attrs += ["max_temp", "min_temp"]
         return {a: self._get_pkt_value("000A", a) for a in attrs}
 
     @property
@@ -487,11 +497,6 @@ class Zone(Entity):
         # self._sensor = ...
 
         return self._sensor
-
-    @property
-    def setpoint_capabilities(self):
-        attrs = ["max_temp", "min_temp"]
-        return {a: self._get_pkt_value("000A", a) for a in attrs}
 
     @property
     def setpoint_status(self):

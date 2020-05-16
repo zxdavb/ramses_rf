@@ -66,7 +66,7 @@ def parser_decorator(func):
                 # assert payload[:2] in ["00", "FC"]
                 return func(*args, **kwargs)
             assert payload[:2] in ["00", "FC"]
-            return {}
+            return func(*args, **kwargs)  # {}
 
         if msg.verb != "RQ":
             # return func(*args, **kwargs)
@@ -1036,6 +1036,8 @@ def parser_3ef1(payload, msg) -> Optional[dict]:  # actuator_state
 
 
 @parser_decorator
-def parser_unknown(payload, msg) -> None:
+def parser_unknown(payload, msg) -> Optional[dict]:
     # TODO: it may be useful to search payloads for hex_ids, commands, etc.
+    if msg.code in ["01D9", "01E0"]:
+        return {"unknown": payload}
     raise NotImplementedError
