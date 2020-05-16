@@ -303,7 +303,6 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:  # zone_config (zone/s
         assert int(seqx[:2], 16) < 12
         # if seqx[2:] == "007FFF7FFF":  # a null zone
 
-        # you cannot determine zone_type from this information
         bitmap = int(seqx[2:4], 16)
         return {
             "zone_idx": seqx[:2],
@@ -312,8 +311,8 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:  # zone_config (zone/s
             "local_override": not bool(bitmap & 1),
             "openwindow_function": not bool(bitmap & 2),
             "multi_room_mode": not bool(bitmap & 16),
-            "unknown_0": f"0b{bitmap:08b}",
-        }
+            "unknown_bitmap": f"0b{bitmap:08b}",
+        }  # you cannot determine zone_type from this information
 
     assert msg.len >= 6  # assumes not RQ
 
