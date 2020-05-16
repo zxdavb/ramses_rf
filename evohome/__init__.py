@@ -320,7 +320,7 @@ class Gateway:
             if not (destination is None or self.config.get("listen_only")):
                 # TODO: if not cmd.entity._pkts.get(cmd.code)
                 destination.write(bytearray(f"{cmd}\r\n".encode("ascii")))
-                _LOGGER.warning("# A packet was sent to %s: %s", self.serial_port, cmd)
+                # LOGGER.warning("# A packet was sent to %s: %s", self.serial_port, cmd)
                 await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
 
             self.cmd_queue.task_done()

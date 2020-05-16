@@ -45,9 +45,9 @@ def parser_decorator(func):
                             if msg.device_dest[:2] == "01":
                                 _dict[f"{key}_bbb"] = payload[:2]
 
-                        if msg.device_from[:2] == "01":
-                            if msg.device_dest[:2] != "01":
-                                _dict[f"{key}_ccc"] = payload[:2]
+                        # if msg.device_from[:2] == "01":
+                        #     if msg.device_dest[:2] != "01":
+                        #         _dict[f"{key}_ccc"] = payload[:2]
 
                     return {**_dict, **parsed_payload}
             return parsed_payload
@@ -747,13 +747,14 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:  # setpoint (of device
     # 055 RQ --- 12:010740 13:163733 --:------ 2309 003 0007D0
     # 046 RQ --- 12:010740 01:145038 --:------ 2309 003 03073A
 
+    if msg.verb == " W":
+        xxx = "zone_idx"
+
     if msg.verb == "RQ" and len(payload) / 2 == 1:  # but some RQs have payloads!
         return {"parent_zone_idx": payload[:2]}
 
-    if "18" in [msg.device_from[:2], msg.device_dest[:2]]:
+    if msg.device_from[:2] in ["01", "18"]:
         xxx = "zone_idx"
-    elif msg.device_from[:2] == "01" and msg.device_dest[:2] != "01":
-        xxx = "parent_zone_idx"
     elif msg.device_from[:2] != "01" and msg.device_dest[:2] == "01":
         xxx = "parent_zone_idx"
     else:

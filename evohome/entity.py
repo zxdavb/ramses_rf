@@ -7,7 +7,6 @@ from .const import (
     COMMAND_SCHEMA,
     DEVICE_LOOKUP,
     DEVICE_TYPES,
-    # DOMAIN_MAP,
     ZONE_TYPE_MAP,
 )
 
@@ -63,8 +62,11 @@ class Entity:
         self._cmd_que.put_nowait(Command(self._gwy, code=code, **kwargs))
 
     def _get_pkt_value(self, code, key=None) -> Optional[Any]:
-        key = key if key is not None else COMMAND_SCHEMA[code]["name"]
         if self._pkts.get(code):
+            if isinstance(self._pkts[code].payload, list):
+                return self._pkts[code].payload
+
+            key = key if key is not None else COMMAND_SCHEMA[code]["name"]
             return self._pkts[code].payload.get(key)
 
     @property
@@ -178,9 +180,6 @@ class Device(Entity):
         # else:  # TODO: it's unlikely anything respond to an RQ/1060 (an 01: doesn't)
         #     self._command("1060", dest_addr=self._id)  # payload len()?
 
-    def update(self, msg) -> None:
-        super().update(msg)
-
     @property
     def description(self) -> Optional[str]:  # 10E0
         # 01:, and (rarely) 04:
@@ -274,9 +273,9 @@ class Controller(Device):
     def update(self, msg):
         super().update(msg)
 
-        if msg.code == "30C9":  # then try to find the zone sensors...
-            sensors = [d for d in self._evo.devices if hasattr(d, "temperature")]
-            any(sensors)
+        # if msg.code == "30C9":  # then try to find the zone sensors...
+        #     sensors = [d for d in self._evo.devices if hasattr(d, "temperature")]
+        #     any(sensors)
 
     @property
     def fault_log(self):
@@ -368,6 +367,8 @@ class BdrSwitch(Device):
         # _LOGGER.debug("Creating a new BDR %s", device_id)
         super().__init__(device_id, gateway)
 
+        self._is_tpi = None
+
     def _discover(self):
         super()._discover()
 
@@ -392,25 +393,36 @@ class BdrSwitch(Device):
         # [self._command("1260", dest_addr=self._id, payload=d) for d in DOMAIN_MAP]
 
     def update(self, msg):
-        def make_tpi():
+        super().update(msg)
+
+        if self._is_tpi is None:
+            _ = self.is_tpi
+
+    @property
+    def is_tpi(self) -> Optional[bool]:  # 3B00
+        if self._is_tpi is not None:
+            return self._is_tpi
+
+        def make_tpi() -> bool:
             self.__class__ = TpiSwitch
             self._device_type = "TPI"
             self._parent_zone = "FC"
             self._discover()
+            return True
 
-        super().update(msg)
+        # for code in self._get_pkt_value("1FC9"):
+        #     if code["command"] == COMMAND_MAP["3B00"]:
+        if "1FC9" in self._pkts and self._pkts["1FC9"].verb == "RP":
+            self._is_tpi = "3B00" in self._pkts["1FC9"].payload
+            if self._is_tpi:
+                make_tpi()
+            return self._is_tpi
 
         # try to cast a new type (must be a superclass of the current type)
-        if msg.code == "1FC9":
-            # if COMMAND_MAP["3B00"] in [d['command'] for d in msg.payload]]:
-            if "3B00" in msg.raw_payload:  # TODO: above better, needs reverse on parser
-                make_tpi()
-        if msg.code == "3B00" and msg.verb == " I":  #
-            make_tpi()
+        if "3B00" in self._pkts and self._pkts["3B00"].verb == " I":
+            self._is_tpi = make_tpi()
 
-    @property
-    def is_tpi(self) -> Optional[float]:  # 3B00
-        return self._get_pkt_value("3B00")
+        return self._is_tpi
 
     @property
     def actuator_enabled(self) -> Optional[float]:  # 3EF0
