@@ -49,9 +49,7 @@ class Message:
         self.len = int(packet[46:49])  # TODO:  is useful? / is user used?
         self.raw_payload = packet[50:]
 
-        self._payload = None  # the parsed payload (a dict, or a list of dict)
-
-        self._is_array = self._is_valid = self._repr = None
+        self._payload = self._is_array = self._is_valid = self._repr = None
         self._is_valid = self.is_valid
 
     def __repr__(self) -> str:
@@ -104,14 +102,12 @@ class Message:
             return self._is_array
 
         if self.code in ["000A", "2309", "30C9"] and self.verb == " I":
-            # actually, I/01:, or 01:/01: will do for these codes
+            # actually, I/01:, or 01:/01: would do for these codes
             self._is_array = all(
                 [self.dev_from[:2] == "01", self.dev_from == self.dev_dest]
             )
-
         elif self.code in ["0009", "000C", "1FC9", "22C9"]:  # also: 0005?
             self._is_array = self.verb not in ["RQ", " W"]
-
         else:
             self._is_array = False
 
