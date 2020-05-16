@@ -289,12 +289,13 @@ def parser_0009(payload, msg) -> Optional[dict]:  # relay_failsafe
             "failsafe_enabled": {"00": False, "01": True}.get(seqx[2:4]),
         }
 
-    assert len(payload) / 2 % 3 == 0  # 003 but also 006: FC01FF-F901FF, FC00FF-F900FF
-    if len(payload) / 2 == 3:
-        return _parser(payload)
+    if msg.is_array:
+        assert msg.dev_from == msg.dev_dest
+        assert msg.len >= 3 and msg.len % 3 == 0  # assuming not RQ
+        return [_parser(payload[i : i + 6]) for i in range(0, len(payload), 6)]
 
-    # if msg.dev_from[:2] == "01" and msg.verb == " I":  # payload is usu. an array
-    return [_parser(payload[i : i + 6]) for i in range(0, len(payload), 6)]
+    assert msg.len == 3
+    return _parser(payload)
 
 
 @parser_decorator
@@ -312,13 +313,10 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:  # zone_config (zone/s
             "openwindow_function": not bool(bitmap & 2),
             "multi_room_mode": not bool(bitmap & 16),
             "unknown_bitmap": f"0b{bitmap:08b}",
-        }  # you cannot determine zone_type from this information
-
-    assert msg.len >= 6  # assumes not RQ
+        }  # cannot determine zone_type from this information
 
     if msg.is_array:  # TODO: this msg can require 2 pkts!
-        assert msg.dev_from == msg.dev_dest
-        assert msg.len % 6 == 0
+        assert msg.len >= 6 and msg.len % 6 == 0  # assuming not RQ
         return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
 
     assert msg.len == 6
@@ -336,8 +334,9 @@ def parser_000c(payload, msg) -> Optional[dict]:  # zone_actuators (not sensors)
 
         return {dev_hex_to_id(seqx[6:12]): seqx[4:6]}
 
-    assert len(payload) / 2 % 6 == 0
+    assert msg.len >= 6 and msg.len % 6 == 0  # assuming not RQ
     devices = [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
+
     return {
         "zone_idx": payload[:2],
         "actuators": [{k: v} for d in devices for k, v in d.items() if v != "7F"],
@@ -650,8 +649,7 @@ def parser_1fc9(payload, msg) -> Optional[dict]:  # bind_device
         }
 
     assert msg.verb in [" I", " W", "RP"]  # devices will respond to a RQ!
-    assert len(payload) / 2 % 6 == 0  # have seen len() = 5
-
+    assert msg.len >= 6 and msg.len % 3 == 0  # assuming not RQ
     return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
 
 
@@ -727,11 +725,8 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:  # setpoint (of device
     # 055 RQ --- 12:010740 13:163733 --:------ 2309 003 0007D0
     # 046 RQ --- 12:010740 01:145038 --:------ 2309 003 03073A
 
-    assert msg.len >= 3  # assumes not RQ (but see above)
-
     if msg.is_array:
-        assert msg.dev_from == msg.dev_dest
-        assert msg.len % 3 == 0
+        assert msg.len >= 3 and msg.len % 3 == 0  # assuming not RQ
         return [_parser(payload[i : i + 6]) for i in range(0, len(payload), 6)]
 
     assert msg.len == 3
@@ -775,11 +770,8 @@ def parser_30c9(payload, msg) -> Optional[dict]:  # temp (of device, zone/s)
 
         return {"zone_idx": seqx[:2], "temperature": _temp(seqx[2:])}
 
-    assert msg.len >= 3  # assumes not RQ
-
     if msg.is_array:
-        assert msg.dev_from == msg.dev_dest
-        assert msg.len % 3 == 0
+        assert msg.len >= 3 and msg.len % 3 == 0  # assuming not RQ
         return [_parser(payload[i : i + 6]) for i in range(0, len(payload), 6)]
 
     assert msg.len == 3
