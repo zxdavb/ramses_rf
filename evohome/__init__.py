@@ -387,7 +387,7 @@ class Gateway:
             if self.config.get("raw_output", 0) > 0:
                 return
 
-            if msg.device_from[:2] == "18":  # TODO: _dest[:2] also?
+            if msg.dev_from[:2] == "18":  # TODO: _dest[:2] also?
                 return
 
             msg._update_entities()  # update the state database

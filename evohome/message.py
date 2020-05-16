@@ -37,20 +37,21 @@ class Message:
         self.code = packet[41:45]
 
         self.device_id = {}
-        self.device_from = self.device_dest = NON_DEV_ID
+        self.dev_from = self.dev_dest = NON_DEV_ID
         for dev, i in enumerate(range(11, 32, 10)):
             device_id = self.device_id[dev] = packet[i : i + 9]  # noqa: E203
             if device_id not in [NON_DEV_ID, NUL_DEV_ID]:
-                if self.device_from == NON_DEV_ID:
-                    self.device_from = device_id
+                if self.dev_from == NON_DEV_ID:
+                    self.dev_from = device_id
                 else:
-                    self.device_dest = device_id
+                    self.dev_dest = device_id
 
         self.len = int(packet[46:49])  # TODO:  is useful? / is user used?
         self.raw_payload = packet[50:]
-        self._payload = None
 
-        self._is_valid = self._repr = None
+        self._payload = None  # the parsed payload (a dict, or a list of dict)
+
+        self._is_array = self._is_valid = self._repr = None
         self._is_valid = self.is_valid
 
     def __repr__(self) -> str:
@@ -80,8 +81,8 @@ class Message:
             msg_format = MSG_FORMAT_10
 
         self._repr = msg_format.format(
-            display_name(self.device_from),
-            display_name(self.device_dest),
+            display_name(self.dev_from),
+            display_name(self.dev_dest),
             self.verb,
             COMMAND_MAP.get(self.code, f"unknown_{self.code}"),
             self.raw_payload if self.len < 4 else f"{self.raw_payload[:5]}..."[:9],
@@ -96,6 +97,25 @@ class Message:
         return self._payload
 
     @property
+    def is_array(self) -> bool:
+        """Return True if the message payload is an array."""
+
+        if self._is_array is not None:
+            return self._is_array
+
+        if self.code in ["000A", "2309", "30C9"] and self.verb == " I":
+            # actually, I/01:, or 01:/01: will do for these codes
+            self._is_array = all([self.dev_from[:2] == "01", self.dev_dest[:2] == "01"])
+
+        elif self.code in ["0009", "000C", "1FC9", "22C9"]:
+            self._is_array = self.verb not in ["RQ", " W"]
+
+        else:
+            self._is_array = False
+
+        return self._is_array
+
+    @property
     def is_valid(self) -> bool:  # Main code here
         """Return True if the message payload is valid.
 
@@ -105,22 +125,18 @@ class Message:
         if self._is_valid is not None:
             return self._is_valid
 
-        # STATE: get controller ID by eavesdropping
+        # STATE: get controller ID by eavesdropping (here, as create_entity is optional)
         if self._evo.ctl_id is None:
-            if self.device_from[:2] == "01":
-                self._evo.ctl_id = self.device_from
-            elif self.device_dest[:2] == "01":
-                self._evo.ctl_id = self.device_dest
+            if self.dev_from[:2] == "01":
+                self._evo.ctl_id = self.dev_from
+            elif self.dev_dest[:2] == "01":
+                self._evo.ctl_id = self.dev_dest
 
         # STATE: get number of zones by eavesdropping
-        if self._evo._num_zones is None:  # and self._evo.ctl_id is not None:
-            if self.device_from == self._evo.ctl_id and self._evo._prev_code == "1F09":
-                if self.code in ["2309", "30C9"] and self.verb == " I":
-                    assert len(self.raw_payload) % 6 == 0
-                    self._evo._num_zones = len(self.raw_payload) / 6
-                if self.code == "000A" and self.verb == " I":
-                    assert len(self.raw_payload) % 12 == 0
-                    self._evo._num_zones = len(self.raw_payload) / 12
+        if self._evo._num_zones is None:  # and self._evo._prev_code == "1F09":
+            if self.code in ["2309", "30C9"] and self.is_array:  # 000A may be >1 pkt
+                assert len(self.raw_payload) % 6 == 0  # simple validity check
+                self._evo._num_zones = len(self.raw_payload) / 6
 
         try:  # determine which parser to use
             payload_parser = getattr(parsers, f"parser_{self.code}".lower())
@@ -132,14 +148,14 @@ class Message:
             assert self._payload is not None  # should be a dict or a list
         except AssertionError:  # for development only?
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
-            if self.device_from[:2] == "18":  # TODO: should be a warning
+            if self.dev_from[:2] == "18":  # TODO: should be a warning
                 _LOGGER.exception("%s", self._pkt, extra=self.__dict__)
             else:
                 _LOGGER.exception("%s", self._pkt, extra=self.__dict__)
             return False
 
-        # STATE: update parser state (last packet)
-        if self.device_from == self._evo.ctl_id:
+        # STATE: update parser state (last packet code) - not needed?
+        if self.dev_from == self._evo.ctl_id:
             self._evo._prev_code = self.code if self.verb == " I" else None
         # TODO: add state for 000C?
 
@@ -147,12 +163,15 @@ class Message:
         #     assert dev_id[:2] in DEVICE_TYPES  # incl. "--", "63"
 
         # any remaining messages are valid, so: log them
-        if " I" in str(self):
-            _LOGGER.info("%s", self, extra=self.__dict__)
-        elif "RP" in str(self):
-            _LOGGER.warning("%s", self, extra=self.__dict__)
+        if __dev_mode__:
+            if " I" in str(self):
+                _LOGGER.info("%s", self, extra=self.__dict__)
+            elif "RP" in str(self):
+                _LOGGER.warning("%s", self, extra=self.__dict__)
+            else:
+                _LOGGER.error("%s", self, extra=self.__dict__)
         else:
-            _LOGGER.error("%s", self, extra=self.__dict__)
+            _LOGGER.info("%s", self, extra=self.__dict__)
 
         return True  # self._is_valid = True
 
@@ -205,7 +224,7 @@ class Message:
                 get_zone(self._payload["zone_idx"])
 
         elif isinstance(self._payload, list):  # discover zones
-            if self.device_from[:2] == "01" and self.verb == " I":
+            if self.dev_from[:2] == "01" and self.verb == " I":
                 if self.code in ["2309", "30C9"]:  # almost all sync cycles
                     for i in range(0, len(self.raw_payload), 6):
                         get_zone(self.raw_payload[i : i + 2])
@@ -223,7 +242,7 @@ class Message:
             elif "zone_idx" in data:
                 self._evo.zone_by_id[data["zone_idx"]].update(self)
             else:
-                self._evo.device_by_id[self.device_from].update(self)
+                self._evo.device_by_id[self.dev_from].update(self)
 
         # STEP 0: Use zone_actuators
         if self.code == "000C" and self.verb == "RP":  # from CTL
@@ -234,11 +253,11 @@ class Message:
 
         # STEP 1: check parent_zone_idx hueristics
         if __dev_mode__ and isinstance(self.payload, dict):
-            # assert self.device_from in self._gwy.known_devices, "dev not in k_d DB"
+            # assert self.dev_from in self._gwy.known_devices, "dev not in k_d DB"
             l_idx = ["aaa", "bbb", "ccc"]
 
-            if self.device_from in self._gwy.known_devices:
-                zone_idx = self._gwy.known_devices[self.device_from].get("zone_idx")
+            if self.dev_from in self._gwy.known_devices:
+                zone_idx = self._gwy.known_devices[self.dev_from].get("zone_idx")
 
                 key = "parent_zone" if int(zone_idx, 16) < 0x10 else "domain"
                 if "parent_zone_idx" in self.payload:
@@ -257,7 +276,7 @@ class Message:
             return
 
         # STEP 2: who was the message from? There's one special (non-evohome) case...
-        self._evo.device_by_id[self.device_from].update(self)
+        self._evo.device_by_id[self.dev_from].update(self)
 
         # STEP 3: what was the message about: system, domain, or zone?
         if isinstance(self.payload, list):
