@@ -14,9 +14,8 @@ from .const import (
 from .entity import dev_hex_to_id
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
 
-# CODES_ARRAY = ["000A", "2309", "30C9"]  # also "000C"
-# CODES_SANS_ZONE_IDX = ["0002", "2E04"]  # not sure about "0016", "1FC9", "22C9"
 CODES_WITH_ZONE_IDX = ["0004", "0008", "0009", "1030", "1060", "12B0", "2349", "3150"]
+# DES_SANS_ZONE_IDX = ["0002", "2E04"]  # not sure about "0016", "1FC9", "22C9"
 
 
 def parser_decorator(func):
@@ -187,7 +186,7 @@ def _str(seqx) -> Optional[str]:  # printable
 def _temp(seqx) -> Optional[float]:
     """Temperatures are two's complement numbers."""
     assert len(seqx) == 4
-    if seqx == "7FFF":
+    if seqx == "7FFF":  # also: FFFF?
         return None
     if seqx == "7EFF":  # TODO: possibly this is only for setpoints?
         return False
@@ -301,11 +300,8 @@ def parser_0009(payload, msg) -> Optional[dict]:  # relay_failsafe
 @parser_decorator
 def parser_000a(payload, msg) -> Union[dict, list, None]:  # zone_config (zone/s)
     def _parser(seqx) -> dict:
-        assert len(seqx) == 12
         assert int(seqx[:2], 16) < 12
-
-        if seqx[2:] == "007FFF7FFF":
-            return {}  # a null zones
+        # if seqx[2:] == "007FFF7FFF":  # a null zone
 
         # you cannot determine zone_type from this information
         bitmap = int(seqx[2:4], 16)
@@ -319,16 +315,14 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:  # zone_config (zone/s
             "unknown_0": f"0b{bitmap:08b}",
         }
 
-    assert msg.verb in [" I", "RQ", "RP"]  # TODO: handle W
+    assert msg.len >= 6  # assumes not RQ
 
-    if msg.verb == " I" and msg.dev_from[:2] == "01":  # payload is usu. an array
-        if len(payload) / 12 > 1 or msg._evo._num_zones == 1:  # is reasonably an array
-            assert msg.dev_from == msg.dev_dest
-            assert len(payload) / 2 % 6 == 0
-            return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
+    if msg.is_array:  # TODO: this msg can require 2 pkts!
+        assert msg.dev_from == msg.dev_dest
+        assert msg.len % 6 == 0
+        return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
 
-    assert len(payload) / 2 == 6
-
+    assert msg.len == 6
     return _parser(payload)
 
 
@@ -727,38 +721,22 @@ def parser_22f1(payload, msg) -> Optional[dict]:  # ???? (Nuaire 4-way switch)
 def parser_2309(payload, msg) -> Union[dict, list, None]:  # setpoint (of device/zones)
     def _parser(seqx) -> dict:
         assert int(seqx[:2], 16) < 12
+        # if seqx[2:] == "FFFF":  # ???
+
         return {"zone_idx": seqx[:2], "setpoint": _temp(seqx[2:])}
-
-    # TODO: track previous packet?
-    if msg.verb == " I" and msg.dev_from[:2] == "01":  # payload is usually! an array
-        if len(payload) / 6 > 1 or msg._evo._num_zones == 1:  # is reasonably an array
-            assert msg.dev_from == msg.dev_dest
-            assert len(payload) / 2 % 3 == 0
-            return [_parser(payload[i : i + 6]) for i in range(0, len(payload), 6)]
-
-    assert int(payload[:2], 16) < 12
 
     # 055 RQ --- 12:010740 13:163733 --:------ 2309 003 0007D0
     # 046 RQ --- 12:010740 01:145038 --:------ 2309 003 03073A
 
-    if msg.verb == " W":
-        xxx = "zone_idx"
+    assert msg.len >= 3  # assumes not RQ (but see above)
 
-    if msg.verb == "RQ" and len(payload) / 2 == 1:  # but some RQs have payloads!
-        return {"parent_zone_idx": payload[:2]}
+    if msg.is_array:
+        assert msg.dev_from == msg.dev_dest
+        assert msg.len % 3 == 0
+        return [_parser(payload[i : i + 6]) for i in range(0, len(payload), 6)]
 
-    if msg.dev_from[:2] in ["01", "18"]:
-        xxx = "zone_idx"
-    elif msg.dev_from[:2] != "01" and msg.dev_dest[:2] == "01":
-        xxx = "parent_zone_idx"
-    else:
-        xxx = "zone_idx"
-
-    assert len(payload) / 2 == 3
-    return {
-        xxx: payload[:2],
-        "setpoint": _temp(payload[2:]),
-    }
+    assert msg.len == 3
+    return _parser(payload)
 
 
 @parser_decorator
@@ -793,28 +771,20 @@ def parser_2e04(payload, msg) -> Optional[dict]:  # system_mode
 @parser_decorator
 def parser_30c9(payload, msg) -> Optional[dict]:  # temp (of device, zone/s)
     def _parser(seqx) -> dict:
-        assert len(seqx) == 6
         assert int(seqx[:2], 16) < 12
+        # if seqx[2:] == "FFFF":
 
         return {"zone_idx": seqx[:2], "temperature": _temp(seqx[2:])}
 
-    if msg.verb == " I" and msg.dev_from[:2] == "01":  # payload is usu. an array
-        if len(payload) / 6 > 1 or msg._evo._num_zones == 1:  # is reasonably an array
-            assert msg.dev_from == msg.dev_dest
-            assert len(payload) / 2 % 3 == 0
-            return [
-                _parser(payload[i : i + 6])
-                for i in range(0, len(payload), 6)
-                if payload[i + 2 : i + 6] != "FFFF"
-            ]
+    assert msg.len >= 3  # assumes not RQ
 
-    assert len(payload) / 2 == 3
+    if msg.is_array:
+        assert msg.dev_from == msg.dev_dest
+        assert msg.len % 3 == 0
+        return [_parser(payload[i : i + 6]) for i in range(0, len(payload), 6)]
 
-    if msg.dev_from[:2] == "01":
-        assert msg.verb == "RP"  # RP for a zone, TODO: send RQ to a device when awake
-        return _parser(payload)
-
-    return {"temperature": _temp(payload[2:])}
+    assert msg.len == 3
+    return _parser(payload)
 
 
 @parser_decorator

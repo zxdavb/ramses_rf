@@ -107,7 +107,7 @@ class Message:
             # actually, I/01:, or 01:/01: will do for these codes
             self._is_array = all([self.dev_from[:2] == "01", self.dev_dest[:2] == "01"])
 
-        elif self.code in ["0009", "000C", "1FC9", "22C9"]:
+        elif self.code in ["0009", "000C", "1FC9", "22C9"]:  # also: 0005?
             self._is_array = self.verb not in ["RQ", " W"]
 
         else:
