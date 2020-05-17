@@ -252,7 +252,8 @@ class Controller(Device):
         #     self._command("0004", payload=f"{zone_idx:02x}00")
 
         # system-related... (not working: 1280, 22D9, 2D49, 2E04, 3220, 3B00)
-        for code in ["1F09", "313F", "0100", "0002"]:
+        self._command("1F09", payload="FF")
+        for code in ["313F", "0100", "0002"]:
             self._command(code)
 
         for code in ["10A0", "1260", "1F41"]:  # stored DHW
@@ -383,7 +384,7 @@ class BdrSwitch(Device):
 
         return
 
-        self._command("3B00", dest_addr=self._id)
+        # self._command("3B00", dest_addr=self._id)  # never got an RP from a RQ/3B00
         for code in ["3EF0", "3EF1"]:
             self._command(code, dest_addr=self._id, payload="0000")
         # for code in ["3B00", "3EF0"]:  # these don't work, for 00 or 0000
@@ -445,9 +446,10 @@ class TpiSwitch(BdrSwitch):  # TODO: superset of BDR switch?
         for code in ["1100"]:
             self._command(code, dest_addr=self._id, payload="FC")
 
-        for payload in ["00", "C8"]:  # doesn't like like TPIs responding to a 3B00
-            for code in ["00", "FC", "FF"]:
-                self._command("3B00", dest_addr=self._id, payload=f"{code}{payload}")
+        # doesn't like like TPIs respond to a 3B00
+        # for payload in ["00", "C8"]:
+        #     for code in ["00", "FC", "FF"]:
+        #         self._command("3B00", dest_addr=self._id, payload=f"{code}{payload}")
 
 
 class Zone(Entity):

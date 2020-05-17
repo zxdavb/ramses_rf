@@ -15,7 +15,17 @@ from .const import (
 from .entity import dev_hex_to_id
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
 
-CODES_WITH_ZONE_IDX = ["0004", "0008", "0009", "1030", "1060", "12B0", "2349", "3150"]
+CODES_WITH_ZONE_IDX = [
+    "0004",
+    "0008",
+    "0009",
+    "000C",
+    "1030",
+    "1060",
+    "12B0",
+    "2349",
+    "3150",
+]
 # DES_SANS_ZONE_IDX = ["0002", "2E04"]  # not sure about "0016", "22C9"
 
 
@@ -26,7 +36,7 @@ def parser_decorator(func):
     """
 
     def wrapper(*args, **kwargs) -> Optional[dict]:
-        """Determine which packets shouldn't be passed to their parser."""
+        """Determine which packets shouldn't be sent through their parser."""
 
         payload = args[0]
         msg = args[1]
@@ -69,7 +79,7 @@ def parser_decorator(func):
             assert len(payload) / 2 == 6 if msg.code == "000A" else 3
             return {**_idx(payload[:2], msg)}
 
-        if msg.code in ["000A", "000C", "12B0", "2309", "2349", "30C9"]:
+        if msg.code in ["000C", "12B0", "2349"] + ["000A", "2309", "30C9"]:
             assert int(payload[:2], 16) < 12
             assert msg.len < 3  # if msg.code == "0004" else 2
             return {**_idx(payload[:2], msg)}
@@ -81,14 +91,14 @@ def parser_decorator(func):
             assert len(payload) / 2 in [1, 5]  # len(RQ) = 5, but 00 accepted
             return func(*args, **kwargs)  # no context
 
+        if msg.code == "0404":
+            raise NotImplementedError
+
         if msg.code == "0418":
             assert len(payload) / 2 == 3
             assert payload[:4] == "0000"
             assert int(payload[4:6], 16) <= 63
             return {"log_idx": payload[4:6]}
-
-        if msg.code == "0404":
-            raise NotImplementedError
 
         if msg.code == "10A0" and msg.dev_from[:2] == "07":  # DHW
             return func(*args, **kwargs)
@@ -100,6 +110,10 @@ def parser_decorator(func):
             return {**_idx(payload[:2], msg)}
 
         if msg.code == "12B0":
+            return {}
+
+        if msg.code in ["1F09", "2E04"]:
+            assert payload == "FF"
             return {}
 
         if msg.code == "3220":  # CTL -> OTB (OpenTherm)
