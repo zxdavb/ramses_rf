@@ -300,13 +300,13 @@ class Controller(Device):
     @property
     def tpi_relay(self) -> Optional[str]:
         relays = [d.device_id for d in self._evo.devices if d.device_type == "TPI"]
-        assert len(relays) < 2
+        assert len(relays) < 2  # This may fail for testing (i.e. 2 TPI relays)
         return relays[0] if relays else None
 
     @property
     def dhw_sensor(self) -> Optional[str]:
         sensors = [d.device_id for d in self._evo.devices if d.device_type == "DHW"]
-        assert len(sensors) < 2
+        assert len(sensors) < 2  # This may fail for testing
         return sensors[0] if sensors else None
 
 
@@ -486,10 +486,7 @@ class Zone(Entity):
 
     @property
     def actuators(self) -> list:
-        actuators = self._get_pkt_value("000C", "actuators")
-        if actuators:
-            return [device for x in actuators for device in x]
-        return []
+        return self._get_pkt_value("000C", "actuators")
 
     @property
     def devices(self) -> list:

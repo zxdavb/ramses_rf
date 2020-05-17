@@ -205,9 +205,7 @@ class Message:
 
         # STATE: TODO: keep this in?
         if self.code == "000C" and self.verb == "RP":  # from CTL
-            parent_zone = self.payload["zone_idx"]
-            for i in self.payload["actuators"]:
-                [get_device(dev_id, parent_zone) for dev_id in i.keys()]
+            [get_device(d, self.payload["zone_idx"]) for d in self.payload["actuators"]]
 
         for dev in range(3):  # discover devices
             if self.device_id[dev][:2] not in ["18", "63", "--"]:
@@ -244,10 +242,8 @@ class Message:
 
         # STEP 0: Use zone_actuators
         if self.code == "000C" and self.verb == "RP":  # from CTL
-            parent_zone = self.payload["zone_idx"]
-            for i in self.payload["actuators"]:
-                for dev_id in i.keys():
-                    self._evo.device_by_id[dev_id].parent_000c = parent_zone
+            for dev_id in self.payload["actuators"]:
+                self._evo.device_by_id[dev_id].parent_000c = self.payload["zone_idx"]
 
         # STEP 1: check parent_zone_idx hueristics
         if __dev_mode__ and isinstance(self.payload, dict):
