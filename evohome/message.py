@@ -106,8 +106,11 @@ class Message:
             self._is_array = all(
                 [self.dev_from[:2] == "01", self.dev_from == self.dev_dest]
             )
+
         elif self.code in ["0009", "000C", "1FC9", "22C9"]:  # also: 0005?
+            # 056  I --- 02:001107 --:------ 02:001107 22C9 006 0408340A2801
             self._is_array = self.verb not in ["RQ", " W"]
+
         else:
             self._is_array = False
 
@@ -161,7 +164,7 @@ class Message:
         #     assert dev_id[:2] in DEVICE_TYPES  # incl. "--", "63"
 
         # any remaining messages are valid, so: log them
-        if __dev_mode__:
+        if False and __dev_mode__:
             if " I" in str(self):
                 _LOGGER.info("%s", self, extra=self.__dict__)
             elif "RP" in str(self):
@@ -203,11 +206,12 @@ class Message:
             zone_cls = Zone  # TODO: DhwZone if zone_idx == "HW" else Zone?
             _ent(zone_cls, zone_idx, self._evo.zone_by_id, self._evo.zones)
 
-        # STATE: TODO: keep this in?
+        # STEP 1: harvest zone_actuators payload to discover devices
         if self.code == "000C" and self.verb == "RP":  # from CTL
             [get_device(d, self.payload["zone_idx"]) for d in self.payload["actuators"]]
 
-        for dev in range(3):  # discover devices
+        # STEP 2: discover domains, devices and zones by eavesdropping
+        for dev in range(3):  # discover devices in addr fields
             if self.device_id[dev][:2] not in ["18", "63", "--"]:
                 # DUPLICATE: assert self.device_id[dev][:2] in DEVICE_TYPES
                 get_device(self.device_id[dev])
@@ -240,51 +244,41 @@ class Message:
             else:
                 self._evo.device_by_id[self.dev_from].update(self)
 
-        # STEP 0: Use zone_actuators
+        # STEP 0: harvest zone_actuators payload to discover parentage
         if self.code == "000C" and self.verb == "RP":  # from CTL
             for dev_id in self.payload["actuators"]:
                 self._evo.device_by_id[dev_id].parent_000c = self.payload["zone_idx"]
 
-        # STEP 1: check parent_zone_idx hueristics
+        # STEP x: check parent_zone_idx hueristics
         if __dev_mode__ and isinstance(self.payload, dict):
             # assert self.dev_from in self._gwy.known_devices, "dev not in k_d DB"
-            l_idx = ["aaa", "bbb", "ccc"]
-
-            if self.dev_from in self._gwy.known_devices:
+            if (
+                "parent_zone_idx" in self.payload
+                and self.dev_from in self._gwy.known_devices  # noqa: W503
+            ):  # check the zone against the data in known_devices.json
                 zone_idx = self._gwy.known_devices[self.dev_from].get("zone_idx")
-
-                key = "parent_zone" if int(zone_idx, 16) < 0x10 else "domain"
-                if "parent_zone_idx" in self.payload:
-                    # check the zone against the data in known_devices.json
-                    assert self.payload["parent_zone_idx"] == zone_idx, "z_idx!= k_d DB"
-
-                for idx in l_idx:
-                    if self.payload.get(f"{key}_{idx}"):
-                        assert self.payload[f"{key}_{idx}"] == zone_idx, f"{key}_{idx}"
-
-            if "parent_zone_idx" in self.payload:
-                assert any([f"parent_zone_{i}" in self.payload] for i in l_idx)
+                assert self.payload["parent_zone_idx"] == zone_idx, "z_idx!= k_d DB"
 
         assert self.payload is not None  # TODO: this should have been done before?
         if not self.payload:  # should be {} (possibly empty) or [] (never empty)
             return
 
-        # STEP 2: who was the message from? There's one special (non-evohome) case...
+        # STEP 1: who was the message from? There's one special (non-evohome) case...
         self._evo.device_by_id[self.dev_from].update(self)
 
-        # STEP 3: what was the message about: system, domain, or zone?
+        # STEP 2: additionally, what was the message about: system, domain, or zone?
         if isinstance(self.payload, list):
             if self.code in ["000A", "2309", "30C9"]:  # array of zones
-                # [_update_entity(zone) for zone in self.payload]  # TODO: is bad idea?
+                # [_update_entity(zone) for zone in self.payload]  # TODO:  bad idea?
                 return
             if self.code in ["0009"]:  # array of domains
-                [_update_entity(domain) for domain in self.payload]
+                [_update_entity(domain) for domain in self.payload]  # TODO: bad idea
                 return
             if self.code in ["22C9", "3150"]:  # array of UFH zones
                 return  # TODO: something
             if self.code in ["1FC9"]:  # TODO: array of codes
                 return
-            assert False  # should never reach here
+            assert False  # the above are the only known lists...
 
         if "zone_idx" in self.payload:
             if self.code == "0418":
@@ -301,7 +295,7 @@ class Message:
             _update_entity(self.payload)  # TODO: needs checking
 
         elif "parent_zone_idx" in self.payload:  # is from/to a device...
-            _update_entity(self.payload)  # TODO; do I need this and step 2?
+            _update_entity(self.payload)  # TODO; do I need this and step 1?
 
         else:  # is for a device...
             _update_entity(self.payload)

@@ -8,6 +8,7 @@ from .const import (
     DEVICE_LOOKUP,
     DEVICE_TYPES,
     ZONE_TYPE_MAP,
+    __dev_mode__,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -300,13 +301,15 @@ class Controller(Device):
     @property
     def tpi_relay(self) -> Optional[str]:
         relays = [d.device_id for d in self._evo.devices if d.device_type == "TPI"]
-        assert len(relays) < 2  # This may fail for testing (i.e. 2 TPI relays)
+        if not __dev_mode__:
+            assert len(relays) < 2  # This may fail for testing (i.e. 2 TPI relays)
         return relays[0] if relays else None
 
     @property
     def dhw_sensor(self) -> Optional[str]:
         sensors = [d.device_id for d in self._evo.devices if d.device_type == "DHW"]
-        assert len(sensors) < 2  # This may fail for testing
+        if not __dev_mode__:
+            assert len(sensors) < 2  # This may fail for testing
         return sensors[0] if sensors else None
 
 
@@ -486,7 +489,8 @@ class Zone(Entity):
 
     @property
     def actuators(self) -> list:
-        return self._get_pkt_value("000C", "actuators")
+        actuators = self._get_pkt_value("000C", "actuators")
+        return actuators if actuators is not None else []
 
     @property
     def devices(self) -> list:

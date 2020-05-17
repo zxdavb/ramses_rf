@@ -16,7 +16,7 @@ from .entity import dev_hex_to_id
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
 
 CODES_WITH_ZONE_IDX = ["0004", "0008", "0009", "1030", "1060", "12B0", "2349", "3150"]
-# DES_SANS_ZONE_IDX = ["0002", "2E04"]  # not sure about "0016", "1FC9", "22C9"
+# DES_SANS_ZONE_IDX = ["0002", "2E04"]  # not sure about "0016", "22C9"
 
 
 def parser_decorator(func):
@@ -26,38 +26,15 @@ def parser_decorator(func):
     """
 
     def wrapper(*args, **kwargs) -> Optional[dict]:
-        """Add a zone_idx or a domain_id to a payload whenever possible."""
-
-        def add_context(parsed_payload):
-
-            if "18" not in [msg.dev_from[:2], msg.dev_dest[:2]]:
-                if isinstance(parsed_payload, dict):
-                    _dict = {}
-                    if msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9"]:
-                        key = "parent_zone" if int(payload[:2], 16) < 12 else "domain"
-
-                        # if msg.dev_dest != msg.dev_from:
-                        #     # TODO: fails with THm
-                        #     _dict[f"{key}_aaa"] = payload[:2]
-
-                        if msg.dev_from[:2] != "01":
-                            if msg.dev_dest[:2] == "01":
-                                _dict[f"{key}_bbb"] = payload[:2]
-
-                        # if msg.dev_from[:2] == "01":
-                        #     if msg.dev_dest[:2] != "01":
-                        #         _dict[f"{key}_ccc"] = payload[:2]
-
-                    return {**_dict, **parsed_payload}
-            return parsed_payload
+        """Determine which packets shouldn't be passed to their parser."""
 
         payload = args[0]
         msg = args[1]
 
-        if msg.verb == " W":  # TODO: WIP
+        if False and msg.verb == " W":  # TODO: WIP
             if msg.code == "2309" and msg.dev_from[:2] in ["12", "22", "34"]:
                 assert int(payload[:2], 16) < 12
-                return add_context(func(*args, **kwargs))
+                return func(*args, **kwargs)
             if msg.code == "0001":
                 assert payload[:2] == "FF"
                 return func(*args, **kwargs)
@@ -70,28 +47,37 @@ def parser_decorator(func):
             assert payload[:2] in ["00", "FC"]  # ["1100", "2309", "2349"]
             return func(*args, **kwargs)
 
-        if msg.verb != "RQ":
-            # return func(*args, **kwargs)
-            return add_context(func(*args, **kwargs))
+        if msg.verb != "RQ":  # i.e. in [" I", "RP"]
+            return func(*args, **kwargs)
 
-        # TRV will RQ zone_name *sans* payload...
-        if msg.code in ["0004"] and msg.dev_from[:2] == "04":  # TRV
-            assert len(payload) / 2 == 2 if msg.code == "0004" else 1
-            return add_context({"parent_zone_idx": payload[:2]})
+        # TRV will RQ zone_name *sans* payload (reveals parent_zone_idx)
+        if msg.code == "0004":
+            assert msg.len == 2
+            return {**_idx(payload[:2], msg)}
+
+        if msg.code == "0005":
+            assert len(payload) / 2 == 2
+            return {"zone_id": payload[:2]}  # zone_id, not _idx
 
         # STA will RQ zone_config, setpoint *sans* payload...
-        if msg.code in ["000A", "2309"] and msg.dev_from[:2] == "34":  # STA
+        if msg.code in ["000A", "2309"] and msg.dev_from[:2] == "34":
             assert len(payload) / 2 == 1
-            return add_context({"parent_zone_idx": payload[:2]})
+            return {**_idx(payload[:2], msg)}
 
         # THM will RQ zone_config, setpoint *with* a payload...
-        #  msg.code in ["000A", "2309"] and len(payload) / 2 > 2:  # THM
-        if msg.code in ["000A", "2309"] and msg.dev_from[:2] in ["12", "22"]:  # THM
+        if msg.code in ["000A", "2309"] and msg.dev_from[:2] in ["12", "22"]:
             assert len(payload) / 2 == 6 if msg.code == "000A" else 3
-            return add_context(func(*args, **kwargs))
+            return {**_idx(payload[:2], msg)}
 
-        # 04:, 18: will RQ language
-        if msg.code == "0100":
+        if msg.code in ["000A", "000C", "12B0", "2309", "2349", "30C9"]:
+            assert int(payload[:2], 16) < 12
+            assert msg.len < 3  # if msg.code == "0004" else 2
+            return {**_idx(payload[:2], msg)}
+
+        if msg.code == "0016":
+            return func(*args, **kwargs)  # parent_zone_idx not well understood
+
+        if msg.code == "0100":  # 04: will RQ language
             assert len(payload) / 2 in [1, 5]  # len(RQ) = 5, but 00 accepted
             return func(*args, **kwargs)  # no context
 
@@ -103,94 +89,82 @@ def parser_decorator(func):
 
         if msg.code == "0404":
             raise NotImplementedError
-            # assert len(payload) / 2 == 3
-            # assert payload[:4] == "0000"
-            # assert int(payload[4:6], 16) <= 63
-            # return {}
 
         if msg.code == "10A0" and msg.dev_from[:2] == "07":  # DHW
             return func(*args, **kwargs)
 
-        if msg.code == "1100":  # boiler_params
+        if msg.code == "1100":
             assert payload[:2] in ["00", "FC"]
-            if len(payload) / 2 == 1:
-                return {"domain_id": payload}  # TODO: should be {}?
-            return func(*args, **kwargs)
+            if msg.len > 2:  # these RQs have payloads!
+                return func(*args, **kwargs)
+            return {**_idx(payload[:2], msg)}
 
-        if msg.code == "0005":
-            assert len(payload) / 2 == 2
-            return {"zone_id": payload[:2]}  # zone_id, not _idx
+        if msg.code == "12B0":
+            return {}
 
         if msg.code == "3220":  # CTL -> OTB (OpenTherm)
             return func(*args, **kwargs)
 
-        if msg.code in ["0004", "000A", "000C", "12B0", "2309", "2349", "30C9"]:
-            assert len(payload) / 2 in [1, 2]
-            assert int(payload[:2], 16) < 12
-            return {"zone_idx": payload[:2]}
+        if msg.code == "31DA":
+            # 047 RQ --- 32:168090 30:082155 --:------ 31DA 001 21
+            assert msg.len == 1
+            return {**_idx(payload[:2], msg)}
 
-        if msg.code == "0016":
-            return func(*args, **kwargs)  # parent_zone_idx not well understood
+        if msg.code == "3EF1":
+            assert payload == "0000"
+            return {}
 
-        if msg.code in ["3EF1"]:
-            assert payload in ["0000"]
-        else:
-            assert True or payload in ["00", "FF", "FC"]
-        return {}
+        if payload == "00":  # TODO: WIP
+            return {}
+
+        assert True or payload in ["FF", "FC"]
+        return func(*args, **kwargs)  # All other RQs
 
     return wrapper
 
 
 def _idx(seqx, msg) -> dict:
-    # tested with: 12B0, 0008, 0009
+    """Determine if a payload has an index, either a zone_idx or a domain_id."""
+    # STEP 1: identify the index name, if any
     if seqx in DOMAIN_MAP:
-        idx_name = "DOMAIN_ID"  # "domain_id"
-    elif int(seqx, 16) < 12:
-        idx_name = "ZONE_IDX"  # "zone_idx"
+        idx_name = "domain_id"
+
+    elif msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9"] + ["1FC9"]:
+        assert int(seqx, 16) < 12  # this can be a "00"
+        idx_name = "zone_idx"
+
+    elif msg.code in ["22C9"]:  # ufh_setpoint (UFH version of 2309)
+        assert int(seqx, 16) < 12  # this can be a "00"
+        idx_name = "ufh_idx"
+
+    elif not int(seqx, 16) < 12:
+        idx_name = "other_id"
+
     else:
-        idx_name = "OTHER_ID"  # "domain_id"
+        assert seqx == "00"
+        return {}
 
-    result = {}
-
+    # STEP 2: determine if there is an index at all
     if msg.dev_from[:2] == "18":  # and msg.verb == "RQ":
         result = {idx_name: seqx}
 
-    elif msg.dev_from[:2] == "01" and msg.verb in [" I", "RP"]:
+    elif "01" == msg.dev_from[:2] and msg.dev_from == msg.dev_dest:
+        result = {idx_name: seqx}  # either an array, or domain=Fx
+
+    elif "01" in [msg.dev_from[:2], msg.dev_dest[:2]] and msg.dev_from != msg.dev_dest:
         # TODO: is this proof that controller is sensor for zone 0?
         # 060 RP --- 01:145038 18:013393 --:------ 1FC9 012 0010E006368E001FC906368E
+        result = {idx_name: seqx}  # a zone / parent_zone?
+
+    elif msg.dev_from[:2] in ["02"]:
         result = {idx_name: seqx}
 
-    elif msg.dev_from[:2] in ["02", "10", "12", "22"]:
-        _id = {"02": "ufh_idx", "10": "otb_idx"}.get(msg.dev_from[:2], "other_id")
-        result = {_id: seqx}
-
-    elif msg.code == "0008":
-        if msg.dev_from[:2] not in ["12", "13", "22"]:
-            result = {f"PARENT_{idx_name}": seqx}
-
-    elif msg.code == "0009":
-        if msg.dev_from[:2] not in ["12", "22"]:
-            result = {f"PARENT_{idx_name}": seqx}
-
-    elif msg.code == "1FC9":
-        if "01" in [msg.dev_from[:2], msg.dev_dest[:2]]:
-            result = {idx_name: seqx}
-
-    elif msg.code in ["3150"]:
-        if msg.dev_from[:2] == "04":
-            result = {f"PARENT_{idx_name}": seqx}
-
-    elif msg.code in ["31D9", "31DA"]:
-        result = {"other_id": seqx}
-
-    elif msg.code in ["3B00", "3EF0", "3EF1"]:
-        result = {}
+    # elif msg.dev_from[:2] in ["02", "10", "12", "22"]:
+    #     _idx = {"02": "ufh_idx", "10": "otb_idx"}.get(msg.dev_from[:2], "other_id")
+    #     result = {_idx: seqx}
 
     else:
-        result = {f"PARENT_{idx_name}": seqx}
-
-    if result == {}:
-        assert seqx == "00"
+        return {}
 
     return result
 
@@ -850,6 +824,8 @@ def parser_31d9(payload, msg) -> Optional[dict]:
 
 @parser_decorator
 def parser_31da(payload, msg) -> Optional[dict]:  # UFH HCE80 (Nuaire humidity)
+    # 047 RQ --- 32:168090 30:082155 --:------ 31DA 001 21
+
     assert len(payload) / 2 == 29  # usu: I CTL-->CTL
 
     return {
