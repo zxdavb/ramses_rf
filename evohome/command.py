@@ -63,6 +63,7 @@ class Command:
         self.dest_addr = kwargs.get("dest_addr", gateway.evo.ctl_id)
         self.code = kwargs.get("code", "1F09")
         self.payload = kwargs.get("payload", "FF")
+        self.priority = kwargs.get("priority", 1)
 
     def __str__(self) -> str:
         """Represent as a string."""
@@ -79,6 +80,10 @@ class Command:
         #     raise ValueError(f"Message is not valid, >>{_cmd}<<")
 
         return _cmd
+
+    def __lt__(self, other) -> bool:
+        """Represent as a string."""
+        return self.priority < other.priority
 
 
 # 0100, payload = "00"

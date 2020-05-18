@@ -14,7 +14,8 @@ from guppy import hpy
 
 import signal
 import sys
-from queue import Queue
+
+from queue import PriorityQueue
 
 from .command import Command
 from .const import INDEX_SQL, TABLE_SQL, INSERT_SQL, ISO_FORMAT_REGEX
@@ -89,8 +90,8 @@ class Gateway:
             cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
         )
 
-        self.cmd_queue = Queue(maxsize=200)
-        self.msg_queue = Queue(maxsize=400)
+        self.cmd_que = PriorityQueue(maxsize=200)
+        # self.msg_queue = PriorityQueue(maxsize=400)
 
         # if self.config.get("ser2net"):
         self._relay = None
@@ -253,7 +254,7 @@ class Gateway:
 
             if self.config.get("ser2net"):
                 self._relay = Ser2NetServer(
-                    self.config["ser2net"], self.cmd_queue, loop=self.loop
+                    self.config["ser2net"], self.cmd_que, loop=self.loop
                 )
                 self._tasks.append(asyncio.create_task(self._relay.start()))
 
@@ -315,15 +316,15 @@ class Gateway:
     async def _dispatch_pkt(self, destination=None) -> None:
         """Send a command unless in listen_only mode."""
         # TODO: listen_only will clear the whole queue, not only the its next element
-        while not self.cmd_queue.empty():
-            cmd = self.cmd_queue.get()
+        while not self.cmd_que.empty():
+            cmd = self.cmd_que.get()
             if not (destination is None or self.config.get("listen_only")):
                 # TODO: if not cmd.entity._pkts.get(cmd.code)
                 destination.write(bytearray(f"{cmd}\r\n".encode("ascii")))
                 # LOGGER.warning("# A packet was sent to %s: %s", self.serial_port, cmd)
                 await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
 
-            self.cmd_queue.task_done()
+            self.cmd_que.task_done()
             if not self.config.get("listen_only"):
                 break
 

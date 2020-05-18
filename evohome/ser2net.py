@@ -54,14 +54,16 @@ class Ser2NetProtocol(asyncio.Protocol):
         if data[0] == 0xFF:  # telnet IAC
             # see: https://users.cs.cf.ac.uk/Dave.Marshall/Internet/node141.html
             _LOGGER.debug(" - received a telnet IAC (ignoring): %s", data)
-            return
+            return  # TODO: is this enough?
 
         try:
             packet = "".join(c for c in data.decode().strip() if c in printable)
         except UnicodeDecodeError:
             return
 
-        self._cmd_que.put_nowait(packet)
+        # pkt = Packet(packet)
+        # cmd = Command(pkt)
+        self._cmd_que.put_nowait(packet)  # TDOD: should be Command(), not str
         _LOGGER.debug(" - command sent to dispatch queue: %s", packet)
 
     def eof_received(self) -> Optional[bool]:

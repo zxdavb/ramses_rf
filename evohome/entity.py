@@ -44,7 +44,7 @@ class Entity:
         self._id = entity_id
         self._gwy = gateway
         self._evo = gateway.evo
-        self._cmd_que = gateway.cmd_queue
+        self._cmd_que = gateway.cmd_que
 
         self._pkts = {}
         self.last_pkt = None
@@ -157,7 +157,6 @@ class Device(Entity):
         self._friendly_name = attrs.get("friendly_name") if attrs else None
         self._blacklist = attrs.get("blacklist", False) if attrs else False
 
-        # TODO: causing queue.Full exception with -i
         self._discover()  # needs self._device_type
 
         self.parent_000c = None
@@ -244,6 +243,8 @@ class Controller(Device):
         # _LOGGER.debug("Creating a new Controller %s", device_id)
         super().__init__(device_id, gateway)
 
+        self._fault_log = {}
+
     def _discover(self):
         super()._discover()
 
@@ -263,6 +264,10 @@ class Controller(Device):
         self._command("1100", payload="FC")
         self._command("2E04", payload="FF")
 
+        # Get the three most recent fault log entries
+        for log_idx in range(0, 0x3):  # max is 0x3C?
+            self._command("0418", payload=f"{log_idx:06X}")
+
         # TODO: 1100(), 1290(00x), 0418(00x):
         # for code in ["000C"]:
         #     for payload in ["F800", "F900", "FA00", "FB00", "FC00", "FF00"]:
@@ -275,16 +280,23 @@ class Controller(Device):
     def update(self, msg):
         super().update(msg)
 
+        if msg.code == "0418" and msg.verb in [" I", "RP"]:  # this is a special case
+            self._fault_log[msg.payload["log_idx"]] = msg
+            # print(self.fault_log)
+
         # if msg.code == "30C9":  # then try to find the zone sensors...
         #     sensors = [d for d in self._evo.devices if hasattr(d, "temperature")]
         #     any(sensors)
 
+    async def update_fault_log(self) -> list:
+        # WIP: try to discover fault codes
+        for log_idx in range(0x00, 0x3C):  # 10 pages of 6
+            self._command("0418", payload=f"{log_idx:06X}")
+        return None
+
     @property
     def fault_log(self):
-        # WIP: try to discover fault codes
-        # for num in range(0x00, 0x3C):  # 10 pages of 6
-        #     self._command("0418", payload=f"{num:06X}")
-        return None
+        return [f.payload for f in self._fault_log.values()]
 
     @property
     def system_mode(self):

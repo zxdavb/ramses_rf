@@ -143,7 +143,7 @@ def _idx(seqx, msg) -> dict:
     if seqx in DOMAIN_MAP:
         idx_name = "domain_id"
 
-    elif msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9"] + ["1FC9"]:
+    elif msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9"] + ["1FC9", "0418"]:
         assert int(seqx, 16) < 12  # this can be a "00"
         idx_name = "zone_idx"
 
@@ -443,7 +443,9 @@ def parser_0418(payload, msg) -> Optional[dict]:  # system_fault
 
     #
     if payload == "000000B0000000000000000000007FFFFF7000000000":
-        return {"log_idx": None}  # a null log entry, (or: payload[38:] == "000000")
+        return {
+            "log_idx": payload[4:6]
+        }  # a null log entry, (or: payload[38:] == "000000")
     #
     if msg:
         assert msg.verb in [" I", "RP"]
@@ -461,13 +463,13 @@ def parser_0418(payload, msg) -> Optional[dict]:  # system_fault
     assert payload[30:38] == "FFFF7000"  # unknown_3
     #
     return {
-        "fault_state": FAULT_STATE.get(payload[2:4], payload[2:4]),
+        "log_idx": payload[4:6],
         "timestamp": _timestamp(payload[18:30]),
+        "fault_state": FAULT_STATE.get(payload[2:4], payload[2:4]),
         "fault_type": FAULT_TYPE.get(payload[8:10], payload[8:10]),
-        **_idx(payload[10:22], msg),
+        **_idx(payload[10:12], msg),
         "device_class": FAULT_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
         "device_id": dev_hex_to_id(payload[38:]),  # is "00:000001/2 for CTL?
-        "log_idx": int(payload[4:6], 16),
     }
 
 
