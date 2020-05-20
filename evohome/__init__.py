@@ -135,10 +135,7 @@ class Gateway:
 
         if signal in [signal.SIGHUP, signal.SIGINT, signal.SIGTERM]:
             _LOGGER.info("Received a %s, exiting gracefully...", signal)
-            try:
-                await self.cleanup("_signal_handler")
-            except (TypeError):
-                pass
+            await self.cleanup("_signal_handler")
 
             tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
             logging.info(
@@ -236,9 +233,10 @@ class Gateway:
 
                 while True:
                     raw_pkt = await manager.get_next_pkt()
-                    if "evofw3" in raw_pkt.packet and self.config.get("evofw_flag"):
-                        cmd = self.config["evofw_flag"]
-                        manager.writer.write(f"{cmd}\r\n".encode("ascii"))
+                    if raw_pkt.packet and "evofw3" in raw_pkt.packet:
+                        if self.config.get("evofw_flag"):
+                            cmd = self.config["evofw_flag"]
+                            manager.writer.write(f"{cmd}\r\n".encode("ascii"))
 
                     if raw_pkt.packet:
                         await self._process_pkt(raw_pkt)
@@ -248,7 +246,8 @@ class Gateway:
 
             async def port_writer(manager):
                 while True:
-                    if manager.reader._transport.serial.in_waiting == 0:
+                    serial = manager.reader._transport.serial
+                    if serial is not None and serial.in_waiting == 0:
                         await self._dispatch_pkt(destination=manager.writer)
                     await asyncio.sleep(0.1)
 
@@ -382,13 +381,14 @@ class Gateway:
         if not msg.is_valid:  # trap/logs all exceptions appropriately
             return
 
-        try:  # only reliable packets should become part of the state data
+        # only reliable packets should become part of the state data
+        if msg.dev_from[:2] == "18":  # RQs are less unrelaible, and are required
+            return
+
+        try:
             msg._create_entities()  # create the devices, zones, domains
 
             if self.config.get("raw_output", 0) > 0:
-                return
-
-            if msg.dev_from[:2] == "18":  # TODO: _dest[:2] also?
                 return
 
             msg._update_entities()  # update the state database

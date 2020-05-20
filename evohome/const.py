@@ -65,7 +65,7 @@ COMMAND_SCHEMA = {
     "0008": {"name": "relay_demand"},
     "0009": {"name": "relay_failsafe", "exposes_zone": None},
     "000A": {"name": "zone_config", "exposes_zone": True},
-    "000C": {"name": "zone_actuators", "exposes_zone": None},  # special case
+    "000C": {"name": "zone_actuators", "exposes_zone": None},
     "000E": {"name": "message_000e", "exposes_zone": False},
     "0016": {"name": "rf_check", "rq_length": 2},
     "0100": {"name": "language", "rq_length": 5},
@@ -149,14 +149,13 @@ DEVICE_TYPES = {k: v["type"] for k, v in DEVICE_TABLE.items()}
 DEVICE_LOOKUP = {v: k for k, v in DEVICE_TYPES.items()}
 
 # Domains
-# MAIN_MAP = {"FA": "Hot Water", "FC": "Heat Demand"}
 DOMAIN_MAP = {
     # "21": "Ventilation",
     "F8": "???",
     "F9": "Heating",
     "FB": "???",  # TODO: bind CS92 with BDRs in both modes
-    "FA": "HotWater",
-    "FC": "Boiler",
+    "FA": "HotWater",  # Stored DHW?
+    "FC": "Boiler",  # "Heat Demand", TPI or OTB
     "FF": "System",
 }
 

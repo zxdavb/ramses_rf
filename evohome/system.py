@@ -13,6 +13,8 @@ class EvohomeSystem:
         """Initialise the class."""
         # STATE: set the initial system state
         self.ctl_id = controller_id
+        self.ctl = None  # pointer to controller obj
+
         self._num_zones = None
         self._prev_code = None
 

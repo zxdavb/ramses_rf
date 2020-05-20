@@ -1,7 +1,7 @@
 """Message processor."""
 
 import logging
-from typing import Optional
+from typing import Any
 
 from . import parsers
 from .const import (
@@ -90,7 +90,7 @@ class Message:
         return self._repr
 
     @property
-    def payload(self) -> Optional[dict]:
+    def payload(self) -> Any:  # Any[dict, List[dict]]:
         """Return the payload."""
         return self._payload
 
@@ -107,9 +107,15 @@ class Message:
                 [self.dev_from[:2] == "01", self.dev_from == self.dev_dest]
             )
 
-        elif self.code in ["0009", "000C", "1FC9", "22C9"]:  # also: 0005?
+        elif self.code in ["000C", "1FC9", "22C9"]:  # also: 0005?
             # 056  I --- 02:001107 --:------ 02:001107 22C9 006 0408340A2801
             self._is_array = self.verb not in ["RQ", " W"]
+
+        elif self.code in ["0009"]:
+            # 045  I --- 01:158182 --:------ 01:158182 0009 003 0B00FF
+            # 045  I --- 01:158182 --:------ 01:158182 0009 003 FC00FF
+            # 045  I --- 01:145038 --:------ 01:145038 0009 006 FC00FFF900FF
+            self._is_array = self.verb == " I" and self.raw_payload[:1] == "F"
 
         else:
             self._is_array = False
@@ -131,7 +137,7 @@ class Message:
             if self.dev_from[:2] == "01":
                 self._evo.ctl_id = self.dev_from
             elif self.dev_dest[:2] == "01":
-                self._evo.ctl_id = self.dev_dest
+                self._evo.ctl_id = self.dev_from
 
         # STATE: get number of zones by eavesdropping
         if self._evo._num_zones is None:  # and self._evo._prev_code == "1F09":
@@ -146,7 +152,7 @@ class Message:
 
         try:  # run the parser
             self._payload = payload_parser(self.raw_payload, self)  # TODO: messy
-            assert self._payload is not None  # should be a dict or a list
+            assert isinstance(self.payload, dict) or isinstance(self.payload, list)
         except AssertionError:  # for development only?
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
             if self.dev_from[:2] == "18":  # TODO: should be a warning
@@ -206,16 +212,18 @@ class Message:
             zone_cls = Zone  # TODO: DhwZone if zone_idx == "HW" else Zone?
             _ent(zone_cls, zone_idx, self._evo.zone_by_id, self._evo.zones)
 
-        # STEP 1: harvest zone_actuators payload to discover devices
-        if self.code == "000C" and self.verb == "RP":  # from CTL
-            [get_device(d, self.payload["zone_idx"]) for d in self.payload["actuators"]]
+        # STEP 0: harvest zone_actuators payload to discover devices
+        if self.code == "000C" and self.verb == "RP":  # or: from CTL/000C
+            for d in self.payload["actuators"]:
+                get_device(d, self.payload["zone_idx"])
 
-        # STEP 2: discover domains, devices and zones by eavesdropping
+        # STEP 1: devices by eavesdropping
         for dev in range(3):  # discover devices in addr fields
             if self.device_id[dev][:2] not in ["18", "63", "--"]:
                 # DUPLICATE: assert self.device_id[dev][:2] in DEVICE_TYPES
                 get_device(self.device_id[dev])
 
+        # STEP 2: discover domains and zones by eavesdropping
         if isinstance(self._payload, dict):  # discover zones and domains
             if self._payload.get("domain_id"):  # is not None:
                 get_domain(self._payload["domain_id"])
@@ -225,12 +233,16 @@ class Message:
 
         elif isinstance(self._payload, list):  # discover zones
             if self.dev_from[:2] == "01" and self.verb == " I":
-                if self.code in ["2309", "30C9"]:  # almost all sync cycles
-                    for i in range(0, len(self.raw_payload), 6):
+                if self.code == "0009":  # the few remaining sync cycles
+                    for domain in self.payload:
+                        get_domain(domain["domain_id"])
+
+                elif self.code == "000A":  # the few remaining sync_cycles
+                    for i in range(0, len(self.raw_payload), 12):
                         get_zone(self.raw_payload[i : i + 2])
 
-                elif self.code == "000A":  # the few remaining sync cycles
-                    for i in range(0, len(self.raw_payload), 12):
+                elif self.code in ["2309", "30C9"]:  # almost all sync_cycles
+                    for i in range(0, len(self.raw_payload), 6):
                         get_zone(self.raw_payload[i : i + 2])
 
     def _update_entities(self) -> None:  # TODO: needs work
@@ -244,37 +256,38 @@ class Message:
             else:
                 self._evo.device_by_id[self.dev_from].update(self)
 
-        # STEP 0: harvest zone_actuators payload to discover parentage
-        if self.code == "000C" and self.verb == "RP":  # from CTL
+        # STEP 0: harvest zone_actuators payload to discover device parentage
+        if self.code == "000C" and self.verb == "RP":  # or: from CTL/000C
             for dev_id in self.payload["actuators"]:
                 self._evo.device_by_id[dev_id].parent_000c = self.payload["zone_idx"]
 
-        # STEP x: check parent_zone_idx hueristics
+        # CHECK: check parent_zone_idx hueristics using the data in known_devices.json
         if __dev_mode__ and isinstance(self.payload, dict):
-            # assert self.dev_from in self._gwy.known_devices, "dev not in k_d DB"
-            if (
-                "parent_zone_idx" in self.payload
-                and self.dev_from in self._gwy.known_devices  # noqa: W503
-            ):  # check the zone against the data in known_devices.json
+            # assert self.dev_from in self._gwy.known_devices
+            if self.dev_from in self._gwy.known_devices:
                 zone_idx = self._gwy.known_devices[self.dev_from].get("zone_idx")
-                assert self.payload["parent_zone_idx"] == zone_idx, "z_idx!= k_d DB"
+                if self._evo.device_by_id[dev_id].parent_000c:
+                    assert zone_idx == self._evo.device_by_id[dev_id].parent_000c
+                if "parent_zone_idx" in self.payload:
+                    assert zone_idx == self.payload["parent_zone_idx"]
 
-        assert self.payload is not None  # TODO: this should have been done before?
         if not self.payload:  # should be {} (possibly empty) or [] (never empty)
-            return
+            return  # TODO: will stop useful RQs getting to update()? (e.g. RQ/3EF1)
 
-        # STEP 1: who was the message from? There's one special (non-evohome) case...
+        # STEP 1: who was the message from?
         self._evo.device_by_id[self.dev_from].update(self)
 
-        # STEP 2: additionally, what was the message about: system, domain, or zone?
+        # STEP 2: what was the message about: system, domain, or zone?
         if isinstance(self.payload, list):
+            # do zones keep their own pkts, or simly extract that data fromteh CTL?
             if self.code in ["000A", "2309", "30C9"]:  # array of zones
                 # [_update_entity(zone) for zone in self.payload]  # TODO:  bad idea?
                 return
+            # do domains keep their own pkts, or simly extract that data fromteh CTL?
             if self.code in ["0009"]:  # array of domains
-                [_update_entity(domain) for domain in self.payload]  # TODO: bad idea
+                # [_update_entity(domain) for domain in self.payload]  # TODO: bad idea?
                 return
-            if self.code in ["22C9", "3150"]:  # array of UFH zones
+            if self.code in ["22C9", "3150"]:  # array of UFH zones TODO ? 3150/array
                 return  # TODO: something
             if self.code in ["1FC9"]:  # TODO: array of codes
                 return

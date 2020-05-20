@@ -58,7 +58,10 @@ def parser_decorator(func):
             return func(*args, **kwargs)
 
         if msg.verb != "RQ":  # i.e. in [" I", "RP"]
-            return func(*args, **kwargs)
+            result = func(*args, **kwargs)
+            if isinstance(result, list):
+                return result
+            return {**_idx(payload[:2], msg), **result}
 
         # TRV will RQ zone_name *sans* payload (reveals parent_zone_idx)
         if msg.code == "0004":
@@ -68,6 +71,10 @@ def parser_decorator(func):
         if msg.code == "0005":
             assert len(payload) / 2 == 2
             return {"zone_id": payload[:2]}  # zone_id, not _idx
+
+        if msg.code == "0009":
+            # assert len(payload) / 2 == 2  # never, ever got an RP
+            return {**_idx(payload[:2], msg)}
 
         # STA will RQ zone_config, setpoint *sans* payload...
         if msg.code in ["000A", "2309"] and msg.dev_from[:2] == "34":
@@ -109,11 +116,12 @@ def parser_decorator(func):
                 return func(*args, **kwargs)
             return {**_idx(payload[:2], msg)}
 
-        if msg.code == "12B0":
+        if msg.code in ["12B0", "2E04"]:  # TODO: check 12B0
             return {}
 
-        if msg.code in ["1F09", "2E04"]:
-            assert payload == "FF"
+        if msg.code in ["1F09"]:
+            # 061 RQ --- 04:189082 01:145038 --:------ 1F09 001 00
+            assert payload in ["00", "99"]
             return {}
 
         if msg.code == "3220":  # CTL -> OTB (OpenTherm)
@@ -138,13 +146,23 @@ def parser_decorator(func):
 
 
 def _idx(seqx, msg) -> dict:
-    """Determine if a payload has an index, either a zone_idx or a domain_id."""
+    """Determine if a payload has an index, usually a zone_idx or a domain_id.
+
+    The challenge is that payloads starting with:
+    - "00" may *not* be a zone_idx, and
+    - "01" (say) *may not* be a zone_idx
+
+    Anything in the range F0-FF appears to be a domain_id (no false +ve/-ves).
+    """
     # STEP 1: identify the index name, if any
-    if seqx in DOMAIN_MAP:
+    if seqx in DOMAIN_MAP:  # no false +ve/-ves
         idx_name = "domain_id"
 
+    elif msg.code in ["2E04"]:  # never _idx, although may != "00"
+        return {}  # blacklist: this can be (e.g.) "01"
+
     elif msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9"] + ["1FC9", "0418"]:
-        assert int(seqx, 16) < 12  # this can be a "00"
+        assert int(seqx, 16) < 12  # whitelist: this can be a "00"
         idx_name = "zone_idx"
 
     elif msg.code in ["22C9"]:  # ufh_setpoint (UFH version of 2309)
@@ -152,7 +170,7 @@ def _idx(seqx, msg) -> dict:
         idx_name = "ufh_idx"
 
     elif not int(seqx, 16) < 12:
-        idx_name = "other_id"
+        idx_name = "other_id"  # this can be (e.g.) "21"
 
     else:
         assert seqx == "00"
@@ -185,7 +203,7 @@ def _idx(seqx, msg) -> dict:
 
 def _bool(seqx) -> Optional[bool]:  # either 00 or C8
     assert seqx in ["00", "C8", "FF"]
-    return {"00": False, "C8": True}.get(seqx[2:])
+    return {"00": False, "C8": True}.get(seqx)
 
 
 def _dtm(seqx) -> str:
@@ -271,13 +289,14 @@ def parser_0002(payload, msg) -> Optional[dict]:  # sensor_weather
 
 @parser_decorator
 def parser_0004(payload, msg) -> Optional[dict]:  # zone_name
-    # RQ payload is zz00, name appears limited to 12 characters in evohome UI
+    # RQ payload is zz00; limited to 12 chars in evohome UI? if "7F"*20: not a zone
 
     assert len(payload) / 2 == 22
     assert int(payload[:2], 16) < 12
     assert payload[2:4] == "00"
 
-    return {"name": _str(payload[4:])}  # if == "7F" * 20, then not a zone
+    # return {"name": _str(payload[4:])}
+    return {**_idx(payload[:2], msg), "name": _str(payload[4:])}
 
 
 @parser_decorator
@@ -317,7 +336,7 @@ def parser_0008(payload, msg) -> Optional[dict]:  # relay_demand (domain/zone/de
 
 
 @parser_decorator
-def parser_0009(payload, msg) -> Optional[dict]:  # relay_failsafe
+def parser_0009(payload, msg) -> None:  # list or dict:  # relay_failsafe
     # seems there can only be max one relay per domain/zone
     # can get: 003 or 006: FC01FF-F901FF or FC00FF-F900FF
     def _parser(seqx) -> dict:
@@ -326,7 +345,7 @@ def parser_0009(payload, msg) -> Optional[dict]:  # relay_failsafe
         assert seqx[4:] in ["00", "FF"]
 
         return {
-            **_idx(payload[:2], msg),
+            **_idx(seqx[:2], msg),
             "failsafe_enabled": {"00": False, "01": True}.get(seqx[2:4]),
         }
 
@@ -346,12 +365,12 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:  # zone_config (zone/s
 
         bitmap = int(seqx[2:4], 16)
         return {
-            **_idx(seqx[:2], msg),  # "zone_idx": seqx[:2],
+            **_idx(seqx[:2], msg),
             "min_temp": _temp(seqx[4:8]),
             "max_temp": _temp(seqx[8:]),
             "local_override": not bool(bitmap & 1),
             "openwindow_function": not bool(bitmap & 2),
-            "multi_room_mode": not bool(bitmap & 16),
+            "multiroom_mode": not bool(bitmap & 16),
             "unknown_bitmap": f"0b{bitmap:08b}",
         }  # cannot determine zone_type from this information
 
@@ -378,7 +397,7 @@ def parser_000c(payload, msg) -> Optional[dict]:  # zone_actuators (not sensors)
     devices = [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
 
     return {
-        "zone_idx": payload[:2],
+        **_idx(payload[:2], msg),
         "actuators": [k for d in devices for k, v in d.items() if v != "7F"],
     }
 
@@ -443,9 +462,8 @@ def parser_0418(payload, msg) -> Optional[dict]:  # system_fault
 
     #
     if payload == "000000B0000000000000000000007FFFFF7000000000":
-        return {
-            "log_idx": payload[4:6]
-        }  # a null log entry, (or: payload[38:] == "000000")
+        # a null log entry, (or: even payload[38:] == "000000")
+        return {"log_idx": payload[4:6]}
     #
     if msg:
         assert msg.verb in [" I", "RP"]
@@ -663,6 +681,7 @@ def parser_1fc9(payload, msg) -> Optional[dict]:  # bind_device
 
         return {
             **_idx(payload[:2], msg),
+            "code": seqx[2:6],
             "command": COMMAND_MAP.get(seqx[2:6], f"unknown_{seqx[2:6]}"),
             "device_id": dev_hex_to_id(seqx[6:]),
         }
