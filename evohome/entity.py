@@ -563,10 +563,9 @@ class Zone(Entity):
 
     @property
     def configuration(self):  # 000A
-        if "000A" in self._pkts:
-            return {
-                k: v for k, v in self._get_pkt_value("000A").items() if k != "zone_idx"
-            }
+        result = self._get_pkt_value("000A")
+        if result:
+            return {k: v for k, v in result.items() if k != "zone_idx"}
 
     @property
     def configuration_alt(self):  # 000A
@@ -584,7 +583,9 @@ class Zone(Entity):
     def setpoint_status(self):  # 2349
         # attrs = ["setpoint", "mode", "until"]
         # return {a: self._get_pkt_value("2349", a) for a in attrs}
-        return self._get_pkt_value("2349")
+        result = self._get_pkt_value("2349")
+        if result:
+            return {k: v for k, v in result.items() if k != "zone_idx"}
 
     @property
     def setpoint_alt(self):  # 2309
