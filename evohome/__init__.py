@@ -374,7 +374,7 @@ class Gateway:
         except (AssertionError, NotImplementedError):
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
             return
-        except (LookupError, TypeError, ValueError):
+        except (LookupError, TypeError, ValueError):  # TODO: shouldn't be needed
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
             return
 
@@ -382,7 +382,7 @@ class Gateway:
             return
 
         # only reliable packets should become part of the state data
-        if msg.dev_from[:2] == "18":  # RQs are less unrelaible, and are required
+        if msg.dev_from[:2] == "18":  # RQs are required, but also less unreliable
             return
 
         try:

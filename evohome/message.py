@@ -101,7 +101,7 @@ class Message:
         if self._is_array is not None:
             return self._is_array
 
-        if self.code in ["000A", "2309", "30C9"] and self.verb == " I":
+        if self.code in ["000A", "2309", "30C9"] and self.verb == " I":  # of zones
             # actually, I/01:, or 01:/01: would do for these codes
             self._is_array = all(
                 [self.dev_from[:2] == "01", self.dev_from == self.dev_dest]
@@ -111,7 +111,7 @@ class Message:
             # 056  I --- 02:001107 --:------ 02:001107 22C9 006 0408340A2801
             self._is_array = self.verb not in ["RQ", " W"]
 
-        elif self.code in ["0009"]:
+        elif self.code in ["0009"]:  # of domains
             # 045  I --- 01:158182 --:------ 01:158182 0009 003 0B00FF
             # 045  I --- 01:158182 --:------ 01:158182 0009 003 FC00FF
             # 045  I --- 01:145038 --:------ 01:145038 0009 006 FC00FFF900FF
@@ -133,11 +133,11 @@ class Message:
             return self._is_valid
 
         # STATE: get controller ID by eavesdropping (here, as create_entity is optional)
-        if self._evo.ctl_id is None:
+        if self._evo.ctl_id is None and self.dev_from[:2] != "18":
             if self.dev_from[:2] == "01":
                 self._evo.ctl_id = self.dev_from
             elif self.dev_dest[:2] == "01":
-                self._evo.ctl_id = self.dev_from
+                self._evo.ctl_id = self.dev_dest
 
         # STATE: get number of zones by eavesdropping
         if self._evo._num_zones is None:  # and self._evo._prev_code == "1F09":
@@ -218,10 +218,7 @@ class Message:
                 get_device(d, self.payload["zone_idx"])
 
         # STEP 1: devices by eavesdropping
-        for dev in range(3):  # discover devices in addr fields
-            if self.device_id[dev][:2] not in ["18", "63", "--"]:
-                # DUPLICATE: assert self.device_id[dev][:2] in DEVICE_TYPES
-                get_device(self.device_id[dev])
+        [get_device(d) for d in self.device_id if d[:2] not in ["18", "63", "--"]]
 
         # STEP 2: discover domains and zones by eavesdropping
         if isinstance(self._payload, dict):  # discover zones and domains

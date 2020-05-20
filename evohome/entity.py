@@ -289,7 +289,11 @@ class Controller(Device):
         #         self._command(code, payload=payload)
 
     def update(self, msg):
-        super().update(msg)
+        if msg.code in ["000A", "2309", "30C9"]:
+            if msg.is_array:
+                super().update(msg)
+        else:
+            super().update(msg)
 
         if msg.code == "3EF1" and msg.verb == "RQ":  # relay attached to a burner
             if msg.dev_dest[:2] == "13":  # this is the TPI relay
@@ -564,9 +568,10 @@ class Zone(Entity):
 
     @property
     def configuration_alt(self):  # 000A
+        # use the sync_cycle array if there isn't an RP
         result = self._evo.ctl._get_pkt_value("000A")
         if result:
-            return [d for d in result if d["zone_idx"] == self.zone_idx][0]
+            return {k: v for k, v in result[0].items() if k != "zone_idx"}
 
     @property
     def actuators(self) -> list:  # 000C
@@ -581,9 +586,11 @@ class Zone(Entity):
 
     @property
     def setpoint_alt(self):  # 2309
+        # use the sync_cycle array if there isn't an RP
         result = self._evo.ctl._get_pkt_value("2309")
         if result:
-            return [d for d in result if d["zone_idx"] == self.zone_idx][0]
+            result = [d for d in result if d["zone_idx"] == self.zone_idx]
+            return {"setpoint": result[0]["setpoint"]}
 
     @property
     def temperature(self):  # 30C9
@@ -591,9 +598,11 @@ class Zone(Entity):
 
     @property
     def temperature_alt(self):  # 30C9
+        # use the sync_cycle array if there isn't an RP
         result = self._evo.ctl._get_pkt_value("30C9")
         if result:
-            return [d for d in result if d["zone_idx"] == self.zone_idx][0]
+            result = [d for d in result if d["zone_idx"] == self.zone_idx]
+            return result[0]["temperature"]
 
     @property
     def heat_demand_alt(self) -> Optional[float]:  # 3150
