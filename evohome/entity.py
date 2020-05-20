@@ -150,7 +150,7 @@ class Domain(Entity):
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
-        return self._get_pkt_value("0008")
+        return self._get_pkt_value("0008", "relay_demand")
 
     @property  # only seen with FC, but seems should pair with 0008?
     def relay_failsafe(self) -> Optional[float]:  # 3150
@@ -169,7 +169,7 @@ class TpiDomain(Domain, HeatDemand):
 
     @property
     def sync_tpi(self) -> Optional[float]:  # 3B00
-        return self._get_pkt_value("3B00")
+        return self._get_pkt_value("3B00", "sync_tpi")
 
 
 class Device(Entity):
@@ -564,7 +564,9 @@ class Zone(Entity):
     @property
     def configuration(self):  # 000A
         if "000A" in self._pkts:
-            return self._get_pkt_value("000A")
+            return {
+                k: v for k, v in self._get_pkt_value("000A").items() if k != "zone_idx"
+            }
 
     @property
     def configuration_alt(self):  # 000A

@@ -682,7 +682,7 @@ def parser_1fc9(payload, msg) -> Optional[dict]:  # bind_device
         return {
             **_idx(payload[:2], msg),
             "code": seqx[2:6],
-            "command": COMMAND_MAP.get(seqx[2:6], f"unknown_{seqx[2:6]}"),
+            "code_text": COMMAND_MAP.get(seqx[2:6], f"unknown_{seqx[2:6]}"),
             "device_id": dev_hex_to_id(seqx[6:]),
         }
 
