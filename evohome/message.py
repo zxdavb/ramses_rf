@@ -249,8 +249,8 @@ class Message:
             # assert self.dev_from in self._gwy.known_devices
             if self.dev_from in self._gwy.known_devices:
                 zone_idx = self._gwy.known_devices[self.dev_from].get("zone_idx")
-                if self._evo.device_by_id[dev_id].parent_000c:
-                    assert zone_idx == self._evo.device_by_id[dev_id].parent_000c
+                if self._evo.device_by_id[self.dev_from].parent_000c:
+                    assert zone_idx == self._evo.device_by_id[self.dev_from].parent_000c
                 if "parent_zone_idx" in self.payload:
                     assert zone_idx == self.payload["parent_zone_idx"]
 
