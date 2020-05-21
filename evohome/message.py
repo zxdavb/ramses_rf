@@ -100,18 +100,37 @@ class Message:
         if self._is_array is not None:
             return self._is_array
 
+        if self.code in ["000C", "1FC9"]:  # also: 0005?
+            # grep -E ' (I|RP).* 000C '  #  from 01: only
+            # grep -E ' (I|RP).* 1FC9 '  #  from 01:/13:/other
+            self._is_array = self.verb in [" I", "RP"]
+            return self._is_array
+
+        if self.verb not in [" I", "RP"] or self.dev_from != self.dev_dest:
+            self._is_array = False
+            return self._is_array
+
+        # 045  I --- 01:158182 --:------ 01:158182 0009 003 0B00FF (or: FC00FF)
+        # 045  I --- 01:145038 --:------ 01:145038 0009 006 FC00FFF900FF
         if self.code in ["0009"] and self.dev_from[:2] == "01":
-            # 045  I --- 01:158182 --:------ 01:158182 0009 003 0B00FF (or: FC00FF)
-            # 045  I --- 01:145038 --:------ 01:145038 0009 006 FC00FFF900FF
+            # grep -E ' I.* 01:.* 01:.* 0009 [0-9]{3} F' (and: grep -v ' 003 ')
             self._is_array = self.verb == " I" and self.raw_payload[:1] == "F"
 
         elif self.code in ["000A", "2309", "30C9"] and self.dev_from[:2] == "01":
-            # actually, either I/01: or 01:/01: would do for these codes
+            # grep ' I.* 01:.* 01:.* 000A '
+            # grep ' I.* 01:.* 01:.* 2309 ' | grep -v ' 003 '  # TODO: some non-arrays
+            # grep ' I.* 01:.* 01:.* 30C9 '
             self._is_array = self.verb == " I" and self.dev_from == self.dev_dest
 
-        elif self.code in ["000C", "1FC9", "22C9"]:  # also: 0005?
-            # 056  I --- 02:001107 --:------ 02:001107 22C9 006 0408340A2801
-            self._is_array = self.verb in [" I", "RP"]
+        # 055  I --- 02:001107 --:------ 02:001107 22C9 024 0008340A28010108340A...
+        # 055  I --- 02:001107 --:------ 02:001107 22C9 006 0408340A2801
+        # 055  I --- 02:001107 --:------ 02:001107 3150 010 00640164026403580458
+        # 055  I --- 02:001107 --:------ 02:001107 3150 010 00000100020003000400
+        elif self.code in ["22C9", "3150"] and self.dev_from[:2] == "02":
+            # grep -E ' I.* 02:.* 02:.* 22C9 '
+            # grep -E ' I.* 02:.* 02:.* 3150' | grep -v FC
+            self._is_array = self.verb == " I" and self.dev_from == self.dev_dest
+            self._is_array = self._is_array if self.raw_payload[:1] != "F" else False
 
         else:
             self._is_array = False
@@ -231,14 +250,6 @@ class Message:
     def _update_entities(self) -> None:  # TODO: needs work
         """Update the system state with the message data."""
 
-        def _update_entity(data: dict) -> None:
-            if "domain_id" in data:
-                self._evo.domain_by_id[data["domain_id"]].update(self)
-            elif "zone_idx" in data:
-                self._evo.zone_by_id[data["zone_idx"]].update(self)
-            else:
-                self._evo.device_by_id[self.dev_from].update(self)
-
         # STEP 0: harvest zone_actuators payload to discover device parentage
         if self.code == "000C" and self.verb == "RP":  # or: from CTL/000C
             for dev_id in self.payload["actuators"]:
@@ -254,44 +265,13 @@ class Message:
                 if "parent_zone_idx" in self.payload:
                     assert zone_idx == self.payload["parent_zone_idx"]
 
-        if not self.payload:  # should be {} (possibly empty) or [] (never empty)
+        if not self.payload:  # should be {} (possibly empty) or [...] (never empty)
             return  # TODO: will stop useful RQs getting to update()? (e.g. RQ/3EF1)
 
-        # STEP 1: who was the message from?
         self._evo.device_by_id[self.dev_from].update(self)
 
-        # STEP 2: what was the message about: system, domain, or zone?
-        if isinstance(self.payload, list):
-            # do zones keep their own pkts, or simly extract that data fromteh CTL?
-            if self.code in ["000A", "2309", "30C9"]:  # array of zones
-                # [_update_entity(zone) for zone in self.payload]  # TODO:  bad idea?
-                return
-            # do domains keep their own pkts, or simly extract that data fromteh CTL?
-            if self.code in ["0009"]:  # array of domains
-                # [_update_entity(domain) for domain in self.payload]  # TODO: bad idea?
-                return
-            if self.code in ["22C9", "3150"]:  # array of UFH zones TODO ? 3150/array
-                return  # TODO: something
-            if self.code in ["1FC9"]:  # TODO: array of codes
-                return
-            assert False  # the above are the only known lists...
+        if "zone_idx" in self.payload and self.code in ["0418"]:
+            self._evo.zone_by_id[self.payload["zone_idx"]].update(self)
 
-        if "zone_idx" in self.payload:
-            if self.code == "0418":
-                return
-            elif self.code == "0008":
-                return
-            # assert self.code in ["12B0", "2309", "3150"]
-            _update_entity(self.payload)
-
-        elif "domain_id" in self.payload:
-            _update_entity(self.payload)
-
-        elif self.code in ["1FD4", "22D9", "3220"]:  # is for opentherm...
-            _update_entity(self.payload)  # TODO: needs checking
-
-        elif "parent_zone_idx" in self.payload:  # is from/to a device...
-            _update_entity(self.payload)  # TODO; do I need this and step 1?
-
-        else:  # is for a device...
-            _update_entity(self.payload)
+        if "domain_id" in self.payload:
+            self._evo.domain_by_id[self.payload["domain_id"]].update(self)

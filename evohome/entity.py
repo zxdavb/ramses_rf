@@ -399,7 +399,7 @@ class TrvActuator(Device, Battery, HeatDemand, Temperature):
 
 
 class OtbGateway(Device, HeatDemand):
-    """The OTB class, specifically an OpenTherm Bridge."""
+    """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
     # 10E0, 1FD4, 22D9, 3150, 3220, 3EF0
 

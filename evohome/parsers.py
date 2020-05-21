@@ -4,7 +4,6 @@ from datetime import datetime as dt, timedelta
 from typing import Optional, Union
 
 from .const import (
-    COMMAND_MAP,
     DOMAIN_MAP,
     FAULT_DEVICE_CLASS,
     FAULT_STATE,
@@ -680,9 +679,9 @@ def parser_1fc9(payload, msg) -> Optional[dict]:  # bind_device
             assert int(seqx[:2], 16) < 12
 
         return {
-            **_idx(payload[:2], msg),
+            **_idx(payload[:2], msg),  # TODO: same for all array elements
             "code": seqx[2:6],
-            "code_text": COMMAND_MAP.get(seqx[2:6], f"unknown_{seqx[2:6]}"),
+            # "code_text": COMMAND_MAP.get(seqx[2:6], f"unknown_{seqx[2:6]}"),
             "device_id": dev_hex_to_id(seqx[6:]),
         }
 
