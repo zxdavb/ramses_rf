@@ -270,8 +270,8 @@ class Message:
 
         self._evo.device_by_id[self.dev_from].update(self)
 
-        if "zone_idx" in self.payload and self.code in ["0418"]:
-            self._evo.zone_by_id[self.payload["zone_idx"]].update(self)
-
-        if "domain_id" in self.payload:
-            self._evo.domain_by_id[self.payload["domain_id"]].update(self)
+        if self.code != "0418":
+            if "zone_idx" in self.payload:
+                self._evo.zone_by_id[self.payload["zone_idx"]].update(self)
+            if "domain_id" in self.payload:
+                self._evo.domain_by_id[self.payload["domain_id"]].update(self)
