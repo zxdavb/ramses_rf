@@ -210,15 +210,13 @@ class Message:
 
         def _device(dev_id, parent_zone=None) -> None:
             """Get a Device, create it if required."""
-            # assert dev_id[:2] in DEVICE_TYPES  # TODO: leave out
             dev_cls = DEVICE_CLASS_MAP.get(dev_id[:2], Device)
             _entity(dev_cls, dev_id, self._evo.device_by_id, self._evo.devices)
-            if parent_zone is not None:  # TODO: this is a dup of _update_device?
+            if parent_zone is not None:
                 self._evo.device_by_id[dev_id].parent_000c = parent_zone
 
         def _domain(domain_id) -> None:
             """Get a Domain, create it if required."""
-            # assert domain_id in DOMAIN_MAP  # TODO: leave out
             _entity(Domain, domain_id, self._evo.domain_by_id, self._evo.domains)
 
         def _zone(zone_idx) -> None:

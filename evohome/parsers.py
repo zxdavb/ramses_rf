@@ -157,15 +157,15 @@ def _idx(seqx, msg) -> dict:
     if seqx in DOMAIN_MAP:  # no false +ve/-ves
         idx_name = "domain_id"
 
-    elif msg.code in ["2E04"]:  # never _idx, although may != "00"
-        return {}  # blacklist: this can be (e.g.) "01"
+    elif msg.code in ["2E04"]:  # blacklist: never _idx, although some are != "00"
+        return {}
 
     elif msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9"] + ["1FC9", "0418"]:
         assert int(seqx, 16) < 12  # whitelist: this can be a "00"
         idx_name = "zone_idx"
 
-    elif msg.code in ["22C9"]:  # ufh_setpoint (UFH version of 2309)
-        assert int(seqx, 16) < 12  # this can be a "00"
+    elif msg.code in ["22C9", "3150"]:  # ufh_setpoint (UFH version of 2309)
+        assert int(seqx, 16) < 8  # this can be a "00"
         idx_name = "ufh_idx"
 
     elif not int(seqx, 16) < 12:
@@ -706,7 +706,7 @@ def parser_22c9(payload, msg) -> Optional[dict]:  # ufh_setpoint, TODO: max leng
         assert seqx[10:] == "01"
 
         return {
-            **_idx(payload[:2], msg),
+            **_idx(seqx[:2], msg),
             "temp_low": _temp(seqx[2:6]),
             "temp_high": _temp(seqx[6:10]),
             "unknown_0": seqx[10:],
