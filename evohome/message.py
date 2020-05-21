@@ -218,12 +218,12 @@ class Message:
 
         def _domain(domain_id) -> None:
             """Get a Domain, create it if required."""
-            # assert domain_id in DOMAIN_MAP
+            # assert domain_id in DOMAIN_MAP  # TODO: leave out
             _entity(Domain, domain_id, self._evo.domain_by_id, self._evo.domains)
 
         def _zone(zone_idx) -> None:
             """Get a Zone, create it if required."""  # TODO: other zone types?
-            # assert int(zone_idx, 16) < 12  # TODO: > 11 not for Hometronic
+            # assert int(zone_idx, 16) < 12  # TODO: > 11 not for Hometronic, leave out
             _entity(Zone, zone_idx, self._evo.zone_by_id, self._evo.zones)
 
         # STEP 0: discover devices by harvesting zone_actuators payload
@@ -246,14 +246,11 @@ class Message:
                 [_domain(d["domain_id"]) for d in self.payload]
             elif self.code in ["000A", "2309", "30C9"]:  # the sync_cycle pkts
                 [_zone(z["zone_idx"]) for z in self.payload]
+            # elif self.code in ["22C9", "3150"]:  # UFH
+            #     [_XXX(z["ufh_idx"]) for z in self.payload]
 
     def _update_entities(self) -> None:  # TODO: needs work
         """Update the system state with the message data."""
-
-        # STEP 0: harvest zone_actuators payload to discover device parentage
-        if self.code == "000C" and self.verb == "RP":  # or: from CTL/000C
-            for dev_id in self.payload["actuators"]:
-                self._evo.device_by_id[dev_id].parent_000c = self.payload["zone_idx"]
 
         # CHECK: check parent_zone_idx hueristics using the data in known_devices.json
         if __dev_mode__ and isinstance(self.payload, dict):
