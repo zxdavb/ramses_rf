@@ -13,8 +13,9 @@ from typing import Optional
 from .const import MESSAGE_REGEX, __dev_mode__
 from .logger import time_stamp
 
-BAUDRATE = 115200  # 38400  #  57600  # 76800  # 38400  # 115200
+BAUDRATE = 115200
 READ_TIMEOUT = 0.5
+XON_XOFF = False
 
 MSG_PKT = namedtuple("Packet", ["datetime", "packet", "bytearray"])
 
@@ -78,7 +79,7 @@ class Packet:
 
         if not self.packet and self.comment:  # log null packets only if has a comment
             if True or not __dev_mode__:
-                _LOGGER.warning("", extra=self.__dict__)
+                _LOGGER.debug("", extra=self.__dict__)
             return False
 
         if not MESSAGE_REGEX.match(self.packet):
@@ -107,7 +108,7 @@ class PortPktProvider:
         self.serial_port = serial_port
         self.baudrate = BAUDRATE
         self.timeout = timeout
-        self.xonxoff = True
+        self.xonxoff = XON_XOFF
         self.loop = loop
 
         self.reader = self.write = None
@@ -136,7 +137,7 @@ class PortPktProvider:
             return MSG_PKT(time_stamp(), None, None)
 
         timestamp = time_stamp()  # done here & now for most-accurate timestamp
-        # print(f"{raw_pkt}")  # TODO: deleteme, only for debugging
+        print(f"{raw_pkt}")  # TODO: deleteme, only for debugging
 
         packet = "".join(c for c in raw_pkt.decode().strip() if c in printable)
 
@@ -147,7 +148,7 @@ class PortPktProvider:
     async def put_pkt(self, cmd, logger):  # TODO: logger is a hack
         """Get the next packet line from a serial port."""
 
-        logger.warning("# Data was sent to %s: %s", self.serial_port, cmd)
+        logger.debug("# Data was sent to %s: %s", self.serial_port, cmd)
         self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
         # self.writer.write(f"{cmd}\r\n".encode("ascii"))
         await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
