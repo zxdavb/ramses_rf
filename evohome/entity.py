@@ -420,8 +420,8 @@ class OtbGateway(Device, HeatDemand):
         super().update(msg)
 
     @property
-    def actuator_enabled(self) -> Optional[float]:  # 3EF0 (does 10: RP/3EF1?)
-        return self._get_pkt_value("3EF0")
+    def actuator_enabled(self) -> Optional[bool]:  # 3EF0 (does 10: RP/3EF1?)
+        return self._get_pkt_value("3EF0", "actuator_enabled")
 
     @property
     def actuator_state(self) -> Optional[float]:  # 3EF1
@@ -489,8 +489,8 @@ class BdrSwitch(Device):
         return self._is_tpi
 
     @property
-    def actuator_enabled(self) -> Optional[float]:  # 3EF0
-        return self._get_pkt_value("3EF0")
+    def actuator_enabled(self) -> Optional[bool]:  # 3EF0
+        return self._get_pkt_value("3EF0", "actuator_enabled")
 
     @property
     def actuator_state(self) -> Optional[float]:  # 3EF1
@@ -686,8 +686,8 @@ class BdrZone(Zone):
             self._zone_type = ZONE_TYPE_MAP["VAL"]
 
     @property
-    def actuator_enabled(self) -> Optional[float]:  # 3EF0
-        return self._get_pkt_value("3EF0")
+    def actuator_enabled(self) -> Optional[bool]:  # 3EF0
+        return self._get_pkt_value("3EF0", "actuator_enabled")
 
     @property
     def actuator_state(self) -> Optional[float]:  # 3EF1

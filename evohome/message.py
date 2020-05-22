@@ -271,7 +271,7 @@ class Message:
 
         self._evo.device_by_id[self.dev_from].update(self)
 
-        if self.code != "0418":
+        if self.code != "0418":  # update domains & zones
             if "zone_idx" in self.payload:
                 self._evo.zone_by_id[self.payload["zone_idx"]].update(self)
             if "domain_id" in self.payload:
