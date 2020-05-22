@@ -234,8 +234,15 @@ class Gateway:
                 while True:
                     raw_pkt = await manager.get_next_pkt()
                     if raw_pkt.packet and "evofw3" in raw_pkt.packet:
+                        # !V   - print the version
+                        # !T   - print the current mask
+                        # !T00 - turn off all mask bits
+                        # !T01 - cause raw data for all messages to be printed
                         if self.config.get("evofw_flag"):
                             cmd = self.config["evofw_flag"]
+                            _LOGGER.warning(
+                                "# A packet was sent to %s: %s", self.serial_port, cmd
+                            )
                             manager.writer.write(f"{cmd}\r\n".encode("ascii"))
 
                     if raw_pkt.packet:
@@ -320,7 +327,7 @@ class Gateway:
             if not (destination is None or self.config.get("listen_only")):
                 # TODO: if not cmd.entity._pkts.get(cmd.code)
                 destination.write(bytearray(f"{cmd}\r\n".encode("ascii")))
-                # LOGGER.warning("# A packet was sent to %s: %s", self.serial_port, cmd)
+                _LOGGER.warning("# A packet was sent to %s: %s", self.serial_port, cmd)
                 await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
 
             self.cmd_que.task_done()

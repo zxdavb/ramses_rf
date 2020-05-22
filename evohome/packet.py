@@ -76,7 +76,7 @@ class Packet:
             return False
 
         if not self.packet and self.comment:  # log null packets only if has a comment
-            if not __dev_mode__:
+            if True or not __dev_mode__:
                 _LOGGER.warning("", extra=self.__dict__)
             return False
 
