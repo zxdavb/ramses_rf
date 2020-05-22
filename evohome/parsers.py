@@ -685,6 +685,11 @@ def parser_1fc9(payload, msg) -> Optional[dict]:  # bind_device
             assert int(seqx[:2], 16) < 12
         return {seqx[:2]: seqx[2:6]}  # NOTE: codes is many:many (domain:code)
 
+    if msg.verb == " W":  # TODO: just leave an an array?
+        assert msg.len == 6
+        assert msg.dev_from == dev_hex_to_id(payload[6:12])
+        return _parser(payload)
+
     assert msg.verb in [" I", " W", "RP"]  # devices will respond to a RQ!
     assert msg.len >= 6 and msg.len % 6 == 0  # assuming not RQ
     assert msg.dev_from == dev_hex_to_id(payload[6:12])

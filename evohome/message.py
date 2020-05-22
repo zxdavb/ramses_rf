@@ -95,14 +95,17 @@ class Message:
 
     @property
     def is_array(self) -> bool:
-        """Return True if the message payload is an array."""
+        """Return True if the message's raw payload is an array.
+
+        Note that the corresponding parsed payload may not match, e.g. 000C.
+        """
 
         if self._is_array is not None:
             return self._is_array
 
         if self.code in ["000C", "1FC9"]:  # also: 0005?
             # grep -E ' (I|RP).* 000C '  #  from 01: only
-            # grep -E ' (I|RP).* 1FC9 '  #  from 01:/13:/other
+            # grep -E ' (I|RP).* 1FC9 '  #  from 01:/13:/other (not W)
             self._is_array = self.verb in [" I", "RP"]
             return self._is_array
 
@@ -223,6 +226,9 @@ class Message:
             """Get a Zone, create it if required."""  # TODO: other zone types?
             # assert int(zone_idx, 16) < 12  # TODO: > 11 not for Hometronic, leave out
             _entity(Zone, zone_idx, self._evo.zone_by_id, self._evo.zones)
+
+        if self.code != "000C":  # TODO probably best not in is_valid()
+            assert self.is_array == isinstance(self.payload, list)
 
         # STEP 0: discover devices by harvesting zone_actuators payload
         if self.code == "000C" and self.verb == "RP":  # or: from CTL/000C
