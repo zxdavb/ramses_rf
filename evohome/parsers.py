@@ -51,7 +51,6 @@ def parser_decorator(func):
                 assert payload[:2] == "F8"
                 return func(*args, **kwargs)
             if msg.code in ["1FC9"]:
-                assert int(payload[:2], 16) < 12 or payload[:2] == "FC"
                 return func(*args, **kwargs)
             assert payload[:2] in ["00", "FC"]  # ["1100", "2309", "2349"]
             return func(*args, **kwargs)
@@ -161,7 +160,7 @@ def _idx(seqx, msg) -> dict:
         return {}
 
     elif msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9"] + ["1FC9", "0418"]:
-        assert int(seqx, 16) < 12  # whitelist: this can be a "00"
+        assert int(seqx, 16) < 12  # whitelist: this can be a "00"; can hometronic > 11?
         idx_name = "zone_idx"
 
     elif msg.code in ["22C9", "3150"]:  # ufh_setpoint (UFH version of 2309)
@@ -178,6 +177,9 @@ def _idx(seqx, msg) -> dict:
     # STEP 2: determine if there is an index at all
     if msg.dev_from[:2] == "18":  # and msg.verb == "RQ":
         result = {idx_name: seqx}
+
+    elif msg.code in "1FC9":
+        result = {}  # an exception
 
     elif "01" == msg.dev_from[:2] and msg.dev_from == msg.dev_dest:
         result = {idx_name: seqx}  # either an array, or domain=Fx
@@ -383,12 +385,11 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:  # zone_config (zone/s
 
 @parser_decorator
 def parser_000c(payload, msg) -> Optional[dict]:  # zone_actuators (not sensors)
-    # RQ payload is zz00, # TODO: shortcuts in parsing taken here
-
+    # RQ payload is zz00, NOTE: aggregation of parsing taken here
     def _parser(seqx) -> dict:
-        assert int(seqx[:2], 16) < 12
+        assert seqx[:2] == payload[:2]
         # assert seqx[2:4] in ["00", "0A", "0F", "10"] # usus. 00 - subzone?
-        assert seqx[4:6] in ["00", "7F"]
+        assert seqx[4:6] in ["00", "7F"]  # TODO: what does 7F means
 
         return {dev_hex_to_id(seqx[6:12]): seqx[4:6]}
 
@@ -674,19 +675,19 @@ def parser_1f41(payload, msg) -> Optional[dict]:  # dhw_mode
 @parser_decorator
 def parser_1fc9(payload, msg) -> Optional[dict]:  # bind_device
     # this is an array of codes
-    def _parser(seqx) -> dict:
-        if seqx[:2] not in ["FA", "FB", "FC"]:
-            assert int(seqx[:2], 16) < 12
+    # 049  I --- 01:145038 --:------ 01:145038 1FC9 018 07-000806368E FC-3B0006368E               07-1FC906368E  # noqa: E501
+    # 047  I --- 01:145038 --:------ 01:145038 1FC9 018 FA-000806368E FC-3B0006368E               FA-1FC906368E  # noqa: E501
+    # 065  I --- 01:145038 --:------ 01:145038 1FC9 024 FC-000806368E FC-315006368E FB-315006368E FC-1FC906368E  # noqa: E501
 
-        return {
-            **_idx(payload[:2], msg),  # TODO: same for all array elements
-            "code": seqx[2:6],
-            # "code_text": COMMAND_MAP.get(seqx[2:6], f"unknown_{seqx[2:6]}"),
-            "device_id": dev_hex_to_id(seqx[6:]),
-        }
+    def _parser(seqx) -> dict:
+        assert seqx[6:] == payload[6:12]
+        if seqx[:2] not in ["FA", "FB", "FC"]:  # or: not in DOMAIN_MAP: ??
+            assert int(seqx[:2], 16) < 12
+        return {seqx[:2]: seqx[2:6]}  # NOTE: codes is many:many (domain:code)
 
     assert msg.verb in [" I", " W", "RP"]  # devices will respond to a RQ!
-    assert msg.len >= 6 and msg.len % 3 == 0  # assuming not RQ
+    assert msg.len >= 6 and msg.len % 6 == 0  # assuming not RQ
+    assert msg.dev_from == dev_hex_to_id(payload[6:12])
     return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
 
 

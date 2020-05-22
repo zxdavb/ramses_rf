@@ -259,7 +259,7 @@ class Controller(Device):
     def _discover(self):
         super()._discover()
 
-        # Note: could use this to discover zones
+        # NOTE: could use this to discover zones
         # for zone_idx in range(12):
         #     self._command("0004", payload=f"{zone_idx:02x}00")
 
