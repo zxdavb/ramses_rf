@@ -109,7 +109,7 @@ class Ser2NetServer:
         packet = f"{data}\r\n".encode()
         _LOGGER.debug(" - packet is: %s", packet)
 
-        if self.protocol.transport:
+        if self.protocol.transport and not self.protocol.transport.is_closing():
             self.protocol.transport.write(packet)
             _LOGGER.debug(" - data sent to network: %s", packet)
         else:

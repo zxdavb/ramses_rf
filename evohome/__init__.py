@@ -240,7 +240,7 @@ class Gateway:
 
                     if raw_pkt.packet:
                         await self._process_pkt(raw_pkt)
-                        if self._relay:
+                        if self._relay:  # TODO: handle socket close
                             await self._relay.write(raw_pkt.packet)
                     await asyncio.sleep(0.01)
 
