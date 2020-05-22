@@ -56,11 +56,14 @@ class Entity:
     def _command(self, code, **kwargs):
         if self._gwy.config["listen_only"]:
             return
-        if kwargs.get("dest_addr") is None:
-            kwargs["dest_addr"] = self._evo.ctl_id
-        if kwargs.get("payload") is None:
-            kwargs["payload"] = "00"
-        self._cmd_que.put_nowait(Command(self._gwy, code=code, **kwargs))
+
+        cmd = Command(
+            kwargs.get("verb", "RQ"),
+            kwargs.get("dest_addr", self._evo.ctl_id),
+            code,
+            kwargs.get("payload", "00"),
+        )
+        self._cmd_que.put_nowait(cmd)
 
     def _get_pkt_value(self, code, key=None) -> Optional[Any]:
         if self._pkts.get(code):

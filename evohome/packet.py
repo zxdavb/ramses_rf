@@ -1,5 +1,6 @@
 """Packet processor."""
 
+import asyncio
 from collections import namedtuple
 import logging
 import re
@@ -15,10 +16,10 @@ from .logger import time_stamp
 BAUDRATE = 115200  # 38400  #  57600  # 76800  # 38400  # 115200
 READ_TIMEOUT = 0.5
 
-PACKET = namedtuple("Packet", ["datetime", "packet", "bytearray"])
+MSG_PKT = namedtuple("Packet", ["datetime", "packet", "bytearray"])
 
-_LOGGER = logging.getLogger(__name__)  # evohome.packet
-# OGGER.setLevel(logging.WARNING)
+_LOGGER = logging.getLogger(__name__)
+# _LOGGER.setLevel(logging.DEBUG)
 
 
 def split_pkt_line(packet_line: str) -> (str, str, str):
@@ -126,13 +127,13 @@ class PortPktProvider:
     async def __aexit__(self, exc_type, exc, tb) -> None:
         pass
 
-    async def get_next_pkt(self):
+    async def get_pkt(self):
         """Get the next packet line from a serial port."""
 
         try:
             raw_pkt = await self.reader.readline()
         except SerialException:
-            return PACKET(time_stamp(), None, None)
+            return MSG_PKT(time_stamp(), None, None)
 
         timestamp = time_stamp()  # done here & now for most-accurate timestamp
         # print(f"{raw_pkt}")  # TODO: deleteme, only for debugging
@@ -141,7 +142,15 @@ class PortPktProvider:
 
         # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
 
-        return PACKET(timestamp, packet, raw_pkt)
+        return MSG_PKT(timestamp, packet, raw_pkt)
+
+    async def put_pkt(self, cmd, logger):  # TODO: logger is a hack
+        """Get the next packet line from a serial port."""
+
+        logger.warning("# Data was sent to %s: %s", self.serial_port, cmd)
+        self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
+        # self.writer.write(f"{cmd}\r\n".encode("ascii"))
+        await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
 
 
 class FilePktProvider:

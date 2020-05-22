@@ -9,7 +9,7 @@ RECV_TIMEOUT = 0  # without hearing from client (from network) - not useful
 SEND_TIMEOUT = 0  # without hearing from server (from serial port)
 
 _LOGGER = logging.getLogger(__name__)
-_LOGGER.setLevel(logging.WARNING)
+# _LOGGER.setLevel(logging.DEBUG)
 
 
 class Ser2NetProtocol(asyncio.Protocol):
@@ -53,7 +53,7 @@ class Ser2NetProtocol(asyncio.Protocol):
 
         if data[0] == 0xFF:  # telnet IAC
             # see: https://users.cs.cf.ac.uk/Dave.Marshall/Internet/node141.html
-            _LOGGER.debug(" - received a telnet IAC (ignoring): %s", data)
+            _LOGGER.warning(" - received a telnet IAC (ignoring): %s", data)
             return  # TODO: is this enough?
 
         try:
@@ -63,7 +63,7 @@ class Ser2NetProtocol(asyncio.Protocol):
 
         # pkt = Packet(packet)
         # cmd = Command(pkt)
-        self._cmd_que.put_nowait(packet)  # TDOD: should be Command(), not str
+        self._cmd_que.put_nowait(packet)  # TODO: should be Command(), not str?
         _LOGGER.debug(" - command sent to dispatch queue: %s", packet)
 
     def eof_received(self) -> Optional[bool]:

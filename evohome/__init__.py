@@ -21,7 +21,7 @@ from .command import Command
 from .const import INDEX_SQL, TABLE_SQL, INSERT_SQL, ISO_FORMAT_REGEX
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
-from .packet import _LOGGER as pkt_logger, PACKET, Packet, PortPktProvider
+from .packet import _LOGGER as pkt_logger, MSG_PKT, Packet, PortPktProvider
 from .ser2net import Ser2NetServer
 from .system import EvohomeSystem
 
@@ -206,7 +206,7 @@ class Gateway:
                 for ts_pkt in self.config["input_file"]:
                     await asyncio.sleep(0.001)  # to enable a Ctrl-C
 
-                    raw_pkt = PACKET(ts_pkt[:26], ts_pkt[27:].strip(), None)
+                    raw_pkt = MSG_PKT(ts_pkt[:26], ts_pkt[27:].strip(), None)
                     try:
                         assert re.match(ISO_FORMAT_REGEX, raw_pkt.datetime)
                         dt.fromisoformat(raw_pkt.datetime)
@@ -232,20 +232,14 @@ class Gateway:
                 self._hp.setrelheap()
 
                 while True:
-                    raw_pkt = await manager.get_next_pkt()
-                    if raw_pkt.packet and "evofw3" in raw_pkt.packet:
-                        # !V   - print the version
-                        # !T   - print the current mask
-                        # !T00 - turn off all mask bits
-                        # !T01 - cause raw data for all messages to be printed
-                        if self.config.get("evofw_flag"):
-                            cmd = self.config["evofw_flag"]
-                            _LOGGER.warning(
-                                "# A packet was sent to %s: %s", self.serial_port, cmd
-                            )
-                            manager.writer.write(f"{cmd}\r\n".encode("ascii"))
-
+                    raw_pkt = await manager.get_pkt()
                     if raw_pkt.packet:
+                        if self.config.get("evofw_flag") and "evofw3" in raw_pkt.packet:
+                            # !V, !T - print the version, or the current mask
+                            # !T00   - turn off all mask bits
+                            # !T01   - cause raw data for all messages to be printed
+                            await manager.put_pkt(self.config["evofw_flag"], _LOGGER)
+
                         await self._process_pkt(raw_pkt)
                         if self._relay:  # TODO: handle socket close
                             await self._relay.write(raw_pkt.packet)
@@ -255,7 +249,7 @@ class Gateway:
                 while True:
                     serial = manager.reader._transport.serial
                     if serial is not None and serial.in_waiting == 0:
-                        await self._dispatch_pkt(destination=manager.writer)
+                        await self._dispatch_pkt(destination=manager)
                     await asyncio.sleep(0.1)
 
             if self.config.get("ser2net"):
@@ -267,18 +261,8 @@ class Gateway:
             async with PortPktProvider(self.serial_port, loop=self.loop) as manager:
                 if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 FF"
                     cmd = self.config["execute_cmd"]
-                    kwargs = {
-                        "verb": cmd[:2],
-                        "dest_addr": cmd[3:12],
-                        "code": cmd[13:17],
-                        "payload": cmd[18:],
-                    }
-                    cmd = Command(self, **kwargs)
-                    manager.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
-                    _LOGGER.warning(
-                        "# A packet was sent to %s: %s", self.serial_port, cmd
-                    )
-                    await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
+                    cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:])
+                    await manager.put_pkt(cmd, _LOGGER)
 
                 self._tasks.append(asyncio.create_task(port_reader(manager)))
                 self._tasks.append(asyncio.create_task(port_writer(manager)))
@@ -324,17 +308,16 @@ class Gateway:
         # TODO: listen_only will clear the whole queue, not only the its next element
         while not self.cmd_que.empty():
             cmd = self.cmd_que.get()
-            if not (destination is None or self.config.get("listen_only")):
-                # TODO: if not cmd.entity._pkts.get(cmd.code)
-                destination.write(bytearray(f"{cmd}\r\n".encode("ascii")))
-                _LOGGER.warning("# A packet was sent to %s: %s", self.serial_port, cmd)
-                await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
+            if destination is not None:
+                if not self.config.get("listen_only") or cmd.startswith("!"):
+                    # TODO: if not cmd.entity._pkts.get(cmd.code)
+                    await destination.put_pkt(cmd, _LOGGER)
 
             self.cmd_que.task_done()
             if not self.config.get("listen_only"):
                 break
 
-        # await asyncio.sleep(0.001)  # TODO: why is this needed?
+        # await asyncio.sleep(0.001)  # TODO: why is this needed, for Ctrl-C?
 
     async def _process_pkt(self, raw_pkt) -> None:
         """Receive a packet and optionally validate it as a message."""
