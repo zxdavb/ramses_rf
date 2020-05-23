@@ -21,7 +21,7 @@ from .command import Command
 from .const import INDEX_SQL, TABLE_SQL, INSERT_SQL, ISO_FORMAT_REGEX
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
-from .packet import _LOGGER as pkt_logger, MSG_PKT, Packet, PortPktProvider
+from .packet import _LOGGER as pkt_logger, RAW_PKT, Packet, PortPktProvider
 from .ser2net import Ser2NetServer
 from .system import EvohomeSystem
 
@@ -206,7 +206,7 @@ class Gateway:
                 for ts_pkt in self.config["input_file"]:
                     await asyncio.sleep(0.001)  # to enable a Ctrl-C
 
-                    raw_pkt = MSG_PKT(ts_pkt[:26], ts_pkt[27:].strip(), None)
+                    raw_pkt = RAW_PKT(ts_pkt[:26], ts_pkt[27:].strip(), None)
                     try:
                         assert re.match(ISO_FORMAT_REGEX, raw_pkt.datetime)
                         dt.fromisoformat(raw_pkt.datetime)

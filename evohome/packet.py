@@ -10,14 +10,14 @@ from serial_asyncio import open_serial_connection  # TODO: dont import unless re
 from string import printable
 from typing import Optional
 
-from .const import MESSAGE_REGEX, __dev_mode__
+from .const import MESSAGE_REGEX, __dev_mode__  # noqa: F401
 from .logger import time_stamp
 
 BAUDRATE = 115200
 READ_TIMEOUT = 0.5
 XON_XOFF = False
 
-MSG_PKT = namedtuple("Packet", ["datetime", "packet", "bytearray"])
+RAW_PKT = namedtuple("Packet", ["datetime", "packet", "bytearray"])
 
 _LOGGER = logging.getLogger(__name__)
 # _LOGGER.setLevel(logging.DEBUG)
@@ -78,8 +78,7 @@ class Packet:
             return False
 
         if not self.packet and self.comment:  # log null packets only if has a comment
-            if True or not __dev_mode__:
-                _LOGGER.debug("", extra=self.__dict__)
+            _LOGGER.warning("", extra=self.__dict__)  # normally a warning
             return False
 
         if not MESSAGE_REGEX.match(self.packet):
@@ -134,16 +133,16 @@ class PortPktProvider:
         try:
             raw_pkt = await self.reader.readline()
         except SerialException:
-            return MSG_PKT(time_stamp(), None, None)
+            return RAW_PKT(time_stamp(), None, None)
 
         timestamp = time_stamp()  # done here & now for most-accurate timestamp
-        print(f"{raw_pkt}")  # TODO: deleteme, only for debugging
+        # print(f"{raw_pkt}")  # TODO: deleteme, only for debugging
 
         packet = "".join(c for c in raw_pkt.decode().strip() if c in printable)
 
         # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
 
-        return MSG_PKT(timestamp, packet, raw_pkt)
+        return RAW_PKT(timestamp, packet, raw_pkt)
 
     async def put_pkt(self, cmd, logger):  # TODO: logger is a hack
         """Get the next packet line from a serial port."""
