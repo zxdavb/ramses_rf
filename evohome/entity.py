@@ -179,7 +179,7 @@ class Device(Entity):
     """The Device class."""
 
     def __init__(self, device_id, gateway) -> None:
-        _LOGGER.debug("Creating a new Device: %s", device_id)
+        # _LOGGER.debug("Creating a new Device: %s", device_id)
         super().__init__(device_id, gateway)
 
         # TODO: does 01: have a battery - could use a lookup from const.py
@@ -527,7 +527,7 @@ class Zone(Entity):
     """Base for the 12 named Zones."""
 
     def __init__(self, zone_idx, gateway) -> None:
-        # _LOGGER.debug("Creating a new Zone: %s", zone_idx)
+        _LOGGER.debug("Creating a new Zone: %s", zone_idx)
         super().__init__(zone_idx, gateway)
 
         self._sensor = None
@@ -557,8 +557,19 @@ class Zone(Entity):
         if self._sensor is None:
             _ = self.sensor
 
+        # TODO: this is probing, is this preferred over eeavesdropping?
         if self._zone_type is None:
             _ = self.zone_type
+
+        # TODO: this is eavesdropping...
+        # not UFH (it seems), but BDR or VAL; and possibly a MIX support 0008 too
+        if msg.code in ["0008", "0009"]:  # TODO: how to determine is/isnt MIX?
+            if self._zone_type:
+                assert self._zone_type in [ZONE_TYPE_MAP["BDR"], ZONE_TYPE_MAP["VAL"]]
+            else:
+                _LOGGER.debug("Promoting to an Electric Zone: %s", self._id)
+                self.__class__ = ZONE_CLASS_MAP["BDR"]
+                self._zone_type = ZONE_TYPE_MAP["BDR"]
 
     @property
     def name(self) -> Optional[str]:  # 0004
@@ -649,12 +660,12 @@ class Zone(Entity):
             return self._zone_type
 
         # try to cast a new type (must be a superclass of the current type)
-        for device in self.actuators:
+        for device in self.actuators:  # requires 000C
             device_type = DEVICE_TYPES[device[:2]]
             if device_type in ZONE_CLASS_MAP:
                 self.__class__ = ZONE_CLASS_MAP[device_type]
                 self._zone_type = ZONE_TYPE_MAP[device_type]
-                break
+                return self._zone_type
 
         return self._zone_type
 
@@ -678,14 +689,13 @@ class BdrZone(Zone):
     For a small (5A) electric load controlled by a BDR91 (never calls for heat).
     """
 
-    # if also call for heat, then is a ZoneValve
-
     def update(self, msg):
         super().update(msg)
 
-        # does it also call for heat?
-        if msg.code == "3150":  # or 1100/unkown_0 = 00
-            self.__class__ = ValZone
+        # ZV zones are Elec zones that also call for heat; ? and also 1100/unkown_0 = 00
+        if msg.code == "3150" and self._zone_type != ZONE_TYPE_MAP["VAL"]:
+            _LOGGER.debug("Promoting to an Zone Valve Zone: %s", self._id)
+            self.__class__ = ZONE_CLASS_MAP["VAL"]
             self._zone_type = ZONE_TYPE_MAP["VAL"]
 
     @property
@@ -702,10 +712,6 @@ class ValZone(BdrZone, HeatDemand):
 
     For a motorised valve controlled by a BDR91 (will also call for heat).
     """
-
-    def __init__(self, zone_idx, gateway) -> None:
-        _LOGGER.debug("Promotinh a Electric Zone to a ZoneValve Zone: %s", zone_idx)
-        super().__init__(zone_idx, gateway)
 
 
 class UfhZone(Zone, HeatDemand):
@@ -779,7 +785,7 @@ DEVICE_CLASS_MAP = {
 ZONE_CLASS_MAP = {
     "TRV": TrvZone,
     "BDR": BdrZone,
-    "VAL": ValZone,
+    "VAL": ValZone,  # not a real device type
     "UFH": UfhZone,
     "MIX": MixZone,
 }

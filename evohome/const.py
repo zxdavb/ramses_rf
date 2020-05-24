@@ -135,16 +135,16 @@ DEVICE_TABLE = {
     "12": {"type": "THm", "battery": True},  # .Thermostat (with schedule?): DTS92E
     "13": {"type": "BDR", "battery": False},  # Wireless relay box: BDR91; HC60NG too?
     "18": {"type": "HGI", "battery": False},  # Honeywell Gwy Interface: HGI80, HGS80
+    "20": {"type": "VCE", "battery": None},  # VCE-RF ?ventilation
     "22": {"type": "THM", "battery": True},  # .Thermostat (with schedule?): DTS92E
-    "30": {"type": "GWY", "battery": False},  # Gateway: RFG100?
+    "30": {"type": "GWY", "battery": False},  # Gateway: RFG100? ?ventilation
     "32": {"type": "VMS", "battery": True},  # .Ventilation Nuaire VMS-23HB33, -23LMH23
     "34": {"type": "STA", "battery": True},  # .Thermostat (without schedule?): T87RF
-    "63": {"type": "NUL", "battery": False},
-    "--": {"type": "---", "battery": False},
+    "63": {"type": "NUL", "battery": None},
+    "--": {"type": "---", "battery": None},
 }  # TODO: Mixing valve: HM80 (no battery)
 #   "03": {"type": " 03", "battery": None},  # (Wireless room stat: HCF82, HCW82)??
 #   "17": {"type": " 17", "battery": None},  # Dunno - Outside weather sensor?
-#   "20": {"type": "VCE", "battery": None},  # VCE-RF ?ventilation
 DEVICE_TYPES = {k: v["type"] for k, v in DEVICE_TABLE.items()}
 DEVICE_LOOKUP = {v: k for k, v in DEVICE_TYPES.items()}
 
