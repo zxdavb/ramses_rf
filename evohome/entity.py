@@ -314,6 +314,76 @@ class Controller(Device):
         #         self._command(code, payload=payload)
 
     def update(self, msg):
+        def _update_zone_sensors(devices) -> None:
+            # do any zones need their sensor finding?
+            zones = [z._id for z in self._evo.zones if z.sensor is None]
+            if not zones:  # exit now if all zones have a sensor
+                _LOGGER.debug("All zones have a sensor.")
+                return
+
+            # test only those zones with unique temperatures
+            # {x["zone_idx"]: x["temperature"] for x in msg.payload}
+            test_zones = []
+            for zone in [x for x in msg.payload if x["zone_idx"] in zones]:
+                other_temps = [z["temperature"] for z in msg.payload if z != zone]
+                if zone["temperature"] not in other_temps:  # is it a unique temp?
+                    test_zones.append(zone)
+            if not test_zones:  # test only zones with unique temperatures
+                _LOGGER.debug("No testable zones.")
+                return
+
+            # OPTIONAL: are there any orphan sensors without a temperature?
+            if [s for s in devices if s.parent_zone is None and s.temperature is None]:
+                _LOGGER.debug("Some orphans don't have a temperature.")
+                return
+
+            # nnn
+            for zone in test_zones:
+                _LOGGER.debug(
+                    "Considering zone %s, temp is: %s",
+                    zone["zone_idx"],
+                    zone["temperature"],
+                )
+                test_sensors = [
+                    d
+                    for d in devices
+                    if d.parent_zone is None or d.parent_zone == zone["zone_idx"]
+                ]
+                sensors = [
+                    d for d in test_sensors if d.temperature == zone["temperature"]
+                ]
+
+                zone_obj = self._evo.zone_by_id[zone["zone_idx"]]
+                if len(sensors) == 1:
+                    if not zone_obj._sensors:
+                        zone_obj._sensors = [sensors[0]._id]
+                        _LOGGER.debug(
+                            "Discovered candidate sensor for zone %s: %s",
+                            zone_obj._id,
+                            sensors[0]._id,
+                        )
+                    elif zone_obj._sensors[0] == sensors[0]._id:
+                        zone_obj._sensor = sensors[0]._id
+                        # TODO: currently no way to find parent zone 4 THM/THm...
+                        sensors[0]._parent_zone = zone_obj._id
+                        _LOGGER.debug(
+                            "Confirmed sensor for zone %s: %s",
+                            zone_obj._id,
+                            sensors[0]._id,
+                        )
+                    else:
+                        _LOGGER.warning(
+                            "Reset sensor for zone %s: %s",
+                            zone_obj._id,
+                            sensors[0]._id,
+                        )
+                        zone_obj._sensors = None
+                else:
+                    _LOGGER.warning(
+                        "Bad sensor for zone %s: %s", zone_obj._id, sensors,
+                    )
+                    zone_obj._sensors = None
+
         if msg.code in ["000A", "2309", "30C9"]:
             if msg.is_array:
                 super().update(msg)
@@ -330,50 +400,16 @@ class Controller(Device):
             self._fault_log[msg.payload["log_idx"]] = msg
             # print(self.fault_log)
 
-        if msg.code == "30C9":  # then try to find the zone sensors...
-            # do any zones need their sensor finding?
-            zones = [z for z in self._evo.zones if z.sensor is None]
-            if not zones:  # exit now if all zones have a sensor
-                return
-
-            # test only those zones with unique temperatures
-            test_zones = []
-            for zone in zones:
-                temps = [z.temperature for z in self._evo.zones if z._id != zone._id]
-                if zone.temperature not in temps:  # is it a unique temp?
-                    test_zones.append(zone)
-            if not test_zones:  # test only zones with unique temperatures
-                return
-
-            devices = [
+        # then try to find the zone sensors...
+        if msg.code == "30C9" and isinstance(msg.payload, list):  # msg.is_array:
+            sensors = [
                 d
                 for d in self._evo.devices
                 if hasattr(d, "temperature") and d.device_type != "DHW"
             ]
-            # OPTIONAL: are there any orphan sensors without a temperature?
-            if [s for s in devices if s.temperature is None and s.parent_zone is None]:
-                return
-
-            # nnn
-            for zone in test_zones:
-                test_sensors = [
-                    d
-                    for d in devices
-                    if d.parent_zone is None or d.parent_zone == zone._id
-                ]
-                sensors = [d for d in test_sensors if d.temperature == zone.temperature]
-
-                if len(sensors) == 1:
-                    if not zone._sensors:
-                        zone._sensors = [sensors[0]._id]
-                    else:
-                        assert zone._sensors[0] == sensors[0]._id
-                        zone._sensor = sensors[0]._id
-                        _LOGGER.debug(
-                            "Discovered sensor for zone %s: %s",
-                            zone._id,
-                            sensors[0]._id,
-                        )
+            _update_zone_sensors(sensors)
+            orphans = {d._id: d.temperature for d in sensors if d._parent_zone is None}
+            _LOGGER.debug("Orphan sensors: %s", orphans)
 
     async def update_fault_log(self) -> list:
         # WIP: try to discover fault codes
@@ -675,15 +711,16 @@ class Zone(Entity):
     def temperature(self):  # 30C9
         # TODO: should use the most recent of these two
 
-        temp = self._get_pkt_value("30C9", "temperature")
-        if temp:
-            return temp
-
-        # use the last sync_cycle array value if there isn't an RP
+        # use the last sync_cycle array value
         result = self._evo.ctl._get_pkt_value("30C9")
         if result:
             result = [d for d in result if d["zone_idx"] == self.zone_idx]
             return result[0]["temperature"]
+
+        # use the last sync_cycle array value if there isn't an RP
+        temp = self._get_pkt_value("30C9", "temperature")
+        if temp:
+            return temp
 
     @property
     def heat_demand_alt(self) -> Optional[float]:  # 3150
