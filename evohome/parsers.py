@@ -870,6 +870,17 @@ def parser_31d9(payload, msg) -> Optional[dict]:
     assert payload[2:] == "00FF0000000000000000000000000000"
 
     return {**_idx(payload[:2], msg), "unknown_0": payload[2:]}
+    assert payload[2:] in [
+        "00FF0000000000000000000000000000",
+        "06010020202020202020202020202000",
+    ]
+
+    return {
+        **_idx(payload[:2], msg),
+        "unknown_0": payload[2:8],
+        "unknown_1": payload[8:32],
+        "unknown_2": payload[32:],
+    }
 
 
 @parser_decorator
