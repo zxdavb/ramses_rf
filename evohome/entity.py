@@ -12,7 +12,7 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-_LOGGER.setLevel(logging.DEBUG)
+# _LOGGER.setLevel(logging.DEBUG)
 
 
 def dev_hex_to_id(device_hex: str, friendly_id=False) -> str:
@@ -366,8 +366,8 @@ class Controller(Device):
                         zone_obj._sensor = sensors[0]._id
                         # TODO: currently no way to find parent zone 4 THM/THm...
                         sensors[0]._parent_zone = zone_obj._id
-                        _LOGGER.debug(
-                            "Confirmed sensor for zone %s: %s",
+                        _LOGGER.warning(
+                            "Found sensor for zone %s: %s",
                             zone_obj._id,
                             sensors[0]._id,
                         )
@@ -379,7 +379,7 @@ class Controller(Device):
                         )
                         zone_obj._sensors = None
                 else:
-                    _LOGGER.warning(
+                    _LOGGER.debug(
                         "Bad sensor for zone %s: %s", zone_obj._id, sensors,
                     )
                     zone_obj._sensors = None
