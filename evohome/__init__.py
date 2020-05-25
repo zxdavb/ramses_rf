@@ -195,7 +195,7 @@ class Gateway:
                 print(f"Devices:\r\n{json.dumps(self.evo._devices, indent=4)}")
                 print(f"Domains:\r\n{json.dumps(self.evo._domains, indent=4)}")
                 print(f"Zones  :\r\n{json.dumps(self.evo._zones, indent=4)}")
-            except (LookupError, TypeError, ValueError):
+            except (AttributeError, LookupError, TypeError, ValueError):
                 _LOGGER.warning("Failed to print State data", exc_info=True)
 
     async def start(self) -> None:
