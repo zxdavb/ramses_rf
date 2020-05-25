@@ -15,7 +15,7 @@ from .logger import time_stamp
 
 BAUDRATE = 115200
 READ_TIMEOUT = 0.5
-XON_XOFF = False
+XON_XOFF = True
 
 RAW_PKT = namedtuple("Packet", ["datetime", "packet", "bytearray"])
 
