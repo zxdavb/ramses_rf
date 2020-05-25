@@ -867,9 +867,6 @@ def parser_3150(payload, msg) -> Optional[dict]:  # heat_demand (of device, FC d
 @parser_decorator
 def parser_31d9(payload, msg) -> Optional[dict]:
     assert len(payload) / 2 == 17  # usu: I 30:-->30:, with a seq#!
-    assert payload[2:] == "00FF0000000000000000000000000000"
-
-    return {**_idx(payload[:2], msg), "unknown_0": payload[2:]}
     assert payload[2:] in [
         "00FF0000000000000000000000000000",
         "06010020202020202020202020202000",
