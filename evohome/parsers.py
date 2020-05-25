@@ -125,7 +125,7 @@ def parser_decorator(func):
         if msg.code == "3220":  # CTL -> OTB (OpenTherm)
             return func(*args, **kwargs)
 
-        if msg.code == "31DA":
+        if msg.code in ["31D9", "31DA"]:  # ventilation
             # 047 RQ --- 32:168090 30:082155 --:------ 31DA 001 21
             assert msg.len == 1
             return {**_idx(payload[:2], msg)}
@@ -166,11 +166,15 @@ def _idx(seqx, msg) -> dict:
     elif msg.code == "0418":
         # 0418 has a dmain_id/zone_idx, but it is actually indexed by log_idx
         assert int(seqx, 16) < 64
-        idx_name = "log_idx"
+        return {"log_idx": seqx}
 
     elif msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9"] + ["1FC9"]:
         assert int(seqx, 16) < 12  # whitelist: this can be a "00"; can hometronic > 11?
         idx_name = "zone_idx" if msg.dev_from[:2] in ["01", "18"] else "parent_zone_idx"
+
+    elif msg.code in ["31D9", "31DA"]:  # ventilation
+        assert seqx in ["00", "21"]
+        return {"vent_id": seqx}
 
     elif not int(seqx, 16) < 12:
         idx_name = "other_id"  # this can be (e.g.) "21"
