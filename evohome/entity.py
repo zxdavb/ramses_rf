@@ -333,9 +333,9 @@ class Controller(Device):
                 return
 
             # OPTIONAL: are there any orphan sensors without a temperature?
-            if [s for s in devices if s.parent_zone is None and s.temperature is None]:
-                _LOGGER.debug("Some orphans don't have a temperature.")
-                return
+            # if [s for s in devices if s.parent_zone is None and s.temperature is None]:  # noqa: E501
+            #     _LOGGER.debug("Some orphans don't have a temperature.")
+            #     return
 
             # nnn
             for zone in test_zones:
