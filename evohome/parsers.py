@@ -163,9 +163,14 @@ def _idx(seqx, msg) -> dict:
         assert int(seqx, 16) < 8  # this can be a "00"
         idx_name = "ufh_idx"
 
-    elif msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9"] + ["1FC9", "0418"]:
+    elif msg.code == "0418":
+        # 0418 has a dmain_id/zone_idx, but it is actually indexed by log_idx
+        assert int(seqx, 16) < 64
+        idx_name = "log_idx"
+
+    elif msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9"] + ["1FC9"]:
         assert int(seqx, 16) < 12  # whitelist: this can be a "00"; can hometronic > 11?
-        idx_name = "zone_idx"
+        idx_name = "zone_idx" if msg.dev_from[:2] in ["01", "18"] else "parent_zone_idx"
 
     elif not int(seqx, 16) < 12:
         idx_name = "other_id"  # this can be (e.g.) "21"
@@ -178,8 +183,9 @@ def _idx(seqx, msg) -> dict:
     if msg.dev_from[:2] == "18":  # and msg.verb == "RQ":
         result = {idx_name: seqx}
 
-    elif msg.code in "1FC9":
-        result = {}  # an exception
+    elif msg.code in ["1FC9"]:  # exceptions
+        # 1FC9 dict is encoded in a way that id/idx not currently used
+        result = {}
 
     elif "01" == msg.dev_from[:2] and msg.dev_from == msg.dev_dest:
         result = {idx_name: seqx}  # either an array, or domain=Fx
@@ -474,18 +480,18 @@ def parser_0418(payload, msg) -> Optional[dict]:  # system_fault
     assert int(payload[4:6], 16) <= 63  # TODO: upper limit is: 60? 63? more?
     assert payload[6:8] == "B0"  # unknown_1, ?priority
     assert payload[8:10] in list(FAULT_TYPE)
-    assert int(payload[10:12], 16) < 12 or payload[10:12] in ["FA", "FC"]
+    assert int(payload[10:12], 16) < 12 or payload[10:12] in ["FA", "FC"]  # ?FB, etc.
     assert payload[12:14] in list(FAULT_DEVICE_CLASS)
     assert payload[14:18] == "0000"  # unknown_2
     assert payload[28:30] in ["7F", "FF"]  # last bit in dt field
     assert payload[30:38] == "FFFF7000"  # unknown_3
     #
     return {
-        "log_idx": payload[4:6],
+        **_idx(payload[4:6], msg),  # "log_idx": ...
         "timestamp": _timestamp(payload[18:30]),
         "fault_state": FAULT_STATE.get(payload[2:4], payload[2:4]),
         "fault_type": FAULT_TYPE.get(payload[8:10], payload[8:10]),
-        **_idx(payload[10:12], msg),
+        "zone_idx" if int(payload[10:12], 16) < 12 else "domain_id": payload[10:12],
         "device_class": FAULT_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
         "device_id": dev_hex_to_id(payload[38:]),  # is "00:000001/2 for CTL?
     }
@@ -955,6 +961,24 @@ def parser_3220(payload, msg) -> Optional[dict]:  # opentherm_msg
 def parser_3b00(payload, msg) -> Optional[dict]:  # sync_tpi (TPI cycle HB/sync)
     # https://www.domoticaforum.eu/viewtopic.php?f=7&t=5806&start=105#p73681
     # TODO: alter #cycles/hour & check interval between 3B00/3EF0 changes
+    """Decode a 3B00 packet (sync_tpi).
+
+    The boiler relay regularly broadcasts a 3B00 at the start (or the end?) of every TPI
+    cycle, the frequency of which is determined by the (TPI) cycle rate in 1100.
+
+    The CTL subsequently broadcasts a 3B00 (i.e. at the start of every TPI cycle).
+
+    The OTB does not send these packets, but the CTL sends a regular broadcasty
+     anyway.
+    """
+
+    # 053  I --- 13:209679 --:------ 13:209679 3B00 002 00C8
+    # 045  I --- 01:158182 --:------ 01:158182 3B00 002 FCC8
+    # 052  I --- 13:209679 --:------ 13:209679 3B00 002 00C8
+    # 045  I --- 01:158182 --:------ 01:158182 3B00 002 FCC8
+
+    # 063  I --- 01:078710 --:------ 01:078710 3B00 002 FCC8
+    # 064  I --- 01:078710 --:------ 01:078710 3B00 002 FCC8
 
     assert len(payload) / 2 == 2
     assert payload[:2] in {"01": "FC", "13": "00"}.get(msg.dev_from[:2])
