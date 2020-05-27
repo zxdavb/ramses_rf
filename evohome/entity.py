@@ -12,7 +12,7 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-# _LOGGER.setLevel(logging.DEBUG)
+_LOGGER.setLevel(logging.DEBUG)
 
 
 def dev_hex_to_id(device_hex: str, friendly_id=False) -> str:
@@ -320,7 +320,7 @@ class Controller(Device):
 
     def update(self, msg):
         def _update_zone_sensors() -> None:
-            # new_temps (for now), old_temps (always) must be lists
+            # all, including msg.pyload (for now) must be lists
             old, new, self._old_temps = self._old_temps, msg.payload, msg.payload
             if old is None:  # must definitely be a list
                 return
@@ -335,18 +335,17 @@ class Controller(Device):
                 z
                 for z in zones
                 if z.temperature not in [x for x in zones if x != z]
-                and z.sensor == None  # noqa: W503
+                and z.sensor is None
             ]
             if not test_zones:  # test only zones with unique temperatures
-                _LOGGER.debug("No testable zones (e.g. duplicate temps - stopping).")
                 return
 
             all_sensors = [
                 d
                 for d in self._evo.devices
                 if d.device_type != "DHW"
-                and hasattr(d, "temperature")  # noqa: W503
-                and d.temperature is not None  # noqa: W503
+                and hasattr(d, "temperature")
+                and d.temperature is not None
             ]
 
             for z in test_zones:
@@ -354,13 +353,14 @@ class Controller(Device):
                 sensors = [
                     d
                     for d in all_sensors
-                    if d.parent_zone in [z._id, None]
-                    and d.temperature == z.temperature  # noqa: W503
+                    if d.parent_zone in [z._id, None] and d.temperature == z.temperature
                 ]
 
                 if len(sensors) == 1:
                     z._sensor, sensors[0].parent_zone = sensors[0]._id, z._id
                     _LOGGER.debug("Found sensor for zone %s: %s", z._id, sensors[0]._id)
+                elif len(sensors) == 0:
+                    _LOGGER.debug("** No sensor for zone %s (uses CTL?)", z._id)
                 else:
                     _LOGGER.debug("Many sensors for zone %s: %s", z._id, sensors)
 
@@ -711,8 +711,8 @@ class Zone(Entity):
             d.heat_demand
             for d in self._evo.devices
             if d.device_id in self.devices
-            and hasattr(d, "heat_demand")  # noqa: W503
-            and d.heat_demand is not None  # noqa: W503
+            and hasattr(d, "heat_demand")
+            and d.heat_demand is not None
         ]
         return max(demands + [0]) if demands else None
 
