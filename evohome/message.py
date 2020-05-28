@@ -1,5 +1,6 @@
 """Message processor."""
 
+from datetime import datetime as dt
 import logging
 from typing import Any
 
@@ -29,6 +30,7 @@ class Message:
 
         self.date = pkt.date
         self.time = pkt.time
+        self.dtm = dt.fromisoformat(f"{pkt.date}T{pkt.time}")
 
         self.rssi = packet[0:3]
         self.verb = packet[4:6]
@@ -79,7 +81,9 @@ class Message:
 
         self._repr = msg_format.format(
             display_name(self.dev_from),
-            display_name(self.dev_dest),
+            display_name(self.dev_dest)
+            if self.dev_dest != self.dev_from
+            else ".announce.",
             self.verb,
             COMMAND_MAP.get(self.code, f"unknown_{self.code}"),
             self.raw_payload if self.len < 4 else f"{self.raw_payload[:5]}..."[:9],

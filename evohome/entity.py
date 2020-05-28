@@ -199,7 +199,6 @@ class Device(Entity):
         self._has_battery = device_id[:2] in ["04", "12", "22", "30", "34"]
         self._device_type = DEVICE_TYPES.get(device_id[:2], f"{device_id[:2]:>3}")
         self.__parent_zone = self.parent_000c = None
-        self._old_temps = None
 
         attrs = gateway.known_devices.get(device_id)
         self._friendly_name = attrs.get("friendly_name") if attrs else None
@@ -255,7 +254,7 @@ class Device(Entity):
             return self.__parent_zone
 
         for msg in self._pkts.values():
-            assert "zone_idx" not in msg.payload
+            # assert "zone_idx" not in msg.payload
             if "parent_zone_idx" in msg.payload:
                 self.__parent_zone = msg.payload["parent_zone_idx"]
                 break
@@ -283,8 +282,9 @@ class Controller(Device):
         assert self._evo.ctl is None, "WARNING: >1 controller!"
         self._evo.ctl = self
 
-        self._fault_log = {}
         self._boiler_relay = None
+        self._fault_log = {}
+        self._prev_30c9 = None
 
     def _discover(self):
         super()._discover()
@@ -320,49 +320,69 @@ class Controller(Device):
 
     def update(self, msg):
         def _update_zone_sensors() -> None:
-            # all, including msg.pyload (for now) must be lists
-            old, new, self._old_temps = self._old_temps, msg.payload, msg.payload
-            if old is None:  # must definitely be a list
+            prev_msg, self._prev_30c9 = self._prev_30c9, msg
+            if prev_msg is None:
                 return
 
-            # do any zones need, and are able to have, their sensor found?
+            old, new = prev_msg.payload, msg.payload
             zones = [self._evo.zone_by_id[z["zone_idx"]] for z in new if z not in old]
-            if not zones:  # exit now if all zones have a sensor
+            if not zones:  # have any zones changed their temp since the last cycle?
                 return
 
-            # test only those zones with unique temperatures
             test_zones = [
                 z
                 for z in zones
-                if z.temperature not in [x for x in zones if x != z]
-                and z.sensor is None
+                if z.sensor is None
+                and z.temperature not in [x for x in zones if x != z] + [None]
             ]
-            if not test_zones:  # test only zones with unique temperatures
+            if not test_zones:  # we test sensorless zones with a unique, non-null temps
                 return
 
             all_sensors = [
                 d
                 for d in self._evo.devices
-                if d.device_type != "DHW"
-                and hasattr(d, "temperature")
-                and d.temperature is not None
+                if d.device_type != "DHW" and hasattr(d, "temperature")
             ]
 
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                sensorless_zones = {
+                    z._id: z.temperature for z in self._evo.zones if z.sensor is None
+                }
+                _LOGGER.debug("Sensorless zones: %s", sensorless_zones)
+                orphan_sensors = {
+                    d._id: d.temperature for d in all_sensors if d.parent_zone is None
+                }
+                _LOGGER.debug("Zoneless sensors: %s", orphan_sensors)
+
             for z in test_zones:
-                _LOGGER.debug("Considering zone %s, temp is: %s", z._id, z.temperature)
+                _LOGGER.debug("Can check zone %s, temp now: %s", z._id, z.temperature)
                 sensors = [
                     d
                     for d in all_sensors
-                    if d.parent_zone in [z._id, None] and d.temperature == z.temperature
+                    if d.parent_zone in [z._id, None]
+                    and d.temperature == z.temperature
+                    and d._pkts["30C9"].dtm > prev_msg.dtm
                 ]
 
                 if len(sensors) == 1:
                     z._sensor, sensors[0].parent_zone = sensors[0]._id, z._id
-                    _LOGGER.debug("Found sensor for zone %s: %s", z._id, sensors[0]._id)
+                    _LOGGER.debug(" - found sensor, zone %s: %s", z._id, sensors[0]._id)
                 elif len(sensors) == 0:
-                    _LOGGER.debug("** No sensor for zone %s (uses CTL?)", z._id)
+                    _LOGGER.debug(" - ** No sensor, zone %s, uses CTL?", z._id)
                 else:
-                    _LOGGER.debug("Many sensors for zone %s: %s", z._id, sensors)
+                    _LOGGER.debug(" - many sensors, zone %s: %s", z._id, sensors)
+
+            # now see if we can allocate the controller as a sensor...
+            zones = [z for z in self._evo.zones if z.sensor is None]
+            if len(zones) != 1:
+                return  # no zone without a sensor
+
+            if [d for d in all_sensors if d.parent_zone is None]:
+                return  # >0 sensors without a zone
+
+            # safely(?) assume this zone is using the CTL as a sensor...
+            zones[0]._sensor, self.parent_zone = self._id, zones[0]._id
+            _LOGGER.debug("Found sensor for last zone %s: %s", zones[0]._id, self._id)
 
         if msg.code in ["000A", "2309", "30C9"]:
             if msg.is_array:
@@ -376,15 +396,6 @@ class Controller(Device):
 
         if msg.code == "30C9" and isinstance(msg.payload, list):  # msg.is_array:
             _update_zone_sensors()
-            all_sensors = [
-                d
-                for d in self._evo.devices
-                if hasattr(d, "temperature") and d.device_type != "DHW"
-            ]
-            orphans = {
-                d._id: d.temperature for d in all_sensors if d.parent_zone is None
-            }
-            _LOGGER.debug("Orphan sensors: %s", orphans)
 
         if msg.code == "3EF1" and msg.verb == "RQ":  # relay attached to a burner
             if msg.dev_dest[:2] == "13":  # this is the TPI relay
@@ -429,10 +440,6 @@ class Controller(Device):
         if not __dev_mode__:
             assert len(sensors) < 2  # This may fail for testing
         return sensors[0] if sensors else None
-
-    @property
-    def parent_zone(self) -> None:
-        return "FF"
 
 
 class DhwSensor(Device, Battery):
