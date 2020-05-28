@@ -12,7 +12,7 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-_LOGGER.setLevel(logging.DEBUG)
+# _LOGGER.setLevel(logging.DEBUG)
 
 
 def dev_hex_to_id(device_hex: str, friendly_id=False) -> str:
@@ -678,7 +678,7 @@ class Zone(Entity):
     @property
     def actuators(self) -> list:  # 000C
         actuators = self._get_pkt_value("000C", "actuators")
-        return actuators if actuators is not None else []
+        return actuators if actuators is not None else []  # TODO: should be: actuators
 
     @property
     def setpoint_status(self):  # 2349
