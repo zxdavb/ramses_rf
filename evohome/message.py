@@ -239,7 +239,21 @@ class Message:
             [_device(d, self.payload["zone_idx"]) for d in self.payload["actuators"]]
 
         # STEP 1: discover devices by eavesdropping regular pkts
-        [_device(d) for d in self.dev_addr if d[:2] not in ["18", "63", "--"]]
+
+        # this is used to limit discovery to devices conversing with controller
+        if self._evo.ctl_id is None:
+            if self.dev_from[:2] == "01":
+                self._evo.ctl_id = self.dev_from
+            if self.dev_dest[:2] == "01":
+                self._evo.ctl_id = self.dev_dest
+
+        [
+            _device(d)
+            for d in self.dev_addr
+            if d[:2] not in ["18", "63", "--"]
+            # and self._evo.ctl_id in [self.dev_from, self.dev_dest]  # doesn't work
+            # and self._evo.ctl_id is not None  # doesn't work
+        ]  # TODO: the above doesn't work for 12:, 22:, 34:
 
         # STEP 2: discover domains and zones by eavesdropping regular pkts
         if isinstance(self._payload, dict):
@@ -273,7 +287,10 @@ class Message:
         if not self.payload:  # should be {} (possibly empty) or [...] (never empty)
             return  # TODO: will stop useful RQs getting to update()? (e.g. RQ/3EF1)
 
-        self._evo.device_by_id[self.dev_from].update(self)
+        try:
+            self._evo.device_by_id[self.dev_from].update(self)
+        except KeyError:  # some devices won't be created because filtered
+            return
 
         if self.code != "0418":  # update domains & zones
             if "zone_idx" in self.payload:
