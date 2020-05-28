@@ -152,10 +152,10 @@ DEVICE_LOOKUP = {v: k for k, v in DEVICE_TYPES.items()}
 DOMAIN_MAP = {
     # "21": "Ventilation",
     "F8": "???",
-    "F9": "Heating",
+    "F9": "Heating",  # Central Heating
     "FB": "???",  # TODO: bind CS92 with BDRs in both modes
     "FA": "HotWater",  # Stored DHW?
-    "FC": "Boiler",  # "Heat Demand", TPI or OTB
+    "FC": "Boiler",  # "Heat Source": BDR (Boiler, District heating), or OTB
     "FF": "System",
 }
 
