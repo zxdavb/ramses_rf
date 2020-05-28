@@ -35,9 +35,10 @@ class EvohomeSystem:
             attr = [a for a in dir(entity) if not callable(getattr(entity, a))]
             return [a for a in attr if not a.startswith("_") and a != id_attr]
 
-        return {
+        result = {
             getattr(e, id_attr): {a: getattr(e, a) for a in attrs(e)} for e in entities
         }
+        return dict(sorted(result.items()))
 
     @property
     def _devices(self) -> dict:
