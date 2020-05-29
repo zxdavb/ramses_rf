@@ -69,22 +69,23 @@ class Gateway:
                 )
                 config["execute_cmd"] = None
 
-        if config.get("raw_output", 0) > 1 and config.get("message_log"):
+        if config.get("raw_output", 0) > 2 and config.get("message_log"):
             _LOGGER.warning(
-                "Raw output specified, so disabling message_log (%s)",
+                "Raw output = %s, so disabling message_log (%s)",
+                config["raw_output"],
                 config["message_log"],
             )
             config["message_log"] = False
 
         set_logging(
             msg_logger,
-            stream=None if config.get("raw_output", 0) > 1 else sys.stdout,
+            stream=None if config.get("raw_output", 0) > 2 else sys.stdout,
             file_name=self.config.get("message_log"),
         )
 
         set_logging(
             pkt_logger,
-            stream=sys.stdout if config.get("raw_output", 0) == 2 else None,
+            stream=sys.stdout if config.get("raw_output", 0) > 2 else None,
             file_name=self.config.get("packet_log"),
             file_fmt=PKT_LOG_FMT + BANDW_SUFFIX,
             cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
@@ -351,16 +352,21 @@ class Gateway:
             await self._output_db.commit()
 
         # finally, process packet payloads as messages
-        if self.config.get("raw_output", 0) < 2:
-            self._process_payload(pkt)
+        self._process_payload(pkt)
 
     def _process_payload(self, pkt: Packet) -> None:
         """Decode the packet and its payload."""
         # if any(x in pkt.packet for x in self.config.get("blacklist", [])):
         #     return  # silently drop packets with blacklisted text
 
+        if self.config.get("raw_output", 0) > 2:
+            return
+
         try:
             msg = Message(pkt, self)
+            if not msg.is_valid:  # trap/logs all exceptions appropriately
+                return
+
         except (AssertionError, NotImplementedError):
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
             return
@@ -368,7 +374,7 @@ class Gateway:
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
             return
 
-        if not msg.is_valid:  # trap/logs all exceptions appropriately
+        if self.config.get("raw_output", 0) > 1:
             return
 
         # only reliable packets should become part of the state data
@@ -385,6 +391,5 @@ class Gateway:
 
         except AssertionError:  # TODO: for dev only?
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
-
         except (LookupError, TypeError, ValueError):  # TODO: shouldn't be needed?
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
