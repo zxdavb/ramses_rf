@@ -89,8 +89,10 @@ def parser_decorator(func):
             assert msg.len < 3  # if msg.code == "0004" else 2
             return {**_idx(payload[:2], msg)}
 
-        if msg.code == "0016":
-            return func(*args, **kwargs)  # parent_zone_idx not well understood
+        if msg.code == "0016" and msg.dev_from[:2] in ["12", "22"]:
+            assert len(payload) / 2 == 2
+            assert int(payload[:2], 16) < 12
+            return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
 
         if msg.code == "0100":  # 04: will RQ language
             assert len(payload) / 2 in [1, 5]  # len(RQ) = 5, but 00 accepted
@@ -153,20 +155,26 @@ def _idx(seqx, msg) -> dict:
     Anything in the range F0-FF appears to be a domain_id (no false +ve/-ves).
     """
     # STEP 1: identify the index name, if any
+
     if seqx in DOMAIN_MAP:  # no false +ve/-ves
         idx_name = "domain_id"
-
-    elif msg.code in ["2E04"]:  # blacklist: never _idx, although some are != "00"
-        return {}
-
-    elif msg.dev_from[:2] == "02" and msg.code == "22C9":  # ufh_setpoint
-        assert int(seqx, 16) < 8  # this can be a "00"
-        idx_name = "ufh_idx"
 
     elif msg.code == "0418":
         # 0418 has a dmain_id/zone_idx, but it is actually indexed by log_idx
         assert int(seqx, 16) < 64
         return {"log_idx": seqx}
+
+    # new: WIP
+    elif msg.code == "0016" and {"12", "22"} & set([d[:2] for d in msg.dev_addr]):
+        assert int(seqx, 16) < 12
+        idx_name = "zone_idx" if msg.dev_from[:2] == "01" else "parent_zone_idx"
+
+    elif msg.code == "2E04":  # blacklist: never _idx, although some are != "00"
+        return {}
+
+    elif msg.code == "22C9" and msg.dev_from[:2] == "02":  # ufh_setpoint
+        assert int(seqx, 16) < 8  # this can be a "00"
+        idx_name = "ufh_idx"
 
     elif msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9"] + ["1FC9"]:
         assert int(seqx, 16) < 12  # whitelist: this can be a "00"; can hometronic > 11?
@@ -423,16 +431,19 @@ def parser_000e(payload, msg) -> Optional[dict]:  # unknown
 @parser_decorator
 def parser_0016(payload, msg) -> Optional[dict]:  # rf_check
     # TODO: some RQs also contain a payload with data, zz00?
+    # 046 RQ --- 22:060293 01:078710 --:------ 0016 002 0200
+    # 064 RP --- 01:078710 22:060293 --:------ 0016 002 021E
+
     assert msg.verb in ["RQ", "RP"]
     assert len(payload) / 2 == 2  # for both RQ/RP, but RQ/00 will work
-    assert payload[:2] == "00"  # e.g. RQ/22:/0z00 (parent_zone), but RQ/07:/0000?
+    # assert payload[:2] == "00"  # e.g. RQ/22:/0z00 (parent_zone), but RQ/07:/0000?
 
     if msg.verb == "RQ":
-        return {"rf_request": msg.dev_dest}
+        return {}  # {"rf_request": msg.dev_dest}
 
     rf_value = int(payload[2:4], 16)
     return {
-        "rf_source": msg.dev_dest,
+        #  "rf_source": msg.dev_dest,
         "rf_strength": min(int(rf_value / 5) + 1, 5),
         "rf_value": rf_value,
     }
@@ -859,7 +870,7 @@ def parser_3150(payload, msg) -> Optional[dict]:  # heat_demand (of device, FC d
         assert seqx[:2] == "FC" or (int(seqx[:2], 16) < 12)  # <5, 8 for UFH
         return {**_idx(seqx[:2], msg), "heat_demand": _percent(seqx[2:])}
 
-    if msg.dev_from[:2] == "02" and msg.is_array:  # TODO: these don't exist!
+    if msg.dev_from[:2] == "02" and msg.is_array:  # TODO: hometronics only?
         return [_parser(payload[i : i + 4]) for i in range(0, len(payload), 4)]
 
     assert msg.len == 2  # msg.dev_from[:2] in ["01","02","10","04"]
