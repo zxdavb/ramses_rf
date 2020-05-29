@@ -153,8 +153,8 @@ DOMAIN_MAP = {
     # "21": "Ventilation",
     "F8": "???",
     "F9": "Heating",  # Central Heating
-    "FB": "???",  # TODO: bind CS92 with BDRs in both modes
     "FA": "HotWater",  # Stored DHW?
+    "FB": "???",  # TODO: bind CS92 with BDRs in both modes
     "FC": "Boiler",  # "Heat Source": BDR (Boiler, District heating), or OTB
     "FF": "System",
 }
