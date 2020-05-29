@@ -231,29 +231,29 @@ class Message:
             # assert int(zone_idx, 16) < 12  # TODO: > 11 not for Hometronic, leave out
             _entity(Zone, zone_idx, self._evo.zone_by_id, self._evo.zones)
 
-        if self.code != "000C":  # TODO probably best not in is_valid()
+        if self.code != "000C":  # TODO: assert here, or in is_valid()
             assert self.is_array == isinstance(self.payload, list)
+
+        if self._evo.ctl_id not in self._evo.device_by_id:
+            _device(self._evo.ctl_id)
 
         # STEP 0: discover devices by harvesting zone_actuators payload
         if self.code == "000C" and self.verb == "RP":  # or: from CTL/000C
             [_device(d, self.payload["zone_idx"]) for d in self.payload["actuators"]]
 
         # STEP 1: discover devices by eavesdropping regular pkts
-
-        # this is used to limit discovery to devices conversing with controller
-        if self._evo.ctl_id is None:
-            if self.dev_from[:2] == "01":
-                self._evo.ctl_id = self.dev_from
-            if self.dev_dest[:2] == "01":
-                self._evo.ctl_id = self.dev_dest
-
+        # limit discovery to devices conversing with controller
         [
             _device(d)
             for d in self.dev_addr
             if d[:2] not in ["18", "63", "--"]
-            # and self._evo.ctl_id in [self.dev_from, self.dev_dest]  # doesn't work
-            # and self._evo.ctl_id is not None  # doesn't work
-        ]  # TODO: the above doesn't work for 12:, 22:, 34:
+            # and (
+            #     self.dev_from in self._evo.device_by_id
+            #     or self.dev_dest in self._evo.device_by_id
+            # )  # doesn't work
+        ]  # TODO: the above/below doesn't work for 12:, 22:, 34:
+        # and self._evo.ctl_id in [self.dev_from, self.dev_dest]
+        # and self._evo.ctl_id is not None  # doesn't work
 
         # STEP 2: discover domains and zones by eavesdropping regular pkts
         if isinstance(self._payload, dict):
@@ -293,7 +293,7 @@ class Message:
             return
 
         if self.code != "0418":  # update domains & zones
-            if "zone_idx" in self.payload:
-                self._evo.zone_by_id[self.payload["zone_idx"]].update(self)
             if "domain_id" in self.payload:
                 self._evo.domain_by_id[self.payload["domain_id"]].update(self)
+            if "zone_idx" in self.payload:
+                self._evo.zone_by_id[self.payload["zone_idx"]].update(self)
