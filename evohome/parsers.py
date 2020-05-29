@@ -159,7 +159,7 @@ def _idx(seqx, msg) -> dict:
     elif msg.code in ["2E04"]:  # blacklist: never _idx, although some are != "00"
         return {}
 
-    elif msg.dev_from[:2] == "02" and msg.code in ["22C9", "3150"]:  # ufh_setpoint
+    elif msg.dev_from[:2] == "02" and msg.code == "22C9":  # ufh_setpoint
         assert int(seqx, 16) < 8  # this can be a "00"
         idx_name = "ufh_idx"
 
@@ -170,7 +170,9 @@ def _idx(seqx, msg) -> dict:
 
     elif msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9"] + ["1FC9"]:
         assert int(seqx, 16) < 12  # whitelist: this can be a "00"; can hometronic > 11?
-        idx_name = "zone_idx" if msg.dev_from[:2] in ["01", "18"] else "parent_zone_idx"
+        idx_name = (
+            "zone_idx" if msg.dev_from[:2] in ["01", "02", "18"] else "parent_zone_idx"
+        )
 
     elif msg.code in ["31D9", "31DA"]:  # ventilation
         assert seqx in ["00", "21"]
@@ -857,7 +859,7 @@ def parser_3150(payload, msg) -> Optional[dict]:  # heat_demand (of device, FC d
         assert seqx[:2] == "FC" or (int(seqx[:2], 16) < 12)  # <5, 8 for UFH
         return {**_idx(seqx[:2], msg), "heat_demand": _percent(seqx[2:])}
 
-    if msg.dev_from[:2] == "02" and msg.is_array:  # UFH -> ufh_idx
+    if msg.dev_from[:2] == "02" and msg.is_array:  # TODO: these don't exist!
         return [_parser(payload[i : i + 4]) for i in range(0, len(payload), 4)]
 
     assert msg.len == 2  # msg.dev_from[:2] in ["01","02","10","04"]
