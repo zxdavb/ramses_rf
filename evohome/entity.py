@@ -373,7 +373,7 @@ class Controller(Device):
                     _LOGGER.debug(" - many sensors, zone %s: %s", z._id, sensors)
 
             # now see if we can allocate the controller as a sensor...
-            zones = [z for z in self._evo.zones if z.sensor is None]
+            zones = [z for z in test_zones if z.sensor is None]
             if len(zones) != 1:
                 return  # no zone without a sensor
 
@@ -382,7 +382,9 @@ class Controller(Device):
 
             # safely(?) assume this zone is using the CTL as a sensor...
             zones[0]._sensor, self.parent_zone = self._id, zones[0]._id
-            _LOGGER.debug("Found sensor for last zone %s: %s", zones[0]._id, self._id)
+            _LOGGER.debug(
+                "Sensor is CTL by exclusion, zone %s: %s", zones[0]._id, self._id
+            )
 
         if msg.code in ["000A", "2309", "30C9"]:
             if msg.is_array:
