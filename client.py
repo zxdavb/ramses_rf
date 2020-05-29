@@ -48,7 +48,7 @@ def parse(obj, **kwargs):
 @click.option("-p", "--probe-system", help="TBD", is_flag=True)
 @click.option("-x", "--execute-cmd", help="TBD")
 @click.option("-T", "--evofw-flag", help="TBD")
-@click.option("-C", "--ser2net", help="addr:port, e.g. '127.0.0.1:5001'")
+@click.option("-C", "--ser2net-server", help="addr:port, e.g. '127.0.0.1:5001'")
 @click.option(
     "-o", "--packet-log", help="TBD", type=click.Path(), default="packets.log"
 )

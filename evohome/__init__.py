@@ -185,7 +185,7 @@ class Gateway:
                 with open(self.config["known_devices"], "w") as json_file:
                     json.dump(self.known_devices, json_file, sort_keys=True, indent=4)
 
-            except (LookupError, TypeError, ValueError):
+            except (AssertionError, AttributeError, LookupError, TypeError, ValueError):
                 _LOGGER.exception(
                     "Failed update of %s", self.config.get("known_devices")
                 )
@@ -195,7 +195,7 @@ class Gateway:
                 print(f"Devices:\r\n{json.dumps(self.evo._devices, indent=4)}")
                 print(f"Domains:\r\n{json.dumps(self.evo._domains, indent=4)}")
                 print(f"Zones  :\r\n{json.dumps(self.evo._zones, indent=4)}")
-            except (AttributeError, LookupError, TypeError, ValueError):
+            except (AssertionError, AttributeError, LookupError, TypeError, ValueError):
                 _LOGGER.warning("Failed to print State data", exc_info=True)
 
     async def start(self) -> None:
@@ -252,9 +252,9 @@ class Gateway:
                         await self._dispatch_pkt(destination=manager)
                     await asyncio.sleep(0.1)
 
-            if self.config.get("ser2net"):
+            if self.config.get("ser2net_server"):
                 self._relay = Ser2NetServer(
-                    self.config["ser2net"], self.cmd_que, loop=self.loop
+                    self.config["ser2net_server"], self.cmd_que, loop=self.loop
                 )
                 self._tasks.append(asyncio.create_task(self._relay.start()))
 
