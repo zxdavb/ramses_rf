@@ -6,7 +6,10 @@ from .command import Command
 from .const import (
     COMMAND_SCHEMA,
     DEVICE_LOOKUP,
+    DEVICE_HAS_BATTERY,
     DEVICE_TYPES,
+    DEVICE_TYPE_MAP,
+    DOMAIN_TYPE_MAP,
     ZONE_TYPE_MAP,
     __dev_mode__,
 )
@@ -41,13 +44,13 @@ class Entity:
     """The base class."""
 
     def __init__(self, entity_id, gateway) -> None:
-        self._id = entity_id
+        self.id = entity_id
         self._gwy = gateway
         self._evo = gateway.evo
-        self._cmd_que = gateway.cmd_que
+        self._que = gateway.cmd_que
 
         self._pkts = {}
-        self.last_pkt = None
+        self.last_comms = None
 
     def _discover(self):
         pass
@@ -63,7 +66,7 @@ class Entity:
             code,
             kwargs.get("payload", "00"),
         )
-        self._cmd_que.put_nowait(cmd)
+        self._que.put_nowait(cmd)
 
     def _get_pkt_value(self, code, key=None) -> Optional[Any]:
         if self._pkts.get(code):
@@ -81,7 +84,7 @@ class Entity:
         return list(self._pkts.keys())
 
     def update(self, msg) -> None:
-        self.last_pkt = f"{msg.date}T{msg.time}"
+        self.last_comms = f"{msg.date}T{msg.time}"
         if msg.verb == " W":
             if msg.code in self._pkts and self._pkts[msg.code].verb != msg.verb:
                 return
@@ -147,22 +150,19 @@ class Domain(Entity):
     """
 
     def __init__(self, domain_id, gateway) -> None:
-        _LOGGER.debug("Creating a new Domain: %s", domain_id)
+        _LOGGER.debug("Creating a Domain, %s", domain_id)
         super().__init__(domain_id, gateway)
 
-        self._type = None
-        # self.discover()
+        self.type = DOMAIN_TYPE_MAP[domain_id]
 
     def update(self, msg) -> None:
         super().update(msg)
 
         # try to cast a new type (must be a superclass of the current type)
-        if msg.code in ["1100", "3150", "3B00"]:
+        if msg.code in ["1100", "3150", "3B00"] and self.type is None:
             self.__class__ = TpiDomain
-
-    @property
-    def domain_id(self) -> str:
-        return self._id
+            self.type = "TPI"
+            _LOGGER.warning("Promoted domain %s to TPI", self.id)
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
@@ -192,38 +192,48 @@ class Device(Entity):
     """The Device class."""
 
     def __init__(self, device_id, gateway) -> None:
-        # _LOGGER.debug("Creating a new Device: %s", device_id)
+        # _LOGGER.debug("Creating a Device, %s", device_id)
         super().__init__(device_id, gateway)
 
-        # TODO: does 01: have a battery - could use a lookup from const.py
-        self._has_battery = device_id[:2] in ["04", "12", "22", "30", "34"]
-        self._device_type = DEVICE_TYPES.get(device_id[:2], f"{device_id[:2]:>3}")
+        self.hex_id = dev_id_to_hex(device_id)
+        self.type = DEVICE_TYPES.get(device_id[:2], f"{device_id[:2]:>3}")
+        self._has_battery = device_id[:2] in DEVICE_HAS_BATTERY
         self.__parent_zone = self.parent_000c = None
 
         attrs = gateway.known_devices.get(device_id)
         self._friendly_name = attrs.get("friendly_name") if attrs else None
         self._blacklist = attrs.get("blacklist", False) if attrs else False
 
-        self._discover()  # needs self._device_type
+        self._discover()
 
     def _discover(self):
         # TODO: an attempt to actively discover the CTL rather than by eavesdropping
         # self._command("313F", dest_addr=NUL_DEV_ID, payload="FF")
 
         # for code in COMMAND_SCHEMA:  # TODO: testing only
-        #     self._command(code, dest_addr=self._id, payload="0000")
+        #     self._command(code, dest_addr=self.id, payload="0000")
         # return
 
         # do these even if battery-powered (e.g. device might be in rf_check mode)
         for code in ["1FC9"]:
-            self._command(code, dest_addr=self._id)
+            self._command(code, dest_addr=self.id)
         for code in ["0016"]:
-            self._command(code, dest_addr=self._id, payload="0000")
+            self._command(code, dest_addr=self.id, payload="0000")
 
-        if self._id[:2] not in ["04", "07", "12", "22", "34"]:  # battery-powered?
-            self._command("10E0", dest_addr=self._id)
+        if self.id[:2] not in ["04", "07", "12", "22", "34"]:  # battery-powered?
+            self._command("10E0", dest_addr=self.id)
         # else:  # TODO: it's unlikely anything respond to an RQ/1060 (an 01: doesn't)
-        #     self._command("1060", dest_addr=self._id)  # payload len()?
+        #     self._command("1060", dest_addr=self.id)  # payload len()?
+
+    @property
+    def name(self) -> Optional[str]:
+        """Return a friendly device type string."""
+        return DEVICE_TYPE_MAP.get(self.type)
+
+    @property
+    def description(self) -> Optional[str]:  # 10E0
+        # 01:, and (rarely) 04:
+        return self._get_pkt_value("10E0", "description")
 
     @property
     def pkt_1fc9(self) -> list:
@@ -234,20 +244,6 @@ class Device(Entity):
         return self._get_pkt_value("0016")
 
     @property
-    def description(self) -> Optional[str]:  # 10E0
-        # 01:, and (rarely) 04:
-        return self._get_pkt_value("10E0", "description")
-
-    @property
-    def device_id(self) -> str:
-        return self._id
-
-    @property
-    def device_type(self) -> str:
-        """Return a friendly device type string."""
-        return self._device_type
-
-    @property
     def parent_zone(self) -> Optional[str]:
         # once set, it never changes
         if self.__parent_zone:  # We assume that: once set, it never changes
@@ -255,8 +251,8 @@ class Device(Entity):
 
         for msg in self._pkts.values():
             # assert "zone_idx" not in msg.payload
-            if "parent_zone_idx" in msg.payload:
-                self.__parent_zone = msg.payload["parent_zone_idx"]
+            if "parent_idx" in msg.payload:
+                self.__parent_zone = msg.payload["parent_idx"]
                 break
 
         if self.parent_000c is not None:
@@ -276,10 +272,12 @@ class Controller(Device):
     """The Controller class."""
 
     def __init__(self, device_id, gateway) -> None:
-        # _LOGGER.debug("Creating a new Controller %s", device_id)
+        _LOGGER.debug("Creating the Controller, %s", device_id)
         super().__init__(device_id, gateway)
 
-        assert self._evo.ctl is None, "WARNING: >1 controller!"
+        if self._evo.ctl is not None:
+            # TODO: do this earlier?
+            raise ValueError(f">1 CTL! (new: {device_id}, old: {self._evo.ctl_id})")
         self._evo.ctl = self
 
         self._boiler_relay = None
@@ -290,8 +288,8 @@ class Controller(Device):
         super()._discover()
 
         # NOTE: could use this to discover zones
-        # for zone_idx in range(12):
-        #     self._command("0004", payload=f"{zone_idx:02x}00")
+        # for idx in range(12):
+        #     self._command("0004", payload=f"{idx:02x}00")
 
         # system-related... (not working: 1280, 22D9, 2D49, 2E04, 3220, 3B00)
         self._command("1F09", payload="00")
@@ -341,39 +339,39 @@ class Controller(Device):
             all_sensors = [
                 d
                 for d in self._evo.devices
-                if d.device_type != "DHW" and hasattr(d, "temperature")
+                if d.type != "DHW" and hasattr(d, "temperature")
             ]
 
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 sensorless_zones = {
-                    z._id: z.temperature for z in self._evo.zones if z.sensor is None
+                    z.idx: z.temperature for z in self._evo.zones if z.sensor is None
                 }
                 _LOGGER.debug("Sensorless zones: %s", sensorless_zones)
                 orphan_sensors = {
-                    d._id: d.temperature for d in all_sensors if d.parent_zone is None
+                    d.id: d.temperature for d in all_sensors if d.parent_zone is None
                 }
                 _LOGGER.debug("Zoneless sensors: %s", orphan_sensors)
 
             for z in test_zones:
-                _LOGGER.debug("Can check zone %s, temp now: %s", z._id, z.temperature)
+                _LOGGER.debug("Can check zone %s, temp now: %s", z.idx, z.temperature)
                 sensors = [
                     d
                     for d in all_sensors
-                    if d.parent_zone in [z._id, None]
+                    if d.parent_zone in [z.idx, None]
                     and d.temperature == z.temperature
                     and d._pkts["30C9"].dtm > prev_msg.dtm
                 ]
 
                 if len(sensors) == 1:
-                    z._sensor, sensors[0].parent_zone = sensors[0]._id, z._id
-                    _LOGGER.debug(" - found sensor, zone %s: %s", z._id, sensors[0]._id)
+                    z._sensor, sensors[0].parent_zone = sensors[0].id, z.idx
+                    _LOGGER.debug(" - found sensor, zone %s: %s", z.idx, sensors[0].id)
                 elif len(sensors) == 0:
-                    _LOGGER.debug(" - ** No sensor, zone %s, uses CTL?", z._id)
+                    _LOGGER.debug(" - ** No sensor, zone %s, uses CTL?", z.idx)
                 else:
-                    _LOGGER.debug(" - many sensors, zone %s: %s", z._id, sensors)
+                    _LOGGER.debug(" - many sensors, zone %s: %s", z.idx, sensors)
 
             # now see if we can allocate the controller as a sensor...
-            zones = [z for z in test_zones if z.sensor is None]
+            zones = [z for z in self._evo.zones if z.sensor is None]
             if len(zones) != 1:
                 return  # no zone without a sensor
 
@@ -381,9 +379,11 @@ class Controller(Device):
                 return  # >0 sensors without a zone
 
             # safely(?) assume this zone is using the CTL as a sensor...
-            zones[0]._sensor, self.parent_zone = self._id, zones[0]._id
+            assert self.parent_zone is None, "Controller has already been allocated!"
+
+            zones[0]._sensor, self.parent_zone = self.id, zones[0].id
             _LOGGER.debug(
-                "Sensor is CTL by exclusion, zone %s: %s", zones[0]._id, self._id
+                "Sensor is CTL by exclusion, zone %s: %s", zones[0].id, self.id
             )
 
         if msg.code in ["000A", "2309", "30C9"]:
@@ -426,7 +426,7 @@ class Controller(Device):
 
     @property
     def boiler_relay(self) -> Optional[str]:  # 3EF0
-        # relays = [d.device_id for d in self._evo.devices if d.device_type == "TPI"]
+        # relays = [d.id for d in self._evo.devices if d.type == "TPI"]
         # if not __dev_mode__:
         #     assert len(relays) < 2  # This may fail for testing (i.e. 2 TPI relays)
         # return relays[0] if relays else None
@@ -438,7 +438,7 @@ class Controller(Device):
 
     @property
     def dhw_sensor(self) -> Optional[str]:
-        sensors = [d.device_id for d in self._evo.devices if d.device_type == "DHW"]
+        sensors = [d.id for d in self._evo.devices if d.type == "DHW"]
         if not __dev_mode__:
             assert len(sensors) < 2  # This may fail for testing
         return sensors[0] if sensors else None
@@ -448,7 +448,7 @@ class DhwSensor(Device, Battery):
     """The DHW class, such as a CS92."""
 
     def __init__(self, dhw_id, gateway) -> None:
-        # _LOGGER.debug("Creating a new DHW %s", dhw_id)
+        _LOGGER.debug("Creating a DHW sensor, %s", dhw_id)
         super().__init__(dhw_id, gateway)
 
         # self._discover()
@@ -470,7 +470,7 @@ class Thermostat(Device, Temperature, Battery):  # TODO: the THM, THm devices
     """The STA class, such as a TR87RF."""
 
     def __init__(self, device_id, gateway) -> None:
-        # _LOGGER.debug("Creating a new STA %s", device_id)
+        _LOGGER.debug("Creating a XXX thermostat, %s", device_id)
         super().__init__(device_id, gateway)
 
 
@@ -478,7 +478,7 @@ class TrvActuator(Device, Battery, HeatDemand, Temperature):
     """The TRV class, such as a HR92."""
 
     def __init__(self, device_id, gateway) -> None:
-        # _LOGGER.debug("Creating a new TRV %s", device_id)
+        # _LOGGER.debug("Creating a TRV actuator, %s", device_id)
         super().__init__(device_id, gateway)
 
     @property
@@ -496,15 +496,15 @@ class OtbGateway(Device, HeatDemand):
     # 10E0, 1FD4, 22D9, 3150, 3220, 3EF0
 
     def __init__(self, device_id, gateway) -> None:
-        _LOGGER.debug("Creating a new OTB %s", device_id)
+        _LOGGER.debug("Creating an OTB gateway, %s", device_id)
         super().__init__(device_id, gateway)
 
     def _discover(self):
         super()._discover()
 
         for code in COMMAND_SCHEMA:  # TODO: testing only
-            # for payload in DOMAIN_MAP:  # TODO: testing only
-            self._command(code, dest_addr=self._id)
+            # for payload in DOMAIN_TYPE_MAP:  # TODO: testing only
+            self._command(code, dest_addr=self.id)
 
         return
 
@@ -528,7 +528,7 @@ class BdrSwitch(Device):
     """The BDR class, such as a BDR91."""
 
     def __init__(self, device_id, gateway) -> None:
-        # _LOGGER.debug("Creating a new BDR %s", device_id)
+        _LOGGER.debug("Creating a BDR relay, %s", device_id)
         super().__init__(device_id, gateway)
 
         self._is_tpi = None
@@ -536,18 +536,18 @@ class BdrSwitch(Device):
     def _discover(self):
         super()._discover()
 
-        self._command("1100", dest_addr=self._id, payload="00")
+        self._command("1100", dest_addr=self.id, payload="00")
 
         # all relays seem the same, except for 0016, and 1100
         # for code in ["3B00", "3EF0", "3EF1"] + ["0008", "1100", "1260"]:
         #     for payload in ["00", "FC", "FF", "0000", "000000"]:
-        #         self._command(code, dest_addr=self._id, payload=payload)
+        #         self._command(code, dest_addr=self.id, payload=payload)
 
         return
 
         for code in COMMAND_SCHEMA:  # TODO: testing only
-            # for payload in DOMAIN_MAP:  # TODO: testing only
-            self._command(code, dest_addr=self._id)
+            # for payload in DOMAIN_TYPE_MAP:  # TODO: testing only
+            self._command(code, dest_addr=self.id)
 
         return
 
@@ -559,23 +559,24 @@ class BdrSwitch(Device):
 
     @property
     def is_tpi(self) -> Optional[bool]:  # 3B00
-        if self._is_tpi is not None:
-            return self._is_tpi
-
         def make_tpi():
             self.__class__ = TpiSwitch
-            self._device_type = "TPI"
+            self.type = "TPI"
+            _LOGGER.warning("Promoted device %s to %s", self.id, self.type)
+
+            self._is_tpi = True
             self.parent_zone = "FC"
             self._discover()
-            self._is_tpi = True
+
+        if self._is_tpi is not None:
+            return self._is_tpi
 
         # try to cast a new type (must be a superclass of the current type)
         if "1FC9" in self._pkts and self._pkts["1FC9"].verb == "RP":
             if "3B00" in self._pkts["1FC9"].raw_payload:
                 make_tpi()
-            return self._is_tpi
 
-        if "3B00" in self._pkts and self._pkts["3B00"].verb == " I":
+        elif "3B00" in self._pkts and self._pkts["3B00"].verb == " I":
             make_tpi()
 
         return self._is_tpi
@@ -596,46 +597,42 @@ class BdrSwitch(Device):
 class TpiSwitch(BdrSwitch):  # TODO: superset of BDR switch?
     """The TPI class, the BDR91 that controlls the boiler."""
 
-    def __init__(self, device_id, gateway) -> None:
-        _LOGGER.debug("Promoting a BDR to a TPI: %s", device_id)
-        super().__init__(device_id, gateway)
-
     def _discover(self):
         # NOTE: do not super()._discover()
 
         for code in ["1100"]:
-            self._command(code, dest_addr=self._id, payload="00")
+            self._command(code, dest_addr=self.id, payload="00")
 
         # doesn't like like TPIs respond to a 3B00
         # for payload in ["00", "C8"]:
         #     for code in ["00", "FC", "FF"]:
-        #         self._command("3B00", dest_addr=self._id, payload=f"{code}{payload}")
+        #         self._command("3B00", dest_addr=self.id, payload=f"{code}{payload}")
 
 
 class Zone(Entity):
     """Base for the 12 named Zones."""
 
-    def __init__(self, zone_idx, gateway) -> None:
-        _LOGGER.debug("Creating a new Zone: %s", zone_idx)
-        super().__init__(zone_idx, gateway)
+    def __init__(self, idx, gateway) -> None:
+        # _LOGGER.debug("Creating a Zone, %s", idx)
+        super().__init__(idx, gateway)
 
         self._sensor = None
-        self._zone_type = None
+        self._type = None
         self._discover()
 
     def _discover(self):
-        # if self._id != "01":  # TODO: testing only
+        # if self.id != "01":  # TODO: testing only
         #     return
 
         for code in ["0004", "000C"]:
-            self._command(code, payload=f"{self._id}00")
+            self._command(code, payload=f"{self.id}00")
 
         for code in ["000A", "2349", "30C9"]:
-            self._command(code, payload=self._id)
+            self._command(code, payload=self.id)
 
         # TODO: 12B0: only if RadValve zone, or whenever window_state is enabled?
         for code in ["12B0"]:
-            self._command(code, payload=self._id)
+            self._command(code, payload=self.id)
 
         # TODO: 3150(00?): how to do (if at all) & for what zone types?
         # TODO: 0005(002), 0006(001), 0404(00?):
@@ -647,18 +644,47 @@ class Zone(Entity):
             _ = self.sensor
 
         # TODO: this is probing, is this preferred over eeavesdropping?
-        if self._zone_type is None:
-            _ = self.zone_type
+        if self._type is None:
+            _ = self.type
 
         # TODO: this is eavesdropping...
         # not UFH (it seems), but BDR or VAL; and possibly a MIX support 0008 too
         if msg.code in ["0008", "0009"]:  # TODO: how to determine is/isnt MIX?
-            if self._zone_type:
-                assert self._zone_type in [ZONE_TYPE_MAP["BDR"], ZONE_TYPE_MAP["VAL"]]
+            if self.type:
+                assert self.type in ["BDR", "VAL"]
             else:
-                _LOGGER.debug("Promoting to an Electric Zone: %s", self._id)
-                self.__class__ = ZONE_CLASS_MAP["BDR"]
-                self._zone_type = ZONE_TYPE_MAP["BDR"]
+                self.type = "BDR"
+                self.__class__ = _ZONE_CLASS[self.type]
+                _LOGGER.warning("Promoted zone %s to %s", self.id, self.type)
+
+    @property
+    def idx(self) -> str:
+        return self.id
+
+    @property
+    def type(self) -> str:
+        if self._type:  # isinstance(self, ???)
+            self._type
+
+        # TODO: try to cast an initial type
+        for device in self.actuators:  # requires 000C
+            device_type = DEVICE_TYPES[device[:2]]
+            if device_type in _ZONE_CLASS:
+                self._type = device_type
+                self.__class__ = _ZONE_CLASS[self._type]
+                _LOGGER.warning("Set Zone %s to %s", self.id, self._type)
+                break
+
+        return self._type
+
+    @type.setter
+    def type(self, value):
+        assert value in _ZONE_CLASS
+        self._type = value
+
+    @property
+    def description(self) -> str:
+        return ZONE_TYPE_MAP.get(self._type)
 
     @property
     def name(self) -> Optional[str]:  # 0004
@@ -693,7 +719,7 @@ class Zone(Entity):
         # otherwise, use the last sync_cycle array value
         result = self._evo.ctl._get_pkt_value("2309")
         if result:
-            result = [d for d in result if d["zone_idx"] == self.zone_idx]
+            result = [d for d in result if d["zone_idx"] == self.idx]
             return {"setpoint": result[0]["setpoint"]}
 
     @property
@@ -703,7 +729,7 @@ class Zone(Entity):
         # use the last sync_cycle array value
         result = self._evo.ctl._get_pkt_value("30C9")
         if result:
-            result = [d for d in result if d["zone_idx"] == self.zone_idx]
+            result = [d for d in result if d["zone_idx"] == self.idx]
             return result[0]["temperature"]
 
         # use the last sync_cycle array value if there isn't an RP
@@ -719,7 +745,7 @@ class Zone(Entity):
         demands = [
             d.heat_demand
             for d in self._evo.devices
-            if d.device_id in self.devices
+            if d.id in self.devices
             and hasattr(d, "heat_demand")
             and d.heat_demand is not None
         ]
@@ -727,36 +753,17 @@ class Zone(Entity):
 
     @property
     def devices(self) -> list:
-        devices = {d.device_id for d in self._evo.devices if d.parent_zone == self._id}
+        devices = {d.id for d in self._evo.devices if d.parent_zone == self.id}
         return list(set(self.actuators) | devices)
 
     @property
     def sensors(self) -> list:
-        devices = [d for d in self._evo.devices if d.parent_zone == self._id]
-        return [d.device_id for d in devices if hasattr(d, "temperature")]
+        devices = [d for d in self._evo.devices if d.parent_zone == self.id]
+        return [d.id for d in devices if hasattr(d, "temperature")]
 
     @property
     def sensor(self) -> Optional[str]:  # TODO: WIP
         return self._sensor
-
-    @property
-    def zone_idx(self):
-        return self._id
-
-    @property
-    def zone_type(self) -> Optional[str]:
-        if self._zone_type:  # isinstance(self, ???)
-            return self._zone_type
-
-        # try to cast a new type (must be a superclass of the current type)
-        for device in self.actuators:  # requires 000C
-            device_type = DEVICE_TYPES[device[:2]]
-            if device_type in ZONE_CLASS_MAP:
-                self.__class__ = ZONE_CLASS_MAP[device_type]
-                self._zone_type = ZONE_TYPE_MAP[device_type]
-                return self._zone_type
-
-        return self._zone_type
 
 
 class TrvZone(Zone, HeatDemand):
@@ -782,10 +789,10 @@ class BdrZone(Zone):
         super().update(msg)
 
         # ZV zones are Elec zones that also call for heat; ? and also 1100/unkown_0 = 00
-        if msg.code == "3150" and self._zone_type != ZONE_TYPE_MAP["VAL"]:
-            _LOGGER.debug("Promoting to an Zone Valve Zone: %s", self._id)
-            self.__class__ = ZONE_CLASS_MAP["VAL"]
-            self._zone_type = ZONE_TYPE_MAP["VAL"]
+        if msg.code == "3150" and self.type != "VAL":
+            self.type = "VAL"
+            self.__class__ = _ZONE_CLASS[self.type]
+            _LOGGER.warning("Promoted zone %s to %s", self.id, self.type)
 
     @property
     def actuator_enabled(self) -> Optional[bool]:  # 3EF0
@@ -829,11 +836,11 @@ class MixZone(Zone, HeatDemand):
 class DhwZone(Zone, HeatDemand):
     """Base for the DHW (Fx) domain."""
 
-    def __init__(self, zone_idx, gateway) -> None:
-        # _LOGGER.debug("Creating a new Zone %s", zone_idx)
-        super().__init__(zone_idx, gateway)
+    def __init__(self, idx, gateway) -> None:
+        _LOGGER.warning("Creating a DHW Zone, %s", idx)
+        super().__init__(idx, gateway)
 
-        self._zone_type = None  # or _domain_type
+        self.type = None  # or _domain_type
         # self._discover()
 
     @property
@@ -860,7 +867,7 @@ class DhwZone(Zone, HeatDemand):
             self._command(code)
 
 
-DEVICE_CLASS_MAP = {
+DEVICE_CLASS = {
     DEVICE_LOOKUP["BDR"]: BdrSwitch,
     DEVICE_LOOKUP["CTL"]: Controller,
     DEVICE_LOOKUP["DHW"]: DhwSensor,
@@ -871,7 +878,7 @@ DEVICE_CLASS_MAP = {
     DEVICE_LOOKUP["OTB"]: OtbGateway,
 }
 
-ZONE_CLASS_MAP = {
+_ZONE_CLASS = {
     "TRV": TrvZone,
     "BDR": BdrZone,
     "VAL": ValZone,  # not a real device type

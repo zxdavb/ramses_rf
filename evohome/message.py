@@ -14,7 +14,7 @@ from .const import (
     NON_DEV_ID,
     NUL_DEV_ID,
 )
-from .entity import DEVICE_CLASS_MAP, Device, Domain, Zone
+from .entity import DEVICE_CLASS, Device, Domain, Zone
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -192,7 +192,7 @@ class Message:
         #     assert dev_id[:2] in DEVICE_TYPES  # incl. "--", "63"
 
         # any remaining messages are valid, so: log them
-        if False and __dev_mode__:
+        if False and __dev_mode__:  # a hack to colourize by verb
             if " I" in str(self):
                 _LOGGER.info("%s", self, extra=self.__dict__)
             elif "RP" in str(self):
@@ -217,7 +217,7 @@ class Message:
 
         def _device(dev_id, parent_zone=None) -> None:
             """Get a Device, create it if required."""
-            dev_cls = DEVICE_CLASS_MAP.get(dev_id[:2], Device)
+            dev_cls = DEVICE_CLASS.get(dev_id[:2], Device)
             _entity(dev_cls, dev_id, self._evo.device_by_id, self._evo.devices)
             if parent_zone is not None:
                 self._evo.device_by_id[dev_id].parent_000c = parent_zone
@@ -226,10 +226,10 @@ class Message:
             """Get a Domain, create it if required."""
             _entity(Domain, domain_id, self._evo.domain_by_id, self._evo.domains)
 
-        def _zone(zone_idx) -> None:
+        def _zone(idx) -> None:
             """Get a Zone, create it if required."""  # TODO: other zone types?
-            # assert int(zone_idx, 16) < 12  # TODO: > 11 not for Hometronic, leave out
-            _entity(Zone, zone_idx, self._evo.zone_by_id, self._evo.zones)
+            # assert int(idx, 16) < 12  # TODO: > 11 not for Hometronic, leave out
+            _entity(Zone, idx, self._evo.zone_by_id, self._evo.zones)
 
         if self.code != "000C":  # TODO: assert here, or in is_valid()
             assert self.is_array == isinstance(self.payload, list)
@@ -247,13 +247,16 @@ class Message:
             _device(d)
             for d in self.dev_addr
             if d[:2] not in ["18", "63", "--"]
-            # and (
-            #     self.dev_from in self._evo.device_by_id
-            #     or self.dev_dest in self._evo.device_by_id
-            # )  # doesn't work
-        ]  # TODO: the above/below doesn't work for 12:, 22:, 34:
+            and (
+                self.dev_from in self._evo.device_by_id
+                or self.dev_dest in self._evo.device_by_id
+            )  # doesn't work
+        ]
         # and self._evo.ctl_id in [self.dev_from, self.dev_dest]
-        # and self._evo.ctl_id is not None  # doesn't work
+        # and self._evo.ctl_id is not None  # doesn't work either
+
+        # TODO: above wont work for 07:/12:/22:/34:; they rarely speak direct with 01:
+        [_device(d) for d in self.dev_addr if d[:2] in ["07", "12", "22", "34"]]
 
         # STEP 2: discover domains and zones by eavesdropping regular pkts
         if isinstance(self._payload, dict):
@@ -274,22 +277,22 @@ class Message:
     def _update_entities(self) -> None:  # TODO: needs work
         """Update the system state with the message data."""
 
-        # CHECK: check parent_zone_idx hueristics using the data in known_devices.json
+        # CHECK: confirm parent_idx heuristics using the data in known_devices.json
         if __dev_mode__ and isinstance(self.payload, dict):
             # assert self.dev_from in self._gwy.known_devices
             if self.dev_from in self._gwy.known_devices:
-                zone_idx = self._gwy.known_devices[self.dev_from].get("zone_idx")
-                if zone_idx and self._evo.device_by_id[self.dev_from].parent_000c:
-                    assert zone_idx == self._evo.device_by_id[self.dev_from].parent_000c
-                if zone_idx and "parent_zone_idx" in self.payload:
-                    assert zone_idx == self.payload["parent_zone_idx"]
+                idx = self._gwy.known_devices[self.dev_from].get("zone_idx")
+                if idx and self._evo.device_by_id[self.dev_from].parent_000c:
+                    assert idx == self._evo.device_by_id[self.dev_from].parent_000c
+                if idx and "parent_idx" in self.payload:
+                    assert idx == self.payload["parent_idx"]
 
         if not self.payload:  # should be {} (possibly empty) or [...] (never empty)
             return  # TODO: will stop useful RQs getting to update()? (e.g. RQ/3EF1)
 
         try:
             self._evo.device_by_id[self.dev_from].update(self)
-        except KeyError:  # some devices won't be created because filtered
+        except KeyError:  # some devices weren't created because they were filtered
             return
 
         if self.code != "0418":  # update domains & zones

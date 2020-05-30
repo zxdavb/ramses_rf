@@ -4,7 +4,7 @@ from datetime import datetime as dt, timedelta
 from typing import Optional, Union
 
 from .const import (
-    DOMAIN_MAP,
+    DOMAIN_TYPE_MAP,
     FAULT_DEVICE_CLASS,
     FAULT_STATE,
     FAULT_TYPE,
@@ -61,7 +61,7 @@ def parser_decorator(func):
                 return result
             return {**_idx(payload[:2], msg), **result}
 
-        # TRV will RQ zone_name *sans* payload (reveals parent_zone_idx)
+        # TRV will RQ zone_name *sans* payload (reveals parent_idx)
         if msg.code == "0004":
             assert msg.len == 2
             return {**_idx(payload[:2], msg)}
@@ -146,28 +146,28 @@ def parser_decorator(func):
 
 
 def _idx(seqx, msg) -> dict:
-    """Determine if a payload has an index, usually a zone_idx or a domain_id.
+    """Determine if a payload has an index, usually a zone idx or a domain id.
 
-    The challenge is that payloads starting with:
-    - "00" may *not* be a zone_idx, and
-    - "01" (say) *may not* be a zone_idx
+    The challenge is that payloads starting with (e.g.):
+    - "00" are often not a zone idx, and
+    - "01" *may not* be a zone idx
 
-    Anything in the range F0-FF appears to be a domain_id (no false +ve/-ves).
+    Anything in the range F0-FF appears to be a domain id (no false +ve/-ves).
     """
     # STEP 1: identify the index name, if any
 
-    if seqx in DOMAIN_MAP:  # no false +ve/-ves
+    if seqx in DOMAIN_TYPE_MAP:  # no false +ve/-ves
         idx_name = "domain_id"
 
     elif msg.code == "0418":
-        # 0418 has a dmain_id/zone_idx, but it is actually indexed by log_idx
+        # 0418 has a domain_id/ zone_idx, but it is actually indexed by log_idx
         assert int(seqx, 16) < 64
         return {"log_idx": seqx}
 
     # new: WIP
     elif msg.code == "0016" and {"12", "22"} & set([d[:2] for d in msg.dev_addr]):
         assert int(seqx, 16) < 12
-        idx_name = "zone_idx" if msg.dev_from[:2] == "01" else "parent_zone_idx"
+        idx_name = "zone_idx" if msg.dev_from[:2] == "01" else "parent_idx"
 
     elif msg.code == "2E04":  # blacklist: never _idx, although some are != "00"
         return {}
@@ -179,7 +179,7 @@ def _idx(seqx, msg) -> dict:
     elif msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9"] + ["1FC9"]:
         assert int(seqx, 16) < 12  # whitelist: this can be a "00"; can hometronic > 11?
         idx_name = (
-            "zone_idx" if msg.dev_from[:2] in ["01", "02", "18"] else "parent_zone_idx"
+            "zone_idx" if msg.dev_from[:2] in ["01", "02", "18"] else "parent_idx"
         )
 
     elif msg.code in ["31D9", "31DA"]:  # ventilation
@@ -704,7 +704,7 @@ def parser_1fc9(payload, msg) -> Optional[dict]:  # bind_device
 
     def _parser(seqx) -> dict:
         assert seqx[6:] == payload[6:12]
-        if seqx[:2] not in ["FA", "FB", "FC"]:  # or: not in DOMAIN_MAP: ??
+        if seqx[:2] not in ["FA", "FB", "FC"]:  # or: not in DOMAIN_TYPE_MAP: ??
             assert int(seqx[:2], 16) < 12
         return {seqx[:2]: seqx[2:6]}  # NOTE: codes is many:many (domain:code)
 

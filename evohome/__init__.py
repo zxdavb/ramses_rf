@@ -174,14 +174,14 @@ class Gateway:
             try:
                 _LOGGER.info("Updating known_devices file...")
                 for d in self.evo.devices:
-                    device = {
+                    device_attrs = {
                         "friendly_name": d._friendly_name,
                         "blacklist": d._blacklist,
                     }
-                    if d.device_id in self.known_devices:
-                        self.known_devices[d.device_id].update(device)
+                    if d.id in self.known_devices:
+                        self.known_devices[d.id].update(device_attrs)
                     else:
-                        self.known_devices[d.device_id] = device
+                        self.known_devices[d.id] = device_attrs
 
                 with open(self.config["known_devices"], "w") as json_file:
                     json.dump(self.known_devices, json_file, sort_keys=True, indent=4)

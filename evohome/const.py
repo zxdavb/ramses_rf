@@ -61,7 +61,7 @@ COMMAND_SCHEMA = {
     "0002": {"name": "sensor_weather"},
     "0004": {"name": "zone_name", "exposes_zone": True, "rq_length": 2},
     "0005": {"name": "system_zone", "rq_length": 2},
-    "0006": {"name": "schedule_sync"},  # for F9/FA/FC, zone_idx for BDR, F8/FF (all?)
+    "0006": {"name": "schedule_sync"},  # for F9/FA/FC, idx for BDR, F8/FF (all?)
     "0008": {"name": "relay_demand"},
     "0009": {"name": "relay_failsafe", "exposes_zone": None},
     "000A": {"name": "zone_config", "exposes_zone": True},
@@ -127,37 +127,42 @@ COMMAND_LENGTH = max([len(k) for k in list(COMMAND_LOOKUP)])
 
 # TODO: which device type/config pairs send what packets?
 DEVICE_TABLE = {
-    "01": {"type": "CTL", "battery": False},  # Evohome Controller
-    "02": {"type": "UFH", "battery": False},  # Underfloor heating: HCC80, HCE80
-    "04": {"type": "TRV", "battery": True},  # .Radiator valve: HR80, HR91, HR92
-    "07": {"type": "DHW", "battery": True},  # .DHW sensor: CS92
-    "10": {"type": "OTB", "battery": False},  # OpenTherm bridge: R8810
-    "12": {"type": "THm", "battery": True},  # .Thermostat (with schedule?): DTS92E
-    "13": {"type": "BDR", "battery": False},  # Wireless relay box: BDR91; HC60NG too?
-    "18": {"type": "HGI", "battery": False},  # Honeywell Gwy Interface: HGI80, HGS80
-    "20": {"type": "VCE", "battery": None},  # VCE-RF ?ventilation
-    "22": {"type": "THM", "battery": True},  # .Thermostat (with schedule?): DTS92E
-    "30": {"type": "GWY", "battery": False},  # Gateway: RFG100? ?ventilation
-    "32": {"type": "VMS", "battery": True},  # .Ventilation Nuaire VMS-23HB33, -23LMH23
-    "34": {"type": "STA", "battery": True},  # .Thermostat (without schedule?): T87RF
-    "63": {"type": "NUL", "battery": None},
-    "--": {"type": "---", "battery": None},
-}  # TODO: Mixing valve: HM80 (no battery)
-#   "03": {"type": " 03", "battery": None},  # (Wireless room stat: HCF82, HCW82)??
-#   "17": {"type": " 17", "battery": None},  # Dunno - Outside weather sensor?
+    "01": {"type": "CTL", "name": "Controller", "battery": False},  # rechargeable
+    "02": {"type": "UFH", "name": "Underfloor Heating", "battery": False},  # HCE80(R)
+    "03": {"type": " 03", "name": "Older Thermostat", "battery": None},  # HCF82, HCW82
+    "04": {"type": "TRV", "name": "Radiator Valve", "battery": True},  # HR80, HR92
+    "07": {"type": "DHW", "name": "DHW Sensor", "battery": True},  # CS92
+    "10": {"type": "OTB", "name": "OpenTherm Bridge", "battery": False},  # R8810
+    "12": {"type": "THm", "name": "Room Thermostat", "battery": True},  # DTS92(E)
+    "13": {"type": "BDR", "name": "Wireless Relay", "battery": False},  # BDR91, HC60NG?
+    "17": {"type": " 17", "name": "Weather Sensor?", "battery": None},  # TODO: ???
+    "18": {"type": "HGI", "name": "Honeywell Gateway?", "battery": False},  # HGI80
+    "20": {"type": "VCE", "name": "Ventilation?", "battery": None},  # VCE-RF
+    "22": {"type": "THM", "name": "Room Thermostat", "battery": True},  # DTS92(E)
+    "30": {"type": "GWY", "name": "Internet Gateway", "battery": False},  # RFG100, VMS?
+    "32": {"type": "VMS", "name": "Ventilation?", "battery": True},
+    "34": {"type": "STA", "name": "Round Thermostat", "battery": True},  # T87RF
+    "37": {"type": " 37", "name": "Ventilation?", "battery": None},  # T87RF
+    "63": {"type": "NUL", "name": "Null Device", "battery": None},
+    "--": {"type": "---", "name": "No Device", "battery": None},
+    "??": {"type": "MIX", "name": "Mixing Valve", "battery": False},  # TODO: ???
+}
+# VMS includes Nuaire VMS-23HB33, VMS-23LMH23
+
 DEVICE_TYPES = {k: v["type"] for k, v in DEVICE_TABLE.items()}
 DEVICE_LOOKUP = {v: k for k, v in DEVICE_TYPES.items()}
+DEVICE_TYPE_MAP = {v["type"]: v["name"] for _, v in DEVICE_TABLE.items()}
+DEVICE_HAS_BATTERY = [k for k, v in DEVICE_TABLE.items() if v["battery"] is True]
 
 # Domains
-DOMAIN_MAP = {
-    # "21": "Ventilation",
-    "F8": "???",
+DOMAIN_TYPE_MAP = {
+    "F8": "TBD",
     "F9": "Heating",  # Central Heating
     "FA": "HotWater",  # Stored DHW?
-    "FB": "???",  # TODO: bind CS92 with BDRs in both modes
+    "FB": "TBD",  # TODO: bind CS92 with BDRs in both modes
     "FC": "Boiler",  # "Heat Source": BDR (Boiler, District heating), or OTB
     "FF": "System",
-}
+}  # "21": "Ventilation",
 
 SYSTEM_MODE_MAP = {
     "00": "Auto",
@@ -175,10 +180,10 @@ ZONE_MODE_MAP = {
 }  # "01": until next SP?
 
 # Electric Heat - on/off relay (only)
-# Zone Valve    - on/off relay (to operate the valve) AND requests heat from the boiler
+# Zone Valve    - on/off relay AND requests heat from the boiler, 3150
 ZONE_TYPE_MAP = {
-    "TRV": "Radiator Valve",
-    "BDR": "Electric Heat",  # /Zone Valve",
+    "TRV": "Radiator Valve(s)",
+    "BDR": "Electric Heat",  # Zone Valve
     "UFH": "Underfloor Heating",
     "MIX": "Mixing Valve",
     "VAL": "Zone Valve",

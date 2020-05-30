@@ -28,43 +28,44 @@ class EvohomeSystem:
         self.zone_by_id = {}
 
     @staticmethod
-    def _entities(entities, id_attr) -> dict:
+    def _entities(entities, sort_attr) -> dict:
         """Calculate a system schema."""
 
         def attrs(entity) -> list:
             attr = [a for a in dir(entity) if not callable(getattr(entity, a))]
-            return [a for a in attr if not a.startswith("_") and a != id_attr]
+            return [a for a in attr if not a.startswith("_") and a != sort_attr]
 
         result = {
-            getattr(e, id_attr): {a: getattr(e, a) for a in attrs(e)} for e in entities
+            getattr(e, sort_attr): {a: getattr(e, a) for a in attrs(e)}
+            for e in entities
         }
         return dict(sorted(result.items()))
 
     @property
     def _devices(self) -> dict:
         """Calculate a system schema."""
-        return self._entities(self.devices, "device_id")
+        return self._entities(self.devices, "id")
 
     @property
     def _domains(self) -> dict:
         """Calculate a system schema."""
-        return self._entities(self.domains, "domain_id")
+        return self._entities(self.domains, "id")
 
     @property
     def _zones(self) -> dict:
         """Calculate a system schema."""
-        return self._entities(self.zones, "zone_idx")
+        return self._entities(self.zones, "idx")
 
     @property
     def status(self) -> Optional[dict]:
         """Calculate a system schema."""
-        controllers = [d for d in self.devices if d.device_type == "CTL"]
+        controllers = [d for d in self.devices if d.type == "CTL"]
         if len(controllers) != 1:
             _LOGGER.debug("fail test 0: more/less than 1 controller")
             return
 
         structure = {
-            "controller": controllers[0].device_id,
+            "controller": controllers[0].id,
             "boiler": {
                 "dhw_sensor": controllers[0].dhw_sensor,
                 "tpi_relay": controllers[0].tpi_relay,
@@ -74,25 +75,21 @@ class EvohomeSystem:
         }
 
         orphans = structure["orphans"] = [
-            d.device_id for d in self.devices if d.parent_zone is None
+            d.id for d in self.devices if d.parent_zone is None
         ]
 
         structure["heat_demand"] = {
-            d.device_id: d.heat_demand
-            for d in self.devices
-            if hasattr(d, "heat_demand")
+            d.id: d.heat_demand for d in self.devices if hasattr(d, "heat_demand")
         }
 
         thermometers = structure["thermometers"] = {
-            d.device_id: d.temperature
-            for d in self.devices
-            if hasattr(d, "temperature")
+            d.id: d.temperature for d in self.devices if hasattr(d, "temperature")
         }
         thermometers.pop(structure["boiler"]["dhw_sensor"], None)
 
-        for z in self.zone_by_id:  # [z.zone_idx for z in self.zones]:
+        for z in self.zone_by_id:  # [z.idx for z in self.zones]:
             actuators = [k for d in self.data[z].get("actuators", []) for k in d.keys()]
-            children = [d.device_id for d in self.devices if d.parent_zone == z]
+            children = [d.id for d in self.devices if d.parent_zone == z]
 
             zone = structure["zones"][z] = {
                 "name": self.data[z].get("name"),  # TODO: do it this way
@@ -114,7 +111,7 @@ class EvohomeSystem:
 
         structure["orphans"] = orphans
 
-        # for z in self.zone_by_id:  # [z.zone_idx for z in self.zones]:
+        # for z in self.zone_by_id:  # [z.idx for z in self.zones]:
         #     if
 
         # TODO: needed? or just process only those with a unique temp?
@@ -130,8 +127,8 @@ class EvohomeSystem:
 
         temp_map = {str(v): k for k, v in thermometers.items() if v is not None}
 
-        for zone_idx in structure["zones"]:
-            zone = structure["zones"][zone_idx]
+        for idx in structure["zones"]:
+            zone = structure["zones"][idx]
             sensor = temp_map.get(str(zone["temperature"]))
             if sensor:
                 zone["sensor"] = sensor

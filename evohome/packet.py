@@ -90,7 +90,7 @@ class Packet:
         elif "--:------" not in self.packet:
             err_msg = "three device addresses"
         elif not re.match("(0[0-9AB]|21|F[89ABCF])", self.packet[50:53]):
-            err_msg = "dodgy zone_idx/domain_id"
+            err_msg = "dodgy zone idx/domain id"
         else:  # it is a valid packet!
             # NOTE: don't log good packets here: we may want to silently discard some
             return True
