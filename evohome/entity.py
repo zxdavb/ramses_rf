@@ -264,8 +264,9 @@ class Device(Entity):
         return self.__parent_zone
 
     @parent_zone.setter
-    def parent_zone(self, zone) -> None:
-        self.__parent_zone = zone
+    def parent_zone(self, zone_idx) -> None:
+        assert zone_idx is not None
+        self.__parent_zone = zone_idx
 
 
 class Controller(Device):
@@ -317,7 +318,12 @@ class Controller(Device):
         #         self._command(code, payload=payload)
 
     def update(self, msg):
-        def _update_zone_sensors() -> None:
+        def maintain_state_data():
+            # for z in self._evo.zones:
+            #     _ = z.type  # check/update each zone's type
+            pass
+
+        def update_zone_sensors() -> None:
             prev_msg, self._prev_30c9 = self._prev_30c9, msg
             if prev_msg is None:
                 return
@@ -396,8 +402,11 @@ class Controller(Device):
             self._fault_log[msg.payload["log_idx"]] = msg
             # print(self.fault_log)
 
+        if msg.code == "1F09" and msg.verb == " I":
+            maintain_state_data()
+
         if msg.code == "30C9" and isinstance(msg.payload, list):  # msg.is_array:
-            _update_zone_sensors()
+            update_zone_sensors()
 
         if msg.code == "3EF1" and msg.verb == "RQ":  # relay attached to a burner
             if msg.dev_dest[:2] == "13":  # this is the TPI relay
@@ -643,7 +652,6 @@ class Zone(Entity):
         if self._sensor is None:
             _ = self.sensor
 
-        # TODO: this is probing, is this preferred over eeavesdropping?
         if self._type is None:
             _ = self.type
 
@@ -662,12 +670,12 @@ class Zone(Entity):
         return self.id
 
     @property
-    def type(self) -> str:
-        if self._type:  # isinstance(self, ???)
-            self._type
+    def type(self) -> Optional[str]:
+        if self._type is not None:  # isinstance(self, ???)
+            return self._type
 
         # TODO: try to cast an initial type
-        for device in self.actuators:  # requires 000C
+        for device in self.devices:
             device_type = DEVICE_TYPES[device[:2]]
             if device_type in _ZONE_CLASS:
                 self._type = device_type
@@ -753,13 +761,14 @@ class Zone(Entity):
 
     @property
     def devices(self) -> list:
-        devices = {d.id for d in self._evo.devices if d.parent_zone == self.id}
-        return list(set(self.actuators) | devices)
+        # actuators = self._get_pkt_value("000C", "actuators")
+        devices_1 = {d.id for d in self._evo.devices if d.parent_000c == self.id}
+        devices_2 = {d.id for d in self._evo.devices if d.parent_zone == self.id}
+        return list(devices_1 | devices_2)
 
     @property
     def sensors(self) -> list:
-        devices = [d for d in self._evo.devices if d.parent_zone == self.id]
-        return [d.id for d in devices if hasattr(d, "temperature")]
+        return [d.id for d in self.devices if hasattr(d, "temperature")]
 
     @property
     def sensor(self) -> Optional[str]:  # TODO: WIP
