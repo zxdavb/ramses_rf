@@ -40,13 +40,14 @@ def parser_decorator(func):
         payload = args[0]
         msg = args[1]
 
-        if False and msg.verb == " W":  # TODO: WIP
-            if msg.code == "2309" and msg.dev_from[:2] in ["12", "22", "34"]:
+        if msg.verb == " W":  # TODO: WIP
+            # these are OK to parse Ws:
+            if msg.code in ["0001"]:
+                return func(*args, **kwargs)
+            if msg.code in ["2309", "2349"] and msg.dev_from[:2] in ["12", "22", "34"]:
                 assert int(payload[:2], 16) < 12
                 return func(*args, **kwargs)
-            if msg.code == "0001":
-                assert payload[:2] == "FF"
-                return func(*args, **kwargs)
+            # TODO: these are WIP
             if msg.code == "1F09":
                 assert payload[:2] == "F8"
                 return func(*args, **kwargs)
@@ -279,7 +280,10 @@ def _temp(seqx) -> Optional[float]:
 
 @parser_decorator
 def parser_0001(payload, msg) -> Optional[dict]:  # rf_unknown
-    # sent by a CTL before an RF_check
+    # 15:03:43.184 064  W --- 01:145038 --:------ 01:145038 0001 005 FC00000505
+    # 15:13:19.756 053  W --- 01:145038 --:------ 01:145038 0001 005 FF00000505
+
+    # sent by a CTL before a rf_check
     # 15:12:47.769 053  W --- 01:145038 --:------ 01:145038 0001 005 FC00000505
     # 15:12:47.869 053 RQ --- 01:145038 13:237335 --:------ 0016 002 00FF
     # 15:12:47.880 053 RP --- 13:237335 01:145038 --:------ 0016 002 0017
@@ -295,10 +299,17 @@ def parser_0001(payload, msg) -> Optional[dict]:  # rf_unknown
     # 00:22:43.320 ---  I --- --:------ --:------ --:------ 0001 005 00FFFF02FF
     # 00:22:43.415 ---  I --- --:------ --:------ --:------ 0001 005 00FFFF0200
 
+    assert msg.verb in [" I", " W"]
     assert len(payload) / 2 == 5
     assert payload[:2] in ["00", "FC", "FF"]
-    assert payload[2:] == "00000505"
-    return {}
+    assert payload[2:6] in ["0000", "FFFF"]
+    assert payload[6:8] in ["02", "05"]
+    return {
+        "other_id": payload[:2],
+        "unknown_0": payload[2:6],
+        "unknown_1": payload[6:8],
+        "unknown_3": payload[8:],
+    }
 
 
 @parser_decorator
@@ -790,6 +801,8 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:  # setpoint (of device
 
     # 055 RQ --- 12:010740 13:163733 --:------ 2309 003 0007D0
     # 046 RQ --- 12:010740 01:145038 --:------ 2309 003 03073A
+
+    assert msg.verb in [" I", "RP", " W"]
 
     if msg.is_array:
         assert msg.len >= 3 and msg.len % 3 == 0  # assuming not RQ
