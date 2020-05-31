@@ -229,8 +229,10 @@ def _bool(seqx) -> Optional[bool]:  # either 00 or C8
 
 
 def _dtm(seqx) -> str:
+    """Return a local datetime string in isoformat."""
     #        00141B0A07E3  (...HH:MM:00)    for system_mode, zone_mode (schedules?)
     #      0400041C0A07E3  (...HH:MM:SS)    for sync_datetime
+
     assert len(seqx) in [12, 14]
     if len(seqx) == 12:
         seqx = f"00{seqx}"
@@ -570,6 +572,15 @@ def parser_1030(payload, msg) -> Optional[dict]:  # mixvalve_config (zone)
 
 @parser_decorator
 def parser_1060(payload, msg) -> Optional[dict]:  # device_battery (battery_state)
+    """Return the battery state.
+
+    Some devices (04:) will also report battery level.
+    """
+    # 06:48:23.948 049  I --- 12:010740 --:------ 12:010740 1060 003 00FF01
+    # 16:18:43.515 051  I --- 12:010740 --:------ 12:010740 1060 003 00FF00
+    # 16:14:44.180 054  I --- 04:056057 --:------ 04:056057 1060 003 002800
+    # 17:34:35.460 087  I --- 04:189076 --:------ 01:145038 1060 003 026401
+
     assert len(payload) / 2 == 3
     assert payload[4:6] in ["00", "01"]
 
@@ -867,11 +878,17 @@ def parser_3120(payload, msg) -> Optional[dict]:  # unknown - WIP
 
 @parser_decorator
 def parser_313f(payload, msg) -> Optional[dict]:  # sync_datetime
+    # 11:13:51.889 055  I --- --:------ --:------ 12:207082 313F 009 0038020031040207E4
+
     # https://www.automatedhome.co.uk/vbulletin/showthread.php?5085-My-HGI80-equivalent-Domoticz-setup-without-HGI80&p=36422&viewfull=1#post36422
     # every day at ~4am TRV/RQ->CTL/RP, approx 5-10secs apart (CTL respond at any time)
     assert len(payload) / 2 == 9
-    assert payload[:4] == "00FC"
-    return {"datetime": _dtm(payload[4:18])}
+    assert payload[:2] == "00"  # evohome is always "00FC"?
+    return {
+        "datetime": _dtm(payload[4:18]),
+        "is_dst": True if bool(int(payload[4:6], 16) & 0x80) else None,
+        "unknown_0": payload[2:4],
+    }
 
 
 @parser_decorator
