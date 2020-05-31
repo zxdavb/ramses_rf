@@ -278,7 +278,7 @@ class Message:
         """Update the system state with the message data."""
 
         # CHECK: confirm parent_idx heuristics using the data in known_devices.json
-        if __dev_mode__ and isinstance(self.payload, dict):
+        if False and __dev_mode__ and isinstance(self.payload, dict):
             # assert self.dev_from in self._gwy.known_devices
             if self.dev_from in self._gwy.known_devices:
                 idx = self._gwy.known_devices[self.dev_from].get("zone_idx")
