@@ -878,7 +878,9 @@ def parser_3120(payload, msg) -> Optional[dict]:  # unknown - WIP
 
 @parser_decorator
 def parser_313f(payload, msg) -> Optional[dict]:  # sync_datetime
-    # 11:13:51.889 055  I --- --:------ --:------ 12:207082 313F 009 0038020031040207E4
+    # 2020-03-28T03:59:21.315178 045 RP --- 01:158182 04:136513 --:------ 313F 009 00FC3500A41C0307E4  # noqa: E501
+    # 2020-03-29T04:58:30.486343 045 RP --- 01:158182 04:136485 --:------ 313F 009 00FC8400C51D0307E4  # noqa: E501
+    # 2020-05-31T11:37:50.351511 056  I --- --:------ --:------ 12:207082 313F 009 0038021ECB1F0507E4  # noqa: E501
 
     # https://www.automatedhome.co.uk/vbulletin/showthread.php?5085-My-HGI80-equivalent-Domoticz-setup-without-HGI80&p=36422&viewfull=1#post36422
     # every day at ~4am TRV/RQ->CTL/RP, approx 5-10secs apart (CTL respond at any time)

@@ -348,14 +348,12 @@ class Controller(Device):
             ]
 
             if _LOGGER.isEnabledFor(logging.DEBUG):
-                sensorless_zones = {
-                    z.idx: z.temperature for z in self._evo.zones if z.sensor is None
-                }
-                _LOGGER.debug("Sensorless zones: %s", sensorless_zones)
+                sensorless_zones = {z.idx: z.temperature for z in test_zones}
+                _LOGGER.debug("Sensorless zones: %s (changed temps)", sensorless_zones)
                 orphan_sensors = {
                     d.id: d.temperature for d in all_sensors if d.parent_zone is None
                 }
-                _LOGGER.debug("Zoneless sensors: %s", orphan_sensors)
+                _LOGGER.debug("Zoneless sensors: %s (ever seen)", orphan_sensors)
 
             for z in test_zones:
                 _LOGGER.debug("Can check zone %s, temp now: %s", z.idx, z.temperature)
@@ -380,8 +378,9 @@ class Controller(Device):
             if len(zones) != 1:
                 return  # no zone without a sensor
 
-            if [d for d in all_sensors if d.parent_zone is None]:
-                return  # >0 sensors without a zone
+            # TODO: this can't be used if their neighbouring 'stats not blacklisted
+            # if [d for d in all_sensors if d.parent_zone is None]:
+            #     return  # >0 sensors without a zone
 
             # safely(?) assume this zone is using the CTL as a sensor...
             assert self.parent_zone is None, "Controller has already been allocated!"
