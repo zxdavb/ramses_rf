@@ -234,7 +234,10 @@ class Message:
         if self.code != "000C":  # TODO: assert here, or in is_valid()
             assert self.is_array == isinstance(self.payload, list)
 
-        if self._evo.ctl_id not in self._evo.device_by_id:
+        if (
+            self._evo.ctl_id is not None
+            and self._evo.ctl_id not in self._evo.device_by_id
+        ):
             _device(self._evo.ctl_id)
 
         # STEP 0: discover devices by harvesting zone_actuators payload
