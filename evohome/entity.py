@@ -100,11 +100,10 @@ class Battery:
 
     @property
     def battery(self):
-        battery_level = self._get_pkt_value("1060", "battery_level")
         low_battery = self._get_pkt_value("1060", "low_battery")
-        if battery_level is not None:
+        if low_battery is not None:
+            battery_level = self._get_pkt_value("1060", "battery_level")
             return {"low_battery": low_battery, "battery_level": battery_level}
-        return {"low_battery": low_battery}
 
 
 class HeatDemand:
