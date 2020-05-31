@@ -100,7 +100,7 @@ def parser_decorator(func):
             return func(*args, **kwargs)  # no context
 
         if msg.code == "0404":
-            raise NotImplementedError
+            return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
 
         if msg.code == "0418":
             assert len(payload) / 2 == 3
@@ -177,7 +177,7 @@ def _idx(seqx, msg) -> dict:
         assert int(seqx, 16) < 8  # this can be a "00"
         idx_name = "ufh_idx"
 
-    elif msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9"] + ["1FC9"]:
+    elif msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9", "0404", "1FC9"]:
         assert int(seqx, 16) < 12  # whitelist: this can be a "00"; can hometronic > 11?
         idx_name = (
             "zone_idx" if msg.dev_from[:2] in ["01", "02", "18"] else "parent_idx"
@@ -474,10 +474,24 @@ def parser_0100(payload, msg) -> Optional[dict]:  # language (of device/system)
 
 
 @parser_decorator
-def tbd_parser_0404(payload, msg) -> Optional[dict]:  # schedule - TODO
-    assert len(payload) / 2 == 22
-    assert payload[:2] == "00"
-    return {}
+def parser_0404(payload, msg) -> Optional[dict]:  # schedule - TODO
+    def _header(seqx) -> dict:
+        assert int(seqx[:2], 16) < 12
+        assert seqx[2:8] == "200008"
+
+        return {
+            "frag_index": int(seqx[10:12], 16),
+            "frag_total": int(seqx[12:], 16),
+            "frag_length": int(seqx[8:10], 16),
+        }
+
+    assert msg.verb in ["RQ", "RP"]
+    if msg.verb == "RQ":
+        assert msg.len == 7
+        return _header(payload[:14])
+
+    if msg.verb == "RP":
+        return {**_header(payload[:14]), "fragment": payload[14:]}
 
 
 @parser_decorator
