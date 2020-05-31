@@ -17,17 +17,6 @@ MIN_GAP_BETWEEN_CMDS = 0.7
 MAX_CMDS_PER_MINUTE = 30
 
 
-# def get_schedule(idx, ctl_id, gateway):
-#     packet_total = 0
-#     packet_num = 0
-#     # packet_list = []
-#     payload = f"{idx:02X}20000800{packet_num:02d}{packet_total:02d}"
-#     gwy.command_queue.put_nowait(Command("RQ", ctl_id, "0404", payload))
-#     packet_total = 5  # TBA
-#     for i in range(2, packet_total + 1):
-#         gwy.command_queue.put_nowait(Command("RQ", ctl_id, "0404", payload))
-
-
 class Command:
     """The command class."""
 

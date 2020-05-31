@@ -1,6 +1,8 @@
 """The entities for Honeywell's RAMSES II / Residential Network Protocol."""
 import logging
+import struct
 from typing import Any, Optional
+import zlib
 
 from .command import Command
 from .const import (
@@ -626,10 +628,12 @@ class Zone(Entity):
         self._sensor = None
         self._type = None
         self._discover()
+        self._fragments = []
 
     def _discover(self):
-        # if self.id != "01":  # TODO: testing only
-        #     return
+        if self.id == "00":  # TODO: testing only
+            self._fragments = []
+            self._schedule()
 
         for code in ["0004", "000C"]:
             self._command(code, payload=f"{self.id}00")
@@ -662,6 +666,49 @@ class Zone(Entity):
                 self.type = "BDR"
                 self.__class__ = _ZONE_CLASS[self.type]
                 _LOGGER.warning("Promoted zone %s to %s", self.id, self.type)
+
+        if msg.code == "0404":
+            self._schedule(msg)
+
+    def _schedule(self, msg=None) -> None:
+        # 095 RQ --- 18:013393 01:145038 --:------ 0404 007 00200008000100
+        # 045 RP --- 01:145038 18:013393 --:------ 0404 048 00200008290105 68816DCDB..  # noqa: E501
+
+        if msg is None:
+            self._fragments = []
+
+            frag_total = 0
+            frag_index = 1
+
+            header = f"{self.id}20000800{frag_index:02d}{frag_total:02d}"
+            self._command("0404", payload=header)
+            # self._que.put_nowait(Command("RQ", self._evo.ctl_id, "0404", header))
+            return
+
+        self._fragments.append(msg.payload["fragment"])
+
+        frag_total = msg.payload["frag_total"]
+        frag_index = msg.payload["frag_index"] + 1
+
+        if frag_index <= frag_total:
+            header = f"{self.id}20000800{frag_index:02d}{frag_total:02d}"
+            self._command("0404", payload=header)
+            print(header)
+            # self._que.put_nowait(Command("RQ", self._evo.ctl_id, "0404", header))
+            return
+
+        print("".join(self._fragments))  # TODO: remove
+        raw_schedule = zlib.decompress(bytearray.fromhex("".join(self._fragments)))
+
+        for i in range(0, len(raw_schedule), 20):
+            zone, day, time, temp, _ = struct.unpack(
+                "<xxxxBxxxBxxxHxxHH", raw_schedule[i : i + 20]
+            )
+            print(
+                "ZONE={0:d} DAY={1:d} TIME={2:02d}:{3:02d} TEMP={4:.2f}".format(
+                    zone, day, *divmod(time, 60), temp / 100
+                )
+            )
 
     @property
     def idx(self) -> str:
