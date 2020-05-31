@@ -92,7 +92,7 @@ class Gateway:
         )
 
         self.cmd_que = PriorityQueue(maxsize=200)
-        # self.msg_queue = PriorityQueue(maxsize=400)
+        # self.msg_que = SimpleQueue(maxsize=100)
 
         # if self.config.get("ser2net"):
         self._relay = None
@@ -310,7 +310,7 @@ class Gateway:
         while not self.cmd_que.empty():
             cmd = self.cmd_que.get()
             if destination is not None:
-                if not self.config.get("listen_only") or cmd.startswith("!"):
+                if not self.config.get("listen_only") or str(cmd).startswith("!"):
                     # TODO: if not cmd.entity._pkts.get(cmd.code)
                     await destination.put_pkt(cmd, _LOGGER)
 
