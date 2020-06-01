@@ -138,11 +138,14 @@ class PortPktProvider:
         timestamp = time_stamp()  # done here & now for most-accurate timestamp
         # print(f"{raw_pkt}")  # TODO: deleteme, only for debugging
 
-        packet = "".join(c for c in raw_pkt.decode().strip() if c in printable)
+        try:
+            pkt = "".join(c for c in raw_pkt.decode("ascii").strip() if c in printable)
+        except UnicodeDecodeError:
+            return RAW_PKT(time_stamp, None, None)
 
         # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
 
-        return RAW_PKT(timestamp, packet, raw_pkt)
+        return RAW_PKT(timestamp, pkt, raw_pkt)
 
     async def put_pkt(self, cmd, logger):  # TODO: logger is a hack
         """Get the next packet line from a serial port."""
