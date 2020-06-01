@@ -392,9 +392,8 @@ class Controller(Device):
                 "Sensor is CTL by exclusion, zone %s: %s", zones[0].id, self.id
             )
 
-        if msg.code in ["000A", "2309", "30C9"]:
-            if msg.is_array:
-                super().update(msg)
+        if msg.code in ["000A", "2309", "30C9"] and not isinstance(msg.payload, list):
+            pass
         else:
             super().update(msg)
 
@@ -628,12 +627,12 @@ class Zone(Entity):
         self._sensor = None
         self._type = None
         self._discover()
-        self._fragments = []
+        self._fragments = {}
+        self.__schedule = None
 
     def _discover(self):
         # if self.id == "00":  # TODO: testing only
-        self._fragments = None
-        self._schedule()
+        self._get_schedule()
 
         for code in ["0004", "000C"]:
             self._command(code, payload=f"{self.id}00")
@@ -668,9 +667,9 @@ class Zone(Entity):
                 _LOGGER.warning("Promoted zone %s to %s", self.id, self.type)
 
         if msg.code == "0404":
-            self._schedule(msg)
+            self._get_schedule(msg)
 
-    def _schedule(self, msg=None) -> None:
+    def _get_schedule(self, msg=None) -> None:
         # 095 RQ --- 18:013393 01:145038 --:------ 0404 007 00200008000100
         # 045 RP --- 01:145038 18:013393 --:------ 0404 048 00200008290105 68816DCDB..  # noqa: E501
 
@@ -686,9 +685,6 @@ class Zone(Entity):
 
         frag_index = msg.payload["frag_index"]
         frag_total = msg.payload["frag_total"]
-
-        if self._fragments == []:  # TODO: a hack!!
-            self._fragments = {}
 
         self._fragments[frag_index] = msg.payload["fragment"]
 
@@ -709,15 +705,32 @@ class Zone(Entity):
                 _LOGGER.exception("*** FAILED to ZLIB ***, %s", "".join(fragments))
                 return
 
+            self.__schedule = []
+            old_day, switchpoints = 0, []
+
             for i in range(0, len(raw_schedule), 20):
                 zone, day, time, temp, _ = struct.unpack(
                     "<xxxxBxxxBxxxHxxHH", raw_schedule[i : i + 20]
                 )
-                print(
-                    "ZONE={0:d} DAY={1:d} TIME={2:02d}:{3:02d} TEMP={4:.2f}".format(
-                        zone, day, *divmod(time, 60), temp / 100
+                if day > old_day:
+                    self._schedule.append(
+                        {"day_of_week": old_day, "switchpoints": switchpoints}
                     )
+                    old_day, switchpoints = day, []
+                switchpoints.append(
+                    {
+                        "time_of_day": "{0:02d}:{1:02d}".format(*divmod(time, 60)),
+                        "heat_setpoint": temp / 100,
+                    }
                 )
+
+            self.__schedule.append(
+                {"day_of_week": old_day, "switchpoints": switchpoints}
+            )
+
+    @property
+    def _schedule(self) -> dict:
+        return self.__schedule
 
     @property
     def idx(self) -> str:
@@ -734,7 +747,7 @@ class Zone(Entity):
             if device_type in _ZONE_CLASS:
                 self._type = device_type
                 self.__class__ = _ZONE_CLASS[self._type]
-                _LOGGER.warning("Set Zone %s to %s", self.id, self._type)
+                _LOGGER.debug("Set Zone type %s to %s", self.id, self._type)
                 break
 
         return self._type
@@ -753,17 +766,29 @@ class Zone(Entity):
         return self._get_pkt_value("0004", "name")
 
     @property
-    def configuration(self):  # 000A
-        result = self._get_pkt_value("000A")
+    def configuration(self) -> Optional[dict]:  # 000A
+        msg_1 = self._evo.ctl._pkts.get("000A")  # authorative, but 1/hourly
+        msg_2 = self._pkts.get("000A")  # possibly more up-to-date, or null
+
+        if msg_1 is not None and msg_2 is not None:
+            msg = msg_1 if msg_1.dtm > msg_2.dtm else msg_2
+        else:
+            msg = msg_1 if msg_1 is not None else msg_2
+
+        if msg is msg_2:  # could be: None is None
+            result = self._get_pkt_value("000A")
+        elif msg_1 is not None:  # elif not required, if sufficent
+            result = self._evo.ctl._get_pkt_value("000A")
+            if result:
+                result = {
+                    k: v
+                    for d in result
+                    for k, v in d.items()
+                    if d["zone_idx"] == self.idx
+                }
+
         if result:
             return {k: v for k, v in result.items() if k != "zone_idx"}
-
-    @property
-    def configuration_alt(self):  # 000A
-        # use the sync_cycle array if there isn't an RP
-        result = self._evo.ctl._get_pkt_value("000A")
-        if result:
-            return {k: v for k, v in result[0].items() if k != "zone_idx"}
 
     @property
     def actuators(self) -> list:  # 000C
@@ -771,33 +796,53 @@ class Zone(Entity):
         return actuators if actuators is not None else []  # TODO: should be: actuators
 
     @property
-    def setpoint_status(self):  # 2349
-        # TODO: which of the follwoing two to prefer?
-
+    def mode(self) -> Optional[dict]:  # 2349
         result = self._get_pkt_value("2349")
         if result:
             return {k: v for k, v in result.items() if k != "zone_idx"}
 
-        # otherwise, use the last sync_cycle array value
-        result = self._evo.ctl._get_pkt_value("2309")
+    @property
+    def setpoint(self) -> Optional[float]:  # 2309
+        msg_1 = self._evo.ctl._pkts.get("2309")  # authorative
+        msg_2 = self._pkts.get("2349")  # possibly more up-to-date, or null
+
+        if msg_1 is not None and msg_2 is not None:
+            msg = msg_1 if msg_1.dtm > msg_2.dtm else msg_2
+        else:
+            msg = msg_1 if msg_1 is not None else msg_2
+
+        if msg is msg_2:  # could be: None is None
+            result = self._get_pkt_value("2349")
+        elif msg_1 is not None:  # elif not required, if sufficent
+            result = self._evo.ctl._get_pkt_value("2309")
+            if result:
+                result = (
+                    {
+                        k: v
+                        for d in result
+                        for k, v in d.items()
+                        if d["zone_idx"] == self.idx
+                    }
+                    if result
+                    else None
+                )
+
         if result:
-            result = [d for d in result if d["zone_idx"] == self.idx]
-            return {"setpoint": result[0]["setpoint"]}
+            return result.get("setpoint")
 
     @property
-    def temperature(self):  # 30C9
-        # TODO: should use the most recent of these two
-
-        # use the last sync_cycle array value
+    def temperature(self) -> Optional[float]:  # 30C9
+        # OK to simply use the controller's sync_cycle array value for now
         result = self._evo.ctl._get_pkt_value("30C9")
         if result:
-            result = [d for d in result if d["zone_idx"] == self.idx]
-            return result[0]["temperature"]
+            result = {
+                k: v for d in result for k, v in d.items() if d["zone_idx"] == self.idx
+            }
+            return result.get("temperature")
 
-        # use the last sync_cycle array value if there isn't an RP
-        temp = self._get_pkt_value("30C9", "temperature")
-        if temp:
-            return temp
+        # TODO: this value _may_ be more up-to-date (but only if from *the* sensor?)
+        # result = self._get_pkt_value("30C9", "temperature")
+        # return result if result else None
 
     @property
     def heat_demand_alt(self) -> Optional[float]:  # 3150
@@ -822,7 +867,10 @@ class Zone(Entity):
 
     @property
     def sensors(self) -> list:
-        return [d.id for d in self.devices if hasattr(d, "temperature")]
+        sensors = [
+            d for d in self.devices if hasattr(self._evo.device_by_id[d], "temperature")
+        ]
+        return list(set(sensors) | {self._sensor})
 
     @property
     def sensor(self) -> Optional[str]:  # TODO: WIP
