@@ -149,7 +149,8 @@ class PortPktProvider:
 
         logger.debug("# Data was sent to %s: %s", self.serial_port, cmd)
         self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
-        # self.writer.write(f"{cmd}\r\n".encode("ascii"))
+
+        # cmd.dispatch_dtm = time_stamp()
         await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
 
 
