@@ -266,7 +266,7 @@ def _percent(seqx) -> Optional[float]:  # usually a percentage 0-100% (0.0 to 1.
 
 def _str(seqx) -> Optional[str]:  # printable
     _string = bytearray([x for x in bytearray.fromhex(seqx) if 31 < x < 127])
-    return _string.decode() if _string else None
+    return _string.decode("ascii") if _string else None
 
 
 def _temp(seqx) -> Optional[float]:
