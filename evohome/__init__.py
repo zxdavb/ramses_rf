@@ -1,6 +1,6 @@
 """Evohome serial."""
 import asyncio
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta
 import json
 import logging
 import os
@@ -15,6 +15,7 @@ from guppy import hpy
 import signal
 import sys
 
+from collections import deque
 from queue import PriorityQueue
 
 from .command import Command
@@ -26,7 +27,7 @@ from .ser2net import Ser2NetServer
 from .system import EvohomeSystem
 
 _LOGGER = logging.getLogger(__name__)
-# OGGER.setLevel(logging.WARNING)
+# OGGER.setLevel(logging.DEBUG)
 
 
 class Gateway:
@@ -92,7 +93,7 @@ class Gateway:
         )
 
         self.cmd_que = PriorityQueue(maxsize=200)
-        # self.msg_que = SimpleQueue(maxsize=100)
+        self._buffer = deque()
 
         # if self.config.get("ser2net"):
         self._relay = None
@@ -309,16 +310,37 @@ class Gateway:
         # TODO: listen_only will clear the whole queue, not only the its next element
         while not self.cmd_que.empty():
             cmd = self.cmd_que.get()
-            if destination is not None:
-                if not self.config.get("listen_only") or str(cmd).startswith("!"):
-                    # TODO: if not cmd.entity._pkts.get(cmd.code)
+
+            if destination is not None and str(cmd).startswith("!"):
+                await destination.put_pkt(cmd, _LOGGER)
+
+            elif destination is None or self.config.get("listen_only"):
+                pass
+
+            elif cmd.verb == "RQ" and cmd.code == "0404":  # wait for the response..
+                self._buffer.append(cmd)
+
+                timeout_1 = dt.now() + timedelta(seconds=2.5)
+                while dt.now() < timeout_1:
                     await destination.put_pkt(cmd, _LOGGER)
 
-            self.cmd_que.task_done()
-            if not self.config.get("listen_only"):
-                break
+                    timeout_2 = dt.now() + timedelta(seconds=1)
+                    while len(self._buffer) != 0:
+                        await asyncio.sleep(0.005)
 
-        # await asyncio.sleep(0.001)  # TODO: why is this needed, for Ctrl-C?
+                        if dt.now() > timeout_2:
+                            break
+                    else:
+                        break  # the RQ arrived
+                else:
+                    # print("*** I GAVE UP ***")
+                    self._buffer.clear()
+
+            else:
+                await destination.put_pkt(cmd, _LOGGER)
+
+            self.cmd_que.task_done()
+            # await asyncio.sleep(0.001)  # TODO: why is this needed, for Ctrl-C?
 
     async def _process_pkt(self, raw_pkt) -> None:
         """Receive a packet and optionally validate it as a message."""
@@ -373,6 +395,15 @@ class Gateway:
         except (LookupError, TypeError, ValueError):  # TODO: shouldn't be needed
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
             return
+
+        if len(self._buffer) != 0:
+            cmd = self._buffer.copy().pop()
+            if msg.verb == "RP" and msg.code == cmd.code:
+                self._buffer.clear()
+                # print("*** IS OUR PACKET ***")
+            else:
+                # print("*** IS NOT OUR PACKET ***")
+                pass
 
         if self.config.get("raw_output", 0) > 1:
             return
