@@ -8,6 +8,26 @@ from typing import Optional
 RECV_TIMEOUT = 0  # without hearing from client (from network) - not useful
 SEND_TIMEOUT = 0  # without hearing from server (from serial port)
 
+SE_ = 240  # Subnegotiation Ends
+NOP = 241  # No OPeration
+DM_ = 242  # Data Mark
+BRK = 243  # Break
+
+IP_ = 244  # Interrupt Process
+AO_ = 245  # Abort Output
+AYT = 246  # Are You There
+EC_ = 247  # Erase Character
+EL_ = 248  # Erase Line
+
+GA_ = 249  # Go Ahead
+SB_ = 250  # Subnegotiation Begins
+IAC = 255  # Interpret as Command
+
+WILL = 251  # Will <option code>
+WONT = 252  # Wont <option code>
+DO__ = 253  # Do <option code>
+DONT = 254  # Don't <option code>
+
 _LOGGER = logging.getLogger(__name__)
 # _LOGGER.setLevel(logging.DEBUG)
 
@@ -51,13 +71,26 @@ class Ser2NetProtocol(asyncio.Protocol):
                 RECV_TIMEOUT, self._recv_timeout
             )
 
-        if data[0] == 0xFF:  # telnet IAC
+        if int(data[0], 16) == IAC:  # telnet IAC
             # see: https://users.cs.cf.ac.uk/Dave.Marshall/Internet/node141.html
-            _LOGGER.warning(" - received a telnet IAC (ignoring): %s", data)
-            return  # TODO: is this enough?
+            # see: https://tools.ietf.org/html/rfc854 - telnet
+            # see: https://tools.ietf.org/html/rfc2217 - ser2net
+            operation, option = int(data[1], 16), int(data[2], 16)
+            _LOGGER.warning(" - received a IAC (%s) %s", operation, option)
+            if operation in [WILL, DO__]:
+                response = IAC + WONT + option  # noqa
+            return  # TODO: will probably need to send a response
+
+        elif int(data[0], 16) > 0x7F:  # other non-ASCII character
+            _LOGGER.warning(" - received a %s", operation, option)
+            return
 
         try:
-            packet = "".join(c for c in data.decode().strip() if c in printable)
+            packet = "".join(
+                c
+                for c in data.decode("ascii", errors="ignore").strip()
+                if c in printable
+            )
         except UnicodeDecodeError:
             return
 
@@ -106,7 +139,7 @@ class Ser2NetServer:
     async def write(self, data: str) -> None:
         _LOGGER.debug("Ser2NetServer.write(%s)", data)
 
-        packet = f"{data}\r\n".encode()
+        packet = f"{data}\r\n".encode("ascii")
         _LOGGER.debug(" - packet is: %s", packet)
 
         if self.protocol.transport and not self.protocol.transport.is_closing():
