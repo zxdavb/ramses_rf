@@ -250,16 +250,18 @@ class Message:
             _device(d)
             for d in self.dev_addr
             if d[:2] not in ["18", "63", "--"]
-            and (
-                self.dev_from in self._evo.device_by_id
-                or self.dev_dest in self._evo.device_by_id
-            )  # doesn't work
+            # this has issues...
+            # and (
+            #     self.dev_from in self._evo.device_by_id
+            #     or self.dev_dest in self._evo.device_by_id
+            # )  # doesn't work
+            # ...but is better than this:
+            # and self._evo.ctl_id in [self.dev_from, self.dev_dest]
+            # and self._evo.ctl_id is not None  # doesn't work either
         ]
-        # and self._evo.ctl_id in [self.dev_from, self.dev_dest]
-        # and self._evo.ctl_id is not None  # doesn't work either
 
         # TODO: above wont work for 07:/12:/22:/34:; they rarely speak direct with 01:
-        [_device(d) for d in self.dev_addr if d[:2] in ["07", "12", "22", "34"]]
+        # [_device(d) for d in self.dev_addr if d[:2] in ["07", "12", "22", "34"]]
 
         # STEP 2: discover domains and zones by eavesdropping regular pkts
         if isinstance(self._payload, dict):
