@@ -128,8 +128,8 @@ COMMAND_LENGTH = max([len(k) for k in list(COMMAND_LOOKUP)])
 # TODO: which device type/config pairs send what packets?
 DEVICE_TABLE = {
     "01": {"type": "CTL", "name": "Controller", "battery": False},  # rechargeable
-    "02": {"type": "UFH", "name": "Underfloor Heating", "battery": False},  # HCE80(R)
-    "03": {"type": " 03", "name": "Room Sensor/Stat", "battery": None},  # HCF82, HCW82
+    "02": {"type": "UFH", "name": "UFH Controller", "battery": False},  # HCE80(R)
+    "03": {"type": "STa", "name": "Room Sensor/Stat", "battery": None},  # HCF82, HCW82
     "04": {"type": "TRV", "name": "Radiator Valve", "battery": True},  # HR80, HR92
     "07": {"type": "DHW", "name": "DHW Sensor", "battery": True},  # CS92
     "10": {"type": "OTB", "name": "OpenTherm Bridge", "battery": False},  # R8810
