@@ -452,6 +452,32 @@ class Controller(Device):
         return sensors[0] if sensors else None
 
 
+class UfhController(Device, HeatDemand):
+    """The UFH class, the HCE80 that controls the UFH heating zones."""
+
+    def _discover(self):
+        super()._discover()
+
+        for code in COMMAND_SCHEMA:  # TODO: testing only
+            # for payload in DOMAIN_TYPE_MAP:  # TODO: testing only
+            self._command(code, dest_addr=self.id)
+
+        return
+
+    def update(self, msg):
+        super().update(msg)
+
+        # ["3150/ZZ|FC", "0008/FA|FC", "22D0/none", "22C9/Zone list"]
+
+        if msg.code in ["22C9"] and not isinstance(msg.payload, list):
+            pass
+        else:
+            super().update(msg)
+
+    def zones(self):
+        pass
+
+
 class DhwSensor(Device, Battery):
     """The DHW class, such as a CS92."""
 
@@ -603,7 +629,7 @@ class BdrSwitch(Device):
 
 
 class TpiSwitch(BdrSwitch):  # TODO: superset of BDR switch?
-    """The TPI class, the BDR91 that controlls the boiler."""
+    """The TPI class, the BDR91 that controls the boiler."""
 
     def _discover(self):
         # NOTE: do not super()._discover()
@@ -657,8 +683,13 @@ class Zone(Entity):
             _ = self.type
 
         # TODO: this is eavesdropping...
+        if msg.code == "0404":
+            self._get_schedule(msg)
+
         # not UFH (it seems), but BDR or VAL; and possibly a MIX support 0008 too
         if msg.code in ["0008", "0009"]:  # TODO: how to determine is/isnt MIX?
+            assert msg.dev_from[:2] in ["01", "13"]  # 01 as a stat
+
             if self.type:
                 assert self.type in ["BDR", "VAL"]
             else:
@@ -666,8 +697,23 @@ class Zone(Entity):
                 self.__class__ = _ZONE_CLASS[self.type]
                 _LOGGER.warning("Promoted zone %s to %s", self.id, self.type)
 
-        if msg.code == "0404":
-            self._get_schedule(msg)
+        if msg.code == "3150":
+            assert msg.dev_from[:2] in ["02", "04", "13"]
+
+            if self.type:
+                return
+
+            if msg.dev_from[:2] == "02":  # UFH zone
+                self.type = "UFH"
+
+            if msg.dev_from[:2] == "04":  # Zone valve zone
+                self.type = "TRV"
+
+            if msg.dev_from[:2] == "13":  # Zone valve zone
+                self.type = "VAL"
+
+            self.__class__ = _ZONE_CLASS[self.type]
+            _LOGGER.warning("Promoted zone %s to %s", self.id, self.type)
 
     def _get_schedule(self, msg=None) -> None:
         # 095 RQ --- 18:013393 01:145038 --:------ 0404 007 00200008000100
@@ -791,11 +837,6 @@ class Zone(Entity):
             return {k: v for k, v in result.items() if k != "zone_idx"}
 
     @property
-    def actuators(self) -> list:  # 000C
-        actuators = self._get_pkt_value("000C", "actuators")
-        return actuators if actuators is not None else []  # TODO: should be: actuators
-
-    @property
     def mode(self) -> Optional[dict]:  # 2349
         result = self._get_pkt_value("2349")
         if result:
@@ -857,6 +898,17 @@ class Zone(Entity):
             and d.heat_demand is not None
         ]
         return max(demands + [0]) if demands else None
+
+    @property
+    def actuators(self) -> list:  # 000C
+        # actuators = self._get_pkt_value("000C", "actuators")
+        # return actuators if actuators is not None else []  # TODO: or just: actuators
+
+        return [d for d in self.devices if d[:2] in ["02", "04", "13"]]
+
+        return [
+            d for d in self.devices if hasattr(self._evo.device_by_id[d], "heat_demand")
+        ]
 
     @property
     def devices(self) -> list:
@@ -987,6 +1039,7 @@ DEVICE_CLASS = {
     DEVICE_LOOKUP["THm"]: Thermostat,
     DEVICE_LOOKUP["TRV"]: TrvActuator,
     DEVICE_LOOKUP["OTB"]: OtbGateway,
+    DEVICE_LOOKUP["UFH"]: UfhController,
 }
 
 _ZONE_CLASS = {
