@@ -136,11 +136,36 @@ class PortPktProvider:
             return RAW_PKT(time_stamp(), None, None)
 
         timestamp = time_stamp()  # done here & now for most-accurate timestamp
-        # print(f"{raw_pkt}")  # TODO: deleteme, only for debugging
+        _LOGGER.debug(
+            "%s",
+            raw_pkt,
+            extra={
+                "date": timestamp[:10],
+                "time": timestamp[11:],
+                "error_text": "",
+                "comment": "",
+                "_packet": "",
+            },
+        )
 
         try:
-            pkt = "".join(c for c in raw_pkt.decode("ascii").strip() if c in printable)
+            pkt = "".join(
+                c
+                for c in raw_pkt.decode("ascii", errors="strict").strip()
+                if c in printable
+            )
         except UnicodeDecodeError:
+            _LOGGER.warning(
+                "%s",
+                raw_pkt,
+                extra={
+                    "date": timestamp[:10],
+                    "time": timestamp[11:],
+                    "error_text": "",
+                    "comment": "",
+                    "_packet": "",
+                },
+            )
             return RAW_PKT(time_stamp, None, None)
 
         # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
