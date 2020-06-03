@@ -130,23 +130,29 @@ class PortPktProvider:
     async def get_pkt(self):
         """Get the next packet line from a serial port."""
 
+        def _logger_msg(func, msg):
+            # TODO: this is messy...
+            date, time = timestamp.split("T")
+            func(
+                "%s < %s",
+                raw_pkt,
+                msg,
+                extra={
+                    "date": date,
+                    "time": time,
+                    "error_text": "",
+                    "comment": "",
+                    "_packet": raw_pkt,
+                },
+            )
+
         try:
             raw_pkt = await self.reader.readline()
         except SerialException:
             return RAW_PKT(time_stamp(), None, None)
 
         timestamp = time_stamp()  # done here & now for most-accurate timestamp
-        _LOGGER.debug(
-            "%s",
-            raw_pkt,
-            extra={
-                "date": timestamp[:10],
-                "time": timestamp[11:],
-                "error_text": "",
-                "comment": "",
-                "_packet": "",
-            },
-        )
+        _logger_msg(_LOGGER.debug, "Raw packet")
 
         try:
             pkt = "".join(
@@ -155,17 +161,7 @@ class PortPktProvider:
                 if c in printable
             )
         except UnicodeDecodeError:
-            _LOGGER.warning(
-                "%s",
-                raw_pkt,
-                extra={
-                    "date": timestamp[:10],
-                    "time": timestamp[11:],
-                    "error_text": "",
-                    "comment": "",
-                    "_packet": "",
-                },
-            )
+            _logger_msg(_LOGGER.warning, "Bad (raw) packet")
             return RAW_PKT(time_stamp, None, None)
 
         # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
