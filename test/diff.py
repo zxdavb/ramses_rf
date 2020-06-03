@@ -154,6 +154,7 @@ def compare(config) -> None:
                             block_list.append(f">>> {un_parse(pkt2_list[0])}")
                             del pkt2_list[0]
 
+                    # what is the average timedelta between matched packets?
                     td = (
                         dt.fromisoformat(pkt1["dt"])
                         - dt.fromisoformat(pkt2_list[0]["dt"])
@@ -164,6 +165,8 @@ def compare(config) -> None:
                         dt_diff += abs(td)
                         num_matches += 1
                         # print(td, dt_diff / num_matches)
+
+                    # what is the average timedelta between matched packets?
 
                     del pkt2_list[0]  # the matching packet
                     break
@@ -182,7 +185,11 @@ def compare(config) -> None:
 
     end_block(block_list)
 
-    print(f"\r\nAverage time difference of matched packets: {dt_diff / num_matches:0.0f} milliseconds")
+    print(
+        "\r\nAverage time difference of matched packets:",
+        f"{dt_diff / num_matches:0.0f} milliseconds"
+    )
+
 
 if __name__ == "__main__":
     main()
