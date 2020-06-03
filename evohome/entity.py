@@ -748,7 +748,7 @@ class Zone(Entity):
                 raw_schedule = zlib.decompress(bytearray.fromhex("".join(fragments)))
 
             except zlib.error:
-                _LOGGER.exception("*** FAILED to ZLIB ***, %s", "".join(fragments))
+                _LOGGER.exception("*** FAILED to ZLIB ***, %s", fragments)
                 return
 
             self.__schedule = []

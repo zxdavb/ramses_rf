@@ -261,7 +261,7 @@ class Gateway:
                 self._tasks.append(asyncio.create_task(self._relay.start()))
 
             async with PortPktProvider(self.serial_port, loop=self.loop) as manager:
-                if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 FF"
+                if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
                     cmd = self.config["execute_cmd"]
                     cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:])
                     await manager.put_pkt(cmd, _LOGGER)

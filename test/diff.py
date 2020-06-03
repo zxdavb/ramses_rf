@@ -44,10 +44,10 @@ def _parse_args():
 
     group = parser.add_argument_group(title="Context control")
     group.add_argument(
-        "-B", "--before", default=2, type=pos_int, help="matched lines before the block"
+        "-B", "--before", default=2, type=int, help="matched lines before the block"
     )
     group.add_argument(
-        "-A", "--after", default=2, type=pos_int, help="matched lines after the block"
+        "-A", "--after", default=2, type=int, help="matched lines after the block"
     )
     group.add_argument(
         "-w", "--window", default=1, type=pos_float, help="look ahead in secs (float)"
