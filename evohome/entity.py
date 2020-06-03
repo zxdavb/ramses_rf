@@ -657,8 +657,8 @@ class Zone(Entity):
         self.__schedule = None
 
     def _discover(self):
-        # if self.id == "00":  # TODO: testing only
-        self._get_schedule()
+        if self.id == "00":  # TODO: testing only
+            self._get_schedule()
 
         for code in ["0004", "000C"]:
             self._command(code, payload=f"{self.id}00")
