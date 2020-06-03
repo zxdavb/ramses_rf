@@ -6,12 +6,6 @@ import logging
 import os
 import re
 
-# these are used to test for memory leak
-import psutil
-import objgraph
-import gc
-from guppy import hpy
-
 import signal
 import sys
 
@@ -40,9 +34,6 @@ class Gateway:
         self.serial_port = serial_port
         self.loop = loop if loop else asyncio.get_running_loop()  # get_event_loop()
         self.config = config
-
-        self._tasks = []
-        self._h = self._hp = None  # TODO: mem leak code
 
         if self.serial_port and config.get("input_file"):
             _LOGGER.warning(
@@ -109,6 +100,7 @@ class Gateway:
         # if self.config.get("raw_output", 0) > 0:
         self.evo = EvohomeSystem(controller_id=None)
 
+        self._tasks = []
         self._setup_signal_handler()
 
     def _setup_signal_handler(self):
@@ -127,13 +119,10 @@ class Gateway:
         _LOGGER.debug("Received signal %s...", signal.name)
 
         if signal == signal.SIGUSR1 and self.config.get("raw_output", 0) == 0:
-            _LOGGER.info("Devices:%s", f"\r\n{json.dumps(self.evo._devices, indent=4)}")
-            _LOGGER.info("Domains:%s", f"\r\n{json.dumps(self.evo._domains, indent=4)}")
-            _LOGGER.info("Zones:  %s", f"\r\n{json.dumps(self.evo._zones, indent=4)}")
+            _LOGGER.info("State Data: \r\n%s", self.evo)
 
-        if signal == signal.SIGUSR2:  # output debug data
-            _LOGGER.info("Debug data is:")
-            self._debug_info()  # TODO: should be %s in a _LOGGER
+        # if signal == signal.SIGUSR2:  # output debug data
+        #     _LOGGER.info("Debug data is:")
 
         if signal in [signal.SIGHUP, signal.SIGINT, signal.SIGTERM]:
             _LOGGER.info("Received a %s, exiting gracefully...", signal)
@@ -146,19 +135,6 @@ class Gateway:
             [task.cancel() for task in tasks]
             # await asyncio.gather(*tasks)
             logging.info(" - done.")
-
-    def _debug_info(self) -> None:
-        gc.collect()
-
-        _LOGGER.info("mem_fullinfo: %s", psutil.Process(os.getpid()).memory_full_info())
-        _LOGGER.info("common_types: %s", objgraph.most_common_types())
-        _LOGGER.info(
-            "leaking_objs: %s", objgraph.count("dict", objgraph.get_leaking_objects())
-        )
-
-        _LOGGER.info("heap_stuff:")
-        _LOGGER.info("%s", self._hp.heap())
-        _LOGGER.info("%s", self._hp.heap().more)
 
     async def cleanup(self, xxx=None) -> None:
         """Perform a graceful shutdown."""
@@ -193,12 +169,7 @@ class Gateway:
                 )
 
         if self.config.get("raw_output", 0) == 0:
-            try:  # print state data
-                print(f"Devices:\r\n{json.dumps(self.evo._devices, indent=4)}")
-                print(f"Domains:\r\n{json.dumps(self.evo._domains, indent=4)}")
-                print(f"Zones  :\r\n{json.dumps(self.evo._zones, indent=4)}")
-            except (AssertionError, AttributeError, LookupError, TypeError, ValueError):
-                _LOGGER.warning("Failed to print State data", exc_info=True)
+            _LOGGER.info("State Data: \r\n%s", self.evo)
 
     async def start(self) -> None:
         async def proc_pkts_from_file() -> None:
@@ -229,10 +200,6 @@ class Gateway:
 
         async def proc_pkts_from_port() -> None:
             async def port_reader(manager):
-                gc.collect()  # TODO: mem leak test only
-                self._hp = hpy()
-                self._hp.setrelheap()
-
                 while True:
                     raw_pkt = await manager.get_pkt()
                     if raw_pkt.packet:

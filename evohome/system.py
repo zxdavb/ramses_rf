@@ -1,9 +1,11 @@
 """The evohome system."""
 
+import json
 import logging
 from typing import Optional
 
 _LOGGER = logging.getLogger(__name__)
+# OGGER.setLevel(logging.DEBUG)
 
 
 class EvohomeSystem:
@@ -143,3 +145,16 @@ class EvohomeSystem:
                 structure["orphans"] = orphans
 
         return structure
+
+    def __str__(self) -> str:
+        """Produce a string representation of the state DB."""
+        try:
+            result = {
+                "devices": self._devices,
+                "domains": self._domains,
+                "zones": self._zones,
+            }
+            return json.dumps(result, indent=4)
+
+        except (AssertionError, AttributeError, LookupError, TypeError, ValueError):
+            _LOGGER.warning("Failed to produce State data", exc_info=True)
