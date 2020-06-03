@@ -37,11 +37,6 @@ def _parse_args():
     group.add_argument("file_one", type=extant_file, help="left file (<<<), say nanofw")
     group.add_argument("file_two", type=extant_file, help="right file (>>>), say hgi80")
 
-    # Context control:
-    #   -B, --before-context=NUM  print NUM lines of leading context
-    #   -A, --after-context=NUM   print NUM lines of trailing context
-    #   -C, --context=NUM         print NUM lines of output context
-
     group = parser.add_argument_group(title="Context control")
     group.add_argument(
         "-B", "--before", default=2, type=int, help="matched lines before the block"
@@ -50,7 +45,7 @@ def _parse_args():
         "-A", "--after", default=2, type=int, help="matched lines after the block"
     )
     group.add_argument(
-        "-w", "--window", default=1, type=pos_float, help="look ahead in secs (float)"
+        "-w", "--window", default=0.5, type=pos_float, help="look ahead in secs (float)"
     )
     group.add_argument(
         "-f", "--filter", default="", type=str, help="drop blocks without this string"
@@ -138,6 +133,8 @@ def compare(config) -> None:
     counter = 0
 
     block_list = []
+    dt_diff = 0
+    num_matches = 0
 
     with open(config.file_one) as fh1, open(config.file_two) as fh2:
 
@@ -157,6 +154,17 @@ def compare(config) -> None:
                             block_list.append(f">>> {un_parse(pkt2_list[0])}")
                             del pkt2_list[0]
 
+                    td = (
+                        dt.fromisoformat(pkt1["dt"])
+                        - dt.fromisoformat(pkt2_list[0]["dt"])
+                    ) / timedelta(microseconds=1)
+
+                    # the * 50 is to exclude outliers
+                    if abs(td) < (dt_diff + abs(td)) / (num_matches + 1) * 50:
+                        dt_diff += abs(td)
+                        num_matches += 1
+                        # print(td, dt_diff / num_matches)
+
                     del pkt2_list[0]  # the matching packet
                     break
 
@@ -174,6 +182,7 @@ def compare(config) -> None:
 
     end_block(block_list)
 
+    print(f"\r\nAverage time difference of matched packets: {dt_diff / num_matches:0.0f} milliseconds")
 
 if __name__ == "__main__":
     main()
