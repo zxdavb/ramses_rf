@@ -4,7 +4,7 @@ from datetime import datetime as dt, timedelta
 import os
 import re
 
-DEBUG_ADDR = "172.27.0.138"
+DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5679
 
 RSSI_REGEXP = re.compile(r"(-{3}|\d{3})")
@@ -53,7 +53,7 @@ def _parse_args():
         "-w", "--window", default=1, type=pos_float, help="look ahead in secs (float)"
     )
     group.add_argument(
-        "-f", "--filter", default="*", type=str, help="drop blocks without this string"
+        "-f", "--filter", default="", type=str, help="drop blocks without this string"
     )
 
     group = parser.add_argument_group(title="Debug options")
@@ -123,7 +123,6 @@ def compare(config) -> None:
             end_block(block_list)
             block_list = [""]
         for pkt in pkt_before:
-            # print(f"=== {un_parse(pkt)}")
             block_list.append(f"=== {un_parse(pkt)}")
         return [], block_list
 
@@ -152,14 +151,10 @@ def compare(config) -> None:
                 if matched:
                     if idx > 0:  # some unmatched pkt2s
                         counter = config.after
-                        # t1_before = print_before(pkt1_before)
                         pkt1_before, block_list = print_block(pkt1_before, block_list)
 
-                        for i in range(idx):
-                            # print(f">>> {un_parse(pkt2_list[0])}")  # only in 2nd file
-                            block_list.append(
-                                f">>> {un_parse(pkt2_list[0])}"
-                            )  # only in 2nd file
+                        for i in range(idx):  # only in 2nd file
+                            block_list.append(f">>> {un_parse(pkt2_list[0])}")
                             del pkt2_list[0]
 
                     del pkt2_list[0]  # the matching packet
@@ -168,20 +163,17 @@ def compare(config) -> None:
             if matched:
                 if counter > 0:
                     counter -= 1
-                    # print(f"=== {un_parse(pkt1)}")
                     block_list.append(f"=== {un_parse(pkt1)}")
                 else:
                     fifo_pkt(pkt1_before, pkt1)
-            else:
+            else:  # only in 1st file
                 counter = config.after
-                # t1_before = print_before(pkt1_before)
                 pkt1_before, block_list = print_block(pkt1_before, block_list)
-                # int(f"<<< {un_parse(pkt1)}")  # only in 1st file
-                block_list.append(f"<<< {un_parse(pkt1)}")  # only in 1st file
+                block_list.append(f"<<< {un_parse(pkt1)}")
                 pass
 
     end_block(block_list)
 
 
-if __name__ == "__main__":  # called from CLI?
+if __name__ == "__main__":
     main()
