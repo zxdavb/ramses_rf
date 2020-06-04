@@ -110,13 +110,6 @@ def compare(config) -> None:
         if len(pkt_before) > config.before:
             del pkt_before[0]
 
-    def OUT_print_before(pkt_before) -> list:
-        if len(pkt_before) == config.before:
-            print()
-        for pkt in pkt_before:
-            print(f"=== {un_parse(pkt)}")
-        return []
-
     def print_block(pkt_before, block_list) -> list:
         if len(pkt_before) == config.before:
             end_block(block_list)
