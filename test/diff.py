@@ -133,8 +133,8 @@ def compare(config) -> None:
     counter = 0
 
     block_list = []
-    dt_diff = 0
-    num_matches = 0
+    dt_diff = dt_diff_p = dt_diff_m = 0
+    num_matches = num_ignored = num_1st = num_2nd = 0
 
     with open(config.file_one) as fh1, open(config.file_two) as fh2:
 
@@ -152,6 +152,11 @@ def compare(config) -> None:
 
                         for i in range(idx):  # only in 2nd file
                             block_list.append(f">>> {un_parse(pkt2_list[0])}")
+                            if (
+                                not pkt1["pkt"].startswith("#")
+                                and "*" not in pkt1["pkt"]
+                            ):
+                                num_1st += 1
                             del pkt2_list[0]
 
                     # what is the average timedelta between matched packets?
@@ -163,10 +168,15 @@ def compare(config) -> None:
                     # the * 50 is to exclude outliers
                     if abs(td) < (dt_diff + abs(td)) / (num_matches + 1) * 50:
                         dt_diff += abs(td)
+                        if td > 0:
+                            dt_diff_p += td
+                        else:
+                            dt_diff_m += td
                         num_matches += 1
-                        # print(td, dt_diff / num_matches)
+                    else:
+                        num_ignored += 1
 
-                    # what is the average timedelta between matched packets?
+                    # what is the number (%) of matched/left/tight packets?
 
                     del pkt2_list[0]  # the matching packet
                     break
@@ -181,13 +191,24 @@ def compare(config) -> None:
                 counter = config.after
                 pkt1_before, block_list = print_block(pkt1_before, block_list)
                 block_list.append(f"<<< {un_parse(pkt1)}")
-                pass
+                if not pkt1["pkt"].startswith("#") and "*" not in pkt1["pkt"]:
+                    num_1st += 1
 
     end_block(block_list)
 
     print(
         "\r\nAverage time difference of matched packets:",
-        f"{dt_diff / num_matches:0.0f} milliseconds"
+        f"{dt_diff / num_matches:0.0f} "
+        f"(+{dt_diff_p / num_matches:0.0f}, {dt_diff_m / num_matches:0.0f})"
+        " milliseconds",
+    )
+    num_total = num_matches + num_1st + num_2nd
+    print(
+        "There were:",
+        f"{num_total + num_ignored:0d} total packets, with "
+        f"{num_1st} ({num_1st / num_total * 100:0.2f}%), "
+        f"{num_2nd} ({num_2nd / num_total * 100:0.2f}%) differences, and "
+        f"{num_ignored} disregarded",
     )
 
 
