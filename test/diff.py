@@ -10,7 +10,7 @@ DEBUG_PORT = 5679
 
 RSSI_REGEXP = re.compile(r"(-{3}|\d{3})")
 
-PKT_LINE = namedtuple("Packet", ["dt", "rssi", "pkt"])
+PKT_LINE = namedtuple("Packet", ["dt", "rssi", "pkt", "line"])
 
 
 def _parse_args():
@@ -89,15 +89,10 @@ def compare(config) -> None:
 
     def parse(line: str) -> namedtuple:
         if RSSI_REGEXP.match(line[27:30]):  # is a diagnostic line?
-            pkt = PKT_LINE(line[:26], line[27:30], line[31:])
+            pkt = PKT_LINE(line[:26], line[27:30], line[31:], line)
         else:
-            pkt = PKT_LINE(line[:26], None, line[27:])
+            pkt = PKT_LINE(line[:26], None, line[27:], line)
         return pkt
-
-    def un_parse(pkt: namedtuple) -> str:
-        if pkt.rssi is not None:
-            return f"{pkt.dt} {pkt.rssi} {pkt.pkt}"
-        return f"{pkt.dt} {pkt.pkt}"
 
     def update_list(until):
         if pkt2_list == []:
@@ -115,7 +110,7 @@ def compare(config) -> None:
             end_block(block_list)
             block_list = [""]
         for pkt in pkt_before:
-            block_list.append(f"=== {un_parse(pkt)}")
+            block_list.append(f"=== {pkt.line}")
         return [], block_list
 
     def end_block(_block_list):
@@ -148,7 +143,7 @@ def compare(config) -> None:
                         pkt1_before, block_list = print_block(pkt1_before, block_list)
 
                         for i in range(idx):  # only in 2nd file
-                            block_list.append(f">>> {un_parse(pkt2_list[0])}")
+                            block_list.append(f">>> {pkt2_list[0].line}")
                             if not pkt1.pkt.startswith("#") and "*" not in pkt1.pkt:
                                 num_1st += 1
                             del pkt2_list[0]
@@ -177,13 +172,13 @@ def compare(config) -> None:
             if matched:
                 if counter > 0:
                     counter -= 1
-                    block_list.append(f"=== {un_parse(pkt1)}")
+                    block_list.append(f"=== {pkt1.line}")
                 else:
                     fifo_pkt(pkt1_before, pkt1)
             else:  # only in 1st file
                 counter = config.after
                 pkt1_before, block_list = print_block(pkt1_before, block_list)
-                block_list.append(f"<<< {un_parse(pkt1)}")
+                block_list.append(f"<<< {pkt1.line}")
                 if not pkt1.pkt.startswith("#") and "*" not in pkt1.pkt:
                     num_1st += 1
 
