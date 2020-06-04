@@ -156,17 +156,13 @@ def compare(config) -> None:
 
                         for i in range(idx):  # only in 2nd file
                             block_list.append(f">>> {un_parse(pkt2_list[0])}")
-                            if (
-                                not pkt1.pkt.startswith("#")
-                                and "*" not in pkt1.pkt
-                            ):
+                            if not pkt1.pkt.startswith("#") and "*" not in pkt1.pkt:
                                 num_1st += 1
                             del pkt2_list[0]
 
                     # what is the average timedelta between matched packets?
                     td = (
-                        dt.fromisoformat(pkt1.dt)
-                        - dt.fromisoformat(pkt2_list[0].dt)
+                        dt.fromisoformat(pkt1.dt) - dt.fromisoformat(pkt2_list[0].dt)
                     ) / timedelta(microseconds=1)
 
                     # the * 50 is to exclude outliers
