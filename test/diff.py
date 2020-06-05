@@ -126,8 +126,8 @@ def compare(config) -> None:
     counter = 0
 
     block_list = []
-    dt_diff = dt_diff_p = dt_diff_m = 0
-    count_match = num_ignored = count_2 = count_1 = 0
+    dt_diff_sum = dt_diff_pos = dt_diff_neg = 0
+    count_match = num_outliers = count_2 = count_1 = 0
     warning = False
 
     # this algorithm wont work properly if the files are in the wrong order
@@ -150,9 +150,8 @@ def compare(config) -> None:
 
                         for i in range(idx):  # only in 1st file
                             block_list.append(f"<<< {pkt_1_window[0].line}")
-                            # this if qualifier shouldn't be required for hgi80_log
                             count_1 += 1
-                            del pkt_1_window[0]
+                            del pkt_1_window[0]  # remove unmatched pkt_1s
 
                     # what is the average timedelta between matched packets?
                     td = (
@@ -161,15 +160,26 @@ def compare(config) -> None:
                     ) / timedelta(microseconds=1)
 
                     # the * 50 is to exclude outliers
-                    if abs(td) < (dt_diff + abs(td)) / (count_match + 1) * 50:
-                        dt_diff += abs(td)
+                    if abs(td) < (dt_diff_sum + abs(td)) / (count_match + 1) * 50:
+                        dt_diff_sum += abs(td)
                         if td > 0:
-                            dt_diff_p += td
+                            dt_diff_pos += td
                         else:
-                            dt_diff_m += td
+                            dt_diff_neg += td
                         count_match += 1
-                    else:
-                        num_ignored += 1
+                    else:  # usually because a run of 2-3 identical pkts, say 1s apart
+                        # t2 = (
+                        #     dt.fromisoformat(pkt_2.dt)
+                        #     - dt.fromisoformat(pkt_1_window[1].dt)
+                        # ) / timedelta(microseconds=1)
+                        # if pkt_1_window[1].packet == pkt_2.packet and abs(t2) < abs(td):
+                        #     block_list.append(f"<<< {pkt_1_window[0].line}")
+                        #     count_1 += 1
+                        #     del pkt_1_window[0]  # remove unmatched pkt_1s
+                        # else:
+                        num_outliers += 1
+                        print(f"zzz {pkt_1_window[0].line}")
+                        print(f"zzz {pkt_2.line}")
 
                     del pkt_1_window[0]  # this packet matched, so no longer needed
                     break
@@ -192,14 +202,14 @@ def compare(config) -> None:
     print("\r\nOf the valid packets:")
     print(
         " - average time delta of matched packets:",
-        f"{dt_diff / count_match:0.0f} "
-        f"(+{dt_diff_p / count_match:0.0f}, {dt_diff_m / count_match:0.0f})"
-        f" ns, with {num_ignored} outliers",
+        f"{(dt_diff_pos - dt_diff_neg) / count_match:0.0f} "
+        f"(+{dt_diff_pos / count_match:0.0f}, {dt_diff_neg / count_match:0.0f})"
+        f" ns, with {num_outliers} outliers",
     )
     num_total = sum([count_match, count_2, count_1])
     print(
         " - there were:",
-        f"{num_total + num_ignored:0d} total packets, with "
+        f"{num_total + num_outliers:0d} total packets, with "
         f"{count_1} (<<<, {count_1 / num_total * 100:0.2f}%), "
         f"{count_2} (>>>, {count_2 / num_total * 100:0.2f}%) unmatched",
     )
