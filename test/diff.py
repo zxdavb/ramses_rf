@@ -143,10 +143,11 @@ def compare(config) -> None:
                         counter = config.after
                         pkt_2_before, block_list = print_block(pkt_2_before, block_list)
 
-                        for i in range(idx):  # only in 2nd file
+                        for i in range(idx):  # only in 1st file
                             block_list.append(f">>> {pkt_1_window[0].line}")
-                            if pkt_2.packet[:1] != "#" and "*" not in pkt_2.packet:
-                                count_1 += 1
+                            # this if qualifier shouldn't be required for hgi80_log
+                            # if pkt_2.packet[:1] != "#" and "*" not in pkt_2.packet:
+                            count_1 += 1
                             del pkt_1_window[0]
 
                     # what is the average timedelta between matched packets?
@@ -166,8 +167,6 @@ def compare(config) -> None:
                     else:
                         num_ignored += 1
 
-                    # what is the number (%) of matched/left/tight packets?
-
                     del pkt_1_window[0]  # this packet matched, so no longer needed
                     break
 
@@ -177,7 +176,7 @@ def compare(config) -> None:
                     block_list.append(f"=== {pkt_2.line}")
                 else:
                     fifo_pkt(pkt_2_before, pkt_2)  # keep the prior two packets for -B
-            else:  # only in 1st file
+            else:  # only in 2nd file
                 counter = config.after
                 pkt_2_before, block_list = print_block(pkt_2_before, block_list)
                 block_list.append(f"<<< {pkt_2.line}")
@@ -188,18 +187,17 @@ def compare(config) -> None:
 
     print("\r\nOf the valid packets:")
     print(
-        " - average time difference of matched packets:",
+        " - average time delta of matched packets:",
         f"{dt_diff / count_match:0.0f} "
         f"(+{dt_diff_p / count_match:0.0f}, {dt_diff_m / count_match:0.0f})"
-        " milliseconds",
+        f" ns, with {num_ignored} outliers",
     )
     num_total = sum([count_match, count_2, count_1])
     print(
         " - there were:",
-        f"{num_total + num_ignored:0d} packets, with "
+        f"{num_total + num_ignored:0d} total packets, with "
         f"{count_1} ({count_1 / num_total * 100:0.2f}%), "
-        f"{count_2} ({count_2 / num_total * 100:0.2f}%) differences, and "
-        f"{num_ignored} disregarded",
+        f"{count_2} ({count_2 / num_total * 100:0.2f}%) unmatched",
     )
 
 
