@@ -10,7 +10,7 @@ DEBUG_PORT = 5679
 
 RSSI_REGEXP = re.compile(r"(-{3}|\d{3})")
 
-PKT_LINE = namedtuple("Packet", ["dt", "rssi", "pkt", "line"])
+PKT_LINE = namedtuple("Packet", ["dt", "rssi", "packet", "line"])
 
 
 def _parse_args():
@@ -37,21 +37,21 @@ def _parse_args():
     parser = argparse.ArgumentParser()
 
     group = parser.add_argument_group(title="File names")
-    group.add_argument("file_one", type=extant_file, help="left file (<<<), say nanofw")
-    group.add_argument("file_two", type=extant_file, help="right file (>>>), say hgi80")
+    group.add_argument("hgi80_log", type=extant_file, help="(<<<) reference packet log")
+    group.add_argument("evofw_log", type=extant_file, help="(>>>) packet log to test")
 
     group = parser.add_argument_group(title="Context control")
     group.add_argument(
-        "-B", "--before", default=2, type=pos_int, help="matched lines before the block"
+        "-B", "--before", default=2, type=pos_int, help="print lines before the block"
     )
     group.add_argument(
-        "-A", "--after", default=2, type=pos_int, help="matched lines after the block"
+        "-A", "--after", default=2, type=pos_int, help="print lines after the block"
     )
     group.add_argument(
-        "-w", "--window", default=0.5, type=pos_float, help="look ahead in secs (float)"
+        "-w", "--window", default=0.1, type=pos_float, help="look ahead in secs (float)"
     )
     group.add_argument(
-        "-f", "--filter", default="", type=str, help="drop blocks without this string"
+        "-f", "--filter", default="", type=str, help="drop blocks without (e.g.) a '*'"
     )
 
     group = parser.add_argument_group(title="Debug options")
@@ -88,24 +88,26 @@ def compare(config) -> None:
     """Main loop."""
 
     def parse(line: str) -> namedtuple:
-        if RSSI_REGEXP.match(line[27:30]):  # is a diagnostic line?
-            pkt = PKT_LINE(line[:26], line[27:30], line[31:], line)
-        else:
+        if line[27:30][:1] in ["#", "*"] or not RSSI_REGEXP.match(line[27:30]):
+            # a diagnostic line
             pkt = PKT_LINE(line[:26], None, line[27:], line)
+        else:
+            pkt = PKT_LINE(line[:26], line[27:30], line[31:], line)
         return pkt
 
-    def update_list(until):
-        if pkt2_list == []:
-            pkt2_list.append(parse(fh2.readline().strip()))
-        while pkt2_list[-1].dt and dt.fromisoformat(pkt2_list[-1].dt) < until:
-            pkt2_list.append(parse(fh2.readline().strip()))
+    def populate_pkt_1_window(until):
+        """Extend the window out to the lookahead time."""
+        if pkt_1_window == []:
+            pkt_1_window.append(parse(fh_1.readline().strip()))
+        while pkt_1_window[-1].dt and dt.fromisoformat(pkt_1_window[-1].dt) < until:
+            pkt_1_window.append(parse(fh_1.readline().strip()))
 
     def fifo_pkt(pkt_before: list, pkt: dict):
         pkt_before.append(pkt)
         if len(pkt_before) > config.before:
             del pkt_before[0]
 
-    def print_block(pkt_before, block_list) -> list:
+    def print_block(pkt_before, block_list):
         if len(pkt_before) == config.before:
             end_block(block_list)
             block_list = [""]
@@ -117,40 +119,40 @@ def compare(config) -> None:
         if any(config.filter in x for x in _block_list):
             for log_line in block_list:
                 print(log_line)
-            pass
 
     TIME_WINDOW = timedelta(seconds=config.window)
-    pkt1_before = []
-    pkt2_list = []
+    pkt_2_before = []
+    pkt_1_window = []
     counter = 0
 
     block_list = []
     dt_diff = dt_diff_p = dt_diff_m = 0
-    num_matches = num_ignored = num_1st = num_2nd = 0
+    num_matches = num_ignored = num_2st = num_1nd = 0
 
-    with open(config.file_one) as fh1, open(config.file_two) as fh2:
+    with open(config.hgi80_log) as fh_1, open(config.evofw_log) as fh_2:
 
-        for line in fh1.readlines():
-            pkt1 = parse(line.strip())
-            update_list(dt.fromisoformat(pkt1.dt) + TIME_WINDOW)
+        for line in fh_2.readlines():
+            pkt_2 = parse(line.strip())
+            populate_pkt_1_window(until=dt.fromisoformat(pkt_2.dt) + TIME_WINDOW)
 
-            for idx, pkt2 in enumerate(pkt2_list):
-                matched = pkt1.pkt == pkt2.pkt
+            for idx, pkt_1 in enumerate(pkt_1_window):
+                matched = pkt_2.packet == pkt_1.packet
 
                 if matched:
-                    if idx > 0:  # some unmatched pkt2s
+                    if idx > 0:  # some unmatched pkt_1s
                         counter = config.after
-                        pkt1_before, block_list = print_block(pkt1_before, block_list)
+                        pkt_2_before, block_list = print_block(pkt_2_before, block_list)
 
                         for i in range(idx):  # only in 2nd file
-                            block_list.append(f">>> {pkt2_list[0].line}")
-                            if not pkt1.pkt.startswith("#") and "*" not in pkt1.pkt:
-                                num_1st += 1
-                            del pkt2_list[0]
+                            block_list.append(f">>> {pkt_1_window[0].line}")
+                            if pkt_2.packet[:1] != "#" and "*" not in pkt_2.packet:
+                                num_2st += 1
+                            del pkt_1_window[0]
 
                     # what is the average timedelta between matched packets?
                     td = (
-                        dt.fromisoformat(pkt1.dt) - dt.fromisoformat(pkt2_list[0].dt)
+                        dt.fromisoformat(pkt_2.dt)
+                        - dt.fromisoformat(pkt_1_window[0].dt)
                     ) / timedelta(microseconds=1)
 
                     # the * 50 is to exclude outliers
@@ -166,21 +168,21 @@ def compare(config) -> None:
 
                     # what is the number (%) of matched/left/tight packets?
 
-                    del pkt2_list[0]  # the matching packet
+                    del pkt_1_window[0]  # this packet matched, so no longer needed
                     break
 
             if matched:
                 if counter > 0:
                     counter -= 1
-                    block_list.append(f"=== {pkt1.line}")
+                    block_list.append(f"=== {pkt_2.line}")
                 else:
-                    fifo_pkt(pkt1_before, pkt1)
+                    fifo_pkt(pkt_2_before, pkt_2)  # keep the prior two packets for -B
             else:  # only in 1st file
                 counter = config.after
-                pkt1_before, block_list = print_block(pkt1_before, block_list)
-                block_list.append(f"<<< {pkt1.line}")
-                if not pkt1.pkt.startswith("#") and "*" not in pkt1.pkt:
-                    num_1st += 1
+                pkt_2_before, block_list = print_block(pkt_2_before, block_list)
+                block_list.append(f"<<< {pkt_2.line}")
+                if not pkt_2.packet.startswith("#") and "*" not in pkt_2.packet:
+                    num_2st += 1
 
     end_block(block_list)
 
@@ -190,12 +192,12 @@ def compare(config) -> None:
         f"(+{dt_diff_p / num_matches:0.0f}, {dt_diff_m / num_matches:0.0f})"
         " milliseconds",
     )
-    num_total = num_matches + num_1st + num_2nd
+    num_total = num_matches + num_2st + num_1nd
     print(
         "There were:",
         f"{num_total + num_ignored:0d} total packets, with "
-        f"{num_1st} ({num_1st / num_total * 100:0.2f}%), "
-        f"{num_2nd} ({num_2nd / num_total * 100:0.2f}%) differences, and "
+        f"{num_2st} ({num_2st / num_total * 100:0.2f}%), "
+        f"{num_1nd} ({num_1nd / num_total * 100:0.2f}%) differences, and "
         f"{num_ignored} disregarded",
     )
 
