@@ -150,8 +150,8 @@ def compare(config) -> None:
 
                         for i in range(idx):  # only in 1st file
                             block_list.append(f"<<< {pkt_1_window[0].line}")
-                            count_1 += 1
                             del pkt_1_window[0]  # remove unmatched pkt_1s
+                            count_1 += 1
 
                     # what is the average timedelta between matched packets?
                     td = (
@@ -159,27 +159,32 @@ def compare(config) -> None:
                         - dt.fromisoformat(pkt_1_window[0].dt)
                     ) / timedelta(microseconds=1)
 
-                    # the * 50 is to exclude outliers
-                    if abs(td) < (dt_diff_sum + abs(td)) / (count_match + 1) * 50:
-                        dt_diff_sum += abs(td)
-                        if td > 0:
-                            dt_diff_pos += td
+                    # the * 50 to exclude outliers, usu. 2-3 identical pkts, ~1s apart
+                    if abs(td) > (dt_diff_sum + abs(td)) / (count_match + 1) * 50:
+                        if pkt_1_window[1].packet == pkt_2.packet:
+                            t2 = (
+                                dt.fromisoformat(pkt_2.dt)
+                                - dt.fromisoformat(pkt_1_window[1].dt)
+                            ) / timedelta(microseconds=1)
+
+                        if abs(t2) > (dt_diff_sum + abs(t2)) / (count_match + 1) * 50:
+                            num_outliers += 1
+                            print(f"zzz {pkt_1_window[0].line}")
+                            print(f"zzz {pkt_2.line}")
+
                         else:
-                            dt_diff_neg += td
-                        count_match += 1
-                    else:  # usually because a run of 2-3 identical pkts, say 1s apart
-                        # t2 = (
-                        #     dt.fromisoformat(pkt_2.dt)
-                        #     - dt.fromisoformat(pkt_1_window[1].dt)
-                        # ) / timedelta(microseconds=1)
-                        # if pkt_1_window[1].packet == pkt_2.packet and abs(t2) < abs(td):
-                        #     block_list.append(f"<<< {pkt_1_window[0].line}")
-                        #     count_1 += 1
-                        #     del pkt_1_window[0]  # remove unmatched pkt_1s
-                        # else:
-                        num_outliers += 1
-                        print(f"zzz {pkt_1_window[0].line}")
-                        print(f"zzz {pkt_2.line}")
+                            td = t2
+
+                            block_list.append(f"<<< {pkt_1_window[0].line}")
+                            del pkt_1_window[0]  # remove unmatched pkt_1s
+                            count_1 += 1
+
+                    dt_diff_sum += abs(td)
+                    if td > 0:
+                        dt_diff_pos += td
+                    else:
+                        dt_diff_neg += td
+                    count_match += 1
 
                     del pkt_1_window[0]  # this packet matched, so no longer needed
                     break
@@ -190,10 +195,12 @@ def compare(config) -> None:
                     block_list.append(f"=== {pkt_2.line}")
                 else:
                     fifo_pkt(pkt_2_before, pkt_2)  # keep the prior two packets for -B
+
             else:  # only in 2nd file
                 counter = config.after
-                pkt_2_before, block_list = print_block(pkt_2_before, block_list)
+
                 block_list.append(f">>> {pkt_2.line}")
+                pkt_2_before, block_list = print_block(pkt_2_before, block_list)
                 if not pkt_2.packet.startswith("#") and "*" not in pkt_2.packet:
                     count_2 += 1
 
