@@ -128,7 +128,9 @@ def compare(config) -> None:
     block_list = []
     dt_diff = dt_diff_p = dt_diff_m = 0
     count_match = num_ignored = count_2 = count_1 = 0
+    warning = False
 
+    # this algorithm wont work properly if the files are in the wrong order
     with open(config.hgi80_log) as fh_1, open(config.evofw_log) as fh_2:
 
         for line in fh_2.readlines():
@@ -138,6 +140,9 @@ def compare(config) -> None:
             for idx, pkt_1 in enumerate(pkt_1_window):
                 matched = pkt_2.packet == pkt_1.packet
 
+                if pkt_1.packet[:1] == "#" or "*" in pkt_1.packet:
+                    warning = True
+
                 if matched:
                     if idx > 0:  # some unmatched pkt_1s
                         counter = config.after
@@ -146,7 +151,6 @@ def compare(config) -> None:
                         for i in range(idx):  # only in 1st file
                             block_list.append(f">>> {pkt_1_window[0].line}")
                             # this if qualifier shouldn't be required for hgi80_log
-                            # if pkt_2.packet[:1] != "#" and "*" not in pkt_2.packet:
                             count_1 += 1
                             del pkt_1_window[0]
 
@@ -199,6 +203,8 @@ def compare(config) -> None:
         f"{count_1} ({count_1 / num_total * 100:0.2f}%), "
         f"{count_2} ({count_2 / num_total * 100:0.2f}%) unmatched",
     )
+    if warning:
+        print("\r\n*** WARNING: The reference packet log is not from a HGI80.")
 
 
 if __name__ == "__main__":
