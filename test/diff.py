@@ -149,7 +149,7 @@ def compare(config) -> None:
                         pkt_2_before, block_list = print_block(pkt_2_before, block_list)
 
                         for i in range(idx):  # only in 1st file
-                            block_list.append(f">>> {pkt_1_window[0].line}")
+                            block_list.append(f"<<< {pkt_1_window[0].line}")
                             # this if qualifier shouldn't be required for hgi80_log
                             count_1 += 1
                             del pkt_1_window[0]
@@ -183,7 +183,7 @@ def compare(config) -> None:
             else:  # only in 2nd file
                 counter = config.after
                 pkt_2_before, block_list = print_block(pkt_2_before, block_list)
-                block_list.append(f"<<< {pkt_2.line}")
+                block_list.append(f">>> {pkt_2.line}")
                 if not pkt_2.packet.startswith("#") and "*" not in pkt_2.packet:
                     count_2 += 1
 
@@ -200,8 +200,8 @@ def compare(config) -> None:
     print(
         " - there were:",
         f"{num_total + num_ignored:0d} total packets, with "
-        f"{count_1} ({count_1 / num_total * 100:0.2f}%), "
-        f"{count_2} ({count_2 / num_total * 100:0.2f}%) unmatched",
+        f"{count_1} (<<<, {count_1 / num_total * 100:0.2f}%), "
+        f"{count_2} (>>>, {count_2 / num_total * 100:0.2f}%) unmatched",
     )
     if warning:
         print("\r\n*** WARNING: The reference packet log is not from a HGI80.")
