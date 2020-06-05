@@ -127,7 +127,7 @@ def compare(config) -> None:
 
     block_list = []
     dt_diff = dt_diff_p = dt_diff_m = 0
-    num_matches = num_ignored = num_2st = num_1nd = 0
+    count_match = num_ignored = count_2 = count_1 = 0
 
     with open(config.hgi80_log) as fh_1, open(config.evofw_log) as fh_2:
 
@@ -146,7 +146,7 @@ def compare(config) -> None:
                         for i in range(idx):  # only in 2nd file
                             block_list.append(f">>> {pkt_1_window[0].line}")
                             if pkt_2.packet[:1] != "#" and "*" not in pkt_2.packet:
-                                num_2st += 1
+                                count_1 += 1
                             del pkt_1_window[0]
 
                     # what is the average timedelta between matched packets?
@@ -156,13 +156,13 @@ def compare(config) -> None:
                     ) / timedelta(microseconds=1)
 
                     # the * 50 is to exclude outliers
-                    if abs(td) < (dt_diff + abs(td)) / (num_matches + 1) * 50:
+                    if abs(td) < (dt_diff + abs(td)) / (count_match + 1) * 50:
                         dt_diff += abs(td)
                         if td > 0:
                             dt_diff_p += td
                         else:
                             dt_diff_m += td
-                        num_matches += 1
+                        count_match += 1
                     else:
                         num_ignored += 1
 
@@ -182,22 +182,23 @@ def compare(config) -> None:
                 pkt_2_before, block_list = print_block(pkt_2_before, block_list)
                 block_list.append(f"<<< {pkt_2.line}")
                 if not pkt_2.packet.startswith("#") and "*" not in pkt_2.packet:
-                    num_2st += 1
+                    count_2 += 1
 
     end_block(block_list)
 
+    print("\r\nOf the valid packets:")
     print(
-        "\r\nAverage time difference of matched packets:",
-        f"{dt_diff / num_matches:0.0f} "
-        f"(+{dt_diff_p / num_matches:0.0f}, {dt_diff_m / num_matches:0.0f})"
+        " - average time difference of matched packets:",
+        f"{dt_diff / count_match:0.0f} "
+        f"(+{dt_diff_p / count_match:0.0f}, {dt_diff_m / count_match:0.0f})"
         " milliseconds",
     )
-    num_total = num_matches + num_2st + num_1nd
+    num_total = sum([count_match, count_2, count_1])
     print(
-        "There were:",
-        f"{num_total + num_ignored:0d} total packets, with "
-        f"{num_2st} ({num_2st / num_total * 100:0.2f}%), "
-        f"{num_1nd} ({num_1nd / num_total * 100:0.2f}%) differences, and "
+        " - there were:",
+        f"{num_total + num_ignored:0d} packets, with "
+        f"{count_1} ({count_1 / num_total * 100:0.2f}%), "
+        f"{count_2} ({count_2 / num_total * 100:0.2f}%) differences, and "
         f"{num_ignored} disregarded",
     )
 
