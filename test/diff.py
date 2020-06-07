@@ -34,21 +34,21 @@ def _parse_args():
     def natural_int(value):
         """Confirm value is a positive integer."""
         i_value = int(value)
-        if i_value < 1 or value is not i_value:
+        if i_value < 1:  # or value != i_value:
             raise argparse.ArgumentTypeError(f"{value} is not a positive integer")
         return i_value
 
     def pos_int(value):
         """Confirm value is a non-negative integer."""
         i_value = int(value)
-        if i_value < 0 or value is not i_value:
+        if i_value < 0:  # or value is not i_value:
             raise argparse.ArgumentTypeError(f"{value} is not a non-negative integer")
         return i_value
 
     def dt_timedelta(value):
         """Confirm value is a positive timedelta (in seconds)."""
         f_value = float(value)
-        if f_value < 0 or value is not f_value:
+        if f_value < 0:  # or value is not f_value:
             raise argparse.ArgumentTypeError(f"{value} is not a non-negative float")
         return timedelta(seconds=f_value)
 
@@ -85,7 +85,23 @@ def _parse_args():
         "--packets",
         default=DEFAULT_LOOKAHEAD_PKTS,
         type=natural_int,
-        help="minimum lookahead in packets (int), recommended >= 3",
+        help="minimum lookahead in packets (int), recommended >=3",
+    )
+
+    group = parser.add_argument_group(title="Stall detection")
+    group.add_argument(
+        "-D",
+        "--stall-duration",
+        default=timedelta(seconds=STALL_LIMIT_SECS),
+        type=dt_timedelta,
+        help="minimum stall duration in seconds (float)",
+    )
+    group.add_argument(
+        "-L",
+        "--stall-length",
+        default=STALL_LIMIT_PKTS,
+        type=natural_int,
+        help="minimum stall length in packets (int), recommended >=7",
     )
 
     group = parser.add_argument_group(title="Debug options")
@@ -115,7 +131,7 @@ def main():
             ptvsd.wait_for_attach()
             print("Debugger is attached, continuing execution.")
 
-    print_summary(*list(compare(args).values()))
+    compare(args)
 
 
 def compare(config) -> dict:
@@ -192,9 +208,9 @@ def compare(config) -> dict:
                 dt.fromisoformat(buffer["packets"][0][4 : 4 + DATETIME_LENGTH])
                 - summary["stall_began"]
             )
-            if duration > timedelta(seconds=STALL_LIMIT_SECS):
+            if duration > config.stall_duration:
                 summary["stalls"].append({summary["stall_began"]: duration})
-            elif buffer["stall_len"] > STALL_LIMIT_PKTS:
+            elif buffer["stall_len"] > config.stall_length:
                 summary["stalls"].append({summary["stall_began"]: duration})
 
         td = time_diff(pkt, pkt2) if diff == "===" else 0
@@ -238,6 +254,35 @@ def compare(config) -> dict:
             buffer_print(buffer, min(config.after, buffer["run_length"]))
             print()
 
+    def print_summary(dt_pos, dt_neg, num_pkts, num_1, num_2, warning, stalls, *args):
+        num_total = sum([num_pkts, num_1, num_2])
+        print(f"Of the {num_total} valid packets:")
+        print(
+            " - average time delta of matched packets:",
+            f"{(dt_pos - dt_neg) / num_pkts:0.0f} "
+            f"(+{dt_pos / num_pkts:0.0f}, {dt_neg / num_pkts:0.0f}) ns",
+        )
+        print(
+            " - there were:",
+            f"{num_1} (<<<, {num_1 / num_total * 100:0.2f}%), "
+            f"{num_2} (>>>, {num_2 / num_total * 100:0.2f}%) unmatched packets",
+        )
+        lst = [v.total_seconds() for d in stalls for k, v in d.items()]
+        print(
+            f"\r\nOf the {len(lst)} stalls >{config.stall_length} packets' duration "
+            f"(or >{config.stall_duration.total_seconds():0.2f} secs):"
+        )
+        if len(lst):
+            print(
+                f" - average duration: {sum(lst) / len(lst):.0f} secs; "
+                f"maximum: {max(lst):.0f} secs"
+            )
+        else:
+            print(" - average duration: 0 secs; maximum: 0 secs")
+
+        if warning is True:
+            print("\r\nWARNING: The reference packet log is not from a HGI80.")
+
     SUMMARY_KEYS = ["dt_pos", "dt_neg", "num_pkts", "num_1", "num_2", "warning"]
     summary = {k: 0 for k in SUMMARY_KEYS}
     summary.update({"stalls": []})
@@ -272,37 +317,7 @@ def compare(config) -> dict:
 
         buffer_flush(buffer)
 
-    return summary
-
-
-def print_summary(dt_pos, dt_neg, num_pkts, num_1, num_2, warning, stalls, *args):
-    num_total = sum([num_pkts, num_1, num_2])
-    print(f"Of the {num_total} valid packets:")
-    print(
-        " - average time delta of matched packets:",
-        f"{(dt_pos - dt_neg) / num_pkts:0.0f} "
-        f"(+{dt_pos / num_pkts:0.0f}, {dt_neg / num_pkts:0.0f}) ns",
-    )
-    print(
-        " - there were:",
-        f"{num_1} (<<<, {num_1 / num_total * 100:0.2f}%), "
-        f"{num_2} (>>>, {num_2 / num_total * 100:0.2f}%) unmatched packets",
-    )
-    lst = [v.total_seconds() for d in stalls for k, v in d.items()]
-    print(
-        f"\r\nOf the {len(lst)} stalls >{STALL_LIMIT_PKTS} packets "
-        f"(or >{STALL_LIMIT_SECS} secs):"
-    )
-    if len(lst):
-        print(
-            f" - average duration: {sum(lst) / len(lst):.0f} secs; "
-            f"maximum: {max(lst):.0f} secs"
-        )
-    else:
-        print(" - average duration: 0 secs; maximum: 0 secs")
-
-    if warning is True:
-        print("\r\nWARNING: The reference packet log is not from a HGI80.")
+    print_summary(*list(summary.values()))
 
 
 if __name__ == "__main__":
