@@ -11,25 +11,41 @@ DEBUG_PORT = 5679
 RSSI_REGEXP = re.compile(r"(-{3}|\d{3})")
 PKT_LINE = namedtuple("Packet", ["dtm", "rssi", "packet", "line"])
 
+DATETIME_FORMAT = "YYYY-MM-DD HH:MM:SS.ssssss"
+DATETIME_LENGTH = len(DATETIME_FORMAT)
+
+DEFAULT_LOOKAHEAD_SECS = 1
+DEFAULT_LOOKAHEAD_PKTS = 5  # < 3 has increased potential for false positives
+
+DEFAULT_PKTS_BEFORE = 2
+DEFAULT_PKTS_AFTER = 2
+
 
 def _parse_args():
-    def extant_file(file_name):
-        """Check that value is the name of a existant file."""
-        if not os.path.exists(file_name):
-            raise argparse.ArgumentTypeError(f"{file_name} does not exist")
-        return file_name
+    def extant_file(value):
+        """Confirm value is the name of a existant file."""
+        if not os.path.exists(value):
+            raise argparse.ArgumentTypeError(f"{value} does not exist")
+        return value
+
+    def natural_int(value):
+        """Confirm value is a positive integer."""
+        i_value = int(value)
+        if i_value < 1 or value is not i_value:
+            raise argparse.ArgumentTypeError(f"{value} is not a positive integer")
+        return i_value
 
     def pos_int(value):
-        """Check that value is a non-negative integer."""
+        """Confirm value is a non-negative integer."""
         i_value = int(value)
-        if not i_value >= 0:
+        if i_value < 0 or value is not i_value:
             raise argparse.ArgumentTypeError(f"{value} is not a non-negative integer")
         return i_value
 
     def pos_float(value):
-        """Check that value is a positive float."""
+        """Confirm value is a positive float."""
         f_value = float(value)
-        if f_value < 0:
+        if f_value < 0 or value is not f_value:
             raise argparse.ArgumentTypeError(f"{value} is not a non-negative float")
         return f_value
 
@@ -41,13 +57,33 @@ def _parse_args():
 
     group = parser.add_argument_group(title="Context control")
     group.add_argument(
-        "-B", "--before", default=2, type=pos_int, help="print lines before the block"
+        "-B",
+        "--before",
+        default=DEFAULT_PKTS_BEFORE,
+        type=pos_int,
+        help="matching lines to print before each block",
     )
     group.add_argument(
-        "-A", "--after", default=2, type=pos_int, help="print lines after the block"
+        "-A",
+        "--after",
+        default=DEFAULT_PKTS_AFTER,
+        type=pos_int,
+        help="matching lines to print after each block",
     )
     group.add_argument(
-        "-w", "--window", default=0.5, type=pos_float, help="look ahead in secs (float)"
+        "-s",
+        "--seconds",
+        default=DEFAULT_LOOKAHEAD_SECS,
+        type=pos_float,
+        help="minimum lookahead in seconds (float)",
+    )
+
+    group.add_argument(
+        "-p",
+        "--packets",
+        default=DEFAULT_LOOKAHEAD_PKTS,
+        type=natural_int,
+        help="minimum lookahead in packets (int), recommended >= 3",
     )
 
     group = parser.add_argument_group(title="Debug options")
@@ -80,12 +116,12 @@ def main():
     print_summary(*list(compare2(args).values()))
 
 
-def print_summary(dt_diff_pos, dt_diff_neg, count_match, count_1, count_2, warning):
+def print_summary(dt_pos, dt_neg, count_match, count_1, count_2, warning):
     print("Of the valid packets:")
     print(
         " - average time delta of matched packets:",
-        f"{(dt_diff_pos - dt_diff_neg) / count_match:0.0f} "
-        f"(+{dt_diff_pos / count_match:0.0f}, {dt_diff_neg / count_match:0.0f}) ns"
+        f"{(dt_pos - dt_neg) / count_match:0.0f} "
+        f"(+{dt_pos / count_match:0.0f}, {dt_neg / count_match:0.0f}) ns",
     )
     num_total = sum([count_match, count_1, count_2])
     print(
@@ -94,8 +130,8 @@ def print_summary(dt_diff_pos, dt_diff_neg, count_match, count_1, count_2, warni
         f"{count_1} (<<<, {count_1 / num_total * 100:0.2f}%), "
         f"{count_2} (>>>, {count_2 / num_total * 100:0.2f}%) unmatched",
     )
-    if warning:
-        print("\r\n*** WARNING: The reference packet log is not from a HGI80.")
+    if warning is True:
+        print("\r\nWARNING: The reference packet log is not from a HGI80.")
 
 
 def compare2(config) -> dict:
@@ -119,10 +155,18 @@ def compare2(config) -> dict:
     def parse_line(raw_line: str) -> namedtuple:
         """Parse a line from a packet log into a dtm (dt), payload (str) tuple.
 
-        Assumes lines have a datetime stamp: 'YYYY-MM-DD HH:MM:SS.ssssss'
+        Assumes lines have a datetime stamp, e.g.: 'YYYY-MM-DD HH:MM:SS.ssssss'
         """
-        line = raw_line.strip()
-        # if line != raw_line:  # "" != "/r/n": # then, at EOF?
+        line = raw_line.strip()  # if line != raw_line ("" != "/r/n"): # then, at EOF?
+        # if not line:
+        #     return PKT_LINE(None, None, None, None)
+
+        # dtm = dt.fromisoformat(line[:DATETIME_LENGTH])
+        # pkt = line[DATETIME_LENGTH + 1:]
+
+        # idx = 0 if pkt[:1] in ["#", "*"] else 3  # strip out the RSSI field, if any
+        # return PKT_LINE(dtm, pkt[:0 + idx], pkt[1 + idx:], line)
+
         dtm = dt.fromisoformat(line[:26]) if line != "" else None
         if line[27:30][:1] in ["#", "*"] or not RSSI_REGEXP.match(line[27:30]):
             pkt = PKT_LINE(dtm, None, line[27:], line)  # a pure diagnostic line
@@ -130,7 +174,7 @@ def compare2(config) -> dict:
             pkt = PKT_LINE(dtm, line[27:30], line[31:], line)
         return pkt
 
-    def slide_pkt_window(fh, pkt_window, until=None, min_length=5) -> None:
+    def slide_pkt_window(fh, pkt_window, until=None, min_length=config.packets):
         """Populate the window with packet log lines until at EOF.
 
         Assumes no blank lines in the middle of the file (thus no empty elements).
@@ -151,10 +195,7 @@ def compare2(config) -> dict:
         """Populate the buffer."""
         if diff == "===":
             td = time_diff(pkt, pkt2)
-            if td > 0:
-                summary["dt_diff_pos"] += td
-            else:
-                summary["dt_diff_neg"] += td
+            summary["dt_pos" if td > 0 else "dt_neg"] += td
         else:
             td = 0.0
 
@@ -182,17 +223,12 @@ def compare2(config) -> dict:
             buffer_print(buffer, min(config.after, buffer["run_length"]))
             print()
 
-    TIME_WINDOW = timedelta(seconds=config.window)
+    TIME_WINDOW = timedelta(seconds=config.seconds)
+
+    SUMMARY_KEYS = ["dt_pos", "dt_neg", "count_match", "count_1", "count_2", "warning"]
+    summary = {k: 0 for k in SUMMARY_KEYS}
 
     pkt_2_window = deque()
-    summary = {
-        "dt_diff_pos": 0,
-        "dt_diff_neg": 0,
-        "count_match": 0,
-        "count_1": 0,
-        "count_2": 0,
-        "warning": False
-    }
 
     with open(config.hgi80_log) as fh_1, open(config.evofw_log) as fh_2:
         for raw_line in fh_1:
