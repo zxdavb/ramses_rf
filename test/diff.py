@@ -161,7 +161,7 @@ def compare2(config) -> dict:
             return PKT_LINE(None, None, None, line)
 
         dtm = dt.fromisoformat(line[:DATETIME_LENGTH])
-        pkt = line[DATETIME_LENGTH + 1:]
+        pkt = line[DATETIME_LENGTH + 1 :]
 
         if pkt[:1] in ["#", "*"]:  # or not RSSI_REGEXP.match(pkt[:3]):
             return PKT_LINE(dtm, None, pkt, line)  # a pure diagnostic line
