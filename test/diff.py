@@ -21,7 +21,7 @@ DEFAULT_PKTS_BEFORE = 2
 DEFAULT_PKTS_AFTER = 2
 
 STALL_LIMIT_SECS = 185.5
-STALL_LIMIT_PKTS = 3
+STALL_LIMIT_PKTS = 7
 
 
 def _parse_args():
@@ -127,7 +127,7 @@ def compare(config) -> dict:
         "making_block": False,
         "stall_len": 0,
         "making_stall": False,
-        }
+    }
 
     def time_diff(pkt_1, pkt_2) -> float:
         td = (pkt_2.dtm - pkt_1.dtm) / MICROSECONDS
@@ -176,7 +176,10 @@ def compare(config) -> dict:
             pkt_window.pop()
 
     def buffer_append(buffer, summary, diff, pkt, pkt2=None):
-        """Populate the buffer, maintain counters and print any lines as able."""
+        """Populate the buffer, maintain counters and print any lines as able.
+
+        Also includes code to track stalls.
+        """
 
         def stall_began(buffer, summary, pkt):
             # idx = min(config.before, len(buffer["packets"]) - 1)
@@ -190,9 +193,9 @@ def compare(config) -> dict:
                 - summary["stall_began"]
             )
             if duration > timedelta(seconds=STALL_LIMIT_SECS):
-                summary["stalls"].append({summary['stall_began']: duration})
+                summary["stalls"].append({summary["stall_began"]: duration})
             elif buffer["stall_len"] > STALL_LIMIT_PKTS:
-                summary["stalls"].append({summary['stall_began']: duration})
+                summary["stalls"].append({summary["stall_began"]: duration})
 
         td = time_diff(pkt, pkt2) if diff == "===" else 0
         summary["dt_pos" if td > 0 else "dt_neg"] += td
@@ -288,10 +291,11 @@ def print_summary(dt_pos, dt_neg, num_pkts, num_1, num_2, warning, stalls, *args
     lst = [v.total_seconds() for d in stalls for k, v in d.items()]
     print(
         f"\r\nOf the {len(lst)} stalls >{STALL_LIMIT_PKTS} packets "
-        f"(or >{STALL_LIMIT_SECS} seconds):"
+        f"(or >{STALL_LIMIT_SECS} secs):"
     )
     print(
-        f" - average duration: {sum(lst) / len(lst):.0f} s; maximum: {max(lst):.0f} s"
+        f" - average duration: {sum(lst) / len(lst):.0f} secs; "
+        f"maximum: {max(lst):.0f} secs"
     )
 
     if warning is True:
