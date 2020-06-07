@@ -1,6 +1,6 @@
 """Evohome RF log diff utility."""
 import argparse
-from collections import namedtuple
+from collections import deque, namedtuple
 from datetime import datetime as dt, timedelta
 import os
 import re
@@ -10,7 +10,8 @@ DEBUG_PORT = 5679
 
 RSSI_REGEXP = re.compile(r"(-{3}|\d{3})")
 
-PKT_LINE = namedtuple("Packet", ["dt", "rssi", "packet", "line"])
+PKT_LINE1 = namedtuple("Packet", ["dt", "rssi", "packet", "line"])
+PKT_LINE = namedtuple("Packet", ["dtm", "rssi", "packet", "line"])
 
 
 def _parse_args():
@@ -21,10 +22,10 @@ def _parse_args():
         return file_name
 
     def pos_int(value):
-        """Check that value is a not a negative integer."""
+        """Check that value is a positive integer."""
         i_value = int(value)
-        if i_value < 0:
-            raise argparse.ArgumentTypeError(f"{value} is not a non-negative integer")
+        if not i_value > 0:
+            raise argparse.ArgumentTypeError(f"{value} is not a positive integer")
         return i_value
 
     def pos_float(value):
@@ -48,7 +49,7 @@ def _parse_args():
         "-A", "--after", default=2, type=pos_int, help="print lines after the block"
     )
     group.add_argument(
-        "-w", "--window", default=0.1, type=pos_float, help="look ahead in secs (float)"
+        "-w", "--window", default=0.5, type=pos_float, help="look ahead in secs (float)"
     )
     group.add_argument(
         "-f", "--filter", default="", type=str, help="drop blocks without (e.g.) a '*'"
@@ -81,7 +82,111 @@ def main():
             ptvsd.wait_for_attach()
             print("Debugger is attached, continuing execution.")
 
-    compare(args)
+    compare2(args)
+
+
+def compare2(config) -> None:
+
+    MICROSECONDS = timedelta(microseconds=1)
+    buffer = {"packets": deque(), "run_length": 0, "making_block": False}
+
+    def parse_line(raw_line: str) -> namedtuple:
+        """Parse a line from a packet log into a dtm (dt), payload (str) tuple.
+
+        Assumes lines have a datetime stamp: 'YYYY-MM-DD HH:MM:SS.ssssss'
+        """
+        line = raw_line.strip()
+        # if line != raw_line:  # "" != "/r/n": # then, at EOF?
+        dtm = dt.fromisoformat(line[:26]) if line != "" else None
+        if line[27:30][:1] in ["#", "*"] or not RSSI_REGEXP.match(line[27:30]):
+            pkt = PKT_LINE(dtm, None, line[27:], line)  # a pure diagnostic line
+        else:
+            pkt = PKT_LINE(dtm, line[27:30], line[31:], line)
+        return pkt
+
+    def slide_pkt_window(fh, pkt_window, until=None, min_length=0) -> None:
+        """Populate the window with packet log lines until at EOF.
+
+        Assumes no blank lines in the middle of the file (thus no empty elements).
+        """
+        assert until is not None or min_length is not None
+
+        if len(pkt_window) == 0:
+            pkt_window.append(parse_line(fh.readline()))
+        while pkt_window[-1].dtm is not None and len(pkt_window) < min_length:
+            pkt_window.append(parse_line(fh.readline()))
+        if until is not None:
+            while pkt_window[-1].dtm is not None and pkt_window[-1].dtm < until:
+                pkt_window.append(parse_line(fh.readline()))
+        if pkt_window[-1].dtm is None:
+            pkt_window.pop()
+
+    def buffer_append(buffer, diff, pkt, pkt2=None):
+        """Populate the buffer."""
+        if diff == "===":
+            td = (pkt2.dtm - pkt.dtm) / MICROSECONDS
+            td = 999999 if td > 999999 else max(td, -999999)
+        else:
+            td = 0.0
+
+        buffer["packets"].append(f"{diff} {pkt.dtm} ({td:+7.0f}) {pkt.packet}")
+        buffer["run_length"] += 1
+
+        if diff in ["<<<", ">>>"]:
+            buffer.update({"run_length": 0, "making_block": True})
+            while len(buffer["packets"]) > 0:
+                print(buffer["packets"][0])
+                buffer["packets"].popleft()
+            return
+
+        if buffer["making_block"]:
+            if buffer["run_length"] > config.before + config.after:
+                buffer.update({"run_length": config.before, "making_block": False})
+                for _ in range(config.after):
+                    print(buffer["packets"][0])
+                    buffer["packets"].popleft()
+
+                buffer["packets"].popleft()
+                print()
+
+        elif buffer["run_length"] > config.before:
+            buffer.update({"run_length": config.before, "making_block": False})
+            buffer["packets"].popleft()
+
+    def Buffer_flush(buffer):
+        if buffer["making_block"]:
+            for _ in range(config.after):
+                print(buffer["packets"][0])
+                buffer["packets"].popleft()
+
+    TIME_WINDOW = timedelta(seconds=config.window)
+
+    pkt_2_window = deque()
+
+    with open(config.hgi80_log) as fh_1, open(config.evofw_log) as fh_2:
+        # slide_pkt_window(fh_2, pkt2_window, num_seconds=TIME_WINDOW)
+
+        for raw_line in fh_1:
+            pkt_1 = parse_line(raw_line)
+            slide_pkt_window(fh_2, pkt_2_window, until=pkt_1.dtm + TIME_WINDOW)
+
+            for idx, pkt_2 in enumerate(list(pkt_2_window)):
+                matched = pkt_1.packet == pkt_2.packet
+                if matched:  # is this the end of a block?
+                    # should check the next packet is not a better match
+
+                    for _ in range(idx):  # all pkts before the match
+                        buffer_append(buffer, ">>>", pkt_2_window[0])
+                        pkt_2_window.popleft()
+
+                    buffer_append(buffer, "===", pkt_1, pkt_2)
+                    pkt_2_window.popleft()
+                    break
+
+            else:  # there was no break
+                buffer_append(buffer, "<<<", pkt_1)
+
+            # buffer_check(buffer)  # complete a block if required
 
 
 def compare(config) -> None:
@@ -90,9 +195,9 @@ def compare(config) -> None:
     def parse(line: str) -> namedtuple:
         if line[27:30][:1] in ["#", "*"] or not RSSI_REGEXP.match(line[27:30]):
             # a diagnostic line
-            pkt = PKT_LINE(line[:26], None, line[27:], line)
+            pkt = PKT_LINE1(line[:26], None, line[27:], line)
         else:
-            pkt = PKT_LINE(line[:26], line[27:30], line[31:], line)
+            pkt = PKT_LINE1(line[:26], line[27:30], line[31:], line)
         return pkt
 
     def populate_pkt_1_window(until):
@@ -102,26 +207,26 @@ def compare(config) -> None:
         while pkt_1_window[-1].dt and dt.fromisoformat(pkt_1_window[-1].dt) < until:
             pkt_1_window.append(parse(fh_1.readline().strip()))
 
-    def fifo_pkt(pkt_before: list, pkt: dict):
-        pkt_before.append(pkt)
-        if len(pkt_before) > config.before:
-            del pkt_before[0]
+    def fifo_pkt_list(pkt_list: list, pkt: dict):
+        pkt_list.append(pkt)
+        if len(pkt_list) > config.before:
+            del pkt_list[0]
 
     def print_block(pkt_before, block_list):
         if len(pkt_before) == config.before:
-            end_block(block_list)
+            new_block(block_list)
             block_list = [""]
         for pkt in pkt_before:
             block_list.append(f"=== {pkt.line}")
         return [], block_list
 
-    def end_block(_block_list):
+    def new_block(_block_list):
         if any(config.filter in x for x in _block_list):
             for log_line in block_list:
                 print(log_line)
 
     TIME_WINDOW = timedelta(seconds=config.window)
-    pkt_2_before = []
+    pkt_1_before = []
     pkt_1_window = []
     counter = 0
 
@@ -146,7 +251,7 @@ def compare(config) -> None:
                 if matched:
                     if idx > 0:  # some unmatched pkt_1s
                         counter = config.after
-                        pkt_2_before, block_list = print_block(pkt_2_before, block_list)
+                        pkt_1_before, block_list = print_block(pkt_1_before, block_list)
 
                         for i in range(idx):  # only in 1st file
                             block_list.append(f"<<< {pkt_1_window[0].line}")
@@ -176,7 +281,7 @@ def compare(config) -> None:
                             td = t2
 
                             block_list.append(f"<<< {pkt_1_window[0].line}")
-                            del pkt_1_window[0]  # remove unmatched pkt_1s
+                            del pkt_1_window[0]  # remove unmatched (outlier) pkt_1s
                             count_1 += 1
 
                     dt_diff_sum += abs(td)
@@ -186,25 +291,29 @@ def compare(config) -> None:
                         dt_diff_neg += td
                     count_match += 1
 
-                    del pkt_1_window[0]  # this packet matched, so no longer needed
+                    # del pkt_1_window[0]  # this packet matched!
                     break
 
             if matched:
                 if counter > 0:
                     counter -= 1
-                    block_list.append(f"=== {pkt_2.line}")
+                    block_list.append(f"=== {pkt_1_window[0].line}")  # TODO: pkt_1.line
                 else:
-                    fifo_pkt(pkt_2_before, pkt_2)  # keep the prior two packets for -B
+                    # keep most recent matched two packets for next -B
+                    fifo_pkt_list(pkt_1_before, pkt_1_window[0])  # TODO: pkt_1
+
+                del pkt_1_window[0]  # this packet matched!
+                # break
 
             else:  # only in 2nd file
                 counter = config.after
 
                 block_list.append(f">>> {pkt_2.line}")
-                pkt_2_before, block_list = print_block(pkt_2_before, block_list)
+                pkt_1_before, block_list = print_block(pkt_1_before, block_list)
                 if not pkt_2.packet.startswith("#") and "*" not in pkt_2.packet:
                     count_2 += 1
 
-    end_block(block_list)
+    new_block(block_list)
 
     print("\r\nOf the valid packets:")
     print(
