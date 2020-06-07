@@ -158,8 +158,8 @@ def compare2(config) -> dict:
         Assumes lines have a datetime stamp, e.g.: 'YYYY-MM-DD HH:MM:SS.ssssss'
         """
         line = raw_line.strip()  # if line != raw_line ("" != "/r/n"): # then, at EOF?
-        # if not line:
-        #     return PKT_LINE(None, None, None, None)
+        if not line:
+            return PKT_LINE(None, None, None, None)
 
         # dtm = dt.fromisoformat(line[:DATETIME_LENGTH])
         # pkt = line[DATETIME_LENGTH + 1:]
