@@ -42,12 +42,12 @@ def _parse_args():
             raise argparse.ArgumentTypeError(f"{value} is not a non-negative integer")
         return i_value
 
-    def pos_float(value):
-        """Confirm value is a positive float."""
+    def dt_timedelta(value):
+        """Confirm value is a positive float, return a timedelta."""
         f_value = float(value)
         if f_value < 0 or value is not f_value:
             raise argparse.ArgumentTypeError(f"{value} is not a non-negative float")
-        return f_value
+        return timedelta(seconds=f_value)
 
     parser = argparse.ArgumentParser()
 
@@ -73,11 +73,10 @@ def _parse_args():
     group.add_argument(
         "-s",
         "--seconds",
-        default=DEFAULT_LOOKAHEAD_SECS,
-        type=pos_float,
+        default=timedelta(seconds=DEFAULT_LOOKAHEAD_SECS),
+        type=dt_timedelta,
         help="minimum lookahead in seconds (float)",
     )
-
     group.add_argument(
         "-p",
         "--packets",
@@ -159,20 +158,14 @@ def compare2(config) -> dict:
         """
         line = raw_line.strip()  # if line != raw_line ("" != "/r/n"): # then, at EOF?
         if not line:
-            return PKT_LINE(None, None, None, None)
+            return PKT_LINE(None, None, None, line)
 
-        # dtm = dt.fromisoformat(line[:DATETIME_LENGTH])
-        # pkt = line[DATETIME_LENGTH + 1:]
+        dtm = dt.fromisoformat(line[:DATETIME_LENGTH])
+        pkt = line[DATETIME_LENGTH + 1:]
 
-        # idx = 0 if pkt[:1] in ["#", "*"] else 3  # strip out the RSSI field, if any
-        # return PKT_LINE(dtm, pkt[:0 + idx], pkt[1 + idx:], line)
-
-        dtm = dt.fromisoformat(line[:26]) if line != "" else None
-        if line[27:30][:1] in ["#", "*"] or not RSSI_REGEXP.match(line[27:30]):
-            pkt = PKT_LINE(dtm, None, line[27:], line)  # a pure diagnostic line
-        else:
-            pkt = PKT_LINE(dtm, line[27:30], line[31:], line)
-        return pkt
+        if pkt[:1] in ["#", "*"]:  # or not RSSI_REGEXP.match(pkt[:3]):
+            return PKT_LINE(dtm, None, pkt, line)  # a pure diagnostic line
+        return PKT_LINE(dtm, pkt[:3], pkt[4:], line)
 
     def slide_pkt_window(fh, pkt_window, until=None, min_length=config.packets):
         """Populate the window with packet log lines until at EOF.
@@ -223,8 +216,6 @@ def compare2(config) -> dict:
             buffer_print(buffer, min(config.after, buffer["run_length"]))
             print()
 
-    TIME_WINDOW = timedelta(seconds=config.seconds)
-
     SUMMARY_KEYS = ["dt_pos", "dt_neg", "count_match", "count_1", "count_2", "warning"]
     summary = {k: 0 for k in SUMMARY_KEYS}
 
@@ -236,13 +227,11 @@ def compare2(config) -> dict:
             if "*" in pkt_1.packet or "#" in pkt_1.packet:
                 summary["warning"] = True
 
-            slide_pkt_window(fh_2, pkt_2_window, until=pkt_1.dtm + TIME_WINDOW)
+            slide_pkt_window(fh_2, pkt_2_window, until=pkt_1.dtm + config.seconds)
 
             for idx, pkt_2 in enumerate(list(pkt_2_window)):
                 matched = pkts_match(pkt_1, pkt_2_window, idx)
-                if matched:  # is this the end of a block?
-                    # should check the next packet is not a better match
-
+                if matched:
                     for _ in range(idx):  # all pkts before the match
                         buffer_append(buffer, summary, ">>>", pkt_2_window[0])
                         if not pkt_2_window[0].packet[:1] == "#":
