@@ -20,6 +20,8 @@ DEFAULT_LOOKAHEAD_PKTS = 5  # < 3 has increased potential for false positives
 DEFAULT_PKTS_BEFORE = 2
 DEFAULT_PKTS_AFTER = 2
 
+STALL_LIMIT_SECS = 185.5
+
 
 def _parse_args():
     def extant_file(value):
@@ -115,24 +117,6 @@ def main():
     print_summary(*list(compare(args).values()))
 
 
-def print_summary(dt_pos, dt_neg, count_match, count_1, count_2, warning):
-    print("Of the valid packets:")
-    print(
-        " - average time delta of matched packets:",
-        f"{(dt_pos - dt_neg) / count_match:0.0f} "
-        f"(+{dt_pos / count_match:0.0f}, {dt_neg / count_match:0.0f}) ns",
-    )
-    num_total = sum([count_match, count_1, count_2])
-    print(
-        " - there were:",
-        f"{num_total:0d} true packets, with "
-        f"{count_1} (<<<, {count_1 / num_total * 100:0.2f}%), "
-        f"{count_2} (>>>, {count_2 / num_total * 100:0.2f}%) unmatched",
-    )
-    if warning is True:
-        print("\r\nWARNING: The reference packet log is not from a HGI80.")
-
-
 def compare(config) -> dict:
 
     MICROSECONDS = timedelta(microseconds=1)
@@ -186,6 +170,21 @@ def compare(config) -> dict:
 
     def buffer_append(buffer, summary, diff, pkt, pkt2=None):
         """Populate the buffer, maintain counters and print any lines as able."""
+
+        def block_began(buffer, summary, pkt):
+            # idx = min(config.before, len(buffer["packets"]) - 1)
+            # print("*** BEGAN:", buffer["packets"][idx])
+            summary["dtm_began"] = pkt.dtm
+
+        def block_ended(buffer, summary, pkt=None):
+            # print("*** ENDED:", buffer["packets"][0])
+            duration = (
+                dt.fromisoformat(buffer["packets"][0][4 : 4 + DATETIME_LENGTH])
+                - summary["dtm_began"]
+            )
+            if duration > timedelta(seconds=STALL_LIMIT_SECS):
+                summary["stalls"].append({summary['dtm_began']: duration})
+
         td = time_diff(pkt, pkt2) if diff == "===" else 0
         summary["dt_pos" if td > 0 else "dt_neg"] += td
 
@@ -193,28 +192,36 @@ def compare(config) -> dict:
         buffer["run_length"] += 1
 
         if diff in ["<<<", ">>>"]:
+            if not buffer["making_block"]:  # beginning of a block
+                block_began(buffer, summary, pkt)
+
             buffer_print(buffer, len(buffer["packets"]))
             buffer.update({"run_length": 0, "making_block": True})
             return
 
         if buffer["making_block"]:
-            if buffer["run_length"] > config.before + config.after:
+            if buffer["run_length"] > config.before + config.after:  # end of a block
+                block_ended(buffer, summary)
+
                 buffer_print(buffer, config.after)
                 buffer.update({"run_length": config.before, "making_block": False})
-                buffer["packets"].popleft()  # the first === pkt between after & before
+                buffer["packets"].popleft()  # the first === pkt between AFTER & BEFORE
                 print()
 
         elif buffer["run_length"] > config.before:
             buffer.update({"run_length": config.before, "making_block": False})
-            buffer["packets"].popleft()
+            buffer["packets"].popleft()  # an unwanted === pkt before BEFORE
 
     def buffer_flush(buffer):
         if buffer["making_block"]:
+            # block_ended(buffer, summary)
+
             buffer_print(buffer, min(config.after, buffer["run_length"]))
             print()
 
-    SUMMARY_KEYS = ["dt_pos", "dt_neg", "count_match", "count_1", "count_2", "warning"]
+    SUMMARY_KEYS = ["dt_pos", "dt_neg", "num_pkts", "num_1", "num_2", "warning"]
     summary = {k: 0 for k in SUMMARY_KEYS}
+    summary.update({"stalls": []})
 
     pkt_2_window = deque()
 
@@ -232,21 +239,45 @@ def compare(config) -> dict:
                     for _ in range(idx):  # all pkts before the match
                         buffer_append(buffer, summary, ">>>", pkt_2_window[0])
                         if not pkt_2_window[0].packet[:1] == "#":
-                            summary["count_2"] += 1
+                            summary["num_2"] += 1
                         pkt_2_window.popleft()
 
                     buffer_append(buffer, summary, "===", pkt_1, pkt_2)
-                    summary["count_match"] += 1
+                    summary["num_pkts"] += 1
                     pkt_2_window.popleft()
                     break
 
             else:
                 buffer_append(buffer, summary, "<<<", pkt_1)
-                summary["count_1"] += 1
+                summary["num_1"] += 1
 
         buffer_flush(buffer)
 
     return summary
+
+
+def print_summary(dt_pos, dt_neg, num_pkts, num_1, num_2, warning, stalls, *args):
+    print("Of the valid packets:")
+    print(
+        " - average time delta of matched packets:",
+        f"{(dt_pos - dt_neg) / num_pkts:0.0f} "
+        f"(+{dt_pos / num_pkts:0.0f}, {dt_neg / num_pkts:0.0f}) ns",
+    )
+    num_total = sum([num_pkts, num_1, num_2])
+    print(
+        " - there were:",
+        f"{num_total:0d} true packets, with "
+        f"{num_1} (<<<, {num_1 / num_total * 100:0.2f}%), "
+        f"{num_2} (>>>, {num_2 / num_total * 100:0.2f}%) unmatched",
+    )
+    lst = [v.total_seconds() for d in stalls for k, v in d.items()]
+    print(f"Of the {len(lst)} stalls >{STALL_LIMIT_SECS} seconds:")
+    print(
+        f" - average duration: {sum(lst) / len(lst):.0f}s; maximum: {max(lst):.0f}s"
+    )
+
+    if warning is True:
+        print("\r\nWARNING: The reference packet log is not from a HGI80.")
 
 
 if __name__ == "__main__":
