@@ -15,13 +15,13 @@ DATETIME_FORMAT = "YYYY-MM-DD HH:MM:SS.ssssss"
 DATETIME_LENGTH = len(DATETIME_FORMAT)
 
 DEFAULT_LOOKAHEAD_SECS = 1
-DEFAULT_LOOKAHEAD_PKTS = 5  # < 3 has increased potential for false positives
+DEFAULT_LOOKAHEAD_PKTS = 5  # <3 has increased potential for false positives
 
 DEFAULT_PKTS_BEFORE = 2
 DEFAULT_PKTS_AFTER = 2
 
-STALL_LIMIT_SECS = 185.5
-STALL_LIMIT_PKTS = 7
+STALL_LIMIT_SECS = 60  # 30 is a useful minimum, max should be sync_cycle time, ~180
+STALL_LIMIT_PKTS = 10  # <7 3 has increased potential for false positives
 
 
 def _parse_args():
@@ -293,10 +293,13 @@ def print_summary(dt_pos, dt_neg, num_pkts, num_1, num_2, warning, stalls, *args
         f"\r\nOf the {len(lst)} stalls >{STALL_LIMIT_PKTS} packets "
         f"(or >{STALL_LIMIT_SECS} secs):"
     )
-    print(
-        f" - average duration: {sum(lst) / len(lst):.0f} secs; "
-        f"maximum: {max(lst):.0f} secs"
-    )
+    if len(lst):
+        print(
+            f" - average duration: {sum(lst) / len(lst):.0f} secs; "
+            f"maximum: {max(lst):.0f} secs"
+        )
+    else:
+        print(" - average duration: 0 secs; maximum: 0 secs")
 
     if warning is True:
         print("\r\nWARNING: The reference packet log is not from a HGI80.")
