@@ -21,6 +21,7 @@ DEFAULT_PKTS_BEFORE = 2
 DEFAULT_PKTS_AFTER = 2
 
 STALL_LIMIT_SECS = 185.5
+STALL_LIMIT_PKTS = 3
 
 
 def _parse_args():
@@ -120,7 +121,13 @@ def main():
 def compare(config) -> dict:
 
     MICROSECONDS = timedelta(microseconds=1)
-    buffer = {"packets": deque(), "run_length": 0, "making_block": False}
+    buffer = {
+        "packets": deque(),
+        "run_length": 0,
+        "making_block": False,
+        "stall_len": 0,
+        "making_stall": False,
+        }
 
     def time_diff(pkt_1, pkt_2) -> float:
         td = (pkt_2.dtm - pkt_1.dtm) / MICROSECONDS
@@ -171,19 +178,21 @@ def compare(config) -> dict:
     def buffer_append(buffer, summary, diff, pkt, pkt2=None):
         """Populate the buffer, maintain counters and print any lines as able."""
 
-        def block_began(buffer, summary, pkt):
+        def stall_began(buffer, summary, pkt):
             # idx = min(config.before, len(buffer["packets"]) - 1)
             # print("*** BEGAN:", buffer["packets"][idx])
-            summary["dtm_began"] = pkt.dtm
+            summary["stall_began"] = pkt.dtm
 
-        def block_ended(buffer, summary, pkt=None):
+        def stall_ended(buffer, summary, pkt=None):
             # print("*** ENDED:", buffer["packets"][0])
             duration = (
                 dt.fromisoformat(buffer["packets"][0][4 : 4 + DATETIME_LENGTH])
-                - summary["dtm_began"]
+                - summary["stall_began"]
             )
             if duration > timedelta(seconds=STALL_LIMIT_SECS):
-                summary["stalls"].append({summary['dtm_began']: duration})
+                summary["stalls"].append({summary['stall_began']: duration})
+            elif buffer["stall_len"] > STALL_LIMIT_PKTS:
+                summary["stalls"].append({summary['stall_began']: duration})
 
         td = time_diff(pkt, pkt2) if diff == "===" else 0
         summary["dt_pos" if td > 0 else "dt_neg"] += td
@@ -191,18 +200,25 @@ def compare(config) -> dict:
         buffer["packets"].append(f"{diff} {pkt.dtm} ({td:+7.0f}) {pkt.packet}")
         buffer["run_length"] += 1
 
-        if diff in ["<<<", ">>>"]:
-            if not buffer["making_block"]:  # beginning of a block
-                block_began(buffer, summary, pkt)
+        if diff == "<<<":
+            if not buffer["making_stall"]:
+                buffer.update({"stall_len": 0, "making_stall": True})
+                stall_began(buffer, summary, pkt)
+            buffer["stall_len"] += 1
 
+        elif buffer["making_stall"]:
+            buffer["making_stall"] = False
+            if buffer["stall_len"] > 3:
+                stall_ended(buffer, summary)
+
+        if diff in ["<<<", ">>>"]:
+            # if not buffer["making_block"]:  # beginning of a block
             buffer_print(buffer, len(buffer["packets"]))
             buffer.update({"run_length": 0, "making_block": True})
             return
 
         if buffer["making_block"]:
             if buffer["run_length"] > config.before + config.after:  # end of a block
-                block_ended(buffer, summary)
-
                 buffer_print(buffer, config.after)
                 buffer.update({"run_length": config.before, "making_block": False})
                 buffer["packets"].popleft()  # the first === pkt between AFTER & BEFORE
@@ -270,7 +286,10 @@ def print_summary(dt_pos, dt_neg, num_pkts, num_1, num_2, warning, stalls, *args
         f"{num_2} (>>>, {num_2 / num_total * 100:0.2f}%) unmatched packets",
     )
     lst = [v.total_seconds() for d in stalls for k, v in d.items()]
-    print(f"\r\nOf the {len(lst)} stalls >{STALL_LIMIT_SECS} seconds:")
+    print(
+        f"\r\nOf the {len(lst)} stalls >{STALL_LIMIT_PKTS} packets "
+        f"(or >{STALL_LIMIT_SECS} seconds):"
+    )
     print(
         f" - average duration: {sum(lst) / len(lst):.0f} s; maximum: {max(lst):.0f} s"
     )
