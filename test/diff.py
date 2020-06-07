@@ -43,7 +43,7 @@ def _parse_args():
         return i_value
 
     def dt_timedelta(value):
-        """Confirm value is a positive float, return a timedelta."""
+        """Confirm value is a positive timedelta (in seconds)."""
         f_value = float(value)
         if f_value < 0 or value is not f_value:
             raise argparse.ArgumentTypeError(f"{value} is not a non-negative float")
@@ -152,7 +152,7 @@ def compare(config) -> dict:
             buffer["packets"].popleft()
 
     def parse_line(raw_line: str) -> namedtuple:
-        """Parse a line from a packet log into a dtm (dt), payload (str) tuple.
+        """Parse a line from a packet log into a dtm (detetime), payload (str) tuple.
 
         Assumes lines have a datetime stamp, e.g.: 'YYYY-MM-DD HH:MM:SS.ssssss'
         """
