@@ -257,23 +257,22 @@ def compare(config) -> dict:
 
 
 def print_summary(dt_pos, dt_neg, num_pkts, num_1, num_2, warning, stalls, *args):
-    print("Of the valid packets:")
+    num_total = sum([num_pkts, num_1, num_2])
+    print(f"Of the {num_total} valid packets:")
     print(
         " - average time delta of matched packets:",
         f"{(dt_pos - dt_neg) / num_pkts:0.0f} "
         f"(+{dt_pos / num_pkts:0.0f}, {dt_neg / num_pkts:0.0f}) ns",
     )
-    num_total = sum([num_pkts, num_1, num_2])
     print(
         " - there were:",
-        f"{num_total:0d} true packets, with "
         f"{num_1} (<<<, {num_1 / num_total * 100:0.2f}%), "
-        f"{num_2} (>>>, {num_2 / num_total * 100:0.2f}%) unmatched",
+        f"{num_2} (>>>, {num_2 / num_total * 100:0.2f}%) unmatched packets",
     )
     lst = [v.total_seconds() for d in stalls for k, v in d.items()]
-    print(f"Of the {len(lst)} stalls >{STALL_LIMIT_SECS} seconds:")
+    print(f"\r\nOf the {len(lst)} stalls >{STALL_LIMIT_SECS} seconds:")
     print(
-        f" - average duration: {sum(lst) / len(lst):.0f}s; maximum: {max(lst):.0f}s"
+        f" - average duration: {sum(lst) / len(lst):.0f} s; maximum: {max(lst):.0f} s"
     )
 
     if warning is True:
