@@ -91,17 +91,17 @@ def _parse_args():
     group = parser.add_argument_group(title="Stall detection")
     group.add_argument(
         "-D",
-        "--stall-duration",
+        "--pause-duration",
         default=timedelta(seconds=STALL_LIMIT_SECS),
         type=dt_timedelta,
-        help="minimum stall duration in seconds (float)",
+        help="minimum duration of pauses in seconds (float)",
     )
     group.add_argument(
         "-L",
-        "--stall-length",
+        "--pause-length",
         default=STALL_LIMIT_PKTS,
         type=natural_int,
-        help="minimum stall length in packets (int), recommended >=7",
+        help="minimum length of pauses in packets (int), recommended >=7",
     )
 
     group = parser.add_argument_group(title="Debug options")
@@ -141,8 +141,8 @@ def compare(config) -> dict:
         "packets": deque(),
         "run_length": 0,
         "making_block": False,
-        "stall_len": 0,
-        "making_stall": False,
+        "pause_len": 0,
+        "making_pause": False,
     }
 
     def time_diff(pkt_1, pkt_2) -> float:
@@ -194,24 +194,25 @@ def compare(config) -> dict:
     def buffer_append(buffer, summary, diff, pkt, pkt2=None):
         """Populate the buffer, maintain counters and print any lines as able.
 
-        Also includes code to track stalls.
+        Also includes code to track pauses.
         """
 
-        def stall_began(buffer, summary, pkt):
+        def pause_began(buffer, summary, pkt):
             # idx = min(config.before, len(buffer["packets"]) - 1)
             # print("*** BEGAN:", buffer["packets"][idx])
-            summary["stall_began"] = pkt.dtm
+            summary["pause_began"] = pkt
 
-        def stall_ended(buffer, summary, pkt=None):
+        def pause_ended(buffer, summary, pkt=None):
             # print("*** ENDED:", buffer["packets"][0])
             duration = (
                 dt.fromisoformat(buffer["packets"][0][4 : 4 + DATETIME_LENGTH])
-                - summary["stall_began"]
+                - summary["pause_began"].dtm
             )
-            if duration > config.stall_duration:
-                summary["stalls"].append({summary["stall_began"]: duration})
-            elif buffer["stall_len"] > config.stall_length:
-                summary["stalls"].append({summary["stall_began"]: duration})
+            if (
+                duration > config.pause_duration
+                or buffer["pause_len"] > config.pause_length
+            ):
+                summary["pauses"].append({summary["pause_began"]: duration})
 
         td = time_diff(pkt, pkt2) if diff == "===" else 0
         summary["dt_pos" if td > 0 else "dt_neg"] += td
@@ -220,15 +221,15 @@ def compare(config) -> dict:
         buffer["run_length"] += 1
 
         if diff == "<<<":
-            if not buffer["making_stall"]:
-                buffer.update({"stall_len": 0, "making_stall": True})
-                stall_began(buffer, summary, pkt)
-            buffer["stall_len"] += 1
+            if not buffer["making_pause"]:
+                buffer.update({"pause_len": 0, "making_pause": True})
+                pause_began(buffer, summary, pkt)
+            buffer["pause_len"] += 1
 
-        elif buffer["making_stall"]:
-            buffer["making_stall"] = False
-            if buffer["stall_len"] > 3:
-                stall_ended(buffer, summary)
+        elif buffer["making_pause"]:
+            buffer["making_pause"] = False
+            if buffer["pause_len"] > 3:
+                pause_ended(buffer, summary)
 
         if diff in ["<<<", ">>>"]:
             # if not buffer["making_block"]:  # beginning of a block
@@ -254,23 +255,24 @@ def compare(config) -> dict:
             buffer_print(buffer, min(config.after, buffer["run_length"]))
             print()
 
-    def print_summary(dt_pos, dt_neg, num_pkts, num_1, num_2, warning, stalls, *args):
+    def print_summary(dt_pos, dt_neg, num_pkts, num_1, num_2, warning, pauses, *args):
         num_total = sum([num_pkts, num_1, num_2])
         print(f"Of the {num_total} valid packets:")
         print(
             " - average time delta of matched packets:",
             f"{(dt_pos - dt_neg) / num_pkts:0.0f} "
-            f"(+{dt_pos / num_pkts:0.0f}, {dt_neg / num_pkts:0.0f}) ns",
+            f"(+{dt_pos / num_pkts:0.0f}, {dt_neg / num_pkts:0.0f}) nanosecs",
         )
         print(
             " - there were:",
             f"{num_1} (<<<, {num_1 / num_total * 100:0.2f}%), "
             f"{num_2} (>>>, {num_2 / num_total * 100:0.2f}%) unmatched packets",
         )
-        lst = [v.total_seconds() for d in stalls for k, v in d.items()]
+
+        lst = [v.total_seconds() for d in pauses for k, v in d.items()]
         print(
-            f"\r\nOf the {len(lst)} stalls >{config.stall_length} packets' duration "
-            f"(or >{config.stall_duration.total_seconds():0.2f} secs):"
+            f"\r\nOf the {len(lst)} pauses >{config.pause_length} packets' duration "
+            f"(or >{config.pause_duration.total_seconds():0.2f} secs):"
         )
         if len(lst):
             print(
@@ -280,12 +282,15 @@ def compare(config) -> dict:
         else:
             print(" - average duration: 0 secs; maximum: 0 secs")
 
+        # print()
+        # [print(k.line) for d in pauses for k, v in d.items()]
+
         if warning is True:
             print("\r\nWARNING: The reference packet log is not from a HGI80.")
 
     SUMMARY_KEYS = ["dt_pos", "dt_neg", "num_pkts", "num_1", "num_2", "warning"]
     summary = {k: 0 for k in SUMMARY_KEYS}
-    summary.update({"stalls": []})
+    summary.update({"pauses": []})
 
     pkt_2_window = deque()
 
