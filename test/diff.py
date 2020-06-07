@@ -111,6 +111,9 @@ def compare2(config) -> dict:
     MICROSECONDS = timedelta(microseconds=1)
     buffer = {"packets": deque(), "run_length": 0, "making_block": False}
 
+    def pkts_match(pkt, window, idx) -> bool:
+        return pkt.packet == window[idx].packet
+
     def buffer_print(buffer, num_lines):
         for _ in range(num_lines):
             print(buffer["packets"][0])
@@ -207,7 +210,7 @@ def compare2(config) -> dict:
             slide_pkt_window(fh_2, pkt_2_window, until=pkt_1.dtm + TIME_WINDOW)
 
             for idx, pkt_2 in enumerate(list(pkt_2_window)):
-                matched = pkt_1.packet == pkt_2.packet
+                matched = pkts_match(pkt_1, pkt_2_window, idx)
                 if matched:  # is this the end of a block?
                     # should check the next packet is not a better match
 
