@@ -82,13 +82,39 @@ def main():
             ptvsd.wait_for_attach()
             print("Debugger is attached, continuing execution.")
 
-    compare2(args)
+    print_summary(*list(compare2(args).values()))
 
 
-def compare2(config) -> None:
+def print_summary(dt_diff_pos, dt_diff_neg, count_match, count_1, count_2, warning):
+    num_outliers = 0
+
+    print("Of the valid packets:")
+    print(
+        " - average time delta of matched packets:",
+        f"{(dt_diff_pos - dt_diff_neg) / count_match:0.0f} "
+        f"(+{dt_diff_pos / count_match:0.0f}, {dt_diff_neg / count_match:0.0f})"
+        f" ns, with {num_outliers} outliers",
+    )
+    num_total = sum([count_match, count_1, count_2])
+    print(
+        " - there were:",
+        f"{num_total + num_outliers:0d} true packets, with "
+        f"{count_1} (<<<, {count_1 / num_total * 100:0.2f}%), "
+        f"{count_2} (>>>, {count_2 / num_total * 100:0.2f}%) unmatched",
+    )
+    if warning:
+        print("\r\n*** WARNING: The reference packet log is not from a HGI80.")
+
+
+def compare2(config) -> dict:
 
     MICROSECONDS = timedelta(microseconds=1)
     buffer = {"packets": deque(), "run_length": 0, "making_block": False}
+
+    def buffer_print(buffer, num_lines):
+        for _ in range(num_lines):
+            print(buffer["packets"][0])
+            buffer["packets"].popleft()
 
     def parse_line(raw_line: str) -> namedtuple:
         """Parse a line from a packet log into a dtm (dt), payload (str) tuple.
@@ -121,11 +147,17 @@ def compare2(config) -> None:
         if pkt_window[-1].dtm is None:
             pkt_window.pop()
 
-    def buffer_append(buffer, diff, pkt, pkt2=None):
+    def buffer_append(buffer, summary, diff, pkt, pkt2=None):
         """Populate the buffer."""
         if diff == "===":
             td = (pkt2.dtm - pkt.dtm) / MICROSECONDS
             td = 999999 if td > 999999 else max(td, -999999)
+
+            if td > 0:
+                summary["dt_diff_pos"] += td
+            else:
+                summary["dt_diff_neg"] += td
+
         else:
             td = 0.0
 
@@ -134,18 +166,13 @@ def compare2(config) -> None:
 
         if diff in ["<<<", ">>>"]:
             buffer.update({"run_length": 0, "making_block": True})
-            while len(buffer["packets"]) > 0:
-                print(buffer["packets"][0])
-                buffer["packets"].popleft()
+            buffer_print(buffer, len(buffer["packets"]))
             return
 
         if buffer["making_block"]:
             if buffer["run_length"] > config.before + config.after:
                 buffer.update({"run_length": config.before, "making_block": False})
-                for _ in range(config.after):
-                    print(buffer["packets"][0])
-                    buffer["packets"].popleft()
-
+                buffer_print(buffer, config.after)
                 buffer["packets"].popleft()
                 print()
 
@@ -153,21 +180,30 @@ def compare2(config) -> None:
             buffer.update({"run_length": config.before, "making_block": False})
             buffer["packets"].popleft()
 
-    def Buffer_flush(buffer):
+    def buffer_flush(buffer):
         if buffer["making_block"]:
-            for _ in range(config.after):
-                print(buffer["packets"][0])
-                buffer["packets"].popleft()
+            buffer_print(buffer, min(config.after, buffer["run_length"]))
 
     TIME_WINDOW = timedelta(seconds=config.window)
 
     pkt_2_window = deque()
+    summary = {
+        "dt_diff_pos": 0,
+        "dt_diff_neg": 0,
+        "count_match": 0,
+        "count_1": 0,
+        "count_2": 0,
+        "warning": False
+    }
 
     with open(config.hgi80_log) as fh_1, open(config.evofw_log) as fh_2:
         # slide_pkt_window(fh_2, pkt2_window, num_seconds=TIME_WINDOW)
 
         for raw_line in fh_1:
             pkt_1 = parse_line(raw_line)
+            if "*" in pkt_1.packet or "#" in pkt_1.packet:
+                summary["warning"] = True
+
             slide_pkt_window(fh_2, pkt_2_window, until=pkt_1.dtm + TIME_WINDOW)
 
             for idx, pkt_2 in enumerate(list(pkt_2_window)):
@@ -176,17 +212,23 @@ def compare2(config) -> None:
                     # should check the next packet is not a better match
 
                     for _ in range(idx):  # all pkts before the match
-                        buffer_append(buffer, ">>>", pkt_2_window[0])
+                        buffer_append(buffer, summary, ">>>", pkt_2_window[0])
+                        if not pkt_2_window[0].packet[:1] == "#":
+                            summary["count_2"] += 1
                         pkt_2_window.popleft()
 
-                    buffer_append(buffer, "===", pkt_1, pkt_2)
+                    buffer_append(buffer, summary, "===", pkt_1, pkt_2)
+                    summary["count_match"] += 1
                     pkt_2_window.popleft()
                     break
 
             else:  # there was no break
-                buffer_append(buffer, "<<<", pkt_1)
+                buffer_append(buffer, summary, "<<<", pkt_1)
+                summary["count_1"] += 1
 
-            # buffer_check(buffer)  # complete a block if required
+        buffer_flush(buffer)
+
+    return summary
 
 
 def compare(config) -> None:
@@ -232,7 +274,7 @@ def compare(config) -> None:
 
     block_list = []
     dt_diff_sum = dt_diff_pos = dt_diff_neg = 0
-    count_match = num_outliers = count_2 = count_1 = 0
+    num_outliers = count_match = count_2 = count_1 = 0
     warning = False
 
     # this algorithm wont work properly if the files are in the wrong order
@@ -315,22 +357,7 @@ def compare(config) -> None:
 
     new_block(block_list)
 
-    print("\r\nOf the valid packets:")
-    print(
-        " - average time delta of matched packets:",
-        f"{(dt_diff_pos - dt_diff_neg) / count_match:0.0f} "
-        f"(+{dt_diff_pos / count_match:0.0f}, {dt_diff_neg / count_match:0.0f})"
-        f" ns, with {num_outliers} outliers",
-    )
-    num_total = sum([count_match, count_2, count_1])
-    print(
-        " - there were:",
-        f"{num_total + num_outliers:0d} total packets, with "
-        f"{count_1} (<<<, {count_1 / num_total * 100:0.2f}%), "
-        f"{count_2} (>>>, {count_2 / num_total * 100:0.2f}%) unmatched",
-    )
-    if warning:
-        print("\r\n*** WARNING: The reference packet log is not from a HGI80.")
+    return dt_diff_pos, dt_diff_neg, count_match, count_1, count_2, warning
 
 
 if __name__ == "__main__":
