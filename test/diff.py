@@ -112,7 +112,7 @@ def main():
             ptvsd.wait_for_attach()
             print("Debugger is attached, continuing execution.")
 
-    print_summary(*list(compare2(args).values()))
+    print_summary(*list(compare(args).values()))
 
 
 def print_summary(dt_pos, dt_neg, count_match, count_1, count_2, warning):
@@ -133,7 +133,7 @@ def print_summary(dt_pos, dt_neg, count_match, count_1, count_2, warning):
         print("\r\nWARNING: The reference packet log is not from a HGI80.")
 
 
-def compare2(config) -> dict:
+def compare(config) -> dict:
 
     MICROSECONDS = timedelta(microseconds=1)
     buffer = {"packets": deque(), "run_length": 0, "making_block": False}
@@ -185,25 +185,22 @@ def compare2(config) -> dict:
             pkt_window.pop()
 
     def buffer_append(buffer, summary, diff, pkt, pkt2=None):
-        """Populate the buffer."""
-        if diff == "===":
-            td = time_diff(pkt, pkt2)
-            summary["dt_pos" if td > 0 else "dt_neg"] += td
-        else:
-            td = 0.0
+        """Populate the buffer, maintain counters and print any lines as able."""
+        td = time_diff(pkt, pkt2) if diff == "===" else 0
+        summary["dt_pos" if td > 0 else "dt_neg"] += td
 
         buffer["packets"].append(f"{diff} {pkt.dtm} ({td:+7.0f}) {pkt.packet}")
         buffer["run_length"] += 1
 
         if diff in ["<<<", ">>>"]:
-            buffer.update({"run_length": 0, "making_block": True})
             buffer_print(buffer, len(buffer["packets"]))
+            buffer.update({"run_length": 0, "making_block": True})
             return
 
         if buffer["making_block"]:
             if buffer["run_length"] > config.before + config.after:
-                buffer.update({"run_length": config.before, "making_block": False})
                 buffer_print(buffer, config.after)
+                buffer.update({"run_length": config.before, "making_block": False})
                 buffer["packets"].popleft()  # the first === pkt between after & before
                 print()
 
@@ -243,7 +240,7 @@ def compare2(config) -> dict:
                     pkt_2_window.popleft()
                     break
 
-            else:  # there was no break
+            else:
                 buffer_append(buffer, summary, "<<<", pkt_1)
                 summary["count_1"] += 1
 
