@@ -23,12 +23,16 @@ from .system import EvohomeSystem
 _LOGGER = logging.getLogger(__name__)
 # OGGER.setLevel(logging.DEBUG)
 
+class GracefulExit(SystemExit):
+    code = 1
+
 
 class Gateway:
     """The gateway class."""
 
     def __init__(self, serial_port=None, loop=None, **config) -> None:
         """Initialise the class."""  # TODO: config.get() vs config[]
+        _LOGGER.info("Starting evohome_rf...")
         _LOGGER.debug("**config = %s", config)
 
         self.serial_port = serial_port
@@ -104,16 +108,26 @@ class Gateway:
         self._setup_signal_handler()
 
     def _setup_signal_handler(self):
-        _LOGGER.info("Starting evohome_rf...")
+        def raise_graceful_exit(signalnum, frame):
+            """2 = signal.SIGINT (Ctrl-C)"""
+            _LOGGER.info("Received a signal (signalnum=%s), exiting...", signalnum)
 
+            self.cleanup_part_2("raise_graceful_exit")
+
+            raise GracefulExit()
+
+        _LOGGER.debug("Creating signal handlers...")
         signals = [signal.SIGINT, signal.SIGTERM]
-        if os.name == "posix":  # TODO: or sys.platform is better?
-            signals += [signal.SIGHUP, signal.SIGUSR1, signal.SIGUSR2]
 
-        for sig in signals:
-            self.loop.add_signal_handler(
-                sig, lambda sig=sig: asyncio.create_task(self._signal_handler(sig))
-            )
+        if os.name == "nt":  # TODO: or is sys.platform better?
+            for sig in signals + [signal.SIGBREAK]:
+                signal.signal(sig, raise_graceful_exit)
+
+        else: # if os.name == "posix":
+            for sig in signals + [signal.SIGHUP, signal.SIGUSR1, signal.SIGUSR2]:
+                self.loop.add_signal_handler(
+                    sig, lambda sig=sig: asyncio.create_task(self._signal_handler(sig))
+                )
 
     async def _signal_handler(self, signal):
         _LOGGER.debug("Received signal %s...", signal.name)
@@ -125,8 +139,8 @@ class Gateway:
         #     _LOGGER.info("Debug data is:")
 
         if signal in [signal.SIGHUP, signal.SIGINT, signal.SIGTERM]:
-            _LOGGER.info("Received a %s, exiting gracefully...", signal)
-            await self.cleanup("_signal_handler")
+            _LOGGER.info("Received a %s signal, exiting...", signal)
+            await self.cleanup_part_1("_signal_handler")
 
             tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
             logging.info(
@@ -136,16 +150,26 @@ class Gateway:
             # await asyncio.gather(*tasks)
             logging.info(" - done.")
 
-    async def cleanup(self, xxx=None) -> None:
-        """Perform a graceful shutdown."""
+            raise GracefulExit()
 
-        _LOGGER.debug("cleanup invoked by: %s", xxx)
+
+    async def cleanup_part_1(self, xxx=None) -> None:
+        """Perform the async portion of a graceful shutdown."""
+
+        _LOGGER.debug("part 1 cleanup invoked by: %s", xxx)
 
         if self._output_db:  # close packet database
             _LOGGER.info(f"Closing packets database...")
             await self._output_db.commit()
             await self._output_db.close()
             self._output_db = None  # TODO: is this needed - if re-entrant?
+
+            self.cleanup_part_2("cleanup_part_1")
+
+    def cleanup_part_2(self, xxx=None) -> None:
+        """Perform the non-async portion of a graceful shutdown."""
+
+        _LOGGER.debug("part 2 cleanup invoked by: %s", xxx)
 
         if self.config.get("known_devices"):
             try:
