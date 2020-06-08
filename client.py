@@ -4,7 +4,7 @@ import sys
 
 import click
 
-from evohome import Gateway
+from evohome import Gateway, GracefulExit
 
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
@@ -94,7 +94,12 @@ async def main(loop=None, **kwargs):
 
     gateway = Gateway(**kwargs, loop=loop)
 
-    await gateway.start()
+    try:
+        await gateway.start()
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt")
+    except GracefulExit:
+        print("GracefulExit")
 
 
 if __name__ == "__main__":
