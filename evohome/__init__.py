@@ -294,7 +294,7 @@ class Gateway:
         else:  # if self.config["serial_port"] or if self.serial_port
             await proc_pkts_from_port()
 
-        await self.cleanup("start")
+        await self.cleanup_part_1("start")
 
     async def _dispatch_pkt(self, destination=None) -> None:
         """Send a command unless in listen_only mode."""
