@@ -261,6 +261,8 @@ def _percent(seqx) -> Optional[float]:  # usually a percentage 0-100% (0.0 to 1.
     assert len(seqx) == 2
     if seqx == "FF":
         return None
+
+    assert int(seqx, 16) <= 200
     return int(seqx, 16) / 200
 
 
@@ -926,30 +928,42 @@ def parser_3150(payload, msg) -> Optional[dict]:  # heat_demand (of device, FC d
 @parser_decorator
 def parser_31d9(payload, msg) -> Optional[dict]:
     assert len(payload) / 2 == 17  # usu: I 30:-->30:, with a seq#!
-    assert payload[2:] in [
-        "00FF0000000000000000000000000000",
-        "06010020202020202020202020202000",
-    ]
+    assert payload[:2] in ["00", "21"]
+    assert payload[2:4] in ["00", "06"]
+    assert payload[6:8] == "00"
+    assert payload[8:32] in ["000000000000000000000000", "202020202020202020202020"]
 
     return {
         **_idx(payload[:2], msg),
-        "unknown_0": payload[2:8],
-        "unknown_1": payload[8:32],
-        "unknown_2": payload[32:],
+        "percent_1": _percent(payload[4:6]),
+        "unknown_0": payload[2:4],
+        "unknown_2": payload[6:8],
+        "unknown_3": payload[8:32],
+        "unknown_4": payload[32:],
     }
 
 
 @parser_decorator
 def parser_31da(payload, msg) -> Optional[dict]:  # UFH HCE80 (Nuaire humidity)
-    # 047 RQ --- 32:168090 30:082155 --:------ 31DA 001 21
-
     assert len(payload) / 2 == 29  # usu: I CTL-->CTL
+
+    assert payload[2:10] == "EF007FFF"
+    assert payload[12:30] == "EF7FFF7FFF7FFF7FFF"
+    assert payload[34:36] == "EF"
+    assert payload[42:44] == "00"
+    assert payload[46:48] in ["00", "EF"]
+    assert payload[48:] in ["EF7FFF7FFF", "EF7FFFFFFF"]
+
+    rh = int(payload[10:12], 16) / 100 if payload[10:12] != "EF" else None  # not /200!
 
     return {
         **_idx(payload[:2], msg),
-        "relative_humidity": int(payload[10:12], 16) / 100,  # is not /200
-        "unknown_0": payload[2:10],
-        "unknown_1": payload[12:],
+        "relative_humidity": rh,
+        "unknown_1": payload[30:32],
+        "unknown_2": payload[32:34],
+        "unknown_3": payload[36:38],
+        "unknown_4": payload[38:40],
+        "unknown_5": payload[44:46],
     }
 
 
