@@ -819,6 +819,15 @@ def parser_22f1(payload, msg) -> Optional[dict]:  # ???? (Nuaire 4-way switch)
 
 
 @parser_decorator
+def parser_22f3(payload, msg) -> Optional[dict]:  # similar to 22F1?
+    assert len(payload) / 2 == 3
+    assert payload[:2] == "00"  # has no domain
+    assert payload[4:6] == "0A"
+
+    return {"_bitmap": int(payload[2:4], 16)}
+
+
+@parser_decorator
 def parser_2309(payload, msg) -> Union[dict, list, None]:  # setpoint (of device/zones)
     def _parser(seqx) -> dict:
         assert int(seqx[:2], 16) < 12
