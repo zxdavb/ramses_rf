@@ -69,7 +69,7 @@ def parser_decorator(func):
 
         if msg.code == "0005":
             assert len(payload) / 2 == 2
-            return {"zone_id": payload[:2]}  # zone_id, not _idx
+            return {"zone_id": payload[:2]}  # NOTE: zone_id, *not* _idx
 
         if msg.code == "0009":
             # assert len(payload) / 2 == 2  # never, ever got an RP
@@ -122,7 +122,7 @@ def parser_decorator(func):
 
         if msg.code in ["1F09"]:
             # 061 RQ --- 04:189082 01:145038 --:------ 1F09 001 00
-            assert payload in ["00", "99"]
+            assert payload == "00"
             return {}
 
         if msg.code == "3220":  # CTL -> OTB (OpenTherm)
@@ -133,9 +133,13 @@ def parser_decorator(func):
             assert msg.len == 1
             return {**_idx(payload[:2], msg)}
 
-        if msg.code == "3EF1":
-            assert payload == "0000"
-            return {}
+        if msg.code == "3EF1":  # and 3EF0?
+            # 082 RQ --- 22:091267 01:140959 --:------ 3EF1 002 0700
+            # 088 RQ --- 22:054901 13:133379 --:------ 3EF1 002 0000
+            # assert msg.len == 2
+            assert int(payload[:2], 16) < 12  # maybe 00 if dest is 13:
+            assert payload[2:] == "00"
+            return {**_idx(payload[:2], msg)}
 
         if payload == "00":  # TODO: WIP
             return {}
