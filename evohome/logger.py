@@ -25,11 +25,15 @@ except ModuleNotFoundError:
 # correct streams
 logging.basicConfig(level=BASIC_LEVEL, format=BASIC_FMT, datefmt=BASIC_DATEFMT)
 
-# HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssss
+# HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssss, shorter format for the console
 CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
 CONSOLE_FMT = "%(time).12s " + f"%(message).{CONSOLE_COLS - 13}s"
 PKT_LOG_FMT = "%(date)sT%(time)s %(_packet)s"
 MSG_LOG_FMT = "%(date)sT%(time)s %(message)s"
+
+# CONSOLE_FMT = MSG_LOG_FMT  # Do this to have longer-format console messages
+# How to strip ASCII colour from a text file:
+#   sed -r "s/\x1B\[(([0-9]{1,2})?(;)?([0-9]{1,2})?)?[m,K,H,f,J]//g" file_name
 
 LOG_COLOURS = {
     "DEBUG": "white",
