@@ -670,7 +670,7 @@ def parity(x: int) -> int:
 def ot_msg_value(val_seqx, val_type) -> Any:
     """Make this the docstring."""
 
-    def _get_flag8(byte) -> list:
+    def _get_flag8(byte, *args) -> list:
         """Split a byte (as a str) into a list of 8 bits (1/0)."""
         ret = [0] * 8
         byte = bytes.fromhex(byte)[0]
@@ -679,11 +679,11 @@ def ot_msg_value(val_seqx, val_type) -> Any:
             byte = byte >> 1
         return ret
 
-    def _get_u8(byte) -> int:
+    def _get_u8(byte, *args) -> int:
         """Convert a byte (as a str) into an unsigned int."""
         return struct.unpack(">B", bytes.fromhex(byte))[0]
 
-    def _get_s8(byte) -> int:
+    def _get_s8(byte, *args) -> int:
         """Convert a byte (as a str) into a signed int."""
         return struct.unpack(">b", bytes.fromhex(byte))[0]
 
@@ -701,24 +701,17 @@ def ot_msg_value(val_seqx, val_type) -> Any:
         buf = struct.pack(">bB", _get_s8(msb), _get_u8(lsb))
         return int(struct.unpack(">h", buf)[0])
 
-    if val_type == "flag8":
-        return _get_flag8(val_seqx)
+    DATA_TYPES = {
+        "flag8": _get_flag8,
+        "u8": _get_u8,
+        "s8": _get_s8,
+        "f8.8": _get_f8_8,
+        "u16": _get_u16,
+        "s16": _get_s16,
+    }
 
-    if val_type == "u8":
-        return _get_u8(val_seqx)
-
-    if val_type == "s8":
-        return _get_s8(val_seqx)
-
-    if val_type == "f8.8":
-        return _get_f8_8(val_seqx[:2], val_seqx[2:])
-
-    if val_type == "u16":
-        return _get_u16(val_seqx[:2], val_seqx[2:])
-
-    if val_type == "s16":
-        return _get_s16(val_seqx[:2], val_seqx[2:])
-
+    if val_type in DATA_TYPES:
+        return DATA_TYPES[val_type](val_seqx[:2], val_seqx[2:])
     return val_seqx
 
 
