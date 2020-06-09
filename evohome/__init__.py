@@ -152,7 +152,6 @@ class Gateway:
 
             raise GracefulExit()
 
-
     async def cleanup_part_1(self, xxx=None) -> None:
         """Perform the async portion of a graceful shutdown."""
 
