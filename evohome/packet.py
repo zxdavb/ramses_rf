@@ -3,7 +3,8 @@
 import asyncio
 from collections import namedtuple
 import logging
-import re
+
+# import re
 
 from serial import SerialException  # TODO: dont import unless required
 from serial_asyncio import open_serial_connection  # TODO: dont import unless required?
@@ -81,16 +82,19 @@ class Packet:
             _LOGGER.warning("", extra=self.__dict__)  # normally a warning
             return False
 
+        # TODO: these packets shouldn't go to the packet log, only STDERR?
         if not MESSAGE_REGEX.match(self.packet):
             err_msg = "invalid packet structure"
         elif int(self.packet[46:49]) > 48:
             err_msg = "excessive payload length"
         elif int(self.packet[46:49]) * 2 != len(self.packet[50:]):
             err_msg = "mismatched payload length"
+        # TODO: maybe should rely upon parsers for this?
         elif "--:------" not in self.packet:
             err_msg = "three device addresses"
-        elif not re.match("(0[0-9AB]|21|F[89ABCF])", self.packet[50:53]):
-            err_msg = "dodgy zone idx/domain id"
+        # TODO: definitely should rely upon parsers for this?
+        # elif not re.match("(0[0-9AB]|21|F[89ABCF])", self.packet[50:53]):
+        #     err_msg = "dodgy zone idx/domain id"
         else:  # it is a valid packet!
             # NOTE: don't log good packets here: we may want to silently discard some
             return True

@@ -159,10 +159,9 @@ def _idx(seqx, msg) -> dict:
 
     Anything in the range F0-FF appears to be a domain id (no false +ve/-ves).
     """
-    # STEP 1: identify the index name, if any
-
+    # STEP 1: by CODE: identify the index name, if any
     if seqx in DOMAIN_TYPE_MAP:  # no false +ve/-ves
-        idx_name = "domain_id"
+        return {"domain_id": seqx}  # idx_name = "domain_id"
 
     elif msg.code == "0418":
         # 0418 has a domain_id/ zone_idx, but it is actually indexed by log_idx
@@ -178,7 +177,7 @@ def _idx(seqx, msg) -> dict:
         return {}
 
     elif msg.code == "22C9" and msg.dev_from[:2] == "02":  # ufh_setpoint
-        assert int(seqx, 16) < 8  # this can be a "00"
+        assert int(seqx, 16) < 8  # this can be a "00", maybe zone_idx, see below
         idx_name = "ufh_idx"
 
     elif msg.code in CODES_WITH_ZONE_IDX + ["000A", "2309", "30C9", "0404", "1FC9"]:
@@ -198,7 +197,7 @@ def _idx(seqx, msg) -> dict:
         assert seqx == "00"
         return {}
 
-    # STEP 2: determine if there is an index at all
+    # STEP 2: by DEV_FROM: determine if there is an index at all
     if msg.dev_from[:2] == "18":  # and msg.verb == "RQ":
         result = {idx_name: seqx}
 
