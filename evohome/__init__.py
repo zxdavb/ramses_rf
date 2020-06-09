@@ -23,6 +23,7 @@ from .system import EvohomeSystem
 _LOGGER = logging.getLogger(__name__)
 # OGGER.setLevel(logging.DEBUG)
 
+
 class GracefulExit(SystemExit):
     code = 1
 
@@ -109,7 +110,7 @@ class Gateway:
 
     def _setup_signal_handler(self):
         def raise_graceful_exit(signalnum, frame):
-            """2 = signal.SIGINT (Ctrl-C)"""
+            """2 = signal.SIGINT (Ctrl-C)."""
             _LOGGER.info("Received a signal (signalnum=%s), exiting...", signalnum)
 
             self.cleanup_part_2("raise_graceful_exit")
@@ -123,7 +124,7 @@ class Gateway:
             for sig in signals + [signal.SIGBREAK]:
                 signal.signal(sig, raise_graceful_exit)
 
-        else: # if os.name == "posix":
+        else:  # if os.name == "posix":
             for sig in signals + [signal.SIGHUP, signal.SIGUSR1, signal.SIGUSR2]:
                 self.loop.add_signal_handler(
                     sig, lambda sig=sig: asyncio.create_task(self._signal_handler(sig))

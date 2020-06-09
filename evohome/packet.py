@@ -92,7 +92,7 @@ class Packet:
         # TODO: maybe should rely upon parsers for this?
         elif "--:------" not in self.packet:
             err_msg = "three device addresses"
-        # TODO: definitely should rely upon parsers for this?
+        # TODO: definitely should rely upon parsers for this
         # elif not re.match("(0[0-9AB]|21|F[89ABCF])", self.packet[50:53]):
         #     err_msg = "dodgy zone idx/domain id"
         else:  # it is a valid packet!

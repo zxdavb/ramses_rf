@@ -11,106 +11,72 @@ HGI_DEV_ID = "18:000730"  # default type and address of HGI, 18:013393
 # TPI_DEV_ID = "13:237335"  # Boiler relay
 
 
-# Packet codes/classes - lengths are in bytes, len(0xFF) == 1
-COMMAND_MAGIC = {
-    "0004": {
-        "length": {"RQ": 2, "RP": 22, " I": 22, " W": 22},
-        "zone_idx": 2 * 2,
-        "null_resp": "7F" * 20,
-    },
-    "000A": {
-        "length": {"RQ": [1, 6], "RP": 6, " I": 6, " W": 0},
-        "zone_idx": True,
-        "null_resp": "007FFF7FFF",
-    },  # CTL/I is an array
-    "000C": {
-        "length": {"RQ": 2, "RP": 6, " I": 0, " W": 0},
-        "zone_idx": True,
-        "null_resp": "007FFFFFFF",
-    },  # RP is an array
-    "2309": {
-        "length": {"RQ": 1, "RP": 3, " I": 3, " W": 0},
-        "zone_idx": True,
-        "null_resp": "7FFF",
-    },  # CTL/I is an array
-    "30C9": {
-        "length": {"RQ": 1, "RP": 3, " I": 0, " W": 0},
-        "zone_idx": True,
-        "null_resp": "7FFF",
-    },  # CTL/I is an array
-    "12B0": {
-        "length": {"RQ": 1, "RP": 3, " I": 0, " W": 0},
-        "zone_idx": True,
-        "null_resp": "7FFF",
-    },
-    "2349": {
-        "length": {"RQ": 1, "RP": 7, " I": 3, " W": 0},
-        "zone_idx": True,
-        "null_resp": "7FFF00FFFFFF",
-    },
-    "0008": {"length": {"RQ": 0, "RP": 0, " I": 2, " W": 0}},
-    "1060": {"length": {"RQ": 0, "RP": 0, " I": 3, " W": 0}},  # zone for 04:
-    "3150": {"length": {"RQ": 0, "RP": 0, " I": 2, " W": 0}},
-    "1F09": {"length": {"RQ": 1, "RP": 3, " I": 0, " W": 0}},
-    "2E04": {"length": {"RQ": 1, "RP": 8, " I": 0, " W": 0}},
-}
-
 # Packet codes/classes
 COMMAND_SCHEMA = {
-    "0001": {"name": "message_0001"},  #
-    "0002": {"name": "sensor_weather"},
-    "0004": {"name": "zone_name", "exposes_zone": True, "rq_length": 2},
-    "0005": {"name": "system_zone", "rq_length": 2},
-    "0006": {"name": "schedule_sync"},  # for F9/FA/FC, idx for BDR, F8/FF (all?)
-    "0008": {"name": "relay_demand"},
-    "0009": {"name": "relay_failsafe", "exposes_zone": None},
-    "000A": {"name": "zone_config", "exposes_zone": True},
-    "000C": {"name": "zone_actuators", "exposes_zone": None},
-    "000E": {"name": "message_000e", "exposes_zone": False},
+    # main codes - every sync_cycle
+    "1F09": {"name": "system_sync"},
+    "2309": {"name": "setpoint", "uses_zone_idx": True},
+    "30C9": {"name": "temperature", "uses_zone_idx": True},
+    "000A": {"name": "zone_config", "uses_zone_idx": True},
+    # zone-specifc codes
+    "0004": {"name": "zone_name", "uses_zone_idx": True, "rq_length": 2},
+    "000C": {"name": "zone_actuators", "uses_zone_idx": True},
+    "0404": {"name": "zone_schedule", "uses_zone_idx": True},
+    "12B0": {"name": "window_state", "uses_zone_idx": True},
+    "2349": {"name": "zone_mode", "uses_zone_idx": True},
+    "3150": {"name": "heat_demand", "uses_zone_idx": True},
+    # controller/system codes
+    "313F": {"name": "datetime"},  # aka ping, datetime_req
+    "2E04": {"name": "system_mode"},
+    "0418": {"name": "system_fault"},
+    # device codes
     "0016": {"name": "rf_check", "rq_length": 2},
     "0100": {"name": "language", "rq_length": 5},
-    "0404": {"name": "zone_schedule"},
-    "0418": {"name": "system_fault"},
-    "042F": {"name": "message_042f", "exposes_zone": False},
-    "1030": {"name": "mixvalve_config"},
-    "1060": {"name": "device_battery", "exposes_zone": True},
-    "10A0": {"name": "dhw_params"},
+    "1060": {"name": "device_battery", "uses_zone_idx": True},
     "10E0": {"name": "device_info"},
-    "1100": {"name": "tpi_params"},  # boiler CH config
+    "1FC9": {"name": "bind_device"},  # aka bind
+    # dhw codes
+    "10A0": {"name": "dhw_params"},
     "1260": {"name": "dhw_temp"},
+    "1F41": {"name": "dhw_mode"},
+    # tpi codes
+    "1100": {"name": "tpi_params"},
+    "3B00": {"name": "actuator_sync"},  # was: tpi_sync/actuator_req
+    "3EF0": {"name": "actuator_enabled", "uses_zone_idx": True},
+    "3EF1": {"name": "actuator_state", "uses_zone_idx": True, "rq_length": 2},
+    # OpenTherm codes
+    "1FD4": {"name": "opentherm_sync"},
+    "22D9": {"name": "boiler_setpoint"},
+    "3220": {"name": "opentherm_msg"},
+    # Other codes...
+    "0008": {"name": "relay_demand", "uses_zone_idx": True},
+    "0009": {"name": "relay_failsafe", "uses_zone_idx": True},
+    "22C9": {"name": "ufh_setpoint"},
+    "22D0": {"name": "message_22d0"},  # used with UFH, ~15min
+    "1030": {"name": "mixvalve_config", "uses_zone_idx": True},
+    # unknown/unsure codes
+    "0001": {"name": "message_0001"},
+    "0002": {"name": "sensor_weather"},
+    "0005": {"name": "system_zone", "rq_length": 2},
+    "0006": {"name": "schedule_sync"},  # for F9/FA/FC, idx for BDR, F8/FF (all?)
     "1280": {"name": "outdoor_humidity"},
     "1290": {"name": "outdoor_temp"},
     "12A0": {"name": "indoor_humidity"},  # Nuaire ventilation
-    "12B0": {"name": "window_state", "exposes_zone": True},  # "device_or_zone": True
-    "1F09": {"name": "sync_cycle"},
-    "1F41": {"name": "dhw_mode"},
-    "1FC9": {"name": "bind_device"},  # aka bind
-    "1FD4": {"name": "opentherm_sync"},
-    "2249": {"name": "unknown_2249"},  # programmer now/next setpoint (jrosser/honeymon)
-    "22C9": {"name": "ufh_setpoint"},
-    "22D0": {"name": "message_22d0"},  # used with UFH, ~15min
-    "22D9": {"name": "boiler_setpoint"},  # used with OTB
+    "2249": {"name": "message_2249"},  # programmer now/next setpoint (jrosser/honeymon)
+    "2389": {"name": "message_2389"},  # not real?
+    "2D49": {"name": "message_2d49"},  # hometronics only?
     "22F1": {"name": "vent_switch"},
-    "2309": {"name": "setpoint", "exposes_zone": True},  # "device_or_zone": True
-    "2349": {"name": "zone_mode", "exposes_zone": True},  # TODO: confirm
-    "2389": {"name": "unknown_2389"},  # not real?
-    "2D49": {"name": "unknown_2d49"},  # hometronics only?
-    "2E04": {"name": "system_mode"},
-    "30C9": {"name": "temperature", "exposes_zone": False},  # "device_or_zone": True
-    "3120": {"name": "message_3120", "exposes_zone": False},  # From STA
-    "313F": {"name": "datetime"},  # aka ping, datetime_req
-    "3150": {"name": "heat_demand", "exposes_zone": True},  # "device_or_zone": ????
+    "22F3": {"name": "other_switch"},
     "31D9": {"name": "message_31d9"},  # Nuaire ventilation
     "31DA": {"name": "message_31da"},  # from HCE80, also Nuaire: Contains R/humidity??
     "31E0": {"name": "message_31e0"},  # Nuaire ventilation
-    "3220": {"name": "opentherm_msg"},  # OTB
-    "3B00": {"name": "sync_tpi"},  # was actuator_req - start of TPI cycle
-    "3EF0": {"name": "actuator_enabled"},
-    "3EF1": {"name": "actuator_state", "rq_length": 2},  # from 12: to (missing) 13:
-    #
+    # unknown codes, used only by STA
+    "000E": {"name": "message_000e", "uses_zone_idx": False},
+    "042F": {"name": "message_042f", "uses_zone_idx": False},
+    "3120": {"name": "message_3120", "uses_zone_idx": False},  # From STA
 }
 
-COMMAND_EXPOSES_ZONE = [k for k, v in COMMAND_SCHEMA.items() if v.get("exposes_zone")]
+MAY_USE_ZONE_IDX = [k for k, v in COMMAND_SCHEMA.items() if v.get("uses_zone_idx")]
 
 COMMAND_MAP = {k: v["name"] for k, v in COMMAND_SCHEMA.items()}
 
@@ -161,7 +127,7 @@ DOMAIN_TYPE_MAP = {
     "FA": "HotWater",  # Stored DHW?
     "FB": "TBD",  # TODO: bind CS92 with BDRs in both modes
     "FC": "Boiler",  # "Heat Source": BDR (Boiler, District heating), or OTB
-    "FF": "System",
+    "FF": "System",  # TODO: remove this, is not a domain
 }  # "21": "Ventilation",
 
 SYSTEM_MODE_MAP = {
@@ -280,3 +246,47 @@ RENAME_3 = """
 RENAME_3 = """
     VACUUM;
 """
+
+# Packet codes/classes - lengths are in bytes, len(0xFF) == 1
+TBD_COMMAND_MAGIC = {
+    "0004": {
+        "length": {"RQ": 2, "RP": 22, " I": 22, " W": 22},
+        "zone_idx": 2 * 2,
+        "null_resp": "7F" * 20,
+    },
+    "000A": {
+        "length": {"RQ": [1, 6], "RP": 6, " I": 6, " W": 0},
+        "zone_idx": True,
+        "null_resp": "007FFF7FFF",
+    },  # CTL/I is an array
+    "000C": {
+        "length": {"RQ": 2, "RP": 6, " I": 0, " W": 0},
+        "zone_idx": True,
+        "null_resp": "007FFFFFFF",
+    },  # RP is an array
+    "2309": {
+        "length": {"RQ": 1, "RP": 3, " I": 3, " W": 0},
+        "zone_idx": True,
+        "null_resp": "7FFF",
+    },  # CTL/I is an array
+    "30C9": {
+        "length": {"RQ": 1, "RP": 3, " I": 0, " W": 0},
+        "zone_idx": True,
+        "null_resp": "7FFF",
+    },  # CTL/I is an array
+    "12B0": {
+        "length": {"RQ": 1, "RP": 3, " I": 0, " W": 0},
+        "zone_idx": True,
+        "null_resp": "7FFF",
+    },
+    "2349": {
+        "length": {"RQ": 1, "RP": 7, " I": 3, " W": 0},
+        "zone_idx": True,
+        "null_resp": "7FFF00FFFFFF",
+    },
+    "0008": {"length": {"RQ": 0, "RP": 0, " I": 2, " W": 0}},
+    "1060": {"length": {"RQ": 0, "RP": 0, " I": 3, " W": 0}},  # zone for 04:
+    "3150": {"length": {"RQ": 0, "RP": 0, " I": 2, " W": 0}},
+    "1F09": {"length": {"RQ": 1, "RP": 3, " I": 0, " W": 0}},
+    "2E04": {"length": {"RQ": 1, "RP": 8, " I": 0, " W": 0}},
+}
