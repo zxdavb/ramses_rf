@@ -6,7 +6,7 @@ import zlib
 
 from .command import Command
 from .const import (
-    COMMAND_SCHEMA,
+    CODE_SCHEMA,
     DEVICE_LOOKUP,
     DEVICE_HAS_BATTERY,
     DEVICE_TYPES,
@@ -211,7 +211,7 @@ class Device(Entity):
         # TODO: an attempt to actively discover the CTL rather than by eavesdropping
         # self._command("313F", dest_addr=NUL_DEV_ID, payload="FF")
 
-        # for code in COMMAND_SCHEMA:  # TODO: testing only
+        # for code in CODE_SCHEMA:  # TODO: testing only
         #     self._command(code, dest_addr=self.id, payload="0000")
         # return
 
@@ -458,7 +458,7 @@ class UfhController(Device, HeatDemand):
     def _discover(self):
         super()._discover()
 
-        for code in COMMAND_SCHEMA:  # TODO: testing only
+        for code in CODE_SCHEMA:  # TODO: testing only
             # for payload in DOMAIN_TYPE_MAP:  # TODO: testing only
             self._command(code, dest_addr=self.id)
 
@@ -536,7 +536,7 @@ class OtbGateway(Device, HeatDemand):
     def _discover(self):
         super()._discover()
 
-        for code in COMMAND_SCHEMA:  # TODO: testing only
+        for code in CODE_SCHEMA:  # TODO: testing only
             # for payload in DOMAIN_TYPE_MAP:  # TODO: testing only
             self._command(code, dest_addr=self.id)
 
@@ -579,7 +579,7 @@ class BdrSwitch(Device):
 
         return
 
-        for code in COMMAND_SCHEMA:  # TODO: testing only
+        for code in CODE_SCHEMA:  # TODO: testing only
             # for payload in DOMAIN_TYPE_MAP:  # TODO: testing only
             self._command(code, dest_addr=self.id)
 

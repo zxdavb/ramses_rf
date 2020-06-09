@@ -7,12 +7,8 @@ NON_DEV_ID = "--:------"
 NUL_DEV_ID = "63:262142"  # 7FFFFF - send here if not bound?
 HGI_DEV_ID = "18:000730"  # default type and address of HGI, 18:013393
 
-# CTL_DEV_ID = "01:145038"  # 06368E
-# TPI_DEV_ID = "13:237335"  # Boiler relay
-
-
-# Packet codes/classes
-COMMAND_SCHEMA = {
+# Packet codes
+CODE_SCHEMA = {
     # main codes - every sync_cycle
     "1F09": {"name": "system_sync"},
     "2309": {"name": "setpoint", "uses_zone_idx": True},
@@ -76,9 +72,9 @@ COMMAND_SCHEMA = {
     "3120": {"name": "message_3120", "uses_zone_idx": False},  # From STA
 }
 
-MAY_USE_ZONE_IDX = [k for k, v in COMMAND_SCHEMA.items() if v.get("uses_zone_idx")]
+MAY_USE_ZONE_IDX = [k for k, v in CODE_SCHEMA.items() if v.get("uses_zone_idx")]
 
-COMMAND_MAP = {k: v["name"] for k, v in COMMAND_SCHEMA.items()}
+COMMAND_MAP = {k: v["name"] for k, v in CODE_SCHEMA.items()}
 
 COMMAND_LOOKUP = {v: k for k, v in COMMAND_MAP.items()}
 
