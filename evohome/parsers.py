@@ -1,21 +1,20 @@
 """Evohome serial."""
 
 from datetime import datetime as dt, timedelta
-from typing import Any, Optional, Union
+from typing import Optional, Union
 
 from .const import (
-    MAY_USE_ZONE_IDX,
     DOMAIN_TYPE_MAP,
     FAULT_DEVICE_CLASS,
     FAULT_STATE,
     FAULT_TYPE,
+    MAY_USE_DOMAIN_ID,
+    MAY_USE_ZONE_IDX,
     SYSTEM_MODE_MAP,
     ZONE_MODE_MAP,
 )
 from .entity import dev_hex_to_id
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
-
-# DES_SANS_ZONE_IDX = ["0002", "2E04"]  # not sure about "0016", "22C9"
 
 
 def _idx(seqx, msg) -> dict:
@@ -29,71 +28,40 @@ def _idx(seqx, msg) -> dict:
 
     Anything in the range F0-FF appears to be a domain id (no false +ve/-ves).
     """
-    # STEP 1: by CODE: identify the index name, if any
-    if seqx in DOMAIN_TYPE_MAP:  # no false +ve/-ves; FF is not a domain
-        return {"domain_id": seqx}  # was: idx_name = "domain_id"
+    if msg.code in ["1FC9", "2E04"]:  # blacklist: never _idx, although some != "00"
+        # 1FC9: dict is currently encoded in a way that id/idx is not used
+        # 2E04: payload[:2] is system mode, will fail final assert
+        return {}
 
-    elif msg.code == "0418":
-        # 0418 has a domain_id/zone_idx, but it is actually indexed by log_idx
+    elif msg.code in MAY_USE_ZONE_IDX + MAY_USE_DOMAIN_ID:
+        if seqx in DOMAIN_TYPE_MAP:  # no false +ve/-ves, but FF is not a true domain
+            return {"domain_id": seqx}
+
+        assert int(seqx, 16) < 12  # whitelist: this can be a "00"; can hometronic > 11?
+        if {"01", "02"} & {msg.dev_from[:2], msg.dev_dest[:2]}:
+            idx_name = (
+                "zone_idx" if msg.dev_from[:2] in ["01", "02", "18"] else "parent_idx"
+            )
+            return {idx_name: seqx}
+
+        if msg.dev_addr[2][:2] in ["12", "22"]:  # (NB: dev_addr) this is suspect
+            assert int(seqx, 16) < 12
+            return {"other_idx": seqx}  # TODO: confirm is/is not zone_idx
+
+    elif msg.code == "0418":  # does have domain_id/zone_idx, but uses log_idx
         assert int(seqx, 16) < 64
         return {"log_idx": seqx}
 
-    # new: WIP
-    elif msg.code == "0016" and {"12", "22"} & set([d[:2] for d in msg.dev_addr]):
-        assert int(seqx, 16) < 12
-        idx_name = "zone_idx" if msg.dev_from[:2] == "01" else "parent_idx"
-
-    elif msg.code == "2E04":  # blacklist: never _idx, although some are != "00"
-        return {}
-
     elif msg.code == "22C9" and msg.dev_from[:2] == "02":  # ufh_setpoint
         assert int(seqx, 16) < 8  # this can be a "00", maybe zone_idx, see below
-        idx_name = "ufh_idx"
-
-    elif msg.code in MAY_USE_ZONE_IDX:
-        assert int(seqx, 16) < 12  # whitelist: this can be a "00"; can hometronic > 11?
-        idx_name = (
-            "zone_idx" if msg.dev_from[:2] in ["01", "02", "18"] else "parent_idx"
-        )
+        return {"ufh_idx": seqx}  # TODO: confirm is / is not zone_idx
 
     elif msg.code in ["31D9", "31DA"]:  # ventilation
         assert seqx in ["00", "21"]
         return {"vent_id": seqx}
 
-    elif not int(seqx, 16) < 12:
-        idx_name = "other_id"  # this can be (e.g.) "21"
-
-    else:
-        assert seqx == "00"
-        return {}
-
-    # STEP 2: by DEV_FROM: determine if there is an index at all
-    if msg.dev_from[:2] == "18":  # and msg.verb == "RQ":
-        result = {idx_name: seqx}
-
-    elif msg.code in ["1FC9"]:  # exceptions
-        # 1FC9 dict is encoded in a way that id/idx not currently used
-        result = {}
-
-    elif "01" == msg.dev_from[:2] and msg.dev_from == msg.dev_dest:
-        result = {idx_name: seqx}  # either an array, or domain=Fx
-
-    elif "01" in [msg.dev_from[:2], msg.dev_dest[:2]] and msg.dev_from != msg.dev_dest:
-        # TODO: is this proof that controller is sensor for zone 0?
-        # 060 RP --- 01:145038 18:013393 --:------ 1FC9 012 0010E006368E001FC906368E
-        result = {idx_name: seqx}  # a zone / parent_zone?
-
-    elif msg.dev_from[:2] in ["02"]:
-        result = {idx_name: seqx}
-
-    # elif msg.dev_from[:2] in ["02", "10", "12", "22"]:
-    #     _idx = {"02": "ufh_idx", "10": "otb_idx"}.get(msg.dev_from[:2], "other_id")
-    #     result = {_idx: seqx}
-
-    else:
-        return {}
-
-    return result
+    assert seqx == "00" if int(seqx, 16) < 12 else "FF"
+    return {}
 
 
 def parser_decorator(func):
@@ -111,7 +79,7 @@ def parser_decorator(func):
         if msg.verb == " W":  # TODO: WIP
             # these are OK to parse Ws:
             if msg.code in ["0001"]:
-                return func(*args, **kwargs)
+                return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
             if msg.code in ["2309", "2349"] and msg.dev_from[:2] in ["12", "22", "34"]:
                 assert int(payload[:2], 16) < 12
                 return func(*args, **kwargs)
@@ -304,7 +272,6 @@ def parser_0001(payload, msg) -> Optional[dict]:
     assert payload[2:6] in ["0000", "FFFF"]
     assert payload[6:8] in ["02", "05"]
     return {
-        "other_id": payload[:2],
         "unknown_0": payload[2:6],
         "unknown_1": payload[6:8],
         "unknown_3": payload[8:],
@@ -367,7 +334,7 @@ def parser_0008(payload, msg) -> Optional[dict]:
 
 
 @parser_decorator  # relay_failsafe
-def parser_0009(payload, msg) -> Any[dict, list]:
+def parser_0009(payload, msg) -> Union[dict, list]:
     # TODO: can only be max one relay per domain/zone
     # can get: 003 or 006, e.g.: FC01FF-F901FF or FC00FF-F900FF
     def _parser(seqx) -> dict:
@@ -440,9 +407,9 @@ def parser_000e(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # rf_check
 def parser_0016(payload, msg) -> Optional[dict]:
-    # TODO: some RQs also contain a payload with data, zz00?
-    # 046 RQ --- 22:060293 01:078710 --:------ 0016 002 0200
-    # 064 RP --- 01:078710 22:060293 --:------ 0016 002 021E
+    # TODO: only seen once - an artefact (CTL will reply with same _idx in any case)
+    # 09:05:33.178 046 RQ --- 22:060293 01:078710 --:------ 0016 002 0200
+    # 09:05:33.194 064 RP --- 01:078710 22:060293 --:------ 0016 002 021E
 
     assert msg.verb in ["RQ", "RP"]
     assert len(payload) / 2 == 2  # for both RQ/RP, but RQ/00 will work
@@ -470,7 +437,29 @@ def parser_0100(payload, msg) -> Optional[dict]:
     return {"language": _str(payload[2:6]), "unknown_0": payload[6:]}
 
 
-@parser_decorator  # schedule - TODO
+@parser_decorator  # unknown, from a HR91 (when buttons are pushed)
+def parser_01d0(payload, msg) -> Optional[dict]:
+    # 23:57:28.869 045  W --- 04:000722 01:158182 --:------ 01D0 002 0003
+    # 23:57:28.931 045  I --- 01:158182 04:000722 --:------ 01D0 002 0003
+    # 23:57:31.581 048  W --- 04:000722 01:158182 --:------ 01E9 002 0003
+    # 23:57:31.643 045  I --- 01:158182 04:000722 --:------ 01E9 002 0000
+    # 23:57:31.749 050  W --- 04:000722 01:158182 --:------ 01D0 002 0000
+    # 23:57:31.811 045  I --- 01:158182 04:000722 --:------ 01D0 002 0000
+    assert len(payload) / 2 == 2
+    assert payload[2:] in ["00", "03"]
+    return {"unknown_0": payload[2:]}
+
+
+@parser_decorator  # unknown, from a HR91 (when buttons are pushed)
+def parser_01e9(payload, msg) -> Optional[dict]:
+    # 23:57:31.581348 048  W --- 04:000722 01:158182 --:------ 01E9 002 0003
+    # 23:57:31.643188 045  I --- 01:158182 04:000722 --:------ 01E9 002 0000
+    assert len(payload) / 2 == 2
+    assert payload[2:] in ["00", "03"]
+    return {"unknown_0": payload[2:]}
+
+
+@parser_decorator  # zone_schedule - TODO
 def parser_0404(payload, msg) -> Optional[dict]:
     def _header(seqx) -> dict:
         assert int(seqx[:2], 16) < 12

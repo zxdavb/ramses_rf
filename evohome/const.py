@@ -14,7 +14,7 @@ CODE_SCHEMA = {
     "2309": {"name": "setpoint", "uses_zone_idx": True},
     "30C9": {"name": "temperature", "uses_zone_idx": True},
     "000A": {"name": "zone_config", "uses_zone_idx": True},
-    # zone-specifc codes
+    # zone-specific codes
     "0004": {"name": "zone_name", "uses_zone_idx": True, "rq_length": 2},
     "000C": {"name": "zone_actuators", "uses_zone_idx": True},
     "0404": {"name": "zone_schedule", "uses_zone_idx": True},
@@ -23,14 +23,14 @@ CODE_SCHEMA = {
     "3150": {"name": "heat_demand", "uses_zone_idx": True},
     # controller/system codes
     "313F": {"name": "datetime"},  # aka ping, datetime_req
-    "2E04": {"name": "system_mode"},
+    "2E04": {"name": "system_mode", "uses_zone_idx": False},
     "0418": {"name": "system_fault"},
     # device codes
     "0016": {"name": "rf_check", "rq_length": 2},
     "0100": {"name": "language", "rq_length": 5},
     "1060": {"name": "device_battery", "uses_zone_idx": True},
     "10E0": {"name": "device_info"},
-    "1FC9": {"name": "bind_device"},  # aka bind
+    "1FC9": {"name": "rf_bind", "uses_zone_idx": True},  # was bind_device
     # dhw codes
     "10A0": {"name": "dhw_params"},
     "1260": {"name": "dhw_temp"},
@@ -47,9 +47,10 @@ CODE_SCHEMA = {
     # Other codes...
     "0008": {"name": "relay_demand", "uses_zone_idx": True},
     "0009": {"name": "relay_failsafe", "uses_zone_idx": True},
-    "22C9": {"name": "ufh_setpoint"},
-    "22D0": {"name": "message_22d0"},  # used with UFH, ~15min
     "1030": {"name": "mixvalve_config", "uses_zone_idx": True},
+    # UFH-specific codes...
+    "22C9": {"name": "ufh_setpoint"},
+    "22D0": {"name": "message_22d0", "uses_zone_idx": None},
     # unknown/unsure codes
     "0001": {"name": "message_0001"},
     "0002": {"name": "sensor_weather"},
@@ -66,19 +67,20 @@ CODE_SCHEMA = {
     "31D9": {"name": "message_31d9"},  # Nuaire ventilation
     "31DA": {"name": "message_31da"},  # from HCE80, also Nuaire: Contains R/humidity??
     "31E0": {"name": "message_31e0"},  # Nuaire ventilation
-    # unknown codes, used only by STA
+    # unknown codes, sent only by STA
     "000E": {"name": "message_000e", "uses_zone_idx": False},
     "042F": {"name": "message_042f", "uses_zone_idx": False},
-    "3120": {"name": "message_3120", "uses_zone_idx": False},  # From STA
+    "3120": {"name": "message_3120", "uses_zone_idx": False},
+    # unknown codes, initiated only by HR91
+    "01D0": {"name": "message_01d0", "uses_zone_idx": True},
+    "01E9": {"name": "message_01e9", "uses_zone_idx": True},
 }
 
+MAY_USE_DOMAIN_ID = ["0001", "0008", "0009", "1100", "1FC9", "3150", "3B00"]
 MAY_USE_ZONE_IDX = [k for k, v in CODE_SCHEMA.items() if v.get("uses_zone_idx")]
+# DES_SANS_ZONE_IDX = ["0002", "2E04"]  # not sure about "0016", "22C9"
 
-COMMAND_MAP = {k: v["name"] for k, v in CODE_SCHEMA.items()}
-
-COMMAND_LOOKUP = {v: k for k, v in COMMAND_MAP.items()}
-
-COMMAND_LENGTH = max([len(k) for k in list(COMMAND_LOOKUP)])
+CODE_MAP = {k: v["name"] for k, v in CODE_SCHEMA.items()}
 
 #
 # sed -e 's/ 01:/ CTL:/g' -e 's/ 02:/ UFH:/g' -e 's/ 04:/ TRV:/g' -i pkts.out
@@ -104,7 +106,8 @@ DEVICE_TABLE = {
     "30": {"type": "GWY", "name": "Internet Gateway", "battery": False},  # RFG100, VMS?
     "32": {"type": "VMS", "name": "Ventilation?", "battery": True},
     "34": {"type": "STA", "name": "Round Thermostat", "battery": True},  # T87RF
-    "37": {"type": " 37", "name": "Ventilation?", "battery": None},  # T87RF
+    "37": {"type": " 37", "name": "Ventilation?", "battery": None},
+    #
     "63": {"type": "NUL", "name": "Null Device", "battery": None},
     "--": {"type": "---", "name": "No Device", "battery": None},
     "??": {"type": "MIX", "name": "Mixing Valve", "battery": False},  # TODO: ???

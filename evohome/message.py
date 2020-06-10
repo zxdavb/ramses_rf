@@ -7,7 +7,7 @@ from typing import Any
 from . import parsers
 from .const import (
     __dev_mode__,
-    COMMAND_MAP,
+    CODE_MAP,
     DEVICE_TYPES,
     MSG_FORMAT_10,
     MSG_FORMAT_18,
@@ -85,7 +85,7 @@ class Message:
             if self.dev_dest != self.dev_from
             else ".announce.",
             self.verb,
-            COMMAND_MAP.get(self.code, f"unknown_{self.code}"),
+            CODE_MAP.get(self.code, f"unknown_{self.code}"),
             self.raw_payload if self.len < 4 else f"{self.raw_payload[:5]}..."[:9],
             self._payload,
         )
