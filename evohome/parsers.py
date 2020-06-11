@@ -33,9 +33,9 @@ def _idx(seqx, msg) -> dict:
         # 2E04: payload[:2] is system mode, would fail final assert
         return {}
 
-    # these are not evohome...
-    elif msg.code in ["0008", "0009", "1030", "1100", "2309", "1030", "313F"]:
-        if {"12", "22"} & {msg.dev_addr[2][:2]}:
+    # TODO: these are not evohome, and list of msg codes ?not complete (e.g. 3150?)
+    if {"12", "22"} & {msg.dev_from[:2]} and msg.dev_from[:2] == msg.dev_addr[2][:2]:
+        if msg.code in ["0008", "0009", "1030", "1100", "2309", "1030", "313F"]:
             assert int(seqx, 16) < 12
             return {"other_idx": seqx}
 
@@ -232,10 +232,10 @@ def _date(seqx) -> Optional[str]:
 
 def _percent(seqx) -> Optional[float]:  # usually a percentage 0-100% (0.0 to 1.0)
     assert len(seqx) == 2
-    if seqx == "FF":
+    if seqx == "FF":  # TODO: also FE?
         return None
 
-    assert int(seqx, 16) <= 200
+    assert int(seqx, 16) <= 200  # TODO: also FE? (FF excluded above)
     return int(seqx, 16) / 200
 
 
