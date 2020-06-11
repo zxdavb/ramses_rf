@@ -38,8 +38,8 @@ CODE_SCHEMA = {
     # tpi codes
     "1100": {"name": "tpi_params"},
     "3B00": {"name": "actuator_sync"},  # was: tpi_sync/actuator_req
-    "3EF0": {"name": "actuator_enabled", "uses_zone_idx": True},
-    "3EF1": {"name": "actuator_state", "uses_zone_idx": True, "rq_length": 2},
+    "3EF0": {"name": "actuator_enabled", "uses_zone_idx": False},
+    "3EF1": {"name": "actuator_state", "uses_zone_idx": False, "rq_length": 2},
     # OpenTherm codes
     "1FD4": {"name": "opentherm_sync"},
     "22D9": {"name": "boiler_setpoint"},
@@ -52,7 +52,7 @@ CODE_SCHEMA = {
     "22C9": {"name": "ufh_setpoint"},
     "22D0": {"name": "message_22d0", "uses_zone_idx": None},
     # unknown/unsure codes
-    "0001": {"name": "message_0001"},
+    "0001": {"name": "message_0001", "uses_zone_idx": True},
     "0002": {"name": "sensor_weather"},
     "0005": {"name": "system_zone", "rq_length": 2},
     "0006": {"name": "schedule_sync"},  # for F9/FA/FC, idx for BDR, F8/FF (all?)

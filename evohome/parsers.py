@@ -30,23 +30,20 @@ def _idx(seqx, msg) -> dict:
     """
     if msg.code in ["1FC9", "2E04"]:  # blacklist: never _idx, although some != "00"
         # 1FC9: dict is currently encoded in a way that id/idx is not used
-        # 2E04: payload[:2] is system mode, will fail final assert
+        # 2E04: payload[:2] is system mode, would fail final assert
         return {}
 
-    elif msg.code in MAY_USE_ZONE_IDX + MAY_USE_DOMAIN_ID:
-        if seqx in DOMAIN_TYPE_MAP:  # no false +ve/-ves, but FF is not a true domain
-            return {"domain_id": seqx}
+    elif msg.code in ["0001"]:  # may be OK just to remove this one
+        assert seqx in ["FC", "FF"] or (int(seqx, 16) < 12)
+        return {"other_id": seqx}
 
-        assert int(seqx, 16) < 12  # whitelist: this can be a "00"; can hometronic > 11?
-        if {"01", "02"} & {msg.dev_from[:2], msg.dev_dest[:2]}:
+    elif msg.code in ["0016", "3EF1"]:  # WIP, not normally {"uses_zone_idx": True}
+        if {"12", "22"} & {msg.dev_from[:2], msg.dev_dest[:2]}:
+            assert int(seqx, 16) < 12
             idx_name = (
                 "zone_idx" if msg.dev_from[:2] in ["01", "02", "18"] else "parent_idx"
             )
             return {idx_name: seqx}
-
-        if msg.dev_addr[2][:2] in ["12", "22"]:  # (NB: dev_addr) this is suspect
-            assert int(seqx, 16) < 12
-            return {"other_idx": seqx}  # TODO: confirm is/is not zone_idx
 
     elif msg.code == "0418":  # does have domain_id/zone_idx, but uses log_idx
         assert int(seqx, 16) < 64
@@ -59,6 +56,17 @@ def _idx(seqx, msg) -> dict:
     elif msg.code in ["31D9", "31DA"]:  # ventilation
         assert seqx in ["00", "21"]
         return {"vent_id": seqx}
+
+    elif msg.code in MAY_USE_ZONE_IDX + MAY_USE_DOMAIN_ID:
+        if seqx in DOMAIN_TYPE_MAP:  # no false +ve/-ves, but FF is not a true domain
+            return {"domain_id": seqx}
+
+        assert int(seqx, 16) < 12  # whitelist: this can be a "00"; can hometronic > 11?
+        if {"01", "02"} & {msg.dev_from[:2], msg.dev_dest[:2]}:
+            idx_name = (
+                "zone_idx" if msg.dev_from[:2] in ["01", "02", "18"] else "parent_idx"
+            )
+            return {idx_name: seqx}
 
     assert seqx == "00" if int(seqx, 16) < 12 else "FF"
     return {}
@@ -247,18 +255,31 @@ def _temp(seqx) -> Optional[float]:
 
 @parser_decorator  # rf_unknown
 def parser_0001(payload, msg) -> Optional[dict]:
-    # 15:03:43.184 064  W --- 01:145038 --:------ 01:145038 0001 005 FC00000505
-    # 15:13:19.756 053  W --- 01:145038 --:------ 01:145038 0001 005 FF00000505
+    # When in test mode, a 12: will send a W every 6 seconds, *on?* the second:
+    # 12:39:56.099 061  W --- 12:010740 --:------ 12:010740 0001 005 0000000501
+    # 12:40:02.098 061  W --- 12:010740 --:------ 12:010740 0001 005 0000000501
+    # 12:40:08.099 058  W --- 12:010740 --:------ 12:010740 0001 005 0000000501
+
+    # sent by a THM every 5s when is signal strength test mode (0505, except 1st pkt)
+    # 13:48:38.518 080  W --- 12:010740 --:------ 12:010740 0001 005 0000000501
+    # 13:48:45.518 074  W --- 12:010740 --:------ 12:010740 0001 005 0000000505
+    # 13:48:50.518 077  W --- 12:010740 --:------ 12:010740 0001 005 0000000505
 
     # sent by a CTL before a rf_check
     # 15:12:47.769 053  W --- 01:145038 --:------ 01:145038 0001 005 FC00000505
     # 15:12:47.869 053 RQ --- 01:145038 13:237335 --:------ 0016 002 00FF
     # 15:12:47.880 053 RP --- 13:237335 01:145038 --:------ 0016 002 0017
 
-    # sent by a THM every 5s when is signal strength test mode (0505, except 1st pkt)
-    # 13:48:38.518 080  W --- 12:010740 --:------ 12:010740 0001 005 0000000501
-    # 13:48:45.518 074  W --- 12:010740 --:------ 12:010740 0001 005 0000000505
-    # 13:48:50.518 077  W --- 12:010740 --:------ 12:010740 0001 005 0000000505
+    # 12:30:18.083 047  W --- 01:145038 --:------ 01:145038 0001 005 0800000505
+    # 12:30:23.084 049  W --- 01:145038 --:------ 01:145038 0001 005 0800000505
+
+    # 15:03:33.187 054  W --- 01:145038 --:------ 01:145038 0001 005 FC00000505
+    # 15:03:38.188 063  W --- 01:145038 --:------ 01:145038 0001 005 FC00000505
+    # 15:03:43.188 064  W --- 01:145038 --:------ 01:145038 0001 005 FC00000505
+    # 15:13:19.757 053  W --- 01:145038 --:------ 01:145038 0001 005 FF00000505
+    # 15:13:24.758 054  W --- 01:145038 --:------ 01:145038 0001 005 FF00000505
+    # 15:13:29.758 068  W --- 01:145038 --:------ 01:145038 0001 005 FF00000505
+    # 15:13:34.759 063  W --- 01:145038 --:------ 01:145038 0001 005 FF00000505
 
     # loopback (not Tx'd) by a HGI80 whenever its button is pressed
     # 00:22:41.540 ---  I --- --:------ --:------ --:------ 0001 005 00FFFF02FF
@@ -268,13 +289,14 @@ def parser_0001(payload, msg) -> Optional[dict]:
 
     assert msg.verb in [" I", " W"]
     assert len(payload) / 2 == 5
-    assert payload[:2] in ["00", "FC", "FF"]
+    assert payload[:2] in ["FC", "FF"] or (int(payload[:2], 16) < 12)
     assert payload[2:6] in ["0000", "FFFF"]
     assert payload[6:8] in ["02", "05"]
     return {
+        **_idx(payload[:2], msg),  # not fully understood
         "unknown_0": payload[2:6],
         "unknown_1": payload[6:8],
-        "unknown_3": payload[8:],
+        "unknown_2": payload[8:],
     }
 
 
@@ -407,9 +429,11 @@ def parser_000e(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # rf_check
 def parser_0016(payload, msg) -> Optional[dict]:
-    # TODO: only seen once - an artefact (CTL will reply with same _idx in any case)
+    # TODO: does 0016 include parent_idx
     # 09:05:33.178 046 RQ --- 22:060293 01:078710 --:------ 0016 002 0200
     # 09:05:33.194 064 RP --- 01:078710 22:060293 --:------ 0016 002 021E
+    # 12:47:25.080 048 RQ --- 12:010740 01:145038 --:------ 0016 002 0800
+    # 12:47:25.094 045 RP --- 01:145038 12:010740 --:------ 0016 002 081E
 
     assert msg.verb in ["RQ", "RP"]
     assert len(payload) / 2 == 2  # for both RQ/RP, but RQ/00 will work
