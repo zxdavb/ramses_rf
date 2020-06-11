@@ -9,6 +9,8 @@ import time
 import shutil
 import sys
 
+from .const import __dev_mode__
+
 BASIC_FMT = "%(asctime)s.%(msecs)03d %(message)s"
 BASIC_DATEFMT = "%H:%M:%S"
 BASIC_LEVEL = logging.INFO
@@ -31,7 +33,8 @@ CONSOLE_FMT = "%(time).12s " + f"%(message).{CONSOLE_COLS - 13}s"
 PKT_LOG_FMT = "%(date)sT%(time)s %(_packet)s"
 MSG_LOG_FMT = "%(date)sT%(time)s %(message)s"
 
-# CONSOLE_FMT = MSG_LOG_FMT  # Do this to have longer-format console messages
+if __dev_mode__:
+    CONSOLE_FMT = MSG_LOG_FMT  # Do this to have longer-format console messages
 # How to strip ASCII colour from a text file:
 #   sed -r "s/\x1B\[(([0-9]{1,2})?(;)?([0-9]{1,2})?)?[m,K,H,f,J]//g" file_name
 
@@ -124,7 +127,7 @@ class InfoFilter(logging.Filter):
     """Log only INFO-level messages."""
 
     def filter(self, record):
-        """Filter only INFO/DEBUG packets."""
+        """Filter out all but INFO/DEBUG packets."""
         return record.levelno in [logging.INFO, logging.DEBUG]
 
 
@@ -132,5 +135,5 @@ class DebugFilter(logging.Filter):
     """Don't Log DEBUG-level messages."""
 
     def filter(self, record):
-        """Filter only all but DEBUG packets."""
+        """Filter out all DEBUG packets."""
         return record.levelno != logging.DEBUG  # TODO: use less than / more than?
