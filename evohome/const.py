@@ -26,6 +26,7 @@ CODE_SCHEMA = {
     "2E04": {"name": "system_mode", "uses_zone_idx": False},
     "0418": {"name": "system_fault"},
     # device codes
+    "0001": {"name": "rf_unknown", "uses_zone_idx": True},  # unknown
     "0016": {"name": "rf_check", "rq_length": 2},
     "0100": {"name": "language", "rq_length": 5},
     "1060": {"name": "device_battery", "uses_zone_idx": True},
@@ -52,7 +53,6 @@ CODE_SCHEMA = {
     "22C9": {"name": "ufh_setpoint"},
     "22D0": {"name": "message_22d0", "uses_zone_idx": None},
     # unknown/unsure codes
-    "0001": {"name": "message_0001", "uses_zone_idx": True},
     "0002": {"name": "sensor_weather"},
     "0005": {"name": "system_zone", "rq_length": 2},
     "0006": {"name": "schedule_sync"},  # for F9/FA/FC, idx for BDR, F8/FF (all?)

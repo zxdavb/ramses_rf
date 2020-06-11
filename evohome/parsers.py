@@ -33,9 +33,11 @@ def _idx(seqx, msg) -> dict:
         # 2E04: payload[:2] is system mode, would fail final assert
         return {}
 
-    elif msg.code in ["0001"]:  # may be OK just to remove this one
-        assert seqx in ["FC", "FF"] or (int(seqx, 16) < 12)
-        return {"other_id": seqx}
+    # these are not evohome...
+    elif msg.code in ["0008", "0009", "1030", "1100", "2309", "1030", "313F"]:
+        if {"12", "22"} & {msg.dev_addr[2][:2]}:
+            assert int(seqx, 16) < 12
+            return {"other_idx": seqx}
 
     elif msg.code in ["0016", "3EF1"]:  # WIP, not normally {"uses_zone_idx": True}
         if {"12", "22"} & {msg.dev_from[:2], msg.dev_dest[:2]}:
