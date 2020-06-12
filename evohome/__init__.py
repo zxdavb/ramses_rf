@@ -21,6 +21,10 @@ from .packet import _LOGGER as pkt_logger, RAW_PKT, Packet, PortPktProvider
 from .ser2net import Ser2NetServer
 from .system import EvohomeSystem
 
+DONT_CREATE_MESSAGES = 3
+DONT_CREATE_ENTITIES = 2
+DONT_UPDATE_ENTITIES = 1
+
 _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:
     # OGGER.setLevel(logging.DEBUG)
@@ -51,41 +55,20 @@ class Gateway:
             config["input_file"] = None
 
         config["listen_only"] = not config.get("probe_system")
-
         if config.get("input_file"):
-            if not config.get("listen_only"):
-                _LOGGER.warning(
-                    "Input file specified (%s), so forcing listen_only mode",
-                    config["input_file"],
-                )
-                config["listen_only"] = True
+            config["listen_only"] = True
 
-            if config.get("execute_cmd"):
-                _LOGGER.warning(
-                    "Input file specified (%s), so disabling execute_cmd (%s)",
-                    config["input_file"],
-                    config["execute_cmd"],
-                )
-                config["execute_cmd"] = None
+        if config.get("raw_output", 0) >= DONT_CREATE_MESSAGES:
+            config["message_log"] = None
+            _stream = (None, sys.stdout)
+        else:
+            _stream = (sys.stdout, None)
 
-        if config.get("raw_output", 0) > 2 and config.get("message_log"):
-            _LOGGER.warning(
-                "Raw output = %s, so disabling message_log (%s)",
-                config["raw_output"],
-                config["message_log"],
-            )
-            config["message_log"] = False
-
-        set_logging(
-            msg_logger,
-            stream=None if config.get("raw_output", 0) > 2 else sys.stdout,
-            file_name=self.config.get("message_log"),
-        )
-
+        set_logging(msg_logger, stream=_stream[0], file_name=config.get("message_log"))
         set_logging(
             pkt_logger,
-            stream=sys.stdout if config.get("raw_output", 0) > 2 else None,
-            file_name=self.config.get("packet_log"),
+            stream=_stream[1],
+            file_name=config.get("packet_log"),
             file_fmt=PKT_LOG_FMT + BANDW_SUFFIX,
             cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
         )
@@ -134,11 +117,11 @@ class Gateway:
                 tasks = [
                     t for t in asyncio.all_tasks() if t is not asyncio.current_task()
                 ]
+                [task.cancel() for task in tasks]
                 logging.info(
                     f"Cancelling {len(tasks)} outstanding tasks, should see 'done'..."
                 )
-                [task.cancel() for task in tasks]
-                # await asyncio.gather(*tasks)
+                await asyncio.gather(*tasks, return_exceptions=True)
                 logging.info(" - done.")
 
                 # raise GracefulExit()  # TODO: only for Windows?
@@ -162,7 +145,7 @@ class Gateway:
         _LOGGER.info("async_cleanup() invoked by: %s", xxx)
 
         if self._output_db:  # close packet database
-            _LOGGER.info(f"Closing packets database...")
+            _LOGGER.info(f"async_cleanup(): Closing packets database...")
             await self._output_db.commit()
             await self._output_db.close()
             self._output_db = None  # TODO: is this needed - if re-entrant?
@@ -173,8 +156,8 @@ class Gateway:
         _LOGGER.info("cleanup() invoked by: %s", xxx)
 
         if self.config.get("known_devices"):
+            _LOGGER.info("cleanup(): Updating known_devices file...")
             try:
-                _LOGGER.info("Updating known_devices file...")
                 for d in self.evo.devices:
                     device_attrs = {
                         "friendly_name": d._friendly_name,
@@ -293,6 +276,7 @@ class Gateway:
             await proc_pkts_from_port()
 
         await self.async_cleanup("start")
+        self.cleanup("start")
 
     async def _dispatch_pkt(self, destination=None) -> None:
         """Send a command unless in listen_only mode."""
@@ -370,7 +354,7 @@ class Gateway:
         # if any(x in pkt.packet for x in self.config.get("blacklist", [])):
         #     return  # silently drop packets with blacklisted text
 
-        if self.config.get("raw_output", 0) > 2:
+        if self.config.get("raw_output", 0) >= DONT_CREATE_MESSAGES:
             return
 
         try:
@@ -394,7 +378,7 @@ class Gateway:
                 # print("*** IS NOT OUR PACKET ***")
                 pass
 
-        if self.config.get("raw_output", 0) > 1:
+        if self.config.get("raw_output", 0) >= DONT_CREATE_ENTITIES:
             return
 
         # only reliable packets should become part of the state data
@@ -404,7 +388,7 @@ class Gateway:
         try:
             msg._create_entities()  # create the devices, zones, domains
 
-            if self.config.get("raw_output", 0) > 0:
+            if self.config.get("raw_output", 0) >= DONT_UPDATE_ENTITIES:
                 return
 
             msg._update_entities()  # update the state database
@@ -419,7 +403,7 @@ class Gateway:
         if self.config.get("raw_output", 0) == 0:
             return self.evo
 
-        if self.config.get("raw_output", 0) == 1:
+        if self.config.get("raw_output", 0) == DONT_UPDATE_ENTITIES:
             return {
                 "devices": [d.id for d in self.evo.devices],
                 "zones": [z.idx for z in self.evo.zones],
