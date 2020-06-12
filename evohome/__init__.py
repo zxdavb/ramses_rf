@@ -159,7 +159,7 @@ class Gateway:
     async def async_cleanup(self, xxx=None) -> None:
         """Perform the async portion of a graceful shutdown."""
 
-        _LOGGER.debug("async_cleanup() invoked by: %s", xxx)
+        _LOGGER.info("async_cleanup() invoked by: %s", xxx)
 
         if self._output_db:  # close packet database
             _LOGGER.info(f"Closing packets database...")
@@ -170,7 +170,7 @@ class Gateway:
     def cleanup(self, xxx=None) -> None:
         """Perform the non-async portion of a graceful shutdown."""
 
-        _LOGGER.debug("cleanup() invoked by: %s", xxx)
+        _LOGGER.info("cleanup() invoked by: %s", xxx)
 
         if self.config.get("known_devices"):
             try:

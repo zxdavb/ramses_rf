@@ -72,7 +72,7 @@ def debug_wrapper(**kwargs):
     try:
         asyncio.run(main(**kwargs))
     except KeyboardInterrupt:
-        print(" - exit: KeyboardInterrupt")
+        print(" - EXIT: KeyboardInterrupt")
 
 
 async def main(loop=None, **kwargs):
@@ -92,11 +92,12 @@ async def main(loop=None, **kwargs):
         print(" - exit: CancelledError")
     except GracefulExit:
         print(" - exit: GracefulExit")
-    # else:  # do if no Exceptions raised
+    except KeyboardInterrupt:
+        print(" - exit: KeyboardInterrupt")
+    # else:  # if no Exceptions raised
     #     print(" - exit: else-block")
-    finally:  # do if all raised Exceptions handled (ignoring those in else)
+    finally:  # if all raised Exceptions handled (other than any in else)
         print(" - state database:", gateway.state_db)
-        pass
 
     print("Finished evohome_rf.")
 
