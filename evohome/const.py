@@ -1,7 +1,7 @@
 """Evohome serial."""
 import re
 
-__dev_mode__ = True
+__dev_mode__ = False
 
 NON_DEV_ID = "--:------"
 NUL_DEV_ID = "63:262142"  # 7FFFFF - send here if not bound?
@@ -186,6 +186,10 @@ COMMAND_FORMAT = "{:<2} --- {} {} --:------ {} {:03d} {}"
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:8s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:8s} || {}"
 
+
+LOW_PRIORITY = 0
+DEFAULT_PRIORITY = 1
+HIGH_PRIORITY = 2
 
 # Used by SQL DB
 TABLE_SQL = """

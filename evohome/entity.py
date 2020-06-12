@@ -12,12 +12,14 @@ from .const import (
     DEVICE_TYPES,
     DEVICE_TYPE_MAP,
     DOMAIN_TYPE_MAP,
+    HIGH_PRIORITY,
     ZONE_TYPE_MAP,
     __dev_mode__,
 )
 
 _LOGGER = logging.getLogger(__name__)
-# _LOGGER.setLevel(logging.DEBUG)
+if __dev_mode__:
+    _LOGGER.setLevel(logging.DEBUG)
 
 
 def dev_hex_to_id(device_hex: str, friendly_id=False) -> str:
@@ -67,6 +69,7 @@ class Entity:
             kwargs.get("dest_addr", self._evo.ctl_id),
             code,
             kwargs.get("payload", "00"),
+            priority=kwargs.get("priority"),
         )
         self._que.put_nowait(cmd)
 
@@ -726,7 +729,7 @@ class Zone(Entity):
             frag_index = 1
 
             header = f"{self.id}20000800{frag_index:02d}{frag_total:02d}"
-            self._command("0404", payload=header)
+            self._command("0404", payload=header, priority=HIGH_PRIORITY)
             return
 
         frag_index = msg.payload["frag_index"]
@@ -741,7 +744,7 @@ class Zone(Entity):
             return
 
         if len(self._fragments) == frag_total:
-            _LOGGER.debug("dict is: %s", self._fragments)
+            _LOGGER.debug("schedule array is: %s", self._fragments)
             fragments = [v for v in dict(sorted(self._fragments.items())).values()]
 
             try:

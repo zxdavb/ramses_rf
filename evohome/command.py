@@ -4,7 +4,7 @@ from datetime import datetime as dt
 from functools import total_ordering
 import logging
 
-from .const import COMMAND_FORMAT, HGI_DEV_ID, __dev_mode__
+from .const import COMMAND_FORMAT, DEFAULT_PRIORITY, HGI_DEV_ID, __dev_mode__
 
 # from .logger import _LOGGER
 
@@ -37,11 +37,11 @@ class Command:
         self.code = code
         self.payload = payload
 
-        self.priority = kwargs.get("priority", 1)
+        priority = kwargs.get("priority", DEFAULT_PRIORITY)
+        self.priority = DEFAULT_PRIORITY if priority is None else priority
         self._dtm = dt.now()
 
     def __str__(self) -> str:
-        """Represent as a string."""
         _cmd = COMMAND_FORMAT.format(
             self.verb,
             self.from_addr,
