@@ -1,6 +1,10 @@
 """Evohome serial."""
 
-from .const import COMMAND_FORMAT, HGI_DEV_ID
+from datetime import datetime as dt
+from functools import total_ordering
+import logging
+
+from .const import COMMAND_FORMAT, HGI_DEV_ID, __dev_mode__
 
 # from .logger import _LOGGER
 
@@ -16,7 +20,12 @@ DEVICE_3 = "device_3"
 MIN_GAP_BETWEEN_CMDS = 0.7
 MAX_CMDS_PER_MINUTE = 30
 
+_LOGGER = logging.getLogger(__name__)
+if __dev_mode__:
+    _LOGGER.setLevel(logging.DEBUG)
 
+
+@total_ordering
 class Command:
     """The command class."""
 
@@ -29,6 +38,7 @@ class Command:
         self.payload = payload
 
         self.priority = kwargs.get("priority", 1)
+        self._dtm = dt.now()
 
     def __str__(self) -> str:
         """Represent as a string."""
@@ -46,6 +56,15 @@ class Command:
 
         return _cmd
 
+    def _is_valid_operand(self, other) -> bool:
+        return hasattr(other, "priority") and hasattr(other, "_dtm")
+
+    def __eq__(self, other) -> bool:
+        if not self._is_valid_operand(other):
+            return NotImplemented
+        return (self.priority, self._dtm) == (other.priority, other._dtm)
+
     def __lt__(self, other) -> bool:
-        """Represent as a string."""
-        return self.priority < other.priority
+        if not self._is_valid_operand(other):
+            return NotImplemented
+        return (self.priority, self._dtm) < (other.priority, other._dtm)
