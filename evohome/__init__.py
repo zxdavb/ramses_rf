@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+from typing import Optional
 
 import signal
 import sys
@@ -13,7 +14,7 @@ from collections import deque
 from queue import PriorityQueue
 
 from .command import Command
-from .const import INDEX_SQL, TABLE_SQL, INSERT_SQL, ISO_FORMAT_REGEX
+from .const import INDEX_SQL, TABLE_SQL, INSERT_SQL, ISO_FORMAT_REGEX, __dev_mode__
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
 from .packet import _LOGGER as pkt_logger, RAW_PKT, Packet, PortPktProvider
@@ -21,7 +22,9 @@ from .ser2net import Ser2NetServer
 from .system import EvohomeSystem
 
 _LOGGER = logging.getLogger(__name__)
-# OGGER.setLevel(logging.DEBUG)
+if __dev_mode__:
+    # OGGER.setLevel(logging.DEBUG)
+    pass
 
 
 class GracefulExit(SystemExit):
@@ -33,8 +36,7 @@ class Gateway:
 
     def __init__(self, serial_port=None, loop=None, **config) -> None:
         """Initialise the class."""  # TODO: config.get() vs config[]
-        _LOGGER.info("Starting evohome_rf...")
-        _LOGGER.debug("**config = %s", config)
+        _LOGGER.debug("Starting evohome_rf, **config = %s", config)
 
         self.serial_port = serial_port
         self.loop = loop if loop else asyncio.get_running_loop()  # get_event_loop()
@@ -109,54 +111,55 @@ class Gateway:
         self._setup_signal_handler()
 
     def _setup_signal_handler(self):
-        def raise_graceful_exit(signalnum, frame):
+        def _sig_handler_win32(signalnum, frame):
             """2 = signal.SIGINT (Ctrl-C)."""
-            _LOGGER.info("Received a signal (signalnum=%s), exiting...", signalnum)
+            _LOGGER.info("Received a signal (signalnum=%s), processing...", signalnum)
 
-            self.cleanup_part_2("raise_graceful_exit")
+            if signalnum == signal.SIGINT:  # is this the only useful win32 signal?
+                self.cleanup("_sig_handler_win32")
 
-            raise GracefulExit()
+                raise GracefulExit()
+
+        async def _sig_handler_posix(signal):
+            """Handle signals on posix platform."""
+            _LOGGER.info("Received a signal (%s), processing...", signal.name)
+
+            if signal == signal.SIGUSR1:  # can also have: signal.SIGUSR2
+                _LOGGER.info("Raw state data: \r\n%s", self.evo)
+
+            if signal in [signal.SIGHUP, signal.SIGINT, signal.SIGTERM]:
+                await self.async_cleanup("_sig_handler_posix")  # before task.cancel
+                self.cleanup("_sig_handler_posix")  # OK for after tasks.cancel
+
+                tasks = [
+                    t for t in asyncio.all_tasks() if t is not asyncio.current_task()
+                ]
+                logging.info(
+                    f"Cancelling {len(tasks)} outstanding tasks, should see 'done'..."
+                )
+                [task.cancel() for task in tasks]
+                # await asyncio.gather(*tasks)
+                logging.info(" - done.")
+
+                # raise GracefulExit()  # TODO: only for Windows?
 
         _LOGGER.debug("Creating signal handlers...")
         signals = [signal.SIGINT, signal.SIGTERM]
 
         if os.name == "nt":  # TODO: or is sys.platform better?
             for sig in signals + [signal.SIGBREAK]:
-                signal.signal(sig, raise_graceful_exit)
+                signal.signal(sig, _sig_handler_win32)
 
         else:  # if os.name == "posix":
             for sig in signals + [signal.SIGHUP, signal.SIGUSR1, signal.SIGUSR2]:
                 self.loop.add_signal_handler(
-                    sig, lambda sig=sig: asyncio.create_task(self._signal_handler(sig))
+                    sig, lambda sig=sig: asyncio.create_task(_sig_handler_posix(sig))
                 )
 
-    async def _signal_handler(self, signal):
-        _LOGGER.debug("Received signal %s...", signal.name)
-
-        if signal == signal.SIGUSR1 and self.config.get("raw_output", 0) == 0:
-            _LOGGER.info("State Data: \r\n%s", self.evo)
-
-        # if signal == signal.SIGUSR2:  # output debug data
-        #     _LOGGER.info("Debug data is:")
-
-        if signal in [signal.SIGHUP, signal.SIGINT, signal.SIGTERM]:
-            _LOGGER.info("Received a %s signal, exiting...", signal)
-            await self.cleanup_part_1("_signal_handler")
-
-            tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-            logging.info(
-                f"Cancelling {len(tasks)} outstanding tasks, should next see 'done'..."
-            )
-            [task.cancel() for task in tasks]
-            # await asyncio.gather(*tasks)
-            logging.info(" - done.")
-
-            raise GracefulExit()
-
-    async def cleanup_part_1(self, xxx=None) -> None:
+    async def async_cleanup(self, xxx=None) -> None:
         """Perform the async portion of a graceful shutdown."""
 
-        _LOGGER.debug("part 1 cleanup invoked by: %s", xxx)
+        _LOGGER.debug("async_cleanup() invoked by: %s", xxx)
 
         if self._output_db:  # close packet database
             _LOGGER.info(f"Closing packets database...")
@@ -164,12 +167,10 @@ class Gateway:
             await self._output_db.close()
             self._output_db = None  # TODO: is this needed - if re-entrant?
 
-            self.cleanup_part_2("cleanup_part_1")
-
-    def cleanup_part_2(self, xxx=None) -> None:
+    def cleanup(self, xxx=None) -> None:
         """Perform the non-async portion of a graceful shutdown."""
 
-        _LOGGER.debug("part 2 cleanup invoked by: %s", xxx)
+        _LOGGER.debug("cleanup() invoked by: %s", xxx)
 
         if self.config.get("known_devices"):
             try:
@@ -191,9 +192,6 @@ class Gateway:
                 _LOGGER.exception(
                     "Failed update of %s", self.config.get("known_devices")
                 )
-
-        if self.config.get("raw_output", 0) == 0:
-            _LOGGER.info("State Data: \r\n%s", self.evo)
 
     async def start(self) -> None:
         async def proc_pkts_from_file() -> None:
@@ -294,7 +292,7 @@ class Gateway:
         else:  # if self.config["serial_port"] or if self.serial_port
             await proc_pkts_from_port()
 
-        await self.cleanup_part_1("start")
+        await self.async_cleanup("start")
 
     async def _dispatch_pkt(self, destination=None) -> None:
         """Send a command unless in listen_only mode."""
@@ -415,3 +413,14 @@ class Gateway:
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
         except (LookupError, TypeError, ValueError):  # TODO: shouldn't be needed?
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
+
+    @property
+    def state_db(self) -> Optional[dict]:
+        if self.config.get("raw_output", 0) == 0:
+            return self.evo
+
+        if self.config.get("raw_output", 0) == 1:
+            return {
+                "devices": [d.id for d in self.evo.devices],
+                "zones": [z.idx for z in self.evo.zones],
+            }

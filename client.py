@@ -1,4 +1,7 @@
-"""Evohome RF logger/parser."""
+"""A CLI for the evohome_rf library.
+
+evohome_rf is used to parse Honeywell's RAMSES-II packets, either via RF or from a file.
+"""
 import asyncio
 import sys
 
@@ -20,14 +23,9 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 @click.option("-d", "--database", type=click.Path())
 @click.option("-z", "--debug-mode", help="TBD", count=True)
 @click.pass_context
-# async def main(loop=None, **kwargs):
 def cli(ctx, **kwargs):
-    """A CLI for the evohome_rf library.
-
-    evohome_rf is used to process RAMSES-II packets, either via RF or from a file.
-    """
+    """A CLI for the evohome_rf library."""
     ctx.obj = kwargs
-    return
 
 
 @click.command()
@@ -36,11 +34,7 @@ def cli(ctx, **kwargs):
 def parse(obj, **kwargs):
     """Parse a file for packets."""
     # print(f"parse: obj={obj}, kwargs={kwargs}")
-
-    try:
-        asyncio.run(main(**obj, **kwargs))
-    except asyncio.CancelledError:
-        pass
+    debug_wrapper(**obj, **kwargs)
 
 
 @click.command()
@@ -56,25 +50,13 @@ def parse(obj, **kwargs):
 def monitor(obj, **kwargs):
     """Monitor a serial port for packets."""
     # print(f"monitor: obj={obj}, kwargs={kwargs}")
-
-    try:
-        asyncio.run(main(**obj, **kwargs))
-    except asyncio.CancelledError:
-        pass
+    debug_wrapper(**obj, **kwargs)
 
 
-cli.add_command(monitor)
-cli.add_command(parse)
-
-
-async def main(loop=None, **kwargs):
-    # loop=asyncio.get_event_loop() causes: 'NoneType' object has no attribute 'serial'
-    """A CLI for the evohome_rf library."""
-
+def debug_wrapper(**kwargs):
     if kwargs.get("debug_mode") == 1:
         print("Additional logging enabled (debugging not enabled).")
-        # print(kwargs)
-        pass
+        print(kwargs)
 
     elif kwargs.get("debug_mode") > 1:
         import ptvsd
@@ -87,20 +69,40 @@ async def main(loop=None, **kwargs):
             ptvsd.wait_for_attach()
             print("Debugger is attached, continuing execution.")
 
+    try:
+        asyncio.run(main(**kwargs))
+    except KeyboardInterrupt:
+        print(" - exit: KeyboardInterrupt")
+
+
+async def main(loop=None, **kwargs):
+    # loop=asyncio.get_event_loop() causes: 'NoneType' object has no attribute 'serial'
+    print("Starting evohome_rf...")
+
     if sys.platform == "win32":  # better than os.name
         # ERROR:asyncio:Cancelling an overlapped future failed
         # future: ... cb=[BaseProactorEventLoop._loop_self_reading()]
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-    gateway = Gateway(**kwargs, loop=loop)
-
     try:
+        gateway = Gateway(**kwargs, loop=loop)
         await gateway.start()
-    except KeyboardInterrupt:
-        print("KeyboardInterrupt")
-    except GracefulExit:
-        print("GracefulExit")
 
+    except asyncio.CancelledError:
+        print(" - exit: CancelledError")
+    except GracefulExit:
+        print(" - exit: GracefulExit")
+    # else:  # do if no Exceptions raised
+    #     print(" - exit: else-block")
+    finally:  # do if all raised Exceptions handled (ignoring those in else)
+        print(" - state database:", gateway.state_db)
+        pass
+
+    print("Finished evohome_rf.")
+
+
+cli.add_command(monitor)
+cli.add_command(parse)
 
 if __name__ == "__main__":
     cli()
