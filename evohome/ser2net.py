@@ -4,6 +4,8 @@ import logging
 from string import printable
 from typing import Optional
 
+from .const import __dev_mode__
+
 # timeouts in seconds, 0 means no timeout
 RECV_TIMEOUT = 0  # without hearing from client (from network) - not useful
 SEND_TIMEOUT = 0  # without hearing from server (from serial port)
@@ -29,7 +31,8 @@ DO__ = 253  # Do <option code>
 DONT = 254  # Don't <option code>
 
 _LOGGER = logging.getLogger(__name__)
-# _LOGGER.setLevel(logging.DEBUG)
+if __dev_mode__:
+    _LOGGER.setLevel(logging.DEBUG)
 
 
 class Ser2NetProtocol(asyncio.Protocol):

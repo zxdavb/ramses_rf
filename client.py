@@ -25,7 +25,8 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 @click.pass_context
 def cli(ctx, **kwargs):
     """A CLI for the evohome_rf library."""
-    # print(f"cli(): ctx.obj={ctx.obj}, kwargs={kwargs}")
+    # if kwargs["debug_mode"]:
+    #     print(f"cli(): ctx.obj={ctx.obj}, kwargs={kwargs}")
 
     if kwargs["raw_output"] >= DONT_CREATE_MESSAGES and kwargs["message_log"]:
         print(
@@ -42,7 +43,8 @@ def cli(ctx, **kwargs):
 @click.pass_obj
 def parse(obj, **kwargs):
     """Parse a file for packets."""
-    # print(f"parse(): obj={obj}, kwargs={kwargs}")
+    # if obj["debug_mode"]:
+    #     print(f"parse(): obj={obj}, kwargs={kwargs}")
 
     debug_wrapper(**obj, **kwargs)
 
@@ -59,15 +61,15 @@ def parse(obj, **kwargs):
 @click.pass_obj
 def monitor(obj, **kwargs):
     """Monitor a serial port for packets."""
-    # print(f"monitor(): obj={obj}, kwargs={kwargs}")
+    # if obj["debug_mode"]:
+    #     print(f"monitor(): obj={obj}, kwargs={kwargs}")
 
     debug_wrapper(**obj, **kwargs)
 
 
 def debug_wrapper(**kwargs):
-    if kwargs.get("debug_mode") == 1:
+    if kwargs["debug_mode"] == 1:
         print("Additional logging enabled (debugging not enabled).")
-        print(kwargs)
 
     elif kwargs.get("debug_mode") > 1:
         import ptvsd
@@ -76,9 +78,9 @@ def debug_wrapper(**kwargs):
         ptvsd.enable_attach(address=(DEBUG_ADDR, DEBUG_PORT))
 
         if kwargs.get("debug_mode") > 2:
-            print("Execution paused, waiting for debugger to attach...")
+            print(" - execution paused, waiting for debugger to attach...")
             ptvsd.wait_for_attach()
-            print("Debugger is attached, continuing execution.")
+            print(" - debugger is now attached, continuing execution.")
 
     try:
         asyncio.run(main(**kwargs))

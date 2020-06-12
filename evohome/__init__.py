@@ -27,8 +27,7 @@ DONT_UPDATE_ENTITIES = 1
 
 _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:
-    # OGGER.setLevel(logging.DEBUG)
-    pass
+    _LOGGER.setLevel(logging.DEBUG)
 
 
 class GracefulExit(SystemExit):
@@ -39,7 +38,9 @@ class Gateway:
     """The gateway class."""
 
     def __init__(self, serial_port=None, loop=None, **config) -> None:
-        """Initialise the class."""  # TODO: config.get() vs config[]
+        """Initialise the class."""
+        if config.get("debug_mode"):
+            _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
         _LOGGER.debug("Starting evohome_rf, **config = %s", config)
 
         self.serial_port = serial_port
@@ -284,11 +285,11 @@ class Gateway:
         while not self.cmd_que.empty():
             cmd = self.cmd_que.get()
 
-            if destination is not None and str(cmd).startswith("!"):
+            if str(cmd).startswith("!") and destination is not None:
                 await destination.put_pkt(cmd, _LOGGER)
 
             elif destination is None or self.config.get("listen_only"):
-                pass
+                await asyncio.sleep(0.001)
 
             elif cmd.verb == "RQ" and cmd.code == "0404":  # wait for the response..
                 self._buffer.append(cmd)
@@ -313,7 +314,6 @@ class Gateway:
                 await destination.put_pkt(cmd, _LOGGER)
 
             self.cmd_que.task_done()
-            # await asyncio.sleep(0.001)  # TODO: why is this needed, for Ctrl-C?
 
     async def _process_pkt(self, raw_pkt) -> None:
         """Receive a packet and optionally validate it as a message."""
@@ -325,9 +325,6 @@ class Gateway:
             if dev_whitelist:
                 return any(device in pkt.packet for device in dev_whitelist)
             return not any(device in pkt.packet for device in dev_blacklist)
-
-        if self.config.get("debug_mode", 0) == 1:  # TODO: mem leak
-            self._debug_info()
 
         pkt = Packet(raw_pkt)
         if not pkt.is_valid:  # this will trap/log all bad pkts appropriately

@@ -11,7 +11,7 @@ from serial_asyncio import open_serial_connection  # TODO: dont import unless re
 from string import printable
 from typing import Optional
 
-from .const import MESSAGE_REGEX, __dev_mode__  # noqa: F401
+from .const import MESSAGE_REGEX, __dev_mode__
 from .logger import time_stamp
 
 BAUDRATE = 115200
@@ -21,7 +21,6 @@ XON_XOFF = True
 RAW_PKT = namedtuple("Packet", ["datetime", "packet", "bytearray"])
 
 _LOGGER = logging.getLogger(__name__)
-# _LOGGER.setLevel(logging.DEBUG)
 
 
 def split_pkt_line(packet_line: str) -> (str, str, str):
@@ -156,7 +155,8 @@ class PortPktProvider:
             return RAW_PKT(time_stamp(), None, None)
 
         timestamp = time_stamp()  # done here & now for most-accurate timestamp
-        _logger_msg(_LOGGER.debug, "Raw packet")
+        if __dev_mode__:
+            _logger_msg(_LOGGER.debug, "Raw packet")
 
         try:
             pkt = "".join(

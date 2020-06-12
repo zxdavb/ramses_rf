@@ -4,8 +4,11 @@ import json
 import logging
 from typing import Optional
 
+from .const import __dev_mode__
+
 _LOGGER = logging.getLogger(__name__)
-# OGGER.setLevel(logging.DEBUG)
+if __dev_mode__:
+    _LOGGER.setLevel(logging.DEBUG)
 
 
 class EvohomeSystem:

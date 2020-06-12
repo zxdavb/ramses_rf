@@ -1,6 +1,7 @@
 """Evohome serial."""
 
 from datetime import datetime as dt, timedelta
+import logging
 from typing import Optional, Union
 
 from .const import (
@@ -12,9 +13,14 @@ from .const import (
     MAY_USE_ZONE_IDX,
     SYSTEM_MODE_MAP,
     ZONE_MODE_MAP,
+    __dev_mode__,
 )
 from .entity import dev_hex_to_id
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
+
+_LOGGER = logging.getLogger(__name__)
+if __dev_mode__:
+    _LOGGER.setLevel(logging.DEBUG)
 
 
 def _idx(seqx, msg) -> dict:

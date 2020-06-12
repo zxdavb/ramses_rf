@@ -1,7 +1,14 @@
 """Evohome serial."""
 
+import logging
 import struct
 from typing import Any
+
+from .const import __dev_mode__
+
+_LOGGER = logging.getLogger(__name__)
+if __dev_mode__:
+    _LOGGER.setLevel(logging.DEBUG)
 
 # Data structure shamelessy copied, with thanks to @nlrb, from:
 # github.com/nlrb/com.tclcode.otgw (ot_msg.js),
