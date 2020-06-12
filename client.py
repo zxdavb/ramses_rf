@@ -20,7 +20,7 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 @click.option("-w", "--device-whitelist", help="TBD", is_flag=True)
 @click.option("-m", "--message-log", help="TBD", type=click.Path())
 @click.option("-r", "--raw-output", help="TBD", count=True)
-@click.option("-d", "--database", type=click.Path())
+@click.option("-d", "--database", help="TBD", type=click.Path())
 @click.option("-z", "--debug-mode", help="TBD", count=True)
 @click.pass_context
 def cli(ctx, **kwargs):
