@@ -307,7 +307,7 @@ class Gateway:
                     else:
                         break  # the RQ arrived
                 else:
-                    # print("*** I GAVE UP ***")
+                    print("*** I GAVE UP ***")
                     self._buffer.clear()
 
             else:
@@ -370,9 +370,9 @@ class Gateway:
             cmd = self._buffer.copy().pop()
             if msg.verb == "RP" and msg.code == cmd.code:
                 self._buffer.clear()
-                # print("*** IS OUR PACKET ***")
+                print("*** IS OUR PACKET ***")
             else:
-                # print("*** IS NOT OUR PACKET ***")
+                print("*** IS NOT OUR PACKET ***")
                 pass
 
         if self.config.get("raw_output", 0) >= DONT_CREATE_ENTITIES:
