@@ -491,7 +491,7 @@ def parser_01e9(payload, msg) -> Optional[dict]:
     return {"unknown_0": payload[2:]}
 
 
-@parser_decorator  # zone_schedule - TODO
+@parser_decorator  # zone_schedule (fragment)
 def parser_0404(payload, msg) -> Optional[dict]:
     def _header(seqx) -> dict:
         assert int(seqx[:2], 16) < 12
