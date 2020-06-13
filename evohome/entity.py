@@ -13,6 +13,7 @@ from .const import (
     DEVICE_TYPE_MAP,
     DOMAIN_TYPE_MAP,
     HIGH_PRIORITY,
+    LOW_PRIORITY,
     ZONE_TYPE_MAP,
     __dev_mode__,
 )
@@ -660,7 +661,7 @@ class Zone(Entity):
         self.__schedule = None
 
     def _discover(self):
-        if self.id == "00":  # TODO: testing only
+        if self.id == "99":  # TODO: testing only
             self._get_schedule()
 
         for code in ["0004", "000C"]:
@@ -723,7 +724,7 @@ class Zone(Entity):
         # 045 RP --- 01:145038 18:013393 --:------ 0404 048 00200008290105 68816DCDB..  # noqa: E501
 
         if msg is None:
-            self._fragments = {}
+            self._fragments = []
 
             frag_total = 0
             frag_index = 1
@@ -735,23 +736,28 @@ class Zone(Entity):
         frag_index = msg.payload["frag_index"]
         frag_total = msg.payload["frag_total"]
 
-        self._fragments[frag_index] = msg.payload["fragment"]
+        if len(self._fragments) == 0:
+            self._fragments = [None] * frag_total
 
-        if len(self._fragments) == 1:
-            for frag_index in range(frag_index + 1, frag_total + 1):
-                header = f"{self.id}20000800{frag_index:02d}{frag_total:02d}"
-                self._command("0404", payload=header)
+        self._fragments[frag_index - 1] = msg.payload["fragment"]
+
+        if len([x for x in self._fragments if x is not None]) == 1:
+            for idx in range(frag_index + 1, frag_total + 1):
+                header = f"{self.id}20000800{idx:02d}{frag_total:02d}"
+                self._command("0404", payload=header, priority=LOW_PRIORITY)
             return
 
-        if len(self._fragments) == frag_total:
-            _LOGGER.debug("schedule array is: %s", self._fragments)
-            fragments = [v for v in dict(sorted(self._fragments.items())).values()]
-
+        if all(self._fragments):
+            _LOGGER.debug(
+                "schedule len() = %s, array is: %s", frag_total, self._fragments
+            )
             try:
-                raw_schedule = zlib.decompress(bytearray.fromhex("".join(fragments)))
+                raw_schedule = zlib.decompress(
+                    bytearray.fromhex("".join(self._fragments))
+                )
 
             except zlib.error:
-                _LOGGER.exception("*** FAILED to ZLIB ***, %s", fragments)
+                _LOGGER.exception("*** FAILED to ZLIB ***, %s", self._fragments)
                 return
 
             self.__schedule = []
