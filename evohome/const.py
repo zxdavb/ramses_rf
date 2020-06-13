@@ -187,9 +187,9 @@ MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:8s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:8s} || {}"
 
 
-LOW_PRIORITY = 0
-DEFAULT_PRIORITY = 1
-HIGH_PRIORITY = 2
+LOW_PRIORITY = 5
+DEFAULT_PRIORITY = 3
+HIGH_PRIORITY = 1
 
 # Used by SQL DB
 TABLE_SQL = """
