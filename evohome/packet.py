@@ -179,7 +179,12 @@ class PortPktProvider:
         self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
 
         # cmd.dispatch_dtm = time_stamp()
-        await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
+        if str(cmd).startswith("!"):
+            await asyncio.sleep(0.01)  # traceflag to evofw
+        elif cmd.code == "0404":
+            await asyncio.sleep(0.25)  # these RPs take longer to come back
+        else:
+            await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
 
 
 class FilePktProvider:
