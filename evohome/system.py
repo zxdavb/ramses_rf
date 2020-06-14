@@ -1,6 +1,5 @@
 """The evohome system."""
 
-import json
 import logging
 from typing import Optional
 
@@ -157,7 +156,8 @@ class EvohomeSystem:
                 "domains": self._domains,
                 "zones": self._zones,
             }
-            return json.dumps(result, indent=4)
 
         except (AssertionError, AttributeError, LookupError, TypeError, ValueError):
-            _LOGGER.warning("Failed to produce State data", exc_info=True)
+            _LOGGER.exception("Failed to produce State data")
+
+        return str(result)
