@@ -289,6 +289,7 @@ class Gateway:
         """Send a command unless in listen_only mode."""
 
         async def check_0404() -> None:
+            """Queue next RQ/0404."""
             zone = self.evo.zone_by_id[self._sched_idx].schedule
             if zone.schedule is not None:
                 self._sched_idx = None
@@ -309,7 +310,7 @@ class Gateway:
             if str(cmd).startswith("!") and destination is not None:
                 await destination.put_pkt(cmd, _LOGGER)
 
-            elif destination is None or self.config.get("listen_only"):
+            elif destination is None or self.config["listen_only"]:
                 await asyncio.sleep(0)
 
             elif cmd.verb == "RQ" and cmd.code == "0404":

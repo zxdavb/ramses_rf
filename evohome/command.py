@@ -59,7 +59,7 @@ class Schedule:
             raise ValueError("mismatched zone_idx")
 
         if self.total_frags is None:
-            self.total_frags = msg.payload["frag_total"]
+            self.total_frags = msg.payload["frag_total"]  # TODO: what when this changes
             self._fragments = [None] * self.total_frags
 
         elif self.total_frags != msg.payload["frag_total"]:
@@ -70,12 +70,13 @@ class Schedule:
             "dtm": msg.dtm,
         }
 
+        # discard any fragments >5 min older that this most recent fragment
         for frag in self._fragments:
-            if frag is not None and frag["dtm"] > dt.now() + timedelta(minutes=5):
+            if frag is not None and frag["dtm"] < msg.dtm - timedelta(minutes=5):
                 frag = None
 
-        if not [x for x in self._fragments if x is None]:  # TODO: can leave out
-            _ = self.schedule
+        if not [x for x in self._fragments if x is None]:  # TODO: can leave out?
+            _ = self.schedule if self._gwy.config["listen_only"] else None
 
     def request_fragment(self, restart=False) -> None:
         # TODO: if required, queue requests for remaining fragments (needs improving)

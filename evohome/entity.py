@@ -675,7 +675,7 @@ class Zone(Entity):
         # 045 RP --- 01:145038 18:013393 --:------ 0404 048 00200008290105 68816DCDB..  # noqa: E501
         # if self.id == "00":  # TODO: testing only
         self.schedule = Schedule(self._gwy, self.id)
-        self.schedule.request_fragment()  # TODO:
+        self.schedule.request_fragment()  # TODO: only if r/w?
 
     def update(self, msg):
         super().update(msg)
