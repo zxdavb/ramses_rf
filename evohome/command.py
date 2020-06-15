@@ -14,8 +14,6 @@ from .const import (
     __dev_mode__,
 )
 
-# from .logger import _LOGGER
-
 SERIAL_PORT = "serial_port"
 CMD_CODE = "cmd_code"
 CMD_TYPE = "cmd_type"
@@ -29,7 +27,7 @@ MIN_GAP_BETWEEN_CMDS = 0.7
 MAX_CMDS_PER_MINUTE = 30
 
 _LOGGER = logging.getLogger(__name__)
-if __dev_mode__:
+if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
@@ -106,7 +104,7 @@ class Schedule:
 
     @property
     def schedule(self) -> list:
-        _LOGGER.debug("schedule array is: %s", self._fragments)
+        # _LOGGER.debug("schedule array is: %s", self._fragments)
 
         if self._schedule is not None:
             return self._schedule
