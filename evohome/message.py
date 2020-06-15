@@ -50,8 +50,11 @@ class Message:
         self.len = int(packet[46:49])  # TODO:  is useful? / is user used?
         self.raw_payload = packet[50:]
 
-        self._payload = self._is_array = self._is_valid = self._repr = None
+        self._payload = self._repr = None
+        self._is_array = self._is_fragment = self._is_valid = None
+
         self._is_valid = self.is_valid
+        self._is_fragment = self.is_fragment
 
     def __repr__(self) -> str:
         """Represent the entity as a string."""
@@ -143,6 +146,25 @@ class Message:
             self._is_array = False
 
         return self._is_array
+
+    @property
+    def is_fragment_WIP(self) -> bool:
+        """Return True if the raw payload is a fragment of a message."""
+
+        if self._is_fragment is not None:
+            return self._is_fragment
+
+        # packets have a maximum length of 48 (decimal)
+        if self.code == "000A" and self.verb == " I":
+            self._is_fragment = True if len(self._evo.zones) > 8 else None
+        elif self.code == "0404" and self.verb == "RP":
+            self._is_fragment = True
+        elif self.code == "23c9" and self.verb == " I":
+            self._is_fragment = None  # max length 24!
+        else:
+            self._is_fragment = False
+
+        return self._is_fragment
 
     @property
     def is_valid(self) -> bool:  # Main code here
