@@ -182,7 +182,7 @@ class PortPktProvider:
         if str(cmd).startswith("!"):
             await asyncio.sleep(0.01)  # traceflag to evofw
         elif cmd.code == "0404":
-            await asyncio.sleep(0.25)  # these RPs take longer to come back
+            await asyncio.sleep(0.15)  # 0.15 works well, 0.05 too short
         else:
             await asyncio.sleep(0.05)  # 0.05 works well, 0.03 too short
 
