@@ -22,6 +22,8 @@ _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
+MAX_ZONES = 11  # evohome is 12, hometronics is 17, or more?
+
 
 def _idx(seqx, msg) -> dict:
     """Determine if a payload has an entity id, usually a domain id or a zone idx.
@@ -34,7 +36,8 @@ def _idx(seqx, msg) -> dict:
 
     Anything in the range F0-FF appears to be a domain id (no false +ve/-ves).
     """
-    if msg.code in ["1FC9", "2E04"]:  # blacklist: never _idx, although some != "00"
+    if msg.code in ["1F09", "1FC9", "2E04"]:  # don't idx, even though some != "00"
+        # 1F09: "FF" (I), "00" (RP), "F8" (W, after 1FC9)
         # 1FC9: dict is currently encoded in a way that id/idx is not used
         # 2E04: payload[:2] is system mode, would fail final assert
         return {}
@@ -42,12 +45,15 @@ def _idx(seqx, msg) -> dict:
     # TODO: these are not evohome, and list of msg codes ?not complete (e.g. 3150?)
     if {"12", "22"} & {msg.dev_from[:2]} and msg.dev_from[:2] == msg.dev_addr[2][:2]:
         if msg.code in ["0008", "0009", "1030", "1100", "2309", "1030", "313F"]:
-            assert int(seqx, 16) < 12
+            assert int(seqx, 16) < MAX_ZONES
             return {"other_idx": seqx}
+
+    elif msg.code in ["0002", "2D49"]:  # non-evohome: hometronics
+        return {"other_idx": seqx}
 
     elif msg.code in ["0016", "3EF1"]:  # WIP, not normally {"uses_zone_idx": True}
         if {"12", "22"} & {msg.dev_from[:2], msg.dev_dest[:2]}:
-            assert int(seqx, 16) < 12
+            assert int(seqx, 16) < MAX_ZONES
             idx_name = (
                 "zone_idx" if msg.dev_from[:2] in ["01", "02", "18"] else "parent_idx"
             )
@@ -65,18 +71,19 @@ def _idx(seqx, msg) -> dict:
         assert seqx in ["00", "21"]
         return {"vent_id": seqx}
 
-    elif msg.code in MAY_USE_ZONE_IDX + MAY_USE_DOMAIN_ID:
-        if seqx in DOMAIN_TYPE_MAP:  # no false +ve/-ves, but FF is not a true domain
-            return {"domain_id": seqx}
+    elif msg.code in MAY_USE_DOMAIN_ID and seqx in DOMAIN_TYPE_MAP:
+        # no false +ve/-ves, although FF is not a true domain
+        return {"domain_id": seqx}
 
-        assert int(seqx, 16) < 12  # whitelist: this can be a "00"; can hometronic > 11?
+    elif msg.code in MAY_USE_ZONE_IDX:
+        assert int(seqx, 16) < MAX_ZONES
         if {"01", "02"} & {msg.dev_from[:2], msg.dev_dest[:2]}:
             idx_name = (
                 "zone_idx" if msg.dev_from[:2] in ["01", "02", "18"] else "parent_idx"
             )
             return {idx_name: seqx}
 
-    assert seqx == "00" if int(seqx, 16) < 12 else "FF"
+    assert seqx in ["00", "FF"]
     return {}
 
 
@@ -92,12 +99,12 @@ def parser_decorator(func):
         payload = args[0]
         msg = args[1]
 
-        if msg.verb == " W":  # TODO: WIP
+        if msg.verb == " W":  # TODO: WIP, need to check _idx()
             # these are OK to parse Ws:
             if msg.code in ["0001"]:
                 return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
             if msg.code in ["2309", "2349"] and msg.dev_from[:2] in ["12", "22", "34"]:
-                assert int(payload[:2], 16) < 12
+                assert int(payload[:2], 16) < MAX_ZONES
                 return func(*args, **kwargs)
             # TODO: these are WIP
             if msg.code == "1F09":
@@ -138,13 +145,11 @@ def parser_decorator(func):
             return {**_idx(payload[:2], msg)}
 
         if msg.code in ["000C", "12B0", "2349"] + ["000A", "2309", "30C9"]:
-            assert int(payload[:2], 16) < 12
             assert msg.len < 3  # if msg.code == "0004" else 2
             return {**_idx(payload[:2], msg)}
 
         if msg.code == "0016" and msg.dev_from[:2] in ["12", "22"]:
             assert len(payload) / 2 == 2
-            assert int(payload[:2], 16) < 12
             return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
 
         if msg.code == "0100":  # 04: will RQ language
@@ -189,14 +194,13 @@ def parser_decorator(func):
             # 082 RQ --- 22:091267 01:140959 --:------ 3EF1 002 0700
             # 088 RQ --- 22:054901 13:133379 --:------ 3EF1 002 0000
             # assert msg.len == 2
-            assert int(payload[:2], 16) < 12  # maybe 00 if dest is 13:
             assert payload[2:] == "00"
             return {**_idx(payload[:2], msg)}
 
         if payload == "00":  # TODO: WIP
             return {}
 
-        assert True or payload in ["FF", "FC"]
+        assert False and payload in ["FF", "FC"]
         return func(*args, **kwargs)  # All other RQs
 
     return wrapper
@@ -297,7 +301,7 @@ def parser_0001(payload, msg) -> Optional[dict]:
 
     assert msg.verb in [" I", " W"]
     assert len(payload) / 2 == 5
-    assert payload[:2] in ["FC", "FF"] or (int(payload[:2], 16) < 12)
+    assert payload[:2] in ["FC", "FF"] or (int(payload[:2], 16) < MAX_ZONES)
     assert payload[2:6] in ["0000", "FFFF"]
     assert payload[6:8] in ["02", "05"]
     return {
@@ -320,10 +324,8 @@ def parser_0004(payload, msg) -> Optional[dict]:
     # RQ payload is zz00; limited to 12 chars in evohome UI? if "7F"*20: not a zone
 
     assert len(payload) / 2 == 22
-    assert int(payload[:2], 16) < 12
     assert payload[2:4] == "00"
 
-    # return {"name": _str(payload[4:])}
     return {**_idx(payload[:2], msg), "name": _str(payload[4:])}
 
 
@@ -358,7 +360,7 @@ def parser_0008(payload, msg) -> Optional[dict]:
     assert len(payload) / 2 == 2
 
     if payload[:2] not in ["F9", "FA", "FC"]:
-        assert int(payload[:2], 16) < 12  # TODO: when 0, when FC, when zone
+        assert int(payload[:2], 16) < MAX_ZONES  # TODO: when 0, when FC, when zone
 
     return {**_idx(payload[:2], msg), "relay_demand": _percent(payload[2:])}
 
@@ -368,7 +370,7 @@ def parser_0009(payload, msg) -> Union[dict, list]:
     # TODO: can only be max one relay per domain/zone
     # can get: 003 or 006, e.g.: FC01FF-F901FF or FC00FF-F900FF
     def _parser(seqx) -> dict:
-        assert seqx[:2] in ["F9", "FC"] or int(seqx[:2], 16) < 12
+        assert seqx[:2] in ["F9", "FC"] or int(seqx[:2], 16) < MAX_ZONES
         assert seqx[2:4] in ["00", "01"]
         assert seqx[4:] in ["00", "FF"]
 
@@ -388,7 +390,6 @@ def parser_0009(payload, msg) -> Union[dict, list]:
 @parser_decorator  # zone_config (zone/s)
 def parser_000a(payload, msg) -> Union[dict, list, None]:
     def _parser(seqx) -> dict:
-        assert int(seqx[:2], 16) < 12
         # if seqx[2:] == "007FFF7FFF":  # a null zone
 
         bitmap = int(seqx[2:4], 16)
@@ -494,10 +495,10 @@ def parser_01e9(payload, msg) -> Optional[dict]:
 @parser_decorator  # zone_schedule (fragment)
 def parser_0404(payload, msg) -> Optional[dict]:
     def _header(seqx) -> dict:
-        assert int(seqx[:2], 16) < 12
         assert seqx[2:8] == "200008"
 
         return {
+            # **_idx(payload[:2], msg),  # added by wrapper
             "frag_index": int(seqx[10:12], 16),
             "frag_total": int(seqx[12:], 16),
             "frag_length": int(seqx[8:10], 16),
@@ -542,7 +543,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
     assert int(payload[4:6], 16) <= 63  # TODO: upper limit is: 60? 63? more?
     assert payload[6:8] == "B0"  # unknown_1, ?priority
     assert payload[8:10] in list(FAULT_TYPE)
-    assert int(payload[10:12], 16) < 12 or payload[10:12] in ["FA", "FC"]  # ?FB, etc.
+    assert int(payload[10:12], 16) < MAX_ZONES or payload[10:12] in ["FA", "FC"]
     assert payload[12:14] in list(FAULT_DEVICE_CLASS)
     assert payload[14:18] == "0000"  # unknown_2
     assert payload[28:30] in ["7F", "FF"]  # last bit in dt field
@@ -553,7 +554,9 @@ def parser_0418(payload, msg) -> Optional[dict]:
         "timestamp": _timestamp(payload[18:30]),
         "fault_state": FAULT_STATE.get(payload[2:4], payload[2:4]),
         "fault_type": FAULT_TYPE.get(payload[8:10], payload[8:10]),
-        "zone_idx" if int(payload[10:12], 16) < 12 else "domain_id": payload[10:12],
+        "zone_idx"
+        if int(payload[10:12], 16) < MAX_ZONES
+        else "domain_id": payload[10:12],
         "device_class": FAULT_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
         "device_id": dev_hex_to_id(payload[38:]),  # is "00:000001/2 for CTL?
     }
@@ -595,7 +598,6 @@ def parser_1030(payload, msg) -> Optional[dict]:
         return {param_name: int(seqx[4:], 16)}
 
     assert len(payload) / 2 == 1 + 5 * 3
-    assert int(payload[:2], 16) < 12
     assert payload[30:] == "01"
 
     params = [_parser(payload[i : i + 6]) for i in range(2, len(payload), 6)]
@@ -704,7 +706,6 @@ def parser_12a0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # window_state (of a device/zone)
 def parser_12b0(payload, msg) -> Optional[dict]:
-    assert int(payload[:2], 16) < 12  # also for device state
     assert payload[2:] in ["0000", "C800", "FFFF"]  # "FFFF" means N/A
 
     # TODO: zone.open_window = any(TRV.open_windows)?
@@ -759,7 +760,7 @@ def parser_1fc9(payload, msg) -> Optional[dict]:
     def _parser(seqx) -> dict:
         assert seqx[6:] == payload[6:12]
         if seqx[:2] not in ["FA", "FB", "FC"]:  # or: not in DOMAIN_TYPE_MAP: ??
-            assert int(seqx[:2], 16) < 12
+            assert int(seqx[:2], 16) < MAX_ZONES
         return {seqx[:2]: seqx[2:6]}  # NOTE: codes is many:many (domain:code)
 
     if msg.verb == " W":  # TODO: just leave an an array?
@@ -785,7 +786,6 @@ def parser_1fd4(payload, msg) -> Optional[dict]:
 @parser_decorator  # ufh_setpoint, TODO: max length = 24?
 def parser_22c9(payload, msg) -> Optional[dict]:
     def _parser(seqx) -> dict:
-        assert int(seqx[:2], 16) < 12
         assert seqx[10:] == "01"
 
         return {
@@ -846,9 +846,6 @@ def parser_22f3(payload, msg) -> Optional[dict]:
 @parser_decorator  # setpoint (of device/zones)
 def parser_2309(payload, msg) -> Union[dict, list, None]:
     def _parser(seqx) -> dict:
-        assert int(seqx[:2], 16) < 12
-        # if seqx[2:] == "FFFF":  # ???
-
         return {**_idx(seqx[:2], msg), "setpoint": _temp(seqx[2:])}
 
     # 055 RQ --- 12:010740 13:163733 --:------ 2309 003 0007D0
@@ -896,9 +893,6 @@ def parser_2e04(payload, msg) -> Optional[dict]:
 @parser_decorator  # temperature (of device, zone/s)
 def parser_30c9(payload, msg) -> Optional[dict]:
     def _parser(seqx) -> dict:
-        assert int(seqx[:2], 16) < 12
-        # if seqx[2:] == "FFFF":
-
         return {**_idx(seqx[:2], msg), "temperature": _temp(seqx[2:])}
 
     if msg.is_array:
@@ -940,7 +934,7 @@ def parser_3150(payload, msg) -> Optional[dict]:
     # TODO: all have a valid domain will UFH/CTL respond to an RQ, for FC, for a zone?
 
     def _parser(seqx) -> dict:
-        assert seqx[:2] == "FC" or (int(seqx[:2], 16) < 12)  # <5, 8 for UFH
+        # assert seqx[:2] == "FC" or (int(seqx[:2], 16) < MAX_ZONES)  # <5, 8 for UFH
         return {**_idx(seqx[:2], msg), "heat_demand": _percent(seqx[2:])}
 
     if msg.dev_from[:2] == "02" and msg.is_array:  # TODO: hometronics only?
