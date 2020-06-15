@@ -40,40 +40,40 @@ class Schedule:
         self._gwy = gwy
         self._que = gwy.cmd_que
 
-        self.zone_idx = zone_idx  # msg.payload["zone_idx"]
-        self._msg = msg
+        self.zone_idx = zone_idx  # aka msg.payload["zone_idx"]
 
-        self.total_frags = self._fragments = self._schedule = None
+        self.total_frags = 0
+        self._fragments = []  # aka [None] * self.total_frags
+        self._schedule = None
 
         if msg is not None:
             if msg.payload["frag_index"] != 1:
                 raise ValueError("not the first fragment of the message")
-
             # self.add_fragment(msg)
 
     def add_fragment(self, msg) -> None:
         if msg.code != "0404" or msg.verb != "RP":
             raise ValueError("incorrect message verb/code")
-
         if msg.payload["zone_idx"] != self.zone_idx:
             raise ValueError("mismatched zone_idx")
 
-        if self.total_frags is None:
-            self.total_frags = msg.payload["frag_total"]  # TODO: what when this changes
+        if self.total_frags == 0:
+            self.total_frags = msg.payload["frag_total"]
             self._fragments = [None] * self.total_frags
 
         elif self.total_frags != msg.payload["frag_total"]:
-            raise ValueError("mismatched number of fragment")
+            _LOGGER.warning("total fragments has changed: will re-initialise array")
+            self.total_frags = msg.payload["frag_total"]
+            self._fragments = [None] * self.total_frags
 
         self._fragments[msg.payload["frag_index"] - 1] = {
             "fragment": msg.payload["fragment"],
             "dtm": msg.dtm,
         }
 
-        # discard any fragments >5 min older that this most recent fragment
-        for frag in self._fragments:
-            if frag is not None and frag["dtm"] < msg.dtm - timedelta(minutes=5):
-                frag = None
+        # discard any fragments significantly older that this most recent fragment
+        for frag in [f for f in self._fragments if f is not None]:
+            frag = None if frag["dtm"] < msg.dtm - timedelta(minutes=5) else frag
 
         if not [x for x in self._fragments if x is None]:  # TODO: can leave out?
             _ = self.schedule if self._gwy.config["listen_only"] else None
@@ -83,16 +83,14 @@ class Schedule:
         if self._gwy.config["listen_only"]:
             return
 
-        if self.total_frags is None or restart is True:
-            self._fragments = None
-            self.total_frags = frag_idx = 0
+        if self.total_frags == 0 or restart is True:
+            self.total_frags = 0
+            self._fragments = [None] * self.total_frags  # aka []
 
-        else:
-            frag_idx = [idx for idx, val in enumerate(self._fragments) if val is None][
-                0
-            ]
+        missing_frags = [i for i, val in enumerate(self._fragments) if val is None]
+        frag_idx = 1 if len(missing_frags) == 0 else missing_frags[0] + 1
 
-        header = f"{self.zone_idx}20000800{frag_idx + 1:02d}{self.total_frags:02d}"
+        header = f"{self.zone_idx}20000800{frag_idx:02d}{self.total_frags:02d}"
         self._que.put_nowait(
             Command("RQ", self._evo.ctl_id, "0404", header, priority=HIGH_PRIORITY)
         )
