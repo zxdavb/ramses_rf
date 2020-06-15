@@ -42,14 +42,19 @@ class Schedule:
 
         self.zone_idx = zone_idx  # aka msg.payload["zone_idx"]
 
-        self.total_frags = 0
-        self._fragments = []  # aka [None] * self.total_frags
-        self._schedule = None
+        # initialse the fragment array: DRY
+        self._init_frag_array(total_frags=0)  # could use msg.payload["frag_total"]
 
         if msg is not None:
             if msg.payload["frag_index"] != 1:
                 raise ValueError("not the first fragment of the message")
             # self.add_fragment(msg)
+
+    def _init_frag_array(self, total_frags=0) -> None:
+        """Reset the fragment array."""
+        self.total_frags = total_frags
+        self._frag_array = [None] * total_frags
+        self._schedule = None
 
     def add_fragment(self, msg) -> None:
         if msg.code != "0404" or msg.verb != "RP":
@@ -58,24 +63,22 @@ class Schedule:
             raise ValueError("mismatched zone_idx")
 
         if self.total_frags == 0:
-            self.total_frags = msg.payload["frag_total"]
-            self._fragments = [None] * self.total_frags
+            self._init_frag_array(msg.payload["frag_total"])
 
         elif self.total_frags != msg.payload["frag_total"]:
             _LOGGER.warning("total fragments has changed: will re-initialise array")
-            self.total_frags = msg.payload["frag_total"]
-            self._fragments = [None] * self.total_frags
+            self._init_frag_array(msg.payload["frag_total"])
 
-        self._fragments[msg.payload["frag_index"] - 1] = {
+        self._frag_array[msg.payload["frag_index"] - 1] = {
             "fragment": msg.payload["fragment"],
             "dtm": msg.dtm,
         }
 
         # discard any fragments significantly older that this most recent fragment
-        for frag in [f for f in self._fragments if f is not None]:
+        for frag in [f for f in self._frag_array if f is not None]:
             frag = None if frag["dtm"] < msg.dtm - timedelta(minutes=5) else frag
 
-        if not [x for x in self._fragments if x is None]:  # TODO: can leave out?
+        if not [x for x in self._frag_array if x is None]:  # TODO: can leave out?
             _ = self.schedule if self._gwy.config["listen_only"] else None
 
     def request_fragment(self, restart=False) -> None:
@@ -84,10 +87,9 @@ class Schedule:
             return
 
         if self.total_frags == 0 or restart is True:
-            self.total_frags = 0
-            self._fragments = [None] * self.total_frags  # aka []
+            self._init_frag_array(0)
 
-        missing_frags = [i for i, val in enumerate(self._fragments) if val is None]
+        missing_frags = [i for i, val in enumerate(self._frag_array) if val is None]
         frag_idx = 1 if len(missing_frags) == 0 else missing_frags[0] + 1
 
         header = f"{self.zone_idx}20000800{frag_idx:02d}{self.total_frags:02d}"
@@ -103,21 +105,22 @@ class Schedule:
 
     @property
     def schedule(self) -> list:
-        # _LOGGER.debug("schedule array is: %s", self._fragments)
+        # _LOGGER.debug("schedule array is: %s", self._frag_array)
 
         if self._schedule is not None:
             return self._schedule
 
-        if not all(self._fragments):
+        if not all(self._frag_array):
             return
 
-        raw_fragments = [
-            v for d in self._fragments for k, v in d.items() if k == "fragment"
+        raw_frags = [
+            v for d in self._frag_array for k, v in d.items() if k == "fragment"
         ]
         try:
-            raw_schedule = zlib.decompress(bytearray.fromhex("".join(raw_fragments)))
+            raw_schedule = zlib.decompress(bytearray.fromhex("".join(raw_frags)))
         except zlib.error:
-            _LOGGER.exception("*** FAILED to ZLIB ***, %s", self._fragments)
+            _LOGGER.exception("Failed to decompress (resetting): %s", self._frag_array)
+            self._init_frag_array(total_frags=0)
             return
 
         self._schedule = []
