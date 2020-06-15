@@ -54,7 +54,7 @@ class Message:
         self._is_array = self._is_fragment = self._is_valid = None
 
         self._is_valid = self.is_valid
-        self._is_fragment = self.is_fragment
+        self._is_fragment = self.is_fragment_WIP
 
     def __repr__(self) -> str:
         """Represent the entity as a string."""
