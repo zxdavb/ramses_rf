@@ -72,8 +72,8 @@ CODE_SCHEMA = {
     "042F": {"name": "message_042f", "uses_zone_idx": False},
     "3120": {"name": "message_3120", "uses_zone_idx": False},
     # unknown codes, initiated only by HR91
-    "01D0": {"name": "message_01d0", "uses_zone_idx": True},
-    "01E9": {"name": "message_01e9", "uses_zone_idx": True},
+    "01D0": {"name": "message_01d0", "uses_zone_idx": True},  # might yet be False
+    "01E9": {"name": "message_01e9", "uses_zone_idx": True},  # might yet be False
 }
 
 MAY_USE_DOMAIN_ID = ["0001", "0008", "0009", "1100", "1FC9", "3150", "3B00"]
