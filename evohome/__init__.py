@@ -299,7 +299,7 @@ class Gateway:
             cmd = self._buffer.popleft()
             self._sched_idx = cmd.payload[:2]
             await destination.put_pkt(cmd, _LOGGER)
-            await schedule_task(0.5, check_0404)  # will queue the next RQ
+            asyncio.create_task(schedule_task(0.5, check_0404))  # queue next RQ
             return
 
         # TODO: listen_only will clear the whole queue, not only the its next element
@@ -318,7 +318,7 @@ class Gateway:
 
                 if self._sched_idx == cmd.payload[:2]:  # am getting this zone's sched?
                     await destination.put_pkt(cmd, _LOGGER)
-                    await schedule_task(0.5, check_0404)  # will queue the next RQ
+                    asyncio.create_task(schedule_task(0.5, check_0404))  # queue next RQ
                 else:
                     self._buffer.append(cmd)  # otherwise, send this pkt later on
 

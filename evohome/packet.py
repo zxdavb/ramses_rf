@@ -175,7 +175,7 @@ class PortPktProvider:
     async def put_pkt(self, cmd, logger):  # TODO: logger is a hack
         """Get the next packet line from a serial port."""
 
-        logger.debug("# Data was sent to %s: %s", self.serial_port, cmd)
+        # logger.debug("# Data was sent to %s: %s", self.serial_port, cmd)
         self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
 
         # cmd.dispatch_dtm = time_stamp()

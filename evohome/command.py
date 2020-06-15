@@ -142,7 +142,8 @@ class Schedule:
 
         self._schedule.append({"day_of_week": old_day, "switchpoints": switchpoints})
 
-        _LOGGER.debug("schedule is: %s", self._schedule)
+        _LOGGER.debug("zone %s len(schedule): %s", self.zone_idx, len(self._schedule))
+        # _LOGGER.debug("zone %s schedule is: %s", self.zone_idx, self._schedule)
         return self._schedule
 
 
