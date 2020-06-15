@@ -82,7 +82,7 @@ class Schedule:
             _ = self.schedule if self._gwy.config["listen_only"] else None
 
     def request_fragment(self, restart=False) -> None:
-        # TODO: if required, queue requests for remaining fragments (needs improving)
+        """Queue requests for remaining fragments as required."""
         if self._gwy.config["listen_only"]:
             return
 
