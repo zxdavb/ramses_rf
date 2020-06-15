@@ -1,10 +1,8 @@
 """The entities for Honeywell's RAMSES II / Residential Network Protocol."""
 import logging
-import struct
 from typing import Any, Optional
-import zlib
 
-from .command import Command
+from .command import Command, Schedule
 from .const import (
     CODE_SCHEMA,
     DEVICE_LOOKUP,
@@ -12,7 +10,6 @@ from .const import (
     DEVICE_TYPES,
     DEVICE_TYPE_MAP,
     DOMAIN_TYPE_MAP,
-    HIGH_PRIORITY,
     LOW_PRIORITY,
     ZONE_TYPE_MAP,
     __dev_mode__,
@@ -311,7 +308,7 @@ class Controller(Device):
 
         # Get the three most recent fault log entries
         for log_idx in range(0, 0x3):  # max is 0x3C?
-            self._command("0418", payload=f"{log_idx:06X}")
+            self._command("0418", payload=f"{log_idx:06X}", priority=LOW_PRIORITY)
 
         # TODO: 1100(), 1290(00x), 0418(00x):
         # for code in ["000C"]:
@@ -658,12 +655,9 @@ class Zone(Entity):
         self._type = None
         self._discover()
         self._fragments = {}
-        self.__schedule = None
+        self.schedule = None
 
     def _discover(self):
-        if self.id == "99":  # TODO: testing only
-            self._get_schedule()
-
         for code in ["0004", "000C"]:
             self._command(code, payload=f"{self.id}00")
 
@@ -677,6 +671,12 @@ class Zone(Entity):
         # TODO: 3150(00?): how to do (if at all) & for what zone types?
         # TODO: 0005(002), 0006(001), 0404(00?):
 
+        # 095 RQ --- 18:013393 01:145038 --:------ 0404 007 00200008000100
+        # 045 RP --- 01:145038 18:013393 --:------ 0404 048 00200008290105 68816DCDB..  # noqa: E501
+        # if self.id == "00":  # TODO: testing only
+        self.schedule = Schedule(self._gwy, self.id)
+        self.schedule.request_fragment()  # TODO:
+
     def update(self, msg):
         super().update(msg)
 
@@ -685,10 +685,6 @@ class Zone(Entity):
 
         if self._type is None:
             _ = self.type
-
-        # TODO: this is eavesdropping...
-        if msg.code == "0404":
-            self._get_schedule(msg)
 
         # not UFH (it seems), but BDR or VAL; and possibly a MIX support 0008 too
         if msg.code in ["0008", "0009"]:  # TODO: how to determine is/isnt MIX?
@@ -701,7 +697,12 @@ class Zone(Entity):
                 self.__class__ = _ZONE_CLASS[self.type]
                 _LOGGER.warning("Promoted zone %s to %s", self.id, self.type)
 
-        if msg.code == "3150":
+        if msg.code == "0404" and msg.verb == "RP":
+            if self.schedule is None:
+                self.schedule = Schedule(self._gwy, self.id, msg=msg)
+            self.schedule.add_fragment(msg)
+
+        if msg.code == "3150":  # TODO: and msg.verb in [" I", "RP"]?
             assert msg.dev_from[:2] in ["02", "04", "13"]
 
             if self.type:
@@ -718,74 +719,6 @@ class Zone(Entity):
 
             self.__class__ = _ZONE_CLASS[self.type]
             _LOGGER.warning("Promoted zone %s to %s", self.id, self.type)
-
-    def _get_schedule(self, msg=None) -> None:
-        # 095 RQ --- 18:013393 01:145038 --:------ 0404 007 00200008000100
-        # 045 RP --- 01:145038 18:013393 --:------ 0404 048 00200008290105 68816DCDB..  # noqa: E501
-
-        if msg is None:
-            self._fragments = []
-
-            frag_total = 0
-            frag_index = 1
-
-            header = f"{self.id}20000800{frag_index:02d}{frag_total:02d}"
-            self._command("0404", payload=header, priority=HIGH_PRIORITY)
-            return
-
-        frag_index = msg.payload["frag_index"]
-        frag_total = msg.payload["frag_total"]
-
-        if len(self._fragments) == 0:
-            self._fragments = [None] * frag_total
-
-        self._fragments[frag_index - 1] = msg.payload["fragment"]
-
-        if len([x for x in self._fragments if x is not None]) == 1:
-            for idx in range(frag_index + 1, frag_total + 1):
-                header = f"{self.id}20000800{idx:02d}{frag_total:02d}"
-                self._command("0404", payload=header, priority=LOW_PRIORITY)
-            return
-
-        if all(self._fragments):
-            _LOGGER.debug(
-                "schedule len() = %s, array is: %s", frag_total, self._fragments
-            )
-            try:
-                raw_schedule = zlib.decompress(
-                    bytearray.fromhex("".join(self._fragments))
-                )
-
-            except zlib.error:
-                _LOGGER.exception("*** FAILED to ZLIB ***, %s", self._fragments)
-                return
-
-            self.__schedule = []
-            old_day, switchpoints = 0, []
-
-            for i in range(0, len(raw_schedule), 20):
-                zone, day, time, temp, _ = struct.unpack(
-                    "<xxxxBxxxBxxxHxxHH", raw_schedule[i : i + 20]
-                )
-                if day > old_day:
-                    self._schedule.append(
-                        {"day_of_week": old_day, "switchpoints": switchpoints}
-                    )
-                    old_day, switchpoints = day, []
-                switchpoints.append(
-                    {
-                        "time_of_day": "{0:02d}:{1:02d}".format(*divmod(time, 60)),
-                        "heat_setpoint": temp / 100,
-                    }
-                )
-
-            self.__schedule.append(
-                {"day_of_week": old_day, "switchpoints": switchpoints}
-            )
-
-    @property
-    def _schedule(self) -> dict:
-        return self.__schedule
 
     @property
     def idx(self) -> str:

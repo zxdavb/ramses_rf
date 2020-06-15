@@ -1,6 +1,6 @@
 """Evohome serial."""
 import asyncio
-from datetime import datetime as dt, timedelta
+from datetime import datetime as dt
 import json
 import logging
 import os
@@ -28,6 +28,12 @@ DONT_UPDATE_ENTITIES = 1
 _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
+
+
+async def schedule_task(delay, func, *args, **kwargs):
+    """Start a coro after delay seconds."""
+    await asyncio.sleep(delay)
+    await func(*args, **kwargs)
 
 
 class GracefulExit(SystemExit):
@@ -76,6 +82,7 @@ class Gateway:
 
         self.cmd_que = PriorityQueue(maxsize=200)
         self._buffer = deque()
+        self._sched_idx = None
 
         # if self.config.get("ser2net"):
         self._relay = None
@@ -183,8 +190,6 @@ class Gateway:
 
             async def file_reader(manager):
                 for ts_pkt in self.config["input_file"]:
-                    await asyncio.sleep(0.001)  # to enable a Ctrl-C
-
                     raw_pkt = RAW_PKT(ts_pkt[:26], ts_pkt[27:].strip(), None)
                     try:
                         assert re.match(ISO_FORMAT_REGEX, raw_pkt.datetime)
@@ -194,6 +199,7 @@ class Gateway:
                         continue
                     if raw_pkt.packet:
                         await self._process_pkt(raw_pkt)
+                    await asyncio.sleep(0)  # to enable a Ctrl-C
 
             async def port_writer(manager):
                 while True:
@@ -281,6 +287,21 @@ class Gateway:
 
     async def _dispatch_pkt(self, destination=None) -> None:
         """Send a command unless in listen_only mode."""
+
+        async def check_0404() -> None:
+            zone = self.evo.zone_by_id[self._sched_idx].schedule
+            if zone.schedule is not None:
+                self._sched_idx = None
+                return
+            zone.request_fragment()
+
+        if self._sched_idx is None and len(self._buffer):
+            cmd = self._buffer.popleft()
+            self._sched_idx = cmd.payload[:2]
+            await destination.put_pkt(cmd, _LOGGER)
+            await schedule_task(0.5, check_0404)  # will queue the next RQ
+            return
+
         # TODO: listen_only will clear the whole queue, not only the its next element
         while not self.cmd_que.empty():
             cmd = self.cmd_que.get()
@@ -289,26 +310,17 @@ class Gateway:
                 await destination.put_pkt(cmd, _LOGGER)
 
             elif destination is None or self.config.get("listen_only"):
-                await asyncio.sleep(0.001)
+                await asyncio.sleep(0)
 
-            elif cmd.verb == "RQ" and cmd.code == "0404":  # wait for the response..
-                self._buffer.append(cmd)
+            elif cmd.verb == "RQ" and cmd.code == "0404":
+                if self._sched_idx is None:  # am not getting any zone's sched?
+                    self._sched_idx = cmd.payload[:2]
 
-                timeout_1 = dt.now() + timedelta(seconds=2.5)
-                while dt.now() < timeout_1:
+                if self._sched_idx == cmd.payload[:2]:  # am getting this zone's sched?
                     await destination.put_pkt(cmd, _LOGGER)
-
-                    timeout_2 = dt.now() + timedelta(seconds=1)
-                    while len(self._buffer) != 0:
-                        await asyncio.sleep(0.005)
-
-                        if dt.now() > timeout_2:
-                            break
-                    else:
-                        break  # the RQ arrived
+                    await schedule_task(0.5, check_0404)  # will queue the next RQ
                 else:
-                    print("*** I GAVE UP ***")
-                    self._buffer.clear()
+                    self._buffer.append(cmd)  # otherwise, send this pkt later on
 
             else:
                 await destination.put_pkt(cmd, _LOGGER)
@@ -365,15 +377,6 @@ class Gateway:
         except (LookupError, TypeError, ValueError):  # TODO: shouldn't be needed
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
             return
-
-        if len(self._buffer) != 0:
-            cmd = self._buffer.copy().pop()
-            if msg.verb == "RP" and msg.code == cmd.code:
-                self._buffer.clear()
-                print("*** IS OUR PACKET ***")
-            else:
-                print("*** IS NOT OUR PACKET ***")
-                pass
 
         if self.config.get("raw_output", 0) >= DONT_CREATE_ENTITIES:
             return

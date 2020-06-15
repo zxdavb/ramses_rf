@@ -1,6 +1,6 @@
 """Evohome serial."""
 
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta
 from functools import total_ordering
 import logging
 import struct
@@ -29,65 +29,96 @@ MIN_GAP_BETWEEN_CMDS = 0.7
 MAX_CMDS_PER_MINUTE = 30
 
 _LOGGER = logging.getLogger(__name__)
-if True or __dev_mode__:
+if __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
 class Schedule:
     """The schedule (of a zone) class."""
 
-    def __init__(self, gwy, msg, **kwargs) -> None:
+    def __init__(self, gwy, zone_idx, msg=None, **kwargs) -> None:
         """Initialise the class."""
-        self._msg = msg
         self._evo = gwy.evo
         self._gwy = gwy
         self._que = gwy.cmd_que
 
-        if msg.payload["frag_index"] != 1:
-            raise ValueError("not the first fragment of the message")
-        self.frag_total = msg.payload["frag_total"]
+        self.zone_idx = zone_idx  # msg.payload["zone_idx"]
+        self._msg = msg
 
-        self.zone_idx = msg.payload["zone_idx"]
-        self._schedule = None
-        self._fragments = [None] * self.frag_total
+        self.total_frags = self._fragments = self._schedule = None
 
-        # self.update(msg)
+        if msg is not None:
+            if msg.payload["frag_index"] != 1:
+                raise ValueError("not the first fragment of the message")
 
-    def update(self, msg) -> str:
-        if msg.payload["frag_total"] != self.frag_total:
+            # self.add_fragment(msg)
+
+    def add_fragment(self, msg) -> None:
+        if msg.code != "0404" or msg.verb != "RP":
+            raise ValueError("incorrect message verb/code")
+
+        if msg.payload["zone_idx"] != self.zone_idx:
+            raise ValueError("mismatched zone_idx")
+
+        if self.total_frags is None:
+            self.total_frags = msg.payload["frag_total"]
+            self._fragments = [None] * self.total_frags
+
+        elif self.total_frags != msg.payload["frag_total"]:
             raise ValueError("mismatched number of fragment")
-        frag_index = msg.payload["frag_index"]
 
-        self._fragments[frag_index - 1] = msg.payload["fragment"]
+        self._fragments[msg.payload["frag_index"] - 1] = {
+            "fragment": msg.payload["fragment"],
+            "dtm": msg.dtm,
+        }
 
+        for frag in self._fragments:
+            if frag is not None and frag["dtm"] > dt.now() + timedelta(minutes=5):
+                frag = None
+
+        if not [x for x in self._fragments if x is None]:  # TODO: can leave out
+            _ = self.schedule
+
+    def request_fragment(self, restart=False) -> None:
         # TODO: if required, queue requests for remaining fragments (needs improving)
         if self._gwy.config["listen_only"]:
             return
 
-        if len([x for x in self._fragments if x is not None]) == 1:
-            for idx in range(frag_index + 1, self.frag_total + 1):
-                header = f"{self.zone_idx}20000800{idx:02d}{self.frag_total:02d}"
-                self._que.put_nowait(
-                    Command(
-                        "RQ", self._evo.ctl_id, "0404", header, priority=HIGH_PRIORITY
-                    )
-                )
+        if self.total_frags is None or restart is True:
+            self._fragments = None
+            self.total_frags = frag_idx = 0
+
+        else:
+            frag_idx = [idx for idx, val in enumerate(self._fragments) if val is None][
+                0
+            ]
+
+        header = f"{self.zone_idx}20000800{frag_idx + 1:02d}{self.total_frags:02d}"
+        self._que.put_nowait(
+            Command("RQ", self._evo.ctl_id, "0404", header, priority=HIGH_PRIORITY)
+        )
 
     def __repr_(self) -> str:
         return self._schedule
 
     def __str_(self) -> str:
-        return self._schedule
+        return str(self._schedule)
 
     @property
-    def schedule(self, msg) -> list:
+    def schedule(self) -> list:
         _LOGGER.debug("schedule array is: %s", self._fragments)
 
-        if self._schedule is None or not all(self._fragments):
-            return []
+        if self._schedule is not None:
+            return self._schedule
 
+        if not all(self._fragments):
+            return
+
+        raw_fragments = [
+            v for d in self._fragments for k, v in d.items() if k == "fragment"
+        ]
         try:
-            raw_schedule = zlib.decompress(bytearray.fromhex("".join(self._fragments)))
+            raw_schedule = zlib.decompress(bytearray.fromhex("".join(raw_fragments)))
         except zlib.error:
             _LOGGER.exception("*** FAILED to ZLIB ***, %s", self._fragments)
             return
@@ -113,6 +144,7 @@ class Schedule:
 
         self._schedule.append({"day_of_week": old_day, "switchpoints": switchpoints})
 
+        _LOGGER.debug("schedule is: %s", self._schedule)
         return self._schedule
 
 
