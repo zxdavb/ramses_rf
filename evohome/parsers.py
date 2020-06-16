@@ -152,6 +152,10 @@ def parser_decorator(func):
             assert len(payload) / 2 == 2
             return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
 
+        if msg.code == "0016":
+            assert len(payload) / 2 == 2
+            return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
+
         if msg.code == "0100":  # 04: will RQ language
             assert len(payload) / 2 in [1, 5]  # len(RQ) = 5, but 00 accepted
             return func(*args, **kwargs)  # no context
