@@ -13,7 +13,7 @@ import sys
 from collections import deque
 from queue import PriorityQueue
 
-from .command import Command
+from .command import Command, PAUSE_LONG
 from .const import INDEX_SQL, TABLE_SQL, INSERT_SQL, ISO_FORMAT_REGEX, __dev_mode__
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
@@ -289,18 +289,22 @@ class Gateway:
         """Send a command unless in listen_only mode."""
 
         async def check_0404() -> None:
-            """Queue next RQ/0404."""
-            zone = self.evo.zone_by_id[self._sched_idx].schedule
-            if zone.schedule is not None:
+            """Queue next RQ/0404, or re-queue the last one if required."""
+            zone = self.evo.zone_by_id[self._sched_idx]
+            _LOGGER.info("zone(%s).schedule: %s", zone.id, zone.schedule)
+
+            if zone.schedule is None:  # is schedule done?
+                _LOGGER.warning("zone(%s): NOT DONE", zone.id)
+                zone._schedule.req_fragment()  # TODO: don't use private object
+            else:
+                _LOGGER.warning("zone(%s): done", zone.id)
                 self._sched_idx = None
-                return
-            zone.request_fragment()
 
         if self._sched_idx is None and len(self._buffer):
             cmd = self._buffer.popleft()
             self._sched_idx = cmd.payload[:2]
             await destination.put_pkt(cmd, _LOGGER)
-            asyncio.create_task(schedule_task(0.5, check_0404))  # queue next RQ
+            asyncio.create_task(schedule_task(PAUSE_LONG * 2, check_0404))
             return
 
         # TODO: listen_only will clear the whole queue, not only the its next element
@@ -319,7 +323,7 @@ class Gateway:
 
                 if self._sched_idx == cmd.payload[:2]:  # am getting this zone's sched?
                     await destination.put_pkt(cmd, _LOGGER)
-                    asyncio.create_task(schedule_task(0.5, check_0404))  # queue next RQ
+                    asyncio.create_task(schedule_task(PAUSE_LONG * 2, check_0404))
                 else:
                     self._buffer.append(cmd)  # otherwise, send this pkt later on
 

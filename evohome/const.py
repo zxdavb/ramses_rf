@@ -186,11 +186,6 @@ COMMAND_FORMAT = "{:<2} --- {} {} --:------ {} {:03d} {}"
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:8s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:8s} || {}"
 
-
-LOW_PRIORITY = 6
-DEFAULT_PRIORITY = 4
-HIGH_PRIORITY = 2
-
 # Used by SQL DB
 TABLE_SQL = """
     CREATE TABLE IF NOT EXISTS packets(

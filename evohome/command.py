@@ -6,13 +6,7 @@ import logging
 import struct
 import zlib
 
-from .const import (
-    COMMAND_FORMAT,
-    DEFAULT_PRIORITY,
-    HIGH_PRIORITY,
-    HGI_DEV_ID,
-    __dev_mode__,
-)
+from .const import COMMAND_FORMAT, HGI_DEV_ID, __dev_mode__
 
 SERIAL_PORT = "serial_port"
 CMD_CODE = "cmd_code"
@@ -23,8 +17,16 @@ DEVICE_1 = "device_1"
 DEVICE_2 = "device_2"
 DEVICE_3 = "device_3"
 
-MIN_GAP_BETWEEN_CMDS = 0.7
-MAX_CMDS_PER_MINUTE = 30
+# MIN_GAP_BETWEEN_CMDS = 0.7
+# MAX_CMDS_PER_MINUTE = 30
+
+PRIORITY_LOW = 6
+PRIORITY_DEFAULT = 4
+PRIORITY_HIGH = 2
+
+PAUSE_LONG = 0.15  # seconds
+PAUSE_DEFAULT = 0.05
+PAUSE_SHORT = 0.01
 
 _LOGGER = logging.getLogger(__name__)
 if False and __dev_mode__:
@@ -81,8 +83,11 @@ class Schedule:
         if not [x for x in self._frag_array if x is None]:  # TODO: can leave out?
             _ = self.schedule if self._gwy.config["listen_only"] else None
 
-    def request_fragment(self, restart=False) -> None:
-        """Queue requests for remaining fragments as required."""
+    def req_fragment(self, restart=False) -> None:
+        """Request a remaining fragment, if any."""
+        # first pkt: PRIORITY_LOW, PAUSE_LONG
+        # otherwise: PRIORITY_HIGH, PAUSE_DEFAULT
+
         if self._gwy.config["listen_only"]:
             return
 
@@ -94,8 +99,8 @@ class Schedule:
 
         header = f"{self.zone_idx}20000800{frag_idx:02d}{self.total_frags:02d}"
         self._que.put_nowait(
-            Command("RQ", self._evo.ctl_id, "0404", header, priority=HIGH_PRIORITY)
-        )
+            Command("RQ", self._evo.ctl_id, "0404", header, priority=PRIORITY_HIGH)
+        )  # pkts (other than 1st pkt) should be high priority
 
     def __repr_(self) -> str:
         return self._schedule
@@ -110,7 +115,7 @@ class Schedule:
         if self._schedule is not None:
             return self._schedule
 
-        if not all(self._frag_array):
+        if self._frag_array == [] or not all(self._frag_array):
             return
 
         raw_frags = [
@@ -161,8 +166,12 @@ class Command:
         self.code = code
         self.payload = payload
 
-        priority = kwargs.get("priority", DEFAULT_PRIORITY)
-        self.priority = DEFAULT_PRIORITY if priority is None else priority
+        pause = kwargs.get("pause", PAUSE_DEFAULT)
+        self.pause = PAUSE_DEFAULT if pause is None else pause
+
+        priority = kwargs.get("priority", PRIORITY_DEFAULT)
+        self.priority = PRIORITY_DEFAULT if priority is None else priority
+
         self._dtm = dt.now()
 
     def __str__(self) -> str:

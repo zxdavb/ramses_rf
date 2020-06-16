@@ -2,7 +2,7 @@
 import logging
 from typing import Any, Optional
 
-from .command import Command, Schedule
+from .command import Command, Schedule, PAUSE_LONG, PRIORITY_LOW
 from .const import (
     CODE_SCHEMA,
     DEVICE_LOOKUP,
@@ -10,7 +10,6 @@ from .const import (
     DEVICE_TYPES,
     DEVICE_TYPE_MAP,
     DOMAIN_TYPE_MAP,
-    LOW_PRIORITY,
     ZONE_TYPE_MAP,
     __dev_mode__,
 )
@@ -308,7 +307,7 @@ class Controller(Device):
 
         # Get the three most recent fault log entries
         for log_idx in range(0, 0x3):  # max is 0x3C?
-            self._command("0418", payload=f"{log_idx:06X}", priority=LOW_PRIORITY)
+            self._command("0418", payload=f"{log_idx:06X}", priority=PRIORITY_LOW)
 
         # TODO: 1100(), 1290(00x), 0418(00x):
         # for code in ["000C"]:
@@ -655,7 +654,7 @@ class Zone(Entity):
         self._type = None
         self._discover()
         self._fragments = {}
-        self.schedule = None
+        self._schedule = Schedule(gateway, idx)
 
     def _discover(self):
         for code in ["0004", "000C"]:
@@ -669,13 +668,13 @@ class Zone(Entity):
             self._command(code, payload=self.id)
 
         # TODO: 3150(00?): how to do (if at all) & for what zone types?
-        # TODO: 0005(002), 0006(001), 0404(00?):
+        # TODO: 0005(002), 0006(001)
 
         # 095 RQ --- 18:013393 01:145038 --:------ 0404 007 00200008000100
-        # 045 RP --- 01:145038 18:013393 --:------ 0404 048 00200008290105 68816DCDB..  # noqa: E501
-        # if self.id == "00":  # TODO: testing only
-        self.schedule = Schedule(self._gwy, self.id)
-        self.schedule.request_fragment()  # TODO: only if r/w?
+        # 045 RP --- 01:145038 18:013393 --:------ 0404 048 00200008290105 68816DCDB..
+        # if self.id == "00":  # TODO: when testing,,,
+        # self._schedule.request_fragment(restart=True)  # TODO: only if r/w?
+        self._command("0404", payload=f"{self.id}200008000100", pause=PAUSE_LONG)
 
     def update(self, msg):
         super().update(msg)
@@ -698,9 +697,7 @@ class Zone(Entity):
                 _LOGGER.warning("Promoted zone %s to %s", self.id, self.type)
 
         if msg.code == "0404" and msg.verb == "RP":
-            if self.schedule is None:
-                self.schedule = Schedule(self._gwy, self.id, msg=msg)
-            self.schedule.add_fragment(msg)
+            self._schedule.add_fragment(msg)
 
         if msg.code == "3150":  # TODO: and msg.verb in [" I", "RP"]?
             assert msg.dev_from[:2] in ["02", "04", "13"]
@@ -719,6 +716,11 @@ class Zone(Entity):
 
             self.__class__ = _ZONE_CLASS[self.type]
             _LOGGER.warning("Promoted zone %s to %s", self.id, self.type)
+
+    @property
+    def schedule(self) -> Optional[dict]:
+        """Return the schedule if any."""
+        return self._schedule.schedule if self._schedule else None
 
     @property
     def idx(self) -> str:
