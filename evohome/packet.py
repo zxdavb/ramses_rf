@@ -11,20 +11,13 @@ from serial_asyncio import open_serial_connection
 from string import printable
 from typing import Optional
 
+from .command import PAUSE_SHORT
 from .const import MESSAGE_REGEX, __dev_mode__
 from .logger import time_stamp
 
 BAUDRATE = 115200
 READ_TIMEOUT = 0.5
 XON_XOFF = True
-
-PRIORITY_LOW = 6
-PRIORITY_DEFAULT = 4
-PRIORITY_HIGH = 2
-
-PAUSE_LONG = 0.15  # needed for first RQ / 0404
-PAUSE_DEFAULT = 0.05  # 0.05 works well, 0.03 too short
-PAUSE_SHORT = 0.01
 
 RAW_PKT = namedtuple("Packet", ["datetime", "packet", "bytearray"])
 
