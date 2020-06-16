@@ -24,9 +24,9 @@ PRIORITY_LOW = 6
 PRIORITY_DEFAULT = 4
 PRIORITY_HIGH = 2
 
-PAUSE_LONG = 0.15  # seconds
-PAUSE_DEFAULT = 0.05
-PAUSE_SHORT = 0.01
+PAUSE_SHORT = 0.01  # seconds
+PAUSE_DEFAULT = 0.05  # 0.05 works well, 0.03 too short
+PAUSE_LONG = 0.15  # needed for first RQ / 0404
 
 _LOGGER = logging.getLogger(__name__)
 if False and __dev_mode__:
