@@ -6,8 +6,8 @@ import logging
 
 # import re
 
-from serial import SerialException  # TODO: dont import unless required
-from serial_asyncio import open_serial_connection  # TODO: dont import unless required?
+from serial import SerialException
+from serial_asyncio import open_serial_connection
 from string import printable
 from typing import Optional
 
