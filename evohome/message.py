@@ -77,7 +77,7 @@ class Message:
         if self._repr:
             return self._repr
 
-        if self._gwy.config.get("known_devices"):
+        if self._gwy.config["known_devices"]:
             msg_format = MSG_FORMAT_18
         else:
             msg_format = MSG_FORMAT_10
