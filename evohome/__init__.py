@@ -1,17 +1,16 @@
 """Evohome serial."""
 import asyncio
+from collections import deque
 from datetime import datetime as dt
 import json
 import logging
 import os
+from queue import PriorityQueue
 import re
-from typing import Optional
-
 import signal
 import sys
-
-from collections import deque
-from queue import PriorityQueue
+from threading import Lock
+from typing import Optional
 
 from .command import Command, PAUSE_LONG
 from .const import INDEX_SQL, TABLE_SQL, INSERT_SQL, ISO_FORMAT_REGEX, __dev_mode__
@@ -32,8 +31,12 @@ if __dev_mode__:
 
 async def schedule_task(delay, func, *args, **kwargs):
     """Start a coro after delay seconds."""
-    await asyncio.sleep(delay)
-    await func(*args, **kwargs)
+
+    async def scheduled_func(delay, func, *args, **kwargs):
+        await asyncio.sleep(delay)
+        await func(*args, **kwargs)
+
+    asyncio.create_task(scheduled_func(delay, func, *args, **kwargs))
 
 
 class GracefulExit(SystemExit):
@@ -53,7 +56,11 @@ class Gateway:
         self.loop = loop if loop else asyncio.get_running_loop()  # get_event_loop()
         self.config = config
 
-        if self.serial_port and config.get("input_file"):
+        config["input_file"] = config.get("input_file")
+        config["known_devices"] = config.get("known_devices")
+        config["raw_output"] = config.get("raw_output", 0)
+
+        if self.serial_port and config["input_file"]:
             _LOGGER.warning(
                 "Serial port specified (%s), so ignoring input file (%s)",
                 self.serial_port,
@@ -62,10 +69,10 @@ class Gateway:
             config["input_file"] = None
 
         config["listen_only"] = not config.get("probe_system")
-        if config.get("input_file"):
+        if config["input_file"]:
             config["listen_only"] = True
 
-        if config.get("raw_output", 0) >= DONT_CREATE_MESSAGES:
+        if config["raw_output"] >= DONT_CREATE_MESSAGES:
             config["message_log"] = None
             _stream = (None, sys.stdout)
         else:
@@ -82,20 +89,21 @@ class Gateway:
 
         self.cmd_que = PriorityQueue(maxsize=200)
         self._buffer = deque()
-        self._sched_idx = None
+        self._sched_zone = None
+        self._sched_lock = Lock()
 
-        # if self.config.get("ser2net"):
+        # if config.get("ser2net_server"):
         self._relay = None
 
-        # if self.config.get("known_devices"):
+        # if config["known_devices"]:
         self.known_devices = {}
         self.device_blacklist = []
         self.device_whitelist = []
 
-        # if self.config.get("database"):
+        # if config.get("database"):
         self._output_db = self._db_cursor = None
 
-        # if self.config.get("raw_output", 0) > 0:
+        # if config["raw_output"] > 0:
         self.evo = EvohomeSystem(controller_id=None)
 
         self._tasks = []
@@ -163,7 +171,7 @@ class Gateway:
 
         _LOGGER.info("cleanup() invoked by: %s", xxx)
 
-        if self.config.get("known_devices"):
+        if self.config["known_devices"]:
             _LOGGER.info("cleanup(): Updating known_devices file...")
             try:
                 for d in self.evo.devices:
@@ -180,9 +188,7 @@ class Gateway:
                     json.dump(self.known_devices, json_file, sort_keys=True, indent=4)
 
             except (AssertionError, AttributeError, LookupError, TypeError, ValueError):
-                _LOGGER.exception(
-                    "Failed update of %s", self.config.get("known_devices")
-                )
+                _LOGGER.exception("Failed update of %s", self.config["known_devices"])
 
     async def start(self) -> None:
         async def proc_pkts_from_file() -> None:
@@ -219,7 +225,9 @@ class Gateway:
                             # !V, !T - print the version, or the current mask
                             # !T00   - turn off all mask bits
                             # !T01   - cause raw data for all messages to be printed
-                            await manager.put_pkt(self.config["evofw_flag"], _LOGGER)
+                            asyncio.create_task(
+                                manager.put_pkt(self.config["evofw_flag"], _LOGGER)
+                            )
 
                         await self._process_pkt(raw_pkt)
                         if self._relay:  # TODO: handle socket close
@@ -243,7 +251,7 @@ class Gateway:
                 if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
                     cmd = self.config["execute_cmd"]
                     cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:])
-                    await manager.put_pkt(cmd, _LOGGER)
+                    asyncio.create_task(manager.put_pkt(cmd, _LOGGER))
 
                 self._tasks.append(asyncio.create_task(port_reader(manager)))
                 self._tasks.append(asyncio.create_task(port_writer(manager)))
@@ -258,7 +266,7 @@ class Gateway:
             await self._db_cursor.execute(INDEX_SQL)  # index if not already
             await self._output_db.commit()
 
-        if self.config.get("known_devices"):
+        if self.config["known_devices"]:
             try:
                 with open(self.config["known_devices"]) as json_file:
                     devices = self.known_devices = json.load(json_file)
@@ -277,7 +285,7 @@ class Gateway:
                     ]
 
         # Finally, source of packets is either a text file, or a serial port:
-        if self.config.get("input_file"):
+        if self.config["input_file"]:
             await proc_pkts_from_file()
         else:  # if self.config["serial_port"] or if self.serial_port
             await proc_pkts_from_port()
@@ -288,47 +296,89 @@ class Gateway:
     async def _dispatch_pkt(self, destination=None) -> None:
         """Send a command unless in listen_only mode."""
 
-        async def check_0404() -> None:
-            """Queue next RQ/0404, or re-queue the last one if required."""
-            zone = self.evo.zone_by_id[self._sched_idx]
-            _LOGGER.info("zone(%s).schedule: %s", zone.id, zone.schedule)
+        async def consider_rq_0404(kmd) -> bool:
+            """Consider cmd, return True if it was sent for transmission."""
 
-            if zone.schedule is None:  # is schedule done?
-                _LOGGER.warning("zone(%s): NOT DONE", zone.id)
-                zone._schedule.req_fragment()  # TODO: don't use private object
-            else:
-                _LOGGER.warning("zone(%s): done", zone.id)
-                self._sched_idx = None
+            async def check_message() -> None:
+                """Queue next RQ/0404, or re-queue the last one if required."""
+                self._sched_lock.acquire()
 
-        if self._sched_idx is None and len(self._buffer):
-            cmd = self._buffer.popleft()
-            self._sched_idx = cmd.payload[:2]
-            await destination.put_pkt(cmd, _LOGGER)
-            asyncio.create_task(schedule_task(PAUSE_LONG * 2, check_0404))
-            return
+                if self._sched_zone:
+                    _LOGGER.info("Checking zone(%s).schedule...", self._sched_zone.id)
 
-        # TODO: listen_only will clear the whole queue, not only the its next element
+                    if self._sched_zone.schedule is None:  # is schedule done?
+                        _LOGGER.warning("zone(%s): NOT DONE", self._sched_zone.id)
+                        self._sched_zone._schedule.req_fragment(restart=True)  # TODO
+                        await schedule_task(PAUSE_LONG * 100, check_fragments)
+
+                    else:
+                        _LOGGER.warning("zone(%s): done", self._sched_zone.id)
+                        self._sched_zone = None
+
+                self._sched_lock.release()
+
+            async def check_fragments() -> None:
+                """Queue next RQ/0404s, or re-queue as required."""
+                while True:
+                    self._sched_lock.acquire()
+
+                    if self._sched_zone:
+                        if self._sched_zone.schedule:
+                            print("Schedule complete for zone(%s)", self._sched_zone.id)
+                            self._sched_zone = None
+                            break
+
+                        else:
+                            print("RQd missing frags for zone(%s)", self._sched_zone.id)
+                            self._sched_zone._schedule.req_fragment()
+
+                    self._sched_lock.release()
+                    await asyncio.sleep(PAUSE_LONG * 10)
+
+                self._sched_lock.release()
+
+            self._sched_lock.acquire()
+
+            if self._sched_zone is None:  # not getting any zone's sched?
+                self._sched_zone = self.evo.zone_by_id[kmd.payload[:2]]
+                print("Sending initial RQ for a New zone(%s)...", self._sched_zone.id)
+                await schedule_task(PAUSE_LONG * 100, check_message)
+                await schedule_task(PAUSE_LONG, check_fragments)
+
+            if self._sched_zone.id == kmd.payload[:2]:  # getting this zone's sched?
+                print("Sent RQ for (this) zone(%s)", self._sched_zone.id, kmd)
+                self._sched_lock.release()
+
+                asyncio.create_task(destination.put_pkt(kmd, _LOGGER))
+                return True
+
+            self._sched_lock.release()
+
+        if len(self._buffer):
+            if await consider_rq_0404(self._buffer[0]) is True:
+                self._buffer.popleft()  # the pkt was sent for transmission
+                return  # can't send any other initial RQs now
+
         while not self.cmd_que.empty():
             cmd = self.cmd_que.get()
 
             if str(cmd).startswith("!") and destination is not None:
-                await destination.put_pkt(cmd, _LOGGER)
+                asyncio.create_task(destination.put_pkt(cmd, _LOGGER))
 
             elif destination is None or self.config["listen_only"]:
-                await asyncio.sleep(0)
+                await asyncio.sleep(0)  # clear the whole queue
 
             elif cmd.verb == "RQ" and cmd.code == "0404":
-                if self._sched_idx is None:  # am not getting any zone's sched?
-                    self._sched_idx = cmd.payload[:2]
-
-                if self._sched_idx == cmd.payload[:2]:  # am getting this zone's sched?
-                    await destination.put_pkt(cmd, _LOGGER)
-                    asyncio.create_task(schedule_task(PAUSE_LONG * 2, check_0404))
+                if await consider_rq_0404(cmd) is True:
+                    self.cmd_que.task_done()  # the pkt was sent for transmission
+                    print("RQ is for this zone: sent for transmission")
                 else:
-                    self._buffer.append(cmd)  # otherwise, send this pkt later on
+                    self._buffer.append(cmd)  # otherwise, send the pkt later on
+                    print("RQ is for another zone: buffered for later")
+                break  # can't send any other initial RQs now
 
             else:
-                await destination.put_pkt(cmd, _LOGGER)
+                asyncio.create_task(destination.put_pkt(cmd, _LOGGER))
 
             self.cmd_que.task_done()
 
@@ -368,7 +418,7 @@ class Gateway:
         # if any(x in pkt.packet for x in self.config.get("blacklist", [])):
         #     return  # silently drop packets with blacklisted text
 
-        if self.config.get("raw_output", 0) >= DONT_CREATE_MESSAGES:
+        if self.config["raw_output"] >= DONT_CREATE_MESSAGES:
             return
 
         try:
@@ -383,7 +433,7 @@ class Gateway:
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
             return
 
-        if self.config.get("raw_output", 0) >= DONT_CREATE_ENTITIES:
+        if self.config["raw_output"] >= DONT_CREATE_ENTITIES:
             return
 
         # only reliable packets should become part of the state data
@@ -393,7 +443,7 @@ class Gateway:
         try:
             msg._create_entities()  # create the devices, zones, domains
 
-            if self.config.get("raw_output", 0) >= DONT_UPDATE_ENTITIES:
+            if self.config["raw_output"] >= DONT_UPDATE_ENTITIES:
                 return
 
             msg._update_entities()  # update the state database
@@ -403,12 +453,24 @@ class Gateway:
         except (LookupError, TypeError, ValueError):  # TODO: shouldn't be needed?
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
 
+        # else:
+        #     if msg.verb == "RP" and msg.code == "0404":
+        #         self._sched_lock.acquire()
+        #        if self._sched_zone and self._sched_zone.id == msg.payload["zone_idx"]:
+        #             if self._sched_zone.schedule:
+        #                 self._sched_zone = None
+        #             elif msg.payload["frag_index"] == 1:
+        #                 self._sched_zone._schedule.req_fragment(block_mode=False)
+        #             else:
+        #                 self._sched_zone._schedule.req_fragment(block_mode=False)
+        #         self._sched_lock.release()
+
     @property
     def state_db(self) -> Optional[dict]:
-        if self.config.get("raw_output", 0) == 0:
+        if self.config["raw_output"] == 0:
             return self.evo
 
-        if self.config.get("raw_output", 0) == DONT_UPDATE_ENTITIES:
+        if self.config["raw_output"] == DONT_UPDATE_ENTITIES:
             return {
                 "devices": [d.id for d in self.evo.devices],
                 "zones": [z.idx for z in self.evo.zones],
