@@ -42,7 +42,7 @@ class Schedule:
         self._gwy = gwy
         self._que = gwy.cmd_que
 
-        self.zone_idx = zone_idx  # aka msg.payload["zone_idx"]
+        self.id = zone_idx  # aka msg.payload["zone_idx"]
 
         # initialse the fragment array: DRY
         self._init_frag_array(total_frags=0)  # could use msg.payload["frag_total"]
@@ -50,7 +50,7 @@ class Schedule:
         if msg is not None:
             if msg.payload["frag_index"] != 1:
                 raise ValueError("not the first fragment of the message")
-            # self.add_fragment(msg)
+            self.add_fragment(msg)
 
     def _init_frag_array(self, total_frags=0) -> None:
         """Reset the fragment array."""
@@ -61,7 +61,7 @@ class Schedule:
     def add_fragment(self, msg) -> None:
         if msg.code != "0404" or msg.verb != "RP":
             raise ValueError("incorrect message verb/code")
-        if msg.payload["zone_idx"] != self.zone_idx:
+        if msg.payload["zone_idx"] != self.id:
             raise ValueError("mismatched zone_idx")
 
         if self.total_frags == 0:
@@ -78,29 +78,42 @@ class Schedule:
 
         # discard any fragments significantly older that this most recent fragment
         for frag in [f for f in self._frag_array if f is not None]:
+            # TODO: use a CONST for 5 minutes
             frag = None if frag["dtm"] < msg.dtm - timedelta(minutes=5) else frag
 
         if not [x for x in self._frag_array if x is None]:  # TODO: can leave out?
             _ = self.schedule if self._gwy.config["listen_only"] else None
 
-    def req_fragment(self, restart=False) -> None:
-        """Request a remaining fragment, if any."""
-        # first pkt: PRIORITY_LOW, PAUSE_LONG
-        # otherwise: PRIORITY_HIGH, PAUSE_DEFAULT
-
+    def req_fragment(self, restart=False) -> int:
+        """Request remaining fragment(s), if any, and return the number of RQs sent."""
         if self._gwy.config["listen_only"]:
             return
 
-        if self.total_frags == 0 or restart is True:
+        if restart is True:  # or self.total_frags == 0
             self._init_frag_array(0)
 
-        missing_frags = [i for i, val in enumerate(self._frag_array) if val is None]
-        frag_idx = 1 if len(missing_frags) == 0 else missing_frags[0] + 1
+        if self._frag_array == []:  # aka self.total_frags == 0:
+            missing_frags = [0]  # all(frags missing), but how many is unknown
+            kwargs = {"pause": PAUSE_LONG}  # , "priority": PRIORITY_DEFAULT}
 
-        header = f"{self.zone_idx}20000800{frag_idx:02d}{self.total_frags:02d}"
-        self._que.put_nowait(
-            Command("RQ", self._evo.ctl_id, "0404", header, priority=PRIORITY_HIGH)
-        )  # pkts (other than 1st pkt) should be high priority
+        else:  # aka not all(self._frag_array)
+            missing_frags = [i for i, val in enumerate(self._frag_array) if val is None]
+            if missing_frags == []:
+                return 0  # not any(frags missing), nothing to add
+            kwargs = {"pause": PAUSE_DEFAULT, "priority": PRIORITY_HIGH}
+
+        # if block_mode:
+        #     for idx in missing_frags:
+        #         header = f"{self.id}20000800{idx + 1:02d}{self.total_frags:02d}"
+        #         self._que.put_nowait(
+        #             Command("RQ", self._evo.ctl_id, "0404", header, **kwargs)
+        #         )  # could do only: {missing_frags[0] + 1:02d} instead of iterating
+        #     return len(missing_frags)
+
+        header = f"{self.id}20000800{missing_frags[0] + 1:02d}{self.total_frags:02d}"
+        self._que.put_nowait(Command("RQ", self._evo.ctl_id, "0404", header, **kwargs))
+
+        return 1
 
     def __repr_(self) -> str:
         return self._schedule
@@ -118,13 +131,11 @@ class Schedule:
         if self._frag_array == [] or not all(self._frag_array):
             return
 
-        raw_frags = [
-            v for d in self._frag_array for k, v in d.items() if k == "fragment"
-        ]
+        frags = [v for d in self._frag_array for k, v in d.items() if k == "fragment"]
         try:
-            raw_schedule = zlib.decompress(bytearray.fromhex("".join(raw_frags)))
+            raw_schedule = zlib.decompress(bytearray.fromhex("".join(frags)))
         except zlib.error:
-            _LOGGER.exception("Failed to decompress (resetting): %s", self._frag_array)
+            _LOGGER.exception("Invalid schedule fragments: %s", self._frag_array)
             self._init_frag_array(total_frags=0)
             return
 
@@ -149,8 +160,8 @@ class Schedule:
 
         self._schedule.append({"day_of_week": old_day, "switchpoints": switchpoints})
 
-        _LOGGER.debug("zone %s len(schedule): %s", self.zone_idx, len(self._schedule))
-        # _LOGGER.debug("zone %s schedule is: %s", self.zone_idx, self._schedule)
+        _LOGGER.debug("zone(%s): len(schedule): %s", self.id, len(self._schedule))
+        # _LOGGER.debug("zone(%s) schedule is: %s", self.id, self._schedule)
         return self._schedule
 
 
@@ -166,11 +177,12 @@ class Command:
         self.code = code
         self.payload = payload
 
-        pause = kwargs.get("pause", PAUSE_DEFAULT)
-        self.pause = PAUSE_DEFAULT if pause is None else pause
+        self.pause = kwargs.get("pause", PAUSE_DEFAULT)
+        assert self.pause is not None
 
-        priority = kwargs.get("priority", PRIORITY_DEFAULT)
-        self.priority = PRIORITY_DEFAULT if priority is None else priority
+        priority = PRIORITY_HIGH if verb in ["0016", "1FC9"] else PRIORITY_DEFAULT
+        self.priority = kwargs.get("priority", priority)
+        assert self.priority is not None
 
         self._dtm = dt.now()
 
