@@ -2,7 +2,13 @@
 import logging
 from typing import Any, Optional
 
-from .command import Command, Schedule, PAUSE_LONG, PRIORITY_LOW
+from .command import (
+    Command,
+    Schedule,
+    PAUSE_DEFAULT,
+    PRIORITY_DEFAULT,
+    PRIORITY_LOW,
+)
 from .const import (
     CODE_SCHEMA,
     DEVICE_LOOKUP,
@@ -66,7 +72,8 @@ class Entity:
             kwargs.get("dest_addr", self._evo.ctl_id),
             code,
             kwargs.get("payload", "00"),
-            priority=kwargs.get("priority"),
+            pause=kwargs.get("pause", PAUSE_DEFAULT),
+            priority=kwargs.get("priority", PRIORITY_DEFAULT),
         )
         self._que.put_nowait(cmd)
 
@@ -650,11 +657,13 @@ class Zone(Entity):
         # _LOGGER.debug("Creating a Zone, %s", idx)
         super().__init__(idx, gateway)
 
+        # self.idx = idx  # TODO: why do other .idx work without this?
+
+        self._schedule = Schedule(gateway, idx)
         self._sensor = None
         self._type = None
-        self._discover()
-        self._fragments = {}
-        self._schedule = Schedule(gateway, idx)
+
+        self._discover()  # should be last thing in __init__()
 
     def _discover(self):
         for code in ["0004", "000C"]:
@@ -672,9 +681,9 @@ class Zone(Entity):
 
         # 095 RQ --- 18:013393 01:145038 --:------ 0404 007 00200008000100
         # 045 RP --- 01:145038 18:013393 --:------ 0404 048 00200008290105 68816DCDB..
-        # if self.id == "00":  # TODO: when testing,,,
-        # self._schedule.request_fragment(restart=True)  # TODO: only if r/w?
-        self._command("0404", payload=f"{self.id}200008000100", pause=PAUSE_LONG)
+        # if self.id == "00":  # TODO: used only for testing
+        self._schedule.req_fragment()  # dont use self._command() here
+        # self._command("0404", payload=f"{self.id}200008000100", pause=PAUSE_LONG)
 
     def update(self, msg):
         super().update(msg)
@@ -697,6 +706,7 @@ class Zone(Entity):
                 _LOGGER.warning("Promoted zone %s to %s", self.id, self.type)
 
         if msg.code == "0404" and msg.verb == "RP":
+            _LOGGER.debug("Zone(%s).update: Received RP for zone: ", self.id)
             self._schedule.add_fragment(msg)
 
         if msg.code == "3150":  # TODO: and msg.verb in [" I", "RP"]?
