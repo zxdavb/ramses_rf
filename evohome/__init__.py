@@ -120,7 +120,7 @@ class Gateway:
             _LOGGER.info("Received a signal (signalnum=%s), processing...", signalnum)
 
             if signalnum == signal.SIGINT:  # is this the only useful win32 signal?
-                self.cleanup("_sig_handler_win32")
+                self.cleanup("_sig_handler_win32()")
 
                 raise GracefulExit()
 
@@ -132,20 +132,17 @@ class Gateway:
                 _LOGGER.info("Raw state data: \r\n%s", self.evo)
 
             if signal in [signal.SIGHUP, signal.SIGINT, signal.SIGTERM]:
-                await self.async_cleanup("_sig_handler_posix")  # before task.cancel
-                self.cleanup("_sig_handler_posix")  # OK for after tasks.cancel
+                await self.async_cleanup("_sig_handler_posix()")  # before task.cancel
+                self.cleanup("_sig_handler_posix()")  # OK for after tasks.cancel
 
                 tasks = [
                     t for t in asyncio.all_tasks() if t is not asyncio.current_task()
                 ]
                 [task.cancel() for task in tasks]
-                logging.info(
-                    f"Cancelling {len(tasks)} outstanding tasks, should see 'done'..."
-                )
-                await asyncio.gather(*tasks, return_exceptions=True)
-                logging.info(" - done.")
+                logging.info(f"Cancelling {len(tasks)} outstanding tasks...")
 
-                # raise GracefulExit()  # TODO: only for Windows?
+                # raise CancelledError
+                await asyncio.gather(*tasks, return_exceptions=True)
 
         _LOGGER.debug("Creating signal handlers...")
         signals = [signal.SIGINT, signal.SIGTERM]
@@ -245,8 +242,7 @@ class Gateway:
         # Finally, source of packets is either a text file, or a serial port:
         if self.config["input_file"]:
             reader = asyncio.create_task(file_reader(self.config["input_file"]))
-            self._tasks += [reader, asyncio.create_task(port_writer(None))]
-            await reader
+            self._tasks.extend([asyncio.create_task(port_writer(None)), reader])
 
         else:  # if self.serial_port
             if self.config.get("ser2net_server"):
@@ -261,12 +257,12 @@ class Gateway:
                     cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:])
                     await manager.put_pkt(cmd, _LOGGER)
 
-                self._tasks.append(asyncio.create_task(port_reader(manager)))
-                self._tasks.append(asyncio.create_task(port_writer(manager)))
-                await asyncio.gather(*self._tasks)
+                reader = asyncio.create_task(port_reader(manager))
+                self._tasks.extend([asyncio.create_task(port_writer(manager)), reader])
 
-        await self.async_cleanup("start")
-        self.cleanup("start")
+        await reader  # was: await asyncio.gather(*self._tasks)
+        await self.async_cleanup("start()")
+        self.cleanup("start()")
 
     async def _dispatch_pkt(self, destination=None) -> None:
         """Send a command unless in listen_only mode."""
