@@ -229,12 +229,10 @@ class Gateway:
                 self.known_devices = {}
             else:
                 if self.config["device_whitelist"]:
-                    # discard packets unless to/from one of our devices
                     self.dev_whitelist = [
                         k for k, v in devices.items() if not v.get("blacklist")
                     ]
                 else:
-                    # discard packets to/from any explicitly blacklisted device
                     self.dev_blacklist = [
                         k for k, v in devices.items() if v.get("blacklist")
                     ]
