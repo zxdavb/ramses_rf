@@ -196,55 +196,24 @@ class Gateway:
                 _LOGGER.exception("Failed update of %s", self.config["known_devices"])
 
     async def start(self) -> None:
-        async def proc_pkts_from_file() -> None:
-            """Process packets from a file, asynchonously."""
+        async def file_reader(fp):
+            async for raw_pkt in file_pkts(fp):
+                self._process_payload(raw_pkt)
 
-            async def file_reader(fp):
-                async for raw_pkt in file_pkts(fp):
-                    self._process_payload(raw_pkt)
+        async def port_reader(manager):
+            async for raw_pkt in port_pkts(manager, self._relay):
+                self._process_payload(raw_pkt)
 
-            async def port_writer(manager=None):
-                while True:
-                    await self._dispatch_pkt(destination=None)
-                    await asyncio.sleep(0)
+                if self.config.get("evofw_flag") and "evofw3" in raw_pkt.packet:
+                    # !V, !T - print the version, or the current mask
+                    # !T00   - turn off all mask bits
+                    # !T01   - cause raw data for all messages to be printed
+                    await manager.put_pkt(self.config["evofw_flag"], _LOGGER)
 
-            reader = asyncio.create_task(file_reader(self.config["input_file"]))
-            self._tasks += [reader, asyncio.create_task(port_writer(None))]
-            await reader
-
-        async def proc_pkts_from_port() -> None:
-            """Process packets from a port, asynchonously."""
-
-            async def port_reader(manager):
-                async for raw_pkt in port_pkts(manager, self._relay):
-                    self._process_payload(raw_pkt)
-
-                    if self.config.get("evofw_flag") and "evofw3" in raw_pkt.packet:
-                        # !V, !T - print the version, or the current mask
-                        # !T00   - turn off all mask bits
-                        # !T01   - cause raw data for all messages to be printed
-                        await manager.put_pkt(self.config["evofw_flag"], _LOGGER)
-
-            async def port_writer(manager):
-                while True:
-                    await self._dispatch_pkt(destination=manager)
-                    await asyncio.sleep(0)
-
-            if self.config.get("ser2net_server"):
-                self._relay = Ser2NetServer(
-                    self.config["ser2net_server"], self.cmd_que, loop=self.loop
-                )
-                self._tasks.append(asyncio.create_task(self._relay.start()))
-
-            async with PortPktProvider(self.serial_port, loop=self.loop) as manager:
-                if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
-                    cmd = self.config["execute_cmd"]
-                    cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:])
-                    await manager.put_pkt(cmd, _LOGGER)
-
-                self._tasks.append(asyncio.create_task(port_reader(manager)))
-                self._tasks.append(asyncio.create_task(port_writer(manager)))
-                await asyncio.gather(*self._tasks)
+        async def port_writer(manager):
+            while True:
+                await self._dispatch_pkt(destination=manager)
+                await asyncio.sleep(0)
 
         # if self.config.get("database"):
         #     import aiosqlite as sqlite3
@@ -275,9 +244,26 @@ class Gateway:
 
         # Finally, source of packets is either a text file, or a serial port:
         if self.config["input_file"]:
-            await proc_pkts_from_file()  # self.config["input_file"]
+            reader = asyncio.create_task(file_reader(self.config["input_file"]))
+            self._tasks += [reader, asyncio.create_task(port_writer(None))]
+            await reader
+
         else:  # if self.serial_port
-            await proc_pkts_from_port()  # self.serial_port
+            if self.config.get("ser2net_server"):
+                self._relay = Ser2NetServer(
+                    self.config["ser2net_server"], self.cmd_que, loop=self.loop
+                )
+                self._tasks.append(asyncio.create_task(self._relay.start()))
+
+            async with PortPktProvider(self.serial_port, loop=self.loop) as manager:
+                if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
+                    cmd = self.config["execute_cmd"]
+                    cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:])
+                    await manager.put_pkt(cmd, _LOGGER)
+
+                self._tasks.append(asyncio.create_task(port_reader(manager)))
+                self._tasks.append(asyncio.create_task(port_writer(manager)))
+                await asyncio.gather(*self._tasks)
 
         await self.async_cleanup("start")
         self.cleanup("start")
