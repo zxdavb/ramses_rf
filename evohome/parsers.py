@@ -353,12 +353,24 @@ def parser_0005(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # schedule_sync (any changes?)
 def parser_0006(payload, msg) -> Optional[dict]:
-    # --- RQ --- 30:071715 01:067930 --:------ 0006 001 00
+    """Return number of changes to the schedules (not fully understood).
 
+    Each change increments the counter by 2. Includes DHW schedule.
+    """
+    # 16:10:34.288 053 RQ --- 18:013393 01:145038 --:------ 0006 001 00
+    # 16:10:34.291 053 RP --- 01:145038 18:013393 --:------ 0006 004 00050008
+    #              --- RQ --- 30:071715 01:067930 --:------ 0006 001 00
+
+    if msg.verb == "RQ":
+        assert payload == "00"  # msg.len == 1
+        return {}
+
+    assert msg.verb == "RP"
     assert msg.len == 4
-    assert payload[2:] in ["050000", "FFFFFF"]
+    assert payload[:2] == "00"  # otherwise: payload[2:] == "FFFFFF", invalid
+    assert payload[2:4] in ["05", "FF"]
 
-    return {"payload": payload}
+    return {"header": payload[:4], "num_changes": int(payload[4:], 16)}
 
 
 @parser_decorator  # relay_demand (domain/zone/device)
@@ -512,13 +524,12 @@ def parser_0404(payload, msg) -> Optional[dict]:
             "frag_length": int(seqx[8:10], 16),
         }
 
-    assert msg.verb in ["RQ", "RP"]
     if msg.verb == "RQ":
         assert msg.len == 7
         return _header(payload[:14])
 
-    if msg.verb == "RP":
-        return {**_header(payload[:14]), "fragment": payload[14:]}
+    assert msg.verb == "RP"
+    return {**_header(payload[:14]), "fragment": payload[14:]}
 
 
 @parser_decorator  # system_fault
