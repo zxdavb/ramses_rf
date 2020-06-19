@@ -196,7 +196,7 @@ class Gateway:
                 _LOGGER.exception("Failed update of %s", self.config["known_devices"])
 
     async def start(self) -> None:
-        async def proc_pkts_from_file(file) -> None:
+        async def proc_pkts_from_file() -> None:
             """Process packets from a file, asynchonously."""
 
             async def file_reader(fp):
@@ -212,7 +212,7 @@ class Gateway:
             self._tasks += [reader, asyncio.create_task(port_writer(None))]
             await reader
 
-        async def proc_pkts_from_port(serial_port) -> None:
+        async def proc_pkts_from_port() -> None:
             """Process packets from a port, asynchonously."""
 
             async def port_reader(manager):
@@ -236,7 +236,7 @@ class Gateway:
                 )
                 self._tasks.append(asyncio.create_task(self._relay.start()))
 
-            async with PortPktProvider(serial_port, loop=self.loop) as manager:
+            async with PortPktProvider(self.serial_port, loop=self.loop) as manager:
                 if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
                     cmd = self.config["execute_cmd"]
                     cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:])
@@ -275,9 +275,9 @@ class Gateway:
 
         # Finally, source of packets is either a text file, or a serial port:
         if self.config["input_file"]:
-            await proc_pkts_from_file(self.config["input_file"])
-        else:  # if self.config["serial_port"] or if self.serial_port
-            await proc_pkts_from_port(self.serial_port)
+            await proc_pkts_from_file()  # self.config["input_file"]
+        else:  # if self.serial_port
+            await proc_pkts_from_port()  # self.serial_port
 
         await self.async_cleanup("start")
         self.cleanup("start")
