@@ -353,6 +353,8 @@ def parser_0005(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # schedule_sync (any changes?)
 def parser_0006(payload, msg) -> Optional[dict]:
+    # --- RQ --- 30:071715 01:067930 --:------ 0006 001 00
+
     assert msg.len == 4
     assert payload[2:] in ["050000", "FFFFFF"]
 
@@ -1142,7 +1144,7 @@ def parser_3ef0(payload, msg) -> dict:
     if msg.dev_from[:2] == "10":
         return {
             **_idx(payload[:2], msg),
-            "modulation_level": int(payload[2:4], 16) / 100,  # should be /200?
+            "modulation_level": int(payload[2:4], 16) / 100,  # TODO: should be /200?
             "flame_active": {"0A": True}.get(payload[2:4], False),
             "flame_status": payload[2:4],
         }

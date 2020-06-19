@@ -52,14 +52,14 @@ CODE_SCHEMA = {
     # UFH-specific codes...
     "22C9": {"name": "ufh_setpoint"},
     "22D0": {"name": "message_22d0", "uses_zone_idx": None},
-    # unknown/unsure codes - maybe not evohome, maybe not Honeywell
+    # unknown/unsure codes - some maybe not evohome, maybe not even Honeywell
     "0002": {"name": "sensor_weather"},
     "0005": {"name": "system_zone", "rq_length": 2},
     "0006": {"name": "schedule_sync"},  # for F9/FA/FC, idx for BDR, F8/FF (all?)
     "1280": {"name": "outdoor_humidity"},
     "1290": {"name": "outdoor_temp"},
     "12A0": {"name": "indoor_humidity"},  # Nuaire ventilation
-    "2249": {"name": "message_2249"},  # programmer now/next setpoint
+    "2249": {"name": "oth_setpoint", "uses_zone_idx": None},  # now/next setpoint
     # "2389": {"name": "message_2389"},  # not real?
     "2D49": {"name": "message_2d49"},  # hometronics only?
     "22F1": {"name": "vent_switch"},
@@ -124,7 +124,7 @@ DEVICE_HAS_BATTERY = [k for k, v in DEVICE_TABLE.items() if v["battery"] is True
 DOMAIN_TYPE_MAP = {
     "F8": "TBD",
     "F9": "Heating",  # Central Heating
-    "FA": "HotWater",  # Stored DHW?
+    "FA": "HotWater",  # Stored DHW loop? (or UFH loop if dev_from==UFH:?)
     "FB": "TBD",  # TODO: bind CS92 with BDRs in both modes
     "FC": "Boiler",  # "Heat Source": BDR (Boiler, District heating), or OTB
     "FF": "System",  # TODO: remove this, is not a domain
