@@ -102,7 +102,7 @@ async def main(loop=None, **kwargs):
         await gateway.start()
 
     except asyncio.CancelledError:
-        print(" - exit: CancelledError")
+        print(" - exit: CancelledError (this is expected)")
     except GracefulExit:
         print(" - exit: GracefulExit")
     except KeyboardInterrupt:
@@ -110,7 +110,7 @@ async def main(loop=None, **kwargs):
     # else:  # if no Exceptions raised
     #     print(" - exit: else-block")
     finally:  # if all raised Exceptions handled (other than any in else)
-        print(" - state database:", gateway.state_db)
+        print(" - state database:\r\n", repr(gateway))  # or str()
 
     print("Finished evohome_rf.")
 

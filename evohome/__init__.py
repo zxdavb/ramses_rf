@@ -8,7 +8,8 @@ from queue import PriorityQueue
 import signal
 import sys
 from threading import Lock
-from typing import Optional
+
+# from typing import Optional
 
 from .command import Command, PAUSE_LONG
 from .const import __dev_mode__  # INDEX_SQL, TABLE_SQL, INSERT_SQL,
@@ -95,8 +96,8 @@ class Gateway:
 
         # if config["known_devices"]:
         self.known_devices = {}
-        self.device_blacklist = []
-        self.device_whitelist = []
+        self.dev_blacklist = []
+        self.dev_whitelist = []
 
         # if config.get("database"):
         self._output_db = self._db_cursor = None
@@ -106,6 +107,12 @@ class Gateway:
 
         self._tasks = []
         self._setup_signal_handler()
+
+    def __repr__(self) -> str:
+        return json.dumps(self.evo.state_db, indent=4)
+
+    def __str__(self) -> str:
+        return json.dumps(self.evo.status, indent=4)
 
     def _setup_signal_handler(self):
         def _sig_handler_win32(signalnum, frame):
@@ -188,17 +195,6 @@ class Gateway:
             except (AssertionError, AttributeError, LookupError, TypeError, ValueError):
                 _LOGGER.exception("Failed update of %s", self.config["known_devices"])
 
-    @property
-    def state_db(self) -> Optional[dict]:
-        if self.config["raw_output"] == 0:
-            return self.evo
-
-        if self.config["raw_output"] == DONT_UPDATE_ENTITIES:
-            return {
-                "devices": [d.id for d in self.evo.devices],
-                "zones": [z.idx for z in self.evo.zones],
-            }
-
     async def start(self) -> None:
         async def proc_pkts_from_file(file) -> None:
             """Process packets from a file, asynchonously."""
@@ -210,6 +206,7 @@ class Gateway:
             async def port_writer(manager=None):
                 while True:
                     await self._dispatch_pkt(destination=None)
+                    await asyncio.sleep(0)
 
             reader = asyncio.create_task(file_reader(self.config["input_file"]))
             self._tasks += [reader, asyncio.create_task(port_writer(None))]
@@ -226,14 +223,12 @@ class Gateway:
                         # !V, !T - print the version, or the current mask
                         # !T00   - turn off all mask bits
                         # !T01   - cause raw data for all messages to be printed
-                        asyncio.create_task(
-                            manager.put_pkt(self.config["evofw_flag"], _LOGGER)
-                        )
+                        await manager.put_pkt(self.config["evofw_flag"], _LOGGER)
 
             async def port_writer(manager):
                 while True:
                     await self._dispatch_pkt(destination=manager)
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(0)
 
             if self.config.get("ser2net_server"):
                 self._relay = Ser2NetServer(
@@ -245,7 +240,7 @@ class Gateway:
                 if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
                     cmd = self.config["execute_cmd"]
                     cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:])
-                    asyncio.create_task(manager.put_pkt(cmd, _LOGGER))
+                    await manager.put_pkt(cmd, _LOGGER)
 
                 self._tasks.append(asyncio.create_task(port_reader(manager)))
                 self._tasks.append(asyncio.create_task(port_writer(manager)))
@@ -269,12 +264,12 @@ class Gateway:
             else:
                 if self.config["device_whitelist"]:
                     # discard packets unless to/from one of our devices
-                    self.device_whitelist = [
+                    self.dev_whitelist = [
                         k for k, v in devices.items() if not v.get("blacklist")
                     ]
                 else:
                     # discard packets to/from any explicitly blacklisted device
-                    self.device_blacklist = [
+                    self.dev_blacklist = [
                         k for k, v in devices.items() if v.get("blacklist")
                     ]
 
@@ -343,7 +338,7 @@ class Gateway:
                 print("Sent RQ for (this) zone(%s)", self._sched_zone.id, kmd)
                 self._sched_lock.release()
 
-                asyncio.create_task(destination.put_pkt(kmd, _LOGGER))
+                await destination.put_pkt(kmd, _LOGGER)
                 return True
 
             self._sched_lock.release()
@@ -363,10 +358,11 @@ class Gateway:
             cmd = self.cmd_que.get()
 
             if str(cmd).startswith("!") and destination is not None:
-                asyncio.create_task(destination.put_pkt(cmd, _LOGGER))
+                await destination.put_pkt(cmd, _LOGGER)
 
             elif destination is None or self.config["listen_only"]:
-                await asyncio.sleep(0.1)  # clear the whole queue
+                # await asyncio.sleep(0)  # clear the whole queue
+                pass
 
             elif cmd.verb == "RQ" and cmd.code == "0404":
                 if await consider_rq_0404(cmd) is True:
@@ -378,14 +374,36 @@ class Gateway:
                 break  # can't send any other initial RQs now
 
             else:
-                asyncio.create_task(destination.put_pkt(cmd, _LOGGER))
+                await destination.put_pkt(cmd, _LOGGER)
 
             self.cmd_que.task_done()
 
     def _process_payload(self, pkt: Packet) -> None:
         """Decode the packet and its payload."""
-        # if any(x in pkt.packet for x in self.config.get("blacklist", [])):
-        #     return  # silently drop packets with blacklisted text
+
+        def is_wanted(dev_whitelist=None, dev_blacklist=None) -> bool:
+            """Return True is a packet is not to be filtered out."""
+
+            def has_wanted_dev(dev_whitelist=None, dev_blacklist=None) -> bool:
+                """Return True only if a packet contains 'wanted' devices."""
+                if " 18:" in pkt.packet:  # TODO: should we ever blacklist a HGI80?
+                    return True
+                if dev_whitelist:
+                    return any(device in pkt.packet for device in dev_whitelist)
+                return not any(device in pkt.packet for device in dev_blacklist)
+
+            # if any(x in pkt.packet for x in self.config.get("blacklist", [])):
+            #     return  # silently drop packets with blacklisted text
+
+            if has_wanted_dev(dev_whitelist, dev_blacklist):
+                pkt_logger.info("%s ", pkt.packet, extra=pkt.__dict__)  # a hack
+                return True
+            return False
+
+        if not is_wanted(
+            dev_whitelist=self.dev_whitelist, dev_blacklist=self.dev_blacklist
+        ):
+            return  # silently drop packets with blacklisted (e.g. neighbour's) devices
 
         # if self._output_db:  # archive all valid packets, even those not to be parsed
         #     ts_pkt = f"{pkt.date}T{pkt.time} {pkt.packet}"

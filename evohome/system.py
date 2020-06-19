@@ -33,7 +33,10 @@ class EvohomeSystem:
 
     @staticmethod
     def _entities(entities, sort_attr) -> dict:
-        """Calculate a system schema."""
+        """Return a dict of all entities of a class (i.e. devices, domains, or zones).
+
+        Returns an array of entity dicts, with their public atrributes, sorted by id.
+        """
 
         def attrs(entity) -> list:
             attr = [a for a in dir(entity) if not callable(getattr(entity, a))]
@@ -47,22 +50,22 @@ class EvohomeSystem:
 
     @property
     def _devices(self) -> dict:
-        """Calculate a system schema."""
+        """Return an array of device dicts, sorted by device_id."""
         return self._entities(self.devices, "id")
 
     @property
     def _domains(self) -> dict:
-        """Calculate a system schema."""
+        """Return an array of domain dicts, sorted by domain_id."""
         return self._entities(self.domains, "id")
 
     @property
     def _zones(self) -> dict:
-        """Calculate a system schema."""
+        """Return an array of zone dicts, sorted by zone_idx."""
         return self._entities(self.zones, "idx")
 
     @property
     def status(self) -> Optional[dict]:
-        """Calculate a system schema."""
+        """Return a representation of the system."""
         controllers = [d for d in self.devices if d.type == "CTL"]
         if len(controllers) != 1:
             _LOGGER.debug("fail test 0: more/less than 1 controller")
@@ -148,16 +151,15 @@ class EvohomeSystem:
 
         return structure
 
-    def __str__(self) -> str:
-        """Produce a string representation of the state DB."""
-        try:
-            result = {
-                "devices": self._devices,
-                "domains": self._domains,
-                "zones": self._zones,
-            }
+    @property
+    def state_db(self) -> dict:
+        """Return a representation of the internal state DB."""
 
-        except (AssertionError, AttributeError, LookupError, TypeError, ValueError):
-            _LOGGER.exception("Failed to produce State data")
+        result = {}
+        for evo_class in ("devices", "domains", "zones"):
+            try:
+                result.update({evo_class: getattr(self, f"_{evo_class}")})
+            except (AssertionError, AttributeError, LookupError, TypeError, ValueError):
+                _LOGGER.exception("Failed to produce State data")
 
-        return str(result)
+        return result

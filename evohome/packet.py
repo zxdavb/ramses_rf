@@ -5,13 +5,14 @@ import logging
 import re
 from string import printable
 from threading import Lock
-from time import sleep
+
+# from time import sleep
 from typing import Optional
 
 from serial import SerialException
 from serial_asyncio import open_serial_connection
 
-from .command import PAUSE_SHORT
+from .command import PAUSE_DEFAULT, PAUSE_SHORT
 from .const import ISO_FORMAT_REGEX, MESSAGE_REGEX, __dev_mode__
 from .logger import time_stamp
 
@@ -99,30 +100,6 @@ class Packet:
         _LOGGER.warning("%s < Bad packet: %s ", self, err_msg, extra=self.__dict__)
         return False
 
-    def is_wanted(self, dev_whitelist=None, dev_blacklist=None, **kwargs) -> bool:
-        """Return True is a packet is not to be filtered out."""
-
-        return True  # TODO needs fixing ASAP
-
-        if self._is_wanted is not None:
-            return self._is_wanted
-
-        def has_wanted_dev(dev_whitelist=None, dev_blacklist=None) -> bool:
-            """Return True only if a packet contains 'wanted' devices."""
-            if " 18:" in self.packet:  # TODO: should we allow blacklisting of a HGI80?
-                return True
-            if dev_whitelist:
-                return any(device in self.packet for device in dev_whitelist)
-            return not any(device in self.packet for device in dev_blacklist)
-
-        # silently drop packets with unwanted (e.g. neighbour's) devices
-        self._is_wanted = has_wanted_dev(dev_whitelist, dev_blacklist)
-
-        if self._is_wanted:
-            _LOGGER.info("%s ", self, extra=self.__dict__)
-
-        return self._is_wanted
-
 
 class PortPktProvider:
     """Base class for packets from a serial port."""
@@ -197,19 +174,19 @@ class PortPktProvider:
         return dtm, pkt, raw_pkt
 
     async def put_pkt(self, cmd, logger):  # TODO: logger is a hack
-        """Get the next packet line from a serial port."""
+        """Put the next packet line to a serial port."""
 
-        self._lock.acquire()
+        # self._lock.acquire()
         # logger.debug("# Data was sent to %s: %s", self.serial_port, cmd)
         self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
 
         # cmd.dispatch_dtm = time_stamp()
         if str(cmd).startswith("!"):  # traceflag to evofw
-            sleep(PAUSE_SHORT)
+            await asyncio.sleep(PAUSE_SHORT)
         else:
-            sleep(cmd.pause)
+            await asyncio.sleep(max(cmd.pause, PAUSE_DEFAULT))
 
-        self._lock.release()
+        # self._lock.release()
 
         # if cmd.verb == "RQ":
         #     cmd.dtm = time_stamp()
@@ -233,18 +210,18 @@ class FilePktProvider:
         return
 
 
-async def port_pkts(manager, relay=None, **kwargs):
+async def port_pkts(manager, relay=None):
     while True:
         pkt = Packet(*(await manager.get_pkt()))
-        if pkt.is_valid and pkt.is_wanted(kwargs):
+        if pkt.is_valid:
             if relay:  # TODO: handle socket close
                 asyncio.create_task(relay.write(pkt.packet))
             yield pkt
 
-        await asyncio.sleep(0.1)  # at least 0, to enable a Ctrl-C
+        await asyncio.sleep(0)  # at least 0, to enable a Ctrl-C
 
 
-async def file_pkts(fp, **kwargs):
+async def file_pkts(fp):
     for ts_pkt in fp:
         try:
             assert re.match(ISO_FORMAT_REGEX, ts_pkt[:26])
@@ -254,7 +231,7 @@ async def file_pkts(fp, **kwargs):
             continue
 
         pkt = Packet(ts_pkt[:26], ts_pkt[27:].strip(), None)
-        if pkt.is_valid and pkt.is_wanted(kwargs):
+        if pkt.is_valid:
             yield pkt
 
-        await asyncio.sleep(0.1)  # at least 0, to enable a Ctrl-C
+        await asyncio.sleep(0)  # usu. 0, to enable a Ctrl-C
