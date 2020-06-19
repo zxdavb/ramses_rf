@@ -1,25 +1,23 @@
 """Packet processor."""
-
 import asyncio
-from collections import namedtuple
+from datetime import datetime as dt
 import logging
-
-# import re
+import re
+from string import printable
+from threading import Lock
+from time import sleep
+from typing import Optional
 
 from serial import SerialException
 from serial_asyncio import open_serial_connection
-from string import printable
-from typing import Optional
 
 from .command import PAUSE_SHORT
-from .const import MESSAGE_REGEX, __dev_mode__
+from .const import ISO_FORMAT_REGEX, MESSAGE_REGEX, __dev_mode__
 from .logger import time_stamp
 
 BAUDRATE = 115200
 READ_TIMEOUT = 0.5
 XON_XOFF = True
-
-RAW_PKT = namedtuple("Packet", ["datetime", "packet", "bytearray"])
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,25 +35,24 @@ def split_pkt_line(packet_line: str) -> (str, str, str):
 class Packet:
     """The packet class."""
 
-    def __init__(self, raw_pkt) -> None:
+    def __init__(self, dtm, pkt, raw_pkt) -> None:
         """Create a packet."""
-        self.date, self.time = raw_pkt.datetime.split("T")
-        self.packet, self.error_text, self.comment = split_pkt_line(raw_pkt.packet)
+        # self._dtm = dt.fromisoformat(dtm)
+        self.date, self.time = dtm.split("T")
 
-        self._pkt_line = raw_pkt.packet
-        self._raw_pkt_line = raw_pkt.bytearray
+        self._pkt_line = pkt
+        self._raw_pkt_line = raw_pkt
+        self.packet, self.error_text, self.comment = split_pkt_line(pkt)
 
         self._packet = self.packet + " " if self.packet else ""  # TODO: hack 4 logging
 
-        self._is_valid = None
+        self._is_valid = self._is_wanted = None
         self._is_valid = self.is_valid
 
     def __str__(self) -> str:
-        """Represent the packet as a string."""
         return self.packet if self.packet else ""
 
     def __repr__(self):
-        """Represent the packet in an umabiguous manner."""
         return str(self._raw_pkt_line if self._raw_pkt_line else self._pkt_line)
 
     @property
@@ -102,6 +99,30 @@ class Packet:
         _LOGGER.warning("%s < Bad packet: %s ", self, err_msg, extra=self.__dict__)
         return False
 
+    def is_wanted(self, dev_whitelist=None, dev_blacklist=None, **kwargs) -> bool:
+        """Return True is a packet is not to be filtered out."""
+
+        return True  # TODO needs fixing ASAP
+
+        if self._is_wanted is not None:
+            return self._is_wanted
+
+        def has_wanted_dev(dev_whitelist=None, dev_blacklist=None) -> bool:
+            """Return True only if a packet contains 'wanted' devices."""
+            if " 18:" in self.packet:  # TODO: should we allow blacklisting of a HGI80?
+                return True
+            if dev_whitelist:
+                return any(device in self.packet for device in dev_whitelist)
+            return not any(device in self.packet for device in dev_blacklist)
+
+        # silently drop packets with unwanted (e.g. neighbour's) devices
+        self._is_wanted = has_wanted_dev(dev_whitelist, dev_blacklist)
+
+        if self._is_wanted:
+            _LOGGER.info("%s ", self, extra=self.__dict__)
+
+        return self._is_wanted
+
 
 class PortPktProvider:
     """Base class for packets from a serial port."""
@@ -113,6 +134,8 @@ class PortPktProvider:
         self.timeout = timeout
         self.xonxoff = XON_XOFF
         self.loop = loop
+
+        self._lock = Lock()
 
         self.reader = self.write = None
 
@@ -131,12 +154,12 @@ class PortPktProvider:
     async def __aexit__(self, exc_type, exc, tb) -> None:
         pass
 
-    async def get_pkt(self):
+    async def get_pkt(self):  # returns a tuple
         """Get the next packet line from a serial port."""
 
         def _logger_msg(func, msg):
             # TODO: this is messy...
-            date, time = timestamp.split("T")
+            date, time = dtm.split("T")
             func(
                 "%s < %s",
                 raw_pkt,
@@ -153,9 +176,9 @@ class PortPktProvider:
         try:
             raw_pkt = await self.reader.readline()
         except SerialException:
-            return RAW_PKT(time_stamp(), None, None)
+            return time_stamp(), None, None
 
-        timestamp = time_stamp()  # done here & now for most-accurate timestamp
+        dtm = time_stamp()  # done here & now for most-accurate timestamp
         if __dev_mode__:
             _logger_msg(_LOGGER.debug, "Raw packet")
 
@@ -167,23 +190,30 @@ class PortPktProvider:
             )
         except UnicodeDecodeError:
             _logger_msg(_LOGGER.warning, "Bad (raw) packet")
-            return RAW_PKT(time_stamp, None, None)
+            return dtm, None, raw_pkt
 
         # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
 
-        return RAW_PKT(timestamp, pkt, raw_pkt)
+        return dtm, pkt, raw_pkt
 
     async def put_pkt(self, cmd, logger):  # TODO: logger is a hack
         """Get the next packet line from a serial port."""
 
+        self._lock.acquire()
         # logger.debug("# Data was sent to %s: %s", self.serial_port, cmd)
         self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
 
         # cmd.dispatch_dtm = time_stamp()
         if str(cmd).startswith("!"):  # traceflag to evofw
-            await asyncio.sleep(PAUSE_SHORT)
+            sleep(PAUSE_SHORT)
         else:
-            await asyncio.sleep(cmd.pause)
+            sleep(cmd.pause)
+
+        self._lock.release()
+
+        # if cmd.verb == "RQ":
+        #     cmd.dtm = time_stamp()
+        #     self._window.append(cmd)
 
 
 class FilePktProvider:
@@ -201,3 +231,30 @@ class FilePktProvider:
     async def get_next_pkt(self) -> Optional[str]:
         """Get the next packet line from a source file."""
         return
+
+
+async def port_pkts(manager, relay=None, **kwargs):
+    while True:
+        pkt = Packet(*(await manager.get_pkt()))
+        if pkt.is_valid and pkt.is_wanted(kwargs):
+            if relay:  # TODO: handle socket close
+                asyncio.create_task(relay.write(pkt.packet))
+            yield pkt
+
+        await asyncio.sleep(0.1)  # at least 0, to enable a Ctrl-C
+
+
+async def file_pkts(fp, **kwargs):
+    for ts_pkt in fp:
+        try:
+            assert re.match(ISO_FORMAT_REGEX, ts_pkt[:26])
+            dt.fromisoformat(ts_pkt[:26])
+        except (AssertionError, ValueError):  # TODO: log these, or not?
+            _LOGGER.debug("Packet line has invalid timestamp: %s", ts_pkt[:26])
+            continue
+
+        pkt = Packet(ts_pkt[:26], ts_pkt[27:].strip(), None)
+        if pkt.is_valid and pkt.is_wanted(kwargs):
+            yield pkt
+
+        await asyncio.sleep(0.1)  # at least 0, to enable a Ctrl-C

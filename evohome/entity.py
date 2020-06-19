@@ -21,8 +21,10 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-if __dev_mode__:
+if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
+else:
+    _LOGGER.setLevel(logging.WARNING)
 
 
 def dev_hex_to_id(device_hex: str, friendly_id=False) -> str:
@@ -170,7 +172,7 @@ class Domain(Entity):
         if msg.code in ["1100", "3150", "3B00"] and self.type is None:
             self.__class__ = TpiDomain
             self.type = "TPI"
-            _LOGGER.warning("Promoted domain %s to TPI", self.id)
+            _LOGGER.debug("Promoted domain %s to TPI", self.id)
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
@@ -406,7 +408,6 @@ class Controller(Device):
 
         if msg.code == "0418" and msg.verb in [" I", "RP"]:  # this is a special case
             self._fault_log[msg.payload["log_idx"]] = msg
-            # print(self.fault_log)
 
         if msg.code == "1F09" and msg.verb == " I":
             maintain_state_data()
@@ -603,7 +604,7 @@ class BdrSwitch(Device):
         def make_tpi():
             self.__class__ = TpiSwitch
             self.type = "TPI"
-            _LOGGER.warning("Promoted device %s to %s", self.id, self.type)
+            _LOGGER.debug("Promoted device %s to %s", self.id, self.type)
 
             self._is_tpi = True
             self.parent_zone = "FC"
@@ -681,8 +682,8 @@ class Zone(Entity):
 
         # 095 RQ --- 18:013393 01:145038 --:------ 0404 007 00200008000100
         # 045 RP --- 01:145038 18:013393 --:------ 0404 048 00200008290105 68816DCDB..
-        # if self.id == "00":  # TODO: used only for testing
-        self._schedule.req_fragment()  # dont use self._command() here
+        if self.id == "99":  # TODO: used only for testing
+            self._schedule.req_fragment()  # dont use self._command() here
         # self._command("0404", payload=f"{self.id}200008000100", pause=PAUSE_LONG)
 
     def update(self, msg):
@@ -703,7 +704,7 @@ class Zone(Entity):
             else:
                 self.type = "BDR"
                 self.__class__ = _ZONE_CLASS[self.type]
-                _LOGGER.warning("Promoted zone %s to %s", self.id, self.type)
+                _LOGGER.debug("Promoted zone %s to %s", self.id, self.type)
 
         if msg.code == "0404" and msg.verb == "RP":
             _LOGGER.debug("Zone(%s).update: Received RP for zone: ", self.id)
@@ -725,7 +726,7 @@ class Zone(Entity):
                 self.type = "VAL"
 
             self.__class__ = _ZONE_CLASS[self.type]
-            _LOGGER.warning("Promoted zone %s to %s", self.id, self.type)
+            _LOGGER.debug("Promoted zone %s to %s", self.id, self.type)
 
     @property
     def schedule(self) -> Optional[dict]:
@@ -909,7 +910,7 @@ class BdrZone(Zone):
         if msg.code == "3150" and self.type != "VAL":
             self.type = "VAL"
             self.__class__ = _ZONE_CLASS[self.type]
-            _LOGGER.warning("Promoted zone %s to %s", self.id, self.type)
+            _LOGGER.debug("Promoted zone %s to %s", self.id, self.type)
 
     @property
     def actuator_enabled(self) -> Optional[bool]:  # 3EF0
