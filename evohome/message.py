@@ -142,6 +142,12 @@ class Message:
             self._is_array = self.verb == " I" and self.dev_from == self.dev_dest
             self._is_array = self._is_array if self.raw_payload[:1] != "F" else False
 
+        # 095  I --- 23:100224 --:------ 23:100224 2249 007 007EFF7EFFFFFF
+        # 095  I --- 23:100224 --:------ 23:100224 2249 007 007EFF7EFFFFFF
+        elif self.code in ["2249"] and self.dev_from[:2] == "23":
+            self._is_array = self.verb == " I" and self.dev_from == self.dev_dest
+            # self._is_array = self._is_array if self.raw_payload[:1] != "F" else False
+
         else:
             self._is_array = False
 

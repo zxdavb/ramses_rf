@@ -52,15 +52,15 @@ CODE_SCHEMA = {
     # UFH-specific codes...
     "22C9": {"name": "ufh_setpoint"},
     "22D0": {"name": "message_22d0", "uses_zone_idx": None},
-    # unknown/unsure codes
+    # unknown/unsure codes - maybe not evohome, maybe not Honeywell
     "0002": {"name": "sensor_weather"},
     "0005": {"name": "system_zone", "rq_length": 2},
     "0006": {"name": "schedule_sync"},  # for F9/FA/FC, idx for BDR, F8/FF (all?)
     "1280": {"name": "outdoor_humidity"},
     "1290": {"name": "outdoor_temp"},
     "12A0": {"name": "indoor_humidity"},  # Nuaire ventilation
-    "2249": {"name": "message_2249"},  # programmer now/next setpoint (jrosser/honeymon)
-    "2389": {"name": "message_2389"},  # not real?
+    "2249": {"name": "message_2249"},  # programmer now/next setpoint
+    # "2389": {"name": "message_2389"},  # not real?
     "2D49": {"name": "message_2d49"},  # hometronics only?
     "22F1": {"name": "vent_switch"},
     "22F3": {"name": "other_switch"},
@@ -103,6 +103,7 @@ DEVICE_TABLE = {
     "18": {"type": "HGI", "name": "Honeywell Gateway?", "battery": False},  # HGI80
     "20": {"type": "VCE", "name": "Ventilation?", "battery": None},  # VCE-RF
     "22": {"type": "THM", "name": "Room Thermostat", "battery": True},  # DTS92(E)
+    "23": {"type": "023", "name": "Unknown", "battery": None},  # ???
     "30": {"type": "GWY", "name": "Internet Gateway", "battery": False},  # RFG100, VMS?
     "32": {"type": "VMS", "name": "Ventilation?", "battery": True},
     "34": {"type": "STA", "name": "Round Thermostat", "battery": True},  # T87RF
