@@ -412,10 +412,10 @@ class Gateway:
         #     await self._db_cursor.execute(INSERT_SQL, data)
         #     await self._output_db.commit()
 
-        # process packet payloads as messages
         if self.config["raw_output"] >= DONT_CREATE_MESSAGES:
             return
 
+        # process packet payloads as messages
         try:
             msg = Message(pkt, self)
             if not msg.is_valid:  # trap/logs all exceptions appropriately
