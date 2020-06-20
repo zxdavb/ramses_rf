@@ -22,7 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
-MAX_ZONES = 11  # evohome is 12, hometronics is 17, or more?
+MAX_ZONES = 12  # evohome is 12 (0-11), hometronics is 16 (0-15), or more?
 
 
 def _idx(seqx, msg) -> dict:
@@ -1117,13 +1117,13 @@ def parser_3b00(payload, msg) -> Optional[dict]:
     # TODO: alter #cycles/hour & check interval between 3B00/3EF0 changes
     """Decode a 3B00 packet (sync_tpi).
 
-    The boiler relay regularly broadcasts a 3B00 at the start (or the end?) of every TPI
+    The heat relay regularly broadcasts a 3B00 at the start (or the end?) of every TPI
     cycle, the frequency of which is determined by the (TPI) cycle rate in 1100.
 
     The CTL subsequently broadcasts a 3B00 (i.e. at the start of every TPI cycle).
 
-    The OTB does not send these packets, but the CTL sends a regular broadcasty
-     anyway.
+    The OTB does not send these packets, but the CTL sends a regular broadcast
+    anyway.
     """
 
     # 053  I --- 13:209679 --:------ 13:209679 3B00 002 00C8
