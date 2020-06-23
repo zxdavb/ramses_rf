@@ -22,7 +22,10 @@ _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
-MAX_ZONES = 12  # evohome is 12 (0-11), hometronics is 16 (0-15), or more?
+MAX_ZONES = 12
+# Evohome: 12 (0-11), older/initial version was 8
+# Hometronics: 16 (0-15), or more?
+# Sundial RF2: 2 (0-1), usually only one, but ST9520C can do two zones
 
 
 def _idx(seqx, msg) -> dict:
@@ -36,26 +39,26 @@ def _idx(seqx, msg) -> dict:
 
     Anything in the range F0-FF appears to be a domain id (no false +ve/-ves).
     """
-    if msg.code in ["1F09", "1FC9", "2E04"]:  # don't idx, even though some != "00"
+    if msg.code in ("1F09", "1FC9", "2E04"):  # don't idx, even though some != "00"
         # 1F09: "FF" (I), "00" (RP), "F8" (W, after 1FC9)
         # 1FC9: dict is currently encoded in a way that id/idx is not used
         # 2E04: payload[:2] is system mode, would fail final assert
         return {}
 
     # TODO: these are not evohome, and list of msg codes ?not complete (e.g. 3150?)
-    if {"12", "22"} & {msg.dev_from[:2]} and msg.dev_from[:2] == msg.dev_addr[2][:2]:
-        if msg.code in ["0008", "0009", "1030", "1100", "2309", "1030", "313F"]:
+    if {"12", "22"} & {msg.src_type} and msg.src_type == msg.dev_addr[2][:2]:
+        if msg.code in ("0008", "0009", "1030", "1100", "2309", "1030", "313F"):
             assert int(seqx, 16) < MAX_ZONES
             return {"other_idx": seqx}
 
-    elif msg.code in ["0002", "2D49"]:  # non-evohome: hometronics
+    elif msg.code in ("0002", "2D49"):  # non-evohome: hometronics
         return {"other_idx": seqx}
 
-    elif msg.code in ["0016", "3EF1"]:  # WIP, not normally {"uses_zone_idx": True}
-        if {"12", "22"} & {msg.dev_from[:2], msg.dev_dest[:2]}:
+    elif msg.code in ("0016", "3EF1"):  # WIP, not normally {"uses_zone_idx": True}
+        if {"12", "22"} & {msg.src_type, msg.dst_type}:
             assert int(seqx, 16) < MAX_ZONES
             idx_name = (
-                "zone_idx" if msg.dev_from[:2] in ["01", "02", "18"] else "parent_idx"
+                "zone_idx" if msg.src_type in ("01", "02", "18") else "parent_idx"
             )
             return {idx_name: seqx}
 
@@ -63,12 +66,12 @@ def _idx(seqx, msg) -> dict:
         assert int(seqx, 16) < 64
         return {"log_idx": seqx}
 
-    elif msg.code == "22C9" and msg.dev_from[:2] == "02":  # ufh_setpoint
+    elif msg.code == "22C9" and msg.src_type == "02":  # ufh_setpoint
         assert int(seqx, 16) < 8  # this can be a "00", maybe zone_idx, see below
         return {"ufh_idx": seqx}  # TODO: confirm is / is not zone_idx
 
-    elif msg.code in ["31D9", "31DA"]:  # ventilation
-        assert seqx in ["00", "01", "21"]
+    elif msg.code in ("31D9", "31DA"):  # ventilation
+        assert seqx in ("00", "01", "21")
         return {"vent_id": seqx}
 
     elif msg.code in MAY_USE_DOMAIN_ID and seqx in DOMAIN_TYPE_MAP:
@@ -77,13 +80,13 @@ def _idx(seqx, msg) -> dict:
 
     elif msg.code in MAY_USE_ZONE_IDX:
         assert int(seqx, 16) < MAX_ZONES
-        if {"01", "02"} & {msg.dev_from[:2], msg.dev_dest[:2]}:
+        if {"01", "02"} & {msg.src_type, msg.dst_type}:
             idx_name = (
-                "zone_idx" if msg.dev_from[:2] in ["01", "02", "18"] else "parent_idx"
+                "zone_idx" if msg.src_type in ("01", "02", "18") else "parent_idx"
             )
             return {idx_name: seqx}
 
-    assert seqx in ["00", "FF"]
+    assert seqx in ("00", "FF")
     return {}
 
 
@@ -101,21 +104,21 @@ def parser_decorator(func):
 
         if msg.verb == " W":  # TODO: WIP, need to check _idx()
             # these are OK to parse Ws:
-            if msg.code in ["0001"]:
+            if msg.code in ("0001"):
                 return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
-            if msg.code in ["2309", "2349"] and msg.dev_from[:2] in ["12", "22", "34"]:
+            if msg.code in ("2309", "2349") and msg.src_type in ("12", "22", "34"):
                 assert int(payload[:2], 16) < MAX_ZONES
                 return func(*args, **kwargs)
             # TODO: these are WIP
             if msg.code == "1F09":
                 assert payload[:2] == "F8"
                 return func(*args, **kwargs)
-            if msg.code in ["1FC9"]:
+            if msg.code in ("1FC9"):
                 return func(*args, **kwargs)
-            assert payload[:2] in ["00", "FC"]  # ["1100", "2309", "2349"]
+            # assert payload[:2] in ("00", "FC")  # ("1100", "2309", "2349")
             return func(*args, **kwargs)
 
-        if msg.verb != "RQ":  # i.e. in [" I", "RP"]
+        if msg.verb != "RQ":  # i.e. in (" I", "RP")
             result = func(*args, **kwargs)
             if isinstance(result, list):
                 return result
@@ -135,12 +138,12 @@ def parser_decorator(func):
             return {**_idx(payload[:2], msg)}
 
         # STA will RQ zone_config, setpoint *sans* payload...
-        if msg.code in ["000A", "2309"] and msg.dev_from[:2] == "34":
+        if msg.code in ("000A", "2309") and msg.src_type == "34":
             assert msg.len == 1
             return {**_idx(payload[:2], msg)}
 
         # THM will RQ zone_config, setpoint *with* a payload...
-        if msg.code in ["000A", "2309"] and msg.dev_from[:2] in ["12", "22"]:
+        if msg.code in ("000A", "2309") and msg.src_type in ("12", "22"):
             assert msg.len == 6 if msg.code == "000A" else 3
             return {**_idx(payload[:2], msg)}
 
@@ -148,7 +151,7 @@ def parser_decorator(func):
             assert msg.len < 3  # if msg.code == "0004" else 2
             return {**_idx(payload[:2], msg)}
 
-        if msg.code == "0016" and msg.dev_from[:2] in ["12", "22"]:
+        if msg.code == "0016" and msg.src_type in ("12", "22"):
             assert msg.len == 2
             return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
 
@@ -157,7 +160,7 @@ def parser_decorator(func):
             return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
 
         if msg.code == "0100":  # 04: will RQ language
-            assert msg.len in [1, 5]  # len(RQ) = 5, but 00 accepted
+            assert msg.len in (1, 5)  # len(RQ) = 5, but 00 accepted
             return func(*args, **kwargs)  # no context
 
         if msg.code == "0404":
@@ -169,19 +172,19 @@ def parser_decorator(func):
             assert int(payload[4:6], 16) <= 63
             return {"log_idx": payload[4:6]}
 
-        if msg.code == "10A0" and msg.dev_from[:2] == "07":  # DHW
+        if msg.code == "10A0" and msg.src_type == "07":  # DHW
             return func(*args, **kwargs)
 
         if msg.code == "1100":
-            assert payload[:2] in ["00", "FC"]
+            assert payload[:2] in ("00", "FC")
             if msg.len > 2:  # these RQs have payloads!
                 return func(*args, **kwargs)
             return {**_idx(payload[:2], msg)}
 
-        if msg.code in ["12B0", "2E04"]:  # TODO: check 12B0
+        if msg.code in ("12B0", "2E04"):  # TODO: check 12B0
             return {}
 
-        if msg.code in ["1F09"]:
+        if msg.code in ("1F09"):
             # 061 RQ --- 04:189082 01:145038 --:------ 1F09 001 00
             assert payload == "00"
             return {}
@@ -189,7 +192,7 @@ def parser_decorator(func):
         if msg.code == "3220":  # CTL -> OTB (OpenTherm)
             return func(*args, **kwargs)
 
-        if msg.code in ["31D9", "31DA"]:  # ventilation
+        if msg.code in ("31D9", "31DA"):  # ventilation
             # 047 RQ --- 32:168090 30:082155 --:------ 31DA 001 21
             assert msg.len == 1
             return {**_idx(payload[:2], msg)}
@@ -204,70 +207,73 @@ def parser_decorator(func):
         if payload == "00":  # TODO: WIP
             return {}
 
-        assert False and payload in ["FF", "FC"]
+        assert False and payload in ("FF", "FC")
         return func(*args, **kwargs)  # All other RQs
 
     return wrapper
 
 
-def _bool(seqx) -> Optional[bool]:  # either 00 or C8
-    assert seqx in ["00", "C8", "FF"]
-    return {"00": False, "C8": True}.get(seqx)
+def _bool(value: str) -> Optional[bool]:  # either 00 or C8
+    """Return a boolean."""
+    assert value in ("00", "C8", "FF")
+    return {"00": False, "C8": True}.get(value)
 
 
-def _dtm(seqx) -> str:
+def _dtm(value: str) -> str:
     """Return a local datetime string in isoformat."""
     #        00141B0A07E3  (...HH:MM:00)    for system_mode, zone_mode (schedules?)
     #      0400041C0A07E3  (...HH:MM:SS)    for sync_datetime
 
-    assert len(seqx) in [12, 14]
-    if len(seqx) == 12:
-        seqx = f"00{seqx}"
+    if len(value) == 12:
+        value = f"00{value}"
+    assert len(value) == 14
     return dt(
-        year=int(seqx[10:14], 16),
-        month=int(seqx[8:10], 16),
-        day=int(seqx[6:8], 16),
-        hour=int(seqx[4:6], 16) & 0b11111,  # 1st 3 bits: DayOfWeek
-        minute=int(seqx[2:4], 16),
-        second=int(seqx[:2], 16) & 0b1111111,  # 1st bit: DST
+        year=int(value[10:14], 16),
+        month=int(value[8:10], 16),
+        day=int(value[6:8], 16),
+        hour=int(value[4:6], 16) & 0b11111,  # 1st 3 bits: DayOfWeek
+        minute=int(value[2:4], 16),
+        second=int(value[:2], 16) & 0b1111111,  # 1st bit: used for DST
     ).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _date(seqx) -> Optional[str]:
-    assert len(seqx) == 8
-    if seqx == "FFFFFFFF":
+def _date(value: str) -> Optional[str]:  # YY-MM-DD
+    """Return a date string in the format YY-MM-DD."""
+    assert len(value) == 8
+    if value == "FFFFFFFF":
         return None
     return dt(
-        year=int(seqx[4:8], 16),
-        month=int(seqx[2:4], 16),
-        day=int(seqx[:2], 16) & 0b11111,  # 1st 3 bits: DayOfWeek
+        year=int(value[4:8], 16),
+        month=int(value[2:4], 16),
+        day=int(value[:2], 16) & 0b11111,  # 1st 3 bits: DayOfWeek
     ).strftime("%Y-%m-%d")
 
 
-def _percent(seqx) -> Optional[float]:  # usually a percentage 0-100% (0.0 to 1.0)
-    assert len(seqx) == 2
-    if seqx == "FF":  # TODO: also FE?
+def _percent(value: str) -> Optional[float]:  # a percentage 0-100% (0.0 to 1.0)
+    """Return a percentage, 0-100% with resolution of 0.5%."""
+    assert len(value) == 2
+    if value == "FF":  # TODO: also FE?
         return None
+    assert int(value, 16) <= 200
+    return int(value, 16) / 200
 
-    assert int(seqx, 16) <= 200  # TODO: also FE? (FF excluded above)
-    return int(seqx, 16) / 200
 
-
-def _str(seqx) -> Optional[str]:  # printable
-    _string = bytearray([x for x in bytearray.fromhex(seqx) if 31 < x < 127])
+def _str(value: str) -> Optional[str]:  # printable ASCII characters
+    """Return a string of printable ASCII characters."""
+    _string = bytearray([x for x in bytearray.fromhex(value) if 31 < x < 127])
     return _string.decode("ascii") if _string else None
 
 
-def _temp(seqx) -> Union[float, bool, None]:
-    """Temperatures are two's complement numbers."""
-    assert len(seqx) == 4
-    if seqx == "31FF":  # also: FFFF?, means: N/A (== 127.99, 2s complement)
+def _temp(value: str) -> Union[float, bool, None]:
+    """Return a two's complement Temperature/Setpoint."""
+    assert len(value) == 4
+    if value == "31FF":  # means: N/A (== 127.99, 2s complement)
         return None
-    if seqx == "7EFF":  # TODO: possibly only for setpoints?
+    if value == "7EFF":  # possibly only for setpoints?
         return False
-    if seqx == "7FFF":  # also: FFFF?, means: N/A (== 327.67)
+    if value == "7FFF":  # also: FFFF?, means: N/A (== 327.67)
         return None
-    temp = int(seqx, 16)
+    temp = int(value, 16)
     return (temp if temp < 2 ** 15 else temp - 2 ** 16) / 100
 
 
@@ -305,11 +311,11 @@ def parser_0001(payload, msg) -> Optional[dict]:
     # 00:22:43.320 ---  I --- --:------ --:------ --:------ 0001 005 00FFFF02FF
     # 00:22:43.415 ---  I --- --:------ --:------ --:------ 0001 005 00FFFF0200
 
-    assert msg.verb in [" I", " W"]
+    assert msg.verb in (" I", " W")
     assert msg.len == 5
-    assert payload[:2] in ["FC", "FF"] or (int(payload[:2], 16) < MAX_ZONES)
-    assert payload[2:6] in ["0000", "FFFF"]
-    assert payload[6:8] in ["02", "05"]
+    assert payload[:2] in ("FC", "FF") or (int(payload[:2], 16) < MAX_ZONES)
+    assert payload[2:6] in ("0000", "FFFF")
+    assert payload[6:8] in ("02", "05")
     return {
         **_idx(payload[:2], msg),  # not fully understood
         "unknown_0": payload[2:6],
@@ -322,7 +328,11 @@ def parser_0001(payload, msg) -> Optional[dict]:
 def parser_0002(payload, msg) -> Optional[dict]:
     assert msg.len == 4
 
-    return {"temperature": _temp(payload[2:6]), "unknown_0": payload[6:]}
+    return {
+        **_idx(payload[:2], msg),
+        "temperature": _temp(payload[2:6]),
+        "unknown_0": payload[6:],
+    }
 
 
 @parser_decorator  # zone_name
@@ -332,6 +342,9 @@ def parser_0004(payload, msg) -> Optional[dict]:
     assert msg.len == 22
     assert payload[2:4] == "00"
 
+    if payload[4:] == "7F" * 20:
+        return {**_idx(payload[:2], msg)}
+
     return {**_idx(payload[:2], msg), "name": _str(payload[4:])}
 
 
@@ -339,16 +352,16 @@ def parser_0004(payload, msg) -> Optional[dict]:
 def parser_0005(payload, msg) -> Optional[dict]:
     # RQ payload is xx00, controller wont respond to a xx
 
-    assert msg.verb in [" I", "RP"]
-    if msg.dev_from[:2] == "34":
+    assert msg.verb in (" I", "RP")
+    if msg.src_type == "34":
         assert msg.len == 12  # or % 4?
 
     else:
-        assert msg.dev_from[:2] == "01"
+        assert msg.src_type == "01"
         assert msg.len == 4
-        assert payload[2:4] in ["00", "0D", "0F"]  # TODO: 00=Radiator, 0D=Electric?
+        assert payload[2:4] in ("00", "0D", "0F")  # TODO: 00=Radiator, 0D=Electric?
 
-    return {"device_id": msg.dev_from, "payload": payload}
+    return {"device_id": msg.src_addr, "payload": payload}
 
 
 @parser_decorator  # schedule_sync (any changes?)
@@ -368,7 +381,7 @@ def parser_0006(payload, msg) -> Optional[dict]:
     assert msg.verb == "RP"
     assert msg.len == 4
     assert payload[:2] == "00"  # otherwise: payload[2:] == "FFFFFF", invalid
-    assert payload[2:4] in ["05", "FF"]
+    assert payload[2:4] in ("05", "FF")
 
     return {"header": payload[:4], "num_changes": int(payload[4:], 16)}
 
@@ -379,7 +392,7 @@ def parser_0008(payload, msg) -> Optional[dict]:
     # e.g. Electric Heat Zone
     assert msg.len == 2
 
-    if payload[:2] not in ["F9", "FA", "FC"]:
+    if payload[:2] not in ("F9", "FA", "FC"):
         assert int(payload[:2], 16) < MAX_ZONES  # TODO: when 0, when FC, when zone
 
     return {**_idx(payload[:2], msg), "relay_demand": _percent(payload[2:])}
@@ -390,9 +403,9 @@ def parser_0009(payload, msg) -> Union[dict, list]:
     # TODO: can only be max one relay per domain/zone
     # can get: 003 or 006, e.g.: FC01FF-F901FF or FC00FF-F900FF
     def _parser(seqx) -> dict:
-        assert seqx[:2] in ["F9", "FC"] or int(seqx[:2], 16) < MAX_ZONES
-        assert seqx[2:4] in ["00", "01"]
-        assert seqx[4:] in ["00", "FF"]
+        assert seqx[:2] in ("F9", "FC") or int(seqx[:2], 16) < MAX_ZONES
+        assert seqx[2:4] in ("00", "01")
+        assert seqx[4:] in ("00", "FF")
 
         return {
             **_idx(seqx[:2], msg),
@@ -436,8 +449,8 @@ def parser_000c(payload, msg) -> Optional[dict]:
     # RQ payload is zz00, NOTE: aggregation of parsing taken here
     def _parser(seqx) -> dict:
         assert seqx[:2] == payload[:2]
-        # assert seqx[2:4] in ["00", "0A", "0F", "10"] # usus. 00 - subzone?
-        assert seqx[4:6] in ["00", "7F"]  # TODO: what does 7F means
+        # assert seqx[2:4] in ("00", "0A", "0F", "10") # usus. 00 - subzone?
+        assert seqx[4:6] in ("00", "7F")  # TODO: what does 7F means
 
         return {dev_hex_to_id(seqx[6:12]): seqx[4:6]}
 
@@ -464,16 +477,16 @@ def parser_0016(payload, msg) -> Optional[dict]:
     # 12:47:25.080 048 RQ --- 12:010740 01:145038 --:------ 0016 002 0800
     # 12:47:25.094 045 RP --- 01:145038 12:010740 --:------ 0016 002 081E
 
-    assert msg.verb in ["RQ", "RP"]
+    assert msg.verb in ("RQ", "RP")
     assert msg.len == 2  # for both RQ/RP, but RQ/00 will work
     # assert payload[:2] == "00"  # e.g. RQ/22:/0z00 (parent_zone), but RQ/07:/0000?
 
     if msg.verb == "RQ":
-        return {}  # {"rf_request": msg.dev_dest}
+        return {}  # {"rf_request": msg.dst_addr}
 
     rf_value = int(payload[2:4], 16)
     return {
-        #  "rf_source": msg.dev_dest,
+        #  "rf_source": msg.dst_addr,
         "rf_strength": min(int(rf_value / 5) + 1, 5),
         "rf_value": rf_value,
     }
@@ -490,7 +503,7 @@ def parser_0100(payload, msg) -> Optional[dict]:
     return {"language": _str(payload[2:6]), "unknown_0": payload[6:]}
 
 
-@parser_decorator  # unknown, from a HR91 (when buttons are pushed)
+@parser_decorator  # unknown, from a HR91 (when its buttons are pushed)
 def parser_01d0(payload, msg) -> Optional[dict]:
     # 23:57:28.869 045  W --- 04:000722 01:158182 --:------ 01D0 002 0003
     # 23:57:28.931 045  I --- 01:158182 04:000722 --:------ 01D0 002 0003
@@ -499,16 +512,16 @@ def parser_01d0(payload, msg) -> Optional[dict]:
     # 23:57:31.749 050  W --- 04:000722 01:158182 --:------ 01D0 002 0000
     # 23:57:31.811 045  I --- 01:158182 04:000722 --:------ 01D0 002 0000
     assert msg.len == 2
-    assert payload[2:] in ["00", "03"]
+    assert payload[2:] in ("00", "03")
     return {"unknown_0": payload[2:]}
 
 
-@parser_decorator  # unknown, from a HR91 (when buttons are pushed)
+@parser_decorator  # unknown, from a HR91 (when its buttons are pushed)
 def parser_01e9(payload, msg) -> Optional[dict]:
     # 23:57:31.581348 048  W --- 04:000722 01:158182 --:------ 01E9 002 0003
     # 23:57:31.643188 045  I --- 01:158182 04:000722 --:------ 01E9 002 0000
     assert msg.len == 2
-    assert payload[2:] in ["00", "03"]
+    assert payload[2:] in ("00", "03")
     return {"unknown_0": payload[2:]}
 
 
@@ -554,7 +567,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
         return {"log_idx": payload[4:6]}
     #
     if msg:
-        assert msg.verb in [" I", "RP"]
+        assert msg.verb in (" I", "RP")
     assert msg.len == 22
     #
     assert payload[:2] == "00"  # unknown_0
@@ -562,10 +575,10 @@ def parser_0418(payload, msg) -> Optional[dict]:
     assert int(payload[4:6], 16) <= 63  # TODO: upper limit is: 60? 63? more?
     assert payload[6:8] == "B0"  # unknown_1, ?priority
     assert payload[8:10] in list(FAULT_TYPE)
-    assert int(payload[10:12], 16) < MAX_ZONES or payload[10:12] in ["FA", "FC"]
+    assert int(payload[10:12], 16) < MAX_ZONES or payload[10:12] in ("FA", "FC")
     assert payload[12:14] in list(FAULT_DEVICE_CLASS)
     assert payload[14:18] == "0000"  # unknown_2
-    assert payload[28:30] in ["7F", "FF"]  # last bit in dt field
+    assert payload[28:30] in ("7F", "FF")  # last bit in dt field
     assert payload[30:38] == "FFFF7000"  # unknown_3
     #
     return {
@@ -590,7 +603,7 @@ def parser_042f(payload, msg) -> Optional[dict]:
     # 045  I --- 34:092243 --:------ 34:092243 042F 008 0000010021002201
     # 000  I     34:011469 --:------ 34:011469 042F 008 00000100030004BC
 
-    assert msg.len in [8, 9]  # non-evohome are 9
+    assert msg.len in (8, 9)  # non-evohome are 9
     assert payload[:2] == "00"
 
     return {
@@ -635,9 +648,25 @@ def parser_1060(payload, msg) -> Optional[dict]:
     # 17:34:35.460 087  I --- 04:189076 --:------ 01:145038 1060 003 026401
 
     assert msg.len == 3
-    assert payload[4:6] in ["00", "01"]
+    assert payload[4:6] in ("00", "01")
 
     return {"low_battery": payload[4:] == "00", "battery_level": _percent(payload[2:4])}
+
+
+@parser_decorator  # unknown (non-Evohome, e.g. ST9520C)
+def parser_1090(payload, msg) -> dict:
+    # 14:08:05.176 095 RP --- 23:100224 22:219457 --:------ 1090 005 007FFF01F4
+    # 18:08:05.809 095 RP --- 23:100224 22:219457 --:------ 1090 005 007FFF01F4
+
+    # this is an educated guess
+    assert msg.len == 5
+    assert int(payload[:2], 16) < 2
+
+    return {
+        **_idx(payload[:2], msg),
+        "temp_0": _temp(payload[2:6]),
+        "temp_1": _temp(payload[6:10]),
+    }
 
 
 @parser_decorator  # dhw_params
@@ -664,7 +693,7 @@ def parser_10a0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # device_info
 def parser_10e0(payload, msg) -> Optional[dict]:
-    assert msg.len in [30, 36, 38]  # a non-evohome seen with 30
+    assert msg.len in (30, 36, 38)  # a non-evohome seen with 30
 
     return {  # TODO: add version?
         "description": _str(payload[36:]),
@@ -676,12 +705,12 @@ def parser_10e0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # tpi_params (domain/zone/device)
 def parser_1100(payload, msg) -> Optional[dict]:
-    assert msg.len in [5, 8]
-    assert payload[:2] in ["00", "FC"]
-    assert payload[2:4] in ["0C", "18", "24", "30"]
-    assert payload[4:6] in ["04", "08", "0C", "10", "14"]
-    assert payload[6:8] in ["00", "04", "08", "0C", "10", "14"]
-    assert payload[8:10] in ["00", "FF"]
+    assert msg.len in (5, 8)
+    assert payload[:2] in ("00", "FC")
+    assert payload[2:4] in ("0C", "18", "24", "30")
+    assert payload[4:6] in ("04", "08", "0C", "10", "14")
+    assert payload[6:8] in ("00", "04", "08", "0C", "10", "14")
+    assert payload[8:10] in ("00", "FF")
 
     def _parser(seqx) -> dict:
         return {
@@ -734,7 +763,7 @@ def parser_12a0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # window_state (of a device/zone)
 def parser_12b0(payload, msg) -> Optional[dict]:
-    assert payload[2:] in ["0000", "C800", "FFFF"]  # "FFFF" means N/A
+    assert payload[2:] in ("0000", "C800", "FFFF")  # "FFFF" means N/A
 
     # TODO: zone.open_window = any(TRV.open_windows)?
     return {
@@ -748,7 +777,7 @@ def parser_12b0(payload, msg) -> Optional[dict]:
 def parser_1f09(payload, msg) -> Optional[dict]:
     # TODO: Try RQ/1F09/"F8-FF" (CTL will RP to a RQ/00)
     assert msg.len == 3
-    assert payload[:2] in ["00", "F8", "FF"]  # W uses F8, non-Honeywell devices use 00
+    assert payload[:2] in ("00", "F8", "FF")  # W uses F8, non-Honeywell devices use 00
 
     seconds = int(payload[2:6], 16) / 10
     next_sync = msg.dtm + timedelta(seconds=seconds)
@@ -761,11 +790,11 @@ def parser_1f09(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # dhw_mode
 def parser_1f41(payload, msg) -> Optional[dict]:
-    assert msg.len in [6, 12]
+    assert msg.len in (6, 12)
     assert payload[:2] == "00"  # all DHW pkts have no domain
 
     # 053 RP --- 01:145038 18:013393 --:------ 1F41 006 00FF00FFFFFF  # no stored DHW
-    assert payload[2:4] in ["00", "01", "FF"]
+    assert payload[2:4] in ("00", "01", "FF")
     assert payload[4:6] in list(ZONE_MODE_MAP)
     if payload[4:6] == "04":
         assert msg.len == 12
@@ -787,18 +816,18 @@ def parser_1fc9(payload, msg) -> Optional[dict]:
 
     def _parser(seqx) -> dict:
         assert seqx[6:] == payload[6:12]
-        if seqx[:2] not in ["FA", "FB", "FC"]:  # or: not in DOMAIN_TYPE_MAP: ??
+        if seqx[:2] not in ("FA", "FB", "FC"):  # or: not in DOMAIN_TYPE_MAP: ??
             assert int(seqx[:2], 16) < MAX_ZONES
         return {seqx[:2]: seqx[2:6]}  # NOTE: codes is many:many (domain:code)
 
     if msg.verb == " W":  # TODO: just leave an an array?
         assert msg.len == 6
-        assert msg.dev_from == dev_hex_to_id(payload[6:12])
+        assert msg.src_addr == dev_hex_to_id(payload[6:12])
         return _parser(payload)
 
-    assert msg.verb in [" I", " W", "RP"]  # devices will respond to a RQ!
+    assert msg.verb in (" I", " W", "RP")  # devices will respond to a RQ!
     assert msg.len >= 6 and msg.len % 6 == 0  # assuming not RQ
-    assert msg.dev_from == dev_hex_to_id(payload[6:12])
+    assert msg.src_addr == dev_hex_to_id(payload[6:12])
     return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
 
 
@@ -811,7 +840,7 @@ def parser_1fd4(payload, msg) -> Optional[dict]:
     return {"ticker": int(payload[2:], 16)}
 
 
-@parser_decorator  # now_next_setpoint, non-evohome (can be array)
+@parser_decorator  # now_next_setpoint (non-Evohome, e.g. Sundial programmer)
 def parser_2249(payload, msg) -> Optional[dict]:
     # see: https://github.com/jrosser/honeymon/blob/master/decoder.cpp#L357-L370
     # 095  I --- 23:100224 --:------ 23:100224 2249 007 00-7EFF-7EFF-FFFF
@@ -825,7 +854,8 @@ def parser_2249(payload, msg) -> Optional[dict]:
             "unknown_0": int(seqx[10:], 16),  # countdown?
         }
 
-    if msg.is_array:  # TODO: can these msgs can require >1 pkts? - seems likely
+    # the ST9520C can support two heating zones, so: msg.len in (7, 14)?
+    if msg.is_array:  # TODO: can these msgs require >1 pkts? - seems unlikely
         assert msg.len >= 7 and msg.len % 7 == 0
         return [_parser(payload[i : i + 14]) for i in range(0, len(payload), 14)]
 
@@ -849,11 +879,12 @@ def parser_22c9(payload, msg) -> Optional[dict]:
     return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
 
 
-@parser_decorator  # message_22d0
+@parser_decorator  # message_22d0 - system switch?
 def parser_22d0(payload, msg) -> Optional[dict]:
-    assert payload == "00000002"
+    assert payload[:2] == "00"  # has no domain?
+    assert payload[2:] == "000002"
 
-    return {"unknown": payload}
+    return {"unknown": payload[2:]}
 
 
 @parser_decorator  # boiler_setpoint
@@ -874,9 +905,9 @@ def parser_22f1(payload, msg) -> Optional[dict]:
 
     _bitmap = {"_bitmap": bitmap}
 
-    if bitmap in [2, 3]:
+    if bitmap in (2, 3):
         _action = {"fan_mode": "normal" if bitmap == 2 else "boost"}
-    elif bitmap in [9, 10]:
+    elif bitmap in (9, 10):
         _action = {"heater_mode": "auto" if bitmap == 10 else "off"}
     else:
         _action = {}
@@ -884,7 +915,7 @@ def parser_22f1(payload, msg) -> Optional[dict]:
     return {**_action, **_bitmap}
 
 
-@parser_decorator  # similar to 22F1?
+@parser_decorator  # similar to 22F1? switch?
 def parser_22f3(payload, msg) -> Optional[dict]:
     assert msg.len == 3
     assert payload[:2] == "00"  # has no domain
@@ -901,7 +932,7 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:
     # 055 RQ --- 12:010740 13:163733 --:------ 2309 003 0007D0
     # 046 RQ --- 12:010740 01:145038 --:------ 2309 003 03073A
 
-    assert msg.verb in [" I", "RP", " W"]
+    assert msg.verb in (" I", "RP", " W")
 
     if msg.is_array:
         assert msg.len >= 3 and msg.len % 3 == 0  # assuming not RQ
@@ -913,8 +944,8 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:
 
 @parser_decorator  # zone_mode
 def parser_2349(payload, msg) -> Optional[dict]:
-    assert msg.verb in [" I", "RP", " W"]
-    assert msg.len in [7, 13]  # has a dtm if mode == "04"
+    assert msg.verb in (" I", "RP", " W")
+    assert msg.len in (7, 13)  # has a dtm if mode == "04"
     assert payload[6:8] in list(ZONE_MODE_MAP)
     assert payload[8:14] == "FFFFFF"
 
@@ -956,7 +987,7 @@ def parser_30c9(payload, msg) -> Optional[dict]:
 @parser_decorator  # unknown, from STA
 def parser_3120(payload, msg) -> Optional[dict]:
     # sent by STAs every ~3:45:00, why?
-    assert msg.dev_from[:3] == "34:"
+    assert msg.src_addr[:3] == "34:"
     assert payload == "0070B0000000FF"
     return {"unknown_0": payload}
 
@@ -987,10 +1018,10 @@ def parser_3150(payload, msg) -> Optional[dict]:
         # assert seqx[:2] == "FC" or (int(seqx[:2], 16) < MAX_ZONES)  # <5, 8 for UFH
         return {**_idx(seqx[:2], msg), "heat_demand": _percent(seqx[2:])}
 
-    if msg.dev_from[:2] == "02" and msg.is_array:  # TODO: hometronics only?
+    if msg.src_type == "02" and msg.is_array:  # TODO: hometronics only?
         return [_parser(payload[i : i + 4]) for i in range(0, len(payload), 4)]
 
-    assert msg.len == 2  # msg.dev_from[:2] in ["01","02","10","04"]
+    assert msg.len == 2  # msg.src_type in ("01","02","10","04")
     return _parser(payload)  # TODO: check UFH/FC is == CTL/FC
 
 
@@ -998,9 +1029,9 @@ def parser_3150(payload, msg) -> Optional[dict]:
 def parser_31d9(payload, msg) -> Optional[dict]:
     assert msg.len == 17  # usu: I 30:-->30:, with a seq#!
 
-    assert payload[2:4] in ["00", "06"]
+    assert payload[2:4] in ("00", "06")
     assert payload[6:8] == "00"
-    assert payload[8:32] in ["000000000000000000000000", "202020202020202020202020"]
+    assert payload[8:32] in ("00" * 12, "20" * 12)
 
     return {
         **_idx(payload[:2], msg),
@@ -1020,8 +1051,8 @@ def parser_31da(payload, msg) -> Optional[dict]:
     assert payload[12:30] == "EF7FFF7FFF7FFF7FFF"
     assert payload[34:36] == "EF"
     assert payload[42:44] == "00"
-    assert payload[46:48] in ["00", "EF"]
-    assert payload[48:] in ["EF7FFF7FFF", "EF7FFFFFFF"]
+    assert payload[46:48] in ("00", "EF")
+    assert payload[48:] in ("EF7FFF7FFF", "EF7FFFFFFF")
 
     rh = int(payload[10:12], 16) / 100 if payload[10:12] != "EF" else None  # not /200!
 
@@ -1045,7 +1076,7 @@ def parser_31e0(payload, msg) -> Optional[dict]:
 
     assert msg.len == 4  # usu: I VNT->GWY
     assert payload[:4] == "0000"  # domain?
-    assert payload[4:] in ["0000", "C800"]
+    assert payload[4:] in ("0000", "C800")
 
     return {
         "state_31e0": _bool(payload[4:6]),
@@ -1100,7 +1131,7 @@ def parser_3220(payload, msg) -> Optional[dict]:
             result["value_lb"] = ot_msg_value(payload[8:10], message["val"])
 
     else:
-        if message["val"] in ["flag8", "u8", "s8"]:
+        if message["val"] in ("flag8", "u8", "s8"):
             result["value"] = ot_msg_value(payload[6:8], message["val"])
         else:
             result["value"] = ot_msg_value(payload[6:10], message["val"])
@@ -1135,7 +1166,7 @@ def parser_3b00(payload, msg) -> Optional[dict]:
     # 064  I --- 01:078710 --:------ 01:078710 3B00 002 FCC8
 
     assert msg.len == 2
-    assert payload[:2] in {"01": "FC", "13": "00", "23": "FC"}.get(msg.dev_from[:2])
+    assert payload[:2] in {"01": "FC", "13": "00", "23": "FC"}.get(msg.src_type)
     assert payload[2:] == "C8"  # Could it be a percentage?
 
     return {**_idx(payload[:2], msg), "sync_tpi": _bool(payload[2:])}
@@ -1143,16 +1174,16 @@ def parser_3b00(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # actuator_enabled (state)
 def parser_3ef0(payload, msg) -> dict:
-    if msg.dev_from[:2] == "10":  # OTB
+    if msg.src_type == "10":  # OTB
         assert msg.len == 6
-        assert payload[4:6] in ["10", "11"]
+        assert payload[4:6] in ("10", "11")
     else:
         assert msg.len == 3
 
     assert payload[:2] == "00"
     assert payload[-2:] == "FF"
 
-    if msg.dev_from[:2] == "10":
+    if msg.src_type == "10":
         return {
             **_idx(payload[:2], msg),
             "modulation_level": int(payload[2:4], 16) / 100,  # TODO: should be /200?
@@ -1164,11 +1195,11 @@ def parser_3ef0(payload, msg) -> dict:
 
 
 @parser_decorator  # actuator_state
-def parser_3ef1(payload, msg) -> Optional[dict]:
+def parser_3ef1(payload, msg) -> dict:
     assert msg.verb == "RP"
     assert msg.len == 7
     assert payload[:2] == "00"
-    assert payload[10:] in ["00FF", "C8FF"]
+    assert payload[10:] in ("00FF", "C8FF")
     assert payload[-2:] == "FF"
 
     return {
@@ -1183,6 +1214,4 @@ def parser_3ef1(payload, msg) -> Optional[dict]:
 @parser_decorator
 def parser_unknown(payload, msg) -> Optional[dict]:
     # TODO: it may be useful to search payloads for hex_ids, commands, etc.
-    if msg.code in ["01D0", "01E9"]:  # HR91s
-        return {"unknown": payload}
     raise NotImplementedError
