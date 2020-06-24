@@ -51,7 +51,7 @@ CODE_SCHEMA = {
     "1030": {"name": "mixvalve_config", "uses_zone_idx": True},
     # UFH-specific codes...
     "22C9": {"name": "ufh_setpoint"},
-    "22D0": {"name": "message_22d0", "uses_zone_idx": None},
+    "22D0": {"name": "message_22d0", "uses_zone_idx": None},  # system switch?
     # unknown/unsure codes - some maybe not evohome, maybe not even Honeywell
     "0002": {"name": "sensor_weather"},
     "0005": {"name": "system_zone", "rq_length": 2},
@@ -61,9 +61,9 @@ CODE_SCHEMA = {
     "12A0": {"name": "indoor_humidity"},  # Nuaire ventilation
     "2249": {"name": "oth_setpoint", "uses_zone_idx": None},  # now/next setpoint
     # "2389": {"name": "message_2389"},  # not real?
-    "2D49": {"name": "message_2d49"},  # hometronics only?
     "22F1": {"name": "vent_switch"},
     "22F3": {"name": "other_switch"},
+    "2D49": {"name": "message_2d49"},  # hometronics only?
     "31D9": {"name": "message_31d9"},  # Nuaire ventilation
     "31DA": {"name": "message_31da"},  # from HCE80, also Nuaire: Contains R/humidity??
     "31E0": {"name": "message_31e0"},  # Nuaire ventilation
@@ -99,13 +99,13 @@ DEVICE_TABLE = {
     "10": {"type": "OTB", "name": "OpenTherm Bridge", "battery": False},  # R8810
     "12": {"type": "THm", "name": "Room Thermostat", "battery": True},  # DTS92(E)
     "13": {"type": "BDR", "name": "Wireless Relay", "battery": False},  # BDR91, HC60NG?
-    "17": {"type": " 17", "name": "Weather Sensor?", "battery": None},  # TODO: ???
+    "17": {"type": " 17", "name": "Outdoor Sensor?", "battery": None},  # TODO: HB85?
     "18": {"type": "HGI", "name": "Honeywell Gateway?", "battery": False},  # HGI80
     "20": {"type": "VCE", "name": "Ventilation?", "battery": None},  # VCE-RF
     "22": {"type": "THM", "name": "Room Thermostat", "battery": True},  # DTS92(E)
-    "23": {"type": "023", "name": "Unknown", "battery": None},  # ???
+    "23": {"type": "PRG", "name": "Programmer (wired)", "battery": False},  # ST9420C
     "30": {"type": "GWY", "name": "Internet Gateway", "battery": False},  # RFG100, VMS?
-    "32": {"type": "VMS", "name": "Ventilation?", "battery": True},
+    "32": {"type": "VMS", "name": "Ventilation?", "battery": None},  # all have battery?
     "34": {"type": "STA", "name": "Round Thermostat", "battery": True},  # T87RF
     "37": {"type": " 37", "name": "Ventilation?", "battery": None},
     #
@@ -114,6 +114,10 @@ DEVICE_TABLE = {
     "??": {"type": "MIX", "name": "Mixing Valve", "battery": False},  # TODO: ???
 }
 # VMS includes Nuaire VMS-23HB33, VMS-23LMH23
+# What about Honeywell MT4 actuator?
+
+# Example of:
+#  - Sundial RF2 Pack 3: 23:(ST9420C), 07:(CS92), and 22:(DTS92(E))
 
 DEVICE_TYPES = {k: v["type"] for k, v in DEVICE_TABLE.items()}
 DEVICE_LOOKUP = {v: k for k, v in DEVICE_TYPES.items()}
@@ -124,7 +128,7 @@ DEVICE_HAS_BATTERY = [k for k, v in DEVICE_TABLE.items() if v["battery"] is True
 DOMAIN_TYPE_MAP = {
     "F8": "TBD",
     "F9": "Heating",  # Central Heating
-    "FA": "HotWater",  # Stored DHW loop? (or UFH loop if dev_from==UFH:?)
+    "FA": "HotWater",  # Stored DHW loop? (or UFH loop if src.type == "02"?)
     "FB": "TBD",  # TODO: bind CS92 with BDRs in both modes
     "FC": "Boiler",  # "Heat Source": BDR (Boiler, District heating), or OTB
     "FF": "System",  # TODO: remove this, is not a domain
