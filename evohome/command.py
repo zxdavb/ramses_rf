@@ -180,9 +180,12 @@ class Command:
         self.pause = kwargs.get("pause", PAUSE_DEFAULT)
         assert self.pause is not None
 
-        priority = PRIORITY_HIGH if verb in ["0016", "1FC9"] else PRIORITY_DEFAULT
+        priority = PRIORITY_HIGH if verb in ("0016", "1FC9") else PRIORITY_DEFAULT
         self.priority = kwargs.get("priority", priority)
         assert self.priority is not None
+
+        self.retry = kwargs.get("retry", False)
+        assert self.retry is not None
 
         self._dtm = dt.now()
 
