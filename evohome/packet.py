@@ -92,6 +92,9 @@ class Packet:
             err_msg = "three device addresses"
         else:  # it is a valid packet!
             # NOTE: don't log good packets here: we may want to silently discard some
+
+            # TODO: Check that expected RQ/RP pair happened
+
             return True
 
         _LOGGER.warning("%s < Bad packet: %s ", self, err_msg, extra=self.__dict__)
@@ -131,21 +134,11 @@ class PortPktProvider:
     async def get_pkt(self):  # returns a tuple
         """Get the next packet line from a serial port."""
 
-        def _logger_msg(func, msg):
-            # TODO: this is messy...
+        def _logger_msg(func, msg):  # TODO: this is messy...
             date, time = dtm.split("T")
-            func(
-                "%s < %s",
-                raw_pkt,
-                msg,
-                extra={
-                    "date": date,
-                    "time": time,
-                    "error_text": "",
-                    "comment": "",
-                    "_packet": raw_pkt,
-                },
-            )
+            extra = {"date": date, "time": time, "_packet": raw_pkt}
+            extra.update({"error_text": "", "comment": ""})
+            func("%s < %s", raw_pkt, msg, extra=extra)
 
         try:
             raw_pkt = await self.reader.readline()
@@ -185,9 +178,9 @@ class PortPktProvider:
 
         # self._lock.release()
 
-        # if cmd.verb == "RQ":
-        #     cmd.dtm = time_stamp()
-        #     self._window.append(cmd)
+        if cmd.retry is True:  # == "RQ":
+            cmd.dtm = time_stamp()
+            # self._window.append(cmd)
 
 
 class FilePktProvider:
