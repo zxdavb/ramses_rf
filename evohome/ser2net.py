@@ -80,7 +80,7 @@ class Ser2NetProtocol(asyncio.Protocol):
             # see: https://tools.ietf.org/html/rfc2217 - ser2net
             operation, option = int(data[1], 16), int(data[2], 16)
             _LOGGER.warning(" - received a IAC (%s) %s", operation, option)
-            if operation in [WILL, DO__]:
+            if operation in (WILL, DO__):
                 response = IAC + WONT + option  # noqa
             return  # TODO: will probably need to send a response
 
