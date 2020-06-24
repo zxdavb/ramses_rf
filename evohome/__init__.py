@@ -38,6 +38,27 @@ async def schedule_task(delay, func, *args, **kwargs):
     asyncio.create_task(scheduled_func(delay, func, *args, **kwargs))
 
 
+class Error(Exception):
+    """Base class for exceptions in this module."""
+
+    pass
+
+
+class MultipleControllerError(Error):
+    """Raised when there is more than one Controller."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+        self.message = args[0] if args else None
+
+    def __str__(self):
+        err_msg = "There is more than one Evohome Controller"
+        err_tip = "(use a ignore list to prevent this error)"
+        if self.message:
+            return f"{err_msg}: {self.message} {err_tip}"
+        return f"{err_msg} {err_tip}"
+
+
 class GracefulExit(SystemExit):
     code = 1
 
@@ -86,7 +107,7 @@ class Gateway:
             cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
         )
 
-        self.cmd_que = PriorityQueue(maxsize=200)
+        self.cmd_que = PriorityQueue()  # TODO: maxsize=200)
         self._buffer = deque()
         self._sched_zone = None
         self._sched_lock = Lock()
@@ -96,23 +117,37 @@ class Gateway:
 
         # if config["known_devices"]:
         self.known_devices = {}
-        self.dev_blacklist = []
-        self.dev_whitelist = []
+        self._exclude_list = []
+        self._include_list = []
 
         # if config.get("database"):
         self._output_db = self._db_cursor = None
 
         # if config["raw_output"] > 0:
         self.evo = EvohomeSystem(controller_id=None)
+        self._last_msg = None
 
         self._tasks = []
         self._setup_signal_handler()
 
     def __repr__(self) -> str:
-        return json.dumps(self.evo.state_db, indent=4)
+        ctls = [d.id for d in self.evo.devices if d.is_controller]
+        if self.evo.ctl:
+            ctl_id = self.evo.ctl.id
+        else:
+            ctl_id = ctls[0] if ctls else None
+
+        result = {
+            "CTL": ctl_id,
+            "TPI": self.evo.heat_relay,
+            "DHW": self.evo.dhw_sensor,
+            "CTLs": ctls,
+        }
+        return str(result)
 
     def __str__(self) -> str:
-        return json.dumps(self.evo.status, indent=4)
+        return json.dumps(self.evo.state_db, indent=4)
+        # return json.dumps(self.evo.status, indent=4)
 
     def _setup_signal_handler(self):
         def _sig_handler_win32(signalnum, frame):
@@ -131,7 +166,7 @@ class Gateway:
             if signal == signal.SIGUSR1:  # can also have: signal.SIGUSR2
                 _LOGGER.info("Raw state data: \r\n%s", self.evo)
 
-            if signal in [signal.SIGHUP, signal.SIGINT, signal.SIGTERM]:
+            if signal in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
                 await self.async_cleanup("_sig_handler_posix()")  # before task.cancel
                 self.cleanup("_sig_handler_posix()")  # OK for after tasks.cancel
 
@@ -179,7 +214,7 @@ class Gateway:
                 for d in self.evo.devices:
                     device_attrs = {
                         "friendly_name": d._friendly_name,
-                        "blacklist": d._blacklist,
+                        "ignore": d._ignored,
                     }
                     if d.id in self.known_devices:
                         self.known_devices[d.id].update(device_attrs)
@@ -229,12 +264,12 @@ class Gateway:
                 self.known_devices = {}
             else:
                 if self.config["device_whitelist"]:
-                    self.dev_whitelist = [
-                        k for k, v in devices.items() if not v.get("blacklist")
+                    self._include_list = [
+                        k for k, v in devices.items() if not v.get("ignore")
                     ]
                 else:
-                    self.dev_blacklist = [
-                        k for k, v in devices.items() if v.get("blacklist")
+                    self._exclude_list = [
+                        k for k, v in devices.items() if v.get("ignore")
                     ]
 
         # Finally, source of packets is either a text file, or a serial port:
@@ -323,6 +358,14 @@ class Gateway:
 
             self._sched_lock.release()
 
+        # # used for development only...
+        # for payload in (
+        #   "0000", "0100", "00", "01", "F8", "F9", "FA", "FB", "FC", "FF"
+        # ):
+        #     for code in range(int("4000", 16)):
+        #         cmd = Command(" W", "01:145038", f"{code:04X}", payload)
+        #         await destination.put_pkt(cmd, _LOGGER)
+
         # if destination is not None:
         #     serial = destination.reader._transport.serial
         #     if serial is not None and serial.in_waiting == 0:
@@ -361,29 +404,24 @@ class Gateway:
     def _process_payload(self, pkt: Packet) -> None:
         """Decode the packet and its payload."""
 
-        def is_wanted(dev_whitelist=None, dev_blacklist=None) -> bool:
+        def is_wanted(include=None, exclude=None) -> bool:
             """Return True is a packet is not to be filtered out."""
 
-            def has_wanted_dev(dev_whitelist=None, dev_blacklist=None) -> bool:
+            def has_wanted_dev(include=None, exclude=None) -> bool:
                 """Return True only if a packet contains 'wanted' devices."""
-                if " 18:" in pkt.packet:  # TODO: should we ever blacklist a HGI80?
+                if " 18:" in pkt.packet:  # TODO: should we ever ignore a HGI80?
                     return True
-                if dev_whitelist:
-                    return any(device in pkt.packet for device in dev_whitelist)
-                return not any(device in pkt.packet for device in dev_blacklist)
+                if include:
+                    return any(device in pkt.packet for device in include)
+                return not any(device in pkt.packet for device in exclude)
 
-            # if any(x in pkt.packet for x in self.config.get("blacklist", [])):
-            #     return  # silently drop packets with blacklisted text
-
-            if has_wanted_dev(dev_whitelist, dev_blacklist):
+            if has_wanted_dev(include, exclude):
                 pkt_logger.info("%s ", pkt.packet, extra=pkt.__dict__)  # a hack
                 return True
             return False
 
-        if not is_wanted(
-            dev_whitelist=self.dev_whitelist, dev_blacklist=self.dev_blacklist
-        ):
-            return  # silently drop packets with blacklisted (e.g. neighbour's) devices
+        if not is_wanted(include=self._include_list, exclude=self._exclude_list):
+            return  # silently drop packets with ignored (e.g. neighbour's) devices
 
         # if self._output_db:  # archive all valid packets, even those not to be parsed
         #     ts_pkt = f"{pkt.date}T{pkt.time} {pkt.packet}"
@@ -412,8 +450,16 @@ class Gateway:
             return
 
         # only reliable packets should become part of the state data
-        if msg.dev_from[:2] == "18":  # RQs are required, but also less unreliable
+        if msg.src.type == "18":  # RQs from a 18: are unreliable, RPs are required
             return
+
+        if self.evo.ctl:
+            # if self.evo.device_by_id[msg.src.addr].is_controller:
+            #     if msg.src.addr != self.evo.ctl.id:
+            if msg.src.type == "01" and msg.src.addr != self.evo.ctl.id:
+                raise MultipleControllerError(
+                    f"{msg.src.addr} in addition to {self.evo.ctl.id}"
+                )
 
         try:
             msg._create_entities()  # create the devices, zones, domains
@@ -439,3 +485,10 @@ class Gateway:
         #             else:
         #                 self._sched_zone._schedule.req_fragment(block_mode=False)
         #         self._sched_lock.release()
+
+        # only reliable packets should become part of the state data
+        if "18" in (msg.src.type, msg.dst.type):
+            return
+
+        self.evo.eavesdrop(msg, self._last_msg)  # TODO: WIP
+        self._last_msg = msg

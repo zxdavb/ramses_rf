@@ -195,7 +195,7 @@ class FilePktProvider:
     async def __aexit__(self, exc_type, exc, tb) -> None:
         pass
 
-    async def get_next_pkt(self) -> Optional[str]:
+    async def get_pkt(self) -> Optional[str]:
         """Get the next packet line from a source file."""
         return
 

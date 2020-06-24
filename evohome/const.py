@@ -121,7 +121,7 @@ DEVICE_TABLE = {
 
 DEVICE_TYPES = {k: v["type"] for k, v in DEVICE_TABLE.items()}
 DEVICE_LOOKUP = {v: k for k, v in DEVICE_TYPES.items()}
-DEVICE_TYPE_MAP = {v["type"]: v["name"] for _, v in DEVICE_TABLE.items()}
+DEVICE_CLASSES = {v["type"]: v["name"] for _, v in DEVICE_TABLE.items()}
 DEVICE_HAS_BATTERY = [k for k, v in DEVICE_TABLE.items() if v["battery"] is True]
 
 # Domains
