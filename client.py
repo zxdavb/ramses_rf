@@ -3,6 +3,7 @@
 evohome_rf is used to parse Honeywell's RAMSES-II packets, either via RF or from a file.
 """
 import asyncio
+import json
 import sys
 
 import click
@@ -82,10 +83,7 @@ def debug_wrapper(**kwargs):
             ptvsd.wait_for_attach()
             print(" - debugger is now attached, continuing execution.")
 
-    try:
-        asyncio.run(main(**kwargs))
-    except KeyboardInterrupt:
-        print(" - EXIT: KeyboardInterrupt")
+    asyncio.run(main(**kwargs))
 
 
 async def main(loop=None, **kwargs):
@@ -102,15 +100,17 @@ async def main(loop=None, **kwargs):
         await gateway.start()
 
     except asyncio.CancelledError:
-        print(" - exit: CancelledError (this is expected)")
+        print(" - exiting via: CancelledError (this is expected)")
     except GracefulExit:
-        print(" - exit: GracefulExit")
+        print(" - exiting via: GracefulExit")
     except KeyboardInterrupt:
-        print(" - exit: KeyboardInterrupt")
-    # else:  # if no Exceptions raised
-    #     print(" - exit: else-block")
+        print(" - exiting via: KeyboardInterrupt")
+    else:  # if no Exceptions raised, e.g. EOF when parsing
+        print(" - exiting via: else-block (e.g. EOF when parsing)")
     finally:  # if all raised Exceptions handled (other than any in else)
-        print(" - state database:\r\n", repr(gateway))  # or str()
+        # print(" - state database:\r\n", gateway)  # or repr(gateway)
+        print(" - devices:\r\n", json.dumps(gateway.evo._devices, indent=4))
+        print(repr(gateway))
 
     print("Finished evohome_rf.")
 
