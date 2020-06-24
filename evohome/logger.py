@@ -128,7 +128,7 @@ class InfoFilter(logging.Filter):
 
     def filter(self, record):
         """Filter out all but INFO/DEBUG packets."""
-        return record.levelno in [logging.INFO, logging.DEBUG]
+        return record.levelno in (logging.INFO, logging.DEBUG)
 
 
 class DebugFilter(logging.Filter):
