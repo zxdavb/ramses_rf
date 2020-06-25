@@ -45,7 +45,31 @@ class Message:
         for idx, addr in enumerate([packet[i : i + 9] for i in range(11, 32, 10)]):
             self.devs[idx] = Address(addr=addr, type=addr[:2])
 
-        dev_addrs = list(filter(lambda x: x.type not in ("--", "63"), self.devs))
+        assert (
+            all(
+                [
+                    self.devs[0].addr not in (NON_DEV_ID, NUL_DEV_ID),
+                    self.devs[1].addr != NON_DEV_ID,
+                    self.devs[2].addr == NON_DEV_ID,
+                ]
+            )
+            or all(
+                [
+                    self.devs[0].addr not in (NON_DEV_ID, NUL_DEV_ID),
+                    self.devs[1].addr == NON_DEV_ID,
+                    self.devs[2].addr not in (NON_DEV_ID, NUL_DEV_ID),
+                ]
+            )
+            or all(
+                [
+                    self.devs[0].addr == NON_DEV_ID,
+                    self.devs[1].addr == NON_DEV_ID,
+                    self.devs[2].addr not in (NON_DEV_ID, NUL_DEV_ID),
+                ]
+            )
+        )  # safe to -O
+
+        dev_addrs = list(filter(lambda x: x.type != "--", self.devs))
         self.src = dev_addrs[0] if len(dev_addrs) else NON_DEVICE
         self.dst = dev_addrs[1] if len(dev_addrs) > 1 else NON_DEVICE
 
@@ -83,15 +107,17 @@ class Message:
         else:
             msg_format = MSG_FORMAT_10
 
-        self._str = msg_format.format(
-            display_name(self.src),
-            display_name(self.dst) if self.dst.addr != self.src.addr else ".announce.",
-            self.verb,
-            CODE_MAP.get(self.code, f"unknown_{self.code}"),
-            self.raw_payload if self.len < 4 else f"{self.raw_payload[:5]}..."[:9],
-            self._payload,
-        )
+        if self.src is self.devs[0]:
+            src = display_name(self.src)
+            dst = display_name(self.dst) if self.dst.addr != self.src.addr else ""
+        else:
+            src = ""
+            dst = display_name(self.src)
 
+        code = CODE_MAP.get(self.code, f"unknown_{self.code}")
+        payload = self.raw_payload if self.len < 4 else f"{self.raw_payload[:5]}..."[:9]
+
+        self._str = msg_format.format(src, dst, self.verb, code, payload, self._payload)
         return self._str
 
     @property
@@ -110,7 +136,7 @@ class Message:
             return self._is_array
 
         if self.code in ("000C", "1FC9"):  # also: 0005?
-            # grep -E ' (I|RP).* 000C '  #  from 01: only
+            # grep -E ' (I|RP).* 000C '  #  from 01:/30: (VMS) only
             # grep -E ' (I|RP).* 1FC9 '  #  from 01:/13:/other (not W)
             self._is_array = self.verb in (" I", "RP")
             return self._is_array
@@ -164,7 +190,7 @@ class Message:
             self._is_fragment = True if len(self._evo.zones) > 8 else None
         elif self.code == "0404" and self.verb == "RP":
             self._is_fragment = True
-        elif self.code == "23c9" and self.verb == " I":
+        elif self.code == "22C9" and self.verb == " I":
             self._is_fragment = None  # max length 24!
         else:
             self._is_fragment = False
