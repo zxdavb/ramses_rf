@@ -308,15 +308,16 @@ class Gateway:
                 self._sched_lock.acquire()
 
                 if self._sched_zone:
-                    _LOGGER.info("Checking zone(%s).schedule...", self._sched_zone.id)
+                    _id = self._sched_zone.id
+                    _LOGGER.info("zone(%s): checking schedule", _id)
 
                     if self._sched_zone.schedule is None:  # is schedule done?
-                        _LOGGER.warning("zone(%s): NOT DONE", self._sched_zone.id)
-                        self._sched_zone._schedule.req_fragment(restart=True)  # TODO
+                        _LOGGER.warning("zone(%s): timed out, restarting...", _id)
+                        self._sched_zone._schedule.req_fragment(restart=True)
                         await schedule_task(PAUSE_LONG * 100, check_fragments)
 
                     else:
-                        _LOGGER.warning("zone(%s): done", self._sched_zone.id)
+                        _LOGGER.warning("zone(%s): completed.", _id)
                         self._sched_zone = None
 
                 self._sched_lock.release()
@@ -327,14 +328,14 @@ class Gateway:
                     self._sched_lock.acquire()
 
                     if self._sched_zone:
+                        _id = self._sched_zone.id
                         if self._sched_zone.schedule:
-                            print("Schedule complete for zone(%s)", self._sched_zone.id)
+                            _LOGGER.info("zone(%s): Schedule completed", _id)
                             self._sched_zone = None
                             break
 
-                        else:
-                            print("RQd missing frags for zone(%s)", self._sched_zone.id)
-                            self._sched_zone._schedule.req_fragment()
+                        self._sched_zone._schedule.req_fragment()
+                        _LOGGER.info("zone(%s): Queued RQ for next missing frag", _id)
 
                     self._sched_lock.release()
                     await asyncio.sleep(PAUSE_LONG * 10)
@@ -345,12 +346,12 @@ class Gateway:
 
             if self._sched_zone is None:  # not getting any zone's sched?
                 self._sched_zone = self.evo.zone_by_id[kmd.payload[:2]]
-                print("Sending initial RQ for a New zone(%s)...", self._sched_zone.id)
+                _LOGGER.info("zone(%s): Queuing 1st RQ...", self._sched_zone.id)
                 await schedule_task(PAUSE_LONG * 100, check_message)
                 await schedule_task(PAUSE_LONG, check_fragments)
 
             if self._sched_zone.id == kmd.payload[:2]:  # getting this zone's sched?
-                print("Sent RQ for (this) zone(%s)", self._sched_zone.id, kmd)
+                _LOGGER.info("zone(%s): RQ was sent", self._sched_zone.id)
                 self._sched_lock.release()
 
                 await destination.put_pkt(kmd, _LOGGER)
@@ -374,6 +375,7 @@ class Gateway:
 
         if len(self._buffer):
             if await consider_rq_0404(self._buffer[0]) is True:
+                _LOGGER.info("zone(%s): Buffered RQ was sent.", self._sched_zone.id)
                 self._buffer.popleft()  # the pkt was sent for transmission
                 return  # can't send any other initial RQs now
 
@@ -389,11 +391,12 @@ class Gateway:
 
             elif cmd.verb == "RQ" and cmd.code == "0404":
                 if await consider_rq_0404(cmd) is True:
-                    self.cmd_que.task_done()  # the pkt was sent for transmission
-                    print("RQ is for this zone: sent for transmission")
+                    _LOGGER.info("zone(%s): Queued RQ was sent.", self._sched_zone.id)
                 else:
                     self._buffer.append(cmd)  # otherwise, send the pkt later on
-                    print("RQ is for another zone: buffered for later")
+                    _LOGGER.info("zone(xx): Queued RQ was buffered.")
+
+                self.cmd_que.task_done()  # the pkt was sent for transmission
                 break  # can't send any other initial RQs now
 
             else:
