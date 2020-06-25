@@ -1,4 +1,6 @@
 """The entities for Honeywell's RAMSES II / Residential Network Protocol."""
+# import asyncio
+from datetime import datetime as dt  # , timedelta
 import logging
 from typing import Any, Optional
 
@@ -7,6 +9,7 @@ from .command import (
     Schedule,
     PAUSE_DEFAULT,
     PRIORITY_DEFAULT,
+    PRIORITY_HIGH,
     PRIORITY_LOW,
 )
 from .const import (
@@ -17,6 +20,8 @@ from .const import (
     DEVICE_TABLE,
     DEVICE_TYPES,
     DOMAIN_TYPE_MAP,
+    SYSTEM_MODE_LOOKUP,
+    SYSTEM_MODE_MAP,
     ZONE_TYPE_MAP,
     __dev_mode__,
 )
@@ -66,18 +71,17 @@ class Entity:
         self.last_comms = None
 
     def _command(self, code, **kwargs) -> None:
-        if self._gwy.config["listen_only"]:
-            return
+        verb = kwargs.get("verb", "RQ")
+        dest = kwargs.get("dest_addr", self._evo.ctl_id)
+        payload = kwargs.get("payload", "00")
 
-        cmd = Command(
-            kwargs.get("verb", "RQ"),
-            kwargs.get("dest_addr", self._evo.ctl_id),
-            code,
-            kwargs.get("payload", "00"),
-            pause=kwargs.get("pause", PAUSE_DEFAULT),
-            priority=kwargs.get("priority", PRIORITY_DEFAULT),
-        )
-        self._que.put_nowait(cmd)
+        priority_default = PRIORITY_HIGH if verb == " W" else PRIORITY_DEFAULT
+        kwargs = {
+            "pause": kwargs.get("pause", PAUSE_DEFAULT),
+            "priority": kwargs.get("priority", priority_default),
+        }
+
+        self._que.put_nowait(Command(verb, dest, code, payload, **kwargs))
 
     def _discover(self):
         # pass
@@ -208,19 +212,34 @@ class DhwZone(HeatDemand):  # TODO: domain
         for code in ("10A0", "1F41", "1260"):  # TODO: what about 1100?
             self._command(code)
 
+    async def async_cancel_override(self) -> bool:  # 1F41
+        """Reset the DHW to follow its schedule."""
+        return False
+
+    async def async_set_override(self, active, until=None) -> bool:  # 1F41
+        """Force the DHW on/off for a duration, or indefinitely.
+
+        Use until = ? for 1hr boost (obligates on)
+        Use until = ? for until next scheduled on/off
+        Use until = None for indefinitely
+        """
+        return False
+
+    async def async_reset_config(self) -> bool:  # 10A0
+        """Reset the DHW parameters to their default values."""
+        return False
+
+    async def async_set_config(self, setpoint, overrun=None, differential=None) -> bool:
+        """Set the DHW parameters."""
+        return False
+
     @property
-    def configuration(self):
+    def config(self):  # 10A0
         attrs = ("setpoint", "overrun", "differential")
         return {x: self._get_pkt_value("10A0", x) for x in attrs}
 
     @property
-    def TBD_mode(self) -> Optional[dict]:  # ????
-        result = self._get_pkt_value("????")
-        if result:
-            return {k: v for k, v in result.items() if k != "zone_idx"}
-
-    @property
-    def name(self) -> Optional[str]:
+    def name(self) -> Optional[str]:  # N/A
         return "DHW Controller"
 
     @property
@@ -228,17 +247,21 @@ class DhwZone(HeatDemand):  # TODO: domain
         return self._sensor
 
     @property
-    def schedule(self) -> Optional[dict]:
+    def TBD_relay(self) -> Optional[str]:  # TODO: WIP
+        return self._sensor
+
+    @property
+    def schedule(self) -> Optional[dict]:  # ????
         """Return the schedule if any (currently unable to extract this data)."""
         return {}
 
     @property
-    def setpoint_status(self):
+    def setpoint_status(self):  # 1F41
         attrs = ["active", "mode", "until"]
         return {x: self._get_pkt_value("1F41", x) for x in attrs}
 
     @property
-    def temperature(self):
+    def temperature(self):  # 1260
         return self._get_pkt_value("1260", "temperature")
 
 
@@ -382,6 +405,12 @@ class Controller(DeviceBase):
     def _discover(self):
         super()._discover()
 
+        # asyncio.create_task(  # TODO: test only
+        #     self.async_set_mode(5, dt.now() + timedelta(minutes=120))
+        #     # self.async_set_mode(5)
+        #     # self.async_reset_mode()
+        # )
+
         # NOTE: could use this to discover zones
         # for idx in range(12):
         #     self._command("0004", payload=f"{idx:02x}00")
@@ -505,6 +534,48 @@ class Controller(DeviceBase):
             if msg.dst.type == "10":  # this is the OTB
                 pass
 
+    async def async_reset_mode(self) -> bool:  # 2E04
+        """Revert the system mode to Auto mode."""
+        self._command("2E04", verb=" W", payload="00FFFFFFFFFFFF00")
+        return False
+
+    async def async_set_mode(self, mode, until=None) -> bool:  # 2E04
+        """Set the system mode for a duration, or indefinitely."""
+
+        def _dtm(until: dt) -> str:
+            def __dtm(tm_year, tm_mon, tm_mday, tm_hour, tm_min, tm_sec, *args):
+                return (
+                    f"{tm_min:02X}{tm_hour:02X}{tm_mday:02X}{tm_mon:02X}{tm_year:04X}"
+                )
+
+            if until is None:
+                return "FF" * 6 + "00"
+            return __dtm(*until.timetuple()) + "01"
+
+        if mode in SYSTEM_MODE_LOOKUP:
+            mode = SYSTEM_MODE_LOOKUP[mode]
+        elif isinstance(mode, int):
+            mode = f"{mode:02X}"
+        elif not isinstance(mode, str):
+            raise TypeError("Invalid system mode")
+
+        if mode not in SYSTEM_MODE_MAP:
+            raise ValueError("Unknown system mode")
+
+        if isinstance(until, str):
+            try:
+                until = dt.fromisoformat(until)
+            except ValueError:
+                raise ValueError("Invalid time until")
+        elif until is not None and not isinstance(until, dt):
+            raise TypeError("Invalid time until")
+
+        if until is not None and until < dt.now():
+            raise ValueError("Invalid time until")
+
+        self._command("2E04", verb=" W", payload=f"{mode}{_dtm(until)}")
+        return False
+
     async def update_fault_log(self) -> list:
         # WIP: try to discover fault codes
         for log_idx in range(0x00, 0x3C):  # 10 pages of 6
@@ -546,15 +617,28 @@ class Controller(DeviceBase):
 class UfhController(DeviceBase, HeatDemand):
     """The UFH class, the HCE80 that controls the UFH heating zones."""
 
-    def update(self, msg):
-        super().update(msg)
+    # 12:27:24.398 067  I --- 02:000921 --:------ 01:191718 3150 002 0360
+    # 12:27:24.546 068  I --- 02:000921 --:------ 01:191718 3150 002 065A
+    # 12:27:24.693 067  I --- 02:000921 --:------ 01:191718 3150 002 045C
+    # 12:27:24.824 059  I --- 01:191718 --:------ 01:191718 3150 002 FC5C
+    # 12:27:24.857 067  I --- 02:000921 --:------ 02:000921 3150 006 0060015A025C
 
-        # ["3150/ZZ|FC", "0008/FA|FC", "22D0/none", "22C9/Zone list"]
+    def update(self, msg):
+        def do_3150_magic() -> None:
+            return
+
+        super().update(msg)
+        return
+
+        # "0008|FA/FC", "22C9|array", "22D0|none", "3150|ZZ/array(/FC?)"
 
         if msg.code in ("22C9") and not isinstance(msg.payload, list):
             pass
         else:
             super().update(msg)
+
+        if msg.code == "3150" and isinstance(msg.payload, list):  # msg.is_array:
+            do_3150_magic()
 
     @property
     def zones(self):  # 22C9
@@ -777,6 +861,14 @@ class Zone(Entity):
 
             self.__class__ = _ZONE_CLASS[self.type]
             _LOGGER.debug("Promoted zone %s to %s", self.id, self.type)
+
+    async def async_cancel_override(self) -> bool:  # 2349
+        """Revert to following the schedule (FollowSchedule)."""
+        return False
+
+    async def async_set_override(self, setpoint, until=None) -> bool:  # 2349
+        """Override the setpoint for a duration (TemporaryOverride), or indefinitely."""
+        return False
 
     @property
     def actuators(self) -> list:  # 000C
