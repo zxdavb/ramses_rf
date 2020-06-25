@@ -294,7 +294,9 @@ class DeviceBase(Entity):
 
         if self.cls not in ("01", "13") and not self.has_battery:  # TODO: for dev
             for code in CODE_SCHEMA:
-                self._command(code, dest_addr=self.id, payload="0000")
+                self._command(
+                    code, dest_addr=self.id, payload="0000" if code != "1F09" else "00"
+                )
 
     @property
     def description(self) -> Optional[str]:  # 10E0
