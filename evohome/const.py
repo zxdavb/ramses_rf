@@ -82,15 +82,9 @@ MAY_USE_ZONE_IDX = [k for k, v in CODE_SCHEMA.items() if v.get("uses_zone_idx")]
 
 CODE_MAP = {k: v["name"] for k, v in CODE_SCHEMA.items()}
 
-#
-# sed -e 's/ 01:/ CTL:/g' -e 's/ 02:/ UFH:/g' -e 's/ 04:/ TRV:/g' -i pkts.out
-# sed -e 's/ 07:/ DHW:/g' -e 's/ 10:/ OTB:/g' -e 's/ 12:/ THM:/g' -i pkts.out
-# sed -e 's/ 13:/ BDR:/g' -e 's/ 18:/ HGI:/g' -e 's/ 22:/ THm:/g' -i pkts.out
-# sed -e 's/ 30:/ GWY:/g' -e 's/ 32:/ VNT:/g' -e 's/ 34:/ STA:/g' -i pkts.out
-# sed -e 's/ 63:/ ALL:/g' -e 's/ --:/  --:/g' -i pkts.out
-
 # TODO: which device type/config pairs send what packets?
 DEVICE_TABLE = {
+    # Honeywell evohome
     "01": {"type": "CTL", "name": "Controller", "battery": False},  # rechargeable
     "02": {"type": "UFH", "name": "UFH Controller", "battery": False},  # HCE80(R)
     "03": {"type": "STa", "name": "Room Sensor/Stat", "battery": None},  # HCF82, HCW82
@@ -99,19 +93,23 @@ DEVICE_TABLE = {
     "10": {"type": "OTB", "name": "OpenTherm Bridge", "battery": False},  # R8810
     "12": {"type": "THm", "name": "Room Thermostat", "battery": True},  # DTS92(E)
     "13": {"type": "BDR", "name": "Wireless Relay", "battery": False},  # BDR91, HC60NG?
-    "17": {"type": " 17", "name": "Outdoor Sensor?", "battery": None},  # TODO: HB85?
-    "18": {"type": "HGI", "name": "Honeywell Gateway?", "battery": False},  # HGI80
-    "20": {"type": "VCE", "name": "Ventilation?", "battery": None},  # VCE-RF
     "22": {"type": "THM", "name": "Room Thermostat", "battery": True},  # DTS92(E)
-    "23": {"type": "PRG", "name": "Programmer (wired)", "battery": False},  # ST9420C
     "30": {"type": "GWY", "name": "Internet Gateway", "battery": False},  # RFG100, VMS?
-    "32": {"type": "VMS", "name": "Ventilation?", "battery": None},  # all have battery?
     "34": {"type": "STA", "name": "Round Thermostat", "battery": True},  # T87RF
-    "37": {"type": " 37", "name": "Ventilation?", "battery": None},
-    #
+    # Honeywell evohome TBD
+    "??": {"type": "MIX", "name": "Mixing Valve", "battery": False},  # TODO: ???
+    # Honeywell, non-evohome
+    "17": {"type": " 17", "name": "Outdoor Sensor?", "battery": None},  # TODO: HB85?
+    "18": {"type": "HGI", "name": "Honeywell Gateway", "battery": False},  # HGI80
+    "23": {"type": "PRG", "name": "Programmer (wired)", "battery": False},  # ST9420C
+    # non-Honeywell, HVAC? (also, 30: is a Nuaire PIV)
+    "20": {"type": "VCE", "name": "AC/Ventilation?", "battery": None},  # VCE-RF unit
+    "32": {"type": "VMS", "name": "AC/Ventilation?", "battery": None},  # sensor/switch
+    "37": {"type": " 37", "name": "AC/Ventilation?", "battery": None},  # VCE
+    "49": {"type": " 49", "name": "AC/Ventilation?", "battery": None},  # VCE switch
+    # specials
     "63": {"type": "NUL", "name": "Null Device", "battery": None},
     "--": {"type": "---", "name": "No Device", "battery": None},
-    "??": {"type": "MIX", "name": "Mixing Valve", "battery": False},  # TODO: ???
 }
 # VMS includes Nuaire VMS-23HB33, VMS-23LMH23
 # What about Honeywell MT4 actuator?
@@ -133,6 +131,7 @@ DOMAIN_TYPE_MAP = {
     "FC": "Boiler",  # "Heat Source": BDR (Boiler, District heating), or OTB
     "FF": "System",  # TODO: remove this, is not a domain
 }  # "21": "Ventilation",
+DOMAIN_TYPE_LOOKUP = {v: k for k, v in DOMAIN_TYPE_MAP.items() if k != "FF"}
 
 SYSTEM_MODE_MAP = {
     "00": "Auto",
@@ -140,14 +139,18 @@ SYSTEM_MODE_MAP = {
     "02": "Eco",
     "03": "Away",
     "04": "DayOff",
+    "05": "DayOffThenEco",  # set to Eco when DayOff ends
+    "06": "AutoWithReset",
     "07": "Custom",
-}  # what about 5, 6 & AutoWithReset?
+}
+SYSTEM_MODE_LOOKUP = {v: k for k, v in SYSTEM_MODE_MAP.items()}
 
 ZONE_MODE_MAP = {
     "00": "FollowSchedule",
     "02": "PermanentOverride",
     "04": "TemporaryOverride",  # will incl. a datetime
 }  # "01": until next SP?
+ZONE_MODE_LOOKUP = {v: k for k, v in ZONE_MODE_MAP.items()}
 
 # Electric Heat - on/off relay (only)
 # Zone Valve    - on/off relay AND requests heat from the boiler, 3150
