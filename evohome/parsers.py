@@ -807,7 +807,7 @@ def parser_1f41(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # bind_device
+@parser_decorator  # rf_bind
 def parser_1fc9(payload, msg) -> Optional[dict]:
     # this is an array of codes
     # 049  I --- 01:145038 --:------ 01:145038 1FC9 018 07-000806368E FC-3B0006368E               07-1FC906368E  # noqa: E501
