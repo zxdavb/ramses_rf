@@ -446,10 +446,14 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:
 
 @parser_decorator  # zone_actuators (not sensors)
 def parser_000c(payload, msg) -> Optional[dict]:
+    # 045  I --- 34:092243 --:------ 34:092243 000C 018 000A7FFFFFFF000F7FFFFFFF00107FFFFFFF  # noqa: E501
+    # 045 RP --- 01:145038 18:013393 --:------ 000C 006 00000010DAFD
+    # 045 RP --- 01:145038 18:013393 --:------ 000C 012 01000010DAF501000010DAFB
+
     # RQ payload is zz00, NOTE: aggregation of parsing taken here
     def _parser(seqx) -> dict:
         assert seqx[:2] == payload[:2]
-        # assert seqx[2:4] in ("00", "0A", "0F", "10") # usus. 00 - subzone?
+        assert seqx[2:4] in ("00", "0A", "0F", "10")  # TODO: usu. 00 - subzone?
         assert seqx[4:6] in ("00", "7F")  # TODO: what does 7F means
 
         return {dev_hex_to_id(seqx[6:12]): seqx[4:6]}
@@ -899,7 +903,7 @@ def parser_22d9(payload, msg) -> Optional[dict]:
 def parser_22f1(payload, msg) -> Optional[dict]:
     assert msg.len == 3
     assert payload[:2] == "00"  # has no domain
-    assert payload[4:6] == "0A"
+    assert payload[4:] in ("04", "0A")
 
     bitmap = int(payload[2:4], 16)
 
@@ -912,7 +916,7 @@ def parser_22f1(payload, msg) -> Optional[dict]:
     else:
         _action = {}
 
-    return {**_action, **_bitmap}
+    return {**_action, **_bitmap, "unknown_0": payload[4:]}
 
 
 @parser_decorator  # similar to 22F1? switch?
@@ -968,7 +972,7 @@ def parser_2e04(payload, msg) -> Optional[dict]:
     return {
         "mode": SYSTEM_MODE_MAP.get(payload[:2]),
         "until": _dtm(payload[2:14]) if payload[14:] != "00" else None,
-    }
+    }  # TODO: double-check the final "00"
 
 
 @parser_decorator  # temperature (of device, zone/s)
