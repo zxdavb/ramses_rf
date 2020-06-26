@@ -24,13 +24,9 @@ STALL_LIMIT_SECS = 60  # 30 is a useful minimum, max should be sync_cycle time, 
 STALL_LIMIT_PKTS = 10  # <7 3 has increased potential for false positives
 
 if True:
-    BOTH = "==="
-    LEFT = "<<<"
-    RITE = ">>>"
+    BOTH, LEFT, RITE = "===", "<<<", ">>>"
 else:
-    BOTH = " = "
-    LEFT = "<  "
-    RITE = "  >"
+    BOTH, LEFT, RITE = " = ", "<  ", "  >"
 
 
 def _parse_args():
