@@ -131,43 +131,43 @@ class PortPktProvider:
     async def __aexit__(self, exc_type, exc, tb) -> None:
         pass
 
-    async def get_pkt(self):  # returns a tuple
-        """Get the next packet line from a serial port."""
+    async def get_pkt(self) -> (str, str, Optional[bytearray]):
+        """Get the next packet line (dtm, pkt, pkt_bytes) from a serial port."""
 
         def _logger_msg(func, msg):  # TODO: this is messy...
-            date, time = dtm.split("T")
-            extra = {"date": date, "time": time, "_packet": raw_pkt}
+            date, time = dtm_str.split("T")
+            extra = {"date": date, "time": time, "_packet": pkt_bytes}
             extra.update({"error_text": "", "comment": ""})
-            func("%s < %s", raw_pkt, msg, extra=extra)
+            func("%s < %s", pkt_bytes, msg, extra=extra)
 
         try:
-            raw_pkt = await self.reader.readline()
+            pkt_bytes = await self.reader.readline()
         except SerialException:
-            return time_stamp(), None, None
+            return time_stamp(), "", None
 
-        dtm = time_stamp()  # done here & now for most-accurate timestamp
+        dtm_str = time_stamp()  # done here & now for most-accurate timestamp
         if __dev_mode__:
             _logger_msg(_LOGGER.debug, "Raw packet")
 
         try:
-            pkt = "".join(
+            pkt_str = "".join(
                 c
-                for c in raw_pkt.decode("ascii", errors="strict").strip()
+                for c in pkt_bytes.decode("ascii", errors="strict").strip()
                 if c in printable
             )
         except UnicodeDecodeError:
             _logger_msg(_LOGGER.warning, "Bad (raw) packet")
-            return dtm, None, raw_pkt
+            return dtm_str, "", pkt_bytes
 
         # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
 
-        return dtm, pkt, raw_pkt
+        return dtm_str, pkt_str, pkt_bytes
 
     async def put_pkt(self, cmd, logger):  # TODO: logger is a hack
         """Put the next packet line to a serial port."""
 
         # self._lock.acquire()
-        # logger.debug("# Data was sent to %s: %s", self.serial_port, cmd)
+        logger.debug("# Data was sent to %s: %s", self.serial_port, cmd)
         self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
 
         # cmd.dispatch_dtm = time_stamp()
