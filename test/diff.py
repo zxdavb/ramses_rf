@@ -6,7 +6,7 @@ import os
 import re
 
 DEBUG_ADDR = "0.0.0.0"
-DEBUG_PORT = 5679
+DEBUG_PORT = 5678
 
 RSSI_REGEXP = re.compile(r"(-{3}|\d{3})")
 PKT_LINE = namedtuple("Packet", ["dtm", "rssi", "packet", "line"])
@@ -22,6 +22,15 @@ DEFAULT_PKTS_AFTER = 2
 
 STALL_LIMIT_SECS = 60  # 30 is a useful minimum, max should be sync_cycle time, ~180
 STALL_LIMIT_PKTS = 10  # <7 3 has increased potential for false positives
+
+if True:
+    BOTH = "==="
+    LEFT = "<<<"
+    RITE = ">>>"
+else:
+    BOTH = " = "
+    LEFT = "<  "
+    RITE = "  >"
 
 
 def _parse_args():
@@ -55,8 +64,12 @@ def _parse_args():
     parser = argparse.ArgumentParser()
 
     group = parser.add_argument_group(title="File names")
-    group.add_argument("hgi80_log", type=extant_file, help="(<<<) reference packet log")
-    group.add_argument("evofw_log", type=extant_file, help="(>>>) packet log to test")
+    group.add_argument(
+        "hgi80_log", type=extant_file, help=f"({LEFT}) reference packet log"
+    )
+    group.add_argument(
+        "evofw_log", type=extant_file, help=f"({RITE}) packet log to test"
+    )
 
     group = parser.add_argument_group(title="Context control")
     group.add_argument(
@@ -204,9 +217,12 @@ def compare(config) -> dict:
 
         def pause_ended(buffer, summary, pkt=None):
             # print("*** ENDED:", buffer["packets"][0])
+            # duration = (
+            #     dt.fromisoformat(buffer["packets"][0][4 : 4 + DATETIME_LENGTH])
+            #     - summary["pause_began"].dtm
+            # )
             duration = (
-                dt.fromisoformat(buffer["packets"][0][4 : 4 + DATETIME_LENGTH])
-                - summary["pause_began"].dtm
+                summary["last_pkt_1"].dtm - summary["pause_began"].dtm
             )
             if (
                 duration > config.pause_duration
@@ -214,13 +230,13 @@ def compare(config) -> dict:
             ):
                 summary["pauses"].append({summary["pause_began"]: duration})
 
-        td = time_diff(pkt, pkt2) if diff == "===" else 0
+        td = time_diff(pkt, pkt2) if diff == BOTH else 0
         summary["dt_pos" if td > 0 else "dt_neg"] += td
 
         buffer["packets"].append(f"{diff} {pkt.dtm} ({td:+7.0f}) {pkt.packet}")
         buffer["run_length"] += 1
 
-        if diff == "<<<":
+        if diff == LEFT:
             if not buffer["making_pause"]:
                 buffer.update({"pause_len": 0, "making_pause": True})
                 pause_began(buffer, summary, pkt)
@@ -231,7 +247,7 @@ def compare(config) -> dict:
             if buffer["pause_len"] > 3:
                 pause_ended(buffer, summary)
 
-        if diff in ["<<<", ">>>"]:
+        if diff in (LEFT, RITE):  # can print/clear the entire buffer
             # if not buffer["making_block"]:  # beginning of a block
             buffer_print(buffer, len(buffer["packets"]))
             buffer.update({"run_length": 0, "making_block": True})
@@ -241,12 +257,12 @@ def compare(config) -> dict:
             if buffer["run_length"] > config.before + config.after:  # end of a block
                 buffer_print(buffer, config.after)
                 buffer.update({"run_length": config.before, "making_block": False})
-                buffer["packets"].popleft()  # the first === pkt between AFTER & BEFORE
+                buffer["packets"].popleft()  # the first BOTH pkt between AFTER & BEFORE
                 print()
 
         elif buffer["run_length"] > config.before:
             buffer.update({"run_length": config.before, "making_block": False})
-            buffer["packets"].popleft()  # an unwanted === pkt before BEFORE
+            buffer["packets"].popleft()  # an unwanted BOTH pkt before BEFORE
 
     def buffer_flush(buffer):
         if buffer["making_block"]:
@@ -265,14 +281,15 @@ def compare(config) -> dict:
         )
         print(
             " - there were:",
-            f"{num_1} (<<<, {num_1 / num_total * 100:0.2f}%), "
-            f"{num_2} (>>>, {num_2 / num_total * 100:0.2f}%) unmatched packets",
+            f"{num_1} ({LEFT.strip()}, {num_1 / num_total * 100:0.2f}%), "
+            f"{num_2} ({RITE.strip()}, {num_2 / num_total * 100:0.2f}%) "
+            "unmatched packets",
         )
 
         lst = [v.total_seconds() for d in pauses for k, v in d.items()]
         print(
-            f"\r\nOf the {len(lst)} pauses >{config.pause_length} packets' duration "
-            f"(or >{config.pause_duration.total_seconds():0.2f} secs):"
+            f"\r\nOf the {len(lst)} pauses >{config.pause_length} packets "
+            f"(or >{config.pause_duration.total_seconds():0.2f} secs) duration:"
         )
         if len(lst):
             print(
@@ -290,7 +307,7 @@ def compare(config) -> dict:
 
     SUMMARY_KEYS = ["dt_pos", "dt_neg", "num_pkts", "num_1", "num_2", "warning"]
     summary = {k: 0 for k in SUMMARY_KEYS}
-    summary.update({"pauses": []})
+    summary.update({"pauses": [], "last_pkt_1": None})
 
     pkt_2_window = deque()
 
@@ -298,7 +315,7 @@ def compare(config) -> dict:
         for raw_line in fh_1:
             pkt_1 = parse_line(raw_line)
             if "*" in pkt_1.packet or "#" in pkt_1.packet:
-                summary["warning"] = True
+                summary["warning"] = True  # file_1 is evofw3, and not hgi80!
 
             slide_pkt_window(fh_2, pkt_2_window, until=pkt_1.dtm + config.seconds)
 
@@ -306,19 +323,20 @@ def compare(config) -> dict:
                 matched = pkts_match(pkt_1, pkt_2_window, idx)
                 if matched:
                     for _ in range(idx):  # all pkts before the match
-                        buffer_append(buffer, summary, ">>>", pkt_2_window[0])
+                        buffer_append(buffer, summary, RITE, pkt_2_window[0])
                         if not pkt_2_window[0].packet[:1] == "#":
                             summary["num_2"] += 1
                         pkt_2_window.popleft()
 
-                    buffer_append(buffer, summary, "===", pkt_1, pkt_2)
+                    buffer_append(buffer, summary, BOTH, pkt_1, pkt_2)
                     summary["num_pkts"] += 1
                     pkt_2_window.popleft()
                     break
 
             else:
-                buffer_append(buffer, summary, "<<<", pkt_1)
+                buffer_append(buffer, summary, LEFT, pkt_1)
                 summary["num_1"] += 1
+                summary["last_pkt_1"] = pkt_1
 
         buffer_flush(buffer)
 
