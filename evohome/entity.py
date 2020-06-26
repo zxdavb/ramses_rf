@@ -23,8 +23,8 @@ from .const import (
     SYSTEM_MODE_LOOKUP,
     SYSTEM_MODE_MAP,
     ZONE_TYPE_MAP,
-    # ZONE_MODE_LOOKUP,
-    # ZONE_MODE_MAP,
+    ZONE_MODE_LOOKUP,
+    ZONE_MODE_MAP,
     __dev_mode__,
 )
 
@@ -78,13 +78,18 @@ def _dtm(value) -> str:
     return dtm_to_hex(*value.timetuple())
 
 
-def _temp(value: str) -> str:
+def _temp(value) -> str:
     """Return a two's complement Temperature/Setpoint."""
     if value is None:
         return "7FFF"
 
-    if not isinstance(value, float):
-        raise TypeError("Invalid temperature")
+    try:
+        value = float(value)
+    except ValueError:
+        raise ValueError("Invalid temperature")
+
+    if value < 0:
+        raise ValueError("Invalid temperature")
 
     return f"{int(value*100):04X}"
 
@@ -576,12 +581,12 @@ class Controller(DeviceBase):
     async def async_set_mode(self, mode, until=None) -> bool:  # 2E04
         """Set the system mode for a specified duration, or indefinitely."""
 
-        if mode in SYSTEM_MODE_LOOKUP:
-            mode = SYSTEM_MODE_LOOKUP[mode]
-        elif isinstance(mode, int):
+        if isinstance(mode, int):
             mode = f"{mode:02X}"
         elif not isinstance(mode, str):
             raise TypeError("Invalid system mode")
+        elif mode in SYSTEM_MODE_LOOKUP:
+            mode = SYSTEM_MODE_LOOKUP[mode]
 
         if mode not in SYSTEM_MODE_MAP:
             raise ValueError("Unknown system mode")
@@ -816,10 +821,14 @@ class Zone(Entity):
         self._discover()  # should be last thing in __init__()
 
     def _discover(self):
-        if self.id == "00":
-            asyncio.create_task(  # TODO: test only
-                self.async_set_override(17.5, dt.now() + timedelta(minutes=120))
-                # self.async_cancel_override()
+        if self.id == "99":  # test methods
+            asyncio.create_task(  # TODO: test/dev only
+                self.async_cancel_override()
+                # self.async_set_override(
+                #     setpoint=15.9,
+                #     mode="AdvancedOverride",
+                #     # until=dt.now() + timedelta(minutes=120)
+                # )
             )
 
         for code in ("0004", "000C"):
@@ -885,22 +894,41 @@ class Zone(Entity):
 
     async def async_cancel_override(self) -> bool:  # 2349
         """Revert to following the schedule."""
-        self._command("2349", verb=" W", payload=f"{self.id}7FFF00FFFFFF")
-        return False
+        await self.async_set_override()
 
-    async def async_set_override(self, setpoint, until=None) -> bool:  # 2349
-        """Override the setpoint for a specified duration, or indefinitely."""
+    async def async_set_override(self, mode=None, setpoint=None, until=None) -> bool:
+        """Override the setpoint for a specified duration, or indefinitely.
 
-        setpoint = _temp(setpoint)
+        The setpoint has a resolution of 0.1 C. If a setpoint temperature is required,
+        but none is provided, the controller will use the maximum possible value.
 
-        if not 500 < int(setpoint, 16) < 3000:
-            raise ValueError("Invalid setpoint temperature")
+        The until has a resolution of 1 min.
+
+        Incompatible combinations:
+        - mode == Follow & setpoint not None (will silently ignore setpoint)
+        - mode == Temporary & until is None (will silently drop W packet)
+        """
+
+        if mode is None and until is None:
+            mode = "00" if setpoint is None else "02"  # Follow, Permanent
+        elif mode is None:  # and until is not None
+            mode = "04"  # Temporary
+        elif isinstance(mode, int):
+            mode = f"{mode:02X}"
+        elif not isinstance(mode, str):
+            raise TypeError("Invalid zone mode")
+        elif mode in ZONE_MODE_LOOKUP:
+            mode = ZONE_MODE_LOOKUP[mode]
+
+        if mode not in ZONE_MODE_MAP:
+            raise ValueError("Unknown zone mode")
+
+        setpoint = _temp(setpoint)  # None means max, if a temp is required
 
         if until is None:
-            mode = "04"  # PermanentOverride
+            mode = "01" if mode == "04" else mode
             payload = f"{self.id}{setpoint}{mode}FFFFFF"
-        else:
-            mode = "02"  # TemporaryOverride
+        else:  # required only by: 04, Temporary, ignored by others
             payload = f"{self.id}{setpoint}{mode}FFFFFF{_dtm(until)}"
 
         self._command("2349", verb=" W", payload=payload)

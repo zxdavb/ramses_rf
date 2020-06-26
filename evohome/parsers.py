@@ -953,12 +953,11 @@ def parser_2349(payload, msg) -> Optional[dict]:
     assert payload[6:8] in list(ZONE_MODE_MAP)
     assert payload[8:14] == "FFFFFF"
 
-    return {
-        **_idx(payload[:2], msg),
-        "setpoint": _temp(payload[2:6]),
-        "mode": ZONE_MODE_MAP.get(payload[6:8]),
-        "until": _dtm(payload[14:26]) if payload[6:8] == "04" else None,
-    }
+    result = {"mode": ZONE_MODE_MAP.get(payload[6:8]), "setpoint": _temp(payload[2:6])}
+    if msg.len == 13:
+        result.update({"until": _dtm(payload[14:26])})
+
+    return {**_idx(payload[:2], msg), **result}
 
 
 @parser_decorator  # system_mode

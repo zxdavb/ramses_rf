@@ -147,9 +147,11 @@ SYSTEM_MODE_LOOKUP = {v: k for k, v in SYSTEM_MODE_MAP.items()}
 
 ZONE_MODE_MAP = {
     "00": "FollowSchedule",
+    "01": "AdvancedOverride",  # until the next scheduled setpoint
     "02": "PermanentOverride",
-    "04": "TemporaryOverride",  # will incl. a datetime
-}  # "01": until next SP?
+    # "03": "DayOverride",  # ignores until, uses duration of 20h 15m!
+    "04": "TemporaryOverride",  # requires an until (datetime)
+}
 ZONE_MODE_LOOKUP = {v: k for k, v in ZONE_MODE_MAP.items()}
 
 # Electric Heat - on/off relay (only)
