@@ -1,6 +1,6 @@
 """The entities for Honeywell's RAMSES II / Residential Network Protocol."""
-# import asyncio
-from datetime import datetime as dt  # , timedelta
+import asyncio
+from datetime import datetime as dt, timedelta
 import logging
 from typing import Any, Optional
 
@@ -23,6 +23,8 @@ from .const import (
     SYSTEM_MODE_LOOKUP,
     SYSTEM_MODE_MAP,
     ZONE_TYPE_MAP,
+    # ZONE_MODE_LOOKUP,
+    # ZONE_MODE_MAP,
     __dev_mode__,
 )
 
@@ -53,6 +55,38 @@ def dev_id_to_hex(device_id: str) -> str:
     else:  # len(device_id) == 10, e.g. 'CTL:123456', or ' 63:262142'
         dev_type = DEVICE_LOOKUP.get(device_id[:3], device_id[1:3])
     return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # sans preceding 0x
+
+
+def _dtm(value) -> str:
+    def dtm_to_hex(tm_year, tm_mon, tm_mday, tm_hour, tm_min, tm_sec, *args):
+        return f"{tm_min:02X}{tm_hour:02X}{tm_mday:02X}{tm_mon:02X}{tm_year:04X}"
+
+    if value is None:
+        return "FF" * 6
+
+    if isinstance(value, str):
+        try:
+            value = dt.fromisoformat(value)
+        except ValueError:
+            raise ValueError("Invalid datetime isoformat string")
+    elif not isinstance(value, dt):
+        raise TypeError("Invalid datetime object")
+
+    if value < dt.now() + timedelta(minutes=1):
+        raise ValueError("Invalid datetime")
+
+    return dtm_to_hex(*value.timetuple())
+
+
+def _temp(value: str) -> str:
+    """Return a two's complement Temperature/Setpoint."""
+    if value is None:
+        return "7FFF"
+
+    if not isinstance(value, float):
+        raise TypeError("Invalid temperature")
+
+    return f"{int(value*100):04X}"
 
 
 # ######################################################################################
@@ -540,17 +574,7 @@ class Controller(DeviceBase):
         return False
 
     async def async_set_mode(self, mode, until=None) -> bool:  # 2E04
-        """Set the system mode for a duration, or indefinitely."""
-
-        def _dtm(until: dt) -> str:
-            def __dtm(tm_year, tm_mon, tm_mday, tm_hour, tm_min, tm_sec, *args):
-                return (
-                    f"{tm_min:02X}{tm_hour:02X}{tm_mday:02X}{tm_mon:02X}{tm_year:04X}"
-                )
-
-            if until is None:
-                return "FF" * 6 + "00"
-            return __dtm(*until.timetuple()) + "01"
+        """Set the system mode for a specified duration, or indefinitely."""
 
         if mode in SYSTEM_MODE_LOOKUP:
             mode = SYSTEM_MODE_LOOKUP[mode]
@@ -562,18 +586,9 @@ class Controller(DeviceBase):
         if mode not in SYSTEM_MODE_MAP:
             raise ValueError("Unknown system mode")
 
-        if isinstance(until, str):
-            try:
-                until = dt.fromisoformat(until)
-            except ValueError:
-                raise ValueError("Invalid time until")
-        elif until is not None and not isinstance(until, dt):
-            raise TypeError("Invalid time until")
+        until = _dtm(until) + "00" if until is None else "01"
 
-        if until is not None and until < dt.now():
-            raise ValueError("Invalid time until")
-
-        self._command("2E04", verb=" W", payload=f"{mode}{_dtm(until)}")
+        self._command("2E04", verb=" W", payload=f"{mode}{until}")
         return False
 
     async def update_fault_log(self) -> list:
@@ -801,6 +816,12 @@ class Zone(Entity):
         self._discover()  # should be last thing in __init__()
 
     def _discover(self):
+        if self.id == "00":
+            asyncio.create_task(  # TODO: test only
+                self.async_set_override(17.5, dt.now() + timedelta(minutes=120))
+                # self.async_cancel_override()
+            )
+
         for code in ("0004", "000C"):
             self._command(code, payload=f"{self.id}00")
 
@@ -863,11 +884,26 @@ class Zone(Entity):
             _LOGGER.debug("Promoted zone %s to %s", self.id, self.type)
 
     async def async_cancel_override(self) -> bool:  # 2349
-        """Revert to following the schedule (FollowSchedule)."""
+        """Revert to following the schedule."""
+        self._command("2349", verb=" W", payload=f"{self.id}7FFF00FFFFFF")
         return False
 
     async def async_set_override(self, setpoint, until=None) -> bool:  # 2349
-        """Override the setpoint for a duration (TemporaryOverride), or indefinitely."""
+        """Override the setpoint for a specified duration, or indefinitely."""
+
+        setpoint = _temp(setpoint)
+
+        if not 500 < int(setpoint, 16) < 3000:
+            raise ValueError("Invalid setpoint temperature")
+
+        if until is None:
+            mode = "04"  # PermanentOverride
+            payload = f"{self.id}{setpoint}{mode}FFFFFF"
+        else:
+            mode = "02"  # TemporaryOverride
+            payload = f"{self.id}{setpoint}{mode}FFFFFF{_dtm(until)}"
+
+        self._command("2349", verb=" W", payload=payload)
         return False
 
     @property
