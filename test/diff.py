@@ -14,16 +14,19 @@ PKT_LINE = namedtuple("Packet", ["dtm", "rssi", "packet", "line"])
 DATETIME_FORMAT = "YYYY-MM-DD HH:MM:SS.ssssss"
 DATETIME_LENGTH = len(DATETIME_FORMAT)
 
-DEFAULT_LOOKAHEAD_SECS = 1
+# how far to look ahead for a matching packet - higher values will slow down
+DEFAULT_LOOKAHEAD_SECS = 1  # may need to increase this if logs from diff systems
 DEFAULT_LOOKAHEAD_PKTS = 5  # <3 has increased potential for false positives
 
+# packets to print before/after a stall
 DEFAULT_PKTS_BEFORE = 2
 DEFAULT_PKTS_AFTER = 2
 
-STALL_LIMIT_SECS = 60  # 30 is a useful minimum, max should be sync_cycle time, ~180
-STALL_LIMIT_PKTS = 10  # <7 3 has increased potential for false positives
+# exclude a stall unless they exceed the following
+STALL_LIMIT_SECS = 30  # 30 is a useful minimum, max should be sync_cycle time, ~180
+STALL_LIMIT_PKTS = 10  # <7 has increased potential for false positives
 
-if True:
+if False:
     BOTH, LEFT, RITE = "===", "<<<", ">>>"
 else:
     BOTH, LEFT, RITE = " = ", "<  ", "  >"
@@ -285,7 +288,7 @@ def compare(config) -> dict:
         lst = [v.total_seconds() for d in pauses for k, v in d.items()]
         print(
             f"\r\nOf the {len(lst)} pauses >{config.pause_length} packets "
-            f"(or >{config.pause_duration.total_seconds():0.2f} secs) duration:"
+            f"or >{config.pause_duration.total_seconds():0.2f} secs duration:"
         )
         if len(lst):
             print(
