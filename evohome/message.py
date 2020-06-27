@@ -48,13 +48,13 @@ class Message:
         assert all(
             [
                 self.devs[0].addr not in (NON_DEV_ID, NUL_DEV_ID),
-                self.devs[1].addr != self.devs[2].addr,
                 NON_DEV_ID in (self.devs[1].addr, self.devs[2].addr),
+                self.devs[1].addr != self.devs[2].addr,
             ]
         ) or all(
             [
                 self.devs[2].addr not in (NON_DEV_ID, NUL_DEV_ID),
-                self.devs[0].addr == self.devs[1].addr == NON_DEV_ID,
+                NON_DEV_ID == self.devs[0].addr == self.devs[1].addr,
             ]
         )
 
