@@ -45,30 +45,19 @@ class Message:
         for idx, addr in enumerate([packet[i : i + 9] for i in range(11, 32, 10)]):
             self.devs[idx] = Address(addr=addr, type=addr[:2])
 
-        # 061  I --- 03:183434 --:------ 63:262142 1FC9 018 0023090ECC8A0030C90ECC8A0000080ECC8A  # noqa
-        assert (
-            all(
-                [
-                    self.devs[0].addr not in (NON_DEV_ID, NUL_DEV_ID),
-                    self.devs[1].addr != NON_DEV_ID,
-                    self.devs[2].addr == NON_DEV_ID,
-                ]
-            )
-            or all(
-                [
-                    self.devs[0].addr not in (NON_DEV_ID, NUL_DEV_ID),
-                    self.devs[1].addr == NON_DEV_ID,
-                    self.devs[2].addr != NON_DEV_ID,  # not in (NON_DEV_ID, NUL_DEV_ID),
-                ]
-            )
-            or all(
-                [
-                    self.devs[0].addr == NON_DEV_ID,
-                    self.devs[1].addr == NON_DEV_ID,
-                    self.devs[2].addr not in (NON_DEV_ID, NUL_DEV_ID),
-                ]
-            )
-        )  # safe to -O
+        assert all(
+            [
+                self.devs[0].addr not in (NON_DEV_ID, NUL_DEV_ID),
+                self.devs[1].addr != self.devs[2].addr,
+                NON_DEV_ID in (self.devs[1].addr, self.devs[2].addr),
+            ]
+        ) or all(
+            [
+                self.devs[0].addr == NON_DEV_ID,
+                self.devs[1].addr == NON_DEV_ID,
+                self.devs[2].addr not in (NON_DEV_ID, NUL_DEV_ID),
+            ]
+        )
 
         dev_addrs = list(filter(lambda x: x.type != "--", self.devs))
         self.src = dev_addrs[0] if len(dev_addrs) else NON_DEVICE
