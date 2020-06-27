@@ -48,13 +48,12 @@ class Message:
         assert all(
             [
                 self.devs[0].addr not in (NON_DEV_ID, NUL_DEV_ID),
-                NON_DEV_ID in (self.devs[1].addr, self.devs[2].addr),
-                self.devs[1].addr != self.devs[2].addr,
+                (self.devs[1].addr, self.devs[2].addr).count(NON_DEV_ID) == 1,
             ]
         ) or all(
             [
                 self.devs[2].addr not in (NON_DEV_ID, NUL_DEV_ID),
-                NON_DEV_ID == self.devs[0].addr == self.devs[1].addr,
+                self.devs[0].addr == self.devs[1].addr == NON_DEV_ID,
             ]
         )
 
@@ -68,7 +67,7 @@ class Message:
         self._payload = self._str = None
         self._is_array = self._is_fragment = self._is_valid = None
 
-        self._is_valid = self.is_valid
+        self._is_valid = self._parse_payload()
         self._is_fragment = self.is_fragment_WIP
 
     def __str__(self) -> str:
@@ -108,6 +107,16 @@ class Message:
 
         self._str = msg_format.format(src, dst, self.verb, code, payload, self._payload)
         return self._str
+
+    def __eq__(self, other) -> bool:
+        return all(
+            self.verb == other.verb,
+            # self.seq_no == other.seq_no,
+            self.code == other.code,
+            self.src == other.src,
+            self.dst == other.dst,
+            self.raw_payload == other.raw_payload,
+        )
 
     @property
     def payload(self) -> Any:  # Any[dict, List[dict]]:
@@ -187,8 +196,13 @@ class Message:
         return self._is_fragment
 
     @property
-    def is_valid(self) -> bool:  # Main code here
-        """Return True if the message payload is valid.
+    def is_valid(self) -> bool:
+        """Return True if the message payload is valid."""
+
+        return self._is_valid
+
+    def _parse_payload(self) -> bool:  # Main code here
+        """Parse the payload, return True if the message payload is valid.
 
         All exceptions are trapped, and logged appropriately.
         """

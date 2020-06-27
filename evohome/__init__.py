@@ -230,11 +230,11 @@ class Gateway:
     async def start(self) -> None:
         async def file_reader(fp):
             async for raw_pkt in file_pkts(fp):
-                self._process_payload(raw_pkt)
+                self._process_packet(raw_pkt)
 
         async def port_reader(manager):
             async for raw_pkt in port_pkts(manager, self._relay):
-                self._process_payload(raw_pkt)
+                self._process_packet(raw_pkt)
 
                 if self.config.get("evofw_flag") and "evofw3" in raw_pkt.packet:
                     # !V, !T - print the version, or the current mask
@@ -407,7 +407,7 @@ class Gateway:
 
             self.cmd_que.task_done()
 
-    def _process_payload(self, pkt: Packet) -> None:
+    def _process_packet(self, pkt: Packet) -> None:
         """Decode the packet and its payload."""
 
         def is_wanted(include=None, exclude=None) -> bool:

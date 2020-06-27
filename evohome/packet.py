@@ -56,6 +56,11 @@ class Packet:
     def __repr__(self):
         return str(self._raw_pkt_line if self._raw_pkt_line else self._pkt_line)
 
+    def __eq__(self, other) -> bool:
+        if not hasattr(other, "packet"):
+            return NotImplemented
+        return self.packet == other.packet
+
     @property
     def is_valid(self) -> bool:
         """Return True if the packet is valid in structure.

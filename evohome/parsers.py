@@ -1033,6 +1033,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
     assert msg.len == 17  # usu: I 30:-->30:, with a seq#!
 
     assert payload[2:4] in ("00", "06")
+    assert payload[4:6] in ("01", "FF")
     assert payload[6:8] == "00"
     assert payload[8:32] in ("00" * 12, "20" * 12)
 

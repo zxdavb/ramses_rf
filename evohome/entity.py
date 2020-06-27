@@ -20,6 +20,8 @@ from .const import (
     DEVICE_TABLE,
     DEVICE_TYPES,
     DOMAIN_TYPE_MAP,
+    # DHW_STATE_LOOKUP,
+    DHW_STATE_MAP,
     SYSTEM_MODE_LOOKUP,
     SYSTEM_MODE_MAP,
     ZONE_TYPE_MAP,
@@ -246,22 +248,64 @@ class DhwZone(HeatDemand):  # TODO: domain
         self.type = None  # or _domain_type
         # self._discover()
 
-    def _TBD_discover(self):
+    def _discover(self):
         # get config, mode, temp
         for code in ("10A0", "1F41", "1260"):  # TODO: what about 1100?
             self._command(code)
+
+        if self.id == "FC":
+            self.async_set_override(state="On")
 
     async def async_cancel_override(self) -> bool:  # 1F41
         """Reset the DHW to follow its schedule."""
         return False
 
-    async def async_set_override(self, active, until=None) -> bool:  # 1F41
+    async def async_set_override(self, mode=None, state=None, until=None) -> bool:
         """Force the DHW on/off for a duration, or indefinitely.
 
         Use until = ? for 1hr boost (obligates on)
         Use until = ? for until next scheduled on/off
         Use until = None for indefinitely
         """
+        # 053  I --- 01:145038 --:------ 01:145038 1F41 012 00 01 04 FFFFFF 1E061B0607E4
+        # 048  I --- 01:145038 --:------ 01:145038 1F41 012 00 00 04 FFFFFF 1E061B0607E4
+
+        # if mode is None and until is None:
+        #     mode = "00" if setpoint is None else "02"  # Follow, Permanent
+        # elif mode is None:  # and until is not None
+        #     mode = "04"  # Temporary
+        # elif isinstance(mode, int):
+        #     mode = f"{mode:02X}"
+        # elif not isinstance(mode, str):
+        #     raise TypeError("Invalid zone mode")
+        # elif mode in ZONE_MODE_LOOKUP:
+        #     mode = ZONE_MODE_LOOKUP[mode]
+
+        # if mode not in ZONE_MODE_MAP:
+        #     raise ValueError("Unknown zone mode")
+
+        # if state is None and until is None:
+        #     state = "01"
+        # elif state is None:  # and until is not None
+        #     state = "01"
+        # elif isinstance(state, int):
+        #     mode = f"{mode:02X}"
+        # elif isinstance(state, bool):
+        #     mode = "01" if mode is True else "00"
+        # elif not isinstance(mode, str):
+        #     raise TypeError("Invalid DHW state")
+        # elif state in DHW_STATE_LOOKUP:
+        #     state = DHW_STATE_LOOKUP[mode]
+
+        if state not in DHW_STATE_MAP:
+            raise ValueError("Unknown DHW state")
+
+        if until is None:
+            payload = f"00{state}{mode}FFFFFF"
+        else:  # required only by: 04, Temporary, ignored by others
+            payload = f"00{state}{mode}FFFFFF{_dtm(until)}"
+
+        self._command("1F41", verb=" W", payload=payload)
         return False
 
     async def async_reset_config(self) -> bool:  # 10A0
