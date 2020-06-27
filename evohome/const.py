@@ -87,7 +87,7 @@ DEVICE_TABLE = {
     # Honeywell evohome
     "01": {"type": "CTL", "name": "Controller", "battery": False},  # rechargeable
     "02": {"type": "UFH", "name": "UFH Controller", "battery": False},  # HCE80(R)
-    "03": {"type": "STa", "name": "Room Sensor/Stat", "battery": None},  # HCF82, HCW82
+    "03": {"type": "STa", "name": "Room Sensor/Stat", "battery": True},  # HCW80 (HCF82)
     "04": {"type": "TRV", "name": "Radiator Valve", "battery": True},  # HR80, HR92
     "07": {"type": "DHW", "name": "DHW Sensor", "battery": True},  # CS92
     "10": {"type": "OTB", "name": "OpenTherm Bridge", "battery": False},  # R8810
@@ -116,6 +116,9 @@ DEVICE_TABLE = {
 
 # Example of:
 #  - Sundial RF2 Pack 3: 23:(ST9420C), 07:(CS92), and 22:(DTS92(E))
+
+# HCW80 has option of being wired
+# ST9420C has battery back-up (as does evohome)
 
 DEVICE_TYPES = {k: v["type"] for k, v in DEVICE_TABLE.items()}
 DEVICE_LOOKUP = {v: k for k, v in DEVICE_TYPES.items()}
@@ -153,6 +156,12 @@ ZONE_MODE_MAP = {
     "04": "TemporaryOverride",  # requires an until (datetime)
 }
 ZONE_MODE_LOOKUP = {v: k for k, v in ZONE_MODE_MAP.items()}
+
+DHW_STATE_MAP = {
+    "00": "Off",
+    "01": "On",
+}
+DHW_STATE_LOOKUP = {v: k for k, v in DHW_STATE_MAP.items()}
 
 # Electric Heat - on/off relay (only)
 # Zone Valve    - on/off relay AND requests heat from the boiler, 3150
