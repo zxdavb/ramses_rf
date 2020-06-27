@@ -53,9 +53,8 @@ class Message:
             ]
         ) or all(
             [
-                self.devs[0].addr == NON_DEV_ID,
-                self.devs[1].addr == NON_DEV_ID,
                 self.devs[2].addr not in (NON_DEV_ID, NUL_DEV_ID),
+                self.devs[0].addr == self.devs[1].addr == NON_DEV_ID,
             ]
         )
 
