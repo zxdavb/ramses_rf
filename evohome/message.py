@@ -15,7 +15,9 @@ from .const import (
     NON_DEV_ID,
     NUL_DEV_ID,
 )
-from .entity import DEVICE_CLASS, Device, Domain, Zone
+
+# from .devices import DEVICE_CLASS, Device, create_device
+from .domains import create_domain
 
 Address = namedtuple("DeviceAddress", "addr, type")
 NON_DEVICE = Address(addr="", type="--")
@@ -26,11 +28,15 @@ _LOGGER = logging.getLogger(__name__)
 class Message:
     """The message class."""
 
-    def __init__(self, pkt, gateway) -> None:
+    def __init__(self, gateway, pkt) -> None:
         """Create a message, assumes a valid packet."""
         self._gwy = gateway
         self._evo = gateway.evo
         self._pkt = packet = pkt.packet
+
+        self.devs = pkt.addrs
+        self.src = gateway.device_by_id.get(pkt.src_addr.id, pkt.src_addr)
+        self.dst = gateway.device_by_id.get(pkt.dst_addr.id, pkt.dst_addr)
 
         self.date = pkt.date
         self.time = pkt.time
@@ -41,26 +47,6 @@ class Message:
         self.seq_no = packet[7:10]  # sequence number (as used by 31D9)?
         self.code = packet[41:45]
 
-        self.devs = [None] * 3
-        for idx, addr in enumerate([packet[i : i + 9] for i in range(11, 32, 10)]):
-            self.devs[idx] = Address(addr=addr, type=addr[:2])
-
-        assert all(
-            [
-                self.devs[0].addr not in (NON_DEV_ID, NUL_DEV_ID),
-                (self.devs[1].addr, self.devs[2].addr).count(NON_DEV_ID) == 1,
-            ]
-        ) or all(
-            [
-                self.devs[2].addr not in (NON_DEV_ID, NUL_DEV_ID),
-                self.devs[0].addr == self.devs[1].addr == NON_DEV_ID,
-            ]
-        )
-
-        dev_addrs = list(filter(lambda x: x.type != "--", self.devs))
-        self.src = dev_addrs[0] if len(dev_addrs) else NON_DEVICE
-        self.dst = dev_addrs[1] if len(dev_addrs) > 1 else NON_DEVICE
-
         self.len = int(packet[46:49])  # TODO:  is useful? / is user used?
         self.raw_payload = packet[50:]
 
@@ -70,22 +56,25 @@ class Message:
         self._is_valid = self._parse_payload()
         self._is_fragment = self.is_fragment_WIP
 
+        if self.code != "000C":  # TODO: assert here, or in is_valid()
+            assert self.is_array == isinstance(self.payload, list)
+
     def __str__(self) -> str:
         """Represent the entity as a string."""
 
         def display_name(dev) -> str:
             """Return a formatted device name, uses a friendly name if there is one."""
-            if dev.addr == NON_DEV_ID:
+            if dev.id == NON_DEV_ID:
                 return f"{'':<10}"
 
-            if dev.addr == NUL_DEV_ID:
+            if dev.id == NUL_DEV_ID:
                 return "NUL:------"
 
-            if dev.addr in self._gwy.known_devices:
-                if self._gwy.known_devices[dev.addr].get("friendly_name"):
-                    return self._gwy.known_devices[dev.addr]["friendly_name"]
+            if dev.id in self._gwy.known_devices:
+                if self._gwy.known_devices[dev.id].get("friendly_name"):
+                    return self._gwy.known_devices[dev.id]["friendly_name"]
 
-            return f"{DEVICE_TYPES.get(dev.type, f'{dev.type:>3}')}:{dev.addr[3:]}"
+            return f"{DEVICE_TYPES.get(dev.type, f'{dev.type:>3}')}:{dev.id[3:]}"
 
         if self._str:
             return self._str
@@ -95,9 +84,9 @@ class Message:
         else:
             msg_format = MSG_FORMAT_10
 
-        if self.src is self.devs[0]:
+        if self.src.id == self.devs[0].id:
             src = display_name(self.src)
-            dst = display_name(self.dst) if self.dst.addr != self.src.addr else ""
+            dst = display_name(self.dst) if self.dst.id != self.src.id else ""
         else:
             src = ""
             dst = display_name(self.src)
@@ -139,7 +128,7 @@ class Message:
             self._is_array = self.verb in (" I", "RP")
             return self._is_array
 
-        if self.verb not in (" I", "RP") or self.src.addr != self.dst.addr:
+        if self.verb not in (" I", "RP") or self.src.id != self.dst.id:
             self._is_array = False
             return self._is_array
 
@@ -153,7 +142,7 @@ class Message:
             # grep ' I.* 01:.* 01:.* 000A '
             # grep ' I.* 01:.* 01:.* 2309 ' | grep -v ' 003 '  # TODO: some non-arrays
             # grep ' I.* 01:.* 01:.* 30C9 '
-            self._is_array = self.verb == " I" and self.src.addr == self.dst.addr
+            self._is_array = self.verb == " I" and self.src.id == self.dst.id
 
         # 055  I --- 02:001107 --:------ 02:001107 22C9 024 0008340A28010108340A...
         # 055  I --- 02:001107 --:------ 02:001107 22C9 006 0408340A2801
@@ -162,13 +151,13 @@ class Message:
         elif self.code in ("22C9", "3150") and self.src.type == "02":
             # grep -E ' I.* 02:.* 02:.* 22C9 '
             # grep -E ' I.* 02:.* 02:.* 3150' | grep -v FC
-            self._is_array = self.verb == " I" and self.src.addr == self.dst.addr
+            self._is_array = self.verb == " I" and self.src.id == self.dst.id
             self._is_array = self._is_array if self.raw_payload[:1] != "F" else False
 
         # 095  I --- 23:100224 --:------ 23:100224 2249 007 007EFF7EFFFFFF
         # 095  I --- 23:100224 --:------ 23:100224 2249 007 007EFF7EFFFFFF
         elif self.code in ("2249") and self.src.type == "23":
-            self._is_array = self.verb == " I" and self.src.addr == self.dst.addr
+            self._is_array = self.verb == " I" and self.src.id == self.dst.id
             # self._is_array = self._is_array if self.raw_payload[:1] != "F" else False
 
         else:
@@ -210,13 +199,6 @@ class Message:
         if self._is_valid is not None:
             return self._is_valid
 
-        # STATE: get controller ID by eavesdropping (here, as create_entity is optional)
-        if self._evo.ctl_id is None and self.src.type != "18":
-            if self.src.type == "01":
-                self._evo.ctl_id = self.src.addr
-            elif self.dst.type == "01":
-                self._evo.ctl_id = self.dst.addr
-
         # STATE: get number of zones by eavesdropping
         if self._evo._num_zones is None:  # and self._evo._prev_code == "1F09":
             if self.code in ("2309", "30C9") and self.is_array:  # 000A may be >1 pkt
@@ -240,7 +222,7 @@ class Message:
             return False
 
         # STATE: update parser state (last packet code) - not needed?
-        if self.src.addr == self._evo.ctl_id:
+        if self._evo.ctl is not None and self._evo.ctl.id == self.src.id:
             self._evo._prev_code = self.code if self.verb == " I" else None
         # TODO: add state for 000C?
 
@@ -262,110 +244,51 @@ class Message:
 
     def _create_entities(self) -> None:
         """Discover and create new devices, domains and zones."""
-        # contains true, programmer's checking asserts, which are OK to -O
-
-        def _entity(ent_cls, ent_id, ent_by_id, ents) -> None:
-            try:  # does the system already know about this entity?
-                _ = ent_by_id[ent_id]
-            except KeyError:  # this is a new entity, so create it
-                ent_by_id.update({ent_id: ent_cls(ent_id, self._gwy)})
-                ents.append(ent_by_id[ent_id])
-
-        def _device(dev_id, parent_zone=None) -> None:
-            """Get a Device, create it if required."""
-            dev_cls = DEVICE_CLASS.get(dev_id[:2], Device)
-            _entity(dev_cls, dev_id, self._evo.device_by_id, self._evo.devices)
-            if parent_zone is not None:
-                self._evo.device_by_id[dev_id].parent_000c = parent_zone
-
-        def _domain(domain_id) -> None:
-            """Get a Domain, create it if required."""
-            assert domain_id in ("F8", "F9", "FA", "FB", "FC")
-            _entity(Domain, domain_id, self._evo.domain_by_id, self._evo.domains)
-
-        def _zone(idx) -> None:
-            """Get a Zone, create it if required."""  # TODO: other zone types?
-            assert int(idx, 16) < 17  # TODO: > 11 not for Hometronic, leave out
-            _entity(Zone, idx, self._evo.zone_by_id, self._evo.zones)
-
-        if self.code != "000C":  # TODO: assert here, or in is_valid()
-            assert self.is_array == isinstance(self.payload, list)
-
-        if (
-            self._evo.ctl_id is not None
-            and self._evo.ctl_id not in self._evo.device_by_id
-        ):
-            _device(self._evo.ctl_id)
 
         # STEP 0: discover devices by harvesting zone_actuators payload
-        if self.code == "000C" and self.verb == "RP":  # or: from CTL/000C
-            [_device(d, self.payload["zone_idx"]) for d in self.payload["actuators"]]
+        # if self.code == "000C" and self.verb == "RP":  # or: from CTL/000C
+        #     [_device(d, self.payload["zone_idx"]) for d in self.payload["actuators"]]
 
-        # STEP 1, v1: discover devices by eavesdropping regular pkts
-        # TODO: limit discovery to devices conversing with controller - impossible?
-        [_device(d.addr) for d in self.devs if d.type not in ("18", "63", "--")]
-
-        # # STEP 1, v2: discover devices by eavesdropping regular pkts
-        # # TODO: limit discovery to devices conversing with controller - impossible?
-        # [
-        #     _device(d.addr)
-        #     for d in self.devs
-        #     if d.type not in ("18", "63", "--")
-        #     and (
-        #         self.src.addr in self._evo.device_by_id
-        #         or self.dst.addr in self._evo.device_by_id
-        #     )
-        #     or d.type in ("07", "12", "22", "34")
-        # ]
-
-        # STEP 1, v3: discover devices by eavesdropping regular pkts
-        # TODO: limit discovery to devices conversing with controller - impossible?
-        # [
-        #     _device(d.addr)
-        #     for d in self.devs
-        #     if d.type not in ("18", "63", "--")
-        #     # this has issues...
-        #     # and (
-        #     #     self.src.addr in self._evo.device_by_id
-        #     #     or self.dst.addr in self._evo.device_by_id
-        #     # )  # doesn't work
-        #     # ...but is slightly better than this:
-        #     # and self._evo.ctl_id in (self.src.addr, self.dst.addr)
-        #     # and self._evo.ctl_id is not None  # doesn't work either
-        # ]
-
-        # TODO: above doesnt work for 07:/12:/22:/34:; they rarely speak direct with 01:
-        # [_device(d.addr) for d in self.devs if d.type in ("07", "12", "22", "34")]
-
-        # self.src = self._evo.device_by_id[self.src.addr]
-        # self.dst = self._evo.device_by_id.get(self.dst.addr)
+        # self.src = self._evo.device_by_id[self.src.id]
+        # self.dst = self._evo.device_by_id.get(self.dst.id)
 
         # STEP 2: discover domains and zones by eavesdropping regular pkts
+        if self.src.id not in self._gwy.system_by_id:
+            return
+
+        # if self.src.type != "01" and self.verb == " I":
+        #     return
+
         if isinstance(self._payload, dict):
             if self._payload.get("domain_id"):
-                _domain(self._payload["domain_id"])
+                domain_type = "domain_id"
             elif self._payload.get("zone_idx"):  # TODO: parent_zone too?
-                _zone(self._payload["zone_idx"])
+                domain_type = "zone_idx"
+            else:
+                return
+            create_domain(self._gwy, self._payload[domain_type], self.src)
 
         else:  # elif isinstance(self._payload, list):
-            # if self.src.type == "01" and self.verb == " I":
             if self.code == "0009":
-                [_domain(d["domain_id"]) for d in self.payload]
+                domain_type = "domain_id"
             elif self.code in ("000A", "2309", "30C9"):  # the sync_cycle pkts
-                [_zone(z["zone_idx"]) for z in self.payload]
-            # elif self.code in ("22C9", "3150"):  # UFH
-            #     [_XXX(z["ufh_idx"]) for z in self.payload]
+                domain_type = "zone_idx"
+            # elif self.code in ("22C9", "3150"):  # UFH zone
+            # domain_type = "ufh_idx"
+            else:
+                return
+            [create_domain(self._gwy, d[domain_type], self.src) for d in self.payload]
 
     def _update_entities(self) -> None:  # TODO: needs work
         """Update the system state with the message data."""
 
         # CHECK: confirm parent_idx heuristics using the data in known_devices.json
         if False and __dev_mode__ and isinstance(self.payload, dict):
-            # assert self.src.addr in self._gwy.known_devices
-            if self.src.addr in self._gwy.known_devices:
-                idx = self._gwy.known_devices[self.src.addr].get("zone_idx")
-                if idx and self._evo.device_by_id[self.src.addr].parent_000c:
-                    assert idx == self._evo.device_by_id[self.src.addr].parent_000c
+            # assert self.src.id in self._gwy.known_devices
+            if self.src.id in self._gwy.known_devices:
+                idx = self._gwy.known_devices[self.src.id].get("zone_idx")
+                if idx and self._evo.device_by_id[self.src.id].parent_000c:
+                    assert idx == self._evo.device_by_id[self.src.id].parent_000c
                 if idx and "parent_idx" in self.payload:
                     assert idx == self.payload["parent_idx"]
 
@@ -373,7 +296,7 @@ class Message:
             return  # TODO: will stop useful RQs getting to update()? (e.g. RQ/3EF1)
 
         try:
-            self._evo.device_by_id[self.src.addr].update(self)
+            self._evo.device_by_id[self.src.id].update(self)
         except KeyError:  # some devices weren't created because they were filtered
             return
 

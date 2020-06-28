@@ -106,12 +106,12 @@ class Schedule:
         #     for idx in missing_frags:
         #         header = f"{self.id}20000800{idx + 1:02d}{self.total_frags:02d}"
         #         self._que.put_nowait(
-        #             Command("RQ", self._evo.ctl_id, "0404", header, **kwargs)
+        #             Command("RQ", self._evo.ctl.id, "0404", header, **kwargs)
         #         )  # could do only: {missing_frags[0] + 1:02d} instead of iterating
         #     return len(missing_frags)
 
         header = f"{self.id}20000800{missing_frags[0] + 1:02d}{self.total_frags:02d}"
-        self._que.put_nowait(Command("RQ", self._evo.ctl_id, "0404", header, **kwargs))
+        self._que.put_nowait(Command("RQ", self._evo.ctl.id, "0404", header, **kwargs))
 
         return 1
 

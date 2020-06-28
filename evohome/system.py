@@ -1,23 +1,25 @@
 """The evohome system."""
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from .const import __dev_mode__
+from .domains import Zone as EvoZone
 
 _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-class EvohomeSystem:
+class EvoSystem:
     """The system class."""
 
-    def __init__(self, controller_id=None) -> None:
+    def __init__(self, gateway, controller) -> None:
         """Initialise the class."""
-        # STATE: set the initial system state
-        self.ctl_id = controller_id
-        self.ctl = None  # pointer to controller obj
+        self._gwy = gateway
+        self.ctl = controller
+        gateway.systems.append(self)
+        gateway.system_by_id[controller.id] = self
 
         self._num_zones = None
         self._prev_code = None
@@ -28,11 +30,28 @@ class EvohomeSystem:
         self.devices = []
         self.device_by_id = {}
 
-        self.zones = []  # not used?
+        self.zones = []
         self.zone_by_id = {}
+        self.zone_by_name = {}
 
         self.heat_relay = None
         self.dhw_sensor = None
+
+    def add_device(self, device, domain=None) -> None:
+        """Add a device as a child of this controller."""
+
+        if device.id not in self.device_by_id:
+            self.devices.append(device)
+            self.device_by_id[device.id] = device
+
+        if domain is not None:
+            domain.add_device(device)
+
+    def get_zone(self, zone_id) -> Any:
+        """Return a zone (create it if required)."""
+        if zone_id in self.zone_by_id:
+            return self.zone_by_id[zone_id]
+        return EvoZone(self._gwy, self, zone_id)
 
     @staticmethod
     def _entities(entities, sort_attr) -> dict:
@@ -83,7 +102,7 @@ class EvohomeSystem:
     @property
     def status(self) -> Optional[dict]:
         """Return a representation of the system."""
-        controllers = [d for d in self.devices if d.type == "CTL"]
+        controllers = [d for d in self.devices if d.type == "01"]
         if len(controllers) != 1:
             _LOGGER.debug("fail test 0: more/less than 1 controller")
             return

@@ -1,5 +1,6 @@
 """Packet processor."""
 import asyncio
+from collections import namedtuple
 from datetime import datetime as dt
 import logging
 import re
@@ -13,12 +14,15 @@ from serial import SerialException
 from serial_asyncio import open_serial_connection
 
 from .command import PAUSE_DEFAULT, PAUSE_SHORT
-from .const import ISO_FORMAT_REGEX, MESSAGE_REGEX, __dev_mode__
+from .const import ISO_FORMAT_REGEX, MESSAGE_REGEX, NON_DEV_ID, NUL_DEV_ID, __dev_mode__
 from .logger import time_stamp
 
 BAUDRATE = 115200
 READ_TIMEOUT = 0.5
 XON_XOFF = True
+
+Address = namedtuple("DeviceAddress", "id, type")
+NON_DEVICE = Address(id="", type="--")
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,6 +50,9 @@ class Packet:
         self.packet, self.error_text, self.comment = split_pkt_line(pkt)
 
         self._packet = self.packet + " " if self.packet else ""  # TODO: hack 4 logging
+
+        self.addrs = [None] * 3
+        self.src = self.dst = None
 
         self._is_valid = self._is_wanted = None
         self._is_valid = self.is_valid
@@ -104,6 +111,30 @@ class Packet:
 
         _LOGGER.warning("%s < Bad packet: %s ", self, err_msg, extra=self.__dict__)
         return False
+
+    def _harvest_devices(self, harvest_func) -> None:
+        """Process the packet address fields and create any new devices."""
+
+        for idx, addr in enumerate([self.packet[i : i + 9] for i in range(11, 32, 10)]):
+            self.addrs[idx] = Address(id=addr, type=addr[:2])
+
+        assert all(
+            [
+                self.addrs[0].id not in (NON_DEV_ID, NUL_DEV_ID),
+                (self.addrs[1].id, self.addrs[2].id).count(NON_DEV_ID) == 1,
+            ]
+        ) or all(
+            [
+                self.addrs[2].id not in (NON_DEV_ID, NUL_DEV_ID),
+                self.addrs[0].id == self.addrs[1].id == NON_DEV_ID,
+            ]
+        )
+
+        device_addrs = list(filter(lambda x: x.type != "--", self.addrs))
+        self.src_addr = device_addrs[0] if len(device_addrs) else NON_DEVICE
+        self.dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEVICE
+
+        [harvest_func(a) for a in device_addrs]
 
 
 class PortPktProvider:
@@ -172,7 +203,7 @@ class PortPktProvider:
         """Put the next packet line to a serial port."""
 
         # self._lock.acquire()
-        logger.debug("# Data was sent to %s: %s", self.serial_port, cmd)
+        # logger.debug("# Data was sent to %s: %s", self.serial_port, cmd)
         self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
 
         # cmd.dispatch_dtm = time_stamp()

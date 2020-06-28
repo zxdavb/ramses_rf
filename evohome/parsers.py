@@ -11,21 +11,17 @@ from .const import (
     FAULT_TYPE,
     MAY_USE_DOMAIN_ID,
     MAY_USE_ZONE_IDX,
+    MAX_ZONES,
     SYSTEM_MODE_MAP,
     ZONE_MODE_MAP,
     __dev_mode__,
 )
-from .entity import dev_hex_to_id
+from .devices import dev_hex_to_id
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
 
 _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
-
-MAX_ZONES = 12
-# Evohome: 12 (0-11), older/initial version was 8
-# Hometronics: 16 (0-15), or more?
-# Sundial RF2: 2 (0-1), usually only one, but ST9520C can do two zones
 
 
 def _idx(seqx, msg) -> dict:
@@ -361,7 +357,7 @@ def parser_0005(payload, msg) -> Optional[dict]:
         assert msg.len == 4
         assert payload[2:4] in ("00", "0D", "0F")  # TODO: 00=Radiator, 0D=Electric?
 
-    return {"device_id": msg.src.addr, "payload": payload}
+    return {"device_id": msg.src.id, "payload": payload}
 
 
 @parser_decorator  # schedule_sync (any changes?)
@@ -486,11 +482,11 @@ def parser_0016(payload, msg) -> Optional[dict]:
     # assert payload[:2] == "00"  # e.g. RQ/22:/0z00 (parent_zone), but RQ/07:/0000?
 
     if msg.verb == "RQ":
-        return {}  # {"rf_request": msg.dst.addr}
+        return {}  # {"rf_request": msg.dst.id}
 
     rf_value = int(payload[2:4], 16)
     return {
-        #  "rf_source": msg.dst.addr,
+        #  "rf_source": msg.dst.id,
         "rf_strength": min(int(rf_value / 5) + 1, 5),
         "rf_value": rf_value,
     }
@@ -828,12 +824,12 @@ def parser_1fc9(payload, msg) -> Optional[dict]:
 
     if msg.verb == " W":  # TODO: just leave an an array?
         assert msg.len == 6
-        assert msg.src.addr == dev_hex_to_id(payload[6:12])
+        assert msg.src.id == dev_hex_to_id(payload[6:12])
         return _parser(payload)
 
     assert msg.verb in (" I", " W", "RP")  # devices will respond to a RQ!
     assert msg.len >= 6 and msg.len % 6 == 0  # assuming not RQ
-    assert msg.src.addr == dev_hex_to_id(payload[6:12])
+    assert msg.src.id == dev_hex_to_id(payload[6:12])
     return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
 
 

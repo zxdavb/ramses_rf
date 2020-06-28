@@ -1,6 +1,6 @@
 """Evohome serial."""
 import asyncio
-from collections import deque
+from collections import deque, namedtuple
 import json
 import logging
 import os
@@ -8,20 +8,23 @@ from queue import PriorityQueue
 import signal
 import sys
 from threading import Lock
-
-# from typing import Optional
+from typing import Any, Dict, List
 
 from .command import Command, PAUSE_LONG
-from .const import __dev_mode__  # INDEX_SQL, TABLE_SQL, INSERT_SQL,
+from .const import __dev_mode__
+from .devices import Controller, Device, create_device
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
 from .packet import _LOGGER as pkt_logger, Packet, PortPktProvider, file_pkts, port_pkts
 from .ser2net import Ser2NetServer
-from .system import EvohomeSystem
+from .system import EvoSystem
 
 DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
 DONT_UPDATE_ENTITIES = 1
+
+Address = namedtuple("DeviceAddress", "addr, type")
+NON_DEVICE = Address(addr="", type="--")
 
 _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:
@@ -112,6 +115,11 @@ class Gateway:
         self._sched_zone = None
         self._sched_lock = Lock()
 
+        self._last_msg = None
+
+        self._tasks = []
+        self._setup_signal_handler()
+
         # if config.get("ser2net_server"):
         self._relay = None
 
@@ -124,14 +132,14 @@ class Gateway:
         self._output_db = self._db_cursor = None
 
         # if config["raw_output"] > 0:
-        self.evo = EvohomeSystem(controller_id=None)
-        self._last_msg = None
-
-        self._tasks = []
-        self._setup_signal_handler()
+        self.evo = None  # EvoSystem(controller_id=None)
+        self.systems: List[EvoSystem] = []
+        self.system_by_id: Dict = {}
+        self.devices: List[Device] = []
+        self.device_by_id: Dict = {}
 
     def __repr__(self) -> str:
-        ctls = [d.id for d in self.evo.devices if d.is_controller]
+        ctls = [d.id for d in self.devices if d.is_controller]
         if self.evo.ctl:
             ctl_id = self.evo.ctl.id
         else:
@@ -439,9 +447,15 @@ class Gateway:
         if self.config["raw_output"] >= DONT_CREATE_MESSAGES:
             return
 
+        try:
+            pkt._harvest_devices(self.get_device)  # create the devices
+        except (AssertionError, NotImplementedError):
+            msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
+            return
+
         # process packet payloads as messages
         try:
-            msg = Message(pkt, self)
+            msg = Message(self, pkt)
             if not msg.is_valid:  # trap/logs all exceptions appropriately
                 return
 
@@ -460,12 +474,18 @@ class Gateway:
             return
 
         if self.evo.ctl:
-            # if self.evo.device_by_id[msg.src.addr].is_controller:
-            #     if msg.src.addr != self.evo.ctl.id:
-            if msg.src.type == "01" and msg.src.addr != self.evo.ctl.id:
+            # if self.evo.device_by_id[msg.src.id].is_controller:
+            #     if msg.src.id != self.evo.ctl.id:
+            if msg.src.type == "01" and msg.src.id != self.evo.ctl.id:
                 raise MultipleControllerError(
-                    f"{msg.src.addr} in addition to {self.evo.ctl.id}"
+                    f"{msg.src.id} in addition to {self.evo.ctl.id}"
                 )
+
+        if msg.src is not msg.dst:
+            if type(msg.src) == Controller and isinstance(msg.dst, Device):
+                msg.dst.controller = msg.src
+            elif type(msg.dst) == Controller and isinstance(msg.src, Device):
+                msg.src.controller = msg.dst
 
         try:
             msg._create_entities()  # create the devices, zones, domains
@@ -498,3 +518,38 @@ class Gateway:
 
         self.evo.eavesdrop(msg, self._last_msg)  # TODO: WIP
         self._last_msg = msg
+
+    def get_device(self, address, controller=None, domain=None) -> Any:
+        """Return a device (create/add it if required)."""
+        # NB: sensors rarely speak directly with their controller
+
+        # STATE: get controller ID by eavesdropping
+        if address.type == "01" and address.id not in self.system_by_id:
+            system = self.get_system(address)
+            if self.evo is None:
+                self.evo = system
+
+        if address.id in self.device_by_id:
+            device = self.device_by_id[address.id]
+        elif address.type != "18":
+            device = create_device(self, address)
+            # lf.devices.append(device)
+            # lf.device_by_id[device.id] = device
+        else:
+            return
+
+        if controller is not None:
+            controller.add_device(device, domain=domain)
+
+        return device
+
+    def get_system(self, address) -> Any:
+        """Return a system (create it if required)."""
+        if address.id in self.system_by_id:
+            return self.system_by_id[address.id]
+
+        # if self._evo.ctl is not None:
+        #     # TODO: do this earlier?
+        #     raise ValueError(f">1 CTL! (new: {device_id}, old: {self._evo.ctl.id})")
+
+        return EvoSystem(self, address)

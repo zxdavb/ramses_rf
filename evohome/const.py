@@ -165,6 +165,12 @@ DHW_STATE_LOOKUP = {v: k for k, v in DHW_STATE_MAP.items()}
 
 # Electric Heat - on/off relay (only)
 # Zone Valve    - on/off relay AND requests heat from the boiler, 3150
+
+MAX_ZONES = 12
+# Evohome: 12 (0-11), older/initial version was 8
+# Hometronics: 16 (0-15), or more?
+# Sundial RF2: 2 (0-1), usually only one, but ST9520C can do two zones
+
 ZONE_TYPE_MAP = {
     "TRV": "Radiator Valve(s)",
     "BDR": "Electric Heat",  # Zone Valve
