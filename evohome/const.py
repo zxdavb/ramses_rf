@@ -182,7 +182,7 @@ FAULT_DEVICE_CLASS = {
 }
 FAULT_STATE = {"00": "Fault", "40": "Restore", "C0": "Unknown (C0)"}
 FAULT_TYPE = {
-    # "03": "???",
+    "03": "MainsLow",
     "04": "BatteryLow",
     "06": "CommsFault",
     "0A": "SensorError",
