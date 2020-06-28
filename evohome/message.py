@@ -200,7 +200,9 @@ class Message:
             return self._is_valid
 
         # STATE: get number of zones by eavesdropping
-        if self._evo._num_zones is None:  # and self._evo._prev_code == "1F09":
+        if (
+            self._evo is not None and self._evo._num_zones is None
+        ):  # and self._evo._prev_code == "1F09":
             if self.code in ("2309", "30C9") and self.is_array:  # 000A may be >1 pkt
                 assert len(self.raw_payload) % 6 == 0  # simple validity check
                 self._evo._num_zones = len(self.raw_payload) / 6
@@ -222,7 +224,7 @@ class Message:
             return False
 
         # STATE: update parser state (last packet code) - not needed?
-        if self._evo.ctl is not None and self._evo.ctl.id == self.src.id:
+        if self._evo is not None and self._evo.ctl.id == self.src.id:
             self._evo._prev_code = self.code if self.verb == " I" else None
         # TODO: add state for 000C?
 
@@ -281,6 +283,9 @@ class Message:
 
     def _update_entities(self) -> None:  # TODO: needs work
         """Update the system state with the message data."""
+
+        if self._evo is None:
+            return
 
         # CHECK: confirm parent_idx heuristics using the data in known_devices.json
         if False and __dev_mode__ and isinstance(self.payload, dict):

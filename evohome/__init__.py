@@ -473,7 +473,7 @@ class Gateway:
         if msg.src.type == "18":  # RQs from a 18: are unreliable, RPs are required
             return
 
-        if self.evo.ctl:  # TODO: allow multiple controllers
+        if self.evo:  # TODO: allow multiple controllers
             # if self.evo.device_by_id[msg.src.id].is_controller:
             #     if msg.src.id != self.evo.ctl.id:
             if msg.src.type == "01" and msg.src.id != self.evo.ctl.id:
@@ -514,6 +514,9 @@ class Gateway:
 
         # only reliable packets should become part of the state data
         if "18" in (msg.src.type, msg.dst.type):
+            return
+
+        if self.evo is None:
             return
 
         self.evo.eavesdrop(msg, self._last_msg)  # TODO: WIP
