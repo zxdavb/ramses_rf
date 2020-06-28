@@ -44,7 +44,7 @@ class DomainBase(Entity):
     """The Domain/Zone base class."""
 
     def __init__(self, gateway, domain_id, system) -> None:
-        super().__init__(gateway, domain_id, controller=system.ctl.addr)
+        super().__init__(gateway, domain_id, controller=system.ctl.id)
 
     def add_device(self, device) -> Any:
         """Add a device as a child of this domain/zone."""
