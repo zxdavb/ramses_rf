@@ -113,6 +113,9 @@ async def main(loop=None, **kwargs):
         print(" - state database:\r\n", repr(gateway))
         print(" - devices:\r\n", json.dumps(gateway.evo._devices, indent=4))
 
+    # for system in gateway.systems:
+    #     print(" - devices:\r\n", json.dumps(system._devices, indent=4))
+
 
 cli.add_command(monitor)
 cli.add_command(parse)
