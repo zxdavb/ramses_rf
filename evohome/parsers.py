@@ -550,9 +550,9 @@ def parser_0404(payload, msg) -> Optional[dict]:
 
 
 @parser_decorator  # system_fault
-def parser_0418(payload, msg) -> Optional[dict]:
+def parser_0418(payload, msg=None) -> Optional[dict]:
     """10 * 6 log entries in the UI, but 63 via RQs."""
-
+    #
     def _timestamp(seqx):
         """In the controller UI: YYYY-MM-DD HH:MM."""
         _seqx = int(seqx, 16)
@@ -565,14 +565,15 @@ def parser_0418(payload, msg) -> Optional[dict]:
             second=(_seqx & 0b111111 << 7) >> 7,
         ).strftime("%Y-%m-%d %H:%M:%S")
 
-    #
     if payload == "000000B0000000000000000000007FFFFF7000000000":
         # a null log entry, (or: even payload[38:] == "000000")
-        return {"log_idx": payload[4:6]}
+        return _idx(payload[4:6], msg) if msg is not None else {"log_idx": payload[4:6]}
     #
     if msg:
         assert msg.verb in (" I", "RP")
-    assert msg.len == 22
+        assert msg.len == 22
+    else:
+        assert len(payload) / 2 == 22
     #
     assert payload[:2] == "00"  # unknown_0
     assert payload[2:4] in list(FAULT_STATE)  # C0 dont appear in the UI?
@@ -582,11 +583,12 @@ def parser_0418(payload, msg) -> Optional[dict]:
     assert int(payload[10:12], 16) < MAX_ZONES or payload[10:12] in ("FA", "FC")
     assert payload[12:14] in list(FAULT_DEVICE_CLASS)
     assert payload[14:18] == "0000"  # unknown_2
-    assert payload[28:30] in ("7F", "FF")  # last bit in dt field
+    assert payload[28:30] in ("7F", "FF")  # last bit in dt field, DST?
     assert payload[30:38] == "FFFF7000"  # unknown_3
+    # assert payload[38:] == ""  # device_id
     #
     return {
-        **_idx(payload[4:6], msg),  # "log_idx": ...
+        **(_idx(payload[4:6], msg) if msg is not None else {"log_idx": payload[4:6]}),
         "timestamp": _timestamp(payload[18:30]),
         "fault_state": FAULT_STATE.get(payload[2:4], payload[2:4]),
         "fault_type": FAULT_TYPE.get(payload[8:10], payload[8:10]),
