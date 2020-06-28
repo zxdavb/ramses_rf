@@ -220,9 +220,7 @@ def compare(config) -> dict:
             #     dt.fromisoformat(buffer["packets"][0][4 : 4 + DATETIME_LENGTH])
             #     - summary["pause_began"].dtm
             # )
-            duration = (
-                summary["last_pkt_1"].dtm - summary["pause_began"].dtm
-            )
+            duration = summary["last_pkt_1"].dtm - summary["pause_began"].dtm
             if (
                 duration > config.pause_duration
                 or buffer["pause_len"] > config.pause_length
