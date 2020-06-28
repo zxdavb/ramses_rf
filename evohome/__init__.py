@@ -529,6 +529,9 @@ class Gateway:
             if self.evo is None:
                 self.evo = system
 
+        if self.evo is None:
+            return
+
         if address.id in self.device_by_id:
             device = self.device_by_id[address.id]
         elif address.type != "18":

@@ -120,8 +120,9 @@ class Entity:
         #     self._controller.domain_by_name[self.name] = self
 
     def _command(self, code, **kwargs) -> None:
-        dest = kwargs.get("dest_addr", self._evo.ctl.id if self._evo.ctl else None)
-        assert dest is not None
+        temp = self._evo.ctl.id if self._evo and self._evo.ctl else None
+        dest = kwargs.get("dest_addr", temp)
+        assert dest is not None, "THIS NEEDS SORTING"  # TODO: a hack
 
         verb = kwargs.get("verb", "RQ")
         payload = kwargs.get("payload", "00")
