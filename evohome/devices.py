@@ -122,7 +122,7 @@ class Entity:
     def _command(self, code, **kwargs) -> None:
         temp = self._evo.ctl.id if self._evo and self._evo.ctl else None
         dest = kwargs.get("dest_addr", temp)
-        assert dest is not None, "THIS NEEDS SORTING"  # TODO: a hack
+        assert dest is not None, "THIS NEEDS SORTING"  # HACK: a hack
 
         verb = kwargs.get("verb", "RQ")
         payload = kwargs.get("payload", "00")
@@ -257,6 +257,7 @@ class DeviceBase(Entity):
             return self._zone.id
 
         # try to determine the 'parent' domain/zone...
+        zone_id = None
         if self.parent_000c is not None:
             zone_id = self.parent_000c
         else:
@@ -266,6 +267,7 @@ class DeviceBase(Entity):
                     zone_id = msg.payload["parent_idx"]
                     break
 
+        # if zone_id:  # HACK: needs sorting
         self._zone = self._evo.zone_by_id.get(zone_id)
 
         return self._zone.id if self._zone else None
