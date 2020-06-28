@@ -90,7 +90,7 @@ async def main(loop=None, **kwargs):
     # loop=asyncio.get_event_loop() causes: 'NoneType' object has no attribute 'serial'
     print("Starting evohome_rf...")
 
-    if sys.platform == "win32":  # better than os.name
+    if sys.platform == "win32":  # is better than os.name
         # ERROR:asyncio:Cancelling an overlapped future failed
         # future: ... cb=[BaseProactorEventLoop._loop_self_reading()]
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -107,12 +107,11 @@ async def main(loop=None, **kwargs):
         print(" - exiting via: KeyboardInterrupt")
     else:  # if no Exceptions raised, e.g. EOF when parsing
         print(" - exiting via: else-block (e.g. EOF when parsing)")
-    finally:  # if all raised Exceptions handled (other than any in else)
-        # print(" - state database:\r\n", gateway)  # or repr(gateway)
-        print(" - devices:\r\n", json.dumps(gateway.evo._devices, indent=4))
-        print(repr(gateway))
 
     print("Finished evohome_rf.")
+    if gateway.evo:  # kwargs["raw_output"] < DONT_CREATE_MESSAGES:
+        print(" - state database:\r\n", repr(gateway))
+        print(" - devices:\r\n", json.dumps(gateway.evo._devices, indent=4))
 
 
 cli.add_command(monitor)
