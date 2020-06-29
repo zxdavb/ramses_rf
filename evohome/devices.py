@@ -1,6 +1,7 @@
 """The entities for Honeywell's RAMSES II / Residential Network Protocol."""
 # import asyncio
 from datetime import datetime as dt, timedelta
+import json
 import logging
 from typing import Any, Optional
 
@@ -86,6 +87,21 @@ class Entity:
         self._pkts = {}
         self.last_comms = None
 
+    def __repr__(self) -> str:
+        """Return a JSON dict of all the public atrributes of an entity."""
+
+        result = {
+            a: getattr(self, a)
+            for a in dir(self)
+            if not a.startswith("_") and not callable(getattr(self, a))
+        }
+        return json.dumps(result)
+
+    def __str__(self) -> str:
+        """Return the id of an entity."""
+
+        return json.dumps({"entity_id": self.id})
+
     @property
     def controller(self) -> Optional[str]:
         """Return the id of the entity's controller, if known.
@@ -97,7 +113,7 @@ class Entity:
 
         # try to determine the 'parent' controller...
 
-        return self._controller.id
+        return self._controller.id if self._controller else None
 
     @controller.setter
     def controller(self, controller) -> None:
@@ -105,19 +121,26 @@ class Entity:
 
         It is assumed that, once set, it never changes.
         """
-        if self._controller is not None and self._controller != controller:
+        if controller is None:
             raise ValueError
+        elif controller is not None:
+            assert type(controller) is Controller, f"{controller}"
 
-        self._controller = controller
+        if self._controller is None:
+            self._controller = controller
 
-        if isinstance(self, Device):
-            self._evo.devices.append(self)
-            self._evo.device_by_id[self.id] = self
+            if isinstance(self, Device):
+                if self.id not in self._evo.device_by_id:
+                    self._evo.devices.append(self)
+                    self._evo.device_by_id[self.id] = self
+            # else:
+            #     self._evo.domains.append(self)
+            #     self._evo.domain_by_id[self.id] = self
+            #     if self.name is not None:
+            #         self._controller.domain_by_name[self.name] = self
 
-        # self._evo.domains.append(self)
-        # self._evo.domain_by_id[self.id] = self
-        # if self.name is not None:
-        #     self._controller.domain_by_name[self.name] = self
+        elif self._controller != controller:
+            raise ValueError
 
     def _command(self, code, **kwargs) -> None:
         temp = self._evo.ctl.id if self._evo and self._evo.ctl else None
@@ -223,6 +246,8 @@ class DeviceBase(Entity):
         _LOGGER.debug("Creating a Device, %s", address.id)
         super().__init__(gateway, address.id)
 
+        assert address.id not in gateway.device_by_id, address.id
+
         gateway.devices.append(self)
         gateway.device_by_id[address.id] = self
 
@@ -231,6 +256,7 @@ class DeviceBase(Entity):
 
         self.hex_id = dev_id_to_hex(address.id)
         self.cls_name = DEVICE_CLASSES.get(self.type)
+        self.parent_zone = None
 
         self._has_battery = None
         self._zone = self.parent_000c = None
@@ -359,6 +385,7 @@ class Controller(DeviceBase):
         super().__init__(gateway, address)
 
         self._evo.ctl = self
+        self._controller = self
 
         self._boiler_relay = None
         self._fault_log = {}
@@ -603,10 +630,6 @@ class DhwSensor(Device):
 
         # if msg.code == "10A0":
         #     return self._pkts["10A0"].dst.addr
-
-    @property
-    def parent_zone(self) -> str:
-        return "FC"
 
     @property
     def temperature(self):

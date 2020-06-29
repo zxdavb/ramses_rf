@@ -109,9 +109,29 @@ async def main(loop=None, **kwargs):
         print(" - exiting via: else-block (e.g. EOF when parsing)")
 
     print("Finished evohome_rf.")
+    # str(): short; repr(): full
     if gateway.evo:  # kwargs["raw_output"] < DONT_CREATE_MESSAGES:
-        print(" - state database:\r\n", repr(gateway))
-        print(" - devices:\r\n", json.dumps(gateway.evo._devices, indent=4))
+        devices = [d.id for d in gateway.evo.devices]
+        orphans = [d.id for d in gateway.devices if d.controller is None]
+
+        devices.sort()
+        orphans.sort()
+
+        print(f" - system schema: {gateway.evo}")
+        print(f" - system devices: {json.dumps(devices)}")
+        print(f" - orphan devices: {json.dumps(orphans)}")
+
+    elif False:
+        devices = [json.loads(repr(d)) for d in gateway.evo.devices]
+        orphans = [json.loads(repr(d)) for d in gateway.devices if d.controller is None]
+
+        print(f" - state database: {repr(gateway.evo)}")
+        print(f" - system devices: {json.dumps(devices)}")
+        print(f" - orphan devices: {json.dumps(orphans)}")
+
+    else:
+        devices = [d.id for d in gateway.devices]
+        print(f" - orphan devices: {json.dumps(orphans)}")
 
     # for system in gateway.systems:
     #     print(" - devices:\r\n", json.dumps(system._devices, indent=4))

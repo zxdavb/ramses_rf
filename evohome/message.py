@@ -199,14 +199,6 @@ class Message:
         if self._is_valid is not None:
             return self._is_valid
 
-        # STATE: get number of zones by eavesdropping
-        if (
-            self._evo is not None and self._evo._num_zones is None
-        ):  # and self._evo._prev_code == "1F09":
-            if self.code in ("2309", "30C9") and self.is_array:  # 000A may be >1 pkt
-                assert len(self.raw_payload) % 6 == 0  # simple validity check
-                self._evo._num_zones = len(self.raw_payload) / 6
-
         try:  # determine which parser to use
             payload_parser = getattr(parsers, f"parser_{self.code}".lower())
         except AttributeError:  # there's no parser for this command code!

@@ -1,9 +1,11 @@
 """The evohome system."""
 
+import json
 import logging
 from typing import Any, Optional
 
 from .const import __dev_mode__
+from .devices import Controller
 from .domains import Zone as EvoZone
 
 _LOGGER = logging.getLogger(__name__)
@@ -14,28 +16,45 @@ if __dev_mode__:
 class EvoSystem:
     """The system class."""
 
-    def __init__(self, gateway, controller) -> None:
+    def __init__(self, gateway, controller: Controller) -> None:
         """Initialise the class."""
         self._gwy = gateway
         self.ctl = controller
+
         gateway.systems.append(self)
         gateway.system_by_id[controller.id] = self
-
-        self._num_zones = None
-        self._prev_code = None
-
-        self.domains = []
-        self.domain_by_id = {}
 
         self.devices = []
         self.device_by_id = {}
 
+        self.domains = []
+        self.domain_by_id = {}
         self.zones = []
         self.zone_by_id = {}
         self.zone_by_name = {}
 
         self.heat_relay = None
         self.dhw_sensor = None
+        self._prev_code = None
+
+    def __repr__(self) -> str:
+        """Return a complete representation of the system."""
+
+        # status, or state_db
+        return json.dumps(self.state_db)
+
+    def __str__(self) -> str:
+        """Return a brief representation of the system."""
+
+        zone_sensors = [{z.id: z.sensor} for z in self.zones]
+
+        result = {
+            "controller": self.ctl.id,
+            "boiler_relay": self.heat_relay,
+            "dhw_sensor": self.dhw_sensor,
+            "zone_sensors": zone_sensors,
+        }
+        return json.dumps(result)
 
     def add_device(self, device, domain=None) -> None:
         """Add a device as a child of this controller."""

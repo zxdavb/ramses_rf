@@ -132,7 +132,7 @@ class Gateway:
         self._output_db = self._db_cursor = None
 
         # if config["raw_output"] > 0:
-        self.evo = None  # EvoSystem(controller_id=None)
+        self.evo = None  # EvoSystem(controller=None)
         self.systems: List[EvoSystem] = []
         self.system_by_id: Dict = {}
         self.devices: List[Device] = []
@@ -145,17 +145,12 @@ class Gateway:
         else:
             ctl_id = ctls[0] if ctls else None
 
-        result = {
-            "CTL": ctl_id,
-            "TPI": self.evo.heat_relay,
-            "DHW": self.evo.dhw_sensor,
-            "CTLs": ctls,
-        }
+        result = {"CTL": ctl_id, "CTLs": ctls}
         return str(result)
 
     def __str__(self) -> str:
-        return json.dumps(self.evo.state_db, indent=4)
-        # return json.dumps(self.evo.status, indent=4)
+        return self.evo.state_db
+        # return self.evo.status
 
     def _setup_signal_handler(self):
         def _sig_handler_win32(signalnum, frame):
