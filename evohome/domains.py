@@ -47,6 +47,9 @@ class DomainBase(Entity):
     def __init__(self, gateway, domain_id, system) -> None:
         super().__init__(gateway, domain_id, controller=system.ctl)
 
+        self.cls_type = None
+        # self.cls_name = None
+
     def add_device(self, device) -> Any:
         """Add a device as a child of this domain/zone."""
 
@@ -79,7 +82,7 @@ class Domain(DomainBase):
 
         # try to cast a new type (must be a superclass of the current type)
         if msg.code in ("1100", "3150", "3B00") and self.cls_type is None:
-            self.cls_type = "TPI"
+            self.cls_type = "DHW"
             self.__class__ = _ZONE_CLASS[self.cls_type]
             _LOGGER.debug("Promoted domain %s to %s", self.id, self.cls_type)
 
@@ -233,6 +236,9 @@ class Zone(DomainBase):
         system.zones.append(self)
         system.zone_by_id[zone_idx] = self
         # system.zone_by_name[self.name] = self
+
+        # self.devices = []
+        # self.device_by_id == {}
 
         self._schedule = Schedule(gateway, zone_idx)
         self._sensor = None
@@ -408,7 +414,7 @@ class Zone(DomainBase):
         return ZONE_TYPE_MAP.get(self._type)
 
     @property
-    def devices(self) -> list:
+    def devices(self) -> list:  # TODO: deprecated, use d.zone from now on
         # actuators = self._get_pkt_value("000C", "actuators")
         devices_1 = {d.id for d in self._evo.devices if d.parent_000c == self.id}
         devices_2 = {d.id for d in self._evo.devices if d.parent_zone == self.id}
@@ -587,17 +593,18 @@ _ZONE_CLASS = {
 
 def create_domain(gateway, domain_id, ctl_address=None) -> DomainBase:
     """Return a domain/zone, create it if required."""
+    # system already should exist - otherwise will cause upstream issues
     if ctl_address is not None:
-        system = gateway.system_by_id[ctl_address.id]
+        system = gateway.system_by_id.get(ctl_address.id)
     else:
         system = None
 
     if domain_id in ("F8", "F9", "FA", "FB", "FC"):
-        if domain_id in system.domain_by_id:
+        if system and domain_id in system.domain_by_id:
             return system.domain_by_id[domain_id]
         return Domain(gateway, domain_id, system)
 
     assert int(domain_id, 16) < MAX_ZONES
-    if domain_id in system.zone_by_id:
+    if system and domain_id in system.zone_by_id:
         return system.zone_by_id[domain_id]
     return _ZONE_CLASS.get("???", Zone)(gateway, domain_id, system)  # TODO: ?

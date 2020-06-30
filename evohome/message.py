@@ -255,7 +255,7 @@ class Message:
             ]
 
         # STEP 2: discover domains and zones by eavesdropping regular pkts
-        if self.src.id not in self._gwy.system_by_id:
+        if self.src.type not in ("01"):  # , "02"):  # self._gwy.system_by_id:
             return
 
         # if self.src.type != "01" and self.verb == " I":
@@ -288,7 +288,7 @@ class Message:
             return
 
         # CHECK: confirm parent_idx heuristics using the data in known_devices.json
-        if False and __dev_mode__ and isinstance(self.payload, dict):
+        if __dev_mode__ and isinstance(self.payload, dict):
             # assert self.src.id in self._gwy.known_devices
             if self.src.id in self._gwy.known_devices:
                 idx = self._gwy.known_devices[self.src.id].get("zone_idx")
@@ -300,8 +300,8 @@ class Message:
         if not self.payload:  # should be {} (possibly empty) or [...] (never empty)
             return  # TODO: will stop useful RQs getting to update()? (e.g. RQ/3EF1)
 
-        try:
-            self._evo.device_by_id[self.src.id].update(self)
+        try:  # TODO: use self._evo instead?
+            self._gwy.device_by_id[self.src.id].update(self)
         except KeyError:  # some devices weren't created because they were filtered
             return
 

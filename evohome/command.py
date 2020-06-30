@@ -36,6 +36,8 @@ if False and __dev_mode__:
 class Schedule:
     """The schedule (of a zone) class."""
 
+    # TODO: stop responding to fragments sent by others
+
     def __init__(self, gwy, zone_idx, msg=None, **kwargs) -> None:
         """Initialise the class."""
         self._evo = gwy.evo

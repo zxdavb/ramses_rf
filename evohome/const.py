@@ -85,31 +85,123 @@ CODE_MAP = {k: v["name"] for k, v in CODE_SCHEMA.items()}
 # TODO: which device type/config pairs send what packets?
 DEVICE_TABLE = {
     # Honeywell evohome
-    "01": {"type": "CTL", "name": "Controller", "battery": False},  # rechargeable
-    "02": {"type": "UFH", "name": "UFH Controller", "battery": False},  # HCE80(R)
-    "03": {"type": "STa", "name": "Room Sensor/Stat", "battery": True},  # HCW80 (HCF82)
-    "04": {"type": "TRV", "name": "Radiator Valve", "battery": True},  # HR80, HR92
-    "07": {"type": "DHW", "name": "DHW Sensor", "battery": True},  # CS92
-    "10": {"type": "OTB", "name": "OpenTherm Bridge", "battery": False},  # R8810
-    "12": {"type": "THm", "name": "Room Thermostat", "battery": True},  # DTS92(E)
-    "13": {"type": "BDR", "name": "Wireless Relay", "battery": False},  # BDR91, HC60NG?
-    "22": {"type": "THM", "name": "Room Thermostat", "battery": True},  # DTS92(E)
-    "30": {"type": "GWY", "name": "Internet Gateway", "battery": False},  # RFG100, VMS?
-    "34": {"type": "STA", "name": "Round Thermostat", "battery": True},  # T87RF
+    "01": {
+        "type": "CTL",
+        "name": "Controller",
+        "has_battery": False,
+        "is_actuator": False,
+        "is_controller": True,
+        "is_sensor": True,
+    },  # rechargeable
+    "02": {
+        "type": "UFH",
+        "name": "UFH Controller",
+        "has_battery": False,
+        "is_actuator": None,
+        "is_controller": None,
+        "is_sensor": None,
+    },  # HCE80(R)
+    "03": {
+        "type": "STa",
+        "name": "Room Sensor/Stat",
+        "has_battery": True,
+        "is_actuator": False,
+        "is_sensor": True,
+    },  # HCW80 (HCF82)
+    "04": {
+        "type": "TRV",
+        "name": "Radiator Valve",
+        "has_battery": True,
+        "is_actuator": True,
+        "is_sensor": True,
+    },  # HR80, HR92
+    "07": {
+        "type": "DHW",
+        "name": "DHW Sensor",
+        "has_battery": True,
+        "is_actuator": False,
+        "is_sensor": True,
+    },  # CS92
+    "10": {
+        "type": "OTB",
+        "name": "OpenTherm Bridge",
+        "has_battery": False,
+        "is_actuator": None,
+        "is_sensor": False,
+    },  # R8810
+    "12": {
+        "type": "THm",
+        "name": "Room Thermostat",
+        "has_battery": True,
+        "is_actuator": False,
+        "is_sensor": True,
+    },  # DTS92(E)
+    "13": {
+        "type": "BDR",
+        "name": "Wireless Relay",
+        "has_battery": False,
+        "is_actuator": None,
+        "is_sensor": False,
+    },  # BDR91, HC60NG?
+    "22": {
+        "type": "THM",
+        "name": "Room Thermostat",
+        "has_battery": True,
+        "is_actuator": False,
+        "is_sensor": True,
+    },  # DTS92(E)
+    "30": {
+        "type": "GWY",
+        "name": "Internet Gateway",
+        "has_battery": False,
+        "is_actuator": False,
+        "is_sensor": False,
+    },  # RFG100, VMS?
+    "34": {
+        "type": "STA",
+        "name": "Round Thermostat",
+        "has_battery": True,
+        "is_actuator": False,
+        "is_sensor": True,
+    },  # T87RF
     # Honeywell evohome TBD
-    "??": {"type": "MIX", "name": "Mixing Valve", "battery": False},  # TODO: ???
+    "x1": {
+        "type": "MIX",
+        "name": "Mixing Valve",
+        "has_battery": False,
+        "is_actuator": None,
+        "is_sensor": None,
+    },  # TODO: ???
     # Honeywell, non-evohome
-    "17": {"type": " 17", "name": "Outdoor Sensor?", "battery": None},  # TODO: HB85?
-    "18": {"type": "HGI", "name": "Honeywell Gateway", "battery": False},  # HGI80
-    "23": {"type": "PRG", "name": "Programmer (wired)", "battery": False},  # ST9420C
+    "17": {
+        "type": " 17",
+        "name": "Outdoor Sensor?",
+        "has_battery": None,
+        "is_actuator": False,
+        "is_sensor": False,
+    },  # TODO: HB85?
+    "18": {
+        "type": "HGI",
+        "name": "Honeywell Gateway",
+        "has_battery": False,
+        "is_actuator": False,
+        "is_sensor": False,
+    },  # HGI80
+    "23": {
+        "type": "PRG",
+        "name": "Programmer (wired)",
+        "has_battery": False,
+        "is_actuator": False,
+        "is_sensor": True,
+    },  # ST9420C
     # non-Honeywell, HVAC? (also, 30: is a Nuaire PIV)
-    "20": {"type": "VCE", "name": "AC/Ventilation?", "battery": None},  # VCE-RF unit
-    "32": {"type": "VMS", "name": "AC/Ventilation?", "battery": None},  # sensor/switch
-    "37": {"type": " 37", "name": "AC/Ventilation?", "battery": None},  # VCE
-    "49": {"type": " 49", "name": "AC/Ventilation?", "battery": None},  # VCE switch
+    "20": {"type": "VCE", "name": "AC/Ventilation?",},  # VCE-RF unit
+    "32": {"type": "VMS", "name": "AC/Ventilation?",},  # sensor/switch
+    "37": {"type": " 37", "name": "AC/Ventilation?",},  # VCE
+    "49": {"type": " 49", "name": "AC/Ventilation?",},  # VCE switch
     # specials
-    "63": {"type": "NUL", "name": "Null Device", "battery": None},
-    "--": {"type": "---", "name": "No Device", "battery": None},
+    "63": {"type": "NUL", "name": "Null Device",},
+    "--": {"type": "---", "name": "No Device",},
 }
 # VMS includes Nuaire VMS-23HB33, VMS-23LMH23
 # What about Honeywell MT4 actuator?
@@ -123,7 +215,9 @@ DEVICE_TABLE = {
 DEVICE_TYPES = {k: v["type"] for k, v in DEVICE_TABLE.items()}
 DEVICE_LOOKUP = {v: k for k, v in DEVICE_TYPES.items()}
 DEVICE_CLASSES = {v["type"]: v["name"] for _, v in DEVICE_TABLE.items()}
-DEVICE_HAS_BATTERY = [k for k, v in DEVICE_TABLE.items() if v["battery"] is True]
+DEVICE_HAS_BATTERY = [
+    k for k, v in DEVICE_TABLE.items() if v.get("has_battery") is True
+]
 
 # Domains
 DOMAIN_TYPE_MAP = {
