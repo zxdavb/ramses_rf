@@ -134,7 +134,7 @@ class Packet:
         self.src_addr = device_addrs[0] if len(device_addrs) else NON_DEVICE
         self.dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEVICE
 
-        [harvest_func(a) for a in device_addrs]
+        [harvest_func(a) for a in device_addrs if a.type != "63"]
 
 
 class PortPktProvider:
