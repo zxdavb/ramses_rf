@@ -40,21 +40,12 @@ class EvoSystem:
     def __repr__(self) -> str:
         """Return a complete representation of the system."""
 
-        # status, or state_db
         return json.dumps(self.state_db)
 
     def __str__(self) -> str:
         """Return a brief representation of the system."""
 
-        zone_sensors = [{z.id: z.sensor} for z in self.zones]
-
-        result = {
-            "controller": self.ctl.id,
-            "boiler_relay": self.heat_relay.id if self.heat_relay else None,
-            "dhw_sensor": self.dhw_sensor.id if self.dhw_sensor else None,
-            "zone_sensors": zone_sensors,
-        }
-        return json.dumps(result)
+        return json.dumps(self.schema)
 
     def add_device(self, device, domain=None) -> None:
         """Add a device as a child of this controller."""
@@ -106,17 +97,19 @@ class EvoSystem:
 
     @property
     def schema(self) -> dict:
-        """Return a representation of the system."""
+        """Return a representation of the system schema."""
 
-        schema = {
+        zone_sensors = [{z.id: z.sensor} for z in self.zones]
+        # zone_sensors = self._zones
+
+        return {
             "controller": self.ctl.id,
-            "heater_relay": self.heat_relay,
-            "dhw_sensor:": self.dhw_sensor,
-            "zones": [{"00": {"sensor": None, "acuators": []}}],
-            "ufh_controllers": [],
-            "orphans": [],
+            "boiler_relay": self.heat_relay.id if self.heat_relay else None,
+            "dhw_sensor": self.dhw_sensor.id if self.dhw_sensor else None,
+            "zone_sensors": zone_sensors,
+            # "zones": [{"00": {"sensor": None, "acuators": []}}],
+            # "ufh_controllers": [],
         }
-        return schema
 
     @property
     def state_db(self) -> dict:
@@ -126,8 +119,10 @@ class EvoSystem:
         for evo_class in ("devices", "domains", "zones"):
             try:
                 result.update({evo_class: getattr(self, f"_{evo_class}")})
-            except (AssertionError, AttributeError, LookupError, TypeError, ValueError):
+            except AssertionError:
                 _LOGGER.exception("Failed to produce State data")
+            # except (AttributeError, LookupError, TypeError, ValueError):
+            #     _LOGGER.exception("Failed to produce State data")
 
         return result
 
@@ -145,18 +140,19 @@ class EvoSystem:
         # 07:38:39.124 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
         # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
 
-        result = None
+        sensor = None
 
         if this.code == "10A0" and this.verb == "RQ":
             if this.src.type == "07" and this.dst.addr.id == self.ctl.id:
-                result = self._gwy.device_by_id[this.src.addr.id]
+                # sensor = self._gwy.device_by_id[this.src.addr.id]
+                sensor = this.src
 
-        if result is not None:
+        if sensor is not None:
             if self.dhw_sensor is not None:
-                assert self.dhw_sensor == result, (self.dhw_sensor.id, result.id)
+                assert self.dhw_sensor == sensor, (self.dhw_sensor.id, sensor.id)
             else:
-                self.dhw_sensor = result
-                # self.device_by_id[result].is_dhw = True
+                self.dhw_sensor = sensor
+                sensor.controller = self.ctl
 
     def _heat_relay(self, this, last):
         """Return the id of the heat relay (10: or 13:) for *this* system/CTL.
@@ -183,27 +179,31 @@ class EvoSystem:
         # 09:04:02.667 045  I --- 01:145038 --:------ 01:145038 3B00 002 FCC8
 
         # note the order: most to least reliable
-        result = None
+        heater = None
 
         if this.code == "3220" and this.verb == "RQ":
-            if this.src.addr.id == self.ctl.id and this.dst.type == "10":
-                result = self._gwy.device_by_id[this.dst.addr.id]
+            if this.src == self.ctl and this.dst.type == "10":
+                # heater = self._gwy.device_by_id[this.dst.addr.id]
+                heater = this.dst
 
         elif this.code == "3EF0" and this.verb == "RQ":
-            if this.src.addr.id == self.ctl.id and this.dst.type in ("10", "13"):
-                result = self._gwy.device_by_id[this.dst.addr.id]
+            if this.src == self.ctl and this.dst.type in ("10", "13"):
+                # heater = self._gwy.device_by_id[this.dst.addr.id]
+                heater = this.dst
 
         elif this.code == "3B00" and this.verb == " I" and last is not None:
             if last.code == this.code and last.verb == this.verb:
-                if this.src.addr.id == self.ctl.id and last.src.type == "13":
-                    result = self._gwy.device_by_id[last.src.addr.id]
+                if this.src == self.ctl and last.src.type == "13":
+                    # heater = self._gwy.device_by_id[last.src.addr.id]
+                    heater = last.src
 
-        if result is not None:
+        if heater is not None:
             if self.heat_relay is not None:
-                assert self.heat_relay == result, (self.heat_relay.id, result.id)
+                assert self.heat_relay == heater, (self.heat_relay.id, heater.id)
             else:
-                self.heat_relay = result
-                # self.device_by_id[result].is_tpi = True
+                self.heat_relay = heater
+                heater.controller = self.ctl
+                # heater.is_tpi = True
 
     def eavesdrop(self, this, last):
         """Use pairs of packets to learn something about the system."""

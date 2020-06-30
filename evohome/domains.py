@@ -8,8 +8,9 @@ from .const import (
     DEVICE_TYPES,
     # DHW_STATE_LOOKUP,
     DHW_STATE_MAP,
-    DOMAIN_TYPE_MAP,
+    # DOMAIN_TYPE_MAP,
     MAX_ZONES,
+    ZONE_CLASS_MAP,
     ZONE_TYPE_MAP,
     ZONE_MODE_LOOKUP,
     ZONE_MODE_MAP,
@@ -70,18 +71,17 @@ class Domain(DomainBase):
         # domains/zones are children of a controller, not the gateway
         system.domains.append(self)
         system.domain_by_id[domain_id] = self
-        # system.domains_by_name[self.name] = self
 
-        self.type = DOMAIN_TYPE_MAP[domain_id]
+        self.cls_type = None
 
     def update(self, msg) -> None:
         super().update(msg)
 
         # try to cast a new type (must be a superclass of the current type)
-        if msg.code in ("1100", "3150", "3B00") and self.type is None:
-            self.__class__ = TpiDomain
-            self.type = "TPI"
-            _LOGGER.debug("Promoted domain %s to TPI", self.id)
+        if msg.code in ("1100", "3150", "3B00") and self.cls_type is None:
+            self.cls_type = "TPI"
+            self.__class__ = _ZONE_CLASS[self.cls_type]
+            _LOGGER.debug("Promoted domain %s to %s", self.id, self.cls_type)
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
@@ -99,7 +99,7 @@ class DhwZone(HeatDemand):  # TODO: domain
         _LOGGER.warning("Creating a DHW Zone, %s", domain_id)
         super().__init__(gateway, domain_id, system)
 
-        self.type = None  # or _domain_type
+        self.cls_type = None  # or _domain_type
         # self._discover()
 
     def _discover(self):
@@ -202,7 +202,7 @@ class DhwZone(HeatDemand):  # TODO: domain
         return self._get_pkt_value("1260", "temperature")
 
 
-class TpiDomain(Domain, HeatDemand):
+class DhwDomain(Domain, HeatDemand):
     """Base for the FC domain.
 
     FC - 0008, 0009, 1100, 3150, 3B00, (& rare: 0001, 1FC9)
@@ -279,15 +279,15 @@ class Zone(DomainBase):
             _ = self.type
 
         # not UFH (it seems), but BDR or VAL; and possibly a MIX support 0008 too
-        if msg.code in ("0008", "0009"):  # TODO: how to determine is/isnt MIX?
+        if msg.code in ("0008", "0009"):  # TODO: how to determine is/isn't MIX?
             assert msg.src.type in ("01", "13")  # 01 as a stat
 
-            if self.type:
-                assert self.type in ("BDR", "VAL")
+            if self.cls_type is not None:
+                assert self.cls_type in ("BDR", "VAL")
             else:
-                self.type = "BDR"
-                self.__class__ = _ZONE_CLASS[self.type]
-                _LOGGER.debug("Promoted zone %s to %s", self.id, self.type)
+                self.cls_type = "BDR"
+                self.__class__ = _ZONE_CLASS[self.cls_type]
+                _LOGGER.debug("Promoted zone %s to %s", self.id, self.cls_type)
 
         if msg.code == "0404" and msg.verb == "RP":
             _LOGGER.debug("Zone(%s).update: Received RP for zone: ", self.id)
@@ -296,20 +296,34 @@ class Zone(DomainBase):
         if msg.code == "3150":  # TODO: and msg.verb in (" I", "RP")?
             assert msg.src.type in ("02", "04", "13")
 
-            if self.type:
+            if self.cls_type:
                 return
 
-            if msg.src.type == "02":  # UFH zone
-                self.type = "UFH"
+            if msg.src.type in ("02", "04", "13"):
+                self.cls_type = ZONE_CLASS_MAP[msg.src.type]
+                self.__class__ = _ZONE_CLASS[self.cls_type]
+                _LOGGER.debug("Promoted zone %s to %s", self.id, self.cls_type)
 
-            if msg.src.type == "04":  # Zone valve zone
-                self.type = "TRV"
+    @property
+    def type(self) -> Optional[str]:
+        if self._type is not None:  # isinstance(self, ???)
+            return self._type
 
-            if msg.src.type == "13":  # Zone valve zone
-                self.type = "VAL"
+        # TODO: try to cast an initial type
+        for device in self.devices:
+            device_type = DEVICE_TYPES[device[:2]]
+            if device_type in _ZONE_CLASS:
+                self._type = device_type
+                self.__class__ = _ZONE_CLASS[self._type]
+                _LOGGER.debug("Set Zone type %s to %s", self.id, self._type)
+                break
 
-            self.__class__ = _ZONE_CLASS[self.type]
-            _LOGGER.debug("Promoted zone %s to %s", self.id, self.type)
+        return self._type
+
+    @type.setter
+    def type(self, value):
+        assert value in _ZONE_CLASS
+        self._type = value
 
     async def async_cancel_override(self) -> bool:  # 2349
         """Revert to following the schedule."""
@@ -471,27 +485,6 @@ class Zone(DomainBase):
         # result = self._get_pkt_value("30C9", "temperature")
         # return result if result else None
 
-    @property
-    def type(self) -> Optional[str]:
-        if self._type is not None:  # isinstance(self, ???)
-            return self._type
-
-        # TODO: try to cast an initial type
-        for device in self.devices:
-            device_type = DEVICE_TYPES[device[:2]]
-            if device_type in _ZONE_CLASS:
-                self._type = device_type
-                self.__class__ = _ZONE_CLASS[self._type]
-                _LOGGER.debug("Set Zone type %s to %s", self.id, self._type)
-                break
-
-        return self._type
-
-    @type.setter
-    def type(self, value):
-        assert value in _ZONE_CLASS
-        self._type = value
-
 
 class ZoneHeatDemand:  # not all zone types call for heat
     """Not all zones call for heat."""
@@ -525,10 +518,10 @@ class BdrZone(Zone):  # Electric zones (do *not* call for heat)
         super().update(msg)
 
         # ZV zones are Elec zones that also call for heat; ? and also 1100/unkown_0 = 00
-        if msg.code == "3150" and self.type != "VAL":
-            self.type = "VAL"
-            self.__class__ = _ZONE_CLASS[self.type]
-            _LOGGER.debug("Promoted zone %s to %s", self.id, self.type)
+        if msg.code == "3150" and self.cls_type != "VAL":
+            self.cls_type = "VAL"
+            self.__class__ = _ZONE_CLASS[self.cls_type]
+            _LOGGER.debug("Promoted zone %s to %s", self.id, self.cls_type)
 
     @property
     def actuator_enabled(self) -> Optional[bool]:  # 3EF0
@@ -588,10 +581,12 @@ _ZONE_CLASS = {
     "VAL": ValZone,
     "UFH": UfhZone,
     "MIX": MixZone,
+    "DHW": DhwDomain,
 }
 
 
-def create_domain(gateway, domain_id, ctl_address) -> DomainBase:
+def create_domain(gateway, domain_id, ctl_address=None) -> DomainBase:
+    """Return a domain/zone, create it if required."""
     if ctl_address is not None:
         system = gateway.system_by_id[ctl_address.id]
     else:
@@ -605,4 +600,4 @@ def create_domain(gateway, domain_id, ctl_address) -> DomainBase:
     assert int(domain_id, 16) < MAX_ZONES
     if domain_id in system.zone_by_id:
         return system.zone_by_id[domain_id]
-    return _ZONE_CLASS.get("???", Zone)(gateway, domain_id, system)
+    return _ZONE_CLASS.get("???", Zone)(gateway, domain_id, system)  # TODO: ?

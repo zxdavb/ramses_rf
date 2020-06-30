@@ -15,12 +15,13 @@ from .const import (
     NON_DEV_ID,
     NUL_DEV_ID,
 )
+from .devices import create_device
 
 # from .devices import DEVICE_CLASS, Device, create_device
 from .domains import create_domain
 
-Address = namedtuple("DeviceAddress", "addr, type")
-NON_DEVICE = Address(addr="", type="--")
+Address = namedtuple("DeviceAddress", "id, type")
+NON_DEVICE = Address(id="", type="--")
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,6 +59,9 @@ class Message:
 
         if self.code != "000C":  # TODO: assert here, or in is_valid()
             assert self.is_array == isinstance(self.payload, list)
+
+    def __repr__(self) -> str:
+        return self._pkt
 
     def __str__(self) -> str:
         """Represent the entity as a string."""
@@ -240,11 +244,15 @@ class Message:
         """Discover and create new devices, domains and zones."""
 
         # STEP 0: discover devices by harvesting zone_actuators payload
-        # if self.code == "000C" and self.verb == "RP":  # or: from CTL/000C
-        #     [_device(d, self.payload["zone_idx"]) for d in self.payload["actuators"]]
-
-        # self.src = self._evo.device_by_id[self.src.id]
-        # self.dst = self._evo.device_by_id.get(self.dst.id)
+        if self.code == "000C" and self.verb == "RP":  # or: from CTL/000C
+            [
+                create_device(
+                    self._gwy,
+                    Address(id=d, type=d[:2]),
+                    zone_idx=self.payload["zone_idx"],
+                )
+                for d in self.payload["actuators"]
+            ]
 
         # STEP 2: discover domains and zones by eavesdropping regular pkts
         if self.src.id not in self._gwy.system_by_id:
@@ -276,7 +284,7 @@ class Message:
     def _update_entities(self) -> None:  # TODO: needs work
         """Update the system state with the message data."""
 
-        if self._evo is None:
+        if self._evo is None:  # TODO: why is this here?
             return
 
         # CHECK: confirm parent_idx heuristics using the data in known_devices.json

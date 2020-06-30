@@ -121,6 +121,8 @@ class Entity:
 
         It is assumed that, once set, it never changes.
         """
+        assert type(controller) is not str, type(controller)  # TODO: remove
+
         if controller is None:
             raise ValueError
         elif controller is not None:
@@ -129,7 +131,7 @@ class Entity:
         if self._controller is None:
             self._controller = controller
 
-            if isinstance(self, Device):
+            if isinstance(self, DeviceBase):
                 if self.id not in self._evo.device_by_id:
                     self._evo.devices.append(self)
                     self._evo.device_by_id[self.id] = self
@@ -252,10 +254,12 @@ class DeviceBase(Entity):
         gateway.device_by_id[address.id] = self
 
         self.addr = address
-        self.type = self.addr.type
+        self.type = address.type
+
+        self.cls_type = DEVICE_TYPES.get(self.addr.type)
+        self.cls_name = DEVICE_CLASSES.get(self.cls_type)
 
         self.hex_id = dev_id_to_hex(address.id)
-        self.cls_name = DEVICE_CLASSES.get(self.type)
         self.parent_zone = None
 
         self._has_battery = None
@@ -431,8 +435,6 @@ class Controller(DeviceBase):
 
     def update(self, msg):
         def maintain_state_data():
-            # for z in self._evo.zones:
-            #     _ = z.type  # check/update each zone's type
             pass
 
         def update_zone_sensors() -> None:
@@ -457,7 +459,7 @@ class Controller(DeviceBase):
             all_sensors = [
                 d
                 for d in self._evo.devices
-                if d.type != "DHW" and hasattr(d, "temperature")
+                if d.addr.type != "07" and hasattr(d, "temperature")
             ]
 
             if _LOGGER.isEnabledFor(logging.DEBUG):
@@ -692,8 +694,8 @@ class BdrSwitch(DeviceBase, Actuator):
     def is_tpi(self) -> Optional[bool]:  # 3B00
         def make_tpi():
             self.__class__ = TpiSwitch
-            self.type = "TPI"
-            _LOGGER.debug("Promoted device %s to %s", self.id, self.type)
+            self.cls_type = "TPI"
+            _LOGGER.debug("Promoted device %s to %s", self.id, self.cls_type)
 
             self._is_tpi = True
             self.parent_zone = "FC"
@@ -763,8 +765,15 @@ DEVICE_CLASS = {
 }
 
 
-def create_device(gateway, device_address) -> DeviceBase:
-    assert device_address.id not in gateway.device_by_id
-    # if device_address.type == "18":
-    #     return
-    return DEVICE_CLASS.get(device_address.type, Device)(gateway, device_address)
+def create_device(gateway, device_address, zone_idx=None) -> DeviceBase:
+    """Return a device, create it if required."""
+    assert device_address.type not in ("63", "--")
+
+    if device_address.id in gateway.device_by_id:
+        device = gateway.device_by_id[device_address.id]
+    else:
+        device = DEVICE_CLASS.get(device_address.type, Device)(gateway, device_address)
+
+    device.parent_000c = zone_idx
+
+    return device

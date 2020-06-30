@@ -227,8 +227,11 @@ class Gateway:
                 with open(self.config["known_devices"], "w") as json_file:
                     json.dump(self.known_devices, json_file, sort_keys=True, indent=4)
 
-            except (AssertionError, AttributeError, LookupError, TypeError, ValueError):
+            except AssertionError:
                 _LOGGER.exception("Failed update of %s", self.config["known_devices"])
+            except (AttributeError, LookupError, TypeError, ValueError):
+                _LOGGER.exception("Failed update of %s", self.config["known_devices"])
+                raise
 
     async def start(self) -> None:
         async def file_reader(fp):
@@ -459,7 +462,7 @@ class Gateway:
             return
         except (LookupError, TypeError, ValueError):  # TODO: shouldn't be needed
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
-            return
+            raise
 
         if self.config["raw_output"] >= DONT_CREATE_ENTITIES:
             return
@@ -494,6 +497,7 @@ class Gateway:
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
         except (LookupError, TypeError, ValueError):  # TODO: shouldn't be needed?
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
+            raise
 
         # else:
         #     if msg.verb == "RP" and msg.code == "0404":
@@ -523,34 +527,27 @@ class Gateway:
 
         # STATE: get controller ID by eavesdropping
         if address.type == "01" and address.id not in self.system_by_id:
-            system = self.get_system(address)
-            if self.evo is None:
-                self.evo = system
+            _ = self.get_system(address)
 
-        if self.evo is None:
+        if self.evo is None:  # don't create devices until a system exists
             return
 
-        if address.id in self.device_by_id:
-            device = self.device_by_id[address.id]
-        elif address.type != "18":
+        if address.type != "18":
             device = create_device(self, address)
-            # lf.devices.append(device)
-            # lf.device_by_id[device.id] = device
-        else:
-            return
 
-        if controller is not None:
-            controller.add_device(device, domain=domain)
+            if controller is not None:
+                controller.add_device(device, domain=domain)
 
-        return device
+            return device
 
     def get_system(self, address) -> Any:
         """Return a system (create it if required)."""
         if address.id in self.system_by_id:
             return self.system_by_id[address.id]
 
-        # if self._evo.ctl is not None:
-        #     # TODO: do this earlier?
-        #     raise ValueError(f">1 CTL! (new: {device_id}, old: {self._evo.ctl.id})")
+        if self.evo is None:
+            self.evo = EvoSystem(self, address)
+        # elif self.evo:  # TODO: do this earlier?
+        #     raise ValueError(f">1 CTL! (new: {device_id}, old: {self.evo.ctl.id})")
 
-        return EvoSystem(self, address)
+        return self.evo
