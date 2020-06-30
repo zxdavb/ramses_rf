@@ -71,10 +71,14 @@ class Schedule:
             _LOGGER.warning("total fragments has changed: will re-initialise array")
             self._init_frag_array(msg.payload["frag_total"])
 
-        self._frag_array[msg.payload["frag_index"] - 1] = {
-            "fragment": msg.payload["fragment"],
-            "dtm": msg.dtm,
-        }
+        # IndexError here
+        try:
+            self._frag_array[msg.payload["frag_index"] - 1] = {
+                "fragment": msg.payload["fragment"],
+                "dtm": msg.dtm,
+            }
+        except IndexError:
+            pass  # TODO: should fix this
 
         # discard any fragments significantly older that this most recent fragment
         for frag in [f for f in self._frag_array if f is not None]:
