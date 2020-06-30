@@ -229,9 +229,6 @@ class Gateway:
 
             except AssertionError:
                 _LOGGER.exception("Failed update of %s", self.config["known_devices"])
-            except (AttributeError, LookupError, TypeError, ValueError):
-                _LOGGER.exception("Failed update of %s", self.config["known_devices"])
-                raise
 
     async def start(self) -> None:
         async def file_reader(fp):
@@ -447,7 +444,7 @@ class Gateway:
 
         try:
             pkt._harvest_devices(self.get_device)  # create the devices
-        except (AssertionError, NotImplementedError):
+        except AssertionError:
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
             return
 
@@ -457,11 +454,14 @@ class Gateway:
             if not msg.is_valid:  # trap/logs all exceptions appropriately
                 return
 
-        except (AssertionError, NotImplementedError):
+        except AssertionError:
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
             return
+        except NotImplementedError:
+            msg_logger.error("%s", pkt.packet, extra=pkt.__dict__)
+            return
         except (LookupError, TypeError, ValueError):  # TODO: shouldn't be needed
-            msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
+            msg_logger.error("%s", pkt.packet, extra=pkt.__dict__)
             raise
 
         if self.config["raw_output"] >= DONT_CREATE_ENTITIES:
@@ -496,7 +496,8 @@ class Gateway:
         except AssertionError:  # TODO: for dev only?
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
         except (LookupError, TypeError, ValueError):  # TODO: shouldn't be needed?
-            msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
+            # msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
+            msg_logger.error("%s", pkt.packet, extra=pkt.__dict__)
             raise
 
         # else:
