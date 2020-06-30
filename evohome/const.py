@@ -171,13 +171,16 @@ MAX_ZONES = 12
 # Hometronics: 16 (0-15), or more?
 # Sundial RF2: 2 (0-1), usually only one, but ST9520C can do two zones
 
-ZONE_TYPE_MAP = {
-    "TRV": "Radiator Valve(s)",
-    "BDR": "Electric Heat",  # Zone Valve
-    "UFH": "Underfloor Heating",
-    "MIX": "Mixing Valve",
-    "VAL": "Zone Valve",
+ZONE_TABLE = {
+    "UFH": {"type": "02", "name": "Underfloor Heating"},
+    "TRV": {"type": "04", "name": "Radiator Valve(s)"},
+    "BDR": {"type": "13", "name": "Electric Heat"},
+    "VAL": {"type": "x0", "name": "Zone Valve"},
+    "MIX": {"type": "x1", "name": "Mixing Valve"},
+    "DHW": {"type": "FC", "name": "Stored DHW"},
 }
+ZONE_TYPE_MAP = {k: v["name"] for k, v in ZONE_TABLE.items()}
+ZONE_CLASS_MAP = {v["type"]: k for k, v in ZONE_TABLE.items()}
 
 # Used by 0418/system_fault parser
 FAULT_DEVICE_CLASS = {
