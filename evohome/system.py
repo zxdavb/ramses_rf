@@ -99,7 +99,7 @@ class EvoSystem:
     def schema(self) -> dict:
         """Return a representation of the system schema."""
 
-        zone_sensors = [{z.id: z.sensor} for z in self.zones]
+        zone_sensors = {z.id: z.sensor for z in self.zones}
         # zone_sensors = self._zones
 
         return {
@@ -198,7 +198,7 @@ class EvoSystem:
                     heater = last.src
 
         if heater is not None:
-            if self.heat_relay is not None:
+            if self.heat_relay is not None:  # there should only be one boiler relay
                 assert self.heat_relay == heater, (self.heat_relay.id, heater.id)
             else:
                 self.heat_relay = heater
@@ -213,6 +213,9 @@ class EvoSystem:
 
         if self.ctl is None:
             return
+
+        # if this.src.type == "01" and this.dst.controller is None:  # 3EF0
+        #     this.dst.controller = this.src  # useful for TPI/OTB, uses 3EF0
 
         # if self.heat_relay is None and this.code in ("3220", "3B00", "3EF0"):
         if this.code in ("3220", "3B00", "3EF0"):

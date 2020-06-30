@@ -110,7 +110,11 @@ class Entity:
         if self._controller is not None:
             return self._controller.id
 
-        # try to determine the 'parent' controller...
+        for msg in self._pkts.values():
+            if msg.dst.type == "01":  # msg.dst.is_controller
+                self.controller = msg.dst  # useful for UFH
+            # elif msg.src.type == "01":  # msg.src.is_controller
+            #     self.controller = msg.src  # useful for TPI, not useful for OTB
 
         return self._controller.id if self._controller else None
 
@@ -175,6 +179,8 @@ class Entity:
             return {k: v for k, v in result.items() if k[:1] != "_"}
 
     def update(self, msg) -> None:
+        _ = self.controller
+
         self.last_comms = f"{msg.date}T{msg.time}"
         if msg.verb == " W":
             if msg.code in self._pkts and self._pkts[msg.code].verb != msg.verb:
