@@ -16,7 +16,7 @@ from .const import (
     ZONE_MODE_MAP,
     __dev_mode__,
 )
-from .devices import Entity, HeatDemand, _dtm
+from .devices import Entity, Device, HeatDemand, _dtm
 
 _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:
@@ -59,13 +59,7 @@ class DomainBase(Entity):
 
 
 class Domain(DomainBase):
-    """Base for the domains: F8 (rare), F9, FA (not FC, FF).
-
-    F8 - 1F09/W (rare)
-    F9 - 0008
-    FA - 0008
-    FC - 0008, 0009, and others
-    """
+    """Base for the domains: F8 (rare), F9, FA (not FC, FF)."""
 
     def __init__(self, gateway, domain_id, system) -> None:
         _LOGGER.debug("Creating a Domain, %s", domain_id)
@@ -95,8 +89,11 @@ class Domain(DomainBase):
         return self._get_pkt_value("0009")
 
 
-class DhwZone(HeatDemand):  # TODO: domain
-    """Base for the DHW (Fx) domain."""
+class DhwDomain(Domain, HeatDemand):
+    """Base for the DHW/FC domain.
+
+    FC - 0008, 0009, 1100, 3150, 3B00, (& rare: 0001, 1FC9)
+    """
 
     def __init__(self, gateway, domain_id, system) -> None:
         _LOGGER.warning("Creating a DHW Zone, %s", domain_id)
@@ -203,13 +200,6 @@ class DhwZone(HeatDemand):  # TODO: domain
     @property
     def temperature(self):  # 1260
         return self._get_pkt_value("1260", "temperature")
-
-
-class DhwDomain(Domain, HeatDemand):
-    """Base for the FC domain.
-
-    FC - 0008, 0009, 1100, 3150, 3B00, (& rare: 0001, 1FC9)
-    """
 
     @property
     def tpi_params(self) -> Optional[float]:  # 1100
@@ -438,8 +428,14 @@ class Zone(DomainBase):
         return self._schedule.schedule if self._schedule else None
 
     @property
-    def sensor(self) -> Optional[str]:  # TODO: WIP
-        return self._sensor
+    def sensor(self) -> Optional[str]:
+        return self._sensor.id if self._sensor else None
+
+    @sensor.setter
+    def sensor(self, value):
+        if not isinstance(value, Device) and hasattr(value, "temperature"):
+            raise TypeError
+        self._sensor == value
 
     @property
     def sensors(self) -> list:

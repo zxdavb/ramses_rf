@@ -24,7 +24,7 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-if True or __dev_mode__:
+if __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
@@ -84,7 +84,9 @@ class Entity:
         self._controller = controller
 
         self._pkts = {}
-        self.last_comms = None
+        self._domain = {}
+        self._last_msg = None
+        self._last_sync = {}
 
     def __repr__(self) -> str:
         """Return a JSON dict of all the public atrributes of an entity."""
@@ -179,9 +181,18 @@ class Entity:
             return {k: v for k, v in result.items() if k[:1] != "_"}
 
     def update(self, msg) -> None:
-        _ = self.controller
+        # _ = self.controller  # TODO: a hack for testing
 
-        self.last_comms = f"{msg.date}T{msg.time}"
+        self._last_msg = msg  # f"{msg.date}T{msg.time}"
+
+        if "domain_id" in msg.payload:  # isinstance(msg.payload, dict) and
+            self._domain[msg.payload["domain_id"]] = {msg.code: msg}  # 01/02/23
+            return
+
+        if self.type == "01" and msg.code in ("1F09", "2309", "30C9", "000A"):
+            # 1F09/FF, I/2309/array, I/30C9/array, I/000A/array/frag?
+            self._last_sync[msg.code] = msg
+
         if msg.verb == " W":
             if msg.code in self._pkts and self._pkts[msg.code].verb != msg.verb:
                 return
@@ -189,7 +200,8 @@ class Entity:
             if msg.code in self._pkts and self._pkts[msg.code].verb != msg.verb:
                 return
         # may get an RQ/W initially, but RP/I will override
-        self._pkts.update({msg.code: msg})
+        # self._pkts.update({msg.code: msg})
+        self._pkts[msg.code] = msg
 
     @property
     def pkt_codes(self) -> list:
@@ -485,24 +497,38 @@ class Controller(DeviceBase):
         def maintain_state_data():
             pass
 
-        def update_zone_sensors() -> None:
+        def match_zone_sensors() -> None:
+            """Determine each zone's sensor by matching zone/sensor temperatures.
+
+            The temperature of each zone is reliably known (30C9 array), but the sensor
+            for each zone is not. In particular, the controller may be a sensor for a
+            zone, but it does not announce its temperatures.
+
+            In addition, there may be 'orphan' (i.e. from a neighbour) sensors
+            announcing temperatures.
+
+            This leaves only a process of exclusion as a means to determine which zone
+            uses the controller as a sensor.
+            """
+            _LOGGER.debug("System zone/sensor pairs (before): %s", self._evo)
+
             prev_msg, self._prev_30c9 = self._prev_30c9, msg
             if prev_msg is None:
                 return
 
-            # _LOGGER.debug(
-            #     "System zones: %s", {z.id: z.temperature for z in self._evo.zones}
-            # )
-            # _LOGGER.debug(
-            #     " - sensorless zones: %s",
-            #     {z.id: z.temperature for z in self._evo.zones if z.sensor is None}
-            # )
+            _LOGGER.debug(
+                "System zones: %s", {z.id: z.temperature for z in self._evo.zones}
+            )
+            _LOGGER.debug(
+                " - without sensor: %s",
+                {z.id: z.temperature for z in self._evo.zones if z.sensor is None},
+            )
 
             old, new = prev_msg.payload, msg.payload
             zones = [self._evo.zone_by_id[z["zone_idx"]] for z in new if z not in old]
-            # _LOGGER.debug(" - changed zones: %s", {z.id: z.temperature for z in zones})  # noqa
+            _LOGGER.debug("Changed zones: %s", {z.id: z.temperature for z in zones})
             if not zones:
-                return  # no zones have changed their temp since the last cycle
+                return  # no system zones have changed their temp since the last cycle
 
             test_zones = [
                 z
@@ -510,9 +536,7 @@ class Controller(DeviceBase):
                 if z.sensor is None
                 and z.temperature not in [x for x in zones if x != z] + [None]
             ]
-            # _LOGGER.debug(
-            #     "   - testable zones: %s", {z.id: z.temperature for z in test_zones}
-            # )
+            _LOGGER.debug(" - testable: %s", {z.id: z.temperature for z in test_zones})
             if not test_zones:
                 return  # no changed zones have unique, non-null temps
 
@@ -522,7 +546,7 @@ class Controller(DeviceBase):
                 if hasattr(d, "temperature")
                 and d.temperature is not None
                 and d.addr.type != "07"
-            ]
+            ]  # and d.zone is None - *can't* use this here
             _LOGGER.debug(
                 "System sensors: %s", {d.id: d.temperature for d in evo_sensors}
             )
@@ -535,7 +559,7 @@ class Controller(DeviceBase):
                 and d.addr.type != "07"
                 and d.zone is None
                 and d not in [x for x in evo_sensors]
-            ]
+            ]  # and d.zone is None - *can* use this here, can also leave
             _LOGGER.debug(
                 " - orphan sensors: %s (those without a parent zone)",
                 {d.id: d.temperature for d in gwy_sensors},
@@ -545,7 +569,7 @@ class Controller(DeviceBase):
                 d
                 for d in evo_sensors + gwy_sensors
                 if d._pkts["30C9"].dtm > prev_msg.dtm
-            ]  # if have also changed their temp since the last cycle
+            ]  # if have also *changed* their temp since the last cycle
 
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug(
@@ -553,7 +577,7 @@ class Controller(DeviceBase):
                     {z.idx: z.temperature for z in test_zones},
                 )
                 _LOGGER.debug(
-                    " - testable sensors: %s (either orphans or from this system)",
+                    " - testable sensors: %s (have changed, orphans/from this system)",
                     {d.id: d.temperature for d in test_sensors},
                 )
 
@@ -571,12 +595,14 @@ class Controller(DeviceBase):
 
                 if len(sensors) == 1:
                     _LOGGER.debug("   - matched sensor: %s", sensors[0].id)
-                    z._sensor, sensors[0].zone = sensors[0].id, z
-                    sensors[0].controller = self
+                    z._sensor = sensors[0]
+                    sensors[0].controller, sensors[0].zone = self, z
                 elif len(sensors) == 0:
                     _LOGGER.debug("   - no matching sensor (uses CTL?)")
                 else:
                     _LOGGER.debug("   - multiple sensors: %s", sensors)
+
+            _LOGGER.debug("System zone/sensor pairs (after): %s", self._evo)
 
             # now see if we can allocate the controller as a sensor...
             zones = [z for z in self._evo.zones if z.sensor is None]
@@ -587,10 +613,6 @@ class Controller(DeviceBase):
                 "TESTING zone %s, temp: %s", zones[0].idx, zones[0].temperature
             )
 
-            # TODO: this can't be used if their neighbouring sensors not ignored
-            # if [d for d in evo_sensors if d.zone is None]:
-            #     return  # >0 sensors without a zone
-
             # can safely(?) assume this zone is using the CTL as a sensor...
             assert self.zone is None, "Controller has already been allocated!"
 
@@ -598,10 +620,12 @@ class Controller(DeviceBase):
             _LOGGER.debug(
                 " - zoneless sensors: %s (from this system, incl. controller)", sensors
             )
-            if len(sensors) != 1:
-                return
-            _LOGGER.debug("   - sensor is CTL by exclusion: %s", self.id)
-            zones[0]._sensor, self.zone = self.id, zones[0]
+            if len(sensors) == 1:
+                _LOGGER.debug("   - sensor is CTL by exclusion: %s", self.id)
+                zones[0]._sensor = self
+                self.controller, self.zone = self, zones[0]
+
+            _LOGGER.debug("System zone/sensor pairs: %s", self._evo)
 
         if msg.code in ("000A", "2309", "30C9") and not isinstance(msg.payload, list):
             pass
@@ -615,7 +639,7 @@ class Controller(DeviceBase):
             maintain_state_data()
 
         if msg.code == "30C9" and isinstance(msg.payload, list):  # msg.is_array:
-            update_zone_sensors()
+            match_zone_sensors()
 
         if msg.code == "3EF1" and msg.verb == "RQ":  # relay attached to a burner
             if msg.dst.type == "13":  # this is the TPI relay

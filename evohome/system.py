@@ -6,7 +6,7 @@ from typing import Any
 
 from .const import __dev_mode__
 from .devices import Controller
-from .domains import Zone as EvoZone
+from .zones import Zone as EvoZone
 
 _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:

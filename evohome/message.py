@@ -16,9 +16,7 @@ from .const import (
     NUL_DEV_ID,
 )
 from .devices import create_device
-
-# from .devices import DEVICE_CLASS, Device, create_device
-from .domains import create_domain
+from .zones import create_domain
 
 Address = namedtuple("DeviceAddress", "id, type")
 NON_DEVICE = Address(id="", type="--")
@@ -228,7 +226,19 @@ class Message:
         #     assert dev_id[:2] in DEVICE_TYPES  # incl. "--", "63"
 
         # any remaining messages are valid, so: log them
-        if False and __dev_mode__:  # a hack to colourize by verb
+        if True or __dev_mode__:  # a hack to colourize by verb
+            if self.src.type == "01" and self.verb == " I":
+                if (
+                    self.code == "1F09"
+                    or self.code in ("2309", "30C9", "000A")
+                    and isinstance(self.payload, list)
+                ):
+                    _LOGGER.warning("%s", self, extra=self.__dict__)
+                else:
+                    _LOGGER.info("%s", self, extra=self.__dict__)
+            else:
+                _LOGGER.info("%s", self, extra=self.__dict__)
+        elif False and __dev_mode__:  # a hack to colourize by verb
             if " I" in str(self):
                 _LOGGER.info("%s", self, extra=self.__dict__)
             elif "RP" in str(self):
@@ -261,22 +271,23 @@ class Message:
         # if self.src.type != "01" and self.verb == " I":
         #     return
 
+        # NOTE: domain_idx was probably a bad idea
         if isinstance(self._payload, dict):
-            if self._payload.get("domain_id"):
-                domain_type = "domain_id"
-            elif self._payload.get("zone_idx"):  # TODO: parent_zone too?
+            if self._payload.get("zone_idx"):  # TODO: parent_zone too?
                 domain_type = "zone_idx"
+            # elif self._payload.get("domain_id"):
+            #     domain_type = "domain_id"
             else:
                 return
-            create_domain(self._gwy, self._payload[domain_type], self.src)
+            # create_domain(self._gwy, self._payload[domain_type], self.src)
 
         else:  # elif isinstance(self._payload, list):
-            if self.code == "0009":
-                domain_type = "domain_id"
-            elif self.code in ("000A", "2309", "30C9"):  # the sync_cycle pkts
+            if self.code in ("000A", "2309", "30C9"):  # the sync_cycle pkts
                 domain_type = "zone_idx"
             # elif self.code in ("22C9", "3150"):  # UFH zone
             # domain_type = "ufh_idx"
+            # elif self.code == "0009":
+            #     domain_type = "domain_id"
             else:
                 return
             [create_domain(self._gwy, d[domain_type], self.src) for d in self.payload]
@@ -306,7 +317,9 @@ class Message:
             return
 
         if self.code != "0418":  # update domains & zones
-            if "domain_id" in self.payload:
-                self._evo.domain_by_id[self.payload["domain_id"]].update(self)
+            # NOTE: domain_idx is out!
+            # if "domain_id" in self.payload:
+            #     self._evo.domain_by_id[self.payload["domain_id"]].update(self)
             if "zone_idx" in self.payload:
-                self._evo.zone_by_id[self.payload["zone_idx"]].update(self)
+                if self.payload["zone_idx"] in self._evo.zone_by_id:
+                    self._evo.zone_by_id[self.payload["zone_idx"]].update(self)
