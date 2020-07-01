@@ -52,7 +52,7 @@ class Packet:
         self._packet = self.packet + " " if self.packet else ""  # TODO: hack 4 logging
 
         self.addrs = [None] * 3
-        self.src = self.dst = None
+        self.src_addr = self.dst_addr = None
 
         self._is_valid = self._is_wanted = None
         self._is_valid = self.is_valid
