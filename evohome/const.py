@@ -1,6 +1,9 @@
 """Evohome serial."""
 import re
 
+# grep ' F[89ABxDE]' | grep -vE ' (0008|1F09/F8|1FC9|2D49/FD) '
+# grep ' F[89ABCDE]' | grep -vE ' (0008|1F09/xx|1FC9|0001|0009|1100|3150|3B00) '
+
 __dev_mode__ = False
 
 NON_DEV_ID = "--:------"
@@ -63,7 +66,7 @@ CODE_SCHEMA = {
     # "2389": {"name": "message_2389"},  # not real?
     "22F1": {"name": "vent_switch"},
     "22F3": {"name": "other_switch"},
-    "2D49": {"name": "message_2d49"},  # hometronics only?
+    "2D49": {"name": "message_2d49"},  # hometronics only? has a domain = FD!
     "31D9": {"name": "message_31d9"},  # Nuaire ventilation
     "31DA": {"name": "message_31da"},  # from HCE80, also Nuaire: Contains R/humidity??
     "31E0": {"name": "message_31e0"},  # Nuaire ventilation
