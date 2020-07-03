@@ -8,11 +8,11 @@ from queue import PriorityQueue
 import signal
 import sys
 from threading import Lock
-from typing import Any, Dict, List
+from typing import Dict, List, Optional
 
 from .command import Command, PAUSE_LONG
 from .const import __dev_mode__
-from .devices import Controller, Device, create_device
+from .devices import Controller, Device, create_device as EvoDevice
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
 from .packet import _LOGGER as pkt_logger, Packet, PortPktProvider, file_pkts, port_pkts
@@ -132,7 +132,7 @@ class Gateway:
         self._output_db = self._db_cursor = None
 
         # if config["raw_output"] > 0:
-        self.evo = None  # EvoSystem(controller=None)
+        self.evo = None  # EvoSystem(controller=config["controller_id"])
         self.systems: List[EvoSystem] = []
         self.system_by_id: Dict = {}
         self.devices: List[Device] = []
@@ -145,11 +145,12 @@ class Gateway:
         else:
             ctl_id = ctls[0] if ctls else None
 
-        result = {"CTL": ctl_id, "CTLs": ctls}
+        result = {"EVO": ctl_id, "CTLs": ctls}
         return str(result)
 
     def __str__(self) -> str:
-        return self.evo.state_db
+        return json.dumps([s.id for s in self.systems])
+        # return self.evo.state_db
         # return self.evo.status
 
     def _setup_signal_handler(self):
@@ -442,17 +443,19 @@ class Gateway:
         if self.config["raw_output"] >= DONT_CREATE_MESSAGES:
             return
 
-        try:
-            pkt._harvest_devices(self.get_device)  # create the devices
+        try:  # harvest devices from packet header
+            pkt.harvest_devices(self.get_device)
+
         except AssertionError:
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
             return
 
-        # process packet payloads as messages
-        try:
+        try:  # process packet payloads as messages
             msg = Message(self, pkt)
             if not msg.is_valid:  # trap/logs all exceptions appropriately
                 return
+
+            msg.harvest_devices(self.get_device)  # from e.g. 000C payloads
 
         except AssertionError:
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
@@ -474,10 +477,11 @@ class Gateway:
         if self.evo:  # TODO: allow multiple controllers
             # if self.evo.device_by_id[msg.src.id].is_controller:
             #     if msg.src.id != self.evo.ctl.id:
-            if msg.src.type == "01" and msg.src.id != self.evo.ctl.id:
-                raise MultipleControllerError(
-                    f"{msg.src.id} in addition to {self.evo.ctl.id}"
-                )
+            if msg.src.is_controller and msg.src.id != self.evo.ctl.id:
+                # raise MultipleControllerError(
+                #     f"{msg.src.id} in addition to {self.evo.ctl.id}"
+                # )
+                pass
 
         if msg.src is not msg.dst:
             if type(msg.src) == Controller and isinstance(msg.dst, Device):
@@ -486,7 +490,7 @@ class Gateway:
                 msg.src.controller = msg.dst
 
         try:
-            msg._create_entities()  # create the devices, zones, domains
+            msg._create_entities()  # create the devices & zones
 
             if self.config["raw_output"] >= DONT_UPDATE_ENTITIES:
                 return
@@ -519,36 +523,62 @@ class Gateway:
         if self.evo is None:
             return
 
-        self.evo.eavesdrop(msg, self._last_msg)  # TODO: WIP
+        for evo in self.systems:
+            if msg.src.controller in [evo.ctl, None]:
+                evo.eavesdrop(msg, self._last_msg)  # TODO: WIP
+                if msg.src.controller is not None:
+                    break
         self._last_msg = msg
 
-    def get_device(self, address, controller=None, domain=None) -> Any:
-        """Return a device (create/add it if required)."""
-        # NB: sensors rarely speak directly with their controller
+    def get_device(
+        self, address, controller=None, parent_000c=None
+    ) -> Optional[Device]:
+        """Return a device (and create it if required).
 
-        # STATE: get controller ID by eavesdropping
-        if address.type == "01" and address.id not in self.system_by_id:
-            _ = self.get_system(address)
+        Can also set the parent system, if any (and create it if required).
+        """
 
-        if self.evo is None:  # don't create devices until a system exists
+        # assert address.type in known device types
+        if address.type == "18":
             return
 
-        if address.type != "18":
-            device = create_device(self, address)
+        device = self.device_by_id.get(address.id, EvoDevice(self, address))
 
-            if controller is not None:
-                controller.add_device(device, domain=domain)
+        if parent_000c is not None:
+            device._parent_000c = parent_000c  # TODO: a bit messy
 
-            return device
+        # controller could be a Device, or only an Address
+        if device.is_controller:
+            if controller is not None and controller.id != device.id:
+                raise LookupError
+            controller = device
 
-    def get_system(self, address) -> Any:
-        """Return a system (create it if required)."""
-        if address.id in self.system_by_id:
-            return self.system_by_id[address.id]
+        elif controller is not None:
+            controller = self.device_by_id.get(
+                controller.id, EvoDevice(self, controller)
+            )
+
+        if controller is not None:  # now controller is a Device
+            system = self.get_system(controller)
+            system.add_device(device)
+
+        return device
+
+    def get_system(self, controller) -> Optional[EvoSystem]:
+        """Return a system (and create it if required)."""
+        # TODO: a way for the client to specify the controller id
+
+        # system = self.system_by_id.get(controller.id, EvoSystem(self, controller))
+        system = self.system_by_id.get(controller.id)
+        if system is None:
+            system = EvoSystem(self, controller)
 
         if self.evo is None:
-            self.evo = EvoSystem(self, address)
-        # elif self.evo:  # TODO: do this earlier?
-        #     raise ValueError(f">1 CTL! (new: {device_id}, old: {self.evo.ctl.id})")
+            self.evo = system  # this is the first evohome-compatible system
+        elif self.evo is not system:  # TODO: check this earlier?
+            # raise ValueError(
+            #     f">1 controller! (new: {system.ctl.id}, old: {self.evo.ctl.id})"
+            # )
+            pass
 
-        return self.evo
+        return system

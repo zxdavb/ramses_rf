@@ -15,8 +15,8 @@ from .const import (
     NON_DEV_ID,
     NUL_DEV_ID,
 )
-from .devices import create_device
-from .zones import create_domain
+from .devices import DeviceBase
+from .zones import create_zone as EvoZone
 
 Address = namedtuple("DeviceAddress", "id, type")
 NON_DEVICE = Address(id="", type="--")
@@ -250,19 +250,41 @@ class Message:
 
         return True  # self._is_valid = True
 
-    def _create_entities(self) -> None:
-        """Discover and create new devices, domains and zones."""
+    def harvest_devices(self, harvest_func) -> None:
+        """Parse the payload and create any new device(s)."""
+        # NOTE: if filtering, harvest_func may not create the device
+        def _harvest_controller(dev_1, dev_2):
+            if not isinstance(dev_1, DeviceBase) or not isinstance(dev_2, DeviceBase):
+                return  # either could be a device address & not a device
 
-        # STEP 0: discover devices by harvesting zone_actuators payload
+            if not dev_2.is_controller:
+                return
+
+            if dev_1._controller is not None:
+                assert dev_1._controller is dev_2
+                return
+
+            if dev_2.is_controller:
+                harvest_func(dev_1, controller=dev_2)
+            else:
+                harvest_func(dev_1)
+
         if self.code == "000C" and self.verb == "RP":  # or: from CTL/000C
             [
-                create_device(
-                    self._gwy,
+                harvest_func(
                     Address(id=d, type=d[:2]),
-                    zone_idx=self.payload["zone_idx"],
+                    controller=self.src,
+                    parent_000c=self.payload["zone_idx"],
                 )
                 for d in self.payload["actuators"]
             ]
+
+        # TODO: do this in device.update()
+        _harvest_controller(self.src, self.dst)
+        _harvest_controller(self.dst, self.src)
+
+    def _create_entities(self) -> None:
+        """Discover and create new devices / zones."""
 
         # STEP 2: discover domains and zones by eavesdropping regular pkts
         if self.src.type not in ("01"):  # , "02"):  # self._gwy.system_by_id:
@@ -271,15 +293,13 @@ class Message:
         # if self.src.type != "01" and self.verb == " I":
         #     return
 
-        # NOTE: domain_idx was probably a bad idea
+        # TODO: manage ufh_idx (but never domain_id)
         if isinstance(self._payload, dict):
             if self._payload.get("zone_idx"):  # TODO: parent_zone too?
                 domain_type = "zone_idx"
-            # elif self._payload.get("domain_id"):
-            #     domain_type = "domain_id"
             else:
                 return
-            # create_domain(self._gwy, self._payload[domain_type], self.src)
+            # EvoZone(self._gwy, self._payload[domain_type], self.src)
 
         else:  # elif isinstance(self._payload, list):
             if self.code in ("000A", "2309", "30C9"):  # the sync_cycle pkts
@@ -290,16 +310,14 @@ class Message:
             #     domain_type = "domain_id"
             else:
                 return
-            [create_domain(self._gwy, d[domain_type], self.src) for d in self.payload]
+            [EvoZone(self._gwy, d[domain_type], self.src) for d in self.payload]
 
     def _update_entities(self) -> None:  # TODO: needs work
-        """Update the system state with the message data."""
+        """Update the system state of devices / zones with the message data."""
 
-        if self._evo is None:  # TODO: why is this here?
-            return
-
-        # CHECK: confirm parent_idx heuristics using the data in known_devices.json
-        if __dev_mode__ and isinstance(self.payload, dict):
+        # TODO: where does this go? here, or _create?
+        # ASSERT: parent_idx heuristics using the data in known_devices.json
+        if isinstance(self.payload, dict):  # and __dev_mode__
             # assert self.src.id in self._gwy.known_devices
             if self.src.id in self._gwy.known_devices:
                 idx = self._gwy.known_devices[self.src.id].get("zone_idx")
@@ -308,18 +326,18 @@ class Message:
                 if idx and "parent_idx" in self.payload:
                     assert idx == self.payload["parent_idx"]
 
-        if not self.payload:  # should be {} (possibly empty) or [...] (never empty)
-            return  # TODO: will stop useful RQs getting to update()? (e.g. RQ/3EF1)
-
-        try:  # TODO: use self._evo instead?
+        # some empty payloads may still be useful (e.g. RQ/3EF1/{})
+        try:
             self._gwy.device_by_id[self.src.id].update(self)
-        except KeyError:  # some devices weren't created because they were filtered
+        except KeyError:  # some devices aren't created if they're filtered out
             return
 
-        if self.code != "0418":  # update domains & zones
-            # NOTE: domain_idx is out!
-            # if "domain_id" in self.payload:
-            #     self._evo.domain_by_id[self.payload["domain_id"]].update(self)
-            if "zone_idx" in self.payload:
-                if self.payload["zone_idx"] in self._evo.zone_by_id:
-                    self._evo.zone_by_id[self.payload["zone_idx"]].update(self)
+        # either no zones, or payload is {} (empty; []s shouldn't ever be empty)
+        if self._evo is None or not self.payload:
+            return
+
+        if isinstance(self.payload, dict):  # lists only useful to devices (c.f. 000C)
+            if self.payload.get("zone_idx") in self._evo.zone_by_id:
+                self._evo.zone_by_id[self.payload["zone_idx"]].update(self)
+            # elif self.payload.get("ufh_idx") in ...:  # TODO: is this needed?
+            #     pass

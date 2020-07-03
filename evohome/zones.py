@@ -1,7 +1,7 @@
 """The entities for Honeywell's RAMSES II / Residential Network Protocol."""
 import asyncio
 import logging
-from typing import Any, Optional
+from typing import Optional
 
 from .command import Schedule
 from .const import (
@@ -41,66 +41,58 @@ def _temp(value) -> str:
     return f"{int(value*100):04X}"
 
 
-class DomainBase(Entity):
+class ZoneBase(Entity):
     """The Domain/Zone base class."""
 
-    def __init__(self, gateway, domain_id, system) -> None:
-        super().__init__(gateway, domain_id, controller=system.ctl)
+    def __init__(self, gateway, zone_idx, system) -> None:
+        super().__init__(gateway, zone_idx, controller=system.ctl)
+
+        # zones are children of a controller, not the gateway
+        system.zones.append(self)
+        system.zone_by_id[zone_idx] = self
+        # system.zone_by_name[self.name] = self
+
+        # self.devices = []
+        # self.device_by_id == {}
 
         self.cls_type = None
         # self.cls_name = None
 
-    def add_device(self, device) -> Any:
-        """Add a device as a child of this domain/zone."""
+    def __repr__(self):
+        return f"{self.id}/{self.type} ({self.sensor})"
+
+    def _command(self, code, **kwargs) -> None:
+        kwargs["dest_addr"] = kwargs.get("dest_addr", self._gwy.evo.ctl.id)
+        kwargs["payload"] = kwargs.get("payload", f"{self.id}00")
+        super()._command(code, **kwargs)
+
+    def add_device(self, device, sensor=None, actuator=None) -> Device:
+        """Add a device to this zone (add it to this system if required)."""
+
+        # this will check/set the device's controller
+        self._evo.add_device(device, self)
 
         if device.id not in self.device_by_id:
-            self.devices.append(device)
             self.device_by_id[device.id] = device
+            self.devices.append(device)
+
+        if sensor is not None:  # TODO:
+            self.sensor = device.id  # a setter
+
+        if actuator is True:  # TODO:
+            self.actuator_by_id[device.id] = device
+            self.actuators.append(device)
 
 
-class Domain(DomainBase):
-    """Base for the domains: F8 (rare), F9, FA (not FC, FF)."""
-
-    def __init__(self, gateway, domain_id, system) -> None:
-        _LOGGER.debug("Creating a Domain, %s", domain_id)
-        super().__init__(gateway, domain_id, system)
-
-        # domains/zones are children of a controller, not the gateway
-        system.domains.append(self)
-        system.domain_by_id[domain_id] = self
-
-        self.cls_type = None
-
-    def update(self, msg) -> None:
-        super().update(msg)
-
-        # try to cast a new type (must be a superclass of the current type)
-        if msg.code in ("1100", "3150", "3B00") and self.cls_type is None:
-            self.cls_type = "DHW"
-            self.__class__ = _ZONE_CLASS[self.cls_type]
-            _LOGGER.debug("Promoted domain %s to %s", self.id, self.cls_type)
-
-    @property
-    def relay_demand(self) -> Optional[float]:  # 0008
-        return self._get_pkt_value("0008", "relay_demand")
-
-    @property  # only seen with FC, but seems should pair with 0008?
-    def relay_failsafe(self) -> Optional[float]:  # 3150
-        return self._get_pkt_value("0009")
-
-
-class DhwDomain(Domain, HeatDemand):
-    """Base for the DHW/FC domain.
+class DhwZone(ZoneBase, HeatDemand):
+    """Base for the DHW domain.
 
     FC - 0008, 0009, 1100, 3150, 3B00, (& rare: 0001, 1FC9)
     """
 
-    def __init__(self, gateway, domain_id, system) -> None:
-        _LOGGER.warning("Creating a DHW Zone, %s", domain_id)
-        super().__init__(gateway, domain_id, system)
-
-        self.cls_type = None  # or _domain_type
-        # self._discover()
+    def __init__(self, gateway, zone_dhw, system) -> None:
+        _LOGGER.warning("Creating a DHW Zone, %s", zone_dhw)
+        super().__init__(gateway, zone_dhw, system)
 
     def _discover(self):
         # get config, mode, temp
@@ -109,6 +101,57 @@ class DhwDomain(Domain, HeatDemand):
 
         if self.id == "FC":
             self.async_set_override(state="On")
+
+    def update(self, msg) -> None:
+        super().update(msg)
+
+        # # try to cast a new type (must be a superclass of the current type)
+        # if msg.code in ("1100", "3150", "3B00") and self.cls_type is None:
+        #     self.cls_type = "DHW"
+        #     self.__class__ = _ZONE_CLASS[self.cls_type]
+        #     _LOGGER.debug("Promoted domain %s to %s", self.id, self.cls_type)
+
+    @property
+    def relay_demand(self) -> Optional[float]:  # 0008
+        return self._get_pkt_value("0008", "relay_demand")
+
+    @property  # only seen with FC, but seems should pair with 0008?
+    def relay_failsafe(self) -> Optional[float]:  # 0009
+        return self._get_pkt_value("0009")
+
+    @property
+    def config(self):  # 10A0
+        attrs = ("setpoint", "overrun", "differential")
+        return {x: self._get_pkt_value("10A0", x) for x in attrs}
+
+    @property
+    def name(self) -> Optional[str]:  # N/A
+        return "DHW Controller"
+
+    @property
+    def sensor(self) -> Optional[str]:  # TODO: WIP
+        return self._sensor.id
+
+    @property
+    def relay(self) -> Optional[str]:  # TODO: WIP
+        return self._relay.id
+
+    @property
+    def setpoint_status(self):  # 1F41
+        attrs = ["active", "mode", "until"]
+        return {x: self._get_pkt_value("1F41", x) for x in attrs}
+
+    @property
+    def temperature(self):  # 1260
+        return self._get_pkt_value("1260", "temperature")
+
+    @property
+    def tpi_params(self) -> Optional[float]:  # 1100
+        return self._get_pkt_value("1100")
+
+    @property
+    def sync_tpi(self) -> Optional[float]:  # 3B00
+        return self._get_pkt_value("3B00", "sync_tpi")
 
     async def async_cancel_override(self) -> bool:  # 1F41
         """Reset the DHW to follow its schedule."""
@@ -170,50 +213,8 @@ class DhwDomain(Domain, HeatDemand):
         """Set the DHW parameters."""
         return False
 
-    @property
-    def config(self):  # 10A0
-        attrs = ("setpoint", "overrun", "differential")
-        return {x: self._get_pkt_value("10A0", x) for x in attrs}
 
-    @property
-    def name(self) -> Optional[str]:  # N/A
-        return "DHW Controller"
-
-    @property
-    def TBD_sensor(self) -> Optional[str]:  # TODO: WIP
-        return self._sensor
-
-    @property
-    def TBD_relay(self) -> Optional[str]:  # TODO: WIP
-        return self._sensor
-
-    @property
-    def schedule(self) -> Optional[dict]:  # ????
-        """Return the schedule if any (currently unable to extract this data)."""
-        return {}
-
-    @property
-    def setpoint_status(self):  # 1F41
-        attrs = ["active", "mode", "until"]
-        return {x: self._get_pkt_value("1F41", x) for x in attrs}
-
-    @property
-    def temperature(self):  # 1260
-        return self._get_pkt_value("1260", "temperature")
-
-    @property
-    def tpi_params(self) -> Optional[float]:  # 1100
-        return self._get_pkt_value("1100")
-
-    @property
-    def sync_tpi(self) -> Optional[float]:  # 3B00
-        return self._get_pkt_value("3B00", "sync_tpi")
-
-
-# ######################################################################################
-
-
-class Zone(DomainBase):
+class Zone(ZoneBase):
     """The Zone base class."""
 
     def __init__(self, gateway, zone_idx, system) -> None:
@@ -221,14 +222,6 @@ class Zone(DomainBase):
         super().__init__(gateway, zone_idx, system)
 
         self.idx = zone_idx  # in addition to .id
-
-        # domains/zones are children of a controller, not the gateway
-        system.zones.append(self)
-        system.zone_by_id[zone_idx] = self
-        # system.zone_by_name[self.name] = self
-
-        # self.devices = []
-        # self.device_by_id == {}
 
         self._schedule = Schedule(gateway, zone_idx)
         self._sensor = None
@@ -376,6 +369,8 @@ class Zone(DomainBase):
 
     @property
     def configuration(self) -> Optional[dict]:  # 000A
+        result = None
+
         msg_1 = self._evo.ctl._pkts.get("000A")  # authorative, but 1/hourly
         msg_2 = self._pkts.get("000A")  # possibly more up-to-date, or null
 
@@ -446,6 +441,8 @@ class Zone(DomainBase):
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309
+        result = None
+
         msg_1 = self._evo.ctl._pkts.get("2309")  # authorative
         msg_2 = self._pkts.get("2349")  # possibly more up-to-date, or null
 
@@ -477,6 +474,7 @@ class Zone(DomainBase):
     def temperature(self) -> Optional[float]:  # 30C9
         # OK to simply use the controller's sync_cycle array value for now
         result = self._evo.ctl._get_pkt_value("30C9")
+
         if result:
             result = {
                 k: v for d in result for k, v in d.items() if d["zone_idx"] == self.idx
@@ -534,16 +532,11 @@ class BdrZone(Zone):  # Electric zones (do *not* call for heat)
         return self._get_pkt_value("3EF1")
 
 
-class MixZone(Zone, ZoneHeatDemand):  # Mix valve zones
-    """Base for Mixing Valve zones.
+class ValZone(BdrZone, ZoneHeatDemand):  # Zone valve zones
+    """Base for Zone Valve zones.
 
-    For a modulating valve controlled by a HM80 (will also call for heat).
+    For a motorised valve controlled by a BDR91 (will also call for heat).
     """
-
-    @property
-    def configuration(self):
-        attrs = ["max_flow_temp", "pump_rum_time", "actuator_run_time", "min_flow_temp"]
-        return {x: self._get_pkt_value("1030", x) for x in attrs}
 
 
 class TrvZone(Zone, ZoneHeatDemand):  # Radiator zones
@@ -570,11 +563,16 @@ class UfhZone(Zone, ZoneHeatDemand):  # UFH zones
         return self._get_pkt_value("22C9")
 
 
-class ValZone(BdrZone, ZoneHeatDemand):  # Zone valve zones
-    """Base for Zone Valve zones.
+class MixZone(Zone, ZoneHeatDemand):  # Mix valve zones
+    """Base for Mixing Valve zones.
 
-    For a motorised valve controlled by a BDR91 (will also call for heat).
+    For a modulating valve controlled by a HM80 (will also call for heat).
     """
+
+    @property
+    def configuration(self):
+        attrs = ["max_flow_temp", "pump_rum_time", "actuator_run_time", "min_flow_temp"]
+        return {x: self._get_pkt_value("1030", x) for x in attrs}
 
 
 _ZONE_CLASS = {
@@ -583,24 +581,25 @@ _ZONE_CLASS = {
     "VAL": ValZone,
     "UFH": UfhZone,
     "MIX": MixZone,
-    "DHW": DhwDomain,
+    "DHW": DhwZone,
 }
 
 
-def create_domain(gateway, domain_id, ctl_address=None) -> DomainBase:
+def create_zone(gateway, zone_idx, ctl_address=None) -> ZoneBase:
     """Return a domain/zone, create it if required."""
     # system already should exist - otherwise will cause upstream issues
+    assert int(zone_idx, 16) < MAX_ZONES
+
     if ctl_address is not None:
         system = gateway.system_by_id.get(ctl_address.id)
     else:
-        system = None
+        system = gateway.evo
 
-    if domain_id in ("F8", "F9", "FA", "FB", "FC"):
-        if system and domain_id in system.domain_by_id:
-            return system.domain_by_id[domain_id]
-        return Domain(gateway, domain_id, system)
+    assert system is not None
 
-    assert int(domain_id, 16) < MAX_ZONES
-    if system and domain_id in system.zone_by_id:
-        return system.zone_by_id[domain_id]
-    return _ZONE_CLASS.get("???", Zone)(gateway, domain_id, system)  # TODO: ?
+    if zone_idx in system.zone_by_id:
+        zone = system.zone_by_id[zone_idx]
+    else:
+        zone = _ZONE_CLASS.get("???", Zone)(gateway, zone_idx, system)
+
+    return zone

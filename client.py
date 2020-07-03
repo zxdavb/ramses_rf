@@ -89,6 +89,7 @@ def debug_wrapper(**kwargs):
 async def main(loop=None, **kwargs):
     # loop=asyncio.get_event_loop() causes: 'NoneType' object has no attribute 'serial'
     print("Starting evohome_rf...")
+    gateway = None
 
     if sys.platform == "win32":  # is better than os.name
         # ERROR:asyncio:Cancelling an overlapped future failed
@@ -110,6 +111,8 @@ async def main(loop=None, **kwargs):
 
     print("Finished evohome_rf.")
     # str(): short; repr(): full
+
+    orphans = None
     if gateway.evo:  # kwargs["raw_output"] < DONT_CREATE_MESSAGES:
         devices = [d.id for d in gateway.evo.devices]
         orphans = [d.id for d in gateway.devices if d.controller is None]
@@ -117,9 +120,12 @@ async def main(loop=None, **kwargs):
         devices.sort()
         orphans.sort()
 
-        print(f" - system schema: {gateway.evo}")
-        print(f" - system devices: {json.dumps(devices)}")
-        print(f" - orphan devices: {json.dumps(orphans)}")
+        print(f"\r\nSystems: {repr(gateway)}")
+        for evo in gateway.systems:
+            print(f"\r\nSystem schema: {evo}")
+            print(f" - system devices: {json.dumps([d.id for d in evo.devices])}")
+
+        print(f"\r\nOrphan devices: {json.dumps(orphans)}")
 
     elif False:
         devices = [json.loads(repr(d)) for d in gateway.evo.devices]

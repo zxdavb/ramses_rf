@@ -5,7 +5,7 @@ import logging
 from typing import Any
 
 from .const import __dev_mode__
-from .devices import Controller
+from .devices import Controller, Device
 from .zones import Zone as EvoZone
 
 _LOGGER = logging.getLogger(__name__)
@@ -18,6 +18,12 @@ class EvoSystem:
 
     def __init__(self, gateway, controller: Controller) -> None:
         """Initialise the class."""
+        if not isinstance(controller, Controller) and not controller.is_controller:
+            raise TypeError("Invalid controller")
+
+        if controller.id in gateway.system_by_id:
+            raise TypeError("Duplicate controller")
+
         self._gwy = gateway
         self.ctl = controller
 
@@ -26,9 +32,8 @@ class EvoSystem:
 
         self.devices = []
         self.device_by_id = {}
+        self.add_device(controller)
 
-        self.domains = []
-        self.domain_by_id = {}
         self.zones = []
         self.zone_by_id = {}
         self.zone_by_name = {}
@@ -36,6 +41,16 @@ class EvoSystem:
         self.heat_relay = None
         self.dhw_sensor = None
         self._prev_code = None
+
+    def add_device(self, device) -> Device:
+        """Add a device as a child of this system."""
+        # NB: sensors rarely speak directly with their controller
+
+        if device.id not in self.device_by_id:
+            self.devices.append(device)
+            self.device_by_id[device.id] = device
+
+        device.controller = self.ctl  # a setter
 
     def __repr__(self) -> str:
         """Return a complete representation of the system."""
@@ -46,16 +61,6 @@ class EvoSystem:
         """Return a brief representation of the system."""
 
         return json.dumps(self.schema)
-
-    def add_device(self, device, domain=None) -> None:
-        """Add a device as a child of this controller."""
-
-        if device.id not in self.device_by_id:
-            self.devices.append(device)
-            self.device_by_id[device.id] = device
-
-        if domain is not None:
-            domain.add_device(device)
 
     def get_zone(self, zone_id) -> Any:
         """Return a zone (create it if required)."""
@@ -213,6 +218,9 @@ class EvoSystem:
 
         if self.ctl is None:
             return
+        elif last is not None and last.src.controller is not None:
+            if self.ctl != last.src.controller:
+                return
 
         # if this.src.type == "01" and this.dst.controller is None:  # 3EF0
         #     this.dst.controller = this.src  # useful for TPI/OTB, uses 3EF0

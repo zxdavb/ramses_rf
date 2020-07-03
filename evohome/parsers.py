@@ -583,14 +583,14 @@ def parser_0418(payload, msg=None) -> Optional[dict]:
     assert payload[30:38] == "FFFF7000"  # unknown_3
     # assert payload[38:] == ""  # device_id
     #
-    return {
+    return {  # TODO: stop using __idx()?
         **(_idx(payload[4:6], msg) if msg is not None else {"log_idx": payload[4:6]}),
         "timestamp": _timestamp(payload[18:30]),
         "fault_state": FAULT_STATE.get(payload[2:4], payload[2:4]),
         "fault_type": FAULT_TYPE.get(payload[8:10], payload[8:10]),
-        "zone_idx"
+        "zone_id"
         if int(payload[10:12], 16) < MAX_ZONES
-        else "domain_id": payload[10:12],
+        else "domain_id": payload[10:12],  # don't use zone_idx
         "device_class": FAULT_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
         "device_id": dev_hex_to_id(payload[38:]),  # is "00:000001/2 for CTL?
     }
@@ -899,6 +899,10 @@ def parser_22d9(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # ???? (Nuaire 2 x 2-way switch)
 def parser_22f1(payload, msg) -> Optional[dict]:
+    # 11:42:43.149 081  I 051 --:------ --:------ 49:086353 22F1 003 000304
+    # 11:42:49.587 071  I 052 --:------ --:------ 49:086353 22F1 003 000404
+    # 11:42:49.685 072  I 052 --:------ --:------ 49:086353 22F1 003 000404
+    # 11:42:49.784 072  I 052 --:------ --:------ 49:086353 22F1 003 000404
     assert msg.len == 3
     assert payload[:2] == "00"  # has no domain
     assert payload[4:] in ("04", "0A")
@@ -1031,7 +1035,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
     assert msg.len == 17  # usu: I 30:-->30:, with a seq#!
 
     assert payload[2:4] in ("00", "06")
-    assert payload[4:6] in ("01", "FF")
+    assert payload[4:6] == "FF" or int(payload[4:6], 16) <= 200
     assert payload[6:8] == "00"
     assert payload[8:32] in ("00" * 12, "20" * 12)
 

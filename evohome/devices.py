@@ -74,12 +74,13 @@ def _dtm(value) -> str:
 
 
 class Entity:
-    """The Device/Domain/Zone base class."""
+    """The Device/Zone base class."""
 
     def __init__(self, gateway, entity_id, controller=None) -> None:
         self._gwy = gateway
-        self._evo = gateway.evo
         self._que = gateway.cmd_que
+        self._evo = gateway.evo  # HACK, should be: .system_by_id[controller.id]
+
         self.id = entity_id
         self._controller = controller
 
@@ -104,21 +105,21 @@ class Entity:
         return json.dumps({"entity_id": self.id})
 
     @property
-    def controller(self) -> Optional[str]:
+    def controller(self):  # -> Optional[Controller]:
         """Return the id of the entity's controller, if known.
 
-        If the controller is not known, try to find it.
+        TBD: If the controller is not known, try to find it.
         """
         if self._controller is not None:
-            return self._controller.id
+            return self._controller
 
-        for msg in self._pkts.values():
-            if msg.dst.type == "01":  # msg.dst.is_controller
-                self.controller = msg.dst  # useful for UFH
-            # elif msg.src.type == "01":  # msg.src.is_controller
-            #     self.controller = msg.src  # useful for TPI, not useful for OTB
+        # for msg in self._pkts.values():
+        #     if not msg.dst.type.is_controller:
+        #         self.controller = msg.dst  # useful for UFH
+        #     # elif msg.src.type == "01":  # msg.src.is_controller
+        #     #     self.controller = msg.src  # useful for TPI, not useful for OTB
 
-        return self._controller.id if self._controller else None
+        # return self._controller
 
     @controller.setter
     def controller(self, controller) -> None:
@@ -126,34 +127,26 @@ class Entity:
 
         It is assumed that, once set, it never changes.
         """
-        assert type(controller) is not str, type(controller)  # TODO: remove
-
-        if controller is None:
+        if not isinstance(controller, Controller) and not controller.is_controller:
+            raise TypeError
+        if self._controller is not None and self._controller is not controller:
             raise ValueError
-        elif controller is not None:
-            assert type(controller) is Controller, f"{controller}"
 
         if self._controller is None:
             self._controller = controller
 
-            if isinstance(self, DeviceBase):
-                if self.id not in self._evo.device_by_id:
-                    self._evo.devices.append(self)
-                    self._evo.device_by_id[self.id] = self
+            # if isinstance(self, DeviceBase):
+            #     if self.id not in self._evo.device_by_id:
+            #         self._evo.devices.append(self)
+            #         self._evo.device_by_id[self.id] = self
             # else:
             #     self._evo.domains.append(self)
             #     self._evo.domain_by_id[self.id] = self
             #     if self.name is not None:
             #         self._controller.domain_by_name[self.name] = self
 
-        elif self._controller != controller:
-            raise ValueError
-
     def _command(self, code, **kwargs) -> None:
-        temp = self._evo.ctl.id if self._evo and self._evo.ctl else None
-        dest = kwargs.get("dest_addr", temp)
-        assert dest is not None, "THIS NEEDS SORTING"  # HACK: a hack
-
+        dest = kwargs.get("dest_addr", self.id)
         verb = kwargs.get("verb", "RQ")
         payload = kwargs.get("payload", "00")
 
@@ -182,6 +175,9 @@ class Entity:
 
     def update(self, msg) -> None:
         # _ = self.controller  # TODO: a hack for testing
+
+        if self._evo is None:
+            self._evo = self._gwy.evo  # HACK
 
         self._last_msg = msg  # f"{msg.date}T{msg.time}"
 
@@ -261,22 +257,22 @@ class Temperature:  # 30C9
 class DeviceBase(Entity):
     """The Device base class."""
 
-    def __init__(self, gateway, address) -> None:
-        _LOGGER.debug("Creating a Device, %s", address.id)
-        super().__init__(gateway, address.id)
+    def __init__(self, gateway, device_addr, controller=None) -> None:
+        _LOGGER.debug("Creating a Device, %s", device_addr.id)
+        super().__init__(gateway, device_addr.id, controller)
 
-        assert address.id not in gateway.device_by_id, address.id
+        assert device_addr.id not in gateway.device_by_id, device_addr.id
 
         gateway.devices.append(self)
-        gateway.device_by_id[address.id] = self
+        gateway.device_by_id[device_addr.id] = self
 
-        self.addr = address
-        self.type = address.type
+        self.addr = device_addr
+        self.type = device_addr.type
 
         self.cls_type = DEVICE_TYPES.get(self.addr.type)
         self.cls_name = DEVICE_CLASSES.get(self.cls_type)
 
-        self.hex_id = dev_id_to_hex(address.id)
+        self.hex_id = dev_id_to_hex(device_addr.id)
 
         if self.addr.type in DEVICE_TABLE:
             self._has_battery = DEVICE_TABLE[self.addr.type].get("has_battery")
@@ -287,16 +283,16 @@ class DeviceBase(Entity):
             self._is_actuator = None
             self._is_sensor = None
 
-        self._zone = None  # parent zone object
+        self._zone = self._parent_zone = self._parent_000c = None  # parent zone object
 
-        attrs = gateway.known_devices.get(address.id)
+        attrs = gateway.known_devices.get(device_addr.id)
         self._friendly_name = attrs.get("friendly_name") if attrs else None
         self._ignored = attrs.get("ignored", False) if attrs else False
 
         self._discover()
 
-    # def __str__():
-    #     return self._friendly_name
+    def __repr__(self):
+        return f"{self.id}/{self.cls_type}"
 
     @property
     def parent_zone(self) -> Optional[str]:  # TODO: dev-only, remove at some stage
@@ -309,27 +305,25 @@ class DeviceBase(Entity):
                 zone_id = msg.payload["parent_idx"]
                 break
 
-        if zone_id is not None and self._zone is not None:
-            assert zone_id == self._zone.id
-        return zone_id
+        if zone_id is not None:
+            if self._zone is not None:
+                if zone_id != self._zone.id:
+                    print("AAA")
+                assert zone_id == self._zone.id
+            self._parent_zone = zone_id
+
+        return self._parent_zone
 
     @property
     def parent_000c(self) -> Optional[str]:  # TODO: dev-only, remove at some stage
         """Return the id of the device's parent zone using 000C."""
 
-        if not self._is_actuator:
+        if not self._parent_000c:
             return None
+        # if self._evo:
+        #     return self._evo.zone_by_id[self._parent_000c]
 
-        zone_id = None
-        for z in self._evo.zones:
-            value = z._get_pkt_value("000C", "actuators")
-            if value and self.id in value:
-                zone_id = z.id
-            break
-
-        if zone_id is not None and self._zone is not None:
-            assert zone_id == self._zone.id
-        return zone_id
+        return self._parent_000c
 
     @property
     def zone(self) -> Optional[str]:
@@ -341,15 +335,24 @@ class DeviceBase(Entity):
             return self._zone.id
 
         # try to determine the 'parent' domain/zone...
-        zone_id = None
-        if self.parent_000c is not None:
-            zone_id = self.parent_000c
-        elif self.parent_zone is not None:
-            zone_id = self.parent_zone
-        else:
-            return
+        # zone_id = None
+        # if self.parent_000c is not None:
+        #     zone_id = self.parent_000c
+        # elif self.parent_zone is not None:
+        #     zone_id = self.parent_zone
+        # else:
+        #     return None
 
-        self._zone = self._evo.zone_by_id.get(zone_id)
+        zone_id = (
+            self.parent_000c
+            if self.parent_000c
+            else self.parent_zone
+            if self.parent_zone
+            else None
+        )
+
+        if self._evo:
+            self._zone = self._evo.zone_by_id.get(zone_id)
         return self._zone.id if self._zone else None
 
     @zone.setter
@@ -381,20 +384,18 @@ class DeviceBase(Entity):
     def _discover(self):
         # do these even if battery-powered (e.g. device might be in rf_check mode)
         for code in ("1FC9",):
-            self._command(code, dest_addr=self.id)
+            self._command(code)
         for code in ("0016",):
-            self._command(code, dest_addr=self.id, payload="0000")
+            self._command(code, payload="0000")
 
         if self.has_battery is not True:
-            self._command("10E0", dest_addr=self.id)
+            self._command("10E0")
 
         # if self.addr.type not in ("01", "13") and not self.has_battery:  # TODO: dev
         #     for code in CODE_SCHEMA:
         #         if code == "0404":
         #             continue
-        #         self._command(
-        #             code, dest_addr=self.id, payload="0000" if code != "1F09" else "00"  # noqa
-        #         )
+        #         self._command(code, payload="0000" if code != "1F09" else "00")
 
     @property
     def description(self) -> Optional[str]:  # 10E0
@@ -415,9 +416,11 @@ class DeviceBase(Entity):
 
     @property
     def is_controller(self) -> Optional[bool]:  # 1F09
-        if self.addr.type in ("01", "23"):
+        if isinstance(self, Controller):
             return True
-        elif "1F09" in self._pkts:
+        if self.type in ("01", "23"):
+            return True
+        if "1F09" in self._pkts:
             return self._pkts["1F09"].verb == " I"
         return False
 
@@ -444,11 +447,11 @@ class Device(DeviceBase, BatteryState):
 class Controller(DeviceBase):
     """The Controller class."""
 
-    def __init__(self, gateway, address) -> None:
-        _LOGGER.debug("Creating the Controller, %s", address.id)
-        super().__init__(gateway, address)
+    def __init__(self, gateway, device_addr) -> None:
+        _LOGGER.debug("Creating the Controller, %s", device_addr.id)
+        super().__init__(gateway, device_addr, self)
 
-        self._evo.ctl = self
+        # self._evo.ctl = self
         self._controller = self
 
         self._boiler_relay = None
@@ -743,9 +746,9 @@ class UfhController(DeviceBase, HeatDemand):
 class DhwSensor(Device):
     """The DHW class, such as a CS92."""
 
-    def __init__(self, gateway, address) -> None:
-        _LOGGER.debug("Creating a DHW sensor, %s", address.id)
-        super().__init__(gateway, address)
+    def __init__(self, gateway, device_addr) -> None:
+        _LOGGER.debug("Creating a DHW sensor, %s", device_addr.id)
+        super().__init__(gateway, device_addr)
 
         # self._discover()
 
@@ -764,9 +767,9 @@ class DhwSensor(Device):
 class OtbGateway(DeviceBase, Actuator, HeatDemand):
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
-    def __init__(self, gateway, address) -> None:
-        _LOGGER.debug("Creating an OTB gateway, %s", address.id)
-        super().__init__(gateway, address)
+    def __init__(self, gateway, device_addr) -> None:
+        _LOGGER.debug("Creating an OTB gateway, %s", device_addr.id)
+        super().__init__(gateway, device_addr)
 
     @property
     def boiler_setpoint(self) -> Optional[Any]:  # 22D9
@@ -781,30 +784,30 @@ class OtbGateway(DeviceBase, Actuator, HeatDemand):
 class Thermostat(Device, Setpoint, Temperature):
     """The STA class, such as a TR87RF."""
 
-    def __init__(self, gateway, address) -> None:
-        _LOGGER.debug("Creating a XXX thermostat, %s", address.id)
-        super().__init__(gateway, address)
+    def __init__(self, gateway, device_addr) -> None:
+        _LOGGER.debug("Creating a XXX thermostat, %s", device_addr.id)
+        super().__init__(gateway, device_addr)
 
 
 # 13: "3EF0", "1100";; ("3EF1"?)
 class BdrSwitch(DeviceBase, Actuator):
     """The BDR class, such as a BDR91."""
 
-    def __init__(self, gateway, address) -> None:
-        _LOGGER.debug("Creating a BDR relay, %s", address.id)
-        super().__init__(gateway, address)
+    def __init__(self, gateway, device_addr) -> None:
+        _LOGGER.debug("Creating a BDR relay, %s", device_addr.id)
+        super().__init__(gateway, device_addr)
 
         self._is_tpi = None
 
     def _discover(self):
         super()._discover()
 
-        self._command("1100", dest_addr=self.id, payload="00")
+        self._command("1100", payload="00")
 
         # all relays seem the same, except for 0016, and 1100
         # for code in ("3B00", "3EF0", "3EF1"] + ["0008", "1100", "1260"):
         #     for payload in ("00", "FC", "FF", "0000", "000000"):
-        #         self._command(code, dest_addr=self.id, payload=payload)
+        #         self._command(code, payload=payload)
 
     def update(self, msg):
         super().update(msg)
@@ -848,21 +851,21 @@ class TpiSwitch(BdrSwitch):  # TODO: superset of BDR switch?
     def _discover(self):  # NOTE: do not super()._discover()
 
         for code in ("1100",):
-            self._command(code, dest_addr=self.id, payload="00")
+            self._command(code, payload="00")
 
         # doesn't like like TPIs respond to a 3B00
         # for payload in ("00", "C8"):
         #     for code in ("00", "FC", "FF"):
-        #         self._command("3B00", dest_addr=self.id, payload=f"{code}{payload}")
+        #         self._command("3B00", payload=f"{code}{payload}")
 
 
 # 04: "1060", "3150", "2309", "30C9";; "0100", "12B0" ("0004")
 class TrvActuator(Device, HeatDemand, Setpoint, Temperature):
     """The TRV class, such as a HR92."""
 
-    def __init__(self, gateway, device_id) -> None:
-        # _LOGGER.debug("Creating a TRV actuator, %s", device_id)
-        super().__init__(gateway, device_id)
+    def __init__(self, gateway, device_addr) -> None:
+        _LOGGER.debug("Creating a TRV actuator, %s", device_addr.id)
+        super().__init__(gateway, device_addr)
 
     # @property
     # def language(self) -> Optional[str]:  # 0100,
@@ -873,7 +876,7 @@ class TrvActuator(Device, HeatDemand, Setpoint, Temperature):
         return self._get_pkt_value("12B0", "window_open")
 
 
-DEVICE_CLASS = {
+_DEVICE_CLASS = {
     DEVICE_LOOKUP["BDR"]: BdrSwitch,
     DEVICE_LOOKUP["CTL"]: Controller,
     DEVICE_LOOKUP["DHW"]: DhwSensor,
@@ -887,20 +890,22 @@ DEVICE_CLASS = {
 }
 
 
-def create_device(gateway, device_address, zone_idx=None) -> DeviceBase:
-    """Return a device, create it if required."""
+def create_device(gateway, device_address) -> DeviceBase:
+    """Create a device with the correct class."""
     assert device_address.type not in ("63", "--")
 
     if device_address.id in gateway.device_by_id:
         device = gateway.device_by_id[device_address.id]
     else:
-        device = DEVICE_CLASS.get(device_address.type, Device)(gateway, device_address)
+        device = _DEVICE_CLASS.get(device_address.type, Device)(gateway, device_address)
 
-    if zone_idx:
-        zone = gateway.evo.zone_by_id.get(zone_idx)
-        if device._zone is None:
-            device._zone = gateway.device_by_id.get(zone_idx)
-        else:
-            assert device._zone is zone
+    # zone_idx = parent_000c if parent_000c else parent_zone
+
+    # if zone_idx:
+    #     zone = gateway.evo.zone_by_id.get(zone_idx)
+    #     if device._zone is None:
+    #         device._zone = gateway.device_by_id.get(zone_idx)
+    #     else:
+    #         assert device._zone is zone
 
     return device

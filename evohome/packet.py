@@ -55,7 +55,7 @@ class Packet:
         self.src_addr = self.dst_addr = None
 
         self._is_valid = self._is_wanted = None
-        self._is_valid = self.is_valid
+        self._is_valid = self.is_valid  # HACK: should be: _ = self.is_valid
 
     def __str__(self) -> str:
         return self.packet if self.packet else ""
@@ -69,19 +69,43 @@ class Packet:
         return self.packet == other.packet
 
     @property
-    def is_valid(self) -> bool:
-        """Return True if the packet is valid in structure.
+    def is_valid(self) -> Optional[bool]:
+        """Return True if a valid packets, otherwise return False/None & log it."""
+        # 'good' packets are not logged here, as they may be for silent discarding
 
-        All exceptions are to be trapped, and logged appropriately.
-        """
-        if self._is_valid is not None:
+        def _validate_addresses() -> Optional[bool]:
+            """Return True if the address fields are valid (create any addresses)."""
+            if "--:------" not in self.packet:
+                return False  # 3 packet addresses!
+
+            for idx, addr in enumerate(
+                [self.packet[i : i + 9] for i in range(11, 32, 10)]
+            ):
+                self.addrs[idx] = Address(id=addr, type=addr[:2])
+
+            assert all(
+                [
+                    self.addrs[0].id not in (NON_DEV_ID, NUL_DEV_ID),
+                    (self.addrs[1].id, self.addrs[2].id).count(NON_DEV_ID) == 1,
+                ]
+            ) or all(
+                [
+                    self.addrs[2].id not in (NON_DEV_ID, NUL_DEV_ID),
+                    self.addrs[0].id == self.addrs[1].id == NON_DEV_ID,
+                ]
+            )
+
+            device_addrs = list(filter(lambda x: x.type != "--", self.addrs))
+
+            self.src_addr = device_addrs[0] if len(device_addrs) else NON_DEVICE
+            self.dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEVICE
+
+            return 0 < len(device_addrs) < 3
+
+        if self._is_valid is not None or not self._pkt_line:
             return self._is_valid
 
-        if not self._pkt_line:  # don't log null packets at all
-            return False
-
         if self.error_text:  # log all packets with an error
-            # return False  # TODO: return here is only for TESTING
             if self.packet:
                 _LOGGER.warning("%s < Bad packet: ", self, extra=self.__dict__)
             else:
@@ -95,46 +119,31 @@ class Packet:
         # TODO: these packets shouldn't go to the packet log, only STDERR?
         if not MESSAGE_REGEX.match(self.packet):
             err_msg = "invalid packet structure"
-        elif int(self.packet[46:49]) > 48:  # TODO: need to test < 1?
+        elif not _validate_addresses():
+            err_msg = "invalid packet addresses"
+        elif int(self.packet[46:49]) > 48:
             err_msg = "excessive payload length"
         elif int(self.packet[46:49]) * 2 != len(self.packet[50:]):
             err_msg = "mismatched payload length"
-        # TODO: maybe should rely upon parsers for this?
-        elif "--:------" not in self.packet:
-            err_msg = "three device addresses"
-        else:  # it is a valid packet!
-            # NOTE: don't log good packets here: we may want to silently discard some
-
-            # TODO: Check that expected RQ/RP pair happened
-
+        else:  # it is a valid packet
+            # TODO: Check that an expected RP arrived for an RQ sent by this library
             return True
 
         _LOGGER.warning("%s < Bad packet: %s ", self, err_msg, extra=self.__dict__)
         return False
 
-    def _harvest_devices(self, harvest_func) -> None:
-        """Process the packet address fields and create any new devices."""
+    def harvest_devices(self, harvest_func) -> None:
+        """Parse the address fields and create any new device(s)."""
 
-        for idx, addr in enumerate([self.packet[i : i + 9] for i in range(11, 32, 10)]):
-            self.addrs[idx] = Address(id=addr, type=addr[:2])
+        def _harvest_device(addr1, addr2):
+            if addr1.type not in ("63", "--"):
+                if addr2.type == "01":  # TODO: need an iscontroller() function
+                    harvest_func(addr1, controller=addr2)
+                else:
+                    harvest_func(addr1)
 
-        assert all(
-            [
-                self.addrs[0].id not in (NON_DEV_ID, NUL_DEV_ID),
-                (self.addrs[1].id, self.addrs[2].id).count(NON_DEV_ID) == 1,
-            ]
-        ) or all(
-            [
-                self.addrs[2].id not in (NON_DEV_ID, NUL_DEV_ID),
-                self.addrs[0].id == self.addrs[1].id == NON_DEV_ID,
-            ]
-        )
-
-        device_addrs = list(filter(lambda x: x.type != "--", self.addrs))
-        self.src_addr = device_addrs[0] if len(device_addrs) else NON_DEVICE
-        self.dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEVICE
-
-        [harvest_func(a) for a in device_addrs if a.type != "63"]
+        _harvest_device(self.src_addr, self.dst_addr)
+        _harvest_device(self.dst_addr, self.src_addr)
 
 
 class PortPktProvider:
