@@ -1,6 +1,6 @@
 """Evohome serial."""
 import asyncio
-from collections import deque, namedtuple
+from collections import deque
 import json
 import logging
 import os
@@ -22,9 +22,6 @@ from .system import EvoSystem
 DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
 DONT_UPDATE_ENTITIES = 1
-
-Address = namedtuple("DeviceAddress", "addr, type")
-NON_DEVICE = Address(addr="", type="--")
 
 _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:
@@ -471,21 +468,23 @@ class Gateway:
         if msg.src.type == "18":  # RQs from a 18: are unreliable, but RPs are required
             return
 
-        if self.evo:  # TODO: allow multiple controllers
-            # if self.evo.device_by_id[msg.src.id].is_controller:
-            #     if msg.src.id != self.evo.ctl.id:
-            pass  # TODO: XXX
-            if msg.src.is_controller and msg.src.id != self.evo.ctl.id:
-                # raise MultipleControllerError(
-                #     f"{msg.src.id} in addition to {self.evo.ctl.id}"
-                # )
-                pass
+        # TODO: leave in, or take out?
+        # if self.evo:  # TODO: allow multiple controllers
+        #     # if self.evo.device_by_id[msg.src.id].is_controller:
+        #     #     if msg.src is not self.evo.ctl:
+        #     pass  # TODO: XXX
+        #     if msg.src.is_controller and msg.src is not self.evo.ctl:
+        #         # raise MultipleControllerError(
+        #         #     f"{msg.src.id} in addition to {self.evo.ctl.id}"
+        #         # )
+        #         pass
 
-        if msg.src is not msg.dst:
-            if type(msg.src) == Controller and isinstance(msg.dst, Device):
-                msg.dst.controller = msg.src
-            elif type(msg.dst) == Controller and isinstance(msg.src, Device):
-                msg.src.controller = msg.dst
+        # TODO: this is doen by msg.harvest_devices(), above
+        # if msg.src is not msg.dst:
+        #     if isinstance(msg.src, Controller) and isinstance(msg.dst, Device):
+        #         msg.dst.controller = msg.src
+        #     elif isinstance(msg.dst, Controller) and isinstance(msg.src, Device):
+        #         msg.src.controller = msg.dst
 
         try:
             msg._create_entities()  # create the devices & zones
@@ -537,6 +536,9 @@ class Gateway:
         also set the parent zone.
         """
 
+        # if address is None:  # TODO: needed?
+        #     return
+
         ctl = None if controller is None else self.get_device(controller)
         _ = None if ctl is None else self.get_system(ctl)
 
@@ -552,7 +554,7 @@ class Gateway:
         if ctl is not None:
             # this has occurred only with corrupt packets
             assert not (
-                isinstance(dev, Controller) and dev != ctl
+                isinstance(dev, Controller) and dev is not ctl
             ), f"Two controllers conversing: {dev.id}, {ctl.id}"
             dev.controller = ctl  # TODO: a bit messy
 

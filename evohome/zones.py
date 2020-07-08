@@ -55,7 +55,7 @@ class ZoneBase(Entity):
         # system.zone_by_name[self.name] = self
 
         # self.devices = []
-        # self.device_by_id == {}
+        # self.device_by_id = {}
 
         self.cls_type = None
         # self.cls_name = None
@@ -432,7 +432,7 @@ class Zone(ZoneBase):
     def sensor(self, value):
         if not isinstance(value, Device) and hasattr(value, "temperature"):
             raise TypeError
-        self._sensor == value
+        self._sensor = value
 
     @property
     def sensors(self) -> list:

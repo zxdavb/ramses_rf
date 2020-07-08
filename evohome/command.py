@@ -6,7 +6,7 @@ import logging
 import struct
 import zlib
 
-from .const import COMMAND_FORMAT, HGI_DEV_ID, __dev_mode__
+from .const import COMMAND_FORMAT, HGI_DEVICE, __dev_mode__
 
 SERIAL_PORT = "serial_port"
 CMD_CODE = "cmd_code"
@@ -178,7 +178,7 @@ class Command:
     def __init__(self, verb, dest_addr, code, payload, **kwargs) -> None:
         """Initialise the class."""
         self.verb = verb
-        self.from_addr = kwargs.get("from_addr", HGI_DEV_ID)
+        self.from_addr = kwargs.get("from_addr", HGI_DEVICE.id)
         self.dest_addr = dest_addr
         self.code = code
         self.payload = payload
@@ -210,7 +210,8 @@ class Command:
 
         return _cmd
 
-    def _is_valid_operand(self, other) -> bool:
+    @staticmethod
+    def _is_valid_operand(other) -> bool:
         return hasattr(other, "priority") and hasattr(other, "_dtm")
 
     def __eq__(self, other) -> bool:

@@ -1,4 +1,5 @@
 """Evohome serial."""
+from collections import namedtuple
 import re
 
 # grep ' F[89ABxDE]' | grep -vE ' (0008|1F09/F8|1FC9|2D49/FD) '
@@ -6,9 +7,16 @@ import re
 
 __dev_mode__ = True
 
+HGI_DEV_ID = "18:000730"  # default type and address of HGI, 18:013393
 NON_DEV_ID = "--:------"
 NUL_DEV_ID = "63:262142"  # 7FFFFF - send here if not bound?
-HGI_DEV_ID = "18:000730"  # default type and address of HGI, 18:013393
+
+Address = namedtuple("DeviceAddress", "id, type")
+
+HGI_DEVICE = Address(id=HGI_DEV_ID, type=HGI_DEV_ID[:2])
+NON_DEVICE = Address(id=NON_DEV_ID, type=NON_DEV_ID[:2])
+NUL_DEVICE = Address(id=NUL_DEV_ID, type=NUL_DEV_ID[:2])
+
 
 # Packet codes
 CODE_SCHEMA = {
@@ -67,7 +75,7 @@ CODE_SCHEMA = {
     "22F1": {"name": "vent_switch"},
     "22F3": {"name": "other_switch"},
     "2D49": {"name": "message_2d49"},  # hometronics only? has a domain = FD!
-    "31D9": {"name": "message_31d9"},  # Nuaire ventilation
+    "31D9": {"name": "message_31d9"},  # HVAC/ventilation 30 min sync cycle?
     "31DA": {"name": "message_31da"},  # from HCE80, also Nuaire: Contains R/humidity??
     "31E0": {"name": "message_31e0"},  # Nuaire ventilation
     # unknown codes, sent only by STA

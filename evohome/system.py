@@ -148,13 +148,13 @@ class EvoSystem:
         sensor = None
 
         if this.code == "10A0" and this.verb == "RQ":
-            if this.src.type == "07" and this.dst.addr.id == self.ctl.id:
+            if this.src.type == "07" and this.dst is self.ctl:
                 # sensor = self._gwy.device_by_id[this.src.addr.id]
                 sensor = this.src
 
         if sensor is not None:
             if self.dhw_sensor is not None:
-                assert self.dhw_sensor == sensor, (self.dhw_sensor.id, sensor.id)
+                assert self.dhw_sensor is sensor, (self.dhw_sensor.id, sensor.id)
             else:
                 self.dhw_sensor = sensor
                 sensor.controller = self.ctl
@@ -187,24 +187,24 @@ class EvoSystem:
         heater = None
 
         if this.code == "3220" and this.verb == "RQ":
-            if this.src == self.ctl and this.dst.type == "10":
+            if this.src is self.ctl and this.dst.type == "10":
                 # heater = self._gwy.device_by_id[this.dst.addr.id]
                 heater = this.dst
 
         elif this.code == "3EF0" and this.verb == "RQ":
-            if this.src == self.ctl and this.dst.type in ("10", "13"):
+            if this.src is self.ctl and this.dst.type in ("10", "13"):
                 # heater = self._gwy.device_by_id[this.dst.addr.id]
                 heater = this.dst
 
         elif this.code == "3B00" and this.verb == " I" and last is not None:
             if last.code == this.code and last.verb == this.verb:
-                if this.src == self.ctl and last.src.type == "13":
+                if this.src is self.ctl and last.src.type == "13":
                     # heater = self._gwy.device_by_id[last.src.addr.id]
                     heater = last.src
 
         if heater is not None:
             if self.heat_relay is not None:  # there should only be one boiler relay
-                assert self.heat_relay == heater, (self.heat_relay.id, heater.id)
+                assert self.heat_relay is heater, (self.heat_relay.id, heater.id)
             else:
                 self.heat_relay = heater
                 heater.controller = self.ctl
@@ -213,8 +213,8 @@ class EvoSystem:
     def eavesdrop(self, this, last):
         """Use pairs of packets to learn something about the system."""
 
-        def is_exchange():
-            return this.src.addr == last.dst.addr and this.dst.addr == last.src.addr
+        def is_exchange():  # TODO:use is?
+            return this.src is last.dst and this.dst is last.src.addr
 
         if self.ctl is None:
             return

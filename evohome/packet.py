@@ -1,6 +1,5 @@
 """Packet processor."""
 import asyncio
-from collections import namedtuple
 from datetime import datetime as dt
 import logging
 import re
@@ -8,27 +7,31 @@ from string import printable
 from threading import Lock
 
 # from time import sleep
-from typing import Optional
+from typing import Optional, Tuple
 
 from serial import SerialException
 from serial_asyncio import open_serial_connection
 
 from .command import PAUSE_DEFAULT, PAUSE_SHORT
-from .const import ISO_FORMAT_REGEX, MESSAGE_REGEX, NON_DEV_ID, NUL_DEV_ID, __dev_mode__
+from .const import (
+    ISO_FORMAT_REGEX,
+    MESSAGE_REGEX,
+    NON_DEVICE,
+    NUL_DEVICE,
+    Address,
+    __dev_mode__,
+)
 from .logger import time_stamp
 
 BAUDRATE = 115200
 READ_TIMEOUT = 0.5
 XON_XOFF = True
 
-Address = namedtuple("DeviceAddress", "id, type")
-NON_DEVICE = Address(id="", type="--")
-
 _LOGGER = logging.getLogger(__name__)
 
 
-def split_pkt_line(packet_line: str) -> (str, str, str):
-    def _split(text: str, char: str) -> (str, str):
+def split_pkt_line(packet_line: str) -> Tuple[str, str, str]:
+    def _split(text: str, char: str) -> Tuple[str, str]:
         _list = text.split(char, maxsplit=1)
         return _list[0].strip(), _list[1].strip() if len(_list) == 2 else ""
 
@@ -75,32 +78,33 @@ class Packet:
 
         def _validate_addresses() -> Optional[bool]:
             """Return True if the address fields are valid (create any addresses)."""
-            if "--:------" not in self.packet:
-                return False  # 3 packet addresses!
-
             for idx, addr in enumerate(
                 [self.packet[i : i + 9] for i in range(11, 32, 10)]
             ):
                 self.addrs[idx] = Address(id=addr, type=addr[:2])
 
-            assert all(
-                [
-                    self.addrs[0].id not in (NON_DEV_ID, NUL_DEV_ID),
-                    (self.addrs[1].id, self.addrs[2].id).count(NON_DEV_ID) == 1,
-                ]
-            ) or all(
-                [
-                    self.addrs[2].id not in (NON_DEV_ID, NUL_DEV_ID),
-                    self.addrs[0].id == self.addrs[1].id == NON_DEV_ID,
-                ]
-            )
+            # This check will invalidate these rare pkts (which are never transmitted)
+            # ---  I --- --:------ --:------ --:------ 0001 005 00FFFF02FF
+            # ---  I --- --:------ --:------ --:------ 0001 005 00FFFF0200
+            if not all(
+                (
+                    self.addrs[0].id not in (NON_DEVICE.id, NUL_DEVICE.id),
+                    (self.addrs[1].id, self.addrs[2].id).count(NON_DEVICE.id) == 1,
+                )
+            ) and not all(
+                (
+                    self.addrs[2].id not in (NON_DEVICE.id, NUL_DEVICE.id),
+                    self.addrs[0].id == self.addrs[1].id == NON_DEVICE.id,
+                )
+            ):
+                return False
 
             device_addrs = list(filter(lambda x: x.type != "--", self.addrs))
 
-            self.src_addr = device_addrs[0] if len(device_addrs) else NON_DEVICE
+            self.src_addr = device_addrs[0]
             self.dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEVICE
 
-            return 0 < len(device_addrs) < 3
+            return len(device_addrs) < 3
 
         if self._is_valid is not None or not self._pkt_line:
             return self._is_valid
@@ -178,7 +182,7 @@ class PortPktProvider:
     async def __aexit__(self, exc_type, exc, tb) -> None:
         pass
 
-    async def get_pkt(self) -> (str, str, Optional[bytearray]):
+    async def get_pkt(self) -> Tuple[str, str, Optional[bytearray]]:
         """Get the next packet line (dtm, pkt, pkt_bytes) from a serial port."""
 
         def _logger_msg(func, msg):  # TODO: this is messy...

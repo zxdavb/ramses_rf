@@ -382,7 +382,7 @@ class Device(Entity):
 
         self._zone = zone
         # self._zone.devices.append(self)
-        # self._zone.device_by_id[self.id] == self
+        # self._zone.device_by_id[self.id] = self
 
     def _discover(self):
         # do these even if battery-powered (e.g. device might be in rf_check mode)
@@ -420,12 +420,16 @@ class Device(Entity):
 
     @property
     def is_controller(self) -> Optional[bool]:  # 1F09
-        if isinstance(self, Controller):
+        if self.controller is self:
             return True
-        if self.type in ("01", "23"):
-            return True
-        if "1F09" in self._pkts:  # TODO; this will fail until after update
-            return self._pkts["1F09"].verb == " I"
+        # if isinstance(self, Controller):
+        #     return True
+        # if self.type in ("01", "23"):
+        #     return True
+        # if "1F09" in self._pkts:  # TODO: needs to add msg to instaition
+        #     return self._pkts["1F09"].verb == " I"
+        # if "31D9" in self._pkts:  # TODO: needs to add msg to instaition
+        #     return self._pkts["31D9"].verb == " I"
         return False
 
     @property

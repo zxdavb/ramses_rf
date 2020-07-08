@@ -1,25 +1,22 @@
 """Message processor."""
 
-from collections import namedtuple
 from datetime import datetime as dt
 import logging
 from typing import Any
 
 from . import parsers
 from .const import (
-    __dev_mode__,
     CODE_MAP,
     DEVICE_TYPES,
     MSG_FORMAT_10,
     MSG_FORMAT_18,
-    NON_DEV_ID,
-    NUL_DEV_ID,
+    NON_DEVICE,
+    NUL_DEVICE,
+    Address,
+    __dev_mode__,
 )
 from .devices import Device
 from .zones import create_zone as EvoZone
-
-Address = namedtuple("DeviceAddress", "id, type")
-NON_DEVICE = Address(id="", type="--")
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,8 +31,9 @@ class Message:
         self._pkt = packet = pkt.packet
 
         self.devs = pkt.addrs
-        self.src = gateway.device_by_id.get(pkt.src_addr.id, pkt.src_addr)
-        self.dst = gateway.device_by_id.get(pkt.dst_addr.id, pkt.dst_addr)
+        self.src = gateway.get_device(pkt.src_addr)
+        dst = gateway.get_device(pkt.dst_addr)
+        self.dst = dst if dst is not None else pkt.dst_addr
 
         self.date = pkt.date
         self.time = pkt.time
@@ -66,10 +64,10 @@ class Message:
 
         def display_name(dev) -> str:
             """Return a formatted device name, uses a friendly name if there is one."""
-            if dev.id == NON_DEV_ID:
+            if dev is NON_DEVICE:
                 return f"{'':<10}"
 
-            if dev.id == NUL_DEV_ID:
+            if dev is NUL_DEVICE:
                 return "NUL:------"
 
             if dev.id in self._gwy.known_devices:
@@ -88,7 +86,7 @@ class Message:
 
         if self.src.id == self.devs[0].id:
             src = display_name(self.src)
-            dst = display_name(self.dst) if self.dst.id != self.src.id else ""
+            dst = display_name(self.dst) if self.dst is not self.src else ""
         else:
             src = ""
             dst = display_name(self.src)
@@ -104,8 +102,8 @@ class Message:
             self.verb == other.verb,
             # self.seq_no == other.seq_no,
             self.code == other.code,
-            self.src == other.src,
-            self.dst == other.dst,
+            self.src is other.src,
+            self.dst is other.dst,
             self.raw_payload == other.raw_payload,
         )
 
@@ -130,7 +128,7 @@ class Message:
             self._is_array = self.verb in (" I", "RP")
             return self._is_array
 
-        if self.verb not in (" I", "RP") or self.src.id != self.dst.id:
+        if self.verb not in (" I", "RP") or self.src is not self.dst:
             self._is_array = False
             return self._is_array
 
@@ -144,7 +142,7 @@ class Message:
             # grep ' I.* 01:.* 01:.* 000A '
             # grep ' I.* 01:.* 01:.* 2309 ' | grep -v ' 003 '  # TODO: some non-arrays
             # grep ' I.* 01:.* 01:.* 30C9 '
-            self._is_array = self.verb == " I" and self.src.id == self.dst.id
+            self._is_array = self.verb == " I" and self.src is self.dst
 
         # 055  I --- 02:001107 --:------ 02:001107 22C9 024 0008340A28010108340A...
         # 055  I --- 02:001107 --:------ 02:001107 22C9 006 0408340A2801
@@ -153,13 +151,13 @@ class Message:
         elif self.code in ("22C9", "3150") and self.src.type == "02":
             # grep -E ' I.* 02:.* 02:.* 22C9 '
             # grep -E ' I.* 02:.* 02:.* 3150' | grep -v FC
-            self._is_array = self.verb == " I" and self.src.id == self.dst.id
+            self._is_array = self.verb == " I" and self.src is self.dst
             self._is_array = self._is_array if self.raw_payload[:1] != "F" else False
 
         # 095  I --- 23:100224 --:------ 23:100224 2249 007 007EFF7EFFFFFF
         # 095  I --- 23:100224 --:------ 23:100224 2249 007 007EFF7EFFFFFF
         elif self.code in ("2249") and self.src.type == "23":
-            self._is_array = self.verb == " I" and self.src.id == self.dst.id
+            self._is_array = self.verb == " I" and self.src is self.dst
             # self._is_array = self._is_array if self.raw_payload[:1] != "F" else False
 
         else:
@@ -218,7 +216,7 @@ class Message:
             return False
 
         # STATE: update parser state (last packet code) - not needed?
-        if self._evo is not None and self._evo.ctl.id == self.src.id:
+        if self._evo is not None and self._evo.ctl is self.src:
             self._evo._prev_code = self.code if self.verb == " I" else None
         # TODO: add state for 000C?
 
@@ -254,17 +252,21 @@ class Message:
         """Parse the payload and create any new device(s)."""
         # NOTE: if filtering, harvest_func may not create the device
 
-        if self.code == "1F09" and self.verb in (" I", "RP"):
+        if self.code == "1F09" and self.verb == " I":
             harvest_func(self.dst, controller=self.src)
 
+        # TODO: these are not really needed
         # elif self.code in ("000A", "2309", "30C9") and isinstance(self.payload, list):
         #     harvest_func(self.dst, controller=self.src)
 
-        # TODO: these are not reliably understood...
-        elif self.code in ("0404", "0418", "313F", "2E04") and (
-            self.verb in (" I", "RP",)
-        ):
+        elif self.code == "31D9" and self.verb == " I":
             harvest_func(self.dst, controller=self.src)
+
+        # TODO: these are not reliably understood...
+        # elif self.code in ("0404", "0418", "313F", "2E04") and (
+        #     self.verb in (" I", "RP",)
+        # ):
+        #     harvest_func(self.dst, controller=self.src)
 
         # TODO: this is pretyy reliable...
         elif self.code == "000C" and self.verb == "RP":
@@ -278,7 +280,7 @@ class Message:
                 for d in self.payload["actuators"]
             ]
 
-        elif isinstance(self.src, Device) and self.src.is_controller:
+        elif self.src.is_controller:
             harvest_func(self.dst, controller=self.src)
 
         elif isinstance(self.dst, Device) and self.dst.is_controller:
@@ -286,7 +288,7 @@ class Message:
 
         else:
             harvest_func(self.src)
-            if self.dst.id != self.src.id:
+            if self.dst is not self.src:
                 harvest_func(self.dst)
 
     def _create_entities(self) -> None:
