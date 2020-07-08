@@ -4,7 +4,7 @@ import re
 # grep ' F[89ABxDE]' | grep -vE ' (0008|1F09/F8|1FC9|2D49/FD) '
 # grep ' F[89ABCDE]' | grep -vE ' (0008|1F09/xx|1FC9|0001|0009|1100|3150|3B00) '
 
-__dev_mode__ = False
+__dev_mode__ = True
 
 NON_DEV_ID = "--:------"
 NUL_DEV_ID = "63:262142"  # 7FFFFF - send here if not bound?

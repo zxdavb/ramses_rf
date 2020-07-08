@@ -133,17 +133,19 @@ class Packet:
         return False
 
     def harvest_devices(self, harvest_func) -> None:
-        """Parse the address fields and create any new device(s)."""
+        """Parse the address fields and create any new device(s).
 
-        def _harvest_device(addr1, addr2):
-            if addr1.type not in ("63", "--"):
-                if addr2.type == "01":  # TODO: need an iscontroller() function
-                    harvest_func(addr1, controller=addr2)
-                else:
-                    harvest_func(addr1)
+        dst_addr.type could be: "18", "63", "--"
+        """
 
-        _harvest_device(self.src_addr, self.dst_addr)
-        _harvest_device(self.dst_addr, self.src_addr)
+        if self.src_addr.type in ("01", "23"):
+            harvest_func(self.dst_addr, controller=self.src_addr)
+        elif self.dst_addr.type in ("01", "23"):
+            harvest_func(self.src_addr, controller=self.dst_addr)
+        else:
+            harvest_func(self.src_addr)
+            if self.dst_addr.id != self.src_addr.id:
+                harvest_func(self.dst_addr)
 
 
 class PortPktProvider:

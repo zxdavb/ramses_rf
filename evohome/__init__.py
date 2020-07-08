@@ -140,13 +140,9 @@ class Gateway:
 
     def __repr__(self) -> str:
         ctls = [d.id for d in self.devices if d.is_controller]
-        if self.evo.ctl:
-            ctl_id = self.evo.ctl.id
-        else:
-            ctl_id = ctls[0] if ctls else None
-
-        result = {"EVO": ctl_id, "CTLs": ctls}
-        return str(result)
+        if self.evo and self.evo.ctl:
+            return str({"EVO": self.evo.ctl.id, "CTLs": ctls})
+        return str({"EVO": None, "CTLs": ctls})
 
     def __str__(self) -> str:
         return json.dumps([s.id for s in self.systems])
@@ -215,7 +211,7 @@ class Gateway:
         if self.config["known_devices"]:
             _LOGGER.info("cleanup(): Updating known_devices file...")
             try:
-                for d in self.evo.devices:
+                for d in self.devices:
                     device_attrs = {
                         "friendly_name": d._friendly_name,
                         "ignore": d._ignored,
@@ -445,6 +441,7 @@ class Gateway:
 
         try:  # harvest devices from packet header
             pkt.harvest_devices(self.get_device)
+            pass
 
         except AssertionError:
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
@@ -471,12 +468,13 @@ class Gateway:
             return
 
         # only reliable packets should become part of the state data
-        if msg.src.type == "18":  # RQs from a 18: are unreliable, RPs are required
+        if msg.src.type == "18":  # RQs from a 18: are unreliable, but RPs are required
             return
 
         if self.evo:  # TODO: allow multiple controllers
             # if self.evo.device_by_id[msg.src.id].is_controller:
             #     if msg.src.id != self.evo.ctl.id:
+            pass  # TODO: XXX
             if msg.src.is_controller and msg.src.id != self.evo.ctl.id:
                 # raise MultipleControllerError(
                 #     f"{msg.src.id} in addition to {self.evo.ctl.id}"
@@ -524,7 +522,7 @@ class Gateway:
             return
 
         for evo in self.systems:
-            if msg.src.controller in [evo.ctl, None]:
+            if msg.src.controller in [evo.ctl, None]:  # TODO:
                 evo.eavesdrop(msg, self._last_msg)  # TODO: WIP
                 if msg.src.controller is not None:
                     break
@@ -533,52 +531,49 @@ class Gateway:
     def get_device(
         self, address, controller=None, parent_000c=None
     ) -> Optional[Device]:
-        """Return a device (and create it if required).
+        """Return a device (will create it if required).
 
-        Can also set the parent system, if any (and create it if required).
+        Can also set a parent controller/system (will create them if required). Can
+        also set the parent zone.
         """
 
-        # assert address.type in known device types
-        if address.type == "18":
-            return
+        ctl = None if controller is None else self.get_device(controller)
+        _ = None if ctl is None else self.get_system(ctl)
 
-        device = self.device_by_id.get(address.id, EvoDevice(self, address))
+        # assert address.type in known device types - maybe do in Device.__init__()?
+        if address.type in ("18", "63", "--"):
+            return  # 18: _is_ a device, but there's no value in tracking it
+
+        if isinstance(address, Device):
+            dev = address
+        else:
+            dev = self.device_by_id.get(address.id, EvoDevice(self, address))
+
+        if ctl is not None:
+            # this has occurred only with corrupt packets
+            assert not (
+                isinstance(dev, Controller) and dev != ctl
+            ), f"Two controllers conversing: {dev.id}, {ctl.id}"
+            dev.controller = ctl  # TODO: a bit messy
 
         if parent_000c is not None:
-            device._parent_000c = parent_000c  # TODO: a bit messy
+            dev._parent_000c = parent_000c  # TODO: a bit messy
 
-        # controller could be a Device, or only an Address
-        if device.is_controller:
-            if controller is not None and controller.id != device.id:
-                raise LookupError
-            controller = device
-
-        elif controller is not None:
-            controller = self.device_by_id.get(
-                controller.id, EvoDevice(self, controller)
-            )
-
-        if controller is not None:  # now controller is a Device
-            system = self.get_system(controller)
-            system.add_device(device)
-
-        return device
+        return dev
 
     def get_system(self, controller) -> Optional[EvoSystem]:
-        """Return a system (and create it if required)."""
-        # TODO: a way for the client to specify the controller id
+        """Return a system (will create it if required)."""
 
-        # system = self.system_by_id.get(controller.id, EvoSystem(self, controller))
-        system = self.system_by_id.get(controller.id)
-        if system is None:
-            system = EvoSystem(self, controller)
+        # o = self.system_by_id.get(controller.id, EvoSystem(self, controller))  # TODO
+        evo = self.system_by_id.get(controller.id)
+        evo = evo if evo is not None else EvoSystem(self, controller)
 
-        if self.evo is None:
-            self.evo = system  # this is the first evohome-compatible system
-        elif self.evo is not system:  # TODO: check this earlier?
-            # raise ValueError(
-            #     f">1 controller! (new: {system.ctl.id}, old: {self.evo.ctl.id})"
-            # )
-            pass
+        if controller.type == "01":
+            if self.evo is None:
+                self.evo = evo  # this is the first evohome-compatible system
+            # elif self.evo is not evo:  # TODO: check this earlier?
+            #     raise ValueError(
+            #         f">1 controller! (new: {evo.ctl.id}, old: {self.evo.ctl.id})"
+            #     )
 
-        return system
+        return evo

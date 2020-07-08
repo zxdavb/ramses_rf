@@ -18,8 +18,8 @@ class EvoSystem:
 
     def __init__(self, gateway, controller: Controller) -> None:
         """Initialise the class."""
-        if not isinstance(controller, Controller) and not controller.is_controller:
-            raise TypeError("Invalid controller")
+        # if not isinstance(controller, Controller) and not controller.is_controller:
+        #     raise TypeError("Invalid controller")
 
         if controller.id in gateway.system_by_id:
             raise TypeError("Duplicate controller")

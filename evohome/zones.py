@@ -47,6 +47,8 @@ class ZoneBase(Entity):
     def __init__(self, gateway, zone_idx, system) -> None:
         super().__init__(gateway, zone_idx, controller=system.ctl)
 
+        self._evo = system
+
         # zones are children of a controller, not the gateway
         system.zones.append(self)
         system.zone_by_id[zone_idx] = self

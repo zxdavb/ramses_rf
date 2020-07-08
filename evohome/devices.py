@@ -24,7 +24,7 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-if __dev_mode__:
+if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
@@ -79,7 +79,7 @@ class Entity:
     def __init__(self, gateway, entity_id, controller=None) -> None:
         self._gwy = gateway
         self._que = gateway.cmd_que
-        self._evo = gateway.evo  # HACK, should be: .system_by_id[controller.id]
+        self._evo = None
 
         self.id = entity_id
         self._controller = controller
@@ -127,18 +127,21 @@ class Entity:
 
         It is assumed that, once set, it never changes.
         """
-        if not isinstance(controller, Controller) and not controller.is_controller:
-            raise TypeError
+        # if not isinstance(controller, Controller) and not controller.is_controller:
+        #     raise TypeError
         if self._controller is not None and self._controller is not controller:
             raise ValueError
 
         if self._controller is None:
             self._controller = controller
 
-            # if isinstance(self, DeviceBase):
-            #     if self.id not in self._evo.device_by_id:
-            #         self._evo.devices.append(self)
-            #         self._evo.device_by_id[self.id] = self
+            if isinstance(self, Device):
+                if self._evo is None:
+                    self._evo = self._gwy.system_by_id[controller.id]
+
+                if self._evo is not None and self.id not in self._evo.device_by_id:
+                    self._evo.devices.append(self)
+                    self._evo.device_by_id[self.id] = self
             # else:
             #     self._evo.domains.append(self)
             #     self._evo.domain_by_id[self.id] = self
@@ -253,8 +256,8 @@ class Temperature:  # 30C9
 
 # ######################################################################################
 
-
-class DeviceBase(Entity):
+# ??: used for unknown device types
+class Device(Entity):
     """The Device base class."""
 
     def __init__(self, gateway, device_addr, controller=None) -> None:
@@ -306,9 +309,9 @@ class DeviceBase(Entity):
                 break
 
         if zone_id is not None:
-            if self._zone is not None:
+            if self._zone is not None:  # and not self.is_controller:
                 if zone_id != self._zone.id:
-                    print("AAA")
+                    print("AAA")  # TODO: broken
                 assert zone_id == self._zone.id
             self._parent_zone = zone_id
 
@@ -383,10 +386,11 @@ class DeviceBase(Entity):
 
     def _discover(self):
         # do these even if battery-powered (e.g. device might be in rf_check mode)
-        for code in ("1FC9",):
-            self._command(code)
-        for code in ("0016",):
-            self._command(code, payload="0000")
+        for code in (
+            "0016",
+            "1FC9",
+        ):
+            self._command(code, payload="0000" if code == "0016" else "00")
 
         if self.has_battery is not True:
             self._command("10E0")
@@ -420,7 +424,7 @@ class DeviceBase(Entity):
             return True
         if self.type in ("01", "23"):
             return True
-        if "1F09" in self._pkts:
+        if "1F09" in self._pkts:  # TODO; this will fail until after update
             return self._pkts["1F09"].verb == " I"
         return False
 
@@ -434,17 +438,12 @@ class DeviceBase(Entity):
 
 
 # 18:
-class Gateway(DeviceBase):
+class Gateway(Device):
     """The Gateway class for a HGI80."""
 
 
-# ??: used for unknown device types
-class Device(DeviceBase, BatteryState):
-    """The Device class."""
-
-
 # 01:
-class Controller(DeviceBase):
+class Controller(Device):
     """The Controller class."""
 
     def __init__(self, gateway, device_addr) -> None:
@@ -497,9 +496,6 @@ class Controller(DeviceBase):
         #         self._command(code, payload=payload)
 
     def update(self, msg):
-        def maintain_state_data():
-            pass
-
         def match_zone_sensors() -> None:
             """Determine each zone's sensor by matching zone/sensor temperatures.
 
@@ -617,7 +613,8 @@ class Controller(DeviceBase):
             )
 
             # can safely(?) assume this zone is using the CTL as a sensor...
-            assert self.zone is None, "Controller has already been allocated!"
+            if self.zone is not None:
+                raise ValueError("Controller has already been allocated!")
 
             sensors = [d for d in evo_sensors if d.zone is None] + [self.id]
             _LOGGER.debug(
@@ -637,9 +634,6 @@ class Controller(DeviceBase):
 
         if msg.code == "0418" and msg.verb in (" I", "RP"):  # this is a special case
             self._fault_log[msg.payload["log_idx"]] = msg
-
-        if msg.code == "1F09" and msg.verb == " I":
-            maintain_state_data()
 
         if msg.code == "30C9" and isinstance(msg.payload, list):  # msg.is_array:
             match_zone_sensors()
@@ -711,7 +705,7 @@ class Controller(DeviceBase):
 
 
 # 02: "10E0", "3150";; "0008", "22C9", "22D0"
-class UfhController(DeviceBase, HeatDemand):
+class UfhController(Device, HeatDemand):
     """The UFH class, the HCE80 that controls the UFH heating zones."""
 
     # 12:27:24.398 067  I --- 02:000921 --:------ 01:191718 3150 002 0360
@@ -743,7 +737,7 @@ class UfhController(DeviceBase, HeatDemand):
 
 
 # 07: "1060";; "1260" "10A0"
-class DhwSensor(Device):
+class DhwSensor(Device, BatteryState):
     """The DHW class, such as a CS92."""
 
     def __init__(self, gateway, device_addr) -> None:
@@ -764,7 +758,7 @@ class DhwSensor(Device):
 
 
 # 10: "10E0", "3EF0", "3150";; "22D9", "3220" ("1FD4"), TODO: 3220
-class OtbGateway(DeviceBase, Actuator, HeatDemand):
+class OtbGateway(Device, Actuator, HeatDemand):
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
     def __init__(self, gateway, device_addr) -> None:
@@ -781,7 +775,7 @@ class OtbGateway(DeviceBase, Actuator, HeatDemand):
 
 
 # 03/12/22/34: 1060/2309/30C9;; (03/22: 0008/0009/3EF1, 2349?) (34: 000A/10E0/3120)
-class Thermostat(Device, Setpoint, Temperature):
+class Thermostat(Device, BatteryState, Setpoint, Temperature):
     """The STA class, such as a TR87RF."""
 
     def __init__(self, gateway, device_addr) -> None:
@@ -790,7 +784,7 @@ class Thermostat(Device, Setpoint, Temperature):
 
 
 # 13: "3EF0", "1100";; ("3EF1"?)
-class BdrSwitch(DeviceBase, Actuator):
+class BdrSwitch(Device, Actuator):
     """The BDR class, such as a BDR91."""
 
     def __init__(self, gateway, device_addr) -> None:
@@ -860,7 +854,7 @@ class TpiSwitch(BdrSwitch):  # TODO: superset of BDR switch?
 
 
 # 04: "1060", "3150", "2309", "30C9";; "0100", "12B0" ("0004")
-class TrvActuator(Device, HeatDemand, Setpoint, Temperature):
+class TrvActuator(Device, BatteryState, HeatDemand, Setpoint, Temperature):
     """The TRV class, such as a HR92."""
 
     def __init__(self, gateway, device_addr) -> None:
@@ -890,7 +884,7 @@ _DEVICE_CLASS = {
 }
 
 
-def create_device(gateway, device_address) -> DeviceBase:
+def create_device(gateway, device_address) -> Device:
     """Create a device with the correct class."""
     assert device_address.type not in ("63", "--")
 

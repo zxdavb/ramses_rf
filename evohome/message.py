@@ -15,7 +15,7 @@ from .const import (
     NON_DEV_ID,
     NUL_DEV_ID,
 )
-from .devices import DeviceBase
+from .devices import Device
 from .zones import create_zone as EvoZone
 
 Address = namedtuple("DeviceAddress", "id, type")
@@ -226,7 +226,7 @@ class Message:
         #     assert dev_id[:2] in DEVICE_TYPES  # incl. "--", "63"
 
         # any remaining messages are valid, so: log them
-        if True or __dev_mode__:  # a hack to colourize by verb
+        if False and __dev_mode__:  # a hack to colourize by verb
             if self.src.type == "01" and self.verb == " I":
                 if (
                     self.code == "1F09"
@@ -253,23 +253,22 @@ class Message:
     def harvest_devices(self, harvest_func) -> None:
         """Parse the payload and create any new device(s)."""
         # NOTE: if filtering, harvest_func may not create the device
-        def _harvest_controller(dev_1, dev_2):
-            if not isinstance(dev_1, DeviceBase) or not isinstance(dev_2, DeviceBase):
-                return  # either could be a device address & not a device
 
-            if not dev_2.is_controller:
-                return
+        if self.code == "1F09" and self.verb in (" I", "RP"):
+            harvest_func(self.dst, controller=self.src)
 
-            if dev_1._controller is not None:
-                assert dev_1._controller is dev_2
-                return
+        # elif self.code in ("000A", "2309", "30C9") and isinstance(self.payload, list):
+        #     harvest_func(self.dst, controller=self.src)
 
-            if dev_2.is_controller:
-                harvest_func(dev_1, controller=dev_2)
-            else:
-                harvest_func(dev_1)
+        # TODO: these are not reliably understood...
+        elif self.code in ("0404", "0418", "313F", "2E04") and (
+            self.verb in (" I", "RP",)
+        ):
+            harvest_func(self.dst, controller=self.src)
 
-        if self.code == "000C" and self.verb == "RP":  # or: from CTL/000C
+        # TODO: this is pretyy reliable...
+        elif self.code == "000C" and self.verb == "RP":
+            harvest_func(self.dst, controller=self.src)
             [
                 harvest_func(
                     Address(id=d, type=d[:2]),
@@ -279,9 +278,16 @@ class Message:
                 for d in self.payload["actuators"]
             ]
 
-        # TODO: do this in device.update()
-        _harvest_controller(self.src, self.dst)
-        _harvest_controller(self.dst, self.src)
+        elif isinstance(self.src, Device) and self.src.is_controller:
+            harvest_func(self.dst, controller=self.src)
+
+        elif isinstance(self.dst, Device) and self.dst.is_controller:
+            harvest_func(self.src, controller=self.dst)
+
+        else:
+            harvest_func(self.src)
+            if self.dst.id != self.src.id:
+                harvest_func(self.dst)
 
     def _create_entities(self) -> None:
         """Discover and create new devices / zones."""
@@ -321,8 +327,8 @@ class Message:
             # assert self.src.id in self._gwy.known_devices
             if self.src.id in self._gwy.known_devices:
                 idx = self._gwy.known_devices[self.src.id].get("zone_idx")
-                if idx and self._evo.device_by_id[self.src.id].parent_000c:
-                    assert idx == self._evo.device_by_id[self.src.id].parent_000c
+                if idx and self._gwy.device_by_id[self.src.id].parent_000c:
+                    assert idx == self._gwy.device_by_id[self.src.id].parent_000c
                 if idx and "parent_idx" in self.payload:
                     assert idx == self.payload["parent_idx"]
 

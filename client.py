@@ -113,7 +113,22 @@ async def main(loop=None, **kwargs):
     # str(): short; repr(): full
 
     orphans = None
-    if gateway.evo:  # kwargs["raw_output"] < DONT_CREATE_MESSAGES:
+    if gateway:  # kwargs["raw_output"] < DONT_CREATE_MESSAGES:
+
+        print(f"\r\nSystems: {repr(gateway)}")
+
+        for evo in gateway.systems:
+            print(f"\r\nSystem schema: {evo}")
+
+            devices = [d.id for d in evo.devices]
+            devices.sort()
+            print(f" - system devices: {json.dumps(devices)}")
+
+        orphans = [d.id for d in gateway.devices if d.controller is None]
+        orphans.sort()
+        print(f"\r\nOrphan devices: {json.dumps(orphans)}")
+
+    elif gateway.evo:  # kwargs["raw_output"] < DONT_CREATE_MESSAGES:
         devices = [d.id for d in gateway.evo.devices]
         orphans = [d.id for d in gateway.devices if d.controller is None]
 
