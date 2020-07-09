@@ -128,9 +128,7 @@ class Entity:
         It is assumed that, once set, it never changes.
         """
         # if not isinstance(controller, Controller) and not controller.is_controller:
-        #     raise TypeError
-        if self._controller is not None and self._controller is not controller:
-            raise ValueError
+        #     raise TypeError  # TODO
 
         if self._controller is None:
             self._controller = controller
@@ -147,6 +145,10 @@ class Entity:
             #     self._evo.domain_by_id[self.id] = self
             #     if self.name is not None:
             #         self._controller.domain_by_name[self.name] = self
+
+        elif self._controller is not controller:
+            # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5
+            raise ValueError
 
     def _command(self, code, **kwargs) -> None:
         dest = kwargs.get("dest_addr", self.id)
@@ -322,7 +324,7 @@ class Device(Entity):
         """Return the id of the device's parent zone using 000C."""
 
         if not self._parent_000c:
-            return None
+            return
         # if self._evo:
         #     return self._evo.zone_by_id[self._parent_000c]
 
@@ -344,7 +346,7 @@ class Device(Entity):
         # elif self.parent_zone is not None:
         #     zone_id = self.parent_zone
         # else:
-        #     return None
+        #     return
 
         zone_id = (
             self.parent_000c
@@ -675,7 +677,7 @@ class Controller(Device):
         # WIP: try to discover fault codes
         for log_idx in range(0x00, 0x3C):  # 10 pages of 6
             self._command("0418", payload=f"{log_idx:06X}")
-        return None
+        return
 
     @property
     def fault_log(self):  # 0418

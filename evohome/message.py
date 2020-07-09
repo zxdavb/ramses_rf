@@ -2,7 +2,7 @@
 
 from datetime import datetime as dt
 import logging
-from typing import Any
+from typing import Any, Optional, Tuple, Union
 
 from . import parsers
 from .const import (
@@ -27,21 +27,20 @@ class Message:
     def __init__(self, gateway, pkt) -> None:
         """Create a message, assumes a valid packet."""
         self._gwy = gateway
-        self._evo = gateway.evo
         self._pkt = packet = pkt.packet
 
-        self.devs = pkt.addrs
-        self.src = gateway.get_device(pkt.src_addr)
-        dst = gateway.get_device(pkt.dst_addr)
-        self.dst = dst if dst is not None else pkt.dst_addr
+        # HACK: prefer Device(s) (but don't create here), otherwise keep as Address(es)
+        self.src = gateway.device_by_id.get(pkt.src_addr.id, pkt.src_addr)
+        self.dst = gateway.device_by_id.get(pkt.dst_addr.id, pkt.dst_addr)
 
+        self.devs = pkt.addrs
         self.date = pkt.date
         self.time = pkt.time
         self.dtm = dt.fromisoformat(f"{pkt.date}T{pkt.time}")
 
         self.rssi = packet[0:3]
         self.verb = packet[4:6]
-        self.seq_no = packet[7:10]  # sequence number (as used by 31D9)?
+        self.seqn = packet[7:10]  # sequence number (as used by 31D9)?
         self.code = packet[41:45]
 
         self.len = int(packet[46:49])  # TODO:  is useful? / is user used?
@@ -50,8 +49,8 @@ class Message:
         self._payload = self._str = None
         self._is_array = self._is_fragment = self._is_valid = None
 
-        self._is_valid = self._parse_payload()
-        self._is_fragment = self.is_fragment_WIP
+        _ = self.is_valid
+        # _ = self.is_fragment_WIP
 
         if self.code != "000C":  # TODO: assert here, or in is_valid()
             assert self.is_array == isinstance(self.payload, list)
@@ -62,7 +61,7 @@ class Message:
     def __str__(self) -> str:
         """Represent the entity as a string."""
 
-        def display_name(dev) -> str:
+        def display_name(dev: Union[Address, Device]) -> str:
             """Return a formatted device name, uses a friendly name if there is one."""
             if dev is NON_DEVICE:
                 return f"{'':<10}"
@@ -100,10 +99,9 @@ class Message:
     def __eq__(self, other) -> bool:
         return all(
             self.verb == other.verb,
-            # self.seq_no == other.seq_no,
             self.code == other.code,
-            self.src is other.src,
-            self.dst is other.dst,
+            self.src.id == other.src.id,
+            self.dst.id == other.dst.id,
             self.raw_payload == other.raw_payload,
         )
 
@@ -126,15 +124,13 @@ class Message:
             # grep -E ' (I|RP).* 000C '  #  from 01:/30: (VMS) only
             # grep -E ' (I|RP).* 1FC9 '  #  from 01:/13:/other (not W)
             self._is_array = self.verb in (" I", "RP")
-            return self._is_array
 
-        if self.verb not in (" I", "RP") or self.src is not self.dst:
+        elif self.verb not in (" I", "RP") or self.src is not self.dst:
             self._is_array = False
-            return self._is_array
 
         # 045  I --- 01:158182 --:------ 01:158182 0009 003 0B00FF (or: FC00FF)
         # 045  I --- 01:145038 --:------ 01:145038 0009 006 FC00FFF900FF
-        if self.code in ("0009") and self.src.type == "01":
+        elif self.code in ("0009") and self.src.type == "01":
             # grep -E ' I.* 01:.* 01:.* 0009 [0-9]{3} F' (and: grep -v ' 003 ')
             self._is_array = self.verb == " I" and self.raw_payload[:1] == "F"
 
@@ -169,13 +165,16 @@ class Message:
     def is_fragment_WIP(self) -> bool:
         """Return True if the raw payload is a fragment of a message."""
 
+        # if not self._is_valid:
+        #     return
         if self._is_fragment is not None:
             return self._is_fragment
 
         # packets have a maximum length of 48 (decimal)
-        if self.code == "000A" and self.verb == " I":
-            self._is_fragment = True if len(self._evo.zones) > 8 else None
-        elif self.code == "0404" and self.verb == "RP":
+        # if self.code == "000A" and self.verb == " I":
+        #     self._is_fragment = True if len(???.zones) > 8 else None
+        # el
+        if self.code == "0404" and self.verb == "RP":
             self._is_fragment = True
         elif self.code == "22C9" and self.verb == " I":
             self._is_fragment = None  # max length 24!
@@ -185,12 +184,7 @@ class Message:
         return self._is_fragment
 
     @property
-    def is_valid(self) -> bool:
-        """Return True if the message payload is valid."""
-
-        return self._is_valid
-
-    def _parse_payload(self) -> bool:  # Main code here
+    def is_valid(self) -> bool:  # Main code here
         """Parse the payload, return True if the message payload is valid.
 
         All exceptions are trapped, and logged appropriately.
@@ -201,30 +195,28 @@ class Message:
 
         try:  # determine which parser to use
             payload_parser = getattr(parsers, f"parser_{self.code}".lower())
+
         except AttributeError:  # there's no parser for this command code!
             payload_parser = getattr(parsers, "parser_unknown")
 
         try:  # run the parser
             self._payload = payload_parser(self.raw_payload, self)  # TODO: messy
             assert isinstance(self.payload, dict) or isinstance(self.payload, list)
+
         except AssertionError:  # for development only?
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
             if self.src.type == "18":  # TODO: should be a warning
                 _LOGGER.exception("%s", self._pkt, extra=self.__dict__)
             else:
                 _LOGGER.exception("%s", self._pkt, extra=self.__dict__)
-            return False
+            self._is_valid = False
+            return self._is_valid
 
-        # STATE: update parser state (last packet code) - not needed?
-        if self._evo is not None and self._evo.ctl is self.src:
-            self._evo._prev_code = self.code if self.verb == " I" else None
-        # TODO: add state for 000C?
-
-        # for dev_id in self.dev_addr:  # TODO: leave in, or out?
-        #     assert dev_id[:2] in DEVICE_TYPES  # incl. "--", "63"
+        else:
+            self._is_valid = True
 
         # any remaining messages are valid, so: log them
-        if False and __dev_mode__:  # a hack to colourize by verb
+        if False and __dev_mode__:  # a hack to colourize by cycle
             if self.src.type == "01" and self.verb == " I":
                 if (
                     self.code == "1F09"
@@ -246,62 +238,74 @@ class Message:
         else:
             _LOGGER.info("%s", self, extra=self.__dict__)
 
-        return True  # self._is_valid = True
+        return self._is_valid
 
-    def harvest_devices(self, harvest_func) -> None:
-        """Parse the payload and create any new device(s)."""
-        # NOTE: if filtering, harvest_func may not create the device
+    def create_devices(self) -> Tuple[Device, Optional[Device]]:
+        """Parse the payload and create any new device(s).
 
-        if self.code == "1F09" and self.verb == " I":
-            harvest_func(self.dst, controller=self.src)
+        Only 000C requires a valid message.
+        """
 
-        # TODO: these are not really needed
-        # elif self.code in ("000A", "2309", "30C9") and isinstance(self.payload, list):
-        #     harvest_func(self.dst, controller=self.src)
+        if self.src.type in ("01", "23"):
+            self._gwy.get_device(self.dst, controller=self.src)
+
+        elif self.dst.type in ("01", "23"):
+            self._gwy.get_device(self.src, controller=self.dst)
+
+        elif self.code == "1F09" and self.verb == " I":
+            # this is sufficient, no need for: "000A", "2309", "30C9" (list)
+            # maybe also: "0404", "0418", "313F", "2E04"
+            self._gwy.get_device(self.dst, controller=self.src)
 
         elif self.code == "31D9" and self.verb == " I":
-            harvest_func(self.dst, controller=self.src)
+            self._gwy.get_device(self.dst, controller=self.src)
 
-        # TODO: these are not reliably understood...
-        # elif self.code in ("0404", "0418", "313F", "2E04") and (
-        #     self.verb in (" I", "RP",)
-        # ):
-        #     harvest_func(self.dst, controller=self.src)
-
-        # TODO: this is pretyy reliable...
+        # this is pretty reliable...
         elif self.code == "000C" and self.verb == "RP":
-            harvest_func(self.dst, controller=self.src)
-            [
-                harvest_func(
-                    Address(id=d, type=d[:2]),
-                    controller=self.src,
-                    parent_000c=self.payload["zone_idx"],
-                )
-                for d in self.payload["actuators"]
-            ]
+            self._gwy.get_device(self.dst, controller=self.src)
+            if self._is_valid:
+                [
+                    self._gwy.get_device(
+                        Address(id=d, type=d[:2]),
+                        controller=self.src,
+                        parent_000c=self.payload["zone_idx"],
+                    )
+                    for d in self.payload["actuators"]
+                ]
 
-        elif self.src.is_controller:
-            harvest_func(self.dst, controller=self.src)
+        # special case - needs a Device, not an Address - TODO: is it needed at all?
+        elif isinstance(self.src, Device) and self.src.is_controller:
+            self._gwy.get_device(self.dst, controller=self.src)
 
+        # special case - needs a Device, not an Address - TODO: is it needed at all?
         elif isinstance(self.dst, Device) and self.dst.is_controller:
-            harvest_func(self.src, controller=self.dst)
+            self._gwy.get_device(self.src, controller=self.dst)
 
-        else:
-            harvest_func(self.src)
+        else:  # finally, a catch-all
+            self._gwy.get_device(self.src)
             if self.dst is not self.src:
-                harvest_func(self.dst)
+                self._gwy.get_device(self.dst)
 
-    def _create_entities(self) -> None:
-        """Discover and create new devices / zones."""
+        # maybe what was an Address can now be a Device
+        if not isinstance(self.src, Device):
+            self.src = self._gwy.device_by_id[self.src.id]
+        if not isinstance(self.dst, Device) and self.dst.type not in ("--", "63"):
+            self.dst = self._gwy.device_by_id[self.dst.id]
 
-        # STEP 2: discover domains and zones by eavesdropping regular pkts
-        if self.src.type not in ("01"):  # , "02"):  # self._gwy.system_by_id:
-            return
+    def create_entities(self) -> None:
+        """Discover and create new entities (zones, ufh_zones).
 
-        # if self.src.type != "01" and self.verb == " I":
+        Requires a valid message.
+        """
+
+        # if not self._is_valid:  # TODO: not needed
         #     return
 
-        # TODO: manage ufh_idx (but never domain_id)
+        # This filter will improve teh quality of data / reduce processing time
+        if self.src.type not in ("01", "02", "23"):  # self._gwy.system_by_id:
+            return
+
+        # TODO: also process ufh_idx (but never domain_id)
         if isinstance(self._payload, dict):
             if self._payload.get("zone_idx"):  # TODO: parent_zone too?
                 domain_type = "zone_idx"
@@ -309,19 +313,26 @@ class Message:
                 return
             # EvoZone(self._gwy, self._payload[domain_type], self.src)
 
-        else:  # elif isinstance(self._payload, list):
+        elif isinstance(self._payload, list):
             if self.code in ("000A", "2309", "30C9"):  # the sync_cycle pkts
                 domain_type = "zone_idx"
             # elif self.code in ("22C9", "3150"):  # UFH zone
             # domain_type = "ufh_idx"
-            # elif self.code == "0009":
-            #     domain_type = "domain_id"
             else:
                 return
             [EvoZone(self._gwy, d[domain_type], self.src) for d in self.payload]
 
-    def _update_entities(self) -> None:  # TODO: needs work
-        """Update the system state of devices / zones with the message data."""
+        else:  # should never get here
+            raise TypeError
+
+    def update_entities(self) -> None:  # TODO: needs work
+        """Update the state of entities (devices, zones, ufh_zones).
+
+        Requires a valid message.
+        """
+
+        if not self._is_valid:
+            return
 
         # TODO: where does this go? here, or _create?
         # ASSERT: parent_idx heuristics using the data in known_devices.json
@@ -340,12 +351,18 @@ class Message:
         except KeyError:  # some devices aren't created if they're filtered out
             return
 
-        # either no zones, or payload is {} (empty; []s shouldn't ever be empty)
-        if self._evo is None or not self.payload:
+        # if payload is {} (empty dict; lists shouldn't ever be empty)
+        if not self.payload:
             return
 
-        if isinstance(self.payload, dict):  # lists only useful to devices (c.f. 000C)
-            if self.payload.get("zone_idx") in self._evo.zone_by_id:
-                self._evo.zone_by_id[self.payload["zone_idx"]].update(self)
+        # lists only useful to devices (c.f. 000C)
+        if isinstance(self.payload, dict) and "zone_idx" in self.payload:
+            evo = self.src._evo  # TODO: needs device?
+            if evo is None and isinstance(self.dst, Device):
+                evo = self.dst._evo
+
+            if evo is not None and self.payload["zone_idx"] in evo.zone_by_id:
+                evo.zone_by_id[self.payload["zone_idx"]].update(self)
+
             # elif self.payload.get("ufh_idx") in ...:  # TODO: is this needed?
             #     pass

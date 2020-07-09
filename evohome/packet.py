@@ -104,6 +104,13 @@ class Packet:
             self.src_addr = device_addrs[0]
             self.dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEVICE
 
+            if (
+                self.src_addr.id != self.dst_addr.id
+                and self.src_addr.type == self.dst_addr.type
+            ):
+                # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5 (invalid)
+                return False
+
             return len(device_addrs) < 3
 
         if self._is_valid is not None or not self._pkt_line:
@@ -135,21 +142,6 @@ class Packet:
 
         _LOGGER.warning("%s < Bad packet: %s ", self, err_msg, extra=self.__dict__)
         return False
-
-    def harvest_devices(self, harvest_func) -> None:
-        """Parse the address fields and create any new device(s).
-
-        dst_addr.type could be: "18", "63", "--"
-        """
-
-        if self.src_addr.type in ("01", "23"):
-            harvest_func(self.dst_addr, controller=self.src_addr)
-        elif self.dst_addr.type in ("01", "23"):
-            harvest_func(self.src_addr, controller=self.dst_addr)
-        else:
-            harvest_func(self.src_addr)
-            if self.dst_addr.id != self.src_addr.id:
-                harvest_func(self.dst_addr)
 
 
 class PortPktProvider:
@@ -263,12 +255,19 @@ async def port_pkts(manager, relay=None):
 
 
 async def file_pkts(fp):
+    def _logger_msg(func, msg):  # TODO: this is messy...
+        date, time = ts_pkt[:26].split("T")
+        extra = {"date": date, "time": time, "_packet": ts_pkt}
+        extra.update({"error_text": "", "comment": ""})
+        func("%s < %s", ts_pkt[27:].strip(), msg, extra=extra)
+
     for ts_pkt in fp:
         try:
             assert re.match(ISO_FORMAT_REGEX, ts_pkt[:26])
             dt.fromisoformat(ts_pkt[:26])
         except (AssertionError, ValueError):  # TODO: log these, or not?
-            _LOGGER.debug("Packet line has invalid timestamp: %s", ts_pkt[:26])
+            _logger_msg(_LOGGER.debug, "Packet line has invalid timestamp")
+            # _LOGGER.debug("Packet line has invalid timestamp: %s", ts_pkt[:26])
             continue
 
         pkt = Packet(ts_pkt[:26], ts_pkt[27:].strip(), None)

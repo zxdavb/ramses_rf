@@ -203,7 +203,7 @@ def parser_decorator(func):
         if payload == "00":  # TODO: WIP
             return {}
 
-        assert False and payload in ("FF", "FC")
+        assert False and payload in ("FF", "FC")  # TODO:
         return func(*args, **kwargs)  # All other RQs
 
     return wrapper
@@ -237,7 +237,7 @@ def _date(value: str) -> Optional[str]:  # YY-MM-DD
     """Return a date string in the format YY-MM-DD."""
     assert len(value) == 8
     if value == "FFFFFFFF":
-        return None
+        return
     return dt(
         year=int(value[4:8], 16),
         month=int(value[2:4], 16),
@@ -249,7 +249,7 @@ def _percent(value: str) -> Optional[float]:  # a percentage 0-100% (0.0 to 1.0)
     """Return a percentage, 0-100% with resolution of 0.5%."""
     assert len(value) == 2
     if value == "FF":  # TODO: also FE?
-        return None
+        return
     assert int(value, 16) <= 200
     return int(value, 16) / 200
 
@@ -264,11 +264,11 @@ def _temp(value: str) -> Union[float, bool, None]:
     """Return a two's complement Temperature/Setpoint."""
     assert len(value) == 4
     if value == "31FF":  # means: N/A (== 127.99, 2s complement)
-        return None
+        return
     if value == "7EFF":  # possibly only for setpoints?
         return False
     if value == "7FFF":  # also: FFFF?, means: N/A (== 327.67)
-        return None
+        return
     temp = int(value, 16)
     return (temp if temp < 2 ** 15 else temp - 2 ** 16) / 100
 

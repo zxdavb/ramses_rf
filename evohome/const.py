@@ -319,65 +319,6 @@ COMMAND_FORMAT = "{:<2} --- {} {} --:------ {} {:03d} {}"
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:8s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:8s} || {}"
 
-# Used by SQL DB
-TABLE_SQL = """
-    CREATE TABLE IF NOT EXISTS packets(
-        dt      TEXT PRIMARY KEY,
-        rssi    TEXT NOT NULL,
-        verb    TEXT NOT NULL,
-        seq     TEXT NOT NULL,
-        dev_0   TEXT NOT NULL,
-        dev_1   TEXT NOT NULL,
-        dev_2   TEXT NOT NULL,
-        code    TEXT NOT NULL,
-        len     TEXT NOT NULL,
-        payload TEXT NOT NULL
-    ) WITHOUT ROWID;
-"""
-
-INDEX_SQL = "CREATE INDEX IF NOT EXISTS code_idx ON packets(code);"
-
-INSERT_SQL = """
-    INSERT INTO packets(dt, rssi, verb, seq, dev_0, dev_1, dev_2, code, len, payload)
-    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-"""
-
-# BEGIN TRANSACTION;
-RENAME_0 = """
-    CREATE TABLE IF NOT EXISTS pkts_temp(
-        dt      TEXT PRIMARY KEY,
-        rssi    TEXT NOT NULL,
-        verb    TEXT NOT NULL,
-        seq     TEXT NOT NULL,
-        dev_0   TEXT NOT NULL,
-        dev_1   TEXT NOT NULL,
-        dev_2   TEXT NOT NULL,
-        code    TEXT NOT NULL,
-        len     TEXT NOT NULL,
-        payload TEXT NOT NULL
-    ) WITHOUT ROWID;
-"""
-
-RENAME_1 = """
-    INSERT INTO pkts_temp(dt, rssi, verb, seq, dev_0, dev_1, dev_2, code, len, payload)
-    SELECT dt, rssi, verb, seq, dev_1, dev_2, dev_3, code, len, payload
-    FROM packets;
-"""
-
-RENAME_2 = """
-    DROP TABLE packets;
-"""
-
-RENAME_3 = """
-    ALTER TABLE pkts_temp
-    RENAME TO packets;
-"""
-# COMMIT;
-
-RENAME_3 = """
-    VACUUM;
-"""
-
 # Packet codes/classes - lengths are in bytes, len(0xFF) == 1
 TBD_COMMAND_MAGIC = {
     "0004": {

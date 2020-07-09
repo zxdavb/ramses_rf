@@ -421,7 +421,7 @@ class Zone(ZoneBase):
     def schedule(self) -> Optional[dict]:
         """Return the schedule if any."""
         if False or __dev_mode__:
-            return None
+            return
         return self._schedule.schedule if self._schedule else None
 
     @property

@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 
 from .command import Command, PAUSE_LONG
 from .const import __dev_mode__
-from .devices import Controller, Device, create_device as EvoDevice
+from .devices import Device, create_device as EvoDevice
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
 from .packet import _LOGGER as pkt_logger, Packet, PortPktProvider, file_pkts, port_pkts
@@ -125,9 +125,6 @@ class Gateway:
         self._exclude_list = []
         self._include_list = []
 
-        # if config.get("database"):
-        self._output_db = self._db_cursor = None
-
         # if config["raw_output"] > 0:
         self.evo = None  # EvoSystem(controller=config["controller_id"])
         self.systems: List[EvoSystem] = []
@@ -194,12 +191,6 @@ class Gateway:
 
         _LOGGER.info("async_cleanup() invoked by: %s", xxx)
 
-        if self._output_db:  # close packet database
-            _LOGGER.info(f"async_cleanup(): Closing packets database...")
-            await self._output_db.commit()
-            await self._output_db.close()
-            self._output_db = None  # TODO: is this needed - if re-entrant?
-
     def cleanup(self, xxx=None) -> None:
         """Perform the non-async portion of a graceful shutdown."""
 
@@ -243,15 +234,6 @@ class Gateway:
             while True:
                 await self._dispatch_pkt(destination=manager)
                 await asyncio.sleep(0)
-
-        # if self.config.get("database"):
-        #     import aiosqlite as sqlite3
-
-        #     self._output_db = await sqlite3.connect(self.config["database"])
-        #     self._db_cursor = await self._output_db.cursor()
-        #     await self._db_cursor.execute(TABLE_SQL)  # create if not existant
-        #     await self._db_cursor.execute(INDEX_SQL)  # index if not already
-        #     await self._output_db.commit()
 
         if self.config["known_devices"]:
             try:
@@ -410,121 +392,85 @@ class Gateway:
         def is_wanted(include=None, exclude=None) -> bool:
             """Return True is a packet is not to be filtered out."""
 
-            def has_wanted_dev(include=None, exclude=None) -> bool:
-                """Return True only if a packet contains 'wanted' devices."""
-                if " 18:" in pkt.packet:  # TODO: should we ever ignore a HGI80?
-                    return True
-                if include:
-                    return any(device in pkt.packet for device in include)
-                return not any(device in pkt.packet for device in exclude)
-
-            if has_wanted_dev(include, exclude):
-                pkt_logger.info("%s ", pkt.packet, extra=pkt.__dict__)  # a hack
+            # TODO: should never allow a HGI80 to be ignored?
+            if " 18:" in pkt.packet:  # NOTE: " 18:", leading space is required
                 return True
-            return False
+            if include:
+                return any(device in pkt.packet for device in include)
+            return not any(device in pkt.packet for device in exclude)
 
-        if not is_wanted(include=self._include_list, exclude=self._exclude_list):
+        if is_wanted(include=self._include_list, exclude=self._exclude_list):
+            pkt_logger.info("%s ", pkt.packet, extra=pkt.__dict__)  # a HACK
+        else:
             return  # silently drop packets with ignored (e.g. neighbour's) devices
 
-        # if self._output_db:  # archive all valid packets, even those not to be parsed
-        #     ts_pkt = f"{pkt.date}T{pkt.time} {pkt.packet}"
-        #     w = [0, 27, 31, 34, 38, 48, 58, 68, 73, 77, 165]  # 165? 199 works
-        #     data = tuple([ts_pkt[w[i - 1] : w[i] - 1] for i in range(1, len(w))])
-        #     await self._db_cursor.execute(INSERT_SQL, data)
-        #     await self._output_db.commit()
+        try:  # create messages from payloads
+            if self.config["raw_output"] >= DONT_CREATE_MESSAGES:
+                return
 
-        if self.config["raw_output"] >= DONT_CREATE_MESSAGES:
-            return
-
-        try:  # harvest devices from packet header
-            pkt.harvest_devices(self.get_device)
-            pass
-
-        except AssertionError:
-            msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
-            return
-
-        try:  # process packet payloads as messages
             msg = Message(self, pkt)
             if not msg.is_valid:  # trap/logs all exceptions appropriately
                 return
 
-            msg.harvest_devices(self.get_device)  # from e.g. 000C payloads
-
         except AssertionError:
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
             return
+
         except NotImplementedError:
             msg_logger.error("%s", pkt.packet, extra=pkt.__dict__)
             return
+
         except (LookupError, TypeError, ValueError):  # TODO: shouldn't be needed
             msg_logger.error("%s", pkt.packet, extra=pkt.__dict__)
             raise
 
-        if self.config["raw_output"] >= DONT_CREATE_ENTITIES:
-            return
+        try:  # create/update devices and zones
+            if self.config["raw_output"] >= DONT_CREATE_ENTITIES:
+                return
 
-        # only reliable packets should become part of the state data
-        if msg.src.type == "18":  # RQs from a 18: are unreliable, but RPs are required
-            return
+            msg.create_devices()  # from pkt header & from msg payload (e.g. 000C)
 
-        # TODO: leave in, or take out?
-        # if self.evo:  # TODO: allow multiple controllers
-        #     # if self.evo.device_by_id[msg.src.id].is_controller:
-        #     #     if msg.src is not self.evo.ctl:
-        #     pass  # TODO: XXX
-        #     if msg.src.is_controller and msg.src is not self.evo.ctl:
-        #         # raise MultipleControllerError(
-        #         #     f"{msg.src.id} in addition to {self.evo.ctl.id}"
-        #         # )
-        #         pass
+            # only reliable packets should become part of the state data
+            if "18" == msg.src.type:  # 18:/RQs are unreliable, but RPs are required
+                return
 
-        # TODO: this is doen by msg.harvest_devices(), above
-        # if msg.src is not msg.dst:
-        #     if isinstance(msg.src, Controller) and isinstance(msg.dst, Device):
-        #         msg.dst.controller = msg.src
-        #     elif isinstance(msg.dst, Controller) and isinstance(msg.src, Device):
-        #         msg.src.controller = msg.dst
-
-        try:
-            msg._create_entities()  # create the devices & zones
+            msg.create_entities()  # create zones & ufh_zones (TBD)
 
             if self.config["raw_output"] >= DONT_UPDATE_ENTITIES:
                 return
 
-            msg._update_entities()  # update the state database
+            msg.update_entities()  # update the state database
 
         except AssertionError:  # TODO: for dev only?
             msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
+
         except (LookupError, TypeError, ValueError):  # TODO: shouldn't be needed?
             # msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
             msg_logger.error("%s", pkt.packet, extra=pkt.__dict__)
             raise
 
-        # else:
-        #     if msg.verb == "RP" and msg.code == "0404":
-        #         self._sched_lock.acquire()
-        #        if self._sched_zone and self._sched_zone.id == msg.payload["zone_idx"]:
-        #             if self._sched_zone.schedule:
-        #                 self._sched_zone = None
-        #             elif msg.payload["frag_index"] == 1:
-        #                 self._sched_zone._schedule.req_fragment(block_mode=False)
-        #             else:
-        #                 self._sched_zone._schedule.req_fragment(block_mode=False)
-        #         self._sched_lock.release()
+        # if msg.verb == "RP" and msg.code == "0404":
+        #     self._sched_lock.acquire()
+        #    if self._sched_zone and self._sched_zone.id == msg.payload["zone_idx"]:
+        #         if self._sched_zone.schedule:
+        #             self._sched_zone = None
+        #         elif msg.payload["frag_index"] == 1:
+        #             self._sched_zone._schedule.req_fragment(block_mode=False)
+        #         else:
+        #             self._sched_zone._schedule.req_fragment(block_mode=False)
+        #     self._sched_lock.release()
 
         # only reliable packets should become part of the state data
         if "18" in (msg.src.type, msg.dst.type):
             return
 
-        if self.evo is None:
-            return
-
+        # try to find the boiler relay, dhw sensor
         for evo in self.systems:
             if msg.src.controller in [evo.ctl, None]:  # TODO:
                 evo.eavesdrop(msg, self._last_msg)  # TODO: WIP
                 if msg.src.controller is not None:
                     break
+
         self._last_msg = msg
 
     def get_device(
@@ -543,7 +489,7 @@ class Gateway:
         _ = None if ctl is None else self.get_system(ctl)
 
         # assert address.type in known device types - maybe do in Device.__init__()?
-        if address.type in ("18", "63", "--"):
+        if address.type in ("63", "--"):
             return  # 18: _is_ a device, but there's no value in tracking it
 
         if isinstance(address, Device):
@@ -551,11 +497,10 @@ class Gateway:
         else:
             dev = self.device_by_id.get(address.id, EvoDevice(self, address))
 
+        if dev.type == "18":
+            return dev  # 18: _is_ a device, but there's no value in tracking it
+
         if ctl is not None:
-            # this has occurred only with corrupt packets
-            assert not (
-                isinstance(dev, Controller) and dev is not ctl
-            ), f"Two controllers conversing: {dev.id}, {ctl.id}"
             dev.controller = ctl  # TODO: a bit messy
 
         if parent_000c is not None:
@@ -573,8 +518,8 @@ class Gateway:
         if controller.type == "01":
             if self.evo is None:
                 self.evo = evo  # this is the first evohome-compatible system
-            # elif self.evo is not evo:  # TODO: check this earlier?
-            #     raise ValueError(
+            # elif self.evo is not evo:
+            #     raise MultipleControllerError(
             #         f">1 controller! (new: {evo.ctl.id}, old: {self.evo.ctl.id})"
             #     )
 
