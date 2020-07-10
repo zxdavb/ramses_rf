@@ -22,9 +22,10 @@ from .const import (
     SYSTEM_MODE_MAP,
     __dev_mode__,
 )
+from .exceptions import CorruptStateError
 
 _LOGGER = logging.getLogger(__name__)
-if False and __dev_mode__:
+if True and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
@@ -148,7 +149,7 @@ class Entity:
 
         elif self._controller is not controller:
             # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5
-            raise ValueError
+            raise CorruptStateError("Two controllers per system")
 
     def _command(self, code, **kwargs) -> None:
         dest = kwargs.get("dest_addr", self.id)
@@ -283,7 +284,7 @@ class Device(Entity):
             self._is_actuator = None
             self._is_sensor = None
 
-        self._zone = self._parent_zone = self._parent_000c = None  # parent zone object
+        self._zone = self._parent_000c = None  # parent zone object
 
         attrs = gateway.known_devices.get(device_addr.id)
         self._friendly_name = attrs.get("friendly_name") if attrs else None
@@ -295,88 +296,95 @@ class Device(Entity):
         return f"{self.id}/{self.cls_type}"
 
     @property
-    def parent_zone(self) -> Optional[str]:  # TODO: dev-only, remove at some stage
-        """Return the id of the device's parent zone using parent_idx."""
+    def parent_zone(self) -> Optional[str]:
+        """Return the id of the device's parent zone as per packet payload."""
 
-        zone_id = None
-        for msg in self._pkts.values():
-            # assert "zone_idx" not in msg.payload, str(msg)
-            if "parent_idx" in msg.payload:
-                zone_id = msg.payload["parent_idx"]
-                break
+        zone_ids = [
+            m.payload["parent_idx"]
+            for m in self._pkts.values()
+            if "parent_idx" in m.payload
+        ]
 
-        if zone_id is not None:
-            if self._zone is not None:  # and not self.is_controller:
-                if zone_id != self._zone.id:
-                    print("AAA")  # TODO: broken
-                assert zone_id == self._zone.id
-            self._parent_zone = zone_id
+        if len(zone_ids) == 0:
+            return
+        elif len(zone_ids) != 1:
+            assert all(z == zone_ids[0] for z in zone_ids)
 
-        return self._parent_zone
+        # zone = self._evo.zone_by_id[zone_ids[0]]
+        # if self not in zone.devices:
+        #     zone.devices.append(self)
+        #     zone.device_by_id[self.id] = self
+
+        return zone_ids[0]
 
     @property
-    def parent_000c(self) -> Optional[str]:  # TODO: dev-only, remove at some stage
-        """Return the id of the device's parent zone using 000C."""
-
-        if not self._parent_000c:
-            return
-        # if self._evo:
-        #     return self._evo.zone_by_id[self._parent_000c]
-
+    def parent_000c(self) -> Optional[str]:
+        """Return the id of the device's parent zone as per 000C packet payload."""
         return self._parent_000c
+
+    @parent_000c.setter
+    def parent_000c(self, zone_id: str) -> None:
+        """Set the id of the device's parent zone as per 000C packet payload."""
+        assert zone_id in self._evo.zone_by_id, "unknown zone"
+
+        if self._parent_000c == zone_id:
+            return
+
+        # zone = self._evo.zone_by_id[zone_id]
+        # if self not in zone.devices:
+        #     zone.devices.append(self)
+        #     zone.device_by_id[self.id] = self
+
+        self._parent_000c = zone_id
 
     @property
     def zone(self) -> Optional[str]:
-        """Return the id of the device's zone, if known.
-
-        If the zone is not known, try to find it.
-        """
+        """Return the device's parent zone, if known, else try to find it."""
         if self._zone is not None:
-            return self._zone.id
+            if self.parent_000c is not None and self._zone.id == self.parent_000c:
+                raise CorruptStateError(
+                    f"{self.id} ({self.temperature}) zone id matched as: "
+                    f"{self._zone.id}, but should be: {self.parent_000c}"
+                )
+            if self.parent_zone is not None and self._zone.id == self.parent_zone:
+                raise CorruptStateError(
+                    f"{self.id} ({self.temperature}) zone id matched as: "
+                    f"{self._zone.id}, but should be: {self.parent_zone}"
+                )
 
-        # try to determine the 'parent' domain/zone...
-        # zone_id = None
-        # if self.parent_000c is not None:
-        #     zone_id = self.parent_000c
-        # elif self.parent_zone is not None:
-        #     zone_id = self.parent_zone
-        # else:
-        #     return
+        else:
+            zone_id = None
+            if self.parent_000c is not None:
+                zone_id = self.parent_000c
+            elif self.parent_zone is not None:
+                zone_id = self.parent_zone
 
-        zone_id = (
-            self.parent_000c
-            if self.parent_000c
-            else self.parent_zone
-            if self.parent_zone
-            else None
-        )
+            if zone_id is not None:  # and self._evo:
+                self._zone = self._evo.zone_by_id.get(zone_id)
 
-        if self._evo:
-            self._zone = self._evo.zone_by_id.get(zone_id)
-        return self._zone.id if self._zone else None
+        return self._zone
 
     @zone.setter
     def zone(self, zone: Entity) -> None:
-        """Set the device's zone.
+        """Set the device's zone via the temperature matching algorithm."""
 
-        It is assumed that, once set, it never changes.
-        """
         if self._zone is zone:
             return
 
-        if zone == "FC" and self.addr.type == "13":
+        if zone == "FC" and self.type == "13":
             self._zone = None
             return
 
         if not isinstance(zone, Entity):
             raise ValueError(f"zone is not an Entity", type(zone))
-        if self._zone is not None and self._zone != zone:
+        if self._zone is not None and self._zone is not zone:
             raise ValueError
         if self.parent_000c is not None and self.parent_000c != zone.id:
             raise ValueError
-        if self.parent_zone is not None and self.parent_zone != zone.id:
+        elif self.parent_zone is not None and self.parent_zone != zone.id:
             raise ValueError
 
+        print("...set!")
         self._zone = zone
         # self._zone.devices.append(self)
         # self._zone.device_by_id[self.id] = self
@@ -525,6 +533,8 @@ class Controller(Device):
                 {z.id: z.temperature for z in self._evo.zones if z.sensor is None},
             )
 
+            # TODO: use only packets from last cycle
+
             old, new = prev_msg.payload, msg.payload
             zones = [self._evo.zone_by_id[z["zone_idx"]] for z in new if z not in old]
             _LOGGER.debug("Changed zones: %s", {z.id: z.temperature for z in zones})
@@ -535,7 +545,8 @@ class Controller(Device):
                 z
                 for z in zones
                 if z.sensor is None
-                and z.temperature not in [x for x in zones if x != z] + [None]
+                and z.temperature
+                not in [x.temperature for x in zones if x != z] + [None]
             ]
             _LOGGER.debug(" - testable: %s", {z.id: z.temperature for z in test_zones})
             if not test_zones:
@@ -894,14 +905,5 @@ def create_device(gateway, device_address) -> Device:
         device = gateway.device_by_id[device_address.id]
     else:
         device = _DEVICE_CLASS.get(device_address.type, Device)(gateway, device_address)
-
-    # zone_idx = parent_000c if parent_000c else parent_zone
-
-    # if zone_idx:
-    #     zone = gateway.evo.zone_by_id.get(zone_idx)
-    #     if device._zone is None:
-    #         device._zone = gateway.device_by_id.get(zone_idx)
-    #     else:
-    #         assert device._zone is zone
 
     return device

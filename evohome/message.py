@@ -49,10 +49,7 @@ class Message:
         self._payload = self._str = None
 
         self._is_array = self._is_fragment = self._is_valid = None
-        _ = self.is_valid
-
-        if self.code != "000C":  # TODO: assert here, or in is_valid()
-            assert self.is_array == isinstance(self.payload, list)
+        # _ = self.is_valid
 
     def __repr__(self) -> str:
         return self._pkt
@@ -74,8 +71,11 @@ class Message:
 
             return f"{DEVICE_TYPES.get(dev.type, f'{dev.type:>3}')}:{dev.id[3:]}"
 
-        if self._str:
+        if self._str is not None:
             return self._str
+
+        if not self.is_valid:
+            return
 
         if self._gwy.config["known_devices"]:
             msg_format = MSG_FORMAT_18
@@ -107,7 +107,13 @@ class Message:
     @property
     def payload(self) -> Any:  # Any[dict, List[dict]]:
         """Return the payload."""
-        return self._payload
+        if self._payload is not None:
+            return self._payload
+
+        if self.is_valid:
+            if self.code != "000C":  # TODO: assert here, or in is_valid()
+                assert self.is_array == isinstance(self._payload, list)
+            return self._payload
 
     @property
     def is_array(self) -> bool:
@@ -115,6 +121,8 @@ class Message:
 
         Note that the corresponding parsed payload may not match, e.g. the 000C payload
         is not a list.
+
+        Does not require a valid payload.
         """
 
         if self._is_array is not None:
@@ -206,9 +214,14 @@ class Message:
         except AssertionError:  # for development only?
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
             if self.src.type == "18":  # TODO: should be a warning
-                _LOGGER.exception("%s", self._pkt, extra=self.__dict__)
+                _LOGGER.warning("%s", self._pkt, extra=self.__dict__)
             else:
                 _LOGGER.exception("%s", self._pkt, extra=self.__dict__)
+            self._is_valid = False
+            return self._is_valid
+
+        except NotImplementedError:  # unknown packet code
+            _LOGGER.warning("%s < unknown code", self._pkt, extra=self.__dict__)
             self._is_valid = False
             return self._is_valid
 
@@ -243,7 +256,7 @@ class Message:
     def create_devices(self) -> Tuple[Device, Optional[Device]]:
         """Parse the payload and create any new device(s).
 
-        Only 000C requires a valid message.
+        Requires a valid header; only 000C requires a valid message.
         """
 
         if self.src.type in ("01", "23"):
@@ -263,7 +276,7 @@ class Message:
         # this is pretty reliable...
         elif self.code == "000C" and self.verb == "RP":
             self._gwy.get_device(self.dst, controller=self.src)
-            if self._is_valid:
+            if self.is_valid:
                 [
                     self._gwy.get_device(
                         Address(id=d, type=d[:2]),
@@ -298,8 +311,8 @@ class Message:
         Requires a valid message.
         """
 
-        # if not self._is_valid:  # TODO: not needed
-        #     return
+        if not self.is_valid:  # requires self.payload
+            return
 
         # This filter will improve teh quality of data / reduce processing time
         if self.src.type not in ("01", "02", "23"):  # self._gwy.system_by_id:
@@ -331,19 +344,8 @@ class Message:
         Requires a valid message.
         """
 
-        if not self._is_valid:
+        if not self.is_valid:  # requires self.payload
             return
-
-        # TODO: where does this go? here, or _create?
-        # ASSERT: parent_idx heuristics using the data in known_devices.json
-        if isinstance(self.payload, dict):  # and __dev_mode__
-            # assert self.src.id in self._gwy.known_devices
-            if self.src.id in self._gwy.known_devices:
-                idx = self._gwy.known_devices[self.src.id].get("zone_idx")
-                if idx and self._gwy.device_by_id[self.src.id].parent_000c:
-                    assert idx == self._gwy.device_by_id[self.src.id].parent_000c
-                if idx and "parent_idx" in self.payload:
-                    assert idx == self.payload["parent_idx"]
 
         # some empty payloads may still be useful (e.g. RQ/3EF1/{})
         try:

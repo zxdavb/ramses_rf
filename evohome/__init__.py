@@ -13,6 +13,8 @@ from typing import Dict, List, Optional
 from .command import Command, PAUSE_LONG
 from .const import __dev_mode__
 from .devices import Device, create_device as EvoDevice
+
+# from .exceptions import MultipleControllerError
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
 from .packet import _LOGGER as pkt_logger, Packet, PortPktProvider, file_pkts, port_pkts
@@ -36,27 +38,6 @@ async def schedule_task(delay, func, *args, **kwargs):
         await func(*args, **kwargs)
 
     asyncio.create_task(scheduled_func(delay, func, *args, **kwargs))
-
-
-class Error(Exception):
-    """Base class for exceptions in this module."""
-
-    pass
-
-
-class MultipleControllerError(Error):
-    """Raised when there is more than one Controller."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
-        self.message = args[0] if args else None
-
-    def __str__(self):
-        err_msg = "There is more than one Evohome Controller"
-        err_tip = "(use a ignore list to prevent this error)"
-        if self.message:
-            return f"{err_msg}: {self.message} {err_tip}"
-        return f"{err_msg} {err_tip}"
 
 
 class GracefulExit(SystemExit):
@@ -479,11 +460,8 @@ class Gateway:
         """Return a device (will create it if required).
 
         Can also set a parent controller/system (will create them if required). Can
-        also set the parent zone.
+        also set the parent zone, if supplied.
         """
-
-        # if address is None:  # TODO: needed?
-        #     return
 
         ctl = None if controller is None else self.get_device(controller)
         _ = None if ctl is None else self.get_system(ctl)
@@ -500,11 +478,11 @@ class Gateway:
         if dev.type == "18":
             return dev  # 18: _is_ a device, but there's no value in tracking it
 
-        if ctl is not None and dev.controller is None:
+        if ctl is not None:  # and dev.controller is None:
             dev.controller = ctl  # TODO: a bit messy
 
         if parent_000c is not None:
-            dev._parent_000c = parent_000c  # TODO: a bit messy
+            dev.parent_000c = parent_000c
 
         return dev
 
