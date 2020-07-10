@@ -47,10 +47,9 @@ class Message:
         self.raw_payload = packet[50:]
 
         self._payload = self._str = None
-        self._is_array = self._is_fragment = self._is_valid = None
 
+        self._is_array = self._is_fragment = self._is_valid = None
         _ = self.is_valid
-        # _ = self.is_fragment_WIP
 
         if self.code != "000C":  # TODO: assert here, or in is_valid()
             assert self.is_array == isinstance(self.payload, list)
@@ -114,7 +113,8 @@ class Message:
     def is_array(self) -> bool:
         """Return True if the message's raw payload is an array.
 
-        Note that the corresponding parsed payload may not match, e.g. 000C.
+        Note that the corresponding parsed payload may not match, e.g. the 000C payload
+        is not a list.
         """
 
         if self._is_array is not None:
@@ -125,7 +125,7 @@ class Message:
             # grep -E ' (I|RP).* 1FC9 '  #  from 01:/13:/other (not W)
             self._is_array = self.verb in (" I", "RP")
 
-        elif self.verb not in (" I", "RP") or self.src is not self.dst:
+        elif self.verb not in (" I", "RP") or self.src.id != self.dst.id:
             self._is_array = False
 
         # 045  I --- 01:158182 --:------ 01:158182 0009 003 0B00FF (or: FC00FF)
@@ -138,7 +138,7 @@ class Message:
             # grep ' I.* 01:.* 01:.* 000A '
             # grep ' I.* 01:.* 01:.* 2309 ' | grep -v ' 003 '  # TODO: some non-arrays
             # grep ' I.* 01:.* 01:.* 30C9 '
-            self._is_array = self.verb == " I" and self.src is self.dst
+            self._is_array = self.verb == " I" and self.src.id == self.dst.id
 
         # 055  I --- 02:001107 --:------ 02:001107 22C9 024 0008340A28010108340A...
         # 055  I --- 02:001107 --:------ 02:001107 22C9 006 0408340A2801
@@ -147,13 +147,13 @@ class Message:
         elif self.code in ("22C9", "3150") and self.src.type == "02":
             # grep -E ' I.* 02:.* 02:.* 22C9 '
             # grep -E ' I.* 02:.* 02:.* 3150' | grep -v FC
-            self._is_array = self.verb == " I" and self.src is self.dst
+            self._is_array = self.verb == " I" and self.src.id == self.dst.id
             self._is_array = self._is_array if self.raw_payload[:1] != "F" else False
 
         # 095  I --- 23:100224 --:------ 23:100224 2249 007 007EFF7EFFFFFF
         # 095  I --- 23:100224 --:------ 23:100224 2249 007 007EFF7EFFFFFF
         elif self.code in ("2249") and self.src.type == "23":
-            self._is_array = self.verb == " I" and self.src is self.dst
+            self._is_array = self.verb == " I" and self.src.id == self.dst.id
             # self._is_array = self._is_array if self.raw_payload[:1] != "F" else False
 
         else:

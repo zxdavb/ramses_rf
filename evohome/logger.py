@@ -33,7 +33,7 @@ CONSOLE_FMT = "%(time).12s " + f"%(message).{CONSOLE_COLS - 13}s"
 PKT_LOG_FMT = "%(date)sT%(time)s %(_packet)s"
 MSG_LOG_FMT = "%(date)sT%(time)s %(message)s"
 
-if False and __dev_mode__:
+if __dev_mode__:
     CONSOLE_FMT = MSG_LOG_FMT  # Do this to have longer-format console messages
 # How to strip ASCII colour from a text file:
 #   sed -r "s/\x1B\[(([0-9]{1,2})?(;)?([0-9]{1,2})?)?[m,K,H,f,J]//g" file_name

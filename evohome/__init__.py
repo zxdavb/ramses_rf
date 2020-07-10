@@ -466,7 +466,7 @@ class Gateway:
 
         # try to find the boiler relay, dhw sensor
         for evo in self.systems:
-            if msg.src.controller in [evo.ctl, None]:  # TODO:
+            if msg.src.controller in [evo.ctl, None]:  # TODO: check!
                 evo.eavesdrop(msg, self._last_msg)  # TODO: WIP
                 if msg.src.controller is not None:
                     break
@@ -500,7 +500,7 @@ class Gateway:
         if dev.type == "18":
             return dev  # 18: _is_ a device, but there's no value in tracking it
 
-        if ctl is not None:
+        if ctl is not None and dev.controller is None:
             dev.controller = ctl  # TODO: a bit messy
 
         if parent_000c is not None:

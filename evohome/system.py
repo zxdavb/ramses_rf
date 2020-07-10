@@ -26,6 +26,7 @@ class EvoSystem:
 
         self._gwy = gateway
         self.ctl = controller
+        controller._evo = self
 
         gateway.systems.append(self)
         gateway.system_by_id[controller.id] = self

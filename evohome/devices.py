@@ -133,7 +133,7 @@ class Entity:
         if self._controller is None:
             self._controller = controller
 
-            if isinstance(self, Device):
+            if isinstance(self, Device):  # instead of a zone
                 if self._evo is None:
                     self._evo = self._gwy.system_by_id[controller.id]
 
@@ -179,11 +179,6 @@ class Entity:
             return {k: v for k, v in result.items() if k[:1] != "_"}
 
     def update(self, msg) -> None:
-        # _ = self.controller  # TODO: a hack for testing
-
-        if self._evo is None:
-            self._evo = self._gwy.evo  # HACK
-
         self._last_msg = msg  # f"{msg.date}T{msg.time}"
 
         if "domain_id" in msg.payload:  # isinstance(msg.payload, dict) and
@@ -515,6 +510,7 @@ class Controller(Device):
             This leaves only a process of exclusion as a means to determine which zone
             uses the controller as a sensor.
             """
+
             _LOGGER.debug("System zone/sensor pairs (before): %s", self._evo)
 
             prev_msg, self._prev_30c9 = self._prev_30c9, msg
