@@ -26,7 +26,7 @@ class EvoSystem:
 
         self._gwy = gateway
         self.ctl = controller
-        controller._evo = self
+        controller._evo = self  # TODO: messy?
 
         gateway.systems.append(self)
         gateway.system_by_id[controller.id] = self
@@ -39,8 +39,9 @@ class EvoSystem:
         self.zone_by_id = {}
         self.zone_by_name = {}
 
+        self.dhw_zone = None
+        self.dhw_sensor = None  # TODO: make self.dhw_zone.sensor
         self.heat_relay = None
-        self.dhw_sensor = None
         self._prev_code = None
 
     def add_device(self, device) -> Device:

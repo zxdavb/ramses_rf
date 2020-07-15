@@ -812,9 +812,14 @@ def parser_1f41(payload, msg) -> Optional[dict]:
 @parser_decorator  # rf_bind
 def parser_1fc9(payload, msg) -> Optional[dict]:
     # this is an array of codes
-    # 049  I --- 01:145038 --:------ 01:145038 1FC9 018 07-000806368E FC-3B0006368E               07-1FC906368E  # noqa: E501
-    # 047  I --- 01:145038 --:------ 01:145038 1FC9 018 FA-000806368E FC-3B0006368E               FA-1FC906368E  # noqa: E501
-    # 065  I --- 01:145038 --:------ 01:145038 1FC9 024 FC-000806368E FC-315006368E FB-315006368E FC-1FC906368E  # noqa: E501
+    # 049  I --- 01:145038 --:------ 01:145038 1FC9 018 07-0008-06368E FC-3B00-06368E                07-1FC9-06368E  # noqa: E501
+    # 047  I --- 01:145038 --:------ 01:145038 1FC9 018 FA-0008-06368E FC-3B00-06368E                FA-1FC9-06368E  # noqa: E501
+    # 065  I --- 01:145038 --:------ 01:145038 1FC9 024 FC-0008-06368E FC-3150-06368E FB-3150-06368E FC-1FC9-06368E  # noqa: E501
+
+    # HW valve binding:
+    # 063  I --- 01:145038 --:------ 01:145038 1FC9 018 FA-0008-06368E FC-3B00-06368E FA-1FC9-06368E  # noqa: E501
+    # CH valve binding:
+    # 071  I --- 01:145038 --:------ 01:145038 1FC9 018 F9-0008-06368E FC-3B00-06368E F9-1FC9-06368E  # noqa: E501
 
     def _parser(seqx) -> dict:
         assert seqx[6:] == payload[6:12]

@@ -13,12 +13,23 @@ from evohome import Gateway, GracefulExit, DONT_CREATE_MESSAGES
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
 
+# this is needed only when debugging the client
+# import ptvsd
+# ptvsd.enable_attach(address=(DEBUG_ADDR, DEBUG_PORT))
+# ptvsd.wait_for_attach()
+
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
-@click.option("-k", "--known-devices", help="TBD", type=click.Path())
-@click.option("-w", "--device-whitelist", help="TBD", is_flag=True)
+@click.option(
+    "-c",
+    "--system-config",
+    help="TBD",
+    type=click.Path(),
+    default="evohome.json",
+    show_default=True,
+)
 @click.option("-m", "--message-log", help="TBD", type=click.Path())
 @click.option("-r", "--raw-output", help="TBD", count=True)
 @click.option("-z", "--debug-mode", help="TBD", count=True)
@@ -54,9 +65,13 @@ def parse(obj, **kwargs):
 @click.option("-p", "--probe-system", help="TBD", is_flag=True)
 @click.option("-x", "--execute-cmd", help="TBD")
 @click.option("-T", "--evofw-flag", help="TBD")
-@click.option("-C", "--ser2net-server", help="addr:port, e.g. '127.0.0.1:5001'")
 @click.option(
-    "-o", "--packet-log", help="TBD", type=click.Path(), default="packets.log"
+    "-o",
+    "--packet-log",
+    help="TBD",
+    type=click.Path(),
+    default="packet.log",
+    show_default=True,
 )
 @click.pass_obj
 def monitor(obj, **kwargs):

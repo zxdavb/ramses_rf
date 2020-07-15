@@ -206,13 +206,13 @@ DEVICE_TABLE = {
         "is_sensor": True,
     },  # ST9420C
     # non-Honeywell, HVAC? (also, 30: is a Nuaire PIV)
-    "20": {"type": "VCE", "name": "AC/Ventilation?",},  # VCE-RF unit
-    "32": {"type": "VMS", "name": "AC/Ventilation?",},  # sensor/switch
-    "37": {"type": " 37", "name": "AC/Ventilation?",},  # VCE
-    "49": {"type": " 49", "name": "AC/Ventilation?",},  # VCE switch
+    "20": {"type": "VCE", "name": "AC/Ventilation?"},  # VCE-RF unit
+    "32": {"type": "VMS", "name": "AC/Ventilation?"},  # sensor/switch
+    "37": {"type": " 37", "name": "AC/Ventilation?"},  # VCE
+    "49": {"type": " 49", "name": "AC/Ventilation?"},  # VCE switch
     # specials
-    "63": {"type": "NUL", "name": "Null Device",},
-    "--": {"type": "---", "name": "No Device",},
+    "63": {"type": "NUL", "name": "Null Device"},
+    "--": {"type": "---", "name": "No Device"},
 }
 # VMS includes Nuaire VMS-23HB33, VMS-23LMH23
 # What about Honeywell MT4 actuator?
@@ -262,10 +262,7 @@ ZONE_MODE_MAP = {
 }
 ZONE_MODE_LOOKUP = {v: k for k, v in ZONE_MODE_MAP.items()}
 
-DHW_STATE_MAP = {
-    "00": "Off",
-    "01": "On",
-}
+DHW_STATE_MAP = {"00": "Off", "01": "On"}
 DHW_STATE_LOOKUP = {v: k for k, v in DHW_STATE_MAP.items()}
 
 # Electric Heat - on/off relay (only)

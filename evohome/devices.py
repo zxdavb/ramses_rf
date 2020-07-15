@@ -24,6 +24,7 @@ from .const import (
 )
 from .exceptions import CorruptStateError
 
+
 _LOGGER = logging.getLogger(__name__)
 if True and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
@@ -308,7 +309,11 @@ class Device(Entity):
         if len(zone_ids) == 0:
             return
         elif len(zone_ids) != 1:
-            assert all(z == zone_ids[0] for z in zone_ids)
+            # this can happen when a devices is intentionally moved to another zone
+            if not all(z == zone_ids[0] for z in zone_ids):
+                raise CorruptStateError(
+                    f"{self.id} has mismatched parent_zones: {zone_ids}"
+                )
 
         # zone = self._evo.zone_by_id[zone_ids[0]]
         # if self not in zone.devices:
@@ -341,14 +346,14 @@ class Device(Entity):
     def zone(self) -> Optional[str]:
         """Return the device's parent zone, if known, else try to find it."""
         if self._zone is not None:
-            if self.parent_000c is not None and self._zone.id == self.parent_000c:
+            if self.parent_000c is not None and self._zone.id != self.parent_000c:
                 raise CorruptStateError(
-                    f"{self.id} ({self.temperature}) zone id matched as: "
+                    f"parent zone for {self.id} ({self.temperature}) is matched as: "
                     f"{self._zone.id}, but should be: {self.parent_000c}"
                 )
-            if self.parent_zone is not None and self._zone.id == self.parent_zone:
+            if self.parent_zone is not None and self._zone.id != self.parent_zone:
                 raise CorruptStateError(
-                    f"{self.id} ({self.temperature}) zone id matched as: "
+                    f"parent zone for {self.id} ({self.temperature}) is matched as: "
                     f"{self._zone.id}, but should be: {self.parent_zone}"
                 )
 
@@ -359,7 +364,7 @@ class Device(Entity):
             elif self.parent_zone is not None:
                 zone_id = self.parent_zone
 
-            if zone_id is not None:  # and self._evo:
+            if zone_id is not None and self._evo:
                 self._zone = self._evo.zone_by_id.get(zone_id)
 
         return self._zone
@@ -371,7 +376,8 @@ class Device(Entity):
         if self._zone is zone:
             return
 
-        if zone == "FC" and self.type == "13":
+        if zone == "FC":
+            assert self.type == "13"
             self._zone = None
             return
 
@@ -384,17 +390,13 @@ class Device(Entity):
         elif self.parent_zone is not None and self.parent_zone != zone.id:
             raise ValueError
 
-        print("...set!")
         self._zone = zone
         # self._zone.devices.append(self)
         # self._zone.device_by_id[self.id] = self
 
     def _discover(self):
         # do these even if battery-powered (e.g. device might be in rf_check mode)
-        for code in (
-            "0016",
-            "1FC9",
-        ):
+        for code in ("0016", "1FC9"):
             self._command(code, payload="0000" if code == "0016" else "00")
 
         if self.has_battery is not True:
@@ -586,7 +588,7 @@ class Controller(Device):
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug(
                     "Testable zones: %s (have changed and are sensorless)",
-                    {z.idx: z.temperature for z in test_zones},
+                    {z.id: z.temperature for z in test_zones},
                 )
                 _LOGGER.debug(
                     " - testable sensors: %s (have changed, orphans/from this system)",
@@ -599,7 +601,7 @@ class Controller(Device):
                     for d in test_sensors
                     if d.temperature == z.temperature and d._zone in (z, None)
                 ]
-                _LOGGER.debug("Testing zone %s, temp: %s", z.idx, z.temperature)
+                _LOGGER.debug("Testing zone %s, temp: %s", z.id, z.temperature)
                 _LOGGER.debug(
                     " - possible sensors: %s (with same temp & not from another zone)",
                     {d.id: d.temperature for d in sensors},
@@ -622,7 +624,7 @@ class Controller(Device):
                 return  # no single zone without a sensor
 
             _LOGGER.debug(
-                "TESTING zone %s, temp: %s", zones[0].idx, zones[0].temperature
+                "TESTING zone %s, temp: %s", zones[0].id, zones[0].temperature
             )
 
             # can safely(?) assume this zone is using the CTL as a sensor...
@@ -830,7 +832,7 @@ class BdrSwitch(Device, Actuator):
             _LOGGER.debug("Promoted device %s to %s", self.id, self.cls_type)
 
             self._is_tpi = True
-            self.zone = "FC"
+            self.zone = "FC"  # EvoZone(self._gwy, self._gwy.evo.ctl, "FC")
             self._discover()
 
         if self._is_tpi is not None:

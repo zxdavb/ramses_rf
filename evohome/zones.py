@@ -49,16 +49,13 @@ class ZoneBase(Entity):
 
         self._evo = system
 
-        # zones are children of a controller, not the gateway
-        system.zones.append(self)
-        system.zone_by_id[zone_idx] = self
-        # system.zone_by_name[self.name] = self
-
         # self.devices = []
         # self.device_by_id = {}
 
         self.cls_type = None
         # self.cls_name = None
+
+        self._sensor = None
 
     def __repr__(self):
         return f"{self.id}/{self.type} ({self.sensor})"
@@ -92,9 +89,14 @@ class DhwZone(ZoneBase, HeatDemand):
     FC - 0008, 0009, 1100, 3150, 3B00, (& rare: 0001, 1FC9)
     """
 
-    def __init__(self, gateway, zone_dhw, system) -> None:
-        _LOGGER.warning("Creating a DHW Zone, %s", zone_dhw)
-        super().__init__(gateway, zone_dhw, system)
+    def __init__(self, gateway, zone_idx, system) -> None:
+        _LOGGER.warning("Creating a DHW Zone, %s", zone_idx)
+        super().__init__(gateway, zone_idx, system)
+
+        # zones are children of a controller, not the gateway
+        system.dhw_zone = self
+
+        self._relay = None
 
     def _discover(self):
         # get config, mode, temp
@@ -131,12 +133,16 @@ class DhwZone(ZoneBase, HeatDemand):
         return "DHW Controller"
 
     @property
+    def type(self) -> Optional[str]:
+        return self._relay.type if self._relay is not None else None
+
+    @property
     def sensor(self) -> Optional[str]:  # TODO: WIP
-        return self._sensor.id
+        return self._sensor.id if self._sensor is not None else None
 
     @property
     def relay(self) -> Optional[str]:  # TODO: WIP
-        return self._relay.id
+        return self._relay.id if self._sensor is not None else None
 
     @property
     def setpoint_status(self):  # 1F41
@@ -220,13 +226,15 @@ class Zone(ZoneBase):
     """The Zone base class."""
 
     def __init__(self, gateway, zone_idx, system) -> None:
-        # _LOGGER.debug("Creating a Zone, %s", idx)
+        # _LOGGER.debug("Creating a Zone, %s", zone_idx)
         super().__init__(gateway, zone_idx, system)
 
-        self.idx = zone_idx  # in addition to .id
+        # zones are children of a controller, not the gateway
+        system.zones.append(self)
+        system.zone_by_id[zone_idx] = self
+        # system.zone_by_name[self.name] = self
 
         self._schedule = Schedule(gateway, zone_idx)
-        self._sensor = None
         self._type = None
 
         self._discover()  # should be last thing in __init__()
@@ -390,7 +398,7 @@ class Zone(ZoneBase):
                     k: v
                     for d in result
                     for k, v in d.items()
-                    if d["zone_idx"] == self.idx
+                    if d["zone_idx"] == self.id
                 }
 
         if result:
@@ -432,6 +440,7 @@ class Zone(ZoneBase):
     def sensor(self, value):
         if not isinstance(value, Device) and hasattr(value, "temperature"):
             raise TypeError
+        # NOTE: if sensor is TRV, then zone type only likely (i.e. not reqd) RadValve
         self._sensor = value
 
     @property
@@ -463,7 +472,7 @@ class Zone(ZoneBase):
                         k: v
                         for d in result
                         for k, v in d.items()
-                        if d["zone_idx"] == self.idx
+                        if d["zone_idx"] == self.id
                     }
                     if result
                     else None
@@ -479,7 +488,7 @@ class Zone(ZoneBase):
 
         if result:
             result = {
-                k: v for d in result for k, v in d.items() if d["zone_idx"] == self.idx
+                k: v for d in result for k, v in d.items() if d["zone_idx"] == self.id
             }
             return result.get("temperature")
 
@@ -587,20 +596,28 @@ _ZONE_CLASS = {
 }
 
 
-def create_zone(gateway, zone_idx, ctl_address=None) -> ZoneBase:
+def create_zone(gateway, controller, zone_idx) -> ZoneBase:
     """Return a domain/zone, create it if required."""
-    # system already should exist - otherwise will cause upstream issues
-    assert int(zone_idx, 16) < MAX_ZONES
 
-    if ctl_address is not None:
-        system = gateway.system_by_id.get(ctl_address.id)
+    if zone_idx == "FC":
+        if controller is None:
+            controller = gateway.evo.ctl
     else:
-        system = gateway.evo
+        assert int(zone_idx, 16) < MAX_ZONES
 
-    assert system is not None
+    # system already should exist - otherwise will cause upstream issues
+    system = gateway.system_by_id[controller.id]
 
     if zone_idx in system.zone_by_id:
         zone = system.zone_by_id[zone_idx]
+
+    elif zone_idx == "FC":
+        zone = (
+            system.dhw_zone
+            if system.dhw_zone is not None
+            else DhwZone(gateway, zone_idx, system)
+        )
+
     else:
         zone = _ZONE_CLASS.get("???", Zone)(gateway, zone_idx, system)
 

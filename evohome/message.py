@@ -77,10 +77,7 @@ class Message:
         if not self.is_valid:
             return
 
-        if self._gwy.config["known_devices"]:
-            msg_format = MSG_FORMAT_18
-        else:
-            msg_format = MSG_FORMAT_10
+        _format = MSG_FORMAT_18 if self._gwy.config["known_devices"] else MSG_FORMAT_10
 
         if self.src.id == self.devs[0].id:
             src = display_name(self.src)
@@ -92,7 +89,7 @@ class Message:
         code = CODE_MAP.get(self.code, f"unknown_{self.code}")
         payload = self.raw_payload if self.len < 4 else f"{self.raw_payload[:5]}..."[:9]
 
-        self._str = msg_format.format(src, dst, self.verb, code, payload, self._payload)
+        self._str = _format.format(src, dst, self.verb, code, payload, self._payload)
         return self._str
 
     def __eq__(self, other) -> bool:
@@ -314,9 +311,17 @@ class Message:
         if not self.is_valid:  # requires self.payload
             return
 
-        # This filter will improve teh quality of data / reduce processing time
+        # if self.src.type in ("10", "13"):
+        #     if self.code == "3B00":
+        #         EvoZone(self._gwy, None, "FC")
+
+        # This filter will improve the quality of data / reduce processing time
         if self.src.type not in ("01", "02", "23"):  # self._gwy.system_by_id:
             return
+
+        if self.code in ("10A0", "1260", "1F41"):  # DHW
+            # if self.code == "3B00":  # every 10 mins
+            EvoZone(self._gwy, self.src, "FC")
 
         # TODO: also process ufh_idx (but never domain_id)
         if isinstance(self._payload, dict):
@@ -324,7 +329,8 @@ class Message:
                 domain_type = "zone_idx"
             else:
                 return
-            # EvoZone(self._gwy, self._payload[domain_type], self.src)
+            # TODO: only creating zones from arrays, presently, but could do so here
+            # EvoZone(self._gwy, self.src, self._payload[domain_type])
 
         elif isinstance(self._payload, list):
             if self.code in ("000A", "2309", "30C9"):  # the sync_cycle pkts
@@ -333,7 +339,7 @@ class Message:
             # domain_type = "ufh_idx"
             else:
                 return
-            [EvoZone(self._gwy, d[domain_type], self.src) for d in self.payload]
+            [EvoZone(self._gwy, self.src, d[domain_type]) for d in self.payload]
 
         else:  # should never get here
             raise TypeError

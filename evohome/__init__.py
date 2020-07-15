@@ -18,6 +18,7 @@ from .devices import Device, create_device as EvoDevice
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
 from .packet import _LOGGER as pkt_logger, Packet, PortPktProvider, file_pkts, port_pkts
+from .schema import load_config
 from .ser2net import Ser2NetServer
 from .system import EvoSystem
 
@@ -99,12 +100,7 @@ class Gateway:
         self._setup_signal_handler()
 
         # if config.get("ser2net_server"):
-        self._relay = None
-
-        # if config["known_devices"]:
-        self.known_devices = {}
-        self._exclude_list = []
-        self._include_list = []
+        self._relay = None  # ser2net_server relay
 
         # if config["raw_output"] > 0:
         self.evo = None  # EvoSystem(controller=config["controller_id"])
@@ -112,6 +108,12 @@ class Gateway:
         self.system_by_id: Dict = {}
         self.devices: List[Device] = []
         self.device_by_id: Dict = {}
+
+        self.known_devices = {}
+        self._include_list = self._exclude_list = []
+
+        config["schema_file"] = "evohome.json"
+        params, self._include_list, self._exclude_list = load_config(self, **config)
 
     def __repr__(self) -> str:
         ctls = [d.id for d in self.devices if d.is_controller]
@@ -216,28 +218,17 @@ class Gateway:
                 await self._dispatch_pkt(destination=manager)
                 await asyncio.sleep(0)
 
-        if self.config["known_devices"]:
-            try:
-                with open(self.config["known_devices"]) as json_file:
-                    devices = self.known_devices = json.load(json_file)
-            except FileNotFoundError:  # if it doesn't exist, we'll create it later
-                self.known_devices = {}
-            else:
-                if self.config["device_whitelist"]:
-                    self._include_list = [
-                        k for k, v in devices.items() if not v.get("ignore")
-                    ]
-                else:
-                    self._exclude_list = [
-                        k for k, v in devices.items() if v.get("ignore")
-                    ]
+        # if self.config["known_devices"]:
+        #     self.known_devices = ...
+        #     self._include_list = [
+        #     self._exclude_list = [
 
         # Finally, source of packets is either a text file, or a serial port:
-        if self.config["input_file"]:
+        if self.config["input_file"]:  # reader = file_reader(config["input_file"])
             reader = asyncio.create_task(file_reader(self.config["input_file"]))
             self._tasks.extend([asyncio.create_task(port_writer(None)), reader])
 
-        else:  # if self.serial_port
+        else:  # if self.serial_port, reader = port_reader(manager)
             if self.config.get("ser2net_server"):
                 self._relay = Ser2NetServer(
                     self.config["ser2net_server"], self.cmd_que, loop=self.loop
@@ -370,7 +361,7 @@ class Gateway:
     def _process_packet(self, pkt: Packet) -> None:
         """Decode the packet and its payload."""
 
-        def is_wanted(include=None, exclude=None) -> bool:
+        def is_wanted(include: list = None, exclude: list = None) -> bool:
             """Return True is a packet is not to be filtered out."""
 
             # TODO: should never allow a HGI80 to be ignored?
@@ -378,7 +369,9 @@ class Gateway:
                 return True
             if include:
                 return any(device in pkt.packet for device in include)
-            return not any(device in pkt.packet for device in exclude)
+            if exclude:
+                return not any(device in pkt.packet for device in exclude)
+            return True
 
         if is_wanted(include=self._include_list, exclude=self._exclude_list):
             pkt_logger.info("%s ", pkt.packet, extra=pkt.__dict__)  # a HACK

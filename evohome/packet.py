@@ -178,7 +178,10 @@ class PortPktProvider:
         """Get the next packet line (dtm, pkt, pkt_bytes) from a serial port."""
 
         def _logger_msg(func, msg):  # TODO: this is messy...
-            date, time = dtm_str.split("T")
+            try:
+                date, time = dtm_str.split("T")
+            except ValueError:
+                date, time = dt.min.isoformat().split("T")
             extra = {"date": date, "time": time, "_packet": pkt_bytes}
             extra.update({"error_text": "", "comment": ""})
             func("%s < %s", pkt_bytes, msg, extra=extra)
@@ -189,7 +192,7 @@ class PortPktProvider:
             return time_stamp(), "", None
 
         dtm_str = time_stamp()  # done here & now for most-accurate timestamp
-        if __dev_mode__:
+        if False and __dev_mode__:
             _logger_msg(_LOGGER.debug, "Raw packet")
 
         try:
@@ -258,10 +261,13 @@ async def file_pkts(fp):
     # TODO handle badly-formed dt strings - presently, they will crash
     def _logger_msg(func, msg):  # TODO: this is messy...
         # ValueError: not enough values to unpack (expected 2, got 1) [e.g. blank line]
-        date, time = ts_pkt[:26].split("T")
+        try:
+            date, time = ts_pkt[:26].split("T")
+        except ValueError:
+            date, time = dt.min.isoformat().split("T")
         extra = {"date": date, "time": time, "_packet": ts_pkt}
         extra.update({"error_text": "", "comment": ""})
-        func("%s < %s", ts_pkt[27:].strip(), msg, extra=extra)
+        func("%s < %s", ts_pkt.strip(), msg, extra=extra)
 
     for ts_pkt in fp:
         if ts_pkt.strip() == "":  # handle black lines
