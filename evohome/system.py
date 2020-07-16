@@ -40,8 +40,10 @@ class EvoSystem:
         self.zone_by_name = {}
 
         self.dhw_zone = None
-        self.dhw_sensor = None  # TODO: make self.dhw_zone.sensor
-        self.heat_relay = None
+        self._dhw_relay = None
+        self._dhw_sensor = None  # TODO: make self.dhw_zone.sensor
+        self._heat_relay = None
+
         self._prev_code = None
 
     def add_device(self, device) -> Device:
@@ -111,8 +113,9 @@ class EvoSystem:
 
         return {
             "controller": self.ctl.id,
-            "boiler_relay": self.heat_relay.id if self.heat_relay else None,
+            "heater_relay": self.heat_relay.id if self.heat_relay else None,
             "dhw_sensor": self.dhw_sensor.id if self.dhw_sensor else None,
+            "dhw_relay": self.dhw_relay.id if self.dhw_relay else None,
             "zone_sensors": zone_sensors,
             # "zones": [{"00": {"sensor": None, "acuators": []}}],
             # "ufh_controllers": [],
@@ -133,90 +136,155 @@ class EvoSystem:
 
         return result
 
-    def _dhw_sensor(self, this, last):
-        """Return the id of the DHW sensor (07:) for *this* system/CTL.
+    @property
+    def heat_relay(self) -> Device:
+        """Return the heat relay (10: or 13:) for this system."""
 
-        There is only 1 way to find a controller's DHW sensor:
-        1.  The 10A0 RQ/RP *from/to a 07:* (1x/4h)
+        if self._heat_relay is not None:
+            return self._heat_relay
 
-        Data from the CTL is considered more authorative. The RQ is initiated by the
-        DHW, so is not authorative. The I/1260 is not to/from a controller, so is not
-        useful.
-        """
+        # do something (e.g. check consistency)
 
-        # 07:38:39.124 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
-        # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
+        return self._heat_relay
 
-        sensor = None
+    @heat_relay.setter
+    def heat_relay(self, device) -> None:
+        if not isinstance(device, Device):
+            raise TypeError
+        elif device.type not in ("10", "13"):
+            raise ValueError
 
-        if this.code == "10A0" and this.verb == "RQ":
-            if this.src.type == "07" and this.dst is self.ctl:
-                # sensor = self._gwy.device_by_id[this.src.addr.id]
-                sensor = this.src
+        if self._heat_relay is not None and self._heat_relay != device:
+            raise LookupError
+        # elif device.evo is not None and device.evo != self:
+        #     raise LookupError
 
-        if sensor is not None:
-            if self.dhw_sensor is not None:
-                assert self.dhw_sensor is sensor, (self.dhw_sensor.id, sensor.id)
-            else:
-                self.dhw_sensor = sensor
-                sensor.controller = self.ctl
+        self.add_device(device)
+        self._heat_relay = device
 
-    def _heat_relay(self, this, last):
-        """Return the id of the heat relay (10: or 13:) for *this* system/CTL.
+    @property
+    def dhw_relay(self) -> Device:
+        """Return the DHW realy (13:) for this system."""
 
-        There are 3 ways to find a controller's heat relay (in order of reliability):
-        1.  The 3220 RQ/RP *to/from a 10:* (1x/5min)
-        2a. The 3EF0 RQ/RP *to/from a 10:* (1x/1min)
-        2b. The 3EF0 RQ (no RP) *to a 13:* (3x/60min)
-        3.  The 3B00 I/I exchange between a CTL & a 13: (TPI cycle rate, usu. 6x/hr)
+        if self._dhw_relay is not None:
+            return self._dhw_relay
 
-        Data from the CTL is considered 'authorative'. The 1FC9 RQ/RP exchange to/from a
-        CTL is too rare to be useful.
-        """
+        # do something (e.g. check consistency)
 
-        # 18:14:14.025 066 RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000
-        # 18:14:14.446 065 RP --- 10:067219 01:078710 --:------ 3220 005 00C00500FF
-        # 14:41:46.599 064 RQ --- 01:078710 10:067219 --:------ 3EF0 001 00
-        # 14:41:46.631 063 RP --- 10:067219 01:078710 --:------ 3EF0 006 0000100000FF
+        return self._dhw_relay
 
-        # 06:49:03.465 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
-        # 06:49:05.467 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
-        # 06:49:07.468 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
-        # 09:03:59.693 051  I --- 13:237335 --:------ 13:237335 3B00 002 00C8
-        # 09:04:02.667 045  I --- 01:145038 --:------ 01:145038 3B00 002 FCC8
+    @dhw_relay.setter
+    def dhw_relay(self, device) -> None:
+        if not isinstance(device, Device):
+            raise TypeError
+        elif device.type != "13":
+            raise ValueError
 
-        # note the order: most to least reliable
-        heater = None
+        if self._dhw_relay is not None and self._dhw_relay != device:
+            raise LookupError
+        # elif device.evo is not None and device.evo != self:
+        #     raise LookupError
 
-        if this.code == "3220" and this.verb == "RQ":
-            if this.src is self.ctl and this.dst.type == "10":
-                # heater = self._gwy.device_by_id[this.dst.addr.id]
-                heater = this.dst
+        self.add_device(device)
+        self._dhw_relay = device
 
-        elif this.code == "3EF0" and this.verb == "RQ":
-            if this.src is self.ctl and this.dst.type in ("10", "13"):
-                # heater = self._gwy.device_by_id[this.dst.addr.id]
-                heater = this.dst
+    @property
+    def dhw_sensor(self) -> Device:
+        """Return the DHW sensor (07:) for this system."""
 
-        elif this.code == "3B00" and this.verb == " I" and last is not None:
-            if last.code == this.code and last.verb == this.verb:
-                if this.src is self.ctl and last.src.type == "13":
-                    # heater = self._gwy.device_by_id[last.src.addr.id]
-                    heater = last.src
+        if self._dhw_sensor is not None:
+            return self._dhw_sensor
 
-        if heater is not None:
-            if self.heat_relay is not None:  # there should only be one boiler relay
-                assert self.heat_relay is heater, (self.heat_relay.id, heater.id)
-            else:
-                self.heat_relay = heater
-                heater.controller = self.ctl
-                # heater.is_tpi = True
+        # do something (e.g. check consistency)
 
-    def eavesdrop(self, this, last):
+        return self._dhw_sensor
+
+    @dhw_sensor.setter
+    def dhw_sensor(self, device) -> None:
+        if not isinstance(device, Device):
+            raise TypeError
+        elif device.type != "07":
+            raise ValueError
+
+        if self._dhw_sensor is not None and self._dhw_sensor != device:
+            raise LookupError
+        # elif device.evo is not None and device.evo != self:
+        #     raise LookupError
+
+        self.add_device(device)
+        self._dhw_sensor = device
+
+    def _eavesdrop(self, this, last):
         """Use pairs of packets to learn something about the system."""
 
-        def is_exchange():  # TODO:use is?
+        def is_exchange(this, last):  # TODO:use is?
             return this.src is last.dst and this.dst is last.src.addr
+
+        def discover_heat_relay():
+            """Discover the heat relay (10: or 13:) for this system.
+
+            There's' 3 ways to find a controller's heat relay (in order of reliability):
+            1.  The 3220 RQ/RP *to/from a 10:* (1x/5min)
+            2a. The 3EF0 RQ/RP *to/from a 10:* (1x/1min)
+            2b. The 3EF0 RQ (no RP) *to a 13:* (3x/60min)
+            3.  The 3B00 I/I exchange between a CTL & a 13: (TPI cycle rate, usu. 6x/hr)
+
+            Data from the CTL is considered 'authorative'. The 1FC9 RQ/RP exchange
+            to/from a CTL is too rare to be useful.
+            """
+
+            # 18:14:14.025 066 RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000
+            # 18:14:14.446 065 RP --- 10:067219 01:078710 --:------ 3220 005 00C00500FF
+            # 14:41:46.599 064 RQ --- 01:078710 10:067219 --:------ 3EF0 001 00
+            # 14:41:46.631 063 RP --- 10:067219 01:078710 --:------ 3EF0 006 0000100000FF  # noqa
+
+            # 06:49:03.465 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
+            # 06:49:05.467 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
+            # 06:49:07.468 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
+            # 09:03:59.693 051  I --- 13:237335 --:------ 13:237335 3B00 002 00C8
+            # 09:04:02.667 045  I --- 01:145038 --:------ 01:145038 3B00 002 FCC8
+
+            # note the order: most to least reliable
+            heater = None
+
+            if this.code == "3220" and this.verb == "RQ":
+                if this.src is self.ctl and this.dst.type == "10":
+                    heater = this.dst
+
+            elif this.code == "3EF0" and this.verb == "RQ":
+                if this.src is self.ctl and this.dst.type in ("10", "13"):
+                    heater = this.dst
+
+            elif this.code == "3B00" and this.verb == " I" and last is not None:
+                if last.code == this.code and last.verb == this.verb:
+                    if this.src is self.ctl and last.src.type == "13":
+                        heater = last.src
+
+            if heater is not None:
+                self.heat_relay = heater
+
+        def discover_dhw_sensor():
+            """Discover the DHW sensor (07:) for this system.
+
+            There is only 1 way to find a controller's DHW sensor:
+            1.  The 10A0 RQ/RP *from/to a 07:* (1x/4h)
+
+            Data from the CTL is considered more authorative. The RQ is initiated by the
+            DHW, so is not authorative. The I/1260 is not to/from a controller, so is
+            not useful.
+            """
+
+            # 07:38:39.124 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4  # noqa
+            # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8  # noqa
+
+            sensor = None
+
+            if this.code == "10A0" and this.verb == "RQ":
+                if this.src.type == "07" and this.dst is self.ctl:
+                    sensor = this.src
+
+            if sensor is not None:
+                self.dhw_sensor = sensor
 
         if self.ctl is None:
             return
@@ -229,8 +297,8 @@ class EvoSystem:
 
         # if self.heat_relay is None and this.code in ("3220", "3B00", "3EF0"):
         if this.code in ("3220", "3B00", "3EF0"):
-            self._heat_relay(this, last)
+            discover_heat_relay()
 
         # if self.dhw_sensor is None and this.code in ("10A0"):
         if this.code in ("10A0"):
-            self._dhw_sensor(this, last)
+            discover_dhw_sensor()

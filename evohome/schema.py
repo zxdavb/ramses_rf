@@ -7,6 +7,8 @@ import voluptuous as vol
 
 from .const import Address, __dev_mode__
 
+# from .zones import DhwZone, EvoZone
+
 # false = False; null = None; true = True
 
 DONT_CREATE_MESSAGES = 3
@@ -58,16 +60,22 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Optional("packet_log", default=True): vol.Any(None, bool),
     }
 )
+HW_SCHEMA = vol.Schema(
+    {
+        vol.Optional("sensor"): vol.Any(None, vol.Match(r"^07:[0-9]{6}$")),
+        vol.Optional("relay"): vol.Any(None, vol.Match(r"^13:[0-9]{6}$")),
+    }
+)
 SYSTEM_SCHEMA = vol.Schema(
     {
         vol.Required("controller"): vol.Match(r"^(01|23):[0-9]{6}$"),
-        vol.Optional("boiler_relay"): vol.Any(None, vol.Match(r"^(10|13):[0-9]{6}$")),
-        vol.Optional("dhw_sensor"): vol.Any(None, vol.Match(r"^07:[0-9]{6}$")),
-        vol.Optional("dhw_relay"): vol.Any(None, vol.Match(r"^13:[0-9]{6}$")),
+        vol.Optional("heater_relay"): vol.Any(None, vol.Match(r"^(10|13):[0-9]{6}$")),
+        vol.Optional("stored_hw"): vol.Any(None, {}, HW_SCHEMA,),
         vol.Optional("zones"): vol.Any(
             None, vol.All(ZONE_SCHEMA, vol.Length(min=0, max=12))
         ),
-    }
+    },
+    extra=vol.ALLOW_EXTRA,
 )
 DEVICE_SCHEMA = vol.Schema(
     {
@@ -187,24 +195,32 @@ def load_schema(gwy, schema, **kwargs) -> bool:
     ctl = Address(id=schema["controller"], type=schema["controller"][:2])
     ctl = gwy.get_device(ctl, controller=ctl)
 
-    # if schema.get("boiler_relay"):
-    #     dev = Address(id=schema["boiler_relay"], type=schema["boiler_relay"][:2])
-    #     dev = gwy.get_device(dev, controller=ctl)
+    if schema.get("heater_relay") is not None:
+        dev = Address(id=schema["heater_relay"], type=schema["heater_relay"][:2])
+        dev = gwy.get_device(dev, controller=ctl)
+        gwy.evo.heater_relay = dev
 
-    # if schema.get("stored_hw"):
-    #     dev = Address(id=schema["boiler_relay"], type=schema["boiler_relay"][:2])
-    #     evo.dhw = evoDhwZone(
-    #         evo,
-    #         relay=schema["stored_hw"].get("relay"),
-    #         sensor=schema["stored_hw"].get("sensor"),
-    #     )
+    if schema.get("stored_hw") is not None:
+        dhw_sensor = schema["stored_hw"].get("sensor")
+        dhw_relay = schema["stored_hw"].get("relay")
 
-    #     if schema.get("zones"):
-    #         zones = [
-    #             evoZone(evo, k, sensor=v.get("sensor"), zone_type=v.get("type"))
-    #             for k, v in schema["zones"].items()
-    #         ]
-    #         [evo.add_zone(z) for z in zones]
+        if dhw_sensor is not None:
+            dev = Address(id=dhw_sensor, type=dhw_sensor[:2])
+            dev = gwy.get_device(dev, controller=ctl)
+            gwy.evo.dhw_sensor = dev
+
+        if dhw_relay is not None:
+            dev = Address(id=dhw_relay, type=dhw_relay[:2])
+            dev = gwy.get_device(dev, controller=ctl)
+            gwy.evo.dhw_relay = dev
+
+        # gwy.evo.dhw = EvoDhwZone(gwy.evo, relay=dhw_relay, dhw_sensor=dhw_sensor)
+
+    # if schema.get("zones"):
+    #     zones = [
+    #         evoZone(evo, k, sensor=v.get("sensor"), zone_type=v.get("type"))
+    #         for k, v in schema["zones"].items()
+    #     ]
 
 
 def load_filter(gwy, config, devices, **kwargs) -> Tuple[list, list]:

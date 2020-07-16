@@ -59,7 +59,6 @@ class Gateway:
         self.config = config
 
         config["input_file"] = config.get("input_file")
-        config["known_devices"] = config.get("known_devices")
         config["raw_output"] = config.get("raw_output", 0)
 
         if self.serial_port and config["input_file"]:
@@ -112,6 +111,7 @@ class Gateway:
         self.known_devices = {}
         self._include_list = self._exclude_list = []
 
+        config["known_devices"] = False  # bool(self.known_devices)
         config["schema_file"] = "evohome.json"
         params, self._include_list, self._exclude_list = load_config(self, **config)
 
@@ -441,7 +441,7 @@ class Gateway:
         # try to find the boiler relay, dhw sensor
         for evo in self.systems:
             if msg.src.controller in [evo.ctl, None]:  # TODO: check!
-                evo.eavesdrop(msg, self._last_msg)  # TODO: WIP
+                evo._eavesdrop(msg, self._last_msg)  # TODO: WIP
                 if msg.src.controller is not None:
                     break
 
