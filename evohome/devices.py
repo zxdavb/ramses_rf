@@ -26,7 +26,7 @@ from .exceptions import CorruptStateError
 
 
 _LOGGER = logging.getLogger(__name__)
-if True and __dev_mode__:
+if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
@@ -384,11 +384,11 @@ class Device(Entity):
         if not isinstance(zone, Entity):
             raise ValueError(f"zone is not an Entity", type(zone))
         if self._zone is not None and self._zone is not zone:
-            raise ValueError
+            raise ValueError(self.id)
         if self.parent_000c is not None and self.parent_000c != zone.id:
-            raise ValueError
+            raise ValueError(self.id, self.parent_000c, zone.id)
         elif self.parent_zone is not None and self.parent_zone != zone.id:
-            raise ValueError
+            raise ValueError(self.id, self.parent_zone, zone.id)
 
         self._zone = zone
         # self._zone.devices.append(self)
