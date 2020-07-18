@@ -19,6 +19,8 @@ from .devices import Device
 from .zones import create_zone as EvoZone
 
 _LOGGER = logging.getLogger(__name__)
+if False and __dev_mode__:
+    _LOGGER.setLevel(logging.DEBUG)
 
 
 class Message:
@@ -49,7 +51,6 @@ class Message:
         self._payload = self._str = None
 
         self._is_array = self._is_fragment = self._is_valid = None
-        # _ = self.is_valid
 
     def __repr__(self) -> str:
         return self._pkt
@@ -211,9 +212,12 @@ class Message:
         except AssertionError:  # for development only?
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
             if self.src.type == "18":  # TODO: should be a warning
-                _LOGGER.warning("%s", self._pkt, extra=self.__dict__)
+                if __dev_mode__:
+                    _LOGGER.warning(
+                        "%s < AssertionError (ignored)", self._pkt, extra=self.__dict__
+                    )
             else:
-                _LOGGER.exception("%s", self._pkt, extra=self.__dict__)
+                _LOGGER.exception("%s < AssertionError", self._pkt, extra=self.__dict__)
             self._is_valid = False
             return self._is_valid
 
@@ -264,7 +268,7 @@ class Message:
 
         elif self.code == "1F09" and self.verb == " I":
             # this is sufficient, no need for: "000A", "2309", "30C9" (list)
-            # maybe also: "0404", "0418", "313F", "2E04"
+            # TODO: maybe also: "0404", "0418", "313F", "2E04"?
             self._gwy.get_device(self.dst, controller=self.src)
 
         elif self.code == "31D9" and self.verb == " I":
@@ -293,7 +297,7 @@ class Message:
 
         else:  # finally, a catch-all
             self._gwy.get_device(self.src)
-            if self.dst is not self.src:
+            if self.dst is not self.src:  # and self.src.type != '18': KeyError
                 self._gwy.get_device(self.dst)
 
         # maybe what was an Address can now be a Device
