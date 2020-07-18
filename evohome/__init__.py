@@ -212,10 +212,12 @@ class Gateway:
                     # !T01   - cause raw data for all messages to be printed
                     await manager.put_pkt(self.config["evofw_flag"], _LOGGER)
 
+                await asyncio.sleep(0.005)  # TODO: allow to throttle this to 0
+
         async def port_writer(manager):
             while True:
                 await self._dispatch_pkt(destination=manager)
-                await asyncio.sleep(0)
+                await asyncio.sleep(0.05)  # TODO: to add code to throttle this
 
         # if self.config["known_devices"]:
         #     self.known_devices = ...
