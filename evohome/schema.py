@@ -5,7 +5,8 @@ import logging
 from typing import Tuple
 import voluptuous as vol
 
-from .const import Address, __dev_mode__
+from .const import Address, ZONE_TYPE_SLUGS, __dev_mode__
+from .zones import create_zone as EvoZone
 
 # from .zones import DhwZone, EvoZone
 
@@ -23,13 +24,6 @@ DOMAIN_ID = vol.Match(DOMAIN_ID_REGEXP)
 
 ZONE_ID_REGEXP = r"^0[0-9AB]$"
 ZONE_ID = vol.Match(ZONE_ID_REGEXP)
-ZONE_TYPES = vol.Any(
-    "radiator_valve",
-    "electric_heat",
-    "zone_valve",
-    "underfloor_heating",
-    "mixing_valve",
-)
 ZONE_SCHEMA = vol.Schema(
     {
         vol.Required(ZONE_ID): vol.Any(
@@ -39,7 +33,9 @@ ZONE_SCHEMA = vol.Schema(
                 vol.Optional("devices", default=[]): vol.Any(
                     None, vol.Schema([DEVICE_ID])
                 ),
-                vol.Optional("type", default=None): vol.Any(None, ZONE_TYPES),
+                vol.Optional("type", default=None): vol.Any(
+                    None, vol.Any(*list(ZONE_TYPE_SLUGS))
+                ),
             },
         )
     }
@@ -68,14 +64,25 @@ HW_SCHEMA = vol.Schema(
 )
 SYSTEM_SCHEMA = vol.Schema(
     {
-        vol.Required("controller"): vol.Match(r"^(01|23):[0-9]{6}$"),
-        vol.Optional("heater_relay"): vol.Any(None, vol.Match(r"^(10|13):[0-9]{6}$")),
-        vol.Optional("stored_hw"): vol.Any(None, {}, HW_SCHEMA,),
-        vol.Optional("zones"): vol.Any(
-            None, vol.All(ZONE_SCHEMA, vol.Length(min=0, max=12))
-        ),
-    },
-    extra=vol.ALLOW_EXTRA,
+        vol.Required(vol.Match(r"^(01|23):[0-9]{6}$")): vol.Schema(
+            {
+                vol.Optional("heater_relay"): vol.Any(
+                    None, vol.Match(r"^(10|13):[0-9]{6}$")
+                ),
+                vol.Optional("stored_hw"): vol.Any(None, HW_SCHEMA),
+                vol.Optional("zones"): vol.Any(
+                    None, vol.All(ZONE_SCHEMA, vol.Length(min=0, max=12))
+                ),
+            },
+            extra=vol.ALLOW_EXTRA,
+        )
+    }
+)
+ORPHAN_SCHEMA = vol.Schema(
+    {vol.Optional("orphans"): vol.Any(None, vol.All(DEVICE_ID, vol.Length(min=0)))}
+)
+GLOBAL_SCHEMA = vol.Any(
+    vol.Any(SYSTEM_SCHEMA, vol.Length(min=0)), ORPHAN_SCHEMA, extra=vol.ALLOW_EXTRA
 )
 DEVICE_SCHEMA = vol.Schema(
     {
@@ -98,7 +105,7 @@ KNOWNS_SCHEMA = vol.Schema(
 SCHEMA = vol.Schema(
     {
         vol.Optional("configuration"): CONFIG_SCHEMA,
-        vol.Optional("system_schema"): SYSTEM_SCHEMA,
+        vol.Optional("global_schema"): GLOBAL_SCHEMA,
         vol.Optional("known_devices"): KNOWNS_SCHEMA,
     }
 )
@@ -144,7 +151,7 @@ def load_config(gwy, **config) -> Tuple[dict, list, list]:
     # else:
     #     _stream = (sys.stdout, None)
 
-    schema_filename = config["schema_file"]
+    schema_filename = config.get("config_file")
 
     if schema_filename is None:
         return {}, (), ()
@@ -156,7 +163,7 @@ def load_config(gwy, **config) -> Tuple[dict, list, list]:
         return {}, (), ()
 
     config = SCHEMA(config)
-    params, schema = config["configuration"], config["system_schema"]
+    params, schema = config["configuration"], config["global_schema"]
     gwy.known_devices = config["known_devices"]
 
     allow_list = list(config["known_devices"]["allow_list"])
@@ -173,8 +180,8 @@ def load_config(gwy, **config) -> Tuple[dict, list, list]:
     else:
         _list = None
 
-    if params["use_schema"]:
-        load_schema(gwy, schema)  # regardless of filters, & updates known/allow
+    if params["use_schema"]:  # regardless of filters, & updates known/allow
+        (load_schema(gwy, k, v) for k, v in schema.items() if k != "orphans")
 
     if _list:
         allow_list += [d for d in gwy.device_by_id if d not in allow_list]
@@ -188,12 +195,14 @@ def load_config(gwy, **config) -> Tuple[dict, list, list]:
     return params, tuple(allow_list), tuple(block_list)
 
 
-def load_schema(gwy, schema, **kwargs) -> bool:
+def load_schema(gwy, controller_id, schema, **kwargs) -> bool:
     """Process the schema, and the configuration and return True if it is valid."""
     # TODO: check a sensor is not a device in another zone
 
-    ctl = Address(id=schema["controller"], type=schema["controller"][:2])
+    ctl = Address(id=controller_id, type=controller_id[:2])
     ctl = gwy.get_device(ctl, controller=ctl)
+
+    # gwy.evo = ctl if gwy.evo is None else gwy.evo
 
     if schema.get("heater_relay") is not None:
         dev = Address(id=schema["heater_relay"], type=schema["heater_relay"][:2])
@@ -214,13 +223,17 @@ def load_schema(gwy, schema, **kwargs) -> bool:
             dev = gwy.get_device(dev, controller=ctl)
             gwy.evo.dhw_relay = dev
 
-        # gwy.evo.dhw = EvoDhwZone(gwy.evo, relay=dhw_relay, dhw_sensor=dhw_sensor)
+        _ = EvoZone(gwy, ctl, "FC")  # dhw
 
-    # if schema.get("zones"):
-    #     zones = [
-    #         evoZone(evo, k, sensor=v.get("sensor"), zone_type=v.get("type"))
-    #         for k, v in schema["zones"].items()
-    #     ]
+    for ufh_ctl, ufh_schema in schema["ufh_controllers"]:
+        dev = Address(id=ufh_ctl, type=ufh_ctl[:2])
+        dev = gwy.get_device(ufh_ctl, controller=ctl)
+
+    if schema.get("zones"):
+        [
+            EvoZone(gwy, ctl, zone_idx, zone_type=attr.get("type"))
+            for zone_idx, attr in schema["zones"].items()
+        ]
 
 
 def load_filter(gwy, config, devices, **kwargs) -> Tuple[list, list]:

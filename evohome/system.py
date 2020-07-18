@@ -6,7 +6,7 @@ from typing import Any
 
 from .const import __dev_mode__
 from .devices import Controller, Device
-from .zones import Zone as EvoZone
+from .zones import Zone as EvoZone, DhwZone
 
 _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:
@@ -39,10 +39,8 @@ class EvoSystem:
         self.zone_by_id = {}
         self.zone_by_name = {}
 
-        self.dhw_zone = None
-        self._dhw_relay = None
-        self._dhw_sensor = None  # TODO: make self.dhw_zone.sensor
-        self._heat_relay = None
+        self._dhw = None
+        self._heater_relay = None
 
         self._prev_code = None
 
@@ -90,36 +88,43 @@ class EvoSystem:
         return dict(sorted(result.items()))
 
     @property
-    def _devices(self) -> dict:
-        """Return an array of device dicts, sorted by device_id."""
-        return self._entities(self.devices, "id")
-
-    @property
-    def _domains(self) -> dict:
-        """Return an array of domain dicts, sorted by domain_id."""
-        return self._entities(self.domains, "id")
-
-    @property
-    def _zones(self) -> dict:
-        """Return an array of zone dicts, sorted by zone_idx."""
-        return self._entities(self.zones, "idx")
-
-    @property
     def schema(self) -> dict:
         """Return a representation of the system schema."""
 
-        zone_sensors = {z.id: z.sensor for z in self.zones}
-        # zone_sensors = self._zones
-
-        return {
-            "controller": self.ctl.id,
-            "heater_relay": self.heat_relay.id if self.heat_relay else None,
-            "dhw_sensor": self.dhw_sensor.id if self.dhw_sensor else None,
-            "dhw_relay": self.dhw_relay.id if self.dhw_relay else None,
-            "zone_sensors": zone_sensors,
-            # "zones": [{"00": {"sensor": None, "acuators": []}}],
-            # "ufh_controllers": [],
+        schema = {
+            # "controller": self.ctl.id,
+            "heater_relay": self.heater_relay.id
+            if self.heater_relay
+            else None,
         }
+
+        stored_dhw = self.dhw.schema if self.dhw else None
+        if stored_dhw:
+            schema["stored_dhw"] = stored_dhw
+
+        schema["zones"] = {z.id: z.schema for z in self.zones}
+
+        ufh_controllers = [d.id for d in self.devices if d.type == "02"]
+        if ufh_controllers:
+            ufh_controllers.sort()
+            schema["ufh_controllers"] = ufh_controllers
+
+        systen_orphans = [
+            d.id
+            for d in self.devices
+            if d.type not in ("01", "02")
+            and d is not self.heater_relay
+            and d._zone is None
+        ]
+        if systen_orphans:
+            systen_orphans.sort()
+            schema["systen_orphans"] = systen_orphans
+
+        # orphans = [d.id for d in self._gwy.devices if d.controller is None]
+        # if orphans:
+        #     orphans.sort()
+
+        return {self.ctl.id: schema}  # , "orphans": orphans}
 
     @property
     def state_db(self) -> dict:
@@ -128,7 +133,9 @@ class EvoSystem:
         result = {}
         for evo_class in ("devices", "domains", "zones"):
             try:
-                result.update({evo_class: getattr(self, f"_{evo_class}")})
+                result.update(
+                    {evo_class: self._entities(getattr(self, evo_class), "id")}
+                )
             except AssertionError:
                 _LOGGER.exception("Failed to produce State data")
             # except (AttributeError, LookupError, TypeError, ValueError):
@@ -137,82 +144,40 @@ class EvoSystem:
         return result
 
     @property
-    def heat_relay(self) -> Device:
-        """Return the heat relay (10: or 13:) for this system."""
+    def dhw(self) -> DhwZone:
+        return self._dhw
 
-        if self._heat_relay is not None:
-            return self._heat_relay
-
-        # do something (e.g. check consistency)
-
-        return self._heat_relay
-
-    @heat_relay.setter
-    def heat_relay(self, device) -> None:
-        if not isinstance(device, Device):
-            raise TypeError
-        elif device.type not in ("10", "13"):
+    @dhw.setter
+    def dhw(self, dhw: DhwZone) -> None:
+        if not isinstance(dhw, DhwZone):
             raise ValueError
 
-        if self._heat_relay is not None and self._heat_relay != device:
+        if self._dhw is not None and self._dhw != dhw:
             raise LookupError
-        # elif device.evo is not None and device.evo != self:
-        #     raise LookupError
 
-        self.add_device(device)
-        self._heat_relay = device
+        if self._dhw is None:
+            # self.add_device(dhw.sensor); self.add_device(dhw.relay)
+            self._dhw = dhw
 
     @property
-    def dhw_relay(self) -> Device:
-        """Return the DHW realy (13:) for this system."""
+    def heater_relay(self) -> Device:
+        return self._heater_relay
 
-        if self._dhw_relay is not None:
-            return self._dhw_relay
+    @heater_relay.setter
+    def heater_relay(self, device: Device) -> None:
+        """Set the heater relay for this system (10: or 13:)."""
 
-        # do something (e.g. check consistency)
-
-        return self._dhw_relay
-
-    @dhw_relay.setter
-    def dhw_relay(self, device) -> None:
-        if not isinstance(device, Device):
+        if not isinstance(device, Device) or device.type not in ("10", "13"):
             raise TypeError
-        elif device.type != "13":
-            raise ValueError
 
-        if self._dhw_relay is not None and self._dhw_relay != device:
+        if self._heater_relay is not None and self._heater_relay != device:
             raise LookupError
         # elif device.evo is not None and device.evo != self:
-        #     raise LookupError
+        #     raise LookupError  #  do this in add_devices
 
-        self.add_device(device)
-        self._dhw_relay = device
-
-    @property
-    def dhw_sensor(self) -> Device:
-        """Return the DHW sensor (07:) for this system."""
-
-        if self._dhw_sensor is not None:
-            return self._dhw_sensor
-
-        # do something (e.g. check consistency)
-
-        return self._dhw_sensor
-
-    @dhw_sensor.setter
-    def dhw_sensor(self, device) -> None:
-        if not isinstance(device, Device):
-            raise TypeError
-        elif device.type != "07":
-            raise ValueError
-
-        if self._dhw_sensor is not None and self._dhw_sensor != device:
-            raise LookupError
-        # elif device.evo is not None and device.evo != self:
-        #     raise LookupError
-
-        self.add_device(device)
-        self._dhw_sensor = device
+        if self._heater_relay is None:
+            self._heater_relay = device
+            self.add_device(device)
 
     def _eavesdrop(self, this, last):
         """Use pairs of packets to learn something about the system."""
@@ -220,7 +185,7 @@ class EvoSystem:
         def is_exchange(this, last):  # TODO:use is?
             return this.src is last.dst and this.dst is last.src.addr
 
-        def discover_heat_relay():
+        def discover_heater_relay():
             """Discover the heat relay (10: or 13:) for this system.
 
             There's' 3 ways to find a controller's heat relay (in order of reliability):
@@ -261,7 +226,7 @@ class EvoSystem:
                         heater = last.src
 
             if heater is not None:
-                self.heat_relay = heater
+                self.heater_relay = heater
 
         def discover_dhw_sensor():
             """Discover the DHW sensor (07:) for this system.
@@ -279,12 +244,14 @@ class EvoSystem:
 
             sensor = None
 
-            if this.code == "10A0" and this.verb == "RQ":
-                if this.src.type == "07" and this.dst is self.ctl:
-                    sensor = this.src
+            if this.code == "10A0" and this.verb == "RP":
+                if this.src is self.ctl and this.dst.type == "07":
+                    sensor = this.dst
 
             if sensor is not None:
-                self.dhw_sensor = sensor
+                if self.dhw is None:
+                    self.dhw = DhwZone(self._gwy, self, "FC")
+                self.dhw.sensor = sensor
 
         if self.ctl is None:
             return
@@ -295,9 +262,9 @@ class EvoSystem:
         # if this.src.type == "01" and this.dst.controller is None:  # 3EF0
         #     this.dst.controller = this.src  # useful for TPI/OTB, uses 3EF0
 
-        # if self.heat_relay is None and this.code in ("3220", "3B00", "3EF0"):
+        # if self.heater_relay is None and this.code in ("3220", "3B00", "3EF0"):
         if this.code in ("3220", "3B00", "3EF0"):
-            discover_heat_relay()
+            discover_heater_relay()
 
         # if self.dhw_sensor is None and this.code in ("10A0"):
         if this.code in ("10A0"):

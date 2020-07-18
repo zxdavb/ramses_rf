@@ -14,6 +14,7 @@ from .const import (
     ZONE_TYPE_MAP,
     ZONE_MODE_LOOKUP,
     ZONE_MODE_MAP,
+    ZONE_TYPE_SLUGS,
     __dev_mode__,
 )
 from .devices import Entity, Device, HeatDemand, _dtm
@@ -44,7 +45,8 @@ def _temp(value) -> str:
 class ZoneBase(Entity):
     """The Domain/Zone base class."""
 
-    def __init__(self, gateway, zone_idx, system) -> None:
+    def __init__(self, gateway, system, zone_idx) -> None:
+        _LOGGER.debug("Creating a Zone, %s", zone_idx)
         super().__init__(gateway, zone_idx, controller=system.ctl)
 
         self._evo = system
@@ -68,6 +70,8 @@ class ZoneBase(Entity):
     def add_device(self, device, sensor=None, actuator=None) -> Device:
         """Add a device to this zone (add it to this system if required)."""
 
+        # device._zone = self
+
         # this will check/set the device's controller
         self._evo.add_device(device, self)
 
@@ -89,12 +93,12 @@ class DhwZone(ZoneBase, HeatDemand):
     FC - 0008, 0009, 1100, 3150, 3B00, (& rare: 0001, 1FC9)
     """
 
-    def __init__(self, gateway, zone_idx, system) -> None:
+    def __init__(self, gateway, system, zone_idx) -> None:
         _LOGGER.warning("Creating a DHW Zone, %s", zone_idx)
-        super().__init__(gateway, zone_idx, system)
+        super().__init__(gateway, system, zone_idx)
 
         # zones are children of a controller, not the gateway
-        system.dhw_zone = self
+        system.dhw = self
 
         self._relay = None
 
@@ -116,6 +120,55 @@ class DhwZone(ZoneBase, HeatDemand):
         #     _LOGGER.debug("Promoted domain %s to %s", self.id, self.cls_type)
 
     @property
+    def schema(self) -> dict:
+        """Return a representation of the DHW's schema."""
+
+        result = {}
+        if self._sensor is not None:
+            result["sensor"] = self._sensor.id
+        if self._relay is not None:
+            result["relay"] = self._relay.id
+        return result
+
+    @property
+    def sensor(self) -> Device:
+        return self._sensor
+
+    @sensor.setter
+    def sensor(self, device: Device) -> None:
+        """Set the sensor for this DHW (07:)."""
+
+        if not isinstance(device, Device) or device.type != "07":
+            raise TypeError
+
+        if self._sensor is not None and self._sensor != device:
+            raise LookupError
+        # elif device.evo is not None and device.evo != self:
+        #     raise LookupError  #  do this in add_devices
+
+        if self._sensor is None:
+            self._sensor = device
+            device._zone = self  # self.add_device(device)
+
+    @property
+    def relay(self) -> Device:
+        return self._relay
+
+    @relay.setter
+    def relay(self, device: Device) -> None:
+        if not isinstance(device, Device) or device.type != "13":
+            raise TypeError
+
+        if self._relay is not None and self._relay != device:
+            raise LookupError
+        # elif device.evo is not None and device.evo != self:
+        #     raise LookupError  #  do this in add_devices
+
+        if self._relay is None:
+            self._relay = device
+            self.add_device(device)
+
+    @property
     def relay_demand(self) -> Optional[float]:  # 0008
         return self._get_pkt_value("0008", "relay_demand")
 
@@ -130,19 +183,7 @@ class DhwZone(ZoneBase, HeatDemand):
 
     @property
     def name(self) -> Optional[str]:  # N/A
-        return "DHW Controller"
-
-    @property
-    def type(self) -> Optional[str]:
-        return self._relay.type if self._relay is not None else None
-
-    @property
-    def sensor(self) -> Optional[str]:  # TODO: WIP
-        return self._sensor.id if self._sensor is not None else None
-
-    @property
-    def relay(self) -> Optional[str]:  # TODO: WIP
-        return self._relay.id if self._sensor is not None else None
+        return "Stored HW"
 
     @property
     def setpoint_status(self):  # 1F41
@@ -225,9 +266,9 @@ class DhwZone(ZoneBase, HeatDemand):
 class Zone(ZoneBase):
     """The Zone base class."""
 
-    def __init__(self, gateway, zone_idx, system) -> None:
+    def __init__(self, gateway, system, zone_idx) -> None:
         # _LOGGER.debug("Creating a Zone, %s", zone_idx)
-        super().__init__(gateway, zone_idx, system)
+        super().__init__(gateway, system, zone_idx)
 
         # zones are children of a controller, not the gateway
         system.zones.append(self)
@@ -302,6 +343,51 @@ class Zone(ZoneBase):
                 self.cls_type = ZONE_CLASS_MAP[msg.src.type]
                 self.__class__ = _ZONE_CLASS[self.cls_type]
                 _LOGGER.debug("Promoted zone %s to %s", self.id, self.cls_type)
+
+    @property
+    def schema(self) -> dict:
+        """Return a representation of the zone's schema."""
+
+        result = {}
+        if self._sensor is not None:
+            result["sensor"] = self._sensor.id
+        if self.devices is not None:
+            result["devices"] = self.devices
+        return result
+
+    @property
+    def sensor(self) -> Device:
+        return self._sensor
+
+    @sensor.setter
+    def sensor(self, device: Device):
+        """Set the sensor for this zone (01:, 04:, 03:, 12:, 22:, 34:)."""
+
+        if not isinstance(device, Device) or not hasattr(device, "temperature"):
+            raise TypeError
+
+        if self._sensor is not None and self._sensor != device:
+            raise LookupError
+        # elif device.evo is not None and device.evo != self:
+        #     raise LookupError  #  do this in add_devices
+
+        if self._sensor is None:
+            self._sensor = device  # if TRV, zone type likely (but not req'd) RadValve
+            self.add_device(device)
+
+    @property
+    def sensors(self) -> list:
+        sensors = [
+            d for d in self.devices if hasattr(self._evo.device_by_id[d], "temperature")
+        ]
+        return list(set(sensors) | {self._sensor})
+
+    @property
+    def devices(self) -> list:  # TODO: deprecated, use d.zone from now on
+        # actuators = self._get_pkt_value("000C", "actuators")
+        devices_1 = {d.id for d in self._evo.devices if d.parent_000c == self.id}
+        devices_2 = {d.id for d in self._evo.devices if d.parent_zone == self.id}
+        return list(devices_1 | devices_2)
 
     @property
     def type(self) -> Optional[str]:
@@ -409,13 +495,6 @@ class Zone(ZoneBase):
         return ZONE_TYPE_MAP.get(self._type)
 
     @property
-    def devices(self) -> list:  # TODO: deprecated, use d.zone from now on
-        # actuators = self._get_pkt_value("000C", "actuators")
-        devices_1 = {d.id for d in self._evo.devices if d.parent_000c == self.id}
-        devices_2 = {d.id for d in self._evo.devices if d.parent_zone == self.id}
-        return list(devices_1 | devices_2)
-
-    @property
     def mode(self) -> Optional[dict]:  # 2349
         result = self._get_pkt_value("2349")
         if result:
@@ -431,24 +510,6 @@ class Zone(ZoneBase):
         if False or __dev_mode__:
             return
         return self._schedule.schedule if self._schedule else None
-
-    @property
-    def sensor(self) -> Optional[str]:
-        return self._sensor.id if self._sensor else None
-
-    @sensor.setter
-    def sensor(self, value):
-        if not isinstance(value, Device) and hasattr(value, "temperature"):
-            raise TypeError
-        # NOTE: if sensor is TRV, then zone type only likely (i.e. not reqd) RadValve
-        self._sensor = value
-
-    @property
-    def sensors(self) -> list:
-        sensors = [
-            d for d in self.devices if hasattr(self._evo.device_by_id[d], "temperature")
-        ]
-        return list(set(sensors) | {self._sensor})
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309
@@ -596,13 +657,13 @@ _ZONE_CLASS = {
 }
 
 
-def create_zone(gateway, controller, zone_idx) -> ZoneBase:
+def create_zone(gateway, controller, zone_idx, zone_type=None) -> ZoneBase:
     """Return a domain/zone, create it if required."""
 
-    if zone_idx == "FC":
-        if controller is None:
-            controller = gateway.evo.ctl
-    else:
+    if zone_idx != "FC":
+        # if controller is None:
+        #     controller = gateway.evo.ctl
+        # else:
         assert int(zone_idx, 16) < MAX_ZONES
 
     # system already should exist - otherwise will cause upstream issues
@@ -613,12 +674,11 @@ def create_zone(gateway, controller, zone_idx) -> ZoneBase:
 
     elif zone_idx == "FC":
         zone = (
-            system.dhw_zone
-            if system.dhw_zone is not None
-            else DhwZone(gateway, zone_idx, system)
+            system.dhw if system.dhw is not None else DhwZone(gateway, system, zone_idx)
         )
 
     else:
-        zone = _ZONE_CLASS.get("???", Zone)(gateway, zone_idx, system)
+        _type = ZONE_TYPE_SLUGS.get(zone_type, zone_type)
+        zone = _ZONE_CLASS.get(_type, Zone)(gateway, system, zone_idx)
 
     return zone

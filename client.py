@@ -24,11 +24,11 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.option(
     "-c",
-    "--system-config",
+    "--config-file",
     help="TBD",
     type=click.Path(),
-    default="evohome.json",
-    show_default=True,
+    # default="evohome.json",
+    # show_default=True,
 )
 @click.option("-m", "--message-log", help="TBD", type=click.Path())
 @click.option("-r", "--raw-output", help="TBD", count=True)
@@ -134,26 +134,21 @@ async def main(loop=None, **kwargs):
         for evo in gateway.systems:
             print(f"\r\nSystem schema: {evo}")
 
-            devices = [d.id for d in evo.devices]
-            devices.sort()
-            print(f" - system devices: {json.dumps(devices)}")
+            # devices = [d.id for d in evo.devices]
+            # devices.sort()
+            # print(f" - system devices: {json.dumps(devices)}")
 
         orphans = [d.id for d in gateway.devices if d.controller is None]
         orphans.sort()
         print(f"\r\nOrphan devices: {json.dumps(orphans)}")
 
     elif gateway.evo:  # kwargs["raw_output"] < DONT_CREATE_MESSAGES:
-        devices = [d.id for d in gateway.evo.devices]
-        orphans = [d.id for d in gateway.devices if d.controller is None]
-
-        devices.sort()
-        orphans.sort()
-
         print(f"\r\nSystems: {repr(gateway)}")
         for evo in gateway.systems:
             print(f"\r\nSystem schema: {evo}")
-            print(f" - system devices: {json.dumps([d.id for d in evo.devices])}")
 
+        orphans = [d.id for d in gateway.devices if d.controller is None]
+        orphans.sort()
         print(f"\r\nOrphan devices: {json.dumps(orphans)}")
 
     elif False:

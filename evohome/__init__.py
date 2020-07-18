@@ -112,7 +112,6 @@ class Gateway:
         self._include_list = self._exclude_list = []
 
         config["known_devices"] = False  # bool(self.known_devices)
-        config["schema_file"] = "evohome.json"
         params, self._include_list, self._exclude_list = load_config(self, **config)
 
     def __repr__(self) -> str:
@@ -387,15 +386,15 @@ class Gateway:
                 return
 
         except AssertionError:
-            msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
+            msg_logger.exception("%s < AssertionError", pkt.packet, extra=pkt.__dict__)
             return
 
         except NotImplementedError:
-            msg_logger.error("%s", pkt.packet, extra=pkt.__dict__)
+            msg_logger.error("%s < NotImplementedError", pkt.packet, extra=pkt.__dict__)
             return
 
         except (LookupError, TypeError, ValueError):  # TODO: shouldn't be needed
-            msg_logger.error("%s", pkt.packet, extra=pkt.__dict__)
+            msg_logger.error("%s < Coding/Logic Error", pkt.packet, extra=pkt.__dict__)
             raise
 
         try:  # create/update devices and zones
@@ -416,11 +415,10 @@ class Gateway:
             msg.update_entities()  # update the state database
 
         except AssertionError:  # TODO: for dev only?
-            msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
+            msg_logger.exception("%s < AssertionError", pkt.packet, extra=pkt.__dict__)
 
         except (LookupError, TypeError, ValueError):  # TODO: shouldn't be needed?
-            # msg_logger.exception("%s", pkt.packet, extra=pkt.__dict__)
-            msg_logger.error("%s", pkt.packet, extra=pkt.__dict__)
+            msg_logger.error("%s < Coding/Logic Error", pkt.packet, extra=pkt.__dict__)
             raise
 
         # if msg.verb == "RP" and msg.code == "0404":
