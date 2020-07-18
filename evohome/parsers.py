@@ -50,7 +50,7 @@ def _idx(seqx, msg) -> dict:
     elif msg.code in ("0002", "2D49"):  # non-evohome: hometronics
         return {"other_idx": seqx}
 
-    elif msg.code in ("0016", "3EF1"):  # WIP, not normally {"uses_zone_idx": True}
+    elif msg.code == "0016":  # WIP, not normally {"uses_zone_idx": True}
         if {"12", "22"} & {msg.src.type, msg.dst.type}:
             assert int(seqx, 16) < MAX_ZONES
             idx_name = (
@@ -81,6 +81,10 @@ def _idx(seqx, msg) -> dict:
                 "zone_idx" if msg.src.type in ("01", "02", "18") else "parent_idx"
             )
             return {idx_name: seqx}
+
+    elif msg.code == "0005":  # no RQs seeen, other than from a 18:
+        assert int(seqx, 16) < MAX_ZONES  # may or may not be true
+        return {"zone_id": seqx}  # NOTE: zone_id, *not* zone_idx
 
     assert seqx in ("00", "FF")
     return {}
@@ -120,40 +124,22 @@ def parser_decorator(func):
                 return result
             return {**_idx(payload[:2], msg), **result}
 
-        # TRV will RQ zone_name *sans* payload (reveals parent_idx)
-        if msg.code == "0004":
+        if msg.code in ("000A", "2309"):
+            if msg.src.type == "34":
+                assert msg.len == 1
+            elif msg.src.type in ("12", "22"):
+                assert msg.len == 6 if msg.code == "000A" else 3
+            else:
+                assert msg.len == 2
+            return {**_idx(payload[:2], msg)}
+
+        if msg.code in ("0004", "0005", "000C", "0016", "12B0", "30C9"):
             assert msg.len == 2
             return {**_idx(payload[:2], msg)}
 
-        if msg.code == "0005":
-            assert msg.len == 2
-            return {"zone_id": payload[:2]}  # NOTE: zone_id, *not* _idx
-
-        if msg.code == "0009":
-            # assert msg.len == 2  # never, ever got an RP
+        if msg.code == "2349":
+            assert msg.len == 7
             return {**_idx(payload[:2], msg)}
-
-        # STA will RQ zone_config, setpoint *sans* payload...
-        if msg.code in ("000A", "2309") and msg.src.type == "34":
-            assert msg.len == 1
-            return {**_idx(payload[:2], msg)}
-
-        # THM will RQ zone_config, setpoint *with* a payload...
-        if msg.code in ("000A", "2309") and msg.src.type in ("12", "22"):
-            assert msg.len == 6 if msg.code == "000A" else 3
-            return {**_idx(payload[:2], msg)}
-
-        if msg.code in ["000C", "12B0", "2349"] + ["000A", "2309", "30C9"]:
-            assert msg.len < 3  # if msg.code == "0004" else 2
-            return {**_idx(payload[:2], msg)}
-
-        if msg.code == "0016" and msg.src.type in ("12", "22"):
-            assert msg.len == 2
-            return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
-
-        if msg.code == "0016":
-            assert msg.len == 2
-            return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
 
         if msg.code == "0100":  # 04: will RQ language
             assert msg.len in (1, 5)  # len(RQ) = 5, but 00 accepted
@@ -169,6 +155,7 @@ def parser_decorator(func):
             return {"log_idx": payload[4:6]}
 
         if msg.code == "10A0" and msg.src.type == "07":  # DHW
+            assert msg.len == 6
             return func(*args, **kwargs)
 
         if msg.code == "1100":
@@ -177,15 +164,21 @@ def parser_decorator(func):
                 return func(*args, **kwargs)
             return {**_idx(payload[:2], msg)}
 
-        if msg.code in ("12B0", "2E04"):  # TODO: check 12B0
+        if msg.code == "2E04":
+            # assert msg.len == 2  # TODO: check this
             return {}
+
+        if msg.code == "12B0":
+            assert msg.len == 1  # TODO: will ctl respond to msg.len == 2?
+            return {**_idx(payload[:2], msg)}
 
         if msg.code in ("1F09"):
             # 061 RQ --- 04:189082 01:145038 --:------ 1F09 001 00
-            assert payload == "00"
+            assert payload == "00"  # implies: msg.len == 1
             return {}
 
         if msg.code == "3220":  # CTL -> OTB (OpenTherm)
+            assert msg.len == 5
             return func(*args, **kwargs)
 
         if msg.code in ("31D9", "31DA"):  # ventilation
@@ -196,8 +189,7 @@ def parser_decorator(func):
         if msg.code == "3EF1":  # and 3EF0?
             # 082 RQ --- 22:091267 01:140959 --:------ 3EF1 002 0700
             # 088 RQ --- 22:054901 13:133379 --:------ 3EF1 002 0000
-            # assert msg.len == 2
-            assert payload[2:] == "00"
+            assert payload[2:] == "00"  # implies: msg.len == 2
             return {**_idx(payload[:2], msg)}
 
         if payload == "00":  # TODO: WIP
@@ -398,6 +390,8 @@ def parser_0008(payload, msg) -> Optional[dict]:
 def parser_0009(payload, msg) -> Union[dict, list]:
     # TODO: can only be max one relay per domain/zone
     # can get: 003 or 006, e.g.: FC01FF-F901FF or FC00FF-F900FF
+    # 095  I --- 23:100224 --:------ 23:100224 0009 003 0100FF  # 2-zone ST9520C
+
     def _parser(seqx) -> dict:
         assert seqx[:2] in ("F9", "FC") or int(seqx[:2], 16) < MAX_ZONES
         assert seqx[2:4] in ("00", "01")
@@ -766,13 +760,10 @@ def parser_12a0(payload, msg) -> Optional[dict]:
 @parser_decorator  # window_state (of a device/zone)
 def parser_12b0(payload, msg) -> Optional[dict]:
     assert payload[2:] in ("0000", "C800", "FFFF")  # "FFFF" means N/A
+    # assert msg.len == 3  # implied
 
     # TODO: zone.open_window = any(TRV.open_windows)?
-    return {
-        **_idx(payload[:2], msg),
-        "window_open": _bool(payload[2:4]),
-        "unknown_0": payload[4:],
-    }
+    return {**_idx(payload[:2], msg), "window_open": _bool(payload[2:4])}
 
 
 @parser_decorator  # system_sync
@@ -965,6 +956,15 @@ def parser_2349(payload, msg) -> Optional[dict]:
         result.update({"until": _dtm(payload[14:26])})
 
     return {**_idx(payload[:2], msg), **result}
+
+
+@parser_decorator  # hometronics _state (of unknwon)
+def parser_2d49(payload, msg) -> dict:
+    assert payload[:2] in ("88", "FD") or int(payload[:2], 16) < MAX_ZONES
+    assert payload[2:] in ("0000", "C800")  # would "FFFF" mean N/A?
+    # assert msg.len == 3  # implied
+
+    return {**_idx(payload[:2], msg), "_state": _bool(payload[2:4])}
 
 
 @parser_decorator  # system_mode
