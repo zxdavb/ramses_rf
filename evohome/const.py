@@ -275,7 +275,7 @@ MAX_ZONES = 12
 
 ZONE_TABLE = {
     "UFH": {"type": "02", "name": "Underfloor Heating"},
-    "TRV": {"type": "04", "name": "Radiator Valve(s)"},
+    "TRV": {"type": "04", "name": "Radiator Valve"},
     "BDR": {"type": "13", "name": "Electric Heat"},
     "VAL": {"type": "x0", "name": "Zone Valve"},
     "MIX": {"type": "x1", "name": "Mixing Valve"},
@@ -283,7 +283,13 @@ ZONE_TABLE = {
 }
 ZONE_TYPE_MAP = {k: v["name"] for k, v in ZONE_TABLE.items()}
 ZONE_CLASS_MAP = {v["type"]: k for k, v in ZONE_TABLE.items()}
-
+ZONE_TYPE_SLUGS = {
+    "radiator_valve": "TRV",
+    "electric_heat": "BDR",
+    "zone_valve": "VAL",
+    "underfloor_heating": "UFH",
+    "mixing_valve": "MIX",
+}
 # Used by 0418/system_fault parser
 FAULT_DEVICE_CLASS = {
     "00": "Controller?",
