@@ -58,7 +58,7 @@ class Packet:
         self.src_addr = self.dst_addr = None
 
         self._is_valid = None
-        _ = self.is_valid
+        self._is_valid = self.is_valid
 
     def __str__(self) -> str:
         return self.packet if self.packet else ""
