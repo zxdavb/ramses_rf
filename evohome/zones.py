@@ -5,7 +5,6 @@ from typing import Optional
 
 from .command import Schedule
 from .const import (
-    DEVICE_TYPES,
     # DHW_STATE_LOOKUP,
     DHW_STATE_MAP,
     # DOMAIN_TYPE_MAP,
@@ -17,7 +16,7 @@ from .const import (
     ZONE_TYPE_SLUGS,
     __dev_mode__,
 )
-from .devices import Entity, Device, HeatDemand, _dtm
+from .devices import Controller, Device, Entity, HeatDemand, _dtm
 
 _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:
@@ -46,21 +45,19 @@ class ZoneBase(Entity):
     """The Domain/Zone base class."""
 
     def __init__(self, gateway, system, zone_idx) -> None:
-        _LOGGER.debug("Creating a Zone, %s", zone_idx)
+        _LOGGER.debug("Creating a zone for system %s: %s", system.ctl.id, zone_idx)
         super().__init__(gateway, zone_idx, controller=system.ctl)
 
         self._evo = system
 
-        # self.devices = []
-        # self.device_by_id = {}
-
-        self.cls_type = None
-        # self.cls_name = None
+        self.devices = []
+        self.device_by_id = {}
 
         self._sensor = None
+        self._zone_type = None
 
     def __repr__(self):
-        return f"{self.id}/{self.type} ({self.sensor})"
+        return f"{self._evo.ctl.id}/{self.id} ({self._zone_type}/{self._sensor})"
 
     def _command(self, code, **kwargs) -> None:
         kwargs["dest_addr"] = kwargs.get("dest_addr", self._gwy.evo.ctl.id)
@@ -73,7 +70,7 @@ class ZoneBase(Entity):
         # device._zone = self
 
         # this will check/set the device's controller
-        self._evo.add_device(device, self)
+        self._evo.add_device(device)
 
         if device.id not in self.device_by_id:
             self.device_by_id[device.id] = device
@@ -112,12 +109,6 @@ class DhwZone(ZoneBase, HeatDemand):
 
     def update(self, msg) -> None:
         super().update(msg)
-
-        # # try to cast a new type (must be a superclass of the current type)
-        # if msg.code in ("1100", "3150", "3B00") and self.cls_type is None:
-        #     self.cls_type = "DHW"
-        #     self.__class__ = _ZONE_CLASS[self.cls_type]
-        #     _LOGGER.debug("Promoted domain %s to %s", self.id, self.cls_type)
 
     @property
     def schema(self) -> dict:
@@ -276,8 +267,6 @@ class Zone(ZoneBase):
         # system.zone_by_name[self.name] = self
 
         self._schedule = Schedule(gateway, zone_idx)
-        self._type = None
-
         self._discover()  # should be last thing in __init__()
 
     def _discover(self):
@@ -312,37 +301,25 @@ class Zone(ZoneBase):
     def update(self, msg):
         super().update(msg)
 
-        if self._sensor is None:
-            _ = self.sensor
-
-        if self._type is None:
-            _ = self.type
-
         # not UFH (it seems), but BDR or VAL; and possibly a MIX support 0008 too
         if msg.code in ("0008", "0009"):  # TODO: how to determine is/isn't MIX?
             assert msg.src.type in ("01", "13")  # 01 as a stat
+            assert self._zone_type in (None, "BDR", "VAL")
 
-            if self.cls_type is not None:
-                assert self.cls_type in ("BDR", "VAL")
-            else:
-                self.cls_type = "BDR"
-                self.__class__ = _ZONE_CLASS[self.cls_type]
-                _LOGGER.debug("Promoted zone %s to %s", self.id, self.cls_type)
+            if self._zone_type is None:
+                self.type = "BDR"  # could also be: "VAL"
 
-        if msg.code == "0404" and msg.verb == "RP":
+        elif msg.code == "0404" and msg.verb == "RP":
             _LOGGER.debug("Zone(%s).update: Received RP for zone: ", self.id)
             self._schedule.add_fragment(msg)
 
-        if msg.code == "3150":  # TODO: and msg.verb in (" I", "RP")?
+        elif msg.code == "3150":  # TODO: and msg.verb in (" I", "RP")?
             assert msg.src.type in ("02", "04", "13")
-
-            if self.cls_type:
-                return
+            assert self._zone_type in (None, "TRV", "UFH", "VAL")
 
             if msg.src.type in ("02", "04", "13"):
-                self.cls_type = ZONE_CLASS_MAP[msg.src.type]
-                self.__class__ = _ZONE_CLASS[self.cls_type]
-                _LOGGER.debug("Promoted zone %s to %s", self.id, self.cls_type)
+                zone_type = ZONE_CLASS_MAP[msg.src.type]
+                self.type = "VAL" if zone_type == "BDR" else zone_type
 
     @property
     def schema(self) -> dict:
@@ -352,7 +329,7 @@ class Zone(ZoneBase):
         if self._sensor is not None:
             result["sensor"] = self._sensor.id
         if self.devices is not None:
-            result["devices"] = self.devices
+            result["devices"] = [d.id for d in self.devices]
         return result
 
     @property
@@ -364,9 +341,10 @@ class Zone(ZoneBase):
         """Set the sensor for this zone (01:, 04:, 03:, 12:, 22:, 34:)."""
 
         if not isinstance(device, Device) or not hasattr(device, "temperature"):
-            raise TypeError
+            if not isinstance(device, Controller):
+                raise TypeError
 
-        if self._sensor is not None and self._sensor != device:
+        if self._sensor is not None and self._sensor is not device:
             raise LookupError
         # elif device.evo is not None and device.evo != self:
         #     raise LookupError  #  do this in add_devices
@@ -376,39 +354,38 @@ class Zone(ZoneBase):
             self.add_device(device)
 
     @property
-    def sensors(self) -> list:
-        sensors = [
-            d for d in self.devices if hasattr(self._evo.device_by_id[d], "temperature")
-        ]
-        return list(set(sensors) | {self._sensor})
-
-    @property
-    def devices(self) -> list:  # TODO: deprecated, use d.zone from now on
-        # actuators = self._get_pkt_value("000C", "actuators")
-        devices_1 = {d.id for d in self._evo.devices if d.parent_000c == self.id}
-        devices_2 = {d.id for d in self._evo.devices if d.parent_zone == self.id}
-        return list(devices_1 | devices_2)
-
-    @property
     def type(self) -> Optional[str]:
-        if self._type is not None:  # isinstance(self, ???)
-            return self._type
+        if self._zone_type is not None:  # isinstance(self, ???)
+            return self._zone_type
 
         # TODO: try to cast an initial type
         for device in self.devices:
-            device_type = DEVICE_TYPES[device[:2]]
+            device_type = device.dev_type  # DEVICE_TYPES[device[:2]]
             if device_type in _ZONE_CLASS:
-                self._type = device_type
-                self.__class__ = _ZONE_CLASS[self._type]
-                _LOGGER.debug("Set Zone type %s to %s", self.id, self._type)
+                self._zone_type = device_type
+                self.__class__ = _ZONE_CLASS[self._zone_type]
+                _LOGGER.debug("Set Zone type %s to %s", self.id, self._zone_type)
                 break
 
-        return self._type
+        return self._zone_type
 
     @type.setter
-    def type(self, value):
-        assert value in _ZONE_CLASS
-        self._type = value
+    def type(self, value: str):
+        """Set the zone's type.
+
+        There are two possible sources for the type of a zone:
+        1. eavesdropping packet codes
+        2. analyzing child devices
+
+        Both will execute a zone.type = type (i.e. via this setter).
+        """
+
+        if value not in _ZONE_CLASS:
+            raise ValueError
+
+        self._zone_type = value
+        self.__class__ = _ZONE_CLASS[value]
+        _LOGGER.debug("Promoted zone %s to %s", self.id, self._zone_type)
 
     async def async_cancel_override(self) -> bool:  # 2349
         """Revert to following the schedule."""
@@ -492,7 +469,7 @@ class Zone(ZoneBase):
 
     @property
     def description(self) -> str:
-        return ZONE_TYPE_MAP.get(self._type)
+        return ZONE_TYPE_MAP.get(self._zone_type)
 
     @property
     def mode(self) -> Optional[dict]:  # 2349
@@ -590,10 +567,8 @@ class BdrZone(Zone):  # Electric zones (do *not* call for heat)
         super().update(msg)
 
         # ZV zones are Elec zones that also call for heat; ? and also 1100/unkown_0 = 00
-        if msg.code == "3150" and self.cls_type != "VAL":
-            self.cls_type = "VAL"
-            self.__class__ = _ZONE_CLASS[self.cls_type]
-            _LOGGER.debug("Promoted zone %s to %s", self.id, self.cls_type)
+        if msg.code == "3150" and self._zone_type != "VAL":
+            self.type = "VAL"
 
     @property
     def actuator_enabled(self) -> Optional[bool]:  # 3EF0

@@ -457,7 +457,7 @@ class Gateway:
         """
 
         ctl = None if controller is None else self.get_device(controller)
-        _ = None if ctl is None else self.get_system(ctl)
+        evo = None if ctl is None else self.get_system(ctl)
 
         # assert address.type in known device types - maybe do in Device.__init__()?
         if address.type in ("63", "--"):
@@ -471,11 +471,11 @@ class Gateway:
         if dev.type == "18":
             return dev  # 18: _is_ a device, but there's no value in tracking it
 
-        if ctl is not None:  # and dev.controller is None:
+        if ctl is not None:
             dev.controller = ctl  # TODO: a bit messy
 
-        if parent_000c is not None:
-            dev.parent_000c = parent_000c
+            if parent_000c is not None:
+                dev.parent_000c = evo.zone_by_id[parent_000c]
 
         return dev
 

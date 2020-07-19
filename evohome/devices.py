@@ -81,10 +81,11 @@ class Entity:
     def __init__(self, gateway, entity_id, controller=None) -> None:
         self._gwy = gateway
         self._que = gateway.cmd_que
-        self._evo = None
 
         self.id = entity_id
-        self._controller = controller
+
+        self._ctl = controller
+        self._evo = gateway.system_by_id.get(controller)
 
         self._pkts = {}
         self._domain = {}
@@ -112,45 +113,44 @@ class Entity:
 
         TBD: If the controller is not known, try to find it.
         """
-        if self._controller is not None:
-            return self._controller
+        if self._ctl is not None:
+            return self._ctl
 
         # for msg in self._pkts.values():
         #     if not msg.dst.type.is_controller:
-        #         self.controller = msg.dst  # useful for UFH
+        #         self._ctl = msg.dst  # useful for UFH
         #     # elif msg.src.type == "01":  # msg.src.is_controller
-        #     #     self.controller = msg.src  # useful for TPI, not useful for OTB
+        #     #     self.cont_ctlroller = msg.src  # useful for TPI, not useful for OTB
 
         # return self._controller
 
     @controller.setter
     def controller(self, controller) -> None:
-        """Set the entity's controller.
-
-        It is assumed that, once set, it never changes.
-        """
         # if not isinstance(controller, Controller) and not controller.is_controller:
         #     raise TypeError  # TODO
 
-        if self._controller is None:
-            self._controller = controller
+        if not isinstance(controller, Controller) and controller._ctl is not controller:
+            raise TypeError(f"{controller} is not a Controller")
 
-            if isinstance(self, Device):  # instead of a zone
-                if self._evo is None:
-                    self._evo = self._gwy.system_by_id[controller.id]
-
-                if self._evo is not None and self.id not in self._evo.device_by_id:
-                    self._evo.devices.append(self)
-                    self._evo.device_by_id[self.id] = self
-            # else:
-            #     self._evo.domains.append(self)
-            #     self._evo.domain_by_id[self.id] = self
-            #     if self.name is not None:
-            #         self._controller.domain_by_name[self.name] = self
-
-        elif self._controller is not controller:
+        if self._ctl is not None and self._ctl is not controller:
             # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5
             raise CorruptStateError("Two controllers per system")
+
+        if self._ctl is None:
+            self._ctl = controller
+
+        if isinstance(self, Device):  # instead of a zone
+            if self._evo is None:
+                self._evo = self._gwy.system_by_id[controller.id]
+
+            if self._evo is not None and self.id not in self._evo.device_by_id:
+                self._evo.devices.append(self)
+                self._evo.device_by_id[self.id] = self
+        # else:
+        #     self._evo.domains.append(self)
+        #     self._evo.domain_by_id[self.id] = self
+        #     if self.name is not None:
+        #         self._controller.domain_by_name[self.name] = self
 
     def _command(self, code, **kwargs) -> None:
         dest = kwargs.get("dest_addr", self.id)
@@ -271,8 +271,8 @@ class Device(Entity):
         self.addr = device_addr
         self.type = device_addr.type
 
-        self.cls_type = DEVICE_TYPES.get(self.addr.type)
-        self.cls_name = DEVICE_CLASSES.get(self.cls_type)
+        self.dev_type = DEVICE_TYPES.get(self.addr.type)
+        self.cls_name = DEVICE_CLASSES.get(self.dev_type)
 
         self.hex_id = dev_id_to_hex(device_addr.id)
 
@@ -285,7 +285,7 @@ class Device(Entity):
             self._is_actuator = None
             self._is_sensor = None
 
-        self._zone = self._parent_000c = None  # parent zone object
+        self._zone = self._parent_zone = self._parent_000c = None  # parent zone object
 
         attrs = gateway.known_devices.get(device_addr.id)
         self._friendly_name = attrs.get("friendly_name") if attrs else None
@@ -294,105 +294,7 @@ class Device(Entity):
         self._discover()
 
     def __repr__(self):
-        return f"{self.id}/{self.cls_type}"
-
-    @property
-    def parent_zone(self) -> Optional[str]:
-        """Return the id of the device's parent zone as per packet payload."""
-
-        zone_ids = [
-            m.payload["parent_idx"]
-            for m in self._pkts.values()
-            if "parent_idx" in m.payload
-        ]
-
-        if len(zone_ids) == 0:
-            return
-        elif len(zone_ids) != 1:
-            # this can happen when a devices is intentionally moved to another zone
-            if not all(z == zone_ids[0] for z in zone_ids):
-                raise CorruptStateError(
-                    f"{self.id} has mismatched parent_zones: {zone_ids}"
-                )
-
-        # zone = self._evo.zone_by_id[zone_ids[0]]
-        # if self not in zone.devices:
-        #     zone.devices.append(self)
-        #     zone.device_by_id[self.id] = self
-
-        return zone_ids[0]
-
-    @property
-    def parent_000c(self) -> Optional[str]:
-        """Return the id of the device's parent zone as per 000C packet payload."""
-        return self._parent_000c
-
-    @parent_000c.setter
-    def parent_000c(self, zone_id: str) -> None:
-        """Set the id of the device's parent zone as per 000C packet payload."""
-        assert zone_id in self._evo.zone_by_id, "unknown zone"
-
-        if self._parent_000c == zone_id:
-            return
-
-        # zone = self._evo.zone_by_id[zone_id]
-        # if self not in zone.devices:
-        #     zone.devices.append(self)
-        #     zone.device_by_id[self.id] = self
-
-        self._parent_000c = zone_id
-
-    @property
-    def zone(self) -> Optional[str]:
-        """Return the device's parent zone, if known, else try to find it."""
-        if self._zone is not None:
-            if self.parent_000c is not None and self._zone.id != self.parent_000c:
-                raise CorruptStateError(
-                    f"parent zone for {self.id} ({self.temperature}) is matched as: "
-                    f"{self._zone.id}, but should be: {self.parent_000c}"
-                )
-            if self.parent_zone is not None and self._zone.id != self.parent_zone:
-                raise CorruptStateError(
-                    f"parent zone for {self.id} ({self.temperature}) is matched as: "
-                    f"{self._zone.id}, but should be: {self.parent_zone}"
-                )
-
-        else:
-            zone_id = None
-            if self.parent_000c is not None:
-                zone_id = self.parent_000c
-            elif self.parent_zone is not None:
-                zone_id = self.parent_zone
-
-            if zone_id is not None and self._evo:
-                self._zone = self._evo.zone_by_id.get(zone_id)
-
-        return self._zone
-
-    @zone.setter
-    def zone(self, zone: Entity) -> None:
-        """Set the device's zone via the temperature matching algorithm."""
-
-        if self._zone is zone:
-            return
-
-        if zone == "FC":
-            assert self.type == "13"
-            self._zone = None
-            return
-
-        if not isinstance(zone, Entity):
-            raise ValueError(f"zone is not an Entity", type(zone))
-        if self._zone is not None and self._zone is not zone:
-            raise ValueError(self.id)
-        if self.parent_000c is not None and self.parent_000c != zone.id:
-            raise ValueError(self.id, self.parent_000c, zone.id)
-        elif self.parent_zone is not None and self.parent_zone != zone.id:
-            raise ValueError(self.id, self.parent_zone, zone.id)
-
-        self._zone = zone
-        # self._zone.devices.append(self)
-        # self._zone.device_by_id[self.id] = self
+        return f"{self.id} ({self.dev_type})"
 
     def _discover(self):
         # do these even if battery-powered (e.g. device might be in rf_check mode)
@@ -408,9 +310,104 @@ class Device(Entity):
         #             continue
         #         self._command(code, payload="0000" if code != "1F09" else "00")
 
+    def update(self, msg) -> None:
+        super().update(msg)
+
+        if "parent_idx" not in msg.payload:
+            return
+
+        zone = self._evo.zone_by_id.get(msg.payload["parent_idx"])
+
+        if zone is not None and self._parent_zone is None:
+            self._parent_zone = zone
+            self.zone = zone
+
+        elif zone is not self._parent_zone:
+            raise CorruptStateError(
+                f"{self.id} has mismatched parent_zones: old="
+                f"{self._parent_zone}, new={zone}"
+            )
+
     @property
-    def description(self) -> Optional[str]:  # 10E0
-        return self._get_pkt_value("10E0", "description")
+    def parent_zone(self) -> Optional[Entity]:
+        """Return the device's parent zone as per packet payload."""
+        return self._parent_zone
+
+    @property
+    def parent_000c(self) -> Optional[Entity]:
+        """Return the id of the device's parent zone as per 000C packet payload."""
+        return self._parent_000c
+
+    @parent_000c.setter
+    def parent_000c(self, zone: Entity) -> None:  # should be: zone: Zone
+        """Set the id of the device's parent zone as per 000C packet payload."""
+
+        if zone is not None and self._parent_000c is None:
+            self._parent_000c = zone
+            self.zone = zone
+
+        elif zone is not self._parent_000c:
+            raise CorruptStateError(
+                f"{self.id} has mismatched parent_000Cs: old="
+                f"{self._parent_000c}, new={zone}"
+            )
+
+    @property
+    def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
+        """Return the device's parent zone, if known."""
+
+        return self._zone
+
+    @zone.setter
+    def zone(self, zone: Entity) -> None:  # should be: zone: Zone
+        """Set the device's parent zone.
+
+        There are three possible sources for the parent zone of a device:
+        1. a 000C packet (from their controller) for actuators only
+        2. a message.payload["zone_idx"]
+        3. the sensor-matching algorithm fro zone sensors only
+
+        All three will execute a dev.zone = zone (i.e. via this setter).
+
+        Devices don't have parents, rather: Zones have children; a mis-configured
+        system could have a device as a child of two domains.
+        """
+
+        if zone == "FC":  # a special case
+            assert self.type == "13"
+            self._zone = None  # TODO: should be a DhwZone
+            return
+
+        if not isinstance(zone, Entity):  # should be: Zone)
+            raise TypeError(f"zone is not an Entity", type(zone))
+        if self._zone is not None and self._zone is not zone:
+            raise CorruptStateError(
+                f"{self.id} has mismatched parent zones: old="
+                f"{self._zone}, new={zone}"
+            )
+        if self._parent_000c is not None and self._parent_000c is not zone:
+            raise CorruptStateError(
+                f"{self.id} has mismatched parent zones: old="
+                f"{self._parent_000c}, new={zone}"
+            )
+        elif self._parent_zone is not None and self._parent_zone != zone:
+            raise CorruptStateError(
+                f"{self.id} has mismatched parent zones: old="
+                f"{self._parent_zone}, new={zone}"
+            )
+
+        self._zone = zone
+        if self not in zone.devices:
+            zone.devices.append(self)
+            zone.device_by_id[self.id] = self
+
+    @property
+    def description(self) -> Optional[str]:
+        return DEVICE_TABLE[self.type]["name"] if self.type in DEVICE_TABLE else None
+
+    @property
+    def hardware_info(self) -> Optional[str]:  # 10E0
+        return self._get_pkt_value("10E0")
 
     @property
     def has_battery(self) -> Optional[bool]:  # 1060
@@ -427,7 +424,7 @@ class Device(Entity):
 
     @property
     def is_controller(self) -> Optional[bool]:  # 1F09
-        if self.controller is self:
+        if self._ctl is self:
             return True
         # if isinstance(self, Controller):
         #     return True
@@ -440,7 +437,7 @@ class Device(Entity):
         return False
 
     @property
-    def pkt_1fc9(self) -> list:  # TODO: make private
+    def _pkt_1fc9(self) -> list:
         return self._get_pkt_value("1FC9")  # we want the RPs
 
     @property
@@ -609,7 +606,7 @@ class Controller(Device):
 
                 if len(sensors) == 1:
                     _LOGGER.debug("   - matched sensor: %s", sensors[0].id)
-                    z._sensor = sensors[0]
+                    z.sensor = sensors[0]
                     sensors[0].controller, sensors[0].zone = self, z
                 elif len(sensors) == 0:
                     _LOGGER.debug("   - no matching sensor (uses CTL?)")
@@ -637,7 +634,7 @@ class Controller(Device):
             )
             if len(sensors) == 1:
                 _LOGGER.debug("   - sensor is CTL by exclusion: %s", self.id)
-                zones[0]._sensor = self
+                zones[0].sensor = self
                 self.controller, self.zone = self, zones[0]
 
             _LOGGER.debug("System zone/sensor pairs: %s", self._evo)
@@ -828,8 +825,8 @@ class BdrSwitch(Device, Actuator):
     def is_tpi(self) -> Optional[bool]:  # 3B00
         def make_tpi():
             self.__class__ = TpiSwitch
-            self.cls_type = "TPI"
-            _LOGGER.debug("Promoted device %s to %s", self.id, self.cls_type)
+            self.dev_type = "TPI"
+            _LOGGER.debug("Promoted device %s to %s", self.id, self.dev_type)
 
             self._is_tpi = True
             self.zone = "FC"  # EvoZone(self._gwy, self._gwy.evo.ctl, "FC")

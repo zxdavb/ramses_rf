@@ -31,9 +31,9 @@ class EvoSystem:
         gateway.systems.append(self)
         gateway.system_by_id[controller.id] = self
 
-        self.devices = []
-        self.device_by_id = {}
-        self.add_device(controller)
+        self.devices = [controller]
+        self.device_by_id = {controller.id: controller}
+        controller._ctl = controller
 
         self.zones = []
         self.zone_by_id = {}

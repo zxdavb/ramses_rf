@@ -9,8 +9,8 @@ from threading import Lock
 # from time import sleep
 from typing import Optional, Tuple
 
-from serial import SerialException
-from serial_asyncio import open_serial_connection
+from serial import SerialException  # noqa
+from serial_asyncio import open_serial_connection  # noqa
 
 from .command import PAUSE_DEFAULT, PAUSE_SHORT
 from .const import (
@@ -76,7 +76,7 @@ class Packet:
         """Return True if a valid packets, otherwise return False/None & log it."""
         # 'good' packets are not logged here, as they may be for silent discarding
 
-        def _validate_addresses() -> Optional[bool]:
+        def validate_addresses() -> Optional[bool]:
             """Return True if the address fields are valid (create any addresses)."""
             for idx, addr in enumerate(
                 [self.packet[i : i + 9] for i in range(11, 32, 10)]
@@ -104,10 +104,9 @@ class Packet:
             self.src_addr = device_addrs[0]
             self.dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEVICE
 
-            if (
-                self.src_addr.id != self.dst_addr.id
-                and self.src_addr.type == self.dst_addr.type
-            ):
+            if self.src_addr.id == self.dst_addr.id:
+                self.src_addr = self.dst_addr
+            elif self.src_addr.type == self.dst_addr.type:
                 # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5 (invalid)
                 return False
 
@@ -130,7 +129,7 @@ class Packet:
         # TODO: these packets shouldn't go to the packet log, only STDERR?
         if not MESSAGE_REGEX.match(self.packet):
             err_msg = "invalid packet structure"
-        elif not _validate_addresses():
+        elif not validate_addresses():
             err_msg = "invalid packet addresses"
         elif int(self.packet[46:49]) > 48:
             err_msg = "excessive payload length"
