@@ -1,5 +1,5 @@
 """The entities for Honeywell's RAMSES II / Residential Network Protocol."""
-# import asyncio
+import asyncio
 from datetime import datetime as dt, timedelta
 import json
 import logging
@@ -10,11 +10,14 @@ from .command import (
     PAUSE_DEFAULT,
     PRIORITY_DEFAULT,
     PRIORITY_HIGH,
+    PRIORITY_ASAP,
     PRIORITY_LOW,
+    RQ_RETRY_LIMIT,
+    RQ_TIMEOUT,
 )
 from .const import (
-    # CODE_SCHEMA,
     DEVICE_CLASSES,
+    DEVICE_HAS_ZONE_SENSOR,
     DEVICE_LOOKUP,
     DEVICE_TABLE,
     DEVICE_TYPES,
@@ -26,7 +29,7 @@ from .exceptions import CorruptStateError
 
 
 _LOGGER = logging.getLogger(__name__)
-if False and __dev_mode__:
+if True and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
@@ -157,6 +160,8 @@ class Entity:
         verb = kwargs.get("verb", "RQ")
         payload = kwargs.get("payload", "00")
 
+        self._pkts.pop(code, None)  # remove the old one, so we can tell if RP'd
+
         priority_default = PRIORITY_HIGH if verb == " W" else PRIORITY_DEFAULT
         kwargs = {
             "pause": kwargs.get("pause", PAUSE_DEFAULT),
@@ -178,7 +183,11 @@ class Entity:
                 return self._pkts[code].payload.get(key)
 
             result = self._pkts[code].payload
-            return {k: v for k, v in result.items() if k[:1] != "_"}
+            return {
+                k: v
+                for k, v in result.items()
+                if k[:1] != "_" and k not in ("domain_id", "zone_idx")
+            }
 
     def update(self, msg) -> None:
         self._last_msg = msg  # f"{msg.date}T{msg.time}"
@@ -509,135 +518,145 @@ class Controller(Device):
 
             The temperature of each zone is reliably known (30C9 array), but the sensor
             for each zone is not. In particular, the controller may be a sensor for a
-            zone, but it does not announce its temperatures.
+            zone, but unfortunately it does not announce its sensor temperatures.
 
-            In addition, there may be 'orphan' (i.e. from a neighbour) sensors
-            announcing temperatures.
+            In addition, there may be 'orphan' (e.g. from a neighbour) sensors
+            announcing temperatures with the same value.
 
             This leaves only a process of exclusion as a means to determine which zone
             uses the controller as a sensor.
             """
 
-            _LOGGER.debug("System zone/sensor pairs (before): %s", self._evo)
+            # A reasonable assumption from this point on: a zone's _temperature attr has
+            # just been updated via the controller's 30C9 pkt, and hasn't changed since.
+            # It's also assumed that the gateway (18:) has received the same 30C9 pkts
+            # from the sensors as the controller has: for some this may not be reliable.
+            # The final assumption: the controller, as a sensor, has a temp distinct
+            # from all others (so another sensor isn't matched to the controllers zone).
+            # If required (and it's not clear that it is required), the above can be
+            # mitigated by confirming a sensor after two (consistent) matches.
 
             prev_msg, self._prev_30c9 = self._prev_30c9, msg
             if prev_msg is None:
                 return
 
+            if len([z for z in self._evo.zones if z.sensor is None]) == 0:
+                return  # (currently) no zone without a sensor
+
+            # if self._gwy.serial_port:  # only if in monitor mode...
+            secs = self._get_pkt_value("1F09", "remaining_seconds")
+            if secs is None or msg.dtm > prev_msg.dtm + timedelta(seconds=secs):
+                return  # only compare against 30C9 (array) pkt from the last cycle
+
+            _LOGGER.debug("System state (before): %s", self._evo)
+
+            changed_zones = {
+                z["zone_idx"]: z["temperature"]
+                for z in msg.payload
+                if z not in prev_msg.payload
+            }  # zones with changed temps
+            _LOGGER.debug("Changed zones (from 30C9): %s", changed_zones)
+            if not changed_zones:
+                return  # ctl's 30C9 says no zones have changed temps during this cycle
+
+            testable_zones = {
+                z: t
+                for z, t in changed_zones.items()
+                if self._evo.zone_by_id[z].sensor is None
+                and t not in [v for k, v in changed_zones.items() if k != z] + [None]
+            }  # ...with unique (non-null) temps, and no sensor
             _LOGGER.debug(
-                "System zones: %s", {z.id: z.temperature for z in self._evo.zones}
+                " - with unique/non-null temps (from 30C9), no sensor (from state): %s",
+                testable_zones,
             )
-            _LOGGER.debug(
-                " - without sensor: %s",
-                {z.id: z.temperature for z in self._evo.zones if z.sensor is None},
-            )
+            if not testable_zones:
+                return  # no testable zones
 
-            # TODO: use only packets from last cycle
-
-            old, new = prev_msg.payload, msg.payload
-            zones = [self._evo.zone_by_id[z["zone_idx"]] for z in new if z not in old]
-            _LOGGER.debug("Changed zones: %s", {z.id: z.temperature for z in zones})
-            if not zones:
-                return  # no system zones have changed their temp since the last cycle
-
-            test_zones = [
-                z
-                for z in zones
-                if z.sensor is None
-                and z.temperature
-                not in [x.temperature for x in zones if x != z] + [None]
+            testable_sensors = [
+                d
+                for d in self._gwy.devices  # not: self._evo.devices
+                if d._evo in (self._evo, None)
+                and d.addr.type in DEVICE_HAS_ZONE_SENSOR
+                and d.temperature is not None
+                and d._pkts["30C9"].dtm > prev_msg.dtm  # changed temp during last cycle
             ]
-            _LOGGER.debug(" - testable: %s", {z.id: z.temperature for z in test_zones})
-            if not test_zones:
-                return  # no changed zones have unique, non-null temps
-
-            evo_sensors = [
-                d
-                for d in self._evo.devices
-                if hasattr(d, "temperature")
-                and d.temperature is not None
-                and d.addr.type != "07"
-            ]  # and d.zone is None - *can't* use this here
-            _LOGGER.debug(
-                "System sensors: %s", {d.id: d.temperature for d in evo_sensors}
-            )
-
-            gwy_sensors = [
-                d
-                for d in self._gwy.devices
-                if hasattr(d, "temperature")
-                and d.temperature is not None
-                and d.addr.type != "07"
-                and d.zone is None
-                and d not in [x for x in evo_sensors]
-            ]  # and d.zone is None - *can* use this here, can also leave
-            _LOGGER.debug(
-                " - orphan sensors: %s (those without a parent zone)",
-                {d.id: d.temperature for d in gwy_sensors},
-            )
-
-            test_sensors = [
-                d
-                for d in evo_sensors + gwy_sensors
-                if d._pkts["30C9"].dtm > prev_msg.dtm
-            ]  # if have also *changed* their temp since the last cycle
 
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug(
-                    "Testable zones: %s (have changed and are sensorless)",
-                    {z.id: z.temperature for z in test_zones},
+                    "Testable zones: %s (unique/non-null temps & sensorless)",
+                    testable_zones,
                 )
                 _LOGGER.debug(
-                    " - testable sensors: %s (have changed, orphans/from this system)",
-                    {d.id: d.temperature for d in test_sensors},
+                    "Testable sensors: %s (non-null temps & orphans or zoneless)",
+                    {d.id: d.temperature for d in testable_sensors},
                 )
 
-            for z in test_zones:
-                sensors = [
-                    d
-                    for d in test_sensors
-                    if d.temperature == z.temperature and d._zone in (z, None)
-                ]
-                _LOGGER.debug("Testing zone %s, temp: %s", z.id, z.temperature)
-                _LOGGER.debug(
-                    " - possible sensors: %s (with same temp & not from another zone)",
-                    {d.id: d.temperature for d in sensors},
-                )
+            if testable_sensors:  # the main matching algorithm...
+                for zone_id, temp in testable_zones.items():
+                    # TODO: when sensors announce temp, ?also includes it's parent zone
+                    matching_sensors = [
+                        s
+                        for s in testable_sensors
+                        if s.temperature == temp and s._zone in (zone_id, None)
+                    ]
+                    _LOGGER.debug("Testing zone %s, temp: %s", zone_id, temp)
+                    _LOGGER.debug(
+                        " - matching sensor(s): %s (same temp & not from another zone)",
+                        [s.id for s in matching_sensors],
+                    )
 
-                if len(sensors) == 1:
-                    _LOGGER.debug("   - matched sensor: %s", sensors[0].id)
-                    z.sensor = sensors[0]
-                    sensors[0].controller, sensors[0].zone = self, z
-                elif len(sensors) == 0:
-                    _LOGGER.debug("   - no matching sensor (uses CTL?)")
-                else:
-                    _LOGGER.debug("   - multiple sensors: %s", sensors)
+                    if len(matching_sensors) == 1:
+                        _LOGGER.debug("   - matched sensor: %s", matching_sensors[0].id)
+                        zone = self._evo.zone_by_id[zone_id]
+                        zone.sensor = matching_sensors[0]
+                        zone.sensor.controller = self
+                    elif len(matching_sensors) == 0:
+                        _LOGGER.debug("   - no matching sensor (uses CTL?)")
+                    else:
+                        _LOGGER.debug("   - multiple sensors: %s", matching_sensors)
 
-            _LOGGER.debug("System zone/sensor pairs (after): %s", self._evo)
+                _LOGGER.debug("System state (after): %s", self._evo)
 
             # now see if we can allocate the controller as a sensor...
-            zones = [z for z in self._evo.zones if z.sensor is None]
-            if len(zones) != 1:
+            if self._zone is not None:
+                return  # the controller has already been allocated
+            if len([z for z in self._evo.zones if z.sensor is None]) != 1:
                 return  # no single zone without a sensor
 
+            testable_zones = {
+                z: t
+                for z, t in changed_zones.items()
+                if self._evo.zone_by_id[z].sensor is None
+            }  # this will be true if ctl is sensor
+            if not testable_zones:
+                return  # no testable zones
+
+            zone_id, temp = list(testable_zones.items())[0]
+            _LOGGER.debug("Testing (sole remaining) zone %s, temp: %s", zone_id, temp)
+            # want to avoid complexity of z._temperature
+            # zone = self._evo.zone_by_id[zone_id]
+            # if zone._temperature is None:
+            #     return  # TODO: should have a (not-None) temperature
+
+            matching_sensors = [
+                s
+                for s in testable_sensors
+                if s.temperature == temp and s._zone in (zone_id, None)
+            ]
+
             _LOGGER.debug(
-                "TESTING zone %s, temp: %s", zones[0].id, zones[0].temperature
+                " - matching sensor(s): %s (excl. controller)",
+                [s.id for s in matching_sensors],
             )
 
             # can safely(?) assume this zone is using the CTL as a sensor...
-            if self.zone is not None:
-                raise ValueError("Controller has already been allocated!")
+            if len(matching_sensors) == 0:
+                _LOGGER.debug("   - matched sensor: %s (by exclusion)", self.id)
+                zone = self._evo.zone_by_id[zone_id]
+                zone.sensor = self
+                zone.sensor.controller = self
 
-            sensors = [d for d in evo_sensors if d.zone is None] + [self.id]
-            _LOGGER.debug(
-                " - zoneless sensors: %s (from this system, incl. controller)", sensors
-            )
-            if len(sensors) == 1:
-                _LOGGER.debug("   - sensor is CTL by exclusion: %s", self.id)
-                zones[0].sensor = self
-                self.controller, self.zone = self, zones[0]
-
-            _LOGGER.debug("System zone/sensor pairs: %s", self._evo)
+            _LOGGER.debug("System state (finally): %s", self._evo)
 
         if msg.code in ("000A", "2309", "30C9") and not isinstance(msg.payload, list):
             pass
@@ -656,12 +675,7 @@ class Controller(Device):
             if msg.dst.type == "10":  # this is the OTB
                 pass
 
-    async def async_reset_mode(self) -> bool:  # 2E04
-        """Revert the system mode to Auto mode."""
-        self._command("2E04", verb=" W", payload="00FFFFFFFFFFFF00")
-        return False
-
-    async def async_set_mode(self, mode, until=None) -> bool:  # 2E04
+    async def _set_mode(self, mode, until=None):  # 2E04
         """Set the system mode for a specified duration, or indefinitely."""
 
         if isinstance(mode, int):
@@ -677,7 +691,10 @@ class Controller(Device):
         until = _dtm(until) + "00" if until is None else "01"
 
         self._command("2E04", verb=" W", payload=f"{mode}{until}")
-        return False
+
+    async def _reset_mode(self):  # 2E04
+        """Revert the system mode to Auto."""  # TODO: is it AutoWithReset?
+        self._command("2E04", verb=" W", payload="00FFFFFFFFFFFF00")
 
     async def update_fault_log(self) -> list:
         # WIP: try to discover fault codes
@@ -694,12 +711,18 @@ class Controller(Device):
         return self._get_pkt_value("0100", "language")
 
     @property
-    def system_mode(self):  # 2E04
-        attrs = ["mode", "until"]
-        return {x: self._get_pkt_value("2E04", x) for x in attrs}
+    async def _mode(self):  # 2E04
+        if not self._gwy.config["listen_only"]:
+            for _ in range(RQ_RETRY_LIMIT):
+                self._command("2E04", payload="FF", priority=PRIORITY_ASAP)
+                await asyncio.sleep(RQ_TIMEOUT)
+                if "2E04" in self._pkts:
+                    break
+
+        return {x: self._get_pkt_value("2E04", x) for x in ("mode", "until")}
 
     @property
-    def dhw_sensor(self) -> Optional[str]:
+    def _sensor(self) -> Optional[str]:
         """Return the id of the DHW sensor (07:) for *this* system/CTL.
 
         There is only 1 way to find a controller's DHW sensor:

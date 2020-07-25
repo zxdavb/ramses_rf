@@ -115,10 +115,7 @@ class Gateway:
         params, self._include_list, self._exclude_list = load_config(self, **config)
 
     def __repr__(self) -> str:
-        ctls = [d.id for d in self.devices if d.is_controller]
-        if self.evo and self.evo.ctl:
-            return str({"EVO": self.evo.ctl.id, "CTLs": ctls})
-        return str({"EVO": None, "CTLs": ctls})
+        return str(self.schema)
 
     def __str__(self) -> str:
         return json.dumps([s.id for s in self.systems])
@@ -495,3 +492,24 @@ class Gateway:
             #     )
 
         return evo
+
+    @property
+    def schema(self) -> dict:
+        """Return the global schema."""
+
+        schema = {"controller": self.evo.ctl.id if self.evo else None}
+
+        systems = [s.ctl.id for s in self.systems if s is not self.evo]
+        systems.sort()
+        schema.update({"alien_controllers": systems})
+
+        if self.evo:
+            schema.update(self.evo.schema)
+        for evo in self.systems:
+            schema.update(evo.schema)
+
+        orphans = [d.id for d in self.devices if d.controller is None]
+        orphans.sort()
+        schema.update({"orphans": orphans})
+
+        return schema

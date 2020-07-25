@@ -63,7 +63,7 @@ def parse(obj, **kwargs):
 @click.command()
 @click.argument("serial-port")
 @click.option("-p", "--probe-system", help="TBD", is_flag=True)
-@click.option("-x", "--execute-cmd", help="TBD")
+@click.option("-x", "--execute-cmd", help="e.g.: RQ 01:123456 1F09 00")
 @click.option("-T", "--evofw-flag", help="TBD")
 @click.option(
     "-o",
@@ -83,16 +83,18 @@ def monitor(obj, **kwargs):
 
 
 def debug_wrapper(**kwargs):
-    if kwargs["debug_mode"] == 1:
+    assert 0 <= kwargs["debug_mode"] <= 3
+
+    if kwargs["debug_mode"] == 3:
         print("Additional logging enabled (debugging not enabled).")
 
-    elif kwargs.get("debug_mode") > 1:
+    elif kwargs["debug_mode"] != 0:
         import ptvsd
 
         print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
         ptvsd.enable_attach(address=(DEBUG_ADDR, DEBUG_PORT))
 
-        if kwargs.get("debug_mode") > 2:
+        if kwargs["debug_mode"] == 1:
             print(" - execution paused, waiting for debugger to attach...")
             ptvsd.wait_for_attach()
             print(" - debugger is now attached, continuing execution.")
@@ -112,7 +114,10 @@ async def main(loop=None, **kwargs):
 
     try:
         gateway = Gateway(**kwargs, loop=loop)
-        await gateway.start()
+        task = asyncio.create_task(gateway.start())
+        # await asyncio.sleep(20)
+        # print(await gateway.evo.zones[0].name)
+        await task
 
     except asyncio.CancelledError:
         print(" - exiting via: CancelledError (this is expected)")
@@ -129,18 +134,7 @@ async def main(loop=None, **kwargs):
     orphans = None
     if gateway:  # kwargs["raw_output"] < DONT_CREATE_MESSAGES:
 
-        print(f"\r\nSystems: {repr(gateway)}")
-
-        for evo in gateway.systems:
-            print(f"\r\nSystem schema: {evo}")
-
-            # devices = [d.id for d in evo.devices]
-            # devices.sort()
-            # print(f" - system devices: {json.dumps(devices)}")
-
-        orphans = [d.id for d in gateway.devices if d.controller is None]
-        orphans.sort()
-        print(f"\r\nOrphan devices: {json.dumps(orphans)}")
+        print(f"\r\n{json.dumps(gateway.schema)}")
 
     elif gateway.evo:  # kwargs["raw_output"] < DONT_CREATE_MESSAGES:
         print(f"\r\nSystems: {repr(gateway)}")

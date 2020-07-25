@@ -1,13 +1,13 @@
 """The entities for Honeywell's RAMSES II / Residential Network Protocol."""
 import asyncio
 import logging
-from typing import Optional
+from typing import Any, Optional
 
-from .command import Schedule
+from .command import Schedule, PRIORITY_ASAP, RQ_RETRY_LIMIT, RQ_TIMEOUT
 from .const import (
-    # DHW_STATE_LOOKUP,
+    DEVICE_HAS_ZONE_SENSOR,
+    DEVICE_IS_ACTUATOR,
     DHW_STATE_MAP,
-    # DOMAIN_TYPE_MAP,
     MAX_ZONES,
     ZONE_CLASS_MAP,
     ZONE_TYPE_MAP,
@@ -19,7 +19,7 @@ from .const import (
 from .devices import Controller, Device, Entity, HeatDemand, _dtm
 
 _LOGGER = logging.getLogger(__name__)
-if __dev_mode__:
+if True or __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
@@ -64,10 +64,23 @@ class ZoneBase(Entity):
         kwargs["payload"] = kwargs.get("payload", f"{self.id}00")
         super()._command(code, **kwargs)
 
+    async def _get_pkt(self, code) -> Optional[Any]:  # Optional[Message]:
+        # if possible/allowed, simply get an up-todate packet from the controller
+        if not self._gwy.config["listen_only"]:
+            # self._pkts.pop(code, None)  # this is done in self._command()
+            for _ in range(RQ_RETRY_LIMIT):  # TODO: check rq_len
+                self._command(code, payload=f"{self.id}00", priority=PRIORITY_ASAP)
+                await asyncio.sleep(RQ_TIMEOUT)
+                if code in self._pkts:
+                    break  # return self._pkts[code]
+
+        # otherwise, leverage an eavesdropped message, if any
+        return self._pkts.get(code)
+
     def add_device(self, device, sensor=None, actuator=None) -> Device:
         """Add a device to this zone (add it to this system if required)."""
 
-        # device._zone = self
+        device.zone = self
 
         # this will check/set the device's controller
         self._evo.add_device(device)
@@ -112,17 +125,32 @@ class DhwZone(ZoneBase, HeatDemand):
 
     @property
     def schema(self) -> dict:
-        """Return a representation of the DHW's schema."""
+        """Return the stored HW's schema."""
 
-        result = {}
-        if self._sensor is not None:
-            result["sensor"] = self._sensor.id
-        if self._relay is not None:
-            result["relay"] = self._relay.id
-        return result
+        return {
+            "sensor": self._sensor.id if self._sensor else None,
+            "relay": self._relay.id if self._relay else None,
+        }
 
     @property
     def sensor(self) -> Device:
+        """Blah it now.
+
+        Check and Verb the DHW sensor (07:) of this system/CTL (if there is one).
+
+        There is only 1 way to find a controller's DHW sensor:
+        1.  The 10A0 RQ/RP *from/to a 07:* (1x/4h)
+
+        The RQ is initiated by the DHW, so is not authorative (the CTL will RP any RQ).
+        The I/1260 is not to/from a controller, so is not useful.
+        """  # noqa: D402
+
+        # 07:38:39.124 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
+        # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
+
+        if "10A0" in self._pkts:
+            return self._pkts["10A0"].dst.addr
+
         return self._sensor
 
     @sensor.setter
@@ -193,11 +221,11 @@ class DhwZone(ZoneBase, HeatDemand):
     def sync_tpi(self) -> Optional[float]:  # 3B00
         return self._get_pkt_value("3B00", "sync_tpi")
 
-    async def async_cancel_override(self) -> bool:  # 1F41
+    async def cancel_override(self) -> bool:  # 1F41
         """Reset the DHW to follow its schedule."""
         return False
 
-    async def async_set_override(self, mode=None, state=None, until=None) -> bool:
+    async def set_override(self, mode=None, state=None, until=None) -> bool:
         """Force the DHW on/off for a duration, or indefinitely.
 
         Use until = ? for 1hr boost (obligates on)
@@ -245,11 +273,11 @@ class DhwZone(ZoneBase, HeatDemand):
         self._command("1F41", verb=" W", payload=payload)
         return False
 
-    async def async_reset_config(self) -> bool:  # 10A0
+    async def reset_config(self) -> bool:  # 10A0
         """Reset the DHW parameters to their default values."""
         return False
 
-    async def async_set_config(self, setpoint, overrun=None, differential=None) -> bool:
+    async def set_config(self, setpoint, overrun=None, differential=None) -> bool:
         """Set the DHW parameters."""
         return False
 
@@ -265,6 +293,8 @@ class Zone(ZoneBase):
         system.zones.append(self)
         system.zone_by_id[zone_idx] = self
         # system.zone_by_name[self.name] = self
+
+        self._temperature = None  # TODO: is needed?
 
         self._schedule = Schedule(gateway, zone_idx)
         self._discover()  # should be last thing in __init__()
@@ -310,8 +340,12 @@ class Zone(ZoneBase):
                 self.type = "BDR"  # could also be: "VAL"
 
         elif msg.code == "0404" and msg.verb == "RP":
-            _LOGGER.debug("Zone(%s).update: Received RP for zone: ", self.id)
+            _LOGGER.debug("Zone(%s).update: Received schedule RP for zone: ", self.id)
             self._schedule.add_fragment(msg)
+
+        elif msg.code == "30C9":  # required for sensor matching
+            assert msg.src.type in DEVICE_HAS_ZONE_SENSOR  # TODO: add CTL to avoid Exc
+            self._temperature = msg.payload["temperature"]
 
         elif msg.code == "3150":  # TODO: and msg.verb in (" I", "RP")?
             assert msg.src.type in ("02", "04", "13")
@@ -321,16 +355,34 @@ class Zone(ZoneBase):
                 zone_type = ZONE_CLASS_MAP[msg.src.type]
                 self.type = "VAL" if zone_type == "BDR" else zone_type
 
-    @property
+    @property  # id, type
     def schema(self) -> dict:
-        """Return a representation of the zone's schema."""
+        """Return the zone's schema."""
 
-        result = {}
-        if self._sensor is not None:
-            result["sensor"] = self._sensor.id
-        if self.devices is not None:
-            result["devices"] = [d.id for d in self.devices]
-        return result
+        return {
+            "type": self._zone_type,
+            "sensor": self._sensor.id if self._sensor else None,
+            "devices": [d.id for d in self.devices],
+        }
+
+    @property  # setpoint, config, mode (not schedule)
+    def params(self) -> dict:
+        """Return the zone's configuration."""
+
+        return {
+            "setpoint": self.setpoint,
+            "mode": self.mode,
+            "configuration": self.configuration,
+        }
+
+    @property  # temp, open_windows
+    def status(self) -> dict:
+        """Return the zone's current state."""
+
+        return {
+            "temperature": self.temperature,
+            #  "open_window": self.open_window
+        }
 
     @property
     def sensor(self) -> Device:
@@ -338,7 +390,7 @@ class Zone(ZoneBase):
 
     @sensor.setter
     def sensor(self, device: Device):
-        """Set the sensor for this zone (01:, 04:, 03:, 12:, 22:, 34:)."""
+        """Set the sensor for this zone (01:, 03:, 04:, 12:, 22:, 34:)."""
 
         if not isinstance(device, Device) or not hasattr(device, "temperature"):
             if not isinstance(device, Controller):
@@ -359,17 +411,23 @@ class Zone(ZoneBase):
             return self._zone_type
 
         # TODO: try to cast an initial type
-        for device in self.devices:
-            device_type = device.dev_type  # DEVICE_TYPES[device[:2]]
-            if device_type in _ZONE_CLASS:
-                self._zone_type = device_type
-                self.__class__ = _ZONE_CLASS[self._zone_type]
-                _LOGGER.debug("Set Zone type %s to %s", self.id, self._zone_type)
-                break
+        dev_types = [d.dev_type for d in self.devices if d.dev_type in _ZONE_CLASS]
+
+        # contrived code is for edge case: TRV is being used as sensor for non-TRV zone
+        for _type in (t for t in dev_types if t != "TRV"):
+            self._zone_type = _type
+            break
+        else:
+            if "TRV" in dev_types:
+                self._zone_type = "TRV"
+
+        if self._zone_type is not None:
+            self.__class__ = _ZONE_CLASS[self._zone_type]
+            _LOGGER.debug("Set Zone %s type as %s", self.id, self._zone_type)
 
         return self._zone_type
 
-    @type.setter
+    @type.setter  # TODO: remove this - is a r/o attribute
     def type(self, value: str):
         """Set the zone's type.
 
@@ -383,15 +441,18 @@ class Zone(ZoneBase):
         if value not in _ZONE_CLASS:
             raise ValueError
 
+        if self._zone_type == value:
+            return
+
         self._zone_type = value
         self.__class__ = _ZONE_CLASS[value]
-        _LOGGER.debug("Promoted zone %s to %s", self.id, self._zone_type)
+        _LOGGER.debug("Set zone %s type to %s", self.id, self._zone_type)
 
-    async def async_cancel_override(self) -> bool:  # 2349
+    async def cancel_override(self):  # 2349
         """Revert to following the schedule."""
-        await self.async_set_override()
+        await self.set_override()
 
-    async def async_set_override(self, mode=None, setpoint=None, until=None) -> bool:
+    async def set_override(self, mode=None, setpoint=None, until=None):
         """Override the setpoint for a specified duration, or indefinitely.
 
         The setpoint has a resolution of 0.1 C. If a setpoint temperature is required,
@@ -427,59 +488,13 @@ class Zone(ZoneBase):
             payload = f"{self.id}{setpoint}{mode}FFFFFF{_dtm(until)}"
 
         self._command("2349", verb=" W", payload=payload)
-        return False
-
-    @property
-    def actuators(self) -> list:  # 000C
-        # actuators = self._get_pkt_value("000C", "actuators")
-        # return actuators if actuators is not None else []  # TODO: or just: actuators
-
-        return [d for d in self.devices if d[:2] in ("02", "04", "13")]
-
-        return [
-            d for d in self.devices if hasattr(self._evo.device_by_id[d], "heat_demand")
-        ]
-
-    @property
-    def configuration(self) -> Optional[dict]:  # 000A
-        result = None
-
-        msg_1 = self._evo.ctl._pkts.get("000A")  # authorative, but 1/hourly
-        msg_2 = self._pkts.get("000A")  # possibly more up-to-date, or null
-
-        if msg_1 is not None and msg_2 is not None:
-            msg = msg_1 if msg_1.dtm > msg_2.dtm else msg_2
-        else:
-            msg = msg_1 if msg_1 is not None else msg_2
-
-        if msg is msg_2:  # could be: None is None
-            result = self._get_pkt_value("000A")
-        elif msg_1 is not None:  # elif not required, if sufficent
-            result = self._evo.ctl._get_pkt_value("000A")
-            if result:
-                result = {
-                    k: v
-                    for d in result
-                    for k, v in d.items()
-                    if d["zone_idx"] == self.id
-                }
-
-        if result:
-            return {k: v for k, v in result.items() if k != "zone_idx"}
 
     @property
     def description(self) -> str:
         return ZONE_TYPE_MAP.get(self._zone_type)
 
-    @property
-    def mode(self) -> Optional[dict]:  # 2349
-        result = self._get_pkt_value("2349")
-        if result:
-            return {k: v for k, v in result.items() if k != "zone_idx"}
-
-    @property
-    def name(self) -> Optional[str]:  # 0004
-        return self._get_pkt_value("0004", "name")
+    def update_schedule(self):
+        pass
 
     @property
     def schedule(self) -> Optional[dict]:
@@ -488,51 +503,89 @@ class Zone(ZoneBase):
             return
         return self._schedule.schedule if self._schedule else None
 
+    @staticmethod
+    def _most_recent_msg(msg_0, msg_1):  # -> Message:
+        # if always_use_controllers:
+        #     return msg_0
+        if msg_0 is not None:
+            return msg_1 if msg_1 is not None and msg_0.dtm < msg_1.dtm else msg_0
+        return msg_1
+
     @property
-    def setpoint(self) -> Optional[float]:  # 2309
-        result = None
+    async def name(self) -> Optional[str]:  # 0004
+        await self._get_pkt("0004")  # if possible/allowed, get an up-to-date pkt
 
-        msg_1 = self._evo.ctl._pkts.get("2309")  # authorative
-        msg_2 = self._pkts.get("2349")  # possibly more up-to-date, or null
+        return self._get_pkt_value("0004", "name")
 
-        if msg_1 is not None and msg_2 is not None:
-            msg = msg_1 if msg_1.dtm > msg_2.dtm else msg_2
+    @property
+    async def configuration(self) -> Optional[dict]:  # 000A
+        await self._get_pkt("000A")  # if possible/allowed, get an up-to-date pkt
+
+        msg_0 = self._evo.ctl._pkts.get("000A")  # authorative, but 1/hourly
+        msg_1 = self._pkts.get("000A")  # possibly more up-to-date (or null)
+
+        if msg_1 is self._most_recent_msg(msg_0, msg_1):  # could be: None is None
+            result = msg_1.payload["000A"]
         else:
-            msg = msg_1 if msg_1 is not None else msg_2
+            result = {
+                k: v
+                for z in msg_0.payload
+                for k, v in z.items()
+                if z["zone_idx"] == self.id
+            }
 
-        if msg is msg_2:  # could be: None is None
-            result = self._get_pkt_value("2349")
-        elif msg_1 is not None:  # elif not required, if sufficent
-            result = self._evo.ctl._get_pkt_value("2309")
-            if result:
-                result = (
-                    {
-                        k: v
-                        for d in result
-                        for k, v in d.items()
-                        if d["zone_idx"] == self.id
-                    }
-                    if result
-                    else None
-                )
-
-        if result:
-            return result.get("setpoint")
+        return {k: v for k, v in result.items() if k != "zone_idx"} if result else None
 
     @property
-    def temperature(self) -> Optional[float]:  # 30C9
-        # OK to simply use the controller's sync_cycle array value for now
-        result = self._evo.ctl._get_pkt_value("30C9")
+    async def actuators(self) -> Optional[list]:  # 000C
+        await self._get_pkt("000C")  # if possible/allowed, get an up-to-date pkt
 
-        if result:
-            result = {
-                k: v for d in result for k, v in d.items() if d["zone_idx"] == self.id
-            }
-            return result.get("temperature")
+        if "000C" in self._pkts:
+            return self._pkts["000C"].payload["actuators"]
+        return [d.id for d in self.devices if d[:2] in DEVICE_IS_ACTUATOR]
 
-        # TODO: this value _may_ be more up-to-date (but only if from *the* sensor?)
-        # result = self._get_pkt_value("30C9", "temperature")
-        # return result if result else None
+    @property
+    async def setpoint(self) -> Optional[float]:  # 2309 (2349 is a superset of 2309)
+        await self._get_pkt("2309")  # if possible/allowed, get an up-to-date pkt
+
+        msg_0 = self.ctl._pkts.get("2309")  # most authorative  # TODO: why 2349?
+        msg_1 = self._pkts.get("2309")  # possibly more up-to-date (or null)
+
+        if msg_1 is self._most_recent_msg(msg_0, msg_1):  # could be: None is None
+            return msg_1.payload["setpoint"] if msg_1 is not None else None
+
+        return {
+            k: v
+            for z in msg_0.payload
+            for k, v in z.items()
+            if z["zone_idx"] == self.id
+        }["setpoint"]
+
+    @property
+    async def mode(self) -> Optional[dict]:  # 2349
+        await self._get_pkt("2349")  # if possible/allowed, get an up-to-date pkt
+
+        result = self._get_pkt_value("2349")
+        return {k: v for k, v in result.items() if k != "zone_idx"} if result else None
+
+    @property
+    async def temperature(self) -> Optional[float]:  # 30C9
+        await self._get_pkt("30C9")  # if possible/allowed, get an up-to-date pkt
+
+        msg_0 = self.ctl._pkts.get("30C9")  # most authorative
+        msg_1 = self.sensor._pkts.get("30C9")  # possibly most up-to-date
+
+        if msg_1 is self._most_recent_msg(msg_0, msg_1):  # could be: None is None
+            return msg_1.payload["temperature"] if msg_1 is not None else None
+
+        self._temperature = {
+            k: v
+            for z in msg_0.payload
+            for k, v in z.items()
+            if z["zone_idx"] == self.id
+        }["temperature"]
+
+        return self._temperature
 
 
 class ZoneHeatDemand:  # not all zone types call for heat
@@ -595,7 +648,9 @@ class TrvZone(Zone, ZoneHeatDemand):  # Radiator zones
     # 3150 (heat_demand) but no 0008 (relay_demand)
 
     @property
-    def window_open(self):
+    async def window_open(self) -> Optional[bool]:  # 12B0
+        await self._get_pkt("12B0")  # if possible/allowed, get an up-to-date pkt
+
         return self._get_pkt_value("12B0", "window_open")
 
 

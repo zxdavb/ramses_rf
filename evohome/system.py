@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Any
 
-from .const import __dev_mode__
+from .command import __dev_mode__
 from .devices import Controller, Device
 from .zones import Zone as EvoZone, DhwZone
 
@@ -64,11 +64,27 @@ class EvoSystem:
 
         return json.dumps(self.schema)
 
-    def get_zone(self, zone_id) -> Any:
+    def get_zone(self, zone_id: str) -> Any:
         """Return a zone (create it if required)."""
         if zone_id in self.zone_by_id:
             return self.zone_by_id[zone_id]
+        # zone_by_name = [z for z in self.zones if z.name == zone_id]
+        # if len(zone_by_name):
+        #     return zone_by_name[0]
         return EvoZone(self._gwy, self, zone_id)
+
+    async def set_mode(self, mode, until=None):
+        """Set the system mode for a specified duration, or indefinitely."""
+        await self.ctl._async_set_mode(mode, until=until)
+
+    async def reset_mode(self):
+        """Revert the system mode to Auto."""
+        await self.ctl._async_reset_mode()
+
+    @property
+    async def mode(self) -> dict:
+        """Return the system mode."""
+        return await self.ctl._mode
 
     @staticmethod
     def _entities(entities, sort_attr) -> dict:
@@ -89,14 +105,11 @@ class EvoSystem:
 
     @property
     def schema(self) -> dict:
-        """Return a representation of the system schema."""
+        """Return the system's schema."""
 
         schema = {
-            # "controller": self.ctl.id,
-            "heater_relay": self.heater_relay.id
-            if self.heater_relay
-            else None,
-        }
+            "heater_relay": self.heater_relay.id if self.heater_relay else None
+        }  # "controller": self.ctl.id,
 
         stored_dhw = self.dhw.schema if self.dhw else None
         if stored_dhw:
@@ -109,22 +122,23 @@ class EvoSystem:
             ufh_controllers.sort()
             schema["ufh_controllers"] = ufh_controllers
 
-        systen_orphans = [
+        orphans = [
             d.id
             for d in self.devices
-            if d.type not in ("01", "02")
-            and d is not self.heater_relay
-            and d._zone is None
+            if d not in [self.ctl, self.heater_relay] and d._zone is None
         ]
-        if systen_orphans:
-            systen_orphans.sort()
-            schema["systen_orphans"] = systen_orphans
+        orphans.sort()
+        schema["orphans"] = orphans
 
-        # orphans = [d.id for d in self._gwy.devices if d.controller is None]
-        # if orphans:
-        #     orphans.sort()
+        return {self.ctl.id: schema}
 
-        return {self.ctl.id: schema}  # , "orphans": orphans}
+    @property
+    def config(self) -> dict:
+        """Return the system's configuration."""
+
+    @property
+    def state(self) -> dict:
+        """Return the system's current state."""
 
     @property
     def state_db(self) -> dict:
@@ -229,7 +243,7 @@ class EvoSystem:
                 self.heater_relay = heater
 
         def discover_dhw_sensor():
-            """Discover the DHW sensor (07:) for this system.
+            """Discover the stored HW this system (if any).
 
             There is only 1 way to find a controller's DHW sensor:
             1.  The 10A0 RQ/RP *from/to a 07:* (1x/4h)
@@ -251,7 +265,7 @@ class EvoSystem:
             if sensor is not None:
                 if self.dhw is None:
                     self.dhw = DhwZone(self._gwy, self, "FC")
-                self.dhw.sensor = sensor
+                # self.dhw.sensor = sensor
 
         if self.ctl is None:
             return
