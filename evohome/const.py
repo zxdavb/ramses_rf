@@ -21,12 +21,18 @@ NUL_DEVICE = Address(id=NUL_DEV_ID, type=NUL_DEV_ID[:2])
 # Packet codes
 CODE_SCHEMA = {
     # main codes - every sync_cycle
-    "1F09": {"name": "system_sync"},
-    "2309": {"name": "setpoint", "uses_zone_idx": True},
+    "1F09": {"name": "system_sync", "rp_len": 3, "rq_len": 1, "w_len": 3},
+    "2309": {
+        "name": "setpoint",
+        "uses_zone_idx": True,
+        "rp_len": 3,
+        "rq_len": 1,
+        "w_len": 3,
+    },
     "30C9": {"name": "temperature", "uses_zone_idx": True},
-    "000A": {"name": "zone_config", "uses_zone_idx": True},
+    "000A": {"name": "zone_config", "uses_zone_idx": True, "rp_len": 6, "rq_len": 3},
     # zone-specific codes
-    "0004": {"name": "zone_name", "uses_zone_idx": True, "rq_length": 2},
+    "0004": {"name": "zone_name", "uses_zone_idx": True, "rp_len": 22, "rq_len": 2},
     "000C": {"name": "zone_actuators", "uses_zone_idx": True},
     "0404": {"name": "zone_schedule", "uses_zone_idx": True},
     "12B0": {"name": "window_state", "uses_zone_idx": True},
@@ -35,7 +41,10 @@ CODE_SCHEMA = {
     # controller/system codes
     "313F": {"name": "datetime"},  # aka ping, datetime_req
     "2E04": {"name": "system_mode", "uses_zone_idx": False},
-    "0418": {"name": "system_fault"},
+    "0418": {
+        "name": "system_fault",
+        "null_rp": "000000B0000000000000000000007FFFFF7000000000",
+    },
     # device codes
     "0001": {"name": "rf_unknown", "uses_zone_idx": True},  # unknown
     "0016": {"name": "rf_check", "rq_length": 2},
@@ -100,6 +109,7 @@ DEVICE_TABLE = {
         "type": "CTL",
         "name": "Controller",
         "has_battery": False,
+        "has_zone_sensor": False,  # a special case
         "is_actuator": False,
         "is_controller": True,
         "is_sensor": True,
@@ -116,6 +126,7 @@ DEVICE_TABLE = {
         "type": "STa",
         "name": "Room Sensor/Stat",
         "has_battery": True,
+        "has_zone_sensor": True,
         "is_actuator": False,
         "is_sensor": True,
     },  # HCW80 (HCF82)
@@ -123,6 +134,7 @@ DEVICE_TABLE = {
         "type": "TRV",
         "name": "Radiator Valve",
         "has_battery": True,
+        "has_zone_sensor": True,
         "is_actuator": True,
         "is_sensor": True,
     },  # HR80, HR92
@@ -144,6 +156,7 @@ DEVICE_TABLE = {
         "type": "THm",
         "name": "Room Thermostat",
         "has_battery": True,
+        "has_zone_sensor": True,
         "is_actuator": False,
         "is_sensor": True,
     },  # DTS92(E)
@@ -158,6 +171,7 @@ DEVICE_TABLE = {
         "type": "THM",
         "name": "Room Thermostat",
         "has_battery": True,
+        "has_zone_sensor": True,
         "is_actuator": False,
         "is_sensor": True,
     },  # DTS92(E)
@@ -172,6 +186,7 @@ DEVICE_TABLE = {
         "type": "STA",
         "name": "Round Thermostat",
         "has_battery": True,
+        "has_zone_sensor": True,
         "is_actuator": False,
         "is_sensor": True,
     },  # T87RF
@@ -226,9 +241,16 @@ DEVICE_TABLE = {
 DEVICE_TYPES = {k: v["type"] for k, v in DEVICE_TABLE.items()}
 DEVICE_LOOKUP = {v: k for k, v in DEVICE_TYPES.items()}
 DEVICE_CLASSES = {v["type"]: v["name"] for _, v in DEVICE_TABLE.items()}
-DEVICE_HAS_BATTERY = [
+
+DEVICE_HAS_BATTERY = tuple(
     k for k, v in DEVICE_TABLE.items() if v.get("has_battery") is True
-]
+)  # more correctly: is battery-powered (and so won't respond to RQs)
+DEVICE_HAS_ZONE_SENSOR = tuple(
+    k for k, v in DEVICE_TABLE.items() if v.get("has_zone_sensor") is True
+)  # other sensors (e.g. 07:) can't be used as a zone sensor
+DEVICE_IS_ACTUATOR = tuple(
+    k for k, v in DEVICE_TABLE.items() if v.get("is_actuator") is True
+)  # c.f. 000C packet
 
 # Domains
 DOMAIN_TYPE_MAP = {

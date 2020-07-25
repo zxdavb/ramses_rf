@@ -5,6 +5,7 @@ import logging
 from typing import Optional, Union
 
 from .const import (
+    CODE_SCHEMA,
     DOMAIN_TYPE_MAP,
     FAULT_DEVICE_CLASS,
     FAULT_STATE,
@@ -59,8 +60,8 @@ def _idx(seqx, msg) -> dict:
             return {idx_name: seqx}
 
     elif msg.code == "0418":  # does have domain_id/zone_idx, but uses log_idx
-        assert int(seqx, 16) < 64
-        return {"log_idx": seqx}
+        assert int(seqx, 16) < 64  # a 'null' RP has no log_idx == 0
+        return {}  # a 'null' RP has no log_idx
 
     elif msg.code == "22C9" and msg.src.type == "02":  # ufh_setpoint
         assert int(seqx, 16) < 8  # this can be a "00", maybe zone_idx, see below
@@ -125,12 +126,10 @@ def parser_decorator(func):
             return {**_idx(payload[:2], msg), **result}
 
         if msg.code in ("000A", "2309"):
-            if msg.src.type == "34":
-                assert msg.len == 1
-            elif msg.src.type in ("12", "22"):
+            if msg.src.type in ("12", "22"):  # is rp_length
                 assert msg.len == 6 if msg.code == "000A" else 3
             else:
-                assert msg.len == 2
+                assert msg.len == 1  # incl. 34:, rq_length
             return {**_idx(payload[:2], msg)}
 
         if msg.code in ("0004", "0005", "000C", "0016", "12B0", "30C9"):
@@ -412,6 +411,12 @@ def parser_0009(payload, msg) -> Union[dict, list]:
 
 @parser_decorator  # zone_config (zone/s)
 def parser_000a(payload, msg) -> Union[dict, list, None]:
+    # 11:21:10.674 063 RQ --- 34:044203 01:158182 --:------ 000A 001 08
+    # 11:21:10.736 045 RP --- 01:158182 34:044203 --:------ 000A 006 081001F409C4
+    # following for 12: too:
+    # 13:13:08.273 045 RQ --- 22:017139 01:140959 --:------ 000A 006 080001F40DAC
+    # 13:13:08.288 045 RP --- 01:140959 22:017139 --:------ 000A 006 081001F40DAC
+
     def _parser(seqx) -> dict:
         # if seqx[2:] == "007FFF7FFF":  # a null zone
 
@@ -555,9 +560,9 @@ def parser_0418(payload, msg=None) -> Optional[dict]:
             second=(_seqx & 0b111111 << 7) >> 7,
         ).strftime("%Y-%m-%d %H:%M:%S")
 
-    if payload == "000000B0000000000000000000007FFFFF7000000000":
-        # a null log entry, (or: even payload[38:] == "000000")
-        return _idx(payload[4:6], msg) if msg is not None else {"log_idx": payload[4:6]}
+    if payload == CODE_SCHEMA["0418"]["null_rp"]:
+        # a null log entry, or: is payload[38:] == "000000" sufficient?
+        return {}
     #
     if msg:
         assert msg.verb in (" I", "RP")

@@ -28,6 +28,8 @@ READ_TIMEOUT = 0.5
 XON_XOFF = True
 
 _LOGGER = logging.getLogger(__name__)
+if __dev_mode__:
+    _LOGGER.setLevel(logging.DEBUG)
 
 
 def split_pkt_line(packet_line: str) -> Tuple[str, str, str]:
@@ -191,8 +193,7 @@ class PortPktProvider:
             return time_stamp(), "", None
 
         dtm_str = time_stamp()  # done here & now for most-accurate timestamp
-        if False and __dev_mode__:
-            _logger_msg(_LOGGER.debug, "Raw packet")
+        _logger_msg(_LOGGER.debug, "Raw packet")
 
         try:
             pkt_str = "".join(
