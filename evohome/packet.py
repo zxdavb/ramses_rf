@@ -33,12 +33,14 @@ if __dev_mode__:
 
 
 def split_pkt_line(packet_line: str) -> Tuple[str, str, str]:
+    # line format: 'datetime packet < parser-message: * evofw3-errmsg # evofw3-comment'
     def _split(text: str, char: str) -> Tuple[str, str]:
         _list = text.split(char, maxsplit=1)
         return _list[0].strip(), _list[1].strip() if len(_list) == 2 else ""
 
     packet_tmp, comment = _split(packet_line, "#")
-    packet, error = _split(packet_tmp, "*")
+    packet_tmp, error = _split(packet_tmp, "*")
+    packet, _ = _split(packet_tmp, "<")
     return packet, f"* {error} " if error else "", f"# {comment} " if comment else ""
 
 
