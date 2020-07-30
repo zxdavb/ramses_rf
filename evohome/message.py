@@ -2,7 +2,7 @@
 
 from datetime import datetime as dt
 import logging
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 from . import parsers
 from .const import (
@@ -23,7 +23,7 @@ if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def msg_decorator(func):
+def exception_handler(func):
     """xxx."""
 
     def wrapper(*args, **kwargs) -> Optional[Any]:
@@ -279,29 +279,14 @@ class Message:
 
         return self._is_valid
 
-    @msg_decorator
-    def create_devices(self) -> Tuple[Device, Optional[Device]]:
+    @exception_handler
+    def create_devices(self) -> None:
         """Parse the payload and create any new device(s).
 
         Requires a valid header; only 000C requires a valid message.
         """
 
-        if self.src.type in ("01", "23"):
-            self._gwy.get_device(self.dst, controller=self.src)
-
-        elif self.dst.type in ("01", "23"):
-            self._gwy.get_device(self.src, controller=self.dst)
-
-        elif self.code == "1F09" and self.verb == " I":
-            # this is sufficient, no need for: "000A", "2309", "30C9" (list)
-            # TODO: maybe also: "0404", "0418", "313F", "2E04"?
-            self._gwy.get_device(self.dst, controller=self.src)
-
-        elif self.code == "31D9" and self.verb == " I":
-            self._gwy.get_device(self.dst, controller=self.src)
-
-        # this is pretty reliable...
-        elif self.code == "000C" and self.verb == "RP":
+        if self.code == "000C" and self.verb == "RP":  # this seems pretty reliable...
             self._gwy.get_device(self.dst, controller=self.src)
             if self.is_valid:
                 [
@@ -313,26 +298,39 @@ class Message:
                     for d in self.payload["actuators"]
                 ]
 
-        # special case - needs a Device, not an Address - TODO: is it needed at all?
+        elif self.src.type in ("01", "23"):
+            self._gwy.get_device(self.dst, controller=self.src)
+
+        elif self.dst.type in ("01", "23"):
+            self._gwy.get_device(self.src, controller=self.dst)
+
+        elif self.code == "1F09" and self.verb == " I":  # no need: "000A", "2309"...
+            self._gwy.get_device(self.dst, controller=self.src)
+
+        elif self.code == "31D9" and self.verb == " I":  # HVAC
+            self._gwy.get_device(self.dst, controller=self.src)
+
+        elif self.dst is self.src:
+            self._gwy.get_device(self.src)
+
+        # otherwise one will be a controller, *unless* dst is in ("--", "63")
         elif isinstance(self.src, Device) and self.src.is_controller:
             self._gwy.get_device(self.dst, controller=self.src)
 
-        # special case - needs a Device, not an Address - TODO: is it needed at all?
         elif isinstance(self.dst, Device) and self.dst.is_controller:
             self._gwy.get_device(self.src, controller=self.dst)
 
-        else:  # finally, a catch-all
+        else:
             self._gwy.get_device(self.src)
-            if self.dst is not self.src:  # and self.src.type != '18': KeyError
-                self._gwy.get_device(self.dst)
+            self._gwy.get_device(self.dst)
 
-        # maybe what was an Address can now be a Device
+        # maybe what was an Address can now be a Device going forward
         if not isinstance(self.src, Device):
             self.src = self._gwy.device_by_id[self.src.id]
         if not isinstance(self.dst, Device) and self.dst.type not in ("--", "63"):
             self.dst = self._gwy.device_by_id[self.dst.id]
 
-    @msg_decorator
+    @exception_handler
     def create_entities(self) -> None:
         """Discover and create new entities (zones, ufh_zones).
 
@@ -375,7 +373,7 @@ class Message:
         else:  # should never get here
             raise TypeError
 
-    @msg_decorator
+    @exception_handler
     def update_entities(self) -> None:  # TODO: needs work
         """Update the state of entities (devices, zones, ufh_zones).
 
