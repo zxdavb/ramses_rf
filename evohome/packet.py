@@ -144,6 +144,28 @@ class Packet:
         _LOGGER.warning("%s < Bad packet: %s ", self, err_msg, extra=self.__dict__)
         return False
 
+    def is_wanted(self, include: list = None, exclude: list = None) -> bool:
+        """Silently drop packets with unwanted (e.g. neighbour's) devices.
+
+        Packets to/from HGI80: are never ignored.
+        """
+
+        def is_wanted_pkt() -> bool:
+            """Return True is a packet is not to be filtered out."""
+
+            if " 18:" in self.packet:  # NOTE: " 18:", leading space is required
+                return True
+            if include:
+                return any(device in self.packet for device in include)
+            if exclude:
+                return not any(device in self.packet for device in exclude)
+            return True
+
+        if is_wanted_pkt():
+            _LOGGER.info("%s ", self.packet, extra=self.__dict__)
+            return True
+        return False
+
 
 class PortPktProvider:
     """Base class for packets from a serial port."""
@@ -246,18 +268,18 @@ class FilePktProvider:
         return
 
 
-async def port_pkts(manager, relay=None):
+async def port_pkts(manager, include=None, exclude=None, relay=None):
     while True:
         pkt = Packet(*(await manager.get_pkt()))
-        if pkt.is_valid:
-            if relay:  # TODO: handle socket close
+        if pkt.is_valid and pkt.is_wanted(include=include, exclude=exclude):
+            if relay is not None:  # TODO: handle socket close
                 asyncio.create_task(relay.write(pkt.packet))
             yield pkt
 
         await asyncio.sleep(0)  # at least 0, to enable a Ctrl-C
 
 
-async def file_pkts(fp):
+async def file_pkts(fp, include=None, exclude=None):
     # TODO handle badly-formed dt strings - presently, they will crash
     def _logger_msg(func, msg):  # TODO: this is messy...
         # ValueError: not enough values to unpack (expected 2, got 1) [e.g. blank line]
@@ -281,7 +303,7 @@ async def file_pkts(fp):
             continue
 
         pkt = Packet(ts_pkt[:26], ts_pkt[27:].strip(), None)
-        if pkt.is_valid:
+        if pkt.is_valid and pkt.is_wanted(include=include, exclude=exclude):
             yield pkt
 
         await asyncio.sleep(0)  # usu. 0, to enable a Ctrl-C

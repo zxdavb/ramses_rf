@@ -146,15 +146,7 @@ class EvoSystem:
 
         result = {}
         for evo_class in ("devices", "domains", "zones"):
-            try:
-                result.update(
-                    {evo_class: self._entities(getattr(self, evo_class), "id")}
-                )
-            except AssertionError:
-                _LOGGER.exception("Failed to produce State data")
-            # except (AttributeError, LookupError, TypeError, ValueError):
-            #     _LOGGER.exception("Failed to produce State data")
-
+            result.update({evo_class: self._entities(getattr(self, evo_class), "id")})
         return result
 
     @property

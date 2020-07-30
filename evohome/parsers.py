@@ -125,19 +125,23 @@ def parser_decorator(func):
                 return result
             return {**_idx(payload[:2], msg), **result}
 
+        # except for 18:, these should return nothing - 000A is rq_len 1 or 3?
+        # grep -E 'RQ.* 002 ' | grep -vE ' (0004|0016|3EF1) '
+        # grep -E 'RQ.* 001 ' | grep -vE ' (000A|1F09|22D9|2309|313F|31DA|3EF0) '
+
+        if msg.code in ("0004", "0005", "000C", "0016", "12B0", "30C9"):
+            assert msg.len == 2  # 12B0 will RP to 1
+            return {**_idx(payload[:2], msg)}
+
+        if msg.code == "2349":
+            assert msg.len == 7
+            return {**_idx(payload[:2], msg)}
+
         if msg.code in ("000A", "2309"):
             if msg.src.type in ("12", "22"):  # is rp_length
                 assert msg.len == 6 if msg.code == "000A" else 3
             else:
                 assert msg.len == 1  # incl. 34:, rq_length
-            return {**_idx(payload[:2], msg)}
-
-        if msg.code in ("0004", "0005", "000C", "0016", "12B0", "30C9"):
-            assert msg.len == 2
-            return {**_idx(payload[:2], msg)}
-
-        if msg.code == "2349":
-            assert msg.len == 7
             return {**_idx(payload[:2], msg)}
 
         if msg.code == "0100":  # 04: will RQ language
@@ -153,8 +157,11 @@ def parser_decorator(func):
             assert int(payload[4:6], 16) <= 63
             return {"log_idx": payload[4:6]}
 
-        if msg.code == "10A0" and msg.src.type == "07":  # DHW
-            assert msg.len == 6
+        if msg.code == "10A0":
+            # 045 RQ --- 07:045960 01:145038 --:------ 10A0 006 0013740003E4
+            # 037 RQ --- 18:013393 01:145038 --:------ 10A0 001 00
+            # 054 RP --- 01:145038 18:013393 --:------ 10A0 006 0013880003E8
+            assert msg.len == 6 if msg.src.type == "07" else 1
             return func(*args, **kwargs)
 
         if msg.code == "1100":
@@ -163,39 +170,40 @@ def parser_decorator(func):
                 return func(*args, **kwargs)
             return {**_idx(payload[:2], msg)}
 
-        if msg.code == "2E04":
-            # assert msg.len == 2  # TODO: check this
+        if msg.code in ("1260", "1F41", "2E04"):  # TODO: Check all these
+            # These have only been seen when sent by 18:
+            assert payload == "FF" if msg.code == "2E04" else "00"  # so: msg.len == 1
             return {}
 
-        if msg.code == "12B0":
-            assert msg.len == 1  # TODO: will ctl respond to msg.len == 2?
-            return {**_idx(payload[:2], msg)}
-
-        if msg.code in ("1F09"):
+        if msg.code in ("1F09", "22D9", "313F", "3EF0"):
             # 061 RQ --- 04:189082 01:145038 --:------ 1F09 001 00
+            # 067 RQ --- 01:187666 10:138822 --:------ 22D9 001 00
+            # 045 RQ --- 04:056061 01:145038 --:------ 313F 001 00
+            # 045 RQ --- 01:158182 13:209679 --:------ 3EF0 001 00
+            # 065 RQ --- 01:078710 10:067219 --:------ 3EF0 001 00
             assert payload == "00"  # implies: msg.len == 1
             return {}
-
-        if msg.code == "3220":  # CTL -> OTB (OpenTherm)
-            assert msg.len == 5
-            return func(*args, **kwargs)
 
         if msg.code in ("31D9", "31DA"):  # ventilation
             # 047 RQ --- 32:168090 30:082155 --:------ 31DA 001 21
             assert msg.len == 1
             return {**_idx(payload[:2], msg)}
 
-        if msg.code == "3EF1":  # and 3EF0?
+        if msg.code == "3220":  # CTL -> OTB (OpenTherm)
+            assert msg.len == 5
+            return func(*args, **kwargs)
+
+        if msg.code == "3EF1":
             # 082 RQ --- 22:091267 01:140959 --:------ 3EF1 002 0700
             # 088 RQ --- 22:054901 13:133379 --:------ 3EF1 002 0000
             assert payload[2:] == "00"  # implies: msg.len == 2
             return {**_idx(payload[:2], msg)}
 
-        if payload == "00":  # TODO: WIP
-            return {}
+        if msg.code in CODE_SCHEMA:
+            assert False, "unknown RQ"
 
-        assert False and payload in ("FF", "FC")  # TODO:
-        return func(*args, **kwargs)  # All other RQs
+        if msg.src.type != "18":
+            assert False, "unknown RQ"
 
     return wrapper
 
@@ -418,7 +426,7 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:
     # 13:13:08.288 045 RP --- 01:140959 22:017139 --:------ 000A 006 081001F40DAC
 
     def _parser(seqx) -> dict:
-        # if seqx[2:] == "007FFF7FFF":  # a null zone
+        # if seqx[2:] == "007FFF7FFF":  # (e.g. RP) a null zone
 
         bitmap = int(seqx[2:4], 16)
         return {

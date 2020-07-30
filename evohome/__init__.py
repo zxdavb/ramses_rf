@@ -196,11 +196,18 @@ class Gateway:
 
     async def start(self) -> None:
         async def file_reader(fp):
-            async for raw_pkt in file_pkts(fp):
+            async for raw_pkt in file_pkts(
+                fp, include=self._include_list, exclude=self._exclude_list
+            ):
                 self._process_packet(raw_pkt)
 
         async def port_reader(manager):
-            async for raw_pkt in port_pkts(manager, self._relay):
+            async for raw_pkt in port_pkts(
+                manager,
+                include=self._include_list,
+                exclude=self._exclude_list,
+                relay=self._relay,
+            ):
                 self._process_packet(raw_pkt)
 
                 if self.config.get("evofw_flag") and "evofw3" in raw_pkt.packet:
@@ -359,51 +366,18 @@ class Gateway:
     def _process_packet(self, pkt: Packet) -> None:
         """Decode the packet and its payload."""
 
-        def is_wanted(include: list = None, exclude: list = None) -> bool:
-            """Return True is a packet is not to be filtered out."""
-
-            # TODO: should never allow a HGI80 to be ignored?
-            if " 18:" in pkt.packet:  # NOTE: " 18:", leading space is required
-                return True
-            if include:
-                return any(device in pkt.packet for device in include)
-            if exclude:
-                return not any(device in pkt.packet for device in exclude)
-            return True
-
-        if is_wanted(include=self._include_list, exclude=self._exclude_list):
-            pkt_logger.info("%s ", pkt.packet, extra=pkt.__dict__)  # a HACK
-        else:
-            return  # silently drop packets with ignored (e.g. neighbour's) devices
-
-        try:  # create messages from payloads
+        try:
             if self.config["raw_output"] >= DONT_CREATE_MESSAGES:
                 return
 
-            msg = Message(self, pkt)
-            if not msg.is_valid:  # trap/logs all exceptions appropriately
-                return
+            msg = Message(self, pkt)  # trap/logs all invalids msgs appropriately
 
-        except AssertionError:
-            msg_logger.exception("%s < AssertionError", pkt.packet, extra=pkt.__dict__)
-            return
-
-        except NotImplementedError:
-            msg_logger.error("%s < NotImplementedError", pkt.packet, extra=pkt.__dict__)
-            return
-
-        except (LookupError, TypeError, ValueError):  # TODO: shouldn't be needed
-            msg_logger.error("%s < Coding/Logic Error", pkt.packet, extra=pkt.__dict__)
-            raise
-
-        try:  # create/update devices and zones
             if self.config["raw_output"] >= DONT_CREATE_ENTITIES:
                 return
 
             msg.create_devices()  # from pkt header & from msg payload (e.g. 000C)
 
-            # only reliable packets should become part of the state data
-            if "18" == msg.src.type:  # 18:/RQs are unreliable, but RPs are required
+            if msg.src.type == "18":  # 18:/RQs are unreliable, RPs are reqd for state
                 return
 
             msg.create_entities()  # create zones & ufh_zones (TBD)
@@ -413,26 +387,21 @@ class Gateway:
 
             msg.update_entities()  # update the state database
 
-        except AssertionError:  # TODO: for dev only?
-            msg_logger.exception("%s < AssertionError", pkt.packet, extra=pkt.__dict__)
+            # if msg.verb == "RP" and msg.code == "0404":
+            #     self._sched_lock.acquire()
+            #    if self._sched_zone and self._sched_zone.id == msg.payload["zone_idx"]:
+            #         if self._sched_zone.schedule:
+            #             self._sched_zone = None
+            #         elif msg.payload["frag_index"] == 1:
+            #             self._sched_zone._schedule.req_fragment(block_mode=False)
+            #         else:
+            #             self._sched_zone._schedule.req_fragment(block_mode=False)
+            #     self._sched_lock.release()
 
-        except (LookupError, TypeError, ValueError):  # TODO: shouldn't be needed?
-            msg_logger.error("%s < Coding/Logic Error", pkt.packet, extra=pkt.__dict__)
-            raise
+        except (AssertionError, NotImplementedError):
+            return
 
-        # if msg.verb == "RP" and msg.code == "0404":
-        #     self._sched_lock.acquire()
-        #    if self._sched_zone and self._sched_zone.id == msg.payload["zone_idx"]:
-        #         if self._sched_zone.schedule:
-        #             self._sched_zone = None
-        #         elif msg.payload["frag_index"] == 1:
-        #             self._sched_zone._schedule.req_fragment(block_mode=False)
-        #         else:
-        #             self._sched_zone._schedule.req_fragment(block_mode=False)
-        #     self._sched_lock.release()
-
-        # only reliable packets should become part of the state data
-        if "18" in (msg.src.type, msg.dst.type):
+        if "18" in (msg.src.type, msg.dst.type):  # only reliable pkts used for state
             return
 
         # try to find the boiler relay, dhw sensor
@@ -456,7 +425,7 @@ class Gateway:
         ctl = None if controller is None else self.get_device(controller)
         evo = None if ctl is None else self.get_system(ctl)
 
-        # assert address.type in known device types - maybe do in Device.__init__()?
+        # check address.type in known device types - maybe do in Device.__init__()?
         if address.type in ("63", "--"):
             return  # 18: _is_ a device, but there's no value in tracking it
 

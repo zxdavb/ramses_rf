@@ -23,6 +23,30 @@ if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
+def msg_decorator(func):
+    """xxx."""
+
+    def wrapper(*args, **kwargs) -> Optional[Any]:
+        """xxx."""
+        try:
+            return func(*args, **kwargs)
+        except (AssertionError, NotImplementedError) as err:
+            msg = args[0]
+            _LOGGER.exception(
+                "%s < %s", msg._pkt, err.__class__.__name__, extra=msg.__dict__
+            )
+            raise
+        # TODO: this shouldn't be required?
+        except (AttributeError, LookupError, TypeError, ValueError) as err:
+            msg = args[0]
+            _LOGGER.error(
+                "%s < %s", err.__class__.__name__, msg.packet, extra=msg.__dict__
+            )
+            raise
+
+    return wrapper
+
+
 class Message:
     """The message class."""
 
@@ -50,7 +74,8 @@ class Message:
 
         self._payload = self._str = None
 
-        self._is_array = self._is_fragment = self._is_valid = None
+        self._is_valid = self._is_array = self._is_fragment = None
+        self._is_valid = self.is_valid
 
     def __repr__(self) -> str:
         return self._pkt
@@ -206,8 +231,8 @@ class Message:
             payload_parser = getattr(parsers, "parser_unknown")
 
         try:  # run the parser
-            self._payload = payload_parser(self.raw_payload, self)  # TODO: messy
-            assert isinstance(self.payload, dict) or isinstance(self.payload, list)
+            self._payload = payload_parser(self.raw_payload, self)
+            assert isinstance(self._payload, dict) or isinstance(self._payload, list)
 
         except AssertionError:  # for development only?
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
@@ -229,7 +254,7 @@ class Message:
         else:
             self._is_valid = True
 
-        # any remaining messages are valid, so: log them
+        # any remaining messages are valid, so: log them with one of these schemes
         if False and __dev_mode__:  # a hack to colourize by cycle
             if self.src.type == "01" and self.verb == " I":
                 if (
@@ -254,6 +279,7 @@ class Message:
 
         return self._is_valid
 
+    @msg_decorator
     def create_devices(self) -> Tuple[Device, Optional[Device]]:
         """Parse the payload and create any new device(s).
 
@@ -306,6 +332,7 @@ class Message:
         if not isinstance(self.dst, Device) and self.dst.type not in ("--", "63"):
             self.dst = self._gwy.device_by_id[self.dst.id]
 
+    @msg_decorator
     def create_entities(self) -> None:
         """Discover and create new entities (zones, ufh_zones).
 
@@ -348,6 +375,7 @@ class Message:
         else:  # should never get here
             raise TypeError
 
+    @msg_decorator
     def update_entities(self) -> None:  # TODO: needs work
         """Update the state of entities (devices, zones, ufh_zones).
 
