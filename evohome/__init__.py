@@ -140,14 +140,13 @@ class Gateway:
                 _LOGGER.info("Raw state data: \r\n%s", self.evo)
 
             if signal in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
-                await self.async_cleanup("_sig_handler_posix()")  # before task.cancel
                 self.cleanup("_sig_handler_posix()")  # OK for after tasks.cancel
 
                 tasks = [
                     t for t in asyncio.all_tasks() if t is not asyncio.current_task()
                 ]
                 [task.cancel() for task in tasks]
-                logging.info(f"Cancelling {len(tasks)} outstanding tasks...")
+                logging.debug(f"Cancelling {len(tasks)} outstanding tasks...")
 
                 # raise CancelledError
                 await asyncio.gather(*tasks, return_exceptions=True)
@@ -165,18 +164,13 @@ class Gateway:
                     sig, lambda sig=sig: asyncio.create_task(_sig_handler_posix(sig))
                 )
 
-    async def async_cleanup(self, xxx=None) -> None:
-        """Perform the async portion of a graceful shutdown."""
-
-        _LOGGER.info("async_cleanup() invoked by: %s", xxx)
-
     def cleanup(self, xxx=None) -> None:
         """Perform the non-async portion of a graceful shutdown."""
 
-        _LOGGER.info("cleanup() invoked by: %s", xxx)
+        _LOGGER.debug("cleanup() invoked by: %s", xxx)
 
         if self.config["known_devices"]:
-            _LOGGER.info("cleanup(): Updating known_devices file...")
+            _LOGGER.debug("cleanup(): Updating known_devices file...")
             try:
                 for d in self.devices:
                     device_attrs = {
@@ -250,7 +244,6 @@ class Gateway:
                 self._tasks.extend([asyncio.create_task(port_writer(manager)), reader])
 
         await reader  # was: await asyncio.gather(*self._tasks)
-        await self.async_cleanup("start()")
         self.cleanup("start()")
 
     async def _dispatch_pkt(self, destination=None) -> None:
