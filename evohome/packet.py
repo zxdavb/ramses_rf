@@ -133,7 +133,7 @@ class Packet:
             err_msg = "invalid packet structure"
         elif not validate_addresses():
             err_msg = "invalid packet addresses"
-        elif int(self.packet[46:49]) > 48:
+        elif int(self.packet[46:49]) > 48:  # TODO: is 02/I/22C9 > 24?
             err_msg = "excessive payload length"
         elif int(self.packet[46:49]) * 2 != len(self.packet[50:]):
             err_msg = "mismatched payload length"
