@@ -19,7 +19,7 @@ from .const import (
 from .devices import Controller, Device, Entity, HeatDemand, _dtm
 
 _LOGGER = logging.getLogger(__name__)
-if True or __dev_mode__:
+if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
@@ -64,7 +64,7 @@ class ZoneBase(Entity):
         kwargs["payload"] = kwargs.get("payload", f"{self.id}00")
         super()._command(code, **kwargs)
 
-    async def _get_pkt(self, code) -> Optional[Any]:  # Optional[Message]:
+    async def _get_msg(self, code) -> Optional[Any]:  # Optional[Message]:
         # if possible/allowed, simply get an up-todate packet from the controller
         if not self._gwy.config["listen_only"]:
             # self._msgs.pop(code, None)  # this is done in self._command()
@@ -513,13 +513,13 @@ class Zone(ZoneBase):
 
     @property
     async def name(self) -> Optional[str]:  # 0004
-        await self._get_pkt("0004")  # if possible/allowed, get an up-to-date pkt
+        await self._get_msg("0004")  # if possible/allowed, get an up-to-date pkt
 
         return self._get_msg_value("0004", "name")
 
     @property
     async def configuration(self) -> Optional[dict]:  # 000A
-        await self._get_pkt("000A")  # if possible/allowed, get an up-to-date pkt
+        await self._get_msg("000A")  # if possible/allowed, get an up-to-date pkt
 
         msg_0 = self._evo.ctl._msgs.get("000A")  # authorative, but 1/hourly
         msg_1 = self._msgs.get("000A")  # possibly more up-to-date (or null)
@@ -538,7 +538,7 @@ class Zone(ZoneBase):
 
     @property
     async def actuators(self) -> Optional[list]:  # 000C
-        await self._get_pkt("000C")  # if possible/allowed, get an up-to-date pkt
+        await self._get_msg("000C")  # if possible/allowed, get an up-to-date pkt
 
         if "000C" in self._msgs:
             return self._msgs["000C"].payload["actuators"]
@@ -546,7 +546,7 @@ class Zone(ZoneBase):
 
     @property
     async def setpoint(self) -> Optional[float]:  # 2309 (2349 is a superset of 2309)
-        await self._get_pkt("2309")  # if possible/allowed, get an up-to-date pkt
+        await self._get_msg("2309")  # if possible/allowed, get an up-to-date pkt
 
         msg_0 = self.ctl._msgs.get("2309")  # most authorative  # TODO: why 2349?
         msg_1 = self._msgs.get("2309")  # possibly more up-to-date (or null)
@@ -563,14 +563,14 @@ class Zone(ZoneBase):
 
     @property
     async def mode(self) -> Optional[dict]:  # 2349
-        await self._get_pkt("2349")  # if possible/allowed, get an up-to-date pkt
+        await self._get_msg("2349")  # if possible/allowed, get an up-to-date pkt
 
         result = self._get_msg_value("2349")
         return {k: v for k, v in result.items() if k != "zone_idx"} if result else None
 
     @property
     async def temperature(self) -> Optional[float]:  # 30C9
-        await self._get_pkt("30C9")  # if possible/allowed, get an up-to-date pkt
+        await self._get_msg("30C9")  # if possible/allowed, get an up-to-date pkt
 
         msg_0 = self.ctl._msgs.get("30C9")  # most authorative
         msg_1 = self.sensor._msgs.get("30C9")  # possibly most up-to-date
@@ -649,7 +649,7 @@ class TrvZone(Zone, ZoneHeatDemand):  # Radiator zones
 
     @property
     async def window_open(self) -> Optional[bool]:  # 12B0
-        await self._get_pkt("12B0")  # if possible/allowed, get an up-to-date pkt
+        await self._get_msg("12B0")  # if possible/allowed, get an up-to-date pkt
 
         return self._get_msg_value("12B0", "window_open")
 

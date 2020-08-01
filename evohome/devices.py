@@ -29,7 +29,7 @@ from .exceptions import CorruptStateError
 
 
 _LOGGER = logging.getLogger(__name__)
-if True and __dev_mode__:
+if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
@@ -174,7 +174,7 @@ class Entity:
         # pass
         raise NotImplementedError
 
-    def _get_pkt_value(self, code, key=None) -> Optional[Any]:
+    def _get_msg_value(self, code, key=None) -> Optional[Any]:
         if self._msgs.get(code):
             if isinstance(self._msgs[code].payload, list):
                 return self._msgs[code].payload
