@@ -67,15 +67,15 @@ class ZoneBase(Entity):
     async def _get_pkt(self, code) -> Optional[Any]:  # Optional[Message]:
         # if possible/allowed, simply get an up-todate packet from the controller
         if not self._gwy.config["listen_only"]:
-            # self._pkts.pop(code, None)  # this is done in self._command()
+            # self._msgs.pop(code, None)  # this is done in self._command()
             for _ in range(RQ_RETRY_LIMIT):  # TODO: check rq_len
                 self._command(code, payload=f"{self.id}00", priority=PRIORITY_ASAP)
                 await asyncio.sleep(RQ_TIMEOUT)
-                if code in self._pkts:
-                    break  # return self._pkts[code]
+                if code in self._msgs:
+                    break  # return self._msgs[code]
 
         # otherwise, leverage an eavesdropped message, if any
-        return self._pkts.get(code)
+        return self._msgs.get(code)
 
     def add_device(self, device, sensor=None, actuator=None) -> Device:
         """Add a device to this zone (add it to this system if required)."""
@@ -148,8 +148,8 @@ class DhwZone(ZoneBase, HeatDemand):
         # 07:38:39.124 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
         # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
 
-        if "10A0" in self._pkts:
-            return self._pkts["10A0"].dst.addr
+        if "10A0" in self._msgs:
+            return self._msgs["10A0"].dst.addr
 
         return self._sensor
 
@@ -189,16 +189,16 @@ class DhwZone(ZoneBase, HeatDemand):
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
-        return self._get_pkt_value("0008", "relay_demand")
+        return self._get_msg_value("0008", "relay_demand")
 
     @property  # only seen with FC, but seems should pair with 0008?
     def relay_failsafe(self) -> Optional[float]:  # 0009
-        return self._get_pkt_value("0009")
+        return self._get_msg_value("0009")
 
     @property
     def config(self):  # 10A0
         attrs = ("setpoint", "overrun", "differential")
-        return {x: self._get_pkt_value("10A0", x) for x in attrs}
+        return {x: self._get_msg_value("10A0", x) for x in attrs}
 
     @property
     def name(self) -> Optional[str]:  # N/A
@@ -207,19 +207,19 @@ class DhwZone(ZoneBase, HeatDemand):
     @property
     def setpoint_status(self):  # 1F41
         attrs = ["active", "mode", "until"]
-        return {x: self._get_pkt_value("1F41", x) for x in attrs}
+        return {x: self._get_msg_value("1F41", x) for x in attrs}
 
     @property
     def temperature(self):  # 1260
-        return self._get_pkt_value("1260", "temperature")
+        return self._get_msg_value("1260", "temperature")
 
     @property
     def tpi_params(self) -> Optional[float]:  # 1100
-        return self._get_pkt_value("1100")
+        return self._get_msg_value("1100")
 
     @property
     def sync_tpi(self) -> Optional[float]:  # 3B00
-        return self._get_pkt_value("3B00", "sync_tpi")
+        return self._get_msg_value("3B00", "sync_tpi")
 
     async def cancel_override(self) -> bool:  # 1F41
         """Reset the DHW to follow its schedule."""
@@ -515,14 +515,14 @@ class Zone(ZoneBase):
     async def name(self) -> Optional[str]:  # 0004
         await self._get_pkt("0004")  # if possible/allowed, get an up-to-date pkt
 
-        return self._get_pkt_value("0004", "name")
+        return self._get_msg_value("0004", "name")
 
     @property
     async def configuration(self) -> Optional[dict]:  # 000A
         await self._get_pkt("000A")  # if possible/allowed, get an up-to-date pkt
 
-        msg_0 = self._evo.ctl._pkts.get("000A")  # authorative, but 1/hourly
-        msg_1 = self._pkts.get("000A")  # possibly more up-to-date (or null)
+        msg_0 = self._evo.ctl._msgs.get("000A")  # authorative, but 1/hourly
+        msg_1 = self._msgs.get("000A")  # possibly more up-to-date (or null)
 
         if msg_1 is self._most_recent_msg(msg_0, msg_1):  # could be: None is None
             result = msg_1.payload["000A"]
@@ -540,16 +540,16 @@ class Zone(ZoneBase):
     async def actuators(self) -> Optional[list]:  # 000C
         await self._get_pkt("000C")  # if possible/allowed, get an up-to-date pkt
 
-        if "000C" in self._pkts:
-            return self._pkts["000C"].payload["actuators"]
+        if "000C" in self._msgs:
+            return self._msgs["000C"].payload["actuators"]
         return [d.id for d in self.devices if d[:2] in DEVICE_IS_ACTUATOR]
 
     @property
     async def setpoint(self) -> Optional[float]:  # 2309 (2349 is a superset of 2309)
         await self._get_pkt("2309")  # if possible/allowed, get an up-to-date pkt
 
-        msg_0 = self.ctl._pkts.get("2309")  # most authorative  # TODO: why 2349?
-        msg_1 = self._pkts.get("2309")  # possibly more up-to-date (or null)
+        msg_0 = self.ctl._msgs.get("2309")  # most authorative  # TODO: why 2349?
+        msg_1 = self._msgs.get("2309")  # possibly more up-to-date (or null)
 
         if msg_1 is self._most_recent_msg(msg_0, msg_1):  # could be: None is None
             return msg_1.payload["setpoint"] if msg_1 is not None else None
@@ -565,15 +565,15 @@ class Zone(ZoneBase):
     async def mode(self) -> Optional[dict]:  # 2349
         await self._get_pkt("2349")  # if possible/allowed, get an up-to-date pkt
 
-        result = self._get_pkt_value("2349")
+        result = self._get_msg_value("2349")
         return {k: v for k, v in result.items() if k != "zone_idx"} if result else None
 
     @property
     async def temperature(self) -> Optional[float]:  # 30C9
         await self._get_pkt("30C9")  # if possible/allowed, get an up-to-date pkt
 
-        msg_0 = self.ctl._pkts.get("30C9")  # most authorative
-        msg_1 = self.sensor._pkts.get("30C9")  # possibly most up-to-date
+        msg_0 = self.ctl._msgs.get("30C9")  # most authorative
+        msg_1 = self.sensor._msgs.get("30C9")  # possibly most up-to-date
 
         if msg_1 is self._most_recent_msg(msg_0, msg_1):  # could be: None is None
             return msg_1.payload["temperature"] if msg_1 is not None else None
@@ -593,7 +593,7 @@ class ZoneHeatDemand:  # not all zone types call for heat
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
-        return self._get_pkt_value("3150", "heat_demand")
+        return self._get_msg_value("3150", "heat_demand")
 
     @property
     def heat_demand_alt(self) -> Optional[float]:  # 3150
@@ -625,11 +625,11 @@ class BdrZone(Zone):  # Electric zones (do *not* call for heat)
 
     @property
     def actuator_enabled(self) -> Optional[bool]:  # 3EF0
-        return self._get_pkt_value("3EF0", "actuator_enabled")
+        return self._get_msg_value("3EF0", "actuator_enabled")
 
     @property
     def actuator_state(self) -> Optional[float]:  # 3EF1
-        return self._get_pkt_value("3EF1")
+        return self._get_msg_value("3EF1")
 
 
 class ValZone(BdrZone, ZoneHeatDemand):  # Zone valve zones
@@ -651,7 +651,7 @@ class TrvZone(Zone, ZoneHeatDemand):  # Radiator zones
     async def window_open(self) -> Optional[bool]:  # 12B0
         await self._get_pkt("12B0")  # if possible/allowed, get an up-to-date pkt
 
-        return self._get_pkt_value("12B0", "window_open")
+        return self._get_msg_value("12B0", "window_open")
 
 
 class UfhZone(Zone, ZoneHeatDemand):  # UFH zones
@@ -662,7 +662,7 @@ class UfhZone(Zone, ZoneHeatDemand):  # UFH zones
 
     @property
     def ufh_setpoint(self) -> Optional[float]:  # 3B00
-        return self._get_pkt_value("22C9")
+        return self._get_msg_value("22C9")
 
 
 class MixZone(Zone, ZoneHeatDemand):  # Mix valve zones
@@ -674,7 +674,7 @@ class MixZone(Zone, ZoneHeatDemand):  # Mix valve zones
     @property
     def configuration(self):
         attrs = ["max_flow_temp", "pump_rum_time", "actuator_run_time", "min_flow_temp"]
-        return {x: self._get_pkt_value("1030", x) for x in attrs}
+        return {x: self._get_msg_value("1030", x) for x in attrs}
 
 
 _ZONE_CLASS = {

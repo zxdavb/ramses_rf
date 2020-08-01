@@ -90,7 +90,7 @@ class Entity:
         self._ctl = controller
         self._evo = gateway.system_by_id.get(controller)
 
-        self._pkts = {}
+        self._msgs = {}
         self._domain = {}
         self._last_msg = None
         self._last_sync = {}
@@ -119,7 +119,7 @@ class Entity:
         if self._ctl is not None:
             return self._ctl
 
-        # for msg in self._pkts.values():
+        # for msg in self._msgs.values():
         #     if not msg.dst.type.is_controller:
         #         self._ctl = msg.dst  # useful for UFH
         #     # elif msg.src.type == "01":  # msg.src.is_controller
@@ -160,7 +160,7 @@ class Entity:
         verb = kwargs.get("verb", "RQ")
         payload = kwargs.get("payload", "00")
 
-        self._pkts.pop(code, None)  # remove the old one, so we can tell if RP'd
+        self._msgs.pop(code, None)  # remove the old one, so we can tell if RP'd
 
         priority_default = PRIORITY_HIGH if verb == " W" else PRIORITY_DEFAULT
         kwargs = {
@@ -175,14 +175,14 @@ class Entity:
         raise NotImplementedError
 
     def _get_pkt_value(self, code, key=None) -> Optional[Any]:
-        if self._pkts.get(code):
-            if isinstance(self._pkts[code].payload, list):
-                return self._pkts[code].payload
+        if self._msgs.get(code):
+            if isinstance(self._msgs[code].payload, list):
+                return self._msgs[code].payload
 
             if key is not None:
-                return self._pkts[code].payload.get(key)
+                return self._msgs[code].payload.get(key)
 
-            result = self._pkts[code].payload
+            result = self._msgs[code].payload
             return {
                 k: v
                 for k, v in result.items()
@@ -201,18 +201,18 @@ class Entity:
             self._last_sync[msg.code] = msg
 
         if msg.verb == " W":
-            if msg.code in self._pkts and self._pkts[msg.code].verb != msg.verb:
+            if msg.code in self._msgs and self._msgs[msg.code].verb != msg.verb:
                 return
         if msg.verb == "RQ":  # and msg.payload:
-            if msg.code in self._pkts and self._pkts[msg.code].verb != msg.verb:
+            if msg.code in self._msgs and self._msgs[msg.code].verb != msg.verb:
                 return
         # may get an RQ/W initially, but RP/I will override
-        # self._pkts.update({msg.code: msg})
-        self._pkts[msg.code] = msg
+        # self._msgs.update({msg.code: msg})
+        self._msgs[msg.code] = msg
 
     @property
     def pkt_codes(self) -> list:
-        return list(self._pkts.keys())
+        return list(self._msgs.keys())
 
 
 class Actuator:  # 3EF0, 3EF1
@@ -220,11 +220,11 @@ class Actuator:  # 3EF0, 3EF1
 
     @property
     def actuator_enabled(self) -> Optional[bool]:  # 3EF0, TODO: does 10: RP/3EF1?
-        return self._get_pkt_value("3EF0", "actuator_enabled")
+        return self._get_msg_value("3EF0", "actuator_enabled")
 
     @property
     def actuator_state(self) -> Optional[float]:  # 3EF1, TODO: not all actuators
-        return self._get_pkt_value("3EF1")
+        return self._get_msg_value("3EF1")
 
 
 class BatteryState:  # 1060
@@ -232,9 +232,9 @@ class BatteryState:  # 1060
 
     @property
     def battery_state(self):
-        low_battery = self._get_pkt_value("1060", "low_battery")
+        low_battery = self._get_msg_value("1060", "low_battery")
         if low_battery is not None:
-            battery_level = self._get_pkt_value("1060", "battery_level")
+            battery_level = self._get_msg_value("1060", "battery_level")
             return {"low_battery": low_battery, "battery_level": battery_level}
 
 
@@ -243,7 +243,7 @@ class HeatDemand:  # 3150
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
-        return self._get_pkt_value("3150", "heat_demand")
+        return self._get_msg_value("3150", "heat_demand")
 
 
 class Setpoint:  # 2309
@@ -251,7 +251,7 @@ class Setpoint:  # 2309
 
     @property
     def setpoint(self) -> Optional[Any]:  # 2309
-        return self._get_pkt_value("2309", "setpoint")
+        return self._get_msg_value("2309", "setpoint")
 
 
 class Temperature:  # 30C9
@@ -259,7 +259,7 @@ class Temperature:  # 30C9
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        return self._get_pkt_value("30C9", "temperature")
+        return self._get_msg_value("30C9", "temperature")
 
 
 # ######################################################################################
@@ -416,7 +416,7 @@ class Device(Entity):
 
     @property
     def hardware_info(self) -> Optional[str]:  # 10E0
-        return self._get_pkt_value("10E0")
+        return self._get_msg_value("10E0")
 
     @property
     def has_battery(self) -> Optional[bool]:  # 1060
@@ -427,7 +427,7 @@ class Device(Entity):
         if self._has_battery is not None:
             return self._has_battery
 
-        if "1060" in self._pkts:
+        if "1060" in self._msgs:
             self._has_battery = True
         return self._has_battery
 
@@ -439,19 +439,19 @@ class Device(Entity):
         #     return True
         # if self.type in ("01", "23"):
         #     return True
-        # if "1F09" in self._pkts:  # TODO: needs to add msg to instaition
-        #     return self._pkts["1F09"].verb == " I"
-        # if "31D9" in self._pkts:  # TODO: needs to add msg to instaition
-        #     return self._pkts["31D9"].verb == " I"
+        # if "1F09" in self._msgs:  # TODO: needs to add msg to instaition
+        #     return self._msgs["1F09"].verb == " I"
+        # if "31D9" in self._msgs:  # TODO: needs to add msg to instaition
+        #     return self._msgs["31D9"].verb == " I"
         return False
 
     @property
     def _pkt_1fc9(self) -> list:
-        return self._get_pkt_value("1FC9")  # we want the RPs
+        return self._get_msg_value("1FC9")  # we want the RPs
 
     @property
     def rf_signal(self) -> Optional[dict]:  # TODO: make 'current', else add dtm?
-        return self._get_pkt_value("0016")
+        return self._get_msg_value("0016")
 
 
 # 18:
@@ -544,7 +544,7 @@ class Controller(Device):
                 return  # (currently) no zone without a sensor
 
             # if self._gwy.serial_port:  # only if in monitor mode...
-            secs = self._get_pkt_value("1F09", "remaining_seconds")
+            secs = self._get_msg_value("1F09", "remaining_seconds")
             if secs is None or msg.dtm > prev_msg.dtm + timedelta(seconds=secs):
                 return  # only compare against 30C9 (array) pkt from the last cycle
 
@@ -578,7 +578,7 @@ class Controller(Device):
                 if d._evo in (self._evo, None)
                 and d.addr.type in DEVICE_HAS_ZONE_SENSOR
                 and d.temperature is not None
-                and d._pkts["30C9"].dtm > prev_msg.dtm  # changed temp during last cycle
+                and d._msgs["30C9"].dtm > prev_msg.dtm  # changed temp during last cycle
             ]
 
             if _LOGGER.isEnabledFor(logging.DEBUG):
@@ -708,7 +708,7 @@ class Controller(Device):
 
     @property
     def language(self) -> Optional[str]:  # 0100,
-        return self._get_pkt_value("0100", "language")
+        return self._get_msg_value("0100", "language")
 
     @property
     async def _mode(self):  # 2E04
@@ -716,10 +716,10 @@ class Controller(Device):
             for _ in range(RQ_RETRY_LIMIT):
                 self._command("2E04", payload="FF", priority=PRIORITY_ASAP)
                 await asyncio.sleep(RQ_TIMEOUT)
-                if "2E04" in self._pkts:
+                if "2E04" in self._msgs:
                     break
 
-        return {x: self._get_pkt_value("2E04", x) for x in ("mode", "until")}
+        return {x: self._get_msg_value("2E04", x) for x in ("mode", "until")}
 
     @property
     def _sensor(self) -> Optional[str]:
@@ -735,8 +735,8 @@ class Controller(Device):
         # 07:38:39.124 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
         # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
 
-        if "10A0" in self._pkts:
-            return self._pkts["10A0"].dst.addr
+        if "10A0" in self._msgs:
+            return self._msgs["10A0"].dst.addr
 
 
 # 02: "10E0", "3150";; "0008", "22C9", "22D0"
@@ -768,7 +768,7 @@ class UfhController(Device, HeatDemand):
 
     @property
     def zones(self):  # 22C9
-        return self._get_pkt_value("22C9")
+        return self._get_msg_value("22C9")
 
 
 # 07: "1060";; "1260" "10A0"
@@ -785,11 +785,11 @@ class DhwSensor(Device, BatteryState):
         super().update(msg)
 
         # if msg.code == "10A0":
-        #     return self._pkts["10A0"].dst.addr
+        #     return self._msgs["10A0"].dst.addr
 
     @property
     def temperature(self):
-        return self._get_pkt_value("1260", "temperature")
+        return self._get_msg_value("1260", "temperature")
 
 
 # 10: "10E0", "3EF0", "3150";; "22D9", "3220" ("1FD4"), TODO: 3220
@@ -802,11 +802,11 @@ class OtbGateway(Device, Actuator, HeatDemand):
 
     @property
     def boiler_setpoint(self) -> Optional[Any]:  # 22D9
-        return self._get_pkt_value("22D9", "boiler_setpoint")
+        return self._get_msg_value("22D9", "boiler_setpoint")
 
     @property
     def _last_opentherm_msg(self) -> Optional[Any]:  # 3220
-        return self._get_pkt_value("3220")
+        return self._get_msg_value("3220")
 
 
 # 03/12/22/34: 1060/2309/30C9;; (03/22: 0008/0009/3EF1, 2349?) (34: 000A/10E0/3120)
@@ -859,18 +859,18 @@ class BdrSwitch(Device, Actuator):
             return self._is_tpi
 
         # try to cast a new type (must be a superclass of the current type)
-        if "1FC9" in self._pkts and self._pkts["1FC9"].verb == "RP":
-            if "3B00" in self._pkts["1FC9"].raw_payload:
+        if "1FC9" in self._msgs and self._msgs["1FC9"].verb == "RP":
+            if "3B00" in self._msgs["1FC9"].raw_payload:
                 make_tpi()
 
-        elif "3B00" in self._pkts and self._pkts["3B00"].verb == " I":
+        elif "3B00" in self._msgs and self._msgs["3B00"].verb == " I":
             make_tpi()
 
         return self._is_tpi
 
     @property
     def tpi_params(self) -> dict:  # 1100
-        return self._get_pkt_value("1100")
+        return self._get_msg_value("1100")
 
 
 # 13: "3EF0", "1100"; ("3B00")
@@ -898,11 +898,11 @@ class TrvActuator(Device, BatteryState, HeatDemand, Setpoint, Temperature):
 
     # @property
     # def language(self) -> Optional[str]:  # 0100,
-    #     return self._get_pkt_value("0100", "language")
+    #     return self._get_msg_value("0100", "language")
 
     @property
     def window_state(self) -> Optional[bool]:  # 12B0
-        return self._get_pkt_value("12B0", "window_open")
+        return self._get_msg_value("12B0", "window_open")
 
 
 _DEVICE_CLASS = {
