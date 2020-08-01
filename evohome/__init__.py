@@ -171,22 +171,18 @@ class Gateway:
 
         if self.config["known_devices"]:
             _LOGGER.debug("cleanup(): Updating known_devices file...")
-            try:
-                for d in self.devices:
-                    device_attrs = {
-                        "friendly_name": d._friendly_name,
-                        "ignore": d._ignored,
-                    }
-                    if d.id in self.known_devices:
-                        self.known_devices[d.id].update(device_attrs)
-                    else:
-                        self.known_devices[d.id] = device_attrs
+            for d in self.devices:
+                device_attrs = {
+                    "friendly_name": d._friendly_name,
+                    "ignore": d._ignored,
+                }
+                if d.id in self.known_devices:
+                    self.known_devices[d.id].update(device_attrs)
+                else:
+                    self.known_devices[d.id] = device_attrs
 
-                with open(self.config["known_devices"], "w") as json_file:
-                    json.dump(self.known_devices, json_file, sort_keys=True, indent=4)
-
-            except AssertionError:
-                _LOGGER.exception("Failed update of %s", self.config["known_devices"])
+            with open(self.config["known_devices"], "w") as json_file:
+                json.dump(self.known_devices, json_file, sort_keys=True, indent=4)
 
     async def start(self) -> None:
         async def file_reader(fp):

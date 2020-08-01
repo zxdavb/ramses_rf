@@ -327,7 +327,10 @@ FAULT_TYPE = {
     "0A": "SensorError",
 }
 
-ISO_FORMAT_REGEX = r"\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d\.\d{6} ?"
+DTM_LONG_REGEX = re.compile(
+    r"\d{4}-[01]\d-[0-3]\d(T| )[0-2]\d:[0-5]\d:[0-5]\d\.\d{6} ?"
+)  # 2020-11-30T13:15:00.123456
+DTM_TIME_REGEX = re.compile(r"[0-2]\d:[0-5]\d:[0-5]\d\.\d{3} ?")  # 13:15:00.123
 
 # Used by packet structure validators
 a = r"(-{3}|\d{3})"

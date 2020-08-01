@@ -1,8 +1,7 @@
 """Packet processor."""
 import asyncio
-from datetime import datetime as dt
+from datetime import date, datetime as dt
 import logging
-import re
 from string import printable
 from threading import Lock
 
@@ -14,7 +13,8 @@ from serial_asyncio import open_serial_connection  # noqa
 
 from .command import PAUSE_DEFAULT, PAUSE_SHORT
 from .const import (
-    ISO_FORMAT_REGEX,
+    DTM_LONG_REGEX,
+    DTM_TIME_REGEX,
     MESSAGE_REGEX,
     NON_DEVICE,
     NUL_DEVICE,
@@ -32,6 +32,16 @@ if __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
+def extra(dtm, pkt=None):
+    _date, _time = dtm[:26].split("T")
+    return {
+        "date": _date,
+        "time": _time,
+        "error_text": "",
+        "comment": "",
+    }
+
+
 def split_pkt_line(packet_line: str) -> Tuple[str, str, str]:
     def _split(text: str, char: str) -> Tuple[str, str]:
         _list = text.split(char, maxsplit=1)
@@ -47,14 +57,11 @@ class Packet:
 
     def __init__(self, dtm, pkt, raw_pkt) -> None:
         """Create a packet."""
-        # self._dtm = dt.fromisoformat(dtm)
-        self.date, self.time = dtm.split("T")
+        self.date, self.time = dtm.split("T")  # dtm assumed to be valid
 
         self._pkt_line = pkt
         self._raw_pkt_line = raw_pkt
         self.packet, self.error_text, self.comment = split_pkt_line(pkt)
-
-        self._packet = self.packet + " " if self.packet else ""  # TODO: hack 4 logging
 
         self.addrs = [None] * 3
         self.src_addr = self.dst_addr = None
@@ -200,22 +207,13 @@ class PortPktProvider:
     async def get_pkt(self) -> Tuple[str, str, Optional[bytearray]]:
         """Get the next packet line (dtm, pkt, pkt_bytes) from a serial port."""
 
-        def _logger_msg(func, msg):  # TODO: this is messy...
-            try:
-                date, time = dtm_str.split("T")
-            except ValueError:
-                date, time = dt.min.isoformat().split("T")
-            extra = {"date": date, "time": time, "_packet": pkt_bytes}
-            extra.update({"error_text": "", "comment": ""})
-            func("%s < %s", pkt_bytes, msg, extra=extra)
-
         try:
             pkt_bytes = await self.reader.readline()
         except SerialException:
             return time_stamp(), "", None
 
         dtm_str = time_stamp()  # done here & now for most-accurate timestamp
-        _logger_msg(_LOGGER.debug, "Raw packet")
+        _LOGGER.debug("%s < Raw packet", pkt_bytes, extra=extra(dtm_str, pkt_bytes))
 
         try:
             pkt_str = "".join(
@@ -224,7 +222,9 @@ class PortPktProvider:
                 if c in printable
             )
         except UnicodeDecodeError:
-            _logger_msg(_LOGGER.warning, "Bad (raw) packet")
+            _LOGGER.warning(
+                "%s < Bad (raw) packet", pkt_bytes, extra=extra(dtm_str, pkt_bytes)
+            )
             return dtm_str, "", pkt_bytes
 
         # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
@@ -280,29 +280,26 @@ async def port_pkts(manager, include=None, exclude=None, relay=None):
 
 
 async def file_pkts(fp, include=None, exclude=None):
-    # TODO handle badly-formed dt strings - presently, they will crash
-    def _logger_msg(func, msg):  # TODO: this is messy...
-        # ValueError: not enough values to unpack (expected 2, got 1) [e.g. blank line]
-        try:
-            date, time = ts_pkt[:26].split("T")
-        except ValueError:
-            date, time = dt.min.isoformat().split("T")
-        extra = {"date": date, "time": time, "_packet": ts_pkt}
-        extra.update({"error_text": "", "comment": ""})
-        func("%s < %s", ts_pkt.strip(), msg, extra=extra)
 
     for ts_pkt in fp:
-        if ts_pkt.strip() == "":  # handle black lines
-            continue
-        try:
-            assert re.match(ISO_FORMAT_REGEX, ts_pkt[:26])
-            dt.fromisoformat(ts_pkt[:26])
-        except (AssertionError, ValueError):  # TODO: log these, or not?
-            _logger_msg(_LOGGER.debug, "Packet line has invalid timestamp")
-            # _LOGGER.debug("Packet line has invalid timestamp: %s", ts_pkt[:26])
+        ts_pkt = ts_pkt.strip()
+        if ts_pkt == "":  # ignore blank lines
             continue
 
-        pkt = Packet(ts_pkt[:26], ts_pkt[27:].strip(), None)
+        try:
+            dtm, pkt = ts_pkt[:26], ts_pkt[27:]
+            # assuming a valid log file, these assert allows for -O for inc. speed
+            assert DTM_LONG_REGEX.match(dtm)
+            assert dt.fromisoformat(dtm)
+        except (AssertionError, TypeError, ValueError):
+            _LOGGER.warning(
+                "%s < Packet line has an invalid timestamp (ignoring)",
+                ts_pkt,
+                extra=extra(time_stamp(), ts_pkt),
+            )
+            continue
+
+        pkt = Packet(dtm, pkt, None)
         if pkt.is_valid and pkt.is_wanted(include=include, exclude=exclude):
             yield pkt
 
