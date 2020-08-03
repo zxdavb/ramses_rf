@@ -36,6 +36,7 @@ def extra(dtm, pkt=None):
     return {
         "date": _date,
         "time": _time,
+        "_packet": pkt + " " if pkt else "",
         "error_text": "",
         "comment": "",
     }
@@ -63,6 +64,7 @@ class Packet:
         self._pkt_line = pkt
         self._raw_pkt_line = raw_pkt
         self.packet, self.error_text, self.comment = split_pkt_line(pkt)
+        self._packet = self.packet + " " if self.packet else ""  # NOTE: hack 4 logging
 
         self.addrs = [None] * 3
         self.src_addr = self.dst_addr = None
