@@ -36,7 +36,7 @@ def extra(dtm, pkt=None):
     return {
         "date": _date,
         "time": _time,
-        "_packet": pkt + " " if pkt else "",
+        "_packet": str(pkt) + " " if pkt else "",
         "error_text": "",
         "comment": "",
     }
