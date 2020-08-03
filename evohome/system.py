@@ -20,7 +20,7 @@ from .const import (
     SYSTEM_MODE_MAP,
 )
 from .devices import _dtm, Controller, Device
-from .zones import ZONE_CLASSES, DhwZone, Zone
+from .zones import DhwZone, Zone
 
 _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:
@@ -65,8 +65,8 @@ class System(Controller):
     def get_zone(self, domain_id, zone_type=None, sensor=None) -> Optional[Zone]:
         """Return a zone (will create it if required).
 
-            Can also set a zone's sensor, and zone_type.
-            """
+        Can also set a zone's sensor, and zone_type.
+        """
 
         if int(domain_id, 16) < MAX_ZONES:
             zone = self.zone_by_id.get(domain_id)
@@ -180,15 +180,15 @@ class EvoSystem(System):
         def find_htg_relay(this, prev=None):
             """Discover the heat relay (10: or 13:) for this system.
 
-                There's' 3 ways to find a controller's heat relay (in order of reliability):
-                1.  The 3220 RQ/RP *to/from a 10:* (1x/5min)
-                2a. The 3EF0 RQ/RP *to/from a 10:* (1x/1min)
-                2b. The 3EF0 RQ (no RP) *to a 13:* (3x/60min)
-                3.  The 3B00 I/I exchange between a CTL & a 13: (TPI cycle rate, usu. 6x/hr)
+            There's' 3 ways to find a controller's heat relay (in order of reliability):
+            1.  The 3220 RQ/RP *to/from a 10:* (1x/5min)
+            2a. The 3EF0 RQ/RP *to/from a 10:* (1x/1min)
+            2b. The 3EF0 RQ (no RP) *to a 13:* (3x/60min)
+            3.  The 3B00 I/I exchange between a CTL & a 13: (TPI cycle rate, usu. 6x/hr)
 
-                Data from the CTL is considered 'authorative'. The 1FC9 RQ/RP exchange
-                to/from a CTL is too rare to be useful.
-                """
+            Data from the CTL is considered 'authorative'. The 1FC9 RQ/RP exchange
+            to/from a CTL is too rare to be useful.
+            """
 
             # 18:14:14.025 066 RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000
             # 18:14:14.446 065 RP --- 10:067219 01:078710 --:------ 3220 005 00C00500FF
@@ -223,13 +223,13 @@ class EvoSystem(System):
         def find_dhw_sensor(this):
             """Discover the stored HW this system (if any).
 
-                There is only 1 way to find a controller's DHW sensor:
-                1.  The 10A0 RQ/RP *from/to a 07:* (1x/4h)
+            There is only 1 way to find a controller's DHW sensor:
+            1.  The 10A0 RQ/RP *from/to a 07:* (1x/4h)
 
-                Data from the CTL is considered more authorative. The RQ is initiated by the
-                DHW, so is not authorative. The I/1260 is not to/from a controller, so is
-                not useful.
-                """
+            Data from the CTL is considered more authorative. The RQ is initiated by the
+            DHW, so is not authorative. The I/1260 is not to/from a controller, so is
+            not useful.
+            """
 
             # 07:38:39.124 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4  # noqa
             # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8  # noqa

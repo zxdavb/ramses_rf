@@ -1,6 +1,5 @@
 """The entities for Honeywell's RAMSES II / Residential Network Protocol."""
 from datetime import datetime as dt, timedelta
-import json
 import logging
 from typing import Any, Optional
 
@@ -10,13 +9,7 @@ from .command import (
     PRIORITY_DEFAULT,
     PRIORITY_HIGH,
 )
-from .const import (
-    __dev_mode__,
-    DEVICE_LOOKUP,
-    DEVICE_TABLE,
-    DEVICE_TYPES,
-    MAX_ZONES
-)
+from .const import __dev_mode__, DEVICE_LOOKUP, DEVICE_TABLE, DEVICE_TYPES
 from .exceptions import CorruptStateError
 
 _LOGGER = logging.getLogger(__name__)
@@ -83,12 +76,9 @@ class Entity:
 
     @property
     def controller(self):  # -> Optional[Controller]:
-        """Return the id of the entity's controller, if known.
+        """Return the id of the entity's controller, if known."""
 
-        TBD: If the controller is not known, try to find it.
-        """
-
-        return self._ctl
+        return self._ctl  # TODO: if the controller is not known, try to find it?
 
     @controller.setter
     def controller(self, controller) -> None:
@@ -244,7 +234,8 @@ class Device(Entity):
             self._is_sensor = None
 
         self._zone = None
-        self._domain = None
+        self._domain = {}
+        self._domain_id = None
 
         attrs = gateway.known_devices.get(device_addr.id)
         self._friendly_name = attrs.get("friendly_name") if attrs else None
@@ -299,16 +290,16 @@ class Device(Entity):
     def zone(self, zone: Entity) -> None:  # should be: zone: Zone
         """Set the device's parent zone, after validating it.
 
-            There are three possible sources for the parent zone of a device:
-            1. a 000C packet (from their controller) for actuators only
-            2. a message.payload["zone_idx"]
-            3. the sensor-matching algorithm fro zone sensors only
+        There are three possible sources for the parent zone of a device:
+        1. a 000C packet (from their controller) for actuators only
+        2. a message.payload["zone_idx"]
+        3. the sensor-matching algorithm fro zone sensors only
 
-            All three will execute a dev.zone = zone (i.e. via this setter).
+        All three will execute a dev.zone = zone (i.e. via this setter).
 
-            Devices don't have parents, rather: Zones have children; a mis-configured
-            system could have a device as a child of two domains.
-            """
+        Devices don't have parents, rather: Zones have children; a mis-configured
+        system could have a device as a child of two domains.
+        """
 
         if not isinstance(zone, Entity):  # should be: zone, Zone)
             raise TypeError(f"Not a zone: {zone}")
@@ -382,7 +373,7 @@ class Controller(Device):
         self.device_by_id = {self.id: self}
 
         self._ctl = self
-        self._domain = "FF"
+        self._domain_id = "FF"
 
 
 # 02: "10E0", "3150";; "0008", "22C9", "22D0"
@@ -424,7 +415,7 @@ class DhwSensor(Device, BatteryState):
     def __init__(self, gateway, device_addr) -> None:
         super().__init__(gateway, device_addr)
 
-        self._domain = "HW"
+        self._domain_id = "HW"
 
     def update(self, msg):
         super().update(msg)
@@ -444,7 +435,7 @@ class OtbGateway(Device, Actuator, HeatDemand):
     def __init__(self, gateway, device_addr) -> None:
         super().__init__(gateway, device_addr)
 
-        self._domain = "FC"
+        self._domain_id = "FC"
 
     @property
     def boiler_setpoint(self) -> Optional[Any]:  # 22D9
@@ -490,7 +481,7 @@ class BdrSwitch(Device, Actuator):
         def make_tpi():
             self.__class__ = TpiSwitch
             self.dev_type = "TPI"
-            self._domain = "FC"  # TODO: check is None first
+            self._domain_id = "FC"  # TODO: check is None first
             _LOGGER.debug("Promoted device %s to %s", self.id, self.dev_type)
 
             self._is_tpi = True
