@@ -13,6 +13,7 @@ from typing import Dict, List, Optional
 from .command import Command, PAUSE_LONG
 from .const import __dev_mode__
 from .devices import DEVICE_CLASSES, Device
+
 # from .exceptions import MultipleControllerError
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
@@ -392,10 +393,10 @@ class Gateway:
     def get_device(self, dev_addr, controller=None, domain_id=None) -> Optional[Device]:
         """Return a device (will create it if required).
 
-            Can also set a controller/system (will create as required). If a controller is
-            provided, can also set the domain_id as one of: zone_idx, FF (controllers), FC
-            (heater_relay), HW (DHW sensor, relay), or None (unknown, TBA).
-            """
+        Can also set a controller/system (will create as required). If a controller is
+        provided, can also set the domain_id as one of: zone_idx, FF (controllers), FC
+        (heater_relay), HW (DHW sensor, relay), or None (unknown, TBA).
+        """
 
         ctl = None if controller is None else self.get_device(controller)
         if dev_addr.type in ("63", "--"):  # these are valid addresses, but not devices
