@@ -2,6 +2,7 @@
 
 from datetime import datetime as dt
 import logging
+import re
 from typing import Any, Optional, Union
 
 from . import parsers
@@ -16,10 +17,9 @@ from .const import (
     __dev_mode__,
 )
 from .devices import Device
-from .zones import create_zone as EvoZone
 
 _LOGGER = logging.getLogger(__name__)
-if False and __dev_mode__:
+if __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
@@ -40,7 +40,7 @@ def exception_handler(func):
         except (AttributeError, LookupError, TypeError, ValueError) as err:
             msg = args[0]
             _LOGGER.error(
-                "%s < %s", err.__class__.__name__, msg.packet, extra=msg.__dict__
+                "%s < %s", msg._pkt, err.__class__.__name__, extra=msg.__dict__
             )
             raise
 
@@ -55,7 +55,7 @@ class Message:
         self._gwy = gateway
         self._pkt = packet = pkt.packet
 
-        # HACK: prefer Device(s) (but don't create here), otherwise keep as Address(es)
+        # prefer Device(s) but Address(es) will do
         self.src = gateway.device_by_id.get(pkt.src_addr.id, pkt.src_addr)
         self.dst = gateway.device_by_id.get(pkt.dst_addr.id, pkt.dst_addr)
 
@@ -283,7 +283,7 @@ class Message:
     def create_devices(self) -> None:
         """Parse the payload and create any new device(s).
 
-        Requires a valid header; only 000C requires a valid message.
+        Requires a valid packet; only 000C requires a valid message.
         """
 
         if self.code == "000C" and self.verb == "RP":  # this seems pretty reliable...
@@ -293,7 +293,7 @@ class Message:
                     self._gwy.get_device(
                         Address(id=d, type=d[:2]),
                         controller=self.src,
-                        parent_000c=self.payload["zone_idx"],
+                        domain_id=self.payload["zone_idx"],
                     )
                     for d in self.payload["actuators"]
                 ]
@@ -332,56 +332,45 @@ class Message:
 
     @exception_handler
     def create_entities(self) -> None:
-        """Discover and create new entities (zones, ufh_zones).
-
-        Requires a valid message.
-        """
+        """Discover and create new entities (zones, ufh_zones)."""
 
         if not self.is_valid:  # requires self.payload
             return
 
-        # if self.src.type in ("10", "13"):
-        #     if self.code == "3B00":
-        #         EvoZone(self._gwy, None, "FC")
-
-        # This filter will improve the quality of data / reduce processing time
         if self.src.type not in ("01", "02", "23"):  # self._gwy.system_by_id:
             return
 
-        if self.code in ("10A0", "1260", "1F41"):  # DHW
+        if self.code in ("10A0", "1260", "1F41"):
             # if self.code == "3B00":  # every 10 mins
-            EvoZone(self._gwy, self.src, "FC")
+            self.src.get_zone("HW")
 
         # TODO: also process ufh_idx (but never domain_id)
         if isinstance(self._payload, dict):
-            if self._payload.get("zone_idx"):  # TODO: parent_zone too?
-                domain_type = "zone_idx"
-            else:
-                return
             # TODO: only creating zones from arrays, presently, but could do so here
-            # EvoZone(self._gwy, self.src, self._payload[domain_type])
+            if self._payload.get("zone_idx"):  # TODO: parent_zone too?
+                self.src.get_zone(self._payload["zone_idx"])
 
         elif isinstance(self._payload, list):
             if self.code in ("000A", "2309", "30C9"):  # the sync_cycle pkts
-                domain_type = "zone_idx"
+                [self.src.get_zone(d["zone_idx"]) for d in self.payload]
             # elif self.code in ("22C9", "3150"):  # UFH zone
-            # domain_type = "ufh_idx"
-            else:
-                return
-            [EvoZone(self._gwy, self.src, d[domain_type]) for d in self.payload]
+            #     pass
 
         else:  # should never get here
             raise TypeError
 
     @exception_handler
-    def update_entities(self) -> None:  # TODO: needs work
-        """Update the state of entities (devices, zones, ufh_zones).
-
-        Requires a valid message.
-        """
+    def update_entities(self, prev) -> None:  # TODO: needs work
+        """Update the state of entities (devices, zones, ufh_zones)."""
 
         if not self.is_valid:  # requires self.payload
             return
+
+        # TODO: do here, or in ctl.update() and/or system.update()
+        if re.search("I.* 01.* 000A", self._pkt):  # HACK: and dtm < 3 secs
+            # TODO: an edge case here: >2 000A packets in a row
+            if prev is not None and re.search("I.* 01.* 000A", prev._pkt):
+                self._payload = prev.payload + self.payload  # merge frags, and process
 
         # some empty payloads may still be useful (e.g. RQ/3EF1/{})
         try:
@@ -393,11 +382,18 @@ class Message:
         if not self.payload:
             return
 
+        # try to find the boiler relay, dhw sensor
+        for evo in self._gwy.systems:
+            if self.src.controller in [evo.id, None]:  # TODO: check!
+                evo.update(self, prev)  # TODO: WIP
+                if self.src.controller is not None:
+                    break
+
         # lists only useful to devices (c.f. 000C)
         if isinstance(self.payload, dict) and "zone_idx" in self.payload:
-            evo = self.src._evo  # TODO: needs device?
-            if evo is None and isinstance(self.dst, Device):
-                evo = self.dst._evo
+            evo = self.src  # TODO: needs device?
+            # if evo is None and isinstance(self.dst, Device):
+            #     evo = self.dst._evo
 
             if evo is not None and self.payload["zone_idx"] in evo.zone_by_id:
                 evo.zone_by_id[self.payload["zone_idx"]].update(self)

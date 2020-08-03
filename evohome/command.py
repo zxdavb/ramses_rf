@@ -2,11 +2,12 @@
 
 from datetime import datetime as dt, timedelta
 from functools import total_ordering
+import json
 import logging
 import struct
 import zlib
 
-from .const import COMMAND_FORMAT, HGI_DEVICE, __dev_mode__
+from .const import __dev_mode__, COMMAND_FORMAT, HGI_DEVICE
 
 SERIAL_PORT = "serial_port"
 CMD_CODE = "cmd_code"
@@ -42,11 +43,11 @@ class Schedule:
 
     # TODO: stop responding to fragments sent by others
 
-    def __init__(self, gwy, zone_idx, msg=None, **kwargs) -> None:
+    def __init__(self, ctl, zone_idx, msg=None, **kwargs) -> None:
         """Initialise the class."""
-        self._evo = gwy.evo
-        self._gwy = gwy
-        self._que = gwy.cmd_que
+        self._ctl = ctl
+        self._gwy = ctl._gwy
+        self._que = ctl._gwy.cmd_que
 
         self.id = zone_idx  # aka msg.payload["zone_idx"]
 
@@ -116,20 +117,20 @@ class Schedule:
         #     for idx in missing_frags:
         #         header = f"{self.id}20000800{idx + 1:02d}{self.total_frags:02d}"
         #         self._que.put_nowait(
-        #             Command("RQ", self._evo.ctl.id, "0404", header, **kwargs)
+        #             Command("RQ", self._ctl.id, "0404", header, **kwargs)
         #         )  # could do only: {missing_frags[0] + 1:02d} instead of iterating
         #     return len(missing_frags)
 
         header = f"{self.id}20000800{missing_frags[0] + 1:02d}{self.total_frags:02d}"
-        self._que.put_nowait(Command("RQ", self._evo.ctl.id, "0404", header, **kwargs))
+        self._que.put_nowait(Command("RQ", self._ctl.id, "0404", header, **kwargs))
 
         return 1
 
     def __repr_(self) -> str:
-        return self._schedule
+        return json.dumps(self._schedule)
 
     def __str_(self) -> str:
-        return str(self._schedule)
+        return json.dumps(self._schedule, indent=2)
 
     @property
     def schedule(self) -> list:

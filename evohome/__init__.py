@@ -12,8 +12,7 @@ from typing import Dict, List, Optional
 
 from .command import Command, PAUSE_LONG
 from .const import __dev_mode__
-from .devices import Device, create_device as EvoDevice
-
+from .devices import DEVICE_CLASSES, Device
 # from .exceptions import MultipleControllerError
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
@@ -93,7 +92,7 @@ class Gateway:
         self._sched_zone = None
         self._sched_lock = Lock()
 
-        self._last_msg = None
+        self._prev_msg = None
 
         self._tasks = []
         self._setup_signal_handler()
@@ -115,12 +114,10 @@ class Gateway:
         params, self._include_list, self._exclude_list = load_config(self, **config)
 
     def __repr__(self) -> str:
-        return str(self.schema)
+        return json.dumps(self.schema)
 
     def __str__(self) -> str:
-        return json.dumps([s.id for s in self.systems])
-        # return self.evo.state_db
-        # return self.evo.status
+        return json.dumps(self.schema, indent=2)
 
     def _setup_signal_handler(self):
         def _sig_handler_win32(signalnum, frame):
@@ -140,14 +137,13 @@ class Gateway:
                 _LOGGER.info("Raw state data: \r\n%s", self.evo)
 
             if signal in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
-                await self.async_cleanup("_sig_handler_posix()")  # before task.cancel
                 self.cleanup("_sig_handler_posix()")  # OK for after tasks.cancel
 
                 tasks = [
                     t for t in asyncio.all_tasks() if t is not asyncio.current_task()
                 ]
                 [task.cancel() for task in tasks]
-                logging.info(f"Cancelling {len(tasks)} outstanding tasks...")
+                logging.debug(f"Cancelling {len(tasks)} outstanding tasks...")
 
                 # raise CancelledError
                 await asyncio.gather(*tasks, return_exceptions=True)
@@ -165,34 +161,25 @@ class Gateway:
                     sig, lambda sig=sig: asyncio.create_task(_sig_handler_posix(sig))
                 )
 
-    async def async_cleanup(self, xxx=None) -> None:
-        """Perform the async portion of a graceful shutdown."""
-
-        _LOGGER.info("async_cleanup() invoked by: %s", xxx)
-
     def cleanup(self, xxx=None) -> None:
         """Perform the non-async portion of a graceful shutdown."""
 
-        _LOGGER.info("cleanup() invoked by: %s", xxx)
+        _LOGGER.debug("cleanup() invoked by: %s", xxx)
 
         if self.config["known_devices"]:
-            _LOGGER.info("cleanup(): Updating known_devices file...")
-            try:
-                for d in self.devices:
-                    device_attrs = {
-                        "friendly_name": d._friendly_name,
-                        "ignore": d._ignored,
-                    }
-                    if d.id in self.known_devices:
-                        self.known_devices[d.id].update(device_attrs)
-                    else:
-                        self.known_devices[d.id] = device_attrs
+            _LOGGER.debug("cleanup(): Updating known_devices file...")
+            for d in self.devices:
+                device_attrs = {
+                    "friendly_name": d._friendly_name,
+                    "ignore": d._ignored,
+                }
+                if d.id in self.known_devices:
+                    self.known_devices[d.id].update(device_attrs)
+                else:
+                    self.known_devices[d.id] = device_attrs
 
-                with open(self.config["known_devices"], "w") as json_file:
-                    json.dump(self.known_devices, json_file, sort_keys=True, indent=4)
-
-            except AssertionError:
-                _LOGGER.exception("Failed update of %s", self.config["known_devices"])
+            with open(self.config["known_devices"], "w") as json_file:
+                json.dump(self.known_devices, json_file, sort_keys=True, indent=4)
 
     async def start(self) -> None:
         async def file_reader(fp):
@@ -250,7 +237,6 @@ class Gateway:
                 self._tasks.extend([asyncio.create_task(port_writer(manager)), reader])
 
         await reader  # was: await asyncio.gather(*self._tasks)
-        await self.async_cleanup("start()")
         self.cleanup("start()")
 
     async def _dispatch_pkt(self, destination=None) -> None:
@@ -385,90 +371,65 @@ class Gateway:
             if self.config["raw_output"] >= DONT_UPDATE_ENTITIES:
                 return
 
-            msg.update_entities()  # update the state database
+            msg.update_entities(self._prev_msg)  # update the state database
 
             # if msg.verb == "RP" and msg.code == "0404":
-            #     self._sched_lock.acquire()
-            #    if self._sched_zone and self._sched_zone.id == msg.payload["zone_idx"]:
-            #         if self._sched_zone.schedule:
-            #             self._sched_zone = None
-            #         elif msg.payload["frag_index"] == 1:
-            #             self._sched_zone._schedule.req_fragment(block_mode=False)
-            #         else:
-            #             self._sched_zone._schedule.req_fragment(block_mode=False)
-            #     self._sched_lock.release()
+            # self._sched_lock.acquire()
+            # if self._sched_zone and self._sched_zone.id == msg.payload["zone_idx"]:
+            #     if self._sched_zone.schedule:
+            #         self._sched_zone = None
+            #     elif msg.payload["frag_index"] == 1:
+            #         self._sched_zone._schedule.req_fragment(block_mode=False)
+            #     else:
+            #         self._sched_zone._schedule.req_fragment(block_mode=False)
+            # self._sched_lock.release()
 
         except (AssertionError, NotImplementedError):
             return
 
-        if "18" in (msg.src.type, msg.dst.type):  # only reliable pkts used for state
-            return
+        self._prev_msg = msg if msg.is_valid else None
 
-        # try to find the boiler relay, dhw sensor
-        for evo in self.systems:
-            if msg.src.controller in [evo.ctl, None]:  # TODO: check!
-                evo._eavesdrop(msg, self._last_msg)  # TODO: WIP
-                if msg.src.controller is not None:
-                    break
-
-        self._last_msg = msg
-
-    def get_device(
-        self, address, controller=None, parent_000c=None
-    ) -> Optional[Device]:
+    def get_device(self, dev_addr, controller=None, domain_id=None) -> Optional[Device]:
         """Return a device (will create it if required).
 
-        Can also set a parent controller/system (will create them if required). Can
-        also set the parent zone, if supplied.
-        """
+            Can also set a controller/system (will create as required). If a controller is
+            provided, can also set the domain_id as one of: zone_idx, FF (controllers), FC
+            (heater_relay), HW (DHW sensor, relay), or None (unknown, TBA).
+            """
 
         ctl = None if controller is None else self.get_device(controller)
-        evo = None if ctl is None else self.get_system(ctl)
+        if dev_addr.type in ("63", "--"):  # these are valid addresses, but not devices
+            return
 
-        # check address.type in known device types - maybe do in Device.__init__()?
-        if address.type in ("63", "--"):
-            return  # 18: _is_ a device, but there's no value in tracking it
-
-        if isinstance(address, Device):
-            dev = address
+        if isinstance(dev_addr, Device):
+            device = dev_addr
         else:
-            dev = self.device_by_id.get(address.id, EvoDevice(self, address))
-
-        if dev.type == "18":
-            return dev  # 18: _is_ a device, but there's no value in tracking it
+            device = self.device_by_id.get(dev_addr.id)
+            if device is None:
+                if dev_addr.type == "01":
+                    device = EvoSystem(self, dev_addr)
+                else:
+                    device = DEVICE_CLASSES.get(dev_addr.type, Device)(self, dev_addr)
+        if device.type == "18":
+            return device  # 18: _is_ a device, but there's no value in tracking it
 
         if ctl is not None:
-            dev.controller = ctl  # TODO: a bit messy
+            device.controller = ctl  # ctl.devices/device_by_id
+            if domain_id is not None:
+                if domain_id in ("FC", "FF"):
+                    device._domain_id = domain_id
+                else:
+                    device.zone = ctl.get_zone(domain_id)  # zone.devices/device_by_id
 
-            if parent_000c is not None:
-                dev.parent_000c = evo.zone_by_id[parent_000c]
-
-        return dev
-
-    def get_system(self, controller) -> Optional[EvoSystem]:
-        """Return a system (will create it if required)."""
-
-        # o = self.system_by_id.get(controller.id, EvoSystem(self, controller))  # TODO
-        evo = self.system_by_id.get(controller.id)
-        evo = evo if evo is not None else EvoSystem(self, controller)
-
-        if controller.type == "01":
-            if self.evo is None:
-                self.evo = evo  # this is the first evohome-compatible system
-            # elif self.evo is not evo:
-            #     raise MultipleControllerError(
-            #         f">1 controller! (new: {evo.ctl.id}, old: {self.evo.ctl.id})"
-            #     )
-
-        return evo
+        return device
 
     @property
     def schema(self) -> dict:
         """Return the global schema."""
 
-        schema = {"controller": self.evo.ctl.id if self.evo else None}
+        schema = {"controller": self.evo.id if self.evo else None}
 
-        systems = [s.ctl.id for s in self.systems if s is not self.evo]
+        systems = [s.id for s in self.systems if s is not self.evo]
         systems.sort()
         schema.update({"alien_controllers": systems})
 
