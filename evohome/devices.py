@@ -1,5 +1,4 @@
 """The entities for Honeywell's RAMSES II / Residential Network Protocol."""
-import asyncio
 from datetime import datetime as dt, timedelta
 import json
 import logging
@@ -10,26 +9,18 @@ from .command import (
     PAUSE_DEFAULT,
     PRIORITY_DEFAULT,
     PRIORITY_HIGH,
-    PRIORITY_ASAP,
-    PRIORITY_LOW,
-    RQ_RETRY_LIMIT,
-    RQ_TIMEOUT,
 )
 from .const import (
-    DEVICE_CLASSES,
-    DEVICE_HAS_ZONE_SENSOR,
+    __dev_mode__,
     DEVICE_LOOKUP,
     DEVICE_TABLE,
     DEVICE_TYPES,
-    SYSTEM_MODE_LOOKUP,
-    SYSTEM_MODE_MAP,
-    __dev_mode__,
+    MAX_ZONES
 )
 from .exceptions import CorruptStateError
 
-
 _LOGGER = logging.getLogger(__name__)
-if False and __dev_mode__:
+if __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
@@ -84,31 +75,11 @@ class Entity:
     def __init__(self, gateway, entity_id, controller=None) -> None:
         self._gwy = gateway
         self._que = gateway.cmd_que
+        self._ctl = controller
 
         self.id = entity_id
 
-        self._ctl = controller
-        self._evo = gateway.system_by_id.get(controller)
-
         self._msgs = {}
-        self._domain = {}
-        self._last_msg = None
-        self._last_sync = {}
-
-    def __repr__(self) -> str:
-        """Return a JSON dict of all the public atrributes of an entity."""
-
-        result = {
-            a: getattr(self, a)
-            for a in dir(self)
-            if not a.startswith("_") and not callable(getattr(self, a))
-        }
-        return json.dumps(result)
-
-    def __str__(self) -> str:
-        """Return the id of an entity."""
-
-        return json.dumps({"entity_id": self.id})
 
     @property
     def controller(self):  # -> Optional[Controller]:
@@ -116,44 +87,29 @@ class Entity:
 
         TBD: If the controller is not known, try to find it.
         """
-        if self._ctl is not None:
-            return self._ctl
 
-        # for msg in self._msgs.values():
-        #     if not msg.dst.type.is_controller:
-        #         self._ctl = msg.dst  # useful for UFH
-        #     # elif msg.src.type == "01":  # msg.src.is_controller
-        #     #     self.cont_ctlroller = msg.src  # useful for TPI, not useful for OTB
-
-        # return self._controller
+        return self._ctl
 
     @controller.setter
     def controller(self, controller) -> None:
-        # if not isinstance(controller, Controller) and not controller.is_controller:
-        #     raise TypeError  # TODO
+        """Set the device's parent controller, after validating it."""
 
-        if not isinstance(controller, Controller) and controller._ctl is not controller:
-            raise TypeError(f"{controller} is not a Controller")
+        if not isinstance(controller, Controller):
+            raise TypeError(f"Not a controller: {controller}")
 
-        if self._ctl is not None and self._ctl is not controller:
-            # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5
-            raise CorruptStateError("Two controllers per system")
+        if self._ctl is not None:  # zones have this set at instantiation
+            if self._ctl is not controller:
+                # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5
+                raise CorruptStateError(
+                    f"Device {self} has a mismatched controller: "
+                    f"old={self._ctl}, new={controller}",
+                )
+            return
 
-        if self._ctl is None:
-            self._ctl = controller
-
-        if isinstance(self, Device):  # instead of a zone
-            if self._evo is None:
-                self._evo = self._gwy.system_by_id[controller.id]
-
-            if self._evo is not None and self.id not in self._evo.device_by_id:
-                self._evo.devices.append(self)
-                self._evo.device_by_id[self.id] = self
-        # else:
-        #     self._evo.domains.append(self)
-        #     self._evo.domain_by_id[self.id] = self
-        #     if self.name is not None:
-        #         self._controller.domain_by_name[self.name] = self
+        self._ctl = controller
+        self._ctl.devices.append(self)
+        self._ctl.device_by_id[self.id] = self
+        _LOGGER.debug("Entity %s: controller now set to %s", self.id, self._ctl.id)
 
     def _command(self, code, **kwargs) -> None:
         dest = kwargs.get("dest_addr", self.id)
@@ -190,22 +146,18 @@ class Entity:
             }
 
     def update(self, msg) -> None:
-        self._last_msg = msg  # f"{msg.date}T{msg.time}"
-
         if "domain_id" in msg.payload:  # isinstance(msg.payload, dict) and
             self._domain[msg.payload["domain_id"]] = {msg.code: msg}  # 01/02/23
             return
 
-        if self.type == "01" and msg.code in ("1F09", "2309", "30C9", "000A"):
-            # 1F09/FF, I/2309/array, I/30C9/array, I/000A/array/frag?
-            self._last_sync[msg.code] = msg
-
         if msg.verb == " W":
             if msg.code in self._msgs and self._msgs[msg.code].verb != msg.verb:
                 return
+
         if msg.verb == "RQ":  # and msg.payload:
             if msg.code in self._msgs and self._msgs[msg.code].verb != msg.verb:
                 return
+
         # may get an RQ/W initially, but RP/I will override
         # self._msgs.update({msg.code: msg})
         self._msgs[msg.code] = msg
@@ -268,21 +220,18 @@ class Temperature:  # 30C9
 class Device(Entity):
     """The Device base class."""
 
-    def __init__(self, gateway, device_addr, controller=None) -> None:
-        _LOGGER.debug("Creating a Device, %s", device_addr.id)
+    def __init__(self, gateway, device_addr, controller=None, domain_id=None) -> None:
+        _LOGGER.debug("Creating a %s, %s", self.__class__, device_addr.id)
         super().__init__(gateway, device_addr.id, controller)
 
-        assert device_addr.id not in gateway.device_by_id, device_addr.id
+        assert device_addr.id not in gateway.device_by_id, "Duplicate device address"
 
         gateway.devices.append(self)
         gateway.device_by_id[device_addr.id] = self
 
         self.addr = device_addr
         self.type = device_addr.type
-
         self.dev_type = DEVICE_TYPES.get(self.addr.type)
-        self.cls_name = DEVICE_CLASSES.get(self.dev_type)
-
         self.hex_id = dev_id_to_hex(device_addr.id)
 
         if self.addr.type in DEVICE_TABLE:
@@ -294,17 +243,32 @@ class Device(Entity):
             self._is_actuator = None
             self._is_sensor = None
 
-        self._zone = self._parent_zone = self._parent_000c = None  # parent zone object
+        self._zone = None
+        self._domain = None
 
         attrs = gateway.known_devices.get(device_addr.id)
         self._friendly_name = attrs.get("friendly_name") if attrs else None
         self._ignored = attrs.get("ignored", False) if attrs else False
 
-        self._discover()
+        # self._discover()
 
-    def __repr__(self):
+    # def __repr__(self) -> str:
+    #     """Return a JSON dict of all the public atrributes of an entity."""
+
+    #     result = {
+    #         a: getattr(self, a)
+    #         for a in dir(self)
+    #         if not a.startswith("_") and not callable(getattr(self, a))
+    #     }
+    #     return json.dumps(result)
+
+    def __repr__(self) -> str:
+        return self.id
+
+    def __str__(self) -> str:
         return f"{self.id} ({self.dev_type})"
 
+    @property
     def _discover(self):
         # do these even if battery-powered (e.g. device might be in rf_check mode)
         for code in ("0016", "1FC9"):
@@ -322,44 +286,8 @@ class Device(Entity):
     def update(self, msg) -> None:
         super().update(msg)
 
-        if "parent_idx" not in msg.payload:
-            return
-
-        zone = self._evo.zone_by_id.get(msg.payload["parent_idx"])
-
-        if zone is not None and self._parent_zone is None:
-            self._parent_zone = zone
-            self.zone = zone
-
-        elif zone is not self._parent_zone:
-            raise CorruptStateError(
-                f"{self.id} has mismatched parent_zones: old="
-                f"{self._parent_zone}, new={zone}"
-            )
-
-    @property
-    def parent_zone(self) -> Optional[Entity]:
-        """Return the device's parent zone as per packet payload."""
-        return self._parent_zone
-
-    @property
-    def parent_000c(self) -> Optional[Entity]:
-        """Return the id of the device's parent zone as per 000C packet payload."""
-        return self._parent_000c
-
-    @parent_000c.setter
-    def parent_000c(self, zone: Entity) -> None:  # should be: zone: Zone
-        """Set the id of the device's parent zone as per 000C packet payload."""
-
-        if zone is not None and self._parent_000c is None:
-            self._parent_000c = zone
-            self.zone = zone
-
-        elif zone is not self._parent_000c:
-            raise CorruptStateError(
-                f"{self.id} has mismatched parent_000Cs: old="
-                f"{self._parent_000c}, new={zone}"
-            )
+        if self._ctl is not None and "parent_idx" in msg.payload:
+            self.zone = self._ctl.get_zone(msg.payload["parent_idx"])
 
     @property
     def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
@@ -369,46 +297,35 @@ class Device(Entity):
 
     @zone.setter
     def zone(self, zone: Entity) -> None:  # should be: zone: Zone
-        """Set the device's parent zone.
+        """Set the device's parent zone, after validating it.
 
-        There are three possible sources for the parent zone of a device:
-        1. a 000C packet (from their controller) for actuators only
-        2. a message.payload["zone_idx"]
-        3. the sensor-matching algorithm fro zone sensors only
+            There are three possible sources for the parent zone of a device:
+            1. a 000C packet (from their controller) for actuators only
+            2. a message.payload["zone_idx"]
+            3. the sensor-matching algorithm fro zone sensors only
 
-        All three will execute a dev.zone = zone (i.e. via this setter).
+            All three will execute a dev.zone = zone (i.e. via this setter).
 
-        Devices don't have parents, rather: Zones have children; a mis-configured
-        system could have a device as a child of two domains.
-        """
+            Devices don't have parents, rather: Zones have children; a mis-configured
+            system could have a device as a child of two domains.
+            """
 
-        if zone == "FC":  # a special case
-            assert self.type == "13"
-            self._zone = None  # TODO: should be a DhwZone
+        if not isinstance(zone, Entity):  # should be: zone, Zone)
+            raise TypeError(f"Not a zone: {zone}")
+
+        if self._zone is not None:
+            if self._zone is not zone:
+                #
+                raise CorruptStateError(
+                    f"Device {self} has a mismatched parent zone: "
+                    f"old={self._zone}, new={zone}",
+                )
             return
 
-        if not isinstance(zone, Entity):  # should be: Zone)
-            raise TypeError(f"zone is not an Entity", type(zone))
-        if self._zone is not None and self._zone is not zone:
-            raise CorruptStateError(
-                f"{self.id} has mismatched parent zones: old="
-                f"{self._zone}, new={zone}"
-            )
-        if self._parent_000c is not None and self._parent_000c is not zone:
-            raise CorruptStateError(
-                f"{self.id} has mismatched parent zones: old="
-                f"{self._parent_000c}, new={zone}"
-            )
-        elif self._parent_zone is not None and self._parent_zone != zone:
-            raise CorruptStateError(
-                f"{self.id} has mismatched parent zones: old="
-                f"{self._parent_zone}, new={zone}"
-            )
-
-        self._zone = zone
-        if self not in zone.devices:
-            zone.devices.append(self)
-            zone.device_by_id[self.id] = self
+        self._zone = self._domain_id = zone
+        self._zone.devices.append(self)
+        self._zone.device_by_id[self.id] = self
+        _LOGGER.debug("Device %s: parent zone now set to %s", self.id, self._zone)
 
     @property
     def description(self) -> Optional[str]:
@@ -454,289 +371,18 @@ class Device(Entity):
         return self._get_msg_value("0016")
 
 
-# 18:
-class Gateway(Device):
-    """The Gateway class for a HGI80."""
-
-
 # 01:
 class Controller(Device):
-    """The Controller class."""
+    """The Controller base class, supports child devices and zones only."""
 
     def __init__(self, gateway, device_addr) -> None:
-        _LOGGER.debug("Creating the Controller, %s", device_addr.id)
-        super().__init__(gateway, device_addr, self)
+        super().__init__(gateway, device_addr)
 
-        # self._evo.ctl = self
-        self._controller = self
+        self.devices = [self]
+        self.device_by_id = {self.id: self}
 
-        self._boiler_relay = None
-        self._fault_log = {}
-        self._prev_30c9 = None
-
-    def _discover(self):
-        super()._discover()
-
-        # asyncio.create_task(  # TODO: test only
-        #     self.async_set_mode(5, dt.now() + timedelta(minutes=120))
-        #     # self.async_set_mode(5)
-        #     # self.async_reset_mode()
-        # )
-
-        # NOTE: could use this to discover zones
-        # for idx in range(12):
-        #     self._command("0004", payload=f"{idx:02x}00")
-
-        # system-related... (not working: 1280, 22D9, 2D49, 2E04, 3220, 3B00)
-        self._command("1F09", payload="00")
-        for code in ("313F", "0100", "0002"):
-            self._command(code)
-
-        for code in ("10A0", "1260", "1F41"):  # stored DHW
-            self._command(code)
-
-        self._command("0005", payload="0000")
-        self._command("1100", payload="FC")
-        self._command("2E04", payload="FF")
-
-        # Get the three most recent fault log entries
-        for log_idx in range(0, 0x3):  # max is 0x3C?
-            self._command("0418", payload=f"{log_idx:06X}", priority=PRIORITY_LOW)
-
-        # TODO: 1100(), 1290(00x), 0418(00x):
-        # for code in ("000C"):
-        #     for payload in ("F800", "F900", "FA00", "FB00", "FC00", "FF00"):
-        #         self._command(code, payload=payload)
-
-        # for code in ("3B00"):
-        #     for payload in ("0000", "00", "F8", "F9", "FA", "FB", "FC", "FF"):
-        #         self._command(code, payload=payload)
-
-    def update(self, msg):
-        def match_zone_sensors() -> None:
-            """Determine each zone's sensor by matching zone/sensor temperatures.
-
-            The temperature of each zone is reliably known (30C9 array), but the sensor
-            for each zone is not. In particular, the controller may be a sensor for a
-            zone, but unfortunately it does not announce its sensor temperatures.
-
-            In addition, there may be 'orphan' (e.g. from a neighbour) sensors
-            announcing temperatures with the same value.
-
-            This leaves only a process of exclusion as a means to determine which zone
-            uses the controller as a sensor.
-            """
-
-            # A reasonable assumption from this point on: a zone's _temperature attr has
-            # just been updated via the controller's 30C9 pkt, and hasn't changed since.
-            # It's also assumed that the gateway (18:) has received the same 30C9 pkts
-            # from the sensors as the controller has: for some this may not be reliable.
-            # The final assumption: the controller, as a sensor, has a temp distinct
-            # from all others (so another sensor isn't matched to the controllers zone).
-            # If required (and it's not clear that it is required), the above can be
-            # mitigated by confirming a sensor after two (consistent) matches.
-
-            prev_msg, self._prev_30c9 = self._prev_30c9, msg
-            if prev_msg is None:
-                return
-
-            if len([z for z in self._evo.zones if z.sensor is None]) == 0:
-                return  # (currently) no zone without a sensor
-
-            # if self._gwy.serial_port:  # only if in monitor mode...
-            secs = self._get_msg_value("1F09", "remaining_seconds")
-            if secs is None or msg.dtm > prev_msg.dtm + timedelta(seconds=secs):
-                return  # only compare against 30C9 (array) pkt from the last cycle
-
-            _LOGGER.debug("System state (before): %s", self._evo)
-
-            changed_zones = {
-                z["zone_idx"]: z["temperature"]
-                for z in msg.payload
-                if z not in prev_msg.payload
-            }  # zones with changed temps
-            _LOGGER.debug("Changed zones (from 30C9): %s", changed_zones)
-            if not changed_zones:
-                return  # ctl's 30C9 says no zones have changed temps during this cycle
-
-            testable_zones = {
-                z: t
-                for z, t in changed_zones.items()
-                if self._evo.zone_by_id[z].sensor is None
-                and t not in [v for k, v in changed_zones.items() if k != z] + [None]
-            }  # ...with unique (non-null) temps, and no sensor
-            _LOGGER.debug(
-                " - with unique/non-null temps (from 30C9), no sensor (from state): %s",
-                testable_zones,
-            )
-            if not testable_zones:
-                return  # no testable zones
-
-            testable_sensors = [
-                d
-                for d in self._gwy.devices  # not: self._evo.devices
-                if d._evo in (self._evo, None)
-                and d.addr.type in DEVICE_HAS_ZONE_SENSOR
-                and d.temperature is not None
-                and d._msgs["30C9"].dtm > prev_msg.dtm  # changed temp during last cycle
-            ]
-
-            if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug(
-                    "Testable zones: %s (unique/non-null temps & sensorless)",
-                    testable_zones,
-                )
-                _LOGGER.debug(
-                    "Testable sensors: %s (non-null temps & orphans or zoneless)",
-                    {d.id: d.temperature for d in testable_sensors},
-                )
-
-            if testable_sensors:  # the main matching algorithm...
-                for zone_id, temp in testable_zones.items():
-                    # TODO: when sensors announce temp, ?also includes it's parent zone
-                    matching_sensors = [
-                        s
-                        for s in testable_sensors
-                        if s.temperature == temp and s._zone in (zone_id, None)
-                    ]
-                    _LOGGER.debug("Testing zone %s, temp: %s", zone_id, temp)
-                    _LOGGER.debug(
-                        " - matching sensor(s): %s (same temp & not from another zone)",
-                        [s.id for s in matching_sensors],
-                    )
-
-                    if len(matching_sensors) == 1:
-                        _LOGGER.debug("   - matched sensor: %s", matching_sensors[0].id)
-                        zone = self._evo.zone_by_id[zone_id]
-                        zone.sensor = matching_sensors[0]
-                        zone.sensor.controller = self
-                    elif len(matching_sensors) == 0:
-                        _LOGGER.debug("   - no matching sensor (uses CTL?)")
-                    else:
-                        _LOGGER.debug("   - multiple sensors: %s", matching_sensors)
-
-                _LOGGER.debug("System state (after): %s", self._evo)
-
-            # now see if we can allocate the controller as a sensor...
-            if self._zone is not None:
-                return  # the controller has already been allocated
-            if len([z for z in self._evo.zones if z.sensor is None]) != 1:
-                return  # no single zone without a sensor
-
-            testable_zones = {
-                z: t
-                for z, t in changed_zones.items()
-                if self._evo.zone_by_id[z].sensor is None
-            }  # this will be true if ctl is sensor
-            if not testable_zones:
-                return  # no testable zones
-
-            zone_id, temp = list(testable_zones.items())[0]
-            _LOGGER.debug("Testing (sole remaining) zone %s, temp: %s", zone_id, temp)
-            # want to avoid complexity of z._temperature
-            # zone = self._evo.zone_by_id[zone_id]
-            # if zone._temperature is None:
-            #     return  # TODO: should have a (not-None) temperature
-
-            matching_sensors = [
-                s
-                for s in testable_sensors
-                if s.temperature == temp and s._zone in (zone_id, None)
-            ]
-
-            _LOGGER.debug(
-                " - matching sensor(s): %s (excl. controller)",
-                [s.id for s in matching_sensors],
-            )
-
-            # can safely(?) assume this zone is using the CTL as a sensor...
-            if len(matching_sensors) == 0:
-                _LOGGER.debug("   - matched sensor: %s (by exclusion)", self.id)
-                zone = self._evo.zone_by_id[zone_id]
-                zone.sensor = self
-                zone.sensor.controller = self
-
-            _LOGGER.debug("System state (finally): %s", self._evo)
-
-        if msg.code in ("000A", "2309", "30C9") and not isinstance(msg.payload, list):
-            pass
-        else:
-            super().update(msg)
-
-        if msg.code == "0418" and msg.verb in (" I", "RP"):  # this is a special case
-            self._fault_log[msg.payload["log_idx"]] = msg
-
-        if msg.code == "30C9" and isinstance(msg.payload, list):  # msg.is_array:
-            match_zone_sensors()
-
-        if msg.code == "3EF1" and msg.verb == "RQ":  # relay attached to a burner
-            if msg.dst.type == "13":  # this is the TPI relay
-                pass
-            if msg.dst.type == "10":  # this is the OTB
-                pass
-
-    async def _set_mode(self, mode, until=None):  # 2E04
-        """Set the system mode for a specified duration, or indefinitely."""
-
-        if isinstance(mode, int):
-            mode = f"{mode:02X}"
-        elif not isinstance(mode, str):
-            raise TypeError("Invalid system mode")
-        elif mode in SYSTEM_MODE_LOOKUP:
-            mode = SYSTEM_MODE_LOOKUP[mode]
-
-        if mode not in SYSTEM_MODE_MAP:
-            raise ValueError("Unknown system mode")
-
-        until = _dtm(until) + "00" if until is None else "01"
-
-        self._command("2E04", verb=" W", payload=f"{mode}{until}")
-
-    async def _reset_mode(self):  # 2E04
-        """Revert the system mode to Auto."""  # TODO: is it AutoWithReset?
-        self._command("2E04", verb=" W", payload="00FFFFFFFFFFFF00")
-
-    async def update_fault_log(self) -> list:
-        # WIP: try to discover fault codes
-        for log_idx in range(0x00, 0x3C):  # 10 pages of 6
-            self._command("0418", payload=f"{log_idx:06X}")
-        return
-
-    @property
-    def fault_log(self):  # 0418
-        return [f.payload for f in self._fault_log.values()]
-
-    @property
-    def language(self) -> Optional[str]:  # 0100,
-        return self._get_msg_value("0100", "language")
-
-    @property
-    async def _mode(self):  # 2E04
-        if not self._gwy.config["listen_only"]:
-            for _ in range(RQ_RETRY_LIMIT):
-                self._command("2E04", payload="FF", priority=PRIORITY_ASAP)
-                await asyncio.sleep(RQ_TIMEOUT)
-                if "2E04" in self._msgs:
-                    break
-
-        return {x: self._get_msg_value("2E04", x) for x in ("mode", "until")}
-
-    @property
-    def _sensor(self) -> Optional[str]:
-        """Return the id of the DHW sensor (07:) for *this* system/CTL.
-
-        There is only 1 way to find a controller's DHW sensor:
-        1.  The 10A0 RQ/RP *from/to a 07:* (1x/4h)
-
-        The RQ is initiated by the DHW, so is not authorative (the CTL will RP any RQ).
-        The I/1260 is not to/from a controller, so is not useful.
-        """
-
-        # 07:38:39.124 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
-        # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
-
-        if "10A0" in self._msgs:
-            return self._msgs["10A0"].dst.addr
+        self._ctl = self
+        self._domain = "FF"
 
 
 # 02: "10E0", "3150";; "0008", "22C9", "22D0"
@@ -776,10 +422,9 @@ class DhwSensor(Device, BatteryState):
     """The DHW class, such as a CS92."""
 
     def __init__(self, gateway, device_addr) -> None:
-        _LOGGER.debug("Creating a DHW sensor, %s", device_addr.id)
         super().__init__(gateway, device_addr)
 
-        # self._discover()
+        self._domain = "HW"
 
     def update(self, msg):
         super().update(msg)
@@ -797,8 +442,9 @@ class OtbGateway(Device, Actuator, HeatDemand):
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
     def __init__(self, gateway, device_addr) -> None:
-        _LOGGER.debug("Creating an OTB gateway, %s", device_addr.id)
         super().__init__(gateway, device_addr)
+
+        self._domain = "FC"
 
     @property
     def boiler_setpoint(self) -> Optional[Any]:  # 22D9
@@ -813,17 +459,12 @@ class OtbGateway(Device, Actuator, HeatDemand):
 class Thermostat(Device, BatteryState, Setpoint, Temperature):
     """The STA class, such as a TR87RF."""
 
-    def __init__(self, gateway, device_addr) -> None:
-        _LOGGER.debug("Creating a XXX thermostat, %s", device_addr.id)
-        super().__init__(gateway, device_addr)
-
 
 # 13: "3EF0", "1100";; ("3EF1"?)
 class BdrSwitch(Device, Actuator):
     """The BDR class, such as a BDR91."""
 
     def __init__(self, gateway, device_addr) -> None:
-        _LOGGER.debug("Creating a BDR relay, %s", device_addr.id)
         super().__init__(gateway, device_addr)
 
         self._is_tpi = None
@@ -849,11 +490,12 @@ class BdrSwitch(Device, Actuator):
         def make_tpi():
             self.__class__ = TpiSwitch
             self.dev_type = "TPI"
+            self._domain = "FC"  # TODO: check is None first
             _LOGGER.debug("Promoted device %s to %s", self.id, self.dev_type)
 
             self._is_tpi = True
-            self.zone = "FC"  # EvoZone(self._gwy, self._gwy.evo.ctl, "FC")
-            self._discover()
+
+            # self._discover()
 
         if self._is_tpi is not None:
             return self._is_tpi
@@ -877,6 +519,8 @@ class BdrSwitch(Device, Actuator):
 class TpiSwitch(BdrSwitch):  # TODO: superset of BDR switch?
     """The TPI class, the BDR91 that controls the boiler."""
 
+    # No __init__(), as not instantiated directly
+
     def _discover(self):  # NOTE: do not super()._discover()
 
         for code in ("1100",):
@@ -892,40 +536,21 @@ class TpiSwitch(BdrSwitch):  # TODO: superset of BDR switch?
 class TrvActuator(Device, BatteryState, HeatDemand, Setpoint, Temperature):
     """The TRV class, such as a HR92."""
 
-    def __init__(self, gateway, device_addr) -> None:
-        _LOGGER.debug("Creating a TRV actuator, %s", device_addr.id)
-        super().__init__(gateway, device_addr)
-
-    # @property
-    # def language(self) -> Optional[str]:  # 0100,
-    #     return self._get_msg_value("0100", "language")
-
     @property
     def window_state(self) -> Optional[bool]:  # 12B0
         return self._get_msg_value("12B0", "window_open")
 
 
-_DEVICE_CLASS = {
-    DEVICE_LOOKUP["BDR"]: BdrSwitch,
-    DEVICE_LOOKUP["CTL"]: Controller,
-    DEVICE_LOOKUP["DHW"]: DhwSensor,
-    DEVICE_LOOKUP["STA"]: Thermostat,
-    DEVICE_LOOKUP["STa"]: Thermostat,
-    DEVICE_LOOKUP["THM"]: Thermostat,
-    DEVICE_LOOKUP["THm"]: Thermostat,
-    DEVICE_LOOKUP["TRV"]: TrvActuator,
-    DEVICE_LOOKUP["OTB"]: OtbGateway,
-    DEVICE_LOOKUP["UFH"]: UfhController,
+DEVICE_CLASSES = {
+    "01": Controller,  # use EvoSystem instead of Controller
+    "02": UfhController,
+    "03": Thermostat,
+    "04": TrvActuator,
+    "07": DhwSensor,
+    "10": OtbGateway,
+    "12": Thermostat,
+    "13": BdrSwitch,
+    "22": Thermostat,
+    "23": Controller,  # a Programmer, use System instead of Controller
+    "34": Thermostat,
 }
-
-
-def create_device(gateway, device_address) -> Device:
-    """Create a device with the correct class."""
-    assert device_address.type not in ("63", "--")
-
-    if device_address.id in gateway.device_by_id:
-        device = gateway.device_by_id[device_address.id]
-    else:
-        device = _DEVICE_CLASS.get(device_address.type, Device)(gateway, device_address)
-
-    return device

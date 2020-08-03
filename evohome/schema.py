@@ -6,9 +6,6 @@ from typing import Tuple
 import voluptuous as vol
 
 from .const import Address, ZONE_TYPE_SLUGS, __dev_mode__
-from .zones import create_zone as EvoZone
-
-# from .zones import DhwZone, EvoZone
 
 # false = False; null = None; true = True
 
@@ -223,7 +220,7 @@ def load_schema(gwy, controller_id, schema, **kwargs) -> bool:
             dev = gwy.get_device(dev, controller=ctl)
             gwy.evo.dhw_relay = dev
 
-        _ = EvoZone(gwy, ctl, "FC")  # dhw
+        ctl.get_zone("HW")
 
     for ufh_ctl, ufh_schema in schema["ufh_controllers"]:
         dev = Address(id=ufh_ctl, type=ufh_ctl[:2])
@@ -231,7 +228,9 @@ def load_schema(gwy, controller_id, schema, **kwargs) -> bool:
 
     if schema.get("zones"):
         [
-            EvoZone(gwy, ctl, zone_idx, zone_type=attr.get("type"))
+            ctl.get_zone(
+                zone_idx, zone_type=attr.get("type"), sensor=attr.get("sensor")
+            )
             for zone_idx, attr in schema["zones"].items()
         ]
 
