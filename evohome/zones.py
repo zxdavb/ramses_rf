@@ -14,7 +14,6 @@ from .const import (
     ZONE_TYPE_MAP,
     ZONE_MODE_LOOKUP,
     ZONE_MODE_MAP,
-    ZONE_TYPE_SLUGS,
     __dev_mode__,
 )
 from .devices import Controller, Device, Entity, HeatDemand, _dtm
@@ -338,7 +337,7 @@ class Zone(ZoneBase):
             self._schedule.add_fragment(msg)
 
         elif msg.code == "30C9":  # required for sensor matching
-            assert msg.src.type in DEVICE_HAS_ZONE_SENSOR  # TODO: add CTL to avoid Exc
+            assert msg.src.type in DEVICE_HAS_ZONE_SENSOR + ("01",)
             self._temperature = msg.payload["temperature"]
 
         elif msg.code == "3150":  # TODO: and msg.verb in (" I", "RP")?
@@ -424,12 +423,12 @@ class Zone(ZoneBase):
     def _set_zone_type(self, zone_type: str):
         """Set the zone's type, after validating it.
 
-            There are two possible sources for the type of a zone:
-            1. eavesdropping packet codes
-            2. analyzing child devices
+        There are two possible sources for the type of a zone:
+        1. eavesdropping packet codes
+        2. analyzing child devices
 
-            Both will execute a zone.type = type (i.e. via this setter).
-            """
+        Both will execute a zone.type = type (i.e. via this setter).
+        """
 
         if zone_type not in ZONE_CLASSES:
             raise ValueError(f"Not a known zone type: {zone_type}")
@@ -554,8 +553,8 @@ class Zone(ZoneBase):
         The until has a resolution of 1 min.
 
         Incompatible combinations:
-        - mode == Follow & setpoint not None (will silently ignore setpoint)
-        - mode == Temporary & until is None (will silently drop W packet)
+          - mode == Follow & setpoint not None (will silently ignore setpoint)
+          - mode == Temporary & until is None (will silently drop W packet)
         """
 
         if mode is None and until is None:
