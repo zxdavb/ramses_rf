@@ -325,9 +325,9 @@ class Message:
             self._gwy.get_device(self.dst)
 
         # maybe what was an Address can now be a Device going forward
-        if not isinstance(self.src, Device):
+        if not isinstance(self.src, Device) and self.src.type != "18":
             self.src = self._gwy.device_by_id[self.src.id]
-        if not isinstance(self.dst, Device) and self.dst.type not in ("--", "63"):
+        if not isinstance(self.dst, Device) and self.dst.type not in ("18", "63", "--"):
             self.dst = self._gwy.device_by_id[self.dst.id]
 
     @exception_handler
@@ -337,7 +337,7 @@ class Message:
         if not self.is_valid:  # requires self.payload
             return
 
-        if self.src.type not in ("01", "02", "23"):  # self._gwy.system_by_id:
+        if self.src.type not in ("01", "02", "23"):  # TODO:
             return
 
         if self.code in ("10A0", "1260", "1F41"):
@@ -348,7 +348,10 @@ class Message:
         if isinstance(self._payload, dict):
             # TODO: only creating zones from arrays, presently, but could do so here
             if self._payload.get("zone_idx"):  # TODO: parent_zone too?
-                self.src.get_zone(self._payload["zone_idx"])
+                if self.src.is_controller:
+                    self.src.get_zone(self._payload["zone_idx"])
+                else:
+                    self.dst.get_zone(self._payload["zone_idx"])
 
         elif isinstance(self._payload, list):
             if self.code in ("000A", "2309", "30C9"):  # the sync_cycle pkts
@@ -391,7 +394,7 @@ class Message:
 
         # lists only useful to devices (c.f. 000C)
         if isinstance(self.payload, dict) and "zone_idx" in self.payload:
-            evo = self.src  # TODO: needs device?
+            evo = self.src.controller  # TODO: needs device?
             # if evo is None and isinstance(self.dst, Device):
             #     evo = self.dst._evo
 

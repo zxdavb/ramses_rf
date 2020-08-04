@@ -84,7 +84,7 @@ class Entity:
     def controller(self, controller) -> None:
         """Set the device's parent controller, after validating it."""
 
-        if not isinstance(controller, Controller):
+        if not isinstance(controller, Controller) and not controller.is_controller:
             raise TypeError(f"Not a controller: {controller}")
 
         if self._ctl is not None:  # zones have this set at instantiation
@@ -92,7 +92,7 @@ class Entity:
                 # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5
                 raise CorruptStateError(
                     f"Device {self} has a mismatched controller: "
-                    f"old={self._ctl}, new={controller}",
+                    f"old={self._ctl.id}, new={controller.id}",
                 )
             return
 
@@ -219,6 +219,11 @@ class Device(Entity):
         gateway.devices.append(self)
         gateway.device_by_id[device_addr.id] = self
 
+        if controller is not None:  # here, assumed to be valid
+            print(controller.id)  # removeme
+            controller.devices.append(self)
+            controller.device_by_id[self.id] = self
+
         self.addr = device_addr
         self.type = device_addr.type
         self.dev_type = DEVICE_TYPES.get(self.addr.type)
@@ -235,7 +240,7 @@ class Device(Entity):
 
         self._zone = None
         self._domain = {}
-        self._domain_id = None
+        self._domain_id = domain_id
 
         attrs = gateway.known_devices.get(device_addr.id)
         self._friendly_name = attrs.get("friendly_name") if attrs else None
@@ -366,8 +371,8 @@ class Device(Entity):
 class Controller(Device):
     """The Controller base class, supports child devices and zones only."""
 
-    def __init__(self, gateway, device_addr) -> None:
-        super().__init__(gateway, device_addr)
+    def __init__(self, gateway, device_addr, **kwargs) -> None:
+        super().__init__(gateway, device_addr, **kwargs)
 
         self.devices = [self]
         self.device_by_id = {self.id: self}
@@ -412,8 +417,8 @@ class UfhController(Device, HeatDemand):
 class DhwSensor(Device, BatteryState):
     """The DHW class, such as a CS92."""
 
-    def __init__(self, gateway, device_addr) -> None:
-        super().__init__(gateway, device_addr)
+    def __init__(self, gateway, device_addr, **kwargs) -> None:
+        super().__init__(gateway, device_addr, **kwargs)
 
         self._domain_id = "HW"
 
@@ -432,8 +437,8 @@ class DhwSensor(Device, BatteryState):
 class OtbGateway(Device, Actuator, HeatDemand):
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
-    def __init__(self, gateway, device_addr) -> None:
-        super().__init__(gateway, device_addr)
+    def __init__(self, gateway, device_addr, **kwargs) -> None:
+        super().__init__(gateway, device_addr, **kwargs)
 
         self._domain_id = "FC"
 
@@ -455,8 +460,8 @@ class Thermostat(Device, BatteryState, Setpoint, Temperature):
 class BdrSwitch(Device, Actuator):
     """The BDR class, such as a BDR91."""
 
-    def __init__(self, gateway, device_addr) -> None:
-        super().__init__(gateway, device_addr)
+    def __init__(self, gateway, device_addr, **kwargs) -> None:
+        super().__init__(gateway, device_addr, **kwargs)
 
         self._is_tpi = None
 

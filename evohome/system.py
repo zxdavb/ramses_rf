@@ -30,9 +30,9 @@ if __dev_mode__:
 class System(Controller):
     """The Controller base class, supports child devices and zones only."""
 
-    def __init__(self, gateway, ctl_addr) -> None:
+    def __init__(self, gateway, ctl_addr, **kwargs) -> None:
         _LOGGER.debug("Creating a %s, %s", self.__class__, ctl_addr.id)
-        super().__init__(gateway, ctl_addr)
+        super().__init__(gateway, ctl_addr, **kwargs)
 
         assert ctl_addr.id not in gateway.system_by_id, "Duplicate controller address"
 
@@ -126,9 +126,9 @@ class System(Controller):
 class EvoSystem(System):
     """The EvoSystem class - some controllers are evohome-compatible."""
 
-    def __init__(self, gateway, ctl_addr) -> None:
+    def __init__(self, gateway, ctl_addr, **kwargs) -> None:
         """Initialise the class."""
-        super().__init__(gateway, ctl_addr)
+        super().__init__(gateway, ctl_addr, **kwargs)
 
         self._prev_30c9 = None
         self._fault_log = {}

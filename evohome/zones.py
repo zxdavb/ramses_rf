@@ -85,7 +85,6 @@ class DhwZone(ZoneBase, HeatDemand):
 
     def __init__(self, controller) -> None:
         _LOGGER.debug("Creating a DHW Zone for system %s", controller.id)
-
         super().__init__(controller, "HW")
 
         controller.dhw = self

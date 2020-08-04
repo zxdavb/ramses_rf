@@ -398,29 +398,33 @@ class Gateway:
         (heater_relay), HW (DHW sensor, relay), or None (unknown, TBA).
         """
 
-        ctl = None if controller is None else self.get_device(controller)
-        if dev_addr.type in ("63", "--"):  # these are valid addresses, but not devices
+        ctl = (
+            None if controller is None else self.get_device(controller, domain_id="FF")
+        )
+
+        if dev_addr.type in ("18", "63", "--"):  # valid addresses, but not devices
             return
 
         if isinstance(dev_addr, Device):
             device = dev_addr
         else:
             device = self.device_by_id.get(dev_addr.id)
-            if device is None:
-                if dev_addr.type == "01":
-                    device = EvoSystem(self, dev_addr)
-                else:
-                    device = DEVICE_CLASSES.get(dev_addr.type, Device)(self, dev_addr)
-        if device.type == "18":
-            return device  # 18: _is_ a device, but there's no value in tracking it
 
-        if ctl is not None:
-            device.controller = ctl  # ctl.devices/device_by_id
-            if domain_id is not None:
-                if domain_id in ("FC", "FF"):
-                    device._domain_id = domain_id
-                else:
-                    device.zone = ctl.get_zone(domain_id)  # zone.devices/device_by_id
+        if device is None:
+            if dev_addr.type in ("01", "23") or domain_id == "FF":
+                device = EvoSystem(self, dev_addr, domain_id=domain_id)
+            else:
+                device = DEVICE_CLASSES.get(dev_addr.type, Device)(
+                    self, dev_addr, controller=ctl, domain_id=domain_id
+                )
+        else:  # update the existing device with any metadata
+            if ctl is not None:
+                device.controller = ctl
+
+            if domain_id in ("FC", "FF"):
+                device._domain_id = domain_id
+            elif domain_id is not None and ctl is not None:
+                device.zone = ctl.get_zone(domain_id)
 
         return device
 
