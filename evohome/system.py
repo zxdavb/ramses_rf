@@ -23,8 +23,10 @@ from .devices import _dtm, Controller, Device
 from .zones import DhwZone, Zone
 
 _LOGGER = logging.getLogger(__name__)
-if __dev_mode__:
+if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
+else:
+    _LOGGER.setLevel(logging.WARNING)
 
 
 class System(Controller):

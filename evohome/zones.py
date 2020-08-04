@@ -20,7 +20,7 @@ from .devices import Controller, Device, Entity, HeatDemand, _dtm
 from .exceptions import CorruptStateError
 
 _LOGGER = logging.getLogger(__name__)
-if __dev_mode__:
+if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)

@@ -99,7 +99,7 @@ def set_logging(
     if stream == sys.stdout:
         handler = logging.StreamHandler(stream=stream)
         handler.setFormatter(formatter)
-        handler.setLevel(logging.DEBUG)
+        handler.setLevel(logging.DEBUG)  # TODO: should be WARNING, but breaks logging
         handler.addFilter(InfoFilter())
 
         logger.addHandler(handler)

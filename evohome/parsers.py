@@ -23,6 +23,8 @@ from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, par
 _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
+else:
+    _LOGGER.setLevel(logging.WARNING)
 
 
 def _idx(seqx, msg) -> dict:
@@ -128,6 +130,11 @@ def parser_decorator(func):
         # except for 18:, these should return nothing - 000A is rq_len 1 or 3?
         # grep -E 'RQ.* 002 ' | grep -vE ' (0004|0016|3EF1) '
         # grep -E 'RQ.* 001 ' | grep -vE ' (000A|1F09|22D9|2309|313F|31DA|3EF0) '
+
+        if __dev_mode__ and msg.src.type == "18":  # HACK: to decrease logging
+            if msg.code in ("0004", "000A", "10E0", "2349", "30C9", "3B00"):
+                assert msg.len <= 2
+                return {}
 
         if msg.code in ("0004", "0005", "000C", "0016", "12B0", "30C9"):
             assert msg.len == 2  # 12B0 will RP to 1
@@ -247,7 +254,7 @@ def _date(value: str) -> Optional[str]:  # YY-MM-DD
 def _percent(value: str) -> Optional[float]:  # a percentage 0-100% (0.0 to 1.0)
     """Return a percentage, 0-100% with resolution of 0.5%."""
     assert len(value) == 2
-    if value == "FF":  # TODO: also FE?
+    if value in ("FE", "FF"):  # TODO: diff b/w FE (seen with 3150) & FF
         return
     assert int(value, 16) <= 200
     return int(value, 16) / 200

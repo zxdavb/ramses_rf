@@ -13,7 +13,7 @@ from .const import __dev_mode__, DEVICE_LOOKUP, DEVICE_TABLE, DEVICE_TYPES
 from .exceptions import CorruptStateError
 
 _LOGGER = logging.getLogger(__name__)
-if __dev_mode__:
+if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
@@ -220,7 +220,6 @@ class Device(Entity):
         gateway.device_by_id[device_addr.id] = self
 
         if controller is not None:  # here, assumed to be valid
-            print(controller.id)  # removeme
             controller.devices.append(self)
             controller.device_by_id[self.id] = self
 

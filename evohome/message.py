@@ -237,10 +237,9 @@ class Message:
         except AssertionError:  # for development only?
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
             if self.src.type == "18":  # TODO: should be a warning
-                if __dev_mode__:
-                    _LOGGER.warning(
-                        "%s < AssertionError (ignored)", self._pkt, extra=self.__dict__
-                    )
+                _LOGGER.warning(
+                    "%s < AssertionError (ignored)", self._pkt, extra=self.__dict__
+                )
             else:
                 _LOGGER.exception("%s < AssertionError", self._pkt, extra=self.__dict__)
             self._is_valid = False
@@ -304,11 +303,13 @@ class Message:
         elif self.dst.type in ("01", "23"):
             self._gwy.get_device(self.src, controller=self.dst)
 
-        elif self.code == "1F09" and self.verb == " I":  # no need: "000A", "2309"...
-            self._gwy.get_device(self.dst, controller=self.src)
+        # TODO: will need other changes before these two will work...
+        # elif self.code == "1F09" and self.verb == " I":  # no need: "000A", "2309"...
+        #     self._gwy.get_device(self.dst, controller=self.src)
 
-        elif self.code == "31D9" and self.verb == " I":  # HVAC
-            self._gwy.get_device(self.dst, controller=self.src)
+        # elif self.code == "31D9" and self.verb == " I":  # HVAC
+        #     self._gwy.get_device(self.dst, controller=self.src)
+        # TODO: ...such as means to promote a device to a controller
 
         elif self.dst is self.src:
             self._gwy.get_device(self.src)
@@ -337,8 +338,8 @@ class Message:
         if not self.is_valid:  # requires self.payload
             return
 
-        if self.src.type not in ("01", "02", "23"):  # TODO:
-            return
+        # if self.src.type not in ("01", "02", "23"):  # TODO: need this filter?
+        #     return
 
         if self.code in ("10A0", "1260", "1F41"):
             # if self.code == "3B00":  # every 10 mins

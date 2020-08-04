@@ -33,6 +33,8 @@ DONT = 254  # Don't <option code>
 _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
+else:
+    _LOGGER.setLevel(logging.WARNING)
 
 
 class Ser2NetProtocol(asyncio.Protocol):

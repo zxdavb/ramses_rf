@@ -36,6 +36,8 @@ PAUSE_LONG = 0.15  # needed for first RQ / 0404
 _LOGGER = logging.getLogger(__name__)
 if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
+else:
+    _LOGGER.setLevel(logging.WARNING)
 
 
 class Schedule:
