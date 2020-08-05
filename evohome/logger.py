@@ -1,13 +1,13 @@
 """Logging utility."""
 
 import ctypes
+from datetime import datetime as dt
 import logging
-import os
+import shutil
+import sys
 import time
 
 # from logging.handlers import TimedRotatingFileHandler
-import shutil
-import sys
 
 from .const import __dev_mode__
 
@@ -49,27 +49,32 @@ LOG_COLOURS = {
 
 class FILETIME(ctypes.Structure):
     """Data structure for GetSystemTimePreciseAsFileTime()."""
-
     _fields_ = [("dwLowDateTime", ctypes.c_uint), ("dwHighDateTime", ctypes.c_uint)]
 
 
-def time_stamp() -> str:
-    """Return a time stamp as a string."""
+def dtm_now() -> dt:
+    """Return the time now as a UTC datetime object."""
+    return time.gmtime(time_time())
+
+
+def dtm_stamp() -> str:
+    """Return the time now as a isoformat string."""
     now = time_time()
     mil = f"{now%1:.6f}".lstrip("0")
     return time.strftime(f"%Y-%m-%dT%H:%M:%S{mil}", time.localtime(now))
 
 
-def time_time():
-    """Return an accurate time, even for Windows-based systems."""
-    # see: https://www.python.org/dev/peps/pep-0564/
-    if os.name == "posix":
-        return time.time()  # since 1970-01-01T00:00:00Z
-    # if os.name == "nt":
+def time_time() -> float:
+    """Return the number of seconds since the Unix epoch.
+
+    Return an accurate value, even for Windows-based systems.
+    """  # see: https://www.python.org/dev/peps/pep-0564/
+    if sys.platform != "win32":
+        return time.time()  # since 1970-01-01T00:00:00Z, time.gmtime(0)
     file_time = FILETIME()
     ctypes.windll.kernel32.GetSystemTimePreciseAsFileTime(ctypes.byref(file_time))
     _time = (file_time.dwLowDateTime + (file_time.dwHighDateTime << 32)) / 1e7
-    return _time - 134774 * 24 * 60 * 60  # since 1601-01-01T00:00:00Z
+    return _time - 134774 * 24 * 60 * 60  # otherwise, is since 1601-01-01T00:00:00Z
 
 
 def set_logging(
@@ -78,7 +83,7 @@ def set_logging(
     cons_fmt=CONSOLE_FMT,
     file_fmt=MSG_LOG_FMT,
     file_name=None,
-):
+) -> None:
     """Create/configure handlers, formatters, etc."""
     logger.propagate = False
 
@@ -126,7 +131,7 @@ def set_logging(
 class InfoFilter(logging.Filter):
     """Log only INFO-level messages."""
 
-    def filter(self, record):
+    def filter(self, record) -> bool:
         """Filter out all but INFO/DEBUG packets."""
         return record.levelno in (logging.INFO, logging.DEBUG)
 
@@ -134,6 +139,6 @@ class InfoFilter(logging.Filter):
 class DebugFilter(logging.Filter):
     """Don't Log DEBUG-level messages."""
 
-    def filter(self, record):
+    def filter(self, record) -> bool:
         """Filter out all DEBUG packets."""
         return record.levelno != logging.DEBUG  # TODO: use less than / more than?
