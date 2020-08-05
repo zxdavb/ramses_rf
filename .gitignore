@@ -7,7 +7,7 @@
 .vscode/*
 *.bkp
 *.db
-tweak*.exe
+*.exe
 *.json
 *.log
 *.old
