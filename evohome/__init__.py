@@ -10,7 +10,7 @@ import sys
 from threading import Lock
 from typing import Dict, List, Optional
 
-from .command import Command, PAUSE_LONG
+from .command import Command, Pause
 from .const import __dev_mode__
 from .devices import DEVICE_CLASSES, Device
 
@@ -190,6 +190,7 @@ class Gateway:
                 fp, include=self._include_list, exclude=self._exclude_list
             ):
                 self._process_packet(raw_pkt)
+                # await asyncio.sleep(Pause.NONE)  # needed for Ctrl_C to work
 
         async def port_reader(manager):
             async for raw_pkt in port_pkts(
@@ -199,19 +200,21 @@ class Gateway:
                 relay=self._relay,
             ):
                 self._process_packet(raw_pkt)
+                # await asyncio.sleep(Pause.NONE)  # NOTE: 0.005 works well
 
+                # TODO: not elegant - move elsewhere?
                 if self.config.get("evofw_flag") and "evofw3" in raw_pkt.packet:
                     # !V, !T - print the version, or the current mask
                     # !T00   - turn off all mask bits
                     # !T01   - cause raw data for all messages to be printed
                     await manager.put_pkt(self.config["evofw_flag"], _LOGGER)
 
-                await asyncio.sleep(0.005)  # TODO: allow to throttle this to 0
+                await asyncio.sleep(Pause.NONE)  # TODO: was: 0.005
 
         async def port_writer(manager):
             while True:
                 await self._dispatch_pkt(destination=manager)
-                await asyncio.sleep(0.05)  # TODO: to add code to throttle this
+                await asyncio.sleep(Pause.NONE)  # NOTE: was: 0.05
 
         # if self.config["known_devices"]:
         #     self.known_devices = ...
@@ -259,7 +262,7 @@ class Gateway:
                     if self._sched_zone.schedule is None:  # is schedule done?
                         _LOGGER.warning("zone(%s): timed out, restarting...", _id)
                         self._sched_zone._schedule.req_fragment(restart=True)
-                        await schedule_task(PAUSE_LONG * 100, check_fragments)
+                        await schedule_task(Pause.LONG * 100, check_fragments)
 
                     else:
                         _LOGGER.warning("zone(%s): completed.", _id)
@@ -283,7 +286,7 @@ class Gateway:
                         _LOGGER.info("zone(%s): Queued RQ for next missing frag", _id)
 
                     self._sched_lock.release()
-                    await asyncio.sleep(PAUSE_LONG * 10)
+                    await asyncio.sleep(Pause.LONG * 10)
 
                 self._sched_lock.release()
 
@@ -292,8 +295,8 @@ class Gateway:
             if self._sched_zone is None:  # not getting any zone's sched?
                 self._sched_zone = self.evo.zone_by_id[kmd.payload[:2]]
                 _LOGGER.info("zone(%s): Queuing 1st RQ...", self._sched_zone.id)
-                await schedule_task(PAUSE_LONG * 100, check_message)
-                await schedule_task(PAUSE_LONG, check_fragments)
+                await schedule_task(Pause.LONG * 100, check_message)
+                await schedule_task(Pause.LONG, check_fragments)
 
             if self._sched_zone.id == kmd.payload[:2]:  # getting this zone's sched?
                 _LOGGER.info("zone(%s): RQ was sent", self._sched_zone.id)
@@ -327,10 +330,7 @@ class Gateway:
         while not self.cmd_que.empty():
             cmd = self.cmd_que.get()
 
-            if str(cmd).startswith("!") and destination is not None:
-                await destination.put_pkt(cmd, _LOGGER)
-
-            if cmd.verb == " W" and destination is not None:
+            if destination is not None and str(cmd).startswith("!"):
                 await destination.put_pkt(cmd, _LOGGER)
 
             elif destination is None or self.config["listen_only"]:
