@@ -3,12 +3,7 @@ from datetime import datetime as dt, timedelta
 import logging
 from typing import Any, Optional
 
-from .command import (
-    Command,
-    PAUSE_DEFAULT,
-    PRIORITY_DEFAULT,
-    PRIORITY_HIGH,
-)
+from .command import Command, Pause, Priority
 from .const import __dev_mode__, DEVICE_LOOKUP, DEVICE_TABLE, DEVICE_TYPES
 from .exceptions import CorruptStateError
 
@@ -108,10 +103,10 @@ class Entity:
 
         self._msgs.pop(code, None)  # remove the old one, so we can tell if RP'd
 
-        priority_default = PRIORITY_HIGH if verb == " W" else PRIORITY_DEFAULT
+        priority = Priority.HIGH if verb == " W" else Priority.DEFAULT
         kwargs = {
-            "pause": kwargs.get("pause", PAUSE_DEFAULT),
-            "priority": kwargs.get("priority", priority_default),
+            "pause": kwargs.get("pause", Pause.DEFAULT),
+            "priority": kwargs.get("priority", priority),
         }
 
         self._que.put_nowait(Command(verb, dest, code, payload, **kwargs))
