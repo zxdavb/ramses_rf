@@ -5,6 +5,7 @@ from functools import total_ordering
 import json
 import logging
 import struct
+from types import SimpleNamespace
 import zlib
 
 from .const import __dev_mode__, COMMAND_FORMAT, HGI_DEVICE
@@ -37,6 +38,16 @@ PRIORITY_ASAP = 0
 RQ_RETRY_LIMIT = 7
 RQ_TIMEOUT = 0.03
 
+
+# PAUSE: Default of 0.03 too short, but 0.05 OK; Long pause required after 1st RQ/0404
+Pause = SimpleNamespace(NONE=0, SHORT=0.01, DEFAULT=0.05, LONG=0.15)
+Priority = SimpleNamespace(LOW=6, DEFAULT=4, HIGH=2,ASAP=0)
+Qos = SimpleNamespace(
+    AT_MOST_ONCE=0,  # PUB (no handshake)
+    AT_LEAST_ONCE=1,  # PUB, ACK (2-way handshake)
+    EXACTLY_ONCE=2  # PUB, REC, REL (FIN) (3/4-way handshake)
+)
+
 _LOGGER = logging.getLogger(__name__)
 if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
@@ -48,6 +59,7 @@ class Schedule:
     """The schedule (of a zone) class."""
 
     # TODO: stop responding to fragments sent by others
+    # TODO: use a lock to only request one schedule at a time
 
     def __init__(self, ctl, zone_idx, msg=None, **kwargs) -> None:
         """Initialise the class."""
@@ -111,13 +123,13 @@ class Schedule:
 
         if self._frag_array == []:  # aka self.total_frags == 0:
             missing_frags = [0]  # all(frags missing), but how many is unknown
-            kwargs = {"pause": PAUSE_LONG}  # , "priority": PRIORITY_DEFAULT}
+            kwargs = {"pause": Pause.LONG}  # , "priority": Priority.DEFAULT}
 
         else:  # aka not all(self._frag_array)
             missing_frags = [i for i, val in enumerate(self._frag_array) if val is None]
             if missing_frags == []:
                 return 0  # not any(frags missing), nothing to add
-            kwargs = {"pause": PAUSE_DEFAULT, "priority": PRIORITY_HIGH}
+            kwargs = {"pause": Pause.DEFAULT, "priority": Priority.HIGH}
 
         # if block_mode:
         #     for idx in missing_frags:
@@ -194,10 +206,10 @@ class Command:
         self.code = code
         self.payload = payload
 
-        self.pause = kwargs.get("pause", PAUSE_DEFAULT)
+        self.pause = kwargs.get("pause", Pause.DEFAULT)
         assert self.pause is not None
 
-        priority = PRIORITY_HIGH if verb in ("0016", "1FC9") else PRIORITY_DEFAULT
+        priority = Priority.HIGH if verb in ("0016", "1FC9") else Priority.DEFAULT
         self.priority = kwargs.get("priority", priority)
         assert self.priority is not None
 
