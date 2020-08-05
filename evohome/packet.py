@@ -236,23 +236,21 @@ class PortPktProvider:
         return dtm_str, pkt_str, pkt_bytes
 
     async def put_pkt(self, cmd, logger):  # TODO: logger is a hack
-        """Put the next packet line to a serial port."""
+        """Send (put) the next packet to a serial port."""
+
+        # if self._dt_pause > dt.now():
+        #     await asyncio.sleep((self._dt_pause - dt.now()).total_seconds())
 
         # self._lock.acquire()
-        # logger.debug("# Data was sent to %s: %s", self.serial_port, cmd)
         self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
+        # logger.debug("# Data was sent to %s: %s", self.serial_port, cmd)
 
-        # cmd.dispatch_dtm = dtm_stamp()
         if str(cmd).startswith("!"):  # traceflag to evofw
-            await asyncio.sleep(PAUSE_SHORT)
+            self._dt_pause = dt.now() + timedelta(seconds=Pause.SHORT)
         else:
-            await asyncio.sleep(max(cmd.pause, PAUSE_DEFAULT))
+            self._dt_pause = dt.now() + timedelta(seconds=max(cmd.pause, Pause.DEFAULT))
 
         # self._lock.release()
-
-        if cmd.retry is True:  # == "RQ":
-            cmd.dtm = dtm_stamp()
-            # self._window.append(cmd)
 
 
 class FilePktProvider:
