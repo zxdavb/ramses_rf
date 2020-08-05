@@ -6,12 +6,7 @@ import json
 import logging
 from typing import Optional
 
-from .command import (
-    PRIORITY_ASAP,
-    PRIORITY_LOW,
-    RQ_RETRY_LIMIT,
-    RQ_TIMEOUT,
-)
+from .command import Priority, RQ_RETRY_LIMIT, RQ_TIMEOUT
 from .const import (
     __dev_mode__,
     DEVICE_HAS_ZONE_SENSOR,
@@ -162,7 +157,7 @@ class EvoSystem(System):
 
         # Get the three most recent fault log entries
         for log_idx in range(0, 0x3):  # max is 0x3C?
-            self._command("0418", payload=f"{log_idx:06X}", priority=PRIORITY_LOW)
+            self._command("0418", payload=f"{log_idx:06X}", priority=Priority.LOW)
 
         # TODO: 1100(), 1290(00x), 0418(00x):
         # for code in ("000C"):
@@ -490,7 +485,7 @@ class EvoSystem(System):
         """Return the system mode."""
         if not self._gwy.config["listen_only"]:
             for _ in range(RQ_RETRY_LIMIT):
-                self._command("2E04", payload="FF", priority=PRIORITY_ASAP)
+                self._command("2E04", payload="FF", priority=Priority.ASAP)
                 await asyncio.sleep(RQ_TIMEOUT)
                 if "2E04" in self._msgs:
                     break
