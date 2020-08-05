@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Any, Optional
 
-from .command import Schedule, PRIORITY_ASAP, RQ_RETRY_LIMIT, RQ_TIMEOUT
+from .command import Schedule, Priority, RQ_RETRY_LIMIT, RQ_TIMEOUT
 from .const import (
     DEVICE_HAS_ZONE_SENSOR,
     DEVICE_IS_ACTUATOR,
@@ -68,7 +68,7 @@ class ZoneBase(Entity):
         if not self._gwy.config["listen_only"]:
             # self._msgs.pop(code, None)  # this is done in self._command()
             for _ in range(RQ_RETRY_LIMIT):  # TODO: check rq_len
-                self._command(code, payload=f"{self.id}00", priority=PRIORITY_ASAP)
+                self._command(code, payload=f"{self.id}00", priority=Priority.ASAP)
                 await asyncio.sleep(RQ_TIMEOUT)
                 if code in self._msgs:
                     break  # return self._msgs[code]
