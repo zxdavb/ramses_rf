@@ -1,6 +1,6 @@
 """Packet processor."""
 import asyncio
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta
 import logging
 from string import printable
 from threading import Lock
@@ -11,7 +11,7 @@ from typing import Optional, Tuple
 from serial import SerialException  # noqa
 from serial_asyncio import open_serial_connection  # noqa
 
-from .command import PAUSE_DEFAULT, PAUSE_SHORT
+from .command import Pause
 from .const import (
     DTM_LONG_REGEX,
     MESSAGE_REGEX,
@@ -191,6 +191,7 @@ class PortPktProvider:
         self._lock = Lock()
 
         self.reader = self.write = None
+        self._dt_pause = dt.min
 
     async def __aenter__(self):
         # TODO: Add ValueError, SerialException wrapper
@@ -208,7 +209,7 @@ class PortPktProvider:
         pass
 
     async def get_pkt(self) -> Tuple[str, str, Optional[bytearray]]:
-        """Get the next packet line (dtm, pkt, pkt_bytes) from a serial port."""
+        """Pull (get) the next packet tuple (dtm, pkt, pkt_bytes) from a serial port."""
 
         try:
             pkt_bytes = await self.reader.readline()
@@ -272,6 +273,7 @@ class FilePktProvider:
 
 
 async def port_pkts(manager, include=None, exclude=None, relay=None):
+
     while True:
         pkt = Packet(*(await manager.get_pkt()))
         if pkt.is_valid and pkt.is_wanted(include=include, exclude=exclude):
@@ -279,7 +281,7 @@ async def port_pkts(manager, include=None, exclude=None, relay=None):
                 asyncio.create_task(relay.write(pkt.packet))
             yield pkt
 
-        await asyncio.sleep(0)  # at least 0, to enable a Ctrl-C
+        await asyncio.sleep(Pause.NONE)  # at least 0, to enable a Ctrl-C
 
 
 async def file_pkts(fp, include=None, exclude=None):
@@ -291,9 +293,10 @@ async def file_pkts(fp, include=None, exclude=None):
 
         try:
             dtm, pkt = ts_pkt[:26], ts_pkt[27:]
-            # assuming a valid log file, these assert allows for -O for inc. speed
+            # assuming a completely valid log file, asserts allows for -O for inc. speed
             assert DTM_LONG_REGEX.match(dtm)
             assert dt.fromisoformat(dtm)
+
         except (AssertionError, TypeError, ValueError):
             _LOGGER.warning(
                 "%s < Packet line has an invalid timestamp (ignoring)",
@@ -306,4 +309,4 @@ async def file_pkts(fp, include=None, exclude=None):
         if pkt.is_valid and pkt.is_wanted(include=include, exclude=exclude):
             yield pkt
 
-        await asyncio.sleep(0)  # usu. 0, to enable a Ctrl-C
+        await asyncio.sleep(Pause.NONE)  # usu. 0, to enable a Ctrl-C
