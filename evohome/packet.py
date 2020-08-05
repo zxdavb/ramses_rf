@@ -20,7 +20,7 @@ from .const import (
     Address,
     __dev_mode__,
 )
-from .logger import time_stamp
+from .logger import dtm_stamp
 
 BAUDRATE = 115200
 READ_TIMEOUT = 0.5
@@ -213,9 +213,9 @@ class PortPktProvider:
         try:
             pkt_bytes = await self.reader.readline()
         except SerialException:
-            return time_stamp(), "", None
+            return dtm_stamp(), "", None
 
-        dtm_str = time_stamp()  # done here & now for most-accurate timestamp
+        dtm_str = dtm_stamp()  # done here & now for most-accurate timestamp
         _LOGGER.debug("%s < Raw packet", pkt_bytes, extra=extra(dtm_str, pkt_bytes))
 
         try:
@@ -241,7 +241,7 @@ class PortPktProvider:
         # logger.debug("# Data was sent to %s: %s", self.serial_port, cmd)
         self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
 
-        # cmd.dispatch_dtm = time_stamp()
+        # cmd.dispatch_dtm = dtm_stamp()
         if str(cmd).startswith("!"):  # traceflag to evofw
             await asyncio.sleep(PAUSE_SHORT)
         else:
@@ -250,7 +250,7 @@ class PortPktProvider:
         # self._lock.release()
 
         if cmd.retry is True:  # == "RQ":
-            cmd.dtm = time_stamp()
+            cmd.dtm = dtm_stamp()
             # self._window.append(cmd)
 
 
@@ -298,7 +298,7 @@ async def file_pkts(fp, include=None, exclude=None):
             _LOGGER.warning(
                 "%s < Packet line has an invalid timestamp (ignoring)",
                 ts_pkt,
-                extra=extra(time_stamp(), ts_pkt),
+                extra=extra(dtm_stamp(), ts_pkt),
             )
             continue
 
