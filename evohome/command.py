@@ -21,6 +21,14 @@ DEVICE_3 = "device_3"
 # MIN_GAP_BETWEEN_CMDS = 0.7
 # MAX_CMDS_PER_MINUTE = 30
 
+PAUSE_SHORT = 0.01  # seconds
+PAUSE_DEFAULT = 0.05  # 0.05 works well, 0.03 too short
+PAUSE_LONG = 0.15  # needed for first RQ / 0404
+
+QOS_AT_MOST_ONCE = 0  # PUB (no handshake)
+QOS_AT_LEAST_ONCE = 1  # PUB, ACK (2-way handshake)
+QOS_EXACTLY_ONCE = 2  # PUB, REC, REL (FIN) (3/4-way handshake)
+
 PRIORITY_LOW = 6
 PRIORITY_DEFAULT = 4
 PRIORITY_HIGH = 2
@@ -28,10 +36,6 @@ PRIORITY_ASAP = 0
 
 RQ_RETRY_LIMIT = 7
 RQ_TIMEOUT = 0.03
-
-PAUSE_SHORT = 0.01  # seconds
-PAUSE_DEFAULT = 0.05  # 0.05 works well, 0.03 too short
-PAUSE_LONG = 0.15  # needed for first RQ / 0404
 
 _LOGGER = logging.getLogger(__name__)
 if False and __dev_mode__:
