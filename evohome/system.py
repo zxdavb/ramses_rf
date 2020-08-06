@@ -134,7 +134,7 @@ class EvoSystem(System):
         super()._discover()
 
         # asyncio.create_task(  # TODO: test only
-        #     self.async_set_mode(5, dt.now() + timedelta(minutes=120))
+        #     self.async_set_mode(5, dt_now() + timedelta(minutes=120))
         #     # self.async_set_mode(5)
         #     # self.async_reset_mode()
         # )

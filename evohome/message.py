@@ -273,7 +273,7 @@ class Message:
                 _LOGGER.warning("%s", self, extra=self.__dict__)
             else:
                 _LOGGER.error("%s", self, extra=self.__dict__)
-        else:
+        else:  # the normal mode logging scheme
             _LOGGER.info("%s", self, extra=self.__dict__)
 
         return self._is_valid
