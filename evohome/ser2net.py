@@ -101,7 +101,7 @@ class Ser2NetProtocol(asyncio.Protocol):
 
         # pkt = Packet(packet)
         # cmd = Command(pkt)
-        self._cmd_que.put_nowait(packet)  # TODO: should be Command(), not str?
+        self._cmd_que.put_nowait(packet)  # TODO: use factory: shld be Command, not str
         _LOGGER.debug(" - command sent to dispatch queue: %s", packet)
 
     def eof_received(self) -> Optional[bool]:
