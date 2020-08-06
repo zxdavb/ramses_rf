@@ -334,8 +334,7 @@ class Gateway:
                 await destination.put_pkt(cmd, _LOGGER)
 
             elif destination is None or self.config["listen_only"]:
-                # await asyncio.sleep(0)  # clear the whole queue
-                pass
+                pass  # clear the whole queue
 
             elif cmd.verb == "RQ" and cmd.code == "0404":
                 if await consider_rq_0404(cmd) is True:
