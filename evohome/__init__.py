@@ -240,10 +240,10 @@ class Gateway:
                     await manager.put_pkt(cmd, _LOGGER)
 
                 reader = asyncio.create_task(port_reader(manager))
-                self._tasks.extend([asyncio.create_task(port_writer(manager)), reader])
+                # elf._tasks.extend([asyncio.create_task(port_writer(manager)), reader])
 
         await reader  # was: await asyncio.gather(*self._tasks)
-        await asyncio.gather(*self._tasks)
+        # await asyncio.gather(*self._tasks)
         self.cleanup("start()")
 
     async def _dispatch_pkt(self, destination=None) -> None:
