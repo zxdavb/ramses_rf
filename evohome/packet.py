@@ -375,7 +375,7 @@ class PortPktProvider:
 
         if cmd is not None:  # re-transmit
             _logger(
-                "timed out & next for re-transmission (remains in buffer)", cmd, dtm_now
+                "next for re-transmission (remains in buffer)", f"... {cmd}", dtm_now
             )
         return cmd
 
