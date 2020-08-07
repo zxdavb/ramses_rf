@@ -228,10 +228,11 @@ class PortPktProvider:
         """Pull (get) the next packet tuple (dtm, pkt, pkt_bytes) from a serial port."""
 
         try:  # HACK: because I can't get read timeout to work
-            if self.reader._transport.serial.in_waiting:
+            if True or self.reader._transport.serial.in_waiting:
                 pkt_bytes = await self.reader.readline()
             else:
-                pkt_bytes = b''
+                pkt_bytes = b""
+                await asyncio.sleep(0.1)
         except SerialException:
             return dt_str(), "", None
 
@@ -260,11 +261,19 @@ class PortPktProvider:
 
             if header in self._qos_buffer:
                 _LOGGER.warning(
-                    "%s < received (removed from buffer), NB: pkt assumed valid",
-                    pkt_bytes,
+                    "%s < received, assumed valid (removed from buffer), header = %s",
+                    pkt_str,
+                    header,
                     extra=extra(dtm_str, pkt_bytes),
                 )
                 del self._qos_buffer[header]
+            elif pkt_str != "":
+                _LOGGER.warning(
+                    "%s < received, assumed valid (wasn't in the buffer), header = %s",
+                    pkt_str,
+                    header,
+                    extra=extra(dtm_str, pkt_bytes),
+                )
 
             self._lock.release()
 
@@ -282,13 +291,13 @@ class PortPktProvider:
 
             dtm_now = dt_now()
             if pkt is qos_pkt:  # already in buffer
-                _logger("for transmission (already in buffer)", pkt, dtm_now)
+                _logger("for transmission (already in buffer)", f"... {pkt}", dtm_now)
 
             elif pkt.qos == Qos.AT_MOST_ONCE:  # don't add to buffer
-                _logger("for transmission (wont add to buffer)", pkt, dtm_now)
+                _logger("for transmission (wont add to buffer)", f"... {pkt}", dtm_now)
 
             else:  # add to buffer
-                _logger("for transmission (will add to buffer)", pkt, dtm_now)
+                _logger("for transmission (will add to buffer)", f"... {pkt}", dtm_now)
 
             if self._pause > dtm_now:  # sleep until pause is over
                 await asyncio.sleep((self._pause - dtm_now).total_seconds())
@@ -297,7 +306,7 @@ class PortPktProvider:
             # logger.debug("# Data was sent to %s: %s", self.serial_port, pkt)
 
             dtm_now = dt_now()  # TODO: needed?
-            _logger("transmitted", pkt, dtm_now)
+            _logger("transmitted", f"... {pkt}", dtm_now)
 
             if pkt is None or str(pkt).startswith("!"):  # evofw3 traceflag:
                 self._pause = dtm_now + timedelta(seconds=Pause.SHORT)
@@ -333,22 +342,28 @@ class PortPktProvider:
 
         for header, pkt in self._qos_buffer.items():
             if pkt.dtm_expires < dtm_now:  # abandon
-                _logger("timed out & expired (removed from buffer)", pkt, dtm_now)
+                _logger(
+                    "timed out & fully expired (removed from buffer)",
+                    f"... {pkt}",
+                    dtm_now,
+                )
                 expired_pkts.append(header)
 
             elif pkt.dtm_timeout < dtm_now:  # retransmit?
                 if pkt.transmit_count == MAX_RETRY_COUNT:  # abandon
                     _logger(
                         "timed out & exceeded retry count (removed from buffer)",
-                        pkt,
-                        dtm_now
+                        f"... {pkt}",
+                        dtm_now,
                     )
                     expired_pkts.append(header)
 
                 else:  # retransmit
                     cmd = pkt if cmd is None or pkt.priority < cmd.priority else cmd
                     _logger(
-                        "timed out & re-transmissible (remains in buffer)", pkt, dtm_now
+                        "timed out & re-transmissible (remains in buffer)",
+                        f"... {pkt}",
+                        dtm_now,
                     )
 
         else:
