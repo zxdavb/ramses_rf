@@ -281,10 +281,10 @@ class PortPktProvider:
 
     async def put_pkt(self, put_pkt, logger):  # TODO: logger is a hack
         """Send (put) the next packet to a serial port."""
+        qos_pkt = self.check_buffer()
         if put_pkt is not None and str(put_pkt).startswith("!"):
             pkt = put_pkt
         else:
-            qos_pkt = self.check_buffer()
             pkt = put_pkt if qos_pkt is None else qos_pkt
 
         while pkt is not None:
@@ -375,7 +375,7 @@ class PortPktProvider:
 
         if cmd is not None:  # re-transmit
             _logger(
-                "timed out & next for re-transmission (remains in buffer)", pkt, dtm_now
+                "timed out & next for re-transmission (remains in buffer)", cmd, dtm_now
             )
         return cmd
 
