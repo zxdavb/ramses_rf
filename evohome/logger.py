@@ -52,12 +52,12 @@ class FILETIME(ctypes.Structure):
     _fields_ = [("dwLowDateTime", ctypes.c_uint), ("dwHighDateTime", ctypes.c_uint)]
 
 
-def dtm_now() -> dt:
+def dt_now() -> dt:
     """Return the time now as a UTC datetime object."""
-    return time.gmtime(time_time())
+    return dt.fromtimestamp(time_time())
 
 
-def dtm_stamp() -> str:
+def dt_str() -> str:
     """Return the time now as a isoformat string."""
     now = time_time()
     mil = f"{now%1:.6f}".lstrip("0")

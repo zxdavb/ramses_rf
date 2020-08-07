@@ -243,6 +243,7 @@ class Gateway:
                 self._tasks.extend([asyncio.create_task(port_writer(manager)), reader])
 
         await reader  # was: await asyncio.gather(*self._tasks)
+        await asyncio.gather(*self._tasks)
         self.cleanup("start()")
 
     async def _dispatch_pkt(self, destination=None) -> None:
@@ -327,7 +328,11 @@ class Gateway:
                 self._buffer.popleft()  # the pkt was sent for transmission
                 return  # can't send any other initial RQs now
 
-        while not self.cmd_que.empty():
+        while True:
+            if self.cmd_que.empty():
+                await destination.put_pkt(None, _LOGGER)
+                continue
+
             cmd = self.cmd_que.get()
 
             if destination is not None and str(cmd).startswith("!"):
@@ -349,7 +354,8 @@ class Gateway:
             else:
                 await destination.put_pkt(cmd, _LOGGER)
 
-            self.cmd_que.task_done()
+            if cmd is not None:
+                self.cmd_que.task_done()
 
     def _process_packet(self, pkt: Packet) -> None:
         """Decode the packet and its payload."""

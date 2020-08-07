@@ -1,11 +1,12 @@
 """Evohome serial."""
 
-from datetime import datetime as dt, timedelta
+from datetime import timedelta
 from functools import total_ordering
 import json
 import logging
 import struct
 from types import SimpleNamespace
+from typing import Optional
 import zlib
 
 from .const import __dev_mode__, COMMAND_FORMAT, HGI_DEVICE
@@ -19,33 +20,17 @@ DEVICE_1 = "device_1"
 DEVICE_2 = "device_2"
 DEVICE_3 = "device_3"
 
-# MIN_GAP_BETWEEN_CMDS = 0.7
-# MAX_CMDS_PER_MINUTE = 30
-
-PAUSE_SHORT = 0.01  # seconds
-PAUSE_DEFAULT = 0.05  # 0.05 works well, 0.03 too short
-PAUSE_LONG = 0.15  # needed for first RQ / 0404
-
-QOS_AT_MOST_ONCE = 0  # PUB (no handshake)
-QOS_AT_LEAST_ONCE = 1  # PUB, ACK (2-way handshake)
-QOS_EXACTLY_ONCE = 2  # PUB, REC, REL (FIN) (3/4-way handshake)
-
-PRIORITY_LOW = 6
-PRIORITY_DEFAULT = 4
-PRIORITY_HIGH = 2
-PRIORITY_ASAP = 0
-
 RQ_RETRY_LIMIT = 7
 RQ_TIMEOUT = 0.03
 
 
 # PAUSE: Default of 0.03 too short, but 0.05 OK; Long pause required after 1st RQ/0404
 Pause = SimpleNamespace(NONE=0, SHORT=0.01, DEFAULT=0.05, LONG=0.15)
-Priority = SimpleNamespace(LOW=6, DEFAULT=4, HIGH=2,ASAP=0)
+Priority = SimpleNamespace(LOW=6, DEFAULT=4, HIGH=2, ASAP=0)
 Qos = SimpleNamespace(
     AT_MOST_ONCE=0,  # PUB (no handshake)
     AT_LEAST_ONCE=1,  # PUB, ACK (2-way handshake)
-    EXACTLY_ONCE=2  # PUB, REC, REL (FIN) (3/4-way handshake)
+    EXACTLY_ONCE=2,  # PUB, REC, REL (FIN) (3/4-way handshake)
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -202,21 +187,21 @@ class Command:
         """Initialise the class."""
         self.verb = verb
         self.from_addr = kwargs.get("from_addr", HGI_DEVICE.id)
-        self.dest_addr = dest_addr
+        self.dest_addr = dest_addr if dest_addr is not None else self.from_addr
         self.code = code
         self.payload = payload
 
         self.pause = kwargs.get("pause", Pause.DEFAULT)
-        assert self.pause is not None
 
         priority = Priority.HIGH if verb in ("0016", "1FC9") else Priority.DEFAULT
         self.priority = kwargs.get("priority", priority)
-        assert self.priority is not None
 
-        self.retry = kwargs.get("retry", False)
-        assert self.retry is not None
+        qos = Qos.AT_LEAST_ONCE if self.verb in ("RQ", " W") else Qos.AT_MOST_ONCE
+        self.qos = kwargs.get("qos", qos)
 
-        self._dtm = dt.now()
+        self.dtm_expires = None
+        self.dtm_timeout = None
+        self.transmit_count = 0
 
     def __str__(self) -> str:
         _cmd = COMMAND_FORMAT.format(
@@ -232,6 +217,15 @@ class Command:
         #     raise ValueError(f"Message is not valid, >>{_cmd}<<")
 
         return _cmd
+
+    @property
+    def _header(self) -> Optional[str]:
+        """Return the QoS header of a response packet, if one is expected."""
+
+        if self.verb in ("RQ", " W"):
+            return "|".join(
+                ("RP" if self.verb == "RQ" else " I", self.dest_addr, self.code)
+            )
 
     @staticmethod
     def _is_valid_operand(other) -> bool:

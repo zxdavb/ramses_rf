@@ -51,7 +51,7 @@ def _dtm(value) -> str:
     elif not isinstance(value, dt):
         raise TypeError("Invalid datetime object")
 
-    if value < dt.now() + timedelta(minutes=1):
+    if value < dt_now() + timedelta(minutes=1):
         raise ValueError("Invalid datetime")
 
     return dtm_to_hex(*value.timetuple())

@@ -4,14 +4,12 @@ from datetime import datetime as dt, timedelta
 import logging
 from string import printable
 from threading import Lock
-
-# from time import sleep
 from typing import Optional, Tuple
 
 from serial import SerialException  # noqa
 from serial_asyncio import open_serial_connection  # noqa
 
-from .command import Pause
+from .command import Command, Pause, Qos
 from .const import (
     DTM_LONG_REGEX,
     MESSAGE_REGEX,
@@ -20,11 +18,17 @@ from .const import (
     Address,
     __dev_mode__,
 )
-from .logger import dtm_stamp
+from .logger import dt_now, dt_str
 
 BAUDRATE = 115200
 READ_TIMEOUT = 0.5
 XON_XOFF = True
+
+MAX_BUFFER_LEN = 3
+MAX_RETRY_COUNT = 3
+RETRANS_TIMEOUT = timedelta(seconds=0.5)
+EXPIRY_TIMEOUT = timedelta(seconds=2.0)
+
 
 _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:
@@ -40,6 +44,10 @@ def extra(dtm, pkt=None):
         "error_text": "",
         "comment": "",
     }
+
+
+def _logger(log_msg, pkt, dtm_now):
+    _LOGGER.warning("%s < %s", pkt, log_msg, extra=extra(dtm_now.isoformat(), pkt))
 
 
 def split_pkt_line(packet_line: str) -> Tuple[str, str, str]:
@@ -176,6 +184,13 @@ class Packet:
             return True
         return False
 
+    @property
+    def _header(self) -> Optional[str]:
+        """Return the QoS header of this packet, if it is valid."""
+
+        if self.is_valid:
+            return "|".join(self.packet[4:6], self.src_addr, self.packet[41:45])
+
 
 class PortPktProvider:
     """Base class for packets from a serial port."""
@@ -189,9 +204,10 @@ class PortPktProvider:
         self.loop = loop
 
         self._lock = Lock()
+        self._qos_buffer = {}
 
         self.reader = self.write = None
-        self._dt_pause = dt.min
+        self._pause = dt.min
 
     async def __aenter__(self):
         # TODO: Add ValueError, SerialException wrapper
@@ -211,12 +227,15 @@ class PortPktProvider:
     async def get_pkt(self) -> Tuple[str, str, Optional[bytearray]]:
         """Pull (get) the next packet tuple (dtm, pkt, pkt_bytes) from a serial port."""
 
-        try:
-            pkt_bytes = await self.reader.readline()
+        try:  # HACK: because I can't get read timeout to work
+            if self.reader._transport.serial.in_waiting:
+                pkt_bytes = await self.reader.readline()
+            else:
+                pkt_bytes = b''
         except SerialException:
-            return dtm_stamp(), "", None
+            return dt_str(), "", None
 
-        dtm_str = dtm_stamp()  # done here & now for most-accurate timestamp
+        dtm_str = dt_str()  # done here & now for most-accurate timestamp
         _LOGGER.debug("%s < Raw packet", pkt_bytes, extra=extra(dtm_str, pkt_bytes))
 
         try:
@@ -233,24 +252,117 @@ class PortPktProvider:
 
         # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
 
+        # TODO: validate the packet before calculating the header
+        if self._lock is not None:
+            header = "|".join((pkt_str[4:6], pkt_str[11:20], pkt_str[41:45]))
+
+            self._lock.acquire()
+
+            if header in self._qos_buffer:
+                _LOGGER.warning(
+                    "%s < received (removed from buffer), NB: pkt assumed valid",
+                    pkt_bytes,
+                    extra=extra(dtm_str, pkt_bytes),
+                )
+                del self._qos_buffer[header]
+
+            self._lock.release()
+
         return dtm_str, pkt_str, pkt_bytes
 
-    async def put_pkt(self, cmd, logger):  # TODO: logger is a hack
+    async def put_pkt(self, put_pkt, logger):  # TODO: logger is a hack
         """Send (put) the next packet to a serial port."""
-
-        # if self._dt_pause > dt.now():
-        #     await asyncio.sleep((self._dt_pause - dt.now()).total_seconds())
-
-        # self._lock.acquire()
-        self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
-        # logger.debug("# Data was sent to %s: %s", self.serial_port, cmd)
-
-        if str(cmd).startswith("!"):  # traceflag to evofw
-            self._dt_pause = dt.now() + timedelta(seconds=Pause.SHORT)
+        if put_pkt is not None and str(put_pkt).startswith("!"):
+            pkt = put_pkt
         else:
-            self._dt_pause = dt.now() + timedelta(seconds=max(cmd.pause, Pause.DEFAULT))
+            qos_pkt = self.check_buffer()
+            pkt = put_pkt if qos_pkt is None else qos_pkt
 
-        # self._lock.release()
+        while pkt is not None:
+
+            dtm_now = dt_now()
+            if pkt is qos_pkt:  # already in buffer
+                _logger("for transmission (already in buffer)", pkt, dtm_now)
+
+            elif pkt.qos == Qos.AT_MOST_ONCE:  # don't add to buffer
+                _logger("for transmission (wont add to buffer)", pkt, dtm_now)
+
+            else:  # add to buffer
+                _logger("for transmission (will add to buffer)", pkt, dtm_now)
+
+            if self._pause > dtm_now:  # sleep until pause is over
+                await asyncio.sleep((self._pause - dtm_now).total_seconds())
+
+            self.writer.write(bytearray(f"{pkt}\r\n".encode("ascii")))
+            # logger.debug("# Data was sent to %s: %s", self.serial_port, pkt)
+
+            dtm_now = dt_now()  # TODO: needed?
+            _logger("transmitted", pkt, dtm_now)
+
+            if pkt is None or str(pkt).startswith("!"):  # evofw3 traceflag:
+                self._pause = dtm_now + timedelta(seconds=Pause.SHORT)
+            else:
+                self._pause = dtm_now + timedelta(seconds=max(pkt.pause, Pause.DEFAULT))
+
+            if pkt.qos != Qos.AT_MOST_ONCE:
+                pkt.dtm_timeout = dtm_now + RETRANS_TIMEOUT
+                if pkt.transmit_count == 0:
+                    pkt.dtm_expires = dtm_now + EXPIRY_TIMEOUT
+                pkt.transmit_count += 1
+
+            if pkt is put_pkt:
+                break
+
+            qos_pkt = self.check_buffer()
+            pkt = put_pkt if qos_pkt is None else qos_pkt
+
+        if put_pkt is not None and put_pkt.qos != Qos.AT_MOST_ONCE:
+            while len(self._qos_buffer) == MAX_BUFFER_LEN:  # TODO: need a lock in here?
+                await asyncio.sleep(Pause.SHORT)
+            self._lock.acquire()
+            self._qos_buffer[put_pkt._header] = put_pkt
+            self._lock.release()
+
+    def check_buffer(self) -> Optional[Command]:
+        """Return the next packet to be retransmitted, and maintain the QoS buffer."""
+        dtm_now = dt_now()
+        expired_pkts = []
+        cmd = None
+
+        self._lock.acquire()
+
+        for header, pkt in self._qos_buffer.items():
+            if pkt.dtm_expires < dtm_now:  # abandon
+                _logger("timed out & expired (removed from buffer)", pkt, dtm_now)
+                expired_pkts.append(header)
+
+            elif pkt.dtm_timeout < dtm_now:  # retransmit?
+                if pkt.transmit_count == MAX_RETRY_COUNT:  # abandon
+                    _logger(
+                        "timed out & exceeded retry count (removed from buffer)",
+                        pkt,
+                        dtm_now
+                    )
+                    expired_pkts.append(header)
+
+                else:  # retransmit
+                    cmd = pkt if cmd is None or pkt.priority < cmd.priority else cmd
+                    _logger(
+                        "timed out & re-transmissible (remains in buffer)", pkt, dtm_now
+                    )
+
+        else:
+            self._qos_buffer = {
+                h: p for h, p in self._qos_buffer.items() if h not in expired_pkts
+            }
+
+        self._lock.release()
+
+        if cmd is not None:  # re-transmit
+            _logger(
+                "timed out & next for re-transmission (remains in buffer)", pkt, dtm_now
+            )
+        return cmd
 
 
 class FilePktProvider:
@@ -299,7 +411,7 @@ async def file_pkts(fp, include=None, exclude=None):
             _LOGGER.warning(
                 "%s < Packet line has an invalid timestamp (ignoring)",
                 ts_pkt,
-                extra=extra(dtm_stamp(), ts_pkt),
+                extra=extra(dt_str(), ts_pkt),
             )
             continue
 
