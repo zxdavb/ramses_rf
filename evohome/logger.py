@@ -49,6 +49,7 @@ LOG_COLOURS = {
 
 class FILETIME(ctypes.Structure):
     """Data structure for GetSystemTimePreciseAsFileTime()."""
+
     _fields_ = [("dwLowDateTime", ctypes.c_uint), ("dwHighDateTime", ctypes.c_uint)]
 
 
