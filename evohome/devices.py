@@ -6,6 +6,7 @@ from typing import Any, Optional
 from .command import Command, Pause, Priority
 from .const import __dev_mode__, DEVICE_LOOKUP, DEVICE_TABLE, DEVICE_TYPES
 from .exceptions import CorruptStateError
+from .logger import dt_now
 
 _LOGGER = logging.getLogger(__name__)
 if False and __dev_mode__:
@@ -240,7 +241,7 @@ class Device(Entity):
         self._friendly_name = attrs.get("friendly_name") if attrs else None
         self._ignored = attrs.get("ignored", False) if attrs else False
 
-        # self._discover()
+        self._discover()
 
     # def __repr__(self) -> str:
     #     """Return a JSON dict of all the public atrributes of an entity."""
@@ -258,7 +259,6 @@ class Device(Entity):
     def __str__(self) -> str:
         return f"{self.id} ({self.dev_type})"
 
-    @property
     def _discover(self):
         # do these even if battery-powered (e.g. device might be in rf_check mode)
         for code in ("0016", "1FC9"):
@@ -485,7 +485,7 @@ class BdrSwitch(Device, Actuator):
 
             self._is_tpi = True
 
-            # self._discover()
+            self._discover()
 
         if self._is_tpi is not None:
             return self._is_tpi
