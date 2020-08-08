@@ -142,7 +142,11 @@ class Schedule:
 
     @property
     def schedule(self) -> list:
-        _LOGGER.warning("Sched(%s).schedule: array is: %s", self.id, self._frag_array)
+        _LOGGER.warning(
+            "Sched(%s).schedule: array is: %s",
+            self.id,
+            [{d["frag_index"]: d["fragment"]} for d in self._frag_array],
+        )
 
         # enumerate()
 
