@@ -249,65 +249,6 @@ class Gateway:
     async def _dispatch_pkt(self, destination=None) -> None:
         """Send a command unless in listen_only mode."""
 
-        # async def consider_rq_0404(kmd) -> bool:
-        #     """Consider cmd, return True if it was sent for transmission."""
-
-        #     async def check_message() -> None:
-        #         """Queue next RQ/0404, or re-queue the last one if required."""
-        #         self._sched_lock.acquire()
-
-        #         if self._sched_zone:
-        #             _id = self._sched_zone.id
-        #             _LOGGER.info("zone(%s): checking schedule", _id)
-
-        #             if self._sched_zone.schedule is None:  # is schedule done?
-        #                 _LOGGER.warning("zone(%s): timed out, restarting...", _id)
-        #                 self._sched_zone._schedule.req_fragment(restart=True)
-        #                 await schedule_task(Pause.LONG * 100, check_fragments)
-
-        #             else:
-        #                 _LOGGER.warning("zone(%s): completed.", _id)
-        #                 self._sched_zone = None
-
-        #         self._sched_lock.release()
-
-        #     async def check_fragments() -> None:
-        #         """Queue next RQ/0404s, or re-queue as required."""
-        #         while True:
-        #             self._sched_lock.acquire()
-
-        #             if self._sched_zone:
-        #                 _id = self._sched_zone.id
-        #                 if self._sched_zone.schedule:
-        #                     _LOGGER.info("zone(%s): Schedule completed", _id)
-        #                     self._sched_zone = None
-        #                     break
-
-        #                 self._sched_zone._schedule.req_fragment()
-        #                 _LOGGER.info("zone(%s): Queued RQ for next missing frag", _id)
-
-        #             self._sched_lock.release()
-        #             await asyncio.sleep(Pause.LONG * 10)
-
-        #         self._sched_lock.release()
-
-        #     self._sched_lock.acquire()
-
-        #     if self._sched_zone is None:  # not getting any zone's sched?
-        #         self._sched_zone = self.evo.zone_by_id[kmd.payload[:2]]
-        #         _LOGGER.info("zone(%s): Queuing 1st RQ...", self._sched_zone.id)
-        #         await schedule_task(Pause.LONG * 100, check_message)
-        #         await schedule_task(Pause.LONG, check_fragments)
-
-        #     if self._sched_zone.id == kmd.payload[:2]:  # getting this zone's sched?
-        #         _LOGGER.info("zone(%s): RQ was sent", self._sched_zone.id)
-        #         self._sched_lock.release()
-
-        #         await destination.put_pkt(kmd, _LOGGER)
-        #         return True
-
-        #     self._sched_lock.release()
-
         # # used for development only...
         # for payload in (
         #   "0000", "0100", "00", "01", "F8", "F9", "FA", "FB", "FC", "FF"
@@ -315,18 +256,6 @@ class Gateway:
         #     for code in range(int("4000", 16)):
         #         cmd = Command(" W", "01:145038", f"{code:04X}", payload)
         #         await destination.put_pkt(cmd, _LOGGER)
-
-        # if destination is not None:
-        #     serial = destination.reader._transport.serial
-        #     if serial is not None and serial.in_waiting == 0:
-        #         _LOGGER.warning("")
-        #         return
-
-        # if len(self._buffer):
-        #     if await consider_rq_0404(self._buffer[0]) is True:
-        #         _LOGGER.info("zone(%s): Buffered RQ was sent.", self._sched_zone.id)
-        #         self._buffer.popleft()  # the pkt was sent for transmission
-        #         return  # can't send any other initial RQs now
 
         while True:
             await asyncio.sleep(Pause.SHORT)  # TODO: this was casing an issue...
@@ -342,20 +271,9 @@ class Gateway:
             elif destination is None or self.config["listen_only"]:
                 pass  # clear the whole queue
 
-            # elif cmd.verb == "RQ" and cmd.code == "0404":
-            #     if await consider_rq_0404(cmd) is True:
-            #         _LOGGER.info("zone(%s): Queued RQ was sent.", self._sched_zone.id)
-            #     else:
-            #         self._buffer.append(cmd)  # otherwise, send the pkt later on
-            #         _LOGGER.info("zone(xx): Queued RQ was buffered.")
-
-            #     self.cmd_que.task_done()  # the pkt was sent for transmission
-            #     break  # can't send any other initial RQs now
-
             else:
                 await destination.put_pkt(cmd, _LOGGER)
 
-            # if cmd is not None:
             self.cmd_que.task_done()
 
     def _process_packet(self, pkt: Packet) -> None:
@@ -381,17 +299,6 @@ class Gateway:
                 return
 
             msg.update_entities(self._prev_msg)  # update the state database
-
-            # if msg.verb == "RP" and msg.code == "0404":
-            # self._sched_lock.acquire()
-            # if self._sched_zone and self._sched_zone.id == msg.payload["zone_idx"]:
-            #     if self._sched_zone.schedule:
-            #         self._sched_zone = None
-            #     elif msg.payload["frag_index"] == 1:
-            #         self._sched_zone._schedule.req_fragment(block_mode=False)
-            #     else:
-            #         self._sched_zone._schedule.req_fragment(block_mode=False)
-            # self._sched_lock.release()
 
         except (AssertionError, NotImplementedError):
             return
