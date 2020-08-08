@@ -24,10 +24,11 @@ BAUDRATE = 115200
 READ_TIMEOUT = 0.5
 XON_XOFF = True
 
-MAX_BUFFER_LEN = 3
+# tx (from sent to gwy, to get back from gwy) seems to takes 0.025
+MAX_BUFFER_LEN = 5
 MAX_RETRY_COUNT = 3
-RETRANS_TIMEOUT = timedelta(seconds=0.5)
-EXPIRY_TIMEOUT = timedelta(seconds=2.0)
+RETRANS_TIMEOUT = timedelta(seconds=0.065)  # 0.06 gives false +ve for 10E0
+EXPIRY_TIMEOUT = timedelta(seconds=0.5)
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -232,7 +233,7 @@ class PortPktProvider:
                 pkt_bytes = await self.reader.readline()
             else:
                 pkt_bytes = b""
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(Pause.SHORT)
         except SerialException:
             return dt_str(), "", None
 
@@ -254,129 +255,152 @@ class PortPktProvider:
         # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
 
         # TODO: validate the packet before calculating the header
+        # TODO: see the packet sent via the gwy before starting the timers
         if self._lock is not None:
             header = "|".join((pkt_str[4:6], pkt_str[11:20], pkt_str[41:45]))
 
             self._lock.acquire()
 
             if header in self._qos_buffer:
-                _LOGGER.warning(
-                    "%s < received, assumed valid (removed from buffer), header = %s",
-                    pkt_str,
-                    header,
-                    extra=extra(dtm_str, pkt_bytes),
-                )
+                # _LOGGER.warning(
+                #     "%s < received, assumed valid (removed from buffer), header = %s",
+                #     pkt_str,
+                #     header,
+                #     extra=extra(dtm_str, pkt_bytes),
+                # )
                 del self._qos_buffer[header]
-            elif pkt_str != "":
-                _LOGGER.warning(
-                    "%s < received, assumed valid (wasn't in the buffer), header = %s",
-                    pkt_str,
-                    header,
-                    extra=extra(dtm_str, pkt_bytes),
-                )
+            # elif pkt_str != "":
+            #     _LOGGER.warning(
+            #         "%s < received, assumed valid (ain't in the buffer), header = %s",
+            #         pkt_str,
+            #         header,
+            #         extra=extra(dtm_str, pkt_bytes),
+            #     )
 
             self._lock.release()
 
         return dtm_str, pkt_str, pkt_bytes
 
-    async def put_pkt(self, put_pkt, logger):  # TODO: logger is a hack
+    async def put_pkt(self, put_cmd, logger):  # TODO: logger is a hack
         """Send (put) the next packet to a serial port."""
-        qos_pkt = self.check_buffer()
-        if put_pkt is not None and str(put_pkt).startswith("!"):
-            pkt = put_pkt
-        else:
-            pkt = put_pkt if qos_pkt is None else qos_pkt
 
-        while pkt is not None:
-
-            dtm_now = dt_now()
-            if pkt is qos_pkt:  # already in buffer
-                _logger("for transmission (already in buffer)", f"... {pkt}", dtm_now)
-
-            elif pkt.qos == Qos.AT_MOST_ONCE:  # don't add to buffer
-                _logger("for transmission (wont add to buffer)", f"... {pkt}", dtm_now)
-
-            else:  # add to buffer
-                _logger("for transmission (will add to buffer)", f"... {pkt}", dtm_now)
-
+        async def transmit(cmd) -> None:
+            dtm_now = dt_now()  # before transmit
             if self._pause > dtm_now:  # sleep until pause is over
                 await asyncio.sleep((self._pause - dtm_now).total_seconds())
 
-            self.writer.write(bytearray(f"{pkt}\r\n".encode("ascii")))
-            # logger.debug("# Data was sent to %s: %s", self.serial_port, pkt)
+            # _logger("before transmission", f"... {cmd}",  dt_now())
+            self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
+            # logger.debug("# Data was sent to %s: %s", self.serial_port, cmd)
+            # _logger("after. transmission", f"... {cmd}",  dt_now())
 
-            dtm_now = dt_now()  # TODO: needed?
-            _logger("transmitted", f"... {pkt}", dtm_now)
-
-            if pkt is None or str(pkt).startswith("!"):  # evofw3 traceflag:
+            dtm_now = dt_now()  # after transmit
+            # _logger("now transmitted", f"... {cmd}", dtm_now)
+            if cmd is None or str(cmd).startswith("!"):  # evofw3 traceflag:
                 self._pause = dtm_now + timedelta(seconds=Pause.SHORT)
             else:
-                self._pause = dtm_now + timedelta(seconds=max(pkt.pause, Pause.DEFAULT))
+                self._pause = dtm_now + timedelta(seconds=max(cmd.pause, Pause.DEFAULT))
 
-            if pkt.qos != Qos.AT_MOST_ONCE:
-                pkt.dtm_timeout = dtm_now + RETRANS_TIMEOUT
-                if pkt.transmit_count == 0:
-                    pkt.dtm_expires = dtm_now + EXPIRY_TIMEOUT
-                pkt.transmit_count += 1
+            if cmd.qos != Qos.AT_MOST_ONCE:
+                cmd.dtm_timeout = dtm_now + RETRANS_TIMEOUT
+                if cmd.transmit_count == 0:
+                    cmd.dtm_expires = dtm_now + EXPIRY_TIMEOUT
+                cmd.transmit_count += 1
+                if cmd.transmit_count > 1:
+                    _logger(
+                        "was transmitted (is in buffer) "
+                        f"{cmd.transmit_count} of {MAX_RETRY_COUNT}",
+                        f"... {cmd}",
+                        dtm_now,
+                    )
 
-            if pkt is put_pkt:
+        qos_cmd = self._check_buffer()
+        if put_cmd is not None and str(put_cmd).startswith("!"):
+            cmd = put_cmd
+        else:
+            cmd = put_cmd if qos_cmd is None else qos_cmd
+
+        dtm_now = dt_now()
+        while cmd is not None:
+            # if cmd is qos_cmd:  # already in buffer
+            #     _logger("for transmission (already in buffer)", f"... {cmd}", dtm_now)
+
+            # elif cmd.qos == Qos.AT_MOST_ONCE:  # don't add to buffer
+            #     _logger("for transmission (to add to buffer)", f"... {cmd}", dtm_now)
+
+            # else:  # add to buffer
+            #     _logger("for transmission (not to buffer)", f"... {cmd}", dtm_now)
+
+            await transmit(cmd)
+
+            if cmd is put_cmd:
                 break
 
-            qos_pkt = self.check_buffer()
-            pkt = put_pkt if qos_pkt is None else qos_pkt
+            qos_cmd = self._check_buffer()
+            cmd = put_cmd if qos_cmd is None else qos_cmd
 
-        if put_pkt is not None and put_pkt.qos != Qos.AT_MOST_ONCE:
+        if put_cmd is not None and put_cmd.qos != Qos.AT_MOST_ONCE:
             while len(self._qos_buffer) == MAX_BUFFER_LEN:  # TODO: need a lock in here?
-                await asyncio.sleep(Pause.SHORT)
+                dtm_until = min([v.dtm_timeout for v in self._qos_buffer.values()])
+                await asyncio.sleep((dtm_until - dtm_now).total_seconds())
+                cmd = self._check_buffer()
+                if cmd is not None:
+                    await transmit(cmd)
+
             self._lock.acquire()
-            self._qos_buffer[put_pkt._header] = put_pkt
+            self._qos_buffer[put_cmd._header] = put_cmd
             self._lock.release()
 
-    def check_buffer(self) -> Optional[Command]:
+    def _check_buffer(self) -> Optional[Command]:
         """Return the next packet to be retransmitted, and maintain the QoS buffer."""
         dtm_now = dt_now()
-        expired_pkts = []
+        expired_cmds = []
         cmd = None
 
         self._lock.acquire()
 
-        for header, pkt in self._qos_buffer.items():
-            if pkt.dtm_expires < dtm_now:  # abandon
+        for header, kmd in self._qos_buffer.items():
+            if kmd.dtm_expires < dtm_now:  # abandon
                 _logger(
                     "timed out & fully expired (removed from buffer)",
-                    f"... {pkt}",
+                    f"... {kmd}",
                     dtm_now,
                 )
-                expired_pkts.append(header)
+                expired_cmds.append(header)
 
-            elif pkt.dtm_timeout < dtm_now:  # retransmit?
-                if pkt.transmit_count == MAX_RETRY_COUNT:  # abandon
+            elif kmd.dtm_timeout < dtm_now:  # retransmit?
+                if kmd.transmit_count == MAX_RETRY_COUNT:  # abandon
                     _logger(
                         "timed out & exceeded retry count (removed from buffer)",
-                        f"... {pkt}",
+                        f"... {kmd}",
                         dtm_now,
                     )
-                    expired_pkts.append(header)
+                    expired_cmds.append(header)
 
-                else:  # retransmit
-                    cmd = pkt if cmd is None or pkt.priority < cmd.priority else cmd
-                    _logger(
-                        "timed out & re-transmissible (remains in buffer)",
-                        f"... {pkt}",
-                        dtm_now,
-                    )
+                else:  # retransmit (choose the cmd with the higher priority)
+                    cmd = kmd if cmd is None or kmd < cmd else cmd
+                    # _logger(
+                    #     "timed out & re-transmissible (remains in buffer)",
+                    #     f"... {kmd}",
+                    #     dtm_now,
+                    # )
+            else:
+                pass
 
         else:
             self._qos_buffer = {
-                h: p for h, p in self._qos_buffer.items() if h not in expired_pkts
+                h: p for h, p in self._qos_buffer.items() if h not in expired_cmds
             }
 
         self._lock.release()
 
-        if cmd is not None:  # re-transmit
-            _logger(
-                "next for re-transmission (remains in buffer)", f"... {cmd}", dtm_now
-            )
+        # if cmd is not None:  # re-transmit
+        #     _logger(
+        #         "next for re-transmission (remains in buffer) "
+        #         f"{cmd.transmit_count} of {MAX_RETRY_COUNT}",
+        #         f"... {cmd}",
+        #         dtm_now,
+        #     )
         return cmd
 
 
@@ -406,7 +430,7 @@ async def port_pkts(manager, include=None, exclude=None, relay=None):
                 asyncio.create_task(relay.write(pkt.packet))
             yield pkt
 
-        await asyncio.sleep(Pause.NONE)  # at least 0, to enable a Ctrl-C
+        await asyncio.sleep(Pause.MINIMUM)  # at least 0, to enable a Ctrl-C
 
 
 async def file_pkts(fp, include=None, exclude=None):
@@ -434,4 +458,4 @@ async def file_pkts(fp, include=None, exclude=None):
         if pkt.is_valid and pkt.is_wanted(include=include, exclude=exclude):
             yield pkt
 
-        await asyncio.sleep(Pause.NONE)  # usu. 0, to enable a Ctrl-C
+        await asyncio.sleep(Pause.MINIMUM)  # usu. 0, only to enable a Ctrl-C

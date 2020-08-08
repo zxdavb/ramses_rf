@@ -10,6 +10,7 @@ from typing import Optional
 import zlib
 
 from .const import __dev_mode__, COMMAND_FORMAT, HGI_DEVICE
+from .logger import dt_now
 
 SERIAL_PORT = "serial_port"
 CMD_CODE = "cmd_code"
@@ -25,7 +26,7 @@ RQ_TIMEOUT = 0.03
 
 
 # PAUSE: Default of 0.03 too short, but 0.05 OK; Long pause required after 1st RQ/0404
-Pause = SimpleNamespace(NONE=0, SHORT=0.01, DEFAULT=0.05, LONG=0.15)
+Pause = SimpleNamespace(NONE=0, MINIMUM=0.01, SHORT=0.01, DEFAULT=0.05, LONG=0.15)
 Priority = SimpleNamespace(LOW=6, DEFAULT=4, HIGH=2, ASAP=0)
 Qos = SimpleNamespace(
     AT_MOST_ONCE=0,  # PUB (no handshake)
@@ -194,17 +195,29 @@ class Command:
         self.pause = kwargs.get("pause", Pause.DEFAULT)
 
         priority = Priority.HIGH if verb in ("0016", "1FC9") else Priority.DEFAULT
-        self.priority = kwargs.get("priority", priority)
+        self._priority = kwargs.get("priority", priority)
+        self._priority_dtm = dt_now()  # used for __lt__, etc.
 
         qos = Qos.AT_LEAST_ONCE if self.verb in ("RQ", " W") else Qos.AT_MOST_ONCE
         self.qos = kwargs.get("qos", qos)
 
-        self.dtm_expires = None
+        self.dtm_expires = None  # TODO: these 3 shouldn't be instance attributes?
         self.dtm_timeout = None
         self.transmit_count = 0
 
+    def __repr__(self) -> str:
+        result = {"packet": str(self)}
+        result.update(
+            {
+                k: v
+                for k, v in self.__dict__.items()
+                if k not in ("verb", "from_addr", "dest_addr", "code", "payload")
+            }
+        )
+        return json.dumps(result)
+
     def __str__(self) -> str:
-        _cmd = COMMAND_FORMAT.format(
+        return COMMAND_FORMAT.format(
             self.verb,
             self.from_addr,
             self.dest_addr,
@@ -212,11 +225,6 @@ class Command:
             int(len(self.payload) / 2),
             self.payload,
         )
-
-        # if not COMMAND_REGEX.match(_cmd):
-        #     raise ValueError(f"Message is not valid, >>{_cmd}<<")
-
-        return _cmd
 
     @property
     def _header(self) -> Optional[str]:
@@ -229,14 +237,20 @@ class Command:
 
     @staticmethod
     def _is_valid_operand(other) -> bool:
-        return hasattr(other, "priority") and hasattr(other, "_dtm")
+        return hasattr(other, "_priority") and hasattr(other, "_priority_dtm")
 
     def __eq__(self, other) -> bool:
         if not self._is_valid_operand(other):
             return NotImplemented
-        return (self.priority, self._dtm) == (other.priority, other._dtm)
+        return (self._priority, self._priority_dtm) == (
+            other._priority,
+            other._priority_dtm,
+        )
 
     def __lt__(self, other) -> bool:
         if not self._is_valid_operand(other):
             return NotImplemented
-        return (self.priority, self._dtm) < (other.priority, other._dtm)
+        return (self._priority, self._priority_dtm) < (
+            other._priority,
+            other._priority_dtm,
+        )
