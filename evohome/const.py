@@ -51,7 +51,7 @@ CODE_SCHEMA = {
     "0100": {"name": "language", "rq_length": 5},
     "1060": {"name": "device_battery", "uses_zone_idx": True},
     "10E0": {"name": "device_info"},
-    "1FC9": {"name": "rf_bind", "uses_zone_idx": True},  # was bind_device
+    "1FC9": {"name": "rf_bind", "uses_zone_idx": True, "rq_len": 1},  # was bind_device
     # dhw codes
     "10A0": {"name": "dhw_params"},
     "1260": {"name": "dhw_temp"},
