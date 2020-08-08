@@ -131,8 +131,17 @@ def parser_decorator(func):
         # grep -E 'RQ.* 002 ' | grep -vE ' (0004|0016|3EF1) '
         # grep -E 'RQ.* 001 ' | grep -vE ' (000A|1F09|22D9|2309|313F|31DA|3EF0) '
 
-        if __dev_mode__ and msg.src.type == "18":  # HACK: to decrease logging
-            if msg.code in ("0004", "000A", "10E0", "2349", "30C9", "3B00"):
+        if msg._gwy.config["input_file"] and msg.src.type == "18":  # HACK: less logging
+            if msg.code in (
+                "0004",
+                "000A",
+                "10A0",
+                "10E0",
+                "1FC9",
+                "2349",
+                "30C9",
+                "3B00",
+            ):
                 assert msg.len <= 2
                 return {}
 
@@ -177,7 +186,7 @@ def parser_decorator(func):
                 return func(*args, **kwargs)
             return {**_idx(payload[:2], msg)}
 
-        if msg.code in ("1260", "1F41", "2E04"):  # TODO: Check all these
+        if msg.code in ("1260", "10E0", "1F41", "1FC9", "2E04"):  # TODO: Check these
             # These have only been seen when sent by 18:
             assert payload == "FF" if msg.code == "2E04" else "00"  # so: msg.len == 1
             return {}
