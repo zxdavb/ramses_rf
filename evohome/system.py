@@ -65,15 +65,15 @@ class System(Controller):
         Can also set a zone's sensor, and zone_type.
         """
 
-        if int(domain_id, 16) < MAX_ZONES:
+        if domain_id == "HW":
+            zone = self.dhw if self.dhw is not None else DhwZone(self)
+
+        elif int(domain_id, 16) < MAX_ZONES:
             zone = self.zone_by_id.get(domain_id)
             if zone is None:
                 zone = Zone(self, domain_id)
             if zone_type is not None:
                 zone._set_zone_type(zone_type)
-
-        elif domain_id == "HW":
-            zone = self.dhw if self.dhw is not None else DhwZone(self, domain_id)
 
         elif domain_id in ("FC", "FF"):
             return
@@ -484,8 +484,8 @@ class EvoSystem(System):
     async def mode(self) -> dict:  # 2E04
         """Return the system mode."""
         if not self._gwy.config["listen_only"]:
+            self._command("2E04", payload="FF", priority=Priority.ASAP)
             for _ in range(RQ_RETRY_LIMIT):
-                self._command("2E04", payload="FF", priority=Priority.ASAP)
                 await asyncio.sleep(RQ_TIMEOUT)
                 if "2E04" in self._msgs:
                     break
