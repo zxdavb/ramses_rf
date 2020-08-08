@@ -50,8 +50,6 @@ class ZoneBase(Entity):
 
         self._zone_type = None
 
-        # self._discover()  # should be last thing in __init__()
-
     def __repr__(self):
         return json.dumps(self.schema, indent=2)
 
@@ -59,7 +57,7 @@ class ZoneBase(Entity):
         return f"{self._ctl.id}/{self.id} ({self._zone_type})"
 
     def _command(self, code, **kwargs) -> None:
-        kwargs["dest_addr"] = kwargs.get("dest_addr", self._gwy.evo.ctl.id)
+        kwargs["dest_addr"] = kwargs.get("dest_addr", self._ctl.id)
         kwargs["payload"] = kwargs.get("payload", f"{self.id}00")
         super()._command(code, **kwargs)
 
@@ -67,8 +65,8 @@ class ZoneBase(Entity):
         # if possible/allowed, simply get an up-todate packet from the controller
         if not self._gwy.config["listen_only"]:
             # self._msgs.pop(code, None)  # this is done in self._command()
+            self._command(code, payload=f"{self.id}00", priority=Priority.ASAP)
             for _ in range(RQ_RETRY_LIMIT):  # TODO: check rq_len
-                self._command(code, payload=f"{self.id}00", priority=Priority.ASAP)
                 await asyncio.sleep(RQ_TIMEOUT)
                 if code in self._msgs:
                     break  # return self._msgs[code]
@@ -93,12 +91,15 @@ class DhwZone(ZoneBase, HeatDemand):
         self._relay = None
         self._zone_type = "DHW"
 
+        self._discover()  # should be last thing in __init__()
+
     def _discover(self):
         if __dev_mode__ and self.id == "FC":  # dev/test code
             self.async_set_override(state="On")
 
-        for code in ("10A0", "1F41", "1260"):  # TODO: what about 1100?
-            self._command(code)
+        for code in ("10A0", "1100", "1260", "1F41"):  # TODO: what about 1100?
+            self._command(code, payload="0000")
+            self._command(code, payload="00")
 
     def update(self, msg) -> None:
         super().update(msg)
@@ -296,6 +297,8 @@ class Zone(ZoneBase):
         self._schedule = Schedule(controller, zone_idx)
         self._temperature = None  # TODO: is needed?
 
+        self._discover()
+
     def _discover(self):
         if __dev_mode__ and self.id == "99":  # dev/test code
             asyncio.create_task(  # TODO: test/dev only
@@ -307,7 +310,7 @@ class Zone(ZoneBase):
                 # )
             )
 
-            # self._schedule.req_fragment()  # dont use self._command() here
+        self._schedule.req_fragment()  # dont use self._command() here
 
         for code in ("0004", "000C"):
             self._command(code, payload=f"{self.id}00")
