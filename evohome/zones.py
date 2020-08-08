@@ -294,7 +294,7 @@ class Zone(ZoneBase):
         self.device_by_id = {}
 
         self._sensor = None
-        self._schedule = Schedule(controller, zone_idx)
+        self._schedule = Schedule(self)
         self._temperature = None  # TODO: is needed?
 
         self._discover()
@@ -310,7 +310,7 @@ class Zone(ZoneBase):
                 # )
             )
 
-        self._schedule.req_fragment()  # dont use self._command() here
+        self._schedule.req_schedule()  # , restart=True) start collecting schedule pkts
 
         for code in ("0004", "000C"):
             self._command(code, payload=f"{self.id}00")
@@ -335,8 +335,9 @@ class Zone(ZoneBase):
                 self._set_zone_type("BDR")  # might eventually be: "VAL"
 
         elif msg.code == "0404" and msg.verb == "RP":
-            _LOGGER.debug("Zone(%s).update: Received schedule RP for zone: ", self.id)
+            _LOGGER.error("Zone(%s).update: Received RP/0404 (schedule)", self.id)
             self._schedule.add_fragment(msg)
+            self._schedule.req_fragment()  # do only if we self._schedule.req_schedule()
 
         elif msg.code == "30C9":  # required for sensor matching
             assert msg.src.type in DEVICE_HAS_ZONE_SENSOR + ("01",)

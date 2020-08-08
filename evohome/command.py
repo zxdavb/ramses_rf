@@ -47,13 +47,15 @@ class Schedule:
     # TODO: stop responding to fragments sent by others
     # TODO: use a lock to only request one schedule at a time
 
-    def __init__(self, ctl, zone_idx, msg=None, **kwargs) -> None:
+    def __init__(self, zone, msg=None, **kwargs) -> None:
         """Initialise the class."""
-        self._ctl = ctl
-        self._gwy = ctl._gwy
-        self._que = ctl._gwy.cmd_que
+        self._zone = zone
 
-        self.id = zone_idx  # aka msg.payload["zone_idx"]
+        self._ctl = zone._ctl
+        self._gwy = zone._gwy
+        self._que = zone._que
+
+        self.id = zone.id
 
         # initialse the fragment array: DRY
         self._init_frag_array(total_frags=0)  # could use msg.payload["frag_total"]
@@ -70,6 +72,8 @@ class Schedule:
         self._schedule = None
 
     def add_fragment(self, msg) -> None:
+        _LOGGER.error("Sched(%s).add_fragment: xxx", self.id)
+
         if msg.code != "0404" or msg.verb != "RP":
             raise ValueError("incorrect message verb/code")
         if msg.payload["zone_idx"] != self.id:
@@ -82,25 +86,32 @@ class Schedule:
             _LOGGER.warning("total fragments has changed: will re-initialise array")
             self._init_frag_array(msg.payload["frag_total"])
 
-        # IndexError here
-        try:
-            self._frag_array[msg.payload["frag_index"] - 1] = {
-                "fragment": msg.payload["fragment"],
-                "dtm": msg.dtm,
-            }
-        except IndexError:
-            pass  # TODO: should fix this
+        self._frag_array[msg.payload["frag_index"] - 1] = {
+            "_msg_dtm": msg.dtm,
+            "frag_index": msg.payload["frag_index"],
+            "fragment": msg.payload["fragment"],
+        }
 
         # discard any fragments significantly older that this most recent fragment
         for frag in [f for f in self._frag_array if f is not None]:
             # TODO: use a CONST for 5 minutes
-            frag = None if frag["dtm"] < msg.dtm - timedelta(minutes=5) else frag
+            frag = None if frag["_msg_dtm"] < msg.dtm - timedelta(minutes=5) else frag
 
         if not [x for x in self._frag_array if x is None]:  # TODO: can leave out?
             _ = self.schedule if self._gwy.config["listen_only"] else None
 
+    def req_schedule(self) -> int:
+        _LOGGER.error("Sched(%s).req_schedule: xxx", self.id)
+
+        self.req_fragment(restart=True)
+
     def req_fragment(self, restart=False) -> int:
-        """Request remaining fragment(s), if any, and return the number of RQs sent."""
+        """Request the next fragment, and return the fragment number.
+
+        Return 0 if there ar eno more fragments to get.
+        """
+        _LOGGER.error("Sched(%s).req_fragment: xxx", self.id)
+
         if self._gwy.config["listen_only"]:
             return
 
@@ -114,21 +125,14 @@ class Schedule:
         else:  # aka not all(self._frag_array)
             missing_frags = [i for i, val in enumerate(self._frag_array) if val is None]
             if missing_frags == []:
+                print(self.schedule)
                 return 0  # not any(frags missing), nothing to add
             kwargs = {"pause": Pause.DEFAULT, "priority": Priority.HIGH}
-
-        # if block_mode:
-        #     for idx in missing_frags:
-        #         header = f"{self.id}20000800{idx + 1:02d}{self.total_frags:02d}"
-        #         self._que.put_nowait(
-        #             Command("RQ", self._ctl.id, "0404", header, **kwargs)
-        #         )  # could do only: {missing_frags[0] + 1:02d} instead of iterating
-        #     return len(missing_frags)
 
         header = f"{self.id}20000800{missing_frags[0] + 1:02d}{self.total_frags:02d}"
         self._que.put_nowait(Command("RQ", self._ctl.id, "0404", header, **kwargs))
 
-        return 1
+        return missing_frags[0] + 1
 
     def __repr_(self) -> str:
         return json.dumps(self._schedule)
@@ -138,7 +142,9 @@ class Schedule:
 
     @property
     def schedule(self) -> list:
-        # _LOGGER.debug("schedule array is: %s", self._frag_array)
+        _LOGGER.warning("Sched(%s).schedule: array is: %s", self.id, self._frag_array)
+
+        # enumerate()
 
         if self._schedule is not None:
             return self._schedule
