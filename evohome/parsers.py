@@ -15,6 +15,7 @@ from .const import (
     MAX_ZONES,
     SYSTEM_MODE_MAP,
     ZONE_MODE_MAP,
+    ZONE_TYPE_LOOKUP,
     __dev_mode__,
 )
 from .devices import dev_hex_to_id
@@ -85,11 +86,11 @@ def _idx(seqx, msg) -> dict:
             )
             return {idx_name: seqx}
 
-    elif msg.code == "0005":  # no RQs seeen, other than from a 18:
-        assert int(seqx, 16) < MAX_ZONES  # may or may not be true
-        return {"zone_id": seqx}  # NOTE: zone_id, *not* zone_idx
+    elif msg.code in ("????"):
+        assert seqx == "FF"  # only a few "FF"
+        return {}
 
-    assert seqx in ("00", "FF")
+    assert seqx == "00"
     return {}
 
 
@@ -131,21 +132,7 @@ def parser_decorator(func):
         # grep -E 'RQ.* 002 ' | grep -vE ' (0004|0016|3EF1) '
         # grep -E 'RQ.* 001 ' | grep -vE ' (000A|1F09|22D9|2309|313F|31DA|3EF0) '
 
-        if msg._gwy.config["input_file"] and msg.src.type == "18":  # HACK: less logging
-            if msg.code in (
-                "0004",
-                "000A",
-                "10A0",
-                "10E0",
-                "1FC9",
-                "2349",
-                "30C9",
-                "3B00",
-            ):
-                assert msg.len <= 2
-                return {}
-
-        if msg.code in ("0004", "0005", "000C", "0016", "12B0", "30C9"):
+        if msg.code in ("0004", "000C", "0016", "12B0", "30C9"):
             assert msg.len == 2  # 12B0 will RP to 1
             return {**_idx(payload[:2], msg)}
 
@@ -159,6 +146,10 @@ def parser_decorator(func):
             else:
                 assert msg.len == 1  # incl. 34:, rq_length
             return {**_idx(payload[:2], msg)}
+
+        if msg.code == "0005":
+            assert msg.len == 2
+            return func(*args, **kwargs)  # has no domain_id
 
         if msg.code == "0100":  # 04: will RQ language
             assert msg.len in (1, 5)  # len(RQ) = 5, but 00 accepted
@@ -365,16 +356,41 @@ def parser_0004(payload, msg) -> Optional[dict]:
 def parser_0005(payload, msg) -> Optional[dict]:
     # RQ payload is xx00, controller wont respond to a xx
 
+    # 047  I --- 34:064023 --:------ 34:064023 0005 012 000A0000 000F0000 00100000
+    # 045  I --- 01:145038 --:------ 01:145038 0005 004 00000100
+
+    def _parser(seqx) -> dict:
+        def _get_flag8(byte, *args) -> list:
+            """Split a byte (as a str) into a list of 8 bits (1/0)."""
+            ret = [0] * 8
+            byte = bytes.fromhex(byte)[0]
+            for i in range(0, 8):
+                ret[i] = byte & 1
+                byte = byte >> 1
+            return ret
+
+        assert seqx[:2] == "00"
+        assert len(seqx) == 8
+        # assert payload[2:4] in ZONE_TYPE_LOOKUP
+
+        return {
+            "zone_mask": (_get_flag8(seqx[4:6]) + _get_flag8(seqx[6:8]))[:MAX_ZONES],
+            "zone_type": ZONE_TYPE_LOOKUP.get(seqx[2:4], seqx[2:4]),
+        }
+
+    if msg.verb == "RQ":
+        assert payload[:2] == "00"
+        return {
+            "zone_type": ZONE_TYPE_LOOKUP.get(payload[2:4], payload[2:4]),
+        }
+
     assert msg.verb in (" I", "RP")
     if msg.src.type == "34":
         assert msg.len == 12  # or % 4?
+        return [_parser(payload[i : i + 8]) for i in range(0, len(payload), 8)]
 
-    else:
-        assert msg.src.type == "01"
-        assert msg.len == 4
-        assert payload[2:4] in ("00", "0D", "0F")  # TODO: 00=Radiator, 0D=Electric?
-
-    return {"device_id": msg.src.id, "payload": payload}
+    assert msg.src.type == "01"
+    return _parser(payload)
 
 
 @parser_decorator  # schedule_sync (any changes?)

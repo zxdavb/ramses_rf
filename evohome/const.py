@@ -30,7 +30,7 @@ CODE_SCHEMA = {
         "w_len": 3,
     },
     "30C9": {"name": "temperature", "uses_zone_idx": True},
-    "000A": {"name": "zone_config", "uses_zone_idx": True, "rp_len": 6, "rq_len": 3},
+    "000A": {"name": "zone_params", "uses_zone_idx": True, "rp_len": 6, "rq_len": 3},
     # zone-specific codes
     "0004": {"name": "zone_name", "uses_zone_idx": True, "rp_len": 22, "rq_len": 2},
     "000C": {"name": "zone_actuators", "uses_zone_idx": True},
@@ -68,13 +68,13 @@ CODE_SCHEMA = {
     # Other codes...
     "0008": {"name": "relay_demand", "uses_zone_idx": True},
     "0009": {"name": "relay_failsafe", "uses_zone_idx": True},
-    "1030": {"name": "mixvalve_config", "uses_zone_idx": True},
+    "1030": {"name": "mixvalve_params", "uses_zone_idx": True},
     # UFH-specific codes...
     "22C9": {"name": "ufh_setpoint"},
     "22D0": {"name": "message_22d0", "uses_zone_idx": None},  # system switch?
     # unknown/unsure codes - some maybe not evohome, maybe not even Honeywell
     "0002": {"name": "sensor_weather"},
-    "0005": {"name": "system_zone", "rq_length": 2},
+    "0005": {"name": "zone_type", "rq_length": 2},
     "0006": {"name": "schedule_sync"},  # for F9/FA/FC, idx for BDR, F8/FF (all?)
     "1280": {"name": "outdoor_humidity"},
     "1290": {"name": "outdoor_temp"},
@@ -283,6 +283,15 @@ ZONE_MODE_MAP = {
     "04": "TemporaryOverride",  # requires an until (datetime)
 }
 ZONE_MODE_LOOKUP = {v: k for k, v in ZONE_MODE_MAP.items()}
+
+ZONE_TYPE_LOOKUP = {
+    "00": "configured_zones",  # same as 04?
+    "08": "radiator_valve",
+    "09": "ufh_controller",
+    "0A": "zone_valve",
+    "0B": "mixing_valve",
+    "11": "electric_heat",
+}  # also: 01, 02, 04, 0C, 0D, 0E, 0F, 10
 
 DHW_STATE_MAP = {"00": "Off", "01": "On"}
 DHW_STATE_LOOKUP = {v: k for k, v in DHW_STATE_MAP.items()}

@@ -237,6 +237,10 @@ class Gateway:
                     cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:])
                     await manager.put_pkt(cmd, _LOGGER)
 
+                # for payload in range(18):
+                #     cmd = Command("RQ", "01:145038", "0005", f"{payload:04X}")
+                #     await manager.put_pkt(cmd, _LOGGER)
+
                 reader = asyncio.create_task(port_reader(manager))
                 self._tasks.extend([asyncio.create_task(port_writer(manager)), reader])
 

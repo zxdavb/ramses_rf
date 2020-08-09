@@ -13,6 +13,7 @@ from .const import (
     MAX_ZONES,
     SYSTEM_MODE_LOOKUP,
     SYSTEM_MODE_MAP,
+    ZONE_TYPE_LOOKUP,
 )
 from .devices import _dtm, Controller, Device
 from .zones import DhwZone, Zone
@@ -132,6 +133,9 @@ class EvoSystem(System):
 
     def _discover(self):
         super()._discover()
+
+        for type_ in ZONE_TYPE_LOOKUP:
+            self._command("0005", payload=f"00{type_}")
 
         # asyncio.create_task(  # TODO: test only
         #     self.async_set_mode(5, dt_now() + timedelta(minutes=120))
@@ -386,6 +390,9 @@ class EvoSystem(System):
                 zone.sensor.controller = self
 
             _LOGGER.debug("System state (finally): %s", self)
+
+        # if msg.code == "0005" and prev_msg is not None:
+        #     zone_added = bool(prev_msg.code == "0004")  # else zone_deleted
 
         if msg.code == "0418" and msg.verb in (" I", "RP"):  # this is a special case
             self._fault_log[msg.payload["log_idx"]] = msg

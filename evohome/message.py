@@ -373,9 +373,9 @@ class Message:
             return
 
         # TODO: do here, or in ctl.update() and/or system.update()
-        if re.search("I.* 01.* 000A", self._pkt):  # HACK: and dtm < 3 secs
+        if re.search("I.* 01.* 000A ", self._pkt):  # HACK: and dtm < 3 secs
             # TODO: an edge case here: >2 000A packets in a row
-            if prev is not None and re.search("I.* 01.* 000A", prev._pkt):
+            if prev is not None and re.search("I.* 01.* 000A ", prev._pkt):
                 self._payload = prev.payload + self.payload  # merge frags, and process
 
         # some empty payloads may still be useful (e.g. RQ/3EF1/{})
