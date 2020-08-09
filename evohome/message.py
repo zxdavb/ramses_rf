@@ -274,7 +274,9 @@ class Message:
             else:
                 _LOGGER.error("%s", self, extra=self.__dict__)
         else:  # the normal mode logging scheme
+            # TODO: parsing is 2x fast without this logging...
             _LOGGER.info("%s", self, extra=self.__dict__)
+            pass
 
         return self._is_valid
 

@@ -13,8 +13,6 @@ from typing import Dict, List, Optional
 from .command import Command, Pause
 from .const import __dev_mode__
 from .devices import DEVICE_CLASSES, Device
-
-# from .exceptions import MultipleControllerError
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
 from .packet import _LOGGER as pkt_logger, Packet, PortPktProvider, file_pkts, port_pkts
@@ -257,11 +255,11 @@ class Gateway:
         #         cmd = Command(" W", "01:145038", f"{code:04X}", payload)
         #         await destination.put_pkt(cmd, _LOGGER)
 
-        while True:
-            await asyncio.sleep(Pause.SHORT)  # TODO: this was casing an issue...
-            if self.cmd_que.empty():
-                await destination.put_pkt(None, _LOGGER)
-                continue
+        while not self.cmd_que.empty():
+            await asyncio.sleep(Pause.SHORT)  # TODO: this was causing an issue...
+            # if self.cmd_que.empty():
+            #     await destination.put_pkt(None, _LOGGER)
+            #     continue
 
             cmd = self.cmd_que.get()
 

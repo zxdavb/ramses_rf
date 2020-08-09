@@ -97,18 +97,19 @@ class Schedule:
             # TODO: use a CONST for 5 minutes
             frag = None if frag["_msg_dtm"] < msg.dtm - timedelta(minutes=5) else frag
 
-        if not [x for x in self._frag_array if x is None]:  # TODO: can leave out?
-            _ = self.schedule if self._gwy.config["listen_only"] else None
+        # if not [x for x in self._frag_array if x is None]:  # TODO: can leave out?
+        #     _ = self.schedule if self._gwy.config["listen_only"] else None
 
     def req_schedule(self) -> int:
         _LOGGER.error("Sched(%s).req_schedule: xxx", self.id)
 
+        # TODO: use a lock to ensure only 1 schedule being requested at a time
         self.req_fragment(restart=True)
 
     def req_fragment(self, restart=False) -> int:
-        """Request the next fragment, and return the fragment number.
+        """Request the next fragment, and return that fragment's index number.
 
-        Return 0 if there ar eno more fragments to get.
+        Return 0 when there are no more fragments to get.
         """
         _LOGGER.error("Sched(%s).req_fragment: xxx", self.id)
 
@@ -142,16 +143,14 @@ class Schedule:
 
     @property
     def schedule(self) -> list:
+        if self._schedule is not None:
+            return self._schedule
+
         _LOGGER.warning(
             "Sched(%s).schedule: array is: %s",
             self.id,
             [{d["frag_index"]: d["fragment"]} for d in self._frag_array],
         )
-
-        # enumerate()
-
-        if self._schedule is not None:
-            return self._schedule
 
         if self._frag_array == [] or not all(self._frag_array):
             return
@@ -185,8 +184,8 @@ class Schedule:
 
         self._schedule.append({"day_of_week": old_day, "switchpoints": switchpoints})
 
-        _LOGGER.debug("zone(%s): len(schedule): %s", self.id, len(self._schedule))
-        # _LOGGER.debug("zone(%s) schedule is: %s", self.id, self._schedule)
+        _LOGGER.debug("Sched(%s): len(schedule): %s", self.id, len(self._schedule))
+        # _LOGGER.debug("Sched(%s).schedule: %s", self.id, self._schedule)
         return self._schedule
 
 
@@ -240,10 +239,17 @@ class Command:
     def _header(self) -> Optional[str]:
         """Return the QoS header of a response packet, if one is expected."""
 
-        if self.verb in ("RQ", " W"):
+        if self.verb not in ("RQ", " W"):
+            return
+
+        if self.code == "0404" and self.verb == "RQ":
             return "|".join(
-                ("RP" if self.verb == "RQ" else " I", self.dest_addr, self.code)
+                ("RP", self.dest_addr, "0404", self.payload[:2], self.payload[10:12])
             )
+
+        return "|".join(
+            ("RP" if self.verb == "RQ" else " I", self.dest_addr, self.code)
+        )
 
     @staticmethod
     def _is_valid_operand(other) -> bool:

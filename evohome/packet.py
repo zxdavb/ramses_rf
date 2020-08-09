@@ -27,7 +27,9 @@ XON_XOFF = True
 # tx (from sent to gwy, to get back from gwy) seems to takes 0.025
 MAX_BUFFER_LEN = 5
 MAX_RETRY_COUNT = 3
-RETRANS_TIMEOUT = timedelta(seconds=0.065)  # 0.06 gives false +ve for 10E0
+RETRANS_TIMEOUT = timedelta(seconds=0.065)
+# 0.060 gives false +ve for 10E0
+# 0.065 too low when stressed with schedules
 EXPIRY_TIMEOUT = timedelta(seconds=0.5)
 
 
@@ -257,7 +259,18 @@ class PortPktProvider:
         # TODO: validate the packet before calculating the header
         # TODO: see the packet sent via the gwy before starting the timers
         if self._lock is not None:
-            header = "|".join((pkt_str[4:6], pkt_str[11:20], pkt_str[41:45]))
+            if pkt_str[41:45] == "0404":
+                header = "|".join(
+                    (
+                        pkt_str[4:6],
+                        pkt_str[11:20],
+                        pkt_str[41:45],
+                        pkt_str[50:52],
+                        pkt_str[60:62],
+                    )
+                )
+            else:
+                header = "|".join((pkt_str[4:6], pkt_str[11:20], pkt_str[41:45]))
 
             self._lock.acquire()
 
@@ -306,13 +319,13 @@ class PortPktProvider:
                 if cmd.transmit_count == 0:
                     cmd.dtm_expires = dtm_now + EXPIRY_TIMEOUT
                 cmd.transmit_count += 1
-                if cmd.transmit_count > 1:
-                    _logger(
-                        "was transmitted (is in buffer) "
-                        f"{cmd.transmit_count} of {MAX_RETRY_COUNT}",
-                        f"... {cmd}",
-                        dtm_now,
-                    )
+                # if cmd.transmit_count > 1:
+                #     _logger(
+                #         "was transmitted (is in buffer) "
+                #         f"{cmd.transmit_count} of {MAX_RETRY_COUNT}",
+                #         f"... {cmd}",
+                #         dtm_now,
+                #     )
 
         qos_cmd = self._check_buffer()
         if put_cmd is not None and str(put_cmd).startswith("!"):
@@ -430,7 +443,7 @@ async def port_pkts(manager, include=None, exclude=None, relay=None):
                 asyncio.create_task(relay.write(pkt.packet))
             yield pkt
 
-        await asyncio.sleep(Pause.MINIMUM)  # at least 0, to enable a Ctrl-C
+        await asyncio.sleep(Pause.NONE)  # at least 0, to enable a Ctrl-C
 
 
 async def file_pkts(fp, include=None, exclude=None):
@@ -458,4 +471,4 @@ async def file_pkts(fp, include=None, exclude=None):
         if pkt.is_valid and pkt.is_wanted(include=include, exclude=exclude):
             yield pkt
 
-        await asyncio.sleep(Pause.MINIMUM)  # usu. 0, only to enable a Ctrl-C
+        await asyncio.sleep(Pause.NONE)  # usu. 0, only to enable a Ctrl-C

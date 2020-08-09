@@ -455,8 +455,6 @@ class Zone(ZoneBase):
 
     def schedule(self, force_update=False) -> Optional[dict]:
         """Return the schedule if any."""
-        if False or __dev_mode__:
-            return
         return self._schedule.schedule if self._schedule else None
 
     @staticmethod
