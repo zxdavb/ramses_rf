@@ -26,7 +26,7 @@ XON_XOFF = True
 
 # tx (from sent to gwy, to get back from gwy) seems to takes 0.025
 MAX_BUFFER_LEN = 5
-MAX_RETRY_COUNT = 3
+MAX_RETRY_COUNT = 1
 RETRANS_TIMEOUT = timedelta(seconds=0.065)
 # 0.060 gives false +ve for 10E0
 # 0.065 too low when stressed with schedules

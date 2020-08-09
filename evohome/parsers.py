@@ -210,9 +210,11 @@ def parser_decorator(func):
             return func(*args, **kwargs)
 
         if msg.code == "3EF1":
+            # 082 RQ --- 31:110943 13:068890 --:------ 3EF1 001 00
             # 082 RQ --- 22:091267 01:140959 --:------ 3EF1 002 0700
             # 088 RQ --- 22:054901 13:133379 --:------ 3EF1 002 0000
-            assert payload[2:] == "00"  # implies: msg.len == 2
+            if msg.len > 1:
+                assert payload[2:] == "00"  # implies: msg.len >= 2
             return {**_idx(payload[:2], msg)}
 
         if msg.code in CODE_SCHEMA:
