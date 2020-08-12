@@ -14,8 +14,19 @@ cd evohome_rf
 pip install -r requirements.txt
 ```
 
+You may want to clean up/create a virtual environment somewhere along the way, something like:
+```
+deactivate
+rm -rf venv
+python -m venv venv
+. venv/bin/activate
+pip install --upgrade pip
+```
+
 ## Instructions
 
 ```
-python client.py
+python client.py monitor /dev/ttyUSB0 
 ```
+
+Be sure to have a look at `-o packet_log.out`.
