@@ -310,7 +310,8 @@ class Zone(ZoneBase):
                 # )
             )
 
-        # self._schedule.req_schedule()  # , restart=True) start collecting schedule pkts
+        # start collecting the schedule
+        # self._schedule.req_schedule()  # , restart=True) start collecting schedule
 
         for code in ("0004", "000C"):
             self._command(code, payload=f"{self.id}00")

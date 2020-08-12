@@ -39,12 +39,13 @@ CODE_SCHEMA = {
     "2349": {"name": "zone_mode", "uses_zone_idx": True},
     "3150": {"name": "heat_demand", "uses_zone_idx": True},
     # controller/system codes
-    "313F": {"name": "datetime"},  # aka ping, datetime_req
-    "2E04": {"name": "system_mode", "uses_zone_idx": False},
+    "0005": {"name": "system_zones", "rq_length": 2},
     "0418": {
         "name": "system_fault",
         "null_rp": "000000B0000000000000000000007FFFFF7000000000",
     },
+    "2E04": {"name": "system_mode", "uses_zone_idx": False},
+    "313F": {"name": "datetime"},  # aka ping, datetime_req
     # device codes
     "0001": {"name": "rf_unknown", "uses_zone_idx": True},  # unknown
     "0016": {"name": "rf_check", "rq_length": 2},
@@ -74,15 +75,14 @@ CODE_SCHEMA = {
     "22D0": {"name": "message_22d0", "uses_zone_idx": None},  # system switch?
     # unknown/unsure codes - some maybe not evohome, maybe not even Honeywell
     "0002": {"name": "sensor_weather"},
-    "0005": {"name": "zone_type", "rq_length": 2},
     "0006": {"name": "schedule_sync"},  # for F9/FA/FC, idx for BDR, F8/FF (all?)
     "1280": {"name": "outdoor_humidity"},
     "1290": {"name": "outdoor_temp"},
     "12A0": {"name": "indoor_humidity"},  # Nuaire ventilation
     "2249": {"name": "oth_setpoint", "uses_zone_idx": None},  # now/next setpoint
     # "2389": {"name": "message_2389"},  # not real?
-    "22F1": {"name": "vent_switch"},
-    "22F3": {"name": "other_switch"},
+    "22F1": {"name": "switch_vent"},
+    "22F3": {"name": "switch_other"},
     "2D49": {"name": "message_2d49"},  # hometronics only? has a domain = FD!
     "31D9": {"name": "message_31d9"},  # HVAC/ventilation 30 min sync cycle?
     "31DA": {"name": "message_31da"},  # from HCE80, also Nuaire: Contains R/humidity??

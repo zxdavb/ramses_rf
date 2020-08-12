@@ -400,7 +400,7 @@ def parser_0006(payload, msg) -> Optional[dict]:
     Each change increments the counter by 2. Includes DHW schedule.
     """
     # 16:10:34.288 053 RQ --- 18:013393 01:145038 --:------ 0006 001 00
-    # 16:10:34.291 053 RP --- 01:145038 18:013393 --:------ 0006 004 00050008
+    # 16:10:34.291 053 RP --- 01:145038 18:013393 --:------ 0006 004 0005 0008
     #              --- RQ --- 30:071715 01:067930 --:------ 0006 001 00
 
     if msg.verb == "RQ":
@@ -673,7 +673,7 @@ def parser_1030(payload, msg) -> Optional[dict]:
         return {param_name: int(seqx[4:], 16)}
 
     assert msg.len == 1 + 5 * 3
-    assert payload[30:] == "01"
+    assert payload[30:] in ("00", "01")
 
     params = [_parser(payload[i : i + 6]) for i in range(2, len(payload), 6)]
     return {**_idx(payload[:2], msg), **{k: v for x in params for k, v in x.items()}}

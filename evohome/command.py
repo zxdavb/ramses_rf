@@ -41,6 +41,129 @@ else:
     _LOGGER.setLevel(logging.WARNING)
 
 
+@total_ordering
+class Command:
+    """The command class."""
+
+    def __init__(self, verb, dest_addr, code, payload, **kwargs) -> None:
+        """Initialise the class."""
+        self.verb = verb
+        self.from_addr = kwargs.get("from_addr", HGI_DEVICE.id)
+        self.dest_addr = dest_addr if dest_addr is not None else self.from_addr
+        self.code = code
+        self.payload = payload
+
+        self.pause = kwargs.get("pause", Pause.DEFAULT)
+
+        priority = Priority.HIGH if verb in ("0016", "1FC9") else Priority.DEFAULT
+        self._priority = kwargs.get("priority", priority)
+        self._priority_dtm = dt_now()  # used for __lt__, etc.
+
+        qos = Qos.AT_LEAST_ONCE if self.verb in ("RQ", " W") else Qos.AT_MOST_ONCE
+        self.qos = kwargs.get("qos", qos)
+
+        self.dtm_expires = None  # TODO: these 3 shouldn't be instance attributes?
+        self.dtm_timeout = None
+        self.transmit_count = 0
+
+    def __repr__(self) -> str:
+        result = {"packet": str(self)}
+        result.update(
+            {
+                k: v
+                for k, v in self.__dict__.items()
+                if k not in ("verb", "from_addr", "dest_addr", "code", "payload")
+            }
+        )
+        return json.dumps(result)
+
+    def __str__(self) -> str:
+        return COMMAND_FORMAT.format(
+            self.verb,
+            self.from_addr,
+            self.dest_addr,
+            self.code,
+            int(len(self.payload) / 2),
+            self.payload,
+        )
+
+    @property
+    def _header(self) -> Optional[str]:
+        """Return the QoS header of a response packet, if one is expected."""
+
+        if self.verb not in ("RQ", " W"):
+            return
+
+        if self.code == "0404" and self.verb == "RQ":
+            return "|".join(
+                ("RP", self.dest_addr, "0404", self.payload[:2], self.payload[10:12])
+            )
+
+        return "|".join(
+            ("RP" if self.verb == "RQ" else " I", self.dest_addr, self.code)
+        )
+
+    @staticmethod
+    def _is_valid_operand(other) -> bool:
+        return hasattr(other, "_priority") and hasattr(other, "_priority_dtm")
+
+    def __eq__(self, other) -> bool:
+        if not self._is_valid_operand(other):
+            return NotImplemented
+        return (self._priority, self._priority_dtm) == (
+            other._priority,
+            other._priority_dtm,
+        )
+
+    def __lt__(self, other) -> bool:
+        if not self._is_valid_operand(other):
+            return NotImplemented
+        return (self._priority, self._priority_dtm) < (
+            other._priority,
+            other._priority_dtm,
+        )
+
+
+class FaultLog:
+    """The fault log (of a system) class."""
+
+    def __init__(self, controller, msg=None, **kwargs) -> None:
+        """Initialise the class."""
+        self._ctl = controller
+
+        self._gwy = controller._gwy
+        self._que = controller._que
+
+        self.id = controller.id
+
+        self._fault_log = []
+
+    def add_fault(self, msg) -> None:
+        _LOGGER.error("Sched(%s).add_fragment: xxx", self.id)
+
+    def req_schedule(self) -> int:
+        _LOGGER.error("Sched(%s).req_schedule: xxx", self.id)
+
+    def req_fragment(self, restart=False) -> int:
+        _LOGGER.error("Sched(%s).req_fragment: xxx", self.id)
+
+        if self._gwy.config["listen_only"]:
+            return
+
+    def __repr_(self) -> str:
+        return json.dumps(self._fault_log)
+
+    def __str_(self) -> str:
+        return json.dumps(self._fault_log, indent=2)
+
+    @property
+    def fault_log(self) -> list:
+        if self._fault_log is not None:
+            return self._fault_log
+
+        return self._fault_log
+
+
 class Schedule:
     """The schedule (of a zone) class."""
 
@@ -187,86 +310,3 @@ class Schedule:
         _LOGGER.debug("Sched(%s): len(schedule): %s", self.id, len(self._schedule))
         # _LOGGER.debug("Sched(%s).schedule: %s", self.id, self._schedule)
         return self._schedule
-
-
-@total_ordering
-class Command:
-    """The command class."""
-
-    def __init__(self, verb, dest_addr, code, payload, **kwargs) -> None:
-        """Initialise the class."""
-        self.verb = verb
-        self.from_addr = kwargs.get("from_addr", HGI_DEVICE.id)
-        self.dest_addr = dest_addr if dest_addr is not None else self.from_addr
-        self.code = code
-        self.payload = payload
-
-        self.pause = kwargs.get("pause", Pause.DEFAULT)
-
-        priority = Priority.HIGH if verb in ("0016", "1FC9") else Priority.DEFAULT
-        self._priority = kwargs.get("priority", priority)
-        self._priority_dtm = dt_now()  # used for __lt__, etc.
-
-        qos = Qos.AT_LEAST_ONCE if self.verb in ("RQ", " W") else Qos.AT_MOST_ONCE
-        self.qos = kwargs.get("qos", qos)
-
-        self.dtm_expires = None  # TODO: these 3 shouldn't be instance attributes?
-        self.dtm_timeout = None
-        self.transmit_count = 0
-
-    def __repr__(self) -> str:
-        result = {"packet": str(self)}
-        result.update(
-            {
-                k: v
-                for k, v in self.__dict__.items()
-                if k not in ("verb", "from_addr", "dest_addr", "code", "payload")
-            }
-        )
-        return json.dumps(result)
-
-    def __str__(self) -> str:
-        return COMMAND_FORMAT.format(
-            self.verb,
-            self.from_addr,
-            self.dest_addr,
-            self.code,
-            int(len(self.payload) / 2),
-            self.payload,
-        )
-
-    @property
-    def _header(self) -> Optional[str]:
-        """Return the QoS header of a response packet, if one is expected."""
-
-        if self.verb not in ("RQ", " W"):
-            return
-
-        if self.code == "0404" and self.verb == "RQ":
-            return "|".join(
-                ("RP", self.dest_addr, "0404", self.payload[:2], self.payload[10:12])
-            )
-
-        return "|".join(
-            ("RP" if self.verb == "RQ" else " I", self.dest_addr, self.code)
-        )
-
-    @staticmethod
-    def _is_valid_operand(other) -> bool:
-        return hasattr(other, "_priority") and hasattr(other, "_priority_dtm")
-
-    def __eq__(self, other) -> bool:
-        if not self._is_valid_operand(other):
-            return NotImplemented
-        return (self._priority, self._priority_dtm) == (
-            other._priority,
-            other._priority_dtm,
-        )
-
-    def __lt__(self, other) -> bool:
-        if not self._is_valid_operand(other):
-            return NotImplemented
-        return (self._priority, self._priority_dtm) < (
-            other._priority,
-            other._priority_dtm,
-        )

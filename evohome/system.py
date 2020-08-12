@@ -13,7 +13,7 @@ from .const import (
     MAX_ZONES,
     SYSTEM_MODE_LOOKUP,
     SYSTEM_MODE_MAP,
-    ZONE_TYPE_LOOKUP,
+    # ZONE_TYPE_LOOKUP,
 )
 from .devices import _dtm, Controller, Device
 from .zones import DhwZone, Zone
@@ -134,10 +134,8 @@ class EvoSystem(System):
     def _discover(self):
         super()._discover()
 
-        for type_ in ZONE_TYPE_LOOKUP:
-            self._command("0005", payload=f"00{type_}")
-
-        # asyncio.create_task(  # TODO: test only
+        # TODO: test only
+        # asyncio.create_task(
         #     self.async_set_mode(5, dt_now() + timedelta(minutes=120))
         #     # self.async_set_mode(5)
         #     # self.async_reset_mode()
@@ -147,19 +145,25 @@ class EvoSystem(System):
         # for idx in range(12):
         #     self._command("0004", payload=f"{idx:02x}00")
 
+        # find the configured zones, and their type
+        for type_ in range(18):  # ZONE_TYPE_LOOKUP:
+            self._command("0005", payload=f"{type_:04X}")
+
         # system-related... (not working: 1280, 22D9, 2D49, 2E04, 3220, 3B00)
         self._command("1F09", payload="00")
         for code in ("313F", "0100", "0002"):
             self._command(code)
 
-        for code in ("10A0", "1260", "1F41"):  # stored DHW
+        # stored DHW (if any)
+        for code in ("10A0", "1260", "1F41"):
             self._command(code)
 
         self._command("0005", payload="0000")
         self._command("1100", payload="FC")
         self._command("2E04", payload="FF")
 
-        # Get the three most recent fault log entries
+        # TODO: Get the three most recent fault log entries
+        # self._fault_log.req_log(log_idx=0)
         for log_idx in range(0, 0x3):  # max is 0x3C?
             self._command("0418", payload=f"{log_idx:06X}", priority=Priority.LOW)
 
@@ -395,6 +399,10 @@ class EvoSystem(System):
         #     zone_added = bool(prev_msg.code == "0004")  # else zone_deleted
 
         if msg.code == "0418" and msg.verb in (" I", "RP"):  # this is a special case
+            _LOGGER.error("Zone(%s).update: Received RP/0418 (fault_log)", self.id)
+            # self._fault_log.add_entry(msg)
+            # do the following only if we had: self._fault_log.req_log(log_idx=0)
+            # self._fault_log.req_entry(log_idx=payload["log_idx"] + 1)
             self._fault_log[msg.payload["log_idx"]] = msg
 
         if msg.code == "30C9" and isinstance(msg.payload, list):  # msg.is_array:
