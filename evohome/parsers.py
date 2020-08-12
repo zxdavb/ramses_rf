@@ -80,11 +80,15 @@ def _idx(seqx, msg) -> dict:
 
     elif msg.code in MAY_USE_ZONE_IDX:
         assert int(seqx, 16) < MAX_ZONES
-        if {"01", "02"} & {msg.src.type, msg.dst.type}:
+        if {"01", "02", "23"} & {msg.src.type, msg.dst.type}:  # to/from a controller
             idx_name = (
-                "zone_idx" if msg.src.type in ("01", "02", "18") else "parent_idx"
+                "zone_idx" if msg.src.type in ("01", "02", "23", "18") else "parent_idx"
             )
             return {idx_name: seqx}
+
+        # 055  I 028 03:094242 --:------ 03:094242 30C9 003 010B22
+        elif msg.src.type == "03":  # TODO: WIP
+            return {"parent_idx": seqx}  # not zone_idx
 
     elif msg.code in ("????"):
         assert seqx == "FF"  # only a few "FF"
@@ -1084,10 +1088,17 @@ def parser_3150(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # ???
 def parser_31d9(payload, msg) -> Optional[dict]:
-    assert msg.len == 17  # usu: I 30:-->30:, with a seq#!
-
     assert payload[2:4] in ("00", "06")
     assert payload[4:6] == "FF" or int(payload[4:6], 16) <= 200
+
+    if msg.len == 3:  # usu: I -->20: (no seq#)
+        return {
+            **_idx(payload[:2], msg),
+            "percent_1": _percent(payload[4:6]),
+            "unknown_0": payload[2:4],
+        }
+
+    assert msg.len == 17  # usu: I 30:-->30:, (or 20:) with a seq#!
     assert payload[6:8] == "00"
     assert payload[8:32] in ("00" * 12, "20" * 12)
 
@@ -1161,7 +1172,11 @@ def parser_3220(payload, msg) -> Optional[dict]:
 
     message = OPENTHERM_MESSAGES["messages"].get(str(ot_msg_id))
 
-    result = {"id": ot_msg_id, "msg_type": OPENTHERM_MSG_TYPE[ot_msg_type]}
+    result = {
+        "id": payload[4:6],  # ot_msg_id,
+        "msg_name": message["en"],
+        "msg_type": OPENTHERM_MSG_TYPE[ot_msg_type],
+    }
 
     if not message:
         return {**result, "value_raw": payload[6:]}
@@ -1232,24 +1247,74 @@ def parser_3b00(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # actuator_enabled (state)
 def parser_3ef0(payload, msg) -> dict:
-    if msg.src.type == "10":  # OTB
-        assert msg.len == 6
-        assert payload[4:6] in ("10", "11")
-    else:
-        assert msg.len == 3
+    # 045 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 3C 10 0000FF
+    # 074 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 3C 10 0000FF
+
+    # --- RP --- 10:138822 01:187666 --:------ 3EF0 006 00 00 10 0200FF
+    # 063 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 01 10 0200FF
+
+    # 066 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 00 10 0A00FF
+    # 068 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 2F 10 0A00FF
+    # 066 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 2F 10 0A00FF
+    # 066 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 2F 10 0A00FF
+    # 069 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 1D 10 0A00FF
+    # 070 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 12 10 0A00FF
+    # 071 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 11 10 0000FF
+
+    # 072 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 00 10 0000FF
+    # 072 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 00 10 0A00FF
+    # 074 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 00 10 0000FF
+
+    # 095 RP --- 10:139656 34:212252 --:------ 3EF0 006 00 00 11 0000FF
+    # 095 RP --- 10:114131 34:254475 --:------ 3EF0 006 00 00 10 000000
+
+    # 060 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 64 10 0C00FF
+    # 058 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 00 10 0400FF
+    # 061 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 64 10 0800FF
+
+    # 063 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 01 11 01 00FF
+    # 058 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 00 11 01 00FF
+    # 057 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 01 10 FA 00FF
+    # 062 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 00 11 01 00FF
+    # 065 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 FF 10 02 00FF
+    # 060 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 00 11 01 00FF
+    # 062 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 11 10 0A FFFF
 
     assert payload[:2] == "00"
     assert payload[-2:] == "FF"
 
-    if msg.src.type == "10":
+    if msg.src.type == "10":  # OTB, to 01:, or 34:
+        assert msg.len == 6
+        assert int(payload[2:4], 16) <= 100
+        assert payload[4:6] in ("10", "11")
+        assert payload[6:8] in ("00", "01", "02", "04", "08", "0A", "0C")
+        assert payload[8:12] == "00FF"  # or: in ("0000", "00FF", "FFFF")?
+
+        if payload[6:8] == "0A":
+            assert payload[2:4] != "00"
+        else:
+            assert payload[2:4] == "00"
+
+        # TODO: max value of [6:8] seen is "64", should be /200?
         return {
             **_idx(payload[:2], msg),
-            "modulation_level": int(payload[2:4], 16) / 100,  # TODO: should be /200?
-            "flame_active": {"0A": True}.get(payload[2:4], False),
-            "flame_status": payload[2:4],
+            "flame_state": payload[6:8],
+            "unknown_0": payload[4:6],
+            "flame_active": {"0A": True}.get(payload[6:8], False),
+            "modulation_level": int(payload[2:4], 16) / 100,
         }
 
-    return {**_idx(payload[:2], msg), "actuator_enabled": _bool(payload[2:4])}
+    # 051  I --- 13:049225 --:------ 13:049225 3EF0 003 00 00 FF
+    # 054  I --- 13:209679 --:------ 13:209679 3EF0 003 00 C8 FF
+
+    assert msg.len == 3
+    assert payload[2:4] in ("00", "C8")
+    assert payload[4:] == "FF"
+
+    return {
+        **_idx(payload[:2], msg),
+        "actuator_enabled": _bool(payload[2:4]),  # TODO: is bool() too restrictive?
+    }
 
 
 @parser_decorator  # actuator_state
