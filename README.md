@@ -9,7 +9,9 @@ Requires a Honeywell HGI80 or similar. Uses https://github.com/zxdavb/evohome_cc
 ## Installation
 
 ```
-pip install evohome
+git clone https://github.com/zxdavb/evohome_rf
+cd evohome_rf
+pip install -r requirements.txt
 ```
 
 ## Instructions
