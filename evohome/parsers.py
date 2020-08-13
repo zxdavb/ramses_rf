@@ -604,7 +604,7 @@ def parser_0418(payload, msg=None) -> Optional[dict]:
             hour=(_seqx & 0b11111 << 19) >> 19,
             minute=(_seqx & 0b111111 << 13) >> 13,
             second=(_seqx & 0b111111 << 7) >> 7,
-        ).strftime("%Y-%m-%d %H:%M:%S")
+        ).strftime("%Y-%m-%dT%H:%M:%S")
 
     if payload == CODE_SCHEMA["0418"]["null_rp"]:
         # a null log entry, or: is payload[38:] == "000000" sufficient?
@@ -616,29 +616,35 @@ def parser_0418(payload, msg=None) -> Optional[dict]:
     else:
         assert len(payload) / 2 == 22
     #
-    assert payload[:2] == "00"  # unknown_0
-    assert payload[2:4] in list(CODE_0418_FAULT_STATE)  # C0 dont appear in the UI?
+    assert payload[:2] == "00"  # likely always 00
+    assert payload[2:4] in list(CODE_0418_FAULT_STATE)  # C0 doesn't appear in the UI?
     assert int(payload[4:6], 16) <= 63  # TODO: upper limit is: 60? 63? more?
     assert payload[6:8] == "B0"  # unknown_1, ?priority
     assert payload[8:10] in list(CODE_0418_FAULT_TYPE)
     assert int(payload[10:12], 16) < MAX_ZONES or payload[10:12] in ("FA", "FC")
     assert payload[12:14] in list(CODE_0418_DEVICE_CLASS)
     assert payload[14:18] == "0000"  # unknown_2
-    assert payload[28:30] in ("7F", "FF")  # last bit in dt field, DST?
+    assert payload[28:30] in ("7F", "FF")  # TODO: last bit in dt field, DST?
     assert payload[30:38] == "FFFF7000"  # unknown_3
-    # assert payload[38:] == ""  # device_id
-    #
-    return {  # TODO: stop using __idx()?
+
+    result = {  # TODO: stop using __idx()?
         **(_idx(payload[4:6], msg) if msg is not None else {"log_idx": payload[4:6]}),
         "timestamp": _timestamp(payload[18:30]),
         "fault_state": CODE_0418_FAULT_STATE.get(payload[2:4], payload[2:4]),
         "fault_type": CODE_0418_FAULT_TYPE.get(payload[8:10], payload[8:10]),
-        "zone_id"
-        if int(payload[10:12], 16) < MAX_ZONES
-        else "domain_id": payload[10:12],  # TODO: don't use zone_idx (for now)
         "device_class": CODE_0418_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
-        "device_id": dev_hex_to_id(payload[38:]),  # is "00:000001/2 for CTL?
-    }
+    }  # TODO: stop using __idx()?
+
+    if payload[12:14] != "00":  # Controller
+        key_name = "zone_id" if int(payload[10:12], 16) < MAX_ZONES else "domain_id"
+        result.update({key_name: payload[10:12]})  # TODO: don't use zone_idx (for now)
+
+    if payload[38:] == "000002":  # "00:000002 for Unknown?
+        result.update({"device_id": None})
+    elif payload[38:] != "000001":  # "00:000001 for Controller?
+        result.update({"device_id": dev_hex_to_id(payload[38:])})
+
+    return result
 
 
 @parser_decorator  # unknown, from STA

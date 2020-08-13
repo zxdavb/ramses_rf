@@ -164,7 +164,7 @@ class EvoSystem(System):
 
         # TODO: Get the three most recent fault log entries
         # self._fault_log.req_log(log_idx=0)
-        for log_idx in range(0, 0x3):  # max is 0x3C?
+        for log_idx in range(0, 0x6):  # max is 0x3C?
             self._command("0418", payload=f"{log_idx:06X}", priority=Priority.LOW)
 
         # TODO: 1100(), 1290(00x), 0418(00x):
@@ -408,7 +408,7 @@ class EvoSystem(System):
         #     zone_added = bool(prev_msg.code == "0004")  # else zone_deleted
 
         if msg.code == "0418" and msg.verb in (" I", "RP"):  # this is a special case
-            _LOGGER.error("Zone(%s).update: Received RP/0418 (fault_log)", self.id)
+            _LOGGER.debug("Zone(%s).update: Received RP/0418 (fault_log)", self.id)
             # self._fault_log.add_entry(msg)
             # do the following only if we had: self._fault_log.req_log(log_idx=0)
             # self._fault_log.req_entry(log_idx=payload["log_idx"] + 1)

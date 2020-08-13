@@ -375,15 +375,15 @@ CODE_0005_ZONE_TYPE = {
 
 # Used by 0418/system_fault parser
 CODE_0418_DEVICE_CLASS = {
-    "00": "Controller?",
-    "01": "Sensor",
-    "04": "Actuator",
-    "05": "DhwSensor?",
+    "00": "controller",
+    "01": "sensor",
+    "04": "actuator",
+    "05": "dhw_sensor",
 }
-CODE_0418_FAULT_STATE = {"00": "Fault", "40": "Restore"}  # , "C0": "Unknown (C0)"}
+CODE_0418_FAULT_STATE = {"00": "fault", "40": "restore"}  # , "C0": "unknown_c0"}
 CODE_0418_FAULT_TYPE = {
-    "03": "MainsLow",
-    "04": "BatteryLow",
-    "06": "CommsFault",
-    "0A": "SensorError",
+    "03": "mains_low",
+    "04": "battery_low",
+    "06": "comms_fault",
+    "0A": "sensor_error",
 }
