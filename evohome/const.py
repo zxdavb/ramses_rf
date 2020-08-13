@@ -113,6 +113,7 @@ DEVICE_TABLE = {
         "is_actuator": False,
         "is_controller": True,
         "is_sensor": True,
+        "archetype": "ATC928",
     },  # rechargeable
     "02": {
         "type": "UFH",
@@ -121,7 +122,8 @@ DEVICE_TABLE = {
         "is_actuator": None,
         "is_controller": None,
         "is_sensor": None,
-    },  # HCE80(R)
+        "archetype": "HCE80(R)",
+    },
     "03": {
         "type": "STa",
         "name": "Room Sensor/Stat",
@@ -129,7 +131,8 @@ DEVICE_TABLE = {
         "has_zone_sensor": True,
         "is_actuator": False,
         "is_sensor": True,
-    },  # HCW80 (HCF82)
+        "archetype": "HCW80",  # also: HCF82
+    },
     "04": {
         "type": "TRV",
         "name": "Radiator Valve",
@@ -137,21 +140,24 @@ DEVICE_TABLE = {
         "has_zone_sensor": True,
         "is_actuator": True,
         "is_sensor": True,
-    },  # HR80, HR92
+        "archetype": "HR92",  # also: HR80
+    },  #
     "07": {
         "type": "DHW",
         "name": "DHW Sensor",
         "has_battery": True,
         "is_actuator": False,
         "is_sensor": True,
-    },  # CS92
+        "archetype": "CS92A",
+    },
     "10": {
         "type": "OTB",
         "name": "OpenTherm Bridge",
         "has_battery": False,
         "is_actuator": None,
         "is_sensor": False,
-    },  # R8810
+        "archetype": "R8810",
+    },  #
     "12": {
         "type": "THm",
         "name": "Room Thermostat",
@@ -159,14 +165,16 @@ DEVICE_TABLE = {
         "has_zone_sensor": True,
         "is_actuator": False,
         "is_sensor": True,
-    },  # DTS92(E)
+        "archetype": "DTS92(E)",
+    },
     "13": {
         "type": "BDR",
         "name": "Wireless Relay",
         "has_battery": False,
         "is_actuator": None,
         "is_sensor": False,
-    },  # BDR91, HC60NG?
+        "archetype": "BDR91",  # also: HC60NG?
+    },
     "22": {
         "type": "THM",
         "name": "Room Thermostat",
@@ -174,14 +182,16 @@ DEVICE_TABLE = {
         "has_zone_sensor": True,
         "is_actuator": False,
         "is_sensor": True,
-    },  # DTS92(E)
+        "archetype": "DTS92(E)",
+    },
     "30": {
         "type": "GWY",
         "name": "Internet Gateway",
         "has_battery": False,
         "is_actuator": False,
         "is_sensor": False,
-    },  # RFG100, VMS?
+        "archetype": "-unclear-",  # RFG100, VMS?
+    },
     "34": {
         "type": "STA",
         "name": "Round Thermostat",
@@ -189,7 +199,8 @@ DEVICE_TABLE = {
         "has_zone_sensor": True,
         "is_actuator": False,
         "is_sensor": True,
-    },  # T87RF
+        "archetype": "T87RF",
+    },
     # Honeywell evohome TBD
     "x1": {
         "type": "MIX",
@@ -197,6 +208,7 @@ DEVICE_TABLE = {
         "has_battery": False,
         "is_actuator": None,
         "is_sensor": None,
+        "archetype": "HM80",
     },  # TODO: ???
     # Honeywell, non-evohome
     "17": {
@@ -212,19 +224,21 @@ DEVICE_TABLE = {
         "has_battery": False,
         "is_actuator": False,
         "is_sensor": False,
-    },  # HGI80
+        "archetype": "HGI80",
+    },
     "23": {
         "type": "PRG",
         "name": "Programmer (wired)",
         "has_battery": False,
         "is_actuator": False,
         "is_sensor": True,
-    },  # ST9420C
+        "archetype": "ST9420C",
+    },
     # non-Honeywell, HVAC? (also, 30: is a Nuaire PIV)
-    "20": {"type": "VCE", "name": "AC/Ventilation?"},  # VCE-RF unit
-    "32": {"type": "VMS", "name": "AC/Ventilation?"},  # sensor/switch
-    "37": {"type": " 37", "name": "AC/Ventilation?"},  # VCE
-    "49": {"type": " 49", "name": "AC/Ventilation?"},  # VCE switch
+    "20": {"type": "VCE", "name": "HVAC?"},  # VCE-RF unit
+    "32": {"type": "VMS", "name": "HVAC?"},  # sensor/switch
+    "37": {"type": " 37", "name": "HVAC?"},  # VCE
+    "49": {"type": " 49", "name": "HVAC?"},  # VCE switch
     # specials
     "63": {"type": "NUL", "name": "Null Device"},
     "--": {"type": "---", "name": "No Device"},
