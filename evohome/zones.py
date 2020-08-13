@@ -57,9 +57,13 @@ class ZoneBase(Entity):
         self._zone_type = None
 
     def __repr__(self):
+        """Return a complete representation of the zone as a dict."""
+
         return json.dumps(self.schema, indent=2)
 
     def __str__(self):
+        """Return a brief representation of the zone as a string."""
+
         return f"{self.id} ({self._zone_type})"
 
     def _command(self, code, **kwargs) -> None:
@@ -99,8 +103,8 @@ class DhwZone(ZoneBase, HeatDemand):
         self._discover()  # should be last thing in __init__()
 
     def _discover(self):
-        if __dev_mode__ and self.idx == "HW":  # dev/test code
-            self.async_set_override(state="On")
+        # if False and __dev_mode__ and self.idx == "HW":  # dev/test code
+        #     self.async_set_override(state="On")
 
         for code in ("10A0", "1100", "1260", "1F41"):  # TODO: what about 1100?
             self._command(code, payload="0000")
@@ -411,23 +415,37 @@ class Zone(ZoneBase):
 
     @property
     def type(self) -> Optional[str]:
+        """TODO.
+
+        There are three ways to determine the type of a zone:
+        1. Use a 0005 packet (deterministic)
+        2. Eavesdrop (non-deterministic, slow to converge)
+        3. via a config file (a schema)
+        """
+
         if self._zone_type is not None:  # isinstance(self, ???)
             return self._zone_type
 
-        # TODO: try to cast an initial type
-        dev_types = [d.dev_type for d in self.devices if d.dev_type in ZONE_CLASSES]
+        # TODO: actuators
+        dev_types = [d.type for d in self.devices if d.type in ("02", "04", "13")]
 
-        # contrived code is for edge case: TRV is being used as sensor for non-RAD zone
-        for _type in (t for t in dev_types if t != "TRV"):
-            self._zone_type = _type
-            break
+        if "02" in dev_types:
+            class_ = "UFH"
+        elif "13" in dev_types and "3150" in self.msgs:
+            class_ = "VAL"
+        elif "13" in dev_types:
+            class_ = "ELE"  # could still be a VAL
+        # elif "??" in dev_types:
+        #     class_ = "MIX"
+        elif "04" in dev_types:  # beware edge case: TRV as sensor for a non-RAD zone
+            class_ = "RAD"
         else:
-            if "TRV" in dev_types:
-                self._zone_type = "RAD"
+            class_ = None
 
-        if self._zone_type is not None:
-            self.__class__ = ZONE_CLASSES[self._zone_type]
-            _LOGGER.debug("Set Zone %s type as %s", self.id, self._zone_type)
+        if class_ is not None:
+            self._zone_type = class_
+            self.__class__ = ZONE_CLASSES[class_]
+            _LOGGER.debug("Set Zone %s type as %s", self.id, class_)
 
         return self._zone_type
 

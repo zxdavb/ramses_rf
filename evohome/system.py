@@ -51,14 +51,14 @@ class System(Controller):
             super().update(msg)
 
     def __repr__(self) -> str:
-        """Return a complete representation of the system."""
-
-        return json.dumps(self.schema)
-
-    def __str__(self) -> str:
-        """Return a brief representation of the system."""
+        """Return a complete representation of the system as a dict."""
 
         return json.dumps(self.schema, indent=2)
+
+    def __str__(self) -> str:  # TODO: WIP
+        """Return a brief representation of the system as a string."""
+
+        return json.dumps(self.schema)
 
     def get_zone(self, domain_id, zone_type=None, sensor=None) -> Optional[Zone]:
         """Return a zone (will create it if required).

@@ -1,6 +1,7 @@
 """The evohome-compatible devices."""
 
 from datetime import datetime as dt, timedelta
+import json
 import logging
 from typing import Any, Optional
 
@@ -225,7 +226,7 @@ class Device(Entity):
 
         self.addr = device_addr
         self.type = device_addr.type
-        self.dev_type = DEVICE_TYPES.get(self.addr.type)
+        # self.dev_type = DEVICE_TYPES.get(self.type)
 
         if self.addr.type in DEVICE_TABLE:
             self._has_battery = DEVICE_TABLE[self.addr.type].get("has_battery")
@@ -246,21 +247,20 @@ class Device(Entity):
 
         self._discover()
 
-    # def __repr__(self) -> str:
-    #     """Return a JSON dict of all the public atrributes of an entity."""
-
-    #     result = {
-    #         a: getattr(self, a)
-    #         for a in dir(self)
-    #         if not a.startswith("_") and not callable(getattr(self, a))
-    #     }
-    #     return json.dumps(result)
-
     def __repr__(self) -> str:
-        return self.id
+        """Return a complete representation of the device as a dict."""
+
+        result = {
+            a: getattr(self, a)
+            for a in dir(self)
+            if not a.startswith("_") and not callable(getattr(self, a))
+        }
+        return json.dumps({self.id: result}, indent=2)
 
     def __str__(self) -> str:
-        return f"{self.id} ({self.dev_type})"
+        """Return a brief representation of the device as a string."""
+
+        return f"{self.id}"  # " ({self.dev_type})"
 
     def _discover(self):
         # do these even if battery-powered (e.g. device might be in rf_check mode)
@@ -453,9 +453,16 @@ class Thermostat(Device, BatteryState, Setpoint, Temperature):
     """The STA class, such as a TR87RF."""
 
 
-# 13: "3EF0", "1100";; ("3EF1"?)
+# 13: BDR= "3EF0", "1100";; ("3EF1"?); TPI= "3EF0", "1100"; ("3B00")
 class BdrSwitch(Device, Actuator):
-    """The BDR class, such as a BDR91."""
+    """The BDR class, such as a BDR91.
+
+    BDR91s can be used in various modes, including:
+    - boiler controller (FC/TPI)
+    - electric heat zones (00/ELE)
+    - zone valve zones (00/VAL)
+    - DHW thingys (HW/xxx)
+    """
 
     def __init__(self, gateway, device_addr, **kwargs) -> None:
         super().__init__(gateway, device_addr, **kwargs)
@@ -472,6 +479,11 @@ class BdrSwitch(Device, Actuator):
         #     for payload in ("00", "FC", "FF", "0000", "000000"):
         #         self._command(code, payload=payload)
 
+        # doesn't like like TPIs respond to a 3B00
+        # for payload in ("00", "C8"):
+        #     for code in ("00", "FC", "FF"):
+        #         self._command("3B00", payload=f"{code}{payload}")
+
     def update(self, msg):
         super().update(msg)
 
@@ -481,48 +493,27 @@ class BdrSwitch(Device, Actuator):
     @property
     def is_tpi(self) -> Optional[bool]:  # 3B00
         def make_tpi():
-            self.__class__ = TpiSwitch
-            self.dev_type = "TPI"
+            # self.dev_type = "TPI"
             self._domain_id = "FC"  # TODO: check is None first
-            _LOGGER.debug("Promoted device %s to %s", self.id, self.dev_type)
-
-            self._is_tpi = True
-
-            self._discover()
+            _LOGGER.debug("Promoted device %s to TPI", self.id)
 
         if self._is_tpi is not None:
             return self._is_tpi
 
-        # try to cast a new type (must be a superclass of the current type)
         if "1FC9" in self._msgs and self._msgs["1FC9"].verb == "RP":
             if "3B00" in self._msgs["1FC9"].raw_payload:
+                self._is_tpi = True
                 make_tpi()
 
         elif "3B00" in self._msgs and self._msgs["3B00"].verb == " I":
+            self._is_tpi = True
             make_tpi()
 
         return self._is_tpi
 
     @property
     def tpi_params(self) -> dict:  # 1100
-        return self._get_msg_value("1100")
-
-
-# 13: "3EF0", "1100"; ("3B00")
-class TpiSwitch(BdrSwitch):  # TODO: superset of BdrSwitch?
-    """The TPI class, the BDR91 that controls the boiler."""
-
-    # No __init__(), as not instantiated directly
-
-    def _discover(self):  # NOTE: do not super()._discover()
-
-        for code in ("1100",):
-            self._command(code, payload="00")
-
-        # doesn't like like TPIs respond to a 3B00
-        # for payload in ("00", "C8"):
-        #     for code in ("00", "FC", "FF"):
-        #         self._command("3B00", payload=f"{code}{payload}")
+        return self._get_msg_value("1100")  # if self.is_tpi else None
 
 
 # 04: "1060", "3150", "2309", "30C9";; "0100", "12B0" ("0004")
@@ -535,7 +526,7 @@ class TrvActuator(Device, BatteryState, HeatDemand, Setpoint, Temperature):
 
 
 DEVICE_CLASSES = {
-    "01": Controller,  # use EvoSystem instead of Controller
+    "01": Controller,  # use EvoSystem instead?
     "02": UfhController,
     "03": Thermostat,
     "04": TrvActuator,
@@ -544,6 +535,6 @@ DEVICE_CLASSES = {
     "12": Thermostat,
     "13": BdrSwitch,
     "22": Thermostat,
-    "23": Controller,  # a Programmer, use System instead of Controller
+    "23": Controller,  # a Programmer, use System instead?
     "34": Thermostat,
 }
