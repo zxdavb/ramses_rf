@@ -374,7 +374,7 @@ CODE_0005_ZONE_TYPE = {
 }  # also: 01, 02, 04, 0C, 0D, 0E, 0F, 10
 
 # Used by 0418/system_fault parser
-CODE_0418_DEV_CLASS = {
+CODE_0418_DEVICE_CLASS = {
     "00": "Controller?",
     "01": "Sensor",
     "04": "Actuator",

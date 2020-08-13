@@ -12,14 +12,14 @@ import zlib
 from .const import __dev_mode__, COMMAND_FORMAT, HGI_DEVICE
 from .logger import dt_now
 
-SERIAL_PORT = "serial_port"
-CMD_CODE = "cmd_code"
-CMD_TYPE = "cmd_type"
-PAYLOAD = "payload"
+# SERIAL_PORT = "serial_port"
+# CMD_CODE = "cmd_code"
+# CMD_VERB = "cmd_verb"
+# PAYLOAD = "payload"
 
-DEVICE_1 = "device_1"
-DEVICE_2 = "device_2"
-DEVICE_3 = "device_3"
+# DEVICE_1 = "device_1"
+# DEVICE_2 = "device_2"
+# DEVICE_3 = "device_3"
 
 RQ_RETRY_LIMIT = 7
 RQ_TIMEOUT = 0.03

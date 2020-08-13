@@ -7,7 +7,7 @@ from typing import Optional, Union
 from .const import (
     CODE_SCHEMA,
     CODE_0005_ZONE_TYPE,
-    CODE_0418_DEV_CLASS,
+    CODE_0418_DEVICE_CLASS,
     CODE_0418_FAULT_STATE,
     CODE_0418_FAULT_TYPE,
     DOMAIN_TYPE_MAP,
@@ -622,7 +622,7 @@ def parser_0418(payload, msg=None) -> Optional[dict]:
     assert payload[6:8] == "B0"  # unknown_1, ?priority
     assert payload[8:10] in list(CODE_0418_FAULT_TYPE)
     assert int(payload[10:12], 16) < MAX_ZONES or payload[10:12] in ("FA", "FC")
-    assert payload[12:14] in list(CODE_0418_DEV_CLASS)
+    assert payload[12:14] in list(CODE_0418_DEVICE_CLASS)
     assert payload[14:18] == "0000"  # unknown_2
     assert payload[28:30] in ("7F", "FF")  # last bit in dt field, DST?
     assert payload[30:38] == "FFFF7000"  # unknown_3
@@ -636,7 +636,7 @@ def parser_0418(payload, msg=None) -> Optional[dict]:
         "zone_id"
         if int(payload[10:12], 16) < MAX_ZONES
         else "domain_id": payload[10:12],  # TODO: don't use zone_idx (for now)
-        "device_class": CODE_0418_DEV_CLASS.get(payload[12:14], payload[12:14]),
+        "device_class": CODE_0418_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
         "device_id": dev_hex_to_id(payload[38:]),  # is "00:000001/2 for CTL?
     }
 
