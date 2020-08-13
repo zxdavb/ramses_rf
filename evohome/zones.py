@@ -346,7 +346,7 @@ class Zone(ZoneBase):
 
         elif msg.code == "3150":  # TODO: and msg.verb in (" I", "RP")?
             assert msg.src.type in ("02", "04", "13")
-            assert self._zone_type in (None, "RAD", "UFH", "VAL")
+            assert self._zone_type in (None, "RAD", "UFH", "VAL")  # ELE don't have 3150
 
             if msg.src.type in ("02", "04", "13"):
                 zone_type = ZONE_CLASS_MAP[msg.src.type]
