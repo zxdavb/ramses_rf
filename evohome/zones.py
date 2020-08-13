@@ -327,13 +327,13 @@ class Zone(ZoneBase):
     def update(self, msg):
         super().update(msg)
 
-        # not UFH (it seems), but BDR or VAL; and possibly a MIX support 0008 too
+        # not UFH (it seems), but ELE or VAL; and possibly a MIX support 0008 too
         if msg.code in ("0008", "0009"):  # TODO: how to determine is/isn't MIX?
             assert msg.src.type in ("01", "13")  # 01 as a stat
-            assert self._zone_type in (None, "BDR", "VAL")
+            assert self._zone_type in (None, "ELE", "VAL")
 
             if self._zone_type is None:
-                self._set_zone_type("BDR")  # might eventually be: "VAL"
+                self._set_zone_type("ELE")  # might eventually be: "VAL"
 
         elif msg.code == "0404" and msg.verb == "RP":
             _LOGGER.error("Zone(%s).update: Received RP/0404 (schedule)", self.id)
@@ -350,7 +350,7 @@ class Zone(ZoneBase):
 
             if msg.src.type in ("02", "04", "13"):
                 zone_type = ZONE_CLASS_MAP[msg.src.type]
-                self._set_zone_type("VAL" if zone_type == "BDR" else zone_type)
+                self._set_zone_type("VAL" if zone_type == "ELE" else zone_type)
 
     @property  # id, type
     def schema(self) -> dict:
@@ -439,7 +439,7 @@ class Zone(ZoneBase):
 
         if self._zone_type is not None:
             if self._zone_type != zone_type and (
-                self._zone_type != "BDR" and zone_type != "VAL"
+                self._zone_type != "ELE" and zone_type != "VAL"
             ):
                 raise CorruptStateError(
                     f"Zone {self} has a mismatched type: "
@@ -606,7 +606,7 @@ class ZoneHeatDemand:  # not all zone types call for heat
         return max(demands + [0]) if demands else None
 
 
-class BdrZone(Zone):  # Electric zones (do *not* call for heat)
+class EleZone(Zone):  # Electric zones (do *not* call for heat)
     """Base for Electric Heat zones.
 
     For a small (5A) electric load controlled by a BDR91 (never calls for heat).
@@ -628,7 +628,7 @@ class BdrZone(Zone):  # Electric zones (do *not* call for heat)
         return self._get_msg_value("3EF1")
 
 
-class ValZone(BdrZone, ZoneHeatDemand):  # Zone valve zones
+class ValZone(EleZone, ZoneHeatDemand):  # Zone valve zones
     """Base for Zone Valve zones.
 
     For a motorised valve controlled by a BDR91 (will also call for heat).
@@ -675,7 +675,7 @@ class MixZone(Zone, ZoneHeatDemand):  # Mix valve zones
 
 ZONE_CLASSES = {
     "RAD": RadZone,
-    "BDR": BdrZone,
+    "ELE": EleZone,
     "VAL": ValZone,
     "UFH": UfhZone,
     "MIX": MixZone,

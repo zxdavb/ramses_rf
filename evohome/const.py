@@ -75,7 +75,7 @@ CODE_SCHEMA = {
     "22D0": {"name": "message_22d0", "uses_zone_idx": None},  # system switch?
     # unknown/unsure codes - some maybe not evohome, maybe not even Honeywell
     "0002": {"name": "sensor_weather"},
-    "0006": {"name": "schedule_sync"},  # for F9/FA/FC, idx for BDR, F8/FF (all?)
+    "0006": {"name": "schedule_sync"},  # for F9/FA/FC, idx for ELE, F8/FF (all?)
     "1280": {"name": "outdoor_humidity"},
     "1290": {"name": "outdoor_temp"},
     "12A0": {"name": "indoor_humidity"},  # Nuaire ventilation
@@ -203,7 +203,7 @@ DEVICE_TABLE = {
     },
     # Honeywell evohome TBD
     "x1": {
-        "type": "MIX",
+        "type": "HM8",
         "name": "Mixing Valve",
         "has_battery": False,
         "is_actuator": None,
@@ -298,6 +298,7 @@ ZONE_MODE_MAP = {
 }
 ZONE_MODE_LOOKUP = {v: k for k, v in ZONE_MODE_MAP.items()}
 
+# used by 0005, also: 01, 02, 04, 0C, 0D, 0E, 0F, 10
 ZONE_TYPE_LOOKUP = {
     "00": "configured_zones",  # same as 04?
     "08": "radiator_valve",
@@ -305,7 +306,7 @@ ZONE_TYPE_LOOKUP = {
     "0A": "zone_valve",
     "0B": "mixing_valve",
     "11": "electric_heat",
-}  # also: 01, 02, 04, 0C, 0D, 0E, 0F, 10
+}
 
 DHW_STATE_MAP = {"00": "Off", "01": "On"}
 DHW_STATE_LOOKUP = {v: k for k, v in DHW_STATE_MAP.items()}
@@ -319,18 +320,18 @@ MAX_ZONES = 12
 # Sundial RF2: 2 (0-1), usually only one, but ST9520C can do two zones
 
 ZONE_TABLE = {
-    "UFH": {"type": "02", "name": "Underfloor Heating"},
-    "TRV": {"type": "04", "name": "Radiator Valve"},
-    "BDR": {"type": "13", "name": "Electric Heat"},
-    "VAL": {"type": "x0", "name": "Zone Valve"},
-    "MIX": {"type": "x1", "name": "Mixing Valve"},
-    "DHW": {"type": "FC", "name": "Stored DHW"},
+    "UFH": {"type": "02", "device": "UFC", "name": "Underfloor Heating"},
+    "RAD": {"type": "04", "device": "TRV", "name": "Radiator Valve"},
+    "ELE": {"type": "13", "device": "BDR", "name": "Electric Heat"},
+    "VAL": {"type": "x0", "device": "BDR", "name": "Zone Valve"},
+    "MIX": {"type": "x1", "device": "HM8", "name": "Mixing Valve"},
+    "DHW": {"type": "FC", "device": "DHW", "name": "Stored DHW"},
 }
 ZONE_TYPE_MAP = {k: v["name"] for k, v in ZONE_TABLE.items()}
 ZONE_CLASS_MAP = {v["type"]: k for k, v in ZONE_TABLE.items()}
 ZONE_TYPE_SLUGS = {
     "radiator_valve": "RAD",
-    "electric_heat": "BDR",
+    "electric_heat": "ELE",
     "zone_valve": "VAL",
     "underfloor_heating": "UFH",
     "mixing_valve": "MIX",

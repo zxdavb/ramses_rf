@@ -506,7 +506,7 @@ class BdrSwitch(Device, Actuator):
 
 
 # 13: "3EF0", "1100"; ("3B00")
-class TpiSwitch(BdrSwitch):  # TODO: superset of BDR switch?
+class TpiSwitch(BdrSwitch):  # TODO: superset of BdrSwitch?
     """The TPI class, the BDR91 that controls the boiler."""
 
     # No __init__(), as not instantiated directly
