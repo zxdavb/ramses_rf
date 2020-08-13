@@ -1073,17 +1073,17 @@ def parser_313f(payload, msg) -> Optional[dict]:
 @parser_decorator  # heat_demand (of device, FC domain)
 def parser_3150(payload, msg) -> Optional[dict]:
     # event-driven, and periodically; FC domain is highest of all TRVs
-    # TODO: all have a valid domain will UFH/CTL respond to an RQ, for FC, for a zone?
+    # TODO: all have a valid domain will UFC/CTL respond to an RQ, for FC, for a zone?
 
     def _parser(seqx) -> dict:
-        # assert seqx[:2] == "FC" or (int(seqx[:2], 16) < MAX_ZONES)  # <5, 8 for UFH
+        # assert seqx[:2] == "FC" or (int(seqx[:2], 16) < MAX_ZONES)  # <5, 8 for UFC
         return {**_idx(seqx[:2], msg), "heat_demand": _percent(seqx[2:])}
 
     if msg.src.type == "02" and msg.is_array:  # TODO: hometronics only?
         return [_parser(payload[i : i + 4]) for i in range(0, len(payload), 4)]
 
     assert msg.len == 2  # msg.src.type in ("01","02","10","04")
-    return _parser(payload)  # TODO: check UFH/FC is == CTL/FC
+    return _parser(payload)  # TODO: check UFC/FC is == CTL/FC
 
 
 @parser_decorator  # ???
@@ -1112,7 +1112,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # UFH HCE80 (Nuaire humidity)
+@parser_decorator  # UFC HCE80 (Nuaire humidity)
 def parser_31da(payload, msg) -> Optional[dict]:
     assert msg.len == 29  # usu: I CTL-->CTL
 

@@ -377,7 +377,7 @@ class Controller(Device):
 
 # 02: "10E0", "3150";; "0008", "22C9", "22D0"
 class UfhController(Device, HeatDemand):
-    """The UFH class, the HCE80 that controls the UFH heating zones."""
+    """The UFC class, the HCE80 that controls the UFH zones."""
 
     # 12:27:24.398 067  I --- 02:000921 --:------ 01:191718 3150 002 0360
     # 12:27:24.546 068  I --- 02:000921 --:------ 01:191718 3150 002 065A

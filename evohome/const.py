@@ -116,7 +116,7 @@ DEVICE_TABLE = {
         "archetype": "ATC928",
     },  # rechargeable
     "02": {
-        "type": "UFH",
+        "type": "UFC",
         "name": "UFH Controller",
         "has_battery": False,
         "is_actuator": None,
