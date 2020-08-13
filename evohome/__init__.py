@@ -324,6 +324,8 @@ class Gateway:
             None if controller is None else self.get_device(controller, domain_id="FF")
         )
 
+        self.evo = ctl if self.evo is None else None
+
         if dev_addr.type in ("18", "63", "--"):  # valid addresses, but not devices
             return
 

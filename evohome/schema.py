@@ -201,7 +201,7 @@ def load_schema(gwy, controller_id, schema, **kwargs) -> bool:
     ctl = Address(id=controller_id, type=controller_id[:2])
     ctl = gwy.get_device(ctl, controller=ctl)
 
-    # gwy.evo = ctl if gwy.evo is None else gwy.evo
+    gwy.evo = ctl if gwy.evo is None else gwy.evo
 
     if schema.get("heater_relay") is not None:
         dev = Address(id=schema["heater_relay"], type=schema["heater_relay"][:2])
