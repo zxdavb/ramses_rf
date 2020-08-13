@@ -13,6 +13,8 @@ from .const import (
     MSG_FORMAT_18,
     NON_DEVICE,
     NUL_DEVICE,
+    ZONE_TYPE_LOOKUP,
+    ZONE_TYPE_SLUGS,
     Address,
     __dev_mode__,
 )
@@ -343,12 +345,23 @@ class Message:
         # if self.src.type not in ("01", "02", "23"):  # TODO: need this filter?
         #     return
 
-        if self.code in ("10A0", "1260", "1F41"):
+        if self.code == "0005":
+            if self._payload["zone_type"] in ZONE_TYPE_LOOKUP.values():
+                [
+                    self.src.get_zone(
+                        f"{idx:02X}",
+                        zone_type=ZONE_TYPE_SLUGS.get(self._payload["zone_type"]),
+                    )
+                    for idx, flag in enumerate(self._payload["zone_mask"])
+                    if flag == 1
+                ]
+
+        elif self.code in ("10A0", "1260", "1F41"):
             # if self.code == "3B00":  # every 10 mins
             self.src.get_zone("HW")
 
         # TODO: also process ufh_idx (but never domain_id)
-        if isinstance(self._payload, dict):
+        elif isinstance(self._payload, dict):
             # TODO: only creating zones from arrays, presently, but could do so here
             if self._payload.get("zone_idx"):  # TODO: parent_zone too?
                 if self.src.is_controller:
