@@ -9,6 +9,7 @@ from .const import Address, ZONE_TYPE_SLUGS, __dev_mode__
 
 # false = False; null = None; true = True
 
+# TODO: duplicated in __init__.py
 DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
 DONT_UPDATE_ENTITIES = 1
@@ -19,11 +20,11 @@ DEVICE_ID = vol.Match(DEVICE_ID_REGEXP)
 DOMAIN_ID_REGEXP = r"^[0-9A-F]{2}$"
 DOMAIN_ID = vol.Match(DOMAIN_ID_REGEXP)
 
-ZONE_ID_REGEXP = r"^0[0-9AB]$"
-ZONE_ID = vol.Match(ZONE_ID_REGEXP)
+ZONE_IDX_REGEXP = r"^0[0-9AB]$"  # TODO: what if > 12 zones? (e.g. hometronics)
+ZONE_IDX = vol.Match(ZONE_IDX_REGEXP)
 ZONE_SCHEMA = vol.Schema(
     {
-        vol.Required(ZONE_ID): vol.Any(
+        vol.Required(ZONE_IDX): vol.Any(
             None,
             {
                 vol.Optional("sensor", default=None): vol.Any(None, DEVICE_ID),
@@ -258,34 +259,3 @@ def load_filter(gwy, config, devices, **kwargs) -> Tuple[list, list]:
         return [], block_list
 
     return [], []
-
-
-# addr=gwy=ctl=evo=zon=dev=pkts=None  # noqa
-
-# zon.add_device(addr)  # friendly name from gwy.known_devices
-# evo.add_device(addr, parent_zone=None, parent_000c=None)
-# gwy.add_device(addr, parent_zone=None, parent_000c=None, controller=ctl)
-
-# dev.friendly_name = ""  # get/set
-# dev.parent_zone = pkts.get("zone_idx")  # also zon.add_device()
-# dev.parent_000c = ""  # get/set,          also zon.add_device()
-
-
-# gwy.set_system(evo/ctl)
-
-# gwy.add_system(ctl, tpi=None, dhw_sensor=None, dhw_relay=None, zones={})
-
-# evo.add_zone(zone_id, zone_type=None)
-
-# evo.set_dhw_relay(dev)
-# evo.set_dhw_sensor(dev)
-# evo.set_boiler(dev)
-
-# zon.set_type(zone_type)
-# zon.set_sensor(zone_type)
-
-# dev.set_system(zone)
-# dev.set_boiler(zone)
-# dev.set_dhw_relay(zone)
-# dev.set_dhw_sensor(zone)
-# dev.set_zon_sensor(zone)

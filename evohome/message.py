@@ -284,7 +284,7 @@ class Message:
 
     @exception_handler
     def create_devices(self) -> None:
-        """Parse the payload and create any new device(s).
+        """Discover and create any new devices.
 
         Requires a valid packet; only 000C requires a valid message.
         """
@@ -336,16 +336,17 @@ class Message:
             self.dst = self._gwy.device_by_id[self.dst.id]
 
     @exception_handler
-    def create_entities(self) -> None:
-        """Discover and create new entities (zones, ufh_zones)."""
+    def create_zones(self) -> None:
+        """Discover and create any new zones (except HW)."""
 
         if not self.is_valid:  # requires self.payload
             return
 
-        # if self.src.type not in ("01", "02", "23"):  # TODO: need this filter?
-        #     return
+        if self.src.type not in ("01", "02", "23"):  # TODO: this is too restrictive!
+            return
 
-        if self.code == "0005":
+        # TODO: a I/0005: zones have changed & may need a restart (del) or not (add)
+        if self.code == "0005" and self.verb == "RP":
             if self._payload["zone_type"] in CODE_0005_ZONE_TYPE.values():
                 [
                     self.src.get_zone(
@@ -356,9 +357,12 @@ class Message:
                     if flag == 1
                 ]
 
-        elif self.code in ("10A0", "1260", "1F41"):
-            # if self.code == "3B00":  # every 10 mins
-            self.src.get_zone("HW")
+        # TODO: needs work, e.g. RP/1F41 (excl. null_rp)
+        elif self.code in ("10A0", "1F41"):
+            if isinstance(self.dst, Device) and self.dst.is_controller:
+                self.dst.get_zone("HW")
+            else:
+                self.src.get_zone("HW")
 
         # TODO: also process ufh_idx (but never domain_id)
         elif isinstance(self._payload, dict):
@@ -414,8 +418,8 @@ class Message:
             # if evo is None and isinstance(self.dst, Device):
             #     evo = self.dst._evo
 
-            if evo is not None and self.payload["zone_idx"] in evo.zone_by_id:
-                evo.zone_by_id[self.payload["zone_idx"]].update(self)
+            if evo is not None and self.payload["zone_idx"] in evo.zone_by_idx:
+                evo.zone_by_idx[self.payload["zone_idx"]].update(self)
 
             # elif self.payload.get("ufh_idx") in ...:  # TODO: is this needed?
             #     pass

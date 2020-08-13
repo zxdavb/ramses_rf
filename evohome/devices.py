@@ -61,12 +61,12 @@ def _dtm(value) -> str:
 class Entity:
     """The Device/Zone base class."""
 
-    def __init__(self, gateway, entity_id, controller=None) -> None:
+    def __init__(self, gateway, controller=None) -> None:
         self._gwy = gateway
         self._que = gateway.cmd_que
         self._ctl = controller
 
-        self.id = entity_id
+        self.id = None
 
         self._msgs = {}
 
@@ -95,7 +95,7 @@ class Entity:
         self._ctl = controller
         self._ctl.devices.append(self)
         self._ctl.device_by_id[self.id] = self
-        _LOGGER.debug("Entity %s: controller now set to %s", self.id, self._ctl.id)
+        _LOGGER.debug("Device %s: controller now set to %s", self.id, self._ctl.id)
 
     def _command(self, code, **kwargs) -> None:
         dest = kwargs.get("dest_addr", self.id)
@@ -207,10 +207,11 @@ class Device(Entity):
     """The Device base class."""
 
     def __init__(self, gateway, device_addr, controller=None, domain_id=None) -> None:
-        _LOGGER.debug("Creating a %s, %s", self.__class__, device_addr.id)
-        super().__init__(gateway, device_addr.id, controller)
-
+        _LOGGER.debug("Creating a %s: %s", self.__class__, device_addr.id)
+        super().__init__(gateway, controller=controller)
         assert device_addr.id not in gateway.device_by_id, "Duplicate device address"
+
+        self.id = device_addr.id
 
         gateway.devices.append(self)
         gateway.device_by_id[device_addr.id] = self

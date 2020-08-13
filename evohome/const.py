@@ -58,7 +58,7 @@ CODE_SCHEMA = {
     },
     "0404": {"name": "zone_schedule", "uses_zone_idx": True},
     "12B0": {"name": "window_state", "null_resp": "7FFF", "uses_zone_idx": True},
-    "2349": {"name": "zone_mode", "zone_idx": True, "null_resp": "7FFF00FFFFFF",},
+    "2349": {"name": "zone_mode", "uses_zone_idx": True, "null_resp": "7FFF00FFFFFF",},
     "3150": {"name": "heat_demand", "uses_zone_idx": True},
     # controller/system codes
     "0005": {"name": "system_zones", "rq_length": 2},
@@ -337,7 +337,7 @@ ZONE_TABLE = {
     "ELE": {"type": "13", "actuator": "BDR", "name": "Electric Heat"},
     "VAL": {"type": "x0", "actuator": "BDR", "name": "Zone Valve"},
     "MIX": {"type": "x1", "actuator": "HM8", "name": "Mixing Valve"},
-    "DHW": {"type": "FC", "sensor": "DHW", "name": "Stored DHW"},
+    "DHW": {"type": "x2", "sensor": "DHW", "name": "Stored DHW"},
 }
 ZONE_CLASS_MAP = {v["type"]: k for k, v in ZONE_TABLE.items()}
 ZONE_TYPE_MAP = {k: v["name"] for k, v in ZONE_TABLE.items()}

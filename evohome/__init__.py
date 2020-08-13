@@ -20,6 +20,7 @@ from .schema import load_config
 from .ser2net import Ser2NetServer
 from .system import EvoSystem
 
+# TODO: duplicated in schema.py
 DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
 DONT_UPDATE_ENTITIES = 1
@@ -300,7 +301,7 @@ class Gateway:
             if msg.src.type == "18":  # 18:/RQs are unreliable, RPs are reqd for state
                 return
 
-            msg.create_entities()  # create zones & ufh_zones (TBD)
+            msg.create_zones()  # create zones & ufh_zones (TBD)
 
             if self.config["raw_output"] >= DONT_UPDATE_ENTITIES:
                 return

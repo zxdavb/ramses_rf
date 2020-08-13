@@ -46,7 +46,12 @@ class ZoneBase(Entity):
     """The Domain/Zone base class."""
 
     def __init__(self, controller, zone_idx) -> None:
-        super().__init__(controller._gwy, zone_idx, controller=controller)
+        _LOGGER.debug("Creating a Zone: %s, for system %s", controller.id, zone_idx)
+        super().__init__(controller._gwy, controller=controller)
+        assert zone_idx not in controller.zone_by_idx, "Duplicate zone idx"
+
+        self.id = f"{controller.id}_{zone_idx}"
+        self.idx = zone_idx
 
         self._zone_type = None
 
@@ -54,18 +59,18 @@ class ZoneBase(Entity):
         return json.dumps(self.schema, indent=2)
 
     def __str__(self):
-        return f"{self._ctl.id}/{self.id} ({self._zone_type})"
+        return f"{self.id} ({self._zone_type})"
 
     def _command(self, code, **kwargs) -> None:
         kwargs["dest_addr"] = kwargs.get("dest_addr", self._ctl.id)
-        kwargs["payload"] = kwargs.get("payload", f"{self.id}00")
+        kwargs["payload"] = kwargs.get("payload", f"{self.idx}00")
         super()._command(code, **kwargs)
 
     async def _get_msg(self, code) -> Optional[Any]:  # Optional[Message]:
         # if possible/allowed, simply get an up-todate packet from the controller
         if not self._gwy.config["listen_only"]:
             # self._msgs.pop(code, None)  # this is done in self._command()
-            self._command(code, payload=f"{self.id}00", priority=Priority.ASAP)
+            self._command(code, payload=f"{self.idx}00", priority=Priority.ASAP)
             for _ in range(RQ_RETRY_LIMIT):  # TODO: check rq_len
                 await asyncio.sleep(RQ_TIMEOUT)
                 if code in self._msgs:
@@ -81,8 +86,7 @@ class DhwZone(ZoneBase, HeatDemand):
     FC - 0008, 0009, 1100, 3150, 3B00, (& rare: 0001, 1FC9)
     """
 
-    def __init__(self, controller) -> None:
-        _LOGGER.debug("Creating a DHW Zone for system %s", controller.id)
+    def __init__(self, controller, sensor=None, relay=None) -> None:
         super().__init__(controller, "HW")
 
         controller.dhw = self
@@ -94,7 +98,7 @@ class DhwZone(ZoneBase, HeatDemand):
         self._discover()  # should be last thing in __init__()
 
     def _discover(self):
-        if __dev_mode__ and self.id == "FC":  # dev/test code
+        if __dev_mode__ and self.idx == "HW":  # dev/test code
             self.async_set_override(state="On")
 
         for code in ("10A0", "1100", "1260", "1F41"):  # TODO: what about 1100?
@@ -278,16 +282,18 @@ class DhwZone(ZoneBase, HeatDemand):
 class Zone(ZoneBase):
     """The Zone class."""
 
-    def __init__(self, controller, zone_idx) -> None:
+    def __init__(self, controller, zone_idx, sensor=None, actuators=None) -> None:
         _LOGGER.debug("Creating a zone for system %s: %s", controller.id, zone_idx)
         super().__init__(controller, zone_idx)
 
-        assert zone_idx not in controller.zone_by_id, "Duplicate zone idx on controller"
+        assert (
+            zone_idx not in controller.zone_by_idx
+        ), "Duplicate zone idx on controller"
         if int(zone_idx, 16) >= MAX_ZONES:
             raise ValueError  # TODO: better to aloow to disable via assert?
 
         controller.zones.append(self)
-        controller.zone_by_id[zone_idx] = self
+        controller.zone_by_idx[zone_idx] = self
         # controller.zone_by_name[self.name] = self
 
         self.devices = []
@@ -300,7 +306,7 @@ class Zone(ZoneBase):
         self._discover()
 
     def _discover(self):
-        if __dev_mode__ and self.id == "99":  # dev/test code
+        if __dev_mode__ and self.idx == "99":  # dev/test code
             asyncio.create_task(  # TODO: test/dev only
                 self.async_cancel_override()
                 # self.async_set_override(
@@ -314,13 +320,13 @@ class Zone(ZoneBase):
         # self._schedule.req_schedule()  # , restart=True) start collecting schedule
 
         for code in ("0004", "000C"):
-            self._command(code, payload=f"{self.id}00")
+            self._command(code, payload=f"{self.idx}00")
 
         for code in ("000A", "2349", "30C9"):
-            self._command(code, payload=self.id)
+            self._command(code, payload=self.idx)
 
         for code in ("12B0",):  # TODO: only if RAD zone, or if window_state is enabled?
-            self._command(code, payload=self.id)
+            self._command(code, payload=self.idx)
 
         # TODO: 3150(00?): how to do (if at all) & for what zone types?
 
@@ -486,7 +492,7 @@ class Zone(ZoneBase):
                 k: v
                 for z in msg_0.payload
                 for k, v in z.items()
-                if z["zone_idx"] == self.id
+                if z["zone_idx"] == self.idx
             }
 
         return {k: v for k, v in result.items() if k != "zone_idx"} if result else None
@@ -513,7 +519,7 @@ class Zone(ZoneBase):
             k: v
             for z in msg_0.payload
             for k, v in z.items()
-            if z["zone_idx"] == self.id
+            if z["zone_idx"] == self.idx
         }["temperature"]
 
         return self._temperature
@@ -532,7 +538,7 @@ class Zone(ZoneBase):
             k: v
             for z in msg_0.payload
             for k, v in z.items()
-            if z["zone_idx"] == self.id
+            if z["zone_idx"] == self.idx
         }["setpoint"]
 
     @property
@@ -577,9 +583,9 @@ class Zone(ZoneBase):
 
         if until is None:
             mode = "01" if mode == "04" else mode
-            payload = f"{self.id}{setpoint}{mode}FFFFFF"
+            payload = f"{self.idx}{setpoint}{mode}FFFFFF"
         else:  # required only by: 04, Temporary, ignored by others
-            payload = f"{self.id}{setpoint}{mode}FFFFFF{_dtm(until)}"
+            payload = f"{self.idx}{setpoint}{mode}FFFFFF{_dtm(until)}"
 
         self._command("2349", verb=" W", payload=payload)
 

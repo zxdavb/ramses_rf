@@ -41,7 +41,7 @@ class System(Controller):
         self._heater_relay = None
 
         self.zones = []
-        self.zone_by_id = {}
+        self.zone_by_idx = {}
         # self.zone_by_name = {}
 
     def update(self, msg):
@@ -70,7 +70,7 @@ class System(Controller):
             zone = self.dhw if self.dhw is not None else DhwZone(self)
 
         elif int(domain_id, 16) < MAX_ZONES:
-            zone = self.zone_by_id.get(domain_id)
+            zone = self.zone_by_idx.get(domain_id)
             if zone is None:
                 zone = Zone(self, domain_id)
             if zone_type is not None:
@@ -99,7 +99,7 @@ class System(Controller):
 
         schema["stored_dhw"] = self.dhw.schema if self.dhw is not None else None
 
-        schema["zones"] = {z.id: z.schema for z in self.zones}
+        schema["zones"] = {z.idx: z.schema for z in self.zones}
 
         ufh_controllers = [d.id for d in self.devices if d.type == "02"]
         if ufh_controllers:
@@ -228,16 +228,25 @@ class EvoSystem(System):
         def find_dhw_sensor(this):
             """Discover the stored HW this system (if any).
 
-            There is only 1 way to find a controller's DHW sensor:
-            1.  The 10A0 RQ/RP *from/to a 07:* (1x/4h)
+            There is only 2 way2 to find a controller's DHW sensor:
+            1. The 10A0 RQ/RP *from/to a 07:* (1x/4h) - reliable
+            2. Use sensor temp matching - non-deterministic
 
             Data from the CTL is considered more authorative. The RQ is initiated by the
             DHW, so is not authorative. The I/1260 is not to/from a controller, so is
             not useful.
             """
 
-            # 07:38:39.124 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4  # noqa
-            # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8  # noqa
+            # 10A0: RQ/07/01, RP/01/07: can get both parent controller & DHW sensor
+            # 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
+            # 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
+
+            # 1260: I/07: can't get which parent controller - need to match temps
+            # 045  I --- 07:045960 --:------ 07:045960 1260 003 000911
+
+            # 1F41: I/01: get parent controller, but not DHW sensor
+            # 045  I --- 01:145038 --:------ 01:145038 1F41 012 000004FFFFFF1E060E0507E4
+            # 045  I --- 01:145038 --:------ 01:145038 1F41 006 000002FFFFFF
 
             sensor = None
 
@@ -247,8 +256,8 @@ class EvoSystem(System):
 
             if sensor is not None:
                 if self.dhw is None:
-                    self.dhw = DhwZone(self._gwy, self, "FC")
-                # self.dhw.sensor = sensor
+                    self.dst.get_zone("HW")
+                self.dhw.sensor = sensor
 
         def find_zone_sensors() -> None:
             """Determine each zone's sensor by matching zone/sensor temperatures.
@@ -299,7 +308,7 @@ class EvoSystem(System):
             testable_zones = {
                 z: t
                 for z, t in changed_zones.items()
-                if self.zone_by_id[z].sensor is None
+                if self.zone_by_idx[z].sensor is None
                 and t not in [v for k, v in changed_zones.items() if k != z] + [None]
             }  # ...with unique (non-null) temps, and no sensor
             _LOGGER.debug(
@@ -329,14 +338,14 @@ class EvoSystem(System):
                 )
 
             if testable_sensors:  # the main matching algorithm...
-                for zone_id, temp in testable_zones.items():
+                for zone_idx, temp in testable_zones.items():
                     # TODO: when sensors announce temp, ?also includes it's parent zone
                     matching_sensors = [
                         s
                         for s in testable_sensors
-                        if s.temperature == temp and s._zone in (zone_id, None)
+                        if s.temperature == temp and s._zone in (zone_idx, None)
                     ]
-                    _LOGGER.debug("Testing zone %s, temp: %s", zone_id, temp)
+                    _LOGGER.debug("Testing zone %s, temp: %s", zone_idx, temp)
                     _LOGGER.debug(
                         " - matching sensor(s): %s (same temp & not from another zone)",
                         [s.id for s in matching_sensors],
@@ -344,7 +353,7 @@ class EvoSystem(System):
 
                     if len(matching_sensors) == 1:
                         _LOGGER.debug("   - matched sensor: %s", matching_sensors[0].id)
-                        zone = self.zone_by_id[zone_id]
+                        zone = self.zone_by_idx[zone_idx]
                         zone.sensor = matching_sensors[0]
                         zone.sensor.controller = self
                     elif len(matching_sensors) == 0:
@@ -363,22 +372,22 @@ class EvoSystem(System):
             testable_zones = {
                 z: t
                 for z, t in changed_zones.items()
-                if self.zone_by_id[z].sensor is None
+                if self.zone_by_idx[z].sensor is None
             }  # this will be true if ctl is sensor
             if not testable_zones:
                 return  # no testable zones
 
-            zone_id, temp = list(testable_zones.items())[0]
-            _LOGGER.debug("Testing (sole remaining) zone %s, temp: %s", zone_id, temp)
+            zone_idx, temp = list(testable_zones.items())[0]
+            _LOGGER.debug("Testing (sole remaining) zone %s, temp: %s", zone_idx, temp)
             # want to avoid complexity of z._temperature
-            # zone = self.zone_by_id[zone_id]
+            # zone = self.zone_by_idx[zone_idx]
             # if zone._temperature is None:
             #     return  # TODO: should have a (not-None) temperature
 
             matching_sensors = [
                 s
                 for s in testable_sensors
-                if s.temperature == temp and s._zone in (zone_id, None)
+                if s.temperature == temp and s._zone in (zone_idx, None)
             ]
 
             _LOGGER.debug(
@@ -389,7 +398,7 @@ class EvoSystem(System):
             # can safely(?) assume this zone is using the CTL as a sensor...
             if len(matching_sensors) == 0:
                 _LOGGER.debug("   - matched sensor: %s (by exclusion)", self.id)
-                zone = self.zone_by_id[zone_id]
+                zone = self.zone_by_idx[zone_idx]
                 zone.sensor = self
                 zone.sensor.controller = self
 
@@ -421,12 +430,10 @@ class EvoSystem(System):
         # if msg.src.type == "01" and msg.dst.controller is None:  # 3EF0
         #     msg.dst.controller = msg.src  # useful for TPI/OTB, uses 3EF0
 
-        # if self.heater_relay is None and msg.code in ("3220", "3B00", "3EF0"):
-        if msg.code in ("3220", "3B00", "3EF0"):
+        if msg.code in ("3220", "3B00", "3EF0"):  # self.heater_relay is None and
             find_htg_relay(msg, prev=prev_msg)
 
-        # if self.dhw_sensor is None and this.code in ("10A0"):
-        if msg.code in ("10A0"):
+        if msg.code in ("10A0", "1260"):  # self.dhw.sensor is None and
             find_dhw_sensor(msg)
 
     @staticmethod

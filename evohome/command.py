@@ -178,7 +178,7 @@ class Schedule:
         self._gwy = zone._gwy
         self._que = zone._que
 
-        self.id = zone.id
+        self.idx = zone.idx
 
         # initialse the fragment array: DRY
         self._init_frag_array(total_frags=0)  # could use msg.payload["frag_total"]
@@ -195,11 +195,11 @@ class Schedule:
         self._schedule = None
 
     def add_fragment(self, msg) -> None:
-        _LOGGER.error("Sched(%s).add_fragment: xxx", self.id)
+        _LOGGER.error("Sched(%s).add_fragment: xxx", self.idx)
 
         if msg.code != "0404" or msg.verb != "RP":
             raise ValueError("incorrect message verb/code")
-        if msg.payload["zone_idx"] != self.id:
+        if msg.payload["zone_idx"] != self.idx:
             raise ValueError("mismatched zone_idx")
 
         if self.total_frags == 0:
@@ -224,7 +224,7 @@ class Schedule:
         #     _ = self.schedule if self._gwy.config["listen_only"] else None
 
     def req_schedule(self) -> int:
-        _LOGGER.error("Sched(%s).req_schedule: xxx", self.id)
+        _LOGGER.error("Sched(%s).req_schedule: xxx", self.idx)
 
         # TODO: use a lock to ensure only 1 schedule being requested at a time
         self.req_fragment(restart=True)
@@ -234,7 +234,7 @@ class Schedule:
 
         Return 0 when there are no more fragments to get.
         """
-        _LOGGER.error("Sched(%s).req_fragment: xxx", self.id)
+        _LOGGER.error("Sched(%s).req_fragment: xxx", self.idx)
 
         if self._gwy.config["listen_only"]:
             return
@@ -253,7 +253,7 @@ class Schedule:
                 return 0  # not any(frags missing), nothing to add
             kwargs = {"pause": Pause.DEFAULT, "priority": Priority.HIGH}
 
-        header = f"{self.id}20000800{missing_frags[0] + 1:02d}{self.total_frags:02d}"
+        header = f"{self.idx}20000800{missing_frags[0] + 1:02d}{self.total_frags:02d}"
         self._que.put_nowait(Command("RQ", self._ctl.id, "0404", header, **kwargs))
 
         return missing_frags[0] + 1
@@ -271,7 +271,7 @@ class Schedule:
 
         _LOGGER.warning(
             "Sched(%s).schedule: array is: %s",
-            self.id,
+            self.idx,
             [{d["frag_index"]: d["fragment"]} for d in self._frag_array],
         )
 
@@ -307,6 +307,6 @@ class Schedule:
 
         self._schedule.append({"day_of_week": old_day, "switchpoints": switchpoints})
 
-        _LOGGER.debug("Sched(%s): len(schedule): %s", self.id, len(self._schedule))
-        # _LOGGER.debug("Sched(%s).schedule: %s", self.id, self._schedule)
+        _LOGGER.debug("Sched(%s): len(schedule): %s", self.idx, len(self._schedule))
+        # _LOGGER.debug("Sched(%s).schedule: %s", self.idx, self._schedule)
         return self._schedule

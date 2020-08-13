@@ -635,7 +635,7 @@ def parser_0418(payload, msg=None) -> Optional[dict]:
         "fault_type": CODE_0418_FAULT_TYPE.get(payload[8:10], payload[8:10]),
         "zone_id"
         if int(payload[10:12], 16) < MAX_ZONES
-        else "domain_id": payload[10:12],  # don't use zone_idx
+        else "domain_id": payload[10:12],  # TODO: don't use zone_idx (for now)
         "device_class": CODE_0418_DEV_CLASS.get(payload[12:14], payload[12:14]),
         "device_id": dev_hex_to_id(payload[38:]),  # is "00:000001/2 for CTL?
     }
@@ -1285,15 +1285,16 @@ def parser_3ef0(payload, msg) -> dict:
 
     if msg.src.type == "10":  # OTB, to 01:, or 34:
         assert msg.len == 6
-        assert int(payload[2:4], 16) <= 100
+        assert int(payload[2:4], 16) <= 100 or payload[2:4] == "FF"
         assert payload[4:6] in ("10", "11")
         assert payload[6:8] in ("00", "01", "02", "04", "08", "0A", "0C")
-        assert payload[8:12] == "00FF"  # or: in ("0000", "00FF", "FFFF")?
+        assert payload[8:12] == "00FF"  # or: in ("0000", "00FF", "FFFF")
 
-        if payload[6:8] == "0A":
-            assert payload[2:4] != "00"
-        else:
-            assert payload[2:4] == "00"
+        # TODO: this is WIP
+        # if payload[6:8] == "0A":
+        #     assert payload[2:4] != "00"
+        # else:
+        #     assert payload[2:4] == "00"
 
         # TODO: max value of [6:8] seen is "64", should be /200?
         return {
