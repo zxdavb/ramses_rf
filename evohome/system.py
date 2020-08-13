@@ -1,4 +1,4 @@
-"""The evohome system."""
+"""The evohome-compatible system (is a 1-1 with a controller)."""
 
 import asyncio
 from datetime import timedelta

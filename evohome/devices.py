@@ -1,4 +1,5 @@
-"""The entities for Honeywell's RAMSES II / Residential Network Protocol."""
+"""The evohome-compatible devices."""
+
 from datetime import datetime as dt, timedelta
 import logging
 from typing import Any, Optional
@@ -37,6 +38,7 @@ def dev_id_to_hex(device_id: str) -> str:
     return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # sans preceding 0x
 
 
+# this is used in zones.py, system.py
 def _dtm(value) -> str:
     def dtm_to_hex(tm_year, tm_mon, tm_mday, tm_hour, tm_min, tm_sec, *args):
         return f"{tm_min:02X}{tm_hour:02X}{tm_mday:02X}{tm_mon:02X}{tm_year:04X}"
@@ -212,6 +214,7 @@ class Device(Entity):
         assert device_addr.id not in gateway.device_by_id, "Duplicate device address"
 
         self.id = device_addr.id
+        self.hex_id = dev_id_to_hex(device_addr.id)
 
         gateway.devices.append(self)
         gateway.device_by_id[device_addr.id] = self
@@ -223,7 +226,6 @@ class Device(Entity):
         self.addr = device_addr
         self.type = device_addr.type
         self.dev_type = DEVICE_TYPES.get(self.addr.type)
-        self.hex_id = dev_id_to_hex(device_addr.id)
 
         if self.addr.type in DEVICE_TABLE:
             self._has_battery = DEVICE_TABLE[self.addr.type].get("has_battery")

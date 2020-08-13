@@ -1,4 +1,5 @@
-"""The entities for Honeywell's RAMSES II / Residential Network Protocol."""
+"""The evohome-compatible zones."""
+
 import asyncio
 import json
 import logging
