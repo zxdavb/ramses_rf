@@ -8,12 +8,12 @@ from typing import Optional
 
 from .command import Priority, RQ_RETRY_LIMIT, RQ_TIMEOUT
 from .const import (
-    __dev_mode__,
+    # CODE_0005_ZONE_TYPE,
     DEVICE_HAS_ZONE_SENSOR,
     MAX_ZONES,
     SYSTEM_MODE_LOOKUP,
     SYSTEM_MODE_MAP,
-    # ZONE_TYPE_LOOKUP,
+    __dev_mode__,
 )
 from .devices import _dtm, Controller, Device
 from .zones import DhwZone, Zone
@@ -146,7 +146,7 @@ class EvoSystem(System):
         #     self._command("0004", payload=f"{idx:02x}00")
 
         # find the configured zones, and their type
-        for type_ in range(18):  # ZONE_TYPE_LOOKUP:
+        for type_ in range(18):  # CODE_0005_ZONE_TYPE:
             self._command("0005", payload=f"{type_:04X}")
 
         # system-related... (not working: 1280, 22D9, 2D49, 2E04, 3220, 3B00)

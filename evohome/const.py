@@ -2,6 +2,11 @@
 from collections import namedtuple
 import re
 
+
+def slug(string: str) -> str:
+    return re.sub(r"[\W_]+", "_", string.lower())
+
+
 # grep ' F[89ABxDE]' | grep -vE ' (0008|1F09/F8|1FC9|2D49/FD) '
 # grep ' F[89ABCDE]' | grep -vE ' (0008|1F09/xx|1FC9|0001|0009|1100|3150|3B00) '
 
@@ -24,19 +29,36 @@ CODE_SCHEMA = {
     "1F09": {"name": "system_sync", "rp_len": 3, "rq_len": 1, "w_len": 3},
     "2309": {
         "name": "setpoint",
-        "uses_zone_idx": True,
+        "null_resp": "7FFF",
         "rp_len": 3,
         "rq_len": 1,
         "w_len": 3,
+        "uses_zone_idx": True,
     },
-    "30C9": {"name": "temperature", "uses_zone_idx": True},
-    "000A": {"name": "zone_params", "uses_zone_idx": True, "rp_len": 6, "rq_len": 3},
+    "30C9": {"name": "temperature", "null_resp": "7FFF", "uses_zone_idx": True},
+    "000A": {
+        "name": "zone_params",
+        "null_resp": "007FFF7FFF",
+        "rp_len": 6,
+        "rq_len": 3,
+        "uses_zone_idx": True,
+    },
     # zone-specific codes
-    "0004": {"name": "zone_name", "uses_zone_idx": True, "rp_len": 22, "rq_len": 2},
-    "000C": {"name": "zone_actuators", "uses_zone_idx": True},
+    "0004": {
+        "name": "zone_name",
+        "null_resp": "7F" * 20,
+        "rp_len": 22,
+        "rq_len": 2,
+        "uses_zone_idx": True,
+    },
+    "000C": {
+        "name": "zone_actuators",
+        "null_resp": "007FFFFFFF",
+        "uses_zone_idx": True,
+    },
     "0404": {"name": "zone_schedule", "uses_zone_idx": True},
-    "12B0": {"name": "window_state", "uses_zone_idx": True},
-    "2349": {"name": "zone_mode", "uses_zone_idx": True},
+    "12B0": {"name": "window_state", "null_resp": "7FFF", "uses_zone_idx": True},
+    "2349": {"name": "zone_mode", "zone_idx": True, "null_resp": "7FFF00FFFFFF",},
     "3150": {"name": "heat_demand", "uses_zone_idx": True},
     # controller/system codes
     "0005": {"name": "system_zones", "rq_length": 2},
@@ -249,7 +271,7 @@ DEVICE_TABLE = {
 # Example of:
 #  - Sundial RF2 Pack 3: 23:(ST9420C), 07:(CS92), and 22:(DTS92(E))
 
-# HCW80 has option of being wired
+# HCW80 has option of being wired (normally wireless)
 # ST9420C has battery back-up (as does evohome)
 
 DEVICE_TYPES = {k: v["type"] for k, v in DEVICE_TABLE.items()}
@@ -298,16 +320,6 @@ ZONE_MODE_MAP = {
 }
 ZONE_MODE_LOOKUP = {v: k for k, v in ZONE_MODE_MAP.items()}
 
-# used by 0005, also: 01, 02, 04, 0C, 0D, 0E, 0F, 10
-ZONE_TYPE_LOOKUP = {
-    "00": "configured_zones",  # same as 04?
-    "08": "radiator_valve",
-    "09": "ufh_controller",
-    "0A": "zone_valve",
-    "0B": "mixing_valve",
-    "11": "electric_heat",
-}
-
 DHW_STATE_MAP = {"00": "Off", "01": "On"}
 DHW_STATE_LOOKUP = {v: k for k, v in DHW_STATE_MAP.items()}
 
@@ -320,36 +332,16 @@ MAX_ZONES = 12
 # Sundial RF2: 2 (0-1), usually only one, but ST9520C can do two zones
 
 ZONE_TABLE = {
-    "UFH": {"type": "02", "device": "UFC", "name": "Underfloor Heating"},
-    "RAD": {"type": "04", "device": "TRV", "name": "Radiator Valve"},
-    "ELE": {"type": "13", "device": "BDR", "name": "Electric Heat"},
-    "VAL": {"type": "x0", "device": "BDR", "name": "Zone Valve"},
-    "MIX": {"type": "x1", "device": "HM8", "name": "Mixing Valve"},
-    "DHW": {"type": "FC", "device": "DHW", "name": "Stored DHW"},
+    "UFH": {"type": "02", "actuator": "UFC", "name": "Underfloor Heating"},
+    "RAD": {"type": "04", "actuator": "TRV", "name": "Radiator Valve"},
+    "ELE": {"type": "13", "actuator": "BDR", "name": "Electric Heat"},
+    "VAL": {"type": "x0", "actuator": "BDR", "name": "Zone Valve"},
+    "MIX": {"type": "x1", "actuator": "HM8", "name": "Mixing Valve"},
+    "DHW": {"type": "FC", "sensor": "DHW", "name": "Stored DHW"},
 }
-ZONE_TYPE_MAP = {k: v["name"] for k, v in ZONE_TABLE.items()}
 ZONE_CLASS_MAP = {v["type"]: k for k, v in ZONE_TABLE.items()}
-ZONE_TYPE_SLUGS = {
-    "radiator_valve": "RAD",
-    "electric_heat": "ELE",
-    "zone_valve": "VAL",
-    "underfloor_heating": "UFH",
-    "mixing_valve": "MIX",
-}
-# Used by 0418/system_fault parser
-FAULT_DEVICE_CLASS = {
-    "00": "Controller?",
-    "01": "Sensor",
-    "04": "Actuator",
-    "05": "DhwSensor?",
-}
-FAULT_STATE = {"00": "Fault", "40": "Restore", "C0": "Unknown (C0)"}
-FAULT_TYPE = {
-    "03": "MainsLow",
-    "04": "BatteryLow",
-    "06": "CommsFault",
-    "0A": "SensorError",
-}
+ZONE_TYPE_MAP = {k: v["name"] for k, v in ZONE_TABLE.items()}
+ZONE_TYPE_SLUGS = {slug(v["name"]): k for k, v in ZONE_TABLE.items()}
 
 DTM_LONG_REGEX = re.compile(
     r"\d{4}-[01]\d-[0-3]\d(T| )[0-2]\d:[0-5]\d:[0-5]\d\.\d{6} ?"
@@ -371,46 +363,27 @@ COMMAND_FORMAT = "{:<2} --- {} {} --:------ {} {:03d} {}"
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:8s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:8s} || {}"
 
-# Packet codes/classes - lengths are in bytes, len(0xFF) == 1
-TBD_COMMAND_MAGIC = {
-    "0004": {
-        "length": {"RQ": 2, "RP": 22, " I": 22, " W": 22},
-        "zone_idx": 2 * 2,
-        "null_resp": "7F" * 20,
-    },
-    "000A": {
-        "length": {"RQ": [1, 6], "RP": 6, " I": 6, " W": 0},
-        "zone_idx": True,
-        "null_resp": "007FFF7FFF",
-    },  # CTL/I is an array
-    "000C": {
-        "length": {"RQ": 2, "RP": 6, " I": 0, " W": 0},
-        "zone_idx": True,
-        "null_resp": "007FFFFFFF",
-    },  # RP is an array
-    "2309": {
-        "length": {"RQ": 1, "RP": 3, " I": 3, " W": 0},
-        "zone_idx": True,
-        "null_resp": "7FFF",
-    },  # CTL/I is an array
-    "30C9": {
-        "length": {"RQ": 1, "RP": 3, " I": 0, " W": 0},
-        "zone_idx": True,
-        "null_resp": "7FFF",
-    },  # CTL/I is an array
-    "12B0": {
-        "length": {"RQ": 1, "RP": 3, " I": 0, " W": 0},
-        "zone_idx": True,
-        "null_resp": "7FFF",
-    },
-    "2349": {
-        "length": {"RQ": 1, "RP": 7, " I": 3, " W": 0},
-        "zone_idx": True,
-        "null_resp": "7FFF00FFFFFF",
-    },
-    "0008": {"length": {"RQ": 0, "RP": 0, " I": 2, " W": 0}},
-    "1060": {"length": {"RQ": 0, "RP": 0, " I": 3, " W": 0}},  # zone for 04:
-    "3150": {"length": {"RQ": 0, "RP": 0, " I": 2, " W": 0}},
-    "1F09": {"length": {"RQ": 1, "RP": 3, " I": 0, " W": 0}},
-    "2E04": {"length": {"RQ": 1, "RP": 8, " I": 0, " W": 0}},
+# used by 0005/system_zone parser
+CODE_0005_ZONE_TYPE = {
+    "00": "configured_zones",  # same as 04?
+    "08": "radiator_valve",
+    "09": "ufh_controller",
+    "0A": "zone_valve",
+    "0B": "mixing_valve",
+    "11": "electric_heat",
+}  # also: 01, 02, 04, 0C, 0D, 0E, 0F, 10
+
+# Used by 0418/system_fault parser
+CODE_0418_DEV_CLASS = {
+    "00": "Controller?",
+    "01": "Sensor",
+    "04": "Actuator",
+    "05": "DhwSensor?",
+}
+CODE_0418_FAULT_STATE = {"00": "Fault", "40": "Restore"}  # , "C0": "Unknown (C0)"}
+CODE_0418_FAULT_TYPE = {
+    "03": "MainsLow",
+    "04": "BatteryLow",
+    "06": "CommsFault",
+    "0A": "SensorError",
 }

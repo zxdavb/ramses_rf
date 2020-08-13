@@ -6,16 +6,16 @@ from typing import Optional, Union
 
 from .const import (
     CODE_SCHEMA,
+    CODE_0005_ZONE_TYPE,
+    CODE_0418_DEV_CLASS,
+    CODE_0418_FAULT_STATE,
+    CODE_0418_FAULT_TYPE,
     DOMAIN_TYPE_MAP,
-    FAULT_DEVICE_CLASS,
-    FAULT_STATE,
-    FAULT_TYPE,
     MAY_USE_DOMAIN_ID,
     MAY_USE_ZONE_IDX,
     MAX_ZONES,
     SYSTEM_MODE_MAP,
     ZONE_MODE_MAP,
-    ZONE_TYPE_LOOKUP,
     __dev_mode__,
 )
 from .devices import dev_hex_to_id
@@ -375,17 +375,17 @@ def parser_0005(payload, msg) -> Optional[dict]:
 
         assert seqx[:2] == "00"
         assert len(seqx) == 8
-        # assert payload[2:4] in ZONE_TYPE_LOOKUP
+        # assert payload[2:4] in CODE_0005_ZONE_TYPE
 
         return {
             "zone_mask": (_get_flag8(seqx[4:6]) + _get_flag8(seqx[6:8]))[:MAX_ZONES],
-            "zone_type": ZONE_TYPE_LOOKUP.get(seqx[2:4], seqx[2:4]),
+            "zone_type": CODE_0005_ZONE_TYPE.get(seqx[2:4], seqx[2:4]),
         }
 
     if msg.verb == "RQ":
         assert payload[:2] == "00"
         return {
-            "zone_type": ZONE_TYPE_LOOKUP.get(payload[2:4], payload[2:4]),
+            "zone_type": CODE_0005_ZONE_TYPE.get(payload[2:4], payload[2:4]),
         }
 
     assert msg.verb in (" I", "RP")
@@ -617,12 +617,12 @@ def parser_0418(payload, msg=None) -> Optional[dict]:
         assert len(payload) / 2 == 22
     #
     assert payload[:2] == "00"  # unknown_0
-    assert payload[2:4] in list(FAULT_STATE)  # C0 dont appear in the UI?
+    assert payload[2:4] in list(CODE_0418_FAULT_STATE)  # C0 dont appear in the UI?
     assert int(payload[4:6], 16) <= 63  # TODO: upper limit is: 60? 63? more?
     assert payload[6:8] == "B0"  # unknown_1, ?priority
-    assert payload[8:10] in list(FAULT_TYPE)
+    assert payload[8:10] in list(CODE_0418_FAULT_TYPE)
     assert int(payload[10:12], 16) < MAX_ZONES or payload[10:12] in ("FA", "FC")
-    assert payload[12:14] in list(FAULT_DEVICE_CLASS)
+    assert payload[12:14] in list(CODE_0418_DEV_CLASS)
     assert payload[14:18] == "0000"  # unknown_2
     assert payload[28:30] in ("7F", "FF")  # last bit in dt field, DST?
     assert payload[30:38] == "FFFF7000"  # unknown_3
@@ -631,12 +631,12 @@ def parser_0418(payload, msg=None) -> Optional[dict]:
     return {  # TODO: stop using __idx()?
         **(_idx(payload[4:6], msg) if msg is not None else {"log_idx": payload[4:6]}),
         "timestamp": _timestamp(payload[18:30]),
-        "fault_state": FAULT_STATE.get(payload[2:4], payload[2:4]),
-        "fault_type": FAULT_TYPE.get(payload[8:10], payload[8:10]),
+        "fault_state": CODE_0418_FAULT_STATE.get(payload[2:4], payload[2:4]),
+        "fault_type": CODE_0418_FAULT_TYPE.get(payload[8:10], payload[8:10]),
         "zone_id"
         if int(payload[10:12], 16) < MAX_ZONES
         else "domain_id": payload[10:12],  # don't use zone_idx
-        "device_class": FAULT_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
+        "device_class": CODE_0418_DEV_CLASS.get(payload[12:14], payload[12:14]),
         "device_id": dev_hex_to_id(payload[38:]),  # is "00:000001/2 for CTL?
     }
 

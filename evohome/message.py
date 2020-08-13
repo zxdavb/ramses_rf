@@ -13,7 +13,7 @@ from .const import (
     MSG_FORMAT_18,
     NON_DEVICE,
     NUL_DEVICE,
-    ZONE_TYPE_LOOKUP,
+    CODE_0005_ZONE_TYPE,
     ZONE_TYPE_SLUGS,
     Address,
     __dev_mode__,
@@ -346,7 +346,7 @@ class Message:
         #     return
 
         if self.code == "0005":
-            if self._payload["zone_type"] in ZONE_TYPE_LOOKUP.values():
+            if self._payload["zone_type"] in CODE_0005_ZONE_TYPE.values():
                 [
                     self.src.get_zone(
                         f"{idx:02X}",
