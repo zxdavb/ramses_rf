@@ -1072,7 +1072,7 @@ def parser_313f(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # heat_demand (of device, FC domain)
 def parser_3150(payload, msg) -> Optional[dict]:
-    # event-driven, and periodically; FC domain is highest of all TRVs
+    # event-driven, and periodically; FC domain is highest of all zones
     # TODO: all have a valid domain will UFC/CTL respond to an RQ, for FC, for a zone?
 
     def _parser(seqx) -> dict:

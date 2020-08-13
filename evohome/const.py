@@ -329,7 +329,7 @@ ZONE_TABLE = {
 ZONE_TYPE_MAP = {k: v["name"] for k, v in ZONE_TABLE.items()}
 ZONE_CLASS_MAP = {v["type"]: k for k, v in ZONE_TABLE.items()}
 ZONE_TYPE_SLUGS = {
-    "radiator_valve": "TRV",
+    "radiator_valve": "RAD",
     "electric_heat": "BDR",
     "zone_valve": "VAL",
     "underfloor_heating": "UFH",

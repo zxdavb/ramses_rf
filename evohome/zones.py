@@ -319,7 +319,7 @@ class Zone(ZoneBase):
         for code in ("000A", "2349", "30C9"):
             self._command(code, payload=self.id)
 
-        for code in ("12B0",):  # TODO: only if TRV zone, or if window_state is enabled?
+        for code in ("12B0",):  # TODO: only if RAD zone, or if window_state is enabled?
             self._command(code, payload=self.id)
 
         # TODO: 3150(00?): how to do (if at all) & for what zone types?
@@ -346,7 +346,7 @@ class Zone(ZoneBase):
 
         elif msg.code == "3150":  # TODO: and msg.verb in (" I", "RP")?
             assert msg.src.type in ("02", "04", "13")
-            assert self._zone_type in (None, "TRV", "UFH", "VAL")
+            assert self._zone_type in (None, "RAD", "UFH", "VAL")
 
             if msg.src.type in ("02", "04", "13"):
                 zone_type = ZONE_CLASS_MAP[msg.src.type]
@@ -399,7 +399,7 @@ class Zone(ZoneBase):
         #     raise LookupError  #  do this in add_devices
 
         if self._sensor is None:
-            self._sensor = device  # if TRV, zone type likely (but not req'd) RadValve
+            self._sensor = device  # if TRV, zone type likely (but not req'd) RAD
             self.add_device(device)
 
     @property
@@ -410,13 +410,13 @@ class Zone(ZoneBase):
         # TODO: try to cast an initial type
         dev_types = [d.dev_type for d in self.devices if d.dev_type in ZONE_CLASSES]
 
-        # contrived code is for edge case: TRV is being used as sensor for non-TRV zone
+        # contrived code is for edge case: TRV is being used as sensor for non-RAD zone
         for _type in (t for t in dev_types if t != "TRV"):
             self._zone_type = _type
             break
         else:
             if "TRV" in dev_types:
-                self._zone_type = "TRV"
+                self._zone_type = "RAD"
 
         if self._zone_type is not None:
             self.__class__ = ZONE_CLASSES[self._zone_type]
@@ -635,7 +635,7 @@ class ValZone(BdrZone, ZoneHeatDemand):  # Zone valve zones
     """
 
 
-class TrvZone(Zone, ZoneHeatDemand):  # Radiator zones
+class RadZone(Zone, ZoneHeatDemand):  # Radiator zones
     """Base for Radiator Valve zones.
 
     For radiators controlled by HR92s or HR80s (will also call for heat).
@@ -674,7 +674,7 @@ class MixZone(Zone, ZoneHeatDemand):  # Mix valve zones
 
 
 ZONE_CLASSES = {
-    "TRV": TrvZone,
+    "RAD": RadZone,
     "BDR": BdrZone,
     "VAL": ValZone,
     "UFH": UfhZone,
