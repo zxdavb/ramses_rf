@@ -259,18 +259,11 @@ class PortPktProvider:
         # TODO: validate the packet before calculating the header
         # TODO: see the packet sent via the gwy before starting the timers
         if self._lock is not None:
-            if pkt_str[41:45] == "0404":
-                header = "|".join(
-                    (
-                        pkt_str[4:6],
-                        pkt_str[11:20],
-                        pkt_str[41:45],
-                        pkt_str[50:52],
-                        pkt_str[60:62],
-                    )
-                )
-            else:
-                header = "|".join((pkt_str[4:6], pkt_str[11:20], pkt_str[41:45]))
+            header = "|".join((pkt_str[4:6], pkt_str[11:20], pkt_str[41:45]))
+            if pkt_str[41:45] == "000C":
+                header = "|".join((header, pkt_str[50:54]))
+            elif pkt_str[41:45] == "0404":
+                header = "|".join((pkt_str[50:52], pkt_str[60:62]))
 
             self._lock.acquire()
 

@@ -11,7 +11,7 @@ from .exceptions import CorruptStateError
 from .logger import dt_now
 
 _LOGGER = logging.getLogger(__name__)
-if __dev_mode__:
+if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
@@ -226,7 +226,6 @@ class Device(Entity):
 
         self.addr = device_addr
         self.type = device_addr.type
-        # self.dev_type = DEVICE_TYPES.get(self.type)
 
         if self.addr.type in DEVICE_TABLE:
             self._has_battery = DEVICE_TABLE[self.addr.type].get("has_battery")
@@ -260,7 +259,7 @@ class Device(Entity):
     def __str__(self) -> str:
         """Return a brief representation of the device as a string."""
 
-        return f"{self.id}"  # " ({self.dev_type})"
+        return f"{self.id} ({DEVICE_TYPES.get(self.type)})"
 
     def _discover(self):
         # do these even if battery-powered (e.g. device might be in rf_check mode)
@@ -417,7 +416,7 @@ class DhwSensor(Device, BatteryState):
     def __init__(self, gateway, device_addr, **kwargs) -> None:
         super().__init__(gateway, device_addr, **kwargs)
 
-        self._domain_id = "HW"
+        self._domain_id = "FA"
 
     def update(self, msg):
         super().update(msg)
@@ -467,7 +466,9 @@ class BdrSwitch(Device, Actuator):
     def __init__(self, gateway, device_addr, **kwargs) -> None:
         super().__init__(gateway, device_addr, **kwargs)
 
-        self._is_tpi = None
+        self._is_tpi = kwargs.get("domain_id") == "FC"
+        if self._is_tpi:
+            self._ctl.heater_relay = self
 
     def _discover(self):
         super()._discover()
@@ -492,22 +493,22 @@ class BdrSwitch(Device, Actuator):
 
     @property
     def is_tpi(self) -> Optional[bool]:  # 3B00
-        def make_tpi():
-            # self.dev_type = "TPI"
-            self._domain_id = "FC"  # TODO: check is None first
-            _LOGGER.debug("Promoted device %s to TPI", self.id)
-
         if self._is_tpi is not None:
             return self._is_tpi
 
-        if "1FC9" in self._msgs and self._msgs["1FC9"].verb == "RP":
+        if "000C" in self._msgs and self._msgs["000C"].verb == "RP":
+            pass
+
+        elif "1FC9" in self._msgs and self._msgs["1FC9"].verb == "RP":
             if "3B00" in self._msgs["1FC9"].raw_payload:
                 self._is_tpi = True
-                make_tpi()
 
         elif "3B00" in self._msgs and self._msgs["3B00"].verb == " I":
             self._is_tpi = True
-            make_tpi()
+
+        if self._is_tpi:
+            self._domain_id = "FC"  # TODO: check is None first
+            self.ctl.heater_relay = self
 
         return self._is_tpi
 

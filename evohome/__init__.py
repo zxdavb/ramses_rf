@@ -241,6 +241,15 @@ class Gateway:
                 # RQ --- 18:013393 01:145038 --:------ 0404 007 09 20 0008 000100
                 #                                               00 05 02C8
 
+                # for device_type in ("0D", "0E", "0F"):  # CODE_000C_DEVICE_TYPE:
+                #     cmd = Command("RQ", "01:145038", "000C", f"00{device_type}")
+                #     await manager.put_pkt(cmd, _LOGGER)
+
+                # for z in range(4):
+                #     for x in range(12):
+                #         cmd = Command("RQ", "01:145038", "000C", f"{z:02X}{x:02X}")
+                #         await manager.put_pkt(cmd, _LOGGER)
+
                 # for p in ("00", "01", "FF", "0000", "0100", "FF00"):
                 #     for c in ("0003", "0007", "000B", "000D", "000F"):
                 #         cmd = Command("RQ", "01:145038", c, f"0008{p}")

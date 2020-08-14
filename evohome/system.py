@@ -66,7 +66,7 @@ class System(Controller):
         Can also set a zone's sensor, and zone_type.
         """
 
-        if domain_id == "HW":
+        if domain_id == "FA":
             zone = self.dhw if self.dhw is not None else DhwZone(self)
 
         elif int(domain_id, 16) < MAX_ZONES:
@@ -145,9 +145,13 @@ class EvoSystem(System):
         # for idx in range(12):
         #     self._command("0004", payload=f"{idx:02x}00")
 
+        # find the system devices
+        for dev_type in ("0D", "0E", "0F"):  # CODE_000C_DEVICE_TYPE:
+            self._command("000C", payload=f"00{dev_type}")
+
         # find the configured zones, and their type
-        for type_ in range(18):  # CODE_0005_ZONE_TYPE:
-            self._command("0005", payload=f"{type_:04X}")
+        for zone_type in range(18):  # CODE_0005_ZONE_TYPE:
+            self._command("0005", payload=f"{zone_type:04X}")
 
         # system-related... (not working: 1280, 22D9, 2D49, 2E04, 3220, 3B00)
         self._command("1F09", payload="00")
@@ -256,7 +260,7 @@ class EvoSystem(System):
 
             if sensor is not None:
                 if self.dhw is None:
-                    self.dst.get_zone("HW")
+                    self.dst.get_zone("FA")
                 self.dhw.sensor = sensor
 
         def find_zone_sensors() -> None:
@@ -489,6 +493,7 @@ class EvoSystem(System):
 
         if self._heater_relay is None:
             self._heater_relay = device
+            # device._is_tpi = True
             # self.add_device(device)  # self._gwy.get_device(xxx)
 
     def fault_log(self, force_update=False) -> Optional[list]:  # 0418

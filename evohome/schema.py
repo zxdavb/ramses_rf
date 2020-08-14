@@ -223,7 +223,7 @@ def load_schema(gwy, controller_id, schema, **kwargs) -> bool:
             dev = gwy.get_device(dev, controller=ctl)
             gwy.evo.dhw_relay = dev
 
-        ctl.get_zone("HW")
+        ctl.get_zone("FA")
 
     for ufh_ctl, ufh_schema in schema["ufh_controllers"]:
         dev = Address(id=ufh_ctl, type=ufh_ctl[:2])

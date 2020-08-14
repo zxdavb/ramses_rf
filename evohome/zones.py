@@ -92,18 +92,18 @@ class DhwZone(ZoneBase, HeatDemand):
     """
 
     def __init__(self, controller, sensor=None, relay=None) -> None:
-        super().__init__(controller, "HW")
+        super().__init__(controller, "FA")
 
         controller.dhw = self
 
         self._sensor = None
         self._relay = None
-        self._zone_type = "DHW"
+        self.type = "DHW"
 
         self._discover()  # should be last thing in __init__()
 
     def _discover(self):
-        # if False and __dev_mode__ and self.idx == "HW":  # dev/test code
+        # if False and __dev_mode__ and self.idx == "FA":  # dev/test code
         #     self.async_set_override(state="On")
 
         for code in ("10A0", "1100", "1260", "1F41"):  # TODO: what about 1100?
@@ -430,22 +430,20 @@ class Zone(ZoneBase):
         dev_types = [d.type for d in self.devices if d.type in ("02", "04", "13")]
 
         if "02" in dev_types:
-            class_ = "UFH"
+            zone_type = "UFH"
         elif "13" in dev_types and "3150" in self.msgs:
-            class_ = "VAL"
+            zone_type = "VAL"
         elif "13" in dev_types:
-            class_ = "ELE"  # could still be a VAL
-        # elif "??" in dev_types:
-        #     class_ = "MIX"
+            zone_type = "ELE"  # could still be a VAL
+        # elif "??" in dev_types:  # TODO:
+        #     zone_type = "MIX"
         elif "04" in dev_types:  # beware edge case: TRV as sensor for a non-RAD zone
-            class_ = "RAD"
+            zone_type = "RAD"
         else:
-            class_ = None
+            zone_type = None
 
-        if class_ is not None:
-            self._zone_type = class_
-            self.__class__ = ZONE_CLASSES[class_]
-            _LOGGER.debug("Set Zone %s type as %s", self.id, class_)
+        if zone_type is not None:
+            self._set_zone_type(zone_type)
 
         return self._zone_type
 
@@ -521,7 +519,7 @@ class Zone(ZoneBase):
         await self._get_msg("000C")  # if possible/allowed, get an up-to-date pkt
 
         if "000C" in self._msgs:
-            return self._msgs["000C"].payload["actuators"]
+            return self._msgs["000C"].payload["devices"]
         return [d.id for d in self.devices if d[:2] in DEVICE_IS_ACTUATOR]
 
     @property

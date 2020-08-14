@@ -94,14 +94,17 @@ class Command:
         if self.verb not in ("RQ", " W"):
             return
 
-        if self.code == "0404" and self.verb == "RQ":
-            return "|".join(
-                ("RP", self.dest_addr, "0404", self.payload[:2], self.payload[10:12])
-            )
-
-        return "|".join(
+        header = "|".join(
             ("RP" if self.verb == "RQ" else " I", self.dest_addr, self.code)
         )
+
+        if self.code == "000C" and self.verb == "RQ":
+            return "|".join((header, self.payload[:4]))
+
+        if self.code == "0404" and self.verb == "RQ":
+            return "|".join((header, self.payload[:2], self.payload[10:12]))
+
+        return header
 
     @staticmethod
     def _is_valid_operand(other) -> bool:

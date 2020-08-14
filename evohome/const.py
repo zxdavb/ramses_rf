@@ -51,11 +51,7 @@ CODE_SCHEMA = {
         "rq_len": 2,
         "uses_zone_idx": True,
     },
-    "000C": {
-        "name": "zone_actuators",
-        "null_resp": "007FFFFFFF",
-        "uses_zone_idx": True,
-    },
+    "000C": {"name": "zone_devices", "null_resp": "007FFFFFFF", "uses_zone_idx": True,},
     "0404": {"name": "zone_schedule", "uses_zone_idx": True},
     "12B0": {"name": "window_state", "null_resp": "7FFF", "uses_zone_idx": True},
     "2349": {"name": "zone_mode", "uses_zone_idx": True, "null_resp": "7FFF00FFFFFF",},
@@ -340,7 +336,7 @@ ZONE_TABLE = {
     "DHW": {"type": "x2", "sensor": "DHW", "name": "Stored DHW"},
 }
 ZONE_CLASS_MAP = {v["type"]: k for k, v in ZONE_TABLE.items()}
-ZONE_TYPE_MAP = {k: v["name"] for k, v in ZONE_TABLE.items()}
+ZONE_TYPE_MAP = {k: slug(v["name"]) for k, v in ZONE_TABLE.items()}
 ZONE_TYPE_SLUGS = {slug(v["name"]): k for k, v in ZONE_TABLE.items()}
 
 DTM_LONG_REGEX = re.compile(
@@ -366,12 +362,38 @@ MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:8s} || {}"
 # used by 0005/system_zone parser
 CODE_0005_ZONE_TYPE = {
     "00": "configured_zones",  # same as 04?
+    # 1": "unknown",
+    # 2": "unknown",
+    # 4": "configured_zones",
     "08": "radiator_valve",
     "09": "ufh_controller",
     "0A": "zone_valve",
     "0B": "mixing_valve",
+    # C": "unknown",
+    # D: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] - 1 if DHW and/or boiler?
+    # E: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] - 1 if DHW and/or boiler?
+    # F: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] - 1 always
     "11": "electric_heat",
-}  # also: 01, 02, 04, 0C, 0D, 0E, 0F, 10
+}  # 03, 05, 06, 07: & >11 - no response
+
+CODE_000C_DEVICE_TYPE = {
+    "00": "zone_actuators",
+    "01": "xx",
+    "02": "xx",
+    "03": "xx",
+    "04": "zone_sensor",  # 03, 04, 34
+    "05": "xx",
+    "06": "xx",
+    "07": "xx",
+    "08": "actuators_trv",  # 04 (all TRVs)
+    "09": "xx",
+    "0A": "actuators_bdr",  # 13 (for a ZV zone)
+    "0B": "xx",
+    "0C": "xx",
+    "0D": "dhw_sensor",  # z_idx 0 only
+    "0E": "dhw_relay",  # FA
+    "0F": "htg_relay",  # FC
+}
 
 # Used by 0418/system_fault parser
 CODE_0418_DEVICE_CLASS = {
@@ -380,7 +402,11 @@ CODE_0418_DEVICE_CLASS = {
     "04": "actuator",
     "05": "dhw_sensor",
 }
-CODE_0418_FAULT_STATE = {"00": "fault", "40": "restore"}  # , "C0": "unknown_c0"}
+CODE_0418_FAULT_STATE = {
+    "00": "fault",
+    "40": "restore",
+    "C0": "unknown_c0",
+}  # C0s do not appear in the evohomeUI
 CODE_0418_FAULT_TYPE = {
     "03": "mains_low",
     "04": "battery_low",

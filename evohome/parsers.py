@@ -7,6 +7,7 @@ from typing import Optional, Union
 from .const import (
     CODE_SCHEMA,
     CODE_0005_ZONE_TYPE,
+    CODE_000C_DEVICE_TYPE,
     CODE_0418_DEVICE_CLASS,
     CODE_0418_FAULT_STATE,
     CODE_0418_FAULT_TYPE,
@@ -53,6 +54,17 @@ def _idx(seqx, msg) -> dict:
 
     elif msg.code in ("0002", "2D49"):  # non-evohome: hometronics
         return {"other_idx": seqx}
+
+    elif msg.code == "000C":  # an exception to the usual rules
+        if msg.raw_payload[:4] in ("000D", "000E"):
+            assert seqx == "00"
+            return {"domain_id": "FA"}
+        if msg.raw_payload[:4] == "000F":
+            assert seqx == "00"
+            return {"domain_id": "FC"}
+
+        assert int(seqx, 16) < MAX_ZONES
+        return {"zone_idx": seqx}
 
     elif msg.code == "0016":  # WIP, not normally {"uses_zone_idx": True}
         if {"12", "22"} & {msg.src.type, msg.dst.type}:
@@ -494,7 +506,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
     # RQ payload is zz00, NOTE: aggregation of parsing taken here
     def _parser(seqx) -> dict:
         assert seqx[:2] == payload[:2]
-        assert seqx[2:4] in ("00", "0A", "0F", "10")  # TODO: usu. 00 - subzone?
+        # assert seqx[2:4] in ("00", "0A", "0F", "10")  # TODO: usu. 00 - subzone?
         assert seqx[4:6] in ("00", "7F")  # TODO: what does 7F means
 
         return {dev_hex_to_id(seqx[6:12]): seqx[4:6]}
@@ -504,7 +516,8 @@ def parser_000c(payload, msg) -> Optional[dict]:
 
     return {
         **_idx(payload[:2], msg),
-        "actuators": [k for d in devices for k, v in d.items() if v != "7F"],
+        "device_class": CODE_000C_DEVICE_TYPE[payload[2:4]],
+        "devices": [k for d in devices for k, v in d.items() if v != "7F"],
     }
 
 
@@ -593,7 +606,11 @@ def parser_0404(payload, msg) -> Optional[dict]:
 @parser_decorator  # system_fault
 def parser_0418(payload, msg=None) -> Optional[dict]:
     """10 * 6 log entries in the UI, but 63 via RQs."""
-    #
+
+    # 045 RP --- 01:145038 18:013393 --:------ 0418 022 000000B00401010000008694A3CC7FFFFF70000ECC8A  # noqa
+    # 045 RP --- 01:145038 18:013393 --:------ 0418 022 00C001B004010100000086949BCB7FFFFF70000ECC8A  # noqa
+    # 045 RP --- 01:145038 18:013393 --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000  # noqa
+
     def _timestamp(seqx):
         """In the controller UI: YYYY-MM-DD HH:MM."""
         _seqx = int(seqx, 16)
@@ -868,6 +885,8 @@ def parser_1fc9(payload, msg) -> Optional[dict]:
     # 063  I --- 01:145038 --:------ 01:145038 1FC9 018 FA-0008-06368E FC-3B00-06368E FA-1FC9-06368E  # noqa: E501
     # CH valve binding:
     # 071  I --- 01:145038 --:------ 01:145038 1FC9 018 F9-0008-06368E FC-3B00-06368E F9-1FC9-06368E  # noqa: E501
+    # ZoneValve zone binding
+    # 045  W --- 13:106039 01:145038 --:------ 1FC9 012 00-3EF0-359E37 00-3B00-359E37
 
     def _parser(seqx) -> dict:
         assert seqx[6:] == payload[6:12]

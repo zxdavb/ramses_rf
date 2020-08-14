@@ -292,13 +292,14 @@ class Message:
         if self.code == "000C" and self.verb == "RP":  # this seems pretty reliable...
             self._gwy.get_device(self.dst, controller=self.src)
             if self.is_valid:
+                key = "zone_idx" if "zone_idx" in self.payload else "domain_id"
                 [
                     self._gwy.get_device(
                         Address(id=d, type=d[:2]),
                         controller=self.src,
-                        domain_id=self.payload["zone_idx"],
+                        domain_id=self.payload[key],
                     )
-                    for d in self.payload["actuators"]
+                    for d in self.payload["devices"]
                 ]
 
         elif self.src.type in ("01", "23"):
@@ -360,9 +361,9 @@ class Message:
         # TODO: needs work, e.g. RP/1F41 (excl. null_rp)
         elif self.code in ("10A0", "1F41"):
             if isinstance(self.dst, Device) and self.dst.is_controller:
-                self.dst.get_zone("HW")
+                self.dst.get_zone("FA")
             else:
-                self.src.get_zone("HW")
+                self.src.get_zone("FA")
 
         # TODO: also process ufh_idx (but never domain_id)
         elif isinstance(self._payload, dict):
