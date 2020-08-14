@@ -43,7 +43,7 @@ CODE_SCHEMA = {
         "rq_len": 3,
         "uses_zone_idx": True,
     },
-    # zone-specific codes
+    # zone codes
     "0004": {
         "name": "zone_name",
         "null_resp": "7F" * 20,

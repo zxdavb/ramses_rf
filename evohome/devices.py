@@ -314,9 +314,16 @@ class Device(Entity):
                 )
             return
 
-        self._zone = self._domain_id = zone
-        self._zone.devices.append(self)
-        self._zone.device_by_id[self.id] = self
+        self._domain_id = zone.idx
+        self._zone = zone
+        if self._domain_id == "FA":
+            if isinstance(self, DhwSensor):
+                self._sensor = self
+            else:
+                self._relay = self
+        else:
+            self._zone.devices.append(self)
+            self._zone.device_by_id[self.id] = self
         _LOGGER.debug("Device %s: parent zone now set to %s", self.id, self._zone)
 
     @property

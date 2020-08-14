@@ -8,7 +8,7 @@ from queue import PriorityQueue
 import signal
 import sys
 from threading import Lock
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from .command import Command, Pause
 from .const import __dev_mode__
@@ -322,7 +322,10 @@ class Gateway:
 
         self._prev_msg = msg if msg.is_valid else None
 
-    def get_device(self, dev_addr, controller=None, domain_id=None) -> Optional[Device]:
+    # def get_ctl(self, ctl_addr) -> Device:
+    #     return self.get_device(ctl_addr, controller=ctl_addr, domain_id="FF")
+
+    def get_device(self, dev_addr, controller=None, domain_id=None) -> Device:
         """Return a device (will create it if required).
 
         Can also set a controller/system (will create as required). If a controller is
