@@ -9,7 +9,7 @@ from typing import Optional, Tuple
 from serial import SerialException  # noqa
 from serial_asyncio import open_serial_connection  # noqa
 
-from .command import Command, Pause, Qos
+from .command import Command, Pause, Qos, _pkt_header
 from .const import (
     DTM_LONG_REGEX,
     MESSAGE_REGEX,
@@ -25,10 +25,10 @@ READ_TIMEOUT = 0.5
 XON_XOFF = True
 
 # tx (from sent to gwy, to get back from gwy) seems to takes 0.025
-MAX_BUFFER_LEN = 50
-MAX_RETRY_COUNT = 1
+MAX_BUFFER_LEN = 5
+MAX_RETRY_COUNT = 3
 RETRANS_TIMEOUT = timedelta(seconds=0.065)
-# 0.060 gives false +ve for 10E0
+# 0.060 gives false +ve for 10E0?
 # 0.065 too low when stressed with schedules
 EXPIRY_TIMEOUT = timedelta(seconds=0.5)
 
@@ -189,10 +189,12 @@ class Packet:
 
     @property
     def _header(self) -> Optional[str]:
-        """Return the QoS header of this packet, if it is valid."""
+        """Return the QoS header of this packet."""
 
         if self.is_valid:
-            return "|".join(self.packet[4:6], self.src_addr, self.packet[41:45])
+            return _pkt_header(
+                self.packet[4:6], self.src_addr.id, self.packet[41:45], self.packet[50:]
+            )
 
 
 class PortPktProvider:
@@ -237,7 +239,7 @@ class PortPktProvider:
                 pkt_bytes = b""
                 await asyncio.sleep(Pause.SHORT)
         except SerialException:
-            return dt_str(), "", None
+            return Packet(dt_str(), "", None)
 
         dtm_str = dt_str()  # done here & now for most-accurate timestamp
         _LOGGER.debug("%s < Raw packet", pkt_bytes, extra=extra(dtm_str, pkt_bytes))
@@ -252,40 +254,36 @@ class PortPktProvider:
             _LOGGER.warning(
                 "%s < Bad (raw) packet", pkt_bytes, extra=extra(dtm_str, pkt_bytes)
             )
-            return dtm_str, "", pkt_bytes
+            return Packet(dtm_str, "", pkt_bytes)
 
         # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
 
         # TODO: validate the packet before calculating the header
+        pkt = Packet(dtm_str, pkt_str, pkt_bytes)
+
         # TODO: see the packet sent via the gwy before starting the timers
         if self._lock is not None:
-            header = "|".join((pkt_str[4:6], pkt_str[11:20], pkt_str[41:45]))
-            if pkt_str[41:45] == "000C":
-                header = "|".join((header, pkt_str[50:54]))
-            elif pkt_str[41:45] == "0404":
-                header = "|".join((pkt_str[50:52], pkt_str[60:62]))
-
             self._lock.acquire()
 
-            if header in self._qos_buffer:
+            if pkt._header in self._qos_buffer:
                 # _LOGGER.warning(
                 #     "%s < received, assumed valid (removed from buffer), header = %s",
                 #     pkt_str,
-                #     header,
+                #     pkt._header,
                 #     extra=extra(dtm_str, pkt_bytes),
                 # )
-                del self._qos_buffer[header]
+                del self._qos_buffer[pkt._header]
             # elif pkt_str != "":
             #     _LOGGER.warning(
             #         "%s < received, assumed valid (ain't in the buffer), header = %s",
             #         pkt_str,
-            #         header,
+            #         pkt._header,
             #         extra=extra(dtm_str, pkt_bytes),
             #     )
 
             self._lock.release()
 
-        return dtm_str, pkt_str, pkt_bytes
+        return pkt
 
     async def put_pkt(self, put_cmd, logger):  # TODO: logger is a hack
         """Send (put) the next packet to a serial port."""
@@ -354,7 +352,7 @@ class PortPktProvider:
                     await transmit(cmd)
 
             self._lock.acquire()
-            self._qos_buffer[put_cmd._header] = put_cmd
+            self._qos_buffer[put_cmd._rp_header] = put_cmd
             self._lock.release()
 
     def _check_buffer(self) -> Optional[Command]:
@@ -430,7 +428,7 @@ class FilePktProvider:
 async def port_pkts(manager, include=None, exclude=None, relay=None):
 
     while True:
-        pkt = Packet(*(await manager.get_pkt()))
+        pkt = await manager.get_pkt()
         if pkt.is_valid and pkt.is_wanted(include=include, exclude=exclude):
             if relay is not None:  # TODO: handle socket close
                 asyncio.create_task(relay.write(pkt.packet))

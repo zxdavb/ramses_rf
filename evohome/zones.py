@@ -106,9 +106,8 @@ class DhwZone(ZoneBase, HeatDemand):
         # if False and __dev_mode__ and self.idx == "FA":  # dev/test code
         #     self.async_set_override(state="On")
 
-        for code in ("10A0", "1100", "1260", "1F41"):  # TODO: what about 1100?
-            self._command(code, payload="0000")
-            self._command(code, payload="00")
+        for code in ("10A0", "1260", "1F41"):
+            self._command(code)  # payload="00" or "0000"
 
     def update(self, msg) -> None:
         super().update(msg)

@@ -141,44 +141,35 @@ class EvoSystem(System):
         #     # self.async_reset_mode()
         # )
 
-        # NOTE: could use this to discover zones
-        # for idx in range(12):
-        #     self._command("0004", payload=f"{idx:02x}00")
-
-        # find the system devices
+        # find the DHW sensor & relay (if any) and HTG relay
         for dev_type in ("0D", "0E", "0F"):  # CODE_000C_DEVICE_TYPE:
             self._command("000C", payload=f"00{dev_type}")
 
-        # find the configured zones, and their type
-        for zone_type in range(18):  # CODE_0005_ZONE_TYPE:
-            self._command("0005", payload=f"{zone_type:04X}")
+        # find the configured zones, and their type (RAD, UFH, VAL, MIX)
+        for zone_type in ("08", "09", "0A", "0B", "11"):  # CODE_0005_ZONE_TYPE:
+            self._command("0005", payload=f"00{zone_type}")
 
-        # system-related... (not working: 1280, 22D9, 2D49, 2E04, 3220, 3B00)
-        self._command("1F09", payload="00")
-        for code in ("313F", "0100", "0002"):
-            self._command(code)
+        # system-related: system_sync, datetime, language
+        for code in (
+            "1F09",
+            "313F",
+            "0100",
+        ):
+            self._command(code)  # payload="00"
 
-        # stored DHW (if any)
-        for code in ("10A0", "1260", "1F41"):
-            self._command(code)
+        self._command("2E04", payload="FF")  # system mode
 
-        self._command("0005", payload="0000")
-        self._command("1100", payload="FC")
-        self._command("2E04", payload="FF")
+        self._command("1100", payload="FC")  # TPI params
+        # for code in ("3B00"):  # 3EF0, 3EF1
+        #     for payload in ("0000", "00", "F8", "F9", "FA", "FB", "FC", "FF"):
+        #         self._command(code, payload=payload)
 
-        # TODO: Get the three most recent fault log entries
+        # TODO: opentherm: 1FD4, 22D9, 3220
+
+        # TODO: Get the fault log entries
         # self._fault_log.req_log(log_idx=0)
         for log_idx in range(0, 0x6):  # max is 0x3C?
             self._command("0418", payload=f"{log_idx:06X}", priority=Priority.LOW)
-
-        # TODO: 1100(), 1290(00x), 0418(00x):
-        # for code in ("000C"):
-        #     for payload in ("F800", "F900", "FA00", "FB00", "FC00", "FF00"):
-        #         self._command(code, payload=payload)
-
-        # for code in ("3B00"):
-        #     for payload in ("0000", "00", "F8", "F9", "FA", "FB", "FC", "FF"):
-        #         self._command(code, payload=payload)
 
     def update(self, msg, prev_msg=None):
         """Eavesdrop packets, or pairs of packets, to maintain the system state."""

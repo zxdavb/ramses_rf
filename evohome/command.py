@@ -41,6 +41,23 @@ else:
     _LOGGER.setLevel(logging.WARNING)
 
 
+def _pkt_header(verb, addr, code, payload) -> Optional[str]:
+    """Return the QoS header of a packet."""
+
+    header = "|".join((verb, addr, code))
+
+    if code in ("0005", "000C"):
+        return "|".join((header, payload[:4]))
+
+    if code == "0404":
+        return "|".join((payload[:2], payload[10:12]))
+
+    if code == "0418":
+        return "|".join((payload[4:6]))
+
+    return header
+
+
 @total_ordering
 class Command:
     """The command class."""
@@ -89,22 +106,22 @@ class Command:
 
     @property
     def _header(self) -> Optional[str]:
+        """Return the QoS header of this (request) packet."""
+
+        if self.verb in ("RQ", " W"):
+            return _pkt_header(self.verb, self.src_addr, self.code, self.payload)
+
+    @property
+    def _rp_header(self) -> Optional[str]:
         """Return the QoS header of a response packet, if one is expected."""
 
-        if self.verb not in ("RQ", " W"):
-            return
-
-        header = "|".join(
-            ("RP" if self.verb == "RQ" else " I", self.dest_addr, self.code)
-        )
-
-        if self.code == "000C" and self.verb == "RQ":
-            return "|".join((header, self.payload[:4]))
-
-        if self.code == "0404" and self.verb == "RQ":
-            return "|".join((header, self.payload[:2], self.payload[10:12]))
-
-        return header
+        if self.verb in ("RQ", " W"):
+            return _pkt_header(
+                "RP" if self.verb == "RQ" else " I",
+                self.dest_addr,
+                self.code,
+                self.payload,
+            )
 
     @staticmethod
     def _is_valid_operand(other) -> bool:
