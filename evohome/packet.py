@@ -293,13 +293,10 @@ class PortPktProvider:
             if self._pause > dtm_now:  # sleep until pause is over
                 await asyncio.sleep((self._pause - dtm_now).total_seconds())
 
-            # _logger("before transmission", f"... {cmd}",  dt_now())
             self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
-            # logger.debug("# Data was sent to %s: %s", self.serial_port, cmd)
-            # _logger("after. transmission", f"... {cmd}",  dt_now())
 
             dtm_now = dt_now()  # after transmit
-            # _logger("now transmitted", f"... {cmd}", dtm_now)
+            # _logger("just sent to gateway", f"... {cmd}", dtm_now)
             if cmd is None or str(cmd).startswith("!"):  # evofw3 traceflag:
                 self._pause = dtm_now + timedelta(seconds=Pause.SHORT)
             else:

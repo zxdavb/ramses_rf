@@ -286,12 +286,13 @@ DEVICE_IS_ACTUATOR = tuple(
 
 # Domains
 DOMAIN_TYPE_MAP = {
-    "F8": "TBD",
-    "F9": "Heating",  # Central Heating
-    "FA": "HotWater",  # Stored DHW loop? (or UFH loop if src.type == "02"?)
-    "FB": "TBD",  # TODO: bind CS92 with BDRs in both modes
-    "FC": "Boiler",  # "Heat Source": BDR (Boiler, District heating), or OTB
-    "FF": "System",  # TODO: remove this, is not a domain
+    "F8": None,
+    "F9": "heating",  # Central Heating
+    "FA": "hot_water",  # Stored DHW loop? (or UFH loop if src.type == "02"?)
+    "FB": None,
+    "FC": "boiler",  # "Heat Source": BDR (Boiler, District heating), or OTB
+    "FD": None,  # seen with hometronics
+    "FF": "system",  # TODO: remove this, is not a domain
 }  # "21": "Ventilation",
 DOMAIN_TYPE_LOOKUP = {v: k for k, v in DOMAIN_TYPE_MAP.items() if k != "FF"}
 
@@ -359,40 +360,43 @@ COMMAND_FORMAT = "{:<2} --- {} {} --:------ {} {:03d} {}"
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:8s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:8s} || {}"
 
-# used by 0005/system_zone parser
+# RP|system_zones = {'zone_mask': [1,1,0,0,0,0,0,0,0,0,0,0], 'zone_type': 'dhw_actuator'}  # noqa
+
 CODE_0005_ZONE_TYPE = {
     "00": "configured_zones",  # same as 04?
-    # 1": "unknown",
-    # 2": "unknown",
-    # 4": "configured_zones",
+    "01": None,
+    "02": None,
+    "04": None,
     "08": "radiator_valve",
-    "09": "ufh_controller",
+    "09": "underfloor_heating",
     "0A": "zone_valve",
     "0B": "mixing_valve",
-    # C": "unknown",
-    # D: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] - 1 if DHW and/or boiler?
-    # E: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] - 1 if DHW and/or boiler?
-    # F: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] - 1 always
+    "0C": None,
+    "0D": "dhw_sensor",
+    "0E": "dhw_actuators",  # can be 0, 1 or 2 (i.e. 1,1,0,...) of them
+    "0F": "htg_actuator",
+    "10": None,
     "11": "electric_heat",
 }  # 03, 05, 06, 07: & >11 - no response
 
+# RP|zone_devices | 000E0... || {'domain_id': 'FA', 'device_class': 'dhw_actuator', 'devices': ['13:081807']}  # noqa
+# RP|zone_devices | 010E0... || {'domain_id': 'FA', 'device_class': 'dhw_actuator', 'devices': ['13:106039']}  # noqa
+
 CODE_000C_DEVICE_TYPE = {
     "00": "zone_actuators",
-    "01": "xx",
-    "02": "xx",
-    "03": "xx",
-    "04": "zone_sensor",  # 03, 04, 34
-    "05": "xx",
-    "06": "xx",
-    "07": "xx",
-    "08": "actuators_trv",  # 04 (all TRVs)
-    "09": "xx",
-    "0A": "actuators_bdr",  # 13 (for a ZV zone)
-    "0B": "xx",
-    "0C": "xx",
-    "0D": "dhw_sensor",  # z_idx 0 only
-    "0E": "dhw_relay",  # FA
-    "0F": "htg_relay",  # FC
+    "01": None,
+    "02": None,
+    "04": "zone_sensor",  # 03:, 04:, 34: (if is 01:, will == [], as if no sensor)
+    "08": "rad_actuators",
+    "09": "ufh_actuators",
+    "0A": "val_actuators",
+    "0B": "mix_actuators",
+    "0C": None,
+    "0D": "dhw_sensor",  # FA, z_idx 0 only
+    "0E": "dhw_actuators",  # FA, z_idx 0, and 1
+    "0F": "htg_actuator",  # FC, z_idx 0 only
+    "10": None,
+    "11": "ele_actuators",
 }
 
 # Used by 0418/system_fault parser

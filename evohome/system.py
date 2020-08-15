@@ -16,10 +16,10 @@ from .const import (
     __dev_mode__,
 )
 from .devices import _dtm, Controller, Device
-from .zones import DhwZone, Zone
+from .zones import ZONE_CLASSES, DhwZone, Zone
 
 _LOGGER = logging.getLogger(__name__)
-if False and __dev_mode__:
+if __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
@@ -29,7 +29,6 @@ class System(Controller):
     """The Controller base class, supports child devices and zones only."""
 
     def __init__(self, gateway, ctl_addr, **kwargs) -> None:
-        _LOGGER.debug("Creating a %s, %s", self.__class__, ctl_addr.id)
         super().__init__(gateway, ctl_addr, **kwargs)
 
         assert ctl_addr.id not in gateway.system_by_id, "Duplicate controller address"
@@ -72,18 +71,18 @@ class System(Controller):
         elif int(domain_id, 16) < MAX_ZONES:
             zone = self.zone_by_idx.get(domain_id)
             if zone is None:
-                zone = Zone(self, domain_id)
-            if zone_type is not None:
+                zone = ZONE_CLASSES.get(zone_type, Zone)(self, domain_id)
+            elif zone_type is not None:
                 zone._set_zone_type(zone_type)
 
         elif domain_id in ("FC", "FF"):
             return
 
         else:
-            raise ValueError
+            raise ValueError("Unknown zone_type/domain_id")
 
         if sensor is not None:
-            zone.sensor = self._gwy.get_device(sensor)  # TODO: check an address
+            zone.sensor = self._gwy.get_device(sensor)  # TODO: check not an address
 
         return zone
 
@@ -125,7 +124,6 @@ class EvoSystem(System):
     """The EvoSystem class - some controllers are evohome-compatible."""
 
     def __init__(self, gateway, ctl_addr, **kwargs) -> None:
-        """Initialise the class."""
         super().__init__(gateway, ctl_addr, **kwargs)
 
         self._prev_30c9 = None
@@ -141,30 +139,32 @@ class EvoSystem(System):
         #     # self.async_reset_mode()
         # )
 
-        # find the DHW sensor & relay (if any) and HTG relay
-        for dev_type in ("0D", "0E", "0F"):  # CODE_000C_DEVICE_TYPE:
-            self._command("000C", payload=f"00{dev_type}")
+        [  # find the HTG relay and DHW sensor & relay(s), if any
+            self._command("000C", payload=dev_type)
+            for dev_type in ("000F", "000D", "000E", "010E")
+            # for dev_type, description in CODE_000C_DEVICE_TYPE.items()
+            # if description is not None
+        ]
 
-        # find the configured zones, and their type (RAD, UFH, VAL, MIX)
-        for zone_type in ("08", "09", "0A", "0B", "11"):  # CODE_0005_ZONE_TYPE:
+        [  # find any configured zones, and their type (RAD, UFH, VAL, MIX, ELE)
             self._command("0005", payload=f"00{zone_type}")
+            for zone_type in ("08", "09", "0A", "0B", "11")
+            # for zone_type, description in CODE_0005_ZONE_TYPE.items()
+            # if description is not None
+        ]
 
-        # system-related: system_sync, datetime, language
-        for code in (
-            "1F09",
-            "313F",
-            "0100",
-        ):
-            self._command(code)  # payload="00"
+        # # system-related: system_sync, datetime, language
+        # for code in ("1F09", "313F", "0100"):
+        #     self._command(code)  # payload="00"
 
-        self._command("2E04", payload="FF")  # system mode
+        # self._command("2E04", payload="FF")  # system mode
 
-        self._command("1100", payload="FC")  # TPI params
-        # for code in ("3B00"):  # 3EF0, 3EF1
-        #     for payload in ("0000", "00", "F8", "F9", "FA", "FB", "FC", "FF"):
-        #         self._command(code, payload=payload)
+        # self._command("1100", payload="FC")  # TPI params
+        # # for code in ("3B00"):  # 3EF0, 3EF1
+        # #     for payload in ("0000", "00", "F8", "F9", "FA", "FB", "FC", "FF"):
+        # #         self._command(code, payload=payload)
 
-        # TODO: opentherm: 1FD4, 22D9, 3220
+        # # TODO: opentherm: 1FD4, 22D9, 3220
 
         # TODO: Get the fault log entries
         # self._fault_log.req_log(log_idx=0)

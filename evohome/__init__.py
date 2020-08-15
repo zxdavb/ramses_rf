@@ -26,7 +26,7 @@ DONT_CREATE_ENTITIES = 2
 DONT_UPDATE_ENTITIES = 1
 
 _LOGGER = logging.getLogger(__name__)
-if __dev_mode__:
+if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
@@ -302,13 +302,14 @@ class Gateway:
 
             msg = Message(self, pkt)  # trap/logs all invalids msgs appropriately
 
+            # 18:/RQs are unreliable, the corresponding RPs, if any, are required
+            if msg.src.type == "18":
+                return
+
             if self.config["raw_output"] >= DONT_CREATE_ENTITIES:
                 return
 
             msg.create_devices()  # from pkt header & from msg payload (e.g. 000C)
-
-            if msg.src.type == "18":  # 18:/RQs are unreliable, RPs are reqd for state
-                return
 
             msg.create_zones()  # create zones & ufh_zones (TBD)
 

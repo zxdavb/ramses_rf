@@ -11,7 +11,7 @@ from .exceptions import CorruptStateError
 from .logger import dt_now
 
 _LOGGER = logging.getLogger(__name__)
-if False and __dev_mode__:
+if __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
@@ -210,7 +210,7 @@ class Device(Entity):
     """The Device base class."""
 
     def __init__(self, gateway, device_addr, controller=None, domain_id=None) -> None:
-        _LOGGER.debug("Creating a %s: %s", self.__class__, device_addr.id)
+        _LOGGER.debug("Creating a Device: %s %s", device_addr.id, self.__class__)
         super().__init__(gateway, controller=controller)
         assert device_addr.id not in gateway.device_by_id, "Duplicate device address"
 
@@ -263,10 +263,11 @@ class Device(Entity):
 
     def _discover(self):
         # do these even if battery-powered (e.g. device might be in rf_check mode)
-        for code in ("0016", "1FC9"):
-            self._command(code, payload="0000" if code == "0016" else "00")
+        if not __dev_mode__:
+            for code in ("0016", "1FC9"):
+                self._command(code, payload="0000" if code == "0016" else "00")
 
-        if self.has_battery is not True:
+        if not __dev_mode__ and self.has_battery is not True:
             self._command("10E0")
 
         # if self.addr.type not in ("01", "13") and not self.has_battery:  # TODO: dev

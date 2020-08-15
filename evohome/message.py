@@ -289,7 +289,7 @@ class Message:
         Requires a valid packet; only 000C requires a valid message.
         """
 
-        if self.code == "000C" and self.verb == "RP":  # this seems pretty reliable...
+        if self.code == "000C" and self.verb == "RP":
             self._gwy.get_device(self.dst, controller=self.src)
             if self.is_valid:
                 key = "zone_idx" if "zone_idx" in self.payload else "domain_id"
@@ -309,13 +309,16 @@ class Message:
             self._gwy.get_device(self.src, controller=self.dst)
 
         # TODO: will need other changes before these two will work...
-        # elif self.code == "1F09" and self.verb == " I":  # no need: "000A", "2309"...
+        # TODO: the issue is, if the 1st pkt is not a 1F09 (or a list 000A/2309/30C9)
+        # TODO: also could do 22D9 (UFC), others?
+        # elif self.code == "1F09" and self.verb == " I":
         #     self._gwy.get_device(self.dst, controller=self.src)
 
         # elif self.code == "31D9" and self.verb == " I":  # HVAC
         #     self._gwy.get_device(self.dst, controller=self.src)
         # TODO: ...such as means to promote a device to a controller
 
+        # this should catch all non-controller (and *some* controller) devices
         elif self.dst is self.src:
             self._gwy.get_device(self.src)
 
@@ -330,11 +333,9 @@ class Message:
             self._gwy.get_device(self.src)
             self._gwy.get_device(self.dst)
 
-        # maybe what was an Address can now be a Device going forward
-        if not isinstance(self.src, Device) and self.src.type != "18":
-            self.src = self._gwy.device_by_id[self.src.id]
-        if not isinstance(self.dst, Device) and self.dst.type not in ("18", "63", "--"):
-            self.dst = self._gwy.device_by_id[self.dst.id]
+        # where possible, swap each Address for its corresponding Device
+        self.src = self._gwy.device_by_id.get(self.src.id, self.src)
+        self.dst = self._gwy.device_by_id.get(self.dst.id, self.dst)
 
     @exception_handler
     def create_zones(self) -> None:
@@ -347,7 +348,7 @@ class Message:
             return
 
         # TODO: a I/0005: zones have changed & may need a restart (del) or not (add)
-        if self.code == "0005" and self.verb == "RP":
+        if self.code == "0005":  # RP, and also I
             if self._payload["zone_type"] in CODE_0005_ZONE_TYPE.values():
                 [
                     self.src.get_zone(
@@ -358,30 +359,31 @@ class Message:
                     if flag == 1
                 ]
 
-        # TODO: needs work, e.g. RP/1F41 (excl. null_rp)
-        elif self.code in ("10A0", "1F41"):
-            if isinstance(self.dst, Device) and self.dst.is_controller:
-                self.dst.get_zone("FA")
-            else:
-                self.src.get_zone("FA")
+        # Eavesdropping (below) is used when discovery (above) is not an option
+        # # TODO: needs work, e.g. RP/1F41 (excl. null_rp)
+        # elif self.code in ("10A0", "1F41"):
+        #     if isinstance(self.dst, Device) and self.dst.is_controller:
+        #         self.dst.get_zone("FA")
+        #     else:
+        #         self.src.get_zone("FA")
 
-        # TODO: also process ufh_idx (but never domain_id)
-        elif isinstance(self._payload, dict):
-            # TODO: only creating zones from arrays, presently, but could do so here
-            if self._payload.get("zone_idx"):  # TODO: parent_zone too?
-                if self.src.is_controller:
-                    self.src.get_zone(self._payload["zone_idx"])
-                else:
-                    self.dst.get_zone(self._payload["zone_idx"])
+        # # TODO: also process ufh_idx (but never domain_id)
+        # elif isinstance(self._payload, dict):
+        #     # TODO: only creating zones from arrays, presently, but could do so here
+        #     if self._payload.get("zone_idx"):  # TODO: parent_zone too?
+        #         if self.src.is_controller:
+        #             self.src.get_zone(self._payload["zone_idx"])
+        #         else:
+        #             self.dst.get_zone(self._payload["zone_idx"])
 
-        elif isinstance(self._payload, list):
-            if self.code in ("000A", "2309", "30C9"):  # the sync_cycle pkts
-                [self.src.get_zone(d["zone_idx"]) for d in self.payload]
-            # elif self.code in ("22C9", "3150"):  # TODO: UFH zone
-            #     pass
+        # elif isinstance(self._payload, list):
+        #     if self.code in ("000A", "2309", "30C9"):  # the sync_cycle pkts
+        #         [self.src.get_zone(d["zone_idx"]) for d in self.payload]
+        #     # elif self.code in ("22C9", "3150"):  # TODO: UFH zone
+        #     #     pass
 
-        else:  # should never get here
-            raise TypeError
+        # else:  # should never get here
+        #     raise TypeError
 
     @exception_handler
     def update_entities(self, prev) -> None:  # TODO: needs work

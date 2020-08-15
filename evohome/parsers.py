@@ -56,11 +56,9 @@ def _idx(seqx, msg) -> dict:
         return {"other_idx": seqx}
 
     elif msg.code == "000C":  # an exception to the usual rules
-        if msg.raw_payload[:4] in ("000D", "000E"):
-            assert seqx == "00"
+        if msg.raw_payload[:4] in ("000D", "000E", "010E"):
             return {"domain_id": "FA"}
         if msg.raw_payload[:4] == "000F":
-            assert seqx == "00"
             return {"domain_id": "FC"}
 
         assert int(seqx, 16) < MAX_ZONES
@@ -385,9 +383,9 @@ def parser_0005(payload, msg) -> Optional[dict]:
                 byte = byte >> 1
             return ret
 
-        assert seqx[:2] == "00"
+        # assert seqx[:2] == "00"  # done in _idx
         assert len(seqx) == 8
-        # assert payload[2:4] in CODE_0005_ZONE_TYPE
+        assert payload[2:4] in CODE_0005_ZONE_TYPE
 
         return {
             "zone_mask": (_get_flag8(seqx[4:6]) + _get_flag8(seqx[6:8]))[:MAX_ZONES],
@@ -506,7 +504,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
     # RQ payload is zz00, NOTE: aggregation of parsing taken here
     def _parser(seqx) -> dict:
         assert seqx[:2] == payload[:2]
-        # assert seqx[2:4] in ("00", "0A", "0F", "10")  # TODO: usu. 00 - subzone?
+        assert seqx[2:4] in CODE_000C_DEVICE_TYPE
         assert seqx[4:6] in ("00", "7F")  # TODO: what does 7F means
 
         return {dev_hex_to_id(seqx[6:12]): seqx[4:6]}
@@ -887,20 +885,19 @@ def parser_1fc9(payload, msg) -> Optional[dict]:
     # 071  I --- 01:145038 --:------ 01:145038 1FC9 018 F9-0008-06368E FC-3B00-06368E F9-1FC9-06368E  # noqa: E501
     # ZoneValve zone binding
     # 045  W --- 13:106039 01:145038 --:------ 1FC9 012 00-3EF0-359E37 00-3B00-359E37
+    # DHW binding..
+    # 045  W --- 13:163733 01:145038 --:------ 1FC9 012 00-3EF0-367F95 00-3B00-367F95
+
+    # 049  I --- 01:145038 --:------ 01:145038 1FC9 018 F9-0008-06368E FC-3B00-06368E F9-1FC9-06368E  # noqa
 
     def _parser(seqx) -> dict:
-        assert seqx[6:] == payload[6:12]
-        if seqx[:2] not in ("FA", "FB", "FC"):  # or: not in DOMAIN_TYPE_MAP: ??
+        assert seqx[6:] == payload[6:12]  # all with same controller
+        if seqx[:2] not in ("F9", "FA", "FB", "FC"):  # or: not in DOMAIN_TYPE_MAP: ??
             assert int(seqx[:2], 16) < MAX_ZONES
         return {seqx[:2]: seqx[2:6]}  # NOTE: codes is many:many (domain:code)
 
-    if msg.verb == " W":  # TODO: just leave an an array?
-        assert msg.len == 6
-        assert msg.src.id == dev_hex_to_id(payload[6:12])
-        return _parser(payload)
-
-    assert msg.verb in (" I", " W", "RP")  # devices will respond to a RQ!
     assert msg.len >= 6 and msg.len % 6 == 0  # assuming not RQ
+    assert msg.verb in (" I", " W", "RP")  # devices will respond to a RQ!
     assert msg.src.id == dev_hex_to_id(payload[6:12])
     return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
 

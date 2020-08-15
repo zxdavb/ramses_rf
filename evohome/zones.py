@@ -21,7 +21,7 @@ from .devices import Controller, Device, Entity, HeatDemand, _dtm
 from .exceptions import CorruptStateError
 
 _LOGGER = logging.getLogger(__name__)
-if False and __dev_mode__:
+if __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
@@ -47,7 +47,9 @@ class ZoneBase(Entity):
     """The Domain/Zone base class."""
 
     def __init__(self, controller, zone_idx) -> None:
-        _LOGGER.debug("Creating a Zone: %s, for system %s", controller.id, zone_idx)
+        _LOGGER.debug(
+            "Creating a Domain: %s_%s %s", controller.id, zone_idx, self.__class__
+        )
         super().__init__(controller._gwy, controller=controller)
         assert zone_idx not in controller.zone_by_idx, "Duplicate zone idx"
 
@@ -287,7 +289,6 @@ class Zone(ZoneBase):
     """The Zone class."""
 
     def __init__(self, controller, zone_idx, sensor=None, actuators=None) -> None:
-        _LOGGER.debug("Creating a zone for system %s: %s", controller.id, zone_idx)
         super().__init__(controller, zone_idx)
 
         assert (
@@ -320,10 +321,17 @@ class Zone(ZoneBase):
                 # )
             )
 
+        [  # find the sensor and the actuators, if any
+            self._command("000C", payload=f"{self.idx}{dev_type}")
+            for dev_type in ("00", "04")
+            # for dev_type, description in CODE_000C_DEVICE_TYPE.items()
+            # if description is not None
+        ]
+
         # start collecting the schedule
         # self._schedule.req_schedule()  # , restart=True) start collecting schedule
 
-        for code in ("0004", "000C"):
+        for code in ("0004",):
             self._command(code, payload=f"{self.idx}00")
 
         for code in ("000A", "2349", "30C9"):
@@ -331,8 +339,6 @@ class Zone(ZoneBase):
 
         for code in ("12B0",):  # TODO: only if RAD zone, or if window_state is enabled?
             self._command(code, payload=self.idx)
-
-        # TODO: 3150(00?): how to do (if at all) & for what zone types?
 
     def update(self, msg):
         super().update(msg)
