@@ -98,7 +98,9 @@ class System(Controller):
 
         schema["stored_dhw"] = self.dhw.schema if self.dhw is not None else None
 
-        schema["zones"] = {z.idx: z.schema for z in self.zones}
+        schema["zones"] = {
+            z.idx: z.schema for z in sorted(self.zones, key=lambda x: x.idx)
+        }
 
         ufh_controllers = [d.id for d in self.devices if d.type == "02"]
         if ufh_controllers:

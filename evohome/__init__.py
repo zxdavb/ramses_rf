@@ -372,10 +372,6 @@ class Gateway:
 
         schema = {"controller": self.evo.id if self.evo else None}
 
-        systems = [s.id for s in self.systems if s is not self.evo]
-        systems.sort()
-        schema.update({"alien_controllers": systems})
-
         if self.evo:
             schema.update(self.evo.schema)
         for evo in self.systems:

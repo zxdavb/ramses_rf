@@ -321,6 +321,8 @@ class Zone(ZoneBase):
                 # )
             )
 
+        # TODO: add discovery to determine zone type if it doesn't have one, using 0005s
+
         [  # find the sensor and the actuators, if any
             self._command("000C", payload=f"{self.idx}{dev_type}")
             for dev_type in ("00", "04")
@@ -640,6 +642,10 @@ class EleZone(Zone):  # Electric zones (do *not* call for heat)
     For a small (5A) electric load controlled by a BDR91 (never calls for heat).
     """
 
+    def __init__(self, controller, sensor=None, actuators=None) -> None:
+        super().__init__(controller, sensor, actuators)
+        self._zone_type = "ELE"
+
     def update(self, msg):
         super().update(msg)
 
@@ -662,6 +668,10 @@ class ValZone(EleZone, ZoneHeatDemand):  # Zone valve zones
     For a motorised valve controlled by a BDR91 (will also call for heat).
     """
 
+    def __init__(self, controller, sensor=None, actuators=None) -> None:
+        super().__init__(controller, sensor, actuators)
+        self._zone_type = "VAL"
+
 
 class RadZone(Zone, ZoneHeatDemand):  # Radiator zones
     """Base for Radiator Valve zones.
@@ -670,6 +680,10 @@ class RadZone(Zone, ZoneHeatDemand):  # Radiator zones
     """
 
     # 3150 (heat_demand) but no 0008 (relay_demand)
+
+    def __init__(self, controller, sensor=None, actuators=None) -> None:
+        super().__init__(controller, sensor, actuators)
+        self._zone_type = "RAD"
 
     @property
     async def window_open(self) -> Optional[bool]:  # 12B0
@@ -684,6 +698,10 @@ class UfhZone(Zone, ZoneHeatDemand):  # UFH zones
     For underfloor heating controlled by an HCE80 or HCC80 (will also call for heat).
     """
 
+    def __init__(self, controller, sensor=None, actuators=None) -> None:
+        super().__init__(controller, sensor, actuators)
+        self._zone_type = "UFH"
+
     @property
     def ufh_setpoint(self) -> Optional[float]:  # 3B00
         return self._get_msg_value("22C9")
@@ -694,6 +712,10 @@ class MixZone(Zone, ZoneHeatDemand):  # Mix valve zones
 
     For a modulating valve controlled by a HM80 (will also call for heat).
     """
+
+    def __init__(self, controller, sensor=None, actuators=None) -> None:
+        super().__init__(controller, sensor, actuators)
+        self._zone_type = "MIX"
 
     @property
     def configuration(self):
