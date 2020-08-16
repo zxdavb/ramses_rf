@@ -11,7 +11,7 @@ from threading import Lock
 from typing import Dict, List
 
 from .command import Command, Pause
-from .const import __dev_mode__
+from .const import __dev_mode__, ATTR_CONTROLLER, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
@@ -53,7 +53,7 @@ class Gateway:
         """Initialise the class."""
         if config.get("debug_mode"):
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
-        _LOGGER.debug("Starting evohome_rf, **config = %s", config)
+        _LOGGER.debug("Starting evohome_rf, **config = %s", config)  # TODO: under if
 
         self.serial_port = serial_port
         self.loop = loop if loop else asyncio.get_running_loop()  # get_event_loop()
@@ -337,8 +337,8 @@ class Gateway:
         ctl = (
             None if controller is None else self.get_device(controller, domain_id="FF")
         )
-
-        self.evo = ctl if self.evo is None else None
+        if self.evo is None:
+            self.evo = ctl
 
         if dev_addr.type in ("18", "63", "--"):  # valid addresses, but not devices
             return
@@ -370,7 +370,7 @@ class Gateway:
     def schema(self) -> dict:
         """Return the global schema."""
 
-        schema = {"controller": self.evo.id if self.evo else None}
+        schema = {ATTR_CONTROLLER: self.evo.id if self.evo else None}
 
         if self.evo:
             schema.update(self.evo.schema)
@@ -379,6 +379,6 @@ class Gateway:
 
         orphans = [d.id for d in self.devices if d.controller is None]
         orphans.sort()
-        schema.update({"orphans": orphans})
+        schema.update({ATTR_ORPHANS: orphans})
 
         return schema

@@ -279,6 +279,8 @@ class Device(Entity):
     def update(self, msg) -> None:
         super().update(msg)
 
+        # TODO: status updates always, but...
+        # TODO: schema updates only if eavesdropping is enabled.
         if self._ctl is not None and "parent_idx" in msg.payload:
             self.zone = self._ctl.get_zone(msg.payload["parent_idx"])
 
@@ -321,8 +323,8 @@ class Device(Entity):
             if isinstance(self, DhwSensor):
                 self._sensor = self
             else:
-                self._relay = self
-        else:
+                self._dhw_valve = self
+        elif self not in self._zone.devices:
             self._zone.devices.append(self)
             self._zone.device_by_id[self.id] = self
         _LOGGER.debug("Device %s: parent zone now set to %s", self.id, self._zone)
@@ -476,7 +478,7 @@ class BdrSwitch(Device, Actuator):
 
         self._is_tpi = kwargs.get("domain_id") == "FC"
         if self._is_tpi:
-            self._ctl.heater_relay = self
+            self._ctl.boiler_control = self
 
     def _discover(self):
         super()._discover()
@@ -516,7 +518,7 @@ class BdrSwitch(Device, Actuator):
 
         if self._is_tpi:
             self._domain_id = "FC"  # TODO: check is None first
-            self.ctl.heater_relay = self
+            self.ctl.boiler_control = self
 
         return self._is_tpi
 

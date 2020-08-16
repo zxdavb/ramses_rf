@@ -7,6 +7,11 @@ from typing import Any, Optional, Union
 
 from . import parsers
 from .const import (
+    ATTR_HTG_CONTROL,
+    ATTR_DHW_SENSOR,
+    ATTR_DHW_VALVE_HTG,
+    ATTR_DHW_VALVE,
+    ATTR_ZONE_SENSOR,
     CODE_MAP,
     DEVICE_TYPES,
     MSG_FORMAT_10,
@@ -302,10 +307,10 @@ class Message:
                     for d in self.payload["devices"]
                 ]
 
-        elif self.src.type in ("01", "23"):
+        elif self.src.type in ("01", "23", "30"):
             self._gwy.get_device(self.dst, controller=self.src)
 
-        elif self.dst.type in ("01", "23"):
+        elif self.dst.type in ("01", "23", "30"):
             self._gwy.get_device(self.src, controller=self.dst)
 
         # TODO: will need other changes before these two will work...
@@ -358,6 +363,32 @@ class Message:
                     for idx, flag in enumerate(self._payload["zone_mask"])
                     if flag == 1
                 ]
+
+        if self.code == "000C" and self.payload["devices"]:
+            devices = [self.src.device_by_id[d] for d in self.payload["devices"]]
+
+            if self.payload["device_class"] == ATTR_ZONE_SENSOR:
+                self.src.get_zone(self.payload["zone_idx"], sensor=devices[0])
+
+            elif self.payload["device_class"] == "zone_actuators":
+                # TODO: is this better, or...
+                # self.src.get_zone(self.payload["zone_idx"], actuators=devices)
+                # TODO: is it this one?
+                zone = self.src.get_zone(self.payload["zone_idx"])
+                for d in devices:
+                    d.zone = zone
+
+            elif self.payload["device_class"] == ATTR_HTG_CONTROL:
+                self.src.boiler_control = devices[0]
+
+            elif self.payload["device_class"] == ATTR_DHW_SENSOR:
+                self.src.get_zone("FA").sensor = devices[0]
+
+            elif self.payload["device_class"] == ATTR_DHW_VALVE:
+                self.src.get_zone("FA").hotwater_valve = devices[0]
+
+            elif self.payload["device_class"] == ATTR_DHW_VALVE_HTG:
+                self.src.get_zone("FA").heating_valve = devices[0]
 
         # Eavesdropping (below) is used when discovery (above) is not an option
         # # TODO: needs work, e.g. RP/1F41 (excl. null_rp)

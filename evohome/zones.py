@@ -7,6 +7,12 @@ from typing import Any, Optional
 
 from .command import Schedule, Priority, RQ_RETRY_LIMIT, RQ_TIMEOUT
 from .const import (
+    ATTR_DEVICES,
+    ATTR_DHW_SENSOR,
+    ATTR_DHW_VALVE,
+    ATTR_DHW_VALVE_HTG,
+    ATTR_ZONE_SENSOR,
+    ATTR_ZONE_TYPE,
     DEVICE_HAS_ZONE_SENSOR,
     DEVICE_IS_ACTUATOR,
     DHW_STATE_MAP,
@@ -99,8 +105,9 @@ class DhwZone(ZoneBase, HeatDemand):
         controller.dhw = self
 
         self._sensor = None
-        self._relay = None
-        self.type = "DHW"
+        self._dhw_valve = None
+        self._htg_valve = None
+        self.heating_type = "DHW"
 
         self._discover()  # should be last thing in __init__()
 
@@ -109,7 +116,7 @@ class DhwZone(ZoneBase, HeatDemand):
         #     self.async_set_override(state="On")
 
         for code in ("10A0", "1260", "1F41"):
-            self._command(code)  # payload="00" or "0000"
+            self._command(code, payload="00")  # payload="00" or "0000", not "FA"
 
     def update(self, msg) -> None:
         super().update(msg)
@@ -119,8 +126,9 @@ class DhwZone(ZoneBase, HeatDemand):
         """Return the stored HW's schema."""
 
         return {
-            "sensor": self._sensor.id if self._sensor else None,
-            "relay": self._relay.id if self._relay else None,
+            ATTR_DHW_SENSOR: self._sensor.id if self._sensor else None,
+            ATTR_DHW_VALVE: self._dhw_valve.id if self._dhw_valve else None,
+            ATTR_DHW_VALVE_HTG: self._htg_valve.id if self._htg_valve else None,
         }
 
     @property  # setpoint, config, mode (not schedule)
@@ -173,22 +181,40 @@ class DhwZone(ZoneBase, HeatDemand):
             device._zone = self  # self.add_device(device)
 
     @property
-    def relay(self) -> Device:
-        return self._relay
+    def hotwater_valve(self) -> Device:
+        return self._dhw_valve
 
-    @relay.setter
-    def relay(self, device: Device) -> None:
+    @hotwater_valve.setter
+    def hotwater_valve(self, device: Device) -> None:
         if not isinstance(device, Device) or device.type != "13":
             raise TypeError
 
-        if self._relay is not None and self._relay != device:
+        if self._dhw_valve is not None and self._dhw_valve != device:
             raise LookupError
         # elif device.evo is not None and device.evo != self:
         #     raise LookupError  #  do this in add_devices
 
-        if self._relay is None:
-            self._relay = device
-            self.add_device(device)
+        if self._dhw_valve is None:
+            self._dhw_valve = device
+            device._zone = self
+
+    @property
+    def heating_valve(self) -> Device:
+        return self._htg_valve
+
+    @heating_valve.setter
+    def heating_valve(self, device: Device) -> None:
+        if not isinstance(device, Device) or device.type != "13":
+            raise TypeError
+
+        if self._htg_valve is not None and self._htg_valve != device:
+            raise LookupError
+        # elif device.evo is not None and device.evo != self:
+        #     raise LookupError  #  do this in add_devices
+
+        if self._htg_valve is None:
+            self._htg_valve = device
+            device._zone = self
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
@@ -321,9 +347,9 @@ class Zone(ZoneBase):
                 # )
             )
 
-        # TODO: add discovery to determine zone type if it doesn't have one, using 0005s
+        # TODO: add code to determine zone type if it doesn't have one, using 0005s
 
-        [  # find the sensor and the actuators, if any
+        [  # 000C: find the sensor and the actuators, if any
             self._command("000C", payload=f"{self.idx}{dev_type}")
             for dev_type in ("00", "04")
             # for dev_type, description in CODE_000C_DEVICE_TYPE.items()
@@ -375,9 +401,9 @@ class Zone(ZoneBase):
         """Return the zone's schema."""
 
         return {
-            "type": self._zone_type,
-            "sensor": self._sensor.id if self._sensor else None,
-            "devices": [d.id for d in self.devices],
+            ATTR_ZONE_TYPE: self.heating_type,
+            ATTR_ZONE_SENSOR: self._sensor.id if self._sensor else None,
+            ATTR_DEVICES: [d.id for d in self.devices],
         }
 
     @property  # setpoint, config, mode (not schedule)
@@ -400,11 +426,11 @@ class Zone(ZoneBase):
         }
 
     @property
-    def sensor(self) -> Device:
+    def temp_sensor(self) -> Device:
         return self._sensor
 
-    @sensor.setter
-    def sensor(self, device: Device):
+    @temp_sensor.setter
+    def temp_sensor(self, device: Device):
         """Set the sensor for this zone (01:, 03:, 04:, 12:, 22:, 34:)."""
 
         if not isinstance(device, Device) or not hasattr(device, "temperature"):
@@ -412,16 +438,16 @@ class Zone(ZoneBase):
                 raise TypeError
 
         if self._sensor is not None and self._sensor is not device:
-            raise LookupError
+            raise CorruptStateError("The zone sensor has changed")
         # elif device.evo is not None and device.evo != self:
-        #     raise LookupError  #  do this in add_devices
+        #     raise LookupError  # do this in add_devices
 
         if self._sensor is None:
             self._sensor = device  # if TRV, zone type likely (but not req'd) RAD
-            self.add_device(device)
+            # self.add_device(device)
 
     @property
-    def type(self) -> Optional[str]:
+    def heating_type(self) -> Optional[str]:
         """TODO.
 
         There are three ways to determine the type of a zone:
@@ -431,7 +457,7 @@ class Zone(ZoneBase):
         """
 
         if self._zone_type is not None:  # isinstance(self, ???)
-            return self._zone_type
+            return ZONE_TYPE_MAP.get(self._zone_type)
 
         # TODO: actuators
         dev_types = [d.type for d in self.devices if d.type in ("02", "04", "13")]
@@ -452,7 +478,7 @@ class Zone(ZoneBase):
         if zone_type is not None:
             self._set_zone_type(zone_type)
 
-        return self._zone_type
+        return ZONE_TYPE_MAP.get(self._zone_type)
 
     def _set_zone_type(self, zone_type: str):
         """Set the zone's type, after validating it.
@@ -534,7 +560,7 @@ class Zone(ZoneBase):
         await self._get_msg("30C9")  # if possible/allowed, get an up-to-date pkt
 
         msg_0 = self.ctl._msgs.get("30C9")  # most authorative
-        msg_1 = self.sensor._msgs.get("30C9")  # possibly most up-to-date
+        msg_1 = self.temp_sensor._msgs.get("30C9")  # possibly most up-to-date
 
         if msg_1 is self._most_recent_msg(msg_0, msg_1):  # could be: None is None
             return msg_1.payload["temperature"] if msg_1 is not None else None

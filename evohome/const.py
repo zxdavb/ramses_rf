@@ -360,6 +360,19 @@ COMMAND_FORMAT = "{:<2} --- {} {} --:------ {} {:03d} {}"
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:8s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:8s} || {}"
 
+ATTR_HTG_CONTROL = "boiler_control"
+ATTR_CONTROLLER = "controller"
+ATTR_DEVICES = "devices"
+ATTR_DHW_SENSOR = "hotwater_sensor"
+ATTR_ZONE_TYPE = "heating_type"
+ATTR_DHW_VALVE_HTG = "heating_valve"
+ATTR_DHW_VALVE = "hotwater_valve"
+ATTR_ORPHANS = "orphans"
+ATTR_STORED_HOTWATER = "stored_hotwater"
+ATTR_ZONE_SENSOR = "temp_sensor"
+ATTR_UFH_CONTROLLERS = "ufh_controllers"
+ATTR_ZONES = "zones"
+
 # RP|system_zones = {'zone_mask': [1,1,0,0,0,0,0,0,0,0,0,0], 'zone_type': 'dhw_actuator'}  # noqa
 
 CODE_0005_ZONE_TYPE = {
@@ -372,9 +385,9 @@ CODE_0005_ZONE_TYPE = {
     "0A": "zone_valve",
     "0B": "mixing_valve",
     "0C": None,
-    "0D": "dhw_sensor",
-    "0E": "dhw_actuators",  # can be 0, 1 or 2 (i.e. 1,1,0,...) of them
-    "0F": "htg_actuator",
+    "0D": ATTR_DHW_SENSOR,
+    "0E": ATTR_DHW_VALVE,  # can be 0, 1 or 2 (i.e. 1,1,0,...) of them
+    "0F": ATTR_HTG_CONTROL,
     "10": None,
     "11": "electric_heat",
 }  # 03, 05, 06, 07: & >11 - no response
@@ -386,15 +399,15 @@ CODE_000C_DEVICE_TYPE = {
     "00": "zone_actuators",
     "01": None,
     "02": None,
-    "04": "zone_sensor",  # 03:, 04:, 34: (if is 01:, will == [], as if no sensor)
+    "04": ATTR_ZONE_SENSOR,  # 03:, 04:, 34: (if is 01:, will == [], as if no sensor)
     "08": "rad_actuators",
     "09": "ufh_actuators",
     "0A": "val_actuators",
     "0B": "mix_actuators",
     "0C": None,
-    "0D": "dhw_sensor",  # FA, z_idx 0 only
-    "0E": "dhw_actuators",  # FA, z_idx 0, and 1
-    "0F": "htg_actuator",  # FC, z_idx 0 only
+    "0D": ATTR_DHW_SENSOR,  # FA, z_idx 0 only
+    "0E": ATTR_DHW_VALVE,  # FA, could be ATTR_DHW_VALVE_HTG
+    "0F": ATTR_HTG_CONTROL,  # FC, z_idx 0 only
     "10": None,
     "11": "ele_actuators",
 }
@@ -404,13 +417,13 @@ CODE_0418_DEVICE_CLASS = {
     "00": "controller",
     "01": "sensor",
     "04": "actuator",
-    "05": "dhw_sensor",
+    "05": "dhw_sensor",  # not ATTR_DHW_SENSOR
 }
 CODE_0418_FAULT_STATE = {
     "00": "fault",
     "40": "restore",
     "C0": "unknown_c0",
-}  # C0s do not appear in the evohomeUI
+}  # C0s do not appear in the evohome UI
 CODE_0418_FAULT_TYPE = {
     "03": "mains_low",
     "04": "battery_low",

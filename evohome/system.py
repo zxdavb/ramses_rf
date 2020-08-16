@@ -16,6 +16,14 @@ from .const import (
     __dev_mode__,
 )
 from .devices import _dtm, Controller, Device
+from .schema import (
+    ATTR_HTG_CONTROL,
+    ATTR_ORPHANS,
+    ATTR_STORED_HOTWATER,
+    ATTR_UFH_CONTROLLERS,
+    ATTR_ZONES,
+)
+
 from .zones import ZONE_CLASSES, DhwZone, Zone
 
 _LOGGER = logging.getLogger(__name__)
@@ -37,7 +45,7 @@ class System(Controller):
         gateway.system_by_id[self.id] = self
 
         self._dhw = None
-        self._heater_relay = None
+        self._boiler_control = None
 
         self.zones = []
         self.zone_by_idx = {}
@@ -59,7 +67,9 @@ class System(Controller):
 
         return json.dumps(self.schema)
 
-    def get_zone(self, domain_id, zone_type=None, sensor=None) -> Optional[Zone]:
+    def get_zone(
+        self, domain_id, zone_type=None, sensor=None, actuators=None
+    ) -> Optional[Zone]:
         """Return a zone (will create it if required).
 
         Can also set a zone's sensor, and zone_type.
@@ -82,9 +92,52 @@ class System(Controller):
             raise ValueError("Unknown zone_type/domain_id")
 
         if sensor is not None:
-            zone.sensor = self._gwy.get_device(sensor)  # TODO: check not an address
+            zone.temp_sensor = sensor  # TODO: check not an address
+
+        if actuators is not None:
+            zone.devices = actuators  # TODO: check not an address
+            zone.device_by_id = {d.id: d for d in actuators}
 
         return zone
+
+    @property
+    def dhw(self) -> DhwZone:
+        return self._dhw
+
+    @dhw.setter
+    def dhw(self, dhw: DhwZone) -> None:
+        if not isinstance(dhw, DhwZone):
+            raise ValueError
+
+        if self._dhw is not None and self._dhw != dhw:
+            raise LookupError
+
+        if self._dhw is None:
+            # self._gwy.get_device(xxx)
+            # self.add_device(dhw.sensor)
+            # self.add_device(dhw.relay)
+            self._dhw = dhw
+
+    @property
+    def boiler_control(self) -> Device:
+        return self._boiler_control
+
+    @boiler_control.setter
+    def boiler_control(self, device: Device) -> None:
+        """Set the heater relay for this system (10: or 13:)."""
+
+        if not isinstance(device, Device) or device.type not in ("10", "13"):
+            raise TypeError
+
+        if self._boiler_control is not None and self._boiler_control != device:
+            raise LookupError
+        # elif device.evo is not None and device.evo != self:
+        #     raise LookupError  #  do this in self._gwy.get_device()
+
+        if self._boiler_control is None:
+            self._boiler_control = device
+            # device._is_tpi = True
+            # self.add_device(device)  # self._gwy.get_device(xxx)
 
     @property
     def schema(self) -> dict:
@@ -92,24 +145,28 @@ class System(Controller):
 
         schema = {}
 
-        schema["heater_relay"] = (
-            self.heater_relay.id if self.heater_relay is not None else None
+        schema[ATTR_HTG_CONTROL] = (
+            self.boiler_control.id if self.boiler_control is not None else None
         )
 
-        schema["stored_dhw"] = self.dhw.schema if self.dhw is not None else None
+        schema[ATTR_STORED_HOTWATER] = self.dhw.schema if self.dhw is not None else None
 
-        schema["zones"] = {
+        schema[ATTR_ZONES] = {
             z.idx: z.schema for z in sorted(self.zones, key=lambda x: x.idx)
         }
 
         ufh_controllers = [d.id for d in self.devices if d.type == "02"]
-        if ufh_controllers:
-            ufh_controllers.sort()
-            schema["ufh_controllers"] = ufh_controllers
+        ufh_controllers.sort()
+        schema[ATTR_UFH_CONTROLLERS] = ufh_controllers
 
-        orphans = [d.id for d in self.devices if d._zone is None]
+        orphans = [
+            d.id
+            for d in self.devices
+            if d._zone is None
+            # and d._ctl != d
+        ]  # devices without a parent zone, CTL can be a sensor for a zones
         orphans.sort()
-        schema["orphans"] = orphans
+        schema[ATTR_ORPHANS] = orphans
 
         return {self.id: schema}
 
@@ -141,14 +198,14 @@ class EvoSystem(System):
         #     # self.async_reset_mode()
         # )
 
-        [  # find the HTG relay and DHW sensor & relay(s), if any
+        [  # 000C: find the HTG relay and DHW sensor & relay(s), if any
             self._command("000C", payload=dev_type)
             for dev_type in ("000F", "000D", "000E", "010E")
             # for dev_type, description in CODE_000C_DEVICE_TYPE.items()
             # if description is not None
         ]
 
-        [  # find any configured zones, and their type (RAD, UFH, VAL, MIX, ELE)
+        [  # 0005: find any configured zones, and their type (RAD, UFH, VAL, MIX, ELE)
             self._command("0005", payload=f"00{zone_type}")
             for zone_type in ("08", "09", "0A", "0B", "11")
             # for zone_type, description in CODE_0005_ZONE_TYPE.items()
@@ -220,7 +277,7 @@ class EvoSystem(System):
                         heater = prev.src
 
             if heater is not None:
-                self.heater_relay = heater
+                self.boiler_control = heater
 
         def find_dhw_sensor(this):
             """Discover the stored HW this system (if any).
@@ -253,8 +310,8 @@ class EvoSystem(System):
 
             if sensor is not None:
                 if self.dhw is None:
-                    self.dst.get_zone("FA")
-                self.dhw.sensor = sensor
+                    self.get_zone("FA")
+                self.dhw.temp_sensor = sensor
 
         def find_zone_sensors() -> None:
             """Determine each zone's sensor by matching zone/sensor temperatures.
@@ -283,7 +340,7 @@ class EvoSystem(System):
             if prev_msg is None:
                 return
 
-            if len([z for z in self.zones if z.sensor is None]) == 0:
+            if len([z for z in self.zones if z.temp_sensor is None]) == 0:
                 return  # (currently) no zone without a sensor
 
             # if self._gwy.serial_port:  # only if in monitor mode...
@@ -305,7 +362,7 @@ class EvoSystem(System):
             testable_zones = {
                 z: t
                 for z, t in changed_zones.items()
-                if self.zone_by_idx[z].sensor is None
+                if self.zone_by_idx[z].temp_sensor is None
                 and t not in [v for k, v in changed_zones.items() if k != z] + [None]
             }  # ...with unique (non-null) temps, and no sensor
             _LOGGER.debug(
@@ -351,8 +408,8 @@ class EvoSystem(System):
                     if len(matching_sensors) == 1:
                         _LOGGER.debug("   - matched sensor: %s", matching_sensors[0].id)
                         zone = self.zone_by_idx[zone_idx]
-                        zone.sensor = matching_sensors[0]
-                        zone.sensor.controller = self
+                        zone.temp_sensor = matching_sensors[0]
+                        zone.temp_sensor.controller = self
                     elif len(matching_sensors) == 0:
                         _LOGGER.debug("   - no matching sensor (uses CTL?)")
                     else:
@@ -363,13 +420,13 @@ class EvoSystem(System):
             # now see if we can allocate the controller as a sensor...
             if self._zone is not None:
                 return  # the controller has already been allocated
-            if len([z for z in self.zones if z.sensor is None]) != 1:
+            if len([z for z in self.zones if z.temp_sensor is None]) != 1:
                 return  # no single zone without a sensor
 
             testable_zones = {
                 z: t
                 for z, t in changed_zones.items()
-                if self.zone_by_idx[z].sensor is None
+                if self.zone_by_idx[z].temp_sensor is None
             }  # this will be true if ctl is sensor
             if not testable_zones:
                 return  # no testable zones
@@ -396,8 +453,8 @@ class EvoSystem(System):
             if len(matching_sensors) == 0:
                 _LOGGER.debug("   - matched sensor: %s (by exclusion)", self.id)
                 zone = self.zone_by_idx[zone_idx]
-                zone.sensor = self
-                zone.sensor.controller = self
+                zone.temp_sensor = self
+                zone.temp_sensor.controller = self
 
             _LOGGER.debug("System state (finally): %s", self)
 
@@ -427,67 +484,11 @@ class EvoSystem(System):
         # if msg.src.type == "01" and msg.dst.controller is None:  # 3EF0
         #     msg.dst.controller = msg.src  # useful for TPI/OTB, uses 3EF0
 
-        if msg.code in ("3220", "3B00", "3EF0"):  # self.heater_relay is None and
+        if msg.code in ("3220", "3B00", "3EF0"):  # self.boiler_control is None and
             find_htg_relay(msg, prev=prev_msg)
 
-        if msg.code in ("10A0", "1260"):  # self.dhw.sensor is None and
+        if msg.code in ("10A0", "1260"):  # self.dhw.temp_sensor is None and
             find_dhw_sensor(msg)
-
-    @staticmethod
-    def _entities(entities, sort_attr) -> dict:
-        """Return a dict of all entities of a class (i.e. devices, domains, or zones).
-
-        Returns an array of entity dicts, with their public atrributes, sorted by id.
-        """
-
-        def attrs(entity) -> list:
-            attr = [a for a in dir(entity) if not callable(getattr(entity, a))]
-            return [a for a in attr if not a.startswith("_") and a != sort_attr]
-
-        result = {
-            getattr(e, sort_attr): {a: getattr(e, a) for a in attrs(e)}
-            for e in entities
-        }
-        return dict(sorted(result.items()))
-
-    @property
-    def dhw(self) -> DhwZone:
-        return self._dhw
-
-    @dhw.setter
-    def dhw(self, dhw: DhwZone) -> None:
-        if not isinstance(dhw, DhwZone):
-            raise ValueError
-
-        if self._dhw is not None and self._dhw != dhw:
-            raise LookupError
-
-        if self._dhw is None:
-            # self._gwy.get_device(xxx)
-            # self.add_device(dhw.sensor)
-            # self.add_device(dhw.relay)
-            self._dhw = dhw
-
-    @property
-    def heater_relay(self) -> Device:
-        return self._heater_relay
-
-    @heater_relay.setter
-    def heater_relay(self, device: Device) -> None:
-        """Set the heater relay for this system (10: or 13:)."""
-
-        if not isinstance(device, Device) or device.type not in ("10", "13"):
-            raise TypeError
-
-        if self._heater_relay is not None and self._heater_relay != device:
-            raise LookupError
-        # elif device.evo is not None and device.evo != self:
-        #     raise LookupError  #  do this in self._gwy.get_device()
-
-        if self._heater_relay is None:
-            self._heater_relay = device
-            # device._is_tpi = True
-            # self.add_device(device)  # self._gwy.get_device(xxx)
 
     def fault_log(self, force_update=False) -> Optional[list]:  # 0418
         # TODO: try to discover fault codes

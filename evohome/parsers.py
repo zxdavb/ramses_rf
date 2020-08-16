@@ -5,6 +5,8 @@ import logging
 from typing import Optional, Union
 
 from .const import (
+    ATTR_DHW_VALVE_HTG,
+    ATTR_DHW_VALVE,
     CODE_SCHEMA,
     CODE_0005_ZONE_TYPE,
     CODE_000C_DEVICE_TYPE,
@@ -145,6 +147,12 @@ def parser_decorator(func):
         # except for 18:, these should return nothing - 000A is rq_len 1 or 3?
         # grep -E 'RQ.* 002 ' | grep -vE ' (0004|0016|3EF1) '
         # grep -E 'RQ.* 001 ' | grep -vE ' (000A|1F09|22D9|2309|313F|31DA|3EF0) '
+
+        # HACK: to keep logs clean - will need cleaning up eventually
+        if msg.src.type == "18" and msg.verb == "RQ":
+            if msg.code in ("10A0", "12B0", "2349", "30C9"):
+                assert msg.len <= 2
+                return {**_idx(payload[:2], msg)}
 
         if msg.code in ("0004", "000C", "0016", "12B0", "30C9"):
             assert msg.len == 2  # 12B0 will RP to 1
@@ -510,11 +518,15 @@ def parser_000c(payload, msg) -> Optional[dict]:
         return {dev_hex_to_id(seqx[6:12]): seqx[4:6]}
 
     assert msg.len >= 6 and msg.len % 6 == 0  # assuming not RQ
+
     devices = [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
+    device_class = CODE_000C_DEVICE_TYPE[payload[2:4]]
+    if device_class == ATTR_DHW_VALVE and msg.raw_payload[:2] == "01":
+        device_class = ATTR_DHW_VALVE_HTG
 
     return {
         **_idx(payload[:2], msg),
-        "device_class": CODE_000C_DEVICE_TYPE[payload[2:4]],
+        "device_class": device_class,
         "devices": [k for d in devices for k, v in d.items() if v != "7F"],
     }
 
