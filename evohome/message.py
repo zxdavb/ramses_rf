@@ -368,7 +368,8 @@ class Message:
             devices = [self.src.device_by_id[d] for d in self.payload["devices"]]
 
             if self.payload["device_class"] == ATTR_ZONE_SENSOR:
-                self.src.get_zone(self.payload["zone_idx"], sensor=devices[0])
+                zone = self.src.get_zone(self.payload["zone_idx"])
+                zone.temp_sensor = devices[0]
 
             elif self.payload["device_class"] == "zone_actuators":
                 # TODO: is this better, or...

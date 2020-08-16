@@ -16,6 +16,7 @@ from .const import (
     __dev_mode__,
 )
 from .devices import _dtm, Controller, Device
+from .exceptions import CorruptStateError
 from .schema import (
     ATTR_HTG_CONTROL,
     ATTR_ORPHANS,
@@ -110,7 +111,7 @@ class System(Controller):
             raise ValueError
 
         if self._dhw is not None and self._dhw != dhw:
-            raise LookupError
+            raise CorruptStateError("The DHW has changed")
 
         if self._dhw is None:
             # self._gwy.get_device(xxx)
@@ -130,14 +131,14 @@ class System(Controller):
             raise TypeError
 
         if self._boiler_control is not None and self._boiler_control != device:
-            raise LookupError
+            raise CorruptStateError("The boiler relay has changed")
         # elif device.evo is not None and device.evo != self:
         #     raise LookupError  #  do this in self._gwy.get_device()
 
         if self._boiler_control is None:
             self._boiler_control = device
             # device._is_tpi = True
-            # self.add_device(device)  # self._gwy.get_device(xxx)
+            self._domain_id = "FC"  # self.add_device(device)
 
     @property
     def schema(self) -> dict:

@@ -172,13 +172,13 @@ class DhwZone(ZoneBase, HeatDemand):
             raise TypeError
 
         if self._sensor is not None and self._sensor != device:
-            raise LookupError
+            raise CorruptStateError("The DHW sensor has changed")
         # elif device.evo is not None and device.evo != self:
         #     raise LookupError  #  do this in add_devices
 
         if self._sensor is None:
             self._sensor = device
-            device._zone = self  # self.add_device(device)
+            device.zone = self  # self.add_device(device)
 
     @property
     def hotwater_valve(self) -> Device:
@@ -190,13 +190,13 @@ class DhwZone(ZoneBase, HeatDemand):
             raise TypeError
 
         if self._dhw_valve is not None and self._dhw_valve != device:
-            raise LookupError
+            raise CorruptStateError("The DHW HW valve has changed")
         # elif device.evo is not None and device.evo != self:
         #     raise LookupError  #  do this in add_devices
 
         if self._dhw_valve is None:
             self._dhw_valve = device
-            device._zone = self
+            device.zone = self
 
     @property
     def heating_valve(self) -> Device:
@@ -208,13 +208,13 @@ class DhwZone(ZoneBase, HeatDemand):
             raise TypeError
 
         if self._htg_valve is not None and self._htg_valve != device:
-            raise LookupError
+            raise CorruptStateError("The DHW heating valve has changed")
         # elif device.evo is not None and device.evo != self:
         #     raise LookupError  #  do this in add_devices
 
         if self._htg_valve is None:
             self._htg_valve = device
-            device._zone = self
+            device.zone = self
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
@@ -431,7 +431,7 @@ class Zone(ZoneBase):
 
     @temp_sensor.setter
     def temp_sensor(self, device: Device):
-        """Set the sensor for this zone (01:, 03:, 04:, 12:, 22:, 34:)."""
+        """Set the sensor for this zone (one of 01:, 03:, 04:, 12:, 22:, 34:)."""
 
         if not isinstance(device, Device) or not hasattr(device, "temperature"):
             if not isinstance(device, Controller):
@@ -444,7 +444,7 @@ class Zone(ZoneBase):
 
         if self._sensor is None:
             self._sensor = device  # if TRV, zone type likely (but not req'd) RAD
-            # self.add_device(device)
+            device.zone = self  # self.add_device(device)
 
     @property
     def heating_type(self) -> Optional[str]:

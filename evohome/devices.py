@@ -310,7 +310,6 @@ class Device(Entity):
 
         if self._zone is not None:
             if self._zone is not zone:
-                #
                 raise CorruptStateError(
                     f"Device {self} has a mismatched parent zone: "
                     f"old={self._zone}, new={zone}",
@@ -320,10 +319,12 @@ class Device(Entity):
         self._domain_id = zone.idx
         self._zone = zone
         if self._domain_id == "FA":
-            if isinstance(self, DhwSensor):
-                self._sensor = self
-            else:
-                self._dhw_valve = self
+            # if isinstance(self, DhwSensor):
+            #     self._sensor = self
+            # else:
+            #     self._dhw_valve = self
+            pass
+
         elif self not in self._zone.devices:
             self._zone.devices.append(self)
             self._zone.device_by_id[self.id] = self
