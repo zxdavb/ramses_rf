@@ -115,7 +115,7 @@ class Entity:
 
         self._que.put_nowait(Command(verb, dest, code, payload, **kwargs))
 
-    def _discover(self):
+    def _discover(self) -> None:
         # pass
         raise NotImplementedError
 
@@ -134,7 +134,7 @@ class Entity:
                 if k[:1] != "_" and k not in ("domain_id", "zone_idx")
             }
 
-    def update(self, msg) -> None:
+    def _update_msg(self, msg) -> None:
         if "domain_id" in msg.payload:  # isinstance(msg.payload, dict) and
             self._domain[msg.payload["domain_id"]] = {msg.code: msg}  # 01/02/23
             return
@@ -172,7 +172,7 @@ class BatteryState:  # 1060
     """Some devices have a battery."""
 
     @property
-    def battery_state(self):
+    def battery_state(self) -> dict:
         low_battery = self._get_msg_value("1060", "low_battery")
         if low_battery is not None:
             battery_level = self._get_msg_value("1060", "battery_level")
@@ -261,7 +261,7 @@ class Device(Entity):
 
         return f"{self.id} ({DEVICE_TYPES.get(self.type)})"
 
-    def _discover(self):
+    def _discover(self) -> None:
         # do these even if battery-powered (e.g. device might be in rf_check mode)
         if not __dev_mode__:
             for code in ("0016", "1FC9"):
@@ -276,8 +276,8 @@ class Device(Entity):
         #             continue
         #         self._command(code, payload="0000" if code != "1F09" else "00")
 
-    def update(self, msg) -> None:
-        super().update(msg)
+    def _update_msg(self, msg) -> None:
+        super()._update_msg(msg)
 
         # TODO: status updates always, but...
         # TODO: schema updates only if eavesdropping is enabled.
@@ -398,11 +398,11 @@ class UfhController(Device, HeatDemand):
     # 12:27:24.824 059  I --- 01:191718 --:------ 01:191718 3150 002 FC5C
     # 12:27:24.857 067  I --- 02:000921 --:------ 02:000921 3150 006 0060015A025C
 
-    def update(self, msg):
+    def _update_msg(self, msg) -> None:
         def do_3150_magic() -> None:
             return
 
-        super().update(msg)
+        super()._update_msg(msg)
         return
 
         # "0008|FA/FC", "22C9|array", "22D0|none", "3150|ZZ/array(/FC?)"
@@ -410,7 +410,7 @@ class UfhController(Device, HeatDemand):
         if msg.code in ("22C9") and not isinstance(msg.payload, list):
             pass
         else:
-            super().update(msg)
+            super()._update_msg(msg)
 
         if msg.code == "3150" and isinstance(msg.payload, list):  # msg.is_array:
             do_3150_magic()
@@ -429,14 +429,14 @@ class DhwSensor(Device, BatteryState):
 
         self._domain_id = "FA"
 
-    def update(self, msg):
-        super().update(msg)
+    def _update_msg(self, msg) -> None:
+        super()._update_msg(msg)
 
         # if msg.code == "10A0":
         #     return self._msgs["10A0"].dst.addr
 
     @property
-    def temperature(self):
+    def temperature(self) -> float:
         return self._get_msg_value("1260", "temperature")
 
 
@@ -481,7 +481,7 @@ class BdrSwitch(Device, Actuator):
         if self._is_tpi:
             self._ctl.boiler_control = self
 
-    def _discover(self):
+    def _discover(self) -> None:
         super()._discover()
 
         self._command("1100", payload="00")
@@ -496,8 +496,8 @@ class BdrSwitch(Device, Actuator):
         #     for code in ("00", "FC", "FF"):
         #         self._command("3B00", payload=f"{code}{payload}")
 
-    def update(self, msg):
-        super().update(msg)
+    def _update_msg(self, msg) -> None:
+        super()._update_msg(msg)
 
         if self._is_tpi is None:
             _ = self.is_tpi

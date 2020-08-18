@@ -424,7 +424,7 @@ class Message:
         if not self.is_valid:  # requires self.payload
             return
 
-        # TODO: do here, or in ctl.update() and/or system.update()
+        # TODO: do here, or in ctl._update_msg() and/or system._update_msg()
         if re.search("I.* 01.* 000A ", self._pkt):  # HACK: and dtm < 3 secs
             # TODO: an edge case here: >2 000A packets in a row
             if prev is not None and re.search("I.* 01.* 000A ", prev._pkt):
@@ -432,7 +432,7 @@ class Message:
 
         # some empty payloads may still be useful (e.g. RQ/3EF1/{})
         try:
-            self._gwy.device_by_id[self.src.id].update(self)
+            self._gwy.device_by_id[self.src.id]._update_msg(self)
         except KeyError:  # some devices aren't created if they're filtered out
             return
 
@@ -443,7 +443,7 @@ class Message:
         # try to find the boiler relay, dhw sensor
         for evo in self._gwy.systems:
             if self.src.controller in [evo.id, None]:  # TODO: check!
-                evo.update(self, prev)  # TODO: WIP
+                evo._update_msg(self, prev)  # TODO: WIP
                 if self.src.controller is not None:
                     break
 
@@ -454,7 +454,7 @@ class Message:
             #     evo = self.dst._evo
 
             if evo is not None and self.payload["zone_idx"] in evo.zone_by_idx:
-                evo.zone_by_idx[self.payload["zone_idx"]].update(self)
+                evo.zone_by_idx[self.payload["zone_idx"]]._update_msg(self)
 
             # elif self.payload.get("ufh_idx") in ...:  # TODO: is this needed?
             #     pass

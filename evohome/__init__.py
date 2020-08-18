@@ -135,9 +135,6 @@ class Gateway:
             """Handle signals on posix platform."""
             _LOGGER.info("Received a signal (%s), processing...", signal.name)
 
-            if signal == signal.SIGUSR1:  # can also have: signal.SIGUSR2
-                _LOGGER.info("Raw state data: \r\n%s", self.evo)
-
             if signal in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
                 self.cleanup("_sig_handler_posix()")  # OK for after tasks.cancel
 
@@ -149,6 +146,12 @@ class Gateway:
 
                 # raise CancelledError
                 await asyncio.gather(*tasks, return_exceptions=True)
+
+            elif signal == signal.SIGUSR1:
+                _LOGGER.info("Params: \r\n%s", {self.evo.id: self.evo.params})
+
+            elif signal == signal.SIGUSR2:
+                _LOGGER.info("Status: \r\n%s", {self.evo.id: self.evo.status})
 
         _LOGGER.debug("Creating signal handlers...")
         signals = [signal.SIGINT, signal.SIGTERM]

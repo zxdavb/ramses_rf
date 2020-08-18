@@ -52,21 +52,21 @@ class System(Controller):
         self.zone_by_idx = {}
         # self.zone_by_name = {}
 
-    def update(self, msg):
+    def _update_msg(self, msg) -> None:
         if msg.code in ("000A", "2309", "30C9") and not isinstance(msg.payload, list):
             pass
         else:
-            super().update(msg)
+            super()._update_msg(msg)
 
     def __repr__(self) -> str:
         """Return a complete representation of the system as a dict."""
 
-        return json.dumps(self.schema, indent=2)
+        return json.dumps({self.id: self.schema}, indent=2)
 
     def __str__(self) -> str:  # TODO: WIP
         """Return a brief representation of the system as a string."""
 
-        return json.dumps(self.schema)
+        return json.dumps({self.id: self.schema})
 
     def get_zone(
         self, domain_id, zone_type=None, sensor=None, actuators=None
@@ -169,14 +169,45 @@ class System(Controller):
         orphans.sort()
         schema[ATTR_ORPHANS] = orphans
 
-        return {self.id: schema}
+        return schema
 
     @property
-    def config(self) -> dict:
+    def params(self) -> dict:
         """Return the system's configuration."""
 
+        params = {}
+
+        # config[ATTR_HTG_CONTROL] = (
+        #     self.boiler_control.config if self.boiler_control is not None else None
+        # )
+
+        # config[ATTR_STORED_HOTWATER]={self.dhw.config}ifself.dhw is not None else None
+
+        params[ATTR_ZONES] = {
+            z.id: z.params for z in sorted(self.zones, key=lambda x: x.idx)
+        }
+
+        # ufh_controllers = [
+        #     {d.id: d.config}
+        #     for d in sorted(self.devices, key=lambda x: x.idx)
+        #     if d.type == "02"
+        # ]
+        # ufh_controllers.sort()
+        # config[ATTR_UFH_CONTROLLERS] = ufh_controllers
+
+        # orphans = [
+        #     {d.id: d.config}
+        #     for d in sorted(self.devices, key=lambda x: x.idx)
+        #     if d._zone is None
+        #     # and d._ctl != d
+        # ]  # devices without a parent zone, CTL can be a sensor for a zones
+        # orphans.sort()
+        # config[ATTR_ORPHANS] = orphans
+
+        return params
+
     @property
-    def state(self) -> dict:
+    def status(self) -> dict:
         """Return the system's current state."""
 
 
@@ -189,7 +220,7 @@ class EvoSystem(System):
         self._prev_30c9 = None
         self._fault_log = {}
 
-    def _discover(self):
+    def _discover(self) -> None:
         super()._discover()
 
         # TODO: test only
@@ -231,7 +262,7 @@ class EvoSystem(System):
         for log_idx in range(0, 0x6):  # max is 0x3C?
             self._command("0418", payload=f"{log_idx:06X}", priority=Priority.LOW)
 
-    def update(self, msg, prev_msg=None):
+    def _update_msg(self, msg, prev_msg=None):
         """Eavesdrop packets, or pairs of packets, to maintain the system state."""
 
         def is_exchange(this, prev):  # TODO:use is?
@@ -530,6 +561,6 @@ class EvoSystem(System):
 
         self._command("2E04", verb=" W", payload=f"{mode}{until}")
 
-    async def reset_mode(self):  # 2E04
+    async def reset_mode(self) -> None:  # 2E04
         """Revert the system mode to Auto."""  # TODO: is it AutoWithReset?
         self._command("2E04", verb=" W", payload="00FFFFFFFFFFFF00")

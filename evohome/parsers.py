@@ -49,7 +49,11 @@ def _idx(seqx, msg) -> dict:
         return {}
 
     # TODO: these are not evohome, and list of msg codes ?not complete (e.g. 3150?)
-    if {"12", "22"} & {msg.src.type} and msg.src.type == msg.devs[2].type:
+    # if {"03", "12", "22"} & {msg.src.type}:
+    #     assert seqx == "00"
+    #     return {}
+
+    if {"12", "22"} & {msg.src.type} and msg.src.type == msg.devs[2].type:  # , "1060"
         if msg.code in ("0008", "0009", "1030", "1100", "2309", "1030", "313F"):
             assert int(seqx, 16) < MAX_ZONES
             return {"other_idx": seqx}
@@ -126,6 +130,7 @@ def parser_decorator(func):
             # these are OK to parse Ws:
             if msg.code in ("0001"):
                 return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
+            # 045  W --- 12:010740 01:145038 --:------ 2309 003 0401F4
             if msg.code in ("2309", "2349") and msg.src.type in ("12", "22", "34"):
                 assert int(payload[:2], 16) < MAX_ZONES
                 return func(*args, **kwargs)
