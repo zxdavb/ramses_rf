@@ -8,8 +8,10 @@ from typing import Optional
 
 from .command import Priority, RQ_RETRY_LIMIT, RQ_TIMEOUT
 from .const import (
+    ATTR_SYSTEM,
     # CODE_0005_ZONE_TYPE,
     DEVICE_HAS_ZONE_SENSOR,
+    DEVICE_TYPES,
     MAX_ZONES,
     SYSTEM_MODE_LOOKUP,
     SYSTEM_MODE_MAP,
@@ -61,6 +63,7 @@ class System(Controller):
     def __repr__(self) -> str:
         """Return a complete representation of the system as a dict."""
 
+        return f"{self.id} ({DEVICE_TYPES.get(self.type)})"
         return json.dumps({self.id: self.schema}, indent=2)
 
     def __str__(self) -> str:  # TODO: WIP
@@ -165,7 +168,7 @@ class System(Controller):
             for d in self.devices
             if d._zone is None
             # and d._ctl != d
-        ]  # devices without a parent zone, CTL can be a sensor for a zones
+        ]  # devices without a parent zone, NB: CTL can be a sensor for a zones
         orphans.sort()
         schema[ATTR_ORPHANS] = orphans
 
@@ -177,7 +180,12 @@ class System(Controller):
 
         params = {}
 
-        # config[ATTR_HTG_CONTROL] = (
+        params[ATTR_SYSTEM] = {
+            "mode": self._get_msg_value("2E04"),  # **self.mode()
+            **self._get_msg_value("0100"),
+        }
+
+        # params[ATTR_HTG_CONTROL] = (
         #     self.boiler_control.config if self.boiler_control is not None else None
         # )
 
@@ -209,6 +217,14 @@ class System(Controller):
     @property
     def status(self) -> dict:
         """Return the system's current state."""
+
+        result = {}
+
+        result[ATTR_SYSTEM] = {
+            **self._get_msg_value("313F"),
+        }
+
+        return result
 
 
 class EvoSystem(System):
@@ -245,10 +261,10 @@ class EvoSystem(System):
         ]
 
         # # system-related: system_sync, datetime, language
-        # for code in ("1F09", "313F", "0100"):
-        #     self._command(code)  # payload="00"
+        for code in ("1F09", "313F", "0100"):
+            self._command(code)  # payload="00"
 
-        # self._command("2E04", payload="FF")  # system mode
+        self._command("2E04", payload="FF")  # system mode
 
         # self._command("1100", payload="FC")  # TPI params
         # # for code in ("3B00"):  # 3EF0, 3EF1
@@ -343,7 +359,7 @@ class EvoSystem(System):
             if sensor is not None:
                 if self.dhw is None:
                     self.get_zone("FA")
-                self.dhw.temp_sensor = sensor
+                self.dhw.sensor = sensor
 
         def find_zone_sensors() -> None:
             """Determine each zone's sensor by matching zone/sensor temperatures.
@@ -490,6 +506,8 @@ class EvoSystem(System):
 
             _LOGGER.debug("System state (finally): %s", self)
 
+        super()._update_msg(msg)
+
         # if msg.code == "0005" and prev_msg is not None:
         #     zone_added = bool(prev_msg.code == "0004")  # else zone_deleted
 
@@ -519,7 +537,7 @@ class EvoSystem(System):
         if msg.code in ("3220", "3B00", "3EF0"):  # self.boiler_control is None and
             find_htg_relay(msg, prev=prev_msg)
 
-        if msg.code in ("10A0", "1260"):  # self.dhw.temp_sensor is None and
+        if msg.code in ("10A0", "1260"):  # self.dhw.sensor is None and
             find_dhw_sensor(msg)
 
     def fault_log(self, force_update=False) -> Optional[list]:  # 0418

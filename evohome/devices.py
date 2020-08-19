@@ -119,7 +119,7 @@ class Entity:
         # pass
         raise NotImplementedError
 
-    def _get_msg_value(self, code, key=None) -> Optional[Any]:
+    def _get_msg_value(self, code, key=None) -> dict:
         if self._msgs.get(code):
             if isinstance(self._msgs[code].payload, list):
                 return self._msgs[code].payload
@@ -133,6 +133,7 @@ class Entity:
                 for k, v in result.items()
                 if k[:1] != "_" and k not in ("domain_id", "zone_idx")
             }
+        return {}
 
     def _update_msg(self, msg) -> None:
         if "domain_id" in msg.payload:  # isinstance(msg.payload, dict) and
@@ -248,6 +249,8 @@ class Device(Entity):
 
     def __repr__(self) -> str:
         """Return a complete representation of the device as a dict."""
+
+        return f"{self.id} ({DEVICE_TYPES.get(self.type)})"
 
         result = {
             a: getattr(self, a)

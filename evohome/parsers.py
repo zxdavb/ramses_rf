@@ -497,7 +497,7 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:
             "local_override": not bool(bitmap & 1),
             "openwindow_function": not bool(bitmap & 2),
             "multiroom_mode": not bool(bitmap & 16),
-            "unknown_bitmap": f"0b{bitmap:08b}",
+            "_unknown_bitmap": f"0b{bitmap:08b}",
         }  # cannot determine zone_type from this information
 
     if msg.is_array:  # TODO: these msgs can require 2 pkts!
@@ -573,7 +573,7 @@ def parser_0100(payload, msg) -> Optional[dict]:
     assert msg.len == 5
     assert payload[:2] == "00"
     assert payload[6:] == "FFFF"
-    return {"language": _str(payload[2:6]), "unknown_0": payload[6:]}
+    return {"language": _str(payload[2:6]), "_unknown_0": payload[6:]}
 
 
 @parser_decorator  # unknown, from a HR91 (when its buttons are pushed)
@@ -803,7 +803,7 @@ def parser_1100(payload, msg) -> Optional[dict]:
             "cycle_rate": int(payload[2:4], 16) / 4,  # in cycles/hour
             "minimum_on_time": int(payload[4:6], 16) / 4,  # in minutes
             "minimum_off_time": int(payload[6:8], 16) / 4,  # in minutes
-            "unknown_0": payload[8:10],  # always 00, FF?
+            "_unknown_0": payload[8:10],  # always 00, FF?
         }
 
     if msg.len == 5:
@@ -813,7 +813,7 @@ def parser_1100(payload, msg) -> Optional[dict]:
     return {
         **_parser(payload[:10]),
         "proportional_band_width": _temp(payload[10:14]),  # in degrees C
-        "unknown_1": payload[14:],  # always 01?
+        "_unknown_1": payload[14:],  # always 01?
     }
 
 
@@ -884,7 +884,7 @@ def parser_1f41(payload, msg) -> Optional[dict]:
 
     return {
         "active": {"00": False, "01": True, "FF": None}[payload[2:4]],
-        "mode": ZONE_MODE_MAP.get(payload[4:6]),
+        "dhw_mode": ZONE_MODE_MAP.get(payload[4:6]),
         "until": _dtm(payload[12:24]) if payload[4:6] == "04" else None,
     }
 
@@ -960,7 +960,7 @@ def parser_22c9(payload, msg) -> Optional[dict]:
             **_idx(seqx[:2], msg),
             "temp_low": _temp(seqx[2:6]),
             "temp_high": _temp(seqx[6:10]),
-            "unknown_0": seqx[10:],
+            "_unknown_0": seqx[10:],
         }
 
     assert msg.len >= 6 and msg.len % 6 == 0
@@ -1066,7 +1066,7 @@ def parser_2e04(payload, msg) -> Optional[dict]:
     assert payload[:2] in list(SYSTEM_MODE_MAP)  # TODO: check AutoWithReset
 
     return {
-        "mode": SYSTEM_MODE_MAP.get(payload[:2]),
+        "system_mode": SYSTEM_MODE_MAP.get(payload[:2]),
         "until": _dtm(payload[2:14]) if payload[14:] != "00" else None,
     }  # TODO: double-check the final "00"
 
@@ -1105,7 +1105,7 @@ def parser_313f(payload, msg) -> Optional[dict]:
     return {
         "datetime": _dtm(payload[4:18]),
         "is_dst": True if bool(int(payload[4:6], 16) & 0x80) else None,
-        "unknown_0": payload[2:4],
+        "_unknown_0": payload[2:4],
     }
 
 

@@ -557,7 +557,7 @@ class Zone(ZoneBase):
                 k: v
                 for z in msg_0.payload
                 for k, v in z.items()
-                if z["zone_idx"] == self.idx
+                if z["zone_idx"] == self.idx and k[:1] != "_"
             }
 
         self._zone_config = (

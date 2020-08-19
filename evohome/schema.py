@@ -220,31 +220,31 @@ def load_schema(gwy, controller_id, schema, **kwargs) -> bool:
     ctl = Address(id=controller_id, type=controller_id[:2])
     ctl = gwy.get_device(ctl, controller=ctl)
 
-    gwy.evo = ctl if gwy.evo is None else gwy.evo
+    gwy.evo = ctl if gwy.evo is None else gwy.evo  # TODO: what!
 
     if schema.get(ATTR_HTG_CONTROL) is not None:
         dev = Address(id=schema[ATTR_HTG_CONTROL], type=schema[ATTR_HTG_CONTROL][:2])
         dev = gwy.get_device(dev, controller=ctl)
-        gwy.evo.boiler_control = dev
+        ctl.boiler_control = dev
 
     if schema.get(ATTR_STORED_HOTWATER) is not None:
         dhw_sensor = schema[ATTR_STORED_HOTWATER].get(ATTR_DHW_SENSOR)
         dhw_hotwater = schema[ATTR_STORED_HOTWATER].get(ATTR_DHW_VALVE)
         dhw_heating = schema[ATTR_STORED_HOTWATER].get(ATTR_DHW_VALVE_HTG)
 
+        ctl.dhw = ctl.get_zone("FA")
+
         if dhw_sensor is not None:
             dev = Address(id=dhw_sensor, type=dhw_sensor[:2])
-            gwy.evo.temp_sensor = gwy.get_device(dev, controller=ctl)
+            ctl.dhw.sensor = gwy.get_device(dev, controller=ctl)
 
         if dhw_hotwater is not None:
             dev = Address(id=dhw_hotwater, type=dhw_hotwater[:2])
-            gwy.evo.dhw_valve = gwy.get_device(dev, controller=ctl)
+            ctl.hotwater_valve = gwy.get_device(dev, controller=ctl)
 
         if dhw_heating is not None:
             dev = Address(id=dhw_heating, type=dhw_heating[:2])
-            gwy.evo.htg_valve = gwy.get_device(dev, controller=ctl)
-
-        ctl.get_zone("FA")
+            ctl.heating_valve = gwy.get_device(dev, controller=ctl)
 
     for ufh_ctl, ufh_schema in schema[ATTR_UFH_CONTROLLERS]:
         dev = Address(id=ufh_ctl, type=ufh_ctl[:2])

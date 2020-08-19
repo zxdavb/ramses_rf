@@ -11,7 +11,7 @@ from threading import Lock
 from typing import Dict, List
 
 from .command import Command, Pause
-from .const import __dev_mode__, ATTR_CONTROLLER, ATTR_ORPHANS
+from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
@@ -373,15 +373,15 @@ class Gateway:
     def schema(self) -> dict:
         """Return the global schema."""
 
-        schema = {ATTR_CONTROLLER: self.evo.id if self.evo else None}
+        schema = {"main_controller": self.evo.id if self.evo else None}
 
         if self.evo:
-            schema.update(self.evo.schema)
+            schema[self.evo.id] = self.evo.schema
         for evo in self.systems:
-            schema.update(evo.schema)
+            schema[evo.id] = evo.schema
 
         orphans = [d.id for d in self.devices if d.controller is None]
         orphans.sort()
-        schema.update({ATTR_ORPHANS: orphans})
+        schema[ATTR_ORPHANS] = orphans
 
         return schema

@@ -391,7 +391,7 @@ class Message:
             elif self.payload["device_class"] == ATTR_DHW_VALVE_HTG:
                 self.src.get_zone("FA").heating_valve = devices[0]
 
-        # Eavesdropping (below) is used when discovery (above) is not an option
+        # # Eavesdropping (below) is used when discovery (above) is not an option
         # # TODO: needs work, e.g. RP/1F41 (excl. null_rp)
         # elif self.code in ("10A0", "1F41"):
         #     if isinstance(self.dst, Device) and self.dst.is_controller:
