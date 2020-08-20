@@ -128,14 +128,13 @@ async def main(loop=None, **kwargs):
     else:  # if no Exceptions raised, e.g. EOF when parsing
         print(" - exiting via: else-block (e.g. EOF when parsing)")
 
-    print(f"\r\nSchema[gateway] = {json.dumps(gateway.schema)}")
     if gateway.evo is not None:
         print(f"\r\nSchema[{gateway.evo.id}] = {json.dumps(gateway.evo.schema)}")
         print(f"\r\nParams[{gateway.evo.id}] = {json.dumps(gateway.evo.params)}")
         print(f"\r\nStatus[{gateway.evo.id}] = {json.dumps(gateway.evo.status)}")
 
-    else:
-        print(f"\r\nSchema[gateway] = {json.dumps(gateway.schema)}")
+    # else:
+    print(f"\r\nSchema[gateway] = {json.dumps(gateway.schema)}")
 
     print("\r\nFinished evohome_rf.")
 
