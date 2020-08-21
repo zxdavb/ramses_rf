@@ -167,7 +167,7 @@ class FaultLog:
     def req_fragment(self, restart=False) -> int:
         _LOGGER.error("Sched(%s).req_fragment: xxx", self.id)
 
-        if self._gwy.config["listen_only"]:
+        if self._gwy.self.config["disable_sending"]:
             return
 
     def __repr_(self) -> str:
@@ -241,7 +241,7 @@ class Schedule:
             frag = None if frag["_msg_dtm"] < msg.dtm - timedelta(minutes=5) else frag
 
         # if not [x for x in self._frag_array if x is None]:  # TODO: can leave out?
-        #     _ = self.schedule if self._gwy.config["listen_only"] else None
+        #     _ = self.schedule if self._gwy.self.config["disable_sending"] else None
 
     def req_schedule(self) -> int:
         _LOGGER.error("Sched(%s).req_schedule: xxx", self.idx)
@@ -256,7 +256,7 @@ class Schedule:
         """
         _LOGGER.error("Sched(%s).req_fragment: xxx", self.idx)
 
-        if self._gwy.config["listen_only"]:
+        if self._gwy.self.config["disable_sending"]:
             return
 
         if restart is True:  # or self.total_frags == 0

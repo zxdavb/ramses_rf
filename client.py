@@ -8,7 +8,7 @@ import sys
 
 import click
 
-from evohome import Gateway, GracefulExit, DONT_CREATE_MESSAGES
+from evohome import Gateway, GracefulExit
 
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
@@ -21,31 +21,20 @@ DEBUG_PORT = 5678
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
+# default="parser_config.json",
+# default="system_schema.json",
+# default="known_devices.json",
+
+
 @click.group(context_settings=CONTEXT_SETTINGS)
-@click.option(
-    "-c",
-    "--config-file",
-    help="TBD",
-    type=click.Path(),
-    # default="evohome.json",
-    # show_default=True,
-)
-@click.option("-m", "--message-log", help="TBD", type=click.Path())
-@click.option("-r", "--raw-output", help="TBD", count=True)
 @click.option("-z", "--debug-mode", help="TBD", count=True)
+@click.option("-r", "--reduce-processing", help="TBD", count=True)
+@click.option("-c", "--config-file", help="TBD", type=click.Path())
 @click.pass_context
 def cli(ctx, **kwargs):
     """A CLI for the evohome_rf library."""
     # if kwargs["debug_mode"]:
     #     print(f"cli(): ctx.obj={ctx.obj}, kwargs={kwargs}")
-
-    if kwargs["raw_output"] >= DONT_CREATE_MESSAGES and kwargs["message_log"]:
-        print(
-            f"Raw output = {kwargs['raw_output']} (don't create messages),",
-            f"so disabling message_log ({kwargs['message_log']})",
-        )
-        kwargs["message_log"] = False
-
     ctx.obj = kwargs
 
 
@@ -56,15 +45,14 @@ def parse(obj, **kwargs):
     """Parse a file for packets."""
     # if obj["debug_mode"]:
     #     print(f"parse(): obj={obj}, kwargs={kwargs}")
-
     debug_wrapper(**obj, **kwargs)
 
 
 @click.command()
 @click.argument("serial-port")
-@click.option("-p", "--probe-system", help="TBD", is_flag=True)
-@click.option("-x", "--execute-cmd", help="e.g.: RQ 01:123456 1F09 00")
+@click.option("-p", "--enable_probing", help="TBD", is_flag=True)
 @click.option("-T", "--evofw-flag", help="TBD")
+@click.option("-x", "--execute-cmd", help="e.g.: RQ 01:123456 1F09 00")
 @click.option(
     "-o",
     "--packet-log",
@@ -78,11 +66,11 @@ def monitor(obj, **kwargs):
     """Monitor a serial port for packets."""
     # if obj["debug_mode"]:
     #     print(f"monitor(): obj={obj}, kwargs={kwargs}")
-
     debug_wrapper(**obj, **kwargs)
 
 
-def debug_wrapper(**kwargs):
+def debug_wrapper(config_file=None, **kwargs):
+    # 1st: sort out any debug mode (a CLI-only parameter)...
     assert 0 <= kwargs["debug_mode"] <= 3
 
     if kwargs["debug_mode"] == 3:
@@ -99,21 +87,45 @@ def debug_wrapper(**kwargs):
             ptvsd.wait_for_attach()
             print(" - debugger is now attached, continuing execution.")
 
-    asyncio.run(main(**kwargs))
+    # 2nd: start with config file...
+    config = {}
+    if config_file is not None:
+        with open(config_file) as json_data:
+            config = json.load(json_data)
+
+    config["config"] = config.get("config", {})
+
+    # 3rd: the CLI overwrites the config file...
+    for key in (
+        "evofw_flag",
+        "input_file",
+        "packet_log",
+        "reduce_processing",
+        "serial_port",
+    ):
+        config["config"][key] = kwargs.pop(key, None)
+
+    if "enable_probing" in kwargs:
+        config["config"]["disable_probing"] = not kwargs.pop("enable_probing")
+
+    print(kwargs)
+
+    asyncio.run(main(config=config, **kwargs))
 
 
-async def main(loop=None, **kwargs):
+async def main(loop=None, config=None, **kwargs):
+
     # loop=asyncio.get_event_loop() causes: 'NoneType' object has no attribute 'serial'
     print("Starting evohome_rf...")
-    gateway = None
 
     if sys.platform == "win32":  # is better than os.name
         # ERROR:asyncio:Cancelling an overlapped future failed
         # future: ... cb=[BaseProactorEventLoop._loop_self_reading()]
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
+    gateway = None  # avoid possibly unbound error
     try:
-        gateway = Gateway(**kwargs, loop=loop)
+        gateway = Gateway(loop=loop, config=config, **kwargs)
         task = asyncio.create_task(gateway.start())
         # await asyncio.sleep(20)
         # print(await gateway.evo.zones[0].name)

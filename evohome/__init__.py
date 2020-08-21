@@ -16,7 +16,8 @@ from .devices import DEVICE_CLASSES, Device
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
 from .packet import _LOGGER as pkt_logger, Packet, PortPktProvider, file_pkts, port_pkts
-from .schema import load_config
+
+# from .schema import load_config
 from .ser2net import Ser2NetServer
 from .system import EvoSystem
 
@@ -49,42 +50,40 @@ class GracefulExit(SystemExit):
 class Gateway:
     """The gateway class."""
 
-    def __init__(self, serial_port=None, loop=None, **config) -> None:
+    def __init__(self, loop=None, config=None, **kwargs) -> None:
         """Initialise the class."""
-        if config.get("debug_mode"):
+        if kwargs.get("debug_mode"):
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
-        _LOGGER.debug("Starting evohome_rf, **config = %s", config)  # TODO: under if
+            _LOGGER.debug("Starting evohome_rf, **config = %s", config["config"])
 
-        self.serial_port = serial_port
-        self.loop = loop if loop else asyncio.get_running_loop()  # get_event_loop()
-        self.config = config
+        self._loop = loop if loop else asyncio.get_running_loop()  # get_event_loop()
+        self.config = config.pop("config")
+        self._schema = config
 
-        config["input_file"] = config.get("input_file")
-        config["raw_output"] = config.get("raw_output", 0)
+        self.serial_port = self.config.get("serial_port")
+        self._execute_cmd = kwargs.get("execute_cmd")
 
-        if self.serial_port and config["input_file"]:
+        if self.serial_port and self.config["input_file"]:
             _LOGGER.warning(
                 "Serial port specified (%s), so ignoring input file (%s)",
                 self.serial_port,
-                config["input_file"],
+                self.config["input_file"],
             )
-            config["input_file"] = None
+            self.config["input_file"] = None
 
-        config["listen_only"] = not config.get("probe_system")
-        if config["input_file"]:
-            config["listen_only"] = True
+        if self.config["input_file"]:
+            self.config["disable_sending"] = True
 
-        if config["raw_output"] >= DONT_CREATE_MESSAGES:
-            config["message_log"] = None
+        if self.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
             _stream = (None, sys.stdout)
         else:
             _stream = (sys.stdout, None)
 
-        set_logging(msg_logger, stream=_stream[0], file_name=config.get("message_log"))
+        set_logging(msg_logger, stream=_stream[0], file_name=None)
         set_logging(
             pkt_logger,
             stream=_stream[1],
-            file_name=config.get("packet_log"),
+            file_name=self.config.get("packet_log"),
             file_fmt=PKT_LOG_FMT + BANDW_SUFFIX,
             cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
         )
@@ -102,7 +101,7 @@ class Gateway:
         # if config.get("ser2net_server"):
         self._relay = None  # ser2net_server relay
 
-        # if config["raw_output"] > 0:
+        # if self.config["reduce_processing"] > 0:
         self.evo = None  # EvoSystem(controller=config["controller_id"])
         self.systems: List[EvoSystem] = []
         self.system_by_id: Dict = {}
@@ -112,8 +111,12 @@ class Gateway:
         self.known_devices = {}
         self._include_list = self._exclude_list = []
 
-        config["known_devices"] = False  # bool(self.known_devices)
-        params, self._include_list, self._exclude_list = load_config(self, **config)
+        # self.schema = config["schema"]
+        # self.allow_list = config["allow_list"]
+        # self.block_list = config["block_list"]
+
+        self.config["known_devices"] = False  # bool(self.known_devices)
+        # params, self._include_list, self._exclude_list = load_config(self, **config)
 
     def __repr__(self) -> str:
         return json.dumps(self.schema)
@@ -162,7 +165,7 @@ class Gateway:
 
         else:  # if os.name == "posix":
             for sig in signals + [signal.SIGHUP, signal.SIGUSR1, signal.SIGUSR2]:
-                self.loop.add_signal_handler(
+                self._loop.add_signal_handler(
                     sig, lambda sig=sig: asyncio.create_task(_sig_handler_posix(sig))
                 )
 
@@ -224,20 +227,20 @@ class Gateway:
         #     self._exclude_list = [
 
         # Finally, source of packets is either a text file, or a serial port:
-        if self.config["input_file"]:  # reader = file_reader(config["input_file"])
+        if self.config["input_file"]:  # reader = file_reader(self.config["input_file"])
             reader = asyncio.create_task(file_reader(self.config["input_file"]))
             self._tasks.extend([asyncio.create_task(port_writer(None)), reader])
 
         else:  # if self.serial_port, reader = port_reader(manager)
             if self.config.get("ser2net_server"):
                 self._relay = Ser2NetServer(
-                    self.config["ser2net_server"], self.cmd_que, loop=self.loop
+                    self.config["ser2net_server"], self.cmd_que, loop=self._loop
                 )
                 self._tasks.append(asyncio.create_task(self._relay.start()))
 
-            async with PortPktProvider(self.serial_port, loop=self.loop) as manager:
-                if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
-                    cmd = self.config["execute_cmd"]
+            async with PortPktProvider(self.serial_port, loop=self._loop) as manager:
+                if self._execute_cmd:  # e.g. "RQ 01:145038 1F09 00"
+                    cmd = self._execute_cmd
                     cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:])
                     await manager.put_pkt(cmd, _LOGGER)
 
@@ -288,7 +291,7 @@ class Gateway:
             if destination is not None and str(cmd).startswith("!"):
                 await destination.put_pkt(cmd, _LOGGER)
 
-            elif destination is None or self.config["listen_only"]:
+            elif destination is None or self.config["disable_sending"]:
                 pass  # clear the whole queue
 
             else:
@@ -300,7 +303,7 @@ class Gateway:
         """Decode the packet and its payload."""
 
         try:
-            if self.config["raw_output"] >= DONT_CREATE_MESSAGES:
+            if self.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
                 return
 
             msg = Message(self, pkt)  # trap/logs all invalids msgs appropriately
@@ -309,14 +312,14 @@ class Gateway:
             if msg.src.type == "18":
                 return
 
-            if self.config["raw_output"] >= DONT_CREATE_ENTITIES:
+            if self.config["reduce_processing"] >= DONT_CREATE_ENTITIES:
                 return
 
             msg.create_devices()  # from pkt header & from msg payload (e.g. 000C)
 
             msg.create_zones()  # create zones & ufh_zones (TBD)
 
-            if self.config["raw_output"] >= DONT_UPDATE_ENTITIES:
+            if self.config["reduce_processing"] >= DONT_UPDATE_ENTITIES:
                 return
 
             msg.update_entities(self._prev_msg)  # update the state database

@@ -370,7 +370,7 @@ ATTR_ORPHANS = "orphans"
 ATTR_STORED_HOTWATER = "stored_hotwater"
 ATTR_SYSTEM = "system"
 ATTR_UFH_CONTROLLERS = "ufh_controllers"
-ATTR_ZONE_SENSOR = "temp_sensor"
+ATTR_ZONE_SENSOR = "sensor"
 ATTR_ZONE_TYPE = "heating_type"
 ATTR_ZONES = "zones"
 

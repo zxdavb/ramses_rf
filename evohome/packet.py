@@ -206,7 +206,7 @@ class PortPktProvider:
         self.baudrate = BAUDRATE
         self.timeout = timeout
         self.xonxoff = XON_XOFF
-        self.loop = loop
+        self._loop = loop
 
         self._lock = Lock()
         self._qos_buffer = {}
@@ -217,7 +217,7 @@ class PortPktProvider:
     async def __aenter__(self):
         # TODO: Add ValueError, SerialException wrapper
         self.reader, self.writer = await open_serial_connection(
-            loop=self.loop,
+            loop=self._loop,
             url=self.serial_port,
             baudrate=self.baudrate,
             timeout=self.timeout,

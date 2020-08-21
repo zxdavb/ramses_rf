@@ -8,6 +8,7 @@ from typing import Optional
 
 from .command import Priority, RQ_RETRY_LIMIT, RQ_TIMEOUT
 from .const import (
+    ATTR_CONTROLLER,
     ATTR_SYSTEM,
     # CODE_0005_ZONE_TYPE,
     DEVICE_HAS_ZONE_SENSOR,
@@ -147,11 +148,23 @@ class System(Controller):
     def schema(self) -> dict:
         """Return the system's schema."""
 
-        schema = {}
+        schema = {ATTR_CONTROLLER: self.id}
 
-        schema[ATTR_HTG_CONTROL] = (
-            self.boiler_control.id if self.boiler_control is not None else None
-        )
+        orphans = [
+            d.id
+            for d in self.devices
+            if d._zone is None and d._domain_id != "FC"  # TODO: a bit messy
+            # and d._ctl != d
+        ]  # devices without a parent zone, NB: CTL can be a sensor for a zones
+        orphans.sort()
+        # system" schema[ATTR_SYSTEM][ATTR_ORPHANS] = orphans
+
+        schema[ATTR_SYSTEM] = {
+            ATTR_HTG_CONTROL: self.boiler_control.id
+            if self.boiler_control is not None
+            else None,
+            ATTR_ORPHANS: orphans,
+        }
 
         schema[ATTR_STORED_HOTWATER] = self.dhw.schema if self.dhw is not None else None
 
@@ -163,15 +176,6 @@ class System(Controller):
         ufh_controllers.sort()
         schema[ATTR_UFH_CONTROLLERS] = ufh_controllers
 
-        orphans = [
-            d.id
-            for d in self.devices
-            if d._zone is None
-            # and d._ctl != d
-        ]  # devices without a parent zone, NB: CTL can be a sensor for a zones
-        orphans.sort()
-        schema[ATTR_ORPHANS] = orphans
-
         return schema
 
     @property
@@ -182,17 +186,17 @@ class System(Controller):
 
         params[ATTR_SYSTEM] = {
             "mode": self._get_msg_value("2E04"),  # **self.mode()
-            **self._get_msg_value("0100"),
+            "language": self._get_msg_value("0100", "language"),
         }
 
         # params[ATTR_HTG_CONTROL] = (
         #     self.boiler_control.config if self.boiler_control is not None else None
         # )
 
-        # config[ATTR_STORED_HOTWATER]={self.dhw.config}ifself.dhw is not None else None
+        params[ATTR_STORED_HOTWATER] = self.dhw.params if self.dhw is not None else None
 
         params[ATTR_ZONES] = {
-            z.id: z.params for z in sorted(self.zones, key=lambda x: x.idx)
+            z.idx: z.params for z in sorted(self.zones, key=lambda x: x.idx)
         }
 
         # ufh_controllers = [
@@ -220,9 +224,9 @@ class System(Controller):
 
         result = {}
 
-        result[ATTR_SYSTEM] = {
-            **self._get_msg_value("313F"),
-        }
+        # result[ATTR_SYSTEM] = {
+        #     **self._get_msg_value("313F"),
+        # }
 
         return result
 
@@ -237,6 +241,9 @@ class EvoSystem(System):
         self._fault_log = {}
 
     def _discover(self) -> None:
+        if self._gwy.config["disable_discovery"]:
+            return
+
         super()._discover()
 
         # TODO: test only
@@ -554,7 +561,7 @@ class EvoSystem(System):
     @property
     async def mode(self) -> dict:  # 2E04
         """Return the system mode."""
-        if not self._gwy.config["listen_only"]:
+        if not self._gwy.self.config["disable_sending"]:
             self._command("2E04", payload="FF", priority=Priority.ASAP)
             for _ in range(RQ_RETRY_LIMIT):
                 await asyncio.sleep(RQ_TIMEOUT)

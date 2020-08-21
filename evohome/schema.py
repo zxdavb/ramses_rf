@@ -60,15 +60,15 @@ SER2NET_SCHEMA = vol.Schema(
 )
 CONFIG_SCHEMA = vol.Schema(
     {
-        vol.Optional("disable_sending", default=True): vol.Any(None, bool),
-        vol.Optional("evofw_flag", default=True): vol.Any(None, bool),
-        vol.Optional("packet_log", default=True): vol.Any(None, bool),
+        vol.Optional("use_schema", default=False): vol.Any(None, bool),
+        vol.Optional("enforce_allowlist", default=False): vol.Any(None, bool),
+        vol.Optional("enforce_blocklist", default=False): vol.Any(None, bool),
+        vol.Optional("serial_port"): vol.Any(None, bool),
+        vol.Optional("disable_probing", default=False): vol.Any(None, bool),
+        vol.Optional("disable_sending", default=False): vol.Any(None, bool),
+        vol.Optional("evofw_flag", default=None): vol.Any(None, bool),
         vol.Optional("ser2net_relay"): SER2NET_SCHEMA,
-        vol.Optional("startup_ping", default=False): vol.Any(None, bool),
-        vol.Optional("use_discovery", default=False): vol.Any(None, bool),
-        vol.Optional("use_schema", default=True): vol.Any(None, bool),
-        vol.Optional("use_allowlist", default=True): vol.Any(None, bool),
-        vol.Optional("use_blocklist", default=True): vol.Any(None, bool),
+        vol.Optional("packet_log", default=None): vol.Any(None, bool),
     }
 )
 HW_SCHEMA = vol.Schema(
@@ -147,23 +147,23 @@ def load_config(gwy, **config) -> Tuple[dict, list, list]:
     """Process the schema, and the configuration and return True if it is valid."""
 
     # def proc_cli(config):
-    # config["input_file"] = config.get("input_file")
+    # self.config["input_file"] = config.get("input_file")
     # config["known_devices"] = config.get("known_devices")
-    # config["raw_output"] = config.get("raw_output", 0)
+    # self.config["reduce_processing"] = config.get("raw_output", 0)
 
-    # if self.serial_port and config["input_file"]:
+    # if self.serial_port and self.config["input_file"]:
     #     _LOGGER.warning(
     #         "Serial port specified (%s), so ignoring input file (%s)",
     #         self.serial_port,
-    #         config["input_file"],
+    #         self.config["input_file"],
     #     )
-    #     config["input_file"] = None
+    #     self.config["input_file"] = None
 
-    # config["listen_only"] = not config.get("probe_system")
-    # if config["input_file"]:
-    #     config["listen_only"] = True
+    # self.config["disable_sending"] = not config.get("probe_system")
+    # if self.config["input_file"]:
+    #     self.config["disable_sending"] = True
 
-    # if config["raw_output"] >= DONT_CREATE_MESSAGES:
+    # if self.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
     #     config["message_log"] = None
     #     _stream = (None, sys.stdout)
     # else:

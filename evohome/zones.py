@@ -80,7 +80,7 @@ class ZoneBase(Entity):
 
     async def _get_msg(self, code) -> Optional[Any]:  # Optional[Message]:
         # if possible/allowed, simply get an up-todate packet from the controller
-        if not self._gwy.config["listen_only"]:
+        if not self._gwy.self.config["disable_sending"]:
             # self._msgs.pop(code, None)  # this is done in self._command()
             self._command(code, payload=f"{self.idx}00", priority=Priority.ASAP)
             for _ in range(RQ_RETRY_LIMIT):  # TODO: check rq_len
@@ -111,6 +111,9 @@ class DhwZone(ZoneBase, HeatDemand):
         self._discover()  # should be last thing in __init__()
 
     def _discover(self) -> None:
+        if self._gwy.config["disable_discovery"]:
+            return
+
         # if False and __dev_mode__ and self.idx == "FA":  # dev/test code
         #     self.async_set_override(state="On")
 
@@ -343,6 +346,9 @@ class Zone(ZoneBase):
         self._discover()
 
     def _discover(self) -> None:
+        if self._gwy.config["disable_discovery"]:
+            return
+
         if __dev_mode__ and self.idx == "99":  # dev/test code
             asyncio.create_task(  # TODO: test/dev only
                 self.async_cancel_override()
@@ -401,6 +407,12 @@ class Zone(ZoneBase):
             if msg.src.type in ("02", "04", "13"):
                 zone_type = ZONE_CLASS_MAP[msg.src.type]
                 self._set_zone_type("VAL" if zone_type == "ELE" else zone_type)
+
+    def update(self, force_refresh=False) -> None:
+        pass
+
+    def async_update(self, force_refresh=False) -> None:
+        pass
 
     @property  # id, type
     def schema(self) -> dict:

@@ -133,7 +133,6 @@ class Entity:
                 for k, v in result.items()
                 if k[:1] != "_" and k not in ("domain_id", "zone_idx")
             }
-        return {}
 
     def _update_msg(self, msg) -> None:
         if "domain_id" in msg.payload:  # isinstance(msg.payload, dict) and
@@ -265,6 +264,9 @@ class Device(Entity):
         return f"{self.id} ({DEVICE_TYPES.get(self.type)})"
 
     def _discover(self) -> None:
+        if self._gwy.config["disable_discovery"]:
+            return
+
         # do these even if battery-powered (e.g. device might be in rf_check mode)
         if not __dev_mode__:
             for code in ("0016", "1FC9"):
@@ -485,6 +487,9 @@ class BdrSwitch(Device, Actuator):
             self._ctl.boiler_control = self
 
     def _discover(self) -> None:
+        if self._gwy.config["disable_discovery"]:
+            return
+
         super()._discover()
 
         self._command("1100", payload="00")
