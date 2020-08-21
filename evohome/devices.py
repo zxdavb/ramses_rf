@@ -289,6 +289,48 @@ class Device(Entity):
         if self._ctl is not None and "parent_idx" in msg.payload:
             self.zone = self._ctl.get_zone(msg.payload["parent_idx"])
 
+    def _set_domain(self, ctl=None, dhw=None, zone=None) -> None:
+        """Set the device's parent controller, after validating it."""
+
+        if ctl is not None:
+            self._domain_id = "FC"  # boiler_control
+
+        elif dhw is not None:
+            self._domain_id = "FA"
+            ctl = dhw._ctl
+
+        elif zone is not None:
+            self._domain_id = zone.idx
+            ctl = zone._ctl
+
+        if self._ctl is None:  # zones have this set at instantiation
+            self._ctl = ctl
+            self._ctl.devices.append(self)
+            self._ctl.device_by_id[self.id] = self
+            _LOGGER.debug("Device %s: Controller now set to %s", self.id, self._ctl.id)
+
+        elif self._ctl is not ctl:
+            # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5
+            raise CorruptStateError(
+                f"Device {self} has a mismatched Controller: "
+                f"old={self._ctl.id}, new={ctl.id}",
+            )
+
+        if zone is None:
+            return
+
+        if self._zone is None:
+            self._zone = zone
+            self._zone.devices.append(self)
+            self._zone.device_by_id[self.id] = self
+            _LOGGER.debug("Device %s: Zone now set to %s", self.id, self._ctl.id)
+
+        elif self._zone is not zone:
+            raise CorruptStateError(
+                f"Device {self} has a mismatched Zone: "
+                f"old={self._zone.idx}, new={zone.idx}",
+            )
+
     @property
     def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
         """Return the device's parent zone, if known."""

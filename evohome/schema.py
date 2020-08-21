@@ -7,17 +7,18 @@ import voluptuous as vol
 
 from .const import (
     Address,
-    ATTR_HTG_CONTROL,
-    # ATTR_CONTROLLER,
+    ATTR_CONTROLLER,
     ATTR_DEVICES,
     ATTR_DHW_SENSOR,
-    ATTR_ZONE_TYPE,
     ATTR_DHW_VALVE_HTG,
     ATTR_DHW_VALVE,
+    ATTR_HTG_CONTROL,
     ATTR_ORPHANS,
     ATTR_STORED_HOTWATER,
-    ATTR_ZONE_SENSOR,
+    ATTR_SYSTEM,
     ATTR_UFH_CONTROLLERS,
+    ATTR_ZONE_TYPE,
+    ATTR_ZONE_SENSOR,
     ATTR_ZONES,
     ZONE_TYPE_SLUGS,
     __dev_mode__,
@@ -71,35 +72,38 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Optional("packet_log", default=None): vol.Any(None, bool),
     }
 )
-HW_SCHEMA = vol.Schema(
+DHW_SCHEMA = vol.Schema(
     {
         vol.Optional(ATTR_DHW_SENSOR): vol.Any(None, vol.Match(r"^07:[0-9]{6}$")),
         vol.Optional(ATTR_DHW_VALVE): vol.Any(None, vol.Match(r"^13:[0-9]{6}$")),
         vol.Optional(ATTR_DHW_VALVE_HTG): vol.Any(None, vol.Match(r"^13:[0-9]{6}$")),
     }
 )
+UFH_SCHEMA = vol.Schema({})
+ORPHAN_SCHEMA = vol.Schema(
+    {vol.Optional(ATTR_ORPHANS): vol.Any(None, vol.All(DEVICE_ID))}
+)
 SYSTEM_SCHEMA = vol.Schema(
     {
-        vol.Required(vol.Match(r"^(01|23):[0-9]{6}$")): vol.Schema(
+        vol.Required(ATTR_CONTROLLER): vol.Match(r"^(01|23):[0-9]{6}$"),
+        vol.Optional(ATTR_SYSTEM): vol.Schema(
             {
                 vol.Optional(ATTR_HTG_CONTROL): vol.Any(
                     None, vol.Match(r"^(10|13):[0-9]{6}$")
                 ),
-                vol.Optional(ATTR_STORED_HOTWATER): vol.Any(None, HW_SCHEMA),
-                vol.Optional(ATTR_ZONES): vol.Any(
-                    None, vol.All(ZONE_SCHEMA, vol.Length(min=0, max=12))
-                ),
-            },
-            extra=vol.ALLOW_EXTRA,
-        )
-    }
+                vol.Optional(ATTR_ORPHANS): vol.Any(None, vol.All([DEVICE_ID])),
+            }
+        ),
+        vol.Optional(ATTR_STORED_HOTWATER): vol.Any(None, DHW_SCHEMA),
+        vol.Optional(ATTR_ZONES): vol.Any(
+            None, vol.All(ZONE_SCHEMA, vol.Length(min=1, max=12))
+        ),
+        vol.Optional(ATTR_UFH_CONTROLLERS): vol.Any(None, [UFH_SCHEMA]),
+    },  # extra=vol.ALLOW_EXTRA
 )
-ORPHAN_SCHEMA = vol.Schema(
-    {vol.Optional(ATTR_ORPHANS): vol.Any(None, vol.All(DEVICE_ID, vol.Length(min=0)))}
-)
-GLOBAL_SCHEMA = vol.Any(
-    vol.Any(SYSTEM_SCHEMA, vol.Length(min=0)), ORPHAN_SCHEMA, extra=vol.ALLOW_EXTRA
-)
+# GLOBAL_SCHEMA = vol.Schema(
+#     vol.Any(SYSTEM_SCHEMA, vol.Length(min=0)), ORPHAN_SCHEMA, extra=vol.ALLOW_EXTRA
+# )
 DEVICE_SCHEMA = vol.Schema(
     {
         vol.Required(DEVICE_ID): vol.Any(
@@ -118,13 +122,13 @@ KNOWNS_SCHEMA = vol.Schema(
         vol.Optional("block_list"): vol.Any(None, vol.All(DEVICE_SCHEMA)),
     }
 )
-SCHEMA = vol.Schema(
-    {
-        vol.Optional("configuration"): CONFIG_SCHEMA,
-        vol.Optional("global_schema"): GLOBAL_SCHEMA,
-        vol.Optional("known_devices"): KNOWNS_SCHEMA,
-    }
-)
+# SCHEMA = vol.Schema(
+#     {
+#         vol.Optional("configuration"): CONFIG_SCHEMA,
+#         vol.Optional("global_schema"): GLOBAL_SCHEMA,
+#         vol.Optional("known_devices"): KNOWNS_SCHEMA,
+#     }
+# )
 MONITOR_SCHEMA = vol.Schema(
     {
         vol.Optional("probe_system"): vol.Any(None, str),
@@ -180,7 +184,7 @@ def load_config(gwy, **config) -> Tuple[dict, list, list]:
     except FileNotFoundError:  # if it doesn't exist, create it later
         return {}, (), ()
 
-    config = SCHEMA(config)
+    # config = SCHEMA(config)
     params, schema = config["configuration"], config["global_schema"]
     gwy.known_devices = config["known_devices"]
 
@@ -213,54 +217,6 @@ def load_config(gwy, **config) -> Tuple[dict, list, list]:
     return params, tuple(allow_list), tuple(block_list)
 
 
-def load_schema(gwy, controller_id, schema, **kwargs) -> bool:
-    """Process the schema, and the configuration and return True if it is valid."""
-    # TODO: check a sensor is not a device in another zone
-
-    ctl = Address(id=controller_id, type=controller_id[:2])
-    ctl = gwy.get_device(ctl, controller=ctl)
-
-    gwy.evo = ctl if gwy.evo is None else gwy.evo  # TODO: what!
-
-    if schema.get(ATTR_HTG_CONTROL) is not None:
-        dev = Address(id=schema[ATTR_HTG_CONTROL], type=schema[ATTR_HTG_CONTROL][:2])
-        dev = gwy.get_device(dev, controller=ctl)
-        ctl.boiler_control = dev
-
-    if schema.get(ATTR_STORED_HOTWATER) is not None:
-        dhw_sensor = schema[ATTR_STORED_HOTWATER].get(ATTR_DHW_SENSOR)
-        dhw_hotwater = schema[ATTR_STORED_HOTWATER].get(ATTR_DHW_VALVE)
-        dhw_heating = schema[ATTR_STORED_HOTWATER].get(ATTR_DHW_VALVE_HTG)
-
-        ctl.dhw = ctl.get_zone("FA")
-
-        if dhw_sensor is not None:
-            dev = Address(id=dhw_sensor, type=dhw_sensor[:2])
-            ctl.dhw.sensor = gwy.get_device(dev, controller=ctl)
-
-        if dhw_hotwater is not None:
-            dev = Address(id=dhw_hotwater, type=dhw_hotwater[:2])
-            ctl.hotwater_valve = gwy.get_device(dev, controller=ctl)
-
-        if dhw_heating is not None:
-            dev = Address(id=dhw_heating, type=dhw_heating[:2])
-            ctl.heating_valve = gwy.get_device(dev, controller=ctl)
-
-    for ufh_ctl, ufh_schema in schema[ATTR_UFH_CONTROLLERS]:
-        dev = Address(id=ufh_ctl, type=ufh_ctl[:2])
-        dev = gwy.get_device(ufh_ctl, controller=ctl)
-
-    if schema.get(ATTR_ZONES):
-        [
-            ctl.get_zone(
-                zone_idx,
-                zone_type=attr.get(ATTR_ZONE_TYPE),
-                sensor=attr.get(ATTR_ZONE_SENSOR),
-            )
-            for zone_idx, attr in schema[ATTR_ZONES].items()
-        ]
-
-
 def load_filter(gwy, config, devices, **kwargs) -> Tuple[list, list]:
     """Process the JSON and return True if it is valid."""
 
@@ -282,3 +238,56 @@ def load_filter(gwy, config, devices, **kwargs) -> Tuple[list, list]:
         return [], block_list
 
     return [], []
+
+
+def load_schema(gwy, **kwargs) -> bool:
+    """Process the schema, and the configuration and return True if it is valid."""
+    # TODO: check a sensor is not a device in another zone
+
+    schema = SYSTEM_SCHEMA(kwargs["schema"])
+
+    ctl_id = schema[ATTR_CONTROLLER]
+    addr = Address(id=ctl_id, type=ctl_id[:2])
+    ctl = gwy.get_device(addr, controller=addr)
+
+    gwy.evo = ctl
+
+    if ATTR_HTG_CONTROL in schema[ATTR_SYSTEM]:
+        htg_id = schema[ATTR_SYSTEM][ATTR_HTG_CONTROL]
+        if htg_id:
+            addr = Address(id=htg_id, type=htg_id[:2])
+            ctl.boiler_control = gwy.get_device(addr, controller=ctl)
+
+    if ATTR_STORED_HOTWATER in schema:
+        dhw = schema[ATTR_STORED_HOTWATER]
+        if dhw:
+            ctl.dhw = ctl.get_zone("FA")
+
+            dhw_sensor_id = dhw.get(ATTR_DHW_SENSOR)
+            if dhw_sensor_id is not None:
+                addr = Address(id=dhw_sensor_id, type=dhw_sensor_id[:2])
+                ctl.dhw.sensor = gwy.get_device(addr, controller=ctl)
+
+            dhw_hotwater_id = dhw.get(ATTR_DHW_VALVE)
+            if dhw_hotwater_id is not None:
+                addr = Address(id=dhw_hotwater_id, type=dhw_hotwater_id[:2])
+                ctl.dhw.hotwater_valve = gwy.get_device(addr, controller=ctl)
+
+            dhw_heating_id = dhw.get(ATTR_DHW_VALVE_HTG)
+            if dhw_heating_id is not None:
+                addr = Address(id=dhw_heating_id, type=dhw_heating_id[:2])
+                ctl.dhw.heating_valve = gwy.get_device(addr, controller=ctl)
+
+    # if schema.get(ATTR_ZONES):
+    #     [
+    #         ctl.get_zone(
+    #             zone_idx,
+    #             zone_type=attr.get(ATTR_ZONE_TYPE),
+    #             sensor=attr.get(ATTR_ZONE_SENSOR),
+    #         )
+    #         for zone_idx, attr in schema[ATTR_ZONES].items()
+    #     ]
+
+    # for ufh_ctl, ufh_schema in schema[ATTR_UFH_CONTROLLERS]:
+    #     dev = Address(id=ufh_ctl, type=ufh_ctl[:2])
+    #     dev = gwy.get_device(ufh_ctl, controller=ctl)

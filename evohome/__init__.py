@@ -17,7 +17,7 @@ from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LO
 from .message import _LOGGER as msg_logger, Message
 from .packet import _LOGGER as pkt_logger, Packet, PortPktProvider, file_pkts, port_pkts
 
-# from .schema import load_config
+from .schema import load_schema  # load_filter,
 from .ser2net import Ser2NetServer
 from .system import EvoSystem
 
@@ -116,7 +116,10 @@ class Gateway:
         # self.block_list = config["block_list"]
 
         self.config["known_devices"] = False  # bool(self.known_devices)
-        # params, self._include_list, self._exclude_list = load_config(self, **config)
+        self._known_devices = load_schema(self, **self._schema)
+        # self._known_devices, self._include_list, self._exclude_list = load_filter(
+        #     self, self._known_devices, **self._schema
+        # )
 
     def __repr__(self) -> str:
         return json.dumps(self.schema)

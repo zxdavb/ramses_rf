@@ -180,7 +180,7 @@ class DhwZone(ZoneBase, HeatDemand):
 
         if self._sensor is None:
             self._sensor = device
-            device.zone = self  # self.add_device(device)
+            device._set_domain(dhw=self)
 
     @property
     def hotwater_valve(self) -> Device:
@@ -198,7 +198,7 @@ class DhwZone(ZoneBase, HeatDemand):
 
         if self._dhw_valve is None:
             self._dhw_valve = device
-            device.zone = self
+            device._set_domain(dhw=self)
 
     @property
     def heating_valve(self) -> Device:
@@ -216,7 +216,7 @@ class DhwZone(ZoneBase, HeatDemand):
 
         if self._htg_valve is None:
             self._htg_valve = device
-            device.zone = self
+            device._set_domain(dhw=self)
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
@@ -471,7 +471,7 @@ class Zone(ZoneBase):
 
         if self._sensor is None:
             self._sensor = device  # if TRV, zone type likely (but not req'd) RAD
-            device.zone = self  # self.add_device(device)
+            device._set_domain(zone=self)
 
     @property
     def heating_type(self) -> Optional[str]:

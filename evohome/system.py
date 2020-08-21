@@ -141,8 +141,7 @@ class System(Controller):
 
         if self._boiler_control is None:
             self._boiler_control = device
-            # device._is_tpi = True
-            self._domain_id = "FC"  # self.add_device(device)
+            device._set_domain(ctl=self)
 
     @property
     def schema(self) -> dict:
@@ -150,12 +149,8 @@ class System(Controller):
 
         schema = {ATTR_CONTROLLER: self.id}
 
-        orphans = [
-            d.id
-            for d in self.devices
-            if d._zone is None and d._domain_id != "FC"  # TODO: a bit messy
-            # and d._ctl != d
-        ]  # devices without a parent zone, NB: CTL can be a sensor for a zones
+        # devices without a parent zone, NB: CTL can be a sensor for a zones
+        orphans = [d.id for d in self.devices if not d._domain_id]
         orphans.sort()
         # system" schema[ATTR_SYSTEM][ATTR_ORPHANS] = orphans
 
