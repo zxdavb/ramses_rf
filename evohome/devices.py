@@ -432,7 +432,7 @@ class Controller(Device):
         self.device_by_id = {self.id: self}
 
         self._ctl = self
-        self._domain_id = "FF"
+        # self._domain_id = "FF"
 
 
 # 02: "10E0", "3150";; "0008", "22C9", "22D0"

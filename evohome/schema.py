@@ -49,9 +49,7 @@ ZONE_SCHEMA = vol.Schema(
                     None, vol.Any(*list(ZONE_TYPE_SLUGS))
                 ),
                 vol.Optional(ATTR_ZONE_SENSOR, default=None): vol.Any(None, DEVICE_ID),
-                vol.Optional(ATTR_DEVICES, default=[]): vol.Any(
-                    None, vol.Schema([DEVICE_ID])
-                ),
+                vol.Optional(ATTR_DEVICES, default=[]): vol.Schema([DEVICE_ID]),
             },
         )
     }
@@ -278,15 +276,29 @@ def load_schema(gwy, **kwargs) -> bool:
                 addr = Address(id=dhw_heating_id, type=dhw_heating_id[:2])
                 ctl.dhw.heating_valve = gwy.get_device(addr, controller=ctl)
 
-    # if schema.get(ATTR_ZONES):
-    #     [
-    #         ctl.get_zone(
-    #             zone_idx,
-    #             zone_type=attr.get(ATTR_ZONE_TYPE),
-    #             sensor=attr.get(ATTR_ZONE_SENSOR),
-    #         )
-    #         for zone_idx, attr in schema[ATTR_ZONES].items()
-    #     ]
+    if schema.get(ATTR_ZONES):
+        # [
+        #     ctl.get_zone(
+        #         zone_idx,
+        #         zone_type=attr.get(ATTR_ZONE_TYPE),
+        #         # sensor=attr.get(ATTR_ZONE_SENSOR),
+        #     )
+        #     for zone_idx, attr in schema[ATTR_ZONES].items()
+        # ]
+
+        for zone_idx, attr in schema[ATTR_ZONES].items():
+            z = ctl.get_zone(zone_idx, zone_type=attr.get(ATTR_ZONE_TYPE))
+
+            sensor_id = attr.get(ATTR_ZONE_SENSOR)
+            if sensor_id:
+                addr = Address(id=sensor_id, type=sensor_id[:2])
+                z.temp_sensor = gwy.get_device(addr, controller=ctl)
+
+            device_list = attr.get(ATTR_DEVICES)
+            if device_list:
+                for device_id in attr.get(ATTR_DEVICES):
+                    addr = Address(id=device_id, type=device_id[:2])
+                    gwy.get_device(addr, controller=ctl, domain_id=zone_idx)
 
     # for ufh_ctl, ufh_schema in schema[ATTR_UFH_CONTROLLERS]:
     #     dev = Address(id=ufh_ctl, type=ufh_ctl[:2])

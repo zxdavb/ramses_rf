@@ -16,6 +16,7 @@ from .const import (
     MAX_ZONES,
     SYSTEM_MODE_LOOKUP,
     SYSTEM_MODE_MAP,
+    ZONE_TYPE_SLUGS,
     __dev_mode__,
 )
 from .devices import _dtm, Controller, Device
@@ -86,9 +87,11 @@ class System(Controller):
         elif int(domain_id, 16) < MAX_ZONES:
             zone = self.zone_by_idx.get(domain_id)
             if zone is None:
-                zone = ZONE_CLASSES.get(zone_type, Zone)(self, domain_id)
+                zone = ZONE_CLASSES.get(ZONE_TYPE_SLUGS.get(zone_type), Zone)(
+                    self, domain_id
+                )
             elif zone_type is not None:
-                zone._set_zone_type(zone_type)
+                zone._set_zone_type(ZONE_TYPE_SLUGS.get(zone_type))
 
         elif domain_id in ("FC", "FF"):
             return
