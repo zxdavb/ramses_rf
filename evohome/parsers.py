@@ -53,10 +53,14 @@ def _idx(seqx, msg) -> dict:
     #     assert seqx == "00"
     #     return {}
 
-    if {"12", "22"} & {msg.src.type} and msg.src.type == msg.devs[2].type:  # , "1060"
-        if msg.code in ("0008", "0009", "1030", "1100", "2309", "1030", "313F"):
-            assert int(seqx, 16) < MAX_ZONES
-            return {"other_idx": seqx}
+    # 045  I --- 03:183434 --:------ 03:183434 1060 003 00FF00
+    if {"03", "12", "22"} & {msg.src.type} and msg.src.type == msg.devs[2].type:
+        #  msg.code in ("0008", "0009", "1030", "1060", "1100", "2309", "1030", "313F"):
+        if msg.code not in ("1030", "2309"):
+            assert seqx == "00"
+            return {}
+        assert int(seqx, 16) < MAX_ZONES
+        return {"other_idx": seqx}  # TODO: Should be parent_idx, but still a WIP
 
     elif msg.code in ("0002", "2D49"):  # non-evohome: hometronics
         return {"other_idx": seqx}
