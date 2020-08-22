@@ -49,7 +49,7 @@ ZONE_SCHEMA = vol.Schema(
                     None, vol.Any(*list(ZONE_TYPE_SLUGS))
                 ),
                 vol.Optional(ATTR_ZONE_SENSOR, default=None): vol.Any(None, DEVICE_ID),
-                vol.Optional(ATTR_DEVICES, default=[]): vol.Schema([DEVICE_ID]),
+                vol.Optional(ATTR_DEVICES, default=[]): vol.Any(None, [DEVICE_ID]),
             },
         )
     }
@@ -88,7 +88,7 @@ ORPHAN_SCHEMA = vol.Schema(
 SYSTEM_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_CONTROLLER): vol.Match(r"^(01|23):[0-9]{6}$"),
-        vol.Optional(ATTR_SYSTEM): vol.Schema(
+        vol.Optional(ATTR_SYSTEM, default={}): vol.Schema(
             {
                 vol.Optional(ATTR_HTG_CONTROL): vol.Any(
                     None, vol.Match(r"^(10|13):[0-9]{6}$")

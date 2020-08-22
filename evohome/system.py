@@ -168,8 +168,9 @@ class System(Controller):
         }
 
         ufh_controllers = [d.id for d in self.devices if d.type == "02"]
-        ufh_controllers.sort()
-        schema[ATTR_UFH_CONTROLLERS] = ufh_controllers
+        if ufh_controllers:
+            ufh_controllers.sort()
+            schema[ATTR_UFH_CONTROLLERS] = ufh_controllers
 
         return schema
 

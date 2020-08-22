@@ -50,23 +50,22 @@ class GracefulExit(SystemExit):
 class Gateway:
     """The gateway class."""
 
-    def __init__(self, loop=None, config=None, debug_flags=None) -> None:
+    def __init__(self, loop=None, config=None, debug=None) -> None:
         """Initialise the class.
 
         kwargs has: execute_cmd, debug_mode only.
         """
-        if debug_flags.get("debug_mode"):
+        if debug.get("debug_mode"):
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
             _LOGGER.debug("Starting evohome_rf, **config = %s", config["config"])
 
         self._loop = loop if loop else asyncio.get_running_loop()  # get_event_loop()
         self.config = config.pop("config")
-        print(self.config)
         self.config = CONFIG_SCHEMA(self.config)
         self._schema = config
 
         self.serial_port = self.config.get("serial_port")
-        self._execute_cmd = debug_flags.get("execute_cmd")
+        self._execute_cmd = debug.get("execute_cmd")
 
         if self.config["input_file"]:
             if self.serial_port:
