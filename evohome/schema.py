@@ -6,7 +6,6 @@ from typing import Tuple
 import voluptuous as vol
 
 from .const import (
-    Address,
     ATTR_CONTROLLER,
     ATTR_DEVICES,
     ATTR_DHW_SENSOR,
@@ -22,6 +21,7 @@ from .const import (
     ATTR_ZONES,
     ZONE_TYPE_SLUGS,
     __dev_mode__,
+    id_to_address as addr,
 )
 
 # false = False; null = None; true = True
@@ -57,18 +57,22 @@ ZONE_SCHEMA = vol.Schema(
 SER2NET_SCHEMA = vol.Schema(
     {vol.Required("enabled"): bool, vol.Optional("socket", default="0.0.0.0:5000"): str}
 )
+
 CONFIG_SCHEMA = vol.Schema(
     {
+        vol.Optional("serial_port"): vol.Any(None, str),
+        # vol.Optional("input_file"): vol.Any(None, Any),
+        vol.Optional("reduce_processing", default=False): vol.Any(None, int),
+        vol.Optional("packet_log", default=None): vol.Any(None, str),
         vol.Optional("use_schema", default=False): vol.Any(None, bool),
         vol.Optional("enforce_allowlist", default=False): vol.Any(None, bool),
         vol.Optional("enforce_blocklist", default=False): vol.Any(None, bool),
-        vol.Optional("serial_port"): vol.Any(None, bool),
         vol.Optional("disable_probing", default=False): vol.Any(None, bool),
         vol.Optional("disable_sending", default=False): vol.Any(None, bool),
         vol.Optional("evofw_flag", default=None): vol.Any(None, bool),
         vol.Optional("ser2net_relay"): SER2NET_SCHEMA,
-        vol.Optional("packet_log", default=None): vol.Any(None, bool),
-    }
+    },
+    extra=vol.ALLOW_EXTRA,
 )
 DHW_SCHEMA = vol.Schema(
     {
@@ -97,27 +101,28 @@ SYSTEM_SCHEMA = vol.Schema(
             None, vol.All(ZONE_SCHEMA, vol.Length(min=1, max=12))
         ),
         vol.Optional(ATTR_UFH_CONTROLLERS): vol.Any(None, [UFH_SCHEMA]),
-    },  # extra=vol.ALLOW_EXTRA
+    },
+    extra=vol.ALLOW_EXTRA,
 )
 # GLOBAL_SCHEMA = vol.Schema(
 #     vol.Any(SYSTEM_SCHEMA, vol.Length(min=0)), ORPHAN_SCHEMA, extra=vol.ALLOW_EXTRA
 # )
-DEVICE_SCHEMA = vol.Schema(
+KNOWNS_SCHEMA = vol.Schema(
     {
         vol.Required(DEVICE_ID): vol.Any(
             None,
             {
-                vol.Optional("friendly_name", default=None): vol.Any(None, str),
+                vol.Optional("name", default=None): vol.Any(None, str),
                 vol.Optional("_parent_zone"): vol.Any(None, DOMAIN_ID),
                 vol.Optional("_has_battery"): vol.Any(None, bool),
             },
-        )
+        )  # , extra=vol.ALLOW_EXTRA
     }
 )
-KNOWNS_SCHEMA = vol.Schema(
+FILTER_SCHEMA = vol.Schema(
     {
-        vol.Optional("allow_list"): vol.Any(None, vol.All(DEVICE_SCHEMA)),
-        vol.Optional("block_list"): vol.Any(None, vol.All(DEVICE_SCHEMA)),
+        vol.Optional("allow_list"): vol.Any(None, vol.All(KNOWNS_SCHEMA)),
+        vol.Optional("block_list"): vol.Any(None, vol.All(KNOWNS_SCHEMA)),
     }
 )
 # SCHEMA = vol.Schema(
@@ -215,29 +220,6 @@ def load_config(gwy, **config) -> Tuple[dict, list, list]:
     return params, tuple(allow_list), tuple(block_list)
 
 
-def load_filter(gwy, config, devices, **kwargs) -> Tuple[list, list]:
-    """Process the JSON and return True if it is valid."""
-
-    if config["known_devices"]:
-        try:
-            with open(config["known_devices"]) as json_file:
-                devices = gwy.known_devices = json.load(json_file)
-        except FileNotFoundError:  # if it doesn't exist, we'll create it later
-            gwy.known_devices = {}
-
-    if config.get("use_allowlist", bool(devices.get("allow_list"))):
-        allow_list = list(devices.get("allow_list", ()))
-        allow_list += [d for d in gwy.device_by_id if d not in allow_list]
-        return allow_list, []
-
-    if config.get("block_list", bool(devices.get("block_list"))):
-        block_list = list(devices.get("block_list", ()))
-        block_list = [d for d in block_list if d not in gwy.device_by_id]
-        return [], block_list
-
-    return [], []
-
-
 def load_schema(gwy, **kwargs) -> bool:
     """Process the schema, and the configuration and return True if it is valid."""
     # TODO: check a sensor is not a device in another zone
@@ -245,16 +227,14 @@ def load_schema(gwy, **kwargs) -> bool:
     schema = SYSTEM_SCHEMA(kwargs["schema"])
 
     ctl_id = schema[ATTR_CONTROLLER]
-    addr = Address(id=ctl_id, type=ctl_id[:2])
-    ctl = gwy.get_device(addr, controller=addr)
+    ctl = gwy.get_device(addr(ctl_id), controller=addr(ctl_id))
 
     gwy.evo = ctl
 
     if ATTR_HTG_CONTROL in schema[ATTR_SYSTEM]:
         htg_id = schema[ATTR_SYSTEM][ATTR_HTG_CONTROL]
         if htg_id:
-            addr = Address(id=htg_id, type=htg_id[:2])
-            ctl.boiler_control = gwy.get_device(addr, controller=ctl)
+            ctl.boiler_control = gwy.get_device(addr(htg_id), controller=ctl)
 
     if ATTR_STORED_HOTWATER in schema:
         dhw = schema[ATTR_STORED_HOTWATER]
@@ -263,43 +243,28 @@ def load_schema(gwy, **kwargs) -> bool:
 
             dhw_sensor_id = dhw.get(ATTR_DHW_SENSOR)
             if dhw_sensor_id is not None:
-                addr = Address(id=dhw_sensor_id, type=dhw_sensor_id[:2])
-                ctl.dhw.sensor = gwy.get_device(addr, controller=ctl)
+                ctl.dhw.sensor = gwy.get_device(addr(dhw_sensor_id), controller=ctl)
 
-            dhw_hotwater_id = dhw.get(ATTR_DHW_VALVE)
-            if dhw_hotwater_id is not None:
-                addr = Address(id=dhw_hotwater_id, type=dhw_hotwater_id[:2])
-                ctl.dhw.hotwater_valve = gwy.get_device(addr, controller=ctl)
+            dhw_id = dhw.get(ATTR_DHW_VALVE)
+            if dhw_id is not None:
+                ctl.dhw.hotwater_valve = gwy.get_device(addr(dhw_id), controller=ctl)
 
-            dhw_heating_id = dhw.get(ATTR_DHW_VALVE_HTG)
-            if dhw_heating_id is not None:
-                addr = Address(id=dhw_heating_id, type=dhw_heating_id[:2])
-                ctl.dhw.heating_valve = gwy.get_device(addr, controller=ctl)
+            htg_id = dhw.get(ATTR_DHW_VALVE_HTG)
+            if htg_id is not None:
+                ctl.dhw.heating_valve = gwy.get_device(addr(htg_id), controller=ctl)
 
     if schema.get(ATTR_ZONES):
-        # [
-        #     ctl.get_zone(
-        #         zone_idx,
-        #         zone_type=attr.get(ATTR_ZONE_TYPE),
-        #         # sensor=attr.get(ATTR_ZONE_SENSOR),
-        #     )
-        #     for zone_idx, attr in schema[ATTR_ZONES].items()
-        # ]
-
         for zone_idx, attr in schema[ATTR_ZONES].items():
-            z = ctl.get_zone(zone_idx, zone_type=attr.get(ATTR_ZONE_TYPE))
+            zone = ctl.get_zone(zone_idx, zone_type=attr.get(ATTR_ZONE_TYPE))
 
             sensor_id = attr.get(ATTR_ZONE_SENSOR)
             if sensor_id:
-                addr = Address(id=sensor_id, type=sensor_id[:2])
-                z.temp_sensor = gwy.get_device(addr, controller=ctl)
+                zone.temp_sensor = gwy.get_device(addr(sensor_id), controller=ctl)
 
             device_list = attr.get(ATTR_DEVICES)
             if device_list:
                 for device_id in attr.get(ATTR_DEVICES):
-                    addr = Address(id=device_id, type=device_id[:2])
-                    gwy.get_device(addr, controller=ctl, domain_id=zone_idx)
+                    gwy.get_device(addr(device_id), controller=ctl, domain_id=zone_idx)
 
     # for ufh_ctl, ufh_schema in schema[ATTR_UFH_CONTROLLERS]:
-    #     dev = Address(id=ufh_ctl, type=ufh_ctl[:2])
-    #     dev = gwy.get_device(ufh_ctl, controller=ctl)
+    #     dev = gwy.get_device(addr(ufh_ctl), controller=ctl)

@@ -264,7 +264,7 @@ class Device(Entity):
         return f"{self.id} ({DEVICE_TYPES.get(self.type)})"
 
     def _discover(self) -> None:
-        if self._gwy.config["disable_discovery"]:
+        if self._gwy.config["disable_probing"]:
             return
 
         # do these even if battery-powered (e.g. device might be in rf_check mode)
@@ -529,7 +529,7 @@ class BdrSwitch(Device, Actuator):
             self._ctl.boiler_control = self
 
     def _discover(self) -> None:
-        if self._gwy.config["disable_discovery"]:
+        if self._gwy.config["disable_probing"]:
             return
 
         super()._discover()

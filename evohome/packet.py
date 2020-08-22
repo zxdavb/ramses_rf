@@ -15,8 +15,8 @@ from .const import (
     MESSAGE_REGEX,
     NON_DEVICE,
     NUL_DEVICE,
-    Address,
     __dev_mode__,
+    id_to_address,
 )
 from .logger import dt_now, dt_str
 
@@ -104,7 +104,7 @@ class Packet:
             for idx, addr in enumerate(
                 [self.packet[i : i + 9] for i in range(11, 32, 10)]
             ):
-                self.addrs[idx] = Address(id=addr, type=addr[:2])
+                self.addrs[idx] = id_to_address(addr)
 
             # This check will invalidate these rare pkts (which are never transmitted)
             # ---  I --- --:------ --:------ --:------ 0001 005 00FFFF02FF

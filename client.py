@@ -21,11 +21,6 @@ DEBUG_PORT = 5678
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
-# default="parser_config.json",
-# default="system_schema.json",
-# default="known_devices.json",
-
-
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.option("-z", "--debug-mode", help="TBD", count=True)
 @click.option("-r", "--reduce-processing", help="TBD", count=True)
@@ -96,24 +91,19 @@ def debug_wrapper(config_file=None, **kwargs):
     config["config"] = config.get("config", {})
 
     # 3rd: the CLI overwrites the config file...
-    for key in (
-        "evofw_flag",
-        "input_file",
-        "packet_log",
-        "reduce_processing",
-        "serial_port",
-    ):
+    for key in ("serial_port", "input_file", "reduce_processing", "packet_log"):
         config["config"][key] = kwargs.pop(key, None)
 
     if "enable_probing" in kwargs:
         config["config"]["disable_probing"] = not kwargs.pop("enable_probing")
 
-    print(kwargs)
+    print("config", config)
+    print("debug_flags", kwargs)
 
-    asyncio.run(main(config=config, **kwargs))
+    asyncio.run(main(config=config, debug_flags=kwargs))
 
 
-async def main(loop=None, config=None, **kwargs):
+async def main(loop=None, config=None, debug_flags=None):
 
     # loop=asyncio.get_event_loop() causes: 'NoneType' object has no attribute 'serial'
     print("Starting evohome_rf...")
@@ -125,7 +115,7 @@ async def main(loop=None, config=None, **kwargs):
 
     gateway = None  # avoid possibly unbound error
     try:
-        gateway = Gateway(loop=loop, config=config, **kwargs)
+        gateway = Gateway(loop=loop, config=config, debug_flags=debug_flags)
         task = asyncio.create_task(gateway.start())
         # await asyncio.sleep(20)
         # print(await gateway.evo.zones[0].name)

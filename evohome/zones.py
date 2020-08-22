@@ -18,6 +18,7 @@ from .const import (
     MAX_ZONES,
     ZONE_CLASS_MAP,
     ZONE_TYPE_MAP,
+    ZONE_TYPE_SLUGS,
     ZONE_MODE_LOOKUP,
     ZONE_MODE_MAP,
     __dev_mode__,
@@ -111,7 +112,7 @@ class DhwZone(ZoneBase, HeatDemand):
         self._discover()  # should be last thing in __init__()
 
     def _discover(self) -> None:
-        if self._gwy.config["disable_discovery"]:
+        if self._gwy.config["disable_probing"]:
             return
 
         # if False and __dev_mode__ and self.idx == "FA":  # dev/test code
@@ -346,7 +347,7 @@ class Zone(ZoneBase):
         self._discover()
 
     def _discover(self) -> None:
-        if self._gwy.config["disable_discovery"]:
+        if self._gwy.config["disable_probing"]:
             return
 
         if __dev_mode__ and self.idx == "99":  # dev/test code
@@ -517,20 +518,21 @@ class Zone(ZoneBase):
         Both will execute a zone.type = type (i.e. via this setter).
         """
 
-        if zone_type not in ZONE_CLASSES:
+        _type = ZONE_TYPE_SLUGS.get(zone_type, zone_type)
+        if _type not in ZONE_CLASSES:
             raise ValueError(f"Not a known zone type: {zone_type}")
 
         if self._zone_type is not None:
-            if self._zone_type != zone_type and (
-                self._zone_type != "ELE" and zone_type != "VAL"
+            if self._zone_type != _type and (
+                self._zone_type != "ELE" and _type != "VAL"
             ):
                 raise CorruptStateError(
                     f"Zone {self} has a mismatched type: "
-                    f"old={self._zone_type}, new={zone_type}",
+                    f"old={self._zone_type}, new={_type}",
                 )
 
-        self._zone_type = zone_type
-        self.__class__ = ZONE_CLASSES[zone_type]
+        self._zone_type = _type
+        self.__class__ = ZONE_CLASSES[_type]
         _LOGGER.debug("Zone %s: type now set to %s", self.id, self._zone_type)
 
     def schedule(self, force_update=False) -> Optional[dict]:

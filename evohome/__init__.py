@@ -17,7 +17,7 @@ from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LO
 from .message import _LOGGER as msg_logger, Message
 from .packet import _LOGGER as pkt_logger, Packet, PortPktProvider, file_pkts, port_pkts
 
-from .schema import load_schema  # load_filter,
+from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
 from .ser2net import Ser2NetServer
 from .system import EvoSystem
 
@@ -50,35 +50,39 @@ class GracefulExit(SystemExit):
 class Gateway:
     """The gateway class."""
 
-    def __init__(self, loop=None, config=None, **kwargs) -> None:
-        """Initialise the class."""
-        if kwargs.get("debug_mode"):
+    def __init__(self, loop=None, config=None, debug_flags=None) -> None:
+        """Initialise the class.
+
+        kwargs has: execute_cmd, debug_mode only.
+        """
+        if debug_flags.get("debug_mode"):
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
             _LOGGER.debug("Starting evohome_rf, **config = %s", config["config"])
 
         self._loop = loop if loop else asyncio.get_running_loop()  # get_event_loop()
         self.config = config.pop("config")
+        print(self.config)
+        self.config = CONFIG_SCHEMA(self.config)
         self._schema = config
 
         self.serial_port = self.config.get("serial_port")
-        self._execute_cmd = kwargs.get("execute_cmd")
-
-        if self.serial_port and self.config["input_file"]:
-            _LOGGER.warning(
-                "Serial port specified (%s), so ignoring input file (%s)",
-                self.serial_port,
-                self.config["input_file"],
-            )
-            self.config["input_file"] = None
+        self._execute_cmd = debug_flags.get("execute_cmd")
 
         if self.config["input_file"]:
-            self.config["disable_sending"] = True
+            if self.serial_port:
+                _LOGGER.warning(
+                    "Serial port specified (%s), so ignoring input file (%s)",
+                    self.serial_port,
+                    self.config["input_file"],
+                )
+                self.config["input_file"] = None
+            else:
+                self.config["disable_sending"] = True
 
         if self.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
             _stream = (None, sys.stdout)
         else:
             _stream = (sys.stdout, None)
-
         set_logging(msg_logger, stream=_stream[0], file_name=None)
         set_logging(
             pkt_logger,
@@ -109,17 +113,19 @@ class Gateway:
         self.device_by_id: Dict = {}
 
         self.known_devices = {}
-        self._include_list = self._exclude_list = []
+        self._include_list = []
+        self._exclude_list = []
 
-        # self.schema = config["schema"]
-        # self.allow_list = config["allow_list"]
-        # self.block_list = config["block_list"]
+        if self.config["use_schema"]:
+            self._known_devices = load_schema(self, **self._schema)
+
+        if self.config["enforce_allowlist"]:
+            self._include_list = KNOWNS_SCHEMA(self._schema.get("allow_list"))
+        elif self.config["enforce_blocklist"]:
+            self._exclude_list = KNOWNS_SCHEMA(self._schema.get("block_list"))
 
         self.config["known_devices"] = False  # bool(self.known_devices)
-        self._known_devices = load_schema(self, **self._schema)
-        # self._known_devices, self._include_list, self._exclude_list = load_filter(
-        #     self, self._known_devices, **self._schema
-        # )
+        self._known_devices = self._include_list + self._exclude_list
 
     def __repr__(self) -> str:
         return json.dumps(self.schema)

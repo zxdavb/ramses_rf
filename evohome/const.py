@@ -18,9 +18,14 @@ NUL_DEV_ID = "63:262142"  # 7FFFFF - send here if not bound?
 
 Address = namedtuple("DeviceAddress", "id, type")
 
-HGI_DEVICE = Address(id=HGI_DEV_ID, type=HGI_DEV_ID[:2])
-NON_DEVICE = Address(id=NON_DEV_ID, type=NON_DEV_ID[:2])
-NUL_DEVICE = Address(id=NUL_DEV_ID, type=NUL_DEV_ID[:2])
+
+def id_to_address(device_id) -> Address:
+    return Address(id=device_id, type=device_id[:2])
+
+
+HGI_DEVICE = id_to_address(HGI_DEV_ID)
+NON_DEVICE = id_to_address(NON_DEV_ID)
+NUL_DEVICE = id_to_address(NUL_DEV_ID)
 
 
 # Packet codes
