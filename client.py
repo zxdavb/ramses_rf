@@ -115,7 +115,7 @@ async def main(loop=None, config=None, debug_flags=None):
 
     gateway = None  # avoid possibly unbound error
     try:
-        gateway = Gateway(loop=loop, config=config, debug_flags=debug_flags)
+        gateway = Gateway(loop=loop, config=config, debug=debug_flags)
         task = asyncio.create_task(gateway.start())
         # await asyncio.sleep(20)
         # print(await gateway.evo.zones[0].name)
@@ -137,6 +137,8 @@ async def main(loop=None, config=None, debug_flags=None):
 
     # else:
     print(f"\r\nSchema[gateway] = {json.dumps(gateway.schema)}")
+    print(f"\r\nParams[gateway] = {json.dumps(gateway.params)}")
+    print(f"\r\nStatus[gateway] = {json.dumps(gateway.status)}")
 
     print("\r\nFinished evohome_rf.")
 

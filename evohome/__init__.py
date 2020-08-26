@@ -396,3 +396,23 @@ class Gateway:
         schema[ATTR_ORPHANS] = orphans
 
         return schema
+
+    @property
+    def params(self) -> dict:
+        result = {}
+
+        result["devices"] = {
+            d.id: d.params for d in sorted(self.devices, key=lambda x: x.id)
+        }
+
+        return result
+
+    @property
+    def status(self) -> dict:
+        result = {}
+
+        result["devices"] = {
+            d.id: d.status for d in sorted(self.devices, key=lambda x: x.id)
+        }
+
+        return result

@@ -9,6 +9,7 @@ from typing import Optional
 from .command import Priority, RQ_RETRY_LIMIT, RQ_TIMEOUT
 from .const import (
     ATTR_CONTROLLER,
+    ATTR_DEVICES,
     ATTR_SYSTEM,
     # CODE_0005_ZONE_TYPE,
     DEVICE_HAS_ZONE_SENSOR,
@@ -31,7 +32,7 @@ from .schema import (
 from .zones import DhwZone, Zone
 
 _LOGGER = logging.getLogger(__name__)
-if __dev_mode__:
+if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
@@ -183,11 +184,14 @@ class System(Controller):
         params[ATTR_SYSTEM] = {
             "mode": self._get_msg_value("2E04"),  # **self.mode()
             "language": self._get_msg_value("0100", "language"),
+            ATTR_HTG_CONTROL: {},
         }
 
-        # params[ATTR_HTG_CONTROL] = (
-        #     self.boiler_control.config if self.boiler_control is not None else None
-        # )
+        if self.boiler_control is not None:
+            params[ATTR_SYSTEM][ATTR_HTG_CONTROL] = {
+                "tpi_params": self.boiler_control._get_msg_value("1100"),
+                "boiler_setpoint": self.boiler_control._get_msg_value("22D9"),
+            }
 
         params[ATTR_STORED_HOTWATER] = self.dhw.params if self.dhw is not None else None
 
@@ -220,9 +224,22 @@ class System(Controller):
 
         result = {}
 
-        # result[ATTR_SYSTEM] = {
-        #     **self._get_msg_value("313F"),
-        # }
+        result[ATTR_SYSTEM] = {"datetime": self._get_msg_value("313F")}
+
+        if self.boiler_control is not None:
+            result[ATTR_SYSTEM][ATTR_HTG_CONTROL] = self.boiler_control.status
+
+        result[ATTR_STORED_HOTWATER] = self.dhw.status if self.dhw is not None else None
+
+        result[ATTR_ZONES] = {
+            z.idx: z.status for z in sorted(self.zones, key=lambda x: x.idx)
+        }
+
+        result[ATTR_DEVICES] = {
+            d.id: d.status
+            for d in sorted(self.devices, key=lambda x: x.id)
+            if d.id != self.id
+        }
 
         return result
 

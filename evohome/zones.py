@@ -11,6 +11,10 @@ from .const import (
     ATTR_DHW_SENSOR,
     ATTR_DHW_VALVE,
     ATTR_DHW_VALVE_HTG,
+    ATTR_HEAT_DEMAND,
+    ATTR_SETPOINT,
+    ATTR_TEMP,
+    ATTR_OPEN_WINDOW,
     ATTR_ZONE_SENSOR,
     ATTR_ZONE_TYPE,
     DEVICE_HAS_ZONE_SENSOR,
@@ -138,13 +142,19 @@ class DhwZone(ZoneBase, HeatDemand):
     def params(self) -> dict:
         """Return the stored HW's configuration (excl. schedule)."""
 
-        return {}
+        return {
+            "dhw_params": self._ctl._get_msg_value("10A0"),
+            "dhw_mode": self._ctl._get_msg_value("1F41"),
+        }
 
     @property  # temp, open_windows
     def status(self) -> dict:
         """Return the stored HW's current state."""
 
-        return {}
+        return {
+            "dhw_temp": self._ctl._get_msg_value("1260"),
+            "dhw_temp2": self._get_msg_value("1260"),
+        }
 
     @property
     def sensor(self) -> Device:
@@ -318,6 +328,14 @@ class Zone(ZoneBase):
     """The Zone class."""
 
     def __init__(self, controller, zone_idx, sensor=None, actuators=None) -> None:
+        """Create a zone.
+
+        The type of zone may not be known at instantiation. Even when it is known, zones
+        are still created without a type before they are subsequently promoted, so that
+        both schemes (e.g. eavesdropping, vs probing) are the same.
+
+        In addition, an electric zone may subsequently turn out to be a zone valve zone.
+        """
         super().__init__(controller, zone_idx)
 
         assert (
@@ -439,18 +457,14 @@ class Zone(ZoneBase):
             ATTR_CONFIG: self.zone_config,
         }
 
-    @property  # temp, open_windows
+    @property
     def status(self) -> dict:
         """Return the zone's current state."""
-
-        ATTR_SETPOINT = "setpoint"
-        ATTR_TEMP = "temperature"
-        # ATTR_WINDOW = "open_window"
 
         return {
             ATTR_SETPOINT: self.setpoint,
             ATTR_TEMP: self.temperature,
-            # ATTR_WINDOW: self.open_window,
+            ATTR_OPEN_WINDOW: self.window_open,
         }
 
     @property
@@ -584,8 +598,9 @@ class Zone(ZoneBase):
     def temperature(self) -> Optional[float]:  # 30C9
         # await self._get_msg("30C9")  # if possible/allowed, get an up-to-date pkt
 
-        msg_0 = self.ctl._msgs.get("30C9")  # most authorative
-        msg_1 = self.temp_sensor._msgs.get("30C9")  # possibly most up-to-date
+        msg_0 = self._ctl._msgs.get("30C9")  # most authorative
+        # possibly most up-to-date
+        msg_1 = self.temp_sensor._msgs.get("30C9") if self.temp_sensor else None
 
         if msg_1 is self._most_recent_msg(msg_0, msg_1):  # could be: None is None
             return msg_1.payload["temperature"] if msg_1 is not None else None
@@ -603,7 +618,7 @@ class Zone(ZoneBase):
     def setpoint(self) -> Optional[float]:  # 2309 (2349 is a superset of 2309)
         # await self._get_msg("2309")  # if possible/allowed, get an up-to-date pkt
 
-        msg_0 = self.ctl._msgs.get("2309")  # most authorative  # TODO: why 2349?
+        msg_0 = self._ctl._msgs.get("2309")  # most authorative  # TODO: why 2349?
         msg_1 = self._msgs.get("2309")  # possibly more up-to-date (or null)
 
         if msg_1 is self._most_recent_msg(msg_0, msg_1):  # could be: None is None
@@ -617,6 +632,10 @@ class Zone(ZoneBase):
         }["setpoint"]
 
         return self._setpoint
+
+    @property
+    def window_open(self) -> Optional[bool]:  # 12B0
+        return self._get_msg_value("12B0", "window_open")
 
     @property
     def mode(self) -> Optional[dict]:  # 2349
@@ -676,21 +695,16 @@ class ZoneHeatDemand:  # not all zone types call for heat
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
-        return self._get_msg_value("3150", "heat_demand")
-
-    @property
-    def heat_demand_alt(self) -> Optional[float]:  # 3150
-        if not hasattr(self, "devices"):
-            return
-
         demands = [
             d.heat_demand
-            for d in self._ctl.devices
-            if d.id in self.devices
-            and hasattr(d, "heat_demand")
-            and d.heat_demand is not None
+            for d in self.devices
+            if hasattr(d, "heat_demand") and d.heat_demand is not None
         ]
         return max(demands + [0]) if demands else None
+
+    @property
+    def status(self) -> dict:
+        return {**super().status, ATTR_HEAT_DEMAND: self.heat_demand}
 
 
 class EleZone(Zone):  # Electric zones (do *not* call for heat)
@@ -698,10 +712,6 @@ class EleZone(Zone):  # Electric zones (do *not* call for heat)
 
     For a small (5A) electric load controlled by a BDR91 (never calls for heat).
     """
-
-    def __init__(self, controller, sensor=None, actuators=None) -> None:
-        super().__init__(controller, sensor, actuators)
-        self._zone_type = "ELE"
 
     def _update_msg(self, msg) -> None:
         super()._update_msg(msg)
@@ -712,25 +722,29 @@ class EleZone(Zone):  # Electric zones (do *not* call for heat)
 
     @property
     def actuator_enabled(self) -> Optional[bool]:  # 3EF0
-        return self._get_msg_value("3EF0", "actuator_enabled")
+        return self._get_msg_value("3EF0")  # , "actuator_enabled"
 
     @property
     def actuator_state(self) -> Optional[float]:  # 3EF1
         return self._get_msg_value("3EF1")
 
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            "actuator_enabled": self.actuator_enabled,
+            "actuator_state": self.actuator_state,
+        }
 
-class ValZone(EleZone, ZoneHeatDemand):  # Zone valve zones
+
+class ValZone(ZoneHeatDemand, EleZone):  # Zone valve zones
     """Base for Zone Valve zones.
 
     For a motorised valve controlled by a BDR91 (will also call for heat).
     """
 
-    def __init__(self, controller, sensor=None, actuators=None) -> None:
-        super().__init__(controller, sensor, actuators)
-        self._zone_type = "VAL"
 
-
-class RadZone(Zone, ZoneHeatDemand):  # Radiator zones
+class RadZone(ZoneHeatDemand, Zone):  # Radiator zones
     """Base for Radiator Valve zones.
 
     For radiators controlled by HR92s or HR80s (will also call for heat).
@@ -738,46 +752,36 @@ class RadZone(Zone, ZoneHeatDemand):  # Radiator zones
 
     # 3150 (heat_demand) but no 0008 (relay_demand)
 
-    def __init__(self, controller, sensor=None, actuators=None) -> None:
-        super().__init__(controller, sensor, actuators)
-        self._zone_type = "RAD"
 
-    @property
-    async def window_open(self) -> Optional[bool]:  # 12B0
-        await self._get_msg("12B0")  # if possible/allowed, get an up-to-date pkt
-
-        return self._get_msg_value("12B0", "window_open")
-
-
-class UfhZone(Zone, ZoneHeatDemand):  # UFH zones
+class UfhZone(ZoneHeatDemand, Zone):  # UFH zones
     """Base for Underfloor Heating zones.
 
     For underfloor heating controlled by an HCE80 or HCC80 (will also call for heat).
     """
 
-    def __init__(self, controller, sensor=None, actuators=None) -> None:
-        super().__init__(controller, sensor, actuators)
-        self._zone_type = "UFH"
-
     @property
     def ufh_setpoint(self) -> Optional[float]:  # 3B00
         return self._get_msg_value("22C9")
 
+    @property
+    def status(self) -> dict:
+        return {**super().status, "ufh_setpoint": self.ufh_setpoint}
 
-class MixZone(Zone, ZoneHeatDemand):  # Mix valve zones
+
+class MixZone(ZoneHeatDemand, Zone):  # Mix valve zones
     """Base for Mixing Valve zones.
 
     For a modulating valve controlled by a HM80 (will also call for heat).
     """
 
-    def __init__(self, controller, sensor=None, actuators=None) -> None:
-        super().__init__(controller, sensor, actuators)
-        self._zone_type = "MIX"
-
     @property
     def mix_config(self) -> dict:
         attrs = ["max_flow_temp", "pump_rum_time", "actuator_run_time", "min_flow_temp"]
         return {x: self._get_msg_value("1030", x) for x in attrs}
+
+    @property
+    def params(self) -> dict:
+        return {**super().status, "mix_config": self.mix_config}
 
 
 ZONE_CLASSES = {

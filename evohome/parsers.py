@@ -255,7 +255,7 @@ def _bool(value: str) -> Optional[bool]:  # either 00 or C8
 
 
 def _dtm(value: str) -> str:
-    """Return a local datetime string in isoformat."""
+    """Return a local datetime hex string in isoformat."""
     #        00141B0A07E3  (...HH:MM:00)    for system_mode, zone_mode (schedules?)
     #      0400041C0A07E3  (...HH:MM:SS)    for sync_datetime
 

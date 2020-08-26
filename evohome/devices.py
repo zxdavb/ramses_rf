@@ -39,8 +39,9 @@ def dev_id_to_hex(device_id: str) -> str:
     return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # sans preceding 0x
 
 
-# this is used in zones.py, system.py
 def _dtm(value) -> str:
+    """Convert a datetime to a hex string."""
+
     def dtm_to_hex(tm_year, tm_mon, tm_mday, tm_hour, tm_min, tm_sec, *args):
         return f"{tm_min:02X}{tm_hour:02X}{tm_mday:02X}{tm_mon:02X}{tm_year:04X}"
 
@@ -157,8 +158,6 @@ class Entity:
 
 
 class Actuator:  # 3EF0, 3EF1
-    """Some devices have a actuator."""
-
     @property
     def actuator_enabled(self) -> Optional[bool]:  # 3EF0, TODO: does 10: RP/3EF1?
         return self._get_msg_value("3EF0", "actuator_enabled")
@@ -167,10 +166,16 @@ class Actuator:  # 3EF0, 3EF1
     def actuator_state(self) -> Optional[float]:  # 3EF1, TODO: not all actuators
         return self._get_msg_value("3EF1")
 
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            "actuator_enabled": self.actuator_enabled,
+            "actuator_state": self.actuator_state,
+        }
+
 
 class BatteryState:  # 1060
-    """Some devices have a battery."""
-
     @property
     def battery_state(self) -> dict:
         low_battery = self._get_msg_value("1060", "low_battery")
@@ -178,29 +183,39 @@ class BatteryState:  # 1060
             battery_level = self._get_msg_value("1060", "battery_level")
             return {"low_battery": low_battery, "battery_level": battery_level}
 
+    @property
+    def status(self) -> dict:
+        return {**super().status, "battery_state": self.battery_state}
+
 
 class HeatDemand:  # 3150
-    """Some devices have heat demand."""
-
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
         return self._get_msg_value("3150", "heat_demand")
 
+    @property
+    def status(self) -> dict:
+        return {**super().status, "heat_demand": self.heat_demand}
+
 
 class Setpoint:  # 2309
-    """Some devices have a setpoint."""
+    @property
+    def setpoint(self) -> Optional[float]:  # 2309
+        return self._get_msg_value("2309", "setpoint")
 
     @property
-    def setpoint(self) -> Optional[Any]:  # 2309
-        return self._get_msg_value("2309", "setpoint")
+    def status(self) -> dict:
+        return {**super().status, "setpoint": self.setpoint}
 
 
 class Temperature:  # 30C9
-    """Some devices have a temperature sensor."""
-
     @property
     def temperature(self) -> Optional[float]:  # 30C9
         return self._get_msg_value("30C9", "temperature")
+
+    @property
+    def status(self) -> dict:
+        return {**super().status, "temperature": self.temperature}
 
 
 # ######################################################################################
@@ -420,6 +435,14 @@ class Device(Entity):
     def rf_signal(self) -> Optional[dict]:  # TODO: make 'current', else add dtm?
         return self._get_msg_value("0016")
 
+    @property
+    def params(self):
+        return {}
+
+    @property
+    def status(self):
+        return {}
+
 
 # 01:
 class Controller(Device):
@@ -436,7 +459,7 @@ class Controller(Device):
 
 
 # 02: "10E0", "3150";; "0008", "22C9", "22D0"
-class UfhController(Device, HeatDemand):
+class UfhController(HeatDemand, Device):
     """The UFC class, the HCE80 that controls the UFH zones."""
 
     # 12:27:24.398 067  I --- 02:000921 --:------ 01:191718 3150 002 0360
@@ -468,7 +491,7 @@ class UfhController(Device, HeatDemand):
 
 
 # 07: "1060";; "1260" "10A0"
-class DhwSensor(Device, BatteryState):
+class DhwSensor(BatteryState, Device):
     """The DHW class, such as a CS92."""
 
     def __init__(self, gateway, device_addr, **kwargs) -> None:
@@ -486,9 +509,13 @@ class DhwSensor(Device, BatteryState):
     def temperature(self) -> float:
         return self._get_msg_value("1260", "temperature")
 
+    @property
+    def status(self) -> dict:
+        return {**super().status, "temperature": self.temperature}
+
 
 # 10: "10E0", "3EF0", "3150";; "22D9", "3220" ("1FD4"), TODO: 3220
-class OtbGateway(Device, Actuator, HeatDemand):
+class OtbGateway(Actuator, HeatDemand, Device):
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
     def __init__(self, gateway, device_addr, **kwargs) -> None:
@@ -504,14 +531,22 @@ class OtbGateway(Device, Actuator, HeatDemand):
     def _last_opentherm_msg(self) -> Optional[Any]:  # 3220
         return self._get_msg_value("3220")
 
+    @property
+    def status(self) -> dict:
+        return {**super().status, "boiler_setpoint": self.boiler_setpoint}
+
 
 # 03/12/22/34: 1060/2309/30C9;; (03/22: 0008/0009/3EF1, 2349?) (34: 000A/10E0/3120)
-class Thermostat(Device, BatteryState, Setpoint, Temperature):
+class Thermostat(BatteryState, Setpoint, Temperature, Device):
     """The STA class, such as a TR87RF."""
+
+    @property
+    def status(self) -> dict:
+        return {**super().status}
 
 
 # 13: BDR= "3EF0", "1100";; ("3EF1"?); TPI= "3EF0", "1100"; ("3B00")
-class BdrSwitch(Device, Actuator):
+class BdrSwitch(Actuator, Device):
     """The BDR class, such as a BDR91.
 
     BDR91s can be used in various modes, including:
@@ -579,12 +614,16 @@ class BdrSwitch(Device, Actuator):
 
 
 # 04: "1060", "3150", "2309", "30C9";; "0100", "12B0" ("0004")
-class TrvActuator(Device, BatteryState, HeatDemand, Setpoint, Temperature):
+class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature, Device):
     """The TRV class, such as a HR92."""
 
     @property
     def window_state(self) -> Optional[bool]:  # 12B0
         return self._get_msg_value("12B0", "window_open")
+
+    @property
+    def status(self) -> dict:
+        return {**super().status, "window_state": self.window_state}
 
 
 DEVICE_CLASSES = {
