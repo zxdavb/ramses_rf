@@ -124,7 +124,7 @@ class Gateway:
             self._exclude_list = KNOWNS_SCHEMA(self._schema.get("block_list"))
 
         self.config["known_devices"] = False  # bool(self.known_devices)
-        self._known_devices = self._include_list + self._exclude_list
+        # self._known_devices = self._include_list + self._exclude_list
 
     def __repr__(self) -> str:
         return json.dumps(self.schema)
