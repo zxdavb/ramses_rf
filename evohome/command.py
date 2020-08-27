@@ -46,16 +46,19 @@ def _pkt_header(verb, addr, code, payload) -> Optional[str]:
 
     header = "|".join((verb, addr, code))
 
-    if code in ("0005", "000C"):
+    if code in ("0005", "000C"):  # bitmap
         return "|".join((header, payload[:4]))
 
-    if code == "0404":
-        return "|".join((payload[:2], payload[10:12]))
+    if code == "0404":  # zone_idx, frag_idx
+        return "|".join((header, payload[:2], payload[10:12]))
 
-    if code == "0418":
-        return "|".join((payload[4:6]))
+    if code == "0418":  # log_idx
+        return "|".join((header, payload[4:6]))
 
-    return header
+    if code == "2E04":
+        return header
+
+    return "|".join((header, payload[:2]))
 
 
 @total_ordering
@@ -105,11 +108,11 @@ class Command:
         )
 
     @property
-    def _header(self) -> Optional[str]:
+    def _rq_header(self) -> Optional[str]:
         """Return the QoS header of this (request) packet."""
 
         if self.verb in ("RQ", " W"):
-            return _pkt_header(self.verb, self.src_addr, self.code, self.payload)
+            return _pkt_header(self.verb, self.dest_addr, self.code, self.payload)
 
     @property
     def _rp_header(self) -> Optional[str]:
