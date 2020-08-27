@@ -253,6 +253,8 @@ class EvoSystem(System):
         self._prev_30c9 = None
         self._fault_log = {}
 
+        self._discover()
+
     def _discover(self) -> None:
         if self._gwy.config["disable_probing"]:
             return
