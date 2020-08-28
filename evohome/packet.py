@@ -25,7 +25,7 @@ READ_TIMEOUT = 0.5
 XON_XOFF = True
 
 # tx (from sent to gwy, to get back from gwy) seems to takes 0.025
-MAX_BUFFER_LEN = 5  # have at 5 for production
+MAX_BUFFER_LEN = 1  # have at 5 for production
 MAX_RETRY_COUNT = 0  # have at 3 for production
 RETRANS_TIMEOUT = timedelta(seconds=0.065)
 # 0.060 gives false +ve for 10E0?
