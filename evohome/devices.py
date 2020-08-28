@@ -6,7 +6,14 @@ import logging
 from typing import Any, Optional
 
 from .command import Command, Pause, Priority
-from .const import __dev_mode__, DEVICE_LOOKUP, DEVICE_TABLE, DEVICE_TYPES
+from .const import (
+    __dev_mode__,
+    CODE_0005_ZONE_TYPE,
+    CODE_000C_DEVICE_TYPE,
+    DEVICE_LOOKUP,
+    DEVICE_TABLE,
+    DEVICE_TYPES,
+)
 from .exceptions import CorruptStateError
 from .logger import dt_now
 
@@ -467,6 +474,31 @@ class UfhController(HeatDemand, Device):
     # 12:27:24.693 067  I --- 02:000921 --:------ 01:191718 3150 002 045C
     # 12:27:24.824 059  I --- 01:191718 --:------ 01:191718 3150 002 FC5C
     # 12:27:24.857 067  I --- 02:000921 --:------ 02:000921 3150 006 0060015A025C
+
+    def _discover(self) -> None:
+        if self._gwy.config["disable_probing"]:
+            return
+
+        super()._discover()
+
+        [  # 000C:
+            self._command("000C", payload=dev_type)
+            for dev_type in CODE_000C_DEVICE_TYPE
+        ]
+
+        [  # 0005:
+            self._command("0005", payload=f"00{zone_type}")
+            for zone_type in CODE_0005_ZONE_TYPE
+        ]
+
+        [  # 3150:
+            self._command("3150", payload=f"{zone_idx:02X}") for zone_idx in range(8)
+        ]
+
+        [  #
+            self._command("22D0", payload=f"{payload}")
+            for payload in ("00", "0000", "00000002")
+        ]
 
     def _update_msg(self, msg) -> None:
         def do_3150_magic() -> None:
