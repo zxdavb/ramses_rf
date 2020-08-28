@@ -599,11 +599,11 @@ class Zone(ZoneBase):
         # await self._get_msg("30C9")  # if possible/allowed, get an up-to-date pkt
 
         msg_0 = self._ctl._msgs.get("30C9")  # most authorative
-        # possibly most up-to-date
-        msg_1 = self.temp_sensor._msgs.get("30C9") if self.temp_sensor else None
+        # # possibly most up-to-date  # TODO
+        # msg_1 = self.temp_sensor._msgs.get("30C9") if self.temp_sensor else None
 
-        if msg_1 is self._most_recent_msg(msg_0, msg_1):  # could be: None is None
-            return msg_1.payload["temperature"] if msg_1 is not None else None
+        # if msg_1 is self._most_recent_msg(msg_0, msg_1):  # could be: None is None
+        #     return msg_1.payload["temperature"] if msg_1 is not None else None
 
         self._temperature = {
             k: v
