@@ -657,7 +657,18 @@ def parser_0418(payload, msg=None) -> Optional[dict]:
     assert int(payload[4:6], 16) <= 63  # TODO: upper limit is: 60? 63? more?
     assert payload[6:8] == "B0"  # unknown_1, ?priority
     assert payload[8:10] in list(CODE_0418_FAULT_TYPE)
-    assert int(payload[10:12], 16) < MAX_ZONES or payload[10:12] in ("FA", "FC")
+
+    # domain_id == '1C' (should be 'FC'?) seen with below (from evo ctl UI):
+    # "FAULT | 28-08-2020, 03:15 | COMMS FAULT, ACTUATOR"
+    # {
+    #   'timestamp':    '20-08-28T03:15:24',
+    #   'fault_state':  'fault',
+    #   'fault_type':   'comms_fault',
+    #   'device_class': 'actuator',
+    #   'domain_id':    '1C',         # should be FC?
+    #   'device_id':    '13:163733'   # acting as boiler-relay
+    # }
+    assert int(payload[10:12], 16) < MAX_ZONES or payload[10:12] in ("FA", "FC", "1C")
     assert payload[12:14] in list(CODE_0418_DEVICE_CLASS)
     assert payload[14:18] == "0000"  # unknown_2
     assert payload[28:30] in ("7F", "FF")  # TODO: last bit in dt field, DST?
