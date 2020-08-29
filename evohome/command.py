@@ -25,8 +25,6 @@ RQ_RETRY_LIMIT = 7
 RQ_TIMEOUT = 0.03
 
 
-# PAUSE: Default of 0.03 too short, but 0.05 OK; Long pause required after 1st RQ/0404
-Pause = SimpleNamespace(NONE=0, MINIMUM=0.01, SHORT=0.01, DEFAULT=0.05, LONG=0.20)
 Priority = SimpleNamespace(LOW=6, DEFAULT=4, HIGH=2, ASAP=0)
 Qos = SimpleNamespace(
     AT_MOST_ONCE=0,  # PUB (no handshake)
@@ -80,7 +78,7 @@ class Command:
         self.code = code
         self.payload = payload
 
-        self.pause = kwargs.get("pause", Pause.DEFAULT)
+        self.pause = None
 
         priority = Priority.HIGH if verb in ("0016", "1FC9") else Priority.DEFAULT
         self._priority = kwargs.get("priority", priority)
@@ -267,17 +265,18 @@ class Schedule:
 
         if self._frag_array == []:  # aka self.total_frags == 0:
             missing_frags = [0]  # all(frags missing), but how many is unknown
-            kwargs = {"pause": Pause.LONG}  # , "priority": Priority.DEFAULT}
+            # kwargs = {"pause": Pause.LONG}  # , "priority": Priority.DEFAULT}
 
         else:  # aka not all(self._frag_array)
             missing_frags = [i for i, val in enumerate(self._frag_array) if val is None]
             if missing_frags == []:
                 print(self.schedule)
                 return 0  # not any(frags missing), nothing to add
-            kwargs = {"pause": Pause.DEFAULT, "priority": Priority.HIGH}
 
         header = f"{self.idx}20000800{missing_frags[0] + 1:02d}{self.total_frags:02d}"
-        self._que.put_nowait(Command("RQ", self._ctl.id, "0404", header, **kwargs))
+        self._que.put_nowait(
+            Command("RQ", self._ctl.id, "0404", header, priority=Priority.HIGH)
+        )
 
         return missing_frags[0] + 1
 

@@ -4,12 +4,13 @@ from datetime import datetime as dt, timedelta
 import logging
 from string import printable
 from threading import Lock
+from types import SimpleNamespace
 from typing import Optional, Tuple
 
 from serial import SerialException  # noqa
 from serial_asyncio import open_serial_connection  # noqa
 
-from .command import Command, Pause, _pkt_header
+from .command import Command, _pkt_header
 from .const import (
     DTM_LONG_REGEX,
     MESSAGE_REGEX,
@@ -24,14 +25,16 @@ BAUDRATE = 115200
 READ_TIMEOUT = 0.5
 XON_XOFF = True
 
+# PAUSE: Default of 0.03 too short, but 0.05 OK; Long pause required after 1st RQ/0404
+Pause = SimpleNamespace(NONE=0, MINIMUM=0.01, SHORT=0.01, DEFAULT=0.05, LONG=0.20)
+
 # tx (from sent to gwy, to get back from gwy) seems to takes 0.025
-MAX_BUFFER_LEN = 5
-MAX_RETRY_COUNT = 0
+MAX_BUFFER_LEN = 1
+MAX_SEND_COUNT = 1
 RETRANS_TIMEOUT = timedelta(seconds=0.95)
 # 0.060 gives false +ve for 10E0?
 # 0.065 too low when stressed with (e.g.) schedules, log entries
 EXPIRY_TIMEOUT = timedelta(seconds=3.0)  # say 0.5
-
 
 _LOGGER = logging.getLogger(__name__)
 if True or __dev_mode__:
@@ -282,20 +285,26 @@ class PortPktProvider:
 
             if pkt._header == cmd._rq_header:
                 self._qos_buffer[cmd._rp_header] = cmd
+
+                # if cmd.code in ("0004", "0404", "0418"):
+                #     cmd.dtm_timeout = self._pause + timedelta(seconds=Pause.LONG)
+
             del self._qos_buffer[pkt._header]
 
-        # elif str(pkt)[4:6] == "RP":
-        #     _LOGGER.warning(
-        #         "%s < %s, received from gateway (wasn't in buffer) %s",
-        #         pkt,
-        #         pkt._header,
-        #         f"GET {self._qos_buffer}",
-        #         extra=pkt.__dict__,
-        #     )
+        elif str(pkt)[4:6] == "RP" and str(pkt)[21:23] == "18":
+            _LOGGER.warning(
+                "%s < %s, received from gateway (wasn't in buffer) %s",
+                pkt,
+                pkt._header,
+                f"GET {self._qos_buffer}",
+                extra=pkt.__dict__,
+            )
 
         self._qos_lock.release()
 
         return pkt
+
+    # def _set_timeouts(self, cmd) -> Tuple[dt, dt]:
 
     async def put_pkt(self, put_cmd, logger):  # TODO: logger is a hack
         """Send (put) the next packet to a serial port."""
@@ -312,11 +321,9 @@ class PortPktProvider:
             # elif cmd.verb == " W" or cmd.code in ("0004", "0404", "0418"):
             #     self._pause = dtm_now + timedelta(seconds=Pause.LONG)
             else:
-                self._pause = dtm_now + timedelta(seconds=max(cmd.pause, Pause.DEFAULT))
+                self._pause = dtm_now + timedelta(seconds=Pause.DEFAULT)
 
-            if cmd.code in ("0004", "0404", "0418"):
-                cmd.dtm_timeout = self._pause + timedelta(seconds=Pause.LONG)
-            elif cmd.verb == " W":
+            if cmd.verb == " W" or cmd.code in ("0004", "0404", "0418"):
                 cmd.dtm_timeout = self._pause + timedelta(seconds=Pause.LONG)
             elif cmd.verb == "RQ":
                 cmd.dtm_timeout = self._pause + timedelta(seconds=Pause.DEFAULT)
@@ -331,7 +338,7 @@ class PortPktProvider:
                     "... %s < was re-transmitted %s of %s",
                     cmd,
                     cmd.transmit_count,
-                    MAX_RETRY_COUNT + 1,
+                    MAX_SEND_COUNT,
                     extra=extra(dtm_now.isoformat(), cmd),
                 )
 
@@ -378,36 +385,34 @@ class PortPktProvider:
 
         for header, kmd in self._qos_buffer.items():
             if kmd.dtm_expires < dtm_now:  # abandon
-                log_msg = "timed out: fully expired (removed from buffer)"
                 _LOGGER.warning(
-                    "%s < %s, %s",
+                    "%s < %s, timed out: fully expired: removed",
                     f"... {kmd}",
                     header,
-                    log_msg,
                     extra=extra(dtm_now.isoformat(), f"... {kmd}"),
                 )
                 expired_kmds.append(header)
 
             elif kmd.dtm_timeout < dtm_now:  # retransmit?
-                if kmd.transmit_count > MAX_RETRY_COUNT:  # abandon
-                    log_msg = "timed out: exceeded retries (removed from buffer)"
+                if kmd.transmit_count >= MAX_SEND_COUNT:  # abandon
                     _LOGGER.warning(
-                        "%s < %s, %s",
+                        "%s < %s, timed out: exceeded retries (%s of %s): removed",
                         f"... {kmd}",
                         header,
-                        log_msg,
+                        kmd.transmit_count,
+                        MAX_SEND_COUNT,
                         extra=extra(dtm_now.isoformat(), f"... {kmd}"),
                     )
                     expired_kmds.append(header)
 
                 else:  # retransmit (choose the next cmd with the higher priority)
                     cmd = kmd if cmd is None or kmd < cmd else cmd
-                    log_msg = "timed out: re-transmissible (remains in buffer)"
                     _LOGGER.warning(
-                        "%s < %s, %s",
+                        "%s < %s, timed out: re-transmissible (%s of %s): remains",
                         f"... {kmd}",
                         header,
-                        log_msg,
+                        kmd.transmit_count,
+                        MAX_SEND_COUNT,
                         extra=extra(dtm_now.isoformat(), f"... {kmd}"),
                     )
         else:
@@ -418,12 +423,13 @@ class PortPktProvider:
         # print("CHKb", self._qos_buffer)
 
         if cmd is not None:  # re-transmit
-            log_msg = "next for re-transmission (remains in buffer) "
+            # log_msg = "next for re-transmission (remains in buffer) "
+            pass
 
         elif len(self._qos_buffer) < MAX_BUFFER_LEN:
             cmd = put_cmd
             self._qos_buffer[cmd._rq_header] = cmd
-            log_msg = "next for transmission (added to buffer) "
+            # log_msg = "next for transmission (added to buffer) "
 
         else:  # buffer is full
             return None

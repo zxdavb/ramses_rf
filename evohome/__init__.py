@@ -10,12 +10,19 @@ import sys
 from threading import Lock
 from typing import Dict, List
 
-from .command import Command, Pause
+from .command import Command
 from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
-from .packet import _LOGGER as pkt_logger, Packet, PortPktProvider, file_pkts, port_pkts
+from .packet import (
+    _LOGGER as pkt_logger,
+    Packet,
+    Pause,
+    PortPktProvider,
+    file_pkts,
+    port_pkts,
+)
 
 from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
 from .ser2net import Ser2NetServer

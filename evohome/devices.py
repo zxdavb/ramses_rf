@@ -5,7 +5,7 @@ import json
 import logging
 from typing import Any, Optional
 
-from .command import Command, Pause, Priority
+from .command import Command, Priority
 from .const import (
     __dev_mode__,
     CODE_0005_ZONE_TYPE,
@@ -109,17 +109,14 @@ class Entity:
         _LOGGER.debug("Device %s: controller now set to %s", self.id, self._ctl.id)
 
     def _command(self, code, **kwargs) -> None:
-        dest = kwargs.get("dest_addr", self.id)
-        verb = kwargs.get("verb", "RQ")
-        payload = kwargs.get("payload", "00")
+        dest = kwargs.pop("dest_addr", self.id)
+        verb = kwargs.pop("verb", "RQ")
+        payload = kwargs.pop("payload", "00")
 
         self._msgs.pop(code, None)  # remove the old one, so we can tell if RP'd
 
         priority = Priority.HIGH if verb == " W" else Priority.DEFAULT
-        kwargs = {
-            "pause": kwargs.get("pause", Pause.DEFAULT),
-            "priority": kwargs.get("priority", priority),
-        }
+        kwargs["priority"] = kwargs.get("priority", priority)
 
         self._que.put_nowait(Command(verb, dest, code, payload, **kwargs))
 
