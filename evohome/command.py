@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from typing import Optional
 import zlib
 
-from .const import __dev_mode__, COMMAND_FORMAT, HGI_DEVICE
+from .const import __dev_mode__, CODES_SANS_DOMAIN_ID, COMMAND_FORMAT, HGI_DEVICE
 from .logger import dt_now
 
 # SERIAL_PORT = "serial_port"
@@ -26,7 +26,7 @@ RQ_TIMEOUT = 0.03
 
 
 # PAUSE: Default of 0.03 too short, but 0.05 OK; Long pause required after 1st RQ/0404
-Pause = SimpleNamespace(NONE=0, MINIMUM=0.01, SHORT=0.01, DEFAULT=0.05, LONG=0.15)
+Pause = SimpleNamespace(NONE=0, MINIMUM=0.01, SHORT=0.01, DEFAULT=0.05, LONG=0.20)
 Priority = SimpleNamespace(LOW=6, DEFAULT=4, HIGH=2, ASAP=0)
 Qos = SimpleNamespace(
     AT_MOST_ONCE=0,  # PUB (no handshake)
@@ -41,24 +41,31 @@ else:
     _LOGGER.setLevel(logging.WARNING)
 
 
-def _pkt_header(verb, addr, code, payload) -> Optional[str]:
+def _pkt_header(packet, response_header=None) -> Optional[str]:
     """Return the QoS header of a packet."""
+
+    verb = packet[4:6]
+    if response_header:
+        verb = "RP" if verb == "RQ" else " I"  # RQ/RP, or W/I
+    code = packet[41:45]
+    addr = packet[21:30] if packet[11:13] == "18" else packet[11:20]
+    payload = packet[50:]
 
     header = "|".join((verb, addr, code))
 
-    if code in ("0005", "000C"):  # bitmap
+    if code in ("0005", "000C"):  # zone_idx, type
         return "|".join((header, payload[:4]))
 
     if code == "0404":  # zone_idx, frag_idx
-        return "|".join((header, payload[:2], payload[10:12]))
+        return "|".join((header, payload[:2] + payload[10:12]))
 
     if code == "0418":  # log_idx
         return "|".join((header, payload[4:6]))
 
-    if code == "2E04":
+    if code in CODES_SANS_DOMAIN_ID:  # have no domain_id
         return header
 
-    return "|".join((header, payload[:2]))
+    return "|".join((header, payload[:2]))  # has a domain_id
 
 
 @total_ordering
@@ -86,7 +93,7 @@ class Command:
         self.dtm_timeout = None
         self.transmit_count = 0
 
-    def __repr__(self) -> str:
+    def __OUT_repr__(self) -> str:
         result = {"packet": str(self)}
         result.update(
             {
@@ -111,20 +118,13 @@ class Command:
     def _rq_header(self) -> Optional[str]:
         """Return the QoS header of this (request) packet."""
 
-        if self.verb in ("RQ", " W"):
-            return _pkt_header(self.verb, self.dest_addr, self.code, self.payload)
+        return _pkt_header(f"... {self}")
 
     @property
     def _rp_header(self) -> Optional[str]:
-        """Return the QoS header of a response packet, if one is expected."""
+        """Return the QoS header of a response packet (if any)."""
 
-        if self.verb in ("RQ", " W"):
-            return _pkt_header(
-                "RP" if self.verb == "RQ" else " I",
-                self.dest_addr,
-                self.code,
-                self.payload,
-            )
+        return _pkt_header(f"... {self}", response_header=True)
 
     @staticmethod
     def _is_valid_operand(other) -> bool:
