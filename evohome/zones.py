@@ -596,47 +596,36 @@ class Zone(ZoneBase):
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        # await self._get_msg("30C9")  # if possible/allowed, get an up-to-date pkt
+        if self.temp_sensor:
+            self._temperature = (
+                self.temp_sensor._get_msg_value("30C9", "temperature")
+                if self.temp_sensor
+                else None
+            )
+            return self._temperature
 
-        self._temperature = (
-            self.temp_sensor._msgs.get("30C9") if self.temp_sensor else None
-        )
-        return self._temperature
-
-        msg_0 = self._ctl._msgs.get("30C9")  # most authorative
-        # # possibly most up-to-date  # TODO
-        # msg_1 = self.temp_sensor._msgs.get("30C9") if self.temp_sensor else None
-
-        # if msg_1 is self._most_recent_msg(msg_0, msg_1):  # could be: None is None
-        #     return msg_1.payload["temperature"] if msg_1 is not None else None
-
-        self._temperature = {
-            k: v
-            for z in msg_0.payload
-            for k, v in z.items()
-            if z["zone_idx"] == self.idx
-        }["temperature"]
-
-        return self._temperature
+        msg = self._ctl._msgs.get("30C9")
+        if msg is not None:
+            self._temperature = {
+                k: v
+                for z in msg.payload
+                for k, v in z.items()
+                if z["zone_idx"] == self.idx
+            }["temperature"]
+            return self._temperature
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309 (2349 is a superset of 2309)
-        # await self._get_msg("2309")  # if possible/allowed, get an up-to-date pkt
-
-        msg_0 = self._ctl._msgs.get("2309")  # most authorative  # TODO: why 2349?
-        msg_1 = self._msgs.get("2309")  # possibly more up-to-date (or null)
-
-        if msg_1 is self._most_recent_msg(msg_0, msg_1):  # could be: None is None
-            return msg_1.payload["setpoint"] if msg_1 is not None else None
-
-        self._setpoint = {
-            k: v
-            for z in msg_0.payload
-            for k, v in z.items()
-            if z["zone_idx"] == self.idx
-        }["setpoint"]
-
-        return self._setpoint
+        msg = self._ctl._msgs.get("2349")
+        msg = self._ctl._msgs.get("2309") if msg is None else None
+        if msg is not None:
+            self._temperature = {
+                k: v
+                for z in msg.payload
+                for k, v in z.items()
+                if z["zone_idx"] == self.idx
+            }["setpoint"]
+            return self._setpoint
 
     @property
     def window_open(self) -> Optional[bool]:  # 12B0

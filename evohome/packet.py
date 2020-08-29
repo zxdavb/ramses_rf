@@ -314,8 +314,12 @@ class PortPktProvider:
             else:
                 self._pause = dtm_now + timedelta(seconds=max(cmd.pause, Pause.DEFAULT))
 
-            if cmd.verb in ("RQ", " W"):
-                cmd.dtm_timeout = self._pause + timedelta(seconds=0.05)
+            if cmd.code in ("0004", "0404", "0418"):
+                cmd.dtm_timeout = self._pause + timedelta(seconds=Pause.LONG)
+            elif cmd.verb == " W":
+                cmd.dtm_timeout = self._pause + timedelta(seconds=Pause.LONG)
+            elif cmd.verb == "RQ":
+                cmd.dtm_timeout = self._pause + timedelta(seconds=Pause.DEFAULT)
             else:
                 cmd.dtm_timeout = self._pause + RETRANS_TIMEOUT
 
