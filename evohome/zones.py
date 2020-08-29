@@ -31,7 +31,7 @@ from .devices import Controller, Device, Entity, HeatDemand, _dtm
 from .exceptions import CorruptStateError
 
 _LOGGER = logging.getLogger(__name__)
-if __dev_mode__:
+if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
@@ -597,6 +597,11 @@ class Zone(ZoneBase):
     @property
     def temperature(self) -> Optional[float]:  # 30C9
         # await self._get_msg("30C9")  # if possible/allowed, get an up-to-date pkt
+
+        self._temperature = (
+            self.temp_sensor._msgs.get("30C9") if self.temp_sensor else None
+        )
+        return self._temperature
 
         msg_0 = self._ctl._msgs.get("30C9")  # most authorative
         # # possibly most up-to-date  # TODO
