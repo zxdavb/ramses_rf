@@ -13,6 +13,7 @@ from .const import (
     CODE_0418_DEVICE_CLASS,
     CODE_0418_FAULT_STATE,
     CODE_0418_FAULT_TYPE,
+    CODES_SANS_DOMAIN_ID,
     DOMAIN_TYPE_MAP,
     MAY_USE_DOMAIN_ID,
     MAY_USE_ZONE_IDX,
@@ -42,7 +43,7 @@ def _idx(seqx, msg) -> dict:
 
     Anything in the range F0-FF appears to be a domain id (no false +ve/-ves).
     """
-    if msg.code in ("1F09", "1FC9", "2E04"):  # don't idx, even though some != "00"
+    if msg.code in CODES_SANS_DOMAIN_ID:  # don't idx, even though some != "00"
         # 1F09: "FF" (I), "00" (RP), "F8" (W, after 1FC9)
         # 1FC9: dict is currently encoded in a way that id/idx is not used
         # 2E04: payload[:2] is system mode, would fail final assert
@@ -668,14 +669,16 @@ def parser_0418(payload, msg=None) -> Optional[dict]:
     #   'domain_id':    '1C',         # should be FC?
     #   'device_id':    '13:163733'   # acting as boiler-relay
     # }
-    assert int(payload[10:12], 16) < MAX_ZONES or payload[10:12] in ("FA", "FC", "1C")
+    assert int(payload[10:12], 16) < MAX_ZONES or (
+        payload[10:12] in ("F9", "FA", "FC", "1C")
+    )
     assert payload[12:14] in list(CODE_0418_DEVICE_CLASS)
     assert payload[14:18] == "0000"  # unknown_2
     assert payload[28:30] in ("7F", "FF")  # TODO: last bit in dt field, DST?
     assert payload[30:38] == "FFFF7000"  # unknown_3
 
     result = {  # TODO: stop using __idx()?
-        **(_idx(payload[4:6], msg) if msg is not None else {"log_idx": payload[4:6]}),
+        "log_idx": payload[4:6],
         "timestamp": _timestamp(payload[18:30]),
         "fault_state": CODE_0418_FAULT_STATE.get(payload[2:4], payload[2:4]),
         "fault_type": CODE_0418_FAULT_TYPE.get(payload[8:10], payload[8:10]),
@@ -688,7 +691,7 @@ def parser_0418(payload, msg=None) -> Optional[dict]:
 
     if payload[38:] == "000002":  # "00:000002 for Unknown?
         result.update({"device_id": None})
-    elif payload[38:] != "000001":  # "00:000001 for Controller?
+    elif payload[38:] not in ("000000", "000001"):  # "00:000001 for Controller?
         result.update({"device_id": dev_hex_to_id(payload[38:])})
 
     return result

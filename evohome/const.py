@@ -122,6 +122,7 @@ CODE_SCHEMA = {
 MAY_USE_DOMAIN_ID = ["0001", "0008", "0009", "1100", "1FC9", "3150", "3B00"]
 MAY_USE_ZONE_IDX = [k for k, v in CODE_SCHEMA.items() if v.get("uses_zone_idx")]
 # DES_SANS_ZONE_IDX = ["0002", "2E04"]  # not sure about "0016", "22C9"
+CODES_SANS_DOMAIN_ID = ("1F09", "1FC9", "2E04")
 
 CODE_MAP = {k: v["name"] for k, v in CODE_SCHEMA.items()}
 
@@ -292,10 +293,10 @@ DEVICE_IS_ACTUATOR = tuple(
 # Domains
 DOMAIN_TYPE_MAP = {
     "F8": None,
-    "F9": "heating",  # Central Heating
-    "FA": "hot_water",  # Stored DHW loop? (or UFH loop if src.type == "02"?)
+    "F9": "heating_valve",  # DHW Heating Valve
+    "FA": "hot_water_valve",  # DHW HW Valve (or UFH loop if src.type == "02"?)
     "FB": None,
-    "FC": "boiler",  # "Heat Source": BDR (Boiler, District heating), or OTB
+    "FC": "boiler_relay",  # "heat_relay": BDR (Boiler, District heating), or OTB
     "FD": None,  # seen with hometronics
     "FF": "system",  # TODO: remove this, is not a domain
 }  # "21": "Ventilation",
@@ -385,21 +386,28 @@ ATTR_ZONES = "zones"
 
 # RP|system_zones = {'zone_mask': [1,1,0,0,0,0,0,0,0,0,0,0], 'zone_type': 'dhw_actuator'}  # noqa
 
+
+ATTR_RAD_VALVE = "radiator_valve"
+ATTR_UFH_HTG = "underfloor_heating"
+ATTR_ZON_VALVE = "zone_valve"
+ATTR_MIX_VALVE = "mixing_valve"
+ATTR_ELEC_HEAT = "electric_heat"
+
 CODE_0005_ZONE_TYPE = {
     "00": "configured_zones",  # same as 04?
     "01": None,
     "02": None,
     "04": None,
-    "08": "radiator_valve",
-    "09": "underfloor_heating",
-    "0A": "zone_valve",
-    "0B": "mixing_valve",
+    "08": ATTR_RAD_VALVE,
+    "09": ATTR_UFH_HTG,
+    "0A": ATTR_ZON_VALVE,
+    "0B": ATTR_MIX_VALVE,
     "0C": None,
     "0D": ATTR_DHW_SENSOR,
     "0E": ATTR_DHW_VALVE,  # can be 0, 1 or 2 (i.e. 1,1,0,...) of them
     "0F": ATTR_HTG_CONTROL,
     "10": None,
-    "11": "electric_heat",
+    "11": ATTR_ELEC_HEAT,
 }  # 03, 05, 06, 07: & >11 - no response
 
 # RP|zone_devices | 000E0... || {'domain_id': 'FA', 'device_class': 'dhw_actuator', 'devices': ['13:081807']}  # noqa
@@ -435,6 +443,7 @@ CODE_0418_FAULT_STATE = {
     "C0": "unknown_c0",
 }  # C0s do not appear in the evohome UI
 CODE_0418_FAULT_TYPE = {
+    "01": "system_fault",
     "03": "mains_low",
     "04": "battery_low",
     "06": "comms_fault",

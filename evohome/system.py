@@ -298,7 +298,7 @@ class EvoSystem(System):
 
         # TODO: Get the fault log entries
         # self._fault_log.req_log(log_idx=0)
-        for log_idx in range(0, 0x6):  # max is 0x3C?
+        for log_idx in range(0, 0x6):  # max is 0x3C?, 0x3F (highest log is 0x3E?)
             self._command("0418", payload=f"{log_idx:06X}", priority=Priority.LOW)
 
     def _update_msg(self, msg, prev_msg=None):
