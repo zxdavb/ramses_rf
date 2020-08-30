@@ -371,7 +371,7 @@ class PortPktProvider:
             #     if v.dtm_timeout is not None
             # ]
 
-            # self._qos_lock.release()
+            self._qos_lock.release()
 
             if _cmd is put_cmd:
                 await write_pkt(_cmd)
