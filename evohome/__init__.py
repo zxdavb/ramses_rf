@@ -18,7 +18,6 @@ from .message import _LOGGER as msg_logger, Message
 from .packet import (
     _LOGGER as pkt_logger,
     Packet,
-    Pause,
     PortPktProvider,
     file_pkts,
     port_pkts,
@@ -210,7 +209,7 @@ class Gateway:
                 fp, include=self._include_list, exclude=self._exclude_list
             ):
                 self._process_packet(raw_pkt)
-                # await asyncio.sleep(Pause.NONE)  # needed for Ctrl_C to work
+                # await asyncio.sleep(0)  # needed for Ctrl_C to work
 
         async def port_reader(manager):
             async for raw_pkt in port_pkts(
@@ -220,7 +219,7 @@ class Gateway:
                 relay=self._relay,
             ):
                 self._process_packet(raw_pkt)
-                # await asyncio.sleep(Pause.NONE)  # NOTE: 0.005 works well
+                # await asyncio.sleep(0)  # NOTE: 0.005 works well
 
                 # TODO: not elegant - move elsewhere?
                 if self.config.get("evofw_flag") and "evofw3" in raw_pkt.packet:
@@ -229,12 +228,12 @@ class Gateway:
                     # !T01   - cause raw data for all messages to be printed
                     await manager.put_pkt(self.config["evofw_flag"], _LOGGER)
 
-                await asyncio.sleep(Pause.MINIMUM)  # TODO: was: 0.005
+                await asyncio.sleep(0.01)  # TODO: was: 0.005
 
         async def port_writer(manager):
             while True:
                 await self._dispatch_pkt(destination=manager)
-                await asyncio.sleep(Pause.SHORT)  # NOTE: was: 0.05
+                await asyncio.sleep(0.01)  # NOTE: was: 0.05
 
         # if self.config["known_devices"]:
         #     self.known_devices = ...
@@ -296,7 +295,7 @@ class Gateway:
         #         await destination.put_pkt(cmd, _LOGGER)
 
         while not self.cmd_que.empty():
-            await asyncio.sleep(Pause.SHORT)  # TODO: this was causing an issue...
+            await asyncio.sleep(0.01)  # TODO: this was causing an issue...
             # if self.cmd_que.empty():
             #     await destination.put_pkt(None, _LOGGER)
             #     continue

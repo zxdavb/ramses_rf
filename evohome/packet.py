@@ -26,7 +26,13 @@ READ_TIMEOUT = 0.5
 XON_XOFF = True
 
 # PAUSE: Default of 0.03 too short, but 0.05 OK; Long pause required after 1st RQ/0404
-Pause = SimpleNamespace(NONE=0, MINIMUM=0.01, SHORT=0.01, DEFAULT=0.05, LONG=0.20)
+Pause = SimpleNamespace(
+    NONE=timedelta(seconds=0),
+    MINIMUM=timedelta(seconds=0.01),
+    SHORT=timedelta(seconds=0.05),
+    DEFAULT=timedelta(seconds=0.1),
+    LONG=timedelta(seconds=0.5),
+)
 
 # tx (from sent to gwy, to get back from gwy) seems to takes 0.025
 MAX_BUFFER_LEN = 1
@@ -242,7 +248,7 @@ class PortPktProvider:
                     pkt_raw = await self.reader.readline()
                 else:
                     pkt_raw = b""
-                    await asyncio.sleep(Pause.SHORT)
+                    await asyncio.sleep(0)
             except SerialException:
                 return Packet(dt_str(), "", None)
 
@@ -272,33 +278,34 @@ class PortPktProvider:
         self._qos_lock.acquire()
 
         if pkt._header in self._qos_buffer:
-            # # _LOGGER.warning(
-            # #     "%s < %s, received from gateway (was in buffer) %s ",
-            # #     pkt,
-            # #     pkt._header,
-            # #     f"GET {self._qos_buffer}",
-            # #     extra=pkt.__dict__,
-            # # )
+            # _LOGGER.warning(
+            #     "%s < %s, received from gateway (was in buffer) %s ",
+            #     pkt,
+            #     pkt._header,
+            #     f"GET {self._qos_buffer}",
+            #     extra=pkt.__dict__,
+            # )
+            # self._pause = dt.min
 
-            cmd = self._qos_buffer[pkt._header]
+            cmd = self._qos_buffer[pkt._header]  # AAA
             # print("PKT:", pkt._header, "_RQ:", cmd._rq_header, "_RP:", cmd._rp_header)
 
             if pkt._header == cmd._rq_header:
                 self._qos_buffer[cmd._rp_header] = cmd
 
                 # if cmd.code in ("0004", "0404", "0418"):
-                #     cmd.dtm_timeout = self._pause + timedelta(seconds=Pause.LONG)
+                #     cmd.dtm_timeout = self._pause + Pause.LONG
 
             del self._qos_buffer[pkt._header]
 
-        elif str(pkt)[4:6] == "RP" and str(pkt)[21:23] == "18":
-            _LOGGER.warning(
-                "%s < %s, received from gateway (wasn't in buffer) %s",
-                pkt,
-                pkt._header,
-                f"GET {self._qos_buffer}",
-                extra=pkt.__dict__,
-            )
+        # elif str(pkt)[4:6] == "RP" and str(pkt)[21:23] == "18":
+        #     _LOGGER.warning(
+        #         "%s < %s, received from gateway (wasn't in buffer) %s",
+        #         pkt,
+        #         pkt._header,
+        #         f"GET {self._qos_buffer}",
+        #         extra=pkt.__dict__,
+        #     )
 
         self._qos_lock.release()
 
@@ -316,17 +323,17 @@ class PortPktProvider:
 
             dtm_now = dt_now()  # after submit
             if cmd is None or str(cmd).startswith("!"):  # evofw3 traceflag:
-                self._pause = dtm_now + timedelta(seconds=Pause.SHORT)
+                self._pause = dtm_now + Pause.MINIMUM
                 return
-            # elif cmd.verb == " W" or cmd.code in ("0004", "0404", "0418"):
-            #     self._pause = dtm_now + timedelta(seconds=Pause.LONG)
-            else:
-                self._pause = dtm_now + timedelta(seconds=Pause.DEFAULT)
+            elif cmd.verb == " W" or cmd.code in ("0004", "0404", "0418"):
+                self._pause = dtm_now + Pause.SHORT
+            else:  # BBB
+                self._pause = dtm_now + Pause.SHORT
 
             if cmd.verb == " W" or cmd.code in ("0004", "0404", "0418"):
-                cmd.dtm_timeout = self._pause + timedelta(seconds=Pause.LONG)
+                cmd.dtm_timeout = self._pause + Pause.LONG
             elif cmd.verb == "RQ":
-                cmd.dtm_timeout = self._pause + timedelta(seconds=Pause.DEFAULT)
+                cmd.dtm_timeout = self._pause + Pause.LONG
             else:
                 cmd.dtm_timeout = self._pause + RETRANS_TIMEOUT
 
@@ -347,8 +354,9 @@ class PortPktProvider:
         while True:
             dtm_now = dt_now()  # before submit
             if self._pause > dtm_now:  # sleep until mid-tx pause is over
-                await asyncio.sleep((self._pause - dtm_now).total_seconds())
-            dtm_now = self._pause
+                # await asyncio.sleep((self._pause - dtm_now).total_seconds())
+                await asyncio.sleep(min((self._pause - dtm_now).total_seconds(), 0.01))
+                # await asyncio.sleep(0.01)
 
             self._qos_lock.acquire()
 
@@ -357,21 +365,21 @@ class PortPktProvider:
             else:
                 _cmd = self._check_buffer(put_cmd)  # None, put_cmd, or cmd from buffer
 
-            dtm_untils = [
-                v.dtm_timeout
-                for v in self._qos_buffer.values()
-                if v.dtm_timeout is not None
-            ]
+            # dtm_untils = [
+            #     v.dtm_timeout
+            #     for v in self._qos_buffer.values()
+            #     if v.dtm_timeout is not None
+            # ]
 
-            self._qos_lock.release()
+            # self._qos_lock.release()
 
             if _cmd is put_cmd:
                 await write_pkt(_cmd)
                 break
             elif _cmd is not None:
                 await write_pkt(_cmd)
-            elif dtm_untils:
-                await asyncio.sleep((min(dtm_untils) - dtm_now).total_seconds())
+            # elif dtm_untils:
+            #     await asyncio.sleep((min(dtm_untils) - dtm_now).total_seconds())
 
         # print("PUT", self._qos_buffer)
 
@@ -472,7 +480,7 @@ async def port_pkts(manager, include=None, exclude=None, relay=None):
                 asyncio.create_task(relay.write(pkt.packet))
             yield pkt
 
-        await asyncio.sleep(Pause.NONE)  # at least 0, to enable a Ctrl-C
+        await asyncio.sleep(0)  # at least 0, to enable a Ctrl-C
 
 
 async def file_pkts(fp, include=None, exclude=None):
@@ -500,4 +508,4 @@ async def file_pkts(fp, include=None, exclude=None):
         if pkt.is_valid and pkt.is_wanted(include=include, exclude=exclude):
             yield pkt
 
-        await asyncio.sleep(Pause.NONE)  # usu. 0, only to enable a Ctrl-C
+        await asyncio.sleep(0)  # usu. 0, only to enable a Ctrl-C
