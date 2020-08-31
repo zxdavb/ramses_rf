@@ -12,7 +12,7 @@ from .const import (
     ATTR_DEVICES,
     ATTR_SYSTEM,
     CODE_0005_ZONE_TYPE,
-    CODE_000C_DEVICE_TYPE,
+    # CODE_000C_DEVICE_TYPE,
     DEVICE_HAS_ZONE_SENSOR,
     DEVICE_TYPES,
     MAX_ZONES,
@@ -271,8 +271,8 @@ class EvoSystem(System):
 
         [  # 000C: find the HTG relay and DHW sensor & relay(s), if any
             self._command("000C", payload=dev_type)
-            # for dev_type in ("000F", "000D", "000E", "010E")
-            for dev_type, description in CODE_000C_DEVICE_TYPE.items()
+            for dev_type in ("000F", "000D", "000E", "010E")
+            # for dev_type, description in CODE_000C_DEVICE_TYPE.items() - fix payload
             # if description is not None
         ]
 
