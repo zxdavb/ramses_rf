@@ -293,6 +293,13 @@ class Gateway:
         #     for code in range(int("4000", 16)):
         #         cmd = Command(" W", "01:145038", f"{code:04X}", payload)
         #         await destination.put_pkt(cmd, _LOGGER)
+        # # used for development only...
+        # for code in range(0x4000):
+        #     if code % 0x10 == 0 and code != 0:
+        #         await asyncio.sleep(10)  # 15 seconds works OK
+        #     # cmd = Command("RQ", "01:145038", f"{code:04X}", "0000")
+        #     cmd = Command("RQ", "13:163733", f"{code:04X}", "0000")
+        #     await destination.put_pkt(cmd, _LOGGER)
 
         while not self.cmd_que.empty():
             await asyncio.sleep(0.01)  # TODO: this was causing an issue...
