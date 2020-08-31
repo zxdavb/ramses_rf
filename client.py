@@ -8,7 +8,7 @@ import sys
 
 import click
 
-from evohome import Gateway, GracefulExit
+from evohome import Gateway, GracefulExit, __dev_mode__
 
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
@@ -135,7 +135,12 @@ async def main(loop=None, config=None, debug_flags=None):
         print(f"\r\nParams[gateway] = {json.dumps(gwy.params)}")
         print(f"\r\nStatus[gateway] = {json.dumps(gwy.status)}")
 
-    if gwy.evo is not None:
+    if __dev_mode__ and gwy.evo is not None:
+        print(f"\r\nSchema[{gwy.evo.id}] = {json.dumps(gwy.evo.schema)}")
+        print(f"\r\nParams[{gwy.evo.id}] = {json.dumps(gwy.evo.params)}")
+        print(f"\r\nStatus[{gwy.evo.id}] = {json.dumps(gwy.evo.status)}")
+
+    elif gwy.evo is not None:
         print(f"\r\nSchema[{gwy.evo.id}] = {json.dumps(gwy.evo.schema, indent=2)}")
         print(f"\r\nParams[{gwy.evo.id}] = {json.dumps(gwy.evo.params, indent=2)}")
         print(f"\r\nStatus[{gwy.evo.id}] = {json.dumps(gwy.evo.status, indent=2)}")
