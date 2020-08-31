@@ -113,12 +113,12 @@ async def main(loop=None, config=None, debug_flags=None):
         # future: ... cb=[BaseProactorEventLoop._loop_self_reading()]
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-    gateway = None  # avoid possibly unbound error
+    gwy = None  # avoid 'possibly unbound' lint error
     try:
-        gateway = Gateway(loop=loop, config=config, debug=debug_flags)
-        task = asyncio.create_task(gateway.start())
+        gwy = Gateway(loop=loop, config=config, debug=debug_flags)
+        task = asyncio.create_task(gwy.start())
         # await asyncio.sleep(20)
-        # print(await gateway.evo.zones[0].name)
+        # print(await gwy.evo.zones[0].name)
         await task
 
     except asyncio.CancelledError:
@@ -130,15 +130,15 @@ async def main(loop=None, config=None, debug_flags=None):
     else:  # if no Exceptions raised, e.g. EOF when parsing
         print(" - exiting via: else-block (e.g. EOF when parsing)")
 
-    if gateway.evo is not None:
-        print(f"\r\nSchema[{gateway.evo.id}] = {json.dumps(gateway.evo.schema)}")
-        print(f"\r\nParams[{gateway.evo.id}] = {json.dumps(gateway.evo.params)}")
-        print(f"\r\nStatus[{gateway.evo.id}] = {json.dumps(gateway.evo.status)}")
+    if True or gwy.evo is None:
+        print(f"\r\nSchema[gateway] = {json.dumps(gwy.schema)}")
+        print(f"\r\nParams[gateway] = {json.dumps(gwy.params)}")
+        print(f"\r\nStatus[gateway] = {json.dumps(gwy.status)}")
 
-    # else:
-    print(f"\r\nSchema[gateway] = {json.dumps(gateway.schema)}")
-    print(f"\r\nParams[gateway] = {json.dumps(gateway.params)}")
-    print(f"\r\nStatus[gateway] = {json.dumps(gateway.status)}")
+    if gwy.evo is not None:
+        print(f"\r\nSchema[{gwy.evo.id}] = {json.dumps(gwy.evo.schema, indent=2)}")
+        print(f"\r\nParams[{gwy.evo.id}] = {json.dumps(gwy.evo.params, indent=2)}")
+        print(f"\r\nStatus[{gwy.evo.id}] = {json.dumps(gwy.evo.status, indent=2)}")
 
     print("\r\nFinished evohome_rf.")
 
