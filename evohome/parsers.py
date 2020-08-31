@@ -810,10 +810,19 @@ def parser_10e0(payload, msg) -> Optional[dict]:
 def parser_1100(payload, msg) -> Optional[dict]:
     assert msg.len in (5, 8)
     assert payload[:2] in ("00", "FC")
-    assert payload[2:4] in ("0C", "18", "24", "30")
-    assert payload[4:6] in ("04", "08", "0C", "10", "14")
-    assert payload[6:8] in ("00", "04", "08", "0C", "10", "14")
+    assert int(payload[2:4], 16) / 4 in range(1, 13)
+    assert int(payload[4:6], 16) / 4 in range(1, 31)
+    assert int(payload[6:8], 16) / 4 in range(0, 16)
     assert payload[8:10] in ("00", "FF")
+
+    # for TPI
+    #  - cycle_rate: 3, 6, 9, 12??
+    #  - min_on_time: 1-5??
+    #  - min_off_time: ??
+    # for heatpump
+    #  - cycle_rate: 1-9
+    #  - min_on_time: 1, 5, 10,...30
+    #  - min_off_time: 0, 5, 10, 15
 
     def _parser(seqx) -> dict:
         return {
@@ -821,7 +830,7 @@ def parser_1100(payload, msg) -> Optional[dict]:
             "cycle_rate": int(payload[2:4], 16) / 4,  # in cycles/hour
             "minimum_on_time": int(payload[4:6], 16) / 4,  # in minutes
             "minimum_off_time": int(payload[6:8], 16) / 4,  # in minutes
-            "_unknown_0": payload[8:10],  # always 00, FF?
+            # "_unknown_0": payload[8:10],  # always 00, FF?
         }
 
     if msg.len == 5:
@@ -831,7 +840,7 @@ def parser_1100(payload, msg) -> Optional[dict]:
     return {
         **_parser(payload[:10]),
         "proportional_band_width": _temp(payload[10:14]),  # in degrees C
-        "_unknown_1": payload[14:],  # always 01?
+        # "_unknown_1": payload[14:],  # always 01?
     }
 
 
@@ -925,7 +934,11 @@ def parser_1fc9(payload, msg) -> Optional[dict]:
 
     # 049  I --- 01:145038 --:------ 01:145038 1FC9 018 F9-0008-06368E FC-3B00-06368E F9-1FC9-06368E  # noqa
 
+    # the new (heatpump-aware) BDR91:
+    # 045 RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-7FE1-DD6ABD # noqa
+
     def _parser(seqx) -> dict:
+        # print(dev_hex_to_id(seqx[6:]))
         assert seqx[6:] == payload[6:12]  # all with same controller
         if seqx[:2] not in ("F9", "FA", "FB", "FC"):  # or: not in DOMAIN_TYPE_MAP: ??
             assert int(seqx[:2], 16) < MAX_ZONES
@@ -934,7 +947,11 @@ def parser_1fc9(payload, msg) -> Optional[dict]:
     assert msg.len >= 6 and msg.len % 6 == 0  # assuming not RQ
     assert msg.verb in (" I", " W", "RP")  # devices will respond to a RQ!
     assert msg.src.id == dev_hex_to_id(payload[6:12])
-    return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
+    return [
+        _parser(payload[i : i + 12])
+        for i in range(0, len(payload), 12)
+        if payload[i + 2 : i + 6] != "7FE1"  # WIP
+    ]
 
 
 @parser_decorator  # opentherm_sync
