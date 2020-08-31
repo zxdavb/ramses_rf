@@ -25,22 +25,21 @@ BAUDRATE = 115200
 READ_TIMEOUT = 0.5
 XON_XOFF = True
 
-# PAUSE: Default of 0.03 too short, but 0.05 OK; Long pause required after 1st RQ/0404
 Pause = SimpleNamespace(
     NONE=timedelta(seconds=0),
     MINIMUM=timedelta(seconds=0.01),
     SHORT=timedelta(seconds=0.05),
-    DEFAULT=timedelta(seconds=0.1),
+    DEFAULT=timedelta(seconds=0.15),
     LONG=timedelta(seconds=0.5),
 )
 
 # tx (from sent to gwy, to get back from gwy) seems to takes 0.025
 MAX_BUFFER_LEN = 1
 MAX_SEND_COUNT = 1
-RETRANS_TIMEOUT = timedelta(seconds=0.95)
+# RETRANS_TIMEOUT = timedelta(seconds=0.03)
 # 0.060 gives false +ve for 10E0?
 # 0.065 too low when stressed with (e.g.) schedules, log entries
-EXPIRY_TIMEOUT = timedelta(seconds=3.0)  # say 0.5
+EXPIRY_TIMEOUT = timedelta(seconds=2.0)  # say 0.5
 
 _LOGGER = logging.getLogger(__name__)
 if True or __dev_mode__:
@@ -278,13 +277,13 @@ class PortPktProvider:
         self._qos_lock.acquire()
 
         if pkt._header in self._qos_buffer:
-            # _LOGGER.warning(
-            #     "%s < %s, received from gateway (was in buffer) %s ",
-            #     pkt,
-            #     pkt._header,
-            #     f"GET {self._qos_buffer}",
-            #     extra=pkt.__dict__,
-            # )
+            # # _LOGGER.warning(
+            # #     "%s < %s, received from gateway (was in buffer) %s ",
+            # #     pkt,
+            # #     pkt._header,
+            # #     f"GET {self._qos_buffer}",
+            # #     extra=pkt.__dict__,
+            # # )
             # self._pause = dt.min
 
             cmd = self._qos_buffer[pkt._header]  # AAA
@@ -293,35 +292,44 @@ class PortPktProvider:
             if pkt._header == cmd._rq_header:
                 self._qos_buffer[cmd._rp_header] = cmd
 
-                # if cmd.code in ("0004", "0404", "0418"):
-                #     cmd.dtm_timeout = self._pause + Pause.LONG
+                dtm_now = dt_now()  # after submit
+                if cmd.verb == " W" or cmd.code in ("0004", "0404", "0418"):
+                    cmd.dtm_timeout = dtm_now + Pause.LONG
+                elif cmd.verb == "RQ":
+                    cmd.dtm_timeout = dtm_now + Pause.LONG
+                else:
+                    cmd.dtm_timeout = dtm_now + Pause.DEFAULT
+
+                cmd.transmit_count = 1
+                cmd.dtm_expires = dtm_now + EXPIRY_TIMEOUT
 
             del self._qos_buffer[pkt._header]
 
-        # elif str(pkt)[4:6] == "RP" and str(pkt)[21:23] == "18":
-        #     _LOGGER.warning(
-        #         "%s < %s, received from gateway (wasn't in buffer) %s",
-        #         pkt,
-        #         pkt._header,
-        #         f"GET {self._qos_buffer}",
-        #         extra=pkt.__dict__,
-        #     )
+        # # elif str(pkt)[4:6] == "RP" and str(pkt)[21:23] == "18":
+        # #     _LOGGER.warning(
+        # #         "%s < %s, received from gateway (wasn't in buffer) %s",
+        # #         pkt,
+        # #         pkt._header,
+        # #         f"GET {self._qos_buffer}",
+        # #         extra=pkt.__dict__,
+        # #     )
 
         self._qos_lock.release()
+        await asyncio.sleep(0)
 
         return pkt
-
-    # def _set_timeouts(self, cmd) -> Tuple[dt, dt]:
 
     async def put_pkt(self, put_cmd, logger):  # TODO: logger is a hack
         """Send (put) the next packet to a serial port."""
 
-        async def write_pkt(cmd) -> None:
+        def write_pkt(cmd) -> None:
 
             self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
             # _logger(f"just sent to gateway", f"... {cmd}", dtm_now)
 
             dtm_now = dt_now()  # after submit
+
+            # the pause between submitting (command) packets
             if cmd is None or str(cmd).startswith("!"):  # evofw3 traceflag:
                 self._pause = dtm_now + Pause.MINIMUM
                 return
@@ -330,12 +338,13 @@ class PortPktProvider:
             else:  # BBB
                 self._pause = dtm_now + Pause.SHORT
 
+            # how long to wait to see the packet appear on the ether
             if cmd.verb == " W" or cmd.code in ("0004", "0404", "0418"):
-                cmd.dtm_timeout = self._pause + Pause.LONG
+                cmd.dtm_timeout = dtm_now + Pause.DEFAULT
             elif cmd.verb == "RQ":
-                cmd.dtm_timeout = self._pause + Pause.LONG
+                cmd.dtm_timeout = dtm_now + Pause.SHORT
             else:
-                cmd.dtm_timeout = self._pause + RETRANS_TIMEOUT
+                cmd.dtm_timeout = dtm_now + Pause.DEFAULT
 
             cmd.transmit_count += 1
             if cmd.transmit_count == 1:
@@ -354,8 +363,8 @@ class PortPktProvider:
         while True:
             dtm_now = dt_now()  # before submit
             if self._pause > dtm_now:  # sleep until mid-tx pause is over
-                # await asyncio.sleep((self._pause - dtm_now).total_seconds())
                 await asyncio.sleep(min((self._pause - dtm_now).total_seconds(), 0.01))
+                # await asyncio.sleep((self._pause - dtm_now).total_seconds())
                 # await asyncio.sleep(0.01)
 
             self._qos_lock.acquire()
@@ -372,14 +381,17 @@ class PortPktProvider:
             # ]
 
             self._qos_lock.release()
+            await asyncio.sleep(0)
 
             if _cmd is put_cmd:
-                await write_pkt(_cmd)
+                write_pkt(_cmd)
                 break
             elif _cmd is not None:
-                await write_pkt(_cmd)
+                write_pkt(_cmd)
             # elif dtm_untils:
             #     await asyncio.sleep((min(dtm_untils) - dtm_now).total_seconds())
+            # # # else:
+            # # #     await asyncio.sleep(0)
 
         # print("PUT", self._qos_buffer)
 
@@ -393,7 +405,7 @@ class PortPktProvider:
 
         for header, kmd in self._qos_buffer.items():
             if kmd.dtm_expires < dtm_now:  # abandon
-                _LOGGER.warning(
+                _LOGGER.error(
                     "%s < %s, timed out: fully expired: removed",
                     f"... {kmd}",
                     header,
@@ -403,7 +415,7 @@ class PortPktProvider:
 
             elif kmd.dtm_timeout < dtm_now:  # retransmit?
                 if kmd.transmit_count >= MAX_SEND_COUNT:  # abandon
-                    _LOGGER.warning(
+                    _LOGGER.error(
                         "%s < %s, timed out: exceeded retries (%s of %s): removed",
                         f"... {kmd}",
                         header,
@@ -415,7 +427,7 @@ class PortPktProvider:
 
                 else:  # retransmit (choose the next cmd with the higher priority)
                     cmd = kmd if cmd is None or kmd < cmd else cmd
-                    _LOGGER.warning(
+                    _LOGGER.error(
                         "%s < %s, timed out: re-transmissible (%s of %s): remains",
                         f"... {kmd}",
                         header,
@@ -432,14 +444,17 @@ class PortPktProvider:
 
         if cmd is not None:  # re-transmit
             # log_msg = "next for re-transmission (remains in buffer) "
+            # print("aaa")
             pass
 
         elif len(self._qos_buffer) < MAX_BUFFER_LEN:
+            # print("bbb")  # no problem
             cmd = put_cmd
             self._qos_buffer[cmd._rq_header] = cmd
             # log_msg = "next for transmission (added to buffer) "
 
         else:  # buffer is full
+            # print("ccc")  # problem
             return None
 
         # _LOGGER.warning(

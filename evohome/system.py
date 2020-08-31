@@ -11,8 +11,8 @@ from .const import (
     ATTR_CONTROLLER,
     ATTR_DEVICES,
     ATTR_SYSTEM,
-    # CODE_0005_ZONE_TYPE,
-    # CODE_000C_DEVICE_TYPE,
+    CODE_0005_ZONE_TYPE,
+    CODE_000C_DEVICE_TYPE,
     DEVICE_HAS_ZONE_SENSOR,
     DEVICE_TYPES,
     MAX_ZONES,
@@ -254,7 +254,7 @@ class EvoSystem(System):
         self._prev_30c9 = None
         self._fault_log = {}
 
-        self._discover()
+        # self._discover()
 
     def _discover(self) -> None:
         if self._gwy.config["disable_probing"]:
@@ -271,15 +271,15 @@ class EvoSystem(System):
 
         [  # 000C: find the HTG relay and DHW sensor & relay(s), if any
             self._command("000C", payload=dev_type)
-            for dev_type in ("000F", "000D", "000E", "010E")
-            # for dev_type, description in CODE_000C_DEVICE_TYPE.items()
+            # for dev_type in ("000F", "000D", "000E", "010E")
+            for dev_type, description in CODE_000C_DEVICE_TYPE.items()
             # if description is not None
         ]
 
         [  # 0005: find any configured zones, and their type (RAD, UFH, VAL, MIX, ELE)
             self._command("0005", payload=f"00{zone_type}")
-            for zone_type in ("08", "09", "0A", "0B", "11")
-            # for zone_type, description in CODE_0005_ZONE_TYPE.items()
+            # for zone_type in ("08", "09", "0A", "0B", "11")
+            for zone_type, description in CODE_0005_ZONE_TYPE.items()
             # if description is not None
         ]
 
@@ -298,8 +298,8 @@ class EvoSystem(System):
 
         # TODO: Get the fault log entries
         # self._fault_log.req_log(log_idx=0)
-        for log_idx in range(0, 0x6):  # max is 0x3C?, 0x3F (highest log is 0x3E?)
-            self._command("0418", payload=f"{log_idx:06X}", priority=Priority.LOW)
+        # # for log_idx in range(0, 0x6):  # max is 0x3C?, 0x3F (highest log is 0x3E?)
+        # #     self._command("0418", payload=f"{log_idx:06X}", priority=Priority.LOW)
 
     def _update_msg(self, msg, prev_msg=None):
         """Eavesdrop packets, or pairs of packets, to maintain the system state."""
@@ -563,12 +563,12 @@ class EvoSystem(System):
         if msg.code in ("10A0", "1260"):  # self.dhw.sensor is None and
             find_dhw_sensor(msg)
 
-    def fault_log(self, force_update=False) -> Optional[list]:  # 0418
-        # TODO: try to discover fault codes
-        for log_idx in range(0x00, 0x3C):  # 10 pages of 6
-            self._command("0418", payload=f"{log_idx:06X}")
+    # def fault_log(self, force_update=False) -> Optional[list]:  # 0418
+    #     # TODO: try to discover fault codes
+    #     for log_idx in range(0x00, 0x3C):  # 10 pages of 6
+    #         self._command("0418", payload=f"{log_idx:06X}")
 
-        return [f.payload for f in self._fault_log.values()]
+    #     return [f.payload for f in self._fault_log.values()]
 
     @property
     def language(self) -> Optional[str]:  # 0100,

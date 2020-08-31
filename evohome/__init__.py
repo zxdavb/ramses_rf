@@ -287,18 +287,18 @@ class Gateway:
         """Send a command unless in listen_only mode."""
 
         # # used for development only...
-        # for payload in (
-        #   "0000", "0100", "00", "01", "F8", "F9", "FA", "FB", "FC", "FF"
-        # ):
-        #     for code in range(int("4000", 16)):
-        #         cmd = Command(" W", "01:145038", f"{code:04X}", payload)
-        #         await destination.put_pkt(cmd, _LOGGER)
-        # # used for development only...
         # for code in range(0x4000):
-        #     if code % 0x10 == 0 and code != 0:
-        #         await asyncio.sleep(10)  # 15 seconds works OK
         #     # cmd = Command("RQ", "01:145038", f"{code:04X}", "0000")
-        #     cmd = Command("RQ", "13:163733", f"{code:04X}", "0000")
+        #     cmd = Command("RQ", "13:035462", f"{code:04X}", "0000")
+        #     await destination.put_pkt(cmd, _LOGGER)
+        #     if code % 0x10 == 0:
+        #         await asyncio.sleep(15)  # 10 too short - 15 seconds works OK
+
+        # # used for development only...
+        # for payload in ("0000", "0100", "F8", "F9", "FA", "FB", "FC", "FF"):
+        #     cmd = Command("RQ", "01:145038", "11F0", payload)
+        #     await destination.put_pkt(cmd, _LOGGER)
+        #     cmd = Command("RQ", "13:035462", "11F0", payload)
         #     await destination.put_pkt(cmd, _LOGGER)
 
         while not self.cmd_que.empty():

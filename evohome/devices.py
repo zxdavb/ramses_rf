@@ -8,6 +8,7 @@ from typing import Any, Optional
 from .command import Command, Priority
 from .const import (
     __dev_mode__,
+    CODE_SCHEMA,
     CODE_0005_ZONE_TYPE,
     CODE_000C_DEVICE_TYPE,
     DEVICE_LOOKUP,
@@ -286,13 +287,20 @@ class Device(Entity):
         if self._gwy.config["disable_probing"]:
             return
 
-        # do these even if battery-powered (e.g. device might be in rf_check mode)
-        if not __dev_mode__:
-            for code in ("0016", "1FC9"):
-                self._command(code, payload="0000" if code == "0016" else "00")
+        # if self.id in ("01:145038", "13:035462"):
+        if self.type == "02":
+            for code in CODE_SCHEMA:
+                for payload in ("00", "0000", "01", "0100", "FF", "FC", "FB"):
+                    self._command(code, payload=payload)
+            return
 
-        if not __dev_mode__ and self.has_battery is not True:
-            self._command("10E0")
+        # do these even if battery-powered (e.g. device might be in rf_check mode)
+        # if not __dev_mode__:
+        for code in ("0016", "1FC9"):
+            self._command(code, payload="0000" if code == "0016" else "00")
+
+        # if not __dev_mode__ and self.has_battery is not True:
+        self._command("10E0")
 
         # if self.addr.type not in ("01", "13") and not self.has_battery:  # TODO: dev
         #     for code in CODE_SCHEMA:
@@ -492,7 +500,12 @@ class UfhController(HeatDemand, Device):
             self._command("3150", payload=f"{zone_idx:02X}") for zone_idx in range(8)
         ]
 
-        [  #
+        [  # 22C9:
+            self._command("22C9", payload=f"{payload}")
+            for payload in ("00", "0000", "01", "0100")
+        ]
+
+        [  # 22D0:
             self._command("22D0", payload=f"{payload}")
             for payload in ("00", "0000", "00000002")
         ]

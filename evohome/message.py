@@ -331,6 +331,7 @@ class Message:
         elif isinstance(self.src, Device) and self.src.is_controller:
             self._gwy.get_device(self.dst, controller=self.src)
 
+        # TODO: may create a controller that doesn't exist
         elif isinstance(self.dst, Device) and self.dst.is_controller:
             self._gwy.get_device(self.src, controller=self.dst)
 

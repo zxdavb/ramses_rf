@@ -464,7 +464,6 @@ class Zone(ZoneBase):
         return {
             ATTR_SETPOINT: self.setpoint,
             ATTR_TEMP: self.temperature,
-            ATTR_OPEN_WINDOW: self.window_open,
         }
 
     @property
@@ -627,9 +626,11 @@ class Zone(ZoneBase):
             }["setpoint"]
             return self._setpoint
 
-    @property
-    def window_open(self) -> Optional[bool]:  # 12B0
-        return self._get_msg_value("12B0", "window_open")
+        # File "/home/dbonnes/clients/evohome/evohome/zones.py", line 465, in status
+        #     ATTR_SETPOINT: self.setpoint,
+        # File "/home/dbonnes/clients/evohome/evohome/zones.py", line 627, in setpoint
+        #     }["setpoint"]
+        # KeyError: 'setpoint'
 
     @property
     def mode(self) -> Optional[dict]:  # 2349
@@ -746,6 +747,47 @@ class RadZone(ZoneHeatDemand, Zone):  # Radiator zones
 
     # 3150 (heat_demand) but no 0008 (relay_demand)
 
+    @property
+    def window_open(self) -> Optional[bool]:  # 12B0
+        return self._get_msg_value("12B0", "window_open")
+
+    @property
+    def zone_config(self) -> Optional[dict]:  # 000A
+        # await self._get_msg("000A")  # if possible/allowed, get an up-to-date pkt
+
+        msg_0 = self._ctl._msgs.get("000A")  # sent regularly, but 1/hourly
+        msg_1 = self._msgs.get("000A")  # upon request
+
+        if msg_0 is None and msg_1 is None:
+            return
+
+        if msg_1 is self._most_recent_msg(msg_0, msg_1):  # could be: None is None
+            result = msg_1.payload
+        else:
+            result = {
+                k: v
+                for z in msg_0.payload
+                for k, v in z.items()
+                if z["zone_idx"] == self.idx and k[:1] != "_"
+            }
+
+        self._zone_config = (
+            {k: v for k, v in result.items() if k != "zone_idx"} if result else None
+        )
+
+        return self._zone_config
+
+    @property
+    def params(self) -> dict:
+        return self.zone_config if self.zone_config else {}
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            ATTR_OPEN_WINDOW: self.window_open,
+        }
+
 
 class UfhZone(ZoneHeatDemand, Zone):  # UFH zones
     """Base for Underfloor Heating zones.
@@ -770,7 +812,7 @@ class MixZone(ZoneHeatDemand, Zone):  # Mix valve zones
 
     @property
     def mix_config(self) -> dict:
-        attrs = ["max_flow_temp", "pump_rum_time", "actuator_run_time", "min_flow_temp"]
+        attrs = ["pump_run_time", "actuator_run_time", "min_flow_temp", "max_flow_temp"]
         return {x: self._get_msg_value("1030", x) for x in attrs}
 
     @property
