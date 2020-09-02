@@ -35,7 +35,7 @@ Pause = SimpleNamespace(
 
 # tx (from sent to gwy, to get back from gwy) seems to takes 0.025
 MAX_BUFFER_LEN = 1
-MAX_SEND_COUNT = 2
+MAX_SEND_COUNT = 1
 # RETRANS_TIMEOUT = timedelta(seconds=0.03)
 # 0.060 gives false +ve for 10E0?
 # 0.065 too low when stressed with (e.g.) schedules, log entries
@@ -274,6 +274,7 @@ class PortPktProvider:
         if pkt._pkt_line == "":
             return pkt  # TODO: or None
 
+        await asyncio.sleep(0)
         self._qos_lock.acquire()
 
         if pkt._header in self._qos_buffer:
@@ -362,10 +363,11 @@ class PortPktProvider:
 
         while True:
             dtm_now = dt_now()  # before submit
-            if self._pause > dtm_now:  # sleep until mid-tx pause is over
-                await asyncio.sleep(min((self._pause - dtm_now).total_seconds(), 0.01))
-                # await asyncio.sleep((self._pause - dtm_now).total_seconds())
-                # await asyncio.sleep(0.01)
+            await asyncio.sleep(min((self._pause - dtm_now).total_seconds(), 0.01))
+            # if self._pause > dtm_now:  # sleep until mid-tx pause is over
+            #    await asyncio.sleep(min((self._pause - dtm_now).total_seconds(), 0.01))
+            #     # await asyncio.sleep((self._pause - dtm_now).total_seconds())
+            #     # await asyncio.sleep(0.01)
 
             self._qos_lock.acquire()
 
@@ -393,6 +395,7 @@ class PortPktProvider:
             # # # else:
             # # #     await asyncio.sleep(0)
 
+        await asyncio.sleep(0)
         # print("PUT", self._qos_buffer)
 
     def _check_buffer(self, put_cmd) -> Optional[Command]:
