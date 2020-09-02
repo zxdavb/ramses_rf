@@ -71,6 +71,8 @@ def _idx(seqx, msg) -> dict:
             return {"domain_id": "FA"}
         if msg.raw_payload[:4] == "000F":
             return {"domain_id": "FC"}
+        if msg.src.type == "02":
+            return {"ufx_idx": msg.raw_payload[:2], "zone_id": msg.raw_payload[4:6]}
 
         assert int(seqx, 16) < MAX_ZONES
         return {"zone_idx": seqx}
@@ -523,8 +525,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
     def _parser(seqx) -> dict:
         assert seqx[:2] == payload[:2]
         assert seqx[2:4] in CODE_000C_DEVICE_TYPE
-        # 7F - none, 00 - from CTL, 01 - from UFH CTL
-        assert seqx[4:6] in ("00", "01", "7F")  # TODO: what does 7F means
+        assert seqx[4:6] == "7F" or int(seqx[4:6], 16) < MAX_ZONES
 
         # print({dev_hex_to_id(seqx[6:12]): seqx[4:6]})
         return {dev_hex_to_id(seqx[6:12]): seqx[4:6]}
