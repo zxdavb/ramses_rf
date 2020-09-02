@@ -523,7 +523,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
     def _parser(seqx) -> dict:
         assert seqx[:2] == payload[:2]
         assert seqx[2:4] in CODE_000C_DEVICE_TYPE
-        assert seqx[4:6] in ("00", "7F")  # TODO: what does 7F means
+        assert seqx[4:6] in ("00", "01", "7F")  # TODO: what does 7F means
 
         return {dev_hex_to_id(seqx[6:12]): seqx[4:6]}
 

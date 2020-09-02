@@ -9,8 +9,8 @@ from .command import Command, Priority
 from .const import (
     __dev_mode__,
     CODE_SCHEMA,
-    # CODE_0005_ZONE_TYPE,
-    # CODE_000C_DEVICE_TYPE,
+    CODE_0005_ZONE_TYPE,
+    CODE_000C_DEVICE_TYPE,
     DEVICE_LOOKUP,
     DEVICE_TABLE,
     DEVICE_TYPES,
@@ -500,15 +500,15 @@ class UfhController(HeatDemand, Device):
             for payload in ("00", "0000", "00000002")
         ]
 
-        # [  # 000C:
-        #     self._command("000C", payload=dev_type)
-        #     for dev_type in CODE_000C_DEVICE_TYPE
-        # ]
+        [  # 000C:
+            self._command("000C", payload=dev_type)
+            for dev_type in CODE_000C_DEVICE_TYPE
+        ]
 
-        # [  # 0005:
-        #     self._command("0005", payload=f"00{zone_type}")
-        #     for zone_type in CODE_0005_ZONE_TYPE
-        # ]
+        [  # 0005:
+            self._command("0005", payload=f"00{zone_type}")
+            for zone_type in CODE_0005_ZONE_TYPE
+        ]
 
     def _update_msg(self, msg) -> None:
         def do_3150_magic() -> None:
