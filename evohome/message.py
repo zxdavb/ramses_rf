@@ -294,7 +294,7 @@ class Message:
         Requires a valid packet; only 000C requires a valid message.
         """
 
-        if self.code == "000C" and self.verb == "RP":
+        if self.code == "000C" and self.verb == "RP" and self.src.type == "01":  # TODO
             self._gwy.get_device(self.dst, controller=self.src)
             if self.is_valid:
                 key = "zone_idx" if "zone_idx" in self.payload else "domain_id"
@@ -365,7 +365,7 @@ class Message:
                     if flag == 1
                 ]
 
-        if self.code == "000C" and self.payload["devices"]:
+        if self.code == "000C" and self.payload["devices"] and self.src.type == "01":
             devices = [self.src.device_by_id[d] for d in self.payload["devices"]]
 
             if self.payload["device_class"] == ATTR_ZONE_SENSOR:
