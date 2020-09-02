@@ -358,7 +358,7 @@ class Message:
         if not self.is_valid:  # requires self.payload
             return
 
-        if self.src.type not in ("01", "02", "23"):  # TODO: this is too restrictive!
+        if self.src.type not in ("01", "23"):  # TODO: this is too restrictive!
             return
 
         # TODO: a I/0005: zones have changed & may need a restart (del) or not (add)
