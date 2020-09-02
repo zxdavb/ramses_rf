@@ -34,6 +34,7 @@ Pause = SimpleNamespace(
 )
 
 # tx (from sent to gwy, to get back from gwy) seems to takes 0.025
+DISABLE_QOS_CODE = True
 MAX_BUFFER_LEN = 1
 MAX_SEND_COUNT = 1
 # RETRANS_TIMEOUT = timedelta(seconds=0.03)
@@ -271,10 +272,11 @@ class PortPktProvider:
         # TODO: validate the packet before calculating the header
         pkt = await read_pkt()
 
-        if pkt._pkt_line == "":
+        if DISABLE_QOS_CODE or pkt._pkt_line == "":
+            await asyncio.sleep(0)
             return pkt  # TODO: or None
 
-        await asyncio.sleep(0)
+        # await asyncio.sleep(0)
         self._qos_lock.acquire()
 
         if pkt._header in self._qos_buffer:
@@ -339,6 +341,9 @@ class PortPktProvider:
             else:  # BBB
                 self._pause = dtm_now + Pause.SHORT
 
+            if DISABLE_QOS_CODE:
+                return
+
             # how long to wait to see the packet appear on the ether
             if cmd.verb == " W" or cmd.code in ("0004", "0404", "0418"):
                 cmd.dtm_timeout = dtm_now + Pause.DEFAULT
@@ -368,6 +373,10 @@ class PortPktProvider:
             #    await asyncio.sleep(min((self._pause - dtm_now).total_seconds(), 0.01))
             #     # await asyncio.sleep((self._pause - dtm_now).total_seconds())
             #     # await asyncio.sleep(0.01)
+
+            if DISABLE_QOS_CODE:
+                write_pkt(put_cmd)
+                break
 
             self._qos_lock.acquire()
 
