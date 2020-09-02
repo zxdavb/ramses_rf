@@ -506,7 +506,7 @@ class Zone(ZoneBase):
 
         if "02" in dev_types:
             zone_type = "UFH"
-        elif "13" in dev_types and "3150" in self.msgs:
+        elif "13" in dev_types and "3150" in self._msgs:
             zone_type = "VAL"
         elif "13" in dev_types:
             zone_type = "ELE"  # could still be a VAL
