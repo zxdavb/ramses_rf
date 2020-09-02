@@ -34,7 +34,7 @@ Pause = SimpleNamespace(
 )
 
 # tx (from sent to gwy, to get back from gwy) seems to takes 0.025
-DISABLE_QOS_CODE = True
+DISABLE_QOS_CODE = False
 MAX_BUFFER_LEN = 1
 MAX_SEND_COUNT = 1
 # RETRANS_TIMEOUT = timedelta(seconds=0.03)
@@ -404,7 +404,7 @@ class PortPktProvider:
             # # # else:
             # # #     await asyncio.sleep(0)
 
-        await asyncio.sleep(0)
+        await asyncio.sleep(0.01)
         # print("PUT", self._qos_buffer)
 
     def _check_buffer(self, put_cmd) -> Optional[Command]:

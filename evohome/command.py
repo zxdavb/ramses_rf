@@ -248,7 +248,7 @@ class Schedule:
         _LOGGER.error("Sched(%s).req_schedule: xxx", self.idx)
 
         # TODO: use a lock to ensure only 1 schedule being requested at a time
-        self.req_fragment(restart=True)
+        # self.req_fragment(restart=True)
 
     def req_fragment(self, restart=False) -> int:
         """Request the next fragment, and return that fragment's index number.
