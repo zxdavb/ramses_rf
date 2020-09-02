@@ -66,13 +66,21 @@ def _idx(seqx, msg) -> dict:
     elif msg.code in ("0002", "2D49"):  # non-evohome: hometronics
         return {"other_idx": seqx}
 
+    # TODO: 000C to a UFC shoudl be ufh_ifx, not zone_idx
     elif msg.code == "000C":  # an exception to the usual rules
-        if msg.raw_payload[:4] in ("000D", "000E", "010E"):
+        if msg.raw_payload[2:4] in ("0D", "0E"):  # ("000D", "000E", "010E")
             return {"domain_id": "FA"}
-        if msg.raw_payload[:4] == "000F":
+        if msg.raw_payload[2:4] == "0F":
             return {"domain_id": "FC"}
-        if msg.src.type == "02":
-            return {"ufx_idx": msg.raw_payload[:2], "zone_id": msg.raw_payload[4:6]}
+        if msg.src.type == "02":  # in (msg.src.type, msg.dst.type):  # TODO: above
+            assert int(seqx, 16) < 8
+            if msg.raw_payload[4:6] == "7F":
+                return {"ufx_idx": seqx, "zone_id": None}
+            assert int(msg.raw_payload[4:6], 16) < MAX_ZONES
+            return {"ufx_idx": seqx, "zone_id": msg.raw_payload[4:6]}
+        if msg.dst.type == "02":
+            assert int(seqx, 16) < 8
+            return {"ufx_idx": seqx}
 
         assert int(seqx, 16) < MAX_ZONES
         return {"zone_idx": seqx}
