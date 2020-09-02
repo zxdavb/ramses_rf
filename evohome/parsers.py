@@ -526,6 +526,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
         # 7F - none, 00 - from CTL, 01 - from UFH CTL
         assert seqx[4:6] in ("00", "01", "7F")  # TODO: what does 7F means
 
+        # print({dev_hex_to_id(seqx[6:12]): seqx[4:6]})
         return {dev_hex_to_id(seqx[6:12]): seqx[4:6]}
 
     assert msg.len >= 6 and msg.len % 6 == 0  # assuming not RQ

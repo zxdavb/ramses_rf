@@ -502,8 +502,9 @@ class UfhController(HeatDemand, Device):
         ]
 
         [  # 000C:
-            self._command("000C", payload=f"00{dev_type}")
+            self._command("000C", payload=f"{idx}{dev_type}")
             for dev_type in CODE_000C_DEVICE_TYPE
+            for idx in range(8)
         ]
 
         [  # 0005:
