@@ -24,6 +24,7 @@ from .const import (
     __dev_mode__,
 )
 from .devices import Device
+from .exceptions import CorruptPayloadError
 
 _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:
@@ -241,19 +242,26 @@ class Message:
             self._payload = payload_parser(self.raw_payload, self)
             assert isinstance(self._payload, dict) or isinstance(self._payload, list)
 
-        except AssertionError:  # for development only?
+        except (AssertionError, CorruptPayloadError):
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
             if self.src.type == "18":  # TODO: should be a warning
                 _LOGGER.warning(
-                    "%s < AssertionError (ignored)", self._pkt, extra=self.__dict__
+                    "%s < Validation error (ignored)", self._pkt, extra=self.__dict__
                 )
             else:
-                _LOGGER.exception("%s < AssertionError", self._pkt, extra=self.__dict__)
+                _LOGGER.exception(
+                    "%s < Validation error", self._pkt, extra=self.__dict__
+                )
+            self._is_valid = False
+            return self._is_valid
+
+        except (AttributeError, LookupError, TypeError, ValueError):  # for development
+            _LOGGER.exception("%s < Coding error", self._pkt, extra=self.__dict__)
             self._is_valid = False
             return self._is_valid
 
         except NotImplementedError:  # unknown packet code
-            _LOGGER.warning("%s < unknown code", self._pkt, extra=self.__dict__)
+            _LOGGER.warning("%s < Unknown packet code", self._pkt, extra=self.__dict__)
             self._is_valid = False
             return self._is_valid
 

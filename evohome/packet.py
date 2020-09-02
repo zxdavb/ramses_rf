@@ -427,14 +427,14 @@ class PortPktProvider:
 
             elif kmd.dtm_timeout < dtm_now:  # retransmit?
                 if kmd.transmit_count >= MAX_SEND_COUNT:  # abandon
-                    _LOGGER.error(
-                        "%s < %s, timed out: exceeded retries (%s of %s): removed",
-                        f"... {kmd}",
-                        header,
-                        kmd.transmit_count,
-                        MAX_SEND_COUNT,
-                        extra=extra(dtm_now.isoformat(), f"... {kmd}"),
-                    )
+                    # _LOGGER.error(
+                    #     "%s < %s, timed out: exceeded retries (%s of %s): removed",
+                    #     f"... {kmd}",
+                    #     header,
+                    #     kmd.transmit_count,
+                    #     MAX_SEND_COUNT,
+                    #     extra=extra(dtm_now.isoformat(), f"... {kmd}"),
+                    # )
                     expired_kmds.append(header)
 
                 else:  # retransmit (choose the next cmd with the higher priority)
