@@ -609,12 +609,15 @@ def parser_0404(payload, msg) -> Optional[dict]:
     def _header(seqx) -> dict:
         assert seqx[2:8] == "200008"
 
-        return {
-            # **_idx(payload[:2], msg),  # added by wrapper
-            "frag_index": int(seqx[10:12], 16),
-            "frag_total": int(seqx[12:], 16),
-            "frag_length": int(seqx[8:10], 16),
-        }
+        try:
+            return {
+                # **_idx(payload[:2], msg),  # added by wrapper
+                "frag_index": int(seqx[10:12], 16),
+                "frag_total": int(seqx[12:], 16),
+                "frag_length": int(seqx[8:10], 16),
+            }
+        except ValueError:
+            print("AAA", str(msg._pkt))
 
     if msg.verb == "RQ":
         assert msg.len == 7
