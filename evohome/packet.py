@@ -404,7 +404,7 @@ class PortPktProvider:
             # # # else:
             # # #     await asyncio.sleep(0)
 
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0)
         # print("PUT", self._qos_buffer)
 
     def _check_buffer(self, put_cmd) -> Optional[Command]:
