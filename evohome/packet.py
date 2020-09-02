@@ -35,7 +35,7 @@ Pause = SimpleNamespace(
 
 # tx (from sent to gwy, to get back from gwy) seems to takes 0.025
 MAX_BUFFER_LEN = 1
-MAX_SEND_COUNT = 1
+MAX_SEND_COUNT = 2
 # RETRANS_TIMEOUT = timedelta(seconds=0.03)
 # 0.060 gives false +ve for 10E0?
 # 0.065 too low when stressed with (e.g.) schedules, log entries
