@@ -595,7 +595,7 @@ class Zone(ZoneBase):
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        if self.temp_sensor:
+        if False and self.temp_sensor:
             self._temperature = (
                 self.temp_sensor._get_msg_value("30C9", "temperature")
                 if self.temp_sensor
@@ -610,7 +610,7 @@ class Zone(ZoneBase):
                 for z in msg.payload
                 for k, v in z.items()
                 if z["zone_idx"] == self.idx
-            }["temperature"]
+            }.get("temperature")
             return self._temperature
 
     @property
@@ -623,14 +623,8 @@ class Zone(ZoneBase):
                 for z in msg.payload
                 for k, v in z.items()
                 if z["zone_idx"] == self.idx
-            }["setpoint"]
+            }.get("setpoint")
             return self._setpoint
-
-        # File "/home/dbonnes/clients/evohome/evohome/zones.py", line 465, in status
-        #     ATTR_SETPOINT: self.setpoint,
-        # File "/home/dbonnes/clients/evohome/evohome/zones.py", line 627, in setpoint
-        #     }["setpoint"]
-        # KeyError: 'setpoint'
 
     @property
     def mode(self) -> Optional[dict]:  # 2349
