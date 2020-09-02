@@ -23,7 +23,6 @@ from .const import (
     __dev_mode__,
 )
 from .devices import dev_hex_to_id
-from .exceptions import CorruptPayloadError
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
 
 _LOGGER = logging.getLogger(__name__)
@@ -620,10 +619,6 @@ def parser_0404(payload, msg) -> Optional[dict]:
     if msg.verb == "RQ":
         assert msg.len == 7
         return _header(payload[:14])
-        try:  # this is needed if the assert is off
-            return _header(payload[:14])
-        except (TypeError, ValueError):
-            raise CorruptPayloadError
 
     assert msg.verb == "RP"
     return {**_header(payload[:14]), "fragment": payload[14:]}
