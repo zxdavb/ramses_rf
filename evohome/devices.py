@@ -9,8 +9,8 @@ from .command import Command, Priority
 from .const import (
     __dev_mode__,
     # CODE_SCHEMA,
-    CODE_0005_ZONE_TYPE,
-    CODE_000C_DEVICE_TYPE,
+    # CODE_0005_ZONE_TYPE,
+    # CODE_000C_DEVICE_TYPE,
     DEVICE_LOOKUP,
     DEVICE_TABLE,
     DEVICE_TYPES,
@@ -487,30 +487,32 @@ class UfhController(HeatDemand, Device):
 
         super()._discover()
 
-        [  # 3150:
-            self._command("3150", payload=f"{zone_idx:02X}") for zone_idx in range(8)
-        ]
+        # [  # 3150: no answer
+        #     self._command("3150", payload=f"{zone_idx:02X}")for zone_idx in range(8)
+        # ]
 
-        [  # 22C9:
-            self._command("22C9", payload=f"{payload}")
-            for payload in ("00", "0000", "01", "0100")
-        ]
+        # [  # 22C9: no answer
+        #     self._command("22C9", payload=f"{payload}")
+        #     for payload in ("00", "0000", "01", "0100")
+        # ]
 
-        [  # 22D0:
-            self._command("22D0", payload=f"{payload}")
-            for payload in ("00", "0000", "00000002")
-        ]
+        # [  # 22D0: dunno, always: {'unknown': '000002'}
+        #     self._command("22D0", payload=f"{payload}")
+        #     for payload in ("00", "0000", "00000002")
+        # ]
 
-        [  # 000C:
+        [  # 000C: used to find evo zone for each configured channel
             self._command("000C", payload=f"{idx:02X}{dev_type}")
-            for dev_type in CODE_000C_DEVICE_TYPE
-            for idx in range(8)
+            for dev_type in ("09")  # CODE_000C_DEVICE_TYPE, also ("00", "04")
+            # for dev_type in CODE_000C_DEVICE_TYPE
+            for idx in range(8)  # for each UFH channel
         ]
 
-        [  # 0005:
-            self._command("0005", payload=f"00{zone_type}")
-            for zone_type in CODE_0005_ZONE_TYPE
-        ]
+        # [  # 0005: shows which channels are active - ?no use? (see above)
+        #     self._command("0005", payload=f"00{zone_type}")
+        #     # for zone_type in ("09")  # CODE_0005_ZONE_TYPE, also ("00", "04", "0F")
+        #     for zone_type in CODE_0005_ZONE_TYPE
+        # ]
 
     def _update_msg(self, msg) -> None:
         def do_3150_magic() -> None:

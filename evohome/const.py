@@ -396,8 +396,12 @@ ATTR_ELEC_HEAT = "electric_heat"
 CODE_0005_ZONE_TYPE = {
     "00": "configured_zones",  # same as 04?
     "01": None,
-    "02": None,
-    "04": None,
+    "02": None,  # no response
+    "03": None,
+    "04": "configured_zones_alt",  # zones that can have a sensor?
+    "05": None,  # no response
+    "06": None,  # no response
+    "07": None,  # no response
     "08": ATTR_RAD_VALVE,
     "09": ATTR_UFH_HTG,
     "0A": ATTR_ZON_VALVE,
@@ -408,7 +412,7 @@ CODE_0005_ZONE_TYPE = {
     "0F": ATTR_HTG_CONTROL,
     "10": None,
     "11": ATTR_ELEC_HEAT,
-}  # 03, 05, 06, 07: & >11 - no response
+}  # 03, 05, 06, 07: & >11 - no response from 01:
 
 # RP|zone_devices | 000E0... || {'domain_id': 'FA', 'device_class': 'dhw_actuator', 'devices': ['13:081807']}  # noqa
 # RP|zone_devices | 010E0... || {'domain_id': 'FA', 'device_class': 'dhw_actuator', 'devices': ['13:106039']}  # noqa
@@ -416,8 +420,12 @@ CODE_0005_ZONE_TYPE = {
 CODE_000C_DEVICE_TYPE = {
     "00": "zone_actuators",
     "01": None,
-    "02": None,
+    "02": None,  # no response
+    "03": None,
     "04": ATTR_ZONE_SENSOR,  # 03:, 04:, 34: (if is 01:, will == [], as if no sensor)
+    "05": None,  # no response
+    "06": None,  # no response
+    "07": None,  # no response
     "08": "rad_actuators",
     "09": "ufh_actuators",
     "0A": "val_actuators",
