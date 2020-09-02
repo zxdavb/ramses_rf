@@ -421,7 +421,7 @@ def parser_0005(payload, msg) -> Optional[dict]:
         assert msg.len == 12  # or % 4?
         return [_parser(payload[i : i + 8]) for i in range(0, len(payload), 8)]
 
-    assert msg.src.type == "01"
+    assert msg.src.type in ("01", "02")  # and "23"?
     return _parser(payload)
 
 

@@ -8,7 +8,7 @@ from typing import Any, Optional
 from .command import Command, Priority
 from .const import (
     __dev_mode__,
-    # CODE_SCHEMA,
+    CODE_SCHEMA,
     CODE_0005_ZONE_TYPE,
     CODE_000C_DEVICE_TYPE,
     DEVICE_LOOKUP,
@@ -289,11 +289,11 @@ class Device(Entity):
 
         # if self.id in ("01:145038", "13:035462"):
         # if self.type == "02":
-        # if self.id == "02:001075":
-        #     for code in CODE_SCHEMA:
-        #         for payload in ("00", "0000", "01", "0100", "FF", "FC", "FB"):
-        #             self._command(code, payload=payload)
-        #     return
+        if self.id == "02:001075":
+            for code in CODE_SCHEMA:
+                for payload in ("00", "0000", "01", "0100", "FF", "FC", "FB"):
+                    self._command(code, payload=payload)
+            return
 
         # do these even if battery-powered (e.g. device might be in rf_check mode)
         # if not __dev_mode__:
