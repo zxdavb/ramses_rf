@@ -503,14 +503,14 @@ class UfhController(HeatDemand, Device):
 
         [  # 000C: used to find evo zone for each configured channel
             self._command("000C", payload=f"{idx:02X}{dev_type}")
-            for dev_type in ("09")  # CODE_000C_DEVICE_TYPE, also ("00", "04")
+            for dev_type in ("09",)  # CODE_000C_DEVICE_TYPE, also ("00", "04")
             # for dev_type in CODE_000C_DEVICE_TYPE
             for idx in range(8)  # for each UFH channel
         ]
 
         # [  # 0005: shows which channels are active - ?no use? (see above)
         #     self._command("0005", payload=f"00{zone_type}")
-        #     # for zone_type in ("09")  # CODE_0005_ZONE_TYPE, also ("00", "04", "0F")
+        #     # for zone_type in ("09",)  # CODE_0005_ZONE_TYPE, also ("00", "04", "0F")
         #     for zone_type in CODE_0005_ZONE_TYPE
         # ]
 
