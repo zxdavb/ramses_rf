@@ -75,12 +75,12 @@ def _idx(seqx, msg) -> dict:
         if msg.src.type == "02":  # in (msg.src.type, msg.dst.type):  # TODO: above
             assert int(seqx, 16) < 8
             if msg.raw_payload[4:6] == "7F":
-                return {"ufx_idx": seqx, "zone_id": None}
+                return {"ufh_idx": seqx, "zone_id": None}
             assert int(msg.raw_payload[4:6], 16) < MAX_ZONES
-            return {"ufx_idx": seqx, "zone_id": msg.raw_payload[4:6]}
+            return {"ufh_idx": seqx, "zone_id": msg.raw_payload[4:6]}
         if msg.dst.type == "02":
             assert int(seqx, 16) < 8
-            return {"ufx_idx": seqx}
+            return {"ufh_idx": seqx}
 
         assert int(seqx, 16) < MAX_ZONES
         return {"zone_idx": seqx}

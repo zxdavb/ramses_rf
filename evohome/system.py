@@ -174,6 +174,10 @@ class System(Controller):
             ufh_controllers.sort()
             schema[ATTR_UFH_CONTROLLERS] = ufh_controllers
 
+        schema["device_info"] = {
+            d.id: d.hardware_info for d in self.devices if d.hardware_info is not None
+        }
+
         return schema
 
     @property
