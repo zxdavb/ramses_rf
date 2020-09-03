@@ -152,7 +152,7 @@ class System(Controller):
         schema = {ATTR_CONTROLLER: self.id}
 
         # devices without a parent zone, NB: CTL can be a sensor for a zones
-        orphans = [d.id for d in self.devices if not d._domain_id]
+        orphans = [d.id for d in self.devices if not d._domain_id and d.type != "02"]
         orphans.sort()
         # system" schema[ATTR_SYSTEM][ATTR_ORPHANS] = orphans
 
@@ -165,14 +165,15 @@ class System(Controller):
 
         schema[ATTR_STORED_HOTWATER] = self.dhw.schema if self.dhw is not None else None
 
-        schema[ATTR_ZONES] = {
-            z.idx: z.schema for z in sorted(self.zones, key=lambda x: x.idx)
-        }
-
         ufh_controllers = [d.id for d in self.devices if d.type == "02"]
         if ufh_controllers:
             ufh_controllers.sort()
+            # schema[ATTR_UFH_CONTROLLERS] = {u.id: u.schema for u in ufh_controllers}
             schema[ATTR_UFH_CONTROLLERS] = ufh_controllers
+
+        schema[ATTR_ZONES] = {
+            z.idx: z.schema for z in sorted(self.zones, key=lambda x: x.idx)
+        }
 
         schema["device_info"] = {
             d.id: d.hardware_info for d in self.devices if d.hardware_info is not None
