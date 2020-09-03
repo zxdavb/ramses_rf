@@ -302,18 +302,25 @@ class Message:
         Requires a valid packet; only 000C requires a valid message.
         """
 
-        if self.code == "000C" and self.verb == "RP" and self.src.type == "01":  # TODO
-            self._gwy.get_device(self.dst, controller=self.src)
-            if self.is_valid:
-                key = "zone_idx" if "zone_idx" in self.payload else "domain_id"
-                [
+        if self.code == "000C" and self.verb == "RP":
+            if self.src.type == "01":  # TODO
+                self._gwy.get_device(self.dst, controller=self.src)
+                if self.is_valid:
+                    key = "zone_idx" if "zone_idx" in self.payload else "domain_id"
+                    [
+                        self._gwy.get_device(
+                            Address(id=d, type=d[:2]),
+                            controller=self.src,
+                            domain_id=self.payload[key],
+                        )
+                        for d in self.payload["devices"]
+                    ]
+            if self.src.type == "02":  # TODO
+                if self.payload["devices"]:
+                    device_id = self.payload["devices"][0]
                     self._gwy.get_device(
-                        Address(id=d, type=d[:2]),
-                        controller=self.src,
-                        domain_id=self.payload[key],
+                        self.src, controller=Address(id=device_id, type=device_id[:2])
                     )
-                    for d in self.payload["devices"]
-                ]
 
         elif self.src.type in ("01", "23", "30"):
             self._gwy.get_device(self.dst, controller=self.src)
