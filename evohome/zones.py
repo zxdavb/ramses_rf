@@ -123,6 +123,11 @@ class DhwZone(ZoneBase, HeatDemand):
         # if False and __dev_mode__ and self.idx == "FA":  # dev/test code
         #     self.async_set_override(state="On")
 
+        [  # 000C: find the DHW relay(s), if any
+            self._command("000C", payload=dev_type)
+            for dev_type in ("000E", "010E")  # CODE_000C_DEVICE_TYPE
+        ]
+
         for code in ("10A0", "1260", "1F41"):
             self._command(code, payload="00")  # payload="00" or "0000", not "FA"
 
