@@ -296,7 +296,8 @@ class Device(Entity):
         #             self._command(code, payload=payload)
         #     return
 
-        if DEVICE_HAS_BATTERY:  # it won't respond to RQs unless in test/bind mode
+        # these won't respond to RQs unless in test/bind mode
+        if self.type in DEVICE_HAS_BATTERY:
             return
 
         # do these even if battery-powered (e.g. device might be in rf_check mode)
