@@ -11,6 +11,7 @@ from .const import (
     # CODE_SCHEMA,
     # CODE_0005_ZONE_TYPE,
     # CODE_000C_DEVICE_TYPE,
+    DEVICE_HAS_BATTERY,
     DEVICE_LOOKUP,
     DEVICE_TABLE,
     DEVICE_TYPES,
@@ -294,6 +295,9 @@ class Device(Entity):
         #         for payload in ("00", "0000", "01", "0100", "FF", "FC", "FB"):
         #             self._command(code, payload=payload)
         #     return
+
+        if DEVICE_HAS_BATTERY:  # it won't respond to RQs unless in test/bind mode
+            return
 
         # do these even if battery-powered (e.g. device might be in rf_check mode)
         # if not __dev_mode__:
