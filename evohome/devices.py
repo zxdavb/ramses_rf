@@ -505,7 +505,7 @@ class UfhController(HeatDemand, Device):
             self._command("000C", payload=f"{idx:02X}{dev_type}")
             for dev_type in ("09",)  # CODE_000C_DEVICE_TYPE, also ("00", "04")
             # for dev_type in CODE_000C_DEVICE_TYPE
-            for idx in range(8)  # for each UFH channel
+            for idx in range(8)  # for each possible UFH channel
         ]
 
         # [  # 0005: shows which channels are active - ?no use? (see above)
