@@ -17,7 +17,7 @@ from .const import (
     ATTR_OPEN_WINDOW,
     ATTR_ZONE_SENSOR,
     ATTR_ZONE_TYPE,
-    CODE_000C_DEVICE_TYPE,
+    # CODE_000C_DEVICE_TYPE,
     DEVICE_HAS_ZONE_SENSOR,
     DHW_STATE_MAP,
     MAX_ZONES,
@@ -383,8 +383,8 @@ class Zone(ZoneBase):
 
         [  # 000C: find the sensor and the actuators, if any
             self._command("000C", payload=f"{self.idx}{dev_type}")
-            # for dev_type in ("00", "04")
-            for dev_type, description in CODE_000C_DEVICE_TYPE.items()
+            for dev_type in ("00", "04")  # CODE_0005_ZONE_TYPE
+            # for dev_type, description in CODE_000C_DEVICE_TYPE.items()
             # if description is not None
         ]
 
