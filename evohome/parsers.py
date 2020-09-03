@@ -174,6 +174,11 @@ def parser_decorator(func):
                 assert msg.len <= 2
                 return {**_idx(payload[:2], msg)}
 
+        # some packets have more than just a domain_id
+        if msg.code == "000C":
+            assert msg.len == 2
+            return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
+
         if msg.code in ("0004", "000C", "0016", "12B0", "30C9"):
             assert msg.len == 2  # 12B0 will RP to 1
             return {**_idx(payload[:2], msg)}
@@ -538,15 +543,22 @@ def parser_000c(payload, msg) -> Optional[dict]:
         # print({dev_hex_to_id(seqx[6:12]): seqx[4:6]})
         return {dev_hex_to_id(seqx[6:12]): seqx[4:6]}
 
-    assert msg.len >= 6 and msg.len % 6 == 0  # assuming not RQ
+    if msg.verb == "RQ":
+        assert msg.len == 2
+    else:
+        assert msg.len >= 6 and msg.len % 6 == 0  # assuming not RQ
 
-    devices = [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
     device_class = CODE_000C_DEVICE_TYPE[payload[2:4]]
     if device_class == ATTR_DHW_VALVE and msg.raw_payload[:2] == "01":
         device_class = ATTR_DHW_VALVE_HTG
 
+    if msg.verb == "RQ":
+        return {**_idx(payload[:2], msg), "device_class": device_class}
+
+    devices = [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
+
     return {
-        **_idx(payload[:2], msg),
+        # **_idx(payload[:2], msg),
         "device_class": device_class,
         "devices": [k for d in devices for k, v in d.items() if v != "7F"],
     }
