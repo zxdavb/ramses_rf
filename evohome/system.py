@@ -165,11 +165,12 @@ class System(Controller):
 
         schema[ATTR_STORED_HOTWATER] = self.dhw.schema if self.dhw is not None else None
 
-        ufh_controllers = [d.id for d in self.devices if d.type == "02"]
-        if ufh_controllers:
-            ufh_controllers.sort()
-            # schema[ATTR_UFH_CONTROLLERS] = {u.id: u.schema for u in ufh_controllers}
-            schema[ATTR_UFH_CONTROLLERS] = ufh_controllers
+        schema[ATTR_UFH_CONTROLLERS] = {
+            u.id: u.schema
+            for u in sorted(
+                [d for d in self.devices if d.type == "02"], key=lambda x: x.id
+            )
+        }
 
         schema[ATTR_ZONES] = {
             z.idx: z.schema for z in sorted(self.zones, key=lambda x: x.idx)

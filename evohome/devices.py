@@ -486,6 +486,11 @@ class UfhController(HeatDemand, Device):
     # 12:27:24.824 059  I --- 01:191718 --:------ 01:191718 3150 002 FC5C
     # 12:27:24.857 067  I --- 02:000921 --:------ 02:000921 3150 006 0060015A025C
 
+    def __init__(self, gateway, device_addr, **kwargs) -> None:
+        super().__init__(gateway, device_addr, **kwargs)
+
+        self._circuits = {}
+
     def _discover(self) -> None:
         if self._gwy.config["disable_probing"]:
             return
@@ -524,21 +529,48 @@ class UfhController(HeatDemand, Device):
             return
 
         super()._update_msg(msg)
-        return
 
         # "0008|FA/FC", "22C9|array", "22D0|none", "3150|ZZ/array(/FC?)"
+
+        if msg.code == "000C":
+            if "ufh_idx" in msg.payload and msg.payload["zone_id"] is not None:
+                self._circuits[msg.payload["ufh_idx"]] = {
+                    "zone_idx": msg.payload["zone_id"]
+                }
 
         if msg.code in ("22C9") and not isinstance(msg.payload, list):
             pass
         else:
             super()._update_msg(msg)
 
-        if msg.code == "3150" and isinstance(msg.payload, list):  # msg.is_array:
-            do_3150_magic()
-
     @property
-    def zones(self):  # 22C9
+    def setpoints(self):  # 22C9
         return self._get_msg_value("22C9")
+
+    @property  # id, type
+    def schema(self) -> dict:
+        schema = {"ufh_circuits": self._circuits}
+
+        return schema
+
+    # @property  # setpoint, config, mode (not schedule)
+    # def params(self) -> dict:
+    #     ATTR_NAME = "name"
+    #     ATTR_MODE = "mode"
+    #     ATTR_CONFIG = "zone_config"
+
+    #     return {
+    #         ATTR_NAME: self.name,
+    #         ATTR_MODE: self.mode,
+    #         ATTR_CONFIG: self.zone_config,
+    #     }
+
+    # @property
+    # def status(self) -> dict:
+    #     return {
+    #         ATTR_SETPOINT: self.setpoint,
+    #         ATTR_TEMP: self.temperature,
+    #     }
 
 
 # 07: "1060";; "1260" "10A0"
