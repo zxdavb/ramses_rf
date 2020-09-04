@@ -440,17 +440,19 @@ class Message:
         if not self.is_valid:  # requires self.payload
             return
 
+        # HACK: merge 000A fragments
         # TODO: do here, or in ctl._update_msg() and/or system._update_msg()
         if re.search("I.* 01.* 000A ", self._pkt):  # HACK: and dtm < 3 secs
             # TODO: an edge case here: >2 000A packets in a row
             if prev is not None and re.search("I.* 01.* 000A ", prev._pkt):
                 self._payload = prev.payload + self.payload  # merge frags, and process
 
-        # some empty payloads may still be useful (e.g. RQ/3EF1/{})
-        try:
-            self._gwy.device_by_id[self.src.id]._update_msg(self)
-        except KeyError:  # some devices aren't created if they're filtered out
+        # some devices aren't created if they're filtered out
+        if self.src.id not in self._gwy.device_by_id:
             return
+
+        # some empty payloads may still be useful (e.g. RQ/3EF1/{})
+        self._gwy.device_by_id[self.src.id]._update_msg(self)
 
         # if payload is {} (empty dict; lists shouldn't ever be empty)
         if not self.payload:
