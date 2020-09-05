@@ -56,33 +56,28 @@ class GracefulExit(SystemExit):
 class Gateway:
     """The gateway class."""
 
-    def __init__(self, loop=None, config=None, debug=None) -> None:
-        """Initialise the class.
+    def __init__(self, serial_port, loop=None, **config) -> None:
+        """Initialise the class."""
 
-        kwargs has: execute_cmd, debug_mode only.
-        """
-        if debug.get("debug_mode"):
+        if config.get("debug_mode"):
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
-            _LOGGER.debug("Starting evohome_rf, **config = %s", config["config"])
+            _LOGGER.debug("Starting evohome_rf, **config = %s", config)
 
+        self.serial_port = serial_port
         self._loop = loop if loop else asyncio.get_running_loop()  # get_event_loop()
-        self.config = config.pop("config")
-        self.config = CONFIG_SCHEMA(self.config)
-        self._schema = config
+        self.config = CONFIG_SCHEMA(config)
 
-        self.serial_port = self.config.get("serial_port")
-        self._execute_cmd = debug.get("execute_cmd")
+        if self.serial_port and self.config.get("input_file"):
+            _LOGGER.warning(
+                "Serial port specified (%s), so ignoring input file (%s)",
+                self.serial_port,
+                self.config["input_file"],
+            )
+            # self.config["input_file"] = None
+        elif self.config.get("input_file") is not None:
+            self.config["disable_sending"] = True
 
-        if self.config["input_file"]:
-            if self.serial_port:
-                _LOGGER.warning(
-                    "Serial port specified (%s), so ignoring input file (%s)",
-                    self.serial_port,
-                    self.config["input_file"],
-                )
-                self.config["input_file"] = None
-            else:
-                self.config["disable_sending"] = True
+        self._execute_cmd = self.config.get("execute_cmd")
 
         if self.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
             _stream = (None, sys.stdout)
@@ -117,20 +112,19 @@ class Gateway:
         self.devices: List[Device] = []
         self.device_by_id: Dict = {}
 
-        self.known_devices = {}
-        self._include_list = []
-        self._exclude_list = []
-
-        if self.config["use_schema"]:
-            self._known_devices = load_schema(self, **self._schema)
-
-        if self.config["enforce_allowlist"]:
-            self._include_list = KNOWNS_SCHEMA(self._schema.get("allow_list"))
-        elif self.config["enforce_blocklist"]:
-            self._exclude_list = KNOWNS_SCHEMA(self._schema.get("block_list"))
-
+        self._schema = config.pop("schema", {})
+        self.known_devices = {}  # self._include_list + self._exclude_list
+        self._known_devices = (
+            load_schema(self, self._schema) if self.config["use_schema"] else {}
+        )
         self.config["known_devices"] = False  # bool(self.known_devices)
-        # self._known_devices = self._include_list + self._exclude_list
+
+        self._include_list = {}
+        self._exclude_list = {}
+        if self.config["enforce_allowlist"]:
+            self._include_list = KNOWNS_SCHEMA(config.pop("allow_list", {}))
+        elif self.config["enforce_blocklist"]:
+            self._exclude_list = KNOWNS_SCHEMA(config.pop("block_list", {}))
 
     def __repr__(self) -> str:
         return json.dumps(self.schema)
@@ -240,12 +234,8 @@ class Gateway:
         #     self._include_list = [
         #     self._exclude_list = [
 
-        # Finally, source of packets is either a text file, or a serial port:
-        if self.config["input_file"]:  # reader = file_reader(self.config["input_file"])
-            reader = asyncio.create_task(file_reader(self.config["input_file"]))
-            self._tasks.extend([asyncio.create_task(port_writer(None)), reader])
-
-        else:  # if self.serial_port, reader = port_reader(manager)
+        # Finally, source of packets is either a serial port, or a text stream
+        if self.serial_port:  # , reader = port_reader(manager)
             if self.config.get("ser2net_server"):
                 self._relay = Ser2NetServer(
                     self.config["ser2net_server"], self.cmd_que, loop=self._loop
@@ -278,6 +268,10 @@ class Gateway:
 
                 reader = asyncio.create_task(port_reader(manager))
                 self._tasks.extend([asyncio.create_task(port_writer(manager)), reader])
+
+        else:  # if self.config["input_file"]:
+            reader = asyncio.create_task(file_reader(self.config["input_file"]))
+            self._tasks.extend([asyncio.create_task(port_writer(None)), reader])
 
         await reader  # was: await asyncio.gather(*self._tasks)
         # await asyncio.gather(*self._tasks)

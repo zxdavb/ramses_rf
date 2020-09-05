@@ -285,7 +285,7 @@ class Device(Entity):
         return f"{self.id} ({DEVICE_TYPES.get(self.type)})"
 
     def _discover(self) -> None:
-        if self._gwy.config["disable_probing"]:
+        if self._gwy.config["disable_discovery"]:
             return
 
         # if self.id in ("01:145038", "13:035462"):
@@ -492,7 +492,7 @@ class UfhController(HeatDemand, Device):
         self._circuits = {}
 
     def _discover(self) -> None:
-        if self._gwy.config["disable_probing"]:
+        if self._gwy.config["disable_discovery"]:
             return
 
         super()._discover()
@@ -647,7 +647,7 @@ class BdrSwitch(Actuator, Device):
             self._ctl.boiler_control = self
 
     def _discover(self) -> None:
-        if self._gwy.config["disable_probing"]:
+        if self._gwy.config["disable_discovery"]:
             return
 
         super()._discover()

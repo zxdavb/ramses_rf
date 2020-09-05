@@ -60,17 +60,17 @@ SER2NET_SCHEMA = vol.Schema(
 
 CONFIG_SCHEMA = vol.Schema(
     {
-        vol.Optional("serial_port"): vol.Any(None, str),
-        # vol.Optional("input_file"): vol.Any(None, Any),
-        vol.Optional("reduce_processing", default=False): vol.Any(None, int),
-        vol.Optional("packet_log", default=None): vol.Any(None, str),
-        vol.Optional("use_schema", default=False): vol.Any(None, bool),
+        vol.Optional("use_schema", default=True): vol.Any(None, bool),
         vol.Optional("enforce_allowlist", default=False): vol.Any(None, bool),
         vol.Optional("enforce_blocklist", default=False): vol.Any(None, bool),
-        vol.Optional("disable_probing", default=False): vol.Any(None, bool),
+        # vol.Optional("input_file"): vol.Any(None, str),
+        vol.Optional("serial_port"): vol.Any(None, str),
+        vol.Optional("reduce_processing", default=0): vol.Any(None, int),
         vol.Optional("disable_sending", default=False): vol.Any(None, bool),
+        vol.Optional("disable_discovery", default=False): vol.Any(None, bool),
         vol.Optional("evofw_flag", default=None): vol.Any(None, bool),
         vol.Optional("ser2net_relay"): SER2NET_SCHEMA,
+        vol.Optional("packet_log", default=None): vol.Any(None, str),
     },
     extra=vol.ALLOW_EXTRA,
 )
@@ -220,11 +220,14 @@ def load_config(gwy, **config) -> Tuple[dict, list, list]:
     return params, tuple(allow_list), tuple(block_list)
 
 
-def load_schema(gwy, **kwargs) -> bool:
+def load_schema(gwy, schema, **kwargs) -> dict:
     """Process the schema, and the configuration and return True if it is valid."""
     # TODO: check a sensor is not a device in another zone
 
-    schema = SYSTEM_SCHEMA(kwargs["schema"])
+    if schema.get(ATTR_CONTROLLER) is None:
+        return {}
+
+    schema = SYSTEM_SCHEMA(schema)
 
     ctl_id = schema[ATTR_CONTROLLER]
     ctl = gwy.get_device(addr(ctl_id), controller=addr(ctl_id))

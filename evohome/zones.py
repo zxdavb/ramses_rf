@@ -117,7 +117,7 @@ class DhwZone(ZoneBase, HeatDemand):
         self._discover()  # should be last thing in __init__()
 
     def _discover(self) -> None:
-        if self._gwy.config["disable_probing"]:
+        if self._gwy.config["disable_discovery"]:
             return
 
         # if False and __dev_mode__ and self.idx == "FA":  # dev/test code
@@ -371,7 +371,7 @@ class Zone(ZoneBase):
         self._discover()
 
     def _discover(self) -> None:
-        if self._gwy.config["disable_probing"]:
+        if self._gwy.config["disable_discovery"]:
             return
 
         if __dev_mode__ and self.idx == "99":  # dev/test code

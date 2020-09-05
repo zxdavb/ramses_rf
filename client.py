@@ -8,7 +8,7 @@ import sys
 
 import click
 
-from evohome import Gateway, GracefulExit, __dev_mode__
+from evohome import CONFIG_SCHEMA, __dev_mode__, Gateway, GracefulExit
 
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
@@ -25,6 +25,7 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 @click.option("-z", "--debug-mode", help="TBD", count=True)
 @click.option("-r", "--reduce-processing", help="TBD", count=True)
 @click.option("-c", "--config-file", help="TBD", type=click.Path())
+# @click.option("-C", "--controller-id", help="TBD")
 @click.pass_context
 def cli(ctx, **kwargs):
     """A CLI for the evohome_rf library."""
@@ -45,7 +46,7 @@ def parse(obj, **kwargs):
 
 @click.command()
 @click.argument("serial-port")
-@click.option("-p", "--enable_probing", help="TBD", is_flag=True)
+@click.option("-p", "--enforce-probing", help="TBD", is_flag=True)
 @click.option("-T", "--evofw-flag", help="TBD")
 @click.option("-x", "--execute-cmd", help="e.g.: RQ 01:123456 1F09 00")
 @click.option(
@@ -65,7 +66,7 @@ def monitor(obj, **kwargs):
 
 
 def debug_wrapper(config_file=None, **kwargs):
-    # 1st: sort out any debug mode (a CLI-only parameter)...
+    # 1st: sort out any debug mode...
     assert 0 <= kwargs["debug_mode"] <= 3
 
     if kwargs["debug_mode"] == 3:
@@ -82,28 +83,25 @@ def debug_wrapper(config_file=None, **kwargs):
             ptvsd.wait_for_attach()
             print(" - debugger is now attached, continuing execution.")
 
-    # 2nd: start with config file...
-    config = {}
+    # 2nd: merge CLI args with config file, if any, TODO: use a SCHEMA
+    config_dict = {"schema": {}, "allow_list": {}, "block_list": {}}
     if config_file is not None:
         with open(config_file) as json_data:
-            config = json.load(json_data)
+            config_dict.update(json.load(json_data))
 
-    config["config"] = config.get("config", {})
-
-    # 3rd: the CLI overwrites the config file...
-    for key in ("serial_port", "input_file", "reduce_processing", "packet_log"):
-        config["config"][key] = kwargs.pop(key, None)
-
-    if "enable_probing" in kwargs:
-        config["config"]["disable_probing"] = not kwargs.pop("enable_probing")
+    config = CONFIG_SCHEMA(config_dict.pop("config", {}))
+    if "enforce_probing" in kwargs:
+        config["disable_probing"] = not kwargs.pop("enforce_probing")
+    # config["input_file"] = kwargs.pop("input_file", None)
+    config = {**config_dict, **config, **kwargs}
 
     print("config", config)
-    print("debug_flags", kwargs)
+    serial_port = config.pop("serial_port", None)
 
-    asyncio.run(main(config=config, debug_flags=kwargs))
+    asyncio.run(main(serial_port, **config))
 
 
-async def main(loop=None, config=None, debug_flags=None):
+async def main(serial_port, loop=None, **config):
 
     # loop=asyncio.get_event_loop() causes: 'NoneType' object has no attribute 'serial'
     print("Starting evohome_rf...")
@@ -115,7 +113,7 @@ async def main(loop=None, config=None, debug_flags=None):
 
     gwy = None  # avoid 'possibly unbound' lint error
     try:
-        gwy = Gateway(loop=loop, config=config, debug=debug_flags)
+        gwy = Gateway(serial_port, loop=loop, **config)
         task = asyncio.create_task(gwy.start())
         # await asyncio.sleep(20)
         # print(await gwy.evo.zones[0].name)

@@ -263,7 +263,7 @@ class EvoSystem(System):
         # self._discover()
 
     def _discover(self) -> None:
-        if self._gwy.config["disable_probing"]:
+        if self._gwy.config["disable_discovery"]:
             return
 
         super()._discover()
