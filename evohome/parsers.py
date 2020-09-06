@@ -973,7 +973,7 @@ def parser_1fc9(payload, msg) -> Optional[dict]:
     return [
         _parser(payload[i : i + 12])
         for i in range(0, len(payload), 12)
-        if payload[i + 2 : i + 6] != "7FE1"  # WIP
+        if payload[i : i + 2] != "90"  # WIP
     ]
 
 
