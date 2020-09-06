@@ -158,8 +158,8 @@ class DhwZone(ZoneBase, HeatDemand):
         """Return the stored HW's current state."""
 
         return {
-            "dhw_temp": self._ctl._get_msg_value("1260"),
-            "dhw_temp2": self._get_msg_value("1260"),
+            "temperature": self._ctl._get_msg_value("1260"),
+            "temperature_alt": self._get_msg_value("1260"),
         }
 
     @property
