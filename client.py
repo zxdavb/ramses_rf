@@ -84,14 +84,14 @@ def debug_wrapper(config_file=None, **kwargs):
             print(" - debugger is now attached, continuing execution.")
 
     # 2nd: merge CLI args with config file, if any, TODO: use a SCHEMA
-    config_dict = {"schema": {}, "allow_list": {}, "block_list": {}}
+    config_dict = {"schema": {}, "allowlist": {}, "blocklist": {}}
     if config_file is not None:
         with open(config_file) as json_data:
             config_dict.update(json.load(json_data))
 
     config = CONFIG_SCHEMA(config_dict.pop("config", {}))
     if "enforce_probing" in kwargs:
-        config["disable_probing"] = not kwargs.pop("enforce_probing")
+        config["disable_discovery"] = not kwargs.pop("enforce_probing")
     # config["input_file"] = kwargs.pop("input_file", None)
     config = {**config_dict, **config, **kwargs}
 

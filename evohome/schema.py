@@ -62,7 +62,7 @@ CONFIG_SCHEMA = vol.Schema(
     {
         vol.Optional("use_schema", default=True): vol.Any(None, bool),
         vol.Optional("enforce_allowlist", default=False): vol.Any(None, bool),
-        vol.Optional("enforce_blocklist", default=False): vol.Any(None, bool),
+        vol.Optional("enforce_blocklist", default=True): vol.Any(None, bool),
         # vol.Optional("input_file"): vol.Any(None, str),
         vol.Optional("serial_port"): vol.Any(None, str),
         vol.Optional("reduce_processing", default=0): vol.Any(None, int),
@@ -109,7 +109,7 @@ SYSTEM_SCHEMA = vol.Schema(
 # )
 KNOWNS_SCHEMA = vol.Schema(
     {
-        vol.Required(DEVICE_ID): vol.Any(
+        vol.Optional(DEVICE_ID): vol.Any(
             None,
             {
                 vol.Optional("name", default=None): vol.Any(None, str),
@@ -121,8 +121,8 @@ KNOWNS_SCHEMA = vol.Schema(
 )
 FILTER_SCHEMA = vol.Schema(
     {
-        vol.Optional("allow_list"): vol.Any(None, vol.All(KNOWNS_SCHEMA)),
-        vol.Optional("block_list"): vol.Any(None, vol.All(KNOWNS_SCHEMA)),
+        vol.Optional("allowlist"): vol.Any(None, vol.All(KNOWNS_SCHEMA)),
+        vol.Optional("blocklist"): vol.Any(None, vol.All(KNOWNS_SCHEMA)),
     }
 )
 # SCHEMA = vol.Schema(
@@ -191,16 +191,16 @@ def load_config(gwy, **config) -> Tuple[dict, list, list]:
     params, schema = config["configuration"], config["global_schema"]
     gwy.known_devices = config["known_devices"]
 
-    allow_list = list(config["known_devices"]["allow_list"])
-    block_list = list(config["known_devices"]["block_list"])
+    allowlist = list(config["known_devices"]["allowlist"])
+    blocklist = list(config["known_devices"]["blocklist"])
 
-    if params["use_allowlist"] and allow_list:
+    if params["use_allowlist"] and allowlist:
         _list = True
-    elif params["use_blocklist"] and block_list:
+    elif params["use_blocklist"] and blocklist:
         _list = False
-    elif params["use_allowlist"] is not False and allow_list:
+    elif params["use_allowlist"] is not False and allowlist:
         _list = True
-    elif params["use_blocklist"] is not False and block_list:
+    elif params["use_blocklist"] is not False and blocklist:
         _list = False
     else:
         _list = None
@@ -209,15 +209,15 @@ def load_config(gwy, **config) -> Tuple[dict, list, list]:
         (load_schema(gwy, k, v) for k, v in schema.items() if k != ATTR_ORPHANS)
 
     if _list:
-        allow_list += [d for d in gwy.device_by_id if d not in allow_list]
-        block_list = []
+        allowlist += [d for d in gwy.device_by_id if d not in allowlist]
+        blocklist = []
     elif _list is False:
-        allow_list = []
-        block_list = [d for d in block_list if d not in gwy.device_by_id]
+        allowlist = []
+        blocklist = [d for d in blocklist if d not in gwy.device_by_id]
     else:
-        allow_list = block_list = []  # cheeky, but OK
+        allowlist = blocklist = []  # cheeky, but OK
 
-    return params, tuple(allow_list), tuple(block_list)
+    return params, tuple(allowlist), tuple(blocklist)
 
 
 def load_schema(gwy, schema, **kwargs) -> dict:

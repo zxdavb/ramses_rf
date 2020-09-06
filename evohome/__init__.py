@@ -122,9 +122,9 @@ class Gateway:
         self._include_list = {}
         self._exclude_list = {}
         if self.config["enforce_allowlist"]:
-            self._include_list = KNOWNS_SCHEMA(config.pop("allow_list", {}))
+            self._include_list = KNOWNS_SCHEMA(config.pop("allowlist", {}))
         elif self.config["enforce_blocklist"]:
-            self._exclude_list = KNOWNS_SCHEMA(config.pop("block_list", {}))
+            self._exclude_list = KNOWNS_SCHEMA(config.pop("blocklist", {}))
 
     def __repr__(self) -> str:
         return json.dumps(self.schema)
