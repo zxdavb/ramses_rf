@@ -424,11 +424,11 @@ class Message:
         #         else:
         #             self.dst.get_zone(self._payload["zone_idx"])
 
-        # elif isinstance(self._payload, list):
-        #     if self.code in ("000A", "2309", "30C9"):  # the sync_cycle pkts
-        #         [self.src.get_zone(d["zone_idx"]) for d in self.payload]
-        #     # elif self.code in ("22C9", "3150"):  # TODO: UFH zone
-        #     #     pass
+        elif isinstance(self._payload, list):
+            if self.code in ("000A", "2309", "30C9"):  # the sync_cycle pkts
+                [self.src.get_zone(d["zone_idx"]) for d in self.payload]
+            # elif self.code in ("22C9", "3150"):  # TODO: UFH zone
+            #     pass
 
         # else:  # should never get here
         #     raise TypeError
