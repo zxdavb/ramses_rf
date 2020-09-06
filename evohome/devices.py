@@ -349,14 +349,19 @@ class Device(Entity):
                 f"old={self._ctl.id}, new={ctl.id}",
             )
 
-        if zone is None:
+        if dhw is not None:
+            self._zone = dhw
+            _LOGGER.debug("Device %s: DhwZone now set to %s", self.id, dhw.id)
+            return
+
+        elif zone is None:
             return
 
         if self._zone is None:
             self._zone = zone
             self._zone.devices.append(self)
             self._zone.device_by_id[self.id] = self
-            _LOGGER.debug("Device %s: Zone now set to %s", self.id, self._ctl.id)
+            _LOGGER.debug("Device %s: Zone now set to %s", self.id, zone.id)
 
         elif self._zone is not zone:
             raise CorruptStateError(
