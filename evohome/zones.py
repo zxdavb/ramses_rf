@@ -399,10 +399,7 @@ class Zone(ZoneBase):
         for code in ("0004",):
             self._command(code, payload=f"{self.idx}00")
 
-        for code in ("000A", "2349", "30C9"):
-            self._command(code, payload=self.idx)
-
-        for code in ("12B0",):  # TODO: only if RAD zone, or if window_state is enabled?
+        for code in ("000A", "2349", "30C9"):  # sadly, no 3150
             self._command(code, payload=self.idx)
 
     def _update_msg(self, msg) -> None:
@@ -687,6 +684,14 @@ class Zone(ZoneBase):
 
 class ZoneHeatDemand:  # not all zone types call for heat
     """Not all zones call for heat."""
+
+    def _discover(self) -> None:
+        if self._gwy.config["disable_discovery"]:
+            return
+
+        super()._discover()
+
+        self._command("12B0", payload=self.idx)
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
