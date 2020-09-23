@@ -363,7 +363,7 @@ class Zone(ZoneBase):
         self._name = None
         self._setpoint = None
         self._temperature = None
-        self._open_window = None
+        self._window_open = None
         self._zone_config = None
 
         self._schedule = Schedule(self)
@@ -405,22 +405,51 @@ class Zone(ZoneBase):
     def _update_msg(self, msg) -> None:
         super()._update_msg(msg)
 
+        if msg.code == "0004":
+            self._name = msg.payload["name"]
+
         # not UFH (it seems), but ELE or VAL; and possibly a MIX support 0008 too
-        if msg.code in ("0008", "0009"):  # TODO: how to determine is/isn't MIX?
+        elif msg.code in ("0008", "0009"):  # TODO: how to determine is/isn't MIX?
             assert msg.src.type in ("01", "13")  # 01 as a stat
             assert self._zone_type in (None, "ELE", "VAL")
 
             if self._zone_type is None:
                 self._set_zone_type("ELE")  # might eventually be: "VAL"
 
+        elif msg.code == "000A":
+            payload = msg.payload if msg.is_array else [msg.payload]
+            self._zone_config = {
+                k: v
+                for z in payload
+                for k, v in z.items()
+                if z["zone_idx"] == self.idx and k[:1] != "_" and k != "zone_idx"
+            }
+
         elif msg.code == "0404" and msg.verb == "RP":
             _LOGGER.error("Zone(%s).update: Received RP/0404 (schedule)", self.id)
             self._schedule.add_fragment(msg)
             self._schedule.req_fragment()  # do only if we self._schedule.req_schedule()
 
+        elif msg.code == "2309":
+            payload = msg.payload if msg.is_array else [msg.payload]
+            self._setpoint = {
+                k: v for z in payload for k, v in z.items() if z["zone_idx"] == self.idx
+            }["setpoint"]
+
+        elif msg.code == "2349":
+            self._mode = {
+                k: v
+                for k, v in msg.payload.items()
+                if k in ("mode", "setpoint", "until")
+            }
+            self._setpoint = msg.payload["setpoint"]
+
         elif msg.code == "30C9":  # required for sensor matching
             assert msg.src.type in DEVICE_HAS_ZONE_SENSOR + ("01",)
-            self._temperature = msg.payload["temperature"]
+            payload = msg.payload if msg.is_array else [msg.payload]
+            self._temperature = {
+                k: v for z in payload for k, v in z.items() if z["zone_idx"] == self.idx
+            }["temperature"]
 
         elif msg.code == "3150":  # TODO: and msg.verb in (" I", "RP")?
             assert msg.src.type in ("02", "04", "13")
@@ -555,88 +584,34 @@ class Zone(ZoneBase):
         """Return the schedule if any."""
         return self._schedule.schedule if self._schedule else None
 
-    @staticmethod
-    def _most_recent_msg(msg_0, msg_1):  # -> Message:
-        # if always_use_controllers:
-        #     return msg_0
-        if msg_0 is not None:
-            return msg_1 if msg_1 is not None and msg_0.dtm < msg_1.dtm else msg_0
-        return msg_1
-
     @property
     def name(self) -> Optional[str]:  # 0004
-        # await self._get_msg("0004")  # if possible/allowed, get an up-to-date pkt
-
-        self._name = self._get_msg_value("0004", "name")
         return self._name
 
     @property
     def zone_config(self) -> Optional[dict]:  # 000A
-        # await self._get_msg("000A")  # if possible/allowed, get an up-to-date pkt
-
-        msg_0 = self._ctl._msgs.get("000A")  # sent regularly, but 1/hourly
-        msg_1 = self._msgs.get("000A")  # upon request
-
-        if msg_0 is None and msg_1 is None:
-            return
-
-        if msg_1 is self._most_recent_msg(msg_0, msg_1):  # could be: None is None
-            result = msg_1.payload
-        else:
-            result = {
-                k: v
-                for z in msg_0.payload
-                for k, v in z.items()
-                if z["zone_idx"] == self.idx and k[:1] != "_"
-            }
-
-        self._zone_config = (
-            {k: v for k, v in result.items() if k != "zone_idx"} if result else None
-        )
-
         return self._zone_config
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        if False and self.temp_sensor:
-            self._temperature = (
-                self.temp_sensor._get_msg_value("30C9", "temperature")
-                if self.temp_sensor
-                else None
-            )
-            return self._temperature
-
-        msg = self._ctl._msgs.get("30C9")
-        if msg is not None:
-            self._temperature = {
-                k: v
-                for z in msg.payload
-                for k, v in z.items()
-                if z["zone_idx"] == self.idx
-            }.get("temperature")
-            return self._temperature
+        # TODO: should use most recently received pkt
+        # TODO: this doesn't work if temp sensor is the controller
+        # if self.temp_sensor and self.temp_sensor.temperature:
+        #     return self.temp_sensor.temperature
+        return self._temperature
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309 (2349 is a superset of 2309)
-        msg = self._ctl._msgs.get("2349")
-        msg = self._ctl._msgs.get("2309") if msg is None else None
-        if msg is not None:
-            self._temperature = {
-                k: v
-                for z in msg.payload
-                for k, v in z.items()
-                if z["zone_idx"] == self.idx
-            }.get("setpoint")
-            return self._setpoint
+        return self._setpoint
 
     @property
     def mode(self) -> Optional[dict]:  # 2349
         # await self._get_msg("2349")  # if possible/allowed, get an up-to-date pkt
 
-        result = self._get_msg_value("2349")
-        self._mode = (
-            {k: v for k, v in result.items() if k != "zone_idx"} if result else None
-        )
+        # result = self._get_msg_value("2349")
+        # self._mode = (
+        #     {k: v for k, v in result.items() if k != "zone_idx"} if result else None
+        # )
 
         return self._mode
 
@@ -750,41 +725,17 @@ class RadZone(ZoneHeatDemand, Zone):  # Radiator zones
     For radiators controlled by HR92s or HR80s (will also call for heat).
     """
 
+    def _update_msg(self, msg) -> None:
+        super()._update_msg(msg)
+
+        if msg.code == "12B0":
+            self._window_open = msg.payload["window_open"]
+
     # 3150 (heat_demand) but no 0008 (relay_demand)
 
     @property
     def window_open(self) -> Optional[bool]:  # 12B0
-        return self._get_msg_value("12B0", "window_open")
-
-    @property
-    def zone_config(self) -> Optional[dict]:  # 000A
-        # await self._get_msg("000A")  # if possible/allowed, get an up-to-date pkt
-
-        msg_0 = self._ctl._msgs.get("000A")  # sent regularly, but 1/hourly
-        msg_1 = self._msgs.get("000A")  # upon request
-
-        if msg_0 is None and msg_1 is None:
-            return
-
-        if msg_1 is self._most_recent_msg(msg_0, msg_1):  # could be: None is None
-            result = msg_1.payload
-        else:
-            result = {
-                k: v
-                for z in msg_0.payload
-                for k, v in z.items()
-                if z["zone_idx"] == self.idx and k[:1] != "_"
-            }
-
-        self._zone_config = (
-            {k: v for k, v in result.items() if k != "zone_idx"} if result else None
-        )
-
-        return self._zone_config
-
-    @property
-    def params(self) -> dict:
-        return self.zone_config if self.zone_config else {}
+        return self._window_open
 
     @property
     def status(self) -> dict:
