@@ -545,7 +545,8 @@ class EvoSystem(System):
             # self._fault_log.add_entry(msg)
             # do the following only if we had: self._fault_log.req_log(log_idx=0)
             # self._fault_log.req_entry(log_idx=payload["log_idx"] + 1)
-            self._fault_log[msg.payload["log_idx"]] = msg
+            if "log_idx" in msg.payload:
+                self._fault_log[msg.payload["log_idx"]] = msg
 
         if msg.code == "30C9" and isinstance(msg.payload, list):  # msg.is_array:
             find_zone_sensors()
