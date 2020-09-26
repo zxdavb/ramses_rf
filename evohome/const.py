@@ -434,7 +434,7 @@ CODE_000C_DEVICE_TYPE = {
     "0D": ATTR_DHW_SENSOR,  # FA, z_idx 0 only
     "0E": ATTR_DHW_VALVE,  # FA, could be ATTR_DHW_VALVE_HTG
     "0F": ATTR_HTG_CONTROL,  # FC, z_idx 0 only
-    # "10": None,
+    "10": "Unknown",  # seen when binding a TR87RF
     "11": "ele_actuators",
 }
 

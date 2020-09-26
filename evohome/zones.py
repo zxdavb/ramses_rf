@@ -114,6 +114,12 @@ class DhwZone(ZoneBase, HeatDemand):
         self._htg_valve = None
         self.heating_type = "DHW"
 
+        self._config = {}
+        self._temperature = None
+        self._relay_demand = None
+        self._relay_failsafe = None
+        self._setpoint_status = {}
+
         self._discover()  # should be last thing in __init__()
 
     def _discover(self) -> None:
@@ -133,6 +139,23 @@ class DhwZone(ZoneBase, HeatDemand):
 
     def _update_msg(self, msg) -> None:
         super()._update_msg(msg)
+
+        if msg.code == "0008":
+            self._relay_demand = msg.payload["relay_demand"]
+        elif msg.code == "0009":
+            self._relay_failsafe = msg.payload
+        elif msg.code == "10A0":
+            self._config = {
+                x: self.msg.payload[x] for x in ("setpoint", "overrun", "differential")
+            }
+        elif msg.code == "1260":
+            self._temperature = msg.payload["temperature"]
+        elif msg.code == "1F41":
+            self._setpoint_status = {
+                x: self.msg.payload[x] for x in ("active", "mode", "until")
+            }
+        # else:
+        #     assert False, "Unknown packet code"
 
     @property
     def schema(self) -> dict:
@@ -237,16 +260,15 @@ class DhwZone(ZoneBase, HeatDemand):
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
-        return self._get_msg_value("0008", "relay_demand")
+        return self._relay_demand
 
     @property  # only seen with FC, but seems should pair with 0008?
     def relay_failsafe(self) -> Optional[float]:  # 0009
-        return self._get_msg_value("0009")
+        return self._relay_failsafe
 
     @property
     def config(self) -> dict:  # 10A0
-        attrs = ("setpoint", "overrun", "differential")
-        return {x: self._get_msg_value("10A0", x) for x in attrs}
+        return self._config
 
     @property
     def name(self) -> Optional[str]:  # N/A
@@ -254,20 +276,11 @@ class DhwZone(ZoneBase, HeatDemand):
 
     @property
     def setpoint_status(self) -> dict:  # 1F41
-        attrs = ["active", "mode", "until"]
-        return {x: self._get_msg_value("1F41", x) for x in attrs}
+        return self._setpoint_status
 
     @property
-    def temperature(self) -> float:  # 1260
-        return self._get_msg_value("1260", "temperature")
-
-    @property
-    def tpi_params(self) -> Optional[float]:  # 1100
-        return self._get_msg_value("1100")
-
-    @property
-    def sync_tpi(self) -> Optional[float]:  # 3B00
-        return self._get_msg_value("3B00", "sync_tpi")
+    def temperature(self) -> Optional[float]:  # 1260
+        return self._temperature
 
     async def cancel_override(self) -> bool:  # 1F41
         """Reset the DHW to follow its schedule."""
@@ -406,7 +419,7 @@ class Zone(ZoneBase):
         super()._update_msg(msg)
 
         if msg.code == "0004":
-            self._name = msg.payload["name"]
+            self._name = msg.payload.get("name")
 
         # not UFH (it seems), but ELE or VAL; and possibly a MIX support 0008 too
         elif msg.code in ("0008", "0009"):  # TODO: how to determine is/isn't MIX?
@@ -458,6 +471,12 @@ class Zone(ZoneBase):
             if msg.src.type in ("02", "04", "13"):
                 zone_type = ZONE_CLASS_MAP[msg.src.type]
                 self._set_zone_type("VAL" if zone_type == "ELE" else zone_type)
+
+        # elif "zone_idx" in msg.payload:
+        #     pass
+
+        # elif msg.code not in ("FFFF"):
+        #     assert False, "Unknown packet code"
 
     def update(self, force_refresh=False) -> None:
         pass
@@ -619,6 +638,10 @@ class Zone(ZoneBase):
         """Revert to following the schedule."""
         await self.set_override()
 
+    async def frost_protect(self) -> None:  # 2349
+        """Set the zone to the lowest possible setpoint, indefinitely."""
+        await self.set_override(mode="02", setpoint=5)  # TODO
+
     async def set_override(self, mode=None, setpoint=None, until=None) -> None:
         """Override the setpoint for a specified duration, or indefinitely.
 
@@ -695,6 +718,11 @@ class EleZone(Zone):  # Electric zones (do *not* call for heat)
         if msg.code == "3150":
             self._set_zone_type("VAL")
 
+        # if msg.code == "FFFF":
+        #     pass
+        # else:
+        #     assert False, "Unknown packet code"
+
     @property
     def actuator_enabled(self) -> Optional[bool]:  # 3EF0
         return self._get_msg_value("3EF0")  # , "actuator_enabled"
@@ -730,6 +758,11 @@ class RadZone(ZoneHeatDemand, Zone):  # Radiator zones
 
         if msg.code == "12B0":
             self._window_open = msg.payload["window_open"]
+
+        # if msg.code == "FFFF":
+        #     pass
+        # else:
+        #     assert False, "Unknown packet code"
 
     # 3150 (heat_demand) but no 0008 (relay_demand)
 
@@ -768,7 +801,7 @@ class MixZone(ZoneHeatDemand, Zone):  # Mix valve zones
 
     @property
     def mix_config(self) -> dict:
-        attrs = ["pump_run_time", "actuator_run_time", "min_flow_temp", "max_flow_temp"]
+        attrs = ("pump_run_time", "actuator_run_time", "min_flow_temp", "max_flow_temp")
         return {x: self._get_msg_value("1030", x) for x in attrs}
 
     @property

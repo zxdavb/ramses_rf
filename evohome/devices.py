@@ -82,6 +82,7 @@ class Entity:
         self.id = None
 
         self._msgs = {}
+        self._known_msg = None
 
     @property
     def controller(self):  # -> Optional[Controller]:
@@ -142,6 +143,8 @@ class Entity:
             }
 
     def _update_msg(self, msg) -> None:
+        self._known_msg = msg.code in ("0016", "1FC9")
+
         if "domain_id" in msg.payload:  # isinstance(msg.payload, dict) and
             self._domain[msg.payload["domain_id"]] = {msg.code: msg}  # 01/02/23
             return
@@ -164,13 +167,28 @@ class Entity:
 
 
 class Actuator:  # 3EF0, 3EF1
+    def __init__(self, gateway, device_addr, **kwargs) -> None:
+        super().__init__(gateway, device_addr, **kwargs)
+
+        self._actuator_enabled = None
+        self._actuator_state = {}
+
+    def _update_msg(self, msg) -> None:
+        super()._update_msg(msg)
+        if msg.code == "x3EF0" and msg.verb == " I":
+            self._actuator_enabled = msg.payload["actuator_enabled"]
+            self._known_msg = True
+        elif msg.code == "x3EF1" and msg.verb == " I":
+            self._actuator_state = msg.payload
+            self._known_msg = True
+
     @property
     def actuator_enabled(self) -> Optional[bool]:  # 3EF0, TODO: does 10: RP/3EF1?
-        return self._get_msg_value("3EF0", "actuator_enabled")
+        return self._actuator_enabled
 
     @property
     def actuator_state(self) -> Optional[float]:  # 3EF1, TODO: not all actuators
-        return self._get_msg_value("3EF1")
+        return self._actuator_state
 
     @property
     def status(self) -> dict:
@@ -182,12 +200,20 @@ class Actuator:  # 3EF0, 3EF1
 
 
 class BatteryState:  # 1060
+    def __init__(self, gateway, device_addr, **kwargs) -> None:
+        super().__init__(gateway, device_addr, **kwargs)
+
+        self._battery_state = {}
+
+    def _update_msg(self, msg) -> None:
+        super()._update_msg(msg)
+        if msg.code == "1060" and msg.verb == " I":
+            self._battery_state = msg.payload
+            self._known_msg = True
+
     @property
-    def battery_state(self) -> dict:
-        low_battery = self._get_msg_value("1060", "low_battery")
-        if low_battery is not None:
-            battery_level = self._get_msg_value("1060", "battery_level")
-            return {"low_battery": low_battery, "battery_level": battery_level}
+    def battery_state(self) -> dict:  # 1060
+        return self._battery_state
 
     @property
     def status(self) -> dict:
@@ -195,9 +221,19 @@ class BatteryState:  # 1060
 
 
 class HeatDemand:  # 3150
+    def __init__(self, gateway, device_addr, **kwargs) -> None:
+        super().__init__(gateway, device_addr, **kwargs)
+        self._heat_demand = None
+
+    def _update_msg(self, msg) -> None:
+        super()._update_msg(msg)
+        if msg.code == "3150" and msg.verb == " I":
+            self._heat_demand = msg.payload["heat_demand"]
+            self._known_msg = True
+
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
-        return self._get_msg_value("3150", "heat_demand")
+        return self._heat_demand
 
     @property
     def status(self) -> dict:
@@ -205,9 +241,21 @@ class HeatDemand:  # 3150
 
 
 class Setpoint:  # 2309
+    def __init__(self, gateway, device_addr, **kwargs) -> None:
+        super().__init__(gateway, device_addr, **kwargs)
+        self._setpoint = None
+
+    def _update_msg(self, msg) -> None:
+        super()._update_msg(msg)
+        if msg.code == "2309" and msg.verb in (" I", " W"):
+            self._setpoint = msg.payload["setpoint"]
+            self._known_msg = True
+        elif msg.code == "2309" and msg.verb in ("RQ"):
+            self._known_msg = True
+
     @property
     def setpoint(self) -> Optional[float]:  # 2309
-        return self._get_msg_value("2309", "setpoint")
+        return self._setpoint
 
     @property
     def status(self) -> dict:
@@ -215,9 +263,19 @@ class Setpoint:  # 2309
 
 
 class Temperature:  # 30C9
+    def __init__(self, gateway, device_addr, **kwargs) -> None:
+        super().__init__(gateway, device_addr, **kwargs)
+        self._temperature = None
+
+    def _update_msg(self, msg) -> None:
+        super()._update_msg(msg)
+        if msg.code == "30C9" and msg.verb == " I":
+            self._temperature = msg.payload["temperature"]
+            self._known_msg = True
+
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        return self._get_msg_value("30C9", "temperature")
+        return self._temperature
 
     @property
     def status(self) -> dict:
@@ -543,10 +601,10 @@ class UfhController(HeatDemand, Device):
                     "zone_idx": msg.payload["zone_id"]
                 }
 
-        if msg.code in ("22C9") and not isinstance(msg.payload, list):
-            pass
-        else:
-            super()._update_msg(msg)
+        # if msg.code in ("22C9") and not isinstance(msg.payload, list):
+        #     pass
+        # else:
+        #     assert False, "Unknown packet code"
 
     @property
     def setpoints(self):  # 22C9
@@ -587,15 +645,34 @@ class DhwSensor(BatteryState, Device):
 
         self._domain_id = "FA"
 
+        # self._dhw_params = {}
+        self._temperature = None
+
     def _update_msg(self, msg) -> None:
         super()._update_msg(msg)
 
-        # if msg.code == "10A0":
-        #     return self._msgs["10A0"].dst.addr
+        if self._known_msg:
+            pass
+        elif msg.verb in ("RP", " W"):
+            assert False, f"Unknown packet verb for {self.id}"
+        elif msg.code in "1260" and msg.verb == " I":
+            self._temperature = msg.payload["temperature"]
+        elif msg.verb == "RQ" and msg.code == "10A0":
+            self._dhw_params = msg.payload
+        else:
+            assert False, f"Unknown packet code for {self.id}"
+
+    # @property
+    # def dhw_params(self) -> dict:
+    #     return self._dhw_params
 
     @property
-    def temperature(self) -> float:
-        return self._get_msg_value("1260", "temperature")
+    def temperature(self) -> Optional[float]:
+        return self._temperature
+
+    # @property
+    # def params(self) -> dict:
+    #     return {**super().params, "dhw_params": self.dhw_params}
 
     @property
     def status(self) -> dict:
@@ -610,6 +687,14 @@ class OtbGateway(Actuator, HeatDemand, Device):
         super().__init__(gateway, device_addr, **kwargs)
 
         self._domain_id = "FC"
+
+    def _update_msg(self, msg) -> None:
+        super()._update_msg(msg)
+
+        if self._known_msg:
+            pass
+        else:
+            assert False, f"Unknown packet code for {self.id}"
 
     @property
     def boiler_setpoint(self) -> Optional[Any]:  # 22D9
@@ -626,22 +711,53 @@ class OtbGateway(Actuator, HeatDemand, Device):
 
 # 03/12/22/34: 1060/2309/30C9;; (03/22: 0008/0009/3EF1, 2349?) (34: 000A/10E0/3120)
 class Thermostat(BatteryState, Setpoint, Temperature, Device):
-    """The STA class, such as a TR87RF."""
+    """The THM/STA class, such as a TR87RF."""
 
-    @property
-    def status(self) -> dict:
-        return {**super().status}
+    def _update_msg(self, msg) -> None:
+        super()._update_msg(msg)
+
+        if self._known_msg:
+            pass
+
+        elif self.type == "03":
+            if msg.verb == " I" and msg.code in ("0008", "0009", "1100"):
+                pass
+            else:
+                assert False, f"Unknown packet code for {self.id}"
+
+        elif self.type in ("12", "22"):
+            if msg.verb == " I" and msg.code in (
+                "0008",
+                "0009",
+                "1030",
+                "1100",
+                "313F",
+            ):
+                pass
+            elif msg.verb == "RQ" and msg.code in ("000A", "3EF1"):
+                pass
+            elif msg.verb == " W" and msg.code in ("2349"):
+                pass
+            else:
+                assert False, f"Unknown packet code for {self.id}"
+
+        elif self.type == "34":
+            if msg.verb == " I" and msg.code in ("042F", "10E0", "3120"):
+                pass
+            elif msg.verb == "RQ" and msg.code in ("000A",):
+                pass
+            else:
+                assert False, f"Unknown packet code for {self.id}"
 
 
-# 13: BDR= "3EF0", "1100";; ("3EF1"?); TPI= "3EF0", "1100"; ("3B00")
 class BdrSwitch(Actuator, Device):
     """The BDR class, such as a BDR91.
 
-    BDR91s can be used in various modes, including:
-    - boiler controller (FC/TPI)
-    - electric heat zones (00/ELE)
-    - zone valve zones (00/VAL)
-    - DHW thingys (HW/xxx)
+    BDR91s can be used in six disctinct modes, including:
+    - x2 boiler controller (FC/TPI): normal, and heat pump (new)
+    - x1 electric heat zones (0x/ELE)
+    - x1 zone valve zones (0x/VAL)
+    - x2 DHW thingys (HW/xxx)
     """
 
     def __init__(self, gateway, device_addr, **kwargs) -> None:
@@ -659,12 +775,12 @@ class BdrSwitch(Actuator, Device):
 
         self._command("1100", payload="00")
 
-        # all relays seem the same, except for 0016, and 1100
-        # for code in ("3B00", "3EF0", "3EF1"] + ["0008", "1100", "1260"):
+        # all relays seem the same, except for 1100
+        # for code in ("3B00", "3EF0", "3EF1"] + ["0008", "1100"]):
         #     for payload in ("00", "FC", "FF", "0000", "000000"):
         #         self._command(code, payload=payload)
 
-        # doesn't like like TPIs respond to a 3B00
+        # doesn't look like TPIs respond to a 3B00
         # for payload in ("00", "C8"):
         #     for code in ("00", "FC", "FF"):
         #         self._command("3B00", payload=f"{code}{payload}")
@@ -675,13 +791,19 @@ class BdrSwitch(Actuator, Device):
         if self._is_tpi is None:
             _ = self.is_tpi
 
+        if self._known_msg:
+            pass
+        elif msg.verb == " I" and msg.code in ("1100", "3B00", "3EF0"):
+            pass
+        elif msg.verb == "RP" and msg.code in ("0008", "1100", "3EF1"):
+            pass
+        else:
+            assert False, f"Unknown packet verb/code for {self.id}"
+
     @property
     def is_tpi(self) -> Optional[bool]:  # 3B00
         if self._is_tpi is not None:
             return self._is_tpi
-
-        if "000C" in self._msgs and self._msgs["000C"].verb == "RP":
-            pass
 
         elif "1FC9" in self._msgs and self._msgs["1FC9"].verb == "RP":
             if "3B00" in self._msgs["1FC9"].raw_payload:
@@ -701,13 +823,28 @@ class BdrSwitch(Actuator, Device):
         return self._get_msg_value("1100")  # if self.is_tpi else None
 
 
-# 04: "1060", "3150", "2309", "30C9";; "0100", "12B0" ("0004")
 class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature, Device):
     """The TRV class, such as a HR92."""
 
+    def __init__(self, gateway, device_addr, **kwargs) -> None:
+        super().__init__(gateway, device_addr, **kwargs)
+        self._window_state = None
+
+    def _update_msg(self, msg) -> None:
+        super()._update_msg(msg)
+
+        if self._known_msg:
+            pass
+        elif msg.code in "12B0" and msg.verb == " I":
+            self._window_state = msg.payload["window_open"]
+        elif msg.verb == "RQ" and msg.code in ("0100", "313F"):
+            pass
+        else:
+            assert False, f"Unknown packet verb/code for {self.id}"
+
     @property
     def window_state(self) -> Optional[bool]:  # 12B0
-        return self._get_msg_value("12B0", "window_open")
+        return self._window_state
 
     @property
     def status(self) -> dict:

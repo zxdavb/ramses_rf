@@ -68,6 +68,8 @@ def _idx(seqx, msg) -> dict:
 
     # TODO: 000C to a UFC shoudl be ufh_ifx, not zone_idx
     elif msg.code == "000C":  # an exception to the usual rules
+        if msg.verb == " I":
+            return {}
         if msg.raw_payload[2:4] in ("0D", "0E"):  # ("000D", "000E", "010E")
             return {"domain_id": "FA"}
         if msg.raw_payload[2:4] == "0F":
@@ -561,7 +563,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
         # **_idx(payload[:2], msg),
         "device_class": device_class,
         "devices": [k for d in devices for k, v in d.items() if v != "7F"],
-    }
+    }  # TODO: the assumption that all domain_id/zones_idx are the same is wrong
 
 
 @parser_decorator  # unknown, from STA
@@ -833,6 +835,7 @@ def parser_10e0(payload, msg) -> Optional[dict]:
 def parser_1100(payload, msg) -> Optional[dict]:
     assert msg.len in (5, 8)
     assert payload[:2] in ("00", "FC")
+    # 2020-09-23T19:25:04.767331 047  I --- 13:079800 --:------ 13:079800 1100 008 00170498007FFF01  # noqa
     assert int(payload[2:4], 16) / 4 in range(1, 13)
     assert int(payload[4:6], 16) / 4 in range(1, 31)
     assert int(payload[6:8], 16) / 4 in range(0, 16)

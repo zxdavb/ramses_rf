@@ -1,12 +1,12 @@
 """The evohome-compatible system (is a 1-1 with a controller)."""
 
-import asyncio
+# import asyncio
 from datetime import timedelta
 import json
 import logging
 from typing import Optional
 
-from .command import Priority, RQ_RETRY_LIMIT, RQ_TIMEOUT
+# from .command import Priority, RQ_RETRY_LIMIT, RQ_TIMEOUT
 from .const import (
     ATTR_CONTROLLER,
     ATTR_DEVICES,
@@ -62,6 +62,13 @@ class System(Controller):
             pass
         else:
             super()._update_msg(msg)
+
+        # if msg.code in ("0005", "000C", "2E04"):
+        #     pass
+        # elif "zone_idx" in msg.payload:
+        #     pass
+        # else:
+        #     assert False, "Unknown packet code"
 
     def __repr__(self) -> str:
         """Return a complete representation of the system as a dict."""
@@ -249,6 +256,14 @@ class System(Controller):
         }
 
         return result
+
+    @property
+    def tpi_params(self) -> Optional[float]:  # 1100
+        return self._get_msg_value("1100")
+
+    @property
+    def sync_tpi(self) -> Optional[float]:  # 3B00
+        return self._get_msg_value("3B00", "sync_tpi")
 
 
 class EvoSystem(System):
@@ -570,6 +585,9 @@ class EvoSystem(System):
         if msg.code in ("10A0", "1260"):  # self.dhw.sensor is None and
             find_dhw_sensor(msg)
 
+        # else:
+        #     assert False, "Unknown packet code"
+
     # def fault_log(self, force_update=False) -> Optional[list]:  # 0418
     #     # TODO: try to discover fault codes
     #     for log_idx in range(0x00, 0x3C):  # 10 pages of 6
@@ -584,13 +602,7 @@ class EvoSystem(System):
     @property
     async def mode(self) -> dict:  # 2E04
         """Return the system mode."""
-        if not self._gwy.self.config["disable_sending"]:
-            self._command("2E04", payload="FF", priority=Priority.ASAP)
-            for _ in range(RQ_RETRY_LIMIT):
-                await asyncio.sleep(RQ_TIMEOUT)
-                if "2E04" in self._msgs:
-                    break
-        return {x: self._get_msg_value("2E04", x) for x in ("mode", "until")}
+        return self._mode
 
     async def set_mode(self, mode, until=None):  # 2E04
         """Set the system mode for a specified duration, or indefinitely."""
