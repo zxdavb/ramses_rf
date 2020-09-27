@@ -162,7 +162,7 @@ class Entity:
         self._msgs[msg.code] = msg
 
     @property
-    def pkt_codes(self) -> list:
+    def _pkt_codes(self) -> list:
         return list(self._msgs.keys())
 
 
@@ -175,10 +175,10 @@ class Actuator:  # 3EF0, 3EF1
 
     def _update_msg(self, msg) -> None:
         super()._update_msg(msg)
-        if msg.code == "x3EF0" and msg.verb == " I":
+        if msg.code == "3EF0" and msg.verb == " I":
             self._actuator_enabled = msg.payload["actuator_enabled"]
             self._known_msg = True
-        elif msg.code == "x3EF1" and msg.verb == " I":
+        elif msg.code == "3EF1" and msg.verb == " I":
             self._actuator_state = msg.payload
             self._known_msg = True
 
@@ -511,6 +511,10 @@ class Device(Entity):
     @property
     def _pkt_1fc9(self) -> list:
         return self._get_msg_value("1FC9")  # we want the RPs
+
+    @property
+    def _present(self) -> bool:
+        return any([m.src.id == self.id for m in self._msgs.values()])
 
     @property
     def rf_signal(self) -> Optional[dict]:  # TODO: make 'current', else add dtm?

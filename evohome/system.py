@@ -600,7 +600,7 @@ class EvoSystem(System):
         return self._get_msg_value("0100", "language")
 
     @property
-    async def mode(self) -> dict:  # 2E04
+    def mode(self) -> dict:  # 2E04
         """Return the system mode."""
         return self._mode
 
