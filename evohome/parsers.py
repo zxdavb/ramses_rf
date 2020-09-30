@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
 """Evohome serial."""
 
 from datetime import datetime as dt, timedelta
@@ -231,7 +234,7 @@ def parser_decorator(func):
             assert payload == "FF" if msg.code == "2E04" else "00"  # so: msg.len == 1
             return {}
 
-        if msg.code in ("1F09", "22D9", "313F", "3EF0"):
+        if msg.code in ("0008", "1F09", "22D9", "313F", "3EF0"):
             # 061 RQ --- 04:189082 01:145038 --:------ 1F09 001 00
             # 067 RQ --- 01:187666 10:138822 --:------ 22D9 001 00
             # 045 RQ --- 04:056061 01:145038 --:------ 313F 001 00
@@ -1372,13 +1375,13 @@ def parser_3ef0(payload, msg) -> dict:
     # 058 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 00 10 0400FF
     # 061 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 64 10 0800FF
 
-    # 063 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 01 11 01 00FF
-    # 058 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 00 11 01 00FF
-    # 057 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 01 10 FA 00FF
-    # 062 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 00 11 01 00FF
-    # 065 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 FF 10 02 00FF
-    # 060 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 00 11 01 00FF
-    # 062 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 11 10 0A FFFF
+    # 063 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 01 11 0100FF
+    # 058 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 00 11 0100FF
+    # 057 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 01 10 FA00FF
+    # 062 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 00 11 0100FF
+    # 065 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 FF 10 0200FF
+    # 060 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 00 11 0100FF
+    # 062 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 11 10 0AFFFF
 
     assert payload[:2] == "00"
     assert payload[-2:] == "FF"
@@ -1428,10 +1431,9 @@ def parser_3ef1(payload, msg) -> dict:
 
     return {
         **_idx(payload[:2], msg),
-        "actuator_state": _percent(payload[2:4]),
-        "unknown_1": int(payload[4:6], 16),  # modulation level? /200?
-        "unknown_2": int(payload[6:10], 16),  # /200?
-        "unknown_3": _bool(payload[10:12]),
+        "actuator_enabled": _bool(payload[10:12]),
+        "actuator_countdown": int(payload[6:10], 16),
+        "cycle_countdown": int(payload[2:6], 16),
     }
 
 

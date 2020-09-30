@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
 """Message processor."""
 
 from datetime import datetime as dt
@@ -281,6 +284,7 @@ class Message:
                     _LOGGER.info("%s", self, extra=self.__dict__)
             else:
                 _LOGGER.info("%s", self, extra=self.__dict__)
+
         elif False and __dev_mode__:  # a hack to colourize by verb
             if " I" in str(self):
                 _LOGGER.info("%s", self, extra=self.__dict__)
@@ -288,6 +292,13 @@ class Message:
                 _LOGGER.warning("%s", self, extra=self.__dict__)
             else:
                 _LOGGER.error("%s", self, extra=self.__dict__)
+
+        elif True:  # the normal mode logging scheme
+            if "237335" in str(self):
+                _LOGGER.warning("%s", self, extra=self.__dict__)
+            else:
+                _LOGGER.info("%s", self, extra=self.__dict__)
+
         else:  # the normal mode logging scheme
             # TODO: parsing is 2x fast without this logging...
             _LOGGER.info("%s", self, extra=self.__dict__)

@@ -1,4 +1,8 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
 """Evohome serial."""
+
 from collections import namedtuple
 import re
 

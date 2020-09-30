@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
 """The evohome-compatible system (is a 1-1 with a controller)."""
 
 # import asyncio
@@ -310,7 +313,8 @@ class EvoSystem(System):
 
         self._command("2E04", payload="FF")  # system mode
 
-        # self._command("1100", payload="FC")  # TPI params
+        self._command("1100", payload="FC")  # TPI params
+
         # # for code in ("3B00"):  # 3EF0, 3EF1
         # #     for payload in ("0000", "00", "F8", "F9", "FA", "FB", "FC", "FF"):
         # #         self._command(code, payload=payload)

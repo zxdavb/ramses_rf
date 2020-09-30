@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
 """A raw ser2net (local) serial_port to (remote) network relay."""
 import asyncio
 import logging
