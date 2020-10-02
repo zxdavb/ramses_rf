@@ -1,14 +1,19 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
 """Packet processor."""
+
 import asyncio
 from datetime import datetime as dt, timedelta
+import time
 import logging
 from string import printable
 from threading import Lock
 from types import SimpleNamespace
-from typing import Optional, Tuple
+from typing import ByteString, Optional, Tuple
 
-from serial import SerialException  # noqa
-from serial_asyncio import open_serial_connection  # noqa
+from serial import SerialException, serial_for_url  # noqa
+from serial_asyncio import SerialTransport
 
 from .command import Command, _pkt_header
 from .const import (
@@ -19,11 +24,13 @@ from .const import (
     __dev_mode__,
     id_to_address,
 )
-from .logger import dt_now, dt_str
+from .logger import dt_str
 
 BAUDRATE = 115200
 READ_TIMEOUT = 0.5
-XON_XOFF = True
+XONXOFF = True
+
+SERIAL_CONFIG = {"baudrate": BAUDRATE, "xonxoff": XONXOFF}
 
 Pause = SimpleNamespace(
     NONE=timedelta(seconds=0),
@@ -207,310 +214,7 @@ class Packet:
             return _pkt_header(str(self))
 
 
-class PortPktProvider:
-    """Base class for packets from a serial port."""
-
-    def __init__(self, serial_port, loop, timeout=READ_TIMEOUT) -> None:
-        # self.serial_port = "rfc2217://localhost:5000"
-        self.serial_port = serial_port
-        self.baudrate = BAUDRATE
-        self.timeout = timeout
-        self.xonxoff = XON_XOFF
-        self._loop = loop
-
-        self._qos_lock = Lock()
-        self._qos_buffer = {}
-
-        self.reader = self.write = None
-        self._pause = dt.min
-
-    async def __aenter__(self):
-        # TODO: Add ValueError, SerialException wrapper
-        self.reader, self.writer = await open_serial_connection(
-            loop=self._loop,
-            url=self.serial_port,
-            baudrate=self.baudrate,
-            timeout=self.timeout,
-            # write_timeout=None,
-            xonxoff=self.xonxoff,
-        )
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb) -> None:
-        pass
-
-    async def get_pkt(self) -> Tuple[str, str, Optional[bytearray]]:
-        """Pull (get) the next packet tuple (dtm, pkt, pkt_raw) from a serial port."""
-
-        async def read_pkt():
-            try:  # HACK: because I can't get read timeout to work
-                if True or self.reader._transport.serial.in_waiting:
-                    pkt_raw = await self.reader.readline()
-                else:
-                    pkt_raw = b""
-                    await asyncio.sleep(0)
-            except SerialException:
-                return Packet(dt_str(), "", None)
-
-            dtm_str = dt_str()  # done here & now for most-accurate timestamp
-            # _LOGGER.debug("%s < Raw pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
-
-            try:
-                pkt_str = "".join(
-                    c
-                    for c in pkt_raw.decode("ascii", errors="strict").strip()
-                    if c in printable
-                )
-            except UnicodeDecodeError:
-                _LOGGER.warning("%s < Bad pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
-                return Packet(dtm_str, "", pkt_raw)
-
-            # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
-
-            return Packet(dtm_str, pkt_str, pkt_raw)
-
-        # TODO: validate the packet before calculating the header
-        pkt = await read_pkt()
-
-        if DISABLE_QOS_CODE or pkt._pkt_line == "":
-            await asyncio.sleep(0)
-            return pkt  # TODO: or None
-
-        # await asyncio.sleep(0)
-        self._qos_lock.acquire()
-
-        if pkt._header in self._qos_buffer:
-            # # _LOGGER.warning(
-            # #     "%s < %s, received from gateway (was in buffer) %s ",
-            # #     pkt,
-            # #     pkt._header,
-            # #     f"GET {self._qos_buffer}",
-            # #     extra=pkt.__dict__,
-            # # )
-            # self._pause = dt.min
-
-            cmd = self._qos_buffer[pkt._header]  # AAA
-            # print("PKT:", pkt._header, "_RQ:", cmd._rq_header, "_RP:", cmd._rp_header)
-
-            if pkt._header == cmd._rq_header:
-                self._qos_buffer[cmd._rp_header] = cmd
-
-                dtm_now = dt_now()  # after submit
-                if cmd.verb == " W" or cmd.code in ("0004", "0404", "0418"):
-                    cmd.dtm_timeout = dtm_now + Pause.LONG
-                elif cmd.verb == "RQ":
-                    cmd.dtm_timeout = dtm_now + Pause.LONG
-                else:
-                    cmd.dtm_timeout = dtm_now + Pause.DEFAULT
-
-                cmd.transmit_count = 1
-                cmd.dtm_expires = dtm_now + EXPIRY_TIMEOUT
-
-            del self._qos_buffer[pkt._header]
-
-        # # elif str(pkt)[4:6] == "RP" and str(pkt)[21:23] == "18":
-        # #     _LOGGER.warning(
-        # #         "%s < %s, received from gateway (wasn't in buffer) %s",
-        # #         pkt,
-        # #         pkt._header,
-        # #         f"GET {self._qos_buffer}",
-        # #         extra=pkt.__dict__,
-        # #     )
-
-        self._qos_lock.release()
-        await asyncio.sleep(0)
-
-        return pkt
-
-    async def put_pkt(self, put_cmd, logger):  # TODO: logger is a hack
-        """Send (put) the next packet to a serial port."""
-
-        def write_pkt(cmd) -> None:
-
-            self.writer.write(bytearray(f"{cmd}\r\n".encode("ascii")))
-            # _logger(f"just sent to gateway", f"... {cmd}", dtm_now)
-
-            dtm_now = dt_now()  # after submit
-
-            # the pause between submitting (command) packets
-            if cmd is None or str(cmd).startswith("!"):  # evofw3 traceflag:
-                self._pause = dtm_now + Pause.MINIMUM
-                return
-            elif cmd.verb == " W" or cmd.code in ("0004", "0404", "0418"):
-                self._pause = dtm_now + Pause.SHORT
-            else:  # BBB
-                self._pause = dtm_now + Pause.SHORT
-
-            if DISABLE_QOS_CODE:
-                return
-
-            # how long to wait to see the packet appear on the ether
-            if cmd.verb == " W" or cmd.code in ("0004", "0404", "0418"):
-                cmd.dtm_timeout = dtm_now + Pause.DEFAULT
-            elif cmd.verb == "RQ":
-                cmd.dtm_timeout = dtm_now + Pause.SHORT
-            else:
-                cmd.dtm_timeout = dtm_now + Pause.DEFAULT
-
-            cmd.transmit_count += 1
-            if cmd.transmit_count == 1:
-                cmd.dtm_expires = dtm_now + EXPIRY_TIMEOUT
-            else:
-                _LOGGER.warning(
-                    "... %s < was re-transmitted %s of %s",
-                    cmd,
-                    cmd.transmit_count,
-                    MAX_SEND_COUNT,
-                    extra=extra(dtm_now.isoformat(), cmd),
-                )
-
-        # print("PUT", self._qos_buffer)
-
-        while True:
-            dtm_now = dt_now()  # before submit
-            await asyncio.sleep(min((self._pause - dtm_now).total_seconds(), 0.01))
-            # if self._pause > dtm_now:  # sleep until mid-tx pause is over
-            #    await asyncio.sleep(min((self._pause - dtm_now).total_seconds(), 0.01))
-            #     # await asyncio.sleep((self._pause - dtm_now).total_seconds())
-            #     # await asyncio.sleep(0.01)
-
-            if DISABLE_QOS_CODE:
-                write_pkt(put_cmd)
-                break
-
-            self._qos_lock.acquire()
-
-            if put_cmd is not None and str(put_cmd).startswith("!"):
-                _cmd = put_cmd
-            else:
-                _cmd = self._check_buffer(put_cmd)  # None, put_cmd, or cmd from buffer
-
-            # dtm_untils = [
-            #     v.dtm_timeout
-            #     for v in self._qos_buffer.values()
-            #     if v.dtm_timeout is not None
-            # ]
-
-            self._qos_lock.release()
-            await asyncio.sleep(0)
-
-            if _cmd is put_cmd:
-                write_pkt(_cmd)
-                break
-            elif _cmd is not None:
-                write_pkt(_cmd)
-            # elif dtm_untils:
-            #     await asyncio.sleep((min(dtm_untils) - dtm_now).total_seconds())
-            # # # else:
-            # # #     await asyncio.sleep(0)
-
-        await asyncio.sleep(0)
-        # print("PUT", self._qos_buffer)
-
-    def _check_buffer(self, put_cmd) -> Optional[Command]:
-        """Maintain the buffer & return the next packet to be retransmitted, if any."""
-        # print("CHKa", self._qos_buffer)
-
-        dtm_now = dt_now()
-        expired_kmds = []
-        cmd = None
-
-        for header, kmd in self._qos_buffer.items():
-            if kmd.dtm_expires < dtm_now:  # abandon
-                _LOGGER.error(
-                    "%s < %s, timed out: fully expired: removed",
-                    f"... {kmd}",
-                    header,
-                    extra=extra(dtm_now.isoformat(), f"... {kmd}"),
-                )
-                expired_kmds.append(header)
-
-            elif kmd.dtm_timeout < dtm_now:  # retransmit?
-                if kmd.transmit_count >= MAX_SEND_COUNT:  # abandon
-                    # _LOGGER.error(
-                    #     "%s < %s, timed out: exceeded retries (%s of %s): removed",
-                    #     f"... {kmd}",
-                    #     header,
-                    #     kmd.transmit_count,
-                    #     MAX_SEND_COUNT,
-                    #     extra=extra(dtm_now.isoformat(), f"... {kmd}"),
-                    # )
-                    expired_kmds.append(header)
-
-                else:  # retransmit (choose the next cmd with the higher priority)
-                    cmd = kmd if cmd is None or kmd < cmd else cmd
-                    _LOGGER.error(
-                        "%s < %s, timed out: re-transmissible (%s of %s): remains",
-                        f"... {kmd}",
-                        header,
-                        kmd.transmit_count,
-                        MAX_SEND_COUNT,
-                        extra=extra(dtm_now.isoformat(), f"... {kmd}"),
-                    )
-        else:
-            self._qos_buffer = {
-                h: p for h, p in self._qos_buffer.items() if h not in expired_kmds
-            }
-
-        # print("CHKb", self._qos_buffer)
-
-        if cmd is not None:  # re-transmit
-            # log_msg = "next for re-transmission (remains in buffer) "
-            # print("aaa")
-            pass
-
-        elif len(self._qos_buffer) < MAX_BUFFER_LEN:
-            # print("bbb")  # no problem
-            cmd = put_cmd
-            self._qos_buffer[cmd._rq_header] = cmd
-            # log_msg = "next for transmission (added to buffer) "
-
-        else:  # buffer is full
-            # print("ccc")  # problem
-            return None
-
-        # _LOGGER.warning(
-        #     "%s < %s, %s",
-        #     f"... {cmd}",
-        #     cmd._rq_header,
-        #     log_msg,
-        #     extra=extra(dtm_now.isoformat(), f"... {cmd}"),
-        # )
-
-        # print("CHKc", self._qos_buffer)
-        return cmd
-
-
-class FilePktProvider:
-    """WIP: Base class for packets from a source file."""
-
-    def __init__(self, file_name) -> None:
-        self.file_name = file_name
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb) -> None:
-        pass
-
-    async def get_pkt(self) -> Optional[str]:
-        """Get the next packet line from a source file."""
-        return
-
-
-async def port_pkts(manager, include=None, exclude=None, relay=None):
-
-    while True:
-        pkt = await manager.get_pkt()
-        if pkt.is_valid and pkt.is_wanted(include=include, exclude=exclude):
-            if relay is not None:  # TODO: handle socket close
-                asyncio.create_task(relay.write(pkt.packet))
-            yield pkt
-
-        await asyncio.sleep(0)  # at least 0, to enable a Ctrl-C
-
-
-async def file_pkts(fp, include=None, exclude=None):
+async def file_pkts(fp):
 
     for ts_pkt in fp:
         ts_pkt = ts_pkt.strip()
@@ -532,7 +236,145 @@ async def file_pkts(fp, include=None, exclude=None):
             continue
 
         pkt = Packet(dtm, pkt, None)
-        if pkt.is_valid and pkt.is_wanted(include=include, exclude=exclude):
+        if pkt.is_valid:  # and pkt.is_wanted(include=include, exclude=exclude):
             yield pkt
 
         await asyncio.sleep(0)  # usu. 0, only to enable a Ctrl-C
+
+
+class SerialProtocol(asyncio.Protocol):
+    def __init__(self, queue, pkt_handler) -> None:
+        # _LOGGER.debug("SerialProtocol.__init__()")
+
+        self._queue = queue
+        self._callback = pkt_handler
+
+        self._transport = None
+        self._pause_writing = True  # HACK: for nanoCUL, should be None
+        self._recv_buffer = bytes()
+
+        self._hdr_lock = Lock()
+        self._rp_hdr_expected = None
+        self._rq_hdr_expected = None
+        self._rp_hdr_timeout = None
+        self._rq_hdr_timeout = None
+
+    def connection_made(self, transport: SerialTransport) -> None:
+        """Called when a connection is made."""
+
+        # _LOGGER.debug("SerialProtocol.connection_made(%s)", transport)
+        self._transport = transport
+        time.sleep(2)  # HACK: for nanoCUL
+        self._pause_writing = False  # HACK: for nanoCUL
+
+        # self._transport.serial.rts = False
+        # self._transport.write(b'Hello, World!\n')
+
+    def data_received(self, data: ByteString):
+        """Called when some data is received."""
+
+        # _LOGGER.debug("SerialProtocol.data_received(%s)", data)
+        # if b'\n' in data:
+        #     self._transport.close()
+
+        def create_pkt(pkt_raw: ByteString) -> Packet:
+            dtm_str = dt_str()  # done here & now for most-accurate timestamp
+            # _LOGGER.debug("%s < Raw pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
+
+            try:
+                pkt_str = "".join(
+                    c
+                    for c in pkt_raw.decode("ascii", errors="strict").strip()
+                    if c in printable
+                )
+            except UnicodeDecodeError:
+                _LOGGER.warning("%s < Bad pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
+                return Packet(dtm_str, "", pkt_raw)
+
+            # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
+
+            return Packet(dtm_str, pkt_str, pkt_raw)
+
+        self._recv_buffer += data
+        if b"\r\n" in self._recv_buffer:
+            lines = self._recv_buffer.split(b"\r\n")
+            self._recv_buffer = lines[-1]
+
+            for line in lines[:-1]:
+                pkt = create_pkt(line)
+                if pkt.is_valid:
+                    self._callback(pkt)
+
+                    if self._rq_hdr_expected or self._rp_hdr_expected:
+                        self._hdr_lock.acquire()
+                        if self._rq_hdr_expected == pkt._header:
+                            self._rq_hdr_expected = None
+                            self._hdr_timeout = dt.now() + timedelta(seconds=0.5)
+                        elif self._rp_hdr_expected == pkt._header:
+                            self._rp_hdr_expected = None
+                            self._hdr_timeout = None
+                        self._hdr_lock.release()
+
+    async def send_data(self, cmd: Command) -> None:
+        """Called when some data is to be sent (not a callaback)."""
+
+        data = bytearray(f"{cmd}\r\n".encode("ascii"))
+
+        # _LOGGER.debug("SerialProtocol.send_data(%s)", data)
+        while self._pause_writing or not self._transport:
+            await asyncio.sleep(0.01)
+
+        while self._transport.serial.out_waiting:
+            await asyncio.sleep(0.01)
+
+        while self._rq_hdr_expected or self._rp_hdr_expected:
+            if self._hdr_timeout < dt.now():
+                # print("TIMED OUT!")
+                break
+            await asyncio.sleep(0.01)
+
+            # if cmd.verb == " W" or cmd.code in ("0004", "0404", "0418"):
+            #     cmd.dtm_timeout = dtm_now + Pause.DEFAULT
+            # elif cmd.verb == "RQ":
+            #     cmd.dtm_timeout = dtm_now + Pause.SHORT
+            # else:
+            #     cmd.dtm_timeout = dtm_now + Pause.DEFAULT
+
+        self._hdr_lock.acquire()
+        self._rq_hdr_expected = cmd._rq_header  # Could be None
+        if self._rq_hdr_expected:
+            self._rp_hdr_expected = cmd._rp_header  # Could be None
+            self._hdr_timeout = dt.now() + timedelta(seconds=0.5)
+        else:
+            self._rp_hdr_expected = None
+            self._hdr_timeout = None
+        self._hdr_lock.release()
+
+        self._transport.write(data)
+        # await asyncio.sleep(0.3)  # HACK: until all the other stuff is working
+
+    def connection_lost(self, exc: Optional[Exception]) -> None:
+        """Called when the connection is lost or closed."""
+
+        # _LOGGER.debug("SerialProtocol.connection_lost(%s)", exc)
+        if exc is None:
+            pass
+        else:
+            pass
+        self._transport.loop.stop()
+
+    def pause_writing(self) -> None:
+        """Called when the transport's buffer goes over the high-water mark."""
+
+        # _LOGGER.debug("SerialProtocol.pause_writing()")
+        print(self._transport.get_write_buffer_size())
+
+        self._pause_writing = True
+
+    def resume_writing(self) -> None:
+        """Called when the transport's buffer drains below the low-water mark."""
+
+        # _LOGGER.debug("SerialProtocol.resume_writing()")
+        print(self._transport.get_write_buffer_size())
+
+        self._pause_writing = False

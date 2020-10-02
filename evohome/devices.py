@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
 """The evohome-compatible devices."""
 
 from datetime import datetime as dt, timedelta
@@ -124,7 +127,6 @@ class Entity:
         self._que.put_nowait(Command(verb, dest, code, payload, **kwargs))
 
     def _discover(self) -> None:
-        # pass
         raise NotImplementedError
 
     def _get_msg_value(self, code, key=None) -> dict:
@@ -143,7 +145,7 @@ class Entity:
             }
 
     def _update_msg(self, msg) -> None:
-        self._known_msg = msg.code in ("0016", "1FC9")
+        self._known_msg = msg.code in ("0016", "1FC9")  # TODO: push to zone?
 
         if "domain_id" in msg.payload:  # isinstance(msg.payload, dict) and
             self._domain[msg.payload["domain_id"]] = {msg.code: msg}  # 01/02/23
@@ -171,14 +173,25 @@ class Actuator:  # 3EF0, 3EF1
         super().__init__(gateway, device_addr, **kwargs)
 
         self._actuator_enabled = None
-        self._actuator_state = {}
+        self._actuator_state = None
+
+    def _discover(self) -> None:
+        if self._gwy.config["disable_discovery"]:
+            return
+
+        super()._discover()
+
+        self._command("3EF1")
 
     def _update_msg(self, msg) -> None:
         super()._update_msg(msg)
+
         if msg.code == "3EF0" and msg.verb == " I":
             self._actuator_enabled = msg.payload["actuator_enabled"]
             self._known_msg = True
-        elif msg.code == "3EF1" and msg.verb == " I":
+
+        elif msg.code == "3EF1" and msg.verb == "RP":
+            self._actuator_enabled = msg.payload["actuator_enabled"]
             self._actuator_state = msg.payload
             self._known_msg = True
 
@@ -207,6 +220,7 @@ class BatteryState:  # 1060
 
     def _update_msg(self, msg) -> None:
         super()._update_msg(msg)
+
         if msg.code == "1060" and msg.verb == " I":
             self._battery_state = msg.payload
             self._known_msg = True
@@ -223,10 +237,12 @@ class BatteryState:  # 1060
 class HeatDemand:  # 3150
     def __init__(self, gateway, device_addr, **kwargs) -> None:
         super().__init__(gateway, device_addr, **kwargs)
+
         self._heat_demand = None
 
     def _update_msg(self, msg) -> None:
         super()._update_msg(msg)
+
         if msg.code == "3150" and msg.verb == " I":
             self._heat_demand = msg.payload["heat_demand"]
             self._known_msg = True
@@ -243,14 +259,17 @@ class HeatDemand:  # 3150
 class Setpoint:  # 2309
     def __init__(self, gateway, device_addr, **kwargs) -> None:
         super().__init__(gateway, device_addr, **kwargs)
+
         self._setpoint = None
 
     def _update_msg(self, msg) -> None:
         super()._update_msg(msg)
+
         if msg.code == "2309" and msg.verb in (" I", " W"):
             self._setpoint = msg.payload["setpoint"]
             self._known_msg = True
-        elif msg.code == "2309" and msg.verb in ("RQ"):
+
+        elif msg.code == "2309" and msg.verb == "RQ":
             self._known_msg = True
 
     @property
@@ -265,10 +284,12 @@ class Setpoint:  # 2309
 class Temperature:  # 30C9
     def __init__(self, gateway, device_addr, **kwargs) -> None:
         super().__init__(gateway, device_addr, **kwargs)
+
         self._temperature = None
 
     def _update_msg(self, msg) -> None:
         super()._update_msg(msg)
+
         if msg.code == "30C9" and msg.verb == " I":
             self._temperature = msg.payload["temperature"]
             self._known_msg = True
@@ -284,7 +305,7 @@ class Temperature:  # 30C9
 
 # ######################################################################################
 
-# ??: used for unknown device types
+# 00: used for unknown device types
 class Device(Entity):
     """The Device base class."""
 
@@ -374,6 +395,16 @@ class Device(Entity):
 
     def _update_msg(self, msg) -> None:
         super()._update_msg(msg)
+
+        self._known_msg = True
+        if msg.code == "0016":
+            pass  # self._rf_signal =
+        elif msg.code == "10E0":
+            pass  # self._hardware_info =
+        elif msg.code == "1FC9":
+            pass  # self._rf_level =
+        else:
+            self._known_msg = False
 
         # TODO: status updates always, but...
         # TODO: schema updates only if eavesdropping is enabled.
@@ -509,16 +540,8 @@ class Device(Entity):
         return False
 
     @property
-    def _pkt_1fc9(self) -> list:
-        return self._get_msg_value("1FC9")  # we want the RPs
-
-    @property
-    def _present(self) -> bool:
+    def _is_present(self) -> bool:
         return any([m.src.id == self.id for m in self._msgs.values()])
-
-    @property
-    def rf_signal(self) -> Optional[dict]:  # TODO: make 'current', else add dtm?
-        return self._get_msg_value("0016")
 
     @property
     def params(self):
@@ -767,27 +790,28 @@ class BdrSwitch(Actuator, Device):
     def __init__(self, gateway, device_addr, **kwargs) -> None:
         super().__init__(gateway, device_addr, **kwargs)
 
+        self._relay_demand = None
+
         self._is_tpi = kwargs.get("domain_id") == "FC"
         if self._is_tpi:
             self._ctl.boiler_control = self
 
     def _discover(self) -> None:
+        """The BDRs fail(?) to respond to RQs for: 3B00, 3EF0, 0009.
+
+        They seem to respond to:
+        - 0008: varies on/off
+        - 1100
+        - 3EF1: has sub-domains?
+        """
+
         if self._gwy.config["disable_discovery"]:
             return
 
         super()._discover()
 
-        self._command("1100", payload="00")
-
-        # all relays seem the same, except for 1100
-        # for code in ("3B00", "3EF0", "3EF1"] + ["0008", "1100"]):
-        #     for payload in ("00", "FC", "FF", "0000", "000000"):
-        #         self._command(code, payload=payload)
-
-        # doesn't look like TPIs respond to a 3B00
-        # for payload in ("00", "C8"):
-        #     for code in ("00", "FC", "FF"):
-        #         self._command("3B00", payload=f"{code}{payload}")
+        # self._command("1100", payload="00")  # will just repeat the controller config
+        self._command("0008")
 
     def _update_msg(self, msg) -> None:
         super()._update_msg(msg)
@@ -797,9 +821,11 @@ class BdrSwitch(Actuator, Device):
 
         if self._known_msg:
             pass
-        elif msg.verb == " I" and msg.code in ("1100", "3B00", "3EF0"):
+        elif msg.code == "0008" and msg.verb == "RP":
+            self._relay_demand = msg.payload["relay_demand"]
+        elif msg.code == "1100":
             pass
-        elif msg.verb == "RP" and msg.code in ("0008", "1100", "3EF1"):
+        elif msg.code in "3B00":
             pass
         else:
             assert False, f"Unknown packet verb/code for {self.id}"
@@ -823,8 +849,12 @@ class BdrSwitch(Actuator, Device):
         return self._is_tpi
 
     @property
-    def tpi_params(self) -> dict:  # 1100
+    def _tpi_params(self) -> dict:  # 1100
         return self._get_msg_value("1100")  # if self.is_tpi else None
+
+    @property
+    def relay_demand(self) -> dict:  # 0008
+        return self._relay_demand
 
 
 class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature, Device):

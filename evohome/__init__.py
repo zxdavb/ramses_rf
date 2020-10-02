@@ -1,30 +1,43 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
 """Evohome serial."""
+
 import asyncio
 from collections import deque
 import json
 import logging
 import os
-from queue import PriorityQueue
+from queue import PriorityQueue, Empty
 import signal
 import sys
 from threading import Lock
 from typing import Dict, List
 
+from serial import serial_for_url
+from serial_asyncio import SerialTransport
+
 from .command import Command
 from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
-from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
+from .logger import (
+    set_logging,
+    BANDW_SUFFIX,
+    COLOR_SUFFIX,
+    CONSOLE_FMT,
+    PKT_LOG_FMT,
+)
 from .message import _LOGGER as msg_logger, Message
 from .packet import (
     _LOGGER as pkt_logger,
     Packet,
-    PortPktProvider,
     file_pkts,
-    port_pkts,
+    SerialProtocol,
+    SERIAL_CONFIG,
 )
-
 from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
-from .ser2net import Ser2NetServer
+
+# from .ser2net import Ser2NetServer
 from .system import EvoSystem
 
 # TODO: duplicated in schema.py
@@ -64,8 +77,10 @@ class Gateway:
             _LOGGER.debug("Starting evohome_rf, **config = %s", config)
 
         self.serial_port = serial_port
-        self._loop = loop if loop else asyncio.get_running_loop()  # get_event_loop()
+        self._loop = loop if loop else asyncio.get_running_loop()
         self.config = CONFIG_SCHEMA(config)
+
+        self._protocol = None
 
         if self.serial_port and self.config.get("input_file"):
             _LOGGER.warning(
@@ -77,7 +92,7 @@ class Gateway:
         elif self.config.get("input_file") is not None:
             self.config["disable_sending"] = True
 
-        self._execute_cmd = self.config.get("execute_cmd")
+        # self._execute_cmd = self.config.get("execute_cmd")
 
         if self.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
             _stream = (None, sys.stdout)
@@ -125,6 +140,10 @@ class Gateway:
             self._include_list = KNOWNS_SCHEMA(config.pop("allowlist", {}))
         elif self.config["enforce_blocklist"]:
             self._exclude_list = KNOWNS_SCHEMA(config.pop("blocklist", {}))
+
+        if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
+            cmd = self.config["execute_cmd"]
+            self.cmd_que.put_nowait(Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:]))
 
     def __repr__(self) -> str:
         return json.dumps(self.schema)
@@ -197,125 +216,58 @@ class Gateway:
             with open(self.config["known_devices"], "w") as json_file:
                 json.dump(self.known_devices, json_file, sort_keys=True, indent=4)
 
+    @asyncio.coroutine
+    def _create_serial_interface(self):
+        ser = serial_for_url(self.serial_port, **SERIAL_CONFIG)
+        self._protocol = SerialProtocol(self.cmd_que, self._process_packet)
+        transport = SerialTransport(self._loop, self._protocol, ser)
+        return (transport, self._protocol)
+
     async def start(self) -> None:
         async def file_reader(fp):
-            async for raw_pkt in file_pkts(
-                fp, include=self._include_list, exclude=self._exclude_list
-            ):
+            async for raw_pkt in file_pkts(fp):
+                # include=self._include_list, exclude=self._exclude_list
                 self._process_packet(raw_pkt)
-                # await asyncio.sleep(0)  # needed for Ctrl_C to work
+                await asyncio.sleep(0)  # needed for Ctrl_C to work?
 
-        async def port_reader(manager):
-            async for raw_pkt in port_pkts(
-                manager,
-                include=self._include_list,
-                exclude=self._exclude_list,
-                relay=self._relay,
-            ):
-                self._process_packet(raw_pkt)
-                # await asyncio.sleep(0)  # NOTE: 0.005 works well
-
-                # TODO: not elegant - move elsewhere?
-                if self.config.get("evofw_flag") and "evofw3" in raw_pkt.packet:
-                    # !V, !T - print the version, or the current mask
-                    # !T00   - turn off all mask bits
-                    # !T01   - cause raw data for all messages to be printed
-                    await manager.put_pkt(self.config["evofw_flag"], _LOGGER)
-
-                await asyncio.sleep(0.01)  # TODO: was: 0.005
-
-        async def port_writer(manager):
+        async def port_writer():
             while True:
-                await self._dispatch_pkt(destination=manager)
-                await asyncio.sleep(0.01)  # NOTE: was: 0.05
+                if self.cmd_que.empty():
+                    await asyncio.sleep(0.05)
+                    continue
 
-        # if self.config["known_devices"]:
-        #     self.known_devices = ...
-        #     self._include_list = [
-        #     self._exclude_list = [
+                try:
+                    cmd = self.cmd_que.get(False)
+                except Empty:
+                    continue
 
-        # Finally, source of packets is either a serial port, or a text stream
-        if self.serial_port:  # , reader = port_reader(manager)
-            if self.config.get("ser2net_server"):
-                self._relay = Ser2NetServer(
-                    self.config["ser2net_server"], self.cmd_que, loop=self._loop
-                )
-                self._tasks.append(asyncio.create_task(self._relay.start()))
+                if self._protocol:  # or not self.config["disable_sending"]
+                    await self._protocol.send_data(cmd)  # put_pkt(cmd, _LOGGER)
 
-            async with PortPktProvider(self.serial_port, loop=self._loop) as manager:
-                if self._execute_cmd:  # e.g. "RQ 01:145038 1F09 00"
-                    cmd = self._execute_cmd
-                    cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:])
-                    await manager.put_pkt(cmd, _LOGGER)
+                self.cmd_que.task_done()
 
-                # RQ --- 18:013393 01:145038 --:------ 0404 007 09 20 0008 000100
-                #                                               00 05 02C8
+        # The source of packets is either a serial port, or a text stream
+        if self.serial_port:
+            reader = asyncio.create_task(self._create_serial_interface())
+            writer = asyncio.create_task(port_writer())
 
-                # for device_type in ("0D", "0E", "0F"):  # CODE_000C_DEVICE_TYPE:
-                #     cmd = Command("RQ", "01:145038", "000C", f"00{device_type}")
-                #     await manager.put_pkt(cmd, _LOGGER)
-
-                # for z in range(4):
-                #     for x in range(12):
-                #         cmd = Command("RQ", "01:145038", "000C", f"{z:02X}{x:02X}")
-                #         await manager.put_pkt(cmd, _LOGGER)
-
-                # for p in ("00", "01", "FF", "0000", "0100", "FF00"):
-                #     for c in ("0003", "0007", "000B", "000D", "000F"):
-                #         cmd = Command("RQ", "01:145038", c, f"0008{p}")
-                #         print(cmd)
-                #         await manager.put_pkt(cmd, _LOGGER)
-
-                reader = asyncio.create_task(port_reader(manager))
-                self._tasks.extend([asyncio.create_task(port_writer(manager)), reader])
+            self._tasks.extend([reader, writer])
+            await writer
 
         else:  # if self.config["input_file"]:
             reader = asyncio.create_task(file_reader(self.config["input_file"]))
-            self._tasks.extend([asyncio.create_task(port_writer(None)), reader])
+            writer = asyncio.create_task(port_writer())  # to consume cmds
 
-        await reader  # was: await asyncio.gather(*self._tasks)
-        # await asyncio.gather(*self._tasks)
-        self.cleanup("start()")
+            self._tasks.extend([reader, writer])
+            await reader
 
-    async def _dispatch_pkt(self, destination=None) -> None:
-        """Send a command unless in listen_only mode."""
-
-        # # used for development only...
-        # for code in range(0x4000):
-        #     # cmd = Command("RQ", "01:145038", f"{code:04X}", "0000")
-        #     cmd = Command("RQ", "13:035462", f"{code:04X}", "0000")
-        #     await destination.put_pkt(cmd, _LOGGER)
-        #     if code % 0x10 == 0:
-        #         await asyncio.sleep(15)  # 10 too short - 15 seconds works OK
-
-        # # used for development only...
-        # for payload in ("0000", "0100", "F8", "F9", "FA", "FB", "FC", "FF"):
-        #     cmd = Command("RQ", "01:145038", "11F0", payload)
-        #     await destination.put_pkt(cmd, _LOGGER)
-        #     cmd = Command("RQ", "13:035462", "11F0", payload)
-        #     await destination.put_pkt(cmd, _LOGGER)
-
-        while not self.cmd_que.empty():
-            await asyncio.sleep(0.01)  # TODO: this was causing an issue...
-            # if self.cmd_que.empty():
-            #     await destination.put_pkt(None, _LOGGER)
-            #     continue
-
-            cmd = self.cmd_que.get()
-
-            if destination is not None and str(cmd).startswith("!"):
-                await destination.put_pkt(cmd, _LOGGER)
-
-            elif destination is None or self.config["disable_sending"]:
-                pass  # clear the whole queue
-
-            else:
-                await destination.put_pkt(cmd, _LOGGER)
-
-            self.cmd_que.task_done()
+        self.cleanup("start()")  # await asyncio.gather(*self._tasks)
 
     def _process_packet(self, pkt: Packet) -> None:
         """Decode the packet and its payload."""
+
+        if not pkt.is_wanted(include=self._include_list, exclude=self._exclude_list):
+            return
 
         try:
             if self.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
@@ -331,7 +283,6 @@ class Gateway:
                 return
 
             msg.create_devices()  # from pkt header & from msg payload (e.g. 000C)
-
             msg.create_zones()  # create zones & ufh_zones (TBD)
 
             if self.config["reduce_processing"] >= DONT_UPDATE_ENTITIES:
@@ -343,9 +294,6 @@ class Gateway:
             return
 
         self._prev_msg = msg if msg.is_valid else None
-
-    # def get_ctl(self, ctl_addr) -> Device:
-    #     return self.get_device(ctl_addr, controller=ctl_addr, domain_id="FF")
 
     def get_device(self, dev_addr, controller=None, domain_id=None) -> Device:
         """Return a device (will create it if required).

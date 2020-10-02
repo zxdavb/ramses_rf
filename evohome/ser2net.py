@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 """A raw ser2net (local) serial_port to (remote) network relay."""
+
 import asyncio
 import logging
 from string import printable
@@ -155,3 +156,14 @@ class Ser2NetServer:
             _LOGGER.debug(" - data sent to network: %s", packet)
         else:
             _LOGGER.debug(" - no active network socket, unable to relay")
+
+
+"""This is how to invoke the code:
+
+    if self.config.get("ser2net_server"):
+        self._relay = Ser2NetServer(
+            self.config["ser2net_server"], self.cmd_que, loop=self._loop
+        )
+        self._tasks.append(asyncio.create_task(self._relay.start()))
+
+"""

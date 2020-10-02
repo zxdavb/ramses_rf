@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
 """A CLI for the evohome_rf library.
 
 evohome_rf is used to parse Honeywell's RAMSES-II packets, either via RF or from a file.
@@ -128,13 +131,13 @@ async def main(serial_port, loop=None, **config):
     else:  # if no Exceptions raised, e.g. EOF when parsing
         print(" - exiting via: else-block (e.g. EOF when parsing)")
 
-    if True or gwy.evo is None:
+    if gwy.evo is None:
         print(f"\r\nSchema[gateway] = {json.dumps(gwy.schema)}")
         print(f"\r\nParams[gateway] = {json.dumps(gwy.params)}")
         print(f"\r\nStatus[gateway] = {json.dumps(gwy.status)}")
 
     if __dev_mode__ and gwy.evo is not None:
-        print(f"\r\nSchema[{gwy.evo.id}] = {json.dumps(gwy.evo.schema)}")
+        print(f"\r\nSchema[{gwy.evo.id}] = {json.dumps(gwy.evo.schema, indent=2)}")
         print(f"\r\nParams[{gwy.evo.id}] = {json.dumps(gwy.evo.params)}")
         print(f"\r\nStatus[{gwy.evo.id}] = {json.dumps(gwy.evo.status)}")
 
