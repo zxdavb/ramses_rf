@@ -11,7 +11,7 @@ import sys
 
 import click
 
-from evohome import CONFIG_SCHEMA, __dev_mode__, Gateway, GracefulExit
+from evohome_rf import CONFIG_SCHEMA, __dev_mode__, Gateway, GracefulExit
 
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678

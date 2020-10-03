@@ -887,10 +887,10 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature, Device):
 
         if self._known_msg:
             pass
-        elif msg.code in "12B0" and msg.verb == " I":
-            self._window_state = msg.payload["window_open"]
-        elif msg.verb == "RQ" and msg.code in ("0100", "313F"):
+        elif msg.verb == "RQ" and msg.code in ("0100", "1F09", "313F"):
             pass
+        elif msg.code == "12B0":  # and msg.verb == " I":
+            self._window_state = msg.payload["window_open"]
         else:
             assert False, f"Unknown packet verb/code for {self.id}"
 

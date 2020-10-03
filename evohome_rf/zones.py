@@ -627,7 +627,7 @@ class Zone(ZoneBase):
                 for z in msg.payload
                 for k, v in z.items()
                 if z["zone_idx"] == self.idx
-            }["temperature"]
+            }.get("temperature")
         return self._temperature
 
     @property
@@ -639,7 +639,7 @@ class Zone(ZoneBase):
                 for z in msg.payload
                 for k, v in z.items()
                 if z["zone_idx"] == self.idx
-            }["setpoint"]
+            }.get("setpoint")
         return self._setpoint
 
     @property

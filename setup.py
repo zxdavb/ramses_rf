@@ -1,6 +1,6 @@
 import setuptools
 
-VERSION = "0.2.5"
+VERSION = "0.3.0"
 
 with open("README.md", "r") as fh:
     LONG_DESCRIPTION = fh.read()
@@ -15,7 +15,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/zxdavb/evohome_rf",
     download_url="https://github.com/zxdavb/evohome_rf/archive/VERSION.tar.gz",
-    packages=["evohome"],
+    packages=["evohome_rf"],
     keywords=["evohome", "ramses"],
     classifiers=[
         "Programming Language :: Python :: 3.7",
