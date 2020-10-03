@@ -567,7 +567,7 @@ class Controller(Device):
 
 
 # 02: "10E0", "3150";; "0008", "22C9", "22D0"
-class UfhController(HeatDemand, Device):
+class UfhController(Device):
     """The UFC class, the HCE80 that controls the UFH zones."""
 
     # 12:27:24.398 067  I --- 02:000921 --:------ 01:191718 3150 002 0360
@@ -619,6 +619,24 @@ class UfhController(HeatDemand, Device):
             return
 
         super()._update_msg(msg)
+
+        #
+        if self._known_msg:
+            pass
+        elif msg.code in (
+            "0001",
+            "0005",
+            "0008",
+            "000A",
+            "000C",
+            "22C9",
+            "22D0",
+            "2309",
+            "3150",
+        ):
+            pass
+        else:
+            assert False, f"Unknown packet verb/code for {self.id}"
 
         # "0008|FA/FC", "22C9|array", "22D0|none", "3150|ZZ/array(/FC?)"
 

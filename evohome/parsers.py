@@ -69,7 +69,7 @@ def _idx(seqx, msg) -> dict:
     elif msg.code in ("0002", "2D49"):  # non-evohome: hometronics
         return {"other_idx": seqx}
 
-    # TODO: 000C to a UFC shoudl be ufh_ifx, not zone_idx
+    # TODO: 000C to a UFC should be ufh_ifx, not zone_idx
     elif msg.code == "000C":  # an exception to the usual rules
         if msg.verb == " I":
             return {}
@@ -80,12 +80,12 @@ def _idx(seqx, msg) -> dict:
         if msg.src.type == "02":  # in (msg.src.type, msg.dst.type):  # TODO: above
             assert int(seqx, 16) < 8
             if msg.raw_payload[4:6] == "7F":
-                return {"ufh_idx": seqx, "zone_id": None}
+                return {"Ufh_idx": seqx, "zone_id": None}
             assert int(msg.raw_payload[4:6], 16) < MAX_ZONES
-            return {"ufh_idx": seqx, "zone_id": msg.raw_payload[4:6]}
+            return {"uFh_idx": seqx, "zone_id": msg.raw_payload[4:6]}
         if msg.dst.type == "02":
             assert int(seqx, 16) < 8
-            return {"ufh_idx": seqx}
+            return {"ufH_idx": seqx}
 
         assert int(seqx, 16) < MAX_ZONES
         return {"zone_idx": seqx}
@@ -102,7 +102,7 @@ def _idx(seqx, msg) -> dict:
         assert int(seqx, 16) < 64  # a 'null' RP has no log_idx == 0
         return {}  # a 'null' RP has no log_idx
 
-    elif msg.code == "22C9" and msg.src.type == "02":  # ufh_setpoint
+    elif msg.code == "22C9":  # these are UFH-specific
         assert int(seqx, 16) < 8  # this can be a "00", maybe zone_idx, see below
         return {"ufh_idx": seqx}  # TODO: confirm is / is not zone_idx
 
@@ -117,9 +117,18 @@ def _idx(seqx, msg) -> dict:
     elif msg.code in MAY_USE_ZONE_IDX:
         assert int(seqx, 16) < MAX_ZONES
         if {"01", "02", "23"} & {msg.src.type, msg.dst.type}:  # to/from a controller
-            idx_name = (
-                "zone_idx" if msg.src.type in ("01", "02", "23", "18") else "parent_idx"
-            )
+            # if msg.src.type in ("01", "02", "23", "18"):  # This is the old way...
+            #     idx_name = "zone_idx"
+            # else:
+            #     idx_name = "parent_idx"
+
+            # This is the new way...
+            if msg.src.type == "02" and msg.src == msg.dst:
+                idx_name = "ufh_idx"
+            elif msg.src.type in ("01", "02", "23", "18"):
+                idx_name = "zone_idx"
+            else:
+                idx_name = "parent_idx"
             return {idx_name: seqx}
 
         # 055  I 028 03:094242 --:------ 03:094242 30C9 003 010B22

@@ -60,10 +60,18 @@ CODE_SCHEMA = {
         "rq_len": 2,
         "uses_zone_idx": True,
     },
-    "000C": {"name": "zone_devices", "null_resp": "007FFFFFFF", "uses_zone_idx": True,},
+    "000C": {
+        "name": "zone_devices",
+        "null_resp": "007FFFFFFF",
+        "uses_zone_idx": True,
+    },  #
     "0404": {"name": "zone_schedule", "uses_zone_idx": True},
     "12B0": {"name": "window_state", "null_resp": "7FFF", "uses_zone_idx": True},
-    "2349": {"name": "zone_mode", "uses_zone_idx": True, "null_resp": "7FFF00FFFFFF",},
+    "2349": {
+        "name": "zone_mode",
+        "uses_zone_idx": True,
+        "null_resp": "7FFF00FFFFFF",
+    },  #
     "3150": {"name": "heat_demand", "uses_zone_idx": True},
     # controller/system codes
     "0005": {"name": "system_zones", "rq_length": 2},
