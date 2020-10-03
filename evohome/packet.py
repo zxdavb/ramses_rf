@@ -5,7 +5,6 @@
 
 import asyncio
 from datetime import datetime as dt, timedelta
-import time
 import logging
 from string import printable
 from threading import Lock
@@ -48,6 +47,11 @@ MAX_SEND_COUNT = 1
 # 0.060 gives false +ve for 10E0?
 # 0.065 too low when stressed with (e.g.) schedules, log entries
 EXPIRY_TIMEOUT = timedelta(seconds=2.0)  # say 0.5
+
+
+QOS_RETRY_LIMIT = 2
+QOS_TIMEOUT_SECS_RQ = timedelta(seconds=0.2)  # 0.2 too low?
+QOS_TIMEOUT_SECS_RP = timedelta(seconds=1.0)
 
 _LOGGER = logging.getLogger(__name__)
 if True or __dev_mode__:
@@ -250,10 +254,11 @@ class SerialProtocol(asyncio.Protocol):
         self._callback = pkt_handler
 
         self._transport = None
-        self._pause_writing = True  # HACK: for nanoCUL, should be None
+        self._pause_writing = None
         self._recv_buffer = bytes()
 
         self._qos_lock = Lock()
+        self._qos_cmd = None
         self._qos_rp_hdr = None
         self._qos_rq_hdr = None
         self._qos_timeout = None
@@ -263,11 +268,7 @@ class SerialProtocol(asyncio.Protocol):
 
         # _LOGGER.debug("SerialProtocol.connection_made(%s)", transport)
         self._transport = transport
-        time.sleep(2)  # HACK: for nanoCUL
-        self._pause_writing = False  # HACK: for nanoCUL
-
         # self._transport.serial.rts = False
-        # self._transport.write(b'Hello, World!\n')
 
     def data_received(self, data: ByteString):
         """Called when some data is received."""
@@ -299,10 +300,10 @@ class SerialProtocol(asyncio.Protocol):
                 self._qos_lock.acquire()
                 if self._qos_rq_hdr == pkt._header:
                     self._qos_rq_hdr = None
-                    self._qos_timeout = dt.now() + timedelta(seconds=0.5)
+                    self._qos_timeout = dt.now() + QOS_TIMEOUT_SECS_RP
                 elif self._qos_rp_hdr == pkt._header:
                     self._qos_rp_hdr = None
-                    self._qos_timeout = None
+                    # self._qos_timeout = None
                 self._qos_lock.release()
 
         self._recv_buffer += data
@@ -321,16 +322,10 @@ class SerialProtocol(asyncio.Protocol):
 
         # _LOGGER.debug("SerialProtocol.send_data(%s)", data)
         while self._pause_writing or not self._transport:
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.005)
 
         while self._transport.serial.out_waiting:
-            await asyncio.sleep(0.01)
-
-        while self._qos_rq_hdr or self._qos_rp_hdr:
-            if self._qos_timeout < dt.now():
-                # print("TIMED OUT!")
-                break
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.005)
 
             # if cmd.verb == " W" or cmd.code in ("0004", "0404", "0418"):
             #     cmd.dtm_timeout = dtm_now + Pause.DEFAULT
@@ -345,27 +340,48 @@ class SerialProtocol(asyncio.Protocol):
     async def send_data(self, cmd: Command, qos: dict = None) -> None:
         """Called when some data is to be sent (not a callaback)."""
 
-        def qos_send_data():
-            self._qos_lock.acquire()
-            self._qos_rq_hdr = cmd._rq_header  # Could be None
-            if self._qos_rq_hdr:
-                self._qos_rp_hdr = cmd._rp_header  # Could be None
-                self._qos_timeout = dt.now() + timedelta(seconds=0.5)
-            else:
-                self._qos_rp_hdr = None
-                self._qos_timeout = None
-            self._qos_lock.release()
+        # self._qos_lock.acquire()
+        # self._qos_rq_hdr = self._qos_rp_hdr = None
+        # self._qos_lock.release()
+
+        while self._qos_rq_hdr or self._qos_rp_hdr:
+            await asyncio.sleep(0.005)
+            continue
 
         await self._write_data(bytearray(f"{cmd}\r\n".encode("ascii")))
-        qos_send_data()
+
+        self._qos_lock.acquire()
+        self._qos_rq_hdr = cmd._rq_header  # Could be None
+        self._qos_rp_hdr = cmd._rp_header  # Could be None, esp. if RQ hdr is None
+        self._qos_lock.release()
+
+        if self._qos_rq_hdr:
+            self._qos_cmd = cmd
+            self._qos_retrys = cmd.qos.get("retry_limit", QOS_RETRY_LIMIT)
+            self._qos_timeout = dt.now() + QOS_TIMEOUT_SECS_RQ
+
+        while self._qos_rq_hdr or self._qos_rp_hdr:
+            if self._qos_timeout > dt.now():
+                await asyncio.sleep(0.005)
+                continue
+
+            if self._qos_retrys == 0:
+                print("TIMED OUT - EXPIRED!")
+                self._qos_lock.acquire()
+                self._qos_rq_hdr = self._qos_rp_hdr = None
+                self._qos_lock.release()
+                break
+            print("TIMED OUT - RETRANSMITTING!")
+
+            await self._write_data(bytearray(f"{self._qos_cmd}\r\n".encode("ascii")))
+            self._qos_retrys -= 1
+            self._qos_timeout = dt.now() + QOS_TIMEOUT_SECS_RQ
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
 
         # _LOGGER.debug("SerialProtocol.connection_lost(%s)", exc)
-        if exc is None:
-            pass
-        else:
+        if exc is not None:
             pass
         self._transport.loop.stop()
 

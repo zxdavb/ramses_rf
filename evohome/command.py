@@ -81,18 +81,19 @@ class Command:
         self.code = code
         self.payload = payload
 
-        self.pause = None
+        # self.pause = None
+        self.qos = kwargs.get("qos", {})
 
         priority = Priority.HIGH if verb in ("0016", "1FC9") else Priority.DEFAULT
         self._priority = kwargs.get("priority", priority)
         self._priority_dtm = dt_now()  # used for __lt__, etc.
 
-        qos = Qos.AT_LEAST_ONCE if self.verb in ("RQ", " W") else Qos.AT_MOST_ONCE
-        self.qos = kwargs.get("qos", qos)
+        # qos = Qos.AT_LEAST_ONCE if self.verb in ("RQ", " W") else Qos.AT_MOST_ONCE
+        # self.qos = kwargs.get("qos", qos)
 
-        self.dtm_expires = None  # TODO: these 3 shouldn't be instance attributes?
-        self.dtm_timeout = None
-        self.transmit_count = 0
+        # self.dtm_expires = None  # TODO: these 3 shouldn't be instance attributes?
+        # self.dtm_timeout = None
+        # self.transmit_count = 0
 
     def __OUT_repr__(self) -> str:
         result = {"packet": str(self)}
@@ -125,7 +126,8 @@ class Command:
     def _rp_header(self) -> Optional[str]:
         """Return the QoS header of a response packet (if any)."""
 
-        return _pkt_header(f"... {self}", response_header=True)
+        if self._rq_header:  # will be None if RQ header is None
+            return _pkt_header(f"... {self}", response_header=True)
 
     @staticmethod
     def _is_valid_operand(other) -> bool:

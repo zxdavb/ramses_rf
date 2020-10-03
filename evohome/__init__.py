@@ -143,7 +143,10 @@ class Gateway:
 
         if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
             cmd = self.config["execute_cmd"]
-            self.cmd_que.put_nowait(Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:]))
+            qos = {"retry_limit": 9}
+            self.cmd_que.put_nowait(
+                Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], qos=qos)
+            )
 
     def __repr__(self) -> str:
         return json.dumps(self.schema)
