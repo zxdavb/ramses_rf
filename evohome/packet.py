@@ -253,11 +253,10 @@ class SerialProtocol(asyncio.Protocol):
         self._pause_writing = True  # HACK: for nanoCUL, should be None
         self._recv_buffer = bytes()
 
-        self._hdr_lock = Lock()
-        self._rp_hdr_expected = None
-        self._rq_hdr_expected = None
-        self._rp_hdr_timeout = None
-        self._rq_hdr_timeout = None
+        self._qos_lock = Lock()
+        self._qos_rp_hdr = None
+        self._qos_rq_hdr = None
+        self._qos_timeout = None
 
     def connection_made(self, transport: SerialTransport) -> None:
         """Called when a connection is made."""
@@ -295,6 +294,17 @@ class SerialProtocol(asyncio.Protocol):
 
             return Packet(dtm_str, pkt_str, pkt_raw)
 
+        def qos_data_received() -> Packet:
+            if self._qos_rq_hdr or self._qos_rp_hdr:
+                self._qos_lock.acquire()
+                if self._qos_rq_hdr == pkt._header:
+                    self._qos_rq_hdr = None
+                    self._qos_timeout = dt.now() + timedelta(seconds=0.5)
+                elif self._qos_rp_hdr == pkt._header:
+                    self._qos_rp_hdr = None
+                    self._qos_timeout = None
+                self._qos_lock.release()
+
         self._recv_buffer += data
         if b"\r\n" in self._recv_buffer:
             lines = self._recv_buffer.split(b"\r\n")
@@ -304,21 +314,10 @@ class SerialProtocol(asyncio.Protocol):
                 pkt = create_pkt(line)
                 if pkt.is_valid:
                     self._callback(pkt)
+                    qos_data_received()
 
-                    if self._rq_hdr_expected or self._rp_hdr_expected:
-                        self._hdr_lock.acquire()
-                        if self._rq_hdr_expected == pkt._header:
-                            self._rq_hdr_expected = None
-                            self._hdr_timeout = dt.now() + timedelta(seconds=0.5)
-                        elif self._rp_hdr_expected == pkt._header:
-                            self._rp_hdr_expected = None
-                            self._hdr_timeout = None
-                        self._hdr_lock.release()
-
-    async def send_data(self, cmd: Command) -> None:
+    async def _write_data(self, data: bytearray) -> None:
         """Called when some data is to be sent (not a callaback)."""
-
-        data = bytearray(f"{cmd}\r\n".encode("ascii"))
 
         # _LOGGER.debug("SerialProtocol.send_data(%s)", data)
         while self._pause_writing or not self._transport:
@@ -327,8 +326,8 @@ class SerialProtocol(asyncio.Protocol):
         while self._transport.serial.out_waiting:
             await asyncio.sleep(0.01)
 
-        while self._rq_hdr_expected or self._rp_hdr_expected:
-            if self._hdr_timeout < dt.now():
+        while self._qos_rq_hdr or self._qos_rp_hdr:
+            if self._qos_timeout < dt.now():
                 # print("TIMED OUT!")
                 break
             await asyncio.sleep(0.01)
@@ -340,18 +339,25 @@ class SerialProtocol(asyncio.Protocol):
             # else:
             #     cmd.dtm_timeout = dtm_now + Pause.DEFAULT
 
-        self._hdr_lock.acquire()
-        self._rq_hdr_expected = cmd._rq_header  # Could be None
-        if self._rq_hdr_expected:
-            self._rp_hdr_expected = cmd._rp_header  # Could be None
-            self._hdr_timeout = dt.now() + timedelta(seconds=0.5)
-        else:
-            self._rp_hdr_expected = None
-            self._hdr_timeout = None
-        self._hdr_lock.release()
-
         self._transport.write(data)
         # await asyncio.sleep(0.3)  # HACK: until all the other stuff is working
+
+    async def send_data(self, cmd: Command, qos: dict = None) -> None:
+        """Called when some data is to be sent (not a callaback)."""
+
+        def qos_send_data():
+            self._qos_lock.acquire()
+            self._qos_rq_hdr = cmd._rq_header  # Could be None
+            if self._qos_rq_hdr:
+                self._qos_rp_hdr = cmd._rp_header  # Could be None
+                self._qos_timeout = dt.now() + timedelta(seconds=0.5)
+            else:
+                self._qos_rp_hdr = None
+                self._qos_timeout = None
+            self._qos_lock.release()
+
+        await self._write_data(bytearray(f"{cmd}\r\n".encode("ascii")))
+        qos_send_data()
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
