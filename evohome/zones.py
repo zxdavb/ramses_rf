@@ -616,14 +616,30 @@ class Zone(ZoneBase):
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        # TODO: should use most recently received pkt
-        # TODO: this doesn't work if temp sensor is the controller
+        # TODO: this wont wokr if the controller is the sensor
         # if self.temp_sensor and self.temp_sensor.temperature:
         #     return self.temp_sensor.temperature
+
+        msg = self._ctl._msgs.get("30C9")
+        if msg is not None:
+            self._temperature = {
+                k: v
+                for z in msg.payload
+                for k, v in z.items()
+                if z["zone_idx"] == self.idx
+            }["temperature"]
         return self._temperature
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309 (2349 is a superset of 2309)
+        msg = self._ctl._msgs.get("2309")
+        if msg is not None:
+            self._setpoint = {
+                k: v
+                for z in msg.payload
+                for k, v in z.items()
+                if z["zone_idx"] == self.idx
+            }["setpoint"]
         return self._setpoint
 
     @property

@@ -20,6 +20,7 @@ from serial_asyncio import SerialTransport
 from .command import Command
 from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
+from .discovery import start_tests
 from .logger import (
     set_logging,
     BANDW_SUFFIX,
@@ -147,6 +148,9 @@ class Gateway:
             self.cmd_que.put_nowait(
                 Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], qos=qos)
             )
+
+        if False:  # self.config.get("do_discovery"):
+            start_tests(self.cmd_que)
 
     def __repr__(self) -> str:
         return json.dumps(self.schema)

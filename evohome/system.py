@@ -66,6 +66,9 @@ class System(Controller):
         else:
             super()._update_msg(msg)
 
+        if msg.code in ("000A", "2309", "30C9") and isinstance(msg.payload, list):
+            pass
+
         # if msg.code in ("0005", "000C", "2E04"):
         #     pass
         # elif "zone_idx" in msg.payload:
