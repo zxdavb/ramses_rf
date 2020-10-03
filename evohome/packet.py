@@ -366,12 +366,12 @@ class SerialProtocol(asyncio.Protocol):
                 continue
 
             if self._qos_retrys == 0:
-                print("TIMED OUT - EXPIRED!")
+                # print("TIMED OUT - EXPIRED!")
                 self._qos_lock.acquire()
                 self._qos_rq_hdr = self._qos_rp_hdr = None
                 self._qos_lock.release()
                 break
-            print("TIMED OUT - RETRANSMITTING!")
+            # print("TIMED OUT - RETRANSMITTING!")
 
             await self._write_data(bytearray(f"{self._qos_cmd}\r\n".encode("ascii")))
             self._qos_retrys -= 1

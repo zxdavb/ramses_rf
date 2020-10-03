@@ -293,11 +293,8 @@ class Message:
             else:
                 _LOGGER.error("%s", self, extra=self.__dict__)
 
-        elif True:  # the normal mode logging scheme
-            if "237335" in str(self):
-                _LOGGER.warning("%s", self, extra=self.__dict__)
-            else:
-                _LOGGER.info("%s", self, extra=self.__dict__)
+        elif "13:237335" in str(self):
+            _LOGGER.warning("%s", self, extra=self.__dict__)
 
         else:  # the normal mode logging scheme
             # TODO: parsing is 2x fast without this logging...
