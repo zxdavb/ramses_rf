@@ -293,7 +293,7 @@ class Message:
             else:
                 _LOGGER.error("%s", self, extra=self.__dict__)
 
-        elif "13:237335" in str(self):
+        elif ":237335" in str(self):
             _LOGGER.warning("%s", self, extra=self.__dict__)
 
         else:  # the normal mode logging scheme
