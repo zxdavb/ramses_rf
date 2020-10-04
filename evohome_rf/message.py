@@ -393,7 +393,7 @@ class Message:
 
             if self.payload["device_class"] == ATTR_ZONE_SENSOR:
                 zone = self.src.get_zone(self.payload["zone_idx"])
-                zone.temp_sensor = devices[0]
+                zone._set_sensor(devices[0])
 
             elif self.payload["device_class"] == "zone_actuators":
                 # TODO: is this better, or...
@@ -407,7 +407,7 @@ class Message:
                 self.src.boiler_control = devices[0]
 
             elif self.payload["device_class"] == ATTR_DHW_SENSOR:
-                self.src.get_zone("FA").sensor = devices[0]
+                self.src.get_zone("FA")._set_sensor(devices[0])
 
             elif self.payload["device_class"] == ATTR_DHW_VALVE:
                 self.src.get_zone("FA").hotwater_valve = devices[0]
@@ -468,10 +468,13 @@ class Message:
 
         # try to find the boiler relay, dhw sensor
         for evo in self._gwy.systems:
-            if self.src.controller in [evo.id, None]:  # TODO: check!
+            if self.src.controller == evo.id:  # TODO: check!
                 evo._update_msg(self, prev)  # TODO: WIP
                 if self.src.controller is not None:
                     break
+            if self.src.id == evo.id:  # TODO: check!
+                if self.code in ("10A0", "1260", "1F41"):
+                    evo._dhw._update_msg(self)
 
         # lists only useful to devices (c.f. 000C)
         if isinstance(self.payload, dict) and "zone_idx" in self.payload:

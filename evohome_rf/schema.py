@@ -249,7 +249,7 @@ def load_schema(gwy, schema, **kwargs) -> dict:
 
             dhw_sensor_id = dhw.get(ATTR_DHW_SENSOR)
             if dhw_sensor_id is not None:
-                ctl.dhw.sensor = gwy.get_device(addr(dhw_sensor_id), controller=ctl)
+                ctl.dhw._set_sensor(gwy.get_device(addr(dhw_sensor_id), controller=ctl))
 
             dhw_id = dhw.get(ATTR_DHW_VALVE)
             if dhw_id is not None:
@@ -265,7 +265,7 @@ def load_schema(gwy, schema, **kwargs) -> dict:
 
             sensor_id = attr.get(ATTR_ZONE_SENSOR)
             if sensor_id:
-                zone.temp_sensor = gwy.get_device(addr(sensor_id), controller=ctl)
+                zone._set_sensor(gwy.get_device(addr(sensor_id), controller=ctl))
 
             device_list = attr.get(ATTR_DEVICES)
             if device_list:

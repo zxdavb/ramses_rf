@@ -103,7 +103,7 @@ class System(Controller):
             if zone is None:
                 zone = Zone(self, domain_id)
             if zone_type is not None:
-                zone._set_zone_type(zone_type)
+                zone._set_type(zone_type)
 
         elif domain_id in ("FC", "FF"):
             return
@@ -112,7 +112,7 @@ class System(Controller):
             raise ValueError("Unknown zone_type/domain_id")
 
         if sensor is not None:
-            zone.temp_sensor = sensor  # TODO: check not an address
+            zone._set_sensor(sensor)  # TODO: check not an address
 
         if actuators is not None:
             zone.devices = actuators  # TODO: check not an address
@@ -410,7 +410,7 @@ class EvoSystem(System):
             if sensor is not None:
                 if self.dhw is None:
                     self.get_zone("FA")
-                self.dhw.sensor = sensor
+                self.dhw._set_sensor(sensor)
 
         def find_zone_sensors() -> None:
             """Determine each zone's sensor by matching zone/sensor temperatures.
@@ -439,7 +439,7 @@ class EvoSystem(System):
             if prev_msg is None:
                 return
 
-            if len([z for z in self.zones if z.temp_sensor is None]) == 0:
+            if len([z for z in self.zones if z.sensor is None]) == 0:
                 return  # (currently) no zone without a sensor
 
             # if self._gwy.serial_port:  # only if in monitor mode...
@@ -461,7 +461,7 @@ class EvoSystem(System):
             testable_zones = {
                 z: t
                 for z, t in changed_zones.items()
-                if self.zone_by_idx[z].temp_sensor is None
+                if self.zone_by_idx[z].sensor is None
                 and t not in [v for k, v in changed_zones.items() if k != z] + [None]
             }  # ...with unique (non-null) temps, and no sensor
             _LOGGER.debug(
@@ -507,8 +507,8 @@ class EvoSystem(System):
                     if len(matching_sensors) == 1:
                         _LOGGER.debug("   - matched sensor: %s", matching_sensors[0].id)
                         zone = self.zone_by_idx[zone_idx]
-                        zone.temp_sensor = matching_sensors[0]
-                        zone.temp_sensor.controller = self
+                        zone._set_sensor(matching_sensors[0])
+                        zone.sensor.controller = self
                     elif len(matching_sensors) == 0:
                         _LOGGER.debug("   - no matching sensor (uses CTL?)")
                     else:
@@ -519,13 +519,13 @@ class EvoSystem(System):
             # now see if we can allocate the controller as a sensor...
             if self._zone is not None:
                 return  # the controller has already been allocated
-            if len([z for z in self.zones if z.temp_sensor is None]) != 1:
+            if len([z for z in self.zones if z.sensor is None]) != 1:
                 return  # no single zone without a sensor
 
             testable_zones = {
                 z: t
                 for z, t in changed_zones.items()
-                if self.zone_by_idx[z].temp_sensor is None
+                if self.zone_by_idx[z].sensor is None
             }  # this will be true if ctl is sensor
             if not testable_zones:
                 return  # no testable zones
@@ -552,8 +552,8 @@ class EvoSystem(System):
             if len(matching_sensors) == 0:
                 _LOGGER.debug("   - matched sensor: %s (by exclusion)", self.id)
                 zone = self.zone_by_idx[zone_idx]
-                zone.temp_sensor = self
-                zone.temp_sensor.controller = self
+                zone._set_sensor(self)
+                zone.sensor.controller = self
 
             _LOGGER.debug("System state (finally): %s", self)
 

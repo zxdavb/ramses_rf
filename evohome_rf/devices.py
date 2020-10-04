@@ -3,6 +3,7 @@
 #
 """The evohome-compatible devices."""
 
+from abc import ABCMeta, abstractmethod
 from datetime import datetime as dt, timedelta
 import json
 import logging
@@ -18,6 +19,10 @@ from .const import (
     DEVICE_LOOKUP,
     DEVICE_TABLE,
     DEVICE_TYPES,
+    DISCOVER_SCHEMA,
+    DISCOVER_PARAMS,
+    DISCOVER_STATUS,
+    DISCOVER_ALL,
 )
 from .exceptions import CorruptStateError
 from .logger import dt_now
@@ -303,10 +308,7 @@ class Temperature:  # 30C9
         return {**super().status, "temperature": self.temperature}
 
 
-# ######################################################################################
-
-# 00: used for unknown device types
-class Device(Entity):
+class DeviceBase(Entity, metaclass=ABCMeta):
     """The Device base class."""
 
     def __init__(self, gateway, device_addr, controller=None, domain_id=None) -> None:
@@ -363,9 +365,18 @@ class Device(Entity):
 
         return f"{self.id} ({DEVICE_TYPES.get(self.type)})"
 
-    def _discover(self) -> None:
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         if self._gwy.config["disable_discovery"]:
             return
+
+        if discover_flag & DISCOVER_SCHEMA:
+            pass
+
+        if discover_flag & DISCOVER_PARAMS:
+            pass
+
+        if discover_flag & DISCOVER_STATUS:
+            pass
 
         # if self.id in ("01:145038", "13:035462"):
         # if self.type == "02":
@@ -392,6 +403,35 @@ class Device(Entity):
         #         if code == "0404":
         #             continue
         #         self._command(code, payload="0000" if code != "1F09" else "00")
+
+    @property
+    @abstractmethod
+    def params(self) -> dict:
+        """Return the configuration of the device (e.g. TODO)."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def status(self) -> dict:
+        """Return the current state of the device (e.g. TODO)."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
+        """Return parent zone of the device, if known."""
+        raise NotImplementedError
+
+    # @abstractmethod
+    # def _set_zone(self, zone: Entity) -> None:  # should be: zone: Zone
+    #     """Set the parent zone of the device."""
+
+
+# ######################################################################################
+
+# 00: used for unknown device types
+class Device(DeviceBase):
+    """The Device class."""
 
     def _update_msg(self, msg) -> None:
         super()._update_msg(msg)

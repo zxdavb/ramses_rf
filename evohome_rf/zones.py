@@ -3,12 +3,13 @@
 #
 """The evohome-compatible zones."""
 
+from abc import ABCMeta, abstractmethod
 import asyncio
 import json
 import logging
-from typing import Any, Optional
+from typing import Optional
 
-from .command import Schedule, Priority, RQ_RETRY_LIMIT, RQ_TIMEOUT
+from .command import Schedule
 from .const import (
     ATTR_DEVICES,
     ATTR_DHW_SENSOR,
@@ -23,6 +24,10 @@ from .const import (
     # CODE_000C_DEVICE_TYPE,
     DEVICE_HAS_ZONE_SENSOR,
     DHW_STATE_MAP,
+    DISCOVER_SCHEMA,
+    DISCOVER_PARAMS,
+    DISCOVER_STATUS,
+    DISCOVER_ALL,
     MAX_ZONES,
     ZONE_CLASS_MAP,
     ZONE_TYPE_MAP,
@@ -31,7 +36,7 @@ from .const import (
     ZONE_MODE_MAP,
     __dev_mode__,
 )
-from .devices import Controller, Device, Entity, HeatDemand, _dtm
+from .devices import Device, Entity, HeatDemand, _dtm
 from .exceptions import CorruptStateError
 
 _LOGGER = logging.getLogger(__name__)
@@ -57,8 +62,8 @@ def _temp(value) -> str:
     return f"{int(value*100):04X}"
 
 
-class ZoneBase(Entity):
-    """The Domain/Zone base class."""
+class ZoneBase(Entity, metaclass=ABCMeta):
+    """The Zone/DHW base class."""
 
     def __init__(self, controller, zone_idx) -> None:
         _LOGGER.debug(
@@ -70,6 +75,7 @@ class ZoneBase(Entity):
         self.id = f"{controller.id}_{zone_idx}"
         self.idx = zone_idx
 
+        self._name = None
         self._zone_type = None
 
     def __repr__(self) -> str:
@@ -82,23 +88,85 @@ class ZoneBase(Entity):
 
         return f"{self.id} ({self._zone_type})"
 
+    def _discover(self) -> None:
+        pass
+
     def _command(self, code, **kwargs) -> None:
         kwargs["dest_addr"] = kwargs.get("dest_addr", self._ctl.id)
         kwargs["payload"] = kwargs.get("payload", f"{self.idx}00")
         super()._command(code, **kwargs)
 
-    async def _get_msg(self, code) -> Optional[Any]:  # Optional[Message]:
-        # if possible/allowed, simply get an up-todate packet from the controller
-        if not self._gwy.self.config["disable_sending"]:
-            # self._msgs.pop(code, None)  # this is done in self._command()
-            self._command(code, payload=f"{self.idx}00", priority=Priority.ASAP)
-            for _ in range(RQ_RETRY_LIMIT):  # TODO: check rq_len
-                await asyncio.sleep(RQ_TIMEOUT)
-                if code in self._msgs:
-                    break  # return self._msgs[code]
+    @property
+    @abstractmethod
+    def schema(self) -> dict:
+        """Return the schema of the zone/DHW (e.g. sensor_id, zone_type)."""
+        raise NotImplementedError
 
-        # otherwise, leverage an eavesdropped message, if any
-        return self._msgs.get(code)
+    @property
+    @abstractmethod
+    def params(self) -> dict:
+        """Return the configuration of the zone/DHW (e.g. min_temp, overrun)."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def status(self) -> dict:
+        """Return the current state of the zone/DHW (e.g. setpoint, temperature)."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def sensor(self) -> Device:
+        """Return the temperature sensor of the zone/DHW."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def _set_sensor(self, value: Device) -> None:
+        """Set the temperature sensor for the zone (or for the DHW)."""
+        raise NotImplementedError
+
+    @property
+    def name(self) -> Optional[str]:
+        """Return the name of the zone/DHW."""
+        return self._name
+
+    @property
+    @abstractmethod
+    def mode(self) -> dict:
+        """Return the operating mode of the zone/DHW ({mode, setpoint, until})."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def setpoint(self) -> Optional[float]:
+        """Return the target temperature of the zone/DHW."""
+        raise NotImplementedError
+
+    # @setpoint.setter
+    # @abstractmethod
+    # def setpoint(self, value: float) -> None:  # TODO: also mode, name attrs
+    #     """Set the target temperature of the zone/DHW."""
+    #     raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def temperature(self) -> Optional[float]:
+        """Return the measured temperature of the zone/DHW.
+
+        The controller, not the temperature sensor, is the source of this data.
+        """
+        raise NotImplementedError
+
+    # @property
+    # @abstractmethod
+    # def type(self) -> str:
+    #     """Return the type of the zone/DHW (e.g. electric_zone, stored_dhw)."""
+    #     raise NotImplementedError
+
+    # @abstractmethod
+    # def _set_type(self, value: str) -> None:
+    #     """Set the type of the zone/DHW (e.g. electric_zone, stored_dhw)."""
+    #     raise NotImplementedError
 
 
 class DhwZone(ZoneBase, HeatDemand):
@@ -116,29 +184,36 @@ class DhwZone(ZoneBase, HeatDemand):
         self._dhw_valve = None
         self._htg_valve = None
         self.heating_type = "DHW"
+        self._name = "Stored DHW"
 
-        self._config = {}
+        self._dhw_mode = {}
+        self._dhw_params = {}
         self._temperature = None
         self._relay_demand = None
         self._relay_failsafe = None
-        self._setpoint_status = {}
 
         self._discover()  # should be last thing in __init__()
 
-    def _discover(self) -> None:
+    def _discover(self, discover_flags=DISCOVER_ALL) -> None:
         if self._gwy.config["disable_discovery"]:
             return
 
         # if False and __dev_mode__ and self.idx == "FA":  # dev/test code
         #     self.async_set_override(state="On")
 
-        [  # 000C: find the DHW relay(s), if any
-            self._command("000C", payload=dev_type)
-            for dev_type in ("000E", "010E")  # CODE_000C_DEVICE_TYPE
-        ]
+        if discover_flags & DISCOVER_SCHEMA:
+            [  # 000C: find the DHW relay(s), if any, see: CODE_000C_DEVICE_TYPE
+                self._command("000C", payload=dev_type)
+                for dev_type in ("000E", "010E")  # "000D" for DHW sensor
+            ]
 
-        for code in ("10A0", "1260", "1F41"):
-            self._command(code, payload="00")  # payload="00" or "0000", not "FA"
+        if discover_flags & DISCOVER_PARAMS:
+            for code in ("10A0",):
+                self._command(code, payload="00")  # payload="00" or "0000", not "FA"
+
+        if discover_flags & DISCOVER_STATUS:
+            for code in ("1260", "1F41"):
+                self._command(code, payload="00")  # payload="00" or "0000", not "FA"
 
     def _update_msg(self, msg) -> None:
         super()._update_msg(msg)
@@ -148,17 +223,17 @@ class DhwZone(ZoneBase, HeatDemand):
         elif msg.code == "0009":
             self._relay_failsafe = msg.payload
         elif msg.code == "10A0":
-            self._config = {
-                x: self.msg.payload[x] for x in ("setpoint", "overrun", "differential")
+            self._dhw_params = {
+                x: msg.payload[x] for x in ("setpoint", "overrun", "differential")
             }
         elif msg.code == "1260":
             self._temperature = msg.payload["temperature"]
         elif msg.code == "1F41":
             self._setpoint_status = {
-                x: self.msg.payload[x] for x in ("active", "mode", "until")
+                x: msg.payload[x] for x in ("active", "dhw_mode", "until")
             }
-        # else:
-        #     assert False, "Unknown packet code"
+        else:
+            assert False, "Unknown packet code"
 
     @property
     def schema(self) -> dict:
@@ -175,8 +250,7 @@ class DhwZone(ZoneBase, HeatDemand):
         """Return the stored HW's configuration (excl. schedule)."""
 
         return {
-            "dhw_params": self._ctl._get_msg_value("10A0"),
-            "dhw_mode": self._ctl._get_msg_value("1F41"),
+            "dhw_params": self._dhw_params,
         }
 
     @property  # temp, open_windows
@@ -184,8 +258,8 @@ class DhwZone(ZoneBase, HeatDemand):
         """Return the stored HW's current state."""
 
         return {
-            "temperature": self._ctl._get_msg_value("1260"),
-            "temperature_alt": self._get_msg_value("1260"),
+            "temperature": self._temperature,
+            "dhw_mode": self._dhw_mode,
         }
 
     @property
@@ -209,21 +283,18 @@ class DhwZone(ZoneBase, HeatDemand):
 
         return self._sensor
 
-    @sensor.setter
-    def sensor(self, device: Device) -> None:
-        """Set the sensor for this DHW (07:)."""
+    def _set_sensor(self, device: Device) -> None:
+        """Set the sensor for this DHW (must be: 07:)."""
 
         if not isinstance(device, Device) or device.type != "07":
-            raise TypeError
-
-        if self._sensor is not None and self._sensor != device:
-            raise CorruptStateError("The DHW sensor has changed")
-        # elif device.evo is not None and device.evo != self:
-        #     raise LookupError  #  do this in add_devices
+            raise TypeError(f"Invalid device type for DHW sensor: {device}")
 
         if self._sensor is None:
             self._sensor = device
-            device._set_domain(dhw=self)
+            device._set_domain(dhw=self)  # TODO: check have same controller
+
+        elif self._sensor != device:
+            raise CorruptStateError(f"DHW sensor changed: {self._sensor} to {device}")
 
     @property
     def hotwater_valve(self) -> Device:
@@ -270,16 +341,16 @@ class DhwZone(ZoneBase, HeatDemand):
         return self._relay_failsafe
 
     @property
-    def config(self) -> dict:  # 10A0
-        return self._config
+    def dhw_config(self) -> dict:  # 10A0
+        return self._dhw_params
 
     @property
-    def name(self) -> Optional[str]:  # N/A
-        return "Stored HW"
+    def mode(self) -> dict:  # 1F41
+        return self._dhw_mode
 
     @property
-    def setpoint_status(self) -> dict:  # 1F41
-        return self._setpoint_status
+    def setpoint(self) -> Optional[float]:  # 1F41
+        return self._dhw_mode.get("setpoint")
 
     @property
     def temperature(self) -> Optional[float]:  # 1260
@@ -376,7 +447,6 @@ class Zone(ZoneBase):
 
         # attributes for .params and .status
         self._mode = None
-        self._name = None
         self._setpoint = None
         self._temperature = None
         self._window_open = None
@@ -430,7 +500,7 @@ class Zone(ZoneBase):
             assert self._zone_type in (None, "ELE", "VAL")
 
             if self._zone_type is None:
-                self._set_zone_type("ELE")  # might eventually be: "VAL"
+                self._set_type("ELE")  # might eventually be: "VAL"
 
         elif msg.code == "000A":
             payload = msg.payload if msg.is_array else [msg.payload]
@@ -473,7 +543,7 @@ class Zone(ZoneBase):
 
             if msg.src.type in ("02", "04", "13"):
                 zone_type = ZONE_CLASS_MAP[msg.src.type]
-                self._set_zone_type("VAL" if zone_type == "ELE" else zone_type)
+                self._set_type("VAL" if zone_type == "ELE" else zone_type)
 
         # elif "zone_idx" in msg.payload:
         #     pass
@@ -521,25 +591,22 @@ class Zone(ZoneBase):
         }
 
     @property
-    def temp_sensor(self) -> Device:
+    def sensor(self) -> Device:
         return self._sensor
 
-    @temp_sensor.setter
-    def temp_sensor(self, device: Device):
-        """Set the sensor for this zone (one of 01:, 03:, 04:, 12:, 22:, 34:)."""
+    def _set_sensor(self, device: Device):
+        """Set the sensor for this zone (one of: 01:, 03:, 04:, 12:, 22:, 34:)."""
 
-        if not isinstance(device, Device) or not hasattr(device, "temperature"):
-            if not isinstance(device, Controller):
-                raise TypeError
-
-        if self._sensor is not None and self._sensor is not device:
-            raise CorruptStateError("The zone sensor has changed")
-        # elif device.evo is not None and device.evo != self:
-        #     raise LookupError  # do this in add_devices
+        sensor_types = ("01", "03", "04", "12", "22", "34")
+        if not isinstance(device, Device) or device.type not in sensor_types:
+            raise TypeError(f"Invalid device type for zone sensor: {device}")
 
         if self._sensor is None:
             self._sensor = device  # if TRV, zone type likely (but not req'd) RAD
-            device._set_domain(zone=self)
+            device._set_domain(zone=self)  # TODO: check have same controller
+
+        elif self._sensor is not device:
+            raise CorruptStateError(f"zone sensor changed: {self._sensor} to {device}")
 
     @property
     def heating_type(self) -> Optional[str]:
@@ -571,11 +638,11 @@ class Zone(ZoneBase):
             zone_type = None
 
         if zone_type is not None:
-            self._set_zone_type(zone_type)
+            self._set_type(zone_type)
 
         return ZONE_TYPE_MAP.get(self._zone_type)
 
-    def _set_zone_type(self, zone_type: str):
+    def _set_type(self, zone_type: str):
         """Set the zone's type, after validating it.
 
         There are two possible sources for the type of a zone:
@@ -602,33 +669,18 @@ class Zone(ZoneBase):
         self.__class__ = ZONE_CLASSES[_type]
         _LOGGER.debug("Zone %s: type now set to %s", self.id, self._zone_type)
 
-    def schedule(self, force_update=False) -> Optional[dict]:
-        """Return the schedule if any."""
-        return self._schedule.schedule if self._schedule else None
-
-    @property
-    def name(self) -> Optional[str]:  # 0004
-        return self._name
-
     @property
     def zone_config(self) -> Optional[dict]:  # 000A
         return self._zone_config
 
     @property
-    def temperature(self) -> Optional[float]:  # 30C9
-        # TODO: this wont wokr if the controller is the sensor
-        # if self.temp_sensor and self.temp_sensor.temperature:
-        #     return self.temp_sensor.temperature
+    def mode(self) -> Optional[dict]:  # 2349
+        # result = self._get_msg_value("2349")
+        # self._mode = (
+        #     {k: v for k, v in result.items() if k != "zone_idx"} if result else None
+        # )
 
-        msg = self._ctl._msgs.get("30C9")
-        if msg is not None:
-            self._temperature = {
-                k: v
-                for z in msg.payload
-                for k, v in z.items()
-                if z["zone_idx"] == self.idx
-            }.get("temperature")
-        return self._temperature
+        return self._mode
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309 (2349 is a superset of 2309)
@@ -643,15 +695,24 @@ class Zone(ZoneBase):
         return self._setpoint
 
     @property
-    def mode(self) -> Optional[dict]:  # 2349
-        # await self._get_msg("2349")  # if possible/allowed, get an up-to-date pkt
+    def temperature(self) -> Optional[float]:  # 30C9
+        # TODO: this wont wokr if the controller is the sensor
+        # if self.sensor and self.sensor.temperature:
+        #     return self.sensor.temperature
 
-        # result = self._get_msg_value("2349")
-        # self._mode = (
-        #     {k: v for k, v in result.items() if k != "zone_idx"} if result else None
-        # )
+        msg = self._ctl._msgs.get("30C9")
+        if msg is not None:
+            self._temperature = {
+                k: v
+                for z in msg.payload
+                for k, v in z.items()
+                if z["zone_idx"] == self.idx
+            }.get("temperature")
+        return self._temperature
 
-        return self._mode
+    def schedule(self, force_update=False) -> Optional[dict]:
+        """Return the schedule if any."""
+        return self._schedule.schedule if self._schedule else None
 
     async def cancel_override(self) -> None:  # 2349
         """Revert to following the schedule."""
@@ -735,7 +796,7 @@ class EleZone(Zone):  # Electric zones (do *not* call for heat)
 
         # ZV zones are Elec zones that also call for heat; ? and also 1100/unkown_0 = 00
         if msg.code == "3150":
-            self._set_zone_type("VAL")
+            self._set_type("VAL")
 
         # if msg.code == "FFFF":
         #     pass
