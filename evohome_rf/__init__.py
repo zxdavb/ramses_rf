@@ -144,18 +144,19 @@ class Gateway:
 
         if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
             cmd = self.config["execute_cmd"]
-            qos = {"retry_limit": 9}
             self.cmd_que.put_nowait(
-                Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], qos=qos)
+                Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], retry_limit=9)
             )
 
         if True:  # self.config.get("do_discovery"):
             start_tests(self.cmd_que)
 
     def __repr__(self) -> str:
+        """Return an unambiguous string representation of this object."""
         return json.dumps(self.schema)
 
     def __str__(self) -> str:
+        """Return a brief readable string representation of this object."""
         return json.dumps(self.schema, indent=2)
 
     def _setup_signal_handler(self):

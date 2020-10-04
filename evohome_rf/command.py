@@ -81,32 +81,15 @@ class Command:
         self.code = code
         self.payload = payload
 
-        # self.pause = None
-        self.qos = kwargs.get("qos", {})
+        self.qos = kwargs
 
         priority = Priority.HIGH if verb in ("0016", "1FC9") else Priority.DEFAULT
         self._priority = kwargs.get("priority", priority)
         self._priority_dtm = dt_now()  # used for __lt__, etc.
 
-        # qos = Qos.AT_LEAST_ONCE if self.verb in ("RQ", " W") else Qos.AT_MOST_ONCE
-        # self.qos = kwargs.get("qos", qos)
-
-        # self.dtm_expires = None  # TODO: these 3 shouldn't be instance attributes?
-        # self.dtm_timeout = None
-        # self.transmit_count = 0
-
-    def __OUT_repr__(self) -> str:
-        result = {"packet": str(self)}
-        result.update(
-            {
-                k: v
-                for k, v in self.__dict__.items()
-                if k not in ("verb", "from_addr", "dest_addr", "code", "payload")
-            }
-        )
-        return json.dumps(result)
-
     def __str__(self) -> str:
+        """Return a brief readable string representation of this object."""
+
         return COMMAND_FORMAT.format(
             self.verb,
             self.from_addr,
@@ -119,13 +102,11 @@ class Command:
     @property
     def _rq_header(self) -> Optional[str]:
         """Return the QoS header of this (request) packet."""
-
         return _pkt_header(f"... {self}")
 
     @property
     def _rp_header(self) -> Optional[str]:
         """Return the QoS header of a response packet (if any)."""
-
         if self._rq_header:  # will be None if RQ header is None
             return _pkt_header(f"... {self}", response_header=True)
 

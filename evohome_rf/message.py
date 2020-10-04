@@ -89,10 +89,11 @@ class Message:
         self._is_valid = self.is_valid
 
     def __repr__(self) -> str:
+        """Return an unambiguous string representation of this object."""
         return self._pkt
 
     def __str__(self) -> str:
-        """Represent the entity as a string."""
+        """Return a brief readable string representation of this object."""
 
         def display_name(dev: Union[Address, Device]) -> str:
             """Return a formatted device name, uses a friendly name if there is one."""
@@ -449,7 +450,7 @@ class Message:
             return
 
         # HACK: merge 000A fragments
-        # TODO: do here, or in ctl._update_msg() and/or system._update_msg()
+        # TODO: do here, or in ctl._proc_msg() and/or system._proc_msg()
         if re.search("I.* 01.* 000A ", self._pkt):  # HACK: and dtm < 3 secs
             # TODO: an edge case here: >2 000A packets in a row
             if prev is not None and re.search("I.* 01.* 000A ", prev._pkt):
@@ -460,7 +461,7 @@ class Message:
             return
 
         # some empty payloads may still be useful (e.g. RQ/3EF1/{})
-        self._gwy.device_by_id[self.src.id]._update_msg(self)
+        self._gwy.device_by_id[self.src.id]._proc_msg(self)
 
         # if payload is {} (empty dict; lists shouldn't ever be empty)
         if not self.payload:
@@ -469,12 +470,12 @@ class Message:
         # try to find the boiler relay, dhw sensor
         for evo in self._gwy.systems:
             if self.src.controller == evo.id:  # TODO: check!
-                evo._update_msg(self, prev)  # TODO: WIP
+                evo._proc_msg(self, prev)  # TODO: WIP
                 if self.src.controller is not None:
                     break
             if self.src.id == evo.id:  # TODO: check!
                 if self.code in ("10A0", "1260", "1F41"):
-                    evo._dhw._update_msg(self)
+                    evo._dhw._proc_msg(self)
 
         # lists only useful to devices (c.f. 000C)
         if isinstance(self.payload, dict) and "zone_idx" in self.payload:
@@ -483,7 +484,7 @@ class Message:
             #     evo = self.dst._evo
 
             if evo is not None and self.payload["zone_idx"] in evo.zone_by_idx:
-                evo.zone_by_idx[self.payload["zone_idx"]]._update_msg(self)
+                evo.zone_by_idx[self.payload["zone_idx"]]._proc_msg(self)
 
             # elif self.payload.get("ufh_idx") in ...:  # TODO: is this needed?
             #     pass

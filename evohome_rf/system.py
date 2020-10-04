@@ -18,6 +18,10 @@ from .const import (
     # CODE_000C_DEVICE_TYPE,
     DEVICE_HAS_ZONE_SENSOR,
     DEVICE_TYPES,
+    DISCOVER_SCHEMA,
+    DISCOVER_PARAMS,
+    DISCOVER_STATUS,
+    DISCOVER_ALL,
     MAX_ZONES,
     SYSTEM_MODE_LOOKUP,
     SYSTEM_MODE_MAP,
@@ -60,11 +64,11 @@ class System(Controller):
         self.zone_by_idx = {}
         # self.zone_by_name = {}
 
-    def _update_msg(self, msg) -> None:
+    def _proc_msg(self, msg) -> None:
         if msg.code in ("000A", "2309", "30C9") and not isinstance(msg.payload, list):
             pass
         else:
-            super()._update_msg(msg)
+            super()._proc_msg(msg)
 
         if msg.code in ("000A", "2309", "30C9") and isinstance(msg.payload, list):
             pass
@@ -77,14 +81,11 @@ class System(Controller):
         #     assert False, "Unknown packet code"
 
     def __repr__(self) -> str:
-        """Return a complete representation of the system as a dict."""
-
+        """Return an unambiguous string representation of this object."""
         return f"{self.id} ({DEVICE_TYPES.get(self.type)})"
-        return json.dumps({self.id: self.schema}, indent=2)
 
     def __str__(self) -> str:  # TODO: WIP
-        """Return a brief representation of the system as a string."""
-
+        """Return a brief readable string representation of this object."""
         return json.dumps({self.id: self.schema})
 
     def get_zone(
@@ -283,11 +284,34 @@ class EvoSystem(System):
 
         # self._discover()
 
-    def _discover(self) -> None:
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         if self._gwy.config["disable_discovery"]:
             return
-
         super()._discover()
+
+        if discover_flag & DISCOVER_SCHEMA:
+            [  # 000C: find the HTG relay and DHW sensor, if any (DHW relays in DHW)
+                self._send_cmd("000C", payload=dev_type)
+                for dev_type in ("000F", "000D")  # CODE_000C_DEVICE_TYPE
+                # for dev_type, description in CODE_000C_DEVICE_TYPE.items() fix payload
+                # if description is not None
+            ]
+
+            [  # 0005: find any configured zones, + their type (RAD, UFH, VAL, MIX, ELE)
+                self._send_cmd("0005", payload=f"00{zone_type}")
+                for zone_type in ("08", "09", "0A", "0B", "11")  # CODE_0005_ZONE_TYPE
+                # for zone_type, description in CODE_0005_ZONE_TYPE.items()
+                # if description is not None
+            ]
+
+        if discover_flag & DISCOVER_PARAMS:
+            self._send_cmd("1100", payload="FC")  # TPI params
+            self._send_cmd("0100")  # language
+
+        if discover_flag & DISCOVER_STATUS:
+            self._send_cmd("2E04", payload="FF")  # system mode
+            for code in ("1F09", "313F"):  # system_sync, datetime
+                self._send_cmd(code)
 
         # TODO: test only
         # asyncio.create_task(
@@ -296,40 +320,18 @@ class EvoSystem(System):
         #     # self.async_reset_mode()
         # )
 
-        [  # 000C: find the HTG relay and DHW sensor, if any (DHW relays in DHW zone)
-            self._command("000C", payload=dev_type)
-            for dev_type in ("000F", "000D")  # CODE_000C_DEVICE_TYPE
-            # for dev_type, description in CODE_000C_DEVICE_TYPE.items() - fix payload
-            # if description is not None
-        ]
-
-        [  # 0005: find any configured zones, and their type (RAD, UFH, VAL, MIX, ELE)
-            self._command("0005", payload=f"00{zone_type}")
-            for zone_type in ("08", "09", "0A", "0B", "11")  # CODE_0005_ZONE_TYPE
-            # for zone_type, description in CODE_0005_ZONE_TYPE.items()
-            # if description is not None
-        ]
-
-        # # system-related: system_sync, datetime, language
-        for code in ("1F09", "313F", "0100"):
-            self._command(code)  # payload="00"
-
-        self._command("2E04", payload="FF")  # system mode
-
-        self._command("1100", payload="FC")  # TPI params
-
         # # for code in ("3B00"):  # 3EF0, 3EF1
         # #     for payload in ("0000", "00", "F8", "F9", "FA", "FB", "FC", "FF"):
-        # #         self._command(code, payload=payload)
+        # #         self._send_cmd(code, payload=payload)
 
         # # TODO: opentherm: 1FD4, 22D9, 3220
 
         # TODO: Get the fault log entries
         # self._fault_log.req_log(log_idx=0)
         # # for log_idx in range(0, 0x6):  # max is 0x3C?, 0x3F (highest log is 0x3E?)
-        # #     self._command("0418", payload=f"{log_idx:06X}", priority=Priority.LOW)
+        # #     self._send_cmd("0418", payload=f"{log_idx:06X}", priority=Priority.LOW)
 
-    def _update_msg(self, msg, prev_msg=None):
+    def _proc_msg(self, msg, prev_msg=None):
         """Eavesdrop packets, or pairs of packets, to maintain the system state."""
 
         def is_exchange(this, prev):  # TODO:use is?
@@ -557,7 +559,7 @@ class EvoSystem(System):
 
             _LOGGER.debug("System state (finally): %s", self)
 
-        super()._update_msg(msg)
+        super()._proc_msg(msg)
 
         # if msg.code == "0005" and prev_msg is not None:
         #     zone_added = bool(prev_msg.code == "0004")  # else zone_deleted
@@ -598,7 +600,7 @@ class EvoSystem(System):
     # def fault_log(self, force_update=False) -> Optional[list]:  # 0418
     #     # TODO: try to discover fault codes
     #     for log_idx in range(0x00, 0x3C):  # 10 pages of 6
-    #         self._command("0418", payload=f"{log_idx:06X}")
+    #         self._send_cmd("0418", payload=f"{log_idx:06X}")
 
     #     return [f.payload for f in self._fault_log.values()]
 
@@ -626,8 +628,8 @@ class EvoSystem(System):
 
         until = _dtm(until) + "00" if until is None else "01"
 
-        self._command("2E04", verb=" W", payload=f"{mode}{until}")
+        self._send_cmd("2E04", verb=" W", payload=f"{mode}{until}")
 
     async def reset_mode(self) -> None:  # 2E04
         """Revert the system mode to Auto."""  # TODO: is it AutoWithReset?
-        self._command("2E04", verb=" W", payload="00FFFFFFFFFFFF00")
+        self._send_cmd("2E04", verb=" W", payload="00FFFFFFFFFFFF00")

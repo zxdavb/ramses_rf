@@ -106,11 +106,13 @@ class Packet:
         self._is_valid = None
         self._is_valid = self.is_valid
 
-    def __str__(self) -> str:
-        return self.packet if self.packet else ""
-
-    def __repr__(self):
+    def __repr__(self) -> str:
+        """Return an unambiguous string representation of this object."""
         return str(self._raw_pkt_line if self._raw_pkt_line else self._pkt_line)
+
+    def __str__(self) -> str:
+        """Return a brief readable string representation of this object."""
+        return self.packet if self.packet else ""
 
     def __eq__(self, other) -> bool:
         if not hasattr(other, "packet"):
@@ -337,12 +339,8 @@ class SerialProtocol(asyncio.Protocol):
         self._transport.write(data)
         # await asyncio.sleep(0.3)  # HACK: until all the other stuff is working
 
-    async def send_data(self, cmd: Command, qos: dict = None) -> None:
+    async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callaback)."""
-
-        # self._qos_lock.acquire()
-        # self._qos_rq_hdr = self._qos_rp_hdr = None
-        # self._qos_lock.release()
 
         while self._qos_rq_hdr or self._qos_rp_hdr:
             await asyncio.sleep(0.005)

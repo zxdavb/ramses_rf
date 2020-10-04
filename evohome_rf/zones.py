@@ -79,22 +79,21 @@ class ZoneBase(Entity, metaclass=ABCMeta):
         self._zone_type = None
 
     def __repr__(self) -> str:
-        """Return a complete representation of the zone as a dict."""
-
+        """Return an unambiguous string representation of this object."""
         return json.dumps(self.schema, indent=2)
 
     def __str__(self) -> str:
-        """Return a brief representation of the zone as a string."""
-
+        """Return a brief readable string representation of this object."""
         return f"{self.id} ({self._zone_type})"
 
-    def _discover(self) -> None:
-        pass
+    @abstractmethod
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        raise NotImplementedError
 
-    def _command(self, code, **kwargs) -> None:
-        kwargs["dest_addr"] = kwargs.get("dest_addr", self._ctl.id)
-        kwargs["payload"] = kwargs.get("payload", f"{self.idx}00")
-        super()._command(code, **kwargs)
+    def _send_cmd(self, code, **kwargs) -> None:
+        dest = kwargs.pop("dest_addr", self._ctl.id)
+        payload = kwargs.pop("payload", f"{self.idx}00")
+        super()._send_cmd(code, dest, payload, **kwargs)
 
     @property
     @abstractmethod
@@ -197,26 +196,27 @@ class DhwZone(ZoneBase, HeatDemand):
     def _discover(self, discover_flags=DISCOVER_ALL) -> None:
         if self._gwy.config["disable_discovery"]:
             return
+        # super()._discover()
 
         # if False and __dev_mode__ and self.idx == "FA":  # dev/test code
         #     self.async_set_override(state="On")
 
         if discover_flags & DISCOVER_SCHEMA:
             [  # 000C: find the DHW relay(s), if any, see: CODE_000C_DEVICE_TYPE
-                self._command("000C", payload=dev_type)
-                for dev_type in ("000E", "010E")  # "000D" for DHW sensor
+                self._send_cmd("000C", payload=dev_type)
+                for dev_type in ("000D", "000E", "010E")  # for DHW sensor, relay(s)
             ]
 
         if discover_flags & DISCOVER_PARAMS:
             for code in ("10A0",):
-                self._command(code, payload="00")  # payload="00" or "0000", not "FA"
+                self._send_cmd(code, payload="00")  # payload="00" or "0000", not "FA"
 
         if discover_flags & DISCOVER_STATUS:
             for code in ("1260", "1F41"):
-                self._command(code, payload="00")  # payload="00" or "0000", not "FA"
+                self._send_cmd(code, payload="00")  # payload="00" or "0000", not "FA"
 
-    def _update_msg(self, msg) -> None:
-        super()._update_msg(msg)
+    def _proc_msg(self, msg) -> None:
+        super()._proc_msg(msg)
 
         if msg.code == "0008":
             self._relay_demand = msg.payload["relay_demand"]
@@ -405,7 +405,7 @@ class DhwZone(ZoneBase, HeatDemand):
         else:  # required only by: 04, Temporary, ignored by others
             payload = f"00{state}{mode}FFFFFF{_dtm(until)}"
 
-        self._command("1F41", verb=" W", payload=payload)
+        self._send_cmd("1F41", verb=" W", payload=payload)
         return False
 
     async def reset_config(self) -> bool:  # 10A0
@@ -456,9 +456,10 @@ class Zone(ZoneBase):
 
         self._discover()
 
-    def _discover(self) -> None:
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         if self._gwy.config["disable_discovery"]:
             return
+        # super()._discover()
 
         if __dev_mode__ and self.idx == "99":  # dev/test code
             asyncio.create_task(  # TODO: test/dev only
@@ -473,7 +474,7 @@ class Zone(ZoneBase):
         # TODO: add code to determine zone type if it doesn't have one, using 0005s
 
         [  # 000C: find the sensor and the actuators, if any
-            self._command("000C", payload=f"{self.idx}{dev_type}")
+            self._send_cmd("000C", payload=f"{self.idx}{dev_type}")
             for dev_type in ("00", "04")  # CODE_0005_ZONE_TYPE
             # for dev_type, description in CODE_000C_DEVICE_TYPE.items()
             # if description is not None
@@ -483,13 +484,13 @@ class Zone(ZoneBase):
         # self._schedule.req_schedule()  # , restart=True) start collecting schedule
 
         for code in ("0004",):
-            self._command(code, payload=f"{self.idx}00")
+            self._send_cmd(code, payload=f"{self.idx}00")
 
         for code in ("000A", "2349", "30C9"):  # sadly, no 3150
-            self._command(code, payload=self.idx)
+            self._send_cmd(code, payload=self.idx)
 
-    def _update_msg(self, msg) -> None:
-        super()._update_msg(msg)
+    def _proc_msg(self, msg) -> None:
+        super()._proc_msg(msg)
 
         if msg.code == "0004":
             self._name = msg.payload.get("name")
@@ -550,12 +551,6 @@ class Zone(ZoneBase):
 
         # elif msg.code not in ("FFFF"):
         #     assert False, "Unknown packet code"
-
-    def update(self, force_refresh=False) -> None:
-        pass
-
-    def async_update(self, force_refresh=False) -> None:
-        pass
 
     @property  # id, type
     def schema(self) -> dict:
@@ -757,19 +752,19 @@ class Zone(ZoneBase):
         else:  # required only by: 04, Temporary, ignored by others
             payload = f"{self.idx}{setpoint}{mode}FFFFFF{_dtm(until)}"
 
-        self._command("2349", verb=" W", payload=payload)
+        self._send_cmd("2349", verb=" W", payload=payload)
 
 
 class ZoneHeatDemand:  # not all zone types call for heat
     """Not all zones call for heat."""
 
-    def _discover(self) -> None:
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         if self._gwy.config["disable_discovery"]:
             return
-
         super()._discover()
 
-        self._command("12B0", payload=self.idx)
+        if discover_flag & DISCOVER_STATUS:
+            self._send_cmd("12B0")  # , payload=self.idx
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
@@ -791,8 +786,8 @@ class EleZone(Zone):  # Electric zones (do *not* call for heat)
     For a small (5A) electric load controlled by a BDR91 (never calls for heat).
     """
 
-    def _update_msg(self, msg) -> None:
-        super()._update_msg(msg)
+    def _proc_msg(self, msg) -> None:
+        super()._proc_msg(msg)
 
         # ZV zones are Elec zones that also call for heat; ? and also 1100/unkown_0 = 00
         if msg.code == "3150":
@@ -833,8 +828,8 @@ class RadZone(ZoneHeatDemand, Zone):  # Radiator zones
     For radiators controlled by HR92s or HR80s (will also call for heat).
     """
 
-    def _update_msg(self, msg) -> None:
-        super()._update_msg(msg)
+    def _proc_msg(self, msg) -> None:
+        super()._proc_msg(msg)
 
         if msg.code == "12B0":
             self._window_open = msg.payload["window_open"]
