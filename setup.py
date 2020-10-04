@@ -1,6 +1,6 @@
 import setuptools
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 
 with open("README.md", "r") as fh:
     LONG_DESCRIPTION = fh.read()
@@ -16,7 +16,10 @@ setuptools.setup(
     url="https://github.com/zxdavb/evohome_rf",
     download_url="https://github.com/zxdavb/evohome_rf/archive/VERSION.tar.gz",
     packages=["evohome_rf"],
+    # packages=setuptools.find_packages(exclude=['test']),
     keywords=["evohome", "ramses"],
+    install_requires=list(val.strip() for val in open("requirements.txt")),
+    python_requires=">=3.7",
     classifiers=[
         "Programming Language :: Python :: 3.7",
         "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
