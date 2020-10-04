@@ -24,12 +24,10 @@ async def periodic(cmd_que, cmd, interval=60, count=1440):
 
 
 def start_tests(cmd_que):
-    qos = {"retry_limit": 0}
-
-    cmd = Command("RQ", "13:237335", "0008", "00", qos=qos)
+    cmd = Command("RQ", "13:237335", "0008", "00", retry_limit=0)
     _ = asyncio.create_task(periodic(cmd_que, cmd, interval=30))
 
-    cmd = Command("RQ", "13:237335", "3EF1", "00", qos=qos)
+    cmd = Command("RQ", "13:237335", "3EF1", "00", retry_limit=0)
     _ = asyncio.create_task(periodic(cmd_que, cmd, interval=30))
 
 

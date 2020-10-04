@@ -49,6 +49,7 @@ def parse(obj, **kwargs):
 
 @click.command()
 @click.argument("serial-port")
+@click.option("-d", "--do-discovery", is_flag=True)
 @click.option("-p", "--enforce-probing", help="TBD", is_flag=True)
 @click.option("-T", "--evofw-flag", help="TBD")
 @click.option("-x", "--execute-cmd", help="e.g.: RQ 01:123456 1F09 00")

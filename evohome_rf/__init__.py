@@ -148,7 +148,7 @@ class Gateway:
                 Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], retry_limit=9)
             )
 
-        if True:  # self.config.get("do_discovery"):
+        if self.config.get("do_discovery"):
             start_tests(self.cmd_que)
 
     def __repr__(self) -> str:
