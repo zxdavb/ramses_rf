@@ -294,8 +294,12 @@ class Message:
             else:
                 _LOGGER.error("%s", self, extra=self.__dict__)
 
-        elif ":237335" in str(self):
+        # elif self.src.id == "13:237335":
+        elif self.verb == "RP" and self.src.type == "13":
             _LOGGER.warning("%s", self, extra=self.__dict__)
+
+        elif self.code == "3B00":
+            _LOGGER.info("%s", self, extra=self.__dict__)
 
         else:  # the normal mode logging scheme
             # TODO: parsing is 2x fast without this logging...
@@ -474,7 +478,7 @@ class Message:
                 if self.src.controller is not None:
                     break
             if self.src.id == evo.id:  # TODO: check!
-                if self.code in ("10A0", "1260", "1F41"):
+                if self.code in ("10A0", "1260", "1F41") and evo._dhw is not None:
                     evo._dhw._proc_msg(self)
 
         # lists only useful to devices (c.f. 000C)

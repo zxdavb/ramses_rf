@@ -748,6 +748,10 @@ class OtbGateway(Actuator, HeatDemand, Device):
 
         if self._known_msg:
             pass
+        elif msg.verb == "RP" and msg.code in ("22D9", "3220", "3EF0"):
+            pass
+        elif msg.code in ("1FD4"):  # and msg.verb == " I":
+            pass
         else:
             assert False, f"Unknown packet code for {self.id}"
 
@@ -797,7 +801,7 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):
                 assert False, f"Unknown packet code for {self.id}"
 
         elif self.type == "34":
-            if msg.verb == " I" and msg.code in ("042F", "10E0", "3120"):
+            if msg.verb == " I" and msg.code in ("0008", "042F", "10E0", "3120"):
                 pass
             elif msg.verb == "RQ" and msg.code in ("000A",):
                 pass
@@ -860,7 +864,8 @@ class BdrSwitch(Actuator, Device):
         elif msg.code == "1100":
             pass
         elif msg.code in "3B00":
-            pass
+            for code in ("0008", "3EF1"):
+                self._send_cmd(code, retry_limit=5)
         else:
             assert False, f"Unknown packet verb/code for {self.id}"
 
@@ -903,7 +908,9 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature, Device):
 
         if self._known_msg:
             pass
-        elif msg.verb == "RQ" and msg.code in ("0100", "1F09", "313F"):
+        elif msg.verb == "RQ" and msg.code in ("0004", "0100", "1F09", "313F"):
+            pass
+        elif msg.verb == " W" and msg.code in ("01D0", "01E9"):
             pass
         elif msg.code == "12B0":  # and msg.verb == " I":
             self._window_state = msg.payload["window_open"]

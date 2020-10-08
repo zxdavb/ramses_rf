@@ -20,7 +20,6 @@ from .const import (
     DOMAIN_TYPE_MAP,
     MAY_USE_DOMAIN_ID,
     MAY_USE_ZONE_IDX,
-    MAX_ZONES,
     SYSTEM_MODE_MAP,
     ZONE_MODE_MAP,
     __dev_mode__,
@@ -63,7 +62,7 @@ def _idx(seqx, msg) -> dict:
         if msg.code not in ("1030", "2309"):
             assert seqx == "00"
             return {}
-        assert int(seqx, 16) < MAX_ZONES
+        assert int(seqx, 16) < msg._gwy.config["max_zones"]
         return {"other_idx": seqx}  # TODO: Should be parent_idx, but still a WIP
 
     elif msg.code in ("0002", "2D49"):  # non-evohome: hometronics
@@ -81,18 +80,18 @@ def _idx(seqx, msg) -> dict:
             assert int(seqx, 16) < 8
             if msg.raw_payload[4:6] == "7F":
                 return {"Ufh_idx": seqx, "zone_id": None}
-            assert int(msg.raw_payload[4:6], 16) < MAX_ZONES
+            assert int(msg.raw_payload[4:6], 16) < msg._gwy.config["max_zones"]
             return {"uFh_idx": seqx, "zone_id": msg.raw_payload[4:6]}
         if msg.dst.type == "02":
             assert int(seqx, 16) < 8
             return {"ufH_idx": seqx}
 
-        assert int(seqx, 16) < MAX_ZONES
+        assert int(seqx, 16) < msg._gwy.config["max_zones"]
         return {"zone_idx": seqx}
 
     elif msg.code == "0016":  # WIP, not normally {"uses_zone_idx": True}
         if {"12", "22"} & {msg.src.type, msg.dst.type}:
-            assert int(seqx, 16) < MAX_ZONES
+            assert int(seqx, 16) < msg._gwy.config["max_zones"]
             idx_name = (
                 "zone_idx" if msg.src.type in ("01", "02", "18") else "parent_idx"
             )
@@ -115,7 +114,7 @@ def _idx(seqx, msg) -> dict:
         return {"domain_id": seqx}
 
     elif msg.code in MAY_USE_ZONE_IDX:
-        assert int(seqx, 16) < MAX_ZONES
+        assert int(seqx, 16) < msg._gwy.config["max_zones"]
         if {"01", "02", "23"} & {msg.src.type, msg.dst.type}:  # to/from a controller
             # if msg.src.type in ("01", "02", "23", "18"):  # This is the old way...
             #     idx_name = "zone_idx"
@@ -161,7 +160,7 @@ def parser_decorator(func):
                 return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
             # 045  W --- 12:010740 01:145038 --:------ 2309 003 0401F4
             if msg.code in ("2309", "2349") and msg.src.type in ("12", "22", "34"):
-                assert int(payload[:2], 16) < MAX_ZONES
+                assert int(payload[:2], 16) < msg._gwy.config["max_zones"]
                 return func(*args, **kwargs)
             # TODO: these are WIP
             if msg.code == "1F09":
@@ -378,7 +377,9 @@ def parser_0001(payload, msg) -> Optional[dict]:
 
     assert msg.verb in (" I", " W")
     assert msg.len == 5
-    assert payload[:2] in ("FC", "FF") or (int(payload[:2], 16) < MAX_ZONES)
+    assert payload[:2] in ("FC", "FF") or (
+        int(payload[:2], 16) < msg._gwy.config["max_zones"]
+    )
     assert payload[2:6] in ("0000", "FFFF")
     assert payload[6:8] in ("02", "05")
     return {
@@ -434,8 +435,9 @@ def parser_0005(payload, msg) -> Optional[dict]:
         assert len(seqx) == 8
         assert payload[2:4] in CODE_0005_ZONE_TYPE
 
+        max_zones = msg._gwy.config["max_zones"]
         return {
-            "zone_mask": (_get_flag8(seqx[4:6]) + _get_flag8(seqx[6:8]))[:MAX_ZONES],
+            "zone_mask": (_get_flag8(seqx[4:6]) + _get_flag8(seqx[6:8]))[:max_zones],
             "zone_type": CODE_0005_ZONE_TYPE.get(seqx[2:4], seqx[2:4]),
         }
 
@@ -483,7 +485,9 @@ def parser_0008(payload, msg) -> Optional[dict]:
     assert msg.len == 2
 
     if payload[:2] not in ("F9", "FA", "FC"):
-        assert int(payload[:2], 16) < MAX_ZONES  # TODO: when 0, when FC, when zone
+        assert (
+            int(payload[:2], 16) < msg._gwy.config["max_zones"]
+        )  # TODO: when 0, when FC, when zone
 
     return {**_idx(payload[:2], msg), "relay_demand": _percent(payload[2:])}
 
@@ -495,7 +499,9 @@ def parser_0009(payload, msg) -> Union[dict, list]:
     # 095  I --- 23:100224 --:------ 23:100224 0009 003 0100FF  # 2-zone ST9520C
 
     def _parser(seqx) -> dict:
-        assert seqx[:2] in ("F9", "FC") or int(seqx[:2], 16) < MAX_ZONES
+        assert (
+            seqx[:2] in ("F9", "FC") or int(seqx[:2], 16) < msg._gwy.config["max_zones"]
+        )
         assert seqx[2:4] in ("00", "01")
         assert seqx[4:] in ("00", "FF")
 
@@ -552,7 +558,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
     def _parser(seqx) -> dict:
         assert seqx[:2] == payload[:2]
         assert seqx[2:4] in CODE_000C_DEVICE_TYPE
-        assert seqx[4:6] == "7F" or int(seqx[4:6], 16) < MAX_ZONES
+        assert seqx[4:6] == "7F" or int(seqx[4:6], 16) < msg._gwy.config["max_zones"]
 
         # print({dev_hex_to_id(seqx[6:12]): seqx[4:6]})
         return {dev_hex_to_id(seqx[6:12]): seqx[4:6]}
@@ -706,7 +712,7 @@ def parser_0418(payload, msg=None) -> Optional[dict]:
     #   'domain_id':    '1C',         # should be FC?
     #   'device_id':    '13:163733'   # acting as boiler-relay
     # }
-    assert int(payload[10:12], 16) < MAX_ZONES or (
+    assert int(payload[10:12], 16) < msg._gwy.config["max_zones"] or (
         payload[10:12] in ("F9", "FA", "FC", "1C")
     )
     assert payload[12:14] in list(CODE_0418_DEVICE_CLASS)
@@ -723,7 +729,11 @@ def parser_0418(payload, msg=None) -> Optional[dict]:
     }  # TODO: stop using __idx()?
 
     if payload[12:14] != "00":  # Controller
-        key_name = "zone_id" if int(payload[10:12], 16) < MAX_ZONES else "domain_id"
+        key_name = (
+            "zone_id"
+            if int(payload[10:12], 16) < msg._gwy.config["max_zones"]
+            else "domain_id"
+        )
         result.update({key_name: payload[10:12]})  # TODO: don't use zone_idx (for now)
 
     if payload[38:] == "000002":  # "00:000002 for Unknown?
@@ -920,6 +930,11 @@ def parser_12b0(payload, msg) -> Optional[dict]:
     return {**_idx(payload[:2], msg), "window_open": _bool(payload[2:4])}
 
 
+# 2020-09-20T14:24:32.072645 085  I --- 34:225071 --:------ 34:225071 12C0 003 002D01
+# 2020-09-20T14:24:32.136582 091  I --- 34:225071 --:------ 34:225071 12C0 003 002D01
+# 2020-09-20T14:24:32.216496 093  I --- 34:225071 --:------ 34:225071 12C0 003 002D01
+
+
 @parser_decorator  # system_sync
 def parser_1f09(payload, msg) -> Optional[dict]:
     # TODO: Try RQ/1F09/"F8-FF" (CTL will RP to a RQ/00)
@@ -979,7 +994,7 @@ def parser_1fc9(payload, msg) -> Optional[dict]:
         # print(dev_hex_to_id(seqx[6:]))
         assert seqx[6:] == payload[6:12]  # all with same controller
         if seqx[:2] not in ("F9", "FA", "FB", "FC"):  # or: not in DOMAIN_TYPE_MAP: ??
-            assert int(seqx[:2], 16) < MAX_ZONES
+            assert int(seqx[:2], 16) < msg._gwy.config["max_zones"]
         return {seqx[:2]: seqx[2:6]}  # NOTE: codes is many:many (domain:code)
 
     assert msg.len >= 6 and msg.len % 6 == 0  # assuming not RQ
@@ -1109,6 +1124,9 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:
 
 @parser_decorator  # zone_mode
 def parser_2349(payload, msg) -> Optional[dict]:
+    # RQ --- 34:225071 30:258557 --:------ 2349 001 00
+    # RP --- 30:258557 34:225071 --:------ 2349 013 007FFF00FFFFFFFFFFFFFFFFFF < Coding error  # noqa
+
     assert msg.verb in (" I", "RP", " W")
     assert msg.len in (7, 13)  # has a dtm if mode == "04"
     assert payload[6:8] in list(ZONE_MODE_MAP)
@@ -1123,7 +1141,10 @@ def parser_2349(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # hometronics _state (of unknwon)
 def parser_2d49(payload, msg) -> dict:
-    assert payload[:2] in ("88", "FD") or int(payload[:2], 16) < MAX_ZONES
+    assert (
+        payload[:2] in ("88", "FD")
+        or int(payload[:2], 16) < msg._gwy.config["max_zones"]
+    )
     assert payload[2:] in ("0000", "C800")  # would "FFFF" mean N/A?
     # assert msg.len == 3  # implied
 
@@ -1327,7 +1348,7 @@ def parser_3220(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # sync_tpi (TPI cycle HB/sync)
+@parser_decorator  # actuator_sync (aka sync_tpi: TPI cycle heartbeat/sync)
 def parser_3b00(payload, msg) -> Optional[dict]:
     # https://www.domoticaforum.eu/viewtopic.php?f=7&t=5806&start=105#p73681
     # TODO: alter #cycles/hour & check interval between 3B00/3EF0 changes

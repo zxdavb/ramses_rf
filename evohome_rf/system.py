@@ -22,7 +22,6 @@ from .const import (
     DISCOVER_PARAMS,
     DISCOVER_STATUS,
     DISCOVER_ALL,
-    MAX_ZONES,
     SYSTEM_MODE_LOOKUP,
     SYSTEM_MODE_MAP,
     __dev_mode__,
@@ -99,7 +98,7 @@ class System(Controller):
         if domain_id == "FA":
             zone = self.dhw if self.dhw is not None else DhwZone(self)
 
-        elif int(domain_id, 16) < MAX_ZONES:
+        elif int(domain_id, 16) < self._gwy.config["max_zones"]:
             zone = self.zone_by_idx.get(domain_id)
             if zone is None:
                 zone = Zone(self, domain_id)

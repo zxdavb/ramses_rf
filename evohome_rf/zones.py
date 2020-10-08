@@ -28,7 +28,6 @@ from .const import (
     DISCOVER_PARAMS,
     DISCOVER_STATUS,
     DISCOVER_ALL,
-    MAX_ZONES,
     ZONE_CLASS_MAP,
     ZONE_TYPE_MAP,
     ZONE_TYPE_SLUGS,
@@ -434,7 +433,7 @@ class Zone(ZoneBase):
         assert (
             zone_idx not in controller.zone_by_idx
         ), "Duplicate zone idx on controller"
-        if int(zone_idx, 16) >= MAX_ZONES:
+        if int(zone_idx, 16) >= self._gwy.config["max_zones"]:
             raise ValueError  # TODO: better to aloow to disable via assert?
 
         controller.zones.append(self)

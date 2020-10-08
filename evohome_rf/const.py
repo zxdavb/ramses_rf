@@ -31,6 +31,10 @@ HGI_DEVICE = id_to_address(HGI_DEV_ID)
 NON_DEVICE = id_to_address(NON_DEV_ID)
 NUL_DEVICE = id_to_address(NUL_DEV_ID)
 
+DEFAULT_MAX_ZONES = 12
+# Evohome: 12 (0-11), older/initial version was 8
+# Hometronics: 16 (0-15), or more?
+# Sundial RF2: 2 (0-1), usually only one, but ST9520C can do two zones
 
 # Packet codes
 CODE_SCHEMA = {
@@ -114,6 +118,7 @@ CODE_SCHEMA = {
     "1280": {"name": "outdoor_humidity"},
     "1290": {"name": "outdoor_temp"},
     "12A0": {"name": "indoor_humidity"},  # Nuaire ventilation
+    "12C0": {"name": "message_12c0"},  # I/34:/34:
     "2249": {"name": "oth_setpoint", "uses_zone_idx": None},  # now/next setpoint
     # "2389": {"name": "message_2389"},  # not real?
     "22F1": {"name": "switch_vent"},
@@ -340,11 +345,6 @@ DHW_STATE_LOOKUP = {v: k for k, v in DHW_STATE_MAP.items()}
 
 # Electric Heat - on/off relay (only)
 # Zone Valve    - on/off relay AND requests heat from the boiler, 3150
-
-MAX_ZONES = 12
-# Evohome: 12 (0-11), older/initial version was 8
-# Hometronics: 16 (0-15), or more?
-# Sundial RF2: 2 (0-1), usually only one, but ST9520C can do two zones
 
 ZONE_TABLE = {
     "UFH": {"type": "02", "actuator": "UFC", "name": "Underfloor Heating"},

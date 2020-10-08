@@ -7,7 +7,7 @@ import asyncio
 import logging
 
 from .command import Command
-from .const import __dev_mode__
+from .const import __dev_mode__  # , CODE_SCHEMA
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -17,24 +17,37 @@ else:
     _LOGGER.setLevel(logging.WARNING)
 
 
-async def periodic(cmd_que, cmd, interval=60, count=1440):
-    for _ in range(count):
-        await asyncio.sleep(interval)
-        cmd_que.put_nowait(cmd)
+async def periodic(cmd_que, cmd, count=1440, interval=5):
+    if count <= 0:
+        while True:
+            await asyncio.sleep(interval)
+            cmd_que.put_nowait(cmd)
+
+    else:
+        for _ in range(count):
+            await asyncio.sleep(interval)
+            cmd_que.put_nowait(cmd)
 
 
-def start_tests(cmd_que):
-    cmd = Command("RQ", "13:237335", "0008", "00", retry_limit=0)
-    _ = asyncio.create_task(periodic(cmd_que, cmd, interval=30))
-
-    cmd = Command("RQ", "13:237335", "3EF1", "00", retry_limit=0)
-    _ = asyncio.create_task(periodic(cmd_que, cmd, interval=30))
+def poll_device(cmd_que, device_id):
+    for code in ("0008", "3EF1"):
+        cmd = Command("RQ", device_id, code, "00", retry_limit=0)
+        _ = asyncio.create_task(periodic(cmd_que, cmd, count=0, interval=15))
 
 
-# if self._execute_cmd:  # e.g. "RQ 01:145038 1F09 00"
-#     cmd = self._execute_cmd
-#     cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:])
-#     await manager.put_pkt(cmd, _LOGGER)
+def probe_device(cmd_que, device_id):
+    for code in ("0016", "1FC9"):  # payload 0000 OK for both these
+        cmd = Command("RQ", device_id, code, "0000", retry_limit=9)
+        _ = asyncio.create_task(periodic(cmd_que, cmd, count=1))
+
+    if device_id.startswith("13"):
+        for code in ("0008", "1100", "3EF1"):
+            cmd = Command("RQ", device_id, code, "00", retry_limit=9)
+            _ = asyncio.create_task(periodic(cmd_que, cmd, count=1))
+
+    # for code in sorted(CODE_SCHEMA):
+    #     cmd = Command("RQ", device_id, code, "0000", retry_limit=5)
+    #     _ = asyncio.create_task(periodic(cmd_que, cmd, count=1))
 
 
 # if self.config.get("evofw_flag") and "evofw3" in raw_pkt.packet:

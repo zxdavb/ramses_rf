@@ -20,7 +20,7 @@ from serial_asyncio import SerialTransport
 from .command import Command
 from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
-from .discovery import start_tests
+from .discovery import probe_device, poll_device
 from .logger import (
     set_logging,
     BANDW_SUFFIX,
@@ -149,7 +149,10 @@ class Gateway:
             )
 
         if self.config.get("do_discovery"):
-            start_tests(self.cmd_que)
+            poll_device(self.cmd_que, "13:237335")
+            probe_device(self.cmd_que, "13:081807")
+            probe_device(self.cmd_que, "13:163733")
+            probe_device(self.cmd_que, "13:237335")
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""

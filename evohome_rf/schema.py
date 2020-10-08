@@ -22,6 +22,7 @@ from .const import (
     ATTR_ZONE_TYPE,
     ATTR_ZONE_SENSOR,
     ATTR_ZONES,
+    DEFAULT_MAX_ZONES,
     ZONE_TYPE_SLUGS,
     __dev_mode__,
     id_to_address as addr,
@@ -63,17 +64,18 @@ SER2NET_SCHEMA = vol.Schema(
 
 CONFIG_SCHEMA = vol.Schema(
     {
-        vol.Optional("use_schema", default=True): vol.Any(None, bool),
-        vol.Optional("enforce_allowlist", default=False): vol.Any(None, bool),
-        vol.Optional("enforce_blocklist", default=True): vol.Any(None, bool),
-        # vol.Optional("input_file"): vol.Any(None, str),
-        vol.Optional("serial_port"): vol.Any(None, str),
-        vol.Optional("reduce_processing", default=0): vol.Any(None, int),
         vol.Optional("disable_sending", default=False): vol.Any(None, bool),
         vol.Optional("disable_discovery", default=False): vol.Any(None, bool),
+        vol.Optional("enforce_allowlist", default=False): vol.Any(None, bool),
+        vol.Optional("enforce_blocklist", default=True): vol.Any(None, bool),
         vol.Optional("evofw_flag", default=None): vol.Any(None, bool),
-        vol.Optional("ser2net_relay"): SER2NET_SCHEMA,
+        # vol.Optional("input_file"): vol.Any(None, str),
+        vol.Optional("max_zones", default=DEFAULT_MAX_ZONES): vol.Any(None, int),
         vol.Optional("packet_log", default=None): vol.Any(None, str),
+        vol.Optional("reduce_processing", default=0): vol.Any(None, int),
+        vol.Optional("serial_port"): vol.Any(None, str),
+        vol.Optional("ser2net_relay"): SER2NET_SCHEMA,
+        vol.Optional("use_schema", default=True): vol.Any(None, bool),
     },
     extra=vol.ALLOW_EXTRA,
 )
