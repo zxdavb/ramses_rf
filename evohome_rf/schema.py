@@ -103,7 +103,7 @@ SYSTEM_SCHEMA = vol.Schema(
         ),
         vol.Optional(ATTR_STORED_HOTWATER): vol.Any(None, DHW_SCHEMA),
         vol.Optional(ATTR_ZONES): vol.Any(
-            None, vol.All(ZONE_SCHEMA, vol.Length(min=1, max=12))
+            None, vol.All(ZONE_SCHEMA, vol.Length(min=1, max=DEFAULT_MAX_ZONES))
         ),
         vol.Optional(ATTR_UFH_CONTROLLERS): vol.Any(None, [UFH_SCHEMA]),
     },

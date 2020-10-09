@@ -148,11 +148,11 @@ class Gateway:
                 Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], retry_limit=9)
             )
 
-        if self.config.get("do_discovery"):
-            poll_device(self.cmd_que, "13:237335")
-            probe_device(self.cmd_que, "13:081807")
-            probe_device(self.cmd_que, "13:163733")
-            probe_device(self.cmd_que, "13:237335")
+        if self.config["poll_devices"]:
+            [poll_device(self.cmd_que, d) for d in self.config["poll_devices"]]
+
+        if self.config["probe_devices"]:
+            [probe_device(self.cmd_que, d) for d in self.config["probe_devices"]]
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""

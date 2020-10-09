@@ -63,6 +63,8 @@ class System(Controller):
         self.zone_by_idx = {}
         # self.zone_by_name = {}
 
+        self._heat_demand = None
+
     def _proc_msg(self, msg) -> None:
         if msg.code in ("000A", "2309", "30C9") and not isinstance(msg.payload, list):
             pass
@@ -71,6 +73,10 @@ class System(Controller):
 
         if msg.code in ("000A", "2309", "30C9") and isinstance(msg.payload, list):
             pass
+
+        if msg.code == "3150" and msg.verb in (" I", "RP"):
+            if msg.payload.get("domain_id") == "FC":
+                self._heat_demand = msg.payload["heat_demand"]
 
         # if msg.code in ("0005", "000C", "2E04"):
         #     pass
@@ -271,6 +277,10 @@ class System(Controller):
     def sync_tpi(self) -> Optional[float]:  # 3B00
         return self._get_msg_value("3B00", "sync_tpi")
 
+    @property
+    def heat_demand(self) -> Optional[float]:  # 3150/FC
+        return self._heat_demand
+
 
 class EvoSystem(System):
     """The EvoSystem class - some controllers are evohome-compatible."""
@@ -280,8 +290,9 @@ class EvoSystem(System):
 
         self._prev_30c9 = None
         self._fault_log = {}
+        self._mode = None
 
-        # self._discover()
+        self._discover()
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         if self._gwy.config["disable_discovery"]:
@@ -571,6 +582,9 @@ class EvoSystem(System):
             if "log_idx" in msg.payload:
                 self._fault_log[msg.payload["log_idx"]] = msg
 
+        if msg.code == "2E04" and msg.verb in (" I", "RP"):  # this is a special case
+            self._mode = msg.payload
+
         if msg.code == "30C9" and isinstance(msg.payload, list):  # msg.is_array:
             find_zone_sensors()
 
@@ -610,6 +624,7 @@ class EvoSystem(System):
     @property
     def mode(self) -> dict:  # 2E04
         """Return the system mode."""
+        # self._send_cmd("2E04", payload="FF")  # system mode
         return self._mode
 
     async def set_mode(self, mode, until=None):  # 2E04

@@ -51,14 +51,14 @@ def _temp(value) -> str:
         return "7FFF"
 
     try:
-        value = float(value)
-    except ValueError:
-        raise ValueError("Invalid temperature")
+        _value = float(value)
+    except (ValueError, TypeError):
+        raise ValueError(f"Invalid temperature: {value}")
 
-    if value < 0:
-        raise ValueError("Invalid temperature")
+    if _value < 0:
+        raise ValueError(f"Invalid temperature: {value}")
 
-    return f"{int(value*100):04X}"
+    return f"{int(_value*100):04X}"
 
 
 class ZoneBase(Entity, metaclass=ABCMeta):
@@ -688,6 +688,14 @@ class Zone(ZoneBase):
             }.get("setpoint")
         return self._setpoint
 
+    @setpoint.setter
+    def setpoint(self, value) -> None:
+        """Set the target temperature, until the next scheduled setpoint."""
+        if value is None:
+            self.cancel_override()
+        else:
+            self.set_override(mode="advanced_override", setpoint=value)
+
     @property
     def temperature(self) -> Optional[float]:  # 30C9
         # TODO: this wont wokr if the controller is the sensor
@@ -704,19 +712,29 @@ class Zone(ZoneBase):
             }.get("temperature")
         return self._temperature
 
+    @property
+    def heat_demand(self) -> Optional[float]:
+        demands = [
+            d.heat_demand
+            for d in self.devices
+            if hasattr(d, "heat_demand") and d.heat_demand is not None
+        ]
+        # return max(demands) if demands else None
+        return round(sum(demands) / len(demands), 1) if demands else None
+
     def schedule(self, force_update=False) -> Optional[dict]:
         """Return the schedule if any."""
         return self._schedule.schedule if self._schedule else None
 
-    async def cancel_override(self) -> None:  # 2349
+    def cancel_override(self) -> None:  # 2349
         """Revert to following the schedule."""
-        await self.set_override()
+        self.set_override()
 
-    async def frost_protect(self) -> None:  # 2349
+    def frost_protect(self) -> None:  # 2349
         """Set the zone to the lowest possible setpoint, indefinitely."""
-        await self.set_override(mode="02", setpoint=5)  # TODO
+        self.set_override(mode="permanent_override", setpoint=5)  # TODO
 
-    async def set_override(self, mode=None, setpoint=None, until=None) -> None:
+    def set_override(self, mode=None, setpoint=None, until=None) -> None:
         """Override the setpoint for a specified duration, or indefinitely.
 
         The setpoint has a resolution of 0.1 C. If a setpoint temperature is required,
@@ -726,29 +744,33 @@ class Zone(ZoneBase):
 
         Incompatible combinations:
           - mode == Follow & setpoint not None (will silently ignore setpoint)
-          - mode == Temporary & until is None (will silently drop W packet)
+          - mode == Temporary & until is None (will silently ignore)
         """
 
-        if mode is None and until is None:
-            mode = "00" if setpoint is None else "02"  # Follow, Permanent
-        elif mode is None:  # and until is not None
-            mode = "04"  # Temporary
-        elif isinstance(mode, int):
-            mode = f"{mode:02X}"
-        elif not isinstance(mode, str):
-            raise TypeError("Invalid zone mode")
-        elif mode in ZONE_MODE_LOOKUP:
-            mode = ZONE_MODE_LOOKUP[mode]
-
-        if mode not in ZONE_MODE_MAP:
-            raise ValueError("Unknown zone mode")
+        if mode is not None:
+            if isinstance(mode, int):
+                mode = f"{mode:02X}"
+            elif not isinstance(mode, str):
+                raise TypeError(f"Invalid zone mode: {mode}")
+            if mode in ZONE_MODE_MAP:
+                mode = ZONE_MODE_MAP["mode"]
+            elif mode not in ZONE_MODE_LOOKUP:
+                raise TypeError(f"Unknown zone mode: {mode}")
+        elif until is None:  # mode is None
+            mode = "advanced_override" if setpoint else "follow_schedule"
+        else:  # if until is not None:
+            mode = "temporary_override" if setpoint else "advanced_override"
 
         setpoint = _temp(setpoint)  # None means max, if a temp is required
 
         if until is None:
-            mode = "01" if mode == "04" else mode
+            mode = "advanced_override" if mode == "temporary_override" else mode
+
+        mode = ZONE_MODE_LOOKUP[mode]
+
+        if until is None:
             payload = f"{self.idx}{setpoint}{mode}FFFFFF"
-        else:  # required only by: 04, Temporary, ignored by others
+        else:  # required only by temporary_override, ignored by others
             payload = f"{self.idx}{setpoint}{mode}FFFFFF{_dtm(until)}"
 
         self._send_cmd("2349", verb=" W", payload=payload)

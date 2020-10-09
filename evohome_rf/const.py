@@ -215,6 +215,7 @@ DEVICE_TABLE = {
         "is_actuator": None,
         "is_sensor": False,
         "archetype": "BDR91",  # also: HC60NG?
+        "poll_codes": ["0008", "3EF1"],
     },
     "22": {
         "type": "THM",
@@ -320,23 +321,23 @@ DOMAIN_TYPE_MAP = {
 DOMAIN_TYPE_LOOKUP = {v: k for k, v in DOMAIN_TYPE_MAP.items() if k != "FF"}
 
 SYSTEM_MODE_MAP = {
-    "00": "Auto",
-    "01": "HeatOff",
-    "02": "Eco",
-    "03": "Away",
-    "04": "DayOff",
-    "05": "DayOffThenEco",  # set to Eco when DayOff ends
-    "06": "AutoWithReset",
-    "07": "Custom",
+    "00": "auto",
+    "01": "heat_off",
+    "02": "eco",
+    "03": "away",
+    "04": "day_off",
+    "05": "day_off_eco",  # set to Eco when DayOff ends
+    "06": "auto_with_reset",
+    "07": "custom",
 }
 SYSTEM_MODE_LOOKUP = {v: k for k, v in SYSTEM_MODE_MAP.items()}
 
 ZONE_MODE_MAP = {
-    "00": "FollowSchedule",
-    "01": "AdvancedOverride",  # until the next scheduled setpoint
-    "02": "PermanentOverride",
-    # "03": "DayOverride",  # ignores until, uses duration of 20h 15m!
-    "04": "TemporaryOverride",  # requires an until (datetime)
+    "00": "follow_schedule",
+    "01": "advanced_override",  # until the next scheduled setpoint
+    "02": "permanent_override",
+    # "03": "day_override",  # ignores until, uses duration of 20h 15m!
+    "04": "temporary_override",  # requires an until (datetime)
 }
 ZONE_MODE_LOOKUP = {v: k for k, v in ZONE_MODE_MAP.items()}
 

@@ -18,7 +18,9 @@ DEBUG_PORT = 5678
 
 # this is needed only when debugging the client
 # import ptvsd
+# print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
 # ptvsd.enable_attach(address=(DEBUG_ADDR, DEBUG_PORT))
+# print(" - execution paused, waiting for debugger to attach...")
 # ptvsd.wait_for_attach()
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
@@ -49,10 +51,17 @@ def parse(obj, **kwargs):
 
 @click.command()
 @click.argument("serial-port")
-@click.option("-d", "--do-discovery", is_flag=True)
-@click.option("-p", "--enforce-probing", help="TBD", is_flag=True)
+@click.option("-p", "--enforce-probing", is_flag=True, help="TBD")
 @click.option("-T", "--evofw-flag", help="TBD")
-@click.option("-x", "--execute-cmd", help="e.g.: RQ 01:123456 1F09 00")
+@click.option(
+    "-x",
+    "--execute-cmd",
+    is_flag=False,
+    type=click.STRING,
+    help="e.g.: RQ 01:123456 1F09 00",
+)
+@click.option("--poll-devices", is_flag=False, type=click.STRING)
+@click.option("--probe-devices", is_flag=False, type=click.STRING)
 @click.option(
     "-o",
     "--packet-log",
@@ -66,6 +75,13 @@ def monitor(obj, **kwargs):
     """Monitor a serial port for packets."""
     # if obj["debug_mode"]:
     #     print(f"monitor(): obj={obj}, kwargs={kwargs}")
+
+    for key in ("poll_devices", "probe_devices"):
+        if kwargs[key] is None:
+            kwargs[key] = []
+        else:
+            kwargs[key] = [c.strip() for c in kwargs[key].split(",")]
+
     debug_wrapper(**obj, **kwargs)
 
 
