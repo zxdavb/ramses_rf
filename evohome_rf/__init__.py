@@ -148,10 +148,10 @@ class Gateway:
                 Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], retry_limit=9)
             )
 
-        if self.config["poll_devices"]:
+        if self.config.get("poll_devices"):
             [poll_device(self.cmd_que, d) for d in self.config["poll_devices"]]
 
-        if self.config["probe_devices"]:
+        if self.config.get("probe_devices"):
             [probe_device(self.cmd_que, d) for d in self.config["probe_devices"]]
 
     def __repr__(self) -> str:
