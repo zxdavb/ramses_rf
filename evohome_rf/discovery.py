@@ -43,6 +43,9 @@ def poll_device(cmd_que, device_id):
 
 
 def probe_device(cmd_que, device_id):
+    # for _code in range(0x4000):
+    #     code = f"{_code:04X}"
+
     for code in sorted(CODE_SCHEMA):
         cmd = Command("RQ", device_id, code, "00", retry_limit=0)
         _ = asyncio.create_task(periodic(cmd_que, cmd, count=1))

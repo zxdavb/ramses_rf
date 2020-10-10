@@ -831,14 +831,16 @@ def parser_10a0(payload, msg) -> Optional[dict]:
     # 045 RQ --- 07:030741 01:102458 --:------ 10A0 006 00-181F-00-03E4
     # 095 RQ --- 07:036831 23:100224 --:------ 10A0 006 01-1566-00-03E4 (non-evohome)
 
-    assert msg.len == 6
-    # assert payload[:2] == "00"  # TODO: all *evohome* DHW pkts have no domain
+    assert msg.len in (3, 6)  # OTB uses 3, evohome uses 6
+    assert payload[:2] == "00"  # TODO: all *evohome* DHW pkts have no domain
 
-    return {
-        "setpoint": _temp(payload[2:6]),  # 30.0-85.0 C
-        "overrun": int(payload[6:8], 16),  # 0-10 minutes
-        "differential": _temp(payload[8:12]),  # 1.0-10.0 C
-    }
+    result = {"setpoint": _temp(payload[2:6])}  # 30.0-85.0 C
+    if msg.len >= 8:
+        result["overrun"] = (int(payload[6:8], 16),)  # 0-10 minutes
+    if msg.len >= 12:
+        result["differential"] = (_temp(payload[8:12]),)  # 1.0-10.0 C
+
+    return result
 
 
 @parser_decorator  # device_info
@@ -1126,15 +1128,19 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:
 def parser_2349(payload, msg) -> Optional[dict]:
     # RQ --- 34:225071 30:258557 --:------ 2349 001 00
     # RP --- 30:258557 34:225071 --:------ 2349 013 007FFF00FFFFFFFFFFFFFFFFFF < Coding error  # noqa
-
+    #  I --- 10:067219 --:------ 10:067219 2349 004 00000001
     assert msg.verb in (" I", "RP", " W")
-    assert msg.len in (7, 13)  # has a dtm if mode == "04"
-    assert payload[6:8] in list(ZONE_MODE_MAP)
-    assert payload[8:14] == "FFFFFF"
+    assert msg.len in (4, 7, 13)  # has a dtm if mode == "04", OTB has 4
 
+    assert payload[6:8] in list(ZONE_MODE_MAP)
     result = {"mode": ZONE_MODE_MAP.get(payload[6:8]), "setpoint": _temp(payload[2:6])}
-    if msg.len == 13:
-        result.update({"until": _dtm(payload[14:26])})
+
+    if msg.len >= 7:
+        assert payload[8:14] == "FFFFFF"
+
+    if msg.len >= 13:
+        assert payload[6:8] == "04"
+        result["until"] = _dtm(payload[14:26])
 
     return {**_idx(payload[:2], msg), **result}
 
@@ -1195,7 +1201,7 @@ def parser_313f(payload, msg) -> Optional[dict]:
     # https://www.automatedhome.co.uk/vbulletin/showthread.php?5085-My-HGI80-equivalent-Domoticz-setup-without-HGI80&p=36422&viewfull=1#post36422
     # every day at ~4am TRV/RQ->CTL/RP, approx 5-10secs apart (CTL respond at any time)
     assert msg.len == 9
-    assert payload[:2] == "00"  # evohome is always "00FC"?
+    assert payload[:2] == "00"  # evohome is always "00FC"? OTB is always 00xx
     return {
         "datetime": _dtm(payload[4:18]),
         "is_dst": True if bool(int(payload[4:6], 16) & 0x80) else None,
@@ -1289,19 +1295,24 @@ def parser_31e0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # opentherm_msg
 def parser_3220(payload, msg) -> Optional[dict]:
-    assert msg.len == 5
-    assert payload[:2] == "00"
+    assert msg.len == 5 and payload[:2] == "00", "Invalid OpenTherm payload"
 
     # these are OpenTherm-specific assertions
-    assert int(payload[2:4], 16) // 0x80 == parity(int(payload[2:], 16) & 0x7FFFFFFF)
+    assert int(payload[2:4], 16) // 0x80 == parity(
+        int(payload[2:], 16) & 0x7FFFFFFF
+    ), "Invalid OpenTherm check bit"
 
     ot_msg_type = int(payload[2:4], 16) & 0x70
-    assert ot_msg_type in OPENTHERM_MSG_TYPE
+    assert (
+        ot_msg_type in OPENTHERM_MSG_TYPE
+    ), f"Unknown OpenTherm msg type: {ot_msg_type:02X}"
 
     assert int(payload[2:4], 16) & 0x0F == 0
 
     ot_msg_id = int(payload[4:6], 16)
-    assert str(ot_msg_id) in OPENTHERM_MESSAGES["messages"]
+    assert (
+        str(ot_msg_id) in OPENTHERM_MESSAGES["messages"]
+    ), f"Unknown OpenTherm msg id: {ot_msg_id} (0x{ot_msg_id:02X})"
 
     message = OPENTHERM_MESSAGES["messages"].get(str(ot_msg_id))
 
@@ -1322,7 +1333,7 @@ def parser_3220(payload, msg) -> Optional[dict]:
             # "description": message["en"]
         }
 
-    assert ot_msg_type > 48
+    assert ot_msg_type > 48, f"Invalid OpenTherm msg type: {ot_msg_type:02X}"
 
     if isinstance(message["var"], dict):
         if isinstance(message["val"], dict):
@@ -1418,24 +1429,20 @@ def parser_3ef0(payload, msg) -> dict:
 
     if msg.src.type == "10":  # OTB, to 01:, or 34:
         assert msg.len == 6
-        assert int(payload[2:4], 16) <= 100 or payload[2:4] == "FF"
+        assert payload[2:4] == "FF" or int(payload[2:4], 16) <= 100  # TODO: why not 200
         assert payload[4:6] in ("10", "11")
         assert payload[6:8] in ("00", "01", "02", "04", "08", "0A", "0C")
         assert payload[8:12] == "00FF"  # or: in ("0000", "00FF", "FFFF")
+        # there is no known (reliable) modulation_level <-> flame_state
 
-        # TODO: this is WIP
-        # if payload[6:8] == "0A":
-        #     assert payload[2:4] != "00"
-        # else:
-        #     assert payload[2:4] == "00"
-
-        # TODO: max value of [6:8] seen is "64", should be /200?
         return {
             **_idx(payload[:2], msg),
-            "flame_state": payload[6:8],
-            "unknown_0": payload[4:6],
+            "actuator_enabled": bool(_percent(payload[2:4])),
+            "modulation_level": _percent(payload[2:4]),
             "flame_active": {"0A": True}.get(payload[6:8], False),
-            "modulation_level": int(payload[2:4], 16) / 100,
+            "flame_state": payload[6:8],
+            "_unknown_0": payload[4:6],
+            "_unknown_1": payload[8:],
         }
 
     # 051  I --- 13:049225 --:------ 13:049225 3EF0 003 00 00 FF
@@ -1447,23 +1454,28 @@ def parser_3ef0(payload, msg) -> dict:
 
     return {
         **_idx(payload[:2], msg),
-        "actuator_enabled": _bool(payload[2:4]),  # TODO: is bool() too restrictive?
+        "actuator_enabled": bool(_percent(payload[2:4])),
+        "modulation_level": _percent(payload[2:4]),
+        "_unknown_0": payload[4:6],
     }
 
 
 @parser_decorator  # actuator_state
-def parser_3ef1(payload, msg) -> dict:
+def parser_3ef1(payload, msg) -> dict:  # 0  2 4  6 8  1012
+    #  RP --- 10:067219 18:200202 --:------ 3EF1 007 00-7FFF-003C-0010
+
     assert msg.verb == "RP"
     assert msg.len == 7
     assert payload[:2] == "00"
-    assert payload[10:] in ("00FF", "C8FF")
-    assert payload[-2:] == "FF"
+    assert payload[10:12] in ("00", "C8")
+    # assert payload[12:] == "FF"
 
     return {
         **_idx(payload[:2], msg),
         "actuator_enabled": _bool(payload[10:12]),
         "actuator_countdown": int(payload[6:10], 16),
-        "cycle_countdown": int(payload[2:6], 16),
+        "cycle_countdown": int(payload[2:6], 16),  # not for OTB, == "7FFF"
+        "_unknown_0": int(payload[2:6], 16),  # for OTB != "FF"
     }
 
 

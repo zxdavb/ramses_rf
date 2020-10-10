@@ -335,10 +335,10 @@ class Message:
                         self.src, controller=Address(id=device_id, type=device_id[:2])
                     )
 
-        elif self.src.type in ("01", "23", "30"):
+        elif self.src.type in ("01", "23"):  # TODO: "30" for VMS
             self._gwy.get_device(self.dst, controller=self.src)
 
-        elif self.dst.type in ("01", "23", "30"):
+        elif self.dst.type in ("01", "23"):  # TODO: "30" for VMS
             self._gwy.get_device(self.src, controller=self.dst)
 
         # TODO: will need other changes before these two will work...

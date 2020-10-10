@@ -750,7 +750,13 @@ class OtbGateway(Actuator, HeatDemand, Device):
             pass
         elif msg.verb == "RP" and msg.code in ("22D9", "3220", "3EF0"):
             pass
-        elif msg.code in ("1FD4"):  # and msg.verb == " I":
+        elif msg.code in (
+            "10A0",
+            "1260",
+            "1290",
+            "1FD4",
+            "2349",
+        ):  # and msg.verb == " I":
             pass
         else:
             assert False, f"Unknown packet code for {self.id}"
