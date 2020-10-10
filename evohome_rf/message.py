@@ -250,7 +250,9 @@ class Message:
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
             if self.src.type == "18":  # TODO: should be a warning
                 _LOGGER.warning(
-                    "%s < Validation error (ignored)", self._pkt, extra=self.__dict__
+                    "%s < Validation error (this is OK to ignore)",
+                    self._pkt,
+                    extra=self.__dict__,
                 )
             else:
                 _LOGGER.exception(
