@@ -198,6 +198,17 @@ DEVICE_TABLE = {
         "is_actuator": None,
         "is_sensor": False,
         "archetype": "R8810",
+        "poll_codes": [
+            "0008",
+            "10A0",
+            "1260",
+            "1290",
+            "22D9",
+            "3150",
+            "3220",
+            "3EF0",
+            "3EF1",
+        ],
     },  #
     "12": {
         "type": "THm",
