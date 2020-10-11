@@ -200,7 +200,7 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         self._friendly_name = attrs.get("friendly_name") if attrs else None
         self._ignored = attrs.get("ignored", False) if attrs else False
 
-        self._discover()
+        self._discover()  # should be last thing in __init__()
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""

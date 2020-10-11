@@ -77,6 +77,8 @@ class ZoneBase(Entity, metaclass=ABCMeta):
         self._name = None
         self._zone_type = None
 
+        self._discover()  # should be last thing in __init__()
+
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
         return json.dumps(self.schema, indent=2)
@@ -189,8 +191,6 @@ class DhwZone(ZoneBase, HeatDemand):
         self._temperature = None
         self._relay_demand = None
         self._relay_failsafe = None
-
-        self._discover()  # should be last thing in __init__()
 
     def _discover(self, discover_flags=DISCOVER_ALL) -> None:
         if self._gwy.config["disable_discovery"]:
@@ -452,8 +452,6 @@ class Zone(ZoneBase):
         self._zone_config = None
 
         self._schedule = Schedule(self)
-
-        self._discover()
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         if self._gwy.config["disable_discovery"]:

@@ -292,7 +292,7 @@ class EvoSystem(System):
         self._fault_log = {}
         self._mode = None
 
-        self._discover()
+        # self._discover()
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         if self._gwy.config["disable_discovery"]:

@@ -825,20 +825,27 @@ def parser_10a0(payload, msg) -> Optional[dict]:
 
     DHW sends a RQ (not an I) with payload!
     """
-    # 057 RQ --- 07:045960 01:145038 --:------ 10A0 006 00-31FF-00-31FF (null)
-    # 053 RQ --- 07:045960 01:145038 --:------ 10A0 006 00-1770-00-03E8
-    # 049 RQ --- 07:045960 01:145038 --:------ 10A0 006 00-1374-00-03E4
-    # 045 RQ --- 07:030741 01:102458 --:------ 10A0 006 00-181F-00-03E4
-    # 095 RQ --- 07:036831 23:100224 --:------ 10A0 006 01-1566-00-03E4 (non-evohome)
+    # RQ --- 01:136410 10:067219 --:------ 10A0 002 0000
+    # RQ --- 07:017494 01:078710 --:------ 10A0 006 00-1566-00-03E4
+
+    # RQ --- 07:045960 01:145038 --:------ 10A0 006 00-31FF-00-31FF (null)
+    # RQ --- 07:045960 01:145038 --:------ 10A0 006 00-1770-00-03E8
+    # RQ --- 07:045960 01:145038 --:------ 10A0 006 00-1374-00-03E4
+    # RQ --- 07:030741 01:102458 --:------ 10A0 006 00-181F-00-03E4
+    # RQ --- 07:036831 23:100224 --:------ 10A0 006 01-1566-00-03E4 (non-evohome)
 
     assert msg.len in (3, 6)  # OTB uses 3, evohome uses 6
     assert payload[:2] == "00"  # TODO: all *evohome* DHW pkts have no domain
 
-    result = {"setpoint": _temp(payload[2:6])}  # 30.0-85.0 C
-    if msg.len >= 8:
-        result["overrun"] = (int(payload[6:8], 16),)  # 0-10 minutes
-    if msg.len >= 12:
-        result["differential"] = (_temp(payload[8:12]),)  # 1.0-10.0 C
+    setpoint = _temp(payload[2:6])
+    if setpoint == 255:  # OTB
+        setpoint = None
+
+    result = {"setpoint": setpoint}  # 30.0-85.0 C
+    if msg.len >= 4:
+        result["overrun"] = int(payload[6:8], 16)  # 0-10 minutes
+    if msg.len >= 6:
+        result["differential"] = _temp(payload[8:12])  # 1.0-10.0 C
 
     return result
 
@@ -1389,7 +1396,7 @@ def parser_3b00(payload, msg) -> Optional[dict]:
     return {**_idx(payload[:2], msg), "sync_tpi": _bool(payload[2:])}
 
 
-@parser_decorator  # actuator_enabled (state)
+@parser_decorator  # actuator_state
 def parser_3ef0(payload, msg) -> dict:
     # 045 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 3C 10 0000FF
     # 074 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 3C 10 0000FF
@@ -1460,22 +1467,25 @@ def parser_3ef0(payload, msg) -> dict:
     }
 
 
-@parser_decorator  # actuator_state
+@parser_decorator  # actuator_cycle
 def parser_3ef1(payload, msg) -> dict:  # 0  2 4  6 8  1012
     #  RP --- 10:067219 18:200202 --:------ 3EF1 007 00-7FFF-003C-0010
 
     assert msg.verb == "RP"
     assert msg.len == 7
     assert payload[:2] == "00"
-    assert payload[10:12] in ("00", "C8")
+    assert _percent(payload[10:12]) <= 1, f"{payload[10:12]}"
     # assert payload[12:] == "FF"
+
+    cycle_countdown = None if payload[2:6] == "7FFF" else int(payload[2:6], 16)
 
     return {
         **_idx(payload[:2], msg),
-        "actuator_enabled": _bool(payload[10:12]),
+        "actuator_enabled": bool(_percent(payload[10:12])),
+        "modulation_level": _percent(payload[10:12]),
         "actuator_countdown": int(payload[6:10], 16),
-        "cycle_countdown": int(payload[2:6], 16),  # not for OTB, == "7FFF"
-        "_unknown_0": int(payload[2:6], 16),  # for OTB != "FF"
+        "cycle_countdown": cycle_countdown,  # not for OTB, == "7FFF"
+        "_unknown_0": int(payload[12:14], 16),  # for OTB != "FF"
     }
 
 

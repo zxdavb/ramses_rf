@@ -93,14 +93,14 @@ CODE_SCHEMA = {
     "10E0": {"name": "device_info"},
     "1FC9": {"name": "rf_bind", "uses_zone_idx": True, "rq_len": 1},  # was bind_device
     # dhw codes
-    "10A0": {"name": "dhw_params"},
+    "10A0": {"name": "dhw_params", "rq_length": len("0000") / 2},
     "1260": {"name": "dhw_temp"},
     "1F41": {"name": "dhw_mode"},
     # tpi codes
     "1100": {"name": "tpi_params"},
     "3B00": {"name": "actuator_sync"},  # was: tpi_sync/actuator_req
-    "3EF0": {"name": "actuator_enabled", "uses_zone_idx": False},
-    "3EF1": {"name": "actuator_state", "uses_zone_idx": False, "rq_length": 2},
+    "3EF0": {"name": "actuator_state", "uses_zone_idx": False},
+    "3EF1": {"name": "actuator_cycle", "uses_zone_idx": False, "rq_length": 2},
     # OpenTherm codes
     "1FD4": {"name": "opentherm_sync"},
     "22D9": {"name": "boiler_setpoint"},
@@ -155,6 +155,7 @@ DEVICE_TABLE = {
         "is_controller": True,
         "is_sensor": True,
         "archetype": "ATC928",
+        "poll_codes": ["000C", "10E0", "1100", "313F",],
     },  # rechargeable
     "02": {
         "type": "UFC",
