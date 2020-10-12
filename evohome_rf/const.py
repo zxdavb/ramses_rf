@@ -202,6 +202,7 @@ DEVICE_TABLE = {
         "poll_codes": [
             "0008",
             "10A0",
+            "1100",
             "1260",
             "1290",
             "22D9",
@@ -227,7 +228,7 @@ DEVICE_TABLE = {
         "is_actuator": None,
         "is_sensor": False,
         "archetype": "BDR91",  # also: HC60NG?
-        "poll_codes": ["0008", "3EF1"],
+        "poll_codes": ["0008", "1100", "3EF1"],
     },
     "22": {
         "type": "THM",
