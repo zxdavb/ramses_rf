@@ -81,11 +81,11 @@ class Command:
         self.code = code
         self.payload = payload
 
-        self.qos = kwargs
-
         priority = Priority.HIGH if verb in ("0016", "1FC9") else Priority.DEFAULT
-        self._priority = kwargs.get("priority", priority)
+        self._priority = kwargs.pop("priority", priority)
         self._priority_dtm = dt_now()  # used for __lt__, etc.
+
+        self.qos = kwargs
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
