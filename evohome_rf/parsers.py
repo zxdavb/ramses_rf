@@ -837,11 +837,9 @@ def parser_10a0(payload, msg) -> Optional[dict]:
     assert msg.len in (3, 6)  # OTB uses 3, evohome uses 6
     assert payload[:2] == "00"  # TODO: all *evohome* DHW pkts have no domain
 
-    setpoint = _temp(payload[2:6])
-    if setpoint == 255:  # OTB
-        setpoint = None
+    setpoint = _temp(payload[2:6])  # 255 for OTB? iff no DHW?
 
-    result = {"setpoint": setpoint}  # 30.0-85.0 C
+    result = {"setpoint": None if setpoint == 255 else setpoint}  # 30.0-85.0 C
     if msg.len >= 4:
         result["overrun"] = int(payload[6:8], 16)  # 0-10 minutes
     if msg.len >= 6:
@@ -1431,44 +1429,42 @@ def parser_3ef0(payload, msg) -> dict:
     # 060 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 00 11 0100FF
     # 062 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 11 10 0AFFFF
 
-    assert payload[:2] == "00"
-    assert payload[-2:] == "FF"
-
-    if msg.src.type == "10":  # OTB, to 01:, or 34:
-        assert msg.len == 6
-        assert payload[2:4] == "FF" or int(payload[2:4], 16) <= 100  # TODO: why not 200
-        assert payload[4:6] in ("10", "11")
-        assert payload[6:8] in ("00", "01", "02", "04", "08", "0A", "0C")
-        assert payload[8:12] == "00FF"  # or: in ("0000", "00FF", "FFFF")
-        # there is no known (reliable) modulation_level <-> flame_state
-
-        return {
-            **_idx(payload[:2], msg),
-            "actuator_enabled": bool(_percent(payload[2:4])),
-            "modulation_level": _percent(payload[2:4]),
-            "flame_active": {"0A": True}.get(payload[6:8], False),
-            "flame_state": payload[6:8],
-            "_unknown_0": payload[4:6],
-            "_unknown_1": payload[8:],
-        }
-
     # 051  I --- 13:049225 --:------ 13:049225 3EF0 003 00 00 FF
     # 054  I --- 13:209679 --:------ 13:209679 3EF0 003 00 C8 FF
 
-    assert msg.len == 3
-    assert payload[2:4] in ("00", "C8")
-    assert payload[4:] == "FF"
+    assert payload[:2] == "00", f"domain_id is not 00: {payload[:2]}"
+    if msg.len == 3:
+        assert payload[2:4] in ("00", "C8", "FF")
+        assert payload[4:6] == "FF"
 
-    return {
-        **_idx(payload[:2], msg),
+    if msg.len >= 6:  # for OTB
+        assert payload[2:4] == "FF" or int(payload[2:4], 16) <= 100  # TODO: why not 200
+        assert payload[4:6] in ("10", "11")
+
+    result = {
+        # **_idx(payload[:2], msg),
         "actuator_enabled": bool(_percent(payload[2:4])),
         "modulation_level": _percent(payload[2:4]),
         "_unknown_0": payload[4:6],
     }
 
+    if msg.len >= 6:  # for OTB (there's no reliable) modulation_level <-> flame_state)
+        assert payload[6:8] in ("00", "01", "02", "04", "08", "0A", "0C")
+        assert payload[8:12] == "00FF"  # or: in ("0000", "00FF", "FFFF")
+
+        result.update(
+            {
+                "flame_active": {"0A": True}.get(payload[6:8], False),
+                "flame_state": payload[6:8],
+                "_unknown_1": payload[8:],
+            }
+        )
+
+    return result
+
 
 @parser_decorator  # actuator_cycle
-def parser_3ef1(payload, msg) -> dict:  # 0  2 4  6 8  1012
+def parser_3ef1(payload, msg) -> dict:
     #  RP --- 10:067219 18:200202 --:------ 3EF1 007 00-7FFF-003C-0010
 
     assert msg.verb == "RP"

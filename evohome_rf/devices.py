@@ -256,47 +256,84 @@ class DeviceBase(Entity, metaclass=ABCMeta):
     #     """Set the parent zone of the device."""
 
 
-class Actuator:  # 3EF0, 3EF1
+class Actuator:  # 0008, 3B00, 3EF0, 3EF1 (1100?)
     def __init__(self, gateway, device_addr, **kwargs) -> None:
         super().__init__(gateway, device_addr, **kwargs)
 
-        self._actuator_enabled = None
+        self._actuator_cycle = None
         self._actuator_state = None
+        self._cycle_rate = None
+        self._modulation_level = None
+        self._relay_demand = None
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         if self._gwy.config["disable_discovery"]:
             return
         super()._discover()
 
+        if discover_flag & DISCOVER_PARAMS:
+            self._send_cmd("1100")
+
         if discover_flag & DISCOVER_STATUS:
+            self._send_cmd("0008")
             self._send_cmd("3EF1")
 
     def _proc_msg(self, msg) -> None:
         super()._proc_msg(msg)
+        if self._known_msg:
+            return
 
-        if msg.code == "3EF0" and msg.verb == " I":
-            self._actuator_enabled = msg.payload["actuator_enabled"]
+        if msg.code == "0008":
             self._known_msg = True
+            self._cycle_rate = msg.payload["relay_demand"]
 
-        elif msg.code == "3EF1" and msg.verb == "RP":
-            self._actuator_enabled = msg.payload["actuator_enabled"]
+        if msg.code in ("3B00", "3EF0"):
+            self._known_msg = True
+            self._send_cmd("0008", delay=1)
+            self._send_cmd("3EF1", delay=1)
+
+        if msg.code in ("3EF0", "3EF1"):
+            self._known_msg = True
+            self._modulation_level = msg.payload["modulation_level"]
+
+        if msg.code == "3EF0":
+            self._known_msg = True
             self._actuator_state = msg.payload
+
+        if msg.code == "3EF1":
             self._known_msg = True
+            self._actuator_cycle = msg.payload
 
     @property
-    def actuator_enabled(self) -> Optional[bool]:  # 3EF0, TODO: does 10: RP/3EF1?
-        return self._actuator_enabled
+    def actuator_cycle(self) -> Optional[dict]:  # 3EF1
+        if self._actuator_cycle:
+            return {k: v for k, v in self._actuator_cycle.items() if k[:1] != "_"}
 
     @property
-    def actuator_state(self) -> Optional[float]:  # 3EF1, TODO: not all actuators
-        return self._actuator_state
+    def actuator_state(self) -> Optional[dict]:  # 3EF0
+        if self._actuator_state:
+            return {k: v for k, v in self._actuator_state.items() if k[:1] != "_"}
+
+    @property
+    def cycle_rate(self) -> Optional[float]:  # from 0008
+        return self._cycle_rate
+
+    @property
+    def modulation_level(self) -> Optional[float]:  # from 3EF0/3EF1
+        return self._modulation_level
+
+    @property
+    def relay_demand(self) -> Optional[dict]:  # 0008
+        if self._relay_demand:
+            return {k: v for k, v in self._relay_demand.items() if k[:1] != "_"}
 
     @property
     def status(self) -> dict:
         return {
             **super().status,
-            "actuator_enabled": self.actuator_enabled,
+            "actuator_cycle": self.actuator_cycle,
             "actuator_state": self.actuator_state,
+            "relay_demand": self.relay_demand,
         }
 
 
@@ -304,7 +341,7 @@ class BatteryState:  # 1060
     def __init__(self, gateway, device_addr, **kwargs) -> None:
         super().__init__(gateway, device_addr, **kwargs)
 
-        self._battery_state = {}
+        self._battery_state = None
 
     def _proc_msg(self, msg) -> None:
         super()._proc_msg(msg)
@@ -315,7 +352,8 @@ class BatteryState:  # 1060
 
     @property
     def battery_state(self) -> dict:  # 1060
-        return self._battery_state
+        if self._battery_state:
+            return {k: v for k, v in self._battery_state.items() if k[:1] != "_"}
 
     @property
     def status(self) -> dict:
@@ -332,12 +370,13 @@ class HeatDemand:  # 3150
         super()._proc_msg(msg)
 
         if msg.code == "3150" and msg.verb == " I":
-            self._heat_demand = msg.payload["heat_demand"]
+            self._heat_demand = msg.payload
             self._known_msg = True
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
-        return self._heat_demand
+        if self._heat_demand:
+            return self._heat_demand["heat_demand"]
 
     @property
     def status(self) -> dict:
@@ -354,7 +393,7 @@ class Setpoint:  # 2309
         super()._proc_msg(msg)
 
         if msg.code == "2309" and msg.verb in (" I", " W"):
-            self._setpoint = msg.payload["setpoint"]
+            self._setpoint = msg.payload
             self._known_msg = True
 
         elif msg.code == "2309" and msg.verb == "RQ":
@@ -362,7 +401,8 @@ class Setpoint:  # 2309
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309
-        return self._setpoint
+        if self._setpoint:
+            return self._setpoint["setpoint"]
 
     @property
     def status(self) -> dict:
@@ -379,12 +419,13 @@ class Temperature:  # 30C9
         super()._proc_msg(msg)
 
         if msg.code == "30C9" and msg.verb == " I":
-            self._temperature = msg.payload["temperature"]
+            self._temperature = msg.payload
             self._known_msg = True
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        return self._temperature
+        if self._temperature:
+            return self._temperature["temperature"]
 
     @property
     def status(self) -> dict:
@@ -766,10 +807,6 @@ class OtbGateway(Actuator, HeatDemand, Device):
         return self._get_msg_value("22D9", "boiler_setpoint")
 
     @property
-    def _last_opentherm_msg(self) -> Optional[Any]:  # 3220
-        return self._get_msg_value("3220")
-
-    @property
     def status(self) -> dict:
         return {**super().status, "boiler_setpoint": self.boiler_setpoint}
 
@@ -855,28 +892,28 @@ class BdrSwitch(Actuator, Device):
             pass
 
         if discover_flag & DISCOVER_STATUS:
-            self._send_cmd("0008")
+            pass
 
     def _proc_msg(self, msg) -> None:
         super()._proc_msg(msg)
 
-        if self._is_tpi is None:
-            _ = self.is_tpi
-
         if self._known_msg:
             pass
-        elif msg.code == "0008" and msg.verb == "RP":
-            self._relay_demand = msg.payload["relay_demand"]
+
         elif msg.code == "1100":
             pass
-        elif msg.code in "3B00":
+
+        elif msg.code == "3B00":
             for code in ("0008", "3EF1"):
-                self._send_cmd(code, retry_limit=5)
+                self._send_cmd(code)
+
         else:
             assert False, f"Unknown packet verb/code for {self.id}"
 
     @property
-    def is_tpi(self) -> Optional[bool]:  # 3B00
+    def role(self) -> Optional[str]:
+        """Return the role of the BDR91A (there are six possibilities)."""
+
         if self._is_tpi is not None:
             return self._is_tpi
 
@@ -893,13 +930,9 @@ class BdrSwitch(Actuator, Device):
 
         return self._is_tpi
 
-    @property
-    def _tpi_params(self) -> dict:  # 1100
-        return self._get_msg_value("1100")  # if self.is_tpi else None
-
-    @property
-    def relay_demand(self) -> dict:  # 0008
-        return self._relay_demand
+    # @property
+    # def _tpi_params(self) -> dict:  # 1100
+    #     return self._get_msg_value("1100")  # if self.is_tpi else None
 
 
 class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature, Device):

@@ -627,6 +627,15 @@ class EvoSystem(System):
         # self._send_cmd("2E04", payload="FF")  # system mode
         return self._mode
 
+    @property
+    def calling_for_heat(self) -> Optional[bool]:
+        """Return True is teh system is currently calling for heat."""
+        if not self._boiler_control:
+            return
+
+        if self._boiler_control.actuator_state:
+            return True
+
     async def set_mode(self, mode, until=None):  # 2E04
         """Set the system mode for a specified duration, or indefinitely."""
 
