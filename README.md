@@ -7,9 +7,7 @@ a) convert the RF packets in useful JSON
 b) builds a picture (schema, config & state) of an evohome-compatible system - either passively (by eavesdropping), or actively (probing)
 c) allows you to send commands to evohome
 
-Requires a Honeywell HGI80 or similar. 
-
-Used by https://github.com/zxdavb/evohome_cc.
+Requires a Honeywell HGI80 or similar. Provide services to https://github.com/zxdavb/evohome_cc, a Home Assistant integration
 
 ## Installation
 
@@ -31,7 +29,7 @@ pip install --upgrade pip
 ## Instructions
 
 ```
-python client.py monitor /dev/ttyUSB0 
+python client.py monitor /dev/ttyUSB0
 ```
 
 Be sure to have a look at `-o packet_log.out` and `-p` (probe).
