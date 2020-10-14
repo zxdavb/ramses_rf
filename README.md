@@ -4,12 +4,12 @@
 
 (WIP) Emulates a Honeywell evohome controller.
 
-Requires a Honeywell HGI80 or similar. Uses https://github.com/zxdavb/evohome_cc.
+Requires a Honeywell HGI80 or similar. Provide services to https://github.com/zxdavb/evohome_cc, a Home Assistant integration
 
 ## Installation
 
 ```
-pip install evohome
+pip install evohome_rf
 ```
 
 ## Instructions
