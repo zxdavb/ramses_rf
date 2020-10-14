@@ -155,7 +155,7 @@ DEVICE_TABLE = {
         "is_controller": True,
         "is_sensor": True,
         "archetype": "ATC928",
-        "poll_codes": ["000C", "10E0", "1100", "313F",],
+        "poll_codes": ["000C", "10E0", "1100", "313F"],
     },  # rechargeable
     "02": {
         "type": "UFC",

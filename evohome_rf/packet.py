@@ -224,21 +224,19 @@ async def file_pkts(fp):
 
     for ts_pkt in fp:
         ts_pkt = ts_pkt.strip()
-        if ts_pkt == "":  # ignore blank lines
-            continue
-
+        dtm, pkt = ts_pkt[:26], ts_pkt[27:]
         try:
-            dtm, pkt = ts_pkt[:26], ts_pkt[27:]
             # assuming a completely valid log file, asserts allows for -O for inc. speed
             assert DTM_LONG_REGEX.match(dtm)
-            assert dt.fromisoformat(dtm)
+            dt.fromisoformat(dtm)
 
         except (AssertionError, TypeError, ValueError):
-            _LOGGER.warning(
-                "%s < Packet line has an invalid timestamp (ignoring)",
-                ts_pkt,
-                extra=extra(dt_str(), ts_pkt),
-            )
+            if ts_pkt != "" and dtm.strip()[:1] != "#":
+                _LOGGER.warning(
+                    "%s < Packet line has an invalid timestamp (ignoring)",
+                    ts_pkt,
+                    extra=extra(dt_str(), ts_pkt),
+                )
             continue
 
         pkt = Packet(dtm, pkt, None)

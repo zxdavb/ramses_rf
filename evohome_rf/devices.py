@@ -844,7 +844,14 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):
                 assert False, f"Unknown packet code for {self.id}"
 
         elif self.type == "34":
-            if msg.verb == " I" and msg.code in ("0008", "042F", "10E0", "3120"):
+            if msg.verb == " I" and msg.code in (
+                "0005",
+                "0008",
+                "000C",
+                "042F",
+                "10E0",
+                "3120",
+            ):
                 pass
             elif msg.verb == "RQ" and msg.code in ("000A",):
                 pass
