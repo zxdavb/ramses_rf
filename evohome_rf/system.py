@@ -610,12 +610,38 @@ class EvoSystem(System):
         # else:
         #     assert False, "Unknown packet code"
 
-    # def fault_log(self, force_update=False) -> Optional[list]:  # 0418
-    #     # TODO: try to discover fault codes
-    #     for log_idx in range(0x00, 0x3C):  # 10 pages of 6
-    #         self._send_cmd("0418", payload=f"{log_idx:06X}")
+    async def fault_log(self, *args, **kwargs) -> Optional[list]:  # 0418
+        def proc_next_log(msg, *args, **kwargs):
+            log = dict(msg.payload)
+            log_idx = int(log.pop("log_idx"))
+            self._fault_log[log_idx] = log
 
-    #     return [f.payload for f in self._fault_log.values()]
+            self._gwy._callbacks["0418"] = {
+                "func": proc_next_log,
+                "args": [],
+                "kwargs": {},
+                "repeat": False,
+            }
+            self._send_cmd("0418", payload=f"{log_idx + 1:06X}")
+            return True
+
+        if kwargs.get("force_refresh"):
+            self._fault_log = {}
+
+        if self._fault_log:
+            return self._fault_log
+
+        log_idx = 0
+
+        self._gwy._callbacks["0418"] = {
+            "func": proc_next_log,
+            "args": [],
+            "kwargs": {},
+            "repeat": False,
+        }
+        self._send_cmd("0418", payload=f"{log_idx:06X}")
+
+        return [f.payload for f in self._fault_log.values()]
 
     @property
     def language(self) -> Optional[str]:  # 0100,

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome serial."""
+"""Evohome RF - a RAMSES-II protocol decoder & analyser."""
 
 import asyncio
 from collections import deque
+from datetime import datetime as dt
 import json
 import logging
 import os
@@ -37,6 +38,7 @@ from .packet import (
     SERIAL_CONFIG,
 )
 from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
+from .version import __version__  # noqa
 
 # from .ser2net import Ser2NetServer
 from .system import EvoSystem
@@ -112,6 +114,7 @@ class Gateway:
         self._buffer = deque()
         self._sched_zone = None
         self._sched_lock = Lock()
+        self._callbacks = {}
 
         self._prev_msg = None
 
@@ -277,6 +280,24 @@ class Gateway:
     def _process_packet(self, pkt: Packet) -> None:
         """Decode the packet and its payload."""
 
+        def check_for_callback(msg: Message) -> None:
+            dtm = dt.now()
+            [
+                v["func"](None, *v["args"], **v["kwargs"])
+                for v in self._callbacks.values()
+                if v["timeout"] > dtm
+            ]  # first, delete expired callbacks
+
+            self._callbacks = {
+                k: v for k, v in self._callbacks.items() if v["timeout"] <= dtm
+            }
+
+            if msg.code in self._callbacks:
+                callback = self._callbacks[msg.code]
+                callback["func"](msg, *callback["args"], **callback["kwargs"])
+                if not callback.get("repeat"):
+                    del self._callbacks[msg.code]
+
         if not pkt.is_wanted(include=self._include_list, exclude=self._exclude_list):
             return
 
@@ -285,8 +306,9 @@ class Gateway:
                 return
 
             msg = Message(self, pkt)  # trap/logs all invalids msgs appropriately
+            check_for_callback(msg)
 
-            # 18:/RQs are unreliable, the corresponding RPs, if any, are required
+            # 18:/RQs are unreliable, although any corresponding RPs are required
             if msg.src.type == "18":
                 return
 

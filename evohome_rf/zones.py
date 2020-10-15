@@ -696,18 +696,25 @@ class Zone(ZoneBase):
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        # TODO: this wont wokr if the controller is the sensor
-        # if self.sensor and self.sensor.temperature:
-        #     return self.sensor.temperature
+        def method_1() -> Optional[float]:
+            msg = self._ctl._msgs.get("30C9")
+            if msg is not None:
+                return {
+                    k: v
+                    for z in msg.payload
+                    for k, v in z.items()
+                    if z["zone_idx"] == self.idx
+                }.get("temperature")
 
-        msg = self._ctl._msgs.get("30C9")
-        if msg is not None:
-            self._temperature = {
-                k: v
-                for z in msg.payload
-                for k, v in z.items()
-                if z["zone_idx"] == self.idx
-            }.get("temperature")
+        def method_2() -> Optional[float]:
+            if self.sensor:
+                return self.sensor.temperature
+
+        if self._zone_config and self._zone_config.get("multiroom_mode"):
+            # A controller does not inlude these in the 30C9 arrary
+            self._temperature = method_2()
+        else:
+            self._temperature = method_1()
         return self._temperature
 
     @property
