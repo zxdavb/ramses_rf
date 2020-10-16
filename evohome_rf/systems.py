@@ -71,6 +71,22 @@ class System(Controller):
         else:
             super()._proc_msg(msg)
 
+        # def xxx(zone_dict):
+        #     zone = self.zone_by_idx[zone_dict.pop("zone_idx")]
+        #     if msg.code == "000A":
+        #         zone._zone_config = zone_dict
+        #     elif msg.code == "2309":
+        #         zone._temperature = zone_dict
+        #     elif msg.code == "30C9":
+        #         zone._temperature = zone_dict
+
+        # if msg.code in ("000A", "2309", "30C9"):
+        #     if isinstance(msg.payload, list):
+        #         super()._proc_msg(msg)
+        #         [xxx(z) for z in msg.payload]
+        #     else:
+        #         xxx(msg.payload)
+
         if msg.code in ("000A", "2309", "30C9") and isinstance(msg.payload, list):
             pass
 
