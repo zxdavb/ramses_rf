@@ -295,10 +295,11 @@ class Gateway:
                 if v.get("daemon") or v.get("timeout", dt.max) > dtm
             }  # then, discard expired callbacks
 
-            callback = self._callbacks[msg._pkt._header]
-            callback["func"](msg, *callback["args"], **callback["kwargs"])
-            if not callback.get("daemon"):
-                del self._callbacks[msg._pkt._header]
+            if msg._pkt._header in self._callbacks:
+                callback = self._callbacks[msg._pkt._header]
+                callback["func"](msg, *callback["args"], **callback["kwargs"])
+                if not callback.get("daemon"):
+                    del self._callbacks[msg._pkt._header]
 
         if not pkt.is_wanted(include=self._include_list, exclude=self._exclude_list):
             return
