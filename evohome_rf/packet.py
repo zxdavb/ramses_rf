@@ -26,9 +26,7 @@ from .const import (
 from .logger import dt_str
 
 BAUDRATE = 115200
-READ_TIMEOUT = 0.5
 XONXOFF = True
-
 SERIAL_CONFIG = {"baudrate": BAUDRATE, "xonxoff": XONXOFF}
 
 Pause = SimpleNamespace(
@@ -95,8 +93,8 @@ class Packet:
         self.dtm = dtm
         self.date, self.time = dtm.split("T")  # dtm assumed to be valid
 
-        self._pkt_line = pkt
-        self._raw_pkt_line = raw_pkt
+        self._pkt_str = pkt
+        self._raw_pkt_str = raw_pkt
         self.packet, self.error_text, self.comment = split_pkt_line(pkt)
         self._packet = self.packet + " " if self.packet else ""  # NOTE: hack 4 logging
 
@@ -108,7 +106,7 @@ class Packet:
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
-        return str(self._raw_pkt_line if self._raw_pkt_line else self._pkt_line)
+        return str(self._raw_pkt_str if self._raw_pkt_str else self._pkt_str)
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
@@ -160,7 +158,7 @@ class Packet:
 
             return len(device_addrs) < 3
 
-        if self._is_valid is not None or not self._pkt_line:
+        if self._is_valid is not None or not self._pkt_str:
             return self._is_valid
 
         if self.error_text:  # log all packets with an error

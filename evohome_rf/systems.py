@@ -9,7 +9,7 @@ import json
 import logging
 from typing import Optional
 
-# from .command import Priority, RQ_RETRY_LIMIT, RQ_TIMEOUT
+from .command import FaultLog  # Priority, RQ_RETRY_LIMIT, RQ_TIMEOUT
 from .const import (
     ATTR_CONTROLLER,
     ATTR_DEVICES,
@@ -108,8 +108,13 @@ class System(Controller):
             zone = self.zone_by_idx.get(domain_id)
             if zone is None:
                 zone = Zone(self, domain_id)
+                if not self._gwy.config["disable_discovery"]:
+                    zone._discover()  # discover_flag=DISCOVER_ALL)
+
             if zone_type is not None:
                 zone._set_type(zone_type)
+                # if not self._gwy.config["disable_discovery"]:
+                #     zone._discover()  # discover_flag=DISCOVER_ALL)
 
         elif domain_id in ("FC", "FF"):
             return
@@ -288,15 +293,11 @@ class EvoSystem(System):
     def __init__(self, gateway, ctl_addr, **kwargs) -> None:
         super().__init__(gateway, ctl_addr, **kwargs)
 
-        self._prev_30c9 = None
-        self._fault_log = {}
+        self._prev_30c9 = None  # used to discover zone sensors
+        self._fault_log = FaultLog(self._ctl)
         self._mode = None
 
-        # self._discover()
-
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        if self._gwy.config["disable_discovery"]:
-            return
         super()._discover()
 
         if discover_flag & DISCOVER_SCHEMA:
@@ -322,6 +323,8 @@ class EvoSystem(System):
             self._send_cmd("2E04", payload="FF")  # system mode
             for code in ("1F09", "313F"):  # system_sync, datetime
                 self._send_cmd(code)
+
+            self._fault_log.start()  # 0418
 
         # TODO: test only
         # asyncio.create_task(
@@ -574,13 +577,10 @@ class EvoSystem(System):
         # if msg.code == "0005" and prev_msg is not None:
         #     zone_added = bool(prev_msg.code == "0004")  # else zone_deleted
 
-        if msg.code == "0418" and msg.verb in (" I", "RP"):  # this is a special case
+        if msg.code == "0418" and msg.verb in (" I"):  # "RP" as a callback!!
             _LOGGER.debug("Zone(%s).update: Received RP/0418 (fault_log)", self.id)
-            # self._fault_log.add_entry(msg)
-            # do the following only if we had: self._fault_log.req_log(log_idx=0)
-            # self._fault_log.req_entry(log_idx=payload["log_idx"] + 1)
-            if "log_idx" in msg.payload:
-                self._fault_log[msg.payload["log_idx"]] = msg
+            # if "log_idx" in msg.payload:
+            #     self._fault_log[msg.payload["log_idx"]] = msg
 
         if msg.code == "2E04" and msg.verb in (" I", "RP"):  # this is a special case
             self._mode = msg.payload
@@ -610,38 +610,12 @@ class EvoSystem(System):
         # else:
         #     assert False, "Unknown packet code"
 
-    async def fault_log(self, *args, **kwargs) -> Optional[list]:  # 0418
-        def proc_next_log(msg, *args, **kwargs):
-            log = dict(msg.payload)
-            log_idx = int(log.pop("log_idx"))
-            self._fault_log[log_idx] = log
-
-            self._gwy._callbacks["0418"] = {
-                "func": proc_next_log,
-                "args": [],
-                "kwargs": {},
-                "repeat": False,
-            }
-            self._send_cmd("0418", payload=f"{log_idx + 1:06X}")
-            return True
-
+    def fault_log(self, *args, **kwargs) -> Optional[dict]:  # 0418
         if kwargs.get("force_refresh"):
-            self._fault_log = {}
+            self._fault_log.reset()
+            self._fault_log.start()
 
-        if self._fault_log:
-            return self._fault_log
-
-        log_idx = 0
-
-        self._gwy._callbacks["0418"] = {
-            "func": proc_next_log,
-            "args": [],
-            "kwargs": {},
-            "repeat": False,
-        }
-        self._send_cmd("0418", payload=f"{log_idx:06X}")
-
-        return [f.payload for f in self._fault_log.values()]
+        return self._fault_log.fault_log
 
     @property
     def language(self) -> Optional[str]:  # 0100,

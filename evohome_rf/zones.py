@@ -5,7 +5,8 @@
 
 from abc import ABCMeta, abstractmethod
 import asyncio
-import json
+
+# import json
 import logging
 from typing import Optional
 
@@ -77,11 +78,9 @@ class ZoneBase(Entity, metaclass=ABCMeta):
         self._name = None
         self._zone_type = None
 
-        self._discover()  # should be last thing in __init__()
-
-    def __repr__(self) -> str:
-        """Return an unambiguous string representation of this object."""
-        return json.dumps(self.schema, indent=2)
+    # def __repr__(self) -> str:
+    #     """Return an unambiguous string representation of this object."""
+    #     return json.dumps(self.schema, indent=2)
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
@@ -193,8 +192,6 @@ class DhwZone(ZoneBase, HeatDemand):
         self._relay_failsafe = None
 
     def _discover(self, discover_flags=DISCOVER_ALL) -> None:
-        if self._gwy.config["disable_discovery"]:
-            return
         # super()._discover()
 
         # if False and __dev_mode__ and self.idx == "FA":  # dev/test code
@@ -454,8 +451,6 @@ class Zone(ZoneBase):
         self._schedule = Schedule(self)
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        if self._gwy.config["disable_discovery"]:
-            return
         # super()._discover()
 
         if __dev_mode__ and self.idx == "99":  # dev/test code
@@ -785,8 +780,6 @@ class ZoneHeatDemand:  # not all zone types call for heat
     """Not all zones call for heat."""
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        if self._gwy.config["disable_discovery"]:
-            return
         super()._discover()
 
         if discover_flag & DISCOVER_STATUS:

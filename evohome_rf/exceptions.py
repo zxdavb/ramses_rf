@@ -10,6 +10,21 @@ class Error(Exception):
     pass
 
 
+class ExpiredCallbackError(Error):
+    """Raised when the callback has expired."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+        self.message = args[0] if args else None
+
+    def __str__(self) -> str:
+        err_msg = "The callback has expired"
+        err_tip = "(no tip)"
+        if self.message:
+            return f"{err_msg}: {self.message} {err_tip}"
+        return f"{err_msg} {err_tip}"
+
+
 class CorruptPayloadError(Error):
     """Raised when the payload is inconsistent."""
 

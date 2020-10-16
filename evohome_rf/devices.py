@@ -126,7 +126,8 @@ class Entity:
         self._msgs[msg.code] = msg
 
     def _send_cmd(self, code, dest, payload, **kwargs) -> None:
-        self._msgs.pop(code, None)  # remove the old one, so we can tell if RP'd
+        self._msgs.pop(code, None)  # remove the old one, so we can tell if RP'd rcvd
+
         verb = kwargs.pop("verb", "RQ")
         self._que.put_nowait(Command(verb, dest, code, payload, **kwargs))
 
@@ -200,8 +201,6 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         self._friendly_name = attrs.get("friendly_name") if attrs else None
         self._ignored = attrs.get("ignored", False) if attrs else False
 
-        self._discover()  # should be last thing in __init__()
-
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
         return f"{self.id} ({DEVICE_TYPES.get(self.type)})"
@@ -212,13 +211,10 @@ class DeviceBase(Entity, metaclass=ABCMeta):
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # sometimes, battery-powered devices do respond to an RQ (e.g. bind mode)
-
-        if self._gwy.config["disable_discovery"]:
-            return
         # super()._discover()
 
         if discover_flag & DISCOVER_SCHEMA:
-            self._send_cmd("1FC9", retry_limit=0)
+            # self._send_cmd("1FC9", retry_limit=0)
             if self.type not in DEVICE_HAS_BATTERY:
                 self._send_cmd("10E0", retry_limit=0)
 
@@ -226,7 +222,8 @@ class DeviceBase(Entity, metaclass=ABCMeta):
             pass
 
         if discover_flag & DISCOVER_STATUS:
-            self._send_cmd("0016", payload="0000", retry_limit=0)
+            # self._send_cmd("0016", payload="0000", retry_limit=0)
+            pass
 
     def _send_cmd(self, code, **kwargs) -> None:
         dest = kwargs.pop("dest_addr", self.id)
@@ -267,8 +264,6 @@ class Actuator:  # 0008, 3B00, 3EF0, 3EF1 (1100?)
         self._relay_demand = None
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        if self._gwy.config["disable_discovery"]:
-            return
         super()._discover()
 
         if discover_flag & DISCOVER_PARAMS:
@@ -627,8 +622,6 @@ class UfhController(Device):
         self._circuits = {}
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        if self._gwy.config["disable_discovery"]:
-            return
         super()._discover()
 
         if discover_flag & DISCOVER_SCHEMA:
@@ -887,8 +880,6 @@ class BdrSwitch(Actuator, Device):
         - 3EF1: has sub-domains?
         """
 
-        if self._gwy.config["disable_discovery"]:
-            return
         super()._discover()
 
         if discover_flag & DISCOVER_SCHEMA:

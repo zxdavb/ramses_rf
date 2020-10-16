@@ -64,7 +64,7 @@ class Message:
     def __init__(self, gateway, pkt) -> None:
         """Create a message, assumes a valid packet."""
         self._gwy = gateway
-        self._pkt = packet = pkt.packet
+        self._pkt = pkt
 
         # prefer Device(s) but Address(es) will do
         self.src = gateway.device_by_id.get(pkt.src_addr.id, pkt.src_addr)
@@ -75,13 +75,13 @@ class Message:
         self.time = pkt.time
         self.dtm = dt.fromisoformat(f"{pkt.date}T{pkt.time}")
 
-        self.rssi = packet[0:3]
-        self.verb = packet[4:6]
-        self.seqn = packet[7:10]  # sequence number (as used by 31D9)?
-        self.code = packet[41:45]
+        self.rssi = pkt.packet[0:3]
+        self.verb = pkt.packet[4:6]
+        self.seqn = pkt.packet[7:10]  # sequence number (as used by 31D9)?
+        self.code = pkt.packet[41:45]
 
-        self.len = int(packet[46:49])  # TODO:  is useful? / is user used?
-        self.raw_payload = packet[50:]
+        self.len = int(pkt.packet[46:49])  # TODO:  is useful? / is user used?
+        self.raw_payload = pkt.packet[50:]
 
         self._payload = self._str = None
 
@@ -90,7 +90,7 @@ class Message:
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
-        return self._pkt
+        return self._pkt.packet
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
@@ -445,6 +445,8 @@ class Message:
             # elif self.code in ("22C9", "3150"):  # TODO: UFH zone
             #     pass
 
+        return
+
         # else:  # should never get here
         #     raise TypeError
 
@@ -457,31 +459,32 @@ class Message:
 
         # HACK: merge 000A fragments
         # TODO: do here, or in ctl._proc_msg() and/or system._proc_msg()
-        if re.search("I.* 01.* 000A ", self._pkt):  # HACK: and dtm < 3 secs
+        if re.search("I.* 01.* 000A ", str(self._pkt)):  # HACK: and dtm < 3 secs
             # TODO: an edge case here: >2 000A packets in a row
-            if prev is not None and re.search("I.* 01.* 000A ", prev._pkt):
+            if prev is not None and re.search("I.* 01.* 000A ", str(prev._pkt)):
                 self._payload = prev.payload + self.payload  # merge frags, and process
 
         # some devices aren't created if they're filtered out
-        if self.src.id not in self._gwy.device_by_id:
+        if self.src not in self._gwy.devices:
             return
 
         # some empty payloads may still be useful (e.g. RQ/3EF1/{})
         self._gwy.device_by_id[self.src.id]._proc_msg(self)
-
+        # self.src._proc_msg(self)  # new way
         # if payload is {} (empty dict; lists shouldn't ever be empty)
         if not self.payload:
             return
 
-        # try to find the boiler relay, dhw sensor
-        for evo in self._gwy.systems:
-            if self.src.controller == evo.id:  # TODO: check!
-                evo._proc_msg(self, prev)  # TODO: WIP
-                if self.src.controller is not None:
-                    break
-            if self.src.id == evo.id:  # TODO: check!
-                if self.code in ("10A0", "1260", "1F41") and evo._dhw is not None:
-                    evo._dhw._proc_msg(self)
+        # # try to find the boiler relay, dhw sensor
+        # for evo in self._gwy.systems:
+        #     if self.src == evo:  # TODO: or self.src.if == evo.id?
+        #         if self.code in ("10A0", "1260", "1F41") and evo._dhw is not None:
+        #             evo._dhw._proc_msg(self)
+        #         break
+
+        #     if self.src.controller == evo:  # TODO: self.src.controller.id == evo.id?
+        #         evo._proc_msg(self, prev)  # TODO: WIP
+        #         break
 
         # lists only useful to devices (c.f. 000C)
         if isinstance(self.payload, dict) and "zone_idx" in self.payload:

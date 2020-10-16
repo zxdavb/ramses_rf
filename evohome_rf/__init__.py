@@ -41,7 +41,7 @@ from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
 from .version import __version__  # noqa
 
 # from .ser2net import Ser2NetServer
-from .system import EvoSystem
+from .systems import EvoSystem
 
 # TODO: duplicated in schema.py
 DONT_CREATE_MESSAGES = 3
@@ -78,6 +78,8 @@ class Gateway:
         if config.get("debug_mode"):
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
             _LOGGER.debug("Starting evohome_rf, **config = %s", config)
+        else:
+            _LOGGER.warning("Starting evohome_rf, **config = %s", config)
 
         self.serial_port = serial_port
         self._loop = loop if loop else asyncio.get_running_loop()
@@ -94,8 +96,6 @@ class Gateway:
             # self.config["input_file"] = None
         elif self.config.get("input_file") is not None:
             self.config["disable_sending"] = True
-
-        # self._execute_cmd = self.config.get("execute_cmd")
 
         if self.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
             _stream = (None, sys.stdout)
@@ -280,23 +280,25 @@ class Gateway:
     def _process_packet(self, pkt: Packet) -> None:
         """Decode the packet and its payload."""
 
-        def check_for_callback(msg: Message) -> None:
+        def proc_callback(msg: Message) -> None:
+            # TODO: this needs to be a queue
             dtm = dt.now()
             [
-                v["func"](None, *v["args"], **v["kwargs"])
+                v["func"](False, *v["args"], **v["kwargs"])
                 for v in self._callbacks.values()
-                if v["timeout"] > dtm
-            ]  # first, delete expired callbacks
+                if not v.get("daemon") and v.get("timeout", dt.max) <= dtm
+            ]  # first, alert expired callbacks
 
             self._callbacks = {
-                k: v for k, v in self._callbacks.items() if v["timeout"] <= dtm
-            }
+                k: v
+                for k, v in self._callbacks.items()
+                if v.get("daemon") or v.get("timeout", dt.max) > dtm
+            }  # then, discard expired callbacks
 
-            if msg.code in self._callbacks:
-                callback = self._callbacks[msg.code]
-                callback["func"](msg, *callback["args"], **callback["kwargs"])
-                if not callback.get("repeat"):
-                    del self._callbacks[msg.code]
+            callback = self._callbacks[msg._pkt._header]
+            callback["func"](msg, *callback["args"], **callback["kwargs"])
+            if not callback.get("daemon"):
+                del self._callbacks[msg._pkt._header]
 
         if not pkt.is_wanted(include=self._include_list, exclude=self._exclude_list):
             return
@@ -306,7 +308,8 @@ class Gateway:
                 return
 
             msg = Message(self, pkt)  # trap/logs all invalids msgs appropriately
-            check_for_callback(msg)
+            if msg._pkt._header in self._callbacks:
+                proc_callback(msg)
 
             # 18:/RQs are unreliable, although any corresponding RPs are required
             if msg.src.type == "18":
@@ -357,6 +360,8 @@ class Gateway:
                 device = DEVICE_CLASSES.get(dev_addr.type, Device)(
                     self, dev_addr, controller=ctl, domain_id=domain_id
                 )
+            if not self.config["disable_discovery"]:
+                device._discover()  # discover_flag=DISCOVER_ALL)
         else:  # update the existing device with any metadata
             if ctl is not None:
                 device.controller = ctl

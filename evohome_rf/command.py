@@ -3,7 +3,7 @@
 #
 """Evohome serial."""
 
-from datetime import timedelta
+from datetime import datetime as dt, timedelta
 from functools import total_ordering
 import json
 import logging
@@ -12,7 +12,13 @@ from types import SimpleNamespace
 from typing import Optional
 import zlib
 
-from .const import __dev_mode__, CODES_SANS_DOMAIN_ID, COMMAND_FORMAT, HGI_DEVICE
+from .const import (
+    __dev_mode__,
+    CODES_SANS_DOMAIN_ID,
+    CODE_SCHEMA,
+    COMMAND_FORMAT,
+    HGI_DEVICE,
+)
 from .logger import dt_now
 
 # SERIAL_PORT = "serial_port"
@@ -45,6 +51,8 @@ else:
 def _pkt_header(packet, response_header=None) -> Optional[str]:
     """Return the QoS header of a packet."""
 
+    packet = str(packet)
+
     verb = packet[4:6]
     if response_header:
         verb = "RP" if verb == "RQ" else " I"  # RQ/RP, or W/I
@@ -61,12 +69,14 @@ def _pkt_header(packet, response_header=None) -> Optional[str]:
         return "|".join((header, payload[:2] + payload[10:12]))
 
     if code == "0418":  # log_idx
+        if payload == CODE_SCHEMA["0418"]["null_rp"]:
+            return header
         return "|".join((header, payload[4:6]))
 
     if code in CODES_SANS_DOMAIN_ID:  # have no domain_id
         return header
 
-    return "|".join((header, payload[:2]))  # has a domain_id
+    return "|".join((header, payload[:2]))  # assume has a domain_id
 
 
 @total_ordering
@@ -136,26 +146,24 @@ class FaultLog:
 
     def __init__(self, controller, msg=None, **kwargs) -> None:
         """Initialise the class."""
+        _LOGGER.debug("FaultLog(%s).__init__()", controller.id)
+
         self._ctl = controller
 
+        self.id = controller.id
         self._gwy = controller._gwy
         self._que = controller._que
 
-        self.id = controller.id
+        self._fault_log = None
+        self._fault_log_done = None
 
-        self._fault_log = []
-
-    def add_fault(self, msg) -> None:
-        _LOGGER.error("Sched(%s).add_fragment: xxx", self.id)
-
-    def req_schedule(self) -> int:
-        _LOGGER.error("Sched(%s).req_schedule: xxx", self.id)
-
-    def req_fragment(self, restart=False) -> int:
-        _LOGGER.error("Sched(%s).req_fragment: xxx", self.id)
-
-        if self._gwy.self.config["disable_sending"]:
-            return
+        # register the callback for a null response (has no log_idx)
+        self._gwy._callbacks["|".join(("RP", self.id, "0418"))] = {
+            "func": self.proc_log_entry,
+            "args": [],
+            "kwargs": {},
+            "daemon": True,
+        }
 
     def __repr_(self) -> str:
         return json.dumps(self._fault_log)
@@ -163,12 +171,60 @@ class FaultLog:
     def __str_(self) -> str:
         return json.dumps(self._fault_log, indent=2)
 
-    @property
-    def fault_log(self) -> list:
-        if self._fault_log is not None:
-            return self._fault_log
+    def start(self, *args, **kwargs):
+        _LOGGER.debug("FaultLog(%s).start()", self.id)
+        self._fault_log = {}
+        self._fault_log_done = False
 
+        self.get_log_entry(0)
+
+    def reset(self, *args, **kwargs):
+        _LOGGER.debug("FaultLog(%s).reset()", self.id)
+        self._fault_log = None
+        self._fault_log_done = None
+
+    def get_log_entry(self, log_idx):
+        _LOGGER.debug("FaultLog(%s).get_log_entry(%s)", self.id, log_idx)
+        self._send_cmd("0418", payload=f"{log_idx:06X}")
+
+    def proc_log_entry(self, msg, *args, **kwargs) -> bool:
+        _LOGGER.debug("FaultLog(%s).proc_log_entry(%s)", self.id, msg)
+        if not msg:
+            # raise ExpiredCallbackError
+            return
+
+        if not msg.payload:
+            self._fault_log_done = True  # TODO: delete other entries in call back
+            return
+
+        log = dict(msg.payload)
+        log_idx = int(log.pop("log_idx"))
+        self._fault_log[log_idx] = log
+
+        self.get_log_entry(log_idx + 1)
+
+    @property
+    def fault_log(self) -> Optional[dict]:
+        """Return the fault log as a dict."""
         return self._fault_log
+
+    @property
+    def complete(self) -> Optional[bool]:
+        """Return True if the fault log has been downloaded in ful."""
+        return self._fault_log_done
+
+    def _send_cmd(self, code, payload) -> None:
+        qos = {"priority": Priority.LOW, "retries": 3}
+        cmd = Command("RQ", self.id, code, payload, **qos)
+
+        self._gwy._callbacks[cmd._rp_header] = {
+            "func": self.proc_log_entry,
+            "args": [],
+            "kwargs": {},
+            "timeout": dt.now() + timedelta(minutes=2),
+        }
+
+        self._que.put_nowait(cmd)
 
 
 class Schedule:
