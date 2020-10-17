@@ -23,6 +23,7 @@ from .const import (
     DISCOVER_STATUS,
     DISCOVER_ALL,
 )
+from .discovery import poll_device, probe_device
 from .exceptions import CorruptStateError
 from .logger import dt_now
 
@@ -224,6 +225,15 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         if discover_flag & DISCOVER_STATUS:
             # self._send_cmd("0016", payload="0000", retry_limit=0)
             pass
+
+            if self.type == "17":  # Hometronics, unknown
+                self._probe_device()
+
+    def _poll_device(self) -> None:
+        poll_device(self._que, self.id)
+
+    def _probe_device(self) -> None:
+        probe_device(self._que, self.id)
 
     def _send_cmd(self, code, **kwargs) -> None:
         dest = kwargs.pop("dest_addr", self.id)

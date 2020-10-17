@@ -48,24 +48,23 @@ def probe_device(cmd_que, device_id):
     # for _code in range(0x4000):
     #     code = f"{_code:04X}"
 
-    qos_0 = {"retry_limit": 0, "priority": Priority.LOW}
-    qos_1 = {"retry_limit": 0, "priority": Priority.LOW}
+    qos = {"retry_limit": 0, "priority": Priority.LOW}
 
     for code in sorted(CODE_SCHEMA):
         if code == "1100":
-            cmd = Command("RQ", device_id, code, "FC", **qos_1)
+            cmd = Command("RQ", device_id, code, "FC", **qos)
             _ = asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
             continue
 
         if code == "2E04":
-            cmd = Command("RQ", device_id, code, "FF", **qos_1)
+            cmd = Command("RQ", device_id, code, "FF", **qos)
             _ = asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
             continue
 
-        cmd = Command("RQ", device_id, code, "00", **qos_0)
+        cmd = Command("RQ", device_id, code, "00", **qos)
         _ = asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
 
-        cmd = Command("RQ", device_id, code, "0000", **qos_0)
+        cmd = Command("RQ", device_id, code, "0000", **qos)
         _ = asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
 
     # for code in ("0016", "1FC9"):  # payload 0000 OK for both these
