@@ -325,7 +325,7 @@ def _percent(value: str) -> Optional[float]:  # a percentage 0-100% (0.0 to 1.0)
 def _str(value: str) -> Optional[str]:  # printable ASCII characters
     """Return a string of printable ASCII characters."""
     _string = bytearray([x for x in bytearray.fromhex(value) if 31 < x < 127])
-    return _string.decode("ascii") if _string else None
+    return _string.decode("ascii").strip() if _string else None
 
 
 def _temp(value: str) -> Union[float, bool, None]:
