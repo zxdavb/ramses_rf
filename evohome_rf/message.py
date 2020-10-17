@@ -402,7 +402,7 @@ class Message:
                 zone = self.src.get_zone(self.payload["zone_idx"])
                 try:
                     zone._set_sensor(devices[0])
-                except TypeError:  # breaks with invalid device types, e.g. 17:
+                except TypeError:  # ignore invalid device types, e.g. 17:
                     pass
 
             elif self.payload["device_class"] == "zone_actuators":
