@@ -400,7 +400,10 @@ class Message:
 
             if self.payload["device_class"] == ATTR_ZONE_SENSOR:
                 zone = self.src.get_zone(self.payload["zone_idx"])
-                zone._set_sensor(devices[0])
+                try:
+                    zone._set_sensor(devices[0])
+                except TypeError:  # breaks with invalid device types, e.g. 17:
+                    pass
 
             elif self.payload["device_class"] == "zone_actuators":
                 # TODO: is this better, or...
