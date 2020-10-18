@@ -461,7 +461,7 @@ class Message:
             return
 
         # HACK: merge 000A fragments
-        # TODO: do here, or in ctl._proc_msg() and/or system._proc_msg()
+        # TODO: do here, or in ctl._handle_msg() and/or system._handle_msg()
         if re.search("I.* 01.* 000A ", str(self._pkt)):  # HACK: and dtm < 3 secs
             # TODO: an edge case here: >2 000A packets in a row
             if prev is not None and re.search("I.* 01.* 000A ", str(prev._pkt)):
@@ -472,8 +472,8 @@ class Message:
             return
 
         # some empty payloads may still be useful (e.g. RQ/3EF1/{})
-        self._gwy.device_by_id[self.src.id]._proc_msg(self)
-        # self.src._proc_msg(self)  # new way
+        self._gwy.device_by_id[self.src.id]._handle_msg(self)
+        # self.src._handle_msg(self)  # new way
         # if payload is {} (empty dict; lists shouldn't ever be empty)
         if not self.payload:
             return
@@ -482,11 +482,11 @@ class Message:
         # for evo in self._gwy.systems:
         #     if self.src == evo:  # TODO: or self.src.if == evo.id?
         #         if self.code in ("10A0", "1260", "1F41") and evo._dhw is not None:
-        #             evo._dhw._proc_msg(self)
+        #             evo._dhw._handle_msg(self)
         #         break
 
         #     if self.src.controller == evo:  # TODO: self.src.controller.id == evo.id?
-        #         evo._proc_msg(self, prev)  # TODO: WIP
+        #         evo._handle_msg(self, prev)  # TODO: WIP
         #         break
 
         # lists only useful to devices (c.f. 000C)
@@ -496,7 +496,7 @@ class Message:
             #     evo = self.dst._evo
 
             if evo is not None and self.payload["zone_idx"] in evo.zone_by_idx:
-                evo.zone_by_idx[self.payload["zone_idx"]]._proc_msg(self)
+                evo.zone_by_idx[self.payload["zone_idx"]]._handle_msg(self)
 
             # elif self.payload.get("ufh_idx") in ...:  # TODO: is this needed?
             #     pass

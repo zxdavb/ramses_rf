@@ -36,7 +36,7 @@ from .const import (
     ZONE_MODE_MAP,
     __dev_mode__,
 )
-from .devices import Device, Entity, HeatDemand, _dtm
+from .devices import Device, Entity, _dtm
 from .exceptions import CorruptStateError
 
 _LOGGER = logging.getLogger(__name__)
@@ -125,9 +125,10 @@ class ZoneBase(Entity, metaclass=ABCMeta):
         raise NotImplementedError
 
     @property
+    @abstractmethod
     def name(self) -> Optional[str]:
         """Return the name of the zone/DHW."""
-        return self._name
+        raise NotImplementedError
 
     @property
     @abstractmethod
@@ -168,6 +169,29 @@ class ZoneBase(Entity, metaclass=ABCMeta):
     #     raise NotImplementedError
 
 
+class HeatDemand:  # 3150
+    def __init__(self, gateway, device_addr, **kwargs) -> None:
+        super().__init__(gateway, device_addr, **kwargs)
+
+        self._heat_demand = None
+
+    def _handle_msg(self, msg) -> bool:
+        super()._handle_msg(msg)
+
+        if msg.code == "3150" and msg.verb == " I":
+            self._heat_demand = msg.payload
+            self._known_msg = True
+
+    @property
+    def heat_demand(self) -> Optional[float]:  # 3150
+        if self._heat_demand:
+            return self._heat_demand["heat_demand"]
+
+    @property
+    def status(self) -> dict:
+        return {**super().status, "heat_demand": self.heat_demand}
+
+
 class DhwZone(ZoneBase, HeatDemand):
     """The DHW class.
 
@@ -183,7 +207,7 @@ class DhwZone(ZoneBase, HeatDemand):
         self._dhw_valve = None
         self._htg_valve = None
         self.heating_type = "DHW"
-        self._name = "Stored DHW"
+        self._name = None  # not used
 
         self._dhw_mode = {}
         self._dhw_params = {}
@@ -211,8 +235,8 @@ class DhwZone(ZoneBase, HeatDemand):
             for code in ("1260", "1F41"):
                 self._send_cmd(code, payload="00")  # payload="00" or "0000", not "FA"
 
-    def _proc_msg(self, msg) -> None:
-        super()._proc_msg(msg)
+    def _handle_msg(self, msg) -> bool:
+        super()._handle_msg(msg)
 
         if msg.code == "0008":
             self._relay_demand = msg.payload["relay_demand"]
@@ -245,18 +269,13 @@ class DhwZone(ZoneBase, HeatDemand):
     def params(self) -> dict:
         """Return the stored HW's configuration (excl. schedule)."""
 
-        return {
-            "dhw_params": self._dhw_params,
-        }
+        return {"dhw_params": self._dhw_params}
 
     @property  # temp, open_windows
     def status(self) -> dict:
         """Return the stored HW's current state."""
 
-        return {
-            "temperature": self._temperature,
-            "dhw_mode": self._dhw_mode,
-        }
+        return {"temperature": self._temperature, "dhw_mode": self._dhw_mode}
 
     @property
     def sensor(self) -> Device:
@@ -343,6 +362,11 @@ class DhwZone(ZoneBase, HeatDemand):
     @property
     def mode(self) -> dict:  # 1F41
         return self._dhw_mode
+
+    @property
+    def name(self) -> Optional[str]:
+        """Return the name of the DHW."""
+        return "Stored DHW"
 
     @property
     def setpoint(self) -> Optional[float]:  # 1F41
@@ -481,11 +505,11 @@ class Zone(ZoneBase):
         for code in ("000A", "2349", "30C9"):  # sadly, no 3150
             self._send_cmd(code, payload=self.idx)
 
-    def _proc_msg(self, msg) -> None:
-        super()._proc_msg(msg)
+    def _handle_msg(self, msg) -> bool:
+        super()._handle_msg(msg)
 
         if msg.code == "0004":
-            self._name = msg.payload.get("name")
+            self._name = msg.payload
 
         # not UFH (it seems), but ELE or VAL; and possibly a MIX support 0008 too
         elif msg.code in ("0008", "0009"):  # TODO: how to determine is/isn't MIX?
@@ -572,10 +596,7 @@ class Zone(ZoneBase):
     def status(self) -> dict:
         """Return the zone's current state."""
 
-        return {
-            ATTR_SETPOINT: self.setpoint,
-            ATTR_TEMP: self.temperature,
-        }
+        return {ATTR_SETPOINT: self.setpoint, ATTR_TEMP: self.temperature}
 
     @property
     def sensor(self) -> Device:
@@ -649,7 +670,7 @@ class Zone(ZoneBase):
             ):
                 raise CorruptStateError(
                     f"Zone {self} has a mismatched type: "
-                    f"old={self._zone_type}, new={_type}",
+                    f"old={self._zone_type}, new={_type}"
                 )
 
         self._zone_type = _type
@@ -666,8 +687,18 @@ class Zone(ZoneBase):
         # self._mode = (
         #     {k: v for k, v in result.items() if k != "zone_idx"} if result else None
         # )
-
         return self._mode
+
+    @property
+    def name(self) -> Optional[str]:
+        """Return the name of the zone."""
+        if self._name:
+            return self._name.get("name")
+
+    # @name.setter
+    # def name(self, value) -> Optional[str]:
+    #     """Set the name of the zone."""
+    #     return
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309 (2349 is a superset of 2309)
@@ -805,8 +836,8 @@ class EleZone(Zone):  # Electric zones (do *not* call for heat)
     For a small (5A) electric load controlled by a BDR91 (never calls for heat).
     """
 
-    def _proc_msg(self, msg) -> None:
-        super()._proc_msg(msg)
+    def _handle_msg(self, msg) -> bool:
+        super()._handle_msg(msg)
 
         # ZV zones are Elec zones that also call for heat; ? and also 1100/unkown_0 = 00
         if msg.code == "3150":
@@ -847,8 +878,8 @@ class RadZone(ZoneHeatDemand, Zone):  # Radiator zones
     For radiators controlled by HR92s or HR80s (will also call for heat).
     """
 
-    def _proc_msg(self, msg) -> None:
-        super()._proc_msg(msg)
+    def _handle_msg(self, msg) -> bool:
+        super()._handle_msg(msg)
 
         if msg.code == "12B0":
             self._window_open = msg.payload["window_open"]
@@ -866,10 +897,7 @@ class RadZone(ZoneHeatDemand, Zone):  # Radiator zones
 
     @property
     def status(self) -> dict:
-        return {
-            **super().status,
-            ATTR_OPEN_WINDOW: self.window_open,
-        }
+        return {**super().status, ATTR_OPEN_WINDOW: self.window_open}
 
 
 class UfhZone(ZoneHeatDemand, Zone):  # UFH zones

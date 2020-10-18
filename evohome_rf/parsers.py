@@ -443,9 +443,7 @@ def parser_0005(payload, msg) -> Optional[dict]:
 
     if msg.verb == "RQ":
         assert payload[:2] == "00"
-        return {
-            "zone_type": CODE_0005_ZONE_TYPE.get(payload[2:4], payload[2:4]),
-        }
+        return {"zone_type": CODE_0005_ZONE_TYPE.get(payload[2:4], payload[2:4])}
 
     assert msg.verb in (" I", "RP")
     if msg.src.type == "34":
@@ -800,7 +798,7 @@ def parser_1060(payload, msg) -> Optional[dict]:
     assert msg.len == 3
     assert payload[4:6] in ("00", "01")
 
-    return {"low_battery": payload[4:] == "00", "battery_level": _percent(payload[2:4])}
+    return {"battery_low": payload[4:] == "00", "battery_level": _percent(payload[2:4])}
 
 
 @parser_decorator  # unknown (non-Evohome, e.g. ST9520C)

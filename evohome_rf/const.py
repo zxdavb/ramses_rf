@@ -398,11 +398,12 @@ ATTR_DHW_SENSOR = "hotwater_sensor"
 ATTR_DHW_VALVE = "hotwater_valve"
 ATTR_DHW_VALVE_HTG = "heating_valve"
 ATTR_HTG_CONTROL = "heating_control"
+ATTR_HTG_PUMP = "heat_pump_control"  # same as ATTR_HTG_CONTROL, but parameters differ
 ATTR_HEAT_DEMAND = "heat_demand"
 ATTR_OPEN_WINDOW = "open_window"
 ATTR_ORPHANS = "orphans"
 ATTR_SETPOINT = "setpoint"
-ATTR_STORED_HOTWATER = "stored_hotwater"
+ATTR_STORED_HW = "stored_hotwater"
 ATTR_SYSTEM = "system"
 ATTR_TEMP = "temperature"
 ATTR_UFH_CONTROLLERS = "ufh_controllers"
@@ -418,6 +419,17 @@ ATTR_UFH_HTG = "underfloor_heating"
 ATTR_ZON_VALVE = "zone_valve"
 ATTR_MIX_VALVE = "mixing_valve"
 ATTR_ELEC_HEAT = "electric_heat"
+
+
+BDR_ROLES = {
+    0: ATTR_HTG_CONTROL,
+    1: ATTR_HTG_PUMP,
+    2: ATTR_DHW_VALVE,
+    3: ATTR_DHW_VALVE_HTG,
+    4: ATTR_ZON_VALVE,
+    5: ATTR_ELEC_HEAT,
+}
+
 
 CODE_0005_ZONE_TYPE = {
     "00": "configured_zones",  # same as 04?

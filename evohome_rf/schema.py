@@ -16,7 +16,7 @@ from .const import (
     ATTR_DHW_VALVE,
     ATTR_HTG_CONTROL,
     ATTR_ORPHANS,
-    ATTR_STORED_HOTWATER,
+    ATTR_STORED_HW,
     ATTR_SYSTEM,
     ATTR_UFH_CONTROLLERS,
     ATTR_ZONE_TYPE,
@@ -101,7 +101,7 @@ SYSTEM_SCHEMA = vol.Schema(
                 vol.Optional(ATTR_ORPHANS): vol.Any(None, vol.All([DEVICE_ID])),
             }
         ),
-        vol.Optional(ATTR_STORED_HOTWATER): vol.Any(None, DHW_SCHEMA),
+        vol.Optional(ATTR_STORED_HW): vol.Any(None, DHW_SCHEMA),
         vol.Optional(ATTR_ZONES): vol.Any(
             None, vol.All(ZONE_SCHEMA, vol.Length(min=1, max=DEFAULT_MAX_ZONES))
         ),
@@ -247,7 +247,7 @@ def load_schema(gwy, schema, **kwargs) -> dict:
     for device_id in schema[ATTR_SYSTEM].get(ATTR_ORPHANS, []):
         gwy.get_device(addr(device_id), controller=ctl)
 
-    dhw = schema.get(ATTR_STORED_HOTWATER)
+    dhw = schema.get(ATTR_STORED_HW)
     if dhw:
         ctl.dhw = ctl.get_zone("FA")
 

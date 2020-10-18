@@ -31,7 +31,7 @@ from .exceptions import CorruptStateError
 from .schema import (
     ATTR_HTG_CONTROL,
     ATTR_ORPHANS,
-    ATTR_STORED_HOTWATER,
+    ATTR_STORED_HW,
     ATTR_UFH_CONTROLLERS,
     ATTR_ZONES,
 )
@@ -65,11 +65,11 @@ class System(Controller):
 
         self._heat_demand = None
 
-    def _proc_msg(self, msg) -> None:
+    def _handle_msg(self, msg) -> bool:
         if msg.code in ("000A", "2309", "30C9") and not isinstance(msg.payload, list):
             pass
         else:
-            super()._proc_msg(msg)
+            super()._handle_msg(msg)
 
         # def xxx(zone_dict):
         #     zone = self.zone_by_idx[zone_dict.pop("zone_idx")]
@@ -82,7 +82,7 @@ class System(Controller):
 
         # if msg.code in ("000A", "2309", "30C9"):
         #     if isinstance(msg.payload, list):
-        #         super()._proc_msg(msg)
+        #         super()._handle_msg(msg)
         #         [xxx(z) for z in msg.payload]
         #     else:
         #         xxx(msg.payload)
@@ -118,7 +118,11 @@ class System(Controller):
         """
 
         if domain_id == "FA":
-            zone = self.dhw if self.dhw is not None else DhwZone(self)
+            zone = self.dhw
+            if zone is None:
+                zone = DhwZone(self)
+                if not self._gwy.config["disable_discovery"]:
+                    zone._discover()  # discover_flag=DISCOVER_ALL)
 
         elif int(domain_id, 16) < self._gwy.config["max_zones"]:
             zone = self.zone_by_idx.get(domain_id)
@@ -203,7 +207,7 @@ class System(Controller):
             ATTR_ORPHANS: orphans,
         }
 
-        schema[ATTR_STORED_HOTWATER] = self.dhw.schema if self.dhw is not None else None
+        schema[ATTR_STORED_HW] = self.dhw.schema if self.dhw is not None else None
 
         schema[ATTR_UFH_CONTROLLERS] = {
             u.id: u.schema
@@ -240,7 +244,7 @@ class System(Controller):
                 "boiler_setpoint": self.boiler_control._get_msg_value("22D9"),
             }
 
-        params[ATTR_STORED_HOTWATER] = self.dhw.params if self.dhw is not None else None
+        params[ATTR_STORED_HW] = self.dhw.params if self.dhw is not None else None
 
         params[ATTR_ZONES] = {
             z.idx: z.params for z in sorted(self.zones, key=lambda x: x.idx)
@@ -276,7 +280,7 @@ class System(Controller):
         if self.boiler_control is not None:
             result[ATTR_SYSTEM][ATTR_HTG_CONTROL] = self.boiler_control.status
 
-        result[ATTR_STORED_HOTWATER] = self.dhw.status if self.dhw is not None else None
+        result[ATTR_STORED_HW] = self.dhw.status if self.dhw is not None else None
 
         result[ATTR_ZONES] = {
             z.idx: z.status for z in sorted(self.zones, key=lambda x: x.idx)
@@ -360,7 +364,7 @@ class EvoSystem(System):
         # # for log_idx in range(0, 0x6):  # max is 0x3C?, 0x3F (highest log is 0x3E?)
         # #     self._send_cmd("0418", payload=f"{log_idx:06X}", priority=Priority.LOW)
 
-    def _proc_msg(self, msg, prev_msg=None):
+    def _handle_msg(self, msg, prev_msg=None):
         """Eavesdrop packets, or pairs of packets, to maintain the system state."""
 
         def is_exchange(this, prev):  # TODO:use is?
@@ -588,7 +592,7 @@ class EvoSystem(System):
 
             _LOGGER.debug("System state (finally): %s", self)
 
-        super()._proc_msg(msg)
+        super()._handle_msg(msg)
 
         # if msg.code == "0005" and prev_msg is not None:
         #     zone_added = bool(prev_msg.code == "0004")  # else zone_deleted
