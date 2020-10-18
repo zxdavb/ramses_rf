@@ -229,39 +229,41 @@ def load_schema(gwy, schema, **kwargs) -> dict:
     """Process the schema, and the configuration and return True if it is valid."""
     # TODO: check a sensor is not a device in another zone
 
-    if schema.get(ATTR_CONTROLLER) is None:
-        return {}
-
     schema = SYSTEM_SCHEMA(schema)
 
+    for device_id in schema.get(ATTR_ORPHANS, []):
+        gwy.get_device(addr(device_id))
+
+    if not schema.get(ATTR_CONTROLLER):
+        return {}
+
     ctl_id = schema[ATTR_CONTROLLER]
-    ctl = gwy.get_device(addr(ctl_id), controller=addr(ctl_id))
+    gwy.evo = ctl = gwy.get_device(addr(ctl_id), controller=addr(ctl_id))
 
-    gwy.evo = ctl
+    htg_id = schema[ATTR_SYSTEM].get(ATTR_HTG_CONTROL)
+    if htg_id:
+        ctl.boiler_control = gwy.get_device(addr(htg_id), controller=ctl)
 
-    if ATTR_HTG_CONTROL in schema[ATTR_SYSTEM]:
-        htg_id = schema[ATTR_SYSTEM][ATTR_HTG_CONTROL]
+    for device_id in schema[ATTR_SYSTEM].get(ATTR_ORPHANS, []):
+        gwy.get_device(addr(device_id), controller=ctl)
+
+    dhw = schema.get(ATTR_STORED_HOTWATER)
+    if dhw:
+        ctl.dhw = ctl.get_zone("FA")
+
+        dhw_sensor_id = dhw.get(ATTR_DHW_SENSOR)
+        if dhw_sensor_id:
+            ctl.dhw._set_sensor(gwy.get_device(addr(dhw_sensor_id), controller=ctl))
+
+        dhw_id = dhw.get(ATTR_DHW_VALVE)
+        if dhw_id:
+            ctl.dhw.hotwater_valve = gwy.get_device(addr(dhw_id), controller=ctl)
+
+        htg_id = dhw.get(ATTR_DHW_VALVE_HTG)
         if htg_id:
-            ctl.boiler_control = gwy.get_device(addr(htg_id), controller=ctl)
+            ctl.dhw.heating_valve = gwy.get_device(addr(htg_id), controller=ctl)
 
-    if ATTR_STORED_HOTWATER in schema:
-        dhw = schema[ATTR_STORED_HOTWATER]
-        if dhw:
-            ctl.dhw = ctl.get_zone("FA")
-
-            dhw_sensor_id = dhw.get(ATTR_DHW_SENSOR)
-            if dhw_sensor_id is not None:
-                ctl.dhw._set_sensor(gwy.get_device(addr(dhw_sensor_id), controller=ctl))
-
-            dhw_id = dhw.get(ATTR_DHW_VALVE)
-            if dhw_id is not None:
-                ctl.dhw.hotwater_valve = gwy.get_device(addr(dhw_id), controller=ctl)
-
-            htg_id = dhw.get(ATTR_DHW_VALVE_HTG)
-            if htg_id is not None:
-                ctl.dhw.heating_valve = gwy.get_device(addr(htg_id), controller=ctl)
-
-    if schema.get(ATTR_ZONES):
+    if ATTR_ZONES in schema:
         for zone_idx, attr in schema[ATTR_ZONES].items():
             zone = ctl.get_zone(zone_idx, zone_type=attr.get(ATTR_ZONE_TYPE))
 
@@ -269,10 +271,8 @@ def load_schema(gwy, schema, **kwargs) -> dict:
             if sensor_id:
                 zone._set_sensor(gwy.get_device(addr(sensor_id), controller=ctl))
 
-            device_list = attr.get(ATTR_DEVICES)
-            if device_list:
-                for device_id in attr.get(ATTR_DEVICES):
-                    gwy.get_device(addr(device_id), controller=ctl, domain_id=zone_idx)
+            for device_id in attr.get(ATTR_DEVICES, []):
+                gwy.get_device(addr(device_id), controller=ctl, domain_id=zone_idx)
 
-    # for ufh_ctl, ufh_schema in schema[ATTR_UFH_CONTROLLERS]:
+    # for ufh_ctl, ufh_schema in schema.get(ATTR_UFH_CONTROLLERS, []):
     #     dev = gwy.get_device(addr(ufh_ctl), controller=ctl)
