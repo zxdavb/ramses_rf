@@ -736,11 +736,13 @@ class Zone(ZoneBase):
             if self.sensor:
                 return self.sensor.temperature
 
-        if self._zone_config and self._zone_config.get("multiroom_mode"):
-            # A controller does not inlude these in the 30C9 arrary
+        if self._zone_config and self._zone_config["multiroom_mode"]:
+            # A controller does not include these in the 30C9 arrary
             self._temperature = method_2()
         else:
-            self._temperature = method_1()
+            self._temperature = method_1()  # TODO: needs cleaning up
+        if self._temperature is None:
+            self._temperature = self._get_msg_value("30C9", "temperature")
         return self._temperature
 
     @property
