@@ -5,6 +5,7 @@
 
 from abc import ABCMeta, abstractmethod
 import asyncio
+from datetime import datetime as dt, timedelta
 
 # import json
 import logging
@@ -683,10 +684,11 @@ class Zone(ZoneBase):
 
     @property
     def mode(self) -> Optional[dict]:  # 2349
-        # result = self._get_msg_value("2349")
-        # self._mode = (
-        #     {k: v for k, v in result.items() if k != "zone_idx"} if result else None
-        # )
+
+        if self._mode is None and self._msgs.get("2349"):
+            if self._msgs["2349"].dtm > dt.now() - timedelta(minutes=5):
+                self._mode = self._get_msg_value("2349")
+
         return self._mode
 
     @property
@@ -710,6 +712,11 @@ class Zone(ZoneBase):
                 for k, v in z.items()
                 if z["zone_idx"] == self.idx
             }.get("setpoint")
+
+        if self._setpoint is None and self._msgs.get("2349"):
+            if self._msgs["2349"].dtm > dt.now() - timedelta(minutes=5):
+                self._setpoint = self._get_msg_value("2349", "setpoint")
+
         return self._setpoint
 
     @setpoint.setter
@@ -741,8 +748,11 @@ class Zone(ZoneBase):
             self._temperature = method_2()
         else:
             self._temperature = method_1()  # TODO: needs cleaning up
-        if self._temperature is None:
-            self._temperature = self._get_msg_value("30C9", "temperature")
+
+        if self._temperature is None and self._msgs.get("30C9"):
+            if self._msgs["30C9"].dtm > dt.now() - timedelta(minutes=5):
+                self._temperature = self._get_msg_value("30C9", "temperature")
+
         return self._temperature
 
     @property
