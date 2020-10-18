@@ -51,6 +51,11 @@ def probe_device(cmd_que, device_id):
     qos = {"retry_limit": 0, "priority": Priority.LOW}
 
     for code in sorted(CODE_SCHEMA):
+        if code == "0418":
+            cmd = Command("RQ", device_id, code, "000000", **qos)
+            _ = asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
+            continue
+
         if code == "1100":
             cmd = Command("RQ", device_id, code, "FC", **qos)
             _ = asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
