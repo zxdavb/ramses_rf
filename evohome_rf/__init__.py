@@ -22,13 +22,7 @@ from .command import Command
 from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
 from .discovery import probe_device, poll_device
-from .logger import (
-    set_logging,
-    BANDW_SUFFIX,
-    COLOR_SUFFIX,
-    CONSOLE_FMT,
-    PKT_LOG_FMT,
-)
+from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
 from .packet import (
     _LOGGER as pkt_logger,
@@ -218,10 +212,7 @@ class Gateway:
         if self.config["known_devices"]:
             _LOGGER.debug("cleanup(): Updating known_devices file...")
             for d in self.devices:
-                device_attrs = {
-                    "friendly_name": d._friendly_name,
-                    "ignore": d._ignored,
-                }
+                device_attrs = {"friendly_name": d._friendly_name, "ignore": d._ignored}
                 if d.id in self.known_devices:
                     self.known_devices[d.id].update(device_attrs)
                 else:
