@@ -51,30 +51,43 @@ def probe_device(cmd_que, device_id):
     qos = {"retry_limit": 0, "priority": Priority.LOW}
 
     for code in sorted(CODE_SCHEMA):
+        if code == "0005":
+            for zone_type in range(18):
+                cmd = Command("RQ", device_id, code, f"00{zone_type:02X}", **qos)
+                asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
+            continue
+
+        if code == "000C":
+            for zone_idx in range(16):
+                cmd = Command("RQ", device_id, code, f"{zone_idx:02X}00", **qos)
+                asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
+            continue
+
         if code == "0418":
-            cmd = Command("RQ", device_id, code, "000000", **qos)
-            _ = asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
+            for log_idx in range(2):
+                cmd = Command("RQ", device_id, code, f"{log_idx:06X}", **qos)
+                asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
             continue
 
         if code == "1100":
             cmd = Command("RQ", device_id, code, "FC", **qos)
-            _ = asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
+            asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
             continue
 
         if code == "2E04":
             cmd = Command("RQ", device_id, code, "FF", **qos)
-            _ = asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
+            asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
             continue
 
         cmd = Command("RQ", device_id, code, "00", **qos)
-        _ = asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
+        asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
 
         cmd = Command("RQ", device_id, code, "0000", **qos)
-        _ = asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
+        asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
 
     # for code in ("0016", "1FC9"):  # payload 0000 OK for both these
     #     cmd = Command("RQ", device_id, code, "0000", retry_limit=9)
-    #     _ = asyncio.create_task(periodic(cmd_que, cmd, count=1))
+    #     asyncio.create_task(periodic(cmd_que, cmd, count=1))
 
 
 # if self.config.get("evofw_flag") and "evofw3" in raw_pkt.packet:
