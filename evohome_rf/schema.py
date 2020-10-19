@@ -229,13 +229,13 @@ def load_schema(gwy, schema, **kwargs) -> dict:
     """Process the schema, and the configuration and return True if it is valid."""
     # TODO: check a sensor is not a device in another zone
 
+    if not schema.get(ATTR_CONTROLLER):
+        return {}
+
     schema = SYSTEM_SCHEMA(schema)
 
     for device_id in schema.get(ATTR_ORPHANS, []):
         gwy.get_device(addr(device_id))
-
-    if not schema.get(ATTR_CONTROLLER):
-        return {}
 
     ctl_id = schema[ATTR_CONTROLLER]
     gwy.evo = ctl = gwy.get_device(addr(ctl_id), controller=addr(ctl_id))
