@@ -206,7 +206,8 @@ class FaultLog:
     @property
     def fault_log(self) -> Optional[dict]:
         """Return the fault log as a dict."""
-        return self._fault_log
+        if self._fault_log_done:
+            return self._fault_log
 
     @property
     def complete(self) -> Optional[bool]:
