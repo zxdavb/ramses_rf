@@ -9,7 +9,7 @@ import json
 import logging
 from typing import Optional
 
-from .command import FaultLog  # Priority, RQ_RETRY_LIMIT, RQ_TIMEOUT
+from .command import FaultLog, Priority
 from .const import (
     ATTR_CONTROLLER,
     ATTR_DEVICES,
@@ -57,13 +57,33 @@ class System(Controller):
         gateway.system_by_id[self.id] = self
 
         self._dhw = None
-        self._boiler_control = None
+        self._heating_control = None
 
         self.zones = []
         self.zone_by_idx = {}
         # self.zone_by_name = {}
 
+        self._heat_demands = {}
+        self._relay_demands = {}
+        self._relay_failsafes = {}
+
         self._heat_demand = None
+
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        super()._discover()
+
+        if discover_flag & DISCOVER_SCHEMA:
+            pass
+
+        # if discover_flag & DISCOVER_PARAMS:
+        #     for domain_id in range(0xF8, 0x100):
+        #         self._send_cmd("0009", payload=f"{domain_id:02X}00")
+
+        if discover_flag & DISCOVER_STATUS:
+            # for domain_id in range(0xF8, 0x100):
+            #     self._send_cmd("0008", payload=f"{domain_id:02X}00")
+
+            self._fault_log.start()  # 0418
 
     def _handle_msg(self, msg) -> bool:
         if msg.code in ("000A", "2309", "30C9") and not isinstance(msg.payload, list):
@@ -90,9 +110,36 @@ class System(Controller):
         if msg.code in ("000A", "2309", "30C9") and isinstance(msg.payload, list):
             pass
 
+        if msg.code == "0008" and msg.verb in (" I", "RP"):
+            self._known_msg = True
+            if "domain_id" in msg.payload:
+                self._relay_demands[msg.payload["domain_id"]] = msg
+                if msg.payload["domain_id"] == "F9":
+                    device = self.dhw.heating_valve if self.dhw else None
+                elif msg.payload["domain_id"] == "FA":
+                    device = self.dhw.hotwater_valve if self.dhw else None
+                elif msg.payload["domain_id"] == "FC":
+                    device = self.heating_control
+                else:
+                    device = None
+
+                if device is not None:
+                    qos = {"retry_limit": 2, "priority": Priority.LOW}
+                    for code in ("0008", "3EF1"):
+                        self._send_cmd(code, **qos)
+
+        # if msg.code == "0009" and msg.verb in (" I", "RP"):
+        #     self._known_msg = True
+        #     if "domain_id" in msg.payload:
+        #         self._relay_failsafes[msg.payload["domain_id"]] = msg
+
         if msg.code == "3150" and msg.verb in (" I", "RP"):
-            if msg.payload.get("domain_id") == "FC":
-                self._heat_demand = msg.payload["heat_demand"]
+            self._known_msg = True
+            self._heat_demands[msg.payload["domain_id"]] = msg
+            if "domain_id" in msg.payload:
+                self._heat_demands[msg.payload["domain_id"]] = msg
+                if msg.payload["domain_id"] == "FC":
+                    self._heat_demand = msg.payload
 
         # if msg.code in ("0005", "000C", "2E04"):
         #     pass
@@ -100,6 +147,18 @@ class System(Controller):
         #     pass
         # else:
         #     assert False, "Unknown packet code"
+
+    @property
+    def heat_demands(self) -> Optional[dict]:  # 3150
+        if self._heat_demands:
+            return {k: v.payload["heat_demand"] for k, v in self._heat_demands.items()}
+
+    @property
+    def relay_demands(self) -> Optional[dict]:  # 0008
+        if self._relay_demands:
+            return {
+                k: v.payload["relay_demand"] for k, v in self._relay_demands.items()
+            }
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -155,6 +214,10 @@ class System(Controller):
     def dhw(self) -> DhwZone:
         return self._dhw
 
+    def _set_dhw(self) -> None:
+        # TODO: XXX
+        pass
+
     @dhw.setter
     def dhw(self, dhw: DhwZone) -> None:
         if not isinstance(dhw, DhwZone):
@@ -170,24 +233,29 @@ class System(Controller):
             self._dhw = dhw
 
     @property
-    def boiler_control(self) -> Device:
-        return self._boiler_control
+    def heating_control(self) -> Device:
+        return self._heating_control
 
-    @boiler_control.setter
-    def boiler_control(self, device: Device) -> None:
+    def _set_heating_control(self) -> None:
+        # TODO: XXX
+        pass
+
+    @heating_control.setter
+    def heating_control(self, device: Device) -> None:
         """Set the heater relay for this system (10: or 13:)."""
 
         if not isinstance(device, Device) or device.type not in ("10", "13"):
             raise TypeError
 
-        if self._boiler_control is not None and self._boiler_control != device:
+        if self._heating_control is not None and self._heating_control != device:
             raise CorruptStateError("The boiler relay has changed")
         # elif device.evo is not None and device.evo != self:
         #     raise LookupError  #  do this in self._gwy.get_device()
 
-        if self._boiler_control is None:
-            self._boiler_control = device
+        if self._heating_control is None:
+            self._heating_control = device
             device._set_domain(ctl=self)
+            device._domain_id = "FC"
 
     @property
     def schema(self) -> dict:
@@ -201,8 +269,8 @@ class System(Controller):
         # system" schema[ATTR_SYSTEM][ATTR_ORPHANS] = orphans
 
         schema[ATTR_SYSTEM] = {
-            ATTR_HTG_CONTROL: self.boiler_control.id
-            if self.boiler_control is not None
+            ATTR_HTG_CONTROL: self.heating_control.id
+            if self.heating_control is not None
             else None,
             ATTR_ORPHANS: orphans,
         }
@@ -238,10 +306,10 @@ class System(Controller):
             ATTR_HTG_CONTROL: {},
         }
 
-        if self.boiler_control is not None:
+        if self.heating_control is not None:
             params[ATTR_SYSTEM][ATTR_HTG_CONTROL] = {
-                "tpi_params": self.boiler_control._get_msg_value("1100"),
-                "boiler_setpoint": self.boiler_control._get_msg_value("22D9"),
+                "tpi_params": self.heating_control._get_msg_value("1100"),
+                "boiler_setpoint": self.heating_control._get_msg_value("22D9"),
             }
 
         params[ATTR_STORED_HW] = self.dhw.params if self.dhw is not None else None
@@ -277,8 +345,8 @@ class System(Controller):
 
         result[ATTR_SYSTEM] = {"datetime": self._get_msg_value("313F")}
 
-        if self.boiler_control is not None:
-            result[ATTR_SYSTEM][ATTR_HTG_CONTROL] = self.boiler_control.status
+        if self.heating_control is not None:
+            result[ATTR_SYSTEM][ATTR_HTG_CONTROL] = self.heating_control.status
 
         result[ATTR_STORED_HW] = self.dhw.status if self.dhw is not None else None
 
@@ -292,6 +360,10 @@ class System(Controller):
             if d.id != self.id
         }
 
+        result["heat_demand"] = self.heat_demand
+        result["heat_demands"] = self.heat_demands
+        result["relay_demands"] = self.relay_demands
+
         return result
 
     @property
@@ -299,12 +371,9 @@ class System(Controller):
         return self._get_msg_value("1100")
 
     @property
-    def sync_tpi(self) -> Optional[float]:  # 3B00
-        return self._get_msg_value("3B00", "sync_tpi")
-
-    @property
     def heat_demand(self) -> Optional[float]:  # 3150/FC
-        return self._heat_demand
+        if self._heat_demand:
+            return self._heat_demand["heat_demand"]
 
 
 class EvoSystem(System):
@@ -321,17 +390,17 @@ class EvoSystem(System):
         super()._discover()
 
         if discover_flag & DISCOVER_SCHEMA:
-            [  # 000C: find the HTG relay and DHW sensor, if any (DHW relays in DHW)
-                self._send_cmd("000C", payload=dev_type)
-                for dev_type in ("000F", "000D")  # CODE_000C_DEVICE_TYPE
-                # for dev_type, description in CODE_000C_DEVICE_TYPE.items() fix payload
-                # if description is not None
-            ]
-
             [  # 0005: find any configured zones, + their type (RAD, UFH, VAL, MIX, ELE)
                 self._send_cmd("0005", payload=f"00{zone_type}")
                 for zone_type in ("08", "09", "0A", "0B", "11")  # CODE_0005_ZONE_TYPE
                 # for zone_type, description in CODE_0005_ZONE_TYPE.items()
+                # if description is not None
+            ]
+
+            [  # 000C: find the HTG relay and DHW sensor, if any (DHW relays in DHW)
+                self._send_cmd("000C", payload=dev_type)
+                for dev_type in ("000D", "000F")  # CODE_000C_DEVICE_TYPE
+                # for dev_type, description in CODE_000C_DEVICE_TYPE.items() fix payload
                 # if description is not None
             ]
 
@@ -411,7 +480,7 @@ class EvoSystem(System):
                         heater = prev.src
 
             if heater is not None:
-                self.boiler_control = heater
+                self.heating_control = heater
 
         def find_dhw_sensor(this):
             """Discover the stored HW this system (if any).
@@ -621,7 +690,7 @@ class EvoSystem(System):
         # if msg.src.type == "01" and msg.dst.controller is None:  # 3EF0
         #     msg.dst.controller = msg.src  # useful for TPI/OTB, uses 3EF0
 
-        if msg.code in ("3220", "3B00", "3EF0"):  # self.boiler_control is None and
+        if msg.code in ("3220", "3B00", "3EF0"):  # self.heating_control is None and
             find_htg_relay(msg, prev=prev_msg)
 
         if msg.code in ("10A0", "1260"):  # self.dhw.sensor is None and
@@ -650,10 +719,10 @@ class EvoSystem(System):
     @property
     def calling_for_heat(self) -> Optional[bool]:
         """Return True is teh system is currently calling for heat."""
-        if not self._boiler_control:
+        if not self._heating_control:
             return
 
-        if self._boiler_control.actuator_state:
+        if self._heating_control.actuator_state:
             return True
 
     async def set_mode(self, mode, until=None):  # 2E04

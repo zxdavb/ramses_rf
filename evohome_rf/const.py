@@ -325,9 +325,9 @@ DEVICE_IS_ACTUATOR = tuple(
 DOMAIN_TYPE_MAP = {
     "F8": None,
     "F9": "heating_valve",  # DHW Heating Valve
-    "FA": "hot_water_valve",  # DHW HW Valve (or UFH loop if src.type == "02"?)
+    "FA": "hotwater_valve",  # DHW HW Valve (or UFH loop if src.type == "02"?)
     "FB": None,
-    "FC": "boiler_relay",  # "heat_relay": BDR (Boiler, District heating), or OTB
+    "FC": "heating_control",  # "heat_relay": BDR (Boiler, District heating), or OTB
     "FD": None,  # seen with hometronics
     "FF": "system",  # TODO: remove this, is not a domain
 }  # "21": "Ventilation",

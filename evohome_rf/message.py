@@ -414,7 +414,7 @@ class Message:
                     d.zone = zone
 
             elif self.payload["device_class"] == ATTR_HTG_CONTROL:
-                self.src.boiler_control = devices[0]
+                self.src.heating_control = devices[0]
 
             elif self.payload["device_class"] == ATTR_DHW_SENSOR:
                 self.src.get_zone("FA")._set_sensor(devices[0])

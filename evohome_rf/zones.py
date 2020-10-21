@@ -308,6 +308,7 @@ class DhwZone(ZoneBase, HeatDemand):
         if self._sensor is None:
             self._sensor = device
             device._set_domain(dhw=self)  # TODO: check have same controller
+            device._domain_id = "FA"
 
         elif self._sensor != device:
             raise CorruptStateError(f"DHW sensor changed: {self._sensor} to {device}")
@@ -315,6 +316,10 @@ class DhwZone(ZoneBase, HeatDemand):
     @property
     def hotwater_valve(self) -> Device:
         return self._dhw_valve
+
+    def _set_hotwater_valve(self) -> None:
+        # TODO: XXX
+        pass
 
     @hotwater_valve.setter
     def hotwater_valve(self, device: Device) -> None:
@@ -329,10 +334,15 @@ class DhwZone(ZoneBase, HeatDemand):
         if self._dhw_valve is None:
             self._dhw_valve = device
             device._set_domain(dhw=self)
+            device._domain_id = "FA"
 
     @property
     def heating_valve(self) -> Device:
         return self._htg_valve
+
+    def _set_heating_valve(self) -> None:
+        # TODO: XXX
+        pass
 
     @heating_valve.setter
     def heating_valve(self, device: Device) -> None:
@@ -347,6 +357,7 @@ class DhwZone(ZoneBase, HeatDemand):
         if self._htg_valve is None:
             self._htg_valve = device
             device._set_domain(dhw=self)
+            device._domain_id = "F9"
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
@@ -635,10 +646,8 @@ class Zone(ZoneBase):
 
         if "02" in dev_types:
             zone_type = "UFH"
-        elif "13" in dev_types and "3150" in self._msgs:
-            zone_type = "VAL"
         elif "13" in dev_types:
-            zone_type = "ELE"  # could still be a VAL
+            zone_type = "VAL" if "3150" in self._msgs else "ELE"
         # elif "??" in dev_types:  # TODO:
         #     zone_type = "MIX"
         elif "04" in dev_types:  # beware edge case: TRV as sensor for a non-RAD zone

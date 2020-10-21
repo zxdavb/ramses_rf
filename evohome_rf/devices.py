@@ -22,6 +22,7 @@ from .const import (
     DISCOVER_PARAMS,
     DISCOVER_STATUS,
     DISCOVER_ALL,
+    DOMAIN_TYPE_MAP,
 )
 from .discovery import poll_device, probe_device
 from .exceptions import CorruptStateError
@@ -146,6 +147,10 @@ class Entity:
         """Return the id of the entity's controller, if known."""
 
         return self._ctl  # TODO: if the controller is not known, try to find it?
+
+    def _set_controller(self) -> None:
+        # TODO: XXX
+        pass
 
     @controller.setter
     def controller(self, controller) -> None:
@@ -386,10 +391,10 @@ class Device(DeviceBase):
         """Set the device's parent controller, after validating it."""
 
         if ctl is not None:
-            self._domain_id = "FC"  # boiler_control
+            self._domain_id = "FC"  # heating_control
 
         elif dhw is not None:
-            self._domain_id = "FA"
+            self._domain_id = "FA"  # TODO: F9/FA
             ctl = dhw._ctl
 
         elif zone is not None:
@@ -435,6 +440,10 @@ class Device(DeviceBase):
 
         return self._zone
 
+    def _set_zone(self) -> None:
+        # TODO: XXX
+        pass
+
     @zone.setter
     def zone(self, zone: Entity) -> None:  # should be: zone: Zone
         """Set the device's parent zone, after validating it.
@@ -442,7 +451,7 @@ class Device(DeviceBase):
         There are three possible sources for the parent zone of a device:
         1. a 000C packet (from their controller) for actuators only
         2. a message.payload["zone_idx"]
-        3. the sensor-matching algorithm fro zone sensors only
+        3. the sensor-matching algorithm for zone sensors only
 
         All three will execute a dev.zone = zone (i.e. via this setter).
 
@@ -817,10 +826,10 @@ class BdrSwitch(Device):
     """The BDR class, such as a BDR91.
 
     BDR91s can be used in six disctinct modes, including:
-    - x2 boiler controller (FC/TPI): normal, and heat pump (new)
+    - x2 boiler controller (FC/TPI): normal, and heat pump (FC/new)
     - x1 electric heat zones (0x/ELE)
     - x1 zone valve zones (0x/VAL)
-    - x2 DHW thingys (HW/xxx)
+    - x2 DHW thingys (F9/FA)
     """
 
     def __init__(self, gateway, device_addr, **kwargs) -> None:
@@ -834,7 +843,7 @@ class BdrSwitch(Device):
 
         self._is_tpi = kwargs.get("domain_id") == "FC"
         if self._is_tpi:
-            self._ctl.boiler_control = self
+            self._ctl.heating_control = self
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         """The BDRs fail(?) to respond to RQs for: 3B00, 3EF0, 0009.
@@ -892,6 +901,15 @@ class BdrSwitch(Device):
             assert False, f"Unknown packet ({msg.verb}/{msg.code}) for {self.id}"
 
     @property
+    def role(self) -> Optional[str]:
+        """Return the role of the BDR91A (there are six possibilities)."""
+
+        if self._domain_id in DOMAIN_TYPE_MAP:
+            return DOMAIN_TYPE_MAP[self._domain_id]
+        elif self._zone:
+            return self._zone.heating_type
+
+    @property
     def _role(self) -> Optional[str]:
         """Return the role of the BDR91A (there are six possibilities)."""
 
@@ -907,7 +925,7 @@ class BdrSwitch(Device):
 
         if self._is_tpi:
             self._domain_id = "FC"  # TODO: check is None first
-            self.ctl.boiler_control = self
+            self.ctl.heating_control = self
 
         return self._is_tpi
 

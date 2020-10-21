@@ -242,7 +242,7 @@ def load_schema(gwy, schema, **kwargs) -> dict:
 
     htg_id = schema[ATTR_SYSTEM].get(ATTR_HTG_CONTROL)
     if htg_id:
-        ctl.boiler_control = gwy.get_device(addr(htg_id), controller=ctl)
+        ctl.heating_control = gwy.get_device(addr(htg_id), controller=ctl)
 
     for device_id in schema[ATTR_SYSTEM].get(ATTR_ORPHANS, []):
         gwy.get_device(addr(device_id), controller=ctl)
