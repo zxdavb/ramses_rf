@@ -57,7 +57,7 @@ class System(Controller):
         gateway.system_by_id[self.id] = self
 
         self._dhw = None
-        self._heating_control = None
+        self._htg_control = None
 
         self.zones = []
         self.zone_by_idx = {}
@@ -191,7 +191,7 @@ class System(Controller):
                     zone._discover()  # discover_flag=DISCOVER_ALL)
 
             if zone_type is not None:
-                zone._set_type(zone_type)
+                zone._set_zone_type(zone_type)
                 # if not self._gwy.config["disable_discovery"]:
                 #     zone._discover()  # discover_flag=DISCOVER_ALL)
 
@@ -214,12 +214,7 @@ class System(Controller):
     def dhw(self) -> DhwZone:
         return self._dhw
 
-    def _set_dhw(self) -> None:
-        # TODO: XXX
-        pass
-
-    @dhw.setter
-    def dhw(self, dhw: DhwZone) -> None:
+    def _set_dhw(self, dhw: DhwZone) -> None:  # self._dhw
         if not isinstance(dhw, DhwZone):
             raise ValueError
 
@@ -234,26 +229,21 @@ class System(Controller):
 
     @property
     def heating_control(self) -> Device:
-        return self._heating_control
+        return self._htg_control
 
-    def _set_heating_control(self) -> None:
-        # TODO: XXX
-        pass
-
-    @heating_control.setter
-    def heating_control(self, device: Device) -> None:
+    def _set_htg_control(self, device: Device) -> None:  # self._htg_control
         """Set the heater relay for this system (10: or 13:)."""
 
         if not isinstance(device, Device) or device.type not in ("10", "13"):
             raise TypeError
 
-        if self._heating_control is not None and self._heating_control != device:
+        if self._htg_control is not None and self._htg_control != device:
             raise CorruptStateError("The boiler relay has changed")
         # elif device.evo is not None and device.evo != self:
         #     raise LookupError  #  do this in self._gwy.get_device()
 
-        if self._heating_control is None:
-            self._heating_control = device
+        if self._htg_control is None:
+            self._htg_control = device
             device._set_domain(ctl=self)
             device._domain_id = "FC"
 
@@ -480,7 +470,7 @@ class EvoSystem(System):
                         heater = prev.src
 
             if heater is not None:
-                self.heating_control = heater
+                self._set_htg_control(heater)
 
         def find_dhw_sensor(this):
             """Discover the stored HW this system (if any).
@@ -612,7 +602,7 @@ class EvoSystem(System):
                         _LOGGER.debug("   - matched sensor: %s", matching_sensors[0].id)
                         zone = self.zone_by_idx[zone_idx]
                         zone._set_sensor(matching_sensors[0])
-                        zone.sensor.controller = self
+                        zone.sensor._set_ctl(self)
                     elif len(matching_sensors) == 0:
                         _LOGGER.debug("   - no matching sensor (uses CTL?)")
                     else:
@@ -657,7 +647,7 @@ class EvoSystem(System):
                 _LOGGER.debug("   - matched sensor: %s (by exclusion)", self.id)
                 zone = self.zone_by_idx[zone_idx]
                 zone._set_sensor(self)
-                zone.sensor.controller = self
+                zone.sensor._set_ctl(self)
 
             _LOGGER.debug("System state (finally): %s", self)
 
@@ -688,7 +678,7 @@ class EvoSystem(System):
                 return
 
         # if msg.src.type == "01" and msg.dst.controller is None:  # 3EF0
-        #     msg.dst.controller = msg.src  # useful for TPI/OTB, uses 3EF0
+        #     msg.dst._set_ctl(msg.src)  # useful for TPI/OTB, uses 3EF0
 
         if msg.code in ("3220", "3B00", "3EF0"):  # self.heating_control is None and
             find_htg_relay(msg, prev=prev_msg)
@@ -719,10 +709,10 @@ class EvoSystem(System):
     @property
     def calling_for_heat(self) -> Optional[bool]:
         """Return True is teh system is currently calling for heat."""
-        if not self._heating_control:
+        if not self._htg_control:
             return
 
-        if self._heating_control.actuator_state:
+        if self._htg_control.actuator_state:
             return True
 
     async def set_mode(self, mode, until=None):  # 2E04

@@ -242,14 +242,14 @@ def load_schema(gwy, schema, **kwargs) -> dict:
 
     htg_id = schema[ATTR_SYSTEM].get(ATTR_HTG_CONTROL)
     if htg_id:
-        ctl.heating_control = gwy.get_device(addr(htg_id), controller=ctl)
+        ctl._set_htg_control(gwy.get_device(addr(htg_id), controller=ctl))
 
     for device_id in schema[ATTR_SYSTEM].get(ATTR_ORPHANS, []):
         gwy.get_device(addr(device_id), controller=ctl)
 
     dhw = schema.get(ATTR_STORED_HW)
     if dhw:
-        ctl.dhw = ctl.get_zone("FA")
+        ctl._set_dhw(ctl.get_zone("FA"))
 
         dhw_sensor_id = dhw.get(ATTR_DHW_SENSOR)
         if dhw_sensor_id:
@@ -257,11 +257,11 @@ def load_schema(gwy, schema, **kwargs) -> dict:
 
         dhw_id = dhw.get(ATTR_DHW_VALVE)
         if dhw_id:
-            ctl.dhw.hotwater_valve = gwy.get_device(addr(dhw_id), controller=ctl)
+            ctl.dhw._set_dhw_valve(gwy.get_device(addr(dhw_id), controller=ctl))
 
         htg_id = dhw.get(ATTR_DHW_VALVE_HTG)
         if htg_id:
-            ctl.dhw.heating_valve = gwy.get_device(addr(htg_id), controller=ctl)
+            ctl.dhw._set_htg_valve(gwy.get_device(addr(htg_id), controller=ctl))
 
     if ATTR_ZONES in schema:
         for zone_idx, attr in schema[ATTR_ZONES].items():

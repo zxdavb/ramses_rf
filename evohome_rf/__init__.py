@@ -356,12 +356,12 @@ class Gateway:
                 device._discover()  # discover_flag=DISCOVER_ALL)
         else:  # update the existing device with any metadata
             if ctl is not None:
-                device.controller = ctl
+                device._set_ctl(ctl)
 
             if domain_id in ("FC", "FF"):
                 device._domain_id = domain_id
             elif domain_id is not None and ctl is not None:
-                device.zone = ctl.get_zone(domain_id)
+                device._set_zone(ctl.get_zone(domain_id))
 
         return device
 

@@ -165,7 +165,7 @@ class ZoneBase(Entity, metaclass=ABCMeta):
     #     raise NotImplementedError
 
     # @abstractmethod
-    # def _set_type(self, value: str) -> None:
+    # def ._set_zone_type(self, value: str) -> None:
     #     """Set the type of the zone/DHW (e.g. electric_zone, stored_dhw)."""
     #     raise NotImplementedError
 
@@ -202,7 +202,7 @@ class DhwZone(ZoneBase, HeatDemand):
     def __init__(self, controller, sensor=None, relay=None) -> None:
         super().__init__(controller, "FA")
 
-        controller.dhw = self
+        controller._set_dhw(self)
 
         self._sensor = None
         self._dhw_valve = None
@@ -299,7 +299,7 @@ class DhwZone(ZoneBase, HeatDemand):
 
         return self._sensor
 
-    def _set_sensor(self, device: Device) -> None:
+    def _set_sensor(self, device: Device) -> None:  # self._sensor
         """Set the sensor for this DHW (must be: 07:)."""
 
         if not isinstance(device, Device) or device.type != "07":
@@ -317,12 +317,7 @@ class DhwZone(ZoneBase, HeatDemand):
     def hotwater_valve(self) -> Device:
         return self._dhw_valve
 
-    def _set_hotwater_valve(self) -> None:
-        # TODO: XXX
-        pass
-
-    @hotwater_valve.setter
-    def hotwater_valve(self, device: Device) -> None:
+    def _set_dhw_valve(self, device: Device) -> None:
         if not isinstance(device, Device) or device.type != "13":
             raise TypeError
 
@@ -340,12 +335,7 @@ class DhwZone(ZoneBase, HeatDemand):
     def heating_valve(self) -> Device:
         return self._htg_valve
 
-    def _set_heating_valve(self) -> None:
-        # TODO: XXX
-        pass
-
-    @heating_valve.setter
-    def heating_valve(self, device: Device) -> None:
+    def _set_htg_valve(self, device: Device) -> None:  # self._htg_valve
         if not isinstance(device, Device) or device.type != "13":
             raise TypeError
 
@@ -529,7 +519,7 @@ class Zone(ZoneBase):
             assert self._zone_type in (None, "ELE", "VAL")
 
             if self._zone_type is None:
-                self._set_type("ELE")  # might eventually be: "VAL"
+                self._set_zone_type("ELE")  # might eventually be: "VAL"
 
         elif msg.code == "000A":
             payload = msg.payload if msg.is_array else [msg.payload]
@@ -572,7 +562,7 @@ class Zone(ZoneBase):
 
             if msg.src.type in ("02", "04", "13"):
                 zone_type = ZONE_CLASS_MAP[msg.src.type]
-                self._set_type("VAL" if zone_type == "ELE" else zone_type)
+                self._set_zone_type("VAL" if zone_type == "ELE" else zone_type)
 
         # elif "zone_idx" in msg.payload:
         #     pass
@@ -614,7 +604,7 @@ class Zone(ZoneBase):
     def sensor(self) -> Device:
         return self._sensor
 
-    def _set_sensor(self, device: Device):
+    def _set_sensor(self, device: Device):  # self._sensor
         """Set the sensor for this zone (one of: 01:, 03:, 04:, 12:, 22:, 34:)."""
 
         sensor_types = ("01", "03", "04", "12", "22", "34")
@@ -656,11 +646,11 @@ class Zone(ZoneBase):
             zone_type = None
 
         if zone_type is not None:
-            self._set_type(zone_type)
+            self._set_zone_type(zone_type)
 
         return ZONE_TYPE_MAP.get(self._zone_type)
 
-    def _set_type(self, zone_type: str):
+    def _set_zone_type(self, zone_type: str):  # self._zone_type
         """Set the zone's type, after validating it.
 
         There are two possible sources for the type of a zone:
@@ -862,7 +852,7 @@ class EleZone(Zone):  # Electric zones (do *not* call for heat)
 
         # ZV zones are Elec zones that also call for heat; ? and also 1100/unkown_0 = 00
         if msg.code == "3150":
-            self._set_type("VAL")
+            self._set_zone_type("VAL")
 
         # if msg.code == "FFFF":
         #     pass

@@ -411,19 +411,19 @@ class Message:
                 # TODO: is it this one?
                 zone = self.src.get_zone(self.payload["zone_idx"])
                 for d in devices:
-                    d.zone = zone
+                    d._set_zone(zone)
 
             elif self.payload["device_class"] == ATTR_HTG_CONTROL:
-                self.src.heating_control = devices[0]
+                self.src._set_htg_control(devices[0])
 
             elif self.payload["device_class"] == ATTR_DHW_SENSOR:
                 self.src.get_zone("FA")._set_sensor(devices[0])
 
             elif self.payload["device_class"] == ATTR_DHW_VALVE:
-                self.src.get_zone("FA").hotwater_valve = devices[0]
+                self.src.get_zone("FA")._set_dhw_valve(devices[0])
 
             elif self.payload["device_class"] == ATTR_DHW_VALVE_HTG:
-                self.src.get_zone("FA").heating_valve = devices[0]
+                self.src.get_zone("FA")._set_htg_valve(devices[0])
 
         # # Eavesdropping (below) is used when discovery (above) is not an option
         # # TODO: needs work, e.g. RP/1F41 (excl. null_rp)

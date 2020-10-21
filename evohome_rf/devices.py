@@ -148,27 +148,22 @@ class Entity:
 
         return self._ctl  # TODO: if the controller is not known, try to find it?
 
-    def _set_controller(self) -> None:
-        # TODO: XXX
-        pass
-
-    @controller.setter
-    def controller(self, controller) -> None:
+    def _set_ctl(self, ctl) -> None:  # self._ctl
         """Set the device's parent controller, after validating it."""
 
-        if not isinstance(controller, Controller) and not controller.is_controller:
-            raise TypeError(f"Not a controller: {controller}")
+        if not isinstance(ctl, Controller) and not ctl.is_controller:
+            raise TypeError(f"Not a controller: {ctl}")
 
         if self._ctl is not None:  # zones have this set at instantiation
-            if self._ctl is not controller:
+            if self._ctl is not ctl:
                 # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5
                 raise CorruptStateError(
                     f"Device {self} has a mismatched controller: "
-                    f"old={self._ctl.id}, new={controller.id}"
+                    f"old={self._ctl.id}, new={ctl.id}"
                 )
             return
 
-        self._ctl = controller
+        self._ctl = ctl
         self._ctl.devices.append(self)
         self._ctl.device_by_id[self.id] = self
         _LOGGER.debug("Device %s: controller now set to %s", self.id, self._ctl.id)
@@ -385,7 +380,7 @@ class Device(DeviceBase):
         # TODO: status updates always, but...
         # TODO: schema updates only if eavesdropping is enabled.
         if self._ctl is not None and "parent_idx" in msg.payload:
-            self.zone = self._ctl.get_zone(msg.payload["parent_idx"])
+            self._set_zone(self._ctl.get_zone(msg.payload["parent_idx"]))
 
     def _set_domain(self, ctl=None, dhw=None, zone=None) -> None:
         """Set the device's parent controller, after validating it."""
@@ -440,12 +435,7 @@ class Device(DeviceBase):
 
         return self._zone
 
-    def _set_zone(self) -> None:
-        # TODO: XXX
-        pass
-
-    @zone.setter
-    def zone(self, zone: Entity) -> None:  # should be: zone: Zone
+    def _set_zone(self, zone: Entity) -> None:  # self._zone
         """Set the device's parent zone, after validating it.
 
         There are three possible sources for the parent zone of a device:
@@ -453,7 +443,7 @@ class Device(DeviceBase):
         2. a message.payload["zone_idx"]
         3. the sensor-matching algorithm for zone sensors only
 
-        All three will execute a dev.zone = zone (i.e. via this setter).
+        All three will set device.zone to this zone.
 
         Devices don't have parents, rather: Zones have children; a mis-configured
         system could have a device as a child of two domains.
@@ -843,7 +833,7 @@ class BdrSwitch(Device):
 
         self._is_tpi = kwargs.get("domain_id") == "FC"
         if self._is_tpi:
-            self._ctl.heating_control = self
+            self._ctl._set_htg_control(self)
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         """The BDRs fail(?) to respond to RQs for: 3B00, 3EF0, 0009.
@@ -925,7 +915,7 @@ class BdrSwitch(Device):
 
         if self._is_tpi:
             self._domain_id = "FC"  # TODO: check is None first
-            self.ctl.heating_control = self
+            self.ctl._set_htg_control(self)
 
         return self._is_tpi
 
