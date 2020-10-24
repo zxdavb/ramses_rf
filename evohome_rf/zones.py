@@ -66,18 +66,18 @@ def _temp(value) -> str:
 class ZoneBase(Entity, metaclass=ABCMeta):
     """The Zone/DHW base class."""
 
-    def __init__(self, controller, zone_idx) -> None:
-        _LOGGER.debug(
-            "Creating a Domain: %s_%s %s", controller.id, zone_idx, self.__class__
-        )
-        super().__init__(controller._gwy, controller=controller)
-        assert zone_idx not in controller.zone_by_idx, "Duplicate zone idx"
+    def __init__(self, evo, zone_idx) -> None:
+        _LOGGER.debug("Creating a Zone: %s_%s (%s)", evo.id, zone_idx, self.__class__)
+        super().__init__(evo._gwy, ctl=evo._ctl)
 
-        self.id = f"{controller.id}_{zone_idx}"
+        self.id = f"{evo.id}_{zone_idx}"
         self.idx = zone_idx
 
         self._name = None
         self._zone_type = None
+
+        self._evo = evo
+        self._ctl = evo._ctl
 
     # def __repr__(self) -> str:
     #     """Return an unambiguous string representation of this object."""
@@ -171,8 +171,8 @@ class ZoneBase(Entity, metaclass=ABCMeta):
 
 
 class HeatDemand:  # 3150
-    def __init__(self, gateway, device_addr, **kwargs) -> None:
-        super().__init__(gateway, device_addr, **kwargs)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
         self._heat_demand = None
 
@@ -199,14 +199,15 @@ class DhwZone(ZoneBase, HeatDemand):
     FC - 0008, 0009, 1100, 3150, 3B00, (& rare: 0001, 1FC9)
     """
 
-    def __init__(self, controller, sensor=None, relay=None) -> None:
-        super().__init__(controller, "FA")
+    def __init__(self, ctl, sensor=None, dhw_valve=None, htg_valve=None) -> None:
+        super().__init__(ctl, "FA")
 
-        controller._set_dhw(self)
+        ctl._set_dhw(self)
 
         self._sensor = None
         self._dhw_valve = None
         self._htg_valve = None
+
         self.heating_type = "DHW"
         self._name = None  # not used
 
@@ -215,6 +216,13 @@ class DhwZone(ZoneBase, HeatDemand):
         self._temperature = None
         self._relay_demand = None
         self._relay_failsafe = None
+
+        if sensor:
+            self._set_sensor(sensor)
+        if dhw_valve:
+            self._set_dhw_valve(dhw_valve)
+        if htg_valve:
+            self._set_htg_valve(htg_valve)
 
     def _discover(self, discover_flags=DISCOVER_ALL) -> None:
         # super()._discover()
@@ -294,60 +302,67 @@ class DhwZone(ZoneBase, HeatDemand):
         # 07:38:39.124 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
         # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
 
-        if "10A0" in self._msgs:
-            return self._msgs["10A0"].dst.addr
+        # if "10A0" in self._msgs:
+        #     return self._msgs["10A0"].dst.addr
 
         return self._sensor
 
     def _set_sensor(self, device: Device) -> None:  # self._sensor
-        """Set the sensor for this DHW (must be: 07:)."""
+        """Set the temp sensor for this DHW system (07: only)."""
+
+        if self._sensor != device and self._sensor is not None:
+            raise CorruptStateError(
+                f"{ATTR_ZONE_SENSOR} shouldn't change: {self._sensor} to {device}"
+            )
 
         if not isinstance(device, Device) or device.type != "07":
-            raise TypeError(f"Invalid device type for DHW sensor: {device}")
+            raise TypeError(f"{ATTR_ZONE_SENSOR} can't be: {device}")
 
         if self._sensor is None:
             self._sensor = device
-            device._set_domain(dhw=self)  # TODO: check have same controller
-            device._domain_id = "FA"
-
-        elif self._sensor != device:
-            raise CorruptStateError(f"DHW sensor changed: {self._sensor} to {device}")
+            device._set_parent(self, domain="FA")
 
     @property
     def hotwater_valve(self) -> Device:
         return self._dhw_valve
 
-    def _set_dhw_valve(self, device: Device) -> None:
-        if not isinstance(device, Device) or device.type != "13":
-            raise TypeError
+    def _set_dhw_valve(self, device: Device) -> None:  # self._dhw_valve
+        """Set the hotwater valve relay for this DHW system (13: only)."""
 
-        if self._dhw_valve is not None and self._dhw_valve != device:
-            raise CorruptStateError("The DHW HW valve has changed")
-        # elif device.evo is not None and device.evo != self:
-        #     raise LookupError  #  do this in add_devices
+        if not isinstance(device, Device) or device.type != "13":
+            raise TypeError(f"{ATTR_DHW_VALVE} can't be: {device}")
+
+        if self._dhw_valve is not None:
+            if self._dhw_valve is device:
+                return
+            raise CorruptStateError(
+                f"{ATTR_DHW_VALVE} shouldn't change: {self._dhw_valve} to {device}"
+            )
 
         if self._dhw_valve is None:
             self._dhw_valve = device
-            device._set_domain(dhw=self)
-            device._domain_id = "FA"
+            device._set_parent(self, domain="FA")
 
     @property
     def heating_valve(self) -> Device:
         return self._htg_valve
 
     def _set_htg_valve(self, device: Device) -> None:  # self._htg_valve
-        if not isinstance(device, Device) or device.type != "13":
-            raise TypeError
+        """Set the heating valve relay for this DHW system (13: only)."""
 
-        if self._htg_valve is not None and self._htg_valve != device:
-            raise CorruptStateError("The DHW heating valve has changed")
-        # elif device.evo is not None and device.evo != self:
-        #     raise LookupError  #  do this in add_devices
+        if not isinstance(device, Device) or device.type != "13":
+            raise TypeError(f"{ATTR_DHW_VALVE_HTG} can't be: {device}")
+
+        if self._htg_valve is not None:
+            if self._htg_valve is device:
+                return
+            raise CorruptStateError(
+                f"{ATTR_DHW_VALVE_HTG} shouldn't change: {self._htg_valve} to {device}"
+            )
 
         if self._htg_valve is None:
             self._htg_valve = device
-            device._set_domain(dhw=self)
-            device._domain_id = "F9"
+            device._set_parent(self, domain="F9")
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
@@ -442,7 +457,7 @@ class DhwZone(ZoneBase, HeatDemand):
 class Zone(ZoneBase):
     """The Zone class."""
 
-    def __init__(self, controller, zone_idx, sensor=None, actuators=None) -> None:
+    def __init__(self, ctl, zone_idx, sensor=None, actuators=None) -> None:
         """Create a zone.
 
         The type of zone may not be known at instantiation. Even when it is known, zones
@@ -451,17 +466,15 @@ class Zone(ZoneBase):
 
         In addition, an electric zone may subsequently turn out to be a zone valve zone.
         """
-        super().__init__(controller, zone_idx)
+        super().__init__(ctl, zone_idx)
 
-        assert (
-            zone_idx not in controller.zone_by_idx
-        ), "Duplicate zone idx on controller"
+        assert zone_idx not in ctl.zone_by_idx, "Duplicate zone idx on controller"
         if int(zone_idx, 16) >= self._gwy.config["max_zones"]:
             raise ValueError  # TODO: better to aloow to disable via assert?
 
-        controller.zones.append(self)
-        controller.zone_by_idx[zone_idx] = self
-        # controller.zone_by_name[self.name] = self
+        ctl.zones.append(self)
+        ctl.zone_by_idx[zone_idx] = self
+        # ctl.zone_by_name[self.name] = self
 
         self.devices = []
         self.device_by_id = {}
@@ -475,6 +488,9 @@ class Zone(ZoneBase):
         self._zone_config = None
 
         self._schedule = Schedule(self)
+
+        if sensor:
+            self._set_sensor(sensor)
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover()
@@ -605,18 +621,20 @@ class Zone(ZoneBase):
         return self._sensor
 
     def _set_sensor(self, device: Device):  # self._sensor
-        """Set the sensor for this zone (one of: 01:, 03:, 04:, 12:, 22:, 34:)."""
+        """Set the temp sensor for this zone (one of: 01:, 03:, 04:, 12:, 22:, 34:)."""
+
+        if self._sensor != device and self._sensor is not None:
+            raise CorruptStateError(
+                f"{ATTR_ZONE_SENSOR} shouldn't change: {self._sensor} to {device}"
+            )
 
         sensor_types = ("01", "03", "04", "12", "22", "34")
         if not isinstance(device, Device) or device.type not in sensor_types:
-            raise TypeError(f"Invalid device type for zone sensor: {device}")
+            raise TypeError(f"{ATTR_ZONE_SENSOR} can't be: {device}")
 
         if self._sensor is None:
-            self._sensor = device  # if TRV, zone type likely (but not req'd) RAD
-            device._set_domain(zone=self)  # TODO: check have same controller
-
-        elif self._sensor is not device:
-            raise CorruptStateError(f"zone sensor changed: {self._sensor} to {device}")
+            self._sensor = device
+            device._set_parent(self)
 
     @property
     def heating_type(self) -> Optional[str]:

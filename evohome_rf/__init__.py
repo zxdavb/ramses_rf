@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome RF - a RAMSES-II protocol decoder & analyser."""
+"""Evohome RF - a RAMSES-II protocol decoder & analyser.
+
+Works with (amongst others):
+- evohome (up to 12 zones)
+- sundial (up to 2 zones)
+- chronotherm (CM60xNG can do 4 zones)
+- hometronics (16? zones)
+"""
 
 import asyncio
 from collections import deque
@@ -20,7 +27,7 @@ from serial_asyncio import SerialTransport
 
 from .command import Command
 from .const import __dev_mode__, ATTR_ORPHANS
-from .devices import DEVICE_CLASSES, Device
+from .devices import DEVICE_CLASSES, Controller, Device
 from .discovery import probe_device, poll_device
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
@@ -32,10 +39,10 @@ from .packet import (
     SERIAL_CONFIG,
 )
 from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
-from .version import __version__  # noqa
 
 # from .ser2net import Ser2NetServer
 from .systems import EvoSystem
+from .version import __version__  # noqa
 
 # TODO: duplicated in schema.py
 DONT_CREATE_MESSAGES = 3
@@ -323,7 +330,7 @@ class Gateway:
 
         self._prev_msg = msg if msg.is_valid else None
 
-    def get_device(self, dev_addr, controller=None, domain_id=None) -> Device:
+    def _get_device(self, dev_addr, ctl_addr=None, domain_id=None) -> Device:
         """Return a device (will create it if required).
 
         Can also set a controller/system (will create as required). If a controller is
@@ -331,11 +338,37 @@ class Gateway:
         (heater_relay), HW (DHW sensor, relay), or None (unknown, TBA).
         """
 
-        ctl = (
-            None if controller is None else self.get_device(controller, domain_id="FF")
-        )
-        if self.evo is None:
-            self.evo = ctl
+        def create_system(ctl) -> EvoSystem:
+            if ctl.id in self.system_by_id:
+                raise LookupError(f"Duplicated system id: {ctl.id}")
+
+            system = EvoSystem(self, ctl)
+
+            self.systems.append(system)
+            self.system_by_id[system.id] = system
+
+            if not self.config["disable_discovery"]:
+                system._discover()  # discover_flag=DISCOVER_ALL)
+
+            return system
+
+        def create_device(dev_addr, **kwargs) -> Device:
+            if dev_addr.id in self.device_by_id:
+                raise LookupError(f"Duplicated device id: {dev_addr.id}")
+
+            device = DEVICE_CLASSES.get(dev_addr.type, Device)(self, dev_addr, **kwargs)
+
+            self.devices.append(device)
+            self.device_by_id[device.id] = device
+
+            if not self.config["disable_discovery"]:
+                device._discover()  # discover_flag=DISCOVER_ALL)
+
+            return device
+
+        ctl = None if ctl_addr is None else self._get_device(ctl_addr, domain_id="FF")
+        if ctl is not None and self.evo is None:
+            self.evo = ctl._evo
 
         if dev_addr.type in ("18", "63", "--"):  # valid addresses, but not devices
             return
@@ -346,22 +379,18 @@ class Gateway:
             device = self.device_by_id.get(dev_addr.id)
 
         if device is None:
-            if dev_addr.type in ("01", "23") or domain_id == "FF":
-                device = EvoSystem(self, dev_addr, domain_id=domain_id)
-            else:
-                device = DEVICE_CLASSES.get(dev_addr.type, Device)(
-                    self, dev_addr, controller=ctl, domain_id=domain_id
-                )
-            if not self.config["disable_discovery"]:
-                device._discover()  # discover_flag=DISCOVER_ALL)
+            device = create_device(dev_addr, ctl=ctl, domain_id=domain_id)
+            if isinstance(device, Controller):
+                device._evo = create_system(device)
+
         else:  # update the existing device with any metadata
             if ctl is not None:
                 device._set_ctl(ctl)
 
-            if domain_id in ("FC", "FF"):
+            if domain_id in ("F9", "FA", "FC", "FF"):
                 device._domain_id = domain_id
             elif domain_id is not None and ctl is not None:
-                device._set_zone(ctl.get_zone(domain_id))
+                device._set_zone(ctl._get_zone(domain_id))
 
         return device
 

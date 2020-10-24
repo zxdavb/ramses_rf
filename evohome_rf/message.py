@@ -296,15 +296,16 @@ class Message:
             else:
                 _LOGGER.error("%s", self, extra=self.__dict__)
 
-        # elif self.src.id == "13:237335":
-        elif self.verb == "RP" and self.src.type == "13":
+        elif self.src.id == "12:207082":
+            _LOGGER.debug("%s", self, extra=self.__dict__)
+
+        elif self.code in ("1F09", "3B00") and self.verb == " I":
+            _LOGGER.error("%s", self, extra=self.__dict__)
+
+        elif "18" in (self.src.type, self.dst.type):
             _LOGGER.warning("%s", self, extra=self.__dict__)
 
-        elif self.code == "3B00":
-            _LOGGER.info("%s", self, extra=self.__dict__)
-
-        else:  # the normal mode logging scheme
-            # TODO: parsing is 2x fast without this logging...
+        else:  # the normal mode logging scheme (parsing 2x fast without logging)
             _LOGGER.info("%s", self, extra=self.__dict__)
             pass
 
@@ -319,13 +320,13 @@ class Message:
 
         if self.code == "000C" and self.verb == "RP":
             if self.src.type == "01":  # TODO
-                self._gwy.get_device(self.dst, controller=self.src)
+                self._gwy._get_device(self.dst, ctl_addr=self.src)
                 if self.is_valid:
                     key = "zone_idx" if "zone_idx" in self.payload else "domain_id"
                     [
-                        self._gwy.get_device(
+                        self._gwy._get_device(
                             Address(id=d, type=d[:2]),
-                            controller=self.src,
+                            ctl_addr=self.src,
                             domain_id=self.payload[key],
                         )
                         for d in self.payload["devices"]
@@ -333,41 +334,41 @@ class Message:
             if self.src.type == "02":  # TODO
                 if self.payload["devices"]:
                     device_id = self.payload["devices"][0]
-                    self._gwy.get_device(
-                        self.src, controller=Address(id=device_id, type=device_id[:2])
+                    self._gwy._get_device(
+                        self.src, ctl_addr=Address(id=device_id, type=device_id[:2])
                     )
 
         elif self.src.type in ("01", "23"):  # TODO: "30" for VMS
-            self._gwy.get_device(self.dst, controller=self.src)
+            self._gwy._get_device(self.dst, ctl_addr=self.src)
 
         elif self.dst.type in ("01", "23"):  # TODO: "30" for VMS
-            self._gwy.get_device(self.src, controller=self.dst)
+            self._gwy._get_device(self.src, ctl_addr=self.dst)
 
         # TODO: will need other changes before these two will work...
         # TODO: the issue is, if the 1st pkt is not a 1F09 (or a list 000A/2309/30C9)
         # TODO: also could do 22D9 (UFC), others?
         # elif self.code == "1F09" and self.verb == " I":
-        #     self._gwy.get_device(self.dst, controller=self.src)
+        #     self._gwy._get_device(self.dst, ctl_addr=self.src)
 
         # elif self.code == "31D9" and self.verb == " I":  # HVAC
-        #     self._gwy.get_device(self.dst, controller=self.src)
+        #     self._gwy._get_device(self.dst, ctl_addr=self.src)
         # TODO: ...such as means to promote a device to a controller
 
         # this should catch all non-controller (and *some* controller) devices
         elif self.dst is self.src:
-            self._gwy.get_device(self.src)
+            self._gwy._get_device(self.src)
 
         # otherwise one will be a controller, *unless* dst is in ("--", "63")
         elif isinstance(self.src, Device) and self.src.is_controller:
-            self._gwy.get_device(self.dst, controller=self.src)
+            self._gwy._get_device(self.dst, ctl_addr=self.src)
 
         # TODO: may create a controller that doesn't exist
         elif isinstance(self.dst, Device) and self.dst.is_controller:
-            self._gwy.get_device(self.src, controller=self.dst)
+            self._gwy._get_device(self.src, ctl_addr=self.dst)
 
         else:
-            self._gwy.get_device(self.src)
-            self._gwy.get_device(self.dst)
+            self._gwy._get_device(self.src)
+            self._gwy._get_device(self.dst)
 
         # where possible, swap each Address for its corresponding Device
         self.src = self._gwy.device_by_id.get(self.src.id, self.src)
@@ -387,7 +388,7 @@ class Message:
         if self.code == "0005":  # RP, and also I
             if self._payload["zone_type"] in CODE_0005_ZONE_TYPE.values():
                 [
-                    self.src.get_zone(
+                    self.src._get_zone(
                         f"{idx:02X}",
                         zone_type=ZONE_TYPE_SLUGS.get(self._payload["zone_type"]),
                     )
@@ -399,7 +400,7 @@ class Message:
             devices = [self.src.device_by_id[d] for d in self.payload["devices"]]
 
             if self.payload["device_class"] == ATTR_ZONE_SENSOR:
-                zone = self.src.get_zone(self.payload["zone_idx"])
+                zone = self.src._get_zone(self.payload["zone_idx"])
                 try:
                     zone._set_sensor(devices[0])
                 except TypeError:  # ignore invalid device types, e.g. 17:
@@ -407,9 +408,9 @@ class Message:
 
             elif self.payload["device_class"] == "zone_actuators":
                 # TODO: is this better, or...
-                # self.src.get_zone(self.payload["zone_idx"], actuators=devices)
+                # self.src._get_zone(self.payload["zone_idx"], actuators=devices)
                 # TODO: is it this one?
-                zone = self.src.get_zone(self.payload["zone_idx"])
+                zone = self.src._get_zone(self.payload["zone_idx"])
                 for d in devices:
                     d._set_zone(zone)
 
@@ -417,34 +418,34 @@ class Message:
                 self.src._set_htg_control(devices[0])
 
             elif self.payload["device_class"] == ATTR_DHW_SENSOR:
-                self.src.get_zone("FA")._set_sensor(devices[0])
+                self.src._get_zone("HW")._set_sensor(devices[0])
 
             elif self.payload["device_class"] == ATTR_DHW_VALVE:
-                self.src.get_zone("FA")._set_dhw_valve(devices[0])
+                self.src._get_zone("HW")._set_dhw_valve(devices[0])
 
             elif self.payload["device_class"] == ATTR_DHW_VALVE_HTG:
-                self.src.get_zone("FA")._set_htg_valve(devices[0])
+                self.src._get_zone("HW")._set_htg_valve(devices[0])
 
         # # Eavesdropping (below) is used when discovery (above) is not an option
         # # TODO: needs work, e.g. RP/1F41 (excl. null_rp)
         # elif self.code in ("10A0", "1F41"):
         #     if isinstance(self.dst, Device) and self.dst.is_controller:
-        #         self.dst.get_zone("FA")
+        #         self.dst._get_zone("HW")
         #     else:
-        #         self.src.get_zone("FA")
+        #         self.src._get_zone("HW ")
 
         # # TODO: also process ufh_idx (but never domain_id)
         # elif isinstance(self._payload, dict):
         #     # TODO: only creating zones from arrays, presently, but could do so here
         #     if self._payload.get("zone_idx"):  # TODO: parent_zone too?
         #         if self.src.is_controller:
-        #             self.src.get_zone(self._payload["zone_idx"])
+        #             self.src._get_zone(self._payload["zone_idx"])
         #         else:
-        #             self.dst.get_zone(self._payload["zone_idx"])
+        #             self.dst._get_zone(self._payload["zone_idx"])
 
         elif isinstance(self._payload, list):
             if self.code in ("000A", "2309", "30C9"):  # the sync_cycle pkts
-                [self.src.get_zone(d["zone_idx"]) for d in self.payload]
+                [self.src._get_zone(d["zone_idx"]) for d in self.payload]
             # elif self.code in ("22C9", "3150"):  # TODO: UFH zone
             #     pass
 

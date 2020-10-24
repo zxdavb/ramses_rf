@@ -235,44 +235,44 @@ def load_schema(gwy, schema, **kwargs) -> dict:
     schema = SYSTEM_SCHEMA(schema)
 
     for device_id in schema.get(ATTR_ORPHANS, []):
-        gwy.get_device(addr(device_id))
+        gwy._get_device(addr(device_id))
 
     ctl_id = schema[ATTR_CONTROLLER]
-    gwy.evo = ctl = gwy.get_device(addr(ctl_id), controller=addr(ctl_id))
+    ctl = gwy._get_device(addr(ctl_id), ctl_addr=addr(ctl_id))
 
-    htg_id = schema[ATTR_SYSTEM].get(ATTR_HTG_CONTROL)
-    if htg_id:
-        ctl._set_htg_control(gwy.get_device(addr(htg_id), controller=ctl))
+    htg_ctl_id = schema[ATTR_SYSTEM].get(ATTR_HTG_CONTROL)
+    if htg_ctl_id:
+        ctl._set_htg_control(gwy._get_device(addr(htg_ctl_id), controller=ctl))
 
     for device_id in schema[ATTR_SYSTEM].get(ATTR_ORPHANS, []):
-        gwy.get_device(addr(device_id), controller=ctl)
+        gwy._get_device(addr(device_id), controller=ctl)
 
     dhw = schema.get(ATTR_STORED_HW)
     if dhw:
-        ctl._set_dhw(ctl.get_zone("FA"))
+        ctl._set_dhw(ctl._get_zone("HW"))
 
         dhw_sensor_id = dhw.get(ATTR_DHW_SENSOR)
         if dhw_sensor_id:
-            ctl.dhw._set_sensor(gwy.get_device(addr(dhw_sensor_id), controller=ctl))
+            ctl.dhw._set_sensor(gwy._get_device(addr(dhw_sensor_id), controller=ctl))
 
-        dhw_id = dhw.get(ATTR_DHW_VALVE)
-        if dhw_id:
-            ctl.dhw._set_dhw_valve(gwy.get_device(addr(dhw_id), controller=ctl))
+        dhw_valve_id = dhw.get(ATTR_DHW_VALVE)
+        if dhw_valve_id:
+            ctl.dhw._set_dhw_valve(gwy._get_device(addr(dhw_valve_id), controller=ctl))
 
-        htg_id = dhw.get(ATTR_DHW_VALVE_HTG)
-        if htg_id:
-            ctl.dhw._set_htg_valve(gwy.get_device(addr(htg_id), controller=ctl))
+        htg_valve_id = dhw.get(ATTR_DHW_VALVE_HTG)
+        if htg_valve_id:
+            ctl.dhw._set_htg_valve(gwy._get_device(addr(htg_valve_id), controller=ctl))
 
     if ATTR_ZONES in schema:
         for zone_idx, attr in schema[ATTR_ZONES].items():
-            zone = ctl.get_zone(zone_idx, zone_type=attr.get(ATTR_ZONE_TYPE))
+            zone = ctl._get_zone(zone_idx, zone_type=attr.get(ATTR_ZONE_TYPE))
 
             sensor_id = attr.get(ATTR_ZONE_SENSOR)
             if sensor_id:
-                zone._set_sensor(gwy.get_device(addr(sensor_id), controller=ctl))
+                zone._set_sensor(gwy._get_device(addr(sensor_id), controller=ctl))
 
             for device_id in attr.get(ATTR_DEVICES, []):
-                gwy.get_device(addr(device_id), controller=ctl, domain_id=zone_idx)
+                gwy._get_device(addr(device_id), controller=ctl, domain_id=zone_idx)
 
     # for ufh_ctl, ufh_schema in schema.get(ATTR_UFH_CONTROLLERS, []):
-    #     dev = gwy.get_device(addr(ufh_ctl), controller=ctl)
+    #     dev = gwy._get_device(addr(ufh_ctl), controller=ctl)

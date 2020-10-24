@@ -8,7 +8,7 @@ from datetime import datetime as dt, timedelta
 import logging
 from typing import Any, Optional
 
-from .command import Command
+from .command import Command, Priority
 from .const import (
     __dev_mode__,
     # CODE_SCHEMA,
@@ -88,10 +88,10 @@ def _clean_dict(src_dict: dict) -> Optional[dict]:
 class Entity:
     """The Device/Zone base class."""
 
-    def __init__(self, gateway, controller=None) -> None:
-        self._gwy = gateway
-        self._que = gateway.cmd_que
-        self._ctl = controller
+    def __init__(self, gwy, ctl=None) -> None:
+        self._gwy = gwy
+        self._que = gwy.cmd_que
+        self._ctl = None
 
         self.id = None
 
@@ -144,53 +144,26 @@ class Entity:
 
     @property
     def controller(self):  # -> Optional[Controller]:
-        """Return the id of the entity's controller, if known."""
+        """Return the entity's controller, if known."""
 
         return self._ctl  # TODO: if the controller is not known, try to find it?
-
-    def _set_ctl(self, ctl) -> None:  # self._ctl
-        """Set the device's parent controller, after validating it."""
-
-        if not isinstance(ctl, Controller) and not ctl.is_controller:
-            raise TypeError(f"Not a controller: {ctl}")
-
-        if self._ctl is not None:  # zones have this set at instantiation
-            if self._ctl is not ctl:
-                # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5
-                raise CorruptStateError(
-                    f"Device {self} has a mismatched controller: "
-                    f"old={self._ctl.id}, new={ctl.id}"
-                )
-            return
-
-        self._ctl = ctl
-        self._ctl.devices.append(self)
-        self._ctl.device_by_id[self.id] = self
-        _LOGGER.debug("Device %s: controller now set to %s", self.id, self._ctl.id)
 
 
 class DeviceBase(Entity, metaclass=ABCMeta):
     """The Device base class."""
 
-    def __init__(self, gateway, device_addr, controller=None, domain_id=None) -> None:
-        _LOGGER.debug("Creating a Device: %s %s", device_addr.id, self.__class__)
-        super().__init__(gateway, controller=controller)
-        assert device_addr.id not in gateway.device_by_id, "Duplicate device address"
+    def __init__(self, gwy, dev_addr, ctl=None, domain_id=None) -> None:
+        _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)
+        super().__init__(gwy, ctl=ctl)
 
-        self.id = device_addr.id
-        self.hex_id = dev_id_to_hex(device_addr.id)
+        self.id = dev_addr.id
+        self._domain_id = domain_id
+        self.hex_id = dev_id_to_hex(dev_addr.id)
 
-        gateway.devices.append(self)
-        gateway.device_by_id[device_addr.id] = self
+        self.addr = dev_addr
+        self.type = dev_addr.type
 
-        if controller is not None:  # here, assumed to be valid
-            controller.devices.append(self)
-            controller.device_by_id[self.id] = self
-
-        self.addr = device_addr
-        self.type = device_addr.type
-
-        if self.addr.type in DEVICE_TABLE:
+        if self.type in DEVICE_TABLE:
             self._has_battery = DEVICE_TABLE[self.addr.type].get("has_battery")
             self._is_actuator = DEVICE_TABLE[self.addr.type].get("is_actuator")
             self._is_sensor = DEVICE_TABLE[self.addr.type].get("is_sensor")
@@ -201,11 +174,33 @@ class DeviceBase(Entity, metaclass=ABCMeta):
 
         self._zone = None
         self._domain = {}
-        self._domain_id = domain_id
 
-        attrs = gateway.known_devices.get(device_addr.id)
+        if ctl:
+            self._set_ctl(ctl)
+
+        attrs = gwy.known_devices.get(dev_addr.id)
         self._friendly_name = attrs.get("friendly_name") if attrs else None
         self._ignored = attrs.get("ignored", False) if attrs else False
+
+    def _set_ctl(self, ctl) -> None:  # self._ctl
+        """Set the device's parent controller, after validating it."""
+
+        if self._ctl is not None:
+            if self._ctl is ctl:
+                return
+            raise CorruptStateError(
+                f"{self} shouldn't change controller: {self._ctl.id} to {ctl.id}"
+            )
+
+        # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5  # has been seen
+        if not isinstance(ctl, Controller) and not ctl.is_controller:
+            raise TypeError(f"Device {ctl} is not a controller")
+
+        self._ctl = ctl
+        self._ctl.devices.append(self)
+        self._ctl.device_by_id[self.id] = self
+
+        _LOGGER.debug("Device %s: controller set to %s", self.id, self._ctl.id)
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -231,7 +226,7 @@ class DeviceBase(Entity, metaclass=ABCMeta):
             # self._send_cmd("0016", payload="0000", retry_limit=0)
             pass
 
-            if self.type == "17":  # Hometronics, unknown
+            if self.type == "17" or self.id == "12:207082":  # Hometronics, unknown
                 self._probe_device()
 
     def _poll_device(self) -> None:
@@ -269,8 +264,8 @@ class DeviceBase(Entity, metaclass=ABCMeta):
 
 
 class BatteryState:  # 1060
-    def __init__(self, gateway, device_addr, **kwargs) -> None:
-        super().__init__(gateway, device_addr, **kwargs)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
         self._battery_state = None
 
@@ -299,8 +294,8 @@ class BatteryState:  # 1060
 
 
 class Setpoint:  # 2309
-    def __init__(self, gateway, device_addr, **kwargs) -> None:
-        super().__init__(gateway, device_addr, **kwargs)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
         self._setpoint = None
 
@@ -328,8 +323,8 @@ class Setpoint:  # 2309
 
 
 class Temperature:  # 30C9
-    def __init__(self, gateway, device_addr, **kwargs) -> None:
-        super().__init__(gateway, device_addr, **kwargs)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
         self._temperature = None
 
@@ -380,54 +375,44 @@ class Device(DeviceBase):
         # TODO: status updates always, but...
         # TODO: schema updates only if eavesdropping is enabled.
         if self._ctl is not None and "parent_idx" in msg.payload:
-            self._set_zone(self._ctl.get_zone(msg.payload["parent_idx"]))
+            self._set_zone(self._ctl._get_zone(msg.payload["parent_idx"]))
 
-    def _set_domain(self, ctl=None, dhw=None, zone=None) -> None:
-        """Set the device's parent controller, after validating it."""
+    def _set_parent(self, parent, domain=None) -> None:
+        """Set the device's parent zone, after validating it."""
 
-        if ctl is not None:
-            self._domain_id = "FC"  # heating_control
+        from .systems import System
+        from .zones import DhwZone, Zone
 
-        elif dhw is not None:
-            self._domain_id = "FA"  # TODO: F9/FA
-            ctl = dhw._ctl
+        if isinstance(parent, Zone):
+            if domain and domain != parent.idx:
+                raise TypeError(f"domain can't be: {domain} (must be {parent.idx})")
 
-        elif zone is not None:
-            self._domain_id = zone.idx
-            ctl = zone._ctl
+            self._set_ctl(parent._ctl)
+            self._domain_id = parent.idx
 
-        if self._ctl is None:  # zones have this set at instantiation
-            self._ctl = ctl
-            self._ctl.devices.append(self)
-            self._ctl.device_by_id[self.id] = self
-            _LOGGER.debug("Device %s: Controller now set to %s", self.id, self._ctl.id)
+        elif isinstance(parent, DhwZone):
+            if domain and domain not in ("F9", "FA"):
+                raise TypeError(f"domain can't be: {domain}")
 
-        elif self._ctl is not ctl:
-            # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5
-            raise CorruptStateError(
-                f"Device {self} has a mismatched Controller: "
-                f"old={self._ctl.id}, new={ctl.id}"
-            )
+            self._set_ctl(parent._ctl)
+            self._domain_id = domain
 
-        if dhw is not None:
-            self._zone = dhw
-            _LOGGER.debug("Device %s: DhwZone now set to %s", self.id, dhw.id)
-            return
+        elif isinstance(parent, System):
+            if domain not in ("FC", "HW"):
+                raise TypeError(f"domain can't be: {domain}")
 
-        elif zone is None:
-            return
+            self._set_ctl(parent._ctl)
+            self._domain_id = domain
 
-        if self._zone is None:
-            self._zone = zone
-            self._zone.devices.append(self)
-            self._zone.device_by_id[self.id] = self
-            _LOGGER.debug("Device %s: Zone now set to %s", self.id, zone.id)
+        else:
+            raise TypeError(f"paren can't be: {parent}")
 
-        elif self._zone is not zone:
-            raise CorruptStateError(
-                f"Device {self} has a mismatched Zone: "
-                f"old={self._zone.idx}, new={zone.idx}"
-            )
+        if self._zone is not None:
+            if self._zone is not parent:
+                raise CorruptStateError(
+                    f"{self} shouldn't change parent: {self._zone} to {parent}"
+                )
+            self._zone = parent
 
     @property
     def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
@@ -526,14 +511,18 @@ class Device(DeviceBase):
 class Controller(Device):
     """The Controller base class, supports child devices and zones only."""
 
-    def __init__(self, gateway, device_addr, **kwargs) -> None:
-        super().__init__(gateway, device_addr, **kwargs)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
         self.devices = [self]
         self.device_by_id = {self.id: self}
 
-        self._ctl = self
-        # self._domain_id = "FF"
+        # self._ctl = args[1]  # or self?
+        self._domain_id = "FF"
+        self._evo = None
+
+    def _get_zone(self, *args, **kwargs):
+        return self._evo._get_zone(*args, **kwargs)
 
 
 # 02: "10E0", "3150";; "0008", "22C9", "22D0"
@@ -546,8 +535,8 @@ class UfhController(Device):
     # 12:27:24.824 059  I --- 01:191718 --:------ 01:191718 3150 002 FC5C
     # 12:27:24.857 067  I --- 02:000921 --:------ 02:000921 3150 006 0060015A025C
 
-    def __init__(self, gateway, device_addr, **kwargs) -> None:
-        super().__init__(gateway, device_addr, **kwargs)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
         self._circuits = {}
 
@@ -659,8 +648,8 @@ class UfhController(Device):
 class DhwSensor(BatteryState, Device):
     """The DHW class, such as a CS92."""
 
-    def __init__(self, gateway, device_addr, **kwargs) -> None:
-        super().__init__(gateway, device_addr, **kwargs)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
         self._domain_id = "FA"
 
@@ -707,8 +696,8 @@ class DhwSensor(BatteryState, Device):
 class OtbGateway(Device):
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
-    def __init__(self, gateway, device_addr, **kwargs) -> None:
-        super().__init__(gateway, device_addr, **kwargs)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
         self._domain_id = "FC"
 
@@ -790,6 +779,8 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):
                 self._known_msg = True
             elif msg.code == "2349" and msg.verb == " W":
                 self._known_msg = True
+            elif msg.code == "3B00" and msg.verb == " I":
+                self._known_msg = True  # CMS92x 'configured as a synchoniser'
             else:
                 self._known_msg = False
 
@@ -822,8 +813,8 @@ class BdrSwitch(Device):
     - x2 DHW thingys (F9/FA)
     """
 
-    def __init__(self, gateway, device_addr, **kwargs) -> None:
-        super().__init__(gateway, device_addr, **kwargs)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
         self._actuator_cycle = None
         self._actuator_state = None
@@ -831,8 +822,9 @@ class BdrSwitch(Device):
         self._relay_demand = None
         self._tpi_params = None
 
-        self._is_tpi = kwargs.get("domain_id") == "FC"
-        if self._is_tpi:
+        self._is_tpi = None
+
+        if kwargs.get("domain_id") == "FC":
             self._ctl._set_htg_control(self)
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
@@ -881,6 +873,10 @@ class BdrSwitch(Device):
             self._actuator_state = msg.payload
             self._enabled = msg.payload["actuator_enabled"]
 
+            qos = {"retry_limit": 2, "priority": Priority.LOW}
+            for code in ("0008", "3EF1"):
+                self._send_cmd(code, **qos)
+
         elif msg.code == "3EF1" and msg.verb == "RP":
             self._known_msg = True
             self._actuator_cycle = msg.payload
@@ -900,7 +896,7 @@ class BdrSwitch(Device):
             return self._zone.heating_type
 
     @property
-    def _role(self) -> Optional[str]:
+    def _role(self) -> Optional[str]:  # TODO: XXX
         """Return the role of the BDR91A (there are six possibilities)."""
 
         if self._is_tpi is not None:
@@ -957,8 +953,8 @@ class BdrSwitch(Device):
 class TrvActuator(BatteryState, Setpoint, Temperature, Device):
     """The TRV class, such as a HR92."""
 
-    def __init__(self, gateway, device_addr, **kwargs) -> None:
-        super().__init__(gateway, device_addr, **kwargs)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
         self._heat_demand = None
         self._window_state = None

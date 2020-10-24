@@ -58,7 +58,8 @@ def _idx(seqx, msg) -> dict:
 
     # 045  I --- 03:183434 --:------ 03:183434 1060 003 00FF00
     if {"03", "12", "22"} & {msg.src.type} and msg.src.type == msg.devs[2].type:
-        #  msg.code in ("0008", "0009", "1030", "1060", "1100", "2309", "1030", "313F"):
+        # CM92x can do heating (other_idx = 01) and optionally cooling (other_idx = 01)
+        # msg.code in ("0008", "0009", "1030", "1060", "1100", "2309", "1030", "313F"):
         if msg.code not in ("1030", "2309"):
             assert seqx == "00"
             return {}
@@ -242,7 +243,7 @@ def parser_decorator(func):
             assert payload == "FF" if msg.code == "2E04" else "00"  # so: msg.len == 1
             return {}
 
-        if msg.code in ("0008", "1F09", "22D9", "313F", "3EF0"):
+        if msg.code in ("0008", "1F09", "22D9", "313F", "3B00", "3EF0"):
             # 061 RQ --- 04:189082 01:145038 --:------ 1F09 001 00
             # 067 RQ --- 01:187666 10:138822 --:------ 22D9 001 00
             # 045 RQ --- 04:056061 01:145038 --:------ 313F 001 00
@@ -492,6 +493,15 @@ def parser_0008(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # relay_failsafe
 def parser_0009(payload, msg) -> Union[dict, list]:
+    """The relay failsafe mode.
+
+    The failsafe mode defines the relay behaviour if the RF communication is lost (e.g.
+    when a room thermostat stops communicating due to discharged batteries):
+        enabled  - if RF communication is lost, relay will be held in OFF position
+        disabled - if RF communication is lost, relay will cycle at 20% ON, 80% OFF
+
+    This setting may need to be enabled to ensure prost protect mode.
+    """
     # TODO: can only be max one relay per domain/zone
     # can get: 003 or 006, e.g.: FC01FF-F901FF or FC00FF-F900FF
     # 095  I --- 23:100224 --:------ 23:100224 0009 003 0100FF  # 2-zone ST9520C
@@ -1362,19 +1372,18 @@ def parser_3220(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # actuator_sync (aka sync_tpi: TPI cycle heartbeat/sync)
+@parser_decorator  # actuator_sync (aka sync_tpi: TPI cycle sync)
 def parser_3b00(payload, msg) -> Optional[dict]:
-    # https://www.domoticaforum.eu/viewtopic.php?f=7&t=5806&start=105#p73681
-    # TODO: alter #cycles/hour & check interval between 3B00/3EF0 changes
-    """Decode a 3B00 packet (sync_tpi).
+    # system timing master: the device that sends I/FCC8 pkt controls the heater relay
+    """Decode a 3B00 packet (actuator_sync).
 
-    The heat relay regularly broadcasts a 3B00 at the start (or the end?) of every TPI
-    cycle, the frequency of which is determined by the (TPI) cycle rate in 1100.
+    The heat relay regularly broadcasts a 3B00 at the end(?) of every TPI cycle, the
+    frequency of which is determined by the (TPI) cycle rate in 1100.
 
     The CTL subsequently broadcasts a 3B00 (i.e. at the start of every TPI cycle).
 
-    The OTB does not send these packets, but the CTL sends a regular broadcast
-    anyway.
+    The OTB does not send these packets, but the CTL sends a regular broadcast anyway
+    for the benefit of any zone actuators (e.g. zone valve zones).
     """
 
     # 053  I --- 13:209679 --:------ 13:209679 3B00 002 00C8
@@ -1386,10 +1395,10 @@ def parser_3b00(payload, msg) -> Optional[dict]:
     # 064  I --- 01:078710 --:------ 01:078710 3B00 002 FCC8
 
     assert msg.len == 2
-    assert payload[:2] in {"01": "FC", "13": "00", "23": "FC"}.get(msg.src.type, "")
+    assert payload[:2] in {"01": "FC", "23": "FC"}.get(msg.src.type, "00")
     assert payload[2:] == "C8"  # Could it be a percentage?
 
-    return {**_idx(payload[:2], msg), "sync_tpi": _bool(payload[2:])}
+    return {**_idx(payload[:2], msg), "actuator_sync": _bool(payload[2:])}
 
 
 @parser_decorator  # actuator_state
@@ -1447,8 +1456,17 @@ def parser_3ef0(payload, msg) -> dict:
     }
 
     if msg.len >= 6:  # for OTB (there's no reliable) modulation_level <-> flame_state)
-        assert payload[6:8] in ("00", "01", "02", "04", "08", "0A", "0C")
-        assert payload[8:12] == "00FF"  # or: in ("0000", "00FF", "FFFF")
+        assert payload[6:8] in (
+            "00",
+            "01",
+            "02",
+            "04",
+            "08",
+            "0A",
+            "0C",
+            "42",
+        ), payload[6:8]
+        assert payload[8:12] in ("0000", "00FF")  # and "FFFF"?
 
         result.update(
             {
