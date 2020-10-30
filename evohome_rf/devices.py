@@ -88,15 +88,17 @@ def _clean_dict(src_dict: dict) -> Optional[dict]:
 class Entity:
     """The Device/Zone base class."""
 
-    def __init__(self, gwy, ctl=None) -> None:
+    def __init__(self, gwy) -> None:
         self._gwy = gwy
         self._que = gwy.cmd_que
-        self._ctl = None
 
         self.id = None
 
         self._msgs = {}
         self._known_msg = None
+
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        pass
 
     def _get_msg_value(self, code, key=None) -> dict:
         if self._msgs.get(code):
@@ -154,10 +156,11 @@ class DeviceBase(Entity, metaclass=ABCMeta):
 
     def __init__(self, gwy, dev_addr, ctl=None, domain_id=None) -> None:
         _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)
-        super().__init__(gwy, ctl=ctl)
+        super().__init__(gwy)
 
         self.id = dev_addr.id
         self._domain_id = domain_id
+        self._ctl = None
         self.hex_id = dev_id_to_hex(dev_addr.id)
 
         self.addr = dev_addr
@@ -182,6 +185,42 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         self._friendly_name = attrs.get("friendly_name") if attrs else None
         self._ignored = attrs.get("ignored", False) if attrs else False
 
+    def __repr__(self) -> str:
+        return f"{self.id} ({DEVICE_TYPES.get(self.type)})"
+
+    def __str__(self) -> str:
+        return f"{self.id} ({DEVICE_TYPES.get(self.type)})"
+
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        # sometimes, battery-powered devices do respond to an RQ (e.g. bind mode)
+        # super()._discover()
+
+        if discover_flag & DISCOVER_SCHEMA:
+            # self._send_cmd("1FC9", retry_limit=0)
+            if self.type not in DEVICE_HAS_BATTERY:
+                self._send_cmd("10E0", retry_limit=0)
+
+        if discover_flag & DISCOVER_PARAMS:
+            pass
+
+        if discover_flag & DISCOVER_STATUS:
+            # self._send_cmd("0016", payload="0000", retry_limit=0)
+            pass
+
+            # if self.type == "17" or self.id == "12:207082":  # Hometronics, unknown
+            #     self._probe_device()
+
+    def _poll_device(self) -> None:
+        poll_device(self._que, self.id)
+
+    def _probe_device(self) -> None:
+        probe_device(self._que, self.id)
+
+    def _send_cmd(self, code, **kwargs) -> None:
+        dest = kwargs.pop("dest_addr", self.id)
+        payload = kwargs.pop("payload", "00")
+        super()._send_cmd(code, dest, payload, **kwargs)
+
     def _set_ctl(self, ctl) -> None:  # self._ctl
         """Set the device's parent controller, after validating it."""
 
@@ -202,43 +241,14 @@ class DeviceBase(Entity, metaclass=ABCMeta):
 
         _LOGGER.debug("Device %s: controller set to %s", self.id, self._ctl.id)
 
-    def __repr__(self) -> str:
-        """Return an unambiguous string representation of this object."""
-        return f"{self.id} ({DEVICE_TYPES.get(self.type)})"
-
-    def __str__(self) -> str:
-        """Return a brief readable string representation of this object."""
-        return f"{self.id} ({DEVICE_TYPES.get(self.type)})"
-
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        # sometimes, battery-powered devices do respond to an RQ (e.g. bind mode)
-        # super()._discover()
-
-        if discover_flag & DISCOVER_SCHEMA:
-            # self._send_cmd("1FC9", retry_limit=0)
-            if self.type not in DEVICE_HAS_BATTERY:
-                self._send_cmd("10E0", retry_limit=0)
-
-        if discover_flag & DISCOVER_PARAMS:
-            pass
-
-        if discover_flag & DISCOVER_STATUS:
-            # self._send_cmd("0016", payload="0000", retry_limit=0)
-            pass
-
-            if self.type == "17" or self.id == "12:207082":  # Hometronics, unknown
-                self._probe_device()
-
-    def _poll_device(self) -> None:
-        poll_device(self._que, self.id)
-
-    def _probe_device(self) -> None:
-        probe_device(self._que, self.id)
-
-    def _send_cmd(self, code, **kwargs) -> None:
-        dest = kwargs.pop("dest_addr", self.id)
-        payload = kwargs.pop("payload", "00")
-        super()._send_cmd(code, dest, payload, **kwargs)
+    @property
+    @abstractmethod
+    def schema(self) -> dict:
+        """Return the fixed attributes of the device (e.g. TODO)."""
+        raise NotImplementedError
+        # schema["device_info"] = {
+        #     d.id: d.hardware_info for d in self.devices if d.hardware_info is not None
+        # }
 
     @property
     @abstractmethod
@@ -348,22 +358,45 @@ class Temperature:  # 30C9
         return {**super().status, "temperature": self.temperature}
 
 
+class DeviceInfo:  # 10E0
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._device_info = None
+
+    def _handle_msg(self, msg) -> bool:
+        super()._handle_msg(msg)
+
+        if self._known_msg:
+            return
+
+        if msg.code == "10E0" and msg.verb in (" I", "RP"):
+            self._known_msg = True
+            self._device_info = msg.payload
+
+    @property
+    def device_info(self) -> Optional[dict]:  # 10E0
+        return self._device_info
+
+    @property
+    def schema(self) -> dict:
+        return {**super().status, "device_info": self.device_info}
+
+
 # ######################################################################################
 
 # 00: used for unknown device types
-class Device(DeviceBase):
+class Device(DeviceInfo, DeviceBase):
     """The Device class."""
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code == "0016":
+        if self._known_msg:
+            return
+
+        elif msg.code == "0016":
             self._known_msg = True
             # self._rf_signal = msg.payload
-
-        elif msg.code == "10E0":
-            self._known_msg = True
-            # self._hardware_info = msg.payload
 
         elif msg.code == "1FC9":
             self._known_msg = True
@@ -374,8 +407,8 @@ class Device(DeviceBase):
 
         # TODO: status updates always, but...
         # TODO: schema updates only if eavesdropping is enabled.
-        if self._ctl is not None and "parent_idx" in msg.payload:
-            self._set_zone(self._ctl._get_zone(msg.payload["parent_idx"]))
+        # if self._ctl is not None and "parent_idx" in msg.payload:
+        #     self._set_zone(self._evo._get_zone(msg.payload["parent_idx"]))
 
     def _set_parent(self, parent, domain=None) -> None:
         """Set the device's parent zone, after validating it."""
@@ -398,7 +431,7 @@ class Device(DeviceBase):
             self._domain_id = domain
 
         elif isinstance(parent, System):
-            if domain not in ("FC", "HW"):
+            if domain not in ("F9", "FA", "FC", "HW"):
                 raise TypeError(f"domain can't be: {domain}")
 
             self._set_ctl(parent._ctl)
@@ -464,10 +497,6 @@ class Device(DeviceBase):
         return DEVICE_TABLE[self.type]["name"] if self.type in DEVICE_TABLE else None
 
     @property
-    def hardware_info(self) -> Optional[str]:  # 10E0
-        return self._get_msg_value("10E0")
-
-    @property
     def has_battery(self) -> Optional[bool]:  # 1060
         """Return True if a device is battery powered.
 
@@ -509,20 +538,17 @@ class Device(DeviceBase):
 
 # 01:
 class Controller(Device):
-    """The Controller base class, supports child devices and zones only."""
+    """The Controller base class."""
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self.devices = [self]
-        self.device_by_id = {self.id: self}
-
-        # self._ctl = args[1]  # or self?
+        self._ctl = self  # or args[1]
         self._domain_id = "FF"
         self._evo = None
 
-    def _get_zone(self, *args, **kwargs):
-        return self._evo._get_zone(*args, **kwargs)
+        self.devices = list()  # [self]
+        self.device_by_id = dict()  # {self.id: self}
 
 
 # 02: "10E0", "3150";; "0008", "22C9", "22D0"
@@ -539,6 +565,9 @@ class UfhController(Device):
         super().__init__(*args, **kwargs)
 
         self._circuits = {}
+
+        self.devices = list()  # [self]
+        self.device_by_id = dict()  # {self.id: self}
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover()
@@ -824,8 +853,8 @@ class BdrSwitch(Device):
 
         self._is_tpi = None
 
-        if kwargs.get("domain_id") == "FC":
-            self._ctl._set_htg_control(self)
+        # if kwargs.get("domain_id") == "FC":  # TODO: F9/FA/FC, zone_idx
+        #     self._ctl._set_htg_control(self)
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         """The BDRs fail(?) to respond to RQs for: 3B00, 3EF0, 0009.
@@ -1007,7 +1036,7 @@ class TrvActuator(BatteryState, Setpoint, Temperature, Device):
 
 
 DEVICE_CLASSES = {
-    "01": Controller,  # use EvoSystem instead?
+    "01": Controller,  # use Evohome instead?
     "02": UfhController,
     "03": Thermostat,
     "04": TrvActuator,

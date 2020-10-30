@@ -68,7 +68,7 @@ class ZoneBase(Entity, metaclass=ABCMeta):
 
     def __init__(self, evo, zone_idx) -> None:
         _LOGGER.debug("Creating a Zone: %s_%s (%s)", evo.id, zone_idx, self.__class__)
-        super().__init__(evo._gwy, ctl=evo._ctl)
+        super().__init__(evo._gwy)
 
         self.id = f"{evo.id}_{zone_idx}"
         self.idx = zone_idx
@@ -80,11 +80,9 @@ class ZoneBase(Entity, metaclass=ABCMeta):
         self._ctl = evo._ctl
 
     # def __repr__(self) -> str:
-    #     """Return an unambiguous string representation of this object."""
     #     return json.dumps(self.schema, indent=2)
 
     def __str__(self) -> str:
-        """Return a brief readable string representation of this object."""
         return f"{self.id} ({self._zone_type})"
 
     @abstractmethod
@@ -205,8 +203,8 @@ class DhwZone(ZoneBase, HeatDemand):
         ctl._set_dhw(self)
 
         self._sensor = None
-        self._dhw_valve = None
-        self._htg_valve = None
+        # self._dhw_valve = None
+        # self._htg_valve = None
 
         self.heating_type = "DHW"
         self._name = None  # not used
@@ -265,50 +263,12 @@ class DhwZone(ZoneBase, HeatDemand):
             assert False, "Unknown packet code"
 
     @property
-    def schema(self) -> dict:
-        """Return the stored HW's schema."""
-
-        return {
-            ATTR_DHW_SENSOR: self._sensor.id if self._sensor else None,
-            ATTR_DHW_VALVE: self._dhw_valve.id if self._dhw_valve else None,
-            ATTR_DHW_VALVE_HTG: self._htg_valve.id if self._htg_valve else None,
-        }
-
-    @property  # setpoint, config, mode (not schedule)
-    def params(self) -> dict:
-        """Return the stored HW's configuration (excl. schedule)."""
-
-        return {"dhw_params": self._dhw_params}
-
-    @property  # temp, open_windows
-    def status(self) -> dict:
-        """Return the stored HW's current state."""
-
-        return {"temperature": self._temperature, "dhw_mode": self._dhw_mode}
-
-    @property
     def sensor(self) -> Device:
-        """Blah it now.
-
-        Check and Verb the DHW sensor (07:) of this system/CTL (if there is one).
-
-        There is only 1 way to find a controller's DHW sensor:
-        1.  The 10A0 RQ/RP *from/to a 07:* (1x/4h)
-
-        The RQ is initiated by the DHW, so is not authorative (the CTL will RP any RQ).
-        The I/1260 is not to/from a controller, so is not useful.
-        """  # noqa: D402
-
-        # 07:38:39.124 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
-        # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
-
-        # if "10A0" in self._msgs:
-        #     return self._msgs["10A0"].dst.addr
-
-        return self._sensor
+        return self._evo.dhw_sensor
 
     def _set_sensor(self, device: Device) -> None:  # self._sensor
         """Set the temp sensor for this DHW system (07: only)."""
+        raise
 
         if self._sensor != device and self._sensor is not None:
             raise CorruptStateError(
@@ -324,45 +284,11 @@ class DhwZone(ZoneBase, HeatDemand):
 
     @property
     def hotwater_valve(self) -> Device:
-        return self._dhw_valve
-
-    def _set_dhw_valve(self, device: Device) -> None:  # self._dhw_valve
-        """Set the hotwater valve relay for this DHW system (13: only)."""
-
-        if not isinstance(device, Device) or device.type != "13":
-            raise TypeError(f"{ATTR_DHW_VALVE} can't be: {device}")
-
-        if self._dhw_valve is not None:
-            if self._dhw_valve is device:
-                return
-            raise CorruptStateError(
-                f"{ATTR_DHW_VALVE} shouldn't change: {self._dhw_valve} to {device}"
-            )
-
-        if self._dhw_valve is None:
-            self._dhw_valve = device
-            device._set_parent(self, domain="FA")
+        return self._evo._dhw_valve
 
     @property
     def heating_valve(self) -> Device:
-        return self._htg_valve
-
-    def _set_htg_valve(self, device: Device) -> None:  # self._htg_valve
-        """Set the heating valve relay for this DHW system (13: only)."""
-
-        if not isinstance(device, Device) or device.type != "13":
-            raise TypeError(f"{ATTR_DHW_VALVE_HTG} can't be: {device}")
-
-        if self._htg_valve is not None:
-            if self._htg_valve is device:
-                return
-            raise CorruptStateError(
-                f"{ATTR_DHW_VALVE_HTG} shouldn't change: {self._htg_valve} to {device}"
-            )
-
-        if self._htg_valve is None:
-            self._htg_valve = device
-            device._set_parent(self, domain="F9")
+        return self._evo._htg_valve
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
@@ -392,6 +318,28 @@ class DhwZone(ZoneBase, HeatDemand):
     @property
     def temperature(self) -> Optional[float]:  # 1260
         return self._temperature
+
+    @property
+    def schema(self) -> dict:
+        """Return the stored HW's schema."""
+
+        return {
+            ATTR_DHW_SENSOR: self.sensor.id if self.sensor else None,
+            ATTR_DHW_VALVE: self.hotwater_valve.id if self.hotwater_valve else None,
+            ATTR_DHW_VALVE_HTG: self.heating_valve.id if self.heating_valve else None,
+        }
+
+    @property  # setpoint, config, mode (not schedule)
+    def params(self) -> dict:
+        """Return the stored HW's configuration (excl. schedule)."""
+
+        return {"dhw_params": self._dhw_params}
+
+    @property  # temp, open_windows
+    def status(self) -> dict:
+        """Return the stored HW's current state."""
+
+        return {"temperature": self._temperature, "dhw_mode": self._dhw_mode}
 
     async def cancel_override(self) -> bool:  # 1F41
         """Reset the DHW to follow its schedule."""

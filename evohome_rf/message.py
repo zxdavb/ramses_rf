@@ -384,11 +384,13 @@ class Message:
         if self.src.type not in ("01", "23"):  # TODO: this is too restrictive!
             return
 
+        evo = self.src._evo
+
         # TODO: a I/0005: zones have changed & may need a restart (del) or not (add)
         if self.code == "0005":  # RP, and also I
             if self._payload["zone_type"] in CODE_0005_ZONE_TYPE.values():
                 [
-                    self.src._get_zone(
+                    evo._get_zone(
                         f"{idx:02X}",
                         zone_type=ZONE_TYPE_SLUGS.get(self._payload["zone_type"]),
                     )
@@ -400,7 +402,7 @@ class Message:
             devices = [self.src.device_by_id[d] for d in self.payload["devices"]]
 
             if self.payload["device_class"] == ATTR_ZONE_SENSOR:
-                zone = self.src._get_zone(self.payload["zone_idx"])
+                zone = evo._get_zone(self.payload["zone_idx"])
                 try:
                     zone._set_sensor(devices[0])
                 except TypeError:  # ignore invalid device types, e.g. 17:
@@ -408,23 +410,26 @@ class Message:
 
             elif self.payload["device_class"] == "zone_actuators":
                 # TODO: is this better, or...
-                # self.src._get_zone(self.payload["zone_idx"], actuators=devices)
+                # evo._get_zone(self.payload["zone_idx"], actuators=devices)
                 # TODO: is it this one?
-                zone = self.src._get_zone(self.payload["zone_idx"])
+                zone = evo._get_zone(self.payload["zone_idx"])
                 for d in devices:
                     d._set_zone(zone)
 
             elif self.payload["device_class"] == ATTR_HTG_CONTROL:
-                self.src._set_htg_control(devices[0])
+                evo._set_htg_control(devices[0])
 
             elif self.payload["device_class"] == ATTR_DHW_SENSOR:
-                self.src._get_zone("HW")._set_sensor(devices[0])
+                # evo._get_zone("HW")._set_sensor(devices[0])
+                evo._get_zone("HW")._set_sensor(devices[0])
 
             elif self.payload["device_class"] == ATTR_DHW_VALVE:
-                self.src._get_zone("HW")._set_dhw_valve(devices[0])
+                # evo._get_zone("HW")._set_dhw_valve(devices[0])
+                evo._set_dhw_valve(devices[0])
 
             elif self.payload["device_class"] == ATTR_DHW_VALVE_HTG:
-                self.src._get_zone("HW")._set_htg_valve(devices[0])
+                # evo._get_zone("HW")._set_htg_valve(devices[0])
+                evo._set_htg_valve(devices[0])
 
         # # Eavesdropping (below) is used when discovery (above) is not an option
         # # TODO: needs work, e.g. RP/1F41 (excl. null_rp)
@@ -432,20 +437,20 @@ class Message:
         #     if isinstance(self.dst, Device) and self.dst.is_controller:
         #         self.dst._get_zone("HW")
         #     else:
-        #         self.src._get_zone("HW ")
+        #         evo._get_zone("HW ")
 
         # # TODO: also process ufh_idx (but never domain_id)
         # elif isinstance(self._payload, dict):
         #     # TODO: only creating zones from arrays, presently, but could do so here
         #     if self._payload.get("zone_idx"):  # TODO: parent_zone too?
         #         if self.src.is_controller:
-        #             self.src._get_zone(self._payload["zone_idx"])
+        #             evo._get_zone(self._payload["zone_idx"])
         #         else:
         #             self.dst._get_zone(self._payload["zone_idx"])
 
         elif isinstance(self._payload, list):
             if self.code in ("000A", "2309", "30C9"):  # the sync_cycle pkts
-                [self.src._get_zone(d["zone_idx"]) for d in self.payload]
+                [evo._get_zone(d["zone_idx"]) for d in self.payload]
             # elif self.code in ("22C9", "3150"):  # TODO: UFH zone
             #     pass
 
@@ -474,7 +479,6 @@ class Message:
 
         # some empty payloads may still be useful (e.g. RQ/3EF1/{})
         self._gwy.device_by_id[self.src.id]._handle_msg(self)
-        # self.src._handle_msg(self)  # new way
         # if payload is {} (empty dict; lists shouldn't ever be empty)
         if not self.payload:
             return
@@ -492,7 +496,7 @@ class Message:
 
         # lists only useful to devices (c.f. 000C)
         if isinstance(self.payload, dict) and "zone_idx" in self.payload:
-            evo = self.src.controller  # TODO: needs device?
+            evo = self.src._evo  # TODO: needs device?
             # if evo is None and isinstance(self.dst, Device):
             #     evo = self.dst._evo
 

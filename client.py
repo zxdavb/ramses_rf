@@ -154,9 +154,9 @@ async def main(serial_port, loop=None, **config):
         print(f"\r\nStatus[gateway] = {json.dumps(gwy.status)}")
 
     if __dev_mode__ and gwy.evo is not None:
-        print(f"\r\nSchema[{gwy.evo.id}] = {json.dumps(gwy.evo.schema, indent=2)}")
-        print(f"\r\nParams[{gwy.evo.id}] = {json.dumps(gwy.evo.params)}")
-        print(f"\r\nStatus[{gwy.evo.id}] = {json.dumps(gwy.evo.status)}")
+        print(f"\r\nSchema[{repr(gwy.evo)}] = {json.dumps(gwy.evo.schema, indent=2)}")
+        print(f"\r\nParams[{repr(gwy.evo)}] = {json.dumps(gwy.evo.params)}")
+        print(f"\r\nStatus[{repr(gwy.evo)}] = {json.dumps(gwy.evo.status)}")
 
     elif gwy.evo is not None:
         print(f"\r\nSchema[{gwy.evo.id}] = {json.dumps(gwy.evo.schema, indent=2)}")

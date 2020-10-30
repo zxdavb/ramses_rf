@@ -229,50 +229,58 @@ def load_schema(gwy, schema, **kwargs) -> dict:
     """Process the schema, and the configuration and return True if it is valid."""
     # TODO: check a sensor is not a device in another zone
 
+    # schema = SYSTEM_SCHEMA(schema)
+
+    device_ids = schema.get(ATTR_ORPHANS, [])  # TODO: clean up
+    if device_ids is not None:
+        for device_id in device_ids:
+            gwy._get_device(addr(device_id))
+
     if not schema.get(ATTR_CONTROLLER):
         return {}
 
     schema = SYSTEM_SCHEMA(schema)
-
-    for device_id in schema.get(ATTR_ORPHANS, []):
-        gwy._get_device(addr(device_id))
 
     ctl_id = schema[ATTR_CONTROLLER]
     ctl = gwy._get_device(addr(ctl_id), ctl_addr=addr(ctl_id))
 
     htg_ctl_id = schema[ATTR_SYSTEM].get(ATTR_HTG_CONTROL)
     if htg_ctl_id:
-        ctl._set_htg_control(gwy._get_device(addr(htg_ctl_id), controller=ctl))
+        ctl._evo._set_htg_control(gwy._get_device(addr(htg_ctl_id), ctl_addr=ctl))
 
     for device_id in schema[ATTR_SYSTEM].get(ATTR_ORPHANS, []):
-        gwy._get_device(addr(device_id), controller=ctl)
+        gwy._get_device(addr(device_id), ctl_addr=ctl)
 
     dhw = schema.get(ATTR_STORED_HW)
     if dhw:
-        ctl._set_dhw(ctl._get_zone("HW"))
+        ctl._evo._set_dhw(ctl._evo._get_zone("HW"))
 
         dhw_sensor_id = dhw.get(ATTR_DHW_SENSOR)
         if dhw_sensor_id:
-            ctl.dhw._set_sensor(gwy._get_device(addr(dhw_sensor_id), controller=ctl))
+            ctl._evo._set_dhw_sensor(gwy._get_device(addr(dhw_sensor_id), ctl_addr=ctl))
 
         dhw_valve_id = dhw.get(ATTR_DHW_VALVE)
         if dhw_valve_id:
-            ctl.dhw._set_dhw_valve(gwy._get_device(addr(dhw_valve_id), controller=ctl))
+            ctl._evo._set_dhw_valve(gwy._get_device(addr(dhw_valve_id), ctl_addr=ctl))
 
         htg_valve_id = dhw.get(ATTR_DHW_VALVE_HTG)
         if htg_valve_id:
-            ctl.dhw._set_htg_valve(gwy._get_device(addr(htg_valve_id), controller=ctl))
+            ctl._evo._set_htg_valve(gwy._get_device(addr(htg_valve_id), ctl_addr=ctl))
 
     if ATTR_ZONES in schema:
         for zone_idx, attr in schema[ATTR_ZONES].items():
-            zone = ctl._get_zone(zone_idx, zone_type=attr.get(ATTR_ZONE_TYPE))
+            zone = ctl._evo._get_zone(zone_idx, zone_type=attr.get(ATTR_ZONE_TYPE))
 
             sensor_id = attr.get(ATTR_ZONE_SENSOR)
             if sensor_id:
-                zone._set_sensor(gwy._get_device(addr(sensor_id), controller=ctl))
+                zone._set_sensor(gwy._get_device(addr(sensor_id), ctl_addr=ctl))
 
-            for device_id in attr.get(ATTR_DEVICES, []):
-                gwy._get_device(addr(device_id), controller=ctl, domain_id=zone_idx)
+            device_ids = attr.get(ATTR_DEVICES)  # TODO: clean up
+            if device_ids is not None:
+                for device_id in device_ids:
+                    gwy._get_device(addr(device_id), ctl_addr=ctl, domain_id=zone_idx)
 
     # for ufh_ctl, ufh_schema in schema.get(ATTR_UFH_CONTROLLERS, []):
-    #     dev = gwy._get_device(addr(ufh_ctl), controller=ctl)
+    #     dev = gwy._get_device(addr(ufh_ctl), ctl_addr=ctl)
+
+    gwy.schema

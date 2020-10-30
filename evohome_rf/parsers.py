@@ -270,7 +270,7 @@ def parser_decorator(func):
             return {**_idx(payload[:2], msg)}
 
         if msg.code in CODE_SCHEMA:
-            assert False, "unknown RQ"
+            assert False, f"unknown verb/code: RQ/{msg.code}"
 
         if msg.src.type != "18":
             assert False, "unknown RQ"

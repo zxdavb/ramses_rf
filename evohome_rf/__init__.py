@@ -41,7 +41,7 @@ from .packet import (
 from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
 
 # from .ser2net import Ser2NetServer
-from .systems import EvoSystem
+from .systems import Evohome, SystemBase
 from .version import __version__  # noqa
 
 # TODO: duplicated in schema.py
@@ -126,8 +126,8 @@ class Gateway:
         self._relay = None  # ser2net_server relay
 
         # if self.config["reduce_processing"] > 0:
-        self.evo = None  # EvoSystem(controller=config["controller_id"])
-        self.systems: List[EvoSystem] = []
+        self.evo = None  # Evohome(controller=config["controller_id"])
+        self.systems: List[SystemBase] = []
         self.system_by_id: Dict = {}
         self.devices: List[Device] = []
         self.device_by_id: Dict = {}
@@ -338,11 +338,11 @@ class Gateway:
         (heater_relay), HW (DHW sensor, relay), or None (unknown, TBA).
         """
 
-        def create_system(ctl) -> EvoSystem:
+        def create_system(ctl) -> SystemBase:
             if ctl.id in self.system_by_id:
                 raise LookupError(f"Duplicated system id: {ctl.id}")
 
-            system = EvoSystem(self, ctl)
+            system = Evohome(self, ctl)
 
             self.systems.append(system)
             self.system_by_id[system.id] = system
@@ -390,7 +390,7 @@ class Gateway:
             if domain_id in ("F9", "FA", "FC", "FF"):
                 device._domain_id = domain_id
             elif domain_id is not None and ctl is not None:
-                device._set_zone(ctl._get_zone(domain_id))
+                device._set_zone(ctl._evo._get_zone(domain_id))
 
         return device
 
@@ -398,12 +398,13 @@ class Gateway:
     def schema(self) -> dict:
         """Return the global schema."""
 
-        schema = {"main_controller": self.evo.id if self.evo else None}
+        schema = {"main_controller": self.evo._ctl.id if self.evo else None}
 
         if self.evo:
-            schema[self.evo.id] = self.evo.schema
+            schema[self.evo._ctl.id] = self.evo.schema
         for evo in self.systems:
-            schema[evo.id] = evo.schema
+            if evo is not self.evo:
+                schema[evo._ctl.id] = evo.schema
 
         orphans = [d.id for d in self.devices if d.controller is None]
         orphans.sort()
