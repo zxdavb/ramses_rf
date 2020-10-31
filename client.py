@@ -11,7 +11,7 @@ import sys
 
 import click
 
-from evohome_rf import CONFIG_SCHEMA, __dev_mode__, Gateway, GracefulExit
+from evohome_rf import CONFIG_SCHEMA, Gateway, GracefulExit  # __dev_mode__,
 
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
@@ -153,15 +153,10 @@ async def main(serial_port, loop=None, **config):
         print(f"\r\nParams[gateway] = {json.dumps(gwy.params)}")
         print(f"\r\nStatus[gateway] = {json.dumps(gwy.status)}")
 
-    if __dev_mode__ and gwy.evo is not None:
-        print(f"\r\nSchema[{repr(gwy.evo)}] = {json.dumps(gwy.evo.schema, indent=2)}")
-        print(f"\r\nParams[{repr(gwy.evo)}] = {json.dumps(gwy.evo.params)}")
-        print(f"\r\nStatus[{repr(gwy.evo)}] = {json.dumps(gwy.evo.status)}")
-
-    elif gwy.evo is not None:
-        print(f"\r\nSchema[{gwy.evo.id}] = {json.dumps(gwy.evo.schema, indent=2)}")
-        print(f"\r\nParams[{gwy.evo.id}] = {json.dumps(gwy.evo.params, indent=2)}")
-        print(f"\r\nStatus[{gwy.evo.id}] = {json.dumps(gwy.evo.status, indent=2)}")
+    else:
+        print(f"\r\nSchema[{repr(gwy.evo)}] = {json.dumps(gwy.evo.schema, indent=4)}")
+        print(f"\r\nParams[{repr(gwy.evo)}] = {json.dumps(gwy.evo.params, indent=4)}")
+        print(f"\r\nStatus[{repr(gwy.evo)}] = {json.dumps(gwy.evo.status, indent=4)}")
 
     print("\r\nFinished evohome_rf.")
 
