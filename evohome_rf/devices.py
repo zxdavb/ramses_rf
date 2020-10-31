@@ -344,13 +344,17 @@ class Temperature:  # 30C9
         if self._known_msg:
             return
 
-        if msg.code == "30C9" and msg.verb == " I":
+        if msg.code == "30C9" and msg.verb in (" I", "RP"):
             self._known_msg = True
-            self._temperature = msg.payload
+            self._temperature = msg
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        if self._temperature:
+        if self._temperature is None:
+            return
+        elif self._temperature.dtm > dt.now() - timedelta(minutes=15):
+            self._temperature = None
+        else:
             return self._temperature["temperature"]
 
     @property
