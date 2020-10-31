@@ -425,9 +425,9 @@ class MultiZone:  # 0005 (+/- 000C?)
 
             zone_idx, temp = list(testable_zones.items())[0]
             _LOGGER.debug("Testing (sole remaining) zone %s, temp: %s", zone_idx, temp)
-            # want to avoid complexity of z._temperature
+            # want to avoid complexity of z._temp
             # zone = self.zone_by_idx[zone_idx]
-            # if zone._temperature is None:
+            # if zone._temp is None:
             #     return  # TODO: should have a (not-None) temperature
 
             matching_sensors = [
@@ -627,7 +627,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         if discover_flag & DISCOVER_PARAMS:
             self._send_cmd("1100", payload="FC")  # TPI params
 
-        # # for code in ("3B00"):  # 3EF0, 3EF1
+        # # for code in ("3B00",):  # 3EF0, 3EF1
         # #     for payload in ("0000", "00", "F8", "F9", "FA", "FB", "FC", "FF"):
         # #         self._send_cmd(code, payload=payload)
 
@@ -998,9 +998,9 @@ class Evohome(SysLanguage, SystemMode, MultiZone, StoredHw, System):  # evohome
         #     if msg.code == "000A":
         #         zone._zone_config = zone_dict
         #     elif msg.code == "2309":
-        #         zone._temperature = zone_dict
+        #         zone._temp = zone_dict
         #     elif msg.code == "30C9":
-        #         zone._temperature = zone_dict
+        #         zone._temp = zone_dict
 
         # if msg.code in ("000A", "2309", "30C9"):
         #     if isinstance(msg.payload, list):
@@ -1038,3 +1038,8 @@ class Hometronics(System):
 
 class Sundial(System):
     pass
+
+
+class Cm927(System):
+    def __init__(self, gwy, ctl, synchronizer=False, **kwargs) -> None:
+        pass

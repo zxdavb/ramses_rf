@@ -157,7 +157,7 @@ def parser_decorator(func):
 
         if msg.verb == " W":  # TODO: WIP, need to check _idx()
             # these are OK to parse Ws:
-            if msg.code in ("0001"):
+            if msg.code in ("0001",):
                 return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
             # 045  W --- 12:010740 01:145038 --:------ 2309 003 0401F4
             if msg.code in ("2309", "2349") and msg.src.type in ("12", "22", "34"):
@@ -167,7 +167,7 @@ def parser_decorator(func):
             if msg.code == "1F09":
                 assert payload[:2] == "F8"
                 return func(*args, **kwargs)
-            if msg.code in ("1FC9"):
+            if msg.code in ("1FC9",):
                 return func(*args, **kwargs)
             # assert payload[:2] in ("00", "FC")  # ("1100", "2309", "2349")
             return func(*args, **kwargs)
