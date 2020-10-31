@@ -3,7 +3,7 @@
 #
 """Message processor."""
 
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta
 import logging
 import re
 from typing import Any, Optional, Union
@@ -85,7 +85,7 @@ class Message:
 
         self._payload = self._str = None
 
-        self._is_valid = self._is_array = self._is_fragment = None
+        self._is_valid = self._is_array = self._is_expired = self._is_fragment = None
         self._is_valid = self.is_valid
 
     def __repr__(self) -> str:
@@ -173,7 +173,7 @@ class Message:
 
         # 045  I --- 01:158182 --:------ 01:158182 0009 003 0B00FF (or: FC00FF)
         # 045  I --- 01:145038 --:------ 01:145038 0009 006 FC00FFF900FF
-        elif self.code in ("0009") and self.src.type == "01":
+        elif self.code in ("0009",) and self.src.type == "01":
             # grep -E ' I.* 01:.* 01:.* 0009 [0-9]{3} F' (and: grep -v ' 003 ')
             self._is_array = self.verb == " I" and self.raw_payload[:1] == "F"
 
@@ -195,7 +195,7 @@ class Message:
 
         # 095  I --- 23:100224 --:------ 23:100224 2249 007 007EFF7EFFFFFF
         # 095  I --- 23:100224 --:------ 23:100224 2249 007 007EFF7EFFFFFF
-        elif self.code in ("2249") and self.src.type == "23":
+        elif self.code in ("2249",) and self.src.type == "23":
             self._is_array = self.verb == " I" and self.src.id == self.dst.id
             # self._is_array = self._is_array if self.raw_payload[:1] != "F" else False
 
@@ -203,6 +203,29 @@ class Message:
             self._is_array = False
 
         return self._is_array
+
+    @property
+    def is_expired(self) -> bool:
+        """Return True if the message is dated (does not require a valid payload)."""
+
+        if self._is_expired:
+            return self._is_expired
+
+        elif self.code in ("1F09", "313F"):
+            timeout = timedelta(seconds=3)
+
+        elif self.code in ("1260", "12B0", "2309", "3C09", "3150"):
+            timeout = timedelta(minutes=15)
+
+        elif self.code in ("000A", "1F41", "2349", "2E04"):
+            timeout = timedelta(minutes=125)
+
+        else:
+            self._is_expired = False
+            return self._is_expired
+
+        self._is_expired = self.dtm < dt.now() - timeout
+        return self._is_expired
 
     @property
     def is_fragment_WIP(self) -> bool:
