@@ -214,10 +214,10 @@ class Message:
         elif self.code in ("1F09", "313F"):
             timeout = timedelta(seconds=3)
 
-        elif self.code in ("1260", "12B0", "2309", "3C09", "3150"):
+        elif self.code in ("12B0", "2309", "3C09", "3150"):
             timeout = timedelta(minutes=15)
 
-        elif self.code in ("000A", "1F41", "2349", "2E04"):
+        elif self.code in ("000A", "1260", "1F41", "2349", "2E04"):
             timeout = timedelta(minutes=125)
 
         else:

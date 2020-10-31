@@ -26,7 +26,7 @@ from .const import (
     SYSTEM_MODE_MAP,
     __dev_mode__,
 )
-from .devices import _dtm, Device, Entity
+from .devices import Device, Entity, _dtm, _payload
 from .exceptions import CorruptStateError
 from .schema import (
     ATTR_HTG_CONTROL,
@@ -87,7 +87,7 @@ class SysDatetime(Entity):  # 313F
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
-            self._send_cmd("313F")  # system language
+            self._send_cmd("313F")
 
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
@@ -95,13 +95,13 @@ class SysDatetime(Entity):  # 313F
         if self._known_msg:
             return
 
-        if msg.code == "313F" and msg.verb in (" I", "RP"):
+        elif msg.code == "313F" and msg.verb in (" I", "RP"):
             self._known_msg = True
-            self._datetime = msg.payload
+            self._datetime = msg
 
     @property
     def datetime(self) -> Optional[str]:  # 313F
-        return self._datetime["datetime"] if self._datetime else None
+        return _payload(self._datetime, "datetime")  # TODO: make a dt object
 
     @property
     def status(self) -> dict:
@@ -127,15 +127,73 @@ class SysLanguage(Entity):  # 0100
 
         if msg.code == "0100" and msg.verb in (" I", "RP"):
             self._known_msg = True
-            self._language = msg.payload
+            self._language = msg
 
     @property
     def language(self) -> Optional[str]:  # 0100
-        return self._language["language"] if self._language else None
+        return _payload(self._language, "language")
 
     @property
     def params(self) -> dict:
         return {**super().params, "language": self.language}
+
+
+class SysMode:  # 2E04
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._mode = None
+
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        super()._discover(discover_flag=discover_flag)
+
+        if discover_flag & DISCOVER_STATUS:
+            self._send_cmd("2E04", payload="FF")  # system mode
+
+        # TODO: testing only
+        # asyncio.create_task(
+        #     self.async_set_mode(5, dt_now() + timedelta(minutes=120))
+        #     # self.async_set_mode(5)
+        #     # self.async_reset_mode()
+        # )
+
+    def _handle_msg(self, msg, prev_msg=None):
+        super()._handle_msg(msg)
+
+        if self._known_msg:
+            return
+
+        if msg.code == "2E04" and msg.verb in (" I", "RP"):  # this is a special case
+            self._known_msg = True
+            self._mode = msg
+
+    @property
+    def mode(self) -> Optional[dict]:  # 2E04
+        return _payload(self._mode)
+
+    async def set_mode(self, mode, until=None):
+        """Set the system mode for a specified duration, or indefinitely."""
+
+        if isinstance(mode, int):
+            mode = f"{mode:02X}"
+        elif not isinstance(mode, str):
+            raise TypeError("Invalid system mode")
+        elif mode in SYSTEM_MODE_LOOKUP:
+            mode = SYSTEM_MODE_LOOKUP[mode]
+
+        if mode not in SYSTEM_MODE_MAP:
+            raise ValueError("Unknown system mode")
+
+        until = _dtm(until) + "00" if until is None else "01"
+
+        self._send_cmd("2E04", verb=" W", payload=f"{mode}{until}")
+
+    async def reset_mode(self) -> None:
+        """Revert the system mode to Auto."""  # TODO: is it AutoWithReset?
+        self._send_cmd("2E04", verb=" W", payload="00FFFFFFFFFFFF00")
+
+    @property
+    def params(self) -> dict:
+        return {**super().params, "mode": self.mode}
 
 
 class StoredHw:
@@ -530,64 +588,6 @@ class MultiZone:  # 0005 (+/- 000C?)
         return {**super().status, ATTR_ZONES: {z.idx: z.status for z in self._zones}}
 
 
-class SystemMode:  # 2E04
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._mode = None
-
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        super()._discover(discover_flag=discover_flag)
-
-        if discover_flag & DISCOVER_STATUS:
-            self._send_cmd("2E04", payload="FF")  # system mode
-
-        # TODO: testing only
-        # asyncio.create_task(
-        #     self.async_set_mode(5, dt_now() + timedelta(minutes=120))
-        #     # self.async_set_mode(5)
-        #     # self.async_reset_mode()
-        # )
-
-    def _handle_msg(self, msg, prev_msg=None):
-        super()._handle_msg(msg)
-
-        if self._known_msg:
-            return
-
-        if msg.code == "2E04" and msg.verb in (" I", "RP"):  # this is a special case
-            self._known_msg = True
-            self._mode = msg.payload
-
-    @property
-    def mode(self) -> Optional[dict]:  # 2E04
-        return self._mode
-
-    async def set_mode(self, mode, until=None):
-        """Set the system mode for a specified duration, or indefinitely."""
-
-        if isinstance(mode, int):
-            mode = f"{mode:02X}"
-        elif not isinstance(mode, str):
-            raise TypeError("Invalid system mode")
-        elif mode in SYSTEM_MODE_LOOKUP:
-            mode = SYSTEM_MODE_LOOKUP[mode]
-
-        if mode not in SYSTEM_MODE_MAP:
-            raise ValueError("Unknown system mode")
-
-        until = _dtm(until) + "00" if until is None else "01"
-
-        self._send_cmd("2E04", verb=" W", payload=f"{mode}{until}")
-
-    async def reset_mode(self) -> None:
-        """Revert the system mode to Auto."""  # TODO: is it AutoWithReset?
-        self._send_cmd("2E04", verb=" W", payload="00FFFFFFFFFFFF00")
-
-    @property
-    def params(self) -> dict:
-        return {**super().params, "mode": self.mode}
-
-
 class SystemBase(Entity):  # 3B00 (multi-relay)
     """The most basic controllers - a generic controller (e.g. ST9420C)."""
 
@@ -976,7 +976,7 @@ class System(SysDatetime, SysFaultLog, SystemBase):
         return f"{self._ctl.id} (system)"
 
 
-class Evohome(SysLanguage, SystemMode, MultiZone, StoredHw, System):  # evohome
+class Evohome(SysLanguage, SysMode, MultiZone, StoredHw, System):  # evohome
     """The Evohome system - some controllers are evohome-compatible."""
 
     def __init__(self, gwy, ctl, **kwargs) -> None:
