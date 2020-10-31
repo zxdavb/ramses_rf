@@ -513,12 +513,20 @@ class Zone(ZoneBase):
             }
             self._setpoint = msg.payload["setpoint"]
 
-        elif msg.code == "30C9":  # required for sensor matching
-            assert msg.src.type in DEVICE_HAS_ZONE_SENSOR + ("01",)
-            payload = msg.payload if msg.is_array else [msg.payload]
-            self._temperature = {
-                k: v for z in payload for k, v in z.items() if z["zone_idx"] == self.idx
-            }["temperature"]
+        elif msg.code == "30C9" and msg.verb in (" I", "RP"):  # used by sensor matching
+            assert msg.src.type in DEVICE_HAS_ZONE_SENSOR + ("01",), "Invalid"
+
+            if not msg.is_array:
+                self._temperature = msg
+
+            elif self._zone_config and self._zone_config["multiroom_mode"]:
+                if self.sensor and self.sensor.temperature:
+                    self._temperature = self.sensor._temperature
+                else:
+                    self._temperature = None
+
+            else:
+                self._temperature = msg
 
         elif msg.code == "3150":  # TODO: and msg.verb in (" I", "RP")?
             assert msg.src.type in ("02", "04", "13")
@@ -694,31 +702,25 @@ class Zone(ZoneBase):
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        def method_1() -> Optional[float]:
-            msg = self._ctl._msgs.get("30C9")
-            if msg is not None:
-                return {
-                    k: v
-                    for z in msg.payload
-                    for k, v in z.items()
-                    if z["zone_idx"] == self.idx
-                }.get("temperature")
+        if self._temperature is None:
+            return
 
-        def method_2() -> Optional[float]:
-            if self.sensor:
-                return self.sensor.temperature
+        elif self._temperature.dtm > dt.now() - timedelta(minutes=15):
+            if self.sensor and self.sensor.temperature:
+                self._temperature = self.sensor._temperature
+            else:
+                self._temperature = None
 
-        if self._zone_config and self._zone_config["multiroom_mode"]:
-            # A controller does not include these in the 30C9 arrary
-            self._temperature = method_2()
-        else:
-            self._temperature = method_1()  # TODO: needs cleaning up
+        elif isinstance(self._temperature.payload, dict):
+            return self._temperature.payload["temperature"]
 
-        if self._temperature is None and self._msgs.get("30C9"):
-            if self._msgs["30C9"].dtm > dt.now() - timedelta(minutes=5):
-                self._temperature = self._get_msg_value("30C9", "temperature")
-
-        return self._temperature
+        elif self.idx in self._temperature:  # a list
+            return {
+                k: v
+                for z in self._temperature.payload
+                for k, v in z.items()
+                if z["zone_idx"] == self.idx
+            }["temperature"]
 
     @property
     def heat_demand(self) -> Optional[float]:
