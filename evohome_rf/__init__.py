@@ -20,9 +20,9 @@ from queue import PriorityQueue, Empty
 import signal
 import sys
 from threading import Lock
-from typing import Dict, List
+from typing import Any, Dict, List, Tuple
 
-from serial import serial_for_url
+from serial import serial_for_url  # SerialException
 from serial_asyncio import SerialTransport
 
 from .command import Command
@@ -82,11 +82,14 @@ class Gateway:
         else:
             _LOGGER.warning("Starting evohome_rf, **config = %s", config)
 
-        self.serial_port = serial_port
         self._loop = loop if loop else asyncio.get_running_loop()
-        self.config = CONFIG_SCHEMA(config)
+        self._tasks = None
+        self._setup_event_handlers()
 
+        self.serial_port = serial_port
         self._protocol = None
+
+        self.config = CONFIG_SCHEMA(config)
 
         if self.serial_port and self.config.get("input_file"):
             _LOGGER.warning(
@@ -119,9 +122,6 @@ class Gateway:
 
         self._prev_msg = None
 
-        self._tasks = []
-        self._setup_signal_handler()
-
         # if config.get("ser2net_server"):
         self._relay = None  # ser2net_server relay
 
@@ -149,7 +149,7 @@ class Gateway:
         if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
             cmd = self.config["execute_cmd"]
             self.cmd_que.put_nowait(
-                Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], retry_limit=9)
+                Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], retry_limit=12)
             )
 
         if self.config.get("poll_devices"):
@@ -166,22 +166,20 @@ class Gateway:
         """Return a brief readable string representation of this object."""
         return json.dumps(self.schema, indent=2)
 
-    def _setup_signal_handler(self):
-        def _sig_handler_win32(signalnum, frame):
-            """2 = signal.SIGINT (Ctrl-C)."""
-            _LOGGER.info("Received a signal (signalnum=%s), processing...", signalnum)
+    def _setup_event_handlers(self):
+        def handle_exception(loop, context):
+            """Handle exceptions on any platform."""
+            msg = context.get("exception", context["message"])
+            _LOGGER.error("Caught exception: %s", msg)
 
-            if signalnum == signal.SIGINT:  # is this the only useful win32 signal?
-                self.cleanup("_sig_handler_win32()")
+            asyncio.create_task(self.shutdown())  # TODO: doesn't work
 
-                raise GracefulExit()
-
-        async def _sig_handler_posix(signal):
+        async def handle_sig_posix(sig):
             """Handle signals on posix platform."""
-            _LOGGER.info("Received a signal (%s), processing...", signal.name)
+            _LOGGER.info("Received a signal (%s), processing...", sig.name)
 
-            if signal in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
-                self.cleanup("_sig_handler_posix()")  # OK for after tasks.cancel
+            if sig in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+                self.shutdown("handle_sig_posix()")  # OK for after tasks.cancel
 
                 tasks = [
                     t for t in asyncio.all_tasks() if t is not asyncio.current_task()
@@ -192,32 +190,46 @@ class Gateway:
                 # raise CancelledError
                 await asyncio.gather(*tasks, return_exceptions=True)
 
-            elif signal == signal.SIGUSR1:
+            elif sig == signal.SIGUSR1:
                 _LOGGER.info("Params: \r\n%s", {self.evo.id: self.evo.params})
 
-            elif signal == signal.SIGUSR2:
+            elif sig == signal.SIGUSR2:
                 _LOGGER.info("Status: \r\n%s", {self.evo.id: self.evo.status})
+
+        def handle_sig_win32(sig, frame):
+            """Handle signals on win32 platform."""
+            _LOGGER.info("Received a signal (signal=%s), processing...", sig.name)
+
+            if sig == signal.SIGINT:  # Ctrl-C (is this the only useful win32 signal?)
+                self.shutdown("handle_sig_win32()")
+
+                raise GracefulExit()
+
+        _LOGGER.debug("Creating exception handler...")
+        self._loop.set_exception_handler(handle_exception)
 
         _LOGGER.debug("Creating signal handlers...")
         signals = [signal.SIGINT, signal.SIGTERM]
 
-        if os.name == "nt":  # TODO: or is sys.platform better?
-            for sig in signals + [signal.SIGBREAK]:
-                signal.signal(sig, _sig_handler_win32)
-
-        else:  # if os.name == "posix":
+        if os.name == "posix":  # full support
             for sig in signals + [signal.SIGHUP, signal.SIGUSR1, signal.SIGUSR2]:
                 self._loop.add_signal_handler(
-                    sig, lambda sig=sig: asyncio.create_task(_sig_handler_posix(sig))
+                    sig, lambda sig=sig: asyncio.create_task(handle_sig_posix(sig))
                 )
+        elif os.name == "nt":  # limited support
+            _LOGGER.warning("There is only limited support for Windows.")
+            for sig in signals + [signal.SIGBREAK]:
+                signal.signal(sig, handle_sig_win32)
+        else:  # unsupported
+            raise RuntimeError("Unsupported OS for this module: %s", os.name)
 
-    def cleanup(self, xxx=None) -> None:
+    def shutdown(self, xxx=None) -> None:
         """Perform the non-async portion of a graceful shutdown."""
 
-        _LOGGER.debug("cleanup() invoked by: %s", xxx)
+        _LOGGER.debug("shutdown() invoked by: %s...", xxx)
 
         if self.config["known_devices"]:
-            _LOGGER.debug("cleanup(): Updating known_devices file...")
+            _LOGGER.debug("shutdown(): Updating known_devices file...")
             for d in self.devices:
                 device_attrs = {"friendly_name": d._friendly_name, "ignore": d._ignored}
                 if d.id in self.known_devices:
@@ -228,21 +240,20 @@ class Gateway:
             with open(self.config["known_devices"], "w") as json_file:
                 json.dump(self.known_devices, json_file, sort_keys=True, indent=4)
 
-    @asyncio.coroutine
-    def _create_serial_interface(self):
-        ser = serial_for_url(self.serial_port, **SERIAL_CONFIG)
-        self._protocol = SerialProtocol(self.cmd_que, self._process_packet)
-        transport = SerialTransport(self._loop, self._protocol, ser)
-        return (transport, self._protocol)
-
     async def start(self) -> None:
-        async def file_reader(fp):
+        def create_serial_interface(serial_port, callback) -> Tuple[Any, Any]:
+            ser = serial_for_url(serial_port, **SERIAL_CONFIG)
+            protocol = SerialProtocol(self.cmd_que, callback)
+            transport = SerialTransport(self._loop, protocol, ser)
+            return (transport, protocol)
+
+        async def file_reader(fp, callback):
             async for raw_pkt in file_pkts(fp):
                 # include=self._include_list, exclude=self._exclude_list
-                self._process_packet(raw_pkt)
+                callback(raw_pkt)
                 await asyncio.sleep(0)  # needed for Ctrl_C to work?
 
-        async def port_writer():
+        async def port_writer(protocol):
             while True:
                 if self.cmd_que.empty():
                     await asyncio.sleep(0.05)
@@ -253,27 +264,31 @@ class Gateway:
                 except Empty:
                     continue
 
-                if self._protocol:  # or not self.config["disable_sending"]
-                    await self._protocol.send_data(cmd)  # put_pkt(cmd, _LOGGER)
+                if protocol:  # or not self.config["disable_sending"]
+                    await protocol.send_data(cmd)  # put_pkt(cmd, _LOGGER)
 
                 self.cmd_que.task_done()
 
-        # The source of packets is either a serial port, or a text stream
-        if self.serial_port:
-            reader = asyncio.create_task(self._create_serial_interface())
-            writer = asyncio.create_task(port_writer())
+        if self.serial_port:  # source of packets is a serial port
+            _, self._protocol = create_serial_interface(
+                self.serial_port, self._process_packet
+            )
+            writer = asyncio.create_task(port_writer(self._protocol))
 
-            self._tasks.extend([reader, writer])
+            self._tasks = [writer]
             await writer
 
         else:  # if self.config["input_file"]:
-            reader = asyncio.create_task(file_reader(self.config["input_file"]))
-            writer = asyncio.create_task(port_writer())  # to consume cmds
+            reader = asyncio.create_task(
+                file_reader(self.config["input_file"], self._process_packet)
+            )
+            writer = asyncio.create_task(port_writer(None))  # to consume cmds
 
-            self._tasks.extend([reader, writer])
+            self._tasks = [reader, writer]
             await reader
+            writer.cancel()
 
-        self.cleanup("start()")  # await asyncio.gather(*self._tasks)
+        self.shutdown("start()")  # await asyncio.gather(*self._tasks)
 
     def _process_packet(self, pkt: Packet) -> None:
         """Decode the packet and its payload."""
