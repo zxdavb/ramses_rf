@@ -268,7 +268,6 @@ class DhwZone(ZoneBase, HeatDemand):
 
     def _set_sensor(self, device: Device) -> None:  # self._sensor
         """Set the temp sensor for this DHW system (07: only)."""
-        raise
 
         if self._sensor != device and self._sensor is not None:
             raise CorruptStateError(
@@ -518,6 +517,7 @@ class Zone(ZoneBase):
 
             if not msg.is_array:
                 self._temperature = msg
+                return  # TODO: lint, deleteme
 
             elif self._zone_config and self._zone_config["multiroom_mode"]:
                 if self.sensor and self.sensor.temperature:
@@ -705,7 +705,7 @@ class Zone(ZoneBase):
         if self._temperature is None:
             return
 
-        elif self._temperature.dtm > dt.now() - timedelta(minutes=15):
+        elif self._temperature.dtm < dt.now() - timedelta(minutes=15):
             if self.sensor and self.sensor.temperature:
                 self._temperature = self.sensor._temperature
             else:

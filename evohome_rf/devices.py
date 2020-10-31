@@ -352,7 +352,7 @@ class Temperature:  # 30C9
     def temperature(self) -> Optional[float]:  # 30C9
         if self._temperature is None:
             return
-        elif self._temperature.dtm > dt.now() - timedelta(minutes=15):
+        elif self._temperature.dtm < dt.now() - timedelta(minutes=15):
             self._temperature = None
         else:
             return self._temperature["temperature"]
