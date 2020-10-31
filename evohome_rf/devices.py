@@ -317,15 +317,18 @@ class Setpoint:  # 2309
 
         elif msg.code == "2309" and msg.verb in (" I", " W"):
             self._known_msg = True
-            self._setpoint = msg.payload
+            self._setpoint = msg
 
         elif msg.code == "2309" and msg.verb == "RQ":
             self._known_msg = True
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309
-        if self._setpoint:
-            return self._setpoint["setpoint"]
+        if self._setpoint and self._setpoint.is_expired:
+            self._setpoint = None
+
+        if self._setpoint is not None:
+            return self._setpoint.payload["temperature"]
 
     @property
     def status(self) -> dict:
@@ -336,7 +339,7 @@ class Temperature:  # 30C9
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._temperature = None
+        self._temp = None
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -346,16 +349,15 @@ class Temperature:  # 30C9
 
         if msg.code == "30C9" and msg.verb in (" I", "RP"):
             self._known_msg = True
-            self._temperature = msg
+            self._temp = msg
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        if self._temperature is None:
-            return
-        elif self._temperature.dtm < dt.now() - timedelta(minutes=15):
-            self._temperature = None
-        else:
-            return self._temperature["temperature"]
+        if self._temp and self._temp.is_expired:
+            self._temp = None
+
+        if self._temp is not None:
+            return self._temp.payload["temperature"]
 
     @property
     def status(self) -> dict:
@@ -642,7 +644,7 @@ class UfhController(Device):
 
         # "0008|FA/FC", "22C9|array", "22D0|none", "3150|ZZ/array(/FC?)"
 
-        # if msg.code in ("22C9") and not isinstance(msg.payload, list):
+        # if msg.code in ("22C9",) and not isinstance(msg.payload, list):
         #     pass
         # else:
         #     assert False, "Unknown packet code"
@@ -687,7 +689,7 @@ class DhwSensor(BatteryState, Device):
         self._domain_id = "FA"
 
         self._dhw_params = None
-        self._temperature = None
+        self._temp = None
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -701,7 +703,7 @@ class DhwSensor(BatteryState, Device):
 
         elif msg.code in "1260" and msg.verb == " I":
             self._known_msg = True
-            self._temperature = msg.payload
+            self._temp = msg.payload
 
         else:
             self._known_msg = False
@@ -713,8 +715,8 @@ class DhwSensor(BatteryState, Device):
 
     @property
     def temperature(self) -> Optional[float]:
-        if self._temperature:
-            return self._temperature["temperature"]
+        if self._temp:
+            return self._temp["temperature"]
 
     # @property
     # def params(self) -> dict:

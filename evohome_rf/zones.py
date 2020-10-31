@@ -5,9 +5,6 @@
 
 from abc import ABCMeta, abstractmethod
 import asyncio
-from datetime import datetime as dt, timedelta
-
-# import json
 import logging
 from typing import Optional
 
@@ -211,7 +208,7 @@ class DhwZone(ZoneBase, HeatDemand):
 
         self._dhw_mode = {}
         self._dhw_params = {}
-        self._temperature = None
+        self._temp = None
         self._relay_demand = None
         self._relay_failsafe = None
 
@@ -254,7 +251,7 @@ class DhwZone(ZoneBase, HeatDemand):
                 x: msg.payload[x] for x in ("setpoint", "overrun", "differential")
             }
         elif msg.code == "1260":
-            self._temperature = msg.payload["temperature"]
+            self._temp = msg.payload["temperature"]
         elif msg.code == "1F41":
             self._setpoint_status = {
                 x: msg.payload[x] for x in ("active", "dhw_mode", "until")
@@ -316,7 +313,7 @@ class DhwZone(ZoneBase, HeatDemand):
 
     @property
     def temperature(self) -> Optional[float]:  # 1260
-        return self._temperature
+        return self._temp
 
     @property
     def schema(self) -> dict:
@@ -338,7 +335,7 @@ class DhwZone(ZoneBase, HeatDemand):
     def status(self) -> dict:
         """Return the stored HW's current state."""
 
-        return {"temperature": self._temperature, "dhw_mode": self._dhw_mode}
+        return {"temperature": self._temp, "dhw_mode": self._dhw_mode}
 
     async def cancel_override(self) -> bool:  # 1F41
         """Reset the DHW to follow its schedule."""
@@ -430,7 +427,7 @@ class Zone(ZoneBase):
         # attributes for .params and .status
         self._mode = None
         self._setpoint = None
-        self._temperature = None
+        self._temp = None
         self._window_open = None
         self._zone_config = None
 
@@ -498,35 +495,58 @@ class Zone(ZoneBase):
             self._schedule.add_fragment(msg)
             self._schedule.req_fragment()  # do only if we self._schedule.req_schedule()
 
-        elif msg.code == "2309":
-            payload = msg.payload if msg.is_array else [msg.payload]
-            self._setpoint = {
-                k: v for z in payload for k, v in z.items() if z["zone_idx"] == self.idx
-            }["setpoint"]
+        elif msg.code == "2309" and msg.verb in (" I", "RP"):  # setpoint
+            assert msg.src.type == "01", "coding error"
 
-        elif msg.code == "2349":
-            self._mode = {
-                k: v
-                for k, v in msg.payload.items()
-                if k in ("mode", "setpoint", "until")
-            }
-            self._setpoint = msg.payload["setpoint"]
+            if isinstance(msg.payload, dict):
+                assert self.idx == msg.payload["zone_idx"], f"{self.idx} {msg.payload}"
+
+                self._setpoint = msg
+                return  # TODO: lint, deleteme
+
+            elif self.idx in [d["zone_idx"] for d in msg.payload]:
+                self._setpoint = msg  # TODO: lint, an else should be enough
+
+            else:
+                assert False, "coding error: shouldn't reach here"
+
+        elif msg.code == "2349" and msg.verb in (" I", "RP"):  # mode, setpoint
+            assert msg.src.type == "01", "coding error"
+
+            if isinstance(msg.payload, dict):
+                assert self.idx == msg.payload["zone_idx"], f"{self.idx} {msg.payload}"
+
+                self._mode = msg
+                self._setpoint = msg
+                return  # TODO: lint, deleteme
+
+            elif self.idx in [d["zone_idx"] for d in msg.payload]:
+                self._mode = msg  # TODO: lint, an else should be enough
+                self._setpoint = msg
+
+            else:
+                assert False, "coding error: shouldn't reach here"
 
         elif msg.code == "30C9" and msg.verb in (" I", "RP"):  # used by sensor matching
-            assert msg.src.type in DEVICE_HAS_ZONE_SENSOR + ("01",), "Invalid"
+            assert msg.src.type in DEVICE_HAS_ZONE_SENSOR + ("01",), "coding error"
 
-            if not msg.is_array:
-                self._temperature = msg
+            if isinstance(msg.payload, dict):
+                assert self.idx == msg.payload["zone_idx"], f"{self.idx} {msg.payload}"
+
+                self._temp = msg
                 return  # TODO: lint, deleteme
 
             elif self._zone_config and self._zone_config["multiroom_mode"]:
                 if self.sensor and self.sensor.temperature:
-                    self._temperature = self.sensor._temperature
+                    self._temp = self.sensor._temp
                 else:
-                    self._temperature = None
+                    self._temp = None
+
+            elif self.idx in [d["zone_idx"] for d in msg.payload]:
+                self._temp = msg  # TODO: lint, an else should be enough
 
             else:
-                self._temperature = msg
+                assert False, "coding error: shouldn't reach here"
 
         elif msg.code == "3150":  # TODO: and msg.verb in (" I", "RP")?
             assert msg.src.type in ("02", "04", "13")
@@ -539,7 +559,7 @@ class Zone(ZoneBase):
         # elif "zone_idx" in msg.payload:
         #     pass
 
-        # elif msg.code not in ("FFFF"):
+        # elif msg.code not in ("FFFF",):
         #     assert False, "Unknown packet code"
 
     @property  # id, type
@@ -657,12 +677,17 @@ class Zone(ZoneBase):
 
     @property
     def mode(self) -> Optional[dict]:  # 2349
+        if self._mode and self._mode.is_expired:
+            self._mode = None
 
-        if self._mode is None and self._msgs.get("2349"):
-            if self._msgs["2349"].dtm > dt.now() - timedelta(minutes=5):
-                self._mode = self._get_msg_value("2349")
+        if self._mode is None:
+            return
 
-        return self._mode
+        elif isinstance(self._mode.payload, dict):
+            return self._mode.payload
+
+        else:  # if isinstance(self._mode.payload, list):
+            return [z for z in self._mode.payload if z["zone_idx"] == self.idx][0]
 
     @property
     def name(self) -> Optional[str]:
@@ -677,20 +702,18 @@ class Zone(ZoneBase):
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309 (2349 is a superset of 2309)
-        msg = self._ctl._msgs.get("2309")
-        if msg is not None:
-            self._setpoint = {
-                k: v
-                for z in msg.payload
-                for k, v in z.items()
-                if z["zone_idx"] == self.idx
-            }.get("setpoint")
+        if self._setpoint and self._setpoint.is_expired:
+            self._setpoint = None
 
-        if self._setpoint is None and self._msgs.get("2349"):
-            if self._msgs["2349"].dtm > dt.now() - timedelta(minutes=5):
-                self._setpoint = self._get_msg_value("2349", "setpoint")
+        if self._setpoint is None:
+            return
 
-        return self._setpoint
+        elif isinstance(self._setpoint.payload, dict):
+            return self._setpoint.payload["setpoint"]
+
+        else:  # if isinstance(self._setpoint.payload, list):
+            _zone = [z for z in self._temp.payload if z["zone_idx"] == self.idx][0]
+            return _zone["setpoint"]
 
     @setpoint.setter
     def setpoint(self, value) -> None:
@@ -702,25 +725,21 @@ class Zone(ZoneBase):
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        if self._temperature is None:
+        if self._temp and self._temp.is_expired:
+            if self.sensor and self.sensor.temperature:
+                self._temp = self.sensor._temp
+            else:
+                self._temp = None
+
+        if self._temp is None:
             return
 
-        elif self._temperature.dtm < dt.now() - timedelta(minutes=15):
-            if self.sensor and self.sensor.temperature:
-                self._temperature = self.sensor._temperature
-            else:
-                self._temperature = None
+        elif isinstance(self._temp.payload, dict):
+            return self._temp.payload["temperature"]
 
-        elif isinstance(self._temperature.payload, dict):
-            return self._temperature.payload["temperature"]
-
-        elif self.idx in self._temperature:  # a list
-            return {
-                k: v
-                for z in self._temperature.payload
-                for k, v in z.items()
-                if z["zone_idx"] == self.idx
-            }["temperature"]
+        else:  # if isinstance(self._temp.payload, list):
+            _zone = [z for z in self._temp.payload if z["zone_idx"] == self.idx][0]
+            return _zone["temperature"]
 
     @property
     def heat_demand(self) -> Optional[float]:
