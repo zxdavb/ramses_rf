@@ -7,6 +7,7 @@
 from datetime import timedelta
 import json
 import logging
+from threading import Lock
 from typing import Optional
 
 from .command import FaultLog, Priority
@@ -52,7 +53,7 @@ class SysFaultLog(Entity):  # 0418
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_STATUS:
+        if False and discover_flag & DISCOVER_STATUS:
             self._fault_log.start()  # 0418
 
     def _handle_msg(self, msg, prev_msg=None):
@@ -349,6 +350,9 @@ class MultiZone:  # 0005 (+/- 000C?)
         self.zone_by_idx = {}
         # self.zone_by_name = {}
 
+        self.zone_lock = Lock()
+        self.zone_lock_idx = None
+
         # self._prev_30c9 = None  # OUT: used to discover zone sensors
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
@@ -532,15 +536,14 @@ class MultiZone:  # 0005 (+/- 000C?)
         """
 
         def create_zone(zone_idx) -> Zone:
-            if int(zone_idx, 16) > self._gwy.config["max_zones"]:
-                raise LookupError(f"Invalid zone idx: {zone_idx}")
+            if int(zone_idx, 16) >= self._gwy.config["max_zones"]:
+                raise ValueError(f"Invalid zone idx: {zone_idx} (exceeds max_zones)")
+
+            assert zone_idx not in self.zone_by_idx, f"Dup zone: {zone_idx} for {self}"
             if zone_idx in self.zone_by_idx:
-                raise LookupError(f"Duplicated zone idx: {zone_idx}")
+                raise LookupError(f"Duplicated zone: {zone_idx} for {self}")
 
             zone = Zone(self, zone_idx)
-
-            self.zones.append(zone)
-            self.zone_by_idx[zone.id] = zone
 
             if not self._gwy.config["disable_discovery"]:
                 zone._discover()  # discover_flag=DISCOVER_ALL)
@@ -594,7 +597,12 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     # 0008|0009|1030|1100|2309|3B00
 
     def __init__(self, gwy, ctl, **kwargs) -> None:
+        # _LOGGER.debug("Creating a System: %s (%s)", dev_addr.id, self.__class__)
         super().__init__(gwy, **kwargs)
+
+        self.id = ctl.id
+        gwy.systems.append(self)
+        gwy.system_by_id[self.id] = self
 
         self._ctl = ctl
         self._domain_id = "FF"
@@ -614,7 +622,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         return json.dumps({self._ctl.id: self.schema})
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        # super()._discover()
+        # super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_SCHEMA:
             [  # 000C: find the HTG relay and DHW sensor, if any (DHW relays in DHW)
@@ -986,7 +994,7 @@ class Evohome(SysLanguage, SysMode, MultiZone, StoredHw, System):  # evohome
         return f"{self._ctl.id} (evohome)"
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        super()._discover()
+        super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
             self._send_cmd("1F09")

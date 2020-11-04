@@ -28,7 +28,8 @@ from serial_asyncio import SerialTransport
 from .command import Command
 from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Controller, Device
-from .discovery import probe_device, poll_device
+from .discovery import probe_device, poll_device, get_faults, get_schedule
+from .exceptions import GracefulExit
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
 from .packet import (
@@ -66,10 +67,6 @@ async def schedule_task(delay, func, *args, **kwargs):
     asyncio.create_task(scheduled_func(delay, func, *args, **kwargs))
 
 
-class GracefulExit(SystemExit):
-    code = 1
-
-
 class Gateway:
     """The gateway class."""
 
@@ -78,9 +75,9 @@ class Gateway:
 
         if config.get("debug_mode"):
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
-            _LOGGER.debug("Starting evohome_rf, **config = %s", config)
-        else:
             _LOGGER.warning("Starting evohome_rf, **config = %s", config)
+        else:
+            _LOGGER.debug("Starting evohome_rf, **config = %s", config)
 
         self._loop = loop if loop else asyncio.get_running_loop()
         self._tasks = None
@@ -114,7 +111,7 @@ class Gateway:
             cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
         )
 
-        self.cmd_que = PriorityQueue()  # TODO: maxsize=200)
+        self._que = PriorityQueue()  # TODO: maxsize=200)
         self._buffer = deque()
         self._sched_zone = None
         self._sched_lock = Lock()
@@ -148,15 +145,19 @@ class Gateway:
 
         if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
             cmd = self.config["execute_cmd"]
-            self.cmd_que.put_nowait(
+            self._que.put_nowait(
                 Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], retry_limit=12)
             )
 
         if self.config.get("poll_devices"):
-            [poll_device(self.cmd_que, d) for d in self.config["poll_devices"]]
+            [poll_device(self, d) for d in self.config["poll_devices"]]
 
         if self.config.get("probe_devices"):
-            [probe_device(self.cmd_que, d) for d in self.config["probe_devices"]]
+            [probe_device(self, d) for d in self.config["probe_devices"]]
+
+        if self.config.get("device_id"):
+            _LOGGER.warning("Discovery scripts specified, so disabling probes")
+            self.config["disable_discovery"] = True  # TODO: messey
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -169,26 +170,20 @@ class Gateway:
     def _setup_event_handlers(self):
         def handle_exception(loop, context):
             """Handle exceptions on any platform."""
-            msg = context.get("exception", context["message"])
-            _LOGGER.error("Caught exception: %s", msg)
+            # asyncio.create_task(self.shutdown())  # TODO: doesn't work
 
-            asyncio.create_task(self.shutdown())  # TODO: doesn't work
+            exc = context.get("exception")
+            if exc:
+                raise exc
+
+            _LOGGER.error("Caught exception: %s", context["message"])
 
         async def handle_sig_posix(sig):
             """Handle signals on posix platform."""
             _LOGGER.info("Received a signal (%s), processing...", sig.name)
 
             if sig in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
-                self.shutdown("handle_sig_posix()")  # OK for after tasks.cancel
-
-                tasks = [
-                    t for t in asyncio.all_tasks() if t is not asyncio.current_task()
-                ]
-                [task.cancel() for task in tasks]
-                logging.debug(f"Cancelling {len(tasks)} outstanding tasks...")
-
-                # raise CancelledError
-                await asyncio.gather(*tasks, return_exceptions=True)
+                await self.shutdown("handle_sig_posix()")  # OK for after tasks.cancel
 
             elif sig == signal.SIGUSR1:
                 _LOGGER.info("Params: \r\n%s", {self.evo.id: self.evo.params})
@@ -201,7 +196,7 @@ class Gateway:
             _LOGGER.info("Received a signal (signal=%s), processing...", sig.name)
 
             if sig == signal.SIGINT:  # Ctrl-C (is this the only useful win32 signal?)
-                self.shutdown("handle_sig_win32()")
+                # await self.shutdown("handle_sig_win32()")
 
                 raise GracefulExit()
 
@@ -223,27 +218,22 @@ class Gateway:
         else:  # unsupported
             raise RuntimeError("Unsupported OS for this module: %s", os.name)
 
-    def shutdown(self, xxx=None) -> None:
+    async def shutdown(self, xxx=None) -> None:
         """Perform the non-async portion of a graceful shutdown."""
 
-        _LOGGER.debug("shutdown() invoked by: %s...", xxx)
+        _LOGGER.debug("shutdown(): Invoked by: %s...", xxx)
+        _LOGGER.debug("shutdown(): Doing housekeeping...")
 
-        if self.config["known_devices"]:
-            _LOGGER.debug("shutdown(): Updating known_devices file...")
-            for d in self.devices:
-                device_attrs = {"friendly_name": d._friendly_name, "ignore": d._ignored}
-                if d.id in self.known_devices:
-                    self.known_devices[d.id].update(device_attrs)
-                else:
-                    self.known_devices[d.id] = device_attrs
+        tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        [task.cancel() for task in tasks]
+        logging.debug(f"shutdown(): Cancelling {len(tasks)} outstanding async tasks...")
 
-            with open(self.config["known_devices"], "w") as json_file:
-                json.dump(self.known_devices, json_file, sort_keys=True, indent=4)
+        await asyncio.gather(*tasks, return_exceptions=True)  # raises CancelledError
 
     async def start(self) -> None:
         def create_serial_interface(serial_port, callback) -> Tuple[Any, Any]:
             ser = serial_for_url(serial_port, **SERIAL_CONFIG)
-            protocol = SerialProtocol(self.cmd_que, callback)
+            protocol = SerialProtocol(self._que, callback)
             transport = SerialTransport(self._loop, protocol, ser)
             return (transport, protocol)
 
@@ -255,27 +245,45 @@ class Gateway:
 
         async def port_writer(protocol):
             while True:
-                if self.cmd_que.empty():
+                if self._que.empty():
                     await asyncio.sleep(0.05)
                     continue
 
                 try:
-                    cmd = self.cmd_que.get(False)
+                    cmd = self._que.get(False)
                 except Empty:
                     continue
 
                 if protocol:  # or not self.config["disable_sending"]
                     await protocol.send_data(cmd)  # put_pkt(cmd, _LOGGER)
 
-                self.cmd_que.task_done()
+                self._que.task_done()
 
         if self.serial_port:  # source of packets is a serial port
+            self._tasks = []
+
+            # first, queue any discovery scripts
+            if self.config.get("get_faults"):
+                task = asyncio.create_task(get_faults(self, self.config["device_id"]))
+                self._tasks.append(task)
+
+            elif self.config.get("get_schedule") is not None:
+                task = asyncio.create_task(
+                    get_schedule(
+                        self, self.config["device_id"], self.config["get_schedule"]
+                    )
+                )
+                self._tasks.append(task)
+
+            elif self.config.get("device_id"):
+                probe_device(self, self.config.get("device_id"))
+
             _, self._protocol = create_serial_interface(
                 self.serial_port, self._process_packet
             )
             writer = asyncio.create_task(port_writer(self._protocol))
 
-            self._tasks = [writer]
+            self._tasks.append(writer)
             await writer
 
         else:  # if self.config["input_file"]:
@@ -288,7 +296,7 @@ class Gateway:
             await reader
             writer.cancel()
 
-        self.shutdown("start()")  # await asyncio.gather(*self._tasks)
+        await self.shutdown("start()")  # await asyncio.gather(*self._tasks)
 
     def _process_packet(self, pkt: Packet) -> None:
         """Decode the packet and its payload."""
@@ -354,13 +362,11 @@ class Gateway:
         """
 
         def create_system(ctl) -> SystemBase:
+            assert ctl.id not in self.system_by_id, f"Duplicate system id: {ctl.id}"
             if ctl.id in self.system_by_id:
                 raise LookupError(f"Duplicated system id: {ctl.id}")
 
             system = Evohome(self, ctl)
-
-            self.systems.append(system)
-            self.system_by_id[system.id] = system
 
             if not self.config["disable_discovery"]:
                 system._discover()  # discover_flag=DISCOVER_ALL)
@@ -372,9 +378,6 @@ class Gateway:
                 raise LookupError(f"Duplicated device id: {dev_addr.id}")
 
             device = DEVICE_CLASSES.get(dev_addr.type, Device)(self, dev_addr, **kwargs)
-
-            self.devices.append(device)
-            self.device_by_id[device.id] = device
 
             if not self.config["disable_discovery"]:
                 device._discover()  # discover_flag=DISCOVER_ALL)

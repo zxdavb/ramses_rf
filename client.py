@@ -34,6 +34,7 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 @click.pass_context
 def cli(ctx, **kwargs):
     """A CLI for the evohome_rf library."""
+
     # if kwargs["debug_mode"]:
     #     print(f"cli(): ctx.obj={ctx.obj}, kwargs={kwargs}")
     ctx.obj = kwargs
@@ -43,16 +44,23 @@ def cli(ctx, **kwargs):
 @click.argument("input-file", type=click.File("r"), default=sys.stdin)
 @click.pass_obj
 def parse(obj, **kwargs):
-    """Parse a file for packets."""
-    # if obj["debug_mode"]:
-    #     print(f"parse(): obj={obj}, kwargs={kwargs}")
+    """Parse a log file for packets."""
+
     debug_wrapper(**obj, **kwargs)
 
 
 @click.command()
 @click.argument("serial-port")
-@click.option("-p", "--enforce-probing", is_flag=True, help="TBD")
 @click.option("-T", "--evofw-flag", help="TBD")
+@click.option(
+    "-o",
+    "--packet-log",
+    help="TBD",
+    type=click.Path(),
+    default="packet.log",
+    show_default=True,
+)
+@click.option("-p", "--enforce-probing", is_flag=True, help="TBD")
 @click.option(
     "-x",
     "--execute-cmd",
@@ -62,19 +70,9 @@ def parse(obj, **kwargs):
 )
 @click.option("--poll-devices", is_flag=False, type=click.STRING)
 @click.option("--probe-devices", is_flag=False, type=click.STRING)
-@click.option(
-    "-o",
-    "--packet-log",
-    help="TBD",
-    type=click.Path(),
-    default="packet.log",
-    show_default=True,
-)
 @click.pass_obj
 def monitor(obj, **kwargs):
-    """Monitor a serial port for packets."""
-    # if obj["debug_mode"]:
-    #     print(f"monitor(): obj={obj}, kwargs={kwargs}")
+    """Monitor (eavesdrop/probe) a serial port for packets."""
 
     for key in ("poll_devices", "probe_devices"):
         if kwargs[key] is None:
@@ -85,7 +83,29 @@ def monitor(obj, **kwargs):
     debug_wrapper(**obj, **kwargs)
 
 
+@click.command()
+@click.argument("serial-port")
+@click.option("-T", "--evofw-flag", help="TBD")
+@click.option(
+    "-o",
+    "--packet-log",
+    help="TBD",
+    type=click.Path(),
+    default="packet.log",
+    show_default=True,
+)
+@click.option("--device-id", is_flag=False, type=click.STRING, required=True)
+@click.option("--get-schedule", is_flag=False, type=click.STRING)
+@click.option("--get-faults", is_flag=True)
+@click.pass_obj
+def execute(obj, **kwargs):
+    """Execute scripts on a device via a serial port."""
+
+    debug_wrapper(**obj, **kwargs)
+
+
 def debug_wrapper(config_file=None, **kwargs):
+
     # 1st: sort out any debug mode...
     assert 0 <= kwargs["debug_mode"] <= 3
 
@@ -131,24 +151,43 @@ async def main(serial_port, loop=None, **config):
         # future: ... cb=[BaseProactorEventLoop._loop_self_reading()]
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-    gwy = None  # avoid 'possibly unbound' lint error
-    try:
-        gwy = Gateway(serial_port, loop=loop, **config)
-        task = asyncio.create_task(gwy.start())
-        # await asyncio.sleep(20)
-        # print(await gwy.evo.zones[0].name)
-        await task
+    gwy = Gateway(serial_port, loop=loop, **config)
 
+    # if config.get("get_schedule") is not None:
+    #     coro = gwy.start
+    # elif config.get("get_schedule") is not None:
+    #     coro = gwy.start
+    # else:
+    #     coro = gwy.start
+
+    try:
+        await asyncio.create_task(gwy.start())
     except asyncio.CancelledError:
-        print(" - exiting via: CancelledError (this is expected)")
+        # print(" - exiting via: CancelledError (this is expected)")
+        pass
     except GracefulExit:
         print(" - exiting via: GracefulExit")
     except KeyboardInterrupt:
         print(" - exiting via: KeyboardInterrupt")
     else:  # if no Exceptions raised, e.g. EOF when parsing
-        print(" - exiting via: else-block (e.g. EOF when parsing)")
+        # print(" - exiting via: else-block (e.g. EOF when parsing)")
+        pass
 
-    if gwy.evo is None:
+    print("Finished evohome_rf.\r\n")
+
+    if config.get("device_id"):
+        if config.get("get_faults"):
+            fault_log = gwy.device_by_id[config["device_id"]]._evo.fault_log()
+            for k, v in fault_log.items():
+                print(v)
+
+        elif config.get("get_schedule") is not None:
+            print(gwy.evo.zone_by_idx[config["get_schedule"]].schedule())
+
+        else:
+            print(gwy.device_by_id[config["device_id"]])
+
+    elif gwy.evo is None:
         print(f"\r\nSchema[gateway] = {json.dumps(gwy.schema)}")
         print(f"\r\nParams[gateway] = {json.dumps(gwy.params)}")
         print(f"\r\nStatus[gateway] = {json.dumps(gwy.status)}")
@@ -158,9 +197,8 @@ async def main(serial_port, loop=None, **config):
         print(f"\r\nParams[{repr(gwy.evo)}] = {json.dumps(gwy.evo.params, indent=4)}")
         print(f"\r\nStatus[{repr(gwy.evo)}] = {json.dumps(gwy.evo.status, indent=4)}")
 
-    print("\r\nFinished evohome_rf.")
 
-
+cli.add_command(execute)
 cli.add_command(monitor)
 cli.add_command(parse)
 

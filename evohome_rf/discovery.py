@@ -7,7 +7,7 @@ import asyncio
 import logging
 
 from .command import Command, Priority
-from .const import __dev_mode__, CODE_SCHEMA, DEVICE_TABLE
+from .const import __dev_mode__, CODE_SCHEMA, DEVICE_TABLE, Address
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -17,19 +17,43 @@ else:
     _LOGGER.setLevel(logging.WARNING)
 
 
-async def periodic(cmd_que, cmd, count=1440, interval=5):
+async def periodic(gwy, cmd, count=1440, interval=5):
     if count <= 0:
         while True:
             await asyncio.sleep(interval)
-            cmd_que.put_nowait(cmd)
+            gwy._que.put_nowait(cmd)
 
     else:
         for _ in range(count):
             await asyncio.sleep(interval)
-            cmd_que.put_nowait(cmd)
+            gwy._que.put_nowait(cmd)
 
 
-def poll_device(cmd_que, device_id):
+async def get_faults(gwy, device_id):
+    dev_addr = Address(id=device_id, type=device_id[:2])
+    device = gwy._get_device(dev_addr, ctl_addr=dev_addr)
+
+    device._evo._fault_log.start()
+    while not device._evo._fault_log._fault_log_done:
+        await asyncio.sleep(0.05)
+    # print("get_faults", device._evo.fault_log())
+
+    await gwy.shutdown("get_faults()")
+
+
+async def get_schedule(gwy, device_id, zone_id):
+    dev_addr = Address(id=device_id, type=device_id[:2])
+    zone = gwy._get_device(dev_addr, ctl_addr=dev_addr)._evo._get_zone(zone_id)
+
+    await zone._schedule.start()
+    while not zone._schedule._schedule_done:
+        await asyncio.sleep(0.05)
+    # print("get_schedule", zone.schedule())
+
+    await gwy.shutdown("get_schedule()")
+
+
+def poll_device(gwy, device_id):
     qos = {"retry_limit": 0, "priority": Priority.LOW}
 
     if "poll_codes" in DEVICE_TABLE.get(device_id[:2]):
@@ -39,12 +63,14 @@ def poll_device(cmd_que, device_id):
 
     for code in codes:
         cmd = Command("RQ", device_id, code, "00", **qos)
-        _ = asyncio.create_task(periodic(cmd_que, cmd, count=0, interval=60))
+        _ = asyncio.create_task(periodic(gwy, cmd, count=0, interval=60))
         cmd = Command("RQ", device_id, code, "0000", **qos)
-        _ = asyncio.create_task(periodic(cmd_que, cmd, count=0, interval=60))
+        _ = asyncio.create_task(periodic(gwy, cmd, count=0, interval=60))
 
 
-def probe_device(cmd_que, device_id):
+def probe_device(gwy, device_id):
+    _LOGGER.warning("probe_device() invoked - expect a lot of Warnings")
+
     # for _code in range(0x4000):
     #     code = f"{_code:04X}"
 
@@ -54,40 +80,40 @@ def probe_device(cmd_que, device_id):
         if code == "0005":
             for zone_type in range(18):
                 cmd = Command("RQ", device_id, code, f"00{zone_type:02X}", **qos)
-                asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
+                asyncio.create_task(periodic(gwy, cmd, count=1, interval=0))
             continue
 
         if code == "000C":
             for zone_idx in range(16):
                 cmd = Command("RQ", device_id, code, f"{zone_idx:02X}00", **qos)
-                asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
+                asyncio.create_task(periodic(gwy, cmd, count=1, interval=0))
             continue
 
         if code == "0418":
             for log_idx in range(2):
                 cmd = Command("RQ", device_id, code, f"{log_idx:06X}", **qos)
-                asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
+                asyncio.create_task(periodic(gwy, cmd, count=1, interval=0))
             continue
 
         if code == "1100":
             cmd = Command("RQ", device_id, code, "FC", **qos)
-            asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
+            asyncio.create_task(periodic(gwy, cmd, count=1, interval=0))
             continue
 
         if code == "2E04":
             cmd = Command("RQ", device_id, code, "FF", **qos)
-            asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
+            asyncio.create_task(periodic(gwy, cmd, count=1, interval=0))
             continue
 
         cmd = Command("RQ", device_id, code, "00", **qos)
-        asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
+        asyncio.create_task(periodic(gwy, cmd, count=1, interval=0))
 
         cmd = Command("RQ", device_id, code, "0000", **qos)
-        asyncio.create_task(periodic(cmd_que, cmd, count=1, interval=0))
+        asyncio.create_task(periodic(gwy, cmd, count=1, interval=0))
 
     # for code in ("0016", "1FC9"):  # payload 0000 OK for both these
     #     cmd = Command("RQ", device_id, code, "0000", retry_limit=9)
-    #     asyncio.create_task(periodic(cmd_que, cmd, count=1))
+    #     asyncio.create_task(periodic(gwy, cmd, count=1))
 
 
 # if self.config.get("evofw_flag") and "evofw3" in raw_pkt.packet:

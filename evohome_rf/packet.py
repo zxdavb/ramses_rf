@@ -333,7 +333,6 @@ class SerialProtocol(asyncio.Protocol):
             #     cmd.dtm_timeout = dtm_now + Pause.DEFAULT
 
         self._transport.write(data)
-        # await asyncio.sleep(0.3)  # HACK: until all the other stuff is working
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callaback)."""
@@ -351,15 +350,15 @@ class SerialProtocol(asyncio.Protocol):
 
         if self._qos_rq_hdr:
             self._qos_cmd = cmd
-            self._qos_retrys = cmd.qos.get("retry_limit", QOS_RETRY_LIMIT)
-            self._qos_timeout = dt.now() + QOS_TIMEOUT_SECS_RQ
+            self._qos_retries = cmd.qos.get("retry_limit", QOS_RETRY_LIMIT)
+            self._qos_timeout = dt.now() + cmd.qos.get("timeout", QOS_TIMEOUT_SECS_RQ)
 
         while self._qos_rq_hdr or self._qos_rp_hdr:
             if self._qos_timeout > dt.now():
                 await asyncio.sleep(0.005)
                 continue
 
-            if self._qos_retrys == 0:
+            if self._qos_retries == 0:
                 # print("TIMED OUT - EXPIRED!")
                 self._qos_lock.acquire()
                 self._qos_rq_hdr = self._qos_rp_hdr = None
@@ -368,7 +367,7 @@ class SerialProtocol(asyncio.Protocol):
             # print("TIMED OUT - RETRANSMITTING!")
 
             await self._write_data(bytearray(f"{self._qos_cmd}\r\n".encode("ascii")))
-            self._qos_retrys -= 1
+            self._qos_retries -= 1
             self._qos_timeout = dt.now() + QOS_TIMEOUT_SECS_RQ
 
     def connection_lost(self, exc: Optional[Exception]) -> None:

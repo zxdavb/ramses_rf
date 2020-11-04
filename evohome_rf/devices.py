@@ -92,7 +92,7 @@ class Entity:
 
     def __init__(self, gwy) -> None:
         self._gwy = gwy
-        self._que = gwy.cmd_que
+        self._que = gwy._que
 
         self.id = None
 
@@ -161,11 +161,16 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         super().__init__(gwy)
 
         self.id = dev_addr.id
-        self._domain_id = domain_id
+        gwy.devices.append(self)
+        gwy.device_by_id[self.id] = self
+
         self._ctl = None
-        self.hex_id = dev_id_to_hex(dev_addr.id)
+        if ctl:
+            self._set_ctl(ctl)
+        self._domain_id = domain_id
 
         self.addr = dev_addr
+        self.hex_id = dev_id_to_hex(dev_addr.id)
         self.type = dev_addr.type
 
         if self.type in DEVICE_TABLE:
@@ -180,9 +185,6 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         self._zone = None
         self._domain = {}
 
-        if ctl:
-            self._set_ctl(ctl)
-
         attrs = gwy.known_devices.get(dev_addr.id)
         self._friendly_name = attrs.get("friendly_name") if attrs else None
         self._ignored = attrs.get("ignored", False) if attrs else False
@@ -191,11 +193,11 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         return f"{self.id} ({DEVICE_TYPES.get(self.type)})"
 
     def __str__(self) -> str:
-        return f"{self.id} ({DEVICE_TYPES.get(self.type)})"
+        return f"{self.id} ({DEVICE_TYPES.get(self.id[:2])})"
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # sometimes, battery-powered devices do respond to an RQ (e.g. bind mode)
-        # super()._discover()
+        # super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_SCHEMA:
             # self._send_cmd("1FC9", retry_limit=0)
@@ -213,10 +215,10 @@ class DeviceBase(Entity, metaclass=ABCMeta):
             #     self._probe_device()
 
     def _poll_device(self) -> None:
-        poll_device(self._que, self.id)
+        poll_device(self._gwy, self.id)
 
     def _probe_device(self) -> None:
-        probe_device(self._que, self.id)
+        probe_device(self._gwy, self.id)
 
     def _send_cmd(self, code, **kwargs) -> None:
         dest = kwargs.pop("dest_addr", self.id)
@@ -226,22 +228,21 @@ class DeviceBase(Entity, metaclass=ABCMeta):
     def _set_ctl(self, ctl) -> None:  # self._ctl
         """Set the device's parent controller, after validating it."""
 
-        if self._ctl is not None:
-            if self._ctl is ctl:
-                return
+        if self._ctl is None:
+            _LOGGER.debug("Setting controller for %s to %s", self, ctl)
+
+            # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5  # has been seen
+            if not isinstance(ctl, Controller) and not ctl.is_controller:
+                raise TypeError(f"Device {ctl} is not a controller")
+
+            self._ctl = ctl
+            self._ctl.devices.append(self)
+            self._ctl.device_by_id[self.id] = self
+
+        elif self._ctl is not ctl:
             raise CorruptStateError(
-                f"{self} shouldn't change controller: {self._ctl.id} to {ctl.id}"
+                f"{self} has changed controller: {self._ctl.id} to {ctl.id}"
             )
-
-        # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5  # has been seen
-        if not isinstance(ctl, Controller) and not ctl.is_controller:
-            raise TypeError(f"Device {ctl} is not a controller")
-
-        self._ctl = ctl
-        self._ctl.devices.append(self)
-        self._ctl.device_by_id[self.id] = self
-
-        _LOGGER.debug("Device %s: controller set to %s", self.id, self._ctl.id)
 
     @property
     @abstractmethod
@@ -616,7 +617,7 @@ class UfhController(Device):
         self.device_by_id = dict()  # {self.id: self}
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        super()._discover()
+        super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_SCHEMA:
             [  # 000C: used to find evo zone for each configured channel
@@ -903,7 +904,7 @@ class BdrSwitch(Actuator, Device):
         - 3EF1: has sub-domains?
         """
 
-        super()._discover()
+        super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_SCHEMA:
             pass

@@ -200,7 +200,7 @@ class DhwZone(ZoneBase, HeatDemand):
     """The DHW class."""
 
     def __init__(self, ctl, sensor=None, dhw_valve=None, htg_valve=None) -> None:
-        super().__init__(ctl, "FA")
+        super().__init__(ctl, "HW")
 
         ctl._set_dhw(self)
 
@@ -209,7 +209,6 @@ class DhwZone(ZoneBase, HeatDemand):
         # self._htg_valve = None
 
         self.heating_type = "DHW"
-        self._name = None  # not used
 
         self._dhw_mode = None
         self._dhw_params = None
@@ -225,7 +224,7 @@ class DhwZone(ZoneBase, HeatDemand):
             self._set_htg_valve(htg_valve)
 
     def _discover(self, discover_flags=DISCOVER_ALL) -> None:
-        # super()._discover()
+        # super()._discover(discover_flag=discover_flag)
 
         # if False and __dev_mode__ and self.idx == "FA":  # dev/test code
         #     self.async_set_override(state="On")
@@ -316,7 +315,7 @@ class DhwZone(ZoneBase, HeatDemand):
 
     @property
     def name(self) -> str:
-        return "Stored DHW"
+        return "Stored HW"
 
     @property
     def setpoint(self) -> Optional[float]:  # 1F41
@@ -405,7 +404,40 @@ class DhwZone(ZoneBase, HeatDemand):
         raise NotImplementedError
 
 
-class Zone(ZoneBase):
+class ZoneSchedule:
+    """Evohome zones have a schedule."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._schedule = Schedule(self)
+
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        # super()._discover(discover_flag=discover_flag)
+
+        if discover_flag & DISCOVER_STATUS:
+            # asyncio.create_task(self._schedule.start())
+            pass
+
+    def _handle_msg(self, msg) -> bool:
+        super()._handle_msg(msg)
+
+        if self._known_msg:
+            return
+
+        elif msg.code == "0404" and msg.verb == "RP":
+            _LOGGER.debug("Zone(%s).update: Received RP/0404 (schedule)", self.id)
+            self._known_msg = True
+
+    @property
+    def schedule(self) -> Optional[float]:  # 3150
+        return self._schedule.schedule
+
+    @property
+    def status(self) -> dict:
+        return {**super().status, "schedule": self._schedule.schedule}
+
+
+class Zone(ZoneSchedule, ZoneBase):
     """The Zone class."""
 
     def __init__(self, ctl, zone_idx, sensor=None, actuators=None) -> None:
@@ -417,12 +449,10 @@ class Zone(ZoneBase):
 
         In addition, an electric zone may subsequently turn out to be a zone valve zone.
         """
+        # _LOGGER.debug("Creating a Zone: %s (%s)", zone_idx, self.__class__)
         super().__init__(ctl, zone_idx)
 
-        assert zone_idx not in ctl.zone_by_idx, "Duplicate zone idx on controller"
-        if int(zone_idx, 16) >= self._gwy.config["max_zones"]:
-            raise ValueError  # TODO: better to allow to disable via assert?
-
+        # self.id = f"{ctl.id}_{zone_idx}"
         ctl.zones.append(self)
         ctl.zone_by_idx[zone_idx] = self
         # ctl.zone_by_name[self.name] = self
@@ -432,6 +462,7 @@ class Zone(ZoneBase):
         self._sensor = None
 
         self._mode = None
+        # self._name = None  # from super()
         self._setpoint = None
         self._temp = None
         self._zone_config = None
@@ -447,7 +478,8 @@ class Zone(ZoneBase):
             self._set_sensor(sensor)
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        # super()._discover()
+        super()._discover(discover_flag=discover_flag)
+        return
 
         if __dev_mode__ and self.idx == "99":  # dev/test code
             asyncio.create_task(  # TODO: test/dev only
@@ -500,11 +532,6 @@ class Zone(ZoneBase):
 
         elif msg.code == "000A":
             self._zone_config = msg
-
-        elif msg.code == "0404" and msg.verb == "RP":
-            _LOGGER.error("Zone(%s).update: Received RP/0404 (schedule)", self.id)
-            self._schedule.add_fragment(msg)
-            self._schedule.req_fragment()  # do only if we self._schedule.req_schedule()
 
         elif msg.code == "2309" and msg.verb in (" I", "RP"):  # setpoint
             assert msg.src.type == "01", "coding error"
@@ -780,7 +807,7 @@ class ZoneDemand:  # not all zone types call for heat
     """Not all zones call for heat."""
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        super()._discover()
+        super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
             self._send_cmd("12B0")  # , payload=self.idx

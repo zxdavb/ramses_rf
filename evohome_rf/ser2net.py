@@ -47,7 +47,7 @@ class Ser2NetProtocol(asyncio.Protocol):
     def __init__(self, cmd_que) -> None:
         _LOGGER.debug("Ser2NetProtocol.__init__(%s)", cmd_que)
 
-        self._cmd_que = cmd_que
+        self._que = cmd_que
         self.transport = None
 
         if RECV_TIMEOUT:
@@ -105,7 +105,7 @@ class Ser2NetProtocol(asyncio.Protocol):
 
         # pkt = Packet(packet)
         # cmd = Command(pkt)
-        self._cmd_que.put_nowait(packet)  # TODO: use factory: shld be Command, not str
+        self._que.put_nowait(packet)  # TODO: use factory: shld be Command, not str
         _LOGGER.debug(" - command sent to dispatch queue: %s", packet)
 
     def eof_received(self) -> Optional[bool]:
@@ -125,7 +125,7 @@ class Ser2NetServer:
         _LOGGER.debug("Ser2NetServer.__init__(%s, %s)", addr_port, cmd_que)
 
         self._addr, self._port = addr_port.split(":")
-        self._cmd_que = cmd_que
+        self._que = cmd_que
         self._loop = loop if loop else asyncio.get_running_loop()
         self.protocol = self.server = None
 
@@ -138,7 +138,7 @@ class Ser2NetServer:
     async def start(self) -> None:
         _LOGGER.debug("Ser2NetServer.start()")
 
-        self.protocol = Ser2NetProtocol(self._cmd_que)
+        self.protocol = Ser2NetProtocol(self._que)
         self.server = await self._loop.create_server(
             lambda: self.protocol, self._addr, int(self._port)
         )
@@ -162,7 +162,7 @@ class Ser2NetServer:
 
     if self.config.get("ser2net_server"):
         self._relay = Ser2NetServer(
-            self.config["ser2net_server"], self.cmd_que, loop=self._loop
+            self.config["ser2net_server"], self._que, loop=self._loop
         )
         self._tasks.append(asyncio.create_task(self._relay.start()))
 

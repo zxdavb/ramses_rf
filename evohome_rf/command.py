@@ -3,6 +3,7 @@
 #
 """Evohome serial."""
 
+import asyncio
 from datetime import datetime as dt, timedelta
 from functools import total_ordering
 import json
@@ -62,13 +63,13 @@ def _pkt_header(packet, response_header=None) -> Optional[str]:
 
     header = "|".join((verb, addr, code))
 
-    if code in ("0005", "000C"):  # zone_idx, type
+    if code in ("0005", "000C"):  # zone_idx, device_class
         return "|".join((header, payload[:4]))
 
-    if code == "0404":  # zone_idx, frag_idx
+    if code == "0404":  # zone_schedule: zone_idx, frag_idx
         return "|".join((header, payload[:2] + payload[10:12]))
 
-    if code == "0418":  # log_idx
+    if code == "0418":  # fault_log: log_idx
         if payload == CODE_SCHEMA["0418"]["null_rp"]:
             return header
         return "|".join((header, payload[4:6]))
@@ -141,202 +142,144 @@ class Command:
         )
 
 
-class FaultLog:
-    """The fault log (of a system) class."""
+class FaultLog:  # 0418
+    """The fault log of a system."""
 
-    def __init__(self, controller, msg=None, **kwargs) -> None:
+    def __init__(self, ctl, msg=None, **kwargs) -> None:
         """Initialise the class."""
-        _LOGGER.debug("FaultLog(%s).__init__()", controller.id)
+        _LOGGER.debug("FaultLog(%s).__init__()", ctl)
 
-        self._ctl = controller
+        self.id = ctl.id
 
-        self.id = controller.id
-        self._gwy = controller._gwy
-        self._que = controller._que
+        self._ctl = ctl
+        # self._evo = ctl._evo
+        self._gwy = ctl._gwy
+        self._que = ctl._que
 
         self._fault_log = None
         self._fault_log_done = None
 
         # register the callback for a null response (has no log_idx)
         self._gwy._callbacks["|".join(("RP", self.id, "0418"))] = {
-            "func": self.proc_log_entry,
+            "func": self._proc_log_entry,
             "args": [],
             "kwargs": {},
             "daemon": True,
         }
 
     def __repr_(self) -> str:
-        return json.dumps(self._fault_log)
+        return json.dumps(self._fault_log) if self._fault_log_done else None
 
     def __str_(self) -> str:
-        return json.dumps(self._fault_log, indent=2)
+        return f"{self._ctl} (fault log)"
 
-    def start(self, *args, **kwargs):
-        _LOGGER.debug("FaultLog(%s).start()", self.id)
+    @property
+    def fault_log(self) -> Optional[dict]:
+        """Return the fault log of a system."""
+        if self._fault_log_done:
+            return self._fault_log
+
+    @property
+    def complete(self) -> Optional[bool]:
+        """Return True if the fault log has been retreived in full."""
+        return self._fault_log_done
+
+    def start(self) -> None:
+        _LOGGER.debug("FaultLog(%s).start()", self)
+
+        self.reset()
+        self._req_log_entry(0)
+
+    def reset(self) -> None:
+        _LOGGER.debug("FaultLog(%s).reset()", self)
+
         self._fault_log = {}
-        self._fault_log_done = False
-
-        self.get_log_entry(0)
-
-    def reset(self, *args, **kwargs):
-        _LOGGER.debug("FaultLog(%s).reset()", self.id)
-        self._fault_log = None
         self._fault_log_done = None
 
-    def get_log_entry(self, log_idx):
-        _LOGGER.debug("FaultLog(%s).get_log_entry(%s)", self.id, log_idx)
-        self._send_cmd("0418", payload=f"{log_idx:06X}")
+    def _req_log_entry(self, log_idx=0):
+        """Request the next log entry."""
+        _LOGGER.debug("FaultLog(%s)._req_log_entry(%s)", self, log_idx)
 
-    def proc_log_entry(self, msg, *args, **kwargs) -> bool:
-        _LOGGER.debug("FaultLog(%s).proc_log_entry(%s)", self.id, msg)
+        def send_cmd(payload) -> None:
+            qos = {
+                "priority": Priority.LOW,
+                "retry_limit": 3,
+                # "timeout": timedelta(seconds=1)
+            }
+            cmd = Command("RQ", self._ctl.id, "0418", payload, **qos)
+
+            self._gwy._callbacks[cmd._rp_header] = {
+                "func": self._proc_log_entry,
+                "args": [],
+                "kwargs": {},
+                "timeout": dt.now() + timedelta(seconds=2),
+            }
+            self._que.put_nowait(cmd)
+
+        send_cmd(f"{log_idx:06X}")
+
+    def _proc_log_entry(self, msg) -> None:
+        _LOGGER.debug("FaultLog(%s)._proc_log_entry(%s)", self.id, msg)
+
         if not msg:
             # raise ExpiredCallbackError
             return
 
+        if msg.code != "0418" or msg.verb != "RP":
+            raise ValueError(f"incorrect message verb/code: {msg.verb}/{msg.code}")
+
         if not msg.payload:
-            self._fault_log_done = True  # TODO: delete other entries in call back
+            # TODO: delete other call backs rather than waiting for them to expire
+            self._fault_log_done = True
             return
 
         log = dict(msg.payload)
         log_idx = int(log.pop("log_idx"))
         self._fault_log[log_idx] = log
 
-        self.get_log_entry(log_idx + 1)
-
-    @property
-    def fault_log(self) -> Optional[dict]:
-        """Return the fault log as a dict."""
-        if self._fault_log_done:
-            return self._fault_log
-
-    @property
-    def complete(self) -> Optional[bool]:
-        """Return True if the fault log has been downloaded in ful."""
-        return self._fault_log_done
-
-    def _send_cmd(self, code, payload) -> None:
-        qos = {"priority": Priority.LOW, "retries": 3}
-        cmd = Command("RQ", self.id, code, payload, **qos)
-
-        self._gwy._callbacks[cmd._rp_header] = {
-            "func": self.proc_log_entry,
-            "args": [],
-            "kwargs": {},
-            "timeout": dt.now() + timedelta(minutes=2),
-        }
-
-        self._que.put_nowait(cmd)
+        self._req_log_entry(log_idx + 1)
 
 
-class Schedule:
-    """The schedule (of a zone) class."""
+class Schedule:  # 0404
+    """The schedule of a zone."""
 
-    # TODO: stop responding to fragments sent by others
-    # TODO: use a lock to only request one schedule at a time
-
-    def __init__(self, zone, msg=None, **kwargs) -> None:
+    def __init__(self, zone, **kwargs) -> None:
         """Initialise the class."""
+        _LOGGER.debug("Schedule(%s).__init__()", zone.id)
+
+        self.id = zone.id
         self._zone = zone
+        self.idx = zone.idx
 
         self._ctl = zone._ctl
+        self._evo = zone._evo
         self._gwy = zone._gwy
         self._que = zone._que
 
-        self.idx = zone.idx
-
-        # initialse the fragment array: DRY
-        self._init_frag_array(total_frags=0)  # could use msg.payload["frag_total"]
-
-        if msg is not None:
-            if msg.payload["frag_index"] != 1:
-                raise ValueError("not the first fragment of the message")
-            self.add_fragment(msg)
-
-    def _init_frag_array(self, total_frags=0) -> None:
-        """Reset the fragment array."""
-        self.total_frags = total_frags
-        self._frag_array = [None] * total_frags
         self._schedule = None
+        self._schedule_done = None
 
-    def add_fragment(self, msg) -> None:
-        _LOGGER.error("Sched(%s).add_fragment: xxx", self.idx)
+        # initialse the fragment array
+        self.total_frags = None
+        self._frag_array = None
 
-        if msg.code != "0404" or msg.verb != "RP":
-            raise ValueError("incorrect message verb/code")
-        if msg.payload["zone_idx"] != self.idx:
-            raise ValueError("mismatched zone_idx")
-
-        if self.total_frags == 0:
-            self._init_frag_array(msg.payload["frag_total"])
-
-        elif self.total_frags != msg.payload["frag_total"]:
-            _LOGGER.warning("total fragments has changed: will re-initialise array")
-            self._init_frag_array(msg.payload["frag_total"])
-
-        self._frag_array[msg.payload["frag_index"] - 1] = {
-            "_msg_dtm": msg.dtm,
-            "frag_index": msg.payload["frag_index"],
-            "fragment": msg.payload["fragment"],
-        }
-
-        # discard any fragments significantly older that this most recent fragment
-        for frag in [f for f in self._frag_array if f is not None]:
-            # TODO: use a CONST for 5 minutes
-            frag = None if frag["_msg_dtm"] < msg.dtm - timedelta(minutes=5) else frag
-
-        # if not [x for x in self._frag_array if x is None]:  # TODO: can leave out?
-        #     _ = self.schedule if self._gwy.self.config["disable_sending"] else None
-
-    def req_schedule(self) -> int:
-        _LOGGER.error("Sched(%s).req_schedule: xxx", self.idx)
-
-        # TODO: use a lock to ensure only 1 schedule being requested at a time
-        # self.req_fragment(restart=True)
-
-    def req_fragment(self, restart=False) -> int:
-        """Request the next fragment, and return that fragment's index number.
-
-        Return 0 when there are no more fragments to get.
-        """
-        _LOGGER.error("Sched(%s).req_fragment: xxx", self.idx)
-
-        if self._gwy.self.config["disable_sending"]:
-            return
-
-        if restart is True:  # or self.total_frags == 0
-            self._init_frag_array(0)
-
-        if self._frag_array == []:  # aka self.total_frags == 0:
-            missing_frags = [0]  # all(frags missing), but how many is unknown
-            # kwargs = {"pause": Pause.LONG}  # , "priority": Priority.DEFAULT}
-
-        else:  # aka not all(self._frag_array)
-            missing_frags = [i for i, val in enumerate(self._frag_array) if val is None]
-            if missing_frags == []:
-                print(self.schedule)
-                return 0  # not any(frags missing), nothing to add
-
-        header = f"{self.idx}20000800{missing_frags[0] + 1:02d}{self.total_frags:02d}"
-        self._que.put_nowait(
-            Command("RQ", self._ctl.id, "0404", header, priority=Priority.HIGH)
-        )
-
-        return missing_frags[0] + 1
+        # self._init_frag_array(total_frags=0)  # could use msg.payload["frag_total"]
 
     def __repr_(self) -> str:
-        return json.dumps(self._schedule)
+        return json.dumps(self.schedule) if self._schedule_done else None
 
     def __str_(self) -> str:
-        return json.dumps(self._schedule, indent=2)
+        return f"{self._zone} (schedule)"
 
     @property
-    def schedule(self) -> list:
-        if self._schedule is not None:
+    def schedule(self) -> Optional[dict]:
+        """Return the schedule of a zone."""
+        if not self._schedule_done:
             return self._schedule
 
-        _LOGGER.warning(
+        _LOGGER.debug(
             "Sched(%s).schedule: array is: %s",
-            self.idx,
+            self.id,
             [{d["frag_index"]: d["fragment"]} for d in self._frag_array],
         )
 
@@ -348,7 +291,7 @@ class Schedule:
             raw_schedule = zlib.decompress(bytearray.fromhex("".join(frags)))
         except zlib.error:
             _LOGGER.exception("Invalid schedule fragments: %s", self._frag_array)
-            self._init_frag_array(total_frags=0)
+            self.reset()
             return
 
         self._schedule = []
@@ -371,7 +314,109 @@ class Schedule:
             )
 
         self._schedule.append({"day_of_week": old_day, "switchpoints": switchpoints})
+        self._schedule_done = True
 
-        _LOGGER.debug("Sched(%s): len(schedule): %s", self.idx, len(self._schedule))
-        # _LOGGER.debug("Sched(%s).schedule: %s", self.idx, self._schedule)
+        _LOGGER.debug("Schedule(%s): len(schedule): %s", self.id, len(self._schedule))
+        # _LOGGER.debug("Sched(%s).schedule: %s", self.id, self._schedule)
         return self._schedule
+
+    async def start(self) -> None:
+        _LOGGER.debug("Schedule(%s).start()", self.id)
+
+        while True:
+
+            self._evo.zone_lock.acquire()
+            if self._evo.zone_lock_idx is None:
+                self._evo.zone_lock_idx = self.idx
+            self._evo.zone_lock.release()
+
+            if self._evo.zone_lock_idx == self.idx:
+                break
+
+            await asyncio.sleep(0.1)
+
+        # TODO: use a lock to ensure only 1 schedule being requested at a time
+        self.reset()
+        if self._evo.zone_lock_idx == self.idx:
+            self._req_fragment(frag_idx=1)  # start at 1, not 0
+
+    def reset(self) -> None:
+        _LOGGER.debug("Schedule(%s).reset()", self.id)
+
+        self._schedule = None
+        self._schedule_done = None
+
+        self._init_frag_array(total_frags=0)
+
+    def _init_frag_array(self, total_frags=0) -> None:
+        """Reset the fragment array."""
+        self.total_frags = total_frags
+        self._frag_array = [None] * total_frags
+        self._schedule = None
+
+    def _req_fragment(self, frag_idx=1) -> None:
+        """Request the next fragment (starting a 1, not 0)."""
+        _LOGGER.debug(
+            "Schedule(%s)._req_fragment(%s/%s)", self.id, frag_idx, self.total_frags
+        )
+
+        def send_cmd(payload) -> None:
+            qos = {
+                "priority": Priority.HIGH,
+                "retry_limit": 3,
+                "timeout": timedelta(seconds=0.5),
+            }
+            cmd = Command("RQ", self._ctl.id, "0404", payload, **qos)
+
+            self._gwy._callbacks[cmd._rp_header] = {
+                "func": self._proc_fragment,
+                "args": [],
+                "kwargs": {},
+                "timeout": dt.now() + timedelta(minutes=2),
+            }
+            self._que.put_nowait(cmd)
+
+        send_cmd(f"{self.idx}20000800{frag_idx:02d}{self.total_frags:02d}")
+
+    def _proc_fragment(self, msg) -> None:
+        _LOGGER.debug(
+            "Schedule(%s)._proc_fragment(%s/%s)",
+            self.id,
+            msg.payload.get("frag_index"),
+            msg.payload.get("frag_total"),
+        )
+
+        if msg.code != "0404" or msg.verb != "RP":
+            raise ValueError(f"incorrect message verb/code: {msg.verb}/{msg.code}")
+        if msg.payload["zone_idx"] != self.idx:
+            raise ValueError("mismatched zone_idx")
+        if self._evo.zone_lock_idx != self.idx:
+            raise ValueError("unsolicited packet")
+
+        if self.total_frags == 0:  # this should be the 1st fragment
+            self._init_frag_array(msg.payload["frag_total"])
+
+        elif self.total_frags != msg.payload["frag_total"]:
+            _LOGGER.warning("total fragments has changed: will re-initialise array")
+            self._init_frag_array(msg.payload["frag_total"])
+
+        self._frag_array[msg.payload["frag_index"] - 1] = {
+            "_msg_dtm": msg.dtm,
+            "frag_index": msg.payload["frag_index"],
+            "fragment": msg.payload["fragment"],
+        }
+
+        # discard any fragments significantly older that this most recent fragment
+        for frag in [f for f in self._frag_array if f is not None]:
+            # TODO: use a CONST for 5 minutes
+            frag = None if frag["_msg_dtm"] < msg.dtm - timedelta(minutes=5) else frag
+
+        if msg.payload["frag_index"] < msg.payload["frag_total"]:
+            self._req_fragment(frag_idx=msg.payload["frag_index"] + 1)
+
+        else:
+            self._evo.zone_lock.acquire()
+            self._evo.zone_lock_idx = None
+            self._evo.zone_lock.release()
+
+            self._schedule_done = True
