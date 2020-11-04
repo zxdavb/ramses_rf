@@ -144,7 +144,7 @@ def debug_wrapper(config_file=None, **kwargs):
 async def main(serial_port, loop=None, **config):
 
     # loop=asyncio.get_event_loop() causes: 'NoneType' object has no attribute 'serial'
-    print("Starting evohome_rf...")
+    print("\r\nStarting evohome_rf...")
 
     if sys.platform == "win32":  # is better than os.name
         # ERROR:asyncio:Cancelling an overlapped future failed
@@ -152,13 +152,6 @@ async def main(serial_port, loop=None, **config):
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     gwy = Gateway(serial_port, loop=loop, **config)
-
-    # if config.get("get_schedule") is not None:
-    #     coro = gwy.start
-    # elif config.get("get_schedule") is not None:
-    #     coro = gwy.start
-    # else:
-    #     coro = gwy.start
 
     try:
         await asyncio.create_task(gwy.start())
@@ -179,7 +172,7 @@ async def main(serial_port, loop=None, **config):
         if config.get("get_faults"):
             fault_log = gwy.device_by_id[config["device_id"]]._evo.fault_log()
             for k, v in fault_log.items():
-                print(v)
+                print(k, v)
 
         elif config.get("get_schedule") is not None:
             print(gwy.evo.zone_by_idx[config["get_schedule"]].schedule())

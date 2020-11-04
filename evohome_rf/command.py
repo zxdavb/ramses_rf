@@ -333,7 +333,7 @@ class Schedule:  # 0404
             if self._evo.zone_lock_idx == self.idx:
                 break
 
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.1)  # gives the other zone enough time
 
         # TODO: use a lock to ensure only 1 schedule being requested at a time
         self.reset()

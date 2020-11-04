@@ -22,11 +22,20 @@ async def periodic(gwy, cmd, count=1440, interval=5):
         while True:
             await asyncio.sleep(interval)
             gwy._que.put_nowait(cmd)
-
     else:
         for _ in range(count):
             await asyncio.sleep(interval)
             gwy._que.put_nowait(cmd)
+
+
+async def schedule_task(delay, func, *args, **kwargs):
+    """Start a coro after delay seconds."""
+
+    async def scheduled_func(delay, func, *args, **kwargs):
+        await asyncio.sleep(delay)
+        await func(*args, **kwargs)
+
+    asyncio.create_task(scheduled_func(delay, func, *args, **kwargs))
 
 
 async def get_faults(gwy, device_id):

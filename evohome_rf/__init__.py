@@ -57,16 +57,6 @@ else:
     _LOGGER.setLevel(logging.WARNING)
 
 
-async def schedule_task(delay, func, *args, **kwargs):
-    """Start a coro after delay seconds."""
-
-    async def scheduled_func(delay, func, *args, **kwargs):
-        await asyncio.sleep(delay)
-        await func(*args, **kwargs)
-
-    asyncio.create_task(scheduled_func(delay, func, *args, **kwargs))
-
-
 class Gateway:
     """The gateway class."""
 
