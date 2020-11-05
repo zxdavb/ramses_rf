@@ -5,6 +5,7 @@
 
 import asyncio
 import logging
+from typing import Any, List
 
 from .command import Command, Priority
 from .const import __dev_mode__, CODE_SCHEMA, DEVICE_TABLE, Address
@@ -15,6 +16,25 @@ if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
+
+
+def spawn_scripts(gwy) -> List[Any]:
+    tasks = []
+
+    if gwy.config.get("get_faults"):
+        task = asyncio.create_task(get_faults(gwy, gwy.config["device_id"]))
+        tasks.append(task)
+
+    elif gwy.config.get("get_schedule") is not None:
+        task = asyncio.create_task(
+            get_schedule(gwy, gwy.config["device_id"], gwy.config["get_schedule"])
+        )
+        tasks.append(task)
+
+    elif gwy.config.get("device_id"):
+        probe_device(gwy, gwy.config.get("device_id"))
+
+    return tasks
 
 
 async def periodic(gwy, cmd, count=1440, interval=5):

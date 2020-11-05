@@ -28,7 +28,7 @@ from serial_asyncio import SerialTransport
 from .command import Command
 from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
-from .discovery import probe_device, poll_device, get_faults, get_schedule
+from .discovery import probe_device, poll_device, spawn_scripts
 from .exceptions import GracefulExit
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
@@ -36,7 +36,7 @@ from .packet import (
     _LOGGER as pkt_logger,
     Packet,
     file_pkts,
-    SerialProtocol,
+    GatewayProtocol,
     SERIAL_CONFIG,
 )
 from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
@@ -221,9 +221,9 @@ class Gateway:
         await asyncio.gather(*tasks, return_exceptions=True)  # raises CancelledError
 
     async def start(self) -> None:
-        def create_serial_interface(serial_port, callback) -> Tuple[Any, Any]:
+        def create_gateway_interface(serial_port, callback) -> Tuple[Any, Any]:
             ser = serial_for_url(serial_port, **SERIAL_CONFIG)
-            protocol = SerialProtocol(self, callback)
+            protocol = GatewayProtocol(self, callback)
             transport = SerialTransport(self._loop, protocol, ser)
             return (transport, protocol)
 
@@ -250,25 +250,9 @@ class Gateway:
                 self._que.task_done()
 
         if self.serial_port:  # source of packets is a serial port
-            self._tasks = []
+            self._tasks = spawn_scripts(self)  # first, queue any discovery scripts
 
-            # first, queue any discovery scripts
-            if self.config.get("get_faults"):
-                task = asyncio.create_task(get_faults(self, self.config["device_id"]))
-                self._tasks.append(task)
-
-            elif self.config.get("get_schedule") is not None:
-                task = asyncio.create_task(
-                    get_schedule(
-                        self, self.config["device_id"], self.config["get_schedule"]
-                    )
-                )
-                self._tasks.append(task)
-
-            elif self.config.get("device_id"):
-                probe_device(self, self.config.get("device_id"))
-
-            _, self._protocol = create_serial_interface(
+            _, self._protocol = create_gateway_interface(
                 self.serial_port, self._process_packet
             )
             writer = asyncio.create_task(port_writer(self._protocol))

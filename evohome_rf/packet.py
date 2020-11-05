@@ -244,12 +244,11 @@ async def file_pkts(fp):
         await asyncio.sleep(0)  # usu. 0, only to enable a Ctrl-C
 
 
-class SerialProtocol(asyncio.Protocol):
+class GatewayProtocol(asyncio.Protocol):
     def __init__(self, gwy, pkt_handler) -> None:
-        # _LOGGER.debug("SerialProtocol.__init__()")
+        # _LOGGER.debug("GatewayProtocol.__init__()")
 
         self._gwy = gwy
-        # self._queue = gwy._que
         self._callback = pkt_handler
 
         self._transport = None
@@ -264,15 +263,15 @@ class SerialProtocol(asyncio.Protocol):
 
     def connection_made(self, transport: SerialTransport) -> None:
         """Called when a connection is made."""
+        # _LOGGER.debug("GatewayProtocol.connection_made(%s)", transport)
 
-        # _LOGGER.debug("SerialProtocol.connection_made(%s)", transport)
         self._transport = transport
         # self._transport.serial.rts = False
 
     def data_received(self, data: ByteString):
         """Called when some data is received."""
+        # _LOGGER.debug("GatewayProtocol.data_received(%s)", data)
 
-        # _LOGGER.debug("SerialProtocol.data_received(%s)", data)
         # if b'\n' in data:
         #     self._transport.close()
 
@@ -318,8 +317,8 @@ class SerialProtocol(asyncio.Protocol):
 
     async def _write_data(self, data: bytearray) -> None:
         """Called when some data is to be sent (not a callaback)."""
+        # _LOGGER.debug("GatewayProtocol._write_data(%s)", data)
 
-        # _LOGGER.debug("SerialProtocol.send_data(%s)", data)
         while self._pause_writing or not self._transport:
             await asyncio.sleep(0.005)
 
@@ -337,6 +336,7 @@ class SerialProtocol(asyncio.Protocol):
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callaback)."""
+        # _LOGGER.debug("GatewayProtocol.send_data(%s)", cmd)
 
         while self._qos_rq_hdr or self._qos_rp_hdr:
             await asyncio.sleep(0.005)
@@ -377,24 +377,22 @@ class SerialProtocol(asyncio.Protocol):
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
+        # _LOGGER.debug("GatewayProtocol.connection_lost(%s)", exc)
 
-        # _LOGGER.debug("SerialProtocol.connection_lost(%s)", exc)
         if exc is not None:
             pass
         self._transport.loop.stop()
 
     def pause_writing(self) -> None:
         """Called when the transport's buffer goes over the high-water mark."""
-
-        # _LOGGER.debug("SerialProtocol.pause_writing()")
-        print(self._transport.get_write_buffer_size())
+        # _LOGGER.debug("GatewayProtocol.pause_writing()")
+        # print(self._transport.get_write_buffer_size())
 
         self._pause_writing = True
 
     def resume_writing(self) -> None:
         """Called when the transport's buffer drains below the low-water mark."""
-
-        # _LOGGER.debug("SerialProtocol.resume_writing()")
-        print(self._transport.get_write_buffer_size())
+        # _LOGGER.debug("GatewayProtocol.resume_writing()")
+        # print(self._transport.get_write_buffer_size())
 
         self._pause_writing = False
