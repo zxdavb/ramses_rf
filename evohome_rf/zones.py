@@ -479,7 +479,6 @@ class Zone(ZoneSchedule, ZoneBase):
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
-        return
 
         if __dev_mode__ and self.idx == "99":  # dev/test code
             asyncio.create_task(  # TODO: test/dev only

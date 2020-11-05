@@ -53,7 +53,7 @@ class SysFaultLog(Entity):  # 0418
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
-        if False and discover_flag & DISCOVER_STATUS:
+        if discover_flag & DISCOVER_STATUS:
             self._fault_log.start()  # 0418
 
     def _handle_msg(self, msg, prev_msg=None):
