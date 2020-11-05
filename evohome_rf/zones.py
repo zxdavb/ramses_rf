@@ -658,7 +658,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
         elif isinstance(self._mode.payload, list):
             tmp = [z for z in self._mode.payload if z["zone_idx"] == self.idx]
-            return {k: v for k, v in tmp[0].items() if k[:1] != "_"}
+            return {k: v for k, v in tmp[0].items() if k[:1] != "_" and k != "zone_idx"}
 
     @property
     def name(self) -> Optional[str]:
@@ -716,7 +716,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
         elif isinstance(self._zone_config.payload, list):
             tmp = [z for z in self._zone_config.payload if z["zone_idx"] == self.idx]
-            return {k: v for k, v in tmp[0].items() if k[:1] != "_"}
+            return {k: v for k, v in tmp[0].items() if k[:1] != "_" and k != "zone_idx"}
 
     def schedule(self, force_update=False) -> Optional[dict]:
         """Return the schedule if any."""
