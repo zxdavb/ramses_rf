@@ -1035,18 +1035,17 @@ class Evohome(SysLanguage, SysMode, MultiZone, StoredHw, System):  # evohome
         return super().status
 
 
-class Chronotherm(System):
-    pass
+# class Chronotherm(System):
+# class Hometronics(System):
+# class Sundial(System):
+# class Cm927(System):
+#     def __init__(self, gwy, ctl, synchronizer=False, **kwargs) -> None:
+#         pass
 
 
-class Hometronics(System):
-    pass
-
-
-class Sundial(System):
-    pass
-
-
-class Cm927(System):
-    def __init__(self, gwy, ctl, synchronizer=False, **kwargs) -> None:
-        pass
+SYSTEM_CLASSES = {
+    "01": Evohome,
+    "12": System,
+    "22": System,
+    "23": System,
+}

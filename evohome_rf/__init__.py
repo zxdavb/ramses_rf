@@ -27,7 +27,7 @@ from serial_asyncio import SerialTransport
 
 from .command import Command
 from .const import __dev_mode__, ATTR_ORPHANS
-from .devices import DEVICE_CLASSES, Controller, Device
+from .devices import DEVICE_CLASSES, Device
 from .discovery import probe_device, poll_device, get_faults, get_schedule
 from .exceptions import GracefulExit
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
@@ -42,7 +42,7 @@ from .packet import (
 from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
 
 # from .ser2net import Ser2NetServer
-from .systems import Evohome, SystemBase
+from .systems import SYSTEM_CLASSES, System, SystemBase
 from .version import __version__  # noqa
 
 # TODO: duplicated in schema.py
@@ -356,7 +356,7 @@ class Gateway:
             if ctl.id in self.system_by_id:
                 raise LookupError(f"Duplicated system id: {ctl.id}")
 
-            system = Evohome(self, ctl)
+            system = SYSTEM_CLASSES.get(ctl.type, System)(self, ctl)
 
             if not self.config["disable_discovery"]:
                 system._discover()  # discover_flag=DISCOVER_ALL)
@@ -388,7 +388,10 @@ class Gateway:
 
         if device is None:
             device = create_device(dev_addr, ctl=ctl, domain_id=domain_id)
-            if isinstance(device, Controller):
+            # if isinstance(device, Controller):
+            # if device.is_controller:
+            # if dev_addr.type in SYSTEM_CLASSES:
+            if dev_addr.type in ("01", "23"):
                 device._evo = create_system(device)
 
         else:  # update the existing device with any metadata
