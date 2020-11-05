@@ -4,7 +4,7 @@
 """Evohome serial."""
 
 import asyncio
-from datetime import datetime as dt, timedelta
+from datetime import timedelta
 from functools import total_ordering
 import json
 import logging
@@ -30,9 +30,6 @@ from .logger import dt_now
 # DEVICE_1 = "device_1"
 # DEVICE_2 = "device_2"
 # DEVICE_3 = "device_3"
-
-RQ_RETRY_LIMIT = 7
-RQ_TIMEOUT = 0.03
 
 
 Priority = SimpleNamespace(LOW=6, DEFAULT=4, HIGH=2, ASAP=0)
@@ -92,11 +89,16 @@ class Command:
         self.code = code
         self.payload = payload
 
-        priority = Priority.HIGH if verb in ("0016", "1FC9") else Priority.DEFAULT
-        self._priority = kwargs.pop("priority", priority)
-        self._priority_dtm = dt_now()  # used for __lt__, etc.
+        self.qos = kwargs.get("qos", {})
 
-        self.qos = kwargs
+        self.callback = kwargs.get("callback", {})  # TODO: use voluptuos
+        if self.callback:
+            self.callback["args"] = self.callback.get("args", [])
+            self.callback["kwargs"] = self.callback.get("kwargs", {})
+
+        priority = Priority.HIGH if verb in ("0016", "1FC9") else Priority.DEFAULT
+        self._priority = self.qos["priority"] = self.qos.get("priority", priority)
+        self._priority_dtm = dt_now()  # used for __lt__, etc.
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
@@ -162,9 +164,9 @@ class FaultLog:  # 0418
         # register the callback for a null response (has no log_idx)
         self._gwy._callbacks["|".join(("RP", self.id, "0418"))] = {
             "func": self._proc_log_entry,
+            "daemon": True,
             "args": [],
             "kwargs": {},
-            "daemon": True,
         }
 
     def __repr_(self) -> str:
@@ -203,17 +205,17 @@ class FaultLog:  # 0418
         def send_cmd(payload) -> None:
             qos = {
                 "priority": Priority.LOW,
-                "retry_limit": 3,
-                # "timeout": timedelta(seconds=1)
+                "retries": 3,
+                "timeout": timedelta(seconds=1.0),
             }
-            cmd = Command("RQ", self._ctl.id, "0418", payload, **qos)
-
-            self._gwy._callbacks[cmd._rp_header] = {
+            callback = {
                 "func": self._proc_log_entry,
-                "args": [],
-                "kwargs": {},
-                "timeout": dt.now() + timedelta(seconds=2),
+                "timeout": timedelta(seconds=1),
             }
+
+            cmd = Command(
+                "RQ", self._ctl.id, "0418", payload, qos=qos, callback=callback
+            )
             self._que.put_nowait(cmd)
 
         send_cmd(f"{log_idx:06X}")
@@ -363,17 +365,17 @@ class Schedule:  # 0404
         def send_cmd(payload) -> None:
             qos = {
                 "priority": Priority.HIGH,
-                "retry_limit": 3,
+                "retries": 3,
                 "timeout": timedelta(seconds=0.5),
             }
-            cmd = Command("RQ", self._ctl.id, "0404", payload, **qos)
-
-            self._gwy._callbacks[cmd._rp_header] = {
+            callback = {
                 "func": self._proc_fragment,
-                "args": [],
-                "kwargs": {},
-                "timeout": dt.now() + timedelta(minutes=2),
+                "timeout": timedelta(seconds=1),
             }
+
+            cmd = Command(
+                "RQ", self._ctl.id, "0404", payload, qos=qos, callback=callback
+            )
             self._que.put_nowait(cmd)
 
         send_cmd(f"{self.idx}20000800{frag_idx:02d}{self.total_frags:02d}")

@@ -136,7 +136,7 @@ class Gateway:
         if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
             cmd = self.config["execute_cmd"]
             self._que.put_nowait(
-                Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], retry_limit=12)
+                Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], retries=12)
             )
 
         if self.config.get("poll_devices"):
@@ -223,7 +223,7 @@ class Gateway:
     async def start(self) -> None:
         def create_serial_interface(serial_port, callback) -> Tuple[Any, Any]:
             ser = serial_for_url(serial_port, **SERIAL_CONFIG)
-            protocol = SerialProtocol(self._que, callback)
+            protocol = SerialProtocol(self, callback)
             transport = SerialTransport(self._loop, protocol, ser)
             return (transport, protocol)
 

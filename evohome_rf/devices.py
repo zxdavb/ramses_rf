@@ -200,15 +200,15 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         # super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_SCHEMA:
-            # self._send_cmd("1FC9", retry_limit=0)
+            # self._send_cmd("1FC9", retries=0)
             if self.type not in DEVICE_HAS_BATTERY:
-                self._send_cmd("10E0", retry_limit=0)
+                self._send_cmd("10E0", retries=0)
 
         if discover_flag & DISCOVER_PARAMS:
             pass
 
         if discover_flag & DISCOVER_STATUS:
-            # self._send_cmd("0016", payload="0000", retry_limit=0)
+            # self._send_cmd("0016", payload="0000", retries=0)
             pass
 
             # if self.type == "17" or self.id == "12:207082":  # Hometronics, unknown
@@ -293,9 +293,9 @@ class Actuator:  # 3EF0, 3EF1
             # self._known_msg = True
             self._actuator_state = msg
 
-            qos = {"retry_limit": 1, "priority": Priority.LOW}
+            qos = {"priority": Priority.LOW, "retries": 1}
             for code in ("0008", "3EF1"):
-                self._send_cmd(code, **qos)
+                self._send_cmd(code, qos=qos)
 
         elif msg.code == "3EF1" and msg.verb == "RP":
             # self._known_msg = True
@@ -940,9 +940,9 @@ class BdrSwitch(Actuator, Device):
             self._known_msg = True
             self._actuator_enabled = msg
 
-            # qos = {"retry_limit": 2, "priority": Priority.LOW}
+            # qos = {"priority": Priority.LOW, "retries": 2}
             # for code in ("0008", "3EF1"):
-            #     self._send_cmd(code, **qos)
+            #     self._send_cmd(code, qos=qos)
 
         elif msg.code == "3EF1" and msg.verb == "RP":
             self._known_msg = True

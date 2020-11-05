@@ -63,7 +63,7 @@ async def get_schedule(gwy, device_id, zone_id):
 
 
 def poll_device(gwy, device_id):
-    qos = {"retry_limit": 0, "priority": Priority.LOW}
+    qos = {"priority": Priority.LOW, "retries": 0}
 
     if "poll_codes" in DEVICE_TABLE.get(device_id[:2]):
         codes = DEVICE_TABLE[device_id[:2]]["poll_codes"]
@@ -71,9 +71,9 @@ def poll_device(gwy, device_id):
         codes = ["0016", "1FC9"]
 
     for code in codes:
-        cmd = Command("RQ", device_id, code, "00", **qos)
+        cmd = Command("RQ", device_id, code, "00", qos=qos)
         _ = asyncio.create_task(periodic(gwy, cmd, count=0, interval=60))
-        cmd = Command("RQ", device_id, code, "0000", **qos)
+        cmd = Command("RQ", device_id, code, "0000", qos=qos)
         _ = asyncio.create_task(periodic(gwy, cmd, count=0, interval=60))
 
 
@@ -83,45 +83,45 @@ def probe_device(gwy, device_id):
     # for _code in range(0x4000):
     #     code = f"{_code:04X}"
 
-    qos = {"retry_limit": 0, "priority": Priority.LOW}
+    qos = {"priority": Priority.LOW, "retries": 0}
 
     for code in sorted(CODE_SCHEMA):
         if code == "0005":
             for zone_type in range(18):
-                cmd = Command("RQ", device_id, code, f"00{zone_type:02X}", **qos)
+                cmd = Command("RQ", device_id, code, f"00{zone_type:02X}", qos=qos)
                 asyncio.create_task(periodic(gwy, cmd, count=1, interval=0))
             continue
 
         if code == "000C":
             for zone_idx in range(16):
-                cmd = Command("RQ", device_id, code, f"{zone_idx:02X}00", **qos)
+                cmd = Command("RQ", device_id, code, f"{zone_idx:02X}00", qos=qos)
                 asyncio.create_task(periodic(gwy, cmd, count=1, interval=0))
             continue
 
         if code == "0418":
             for log_idx in range(2):
-                cmd = Command("RQ", device_id, code, f"{log_idx:06X}", **qos)
+                cmd = Command("RQ", device_id, code, f"{log_idx:06X}", qos=qos)
                 asyncio.create_task(periodic(gwy, cmd, count=1, interval=0))
             continue
 
         if code == "1100":
-            cmd = Command("RQ", device_id, code, "FC", **qos)
+            cmd = Command("RQ", device_id, code, "FC", qos=qos)
             asyncio.create_task(periodic(gwy, cmd, count=1, interval=0))
             continue
 
         if code == "2E04":
-            cmd = Command("RQ", device_id, code, "FF", **qos)
+            cmd = Command("RQ", device_id, code, "FF", qos=qos)
             asyncio.create_task(periodic(gwy, cmd, count=1, interval=0))
             continue
 
-        cmd = Command("RQ", device_id, code, "00", **qos)
+        cmd = Command("RQ", device_id, code, "00", qos=qos)
         asyncio.create_task(periodic(gwy, cmd, count=1, interval=0))
 
-        cmd = Command("RQ", device_id, code, "0000", **qos)
+        cmd = Command("RQ", device_id, code, "0000", qos=qos)
         asyncio.create_task(periodic(gwy, cmd, count=1, interval=0))
 
     # for code in ("0016", "1FC9"):  # payload 0000 OK for both these
-    #     cmd = Command("RQ", device_id, code, "0000", retry_limit=9)
+    #     cmd = Command("RQ", device_id, code, "0000", retries=9)
     #     asyncio.create_task(periodic(gwy, cmd, count=1))
 
 

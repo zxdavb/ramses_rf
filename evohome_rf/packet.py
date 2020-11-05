@@ -47,7 +47,7 @@ MAX_SEND_COUNT = 1
 EXPIRY_TIMEOUT = timedelta(seconds=2.0)  # say 0.5
 
 
-QOS_RETRY_LIMIT = 2
+QOS_RETRIES = 2
 QOS_TIMEOUT_SECS_RQ = timedelta(seconds=0.2)  # 0.2 too low?
 QOS_TIMEOUT_SECS_RP = timedelta(seconds=1.0)
 
@@ -245,10 +245,11 @@ async def file_pkts(fp):
 
 
 class SerialProtocol(asyncio.Protocol):
-    def __init__(self, queue, pkt_handler) -> None:
+    def __init__(self, gwy, pkt_handler) -> None:
         # _LOGGER.debug("SerialProtocol.__init__()")
 
-        self._queue = queue
+        self._gwy = gwy
+        # self._queue = gwy._que
         self._callback = pkt_handler
 
         self._transport = None
@@ -348,9 +349,13 @@ class SerialProtocol(asyncio.Protocol):
         self._qos_rp_hdr = cmd._rp_header  # Could be None, esp. if RQ hdr is None
         self._qos_lock.release()
 
+        if cmd.callback:
+            cmd.callback["timeout"] = dt.now() + cmd.callback["timeout"]
+            self._gwy._callbacks[cmd._rp_header] = cmd.callback
+
         if self._qos_rq_hdr:
             self._qos_cmd = cmd
-            self._qos_retries = cmd.qos.get("retry_limit", QOS_RETRY_LIMIT)
+            self._qos_retries = cmd.qos.get("retries", QOS_RETRIES)
             self._qos_timeout = dt.now() + cmd.qos.get("timeout", QOS_TIMEOUT_SECS_RQ)
 
         while self._qos_rq_hdr or self._qos_rp_hdr:

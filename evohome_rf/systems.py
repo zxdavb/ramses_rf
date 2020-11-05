@@ -68,8 +68,7 @@ class SysFaultLog(Entity):  # 0418
             #     self._fault_log[msg.payload["log_idx"]] = msg
 
     def fault_log(self, *args, **kwargs) -> Optional[dict]:  # 0418
-        if kwargs.get("force_refresh"):
-            self._fault_log.reset()
+        if self._fault_log.fault_log is None or kwargs.get("force_refresh"):
             self._fault_log.start()
 
         return self._fault_log.fault_log
@@ -716,9 +715,9 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                     device = None
 
                 if device is not None:
-                    qos = {"retry_limit": 2, "priority": Priority.LOW}
+                    qos = {"priority": Priority.LOW, "retries": 2}
                     for code in ("0008", "3EF1"):
-                        device._send_cmd(code, **qos)
+                        device._send_cmd(code, qos)
 
         # if msg.code == "0009" and msg.verb in (" I", "RP"):
         #     self._known_msg = True
