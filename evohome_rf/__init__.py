@@ -43,6 +43,7 @@ from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
 
 # from .ser2net import Ser2NetServer
 from .systems import SYSTEM_CLASSES, System, SystemBase
+from .ramses_ii import Ramses2Protocol, Ramses2Transport
 from .version import __version__  # noqa
 
 # TODO: duplicated in schema.py
@@ -221,10 +222,14 @@ class Gateway:
         await asyncio.gather(*tasks, return_exceptions=True)  # raises CancelledError
 
     async def start(self) -> None:
-        def create_gateway_interface(serial_port, callback) -> Tuple[Any, Any]:
-            ser = serial_for_url(serial_port, **SERIAL_CONFIG)
+        def create_pkt_interface(interface, callback) -> Tuple[Any, Any]:
             protocol = GatewayProtocol(self, callback)
-            transport = SerialTransport(self._loop, protocol, ser)
+            transport = SerialTransport(self._loop, protocol, interface)
+            return (transport, protocol)
+
+        def create_msg_interface(interface, callback) -> Tuple[Any, Any]:
+            protocol = Ramses2Protocol(self, callback)
+            transport = Ramses2Transport(self._loop, protocol, interface)
             return (transport, protocol)
 
         async def file_reader(fp, callback):
@@ -252,11 +257,11 @@ class Gateway:
         if self.serial_port:  # source of packets is a serial port
             self._tasks = spawn_scripts(self)  # first, queue any discovery scripts
 
-            _, self._protocol = create_gateway_interface(
-                self.serial_port, self._process_packet
-            )
-            writer = asyncio.create_task(port_writer(self._protocol))
+            ser = serial_for_url(self.serial_port, **SERIAL_CONFIG)
+            _, self._protocol = create_pkt_interface(ser, self._process_msg)
+            #  self._protoco2 = create_msg_interface(self._protocol, self._process_msg)
 
+            writer = asyncio.create_task(port_writer(self._protocol))
             self._tasks.append(writer)
             await writer
 
@@ -272,7 +277,7 @@ class Gateway:
 
         await self.shutdown("start()")  # await asyncio.gather(*self._tasks)
 
-    def _process_packet(self, pkt: Packet) -> None:
+    def _process_msg(self, pkt: Packet) -> None:
         """Decode the packet and its payload."""
 
         def proc_callback(msg: Message) -> None:
