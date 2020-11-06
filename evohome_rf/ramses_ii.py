@@ -19,7 +19,7 @@ READER = "reader"
 WRITER = "writer"
 
 _LOGGER = logging.getLogger(__name__)
-if True or __dev_mode__:
+if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
@@ -40,7 +40,7 @@ class Ramses2Transport(asyncio.Transport):
     transport.
     """
 
-    def __init__(self, loop, protocol, gateway_instance, extra=None):
+    def __init__(self, loop, protocol, extra=None):
         _LOGGER.debug("RamsesTransport.__init__()")
 
         self._loop = loop  # not used
@@ -48,41 +48,65 @@ class Ramses2Transport(asyncio.Transport):
         self._protocols = []
         self.set_protocol(protocol)
 
-        self._gateway = gateway_instance  # the HGI80 interface (is a protocol)
+        self._dispatcher = None  # the HGI80 interface (is a protocol)
 
         self._extra = {} if extra is None else extra
-        if not self._extra.get(WRITER):
-            self._extra[WRITER] = asyncio.create_task(self._pkt_dispatcher())
 
         self._is_closing = None
         self._que = PriorityQueue()  # maxsize=MAX_SIZE)
 
-    async def _pkt_dispatcher(self):
-        while True:
-            try:
-                cmd = self._que.get_nowait()
-
-            except Empty:
-                if not self._is_closing:
+    def _set_dispatcher(self, dispatcher):
+        async def pkt_dispatcher():
+            while True:
+                if self._que.empty():
                     await asyncio.sleep(0.05)
                     continue
 
-            except AttributeError:  # when self._que == None, from abort()
-                break
+                try:
+                    cmd = self._que.get(False)
+                except Empty:
+                    continue
+                except AttributeError:  # when self._que == None, from abort()
+                    break
 
-            else:
-                if self._gateway:
+                if self._dispatcher:
                     _LOGGER.debug("RamsesTransport._pkt_writer(): send_data(cmd)")
-                    await self._gateway.send_data(cmd)
+                    await self._dispatcher.send_data(cmd)
+
                 self._que.task_done()
 
-        _LOGGER.debug("RamsesTransport._pkt_writer(): connection_lost(None)")
-        [p.connection_lost(None) for p in self._protocols]
+            _LOGGER.debug("RamsesTransport._pkt_writer(): connection_lost(None)")
+            [p.connection_lost(None) for p in self._protocols]
 
-    async def _pkt_receiver(self, pkt):
+        async def pkt_dispatcher_new():
+            while True:
+                try:
+                    cmd = self._que.get_nowait()
+
+                except Empty:
+                    if not self._is_closing:
+                        await asyncio.sleep(0.05)
+                        continue
+
+                except AttributeError:  # when self._que == None, from abort()
+                    break
+
+                else:
+                    if self._dispatcher:
+                        _LOGGER.debug("RamsesTransport._pkt_writer(): send_data(cmd)")
+                        await self._dispatcher.send_data(cmd)
+                    self._que.task_done()
+
+            _LOGGER.debug("RamsesTransport._pkt_writer(): connection_lost(None)")
+            [p.connection_lost(None) for p in self._protocols]
+
+        self._dispatcher = dispatcher
+        # self._extra[WRITER] = asyncio.create_task(pkt_dispatcher())
+
+    def _pkt_receiver(self, pkt):
         _LOGGER.debug("RamsesTransport._pkt_reader(): data_received(None)")
-        msg = pkt
 
+        msg = pkt  # TODO: a lot more to add in future
         [p.data_received(msg) for p in self._protocols]
 
     def close(self):
@@ -203,6 +227,9 @@ class Ramses2Transport(asyncio.Transport):
         if self._is_closing:
             raise RuntimeError("transport is closing or has closed")
 
+        if not self._dispatcher:
+            raise RuntimeError("transport has no dispatcher")
+
         self._que.put_nowait(cmd)
 
     def writelines(self, list_of_cmds):
@@ -309,26 +336,22 @@ class Ramses2Protocol(asyncio.Protocol):
         self._pause_writing = False
 
 
-def create_ramses_interface(gwy, serial_port, msg_handler) -> Tuple:
+def create_ramses_stack(gwy, serial_port, msg_handler) -> Tuple:
+    """Utility function to provides a transport to an internal protocol."""
     # The architecture is: msg -> pkt -> ser
+
+    msg_protocol = Ramses2Protocol(msg_handler, gwy)  # used for gwy._msg_callbacks
+    msg_transport = Ramses2Transport(gwy._loop, msg_protocol)
+
+    pkt_handler = msg_transport._pkt_receiver
     ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
 
-    # msg_transport._reader
-
-    # create_pkt_interface
-    pkt_protocol = GatewayProtocol(msg_handler, gwy)  # used for gwy._qos_callbacks
+    pkt_protocol = GatewayProtocol(pkt_handler, gwy)  # used for gwy._qos_callbacks
     pkt_transport = SerialTransport(gwy._loop, pkt_protocol, ser_instance)
 
-    # create_msg_interface
-    msg_protocol = Ramses2Protocol(msg_handler, gwy)  # used for gwy._msg_callbacks
-    msg_transport = Ramses2Transport(gwy._loop, msg_protocol, pkt_protocol)
+    msg_transport._set_dispatcher(msg_protocol.send_data)
 
-    # msg_protocol2 = Ramses2Protocol(msg_handler, gwy)  # used for gwy._msg_callbacks
-    # msg_transport.add_protocol(msg_protocol)
+    # msg_protocol2 = Ramses2Protocol(pkt_handler2, gwy)  # used for gwy._msg_callbacks
+    # msg_transport.add_protocol(gwy._loop, msg_protocol2)
 
-    return (
-        msg_protocol,
-        msg_transport,
-        pkt_protocol,
-        pkt_transport,
-    )
+    return (msg_protocol, msg_transport, pkt_protocol, pkt_transport)

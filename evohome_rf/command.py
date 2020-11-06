@@ -205,7 +205,7 @@ class FaultLog:  # 0418
         def send_cmd(payload) -> None:
             qos = {
                 "priority": Priority.LOW,
-                "retries": 3,
+                "retries": 2,
                 "timeout": timedelta(seconds=1.0),
             }
             callback = {

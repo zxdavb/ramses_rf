@@ -34,7 +34,7 @@ from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
 
 # from .ser2net import Ser2NetServer
 from .systems import SYSTEM_CLASSES, System, SystemBase
-from .ramses_ii import create_ramses_interface
+from .ramses_ii import create_ramses_stack
 from .version import __version__  # noqa
 
 # TODO: duplicated in schema.py
@@ -243,7 +243,7 @@ class Gateway:
                 self._msg_transport,
                 self._pkt_protocol,
                 self._pkt_transport,
-            ) = create_ramses_interface(self, self.serial_port, self._process_msg)
+            ) = create_ramses_stack(self, self.serial_port, self._process_msg)
 
             writer = asyncio.create_task(port_writer(self._pkt_protocol))
             self._tasks.append(writer)
@@ -415,3 +415,11 @@ class Gateway:
         }
 
         return result
+
+    # def create_ramses_client(self, protocol_factory, msg_handler):
+    #     """Utility function to provide a transport to a client protocol."""
+
+    #     msg_protocol = protocol_factory(msg_handler)
+    #     self.msg_transport._set_dispatcher(msg_protocol.send_data)
+
+    #     return msg_protocol
