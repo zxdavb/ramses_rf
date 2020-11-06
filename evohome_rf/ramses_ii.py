@@ -6,7 +6,7 @@
 import asyncio
 import logging
 from queue import PriorityQueue, Empty
-from typing import Any, Optional, Tuple
+from typing import Optional, Tuple  # Any
 
 from serial import serial_for_url  # SerialException,
 from serial_asyncio import SerialTransport
@@ -22,7 +22,7 @@ if True or __dev_mode__:
 
 
 class Ramses2Transport(asyncio.Protocol):
-    def __init__(self, loop, protocol, gateway, extra=None):
+    def __init__(self, gwy, protocol, gateway, extra=None):
         _LOGGER.debug("RamsesTransport.__init__()")
 
         self._extra = {} if extra is None else extra
@@ -192,7 +192,7 @@ class Ramses2Transport(asyncio.Protocol):
 
 
 class Ramses2Protocol(asyncio.Protocol):
-    def __init__(self, callback) -> None:
+    def __init__(self, gwy, callback) -> None:
         _LOGGER.debug("RamsesProtocol.__init__()")
 
         self._transport = None
@@ -241,14 +241,17 @@ class Ramses2Protocol(asyncio.Protocol):
         self._pause_writing = False
 
 
-def create_ramses_interface(self, serial_port, callback) -> Tuple[Any, Any]:
-    def create_gateway_interface(self, serial_port, callback) -> Tuple[Any, Any]:
-        ser = serial_for_url(serial_port, **SERIAL_CONFIG)
-        protocol = GatewayProtocol(self, callback)
-        transport = SerialTransport(self._loop, protocol, ser)
-        return (transport, protocol)
+def create_ramses_interface(gwy, serial_port, msg_handler) -> Tuple:
+    # The architecture is: msg -> pkt -> ser
 
-    ser = serial_for_url(serial_port, **SERIAL_CONFIG)
-    protocol = GatewayProtocol(self, callback)
-    transport = SerialTransport(self._loop, protocol, ser)
-    return (transport, protocol)
+    ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
+
+    # create_pkt_interface(ser_instance, callback) -> Tuple[Any, Any]:
+    pkt_protocol = GatewayProtocol(gwy, msg_handler)  # used for gwy._callbacks
+    pkt_transport = SerialTransport(gwy._loop, pkt_protocol, ser_instance)
+
+    # create_msg_interface(ser_instance, callback) -> Tuple[Any, Any]:
+    msg_protocol = Ramses2Protocol(gwy, msg_handler)
+    msg_transport = Ramses2Transport(gwy, pkt_protocol, None)
+
+    return (pkt_transport, pkt_protocol, msg_transport, msg_protocol)
