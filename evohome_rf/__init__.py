@@ -66,7 +66,7 @@ class Gateway:
         self._setup_event_handlers()
 
         self.serial_port = serial_port
-        self._protocol = None
+        self._pkt_protocol = None
 
         self.config = CONFIG_SCHEMA(config)
 
@@ -238,11 +238,14 @@ class Gateway:
         if self.serial_port:  # source of packets is a serial port
             self._tasks = spawn_scripts(self)  # first, queue any discovery scripts
 
-            _, self._protocol, _, _ = create_ramses_interface(
-                self, self.serial_port, self._process_msg
-            )
+            (
+                self._msg_protocol,
+                self._msg_transport,
+                self._pkt_protocol,
+                self._pkt_transport,
+            ) = create_ramses_interface(self, self.serial_port, self._process_msg)
 
-            writer = asyncio.create_task(port_writer(self._protocol))
+            writer = asyncio.create_task(port_writer(self._pkt_protocol))
             self._tasks.append(writer)
             await writer
 

@@ -326,4 +326,9 @@ def create_ramses_interface(gwy, serial_port, msg_handler) -> Tuple:
     # msg_protocol2 = Ramses2Protocol(msg_handler, gwy)  # used for gwy._msg_callbacks
     # msg_transport.add_protocol(msg_protocol)
 
-    return (pkt_transport, pkt_protocol, msg_transport, msg_transport)
+    return (
+        msg_protocol,
+        msg_transport,
+        pkt_protocol,
+        pkt_transport,
+    )
