@@ -245,10 +245,12 @@ async def file_pkts(fp):
 
 
 class GatewayProtocol(asyncio.Protocol):
-    def __init__(self, gwy, pkt_handler) -> None:
+    """Interface for a packet protocol."""
+
+    def __init__(self, pkt_handler, gwy) -> None:
         # _LOGGER.debug("GatewayProtocol.__init__()")
 
-        self._gwy = gwy
+        self._gwy = gwy  # self._gwy._callbacks
         self._callback = pkt_handler
 
         self._transport = None

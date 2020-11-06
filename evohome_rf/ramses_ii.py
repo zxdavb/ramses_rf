@@ -6,7 +6,7 @@
 import asyncio
 import logging
 from queue import PriorityQueue, Empty
-from typing import Optional, Tuple  # Any
+from typing import List, Optional, Tuple  # Any
 
 from serial import serial_for_url  # SerialException,
 from serial_asyncio import SerialTransport
@@ -14,53 +14,76 @@ from serial_asyncio import SerialTransport
 from .const import __dev_mode__
 from .packet import GatewayProtocol, SERIAL_CONFIG  # Packet,
 
-MAX_SIZE = 200
+MAX_BUFFER_SIZE = 200
+READER = "reader"
+WRITER = "writer"
 
 _LOGGER = logging.getLogger(__name__)
 if True or __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-class Ramses2Transport(asyncio.Protocol):
-    def __init__(self, gwy, protocol, gateway, extra=None):
+class Ramses2Transport(asyncio.Transport):
+    """Interface for a message transport.
+
+    There may be several implementations, but typically, the user does not implement
+    new transports; rather, the platform provides some useful transports that are
+    implemented using the platform's best practices.
+
+    The user never instantiates a transport directly; they call a utility function,
+    passing it a protocol factory and other information necessary to create the
+    transport and protocol.  (E.g. EventLoop.create_connection() or
+    EventLoop.create_server().)
+
+    The utility function will asynchronously create a transport and a protocol and
+    hook them up by calling the protocol's connection_made() method, passing it the
+    transport.
+    """
+
+    def __init__(self, loop, protocol, gateway_instance, extra=None):
         _LOGGER.debug("RamsesTransport.__init__()")
 
+        self._loop = loop  # not used
+
+        self._protocols = []
+        self.set_protocol(protocol)
+
+        self._gateway = gateway_instance  # the HGI80 interface (is a protocol)
+
         self._extra = {} if extra is None else extra
+        if not self._extra.get(WRITER):
+            self._extra[WRITER] = asyncio.create_task(self._pkt_dispatcher())
 
         self._is_closing = None
-        self._protocol = protocol
-        self._gateway = gateway  # the gateway interface (a protocol)
-
         self._que = PriorityQueue()  # maxsize=MAX_SIZE)
-        self._extra["writer"] = asyncio.create_task(self._port_writer())
 
-    async def _port_writer(self):
+    async def _pkt_dispatcher(self):
         while True:
-            if self._que.empty():
-                await asyncio.sleep(0.05)
-                continue
-
             try:
-                cmd = self._que.get(False)
+                cmd = self._que.get_nowait()
+
             except Empty:
-                continue
+                if not self._is_closing:
+                    await asyncio.sleep(0.05)
+                    continue
 
-            if self._gwy_protocol:  # or not self.config["disable_sending"]
-                await self._gateway.send_data(cmd)
+            except AttributeError:  # when self._que == None, from abort()
+                break
 
-            self._que.task_done()
+            else:
+                if self._gateway:
+                    _LOGGER.debug("RamsesTransport._pkt_writer(): send_data(cmd)")
+                    await self._gateway.send_data(cmd)
+                self._que.task_done()
 
-    def get_extra_info(self, name, default=None):
-        """Get optional transport information."""
-        _LOGGER.debug("RamsesTransport.get_extra_info()")
+        _LOGGER.debug("RamsesTransport._pkt_writer(): connection_lost(None)")
+        [p.connection_lost(None) for p in self._protocols]
 
-        return self._extra.get(name, default)
+    async def _pkt_receiver(self, pkt):
+        _LOGGER.debug("RamsesTransport._pkt_reader(): data_received(None)")
+        msg = pkt
 
-    def is_closing(self) -> Optional[bool]:
-        """Return True if the transport is closing or closed."""
-        _LOGGER.debug("RamsesTransport.is_closing()")
-
-        return self._is_closing
+        [p.data_received(msg) for p in self._protocols]
 
     def close(self):
         """Close the transport.
@@ -72,22 +95,52 @@ class Ramses2Transport(asyncio.Protocol):
         _LOGGER.debug("RamsesTransport.close()")
 
         self._is_closing = True
-        self._extra["writer"].cancel()
-        # self._extra["writer"] = None
+
+    def abort(self):
+        """Close the transport immediately.
+
+        Buffered data will be lost. No more data will be received. The protocol's
+        connection_lost() method will (eventually) be called with None as its argument.
+        """
+        _LOGGER.debug("RamsesTransport.abort(): clearing buffered data")
+
+        self._is_closing = True
+        self._que = None
+
+    def is_closing(self) -> Optional[bool]:
+        """Return True if the transport is closing or closed."""
+        _LOGGER.debug("RamsesTransport.is_closing()")
+
+        return self._is_closing
+
+    def get_extra_info(self, name, default=None):
+        """Get optional transport information."""
+        _LOGGER.debug("RamsesTransport.get_extra_info()")
+
+        return self._extra.get(name, default)
 
     def set_protocol(self, protocol):
-        """Set a new protocol."""
+        """Set a new protocol.
+
+        Allow multiple protocols per transport.
+        """
         _LOGGER.debug("RamsesTransport.set_protocol(%s)", protocol)
 
-        # self._protocol = protocol
-        raise NotImplementedError
+        if protocol not in self._protocols:
+            if len(self._protocols) > 1:
+                raise ValueError("Exceeded maximum number of subscribing protocols")
 
-    def get_protocol(self):
-        """Return the current protocol."""
+            self._protocols.append(protocol)
+            protocol.connection_made(self)
+
+    def get_protocol(self) -> Optional[List]:
+        """Return the current protocol.
+
+        There can be multiple protocols per transport.
+        """
         _LOGGER.debug("RamsesTransport.get_protocol()")
 
-        # return self._protocol
-        raise NotImplementedError
+        return self._protocols
 
     def is_reading(self) -> Optional[bool]:
         """Return True if the transport is receiving."""
@@ -139,7 +192,7 @@ class Ramses2Transport(asyncio.Protocol):
 
         raise NotImplementedError
 
-    async def write(self, cmd):
+    def write(self, cmd):
         """Write some data bytes to the transport.
 
         This does not block; it buffers the data and arranges for it to be sent out
@@ -147,8 +200,10 @@ class Ramses2Transport(asyncio.Protocol):
         """
         _LOGGER.debug("RamsesTransport.write(%s)", cmd)
 
-        if not self._is_closing:
-            self._que.put_nowait(cmd)
+        if self._is_closing:
+            raise RuntimeError("transport is closing or has closed")
+
+        self._que.put_nowait(cmd)
 
     def writelines(self, list_of_cmds):
         """Write a list (or any iterable) of data bytes to the transport.
@@ -171,33 +226,46 @@ class Ramses2Transport(asyncio.Protocol):
 
         raise NotImplementedError
 
-    def can_write_eof(self):
+    def can_write_eof(self) -> bool:
         """Return True if this transport supports write_eof(), False if not."""
         _LOGGER.debug("RamsesTransport.can_write_eof()")
 
-        raise NotImplementedError
-
-    def abort(self):
-        """Close the transport immediately.
-
-        Buffered data will be lost. No more data will be received. The protocol's
-        connection_lost() method will (eventually) be called with None as its argument.
-        """
-        _LOGGER.debug("RamsesTransport.abort()")
-
-        self._que = PriorityQueue()
-        self.close()
-
-        self._protocol.connection_lost(None)
+        return False
 
 
 class Ramses2Protocol(asyncio.Protocol):
-    def __init__(self, gwy, callback) -> None:
+    """Interface for a message protocol.
+
+    The user should implement this interface.  They can inherit from this class but
+    don't need to.  The implementations here do nothing (they don't raise
+    exceptions).
+
+    When the user wants to requests a transport, they pass a protocol factory to a
+    utility function (e.g., EventLoop.create_connection()).
+
+    When the connection is made successfully, connection_made() is called with a
+    suitable transport object.  Then data_received() will be called 0 or more times
+    with data (bytes) received from the transport; finally, connection_lost() will
+    be called exactly once with either an exception object or None as an argument.
+
+    State machine of calls:
+
+    start -> CM [-> DR*] [-> ER?] -> CL -> end
+
+    * CM: connection_made()
+    * DR: data_received()
+    * ER: eof_received()
+    * CL: connection_lost()
+    """
+
+    def __init__(self, msg_handler, gwy) -> None:
         _LOGGER.debug("RamsesProtocol.__init__()")
+
+        self._callback = msg_handler
+        self._gwy = gwy
 
         self._transport = None
         self._pause_writing = None
-        self._callback = callback
 
     def connection_made(self, transport: Ramses2Transport) -> None:
         """Called when a connection is made."""
@@ -211,14 +279,14 @@ class Ramses2Protocol(asyncio.Protocol):
 
         self._callback(msg)
 
-    async def send_data(self, command) -> None:
+    async def send_data(self, cmd) -> None:
         """Called when some data is to be sent (not a callaback)."""
         _LOGGER.debug("RamsesProtocol.send_data()")
 
         while self._pause_writing:
-            asyncio.sleep(0.1)
+            asyncio.sleep(0.05)
 
-        await self._transport.write(command)
+        await self._transport.write(cmd)
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
@@ -243,15 +311,19 @@ class Ramses2Protocol(asyncio.Protocol):
 
 def create_ramses_interface(gwy, serial_port, msg_handler) -> Tuple:
     # The architecture is: msg -> pkt -> ser
-
     ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
 
-    # create_pkt_interface(ser_instance, callback) -> Tuple[Any, Any]:
-    pkt_protocol = GatewayProtocol(gwy, msg_handler)  # used for gwy._callbacks
+    # msg_transport._reader
+
+    # create_pkt_interface
+    pkt_protocol = GatewayProtocol(msg_handler, gwy)  # used for gwy._qos_callbacks
     pkt_transport = SerialTransport(gwy._loop, pkt_protocol, ser_instance)
 
-    # create_msg_interface(ser_instance, callback) -> Tuple[Any, Any]:
-    msg_protocol = Ramses2Protocol(gwy, msg_handler)
-    msg_transport = Ramses2Transport(gwy, pkt_protocol, None)
+    # create_msg_interface
+    msg_protocol = Ramses2Protocol(msg_handler, gwy)  # used for gwy._msg_callbacks
+    msg_transport = Ramses2Transport(gwy._loop, msg_protocol, pkt_protocol)
 
-    return (pkt_transport, pkt_protocol, msg_transport, msg_protocol)
+    # msg_protocol2 = Ramses2Protocol(msg_handler, gwy)  # used for gwy._msg_callbacks
+    # msg_transport.add_protocol(msg_protocol)
+
+    return (pkt_transport, pkt_protocol, msg_transport, msg_transport)
