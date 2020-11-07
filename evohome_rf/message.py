@@ -29,6 +29,11 @@ from .const import (
 from .devices import Device
 from .exceptions import CorruptPayloadError
 
+# TODO: duplicated in schema.py
+DONT_CREATE_MESSAGES = 3
+DONT_CREATE_ENTITIES = 2
+DONT_UPDATE_ENTITIES = 1
+
 _LOGGER = logging.getLogger(__name__)
 if __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
@@ -335,7 +340,7 @@ class Message:
         return self._is_valid
 
     @exception_handler
-    def create_devices(self) -> None:
+    def _create_devices(self) -> None:
         """Discover and create any new devices.
 
         Requires a valid packet; only 000C requires a valid message.
@@ -398,7 +403,7 @@ class Message:
         self.dst = self._gwy.device_by_id.get(self.dst.id, self.dst)
 
     @exception_handler
-    def create_zones(self) -> None:
+    def _create_zones(self) -> None:
         """Discover and create any new zones (except HW)."""
 
         if not self.is_valid:  # requires self.payload
@@ -483,7 +488,7 @@ class Message:
         #     raise TypeError
 
     @exception_handler
-    def update_entities(self, prev) -> None:  # TODO: needs work
+    def _update_entities(self, prev) -> None:  # TODO: needs work
         """Update the state of entities (devices, zones, ufh_zones)."""
 
         if not self.is_valid:  # requires self.payload
@@ -528,3 +533,38 @@ class Message:
 
             # elif self.payload.get("ufh_idx") in ...:  # TODO: is this needed?
             #     pass
+
+
+def process_msg(msg: Message) -> None:
+    """Decode the packet and its payload."""
+
+    self = msg._gwy  # HACK: was moved from __init__.py
+
+    if not msg._pkt.is_wanted(  # Move this to transport?
+        include=self._include_list, exclude=self._exclude_list
+    ):
+        return
+
+    try:
+        if self.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
+            return
+
+        # 18:/RQs are unreliable, although any corresponding RPs are required
+        if msg.src.type == "18":
+            return
+
+        if self.config["reduce_processing"] >= DONT_CREATE_ENTITIES:
+            return
+
+        msg._create_devices()  # from pkt header & from msg payload (e.g. 000C)
+        msg._create_zones()  # create zones & ufh_zones (TBD)
+
+        if self.config["reduce_processing"] >= DONT_UPDATE_ENTITIES:
+            return
+
+        msg._update_entities(self._prev_msg)  # update the state database
+
+    except (AssertionError, NotImplementedError):
+        return
+
+    self._prev_msg = msg if msg.is_valid else None

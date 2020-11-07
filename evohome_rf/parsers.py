@@ -1481,7 +1481,7 @@ def parser_3ef0(payload, msg) -> dict:
 
 @parser_decorator  # actuator_cycle
 def parser_3ef1(payload, msg) -> dict:
-    #  RP --- 10:067219 18:200202 --:------ 3EF1 007 00-7FFF-003C-0010
+    # RP --- 10:067219 18:200202 --:------ 3EF1 007 00-7FFF-003C-0010
 
     assert msg.verb == "RP"
     assert msg.len == 7
@@ -1497,7 +1497,7 @@ def parser_3ef1(payload, msg) -> dict:
         "modulation_level": _percent(payload[10:12]),
         "actuator_countdown": int(payload[6:10], 16),
         "cycle_countdown": cycle_countdown,  # not for OTB, == "7FFF"
-        "_unknown_0": int(payload[12:14], 16),  # for OTB != "FF"
+        "_unknown_0": payload[12:],  # for OTB != "FF"
     }
 
 

@@ -27,7 +27,7 @@ from .devices import DEVICE_CLASSES, Device
 from .discovery import probe_device, poll_device, spawn_scripts
 from .exceptions import GracefulExit
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
-from .message import _LOGGER as msg_logger, Message
+from .message import DONT_CREATE_MESSAGES, _LOGGER as msg_logger, process_msg
 from .packet import _LOGGER as pkt_logger, file_pkts
 from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
 
@@ -35,11 +35,6 @@ from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
 from .systems import SYSTEM_CLASSES, System, SystemBase
 from .ramses_ii import create_ramses_stack
 from .version import __version__  # noqa
-
-# TODO: duplicated in schema.py
-DONT_CREATE_MESSAGES = 3
-DONT_CREATE_ENTITIES = 2
-DONT_UPDATE_ENTITIES = 1
 
 _LOGGER = logging.getLogger(__name__)
 if False and __dev_mode__:
@@ -218,7 +213,7 @@ class Gateway:
                 callback(raw_pkt)
                 await asyncio.sleep(0)  # needed for Ctrl_C to work?
 
-        async def port_writer(protocol):
+        async def port_writer(protocol):  # this needs to be moved into msg transport
             while True:
                 if self._que.empty():
                     await asyncio.sleep(0.05)
@@ -236,13 +231,12 @@ class Gateway:
 
         if self.serial_port:  # source of packets is a serial port
             self._tasks = spawn_scripts(self)  # first, queue any discovery scripts
-
             (
                 self._msg_protocol,
                 self._msg_transport,
                 self._pkt_protocol,
                 self._pkt_transport,
-            ) = create_ramses_stack(self, self.serial_port, self._process_msg)
+            ) = create_ramses_stack(self, self.serial_port, process_msg)
 
             writer = asyncio.create_task(port_writer(self._pkt_protocol))
             self._tasks.append(writer)
@@ -259,38 +253,6 @@ class Gateway:
             writer.cancel()
 
         await self.shutdown("start()")  # await asyncio.gather(*self._tasks)
-
-    def _process_msg(self, msg: Message) -> None:
-        """Decode the packet and its payload."""
-
-        if not msg._pkt.is_wanted(  # Move this to transport?
-            include=self._include_list, exclude=self._exclude_list
-        ):
-            return
-
-        try:
-            if self.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
-                return
-
-            # 18:/RQs are unreliable, although any corresponding RPs are required
-            if msg.src.type == "18":
-                return
-
-            if self.config["reduce_processing"] >= DONT_CREATE_ENTITIES:
-                return
-
-            msg.create_devices()  # from pkt header & from msg payload (e.g. 000C)
-            msg.create_zones()  # create zones & ufh_zones (TBD)
-
-            if self.config["reduce_processing"] >= DONT_UPDATE_ENTITIES:
-                return
-
-            msg.update_entities(self._prev_msg)  # update the state database
-
-        except (AssertionError, NotImplementedError):
-            return
-
-        self._prev_msg = msg if msg.is_valid else None
 
     def _get_device(self, dev_addr, ctl_addr=None, domain_id=None) -> Device:
         """Return a device (will create it if required).
