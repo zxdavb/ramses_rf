@@ -175,7 +175,11 @@ async def main(serial_port, loop=None, **config):
                 print(k, v)
 
         elif config.get("get_schedule") is not None:
-            print(gwy.evo.zone_by_idx[config["get_schedule"]].schedule())
+            print(
+                json.dumps(
+                    gwy.evo.zone_by_idx[config["get_schedule"]].schedule(), indent=4
+                )
+            )
 
         else:
             print(gwy.device_by_id[config["device_id"]])

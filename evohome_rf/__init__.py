@@ -12,7 +12,6 @@ Works with (amongst others):
 
 import asyncio
 from collections import deque
-from datetime import datetime as dt
 import json
 import logging
 import os
@@ -29,7 +28,7 @@ from .discovery import probe_device, poll_device, spawn_scripts
 from .exceptions import GracefulExit
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import _LOGGER as msg_logger, Message
-from .packet import _LOGGER as pkt_logger, Packet, file_pkts
+from .packet import _LOGGER as pkt_logger, file_pkts
 from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
 
 # from .ser2net import Ser2NetServer
@@ -261,40 +260,17 @@ class Gateway:
 
         await self.shutdown("start()")  # await asyncio.gather(*self._tasks)
 
-    def _process_msg(self, pkt: Packet) -> None:
+    def _process_msg(self, msg: Message) -> None:
         """Decode the packet and its payload."""
 
-        def proc_msg_callback(msg: Message) -> None:
-            # TODO: this needs to be a queue
-            dtm = dt.now()
-            [
-                v["func"](False, *v["args"], **v["kwargs"])
-                for v in self._callbacks.values()
-                if not v.get("daemon") and v.get("timeout", dt.max) <= dtm
-            ]  # first, alert expired callbacks
-
-            self._callbacks = {
-                k: v
-                for k, v in self._callbacks.items()
-                if v.get("daemon") or v.get("timeout", dt.max) > dtm
-            }  # then, discard expired callbacks
-
-            if msg._pkt._header in self._callbacks:
-                callback = self._callbacks[msg._pkt._header]
-                callback["func"](msg, *callback["args"], **callback["kwargs"])
-                if not callback.get("daemon"):
-                    del self._callbacks[msg._pkt._header]
-
-        if not pkt.is_wanted(include=self._include_list, exclude=self._exclude_list):
+        if not msg._pkt.is_wanted(  # Move this to transport?
+            include=self._include_list, exclude=self._exclude_list
+        ):
             return
 
         try:
             if self.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
                 return
-
-            msg = Message(self, pkt)  # trap/logs all invalids msgs appropriately
-            if msg._pkt._header in self._callbacks:
-                proc_msg_callback(msg)
 
             # 18:/RQs are unreliable, although any corresponding RPs are required
             if msg.src.type == "18":
@@ -415,11 +391,3 @@ class Gateway:
         }
 
         return result
-
-    # def create_ramses_client(self, protocol_factory, msg_handler):
-    #     """Utility function to provide a transport to a client protocol."""
-
-    #     msg_protocol = protocol_factory(msg_handler)
-    #     self.msg_transport._set_dispatcher(msg_protocol.send_data)
-
-    #     return msg_protocol

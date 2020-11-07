@@ -4,6 +4,7 @@
 """RAMSES-II compatble Transport/Protocol processor."""
 
 import asyncio
+from datetime import datetime as dt
 import logging
 from queue import PriorityQueue, Empty
 from typing import List, Optional, Tuple  # Any
@@ -12,6 +13,7 @@ from serial import serial_for_url  # SerialException,
 from serial_asyncio import SerialTransport
 
 from .const import __dev_mode__
+from .message import Message
 from .packet import GatewayProtocol, SERIAL_CONFIG  # Packet,
 
 MAX_BUFFER_SIZE = 200
@@ -40,10 +42,10 @@ class Ramses2Transport(asyncio.Transport):
     transport.
     """
 
-    def __init__(self, loop, protocol, extra=None):
+    def __init__(self, gwy, protocol, extra=None):
         _LOGGER.debug("RamsesTransport.__init__()")
 
-        self._loop = loop  # not used
+        self._gwy = gwy
 
         self._protocols = []
         self.set_protocol(protocol)
@@ -106,7 +108,31 @@ class Ramses2Transport(asyncio.Transport):
     def _pkt_receiver(self, pkt):
         _LOGGER.debug("RamsesTransport._pkt_reader(): data_received(None)")
 
-        msg = pkt  # TODO: a lot more to add in future
+        def proc_msg_callback(msg: Message) -> None:
+            # TODO: this needs to be a queue
+            dtm = dt.now()
+            [
+                v["func"](False, *v["args"], **v["kwargs"])
+                for v in self._gwy._callbacks.values()
+                if not v.get("daemon") and v.get("timeout", dt.max) <= dtm
+            ]  # first, alert expired callbacks
+
+            self._gwy._callbacks = {
+                k: v
+                for k, v in self._gwy._callbacks.items()
+                if v.get("daemon") or v.get("timeout", dt.max) > dtm
+            }  # then, discard expired callbacks
+
+            if msg._pkt._header in self._gwy._callbacks:
+                callback = self._gwy._callbacks[msg._pkt._header]
+                callback["func"](msg, *callback["args"], **callback["kwargs"])
+                if not callback.get("daemon"):
+                    del self._gwy._callbacks[msg._pkt._header]
+
+        msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
+        if msg._pkt._header in self._gwy._callbacks:
+            proc_msg_callback(msg)
+
         [p.data_received(msg) for p in self._protocols]
 
     def close(self):
@@ -341,7 +367,7 @@ def create_ramses_stack(gwy, serial_port, msg_handler) -> Tuple:
     # The architecture is: msg -> pkt -> ser
 
     msg_protocol = Ramses2Protocol(msg_handler, gwy)  # used for gwy._msg_callbacks
-    msg_transport = Ramses2Transport(gwy._loop, msg_protocol)
+    msg_transport = Ramses2Transport(gwy, msg_protocol)
 
     pkt_handler = msg_transport._pkt_receiver
     ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
@@ -355,3 +381,12 @@ def create_ramses_stack(gwy, serial_port, msg_handler) -> Tuple:
     # msg_transport.add_protocol(gwy._loop, msg_protocol2)
 
     return (msg_protocol, msg_transport, pkt_protocol, pkt_transport)
+
+    #
+    # def create_ramses_client(self, protocol_factory, msg_handler):
+    #     """Utility function to provide a transport to a client protocol."""
+
+    #     msg_protocol = protocol_factory(msg_handler)
+    #     self.msg_transport._set_dispatcher(msg_protocol.send_data)
+
+    #     return msg_protocol
