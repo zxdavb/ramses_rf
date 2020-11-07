@@ -4,10 +4,6 @@
 """Evohome serial."""
 
 
-class GracefulExit(SystemExit):
-    code = 1
-
-
 class Error(Exception):
     """Base class for exceptions in this module."""
 

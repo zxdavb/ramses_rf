@@ -25,9 +25,8 @@ from .command import Command
 from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
 from .discovery import probe_device, poll_device, spawn_scripts
-from .exceptions import GracefulExit
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
-from .message import DONT_CREATE_MESSAGES, _LOGGER as msg_logger, process_msg
+from .message import DONT_CREATE_MESSAGES, _LOGGER as msg_logger, Message, process_msg
 from .packet import _LOGGER as pkt_logger, file_pkts
 from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
 
@@ -41,6 +40,10 @@ if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
+
+
+class GracefulExit(SystemExit):
+    code = 1
 
 
 class Gateway:
@@ -146,17 +149,16 @@ class Gateway:
     def _setup_event_handlers(self):
         def handle_exception(loop, context):
             """Handle exceptions on any platform."""
-            # asyncio.create_task(self.shutdown())  # TODO: doesn't work
+            _LOGGER.error("handle_exception(): Caught: %s", context["message"])
 
             exc = context.get("exception")
             if exc:
                 raise exc
-
-            _LOGGER.error("Caught exception: %s", context["message"])
+            # asyncio.create_task(self.shutdown())  # TODO: doesn't work here?
 
         async def handle_sig_posix(sig):
             """Handle signals on posix platform."""
-            _LOGGER.info("Received a signal (%s), processing...", sig.name)
+            _LOGGER.debug("handle_sig_posix(): Received %s, processing...", sig.name)
 
             if sig in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
                 await self.shutdown("handle_sig_posix()")  # OK for after tasks.cancel
@@ -176,10 +178,10 @@ class Gateway:
 
                 raise GracefulExit()
 
-        _LOGGER.debug("Creating exception handler...")
+        _LOGGER.debug("_setup_event_handlers(): Creating exception handler...")
         self._loop.set_exception_handler(handle_exception)
 
-        _LOGGER.debug("Creating signal handlers...")
+        _LOGGER.debug("_setup_event_handlers(): Creating signal handlers...")
         signals = [signal.SIGINT, signal.SIGTERM]
 
         if os.name == "posix":  # full support
@@ -195,23 +197,23 @@ class Gateway:
             raise RuntimeError("Unsupported OS for this module: %s", os.name)
 
     async def shutdown(self, xxx=None) -> None:
-        """Perform the non-async portion of a graceful shutdown."""
+        """Perform a graceful shutdown."""
 
-        _LOGGER.debug("shutdown(): Invoked by: %s...", xxx)
-        _LOGGER.debug("shutdown(): Doing housekeeping...")
+        _LOGGER.debug("shutdown(): Invoked by: %s, doing housekeeping...", xxx)
+        # print(asyncio.current_task())
+        tasks = [t for t in self._tasks if t is not asyncio.current_task()]
 
-        tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-        [task.cancel() for task in tasks]
         logging.debug(f"shutdown(): Cancelling {len(tasks)} outstanding async tasks...")
+        # [print(t) for t in tasks]
+        [task.cancel() for task in tasks]
+        # await asyncio.gather(*tasks, return_exceptions=False)
 
-        await asyncio.gather(*tasks, return_exceptions=True)  # raises CancelledError
+        _LOGGER.debug("shutdown(): Complete.")
 
     async def start(self) -> None:
         async def file_reader(fp, callback):
-            async for raw_pkt in file_pkts(fp):
-                # include=self._include_list, exclude=self._exclude_list
-                callback(raw_pkt)
-                await asyncio.sleep(0)  # needed for Ctrl_C to work?
+            async for pkt in file_pkts(fp):
+                callback(Message(self, pkt))  # TODO: check include, exclude lists
 
         async def port_writer(protocol):  # this needs to be moved into msg transport
             while True:
@@ -244,7 +246,7 @@ class Gateway:
 
         else:  # if self.config["input_file"]:
             reader = asyncio.create_task(
-                file_reader(self.config["input_file"], self._process_packet)
+                file_reader(self.config["input_file"], process_msg)
             )
             writer = asyncio.create_task(port_writer(None))  # to consume cmds
 
@@ -252,7 +254,8 @@ class Gateway:
             await reader
             writer.cancel()
 
-        await self.shutdown("start()")  # await asyncio.gather(*self._tasks)
+        await asyncio.gather(*self._tasks)
+        await self.shutdown("start()")
 
     def _get_device(self, dev_addr, ctl_addr=None, domain_id=None) -> Device:
         """Return a device (will create it if required).

@@ -64,7 +64,10 @@ def exception_handler(func):
 
 
 class Message:
-    """The message class."""
+    """The message class.
+
+    Will trap/log all invalid msgs appropriately.
+    """
 
     def __init__(self, gateway, pkt) -> None:
         """Create a message, assumes a valid packet."""
@@ -539,6 +542,9 @@ def process_msg(msg: Message) -> None:
     """Decode the packet and its payload."""
 
     self = msg._gwy  # HACK: was moved from __init__.py
+
+    if not msg.is_valid:
+        return
 
     if not msg._pkt.is_wanted(  # Move this to transport?
         include=self._include_list, exclude=self._exclude_list

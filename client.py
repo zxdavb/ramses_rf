@@ -135,7 +135,7 @@ def debug_wrapper(config_file=None, **kwargs):
     # config["input_file"] = kwargs.pop("input_file", None)
     config = {**config_dict, **config, **kwargs}
 
-    print("config", config)
+    # print("client.py: config: ", config)
     serial_port = config.pop("serial_port", None)
 
     asyncio.run(main(serial_port, **config))
@@ -144,7 +144,7 @@ def debug_wrapper(config_file=None, **kwargs):
 async def main(serial_port, loop=None, **config):
 
     # loop=asyncio.get_event_loop() causes: 'NoneType' object has no attribute 'serial'
-    print("\r\nStarting evohome_rf...")
+    print("\r\nclient.py: Starting evohome_rf...")
 
     if sys.platform == "win32":  # is better than os.name
         # ERROR:asyncio:Cancelling an overlapped future failed
@@ -163,36 +163,33 @@ async def main(serial_port, loop=None, **config):
     except KeyboardInterrupt:
         print(" - exiting via: KeyboardInterrupt")
     else:  # if no Exceptions raised, e.g. EOF when parsing
-        # print(" - exiting via: else-block (e.g. EOF when parsing)")
-        pass
+        print(" - exiting via: else-block (e.g. EOF when parsing)")
 
-    print("Finished evohome_rf.\r\n")
+    print("\r\nclient.py: Finished evohome_rf, results:\r\n")
 
     if config.get("device_id"):
         if config.get("get_faults"):
             fault_log = gwy.device_by_id[config["device_id"]]._evo.fault_log()
-            for k, v in fault_log.items():
-                print(k, v)
+            [print(k, v) for k, v in fault_log.items()]
 
         elif config.get("get_schedule") is not None:
-            print(
-                json.dumps(
-                    gwy.evo.zone_by_idx[config["get_schedule"]].schedule(), indent=4
-                )
-            )
+            schedule = gwy.evo.zone_by_idx[config["get_schedule"]].schedule()
+            print(json.dumps(schedule, indent=4))
 
         else:
             print(gwy.device_by_id[config["device_id"]])
 
     elif gwy.evo is None:
-        print(f"\r\nSchema[gateway] = {json.dumps(gwy.schema)}")
-        print(f"\r\nParams[gateway] = {json.dumps(gwy.params)}")
-        print(f"\r\nStatus[gateway] = {json.dumps(gwy.status)}")
+        print(f"Schema[gateway] = {json.dumps(gwy.schema)}\r\n")
+        print(f"Params[gateway] = {json.dumps(gwy.params)}\r\n")
+        print(f"Status[gateway] = {json.dumps(gwy.status)}")
 
     else:
-        print(f"\r\nSchema[{repr(gwy.evo)}] = {json.dumps(gwy.evo.schema, indent=4)}")
-        print(f"\r\nParams[{repr(gwy.evo)}] = {json.dumps(gwy.evo.params, indent=4)}")
-        print(f"\r\nStatus[{repr(gwy.evo)}] = {json.dumps(gwy.evo.status, indent=4)}")
+        print(f"Schema[{repr(gwy.evo)}] = {json.dumps(gwy.evo.schema, indent=4)}\r\n")
+        print(f"Params[{repr(gwy.evo)}] = {json.dumps(gwy.evo.params, indent=4)}\r\n")
+        print(f"Status[{repr(gwy.evo)}] = {json.dumps(gwy.evo.status, indent=4)}")
+
+    print("\r\nclient.py: Finished evohome_rf.\r\n")
 
 
 cli.add_command(execute)

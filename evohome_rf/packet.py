@@ -219,6 +219,7 @@ class Packet:
 
 
 async def file_pkts(fp):
+    """Yield valid packets from a text stream."""
 
     for ts_pkt in fp:
         ts_pkt = ts_pkt.strip()
