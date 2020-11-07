@@ -237,7 +237,7 @@ class Gateway:
                 self._que.task_done()
 
         if self.serial_port:  # source of packets is a serial port
-            self._tasks = spawn_scripts(self)  # first, queue any discovery scripts
+            self._tasks = spawn_scripts(self)  # queue any discovery scripts
             (
                 self._msg_protocol,
                 self._msg_transport,
