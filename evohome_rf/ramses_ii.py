@@ -382,11 +382,11 @@ def create_ramses_stack(gwy, serial_port, msg_handler) -> Tuple:
 
     return (msg_protocol, msg_transport, pkt_protocol, pkt_transport)
 
-    #
-    # def create_ramses_client(self, protocol_factory, msg_handler):
-    #     """Utility function to provide a transport to a client protocol."""
 
-    #     msg_protocol = protocol_factory(msg_handler)
-    #     self.msg_transport._set_dispatcher(msg_protocol.send_data)
+def create_ramses_client(gwy, protocol_factory, msg_handler):
+    """Utility function to provide a transport to a client protocol."""
 
-    #     return msg_protocol
+    msg_protocol = protocol_factory(msg_handler)
+    gwy._msg_transport._set_dispatcher(msg_protocol.send_data)
+
+    return msg_protocol, gwy.msg_transport

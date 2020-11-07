@@ -32,7 +32,7 @@ from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
 
 # from .ser2net import Ser2NetServer
 from .systems import SYSTEM_CLASSES, System, SystemBase
-from .ramses_ii import create_ramses_stack
+from .ramses_ii import create_ramses_stack  # , create_ramses_client
 from .version import __version__  # noqa
 
 _LOGGER = logging.getLogger(__name__)
@@ -89,6 +89,11 @@ class Gateway:
             file_fmt=PKT_LOG_FMT + BANDW_SUFFIX,
             cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
         )
+
+        self._msg_protocol = None
+        self._msg_transport = None
+        self._pkt_protocol = None
+        self._pkt_transport = None
 
         self._que = PriorityQueue()  # TODO: maxsize=200)
         self._buffer = deque()

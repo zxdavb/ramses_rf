@@ -8,10 +8,11 @@ evohome_rf is used to parse Honeywell's RAMSES-II packets, either via RF or from
 import asyncio
 import json
 import sys
+from typing import Optional
 
 import click
 
-from evohome_rf import CONFIG_SCHEMA, Gateway, GracefulExit  # __dev_mode__,
+from evohome_rf import CONFIG_SCHEMA, Gateway, GracefulExit  # create_ramses_client
 
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
@@ -24,6 +25,42 @@ DEBUG_PORT = 5678
 # ptvsd.wait_for_attach()
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
+
+
+class ClientProtocol(asyncio.Protocol):
+    """Interface for a message protocol."""
+
+    def __init__(self, msg_handler) -> None:
+        self._callback = msg_handler
+        self._transport = None
+        self._pause_writing = None
+
+    def connection_made(self, transport) -> None:
+        """Called when a connection is made."""
+        self._transport = transport
+
+    def data_received(self, msg) -> None:
+        """Called when some data is received (called by the transport)."""
+        self._callback(msg)
+
+    async def send_data(self, cmd) -> None:
+        """Called when some data is to be sent (is not a callaback)."""
+        while self._pause_writing:
+            asyncio.sleep(0.05)
+        await self._transport.write(cmd)
+
+    def connection_lost(self, exc: Optional[Exception]) -> None:
+        """Called when the connection is lost or closed."""
+        if exc is not None:
+            pass
+
+    def pause_writing(self) -> None:
+        """Called when the transport's buffer goes over the high-water mark."""
+        self._pause_writing = True
+
+    def resume_writing(self) -> None:
+        """Called when the transport's buffer drains below the low-water mark."""
+        self._pause_writing = False
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
@@ -142,6 +179,11 @@ def debug_wrapper(config_file=None, **kwargs):
 
 
 async def main(serial_port, loop=None, **config):
+    def protocol_factory(callback):
+        return ClientProtocol(callback)
+
+    def process_msg(msg):
+        print(msg)
 
     # loop=asyncio.get_event_loop() causes: 'NoneType' object has no attribute 'serial'
     print("\r\nclient.py: Starting evohome_rf...")
@@ -152,9 +194,12 @@ async def main(serial_port, loop=None, **config):
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     gwy = Gateway(serial_port, loop=loop, **config)
+    task = asyncio.create_task(gwy.start())
+
+    # _protocol, _transport = create_ramses_client(gwy, protocol_factory, process_msg)
 
     try:
-        await asyncio.create_task(gwy.start())
+        await task
     except asyncio.CancelledError:
         # print(" - exiting via: CancelledError (this is expected)")
         pass
