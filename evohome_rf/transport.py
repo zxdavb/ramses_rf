@@ -49,17 +49,15 @@ class Ramses2Transport(asyncio.Transport):
         self._protocols = []
         self.set_protocol(protocol)
 
-        self._dispatcher = None  # the HGI80 interface (is a protocol)
-
         self._extra = {} if extra is None else extra
-
         self._is_closing = None
-        self._que = PriorityQueue()  # maxsize=MAX_SIZE)
 
         self._callbacks = {}
+        self._dispatcher = None  # the HGI80 interface (is a asyncio.protocol)
+        self._que = PriorityQueue()  # maxsize=MAX_SIZE)
 
-    def _set_dispatcher(self, dispatcher):
-        _LOGGER.debug("RamsesTransport._set_dispatcher(%s)", dispatcher)
+    def _add_dispatcher(self, dispatcher):
+        _LOGGER.debug("RamsesTransport._add_dispatcher(%s)", dispatcher)
 
         async def call_send_data(cmd):
             _LOGGER.debug("RamsesTransport.pkt_dispatcher(%s): send_data", cmd)
@@ -67,7 +65,7 @@ class Ramses2Transport(asyncio.Transport):
                 cmd.callback["timeout"] = dt.now() + cmd.callback["timeout"]
                 self._callbacks[cmd._rp_header] = cmd.callback
 
-            await self._dispatcher(cmd)  # send_data
+            await self._dispatcher(cmd)  # send_data, *after* registering callback
 
         async def pkt_dispatcher():
             while True:
@@ -349,9 +347,21 @@ class Ramses2Protocol(asyncio.Protocol):
         self._pause_writing = False
 
 
+def create_msg_client(gwy, msg_handler, protocol_factory) -> Tuple:
+    """Utility function to provide a transport to a client protocol.
+
+    The architecture is: client -> msg protocol -> pkt protocol -> ser interface.
+    """
+
+    msg_protocol = protocol_factory(msg_handler)
+    gwy.msg_transport._add_dispatcher(msg_protocol.send_data)
+
+    return msg_protocol, gwy.msg_transport
+
+
 def create_msg_stack(gwy, msg_handler) -> Tuple:
-    """Utility function to provides a transport to an internal protocol."""
-    # The architecture is: msg -> pkt -> ser
+    """Utility function to provide a transport to the internal protocol."""
+    # The architecture is: client -> msg protocol -> pkt protocol -> ser interface.
 
     msg_protocol = Ramses2Protocol(msg_handler)  # used for gwy._msg_callbacks
     msg_transport = Ramses2Transport(gwy, msg_protocol)
@@ -360,11 +370,8 @@ def create_msg_stack(gwy, msg_handler) -> Tuple:
 
 
 def create_pkt_stack(gwy, msg_transport, serial_port) -> Tuple:
-    """Utility function to provides a transport to an internal protocol."""
-    # The architecture is: msg -> pkt -> ser
-
-    # msg_protocol = Ramses2Protocol(msg_handler)  # used for gwy._msg_callbacks
-    # msg_transport = Ramses2Transport(gwy, msg_protocol)
+    """Utility function to provide a transport to the internal protocol."""
+    # The architecture is: client -> msg protocol -> pkt protocol -> ser interface.
 
     pkt_handler = msg_transport._pkt_receiver
     ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
@@ -372,18 +379,6 @@ def create_pkt_stack(gwy, msg_transport, serial_port) -> Tuple:
     pkt_protocol = GatewayProtocol(pkt_handler)  # used for gwy._qos_callbacks
     pkt_transport = SerialTransport(gwy._loop, pkt_protocol, ser_instance)
 
-    msg_transport._set_dispatcher(pkt_protocol.send_data)
-
-    # msg_protocol2 = Ramses2Protocol(pkt_handler2, gwy)  # used for gwy._msg_callbacks
-    # msg_transport.add_protocol(gwy._loop, msg_protocol2)
+    msg_transport._add_dispatcher(pkt_protocol.send_data)
 
     return (pkt_protocol, pkt_transport)
-
-
-def create_ramses_client(gwy, protocol_factory, msg_handler):
-    """Utility function to provide a transport to a client protocol."""
-
-    msg_protocol = protocol_factory(msg_handler)
-    gwy.msg_transport._set_dispatcher(msg_protocol.send_data)
-
-    return msg_protocol, gwy.msg_transport
