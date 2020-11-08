@@ -379,6 +379,10 @@ class Schedule:  # 0404
         send_cmd(f"{self.idx}20000800{frag_idx:02d}{self.total_frags:02d}")
 
     def _proc_fragment(self, msg) -> None:
+        if not msg:  # TODO: needs fleshing out
+            _LOGGER.debug("Schedule(%s)._proc_fragment(): no message", self.id)
+            return
+
         _LOGGER.debug(
             "Schedule(%s)._proc_fragment(%s/%s)",
             self.id,

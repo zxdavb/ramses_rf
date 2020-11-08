@@ -18,7 +18,7 @@ import os
 import signal
 import sys
 from threading import Lock
-from typing import Dict, List  # Any, Tuple
+from typing import Any, Dict, List  # Any, Tuple
 
 from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
@@ -30,7 +30,13 @@ from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
 
 # from .ser2net import Ser2NetServer
 from .systems import SYSTEM_CLASSES, System, SystemBase
-from .transport import WRITER_TASK, create_msg_stack, create_pkt_stack
+from .transport import (
+    WRITER_TASK,
+    ClientProtocol,
+    Ramses2Protocol,
+    create_msg_stack,
+    create_pkt_stack,
+)
 from .version import __version__  # noqa
 
 _LOGGER = logging.getLogger(__name__)
@@ -61,8 +67,11 @@ class Gateway:
         self._setup_event_handlers()
 
         self.serial_port = serial_port
-        self.msg_protocol, self.msg_transport = create_msg_stack(self, process_msg)
+        self.msg_protocol, self.msg_transport = None, None
         self.pkt_protocol, self.pkt_transport = None, None
+        self.msg_protocol, self.msg_transport = create_msg_stack(
+            self, process_msg, Ramses2Protocol
+        )
 
         self.config = CONFIG_SCHEMA(config)
         if self.serial_port and self.config.get("input_file"):
@@ -315,3 +324,7 @@ class Gateway:
         }
 
         return result
+
+    def create_client(self, msg_handler, protocol_factory=ClientProtocol) -> Any:
+        """Create a client protocol for the RAMSES-II message transport."""
+        return create_msg_stack(self, msg_handler, protocol_factory=protocol_factory)
