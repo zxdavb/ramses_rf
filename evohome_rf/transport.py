@@ -56,8 +56,18 @@ class Ramses2Transport(asyncio.Transport):
         self._is_closing = None
         self._que = PriorityQueue()  # maxsize=MAX_SIZE)
 
+        self._callbacks = {}
+
     def _set_dispatcher(self, dispatcher):
         _LOGGER.debug("RamsesTransport._set_dispatcher(%s)", dispatcher)
+
+        async def call_send_data(cmd):
+            _LOGGER.debug("RamsesTransport.pkt_dispatcher(%s): send_data", cmd)
+            await self._dispatcher(cmd)  # send_data
+
+            if cmd.callback:
+                cmd.callback["timeout"] = dt.now() + cmd.callback["timeout"]
+                self._callbacks[cmd._rp_header] = cmd.callback
 
         async def pkt_dispatcher():
             while True:
@@ -74,8 +84,7 @@ class Ramses2Transport(asyncio.Transport):
 
                 else:
                     if self._dispatcher:
-                        _LOGGER.debug("RamsesTransport.pkt_dispatcher(%s)", cmd)
-                        await self._dispatcher(cmd)
+                        await call_send_data(cmd)
                     self._que.task_done()
 
             _LOGGER.debug("RamsesTransport.pkt_dispatcher(): connection_lost(None)")
@@ -88,29 +97,33 @@ class Ramses2Transport(asyncio.Transport):
         _LOGGER.debug("RamsesTransport._pkt_receiver(%s)", pkt)
 
         def proc_msg_callback(msg: Message) -> None:
-            # TODO: this needs to be a queue
+            # TODO: this needs to be a queue - why?
+
+            # 1st, notify expired callbacks
             dtm = dt.now()
             [
                 v["func"](False, *v["args"], **v["kwargs"])
-                for v in self._gwy._callbacks.values()
+                for v in self._callbacks.values()
                 if not v.get("daemon") and v.get("timeout", dt.max) <= dtm
-            ]  # first, alert expired callbacks
+            ]
 
-            self._gwy._callbacks = {
+            # 2nd, discard expired callbacks
+            self._callbacks = {
                 k: v
-                for k, v in self._gwy._callbacks.items()
+                for k, v in self._callbacks.items()
                 if v.get("daemon") or v.get("timeout", dt.max) > dtm
-            }  # then, discard expired callbacks
+            }
+            if msg._pkt._header not in self._callbacks:
+                return
 
-            if msg._pkt._header in self._gwy._callbacks:
-                callback = self._gwy._callbacks[msg._pkt._header]
-                callback["func"](msg, *callback["args"], **callback["kwargs"])
-                if not callback.get("daemon"):
-                    del self._gwy._callbacks[msg._pkt._header]
+            # 3rd, call any callback (there can only be one)
+            callback = self._callbacks[msg._pkt._header]
+            callback["func"](msg, *callback["args"], **callback["kwargs"])
+            if not callback.get("daemon"):
+                del self._callbacks[msg._pkt._header]
 
         msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
-        if msg._pkt._header in self._gwy._callbacks:
-            proc_msg_callback(msg)
+        proc_msg_callback(msg)
 
         [p.data_received(msg) for p in self._protocols]
 
@@ -230,12 +243,12 @@ class Ramses2Transport(asyncio.Transport):
         _LOGGER.debug("RamsesTransport.write(%s)", cmd)
 
         if self._is_closing:
-            raise RuntimeError("transport is closing or has closed")
+            raise RuntimeError("RamsesTransport is closing or has closed")
 
-        # if not self._dispatcher:
-        #     raise RuntimeError("transport has no dispatcher")
-
-        if self._dispatcher:
+        if not self._dispatcher:
+            # raise RuntimeError("transport has no dispatcher")
+            _LOGGER.warning("RamsesTransport.write(): no dispatcher (cmd discarded")
+        else:
             self._que.put_nowait(cmd)
 
     def writelines(self, list_of_cmds):
@@ -291,11 +304,10 @@ class Ramses2Protocol(asyncio.Protocol):
     * CL: connection_lost()
     """
 
-    def __init__(self, msg_handler, gwy) -> None:
+    def __init__(self, msg_handler) -> None:
         _LOGGER.debug("RamsesProtocol.__init__()")
 
         self._callback = msg_handler
-        self._gwy = gwy
 
         self._transport = None
         self._pause_writing = None
@@ -346,7 +358,7 @@ def create_msg_stack(gwy, msg_handler) -> Tuple:
     """Utility function to provides a transport to an internal protocol."""
     # The architecture is: msg -> pkt -> ser
 
-    msg_protocol = Ramses2Protocol(msg_handler, gwy)  # used for gwy._msg_callbacks
+    msg_protocol = Ramses2Protocol(msg_handler)  # used for gwy._msg_callbacks
     msg_transport = Ramses2Transport(gwy, msg_protocol)
 
     return (msg_protocol, msg_transport)
@@ -356,13 +368,13 @@ def create_pkt_stack(gwy, msg_transport, serial_port) -> Tuple:
     """Utility function to provides a transport to an internal protocol."""
     # The architecture is: msg -> pkt -> ser
 
-    # msg_protocol = Ramses2Protocol(msg_handler, gwy)  # used for gwy._msg_callbacks
+    # msg_protocol = Ramses2Protocol(msg_handler)  # used for gwy._msg_callbacks
     # msg_transport = Ramses2Transport(gwy, msg_protocol)
 
     pkt_handler = msg_transport._pkt_receiver
     ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
 
-    pkt_protocol = GatewayProtocol(pkt_handler, gwy)  # used for gwy._qos_callbacks
+    pkt_protocol = GatewayProtocol(pkt_handler)  # used for gwy._qos_callbacks
     pkt_transport = SerialTransport(gwy._loop, pkt_protocol, ser_instance)
 
     msg_transport._set_dispatcher(pkt_protocol.send_data)

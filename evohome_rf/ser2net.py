@@ -73,6 +73,9 @@ class Ser2NetProtocol(asyncio.Protocol):
         _LOGGER.debug("Ser2NetProtocol.data_received(%s)", data)
         _LOGGER.debug(" - packet received from network: %s", data)
 
+        operation = None
+        option = None
+
         if self.timeout_handle:
             self.timeout_handle.cancel()
             self.timeout_handle = self._loop.call_later(

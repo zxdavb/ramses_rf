@@ -160,8 +160,8 @@ class FaultLog:  # 0418
         self._fault_log = None
         self._fault_log_done = None
 
-        # register the callback for a null response (has no log_idx)
-        self._gwy._callbacks["|".join(("RP", self.id, "0418"))] = {
+        # TODO: (make method) register a callback for a null response (have no log_idx)
+        self._gwy.msg_transport._callbacks["|".join(("RP", self.id, "0418"))] = {
             "func": self._proc_log_entry,
             "daemon": True,
             "args": [],

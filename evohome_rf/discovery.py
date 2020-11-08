@@ -40,11 +40,12 @@ async def spawn_scripts(gwy) -> List[Any]:
         task = asyncio.create_task(get_device(gwy, gwy.config["device_id"]))
         tasks.append(task)
 
-    if gwy.config.get("poll_devices"):
-        [poll_device(gwy, d) for d in gwy.config["poll_devices"]]
+    else:
+        if gwy.config.get("poll_devices"):
+            [poll_device(gwy, d) for d in gwy.config["poll_devices"]]
 
-    if gwy.config.get("probe_devices"):
-        [probe_device(gwy, d) for d in gwy.config["probe_devices"]]
+        if gwy.config.get("probe_devices"):
+            [probe_device(gwy, d) for d in gwy.config["probe_devices"]]
 
     return tasks
 

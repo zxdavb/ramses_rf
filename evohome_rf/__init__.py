@@ -91,7 +91,6 @@ class Gateway:
         self._buffer = deque()
         self._sched_zone = None
         self._sched_lock = Lock()
-        self._callbacks = {}
 
         self._prev_msg = None
 

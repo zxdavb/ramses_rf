@@ -69,14 +69,14 @@ class Message:
     Will trap/log all invalid msgs appropriately.
     """
 
-    def __init__(self, gateway, pkt) -> None:
+    def __init__(self, gwy, pkt) -> None:
         """Create a message, assumes a valid packet."""
-        self._gwy = gateway
+        self._gwy = gwy
         self._pkt = pkt
 
         # prefer Device(s) but Address(es) will do
-        self.src = gateway.device_by_id.get(pkt.src_addr.id, pkt.src_addr)
-        self.dst = gateway.device_by_id.get(pkt.dst_addr.id, pkt.dst_addr)
+        self.src = self._gwy.device_by_id.get(pkt.src_addr.id, pkt.src_addr)
+        self.dst = self._gwy.device_by_id.get(pkt.dst_addr.id, pkt.dst_addr)
 
         self.devs = pkt.addrs
         self.date = pkt.date

@@ -248,10 +248,9 @@ async def file_pkts(fp):
 class GatewayProtocol(asyncio.Protocol):
     """Interface for a packet protocol."""
 
-    def __init__(self, pkt_handler, gwy) -> None:
+    def __init__(self, pkt_handler) -> None:
         # _LOGGER.debug("GatewayProtocol.__init__()")
 
-        self._gwy = gwy  # self._gwy._callbacks
         self._callback = pkt_handler
 
         self._transport = None
@@ -351,10 +350,6 @@ class GatewayProtocol(asyncio.Protocol):
         self._qos_rq_hdr = cmd._rq_header  # Could be None
         self._qos_rp_hdr = cmd._rp_header  # Could be None, esp. if RQ hdr is None
         self._qos_lock.release()
-
-        if cmd.callback:
-            cmd.callback["timeout"] = dt.now() + cmd.callback["timeout"]
-            self._gwy._callbacks[cmd._rp_header] = cmd.callback
 
         if self._qos_rq_hdr:
             self._qos_cmd = cmd
