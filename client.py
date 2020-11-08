@@ -216,11 +216,17 @@ async def main(serial_port, loop=None, **config):
     if config.get("device_id"):
         if config.get("get_faults"):
             fault_log = gwy.device_by_id[config["device_id"]]._evo.fault_log()
-            [print(k, v) for k, v in fault_log.items()]
+            if fault_log is None:
+                print("No fault log, or failed to get the fault log.")
+            else:
+                [print(k, v) for k, v in fault_log.items()]
 
         elif config.get("get_schedule") is not None:
             schedule = gwy.evo.zone_by_idx[config["get_schedule"]].schedule()
-            print(json.dumps(schedule, indent=4))
+            if schedule is None:
+                print("Failed to get the schedule.")
+            else:
+                print(json.dumps(schedule, indent=4))
 
         else:
             print(gwy.device_by_id[config["device_id"]])

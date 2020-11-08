@@ -63,25 +63,22 @@ class Ramses2Transport(asyncio.Transport):
 
         async def call_send_data(cmd):
             _LOGGER.debug("RamsesTransport.pkt_dispatcher(%s): send_data", cmd)
-            await self._dispatcher(cmd)  # send_data
-
             if cmd.callback:
                 cmd.callback["timeout"] = dt.now() + cmd.callback["timeout"]
                 self._callbacks[cmd._rp_header] = cmd.callback
+
+            await self._dispatcher(cmd)  # send_data
 
         async def pkt_dispatcher():
             while True:
                 try:
                     cmd = self._que.get_nowait()
-
                 except Empty:
                     if not self._is_closing:
                         await asyncio.sleep(0.05)
                         continue
-
                 except AttributeError:  # when self._que == None, from abort()
                     break
-
                 else:
                     if self._dispatcher:
                         await call_send_data(cmd)
@@ -101,11 +98,10 @@ class Ramses2Transport(asyncio.Transport):
 
             # 1st, notify expired callbacks
             dtm = dt.now()
-            [
-                v["func"](False, *v["args"], **v["kwargs"])
-                for v in self._callbacks.values()
-                if not v.get("daemon") and v.get("timeout", dt.max) <= dtm
-            ]
+            for k, v in self._callbacks.items():
+                if not v.get("daemon") and v.get("timeout", dt.max) <= dtm:
+                    v["func"](False, *v["args"], **v["kwargs"])
+                    # print(f"EXPIRED CALLBACK: {k}")
 
             # 2nd, discard expired callbacks
             self._callbacks = {
@@ -113,14 +109,13 @@ class Ramses2Transport(asyncio.Transport):
                 for k, v in self._callbacks.items()
                 if v.get("daemon") or v.get("timeout", dt.max) > dtm
             }
-            if msg._pkt._header not in self._callbacks:
-                return
 
             # 3rd, call any callback (there can only be one)
-            callback = self._callbacks[msg._pkt._header]
-            callback["func"](msg, *callback["args"], **callback["kwargs"])
-            if not callback.get("daemon"):
-                del self._callbacks[msg._pkt._header]
+            if msg._pkt._header in self._callbacks:
+                callback = self._callbacks[msg._pkt._header]
+                callback["func"](msg, *callback["args"], **callback["kwargs"])
+                if not callback.get("daemon"):
+                    del self._callbacks[msg._pkt._header]
 
         msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
         proc_msg_callback(msg)
