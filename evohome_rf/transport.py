@@ -240,7 +240,7 @@ class Ramses2Transport(asyncio.Transport):
 
         if not self._dispatcher:
             # raise RuntimeError("transport has no dispatcher")
-            _LOGGER.warning("RamsesTransport.write(): no dispatcher (cmd discarded")
+            _LOGGER.info("RamsesTransport.write(%s): no dispatcher, cmd discarded", cmd)
         else:
             self._que.put_nowait(cmd)
 
