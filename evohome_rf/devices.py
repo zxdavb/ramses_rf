@@ -790,6 +790,8 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):
                 self._known_msg = True
             elif msg.code == "2349" and msg.verb == " W":
                 self._known_msg = True
+            elif msg.code == "3B00" and msg.verb == " I":
+                self._known_msg = True
             else:
                 self._known_msg = False
 
