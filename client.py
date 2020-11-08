@@ -157,7 +157,7 @@ async def main(serial_port, loop=None, **config):
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     gwy = Gateway(serial_port, loop=loop, **config)
-    protocol, _ = gwy.create_client(process_message)
+    # protocol, _ = gwy.create_client(process_message)
 
     try:
         task = asyncio.create_task(gwy.start())

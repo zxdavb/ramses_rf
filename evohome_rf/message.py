@@ -121,7 +121,7 @@ class Message:
             return self._str
 
         if not self.is_valid:
-            return
+            return  # "Invalid"
 
         _format = MSG_FORMAT_18 if self._gwy.config["known_devices"] else MSG_FORMAT_10
 

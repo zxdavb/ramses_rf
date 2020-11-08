@@ -286,7 +286,8 @@ class ClientProtocol(asyncio.Protocol):
 
     def data_received(self, msg) -> None:
         """Called when some data is received (called by the transport)."""
-        self._callback(msg)
+        if msg.is_valid:
+            self._callback(msg)
 
     async def send_data(self, cmd) -> None:
         """Called when some data is to be sent (is not a callaback)."""
@@ -344,7 +345,9 @@ class Ramses2Protocol(ClientProtocol):
 
     def data_received(self, msg) -> None:
         """Called when some data is received."""
-        _LOGGER.debug("RamsesProtocol.data_received(%s)", msg)
+        _LOGGER.debug(
+            "RamsesProtocol.data_received(%s)", msg if msg.is_valid else "invalid"
+        )  # or: use repr(msg)
         super().data_received(msg)
 
     async def send_data(self, cmd) -> None:

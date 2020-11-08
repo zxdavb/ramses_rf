@@ -24,7 +24,7 @@ from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
 from .discovery import spawn_scripts
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
-from .message import DONT_CREATE_MESSAGES, _LOGGER as msg_logger, Message, process_msg
+from .message import DONT_CREATE_MESSAGES, _LOGGER as msg_logger, process_msg
 from .packet import _LOGGER as pkt_logger, file_pkts
 from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
 
@@ -89,6 +89,7 @@ class Gateway:
         else:
             _stream = (sys.stdout, None)
         set_logging(msg_logger, stream=_stream[0], file_name=None)
+        # set_logging(msg_logger, stream=None, file_name=None)
         set_logging(
             pkt_logger,
             stream=_stream[1],
@@ -207,7 +208,8 @@ class Gateway:
     async def start(self) -> None:
         async def file_reader(fp, callback):
             async for pkt in file_pkts(fp):
-                callback(Message(self, pkt))  # TODO: check include, exclude lists
+                # callback(Message(self, pkt))  # TODO: check include, exclude lists
+                self.msg_transport._pkt_receiver(pkt)  # HACK: a hack
 
         if self.serial_port:  # source of packets is a serial port
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
