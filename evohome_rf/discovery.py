@@ -18,8 +18,13 @@ else:
     _LOGGER.setLevel(logging.WARNING)
 
 
-def spawn_scripts(gwy) -> List[Any]:
+async def spawn_scripts(gwy) -> List[Any]:
     tasks = []
+
+    if gwy.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
+        cmd = gwy.config["execute_cmd"]
+        cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], retries=12)
+        await gwy.msg_protocol.send_data(cmd)
 
     if gwy.config.get("get_faults"):
         task = asyncio.create_task(get_faults(gwy, gwy.config["device_id"]))
@@ -32,20 +37,31 @@ def spawn_scripts(gwy) -> List[Any]:
         tasks.append(task)
 
     elif gwy.config.get("device_id"):
-        probe_device(gwy, gwy.config.get("device_id"))
+        task = asyncio.create_task(get_device(gwy, gwy.config["device_id"]))
+        tasks.append(task)
+
+    if gwy.config.get("poll_devices"):
+        [poll_device(gwy, d) for d in gwy.config["poll_devices"]]
+
+    if gwy.config.get("probe_devices"):
+        [probe_device(gwy, d) for d in gwy.config["probe_devices"]]
 
     return tasks
 
 
 async def periodic(gwy, cmd, count=1440, interval=5):
+    async def _periodic():
+        await asyncio.sleep(interval)
+        # gwy._que.put_nowait(cmd)
+        # asyncio.create_task(gwy.msg_protocol.send_data(cmd))
+        gwy.msg_protocol.send_data(cmd)
+
     if count <= 0:
         while True:
-            await asyncio.sleep(interval)
-            gwy._que.put_nowait(cmd)
+            _periodic()
     else:
         for _ in range(count):
-            await asyncio.sleep(interval)
-            gwy._que.put_nowait(cmd)
+            _periodic()
 
 
 async def schedule_task(delay, func, *args, **kwargs):
@@ -56,6 +72,18 @@ async def schedule_task(delay, func, *args, **kwargs):
         await func(*args, **kwargs)
 
     asyncio.create_task(scheduled_func(delay, func, *args, **kwargs))
+
+
+async def get_device(gwy, device_id):
+    dev_addr = Address(id=device_id, type=device_id[:2])
+    device = gwy._get_device(dev_addr, ctl_addr=dev_addr)
+
+    device._discover()  # discover_flag=DISCOVER_ALL
+    # print("get_device", device.schema)
+    # print("get_device", device.params)
+    # print("get_device", device.status)
+
+    await gwy.shutdown("get_device()")
 
 
 async def get_faults(gwy, device_id):

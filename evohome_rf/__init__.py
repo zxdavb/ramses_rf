@@ -15,16 +15,15 @@ from collections import deque
 import json
 import logging
 import os
-from queue import PriorityQueue, Empty
+from queue import PriorityQueue
 import signal
 import sys
 from threading import Lock
 from typing import Dict, List  # Any, Tuple
 
-from .command import Command
 from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
-from .discovery import probe_device, poll_device, spawn_scripts
+from .discovery import spawn_scripts
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
 from .message import DONT_CREATE_MESSAGES, _LOGGER as msg_logger, Message, process_msg
 from .packet import _LOGGER as pkt_logger, file_pkts
@@ -32,7 +31,7 @@ from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
 
 # from .ser2net import Ser2NetServer
 from .systems import SYSTEM_CLASSES, System, SystemBase
-from .ramses_ii import create_ramses_stack  # , create_ramses_client
+from .transport import WRITER_TASK, create_msg_stack, create_pkt_stack
 from .version import __version__  # noqa
 
 _LOGGER = logging.getLogger(__name__)
@@ -63,8 +62,6 @@ class Gateway:
         self._setup_event_handlers()
 
         self.serial_port = serial_port
-        self._pkt_protocol = None
-
         self.config = CONFIG_SCHEMA(config)
 
         if self.serial_port and self.config.get("input_file"):
@@ -89,11 +86,6 @@ class Gateway:
             file_fmt=PKT_LOG_FMT + BANDW_SUFFIX,
             cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
         )
-
-        self._msg_protocol = None
-        self._msg_transport = None
-        self._pkt_protocol = None
-        self._pkt_transport = None
 
         self._que = PriorityQueue()  # TODO: maxsize=200)
         self._buffer = deque()
@@ -127,21 +119,12 @@ class Gateway:
         elif self.config["enforce_blocklist"]:
             self._exclude_list = KNOWNS_SCHEMA(config.pop("blocklist", {}))
 
-        if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
-            cmd = self.config["execute_cmd"]
-            self._que.put_nowait(
-                Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], retries=12)
-            )
-
-        if self.config.get("poll_devices"):
-            [poll_device(self, d) for d in self.config["poll_devices"]]
-
-        if self.config.get("probe_devices"):
-            [probe_device(self, d) for d in self.config["probe_devices"]]
-
         if self.config.get("device_id"):
             _LOGGER.warning("Discovery scripts specified, so disabling probes")
             self.config["disable_discovery"] = True  # TODO: messey
+
+        self.msg_protocol, self.msg_transport = create_msg_stack(self, process_msg)
+        self.pkt_protocol, self.pkt_transport = None, None
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -210,6 +193,7 @@ class Gateway:
 
         logging.debug(f"shutdown(): Cancelling {len(tasks)} outstanding async tasks...")
         # [print(t) for t in tasks]
+        # [print(t) for t in asyncio.all_tasks()]
         [task.cancel() for task in tasks]
         # await asyncio.gather(*tasks, return_exceptions=False)
 
@@ -220,44 +204,18 @@ class Gateway:
             async for pkt in file_pkts(fp):
                 callback(Message(self, pkt))  # TODO: check include, exclude lists
 
-        async def port_writer(protocol):  # this needs to be moved into msg transport
-            while True:
-                if self._que.empty():
-                    await asyncio.sleep(0.05)
-                    continue
-
-                try:
-                    cmd = self._que.get(False)
-                except Empty:
-                    continue
-
-                if protocol:  # or not self.config["disable_sending"]
-                    await protocol.send_data(cmd)  # put_pkt(cmd, _LOGGER)
-
-                self._que.task_done()
-
         if self.serial_port:  # source of packets is a serial port
-            self._tasks = spawn_scripts(self)  # queue any discovery scripts
-            (
-                self._msg_protocol,
-                self._msg_transport,
-                self._pkt_protocol,
-                self._pkt_transport,
-            ) = create_ramses_stack(self, self.serial_port, process_msg)
-
-            writer = asyncio.create_task(port_writer(self._pkt_protocol))
-            self._tasks.append(writer)
-            await writer
+            self.pkt_protocol, self.pkt_transport = create_pkt_stack(
+                self, self.msg_transport, self.serial_port
+            )
+            self._tasks = [self.msg_transport.get_extra_info(WRITER_TASK)]
+            self._tasks += await spawn_scripts(self)  # queue any discovery scripts
 
         else:  # if self.config["input_file"]:
             reader = asyncio.create_task(
                 file_reader(self.config["input_file"], process_msg)
             )
-            writer = asyncio.create_task(port_writer(None))  # to consume cmds
-
-            self._tasks = [reader, writer]
-            await reader
-            writer.cancel()
+            self._tasks = [reader]
 
         await asyncio.gather(*self._tasks)
         await self.shutdown("start()")

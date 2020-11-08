@@ -52,7 +52,7 @@ QOS_TIMEOUT_SECS_RQ = timedelta(seconds=0.2)  # 0.2 too low?
 QOS_TIMEOUT_SECS_RP = timedelta(seconds=1.0)
 
 _LOGGER = logging.getLogger(__name__)
-if True or __dev_mode__:
+if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 else:
     _LOGGER.setLevel(logging.WARNING)
@@ -339,7 +339,7 @@ class GatewayProtocol(asyncio.Protocol):
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callaback)."""
-        # _LOGGER.debug("GatewayProtocol.send_data(%s)", cmd)
+        # _LOGGER.error("GatewayProtocol.send_data(%s)", cmd)
 
         while self._qos_rq_hdr or self._qos_rp_hdr:
             await asyncio.sleep(0.005)

@@ -17,8 +17,7 @@ from .message import Message
 from .packet import GatewayProtocol, SERIAL_CONFIG  # Packet,
 
 MAX_BUFFER_SIZE = 200
-READER = "reader"
-WRITER = "writer"
+WRITER_TASK = "writer_task"
 
 _LOGGER = logging.getLogger(__name__)
 if False and __dev_mode__:
@@ -58,29 +57,9 @@ class Ramses2Transport(asyncio.Transport):
         self._que = PriorityQueue()  # maxsize=MAX_SIZE)
 
     def _set_dispatcher(self, dispatcher):
+        _LOGGER.debug("RamsesTransport._set_dispatcher(%s)", dispatcher)
+
         async def pkt_dispatcher():
-            while True:
-                if self._que.empty():
-                    await asyncio.sleep(0.05)
-                    continue
-
-                try:
-                    cmd = self._que.get(False)
-                except Empty:
-                    continue
-                except AttributeError:  # when self._que == None, from abort()
-                    break
-
-                if self._dispatcher:
-                    _LOGGER.debug("RamsesTransport._pkt_writer(): send_data(cmd)")
-                    await self._dispatcher.send_data(cmd)
-
-                self._que.task_done()
-
-            _LOGGER.debug("RamsesTransport._pkt_writer(): connection_lost(None)")
-            [p.connection_lost(None) for p in self._protocols]
-
-        async def pkt_dispatcher_new():
             while True:
                 try:
                     cmd = self._que.get_nowait()
@@ -95,18 +74,18 @@ class Ramses2Transport(asyncio.Transport):
 
                 else:
                     if self._dispatcher:
-                        _LOGGER.debug("RamsesTransport._pkt_writer(): send_data(cmd)")
-                        await self._dispatcher.send_data(cmd)
+                        _LOGGER.debug("RamsesTransport.pkt_dispatcher(%s)", cmd)
+                        await self._dispatcher(cmd)
                     self._que.task_done()
 
-            _LOGGER.debug("RamsesTransport._pkt_writer(): connection_lost(None)")
+            _LOGGER.debug("RamsesTransport.pkt_dispatcher(): connection_lost(None)")
             [p.connection_lost(None) for p in self._protocols]
 
         self._dispatcher = dispatcher
-        # self._extra[WRITER] = asyncio.create_task(pkt_dispatcher())
+        self._extra[WRITER_TASK] = asyncio.create_task(pkt_dispatcher())
 
     def _pkt_receiver(self, pkt):
-        _LOGGER.debug("RamsesTransport._pkt_reader(): data_received(None)")
+        _LOGGER.debug("RamsesTransport._pkt_receiver(%s)", pkt)
 
         def proc_msg_callback(msg: Message) -> None:
             # TODO: this needs to be a queue
@@ -253,10 +232,11 @@ class Ramses2Transport(asyncio.Transport):
         if self._is_closing:
             raise RuntimeError("transport is closing or has closed")
 
-        if not self._dispatcher:
-            raise RuntimeError("transport has no dispatcher")
+        # if not self._dispatcher:
+        #     raise RuntimeError("transport has no dispatcher")
 
-        self._que.put_nowait(cmd)
+        if self._dispatcher:
+            self._que.put_nowait(cmd)
 
     def writelines(self, list_of_cmds):
         """Write a list (or any iterable) of data bytes to the transport.
@@ -322,24 +302,24 @@ class Ramses2Protocol(asyncio.Protocol):
 
     def connection_made(self, transport: Ramses2Transport) -> None:
         """Called when a connection is made."""
-        _LOGGER.debug("RamsesProtocol.connection_made()")
+        _LOGGER.debug("RamsesProtocol.connection_made(%s)", transport)
 
         self._transport = transport
 
     def data_received(self, msg):
         """Called when some data is received."""
-        _LOGGER.debug("RamsesProtocol.data_received()")
+        _LOGGER.debug("RamsesProtocol.data_received(%s)", msg)
 
         self._callback(msg)
 
     async def send_data(self, cmd) -> None:
         """Called when some data is to be sent (not a callaback)."""
-        _LOGGER.debug("RamsesProtocol.send_data()")
+        _LOGGER.debug("RamsesProtocol.send_data(%s)", cmd)
 
         while self._pause_writing:
             asyncio.sleep(0.05)
 
-        await self._transport.write(cmd)
+        self._transport.write(cmd)
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
@@ -362,12 +342,22 @@ class Ramses2Protocol(asyncio.Protocol):
         self._pause_writing = False
 
 
-def create_ramses_stack(gwy, serial_port, msg_handler) -> Tuple:
+def create_msg_stack(gwy, msg_handler) -> Tuple:
     """Utility function to provides a transport to an internal protocol."""
     # The architecture is: msg -> pkt -> ser
 
     msg_protocol = Ramses2Protocol(msg_handler, gwy)  # used for gwy._msg_callbacks
     msg_transport = Ramses2Transport(gwy, msg_protocol)
+
+    return (msg_protocol, msg_transport)
+
+
+def create_pkt_stack(gwy, msg_transport, serial_port) -> Tuple:
+    """Utility function to provides a transport to an internal protocol."""
+    # The architecture is: msg -> pkt -> ser
+
+    # msg_protocol = Ramses2Protocol(msg_handler, gwy)  # used for gwy._msg_callbacks
+    # msg_transport = Ramses2Transport(gwy, msg_protocol)
 
     pkt_handler = msg_transport._pkt_receiver
     ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
@@ -375,18 +365,18 @@ def create_ramses_stack(gwy, serial_port, msg_handler) -> Tuple:
     pkt_protocol = GatewayProtocol(pkt_handler, gwy)  # used for gwy._qos_callbacks
     pkt_transport = SerialTransport(gwy._loop, pkt_protocol, ser_instance)
 
-    msg_transport._set_dispatcher(msg_protocol.send_data)
+    msg_transport._set_dispatcher(pkt_protocol.send_data)
 
     # msg_protocol2 = Ramses2Protocol(pkt_handler2, gwy)  # used for gwy._msg_callbacks
     # msg_transport.add_protocol(gwy._loop, msg_protocol2)
 
-    return (msg_protocol, msg_transport, pkt_protocol, pkt_transport)
+    return (pkt_protocol, pkt_transport)
 
 
 def create_ramses_client(gwy, protocol_factory, msg_handler):
     """Utility function to provide a transport to a client protocol."""
 
     msg_protocol = protocol_factory(msg_handler)
-    gwy._msg_transport._set_dispatcher(msg_protocol.send_data)
+    gwy.msg_transport._set_dispatcher(msg_protocol.send_data)
 
     return msg_protocol, gwy.msg_transport

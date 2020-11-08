@@ -194,11 +194,12 @@ async def main(serial_port, loop=None, **config):
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     gwy = Gateway(serial_port, loop=loop, **config)
-    task = asyncio.create_task(gwy.start())
 
+    # task = asyncio.create_task(gwy.start())
     # _protocol, _transport = create_ramses_client(gwy, protocol_factory, process_msg)
 
     try:
+        task = asyncio.create_task(gwy.start())
         await task
     except asyncio.CancelledError:
         # print(" - exiting via: CancelledError (this is expected)")

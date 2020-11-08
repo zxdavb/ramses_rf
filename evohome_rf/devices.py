@@ -4,6 +4,7 @@
 """The evohome-compatible devices."""
 
 from abc import ABCMeta, abstractmethod
+import asyncio
 from datetime import datetime as dt, timedelta
 import logging
 from typing import Any, Dict, Optional
@@ -139,8 +140,9 @@ class Entity:
     def _send_cmd(self, code, dest, payload, **kwargs) -> None:
         self._msgs.pop(code, None)  # remove the old one, so we can tell if RP'd rcvd
 
-        verb = kwargs.pop("verb", "RQ")
-        self._que.put_nowait(Command(verb, dest, code, payload, **kwargs))
+        cmd = Command(kwargs.pop("verb", "RQ"), dest, code, payload, **kwargs)
+        # self._que.put_nowait(cmd)
+        asyncio.create_task(self._gwy.msg_protocol.send_data(cmd))
 
     @property
     def _pkt_codes(self) -> list:
