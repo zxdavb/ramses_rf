@@ -52,8 +52,6 @@ async def spawn_scripts(gwy) -> List[Any]:
 async def periodic(gwy, cmd, count=1440, interval=5):
     async def _periodic():
         await asyncio.sleep(interval)
-        # gwy._que.put_nowait(cmd)
-        # asyncio.create_task(gwy.msg_protocol.send_data(cmd))
         gwy.msg_protocol.send_data(cmd)
 
     if count <= 0:

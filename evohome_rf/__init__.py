@@ -15,7 +15,6 @@ from collections import deque
 import json
 import logging
 import os
-from queue import PriorityQueue
 import signal
 import sys
 from threading import Lock
@@ -62,8 +61,10 @@ class Gateway:
         self._setup_event_handlers()
 
         self.serial_port = serial_port
-        self.config = CONFIG_SCHEMA(config)
+        self.msg_protocol, self.msg_transport = create_msg_stack(self, process_msg)
+        self.pkt_protocol, self.pkt_transport = None, None
 
+        self.config = CONFIG_SCHEMA(config)
         if self.serial_port and self.config.get("input_file"):
             _LOGGER.warning(
                 "Serial port specified (%s), so ignoring input file (%s)",
@@ -87,7 +88,6 @@ class Gateway:
             cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
         )
 
-        self._que = PriorityQueue()  # TODO: maxsize=200)
         self._buffer = deque()
         self._sched_zone = None
         self._sched_lock = Lock()
@@ -122,9 +122,6 @@ class Gateway:
         if self.config.get("device_id"):
             _LOGGER.warning("Discovery scripts specified, so disabling probes")
             self.config["disable_discovery"] = True  # TODO: messey
-
-        self.msg_protocol, self.msg_transport = create_msg_stack(self, process_msg)
-        self.pkt_protocol, self.pkt_transport = None, None
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""

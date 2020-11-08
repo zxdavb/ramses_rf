@@ -156,7 +156,6 @@ class FaultLog:  # 0418
         self._ctl = ctl
         # self._evo = ctl._evo
         self._gwy = ctl._gwy
-        self._que = ctl._que
 
         self._fault_log = None
         self._fault_log_done = None
@@ -216,7 +215,6 @@ class FaultLog:  # 0418
             cmd = Command(
                 "RQ", self._ctl.id, "0418", payload, qos=qos, callback=callback
             )
-            # self._que.put_nowait(cmd)
             asyncio.create_task(self._gwy.msg_protocol.send_data(cmd))
 
         send_cmd(f"{log_idx:06X}")
@@ -257,7 +255,6 @@ class Schedule:  # 0404
         self._ctl = zone._ctl
         self._evo = zone._evo
         self._gwy = zone._gwy
-        self._que = zone._que
 
         self._schedule = None
         self._schedule_done = None
@@ -377,7 +374,6 @@ class Schedule:  # 0404
             cmd = Command(
                 "RQ", self._ctl.id, "0404", payload, qos=qos, callback=callback
             )
-            # self._que.put_nowait(cmd)
             asyncio.create_task(self._gwy.msg_protocol.send_data(cmd))
 
         send_cmd(f"{self.idx}20000800{frag_idx:02d}{self.total_frags:02d}")

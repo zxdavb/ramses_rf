@@ -93,7 +93,6 @@ class Entity:
 
     def __init__(self, gwy) -> None:
         self._gwy = gwy
-        self._que = gwy._que
 
         self.id = None
 
@@ -141,7 +140,6 @@ class Entity:
         self._msgs.pop(code, None)  # remove the old one, so we can tell if RP'd rcvd
 
         cmd = Command(kwargs.pop("verb", "RQ"), dest, code, payload, **kwargs)
-        # self._que.put_nowait(cmd)
         asyncio.create_task(self._gwy.msg_protocol.send_data(cmd))
 
     @property
