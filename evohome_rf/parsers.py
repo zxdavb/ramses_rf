@@ -676,7 +676,7 @@ def parser_0404(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # system_fault
 def parser_0418(payload, msg) -> Optional[dict]:
-    """10 * 6 log entries in the UI, but 63 via RQs."""
+    """In testing: 10 * 6 log entries in the UI, but 63 via RQs."""
 
     # 045 RP --- 01:145038 18:013393 --:------ 0418 022 000000B00401010000008694A3CC7FFFFF70000ECC8A  # noqa
     # 045 RP --- 01:145038 18:013393 --:------ 0418 022 00C001B004010100000086949BCB7FFFFF70000ECC8A  # noqa
