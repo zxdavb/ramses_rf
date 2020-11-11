@@ -296,15 +296,17 @@ class GatewayProtocol(asyncio.Protocol):
             return Packet(dtm_str, pkt_str, pkt_raw)
 
         def qos_data_received() -> Packet:
-            if self._qos_rq_hdr or self._qos_rp_hdr:
-                self._qos_lock.acquire()
+            if self._qos_cmd is not None:
                 if self._qos_rq_hdr == pkt._header:
                     self._qos_rq_hdr = None
-                    self._qos_timeout = dt.now() + QOS_TIMEOUT_SECS_RP
+                    self._qos_timeout = dt.now() + QOS_TIMEOUT_SECS_RP  # TODO cf _RQ
+
                 elif self._qos_rp_hdr == pkt._header:
-                    self._qos_rp_hdr = None
+                    self._qos_lock.acquire()
+                    self._qos_cmd = None
+                    self._qos_lock.release()
+                    # self._qos_rp_hdr = None
                     # self._qos_timeout = None
-                self._qos_lock.release()
 
         self._recv_buffer += data
         if b"\r\n" in self._recv_buffer:
@@ -314,8 +316,8 @@ class GatewayProtocol(asyncio.Protocol):
             for line in lines[:-1]:
                 pkt = create_pkt(line)
                 if pkt.is_valid:
-                    self._callback(pkt)
                     qos_data_received()
+                    self._callback(pkt)
 
     async def _write_data(self, data: bytearray) -> None:
         """Called when some data is to be sent (not a callaback)."""
@@ -340,38 +342,38 @@ class GatewayProtocol(asyncio.Protocol):
         """Called when some data is to be sent (not a callaback)."""
         # _LOGGER.error("GatewayProtocol.send_data(%s)", cmd)
 
-        while self._qos_rq_hdr or self._qos_rp_hdr:
+        while self._qos_cmd is not None:
             await asyncio.sleep(0.005)
             continue
 
         await self._write_data(bytearray(f"{cmd}\r\n".encode("ascii")))
 
         self._qos_lock.acquire()
-        self._qos_rq_hdr = cmd._rq_header  # Could be None
-        self._qos_rp_hdr = cmd._rp_header  # Could be None, esp. if RQ hdr is None
+        self._qos_cmd = cmd
         self._qos_lock.release()
 
-        if self._qos_rq_hdr:
-            self._qos_cmd = cmd
+        if self._qos_cmd:
+            self._qos_rq_hdr = cmd._rq_header  # Could be None
+            self._qos_rp_hdr = cmd._rp_header  # Could be None, esp. if RQ hdr is None
             self._qos_retries = cmd.qos.get("retries", QOS_RETRIES)
             self._qos_timeout = dt.now() + cmd.qos.get("timeout", QOS_TIMEOUT_SECS_RQ)
 
-        while self._qos_rq_hdr or self._qos_rp_hdr:
+        while self._qos_cmd is not None:
             if self._qos_timeout > dt.now():
                 await asyncio.sleep(0.005)
                 continue
 
             if self._qos_retries == 0:
-                # print("TIMED OUT - EXPIRED!")
+                print(f"GatewayProtocol.send_data({self._qos_cmd}): expired")
                 self._qos_lock.acquire()
-                self._qos_rq_hdr = self._qos_rp_hdr = None
+                self._qos_cmd = None
                 self._qos_lock.release()
                 break
-            # print("TIMED OUT - RETRANSMITTING!")
 
+            print(f"GatewayProtocol.send_data({self._qos_cmd}): resending")
             await self._write_data(bytearray(f"{self._qos_cmd}\r\n".encode("ascii")))
             self._qos_retries -= 1
-            self._qos_timeout = dt.now() + QOS_TIMEOUT_SECS_RQ
+            self._qos_timeout = dt.now() + cmd.qos.get("timeout", QOS_TIMEOUT_SECS_RQ)
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
@@ -379,7 +381,7 @@ class GatewayProtocol(asyncio.Protocol):
 
         if exc is not None:
             pass
-        self._transport.loop.stop()
+        self._transport.loop.stop()  # TODO: what is this for?
 
     def pause_writing(self) -> None:
         """Called when the transport's buffer goes over the high-water mark."""
