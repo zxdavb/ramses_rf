@@ -415,7 +415,7 @@ class ZoneSchedule:
         # super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
-            # asyncio.create_task(self._schedule.start())
+            # asyncio.create_task(self._schedule.start())  # 0404
             pass
 
     def _handle_msg(self, msg) -> bool:

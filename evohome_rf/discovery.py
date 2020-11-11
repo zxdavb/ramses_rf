@@ -89,7 +89,7 @@ async def get_faults(gwy, device_id):
     dev_addr = Address(id=device_id, type=device_id[:2])
     device = gwy._get_device(dev_addr, ctl_addr=dev_addr)
 
-    device._evo._fault_log.start()
+    device._evo._fault_log.start()  # 0418
     while not device._evo._fault_log._fault_log_done:
         await asyncio.sleep(0.05)
     # print("get_faults", device._evo.fault_log())
@@ -101,7 +101,7 @@ async def get_schedule(gwy, device_id, zone_id):
     dev_addr = Address(id=device_id, type=device_id[:2])
     zone = gwy._get_device(dev_addr, ctl_addr=dev_addr)._evo._get_zone(zone_id)
 
-    await zone._schedule.start()
+    await zone._schedule.start()  # 0404
     while not zone._schedule._schedule_done:
         await asyncio.sleep(0.05)
     # print("get_schedule", zone.schedule())
