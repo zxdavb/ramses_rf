@@ -675,15 +675,18 @@ def parser_0404(payload, msg) -> Optional[dict]:
 
 
 @parser_decorator  # system_fault
-def parser_0418(payload, msg=None) -> Optional[dict]:
+def parser_0418(payload, msg) -> Optional[dict]:
     """10 * 6 log entries in the UI, but 63 via RQs."""
 
     # 045 RP --- 01:145038 18:013393 --:------ 0418 022 000000B00401010000008694A3CC7FFFFF70000ECC8A  # noqa
     # 045 RP --- 01:145038 18:013393 --:------ 0418 022 00C001B004010100000086949BCB7FFFFF70000ECC8A  # noqa
     # 045 RP --- 01:145038 18:013393 --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000  # noqa
 
-    def _timestamp(seqx):
+    def _timestamp(seqx) -> Optional[str]:
         """In the controller UI: YYYY-MM-DD HH:MM."""
+        if seqx == "00000000007F":
+            return None
+
         _seqx = int(seqx, 16)
         return dt(
             year=(_seqx & 0b1111111 << 24) >> 24,
@@ -694,41 +697,19 @@ def parser_0418(payload, msg=None) -> Optional[dict]:
             second=(_seqx & 0b111111 << 7) >> 7,
         ).strftime("%Y-%m-%dT%H:%M:%S")
 
-    if payload == CODE_SCHEMA["0418"]["null_rp"]:
+    if payload[2:] == CODE_SCHEMA["0418"]["null_rp"][2:]:
         # a null log entry, or: is payload[38:] == "000000" sufficient?
         return {}
     #
-    if msg:
-        assert msg.verb in (" I", "RP")
-        assert msg.len == 22
-    else:
-        assert len(payload) / 2 == 22
-    #
+    assert msg.verb in (" I", "RP")
+    assert msg.len == 22
     assert payload[:2] == "00"  # likely always 00
     assert payload[2:4] in list(CODE_0418_FAULT_STATE)  # C0 doesn't appear in the UI?
     assert int(payload[4:6], 16) <= 63  # TODO: upper limit is: 60? 63? more?
-    assert payload[6:8] == "B0"  # unknown_1, ?priority
     assert payload[8:10] in list(CODE_0418_FAULT_TYPE)
-
-    # domain_id == '1C' (should be 'FC'?) seen with below (from evo ctl UI):
-    # "FAULT | 28-08-2020, 03:15 | COMMS FAULT, ACTUATOR"
-    # {
-    #   'timestamp':    '20-08-28T03:15:24',
-    #   'fault_state':  'fault',
-    #   'fault_type':   'comms_fault',
-    #   'device_class': 'actuator',
-    #   'domain_id':    '1C',         # should be FC?
-    #   'device_id':    '13:163733'   # acting as boiler-relay
-    # }
-    assert int(payload[10:12], 16) < msg._gwy.config["max_zones"] or (
-        payload[10:12] in ("F9", "FA", "FC", "1C")
-    )
     assert payload[12:14] in list(CODE_0418_DEVICE_CLASS)
-    assert payload[14:18] == "0000"  # unknown_2
-    assert payload[28:30] in ("7F", "FF")  # TODO: last bit in dt field, DST?
-    assert payload[30:38] == "FFFF7000"  # unknown_3
-
-    result = {  # TODO: stop using __idx()?
+    assert payload[28:30] in ("7F", "FF")
+    result = {
         "log_idx": payload[4:6],
         "timestamp": _timestamp(payload[18:30]),
         "fault_state": CODE_0418_FAULT_STATE.get(payload[2:4], payload[2:4]),
@@ -736,18 +717,32 @@ def parser_0418(payload, msg=None) -> Optional[dict]:
         "device_class": CODE_0418_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
     }  # TODO: stop using __idx()?
 
+    assert int(payload[10:12], 16) < msg._gwy.config["max_zones"] or (
+        payload[10:12] in ("F9", "FA", "FC")  # "1C"?
+    )
     if payload[12:14] != "00":  # Controller
         key_name = (
             "zone_id"
             if int(payload[10:12], 16) < msg._gwy.config["max_zones"]
             else "domain_id"
-        )
-        result.update({key_name: payload[10:12]})  # TODO: don't use zone_idx (for now)
+        )  # TODO: don't use zone_idx (for now)
+        result.update({key_name: payload[10:12]})
 
     if payload[38:] == "000002":  # "00:000002 for Unknown?
         result.update({"device_id": None})
     elif payload[38:] not in ("000000", "000001"):  # "00:000001 for Controller?
         result.update({"device_id": dev_hex_to_id(payload[38:])})
+
+    assert payload[6:8] == "B0"  # unknown_1, ?priority
+    assert payload[14:18] == "0000"  # unknown_2
+    assert payload[30:38] == "FFFF7000"  # unknown_3
+    result.update(
+        {
+            "_unknown_1": payload[6:8],
+            "_unknown_2": payload[14:18],
+            "_unknown_3": payload[30:38],
+        }
+    )
 
     return result
 
