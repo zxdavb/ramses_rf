@@ -188,7 +188,7 @@ class Gateway:
                 self._loop.add_signal_handler(
                     sig, lambda sig=sig: asyncio.create_task(handle_sig_posix(sig))
                 )
-        elif os.name == "nt":
+        elif os.name == "nt":  # supported, but YMMV
             _LOGGER.warning("Be aware, YMMV with Windows.")
             for signum in signals + [signal.SIGBREAK]:
                 signal.signal(signum, handle_sig_win32)
