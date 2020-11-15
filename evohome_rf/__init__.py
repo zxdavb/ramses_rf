@@ -163,14 +163,18 @@ class Gateway:
             elif sig == signal.SIGUSR2:
                 _LOGGER.info("Status: \r\n%s", {self.evo.id: self.evo.status})
 
-        def handle_sig_win32(sig, frame):
+        def handle_sig_win32(signum, frame):
             """Handle signals on win32 platform."""
-            _LOGGER.info("Received a signal (signal=%s), processing...", sig.name)
+            _LOGGER.info("Received a signal (signal=%s), processing...", signum)
 
-            if sig == signal.SIGINT:  # Ctrl-C (is this the only useful win32 signal?)
-                # await self.shutdown("handle_sig_win32()")
+            # if signum in (signal.SIGBREAK, signal.SIGINT, signal.SIGTERM):
+            #     # await self.shutdown("handle_sig_win32()")
 
-                raise GracefulExit()
+            raise GracefulExit()
+
+        # signal.SIGBREAK: Int from keyboard (CTRL + BREAK)
+        # signal.SIGINT:   Int from keyboard (CTRL + C): to raise KeyboardInterrupt
+        # signal.SIGTERM:  Termination signal
 
         _LOGGER.debug("_setup_event_handlers(): Creating exception handler...")
         self._loop.set_exception_handler(handle_exception)
@@ -185,8 +189,8 @@ class Gateway:
                 )
         elif os.name == "nt":  # limited support
             _LOGGER.warning("There is only limited support for Windows.")
-            for sig in signals + [signal.SIGBREAK]:
-                signal.signal(sig, handle_sig_win32)
+            for signum in signals + [signal.SIGBREAK]:
+                signal.signal(signum, handle_sig_win32)
         else:  # unsupported
             raise RuntimeError("Unsupported OS for this module: %s", os.name)
 
