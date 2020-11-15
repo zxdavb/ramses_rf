@@ -152,9 +152,9 @@ class Gateway:
 
         async def handle_sig_posix(sig):
             """Handle signals on posix platform."""
-            _LOGGER.debug("handle_sig_posix(): Received %s, processing...", sig.name)
+            _LOGGER.debug("Received a signal (%s), processing...", sig.name)
 
-            if sig in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+            if sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
                 await self.shutdown("handle_sig_posix()")  # OK for after tasks.cancel
 
             elif sig == signal.SIGUSR1:
@@ -163,14 +163,15 @@ class Gateway:
             elif sig == signal.SIGUSR2:
                 _LOGGER.info("Status: \r\n%s", {self.evo.id: self.evo.status})
 
-        def handle_sig_win32(signum, frame):
+        def handle_sig_win32(signum, frame):  # can't be async?
             """Handle signals on win32 platform."""
-            _LOGGER.info("Received a signal (signal=%s), processing...", signum)
+            _LOGGER.debug(
+                "Received a signal (%s), processing...", signal.Signals(signum).name
+            )
 
-            # if signum in (signal.SIGBREAK, signal.SIGINT, signal.SIGTERM):
-            #     # await self.shutdown("handle_sig_win32()")
-
-            raise GracefulExit()
+            if signum in (signal.SIGINT, signal.SIGTERM, signal.SIGBREAK):
+                # self.shutdown("handle_sig_win32()")
+                raise GracefulExit()
 
         # signal.SIGBREAK: Int from keyboard (CTRL + BREAK)
         # signal.SIGINT:   Int from keyboard (CTRL + C): to raise KeyboardInterrupt
@@ -187,8 +188,8 @@ class Gateway:
                 self._loop.add_signal_handler(
                     sig, lambda sig=sig: asyncio.create_task(handle_sig_posix(sig))
                 )
-        elif os.name == "nt":  # limited support
-            _LOGGER.warning("There is only limited support for Windows.")
+        elif os.name == "nt":
+            _LOGGER.warning("Be aware, YMMV with Windows.")
             for signum in signals + [signal.SIGBREAK]:
                 signal.signal(signum, handle_sig_win32)
         else:  # unsupported
@@ -205,9 +206,9 @@ class Gateway:
         # [print(t) for t in tasks]
         # [print(t) for t in asyncio.all_tasks()]
         [task.cancel() for task in tasks]
-        # await asyncio.gather(*tasks, return_exceptions=False)
+        await asyncio.gather(*tasks, return_exceptions=False)
 
-        _LOGGER.debug("shutdown(): Complete.")
+        _LOGGER.wardebugning("shutdown(): Complete.")
 
     async def start(self) -> None:
         async def file_reader(fp, callback):
