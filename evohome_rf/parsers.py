@@ -417,13 +417,12 @@ def parser_0004(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # system_zone (add/del a zone?)
 def parser_0005(payload, msg) -> Optional[dict]:
-    # RQ payload is xx00, controller wont respond to a xx
-
     # 047  I --- 34:064023 --:------ 34:064023 0005 012 000A0000 000F0000 00100000
     # 045  I --- 01:145038 --:------ 01:145038 0005 004 00000100
 
+    # RQ payload is xx00, controller wont respond to a xx
     def _parser(seqx) -> dict:
-        def _get_flag8(byte, *args) -> list:
+        def get_flag8(byte, *args) -> list:
             """Split a byte (as a str) into a list of 8 bits (1/0)."""
             ret = [0] * 8
             byte = bytes.fromhex(byte)[0]
@@ -432,13 +431,14 @@ def parser_0005(payload, msg) -> Optional[dict]:
                 byte = byte >> 1
             return ret
 
-        # assert seqx[:2] == "00"  # done in _idx
         assert len(seqx) == 8
-        assert payload[2:4] in CODE_0005_ZONE_TYPE
+        assert seqx[:2] == payload[:2]
+        assert seqx[:2] == "00"  # done in _idx
+        # assert payload[2:4] in CODE_0005_ZONE_TYPE, f"Unknown zone_type: {seqx[2:4]}"
 
         max_zones = msg._gwy.config["max_zones"]
         return {
-            "zone_mask": (_get_flag8(seqx[4:6]) + _get_flag8(seqx[6:8]))[:max_zones],
+            "zone_mask": (get_flag8(seqx[4:6]) + get_flag8(seqx[6:8]))[:max_zones],
             "zone_type": CODE_0005_ZONE_TYPE.get(seqx[2:4], seqx[2:4]),
         }
 
@@ -558,17 +558,17 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:
 
 @parser_decorator  # zone_actuators (not sensors)
 def parser_000c(payload, msg) -> Optional[dict]:
-    # 045  I --- 34:092243 --:------ 34:092243 000C 018 000A7FFFFFFF000F7FFFFFFF00107FFFFFFF  # noqa: E501
+    # 045  I --- 34:092243 --:------ 34:092243 000C 018 000A7FFFFFFF 000F7FFFFFFF 00107FFFFFFF  # noqa: E501
     # 045 RP --- 01:145038 18:013393 --:------ 000C 006 00000010DAFD
-    # 045 RP --- 01:145038 18:013393 --:------ 000C 012 01000010DAF501000010DAFB
+    # 045 RP --- 01:145038 18:013393 --:------ 000C 012 01000010DAF5 01000010DAFB
 
     # RQ payload is zz00, NOTE: aggregation of parsing taken here
     def _parser(seqx) -> dict:
+        assert len(seqx) == 12
         assert seqx[:2] == payload[:2]
-        assert seqx[2:4] in CODE_000C_DEVICE_TYPE
+        # assert seqx[2:4] in CODE_000C_DEVICE_TYPE, f"Unknown device_type: {seqx[2:4]}"
         assert seqx[4:6] == "7F" or int(seqx[4:6], 16) < msg._gwy.config["max_zones"]
 
-        # print({dev_hex_to_id(seqx[6:12]): seqx[4:6]})
         return {dev_hex_to_id(seqx[6:12]): seqx[4:6]}
 
     if msg.verb == "RQ":
@@ -576,7 +576,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
     else:
         assert msg.len >= 6 and msg.len % 6 == 0  # assuming not RQ
 
-    device_class = CODE_000C_DEVICE_TYPE[payload[2:4]]
+    device_class = CODE_000C_DEVICE_TYPE.get(payload[2:4], f"unkown_{payload[2:4]}")
     if device_class == ATTR_DHW_VALVE and msg.raw_payload[:2] == "01":
         device_class = ATTR_DHW_VALVE_HTG
 
@@ -704,10 +704,10 @@ def parser_0418(payload, msg) -> Optional[dict]:
     assert msg.verb in (" I", "RP")
     assert msg.len == 22
     assert payload[:2] == "00"  # likely always 00
-    assert payload[2:4] in list(CODE_0418_FAULT_STATE)  # C0 doesn't appear in the UI?
+    assert payload[2:4] in CODE_0418_FAULT_STATE  # C0 doesn't appear in the UI?
     assert int(payload[4:6], 16) <= 63  # TODO: upper limit is: 60? 63? more?
-    assert payload[8:10] in list(CODE_0418_FAULT_TYPE)
-    assert payload[12:14] in list(CODE_0418_DEVICE_CLASS)
+    assert payload[8:10] in CODE_0418_FAULT_TYPE
+    assert payload[12:14] in CODE_0418_DEVICE_CLASS
     assert payload[28:30] in ("7F", "FF")
     result = {
         "log_idx": payload[4:6],
@@ -967,7 +967,7 @@ def parser_1f41(payload, msg) -> Optional[dict]:
 
     # 053 RP --- 01:145038 18:013393 --:------ 1F41 006 00FF00FFFFFF  # no stored DHW
     assert payload[2:4] in ("00", "01", "FF")
-    assert payload[4:6] in list(ZONE_MODE_MAP)
+    assert payload[4:6] in ZONE_MODE_MAP
     if payload[4:6] == "04":
         assert msg.len == 12
         assert payload[6:12] == "FFFFFF"
@@ -1140,7 +1140,7 @@ def parser_2349(payload, msg) -> Optional[dict]:
     assert msg.verb in (" I", "RP", " W")
     assert msg.len in (4, 7, 13)  # has a dtm if mode == "04", OTB has 4
 
-    assert payload[6:8] in list(ZONE_MODE_MAP)
+    assert payload[6:8] in ZONE_MODE_MAP
     result = {"mode": ZONE_MODE_MAP.get(payload[6:8]), "setpoint": _temp(payload[2:6])}
 
     if msg.len >= 7:
@@ -1171,7 +1171,7 @@ def parser_2e04(payload, msg) -> Optional[dict]:
     # RQ/2E04/FF
 
     assert msg.len == 8
-    assert payload[:2] in list(SYSTEM_MODE_MAP)  # TODO: check AutoWithReset
+    assert payload[:2] in SYSTEM_MODE_MAP  # TODO: check AutoWithReset
 
     return {
         "system_mode": SYSTEM_MODE_MAP.get(payload[:2]),

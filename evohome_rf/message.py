@@ -281,7 +281,13 @@ class Message:
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
             if self.src.type == "18":  # TODO: should be a warning
                 _LOGGER.warning(
-                    "%s < Validation error (this is OK to ignore)",
+                    "%s < Validation error (this is likely OK to ignore)",
+                    self._pkt,
+                    extra=self.__dict__,
+                )
+            elif self.dst.type == "18":  # TODO: should be a warning
+                _LOGGER.warning(
+                    "%s < Validation error (this is probably OK to ignore)",
                     self._pkt,
                     extra=self.__dict__,
                 )
@@ -327,14 +333,14 @@ class Message:
             else:
                 _LOGGER.error("%s", self, extra=self.__dict__)
 
-        elif self.src.id == "12:207082":
-            _LOGGER.debug("%s", self, extra=self.__dict__)
+        # elif self.src.id == "12:207082":
+        #     _LOGGER.debug("%s", self, extra=self.__dict__)
 
-        elif self.code in ("1F09", "3B00") and self.verb == " I":
-            _LOGGER.error("%s", self, extra=self.__dict__)
+        # elif self.code in ("1F09", "3B00") and self.verb == " I":
+        #     _LOGGER.error("%s", self, extra=self.__dict__)
 
-        elif "18" in (self.src.type, self.dst.type):
-            _LOGGER.warning("%s", self, extra=self.__dict__)
+        # elif "18" in (self.src.type, self.dst.type):
+        #     _LOGGER.warning("%s", self, extra=self.__dict__)
 
         else:  # the normal mode logging scheme (parsing 2x fast without logging)
             _LOGGER.info("%s", self, extra=self.__dict__)
