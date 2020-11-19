@@ -348,235 +348,226 @@ class Message:
 
         return self._is_valid
 
+
+def process_msg(msg: Message) -> None:
+    """Decode the packet and its payload.
+
+    All methods require a valid message (payload), except create_devices, which requires
+    a valid message only for 000C.
+    """
+
     @exception_handler
-    def _create_devices(self) -> None:
-        """Discover and create any new devices.
+    def create_devices(this) -> None:
+        """Discover and create any new devices."""
 
-        Requires a valid packet; only 000C requires a valid message.
-        """
-
-        if self.code == "000C" and self.verb == "RP":
-            if self.src.type == "01":  # TODO
-                self._gwy._get_device(self.dst, ctl_addr=self.src)
-                if self.is_valid:
-                    key = "zone_idx" if "zone_idx" in self.payload else "domain_id"
+        if this.code == "000C" and this.verb == "RP":
+            if this.src.type == "01":  # TODO
+                this._gwy._get_device(this.dst, ctl_addr=this.src)
+                if this.is_valid:
+                    key = "zone_idx" if "zone_idx" in this.payload else "domain_id"
                     [
-                        self._gwy._get_device(
+                        this._gwy._get_device(
                             Address(id=d, type=d[:2]),
-                            ctl_addr=self.src,
-                            domain_id=self.payload[key],
+                            ctl_addr=this.src,
+                            domain_id=this.payload[key],
                         )
-                        for d in self.payload["devices"]
+                        for d in this.payload["devices"]
                     ]
-            if self.src.type == "02":  # TODO
-                if self.payload["devices"]:
-                    device_id = self.payload["devices"][0]
-                    self._gwy._get_device(
-                        self.src, ctl_addr=Address(id=device_id, type=device_id[:2])
+            if this.src.type == "02":  # TODO
+                if this.payload["devices"]:
+                    device_id = this.payload["devices"][0]
+                    this._gwy._get_device(
+                        this.src, ctl_addr=Address(id=device_id, type=device_id[:2])
                     )
 
-        elif self.src.type in ("01", "23"):  # TODO: "30" for VMS
-            self._gwy._get_device(self.dst, ctl_addr=self.src)
+        elif this.src.type in ("01", "23"):  # TODO: "30" for VMS
+            this._gwy._get_device(this.dst, ctl_addr=this.src)
 
-        elif self.dst.type in ("01", "23"):  # TODO: "30" for VMS
-            self._gwy._get_device(self.src, ctl_addr=self.dst)
+        elif this.dst.type in ("01", "23"):  # TODO: "30" for VMS
+            this._gwy._get_device(this.src, ctl_addr=this.dst)
 
         # TODO: will need other changes before these two will work...
         # TODO: the issue is, if the 1st pkt is not a 1F09 (or a list 000A/2309/30C9)
         # TODO: also could do 22D9 (UFC), others?
-        # elif self.code == "1F09" and self.verb == " I":
-        #     self._gwy._get_device(self.dst, ctl_addr=self.src)
+        # elif this.code == "1F09" and this.verb == " I":
+        #     this._gwy._get_device(this.dst, ctl_addr=this.src)
 
-        # elif self.code == "31D9" and self.verb == " I":  # HVAC
-        #     self._gwy._get_device(self.dst, ctl_addr=self.src)
+        # elif this.code == "31D9" and this.verb == " I":  # HVAC
+        #     this._gwy._get_device(this.dst, ctl_addr=this.src)
         # TODO: ...such as means to promote a device to a controller
 
         # this should catch all non-controller (and *some* controller) devices
-        elif self.dst is self.src:
-            self._gwy._get_device(self.src)
+        elif this.dst is this.src:
+            this._gwy._get_device(this.src)
 
         # otherwise one will be a controller, *unless* dst is in ("--", "63")
-        elif isinstance(self.src, Device) and self.src.is_controller:
-            self._gwy._get_device(self.dst, ctl_addr=self.src)
+        elif isinstance(this.src, Device) and this.src.is_controller:
+            this._gwy._get_device(this.dst, ctl_addr=this.src)
 
         # TODO: may create a controller that doesn't exist
-        elif isinstance(self.dst, Device) and self.dst.is_controller:
-            self._gwy._get_device(self.src, ctl_addr=self.dst)
+        elif isinstance(this.dst, Device) and this.dst.is_controller:
+            this._gwy._get_device(this.src, ctl_addr=this.dst)
 
         else:
-            self._gwy._get_device(self.src)
-            self._gwy._get_device(self.dst)
+            this._gwy._get_device(this.src)
+            this._gwy._get_device(this.dst)
 
         # where possible, swap each Address for its corresponding Device
-        self.src = self._gwy.device_by_id.get(self.src.id, self.src)
-        self.dst = self._gwy.device_by_id.get(self.dst.id, self.dst)
+        this.src = this._gwy.device_by_id.get(this.src.id, this.src)
+        this.dst = this._gwy.device_by_id.get(this.dst.id, this.dst)
 
     @exception_handler
-    def _create_zones(self) -> None:
+    def create_zones(this) -> None:
         """Discover and create any new zones (except HW)."""
 
-        if not self.is_valid:  # requires self.payload
+        if this.src.type not in ("01", "23"):  # TODO: this is too restrictive!
             return
 
-        if self.src.type not in ("01", "23"):  # TODO: this is too restrictive!
-            return
-
-        evo = self.src._evo
+        evo = this.src._evo
 
         # TODO: a I/0005: zones have changed & may need a restart (del) or not (add)
-        if self.code == "0005":  # RP, and also I
-            if self._payload["zone_type"] in CODE_0005_ZONE_TYPE.values():
+        if this.code == "0005":  # RP, and also I
+            if this._payload["zone_type"] in CODE_0005_ZONE_TYPE.values():
                 [
                     evo._get_zone(
                         f"{idx:02X}",
-                        zone_type=ZONE_TYPE_SLUGS.get(self._payload["zone_type"]),
+                        zone_type=ZONE_TYPE_SLUGS.get(this._payload["zone_type"]),
                     )
-                    for idx, flag in enumerate(self._payload["zone_mask"])
+                    for idx, flag in enumerate(this._payload["zone_mask"])
                     if flag == 1
                 ]
 
-        if self.code == "000C" and self.payload["devices"] and self.src.type == "01":
-            devices = [self.src.device_by_id[d] for d in self.payload["devices"]]
+        if this.code == "000C" and this.payload["devices"] and this.src.type == "01":
+            devices = [this.src.device_by_id[d] for d in this.payload["devices"]]
 
-            if self.payload["device_class"] == ATTR_ZONE_SENSOR:
-                zone = evo._get_zone(self.payload["zone_idx"])
+            if this.payload["device_class"] == ATTR_ZONE_SENSOR:
+                zone = evo._get_zone(this.payload["zone_idx"])
                 try:
                     zone._set_sensor(devices[0])
                 except TypeError:  # ignore invalid device types, e.g. 17:
                     pass
 
-            elif self.payload["device_class"] == "zone_actuators":
+            elif this.payload["device_class"] == "zone_actuators":
                 # TODO: is this better, or...
-                # evo._get_zone(self.payload["zone_idx"], actuators=devices)
+                # evo._get_zone(this.payload["zone_idx"], actuators=devices)
                 # TODO: is it this one?
-                zone = evo._get_zone(self.payload["zone_idx"])
+                zone = evo._get_zone(this.payload["zone_idx"])
                 for d in devices:
                     d._set_zone(zone)
 
-            elif self.payload["device_class"] == ATTR_HTG_CONTROL:
+            elif this.payload["device_class"] == ATTR_HTG_CONTROL:
                 evo._set_htg_control(devices[0])
 
-            elif self.payload["device_class"] == ATTR_DHW_SENSOR:
+            elif this.payload["device_class"] == ATTR_DHW_SENSOR:
                 # evo._get_zone("HW")._set_sensor(devices[0])
                 evo._get_zone("HW")._set_sensor(devices[0])
 
-            elif self.payload["device_class"] == ATTR_DHW_VALVE:
+            elif this.payload["device_class"] == ATTR_DHW_VALVE:
                 # evo._get_zone("HW")._set_dhw_valve(devices[0])
                 evo._set_dhw_valve(devices[0])
 
-            elif self.payload["device_class"] == ATTR_DHW_VALVE_HTG:
+            elif this.payload["device_class"] == ATTR_DHW_VALVE_HTG:
                 # evo._get_zone("HW")._set_htg_valve(devices[0])
                 evo._set_htg_valve(devices[0])
 
         # # Eavesdropping (below) is used when discovery (above) is not an option
         # # TODO: needs work, e.g. RP/1F41 (excl. null_rp)
-        # elif self.code in ("10A0", "1F41"):
-        #     if isinstance(self.dst, Device) and self.dst.is_controller:
-        #         self.dst._get_zone("HW")
+        # elif this.code in ("10A0", "1F41"):
+        #     if isinstance(this.dst, Device) and this.dst.is_controller:
+        #         this.dst._get_zone("HW")
         #     else:
         #         evo._get_zone("HW ")
 
         # # TODO: also process ufh_idx (but never domain_id)
-        # elif isinstance(self._payload, dict):
+        # elif isinstance(this._payload, dict):
         #     # TODO: only creating zones from arrays, presently, but could do so here
-        #     if self._payload.get("zone_idx"):  # TODO: parent_zone too?
-        #         if self.src.is_controller:
-        #             evo._get_zone(self._payload["zone_idx"])
+        #     if this._payload.get("zone_idx"):  # TODO: parent_zone too?
+        #         if this.src.is_controller:
+        #             evo._get_zone(this._payload["zone_idx"])
         #         else:
-        #             self.dst._get_zone(self._payload["zone_idx"])
+        #             this.dst._get_zone(this._payload["zone_idx"])
 
-        elif isinstance(self._payload, list):
-            if self.code in ("000A", "2309", "30C9"):  # the sync_cycle pkts
-                [evo._get_zone(d["zone_idx"]) for d in self.payload]
-            # elif self.code in ("22C9", "3150"):  # TODO: UFH zone
+        elif isinstance(this._payload, list):
+            if this.code in ("000A", "2309", "30C9"):  # the sync_cycle pkts
+                [evo._get_zone(d["zone_idx"]) for d in this.payload]
+            # elif this.code in ("22C9", "3150"):  # TODO: UFH zone
             #     pass
-
-        return
 
         # else:  # should never get here
         #     raise TypeError
 
     @exception_handler
-    def _update_entities(self, prev) -> None:  # TODO: needs work
+    def update_entities(this, prev) -> None:  # TODO: needs work
         """Update the state of entities (devices, zones, ufh_zones)."""
-
-        if not self.is_valid:  # requires self.payload
-            return
 
         # HACK: merge 000A fragments
         # TODO: do here, or in ctl._handle_msg() and/or system._handle_msg()
-        if re.search("I.* 01.* 000A ", str(self._pkt)):  # HACK: and dtm < 3 secs
+        if re.search("I.* 01.* 000A ", str(this._pkt)):  # HACK: and dtm < 3 secs
             # TODO: an edge case here: >2 000A packets in a row
             if prev is not None and re.search("I.* 01.* 000A ", str(prev._pkt)):
-                self._payload = prev.payload + self.payload  # merge frags, and process
+                this._payload = prev.payload + this.payload  # merge frags, and process
 
         # some devices aren't created if they're filtered out
-        if self.src not in self._gwy.devices:
+        if this.src not in this._gwy.devices:
             return
 
         # some empty payloads may still be useful (e.g. RQ/3EF1/{})
-        self._gwy.device_by_id[self.src.id]._handle_msg(self)
+        this._gwy.device_by_id[this.src.id]._handle_msg(this)
         # if payload is {} (empty dict; lists shouldn't ever be empty)
-        if not self.payload:
+        if not this.payload:
             return
 
         # # try to find the boiler relay, dhw sensor
-        # for evo in self._gwy.systems:
-        #     if self.src == evo:  # TODO: or self.src.if == evo.id?
-        #         if self.code in ("10A0", "1260", "1F41") and evo._dhw is not None:
-        #             evo._dhw._handle_msg(self)
+        # for evo in this._gwy.systems:
+        #     if this.src == evo:  # TODO: or this.src.id == evo.id?
+        #         if this.code in ("10A0", "1260", "1F41") and evo._dhw is not None:
+        #             evo._dhw._handle_msg(this)
         #         break
 
-        #     if self.src.controller == evo:  # TODO: self.src.controller.id == evo.id?
-        #         evo._handle_msg(self, prev)  # TODO: WIP
+        #     if this.src.controller == evo:  # TODO: this.src.controller.id == evo.id?
+        #         evo._handle_msg(this, prev)  # TODO: WIP
         #         break
 
         # lists only useful to devices (c.f. 000C)
-        if isinstance(self.payload, dict) and "zone_idx" in self.payload:
-            evo = self.src._evo  # TODO: needs device?
-            # if evo is None and isinstance(self.dst, Device):
-            #     evo = self.dst._evo
+        if isinstance(this.payload, dict) and "zone_idx" in this.payload:
+            evo = this.src._evo  # TODO: needs device?
+            # if evo is None and isinstance(this.dst, Device):
+            #     evo = this.dst._evo
 
-            if evo is not None and self.payload["zone_idx"] in evo.zone_by_idx:
-                evo.zone_by_idx[self.payload["zone_idx"]]._handle_msg(self)
+            if evo is not None and this.payload["zone_idx"] in evo.zone_by_idx:
+                evo.zone_by_idx[this.payload["zone_idx"]]._handle_msg(this)
 
-            # elif self.payload.get("ufh_idx") in ...:  # TODO: is this needed?
+            # elif this.payload.get("ufh_idx") in ...:  # TODO: is this needed?
             #     pass
-
-
-def process_msg(msg: Message) -> None:
-    """Decode the packet and its payload."""
-
-    self = msg._gwy  # HACK: was moved from __init__.py
 
     if not msg.is_valid:
         return
 
     if not msg._pkt.is_wanted(  # Move this to transport?
-        include=self._include_list, exclude=self._exclude_list
+        include=msg._gwy._include_list, exclude=msg._gwy._exclude_list
     ):
         return
 
     try:
-        if self.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
+        if msg._gwy.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
             return
 
-        # 18:/RQs are unreliable, although any corresponding RPs are required
+        # 18:/RQs are unreliable, although any corresponding RPs are often required
         if msg.src.type == "18":
             return
 
-        if self.config["reduce_processing"] >= DONT_CREATE_ENTITIES:
+        if msg._gwy.config["reduce_processing"] >= DONT_CREATE_ENTITIES:
             return
 
-        msg._create_devices()  # from pkt header & from msg payload (e.g. 000C)
-        msg._create_zones()  # create zones & ufh_zones (TBD)
+        create_devices(msg)  # from pkt header & from msg payload (e.g. 000C)
+        create_zones(msg)  # create zones & ufh_zones (TBD)
 
-        if self.config["reduce_processing"] >= DONT_UPDATE_ENTITIES:
+        if msg._gwy.config["reduce_processing"] >= DONT_UPDATE_ENTITIES:
             return
 
-        msg._update_entities(self._prev_msg)  # update the state database
+        update_entities(msg, msg._gwy._prev_msg)  # update the state database
 
     except (AssertionError, NotImplementedError):
         return
 
-    self._prev_msg = msg if msg.is_valid else None
+    msg._gwy._prev_msg = msg if msg.is_valid else None
