@@ -208,7 +208,7 @@ class Gateway:
         [task.cancel() for task in tasks]
         await asyncio.gather(*tasks, return_exceptions=False)
 
-        _LOGGER.wardebugning("shutdown(): Complete.")
+        _LOGGER.debug("shutdown(): Complete.")
 
     async def start(self) -> None:
         async def file_reader(fp, callback):
