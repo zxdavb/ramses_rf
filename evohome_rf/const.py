@@ -378,7 +378,7 @@ DTM_LONG_REGEX = re.compile(
 DTM_TIME_REGEX = re.compile(r"[0-2]\d:[0-5]\d:[0-5]\d\.\d{3} ?")  # 13:15:00.123
 
 # Used by packet structure validators
-a = r"(-{3}|\d{3})"
+a = r"(-{3}|\d{3}|\.{3})"  # '...' was used by an older version of evofw3
 b = r"( I|RP|RQ| W)"
 c = r"(-{2}:-{6}|\d{2}:\d{6})"
 d = r"[0-9A-F]{4}"
