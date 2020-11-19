@@ -117,12 +117,6 @@ def _idx(seqx, msg) -> dict:
     elif msg.code in MAY_USE_ZONE_IDX:
         assert int(seqx, 16) < msg._gwy.config["max_zones"]
         if {"01", "02", "23"} & {msg.src.type, msg.dst.type}:  # to/from a controller
-            # if msg.src.type in ("01", "02", "23", "18"):  # This is the old way...
-            #     idx_name = "zone_idx"
-            # else:
-            #     idx_name = "parent_idx"
-
-            # This is the new way...
             if msg.src.type == "02" and msg.src == msg.dst:
                 idx_name = "ufh_idx"
             elif msg.src.type in ("01", "02", "23", "18"):

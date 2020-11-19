@@ -501,13 +501,13 @@ def process_msg(msg: Message) -> None:
         """Update the state of entities (devices, zones, ufh_zones)."""
 
         # HACK: merge 000A fragments
-        # TODO: do here, or in ctl._handle_msg() and/or system._handle_msg()
+        # TODO: ?move to ctl._handle_msg() and/or system._handle_msg()?
         if re.search("I.* 01.* 000A ", str(this._pkt)):  # HACK: and dtm < 3 secs
             # TODO: an edge case here: >2 000A packets in a row
             if prev is not None and re.search("I.* 01.* 000A ", str(prev._pkt)):
                 this._payload = prev.payload + this.payload  # merge frags, and process
 
-        # some devices aren't created if they're filtered out
+        # some devices aren't created if they're filtered out (in create_devices?)
         if this.src not in this._gwy.devices:
             return
 
