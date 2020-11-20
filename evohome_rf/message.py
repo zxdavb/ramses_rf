@@ -528,17 +528,17 @@ def process_msg(msg: Message) -> None:
         #         evo._handle_msg(this, prev)  # TODO: WIP
         #         break
 
-        # lists only useful to devices (c.f. 000C)
         if isinstance(this.payload, dict) and "zone_idx" in this.payload:
-            evo = this.src._evo  # TODO: needs device?
-            # if evo is None and isinstance(this.dst, Device):
-            #     evo = this.dst._evo
+            # 089  I --- 02:000921 --:------ 01:191718 3150 002 0300  # NOTE: is valid
+            evo = this.src._evo if hasattr(this.src, "_evo") else None
+            if evo is None:
+                evo = this.dst._evo if hasattr(this.dst, "_evo") else None
 
             if evo is not None and this.payload["zone_idx"] in evo.zone_by_idx:
                 evo.zone_by_idx[this.payload["zone_idx"]]._handle_msg(this)
 
-            # elif this.payload.get("ufh_idx") in ...:  # TODO: is this needed?
-            #     pass
+        elif isinstance(this.payload, dict) and "ufh_idx" in this.payload:
+            pass
 
     if not msg.is_valid:
         return
