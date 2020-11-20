@@ -213,10 +213,10 @@ class Message:
         return self._is_array
 
     @property
-    def is_expired(self) -> bool:
+    def is_expired(self) -> Optional[bool]:
         """Return True if the message is dated (does not require a valid payload)."""
 
-        if self._is_expired:
+        if self._is_expired is not None:
             return self._is_expired
         elif self.code in ("1F09", "313F"):
             timeout = timedelta(seconds=3)
@@ -228,11 +228,13 @@ class Message:
             timeout = timedelta(minutes=60)  # sends I (array)/1h
         elif self.code in ("1260", "1F41", "2349", "2E04"):
             timeout = timedelta(minutes=60)
-        else:
+        else:  # treat as never expiring
             self._is_expired = False
             return self._is_expired
 
-        self._is_expired = self.dtm < dt.now() - timeout * 2
+        dtm = self._gwy._prev_msg.dtm if self._gwy.serial_port is None else dt.now()
+        if self.dtm < dtm - timeout * 2:
+            self._is_expired = True
         return self._is_expired
 
     @property
@@ -528,17 +530,25 @@ def process_msg(msg: Message) -> None:
         #         evo._handle_msg(this, prev)  # TODO: WIP
         #         break
 
+        evo = this.src._evo if hasattr(this.src, "_evo") else None
+        if evo is None:
+            evo = this.dst._evo if hasattr(this.dst, "_evo") else None
+        if evo is None:
+            return
+
         if isinstance(this.payload, dict) and "zone_idx" in this.payload:
             # 089  I --- 02:000921 --:------ 01:191718 3150 002 0300  # NOTE: is valid
-            evo = this.src._evo if hasattr(this.src, "_evo") else None
-            if evo is None:
-                evo = this.dst._evo if hasattr(this.dst, "_evo") else None
-
-            if evo is not None and this.payload["zone_idx"] in evo.zone_by_idx:
+            if this.payload["zone_idx"] in evo.zone_by_idx:
                 evo.zone_by_idx[this.payload["zone_idx"]]._handle_msg(this)
 
-        elif isinstance(this.payload, dict) and "ufh_idx" in this.payload:
-            pass
+            # elif "ufh_idx" in this.payload:
+            #     # ufc = this.src._ufc if hasattr(this.src, "_ufc") else None
+            #     pass
+
+        elif isinstance(this.payload, list) and "zone_idx" in this.payload[0]:
+            for z in this.payload:
+                if z["zone_idx"] in evo.zone_by_idx:
+                    evo.zone_by_idx[z["zone_idx"]]._handle_msg(this)
 
     if not msg.is_valid:
         return
