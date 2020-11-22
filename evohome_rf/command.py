@@ -205,7 +205,7 @@ class FaultLog:  # 0418
             qos = {
                 "priority": Priority.LOW,
                 "retries": 2,
-                "timeout": timedelta(seconds=1.0),
+                # "timeout": timedelta(seconds=1.0),
             }
             callback = {
                 "func": self._proc_log_entry,

@@ -37,19 +37,17 @@ Pause = SimpleNamespace(
     LONG=timedelta(seconds=0.5),
 )
 
-# tx (from sent to gwy, to get back from gwy) seems to takes 0.025
-DISABLE_QOS_CODE = False
-MAX_BUFFER_LEN = 1
-MAX_SEND_COUNT = 1
-# RETRANS_TIMEOUT = timedelta(seconds=0.03)
-# 0.060 gives false +ve for 10E0?
-# 0.065 too low when stressed with (e.g.) schedules, log entries
-EXPIRY_TIMEOUT = timedelta(seconds=2.0)  # say 0.5
+# tx (from sent to gwy, to get back from gwy) seems to takes approx. 0.025s
+__version__ = 2
+if __version__ == 1:
+    QOS_RETRIES = 2
+    QOS_TIMEOUT_RQ = timedelta(seconds=0.2)  # 0.2 too low?
+    QOS_TIMEOUT_RP = timedelta(seconds=1.0)
 
-
-QOS_RETRIES = 2
-QOS_TIMEOUT_SECS_RQ = timedelta(seconds=0.2)  # 0.2 too low?
-QOS_TIMEOUT_SECS_RP = timedelta(seconds=1.0)
+else:
+    QOS_RETRIES = 2
+    QOS_TIMEOUT_RQ = timedelta(seconds=0.20)  # 0.20 OK, but too high?
+    QOS_TIMEOUT_RP = timedelta(seconds=0.05)  # 0.10 OK, but too high? 0.03 too low
 
 _LOGGER = logging.getLogger(__name__)
 if False and __dev_mode__:
@@ -299,7 +297,11 @@ class GatewayProtocol(asyncio.Protocol):
             if self._qos_cmd is not None:
                 if self._qos_rq_hdr == pkt._header:
                     self._qos_rq_hdr = None
-                    self._qos_timeout = dt.now() + QOS_TIMEOUT_SECS_RP  # TODO cf _RQ
+                    self._qos_timeout = dt.now() + (
+                        QOS_TIMEOUT_RP * 2 ** (self._qos_tx_cnt - 1)
+                        if __version__ == 2
+                        else QOS_TIMEOUT_RP
+                    )
 
                 elif self._qos_rp_hdr == pkt._header:
                     self._qos_lock.acquire()
@@ -356,15 +358,17 @@ class GatewayProtocol(asyncio.Protocol):
             self._qos_rq_hdr = cmd._rq_header  # Could be None
             self._qos_rp_hdr = cmd._rp_header  # Could be None, esp. if RQ hdr is None
             self._qos_retries = cmd.qos.get("retries", QOS_RETRIES)
-            self._qos_timeout = dt.now() + cmd.qos.get("timeout", QOS_TIMEOUT_SECS_RQ)
+            self._qos_tx_cnt = 1
+            self._qos_timeout = dt.now() + cmd.qos.get("timeout", QOS_TIMEOUT_RQ)
 
         while self._qos_cmd is not None:
             if self._qos_timeout > dt.now():
                 await asyncio.sleep(0.005)
                 continue
 
-            if self._qos_retries == 0:
-                print(f"GatewayProtocol.send_data({self._qos_cmd}): expired")
+            # if self._qos_retries == 0:
+            if self._qos_tx_cnt > self._qos_retries:
+                print(f"GatewayProtocol.send_data({self._qos_cmd}): fully expired")
                 self._qos_lock.acquire()
                 self._qos_cmd = None
                 self._qos_lock.release()
@@ -372,8 +376,13 @@ class GatewayProtocol(asyncio.Protocol):
 
             print(f"GatewayProtocol.send_data({self._qos_cmd}): resending")
             await self._write_data(bytearray(f"{self._qos_cmd}\r\n".encode("ascii")))
-            self._qos_retries -= 1
-            self._qos_timeout = dt.now() + cmd.qos.get("timeout", QOS_TIMEOUT_SECS_RQ)
+            # self._qos_retries -= 1
+            self._qos_tx_cnt += 1
+            self._qos_timeout = dt.now() + (
+                cmd.qos.get("timeout", QOS_TIMEOUT_RQ)  # * 2 ** self._qos_tx_cnt
+                if __version__ == 2
+                else cmd.qos.get("timeout", QOS_TIMEOUT_RQ)
+            )  # no backoff for RQ, only RP
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
