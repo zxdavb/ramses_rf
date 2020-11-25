@@ -1011,7 +1011,7 @@ def parser_1fc9(payload, msg) -> Optional[dict]:
     ]
 
 
-@parser_decorator  # opentherm_sync
+@parser_decorator  # opentherm_sync, otb_sync
 def parser_1fd4(payload, msg) -> Optional[dict]:
     assert msg.verb in " I"
     assert msg.len == 3
