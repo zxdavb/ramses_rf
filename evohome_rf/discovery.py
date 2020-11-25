@@ -53,14 +53,14 @@ async def spawn_scripts(gwy) -> List[Any]:
 async def periodic(gwy, cmd, count=1440, interval=5):
     async def _periodic():
         await asyncio.sleep(interval)
-        gwy.msg_protocol.send_data(cmd)
+        await gwy.msg_protocol.send_data(cmd)
 
     if count <= 0:
         while True:
-            _periodic()
+            await _periodic()
     else:
         for _ in range(count):
-            _periodic()
+            await _periodic()
 
 
 async def schedule_task(delay, func, *args, **kwargs):
@@ -75,7 +75,7 @@ async def schedule_task(delay, func, *args, **kwargs):
 
 async def get_device(gwy, device_id):
     dev_addr = Address(id=device_id, type=device_id[:2])
-    device = gwy._get_device(dev_addr, ctl_addr=dev_addr)
+    device = gwy._get_device(dev_addr)  # , ctl_addr=dev_addr)  # is not always a CTL
 
     device._discover()  # discover_flag=DISCOVER_ALL
     # print("get_device", device.schema)
