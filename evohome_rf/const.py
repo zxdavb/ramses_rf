@@ -39,6 +39,13 @@ DEFAULT_MAX_ZONES = 12
 # Packet codes
 CODE_SCHEMA = {
     # main codes - every sync_cycle
+    "000A": {
+        "name": "zone_params",
+        "null_resp": "007FFF7FFF",
+        "rp_len": 6,
+        "rq_len": 3,
+        "uses_zone_idx": True,
+    },
     "1F09": {"name": "system_sync", "rp_len": 3, "rq_len": 1, "w_len": 3},
     "2309": {
         "name": "setpoint",
@@ -49,13 +56,6 @@ CODE_SCHEMA = {
         "uses_zone_idx": True,
     },
     "30C9": {"name": "temperature", "null_resp": "7FFF", "uses_zone_idx": True},
-    "000A": {
-        "name": "zone_params",
-        "null_resp": "007FFF7FFF",
-        "rp_len": 6,
-        "rq_len": 3,
-        "uses_zone_idx": True,
-    },
     # zone codes
     "0004": {
         "name": "zone_name",
