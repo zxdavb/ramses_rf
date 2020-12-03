@@ -161,15 +161,17 @@ def probe_device(gwy, device_id):
             cmd = Command("RQ", device_id, code, "FF", qos=qos)
 
         elif code == "3220":
-            cmd = Command("RQ", device_id, code, "0000050000", qos=qos)
+            for data_id in ("00", "03"):  # these are mandatory READ_DATA data_ids
+                cmd = Command("RQ", device_id, code, f"0000{data_id}0000", qos=qos)
+
+        elif CODE_SCHEMA[code].get("rq_len"):
+            rq_len = CODE_SCHEMA[code].get("rq_len") * 2
+            cmd = Command("RQ", device_id, code, f"{0:0{rq_len}X}", qos=qos)
 
         else:
-            cmd = Command("RQ", device_id, code, "00", qos=qos)
-            asyncio.create_task(periodic(gwy, cmd, count=1, interval=0))
-
             cmd = Command("RQ", device_id, code, "0000", qos=qos)
 
-        asyncio.create_task(periodic(gwy, cmd, count=1, interval=0))
+        asyncio.create_task(periodic(gwy, cmd, count=1, interval=0))  # type: ignore
 
     # for code in ("0016", "1FC9"):  # payload 0000 OK for both these
     #     cmd = Command("RQ", device_id, code, "0000", retries=9)
