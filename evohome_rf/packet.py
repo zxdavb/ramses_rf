@@ -368,13 +368,13 @@ class GatewayProtocol(asyncio.Protocol):
 
             # if self._qos_retries == 0:
             if self._qos_tx_cnt > self._qos_retries:
-                print(f"GatewayProtocol.send_data({self._qos_cmd}): fully expired")
+                # print(f"GatewayProtocol.send_data({self._qos_cmd}): fully expired")
                 self._qos_lock.acquire()
                 self._qos_cmd = None
                 self._qos_lock.release()
                 break
 
-            print(f"GatewayProtocol.send_data({self._qos_cmd}): resending")
+            # print(f"GatewayProtocol.send_data({self._qos_cmd}): resending")
             await self._write_data(bytearray(f"{self._qos_cmd}\r\n".encode("ascii")))
             # self._qos_retries -= 1
             self._qos_tx_cnt += 1
