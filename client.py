@@ -10,6 +10,7 @@ import json
 import sys
 
 import click
+from colorama import init as colorama_init, Fore
 
 from evohome_rf import CONFIG_SCHEMA, Gateway, GracefulExit
 
@@ -22,6 +23,9 @@ DEBUG_PORT = 5678
 # ptvsd.enable_attach(address=(DEBUG_ADDR, DEBUG_PORT))
 # print(" - execution paused, waiting for debugger to attach...")
 # ptvsd.wait_for_attach()
+
+
+COLORS = {" I": Fore.GREEN, "RP": Fore.CYAN, "RQ": Fore.BLUE, " W": Fore.MAGENTA}
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
@@ -168,7 +172,12 @@ def debug_wrapper(config_file=None, **kwargs):
 
 
 def process_message(msg) -> None:
-    print(f"{msg.dtm} {msg}")  # print(f"{msg.dtm:%H:%M:%S.%f}"[:-3], f"{msg}")
+    dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
+    if msg.src.type == "18" and msg.verb == "RQ":
+        print(f"{Fore.BLUE}{dtm} {msg}")
+    else:
+        print(f"{COLORS.get(msg.verb)}{dtm} {msg}")
+
     # {print(k, v) for k, v in msg.payload.items()}
 
 
@@ -177,13 +186,16 @@ async def main(serial_port, loop=None, **config):
     # loop=asyncio.get_event_loop() causes: 'NoneType' object has no attribute 'serial'
     print("\r\nclient.py: Starting evohome_rf...")
 
+    colorama_init(autoreset=True)
+
     if sys.platform == "win32":  # is better than os.name
         # ERROR:asyncio:Cancelling an overlapped future failed
         # future: ... cb=[BaseProactorEventLoop._loop_self_reading()]
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     gwy = Gateway(serial_port, loop=loop, **config)
-    # protocol, _ = gwy.create_client(process_message)
+    if config.get("reduce_processing") < 3:
+        protocol, _ = gwy.create_client(process_message)
 
     try:
         task = asyncio.create_task(gwy.start())

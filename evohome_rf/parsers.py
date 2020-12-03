@@ -176,18 +176,18 @@ def parser_decorator(func):
         # grep -E 'RQ.* 002 ' | grep -vE ' (0004|0016|3EF1) '
         # grep -E 'RQ.* 001 ' | grep -vE ' (000A|1F09|22D9|2309|313F|31DA|3EF0) '
 
-        # HACK: to keep logs clean - will need cleaning up eventually
-        if msg.src.type == "18" and msg.verb == "RQ":
-            if msg.code in ("10A0", "12B0", "2349", "30C9"):
-                assert msg.len <= 2
-                return {**_idx(payload[:2], msg)}
+        # # HACK: to keep logs clean - will need cleaning up eventually
+        # if msg.src.type == "18" and msg.verb == "RQ":
+        #     if msg.code in ("10A0", "12B0", "2349", "30C9"):
+        #         assert msg.len <= 2
+        #         return {**_idx(payload[:2], msg)}
 
         # some packets have more than just a domain_id
         if msg.code == "000C":
             assert msg.len == 2
             return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
 
-        if msg.code in ("0004", "000C", "0016", "12B0", "30C9"):
+        if msg.code in ("0004", "0016", "12B0", "30C9"):
             assert msg.len == 2  # 12B0 will RP to 1
             return {**_idx(payload[:2], msg)}
 
@@ -263,11 +263,13 @@ def parser_decorator(func):
                 assert payload[2:] == "00"  # implies: msg.len >= 2
             return {**_idx(payload[:2], msg)}
 
-        if msg.code in CODE_SCHEMA:
-            assert False, f"unknown verb/code: RQ/{msg.code}"
-
-        if msg.src.type != "18":
-            assert False, "unknown RQ"
+        hint = (
+            " (OK to ignore)"
+            if "18" in (msg.src.type, msg.dst.type)
+            else " - please report this as an issue"
+        )
+        assert msg.code in CODE_SCHEMA, f"Code not known{hint}"
+        assert False, f"Code not known to support an RQ{hint}"
 
     return wrapper
 
@@ -831,12 +833,14 @@ def parser_10a0(payload, msg) -> Optional[dict]:
     # RQ --- 07:030741 01:102458 --:------ 10A0 006 00-181F-00-03E4
     # RQ --- 07:036831 23:100224 --:------ 10A0 006 01-1566-00-03E4 (non-evohome)
 
-    assert msg.len in (3, 6)  # OTB uses 3, evohome uses 6
+    assert msg.len in (1, 3, 6)  # OTB uses 3, evohome uses 6
     assert payload[:2] == "00"  # TODO: all *evohome* DHW pkts have no domain
 
     setpoint = _temp(payload[2:6])  # 255 for OTB? iff no DHW?
 
-    result = {"setpoint": None if setpoint == 255 else setpoint}  # 30.0-85.0 C
+    result = {}
+    if msg.len >= 2:
+        result = {"setpoint": None if setpoint == 255 else setpoint}  # 30.0-85.0 C
     if msg.len >= 4:
         result["overrun"] = int(payload[6:8], 16)  # 0-10 minutes
     if msg.len >= 6:

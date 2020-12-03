@@ -102,15 +102,13 @@ def set_logging(
     handler.setFormatter(formatter)
     handler.setLevel(logging.WARNING)
     # handler.addFilter(DebugFilter())
-
     logger.addHandler(handler)
 
     if stream == sys.stdout:
-        handler = logging.StreamHandler(stream=stream)
+        handler = logging.StreamHandler(stream=sys.stdout)
         handler.setFormatter(formatter)
         handler.setLevel(logging.DEBUG)  # TODO: should be WARNING, but breaks logging
         handler.addFilter(InfoFilter())
-
         logger.addHandler(handler)
 
     if file_name:
@@ -128,7 +126,6 @@ def set_logging(
         handler.setFormatter(logging.Formatter(fmt=file_fmt))
         handler.setLevel(logging.DEBUG)
         handler.addFilter(DebugFilter())  # TODO: was InfoFilter()
-
         logger.addHandler(handler)
 
 

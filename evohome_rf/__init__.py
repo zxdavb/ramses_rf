@@ -24,7 +24,7 @@ from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
 from .discovery import spawn_scripts
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
-from .message import DONT_CREATE_MESSAGES, _LOGGER as msg_logger, process_msg
+from .message import _LOGGER as msg_logger, DONT_CREATE_MESSAGES, process_msg
 from .packet import _LOGGER as pkt_logger, file_pkts
 from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
 
@@ -57,7 +57,7 @@ class Gateway:
         """Initialise the class."""
 
         if config.get("debug_mode"):
-            _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
+            # _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
             _LOGGER.warning("Starting evohome_rf, **config = %s", config)
         else:
             _LOGGER.debug("Starting evohome_rf, **config = %s", config)
@@ -85,14 +85,14 @@ class Gateway:
             self.config["disable_sending"] = True
 
         if self.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
-            _stream = (None, sys.stdout)
+            _stream = sys.stdout
         else:
-            _stream = (sys.stdout, None)
-        set_logging(msg_logger, stream=_stream[0], file_name=None)
-        # set_logging(msg_logger, stream=None, file_name=None)
+            _stream = sys.stdout  # None
+
+        set_logging(msg_logger, cons_fmt=CONSOLE_FMT + COLOR_SUFFIX)
         set_logging(
             pkt_logger,
-            stream=_stream[1],
+            stream=_stream,
             file_name=self.config.get("packet_log"),
             file_fmt=PKT_LOG_FMT + BANDW_SUFFIX,
             cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,

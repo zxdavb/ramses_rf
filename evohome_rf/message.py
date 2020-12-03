@@ -35,11 +35,11 @@ DONT_CREATE_ENTITIES = 2
 DONT_UPDATE_ENTITIES = 1
 
 _LOGGER = logging.getLogger(__name__)
-if __dev_mode__:
+if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def exception_handler(func):
+def exception_handler(func):  # TODO: why implement as a wrapper?
     """xxx."""
 
     def wrapper(*args, **kwargs) -> Optional[Any]:
@@ -266,6 +266,9 @@ class Message:
         All exceptions are trapped, and logged appropriately.
         """
 
+        def log_message(log_level, log_msg):
+            log_level(log_msg, self._pkt, extra=self._pkt.__dict__)
+
         if self._is_valid is not None:
             return self._is_valid
 
@@ -279,74 +282,31 @@ class Message:
             self._payload = payload_parser(self.raw_payload, self)
             assert isinstance(self._payload, dict) or isinstance(self._payload, list)
 
-        except (AssertionError, CorruptPayloadError):
+        except AssertionError as err:
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
-            if self.src.type == "18":  # TODO: should be a warning
-                _LOGGER.warning(
-                    "%s < Validation error (this is likely OK to ignore)",
-                    self._pkt,
-                    extra=self.__dict__,
-                )
-            elif self.dst.type == "18":  # TODO: should be a warning
-                _LOGGER.warning(
-                    "%s < Validation error (this is probably OK to ignore)",
-                    self._pkt,
-                    extra=self.__dict__,
-                )
-            else:
-                _LOGGER.exception(
-                    "%s < Validation error", self._pkt, extra=self.__dict__
-                )
+            hint = f": {err}" if str(err) != "" else ""
+            log_message(_LOGGER.warning, f"%s < Validation error{hint}")
+            self._is_valid = False
+            return self._is_valid
+
+        except CorruptPayloadError as err:
+            hint = f": {err}" if str(err) != "" else ""
+            log_message(_LOGGER.warning, f"%s < Validation error{hint} (payload)")
             self._is_valid = False
             return self._is_valid
 
         except (AttributeError, LookupError, TypeError, ValueError):  # for development
-            _LOGGER.exception("%s < Coding error", self._pkt, extra=self.__dict__)
+            log_message(_LOGGER.exception, "%s < Coding error")
             self._is_valid = False
             return self._is_valid
 
         except NotImplementedError:  # unknown packet code
-            _LOGGER.warning("%s < Unknown packet code", self._pkt, extra=self.__dict__)
+            log_message(_LOGGER.warning, "%s < Unknown packet code")
             self._is_valid = False
             return self._is_valid
 
         else:
             self._is_valid = True
-
-        # any remaining messages are valid, so: log them with one of these schemes
-        if False and __dev_mode__:  # a hack to colourize by cycle
-            if self.src.type == "01" and self.verb == " I":
-                if (
-                    self.code == "1F09"
-                    or self.code in ("2309", "30C9", "000A")
-                    and isinstance(self.payload, list)
-                ):
-                    _LOGGER.warning("%s", self, extra=self.__dict__)
-                else:
-                    _LOGGER.info("%s", self, extra=self.__dict__)
-            else:
-                _LOGGER.info("%s", self, extra=self.__dict__)
-
-        elif False and __dev_mode__:  # a hack to colourize by verb
-            if " I" in str(self):
-                _LOGGER.info("%s", self, extra=self.__dict__)
-            elif "RP" in str(self):
-                _LOGGER.warning("%s", self, extra=self.__dict__)
-            else:
-                _LOGGER.error("%s", self, extra=self.__dict__)
-
-        # elif self.src.id == "12:207082":
-        #     _LOGGER.debug("%s", self, extra=self.__dict__)
-
-        # elif self.code in ("1F09", "3B00") and self.verb == " I":
-        #     _LOGGER.error("%s", self, extra=self.__dict__)
-
-        # elif "18" in (self.src.type, self.dst.type):
-        #     _LOGGER.warning("%s", self, extra=self.__dict__)
-
-        else:  # the normal mode logging scheme (parsing 2x fast without logging)
-            _LOGGER.info("%s", self, extra=self.__dict__)
-            pass
 
         return self._is_valid
 
