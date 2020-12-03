@@ -27,6 +27,7 @@ from .const import (
 )
 from .discovery import poll_device, probe_device
 from .exceptions import CorruptStateError
+from .helpers import slugify_string as slugify
 from .logger import dt_now
 
 _LOGGER = logging.getLogger(__name__)
@@ -776,6 +777,51 @@ class OtbGateway(Actuator, Device):
 
         self._domain_id = "FC"
         self._modulation_level = None
+        self._opentherm_msg = {}
+
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        # 086 RQ --- 01:123456 63:262143 --:------ 3220 005 0000050000
+        # 049 RP --- 63:262143 01:123456 --:------ 3220 005 00F0050000
+        # 092 RQ --- 01:123456 63:262143 --:------ 3220 005 0000110000
+        # 049 RP --- 63:262143 01:123456 --:------ 3220 005 00C0110000
+        # 082 RQ --- 01:123456 63:262143 --:------ 3220 005 0000120000
+        # 076 RQ --- 01:123456 63:262143 --:------ 3220 005 0000120000
+        # 049 RP --- 63:262143 01:123456 --:------ 3220 005 0040120166
+        # 075 RQ --- 01:123456 63:262143 --:------ 3220 005 0080130000
+        # 049 RP --- 63:262143 01:123456 --:------ 3220 005 0070130000
+        # 074 RQ --- 01:123456 63:262143 --:------ 3220 005 0080190000
+        # 049 RP --- 63:262143 01:123456 --:------ 3220 005 00401929E6
+        # 072 RQ --- 01:123456 63:262143 --:------ 3220 005 00801A0000
+        # 048 RP --- 63:262143 01:123456 --:------ 3220 005 00401A3033
+        # 073 RQ --- 01:123456 63:262143 --:------ 3220 005 00801C0000
+        # 049 RP --- 63:262143 01:123456 --:------ 3220 005 00401C29B3
+        # 074 RQ --- 01:123456 63:262143 --:------ 3220 005 0080730000
+        # 048 RP --- 63:262143 01:123456 --:------ 3220 005 00407300CC
+        super()._discover(discover_flag=discover_flag)
+
+        if discover_flag & DISCOVER_SCHEMA:
+            # TODO: From OT v2.2: version numbers
+            for msg_id in range(124, 128):
+                self._send_cmd("3220", payload=f"0000{msg_id:02X}0000")
+
+        if discover_flag & DISCOVER_PARAMS:
+            pass
+
+        if discover_flag & DISCOVER_STATUS:  # TODO: these need to be periodic
+            # From OT v2.2, these are mandatory: 00, 01, 03, 0E, 11, 19
+            # From evohome:
+            # 05 - Fault flags & OEM fault code
+            # 11 - Relative modulation level
+            # 12 - Central heating water pressure
+            # 13 - DHW flow rate (litres/minute)
+            # 19 - Boiler water temperature
+            # 1A - DHW temperature
+            for msg_id in ("0005", "0011", "0012", "8013", "8019", "801A"):
+                self._send_cmd("3220", payload=f"00{msg_id}0000")
+            # 1C - Return water temperature
+            # 73 - OEM diagnostic code
+            for msg_id in ("801C", "8073"):
+                self._send_cmd("3220", payload=f"00{msg_id}0000")
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -795,9 +841,9 @@ class OtbGateway(Actuator, Device):
             self._known_msg = True
             self._boiler_setpoint = msg
 
-        elif msg.code == "3220" and msg.verb == "RP":
+        elif msg.code == "3220" and msg.verb == "RP":  # TODO: what about I/W (or RQ)
             self._known_msg = True
-            self._opentherm_msg = msg
+            self._opentherm_msg[msg.payload["id"]] = msg  # TODO: these need to expire
 
         elif msg.code == "3EF0" and msg.verb == "RP":
             self._known_msg = True
@@ -812,6 +858,36 @@ class OtbGateway(Actuator, Device):
             assert False, f"Unknown packet ({msg.verb}/{msg.code}) for {self.id}"
 
     @property
+    def boiler_temp(self) -> Optional[float]:  # 3220
+        if "19" in self._opentherm_msg:
+            return self._opentherm_msg["19"].payload["value"]
+
+    @property
+    def ch_pressure(self) -> Optional[float]:  # 3220
+        if "12" in self._opentherm_msg:
+            return self._opentherm_msg["12"].payload["value"]
+
+    @property
+    def dhw_flow_rate(self) -> Optional[float]:  # 3220
+        if "13" in self._opentherm_msg:
+            return self._opentherm_msg["13"].payload["value"]
+
+    @property
+    def dwh_temp(self) -> Optional[float]:  # 3220
+        if "1A" in self._opentherm_msg:
+            return self._opentherm_msg["1A"].payload["value"]
+
+    @property
+    def rel_modulation_level(self) -> Optional[float]:  # 3220
+        if "11" in self._opentherm_msg:
+            return self._opentherm_msg["11"].payload["value"]
+
+    @property
+    def return_cv_temp(self) -> Optional[float]:  # 3220
+        if "1C" in self._opentherm_msg:
+            return self._opentherm_msg["1C"].payload["value"]
+
+    @property
     def boiler_setpoint(self) -> Optional[float]:  # 22D9
         return _payload(self._boiler_setpoint, "boiler_setpoint")
 
@@ -820,11 +896,27 @@ class OtbGateway(Actuator, Device):
         return _payload(self._modulation_level, "modulation_level")
 
     @property
+    def ot_status(self) -> dict:
+        return {
+            slugify(self._opentherm_msg[msg_id].payload["msg_name"]): (
+                self._opentherm_msg[msg_id].payload["value"]
+            )
+            for msg_id in ("11", "12", "13", "19", "1A", "1C")
+            if msg_id in self._opentherm_msg
+        }
+
+    @property
     def status(self) -> dict:
         return {
             **super().status,
             "boiler_setpoint": self.boiler_setpoint,
             "modulation_level": self.modulation_level,  # TODO: keep? (is duplicate)
+            "boiler_temp": self.boiler_temp,
+            "ch_pressure": self.ch_pressure,
+            "dhw_flow_rate": self.dhw_flow_rate,
+            "dwh_temp": self.dwh_temp,
+            "rel_modulation_level": self.rel_modulation_level,
+            "return_cv_temp": self.return_cv_temp,
         }
 
 
