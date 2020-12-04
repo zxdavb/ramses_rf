@@ -31,6 +31,14 @@ from .logger import dt_now
 # DEVICE_2 = "device_2"
 # DEVICE_3 = "device_3"
 
+DAY_OF_WEEK = "day_of_week"
+HEAT_SETPOINT = "heat_setpoint"
+SWITCHPOINTS = "switchpoints"
+TIME_OF_DAY = "time_of_day"
+
+SCHEDULE = "schedule"
+ZONE_IDX = "zone_idx"
+
 
 Priority = SimpleNamespace(LOW=6, DEFAULT=4, HIGH=2, ASAP=0)
 Qos = SimpleNamespace(
@@ -271,54 +279,76 @@ class Schedule:  # 0404
     def __str_(self) -> str:
         return f"{self._zone} (schedule)"
 
+    @staticmethod
+    def _frags_to_sched(frags: list) -> dict:
+        raw_schedule = zlib.decompress(bytearray.fromhex("".join(frags)))
+
+        zone_idx, schedule = None, []
+        old_day, switchpoints = 0, []
+
+        for i in range(0, len(raw_schedule), 20):
+            zone_idx, day, time, temp, _ = struct.unpack(
+                "<xxxxBxxxBxxxHxxHH", raw_schedule[i : i + 20]
+            )
+            if day > old_day:
+                schedule.append({DAY_OF_WEEK: old_day, SWITCHPOINTS: switchpoints})
+                old_day, switchpoints = day, []
+            switchpoints.append(
+                {
+                    TIME_OF_DAY: "{0:02d}:{1:02d}".format(*divmod(time, 60)),
+                    HEAT_SETPOINT: temp / 100,
+                }
+            )
+
+        schedule.append({DAY_OF_WEEK: old_day, SWITCHPOINTS: switchpoints})
+
+        return {ZONE_IDX: f"{zone_idx:02X}", SCHEDULE: schedule}
+
+    @staticmethod
+    def _sched_to_frags(schedule: dict) -> list:
+        frags = [
+            (
+                int(schedule[ZONE_IDX], 16),
+                int(day[DAY_OF_WEEK]),
+                int(setpoint[TIME_OF_DAY][:2]) * 60 + int(setpoint[TIME_OF_DAY][3:]),
+                int(setpoint[HEAT_SETPOINT] * 100),
+            )
+            for day in schedule[SCHEDULE]
+            for setpoint in day[SWITCHPOINTS]
+        ]
+        frags = [struct.pack("<xxxxBxxxBxxxHxxHxx", *s) for s in frags]
+
+        cobj = zlib.compressobj(level=9, wbits=14)
+        blob = b"".join([cobj.compress(s) for s in frags]) + cobj.flush()
+        blob = blob.hex().upper()
+
+        return [blob[i : i + 82] for i in range(0, len(blob), 82)]
+
     @property
     def schedule(self) -> Optional[dict]:
         """Return the schedule of a zone."""
         if not self._schedule_done:
-            return self._schedule
-
-        _LOGGER.debug(
-            "Sched(%s).schedule: array is: %s",
-            self.id,
-            [{d["frag_index"]: d["fragment"]} for d in self._frag_array],
-        )
-
-        if self._frag_array == [] or not all(self._frag_array):
-            return
+            return self._schedule  # or None?
 
         frags = [v for d in self._frag_array for k, v in d.items() if k == "fragment"]
+        # _LOGGER.debug(f"Sched({self.id}).schedule: array is: %s", frags,)
+
         try:
-            raw_schedule = zlib.decompress(bytearray.fromhex("".join(frags)))
+            self._schedule = self._frags_to_sched(frags)
         except zlib.error:
-            _LOGGER.exception("Invalid schedule fragments: %s", self._frag_array)
             self.reset()
+            _LOGGER.exception("Invalid schedule fragments: %s", frags)
             return
 
-        self._schedule = []
-        old_day, switchpoints = 0, []
-
-        for i in range(0, len(raw_schedule), 20):
-            zone, day, time, temp, _ = struct.unpack(
-                "<xxxxBxxxBxxxHxxHH", raw_schedule[i : i + 20]
-            )
-            if day > old_day:
-                self._schedule.append(
-                    {"day_of_week": old_day, "switchpoints": switchpoints}
-                )
-                old_day, switchpoints = day, []
-            switchpoints.append(
-                {
-                    "time_of_day": "{0:02d}:{1:02d}".format(*divmod(time, 60)),
-                    "heat_setpoint": temp / 100,
-                }
-            )
-
-        self._schedule.append({"day_of_week": old_day, "switchpoints": switchpoints})
+        # _LOGGER.debug(f"Sched({self.id}).schedule: %s", self._schedule)
         self._schedule_done = True
 
-        _LOGGER.debug("Schedule(%s): len(schedule): %s", self.id, len(self._schedule))
-        # _LOGGER.debug("Sched(%s).schedule: %s", self.id, self._schedule)
-        return self._schedule
+        return self._schedule["schedule"]
+
+    @schedule.setter
+    def schedule(self, schedule) -> None:
+        """Set the schedule of a zone."""
+        pass
 
     async def start(self) -> None:
         _LOGGER.debug("Schedule(%s).start()", self.id)

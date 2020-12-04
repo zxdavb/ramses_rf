@@ -125,8 +125,9 @@ def listen(obj, **kwargs):
     required=True,
     help="The device to target with a get_xxx script",
 )
-@click.option("--get-schedule", is_flag=False, type=click.STRING)
 @click.option("--get-faults", is_flag=True)
+@click.option("--get-schedule", is_flag=False, type=click.STRING)
+@click.option("--set-schedule", is_flag=False, type=click.File("r"))
 @click.pass_obj
 def execute(obj, **kwargs):
     """Execute scripts on a device via a serial port."""
@@ -181,6 +182,16 @@ def process_message(msg) -> None:
     # {print(k, v) for k, v in msg.payload.items()}
 
 
+# def process_device_job() -> None:
+#     dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
+#     if msg.src.type == "18" and msg.verb == "RQ":
+#         print(f"{Fore.BLUE}{dtm} {msg}")
+#     else:
+#         print(f"{COLORS.get(msg.verb)}{dtm} {msg}")
+
+#     # {print(k, v) for k, v in msg.payload.items()}
+
+
 async def main(serial_port, loop=None, **config):
 
     # loop=asyncio.get_event_loop() causes: 'NoneType' object has no attribute 'serial'
@@ -199,6 +210,8 @@ async def main(serial_port, loop=None, **config):
 
     try:
         task = asyncio.create_task(gwy.start())
+        # if config.get("device_id"):
+        #     process_device_job()
         await task
     except asyncio.CancelledError:
         # print(" - exiting via: CancelledError (this is expected)")
@@ -213,6 +226,8 @@ async def main(serial_port, loop=None, **config):
     print("\r\nclient.py: Finished evohome_rf, results:\r\n")
 
     if config.get("device_id"):
+        # gwy._get_device()
+
         if config.get("get_faults"):
             fault_log = gwy.device_by_id[config["device_id"]]._evo.fault_log()
             if fault_log is None:
@@ -225,7 +240,16 @@ async def main(serial_port, loop=None, **config):
             if schedule is None:
                 print("Failed to get the schedule.")
             else:
-                print(json.dumps(schedule, indent=4))
+                result = {
+                    "zone_idx": config["get_schedule"],
+                    # "zone_name": gwy.evo.zone_by_idx[config["get_schedule"]].name,
+                    "schedule": schedule,
+                }
+                print(json.dumps(result))  # , indent=4))
+
+        elif config.get("set_schedule") is not None:
+            input = json.load(config["set_schedule"])
+            gwy.evo.zone_by_idx[input["zone_idx"]].schedule = input["schedule"]
 
         else:
             print(gwy.device_by_id[config["device_id"]])
