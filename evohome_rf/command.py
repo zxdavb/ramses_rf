@@ -309,12 +309,12 @@ class Schedule:  # 0404
         frags = [
             (
                 int(schedule[ZONE_IDX], 16),
-                int(day[DAY_OF_WEEK]),
+                int(week_day[DAY_OF_WEEK]),
                 int(setpoint[TIME_OF_DAY][:2]) * 60 + int(setpoint[TIME_OF_DAY][3:]),
                 int(setpoint[HEAT_SETPOINT] * 100),
             )
-            for day in schedule[SCHEDULE]
-            for setpoint in day[SWITCHPOINTS]
+            for week_day in schedule[SCHEDULE]
+            for setpoint in week_day[SWITCHPOINTS]
         ]
         frags = [struct.pack("<xxxxBxxxBxxxHxxHxx", *s) for s in frags]
 
