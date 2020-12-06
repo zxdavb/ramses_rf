@@ -56,14 +56,7 @@ def parse(obj, **kwargs):
 @click.command()
 @click.argument("serial-port")
 @click.option("-T", "--evofw-flag", help="TBD")
-@click.option(  # "--packet-log"
-    "-o",
-    "--packet-log",
-    help="TBD",
-    type=click.Path(),
-    default="packet.log",
-    show_default=True,
-)
+@click.option("-o", "--packet-log", help="TBD", type=click.Path())
 @click.option("-p", "--enforce-probing", is_flag=True, help="TBD")
 @click.option(  # "--execute-cmd"
     "-x",
@@ -90,14 +83,7 @@ def monitor(obj, **kwargs):
 @click.command()
 @click.argument("serial-port")
 @click.option("-T", "--evofw-flag", help="TBD")
-@click.option(  # "--packet-log"
-    "-o",
-    "--packet-log",
-    help="TBD",
-    type=click.Path(),
-    default="packet.log",
-    show_default=True,
-)
+@click.option("-o", "--packet-log", help="TBD", type=click.Path())
 @click.pass_obj
 def listen(obj, **kwargs):
     """Listen to (eavesdrop only) a serial port for packets."""
@@ -110,14 +96,7 @@ def listen(obj, **kwargs):
 @click.command()
 @click.argument("serial-port")
 @click.option("-T", "--evofw-flag", help="TBD")
-@click.option(  # "--packet-log"
-    "-o",
-    "--packet-log",
-    help="TBD",
-    type=click.Path(),
-    default="packet.log",
-    show_default=True,
-)
+@click.option("-o", "--packet-log", help="TBD", type=click.Path())
 @click.option(  # "--device-id"
     "--device-id",
     is_flag=False,

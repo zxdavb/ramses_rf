@@ -85,7 +85,7 @@ class Gateway:
         if self.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
             _stream = sys.stdout
         else:
-            _stream = sys.stdout  # None
+            _stream = None
 
         set_logging(
             pkt_logger,

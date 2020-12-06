@@ -240,9 +240,9 @@ class Ramses2Transport(asyncio.Transport):
 
         if not self._dispatcher:
             # raise RuntimeError("transport has no dispatcher")
-            _LOGGER.info("RamsesTransport.write(%s): no dispatcher: discarded", cmd)
+            _LOGGER.debug("RamsesTransport.write(%s): no dispatcher: discarded", cmd)
         if self._gwy.config["disable_sending"]:
-            _LOGGER.info("RamsesTransport.write(%s): sending diabled: discarded", cmd)
+            _LOGGER.debug("RamsesTransport.write(%s): sending diabled: discarded", cmd)
         else:
             self._que.put_nowait(cmd)
 
