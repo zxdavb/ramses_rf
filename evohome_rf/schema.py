@@ -149,10 +149,8 @@ PARSE_SCHEMA = vol.Schema({})
 CLI_SCHEMA = vol.Schema({})
 
 _LOGGER = logging.getLogger(__name__)
-if __dev_mode__:
+if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
-else:
-    _LOGGER.setLevel(logging.WARNING)
 
 
 def load_config(gwy, **config) -> Tuple[dict, list, list]:

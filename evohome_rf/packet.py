@@ -52,8 +52,9 @@ else:
 _LOGGER = logging.getLogger(__name__)
 if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
-else:
-    _LOGGER.setLevel(logging.WARNING)
+
+_PKT_LOGGER = logging.getLogger(f"{__name__}-log")
+_PKT_LOGGER.setLevel(logging.DEBUG)
 
 
 def extra(dtm, pkt=None):
@@ -67,8 +68,8 @@ def extra(dtm, pkt=None):
     }
 
 
-def _logger(log_msg, pkt, dtm_now):
-    _LOGGER.warning("%s < %s", pkt, log_msg, extra=extra(dtm_now.isoformat(), pkt))
+# def _logger(log_msg, pkt, dtm_now):
+#     _PKT_LOGGER.warning("%s < %s", pkt, log_msg, extra=extra(dtm_now.isoformat(), pkt))
 
 
 def split_pkt_line(packet_line: str) -> Tuple[str, str, str]:
@@ -161,13 +162,13 @@ class Packet:
 
         if self.error_text:  # log all packets with an error
             if self.packet:
-                _LOGGER.warning("%s < Bad packet: ", self, extra=self.__dict__)
+                _PKT_LOGGER.warning("%s < Bad packet: ", self, extra=self.__dict__)
             else:
-                _LOGGER.warning("< Bad packet: ", extra=self.__dict__)
+                _PKT_LOGGER.warning("< Bad packet: ", extra=self.__dict__)
             return False
 
         if not self.packet and self.comment:  # log null packets only if has a comment
-            _LOGGER.warning("", extra=self.__dict__)  # normally a warning
+            _PKT_LOGGER.warning("", extra=self.__dict__)  # normally a warning
             return False
 
         # TODO: these packets shouldn't go to the packet log, only STDERR?
@@ -183,7 +184,7 @@ class Packet:
             # TODO: Check that an expected RP arrived for an RQ sent by this library
             return True
 
-        _LOGGER.warning("%s < Bad packet: %s ", self, err_msg, extra=self.__dict__)
+        _PKT_LOGGER.warning("%s < Bad packet: %s ", self, err_msg, extra=self.__dict__)
         return False
 
     def is_wanted(self, include: list = None, exclude: list = None) -> bool:
@@ -204,7 +205,7 @@ class Packet:
             return True
 
         if is_wanted_pkt():
-            _LOGGER.info("%s ", self.packet, extra=self.__dict__)
+            _PKT_LOGGER.info("%s ", self.packet, extra=self.__dict__)
             return True
         return False
 
@@ -229,7 +230,7 @@ async def file_pkts(fp):
 
         except (AssertionError, TypeError, ValueError):
             if ts_pkt != "" and dtm.strip()[:1] != "#":
-                _LOGGER.warning(
+                _PKT_LOGGER.warning(
                     "%s < Packet line has an invalid timestamp (ignoring)",
                     ts_pkt,
                     extra=extra(dt_str(), ts_pkt),
@@ -277,7 +278,8 @@ class GatewayProtocol(asyncio.Protocol):
 
         def create_pkt(pkt_raw: ByteString) -> Packet:
             dtm_str = dt_str()  # done here & now for most-accurate timestamp
-            # _LOGGER.debug("%s < Raw pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
+            # _LOGGER.debug("GatewayProtocol.data_received(%s)", pkt_raw)
+            # _PKT_LOGGER.debug("%s < Raw pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
 
             try:
                 pkt_str = "".join(
@@ -286,7 +288,9 @@ class GatewayProtocol(asyncio.Protocol):
                     if c in printable
                 )
             except UnicodeDecodeError:
-                _LOGGER.warning("%s < Bad pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
+                _PKT_LOGGER.warning(
+                    "%s < Bad pkt", pkt_raw, extra=extra(dtm_str, pkt_raw)
+                )
                 return Packet(dtm_str, "", pkt_raw)
 
             # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here

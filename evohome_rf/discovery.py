@@ -15,8 +15,6 @@ from .const import __dev_mode__, CODE_SCHEMA, DEVICE_TABLE, Address
 _LOGGER = logging.getLogger(__name__)
 if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
-else:
-    _LOGGER.setLevel(logging.WARNING)
 
 
 async def spawn_scripts(gwy) -> List[Any]:

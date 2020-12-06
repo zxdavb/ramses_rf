@@ -29,20 +29,13 @@ from .const import (
 )
 from .devices import Device, Entity, _dtm, _payload
 from .exceptions import CorruptStateError
-from .schema import (
-    ATTR_HTG_CONTROL,
-    ATTR_ORPHANS,
-    ATTR_UFH_CONTROLLERS,
-    ATTR_ZONES,
-)
+from .schema import ATTR_HTG_CONTROL, ATTR_ORPHANS, ATTR_UFH_CONTROLLERS, ATTR_ZONES
 
 from .zones import DhwZone, Zone
 
 _LOGGER = logging.getLogger(__name__)
 if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
-else:
-    _LOGGER.setLevel(logging.WARNING)
 
 
 class SysFaultLog(Entity):  # 0418
@@ -1043,9 +1036,4 @@ class Evohome(SysLanguage, SysMode, MultiZone, StoredHw, System):  # evohome
 #         pass
 
 
-SYSTEM_CLASSES = {
-    "01": Evohome,
-    "12": System,
-    "22": System,
-    "23": System,
-}
+SYSTEM_CLASSES = {"01": Evohome, "12": System, "22": System, "23": System}

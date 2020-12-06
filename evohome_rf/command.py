@@ -50,8 +50,6 @@ Qos = SimpleNamespace(
 _LOGGER = logging.getLogger(__name__)
 if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
-else:
-    _LOGGER.setLevel(logging.WARNING)
 
 
 def _pkt_header(packet, response_header=None) -> Optional[str]:
@@ -215,10 +213,7 @@ class FaultLog:  # 0418
                 "retries": 2,
                 # "timeout": timedelta(seconds=1.0),
             }
-            callback = {
-                "func": self._proc_log_entry,
-                "timeout": timedelta(seconds=1),
-            }
+            callback = {"func": self._proc_log_entry, "timeout": timedelta(seconds=1)}
 
             cmd = Command(
                 "RQ", self._ctl.id, "0418", payload, qos=qos, callback=callback
@@ -396,10 +391,7 @@ class Schedule:  # 0404
                 "retries": 3,
                 "timeout": timedelta(seconds=0.5),
             }
-            callback = {
-                "func": self._proc_fragment,
-                "timeout": timedelta(seconds=1),
-            }
+            callback = {"func": self._proc_fragment, "timeout": timedelta(seconds=1)}
 
             cmd = Command(
                 "RQ", self._ctl.id, "0404", payload, qos=qos, callback=callback

@@ -33,8 +33,6 @@ from .logger import dt_now
 _LOGGER = logging.getLogger(__name__)
 if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
-else:
-    _LOGGER.setLevel(logging.WARNING)
 
 
 def dev_hex_to_id(device_hex: str, friendly_id=False) -> str:

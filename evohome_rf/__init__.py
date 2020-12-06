@@ -24,8 +24,8 @@ from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
 from .discovery import spawn_scripts
 from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
-from .message import _LOGGER as msg_logger, DONT_CREATE_MESSAGES, process_msg
-from .packet import _LOGGER as pkt_logger, file_pkts
+from .message import DONT_CREATE_MESSAGES, process_msg
+from .packet import _PKT_LOGGER as pkt_logger, file_pkts
 from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
 
 # from .ser2net import Ser2NetServer
@@ -42,8 +42,6 @@ from .version import __version__  # noqa
 _LOGGER = logging.getLogger(__name__)
 if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
-else:
-    _LOGGER.setLevel(logging.WARNING)
 
 
 class GracefulExit(SystemExit):
@@ -89,7 +87,6 @@ class Gateway:
         else:
             _stream = sys.stdout  # None
 
-        set_logging(msg_logger, cons_fmt=CONSOLE_FMT + COLOR_SUFFIX)
         set_logging(
             pkt_logger,
             stream=_stream,
