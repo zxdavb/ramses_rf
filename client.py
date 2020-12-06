@@ -18,11 +18,11 @@ DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
 
 # this is needed only when debugging the client
-# import ptvsd
+# import debugpy
 # print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
-# ptvsd.enable_attach(address=(DEBUG_ADDR, DEBUG_PORT))
+# debugpy.listen(address=(DEBUG_ADDR, DEBUG_PORT))
 # print(" - execution paused, waiting for debugger to attach...")
-# ptvsd.wait_for_attach()
+# debugpy.wait_for_client()
 
 
 COLORS = {" I": Fore.GREEN, "RP": Fore.CYAN, "RQ": Fore.BLUE, " W": Fore.MAGENTA}
@@ -144,14 +144,14 @@ def debug_wrapper(config_file=None, **kwargs):
         print("Additional logging enabled (debugging not enabled).")
 
     elif kwargs["debug_mode"] != 0:
-        import ptvsd
+        import debugpy
 
         print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
-        ptvsd.enable_attach(address=(DEBUG_ADDR, DEBUG_PORT))
+        debugpy.listen(address=(DEBUG_ADDR, DEBUG_PORT))
 
         if kwargs["debug_mode"] == 1:
             print(" - execution paused, waiting for debugger to attach...")
-            ptvsd.wait_for_attach()
+            debugpy.wait_for_client()
             print(" - debugger is now attached, continuing execution.")
 
     # 2nd: merge CLI args with config file, if any, TODO: use a SCHEMA
