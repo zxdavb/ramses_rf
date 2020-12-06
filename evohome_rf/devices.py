@@ -774,6 +774,8 @@ class OtbGateway(Actuator, Device):
         super().__init__(*args, **kwargs)
 
         self._domain_id = "FC"
+
+        self._boiler_setpoint = None
         self._modulation_level = None
         self._opentherm_msg = {}
 
