@@ -270,7 +270,7 @@ class DhwZone(ZoneBase, HeatDemand):
 
     @property
     def sensor(self) -> Device:
-        return self._evo.dhw_sensor
+        return self._sensor
 
     def _set_sensor(self, device: Device) -> None:  # self._sensor
         """Set the temp sensor for this DHW system (07: only)."""
