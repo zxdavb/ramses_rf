@@ -268,6 +268,7 @@ async def main(serial_port, loop=None, **config):
 
 
 cli.add_command(execute)
+cli.add_command(listen)
 cli.add_command(monitor)
 cli.add_command(parse)
 

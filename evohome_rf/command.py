@@ -243,7 +243,7 @@ class FaultLog:  # 0418
             return
 
         log = dict(msg.payload)
-        log_idx = int(log.pop("log_idx"))
+        log_idx = int(log.pop("log_idx"), 16)
         self._fault_log[log_idx] = log
 
         self._req_log_entry(log_idx + 1)
