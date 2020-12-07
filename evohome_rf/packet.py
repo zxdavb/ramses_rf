@@ -68,10 +68,6 @@ def extra(dtm, pkt=None):
     }
 
 
-# def _logger(log_msg, pkt, dtm_now):
-#     _PKT_LOGGER.warning("%s < %s", pkt, log_msg, extra=extra(dtm_now.isoformat(), pkt))
-
-
 def split_pkt_line(packet_line: str) -> Tuple[str, str, str]:
     # line format: 'datetime packet < parser-message: * evofw3-errmsg # evofw3-comment'
     def _split(text: str, char: str) -> Tuple[str, str]:
@@ -248,7 +244,7 @@ class GatewayProtocol(asyncio.Protocol):
     """Interface for a packet protocol."""
 
     def __init__(self, pkt_handler) -> None:
-        # _LOGGER.debug("GatewayProtocol.__init__()")
+        _LOGGER.debug("GatewayProtocol.__init__()")
 
         self._callback = pkt_handler
 
@@ -264,22 +260,22 @@ class GatewayProtocol(asyncio.Protocol):
 
     def connection_made(self, transport: SerialTransport) -> None:
         """Called when a connection is made."""
-        # _LOGGER.debug("GatewayProtocol.connection_made(%s)", transport)
+        _LOGGER.debug("GatewayProtocol.connection_made(%s)", transport)
 
         self._transport = transport
         # self._transport.serial.rts = False
 
     def data_received(self, data: ByteString):
         """Called when some data is received."""
-        # _LOGGER.debug("GatewayProtocol.data_received(%s)", data)
+        _LOGGER.debug("GatewayProtocol.data_received(%s)", data)
 
         # if b'\n' in data:
         #     self._transport.close()
 
         def create_pkt(pkt_raw: ByteString) -> Packet:
             dtm_str = dt_str()  # done here & now for most-accurate timestamp
-            # _LOGGER.debug("GatewayProtocol.data_received(%s)", pkt_raw)
-            # _PKT_LOGGER.debug("%s < Raw pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
+            _LOGGER.debug("GatewayProtocol.data_received(%s)", pkt_raw)
+            _PKT_LOGGER.debug("%s < Raw pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
 
             try:
                 pkt_str = "".join(
@@ -311,8 +307,6 @@ class GatewayProtocol(asyncio.Protocol):
                     self._qos_lock.acquire()
                     self._qos_cmd = None
                     self._qos_lock.release()
-                    # self._qos_rp_hdr = None
-                    # self._qos_timeout = None
 
         self._recv_buffer += data
         if b"\r\n" in self._recv_buffer:
@@ -327,7 +321,7 @@ class GatewayProtocol(asyncio.Protocol):
 
     async def _write_data(self, data: bytearray) -> None:
         """Called when some data is to be sent (not a callaback)."""
-        # _LOGGER.debug("GatewayProtocol._write_data(%s)", data)
+        _LOGGER.debug("GatewayProtocol._write_data(%s)", data)
 
         while self._pause_writing or not self._transport:
             await asyncio.sleep(0.005)
@@ -346,7 +340,7 @@ class GatewayProtocol(asyncio.Protocol):
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callaback)."""
-        # _LOGGER.error("GatewayProtocol.send_data(%s)", cmd)
+        _LOGGER.debug("GatewayProtocol.send_data(%s)", cmd)
 
         while self._qos_cmd is not None:
             await asyncio.sleep(0.005)
@@ -390,7 +384,7 @@ class GatewayProtocol(asyncio.Protocol):
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
-        # _LOGGER.debug("GatewayProtocol.connection_lost(%s)", exc)
+        _LOGGER.debug("GatewayProtocol.connection_lost(%s)", exc)
 
         if exc is not None:
             pass
@@ -398,14 +392,14 @@ class GatewayProtocol(asyncio.Protocol):
 
     def pause_writing(self) -> None:
         """Called when the transport's buffer goes over the high-water mark."""
-        # _LOGGER.debug("GatewayProtocol.pause_writing()")
+        _LOGGER.debug("GatewayProtocol.pause_writing()")
         # print(self._transport.get_write_buffer_size())
 
         self._pause_writing = True
 
     def resume_writing(self) -> None:
         """Called when the transport's buffer drains below the low-water mark."""
-        # _LOGGER.debug("GatewayProtocol.resume_writing()")
+        _LOGGER.debug("GatewayProtocol.resume_writing()")
         # print(self._transport.get_write_buffer_size())
 
         self._pause_writing = False
