@@ -93,6 +93,8 @@ class Message:
 
         self._payload = self._str = None
 
+        self._format = MSG_FORMAT_18 if gwy.config["known_devices"] else MSG_FORMAT_10
+
         self._is_valid = self._is_array = self._is_expired = self._is_fragment = None
         self._is_valid = self.is_valid
 
@@ -123,8 +125,6 @@ class Message:
         if not self.is_valid:
             return  # "Invalid"
 
-        _format = MSG_FORMAT_18 if self._gwy.config["known_devices"] else MSG_FORMAT_10
-
         if self.src.id == self.devs[0].id:
             src = display_name(self.src)
             dst = display_name(self.dst) if self.dst is not self.src else ""
@@ -135,7 +135,9 @@ class Message:
         code = CODE_MAP.get(self.code, f"unknown_{self.code}")
         payload = self.raw_payload if self.len < 4 else f"{self.raw_payload[:5]}..."[:9]
 
-        self._str = _format.format(src, dst, self.verb, code, payload, self._payload)
+        self._str = self._format.format(
+            src, dst, self.verb, code, payload, self._payload
+        )
         return self._str
 
     def __eq__(self, other) -> bool:
@@ -285,7 +287,10 @@ class Message:
         except AssertionError as err:
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
             hint = f": {err}" if str(err) != "" else ""
-            log_message(_LOGGER.warning, f"%s < Validation error{hint}")
+            log_message(
+                _LOGGER.exception if __dev_mode__ else _LOGGER.warning,
+                f"%s < Validation error{hint}",
+            )
             self._is_valid = False
             return self._is_valid
 
