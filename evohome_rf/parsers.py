@@ -186,18 +186,18 @@ def parser_decorator(func):
             return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
 
         if msg.code in ("0004", "0016", "12B0", "30C9"):
-            assert msg.len == 2  # 12B0 will RP to 1
+            assert msg.len == 2  # 12B0, 30C9 will RP to 1
             return {**_idx(payload[:2], msg)}
 
         if msg.code == "2349":
-            assert msg.len == 7
+            assert msg.len in (1, 2, 7)  # native evohome is 7
             return {**_idx(payload[:2], msg)}
 
         if msg.code in ("000A", "2309"):
             if msg.src.type in ("12", "22"):  # is rp_length
                 assert msg.len == 6 if msg.code == "000A" else 3
             else:
-                assert msg.len == 1  # incl. 34:, rq_length
+                assert msg.len in (1, 2)  # incl. 34:, rq_length
             return {**_idx(payload[:2], msg)}
 
         if msg.code == "0005":
@@ -650,6 +650,15 @@ def parser_01e9(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # zone_schedule (fragment)
 def parser_0404(payload, msg) -> Optional[dict]:
+    #  W --- 18:013393 01:145038 --:------ 0404 048 0020000829010468DE6DCDCD09C24010...
+    #  I --- 01:145038 18:013393 --:------ 0404 007 00200008290104
+    #  W --- 18:013393 01:145038 --:------ 0404 048 0020000829020499C67BA59CE6AA22F3...
+    #  I --- 01:145038 18:013393 --:------ 0404 007 00200008290204
+    #  W --- 18:013393 01:145038 --:------ 0404 048 002000082903045F7B36D7C035700D5C...
+    #  I --- 01:145038 18:013393 --:------ 0404 007 00200008290304
+    #  W --- 18:013393 01:145038 --:------ 0404 013 00200008150404EB6E829BE016
+    #  I --- 01:145038 18:013393 --:------ 0404 007 00200008150400
+
     def _header(seqx) -> dict:
         assert seqx[2:8] == "200008"
 
@@ -664,7 +673,7 @@ def parser_0404(payload, msg) -> Optional[dict]:
         assert msg.len == 7
         return _header(payload[:14])
 
-    assert msg.verb == "RP"
+    assert msg.verb in ("RP", " I", " W")
     return {**_header(payload[:14]), "fragment": payload[14:]}
 
 
@@ -834,10 +843,9 @@ def parser_10a0(payload, msg) -> Optional[dict]:
     assert msg.len in (1, 3, 6)  # OTB uses 3, evohome uses 6
     assert payload[:2] == "00"  # TODO: all *evohome* DHW pkts have no domain
 
-    setpoint = _temp(payload[2:6])  # 255 for OTB? iff no DHW?
-
     result = {}
     if msg.len >= 2:
+        setpoint = _temp(payload[2:6])  # 255 for OTB? iff no DHW?
         result = {"setpoint": None if setpoint == 255 else setpoint}  # 30.0-85.0 C
     if msg.len >= 4:
         result["overrun"] = int(payload[6:8], 16)  # 0-10 minutes

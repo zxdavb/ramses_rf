@@ -39,6 +39,8 @@ TIME_OF_DAY = "time_of_day"
 SCHEDULE = "schedule"
 ZONE_IDX = "zone_idx"
 
+FIVE_MINS = timedelta(minutes=5)
+
 
 Priority = SimpleNamespace(LOW=6, DEFAULT=4, HIGH=2, ASAP=0)
 Qos = SimpleNamespace(
@@ -184,7 +186,10 @@ class FaultLog:  # 0418
     def fault_log(self) -> Optional[dict]:
         """Return the fault log of a system."""
         if self._fault_log_done:
-            return self._fault_log
+            return {
+                x: {k: v for k, v in y.items() if k[:1] != "_"}
+                for x, y in self._fault_log.items()
+            }
 
     @property
     def complete(self) -> Optional[bool]:
@@ -259,20 +264,46 @@ class Schedule:  # 0404
         self._evo = zone._evo
         self._gwy = zone._gwy
 
+        self._qos = {
+            "priority": Priority.HIGH,
+            "retries": 3,
+            "timeout": timedelta(seconds=0.5),
+        }
+
         self._schedule = None
         self._schedule_done = None
 
-        # initialse the fragment array
+        # initialse the fragment array()
         self.total_frags = None
-        self._frag_array = None
-
-        # self._init_frag_array(total_frags=0)  # could use msg.payload["frag_total"]
+        self._rx_frags = None
+        self._rx_frags = None
 
     def __repr_(self) -> str:
         return json.dumps(self.schedule) if self._schedule_done else None
 
     def __str_(self) -> str:
         return f"{self._zone} (schedule)"
+
+    @property
+    def schedule(self) -> Optional[dict]:
+        """Return the schedule of a zone."""
+        if not self._schedule_done:
+            return self._schedule  # or None?
+
+        frags = [v for d in self._rx_frags for k, v in d.items() if k == "fragment"]
+        # _LOGGER.debug(f"Sched({self.id}).schedule: array is: %s", frags,)
+
+        try:
+            self._schedule = self._frags_to_sched(frags)
+        except zlib.error:
+            self.reset()
+            _LOGGER.exception("Invalid schedule fragments: %s", frags)
+            return
+
+        # _LOGGER.debug(f"Sched({self.id}).schedule: %s", self._schedule)
+        self._schedule_done = True
+
+        return self._schedule["schedule"]
 
     @staticmethod
     def _frags_to_sched(frags: list) -> dict:
@@ -319,35 +350,118 @@ class Schedule:  # 0404
 
         return [blob[i : i + 82] for i in range(0, len(blob), 82)]
 
-    @property
-    def schedule(self) -> Optional[dict]:
-        """Return the schedule of a zone."""
-        if not self._schedule_done:
-            return self._schedule  # or None?
+    async def get_schedule(self) -> None:
+        """Get the schedule of a zone."""
+        _LOGGER.debug("Schedule(%s).get_schedule()", self.id)
+        if not await self._obtain_lock():
+            return  # should raise a TimeOut
 
-        frags = [v for d in self._frag_array for k, v in d.items() if k == "fragment"]
-        # _LOGGER.debug(f"Sched({self.id}).schedule: array is: %s", frags,)
+        self._schedule = None
+        self._schedule_done = None
 
-        try:
-            self._schedule = self._frags_to_sched(frags)
-        except zlib.error:
-            self.reset()
-            _LOGGER.exception("Invalid schedule fragments: %s", frags)
-            return
+        self._rx_frags, self.total_frags = [None], 0
+        self._rx_fragment(frag_idx=1)
 
-        # _LOGGER.debug(f"Sched({self.id}).schedule: %s", self._schedule)
-        self._schedule_done = True
+    def _rx_fragment(self, frag_idx=1) -> None:
+        """Request the next fragment (index starts at 1, not 0)."""
+        _LOGGER.debug(
+            "Schedule(%s)._rx_fragment(%s/%s)", self.id, frag_idx, self.total_frags
+        )
 
-        return self._schedule["schedule"]
+        def proc_msg(msg) -> None:
+            if not msg:  # TODO: needs fleshing out
+                _LOGGER.debug("Schedule(%s)._proc_fragment(): no message", self.id)
+                return
 
-    @schedule.setter
-    def schedule(self, schedule) -> None:
+            _LOGGER.debug(
+                "Schedule(%s)._proc_fragment(%s/%s)",
+                self.id,
+                msg.payload.get("frag_index"),
+                msg.payload.get("frag_total"),
+            )
+
+            if msg.code != "0404" or msg.verb != "RP":
+                raise ValueError(f"incorrect message verb/code: {msg.verb}/{msg.code}")
+            if msg.payload["zone_idx"] != self.idx:
+                raise ValueError("mismatched zone_idx")
+            if self._evo.zone_lock_idx != self.idx:
+                raise ValueError("unsolicited packet")
+
+            if self.total_frags == 0:  # this should be the 1st fragment
+                self.total_frags = msg.payload["frag_total"]
+                self._rx_frags = [None] * msg.payload["frag_total"]
+
+            elif self.total_frags != msg.payload["frag_total"]:
+                _LOGGER.warning("total fragments has changed: will re-initialise array")
+                self.total_frags = msg.payload["frag_total"]
+                self._rx_frags = [None] * msg.payload["frag_total"]
+                self._schedule = None
+
+            self._rx_frags[msg.payload["frag_index"] - 1] = {
+                "_msg_dtm": msg.dtm,
+                "frag_index": msg.payload["frag_index"],
+                "fragment": msg.payload["fragment"],
+            }
+
+            # discard any fragments significantly older that this most recent fragment
+            for frag in [f for f in self._rx_frags if f is not None]:
+                frag = None if frag["_msg_dtm"] < msg.dtm - FIVE_MINS else frag
+
+            if msg.payload["frag_index"] < msg.payload["frag_total"]:
+                self._rx_fragment(frag_idx=msg.payload["frag_index"] + 1)
+
+            else:
+                self._evo.zone_lock.acquire()
+                self._evo.zone_lock_idx = None
+                self._evo.zone_lock.release()
+
+                self._schedule_done = True
+
+        callback = {"func": proc_msg, "timeout": timedelta(seconds=1)}
+        payload = f"{self.idx}20000800{frag_idx:02d}{self.total_frags:02d}"
+
+        cmd = Command(
+            "RQ", self._ctl.id, "0404", payload, qos=self._qos, callback=callback
+        )
+        asyncio.create_task(self._gwy.msg_protocol.send_data(cmd))
+
+    async def set_schedule(self, schedule) -> None:
         """Set the schedule of a zone."""
-        pass
+        _LOGGER.debug("Schedule(%s).set_schedule()", self.id)
+        if not await self._obtain_lock():
+            return  # should raise a TimeOut
 
-    async def start(self) -> None:
-        _LOGGER.debug("Schedule(%s).start()", self.id)
+        self._schedule = None
+        self._schedule_done = None
 
+        self._tx_frags = self._sched_to_frags(
+            {"zone_idx": self.idx, "schedule": schedule}
+        )
+        self._tx_fragment(frag_idx=0)
+
+    def _tx_fragment(self, frag_idx=0) -> None:
+        """Send the next fragment (index starts at 0)."""
+        _LOGGER.debug(
+            "Schedule(%s)._tx_fragment(%s/%s)", self.id, frag_idx, len(self._tx_frags)
+        )
+
+        def proc_msg(msg) -> None:
+            pass
+
+        callback = {"func": proc_msg, "timeout": timedelta(seconds=3)}  # 1 sec too low
+        payload = "{0}200008{1:02X}{2:02d}{3:02d}{4:s}".format(
+            self.idx,
+            int(len(self._tx_frags[frag_idx]) / 2),
+            frag_idx + 1,
+            len(self._tx_frags),
+            self._tx_frags[frag_idx],
+        )
+        cmd = Command(
+            " W", self._ctl.id, "0404", payload, qos=self._qos, callback=callback
+        )
+        asyncio.create_task(self._gwy.msg_protocol.send_data(cmd))
+
+    async def _obtain_lock(self) -> bool:  # Lock to prevent Rx/Tx at same time
         while True:
 
             self._evo.zone_lock.acquire()
@@ -360,89 +474,4 @@ class Schedule:  # 0404
 
             await asyncio.sleep(0.1)  # gives the other zone enough time
 
-        # TODO: use a lock to ensure only 1 schedule being requested at a time
-        self.reset()
-        if self._evo.zone_lock_idx == self.idx:
-            self._req_fragment(frag_idx=1)  # start at 1, not 0
-
-    def reset(self) -> None:
-        _LOGGER.debug("Schedule(%s).reset()", self.id)
-
-        self._schedule = None
-        self._schedule_done = None
-
-        self._init_frag_array(total_frags=0)
-
-    def _init_frag_array(self, total_frags=0) -> None:
-        """Reset the fragment array."""
-        self.total_frags = total_frags
-        self._frag_array = [None] * total_frags
-        self._schedule = None
-
-    def _req_fragment(self, frag_idx=1) -> None:
-        """Request the next fragment (starting a 1, not 0)."""
-        _LOGGER.debug(
-            "Schedule(%s)._req_fragment(%s/%s)", self.id, frag_idx, self.total_frags
-        )
-
-        def send_cmd(payload) -> None:
-            qos = {
-                "priority": Priority.HIGH,
-                "retries": 3,
-                "timeout": timedelta(seconds=0.5),
-            }
-            callback = {"func": self._proc_fragment, "timeout": timedelta(seconds=1)}
-
-            cmd = Command(
-                "RQ", self._ctl.id, "0404", payload, qos=qos, callback=callback
-            )
-            asyncio.create_task(self._gwy.msg_protocol.send_data(cmd))
-
-        send_cmd(f"{self.idx}20000800{frag_idx:02d}{self.total_frags:02d}")
-
-    def _proc_fragment(self, msg) -> None:
-        if not msg:  # TODO: needs fleshing out
-            _LOGGER.debug("Schedule(%s)._proc_fragment(): no message", self.id)
-            return
-
-        _LOGGER.debug(
-            "Schedule(%s)._proc_fragment(%s/%s)",
-            self.id,
-            msg.payload.get("frag_index"),
-            msg.payload.get("frag_total"),
-        )
-
-        if msg.code != "0404" or msg.verb != "RP":
-            raise ValueError(f"incorrect message verb/code: {msg.verb}/{msg.code}")
-        if msg.payload["zone_idx"] != self.idx:
-            raise ValueError("mismatched zone_idx")
-        if self._evo.zone_lock_idx != self.idx:
-            raise ValueError("unsolicited packet")
-
-        if self.total_frags == 0:  # this should be the 1st fragment
-            self._init_frag_array(msg.payload["frag_total"])
-
-        elif self.total_frags != msg.payload["frag_total"]:
-            _LOGGER.warning("total fragments has changed: will re-initialise array")
-            self._init_frag_array(msg.payload["frag_total"])
-
-        self._frag_array[msg.payload["frag_index"] - 1] = {
-            "_msg_dtm": msg.dtm,
-            "frag_index": msg.payload["frag_index"],
-            "fragment": msg.payload["fragment"],
-        }
-
-        # discard any fragments significantly older that this most recent fragment
-        for frag in [f for f in self._frag_array if f is not None]:
-            # TODO: use a CONST for 5 minutes
-            frag = None if frag["_msg_dtm"] < msg.dtm - timedelta(minutes=5) else frag
-
-        if msg.payload["frag_index"] < msg.payload["frag_total"]:
-            self._req_fragment(frag_idx=msg.payload["frag_index"] + 1)
-
-        else:
-            self._evo.zone_lock.acquire()
-            self._evo.zone_lock_idx = None
-            self._evo.zone_lock.release()
-
-            self._schedule_done = True
+        return True

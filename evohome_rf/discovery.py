@@ -107,9 +107,7 @@ async def get_faults(gwy, dev_addr):
 async def get_schedule(gwy, dev_addr, zone_idx):
     zone = gwy._get_device(dev_addr, ctl_addr=dev_addr)._evo._get_zone(zone_idx)
 
-    await zone._schedule.start()  # TODO: spawn rather than async
-    while not zone._schedule._schedule_done:
-        await asyncio.sleep(0.05)
+    await zone.schedule()
 
     # print("get_schedule", zone.schedule())
     await gwy.shutdown("get_schedule()")
@@ -150,12 +148,16 @@ def probe_device(gwy, device_id):
     # for code in range(0x4000):
     for code in sorted(CODE_SCHEMA):
         if code == "0005":
-            for zone_type in range(18):
+            for zone_type in range(20):  # known up to 18
                 cmd = Command("RQ", device_id, code, f"00{zone_type:02X}", qos=qos)
                 asyncio.create_task(periodic(gwy, cmd))
             continue
 
         elif code == "000C":
+            # for domain_id in ("F8", "F9", "FA", "FB", "FD", "FE", "FF"):
+            #     cmd = Command("RQ", device_id, code, f"{domain_id}00", qos=qos)
+            #     asyncio.create_task(periodic(gwy, cmd))
+
             for zone_idx in range(16):
                 cmd = Command("RQ", device_id, code, f"{zone_idx:02X}00", qos=qos)
                 asyncio.create_task(periodic(gwy, cmd))
@@ -168,7 +170,7 @@ def probe_device(gwy, device_id):
             continue
 
         elif code == "0404":
-            cmd = Command("RQ", device_id, code, f"00200008000100", qos=qos)
+            cmd = Command("RQ", device_id, code, "00200008000100", qos=qos)
 
         elif code == "0418":
             for log_idx in range(2):

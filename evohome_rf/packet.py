@@ -46,10 +46,11 @@ if __version__ == 1:
 
 else:
     QOS_RETRIES = 2
-    QOS_TIMEOUT_RQ = timedelta(seconds=0.20)  # 0.20 OK, but too high?
-    QOS_TIMEOUT_RP = timedelta(seconds=0.05)  # 0.10 OK, but too high? 0.03 too low
+    QOS_TIMEOUT_RQ = timedelta(seconds=0.05)  # 0.20 OK, but too high?
+    QOS_TIMEOUT_RP = timedelta(seconds=0.15)  # 0.05 too low sometimes
 
 _LOGGER = logging.getLogger(__name__)
+_LOGGER.setLevel(logging.ERROR)
 if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
@@ -244,7 +245,7 @@ class GatewayProtocol(asyncio.Protocol):
     """Interface for a packet protocol."""
 
     def __init__(self, pkt_handler) -> None:
-        _LOGGER.debug("GatewayProtocol.__init__()")
+        _LOGGER.debug("GwyProtocol.__init__()")
 
         self._callback = pkt_handler
 
@@ -260,22 +261,19 @@ class GatewayProtocol(asyncio.Protocol):
 
     def connection_made(self, transport: SerialTransport) -> None:
         """Called when a connection is made."""
-        _LOGGER.debug("GatewayProtocol.connection_made(%s)", transport)
+        _LOGGER.debug("GwyProtocol.connection_made(%s)", transport)
 
         self._transport = transport
         # self._transport.serial.rts = False
 
     def data_received(self, data: ByteString):
         """Called when some data is received."""
-        _LOGGER.debug("GatewayProtocol.data_received(%s)", data)
-
-        # if b'\n' in data:
-        #     self._transport.close()
+        # _LOGGER.debug("GwyProtocol.data_rcvd(%s)", data)
 
         def create_pkt(pkt_raw: ByteString) -> Packet:
             dtm_str = dt_str()  # done here & now for most-accurate timestamp
-            _LOGGER.debug("GatewayProtocol.data_received(%s)", pkt_raw)
-            _PKT_LOGGER.debug("%s < Raw pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
+            _LOGGER.debug("GwyProtocol.data_rcvd(%s)", pkt_raw)
+            # _PKT_LOGGER.debug("%s < Raw pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
 
             try:
                 pkt_str = "".join(
@@ -294,8 +292,17 @@ class GatewayProtocol(asyncio.Protocol):
             return Packet(dtm_str, pkt_str, pkt_raw)
 
         def qos_data_received() -> Packet:
+            _LOGGER.warning(
+                "GwyProtocol.data_rcvd(%s): timeout=%s, rq_hdr=%s, rp_hdr=%s, cmd=%s",
+                pkt._header,
+                self._qos_timeout,
+                self._qos_rq_hdr,
+                self._qos_rp_hdr,
+                self._qos_cmd,
+            )
             if self._qos_cmd is not None:
-                if self._qos_rq_hdr == pkt._header:
+                if pkt._header == self._qos_rq_hdr:
+                    _LOGGER.warning("GwyProtocol.Data_rcvd(%s): %s", pkt._header, pkt)
                     self._qos_rq_hdr = None
                     self._qos_timeout = dt.now() + (
                         QOS_TIMEOUT_RP * 2 ** (self._qos_tx_cnt - 1)
@@ -303,10 +310,17 @@ class GatewayProtocol(asyncio.Protocol):
                         else QOS_TIMEOUT_RP
                     )
 
-                elif self._qos_rp_hdr == pkt._header:
+                elif pkt._header == self._qos_rp_hdr:
+                    _LOGGER.warning("GwyProtocol.dAta_rcvd(%s): %s", pkt._header, pkt)
                     self._qos_lock.acquire()
                     self._qos_cmd = None
                     self._qos_lock.release()
+
+                else:
+                    _LOGGER.warning("GwyProtocol.daTa_rcvd(%s): %s", pkt._header, pkt)
+
+            else:
+                _LOGGER.warning("GwyProtocol.datA_rcvd(%s): %s", pkt._header, pkt)
 
         self._recv_buffer += data
         if b"\r\n" in self._recv_buffer:
@@ -321,7 +335,7 @@ class GatewayProtocol(asyncio.Protocol):
 
     async def _write_data(self, data: bytearray) -> None:
         """Called when some data is to be sent (not a callaback)."""
-        _LOGGER.debug("GatewayProtocol._write_data(%s)", data)
+        # _LOGGER.debug("GwyProtocol._write_data(%s)", data)  # should be debug
 
         while self._pause_writing or not self._transport:
             await asyncio.sleep(0.005)
@@ -329,18 +343,12 @@ class GatewayProtocol(asyncio.Protocol):
         while self._transport.serial.out_waiting:
             await asyncio.sleep(0.005)
 
-            # if cmd.verb == " W" or cmd.code in ("0004", "0404", "0418"):
-            #     cmd.dtm_timeout = dtm_now + Pause.DEFAULT
-            # elif cmd.verb == "RQ":
-            #     cmd.dtm_timeout = dtm_now + Pause.SHORT
-            # else:
-            #     cmd.dtm_timeout = dtm_now + Pause.DEFAULT
-
         self._transport.write(data)
+        # _LOGGER.warning("GwyProtocol.sent_data(%s)", data)  # should be debug
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callaback)."""
-        _LOGGER.debug("GatewayProtocol.send_data(%s)", cmd)
+        _LOGGER.warning("GwyProtocol.send_data(%s)", cmd)  # should be debug
 
         while self._qos_cmd is not None:
             await asyncio.sleep(0.005)
@@ -364,17 +372,15 @@ class GatewayProtocol(asyncio.Protocol):
                 await asyncio.sleep(0.005)
                 continue
 
-            # if self._qos_retries == 0:
             if self._qos_tx_cnt > self._qos_retries:
-                # print(f"GatewayProtocol.send_data({self._qos_cmd}): fully expired")
+                _LOGGER.warning("GwyProtocol.send_data(%s): expired", self._qos_cmd)
                 self._qos_lock.acquire()
                 self._qos_cmd = None
                 self._qos_lock.release()
                 break
 
-            # print(f"GatewayProtocol.send_data({self._qos_cmd}): resending")
+            _LOGGER.warning("GwyProtocol.send_data(%s): resending", self._qos_cmd)
             await self._write_data(bytearray(f"{self._qos_cmd}\r\n".encode("ascii")))
-            # self._qos_retries -= 1
             self._qos_tx_cnt += 1
             self._qos_timeout = dt.now() + (
                 cmd.qos.get("timeout", QOS_TIMEOUT_RQ)  # * 2 ** self._qos_tx_cnt
@@ -384,7 +390,7 @@ class GatewayProtocol(asyncio.Protocol):
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
-        _LOGGER.debug("GatewayProtocol.connection_lost(%s)", exc)
+        _LOGGER.debug("GwyProtocol.connection_lost(%s)", exc)
 
         if exc is not None:
             pass
@@ -392,14 +398,14 @@ class GatewayProtocol(asyncio.Protocol):
 
     def pause_writing(self) -> None:
         """Called when the transport's buffer goes over the high-water mark."""
-        _LOGGER.debug("GatewayProtocol.pause_writing()")
-        # print(self._transport.get_write_buffer_size())
+        _LOGGER.debug("GwyProtocol.pause_writing()")
+        # self._transport.get_write_buffer_size()
 
         self._pause_writing = True
 
     def resume_writing(self) -> None:
         """Called when the transport's buffer drains below the low-water mark."""
-        _LOGGER.debug("GatewayProtocol.resume_writing()")
-        # print(self._transport.get_write_buffer_size())
+        _LOGGER.debug("GwyProtocol.resume_writing()")
+        # self._transport.get_write_buffer_size()
 
         self._pause_writing = False

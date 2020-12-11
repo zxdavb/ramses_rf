@@ -235,7 +235,7 @@ class DhwZone(ZoneBase, HeatDemand):
 
         if discover_flags & DISCOVER_PARAMS:
             for code in ("10A0",):
-                self._send_cmd(code, payload="00")  # payload="00" or "0000", not "FA"
+                self._send_cmd(code, payload="00")  # payload="00" (or "0000"), not "FA"
 
         if discover_flags & DISCOVER_STATUS:
             for code in ("1260", "1F41"):
@@ -426,9 +426,19 @@ class ZoneSchedule:
             _LOGGER.debug("Zone(%s).update: Received RP/0404 (schedule)", self.id)
             self._known_msg = True
 
-    @property
-    def schedule(self) -> Optional[float]:  # 3150
+    async def get_schedule(self, force_refresh=None) -> Optional[dict]:
+        if not force_refresh and self._schedule.schedule:
+            return self._schedule.schedule
+
+        await self._schedule.get_schedule()
+
+        while not self._schedule._schedule_done:
+            await asyncio.sleep(0.05)
+
         return self._schedule.schedule
+
+    async def set_schedule(self, schedule) -> None:
+        await self._schedule.set_schedule(schedule)
 
     @property
     def status(self) -> dict:
@@ -492,19 +502,14 @@ class Zone(ZoneSchedule, ZoneBase):
 
         [  # 000C: find the sensor and the actuators, if any
             self._send_cmd("000C", payload=f"{self.idx}{dev_type}")
-            for dev_type in ("00", "04")  # CODE_0005_ZONE_TYPE
-            # for dev_type, description in CODE_000C_DEVICE_TYPE.items()
-            # if description is not None
-        ]
+            for dev_type in ("00", "04")  # CODE_000C_ZONE_TYPE
+        ]  # TODO: use 08, not 00
 
         # start collecting the schedule
         # self._schedule.req_schedule()  # , restart=True) start collecting schedule
 
-        for code in ("0004",):
-            self._send_cmd(code, payload=f"{self.idx}00")
-
-        for code in ("000A", "2349", "30C9"):  # sadly, no 3150
-            self._send_cmd(code, payload=self.idx)
+        for code in ("0004", "000A", "2349", "30C9"):  # sadly, no 3150
+            self._send_cmd(code)  # , payload=self.idx)
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -658,6 +663,18 @@ class Zone(ZoneSchedule, ZoneBase):
             tmp = [z for z in self._mode.payload if z["zone_idx"] == self.idx]
             return {k: v for k, v in tmp[0].items() if k[:1] != "_" and k != "zone_idx"}
 
+    # async def get_name(self, force_refresh=None) -> Optional[str]:
+    #     """Return the name of the zone."""
+    #     if not force_refresh and self._name is not None:
+    #         return _payload(self._name, "name")
+
+    #     self._name = None
+    #     self._send_cmd("0004", payload=f"{self.idx}00")
+    #     while self._name is None:
+    #         await asyncio.sleep(0.05)
+
+    #     return _payload(self._name, "name")
+
     @property
     def name(self) -> Optional[str]:
         """Return the name of the zone."""
@@ -715,10 +732,6 @@ class Zone(ZoneSchedule, ZoneBase):
         elif isinstance(self._zone_config.payload, list):
             tmp = [z for z in self._zone_config.payload if z["zone_idx"] == self.idx]
             return {k: v for k, v in tmp[0].items() if k[:1] != "_" and k != "zone_idx"}
-
-    def schedule(self, force_update=False) -> Optional[dict]:
-        """Return the schedule if any."""
-        return self._schedule.schedule if self._schedule else None
 
     def cancel_override(self) -> None:  # 2349
         """Revert to following the schedule."""
@@ -827,6 +840,13 @@ class EleZone(Zone):  # Electric zones (do *not* call for heat)
     """For a small electric load controlled by a relay (never calls for heat)."""
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
+
+    # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    #     super()._discover(discover_flag=discover_flag)
+
+    #     if discover_flag & DISCOVER_SCHEMA:
+    #         dev_type = CODE_000C_DEVICE_TYPE[None]
+    #         self._send_cmd("000C", payload=f"{self.idx}{dev_type}")
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)

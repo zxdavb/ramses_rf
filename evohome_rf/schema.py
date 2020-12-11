@@ -3,7 +3,6 @@
 #
 """Schema processor."""
 
-import json
 import logging
 from typing import Tuple
 import voluptuous as vol
