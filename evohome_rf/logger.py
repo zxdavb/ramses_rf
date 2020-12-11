@@ -81,12 +81,22 @@ def time_time() -> float:
     return _time - 134774 * 24 * 60 * 60  # otherwise, is since 1601-01-01T00:00:00Z
 
 
-def set_logging(
+def set_logging(logger, file_name, cc_stdout=None):
+    _set_logging(
+        logger,
+        file_name=file_name,
+        stream=sys.stdout if cc_stdout else None,
+        file_fmt=PKT_LOG_FMT + BANDW_SUFFIX,
+        cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
+    )
+
+
+def _set_logging(
     logger,
-    stream=sys.stderr,
-    cons_fmt=CONSOLE_FMT,
-    file_fmt=MSG_LOG_FMT,
     file_name=None,
+    stream=sys.stderr,
+    file_fmt=MSG_LOG_FMT,
+    cons_fmt=CONSOLE_FMT,
 ) -> None:
     """Create/configure handlers, formatters, etc."""
     logger.propagate = False

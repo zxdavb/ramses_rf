@@ -16,17 +16,16 @@ import json
 import logging
 import os
 import signal
-import sys
 from threading import Lock
 from typing import Any, Dict, List  # Any, Tuple
 
 from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
 from .discovery import spawn_scripts
-from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
+from .logger import set_logging
 from .message import DONT_CREATE_MESSAGES, process_msg
 from .packet import _PKT_LOGGER as pkt_logger, file_pkts
-from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
+from .schema import load_config, load_schema
 
 # from .ser2net import Ser2NetServer
 from .systems import SYSTEM_CLASSES, System, SystemBase
@@ -51,14 +50,12 @@ class GracefulExit(SystemExit):
 class Gateway:
     """The gateway class."""
 
-    def __init__(self, serial_port, loop=None, **config) -> None:
+    def __init__(self, serial_port, loop=None, **kwargs) -> None:
         """Initialise the class."""
 
-        if config.get("debug_mode"):
-            # _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
-            _LOGGER.warning("Starting evohome_rf, **config = %s", config)
-        else:
-            _LOGGER.debug("Starting evohome_rf, **config = %s", config)
+        if kwargs.get("debug_mode"):
+            _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
+        _LOGGER.debug("Starting evohome_rf, **kwargs = %s", kwargs)
 
         self._loop = loop if loop else asyncio.get_running_loop()
         self._tasks = None
@@ -71,28 +68,17 @@ class Gateway:
             self, process_msg, Ramses2Protocol
         )
 
-        self.config = CONFIG_SCHEMA(config)
-        if self.serial_port and self.config.get("input_file"):
-            _LOGGER.warning(
-                "Serial port specified (%s), so ignoring input file (%s)",
-                self.serial_port,
-                self.config["input_file"],
-            )
-            # self.config["input_file"] = None
-        elif self.config.get("input_file") is not None:
-            self.config["disable_sending"] = True
-
-        if self.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
-            _stream = sys.stdout
-        else:
-            _stream = None
+        (
+            self.config,
+            self._schema,
+            self._include_list,
+            self._exclude_list,
+        ) = load_config(serial_port, **kwargs)
 
         set_logging(
             pkt_logger,
-            stream=_stream,
-            file_name=self.config.get("packet_log"),
-            file_fmt=PKT_LOG_FMT + BANDW_SUFFIX,
-            cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
+            self.config.get("packet_log"),
+            cc_stdout=self.config["reduce_processing"] >= DONT_CREATE_MESSAGES,
         )
 
         self._buffer = deque()
@@ -111,19 +97,11 @@ class Gateway:
         self.devices: List[Device] = []
         self.device_by_id: Dict = {}
 
-        self._schema = config.pop("schema", {})
         self.known_devices = {}  # self._include_list + self._exclude_list
         self._known_devices = (
             load_schema(self, self._schema) if self.config["use_schema"] else {}
         )
         self.config["known_devices"] = False  # bool(self.known_devices)
-
-        self._include_list = {}
-        self._exclude_list = {}
-        if self.config["enforce_allowlist"]:
-            self._include_list = KNOWNS_SCHEMA(config.pop("allowlist", {}))
-        elif self.config["enforce_blocklist"]:
-            self._exclude_list = KNOWNS_SCHEMA(config.pop("blocklist", {}))
 
         if self.config.get("device_id"):
             _LOGGER.warning("Discovery scripts specified, so disabling probes")

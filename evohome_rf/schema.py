@@ -69,7 +69,7 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Optional("enforce_allowlist", default=False): vol.Any(None, bool),
         vol.Optional("enforce_blocklist", default=True): vol.Any(None, bool),
         vol.Optional("evofw_flag", default=None): vol.Any(None, bool),
-        # vol.Optional("input_file"): vol.Any(None, str),
+        vol.Optional("input_file"): vol.Any(None, any),
         vol.Optional("max_zones", default=DEFAULT_MAX_ZONES): vol.Any(None, int),
         vol.Optional("packet_log", default=None): vol.Any(None, str),
         vol.Optional("reduce_processing", default=0): vol.Any(None, int),
@@ -153,74 +153,30 @@ if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def load_config(gwy, **config) -> Tuple[dict, list, list]:
+def load_config(serial_port, **kwargs) -> Tuple[dict, dict, list, list]:
     """Process the schema, and the configuration and return True if it is valid."""
 
-    # def proc_cli(config):
-    # self.config["input_file"] = config.get("input_file")
-    # config["known_devices"] = config.get("known_devices")
-    # self.config["reduce_processing"] = config.get("raw_output", 0)
+    config = CONFIG_SCHEMA(kwargs.get("config", {}))
+    schema = SYSTEM_SCHEMA(kwargs.get("schema", {})) if kwargs.get("schema") else {}
+    allows = {}
+    blocks = {}
 
-    # if self.serial_port and self.config["input_file"]:
-    #     _LOGGER.warning(
-    #         "Serial port specified (%s), so ignoring input file (%s)",
-    #         self.serial_port,
-    #         self.config["input_file"],
-    #     )
-    #     self.config["input_file"] = None
+    if config["enforce_allowlist"]:
+        allows = KNOWNS_SCHEMA(kwargs.get("allowlist", {}))
+    elif config["enforce_blocklist"]:
+        blocks = KNOWNS_SCHEMA(kwargs.get("blocklist", {}))
 
-    # self.config["disable_sending"] = not config.get("probe_system")
-    # if self.config["input_file"]:
-    #     self.config["disable_sending"] = True
+    if serial_port and config.get("input_file"):
+        _LOGGER.warning(
+            "Serial port specified (%s), so ignoring input file (%s)",
+            serial_port,
+            config["input_file"],
+        )
+        config["input_file"] = None
+    elif serial_port is None:
+        config["disable_sending"] = True
 
-    # if self.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
-    #     config["message_log"] = None
-    #     _stream = (None, sys.stdout)
-    # else:
-    #     _stream = (sys.stdout, None)
-
-    schema_filename = config.get("config_file")
-
-    if schema_filename is None:
-        return {}, (), ()
-
-    try:
-        with open(schema_filename) as schema_fp:
-            config = json.load(schema_fp)
-    except FileNotFoundError:  # if it doesn't exist, create it later
-        return {}, (), ()
-
-    # config = SCHEMA(config)
-    params, schema = config["configuration"], config["global_schema"]
-    gwy.known_devices = config["known_devices"]
-
-    allowlist = list(config["known_devices"]["allowlist"])
-    blocklist = list(config["known_devices"]["blocklist"])
-
-    if params["use_allowlist"] and allowlist:
-        _list = True
-    elif params["use_blocklist"] and blocklist:
-        _list = False
-    elif params["use_allowlist"] is not False and allowlist:
-        _list = True
-    elif params["use_blocklist"] is not False and blocklist:
-        _list = False
-    else:
-        _list = None
-
-    if params["use_schema"]:  # regardless of filters, & updates known/allow
-        (load_schema(gwy, k, v) for k, v in schema.items() if k != ATTR_ORPHANS)
-
-    if _list:
-        allowlist += [d for d in gwy.device_by_id if d not in allowlist]
-        blocklist = []
-    elif _list is False:
-        allowlist = []
-        blocklist = [d for d in blocklist if d not in gwy.device_by_id]
-    else:
-        allowlist = blocklist = []  # cheeky, but OK
-
-    return params, tuple(allowlist), tuple(blocklist)
+    return (config, schema, allows, blocks)
 
 
 def load_schema(gwy, schema, **kwargs) -> dict:

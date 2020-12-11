@@ -12,7 +12,7 @@ import sys
 import click
 from colorama import init as colorama_init, Fore
 
-from evohome_rf import CONFIG_SCHEMA, Gateway, GracefulExit
+from evohome_rf import Gateway, GracefulExit
 
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
@@ -25,7 +25,7 @@ DEBUG_PORT = 5678
 # debugpy.wait_for_client()
 
 
-COLORS = {" I": Fore.GREEN, "RP": Fore.CYAN, "RQ": Fore.BLUE, " W": Fore.MAGENTA}
+COLORS = {" I": Fore.GREEN, "RP": Fore.CYAN, "RQ": Fore.CYAN, " W": Fore.MAGENTA}
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
@@ -117,9 +117,7 @@ def execute(obj, **kwargs):
 def debug_wrapper(config_file=None, **kwargs):
 
     # 1st: sort out any debug mode...
-    assert 0 <= kwargs["debug_mode"] <= 3
-
-    if kwargs["debug_mode"] == 3:
+    if kwargs["debug_mode"] >= 3:
         print("Additional logging enabled (debugging not enabled).")
 
     elif kwargs["debug_mode"] != 0:
@@ -133,22 +131,17 @@ def debug_wrapper(config_file=None, **kwargs):
             debugpy.wait_for_client()
             print(" - debugger is now attached, continuing execution.")
 
-    # 2nd: merge CLI args with config file, if any, TODO: use a SCHEMA
-    config_dict = {"schema": {}, "allowlist": {}, "blocklist": {}}
+    # 2nd: merge CLI args with config file, if any
+    config_dict = {"config": {}, "schema": {}, "allowlist": {}, "blocklist": {}}
     if config_file is not None:
-        with open(config_file) as json_data:
-            config_dict.update(json.load(json_data))
+        config_dict.update(json.load(config_file))
+    if kwargs.get("enforce_probing"):
+        config_dict["config"]["disable_discovery"] = False
+    config_dict["config"].update(kwargs)
 
-    config = CONFIG_SCHEMA(config_dict.pop("config", {}))
-    if "enforce_probing" in kwargs:
-        config["disable_discovery"] = not kwargs.pop("enforce_probing")
-    # config["input_file"] = kwargs.pop("input_file", None)
-    config = {**config_dict, **config, **kwargs}
+    serial_port = config_dict["config"].pop("serial_port", None)
 
-    # print("client.py: config: ", config)
-    serial_port = config.pop("serial_port", None)
-
-    asyncio.run(main(serial_port, **config))
+    asyncio.run(main(serial_port, **config_dict))
 
 
 def process_message(msg) -> None:
@@ -161,22 +154,12 @@ def process_message(msg) -> None:
     # {print(k, v) for k, v in msg.payload.items()}
 
 
-# def process_device_job() -> None:
-#     dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
-#     if msg.src.type == "18" and msg.verb == "RQ":
-#         print(f"{Fore.BLUE}{dtm} {msg}")
-#     else:
-#         print(f"{COLORS.get(msg.verb)}{dtm} {msg}")
-
-#     # {print(k, v) for k, v in msg.payload.items()}
-
-
 async def main(serial_port, loop=None, **config):
 
     # loop=asyncio.get_event_loop() causes: 'NoneType' object has no attribute 'serial'
     print("\r\nclient.py: Starting evohome_rf...")
 
-    colorama_init(autoreset=True)
+    # print(f"kwargs = {config}")
 
     if sys.platform == "win32":  # is better than os.name
         # ERROR:asyncio:Cancelling an overlapped future failed
@@ -184,7 +167,9 @@ async def main(serial_port, loop=None, **config):
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     gwy = Gateway(serial_port, loop=loop, **config)
-    if config.get("reduce_processing") < 3:
+    if config.get("reduce_processing", 0) < 3:
+        # no MSGs will be sent to STDOUT, so send PKTs instead
+        colorama_init(autoreset=True)
         protocol, _ = gwy.create_client(process_message)
 
     try:
