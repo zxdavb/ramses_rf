@@ -315,6 +315,14 @@ class Message:
 
         return self._is_valid
 
+    @property
+    def _is_wanted(self) -> bool:  # HACK: needs to move to pkt transport
+        """Parse the packet, return True if the packet is wanted."""
+
+        return self._pkt.is_wanted(
+            include=self._gwy._include_list, exclude=self._gwy._exclude_list
+        )
+
 
 def process_msg(msg: Message) -> None:
     """Decode the packet and its payload.
@@ -514,14 +522,6 @@ def process_msg(msg: Message) -> None:
             for z in this.payload:
                 if z["zone_idx"] in evo.zone_by_idx:
                     evo.zone_by_idx[z["zone_idx"]]._handle_msg(this)
-
-    if not msg.is_valid:
-        return
-
-    if not msg._pkt.is_wanted(  # Move this to transport?
-        include=msg._gwy._include_list, exclude=msg._gwy._exclude_list
-    ):
-        return
 
     try:
         if msg._gwy.config["reduce_processing"] >= DONT_CREATE_MESSAGES:

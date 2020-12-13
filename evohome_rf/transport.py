@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES-II compatble Transport/Protocol processor."""
+"""RAMSES-II compatble Transport/Protocol processor.
+
+Operates at the msg layer of: app - msg - pkt - h/w
+"""
 
 import asyncio
 from datetime import datetime as dt
@@ -289,7 +292,7 @@ class ClientProtocol(asyncio.Protocol):
 
     def data_received(self, msg) -> None:
         """Called when some data is received (called by the transport)."""
-        if msg.is_valid:
+        if msg.is_valid and msg._is_wanted:  # HACK: is_wanted should be in PktProtocol
             self._callback(msg)
 
     async def send_data(self, cmd) -> None:

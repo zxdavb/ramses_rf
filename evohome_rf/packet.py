@@ -235,7 +235,7 @@ async def file_pkts(fp):
             continue
 
         pkt = Packet(dtm, pkt, None)
-        if pkt.is_valid:  # and pkt.is_wanted(include=include, exclude=exclude):
+        if pkt.is_valid:  # TODO: and pkt.is_wanted(include=include, exclude=exclude):
             yield pkt
 
         await asyncio.sleep(0)  # usu. 0, only to enable a Ctrl-C
