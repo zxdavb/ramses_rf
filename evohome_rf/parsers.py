@@ -33,13 +33,13 @@ if False and __dev_mode__:
 
 
 def _idx(seqx, msg) -> dict:
-    """Determine if a payload has an entity id, usually a domain id or a zone idx.
+    """Check the index of a payload (usually a domain id or a zone idx).
 
-    Will return either: {"id_name": seqx} or {}.
+    Determine if a payload has an entity id, and return: {"id_name": seqx} or {}.
 
     The challenge is that payloads starting with (e.g.):
     - "00" are *often not* a zone idx, and
-    - "01" *may not* be a zone idx
+    - "01", "02", etc. *may not* be a zone idx
 
     Anything in the range F0-FF appears to be a domain id (no false +ve/-ves).
     """
@@ -100,6 +100,10 @@ def _idx(seqx, msg) -> dict:
         assert int(seqx, 16) < 64  # a 'null' RP has no log_idx == 0
         return {}  # a 'null' RP has no log_idx
 
+    elif msg.code == "10A0":  # can be 2 DHW zones per system
+        assert seqx in ("00", "01")
+        return {"dhw_idx": seqx}
+
     elif msg.code == "22C9":  # these are UFH-specific
         assert int(seqx, 16) < 8  # this can be a "00", maybe zone_idx, see below
         return {"ufh_idx": seqx}  # TODO: confirm is / is not zone_idx
@@ -142,7 +146,7 @@ def parser_decorator(func):
     """
 
     def wrapper(*args, **kwargs) -> Optional[dict]:
-        """Determine which packets shouldn't be sent through their parser."""
+        """Check the length of a payload."""
 
         payload = args[0]
         msg = args[1]
@@ -840,8 +844,12 @@ def parser_10a0(payload, msg) -> Optional[dict]:
     # RQ --- 07:030741 01:102458 --:------ 10A0 006 00-181F-00-03E4
     # RQ --- 07:036831 23:100224 --:------ 10A0 006 01-1566-00-03E4 (non-evohome)
 
+    # RQ --- 30:185469 01:037519 --:------ 0005 002 000E
+    # RP --- 01:037519 30:185469 --:------ 0005 004 000E0300  # two DHW valves
+    # RQ --- 30:185469 01:037519 --:------ 10A0 001 01 (01 )
+
     assert msg.len in (1, 3, 6)  # OTB uses 3, evohome uses 6
-    assert payload[:2] == "00"  # TODO: all *evohome* DHW pkts have no domain
+    assert payload[:2] in ("00", "01")  # can be two DHW valves/system
 
     result = {}
     if msg.len >= 2:
