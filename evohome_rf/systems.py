@@ -3,7 +3,7 @@
 #
 """The evohome-compatible system."""
 
-# import asyncio
+import asyncio
 from datetime import timedelta
 import json
 import logging
@@ -47,7 +47,7 @@ class SysFaultLog(Entity):  # 0418
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
-            self._fault_log.start()  # 0418
+            self._gwy._tasks.append(asyncio.create_task(self.get_fault_log()))  # 0418
 
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)

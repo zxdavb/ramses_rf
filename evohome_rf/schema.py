@@ -174,6 +174,9 @@ def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, dict, list, li
     elif serial_port is None:
         config["disable_sending"] = True
 
+    if config["disable_sending"]:
+        config["disable_discovery"] = True
+
     return (config, schema, allows, blocks)
 
 
