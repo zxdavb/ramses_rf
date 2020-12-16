@@ -171,9 +171,7 @@ def execute(obj, **kwargs):
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
     lib_kwargs["config"]["disable_discovery"] = True
-    cli_kwargs["probe_devices"] = _convert_to_list(
-        cli_kwargs.pop("probe_devices")
-    )
+    cli_kwargs["probe_devices"] = _convert_to_list(cli_kwargs.pop("probe_devices"))
 
     lib_kwargs["allowlist"] = {}
     if cli_kwargs["probe_devices"]:
@@ -224,11 +222,7 @@ async def main(lib_kwargs, **kwargs):
                 print("Schedule = \r\n", json.dumps(schedule, indent=4))
 
         if kwargs.get("set_schedule") and kwargs["set_schedule"][0]:
-            input = json.load(kwargs["set_schedule"][1])
-            system_id, zone_idx = kwargs["get_schedule"][1], input["zone_idx"]
-            zone = gwy.system_by_id[system_id].zone_by_idx[zone_idx]
-
-            gwy.evo.zone_by_idx[input["zone_idx"]].schedule = input["schedule"]
+            system_id, _ = kwargs["get_schedule"]
 
         # else:
         #     print(gwy.device_by_id[kwargs["device_id"]])

@@ -123,10 +123,10 @@ class Command:
         """Return the QoS params of this (request) packet."""
 
         if self.code == "0404" and self.verb == "RQ":
-            return {"priority": Priority.HIGH, "retries": 3,"timeout": td(seconds=0.5)}
+            return {"priority": Priority.HIGH, "retries": 3, "timeout": td(seconds=0.5)}
 
         elif self.code == "0404" and self.verb == " W":
-            return {"priority": Priority.HIGH, "retries": 3,"timeout": td(seconds=0.5)}
+            return {"priority": Priority.HIGH, "retries": 3, "timeout": td(seconds=0.5)}
 
         elif self.code == "0418" and self.verb == "RQ":
             return {"priority": Priority.LOW, "retries": 2}  # "tout": td(seconds=1.0)}
@@ -182,7 +182,10 @@ class FaultLog:  # 0418
 
         # TODO: (make method) register a callback for a null response (have no log_idx)
         self._gwy.msg_transport._callbacks["|".join(("RP", self.id, "0418"))] = {
-            "func": self._proc_log_entry, "daemon": True, "args": [], "kwargs": {}
+            "func": self._proc_log_entry,
+            "daemon": True,
+            "args": [],
+            "kwargs": {},
         }
 
     def __repr_(self) -> str:
@@ -231,7 +234,7 @@ class FaultLog:  # 0418
         pass
 
         # if log_idx == 0:  # is likely i dont want to do this
-            # pass
+        # pass
 
         payload = f"{log_idx:06X}"
         callback = {"func": self._proc_log_entry, "timeout": td(seconds=1)}
@@ -327,14 +330,15 @@ class Schedule:  # 0404
             while not self._schedule_done:
                 await asyncio.sleep(TIMER_SHORT_SLEEP)
                 if dt.now() > time_start + TIMER_LONG_TIMEOUT:
-                    raise ExpiredCallbackError("failed to obtain schedule")
+                    self._release_lock()
+                    raise ExpiredCallbackError("failed to get schedule")
 
         self._release_lock()
 
         return self.schedule
 
     def _rq_fragment(self, frag_cnt=0) -> None:
-        """Request the frag_idx'th fragment (index starts at 1, not 0)."""
+        """Request the next missing fragment (index starts at 1, not 0)."""
         _LOGGER.debug("Schedule(%s)._rq_fragment(%s)", self.id, frag_cnt)
 
         def proc_msg(msg) -> None:
@@ -357,7 +361,8 @@ class Schedule:  # 0404
                 self._rx_frags = [None] * msg.payload["frag_total"]
 
             self._rx_frags[msg.payload["frag_index"] - 1] = {
-                "fragment": msg.payload["fragment"], "msg": msg
+                "fragment": msg.payload["fragment"],
+                "msg": msg,
             }
 
             # discard any fragments significantly older that this most recent fragment
@@ -428,17 +433,24 @@ class Schedule:  # 0404
 
     async def set_schedule(self, schedule) -> None:
         """Set the schedule of a zone."""
-        _LOGGER.debug("Schedule(%s).set_schedule()", self.id)
-        if not await self._obtain_lock():
-            return  # should raise a TimeOut
+        _LOGGER.debug(f"Schedule({self.id}).set_schedule(schedule)")
 
-        self._schedule = None
+        if not await self._obtain_lock():  # TODO: should raise a TimeOut
+            return
+
         self._schedule_done = None
 
-        self._tx_frags = self._sched_to_frags(
-            {"zone_idx": self.idx, "schedule": schedule}
-        )
+        self._tx_frags = self._sched_to_frags(schedule)
         self._tx_fragment(frag_idx=0)
+
+        time_start = dt.now()
+        while not self._schedule_done:
+            await asyncio.sleep(TIMER_SHORT_SLEEP)
+            if dt.now() > time_start + TIMER_LONG_TIMEOUT:
+                self._release_lock()
+                raise ExpiredCallbackError("failed to set schedule")
+
+        self._release_lock()
 
     def _tx_fragment(self, frag_idx=0) -> None:
         """Send the next fragment (index starts at 0)."""
@@ -447,7 +459,16 @@ class Schedule:  # 0404
         )
 
         def proc_msg(msg) -> None:
-            pass
+            _LOGGER.debug(
+                f"Schedule({self.id})._proc_fragment(msg), frag_idx=%s, frag_cnt=%s",
+                msg.payload.get("frag_index"),
+                msg.payload.get("frag_total"),
+            )
+
+            if msg.payload["frag_index"] < msg.payload["frag_total"]:
+                self._tx_fragment(frag_idx=msg.payload.get("frag_index"))
+            else:
+                self._schedule_done = True
 
         payload = "{0}200008{1:02X}{2:02d}{3:02d}{4:s}".format(
             self.idx,

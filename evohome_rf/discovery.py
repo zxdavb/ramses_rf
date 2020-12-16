@@ -4,6 +4,7 @@
 """Evohome serial discovery scripts."""
 
 import asyncio
+import json
 import logging
 from typing import Any, List
 
@@ -95,11 +96,12 @@ async def get_schedule(gwy, ctl_id: str, zone_idx: str) -> None:
 
 
 async def set_schedule(gwy, ctl_id, schedule) -> None:
+    schedule = json.load(schedule)
     zone_idx = schedule["zone_idx"]
     ctl_addr = Address(id=ctl_id, type=ctl_id[:2])
-    zone = gwy._get_device(ctl_addr, dev_addr=ctl_addr)._evo._get_zone(zone_idx)
+    zone = gwy._get_device(ctl_addr, ctl_addr=ctl_addr)._evo._get_zone(zone_idx)
 
-    await zone.get_schedule.start(schedule["schedule"])  # 0404
+    await zone.set_schedule(schedule["schedule"])  # 0404
     # await gwy.shutdown("get_schedule()")  # print("get_schedule", zone.schedule())
 
 
