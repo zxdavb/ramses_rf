@@ -21,7 +21,7 @@ from typing import Any, Dict, List  # Any, Tuple
 
 from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
-from .discovery import execute_scripts, monitor_scripts
+from .discovery import spawn_execute_scripts, spawn_monitor_scripts
 from .logger import set_logging
 from .message import DONT_CREATE_MESSAGES, process_msg
 from .packet import _PKT_LOGGER as pkt_logger, file_pkts

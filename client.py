@@ -13,7 +13,7 @@ from typing import Tuple
 import click
 from colorama import init as colorama_init, Fore
 
-from evohome_rf import Gateway, GracefulExit, execute_scripts, monitor_scripts
+from evohome_rf import Gateway, GracefulExit, spawn_execute_scripts
 
 DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
@@ -204,12 +204,12 @@ async def main(lib_kwargs, **kwargs):
     def print_results(**kwargs):
 
         if kwargs.get("get_faults"):
-            fault_log = gwy.device_by_id[kwargs["get_faults"]]._evo.fault_log()
+            fault_log = gwy.system_by_id[kwargs["get_faults"]]._fault_log.fault_log
 
             if fault_log is None:
                 print("No fault log, or failed to get the fault log.")
             else:
-                [print(k, v) for k, v in fault_log.items()]
+                [print(f"{k:02X}", v) for k, v in fault_log.items()]
 
         if kwargs.get("get_schedule") and kwargs["get_schedule"][0]:
             system_id, zone_idx = kwargs["get_schedule"]
@@ -254,7 +254,7 @@ async def main(lib_kwargs, **kwargs):
     try:
         task = asyncio.create_task(gwy.start())
         if kwargs["command"] == "execute":
-            tasks = await execute_scripts(gwy, **kwargs)
+            tasks = await spawn_execute_scripts(gwy, **kwargs)
             await asyncio.gather(*tasks)
             await gwy.shutdown()
         await task

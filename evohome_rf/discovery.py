@@ -17,7 +17,7 @@ if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-async def monitor_scripts(gwy, **kwargs) -> List[Any]:
+async def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
     tasks = []
 
     if kwargs.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
@@ -31,7 +31,7 @@ async def monitor_scripts(gwy, **kwargs) -> List[Any]:
     return tasks
 
 
-async def execute_scripts(gwy, **kwargs) -> List[Any]:
+async def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
     tasks = []
 
     if kwargs.get("get_faults"):
@@ -80,10 +80,8 @@ async def schedule_task(delay, func, *args, **kwargs):
 async def get_faults(gwy, ctl_id: str):
     ctl_addr = Address(id=ctl_id, type=ctl_id[:2])
     device = gwy._get_device(ctl_addr, ctl_addr=ctl_addr)
-    device._evo._fault_log.start()  # 0418
 
-    while not device._evo._fault_log._fault_log_done:
-        await asyncio.sleep(0.05)
+    await device._evo.get_fault_log()  # 0418
     # await gwy.shutdown("get_faults()")  # print("get_faults", device._evo.fault_log())
 
 
@@ -98,6 +96,7 @@ async def get_schedule(gwy, ctl_id: str, zone_idx: str) -> None:
 async def set_schedule(gwy, ctl_id, schedule) -> None:
     schedule = json.load(schedule)
     zone_idx = schedule["zone_idx"]
+
     ctl_addr = Address(id=ctl_id, type=ctl_id[:2])
     zone = gwy._get_device(ctl_addr, ctl_addr=ctl_addr)._evo._get_zone(zone_idx)
 

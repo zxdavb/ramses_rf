@@ -65,7 +65,7 @@ class SysFaultLog(Entity):  # 0418
 
     @property
     def status(self) -> dict:
-        return {**super().status, "fault_log": self.fault_log()}
+        return {**super().status, "fault_log": self._fault_log.fault_log}
 
 
 class SysDatetime(Entity):  # 313F

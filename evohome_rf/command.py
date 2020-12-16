@@ -205,7 +205,6 @@ class FaultLog:  # 0418
             for x, y in self._fault_log.items()
         }
 
-        _LOGGER.debug("FaultLog(ctl=%s).fault_log = %s", ctl, result)
         return result
 
     async def get_fault_log(self, force_refresh=None) -> Optional[dict]:

@@ -435,7 +435,7 @@ class ZoneSchedule:
 
     @property
     def status(self) -> dict:
-        return {**super().status, "schedule": self.get_schedule()}
+        return {**super().status, "schedule": self._schedule.schedule.get("schedule")}
 
 
 class Zone(ZoneSchedule, ZoneBase):
