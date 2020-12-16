@@ -185,6 +185,10 @@ def parser_decorator(func):
         #         return {**_idx(payload[:2], msg)}
 
         # some packets have more than just a domain_id
+        if msg.code == "0006":
+            assert msg.len == 1
+            return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
+
         if msg.code == "000C":
             assert msg.len == 2
             return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
