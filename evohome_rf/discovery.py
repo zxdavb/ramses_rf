@@ -4,7 +4,6 @@
 """Evohome serial discovery scripts."""
 
 import asyncio
-import json
 import logging
 from typing import Any, List
 
@@ -17,42 +16,36 @@ if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-async def spawn_scripts(gwy) -> List[Any]:
+async def monitor_scripts(gwy, **kwargs) -> List[Any]:
     tasks = []
 
-    if gwy.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
-        cmd = gwy.config["execute_cmd"]
+    if kwargs.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
+        cmd = kwargs["execute_cmd"]
         cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], retries=12)
         await gwy.msg_protocol.send_data(cmd)
 
-    if gwy.config.get("device_id"):
-        dev_id = gwy.config["device_id"]
-        dev_addr = Address(id=dev_id, type=dev_id[:2])
+    if kwargs.get("poll_devices"):
+        tasks += [poll_device(gwy, d) for d in kwargs["poll_devices"]]
 
-        if gwy.config.get("get_faults"):
-            task = asyncio.create_task(get_faults(gwy, dev_addr))
+    return tasks
 
-        elif gwy.config.get("get_schedule") is not None:
-            task = asyncio.create_task(
-                get_schedule(gwy, dev_addr, gwy.config["get_schedule"])
-            )
 
-        elif gwy.config.get("set_schedule") is not None:
-            task = asyncio.create_task(
-                set_schedule(gwy, dev_addr, json.load(gwy.config["set_schedule"]))
-            )
+async def execute_scripts(gwy, **kwargs) -> List[Any]:
+    tasks = []
 
-        else:
-            task = asyncio.create_task(get_device(gwy, dev_addr))
+    if kwargs.get("get_faults"):
+        tasks += [asyncio.create_task(get_faults(gwy, kwargs["get_faults"]))]
 
-        tasks.append(task)
+    if kwargs.get("get_schedule") and kwargs["get_schedule"][0]:
+        tasks += [asyncio.create_task(get_schedule(gwy, *kwargs["get_schedule"]))]
 
-    else:
-        if gwy.config.get("poll_devices"):
-            [poll_device(gwy, d) for d in gwy.config["poll_devices"]]
+    if kwargs.get("set_schedule") and kwargs["set_schedule"][0]:
+        tasks += [asyncio.create_task(set_schedule(gwy, *kwargs["set_schedule"]))]
 
-        if gwy.config.get("probe_devices"):
-            [probe_device(gwy, d) for d in gwy.config["probe_devices"]]
+    if kwargs.get("probe_devices"):  # TODO: probe_quick, probe_deep
+        tasks += [
+            asyncio.create_task(probe_device(gwy, d)) for d in kwargs["probe_devices"]
+        ]
 
     return tasks
 
@@ -83,46 +76,31 @@ async def schedule_task(delay, func, *args, **kwargs):
     asyncio.create_task(scheduled_func(delay, func, *args, **kwargs))
 
 
-async def get_device(gwy, dev_addr):
-    device = gwy._get_device(dev_addr)  # is not always a CTL
-    device._discover()  # discover_flag=DISCOVER_ALL
-
-    # print("get_device", device.schema)
-    # print("get_device", device.params)
-    # print("get_device", device.status)
-    await gwy.shutdown("get_device()")
-
-
-async def get_faults(gwy, dev_addr):
-    device = gwy._get_device(dev_addr, ctl_addr=dev_addr)
+async def get_faults(gwy, ctl_id: str):
+    ctl_addr = Address(id=ctl_id, type=ctl_id[:2])
+    device = gwy._get_device(ctl_addr, ctl_addr=ctl_addr)
     device._evo._fault_log.start()  # 0418
 
     while not device._evo._fault_log._fault_log_done:
         await asyncio.sleep(0.05)
-
-    # print("get_faults", device._evo.fault_log())
-    await gwy.shutdown("get_faults()")
+    # await gwy.shutdown("get_faults()")  # print("get_faults", device._evo.fault_log())
 
 
-async def get_schedule(gwy, dev_addr, zone_idx):
-    zone = gwy._get_device(dev_addr, ctl_addr=dev_addr)._evo._get_zone(zone_idx)
+async def get_schedule(gwy, ctl_id: str, zone_idx: str) -> None:
+    ctl_addr = Address(id=ctl_id, type=ctl_id[:2])
+    zone = gwy._get_device(ctl_addr, ctl_addr=ctl_addr)._evo._get_zone(zone_idx)
 
-    await zone.schedule()
-
-    # print("get_schedule", zone.schedule())
-    await gwy.shutdown("get_schedule()")
+    await zone.get_schedule()
+    # await gwy.shutdown("get_schedule()")  # print("get_schedule", zone.schedule())
 
 
-async def set_schedule(gwy, dev_addr, schedule):  # TODO:
+async def set_schedule(gwy, ctl_id, schedule) -> None:
     zone_idx = schedule["zone_idx"]
-    zone = gwy._get_device(dev_addr, ctl_addr=dev_addr)._evo._get_zone(zone_idx)
+    ctl_addr = Address(id=ctl_id, type=ctl_id[:2])
+    zone = gwy._get_device(ctl_addr, dev_addr=ctl_addr)._evo._get_zone(zone_idx)
 
-    await zone._schedule.start(schedule["schedule"])  # 0404
-    while not zone._schedule._schedule_done:
-        await asyncio.sleep(0.05)
-
-    # print("get_schedule", zone.schedule())
-    await gwy.shutdown("get_schedule()")
+    await zone.get_schedule.start(schedule["schedule"])  # 0404
+    # await gwy.shutdown("get_schedule()")  # print("get_schedule", zone.schedule())
 
 
 def poll_device(gwy, device_id):
@@ -140,7 +118,16 @@ def poll_device(gwy, device_id):
         _ = asyncio.create_task(periodic(gwy, cmd, count=0))
 
 
-def probe_device(gwy, device_id):
+async def probe_device(gwy, dev_id: str, probe_type=None):
+    dev_addr = Address(id=dev_id, type=dev_id[:2])
+    device = gwy._get_device(dev_addr)  # not always a CTL
+
+    if probe_type is not None:
+        device._discover()  # discover_flag=DISCOVER_ALL)
+        await gwy.shutdown("get_device()")
+        return
+
+    # TODO: should we avoid creating entities?
     _LOGGER.warning("probe_device() invoked - expect a lot of Warnings")
 
     qos = {"priority": Priority.LOW, "retries": 0}
@@ -149,51 +136,51 @@ def probe_device(gwy, device_id):
     for code in sorted(CODE_SCHEMA):
         if code == "0005":
             for zone_type in range(20):  # known up to 18
-                cmd = Command("RQ", device_id, code, f"00{zone_type:02X}", qos=qos)
+                cmd = Command("RQ", device.id, code, f"00{zone_type:02X}", qos=qos)
                 asyncio.create_task(periodic(gwy, cmd))
             continue
 
         elif code == "000C":
             # for domain_id in ("F8", "F9", "FA", "FB", "FD", "FE", "FF"):
-            #     cmd = Command("RQ", device_id, code, f"{domain_id}00", qos=qos)
+            #     cmd = Command("RQ", device.id, code, f"{domain_id}00", qos=qos)
             #     asyncio.create_task(periodic(gwy, cmd))
 
             for zone_idx in range(16):
-                cmd = Command("RQ", device_id, code, f"{zone_idx:02X}00", qos=qos)
+                cmd = Command("RQ", device.id, code, f"{zone_idx:02X}00", qos=qos)
                 asyncio.create_task(periodic(gwy, cmd))
             continue
 
         if code == "0016":
             qos_alt = {"priority": Priority.HIGH, "retries": 5}
-            cmd = Command("RQ", device_id, code, "0000", qos=qos_alt)
+            cmd = Command("RQ", device.id, code, "0000", qos=qos_alt)
             asyncio.create_task(periodic(gwy, cmd))
             continue
 
         elif code == "0404":
-            cmd = Command("RQ", device_id, code, "00200008000100", qos=qos)
+            cmd = Command("RQ", device.id, code, "00200008000100", qos=qos)
 
         elif code == "0418":
             for log_idx in range(2):
-                cmd = Command("RQ", device_id, code, f"{log_idx:06X}", qos=qos)
+                cmd = Command("RQ", device.id, code, f"{log_idx:06X}", qos=qos)
                 asyncio.create_task(periodic(gwy, cmd))
             continue
 
         elif code == "1100":
-            cmd = Command("RQ", device_id, code, "FC", qos=qos)
+            cmd = Command("RQ", device.id, code, "FC", qos=qos)
 
         elif code == "2E04":
-            cmd = Command("RQ", device_id, code, "FF", qos=qos)
+            cmd = Command("RQ", device.id, code, "FF", qos=qos)
 
         elif code == "3220":
             for data_id in ("00", "03"):  # these are mandatory READ_DATA data_ids
-                cmd = Command("RQ", device_id, code, f"0000{data_id}0000", qos=qos)
+                cmd = Command("RQ", device.id, code, f"0000{data_id}0000", qos=qos)
 
         elif CODE_SCHEMA[code].get("rq_len"):
             rq_len = CODE_SCHEMA[code].get("rq_len") * 2
-            cmd = Command("RQ", device_id, code, f"{0:0{rq_len}X}", qos=qos)
+            cmd = Command("RQ", device.id, code, f"{0:0{rq_len}X}", qos=qos)
 
         else:
-            cmd = Command("RQ", device_id, code, "0000", qos=qos)
+            cmd = Command("RQ", device.id, code, "0000", qos=qos)
 
         asyncio.create_task(periodic(gwy, cmd))  # type: ignore
 

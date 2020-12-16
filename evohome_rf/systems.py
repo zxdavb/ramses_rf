@@ -60,11 +60,8 @@ class SysFaultLog(Entity):  # 0418
             # if "log_idx" in msg.payload:
             #     self._fault_log[msg.payload["log_idx"]] = msg
 
-    def fault_log(self, *args, **kwargs) -> Optional[dict]:  # 0418
-        if self._fault_log.fault_log is None or kwargs.get("force_refresh"):
-            self._fault_log.start()
-
-        return self._fault_log.fault_log
+    async def get_fault_log(self, force_refresh=None) -> Optional[dict]:  # 0418
+        return await self._fault_log.get_fault_log(force_refresh=force_refresh)
 
     @property
     def status(self) -> dict:

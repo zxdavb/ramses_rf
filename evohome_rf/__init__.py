@@ -21,7 +21,7 @@ from typing import Any, Dict, List  # Any, Tuple
 
 from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
-from .discovery import spawn_scripts
+from .discovery import execute_scripts, monitor_scripts
 from .logger import set_logging
 from .message import DONT_CREATE_MESSAGES, process_msg
 from .packet import _PKT_LOGGER as pkt_logger, file_pkts
@@ -50,10 +50,10 @@ class GracefulExit(SystemExit):
 class Gateway:
     """The gateway class."""
 
-    def __init__(self, serial_port, loop=None, **kwargs) -> None:
+    def __init__(self, serial_port, input_file=None, loop=None, **kwargs) -> None:
         """Initialise the class."""
 
-        if kwargs.get("debug_mode"):
+        if kwargs.pop("debug_mode"):
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
         _LOGGER.debug("Starting evohome_rf, **kwargs = %s", kwargs)
 
@@ -62,6 +62,8 @@ class Gateway:
         self._setup_event_handlers()
 
         self.serial_port = serial_port
+        self._input_file = input_file
+
         self.msg_protocol, self.msg_transport = None, None
         self.pkt_protocol, self.pkt_transport = None, None
         self.msg_protocol, self.msg_transport = create_msg_stack(
@@ -73,7 +75,7 @@ class Gateway:
             self._schema,
             self._include_list,
             self._exclude_list,
-        ) = load_config(serial_port, **kwargs)
+        ) = load_config(serial_port, input_file, **kwargs)
 
         set_logging(
             pkt_logger,
@@ -102,10 +104,6 @@ class Gateway:
             load_schema(self, self._schema) if self.config["use_schema"] else {}
         )
         self.config["known_devices"] = False  # bool(self.known_devices)
-
-        if self.config.get("device_id"):
-            _LOGGER.warning("Discovery scripts specified, so disabling probes")
-            self.config["disable_discovery"] = True  # TODO: messey
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -196,12 +194,10 @@ class Gateway:
                 self, self.msg_transport, self.serial_port
             )
             self._tasks = [self.msg_transport.get_extra_info(WRITER_TASK)]
-            self._tasks += await spawn_scripts(self)  # queue any discovery scripts
+            # self._tasks += await spawn_scripts(self)  # queue any discovery scripts
 
-        else:  # if self.config["input_file"]:
-            reader = asyncio.create_task(
-                file_reader(self.config["input_file"], process_msg)
-            )
+        else:  # if self._input_file:
+            reader = asyncio.create_task(file_reader(self._input_file, process_msg))
             self._tasks = [reader]
 
         await asyncio.gather(*self._tasks)

@@ -8,174 +8,261 @@ evohome_rf is used to parse Honeywell's RAMSES-II packets, either via RF or from
 import asyncio
 import json
 import sys
+from typing import Tuple
 
 import click
 from colorama import init as colorama_init, Fore
 
-from evohome_rf import Gateway, GracefulExit
+from evohome_rf import Gateway, GracefulExit, execute_scripts, monitor_scripts
+
+DONT_CREATE_MESSAGES = 3
+DONT_CREATE_ENTITIES = 2
+DONT_UPDATE_ENTITIES = 1
 
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
-
-# this is needed only when debugging the client
-# import debugpy
-# print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
-# debugpy.listen(address=(DEBUG_ADDR, DEBUG_PORT))
-# print(" - execution paused, waiting for debugger to attach...")
-# debugpy.wait_for_client()
-
 
 COLORS = {" I": Fore.GREEN, "RP": Fore.CYAN, "RQ": Fore.CYAN, " W": Fore.MAGENTA}
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
+LIB_KEYS = (
+    "input_file",
+    "serial_port",
+    "evofw_flag",
+    "execute_cmd",
+    "packet_log",
+    "process_level",  # TODO
+    "reduce_processing",
+)
+
+
+def _proc_kwargs(obj, kwargs) -> Tuple[dict, dict]:
+    lib_kwargs, cli_kwargs = obj
+    lib_kwargs["config"].update({k: v for k, v in kwargs.items() if k in LIB_KEYS})
+    cli_kwargs.update({k: v for k, v in kwargs.items() if k not in LIB_KEYS})
+    return lib_kwargs, cli_kwargs
+
+
+def _convert_to_list(d: str) -> list:
+    if not d or not str(d):
+        return []
+    return [c.strip() for c in d.split(",") if c.strip()]
+
 
 @click.group(context_settings=CONTEXT_SETTINGS)
-@click.option("-z", "--debug-mode", help="TBD", count=True)
-@click.option("-r", "--reduce-processing", help="TBD", count=True)
-@click.option("-c", "--config-file", help="TBD", type=click.Path())
-# @click.option("-C", "--controller-id", help="TBD")
+@click.option("-z", "--debug-mode", count=True, help="enable debugger")
+@click.option("-r", "--reduce-processing", count=True)
+@click.option("-c", "--config-file", type=click.File("r"))
 @click.pass_context
-def cli(ctx, **kwargs):
+def cli(ctx, config_file=None, **kwargs):
     """A CLI for the evohome_rf library."""
 
-    # if kwargs["debug_mode"]:
-    #     print(f"cli(): ctx.obj={ctx.obj}, kwargs={kwargs}")
-    ctx.obj = kwargs
+    if kwargs["debug_mode"]:
+        import debugpy
+
+        debugpy.listen(address=(DEBUG_ADDR, DEBUG_PORT))
+        print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
+        print(" - execution paused, waiting for debugger to attach...")
+        debugpy.wait_for_client()
+        print(" - debugger is now attached, continuing execution.")
+
+    lib_kwargs, cli_kwargs = _proc_kwargs(({"config": {}}, {}), kwargs)
+
+    if config_file is not None:
+        lib_kwargs.update(json.load(config_file))
+
+    lib_kwargs["debug_mode"] = cli_kwargs["debug_mode"] > 1
+    lib_kwargs["config"]["reduce_processing"] = kwargs["reduce_processing"]
+
+    ctx.obj = lib_kwargs, kwargs
 
 
-@click.command()
-@click.argument("input-file", type=click.File("r"), default=sys.stdin)
+class FileCommand(click.Command):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.params.insert(
+            0, click.Argument(("input-file",), type=click.File("r"), default=sys.stdin)
+        )
+        # self.params.insert(1, click.Option(("-r", "--process_level"), count=True))
+
+
+class PortCommand(click.Command):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.params.insert(0, click.Argument(("serial-port",)))
+        # self.params.insert(1, click.Option(("-r", "--process_level"), count=True))
+        self.params.insert(
+            1,
+            click.Option(
+                ("-o", "--packet-log"),
+                type=click.Path(),
+                help="Log all packets to this file",
+            ),
+        )
+        self.params.insert(
+            2,
+            click.Option(
+                ("-T", "--evofw-flag"),
+                type=click.STRING,
+                help="Pass this traceflag to the evofw",
+            ),
+        )
+
+
+@click.command(cls=FileCommand)
 @click.pass_obj
 def parse(obj, **kwargs):
-    """Parse a log file for packets."""
+    """Parse a log file for messages/packets."""
+    lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
-    debug_wrapper(**obj, **kwargs)
+    lib_kwargs["input_file"] = lib_kwargs["config"].pop("input_file")
+
+    asyncio.run(main(lib_kwargs, command="parse", **cli_kwargs))
 
 
-@click.command()
-@click.argument("serial-port")
-@click.option("-T", "--evofw-flag", help="TBD")
-@click.option("-o", "--packet-log", help="TBD", type=click.Path())
-@click.option("-p", "--enforce-probing", is_flag=True, help="TBD")
+@click.command(cls=PortCommand)
+@click.option("-d/-nd", "--discover/--no-discover", default=None)
 @click.option(  # "--execute-cmd"
     "-x",
     "--execute-cmd",
-    is_flag=False,
     type=click.STRING,
     help="e.g.: RQ 01:123456 1F09 00",
 )
-@click.option("--poll-devices", is_flag=False, type=click.STRING)
-@click.option("--probe-devices", is_flag=False, type=click.STRING)
+@click.option("--poll-devices", type=click.STRING, help="device_id, device_id, ...")
 @click.pass_obj
 def monitor(obj, **kwargs):
-    """Monitor (eavesdrop/probe) a serial port for packets."""
+    """Monitor (eavesdrop and/or probe) a serial port for messages/packets."""
+    lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
-    for key in ("poll_devices", "probe_devices"):
-        if kwargs[key] is None:
-            kwargs[key] = []
-        else:
-            kwargs[key] = [c.strip() for c in kwargs[key].split(",")]
+    if cli_kwargs["discover"] is not None:
+        lib_kwargs["config"]["disable_discovery"] = not cli_kwargs["discover"]
+    lib_kwargs["config"]["poll_devices"] = _convert_to_list(
+        cli_kwargs.pop("poll_devices")
+    )
 
-    debug_wrapper(**obj, **kwargs)
-
-
-@click.command()
-@click.argument("serial-port")
-@click.option("-T", "--evofw-flag", help="TBD")
-@click.option("-o", "--packet-log", help="TBD", type=click.Path())
-@click.pass_obj
-def listen(obj, **kwargs):
-    """Listen to (eavesdrop only) a serial port for packets."""
-
-    kwargs["disable_sending"] = True
-
-    debug_wrapper(**obj, **kwargs)
+    asyncio.run(main(lib_kwargs, command="monitor", **cli_kwargs))
 
 
-@click.command()
-@click.argument("serial-port")
-@click.option("-T", "--evofw-flag", help="TBD")
-@click.option("-o", "--packet-log", help="TBD", type=click.Path())
-@click.option(  # "--device-id"
-    "--device-id",
-    is_flag=False,
+@click.command(cls=PortCommand)
+@click.option(  # "--execute-cmd"
+    "-x",
+    "--execute-cmd",
     type=click.STRING,
-    required=True,
-    help="The device to target with a get_xxx script",
+    help="e.g.: RQ 01:123456 1F09 00",
 )
-@click.option("--get-faults", is_flag=True)
-@click.option("--get-schedule", is_flag=False, type=click.STRING)
-@click.option("--set-schedule", is_flag=False, type=click.File("r"))
+@click.option("--probe-devices", type=click.STRING, help="device_id, device_id, ...")
+@click.option("--get-faults", type=click.STRING, help="controller_id")
+@click.option(  # "--get-schedule"
+    "--get-schedule",
+    default=[None, None],
+    type=(str, str),
+    help="controller_id, zone_idx (e.g. '0A')",
+)
+@click.option(  # "--set-schedule"
+    "--set-schedule",
+    default=[None, None],
+    type=(str, click.File("r")),
+    help="controller_id, JSON (file)",
+)
 @click.pass_obj
 def execute(obj, **kwargs):
-    """Execute scripts on a device via a serial port."""
+    """Execute any specified scripts, return the results, then quit."""
+    lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
-    debug_wrapper(**obj, **kwargs)
+    lib_kwargs["config"]["disable_discovery"] = True
+    cli_kwargs["probe_devices"] = _convert_to_list(
+        cli_kwargs.pop("probe_devices")
+    )
 
+    lib_kwargs["allowlist"] = {}
+    if cli_kwargs["probe_devices"]:
+        lib_kwargs["allowlist"].update({d: None for d in cli_kwargs["probe_devices"]})
+    if cli_kwargs.get("get_faults"):
+        lib_kwargs["allowlist"].update({cli_kwargs["get_faults"]: {}})
+    if cli_kwargs.get("get_schedule")[0]:
+        lib_kwargs["allowlist"].update({cli_kwargs["get_schedule"][0]: {}})
+    if cli_kwargs.get("set_schedule")[0]:
+        lib_kwargs["allowlist"].update({cli_kwargs["set_schedule"][0]: {}})
 
-def debug_wrapper(config_file=None, **kwargs):
+    if lib_kwargs["allowlist"]:
+        lib_kwargs["config"]["enforce_allowlist"] = True
 
-    # 1st: sort out any debug mode...
-    if kwargs["debug_mode"] >= 3:
-        print("Additional logging enabled (debugging not enabled).")
-
-    elif kwargs["debug_mode"] != 0:
-        import debugpy
-
-        print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
-        debugpy.listen(address=(DEBUG_ADDR, DEBUG_PORT))
-
-        if kwargs["debug_mode"] == 1:
-            print(" - execution paused, waiting for debugger to attach...")
-            debugpy.wait_for_client()
-            print(" - debugger is now attached, continuing execution.")
-
-    # 2nd: merge CLI args with config file, if any
-    config_dict = {"config": {}, "schema": {}, "allowlist": {}, "blocklist": {}}
-    if config_file is not None:
-        config_dict.update(json.load(config_file))
-    if kwargs.get("enforce_probing"):
-        config_dict["config"]["disable_discovery"] = False
-    config_dict["config"].update(kwargs)
-
-    serial_port = config_dict["config"].pop("serial_port", None)
-
-    asyncio.run(main(serial_port, **config_dict))
+    asyncio.run(main(lib_kwargs, command="execute", **cli_kwargs))
 
 
-def process_message(msg) -> None:
-    dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
-    if msg.src.type == "18" and msg.verb == "RQ":
-        print(f"{Fore.BLUE}{dtm} {msg}")
-    else:
-        print(f"{COLORS.get(msg.verb)}{dtm} {msg}")
+@click.command(cls=PortCommand)
+@click.pass_obj
+def listen(obj, **kwargs):
+    """Listen to (eavesdrop only) a serial port for messages/packets."""
+    lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
-    # {print(k, v) for k, v in msg.payload.items()}
+    lib_kwargs["config"]["disable_sending"] = True
+
+    asyncio.run(main(lib_kwargs, command="listen", **cli_kwargs))
 
 
-async def main(serial_port, loop=None, **config):
+async def main(lib_kwargs, **kwargs):
+    def print_results(**kwargs):
 
-    # loop=asyncio.get_event_loop() causes: 'NoneType' object has no attribute 'serial'
+        if kwargs.get("get_faults"):
+            fault_log = gwy.device_by_id[kwargs["get_faults"]]._evo.fault_log()
+
+            if fault_log is None:
+                print("No fault log, or failed to get the fault log.")
+            else:
+                [print(k, v) for k, v in fault_log.items()]
+
+        if kwargs.get("get_schedule") and kwargs["get_schedule"][0]:
+            system_id, zone_idx = kwargs["get_schedule"]
+            zone = gwy.system_by_id[system_id].zone_by_idx[zone_idx]
+            schedule = zone._schedule.schedule
+
+            if schedule is None:
+                print("Failed to get the schedule.")
+            else:
+                print("Schedule = \r\n", json.dumps(schedule, indent=4))
+
+        if kwargs.get("set_schedule") and kwargs["set_schedule"][0]:
+            input = json.load(kwargs["set_schedule"][1])
+            system_id, zone_idx = kwargs["get_schedule"][1], input["zone_idx"]
+            zone = gwy.system_by_id[system_id].zone_by_idx[zone_idx]
+
+            gwy.evo.zone_by_idx[input["zone_idx"]].schedule = input["schedule"]
+
+        # else:
+        #     print(gwy.device_by_id[kwargs["device_id"]])
+
+    def process_message(msg) -> None:
+        dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
+        if msg.src.type == "18" and msg.verb == "RQ":
+            print(f"{Fore.BLUE}{dtm} {msg}")
+        else:
+            print(f"{COLORS.get(msg.verb)}{dtm} {msg}")
+
+        # {print(k, v) for k, v in msg.payload.items()}
+
     print("\r\nclient.py: Starting evohome_rf...")
 
-    # print(f"kwargs = {config}")
-
+    # loop=asyncio.get_event_loop() causes: 'NoneType' object has no attribute 'serial'
     if sys.platform == "win32":  # is better than os.name
         # ERROR:asyncio:Cancelling an overlapped future failed
         # future: ... cb=[BaseProactorEventLoop._loop_self_reading()]
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-    gwy = Gateway(serial_port, loop=loop, **config)
-    if config.get("reduce_processing", 0) < 3:
+    gwy = Gateway(lib_kwargs["config"].pop("serial_port", None), **lib_kwargs)
+
+    if kwargs.get("reduce_processing", 0) < 3:
         # no MSGs will be sent to STDOUT, so send PKTs instead
         colorama_init(autoreset=True)
         protocol, _ = gwy.create_client(process_message)
 
     try:
         task = asyncio.create_task(gwy.start())
-        # if config.get("device_id"):
-        #     process_device_job()
+        if kwargs["command"] == "execute":
+            tasks = await execute_scripts(gwy, **kwargs)
+            await asyncio.gather(*tasks)
+            await gwy.shutdown()
         await task
     except asyncio.CancelledError:
         # print(" - exiting via: CancelledError (this is expected)")
@@ -189,34 +276,8 @@ async def main(serial_port, loop=None, **config):
 
     print("\r\nclient.py: Finished evohome_rf, results:\r\n")
 
-    if config.get("device_id"):
-        # gwy._get_device()
-
-        if config.get("get_faults"):
-            fault_log = gwy.device_by_id[config["device_id"]]._evo.fault_log()
-            if fault_log is None:
-                print("No fault log, or failed to get the fault log.")
-            else:
-                [print(k, v) for k, v in fault_log.items()]
-
-        elif config.get("get_schedule") is not None:
-            schedule = gwy.evo.zone_by_idx[config["get_schedule"]].schedule()
-            if schedule is None:
-                print("Failed to get the schedule.")
-            else:
-                result = {
-                    "zone_idx": config["get_schedule"],
-                    # "zone_name": gwy.evo.zone_by_idx[config["get_schedule"]].name,
-                    "schedule": schedule,
-                }
-                print(json.dumps(result))  # , indent=4))
-
-        elif config.get("set_schedule") is not None:
-            input = json.load(config["set_schedule"])
-            gwy.evo.zone_by_idx[input["zone_idx"]].schedule = input["schedule"]
-
-        else:
-            print(gwy.device_by_id[config["device_id"]])
+    if kwargs["command"] == "execute":
+        print_results(**kwargs)
 
     elif gwy.evo is None:
         print(f"Schema[gateway] = {json.dumps(gwy.schema)}\r\n")
@@ -231,10 +292,10 @@ async def main(serial_port, loop=None, **config):
     print("\r\nclient.py: Finished evohome_rf.\r\n")
 
 
+cli.add_command(parse)
+cli.add_command(monitor)
 cli.add_command(execute)
 cli.add_command(listen)
-cli.add_command(monitor)
-cli.add_command(parse)
 
 if __name__ == "__main__":
     cli()

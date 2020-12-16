@@ -410,10 +410,9 @@ class ZoneSchedule:
         self._schedule = Schedule(self)
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        # super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
-            # asyncio.create_task(self._schedule.start())  # 0404
+            # asyncio.create_task(self.get_schedule())  # 0404
             pass
 
     def _handle_msg(self, msg) -> bool:
@@ -427,22 +426,16 @@ class ZoneSchedule:
             self._known_msg = True
 
     async def get_schedule(self, force_refresh=None) -> Optional[dict]:
-        if not force_refresh and self._schedule.schedule:
-            return self._schedule.schedule
-
-        await self._schedule.get_schedule()
-
-        while not self._schedule._schedule_done:
-            await asyncio.sleep(0.05)
-
-        return self._schedule.schedule
+        schedule = await self._schedule.get_schedule(force_refresh=force_refresh)
+        return schedule["schedule"]
 
     async def set_schedule(self, schedule) -> None:
+        schedule = {"zone_idx": self.idx, "schedule": schedule}
         await self._schedule.set_schedule(schedule)
 
     @property
     def status(self) -> dict:
-        return {**super().status, "schedule": self._schedule.schedule}
+        return {**super().status, "schedule": self.get_schedule()}
 
 
 class Zone(ZoneSchedule, ZoneBase):

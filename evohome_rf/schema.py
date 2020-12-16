@@ -63,16 +63,16 @@ SER2NET_SCHEMA = vol.Schema(
 
 CONFIG_SCHEMA = vol.Schema(
     {
+        vol.Optional("serial_port"): vol.Any(None, str),
+        # vol.Optional("input_file"): vol.Any(None, any),  # this doesn't work
         vol.Optional("disable_sending", default=False): vol.Any(None, bool),
         vol.Optional("disable_discovery", default=False): vol.Any(None, bool),
         vol.Optional("enforce_allowlist", default=False): vol.Any(None, bool),
         vol.Optional("enforce_blocklist", default=True): vol.Any(None, bool),
         vol.Optional("evofw_flag", default=None): vol.Any(None, bool),
-        # vol.Optional("input_file"): vol.Any(None, any),  # this doesn't work
         vol.Optional("max_zones", default=DEFAULT_MAX_ZONES): vol.Any(None, int),
         vol.Optional("packet_log", default=None): vol.Any(None, str),
         vol.Optional("reduce_processing", default=0): vol.Any(None, int),
-        vol.Optional("serial_port"): vol.Any(None, str),
         vol.Optional("ser2net_relay"): SER2NET_SCHEMA,
         vol.Optional("use_schema", default=True): vol.Any(None, bool),
     },
@@ -152,7 +152,7 @@ if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def load_config(serial_port, **kwargs) -> Tuple[dict, dict, list, list]:
+def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, dict, list, list]:
     """Process the schema, and the configuration and return True if it is valid."""
 
     config = CONFIG_SCHEMA(kwargs.get("config", {}))
@@ -165,13 +165,12 @@ def load_config(serial_port, **kwargs) -> Tuple[dict, dict, list, list]:
     elif config["enforce_blocklist"]:
         blocks = KNOWNS_SCHEMA(kwargs.get("blocklist", {}))
 
-    if serial_port and config.get("input_file"):
+    if serial_port and input_file:
         _LOGGER.warning(
-            "Serial port specified (%s), so ignoring input file (%s)",
+            "Serial port specified (%s), so input file (%s) will be ignored",
             serial_port,
-            config["input_file"],
+            input_file,
         )
-        config["input_file"] = None
     elif serial_port is None:
         config["disable_sending"] = True
 
