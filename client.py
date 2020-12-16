@@ -256,7 +256,8 @@ async def main(lib_kwargs, **kwargs):
         if kwargs["command"] == "execute":
             tasks = await spawn_execute_scripts(gwy, **kwargs)
             await asyncio.gather(*tasks)
-            await gwy.shutdown()
+            if not kwargs.get("probe_devices"):
+                await gwy.shutdown()
         await task
     except asyncio.CancelledError:
         # print(" - exiting via: CancelledError (this is expected)")
