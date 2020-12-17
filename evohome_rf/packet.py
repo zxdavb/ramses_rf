@@ -99,7 +99,6 @@ class Packet:
 
         self._is_valid = None
         self._is_valid = self.is_valid
-        self._is_wanted = None
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -170,6 +169,7 @@ class Packet:
             return False
 
         # TODO: these packets shouldn't go to the packet log, only STDERR?
+        err_msg = ""
         if not MESSAGE_REGEX.match(self.packet):
             err_msg = "invalid packet structure"
         elif not validate_addresses():
@@ -178,37 +178,12 @@ class Packet:
             err_msg = "excessive payload length"
         elif int(self.packet[46:49]) * 2 != len(self.packet[50:]):
             err_msg = "mismatched payload length"
-        else:  # elif self.is_wanted:  # TODO: needs fixing
-            # _PKT_LOGGER.info("%s ", self.packet, extra=self.__dict__)
+        else:
+            _PKT_LOGGER.info("%s ", self.packet, extra=self.__dict__)
             return True
 
         _PKT_LOGGER.warning("%s < Bad packet: %s ", self, err_msg, extra=self.__dict__)
         return False
-
-    def is_wanted(self, include: list = None, exclude: list = None) -> bool:
-        """Silently drop packets with unwanted (e.g. neighbour's) devices.
-
-        Packets to/from HGI80: are never ignored.
-        """
-
-        def is_wanted_pkt() -> bool:
-            """Return True is a packet is not to be filtered out."""
-
-            if " 18:" in self.packet:  # NOTE: " 18:", leading space is required
-                return True
-            if include:
-                return any(device in self.packet for device in include)
-            if exclude:
-                return not any(device in self.packet for device in exclude)
-            return True
-
-        if self._is_wanted is None:
-            self._is_wanted = is_wanted_pkt()
-
-            if self._is_wanted:  # HACK: should be done in self.is_valid
-                _PKT_LOGGER.info("%s ", self.packet, extra=self.__dict__)
-
-        return self._is_wanted
 
     @property
     def _header(self) -> Optional[str]:
@@ -239,7 +214,7 @@ async def file_pkts(fp):
             continue
 
         pkt = Packet(dtm, pkt, None)
-        if pkt.is_valid:  # TODO: and pkt.is_wanted(include=include, exclude=exclude):
+        if pkt.is_valid:
             yield pkt
 
         await asyncio.sleep(0)  # usu. 0, only to enable a Ctrl-C
@@ -248,9 +223,10 @@ async def file_pkts(fp):
 class GatewayProtocol(asyncio.Protocol):
     """Interface for a packet protocol."""
 
-    def __init__(self, pkt_handler) -> None:
+    def __init__(self, gwy, pkt_handler) -> None:
         _LOGGER.debug("GwyProtocol.__init__()")
 
+        self._gwy = gwy
         self._callback = pkt_handler
 
         self._transport = None

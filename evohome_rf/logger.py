@@ -142,5 +142,6 @@ class InfoFilter(logging.Filter):
 
     def filter(self, record) -> bool:
         """Filter out all but INFO/DEBUG packets."""
+        return True
         return record.levelno in (logging.INFO, logging.DEBUG)
-        # turn record.levelno != logging.DEBUG  # TODO: use less than / more than?
+        return record.levelno != logging.DEBUG  # TODO: use less than / more than?

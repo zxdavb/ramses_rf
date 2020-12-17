@@ -28,6 +28,7 @@ from .const import (
 )
 from .devices import Device
 from .exceptions import CorruptPayloadError
+from .packet import _PKT_LOGGER
 
 # TODO: duplicated in schema.py
 DONT_CREATE_MESSAGES = 3
@@ -288,7 +289,7 @@ class Message:
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
             hint = f": {err}" if str(err) != "" else ""
             log_message(
-                _LOGGER.exception if __dev_mode__ else _LOGGER.warning,
+                _PKT_LOGGER.exception if __dev_mode__ else _LOGGER.warning,
                 f"%s < Validation error{hint}",
             )
             self._is_valid = False
@@ -296,17 +297,17 @@ class Message:
 
         except CorruptPayloadError as err:
             hint = f": {err}" if str(err) != "" else ""
-            log_message(_LOGGER.warning, f"%s < Validation error{hint} (payload)")
+            log_message(_PKT_LOGGER.warning, f"%s < Validation error{hint} (payload)")
             self._is_valid = False
             return self._is_valid
 
         except (AttributeError, LookupError, TypeError, ValueError):  # for development
-            log_message(_LOGGER.exception, "%s < Coding error")
+            log_message(_PKT_LOGGER.exception, "%s < Coding error")
             self._is_valid = False
             return self._is_valid
 
         except NotImplementedError:  # unknown packet code
-            log_message(_LOGGER.warning, "%s < Unknown packet code")
+            log_message(_PKT_LOGGER.warning, "%s < Unknown packet code")
             self._is_valid = False
             return self._is_valid
 
@@ -315,13 +316,19 @@ class Message:
 
         return self._is_valid
 
-    @property
-    def _is_wanted(self) -> bool:  # HACK: needs to move to pkt transport
-        """Parse the packet, return True if the packet is wanted."""
+    def is_wanted(self, include_list, exclude_list) -> bool:
+        """Parse the packet, return True if the packet is not to be filtered out."""
 
-        return self._pkt.is_wanted(
-            include=self._gwy._include_list, exclude=self._gwy._exclude_list
-        )
+        if not self._is_valid:
+            return
+
+        if " 18:" in self._pkt.packet:  # NOTE: " 18:", leading space is required
+            return True
+        if include_list:
+            return any(device in self._pkt.packet for device in include_list)
+        if exclude_list:
+            return not any(device in self._pkt.packet for device in exclude_list)
+        return True
 
 
 def process_msg(msg: Message) -> None:

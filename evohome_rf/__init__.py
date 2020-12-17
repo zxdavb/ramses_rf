@@ -17,7 +17,7 @@ import logging
 import os
 import signal
 from threading import Lock
-from typing import Any, Dict, List  # Any, Tuple
+from typing import Dict, List, Tuple  # Any, Tuple
 
 from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
@@ -31,7 +31,6 @@ from .schema import load_config, load_schema
 from .systems import SYSTEM_CLASSES, System, SystemBase
 from .transport import (
     WRITER_TASK,
-    ClientProtocol,
     Ramses2Protocol,
     create_msg_stack,
     create_pkt_stack,
@@ -64,17 +63,11 @@ class Gateway:
         self.serial_port = serial_port
         self._input_file = input_file
 
-        self.msg_protocol, self.msg_transport = None, None
-        self.pkt_protocol, self.pkt_transport = None, None
-        self.msg_protocol, self.msg_transport = create_msg_stack(
-            self, process_msg, Ramses2Protocol
-        )
-
         (
             self.config,
             self._schema,
-            self._include_list,
-            self._exclude_list,
+            self._include,
+            self._exclude,
         ) = load_config(serial_port, input_file, **kwargs)
 
         set_logging(
@@ -83,11 +76,15 @@ class Gateway:
             cc_stdout=self.config["reduce_processing"] >= DONT_CREATE_MESSAGES,
         )
 
+        self.pkt_protocol, self.pkt_transport = None, None
+        self.msg_protocol, self.msg_transport = None, None
+        self.msg_protocol, self.msg_transport = self.create_client(
+            process_msg, exclude=self._exclude, include=self._include
+        )
+
         self._buffer = deque()
         self._sched_zone = None
         self._sched_lock = Lock()
-
-        self._prev_msg = None
 
         # if config.get("ser2net_server"):
         self._relay = None  # ser2net_server relay
@@ -104,6 +101,8 @@ class Gateway:
             load_schema(self, self._schema) if self.config["use_schema"] else {}
         )
         self.config["known_devices"] = False  # bool(self.known_devices)
+
+        self._prev_msg = None
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -303,6 +302,8 @@ class Gateway:
 
         return result
 
-    def create_client(self, msg_handler, protocol_factory=ClientProtocol) -> Any:
+    def create_client(
+        self, msg_handler, protocol_factory=Ramses2Protocol, **kwargs
+    ) -> Tuple:
         """Create a client protocol for the RAMSES-II message transport."""
-        return create_msg_stack(self, msg_handler, protocol_factory=protocol_factory)
+        return create_msg_stack(self, msg_handler, protocol_factory, **kwargs)

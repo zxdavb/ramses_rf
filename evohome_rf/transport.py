@@ -278,114 +278,86 @@ class Ramses2Transport(asyncio.Transport):
         return False
 
 
-class ClientProtocol(asyncio.Protocol):
-    """Interface for a message protocol."""
+class Ramses2Protocol(asyncio.Protocol):
+    """Interface for a message protocol.
 
-    def __init__(self, msg_handler) -> None:
-        self._callback = msg_handler
+        The user should implement this interface.  They can inherit from this class but
+        don't need to.  The implementations here do nothing (they don't raise
+        exceptions).
+
+        When the user wants to requests a transport, they pass a protocol factory to a
+        utility function (e.g., EventLoop.create_connection()).
+
+        When the connection is made successfully, connection_made() is called with a
+        suitable transport object.  Then data_received() will be called 0 or more times
+        with data (bytes) received from the transport; finally, connection_lost() will
+        be called exactly once with either an exception object or None as an argument.
+
+        State machine of calls:
+
+        start -> CM [-> DR*] [-> ER?] -> CL -> end
+
+        * CM: connection_made()
+        * DR: data_received()
+        * ER: eof_received()
+        * CL: connection_lost()
+        """
+
+    def __init__(self, callback, exclude=None, include=None) -> None:
+        _LOGGER.debug("RamsesProtocol.__init__(%s)", callback)
+        self._callback = callback
         self._transport = None
         self._pause_writing = None
 
-    def connection_made(self, transport: Ramses2Transport) -> None:
-        """Called when a connection is made."""
-        self._transport = transport
-
-    def data_received(self, msg) -> None:
-        """Called when some data is received (called by the transport)."""
-        if msg.is_valid and msg._is_wanted:  # HACK: is_wanted should be in PktProtocol
-            self._callback(msg)
-
-    async def send_data(self, cmd) -> None:
-        """Called when some data is to be sent (is not a callaback)."""
-        while self._pause_writing:
-            asyncio.sleep(0.05)
-        self._transport.write(cmd)
-
-    def connection_lost(self, exc: Optional[Exception]) -> None:
-        """Called when the connection is lost or closed."""
-        if exc is not None:
-            pass
-
-    def pause_writing(self) -> None:
-        """Called when the transport's buffer goes over the high-water mark."""
-        self._pause_writing = True
-
-    def resume_writing(self) -> None:
-        """Called when the transport's buffer drains below the low-water mark."""
-        self._pause_writing = False
-
-
-class Ramses2Protocol(ClientProtocol):
-    """Interface for a message protocol.
-
-    The user should implement this interface.  They can inherit from this class but
-    don't need to.  The implementations here do nothing (they don't raise
-    exceptions).
-
-    When the user wants to requests a transport, they pass a protocol factory to a
-    utility function (e.g., EventLoop.create_connection()).
-
-    When the connection is made successfully, connection_made() is called with a
-    suitable transport object.  Then data_received() will be called 0 or more times
-    with data (bytes) received from the transport; finally, connection_lost() will
-    be called exactly once with either an exception object or None as an argument.
-
-    State machine of calls:
-
-    start -> CM [-> DR*] [-> ER?] -> CL -> end
-
-    * CM: connection_made()
-    * DR: data_received()
-    * ER: eof_received()
-    * CL: connection_lost()
-    """
-
-    def __init__(self, msg_handler) -> None:
-        _LOGGER.debug("RamsesProtocol.__init__(%s)", msg_handler)
-        super().__init__(msg_handler)
+        self._exclude_list = exclude
+        self._include_list = include
 
     def connection_made(self, transport: Ramses2Transport) -> None:
         """Called when a connection is made."""
         _LOGGER.debug("RamsesProtocol.connection_made(%s)", transport)
-        super().connection_made(transport)
+        self._transport = transport
 
     def data_received(self, msg) -> None:
         """Called when some data is received."""
         _LOGGER.debug(
             "RamsesProtocol.data_received(%s)", msg if msg.is_valid else "invalid"
         )  # or: use repr(msg)
-        super().data_received(msg)
+        if msg.is_valid and msg.is_wanted(self._include_list, self._exclude_list):
+            self._callback(msg)
 
     async def send_data(self, cmd) -> None:
         """Called when some data is to be sent (not a callaback)."""
         _LOGGER.debug("RamsesProtocol.send_data(%s)", cmd)
-        await super().send_data(cmd)
+        while self._pause_writing:
+            asyncio.sleep(0.05)
+        self._transport.write(cmd)
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
         _LOGGER.debug("RamsesProtocol.connection_lost(%s)", exc)
-        super().connection_lost(exc)
+        if exc is not None:
+            pass
 
     def pause_writing(self) -> None:
         """Called when the transport's buffer goes over the high-water mark."""
         _LOGGER.debug("RamsesProtocol.pause_writing()")
-        super().pause_writing()
+        self._pause_writing = True
 
     def resume_writing(self) -> None:
         """Called when the transport's buffer drains below the low-water mark."""
         _LOGGER.debug("RamsesProtocol.resume_writing()")
-        super().resume_writing()
+        self._pause_writing = False
 
 
-def create_msg_stack(gwy, msg_handler, protocol_factory=Ramses2Protocol) -> Tuple:
+def create_msg_stack(gwy, msg_handler, protocol_factory, **kwargs) -> Tuple:
     """Utility function to provide a transport to a client protocol.
 
-    The architecture is: client -> msg protocol -> pkt protocol -> ser interface.
+    The architecture is: app (client) -> msg protocol -> pkt protocol -> ser interface.
     """
 
-    msg_protocol = protocol_factory(msg_handler)
+    msg_protocol = protocol_factory(msg_handler, **kwargs)  # Ramses2Protocol
 
-    if gwy.msg_transport:
+    if gwy.msg_transport:  # HACK: a little messy?
         msg_transport = gwy.msg_transport
         msg_transport.add_protocol(msg_protocol)
     else:
@@ -394,16 +366,18 @@ def create_msg_stack(gwy, msg_handler, protocol_factory=Ramses2Protocol) -> Tupl
     return (msg_protocol, msg_transport)
 
 
-def create_pkt_stack(gwy, msg_transport, serial_port) -> Tuple:
-    """Utility function to provide a transport to the internal protocol."""
-    # The architecture is: client -> msg protocol -> pkt protocol -> ser interface.
+def create_pkt_stack(gwy, msg_handler, serial_port) -> Tuple:
+    """Utility function to provide a transport to the internal protocol.
 
-    pkt_handler = msg_transport._pkt_receiver
+    The architecture is: app (client) -> msg protocol -> pkt protocol -> ser interface.
+    """
+
+    pkt_handler = msg_handler._pkt_receiver  # Ramses2Transport._pkt_receiver
     ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
 
-    pkt_protocol = GatewayProtocol(pkt_handler)  # used for gwy._qos_callbacks
+    pkt_protocol = GatewayProtocol(gwy, pkt_handler)
     pkt_transport = SerialTransport(gwy._loop, pkt_protocol, ser_instance)
 
-    msg_transport._set_dispatcher(pkt_protocol.send_data)
+    msg_handler._set_dispatcher(pkt_protocol.send_data)
 
     return (pkt_protocol, pkt_transport)
