@@ -99,6 +99,7 @@ class Packet:
 
         self._is_valid = None
         self._is_valid = self.is_valid
+        self._is_wanted = None
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -177,8 +178,8 @@ class Packet:
             err_msg = "excessive payload length"
         elif int(self.packet[46:49]) * 2 != len(self.packet[50:]):
             err_msg = "mismatched payload length"
-        else:  # it is a valid packet
-            # TODO: Check that an expected RP arrived for an RQ sent by this library
+        else:  # elif self.is_wanted:  # TODO: needs fixing
+            # _PKT_LOGGER.info("%s ", self.packet, extra=self.__dict__)
             return True
 
         _PKT_LOGGER.warning("%s < Bad packet: %s ", self, err_msg, extra=self.__dict__)
@@ -201,10 +202,13 @@ class Packet:
                 return not any(device in self.packet for device in exclude)
             return True
 
-        if is_wanted_pkt():
-            _PKT_LOGGER.info("%s ", self.packet, extra=self.__dict__)
-            return True
-        return False
+        if self._is_wanted is None:
+            self._is_wanted = is_wanted_pkt()
+
+            if self._is_wanted:  # HACK: should be done in self.is_valid
+                _PKT_LOGGER.info("%s ", self.packet, extra=self.__dict__)
+
+        return self._is_wanted
 
     @property
     def _header(self) -> Optional[str]:
