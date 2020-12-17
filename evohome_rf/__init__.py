@@ -57,7 +57,7 @@ class Gateway:
         _LOGGER.debug("Starting evohome_rf, **kwargs = %s", kwargs)
 
         self._loop = loop if loop else asyncio.get_running_loop()
-        self._tasks = None
+        self._tasks = []
         self._setup_event_handlers()
 
         self.serial_port = serial_port
@@ -192,12 +192,11 @@ class Gateway:
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
                 self, self.msg_transport, self.serial_port
             )
-            self._tasks = [self.msg_transport.get_extra_info(WRITER_TASK)]
-            # self._tasks += await spawn_scripts(self)  # queue any discovery scripts
+            self._tasks += [self.msg_transport.get_extra_info(WRITER_TASK)]
 
         else:  # if self._input_file:
             reader = asyncio.create_task(file_reader(self._input_file, process_msg))
-            self._tasks = [reader]
+            self._tasks += [reader]
 
         await asyncio.gather(*self._tasks)
         await self.shutdown("start()")
