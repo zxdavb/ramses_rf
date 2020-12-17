@@ -23,7 +23,9 @@ async def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
 
     if kwargs.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
         cmd = kwargs["execute_cmd"]
-        cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], retries=12)
+
+        qos = {"priority": Priority.HIGH, "retries": 10}
+        cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], qos=qos)
         await gwy.msg_protocol.send_data(cmd)
 
     if kwargs.get("poll_devices"):
@@ -35,6 +37,13 @@ async def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
 
 async def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
     tasks = []
+
+    if kwargs.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
+        cmd = kwargs["execute_cmd"]
+
+        qos = {"priority": Priority.HIGH, "retries": 10}
+        cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], qos=qos)
+        await gwy.msg_protocol.send_data(cmd)
 
     if kwargs.get("get_faults"):
         tasks += [asyncio.create_task(get_faults(gwy, kwargs["get_faults"]))]
@@ -70,14 +79,14 @@ async def periodic(gwy, cmd, count=1, interval=None):
             await _periodic()
 
 
-async def schedule_task(delay, func, *args, **kwargs):
+async def schedule_task(delay, func, *args, **kwargs) -> Any:
     """Start a coro after delay seconds."""
 
     async def scheduled_func(delay, func, *args, **kwargs):
         await asyncio.sleep(delay)
         await func(*args, **kwargs)
 
-    asyncio.create_task(scheduled_func(delay, func, *args, **kwargs))
+    return asyncio.create_task(scheduled_func(delay, func, *args, **kwargs))
 
 
 async def get_faults(gwy, ctl_id: str):

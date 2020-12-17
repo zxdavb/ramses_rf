@@ -13,7 +13,7 @@ from typing import Tuple
 import click
 from colorama import init as colorama_init, Fore
 
-from evohome_rf import Gateway, GracefulExit, spawn_execute_scripts
+from evohome_rf import Gateway, GracefulExit, spawn_execute_scripts, spawn_monitor_scripts
 
 DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
@@ -30,7 +30,6 @@ LIB_KEYS = (
     "input_file",
     "serial_port",
     "evofw_flag",
-    "execute_cmd",
     "packet_log",
     "process_level",  # TODO
     "reduce_processing",
@@ -251,13 +250,19 @@ async def main(lib_kwargs, **kwargs):
         colorama_init(autoreset=True)
         protocol, _ = gwy.create_client(process_message)
 
-    try:
+    try:  # main code here
         task = asyncio.create_task(gwy.start())
+
+        if kwargs["command"] == "monitor":
+            tasks = await spawn_monitor_scripts(gwy, **kwargs)
+
         if kwargs["command"] == "execute":
             tasks = await spawn_execute_scripts(gwy, **kwargs)
             await asyncio.gather(*tasks)
+
             if not kwargs.get("probe_devices"):
                 await gwy.shutdown()
+
         await task
     except asyncio.CancelledError:
         # print(" - exiting via: CancelledError (this is expected)")
