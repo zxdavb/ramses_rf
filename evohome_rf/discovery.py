@@ -10,6 +10,7 @@ from typing import Any, List
 
 from .command import Command, Priority
 from .const import __dev_mode__, CODE_SCHEMA, DEVICE_TABLE, Address
+from .exceptions import ExpiredCallbackError
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -84,7 +85,11 @@ async def get_faults(gwy, ctl_id: str):
     qos = {"priority": Priority.HIGH, "retries": 10}
     await gwy.msg_protocol.send_data(Command("RQ", ctl_addr.id, "0016", "00", qos=qos))
 
-    await device._evo.get_fault_log()  # 0418
+    try:
+        await device._evo.get_fault_log()  # 0418
+    except ExpiredCallbackError as exc:
+        _LOGGER.error("get_faults(): Function timed out: %s", exc)
+
     # await gwy.shutdown("get_faults()")  # print("get_faults", device._evo.fault_log())
 
 
@@ -95,7 +100,11 @@ async def get_schedule(gwy, ctl_id: str, zone_idx: str) -> None:
     qos = {"priority": Priority.HIGH, "retries": 10}
     await gwy.msg_protocol.send_data(Command("RQ", ctl_addr.id, "0016", "00", qos=qos))
 
-    await zone.get_schedule()
+    try:
+        await zone.get_schedule()
+    except ExpiredCallbackError as exc:
+        _LOGGER.error("get_schedule(): Function timed out: %s", exc)
+
     # await gwy.shutdown("get_schedule()")  # print("get_schedule", zone.schedule())
 
 
@@ -109,7 +118,11 @@ async def set_schedule(gwy, ctl_id, schedule) -> None:
     qos = {"priority": Priority.HIGH, "retries": 10}
     await gwy.msg_protocol.send_data(Command("RQ", ctl_addr.id, "0016", "00", qos=qos))
 
-    await zone.set_schedule(schedule["schedule"])  # 0404
+    try:
+        await zone.set_schedule(schedule["schedule"])  # 0404
+    except ExpiredCallbackError as exc:
+        _LOGGER.error("set_schedule(): Function timed out: %s", exc)
+
     # await gwy.shutdown("get_schedule()")  # print("get_schedule", zone.schedule())
 
 

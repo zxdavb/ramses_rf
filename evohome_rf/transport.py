@@ -102,8 +102,9 @@ class Ramses2Transport(asyncio.Transport):
             for k, v in self._callbacks.items():
                 if not v.get("daemon") and v.get("timeout", dt.max) <= dtm:
                     v["func"](False, *v["args"], **v["kwargs"])
-                    if __dev_mode__:
-                        print(f"EXPIRED CALLBACK: {k}")
+                    _LOGGER.warning(
+                        "RamsesTransport._pkt_receiver(%s): Expired callback", k
+                    )
 
             # 2nd, discard expired callbacks
             self._callbacks = {

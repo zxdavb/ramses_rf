@@ -34,7 +34,7 @@ SCHEDULE = "schedule"
 ZONE_IDX = "zone_idx"
 
 TIMER_SHORT_SLEEP = 0.05
-TIMER_LONG_TIMEOUT = td(seconds=120)
+TIMER_LONG_TIMEOUT = td(seconds=60)
 
 FIVE_MINS = td(minutes=5)
 
@@ -210,7 +210,6 @@ class FaultLog:  # 0418
     async def get_fault_log(self, force_refresh=None) -> Optional[dict]:
         """Get the fault log of a system."""
         _LOGGER.debug("FaultLog(%s).get_fault_log()", self)
-        pass
 
         self._fault_log = {}
         self._fault_log_done = None
@@ -228,12 +227,6 @@ class FaultLog:  # 0418
     def _rq_log_entry(self, log_idx=0):
         """Request the next log entry."""
         _LOGGER.debug("FaultLog(%s)._rq_log_entry(%s)", self, log_idx)
-        pass
-
-        pass
-
-        # if log_idx == 0:  # is likely i dont want to do this
-        # pass
 
         payload = f"{log_idx:06X}"
         callback = {"func": self._proc_log_entry, "timeout": td(seconds=1)}
@@ -342,7 +335,8 @@ class Schedule:  # 0404
 
         def proc_msg(msg) -> None:
             if not msg:  # _LOGGER.debug()... TODO: needs fleshing out
-                _LOGGER.warning(f"Schedule({self.id})._proc_fragment(None)")
+                # TODO: remove any callbacks from msg._gwy.msg_transport._callbacks
+                _LOGGER.warning(f"Schedule({self.id}): Callback timed out")
                 return
 
             _LOGGER.debug(
@@ -352,8 +346,8 @@ class Schedule:  # 0404
             )
 
             if msg.payload["frag_total"] == 255:  # no schedule (i.e. no zone)
-                # TODO: remove any callbacks
-                # msg._gwy.msg_transport._callbacks
+                _LOGGER.warning(f"Schedule({self.id}): No schedule")
+                # TODO: remove any callbacks from msg._gwy.msg_transport._callbacks
                 pass  # self._rx_frags = [None]
 
             elif msg.payload["frag_total"] != len(self._rx_frags):  # e.g. 1st frag
