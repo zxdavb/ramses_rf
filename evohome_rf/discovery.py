@@ -120,71 +120,81 @@ def poll_device(gwy, device_id):
 
 
 async def probe_device(gwy, dev_id: str, probe_type=None):
+    async def send_cmd(*args, **kwargs) -> None:
+        await gwy.msg_protocol.send_data(Command(*args, **kwargs))
+
     dev_addr = Address(id=dev_id, type=dev_id[:2])
     device = gwy._get_device(dev_addr)  # not always a CTL
 
+    qos = {"priority": Priority.DEFAULT, "retries": 5}
+    await send_cmd("RQ", device.id, "0016", "00", qos=qos)
+
     if probe_type is not None:
         device._discover()  # discover_flag=DISCOVER_ALL)
-        await gwy.shutdown("get_device()")
         return
 
     # TODO: should we avoid creating entities?
     _LOGGER.warning("probe_device() invoked - expect a lot of Warnings")
 
-    qos = {"priority": Priority.LOW, "retries": 0}
+    # qos = {"priority": Priority.LOW, "retries": 3}
+    # for idx in range(0x10):
+    #     await send_cmd(" W", device.id, "000E", f"{idx:02X}0050", qos=qos)
+    #     await send_cmd("RQ", device.id, "000E", f"{idx:02X}00C8", qos=qos)
 
+    qos = {"priority": Priority.LOW, "retries": 3}
+    for code in ("0150", "0B04", "2389"):  # possible codes
+        await send_cmd("RQ", device.id, code, "0000", qos=qos)
+
+    # qos = {"priority": Priority.LOW, "retries": 0, "timeout": td(seconds=0.05)}
     # for code in range(0x4000):
+    #     await send_cmd("RQ", device.id, f"{code:04X}", "0000", qos=qos)
+
+    # await gwy.shutdown("probe_device()")
+    # return
+
+    qos = {"priority": Priority.LOW, "retries": 0}
     for code in sorted(CODE_SCHEMA):
         if code == "0005":
             for zone_type in range(20):  # known up to 18
-                cmd = Command("RQ", device.id, code, f"00{zone_type:02X}", qos=qos)
-                asyncio.create_task(periodic(gwy, cmd))
+                await send_cmd("RQ", device.id, code, f"00{zone_type:02X}", qos=qos)
             continue
 
         elif code == "000C":
-            # for domain_id in ("F8", "F9", "FA", "FB", "FD", "FE", "FF"):
-            #     cmd = Command("RQ", device.id, code, f"{domain_id}00", qos=qos)
-            #     asyncio.create_task(periodic(gwy, cmd))
-
-            for zone_idx in range(16):
-                cmd = Command("RQ", device.id, code, f"{zone_idx:02X}00", qos=qos)
-                asyncio.create_task(periodic(gwy, cmd))
+            for zone_idx in range(16):  # also: FA-FF?
+                await send_cmd("RQ", device.id, code, f"{zone_idx:02X}00", qos=qos)
             continue
 
         if code == "0016":
             qos_alt = {"priority": Priority.HIGH, "retries": 5}
-            cmd = Command("RQ", device.id, code, "0000", qos=qos_alt)
-            asyncio.create_task(periodic(gwy, cmd))
+            await send_cmd("RQ", device.id, code, "0000", qos=qos_alt)
             continue
 
         elif code == "0404":
-            cmd = Command("RQ", device.id, code, "00200008000100", qos=qos)
+            await send_cmd("RQ", device.id, code, "00200008000100", qos=qos)
 
         elif code == "0418":
             for log_idx in range(2):
-                cmd = Command("RQ", device.id, code, f"{log_idx:06X}", qos=qos)
-                asyncio.create_task(periodic(gwy, cmd))
+                await send_cmd("RQ", device.id, code, f"{log_idx:06X}", qos=qos)
             continue
 
         elif code == "1100":
-            cmd = Command("RQ", device.id, code, "FC", qos=qos)
+            await send_cmd("RQ", device.id, code, "FC", qos=qos)
 
         elif code == "2E04":
-            cmd = Command("RQ", device.id, code, "FF", qos=qos)
+            await send_cmd("RQ", device.id, code, "FF", qos=qos)
 
         elif code == "3220":
             for data_id in ("00", "03"):  # these are mandatory READ_DATA data_ids
-                cmd = Command("RQ", device.id, code, f"0000{data_id}0000", qos=qos)
+                await send_cmd("RQ", device.id, code, f"0000{data_id}0000", qos=qos)
 
         elif CODE_SCHEMA[code].get("rq_len"):
             rq_len = CODE_SCHEMA[code].get("rq_len") * 2
-            cmd = Command("RQ", device.id, code, f"{0:0{rq_len}X}", qos=qos)
+            await send_cmd("RQ", device.id, code, f"{0:0{rq_len}X}", qos=qos)
 
         else:
-            cmd = Command("RQ", device.id, code, "0000", qos=qos)
+            await send_cmd("RQ", device.id, code, "0000", qos=qos)
 
-        asyncio.create_task(periodic(gwy, cmd))  # type: ignore
-
+    # await gwy.shutdown("probe_device()")
 
 # if self.config.get("evofw_flag") and "evofw3" in raw_pkt.packet:
 #     # !V, !T - print the version, or the current mask
