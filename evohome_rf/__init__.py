@@ -192,11 +192,11 @@ class Gateway:
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
                 self, self.msg_transport, self.serial_port
             )
-            self._tasks += [self.msg_transport.get_extra_info(WRITER_TASK)]
+            self._tasks.append(self.msg_transport.get_extra_info(WRITER_TASK))
 
         else:  # if self._input_file:
             reader = asyncio.create_task(file_reader(self._input_file, process_msg))
-            self._tasks += [reader]
+            self._tasks.append(reader)
 
         await asyncio.gather(*self._tasks)
         await self.shutdown("start()")

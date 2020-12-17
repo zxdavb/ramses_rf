@@ -29,6 +29,7 @@ async def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
     if kwargs.get("poll_devices"):
         tasks += [poll_device(gwy, d) for d in kwargs["poll_devices"]]
 
+    gwy._tasks.extend(tasks)
     return tasks
 
 
@@ -49,6 +50,7 @@ async def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
             asyncio.create_task(probe_device(gwy, d)) for d in kwargs["probe_devices"]
         ]
 
+    gwy._tasks.extend(tasks)
     return tasks
 
 

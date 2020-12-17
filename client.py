@@ -255,9 +255,7 @@ async def main(lib_kwargs, **kwargs):
         task = asyncio.create_task(gwy.start())
         if kwargs["command"] == "execute":
             tasks = await spawn_execute_scripts(gwy, **kwargs)
-            gwy._tasks += tasks
             await asyncio.gather(*tasks)
-
             if not kwargs.get("probe_devices"):
                 await gwy.shutdown()
         await task
