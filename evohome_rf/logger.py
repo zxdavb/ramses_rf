@@ -111,45 +111,36 @@ def _set_logging(
     handler = logging.StreamHandler(stream=sys.stderr)
     handler.setFormatter(formatter)
     handler.setLevel(logging.WARNING)
-    # handler.addFilter(DebugFilter())
     logger.addHandler(handler)
 
     if stream == sys.stdout:
         handler = logging.StreamHandler(stream=sys.stdout)
         handler.setFormatter(formatter)
         handler.setLevel(logging.DEBUG)  # TODO: should be WARNING, but breaks logging
-        handler.addFilter(InfoFilter())
         logger.addHandler(handler)
 
     if file_name:
         # if log_rotate_days:
-        #     err_handler = logging.handlers.TimedRotatingFileHandler(
+        #     handler = logging.handlers.TimedRotatingFileHandler(
         #         err_log_file_name, when="midnight", backupCount=log_rotate_days
         #     )
         # else:
-        #     err_handler = logging.FileHandler(err_log_path, mode="w", delay=True)
+        #     handler = logging.FileHandler(err_log_path, mode="w", delay=True)
 
-        # err_handler.setLevel(logging.INFO if verbose else logging.WARNING)
-        # err_handler.setFormatter(logging.Formatter(fmt, datefmt=datefmt))
+        # handler.setLevel(logging.INFO if verbose else logging.WARNING)
+        # handler.setFormatter(logging.Formatter(fmt, datefmt=datefmt))
 
         handler = logging.FileHandler(file_name)
         handler.setFormatter(logging.Formatter(fmt=file_fmt))
         handler.setLevel(logging.DEBUG)
-        handler.addFilter(DebugFilter())  # TODO: was InfoFilter()
+        handler.addFilter(InfoFilter())
         logger.addHandler(handler)
 
 
 class InfoFilter(logging.Filter):
-    """Log only INFO-level messages."""
+    # invoke via: handler.addFilter(InfoFilter())
 
     def filter(self, record) -> bool:
         """Filter out all but INFO/DEBUG packets."""
         return record.levelno in (logging.INFO, logging.DEBUG)
-
-
-class DebugFilter(logging.Filter):
-    """Don't Log DEBUG-level messages."""
-
-    def filter(self, record) -> bool:
-        """Filter out all DEBUG packets."""
-        return record.levelno != logging.DEBUG  # TODO: use less than / more than?
+        # turn record.levelno != logging.DEBUG  # TODO: use less than / more than?
