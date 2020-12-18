@@ -9,7 +9,7 @@ import logging
 from typing import Any, List
 
 from .command import Command, Priority
-from .const import __dev_mode__, CODE_SCHEMA, DEVICE_TABLE, Address
+from .const import __dev_mode__, CODE_SCHEMA, DEVICE_TABLE, HGI_DEV_ID, Address
 from .exceptions import ExpiredCallbackError
 
 
@@ -43,9 +43,10 @@ async def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
 async def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
 
     # this is to ensure the gateway interface has fully woken
-    dev_id = next(iter(gwy._include))
-    qos = {"priority": Priority.HIGH, "retries": 10}
-    await gwy.msg_protocol.send_data(Command("RQ", dev_id, "0016", "00", qos=qos))
+    if not kwargs.get("execute_cmd"):
+        dev_id = next(iter(gwy._include))
+        qos = {"priority": Priority.HIGH, "retries": 10}
+        await gwy.msg_protocol.send_data(Command("RQ", dev_id, "0016", "00FF", qos=qos))
 
     tasks = []
 
@@ -116,8 +117,6 @@ async def get_faults(gwy, ctl_id: str):
     except ExpiredCallbackError as exc:
         _LOGGER.error("get_faults(): Function timed out: %s", exc)
 
-    # await gwy.shutdown("get_faults()")  # print("get_faults", device._evo.fault_log())
-
 
 async def get_schedule(gwy, ctl_id: str, zone_idx: str) -> None:
     ctl_addr = Address(id=ctl_id, type=ctl_id[:2])
@@ -127,8 +126,6 @@ async def get_schedule(gwy, ctl_id: str, zone_idx: str) -> None:
         await zone.get_schedule()
     except ExpiredCallbackError as exc:
         _LOGGER.error("get_schedule(): Function timed out: %s", exc)
-
-    # await gwy.shutdown("get_schedule()")  # print("get_schedule", zone.schedule())
 
 
 async def set_schedule(gwy, ctl_id, schedule) -> None:
@@ -142,8 +139,6 @@ async def set_schedule(gwy, ctl_id, schedule) -> None:
         await zone.set_schedule(schedule["schedule"])  # 0404
     except ExpiredCallbackError as exc:
         _LOGGER.error("set_schedule(): Function timed out: %s", exc)
-
-    # await gwy.shutdown("get_schedule()")  # print("get_schedule", zone.schedule())
 
 
 def poll_device(gwy, dev_id) -> List[Any]:
@@ -191,7 +186,7 @@ async def scan_full(gwy, dev_id: str):
             continue
 
         if code == "0016":
-            qos_alt = {"priority": Priority.HIGH, "retries": 5}
+            qos_alt = {"priority": Priority.LOW, "retries": 5}
             await _cmd(gwy, "RQ", dev_id, code, "0000", qos=qos_alt)
             continue
 
