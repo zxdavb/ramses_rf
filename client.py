@@ -7,6 +7,7 @@ evohome_rf is used to parse Honeywell's RAMSES-II packets, either via RF or from
 """
 import asyncio
 import json
+import shutil
 import sys
 from typing import Tuple
 
@@ -19,6 +20,9 @@ from evohome_rf import (
     spawn_execute_scripts,
     spawn_monitor_scripts,
 )
+
+CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
+CONSOLE_COLS = 2e3
 
 DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
@@ -238,9 +242,9 @@ async def main(lib_kwargs, **kwargs):
     def process_message(msg) -> None:
         dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
         if msg.src.type == "18" and msg.verb == "RQ":
-            print(f"{Fore.BLUE}{dtm} {msg}")
+            print(f"{Fore.BLUE}{dtm} {msg}"[:CONSOLE_COLS])
         else:
-            print(f"{COLORS.get(msg.verb)}{dtm} {msg}")
+            print(f"{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
 
         # {print(k, v) for k, v in msg.payload.items()}
 

@@ -13,8 +13,6 @@ from types import SimpleNamespace
 from typing import Optional
 import zlib
 
-from asyncio.futures import _set_result_unless_cancelled
-
 from .const import (
     __dev_mode__,
     CODES_SANS_DOMAIN_ID,

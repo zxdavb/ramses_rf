@@ -9,7 +9,7 @@ import logging
 from typing import Any, List
 
 from .command import Command, Priority
-from .const import __dev_mode__, CODE_SCHEMA, DEVICE_TABLE, HGI_DEV_ID, Address
+from .const import __dev_mode__, CODE_SCHEMA, DEVICE_TABLE, Address
 from .exceptions import ExpiredCallbackError
 
 
