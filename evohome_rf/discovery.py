@@ -18,6 +18,11 @@ if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
+async def _cmd(gwy, *args, **kwargs) -> None:
+    qos = kwargs.pop("qos", {})
+    await gwy.msg_protocol.send_data(Command(*args, **kwargs,qos=qos))
+
+
 async def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
     tasks = []
 
@@ -54,9 +59,24 @@ async def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
     if kwargs.get("set_schedule") and kwargs["set_schedule"][0]:
         tasks += [asyncio.create_task(set_schedule(gwy, *kwargs["set_schedule"]))]
 
-    if kwargs.get("probe_devices"):  # TODO: probe_quick, probe_deep
+    if kwargs.get("scan_disc"):
         tasks += [
-            asyncio.create_task(probe_device(gwy, d)) for d in kwargs["probe_devices"]
+            asyncio.create_task(scan_disc(gwy, d)) for d in kwargs["scan_disc"]
+        ]
+
+    if kwargs.get("scan_full"):
+        tasks += [
+            asyncio.create_task(scan_full(gwy, d)) for d in kwargs["scan_full"]
+        ]
+
+    if kwargs.get("scan_hard"):
+        tasks += [
+            asyncio.create_task(scan_hard(gwy, d)) for d in kwargs["scan_hard"]
+        ]
+
+    if kwargs.get("scan_xxxx"):
+        tasks += [
+            asyncio.create_task(scan_xxxx(gwy, d)) for d in kwargs["scan_xxxx"]
         ]
 
     gwy._tasks.extend(tasks)
@@ -137,107 +157,105 @@ async def set_schedule(gwy, ctl_id, schedule) -> None:
     # await gwy.shutdown("get_schedule()")  # print("get_schedule", zone.schedule())
 
 
-def poll_device(gwy, device_id):
-    dev_addr = Address(id=device_id, type=device_id[:2])
+def poll_device(gwy, dev_id) -> List[Any]:
+    _LOGGER.warning("poll_device() invoked...")
 
     qos = {"priority": Priority.LOW, "retries": 0}
-    if "poll_codes" in DEVICE_TABLE.get(device_id[:2]):
-        codes = DEVICE_TABLE[device_id[:2]]["poll_codes"]
+    if "poll_codes" in DEVICE_TABLE.get(dev_id[:2]):
+        codes = DEVICE_TABLE[dev_id[:2]]["poll_codes"]
     else:
         codes = ["0016", "1FC9"]
 
+    tasks = []
+
     for code in codes:
-        cmd = Command("RQ", dev_addr.id, code, "00", qos=qos)
-        _ = asyncio.create_task(periodic(gwy, cmd, count=0))
-        cmd = Command("RQ", dev_addr.id, code, "0000", qos=qos)
-        _ = asyncio.create_task(periodic(gwy, cmd, count=0))
+        cmd = Command("RQ", dev_id, code, "00", qos=qos)
+        tasks.append(asyncio.create_task(periodic(gwy, cmd, count=0)))
+
+        cmd = Command("RQ", dev_id, code, "0000", qos=qos)
+        tasks.append(asyncio.create_task(periodic(gwy, cmd, count=0)))
+
+    gwy._tasks.extend(tasks)
+    return tasks
 
 
-async def probe_device(gwy, dev_id: str, probe_type=None):
-    async def send_cmd(*args, **kwargs) -> None:
-        await gwy.msg_protocol.send_data(Command(*args, **kwargs))
-
-    dev_addr = Address(id=dev_id, type=dev_id[:2])
+async def scan_disc(gwy, dev_id: str):
+    _LOGGER.warning("scan_quick() invoked...")
 
     qos = {"priority": Priority.HIGH, "retries": 10}
-    await send_cmd("RQ", dev_addr.id, "0016", "00", qos=qos)
+    await _cmd(gwy, "RQ", dev_id, "0016", "00", qos=qos)
 
-    qos = {"priority": Priority.DEFAULT, "retries": 5}
-    await send_cmd("RQ", dev_addr.id, "0150", "00", qos=qos)
-    await send_cmd("RQ", dev_addr.id, "0150", "00", qos=qos)
-    await send_cmd("RQ", dev_addr.id, "0150", "00", qos=qos)
+    device = gwy._get_device(Address(id=dev_id, type=dev_id[:2]))  # not always a CTL
+    device._discover()  # discover_flag=DISCOVER_ALL)
 
-    if probe_type is not None:
-        device = gwy._get_device(dev_addr)  # not always a CTL
-        device._discover()  # discover_flag=DISCOVER_ALL)
-        return
 
-    # TODO: should we avoid creating entities?
-    _LOGGER.warning("probe_device() invoked - expect a lot of Warnings")
+async def scan_full(gwy, dev_id: str):
+    _LOGGER.warning("scan_full() invoked - expect a lot of Warnings")
 
-    # qos = {"priority": Priority.LOW, "retries": 3}
-    # for idx in range(0x10):
-    #     await send_cmd(" W", dev_addr.id, "000E", f"{idx:02X}0050", qos=qos)
-    #     await send_cmd("RQ", dev_addr.id, "000E", f"{idx:02X}00C8", qos=qos)
-
-    qos = {"priority": Priority.LOW, "retries": 3}
-    for code in ("0150", "0B04", "2389"):  # possible codes
-        await send_cmd("RQ", dev_addr.id, code, "0000", qos=qos)
-
-    # qos = {"priority": Priority.LOW, "retries": 0, "timeout": td(seconds=0.05)}
-    # for code in range(0x4000):
-    #     await send_cmd("RQ", dev_addr.id, f"{code:04X}", "0000", qos=qos)
-
-    # await gwy.shutdown("probe_device()") - dont work
-    return
+    qos = {"priority": Priority.HIGH, "retries": 10}
+    await _cmd(gwy, "RQ", dev_id, "0016", "00", qos=qos)
 
     qos = {"priority": Priority.LOW, "retries": 0}
     for code in sorted(CODE_SCHEMA):
         if code == "0005":
             for zone_type in range(20):  # known up to 18
-                await send_cmd("RQ", dev_addr.id, code, f"00{zone_type:02X}", qos=qos)
+                await _cmd(gwy, "RQ", dev_id, code, f"00{zone_type:02X}", qos=qos)
             continue
 
         elif code == "000C":
             for zone_idx in range(16):  # also: FA-FF?
-                await send_cmd("RQ", dev_addr.id, code, f"{zone_idx:02X}00", qos=qos)
+                await _cmd(gwy, "RQ", dev_id, code, f"{zone_idx:02X}00", qos=qos)
             continue
 
         if code == "0016":
             qos_alt = {"priority": Priority.HIGH, "retries": 5}
-            await send_cmd("RQ", dev_addr.id, code, "0000", qos=qos_alt)
+            await _cmd(gwy, "RQ", dev_id, code, "0000", qos=qos_alt)
             continue
 
         elif code == "0404":
-            await send_cmd("RQ", dev_addr.id, code, "00200008000100", qos=qos)
+            await _cmd(gwy, "RQ", dev_id, code, "00200008000100", qos=qos)
 
         elif code == "0418":
             for log_idx in range(2):
-                await send_cmd("RQ", dev_addr.id, code, f"{log_idx:06X}", qos=qos)
+                await _cmd(gwy, "RQ", dev_id, code, f"{log_idx:06X}", qos=qos)
             continue
 
         elif code == "1100":
-            await send_cmd("RQ", dev_addr.id, code, "FC", qos=qos)
+            await _cmd(gwy, "RQ", dev_id, code, "FC", qos=qos)
 
         elif code == "2E04":
-            await send_cmd("RQ", dev_addr.id, code, "FF", qos=qos)
+            await _cmd(gwy, "RQ", dev_id, code, "FF", qos=qos)
 
         elif code == "3220":
             for data_id in ("00", "03"):  # these are mandatory READ_DATA data_ids
-                await send_cmd("RQ", dev_addr.id, code, f"0000{data_id}0000", qos=qos)
+                await _cmd(gwy, "RQ", dev_id, code, f"0000{data_id}0000", qos=qos)
 
         elif CODE_SCHEMA[code].get("rq_len"):
             rq_len = CODE_SCHEMA[code].get("rq_len") * 2
-            await send_cmd("RQ", dev_addr.id, code, f"{0:0{rq_len}X}", qos=qos)
+            await _cmd(gwy, "RQ", dev_id, code, f"{0:0{rq_len}X}", qos=qos)
 
         else:
-            await send_cmd("RQ", dev_addr.id, code, "0000", qos=qos)
-
-    # await gwy.shutdown("probe_device()")
+            await _cmd(gwy, "RQ", dev_id, code, "0000", qos=qos)
 
 
-# if self.config.get("evofw_flag") and "evofw3" in raw_pkt.packet:
-#     # !V, !T - print the version, or the current mask
-#     # !T00   - turn off all mask bits
-#     # !T01   - cause raw data for all messages to be printed
-#     await manager.put_pkt(self.config["evofw_flag"], _LOGGER)
+async def scan_hard(gwy, dev_id: str):
+    _LOGGER.warning("scan_deep() invoked - expect some Warnings")
+
+    qos = {"priority": Priority.HIGH, "retries": 10}
+    await _cmd(gwy, "RQ", dev_id, "0016", "00", qos=qos)
+
+    qos = {"priority": Priority.LOW, "retries": 0}
+    for code in range(0x4000):
+        await _cmd(gwy, "RQ", dev_id, f"{code:04X}", "0000", qos=qos)
+
+
+async def scan_xxxx(gwy, dev_id: str):
+    _LOGGER.warning("scan_xxx() invoked - expect a lot of nonsense")
+
+    qos = {"priority": Priority.LOW, "retries": 3}
+    for code in ("0150", "0B04", "2389"):  # possible/difficult codes
+        await _cmd(gwy, "RQ", dev_id, code, "0000", qos=qos)
+
+    # for idx in range(0x10):
+    #     await _cmd(gwy, " W", dev_addr, "000E", f"{idx:02X}0050", qos=qos)
+    #     await _cmd(gwy, "RQ", dev_addr, "000E", f"{idx:02X}00C8", qos=qos)

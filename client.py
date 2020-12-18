@@ -150,7 +150,10 @@ def monitor(obj, **kwargs):
     type=click.STRING,
     help="e.g.: RQ 01:123456 1F09 00",
 )
-@click.option("--probe-devices", type=click.STRING, help="device_id, device_id, ...")
+@click.option("-s0", "-sd", "--scan-disc", help="device_id, device_id, ...")
+@click.option("-s1", "-sf", "--scan-full", help="device_id, device_id, ...")
+@click.option("-s2", "-sh", "--scan-hard", help="device_id, device_id, ...")
+@click.option("-s9", "-sx", "--scan-xxxx", help="device_id, device_id, ...")
 @click.option("--get-faults", type=click.STRING, help="controller_id")
 @click.option(  # "--get-schedule"
     "--get-schedule",
@@ -170,11 +173,12 @@ def execute(obj, **kwargs):
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
     lib_kwargs["config"]["disable_discovery"] = True
-    cli_kwargs["probe_devices"] = _convert_to_list(cli_kwargs.pop("probe_devices"))
 
     lib_kwargs["allowlist"] = {}
-    if cli_kwargs["probe_devices"]:
-        lib_kwargs["allowlist"].update({d: None for d in cli_kwargs["probe_devices"]})
+    for k in ("scan_disc", "scan_full", "scan_hard", "scan_xxxx"):
+        cli_kwargs[k] = _convert_to_list(cli_kwargs.pop(k))
+        lib_kwargs["allowlist"].update({d: None for d in cli_kwargs[k]})
+
     if cli_kwargs.get("get_faults"):
         lib_kwargs["allowlist"].update({cli_kwargs["get_faults"]: {}})
     if cli_kwargs.get("get_schedule")[0]:
@@ -260,7 +264,10 @@ async def main(lib_kwargs, **kwargs):
             tasks = await spawn_execute_scripts(gwy, **kwargs)
             await asyncio.gather(*tasks)
 
-            if not kwargs.get("probe_devices"):
+            if not any(
+                k in kwargs
+                for k in ("scan_disc", "scan_full", "scan_deep", "scan_xxxx")
+            ):
                 await gwy.shutdown()
 
         await task
