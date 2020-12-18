@@ -327,7 +327,7 @@ class GatewayProtocol(asyncio.Protocol):
         # _LOGGER.warning("GwyProtocol.sent_data(%s)", data)  # should be debug
 
     async def send_data(self, cmd: Command) -> None:
-        """Called when some data is to be sent (not a callaback)."""
+        """Called when some data is to be sent (not a callback)."""
         _LOGGER.warning("GwyProtocol.send_data(%s)", cmd)  # should be debug
 
         while self._qos_cmd is not None:
