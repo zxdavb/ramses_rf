@@ -22,7 +22,6 @@ from evohome_rf import (
 )
 
 CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
-CONSOLE_COLS = 2e3
 
 DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
