@@ -95,15 +95,14 @@ class Command:
         self.code = code
         self.payload = payload
 
-        self.qos = kwargs.get("qos", self._qos)
-
         self.callback = kwargs.get("callback", {})  # TODO: use voluptuous
         if self.callback:
             self.callback["args"] = self.callback.get("args", [])
             self.callback["kwargs"] = self.callback.get("kwargs", {})
 
-        priority = Priority.HIGH if verb in ("0016", "1FC9") else Priority.DEFAULT
-        self._priority = self.qos["priority"] = self.qos.get("priority", priority)
+        self.qos = self._qos
+        self.qos.update(kwargs.get("qos", {}))
+        self._priority = self.qos["priority"]
         self._priority_dtm = dt_now()  # used for __lt__, etc.
 
     def __str__(self) -> str:
@@ -122,17 +121,20 @@ class Command:
     def _qos(self) -> dict:
         """Return the QoS params of this (request) packet."""
 
-        if self.code == "0404" and self.verb == "RQ":
-            return {"priority": Priority.HIGH, "retries": 3, "timeout": td(seconds=0.5)}
+        # the defaults for these are in packet.py
+        # qos = {"priority": Priority.DEFAULT, "retries": 3, "timeout": td(seconds=0.5)}
+        qos = {"priority": Priority.DEFAULT, "retries": 3}
 
-        elif self.code == "0404" and self.verb == " W":
-            return {"priority": Priority.HIGH, "retries": 3, "timeout": td(seconds=0.5)}
+        if self.code in ("0016", "1F09") and self.verb == "RQ":
+            qos.update({"priority": Priority.HIGH, "retries": 5})
+
+        elif self.code == "0404" and self.verb in ("RQ", " W"):
+            qos.update({"priority": Priority.HIGH})
 
         elif self.code == "0418" and self.verb == "RQ":
-            return {"priority": Priority.LOW, "retries": 2}  # "tout": td(seconds=1.0)}
+            qos.update({"priority": Priority.LOW, "retries": 2})
 
-        else:
-            return {}
+        return qos
 
     @property
     def _rq_header(self) -> Optional[str]:

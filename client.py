@@ -13,7 +13,12 @@ from typing import Tuple
 import click
 from colorama import init as colorama_init, Fore
 
-from evohome_rf import Gateway, GracefulExit, spawn_execute_scripts, spawn_monitor_scripts
+from evohome_rf import (
+    Gateway,
+    GracefulExit,
+    spawn_execute_scripts,
+    spawn_monitor_scripts,
+)
 
 DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
@@ -265,8 +270,7 @@ async def main(lib_kwargs, **kwargs):
             await asyncio.gather(*tasks)
 
             if not any(
-                k in kwargs
-                for k in ("scan_disc", "scan_full", "scan_deep", "scan_xxxx")
+                kwargs[k] for k in ("scan_disc", "scan_full", "scan_hard", "scan_xxxx")
             ):
                 await gwy.shutdown()
 

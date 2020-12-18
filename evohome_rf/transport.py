@@ -282,27 +282,27 @@ class Ramses2Transport(asyncio.Transport):
 class Ramses2Protocol(asyncio.Protocol):
     """Interface for a message protocol.
 
-        The user should implement this interface.  They can inherit from this class but
-        don't need to.  The implementations here do nothing (they don't raise
-        exceptions).
+    The user should implement this interface.  They can inherit from this class but
+    don't need to.  The implementations here do nothing (they don't raise
+    exceptions).
 
-        When the user wants to requests a transport, they pass a protocol factory to a
-        utility function (e.g., EventLoop.create_connection()).
+    When the user wants to requests a transport, they pass a protocol factory to a
+    utility function (e.g., EventLoop.create_connection()).
 
-        When the connection is made successfully, connection_made() is called with a
-        suitable transport object.  Then data_received() will be called 0 or more times
-        with data (bytes) received from the transport; finally, connection_lost() will
-        be called exactly once with either an exception object or None as an argument.
+    When the connection is made successfully, connection_made() is called with a
+    suitable transport object.  Then data_received() will be called 0 or more times
+    with data (bytes) received from the transport; finally, connection_lost() will
+    be called exactly once with either an exception object or None as an argument.
 
-        State machine of calls:
+    State machine of calls:
 
-        start -> CM [-> DR*] [-> ER?] -> CL -> end
+    start -> CM [-> DR*] [-> ER?] -> CL -> end
 
-        * CM: connection_made()
-        * DR: data_received()
-        * ER: eof_received()
-        * CL: connection_lost()
-        """
+    * CM: connection_made()
+    * DR: data_received()
+    * ER: eof_received()
+    * CL: connection_lost()
+    """
 
     def __init__(self, callback, exclude=None, include=None) -> None:
         _LOGGER.debug("RamsesProtocol.__init__(%s)", callback)

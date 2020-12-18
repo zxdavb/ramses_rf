@@ -20,7 +20,7 @@ if False and __dev_mode__:
 
 async def _cmd(gwy, *args, **kwargs) -> None:
     qos = kwargs.pop("qos", {})
-    await gwy.msg_protocol.send_data(Command(*args, **kwargs,qos=qos))
+    await gwy.msg_protocol.send_data(Command(*args, **kwargs, qos=qos))
 
 
 async def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
@@ -41,6 +41,12 @@ async def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
 
 
 async def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
+
+    # this is to ensure the gateway interface has fully woken
+    dev_id = next(iter(gwy._include))
+    qos = {"priority": Priority.HIGH, "retries": 10}
+    await gwy.msg_protocol.send_data(Command("RQ", dev_id, "0016", "00", qos=qos))
+
     tasks = []
 
     if kwargs.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
@@ -60,24 +66,16 @@ async def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
         tasks += [asyncio.create_task(set_schedule(gwy, *kwargs["set_schedule"]))]
 
     if kwargs.get("scan_disc"):
-        tasks += [
-            asyncio.create_task(scan_disc(gwy, d)) for d in kwargs["scan_disc"]
-        ]
+        tasks += [asyncio.create_task(scan_disc(gwy, d)) for d in kwargs["scan_disc"]]
 
     if kwargs.get("scan_full"):
-        tasks += [
-            asyncio.create_task(scan_full(gwy, d)) for d in kwargs["scan_full"]
-        ]
+        tasks += [asyncio.create_task(scan_full(gwy, d)) for d in kwargs["scan_full"]]
 
     if kwargs.get("scan_hard"):
-        tasks += [
-            asyncio.create_task(scan_hard(gwy, d)) for d in kwargs["scan_hard"]
-        ]
+        tasks += [asyncio.create_task(scan_hard(gwy, d)) for d in kwargs["scan_hard"]]
 
     if kwargs.get("scan_xxxx"):
-        tasks += [
-            asyncio.create_task(scan_xxxx(gwy, d)) for d in kwargs["scan_xxxx"]
-        ]
+        tasks += [asyncio.create_task(scan_xxxx(gwy, d)) for d in kwargs["scan_xxxx"]]
 
     gwy._tasks.extend(tasks)
     return tasks
@@ -113,9 +111,6 @@ async def get_faults(gwy, ctl_id: str):
     ctl_addr = Address(id=ctl_id, type=ctl_id[:2])
     device = gwy._get_device(ctl_addr, ctl_addr=ctl_addr)
 
-    qos = {"priority": Priority.HIGH, "retries": 10}
-    await gwy.msg_protocol.send_data(Command("RQ", ctl_addr.id, "0016", "00", qos=qos))
-
     try:
         await device._evo.get_fault_log()  # 0418
     except ExpiredCallbackError as exc:
@@ -127,9 +122,6 @@ async def get_faults(gwy, ctl_id: str):
 async def get_schedule(gwy, ctl_id: str, zone_idx: str) -> None:
     ctl_addr = Address(id=ctl_id, type=ctl_id[:2])
     zone = gwy._get_device(ctl_addr, ctl_addr=ctl_addr)._evo._get_zone(zone_idx)
-
-    qos = {"priority": Priority.HIGH, "retries": 10}
-    await gwy.msg_protocol.send_data(Command("RQ", ctl_addr.id, "0016", "00", qos=qos))
 
     try:
         await zone.get_schedule()
@@ -145,9 +137,6 @@ async def set_schedule(gwy, ctl_id, schedule) -> None:
 
     ctl_addr = Address(id=ctl_id, type=ctl_id[:2])
     zone = gwy._get_device(ctl_addr, ctl_addr=ctl_addr)._evo._get_zone(zone_idx)
-
-    qos = {"priority": Priority.HIGH, "retries": 10}
-    await gwy.msg_protocol.send_data(Command("RQ", ctl_addr.id, "0016", "00", qos=qos))
 
     try:
         await zone.set_schedule(schedule["schedule"])  # 0404
@@ -182,18 +171,12 @@ def poll_device(gwy, dev_id) -> List[Any]:
 async def scan_disc(gwy, dev_id: str):
     _LOGGER.warning("scan_quick() invoked...")
 
-    qos = {"priority": Priority.HIGH, "retries": 10}
-    await _cmd(gwy, "RQ", dev_id, "0016", "00", qos=qos)
-
     device = gwy._get_device(Address(id=dev_id, type=dev_id[:2]))  # not always a CTL
     device._discover()  # discover_flag=DISCOVER_ALL)
 
 
 async def scan_full(gwy, dev_id: str):
     _LOGGER.warning("scan_full() invoked - expect a lot of Warnings")
-
-    qos = {"priority": Priority.HIGH, "retries": 10}
-    await _cmd(gwy, "RQ", dev_id, "0016", "00", qos=qos)
 
     qos = {"priority": Priority.LOW, "retries": 0}
     for code in sorted(CODE_SCHEMA):
@@ -237,12 +220,14 @@ async def scan_full(gwy, dev_id: str):
         else:
             await _cmd(gwy, "RQ", dev_id, code, "0000", qos=qos)
 
+    # these are possible/difficult codes
+    qos = {"priority": Priority.LOW, "retries": 3}
+    for code in ("0150", "0B04", "2389"):
+        await _cmd(gwy, "RQ", dev_id, code, "0000", qos=qos)
+
 
 async def scan_hard(gwy, dev_id: str):
     _LOGGER.warning("scan_deep() invoked - expect some Warnings")
-
-    qos = {"priority": Priority.HIGH, "retries": 10}
-    await _cmd(gwy, "RQ", dev_id, "0016", "00", qos=qos)
 
     qos = {"priority": Priority.LOW, "retries": 0}
     for code in range(0x4000):
@@ -253,9 +238,6 @@ async def scan_xxxx(gwy, dev_id: str):
     _LOGGER.warning("scan_xxx() invoked - expect a lot of nonsense")
 
     qos = {"priority": Priority.LOW, "retries": 3}
-    for code in ("0150", "0B04", "2389"):  # possible/difficult codes
-        await _cmd(gwy, "RQ", dev_id, code, "0000", qos=qos)
-
-    # for idx in range(0x10):
-    #     await _cmd(gwy, " W", dev_addr, "000E", f"{idx:02X}0050", qos=qos)
-    #     await _cmd(gwy, "RQ", dev_addr, "000E", f"{idx:02X}00C8", qos=qos)
+    for idx in range(0x10):
+        await _cmd(gwy, " W", dev_id, "000E", f"{idx:02X}0050", qos=qos)
+        await _cmd(gwy, "RQ", dev_id, "000E", f"{idx:02X}00C8", qos=qos)
