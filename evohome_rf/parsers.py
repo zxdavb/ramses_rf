@@ -459,24 +459,28 @@ def parser_0005(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # schedule_sync (any changes?)
 def parser_0006(payload, msg) -> Optional[dict]:
-    """Return number of changes to the schedules (not fully understood).
+    """Return the total number of changes to the schedules, including the DHW schedule.
 
-    Each change increments the counter by 2. Includes DHW schedule.
+    An RQ is sent every ~60s by a RFG100, an increase will prompt it to send a run of
+    RQ/0404s (it seems to assume only the zones may have changed?).
     """
-    # 16:10:34.288 053 RQ --- 18:013393 01:145038 --:------ 0006 001 00
-    # 16:10:34.291 053 RP --- 01:145038 18:013393 --:------ 0006 004 0005 0008
-    #              --- RQ --- 30:071715 01:067930 --:------ 0006 001 00
+    # 16:10:34.288 053 RQ --- 30:071715 01:145038 --:------ 0006 001 00
+    # 16:10:34.291 053 RP --- 01:145038 30:071715 --:------ 0006 004 00050008
 
     if msg.verb == "RQ":
-        assert payload == "00"  # msg.len == 1
+        assert payload == "00"  # implies msg.len == 1 byte
         return {}
 
     assert msg.verb == "RP"
-    assert msg.len == 4
+    assert msg.len == 4  # should bs: 0005-nnnn
     assert payload[:2] == "00"  # otherwise: payload[2:] == "FFFFFF", invalid
-    assert payload[2:4] in ("05", "FF")
 
-    return {"header": payload[:4], "num_changes": int(payload[4:], 16)}
+    if payload[2:] == "FFFFFF":  # RP to an invalid RQ
+        return {}
+
+    assert payload[2:4] == "05"
+
+    return {"change_counter": int(payload[4:], 16), "_header": payload[:4]}
 
 
 @parser_decorator  # relay_demand (domain/zone/device)

@@ -69,6 +69,7 @@ CODE_SCHEMA = {
         "null_resp": "007FFFFFFF",
         "uses_zone_idx": True,
     },  #
+    "0006": {"name": "schedule_sync", "rq_len": 1},  # RQ always 00
     "0404": {"name": "zone_schedule", "uses_zone_idx": True},
     "12B0": {"name": "window_state", "null_resp": "7FFF", "uses_zone_idx": True},
     "2349": {
@@ -114,7 +115,6 @@ CODE_SCHEMA = {
     "22D0": {"name": "message_22d0", "uses_zone_idx": None},  # system switch?
     # unknown/unsure codes - some maybe not evohome, maybe not even Honeywell
     "0002": {"name": "sensor_weather"},
-    "0006": {"name": "schedule_sync"},  # for F9/FA/FC, idx for ELE, F8/FF (all?)
     "1280": {"name": "outdoor_humidity"},
     "1290": {"name": "outdoor_temp"},
     "12A0": {"name": "indoor_humidity"},  # Nuaire ventilation
