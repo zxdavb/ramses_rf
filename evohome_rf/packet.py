@@ -6,7 +6,8 @@
 import asyncio
 from datetime import datetime as dt, timedelta
 import logging
-from multiprocessing import Process, Queue
+from multiprocessing import Process
+from queue import Queue
 from string import printable
 from threading import Thread, Lock
 # import time
@@ -320,7 +321,7 @@ class GatewayProtocol(asyncio.Protocol):
                     self._callback(pkt)
 
     async def _write_data(self, data: bytearray) -> None:
-        """Called when some data is to be sent (not a callaback)."""
+        """Called when some data is to be sent (not a callback)."""
         _LOGGER.debug("GwyProtocol._write_data(%s)", data)  # should be debug
 
         while self._pause_writing or not self._transport:
@@ -399,13 +400,14 @@ class GatewayProtocol(asyncio.Protocol):
 
 
 class SerialTransport(Process):
-    """Interface for a packet transport."""
+    """Interface for a packet transport - Experimental."""
 
-    def __init__(self, protocol, ser_instance, extra=None):
+    def __init__(self, loop, protocol, ser_port, extra=None):
         _LOGGER.debug("WinTransport.__init__()")
 
+        self._loop = loop
         self._protocol = protocol
-        self._ser_instance = ser_instance
+        self._ser_port = ser_port
         self._extra = {} if extra is None else extra
 
         self.serial = None
@@ -419,7 +421,7 @@ class SerialTransport(Process):
         _LOGGER.debug("WinTransport.start()")
         self._write_queue = Queue(maxsize=200)
 
-        self.serial = serial_for_url(self._ser_instance[0], **self._ser_instance[1])
+        self.serial = serial_for_url(self._ser_port[0], **self._ser_port[1])
         self.serial.timeout = 0
 
         self._poller = Thread(target=self._polling_loop, daemon=True)
@@ -429,6 +431,11 @@ class SerialTransport(Process):
 
     def _polling_loop(self):
         _LOGGER.error("WinTransport._polling_loop()")
+
+        # asyncio.set_event_loop(self._loop)
+        asyncio.get_running_loop()  # TODO: this fails
+
+        self._protocol.connection_made(self)
 
         while self.serial.is_open:
             if self.serial.in_waiting:

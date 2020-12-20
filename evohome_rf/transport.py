@@ -124,7 +124,7 @@ class Ramses2Transport(asyncio.Transport):
         msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
         proc_msg_callback(msg)
 
-        [p.data_received(msg) for p in self._protocols]
+        [p.data_received(msg) for p in self._protocols]  # TODO: spawn
 
     def close(self):
         """Close the transport.
@@ -328,7 +328,7 @@ class Ramses2Protocol(asyncio.Protocol):
             self._callback(msg)
 
     async def send_data(self, cmd) -> None:
-        """Called when some data is to be sent (not a callaback)."""
+        """Called when some data is to be sent (not a callback)."""
         _LOGGER.debug("RamsesProtocol.send_data(%s)", cmd)
         while self._pause_writing:
             asyncio.sleep(0.05)
@@ -380,7 +380,7 @@ def create_pkt_stack(gwy, msg_handler, serial_port) -> Tuple:
 
     if sys.platform == "win32":
         ser_instance = (serial_port, SERIAL_CONFIG)
-        pkt_transport = WinSerTransport(pkt_protocol, ser_instance)
+        pkt_transport = WinSerTransport(gwy._loop,pkt_protocol, ser_instance)
     else:
         ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
         pkt_transport = SerialTransport(gwy._loop, pkt_protocol, ser_instance)
