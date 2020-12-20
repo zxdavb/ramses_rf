@@ -10,6 +10,7 @@ import asyncio
 from datetime import datetime as dt
 import logging
 from queue import PriorityQueue, Empty
+import sys
 from typing import List, Optional, Tuple  # Any
 
 from serial import serial_for_url  # SerialException,
@@ -17,7 +18,7 @@ from serial_asyncio import SerialTransport
 
 from .const import __dev_mode__
 from .message import Message
-from .packet import GatewayProtocol, SERIAL_CONFIG  # Packet,
+from .packet import SERIAL_CONFIG, GatewayProtocol, SerialTransport as WinSerTransport
 
 MAX_BUFFER_SIZE = 200
 WRITER_TASK = "writer_task"
@@ -30,19 +31,19 @@ if False and __dev_mode__:
 class Ramses2Transport(asyncio.Transport):
     """Interface for a message transport.
 
-    There may be several implementations, but typically, the user does not implement
-    new transports; rather, the platform provides some useful transports that are
-    implemented using the platform's best practices.
+        There may be several implementations, but typically, the user does not implement
+        new transports; rather, the platform provides some useful transports that are
+        implemented using the platform's best practices.
 
-    The user never instantiates a transport directly; they call a utility function,
-    passing it a protocol factory and other information necessary to create the
-    transport and protocol.  (E.g. EventLoop.create_connection() or
-    EventLoop.create_server().)
+        The user never instantiates a transport directly; they call a utility function,
+        passing it a protocol factory and other information necessary to create the
+        transport and protocol.  (E.g. EventLoop.create_connection() or
+        EventLoop.create_server().)
 
-    The utility function will asynchronously create a transport and a protocol and
-    hook them up by calling the protocol's connection_made() method, passing it the
-    transport.
-    """
+        The utility function will asynchronously create a transport and a protocol and
+        hook them up by calling the protocol's connection_made() method, passing it the
+        transport.
+        """
 
     def __init__(self, gwy, protocol, extra=None):
         _LOGGER.debug("RamsesTransport.__init__()")
@@ -174,7 +175,7 @@ class Ramses2Transport(asyncio.Transport):
             protocol.connection_made(self)
 
     def get_protocol(self) -> Optional[List]:
-        """Return the current protocol.
+        """Return the list of active protocols.
 
         There can be multiple protocols per transport.
         """
@@ -247,7 +248,7 @@ class Ramses2Transport(asyncio.Transport):
             # raise RuntimeError("transport has no dispatcher")
             _LOGGER.debug("RamsesTransport.write(%s): no dispatcher: discarded", cmd)
         if self._gwy.config["disable_sending"]:
-            _LOGGER.debug("RamsesTransport.write(%s): sending diabled: discarded", cmd)
+            _LOGGER.debug("RamsesTransport.write(%s): sending disabled: discarded", cmd)
         else:
             self._que.put_nowait(cmd)
 
@@ -356,7 +357,8 @@ def create_msg_stack(gwy, msg_handler, protocol_factory, **kwargs) -> Tuple:
     The architecture is: app (client) -> msg protocol -> pkt protocol -> ser interface.
     """
 
-    msg_protocol = protocol_factory(msg_handler, **kwargs)  # Ramses2Protocol
+    # protocol_factory is (usu.) Ramses2Protocol
+    msg_protocol = protocol_factory(msg_handler, **kwargs)
 
     if gwy.msg_transport:  # HACK: a little messy?
         msg_transport = gwy.msg_transport
@@ -373,11 +375,15 @@ def create_pkt_stack(gwy, msg_handler, serial_port) -> Tuple:
     The architecture is: app (client) -> msg protocol -> pkt protocol -> ser interface.
     """
 
-    pkt_handler = msg_handler._pkt_receiver  # Ramses2Transport._pkt_receiver
-    ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
+    # msg_handler._pkt_receiver is from Ramses2Transport
+    pkt_protocol = GatewayProtocol(gwy, msg_handler._pkt_receiver)
 
-    pkt_protocol = GatewayProtocol(gwy, pkt_handler)
-    pkt_transport = SerialTransport(gwy._loop, pkt_protocol, ser_instance)
+    if sys.platform == "win32":
+        ser_instance = (serial_port, SERIAL_CONFIG)
+        pkt_transport = WinSerTransport(pkt_protocol, ser_instance)
+    else:
+        ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
+        pkt_transport = SerialTransport(gwy._loop, pkt_protocol, ser_instance)
 
     msg_handler._set_dispatcher(pkt_protocol.send_data)
 

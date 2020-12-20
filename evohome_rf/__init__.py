@@ -21,7 +21,7 @@ from typing import Dict, List, Tuple  # Any, Tuple
 
 from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
-from .discovery import spawn_execute_scripts, spawn_monitor_scripts
+from .discovery import spawn_execute_scripts, spawn_monitor_scripts  # noqa
 from .logger import set_logging
 from .message import DONT_CREATE_MESSAGES, process_msg
 from .packet import _PKT_LOGGER as pkt_logger, file_pkts
@@ -193,6 +193,11 @@ class Gateway:
                 self, self.msg_transport, self.serial_port
             )
             self._tasks.append(self.msg_transport.get_extra_info(WRITER_TASK))
+
+            # # HACK: A test
+            # await asyncio.sleep(3.0)
+            # cmd = command.Command("RQ", "01:145038", "1F09", "00")
+            # await self.msg_protocol.send_data(cmd)
 
         else:  # if self._input_file:
             reader = asyncio.create_task(file_reader(self._input_file, process_msg))

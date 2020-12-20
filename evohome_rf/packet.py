@@ -6,12 +6,14 @@
 import asyncio
 from datetime import datetime as dt, timedelta
 import logging
+from multiprocessing import Process, Queue
 from string import printable
-from threading import Lock
+from threading import Thread, Lock
+# import time
 from types import SimpleNamespace
 from typing import ByteString, Optional, Tuple
 
-from serial import SerialException, serial_for_url  # noqa
+from serial import Serial, SerialException, serial_for_url  # noqa
 from serial_asyncio import SerialTransport
 
 from .command import Command, _pkt_header
@@ -25,9 +27,13 @@ from .const import (
 )
 from .logger import dt_str
 
-BAUDRATE = 115200
-XONXOFF = True
-SERIAL_CONFIG = {"baudrate": BAUDRATE, "xonxoff": XONXOFF}
+SERIAL_CONFIG = {
+    "baudrate": 115200,
+    "timeout": 0,  # None
+    "dsrdtr": False,
+    "rtscts": False,
+    "xonxoff": False,
+}
 
 Pause = SimpleNamespace(
     NONE=timedelta(seconds=0),
@@ -248,7 +254,7 @@ class GatewayProtocol(asyncio.Protocol):
 
     def data_received(self, data: ByteString):
         """Called when some data is received."""
-        # _LOGGER.debug("GwyProtocol.data_rcvd(%s)", data)
+        _LOGGER.debug("GwyProtocol.data_rcvd(%s)", data)
 
         def create_pkt(pkt_raw: ByteString) -> Packet:
             dtm_str = dt_str()  # done here & now for most-accurate timestamp
@@ -271,7 +277,7 @@ class GatewayProtocol(asyncio.Protocol):
 
             return Packet(dtm_str, pkt_str, pkt_raw)
 
-        def qos_data_received() -> Packet:
+        def qos_data_received(pkt) -> Packet:
             _LOGGER.warning(
                 "GwyProtocol.data_rcvd(%s): timeout=%s, rq_hdr=%s, rp_hdr=%s, cmd=%s",
                 pkt._header,
@@ -310,12 +316,12 @@ class GatewayProtocol(asyncio.Protocol):
             for line in lines[:-1]:
                 pkt = create_pkt(line)
                 if pkt.is_valid:
-                    qos_data_received()
+                    qos_data_received(pkt)
                     self._callback(pkt)
 
     async def _write_data(self, data: bytearray) -> None:
         """Called when some data is to be sent (not a callaback)."""
-        # _LOGGER.debug("GwyProtocol._write_data(%s)", data)  # should be debug
+        _LOGGER.debug("GwyProtocol._write_data(%s)", data)  # should be debug
 
         while self._pause_writing or not self._transport:
             await asyncio.sleep(0.005)
@@ -324,7 +330,7 @@ class GatewayProtocol(asyncio.Protocol):
             await asyncio.sleep(0.005)
 
         self._transport.write(data)
-        # _LOGGER.warning("GwyProtocol.sent_data(%s)", data)  # should be debug
+        _LOGGER.debug("GwyProtocol.sent_data(%s)", data)  # should be debug
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
@@ -374,6 +380,7 @@ class GatewayProtocol(asyncio.Protocol):
 
         if exc is not None:
             pass
+
         self._transport.loop.stop()  # TODO: what is this for?
 
     def pause_writing(self) -> None:
@@ -389,3 +396,74 @@ class GatewayProtocol(asyncio.Protocol):
         # self._transport.get_write_buffer_size()
 
         self._pause_writing = False
+
+
+class SerialTransport(Process):
+    """Interface for a packet transport."""
+
+    def __init__(self, protocol, ser_instance, extra=None):
+        _LOGGER.debug("WinTransport.__init__()")
+
+        self._protocol = protocol
+        self._ser_instance = ser_instance
+        self._extra = {} if extra is None else extra
+
+        self.serial = None
+        self._is_closing = None
+        self._poller = None
+        self._write_queue = None
+
+        self.start()
+
+    def start(self):
+        _LOGGER.debug("WinTransport.start()")
+        self._write_queue = Queue(maxsize=200)
+
+        self.serial = serial_for_url(self._ser_instance[0], **self._ser_instance[1])
+        self.serial.timeout = 0
+
+        self._poller = Thread(target=self._polling_loop, daemon=True)
+        self._poller.start()
+
+        self._protocol.connection_made(self)
+
+    def _polling_loop(self):
+        _LOGGER.error("WinTransport._polling_loop()")
+
+        while self.serial.is_open:
+            if self.serial.in_waiting:
+                # print("read")
+                self._protocol.data_received(
+                    # self.serial.readline()
+                    self.serial.read()
+                    # self.serial.read(self.serial.in_waiting)
+                )
+                # time.sleep(0.005)
+                continue
+
+            if self.serial.out_waiting:
+                # print("wait")
+                # time.sleep(0.005)
+                continue
+
+            if not self._write_queue.empty():
+                print("write")
+                cmd = self._write_queue.get()
+                self.serial.write(bytearray(f"{cmd}\r\n".encode("ascii")))
+                self._write_queue.task_done()
+                # time.sleep(0.005)
+                continue
+
+            # print("sleep")
+            # time.sleep(0.005)
+
+    def write(self, cmd):
+        """Write some data bytes to the transport.
+
+        This does not block; it buffers the data and arranges for it to be sent out
+        asynchronously.
+        """
+        _LOGGER.debug("WinTransport.write(%s)", cmd)
+
+        # self.serial.write(bytearray(f"{cmd}\r\n".encode("ascii")))
+        self._write_queue.put_nowait(cmd)
