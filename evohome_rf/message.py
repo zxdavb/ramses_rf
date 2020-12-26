@@ -40,7 +40,7 @@ if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def exception_handler(func):  # TODO: why implement as a wrapper?
+def evohome_exception_handler(func):  # TODO: why implement as a wrapper?
     """xxx."""
 
     def wrapper(*args, **kwargs) -> Optional[Any]:
@@ -338,7 +338,7 @@ def process_msg(msg: Message) -> None:
     a valid message only for 000C.
     """
 
-    @exception_handler
+    @evohome_exception_handler
     def create_devices(this) -> None:
         """Discover and create any new devices."""
 
@@ -398,7 +398,7 @@ def process_msg(msg: Message) -> None:
         this.src = this._gwy.device_by_id.get(this.src.id, this.src)
         this.dst = this._gwy.device_by_id.get(this.dst.id, this.dst)
 
-    @exception_handler
+    @evohome_exception_handler
     def create_zones(this) -> None:
         """Discover and create any new zones (except HW)."""
 
@@ -478,7 +478,7 @@ def process_msg(msg: Message) -> None:
         # else:  # should never get here
         #     raise TypeError
 
-    @exception_handler
+    @evohome_exception_handler
     def update_entities(this, prev) -> None:  # TODO: needs work
         """Update the state of entities (devices, zones, ufh_zones)."""
 
