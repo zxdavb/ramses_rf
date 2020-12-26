@@ -53,9 +53,8 @@ QOS_RX_TIMEOUT = timedelta(seconds=0.20)  # 0.10 too low sometimes
 QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many
 
 _LOGGER = logging.getLogger(__name__)
-_LOGGER.setLevel(logging.ERROR)
 if False and __dev_mode__:
-    _LOGGER.setLevel(logging.WARNING)
+    _LOGGER.setLevel(logging.DEBUG)
 
 _PKT_LOGGER = logging.getLogger(f"{__name__}-log")
 _PKT_LOGGER.setLevel(logging.DEBUG)
@@ -382,14 +381,14 @@ class GatewayProtocol(asyncio.Protocol):
         # self._qos_lock.release()
 
         if self._qos_cmd is None:
-            _LOGGER.warning(
+            _LOGGER.debug(
                 "GwyProtocol.data_rcvd(%s): boff=%s, tout=None",
                 pkt._header,
                 self._backoff,
             )
 
         else:
-            _LOGGER.warning(
+            _LOGGER.debug(
                 "GwyProtocol.data_rcvd(%s): boff=%s, tout=%s, want=%s",
                 pkt._header,
                 self._backoff,
@@ -411,7 +410,7 @@ class GatewayProtocol(asyncio.Protocol):
                 self._timeouts(dt.now(), note="rcVd")
                 wanted = self._tx_hdr if self._tx_hdr else self._rx_hdr
 
-            _LOGGER.warning(
+            _LOGGER.debug(
                 "GwyProtocol.data_RCVD(%s): boff=%s, tout=%s, want=%s",
                 pkt._header,
                 self._backoff,
@@ -437,14 +436,14 @@ class GatewayProtocol(asyncio.Protocol):
             _LOGGER.debug("GwyProtocol.sent_data(%s)", data)  # should be debug
 
         if self._qos_cmd is None:
-            _LOGGER.warning(
+            _LOGGER.debug(
                 "GwyProtocol.send_data(%s): boff=%s, tout=None",
                 cmd._rq_header,
                 self._backoff,
             )
 
         else:
-            _LOGGER.warning(
+            _LOGGER.debug(
                 "GwyProtocol.send_data(%s): boff=%s, tout=%s, want=%s",
                 cmd._rq_header,
                 self._backoff,
@@ -470,7 +469,7 @@ class GatewayProtocol(asyncio.Protocol):
         self._tx_retries = cmd.qos.get("retries", QOS_TX_RETRIES)
         self._rx_timeout = cmd.qos.get("timeout", QOS_RX_TIMEOUT)
 
-        _LOGGER.warning(
+        _LOGGER.debug(
             "GwyProtocol.SEND_data(%s): boff=%s, tout=%s, want=%s: SENT",
             cmd._rq_header,
             self._backoff,
@@ -487,7 +486,7 @@ class GatewayProtocol(asyncio.Protocol):
 
             elif self._tx_retries > 0:
                 _LOGGER.warning(
-                    "GwyProtocol.send_DATA(%s): boff=%s, tout=%s, want=%s: RESENDing",
+                    "GwyProtocol.send_DATA(%s): boff=%s, tout=%s, want=%s: RESENDING",
                     cmd._rq_header,
                     self._backoff,
                     self._timeout_full,
@@ -513,7 +512,7 @@ class GatewayProtocol(asyncio.Protocol):
                 break
 
         else:
-            _LOGGER.warning(
+            _LOGGER.debug(
                 "GwyProtocol.send_DATA(%s): boff=%s, tout=%s, want=%s: SUCCESS",
                 cmd._rq_header,
                 self._backoff,
