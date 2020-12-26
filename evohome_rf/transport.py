@@ -119,10 +119,11 @@ class Ramses2Transport(asyncio.Transport):
             if not cbk.get("daemon"):
                 del self._callbacks[msg._pkt._header]
 
-        [
-            self._gwy._loop.run_in_executor(None, p.data_received, msg)
-            for p in self._protocols
-        ]
+        [p.data_received(msg) for p in self._protocols]
+        # [
+        #     self._gwy._loop.run_in_executor(None, p.data_received, msg)
+        #     for p in self._protocols
+        # ]
 
     def close(self):
         """Close the transport.
