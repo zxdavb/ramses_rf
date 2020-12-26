@@ -127,7 +127,7 @@ class Command:
             qos.update({"priority": Priority.HIGH, "retries": 5})
 
         elif self.code == "0404" and self.verb in ("RQ", " W"):
-            qos.update({"priority": Priority.HIGH})
+            qos.update({"priority": Priority.HIGH, "timeout": td(seconds=0.30)})
 
         elif self.code == "0418" and self.verb == "RQ":
             qos.update({"priority": Priority.LOW, "retries": 3})
