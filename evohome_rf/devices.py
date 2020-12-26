@@ -5,7 +5,6 @@
 
 from abc import ABCMeta, abstractmethod
 import asyncio
-from datetime import datetime as dt, timedelta
 import logging
 from typing import Any, Dict, Optional
 
@@ -27,7 +26,6 @@ from .const import (
 )
 from .exceptions import CorruptStateError
 from .helpers import slugify_string as slugify
-from .logger import dt_now
 
 _LOGGER = logging.getLogger(__name__)
 if False and __dev_mode__:
@@ -54,29 +52,6 @@ def dev_id_to_hex(device_id: str) -> str:
     else:  # len(device_id) == 10, e.g. 'CTL:123456', or ' 63:262142'
         dev_type = DEVICE_LOOKUP.get(device_id[:3], device_id[1:3])
     return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # sans preceding 0x
-
-
-def _dtm(value) -> str:
-    """Convert a datetime to a hex string."""
-
-    def dtm_to_hex(tm_year, tm_mon, tm_mday, tm_hour, tm_min, tm_sec, *args):
-        return f"{tm_min:02X}{tm_hour:02X}{tm_mday:02X}{tm_mon:02X}{tm_year:04X}"
-
-    if value is None:
-        return "FF" * 6
-
-    if isinstance(value, str):
-        try:
-            value = dt.fromisoformat(value)
-        except ValueError:
-            raise ValueError("Invalid datetime isoformat string")
-    elif not isinstance(value, dt):
-        raise TypeError("Invalid datetime object")
-
-    if value < dt_now() + timedelta(minutes=1):
-        raise ValueError("Invalid datetime")
-
-    return dtm_to_hex(*value.timetuple())
 
 
 def _payload(msg, key=None) -> Optional[Any]:

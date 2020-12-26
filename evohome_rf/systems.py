@@ -4,13 +4,13 @@
 """The evohome-compatible system."""
 
 import asyncio
-from datetime import timedelta
+from datetime import datetime as dt, timedelta as td
 import json
 import logging
 from threading import Lock
 from typing import Optional
 
-from .command import FaultLog, Priority
+from .command import Priority, Command, FaultLog
 from .const import (
     ATTR_CONTROLLER,
     ATTR_DEVICES,
@@ -27,8 +27,9 @@ from .const import (
     SYSTEM_MODE_MAP,
     __dev_mode__,
 )
-from .devices import Device, Entity, _dtm, _payload
+from .devices import Device, Entity, _payload
 from .exceptions import CorruptStateError
+from .helpers import dtm_to_hex
 from .schema import ATTR_HTG_CONTROL, ATTR_ORPHANS, ATTR_UFH_CONTROLLERS, ATTR_ZONES
 
 from .zones import DhwZone, Zone
@@ -90,8 +91,30 @@ class SysDatetime(Entity):  # 313F
             self._datetime = msg
 
     @property
-    def datetime(self) -> Optional[str]:  # 313F
+    def datetime(self) -> Optional[str]:
         return _payload(self._datetime, "datetime")  # TODO: make a dt object
+
+    # def wait_for(self, cmd, callback):
+    # self._api_lock.acquire()
+
+    # self._send_cmd("313F", verb="RQ", callback=callback)
+
+    #     time_start = dt.now()
+    # while not self._schedule_done:
+    #     await asyncio.sleep(TIMER_SHORT_SLEEP)
+    #     if dt.now() > time_start + TIMER_LONG_TIMEOUT:
+    #         self._api_lock.release()
+    #         raise ExpiredCallbackError("failed to set schedule")
+
+    # self._api_lock.release()
+
+    # async def get_datetime(self) -> str:  # wait for the RP/313F
+    # await self.wait_for(Command("313F", verb="RQ"))
+    # return self.datetime
+
+    # async def set_datetime(self, dtm: dt) -> str:  # wait for the I/313F
+    # await self.wait_for(Command("313F", verb=" W", payload=f"00{dtm_to_hex(dtm)}"))
+    # return self.datetime
 
     @property
     def status(self) -> dict:
@@ -173,7 +196,7 @@ class SysMode:  # 2E04
         if mode not in SYSTEM_MODE_MAP:
             raise ValueError("Unknown system mode")
 
-        until = _dtm(until) + "00" if until is None else "01"
+        until = dtm_to_hex(until) + "00" if until is None else "01"
 
         self._send_cmd("2E04", verb=" W", payload=f"{mode}{until}")
 
@@ -388,7 +411,7 @@ class MultiZone:  # 0005 (+/- 000C?)
 
             # if self._gwy.serial_port:  # only if in monitor mode...
             secs = self._get_msg_value("1F09", "remaining_seconds")
-            if secs is None or msg.dtm > prev_msg.dtm + timedelta(seconds=secs):
+            if secs is None or msg.dtm > prev_msg.dtm + td(seconds=secs):
                 return  # only compare against 30C9 (array) pkt from the last cycle
 
             _LOGGER.debug("System state (before): %s", self)

@@ -12,7 +12,7 @@ import sys
 from typing import Tuple
 
 import click
-from colorama import init as colorama_init, Fore
+from colorama import init as colorama_init, Fore, Style
 
 from evohome_rf import (
     Gateway,
@@ -230,7 +230,7 @@ async def main(lib_kwargs, **kwargs):
             if schedule is None:
                 print("Failed to get the schedule.")
             else:
-                print("Schedule = \r\n", json.dumps(schedule, indent=4))
+                print("Schedule = \r\n", json.dumps(schedule))  # , indent=4))
 
         if kwargs.get("set_schedule") and kwargs["set_schedule"][0]:
             system_id, _ = kwargs["get_schedule"]
@@ -240,12 +240,10 @@ async def main(lib_kwargs, **kwargs):
 
     def process_message(msg) -> None:
         dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
-        if msg.src.type == "18" and msg.verb == "RQ":
-            print(f"{Fore.BLUE}{dtm} {msg}"[:CONSOLE_COLS])
-        else:
+        if msg.src.type == "18":
+            print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
+        elif True or msg.dst.type == "18" or kwargs["command"] != "execute":
             print(f"{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
-
-        # {print(k, v) for k, v in msg.payload.items()}
 
     print("\r\nclient.py: Starting evohome_rf...")
 

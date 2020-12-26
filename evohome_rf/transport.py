@@ -18,32 +18,32 @@ from serial_asyncio import SerialTransport
 
 from .const import __dev_mode__
 from .message import Message
-from .packet import SERIAL_CONFIG, GatewayProtocol, SerialTransport as WinSerTransport
+from .packet import SERIAL_CONFIG, GatewayProtocol, WinSerTransport
 
 MAX_BUFFER_SIZE = 200
 WRITER_TASK = "writer_task"
 
 _LOGGER = logging.getLogger(__name__)
-if False and __dev_mode__:
+if True and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
 class Ramses2Transport(asyncio.Transport):
     """Interface for a message transport.
 
-        There may be several implementations, but typically, the user does not implement
-        new transports; rather, the platform provides some useful transports that are
-        implemented using the platform's best practices.
+    There may be several implementations, but typically, the user does not implement
+    new transports; rather, the platform provides some useful transports that are
+    implemented using the platform's best practices.
 
-        The user never instantiates a transport directly; they call a utility function,
-        passing it a protocol factory and other information necessary to create the
-        transport and protocol.  (E.g. EventLoop.create_connection() or
-        EventLoop.create_server().)
+    The user never instantiates a transport directly; they call a utility function,
+    passing it a protocol factory and other information necessary to create the
+    transport and protocol.  (E.g. EventLoop.create_connection() or
+    EventLoop.create_server().)
 
-        The utility function will asynchronously create a transport and a protocol and
-        hook them up by calling the protocol's connection_made() method, passing it the
-        transport.
-        """
+    The utility function will asynchronously create a transport and a protocol and
+    hook them up by calling the protocol's connection_made() method, passing it the
+    transport.
+    """
 
     def __init__(self, gwy, protocol, extra=None):
         _LOGGER.debug("RamsesTransport.__init__()")
@@ -95,36 +95,34 @@ class Ramses2Transport(asyncio.Transport):
     def _pkt_receiver(self, pkt):
         _LOGGER.debug("RamsesTransport._pkt_receiver(%s)", pkt)
 
-        def proc_msg_callback(msg: Message) -> None:
-            # TODO: this needs to be a queue - why?
-
-            # 1st, notify expired callbacks
-            dtm = dt.now()
-            for k, v in self._callbacks.items():
-                if not v.get("daemon") and v.get("timeout", dt.max) <= dtm:
-                    v["func"](False, *v["args"], **v["kwargs"])
-                    _LOGGER.warning(
-                        "RamsesTransport._pkt_receiver(%s): Expired callback", k
-                    )
-
-            # 2nd, discard expired callbacks
-            self._callbacks = {
-                k: v
-                for k, v in self._callbacks.items()
-                if v.get("daemon") or v.get("timeout", dt.max) > dtm
-            }
-
-            # 3rd, call any callback (there can only be one)
-            if msg._pkt._header in self._callbacks:
-                callback = self._callbacks[msg._pkt._header]
-                callback["func"](msg, *callback["args"], **callback["kwargs"])
-                if not callback.get("daemon"):
-                    del self._callbacks[msg._pkt._header]
-
         msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
-        proc_msg_callback(msg)
 
-        [p.data_received(msg) for p in self._protocols]  # TODO: spawn
+        for hdr, cbk in self._callbacks.items():  # 1st, notify all expired callbacks
+            if cbk.get("timeout", dt.max) < msg.dtm:
+                _LOGGER.error(
+                    "RamsesTransport._pkt_receiver(%s): Expired callback", hdr
+                )
+                asyncio.create_task(cbk["func"](False, *cbk["args"], **cbk["kwargs"]))
+
+        self._callbacks = {  # 2nd, discard expired callbacks
+            hdr: cbk
+            for hdr, cbk in self._callbacks.items()
+            if cbk.get("daemon") or cbk.get("timeout", dt.max) >= msg.dtm
+        }
+
+        if not msg.is_valid:
+            return
+
+        if msg._pkt._header in self._callbacks:  # 3rd, invoke any callback
+            cbk = self._callbacks[msg._pkt._header]
+            asyncio.create_task(cbk["func"](msg, *cbk["args"], **cbk["kwargs"]))
+            if not cbk.get("daemon"):
+                del self._callbacks[msg._pkt._header]
+
+        [
+            self._gwy._loop.run_in_executor(None, p.data_received, msg)
+            for p in self._protocols
+        ]
 
     def close(self):
         """Close the transport.
@@ -321,10 +319,8 @@ class Ramses2Protocol(asyncio.Protocol):
 
     def data_received(self, msg) -> None:
         """Called when some data is received."""
-        _LOGGER.debug(
-            "RamsesProtocol.data_received(%s)", msg if msg.is_valid else "invalid"
-        )  # or: use repr(msg)
-        if msg.is_valid and msg.is_wanted(self._include_list, self._exclude_list):
+        _LOGGER.debug("RamsesProtocol.data_received(%s)", msg)  # or: use repr(msg)
+        if msg.is_wanted(self._include_list, self._exclude_list):
             self._callback(msg)
 
     async def send_data(self, cmd) -> None:
@@ -378,9 +374,9 @@ def create_pkt_stack(gwy, msg_handler, serial_port) -> Tuple:
     # msg_handler._pkt_receiver is from Ramses2Transport
     pkt_protocol = GatewayProtocol(gwy, msg_handler._pkt_receiver)
 
-    if sys.platform == "win32":
+    if False and sys.platform == "win32":  # doesn't work
         ser_instance = (serial_port, SERIAL_CONFIG)
-        pkt_transport = WinSerTransport(gwy._loop,pkt_protocol, ser_instance)
+        pkt_transport = WinSerTransport(gwy._loop, pkt_protocol, ser_instance)
     else:
         ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
         pkt_transport = SerialTransport(gwy._loop, pkt_protocol, ser_instance)

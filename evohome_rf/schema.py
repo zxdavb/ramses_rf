@@ -162,6 +162,7 @@ def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, dict, list, li
 
     if config["enforce_allowlist"]:
         allows = KNOWNS_SCHEMA(kwargs.get("allowlist", {}))
+        config["enforce_blocklist"] = False
     elif config["enforce_blocklist"]:
         blocks = KNOWNS_SCHEMA(kwargs.get("blocklist", {}))
 

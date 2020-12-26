@@ -100,7 +100,7 @@ class Gateway:
         self._known_devices = (
             load_schema(self, self._schema) if self.config["use_schema"] else {}
         )
-        self.config["known_devices"] = False  # bool(self.known_devices)
+        self.config["known_devices"] = bool(self.known_devices)  # TODO: needs work
 
         self._prev_msg = None
 

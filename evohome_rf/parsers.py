@@ -25,6 +25,7 @@ from .const import (
     __dev_mode__,
 )
 from .devices import dev_hex_to_id
+from .helpers import dtm_from_hex as _dtm
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
 
 _LOGGER = logging.getLogger(__name__)
@@ -284,24 +285,6 @@ def _bool(value: str) -> Optional[bool]:  # either 00 or C8
     """Return a boolean."""
     assert value in ("00", "C8", "FF")
     return {"00": False, "C8": True}.get(value)
-
-
-def _dtm(value: str) -> str:
-    """Return a local datetime hex string in isoformat."""
-    #        00141B0A07E3  (...HH:MM:00)    for system_mode, zone_mode (schedules?)
-    #      0400041C0A07E3  (...HH:MM:SS)    for sync_datetime
-
-    if len(value) == 12:
-        value = f"00{value}"
-    assert len(value) == 14
-    return dt(
-        year=int(value[10:14], 16),
-        month=int(value[8:10], 16),
-        day=int(value[6:8], 16),
-        hour=int(value[4:6], 16) & 0b11111,  # 1st 3 bits: DayOfWeek
-        minute=int(value[2:4], 16),
-        second=int(value[:2], 16) & 0b1111111,  # 1st bit: used for DST
-    ).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _date(value: str) -> Optional[str]:  # YY-MM-DD
@@ -1228,6 +1211,10 @@ def parser_313f(payload, msg) -> Optional[dict]:
 
     # https://www.automatedhome.co.uk/vbulletin/showthread.php?5085-My-HGI80-equivalent-Domoticz-setup-without-HGI80&p=36422&viewfull=1#post36422
     # every day at ~4am TRV/RQ->CTL/RP, approx 5-10secs apart (CTL respond at any time)
+    if msg.verb == "RQ":
+        assert payload == "00"  # implies msg.len == 1 byte
+        return {}
+
     assert msg.len == 9
     assert payload[:2] == "00"  # evohome is always "00FC"? OTB is always 00xx
     return {

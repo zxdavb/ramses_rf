@@ -19,7 +19,7 @@ class ExpiredCallbackError(Error):
 
     def __str__(self) -> str:
         err_msg = "The callback has expired"
-        err_tip = "(no tip)"
+        err_tip = "(no hint)"
         if self.message:
             return f"{err_msg}: {self.message} {err_tip}"
         return f"{err_msg} {err_tip}"

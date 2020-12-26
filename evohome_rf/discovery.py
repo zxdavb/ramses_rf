@@ -45,7 +45,7 @@ async def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
     # this is to ensure the gateway interface has fully woken
     if not kwargs.get("execute_cmd"):
         dev_id = next(iter(gwy._include))
-        qos = {"priority": Priority.HIGH, "retries": 10}
+        qos = {"priority": Priority.HIGH, "retries": 5}
         await gwy.msg_protocol.send_data(Command("RQ", dev_id, "0016", "00FF", qos=qos))
 
     tasks = []

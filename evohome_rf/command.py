@@ -130,7 +130,7 @@ class Command:
             qos.update({"priority": Priority.HIGH})
 
         elif self.code == "0418" and self.verb == "RQ":
-            qos.update({"priority": Priority.LOW, "retries": 2})
+            qos.update({"priority": Priority.LOW, "retries": 3})
 
         return qos
 
@@ -180,14 +180,6 @@ class FaultLog:  # 0418
         self._fault_log = None
         self._fault_log_done = None
 
-        # TODO: (make method) register a callback for a null response (have no log_idx)
-        self._gwy.msg_transport._callbacks["|".join(("RP", self.id, "0418"))] = {
-            "func": self._proc_log_entry,
-            "daemon": True,
-            "args": [],
-            "kwargs": {},
-        }
-
     def __repr_(self) -> str:
         return json.dumps(self._fault_log) if self._fault_log_done else None
 
@@ -220,7 +212,7 @@ class FaultLog:  # 0418
         while not self._fault_log_done:
             await asyncio.sleep(TIMER_SHORT_SLEEP)
             if dt.now() > time_start + TIMER_LONG_TIMEOUT:
-                raise ExpiredCallbackError("failed to obtain log entry")
+                raise ExpiredCallbackError("failed to obtain log entry (long)")
 
         return self.fault_log
 
@@ -228,31 +220,38 @@ class FaultLog:  # 0418
         """Request the next log entry."""
         _LOGGER.debug("FaultLog(%s)._rq_log_entry(%s)", self, log_idx)
 
-        payload = f"{log_idx:06X}"
-        callback = {"func": self._proc_log_entry, "timeout": td(seconds=1)}
-        cmd = Command("RQ", self._ctl.id, "0418", payload, callback=callback)
+        async def rq_callback(msg) -> None:
+            _LOGGER.debug("FaultLog(%s)._proc_log_entry(%s)", self.id, msg)
+
+            if not msg:
+                self._fault_log_done = True
+                # raise ExpiredCallbackError("failed to obtain log entry (short)")
+                return
+
+            if not msg.payload:
+                # TODO: delete other callbacks rather than waiting for them to expire
+                self._fault_log_done = True
+                return
+
+            log = dict(msg.payload)
+            log_idx = int(log.pop("log_idx"), 16)
+            self._fault_log[log_idx] = log
+
+            self._rq_log_entry(log_idx + 1)
+
+        # TODO: (make method) register callback for null response (no log_idx left)
+        header = "|".join(("RP", self.id, "0418"))
+        if header not in self._gwy.msg_transport._callbacks:
+            self._gwy.msg_transport._callbacks[header] = {
+                "func": rq_callback,
+                "daemon": True,
+                "args": [],
+                "kwargs": {},
+            }
+
+        callback = {"func": rq_callback, "timeout": td(seconds=5)}
+        cmd = Command("RQ", self._ctl.id, "0418", f"{log_idx:06X}", callback=callback)
         asyncio.create_task(self._gwy.msg_protocol.send_data(cmd))
-
-    def _proc_log_entry(self, msg) -> None:
-        _LOGGER.debug("FaultLog(%s)._proc_log_entry(%s)", self.id, msg)
-
-        if not msg:
-            # raise ExpiredCallbackError
-            return
-
-        if msg.code != "0418" or msg.verb != "RP":
-            raise ValueError(f"incorrect message verb/code: {msg.verb}/{msg.code}")
-
-        if not msg.payload:
-            # TODO: delete other call backs rather than waiting for them to expire
-            self._fault_log_done = True
-            return
-
-        log = dict(msg.payload)
-        log_idx = int(log.pop("log_idx"), 16)
-        self._fault_log[log_idx] = log
-
-        self._rq_log_entry(log_idx + 1)
 
 
 class Schedule:  # 0404
@@ -286,7 +285,7 @@ class Schedule:  # 0404
     @property
     def schedule(self) -> Optional[dict]:
         """Return the schedule of a zone."""
-        if not self._schedule_done:
+        if not self._schedule_done or None in self._rx_frags:
             return
         if self._schedule:
             return self._schedule
@@ -333,10 +332,11 @@ class Schedule:  # 0404
         """Request the next missing fragment (index starts at 1, not 0)."""
         _LOGGER.debug("Schedule(%s)._rq_fragment(%s)", self.id, frag_cnt)
 
-        def proc_msg(msg) -> None:
+        async def rq_callback(msg) -> None:
             if not msg:  # _LOGGER.debug()... TODO: needs fleshing out
                 # TODO: remove any callbacks from msg._gwy.msg_transport._callbacks
                 _LOGGER.warning(f"Schedule({self.id}): Callback timed out")
+                self._schedule_done = True
                 return
 
             _LOGGER.debug(
@@ -383,7 +383,7 @@ class Schedule:  # 0404
         # 046 RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0304 6BE...
 
         payload = f"{self.idx}20000800{frag_idx + 1:02d}{frag_cnt:02d}"  # DHW: 23000800
-        callback = {"func": proc_msg, "timeout": td(seconds=1)}
+        callback = {"func": rq_callback, "timeout": td(seconds=1)}
         cmd = Command("RQ", self._ctl.id, "0404", payload, callback=callback)
         asyncio.create_task(self._gwy.msg_protocol.send_data(cmd))
 
@@ -461,7 +461,7 @@ class Schedule:  # 0404
             "Schedule(%s)._tx_fragment(%s/%s)", self.id, frag_idx, len(self._tx_frags)
         )
 
-        def proc_msg(msg) -> None:
+        async def tx_callback(msg) -> None:
             _LOGGER.debug(
                 f"Schedule({self.id})._proc_fragment(msg), frag_idx=%s, frag_cnt=%s",
                 msg.payload.get("frag_index"),
@@ -480,7 +480,7 @@ class Schedule:  # 0404
             len(self._tx_frags),
             self._tx_frags[frag_idx],
         )
-        callback = {"func": proc_msg, "timeout": td(seconds=3)}  # 1 sec too low
+        callback = {"func": tx_callback, "timeout": td(seconds=3)}  # 1 sec too low
         cmd = Command(" W", self._ctl.id, "0404", payload, callback=callback)
         asyncio.create_task(self._gwy.msg_protocol.send_data(cmd))
 

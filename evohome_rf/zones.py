@@ -34,8 +34,9 @@ from .const import (
     ZONE_MODE_MAP,
     __dev_mode__,
 )
-from .devices import Device, Entity, _dtm, _payload
+from .devices import Device, Entity, _payload
 from .exceptions import CorruptStateError
+from .helpers import dtm_to_hex
 
 _LOGGER = logging.getLogger(__name__)
 if False and __dev_mode__:
@@ -388,7 +389,7 @@ class DhwZone(ZoneBase, HeatDemand):
         if until is None:
             payload = f"00{state}{mode}FFFFFF"
         else:  # required only by: 04, Temporary, ignored by others
-            payload = f"00{state}{mode}FFFFFF{_dtm(until)}"
+            payload = f"00{state}{mode}FFFFFF{dtm_to_hex(until)}"
 
         self._send_cmd("1F41", verb=" W", payload=payload)
         return False
@@ -427,7 +428,8 @@ class ZoneSchedule:
 
     async def get_schedule(self, force_refresh=None) -> Optional[dict]:
         schedule = await self._schedule.get_schedule(force_refresh=force_refresh)
-        return schedule["schedule"]
+        if schedule:
+            return schedule["schedule"]
 
     async def set_schedule(self, schedule) -> None:
         schedule = {"zone_idx": self.idx, "schedule": schedule}
@@ -771,7 +773,7 @@ class Zone(ZoneSchedule, ZoneBase):
         if until is None:
             payload = f"{self.idx}{setpoint}{mode}FFFFFF"
         else:  # required only by temporary_override, ignored by others
-            payload = f"{self.idx}{setpoint}{mode}FFFFFF{_dtm(until)}"
+            payload = f"{self.idx}{setpoint}{mode}FFFFFF{dtm_to_hex(until)}"
 
         self._send_cmd("2349", verb=" W", payload=payload)
 
