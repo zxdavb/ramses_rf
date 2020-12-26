@@ -49,13 +49,13 @@ Pause = SimpleNamespace(
 QOS_TX_TIMEOUT = timedelta(seconds=0.05)  # 0.20 OK, but too high?
 QOS_TX_RETRIES = 2
 
-QOS_RX_TIMEOUT = timedelta(seconds=0.15)  # 0.05 too low sometimes
-QOS_MAX_BACKOFF = 3  #  4 = 16x, is too many
+QOS_RX_TIMEOUT = timedelta(seconds=0.20)  # 0.10 too low sometimes
+QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many
 
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(logging.ERROR)
 if False and __dev_mode__:
-    _LOGGER.setLevel(logging.DEBUG)
+    _LOGGER.setLevel(logging.WARNING)
 
 _PKT_LOGGER = logging.getLogger(f"{__name__}-log")
 _PKT_LOGGER.setLevel(logging.DEBUG)
@@ -368,107 +368,162 @@ class GatewayProtocol(asyncio.Protocol):
         self._transport = transport
         self.resume_writing()
 
+    def _timeouts(self, dtm: dt, note="none") -> Tuple[dt, dt]:
+        timeout = QOS_TX_TIMEOUT if self._tx_hdr else self._rx_timeout
+        self._timeout_full = dtm + timeout * 2 ** self._backoff
+        self._timeout_half = dtm + timeout * 2 ** (self._backoff - 1)
+        _LOGGER.debug("%s %s %s %s", note, self._backoff, timeout, self._timeout_full)
+
     @bytestr_to_pkt
     def data_received(self, pkt: Packet) -> None:
         """Called when some data is received."""
 
-        def timeouts(dtm: dt) -> Tuple[dt, dt]:
-            timeout_full = dtm + self._rx_timeout * 2 ** self._backoff
-            timeout_half = dtm + self._rx_timeout * 2 ** (self._backoff - 1)
-            print("rcvd", self._backoff, self._rx_timeout)
-            return timeout_full, timeout_half
+        # self._qos_lock.acquire()
+        # self._qos_lock.release()
 
         if self._qos_cmd is None:
-            msg = "GwyProtocol.Data_rcvd"
-        elif pkt._header == self._tx_hdr:
-            msg = "GwyProtocol.dAta_rcvd"
-        elif pkt._header == self._rx_hdr:
-            msg = "GwyProtocol.daTa_rcvd"
+            _LOGGER.warning(
+                "GwyProtocol.data_rcvd(%s): boff=%s, tout=None",
+                pkt._header,
+                self._backoff,
+            )
+
         else:
-            msg = "GwyProtocol.datA_rcvd"
+            _LOGGER.warning(
+                "GwyProtocol.data_rcvd(%s): boff=%s, tout=%s, want=%s",
+                pkt._header,
+                self._backoff,
+                self._timeout_full,
+                self._tx_hdr if self._tx_hdr else self._rx_hdr,
+            )
 
-        _LOGGER.warning(
-            "%s(%s): timeout=%s, tx_hdr=%s, rx_hdr=%s, cmd=%s",
-            msg,
-            pkt._header,
-            self._timeout,
-            self._tx_hdr,
-            self._rx_hdr,
-            self._qos_cmd,
-        )
+            if pkt._header == self._tx_hdr:
+                self._tx_hdr = None
+                self._timeouts(dt.now(), note="Rcvd")
+                wanted = self._rx_hdr
+            elif pkt._header == self._qos_cmd._rq_header:
+                self._timeouts(dt.now(), note="rCvd")
+                wanted = self._rx_hdr
+            elif pkt._header == self._rx_hdr or self._rx_hdr is None:
+                self._qos_cmd = None
+                wanted = None
+            else:
+                self._timeouts(dt.now(), note="rcVd")
+                wanted = self._tx_hdr if self._tx_hdr else self._rx_hdr
 
-        if pkt._header == self._tx_hdr:
-            # self._tx_hdr = None
-            self._timeout_full, self._timeout_half = timeouts(dt.now())
-        elif pkt._header == self._rx_hdr or self._rx_hdr is None:
-            self._qos_cmd = None
+            _LOGGER.warning(
+                "GwyProtocol.data_RCVD(%s): boff=%s, tout=%s, want=%s",
+                pkt._header,
+                self._backoff,
+                self._timeout_full,
+                wanted,
+            )
 
         self._callback(pkt)
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
 
-        def timeouts(dtm: dt) -> Tuple[dt, dt]:
-            timeout = QOS_TX_TIMEOUT if self._tx_hdr else self._rx_timeout
-            timeout_full = dtm + timeout * 2 ** self._backoff
-            timeout_half = dtm + timeout * 2 ** (self._backoff - 1)
-            print("send", self._backoff, QOS_TX_TIMEOUT)
-            return timeout_full, timeout_half
-
         async def _write_data(data: bytearray) -> None:
             """Called when some data is to be sent (not a callback)."""
             _LOGGER.debug("GwyProtocol._write_data(%s)", data)  # should be debug
 
-            while self._pause_writing:
-                await asyncio.sleep(0.005)
+            # while self._pause_writing:
+            #     await asyncio.sleep(0.005)
             while self._transport.serial.out_waiting:
                 await asyncio.sleep(0.005)
 
             self._transport.write(data)
             _LOGGER.debug("GwyProtocol.sent_data(%s)", data)  # should be debug
 
-        _LOGGER.warning("GwyProtocol.send_data(%s)", cmd)  # should be debug
+        if self._qos_cmd is None:
+            _LOGGER.warning(
+                "GwyProtocol.send_data(%s): boff=%s, tout=None",
+                cmd._rq_header,
+                self._backoff,
+            )
+
+        else:
+            _LOGGER.warning(
+                "GwyProtocol.send_data(%s): boff=%s, tout=%s, want=%s",
+                cmd._rq_header,
+                self._backoff,
+                self._timeout_full,
+                self._tx_hdr if self._tx_hdr else self._rx_hdr,
+            )
 
         while self._qos_cmd is not None:
+            if self._qos_cmd == cmd:
+                print("AAA")
             await asyncio.sleep(0.005)
             continue
 
         self._qos_lock.acquire()
+        self._pause_writing = True
         self._qos_cmd = cmd
         self._tx_hdr = cmd._rq_header
         self._rx_hdr = cmd._rp_header  # Could be None
         self._qos_lock.release()
 
-        _LOGGER.warning("GwyProtocol.send_data(%s): SENDing", self._tx_hdr)
-
         await _write_data(bytearray(f"{cmd}\r\n".encode("ascii")))
-        self._timeout_full, self._timeout_half = timeouts(dt.now())
+        self._timeouts(dt.now(), note="send")
         self._tx_retries = cmd.qos.get("retries", QOS_TX_RETRIES)
         self._rx_timeout = cmd.qos.get("timeout", QOS_RX_TIMEOUT)
+
+        _LOGGER.warning(
+            "GwyProtocol.SEND_data(%s): boff=%s, tout=%s, want=%s: SENT",
+            cmd._rq_header,
+            self._backoff,
+            self._timeout_full,
+            self._tx_hdr,
+        )
 
         while self._qos_cmd is not None:
             if self._timeout_full > dt.now():
                 await asyncio.sleep(0.005)
+
+            elif self._qos_cmd is None:
                 continue
 
-            if self._tx_retries > 0:
-                _LOGGER.warning("GwyProtocol.send_data(%s): RESENDing", self._tx_hdr)
+            elif self._tx_retries > 0:
+                _LOGGER.warning(
+                    "GwyProtocol.send_DATA(%s): boff=%s, tout=%s, want=%s: RESENDing",
+                    cmd._rq_header,
+                    self._backoff,
+                    self._timeout_full,
+                    self._tx_hdr if self._tx_hdr else self._rx_hdr,
+                )
                 self._backoff = min(self._backoff + 1, QOS_MAX_BACKOFF)
 
                 self._tx_hdr = cmd._rq_header
                 await _write_data(bytearray(f"{cmd}\r\n".encode("ascii")))
-                self._timeout_full, self._timeout_half = timeouts(dt.now())
+                self._timeouts(dt.now(), note="SEND")
                 self._tx_retries -= 1
 
             else:
-                _LOGGER.warning("GwyProtocol.send_data(%s): EXPIRED", self._tx_hdr)
+                _LOGGER.warning(
+                    "GwyProtocol.send_DATA(%s): boff=%s, tout=%s, want=%s: EXPIRED",
+                    cmd._rq_header,
+                    self._backoff,
+                    self._timeout_full,
+                    self._tx_hdr if self._tx_hdr else self._rx_hdr,
+                )
                 self._qos_cmd = None
+                self._pause_writing = False
                 break
 
         else:
-            _LOGGER.warning("GwyProtocol.send_data(%s): SUCCESS", self._tx_hdr)
+            _LOGGER.warning(
+                "GwyProtocol.send_DATA(%s): boff=%s, tout=%s, want=%s: SUCCESS",
+                cmd._rq_header,
+                self._backoff,
+                self._timeout_full,
+                self._tx_hdr if self._tx_hdr else self._rx_hdr,
+            )
+
             if self._timeout_half >= dt.now():
                 self._backoff = max(self._backoff - 1, 0)
+            self._pause_writing = False
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""

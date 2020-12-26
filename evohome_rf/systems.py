@@ -4,13 +4,13 @@
 """The evohome-compatible system."""
 
 import asyncio
-from datetime import datetime as dt, timedelta as td
+from datetime import timedelta as td
 import json
 import logging
 from threading import Lock
 from typing import Optional
 
-from .command import Priority, Command, FaultLog
+from .command import Priority, FaultLog
 from .const import (
     ATTR_CONTROLLER,
     ATTR_DEVICES,
