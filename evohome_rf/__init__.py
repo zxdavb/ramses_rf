@@ -120,14 +120,14 @@ class Gateway:
             exc = context.get("exception")
             if exc:
                 raise exc
-            # asyncio.create_task(self.shutdown())  # TODO: doesn't work here?
+            # asyncio.create_task(self.stop())  # TODO: doesn't work here?
 
         async def handle_sig_posix(sig):
             """Handle signals on posix platform."""
             _LOGGER.debug("Received a signal (%s), processing...", sig.name)
 
             if sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
-                await self.shutdown("handle_sig_posix()")  # OK for after tasks.cancel
+                await self.stop("handle_sig_posix()")  # OK for after tasks.cancel
 
             elif sig == signal.SIGUSR1:
                 _LOGGER.info("Params: \r\n%s", {self.evo.id: self.evo.params})
@@ -142,7 +142,7 @@ class Gateway:
             )
 
             if signum in (signal.SIGINT, signal.SIGTERM, signal.SIGBREAK):
-                # self.shutdown("handle_sig_win32()")
+                # self.stop("handle_sig_win32()")
                 raise GracefulExit()
 
         # signal.SIGBREAK: Int from keyboard (CTRL + BREAK)
@@ -167,20 +167,20 @@ class Gateway:
         else:  # unsupported
             raise RuntimeError("Unsupported OS for this module: %s", os.name)
 
-    async def shutdown(self, xxx=None) -> None:
-        """Perform a graceful shutdown."""
+    async def stop(self, xxx=None) -> None:
+        """Perform a graceful shutdown/stop."""
 
-        _LOGGER.debug("shutdown(): Invoked by: %s, doing housekeeping...", xxx)
+        _LOGGER.debug("stop(): Invoked by: %s, doing housekeeping...", xxx)
         # print(asyncio.current_task())
         tasks = [t for t in self._tasks if t is not asyncio.current_task()]
 
-        logging.debug(f"shutdown(): Cancelling {len(tasks)} outstanding async tasks...")
+        logging.debug(f"stop(): Cancelling {len(tasks)} outstanding async tasks...")
         # [print(t) for t in tasks]
         # [print(t) for t in asyncio.all_tasks()]
         [task.cancel() for task in tasks]
         await asyncio.gather(*tasks, return_exceptions=False)
 
-        _LOGGER.debug("shutdown(): Complete.")
+        _LOGGER.debug("stop(): Complete.")
 
     async def start(self) -> None:
         async def file_reader(fp, callback):
@@ -204,7 +204,7 @@ class Gateway:
             self._tasks.append(reader)
 
         await asyncio.gather(*self._tasks)
-        await self.shutdown("start()")
+        await self.stop("start()")
 
     def _get_device(self, dev_addr, ctl_addr=None, domain_id=None) -> Device:
         """Return a device (will create it if required).
