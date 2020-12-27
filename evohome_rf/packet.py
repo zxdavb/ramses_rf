@@ -53,7 +53,7 @@ QOS_RX_TIMEOUT = timedelta(seconds=0.20)  # 0.10 too low sometimes
 QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many
 
 _LOGGER = logging.getLogger(__name__)
-if False and __dev_mode__:
+if True or __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 _PKT_LOGGER = logging.getLogger(f"{__name__}-log")
@@ -371,7 +371,7 @@ class GatewayProtocol(asyncio.Protocol):
         timeout = QOS_TX_TIMEOUT if self._tx_hdr else self._rx_timeout
         self._timeout_full = dtm + timeout * 2 ** self._backoff
         self._timeout_half = dtm + timeout * 2 ** (self._backoff - 1)
-        _LOGGER.debug("%s %s %s %s", note, self._backoff, timeout, self._timeout_full)
+        # _LOGGER.debug("%s %s %s %s", note, self._backoff, timeout, self._timeout_full)
 
     @bytestr_to_pkt
     def data_received(self, pkt: Packet) -> None:
@@ -380,14 +380,7 @@ class GatewayProtocol(asyncio.Protocol):
         # self._qos_lock.acquire()
         # self._qos_lock.release()
 
-        if self._qos_cmd is None:
-            _LOGGER.debug(
-                "GwyProtocol.data_rcvd(%s): boff=%s, tout=None",
-                pkt._header,
-                self._backoff,
-            )
-
-        else:
+        if self._qos_cmd:
             _LOGGER.debug(
                 "GwyProtocol.data_rcvd(%s): boff=%s, tout=%s, want=%s",
                 pkt._header,
@@ -418,6 +411,13 @@ class GatewayProtocol(asyncio.Protocol):
                 wanted,
             )
 
+        # else:
+        #     _LOGGER.debug(
+        #         "GwyProtocol.data_rcvd(%s): boff=%s, tout=None",
+        #         pkt._header,
+        #         self._backoff,
+        #     )
+
         self._callback(pkt)
 
     async def send_data(self, cmd: Command) -> None:
@@ -425,30 +425,29 @@ class GatewayProtocol(asyncio.Protocol):
 
         async def _write_data(data: bytearray) -> None:
             """Called when some data is to be sent (not a callback)."""
-            _LOGGER.debug("GwyProtocol._write_data(%s)", data)  # should be debug
+            # _LOGGER.debug("GwyProtocol.sent_data(%s): %s", cmd._rq_header, data)
 
-            # while self._pause_writing:
-            #     await asyncio.sleep(0.005)
+            while self._pause_writing:
+                await asyncio.sleep(0.005)
             while self._transport.serial.out_waiting:
                 await asyncio.sleep(0.005)
 
             self._transport.write(data)
-            _LOGGER.debug("GwyProtocol.sent_data(%s)", data)  # should be debug
 
-        if self._qos_cmd is None:
-            _LOGGER.debug(
-                "GwyProtocol.send_data(%s): boff=%s, tout=None",
-                cmd._rq_header,
-                self._backoff,
-            )
-
-        else:
+        if self._qos_cmd:
             _LOGGER.debug(
                 "GwyProtocol.send_data(%s): boff=%s, tout=%s, want=%s",
                 cmd._rq_header,
                 self._backoff,
                 self._timeout_full,
                 self._tx_hdr if self._tx_hdr else self._rx_hdr,
+            )
+
+        else:
+            _LOGGER.debug(
+                "GwyProtocol.send_data(%s): boff=%s, tout=None",
+                cmd._rq_header,
+                self._backoff,
             )
 
         while self._qos_cmd is not None:
