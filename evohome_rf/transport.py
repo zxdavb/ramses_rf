@@ -351,7 +351,7 @@ class Ramses2Protocol(asyncio.Protocol):
 def create_msg_stack(gwy, msg_handler, protocol_factory, **kwargs) -> Tuple:
     """Utility function to provide a transport to a client protocol.
 
-    The architecture is: app (client) -> msg protocol -> pkt protocol -> ser interface.
+    The architecture is: app (client) -> msg -> pkt -> ser (HW interface).
     """
 
     # protocol_factory is (usu.) Ramses2Protocol
@@ -369,7 +369,7 @@ def create_msg_stack(gwy, msg_handler, protocol_factory, **kwargs) -> Tuple:
 def create_pkt_stack(gwy, msg_handler, serial_port) -> Tuple:
     """Utility function to provide a transport to the internal protocol.
 
-    The architecture is: app (client) -> msg protocol -> pkt protocol -> ser interface.
+    The architecture is: app (client) -> msg -> pkt -> ser (HW interface).
     """
 
     # msg_handler._pkt_receiver is from Ramses2Transport
