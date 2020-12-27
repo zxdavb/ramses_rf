@@ -43,7 +43,7 @@ async def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
 async def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
 
     # this is to ensure the gateway interface has fully woken
-    if not kwargs.get("execute_cmd"):
+    if not kwargs.get("execute_cmd") and gwy._include:
         dev_id = next(iter(gwy._include))
         qos = {"priority": Priority.HIGH, "retries": 5}
         await gwy.msg_protocol.send_data(Command("RQ", dev_id, "0016", "00FF", qos=qos))
