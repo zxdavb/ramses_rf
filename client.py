@@ -242,7 +242,7 @@ async def main(lib_kwargs, **kwargs):
         dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
         if msg.src.type == "18":
             print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
-        elif True or msg.dst.type == "18" or kwargs["command"] != "execute":
+        else:
             print(f"{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
 
     print("\r\nclient.py: Starting evohome_rf...")
