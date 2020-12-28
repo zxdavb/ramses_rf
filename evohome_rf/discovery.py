@@ -23,15 +23,26 @@ async def _cmd(gwy, *args, **kwargs) -> None:
     await gwy.msg_protocol.send_data(Command(*args, **kwargs, qos=qos))
 
 
-async def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
-    tasks = []
-
+async def spawn_execute_cmd(gwy, **kwargs):
     if kwargs.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
         cmd = kwargs["execute_cmd"]
 
         qos = {"priority": Priority.HIGH, "retries": 10}
-        cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], qos=qos)
-        await gwy.msg_protocol.send_data(cmd)
+        try:
+            cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], qos=qos)
+        except ValueError as err:
+            _LOGGER.warning(
+                "Execute: Command is invalid, and will be ignored: '%s' (%s)", cmd, err
+            )
+        else:
+            await gwy.msg_protocol.send_data(cmd)
+
+
+async def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
+    tasks = []
+
+    if kwargs.get("execute_cmd"):
+        await spawn_execute_cmd(gwy, **kwargs)
 
     if kwargs.get("poll_devices"):
         tasks += [poll_device(gwy, d) for d in kwargs["poll_devices"]]
@@ -50,12 +61,8 @@ async def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
 
     tasks = []
 
-    if kwargs.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
-        cmd = kwargs["execute_cmd"]
-
-        qos = {"priority": Priority.HIGH, "retries": 10}
-        cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], qos=qos)
-        await gwy.msg_protocol.send_data(cmd)
+    if kwargs.get("execute_cmd"):
+        await spawn_execute_cmd(gwy, **kwargs)
 
     if kwargs.get("get_faults"):
         tasks += [asyncio.create_task(get_faults(gwy, kwargs["get_faults"]))]

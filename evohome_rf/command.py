@@ -105,7 +105,8 @@ class Command:
         self._priority_dtm = dt_now()  # used for __lt__, etc.
 
         self._is_valid = None
-        # self._is_valid = self.is_valid
+        if not self.is_valid:
+            raise ValueError(f"Invalid parameter values for command: {self}")
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
