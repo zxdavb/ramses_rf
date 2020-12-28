@@ -213,7 +213,7 @@ class Packet:
             err_msg = "invalid packet structure"
         elif not validate_addresses():
             err_msg = "invalid packet addresses"
-        elif int(self.packet[46:49]) > 48:  # TODO: is 02/I/22C9 > 24?
+        elif int(self.packet[46:49]) > 48:
             err_msg = "excessive payload length"
         elif int(self.packet[46:49]) * 2 != len(self.packet[50:]):
             err_msg = "mismatched payload length"
@@ -352,7 +352,8 @@ class GatewayProtocol(asyncio.Protocol):
         self._qos_lock = Lock()
         self._qos_cmd = None
 
-        self._timeout = None
+        self._timeout_full = None
+        self._timeout_half = None
         self._tx_hdr = None
         self._tx_retries = None
 
@@ -364,10 +365,26 @@ class GatewayProtocol(asyncio.Protocol):
         """Called when a connection is made."""
         _LOGGER.debug("GwyProtocol.connection_made(%s)", transport)
 
+        # print(transport.serial)  # TODO: evofw_flag here
+        # for attr in dir(transport.serial):
+        #     print("obj.%s = %r" % (attr, getattr(transport, attr)))
+
+        # from time import sleep
+        # sleep(4)
+
+        # print(transport.serial)  # TODO: evofw_flag here
+        # for attr in dir(transport.serial):
+        #     print("obj.%s = %r" % (attr, getattr(transport, attr)))
+
         self._transport = transport
         self.resume_writing()
 
     def _timeouts(self, dtm: dt, note="none") -> Tuple[dt, dt]:
+        # if self._timeout_half >= dtm:
+        #     self._backoff = max(self._backoff - 1, 0)
+        # if self._timeout_full >= dtm:
+        #     self._backoff = min(self._backoff + 1, QOS_MAX_BACKOFF)
+
         timeout = QOS_TX_TIMEOUT if self._tx_hdr else self._rx_timeout
         self._timeout_full = dtm + timeout * 2 ** self._backoff
         self._timeout_half = dtm + timeout * 2 ** (self._backoff - 1)
@@ -381,13 +398,13 @@ class GatewayProtocol(asyncio.Protocol):
         # self._qos_lock.release()
 
         if self._qos_cmd:
-            _LOGGER.debug(
-                "GwyProtocol.data_rcvd(%s): boff=%s, tout=%s, want=%s",
-                pkt._header,
-                self._backoff,
-                self._timeout_full,
-                self._tx_hdr if self._tx_hdr else self._rx_hdr,
-            )
+            # _LOGGER.debug(
+            #     "GwyProtocol.data_rcvd(%s): boff=%s, tout=%s, want=%s: CHECKING",
+            #     pkt._header,
+            #     self._backoff,
+            #     self._timeout_full,
+            #     self._tx_hdr if self._tx_hdr else self._rx_hdr,
+            # )
 
             if pkt._header == self._tx_hdr:
                 self._tx_hdr = None
@@ -404,7 +421,7 @@ class GatewayProtocol(asyncio.Protocol):
                 wanted = self._tx_hdr if self._tx_hdr else self._rx_hdr
 
             _LOGGER.debug(
-                "GwyProtocol.data_RCVD(%s): boff=%s, tout=%s, want=%s",
+                "GwyProtocol.data_RCVD(%s): boff=%s, tout=%s, want=%s: CHECKED",
                 pkt._header,
                 self._backoff,
                 self._timeout_full,
@@ -427,12 +444,18 @@ class GatewayProtocol(asyncio.Protocol):
             """Called when some data is to be sent (not a callback)."""
             # _LOGGER.debug("GwyProtocol.sent_data(%s): %s", cmd._rq_header, data)
 
-            while self._pause_writing:
-                await asyncio.sleep(0.005)
+            # while self._pause_writing:
+            #     await asyncio.sleep(0.005)
             while self._transport.serial.out_waiting:
                 await asyncio.sleep(0.005)
 
             self._transport.write(data)
+
+        if not cmd.is_valid:
+            _LOGGER.warning(
+                "GwyProtocol.send_data(%s): invalid command: %s", cmd._rq_header, cmd
+            )
+            return
 
         if self._qos_cmd:
             _LOGGER.debug(
@@ -452,21 +475,21 @@ class GatewayProtocol(asyncio.Protocol):
 
         while self._qos_cmd is not None:
             if self._qos_cmd == cmd:
-                print("AAA")
+                print("*** WOOPS ***")
             await asyncio.sleep(0.005)
             continue
 
         self._qos_lock.acquire()
         self._pause_writing = True
         self._qos_cmd = cmd
-        self._tx_hdr = cmd._rq_header
-        self._rx_hdr = cmd._rp_header  # Could be None
         self._qos_lock.release()
 
-        await _write_data(bytearray(f"{cmd}\r\n".encode("ascii")))
-        self._timeouts(dt.now(), note="send")
+        self._tx_hdr = cmd._rq_header
+        self._rx_hdr = cmd._rp_header  # Could be None
         self._tx_retries = cmd.qos.get("retries", QOS_TX_RETRIES)
         self._rx_timeout = cmd.qos.get("timeout", QOS_RX_TIMEOUT)
+        self._timeouts(dt.now(), note="send")
+        await _write_data(bytearray(f"{cmd}\r\n".encode("ascii")))
 
         _LOGGER.debug(
             "GwyProtocol.SEND_data(%s): boff=%s, tout=%s, want=%s: SENT",
@@ -484,21 +507,24 @@ class GatewayProtocol(asyncio.Protocol):
                 continue
 
             elif self._tx_retries > 0:
+                self._tx_hdr = cmd._rq_header
+                self._tx_retries -= 1
+                self._backoff = min(self._backoff + 1, QOS_MAX_BACKOFF)
+                self._timeouts(dt.now(), note="SEND")
+                await _write_data(bytearray(f"{cmd}\r\n".encode("ascii")))
+
                 _LOGGER.warning(
-                    "GwyProtocol.send_DATA(%s): boff=%s, tout=%s, want=%s: RESENDING",
+                    "GwyProtocol.send_DATA(%s): boff=%s, tout=%s, want=%s: RE-SENT",
                     cmd._rq_header,
                     self._backoff,
                     self._timeout_full,
                     self._tx_hdr if self._tx_hdr else self._rx_hdr,
                 )
-                self._backoff = min(self._backoff + 1, QOS_MAX_BACKOFF)
-
-                self._tx_hdr = cmd._rq_header
-                await _write_data(bytearray(f"{cmd}\r\n".encode("ascii")))
-                self._timeouts(dt.now(), note="SEND")
-                self._tx_retries -= 1
 
             else:
+                self._qos_cmd = None
+                self._pause_writing = False
+
                 _LOGGER.warning(
                     "GwyProtocol.send_DATA(%s): boff=%s, tout=%s, want=%s: EXPIRED",
                     cmd._rq_header,
@@ -506,22 +532,20 @@ class GatewayProtocol(asyncio.Protocol):
                     self._timeout_full,
                     self._tx_hdr if self._tx_hdr else self._rx_hdr,
                 )
-                self._qos_cmd = None
-                self._pause_writing = False
                 break
 
         else:
+            if self._timeout_half >= dt.now():
+                self._backoff = max(self._backoff - 1, 0)
+            self._pause_writing = False
+
             _LOGGER.debug(
-                "GwyProtocol.send_DATA(%s): boff=%s, tout=%s, want=%s: SUCCESS",
+                "GwyProtocol.send_DATA(%s): boff=%s, tout=%s, want=%s: SUCCEEDED",
                 cmd._rq_header,
                 self._backoff,
                 self._timeout_full,
                 self._tx_hdr if self._tx_hdr else self._rx_hdr,
             )
-
-            if self._timeout_half >= dt.now():
-                self._backoff = max(self._backoff - 1, 0)
-            self._pause_writing = False
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
