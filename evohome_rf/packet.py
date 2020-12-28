@@ -351,15 +351,14 @@ class GatewayProtocol(asyncio.Protocol):
 
         self._qos_lock = Lock()
         self._qos_cmd = None
-
-        self._timeout_full = None
-        self._timeout_half = None
         self._tx_hdr = None
+        self._rx_hdr = None
         self._tx_retries = None
+        self._rx_timeout = None
 
         self._backoff = 0
-        self._rx_hdr = None
-        self._rx_timeout = None
+        self._timeout_full = None
+        self._timeout_half = None
 
     def connection_made(self, transport: SerialTransport) -> None:
         """Called when a connection is made."""
