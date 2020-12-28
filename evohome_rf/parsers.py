@@ -361,6 +361,10 @@ def parser_0001(payload, msg) -> Optional[dict]:
     # 00:22:43.320 ---  I --- --:------ --:------ --:------ 0001 005 00FFFF02FF
     # 00:22:43.415 ---  I --- --:------ --:------ --:------ 0001 005 00FFFF0200
 
+    # From a CM927:
+    # W/--:/--:/12:/00-0000-0501 = Test transmit
+    # W/--:/--:/12:/00-0000-0505 = Field strength
+
     assert msg.verb in (" I", " W")
     assert msg.len == 5
     assert payload[:2] in ("FC", "FF") or (
