@@ -18,6 +18,7 @@ from .const import (
     CODES_SANS_DOMAIN_ID,
     CODE_SCHEMA,
     COMMAND_FORMAT,
+    COMMAND_REGEX,
     HGI_DEVICE,
 )
 from .exceptions import ExpiredCallbackError
@@ -103,6 +104,9 @@ class Command:
         self._priority = self.qos["priority"]
         self._priority_dtm = dt_now()  # used for __lt__, etc.
 
+        self._is_valid = None
+        # self._is_valid = self.is_valid
+
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
 
@@ -144,6 +148,25 @@ class Command:
         """Return the QoS header of a response packet (if any)."""
         if self._rq_header:  # will be None if RQ header is None
             return _pkt_header(f"... {self}", response_header=True)
+
+    @property
+    def is_valid(self) -> Optional[bool]:
+        """Return True if a valid command, otherwise return False/None."""
+
+        if self._is_valid is not None:
+            return self._is_valid
+
+        if not COMMAND_REGEX.match(str(self)):
+            self._is_valid = False
+        elif 0 > len(self.payload) > 96:
+            self._is_valid = False
+        else:
+            self._is_valid = True
+
+        if not self._is_valid:
+            _LOGGER.debug("Command has an invalid structure: %s", self)
+
+        return self._is_valid
 
     @staticmethod
     def _is_valid_operand(other) -> bool:
