@@ -1013,6 +1013,7 @@ class TrvActuator(BatteryState, Setpoint, Temperature, Device):
 
 
 DEVICE_CLASSES = {
+    "00": TrvActuator,
     "01": Controller,  # use EvoSystem instead?
     "02": UfhController,
     "03": Thermostat,

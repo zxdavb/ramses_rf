@@ -146,6 +146,15 @@ CODE_MAP = {k: v["name"] for k, v in CODE_SCHEMA.items()}
 # TODO: which device type/config pairs send what packets?
 DEVICE_TABLE = {
     # Honeywell evohome
+    "00": {
+        "type": "TRV",
+        "name": "Radiator Valve",
+        "has_battery": True,
+        "has_zone_sensor": True,
+        "is_actuator": True,
+        "is_sensor": True,
+        "archetype": "HR92",  # also: HR80
+    },  #
     "01": {
         "type": "CTL",
         "name": "Controller",
@@ -363,6 +372,7 @@ DHW_STATE_LOOKUP = {v: k for k, v in DHW_STATE_MAP.items()}
 ZONE_TABLE = {
     "UFH": {"type": "02", "actuator": "UFC", "name": "Underfloor Heating"},
     "RAD": {"type": "04", "actuator": "TRV", "name": "Radiator Valve"},
+    "RAD1": {"type": "00", "actuator": "TRV", "name": "Radiator Valve"},
     "ELE": {"type": "13", "actuator": "BDR", "name": "Electric Heat"},
     "VAL": {"type": "x0", "actuator": "BDR", "name": "Zone Valve"},
     "MIX": {"type": "x1", "actuator": "HM8", "name": "Mixing Valve"},

@@ -557,10 +557,10 @@ class Zone(ZoneBase):
             }["temperature"]
 
         elif msg.code == "3150":  # TODO: and msg.verb in (" I", "RP")?
-            assert msg.src.type in ("02", "04", "13")
-            assert self._zone_type in (None, "RAD", "UFH", "VAL")  # ELE don't have 3150
+            assert msg.src.type in ("00", "02", "04", "13")
+            assert self._zone_type in (None, "RAD1", "RAD", "UFH", "VAL")  # ELE don't have 3150
 
-            if msg.src.type in ("02", "04", "13"):
+            if msg.src.type in ("00", "02", "04", "13"):
                 zone_type = ZONE_CLASS_MAP[msg.src.type]
                 self._set_zone_type("VAL" if zone_type == "ELE" else zone_type)
 
@@ -607,7 +607,7 @@ class Zone(ZoneBase):
     def _set_sensor(self, device: Device):  # self._sensor
         """Set the sensor for this zone (one of: 01:, 03:, 04:, 12:, 22:, 34:)."""
 
-        sensor_types = ("01", "03", "04", "12", "22", "34")
+        sensor_types = ("00", "01", "03", "04", "12", "22", "34")
         if not isinstance(device, Device) or device.type not in sensor_types:
             raise TypeError(f"Invalid device type for zone sensor: {device}")
 
@@ -632,9 +632,11 @@ class Zone(ZoneBase):
             return ZONE_TYPE_MAP.get(self._zone_type)
 
         # TODO: actuators
-        dev_types = [d.type for d in self.devices if d.type in ("02", "04", "13")]
+        dev_types = [d.type for d in self.devices if d.type in ("00", "02", "04", "13")]
 
-        if "02" in dev_types:
+        if "00" in dev_types:
+            zone_type = "RAD1"
+        elif "02" in dev_types:
             zone_type = "UFH"
         elif "13" in dev_types:
             zone_type = "VAL" if "3150" in self._msgs else "ELE"
@@ -944,6 +946,7 @@ class MixZone(ZoneHeatDemand, Zone):  # Mix valve zones
 
 ZONE_CLASSES = {
     "RAD": RadZone,
+    "RAD1": RadZone,
     "ELE": EleZone,
     "VAL": ValZone,
     "UFH": UfhZone,
