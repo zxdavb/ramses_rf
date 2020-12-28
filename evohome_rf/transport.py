@@ -328,7 +328,7 @@ class Ramses2Protocol(asyncio.Protocol):
         """Called when some data is to be sent (not a callback)."""
         _LOGGER.debug("RamsesProtocol.send_data(%s)", cmd)
         while self._pause_writing:
-            asyncio.sleep(0.05)
+            asyncio.sleep(0.005)
         self._transport.write(cmd)
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
