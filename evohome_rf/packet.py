@@ -407,16 +407,21 @@ class GatewayProtocol(asyncio.Protocol):
             # )
 
             if pkt._header == self._tx_hdr:
+                # the (echo of) RQ that was expected
                 self._tx_hdr = None
                 self._timeouts(dt.now(), note="Rcvd")
                 wanted = self._rx_hdr
             elif pkt._header == self._qos_cmd._rq_header:
+                # an (echo of) RQ that wasn't expected (had already got one)
+                # TODO: should increase backoff?
                 self._timeouts(dt.now(), note="rCvd")
                 wanted = self._rx_hdr
             elif pkt._header == self._rx_hdr or self._rx_hdr is None:
+                # the RP that was expected
                 self._qos_cmd = None
                 wanted = None
             else:
+                # not the packet that was expected
                 self._timeouts(dt.now(), note="rcVd")
                 wanted = self._tx_hdr if self._tx_hdr else self._rx_hdr
 
