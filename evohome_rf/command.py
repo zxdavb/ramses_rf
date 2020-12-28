@@ -51,13 +51,13 @@ if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def _pkt_header(packet, response_header=None) -> Optional[str]:
+def _pkt_header(packet, rx_header=None) -> Optional[str]:
     """Return the QoS header of a packet."""
 
     packet = str(packet)
 
     verb = packet[4:6]
-    if response_header:
+    if rx_header:
         verb = "RP" if verb == "RQ" else " I"  # RQ/RP, or W/I
     code = packet[41:45]
     addr = packet[21:30] if packet[11:13] == "18" else packet[11:20]
@@ -95,6 +95,10 @@ class Command:
         self.code = code
         self.payload = payload
 
+        self._is_valid = None
+        if not self.is_valid:
+            raise ValueError(f"Invalid parameter values for command: {self}")
+
         self.callback = kwargs.get("callback", {})  # TODO: use voluptuous
         if self.callback:
             self.callback["args"] = self.callback.get("args", [])
@@ -105,9 +109,8 @@ class Command:
         self._priority = self.qos["priority"]
         self._priority_dtm = dt_now()  # used for __lt__, etc.
 
-        self._is_valid = None
-        if not self.is_valid:
-            raise ValueError(f"Invalid parameter values for command: {self}")
+        self._rx_header = None
+        self._tx_header = None
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
@@ -141,15 +144,18 @@ class Command:
         return qos
 
     @property
-    def _tx_header(self) -> Optional[str]:
+    def tx_header(self) -> Optional[str]:
         """Return the QoS header of this (request) packet."""
-        return _pkt_header(f"... {self}")
+        if self._tx_header is None:
+            self._tx_header = _pkt_header(f"... {self}")
+        return self._tx_header
 
     @property
-    def _rx_header(self) -> Optional[str]:
+    def rx_header(self) -> Optional[str]:
         """Return the QoS header of a response packet (if any)."""
-        if self._tx_header:  # will be None if RQ header is None
-            return _pkt_header(f"... {self}", response_header=True)
+        if self.tx_header and self._rx_header is None:
+            self._rx_header = _pkt_header(f"... {self}", rx_header=True)
+        return self._rx_header
 
     @property
     def is_valid(self) -> Optional[bool]:

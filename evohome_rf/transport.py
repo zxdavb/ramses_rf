@@ -67,7 +67,7 @@ class Ramses2Transport(asyncio.Transport):
             _LOGGER.debug("RamsesTransport.pkt_dispatcher(%s): send_data", cmd)
             if cmd.callback:
                 cmd.callback["timeout"] = dt.now() + cmd.callback["timeout"]
-                self._callbacks[cmd._rx_header] = cmd.callback
+                self._callbacks[cmd.rx_header] = cmd.callback
 
             await self._dispatcher(cmd)  # send_data, *after* registering callback
 
