@@ -39,31 +39,28 @@ FIVE_MINS = td(minutes=5)
 
 
 Priority = SimpleNamespace(LOW=6, DEFAULT=4, HIGH=2, ASAP=0)
-# Qos = SimpleNamespace(
-#     AT_MOST_ONCE=0,  # PUB (no handshake)
-#     AT_LEAST_ONCE=1,  # PUB, ACK (2-way handshake)
-#     EXACTLY_ONCE=2,  # PUB, REC, REL (FIN) (3/4-way handshake)
-# )
-
 
 _LOGGER = logging.getLogger(__name__)
 if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def _pkt_header(packet, rx_header=None) -> Optional[str]:
+def _pkt_header(pkt, rx_header=None) -> Optional[str]:
     """Return the QoS header of a packet."""
 
-    packet = str(packet)
+    pkt = str(pkt)
 
-    verb = packet[4:6]
+    verb = pkt[4:6]
     if rx_header:
         verb = "RP" if verb == "RQ" else " I"  # RQ/RP, or W/I
-    code = packet[41:45]
-    addr = packet[21:30] if packet[11:13] == "18" else packet[11:20]
-    payload = packet[50:]
+    code = pkt[41:45]
+    addr = pkt[21:30] if pkt[11:13] == "18" else pkt[11:20]
+    payload = pkt[50:]
 
     header = "|".join((verb, addr, code))
+
+    if code == "0001" and rx_header:
+        return
 
     if code in ("0005", "000C"):  # zone_idx, device_class
         return "|".join((header, payload[:4]))
@@ -242,7 +239,7 @@ class FaultLog:  # 0418
         time_start = dt.now()
         while not self._fault_log_done:
             await asyncio.sleep(TIMER_SHORT_SLEEP)
-            if dt.now() > time_start + TIMER_LONG_TIMEOUT:
+            if dt.now() > time_start + TIMER_LONG_TIMEOUT * 2:
                 raise ExpiredCallbackError("failed to obtain log entry (long)")
 
         return self.fault_log
@@ -280,7 +277,7 @@ class FaultLog:  # 0418
                 "kwargs": {},
             }
 
-        callback = {"func": rq_callback, "timeout": td(seconds=5)}
+        callback = {"func": rq_callback, "timeout": td(seconds=10)}
         cmd = Command("RQ", self._ctl.id, "0418", f"{log_idx:06X}", callback=callback)
         asyncio.create_task(self._gwy.msg_protocol.send_data(cmd))
 

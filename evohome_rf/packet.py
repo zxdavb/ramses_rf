@@ -18,10 +18,11 @@ from typing import ByteString, Optional, Tuple
 from serial import Serial, SerialException, serial_for_url  # noqa
 from serial_asyncio import SerialTransport
 
-from .command import Command, _pkt_header
+from .command import Command, Priority, _pkt_header
 from .const import (
     DTM_LONG_REGEX,
     MESSAGE_REGEX,
+    HGI_DEVICE,
     NON_DEVICE,
     NUL_DEVICE,
     __dev_mode__,
@@ -45,15 +46,18 @@ Pause = SimpleNamespace(
     LONG=timedelta(seconds=0.5),
 )
 
+INIT_QOS = {"priority": Priority.ASAP, "retries": 10}
+INIT_CMD = Command(" I", HGI_DEVICE.id, "0001", "00FFFF0200", qos=INIT_QOS)
+
 # tx (from sent to gwy, to get back from gwy) seems to takes approx. 0.025s
 QOS_TX_TIMEOUT = timedelta(seconds=0.05)  # 0.20 OK, but too high?
 QOS_TX_RETRIES = 2
 
 QOS_RX_TIMEOUT = timedelta(seconds=0.20)  # 0.10 too low sometimes
-QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many
+QOS_MAX_BACKOFF = 5  # 4 = 16x, is too many
 
 _LOGGER = logging.getLogger(__name__)
-if True or __dev_mode__:
+if False or __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 _PKT_LOGGER = logging.getLogger(f"{__name__}-log")
@@ -359,6 +363,8 @@ class GatewayProtocol(asyncio.Protocol):
         self._backoff = 0
         self._timeout_full = None
         self._timeout_half = None
+
+        asyncio.create_task(self.send_data(INIT_CMD))
 
     def connection_made(self, transport: SerialTransport) -> None:
         """Called when a connection is made."""
