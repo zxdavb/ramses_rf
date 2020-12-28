@@ -88,6 +88,7 @@ class Command:
 
     def __init__(self, verb, dest_addr, code, payload, **kwargs) -> None:
         """Initialise the class."""
+
         self.verb = verb
         self.from_addr = kwargs.get("from_addr", HGI_DEVICE.id)
         self.dest_addr = dest_addr if dest_addr is not None else self.from_addr
@@ -140,14 +141,14 @@ class Command:
         return qos
 
     @property
-    def _rq_header(self) -> Optional[str]:
+    def _tx_header(self) -> Optional[str]:
         """Return the QoS header of this (request) packet."""
         return _pkt_header(f"... {self}")
 
     @property
-    def _rp_header(self) -> Optional[str]:
+    def _rx_header(self) -> Optional[str]:
         """Return the QoS header of a response packet (if any)."""
-        if self._rq_header:  # will be None if RQ header is None
+        if self._tx_header:  # will be None if RQ header is None
             return _pkt_header(f"... {self}", response_header=True)
 
     @property

@@ -409,7 +409,7 @@ class GatewayProtocol(asyncio.Protocol):
                 self._tx_hdr = None
                 self._timeouts(dt.now(), note="Rcvd")
                 wanted = self._rx_hdr
-            elif pkt._header == self._qos_cmd._rq_header:
+            elif pkt._header == self._qos_cmd._tx_header:
                 # an (echo of) RQ that wasn't expected (had already got one)
                 # TODO: should increase backoff?
                 self._timeouts(dt.now(), note="rCvd")
@@ -445,7 +445,7 @@ class GatewayProtocol(asyncio.Protocol):
 
         async def _write_data(data: bytearray) -> None:
             """Called when some data is to be sent (not a callback)."""
-            # _LOGGER.debug("GwyProtocol.sent_data(%s): %s", cmd._rq_header, data)
+            # _LOGGER.debug("GwyProtocol.sent_data(%s): %s", cmd._tx_header, data)
 
             while self._pause_writing:
                 await asyncio.sleep(0.005)
@@ -456,13 +456,13 @@ class GatewayProtocol(asyncio.Protocol):
 
         if not cmd.is_valid:
             _LOGGER.warning(
-                "GwyProtocol.send_data(%s): invalid command: %s", cmd._rq_header, cmd
+                "GwyProtocol.send_data(%s): invalid command: %s", cmd._tx_header, cmd
             )
             return
         if self._qos_cmd:
             _LOGGER.debug(
                 "GwyProtocol.send_data(%s): boff=%s, tout=%s, want=%s",
-                cmd._rq_header,
+                cmd._tx_header,
                 self._backoff,
                 self._timeout_full,
                 self._tx_hdr if self._tx_hdr else self._rx_hdr,
@@ -470,7 +470,7 @@ class GatewayProtocol(asyncio.Protocol):
         else:
             _LOGGER.debug(
                 "GwyProtocol.send_data(%s): boff=%s, tout=None",
-                cmd._rq_header,
+                cmd._tx_header,
                 self._backoff,
             )
 
@@ -483,8 +483,8 @@ class GatewayProtocol(asyncio.Protocol):
         self._qos_cmd = cmd
         self._qos_lock.release()
 
-        self._tx_hdr = cmd._rq_header
-        self._rx_hdr = cmd._rp_header  # Could be None
+        self._tx_hdr = cmd._tx_header
+        self._rx_hdr = cmd._rx_header  # Could be None
         self._tx_retries = cmd.qos.get("retries", QOS_TX_RETRIES)
         self._rx_timeout = cmd.qos.get("timeout", QOS_RX_TIMEOUT)
 
@@ -493,7 +493,7 @@ class GatewayProtocol(asyncio.Protocol):
 
         _LOGGER.debug(
             "GwyProtocol.SEND_data(%s): boff=%s, tout=%s, want=%s: SENT",
-            cmd._rq_header,
+            cmd._tx_header,
             self._backoff,
             self._timeout_full,
             self._tx_hdr,
@@ -507,7 +507,7 @@ class GatewayProtocol(asyncio.Protocol):
                 continue
 
             elif self._tx_retries > 0:
-                self._tx_hdr = cmd._rq_header
+                self._tx_hdr = cmd._tx_header
                 self._tx_retries -= 1
                 self._backoff = min(self._backoff + 1, QOS_MAX_BACKOFF)
                 self._timeouts(dt.now(), note="SEND")
@@ -515,7 +515,7 @@ class GatewayProtocol(asyncio.Protocol):
 
                 _LOGGER.warning(
                     "GwyProtocol.send_DATA(%s): boff=%s, tout=%s, want=%s: RE-SENT",
-                    cmd._rq_header,
+                    cmd._tx_header,
                     self._backoff,
                     self._timeout_full,
                     self._tx_hdr if self._tx_hdr else self._rx_hdr,
@@ -526,7 +526,7 @@ class GatewayProtocol(asyncio.Protocol):
 
                 _LOGGER.warning(
                     "GwyProtocol.send_DATA(%s): boff=%s, tout=%s, want=%s: EXPIRED",
-                    cmd._rq_header,
+                    cmd._tx_header,
                     self._backoff,
                     self._timeout_full,
                     self._tx_hdr if self._tx_hdr else self._rx_hdr,
@@ -538,7 +538,7 @@ class GatewayProtocol(asyncio.Protocol):
 
             _LOGGER.debug(
                 "GwyProtocol.send_DATA(%s): boff=%s, tout=%s, want=%s: SUCCEEDED",
-                cmd._rq_header,
+                cmd._tx_header,
                 self._backoff,
                 self._timeout_full,
                 self._tx_hdr if self._tx_hdr else self._rx_hdr,
