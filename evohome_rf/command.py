@@ -22,6 +22,7 @@ from .const import (
     HGI_DEVICE,
 )
 from .exceptions import ExpiredCallbackError
+from .helpers import extract_addrs
 from .logger import dt_now
 
 DAY_OF_WEEK = "day_of_week"
@@ -45,16 +46,15 @@ if False and __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def _pkt_header(pkt, rx_header=None) -> Optional[str]:
+def _pkt_header(pkt: str, rx_header=None) -> Optional[str]:
     """Return the QoS header of a packet."""
-
-    pkt = str(pkt)
 
     verb = pkt[4:6]
     if rx_header:
         verb = "RP" if verb == "RQ" else " I"  # RQ/RP, or W/I
     code = pkt[41:45]
-    addr = pkt[21:30] if pkt[11:13] == "18" else pkt[11:20]
+    src, dst, _ = extract_addrs(pkt)
+    addr = dst.id if src.type == "18" else src.id
     payload = pkt[50:]
 
     header = "|".join((verb, addr, code))

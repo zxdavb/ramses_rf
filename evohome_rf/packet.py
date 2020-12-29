@@ -205,7 +205,7 @@ class Packet:
         """Return the QoS header of this packet."""
 
         if self.is_valid:
-            return _pkt_header(str(self))
+            return _pkt_header(self.packet)
 
 
 async def file_pkts(fp):
@@ -373,12 +373,12 @@ class GatewayProtocol(asyncio.Protocol):
 
         if self._qos_cmd:
             # _LOGGER.debug(
-                #     "GwyProtocol.data_rcvd(%s): boff=%s, tout=%s, want=%s: CHECKING",
-                #     pkt._header,
-                #     self._backoff,
-                #     self._timeout_full,
-                #     self._tx_hdr if self._tx_hdr else self._rx_hdr,
-                # )
+            #     "GwyProtocol.data_rcvd(%s): boff=%s, tout=%s, want=%s: CHECKING",
+            #     pkt._header,
+            #     self._backoff,
+            #     self._timeout_full,
+            #     self._tx_hdr if self._tx_hdr else self._rx_hdr,
+            # )
 
             if pkt._header == self._tx_hdr:
                 # the (echo of) RQ that was expected
@@ -408,11 +408,11 @@ class GatewayProtocol(asyncio.Protocol):
             )
 
         # else:  # throttle down the backoff
-            #     _LOGGER.debug(
-            #         "GwyProtocol.data_rcvd(%s): boff=%s, tout=None",
-            #         pkt._header,
-            #         self._backoff,
-            #     )
+        #     _LOGGER.debug(
+        #         "GwyProtocol.data_rcvd(%s): boff=%s, tout=None",
+        #         pkt._header,
+        #         self._backoff,
+        #     )
 
         self._callback(pkt)
 
