@@ -5,9 +5,9 @@
 
 from datetime import datetime as dt
 import re
-from typing import Any, List, Tuple, Union
+from typing import List, Tuple, Union
 
-from .const import NON_DEVICE, NUL_DEVICE, id_to_address
+from .const import NON_DEVICE, NUL_DEVICE, Address, id_to_address
 
 
 def dtm_to_hex(dtm: Union[str, dt]) -> str:
@@ -51,10 +51,10 @@ def dtm_from_hex(value: str) -> str:  # from parsers
     ).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def extract_addrs(packet: str) -> Tuple[Any, Any, List]:
-    """Return True if the address fields are valid (create any addresses)."""
+def extract_addrs(pkt: str) -> Tuple[Address, Address, List[Address]]:
+    """Return the address fields."""
 
-    addrs = [id_to_address(packet[i : i + 9]) for i in range(11, 32, 10)]
+    addrs = [id_to_address(pkt[i : i + 9]) for i in range(11, 32, 10)]
 
     # This check will invalidate these rare pkts (which are never transmitted)
     # ---  I --- --:------ --:------ --:------ 0001 005 00FFFF02FF
@@ -70,7 +70,7 @@ def extract_addrs(packet: str) -> Tuple[Any, Any, List]:
             addrs[0].id == addrs[1].id == NON_DEVICE.id,
         )
     ):
-        raise TypeError
+        raise TypeError("invalid addr set")
 
     device_addrs = list(filter(lambda x: x.type != "--", addrs))
 
@@ -81,10 +81,10 @@ def extract_addrs(packet: str) -> Tuple[Any, Any, List]:
         src_addr = dst_addr
     elif src_addr.type == dst_addr.type:
         # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5 (invalid)
-        raise TypeError
+        raise TypeError("invalid src/dst addr pair")
 
     if len(device_addrs) > 2:
-        raise TypeError
+        raise TypeError("too many addrs (3 or more)")
 
     return src_addr, dst_addr, addrs
 
