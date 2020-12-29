@@ -5,15 +5,9 @@
 
 from datetime import datetime as dt
 import re
-from typing import Union
+from typing import Any, List, Tuple, Union
 
-
-def slugify_string(key: str) -> str:
-    """Convert a string to snake_case."""
-    string = re.sub(r"[\-\.\s]", "_", str(key))
-    return (string[0]).lower() + re.sub(
-        r"[A-Z]", lambda matched: f"_{matched.group(0).lower()}", string[1:]
-    )
+from .const import NON_DEVICE, NUL_DEVICE, id_to_address
 
 
 def dtm_to_hex(dtm: Union[str, dt]) -> str:
@@ -55,3 +49,49 @@ def dtm_from_hex(value: str) -> str:  # from parsers
         minute=int(value[2:4], 16),
         second=int(value[:2], 16) & 0b1111111,  # 1st bit: used for DST
     ).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def extract_addrs(packet: str) -> Tuple[Any, Any, List]:
+    """Return True if the address fields are valid (create any addresses)."""
+
+    addrs = [id_to_address(packet[i : i + 9]) for i in range(11, 32, 10)]
+
+    # This check will invalidate these rare pkts (which are never transmitted)
+    # ---  I --- --:------ --:------ --:------ 0001 005 00FFFF02FF
+    # ---  I --- --:------ --:------ --:------ 0001 005 00FFFF0200
+    if not all(
+        (
+            addrs[0].id not in (NON_DEVICE.id, NUL_DEVICE.id),
+            (addrs[1].id, addrs[2].id).count(NON_DEVICE.id) == 1,
+        )
+    ) and not all(
+        (
+            addrs[2].id not in (NON_DEVICE.id, NUL_DEVICE.id),
+            addrs[0].id == addrs[1].id == NON_DEVICE.id,
+        )
+    ):
+        raise TypeError
+
+    device_addrs = list(filter(lambda x: x.type != "--", addrs))
+
+    src_addr = device_addrs[0]
+    dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEVICE
+
+    if src_addr.id == dst_addr.id:
+        src_addr = dst_addr
+    elif src_addr.type == dst_addr.type:
+        # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5 (invalid)
+        raise TypeError
+
+    if len(device_addrs) > 2:
+        raise TypeError
+
+    return src_addr, dst_addr, addrs
+
+
+def slugify_string(key: str) -> str:
+    """Convert a string to snake_case."""
+    string = re.sub(r"[\-\.\s]", "_", str(key))
+    return (string[0]).lower() + re.sub(
+        r"[A-Z]", lambda matched: f"_{matched.group(0).lower()}", string[1:]
+    )

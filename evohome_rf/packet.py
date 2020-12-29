@@ -26,8 +26,8 @@ from .const import (
     NON_DEVICE,
     NUL_DEVICE,
     __dev_mode__,
-    id_to_address,
 )
+from .helpers import extract_addrs
 from .logger import dt_str
 
 SERIAL_CONFIG = {
@@ -161,41 +161,13 @@ class Packet:
         """Return True if a valid packets, otherwise return False/None & log it."""
         # 'good' packets are not logged here, as they may be for silent discarding
 
-        def validate_addresses() -> Optional[bool]:
+        def validate_addresses() -> bool:
             """Return True if the address fields are valid (create any addresses)."""
-            for idx, addr in enumerate(
-                [self.packet[i : i + 9] for i in range(11, 32, 10)]
-            ):
-                self.addrs[idx] = id_to_address(addr)
-
-            # This check will invalidate these rare pkts (which are never transmitted)
-            # ---  I --- --:------ --:------ --:------ 0001 005 00FFFF02FF
-            # ---  I --- --:------ --:------ --:------ 0001 005 00FFFF0200
-            if not all(
-                (
-                    self.addrs[0].id not in (NON_DEVICE.id, NUL_DEVICE.id),
-                    (self.addrs[1].id, self.addrs[2].id).count(NON_DEVICE.id) == 1,
-                )
-            ) and not all(
-                (
-                    self.addrs[2].id not in (NON_DEVICE.id, NUL_DEVICE.id),
-                    self.addrs[0].id == self.addrs[1].id == NON_DEVICE.id,
-                )
-            ):
+            try:
+                self.src_addr, self.dst_addr, self.addrs = extract_addrs(self.packet)
+            except TypeError:
                 return False
-
-            device_addrs = list(filter(lambda x: x.type != "--", self.addrs))
-
-            self.src_addr = device_addrs[0]
-            self.dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEVICE
-
-            if self.src_addr.id == self.dst_addr.id:
-                self.src_addr = self.dst_addr
-            elif self.src_addr.type == self.dst_addr.type:
-                # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5 (invalid)
-                return False
-
-            return len(device_addrs) < 3
+            return True
 
         if self._is_valid is not None or not self._pkt_str:
             return self._is_valid
@@ -215,12 +187,12 @@ class Packet:
         err_msg = ""
         if not MESSAGE_REGEX.match(self.packet):
             err_msg = "invalid packet structure"
-        elif not validate_addresses():
-            err_msg = "invalid packet addresses"
         elif int(self.packet[46:49]) > 48:
             err_msg = "excessive payload length"
         elif int(self.packet[46:49]) * 2 != len(self.packet[50:]):
             err_msg = "mismatched payload length"
+        elif not validate_addresses():
+            err_msg = "invalid packet addresses"
         else:
             _PKT_LOGGER.info("%s ", self.packet, extra=self.__dict__)
             return True
@@ -398,8 +370,6 @@ class GatewayProtocol(asyncio.Protocol):
     @bytestr_to_pkt
     def data_received(self, pkt: Packet) -> None:
         """Called when some data is received. Adjust backoff as required."""
-
-        # self._qos_lock.acquire()  # self._qos_lock.release()
 
         if self._qos_cmd:
             # _LOGGER.debug(
