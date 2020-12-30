@@ -174,7 +174,7 @@ class DeviceBase(Entity, metaclass=ABCMeta):
 
         if discover_flag & DISCOVER_SCHEMA:
             # self._send_cmd("1FC9", retries=0)
-            if self.type not in DEVICE_HAS_BATTERY:
+            if self.type not in DEVICE_HAS_BATTERY:  # TODO: remove 13: (others too?)
                 self._send_cmd("10E0", retries=0)
 
         if discover_flag & DISCOVER_PARAMS:
