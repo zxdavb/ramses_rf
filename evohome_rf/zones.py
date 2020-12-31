@@ -32,14 +32,14 @@ from .const import (
     ZONE_TYPE_SLUGS,
     ZONE_MODE_LOOKUP,
     ZONE_MODE_MAP,
-    __dev_mode__,
+    _dev_mode_,
 )
 from .devices import Device, Entity, _payload
 from .exceptions import CorruptStateError
 from .helpers import dtm_to_hex
 
 _LOGGER = logging.getLogger(__name__)
-if False and __dev_mode__:
+if False and _dev_mode_:
     _LOGGER.setLevel(logging.DEBUG)
 
 
@@ -225,7 +225,7 @@ class DhwZone(ZoneBase, HeatDemand):
     def _discover(self, discover_flags=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
 
-        # if False and __dev_mode__ and self.idx == "FA":  # dev/test code
+        # if False and _dev_mode_ and self.idx == "FA":  # dev/test code
         #     self.async_set_override(state="On")
 
         if discover_flags & DISCOVER_SCHEMA:
@@ -483,7 +483,7 @@ class Zone(ZoneSchedule, ZoneBase):
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
-        if __dev_mode__ and self.idx == "99":  # dev/test code
+        if _dev_mode_ and self.idx == "99":  # dev/test code
             asyncio.create_task(  # TODO: test/dev only
                 self.async_cancel_override()
                 # self.async_set_override(

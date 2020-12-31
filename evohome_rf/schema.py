@@ -23,7 +23,7 @@ from .const import (
     ATTR_ZONES,
     DEFAULT_MAX_ZONES,
     ZONE_TYPE_SLUGS,
-    __dev_mode__,
+    _dev_mode_,
     id_to_address as addr,
 )
 
@@ -148,7 +148,7 @@ PARSE_SCHEMA = vol.Schema({})
 CLI_SCHEMA = vol.Schema({})
 
 _LOGGER = logging.getLogger(__name__)
-if False and __dev_mode__:
+if False and _dev_mode_:
     _LOGGER.setLevel(logging.DEBUG)
 
 

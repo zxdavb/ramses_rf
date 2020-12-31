@@ -7,10 +7,10 @@ import logging
 import struct
 from typing import Any
 
-from .const import __dev_mode__
+from .const import _dev_mode_
 
 _LOGGER = logging.getLogger(__name__)
-if False and __dev_mode__:
+if False and _dev_mode_:
     _LOGGER.setLevel(logging.DEBUG)
 
 # Data structure shamelessy copied, with thanks to @nlrb, from:

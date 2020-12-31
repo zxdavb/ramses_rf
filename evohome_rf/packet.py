@@ -24,7 +24,7 @@ from .const import (
     MESSAGE_REGEX,
     HGI_DEVICE,
     NUL_DEVICE,
-    __dev_mode__,
+    _dev_mode_,
 )
 from .helpers import extract_addrs
 from .logger import dt_str
@@ -59,7 +59,7 @@ _PKT_LOGGER = logging.getLogger(f"{__name__}-log")
 # _PKT_LOGGER.setLevel(logging.DEBUG)  # can do DEBUG, minimum should be INFO
 
 _LOGGER = logging.getLogger(__name__)
-if True or __dev_mode__:
+if True or _dev_mode_:
     _LOGGER.setLevel(logging.INFO)
 
 

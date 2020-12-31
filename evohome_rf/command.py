@@ -14,7 +14,7 @@ from typing import Optional
 import zlib
 
 from .const import (
-    __dev_mode__,
+    _dev_mode_,
     CODES_SANS_DOMAIN_ID,
     CODE_SCHEMA,
     COMMAND_FORMAT,
@@ -42,7 +42,7 @@ FIVE_MINS = td(minutes=5)
 Priority = SimpleNamespace(LOW=6, DEFAULT=4, HIGH=2, ASAP=0)
 
 _LOGGER = logging.getLogger(__name__)
-if False and __dev_mode__:
+if False and _dev_mode_:
     _LOGGER.setLevel(logging.DEBUG)
 
 

@@ -17,7 +17,7 @@ try:
 except ModuleNotFoundError:
     _use_color_ = False
 
-from .const import __dev_mode__
+from .const import _dev_mode_
 
 DEFAULT_FMT = "%(asctime)s.%(msecs)03d %(message)s"
 DEFAULT_DATEFMT = "%H:%M:%S"
@@ -29,7 +29,7 @@ logging.basicConfig(level=DEFAULT_LEVEL, format=DEFAULT_FMT, datefmt=DEFAULT_DAT
 
 CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
 # HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssss, shorter format for the console
-if __dev_mode__:  # Do this to have longer-format console messages
+if _dev_mode_:  # Do this to have longer-format console messages
     CONSOLE_FMT = "%(date)sT%(time)s %(message)s"
 else:
     CONSOLE_FMT = "%(time).12s " + f"%(message).{CONSOLE_COLS - 13}s"
@@ -51,7 +51,7 @@ LOG_COLOURS = {
 }  # default_log_colors
 
 _LOGGER = logging.getLogger(__name__)
-if False or __dev_mode__:
+if False or _dev_mode_:
     _LOGGER.setLevel(logging.DEBUG)
 
 if _use_color_:

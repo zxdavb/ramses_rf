@@ -25,7 +25,7 @@ from .const import (
     DISCOVER_ALL,
     SYSTEM_MODE_LOOKUP,
     SYSTEM_MODE_MAP,
-    __dev_mode__,
+    _dev_mode_,
 )
 from .devices import Device, Entity, _payload
 from .exceptions import CorruptStateError
@@ -35,7 +35,7 @@ from .schema import ATTR_HTG_CONTROL, ATTR_ORPHANS, ATTR_UFH_CONTROLLERS, ATTR_Z
 from .zones import DhwZone, Zone
 
 _LOGGER = logging.getLogger(__name__)
-if False and __dev_mode__:
+if False and _dev_mode_:
     _LOGGER.setLevel(logging.DEBUG)
 
 

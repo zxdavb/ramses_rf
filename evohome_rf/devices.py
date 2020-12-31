@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 
 from .command import Command, Priority
 from .const import (
-    __dev_mode__,
+    _dev_mode_,
     # CODE_SCHEMA,
     # CODE_0005_ZONE_TYPE,
     # CODE_000C_DEVICE_TYPE,
@@ -28,7 +28,7 @@ from .exceptions import CorruptStateError
 from .helpers import slugify_string as slugify
 
 _LOGGER = logging.getLogger(__name__)
-if False and __dev_mode__:
+if False and _dev_mode_:
     _LOGGER.setLevel(logging.DEBUG)
 
 

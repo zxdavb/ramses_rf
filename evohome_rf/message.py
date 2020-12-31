@@ -24,7 +24,7 @@ from .const import (
     CODE_0005_ZONE_TYPE,
     ZONE_TYPE_SLUGS,
     Address,
-    __dev_mode__,
+    _dev_mode_,
 )
 from .devices import Device
 from .exceptions import CorruptPayloadError
@@ -36,7 +36,7 @@ DONT_CREATE_ENTITIES = 2
 DONT_UPDATE_ENTITIES = 1
 
 _LOGGER = logging.getLogger(__name__)
-if False and __dev_mode__:
+if False and _dev_mode_:
     _LOGGER.setLevel(logging.DEBUG)
 
 
@@ -289,7 +289,7 @@ class Message:
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
             hint = f": {err}" if str(err) != "" else ""
             log_message(
-                _PKT_LOGGER.exception if __dev_mode__ else _LOGGER.warning,
+                _PKT_LOGGER.exception if _dev_mode_ else _LOGGER.warning,
                 f"%s < Validation error{hint}",
             )
             self._is_valid = False

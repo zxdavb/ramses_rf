@@ -19,7 +19,7 @@ import signal
 from threading import Lock
 from typing import Dict, List, Tuple  # Any, Tuple
 
-from .const import __dev_mode__, ATTR_ORPHANS
+from .const import _dev_mode_, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
 from .discovery import spawn_execute_scripts, spawn_monitor_scripts  # noqa
 from .logger import set_pkt_logging
@@ -38,7 +38,7 @@ from .transport import (
 from .version import __version__  # noqa
 
 _LOGGER = logging.getLogger(__name__)
-if False and __dev_mode__:
+if False and _dev_mode_:
     _LOGGER.setLevel(logging.DEBUG)
 
 

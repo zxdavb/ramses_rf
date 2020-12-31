@@ -14,7 +14,7 @@ def slug(string: str) -> str:
 # grep ' F[89ABxDE]' | grep -vE ' (0008|1F09/F8|1FC9|2D49/FD) '
 # grep ' F[89ABCDE]' | grep -vE ' (0008|1F09/xx|1FC9|0001|0009|1100|3150|3B00) '
 
-__dev_mode__ = False
+_dev_mode_ = False
 
 HGI_DEV_ID = "18:000730"  # default type and address of HGI, 18:013393
 NON_DEV_ID = "--:------"

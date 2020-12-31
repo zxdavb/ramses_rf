@@ -22,14 +22,14 @@ from .const import (
     MAY_USE_ZONE_IDX,
     SYSTEM_MODE_MAP,
     ZONE_MODE_MAP,
-    __dev_mode__,
+    _dev_mode_,
 )
 from .devices import dev_hex_to_id
 from .helpers import dtm_from_hex as _dtm
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
 
 _LOGGER = logging.getLogger(__name__)
-if False and __dev_mode__:
+if False and _dev_mode_:
     _LOGGER.setLevel(logging.DEBUG)
 
 

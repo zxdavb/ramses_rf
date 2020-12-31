@@ -16,7 +16,7 @@ from typing import List, Optional, Tuple  # Any
 from serial import serial_for_url  # SerialException,
 from serial_asyncio import SerialTransport
 
-from .const import __dev_mode__
+from .const import _dev_mode_
 from .message import Message
 from .packet import SERIAL_CONFIG, GatewayProtocol, WinSerTransport
 
@@ -24,7 +24,7 @@ MAX_BUFFER_SIZE = 200
 WRITER_TASK = "writer_task"
 
 _LOGGER = logging.getLogger(__name__)
-if True and __dev_mode__:
+if True and _dev_mode_:
     _LOGGER.setLevel(logging.DEBUG)
 
 
