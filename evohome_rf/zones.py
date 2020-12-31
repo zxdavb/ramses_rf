@@ -930,7 +930,7 @@ class UfhZone(ZoneDemand, Zone):
         return {**super().status, "ufh_setpoint": self.ufh_setpoint}
 
 
-class MixZone(ZoneDemand, Zone):
+class MixZone(Zone):
     """For a modulating valve controlled by a HM80 (will also call for heat)."""
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
