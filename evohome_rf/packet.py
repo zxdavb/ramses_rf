@@ -23,6 +23,7 @@ from .const import (
     DTM_LONG_REGEX,
     MESSAGE_REGEX,
     HGI_DEVICE,
+    NUL_DEVICE,
     __dev_mode__,
 )
 from .helpers import extract_addrs
@@ -44,53 +45,28 @@ Pause = SimpleNamespace(
     LONG=timedelta(seconds=0.5),
 )
 
-INIT_QOS = {"priority": Priority.ASAP, "retries": 10}
-INIT_CMD = Command(" I", HGI_DEVICE.id, "0001", "00FFFF0200", qos=INIT_QOS)
+INIT_QOS = {"priority": Priority.ASAP, "retries": 12, "disable_backoff": True}
+INIT_CMD = Command(" I", NUL_DEVICE.id, "0001", "00FFFF0200", qos=INIT_QOS)
 
 # tx (from sent to gwy, to get back from gwy) seems to takes approx. 0.025s
 QOS_TX_TIMEOUT = timedelta(seconds=0.05)  # 0.20 OK, but too high?
 QOS_TX_RETRIES = 2
 
 QOS_RX_TIMEOUT = timedelta(seconds=0.20)  # 0.10 too low sometimes
-QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many
+QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many?
 
 _PKT_LOGGER = logging.getLogger(f"{__name__}-log")
 # _PKT_LOGGER.setLevel(logging.DEBUG)  # can do DEBUG, minimum should be INFO
 
 _LOGGER = logging.getLogger(__name__)
-if False or __dev_mode__:
-    _LOGGER.setLevel(logging.DEBUG)
+if True or __dev_mode__:
+    _LOGGER.setLevel(logging.INFO)
 
 
-def bytestr_to_pkt(func):
-    """Xxx."""
-
-    def create_pkt(pkt_raw: ByteString) -> Packet:
-        dtm_str = dt_str()  # done here & now for most-accurate timestamp
-
-        try:
-            pkt_str = "".join(
-                c
-                for c in pkt_raw.decode("ascii", errors="strict").strip()
-                if c in printable
-            )
-        except UnicodeDecodeError:
-            _PKT_LOGGER.warning("%s < Bad pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
-            return Packet(dtm_str, "", pkt_raw)
-        else:
-            _PKT_LOGGER.debug("%s < Raw pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
-
-        # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
-        # HGI80: 095  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200
-        # evofw: 000  I --- 18:140805 18:140805 --:------ 0001 005 00FFFF0200
-        if pkt_str[11:14] == "18:" and pkt_str[11:20] == pkt_str[21:30]:
-            pkt_str = pkt_str[:21] + HGI_DEVICE.id + pkt_str[30:]
-            _LOGGER.warning("evofw3 packet has been normailised")
-
-        return Packet(dtm_str, pkt_str, pkt_raw)
+def stream_to_line(func):
+    """Convert a stream of bytes to a raw packet."""
 
     def wrapper(self, data: ByteString, *args, **kwargs) -> Optional[dict]:
-        """Xxx."""
 
         self._recv_buffer += data
         if b"\r\n" in self._recv_buffer:
@@ -98,9 +74,7 @@ def bytestr_to_pkt(func):
             self._recv_buffer = lines[-1]
 
             for line in lines[:-1]:
-                pkt = create_pkt(line)
-                if pkt.is_valid:
-                    func(self, pkt)
+                func(self, line)
 
     return wrapper
 
@@ -339,7 +313,7 @@ class GatewayProtocol(asyncio.Protocol):
         self._timeout_full = None
         self._timeout_half = None
 
-        asyncio.create_task(self.send_data(INIT_CMD))
+        asyncio.create_task(self.send_data(INIT_CMD))  # HACK: port wakeup
 
     def connection_made(self, transport: SerialTransport) -> None:
         """Called when a connection is made."""
@@ -359,68 +333,114 @@ class GatewayProtocol(asyncio.Protocol):
         self._transport = transport
         self._pause_writing = False  # TODO: needs work
 
-    def _timeouts(self, dtm: dt, note="none") -> Tuple[dt, dt]:
+    def _timeouts(self, dtm: dt) -> Tuple[dt, dt]:
+        if self._qos_cmd:
+            timeout = QOS_TX_TIMEOUT if self._tx_hdr else self._rx_timeout
+            self._timeout_full = dtm + timeout * 2 ** self._backoff
+            self._timeout_half = dtm + timeout * 2 ** (self._backoff - 1)
+
         # if self._timeout_half >= dtm:
         #     self._backoff = max(self._backoff - 1, 0)
         # if self._timeout_full >= dtm:
         #     self._backoff = min(self._backoff + 1, QOS_MAX_BACKOFF)
 
-        timeout = QOS_TX_TIMEOUT if self._tx_hdr else self._rx_timeout
-        self._timeout_full = dtm + timeout * 2 ** self._backoff
-        self._timeout_half = dtm + timeout * 2 ** (self._backoff - 1)
-        # _LOGGER.debug("%s %s %s %s", note, self._backoff, timeout, self._timeout_full)
+        # _LOGGER.debug("%s %s %s", self._backoff, timeout, self._timeout_full)
 
-    @bytestr_to_pkt
-    def data_received(self, pkt: Packet) -> None:
+    @stream_to_line
+    def data_received(self, data: ByteString) -> None:
         """Called when some data is received. Adjust backoff as required."""
-
-        if self._qos_cmd:
-            # _LOGGER.debug(
-            #     "GwyProtocol.data_rcvd(%s): boff=%s, tout=%s, want=%s: CHECKING",
-            #     pkt._header,
-            #     self._backoff,
-            #     self._timeout_full,
-            #     self._tx_hdr if self._tx_hdr else self._rx_hdr,
-            # )
-
-            if pkt._header == self._tx_hdr:
-                # the (echo of) RQ that was expected
-                self._tx_hdr = None
-                self._timeouts(dt.now(), note="Rcvd")
-                wanted = self._rx_hdr
-            elif pkt._header == self._qos_cmd.tx_header:
-                # an (echo of) RQ that wasn't expected (had already got one)
-                # TODO: should increase backoff?
-                self._timeouts(dt.now(), note="rCvd")
-                wanted = self._rx_hdr
-            elif pkt._header == self._rx_hdr or self._rx_hdr is None:
-                # the RP that was expected
-                self._qos_cmd = None
+        def _logger_rcvd(logger, msg: str) -> None:
+            if self._qos_cmd is None:
                 wanted = None
+            elif self._tx_hdr:
+                wanted = self._tx_hdr
             else:
-                # not the packet that was expected
-                self._timeouts(dt.now(), note="rcVd")
-                wanted = self._tx_hdr if self._tx_hdr else self._rx_hdr
+                wanted = self._rx_hdr
 
-            _LOGGER.debug(
-                "GwyProtocol.data_rcvd(%s): boff=%s, tout=%s, want=%s: CHECKED",
+            logger(
+                "GwyProtocol.data_rcvd(%s): boff=%s, want=%s, tout=%s: %s",
                 pkt._header,
                 self._backoff,
-                self._timeout_full,
                 wanted,
+                self._timeout_full,
+                msg
             )
 
+        def create_pkt(pkt_raw: ByteString) -> Packet:
+            dtm_str = dt_str()  # done here & now for most-accurate timestamp
+
+            try:
+                pkt_str = "".join(
+                    c
+                    for c in pkt_raw.decode("ascii", errors="strict").strip()
+                    if c in printable
+                )
+            except UnicodeDecodeError:
+                _PKT_LOGGER.warning(
+                    "%s < Bad pkt", pkt_raw, extra=extra(dtm_str, pkt_raw)
+                )
+                return Packet(dtm_str, "", pkt_raw)
+
+            _PKT_LOGGER.debug("%s < Raw pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
+
+            # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
+            # HGI80: 095  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200
+            # evofw: 000  I --- 18:140805 18:140805 --:------ 0001 005 00FFFF0200
+            if pkt_str[11:14] == "18:" and pkt_str[11:20] == pkt_str[21:30]:
+                pkt_str = pkt_str[:21] + HGI_DEVICE.id + pkt_str[30:]
+                _LOGGER.warning("evofw3 packet has been normailised")
+
+            return Packet(dtm_str, pkt_str, pkt_raw)
+
+        pkt = create_pkt(data)
+        if not pkt.is_valid:
+            return
+
+        if self._qos_cmd:
+            # _logger_rcvd(_LOGGER.debug, "CHECKING")
+
+            if pkt._header == self._tx_hdr and self._rx_hdr is None:
+                # the (echo of) the transmited pkt - no response is expected
+                msg = "matched Tx (now done)"
+                self._qos_cmd = None
+
+            elif pkt._header == self._tx_hdr:
+                # the (echo of) the transmited pkt - a response is expected
+                msg = "matched Tx (now wanting Rx)"
+                self._tx_hdr = None
+
+            elif pkt._header == self._rx_hdr:
+                # the response packet that was expected
+                msg = "matched Rx (now done)"
+                self._qos_cmd = None
+
+            elif pkt._header == self._qos_cmd.tx_header:
+                # an (echo of) the transmitted pkt, but had already got one!
+                msg = "duplcated Tx (still wanting Rx)"  # TODO: increase backoff?
+
+            else:  # not the packet that was expected
+                msg = "unmatched (still wanting " + ("Tx)" if self._tx_hdr else "Rx)")
+
+            self._timeouts(dt.now())
+            _logger_rcvd(_LOGGER.debug, f"CHECKED - {msg}")
+
         # else:  # throttle down the backoff
-        #     _LOGGER.debug(
-        #         "GwyProtocol.data_rcvd(%s): boff=%s, tout=None",
-        #         pkt._header,
-        #         self._backoff,
-        #     )
+        #     self._timeouts(dt.now())
+        #     _logger_rcvd(_LOGGER.debug, "xxx")
 
         self._callback(pkt)
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
+        def _logger_send(logger, msg: str) -> None:
+            logger(
+                "GwyProtocol.send_data(%s): boff=%s, want=%s, tout=%s: %s",
+                cmd.tx_header,
+                self._backoff,
+                self._tx_hdr if self._tx_hdr else self._rx_hdr,
+                self._timeout_full,
+                msg
+            )
 
         async def _write_data(data: bytearray) -> None:
             """Called when some data is to be sent (not a callback)."""
@@ -438,20 +458,8 @@ class GatewayProtocol(asyncio.Protocol):
                 "GwyProtocol.send_data(%s): invalid command: %s", cmd.tx_header, cmd
             )
             return
-        if self._qos_cmd:
-            _LOGGER.debug(
-                "GwyProtocol.send_data(%s): boff=%s, tout=%s, want=%s",
-                cmd.tx_header,
-                self._backoff,
-                self._timeout_full,
-                self._tx_hdr if self._tx_hdr else self._rx_hdr,
-            )
-        else:
-            _LOGGER.debug(
-                "GwyProtocol.send_data(%s): boff=%s, tout=None",
-                cmd.tx_header,
-                self._backoff,
-            )
+
+        # _logger_send(_LOGGER.debug, "SENDING")
 
         while self._qos_cmd is not None:
             if self._qos_cmd == cmd:
@@ -467,16 +475,9 @@ class GatewayProtocol(asyncio.Protocol):
         self._tx_retries = cmd.qos.get("retries", QOS_TX_RETRIES)
         self._rx_timeout = cmd.qos.get("timeout", QOS_RX_TIMEOUT)
 
-        self._timeouts(dt.now(), note="send")
+        self._timeouts(dt.now())
         await _write_data(bytearray(f"{cmd}\r\n".encode("ascii")))
-
-        _LOGGER.debug(
-            "GwyProtocol.SEND_data(%s): boff=%s, tout=%s, want=%s: SENT",
-            cmd.tx_header,
-            self._backoff,
-            self._timeout_full,
-            self._tx_hdr,
-        )
+        # _logger_send(_LOGGER.debug, "SENT")
 
         while self._qos_cmd is not None:  # until sent (may need re-transmit) or expired
             if self._timeout_full > dt.now():
@@ -488,40 +489,22 @@ class GatewayProtocol(asyncio.Protocol):
             elif self._tx_retries > 0:
                 self._tx_hdr = cmd.tx_header
                 self._tx_retries -= 1
-                self._backoff = min(self._backoff + 1, QOS_MAX_BACKOFF)
-                self._timeouts(dt.now(), note="SEND")
+                if not self._qos_cmd.qos.get("disable_backoff", False):
+                    self._backoff = min(self._backoff + 1, QOS_MAX_BACKOFF)
+                self._timeouts(dt.now())
                 await _write_data(bytearray(f"{cmd}\r\n".encode("ascii")))
-
-                _LOGGER.warning(
-                    "GwyProtocol.send_DATA(%s): boff=%s, tout=%s, want=%s: RE-SENT",
-                    cmd.tx_header,
-                    self._backoff,
-                    self._timeout_full,
-                    self._tx_hdr if self._tx_hdr else self._rx_hdr,
-                )
+                _logger_send(_LOGGER.info, "RE-SENT")
 
             else:
                 self._qos_cmd = None  # give up
-
-                _LOGGER.warning(
-                    "GwyProtocol.send_DATA(%s): boff=%s, tout=%s, want=%s: EXPIRED",
-                    cmd.tx_header,
-                    self._backoff,
-                    self._timeout_full,
-                    self._tx_hdr if self._tx_hdr else self._rx_hdr,
-                )
+                _logger_send(_LOGGER.info, "EXPIRED")
+                self._backoff = 0
                 break
+
         else:
             if self._timeout_half >= dt.now():
                 self._backoff = max(self._backoff - 1, 0)
-
-            _LOGGER.debug(
-                "GwyProtocol.send_DATA(%s): boff=%s, tout=%s, want=%s: SUCCEEDED",
-                cmd.tx_header,
-                self._backoff,
-                self._timeout_full,
-                self._tx_hdr if self._tx_hdr else self._rx_hdr,
-            )
+            # _logger_send(_LOGGER.debug, "SUCCEEDED")
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
