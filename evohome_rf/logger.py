@@ -118,7 +118,7 @@ def set_pkt_logging(logger, file_name=None, cc_stdout=False, rotate_days=None) -
     if file_name:
         if rotate_days:
             handler = logging.handlers.TimedRotatingFileHandler(
-                file_name, when="midnight", backupCount=log_rotate_days
+                file_name, when="midnight", backupCount=rotate_days
             )
         else:
             handler = logging.FileHandler(file_name)

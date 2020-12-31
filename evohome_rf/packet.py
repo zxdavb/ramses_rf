@@ -23,8 +23,6 @@ from .const import (
     DTM_LONG_REGEX,
     MESSAGE_REGEX,
     HGI_DEVICE,
-    NON_DEVICE,
-    NUL_DEVICE,
     __dev_mode__,
 )
 from .helpers import extract_addrs
@@ -83,6 +81,11 @@ def bytestr_to_pkt(func):
             _PKT_LOGGER.debug("%s < Raw pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
 
         # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
+        # HGI80: 095  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200
+        # evofw: 000  I --- 18:140805 18:140805 --:------ 0001 005 00FFFF0200
+        if pkt_str[11:14] == "18:" and pkt_str[11:20] == pkt_str[21:30]:
+            pkt_str = pkt_str[:21] + HGI_DEVICE.id + pkt_str[30:]
+            _LOGGER.warning("evofw3 packet has been corrected")
 
         return Packet(dtm_str, pkt_str, pkt_raw)
 
