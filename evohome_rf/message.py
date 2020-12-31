@@ -28,7 +28,7 @@ from .const import (
 )
 from .devices import Device
 from .exceptions import CorruptPayloadError
-from .packet import _PKT_LOGGER
+from .packet import _PKT_LOGGER  # TODO: I think should just use _LOGGER
 
 # TODO: duplicated in schema.py
 DONT_CREATE_MESSAGES = 3

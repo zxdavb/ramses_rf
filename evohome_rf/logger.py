@@ -10,36 +10,37 @@ import shutil
 import sys
 import time
 
-# from logging.handlers import TimedRotatingFileHandler
+try:
+    import colorlog
+
+    _use_color_ = True
+except ModuleNotFoundError:
+    _use_color_ = False
 
 from .const import __dev_mode__
 
-BASIC_FMT = "%(asctime)s.%(msecs)03d %(message)s"
-BASIC_DATEFMT = "%H:%M:%S"
-BASIC_LEVEL = logging.INFO
-
-BANDW_SUFFIX = "%(error_text)s%(comment)s"
-COLOR_SUFFIX = "%(red)s%(error_text)s%(cyan)s%(comment)s"
-
-try:
-    from colorlog import ColoredFormatter  # default_log_colors
-except ModuleNotFoundError:
-    COLOR_SUFFIX = BANDW_SUFFIX
+DEFAULT_FMT = "%(asctime)s.%(msecs)03d %(message)s"
+DEFAULT_DATEFMT = "%H:%M:%S"
+DEFAULT_LEVEL = logging.INFO
 
 # basicConfig must be called after importing colorlog to ensure its handlers wrap the
 # correct streams
-logging.basicConfig(level=BASIC_LEVEL, format=BASIC_FMT, datefmt=BASIC_DATEFMT)
+logging.basicConfig(level=DEFAULT_LEVEL, format=DEFAULT_FMT, datefmt=DEFAULT_DATEFMT)
 
-# HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssss, shorter format for the console
 CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
-CONSOLE_FMT = "%(time).12s " + f"%(message).{CONSOLE_COLS - 13}s"
+# HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssss, shorter format for the console
+if __dev_mode__:  # Do this to have longer-format console messages
+    CONSOLE_FMT = "%(date)sT%(time)s %(message)s"
+else:
+    CONSOLE_FMT = "%(time).12s " + f"%(message).{CONSOLE_COLS - 13}s"
 PKT_LOG_FMT = "%(date)sT%(time)s %(_packet)s"
-MSG_LOG_FMT = "%(date)sT%(time)s %(message)s"
 
-if __dev_mode__:
-    CONSOLE_FMT = MSG_LOG_FMT  # Do this to have longer-format console messages
 # How to strip ASCII colour from a text file:
 #   sed -r "s/\x1B\[(([0-9]{1,2})?(;)?([0-9]{1,2})?)?[m,K,H,f,J]//g" file_name
+
+# used with packet logging
+BANDW_SUFFIX = "%(error_text)s%(comment)s"
+COLOR_SUFFIX = "%(red)s%(error_text)s%(cyan)s%(comment)s"
 
 LOG_COLOURS = {
     "DEBUG": "white",
@@ -48,6 +49,13 @@ LOG_COLOURS = {
     "ERROR": "bold_red",
     "CRITICAL": "bold_red",
 }  # default_log_colors
+
+_LOGGER = logging.getLogger(__name__)
+if False or __dev_mode__:
+    _LOGGER.setLevel(logging.DEBUG)
+
+if _use_color_:
+    _LOGGER.warning("Consider installing the colorlog library for colored output")
 
 
 class FILETIME(ctypes.Structure):
@@ -81,67 +89,64 @@ def time_time() -> float:
     return _time - 134774 * 24 * 60 * 60  # otherwise, is since 1601-01-01T00:00:00Z
 
 
-def set_logging(logger, file_name, cc_stdout=None):
-    _set_logging(
-        logger,
-        file_name=file_name,
-        stream=sys.stdout if cc_stdout else None,
-        file_fmt=PKT_LOG_FMT + BANDW_SUFFIX,
-        cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
-    )
-
-
-def _set_logging(
-    logger,
-    file_name=None,
-    stream=sys.stderr,
-    file_fmt=MSG_LOG_FMT,
-    cons_fmt=CONSOLE_FMT,
-) -> None:
+def set_pkt_logging(logger, file_name=None, cc_stdout=False, rotate_days=None) -> None:
     """Create/configure handlers, formatters, etc."""
     logger.propagate = False
 
-    if COLOR_SUFFIX == BANDW_SUFFIX:
-        formatter = logging.Formatter(fmt=cons_fmt)
-    else:
-        formatter = ColoredFormatter(
-            f"%(log_color)s{cons_fmt}", reset=True, log_colors=LOG_COLOURS
+    if _use_color_:
+        cons_fmt = colorlog.ColoredFormatter(
+            f"%(log_color)s{CONSOLE_FMT + COLOR_SUFFIX}",
+            reset=True,
+            log_colors=LOG_COLOURS,
         )
+    else:
+        cons_fmt = logging.Formatter(fmt=CONSOLE_FMT + BANDW_SUFFIX)
 
     handler = logging.StreamHandler(stream=sys.stderr)
-    handler.setFormatter(formatter)
-    handler.setLevel(logging.WARNING)
+    handler.setFormatter(cons_fmt)
+    handler.setLevel(logging.DEBUG)
+    handler.addFilter(StdErrFilter())
     logger.addHandler(handler)
 
-    if stream == sys.stdout:
+    if cc_stdout:
         handler = logging.StreamHandler(stream=sys.stdout)
-        handler.setFormatter(formatter)
-        handler.setLevel(logging.DEBUG)  # TODO: should be WARNING, but breaks logging
+        handler.setFormatter(cons_fmt)
+        handler.setLevel(logging.DEBUG)
+        handler.addFilter(StdOutFilter())
         logger.addHandler(handler)
 
     if file_name:
-        # if log_rotate_days:
-        #     handler = logging.handlers.TimedRotatingFileHandler(
-        #         err_log_file_name, when="midnight", backupCount=log_rotate_days
-        #     )
-        # else:
-        #     handler = logging.FileHandler(err_log_path, mode="w", delay=True)
-
-        # handler.setLevel(logging.INFO if verbose else logging.WARNING)
-        # handler.setFormatter(logging.Formatter(fmt, datefmt=datefmt))
-
-        handler = logging.FileHandler(file_name)
-        handler.setFormatter(logging.Formatter(fmt=file_fmt))
-        handler.setLevel(logging.DEBUG)
-        handler.addFilter(InfoFilter())
+        if rotate_days:
+            handler = logging.handlers.TimedRotatingFileHandler(
+                file_name, when="midnight", backupCount=log_rotate_days
+            )
+        else:
+            handler = logging.FileHandler(file_name)
+        handler.setFormatter(logging.Formatter(fmt=PKT_LOG_FMT + BANDW_SUFFIX))
+        handler.setLevel(logging.INFO)  # INFO (usually), or DEBUG
+        handler.addFilter(FileFilter())
         logger.addHandler(handler)
 
 
-class InfoFilter(logging.Filter):
-    # invoke via: handler.addFilter(InfoFilter())
+class StdErrFilter(logging.Filter):
+    """For sys.stderr, process only wanted packets."""
 
     def filter(self, record) -> bool:
-        """Filter out all but INFO/DEBUG packets."""
-        return True
-        return record.levelno in (logging.INFO, logging.DEBUG)
-        return record.levelno != logging.DEBUG  # TODO: use less than / more than?
+        """Return True if the record is to be processed. """
+        return record.levelno >= logging.WARNING
+
+
+class StdOutFilter(logging.Filter):
+    """For sys.stdout, process only wanted packets."""
+
+    def filter(self, record) -> bool:
+        """Return True if the record is to be processed. """
+        return record.levelno < logging.WARNING
+
+
+class FileFilter(logging.Filter):
+    """For packet logs file, process only wanted packets."""
+
+    def filter(self, record) -> bool:
+        """Return True if the record is to be processed. """
+        return record.levelno in (logging.INFO, logging.WARNING)

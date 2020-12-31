@@ -56,12 +56,12 @@ QOS_TX_RETRIES = 2
 QOS_RX_TIMEOUT = timedelta(seconds=0.20)  # 0.10 too low sometimes
 QOS_MAX_BACKOFF = 5  # 4 = 16x, is too many
 
+_PKT_LOGGER = logging.getLogger(f"{__name__}-log")
+# _PKT_LOGGER.setLevel(logging.DEBUG)  # can do DEBUG, minimum should be INFO
+
 _LOGGER = logging.getLogger(__name__)
 if False or __dev_mode__:
     _LOGGER.setLevel(logging.DEBUG)
-
-_PKT_LOGGER = logging.getLogger(f"{__name__}-log")
-_PKT_LOGGER.setLevel(logging.DEBUG)
 
 
 def bytestr_to_pkt(func):
@@ -69,7 +69,6 @@ def bytestr_to_pkt(func):
 
     def create_pkt(pkt_raw: ByteString) -> Packet:
         dtm_str = dt_str()  # done here & now for most-accurate timestamp
-        # _PKT_LOGGER.debug("%s < Raw pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
 
         try:
             pkt_str = "".join(
@@ -80,6 +79,8 @@ def bytestr_to_pkt(func):
         except UnicodeDecodeError:
             _PKT_LOGGER.warning("%s < Bad pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
             return Packet(dtm_str, "", pkt_raw)
+        else:
+            _PKT_LOGGER.debug("%s < Raw pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
 
         # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
 
@@ -221,7 +222,7 @@ async def file_pkts(fp):
 
         except (AssertionError, TypeError, ValueError):
             if ts_pkt != "" and dtm.strip()[:1] != "#":
-                _PKT_LOGGER.warning(
+                _PKT_LOGGER.error(
                     "%s < Packet line has an invalid timestamp (ignoring)",
                     ts_pkt,
                     extra=extra(dt_str(), ts_pkt),
@@ -475,11 +476,11 @@ class GatewayProtocol(asyncio.Protocol):
             self._tx_hdr,
         )
 
-        while self._qos_cmd is not None:
+        while self._qos_cmd is not None:  # until sent (may need re-transmit) or expired
             if self._timeout_full > dt.now():
                 await asyncio.sleep(0.005)
 
-            elif self._qos_cmd is None:
+            elif self._qos_cmd is None:  # can be set to None by data_received
                 continue
 
             elif self._tx_retries > 0:
@@ -498,7 +499,7 @@ class GatewayProtocol(asyncio.Protocol):
                 )
 
             else:
-                self._qos_cmd = None
+                self._qos_cmd = None  # give up
 
                 _LOGGER.warning(
                     "GwyProtocol.send_DATA(%s): boff=%s, tout=%s, want=%s: EXPIRED",

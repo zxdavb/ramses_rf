@@ -22,7 +22,7 @@ from typing import Dict, List, Tuple  # Any, Tuple
 from .const import __dev_mode__, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
 from .discovery import spawn_execute_scripts, spawn_monitor_scripts  # noqa
-from .logger import set_logging
+from .logger import set_pkt_logging
 from .message import DONT_CREATE_MESSAGES, process_msg
 from .packet import _PKT_LOGGER as pkt_logger, file_pkts
 from .schema import load_config, load_schema
@@ -70,9 +70,9 @@ class Gateway:
             self._exclude,
         ) = load_config(serial_port, input_file, **kwargs)
 
-        set_logging(
+        set_pkt_logging(
             pkt_logger,
-            self.config.get("packet_log"),
+            file_name=self.config.get("packet_log"),
             cc_stdout=self.config["reduce_processing"] >= DONT_CREATE_MESSAGES,
         )
 
