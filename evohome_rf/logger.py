@@ -104,7 +104,7 @@ def set_pkt_logging(logger, file_name=None, cc_stdout=False, rotate_days=None) -
 
     handler = logging.StreamHandler(stream=sys.stderr)
     handler.setFormatter(cons_fmt)
-    handler.setLevel(logging.DEBUG)
+    handler.setLevel(logging.WARNING)
     handler.addFilter(StdErrFilter())
     logger.addHandler(handler)
 
