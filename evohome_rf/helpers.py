@@ -79,10 +79,9 @@ def extract_addrs(pkt: str) -> Tuple[Address, Address, List[Address]]:
 
     if src_addr.id == dst_addr.id:
         src_addr = dst_addr
-    # elif src_addr.type == "18":  # bug in evofw3 0.4.4
-    #     # HGI80: 095  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200
-    #     # evofw: 000  I --- 18:140805 18:140805 --:------ 0001 005 00FFFF0200
-    #     pass
+    elif src_addr.type == "18" and dst_addr.id == NON_DEVICE.id:
+        # 000  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200 (valid, ex HGI80)
+        pass  # the above has been used for port wakeup
     elif src_addr.type == dst_addr.type:
         # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5 (invalid)
         raise TypeError("invalid src/dst addr pair")
