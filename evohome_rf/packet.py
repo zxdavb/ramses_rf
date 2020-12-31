@@ -52,7 +52,7 @@ QOS_TX_TIMEOUT = timedelta(seconds=0.05)  # 0.20 OK, but too high?
 QOS_TX_RETRIES = 2
 
 QOS_RX_TIMEOUT = timedelta(seconds=0.20)  # 0.10 too low sometimes
-QOS_MAX_BACKOFF = 5  # 4 = 16x, is too many
+QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many
 
 _PKT_LOGGER = logging.getLogger(f"{__name__}-log")
 # _PKT_LOGGER.setLevel(logging.DEBUG)  # can do DEBUG, minimum should be INFO
