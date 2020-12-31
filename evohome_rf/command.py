@@ -141,7 +141,7 @@ class Command:
         return qos
 
     @property
-    def tx_header(self) -> Optional[str]:
+    def tx_header(self) -> str:
         """Return the QoS header of this (request) packet."""
         if self._tx_header is None:
             self._tx_header = _pkt_header(f"... {self}")
