@@ -85,7 +85,7 @@ def bytestr_to_pkt(func):
         # evofw: 000  I --- 18:140805 18:140805 --:------ 0001 005 00FFFF0200
         if pkt_str[11:14] == "18:" and pkt_str[11:20] == pkt_str[21:30]:
             pkt_str = pkt_str[:21] + HGI_DEVICE.id + pkt_str[30:]
-            _LOGGER.warning("evofw3 packet has been corrected")
+            _LOGGER.warning("evofw3 packet has been normailised")
 
         return Packet(dtm_str, pkt_str, pkt_raw)
 
@@ -165,13 +165,12 @@ class Packet:
         """Return True if a valid packets, otherwise return False/None & log it."""
         # 'good' packets are not logged here, as they may be for silent discarding
 
-        def validate_addresses() -> bool:
-            """Return True if the address fields are valid (create any addresses)."""
+        def invalid_addresses() -> bool:
+            """Return True if the address fields are invalid (create any addresses)."""
             try:
                 self.src_addr, self.dst_addr, self.addrs = extract_addrs(self.packet)
             except TypeError:
-                return False
-            return True
+                return True
 
         if self._is_valid is not None or not self._pkt_str:
             return self._is_valid
@@ -195,7 +194,7 @@ class Packet:
             err_msg = "excessive payload length"
         elif int(self.packet[46:49]) * 2 != len(self.packet[50:]):
             err_msg = "mismatched payload length"
-        elif not validate_addresses():
+        elif invalid_addresses():
             err_msg = "invalid packet addresses"
         else:
             _PKT_LOGGER.info("%s ", self.packet, extra=self.__dict__)
