@@ -185,27 +185,47 @@ class Packet:
             return _pkt_header(self.packet)
 
 
+def _normalise(pkt_line) -> str:
+    """Perform any firmware-level hacks, as required.
+
+    Ensure an evofw3 provides the exact same output as a HGI80.
+    """
+
+    # 095  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200 # HGI80
+    # 000  I --- 18:140805 18:140805 --:------ 0001 005 00FFFF0200 # evofw3
+    if pkt_line[10:14] == " 18:" and pkt_line[11:20] == pkt_line[21:30]:
+        pkt_line = pkt_line[:21] + HGI_DEVICE.id + pkt_line[30:]
+        _LOGGER.debug("evofw3 packet line has been normalised (0x00)")
+
+    elif pkt_line[10:14] in (" 08:", " 31:") and pkt_line[-16:] == "* Checksum error":
+        pkt_line = pkt_line[:-17] + " # Checksum error (ignored)"
+        # _LOGGER.debug("Packet line has been normalised (0x01)")
+
+    return pkt_line
+
+
 async def file_pkts(fp):
     """Yield valid packets from a text stream."""
 
-    for ts_pkt in fp:
-        ts_pkt = ts_pkt.strip()
-        dtm, pkt = ts_pkt[:26], ts_pkt[27:]
+    for dtm_pkt_line in fp:
+        dtm_pkt_line = dtm_pkt_line.strip()  # TODO: needed?
+        dtm_str, pkt_line = dtm_pkt_line[:26], dtm_pkt_line[27:]
+
         try:
             # assuming a completely valid log file, asserts allows for -O for inc. speed
-            assert DTM_LONG_REGEX.match(dtm)
-            dt.fromisoformat(dtm)
+            assert DTM_LONG_REGEX.match(dtm_str)
+            dt.fromisoformat(dtm_str)
 
         except (AssertionError, TypeError, ValueError):
-            if ts_pkt != "" and dtm.strip()[:1] != "#":
+            if dtm_pkt_line != "" and dtm_str.strip()[:1] != "#":
                 _PKT_LOGGER.error(
                     "%s < Packet line has an invalid timestamp (ignoring)",
-                    ts_pkt,
-                    extra=extra(dt_str(), ts_pkt),
+                    dtm_pkt_line,
+                    extra=extra(dt_str(), dtm_pkt_line),
                 )
             continue
 
-        pkt = Packet(dtm, pkt, None)
+        pkt = Packet(dtm_str, _normalise(pkt_line), None)
         if pkt.is_valid:
             yield pkt
 
@@ -349,6 +369,7 @@ class GatewayProtocol(asyncio.Protocol):
     @stream_to_line
     def data_received(self, data: ByteString) -> None:
         """Called when some data is received. Adjust backoff as required."""
+
         def _logger_rcvd(logger, msg: str) -> None:
             if self._qos_cmd is None:
                 wanted = None
@@ -363,14 +384,14 @@ class GatewayProtocol(asyncio.Protocol):
                 self._backoff,
                 wanted,
                 self._timeout_full,
-                msg
+                msg,
             )
 
         def create_pkt(pkt_raw: ByteString) -> Packet:
             dtm_str = dt_str()  # done here & now for most-accurate timestamp
 
             try:
-                pkt_str = "".join(
+                pkt_line = "".join(
                     c
                     for c in pkt_raw.decode("ascii", errors="strict").strip()
                     if c in printable
@@ -383,14 +404,7 @@ class GatewayProtocol(asyncio.Protocol):
 
             _PKT_LOGGER.debug("%s < Raw pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
 
-            # any firmware-level packet hacks, i.e. non-HGI80 devices, should be here
-            # HGI80: 095  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200
-            # evofw: 000  I --- 18:140805 18:140805 --:------ 0001 005 00FFFF0200
-            if pkt_str[11:14] == "18:" and pkt_str[11:20] == pkt_str[21:30]:
-                pkt_str = pkt_str[:21] + HGI_DEVICE.id + pkt_str[30:]
-                _LOGGER.warning("evofw3 packet has been normailised")
-
-            return Packet(dtm_str, pkt_str, pkt_raw)
+            return Packet(dtm_str, _normalise(pkt_line), pkt_raw)
 
         pkt = create_pkt(data)
         if not pkt.is_valid:
@@ -432,6 +446,7 @@ class GatewayProtocol(asyncio.Protocol):
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
+
         def _logger_send(logger, msg: str) -> None:
             logger(
                 "GwyProtocol.send_data(%s): boff=%s, want=%s, tout=%s: %s",
@@ -439,7 +454,7 @@ class GatewayProtocol(asyncio.Protocol):
                 self._backoff,
                 self._tx_hdr if self._tx_hdr else self._rx_hdr,
                 self._timeout_full,
-                msg
+                msg,
             )
 
         async def _write_data(data: bytearray) -> None:
