@@ -1114,7 +1114,8 @@ class TrvActuator(BatteryState, Setpoint, Temperature, Device):
 
 
 DEVICE_CLASSES = {
-    "01": Controller,  # use Evohome instead?
+    "00": TrvActuator,
+    "01": Controller,
     "02": UfhController,
     "03": Thermostat,
     "04": TrvActuator,
@@ -1123,6 +1124,6 @@ DEVICE_CLASSES = {
     "12": Thermostat,
     "13": BdrSwitch,
     "22": Thermostat,
-    "23": Controller,  # a Programmer, use System instead?
+    "23": Controller,
     "34": Thermostat,
 }

@@ -544,10 +544,10 @@ class Zone(ZoneSchedule, ZoneBase):
             self._temp = msg
 
         elif msg.code == "3150":  # TODO: and msg.verb in (" I", "RP")?
-            assert msg.src.type in ("02", "04", "13")
-            assert self._zone_type in (None, "RAD", "UFH", "VAL")  # ELE don't have 3150
+            assert msg.src.type in ("00", "02", "04", "13")
+            assert self._zone_type in (None, "RAD", "UFH", "VAL")  # MIX/ELE don't 3150
 
-            if msg.src.type in ("02", "04", "13"):
+            if msg.src.type in ("00", "02", "04", "13"):
                 zone_type = ZONE_CLASS_MAP[msg.src.type]
                 self._set_zone_type("VAL" if zone_type == "ELE" else zone_type)
 
@@ -569,7 +569,7 @@ class Zone(ZoneSchedule, ZoneBase):
                 f"{ATTR_ZONE_SENSOR} shouldn't change: {self._sensor} to {device}"
             )
 
-        sensor_types = ("01", "03", "04", "12", "22", "34")
+        sensor_types = ("00", "01", "03", "04", "12", "22", "34")
         if not isinstance(device, Device) or device.type not in sensor_types:
             raise TypeError(f"{ATTR_ZONE_SENSOR} can't be: {device}")
 
@@ -591,7 +591,7 @@ class Zone(ZoneSchedule, ZoneBase):
             return ZONE_TYPE_MAP.get(self._zone_type)
 
         # TODO: actuators
-        dev_types = [d.type for d in self.devices if d.type in ("02", "04", "13")]
+        dev_types = [d.type for d in self.devices if d.type in ("00", "02", "04", "13")]
 
         if "02" in dev_types:
             zone_type = "UFH"
@@ -599,7 +599,8 @@ class Zone(ZoneSchedule, ZoneBase):
             zone_type = "VAL" if "3150" in self._msgs else "ELE"
         # elif "??" in dev_types:  # TODO:
         #     zone_type = "MIX"
-        elif "04" in dev_types:  # beware edge case: TRV as sensor for a non-RAD zone
+        elif "04" in dev_types or "02" in dev_types:
+            # beware edge case: TRV as sensor for a non-RAD zone
             zone_type = "RAD"
         else:
             zone_type = None

@@ -31,7 +31,7 @@ HGI_DEVICE = id_to_address(HGI_DEV_ID)
 NON_DEVICE = id_to_address(NON_DEV_ID)
 NUL_DEVICE = id_to_address(NUL_DEV_ID)
 
-DEFAULT_MAX_ZONES = 12
+DEFAULT_MAX_ZONES = 16
 # Evohome: 12 (0-11), older/initial version was 8
 # Hometronics: 16 (0-15), or more?
 # Sundial RF2: 2 (0-1), usually only one, but ST9520C can do two zones
@@ -119,7 +119,7 @@ CODE_SCHEMA = {
     "1290": {"name": "outdoor_temp"},
     "12A0": {"name": "indoor_humidity"},  # Nuaire ventilation
     "12C0": {"name": "message_12c0"},  # I/34:/34:
-    "2249": {"name": "oth_setpoint", "uses_zone_idx": None},  # now/next setpoint
+    "2249": {"name": "setpoint_now", "uses_zone_idx": True},  # now/next setpoint
     # "2389": {"name": "message_2389"},  # not real?
     "22F1": {"name": "switch_vent"},
     "22F3": {"name": "switch_other"},
@@ -212,15 +212,6 @@ DEVICE_TABLE = {
             "3EF1",
         ],
     },  #
-    "12": {
-        "type": "THm",
-        "name": "Room Thermostat",
-        "has_battery": True,
-        "has_zone_sensor": True,
-        "is_actuator": False,
-        "is_sensor": True,
-        "archetype": "DTS92(E)",
-    },
     "13": {
         "type": "BDR",
         "name": "Wireless Relay",
@@ -301,6 +292,12 @@ DEVICE_TABLE = {
 # VMS includes Nuaire VMS-23HB33, VMS-23LMH23
 # What about Honeywell MT4 actuator?
 
+DEVICE_TABLE["12"] = DEVICE_TABLE["22"]
+DEVICE_TABLE["12"]["type"] = "THm"
+
+DEVICE_TABLE["00"] = DEVICE_TABLE["04"]
+DEVICE_TABLE["00"]["type"] = "TRv"
+
 # Example of:
 #  - Sundial RF2 Pack 3: 23:(ST9420C), 07:(CS92), and 22:(DTS92(E))
 
@@ -369,6 +366,7 @@ ZONE_TABLE = {
     "DHW": {"type": "x2", "sensor": "DHW", "name": "Stored DHW"},
 }
 ZONE_CLASS_MAP = {v["type"]: k for k, v in ZONE_TABLE.items()}
+ZONE_CLASS_MAP["00"] = ZONE_CLASS_MAP["04"]
 ZONE_TYPE_MAP = {k: slug(v["name"]) for k, v in ZONE_TABLE.items()}
 ZONE_TYPE_SLUGS = {slug(v["name"]): k for k, v in ZONE_TABLE.items()}
 
