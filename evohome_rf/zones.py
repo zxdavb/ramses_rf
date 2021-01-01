@@ -599,7 +599,7 @@ class Zone(ZoneSchedule, ZoneBase):
             zone_type = "VAL" if "3150" in self._msgs else "ELE"
         # elif "??" in dev_types:  # TODO:
         #     zone_type = "MIX"
-        elif "04" in dev_types or "02" in dev_types:
+        elif "04" in dev_types or "00" in dev_types:
             # beware edge case: TRV as sensor for a non-RAD zone
             zone_type = "RAD"
         else:
