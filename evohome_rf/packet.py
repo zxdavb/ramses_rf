@@ -333,7 +333,8 @@ class GatewayProtocol(asyncio.Protocol):
         self._timeout_full = None
         self._timeout_half = None
 
-        asyncio.create_task(self.send_data(INIT_CMD))  # HACK: port wakeup
+        if not self._gwy.config["disable_sending"]:
+            asyncio.create_task(self.send_data(INIT_CMD))  # HACK: port wakeup
 
     def connection_made(self, transport: SerialTransport) -> None:
         """Called when a connection is made."""
@@ -467,6 +468,9 @@ class GatewayProtocol(asyncio.Protocol):
                 await asyncio.sleep(0.005)
 
             self._transport.write(data)
+
+        if self._gwy.config["disable_sending"]:
+            raise RuntimeError("Sending is disabled")
 
         if not cmd.is_valid:
             _LOGGER.warning(
