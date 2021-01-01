@@ -1040,11 +1040,14 @@ def parser_2249(payload, msg) -> Optional[dict]:
     # 095  I --- 23:100224 --:------ 23:100224 2249 007 00-7EFF-7EFF-FFFF
 
     def _parser(seqx) -> dict:
+        minutes = int(seqx[10:], 16)
+        next_setpoint = msg.dtm + timedelta(minutes=minutes)
         return {
             **_idx(seqx[:2], msg),
             "setpoint_now": _temp(seqx[2:6]),
             "setpoint_next": _temp(seqx[6:10]),
-            "unknown_0": int(seqx[10:], 16),  # countdown?
+            "minutes_remaining": minutes,
+            "_next_setpoint": dt.strftime(next_setpoint, "%H:%M:%S"),
         }
 
     # the ST9520C can support two heating zones, so: msg.len in (7, 14)?
@@ -1452,7 +1455,7 @@ def parser_3ef0(payload, msg) -> dict:
 
     if msg.len >= 6:  # for OTB
         assert payload[2:4] == "FF" or int(payload[2:4], 16) <= 100  # TODO: why not 200
-        assert payload[4:6] in ("10", "11")
+        assert payload[4:6] in ("08", "10", "11")  # seen only in hometronics/31: "08"
 
     result = {
         # **_idx(payload[:2], msg),
@@ -1462,17 +1465,17 @@ def parser_3ef0(payload, msg) -> dict:
     }
 
     if msg.len >= 6:  # for OTB (there's no reliable) modulation_level <-> flame_state)
-        assert payload[6:8] in (
-            "00",
-            "01",
-            "02",
-            "04",
-            "08",
-            "0A",
-            "0C",
-            "42",
-        ), payload[6:8]
-        assert payload[8:12] in ("0000", "00FF")  # and "FFFF"?
+        # assert payload[6:8] in (
+        #     "00",
+        #     "01",
+        #     "02",
+        #     "04",
+        #     "08",
+        #     "0A",
+        #     "0C",
+        #     "42",
+        # ), payload[6:8]
+        # assert payload[8:12] in ("0000", "00FF")  # and "FFFF"?
 
         result.update(
             {
