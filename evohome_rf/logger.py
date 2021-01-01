@@ -54,7 +54,7 @@ _LOGGER = logging.getLogger(__name__)
 if False or _dev_mode_:
     _LOGGER.setLevel(logging.DEBUG)
 
-if _use_color_:
+if not _use_color_:
     _LOGGER.warning("Consider installing the colorlog library for colored output")
 
 
