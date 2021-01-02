@@ -45,8 +45,9 @@ Pause = SimpleNamespace(
     LONG=timedelta(seconds=0.5),
 )
 
-INIT_QOS = {"priority": Priority.ASAP, "retries": 12, "disable_backoff": True}
+INIT_QOS = {"priority": Priority.ASAP, "retries": 24, "disable_backoff": True}
 INIT_CMD = Command(" I", NUL_DEVICE.id, "0001", "00FFFF0200", qos=INIT_QOS)
+# INIT_CMD = Command(" I", HGI_DEVICE.id, "0001", "00FFFF0200", qos=INIT_QOS)
 
 # tx (from sent to gwy, to get back from gwy) seems to takes approx. 0.025s
 QOS_TX_TIMEOUT = timedelta(seconds=0.05)  # 0.20 OK, but too high?
@@ -403,11 +404,14 @@ class GatewayProtocol(asyncio.Protocol):
                 )
                 return Packet(dtm_str, "", pkt_raw)
 
-            if "# evofw3" in pkt_line and self._gwy.config["evofw_flag"]:
+            if (
+                "# evofw3" in pkt_line
+                and self._gwy.config["evofw_flag"]
+                and self._gwy.config["evofw_flag"] != "!V"
+            ):
                 flag = self._gwy.config["evofw_flag"]
                 data = bytearray(f"{flag}\r\n".encode("ascii"))
                 asyncio.create_task(self._write_data(data, True))
-                self._gwy.config["evofw_flag"] = None  # HACK: to work around !V loop
 
             _PKT_LOGGER.debug("%s < Raw pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
 
