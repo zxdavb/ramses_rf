@@ -403,6 +403,12 @@ class GatewayProtocol(asyncio.Protocol):
                 )
                 return Packet(dtm_str, "", pkt_raw)
 
+            if "# evofw3" in pkt_line and self._gwy.config["evofw_flag"]:
+                flag = self._gwy.config["evofw_flag"]
+                asyncio.create_task(
+                    self._write_data(bytearray(f"{flag}\r\n".encode("ascii")), True)
+                )
+
             _PKT_LOGGER.debug("%s < Raw pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
 
             return Packet(dtm_str, _normalise(pkt_line), pkt_raw)
@@ -431,7 +437,7 @@ class GatewayProtocol(asyncio.Protocol):
 
             elif pkt._header == self._qos_cmd.tx_header:
                 # an (echo of) the transmitted pkt, but had already got one!
-                msg = "duplcated Tx (still wanting Rx)"  # TODO: increase backoff?
+                msg = "duplicated Tx (still wanting Rx)"  # TODO: increase backoff?
 
             else:  # not the packet that was expected
                 msg = "unmatched (still wanting " + ("Tx)" if self._tx_hdr else "Rx)")
@@ -445,6 +451,18 @@ class GatewayProtocol(asyncio.Protocol):
 
         self._callback(pkt)
 
+    async def _write_data(self, data: bytearray, ignore_pause=False) -> None:
+        """Send a bytearray to the transport (serial) interface.
+
+        The _pause_writing flag can be ignored, is useful for sending traceflags.
+        """
+        if not ignore_pause:
+            while self._pause_writing:
+                await asyncio.sleep(0.005)
+        while self._transport.serial.out_waiting:
+            await asyncio.sleep(0.005)
+        self._transport.write(data)
+
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
 
@@ -457,17 +475,6 @@ class GatewayProtocol(asyncio.Protocol):
                 self._timeout_full,
                 msg,
             )
-
-        async def _write_data(data: bytearray) -> None:
-            """Called when some data is to be sent (not a callback)."""
-            # _LOGGER.debug("GwyProtocol.sent_data(%s): %s", cmd.tx_header, data)
-
-            while self._pause_writing:
-                await asyncio.sleep(0.005)
-            while self._transport.serial.out_waiting:
-                await asyncio.sleep(0.005)
-
-            self._transport.write(data)
 
         if self._gwy.config["disable_sending"]:
             raise RuntimeError("Sending is disabled")
@@ -495,7 +502,7 @@ class GatewayProtocol(asyncio.Protocol):
         self._rx_timeout = cmd.qos.get("timeout", QOS_RX_TIMEOUT)
 
         self._timeouts(dt.now())
-        await _write_data(bytearray(f"{cmd}\r\n".encode("ascii")))
+        await self._write_data(bytearray(f"{cmd}\r\n".encode("ascii")))
         # _logger_send(_LOGGER.debug, "SENT")
 
         while self._qos_cmd is not None:  # until sent (may need re-transmit) or expired
@@ -511,7 +518,7 @@ class GatewayProtocol(asyncio.Protocol):
                 if not self._qos_cmd.qos.get("disable_backoff", False):
                     self._backoff = min(self._backoff + 1, QOS_MAX_BACKOFF)
                 self._timeouts(dt.now())
-                await _write_data(bytearray(f"{cmd}\r\n".encode("ascii")))
+                await self._write_data(bytearray(f"{cmd}\r\n".encode("ascii")))
                 _logger_send(_LOGGER.info, "RE-SENT")
 
             else:
