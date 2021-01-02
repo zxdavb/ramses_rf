@@ -225,7 +225,7 @@ class FaultLog:  # 0418
             for x, y in self._fault_log.items()
         }
 
-        return result
+        return {k: [x for x in v.values()] for k, v in result.items()}
 
     async def get_fault_log(self, force_refresh=None) -> Optional[dict]:
         """Get the fault log of a system."""
