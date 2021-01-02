@@ -327,8 +327,9 @@ class GatewayProtocol(asyncio.Protocol):
         self._qos_cmd = None
         self._tx_hdr = None
         self._rx_hdr = None
-        self._tx_retries = None
         self._rx_timeout = None
+        self._tx_retries = None
+        self._tx_retry_limit = None
 
         self._backoff = 0
         self._timeout_full = None
@@ -499,11 +500,11 @@ class GatewayProtocol(asyncio.Protocol):
         self._qos_lock.acquire()
         self._qos_cmd = cmd
         self._qos_lock.release()
-
         self._tx_hdr = cmd.tx_header
         self._rx_hdr = cmd.rx_header  # Could be None
-        self._tx_retries = cmd.qos.get("retries", QOS_TX_RETRIES)
         self._rx_timeout = cmd.qos.get("timeout", QOS_RX_TIMEOUT)
+        self._tx_retries = 0
+        self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
 
         self._timeouts(dt.now())
         await self._write_data(bytearray(f"{cmd}\r\n".encode("ascii")))
@@ -516,14 +517,17 @@ class GatewayProtocol(asyncio.Protocol):
             elif self._qos_cmd is None:  # can be set to None by data_received
                 continue
 
-            elif self._tx_retries > 0:
+            elif self._tx_retries < self._tx_retry_limit:
                 self._tx_hdr = cmd.tx_header
-                self._tx_retries -= 1
+                self._tx_retries += 1
                 if not self._qos_cmd.qos.get("disable_backoff", False):
                     self._backoff = min(self._backoff + 1, QOS_MAX_BACKOFF)
                 self._timeouts(dt.now())
                 await self._write_data(bytearray(f"{cmd}\r\n".encode("ascii")))
-                _logger_send(_LOGGER.info, "RE-SENT")
+                _logger_send(
+                    _LOGGER.info,
+                    f"RE-SENT ({self._tx_retries}/{self._tx_retry_limit})",
+                )
 
             else:
                 self._qos_cmd = None  # give up
