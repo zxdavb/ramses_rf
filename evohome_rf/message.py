@@ -29,6 +29,7 @@ from .const import (
 from .devices import Device
 from .exceptions import CorruptPayloadError
 from .packet import _PKT_LOGGER  # TODO: I think should just use _LOGGER
+from .schema import REDUCE_PROCESSING
 
 # TODO: duplicated in schema.py
 DONT_CREATE_MESSAGES = 3
@@ -531,20 +532,20 @@ def process_msg(msg: Message) -> None:
                     evo.zone_by_idx[z["zone_idx"]]._handle_msg(this)
 
     try:
-        if msg._gwy.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
+        if msg._gwy.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES:
             return
 
         # 18:/RQs are unreliable, although any corresponding RPs are often required
         if msg.src.type == "18":
             return
 
-        if msg._gwy.config["reduce_processing"] >= DONT_CREATE_ENTITIES:
+        if msg._gwy.config[REDUCE_PROCESSING] >= DONT_CREATE_ENTITIES:
             return
 
         create_devices(msg)  # from pkt header & from msg payload (e.g. 000C)
         create_zones(msg)  # create zones & ufh_zones (TBD)
 
-        if msg._gwy.config["reduce_processing"] >= DONT_UPDATE_ENTITIES:
+        if msg._gwy.config[REDUCE_PROCESSING] >= DONT_UPDATE_ENTITIES:
             return
 
         update_entities(msg, msg._gwy._prev_msg)  # update the state database

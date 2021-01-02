@@ -28,6 +28,8 @@ from .const import (
 )
 from .helpers import extract_addrs
 from .logger import dt_str
+from .schema import DISABLE_SENDING, EVOFW_FLAG
+from .version import __version__
 
 SERIAL_CONFIG = {
     "baudrate": 115200,
@@ -327,7 +329,6 @@ class GatewayProtocol(asyncio.Protocol):
         self._qos_cmd = None
         self._tx_hdr = None
         self._rx_hdr = None
-        self._rx_timeout = None
         self._tx_retries = None
         self._tx_retry_limit = None
 
@@ -335,7 +336,7 @@ class GatewayProtocol(asyncio.Protocol):
         self._timeout_full = None
         self._timeout_half = None
 
-        if not self._gwy.config["disable_sending"]:
+        if not self._gwy.config[DISABLE_SENDING]:
             asyncio.create_task(self.send_data(INIT_CMD))  # HACK: port wakeup
 
     def connection_made(self, transport: SerialTransport) -> None:
@@ -353,12 +354,17 @@ class GatewayProtocol(asyncio.Protocol):
         # for attr in dir(transport.serial):
         #     print("obj.%s = %r" % (attr, getattr(transport, attr)))
 
+        _PKT_LOGGER.warning("# evhome_rf %s", __version__, extra=extra(dt_str(), ""))
+
         self._transport = transport
         self._pause_writing = False  # TODO: needs work
 
     def _timeouts(self, dtm: dt) -> Tuple[dt, dt]:
         if self._qos_cmd:
-            timeout = QOS_TX_TIMEOUT if self._tx_hdr else self._rx_timeout
+            if self._tx_hdr:
+                timeout = QOS_TX_TIMEOUT
+            else:
+                timeout = self._qos_cmd.qos.get("timeout", QOS_RX_TIMEOUT)
             self._timeout_full = dtm + timeout * 2 ** self._backoff
             self._timeout_half = dtm + timeout * 2 ** (self._backoff - 1)
 
@@ -407,12 +413,12 @@ class GatewayProtocol(asyncio.Protocol):
 
             if (
                 "# evofw3" in pkt_line
-                and self._gwy.config["evofw_flag"]
-                and self._gwy.config["evofw_flag"] != "!V"
+                and self._gwy.config[EVOFW_FLAG]
+                and self._gwy.config[EVOFW_FLAG] != "!V"
             ):
-                flag = self._gwy.config["evofw_flag"]
+                flag = self._gwy.config[EVOFW_FLAG]
                 data = bytearray(f"{flag}\r\n".encode("ascii"))
-                asyncio.create_task(self._write_data(data, True))
+                asyncio.create_task(self._write_data(data, ignore_pause=True))
 
             _PKT_LOGGER.debug("%s < Raw pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
 
@@ -481,7 +487,7 @@ class GatewayProtocol(asyncio.Protocol):
                 msg,
             )
 
-        if self._gwy.config["disable_sending"]:
+        if self._gwy.config[DISABLE_SENDING]:
             raise RuntimeError("Sending is disabled")
 
         if not cmd.is_valid:
@@ -502,7 +508,6 @@ class GatewayProtocol(asyncio.Protocol):
         self._qos_lock.release()
         self._tx_hdr = cmd.tx_header
         self._rx_hdr = cmd.rx_header  # Could be None
-        self._rx_timeout = cmd.qos.get("timeout", QOS_RX_TIMEOUT)
         self._tx_retries = 0
         self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
 
@@ -532,7 +537,7 @@ class GatewayProtocol(asyncio.Protocol):
             else:
                 self._qos_cmd = None  # give up
                 _logger_send(_LOGGER.info, "EXPIRED")
-                self._backoff = 0
+                self._backoff = 0  # TODO: need a better system
                 break
 
         else:

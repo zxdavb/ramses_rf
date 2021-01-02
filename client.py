@@ -15,6 +15,14 @@ import click
 from colorama import init as colorama_init, Fore, Style
 
 from evohome_rf import (
+    DISABLE_DISCOVERY,
+    DISABLE_SENDING,
+    ENFORCE_ALLOWLIST,
+    EVOFW_FLAG,
+    INPUT_FILE,
+    PACKET_LOG,
+    REDUCE_PROCESSING,
+    SERIAL_PORT,
     Gateway,
     GracefulExit,
     spawn_execute_scripts,
@@ -35,12 +43,12 @@ COLORS = {" I": Fore.GREEN, "RP": Fore.CYAN, "RQ": Fore.CYAN, " W": Fore.MAGENTA
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 LIB_KEYS = (
-    "input_file",
-    "serial_port",
-    "evofw_flag",
-    "packet_log",
+    INPUT_FILE,
+    SERIAL_PORT,
+    EVOFW_FLAG,
+    PACKET_LOG,
     "process_level",  # TODO
-    "reduce_processing",
+    REDUCE_PROCESSING,
 )
 
 
@@ -80,7 +88,7 @@ def cli(ctx, config_file=None, **kwargs):
         lib_kwargs.update(json.load(config_file))
 
     lib_kwargs["debug_mode"] = cli_kwargs["debug_mode"] > 1
-    lib_kwargs["config"]["reduce_processing"] = kwargs["reduce_processing"]
+    lib_kwargs["config"][REDUCE_PROCESSING] = kwargs[REDUCE_PROCESSING]
 
     ctx.obj = lib_kwargs, kwargs
 
@@ -123,7 +131,7 @@ def parse(obj, **kwargs):
     """Parse a log file for messages/packets."""
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
-    lib_kwargs["input_file"] = lib_kwargs["config"].pop("input_file")
+    lib_kwargs[INPUT_FILE] = lib_kwargs["config"].pop(INPUT_FILE)
 
     asyncio.run(main(lib_kwargs, command="parse", **cli_kwargs))
 
@@ -143,7 +151,7 @@ def monitor(obj, **kwargs):
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
     if cli_kwargs["discover"] is not None:
-        lib_kwargs["config"]["disable_discovery"] = not cli_kwargs["discover"]
+        lib_kwargs["config"][DISABLE_DISCOVERY] = not cli_kwargs["discover"]
     lib_kwargs["config"]["poll_devices"] = _convert_to_list(
         cli_kwargs.pop("poll_devices")
     )
@@ -180,7 +188,7 @@ def execute(obj, **kwargs):
     """Execute any specified scripts, return the results, then quit."""
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
-    lib_kwargs["config"]["disable_discovery"] = True
+    lib_kwargs["config"][DISABLE_DISCOVERY] = True
 
     lib_kwargs["allowlist"] = {}
     for k in ("scan_disc", "scan_full", "scan_hard", "scan_xxxx"):
@@ -195,7 +203,7 @@ def execute(obj, **kwargs):
         lib_kwargs["allowlist"].update({cli_kwargs["set_schedule"][0]: {}})
 
     if lib_kwargs["allowlist"]:
-        lib_kwargs["config"]["enforce_allowlist"] = True
+        lib_kwargs["config"][ENFORCE_ALLOWLIST] = True
 
     asyncio.run(main(lib_kwargs, command="execute", **cli_kwargs))
 
@@ -206,7 +214,7 @@ def listen(obj, **kwargs):
     """Listen to (eavesdrop only) a serial port for messages/packets."""
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
-    lib_kwargs["config"]["disable_sending"] = True
+    lib_kwargs["config"][DISABLE_SENDING] = True
 
     asyncio.run(main(lib_kwargs, command="listen", **cli_kwargs))
 
@@ -253,9 +261,9 @@ async def main(lib_kwargs, **kwargs):
         # future: ... cb=[BaseProactorEventLoop._loop_self_reading()]
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-    gwy = Gateway(lib_kwargs["config"].pop("serial_port", None), **lib_kwargs)
+    gwy = Gateway(lib_kwargs["config"].pop(SERIAL_PORT, None), **lib_kwargs)
 
-    if kwargs.get("reduce_processing", 0) < 3:
+    if kwargs.get(REDUCE_PROCESSING, 0) < 3:
         # no MSGs will be sent to STDOUT, so send PKTs instead
         colorama_init(autoreset=True)
         protocol, _ = gwy.create_client(process_message)

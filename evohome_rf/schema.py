@@ -61,20 +61,34 @@ SER2NET_SCHEMA = vol.Schema(
     {vol.Required("enabled"): bool, vol.Optional("socket", default="0.0.0.0:5000"): str}
 )
 
+# Config flags
+DISABLE_DISCOVERY = "disable_discovery"
+DISABLE_SENDING = "disable_sending"
+ENFORCE_ALLOWLIST = "enforce_allowlist"
+ENFORCE_BLOCKLIST = "enforce_blocklist"
+EVOFW_FLAG = "evofw_flag"
+INPUT_FILE = "input_file"
+MAX_ZONES = "max_zones"
+PACKET_LOG = "packet_log"
+REDUCE_PROCESSING = "reduce_processing"
+SERIAL_PORT = "serial_port"
+SER2NET_RELAY = "ser2net_relay"
+USE_SCHEMA = "use_schema"
+
 CONFIG_SCHEMA = vol.Schema(
     {
-        vol.Optional("serial_port"): vol.Any(None, str),
-        # vol.Optional("input_file"): vol.Any(None, any),  # this doesn't work
-        vol.Optional("disable_sending", default=False): vol.Any(None, bool),
-        vol.Optional("disable_discovery", default=False): vol.Any(None, bool),
-        vol.Optional("enforce_allowlist", default=False): vol.Any(None, bool),
-        vol.Optional("enforce_blocklist", default=True): vol.Any(None, bool),
-        vol.Optional("evofw_flag", default=None): vol.Any(None, str),
-        vol.Optional("max_zones", default=DEFAULT_MAX_ZONES): vol.Any(None, int),
-        vol.Optional("packet_log", default=None): vol.Any(None, str),
-        vol.Optional("reduce_processing", default=0): vol.Any(None, int),
-        vol.Optional("ser2net_relay"): SER2NET_SCHEMA,
-        vol.Optional("use_schema", default=True): vol.Any(None, bool),
+        vol.Optional(SERIAL_PORT): vol.Any(None, str),
+        # vol.Optional(INPUT_FILE): vol.Any(None, any),  # this doesn't work
+        vol.Optional(DISABLE_SENDING, default=False): vol.Any(None, bool),
+        vol.Optional(DISABLE_DISCOVERY, default=False): vol.Any(None, bool),
+        vol.Optional(ENFORCE_ALLOWLIST, default=False): vol.Any(None, bool),
+        vol.Optional(ENFORCE_BLOCKLIST, default=True): vol.Any(None, bool),
+        vol.Optional(EVOFW_FLAG, default=None): vol.Any(None, str),
+        vol.Optional(MAX_ZONES, default=DEFAULT_MAX_ZONES): vol.Any(None, int),
+        vol.Optional(PACKET_LOG, default=None): vol.Any(None, str),
+        vol.Optional(REDUCE_PROCESSING, default=0): vol.Any(None, int),
+        vol.Optional(SER2NET_RELAY): SER2NET_SCHEMA,
+        vol.Optional(USE_SCHEMA, default=True): vol.Any(None, bool),
     },
     extra=vol.ALLOW_EXTRA,
 )
@@ -140,8 +154,8 @@ MONITOR_SCHEMA = vol.Schema(
     {
         vol.Optional("probe_system"): vol.Any(None, str),
         vol.Optional("execut_cmd"): vol.Any(None, str),
-        vol.Optional("evofw_flag"): vol.Any(None, str),
-        vol.Optional("packet_log"): vol.Any(None, str),
+        vol.Optional(EVOFW_FLAG): vol.Any(None, str),
+        vol.Optional(PACKET_LOG): vol.Any(None, str),
     }
 )
 PARSE_SCHEMA = vol.Schema({})
@@ -160,10 +174,10 @@ def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, dict, list, li
     allows = {}
     blocks = {}
 
-    if config["enforce_allowlist"]:
+    if config[ENFORCE_ALLOWLIST]:
         allows = KNOWNS_SCHEMA(kwargs.get("allowlist", {}))
-        config["enforce_blocklist"] = False
-    elif config["enforce_blocklist"]:
+        config[ENFORCE_BLOCKLIST] = False
+    elif config[ENFORCE_BLOCKLIST]:
         blocks = KNOWNS_SCHEMA(kwargs.get("blocklist", {}))
 
     if serial_port and input_file:
@@ -173,10 +187,10 @@ def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, dict, list, li
             input_file,
         )
     elif serial_port is None:
-        config["disable_sending"] = True
+        config[DISABLE_SENDING] = True
 
-    if config["disable_sending"]:
-        config["disable_discovery"] = True
+    if config[DISABLE_SENDING]:
+        config[DISABLE_DISCOVERY] = True
 
     return (config, schema, allows, blocks)
 

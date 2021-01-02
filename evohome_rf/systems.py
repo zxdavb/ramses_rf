@@ -30,7 +30,15 @@ from .const import (
 from .devices import Device, Entity, _payload
 from .exceptions import CorruptStateError
 from .helpers import dtm_to_hex
-from .schema import ATTR_HTG_CONTROL, ATTR_ORPHANS, ATTR_UFH_CONTROLLERS, ATTR_ZONES
+from .schema import (
+    ATTR_HTG_CONTROL,
+    ATTR_ORPHANS,
+    ATTR_UFH_CONTROLLERS,
+    ATTR_ZONES,
+    DISABLE_DISCOVERY,
+    MAX_ZONES,
+)
+
 
 from .zones import DhwZone, Zone
 
@@ -287,7 +295,7 @@ class StoredHw:
 
             dhw = self._dhw = DhwZone(self)
 
-            if not self._gwy.config["disable_discovery"]:
+            if not self._gwy.config[DISABLE_DISCOVERY]:
                 dhw._discover()  # discover_flag=DISCOVER_ALL)
 
             return dhw
@@ -548,7 +556,7 @@ class MultiZone:  # 0005 (+/- 000C?)
         """
 
         def create_zone(zone_idx) -> Zone:
-            if int(zone_idx, 16) >= self._gwy.config["max_zones"]:
+            if int(zone_idx, 16) >= self._gwy.config[MAX_ZONES]:
                 raise ValueError(f"Invalid zone idx: {zone_idx} (exceeds max_zones)")
 
             assert zone_idx not in self.zone_by_idx, f"Dup zone: {zone_idx} for {self}"
@@ -557,7 +565,7 @@ class MultiZone:  # 0005 (+/- 000C?)
 
             zone = Zone(self, zone_idx)
 
-            if not self._gwy.config["disable_discovery"]:
+            if not self._gwy.config[DISABLE_DISCOVERY]:
                 zone._discover()  # discover_flag=DISCOVER_ALL)
 
             return zone
@@ -565,7 +573,7 @@ class MultiZone:  # 0005 (+/- 000C?)
         if zone_idx == "HW":
             return super()._get_zone(zone_idx, sensor=sensor, **kwargs)
 
-        if int(zone_idx, 16) <= self._gwy.config["max_zones"]:
+        if int(zone_idx, 16) <= self._gwy.config[MAX_ZONES]:
             zone = self.zone_by_idx.get(zone_idx)
             if zone is None:
                 zone = create_zone(zone_idx)

@@ -19,6 +19,7 @@ from serial_asyncio import SerialTransport
 from .const import _dev_mode_
 from .message import Message
 from .packet import SERIAL_CONFIG, GatewayProtocol, WinSerTransport
+from .schema import DISABLE_SENDING
 
 MAX_BUFFER_SIZE = 200
 WRITER_TASK = "writer_task"
@@ -246,7 +247,7 @@ class Ramses2Transport(asyncio.Transport):
         if not self._dispatcher:
             # raise RuntimeError("transport has no dispatcher")
             _LOGGER.debug("RamsesTransport.write(%s): no dispatcher: discarded", cmd)
-        if self._gwy.config["disable_sending"]:
+        if self._gwy.config[DISABLE_SENDING]:
             _LOGGER.debug("RamsesTransport.write(%s): sending disabled: discarded", cmd)
         else:
             self._que.put_nowait(cmd)

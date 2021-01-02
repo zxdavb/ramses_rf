@@ -25,7 +25,22 @@ from .discovery import spawn_execute_scripts, spawn_monitor_scripts  # noqa
 from .logger import set_pkt_logging
 from .message import DONT_CREATE_MESSAGES, process_msg
 from .packet import _PKT_LOGGER as pkt_logger, file_pkts
-from .schema import load_config, load_schema
+from .schema import (
+    load_config,
+    load_schema,
+    DISABLE_DISCOVERY,
+    DISABLE_SENDING,
+    ENFORCE_ALLOWLIST,
+    ENFORCE_BLOCKLIST,
+    EVOFW_FLAG,
+    INPUT_FILE,
+    MAX_ZONES,
+    PACKET_LOG,
+    REDUCE_PROCESSING,
+    SERIAL_PORT,
+    SER2NET_RELAY,
+    USE_SCHEMA,
+)
 
 # from .ser2net import Ser2NetServer
 from .systems import SYSTEM_CLASSES, System, SystemBase
@@ -72,8 +87,8 @@ class Gateway:
 
         set_pkt_logging(
             pkt_logger,
-            file_name=self.config.get("packet_log"),
-            cc_stdout=self.config["reduce_processing"] >= DONT_CREATE_MESSAGES,
+            file_name=self.config.get(PACKET_LOG),
+            cc_stdout=self.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES,
         )
 
         self.pkt_protocol, self.pkt_transport = None, None
@@ -89,7 +104,7 @@ class Gateway:
         # if config.get("ser2net_server"):
         self._relay = None  # ser2net_server relay
 
-        # if self.config["reduce_processing"] > 0:
+        # if self.config[REDUCE_PROCESSING] > 0:
         self.evo = None  # Evohome(controller=config["controller_id"])
         self.systems: List[SystemBase] = []
         self.system_by_id: Dict = {}
@@ -98,7 +113,7 @@ class Gateway:
 
         self.known_devices = {}  # self._include_list + self._exclude_list
         self._known_devices = (
-            load_schema(self, self._schema) if self.config["use_schema"] else {}
+            load_schema(self, self._schema) if self.config[USE_SCHEMA] else {}
         )
         self.config["known_devices"] = bool(self.known_devices)  # TODO: needs work
 
@@ -221,7 +236,7 @@ class Gateway:
 
             system = SYSTEM_CLASSES.get(ctl.type, System)(self, ctl)
 
-            if not self.config["disable_discovery"]:
+            if not self.config[DISABLE_DISCOVERY]:
                 system._discover()  # discover_flag=DISCOVER_ALL)
 
             return system
@@ -232,7 +247,7 @@ class Gateway:
 
             device = DEVICE_CLASSES.get(dev_addr.type, Device)(self, dev_addr, **kwargs)
 
-            if not self.config["disable_discovery"]:
+            if not self.config[DISABLE_DISCOVERY]:
                 device._discover()  # discover_flag=DISCOVER_ALL)
 
             return device
