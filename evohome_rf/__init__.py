@@ -21,11 +21,11 @@ from typing import Dict, List, Tuple  # Any, Tuple
 
 from .const import _dev_mode_, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
-from .discovery import spawn_execute_scripts, spawn_monitor_scripts  # noqa
+from .discovery import spawn_execute_scripts, spawn_monitor_scripts  # noqa: F401
 from .logger import set_pkt_logging
 from .message import DONT_CREATE_MESSAGES, process_msg
 from .packet import _PKT_LOGGER as pkt_logger, file_pkts
-from .schema import (
+from .schema import (  # noqa: F401
     load_config,
     load_schema,
     DISABLE_DISCOVERY,
