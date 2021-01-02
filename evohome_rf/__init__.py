@@ -50,7 +50,7 @@ from .transport import (
     create_msg_stack,
     create_pkt_stack,
 )
-from .version import __version__  # noqa
+from .version import __version__  # noqa: F401
 
 _LOGGER = logging.getLogger(__name__)
 if False and _dev_mode_:
