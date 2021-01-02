@@ -405,9 +405,9 @@ class GatewayProtocol(asyncio.Protocol):
 
             if "# evofw3" in pkt_line and self._gwy.config["evofw_flag"]:
                 flag = self._gwy.config["evofw_flag"]
-                asyncio.create_task(
-                    self._write_data(bytearray(f"{flag}\r\n".encode("ascii")), True)
-                )
+                data = bytearray(f"{flag}\r\n".encode("ascii"))
+                asyncio.create_task(self._write_data(data, True))
+                self._gwy.config["evofw_flag"] = None  # HACK: to work around !V loop
 
             _PKT_LOGGER.debug("%s < Raw pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
 
