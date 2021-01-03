@@ -73,6 +73,7 @@ PACKET_LOG = "packet_log"
 REDUCE_PROCESSING = "reduce_processing"
 SERIAL_PORT = "serial_port"
 SER2NET_RELAY = "ser2net_relay"
+USE_NAMES = "use_names"  # use friendly device names from allowlist
 USE_SCHEMA = "use_schema"
 
 CONFIG_SCHEMA = vol.Schema(
@@ -88,6 +89,7 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Optional(PACKET_LOG, default=None): vol.Any(None, str),
         vol.Optional(REDUCE_PROCESSING, default=0): vol.Any(None, int),
         vol.Optional(SER2NET_RELAY): SER2NET_SCHEMA,
+        vol.Optional(USE_NAMES, default=True): vol.Any(None, bool),
         vol.Optional(USE_SCHEMA, default=True): vol.Any(None, bool),
     },
     extra=vol.ALLOW_EXTRA,
@@ -168,11 +170,10 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, dict, list, list]:
+def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, list, list]:
     """Process the schema, and the configuration and return True if it is valid."""
 
     config = CONFIG_SCHEMA(kwargs.get("config", {}))
-    schema = SYSTEM_SCHEMA(kwargs.get("schema", {})) if kwargs.get("schema") else {}
     allows = {}
     blocks = {}
 
@@ -194,14 +195,14 @@ def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, dict, list, li
     if config[DISABLE_SENDING]:
         config[DISABLE_DISCOVERY] = True
 
-    return (config, schema, allows, blocks)
+    return (config, allows, blocks)
 
 
-def load_schema(gwy, schema, **kwargs) -> dict:
+def load_schema(gwy, **kwargs) -> Tuple[dict, dict]:
     """Process the schema, and the configuration and return True if it is valid."""
     # TODO: check a sensor is not a device in another zone
 
-    # schema = SYSTEM_SCHEMA(schema)
+    schema = SYSTEM_SCHEMA(kwargs.get("schema", {})) if kwargs.get("schema") else {}
 
     device_ids = schema.get(ATTR_ORPHANS, [])  # TODO: clean up
     if device_ids is not None:
@@ -255,6 +256,4 @@ def load_schema(gwy, schema, **kwargs) -> dict:
     # for ufh_ctl, ufh_schema in schema.get(ATTR_UFH_CONTROLLERS, []):
     #     dev = gwy._get_device(addr(ufh_ctl), ctl_addr=ctl)
 
-    gwy.schema
-
-    # return friendly names
+    return (schema, KNOWNS_SCHEMA(kwargs.get("allowlist", {})))

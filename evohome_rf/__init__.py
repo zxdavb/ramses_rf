@@ -82,7 +82,6 @@ class Gateway:
 
         (
             self.config,
-            self._schema,
             self._include,
             self._exclude,
         ) = load_config(serial_port, input_file, **kwargs)
@@ -113,9 +112,7 @@ class Gateway:
         self.devices: List[Device] = []
         self.device_by_id: Dict = {}
 
-        self.known_devices = {}  # self._include_list + self._exclude_list
-        self._known_devices = (load_schema(self, self._schema, **kwargs))
-        self.config["known_devices"] = bool(self.known_devices)  # TODO: needs work
+        self._schema, self.known_devices = load_schema(self, **kwargs)
 
         self._prev_msg = None
 

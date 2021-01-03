@@ -190,7 +190,7 @@ def execute(obj, **kwargs):
 
     lib_kwargs["config"][DISABLE_DISCOVERY] = True
 
-    lib_kwargs["allowlist"] = {}
+    lib_kwargs["allowlist"] = lib_kwargs.get("allowlist", {})  # TODO: bugs here
     for k in ("scan_disc", "scan_full", "scan_hard", "scan_xxxx"):
         cli_kwargs[k] = _convert_to_list(cli_kwargs.pop(k))
         lib_kwargs["allowlist"].update({d: None for d in cli_kwargs[k]})

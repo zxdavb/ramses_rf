@@ -29,7 +29,7 @@ from .const import (
 from .devices import Device
 from .exceptions import CorruptPayloadError
 from .packet import _PKT_LOGGER  # TODO: I think should just use _LOGGER
-from .schema import REDUCE_PROCESSING
+from .schema import REDUCE_PROCESSING, USE_NAMES
 
 # TODO: duplicated in schema.py
 DONT_CREATE_MESSAGES = 3
@@ -97,7 +97,7 @@ class Message:
 
         self._payload = self._str = None
 
-        self._format = MSG_FORMAT_18 if gwy.config["known_devices"] else MSG_FORMAT_10
+        self._format = MSG_FORMAT_18 if gwy.known_devices else MSG_FORMAT_10
 
         self._is_valid = self._is_array = self._is_expired = self._is_fragment = None
         self._is_valid = self.is_valid
@@ -111,15 +111,17 @@ class Message:
 
         def display_name(dev: Union[Address, Device]) -> str:
             """Return a formatted device name, uses a friendly name if there is one."""
+            if self._gwy.config[USE_NAMES]:
+                try:
+                    return f"{self._gwy.known_devices[dev.id]['name']:<18}"
+                except (KeyError, TypeError):
+                    pass
+
             if dev is NON_DEVICE:
                 return f"{'':<10}"
 
             if dev is NUL_DEVICE:
                 return "NUL:------"
-
-            if dev.id in self._gwy.known_devices:
-                if self._gwy.known_devices[dev.id].get("friendly_name"):
-                    return self._gwy.known_devices[dev.id]["friendly_name"]
 
             return f"{DEVICE_TYPES.get(dev.type, f'{dev.type:>3}')}:{dev.id[3:]}"
 
@@ -319,7 +321,7 @@ class Message:
 
         return self._is_valid
 
-    def is_wanted(self, include_list, exclude_list) -> bool:
+    def is_wanted(self, include_list, exclude_list) -> Optional[bool]:
         """Parse the packet, return True if the packet is not to be filtered out."""
 
         if not self._is_valid:

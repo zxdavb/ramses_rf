@@ -160,10 +160,6 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         self._zone = None
         self._domain = {}
 
-        attrs = gwy.known_devices.get(dev_addr.id)
-        self._friendly_name = attrs.get("friendly_name") if attrs else None
-        self._ignored = attrs.get("ignored", False) if attrs else False
-
     def __repr__(self) -> str:
         return f"{self.id} ({DEVICE_TYPES.get(self.type)})"
 
