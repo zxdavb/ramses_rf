@@ -3,8 +3,8 @@
 #
 """A CLI for the evohome_rf library.
 
-evohome_rf is used to parse Honeywell's RAMSES-II packets, either via RF or from a file.
-"""
+    evohome_rf is used to parse/process Honeywell's RAMSES-II packets.
+    """
 import asyncio
 import json
 import shutil

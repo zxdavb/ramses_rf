@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""The evohome-compatible zones."""
+"""Evohome RF - The evohome-compatible zones."""
 
 from abc import ABCMeta, abstractmethod
 import asyncio
@@ -38,8 +38,10 @@ from .devices import Device, Entity, _payload
 from .exceptions import CorruptStateError
 from .helpers import dtm_to_hex
 
+DEV_MODE = _dev_mode_
+
 _LOGGER = logging.getLogger(__name__)
-if False and _dev_mode_:
+if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
@@ -483,7 +485,7 @@ class Zone(ZoneSchedule, ZoneBase):
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
-        if _dev_mode_ and self.idx == "99":  # dev/test code
+        if DEV_MODE and self.idx == "99":  # dev/test code
             asyncio.create_task(  # TODO: test/dev only
                 self.async_cancel_override()
                 # self.async_set_override(

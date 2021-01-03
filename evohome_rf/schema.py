@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Schema processor."""
+"""Evohome RF - Schema processor."""
 
 import logging
 from typing import Tuple
@@ -161,8 +161,10 @@ MONITOR_SCHEMA = vol.Schema(
 PARSE_SCHEMA = vol.Schema({})
 CLI_SCHEMA = vol.Schema({})
 
+DEV_MODE = _dev_mode_
+
 _LOGGER = logging.getLogger(__name__)
-if False and _dev_mode_:
+if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
@@ -254,3 +256,5 @@ def load_schema(gwy, schema, **kwargs) -> dict:
     #     dev = gwy._get_device(addr(ufh_ctl), ctl_addr=ctl)
 
     gwy.schema
+
+    # return friendly names

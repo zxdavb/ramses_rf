@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome serial."""
+"""Evohome RF - a RAMSES-II protocol decoder & analyser."""
 
 from collections import namedtuple
 import re
@@ -11,10 +11,10 @@ def slug(string: str) -> str:
     return re.sub(r"[\W_]+", "_", string.lower())
 
 
+_dev_mode_ = False
+
 # grep ' F[89ABxDE]' | grep -vE ' (0008|1F09/F8|1FC9|2D49/FD) '
 # grep ' F[89ABCDE]' | grep -vE ' (0008|1F09/xx|1FC9|0001|0009|1100|3150|3B00) '
-
-_dev_mode_ = False
 
 HGI_DEV_ID = "18:000730"  # default type and address of HGI, 18:013393
 NON_DEV_ID = "--:------"
@@ -280,6 +280,9 @@ DEVICE_TABLE = {
         "is_sensor": True,
         "archetype": "ST9420C",
     },
+    # Honeywell Jasper, HVAC?
+    "08": {"type": "JIM", "name": "HVAC?"},  # Jasper equipment interface module
+    "31": {"type": "JST", "name": "HVAC?"},  # Jasper Stat TXXX
     # non-Honeywell, HVAC? (also, 30: is a Nuaire PIV)
     "20": {"type": "VCE", "name": "HVAC?"},  # VCE-RF unit
     "32": {"type": "VMS", "name": "HVAC?"},  # sensor/switch

@@ -46,14 +46,16 @@ from .schema import (  # noqa: F401
 from .systems import SYSTEM_CLASSES, System, SystemBase
 from .transport import (
     WRITER_TASK,
-    Ramses2Protocol,
+    MessageProtocol,
     create_msg_stack,
     create_pkt_stack,
 )
 from .version import __version__  # noqa: F401
 
+DEV_MODE = _dev_mode_
+
 _LOGGER = logging.getLogger(__name__)
-if False and _dev_mode_:
+if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
@@ -67,9 +69,9 @@ class Gateway:
     def __init__(self, serial_port, input_file=None, loop=None, **kwargs) -> None:
         """Initialise the class."""
 
-        if kwargs.pop("debug_mode"):
+        if kwargs.pop("debug_mode", None):
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
-        _LOGGER.debug("Starting evohome_rf, **kwargs = %s", kwargs)
+        _LOGGER.warning("Starting evohome_rf, **kwargs = %s", kwargs)
 
         self._loop = loop if loop else asyncio.get_running_loop()
         self._tasks = []
@@ -112,9 +114,7 @@ class Gateway:
         self.device_by_id: Dict = {}
 
         self.known_devices = {}  # self._include_list + self._exclude_list
-        self._known_devices = (
-            load_schema(self, self._schema) if self.config[USE_SCHEMA] else {}
-        )
+        self._known_devices = (load_schema(self, self._schema, **kwargs))
         self.config["known_devices"] = bool(self.known_devices)  # TODO: needs work
 
         self._prev_msg = None
@@ -322,7 +322,7 @@ class Gateway:
         return result
 
     def create_client(
-        self, msg_handler, protocol_factory=Ramses2Protocol, **kwargs
+        self, msg_handler, protocol_factory=MessageProtocol, **kwargs
     ) -> Tuple:
         """Create a client protocol for the RAMSES-II message transport."""
         return create_msg_stack(self, msg_handler, protocol_factory, **kwargs)

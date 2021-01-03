@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Logging utility."""
+"""Evohome RF - Logging utility."""
 
 import ctypes
 from datetime import datetime as dt
@@ -19,6 +19,8 @@ except ModuleNotFoundError:
 
 from .const import _dev_mode_
 
+DEV_MODE = _dev_mode_
+
 DEFAULT_FMT = "%(asctime)s.%(msecs)03d %(message)s"
 DEFAULT_DATEFMT = "%H:%M:%S"
 DEFAULT_LEVEL = logging.INFO
@@ -29,7 +31,7 @@ logging.basicConfig(level=DEFAULT_LEVEL, format=DEFAULT_FMT, datefmt=DEFAULT_DAT
 
 CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
 # HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssss, shorter format for the console
-if _dev_mode_:  # Do this to have longer-format console messages
+if DEV_MODE:  # Do this to have longer-format console messages
     CONSOLE_FMT = "%(date)sT%(time)s %(message)s"
 else:
     CONSOLE_FMT = "%(time).12s " + f"%(message).{CONSOLE_COLS - 13}s"
@@ -51,7 +53,7 @@ LOG_COLOURS = {
 }  # default_log_colors
 
 _LOGGER = logging.getLogger(__name__)
-if False or _dev_mode_:
+if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 if not _use_color_:

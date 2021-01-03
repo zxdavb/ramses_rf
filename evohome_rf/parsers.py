@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome serial."""
+"""Evohome RF - payload processors."""
 
 from datetime import datetime as dt, timedelta
 import logging
@@ -29,8 +29,10 @@ from .helpers import dtm_from_hex as _dtm
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
 from .schema import MAX_ZONES
 
+DEV_MODE = _dev_mode_
+
 _LOGGER = logging.getLogger(__name__)
-if False and _dev_mode_:
+if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
@@ -150,8 +152,10 @@ def parser_decorator(func):
     def wrapper(*args, **kwargs) -> Optional[dict]:
         """Check the length of a payload."""
 
-        payload = args[0]
-        msg = args[1]
+        payload, msg = args[0], args[1]
+
+        if msg.src.type in ("08", "31"):  # Honeywell Jasper HVAC
+            return func(*args, **kwargs)
 
         if msg.verb == " W":  # TODO: WIP, need to check _idx()
             # these are OK to parse Ws:
@@ -475,6 +479,14 @@ def parser_0006(payload, msg) -> Optional[dict]:
 def parser_0008(payload, msg) -> Optional[dict]:
     # https://www.domoticaforum.eu/viewtopic.php?f=7&t=5806&start=105#p73681
     # e.g. Electric Heat Zone
+
+    if msg.src.type == "31":  # Honeywell Japser ?HVAC
+        assert msg.len == 13
+        return {
+            "ordinal": f"0x{payload[2:8]}",
+            "_unknown": payload[8:],
+        }
+
     assert msg.len == 2
 
     if payload[:2] not in ("F9", "FA", "FC"):
@@ -482,7 +494,7 @@ def parser_0008(payload, msg) -> Optional[dict]:
             int(payload[:2], 16) < msg._gwy.config[MAX_ZONES]
         )  # TODO: when 0, when FC, when zone
 
-    return {**_idx(payload[:2], msg), "relay_demand": _percent(payload[2:])}
+    return {**_idx(payload[:2], msg), "relay_demand": _percent(payload[2:4])}
 
 
 @parser_decorator  # relay_failsafe
@@ -873,6 +885,14 @@ def parser_10e0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # tpi_params (domain/zone/device)
 def parser_1100(payload, msg) -> Optional[dict]:
+
+    if msg.src.type == "08":  # Honeywell Japser ?HVAC
+        assert msg.len == 19
+        return {
+            "ordinal": f"0x{payload[2:8]}",
+            "_unknown": payload[8:],
+        }
+
     assert msg.len in (5, 8)
     assert payload[:2] in ("00", "FC")
     # 2020-09-23T19:25:04.767331 047  I --- 13:079800 --:------ 13:079800 1100 008 00170498007FFF01  # noqa
@@ -1180,12 +1200,24 @@ def parser_2e04(payload, msg) -> Optional[dict]:
     # if msg.verb == " W":
     # RQ/2E04/FF
 
-    assert msg.len == 8
-    assert payload[:2] in SYSTEM_MODE_MAP  # TODO: check AutoWithReset
+    #  I --— 01:020766 --:------ 01:020766 2E04 016 FFFFFFFFFFFFFF0007FFFFFFFFFFFF04  # Manual          # noqa: E501
+    #  I --— 01:020766 --:------ 01:020766 2E04 016 FFFFFFFFFFFFFF0000FFFFFFFFFFFF04  # Automatic/times # noqa: E501
+
+    if msg.len == 8:  # evohome
+        assert payload[:2] in SYSTEM_MODE_MAP, payload[:2]  # TODO: check AutoWithReset
+
+    elif msg.len == 16:  # hometronics, lifestyle ID:
+        assert 0 <= int(payload[:2], 16) <= 15 or payload[:2] == "FF", payload[:2]
+        assert payload[16:18] in ("00", "07"), payload[16:18]
+        assert payload[30:32] == "04", payload[30:32]
+        # assert False
+
+    else:
+        assert False  # msg.len in (8, 16)  # evohome 8, hometronics 16
 
     return {
-        "system_mode": SYSTEM_MODE_MAP.get(payload[:2]),
-        "until": _dtm(payload[2:14]) if payload[14:] != "00" else None,
+        "system_mode": SYSTEM_MODE_MAP.get(payload[:2], payload[:2]),
+        "until": _dtm(payload[2:14]) if payload[14:16] != "00" else None,
     }  # TODO: double-check the final "00"
 
 
@@ -1448,14 +1480,21 @@ def parser_3ef0(payload, msg) -> dict:
     # 051  I --- 13:049225 --:------ 13:049225 3EF0 003 00 00 FF
     # 054  I --- 13:209679 --:------ 13:209679 3EF0 003 00 C8 FF
 
+    if msg.src.type in "08":  # Honeywell Japser ?HVAC
+        assert msg.len == 20
+        return {
+            "ordinal": f"0x{payload[2:8]}",
+            "_unknown": payload[8:],
+        }
+
     assert payload[:2] == "00", f"domain_id is not 00: {payload[:2]}"
     if msg.len == 3:
-        assert payload[2:4] in ("00", "C8", "FF")
-        assert payload[4:6] == "FF"
+        assert payload[2:4] in ("00", "C8", "FF"), payload[2:4]
+        assert payload[4:6] == "FF", payload[4:6]
 
-    if msg.len >= 6:  # for OTB
-        assert payload[2:4] == "FF" or int(payload[2:4], 16) <= 100  # TODO: why not 200
-        assert payload[4:6] in ("08", "10", "11")  # seen only in hometronics/31: "08"
+    if msg.len >= 6:  # for OTB, TODO: why 100 & not 200
+        assert payload[2:4] == "FF" or int(payload[2:4], 16) <= 100, payload[2:4]
+        assert payload[4:6] in ("10", "11"), payload[4:6]
 
     result = {
         # **_idx(payload[:2], msg),
@@ -1492,9 +1531,16 @@ def parser_3ef0(payload, msg) -> dict:
 def parser_3ef1(payload, msg) -> dict:
     # RP --- 10:067219 18:200202 --:------ 3EF1 007 00-7FFF-003C-0010
 
+    if msg.src.type in ("08", "31"):  # Honeywell Japser ?HVAC
+        assert msg.len == 18 if msg.src.type == "08" else 20
+        return {
+            "ordinal": f"0x{payload[2:8]}",
+            "_unknown": payload[8:],
+        }
+
     assert msg.verb == "RP"
     assert msg.len == 7
-    assert payload[:2] == "00"
+    assert payload[:2] == "00", payload[:2]
     assert _percent(payload[10:12]) <= 1, f"{payload[10:12]}"
     # assert payload[12:] == "FF"
 

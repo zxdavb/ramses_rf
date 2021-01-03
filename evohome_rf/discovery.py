@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome serial discovery scripts."""
+"""Evohome RF - discovery scripts."""
 
 import asyncio
 import json
@@ -13,8 +13,10 @@ from .const import _dev_mode_, CODE_SCHEMA, DEVICE_TABLE, Address
 from .exceptions import ExpiredCallbackError
 
 
+DEV_MODE = _dev_mode_
+
 _LOGGER = logging.getLogger(__name__)
-if False and _dev_mode_:
+if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Message processor."""
+"""Evohome RF - Message processor."""
 
 from datetime import datetime as dt, timedelta
 import logging
@@ -36,8 +36,10 @@ DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
 DONT_UPDATE_ENTITIES = 1
 
+DEV_MODE = _dev_mode_ or True
+
 _LOGGER = logging.getLogger(__name__)
-if False and _dev_mode_:
+if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
@@ -290,25 +292,25 @@ class Message:
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
             hint = f": {err}" if str(err) != "" else ""
             log_message(
-                _PKT_LOGGER.exception if _dev_mode_ else _LOGGER.warning,
-                f"%s < Validation error{hint}",
+                _PKT_LOGGER.exception if DEV_MODE else _LOGGER.warning,
+                f"%s < Validation error{hint} ",
             )
             self._is_valid = False
             return self._is_valid
 
         except CorruptPayloadError as err:
             hint = f": {err}" if str(err) != "" else ""
-            log_message(_PKT_LOGGER.warning, f"%s < Validation error{hint} (payload)")
+            log_message(_PKT_LOGGER.warning, f"%s < Validation error{hint} (payload) ")
             self._is_valid = False
             return self._is_valid
 
         except (AttributeError, LookupError, TypeError, ValueError):  # for development
-            log_message(_PKT_LOGGER.exception, "%s < Coding error")
+            log_message(_PKT_LOGGER.exception, "%s < Coding error ")
             self._is_valid = False
             return self._is_valid
 
         except NotImplementedError:  # unknown packet code
-            log_message(_PKT_LOGGER.warning, "%s < Unknown packet code")
+            log_message(_PKT_LOGGER.warning, "%s < Unknown packet code ")
             self._is_valid = False
             return self._is_valid
 

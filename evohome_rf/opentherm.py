@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome serial."""
+"""Evohome RF - Opentherm processor."""
 
 import logging
 import struct
@@ -9,8 +9,10 @@ from typing import Any
 
 from .const import _dev_mode_
 
+DEV_MODE = _dev_mode_
+
 _LOGGER = logging.getLogger(__name__)
-if False and _dev_mode_:
+if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 # Data structure shamelessy copied, with thanks to @nlrb, from:

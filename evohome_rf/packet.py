@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Packet processor."""
+"""Evohome RF - Packet processor."""
 
 import asyncio
 from datetime import datetime as dt, timedelta
@@ -34,7 +34,7 @@ from .version import __version__
 SERIAL_CONFIG = {
     "baudrate": 115200,
     "timeout": 0,  # None
-    "dsrdtr": False,
+    "dsrdtr": True,
     "rtscts": False,
     "xonxoff": False,
 }
@@ -58,12 +58,13 @@ QOS_TX_RETRIES = 2
 QOS_RX_TIMEOUT = timedelta(seconds=0.20)  # 0.10 too low sometimes
 QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many?
 
-_PKT_LOGGER = logging.getLogger(f"{__name__}-log")
-# _PKT_LOGGER.setLevel(logging.DEBUG)  # can do DEBUG, minimum should be INFO
+DEV_MODE = _dev_mode_ or True
+
+_PKT_LOGGER = logging.getLogger(f"{__name__}-log")  # don't setLevel here
 
 _LOGGER = logging.getLogger(__name__)
-if True or _dev_mode_:
-    _LOGGER.setLevel(logging.INFO)
+if DEV_MODE:
+    _LOGGER.setLevel(logging.INFO)  # DEBUG may have too much detail
 
 
 def stream_to_line(func):
@@ -312,11 +313,19 @@ class WinSerTransport(Process):
         self._write_queue.put_nowait(cmd)
 
 
-class GatewayProtocol(asyncio.Protocol):
+class PacketProtocolThread(Thread):
+    pass
+
+
+class PacketProtocolAsyncio(asyncio.Protocol):
+    pass
+
+
+class PacketProtocol(PacketProtocolAsyncio):
     """Interface for a packet protocol."""
 
     def __init__(self, gwy, pkt_handler) -> None:
-        _LOGGER.debug("GwyProtocol.__init__()")
+        _LOGGER.debug("PktProtocol.__init__()")
 
         self._gwy = gwy
         self._callback = pkt_handler
@@ -341,7 +350,7 @@ class GatewayProtocol(asyncio.Protocol):
 
     def connection_made(self, transport: SerialTransport) -> None:
         """Called when a connection is made."""
-        _LOGGER.debug("GwyProtocol.connection_made(%s)", transport)
+        _LOGGER.debug("PktProtocol.connection_made(%s)", transport)
 
         # print(transport.serial)  # TODO: evofw_flag here
         # for attr in dir(transport.serial):
@@ -354,9 +363,10 @@ class GatewayProtocol(asyncio.Protocol):
         # for attr in dir(transport.serial):
         #     print("obj.%s = %r" % (attr, getattr(transport, attr)))
 
-        _PKT_LOGGER.warning("# evhome_rf %s", __version__, extra=extra(dt_str(), ""))
+        _PKT_LOGGER.warning("# evohome_rf %s", __version__, extra=extra(dt_str(), ""))
 
         self._transport = transport
+        self._transport.serial.rts = False
         self._pause_writing = False  # TODO: needs work
 
     def _timeouts(self, dtm: dt) -> Tuple[dt, dt]:
@@ -388,7 +398,7 @@ class GatewayProtocol(asyncio.Protocol):
                 wanted = self._rx_hdr
 
             logger(
-                "GwyProtocol.data_rcvd(%s): boff=%s, want=%s, tout=%s: %s",
+                "PktProtocol.data_rcvd(%s): boff=%s, want=%s, tout=%s: %s",
                 pkt._header,
                 self._backoff,
                 wanted,
@@ -431,24 +441,21 @@ class GatewayProtocol(asyncio.Protocol):
         if self._qos_cmd:
             # _logger_rcvd(_LOGGER.debug, "CHECKING")
 
-            if pkt._header == self._tx_hdr and self._rx_hdr is None:
-                # the (echo of) the transmited pkt - no response is expected
-                msg = "matched Tx (now done)"
+            if pkt._header == self._tx_hdr and self._rx_hdr is None:  # echo of tx pkt
+                msg = "matched Tx (now done)"  # no response is expected
                 self._qos_cmd = None
 
-            elif pkt._header == self._tx_hdr:
-                # the (echo of) the transmited pkt - a response is expected
+            elif pkt._header == self._tx_hdr:  # echo of (expected) tx pkt
                 msg = "matched Tx (now wanting Rx)"
                 self._tx_hdr = None
 
-            elif pkt._header == self._rx_hdr:
-                # the response packet that was expected
+            elif pkt._header == self._rx_hdr:  # rcpt of (expected) rx pkt
                 msg = "matched Rx (now done)"
                 self._qos_cmd = None
 
-            elif pkt._header == self._qos_cmd.tx_header:
-                # an (echo of) the transmitted pkt, but had already got one!
-                msg = "duplicated Tx (still wanting Rx)"  # TODO: increase backoff?
+            elif pkt._header == self._qos_cmd.tx_header:  # rcpt of (duplicate!) rx pkt
+                msg = "duplicated Tx (still wanting Rx)"
+                self._timeouts(dt.now())  # TODO: increase backoff?
 
             else:  # not the packet that was expected
                 msg = "unmatched (still wanting " + ("Tx)" if self._tx_hdr else "Rx)")
@@ -479,7 +486,7 @@ class GatewayProtocol(asyncio.Protocol):
 
         def _logger_send(logger, msg: str) -> None:
             logger(
-                "GwyProtocol.send_data(%s): boff=%s, want=%s, tout=%s: %s",
+                "PktProtocol.send_data(%s): boff=%s, want=%s, tout=%s: %s",
                 cmd.tx_header,
                 self._backoff,
                 self._tx_hdr if self._tx_hdr else self._rx_hdr,
@@ -492,15 +499,13 @@ class GatewayProtocol(asyncio.Protocol):
 
         if not cmd.is_valid:
             _LOGGER.warning(
-                "GwyProtocol.send_data(%s): invalid command: %s", cmd.tx_header, cmd
+                "PktProtocol.send_data(%s): invalid command: %s", cmd.tx_header, cmd
             )
             return
 
         # _logger_send(_LOGGER.debug, "SENDING")
 
         while self._qos_cmd is not None:
-            if self._qos_cmd == cmd:
-                print("*** WOOPS ***")
             await asyncio.sleep(0.005)
 
         self._qos_lock.acquire()
@@ -547,7 +552,7 @@ class GatewayProtocol(asyncio.Protocol):
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
-        _LOGGER.debug("GwyProtocol.connection_lost(%s)", exc)
+        _LOGGER.debug("PktProtocol.connection_lost(%s)", exc)
 
         if exc is not None:
             pass
@@ -556,14 +561,14 @@ class GatewayProtocol(asyncio.Protocol):
 
     def pause_writing(self) -> None:
         """Called when the transport's buffer goes over the high-water mark."""
-        _LOGGER.debug("GwyProtocol.pause_writing()")
+        _LOGGER.debug("PktProtocol.pause_writing()")
         # self._transport.get_write_buffer_size()
 
         self._pause_writing = True
 
     def resume_writing(self) -> None:
         """Called when the transport's buffer drains below the low-water mark."""
-        _LOGGER.debug("GwyProtocol.resume_writing()")
+        _LOGGER.debug("PktProtocol.resume_writing()")
         # self._transport.get_write_buffer_size()
 
         self._pause_writing = False

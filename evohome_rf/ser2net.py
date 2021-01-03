@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""A raw ser2net (local) serial_port to (remote) network relay."""
+"""Evohome RF - A raw ser2net (local) serial_port to (remote) network relay."""
 
 import asyncio
 import logging
@@ -34,8 +34,10 @@ WONT = 252  # Wont <option code>
 DO__ = 253  # Do <option code>
 DONT = 254  # Don't <option code>
 
+DEV_MODE = _dev_mode_
+
 _LOGGER = logging.getLogger(__name__)
-if False and _dev_mode_:
+if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 

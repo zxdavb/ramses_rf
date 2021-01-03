@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""The evohome-compatible devices."""
+"""Evohome RF - a RAMSES-II protocol decoder & analyser."""
 
 from abc import ABCMeta, abstractmethod
 import asyncio
@@ -27,8 +27,10 @@ from .const import (
 from .exceptions import CorruptStateError
 from .helpers import slugify_string as slugify
 
+DEV_MODE = _dev_mode_
+
 _LOGGER = logging.getLogger(__name__)
-if False and _dev_mode_:
+if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 

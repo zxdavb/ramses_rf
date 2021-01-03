@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome serial."""
+"""Evohome RF - a RAMSES-II protocol decoder & analyser."""
 
 import asyncio
 from datetime import datetime as dt, timedelta as td
@@ -41,8 +41,10 @@ FIVE_MINS = td(minutes=5)
 
 Priority = SimpleNamespace(LOW=6, DEFAULT=4, HIGH=2, ASAP=0)
 
+DEV_MODE = _dev_mode_
+
 _LOGGER = logging.getLogger(__name__)
-if False and _dev_mode_:
+if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Helper functions."""
+"""Evohome RF - Helper functions."""
 
 from datetime import datetime as dt
 import re
 from typing import List, Tuple, Union
 
-from .const import NON_DEVICE, NUL_DEVICE, Address, id_to_address
+from .const import HGI_DEVICE, NON_DEVICE, NUL_DEVICE, Address, id_to_address
 
 
 def dtm_to_hex(dtm: Union[str, dt]) -> str:
@@ -79,7 +79,7 @@ def extract_addrs(pkt: str) -> Tuple[Address, Address, List[Address]]:
 
     if src_addr.id == dst_addr.id:
         src_addr = dst_addr
-    elif src_addr.type == "18" and dst_addr.id == NON_DEVICE.id:
+    elif src_addr.type == "18" and dst_addr.id == HGI_DEVICE.id:
         # 000  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200 (valid, ex HGI80)
         pass  # the above has been used for port wakeup
     elif src_addr.type == dst_addr.type:

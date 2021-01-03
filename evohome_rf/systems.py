@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""The evohome-compatible system."""
+"""Evohome RF - The evohome-compatible system."""
 
 import asyncio
 from datetime import timedelta as td
@@ -42,8 +42,10 @@ from .schema import (
 
 from .zones import DhwZone, Zone
 
+DEV_MODE = _dev_mode_
+
 _LOGGER = logging.getLogger(__name__)
-if False and _dev_mode_:
+if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
