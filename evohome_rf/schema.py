@@ -210,7 +210,7 @@ def load_schema(gwy, **kwargs) -> Tuple[dict, dict]:
             gwy._get_device(addr(device_id))
 
     if not schema.get(ATTR_CONTROLLER):
-        return {}
+        return ({}, KNOWNS_SCHEMA(kwargs.get("allowlist", {})))
 
     schema = SYSTEM_SCHEMA(schema)
 
