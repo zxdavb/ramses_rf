@@ -222,7 +222,7 @@ async def file_pkts(fp):
 
         except (AssertionError, TypeError, ValueError):
             if dtm_pkt_line != "" and dtm_str.strip()[:1] != "#":
-                _PKT_LOGGER.error(
+                _PKT_LOGGER.debug(
                     "%s < Packet line has an invalid timestamp (ignoring)",
                     dtm_pkt_line,
                     extra=extra(dt_str(), dtm_pkt_line),
