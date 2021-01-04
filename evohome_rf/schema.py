@@ -133,8 +133,6 @@ KNOWNS_SCHEMA = vol.Schema(
             None,
             {
                 vol.Optional("name", default=None): vol.Any(None, str),
-                vol.Optional("_parent_zone"): vol.Any(None, DOMAIN_ID),
-                vol.Optional("_has_battery"): vol.Any(None, bool),
             },
         )  # , extra=vol.ALLOW_EXTRA
     }
@@ -155,7 +153,7 @@ FILTER_SCHEMA = vol.Schema(
 MONITOR_SCHEMA = vol.Schema(
     {
         vol.Optional("probe_system"): vol.Any(None, str),
-        vol.Optional("execut_cmd"): vol.Any(None, str),
+        vol.Optional("execute_cmd"): vol.Any(None, str),
         vol.Optional(EVOFW_FLAG): vol.Any(None, str),
         vol.Optional(PACKET_LOG): vol.Any(None, str),
     }
