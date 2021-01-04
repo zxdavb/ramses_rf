@@ -14,7 +14,7 @@ from typing import Tuple
 import click
 from colorama import init as colorama_init, Fore, Style
 
-from evohome_rf import (
+from evohome_rf import (  # noqa
     DISABLE_DISCOVERY,
     DISABLE_SENDING,
     ENFORCE_ALLOWLIST,
@@ -28,6 +28,26 @@ from evohome_rf import (
     spawn_execute_scripts,
     spawn_monitor_scripts,
 )
+
+ALLOW_LIST = "allowlist"
+DEBUG_MODE = "debug_mode"
+EXECUTE_CMD = "execute_cmd"
+
+CONFIG = "config"
+GET_FAULTS = "get_faults"
+GET_SCHED = "get_schedule"
+SET_SCHED = "set_schedule"
+
+COMMAND = "command"
+EXECUTE = "execute"
+LISTEN = "listen"
+MONITOR = "monitor"
+PARSE = "parse"
+
+SCAN_DISC = "scan_disc"
+SCAN_FULL = "scan_full"
+SCAN_HARD = "scan_hard"
+SCAN_XXXX = "scan_xxxx"
 
 CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
 
@@ -47,14 +67,14 @@ LIB_KEYS = (
     SERIAL_PORT,
     EVOFW_FLAG,
     PACKET_LOG,
-    "process_level",  # TODO
+    # "process_level",  # TODO
     REDUCE_PROCESSING,
 )
 
 
 def _proc_kwargs(obj, kwargs) -> Tuple[dict, dict]:
     lib_kwargs, cli_kwargs = obj
-    lib_kwargs["config"].update({k: v for k, v in kwargs.items() if k in LIB_KEYS})
+    lib_kwargs[CONFIG].update({k: v for k, v in kwargs.items() if k in LIB_KEYS})
     cli_kwargs.update({k: v for k, v in kwargs.items() if k not in LIB_KEYS})
     return lib_kwargs, cli_kwargs
 
@@ -73,7 +93,7 @@ def _convert_to_list(d: str) -> list:
 def cli(ctx, config_file=None, **kwargs):
     """A CLI for the evohome_rf library."""
 
-    if kwargs["debug_mode"]:
+    if kwargs[DEBUG_MODE]:
         import debugpy
 
         debugpy.listen(address=(DEBUG_ADDR, DEBUG_PORT))
@@ -82,13 +102,13 @@ def cli(ctx, config_file=None, **kwargs):
         debugpy.wait_for_client()
         print(" - debugger is now attached, continuing execution.")
 
-    lib_kwargs, cli_kwargs = _proc_kwargs(({"config": {}}, {}), kwargs)
+    lib_kwargs, cli_kwargs = _proc_kwargs(({CONFIG: {}}, {}), kwargs)
 
     if config_file is not None:
         lib_kwargs.update(json.load(config_file))
 
-    lib_kwargs["debug_mode"] = cli_kwargs["debug_mode"] > 1
-    lib_kwargs["config"][REDUCE_PROCESSING] = kwargs[REDUCE_PROCESSING]
+    lib_kwargs[DEBUG_MODE] = cli_kwargs[DEBUG_MODE] > 1
+    lib_kwargs[CONFIG][REDUCE_PROCESSING] = kwargs[REDUCE_PROCESSING]
 
     ctx.obj = lib_kwargs, kwargs
 
@@ -131,9 +151,9 @@ def parse(obj, **kwargs):
     """Parse a log file for messages/packets."""
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
-    lib_kwargs[INPUT_FILE] = lib_kwargs["config"].pop(INPUT_FILE)
+    lib_kwargs[INPUT_FILE] = lib_kwargs[CONFIG].pop(INPUT_FILE)
 
-    asyncio.run(main(lib_kwargs, command="parse", **cli_kwargs))
+    asyncio.run(main(lib_kwargs, command=PARSE, **cli_kwargs))
 
 
 @click.command(cls=PortCommand)
@@ -151,12 +171,12 @@ def monitor(obj, **kwargs):
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
     if cli_kwargs["discover"] is not None:
-        lib_kwargs["config"][DISABLE_DISCOVERY] = not cli_kwargs["discover"]
-    lib_kwargs["config"]["poll_devices"] = _convert_to_list(
+        lib_kwargs[CONFIG][DISABLE_DISCOVERY] = not cli_kwargs["discover"]
+    lib_kwargs[CONFIG]["poll_devices"] = _convert_to_list(
         cli_kwargs.pop("poll_devices")
     )
 
-    asyncio.run(main(lib_kwargs, command="monitor", **cli_kwargs))
+    asyncio.run(main(lib_kwargs, command=MONITOR, **cli_kwargs))
 
 
 @click.command(cls=PortCommand)
@@ -188,24 +208,26 @@ def execute(obj, **kwargs):
     """Execute any specified scripts, return the results, then quit."""
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
-    lib_kwargs["config"][DISABLE_DISCOVERY] = True
+    lib_kwargs[CONFIG][DISABLE_DISCOVERY] = True
 
-    lib_kwargs["allowlist"] = lib_kwargs.get("allowlist", {})  # TODO: bugs here
-    for k in ("scan_disc", "scan_full", "scan_hard", "scan_xxxx"):
+    allowed = lib_kwargs[ALLOW_LIST] = lib_kwargs.get(ALLOW_LIST, {})
+    for k in (SCAN_DISC, SCAN_FULL, SCAN_HARD, SCAN_XXXX):
         cli_kwargs[k] = _convert_to_list(cli_kwargs.pop(k))
-        lib_kwargs["allowlist"].update({d: None for d in cli_kwargs[k]})
+        allowed.update({d: None for d in cli_kwargs[k] if d not in allowed})
 
-    if cli_kwargs.get("get_faults"):
-        lib_kwargs["allowlist"].update({cli_kwargs["get_faults"]: {}})
-    if cli_kwargs.get("get_schedule")[0]:
-        lib_kwargs["allowlist"].update({cli_kwargs["get_schedule"][0]: {}})
-    if cli_kwargs.get("set_schedule")[0]:
-        lib_kwargs["allowlist"].update({cli_kwargs["set_schedule"][0]: {}})
+    if cli_kwargs.get(GET_FAULTS) and cli_kwargs[GET_FAULTS] not in allowed:
+        allowed[cli_kwargs[GET_FAULTS]] = None
 
-    if lib_kwargs["allowlist"]:
-        lib_kwargs["config"][ENFORCE_ALLOWLIST] = True
+    if cli_kwargs[GET_SCHED][0] and cli_kwargs[GET_SCHED][0] not in allowed:
+        allowed[cli_kwargs[GET_SCHED][0]] = None
 
-    asyncio.run(main(lib_kwargs, command="execute", **cli_kwargs))
+    if cli_kwargs[SET_SCHED][0] and cli_kwargs[SET_SCHED][0] not in allowed:
+        allowed[cli_kwargs[SET_SCHED][0]] = None
+
+    if lib_kwargs[ALLOW_LIST]:
+        lib_kwargs[CONFIG][ENFORCE_ALLOWLIST] = True
+
+    asyncio.run(main(lib_kwargs, command=EXECUTE, **cli_kwargs))
 
 
 @click.command(cls=PortCommand)
@@ -214,24 +236,24 @@ def listen(obj, **kwargs):
     """Listen to (eavesdrop only) a serial port for messages/packets."""
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
-    lib_kwargs["config"][DISABLE_SENDING] = True
+    lib_kwargs[CONFIG][DISABLE_SENDING] = True
 
-    asyncio.run(main(lib_kwargs, command="listen", **cli_kwargs))
+    asyncio.run(main(lib_kwargs, command=LISTEN, **cli_kwargs))
 
 
 async def main(lib_kwargs, **kwargs):
     def print_results(**kwargs):
 
-        if kwargs.get("get_faults"):
-            fault_log = gwy.system_by_id[kwargs["get_faults"]]._fault_log.fault_log
+        if kwargs.get(GET_FAULTS):
+            fault_log = gwy.system_by_id[kwargs[GET_FAULTS]]._fault_log.fault_log
 
             if fault_log is None:
                 print("No fault log, or failed to get the fault log.")
             else:
                 [print(f"{k:02X}", v) for k, v in fault_log.items()]
 
-        if kwargs.get("get_schedule") and kwargs["get_schedule"][0]:
-            system_id, zone_idx = kwargs["get_schedule"]
+        if kwargs.get(GET_SCHED) and kwargs[GET_SCHED][0]:
+            system_id, zone_idx = kwargs[GET_SCHED]
             zone = gwy.system_by_id[system_id].zone_by_idx[zone_idx]
             schedule = zone._schedule.schedule
 
@@ -240,8 +262,8 @@ async def main(lib_kwargs, **kwargs):
             else:
                 print("Schedule = \r\n", json.dumps(schedule))  # , indent=4))
 
-        if kwargs.get("set_schedule") and kwargs["set_schedule"][0]:
-            system_id, _ = kwargs["get_schedule"]
+        if kwargs.get(SET_SCHED) and kwargs[SET_SCHED][0]:
+            system_id, _ = kwargs[GET_SCHED]
 
         # else:
         #     print(gwy.device_by_id[kwargs["device_id"]])
@@ -261,7 +283,7 @@ async def main(lib_kwargs, **kwargs):
         # future: ... cb=[BaseProactorEventLoop._loop_self_reading()]
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-    gwy = Gateway(lib_kwargs["config"].pop(SERIAL_PORT, None), **lib_kwargs)
+    gwy = Gateway(lib_kwargs[CONFIG].pop(SERIAL_PORT, None), **lib_kwargs)
 
     if kwargs.get(REDUCE_PROCESSING, 0) < 3:
         # no MSGs will be sent to STDOUT, so send PKTs instead
@@ -271,15 +293,15 @@ async def main(lib_kwargs, **kwargs):
     try:  # main code here
         task = asyncio.create_task(gwy.start())
 
-        if kwargs["command"] == "monitor":
+        if kwargs[COMMAND] == MONITOR:
             tasks = await spawn_monitor_scripts(gwy, **kwargs)
 
-        if kwargs["command"] == "execute":
+        if kwargs[COMMAND] == EXECUTE:
             # await asyncio.sleep(2)  # HACK: for testing serial wake up
             tasks = await spawn_execute_scripts(gwy, **kwargs)
             await asyncio.gather(*tasks)
 
-            cmds = ("execute_cmd", "scan_disc", "scan_full", "scan_hard", "scan_xxxx")
+            cmds = (EXECUTE_CMD, SCAN_DISC, SCAN_FULL, SCAN_HARD, SCAN_XXXX)
             if not any(kwargs[k] for k in cmds):
                 await gwy.stop()
                 task.cancel()
@@ -297,7 +319,7 @@ async def main(lib_kwargs, **kwargs):
 
     print("\r\nclient.py: Finished evohome_rf, results:\r\n")
 
-    if kwargs["command"] == "execute":
+    if kwargs[COMMAND] == EXECUTE:
         print_results(**kwargs)
 
     elif gwy.evo is None:
