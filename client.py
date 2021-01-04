@@ -87,7 +87,7 @@ def _convert_to_list(d: str) -> list:
 
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.option("-z", "--debug-mode", count=True, help="enable debugger")
-@click.option("-r", "--reduce-processing", count=True)
+@click.option("-r", "--reduce-processing", count=True, help="-rrr will give packets")
 @click.option("-c", "--config-file", type=click.File("r"))
 @click.pass_context
 def cli(ctx, config_file=None, **kwargs):
@@ -140,7 +140,7 @@ class PortCommand(click.Command):
             click.Option(
                 ("-T", "--evofw-flag"),
                 type=click.STRING,
-                help="Pass this traceflag to the evofw",
+                help="Pass this traceflag to evofw",
             ),
         )
 
@@ -162,9 +162,11 @@ def parse(obj, **kwargs):
     "-x",
     "--execute-cmd",
     type=click.STRING,
-    help="e.g.: RQ 01:123456 1F09 00",
+    help="e.g. 'RQ 01:123456 1F09 00'",
 )
-@click.option("--poll-devices", type=click.STRING, help="device_id, device_id, ...")
+@click.option(
+    "--poll-devices", type=click.STRING, help="e.g. 'device_id, device_id, ...'"
+)
 @click.pass_obj
 def monitor(obj, **kwargs):
     """Monitor (eavesdrop and/or probe) a serial port for messages/packets."""
@@ -184,12 +186,12 @@ def monitor(obj, **kwargs):
     "-x",
     "--execute-cmd",
     type=click.STRING,
-    help="e.g.: RQ 01:123456 1F09 00",
+    help="e.g. 'RQ 01:123456 1F09 00'",
 )
-@click.option("-s0", "-sd", "--scan-disc", help="device_id, device_id, ...")
-@click.option("-s1", "-sf", "--scan-full", help="device_id, device_id, ...")
-@click.option("-s2", "-sh", "--scan-hard", help="device_id, device_id, ...")
-@click.option("-s9", "-sx", "--scan-xxxx", help="device_id, device_id, ...")
+@click.option("-s0", "-sd", "--scan-disc", help="e.g. 'device_id, device_id, ...'")
+@click.option("-s1", "-sf", "--scan-full", help="e.g. 'device_id, device_id, ...'")
+@click.option("-s2", "-sh", "--scan-hard", help="e.g. 'device_id, device_id, ...'")
+@click.option("-s9", "-sx", "--scan-xxxx", help="e.g. 'device_id, device_id, ...'")
 @click.option("--get-faults", type=click.STRING, help="controller_id")
 @click.option(  # "--get-schedule"
     "--get-schedule",
@@ -201,7 +203,7 @@ def monitor(obj, **kwargs):
     "--set-schedule",
     default=[None, None],
     type=(str, click.File("r")),
-    help="controller_id, JSON (file)",
+    help="controller_id, filename.json",
 )
 @click.pass_obj
 def execute(obj, **kwargs):

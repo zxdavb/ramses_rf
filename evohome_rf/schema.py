@@ -79,7 +79,6 @@ USE_SCHEMA = "use_schema"
 CONFIG_SCHEMA = vol.Schema(
     {
         vol.Optional(SERIAL_PORT): vol.Any(None, str),
-        # vol.Optional(INPUT_FILE): vol.Any(None, any),  # this doesn't work
         vol.Optional(DISABLE_SENDING, default=False): vol.Any(None, bool),
         vol.Optional(DISABLE_DISCOVERY, default=False): vol.Any(None, bool),
         vol.Optional(ENFORCE_ALLOWLIST, default=False): vol.Any(None, bool),
@@ -88,7 +87,7 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Optional(MAX_ZONES, default=DEFAULT_MAX_ZONES): vol.Any(None, int),
         vol.Optional(PACKET_LOG, default=None): vol.Any(None, str),
         vol.Optional(REDUCE_PROCESSING, default=0): vol.Any(None, int),
-        vol.Optional(SER2NET_RELAY): SER2NET_SCHEMA,
+        # vol.Optional(SER2NET_RELAY): SER2NET_SCHEMA,
         vol.Optional(USE_NAMES, default=True): vol.Any(None, bool),
         vol.Optional(USE_SCHEMA, default=True): vol.Any(None, bool),
     },
