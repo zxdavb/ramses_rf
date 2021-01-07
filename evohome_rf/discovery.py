@@ -4,13 +4,15 @@
 """Evohome RF - discovery scripts."""
 
 import asyncio
+from datetime import datetime as dt
 import json
 import logging
 from typing import Any, List
 
 from .command import Command, Priority
-from .const import _dev_mode_, CODE_SCHEMA, DEVICE_TABLE, Address
+from .const import NUL_DEV_ID, _dev_mode_, CODE_SCHEMA, DEVICE_TABLE, Address
 from .exceptions import ExpiredCallbackError
+from .helpers import dts_to_hex
 
 
 DEV_MODE = _dev_mode_
@@ -40,11 +42,34 @@ async def spawn_execute_cmd(gwy, **kwargs):
             await gwy.msg_protocol.send_data(cmd)
 
 
+async def puzzle_rf(gwy, count=1, interval=None, **kwargs):
+    async def _periodic(counter):
+        payload = f"7F{dts_to_hex(dt.now())}7F{counter:04X}"
+        cmd = Command(" I", NUL_DEV_ID, "7FFF", payload, qos=qos)
+        await gwy.msg_protocol.send_data(cmd)
+        await asyncio.sleep(interval)
+
+    _LOGGER.warning("puzzle_rf() invoked - expect a lot of nonsense")
+
+    qos = {"priority": Priority.ASAP, "retries": 0, "disable_backoff": True}
+    if interval is None:
+        interval = 0.05 if count == 1 else 60
+
+    if count <= 0:
+        counter = 0
+        while True:
+            await _periodic(counter)
+            counter += 1
+    else:
+        for counter in range(count):
+            await _periodic(counter)
+
+
 async def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
     tasks = []
 
     if kwargs.get("execute_cmd"):
-        await spawn_execute_cmd(gwy, **kwargs)
+        await spawn_execute_cmd(gwy, **kwargs)  # TODO: wrap in a try?
 
     if kwargs.get("poll_devices"):
         tasks += [poll_device(gwy, d) for d in kwargs["poll_devices"]]
@@ -63,7 +88,7 @@ async def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
 
     tasks = []
 
-    if kwargs.get("execute_cmd"):
+    if kwargs.get("execute_cmd"):  # TODO: wrap in a try?
         await spawn_execute_cmd(gwy, **kwargs)
 
     if kwargs.get("get_faults"):
@@ -86,6 +111,9 @@ async def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
 
     if kwargs.get("scan_xxxx"):
         tasks += [asyncio.create_task(scan_xxxx(gwy, d)) for d in kwargs["scan_xxxx"]]
+
+    if kwargs.get("command") == "puzzle":
+        tasks += [asyncio.create_task(puzzle_rf(gwy, **kwargs))]
 
     gwy._tasks.extend(tasks)
     return tasks

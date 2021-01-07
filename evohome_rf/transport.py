@@ -17,9 +17,9 @@ from serial import serial_for_url  # SerialException,
 from serial_asyncio import SerialTransport
 
 from .const import _dev_mode_
-from .message import Message
+from .message import DONT_CREATE_MESSAGES, Message
 from .packet import SERIAL_CONFIG, PacketProtocol, WinSerTransport
-from .schema import DISABLE_SENDING
+from .schema import DISABLE_SENDING, REDUCE_PROCESSING
 
 MAX_BUFFER_SIZE = 200
 WRITER_TASK = "writer_task"
@@ -59,9 +59,15 @@ class MessageTransport(asyncio.Transport):
         self._extra = {} if extra is None else extra
         self._is_closing = None
 
+        self._write_buffer_limit_high = None
+        self._write_buffer_limit_low = None
+        self._write_buffer_paused = None
+
         self._callbacks = {}
         self._dispatcher = None  # the HGI80 interface (is a asyncio.protocol)
+
         self._que = PriorityQueue()  # maxsize=MAX_SIZE)
+        self.set_write_buffer_limits()
 
     def _set_dispatcher(self, dispatcher):
         _LOGGER.debug("MsgTransport._set_dispatcher(%s)", dispatcher)
@@ -88,6 +94,8 @@ class MessageTransport(asyncio.Transport):
                     if self._dispatcher:
                         await call_send_data(cmd)
                     self._que.task_done()
+                    # if self._write_buffer_paused:
+                    self.get_write_buffer_size()
 
             _LOGGER.debug("MsgTransport.pkt_dispatcher(): connection_lost(None)")
             [p.connection_lost(None) for p in self._protocols]
@@ -98,19 +106,24 @@ class MessageTransport(asyncio.Transport):
     def _pkt_receiver(self, pkt):
         _LOGGER.debug("MsgTransport._pkt_receiver(%s)", pkt)
 
-        msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
-
         for hdr, cbk in self._callbacks.items():  # 1st, notify all expired callbacks
-            if cbk.get("timeout", dt.max) < msg.dtm:
+            if cbk.get("timeout", dt.max) < pkt._dtm:
                 _LOGGER.error("MsgTransport._pkt_receiver(%s): Expired callback", hdr)
                 asyncio.create_task(cbk["func"](False, *cbk["args"], **cbk["kwargs"]))
 
         self._callbacks = {  # 2nd, discard expired callbacks
             hdr: cbk
             for hdr, cbk in self._callbacks.items()
-            if cbk.get("daemon") or cbk.get("timeout", dt.max) >= msg.dtm
+            if cbk.get("daemon") or cbk.get("timeout", dt.max) >= pkt._dtm
         }
 
+        if self._gwy.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES:
+            return
+
+        if self._gwy.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES:
+            return
+
+        msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
         if not msg.is_valid:
             return
 
@@ -225,13 +238,36 @@ class MessageTransport(asyncio.Transport):
         """
         _LOGGER.debug("MsgTransport.set_write_buffer_limits()")
 
-        raise NotImplementedError
+        if high is None:
+            self._write_buffer_limit_high = 10
+        else:
+            self._write_buffer_limit_high = high
+
+        if low is None:
+            self._write_buffer_limit_low = int(self._write_buffer_limit_high * 0.8)
+        else:
+            self._write_buffer_limit_low = low
+
+        assert 0 <= self._write_buffer_limit_low <= self._write_buffer_limit_high
+
+        self.get_write_buffer_size()
 
     def get_write_buffer_size(self):
         """Return the current size of the write buffer."""
         _LOGGER.debug("MsgTransport.get_write_buffer_size()")
 
-        raise NotImplementedError
+        qsize = self._que.qsize()
+
+        if not self._write_buffer_paused:
+            if qsize >= self._write_buffer_limit_high:
+                self._write_buffer_paused = True
+                [p.pause_writing() for p in self._protocols]
+
+        elif qsize <= self._write_buffer_limit_high:
+            self._write_buffer_paused = False
+            [p.resume_writing() for p in self._protocols]
+
+        return qsize
 
     def write(self, cmd):
         """Write some data bytes to the transport.
@@ -247,10 +283,14 @@ class MessageTransport(asyncio.Transport):
         if not self._dispatcher:
             # raise RuntimeError("transport has no dispatcher")
             _LOGGER.debug("MsgTransport.write(%s): no dispatcher: discarded", cmd)
-        if self._gwy.config[DISABLE_SENDING]:
+
+        elif self._gwy.config[DISABLE_SENDING]:
             _LOGGER.debug("MsgTransport.write(%s): sending disabled: discarded", cmd)
+
         else:
-            self._que.put_nowait(cmd)
+            self._que.put_nowait(cmd)  # was: self._que.put_nowait(cmd)
+
+        self.get_write_buffer_size()
 
     def writelines(self, list_of_cmds):
         """Write a list (or any iterable) of data bytes to the transport.
@@ -305,14 +345,11 @@ class MessageProtocol(asyncio.Protocol):
     * CL: connection_lost()
     """
 
-    def __init__(self, callback, exclude=None, include=None) -> None:
+    def __init__(self, callback) -> None:
         _LOGGER.debug("MsgProtocol.__init__(%s)", callback)
         self._callback = callback
         self._transport = None
         self._pause_writing = None
-
-        self._exclude_list = exclude
-        self._include_list = include
 
     def connection_made(self, transport: MessageTransport) -> None:
         """Called when a connection is made."""
@@ -320,16 +357,15 @@ class MessageProtocol(asyncio.Protocol):
         self._transport = transport
 
     def data_received(self, msg) -> None:
-        """Called when some data is received."""
+        """Called by the transport when some data is received."""
         _LOGGER.debug("MsgProtocol.data_received(%s)", msg)  # or: use repr(msg)
-        if msg.is_wanted(self._include_list, self._exclude_list):
-            self._callback(msg)
+        self._callback(msg)
 
     async def send_data(self, cmd) -> None:
         """Called when some data is to be sent (not a callback)."""
         _LOGGER.debug("MsgProtocol.send_data(%s)", cmd)
         while self._pause_writing:
-            asyncio.sleep(0.005)
+            await asyncio.sleep(0.005)
         self._transport.write(cmd)
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
@@ -339,12 +375,12 @@ class MessageProtocol(asyncio.Protocol):
             pass
 
     def pause_writing(self) -> None:
-        """Called when the transport's buffer goes over the high-water mark."""
+        """Called by the transport when it's buffer goes over the high-water mark."""
         _LOGGER.debug("MsgProtocol.pause_writing()")
         self._pause_writing = True
 
     def resume_writing(self) -> None:
-        """Called when the transport's buffer drains below the low-water mark."""
+        """Called by the transport when it's buffer drains below the low-water mark."""
         _LOGGER.debug("MsgProtocol.resume_writing()")
         self._pause_writing = False
 
@@ -379,7 +415,7 @@ def create_pkt_stack(gwy, msg_handler, serial_port) -> Tuple:
 
     def protocol_factory():
         # msg_handler._pkt_receiver is from MessageTransport
-        return PacketProtocol(gwy, msg_handler._pkt_receiver)
+        return PacketProtocol(gwy, msg_handler._pkt_receiver if msg_handler else None)
 
     if False and sys.platform == "win32":  # doesn't work
         pkt_protocol = protocol_factory()
@@ -401,6 +437,7 @@ def create_pkt_stack(gwy, msg_handler, serial_port) -> Tuple:
         # ser_instance.dsrdtr = False
         pkt_transport = SerialTransport(gwy._loop, pkt_protocol, ser_instance)
 
-    msg_handler._set_dispatcher(pkt_protocol.send_data)
+    if msg_handler is not None:
+        msg_handler._set_dispatcher(pkt_protocol.send_data)
 
     return (pkt_protocol, pkt_transport)

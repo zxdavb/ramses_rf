@@ -5,9 +5,49 @@
 
 from datetime import datetime as dt
 import re
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 from .const import HGI_DEVICE, NON_DEVICE, NUL_DEVICE, Address, id_to_address
+
+
+def dts_from_hex(value: str) -> Optional[str]:
+    """YY-MM-DD HH:MM:SS."""
+    if value == "00000000007F":
+        return None
+    _seqx = int(value, 16)
+    return dt(
+        year=(_seqx & 0b1111111 << 24) >> 24,
+        month=(_seqx & 0b1111 << 36) >> 36,
+        day=(_seqx & 0b11111 << 31) >> 31,
+        hour=(_seqx & 0b11111 << 19) >> 19,
+        minute=(_seqx & 0b111111 << 13) >> 13,
+        second=(_seqx & 0b111111 << 7) >> 7,
+    ).strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def dts_to_hex(dtm: Union[str, dt]) -> str:  # TODO: WIP
+    """YY-MM-DD HH:MM:SS."""
+    if dtm is None:
+        return "00000000007F"
+    if isinstance(dtm, str):
+        try:
+            dtm = dt.fromisoformat(dtm)  # TODO: YY-MM-DD, not YYYY-MM-DD
+        except ValueError:
+            raise ValueError("Invalid datetime isoformat string")
+    elif not isinstance(dtm, dt):
+        raise TypeError("Invalid datetime object")
+    (tm_year, tm_mon, tm_mday, tm_hour, tm_min, tm_sec, *args) = dtm.timetuple()
+    val = sum(
+        (
+            tm_year % 100 << 24,
+            tm_mon << 36,
+            tm_mday << 31,
+            tm_hour << 19,
+            tm_min << 13,
+            tm_sec << 7,
+        )
+    )
+    return f"{val:012X}"
 
 
 def dtm_to_hex(dtm: Union[str, dt]) -> str:

@@ -28,7 +28,7 @@ from .const import (
 )
 from .helpers import extract_addrs
 from .logger import dt_str
-from .schema import DISABLE_SENDING, EVOFW_FLAG
+from .schema import DISABLE_SENDING, ENFORCE_ALLOWLIST, ENFORCE_BLOCKLIST, EVOFW_FLAG
 from .version import __version__
 
 SERIAL_CONFIG = {
@@ -114,6 +114,7 @@ class Packet:
         self.dtm = dtm
         self.date, self.time = dtm.split("T")  # dtm assumed to be valid
 
+        self._dtm = dt.fromisoformat(self.dtm)
         self._pkt_str = pkt
         self._raw_pkt_str = raw_pkt
         self.packet, self.error_text, self.comment = split_pkt_line(pkt)
@@ -345,6 +346,10 @@ class PacketProtocol(PacketProtocolAsyncio):
         self._timeout_full = None
         self._timeout_half = None
 
+        # TODO: this is a little messy...
+        self._include = list(gwy._include) if gwy.config[ENFORCE_ALLOWLIST] else []
+        self._exclude = list(gwy._exclude) if gwy.config[ENFORCE_BLOCKLIST] else []
+
         if not self._gwy.config[DISABLE_SENDING]:
             asyncio.create_task(self.send_data(INIT_CMD))  # HACK: port wakeup
 
@@ -434,6 +439,16 @@ class PacketProtocol(PacketProtocolAsyncio):
 
             return Packet(dtm_str, _normalise(pkt_line), pkt_raw)
 
+        def is_wanted(include_list, exclude_list) -> Optional[bool]:
+            """Parse the packet, return True if the packet is not to be filtered out."""
+            if " 18:" in pkt.packet:  # NOTE: " 18:", leading space is required
+                return True
+            if include_list:
+                return any(device in pkt.packet for device in include_list)
+            if exclude_list:
+                return not any(device in pkt.packet for device in exclude_list)
+            return True
+
         pkt = create_pkt(data)
         if not pkt.is_valid:
             return
@@ -467,7 +482,8 @@ class PacketProtocol(PacketProtocolAsyncio):
         #     self._timeouts(dt.now())
         #     _logger_rcvd(_LOGGER.debug, "xxx")
 
-        self._callback(pkt)
+        if is_wanted(self._include, self._exclude):
+            self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
     async def _write_data(self, data: bytearray, ignore_pause=False) -> None:
         """Send a bytearray to the transport (serial) interface.
@@ -540,8 +556,9 @@ class PacketProtocol(PacketProtocolAsyncio):
                 )
 
             else:
+                if self._qos_cmd.code != "7FFF":
+                    _logger_send(_LOGGER.info, "EXPIRED")
                 self._qos_cmd = None  # give up
-                _logger_send(_LOGGER.info, "EXPIRED")
                 self._backoff = 0  # TODO: need a better system
                 break
 

@@ -177,8 +177,10 @@ def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, list, list]:
     if config[ENFORCE_ALLOWLIST]:
         allows = KNOWNS_SCHEMA(kwargs.get("allowlist", {}))
         config[ENFORCE_BLOCKLIST] = False
+        _LOGGER.debug("An allowlist has been created, len = %s", len(allows))
     elif config[ENFORCE_BLOCKLIST]:
         blocks = KNOWNS_SCHEMA(kwargs.get("blocklist", {}))
+        _LOGGER.debug("A blocklist has been created, len = %s", len(blocks))
 
     if serial_port and input_file:
         _LOGGER.warning(

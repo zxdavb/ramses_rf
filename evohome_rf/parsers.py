@@ -25,7 +25,7 @@ from .const import (
     _dev_mode_,
 )
 from .devices import dev_hex_to_id
-from .helpers import dtm_from_hex as _dtm
+from .helpers import dtm_from_hex as _dtm, dts_from_hex
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
 from .schema import MAX_ZONES
 
@@ -697,21 +697,6 @@ def parser_0418(payload, msg) -> Optional[dict]:
     # 045 RP --- 01:145038 18:013393 --:------ 0418 022 00C001B004010100000086949BCB7FFFFF70000ECC8A  # noqa
     # 045 RP --- 01:145038 18:013393 --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000  # noqa
 
-    def _timestamp(seqx) -> Optional[str]:
-        """In the controller UI: YYYY-MM-DD HH:MM."""
-        if seqx == "00000000007F":
-            return None
-
-        _seqx = int(seqx, 16)
-        return dt(
-            year=(_seqx & 0b1111111 << 24) >> 24,
-            month=(_seqx & 0b1111 << 36) >> 36,
-            day=(_seqx & 0b11111 << 31) >> 31,
-            hour=(_seqx & 0b11111 << 19) >> 19,
-            minute=(_seqx & 0b111111 << 13) >> 13,
-            second=(_seqx & 0b111111 << 7) >> 7,
-        ).strftime("%Y-%m-%dT%H:%M:%S")
-
     if payload[2:] == CODE_SCHEMA["0418"]["null_rp"][2:]:
         # a null log entry, or: is payload[38:] == "000000" sufficient?
         return {}
@@ -726,7 +711,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
     assert payload[28:30] in ("7F", "FF")
     result = {
         "log_idx": payload[4:6],
-        "timestamp": _timestamp(payload[18:30]),
+        "timestamp": dts_from_hex(payload[18:30]),
         "fault_state": CODE_0418_FAULT_STATE.get(payload[2:4], payload[2:4]),
         "fault_type": CODE_0418_FAULT_TYPE.get(payload[8:10], payload[8:10]),
         "device_class": CODE_0418_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
@@ -1553,6 +1538,14 @@ def parser_3ef1(payload, msg) -> dict:
         "actuator_countdown": int(payload[6:10], 16),
         "cycle_countdown": cycle_countdown,  # not for OTB, == "7FFF"
         "_unknown_0": payload[12:],  # for OTB != "FF"
+    }
+
+
+# @parser_decorator  # faked puzzle pkt shouldn't be decorated
+def parser_7fff(payload, msg) -> Optional[dict]:
+    return {
+        "datetime": dts_from_hex(payload[2:14]),
+        "counter": int(payload[16:], 16),
     }
 
 

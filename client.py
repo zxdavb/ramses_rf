@@ -233,6 +233,32 @@ def execute(obj, **kwargs):
 
 
 @click.command(cls=PortCommand)
+@click.option(
+    "-c", "--count", type=int, default=4, help="number of puzzle packets to send"
+)
+@click.option(
+    "-i",
+    "--interval",
+    type=float,
+    default=0.05,
+    help="minimum interval (secs) between packets",
+)
+@click.pass_obj
+def puzzle(obj, **kwargs):  # HACK: remove?
+    """Execute the puzzle script."""
+    lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
+
+    lib_kwargs[ALLOW_LIST] = {"18:000730": {}}  # TODO: messy
+    lib_kwargs[CONFIG][ENFORCE_ALLOWLIST] = True
+    lib_kwargs[CONFIG][DISABLE_DISCOVERY] = True
+
+    red_proc = max((cli_kwargs[REDUCE_PROCESSING], 2))
+    lib_kwargs[CONFIG][REDUCE_PROCESSING] = cli_kwargs[REDUCE_PROCESSING] = red_proc
+
+    asyncio.run(main(lib_kwargs, command="puzzle", **cli_kwargs))
+
+
+@click.command(cls=PortCommand)
 @click.pass_obj
 def listen(obj, **kwargs):
     """Listen to (eavesdrop only) a serial port for messages/packets."""
@@ -246,7 +272,7 @@ def listen(obj, **kwargs):
 async def main(lib_kwargs, **kwargs):
     def print_results(**kwargs):
 
-        if kwargs.get(GET_FAULTS):
+        if kwargs[GET_FAULTS]:
             fault_log = gwy.system_by_id[kwargs[GET_FAULTS]]._fault_log.fault_log
 
             if fault_log is None:
@@ -254,7 +280,7 @@ async def main(lib_kwargs, **kwargs):
             else:
                 [print(f"{k:02X}", v) for k, v in fault_log.items()]
 
-        if kwargs.get(GET_SCHED) and kwargs[GET_SCHED][0]:
+        if kwargs[GET_SCHED][0]:
             system_id, zone_idx = kwargs[GET_SCHED]
             zone = gwy.system_by_id[system_id].zone_by_idx[zone_idx]
             schedule = zone._schedule.schedule
@@ -264,7 +290,7 @@ async def main(lib_kwargs, **kwargs):
             else:
                 print("Schedule = \r\n", json.dumps(schedule))  # , indent=4))
 
-        if kwargs.get(SET_SCHED) and kwargs[SET_SCHED][0]:
+        if kwargs[SET_SCHED][0]:
             system_id, _ = kwargs[GET_SCHED]
 
         # else:
@@ -287,7 +313,7 @@ async def main(lib_kwargs, **kwargs):
 
     gwy = Gateway(lib_kwargs[CONFIG].pop(SERIAL_PORT, None), **lib_kwargs)
 
-    if kwargs.get(REDUCE_PROCESSING, 0) < 3:
+    if kwargs[REDUCE_PROCESSING] < 3:
         # no MSGs will be sent to STDOUT, so send PKTs instead
         colorama_init(autoreset=True)
         protocol, _ = gwy.create_client(process_message)
@@ -307,6 +333,9 @@ async def main(lib_kwargs, **kwargs):
             if not any(kwargs[k] for k in cmds):
                 await gwy.stop()
                 task.cancel()
+
+        if kwargs[COMMAND] == "puzzle":  # HACK: remove?
+            tasks = await spawn_execute_scripts(gwy, **kwargs)
 
         await task
     except asyncio.CancelledError:
@@ -341,6 +370,7 @@ cli.add_command(parse)
 cli.add_command(monitor)
 cli.add_command(execute)
 cli.add_command(listen)
+cli.add_command(puzzle)  # HACK: remove?
 
 if __name__ == "__main__":
     cli()

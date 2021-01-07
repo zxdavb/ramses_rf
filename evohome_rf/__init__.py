@@ -94,9 +94,7 @@ class Gateway:
 
         self.pkt_protocol, self.pkt_transport = None, None
         self.msg_protocol, self.msg_transport = None, None
-        self.msg_protocol, self.msg_transport = self.create_client(
-            process_msg, exclude=self._exclude, include=self._include
-        )
+        self.msg_protocol, self.msg_transport = self.create_client(process_msg)
 
         self._buffer = deque()
         self._sched_zone = None
@@ -204,7 +202,8 @@ class Gateway:
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
                 self, self.msg_transport, self.serial_port
             )
-            self._tasks.append(self.msg_transport.get_extra_info(WRITER_TASK))
+            if self.msg_transport:
+                self._tasks.append(self.msg_transport.get_extra_info(WRITER_TASK))
 
             # # HACK: A test
             # await asyncio.sleep(3.0)

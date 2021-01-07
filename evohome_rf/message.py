@@ -321,20 +321,6 @@ class Message:
 
         return self._is_valid
 
-    def is_wanted(self, include_list, exclude_list) -> Optional[bool]:
-        """Parse the packet, return True if the packet is not to be filtered out."""
-
-        if not self._is_valid:
-            return
-
-        if " 18:" in self._pkt.packet:  # NOTE: " 18:", leading space is required
-            return True
-        if include_list:
-            return any(device in self._pkt.packet for device in include_list)
-        if exclude_list:
-            return not any(device in self._pkt.packet for device in exclude_list)
-        return True
-
 
 def process_msg(msg: Message) -> None:
     """Decode the packet and its payload.
