@@ -313,7 +313,7 @@ async def main(lib_kwargs, **kwargs):
 
     gwy = Gateway(lib_kwargs[CONFIG].pop(SERIAL_PORT, None), **lib_kwargs)
 
-    if kwargs[REDUCE_PROCESSING] < 3:
+    if kwargs[REDUCE_PROCESSING] < DONT_CREATE_MESSAGES:
         # no MSGs will be sent to STDOUT, so send PKTs instead
         colorama_init(autoreset=True)
         protocol, _ = gwy.create_client(process_message)
