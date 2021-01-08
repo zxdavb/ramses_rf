@@ -362,8 +362,6 @@ async def puzzle_tune(
 
 
 async def main(lib_kwargs, **kwargs):
-    def print_results(**kwargs):
-        pass
 
     print("\r\nclient.py: Starting evohome_rf (puzzler)...")
 
@@ -396,12 +394,8 @@ async def main(lib_kwargs, **kwargs):
     except KeyboardInterrupt:
         print(" - exiting via: KeyboardInterrupt")
     else:  # if no Exceptions raised, e.g. EOF when parsing
-        print(" - exiting via: else-block (e.g. EOF when parsing)")
-
-    print("\r\nclient.py: Finished evohome_rf, results:\r\n")
-
-    if kwargs[COMMAND] == "tune":
-        print_results(**kwargs)
+        # print(" - exiting via: else-block (e.g. EOF when parsing)")
+        pass
 
     print("\r\nclient.py: Finished evohome_rf.\r\n")
 
