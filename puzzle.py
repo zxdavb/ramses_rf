@@ -297,7 +297,7 @@ async def puzzle_tune(
         count_lock.release()
 
         print(
-            f"checking 0x{freq:04X} for {interval * count} secs, expecting {count} pkts"
+            f"\r\nChecking 0x{freq:04X} for {interval * count}s, expecting {count} pkts"
         )
         for _ in range(count):
             await asyncio.sleep(interval)
