@@ -13,7 +13,7 @@ import sys
 from typing import Tuple
 
 import click
-from colorama import init as colorama_init, Fore, Style
+from colorama import init as colorama_init, Fore  # , Style
 
 from evohome_rf import (  # noqa
     DISABLE_DISCOVERY,
@@ -27,7 +27,7 @@ from evohome_rf import (  # noqa
     Gateway,
     GracefulExit,
 )
-from evohome_rf.const import COMMAND_FORMAT
+from evohome_rf.command import Command, Priority
 from evohome_rf.helpers import dts_to_hex
 from evohome_rf.schema import USE_NAMES
 
@@ -103,8 +103,6 @@ def cli(ctx, config_file=None, **kwargs):
 
     lib_kwargs[ALLOW_LIST] = {"18:000730": {}}  # TODO: messy
     lib_kwargs[CONFIG][ENFORCE_ALLOWLIST] = True
-    lib_kwargs[CONFIG][DISABLE_SENDING] = True  # bypassed by calling _write_data
-    # lib_kwargs[CONFIG][DISABLE_DISCOVERY] = True
 
     ctx.obj = lib_kwargs, kwargs
 
@@ -152,7 +150,7 @@ def tune(obj, **kwargs):
     kwargs["interval"] = max((int(kwargs["interval"] * 100) / 100, 0.05))
 
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
-    # lib_kwargs[CONFIG][DISABLE_SENDING] = True
+    lib_kwargs[CONFIG][DISABLE_SENDING] = True  # bypassed by calling _write_data
 
     asyncio.run(main(lib_kwargs, command="tune", **cli_kwargs))
 
@@ -178,19 +176,28 @@ def cast(obj, **kwargs):  # HACK: remove?
     kwargs["interval"] = max((int(kwargs["interval"] * 100) / 100, 0.05))
 
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
-    # lib_kwargs[CONFIG][DISABLE_SENDING] = False
+    lib_kwargs[CONFIG][DISABLE_DISCOVERY] = True
 
     asyncio.run(main(lib_kwargs, command="cast", **cli_kwargs))
 
 
-async def puzzle_tx(gwy, pkt_protocol, interval=None, count=0, length=48, **kwargs):
+async def puzzle_cast(gwy, pkt_protocol, interval=None, count=0, length=48, **kwargs):
+    def print_message(msg) -> None:
+        dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
+        print(f"{Fore.GREEN}{dtm} {msg}"[:CONSOLE_COLS])
+
     async def _periodic(counter):
-        _data = f"7F{dts_to_hex(dt.now())}7F{counter % 0x10000:04X}7F{int_hex}7F"
-        data = COMMAND_FORMAT.format(
-            " I", "18:000730", "63:262142", "7FFF", length, _data.ljust(length * 2, 'F')
+        payload = f"7F{dts_to_hex(dt.now())}7F{counter % 0x10000:04X}7F{int_hex}7F"
+        payload = payload.ljust(length * 2, 'F')
+
+        qos = {"priority": Priority.ASAP, "retries": 0}
+        await msg_protocol.send_data(
+            Command(" I", "63:262142", "7FFF", payload, qos=qos)
         )
-        await pkt_protocol._write_data(bytes(f"{data}\r\n".encode("ascii")))
+
         await asyncio.sleep(interval)
+
+    msg_protocol, _ = gwy.create_client(print_message)
 
     int_hex = f"{int(interval * 100):04X}"
 
@@ -204,19 +211,18 @@ async def puzzle_tx(gwy, pkt_protocol, interval=None, count=0, length=48, **kwar
             await _periodic(counter)
 
 
-async def puzzle_rx(gwy, pkt_protocol, interval=None, count=0, **kwargs):
-    def process_message(msg) -> None:
+async def puzzle_tune(gwy, pkt_protocol, interval=None, count=0, **kwargs):
+    def print_message(msg) -> None:
         dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
-        print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
+        print(f"{Fore.CYAN}{dtm} {msg}"[:CONSOLE_COLS])
+
+    def process_message(msg) -> None:
+        print_message(msg)
 
     gwy.create_client(process_message)
 
 
 async def main(lib_kwargs, **kwargs):
-    def print_message(msg) -> None:
-        dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
-        print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
-
     def print_results(**kwargs):
         pass
 
@@ -229,7 +235,6 @@ async def main(lib_kwargs, **kwargs):
         colorama_init(autoreset=True)
 
     gwy = Gateway(lib_kwargs[CONFIG].pop(SERIAL_PORT, None), **lib_kwargs)
-    gwy.create_client(print_message)
 
     task = asyncio.create_task(gwy.start())
     while gwy.pkt_protocol is None:
@@ -237,9 +242,9 @@ async def main(lib_kwargs, **kwargs):
     pkt_protocol = gwy.pkt_protocol
 
     if kwargs[COMMAND] == "cast":
-        asyncio.create_task(puzzle_tx(gwy, pkt_protocol, **kwargs))
+        asyncio.create_task(puzzle_cast(gwy, pkt_protocol, **kwargs))
     else:  # kwargs[COMMAND] == "tune":
-        asyncio.create_task(puzzle_rx(gwy, pkt_protocol, **kwargs))
+        asyncio.create_task(puzzle_tune(gwy, pkt_protocol, **kwargs))
 
     try:  # main code here
         await task
