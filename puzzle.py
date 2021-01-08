@@ -327,14 +327,6 @@ async def puzzle_tune(
             else:
                 new_freq = int((freq + y + direction) / 2)  # continue away from x
 
-            # if new_freq == freq:
-            #     if new_freq == x + (1 if x < y else -1):
-            #         new_freq = x
-            #     elif new_freq == y + (1 if x < y else -1):
-            #         new_freq = y
-            #     else:
-            #         return freq, result
-
             freq = new_freq
 
     gwy.create_client(print_message)
@@ -419,19 +411,3 @@ cli.add_command(cast)
 
 if __name__ == "__main__":
     cli()
-
-
-# The strategy to tune is to start with FREQ values that you expect to fail well
-# away from the standard value of 21 65 6A
-# Do the low limit by starting at say 21 62 00 and binary chop towards the
-# standard frequency.
-# Listen for messages and if you detect ANYTHING (including reported errors)
-# you're too close to the standard so move back towards the lower limit.
-# If you decide you've detected nothing move towards the  standard frequency.
-# Eventually you will find the highest frequency where you cannot detect anything.
-# Repeat for the high limit starting at say 21 68 00
-# The tuned value is the average of the high and low values.
-
-# The command to change the FREQ value is
-# !C rr aa bb cc dd
-# bb, cc and dd are optional.
