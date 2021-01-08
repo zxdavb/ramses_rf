@@ -42,10 +42,10 @@ async def spawn_execute_cmd(gwy, **kwargs):
             await gwy.msg_protocol.send_data(cmd)
 
 
-async def puzzle_rf(gwy, count=1, interval=None, **kwargs):
+async def puzzle_rf(gwy, count=1, interval=None, length=48, **kwargs):
     async def _periodic(counter):
-        payload = f"7F{dts_to_hex(dt.now())}7F{counter:04X}"
-        cmd = Command(" I", NUL_DEV_ID, "7FFF", payload, qos=qos)
+        payload = f"7F{dts_to_hex(dt.now())}7F{counter % 0x10000:04X}7F{int_hex}7F"
+        cmd = Command(" I", NUL_DEV_ID, "7FFF", payload.ljust(length * 2, "F"), qos=qos)
         await gwy.msg_protocol.send_data(cmd)
         await asyncio.sleep(interval)
 
@@ -54,6 +54,9 @@ async def puzzle_rf(gwy, count=1, interval=None, **kwargs):
     qos = {"priority": Priority.ASAP, "retries": 0, "disable_backoff": True}
     if interval is None:
         interval = 0.05 if count == 1 else 60
+
+    interval = int(interval * 100) / 100
+    int_hex = f"{int(interval * 100) :04X}"
 
     if count <= 0:
         counter = 0

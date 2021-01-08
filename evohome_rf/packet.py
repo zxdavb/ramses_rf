@@ -34,9 +34,9 @@ from .version import __version__
 SERIAL_CONFIG = {
     "baudrate": 115200,
     "timeout": 0,  # None
-    "dsrdtr": True,
+    "dsrdtr": False,
     "rtscts": False,
-    "xonxoff": False,
+    "xonxoff": True,  # set True to remove \x11
 }
 
 Pause = SimpleNamespace(
@@ -350,6 +350,7 @@ class PacketProtocol(PacketProtocolAsyncio):
         self._include = list(gwy._include) if gwy.config[ENFORCE_ALLOWLIST] else []
         self._exclude = list(gwy._exclude) if gwy.config[ENFORCE_BLOCKLIST] else []
 
+        self._has_initialized = None
         if not self._gwy.config[DISABLE_SENDING]:
             asyncio.create_task(self.send_data(INIT_CMD))  # HACK: port wakeup
 
@@ -432,10 +433,10 @@ class PacketProtocol(PacketProtocolAsyncio):
                 and self._gwy.config[EVOFW_FLAG] != "!V"
             ):
                 flag = self._gwy.config[EVOFW_FLAG]
-                data = bytearray(f"{flag}\r\n".encode("ascii"))
+                data = bytes(f"{flag}\r\n".encode("ascii"))
                 asyncio.create_task(self._write_data(data, ignore_pause=True))
 
-            _PKT_LOGGER.debug("%s < Raw pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
+            _PKT_LOGGER.debug("RCVD: %s", pkt_raw, extra=extra(dtm_str, pkt_raw))
 
             return Packet(dtm_str, _normalise(pkt_line), pkt_raw)
 
@@ -452,13 +453,17 @@ class PacketProtocol(PacketProtocolAsyncio):
         pkt = create_pkt(data)
         if not pkt.is_valid:
             return
+        elif self._has_initialized is None:
+            self._has_initialized = True
 
         if self._qos_cmd:
             # _logger_rcvd(_LOGGER.debug, "CHECKING")
 
             if pkt._header == self._tx_hdr and self._rx_hdr is None:  # echo of tx pkt
                 msg = "matched Tx (now done)"  # no response is expected
+                self._qos_lock.acquire()
                 self._qos_cmd = None
+                self._qos_lock.release()
 
             elif pkt._header == self._tx_hdr:  # echo of (expected) tx pkt
                 msg = "matched Tx (now wanting Rx)"
@@ -466,7 +471,9 @@ class PacketProtocol(PacketProtocolAsyncio):
 
             elif pkt._header == self._rx_hdr:  # rcpt of (expected) rx pkt
                 msg = "matched Rx (now done)"
+                self._qos_lock.acquire()
                 self._qos_cmd = None
+                self._qos_lock.release()
 
             elif pkt._header == self._qos_cmd.tx_header:  # rcpt of (duplicate!) rx pkt
                 msg = "duplicated Tx (still wanting Rx)"
@@ -478,14 +485,14 @@ class PacketProtocol(PacketProtocolAsyncio):
             self._timeouts(dt.now())
             _logger_rcvd(_LOGGER.debug, f"CHECKED - {msg}")
 
-        # else:  # throttle down the backoff
-        #     self._timeouts(dt.now())
-        #     _logger_rcvd(_LOGGER.debug, "xxx")
+        else:  # throttle down the backoff
+            # self._timeouts(dt.now())
+            _logger_rcvd(_LOGGER.debug, "XXXXXXX - ")
 
         if is_wanted(self._include, self._exclude):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
-    async def _write_data(self, data: bytearray, ignore_pause=False) -> None:
+    async def _write_data(self, data: bytes, ignore_pause=False) -> None:
         """Send a bytearray to the transport (serial) interface.
 
         The _pause_writing flag can be ignored, is useful for sending traceflags.
@@ -493,9 +500,11 @@ class PacketProtocol(PacketProtocolAsyncio):
         if not ignore_pause:
             while self._pause_writing:
                 await asyncio.sleep(0.005)
-        while self._transport.serial.out_waiting:
+        while self._transport is None or self._transport.serial.out_waiting:
             await asyncio.sleep(0.005)
+        _PKT_LOGGER.debug("SENT:     %s", data, extra=extra(dt_str(), data))
         self._transport.write(data)
+        # await asyncio.sleep(0.05)
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
@@ -533,8 +542,7 @@ class PacketProtocol(PacketProtocolAsyncio):
         self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
 
         self._timeouts(dt.now())
-        await self._write_data(bytearray(f"{cmd}\r\n".encode("ascii")))
-        # _logger_send(_LOGGER.debug, "SENT")
+        await self._write_data(bytes(f"{cmd}\r\n".encode("ascii")))
 
         while self._qos_cmd is not None:  # until sent (may need re-transmit) or expired
             if self._timeout_full > dt.now():
@@ -549,16 +557,18 @@ class PacketProtocol(PacketProtocolAsyncio):
                 if not self._qos_cmd.qos.get("disable_backoff", False):
                     self._backoff = min(self._backoff + 1, QOS_MAX_BACKOFF)
                 self._timeouts(dt.now())
-                await self._write_data(bytearray(f"{cmd}\r\n".encode("ascii")))
+                await self._write_data(bytes(f"{cmd}\r\n".encode("ascii")))
                 _logger_send(
                     _LOGGER.info,
                     f"RE-SENT ({self._tx_retries}/{self._tx_retry_limit})",
                 )
 
             else:
-                if self._qos_cmd.code != "7FFF":
+                if self._qos_cmd.code != "7FFF":  # HACK: why expired when shouldn't
                     _logger_send(_LOGGER.info, "EXPIRED")
-                self._qos_cmd = None  # give up
+                self._qos_lock.acquire()
+                self._qos_cmd = None
+                self._qos_lock.release()
                 self._backoff = 0  # TODO: need a better system
                 break
 

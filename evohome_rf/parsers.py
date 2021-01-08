@@ -1544,8 +1544,9 @@ def parser_3ef1(payload, msg) -> dict:
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated
 def parser_7fff(payload, msg) -> Optional[dict]:
     return {
+        "counter": int(payload[16:20], 16),
         "datetime": dts_from_hex(payload[2:14]),
-        "counter": int(payload[16:], 16),
+        "interval": int(payload[22:26], 16) / 100,
     }
 
 

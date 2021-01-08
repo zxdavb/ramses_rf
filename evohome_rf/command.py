@@ -61,7 +61,7 @@ def _pkt_header(pkt: str, rx_header=None) -> Optional[str]:
 
     header = "|".join((verb, addr, code))
 
-    if code == "0001" and rx_header:
+    if code in ("0001", "7FFF") and rx_header:
         return
 
     if code in ("0005", "000C"):  # zone_idx, device_class

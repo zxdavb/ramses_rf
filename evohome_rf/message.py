@@ -97,7 +97,7 @@ class Message:
 
         self._payload = self._str = None
 
-        self._format = MSG_FORMAT_18 if gwy.known_devices else MSG_FORMAT_10
+        self._format = MSG_FORMAT_18 if gwy.config[USE_NAMES] else MSG_FORMAT_10
 
         self._is_valid = self._is_array = self._is_expired = self._is_fragment = None
         self._is_valid = self.is_valid
