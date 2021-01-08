@@ -164,14 +164,14 @@ class PortCommand(click.Command):
     "--upper",
     type=BasedIntParamType(),
     default=UPPER_FREQ,
-    help="upper frequency (e.g. {LOWER_FREQ}"
+    help="upper frequency (e.g. {LOWER_FREQ}",
 )
 @click.option(
     "-l",
     "--lower",
     type=BasedIntParamType(),
     default=LOWER_FREQ,
-    help=f"lower frequency (e.g. {LOWER_FREQ}"
+    help=f"lower frequency (e.g. {LOWER_FREQ}",
 )
 @click.option(
     "-c", "--count", type=int, default=10, help="number of packets to listen for"
@@ -264,7 +264,7 @@ async def puzzle_tune(
     upper=UPPER_FREQ,
     interval=None,
     count=3,
-    **kwargs
+    **kwargs,
 ):
     def print_message(msg) -> None:
         dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
@@ -290,33 +290,47 @@ async def puzzle_tune(
 
     async def check_reception(freq, count) -> bool:
         global count_rcvd
-        await set_freq(freq)
-
         count_lock.acquire()
         count_rcvd = 0
         count_lock.release()
 
         print(
-            f"\r\nChecking 0x{freq:04X} for {interval * count}s, expecting {count} pkts"
+            f"\r\nChecking 0x{freq:06X} for {interval * count}s, expecting {count} pkts"
         )
-        for _ in range(count):
+        for i in range(count):
             await asyncio.sleep(interval)
-            if count_rcvd > 0:
+            if count_rcvd > 0 and freq != 0:
                 break
 
-        result = count_rcvd / count
-        print(f"result = {result} ({count_rcvd}/{count} pkts received)")
+        result = count_rcvd / (i + 1)
+        print(f"result = {result} ({count_rcvd}/{i + 1} pkts received)")
         return result
 
-    async def binary_chop(start, target, threshold=0) -> Tuple[int, float]:  # 1, 2
-        freq = start
+    async def binary_chop(x, y, threshold=0) -> Tuple[int, float]:  # 1, 2
+        print(f"\r\nPuzzling from 0x{x:06X} to 0x{y:06X}...")
+
+        # fudge = (1 if x < y else -1)
+        freq = x
         while True:
+            await set_freq(freq)
             result = await check_reception(freq, count)
+
             if result > threshold:
+                new_freq = int((freq + x) / 2)  # go back towards x
+            else:
+                new_freq = int((freq + y) / 2)  # continue on to y
+
+            if new_freq in (x, y):
                 return freq, result
-            new_freq = int((freq + target) / 2)
-            if new_freq in (start, freq, target):
-                return freq, result
+
+            if new_freq == freq:
+                if new_freq == x + (1 if x < y else -1):
+                    new_freq = x
+                elif new_freq == y + (1 if x < y else -1):
+                    new_freq = y
+                else:
+                    return freq, result
+
             freq = new_freq
 
     gwy.create_client(print_message)
@@ -330,16 +344,24 @@ async def puzzle_tune(
     # else:
     #     raise RuntimeError("Can't find serial interface")
 
-    # if not await check_reception(BASIC_FREQ):
-    #     raise RuntimeError("Can't find beacon")
+    result = await check_reception(0, 3)
+    print(
+        f"STEP 0: Result = 0x{0:06X} ({result:.2f}) (baseline, default freq)"
+    )
 
-    lower_freq, result1 = await binary_chop(lower, BASIC_FREQ + 1)
-    # print(f"0x{lower_freq:04X}", result1)
+    lower_freq, result1 = await binary_chop(lower, BASIC_FREQ)
+    print(
+        f"STEP 2: Result = 0x{lower_freq:06X} ({result1:.2f}) (calibrate from lower)"
+    )
 
     upper_freq, result2 = await binary_chop(upper, lower_freq)
     print(
-        f"RESULT = 0x{int((lower_freq + upper_freq) / 2):04X} "
-        f"(0x{lower_freq}-0x{upper_freq:04X}, {result1:.2f}, {result2:.2f})"
+        f"STEP 3: Result = 0x{lower_freq:06X} ({result1:.2f}) (calibrate from upper)"
+    )
+
+    print(
+        f"\r\nSTEP 4: Result = 0x{int((lower_freq + upper_freq) / 2):06X} "
+        f"(0x{lower_freq}-0x{upper_freq:06X}, {result1:.2f}, {result2:.2f})"
     )
 
 
