@@ -44,7 +44,7 @@ from .schema import (  # noqa: F401
 
 # from .ser2net import Ser2NetServer
 from .systems import SYSTEM_CLASSES, System, SystemBase
-from .transport import (
+from .protocol import (
     WRITER_TASK,
     MessageProtocol,
     create_msg_stack,

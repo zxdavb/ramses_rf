@@ -24,6 +24,8 @@ from .schema import DISABLE_SENDING, REDUCE_PROCESSING
 MAX_BUFFER_SIZE = 200
 WRITER_TASK = "writer_task"
 
+MAX_SUBSCRIBERS = 3
+
 DEV_MODE = _dev_mode_
 
 _LOGGER = logging.getLogger(__name__)
@@ -117,7 +119,7 @@ class MessageTransport(asyncio.Transport):
             if cbk.get("daemon") or cbk.get("timeout", dt.max) >= pkt._dtm
         }
 
-        if self._gwy.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES:
+        if len(self._protocols) == 0:
             return
 
         if self._gwy.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES:
@@ -181,7 +183,7 @@ class MessageTransport(asyncio.Transport):
         _LOGGER.debug("MsgTransport.add_protocol(%s)", protocol)
 
         if protocol not in self._protocols:
-            if len(self._protocols) > 1:
+            if len(self._protocols) > MAX_SUBSCRIBERS - 1:
                 raise ValueError("Exceeded maximum number of subscribing protocols")
 
             self._protocols.append(protocol)
