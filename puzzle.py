@@ -267,8 +267,11 @@ async def puzzle_tune(
         print(f"{Fore.CYAN}{dtm} {msg}"[:CONSOLE_COLS])
 
     async def set_freq(frequency):
+        data = "!V\r\n"
+        await pkt_protocol._write_data(bytes(data.encode("ascii")))
+
         hex = f"{frequency:06X}"
-        data = f"!C {hex[:2]} {hex[2:4]} {hex[4:]}"
+        data = f"!C {hex[:2]} {hex[2:4]} {hex[4:]}\r\n"
         await pkt_protocol._write_data(bytes(data.encode("ascii")))
 
     def process_message(msg) -> None:
@@ -284,7 +287,7 @@ async def puzzle_tune(
     async def check_reception(freq, count) -> bool:
         global count_rcvd
         await set_freq(freq)
-        await pkt_protocol._write_data(bytes("!V\r\n".encode("ascii")))  # TODO: remove
+        # await pkt_protocol._write_data(bytes("!V\r\n".encode("ascii")))  # TODO: remove
 
         count_lock.acquire()
         count_rcvd = 0

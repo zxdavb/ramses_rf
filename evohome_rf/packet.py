@@ -436,6 +436,9 @@ class PacketProtocol(PacketProtocolAsyncio):
                 data = bytes(f"{flag}\r\n".encode("ascii"))
                 asyncio.create_task(self._write_data(data, ignore_pause=True))
 
+            if pkt_line.startswith("!C"):
+                pkt_line = "# " + pkt_line
+
             _PKT_LOGGER.debug("RCVD: %s", pkt_raw, extra=extra(dtm_str, pkt_raw))
 
             return Packet(dtm_str, _normalise(pkt_line), pkt_raw)
