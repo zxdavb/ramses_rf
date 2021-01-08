@@ -48,7 +48,7 @@ DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
 DONT_UPDATE_ENTITIES = 1
 
-DEFAULT_INTERVAL = 0.5  # should be 5
+DEFAULT_INTERVAL = 5  # should be 180-240
 
 LOWER_FREQ = 0x216200
 BASIC_FREQ = 0x21656A
@@ -75,6 +75,27 @@ def _proc_kwargs(obj, kwargs) -> Tuple[dict, dict]:
     lib_kwargs[CONFIG].update({k: v for k, v in kwargs.items() if k in LIB_KEYS})
     cli_kwargs.update({k: v for k, v in kwargs.items() if k not in LIB_KEYS})
     return lib_kwargs, cli_kwargs
+
+
+class BasedIntParamType(click.ParamType):
+    name = "integer"
+
+    def convert(self, value, param, ctx):
+        try:
+            if value[:2].lower() == "0x":
+                return int(value[2:], 16)
+            elif value[:1] == "0":
+                return int(value, 8)
+            return int(value, 10)
+        except TypeError:
+            self.fail(
+                "expected string for int() conversion, got "
+                f"{value!r} of type {type(value).__name__}",
+                param,
+                ctx,
+            )
+        except ValueError:
+            self.fail(f"{value!r} is not a valid integer", param, ctx)
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
@@ -135,6 +156,20 @@ class PortCommand(click.Command):
 
 @click.command(cls=PortCommand)
 @click.option(
+    "-u",
+    "--upper",
+    type=BasedIntParamType(),
+    default=UPPER_FREQ,
+    help="upper frequency (e.g. {LOWER_FREQ}"
+)
+@click.option(
+    "-l",
+    "--lower",
+    type=BasedIntParamType(),
+    default=LOWER_FREQ,
+    help=f"lower frequency (e.g. {LOWER_FREQ}"
+)
+@click.option(
     "-c", "--count", type=int, default=10, help="number of packets to listen for"
 )
 @click.option(
@@ -170,6 +205,13 @@ def tune(obj, **kwargs):
     default=DEFAULT_INTERVAL,
     help="minimum interval (secs) between packets",
 )
+# @click.option(
+#     "-l",
+#     "--packet_length",
+#     type=int,
+#     default=48,
+#     help="length of puzzle packet",
+# )
 @click.pass_obj
 def cast(obj, **kwargs):  # HACK: remove?
     """Spawn the puzzle caster."""
@@ -211,7 +253,15 @@ async def puzzle_cast(gwy, pkt_protocol, interval=None, count=0, length=48, **kw
             await asyncio.sleep(interval)
 
 
-async def puzzle_tune(gwy, pkt_protocol, interval=None, count=0, **kwargs):
+async def puzzle_tune(
+    gwy,
+    pkt_protocol,
+    lower=LOWER_FREQ,
+    upper=UPPER_FREQ,
+    interval=None,
+    count=3,
+    **kwargs
+):
     def print_message(msg) -> None:
         dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
         print(f"{Fore.CYAN}{dtm} {msg}"[:CONSOLE_COLS])
@@ -231,10 +281,9 @@ async def puzzle_tune(gwy, pkt_protocol, interval=None, count=0, **kwargs):
         if msg.payload["interval"] != interval:
             raise RuntimeError("Intervals don't match")
 
-    async def check_reception(freq, count=3) -> bool:
+    async def check_reception(freq, count) -> bool:
         global count_rcvd
         await set_freq(freq)
-
         await pkt_protocol._write_data(bytes("!V\r\n".encode("ascii")))  # TODO: remove
 
         count_lock.acquire()
@@ -244,7 +293,6 @@ async def puzzle_tune(gwy, pkt_protocol, interval=None, count=0, **kwargs):
         print(
             f"checking 0x{freq:04X} for {interval * count} secs, expecting {count} pkts"
         )
-
         await asyncio.sleep(interval * count)
 
         result = count_rcvd / count
@@ -254,7 +302,7 @@ async def puzzle_tune(gwy, pkt_protocol, interval=None, count=0, **kwargs):
     async def binary_chop(start, target, threshold=0) -> Tuple[int, float]:  # 1, 2
         freq = start
         while True:
-            result = await check_reception(freq)
+            result = await check_reception(freq, count)
             if result > threshold:
                 return freq, result
             new_freq = int((freq + target) / 2)
@@ -276,10 +324,10 @@ async def puzzle_tune(gwy, pkt_protocol, interval=None, count=0, **kwargs):
     # if not await check_reception(BASIC_FREQ):
     #     raise RuntimeError("Can't find beacon")
 
-    lower_freq, result1 = await binary_chop(LOWER_FREQ, BASIC_FREQ + 1)
+    lower_freq, result1 = await binary_chop(lower, BASIC_FREQ + 1)
     # print(f"0x{lower_freq:04X}", result1)
 
-    upper_freq, result2 = await binary_chop(UPPER_FREQ, lower_freq)
+    upper_freq, result2 = await binary_chop(upper, lower_freq)
     print(
         f"RESULT = 0x{int((lower_freq + upper_freq) / 2):04X} "
         f"(0x{lower_freq}-0x{upper_freq:04X}, {result1:.2f}, {result2:.2f})"
