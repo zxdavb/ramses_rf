@@ -271,7 +271,7 @@ async def puzzle_tune(
         await pkt_protocol._write_data(bytes(data.encode("ascii")))
 
         hex = f"{frequency:06X}"
-        data = f"!C {hex[:2]} {hex[2:4]} {hex[4:]}\r\n"
+        data = f"!C 0D {hex[:2]} {hex[2:4]} {hex[4:]}\r\n"
         await pkt_protocol._write_data(bytes(data.encode("ascii")))
 
     def process_message(msg) -> None:
