@@ -282,7 +282,7 @@ async def puzzle_tune(gwy, pkt_protocol, interval=None, count=0, **kwargs):
     upper_freq, result2 = await binary_chop(UPPER_FREQ, lower_freq)
     print(
         f"RESULT = 0x{int((lower_freq + upper_freq) / 2):04X} "
-        f"(0x{lower_freq}-0x{upper_freq:04X}, {result1}, {result2})"
+        f"(0x{lower_freq}-0x{upper_freq:04X}, {result1:.2f}, {result2:.2f})"
     )
 
 
