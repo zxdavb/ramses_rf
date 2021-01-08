@@ -277,10 +277,13 @@ async def puzzle_tune(gwy, pkt_protocol, interval=None, count=0, **kwargs):
     #     raise RuntimeError("Can't find beacon")
 
     lower_freq, result1 = await binary_chop(LOWER_FREQ, BASIC_FREQ + 1)
-    print(f"0x{lower_freq:04X}", result1)
+    # print(f"0x{lower_freq:04X}", result1)
 
     upper_freq, result2 = await binary_chop(UPPER_FREQ, lower_freq)
-    print(f"RESULT = 0x{upper_freq:04X} (0x{lower_freq}, {result1}, {result2})")
+    print(
+        f"RESULT = 0x{int((lower_freq + upper_freq) / 2):04X} "
+        f"(0x{lower_freq}-0x{upper_freq:04X}, {result1}, {result2})"
+    )
 
 
 async def main(lib_kwargs, **kwargs):
