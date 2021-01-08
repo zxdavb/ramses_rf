@@ -297,39 +297,43 @@ async def puzzle_tune(
         print(
             f"\r\nChecking 0x{freq:06X} for {interval * count}s, expecting {count} pkts"
         )
-        for i in range(count):
-            await asyncio.sleep(interval)
+        dtm_start = dt.now()
+        dtm_end = dtm_start + td(seconds=interval * count)
+        while dt.now() < dtm_end:
+            await asyncio.sleep(0.005)
             if count_rcvd > 0 and freq != 0:
                 break
 
-        result = count_rcvd / (i + 1)
-        print(f"result = {result} ({count_rcvd}/{i + 1} pkts received)")
+        i = int(((dt.now() - dtm_start).total_seconds() + 0) / interval)
+
+        result = count_rcvd / i if i != 0 else 1
+        print(f"result = {result} ({count_rcvd}/{i} pkts/intervals)")
         return result
 
     async def binary_chop(x, y, threshold=0) -> Tuple[int, float]:  # 1, 2
         print(f"\r\nPuzzling from 0x{x:06X} to 0x{y:06X}...")
 
-        # fudge = (1 if x < y else -1)
-        freq = x
+        direction = 1 if x < y else -1  # 1 is ascending, initially
+        freq = int((x + y) / 2)
         while True:
             await set_freq(freq)
             result = await check_reception(freq, count)
 
-            if result > threshold:
-                new_freq = int((freq + x) / 2)  # go back towards x
-            else:
-                new_freq = int((freq + y) / 2)  # continue on to y
-
-            if new_freq in (x, y):
+            if freq in (x, y):
                 return freq, result
 
-            if new_freq == freq:
-                if new_freq == x + (1 if x < y else -1):
-                    new_freq = x
-                elif new_freq == y + (1 if x < y else -1):
-                    new_freq = y
-                else:
-                    return freq, result
+            if result > threshold:
+                new_freq = int((freq + x - direction) / 2)  # go back towards x
+            else:
+                new_freq = int((freq + y + direction) / 2)  # continue away from x
+
+            # if new_freq == freq:
+            #     if new_freq == x + (1 if x < y else -1):
+            #         new_freq = x
+            #     elif new_freq == y + (1 if x < y else -1):
+            #         new_freq = y
+            #     else:
+            #         return freq, result
 
             freq = new_freq
 
