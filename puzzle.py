@@ -296,7 +296,10 @@ async def puzzle_tune(
         print(
             f"checking 0x{freq:04X} for {interval * count} secs, expecting {count} pkts"
         )
-        await asyncio.sleep(interval * count)
+        for _ in range(count):
+            await asyncio.sleep(interval)
+            if count_rcvd > 0:
+                break
 
         result = count_rcvd / count
         print(f"result = {result} ({count_rcvd}/{count} pkts received)")
