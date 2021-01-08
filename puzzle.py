@@ -14,7 +14,7 @@ from threading import Lock
 from typing import Tuple
 
 import click
-from colorama import init as colorama_init, Fore  # , Style
+from colorama import init as colorama_init, Fore, Style
 
 from evohome_rf import (  # noqa
     DISABLE_DISCOVERY,
@@ -130,9 +130,6 @@ def cli(ctx, config_file=None, **kwargs):
     lib_kwargs[CONFIG][REDUCE_PROCESSING] = kwargs[REDUCE_PROCESSING] = red_proc
     lib_kwargs[CONFIG][USE_NAMES] = False
 
-    lib_kwargs[ALLOW_LIST] = {"18:000730": {}}  # TODO: messy
-    lib_kwargs[CONFIG][ENFORCE_ALLOWLIST] = True
-
     ctx.obj = lib_kwargs, kwargs
 
 
@@ -224,13 +221,19 @@ def cast(obj, **kwargs):  # HACK: remove?
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
     lib_kwargs[CONFIG][DISABLE_DISCOVERY] = True
 
+    lib_kwargs[ALLOW_LIST] = {"18:000730": {}}  # TODO: messy
+    lib_kwargs[CONFIG][ENFORCE_ALLOWLIST] = False
+
     asyncio.run(main(lib_kwargs, command="cast", **cli_kwargs))
 
 
 async def puzzle_cast(gwy, pkt_protocol, interval=None, count=0, length=48, **kwargs):
     def print_message(msg) -> None:
         dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
-        print(f"{Fore.GREEN}{dtm} {msg}"[:CONSOLE_COLS])
+        if msg.code == "7FFF":
+            print(f"{Style.BRIGHT}{Fore.CYAN}{dtm} {msg}"[:CONSOLE_COLS])
+        else:
+            print(f"{Fore.GREEN}{dtm} {msg}"[:CONSOLE_COLS])
 
     async def _periodic(ordinal):
         payload = f"7F{dts_to_hex(dt.now())}7F{ordinal % 0x10000:04X}7F{int_hex}7F"
@@ -268,7 +271,10 @@ async def puzzle_tune(
 ):
     def print_message(msg) -> None:
         dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
-        print(f"{Fore.CYAN}{dtm} {msg}"[:CONSOLE_COLS])
+        if msg.code == "7FFF":
+            print(f"{Style.BRIGHT}{Fore.CYAN}{dtm} {msg}"[:CONSOLE_COLS])
+        else:
+            print(f"{Fore.GREEN}{dtm} {msg}"[:CONSOLE_COLS])
 
     async def set_freq(frequency):
         # data = "!V\r\n"
@@ -285,8 +291,8 @@ async def puzzle_tune(
         count_rcvd += 1
         count_lock.release()
 
-        if msg.payload["interval"] != interval:
-            raise RuntimeError("Intervals don't match")
+        # if msg.payload["interval"] != interval:
+        #     raise RuntimeError("Intervals don't match")
 
     async def check_reception(freq, count) -> bool:
         global count_rcvd
