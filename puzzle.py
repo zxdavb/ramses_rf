@@ -82,11 +82,15 @@ class BasedIntParamType(click.ParamType):
 
     def convert(self, value, param, ctx):
         try:
-            if value[:2].lower() == "0x":
+            if isinstance(value, int):
+                return value
+            elif value[:2].lower() == "0x":
                 return int(value[2:], 16)
             elif value[:1] == "0":
                 return int(value, 8)
-            return int(value, 10)
+            elif isinstance(value, str):
+                return int(value, 8)
+            return int(value)
         except TypeError:
             self.fail(
                 "expected string for int() conversion, got "
