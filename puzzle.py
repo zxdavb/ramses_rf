@@ -89,7 +89,7 @@ class BasedIntParamType(click.ParamType):
             elif value[:1] == "0":
                 return int(value, 8)
             elif isinstance(value, str):
-                return int(value, 8)
+                return int(value, 10)
             return int(value)
         except TypeError:
             self.fail(
