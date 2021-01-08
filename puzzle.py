@@ -291,7 +291,6 @@ async def puzzle_tune(
     async def check_reception(freq, count) -> bool:
         global count_rcvd
         await set_freq(freq)
-        # await pkt_protocol._write_data(bytes("!V\r\n".encode("ascii")))  # TODO: remove
 
         count_lock.acquire()
         count_rcvd = 0
@@ -358,7 +357,7 @@ async def main(lib_kwargs, **kwargs):
 
     gwy = Gateway(lib_kwargs[CONFIG].pop(SERIAL_PORT, None), **lib_kwargs)
 
-    gwy_task = asyncio.create_task(gwy.start())
+    asyncio.create_task(gwy.start())
     while gwy.pkt_protocol is None:
         await asyncio.sleep(0.05)
     pkt_protocol = gwy.pkt_protocol
