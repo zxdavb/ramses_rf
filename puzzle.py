@@ -313,13 +313,13 @@ async def puzzle_tune(
     gwy.create_client(print_message)
     gwy.create_client(process_message)
 
-    dtm_expires = dt.now() + td(seconds=5)
+    dtm_expires = dt.now() + td(seconds=3)
     while dt.now() < dtm_expires:
         await asyncio.sleep(0.1)
         if pkt_protocol._has_initialized:
             break
-    else:
-        raise RuntimeError("Can't find serial interface")
+    # else:
+    #     raise RuntimeError("Can't find serial interface")
 
     # if not await check_reception(BASIC_FREQ):
     #     raise RuntimeError("Can't find beacon")
