@@ -395,7 +395,8 @@ class PacketProtocolBase(PacketProtocolAsyncio):
 
         return Packet(dtm_str, _normalise(pkt_line), pkt_raw)
 
-    def _is_wanted_pkt(self, pkt, include_list, exclude_list) -> Optional[bool]:
+    @staticmethod
+    def _is_wanted_pkt(pkt, include_list, exclude_list) -> Optional[bool]:
         """Parse the packet, return True if the packet is not to be filtered out."""
         if " 18:" in pkt.packet:  # NOTE: " 18:", leading space is required
             return True
@@ -419,7 +420,7 @@ class PacketProtocolBase(PacketProtocolAsyncio):
         if self._is_wanted_pkt(pkt, self._include, self._exclude):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
-    async def _write_data(self, data: bytes, ignore_pause=False) -> None:
+    async def _write_data(self, data: ByteString, ignore_pause=False) -> None:
         """Send a bytearray to the transport (serial) interface.
 
         The _pause_writing flag can be ignored, is useful for sending traceflags.
