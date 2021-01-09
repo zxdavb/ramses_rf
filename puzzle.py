@@ -300,30 +300,28 @@ async def puzzle_tune(
         count_rcvd = 0
         count_lock.release()
 
-        print(
-            f"\r\nChecking 0x{freq:06X} for {interval * count}s, expecting {count} pkts"
-        )
+        print(f" - checking 0x{freq:06X} for max. {interval * count}s")
         dtm_start = dt.now()
         dtm_end = dtm_start + td(seconds=interval * count)
         while dt.now() < dtm_end:
             await asyncio.sleep(0.005)
-            if count_rcvd > 0 and freq != 0:
+            if count_rcvd > 0:
                 break
 
         i = int(((dt.now() - dtm_start).total_seconds() + 0) / interval)
 
         result = count_rcvd / i if i != 0 else 1
-        print(f"result = {result} ({count_rcvd}/{i} pkts/intervals)")
+        print(f" - result = {result} ({count_rcvd}/{i} pkts/intervals)")
         return result
 
     async def binary_chop(x, y, threshold=0) -> Tuple[int, float]:  # 1, 2
-        print(f"\r\nPuzzling from 0x{x:06X} to 0x{y:06X}...")
+        print(f"Puzzling from 0x{x:06X} to 0x{y:06X}...")
 
         direction = 1 if x < y else -1  # 1 is ascending, initially
         freq = int((x + y) / 2)
         while True:
             await set_freq(freq)
-            result = await check_reception(freq, count)
+            result = await check_reception(freq, count=1)
 
             if freq in (x, y):
                 return freq, result
@@ -346,23 +344,25 @@ async def puzzle_tune(
     # else:
     #     raise RuntimeError("Can't find serial interface")
 
-    result = await check_reception(0, 3)
-    print(
-        f"STEP 0: Result = 0x{0:06X} ({result:.2f}) (baseline, default freq)"
-    )
+    print("\r\nSTEP 0: No changes to freq")
+    result = await check_reception(0, count=3)
+    print(f"STEP 0: Result = 0x{0:06X} ({result:.2f}) (no changes to freq)")
 
+    print(f"\r\nSTEP 1: Freq changed to default, 0x{BASIC_FREQ:06X}")
+    await set_freq(BASIC_FREQ)
+    result = await check_reception(BASIC_FREQ, count=3)
+    print(f"STEP 1: Result = 0x{0:06X} ({result:.2f}) (freq changed to default)")
+
+    print(f"\r\nSTEP 2: Calibrate up from 0x{lower:06X} to 0x{BASIC_FREQ:06X} ")
     lower_freq, result1 = await binary_chop(lower, BASIC_FREQ)
-    print(
-        f"STEP 2: Result = 0x{lower_freq:06X} ({result1:.2f}) (calibrate from lower)"
-    )
+    print(f"STEP 2: Result = 0x{lower_freq:06X} ({result1:.2f}) (upwards calibrated)")
 
+    print(f"\r\nSTEP 3: Calibrate down from 0x{upper:06X} to 0x{lower_freq:06X} ")
     upper_freq, result2 = await binary_chop(upper, lower_freq)
-    print(
-        f"STEP 3: Result = 0x{lower_freq:06X} ({result1:.2f}) (calibrate from upper)"
-    )
+    print(f"STEP 3: Result = 0x{lower_freq:06X} ({result1:.2f}) (downwards calibrated)")
 
     print(
-        f"\r\nSTEP 4: Result = 0x{int((lower_freq + upper_freq) / 2):06X} "
+        f"\r\nOVERALL Result = 0x{int((lower_freq + upper_freq) / 2):06X} "
         f"(0x{lower_freq}-0x{upper_freq:06X}, {result1:.2f}, {result2:.2f})"
     )
 
