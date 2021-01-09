@@ -322,7 +322,7 @@ class PacketProtocolAsyncio(asyncio.Protocol):
     pass
 
 
-class PacketProtocol(PacketProtocolAsyncio):
+class PacketProtocolBase(PacketProtocolAsyncio):
     """Interface for a packet protocol."""
 
     def __init__(self, gwy, pkt_handler) -> None:
@@ -334,17 +334,6 @@ class PacketProtocol(PacketProtocolAsyncio):
         self._transport = None
         self._pause_writing = True
         self._recv_buffer = bytes()
-
-        self._qos_lock = Lock()
-        self._qos_cmd = None
-        self._tx_hdr = None
-        self._rx_hdr = None
-        self._tx_retries = None
-        self._tx_retry_limit = None
-
-        self._backoff = 0
-        self._timeout_full = None
-        self._timeout_half = None
 
         # TODO: this is a little messy...
         self._include = list(gwy._include) if gwy.config[ENFORCE_ALLOWLIST] else []
@@ -372,8 +361,133 @@ class PacketProtocol(PacketProtocolAsyncio):
         _PKT_LOGGER.warning("# evohome_rf %s", __version__, extra=extra(dt_str(), ""))
 
         self._transport = transport
-        self._transport.serial.rts = False
+        # self._transport.serial.rts = False
         self._pause_writing = False  # TODO: needs work
+
+    def _create_pkt(self, pkt_raw: ByteString) -> Packet:
+        dtm_str = dt_str()  # done here & now for most-accurate timestamp
+
+        try:
+            pkt_line = "".join(
+                c
+                for c in pkt_raw.decode("ascii", errors="strict").strip()
+                if c in printable
+            )
+        except UnicodeDecodeError:
+            _PKT_LOGGER.warning(
+                "%s < Bad pkt", pkt_raw, extra=extra(dtm_str, pkt_raw)
+            )
+            return Packet(dtm_str, "", pkt_raw)
+
+        if (
+            "# evofw3" in pkt_line
+            and self._gwy.config[EVOFW_FLAG]
+            and self._gwy.config[EVOFW_FLAG] != "!V"
+        ):
+            flag = self._gwy.config[EVOFW_FLAG]
+            data = bytes(f"{flag}\r\n".encode("ascii"))
+            asyncio.create_task(self._write_data(data, ignore_pause=True))
+
+        if pkt_line.startswith("!C"):
+            pkt_line = "# " + pkt_line
+
+        _PKT_LOGGER.debug("RCVD: %s", pkt_raw, extra=extra(dtm_str, pkt_raw))
+
+        return Packet(dtm_str, _normalise(pkt_line), pkt_raw)
+
+    def _is_wanted_pkt(self, pkt, include_list, exclude_list) -> Optional[bool]:
+        """Parse the packet, return True if the packet is not to be filtered out."""
+        if " 18:" in pkt.packet:  # NOTE: " 18:", leading space is required
+            return True
+        if include_list:
+            return any(device in pkt.packet for device in include_list)
+        if exclude_list:
+            return not any(device in pkt.packet for device in exclude_list)
+        return True
+
+    @stream_to_line
+    def data_received(self, data: ByteString) -> None:
+        """Called when some data is received. Adjust backoff as required."""
+        _LOGGER.debug("PktProtocol.data_received(%s)", data)
+
+        pkt = self._create_pkt(data)
+        if not pkt.is_valid:
+            return
+        elif self._has_initialized is None:
+            self._has_initialized = True
+
+        if self._is_wanted_pkt(pkt, self._include, self._exclude):
+            self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
+
+    async def _write_data(self, data: bytes, ignore_pause=False) -> None:
+        """Send a bytearray to the transport (serial) interface.
+
+        The _pause_writing flag can be ignored, is useful for sending traceflags.
+        """
+        if not ignore_pause:
+            while self._pause_writing:
+                await asyncio.sleep(0.005)
+        while self._transport is None or self._transport.serial.out_waiting:
+            await asyncio.sleep(0.005)
+        _PKT_LOGGER.debug("SENT:     %s", data, extra=extra(dt_str(), data))
+        self._transport.write(data)
+        # await asyncio.sleep(0.05)
+
+    async def send_data(self, cmd: Command) -> None:
+        """Called when some data is to be sent (not a callback)."""
+        _LOGGER.debug("PktProtocol.send_data()")
+
+        if self._gwy.config[DISABLE_SENDING]:
+            raise RuntimeError("Sending is disabled")
+
+        if not cmd.is_valid:
+            _LOGGER.warning(
+                "PktProtocol.send_data(%s): invalid command: %s", cmd.tx_header, cmd
+            )
+            return
+
+        await self._write_data(bytes(f"{cmd}\r\n".encode("ascii")))
+
+    def connection_lost(self, exc: Optional[Exception]) -> None:
+        """Called when the connection is lost or closed."""
+        _LOGGER.debug("PktProtocol.connection_lost(%s)", exc)
+
+        if exc is not None:
+            pass
+
+        self._transport.loop.stop()  # TODO: what is this for?
+
+    def pause_writing(self) -> None:
+        """Called when the transport's buffer goes over the high-water mark."""
+        _LOGGER.debug("PktProtocol.pause_writing()")
+        # self._transport.get_write_buffer_size()
+
+        self._pause_writing = True
+
+    def resume_writing(self) -> None:
+        """Called when the transport's buffer drains below the low-water mark."""
+        _LOGGER.debug("PktProtocol.resume_writing()")
+        # self._transport.get_write_buffer_size()
+
+        self._pause_writing = False
+
+
+class PacketProtocol(PacketProtocolBase):
+    """Interface for a packet protocol."""
+
+    def __init__(self, gwy, pkt_handler) -> None:
+        super().__init__(gwy, pkt_handler)
+
+        self._qos_lock = Lock()
+        self._qos_cmd = None
+        self._tx_hdr = None
+        self._rx_hdr = None
+        self._tx_retries = None
+        self._tx_retry_limit = None
+
+        self._backoff = 0
+        self._timeout_full = None
+        self._timeout_half = None
 
     def _timeouts(self, dtm: dt) -> Tuple[dt, dt]:
         if self._qos_cmd:
@@ -412,48 +526,7 @@ class PacketProtocol(PacketProtocolAsyncio):
                 msg,
             )
 
-        def create_pkt(pkt_raw: ByteString) -> Packet:
-            dtm_str = dt_str()  # done here & now for most-accurate timestamp
-
-            try:
-                pkt_line = "".join(
-                    c
-                    for c in pkt_raw.decode("ascii", errors="strict").strip()
-                    if c in printable
-                )
-            except UnicodeDecodeError:
-                _PKT_LOGGER.warning(
-                    "%s < Bad pkt", pkt_raw, extra=extra(dtm_str, pkt_raw)
-                )
-                return Packet(dtm_str, "", pkt_raw)
-
-            if (
-                "# evofw3" in pkt_line
-                and self._gwy.config[EVOFW_FLAG]
-                and self._gwy.config[EVOFW_FLAG] != "!V"
-            ):
-                flag = self._gwy.config[EVOFW_FLAG]
-                data = bytes(f"{flag}\r\n".encode("ascii"))
-                asyncio.create_task(self._write_data(data, ignore_pause=True))
-
-            if pkt_line.startswith("!C"):
-                pkt_line = "# " + pkt_line
-
-            _PKT_LOGGER.debug("RCVD: %s", pkt_raw, extra=extra(dtm_str, pkt_raw))
-
-            return Packet(dtm_str, _normalise(pkt_line), pkt_raw)
-
-        def is_wanted(include_list, exclude_list) -> Optional[bool]:
-            """Parse the packet, return True if the packet is not to be filtered out."""
-            if " 18:" in pkt.packet:  # NOTE: " 18:", leading space is required
-                return True
-            if include_list:
-                return any(device in pkt.packet for device in include_list)
-            if exclude_list:
-                return not any(device in pkt.packet for device in exclude_list)
-            return True
-
-        pkt = create_pkt(data)
+        pkt = self._create_pkt(data)
         if not pkt.is_valid:
             return
         elif self._has_initialized is None:
@@ -492,22 +565,8 @@ class PacketProtocol(PacketProtocolAsyncio):
             # self._timeouts(dt.now())
             _logger_rcvd(_LOGGER.debug, "XXXXXXX - ")
 
-        if is_wanted(self._include, self._exclude):
+        if self._is_wanted_pkt(pkt, self._include, self._exclude):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
-
-    async def _write_data(self, data: bytes, ignore_pause=False) -> None:
-        """Send a bytearray to the transport (serial) interface.
-
-        The _pause_writing flag can be ignored, is useful for sending traceflags.
-        """
-        if not ignore_pause:
-            while self._pause_writing:
-                await asyncio.sleep(0.005)
-        while self._transport is None or self._transport.serial.out_waiting:
-            await asyncio.sleep(0.005)
-        _PKT_LOGGER.debug("SENT:     %s", data, extra=extra(dt_str(), data))
-        self._transport.write(data)
-        # await asyncio.sleep(0.05)
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
@@ -579,26 +638,3 @@ class PacketProtocol(PacketProtocolAsyncio):
             if self._timeout_half >= dt.now():
                 self._backoff = max(self._backoff - 1, 0)
             # _logger_send(_LOGGER.debug, "SUCCEEDED")
-
-    def connection_lost(self, exc: Optional[Exception]) -> None:
-        """Called when the connection is lost or closed."""
-        _LOGGER.debug("PktProtocol.connection_lost(%s)", exc)
-
-        if exc is not None:
-            pass
-
-        self._transport.loop.stop()  # TODO: what is this for?
-
-    def pause_writing(self) -> None:
-        """Called when the transport's buffer goes over the high-water mark."""
-        _LOGGER.debug("PktProtocol.pause_writing()")
-        # self._transport.get_write_buffer_size()
-
-        self._pause_writing = True
-
-    def resume_writing(self) -> None:
-        """Called when the transport's buffer drains below the low-water mark."""
-        _LOGGER.debug("PktProtocol.resume_writing()")
-        # self._transport.get_write_buffer_size()
-
-        self._pause_writing = False
