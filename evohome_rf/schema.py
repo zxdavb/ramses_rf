@@ -129,10 +129,7 @@ SYSTEM_SCHEMA = vol.Schema(
 KNOWNS_SCHEMA = vol.Schema(
     {
         vol.Optional(DEVICE_ID): vol.Any(
-            None,
-            {
-                vol.Optional("name", default=None): vol.Any(None, str),
-            },
+            None, {vol.Optional("name", default=None): vol.Any(None, str)}
         )  # , extra=vol.ALLOW_EXTRA
     }
 )

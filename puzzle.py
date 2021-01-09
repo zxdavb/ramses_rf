@@ -12,7 +12,7 @@ import logging
 import shutil
 import sys
 from threading import Lock
-from typing import Tuple
+from typing import ByteString, Tuple
 
 import click
 from colorama import init as colorama_init, Fore, Style
@@ -31,6 +31,8 @@ from evohome_rf import (  # noqa
 )
 from evohome_rf.command import Command, Priority
 from evohome_rf.helpers import dts_to_hex
+from evohome_rf.packet import _PKT_LOGGER, PacketProtocol
+from evohome_rf.protocol import WRITER_TASK, MessageTransport, create_pkt_stack
 from evohome_rf.schema import USE_NAMES
 
 count_lock = Lock()
@@ -49,11 +51,10 @@ DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
 DONT_UPDATE_ENTITIES = 1
 
-DEFAULT_INTERVAL = 5  # should be 180-240
+DEFAULT_INTERVAL = 5  # should be 240
 
-LOWER_FREQ = 0x216200
+FREQ_WIDTH = 0x002800
 BASIC_FREQ = 0x21656A
-UPPER_FREQ = 0x216800
 
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
@@ -62,23 +63,10 @@ COLORS = {" I": Fore.GREEN, "RP": Fore.CYAN, "RQ": Fore.CYAN, " W": Fore.MAGENTA
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
-LIB_KEYS = (
-    INPUT_FILE,
-    SERIAL_PORT,
-    EVOFW_FLAG,
-    PACKET_LOG,
-    REDUCE_PROCESSING,
-)
+LIB_KEYS = (INPUT_FILE, SERIAL_PORT, EVOFW_FLAG, PACKET_LOG, REDUCE_PROCESSING)
 
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(logging.INFO)
-
-
-def _proc_kwargs(obj, kwargs) -> Tuple[dict, dict]:
-    lib_kwargs, cli_kwargs = obj
-    lib_kwargs[CONFIG].update({k: v for k, v in kwargs.items() if k in LIB_KEYS})
-    cli_kwargs.update({k: v for k, v in kwargs.items() if k not in LIB_KEYS})
-    return lib_kwargs, cli_kwargs
 
 
 class BasedIntParamType(click.ParamType):
@@ -104,6 +92,42 @@ class BasedIntParamType(click.ParamType):
             )
         except ValueError:
             self.fail(f"{value!r} is not a valid integer", param, ctx)
+
+
+class PuzzleProtocol(PacketProtocol):
+    """Interface for a packet protocol."""
+
+    pkt_callback = None
+
+    def data_received(self, data: ByteString) -> None:
+        """Called when some data is received."""
+        _LOGGER.debug("PktProtocol.data_received(%s)", data)
+
+        self._recv_buffer += data
+        if b"\r\n" in self._recv_buffer:
+            lines = self._recv_buffer.split(b"\r\n")
+            self._recv_buffer = lines[-1]
+
+            for line in lines[:-1]:
+                self._data_received(line)
+
+                if self.pkt_callback and line[:1] != b"#":
+                    self.pkt_callback(line)
+
+
+def create_protocol_factory(gwy, msg_handler: MessageTransport):
+    def protocol_factory():
+        # msg_handler._pkt_receiver is from MessageTransport
+        return PuzzleProtocol(gwy, msg_handler._pkt_receiver)
+
+    return protocol_factory
+
+
+def _proc_kwargs(obj, kwargs) -> Tuple[dict, dict]:
+    lib_kwargs, cli_kwargs = obj
+    lib_kwargs[CONFIG].update({k: v for k, v in kwargs.items() if k in LIB_KEYS})
+    cli_kwargs.update({k: v for k, v in kwargs.items() if k not in LIB_KEYS})
+    return lib_kwargs, cli_kwargs
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
@@ -161,21 +185,21 @@ class PortCommand(click.Command):
 
 @click.command(cls=PortCommand)
 @click.option(
-    "-u",
-    "--upper",
+    "-f",
+    "--frequency",
     type=BasedIntParamType(),
-    default=UPPER_FREQ,
-    help="upper frequency (e.g. {LOWER_FREQ}",
+    default=BASIC_FREQ,
+    help="centre frequency (e.g. {BASIC_FREQ}",
 )
 @click.option(
-    "-l",
-    "--lower",
+    "-w",
+    "--width",
     type=BasedIntParamType(),
-    default=LOWER_FREQ,
-    help=f"lower frequency (e.g. {LOWER_FREQ}",
+    default=FREQ_WIDTH,
+    help=f"width fro lower, upper frequencies (e.g. {FREQ_WIDTH}",
 )
 @click.option(
-    "-c", "--count", type=int, default=10, help="number of packets to listen for"
+    "-c", "--count", type=int, default=1, help="number of packets to listen for"
 )
 @click.option(
     "-i",
@@ -267,8 +291,8 @@ async def puzzle_cast(gwy, pkt_protocol, interval=None, count=0, length=48, **kw
 async def puzzle_tune(
     gwy,
     pkt_protocol,
-    lower=LOWER_FREQ,
-    upper=UPPER_FREQ,
+    frequency=BASIC_FREQ,
+    width=FREQ_WIDTH,
     interval=None,
     count=3,
     **kwargs,
@@ -280,12 +304,6 @@ async def puzzle_tune(
         else:
             print(f"{Fore.GREEN}{dtm} {msg}"[:CONSOLE_COLS])
 
-    async def set_freq(frequency):
-        hex = f"{frequency:06X}"
-        data = f"!C 0D {hex[:2]} {hex[2:4]} {hex[4:]}\r\n"
-        await pkt_protocol._write_data(bytes(data.encode("ascii")))
-        return frequency
-
     def process_message(msg) -> None:
         global count_rcvd
 
@@ -295,6 +313,21 @@ async def puzzle_tune(
 
         # if msg.payload["interval"] != interval:
         #     raise RuntimeError("Intervals don't match")
+
+    def process_packet(pkt_raw) -> None:
+        global count_rcvd
+
+        count_lock.acquire()
+        count_rcvd += 1
+        count_lock.release()
+
+        _LOGGER.info("%s", pkt_raw)
+
+    async def set_freq(frequency):
+        hex = f"{frequency:06X}"
+        data = f"!C 0D {hex[:2]} {hex[2:4]} {hex[4:]}\r\n"
+        await pkt_protocol._write_data(bytes(data.encode("ascii")))
+        return frequency
 
     async def check_reception(freq, count) -> float:
         """Returns: 0.0 nothing, 0.5 invalid pkt, 1.0 valid packet."""
@@ -335,8 +368,14 @@ async def puzzle_tune(
 
         return freq, result
 
-    gwy.create_client(print_message)
-    gwy.create_client(process_message)
+    lower = frequency - width
+    upper = frequency + width
+
+    _PKT_LOGGER.setLevel(logging.ERROR)
+
+    # gwy.create_client(print_message)
+    # gwy.create_client(process_message)
+    pkt_protocol.pkt_callback = process_packet
 
     dtm_expires = dt.now() + td(seconds=3)
     while dt.now() < dtm_expires:
@@ -347,27 +386,14 @@ async def puzzle_tune(
     #     raise RuntimeError("Can't find serial interface")
 
     print("")
-    _LOGGER.info("STEP 0: No changes to freq")
-    result = await check_reception(0, count=3)
-    _LOGGER.info(f"STEP 0: Result = 0x{0:06X} ({result:.2f}) (no changes to freq)")
-
-    print("")
-    _LOGGER.info(f"STEP 1: Freq changed to default, 0x{BASIC_FREQ:06X}")
-    await set_freq(BASIC_FREQ)
-    result = await check_reception(BASIC_FREQ, count=3)
-    _LOGGER.info(
-        f"STEP 1: Result = 0x{BASIC_FREQ:06X} ({result:.2f}) (freq set to default)"
-    )
-
-    print("")
-    _LOGGER.info(f"STEP 2: Calibrate up from 0x{lower:06X} to 0x{BASIC_FREQ:06X}")
-    lower_freq, result1 = await binary_chop(lower, BASIC_FREQ)
+    _LOGGER.info(f"STEP 1: Calibrate up from 0x{lower:06X} to 0x{upper:06X}")
+    lower_freq, result1 = await binary_chop(lower, upper)
     _LOGGER.info(
         f"STEP 2: Result = 0x{lower_freq:06X} ({result1:.2f}) (upwards calibrated)"
     )
 
     print("")
-    _LOGGER.info(f"STEP 3: Calibrate down from 0x{upper:06X} to 0x{lower_freq:06X}")
+    _LOGGER.info(f"STEP 2: Calibrate down from 0x{upper:06X} to 0x{lower_freq:06X}")
     upper_freq, result2 = await binary_chop(upper, lower_freq)
     _LOGGER.info(
         f"STEP 3: Result = 0x{lower_freq:06X} ({result1:.2f}) (downwards calibrated)"
@@ -392,7 +418,14 @@ async def main(lib_kwargs, **kwargs):
 
     gwy = Gateway(lib_kwargs[CONFIG].pop(SERIAL_PORT, None), **lib_kwargs)
 
-    asyncio.create_task(gwy.start())
+    # asyncio.create_task(gwy.start())
+    protocol_factory = create_protocol_factory(gwy, gwy.msg_transport)
+    gwy.pkt_protocol, gwy.pkt_transport = create_pkt_stack(
+        gwy, gwy.msg_transport, gwy.serial_port, protocol_factory=protocol_factory
+    )
+    if gwy.msg_transport:
+        gwy._tasks.append(gwy.msg_transport.get_extra_info(WRITER_TASK))
+
     while gwy.pkt_protocol is None:
         await asyncio.sleep(0.05)
     pkt_protocol = gwy.pkt_protocol

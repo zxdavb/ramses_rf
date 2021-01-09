@@ -19,13 +19,7 @@ from serial import Serial, SerialException, serial_for_url  # noqa
 from serial_asyncio import SerialTransport
 
 from .command import Command, Priority, _pkt_header
-from .const import (
-    DTM_LONG_REGEX,
-    MESSAGE_REGEX,
-    HGI_DEVICE,
-    NUL_DEVICE,
-    _dev_mode_,
-)
+from .const import DTM_LONG_REGEX, MESSAGE_REGEX, HGI_DEVICE, NUL_DEVICE, _dev_mode_
 from .helpers import extract_addrs
 from .logger import dt_str
 from .schema import DISABLE_SENDING, ENFORCE_ALLOWLIST, ENFORCE_BLOCKLIST, EVOFW_FLAG
@@ -65,22 +59,6 @@ _PKT_LOGGER = logging.getLogger(f"{__name__}-log")  # don't setLevel here
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.INFO)  # DEBUG may have too much detail
-
-
-def stream_to_line(func):
-    """Convert a stream of bytes to a raw packet."""
-
-    def wrapper(self, data: ByteString, *args, **kwargs) -> Optional[dict]:
-
-        self._recv_buffer += data
-        if b"\r\n" in self._recv_buffer:
-            lines = self._recv_buffer.split(b"\r\n")
-            self._recv_buffer = lines[-1]
-
-            for line in lines[:-1]:
-                func(self, line)
-
-    return wrapper
 
 
 def extra(dtm, pkt=None):
@@ -326,7 +304,7 @@ class PacketProtocolBase(PacketProtocolAsyncio):
     """Interface for a packet protocol."""
 
     def __init__(self, gwy, pkt_handler) -> None:
-        _LOGGER.debug("PktProtocol.__init__()")
+        _LOGGER.debug("PktProtocol.__init__(%s, %s)", gwy, pkt_handler)
 
         self._gwy = gwy
         self._callback = pkt_handler
@@ -374,9 +352,7 @@ class PacketProtocolBase(PacketProtocolAsyncio):
                 if c in printable
             )
         except UnicodeDecodeError:
-            _PKT_LOGGER.warning(
-                "%s < Bad pkt", pkt_raw, extra=extra(dtm_str, pkt_raw)
-            )
+            _PKT_LOGGER.warning("%s < Bad pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
             return Packet(dtm_str, "", pkt_raw)
 
         if (
@@ -396,20 +372,18 @@ class PacketProtocolBase(PacketProtocolAsyncio):
         return Packet(dtm_str, _normalise(pkt_line), pkt_raw)
 
     @staticmethod
-    def _is_wanted_pkt(pkt, include_list, exclude_list) -> Optional[bool]:
+    def is_wanted(pkt, include_list, exclude_list) -> bool:
         """Parse the packet, return True if the packet is not to be filtered out."""
-        if " 18:" in pkt.packet:  # NOTE: " 18:", leading space is required
+        if " 18:" in str(pkt):  # NOTE: " 18:", leading space is required
             return True
         if include_list:
-            return any(device in pkt.packet for device in include_list)
+            return any(device in str(pkt) for device in include_list)
         if exclude_list:
-            return not any(device in pkt.packet for device in exclude_list)
+            return not any(device in str(pkt) for device in exclude_list)
         return True
 
-    @stream_to_line
-    def data_received(self, data: ByteString) -> None:
-        """Called when some data is received. Adjust backoff as required."""
-        _LOGGER.debug("PktProtocol.data_received(%s)", data)
+    def _data_received(self, data: ByteString) -> None:
+        """Called when some data is received."""
 
         pkt = self._create_pkt(data)
         if not pkt.is_valid:
@@ -417,8 +391,20 @@ class PacketProtocolBase(PacketProtocolAsyncio):
         elif self._has_initialized is None:
             self._has_initialized = True
 
-        if self._is_wanted_pkt(pkt, self._include, self._exclude):
+        if self.is_wanted(pkt, self._include, self._exclude):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
+
+    def data_received(self, data: ByteString) -> None:
+        """Called when some data is received."""
+        _LOGGER.debug("PktProtocol.data_received(%s)", data)
+
+        self._recv_buffer += data
+        if b"\r\n" in self._recv_buffer:
+            lines = self._recv_buffer.split(b"\r\n")
+            self._recv_buffer = lines[-1]
+
+            for line in lines[:-1]:
+                self._data_received(line)
 
     async def _write_data(self, data: ByteString, ignore_pause=False) -> None:
         """Send a bytearray to the transport (serial) interface.
@@ -436,7 +422,7 @@ class PacketProtocolBase(PacketProtocolAsyncio):
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
-        _LOGGER.debug("PktProtocol.send_data()")
+        _LOGGER.debug("PktProtocol.send_data(%s)", cmd)
 
         if self._gwy.config[DISABLE_SENDING]:
             raise RuntimeError("Sending is disabled")
@@ -506,10 +492,8 @@ class PacketProtocol(PacketProtocolBase):
 
         # _LOGGER.debug("%s %s %s", self._backoff, timeout, self._timeout_full)
 
-    @stream_to_line
-    def data_received(self, data: ByteString) -> None:
+    def _data_received(self, data: ByteString) -> None:
         """Called when some data is received. Adjust backoff as required."""
-
         def _logger_rcvd(logger, msg: str) -> None:
             if self._qos_cmd is None:
                 wanted = None
@@ -566,7 +550,7 @@ class PacketProtocol(PacketProtocolBase):
             # self._timeouts(dt.now())
             _logger_rcvd(_LOGGER.debug, "XXXXXXX - ")
 
-        if self._is_wanted_pkt(pkt, self._include, self._exclude):
+        if self.is_wanted(pkt, self._include, self._exclude):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
     async def send_data(self, cmd: Command) -> None:
@@ -622,8 +606,7 @@ class PacketProtocol(PacketProtocolBase):
                 self._timeouts(dt.now())
                 await self._write_data(bytes(f"{cmd}\r\n".encode("ascii")))
                 _logger_send(
-                    _LOGGER.info,
-                    f"RE-SENT ({self._tx_retries}/{self._tx_retry_limit})",
+                    _LOGGER.info, f"RE-SENT ({self._tx_retries}/{self._tx_retry_limit})"
                 )
 
             else:

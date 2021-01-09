@@ -159,10 +159,7 @@ def parse(obj, **kwargs):
 @click.command(cls=PortCommand)
 @click.option("-d/-nd", "--discover/--no-discover", default=None)
 @click.option(  # "--execute-cmd"
-    "-x",
-    "--execute-cmd",
-    type=click.STRING,
-    help="e.g. 'RQ 01:123456 1F09 00'",
+    "-x", "--execute-cmd", type=click.STRING, help="e.g. 'RQ 01:123456 1F09 00'"
 )
 @click.option(
     "--poll-devices", type=click.STRING, help="e.g. 'device_id, device_id, ...'"
@@ -183,10 +180,7 @@ def monitor(obj, **kwargs):
 
 @click.command(cls=PortCommand)
 @click.option(  # "--execute-cmd"
-    "-x",
-    "--execute-cmd",
-    type=click.STRING,
-    help="e.g. 'RQ 01:123456 1F09 00'",
+    "-x", "--execute-cmd", type=click.STRING, help="e.g. 'RQ 01:123456 1F09 00'"
 )
 @click.option("-s0", "-sd", "--scan-disc", help="e.g. 'device_id, device_id, ...'")
 @click.option("-s1", "-sf", "--scan-full", help="e.g. 'device_id, device_id, ...'")

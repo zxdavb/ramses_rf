@@ -482,10 +482,7 @@ def parser_0008(payload, msg) -> Optional[dict]:
 
     if msg.src.type == "31":  # Honeywell Japser ?HVAC
         assert msg.len == 13
-        return {
-            "ordinal": f"0x{payload[2:8]}",
-            "_unknown": payload[8:],
-        }
+        return {"ordinal": f"0x{payload[2:8]}", "_unknown": payload[8:]}
 
     assert msg.len == 2
 
@@ -873,10 +870,7 @@ def parser_1100(payload, msg) -> Optional[dict]:
 
     if msg.src.type == "08":  # Honeywell Japser ?HVAC
         assert msg.len == 19
-        return {
-            "ordinal": f"0x{payload[2:8]}",
-            "_unknown": payload[8:],
-        }
+        return {"ordinal": f"0x{payload[2:8]}", "_unknown": payload[8:]}
 
     assert msg.len in (5, 8)
     assert payload[:2] in ("00", "FC")
@@ -1467,10 +1461,7 @@ def parser_3ef0(payload, msg) -> dict:
 
     if msg.src.type in "08":  # Honeywell Japser ?HVAC
         assert msg.len == 20
-        return {
-            "ordinal": f"0x{payload[2:8]}",
-            "_unknown": payload[8:],
-        }
+        return {"ordinal": f"0x{payload[2:8]}", "_unknown": payload[8:]}
 
     assert payload[:2] == "00", f"domain_id is not 00: {payload[:2]}"
     if msg.len == 3:
@@ -1518,10 +1509,7 @@ def parser_3ef1(payload, msg) -> dict:
 
     if msg.src.type in ("08", "31"):  # Honeywell Japser ?HVAC
         assert msg.len == 18 if msg.src.type == "08" else 20
-        return {
-            "ordinal": f"0x{payload[2:8]}",
-            "_unknown": payload[8:],
-        }
+        return {"ordinal": f"0x{payload[2:8]}", "_unknown": payload[8:]}
 
     assert msg.verb == "RP"
     assert msg.len == 7

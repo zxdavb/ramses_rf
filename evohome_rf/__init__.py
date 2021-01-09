@@ -44,12 +44,7 @@ from .schema import (  # noqa: F401
 
 # from .ser2net import Ser2NetServer
 from .systems import SYSTEM_CLASSES, System, SystemBase
-from .protocol import (
-    WRITER_TASK,
-    MessageProtocol,
-    create_msg_stack,
-    create_pkt_stack,
-)
+from .protocol import WRITER_TASK, MessageProtocol, create_msg_stack, create_pkt_stack
 from .version import __version__  # noqa: F401
 
 DEV_MODE = _dev_mode_
@@ -80,11 +75,9 @@ class Gateway:
         self.serial_port = serial_port
         self._input_file = input_file
 
-        (
-            self.config,
-            self._include,
-            self._exclude,
-        ) = load_config(serial_port, input_file, **kwargs)
+        (self.config, self._include, self._exclude) = load_config(
+            serial_port, input_file, **kwargs
+        )
 
         set_pkt_logging(
             pkt_logger,

@@ -387,13 +387,14 @@ class MessageProtocol(asyncio.Protocol):
         self._pause_writing = False
 
 
-def create_msg_stack(gwy, msg_handler, protocol_factory, **kwargs) -> Tuple:
+def create_msg_stack(
+    gwy, msg_handler, protocol_factory=MessageProtocol, **kwargs
+) -> Tuple:
     """Utility function to provide a transport to a client protocol.
 
     The architecture is: app (client) -> msg -> pkt -> ser (HW interface).
     """
 
-    # protocol_factory is (usu.) MessageProtocol
     msg_protocol = protocol_factory(msg_handler, **kwargs)
 
     if gwy.msg_transport:  # HACK: a little messy?
@@ -405,7 +406,7 @@ def create_msg_stack(gwy, msg_handler, protocol_factory, **kwargs) -> Tuple:
     return (msg_protocol, msg_transport)
 
 
-def create_pkt_stack(gwy, msg_handler, serial_port) -> Tuple:
+def create_pkt_stack(gwy, msg_handler, serial_port, protocol_factory=None) -> Tuple:
     """Utility function to provide a transport to the internal protocol.
 
     The architecture is: app (client) -> msg -> pkt -> ser (HW interface).
@@ -415,7 +416,7 @@ def create_pkt_stack(gwy, msg_handler, serial_port) -> Tuple:
      - MsgTransport.write (pkt_dispatcher) to (pkt_protocol) PktProtocol.send_data
     """
 
-    def protocol_factory():
+    def _protocol_factory():
         # msg_handler._pkt_receiver is from MessageTransport
         return PacketProtocol(gwy, msg_handler._pkt_receiver if msg_handler else None)
 
@@ -433,7 +434,7 @@ def create_pkt_stack(gwy, msg_handler, serial_port) -> Tuple:
         pkt_transport, pkt_protocol = t.connect()
 
     else:
-        pkt_protocol = protocol_factory()
+        pkt_protocol = protocol_factory() if protocol_factory else _protocol_factory()
         ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
         # ser_instance.set_low_latency_mode(True)
         # ser_instance.dsrdtr = False
