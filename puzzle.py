@@ -393,12 +393,12 @@ async def puzzle_tune(
     print("")
     _LOGGER.info(f"STEP 2: Calibrate down from 0x{upper:06X} to 0x{lower_freq:06X}")
     upper_freq, result2 = await binary_chop(upper, lower_freq)
-    _LOGGER.info(f"Result = 0x{lower_freq:06X} ({result1:.2f}) (downwards calibrated)")
+    _LOGGER.info(f"Result = 0x{lower_freq:06X} ({result2:.2f}) (downwards calibrated)")
 
     print("")
     _LOGGER.info(
         f"OVERALL Result = 0x{int((lower_freq + upper_freq) / 2):06X} "
-        f"(0x{lower_freq:06X}-0x{upper_freq:06X}, {result1:.2f}, {result2:.2f})"
+        f"(0x{lower_freq:06X}-0x{upper_freq:06X})"
     )
 
 
