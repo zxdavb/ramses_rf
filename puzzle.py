@@ -352,7 +352,7 @@ async def puzzle_tune(
     async def binary_chop(x, y, threshold=0) -> Tuple[int, float]:  # 1, 2
         """Binary chop from x (the start) to y (the target)."""
         _LOGGER.info(f"Puzzling from 0x{x:06X} to 0x{y:06X}...")
-        fudge = 1 if x < y else -1
+        fudge = 1  # if x < y else -1
 
         freq = await set_freq(int((x + y + fudge) / 2))
         result = await check_reception(freq, count)
@@ -388,16 +388,12 @@ async def puzzle_tune(
     print("")
     _LOGGER.info(f"STEP 1: Calibrate up from 0x{lower:06X} to 0x{upper:06X}")
     lower_freq, result1 = await binary_chop(lower, upper)
-    _LOGGER.info(
-        f"STEP 2: Result = 0x{lower_freq:06X} ({result1:.2f}) (upwards calibrated)"
-    )
+    _LOGGER.info(f"Result = 0x{lower_freq:06X} ({result1:.2f}) (upwards calibrated)")
 
     print("")
     _LOGGER.info(f"STEP 2: Calibrate down from 0x{upper:06X} to 0x{lower_freq:06X}")
     upper_freq, result2 = await binary_chop(upper, lower_freq)
-    _LOGGER.info(
-        f"STEP 3: Result = 0x{lower_freq:06X} ({result1:.2f}) (downwards calibrated)"
-    )
+    _LOGGER.info(f"Result = 0x{lower_freq:06X} ({result1:.2f}) (downwards calibrated)")
 
     print("")
     _LOGGER.info(
