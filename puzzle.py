@@ -8,6 +8,7 @@
 import asyncio
 from datetime import datetime as dt, timedelta as td
 import json
+import logging
 import shutil
 import sys
 from threading import Lock
@@ -42,7 +43,7 @@ EXECUTE_CMD = "execute_cmd"
 CONFIG = "config"
 COMMAND = "command"
 
-CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
+CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 4)
 
 DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
@@ -68,6 +69,9 @@ LIB_KEYS = (
     PACKET_LOG,
     REDUCE_PROCESSING,
 )
+
+_LOGGER = logging.getLogger(__name__)
+_LOGGER.setLevel(logging.INFO)
 
 
 def _proc_kwargs(obj, kwargs) -> Tuple[dict, dict]:
@@ -114,10 +118,10 @@ def cli(ctx, config_file=None, **kwargs):
         import debugpy
 
         debugpy.listen(address=(DEBUG_ADDR, DEBUG_PORT))
-        print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
-        print(" - execution paused, waiting for debugger to attach...")
+        _LOGGER.info(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
+        _LOGGER.info(" - execution paused, waiting for debugger to attach...")
         debugpy.wait_for_client()
-        print(" - debugger is now attached, continuing execution.")
+        _LOGGER.info(" - debugger is now attached, continuing execution.")
 
     lib_kwargs, cli_kwargs = _proc_kwargs(({CONFIG: {}}, {}), kwargs)
 
@@ -231,9 +235,9 @@ async def puzzle_cast(gwy, pkt_protocol, interval=None, count=0, length=48, **kw
     def print_message(msg) -> None:
         dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
         if msg.code == "7FFF":
-            print(f"{Style.BRIGHT}{Fore.CYAN}{dtm} {msg}"[:CONSOLE_COLS])
+            _LOGGER.info(f"{Style.BRIGHT}{Fore.CYAN}{dtm} {msg}"[:CONSOLE_COLS])
         else:
-            print(f"{Fore.GREEN}{dtm} {msg}"[:CONSOLE_COLS])
+            _LOGGER.info(f"{Fore.GREEN}{dtm} {msg}"[:CONSOLE_COLS])
 
     async def _periodic(ordinal):
         payload = f"7F{dts_to_hex(dt.now())}7F{ordinal % 0x10000:04X}7F{int_hex}7F"
@@ -272,9 +276,9 @@ async def puzzle_tune(
     def print_message(msg) -> None:
         dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
         if msg.code == "7FFF":
-            print(f"{Style.BRIGHT}{Fore.CYAN}{dtm} {msg}"[:CONSOLE_COLS])
+            _LOGGER.info(f"{Style.BRIGHT}{Fore.CYAN}{dtm} {msg}"[:CONSOLE_COLS])
         else:
-            print(f"{Fore.GREEN}{dtm} {msg}"[:CONSOLE_COLS])
+            _LOGGER.info(f"{Fore.GREEN}{dtm} {msg}"[:CONSOLE_COLS])
 
     async def set_freq(frequency):
         # data = "!V\r\n"
@@ -300,7 +304,7 @@ async def puzzle_tune(
         count_rcvd = 0
         count_lock.release()
 
-        print(f" - checking 0x{freq:06X} for max. {interval * count}s")
+        _LOGGER.info(f"  Checking 0x{freq:06X} for max. {interval * count}s")
         dtm_start = dt.now()
         dtm_end = dtm_start + td(seconds=interval * count)
         while dt.now() < dtm_end:
@@ -308,14 +312,33 @@ async def puzzle_tune(
             if count_rcvd > 0:
                 break
 
-        i = int(((dt.now() - dtm_start).total_seconds() + 0) / interval)
+        _LOGGER.info("    result = " + ("some" if count_rcvd else "NO") + "thing heard")
+        return count_rcvd
 
-        result = count_rcvd / i if i != 0 else 1
-        print(f" - result = {result} ({count_rcvd}/{i} pkts/intervals)")
-        return result
+        # i = int(((dt.now() - dtm_start).total_seconds() + 0) / interval)
+        # result = count_rcvd / i if i != 0 else 1
+        # _LOGGER.info(f" - result = {result} ({count_rcvd}/{i} pkts/intervals)")
+        # return result
 
     async def binary_chop(x, y, threshold=0) -> Tuple[int, float]:  # 1, 2
-        print(f"Puzzling from 0x{x:06X} to 0x{y:06X}...")
+        _LOGGER.info(f"Puzzling from 0x{x:06X} to 0x{y:06X}...")
+
+        # while x != y:
+        #     freq = int((x + y) / 2)
+        #     await set_freq(freq)
+        #     result = await check_reception(freq, count)
+        #     if result > threshold:
+        #         if lower:
+        #             y = freq
+        #         else:
+        #             x = freq
+        #     else:
+        #         if lower:
+        #             x = freq
+        #         else:
+        #             y = freq
+
+        # return x, result
 
         direction = 1 if x < y else -1  # 1 is ascending, initially
         freq = int((x + y) / 2)
@@ -325,6 +348,8 @@ async def puzzle_tune(
 
             if freq in (x, y):
                 return freq, result
+
+            print()
 
             if result > threshold:
                 new_freq = int((freq + x - direction) / 2)  # go back towards x
@@ -344,26 +369,31 @@ async def puzzle_tune(
     # else:
     #     raise RuntimeError("Can't find serial interface")
 
-    print("\r\nSTEP 0: No changes to freq")
+    print("")
+    _LOGGER.info("STEP 0: No changes to freq")
     result = await check_reception(0, count=3)
-    print(f"STEP 0: Result = 0x{0:06X} ({result:.2f}) (no changes to freq)")
+    _LOGGER.info(f"STEP 0: Result = 0x{0:06X} ({result:.2f}) (no changes to freq)")
 
-    print(f"\r\nSTEP 1: Freq changed to default, 0x{BASIC_FREQ:06X}")
+    print("")
+    _LOGGER.info("STEP 1: Freq changed to default, 0x{BASIC_FREQ:06X}")
     await set_freq(BASIC_FREQ)
     result = await check_reception(BASIC_FREQ, count=3)
-    print(f"STEP 1: Result = 0x{0:06X} ({result:.2f}) (freq changed to default)")
+    _LOGGER.info(f"STEP 1: Result = 0x{BASIC_FREQ:06X} ({result:.2f}) (freq set to default)")
 
-    print(f"\r\nSTEP 2: Calibrate up from 0x{lower:06X} to 0x{BASIC_FREQ:06X} ")
+    print("")
+    _LOGGER.info("STEP 2: Calibrate up from 0x{lower:06X} to 0x{BASIC_FREQ:06X}")
     lower_freq, result1 = await binary_chop(lower, BASIC_FREQ)
-    print(f"STEP 2: Result = 0x{lower_freq:06X} ({result1:.2f}) (upwards calibrated)")
+    _LOGGER.info(f"STEP 2: Result = 0x{lower_freq:06X} ({result1:.2f}) (upwards calibrated)")
 
-    print(f"\r\nSTEP 3: Calibrate down from 0x{upper:06X} to 0x{lower_freq:06X} ")
+    print("")
+    _LOGGER.info("STEP 3: Calibrate down from 0x{upper:06X} to 0x{lower_freq:06X}")
     upper_freq, result2 = await binary_chop(upper, lower_freq)
-    print(f"STEP 3: Result = 0x{lower_freq:06X} ({result1:.2f}) (downwards calibrated)")
+    _LOGGER.info(f"STEP 3: Result = 0x{lower_freq:06X} ({result1:.2f}) (downwards calibrated)")
 
-    print(
-        f"\r\nOVERALL Result = 0x{int((lower_freq + upper_freq) / 2):06X} "
-        f"(0x{lower_freq}-0x{upper_freq:06X}, {result1:.2f}, {result2:.2f})"
+    print("")
+    _LOGGER.info(
+        f"OVERALL Result = 0x{int((lower_freq + upper_freq) / 2):06X} "
+        f"(0x{lower_freq:06X}-0x{upper_freq:06X}, {result1:.2f}, {result2:.2f})"
     )
 
 
@@ -393,14 +423,14 @@ async def main(lib_kwargs, **kwargs):
         await task
 
     except asyncio.CancelledError:
-        # print(" - exiting via: CancelledError (this is expected)")
+        # _LOGGER.info(" - exiting via: CancelledError (this is expected)")
         pass
     except GracefulExit:
-        print(" - exiting via: GracefulExit")
+        _LOGGER.info(" - exiting via: GracefulExit")
     except KeyboardInterrupt:
-        print(" - exiting via: KeyboardInterrupt")
+        _LOGGER.info(" - exiting via: KeyboardInterrupt")
     else:  # if no Exceptions raised, e.g. EOF when parsing
-        # print(" - exiting via: else-block (e.g. EOF when parsing)")
+        # _LOGGER.info(" - exiting via: else-block (e.g. EOF when parsing)")
         pass
 
     print("\r\nclient.py: Finished evohome_rf.\r\n")
