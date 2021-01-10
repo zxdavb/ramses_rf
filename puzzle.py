@@ -53,7 +53,7 @@ DONT_UPDATE_ENTITIES = 1
 
 DEFAULT_INTERVAL = 5  # should be 240
 
-FREQ_WIDTH = 0x002800
+FREQ_WIDTH = 0x002000
 BASIC_FREQ = 0x21656A
 
 DEBUG_ADDR = "0.0.0.0"
@@ -153,9 +153,6 @@ def cli(ctx, config_file=None, **kwargs):
         lib_kwargs.update(json.load(config_file))
 
     lib_kwargs[DEBUG_MODE] = cli_kwargs[DEBUG_MODE] > 1
-
-    red_proc = max((kwargs[REDUCE_PROCESSING], 2))
-    lib_kwargs[CONFIG][REDUCE_PROCESSING] = kwargs[REDUCE_PROCESSING] = red_proc
     lib_kwargs[CONFIG][USE_NAMES] = False
 
     ctx.obj = lib_kwargs, kwargs
@@ -214,6 +211,9 @@ def tune(obj, **kwargs):
     kwargs["interval"] = max((int(kwargs["interval"] * 100) / 100, 0.05))
 
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
+    red_proc = DONT_CREATE_MESSAGES
+    lib_kwargs[CONFIG][REDUCE_PROCESSING] = kwargs[REDUCE_PROCESSING] = red_proc
+
     lib_kwargs[CONFIG][DISABLE_SENDING] = True  # bypassed by calling _write_data
 
     asyncio.run(main(lib_kwargs, command="tune", **cli_kwargs))
@@ -247,6 +247,9 @@ def cast(obj, **kwargs):  # HACK: remove?
     kwargs["interval"] = max((int(kwargs["interval"] * 100) / 100, 0.05))
 
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
+    red_proc = max((kwargs[REDUCE_PROCESSING], DONT_CREATE_ENTITIES))
+    lib_kwargs[CONFIG][REDUCE_PROCESSING] = kwargs[REDUCE_PROCESSING] = red_proc
+
     lib_kwargs[CONFIG][DISABLE_DISCOVERY] = True
 
     lib_kwargs[ALLOW_LIST] = {"18:000730": {}}  # TODO: messy
@@ -342,7 +345,7 @@ async def puzzle_tune(
 
         _LOGGER.info(
             f"  Checking 0x{freq:06X} for max. {interval * count}s "
-            f"(x=0x{x:06X}, y=0x{y:06X})"
+            f"(x=0x{x:06X}, y=0x{y:06X}, width=0x{abs(x - y):06X})"
         )
         await set_freq(freq)
 
@@ -356,7 +359,7 @@ async def puzzle_tune(
         MSG = {
             True: "A valid packet was received",
             False: "An invalid packet was received",
-            None: "No packets were received"
+            None: "No packets were received",
         }
 
         _LOGGER.info(f"    result = {MSG[count_rcvd]}")
@@ -375,8 +378,26 @@ async def puzzle_tune(
 
         return freq, result
 
-    lower = frequency - width
-    upper = frequency + width
+    async def do_a_round(lower, upper):
+        print("")
+        _LOGGER.info(f"STEP 0: Starting a round from 0x{lower:06X} to 0x{upper:06X}")
+
+        _LOGGER.info(f"STEP 1: Calibrate up from 0x{lower:06X} to 0x{upper:06X}")
+        lower_freq, _ = await binary_chop(lower, upper)
+        _LOGGER.info(f"Lower = 0x{lower_freq:06X} (upwards calibrated)")
+
+        print("")
+        _LOGGER.info(f"STEP 2: Calibrate down from 0x{upper:06X} to 0x{lower_freq:06X}")
+        upper_freq, _ = await binary_chop(upper, lower_freq)
+        _LOGGER.info(f"Upper = 0x{lower_freq:06X} (downwards calibrated)")
+
+        print("")
+        _LOGGER.info(
+            f"Average = 0x{int((lower_freq + upper_freq) / 2):06X} "
+            f"(0x{lower_freq:06X}-0x{upper_freq:06X})"
+        )
+
+        return lower_freq, upper_freq
 
     _PKT_LOGGER.setLevel(logging.ERROR)
 
@@ -392,21 +413,21 @@ async def puzzle_tune(
     # else:
     #     raise RuntimeError("Can't find serial interface")
 
-    print("")
-    _LOGGER.info(f"STEP 1: Calibrate up from 0x{lower:06X} to 0x{upper:06X}")
-    lower_freq, _ = await binary_chop(lower, upper)
-    _LOGGER.info(f"Result = 0x{lower_freq:06X} (upwards calibrated)")
+    lower, upper = await do_a_round(frequency - width, frequency + width)
 
     print("")
-    _LOGGER.info(f"STEP 2: Calibrate down from 0x{upper:06X} to 0x{lower_freq:06X}")
-    upper_freq, _ = await binary_chop(upper, lower_freq)
-    _LOGGER.info(f"Result = 0x{lower_freq:06X} (downwards calibrated)")
+    _LOGGER.info(f"OVERALL Result = 0x{int((lower + upper) / 2):06X}")
 
-    print("")
-    _LOGGER.info(
-        f"OVERALL Result = 0x{int((lower_freq + upper_freq) / 2):06X} "
-        f"(0x{lower_freq:06X}-0x{upper_freq:06X})"
-    )
+    # frequency = int((lower + upper) / 2)
+    # width = int((frequency - lower) * 1.25)
+    # lower, upper = l1, u1 = await do_a_round(frequency - width, frequency + width)
+
+    # frequency = int((lower + upper) / 2)
+    # width = int((frequency - lower) * 1.25)
+    # lower, upper = l2, u2 = await do_a_round(frequency - width, frequency + width)
+
+    # print("")
+    # _LOGGER.info(f"OVERALL Result = 0x{int((l1 + l2 + u1 + u2) / 4):06X}")
 
 
 async def main(lib_kwargs, **kwargs):
