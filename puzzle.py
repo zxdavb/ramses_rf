@@ -317,11 +317,12 @@ async def puzzle_tune(
     def process_packet(pkt_raw) -> None:
         global count_rcvd
 
-        count_lock.acquire()
-        count_rcvd += 1
-        count_lock.release()
-
         _LOGGER.info("%s", pkt_raw)
+        pkt = pkt_protocol._create_pkt(pkt_raw)
+
+        count_lock.acquire()
+        count_rcvd = count_rcvd if count_rcvd is True else pkt.is_valid
+        count_lock.release()
 
     async def set_freq(frequency):
         hex = f"{frequency:06X}"
@@ -329,42 +330,46 @@ async def puzzle_tune(
         await pkt_protocol._write_data(bytes(data.encode("ascii")))
         return frequency
 
-    async def check_reception(freq, count) -> float:
+    async def check_reception(freq, count, x, y) -> float:
         """Returns: 0.0 nothing, 0.5 invalid pkt, 1.0 valid packet."""
 
         global count_rcvd
         count_lock.acquire()
-        count_rcvd = 0
+        count_rcvd = None
         count_lock.release()
 
-        _LOGGER.info(f"  Checking 0x{freq:06X} for max. {interval * count}s")
+        _LOGGER.info(
+            f"  Checking 0x{freq:06X} for max. {interval * count}s "
+            f"(x=0x{x:06X}, y=0x{y:06X})"
+        )
+        await set_freq(freq)
+
         dtm_start = dt.now()
         dtm_end = dtm_start + td(seconds=interval * count)
         while dt.now() < dtm_end:
             await asyncio.sleep(0.005)
-            if count_rcvd > 0:
+            if count_rcvd is not None:
                 break
 
-        _LOGGER.info("    result = " + ("some" if count_rcvd else "NO") + "thing heard")
+        MSG = {
+            True: "A valid packet was received",
+            False: "An invalid packet was received",
+            None: "No packets were received"
+        }
+
+        _LOGGER.info(f"    result = {MSG[count_rcvd]}")
         print()
         return count_rcvd
 
     async def binary_chop(x, y, threshold=0) -> Tuple[int, float]:  # 1, 2
         """Binary chop from x (the start) to y (the target)."""
         _LOGGER.info(f"Puzzling from 0x{x:06X} to 0x{y:06X}...")
-        fudge = 1  # if x < y else -1
 
-        freq = await set_freq(int((x + y + fudge) / 2))
-        result = await check_reception(freq, count)
-
-        while abs(x - y) > 1:
-            if result > threshold:
-                y = freq  # next freq will be further from y (the target)
-            else:
-                x = freq  # next freq will be closer y (the target)
-
-            freq = await set_freq(int((x + y + fudge) / 2))
-            result = await check_reception(freq, count)
+        freq, result = int((x + y) / 2), None
+        while freq not in (x, y):
+            result = await check_reception(freq, count, x, y)
+            x, y = (x, freq) if result is not None else (freq, y)
+            freq = int((x + y) / 2)
 
         return freq, result
 
@@ -387,13 +392,13 @@ async def puzzle_tune(
 
     print("")
     _LOGGER.info(f"STEP 1: Calibrate up from 0x{lower:06X} to 0x{upper:06X}")
-    lower_freq, result1 = await binary_chop(lower, upper)
-    _LOGGER.info(f"Result = 0x{lower_freq:06X} ({result1:.2f}) (upwards calibrated)")
+    lower_freq, _ = await binary_chop(lower, upper)
+    _LOGGER.info(f"Result = 0x{lower_freq:06X} (upwards calibrated)")
 
     print("")
     _LOGGER.info(f"STEP 2: Calibrate down from 0x{upper:06X} to 0x{lower_freq:06X}")
-    upper_freq, result2 = await binary_chop(upper, lower_freq)
-    _LOGGER.info(f"Result = 0x{lower_freq:06X} ({result2:.2f}) (downwards calibrated)")
+    upper_freq, _ = await binary_chop(upper, lower_freq)
+    _LOGGER.info(f"Result = 0x{lower_freq:06X} (downwards calibrated)")
 
     print("")
     _LOGGER.info(
