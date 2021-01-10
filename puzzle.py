@@ -111,7 +111,7 @@ class PuzzleProtocol(PacketProtocol):
             for line in lines[:-1]:
                 self._data_received(line)
 
-                if self.pkt_callback and line[:1] != b"#":
+                if self.pkt_callback:
                     self.pkt_callback(line)
 
 
@@ -318,11 +318,13 @@ async def puzzle_tune(
         global count_rcvd
 
         _LOGGER.info("%s", pkt_raw)
-        pkt = pkt_protocol._create_pkt(pkt_raw)
 
-        count_lock.acquire()
-        count_rcvd = count_rcvd if count_rcvd is True else pkt.is_valid
-        count_lock.release()
+        if pkt_raw[:1] != b"#":
+            pkt = pkt_protocol._create_pkt(pkt_raw)
+
+            count_lock.acquire()
+            count_rcvd = count_rcvd if count_rcvd is True else pkt.is_valid
+            count_lock.release()
 
     async def set_freq(frequency):
         hex = f"{frequency:06X}"
