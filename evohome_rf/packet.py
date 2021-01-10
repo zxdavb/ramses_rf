@@ -494,6 +494,7 @@ class PacketProtocol(PacketProtocolBase):
 
     def _data_received(self, data: ByteString) -> None:
         """Called when some data is received. Adjust backoff as required."""
+
         def _logger_rcvd(logger, msg: str) -> None:
             if self._qos_cmd is None:
                 wanted = None
