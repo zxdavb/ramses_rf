@@ -48,6 +48,7 @@ from .protocol import WRITER_TASK, MessageProtocol, create_msg_stack, create_pkt
 from .version import __version__  # noqa: F401
 
 DEV_MODE = _dev_mode_
+VERSION = __version__
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:

@@ -362,7 +362,7 @@ class PacketProtocolBase(PacketProtocolAsyncio):
         ):
             flag = self._gwy.config[EVOFW_FLAG]
             data = bytes(f"{flag}\r\n".encode("ascii"))
-            asyncio.create_task(self._write_data(data, ignore_pause=True))
+            asyncio.create_task(self._send_data(data, ignore_pause=True))
 
         if pkt_line.startswith("!C"):
             pkt_line = "# " + pkt_line
@@ -433,7 +433,7 @@ class PacketProtocolBase(PacketProtocolAsyncio):
             )
             return
 
-        await self._write_data(bytes(f"{cmd}\r\n".encode("ascii")))
+        await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
@@ -590,7 +590,7 @@ class PacketProtocol(PacketProtocolBase):
         self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
 
         self._timeouts(dt.now())
-        await self._write_data(bytes(f"{cmd}\r\n".encode("ascii")))
+        await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
 
         while self._qos_cmd is not None:  # until sent (may need re-transmit) or expired
             if self._timeout_full > dt.now():
@@ -605,7 +605,7 @@ class PacketProtocol(PacketProtocolBase):
                 if not self._qos_cmd.qos.get("disable_backoff", False):
                     self._backoff = min(self._backoff + 1, QOS_MAX_BACKOFF)
                 self._timeouts(dt.now())
-                await self._write_data(bytes(f"{cmd}\r\n".encode("ascii")))
+                await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
                 _logger_send(
                     _LOGGER.info, f"RE-SENT ({self._tx_retries}/{self._tx_retry_limit})"
                 )

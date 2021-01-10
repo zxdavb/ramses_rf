@@ -332,7 +332,7 @@ async def puzzle_tune(
     async def set_freq(frequency):
         hex = f"{frequency:06X}"
         data = f"!C 0D {hex[:2]} {hex[2:4]} {hex[4:]}\r\n"
-        await pkt_protocol._write_data(bytes(data.encode("ascii")))
+        await pkt_protocol._send_data(bytes(data.encode("ascii")))
         return frequency
 
     async def check_reception(freq, count, x, y) -> float:
