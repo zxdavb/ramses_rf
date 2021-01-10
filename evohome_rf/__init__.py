@@ -24,7 +24,8 @@ from .devices import DEVICE_CLASSES, Device
 from .discovery import spawn_execute_scripts, spawn_monitor_scripts  # noqa: F401
 from .logger import set_pkt_logging
 from .message import DONT_CREATE_MESSAGES, process_msg
-from .packet import _PKT_LOGGER as pkt_logger, file_pkts
+from .packet import POLLER_TASK, _PKT_LOGGER as pkt_logger, file_pkts
+from .protocol import WRITER_TASK, MessageProtocol, create_msg_stack, create_pkt_stack
 from .schema import (  # noqa: F401
     load_config,
     load_schema,
@@ -41,10 +42,7 @@ from .schema import (  # noqa: F401
     SER2NET_RELAY,
     USE_SCHEMA,
 )
-
-# from .ser2net import Ser2NetServer
 from .systems import SYSTEM_CLASSES, System, SystemBase
-from .protocol import WRITER_TASK, MessageProtocol, create_msg_stack, create_pkt_stack
 from .version import __version__  # noqa: F401
 
 DEV_MODE = _dev_mode_
@@ -196,13 +194,12 @@ class Gateway:
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
                 self, self.msg_transport, self.serial_port
             )
-            if self.msg_transport:
-                self._tasks.append(self.msg_transport.get_extra_info(WRITER_TASK))
 
-            # # HACK: A test
-            # await asyncio.sleep(3.0)
-            # cmd = command.Command("RQ", "01:145038", "1F09", "00")
-            # await self.msg_protocol.send_data(cmd)
+            if self.pkt_transport.get_extra_info(POLLER_TASK):
+                self._tasks.append(self.pkt_transport.get_extra_info(POLLER_TASK))
+
+            if self.msg_transport.get_extra_info(WRITER_TASK):
+                self._tasks.append(self.msg_transport.get_extra_info(WRITER_TASK))
 
         else:  # if self._input_file:
             reader = asyncio.create_task(file_reader(self._input_file, process_msg))

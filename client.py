@@ -93,14 +93,16 @@ def _convert_to_list(d: str) -> list:
 def cli(ctx, config_file=None, **kwargs):
     """A CLI for the evohome_rf library."""
 
-    if kwargs[DEBUG_MODE]:
+    if 0 < kwargs[DEBUG_MODE] < 3:
         import debugpy
 
         debugpy.listen(address=(DEBUG_ADDR, DEBUG_PORT))
         print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
         print(" - execution paused, waiting for debugger to attach...")
-        debugpy.wait_for_client()
-        print(" - debugger is now attached, continuing execution.")
+
+        if kwargs[DEBUG_MODE] == 1:
+            debugpy.wait_for_client()
+            print(" - debugger is now attached, continuing execution.")
 
     lib_kwargs, cli_kwargs = _proc_kwargs(({CONFIG: {}}, {}), kwargs)
 
@@ -227,32 +229,6 @@ def execute(obj, **kwargs):
 
 
 @click.command(cls=PortCommand)
-@click.option(
-    "-c", "--count", type=int, default=4, help="number of puzzle packets to send"
-)
-@click.option(
-    "-i",
-    "--interval",
-    type=float,
-    default=0.05,
-    help="minimum interval (secs) between packets",
-)
-@click.pass_obj
-def puzzle(obj, **kwargs):  # HACK: remove?
-    """Execute the puzzle script."""
-    lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
-
-    lib_kwargs[ALLOW_LIST] = {"18:000730": {}}  # TODO: messy
-    lib_kwargs[CONFIG][ENFORCE_ALLOWLIST] = True
-    lib_kwargs[CONFIG][DISABLE_DISCOVERY] = True
-
-    red_proc = max((cli_kwargs[REDUCE_PROCESSING], 2))
-    lib_kwargs[CONFIG][REDUCE_PROCESSING] = cli_kwargs[REDUCE_PROCESSING] = red_proc
-
-    asyncio.run(main(lib_kwargs, command="puzzle", **cli_kwargs))
-
-
-@click.command(cls=PortCommand)
 @click.pass_obj
 def listen(obj, **kwargs):
     """Listen to (eavesdrop only) a serial port for messages/packets."""
@@ -328,9 +304,6 @@ async def main(lib_kwargs, **kwargs):
                 await gwy.stop()
                 task.cancel()
 
-        if kwargs[COMMAND] == "puzzle":  # HACK: remove?
-            tasks = await spawn_execute_scripts(gwy, **kwargs)
-
         await task
     except asyncio.CancelledError:
         # print(" - exiting via: CancelledError (this is expected)")
@@ -364,7 +337,6 @@ cli.add_command(parse)
 cli.add_command(monitor)
 cli.add_command(execute)
 cli.add_command(listen)
-cli.add_command(puzzle)  # HACK: remove?
 
 if __name__ == "__main__":
     cli()

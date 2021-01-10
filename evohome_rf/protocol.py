@@ -18,7 +18,7 @@ from serial_asyncio import SerialTransport
 
 from .const import _dev_mode_
 from .message import DONT_CREATE_MESSAGES, Message
-from .packet import SERIAL_CONFIG, PacketProtocol, WinSerTransport
+from .packet import SERIAL_CONFIG, PacketProtocol, SerTransportPoller
 from .schema import DISABLE_SENDING, REDUCE_PROCESSING
 
 MAX_BUFFER_SIZE = 200
@@ -420,10 +420,10 @@ def create_pkt_stack(gwy, msg_handler, serial_port, protocol_factory=None) -> Tu
         # msg_handler._pkt_receiver is from MessageTransport
         return PacketProtocol(gwy, msg_handler._pkt_receiver if msg_handler else None)
 
-    if False and sys.platform == "win32":  # doesn't work
-        pkt_protocol = protocol_factory()
-        ser_instance = (serial_port, SERIAL_CONFIG)
-        pkt_transport = WinSerTransport(gwy._loop, pkt_protocol, ser_instance)
+    if sys.platform == "win32":  # doesn't work
+        pkt_protocol = _protocol_factory()
+        ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
+        pkt_transport = SerTransportPoller(gwy._loop, pkt_protocol, ser_instance)
 
     elif False:
         from serial.threaded import ReaderThread

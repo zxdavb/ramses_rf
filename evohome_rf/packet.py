@@ -25,6 +25,8 @@ from .logger import dt_str
 from .schema import DISABLE_SENDING, ENFORCE_ALLOWLIST, ENFORCE_BLOCKLIST, EVOFW_FLAG
 from .version import __version__
 
+POLLER_TASK = "poller_task"
+
 SERIAL_CONFIG = {
     "baudrate": 115200,
     "timeout": 0,  # None
@@ -215,7 +217,70 @@ async def file_pkts(fp):
         await asyncio.sleep(0)  # usu. 0, only to enable a Ctrl-C
 
 
-class WinSerTransport(Process):
+class SerTransportPoller(asyncio.Transport):
+    """Interface for a packet transport - Experimental."""
+
+    def __init__(self, loop, protocol, ser_instance, extra=None):
+        _LOGGER.debug("SerTransport.__init__()")
+
+        self._loop = loop
+        self._protocol = protocol
+        self.serial = ser_instance
+        self._extra = {} if extra is None else extra
+
+        self._is_closing = None
+        self._write_queue = None
+
+        self._start()
+
+    def _start(self):
+        async def _polling_loop():
+            _LOGGER.error("SerTransport._polling_loop() BEGAN")
+
+            while self.serial.is_open:
+                await asyncio.sleep(0)
+                if self.serial.in_waiting:
+                    # print("read")
+                    self._protocol.data_received(
+                        self.serial.read(self.serial.in_waiting)
+                        # self.serial.readline()
+                        # self.serial.read()
+                    )
+                    continue
+
+                if self.serial.out_waiting:
+                    # print("wait")
+                    continue
+
+                if not self._write_queue.empty():
+                    # print("write")
+                    _bytes = self._write_queue.get()
+                    self.serial.write(_bytes)
+                    self._write_queue.task_done()
+                    continue
+
+            _LOGGER.error("SerTransport._polling_loop() ENDED")
+
+        _LOGGER.debug("SerTransport._start()")
+        self._write_queue = Queue(maxsize=200)
+
+        self._extra[POLLER_TASK] = asyncio.create_task(_polling_loop())
+
+        self._protocol.connection_made(self)
+
+    def write(self, cmd):
+        """Write some data bytes to the transport.
+
+        This does not block; it buffers the data and arranges for it to be sent out
+        asynchronously.
+        """
+        _LOGGER.debug("SerTransport.write(%s)", cmd)
+
+        # self.serial.write(bytearray(f"{cmd}\r\n".encode("ascii")))
+        self._write_queue.put_nowait(cmd)
+
+
+class SerTransportProcess(Process):
     """Interface for a packet transport - Experimental."""
 
     def __init__(self, loop, protocol, ser_port, extra=None):
@@ -406,7 +471,7 @@ class PacketProtocolBase(PacketProtocolAsyncio):
             for line in lines[:-1]:
                 self._data_received(line)
 
-    async def _write_data(self, data: ByteString, ignore_pause=False) -> None:
+    async def _send_data(self, data: ByteString, ignore_pause=False) -> None:
         """Send a bytearray to the transport (serial) interface.
 
         The _pause_writing flag can be ignored, is useful for sending traceflags.

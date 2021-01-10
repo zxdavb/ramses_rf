@@ -1529,6 +1529,11 @@ def parser_3ef1(payload, msg) -> dict:
     }
 
 
+# def create_7fff(counter, length=48) -> Command:
+#     payload = f"7F{dts_to_hex(dt.now())}7F{counter % 0x10000:04X}7F{interval:04X}7F"
+#     payload = payload.ljust(length * 2, "F")
+#     return Command(" I", "63:262142", "7FFF", payload, qos={"retries": 0})
+
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated
 def parser_7fff(payload, msg) -> Optional[dict]:
     return {
