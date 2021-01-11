@@ -192,14 +192,14 @@ class Gateway:
 
         if self.serial_port:  # source of packets is a serial port
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
-                self, self.msg_transport, self.serial_port
+                self, self.msg_transport._pkt_receiver, self.serial_port
+            )
+            self._tasks.append(
+                self.msg_transport._set_dispatcher(self.pkt_protocol.send_data)
             )
 
             if self.pkt_transport.get_extra_info(POLLER_TASK):
                 self._tasks.append(self.pkt_transport.get_extra_info(POLLER_TASK))
-
-            if self.msg_transport.get_extra_info(WRITER_TASK):
-                self._tasks.append(self.msg_transport.get_extra_info(WRITER_TASK))
 
         else:  # if self._input_file:
             reader = asyncio.create_task(file_reader(self._input_file, process_msg))

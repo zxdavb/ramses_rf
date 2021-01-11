@@ -442,17 +442,18 @@ async def main(lib_kwargs, **kwargs):
 
     gwy = Gateway(lib_kwargs[CONFIG].pop(SERIAL_PORT, None), **lib_kwargs)
 
-    # asyncio.create_task(gwy.start())
-    protocol_factory = create_protocol_factory(gwy, gwy.msg_transport)
+    # REPLACE: asyncio.create_task(gwy.start()) - block begins
+    pf = create_protocol_factory(gwy, gwy.msg_transport)
+
     gwy.pkt_protocol, gwy.pkt_transport = create_pkt_stack(
-        gwy, gwy.msg_transport, gwy.serial_port, protocol_factory=protocol_factory
+        gwy, gwy.msg_transport._pkt_receiver, gwy.serial_port, protocol_factory=pf
     )
-    if gwy.msg_transport:
-        gwy._tasks.append(gwy.msg_transport.get_extra_info(WRITER_TASK))
+    gwy._tasks.append(gwy.msg_transport._set_dispatcher(gwy.pkt_protocol.send_data))
 
     while gwy.pkt_protocol is None:
         await asyncio.sleep(0.05)
     pkt_protocol = gwy.pkt_protocol
+    # REPLACE: asyncio.create_task(gwy.start()) - block endz
 
     if kwargs[COMMAND] == "cast":
         task = asyncio.create_task(puzzle_cast(gwy, pkt_protocol, **kwargs))

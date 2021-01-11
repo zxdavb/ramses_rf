@@ -221,7 +221,7 @@ class SerTransportPoller(asyncio.Transport):
     """Interface for a packet transport - Experimental."""
 
     def __init__(self, loop, protocol, ser_instance, extra=None):
-        _LOGGER.debug("SerTransport.__init__()")
+        _LOGGER.error("SerTransport.__init__() *** POLLING VERSION ***")
 
         self._loop = loop
         self._protocol = protocol
@@ -235,38 +235,33 @@ class SerTransportPoller(asyncio.Transport):
 
     def _start(self):
         async def _polling_loop():
-            _LOGGER.error("SerTransport._polling_loop() BEGAN")
+            _LOGGER.debug("SerTransport._polling_loop() BEGUN")
+            self._protocol.connection_made(self)
 
             while self.serial.is_open:
-                await asyncio.sleep(0)
+                await asyncio.sleep(0.001)
+
                 if self.serial.in_waiting:
-                    # print("read")
                     self._protocol.data_received(
                         self.serial.read(self.serial.in_waiting)
-                        # self.serial.readline()
-                        # self.serial.read()
-                    )
+                    )  # NOTE: cant use readline(), it blocks until newline
                     continue
 
                 if self.serial.out_waiting:
-                    # print("wait")
                     continue
 
                 if not self._write_queue.empty():
-                    # print("write")
-                    _bytes = self._write_queue.get()
-                    self.serial.write(_bytes)
+                    self.serial.write(self._write_queue.get())
                     self._write_queue.task_done()
                     continue
 
             _LOGGER.error("SerTransport._polling_loop() ENDED")
+            self._protocol.connection_lost()
 
         _LOGGER.debug("SerTransport._start()")
         self._write_queue = Queue(maxsize=200)
 
         self._extra[POLLER_TASK] = asyncio.create_task(_polling_loop())
-
-        self._protocol.connection_made(self)
 
     def write(self, cmd):
         """Write some data bytes to the transport.

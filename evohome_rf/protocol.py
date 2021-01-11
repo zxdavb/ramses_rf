@@ -9,8 +9,8 @@ Operates at the msg layer of: app - msg - pkt - h/w
 import asyncio
 from datetime import datetime as dt
 import logging
+import os
 from queue import PriorityQueue, Empty
-import sys
 from typing import List, Optional, Tuple  # Any
 
 from serial import serial_for_url  # SerialException,
@@ -23,8 +23,6 @@ from .schema import DISABLE_SENDING, REDUCE_PROCESSING
 
 MAX_BUFFER_SIZE = 200
 WRITER_TASK = "writer_task"
-
-MAX_SUBSCRIBERS = 3
 
 DEV_MODE = _dev_mode_
 
@@ -49,6 +47,8 @@ class MessageTransport(asyncio.Transport):
     hook them up by calling the protocol's connection_made() method, passing it the
     transport.
     """
+
+    MAX_SUBSCRIBERS = 3
 
     def __init__(self, gwy, protocol, extra=None):
         _LOGGER.debug("MsgTransport.__init__()")
@@ -104,6 +104,8 @@ class MessageTransport(asyncio.Transport):
 
         self._dispatcher = dispatcher
         self._extra[WRITER_TASK] = asyncio.create_task(pkt_dispatcher())
+
+        return self._extra[WRITER_TASK]
 
     def _pkt_receiver(self, pkt):
         _LOGGER.debug("MsgTransport._pkt_receiver(%s)", pkt)
@@ -183,7 +185,7 @@ class MessageTransport(asyncio.Transport):
         _LOGGER.debug("MsgTransport.add_protocol(%s)", protocol)
 
         if protocol not in self._protocols:
-            if len(self._protocols) > MAX_SUBSCRIBERS - 1:
+            if len(self._protocols) > self.MAX_SUBSCRIBERS - 1:
                 raise ValueError("Exceeded maximum number of subscribing protocols")
 
             self._protocols.append(protocol)
@@ -412,35 +414,33 @@ def create_pkt_stack(gwy, msg_handler, serial_port, protocol_factory=None) -> Tu
     The architecture is: app (client) -> msg -> pkt -> ser (HW interface).
 
     The msg/pkt interface is via
-     - PktProtocol.data_received           to (msg_handler) MsgTransport._pkt_receiver
+     - PktProtocol.data_received           to (msg_handler)  MsgTransport._pkt_receiver
      - MsgTransport.write (pkt_dispatcher) to (pkt_protocol) PktProtocol.send_data
     """
 
     def _protocol_factory():
-        # msg_handler._pkt_receiver is from MessageTransport
-        return PacketProtocol(gwy, msg_handler._pkt_receiver if msg_handler else None)
+        return PacketProtocol(gwy, msg_handler if msg_handler else None)
 
-    if sys.platform == "win32":  # doesn't work
-        pkt_protocol = _protocol_factory()
-        ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
+    ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
+
+    if True or os.name == "nt":
+        pkt_protocol = protocol_factory() if protocol_factory else _protocol_factory()
         pkt_transport = SerTransportPoller(gwy._loop, pkt_protocol, ser_instance)
 
     elif False:
         from serial.threaded import ReaderThread
-
-        ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
         t = ReaderThread(ser_instance, protocol_factory)
         t.start()
         pkt_transport, pkt_protocol = t.connect()
 
     else:
         pkt_protocol = protocol_factory() if protocol_factory else _protocol_factory()
-        ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
-        # ser_instance.set_low_latency_mode(True)
-        # ser_instance.dsrdtr = False
         pkt_transport = SerialTransport(gwy._loop, pkt_protocol, ser_instance)
 
-    if msg_handler is not None:
-        msg_handler._set_dispatcher(pkt_protocol.send_data)
+    if os.name == "posix":
+        try:
+            ser_instance.set_low_latency_mode(True)  # only for FTDI?
+        except ValueError:
+            pass
 
     return (pkt_protocol, pkt_transport)
