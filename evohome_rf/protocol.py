@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome RF - RAMSES-II compatble Transport/Protocol processor.
+"""Evohome RF - RAMSES-II compatble Message processor.
 
 Operates at the msg layer of: app - msg - pkt - h/w
 """
@@ -9,16 +9,11 @@ Operates at the msg layer of: app - msg - pkt - h/w
 import asyncio
 from datetime import datetime as dt
 import logging
-import os
 from queue import PriorityQueue, Empty
-from typing import List, Optional, Tuple  # Any
-
-from serial import serial_for_url  # SerialException,
-from serial_asyncio import SerialTransport
+from typing import List, Optional, Tuple
 
 from .const import _dev_mode_
 from .message import DONT_CREATE_MESSAGES, Message
-from .packet import SERIAL_CONFIG, PacketProtocol, SerTransportPoller
 from .schema import DISABLE_SENDING, REDUCE_PROCESSING
 
 MAX_BUFFER_SIZE = 200
@@ -390,13 +385,17 @@ class MessageProtocol(asyncio.Protocol):
 
 
 def create_msg_stack(
-    gwy, msg_handler, protocol_factory=MessageProtocol, **kwargs
-) -> Tuple:
+    gwy, msg_handler, protocol_factory=None, **kwargs
+) -> Tuple[asyncio.Protocol, asyncio.Transport]:
     """Utility function to provide a transport to a client protocol.
 
     The architecture is: app (client) -> msg -> pkt -> ser (HW interface).
     """
 
+    def _protocol_factory():
+        return MessageProtocol(gwy, msg_handler, **kwargs)
+
+    # g_protocol = protocol_factory() if protocol_factory else _protocol_factory()
     msg_protocol = protocol_factory(msg_handler, **kwargs)
 
     if gwy.msg_transport:  # HACK: a little messy?
@@ -406,41 +405,3 @@ def create_msg_stack(
         msg_transport = MessageTransport(gwy, msg_protocol)
 
     return (msg_protocol, msg_transport)
-
-
-def create_pkt_stack(gwy, msg_handler, serial_port, protocol_factory=None) -> Tuple:
-    """Utility function to provide a transport to the internal protocol.
-
-    The architecture is: app (client) -> msg -> pkt -> ser (HW interface).
-
-    The msg/pkt interface is via
-     - PktProtocol.data_received           to (msg_handler)  MsgTransport._pkt_receiver
-     - MsgTransport.write (pkt_dispatcher) to (pkt_protocol) PktProtocol.send_data
-    """
-
-    def _protocol_factory():
-        return PacketProtocol(gwy, msg_handler if msg_handler else None)
-
-    ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
-
-    if True or os.name == "nt":
-        pkt_protocol = protocol_factory() if protocol_factory else _protocol_factory()
-        pkt_transport = SerTransportPoller(gwy._loop, pkt_protocol, ser_instance)
-
-    elif False:
-        from serial.threaded import ReaderThread
-        t = ReaderThread(ser_instance, protocol_factory)
-        t.start()
-        pkt_transport, pkt_protocol = t.connect()
-
-    else:
-        pkt_protocol = protocol_factory() if protocol_factory else _protocol_factory()
-        pkt_transport = SerialTransport(gwy._loop, pkt_protocol, ser_instance)
-
-    if os.name == "posix":
-        try:
-            ser_instance.set_low_latency_mode(True)  # only for FTDI?
-        except ValueError:
-            pass
-
-    return (pkt_protocol, pkt_transport)

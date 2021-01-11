@@ -24,8 +24,8 @@ from .devices import DEVICE_CLASSES, Device
 from .discovery import spawn_execute_scripts, spawn_monitor_scripts  # noqa: F401
 from .logger import set_pkt_logging
 from .message import DONT_CREATE_MESSAGES, process_msg
-from .packet import POLLER_TASK, _PKT_LOGGER as pkt_logger, file_pkts
-from .protocol import MessageProtocol, create_msg_stack, create_pkt_stack
+from .packet import POLLER_TASK, _PKT_LOGGER as pkt_logger, create_pkt_stack, file_pkts
+from .protocol import MessageProtocol, create_msg_stack
 from .schema import (  # noqa: F401
     load_config,
     load_schema,
@@ -201,7 +201,18 @@ class Gateway:
             if self.pkt_transport.get_extra_info(POLLER_TASK):
                 self._tasks.append(self.pkt_transport.get_extra_info(POLLER_TASK))
 
-        else:  # if self._input_file:
+        if False and self._input_file:
+            self.pkt_protocol, self.pkt_transport = create_pkt_stack(
+                self, self.msg_transport._pkt_receiver, self.serial_port
+            )
+            self._tasks.append(
+                self.msg_transport._set_dispatcher(self.pkt_protocol.send_data)
+            )
+
+            if self.pkt_transport.get_extra_info(POLLER_TASK):
+                self._tasks.append(self.pkt_transport.get_extra_info(POLLER_TASK))
+
+        else:
             reader = asyncio.create_task(file_reader(self._input_file, process_msg))
             self._tasks.append(reader)
 
