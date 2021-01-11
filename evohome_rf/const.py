@@ -398,7 +398,7 @@ ATTR_DEVICES = "devices"
 ATTR_DHW_SENSOR = "hotwater_sensor"
 ATTR_DHW_VALVE = "hotwater_valve"
 ATTR_DHW_VALVE_HTG = "heating_valve"
-ATTR_HTG_CONTROL = "heating_control"
+ATTR_HTG_CONTROL = "heating_control"  # aka boiler relay, heating appliance
 ATTR_HTG_PUMP = "heat_pump_control"  # same as ATTR_HTG_CONTROL, but parameters differ
 ATTR_HEAT_DEMAND = "heat_demand"
 ATTR_OPEN_WINDOW = "open_window"
@@ -481,15 +481,15 @@ CODE_000C_DEVICE_TYPE = {
 CODE_0418_DEVICE_CLASS = {
     "00": "controller",
     "01": "sensor",
-    "04": "actuator",
+    "04": "actuator",  # if domain is FC, then "boiler_relay"
     "05": "dhw_sensor",  # not ATTR_DHW_SENSOR
     "06": "remote_gateway",  # 30:185469
 }
 CODE_0418_FAULT_STATE = {
     "00": "fault",
     "40": "restore",
-    "C0": "unknown_c0",
-}  # C0s do not appear in the evohome UI
+    "C0": "unknown_c0",  # C0s do not appear in the evohome UI
+}
 CODE_0418_FAULT_TYPE = {
     "01": "system_fault",
     "03": "mains_low",

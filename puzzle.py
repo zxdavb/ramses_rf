@@ -32,7 +32,7 @@ from evohome_rf import (  # noqa
 from evohome_rf.command import Command, Priority
 from evohome_rf.helpers import dts_to_hex
 from evohome_rf.packet import _PKT_LOGGER, PacketProtocol
-from evohome_rf.protocol import WRITER_TASK, MessageTransport, create_pkt_stack
+from evohome_rf.protocol import MessageTransport, create_pkt_stack
 from evohome_rf.schema import USE_NAMES
 
 count_lock = Lock()

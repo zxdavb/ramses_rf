@@ -4,15 +4,13 @@
 """Evohome RF - discovery scripts."""
 
 import asyncio
-from datetime import datetime as dt
 import json
 import logging
 from typing import Any, List
 
 from .command import Command, Priority
-from .const import NUL_DEV_ID, _dev_mode_, CODE_SCHEMA, DEVICE_TABLE, Address
+from .const import _dev_mode_, CODE_SCHEMA, DEVICE_TABLE, Address
 from .exceptions import ExpiredCallbackError
-from .helpers import dts_to_hex
 
 
 DEV_MODE = _dev_mode_
@@ -88,9 +86,6 @@ async def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
 
     if kwargs.get("scan_xxxx"):
         tasks += [asyncio.create_task(scan_xxxx(gwy, d)) for d in kwargs["scan_xxxx"]]
-
-    if kwargs.get("command") == "puzzle":
-        tasks += [asyncio.create_task(puzzle_rf(gwy, **kwargs))]
 
     gwy._tasks.extend(tasks)
     return tasks

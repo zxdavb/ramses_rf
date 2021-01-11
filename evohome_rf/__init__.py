@@ -25,7 +25,7 @@ from .discovery import spawn_execute_scripts, spawn_monitor_scripts  # noqa: F40
 from .logger import set_pkt_logging
 from .message import DONT_CREATE_MESSAGES, process_msg
 from .packet import POLLER_TASK, _PKT_LOGGER as pkt_logger, file_pkts
-from .protocol import WRITER_TASK, MessageProtocol, create_msg_stack, create_pkt_stack
+from .protocol import MessageProtocol, create_msg_stack, create_pkt_stack
 from .schema import (  # noqa: F401
     load_config,
     load_schema,

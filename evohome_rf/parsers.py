@@ -10,6 +10,7 @@ from typing import Optional, Union
 from .const import (
     ATTR_DHW_VALVE_HTG,
     ATTR_DHW_VALVE,
+    ATTR_HTG_CONTROL,
     CODE_SCHEMA,
     CODE_0005_ZONE_TYPE,
     CODE_000C_DEVICE_TYPE,
@@ -705,8 +706,13 @@ def parser_0418(payload, msg) -> Optional[dict]:
     assert payload[2:4] in CODE_0418_FAULT_STATE, payload[2:4]  # C0 don't appear in UI?
     assert int(payload[4:6], 16) <= 63  # TODO: upper limit is: 60? 63? more?
     assert payload[8:10] in CODE_0418_FAULT_TYPE, payload[8:10]
+
+    assert int(payload[10:12], 16) < msg._gwy.config[MAX_ZONES] or (
+        payload[10:12] in ("F9", "FA", "FC")  # "1C"?
+    )
     assert payload[12:14] in CODE_0418_DEVICE_CLASS, payload[12:14]
     assert payload[28:30] in ("7F", "FF"), payload[28:30]
+
     result = {
         "log_idx": payload[4:6],
         "timestamp": dts_from_hex(payload[18:30]),
@@ -715,9 +721,9 @@ def parser_0418(payload, msg) -> Optional[dict]:
         "device_class": CODE_0418_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
     }  # TODO: stop using __idx()?
 
-    assert int(payload[10:12], 16) < msg._gwy.config[MAX_ZONES] or (
-        payload[10:12] in ("F9", "FA", "FC")  # "1C"?
-    )
+    if payload[10:12] == "FC" and result["device_class"] == "actuator":
+        result["device_class"] = ATTR_HTG_CONTROL  # aka Boiler relay
+
     if payload[12:14] != "00":  # Controller
         key_name = (
             "zone_id"
