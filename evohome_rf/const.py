@@ -483,6 +483,7 @@ CODE_0418_DEVICE_CLASS = {
     "01": "sensor",
     "04": "actuator",
     "05": "dhw_sensor",  # not ATTR_DHW_SENSOR
+    "06": "remote_gateway",  # 30:185469
 }
 CODE_0418_FAULT_STATE = {
     "00": "fault",

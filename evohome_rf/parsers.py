@@ -693,6 +693,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
     # 045 RP --- 01:145038 18:013393 --:------ 0418 022 000000B00401010000008694A3CC7FFFFF70000ECC8A  # noqa
     # 045 RP --- 01:145038 18:013393 --:------ 0418 022 00C001B004010100000086949BCB7FFFFF70000ECC8A  # noqa
     # 045 RP --- 01:145038 18:013393 --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000  # noqa
+    # 000 RP --- 01:037519 18:140805 --:------ 0418 022 004024B0060006000000CB94A112FFFFFF70007AD47D  # noqa
 
     if payload[2:] == CODE_SCHEMA["0418"]["null_rp"][2:]:
         # a null log entry, or: is payload[38:] == "000000" sufficient?
@@ -701,11 +702,11 @@ def parser_0418(payload, msg) -> Optional[dict]:
     assert msg.verb in (" I", "RP")
     assert msg.len == 22
     assert payload[:2] == "00"  # likely always 00
-    assert payload[2:4] in CODE_0418_FAULT_STATE  # C0 doesn't appear in the UI?
+    assert payload[2:4] in CODE_0418_FAULT_STATE, payload[2:4]  # C0 don't appear in UI?
     assert int(payload[4:6], 16) <= 63  # TODO: upper limit is: 60? 63? more?
-    assert payload[8:10] in CODE_0418_FAULT_TYPE
-    assert payload[12:14] in CODE_0418_DEVICE_CLASS
-    assert payload[28:30] in ("7F", "FF")
+    assert payload[8:10] in CODE_0418_FAULT_TYPE, payload[8:10]
+    assert payload[12:14] in CODE_0418_DEVICE_CLASS, payload[12:14]
+    assert payload[28:30] in ("7F", "FF"), payload[28:30]
     result = {
         "log_idx": payload[4:6],
         "timestamp": dts_from_hex(payload[18:30]),
@@ -730,9 +731,9 @@ def parser_0418(payload, msg) -> Optional[dict]:
     elif payload[38:] not in ("000000", "000001"):  # "00:000001 for Controller?
         result.update({"device_id": dev_hex_to_id(payload[38:])})
 
-    assert payload[6:8] == "B0"  # unknown_1, ?priority
-    assert payload[14:18] == "0000"  # unknown_2
-    assert payload[30:38] == "FFFF7000"  # unknown_3
+    assert payload[6:8] == "B0", payload[6:8]  # unknown_1, ?priority
+    assert payload[14:18] == "0000", payload[14:18]  # unknown_2
+    assert payload[30:38] == "FFFF7000", payload[30:38]  # unknown_3
     result.update(
         {
             "_unknown_1": payload[6:8],
