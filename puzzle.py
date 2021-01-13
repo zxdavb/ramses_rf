@@ -101,14 +101,16 @@ class PuzzleProtocol(PacketProtocol):
     ) -> None:
         """Called when some normalised data is received (no QoS)."""
 
-        if pkt_str.startswith('#'):
-            print(f"{Style.BRIGHT}{Fore.CYAN}{pkt_dtm[11:23]} {pkt_str}"[:CONSOLE_COLS])
-        else:
-            print(f"{Fore.CYAN}{pkt_dtm[11:23]} {pkt_str}"[:CONSOLE_COLS])
-
         pkt = Packet(pkt_dtm, pkt_str, raw_pkt=pkt_raw)
         if self._has_initialized is None:
             self._has_initialized = True
+
+        if pkt_str.startswith('#'):
+            print(f"{Fore.CYAN}{pkt_dtm[11:23]} {pkt_str}"[:CONSOLE_COLS])
+        elif pkt.is_valid:
+            print(f"{Style.BRIGHT}{Fore.CYAN}{pkt_dtm[11:23]} {pkt_str}"[:CONSOLE_COLS])
+        else:
+            print(f"{Fore.CYAN}{pkt_dtm[11:23]} {pkt_str}"[:CONSOLE_COLS])
 
         if pkt.is_valid and self.pkt_callback:
             self.pkt_callback(pkt)
