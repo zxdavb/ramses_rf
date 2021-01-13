@@ -173,7 +173,6 @@ class Gateway:
         """Perform a graceful shutdown/stop."""
 
         _LOGGER.warning("stop(): Invoked by: %s, doing housekeeping...", xxx)
-        # print(asyncio.current_task())
         tasks = [t for t in self._tasks if t is not asyncio.current_task()]
 
         logging.debug(f"stop(): Cancelling {len(tasks)} outstanding async tasks...")

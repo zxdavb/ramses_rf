@@ -34,7 +34,7 @@ from evohome_rf.helpers import dts_to_hex
 from evohome_rf.packet import _PKT_LOGGER, Packet
 from evohome_rf.protocol import create_protocol_factory
 from evohome_rf.transport import PacketProtocol, create_pkt_stack
-from evohome_rf.schema import USE_NAMES
+from evohome_rf.schema import DONT_CREATE_ENTITIES, USE_NAMES
 
 count_lock = Lock()
 count_rcvd = 0
@@ -46,11 +46,7 @@ EXECUTE_CMD = "execute_cmd"
 CONFIG = "config"
 COMMAND = "command"
 
-CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 4)
-
-DONT_CREATE_MESSAGES = 3
-DONT_CREATE_ENTITIES = 2
-DONT_UPDATE_ENTITIES = 1
+CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns)
 
 DEFAULT_INTERVAL = 5  # should be 240
 
@@ -113,6 +109,9 @@ class PuzzleProtocol(PacketProtocol):
 
         if self.is_wanted(pkt, self._include, self._exclude):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
+
+            if self.pkt_callback:
+                self.pkt_callback(pkt)
 
 
 def _proc_kwargs(obj, kwargs) -> Tuple[dict, dict]:
@@ -227,11 +226,11 @@ def tune(obj, **kwargs):
     help="minimum interval (secs) between packets",
 )
 # @click.option(  --packet_length
-# "-l",
-# "--packet_length",
-# type=int,
-# default=48,
-# help="length of puzzle packet",
+    # "-l",
+    # "--packet_length",
+    # type=int,
+    # default=48,
+    # help="length of puzzle packet",
 # )
 @click.pass_obj
 def cast(obj, **kwargs):  # HACK: remove?
@@ -409,9 +408,7 @@ async def main(lib_kwargs, **kwargs):
         pass
 
         protocol_factory = create_protocol_factory(
-            PuzzleProtocol,
-            gwy,
-            gwy.msg_transport._pkt_receiver
+            PuzzleProtocol, gwy, gwy.msg_transport._pkt_receiver
         )
 
         gwy.pkt_protocol, gwy.pkt_transport = create_pkt_stack(
@@ -443,7 +440,7 @@ async def main(lib_kwargs, **kwargs):
     gwy._tasks.append(task)
 
     try:  # main code here
-        await task
+        await task  # await gather gwy_tasks
 
     except asyncio.CancelledError:
         # _LOGGER.info(" - exiting via: CancelledError (this is expected)")

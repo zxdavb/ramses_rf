@@ -15,6 +15,7 @@ from typing import Optional, Tuple
 
 try:
     import colorlog
+
     _use_color_ = True
 except ModuleNotFoundError:
     _use_color_ = False
