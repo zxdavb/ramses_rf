@@ -4,7 +4,7 @@
 """Evohome RF log diff utility."""
 import argparse
 from collections import deque, namedtuple
-from datetime import datetime as dt, timedelta
+from datetime import datetime as dt, timedelta as td
 import os
 import re
 
@@ -56,12 +56,12 @@ def _parse_args():
             raise argparse.ArgumentTypeError(f"{value} is not a non-negative integer")
         return i_value
 
-    def dt_timedelta(value):
-        """Confirm value is a positive timedelta (in seconds)."""
+    def dt_td(value):
+        """Confirm value is a positive td (in seconds)."""
         f_value = float(value)
         if f_value < 0:  # or value is not f_value:
             raise argparse.ArgumentTypeError(f"{value} is not a non-negative float")
-        return timedelta(seconds=f_value)
+        return td(seconds=f_value)
 
     parser = argparse.ArgumentParser()
 
@@ -91,8 +91,8 @@ def _parse_args():
     group.add_argument(
         "-s",
         "--seconds",
-        default=timedelta(seconds=DEFAULT_LOOKAHEAD_SECS),
-        type=dt_timedelta,
+        default=td(seconds=DEFAULT_LOOKAHEAD_SECS),
+        type=dt_td,
         help="minimum lookahead in seconds (float)",
     )
     group.add_argument(
@@ -107,8 +107,8 @@ def _parse_args():
     group.add_argument(
         "-D",
         "--pause-duration",
-        default=timedelta(seconds=STALL_LIMIT_SECS),
-        type=dt_timedelta,
+        default=td(seconds=STALL_LIMIT_SECS),
+        type=dt_td,
         help="minimum duration of pauses in seconds (float)",
     )
     group.add_argument(
@@ -151,7 +151,7 @@ def main():
 
 def compare(config) -> dict:
 
-    MICROSECONDS = timedelta(microseconds=1)
+    MICROSECONDS = td(microseconds=1)
     buffer = {
         "packets": deque(),
         "run_length": 0,

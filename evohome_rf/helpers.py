@@ -3,11 +3,45 @@
 #
 """Evohome RF - Helper functions."""
 
+import ctypes
 from datetime import datetime as dt
 import re
+import sys
+import time
 from typing import List, Optional, Tuple, Union
 
 from .const import HGI_DEVICE, NON_DEVICE, NUL_DEVICE, Address, id_to_address
+
+
+class FILETIME(ctypes.Structure):
+    """Data structure for GetSystemTimePreciseAsFileTime()."""
+
+    _fields_ = [("dwLowDateTime", ctypes.c_uint), ("dwHighDateTime", ctypes.c_uint)]
+
+
+def dt_now() -> dt:
+    """Return the time now as a UTC datetime object."""
+    return dt.fromtimestamp(time_time())
+
+
+def dt_str() -> str:
+    """Return the time now as a isoformat string."""
+    now = time_time()
+    mil = f"{now%1:.6f}".lstrip("0")
+    return time.strftime(f"%Y-%m-%dT%H:%M:%S{mil}", time.localtime(now))
+
+
+def time_time() -> float:
+    """Return the number of seconds since the Unix epoch.
+
+    Return an accurate value, even for Windows-based systems.
+    """  # see: https://www.python.org/dev/peps/pep-0564/
+    if sys.platform != "win32":
+        return time.time()  # since 1970-01-01T00:00:00Z, time.gmtime(0)
+    file_time = FILETIME()
+    ctypes.windll.kernel32.GetSystemTimePreciseAsFileTime(ctypes.byref(file_time))
+    _time = (file_time.dwLowDateTime + (file_time.dwHighDateTime << 32)) / 1e7
+    return _time - 134774 * 24 * 60 * 60  # otherwise, is since 1601-01-01T00:00:00Z
 
 
 def dts_from_hex(value: str) -> Optional[str]:
@@ -67,7 +101,7 @@ def dtm_to_hex(dtm: Union[str, dt]) -> str:
     elif not isinstance(dtm, dt):
         raise TypeError("Invalid datetime object")
 
-    # if dtm < dt_now() + timedelta(minutes=1):
+    # if dtm < dt_now() + td(minutes=1):
     #     raise ValueError("Invalid datetime")
 
     return _dtm_to_hex(*dtm.timetuple())

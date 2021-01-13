@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome RF - Message processor."""
+"""Evohome RF - a RAMSES-II protocol decoder & analyser.
 
-from datetime import datetime as dt, timedelta
+Decode/process a message (payload into JSON).
+"""
+
+from datetime import datetime as dt, timedelta as td
 import logging
 import re
 from typing import Any, Optional, Union
@@ -29,12 +32,13 @@ from .const import (
 from .devices import Device
 from .exceptions import CorruptPayloadError
 from .packet import _PKT_LOGGER  # TODO: I think should just use _LOGGER
-from .schema import REDUCE_PROCESSING, USE_NAMES
-
-# TODO: duplicated in schema.py
-DONT_CREATE_MESSAGES = 3
-DONT_CREATE_ENTITIES = 2
-DONT_UPDATE_ENTITIES = 1
+from .schema import (
+    REDUCE_PROCESSING,
+    USE_NAMES,
+    DONT_CREATE_MESSAGES,
+    DONT_CREATE_ENTITIES,
+    DONT_UPDATE_ENTITIES,
+)
 
 DEV_MODE = _dev_mode_ or True
 
@@ -227,15 +231,15 @@ class Message:
         if self._is_expired is not None:
             return self._is_expired
         elif self.code in ("1F09", "313F"):
-            timeout = timedelta(seconds=3)
+            timeout = td(seconds=3)
         elif self.code in ("12B0", "2309", "3C09"):
-            timeout = timedelta(minutes=15)
+            timeout = td(minutes=15)
         elif self.code in ("3150",):
-            timeout = timedelta(minutes=20)  # sends I /20min
+            timeout = td(minutes=20)  # sends I /20min
         elif self.code in ("000A",):
-            timeout = timedelta(minutes=60)  # sends I (array)/1h
+            timeout = td(minutes=60)  # sends I (array)/1h
         elif self.code in ("1260", "1F41", "2349", "2E04"):
-            timeout = timedelta(minutes=60)
+            timeout = td(minutes=60)
         else:  # treat as never expiring
             self._is_expired = False
             return self._is_expired

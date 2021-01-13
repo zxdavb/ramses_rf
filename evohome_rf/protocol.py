@@ -13,8 +13,8 @@ from queue import PriorityQueue, Empty
 from typing import Callable, List, Optional, Tuple
 
 from .const import _dev_mode_
-from .message import DONT_CREATE_MESSAGES, Message
-from .schema import DISABLE_SENDING, REDUCE_PROCESSING
+from .message import Message
+from .schema import DISABLE_SENDING, DONT_CREATE_MESSAGES, REDUCE_PROCESSING
 
 WRITER_TASK = "writer_task"
 
@@ -384,10 +384,10 @@ class MessageProtocol(asyncio.Protocol):
 
 
 def create_protocol_factory(protocol: asyncio.Protocol, *args, **kwargs) -> Callable:
-    def protocol_factory():
+    def _protocol_factory():
         return protocol(*args, **kwargs)
 
-    return protocol_factory
+    return _protocol_factory
 
 
 def create_msg_stack(
@@ -399,7 +399,7 @@ def create_msg_stack(
     """
 
     def _protocol_factory():
-        return MessageProtocol(msg_handler)
+        return create_protocol_factory(MessageProtocol, msg_handler)()
 
     msg_protocol = protocol_factory() if protocol_factory else _protocol_factory()
 

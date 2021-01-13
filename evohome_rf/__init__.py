@@ -22,10 +22,10 @@ from typing import Callable, Dict, List, Tuple  # Any, Tuple
 from .const import _dev_mode_, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
 from .discovery import spawn_execute_scripts, spawn_monitor_scripts  # noqa: F401
-from .logger import set_pkt_logging
 from .message import DONT_CREATE_MESSAGES, process_msg
-from .packet import POLLER_TASK, _PKT_LOGGER as pkt_logger, create_pkt_stack
+from .packet import POLLER_TASK, _PKT_LOGGER as pkt_logger, set_pkt_logging
 from .protocol import create_msg_stack
+from .transport import create_pkt_stack
 from .schema import (  # noqa: F401
     load_config,
     load_schema,
@@ -172,11 +172,13 @@ class Gateway:
     async def stop(self, xxx=None) -> None:
         """Perform a graceful shutdown/stop."""
 
-        _LOGGER.debug("stop(): Invoked by: %s, doing housekeeping...", xxx)
+        _LOGGER.warning("stop(): Invoked by: %s, doing housekeeping...", xxx)
         # print(asyncio.current_task())
         tasks = [t for t in self._tasks if t is not asyncio.current_task()]
 
         logging.debug(f"stop(): Cancelling {len(tasks)} outstanding async tasks...")
+        # [print(t) for t in[asyncio.current_task()]]
+        # [print(t) for t in self._tasks]
         # [print(t) for t in tasks]
         # [print(t) for t in asyncio.all_tasks()]
         [task.cancel() for task in tasks]
@@ -193,16 +195,13 @@ class Gateway:
                 self.msg_transport._set_dispatcher(self.pkt_protocol.send_data)
             )
 
-            if self.pkt_transport.get_extra_info(POLLER_TASK):
-                self._tasks.append(self.pkt_transport.get_extra_info(POLLER_TASK))
-
         else:  # if self._input_file:
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
                 self, self.msg_transport._pkt_receiver, packet_log=self._input_file
             )
 
-            # if self.pkt_transport.get_extra_info(POLLER_TASK):
-            #     self._tasks.append(self.pkt_transport.get_extra_info(POLLER_TASK))
+        if self.pkt_transport.get_extra_info(POLLER_TASK):
+            self._tasks.append(self.pkt_transport.get_extra_info(POLLER_TASK))
 
         await asyncio.gather(*self._tasks)
         await self.stop("start()")

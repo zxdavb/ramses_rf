@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome RF - a RAMSES-II protocol decoder & analyser."""
+"""Evohome RF - a RAMSES-II protocol decoder & analyser.
+
+Construct a command (packet that is to be sent).
+"""
 
 import asyncio
 from datetime import datetime as dt, timedelta as td
@@ -22,8 +25,7 @@ from .const import (
     HGI_DEVICE,
 )
 from .exceptions import ExpiredCallbackError
-from .helpers import extract_addrs
-from .logger import dt_now
+from .helpers import dt_now, extract_addrs
 
 DAY_OF_WEEK = "day_of_week"
 HEAT_SETPOINT = "heat_setpoint"

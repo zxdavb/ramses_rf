@@ -418,6 +418,7 @@ class Device(DeviceInfo, DeviceBase):
     def _set_parent(self, parent, domain=None) -> None:
         """Set the device's parent zone, after validating it."""
 
+        # NOTE: these imports are here to prevent circular references
         from .systems import System
         from .zones import DhwZone, Zone
 

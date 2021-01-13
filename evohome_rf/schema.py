@@ -27,13 +27,6 @@ from .const import (
     id_to_address as addr,
 )
 
-# false = False; null = None; true = True
-
-# TODO: duplicated in __init__.py
-DONT_CREATE_MESSAGES = 3
-DONT_CREATE_ENTITIES = 2
-DONT_UPDATE_ENTITIES = 1
-
 DEVICE_ID_REGEXP = r"^[0-9]{2}:[0-9]{6}$"
 DEVICE_ID = vol.Match(DEVICE_ID_REGEXP)
 
@@ -75,6 +68,10 @@ SERIAL_PORT = "serial_port"
 SER2NET_RELAY = "ser2net_relay"
 USE_NAMES = "use_names"  # use friendly device names from allowlist
 USE_SCHEMA = "use_schema"
+
+DONT_CREATE_MESSAGES = 3
+DONT_CREATE_ENTITIES = 2
+DONT_UPDATE_ENTITIES = 1
 
 CONFIG_SCHEMA = vol.Schema(
     {

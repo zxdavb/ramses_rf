@@ -491,7 +491,7 @@ class Zone(ZoneSchedule, ZoneBase):
                 # self.async_set_override(
                 #     setpoint=15.9,
                 #     mode="AdvancedOverride",
-                #     # until=dt_now() + timedelta(minutes=120)
+                #     # until=dt_now() + td(minutes=120)
                 # )
             )
 

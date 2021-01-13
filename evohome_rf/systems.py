@@ -174,7 +174,7 @@ class SysMode:  # 2E04
 
         # TODO: testing only
         # asyncio.create_task(
-        #     self.async_set_mode(5, dt_now() + timedelta(minutes=120))
+        #     self.async_set_mode(5, dt_now() + td(minutes=120))
         #     # self.async_set_mode(5)
         #     # self.async_reset_mode()
         # )

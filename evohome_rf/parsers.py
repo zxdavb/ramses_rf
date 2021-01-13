@@ -3,7 +3,7 @@
 #
 """Evohome RF - payload processors."""
 
-from datetime import datetime as dt, timedelta
+from datetime import datetime as dt, timedelta as td
 import logging
 from typing import Optional, Union
 
@@ -966,7 +966,7 @@ def parser_1f09(payload, msg) -> Optional[dict]:
     assert payload[:2] in ("00", "F8", "FF")  # W uses F8, non-Honeywell devices use 00
 
     seconds = int(payload[2:6], 16) / 10
-    next_sync = msg.dtm + timedelta(seconds=seconds)
+    next_sync = msg.dtm + td(seconds=seconds)
 
     return {
         "remaining_seconds": seconds,
@@ -1048,7 +1048,7 @@ def parser_2249(payload, msg) -> Optional[dict]:
 
     def _parser(seqx) -> dict:
         minutes = int(seqx[10:], 16)
-        next_setpoint = msg.dtm + timedelta(minutes=minutes)
+        next_setpoint = msg.dtm + td(minutes=minutes)
         return {
             **_idx(seqx[:2], msg),
             "setpoint_now": _temp(seqx[2:6]),
