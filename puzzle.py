@@ -101,17 +101,17 @@ class PuzzleProtocol(PacketProtocol):
     ) -> None:
         """Called when some normalised data is received (no QoS)."""
 
+        if pkt_str.startswith('#'):
+            print(f"{Style.BRIGHT}{Fore.CYAN}{pkt_dtm[11:23]} {pkt_str}"[:CONSOLE_COLS])
+        else:
+            print(f"{Fore.CYAN}{pkt_dtm[11:23]} {pkt_str}"[:CONSOLE_COLS])
+
         pkt = Packet(pkt_dtm, pkt_str, raw_pkt=pkt_raw)
-        if not pkt.is_valid:
-            return
-        elif self._has_initialized is None:
+        if self._has_initialized is None:
             self._has_initialized = True
 
-        if self.is_wanted(pkt, self._include, self._exclude):
-            self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
-
-            if self.pkt_callback:
-                self.pkt_callback(pkt)
+        if pkt.is_valid and self.pkt_callback:
+            self.pkt_callback(pkt)
 
 
 def _proc_kwargs(obj, kwargs) -> Tuple[dict, dict]:
@@ -295,7 +295,7 @@ async def puzzle_tune(
     def process_packet(pkt) -> None:
         global count_rcvd
 
-        _LOGGER.info("%s", pkt)
+        # _LOGGER.info("%s", pkt)
 
         if str(pkt)[:1] != "#":
             count_lock.acquire()
@@ -326,13 +326,13 @@ async def puzzle_tune(
         dtm_end = dtm_start + td(seconds=interval * count)
         while dt.now() < dtm_end:
             await asyncio.sleep(0.005)
-            if count_rcvd is not None:
+            if count_rcvd is True:
                 break
 
         MSG = {
             True: "A valid packet was received",
             False: "An invalid packet was received",
-            None: "No packets were received",
+            None: "No valid packets were received",
         }
 
         _LOGGER.info(f"    result = {MSG[count_rcvd]}")
@@ -346,7 +346,7 @@ async def puzzle_tune(
         freq, result = int((x + y) / 2), None
         while freq not in (x, y):
             result = await check_reception(freq, count, x, y)
-            x, y = (x, freq) if result is not None else (freq, y)
+            x, y = (x, freq) if result is True else (freq, y)
             freq = int((x + y) / 2)
 
         return freq, result
