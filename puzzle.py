@@ -313,16 +313,18 @@ async def puzzle_tune(
     async def check_reception(freq, count, x, y) -> float:
         """Returns: 0.0 nothing, 0.5 invalid pkt, 1.0 valid packet."""
 
-        global count_rcvd
-        count_lock.acquire()
-        count_rcvd = None
-        count_lock.release()
-
         _LOGGER.info(
             f"  Checking 0x{freq:06X} for max. {interval * count}s "
             f"(x=0x{x:06X}, y=0x{y:06X}, width=0x{abs(x - y):06X})"
         )
         await set_freq(freq)
+        await asyncio.sleep(3.5)
+        _LOGGER.info("  - listening now (having waited for freq change to quiesce)")
+
+        global count_rcvd
+        count_lock.acquire()
+        count_rcvd = None
+        count_lock.release()
 
         dtm_start = dt.now()
         dtm_end = dtm_start + td(seconds=interval * count)
@@ -337,7 +339,7 @@ async def puzzle_tune(
             None: "No valid packets were received",
         }
 
-        _LOGGER.info(f"    result = {MSG[count_rcvd]}")
+        _LOGGER.info(f"  - result = {MSG[count_rcvd]}")
         print()
         return count_rcvd
 
