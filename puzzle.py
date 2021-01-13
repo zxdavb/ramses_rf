@@ -318,7 +318,7 @@ async def puzzle_tune(
             f"(x=0x{x:06X}, y=0x{y:06X}, width=0x{abs(x - y):06X})"
         )
         await set_freq(freq)
-        await asyncio.sleep(3.5)
+        await asyncio.sleep(0.5)
         _LOGGER.info("  - listening now (having waited for freq change to quiesce)")
 
         global count_rcvd
