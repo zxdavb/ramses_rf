@@ -305,6 +305,7 @@ async def main(lib_kwargs, **kwargs):
                 task.cancel()
 
         await task
+
     except asyncio.CancelledError:
         # print(" - exiting via: CancelledError (this is expected)")
         pass

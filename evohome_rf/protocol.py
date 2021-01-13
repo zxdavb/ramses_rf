@@ -10,13 +10,12 @@ import asyncio
 from datetime import datetime as dt
 import logging
 from queue import PriorityQueue, Empty
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 from .const import _dev_mode_
 from .message import DONT_CREATE_MESSAGES, Message
 from .schema import DISABLE_SENDING, REDUCE_PROCESSING
 
-MAX_BUFFER_SIZE = 200
 WRITER_TASK = "writer_task"
 
 DEV_MODE = _dev_mode_
@@ -43,6 +42,7 @@ class MessageTransport(asyncio.Transport):
     transport.
     """
 
+    MAX_BUFFER_SIZE = 200
     MAX_SUBSCRIBERS = 3
 
     def __init__(self, gwy, protocol, extra=None):
@@ -63,7 +63,7 @@ class MessageTransport(asyncio.Transport):
         self._callbacks = {}
         self._dispatcher = None  # the HGI80 interface (is a asyncio.protocol)
 
-        self._que = PriorityQueue()  # maxsize=MAX_SIZE)
+        self._que = PriorityQueue(maxsize=self.MAX_BUFFER_SIZE)
         self.set_write_buffer_limits()
 
     def _set_dispatcher(self, dispatcher):
@@ -168,7 +168,7 @@ class MessageTransport(asyncio.Transport):
 
     def get_extra_info(self, name, default=None):
         """Get optional transport information."""
-        _LOGGER.debug("MsgTransport.get_extra_info()")
+        _LOGGER.debug("MsgTransport.get_extra_info(%s, %s)", name, default)
 
         return self._extra.get(name, default)
 
@@ -279,14 +279,13 @@ class MessageTransport(asyncio.Transport):
         if self._is_closing:
             raise RuntimeError("MsgTransport is closing or has closed")
 
-        if not self._dispatcher:
-            # raise RuntimeError("transport has no dispatcher")
-            _LOGGER.debug("MsgTransport.write(%s): no dispatcher: discarded", cmd)
-
-        elif self._gwy.config[DISABLE_SENDING]:
-            _LOGGER.debug("MsgTransport.write(%s): sending disabled: discarded", cmd)
+        if self._gwy.config[DISABLE_SENDING]:
+            _LOGGER.warning("MsgTransport.write(%s): sending disabled: discarded", cmd)
 
         else:
+            if not self._dispatcher:
+                _LOGGER.warning("MsgTransport.write(%s): no dispatcher", cmd)
+
             self._que.put_nowait(cmd)  # was: self._que.put_nowait(cmd)
 
         self.get_write_buffer_size()
@@ -384,8 +383,15 @@ class MessageProtocol(asyncio.Protocol):
         self._pause_writing = False
 
 
+def create_protocol_factory(protocol: asyncio.Protocol, *args, **kwargs) -> Callable:
+    def protocol_factory():
+        return protocol(*args, **kwargs)
+
+    return protocol_factory
+
+
 def create_msg_stack(
-    gwy, msg_handler, protocol_factory=None, **kwargs
+    gwy, msg_handler, protocol_factory=None
 ) -> Tuple[asyncio.Protocol, asyncio.Transport]:
     """Utility function to provide a transport to a client protocol.
 
@@ -393,10 +399,9 @@ def create_msg_stack(
     """
 
     def _protocol_factory():
-        return MessageProtocol(gwy, msg_handler, **kwargs)
+        return MessageProtocol(msg_handler)
 
-    # g_protocol = protocol_factory() if protocol_factory else _protocol_factory()
-    msg_protocol = protocol_factory(msg_handler, **kwargs)
+    msg_protocol = protocol_factory() if protocol_factory else _protocol_factory()
 
     if gwy.msg_transport:  # HACK: a little messy?
         msg_transport = gwy.msg_transport

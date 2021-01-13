@@ -14,7 +14,7 @@ from threading import Thread, Lock
 
 # import time
 from types import SimpleNamespace
-from typing import Any, ByteString, Optional, Tuple
+from typing import ByteString, Callable, Optional, Tuple
 
 from serial import Serial, SerialException, serial_for_url  # noqa
 from serial_asyncio import SerialTransport
@@ -171,55 +171,44 @@ class Packet:
             return _pkt_header(self.packet)
 
 
-def _normalise(pkt_line) -> str:
-    """Perform any firmware-level hacks, as required.
+class SerTransportFile(asyncio.Transport):
+    """Interface for a packet transport using a file - Experimental."""
 
-    Ensure an evofw3 provides the exact same output as a HGI80.
-    """
+    def __init__(self, loop, protocol, packet_log, extra=None):
+        _LOGGER.error("SerTransport.__init__() *** POLLING VERSION ***")
 
-    # 095  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200 # HGI80
-    # 000  I --- 18:140805 18:140805 --:------ 0001 005 00FFFF0200 # evofw3
-    if pkt_line[10:14] == " 18:" and pkt_line[11:20] == pkt_line[21:30]:
-        pkt_line = pkt_line[:21] + HGI_DEVICE.id + pkt_line[30:]
-        _LOGGER.debug("evofw3 packet line has been normalised (0x00)")
+        # self._loop = loop
+        self._protocol = protocol
+        self.fp = packet_log
+        self._extra = {} if extra is None else extra
 
-    elif pkt_line[10:14] in (" 08:", " 31:") and pkt_line[-16:] == "* Checksum error":
-        pkt_line = pkt_line[:-17] + " # Checksum error (ignored)"
-        # _LOGGER.debug("Packet line has been normalised (0x01)")
+        self._start()
 
-    return pkt_line
+    def _start(self):
+        async def _polling_loop():
+            _LOGGER.debug("SerTransportFile._polling_loop() BEGUN")
+            self._protocol.pause_writing()
+            self._protocol.connection_made(self)
 
+            for dtm_pkt_line in self.fp:
+                self._protocol.data_received(dtm_pkt_line.strip())
 
-async def file_pkts(fp):
-    """Yield valid packets from a text stream."""
+            _LOGGER.error("SerTransportFile._polling_loop() ENDED")
+            self._protocol.connection_lost(exc=None)
 
-    for dtm_pkt_line in fp:
-        dtm_pkt_line = dtm_pkt_line.strip()  # TODO: needed?
-        dtm_str, pkt_line = dtm_pkt_line[:26], dtm_pkt_line[27:]
+        _LOGGER.debug("SerTransportFile._start()")
 
-        try:
-            # assuming a completely valid log file, asserts allows for -O for inc. speed
-            assert DTM_LONG_REGEX.match(dtm_str)
-            dt.fromisoformat(dtm_str)
+        self._extra[POLLER_TASK] = asyncio.create_task(_polling_loop())
 
-        except (AssertionError, TypeError, ValueError):
-            if dtm_pkt_line != "" and dtm_str.strip()[:1] != "#":
-                _PKT_LOGGER.debug(
-                    "%s < Packet line has an invalid timestamp (ignoring)",
-                    dtm_pkt_line,
-                    extra=extra(dt_str(), dtm_pkt_line),
-                )
-            continue
+    def write(self, cmd):
+        """Write some data bytes to the transport."""
+        _LOGGER.debug("SerTransportFile.write(%s)", cmd)
 
-        pkt = Packet(dtm_str, _normalise(pkt_line), None)
-        if pkt.is_valid:
-            yield pkt
-
-        await asyncio.sleep(0)  # usu. 0, only to enable a Ctrl-C
+        raise NotImplementedError
 
 
 class SerTransportPoller(asyncio.Transport):
-    """Interface for a packet transport - Experimental."""
+    """Interface for a packet transport using polling - Experimental."""
 
     def __init__(self, loop, protocol, ser_instance, extra=None):
         _LOGGER.error("SerTransport.__init__() *** POLLING VERSION ***")
@@ -276,7 +265,7 @@ class SerTransportPoller(asyncio.Transport):
         self._write_queue.put_nowait(cmd)
 
 
-class SerTransportProcess(Process):
+class SerTransportProcess(Process):  # TODO: WIP
     """Interface for a packet transport - Experimental."""
 
     def __init__(self, loop, protocol, ser_port, extra=None):
@@ -292,9 +281,44 @@ class SerTransportProcess(Process):
         self._poller = None
         self._write_queue = None
 
-        self.start()
+        self._start()
 
-    def start(self):
+    def _start(self):
+        def _polling_loop(self):
+            _LOGGER.error("WinTransport._polling_loop()")
+
+            # asyncio.set_event_loop(self._loop)
+            asyncio.get_running_loop()  # TODO: this fails
+
+            self._protocol.connection_made(self)
+
+            while self.serial.is_open:
+                if self.serial.in_waiting:
+                    # print("read")
+                    self._protocol.data_received(
+                        # self.serial.readline()
+                        self.serial.read()
+                        # self.serial.read(self.serial.in_waiting)
+                    )
+                    # time.sleep(0.005)
+                    continue
+
+                if self.serial.out_waiting:
+                    # print("wait")
+                    # time.sleep(0.005)
+                    continue
+
+                if not self._write_queue.empty():
+                    print("write")
+                    cmd = self._write_queue.get()
+                    self.serial.write(bytearray(f"{cmd}\r\n".encode("ascii")))
+                    self._write_queue.task_done()
+                    # time.sleep(0.005)
+                    continue
+
+                # print("sleep")
+                # time.sleep(0.005)
+
         _LOGGER.debug("WinTransport.start()")
         self._write_queue = Queue(maxsize=200)
 
@@ -305,41 +329,6 @@ class SerTransportProcess(Process):
         self._poller.start()
 
         self._protocol.connection_made(self)
-
-    def _polling_loop(self):
-        _LOGGER.error("WinTransport._polling_loop()")
-
-        # asyncio.set_event_loop(self._loop)
-        asyncio.get_running_loop()  # TODO: this fails
-
-        self._protocol.connection_made(self)
-
-        while self.serial.is_open:
-            if self.serial.in_waiting:
-                # print("read")
-                self._protocol.data_received(
-                    # self.serial.readline()
-                    self.serial.read()
-                    # self.serial.read(self.serial.in_waiting)
-                )
-                # time.sleep(0.005)
-                continue
-
-            if self.serial.out_waiting:
-                # print("wait")
-                # time.sleep(0.005)
-                continue
-
-            if not self._write_queue.empty():
-                print("write")
-                cmd = self._write_queue.get()
-                self.serial.write(bytearray(f"{cmd}\r\n".encode("ascii")))
-                self._write_queue.task_done()
-                # time.sleep(0.005)
-                continue
-
-            # print("sleep")
-            # time.sleep(0.005)
 
     def write(self, cmd):
         """Write some data bytes to the transport.
@@ -353,18 +342,14 @@ class SerTransportProcess(Process):
         self._write_queue.put_nowait(cmd)
 
 
-class PacketProtocolThread(Thread):
-    pass
+class PacketProtocol(asyncio.Protocol):
+    """Interface for a packet protocol (no Qos).
 
+    ex transport: self.data_received(bytes) -> self._callback(pkt)
+    to transport: self.send_data(cmd)       -> self._transport.write(bytes)
+    """
 
-class PacketProtocolAsyncio(asyncio.Protocol):
-    pass
-
-
-class PacketProtocolBase(PacketProtocolAsyncio):
-    """Interface for a packet protocol."""
-
-    def __init__(self, gwy, pkt_handler) -> None:
+    def __init__(self, gwy, pkt_handler: Callable) -> None:
         _LOGGER.debug("PktProtocol.__init__(%s, %s)", gwy, pkt_handler)
 
         self._gwy = gwy
@@ -403,35 +388,6 @@ class PacketProtocolBase(PacketProtocolAsyncio):
         # self._transport.serial.rts = False
         self._pause_writing = False  # TODO: needs work
 
-    def _create_pkt(self, pkt_raw: ByteString) -> Packet:
-        dtm_str = dt_str()  # done here & now for most-accurate timestamp
-
-        try:
-            pkt_line = "".join(
-                c
-                for c in pkt_raw.decode("ascii", errors="strict").strip()
-                if c in printable
-            )
-        except UnicodeDecodeError:
-            _PKT_LOGGER.warning("%s < Bad pkt", pkt_raw, extra=extra(dtm_str, pkt_raw))
-            return Packet(dtm_str, "", pkt_raw)
-
-        if (
-            "# evofw3" in pkt_line
-            and self._gwy.config[EVOFW_FLAG]
-            and self._gwy.config[EVOFW_FLAG] != "!V"
-        ):
-            flag = self._gwy.config[EVOFW_FLAG]
-            data = bytes(f"{flag}\r\n".encode("ascii"))
-            asyncio.create_task(self._send_data(data, ignore_pause=True))
-
-        if pkt_line.startswith("!C"):
-            pkt_line = "# " + pkt_line
-
-        _PKT_LOGGER.debug("RCVD: %s", pkt_raw, extra=extra(dtm_str, pkt_raw))
-
-        return Packet(dtm_str, _normalise(pkt_line), pkt_raw)
-
     @staticmethod
     def is_wanted(pkt, include_list, exclude_list) -> bool:
         """Parse the packet, return True if the packet is not to be filtered out."""
@@ -443,10 +399,40 @@ class PacketProtocolBase(PacketProtocolAsyncio):
             return not any(device in str(pkt) for device in exclude_list)
         return True
 
-    def _data_received(self, data: ByteString) -> None:
-        """Called when some data is received."""
+    @staticmethod
+    def _normalise(pkt_line: str) -> str:
+        """Perform any firmware-level hacks, as required.
 
-        pkt = self._create_pkt(data)
+        Ensure an evofw3 provides the exact same output as a HGI80.
+        """
+
+        # bug fixed in evofw3 v0.6.x...
+        # 095  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200 # HGI80
+        # 000  I --- 18:140805 18:140805 --:------ 0001 005 00FFFF0200 # evofw3
+        if pkt_line[10:14] == " 18:" and pkt_line[11:20] == pkt_line[21:30]:
+            pkt_line = pkt_line[:21] + HGI_DEVICE.id + pkt_line[30:]
+            _LOGGER.debug("evofw3 packet line has been normalised (0x00)")
+
+        # non-RAMSES-II packets...
+        elif (
+            pkt_line[10:14] in (" 08:", " 31:") and pkt_line[-16:] == "* Checksum error"
+        ):
+            pkt_line = pkt_line[:-17] + " # Checksum error (ignored)"
+            # _LOGGER.debug("Packet line has been normalised (0x01)")
+
+        # bug fixed in evofw3 v0.6.x...
+        elif pkt_line.startswith("!C"):
+            pkt_line = "# " + pkt_line
+            # _LOGGER.debug("Packet line has been normalised (0x02)")
+
+        return pkt_line
+
+    def _data_received(  # sans QoS
+        self, pkt_dtm: str, pkt_str: Optional[str], pkt_raw: Optional[ByteString] = None
+    ) -> None:
+        """Called when some normalised data is received (no QoS)."""
+
+        pkt = Packet(pkt_dtm, pkt_str, raw_pkt=pkt_raw)
         if not pkt.is_valid:
             return
         elif self._has_initialized is None:
@@ -459,13 +445,41 @@ class PacketProtocolBase(PacketProtocolAsyncio):
         """Called when some data is received."""
         _LOGGER.debug("PktProtocol.data_received(%s)", data)
 
+        def create_pkt(pkt_raw: ByteString) -> Tuple:
+            dtm_str = dt_str()  # done here & now for most-accurate timestamp
+
+            try:
+                pkt_str = "".join(
+                    c
+                    for c in pkt_raw.decode("ascii", errors="strict").strip()
+                    if c in printable
+                )
+            except UnicodeDecodeError:
+                _PKT_LOGGER.warning(
+                    "%s < Bad pkt", pkt_raw, extra=extra(dtm_str, pkt_raw)
+                )
+                return dtm_str, None, pkt_raw
+
+            if (  # "# evofw3" in pkt_str
+                "# evofw3" in pkt_str
+                and self._gwy.config[EVOFW_FLAG]
+                and self._gwy.config[EVOFW_FLAG] != "!V"
+            ):
+                flag = self._gwy.config[EVOFW_FLAG]
+                data = bytes(f"{flag}\r\n".encode("ascii"))
+                asyncio.create_task(self._send_data(data, ignore_pause=True))
+
+            _PKT_LOGGER.debug("Rx: %s", pkt_raw, extra=extra(dtm_str, pkt_raw))
+
+            return dtm_str, self._normalise(pkt_str), pkt_raw
+
         self._recv_buffer += data
         if b"\r\n" in self._recv_buffer:
             lines = self._recv_buffer.split(b"\r\n")
             self._recv_buffer = lines[-1]
 
             for line in lines[:-1]:
-                self._data_received(line)
+                self._data_received(*create_pkt(line))
 
     async def _send_data(self, data: ByteString, ignore_pause=False) -> None:
         """Send a bytearray to the transport (serial) interface.
@@ -477,7 +491,7 @@ class PacketProtocolBase(PacketProtocolAsyncio):
                 await asyncio.sleep(0.005)
         while self._transport is None or self._transport.serial.out_waiting:
             await asyncio.sleep(0.005)
-        _PKT_LOGGER.debug("SENT:     %s", data, extra=extra(dt_str(), data))
+        _PKT_LOGGER.debug("Tx:  %s", data, extra=extra(dt_str(), data))
         self._transport.write(data)
         # await asyncio.sleep(0.05)
 
@@ -503,8 +517,6 @@ class PacketProtocolBase(PacketProtocolAsyncio):
         if exc is not None:
             pass
 
-        self._transport.loop.stop()  # TODO: what is this for?
-
     def pause_writing(self) -> None:
         """Called when the transport's buffer goes over the high-water mark."""
         _LOGGER.debug("PktProtocol.pause_writing()")
@@ -520,10 +532,35 @@ class PacketProtocolBase(PacketProtocolAsyncio):
         self._pause_writing = False
 
 
-class PacketProtocol(PacketProtocolBase):
-    """Interface for a packet protocol."""
+class PacketProtocolFile(PacketProtocol):
+    """Interface for a packet protocol (for packet log)."""
 
-    def __init__(self, gwy, pkt_handler) -> None:
+    def data_received(self, data: str) -> None:
+        """Called when some data is received."""
+        _LOGGER.debug("PktProtocolFile.data_received(%s)", data)
+
+        pkt_dtm, pkt_str = data[:26], data[27:]
+
+        try:
+            assert DTM_LONG_REGEX.match(pkt_dtm)
+            dt.fromisoformat(pkt_dtm)
+
+        except (AssertionError, TypeError, ValueError):
+            if data != "" and pkt_dtm.strip()[:1] != "#":
+                _PKT_LOGGER.debug(
+                    "%s < Packet line has an invalid timestamp (ignoring)",
+                    data,  # TODO: None?
+                    extra=extra(dt_str(), data),
+                )
+
+        else:
+            self._data_received(pkt_dtm, self._normalise(pkt_str), None)
+
+
+class PacketProtocolQos(PacketProtocol):
+    """Interface for a packet protocol (includes QoS)."""
+
+    def __init__(self, gwy, pkt_handler: Callable) -> None:
         super().__init__(gwy, pkt_handler)
 
         self._qos_lock = Lock()
@@ -553,7 +590,9 @@ class PacketProtocol(PacketProtocolBase):
 
         # _LOGGER.debug("%s %s %s", self._backoff, timeout, self._timeout_full)
 
-    def _data_received(self, data: ByteString) -> None:
+    def _data_received(  # with Qos
+        self, pkt_dtm: str, pkt_str: Optional[str], pkt_raw: Optional[ByteString] = None
+    ) -> None:
         """Called when some data is received. Adjust backoff as required."""
 
         def _logger_rcvd(logger, msg: str) -> None:
@@ -573,7 +612,7 @@ class PacketProtocol(PacketProtocolBase):
                 msg,
             )
 
-        pkt = self._create_pkt(data)
+        pkt = Packet(pkt_dtm, pkt_str, raw_pkt=pkt_raw)
         if not pkt.is_valid:
             return
         elif self._has_initialized is None:
@@ -617,6 +656,7 @@ class PacketProtocol(PacketProtocolBase):
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
+        _LOGGER.debug("PktProtocolQos.send_data(%s)", cmd)
 
         def _logger_send(logger, msg: str) -> None:
             logger(
@@ -687,7 +727,7 @@ class PacketProtocol(PacketProtocolBase):
 
 
 def create_pkt_stack(
-    gwy, msg_handler, serial_port, protocol_factory=None
+    gwy, msg_handler, protocol_factory=None, serial_port=None, packet_log=None
 ) -> Tuple[asyncio.Protocol, asyncio.Transport]:
     """Utility function to provide a transport to the internal protocol.
 
@@ -699,28 +739,34 @@ def create_pkt_stack(
     """
 
     def _protocol_factory():
-        return PacketProtocol(gwy, msg_handler if msg_handler else None)
+        if packet_log:
+            return PacketProtocolFile(gwy, msg_handler)
+        elif gwy.config[DISABLE_SENDING]:
+            return PacketProtocol(gwy, msg_handler)
+        else:
+            return PacketProtocolQos(gwy, msg_handler)
+
+    assert (serial_port is not None and packet_log is None) or (
+        serial_port is None and packet_log is not None
+    ), "port / file are not mutually exclusive"
+
+    pkt_protocol = protocol_factory() if protocol_factory else _protocol_factory()
+
+    if packet_log:
+        pkt_transport = SerTransportFile(gwy._loop, pkt_protocol, packet_log)
+        return (pkt_protocol, pkt_transport)
 
     ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
-
-    if True or os.name == "nt":
-        pkt_protocol = protocol_factory() if protocol_factory else _protocol_factory()
-        pkt_transport = SerTransportPoller(gwy._loop, pkt_protocol, ser_instance)
-
-    elif False:
-        from serial.threaded import ReaderThread
-        t = ReaderThread(ser_instance, protocol_factory)
-        t.start()
-        pkt_transport, pkt_protocol = t.connect()
-
-    else:
-        pkt_protocol = protocol_factory() if protocol_factory else _protocol_factory()
-        pkt_transport = SerialTransport(gwy._loop, pkt_protocol, ser_instance)
-
     if os.name == "posix":
         try:
             ser_instance.set_low_latency_mode(True)  # only for FTDI?
         except ValueError:
             pass
+
+    if True or os.name == "nt":
+        pkt_transport = SerTransportPoller(gwy._loop, pkt_protocol, ser_instance)
+
+    else:
+        pkt_transport = SerialTransport(gwy._loop, pkt_protocol, ser_instance)
 
     return (pkt_protocol, pkt_transport)

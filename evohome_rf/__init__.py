@@ -17,15 +17,15 @@ import logging
 import os
 import signal
 from threading import Lock
-from typing import Dict, List, Tuple  # Any, Tuple
+from typing import Callable, Dict, List, Tuple  # Any, Tuple
 
 from .const import _dev_mode_, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
 from .discovery import spawn_execute_scripts, spawn_monitor_scripts  # noqa: F401
 from .logger import set_pkt_logging
 from .message import DONT_CREATE_MESSAGES, process_msg
-from .packet import POLLER_TASK, _PKT_LOGGER as pkt_logger, create_pkt_stack, file_pkts
-from .protocol import MessageProtocol, create_msg_stack
+from .packet import POLLER_TASK, _PKT_LOGGER as pkt_logger, create_pkt_stack
+from .protocol import create_msg_stack
 from .schema import (  # noqa: F401
     load_config,
     load_schema,
@@ -185,14 +185,9 @@ class Gateway:
         _LOGGER.debug("stop(): Complete.")
 
     async def start(self) -> None:
-        async def file_reader(fp, callback):
-            async for pkt in file_pkts(fp):
-                # callback(Message(self, pkt))  # TODO: check include, exclude lists
-                self.msg_transport._pkt_receiver(pkt)  # HACK: a hack
-
         if self.serial_port:  # source of packets is a serial port
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
-                self, self.msg_transport._pkt_receiver, self.serial_port
+                self, self.msg_transport._pkt_receiver, serial_port=self.serial_port
             )
             self._tasks.append(
                 self.msg_transport._set_dispatcher(self.pkt_protocol.send_data)
@@ -201,20 +196,13 @@ class Gateway:
             if self.pkt_transport.get_extra_info(POLLER_TASK):
                 self._tasks.append(self.pkt_transport.get_extra_info(POLLER_TASK))
 
-        if False and self._input_file:
+        else:  # if self._input_file:
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
-                self, self.msg_transport._pkt_receiver, self.serial_port
-            )
-            self._tasks.append(
-                self.msg_transport._set_dispatcher(self.pkt_protocol.send_data)
+                self, self.msg_transport._pkt_receiver, packet_log=self._input_file
             )
 
-            if self.pkt_transport.get_extra_info(POLLER_TASK):
-                self._tasks.append(self.pkt_transport.get_extra_info(POLLER_TASK))
-
-        else:
-            reader = asyncio.create_task(file_reader(self._input_file, process_msg))
-            self._tasks.append(reader)
+            # if self.pkt_transport.get_extra_info(POLLER_TASK):
+            #     self._tasks.append(self.pkt_transport.get_extra_info(POLLER_TASK))
 
         await asyncio.gather(*self._tasks)
         await self.stop("start()")
@@ -319,8 +307,6 @@ class Gateway:
 
         return result
 
-    def create_client(
-        self, msg_handler, protocol_factory=MessageProtocol, **kwargs
-    ) -> Tuple:
+    def create_client(self, msg_handler) -> Tuple[Callable, Callable]:
         """Create a client protocol for the RAMSES-II message transport."""
-        return create_msg_stack(self, msg_handler, protocol_factory, **kwargs)
+        return create_msg_stack(self, msg_handler)
