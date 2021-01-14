@@ -17,7 +17,7 @@ from .const import (
     NON_DEVICE,
     NUL_DEVICE,
     Address,
-    id_to_address
+    id_to_address,
 )
 
 
