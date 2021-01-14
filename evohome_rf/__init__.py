@@ -21,27 +21,18 @@ from typing import Callable, Dict, List, Tuple  # Any, Tuple
 
 from .const import _dev_mode_, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
-from .discovery import spawn_execute_scripts, spawn_monitor_scripts  # noqa: F401
-from .message import DONT_CREATE_MESSAGES, process_msg
+from .message import process_msg
 from .packet import POLLER_TASK, _PKT_LOGGER as pkt_logger, set_pkt_logging
 from .protocol import create_msg_stack
 from .transport import create_pkt_stack
-from .schema import (  # noqa: F401
+from .schema import (
     load_config,
     load_schema,
     DISABLE_DISCOVERY,
-    DISABLE_SENDING,
-    ENFORCE_ALLOWLIST,
-    ENFORCE_BLOCKLIST,
-    EVOFW_FLAG,
-    INPUT_FILE,
-    MAX_ZONES,
+    DONT_CREATE_MESSAGES,
     PACKET_LOG,
     REDUCE_PROCESSING,
-    SERIAL_PORT,
-    SER2NET_RELAY,
     USE_NAMES,
-    USE_SCHEMA,
 )
 from .systems import SYSTEM_CLASSES, System, SystemBase
 from .version import __version__  # noqa: F401

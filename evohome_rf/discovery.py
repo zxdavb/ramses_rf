@@ -12,6 +12,16 @@ from .command import Command, Priority
 from .const import _dev_mode_, CODE_SCHEMA, DEVICE_TABLE, Address
 from .exceptions import ExpiredCallbackError
 
+EXECUTE_CMD = "execute_cmd"
+GET_FAULTS = "get_faults"
+GET_SCHED = "get_schedule"
+SET_SCHED = "set_schedule"
+
+SCAN_DISC = "scan_disc"
+SCAN_FULL = "scan_full"
+SCAN_HARD = "scan_hard"
+SCAN_XXXX = "scan_xxxx"
+
 
 DEV_MODE = _dev_mode_
 
@@ -26,8 +36,8 @@ async def _cmd(gwy, *args, **kwargs) -> None:
 
 
 async def spawn_execute_cmd(gwy, **kwargs):
-    if kwargs.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
-        cmd = kwargs["execute_cmd"]
+    if kwargs.get(EXECUTE_CMD):  # e.g. "RQ 01:145038 1F09 00"
+        cmd = kwargs[EXECUTE_CMD]
 
         qos = {"priority": Priority.HIGH, "retries": 10}
         try:
@@ -43,7 +53,7 @@ async def spawn_execute_cmd(gwy, **kwargs):
 async def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
     tasks = []
 
-    if kwargs.get("execute_cmd"):
+    if kwargs.get(EXECUTE_CMD):
         await spawn_execute_cmd(gwy, **kwargs)  # TODO: wrap in a try?
 
     if kwargs.get("poll_devices"):
@@ -56,36 +66,36 @@ async def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
 async def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
 
     # this is to ensure the gateway interface has fully woken
-    if not kwargs.get("execute_cmd") and gwy._include:
+    if not kwargs.get(EXECUTE_CMD) and gwy._include:
         dev_id = next(iter(gwy._include))
         qos = {"priority": Priority.HIGH, "retries": 5}
         await gwy.msg_protocol.send_data(Command("RQ", dev_id, "0016", "00FF", qos=qos))
 
     tasks = []
 
-    if kwargs.get("execute_cmd"):  # TODO: wrap in a try?
+    if kwargs.get(EXECUTE_CMD):  # TODO: wrap in a try?
         await spawn_execute_cmd(gwy, **kwargs)
 
-    if kwargs.get("get_faults"):
-        tasks += [asyncio.create_task(get_faults(gwy, kwargs["get_faults"]))]
+    if kwargs.get(GET_FAULTS):
+        tasks += [asyncio.create_task(get_faults(gwy, kwargs[GET_FAULTS]))]
 
-    if kwargs.get("get_schedule") and kwargs["get_schedule"][0]:
-        tasks += [asyncio.create_task(get_schedule(gwy, *kwargs["get_schedule"]))]
+    if kwargs.get(GET_SCHED) and kwargs[GET_SCHED][0]:
+        tasks += [asyncio.create_task(get_schedule(gwy, *kwargs[GET_SCHED]))]
 
-    if kwargs.get("set_schedule") and kwargs["set_schedule"][0]:
-        tasks += [asyncio.create_task(set_schedule(gwy, *kwargs["set_schedule"]))]
+    if kwargs.get(SET_SCHED) and kwargs[SET_SCHED][0]:
+        tasks += [asyncio.create_task(set_schedule(gwy, *kwargs[SET_SCHED]))]
 
-    if kwargs.get("scan_disc"):
-        tasks += [asyncio.create_task(scan_disc(gwy, d)) for d in kwargs["scan_disc"]]
+    if kwargs.get(SCAN_DISC):
+        tasks += [asyncio.create_task(scan_disc(gwy, d)) for d in kwargs[SCAN_DISC]]
 
-    if kwargs.get("scan_full"):
-        tasks += [asyncio.create_task(scan_full(gwy, d)) for d in kwargs["scan_full"]]
+    if kwargs.get(SCAN_FULL):
+        tasks += [asyncio.create_task(scan_full(gwy, d)) for d in kwargs[SCAN_FULL]]
 
-    if kwargs.get("scan_hard"):
-        tasks += [asyncio.create_task(scan_hard(gwy, d)) for d in kwargs["scan_hard"]]
+    if kwargs.get(SCAN_HARD):
+        tasks += [asyncio.create_task(scan_hard(gwy, d)) for d in kwargs[SCAN_HARD]]
 
-    if kwargs.get("scan_xxxx"):
-        tasks += [asyncio.create_task(scan_xxxx(gwy, d)) for d in kwargs["scan_xxxx"]]
+    if kwargs.get(SCAN_XXXX):
+        tasks += [asyncio.create_task(scan_xxxx(gwy, d)) for d in kwargs[SCAN_XXXX]]
 
     gwy._tasks.extend(tasks)
     return tasks

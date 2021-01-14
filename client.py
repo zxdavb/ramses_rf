@@ -7,53 +7,46 @@
     """
 import asyncio
 import json
-import shutil
 import sys
 from typing import Tuple
 
 import click
 from colorama import init as colorama_init, Fore, Style
 
-from evohome_rf import (  # noqa
+from evohome_rf import Gateway, GracefulExit
+from evohome_rf.discovery import (
+    EXECUTE_CMD,
+    GET_FAULTS,
+    GET_SCHED,
+    SET_SCHED,
+    SCAN_DISC,
+    SCAN_FULL,
+    SCAN_HARD,
+    SCAN_XXXX,
+    spawn_execute_scripts,
+    spawn_monitor_scripts,
+)
+from evohome_rf.packet import CONSOLE_COLS
+from evohome_rf.schema import (
+    ALLOW_LIST,
+    CONFIG,
     DISABLE_DISCOVERY,
     DISABLE_SENDING,
+    DONT_CREATE_MESSAGES,
     ENFORCE_ALLOWLIST,
     EVOFW_FLAG,
     INPUT_FILE,
     PACKET_LOG,
     REDUCE_PROCESSING,
     SERIAL_PORT,
-    Gateway,
-    GracefulExit,
-    spawn_execute_scripts,
-    spawn_monitor_scripts,
 )
-
-ALLOW_LIST = "allowlist"
 DEBUG_MODE = "debug_mode"
-EXECUTE_CMD = "execute_cmd"
-
-CONFIG = "config"
-GET_FAULTS = "get_faults"
-GET_SCHED = "get_schedule"
-SET_SCHED = "set_schedule"
 
 COMMAND = "command"
 EXECUTE = "execute"
 LISTEN = "listen"
 MONITOR = "monitor"
 PARSE = "parse"
-
-SCAN_DISC = "scan_disc"
-SCAN_FULL = "scan_full"
-SCAN_HARD = "scan_hard"
-SCAN_XXXX = "scan_xxxx"
-
-CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
-
-DONT_CREATE_MESSAGES = 3
-DONT_CREATE_ENTITIES = 2
-DONT_UPDATE_ENTITIES = 1
 
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678

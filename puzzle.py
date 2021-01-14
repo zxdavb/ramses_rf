@@ -9,7 +9,6 @@ import asyncio
 from datetime import datetime as dt, timedelta as td
 import json
 import logging
-import shutil
 import sys
 from threading import Lock
 from typing import ByteString, Optional, Tuple
@@ -31,24 +30,20 @@ from evohome_rf import (  # noqa
 )
 from evohome_rf.command import Command, Priority
 from evohome_rf.helpers import dts_to_hex
-from evohome_rf.packet import _PKT_LOGGER, Packet
+from evohome_rf.packet import CONSOLE_COLS, _PKT_LOGGER, Packet
 from evohome_rf.protocol import create_protocol_factory
 from evohome_rf.transport import PacketProtocol, create_pkt_stack
-from evohome_rf.schema import DONT_CREATE_ENTITIES, USE_NAMES
+from evohome_rf.schema import ALLOW_LIST, DONT_CREATE_ENTITIES, USE_NAMES
 
 count_lock = Lock()
 count_rcvd = 0
 
-ALLOW_LIST = "allowlist"
 DEBUG_MODE = "debug_mode"
-EXECUTE_CMD = "execute_cmd"
 
 CONFIG = "config"
 COMMAND = "command"
 
-CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns)
-
-DEFAULT_INTERVAL = 5  # should be 240
+DEFAULT_INTERVAL = 240  # should be 240
 
 FREQ_WIDTH = 0x002000
 BASIC_FREQ = 0x21656A

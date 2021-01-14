@@ -55,6 +55,7 @@ SER2NET_SCHEMA = vol.Schema(
 )
 
 # Config flags
+CONFIG = "config"
 DISABLE_DISCOVERY = "disable_discovery"
 DISABLE_SENDING = "disable_sending"
 ENFORCE_ALLOWLIST = "enforce_allowlist"
@@ -68,6 +69,9 @@ SERIAL_PORT = "serial_port"
 SER2NET_RELAY = "ser2net_relay"
 USE_NAMES = "use_names"  # use friendly device names from allowlist
 USE_SCHEMA = "use_schema"
+ALLOW_LIST = "allowlist"
+BLOCK_LIST = "blocklist"
+
 
 DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
@@ -132,8 +136,8 @@ KNOWNS_SCHEMA = vol.Schema(
 )
 FILTER_SCHEMA = vol.Schema(
     {
-        vol.Optional("allowlist"): vol.Any(None, vol.All(KNOWNS_SCHEMA)),
-        vol.Optional("blocklist"): vol.Any(None, vol.All(KNOWNS_SCHEMA)),
+        vol.Optional(ALLOW_LIST): vol.Any(None, vol.All(KNOWNS_SCHEMA)),
+        vol.Optional(BLOCK_LIST): vol.Any(None, vol.All(KNOWNS_SCHEMA)),
     }
 )
 # SCHEMA = vol.Schema(
@@ -164,16 +168,16 @@ if DEV_MODE:
 def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, list, list]:
     """Process the schema, and the configuration and return True if it is valid."""
 
-    config = CONFIG_SCHEMA(kwargs.get("config", {}))
+    config = CONFIG_SCHEMA(kwargs.get(CONFIG, {}))
     allows = {}
     blocks = {}
 
     if config[ENFORCE_ALLOWLIST]:
-        allows = KNOWNS_SCHEMA(kwargs.get("allowlist", {}))
+        allows = KNOWNS_SCHEMA(kwargs.get(ALLOW_LIST, {}))
         config[ENFORCE_BLOCKLIST] = False
         _LOGGER.debug("An allowlist has been created, len = %s", len(allows))
     elif config[ENFORCE_BLOCKLIST]:
-        blocks = KNOWNS_SCHEMA(kwargs.get("blocklist", {}))
+        blocks = KNOWNS_SCHEMA(kwargs.get(BLOCK_LIST, {}))
         _LOGGER.debug("A blocklist has been created, len = %s", len(blocks))
 
     if serial_port and input_file:
@@ -188,7 +192,7 @@ def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, list, list]:
     if config[DISABLE_SENDING]:
         config[DISABLE_DISCOVERY] = True
 
-    # if not kwargs.get("allowlist", {}):
+    # if not kwargs.get(ALLOW_LIST, {}):
     #     config[USE_NAMES] = False
 
     return (config, allows, blocks)
@@ -206,7 +210,7 @@ def load_schema(gwy, **kwargs) -> Tuple[dict, dict]:
             gwy._get_device(addr(device_id))
 
     if not schema.get(ATTR_CONTROLLER):
-        return ({}, KNOWNS_SCHEMA(kwargs.get("allowlist", {})))
+        return ({}, KNOWNS_SCHEMA(kwargs.get(ALLOW_LIST, {})))
 
     schema = SYSTEM_SCHEMA(schema)
 
@@ -252,7 +256,7 @@ def load_schema(gwy, **kwargs) -> Tuple[dict, dict]:
     # for ufh_ctl, ufh_schema in schema.get(ATTR_UFH_CONTROLLERS, []):
     #     dev = gwy._get_device(addr(ufh_ctl), ctl_addr=ctl)
 
-    known_devices = KNOWNS_SCHEMA(kwargs.get("allowlist", {}))
-    known_devices.update(KNOWNS_SCHEMA(kwargs.get("blocklist", {})))
+    known_devices = KNOWNS_SCHEMA(kwargs.get(ALLOW_LIST, {}))
+    known_devices.update(KNOWNS_SCHEMA(kwargs.get(BLOCK_LIST, {})))
 
     return (schema, known_devices)
