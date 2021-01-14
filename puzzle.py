@@ -105,7 +105,7 @@ class PuzzleProtocol(PacketProtocol):
         if self._has_initialized is None:
             self._has_initialized = True
 
-        if pkt_str.startswith('#'):
+        if pkt_str.startswith("#"):
             print(f"{Fore.CYAN}{pkt_dtm[11:23]} {pkt_str}"[:CONSOLE_COLS])
         elif pkt.is_valid:
             print(f"{Style.BRIGHT}{Fore.CYAN}{pkt_dtm[11:23]} {pkt_str}"[:CONSOLE_COLS])
@@ -228,11 +228,11 @@ def tune(obj, **kwargs):
     help="minimum interval (secs) between packets",
 )
 # @click.option(  --packet_length
-    # "-l",
-    # "--packet_length",
-    # type=int,
-    # default=48,
-    # help="length of puzzle packet",
+# "-l",
+# "--packet_length",
+# type=int,
+# default=48,
+# help="length of puzzle packet",
 # )
 @click.pass_obj
 def cast(obj, **kwargs):  # HACK: remove?
