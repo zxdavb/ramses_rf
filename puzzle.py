@@ -16,24 +16,25 @@ from typing import ByteString, Optional, Tuple
 import click
 from colorama import init as colorama_init, Fore, Style
 
-from evohome_rf import (  # noqa
+from evohome_rf import Gateway, GracefulExit
+from evohome_rf.command import Command, Priority
+from evohome_rf.helpers import dts_to_hex
+from evohome_rf.packet import CONSOLE_COLS, _PKT_LOGGER, Packet
+from evohome_rf.protocol import create_protocol_factory
+from evohome_rf.transport import PacketProtocol, create_pkt_stack
+from evohome_rf.schema import (
+    ALLOW_LIST,
     DISABLE_DISCOVERY,
     DISABLE_SENDING,
+    DONT_CREATE_ENTITIES,
     ENFORCE_ALLOWLIST,
     EVOFW_FLAG,
     INPUT_FILE,
     PACKET_LOG,
     REDUCE_PROCESSING,
     SERIAL_PORT,
-    Gateway,
-    GracefulExit,
+    USE_NAMES,
 )
-from evohome_rf.command import Command, Priority
-from evohome_rf.helpers import dts_to_hex
-from evohome_rf.packet import CONSOLE_COLS, _PKT_LOGGER, Packet
-from evohome_rf.protocol import create_protocol_factory
-from evohome_rf.transport import PacketProtocol, create_pkt_stack
-from evohome_rf.schema import ALLOW_LIST, DONT_CREATE_ENTITIES, USE_NAMES
 
 count_lock = Lock()
 count_rcvd = 0
