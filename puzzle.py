@@ -103,13 +103,7 @@ class PuzzleProtocol(PacketProtocol):
         if self._has_initialized is None:
             self._has_initialized = True
 
-        if pkt_str.startswith("#"):
-            print(f"{Fore.CYAN}{pkt_dtm[11:23]}{pkt_str}"[:CONSOLE_COLS])
-        elif not pkt.is_valid:
-            print(f"{Fore.CYAN}{pkt_dtm[11:23]}{pkt_str}"[:CONSOLE_COLS])
-        elif not self.pkt_callback:
-            print(f"{Fore.CYAN}{pkt_dtm[11:23]}{pkt_str}"[:CONSOLE_COLS])
-        else:
+        if self.pkt_callback:
             self.pkt_callback(pkt)
 
 
@@ -295,19 +289,17 @@ async def puzzle_tune(
         global pkt_seen
         global pkt_counting
 
-        # _LOGGER.info("%s", pkt)
+        pkt_lock.acquire()
+        if not pkt.is_valid:
+            msg = f"{Fore.CYAN}{pkt.dtm[11:23]}     {pkt._pkt_str}"[:CONSOLE_COLS]
+        elif not pkt_counting:
+            msg = f"{Style.BRIGHT}{Fore.CYAN}{pkt.dtm[11:23]}     {pkt}"[:CONSOLE_COLS]
+        else:
+            msg = f"{Style.BRIGHT}{Fore.CYAN}{pkt.dtm[11:23]} >>> {pkt}"[:CONSOLE_COLS]
+            pkt_seen = True
+        pkt_lock.release()
 
-        hdr = "     "
-        if str(pkt)[:1] != "#":
-            pkt_lock.acquire()
-            if pkt_counting and pkt.is_valid:
-                pkt_seen = pkt_seen if pkt_seen is True else pkt.is_valid
-                hdr = " >>> "
-            else:
-                hdr = "     "
-            pkt_lock.release()
-
-        print(f"{Style.BRIGHT}{Fore.CYAN}{pkt.dtm[11:23]}{hdr}{pkt}"[:CONSOLE_COLS])
+        print(msg)
 
     async def set_freq(frequency):
         hex = f"{frequency:06X}"
