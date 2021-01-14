@@ -11,11 +11,7 @@ from typing import Any, Dict, Optional
 from .command import Command, Priority
 from .const import (
     _dev_mode_,
-    # CODE_SCHEMA,
-    # CODE_0005_ZONE_TYPE,
-    # CODE_000C_DEVICE_TYPE,
     DEVICE_HAS_BATTERY,
-    DEVICE_LOOKUP,
     DEVICE_TABLE,
     DEVICE_TYPES,
     DISCOVER_SCHEMA,
@@ -25,35 +21,13 @@ from .const import (
     DOMAIN_TYPE_MAP,
 )
 from .exceptions import CorruptStateError
-from .helpers import slugify_string as slugify
+from .helpers import slugify_string as slugify, dev_id_to_hex
 
 DEV_MODE = _dev_mode_
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
-
-
-def dev_hex_to_id(device_hex: str, friendly_id=False) -> str:
-    """Convert (say) '06368E' to '01:145038' (or 'CTL:145038')."""
-    if device_hex == "FFFFFE":  # aka '63:262142'
-        return ">null dev<" if friendly_id else "63:262142"
-    if not device_hex.strip():  # aka '--:------'
-        return f"{'':10}" if friendly_id else "--:------"
-    _tmp = int(device_hex, 16)
-    dev_type = f"{(_tmp & 0xFC0000) >> 18:02d}"
-    if friendly_id:
-        dev_type = DEVICE_TYPES.get(dev_type, f"{dev_type:<3}")
-    return f"{dev_type}:{_tmp & 0x03FFFF:06d}"
-
-
-def dev_id_to_hex(device_id: str) -> str:
-    """Convert (say) '01:145038' (or 'CTL:145038') to '06368E'."""
-    if len(device_id) == 9:  # e.g. '01:123456'
-        dev_type = device_id[:2]
-    else:  # len(device_id) == 10, e.g. 'CTL:123456', or ' 63:262142'
-        dev_type = DEVICE_LOOKUP.get(device_id[:3], device_id[1:3])
-    return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # sans preceding 0x
 
 
 def _payload(msg, key=None) -> Optional[Any]:

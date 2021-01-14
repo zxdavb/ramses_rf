@@ -93,7 +93,7 @@ class SerTransportFile(asyncio.Transport):
     """Interface for a packet transport using a file - Experimental."""
 
     def __init__(self, loop, protocol, packet_log, extra=None):
-        _LOGGER.error("SerTransport.__init__() *** POLLING VERSION ***")
+        _LOGGER.error("SerTransFile.__init__() *** POLLING VERSION ***")
 
         # self._loop = loop
         self._protocol = protocol
@@ -104,23 +104,23 @@ class SerTransportFile(asyncio.Transport):
 
     def _start(self):
         async def _polling_loop():
-            _LOGGER.debug("SerTransportFile._polling_loop() BEGUN")
+            _LOGGER.debug("SerTransFile._polling_loop() BEGUN")
             self._protocol.pause_writing()
             self._protocol.connection_made(self)
 
             for dtm_pkt_line in self.fp:
                 self._protocol.data_received(dtm_pkt_line.strip())
 
-            _LOGGER.error("SerTransportFile._polling_loop() ENDED")
+            _LOGGER.error("SerTransFile._polling_loop() ENDED")
             self._protocol.connection_lost(exc=None)
 
-        _LOGGER.debug("SerTransportFile._start()")
+        _LOGGER.debug("SerTransFile._start()")
 
         self._extra[POLLER_TASK] = asyncio.create_task(_polling_loop())
 
     def write(self, cmd):
         """Write some data bytes to the transport."""
-        _LOGGER.debug("SerTransportFile.write(%s)", cmd)
+        _LOGGER.debug("SerTransFile.write(%s)", cmd)
 
         raise NotImplementedError
 
@@ -128,8 +128,10 @@ class SerTransportFile(asyncio.Transport):
 class SerTransportPoller(asyncio.Transport):
     """Interface for a packet transport using polling - Experimental."""
 
+    MAX_BUFFER_SIZE = 200
+
     def __init__(self, loop, protocol, ser_instance, extra=None):
-        _LOGGER.error("SerTransport.__init__() *** POLLING VERSION ***")
+        _LOGGER.warning("SerTransPoll.__init__() *** POLLING VERSION ***")
 
         self._loop = loop
         self._protocol = protocol
@@ -143,7 +145,7 @@ class SerTransportPoller(asyncio.Transport):
 
     def _start(self):
         async def _polling_loop():
-            _LOGGER.debug("SerTransport._polling_loop() BEGUN")
+            _LOGGER.debug("SerTransPoll._polling_loop() BEGUN")
             self._protocol.connection_made(self)
 
             while self.serial.is_open:
@@ -152,7 +154,7 @@ class SerTransportPoller(asyncio.Transport):
                 if self.serial.in_waiting:
                     self._protocol.data_received(
                         self.serial.read(self.serial.in_waiting)
-                    )  # NOTE: cant use readline(), it blocks until newline
+                    )  # NOTE: cant use readline(), as it blocks until a newline
                     continue
 
                 if self.serial.out_waiting:
@@ -163,11 +165,11 @@ class SerTransportPoller(asyncio.Transport):
                     self._write_queue.task_done()
                     continue
 
-            _LOGGER.error("SerTransport._polling_loop() ENDED")
+            _LOGGER.error("SerTransPoll._polling_loop() ENDED")
             self._protocol.connection_lost()
 
-        _LOGGER.debug("SerTransport._start()")
-        self._write_queue = Queue(maxsize=200)
+        _LOGGER.debug("SerTransPoll._start()")
+        self._write_queue = Queue(maxsize=self.MAX_BUFFER_SIZE)
 
         self._extra[POLLER_TASK] = asyncio.create_task(_polling_loop())
 
@@ -177,17 +179,16 @@ class SerTransportPoller(asyncio.Transport):
         This does not block; it buffers the data and arranges for it to be sent out
         asynchronously.
         """
-        _LOGGER.debug("SerTransport.write(%s)", cmd)
+        _LOGGER.debug("SerTransPoll.write(%s)", cmd)
 
-        # self.serial.write(bytearray(f"{cmd}\r\n".encode("ascii")))
         self._write_queue.put_nowait(cmd)
 
 
 class SerTransportProcess(Process):  # TODO: WIP
-    """Interface for a packet transport - Experimental."""
+    """Interface for a packet transport using a process - Experimental."""
 
     def __init__(self, loop, protocol, ser_port, extra=None):
-        _LOGGER.debug("WinTransport.__init__()")
+        _LOGGER.warning("SerTransProc.__init__() *** PROCESS VERSION***")
 
         self._loop = loop
         self._protocol = protocol
@@ -212,7 +213,6 @@ class SerTransportProcess(Process):  # TODO: WIP
 
             while self.serial.is_open:
                 if self.serial.in_waiting:
-                    # print("read")
                     self._protocol.data_received(
                         # self.serial.readline()
                         self.serial.read()
@@ -222,12 +222,10 @@ class SerTransportProcess(Process):  # TODO: WIP
                     continue
 
                 if self.serial.out_waiting:
-                    # print("wait")
                     # time.sleep(0.005)
                     continue
 
                 if not self._write_queue.empty():
-                    print("write")
                     cmd = self._write_queue.get()
                     self.serial.write(bytearray(f"{cmd}\r\n".encode("ascii")))
                     self._write_queue.task_done()
@@ -237,7 +235,7 @@ class SerTransportProcess(Process):  # TODO: WIP
                 # print("sleep")
                 # time.sleep(0.005)
 
-        _LOGGER.debug("WinTransport.start()")
+        _LOGGER.debug("SerTransProc.start()")
         self._write_queue = Queue(maxsize=200)
 
         self.serial = serial_for_url(self._ser_port[0], **self._ser_port[1])
@@ -254,9 +252,8 @@ class SerTransportProcess(Process):  # TODO: WIP
         This does not block; it buffers the data and arranges for it to be sent out
         asynchronously.
         """
-        _LOGGER.debug("WinTransport.write(%s)", cmd)
+        _LOGGER.debug("SerTransProc.write(%s)", cmd)
 
-        # self.serial.write(bytearray(f"{cmd}\r\n".encode("ascii")))
         self._write_queue.put_nowait(cmd)
 
 
@@ -658,7 +655,6 @@ def create_pkt_stack(
 
     def _protocol_factory():
         if packet_log:
-            # turn PacketProtocolFile(gwy, msg_handler)
             return create_protocol_factory(PacketProtocolFile, gwy, msg_handler)()
         elif gwy.config[DISABLE_SENDING]:
             return create_protocol_factory(PacketProtocol, gwy, msg_handler)()
@@ -682,9 +678,8 @@ def create_pkt_stack(
         except ValueError:
             pass
 
-    if os.name == "nt":
+    if True or os.name == "nt":
         pkt_transport = SerTransportPoller(gwy._loop, pkt_protocol, ser_instance)
-
     else:
         pkt_transport = SerialTransport(gwy._loop, pkt_protocol, ser_instance)
 
