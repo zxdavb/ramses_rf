@@ -362,7 +362,7 @@ async def puzzle_tune(
     # dn 101 (103,100=203) & -ve -> (103,101) == 102,100
     # dn 101 (102,100=202) & -ve -> (102,101) == 102
 
-    async def binary_chop(x, y) -> Tuple[int, float]:  # 1, 2
+    async def binary_chop(x, y) -> int:  # 1, 2
         """Binary chop from x (the start) to y (the target).
 
         Assumes the initial value of x, y are negative, positive.
@@ -383,12 +383,12 @@ async def puzzle_tune(
 
         _LOGGER.info(f"STEP 1: Calibrate up from 0x{lower:06X} to 0x{upper:06X}")
         lower_freq = await binary_chop(lower, upper)
-        _LOGGER.info(f"Lower = 0x{lower_freq:06X} (upwards calibrated)")
+        _LOGGER.info(f"Lower = 0x{lower_freq:06X} (walking upwards)")
 
         print("")
         _LOGGER.info(f"STEP 2: Calibrate down from 0x{upper:06X} to 0x{lower_freq:06X}")
         upper_freq = await binary_chop(upper, lower_freq)
-        _LOGGER.info(f"Upper = 0x{upper_freq:06X} (downwards calibrated)")
+        _LOGGER.info(f"Upper = 0x{upper_freq:06X} (walking downwards)")
 
         print("")
         _LOGGER.info(
