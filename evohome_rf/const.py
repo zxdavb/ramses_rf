@@ -156,6 +156,7 @@ DEVICE_TABLE = {
         "is_sensor": True,
         "archetype": "ATC928",
         "poll_codes": ["000C", "10E0", "1100", "313F"],
+        "discover_schema": [],
     },  # rechargeable
     "02": {
         "type": "UFC",
@@ -165,6 +166,7 @@ DEVICE_TABLE = {
         "is_controller": None,
         "is_sensor": None,
         "archetype": "HCE80(R)",
+        "discover_schema": [],
     },
     "03": {
         "type": "STa",
@@ -174,6 +176,7 @@ DEVICE_TABLE = {
         "is_actuator": False,
         "is_sensor": True,
         "archetype": "HCW80",  # also: HCF82
+        "discover_schema": [],
     },
     "04": {
         "type": "TRV",
@@ -183,6 +186,7 @@ DEVICE_TABLE = {
         "is_actuator": True,
         "is_sensor": True,
         "archetype": "HR92",  # also: HR80
+        "discover_schema": [],
     },  #
     "07": {
         "type": "DHW",
@@ -191,6 +195,7 @@ DEVICE_TABLE = {
         "is_actuator": False,
         "is_sensor": True,
         "archetype": "CS92A",
+        "discover_schema": [],
     },
     "10": {
         "type": "OTB",
@@ -211,6 +216,7 @@ DEVICE_TABLE = {
             "3EF0",
             "3EF1",
         ],
+        "discover_schema": [],
     },  #
     "13": {
         "type": "BDR",
@@ -220,6 +226,7 @@ DEVICE_TABLE = {
         "is_sensor": False,
         "archetype": "BDR91",  # also: HC60NG?
         "poll_codes": ["0008", "1100", "3EF1"],
+        "discover_schema": [],  # excl.: 10E0
     },
     "22": {
         "type": "THM",
@@ -229,6 +236,7 @@ DEVICE_TABLE = {
         "is_actuator": False,
         "is_sensor": True,
         "archetype": "DTS92(E)",
+        "discover_schema": [],
     },
     "30": {
         "type": "GWY",
@@ -237,6 +245,7 @@ DEVICE_TABLE = {
         "is_actuator": False,
         "is_sensor": False,
         "archetype": "-unclear-",  # RFG100, VMS?
+        "discover_schema": [],
     },
     "34": {
         "type": "STA",
@@ -246,6 +255,7 @@ DEVICE_TABLE = {
         "is_actuator": False,
         "is_sensor": True,
         "archetype": "T87RF",
+        "discover_schema": [],
     },
     # Honeywell evohome TBD
     "x1": {
