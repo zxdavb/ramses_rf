@@ -25,8 +25,7 @@ from .const import (
     ZONE_MODE_MAP,
     _dev_mode_,
 )
-from .devices import dev_hex_to_id
-from .helpers import dtm_from_hex as _dtm, dts_from_hex
+from .helpers import dev_hex_to_id, dtm_from_hex as _dtm, dts_from_hex
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
 from .schema import MAX_ZONES
 

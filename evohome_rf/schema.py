@@ -188,6 +188,9 @@ def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, list, list]:
     if config[DISABLE_SENDING]:
         config[DISABLE_DISCOVERY] = True
 
+    # if not kwargs.get("allowlist", {}):
+    #     config[USE_NAMES] = False
+
     return (config, allows, blocks)
 
 
@@ -249,4 +252,7 @@ def load_schema(gwy, **kwargs) -> Tuple[dict, dict]:
     # for ufh_ctl, ufh_schema in schema.get(ATTR_UFH_CONTROLLERS, []):
     #     dev = gwy._get_device(addr(ufh_ctl), ctl_addr=ctl)
 
-    return (schema, KNOWNS_SCHEMA(kwargs.get("allowlist", {})))
+    known_devices = KNOWNS_SCHEMA(kwargs.get("allowlist", {}))
+    known_devices.update(KNOWNS_SCHEMA(kwargs.get("blocklist", {})))
+
+    return (schema, known_devices)

@@ -283,8 +283,8 @@ class MessageTransport(asyncio.Transport):
             _LOGGER.warning("MsgTransport.write(%s): sending disabled: discarded", cmd)
 
         else:
-            if not self._dispatcher:
-                _LOGGER.warning("MsgTransport.write(%s): no dispatcher", cmd)
+            if not self._dispatcher:  # TODO: do better?
+                _LOGGER.debug("MsgTransport.write(%s): no dispatcher", cmd)
 
             self._que.put_nowait(cmd)  # was: self._que.put_nowait(cmd)
 
