@@ -40,6 +40,7 @@ from .schema import (  # noqa: F401
     REDUCE_PROCESSING,
     SERIAL_PORT,
     SER2NET_RELAY,
+    USE_NAMES,
     USE_SCHEMA,
 )
 from .systems import SYSTEM_CLASSES, System, SystemBase
@@ -103,6 +104,8 @@ class Gateway:
         self.device_by_id: Dict = {}
 
         self._schema, self.known_devices = load_schema(self, **kwargs)
+        if not self.known_devices:
+            self.config[USE_NAMES] = False
 
         self._prev_msg = None
 
