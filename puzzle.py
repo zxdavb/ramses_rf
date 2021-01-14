@@ -307,7 +307,7 @@ async def puzzle_tune(
         await pkt_protocol._send_data(bytes(data.encode("ascii")))
         return frequency
 
-    async def check_reception(freq, count, x, y) -> float:
+    async def check_reception(freq, x, y) -> float:
 
         global pkt_seen
         global pkt_counting
@@ -320,14 +320,14 @@ async def puzzle_tune(
         await asyncio.sleep(QUIESCE_PERIOD)
 
         pkt_lock.acquire()
-        _LOGGER.info("  - listening now (having waited for freq change to quiesce)")
+        _LOGGER.info("  - listening now (after having waited for freq to quiesce)")
         pkt_counting = True
         pkt_seen = False
         result = None
         pkt_lock.release()
 
         dtm_start = dt.now()
-        dtm_end = dtm_start + td(seconds=interval * count)
+        dtm_end = dtm_start + td(seconds=interval * count + QUIESCE_PERIOD)
         while dt.now() < dtm_end:
             await asyncio.sleep(0.005)
 
@@ -350,23 +350,36 @@ async def puzzle_tune(
         print()
         return result
 
+    # heading up (-ve, +ve)
+    # up 101 (100,103=203) & +ve -> (100,101) == 101
+    # up 101 (100,102=202) & +ve -> (100,101) == 101
+    # dn 101 (103,100=203) & +ve -> (101,100) == 101
+    # dn 101 (102,100=202) & +ve -> (101,100) == 101
+
+    # heading down (+ve, -ve)
+    # up 101 (100,103=203) & -ve -> (101,103) == 100,102
+    # up 101 (100,102=202) & -ve -> (101,102) == 102
+    # dn 101 (103,100=203) & -ve -> (103,101) == 102,100
+    # dn 101 (102,100=202) & -ve -> (102,101) == 102
+
     async def binary_chop(x, y) -> Tuple[int, float]:  # 1, 2
-        """Binary chop from x (the start) to y (the target)."""
+        """Binary chop from x (the start) to y (the target).
+
+        Assumes the initial value of x, y are negative, positive.
+        """
         _LOGGER.info(f"Puzzling from 0x{x:06X} to 0x{y:06X}...")
 
-        fudge = 1 if x < y else 0 if x == y else -1
-
-        freq, result = int((x + y) / 2), None
+        freq = int((x + y) / 2)
         while freq not in (x, y):
-            result = await check_reception(freq, count, x, y)
-            x, y = (x, freq) if result is True else (freq, y)
+            result = await check_reception(freq, x, y)
+            x, y = (x, freq) if result == (x < y) else (freq, y)
             freq = int((x + y) / 2)
-
-        return freq + (0 if result else fudge)
+        return max(x, y)
 
     async def do_a_round(lower, upper):
         print("")
         _LOGGER.info(f"STEP 0: Starting a round from 0x{lower:06X} to 0x{upper:06X}")
+        print("")
 
         _LOGGER.info(f"STEP 1: Calibrate up from 0x{lower:06X} to 0x{upper:06X}")
         lower_freq = await binary_chop(lower, upper)
