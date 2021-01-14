@@ -36,8 +36,9 @@ from evohome_rf.schema import (
     USE_NAMES,
 )
 
-count_lock = Lock()
-count_rcvd = 0
+pkt_lock = Lock()
+pkt_seen = None
+pkt_counting = None
 
 DEBUG_MODE = "debug_mode"
 
@@ -45,6 +46,7 @@ CONFIG = "config"
 COMMAND = "command"
 
 DEFAULT_INTERVAL = 240  # should be 240
+QUIESCE_PERIOD = 0.5
 
 FREQ_WIDTH = 0x002000
 BASIC_FREQ = 0x21656A
@@ -102,13 +104,12 @@ class PuzzleProtocol(PacketProtocol):
             self._has_initialized = True
 
         if pkt_str.startswith("#"):
-            print(f"{Fore.CYAN}{pkt_dtm[11:23]} {pkt_str}"[:CONSOLE_COLS])
-        elif pkt.is_valid:
-            print(f"{Style.BRIGHT}{Fore.CYAN}{pkt_dtm[11:23]} {pkt_str}"[:CONSOLE_COLS])
+            print(f"{Fore.CYAN}{pkt_dtm[11:23]}{pkt_str}"[:CONSOLE_COLS])
+        elif not pkt.is_valid:
+            print(f"{Fore.CYAN}{pkt_dtm[11:23]}{pkt_str}"[:CONSOLE_COLS])
+        elif not self.pkt_callback:
+            print(f"{Fore.CYAN}{pkt_dtm[11:23]}{pkt_str}"[:CONSOLE_COLS])
         else:
-            print(f"{Fore.CYAN}{pkt_dtm[11:23]} {pkt_str}"[:CONSOLE_COLS])
-
-        if pkt.is_valid and self.pkt_callback:
             self.pkt_callback(pkt)
 
 
@@ -291,14 +292,22 @@ async def puzzle_tune(
     **kwargs,
 ):
     def process_packet(pkt) -> None:
-        global count_rcvd
+        global pkt_seen
+        global pkt_counting
 
         # _LOGGER.info("%s", pkt)
 
+        hdr = "     "
         if str(pkt)[:1] != "#":
-            count_lock.acquire()
-            count_rcvd = count_rcvd if count_rcvd is True else pkt.is_valid
-            count_lock.release()
+            pkt_lock.acquire()
+            if pkt_counting and pkt.is_valid:
+                pkt_seen = pkt_seen if pkt_seen is True else pkt.is_valid
+                hdr = " >>> "
+            else:
+                hdr = "     "
+            pkt_lock.release()
+
+        print(f"{Style.BRIGHT}{Fore.CYAN}{pkt.dtm[11:23]}{hdr}{pkt}"[:CONSOLE_COLS])
 
     async def set_freq(frequency):
         hex = f"{frequency:06X}"
@@ -307,38 +316,47 @@ async def puzzle_tune(
         return frequency
 
     async def check_reception(freq, count, x, y) -> float:
-        """Returns: 0.0 nothing, 0.5 invalid pkt, 1.0 valid packet."""
 
-        global count_rcvd
+        global pkt_seen
+        global pkt_counting
 
         _LOGGER.info(
             f"  Checking 0x{freq:06X} for max. {interval * count}s "
             f"(x=0x{x:06X}, y=0x{y:06X}, width=0x{abs(x - y):06X})"
         )
         await set_freq(freq)
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(QUIESCE_PERIOD)
 
-        count_lock.acquire()
+        pkt_lock.acquire()
         _LOGGER.info("  - listening now (having waited for freq change to quiesce)")
-        count_rcvd = None
-        count_lock.release()
+        pkt_counting = True
+        pkt_seen = False
+        result = None
+        pkt_lock.release()
 
         dtm_start = dt.now()
         dtm_end = dtm_start + td(seconds=interval * count)
         while dt.now() < dtm_end:
             await asyncio.sleep(0.005)
-            if count_rcvd is True:
+
+            pkt_lock.acquire()
+            result = bool(pkt_seen)  # take a copy
+            if result:
+                pkt_counting = False
+            pkt_lock.release()
+
+            if result is True:
                 break
 
         MSG = {
             True: "A valid packet was received",
-            False: "An invalid packet was received",
-            None: "No valid packets were received",
+            False: "No valid packets were received",
+            None: "SOMETHING WENT WRONGs",
         }
 
-        _LOGGER.info(f"  - result = {MSG[count_rcvd]}")
+        _LOGGER.info(f"  - result = {MSG[result]}")
         print()
-        return count_rcvd
+        return result
 
     async def binary_chop(x, y, threshold=0) -> Tuple[int, float]:  # 1, 2
         """Binary chop from x (the start) to y (the target)."""
