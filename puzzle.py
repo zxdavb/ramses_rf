@@ -291,15 +291,15 @@ async def puzzle_tune(
 
         pkt_lock.acquire()
         if not pkt.is_valid:
-            msg = f"{Fore.CYAN}{pkt.dtm[11:23]}     {pkt._pkt_str}"[:CONSOLE_COLS]
+            msg = f"{Fore.CYAN}{pkt.dtm[11:23]}     {pkt._pkt_str}"
         elif not pkt_counting:
-            msg = f"{Style.BRIGHT}{Fore.CYAN}{pkt.dtm[11:23]}     {pkt}"[:CONSOLE_COLS]
+            msg = f"{Style.BRIGHT}{Fore.CYAN}{pkt.dtm[11:23]}     {pkt}"
         else:
-            msg = f"{Style.BRIGHT}{Fore.CYAN}{pkt.dtm[11:23]} >>> {pkt}"[:CONSOLE_COLS]
+            msg = f"{Style.BRIGHT}{Fore.CYAN}{pkt.dtm[11:23]} >>> {pkt}"
             pkt_seen = True
         pkt_lock.release()
 
-        print(msg)
+        print(msg[:CONSOLE_COLS])
 
     async def set_freq(frequency):
         hex = f"{frequency:06X}"
@@ -313,8 +313,8 @@ async def puzzle_tune(
         global pkt_counting
 
         _LOGGER.info(
-            f"  Checking 0x{freq:06X} for max. {interval * count}s "
-            f"(x=0x{x:06X}, y=0x{y:06X}, width=0x{abs(x - y):06X})"
+            f"  Checking {Style.BRIGHT}0x{freq:06X}{Style.NORMAL} for max. "
+            f"{interval * count}s (x=0x{x:06X}, y=0x{y:06X}, width=0x{abs(x - y):06X})"
         )
         await set_freq(freq)
         await asyncio.sleep(QUIESCE_PERIOD)
@@ -343,7 +343,7 @@ async def puzzle_tune(
         MSG = {
             True: "A valid packet was received",
             False: "No valid packets were received",
-            None: "SOMETHING WENT WRONGs",
+            None: "SOMETHING WENT WRONG",
         }
 
         _LOGGER.info(f"  - result = {MSG[result]}")
