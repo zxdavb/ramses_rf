@@ -453,8 +453,8 @@ async def puzzle_tune(
     print("")
     _LOGGER.info(
         f"{Style.BRIGHT}"
-        f"OVERALL Result = 0x{result:06X} (+0x{upper - result}/-0x{result - lower}), "
-        f"center was 0x{frequency} (+/-0x{width})"
+        f"OVERALL Result is: 0x{result:06X} (+/-0x{result - lower:06X}), "
+        f"scan center was: 0x{frequency:06X} (+/-0x{width:06x})"
     )
 
     # frequency = int((lower + upper) / 2)
