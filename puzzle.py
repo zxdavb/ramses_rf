@@ -309,17 +309,17 @@ async def puzzle_tune(
 
         pkt_lock.acquire()
         if not pkt.is_valid:
-            msg = f"{Fore.CYAN}{pkt.dtm[11:23]}     {pkt._pkt_str}"
+            msg, hdr = f"{pkt.dtm[11:23]}     {pkt._pkt_str}", f"{Fore.CYAN}"
         elif not pkt_counting:
-            msg = f"{Style.BRIGHT}{Fore.CYAN}{pkt.dtm[11:23]}     {pkt}"
+            msg, hdr = f"{pkt.dtm[11:23]}     {pkt}", f"{Style.BRIGHT}{Fore.CYAN}"
         elif device_id and pkt.src_addr.id != device_id:
-            msg = f"{Style.BRIGHT}{Fore.CYAN}{pkt.dtm[11:23]}     {pkt}"
+            msg, hdr = f"{pkt.dtm[11:23]}     {pkt}", f"{Style.BRIGHT}{Fore.CYAN}"
         else:
-            msg = f"{Style.BRIGHT}{Fore.CYAN}{pkt.dtm[11:23]} >>> {pkt}"
+            msg, hdr = f"{pkt.dtm[11:23]} >>> {pkt}", f"{Style.BRIGHT}{Fore.CYAN}"
             pkt_seen = True
         pkt_lock.release()
 
-        print(msg[:CONSOLE_COLS])
+        print(f"{hdr}{msg[:CONSOLE_COLS]}")
 
     async def set_freq(frequency):
         hex = f"{frequency:06X}"
