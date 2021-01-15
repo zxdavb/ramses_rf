@@ -351,16 +351,16 @@ async def puzzle_tune(
         return result
 
     # heading up (-ve, +ve)
-    # up 101 (100,103=203) & +ve -> (100,101) == 101
-    # up 101 (100,102=202) & +ve -> (100,101) == 101
-    # dn 101 (103,100=203) & +ve -> (101,100) == 101
-    # dn 101 (102,100=202) & +ve -> (101,100) == 101
+    # up 101 (100+103=203) & +ve -> (100,101) == 101      (x, freq)
+    # up 101 (100+102=202) & +ve -> (100,101) == 101      (x, freq)
+    # up 101 (100+103=203) & -ve -> (101,103) ~= 100,102
+    # up 101 (100+102=202) & -ve -> (101,102) == 102      (freq, y)
 
-    # heading down (+ve, -ve)
-    # up 101 (100,103=203) & -ve -> (101,103) == 100,102
-    # up 101 (100,102=202) & -ve -> (101,102) == 102
-    # dn 101 (103,100=203) & -ve -> (103,101) == 102,100
-    # dn 101 (102,100=202) & -ve -> (102,101) == 102
+    # heading down (-ve, +ve)
+    # dn 101 (103+100=203) & +ve -> (103,101) ~= 102,100
+    # dn 101 (102+100=202) & +ve -> (102,101) == 101      (x, freq)
+    # dn 101 (103+100=203) & -ve -> (101,100) == 100      (freq, y)
+    # dn 101 (102+100=202) & -ve -> (101,100) == 100      (freq, y)
 
     async def binary_chop(x, y) -> int:  # 1, 2
         """Binary chop from x (the start) to y (the target).
@@ -371,10 +371,11 @@ async def puzzle_tune(
 
         freq = int((x + y) / 2)
         while freq not in (x, y):
-            result = await check_reception(freq, x, y)
-            x, y = (x, freq) if result == (x < y) else (freq, y)
+            pkt_found = await check_reception(freq, x, y)  # x, y used only for logging
+            x, y = (x, freq) if pkt_found else (freq, y)
             freq = int((x + y) / 2)
-        return max(x, y)
+
+        return y
 
     async def do_a_round(lower, upper):
         print("")
