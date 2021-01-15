@@ -396,6 +396,7 @@ d = r"[0-9A-F]{4}"
 e = r"\d{3}"
 f = r"([0-9A-F]{2})+"
 
+DEVICE_ID_REGEX = re.compile(f"^{c}$")
 COMMAND_REGEX = re.compile(f"^{b} {a} {c} {c} {c} {d} {e} {f}$")
 MESSAGE_REGEX = re.compile(f"^{a} {b} {a} {c} {c} {c} {d} {e} {f}$")
 

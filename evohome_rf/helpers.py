@@ -11,6 +11,7 @@ import time
 from typing import List, Optional, Tuple, Union
 
 from .const import (
+    DEVICE_ID_REGEX,
     DEVICE_TYPES,
     DEVICE_LOOKUP,
     HGI_DEVICE,
@@ -131,6 +132,17 @@ def dtm_from_hex(value: str) -> str:  # from parsers
         minute=int(value[2:4], 16),
         second=int(value[:2], 16) & 0b1111111,  # 1st bit: used for DST
     ).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def is_valid_dev_id(value) -> bool:
+    if not isinstance(value, str):
+        return False
+    elif not DEVICE_ID_REGEX.match(value):
+        return False
+    elif value[:2] not in DEVICE_TYPES:
+        return False
+    return True
+
 
 
 def dev_hex_to_id(device_hex: str, friendly_id=False) -> str:
