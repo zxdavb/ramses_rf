@@ -26,6 +26,7 @@ from evohome_rf.discovery import (
     spawn_execute_scripts,
     spawn_monitor_scripts,
 )
+from evohome_rf.helpers import is_valid_dev_id
 from evohome_rf.packet import CONSOLE_COLS
 from evohome_rf.schema import (
     ALLOW_LIST,
@@ -77,6 +78,27 @@ def _convert_to_list(d: str) -> list:
     if not d or not str(d):
         return []
     return [c.strip() for c in d.split(",") if c.strip()]
+
+
+def _arg_split(ctx, param, value):  # callback=_arg_split
+    # split columns by ',' and remove whitespace
+    _items = [x.strip() for x in value.split(',')]
+
+    # validate each item
+    # for x in _items:
+    #     if not_valid(x):
+    #         raise click.BadOptionUsage(f"{x} is not valid.")
+
+    return _items
+
+
+class DeviceIdParamType(click.ParamType):
+    name = "device_id"
+
+    def convert(self, value: str, param, ctx):
+        if is_valid_dev_id(value):
+            return value.upper()
+        self.fail(f"{value!r} is not a valid device_id", param, ctx)
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
@@ -182,17 +204,17 @@ def monitor(obj, **kwargs):
 @click.option("-s1", "-sf", "--scan-full", help="e.g. 'device_id, device_id, ...'")
 @click.option("-s2", "-sh", "--scan-hard", help="e.g. 'device_id, device_id, ...'")
 @click.option("-s9", "-sx", "--scan-xxxx", help="e.g. 'device_id, device_id, ...'")
-@click.option("--get-faults", type=click.STRING, help="controller_id")
+@click.option("--get-faults", type=DeviceIdParamType(), help="controller_id")
 @click.option(  # "--get-schedule"
     "--get-schedule",
     default=[None, None],
-    type=(str, str),
+    type=(DeviceIdParamType(), str),
     help="controller_id, zone_idx (e.g. '0A')",
 )
 @click.option(  # "--set-schedule"
     "--set-schedule",
     default=[None, None],
-    type=(str, click.File("r")),
+    type=(DeviceIdParamType(), click.File("r")),
     help="controller_id, filename.json",
 )
 @click.pass_obj
