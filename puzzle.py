@@ -18,7 +18,7 @@ from colorama import init as colorama_init, Fore, Style
 
 from evohome_rf import Gateway, GracefulExit
 from evohome_rf.command import Command, Priority
-from evohome_rf.helpers import dts_to_hex
+from evohome_rf.helpers import dts_to_hex, is_valid_dev_id
 from evohome_rf.packet import CONSOLE_COLS, _PKT_LOGGER, Packet
 from evohome_rf.protocol import create_protocol_factory
 from evohome_rf.transport import PacketProtocol, create_pkt_stack
@@ -93,21 +93,10 @@ class BasedIntParamType(click.ParamType):
 class DeviceIdParamType(click.ParamType):
     name = "device_id"
 
-    def convert(self, value, param, ctx):
-        try:
-            if not isinstance(value, str):
-                raise TypeError("not a string")
-            elif value[2:3] != ":" or len(value) != 9:
-                raise ValueError("not a valid string")
-            int(value[:2], 10)
-            int(value[3:], 10)
+    def convert(self, value: str, param, ctx):
+        if is_valid_dev_id(value):
             return value.upper()
-        except TypeError:
-            msg = (f"expected a string, got {value!r} of type {type(value).__name__}",)
-            self.fail(msg, param, ctx)
-        except ValueError:
-            msg = f"{value!r} is not a valid device_id"
-            self.fail(msg, param, ctx)
+        self.fail(f"{value!r} is not a valid device_id", param, ctx)
 
 
 class PuzzleProtocol(PacketProtocol):
@@ -186,31 +175,31 @@ class PortCommand(click.Command):
 
 
 @click.command(cls=PortCommand)
-@click.option(
+@click.option(  # --frequency
     "-f",
     "--frequency",
     type=BasedIntParamType(),
     default=BASIC_FREQ,
     help="centre frequency (e.g. {BASIC_FREQ}",
 )
-@click.option(
+@click.option(  # --width
     "-w",
     "--width",
     type=BasedIntParamType(),
     default=FREQ_WIDTH,
     help=f"width for lower, upper frequencies (e.g. {FREQ_WIDTH}",
 )
-@click.option(
+@click.option(  # --device-id
     "-d",
     "--device-id",
     type=DeviceIdParamType(),
     default=None,
     help="device_id to filter for (e.g. 01:123456)",
 )
-@click.option(
+@click.option(  # --count
     "-c", "--count", type=int, default=1, help="number of packets to listen for"
 )
-@click.option(
+@click.option(  # --interval
     "-i",
     "--interval",
     type=float,
@@ -380,18 +369,6 @@ async def puzzle_tune(
         _LOGGER.info(f"  - result = {MSG[result]}")
         print()
         return result
-
-    # heading up (-ve, +ve)
-    # up 101 (100+103=203) & +ve -> (100,101) == 101      (x, freq)
-    # up 101 (100+102=202) & +ve -> (100,101) == 101      (x, freq)
-    # up 101 (100+103=203) & -ve -> (101,103) ~= 100,102
-    # up 101 (100+102=202) & -ve -> (101,102) == 102      (freq, y)
-
-    # heading down (-ve, +ve)
-    # dn 101 (103+100=203) & +ve -> (103,101) ~= 102,100
-    # dn 101 (102+100=202) & +ve -> (102,101) == 101      (x, freq)
-    # dn 101 (103+100=203) & -ve -> (101,100) == 100      (freq, y)
-    # dn 101 (102+100=202) & -ve -> (101,100) == 100      (freq, y)
 
     async def binary_chop(x, y) -> int:  # 1, 2
         """Binary chop from x (the start) to y (the target).
