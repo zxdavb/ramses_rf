@@ -454,7 +454,7 @@ async def puzzle_tune(
     _LOGGER.info(
         f"{Style.BRIGHT}"
         f"OVERALL Result is: 0x{result:06X} (+/-0x{result - lower:04X}), "
-        f"scan center was: {frequency:06X} ({'-' if result > frequency else '+'}"
+        f"scan center was: 0x{frequency:06X} ({'-' if result > frequency else '+'}"
         f"0x{abs(result - frequency):04X}, +/-0x{width:04x})"
     )
 
