@@ -36,9 +36,10 @@ from evohome_rf.schema import (
     USE_NAMES,
 )
 
+device_id = None
+pkt_counting = None
 pkt_lock = Lock()
 pkt_seen = None
-pkt_counting = None
 
 DEBUG_MODE = "debug_mode"
 
@@ -87,6 +88,26 @@ class BasedIntParamType(click.ParamType):
             )
         except ValueError:
             self.fail(f"{value!r} is not a valid integer", param, ctx)
+
+
+class DeviceIdParamType(click.ParamType):
+    name = "device_id"
+
+    def convert(self, value, param, ctx):
+        try:
+            if not isinstance(value, str):
+                raise TypeError("not a string")
+            elif value[2:3] != ":" or len(value) != 9:
+                raise ValueError("not a valid string")
+            int(value[:2], 10)
+            int(value[3:], 10)
+            return value.upper()
+        except TypeError:
+            msg = (f"expected a string, got {value!r} of type {type(value).__name__}",)
+            self.fail(msg, param, ctx)
+        except ValueError:
+            msg = f"{value!r} is not a valid device_id"
+            self.fail(msg, param, ctx)
 
 
 class PuzzleProtocol(PacketProtocol):
@@ -177,7 +198,14 @@ class PortCommand(click.Command):
     "--width",
     type=BasedIntParamType(),
     default=FREQ_WIDTH,
-    help=f"width fro lower, upper frequencies (e.g. {FREQ_WIDTH}",
+    help=f"width for lower, upper frequencies (e.g. {FREQ_WIDTH}",
+)
+@click.option(
+    "-d",
+    "--device-id",
+    type=DeviceIdParamType(),
+    default=None,
+    help="device_id to filter for (e.g. 01:123456)",
 )
 @click.option(
     "-c", "--count", type=int, default=1, help="number of packets to listen for"
@@ -286,13 +314,16 @@ async def puzzle_tune(
     **kwargs,
 ):
     def process_packet(pkt) -> None:
-        global pkt_seen
+        global device_id
         global pkt_counting
+        global pkt_seen
 
         pkt_lock.acquire()
         if not pkt.is_valid:
             msg = f"{Fore.CYAN}{pkt.dtm[11:23]}     {pkt._pkt_str}"
         elif not pkt_counting:
+            msg = f"{Style.BRIGHT}{Fore.CYAN}{pkt.dtm[11:23]}     {pkt}"
+        elif device_id and pkt.src_addr.id != device_id:
             msg = f"{Style.BRIGHT}{Fore.CYAN}{pkt.dtm[11:23]}     {pkt}"
         else:
             msg = f"{Style.BRIGHT}{Fore.CYAN}{pkt.dtm[11:23]} >>> {pkt}"
@@ -399,6 +430,8 @@ async def puzzle_tune(
 
         return lower_freq, upper_freq
 
+    global device_id
+
     _PKT_LOGGER.setLevel(logging.ERROR)
 
     # gwy.create_client(print_message)
@@ -413,6 +446,7 @@ async def puzzle_tune(
     # else:
     #     raise RuntimeError("Can't find serial interface")
 
+    device_id = kwargs.get("device_id")
     lower, upper = await do_a_round(frequency - width, frequency + width)
 
     print("")

@@ -40,6 +40,7 @@ from evohome_rf.schema import (
     REDUCE_PROCESSING,
     SERIAL_PORT,
 )
+
 DEBUG_MODE = "debug_mode"
 
 COMMAND = "command"
