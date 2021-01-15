@@ -49,7 +49,7 @@ COMMAND = "command"
 DEFAULT_INTERVAL = 240  # should be 240
 QUIESCE_PERIOD = 0.5
 
-FREQ_WIDTH = 0x002000
+FREQ_WIDTH = 0x000800
 BASIC_FREQ = 0x21656A
 
 DEBUG_ADDR = "0.0.0.0"
@@ -215,7 +215,7 @@ class PortCommand(click.Command):
     "--interval",
     type=float,
     default=DEFAULT_INTERVAL,
-    help="expected interval (secs) between packets",
+    help="minimum interval (secs) between packets",
 )
 @click.pass_obj
 def tune(obj, **kwargs):
@@ -244,14 +244,14 @@ def tune(obj, **kwargs):
     "--interval",
     type=float,
     default=DEFAULT_INTERVAL,
-    help="minimum interval (secs) between packets",
+    help="interval (secs) between sending packets",
 )
-# @click.option(  --packet_length
-# "-l",
-# "--packet_length",
-# type=int,
-# default=48,
-# help="length of puzzle packet",
+# @click.option(  # --packet_length
+#     "-l",
+#     "--packet_length",
+#     type=int,
+#     default=48,
+#     help="length of puzzle packet",
 # )
 @click.pass_obj
 def cast(obj, **kwargs):  # HACK: remove?
@@ -449,8 +449,13 @@ async def puzzle_tune(
     device_id = kwargs.get("device_id")
     lower, upper = await do_a_round(frequency - width, frequency + width)
 
+    result = int((lower + upper) / 2)
     print("")
-    _LOGGER.info(f"OVERALL Result = 0x{int((lower + upper) / 2):06X}")
+    _LOGGER.info(
+        f"{Style.BRIGHT}"
+        f"OVERALL Result = 0x{result:06X} (+0x{upper - result}/-0x{result - lower}), "
+        f"center was 0x{frequency} (+/-0x{width})"
+    )
 
     # frequency = int((lower + upper) / 2)
     # width = int((frequency - lower) * 1.25)
