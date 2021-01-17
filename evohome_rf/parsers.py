@@ -994,6 +994,14 @@ def parser_1f41(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # rf_bind
 def parser_1fc9(payload, msg) -> Optional[dict]:
+    # 17:02:31.964172 064  I --- 07:045960 --:------ 07:045960 1FC9 012 0012601CB388001FC91CB388    # noqa: E501
+    # 17:02:31.980015 065  W --- 01:145038 07:045960 --:------ 1FC9 006 0010A006368E                # noqa: E501
+    # 17:02:32.004055 064  I --- 07:045960 01:145038 --:------ 1FC9 006 0012601CB388                # noqa: E501
+
+    # 17:03:35.012706 053  I --- 01:145038 --:------ 01:145038 1FC9 018 FA000806368EFC3B0006368EFA1FC906368E  # noqa: E501
+    # 17:03:35.658983 045  W --- 13:081807 01:145038 --:------ 1FC9 006 003EF0353F8F                # noqa: E501
+    # 17:03:35.675856 053  I --- 01:145038 13:081807 --:------ 1FC9 006 00FFFF06368E                # noqa: E501
+
     # this is an array of codes
     # 049  I --- 01:145038 --:------ 01:145038 1FC9 018 07-0008-06368E FC-3B00-06368E                07-1FC9-06368E  # noqa: E501
     # 047  I --- 01:145038 --:------ 01:145038 1FC9 018 FA-0008-06368E FC-3B00-06368E                FA-1FC9-06368E  # noqa: E501
@@ -1018,7 +1026,7 @@ def parser_1fc9(payload, msg) -> Optional[dict]:
         assert seqx[6:] == payload[6:12]  # all with same controller
         if seqx[:2] not in ("F9", "FA", "FB", "FC"):  # or: not in DOMAIN_TYPE_MAP: ??
             assert int(seqx[:2], 16) < msg._gwy.config[MAX_ZONES]
-        return {seqx[:2]: seqx[2:6]}  # NOTE: codes is many:many (domain:code)
+        return [seqx[:2], seqx[2:6], dev_hex_to_id(seqx[6:])]  # NOTE: codes is many:many (domain:code)
 
     assert msg.len >= 6 and msg.len % 6 == 0  # assuming not RQ
     assert msg.verb in (" I", " W", "RP")  # devices will respond to a RQ!
@@ -1026,7 +1034,7 @@ def parser_1fc9(payload, msg) -> Optional[dict]:
     return [
         _parser(payload[i : i + 12])
         for i in range(0, len(payload), 12)
-        if payload[i : i + 2] != "90"  # WIP
+        if payload[i : i + 2] != "90"  # TODO: WIP
     ]
 
 
