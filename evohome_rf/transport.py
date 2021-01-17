@@ -18,7 +18,7 @@ from types import SimpleNamespace
 from typing import ByteString, Callable, Optional, Tuple
 
 from serial import serial_for_url  # Serial, SerialException, serial_for_url
-from serial_asyncio import SerialTransport
+from serial_asyncio import SerialTransport as SerialTransportAsync
 
 from .command import Command, Priority
 from .const import DTM_LONG_REGEX, HGI_DEVICE, NUL_DEVICE, _dev_mode_
@@ -27,6 +27,8 @@ from .packet import Packet
 from .protocol import create_protocol_factory
 from .schema import DISABLE_SENDING, ENFORCE_ALLOWLIST, ENFORCE_BLOCKLIST, EVOFW_FLAG
 from .version import __version__
+
+DEV_MODE = _dev_mode_ or True
 
 POLLER_TASK = "poller_task"
 
@@ -57,36 +59,11 @@ QOS_TX_RETRIES = 2
 QOS_RX_TIMEOUT = td(seconds=0.20)  # 0.10 too low sometimes
 QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many?
 
-DEV_MODE = _dev_mode_ or True
-
 _PKT_LOGGER = logging.getLogger(f"{__name__}-log")  # don't setLevel here
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.INFO)  # DEBUG may have too much detail
-
-
-def extra(dtm, pkt=None):
-    _date, _time = dtm[:26].split("T")
-    return {
-        "date": _date,
-        "time": _time,
-        "_packet": str(pkt) + " " if pkt else "",
-        "error_text": "",
-        "comment": "",
-    }
-
-
-def split_pkt_line(packet_line: str) -> Tuple[str, str, str]:
-    # line format: 'datetime packet < parser-message: * evofw3-errmsg # evofw3-comment'
-    def _split(text: str, char: str) -> Tuple[str, str]:
-        _list = text.split(char, maxsplit=1)
-        return _list[0].strip(), _list[1].strip() if len(_list) == 2 else ""
-
-    packet_tmp, comment = _split(packet_line, "#")
-    packet_tmp, error = _split(packet_tmp, "*")
-    packet, _ = _split(packet_tmp, "<")
-    return packet, f"* {error} " if error else "", f"# {comment} " if comment else ""
 
 
 class SerTransportFile(asyncio.Transport):
@@ -260,9 +237,9 @@ class SerTransportProcess(Process):  # TODO: WIP
 class PacketProtocol(asyncio.Protocol):
     """Interface for a packet protocol (no Qos).
 
-    ex transport: self.data_received(bytes) -> self._callback(pkt)
-    to transport: self.send_data(cmd)       -> self._transport.write(bytes)
-    """
+        ex transport: self.data_received(bytes) -> self._callback(pkt)
+        to transport: self.send_data(cmd)       -> self._transport.write(bytes)
+        """
 
     def __init__(self, gwy, pkt_receiver: Callable) -> None:
         _LOGGER.debug("PktProtocol.__init__(%s, %s)", gwy, pkt_receiver)
@@ -282,7 +259,7 @@ class PacketProtocol(asyncio.Protocol):
         if not self._gwy.config[DISABLE_SENDING]:
             asyncio.create_task(self.send_data(INIT_CMD))  # HACK: port wakeup
 
-    def connection_made(self, transport: SerialTransport) -> None:
+    def connection_made(self, transport: asyncio.Transport) -> None:
         """Called when a connection is made."""
         _LOGGER.debug("PktProtocol.connection_made(%s)", transport)
 
@@ -297,10 +274,13 @@ class PacketProtocol(asyncio.Protocol):
         # for attr in dir(transport.serial):
         #     print("obj.%s = %r" % (attr, getattr(transport, attr)))
 
-        _PKT_LOGGER.warning("# evohome_rf %s", __version__, extra=extra(dt_str(), ""))
+        _PKT_LOGGER.warning(
+            "# evohome_rf %s", __version__, extra=self._extra(dt_str(), "")
+        )
 
         self._transport = transport
         # self._transport.serial.rts = False
+        
         self._pause_writing = False  # TODO: needs work
 
     @staticmethod
@@ -347,7 +327,7 @@ class PacketProtocol(asyncio.Protocol):
     ) -> None:
         """Called when some normalised data is received (no QoS)."""
 
-        pkt = Packet(pkt_dtm, pkt_str, raw_pkt=pkt_raw)
+        pkt = Packet(pkt_dtm, pkt_str, raw_pkt_line=pkt_raw)
         if not pkt.is_valid:
             return
         elif self._has_initialized is None:
@@ -371,7 +351,7 @@ class PacketProtocol(asyncio.Protocol):
                 )
             except UnicodeDecodeError:
                 _PKT_LOGGER.warning(
-                    "%s < Bad pkt", pkt_raw, extra=extra(dtm_str, pkt_raw)
+                    "%s < Bad pkt", pkt_raw, extra=self._extra(dtm_str, pkt_raw)
                 )
                 return dtm_str, None, pkt_raw
 
@@ -384,7 +364,7 @@ class PacketProtocol(asyncio.Protocol):
                 data = bytes(f"{flag}\r\n".encode("ascii"))
                 asyncio.create_task(self._send_data(data, ignore_pause=True))
 
-            _PKT_LOGGER.debug("Rx: %s", pkt_raw, extra=extra(dtm_str, pkt_raw))
+            _PKT_LOGGER.debug("Rx: %s", pkt_raw, extra=self._extra(dtm_str, pkt_raw))
 
             return dtm_str, self._normalise(pkt_str), pkt_raw
 
@@ -406,7 +386,7 @@ class PacketProtocol(asyncio.Protocol):
                 await asyncio.sleep(0.005)
         while self._transport is None or self._transport.serial.out_waiting:
             await asyncio.sleep(0.005)
-        _PKT_LOGGER.debug("Tx:  %s", data, extra=extra(dt_str(), data))
+        _PKT_LOGGER.debug("Tx:  %s", data, extra=self._extra(dt_str(), data))
         self._transport.write(data)
         # await asyncio.sleep(0.05)
 
@@ -446,6 +426,18 @@ class PacketProtocol(asyncio.Protocol):
 
         self._pause_writing = False
 
+    @staticmethod
+    def _extra(dtm, pkt=None) -> dict:  # HACK: untidy: needs sorting, eventually
+        """Create the dict required for logging"""
+        _date, _time = dtm[:26].split("T")
+        return {
+            "date": _date,
+            "time": _time,
+            "_packet": str(pkt) + " " if pkt else "",
+            "error_text": "",
+            "comment": "",
+        }
+
 
 class PacketProtocolFile(PacketProtocol):
     """Interface for a packet protocol (for packet log)."""
@@ -465,7 +457,7 @@ class PacketProtocolFile(PacketProtocol):
                 _PKT_LOGGER.debug(
                     "%s < Packet line has an invalid timestamp (ignoring)",
                     data,  # TODO: None?
-                    extra=extra(dt_str(), data),
+                    extra=self._extra(dt_str(), data),
                 )
 
         else:
@@ -527,7 +519,7 @@ class PacketProtocolQos(PacketProtocol):
                 msg,
             )
 
-        pkt = Packet(pkt_dtm, pkt_str, raw_pkt=pkt_raw)
+        pkt = Packet(pkt_dtm, pkt_str, raw_pkt_line=pkt_raw)
         if not pkt.is_valid:
             return
         elif self._has_initialized is None:
@@ -681,6 +673,6 @@ def create_pkt_stack(
     if os.name == "nt":
         pkt_transport = SerTransportPoller(gwy._loop, pkt_protocol, ser_instance)
     else:
-        pkt_transport = SerialTransport(gwy._loop, pkt_protocol, ser_instance)
+        pkt_transport = SerialTransportAsync(gwy._loop, pkt_protocol, ser_instance)
 
     return (pkt_protocol, pkt_transport)

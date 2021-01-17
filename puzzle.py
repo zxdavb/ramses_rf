@@ -109,7 +109,7 @@ class PuzzleProtocol(PacketProtocol):
     ) -> None:
         """Called when some normalised data is received (no QoS)."""
 
-        pkt = Packet(pkt_dtm, pkt_str, raw_pkt=pkt_raw)
+        pkt = Packet(pkt_dtm, pkt_str, raw_pkt_line=pkt_raw)
         if self._has_initialized is None:
             self._has_initialized = True
 

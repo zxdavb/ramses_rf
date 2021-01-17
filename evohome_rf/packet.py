@@ -6,11 +6,10 @@
 Decode/process a packet (packet that was received).
 """
 
-from datetime import datetime as dt, timedelta as td
+from datetime import datetime as dt
 import logging
 import shutil
 import sys
-from types import SimpleNamespace
 from typing import Optional, Tuple
 
 try:
@@ -20,10 +19,9 @@ try:
 except ModuleNotFoundError:
     _use_color_ = False
 
-from .command import Command, Priority, _pkt_header
-from .const import MESSAGE_REGEX, NUL_DEVICE, _dev_mode_
+from .command import _pkt_header
+from .const import MESSAGE_REGEX, _dev_mode_
 from .helpers import extract_addrs
-
 
 DEV_MODE = _dev_mode_
 
@@ -58,50 +56,18 @@ LOG_COLOURS = {
     "CRITICAL": "bold_red",
 }  # default_log_colors
 
+_PKT_LOGGER = logging.getLogger(f"{__name__}-log")  # don't setLevel here
+
+_LOGGER = logging.getLogger(__name__)
+if DEV_MODE:
+    _LOGGER.setLevel(logging.INFO)  # DEBUG may have too much detail
+
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 if not _use_color_:
     _LOGGER.warning("Consider installing the colorlog library for colored output")
-
-
-POLLER_TASK = "poller_task"
-
-SERIAL_CONFIG = {
-    "baudrate": 115200,
-    "timeout": 0,  # None
-    "dsrdtr": False,
-    "rtscts": False,
-    "xonxoff": True,  # set True to remove \x11
-}
-
-Pause = SimpleNamespace(
-    NONE=td(seconds=0),
-    MINIMUM=td(seconds=0.01),
-    SHORT=td(seconds=0.05),
-    DEFAULT=td(seconds=0.15),
-    LONG=td(seconds=0.5),
-)
-
-INIT_QOS = {"priority": Priority.ASAP, "retries": 24, "disable_backoff": True}
-INIT_CMD = Command(" I", NUL_DEVICE.id, "0001", "00FFFF0200", qos=INIT_QOS)
-# INIT_CMD = Command(" I", HGI_DEVICE.id, "0001", "00FFFF0200", qos=INIT_QOS)
-
-# tx (from sent to gwy, to get back from gwy) seems to takes approx. 0.025s
-QOS_TX_TIMEOUT = td(seconds=0.05)  # 0.20 OK, but too high?
-QOS_TX_RETRIES = 2
-
-QOS_RX_TIMEOUT = td(seconds=0.20)  # 0.10 too low sometimes
-QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many?
-
-DEV_MODE = _dev_mode_ or True
-
-_PKT_LOGGER = logging.getLogger(f"{__name__}-log")  # don't setLevel here
-
-_LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.INFO)  # DEBUG may have too much detail
 
 
 class StdErrFilter(logging.Filter):
@@ -167,41 +133,18 @@ def set_pkt_logging(logger, file_name=None, cc_stdout=False, rotate_days=None) -
         logger.addHandler(handler)
 
 
-def extra(dtm, pkt=None):
-    _date, _time = dtm[:26].split("T")
-    return {
-        "date": _date,
-        "time": _time,
-        "_packet": str(pkt) + " " if pkt else "",
-        "error_text": "",
-        "comment": "",
-    }
-
-
-def split_pkt_line(packet_line: str) -> Tuple[str, str, str]:
-    # line format: 'datetime packet < parser-message: * evofw3-errmsg # evofw3-comment'
-    def _split(text: str, char: str) -> Tuple[str, str]:
-        _list = text.split(char, maxsplit=1)
-        return _list[0].strip(), _list[1].strip() if len(_list) == 2 else ""
-
-    packet_tmp, comment = _split(packet_line, "#")
-    packet_tmp, error = _split(packet_tmp, "*")
-    packet, _ = _split(packet_tmp, "<")
-    return packet, f"* {error} " if error else "", f"# {comment} " if comment else ""
-
-
 class Packet:
     """The packet class."""
 
-    def __init__(self, dtm, pkt, raw_pkt) -> None:
+    def __init__(self, dtm_str: str, pkt_line: str, raw_pkt_line: str) -> None:
         """Create a packet."""
-        self.dtm = dtm
-        self.date, self.time = dtm.split("T")  # dtm assumed to be valid
+        self._dtm = dt.fromisoformat(dtm_str)
+        self.dtm = dtm_str
+        self.date, self.time = dtm_str.split("T")  # dtm assumed to be valid
 
-        self._dtm = dt.fromisoformat(self.dtm)
-        self._pkt_str = pkt
-        self._raw_pkt_str = raw_pkt
-        self.packet, self.error_text, self.comment = split_pkt_line(pkt)
+        self._pkt_str = pkt_line
+        self._raw_pkt_str = raw_pkt_line
+        self.packet, self.error_text, self.comment = self._split_pkt_line(pkt_line)
         self._packet = self.packet + " " if self.packet else ""  # NOTE: hack 4 logging
 
         self.addrs = [None] * 3
@@ -222,6 +165,22 @@ class Packet:
         if not hasattr(other, "packet"):
             return NotImplemented
         return self.packet == other.packet
+
+    @staticmethod
+    def _split_pkt_line(pkt_line: str) -> Tuple[str, str, str]:
+        # format: 'datetime packet < parser-message: * evofw3-errmsg # evofw3-comment'
+        def _split(text: str, char: str) -> Tuple[str, str]:
+            _list = text.split(char, maxsplit=1)
+            return _list[0].strip(), _list[1].strip() if len(_list) == 2 else ""
+
+        packet_tmp, comment = _split(pkt_line, "#")
+        packet_tmp, error = _split(packet_tmp, "*")
+        packet, _ = _split(packet_tmp, "<")
+        return (
+            packet,
+            f"* {error} " if error else "",
+            f"# {comment} " if comment else "",
+        )
 
     @property
     def is_valid(self) -> Optional[bool]:

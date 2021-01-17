@@ -22,9 +22,9 @@ from typing import Callable, Dict, List, Tuple  # Any, Tuple
 from .const import _dev_mode_, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
 from .message import process_msg
-from .packet import POLLER_TASK, _PKT_LOGGER as pkt_logger, set_pkt_logging
+from .packet import _PKT_LOGGER as pkt_logger, set_pkt_logging
 from .protocol import create_msg_stack
-from .transport import create_pkt_stack
+from .transport import POLLER_TASK, create_pkt_stack
 from .schema import (
     load_config,
     load_schema,
