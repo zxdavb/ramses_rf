@@ -82,7 +82,7 @@ def _convert_to_list(d: str) -> list:
 
 def _arg_split(ctx, param, value):  # callback=_arg_split
     # split columns by ',' and remove whitespace
-    _items = [x.strip() for x in value.split(',')]
+    _items = [x.strip() for x in value.split(",")]
 
     # validate each item
     # for x in _items:
