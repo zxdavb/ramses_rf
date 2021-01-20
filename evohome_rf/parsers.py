@@ -776,11 +776,11 @@ def parser_1030(payload, msg) -> Optional[dict]:
         assert seqx[2:4] == "01"
 
         param_name = {
-            "C8": "max_flow_temp",
-            "C9": "pump_rum_time",
-            "CA": "actuator_run_time",
-            "CB": "min_flow_temp",
-            "CC": "unknown_0",  # ?boolean?
+            "C8": "max_flow_setpoint",  # 55 (0-99) C
+            "C9": "min_flow_setpoint",  # 13 (0-50) C
+            "CA": "valve_run_time",  # 150 (0-240) sec, aka actuator_run_time
+            "CB": "pump_run_time",  # 15 (0-99) sec
+            "CC": "_unknown_0",  # ?boolean?
         }[seqx[:2]]
 
         return {param_name: int(seqx[4:], 16)}
@@ -867,7 +867,7 @@ def parser_10e0(payload, msg) -> Optional[dict]:
         "description": _str(payload[36:]),
         "firmware": _date(payload[20:28]),  # could be 'FFFFFFFF'
         "manufactured": _date(payload[28:36]),
-        "unknown": payload[:20],
+        "_unknown": payload[:20],
     }
 
 
@@ -887,9 +887,9 @@ def parser_1100(payload, msg) -> Optional[dict]:
     assert payload[8:10] in ("00", "FF")
 
     # for TPI
-    #  - cycle_rate: 3, 6, 9, 12??
-    #  - min_on_time: 1-5??
-    #  - min_off_time: ??
+    #  - cycle_rate: 6, (3, 6, 9, 12)
+    #  - min_on_time: 1 (1-5)
+    #  - min_off_time: 1 (1-?)
     # for heatpump
     #  - cycle_rate: 1-9
     #  - min_on_time: 1, 5, 10,...30
@@ -898,10 +898,10 @@ def parser_1100(payload, msg) -> Optional[dict]:
     def _parser(seqx) -> dict:
         return {
             **_idx(seqx[:2], msg),
-            "cycle_rate": int(payload[2:4], 16) / 4,  # in cycles/hour
-            "minimum_on_time": int(payload[4:6], 16) / 4,  # in minutes
-            "minimum_off_time": int(payload[6:8], 16) / 4,  # in minutes
-            # "_unknown_0": payload[8:10],  # always 00, FF?
+            "cycle_rate": int(payload[2:4], 16) / 4,  # cycles/hour
+            "min_on_time": int(payload[4:6], 16) / 4,  # min
+            "min_off_time": int(payload[6:8], 16) / 4,  # min
+            "_unknown_0": payload[8:10],  # always 00, FF?
         }
 
     if msg.len == 5:
@@ -910,8 +910,8 @@ def parser_1100(payload, msg) -> Optional[dict]:
     assert payload[14:] == "01"
     return {
         **_parser(payload[:10]),
-        "proportional_band_width": _temp(payload[10:14]),  # in degrees C
-        # "_unknown_1": payload[14:],  # always 01?
+        "proportional_band_width": _temp(payload[10:14]),  # 1.5 (1.5-3.0) C
+        "_unknown_1": payload[14:],  # always 01?
     }
 
 
