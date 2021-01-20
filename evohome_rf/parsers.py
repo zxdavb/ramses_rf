@@ -777,7 +777,7 @@ def parser_1030(payload, msg) -> Optional[dict]:
 
         param_name = {
             "C8": "max_flow_setpoint",  # 55 (0-99) C
-            "C9": "min_flow_setpoint",  # 13 (0-50) C
+            "C9": "min_flow_setpoint",  # 15 (0-50) C
             "CA": "valve_run_time",  # 150 (0-240) sec, aka actuator_run_time
             "CB": "pump_run_time",  # 15 (0-99) sec
             "CC": "_unknown_0",  # ?boolean?
