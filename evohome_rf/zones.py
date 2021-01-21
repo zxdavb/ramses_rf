@@ -523,8 +523,8 @@ class Zone(ZoneSchedule, ZoneBase):
 
         # not UFH (it seems), but ELE or VAL; and possibly a MIX support 0008 too
         elif msg.code in ("0008", "0009"):  # TODO: how to determine is/isn't MIX?
-            assert msg.src.type in ("01", "13")  # 01 as a stat
-            assert self._zone_type in (None, "ELE", "VAL")
+            assert msg.src.type in ("01", "13"), msg.src.type  # 01 as a stat
+            assert self._zone_type in (None, "ELE", "VAL"), self._zone_type
 
             if self._zone_type is None:
                 self._set_zone_type("ELE")  # might eventually be: "VAL"
