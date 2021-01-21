@@ -56,16 +56,12 @@ def evohome_exception_handler(func):  # TODO: why implement as a wrapper?
             return func(*args, **kwargs)
         except (AssertionError, NotImplementedError) as err:
             msg = args[0]
-            _LOGGER.exception(
-                "%s < %s", msg._pkt, err.__class__.__name__, extra=msg.__dict__
-            )
+            _LOGGER.exception("%s < %s", msg._pkt, err.__class__.__name__)
             raise
         # TODO: this shouldn't be required?
         except (AttributeError, LookupError, TypeError, ValueError) as err:
             msg = args[0]
-            _LOGGER.error(
-                "%s < %s", msg._pkt, err.__class__.__name__, extra=msg.__dict__
-            )
+            _LOGGER.error("%s < %s", msg._pkt, err.__class__.__name__)
             raise
 
     return wrapper
@@ -386,8 +382,7 @@ def process_msg(msg: Message) -> None:
             this._gwy._get_device(this.src, ctl_addr=this.dst)
 
         else:
-            this._gwy._get_device(this.src)
-            this._gwy._get_device(this.dst)
+            [this._gwy._get_device(d) for d in (this.src, this.dst)]
 
         # where possible, swap each Address for its corresponding Device
         this.src = this._gwy.device_by_id.get(this.src.id, this.src)
