@@ -236,6 +236,8 @@ class Gateway:
 
         if dev_addr.type in ("18", "63", "--"):  # valid addresses, but not devices
             return
+        if dev_addr.id == "01:000001":  # valid addresses, but not devices
+            return
 
         if isinstance(dev_addr, Device):
             device = dev_addr
