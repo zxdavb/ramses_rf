@@ -480,9 +480,8 @@ def parser_0008(payload, msg) -> Optional[dict]:
     # https://www.domoticaforum.eu/viewtopic.php?f=7&t=5806&start=105#p73681
     # e.g. Electric Heat Zone
 
-    if msg.src.type == "31":  # Honeywell Japser ?HVAC
-        assert msg.len == 13
-        return {"ordinal": f"0x{payload[2:8]}", "_unknown": payload[8:]}
+    if msg.src.type == "31" and msg.len == 13:  # Honeywell Japser ?HVAC
+        return {"ordinal": f"0x{payload[2:8]}", "blob": payload[8:]}
 
     assert msg.len == 2
 
@@ -1521,9 +1520,15 @@ def parser_3ef0(payload, msg) -> dict:
 def parser_3ef1(payload, msg) -> dict:
     # RP --- 10:067219 18:200202 --:------ 3EF1 007 00-7FFF-003C-0010
 
-    if msg.src.type in ("08", "31"):  # Honeywell Japser ?HVAC
-        assert msg.len == 18 if msg.src.type == "08" else 20
-        return {"ordinal": f"0x{payload[2:8]}", "_unknown": payload[8:]}
+    if msg.src.type == "08" and msg.len == 18:  # Honeywell Japser ?HVAC
+        return {"ordinal": f"0x{payload[2:8]}", "blob": payload[8:]}
+
+    if msg.src.type == "31" and msg.len == 20:  # Honeywell Japser ?HVAC
+        return {"ordinal": f"0x{payload[2:8]}", "blob": payload[8:]}
+
+    if msg.verb == "RQ":
+        assert msg.len == 1, msg.len
+        return {}
 
     assert msg.verb == "RP"
     assert msg.len == 7
