@@ -178,7 +178,7 @@ def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, list, list]:
         if allows:
             _LOGGER.debug("An allowlist has been created, len = %s", len(allows))
         else:
-            _LOGGER.warning("An empty allowlist has been configured: disabling it")
+            _LOGGER.warning("An empty allowlist was configured, so will be ignored")
             config[ENFORCE_ALLOWLIST] = False
 
     elif config[ENFORCE_BLOCKLIST]:
@@ -186,12 +186,12 @@ def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, list, list]:
         if blocks:
             _LOGGER.debug("A blocklist has been created, len = %s", len(blocks))
         else:
-            _LOGGER.debug("An empty blocklist has been configured: disabling it")
+            _LOGGER.debug("An empty blocklist was configured, so will be ignored")
             config[ENFORCE_BLOCKLIST] = False
 
     if serial_port and input_file:
         _LOGGER.warning(
-            "Serial port specified (%s), so input file (%s) will be ignored",
+            "Serial port was specified (%s), so input file (%s) will be ignored",
             serial_port,
             input_file,
         )
