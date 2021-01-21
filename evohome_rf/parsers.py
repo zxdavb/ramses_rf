@@ -1344,9 +1344,10 @@ def parser_3220(payload, msg) -> Optional[dict]:
     assert msg.len == 5 and payload[:2] == "00", "Invalid OpenTherm payload"
 
     # these are OpenTherm-specific assertions
-    assert int(payload[2:4], 16) // 0x80 == parity(
-        int(payload[2:], 16) & 0x7FFFFFFF
-    ), "Invalid OpenTherm check bit"
+    if msg.src.type != "18":  # TODO: remove this workaround
+        assert int(payload[2:4], 16) // 0x80 == parity(
+            int(payload[2:], 16) & 0x7FFFFFFF
+        ), "Invalid OpenTherm check bit"
 
     ot_msg_type = int(payload[2:4], 16) & 0x70
     assert (
@@ -1372,8 +1373,8 @@ def parser_3220(payload, msg) -> Optional[dict]:
         return {**result, "value_raw": payload[6:]}
 
     if msg.verb == "RQ":
-        assert ot_msg_type < 48
-        assert payload[6:10] == "0000"
+        assert ot_msg_type < 48, f"Invalid OpenTherm msg type: {ot_msg_type:02X}"
+        assert payload[6:10] == "0000", payload[6:10]
         return {
             **result,
             # "description": message["en"]
