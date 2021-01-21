@@ -746,6 +746,10 @@ def parser_0418(payload, msg) -> Optional[dict]:
         }
     )
 
+    # return {
+    #     "log_idx": result["log_idx"],
+    #     "log_entry": [v for k, v in result.items() if k != "log_idx"],
+    # }
     return result
 
 
