@@ -175,10 +175,19 @@ def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, list, list]:
     if config[ENFORCE_ALLOWLIST]:
         allows = KNOWNS_SCHEMA(kwargs.get(ALLOW_LIST, {}))
         config[ENFORCE_BLOCKLIST] = False
-        _LOGGER.debug("An allowlist has been created, len = %s", len(allows))
+        if allows:
+            _LOGGER.debug("An allowlist has been created, len = %s", len(allows))
+        else:
+            _LOGGER.warning("An empty allowlist has been configured: disabling it")
+            config[ENFORCE_ALLOWLIST] = False
+
     elif config[ENFORCE_BLOCKLIST]:
         blocks = KNOWNS_SCHEMA(kwargs.get(BLOCK_LIST, {}))
-        _LOGGER.debug("A blocklist has been created, len = %s", len(blocks))
+        if blocks:
+            _LOGGER.debug("A blocklist has been created, len = %s", len(blocks))
+        else:
+            _LOGGER.debug("An empty blocklist has been configured: disabling it")
+            config[ENFORCE_BLOCKLIST] = False
 
     if serial_port and input_file:
         _LOGGER.warning(
