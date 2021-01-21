@@ -30,7 +30,7 @@ from .const import (
     _dev_mode_,
 )
 from .devices import Device
-from .exceptions import CorruptPayloadError
+from .exceptions import EvoCorruptionError, CorruptPayloadError
 from .packet import _PKT_LOGGER  # TODO: I think should just use _LOGGER
 from .schema import (
     REDUCE_PROCESSING,
@@ -45,26 +45,6 @@ DEV_MODE = _dev_mode_ or True
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
-
-
-def evohome_exception_handler(func):  # TODO: why implement as a wrapper?
-    """xxx."""
-
-    def wrapper(*args, **kwargs) -> Optional[Any]:
-        """xxx."""
-        try:
-            return func(*args, **kwargs)
-        except (AssertionError, NotImplementedError) as err:
-            msg = args[0]
-            _LOGGER.exception("%s < %s", msg._pkt, err.__class__.__name__)
-            raise
-        # TODO: this shouldn't be required?
-        except (AttributeError, LookupError, TypeError, ValueError) as err:
-            msg = args[0]
-            _LOGGER.error("%s < %s", msg._pkt, err.__class__.__name__)
-            raise
-
-    return wrapper
 
 
 class Message:
@@ -329,7 +309,6 @@ def process_msg(msg: Message) -> None:
     a valid message only for 000C.
     """
 
-    @evohome_exception_handler
     def create_devices(this) -> None:
         """Discover and create any new devices."""
 
@@ -388,7 +367,6 @@ def process_msg(msg: Message) -> None:
         this.src = this._gwy.device_by_id.get(this.src.id, this.src)
         this.dst = this._gwy.device_by_id.get(this.dst.id, this.dst)
 
-    @evohome_exception_handler
     def create_zones(this) -> None:
         """Discover and create any new zones (except HW)."""
 
@@ -468,7 +446,6 @@ def process_msg(msg: Message) -> None:
         # else:  # should never get here
         #     raise TypeError
 
-    @evohome_exception_handler
     def update_entities(this, prev) -> None:  # TODO: needs work
         """Update the state of entities (devices, zones, ufh_zones)."""
 
@@ -539,7 +516,16 @@ def process_msg(msg: Message) -> None:
 
         update_entities(msg, msg._gwy._prev_msg)  # update the state database
 
-    except (AssertionError, NotImplementedError):
+    except (AssertionError, NotImplementedError) as err:
+        _LOGGER.exception("%s < %s", msg._pkt, err.__class__.__name__)
         return
+
+    except (AttributeError, LookupError, TypeError, ValueError) as err:
+        _LOGGER.error("%s < %s", msg._pkt, err.__class__.__name__)
+        raise
+
+    except EvoCorruptionError as err:
+        _LOGGER.error("%s < %s", msg._pkt, err.__class__.__name__)
+        raise
 
     msg._gwy._prev_msg = msg if msg.is_valid else None

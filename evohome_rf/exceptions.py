@@ -25,7 +25,13 @@ class ExpiredCallbackError(Error):
         return f"{err_msg} {err_tip}"
 
 
-class CorruptPayloadError(Error):
+class EvoCorruptionError(Error):
+    """Base class for exceptions in this module."""
+
+    pass
+
+
+class CorruptPayloadError(EvoCorruptionError):
     """Raised when the payload is inconsistent."""
 
     def __init__(self, *args, **kwargs):
@@ -40,7 +46,7 @@ class CorruptPayloadError(Error):
         return f"{err_msg} {err_tip}"
 
 
-class CorruptStateError(Error):
+class CorruptStateError(EvoCorruptionError):
     """Raised when the system state is inconsistent."""
 
     def __init__(self, *args, **kwargs):
@@ -55,7 +61,7 @@ class CorruptStateError(Error):
         return f"{err_msg} {err_tip}"
 
 
-class MultipleControllerError(Error):
+class MultipleControllerError(EvoCorruptionError):
     """Raised when there is more than one controller."""
 
     def __init__(self, *args, **kwargs):
