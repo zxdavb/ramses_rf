@@ -23,7 +23,7 @@ from .command import _pkt_header
 from .const import MESSAGE_REGEX, _dev_mode_
 from .helpers import extract_addrs
 
-DEV_MODE = _dev_mode_
+DEV_MODE = _dev_mode_  # or True
 
 DEFAULT_FMT = "%(asctime)s.%(msecs)03d %(message)s"
 DEFAULT_DATEFMT = "%H:%M:%S"
@@ -60,11 +60,7 @@ _PKT_LOGGER = logging.getLogger(f"{__name__}-log")  # don't setLevel here
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
-    _LOGGER.setLevel(logging.INFO)  # DEBUG may have too much detail
-
-_LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
+    _LOGGER.setLevel(logging.DEBUG)  # DEBUG may have too much detail
 
 if not _use_color_:
     _LOGGER.warning("Consider installing the colorlog library for colored output")
