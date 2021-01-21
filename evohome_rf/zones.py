@@ -639,6 +639,8 @@ class Zone(ZoneSchedule, ZoneBase):
         self.__class__ = ZONE_CLASSES[_type]
         _LOGGER.debug("Zone %s: type now set to %s", self.id, self._zone_type)
 
+        self._discover()  # TODO: needs tidyup (ref #67)
+
     @property
     def heat_demand(self) -> Optional[float]:
         demands = [
@@ -839,12 +841,9 @@ class EleZone(Zone):  # Electric zones (do *not* call for heat)
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
-    # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-    #     super()._discover(discover_flag=discover_flag)
-
-    #     if discover_flag & DISCOVER_SCHEMA:
-    #         dev_type = CODE_000C_DEVICE_TYPE[None]
-    #         self._send_cmd("000C", payload=f"{self.idx}{dev_type}")
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        # super()._discover(discover_flag=discover_flag)
+        self._send_cmd("000C", payload=f"{self.idx}11")
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -880,11 +879,19 @@ class ValZone(ZoneDemand, EleZone):
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        # super()._discover(discover_flag=discover_flag)
+        self._send_cmd("000C", payload=f"{self.idx}0A")
+
 
 class RadZone(ZoneDemand, Zone):
     """For radiators controlled by HR92s or HR80s (will also call for heat)."""
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
+
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        # super()._discover(discover_flag=discover_flag)
+        self._send_cmd("000C", payload=f"{self.idx}08")
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -912,6 +919,10 @@ class UfhZone(ZoneDemand, Zone):
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        # super()._discover(discover_flag=discover_flag)
+        self._send_cmd("000C", payload=f"{self.idx}09")
+
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
@@ -937,6 +948,10 @@ class MixZone(Zone):
     """For a modulating valve controlled by a HM80 (will also call for heat)."""
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
+
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        # super()._discover(discover_flag=discover_flag)
+        self._send_cmd("000C", payload=f"{self.idx}0B")
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)

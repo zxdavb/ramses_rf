@@ -567,7 +567,7 @@ class MultiZone:  # 0005 (+/- 000C?)
 
             zone = Zone(self, zone_idx)
 
-            if not self._gwy.config[DISABLE_DISCOVERY]:
+            if not self._gwy.config[DISABLE_DISCOVERY]:  # TODO: needs tidyup (ref #67)
                 zone._discover()  # discover_flag=DISCOVER_ALL)
 
             return zone
