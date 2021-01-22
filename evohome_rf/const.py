@@ -101,7 +101,7 @@ CODE_SCHEMA = {
     "1100": {"name": "tpi_params"},
     "3B00": {"name": "actuator_sync"},  # was: tpi_sync/actuator_req
     "3EF0": {"name": "actuator_state", "uses_zone_idx": False},
-    "3EF1": {"name": "actuator_cycle", "uses_zone_idx": False, "rq_length": 2},
+    "3EF1": {"name": "actuator_cycle", "uses_zone_idx": True, "rq_length": 2},
     # OpenTherm codes
     "1FD4": {"name": "opentherm_sync"},
     "22D9": {"name": "boiler_setpoint"},
@@ -127,11 +127,13 @@ CODE_SCHEMA = {
     "31D9": {"name": "message_31d9"},  # HVAC/ventilation 30 min sync cycle?
     "31DA": {"name": "message_31da"},  # from HCE80, also Nuaire: Contains R/humidity??
     "31E0": {"name": "message_31e0"},  # Nuaire ventilation
+    # unknown codes, sent only by THM
+    "0B04": {"name": "message_0b04"},
     # unknown codes, sent only by STA
     "000E": {"name": "message_000e", "uses_zone_idx": False},
     "042F": {"name": "message_042f", "uses_zone_idx": False},
     "3120": {"name": "message_3120", "uses_zone_idx": False},
-    # unknown codes, initiated only by HR91
+    # unknown codes, sent only by HR91
     "01D0": {"name": "message_01d0", "uses_zone_idx": True},  # might yet be False
     "01E9": {"name": "message_01e9", "uses_zone_idx": True},  # might yet be False
 }
