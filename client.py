@@ -283,6 +283,11 @@ async def main(lib_kwargs, **kwargs):
         #     print(gwy.device_by_id[kwargs["device_id"]])
 
     def process_message(msg) -> None:
+        if kwargs[DEBUG_MODE]:
+            dtm = f"{msg.dtm}"  # keep original timestamp
+            print(f"{dtm} {msg}"[:CONSOLE_COLS])
+            return
+
         dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
         if msg.src.type == "18":
             print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
@@ -301,7 +306,7 @@ async def main(lib_kwargs, **kwargs):
 
     if kwargs[REDUCE_PROCESSING] < DONT_CREATE_MESSAGES:
         # no MSGs will be sent to STDOUT, so send PKTs instead
-        colorama_init(autoreset=True)
+        colorama_init(autoreset=True)  # TODO: remove strip=True
         protocol, _ = gwy.create_client(process_message)
 
     try:  # main code here
