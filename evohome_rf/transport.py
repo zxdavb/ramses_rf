@@ -12,6 +12,7 @@ import logging
 from multiprocessing import Process
 import os
 from queue import Queue
+import re
 from string import printable
 from threading import Thread, Lock
 from types import SimpleNamespace
@@ -29,6 +30,8 @@ from .schema import DISABLE_SENDING, ENFORCE_ALLOWLIST, ENFORCE_BLOCKLIST, EVOFW
 from .version import __version__
 
 DEV_MODE = _dev_mode_ or True
+
+ERR_MSG_REGEX = re.compile(r"^([0-9A-F]{2}\.)+$")
 
 POLLER_TASK = "poller_task"
 
@@ -70,7 +73,7 @@ class SerTransportFile(asyncio.Transport):
     """Interface for a packet transport using a file - Experimental."""
 
     def __init__(self, loop, protocol, packet_log, extra=None):
-        _LOGGER.error("SerTransFile.__init__() *** POLLING VERSION ***")
+        _LOGGER.debug("SerTransFile.__init__() *** PACKET_LOG VERSION ***")
 
         # self._loop = loop
         self._protocol = protocol
@@ -87,8 +90,9 @@ class SerTransportFile(asyncio.Transport):
 
             for dtm_pkt_line in self.fp:
                 self._protocol.data_received(dtm_pkt_line.strip())
+                # await asyncio.sleep(0)
 
-            _LOGGER.error("SerTransFile._polling_loop() ENDED")
+            _LOGGER.debug("SerTransFile._polling_loop() ENDED")
             self._protocol.connection_lost(exc=None)
 
         _LOGGER.debug("SerTransFile._start()")
@@ -103,9 +107,9 @@ class SerTransportFile(asyncio.Transport):
 
 
 class SerTransportPoller(asyncio.Transport):
-    """Interface for a packet transport using polling - Experimental."""
+    """Interface for a packet transport using polling."""
 
-    MAX_BUFFER_SIZE = 200
+    MAX_BUFFER_SIZE = 500
 
     def __init__(self, loop, protocol, ser_instance, extra=None):
         _LOGGER.warning("SerTransPoll.__init__() *** POLLING VERSION ***")
@@ -162,7 +166,7 @@ class SerTransportPoller(asyncio.Transport):
 
 
 class SerTransportProcess(Process):  # TODO: WIP
-    """Interface for a packet transport using a process - Experimental."""
+    """Interface for a packet transport using a process - WIP."""
 
     def __init__(self, loop, protocol, ser_port, extra=None):
         _LOGGER.warning("SerTransProc.__init__() *** PROCESS VERSION***")
@@ -237,9 +241,9 @@ class SerTransportProcess(Process):  # TODO: WIP
 class PacketProtocol(asyncio.Protocol):
     """Interface for a packet protocol (no Qos).
 
-        ex transport: self.data_received(bytes) -> self._callback(pkt)
-        to transport: self.send_data(cmd)       -> self._transport.write(bytes)
-        """
+    ex transport: self.data_received(bytes) -> self._callback(pkt)
+    to transport: self.send_data(cmd)       -> self._transport.write(bytes)
+    """
 
     def __init__(self, gwy, pkt_receiver: Callable) -> None:
         _LOGGER.debug("PktProtocol.__init__(%s, %s)", gwy, pkt_receiver)
@@ -280,7 +284,7 @@ class PacketProtocol(asyncio.Protocol):
 
         self._transport = transport
         # self._transport.serial.rts = False
-        
+
         self._pause_writing = False  # TODO: needs work
 
     @staticmethod
@@ -319,6 +323,11 @@ class PacketProtocol(asyncio.Protocol):
         elif pkt_line.startswith("!C"):
             pkt_line = "# " + pkt_line
             # _LOGGER.debug("Packet line has been normalised (0x02)")
+
+        # old packet logs
+        elif ERR_MSG_REGEX.match(pkt_line):
+            pkt_line = "# " + pkt_line
+            # _LOGGER.debug("Packet line has been normalised (0x03)")
 
         return pkt_line
 
