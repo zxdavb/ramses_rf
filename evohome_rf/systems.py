@@ -63,13 +63,8 @@ class SysFaultLog(Entity):  # 0418
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
 
-        if self._known_msg:
-            return
-
         if msg.code == "0418" and msg.verb in (" I"):
-            self._known_msg = True
-            # if "log_idx" in msg.payload:
-            #     self._fault_log[msg.payload["log_idx"]] = msg
+            pass
 
     async def get_fault_log(self, force_refresh=None) -> Optional[dict]:  # 0418
         return await self._fault_log.get_fault_log(force_refresh=force_refresh)
@@ -93,11 +88,7 @@ class SysDatetime(Entity):  # 313F
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
 
-        if self._known_msg:
-            return
-
-        elif msg.code == "313F" and msg.verb in (" I", "RP"):
-            self._known_msg = True
+        if msg.code == "313F" and msg.verb in (" I", "RP"):  # TODO: W
             self._datetime = msg
 
     @property
@@ -145,11 +136,7 @@ class SysLanguage(Entity):  # 0100
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
 
-        if self._known_msg:
-            return
-
         if msg.code == "0100" and msg.verb in (" I", "RP"):
-            self._known_msg = True
             self._language = msg
 
     @property
@@ -182,11 +169,7 @@ class SysMode:  # 2E04
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
 
-        if self._known_msg:
-            return
-
         if msg.code == "2E04" and msg.verb in (" I", "RP"):  # this is a special case
-            self._known_msg = True
             self._mode = msg
 
     @property
@@ -272,17 +255,12 @@ class StoredHw:
 
         super()._handle_msg(msg)
 
-        if self._known_msg:
-            return
-
-        elif msg.code in ("10A0", "1260"):  # self.dhw.sensor is None and
-            self._known_msg = True
+        if msg.code in ("10A0", "1260"):  # self.dhw.sensor is None and
             # if self.dhw.sensor is None:
             #     find_dhw_sensor(msg)
             pass
 
         elif msg.code in ("1F41",):  # dhw_mode
-            self._known_msg = True
             pass
 
     def _get_zone(self, zone_idx, sensor=None, **kwargs) -> DhwZone:
@@ -384,8 +362,11 @@ class MultiZone:  # 0005 (+/- 000C?)
             [  # 0005: find any zones + their type (RAD, UFH, VAL, MIX, ELE)
                 self._send_cmd("0005", payload=f"00{zone_type}")
                 for zone_type in ("08", "09", "0A", "0B", "11")  # CODE_0005_ZONE_TYPE
-                # for zone_type, description in CODE_0005_ZONE_TYPE.items()
-                # if description is not None
+            ]
+
+            [  # 0005: find any others - as per an RFG100
+                self._send_cmd("0005", payload=f"00{zone_type}")
+                for zone_type in ("00", "04", "0C", "0F", "10")
             ]
 
     def _handle_msg(self, msg, prev_msg=None):
@@ -402,15 +383,6 @@ class MultiZone:  # 0005 (+/- 000C?)
             This leaves only a process of exclusion as a means to determine which zone
             uses the controller as a sensor.
             """
-
-            # A reasonable assumption from this point on: a zone's _temperature attr has
-            # just been updated via the controller's 30C9 pkt, and hasn't changed since.
-            # It's also assumed that the gateway (18:) has received the same 30C9 pkts
-            # from the sensors as the controller has: for some this may not be reliable.
-            # The final assumption: the controller, as a sensor, has a temp distinct
-            # from all others (so another sensor isn't matched to the controllers zone).
-            # If required (and it's not clear that it is required), the above can be
-            # mitigated by confirming a sensor after two (consistent) matches.
 
             prev_msg, self._prev_30c9 = self._prev_30c9, msg
             if prev_msg is None:
@@ -536,19 +508,14 @@ class MultiZone:  # 0005 (+/- 000C?)
 
         super()._handle_msg(msg)
 
-        if self._known_msg:
-            return
-
         if msg.code in ("000A", "2309", "30C9"):
-            self._known_msg = True
+            pass
             # if isinstance(msg.payload, list):
 
         # elif msg.code == "0005" and prev_msg is not None:
-        #     self._known_msg = True
         #     zone_added = bool(prev_msg.code == "0004")  # else zone_deleted
 
         # elif msg.code == "30C9" and isinstance(msg.payload, list):  # msg.is_array:
-        #     self._known_msg = True
         #     find_zone_sensors()
 
     def _get_zone(self, zone_idx, sensor=None, **kwargs) -> Zone:
@@ -725,7 +692,6 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             super()._handle_msg(msg)
 
         if msg.code == "0008" and msg.verb in (" I", "RP"):
-            self._known_msg = True
             if "domain_id" in msg.payload:
                 self._relay_demands[msg.payload["domain_id"]] = msg
                 if msg.payload["domain_id"] == "F9":
@@ -743,12 +709,10 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                         device._send_cmd(code, qos)
 
         # if msg.code == "0009" and msg.verb in (" I", "RP"):
-        #     self._known_msg = True
         #     if "domain_id" in msg.payload:
         #         self._relay_failsafes[msg.payload["domain_id"]] = msg
 
         if msg.code == "3150" and msg.verb in (" I", "RP"):
-            self._known_msg = True
             self._heat_demands[msg.payload["domain_id"]] = msg
             if "domain_id" in msg.payload:
                 self._heat_demands[msg.payload["domain_id"]] = msg

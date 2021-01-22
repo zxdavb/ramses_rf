@@ -88,13 +88,11 @@ class ZoneBase(Entity, metaclass=ABCMeta):
         raise NotImplementedError
 
     def _handle_msg(self, msg) -> bool:
-        super()._handle_msg(msg)
+        # super()._handle_msg(msg)
+        pass
 
-        if self._known_msg:
-            return
-
-        if msg.code in ("000C",):
-            self._known_msg = True
+        # else:
+        #     assert False, f"Unknown packet ({msg.verb}/{msg.code}) for {self.id}"
 
     def _send_cmd(self, code, **kwargs) -> None:
         dest = kwargs.pop("dest_addr", self._ctl.id)
@@ -186,7 +184,6 @@ class HeatDemand:  # 3150
 
         if msg.code == "3150" and msg.verb == " I":
             self._heat_demand = msg
-            self._known_msg = True
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
@@ -247,10 +244,7 @@ class DhwZone(ZoneBase, HeatDemand):
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if self._known_msg:
-            return
-
-        elif msg.code == "0008":
+        if msg.code == "0008":
             self._relay_demand = msg
 
         elif msg.code == "0009":
@@ -267,9 +261,6 @@ class DhwZone(ZoneBase, HeatDemand):
 
         # elif msg.code in ("1100", "3150", "3B00"):
         #     pass
-
-        else:
-            assert False, f"Unknown packet ({msg.verb}/{msg.code}) for {self.id}"
 
     @property
     def sensor(self) -> Device:
@@ -421,12 +412,8 @@ class ZoneSchedule:
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if self._known_msg:
-            return
-
-        elif msg.code == "0404" and msg.verb == "RP":
+        if msg.code == "0404" and msg.verb == "RP":
             _LOGGER.debug("Zone(%s).update: Received RP/0404 (schedule)", self.id)
-            self._known_msg = True
 
     async def get_schedule(self, force_refresh=None) -> Optional[dict]:
         schedule = await self._schedule.get_schedule(force_refresh=force_refresh)
@@ -511,10 +498,6 @@ class Zone(ZoneSchedule, ZoneBase):
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if self._known_msg:
-            return
-        self._known_msg = True
-
         if isinstance(msg.payload, list):
             assert self.idx in [d["zone_idx"] for d in msg.payload]
 
@@ -555,9 +538,6 @@ class Zone(ZoneSchedule, ZoneBase):
 
         # elif "zone_idx" in msg.payload:
         #     pass
-
-        else:
-            self._known_msg = False
 
     @property
     def sensor(self) -> Device:
@@ -848,14 +828,8 @@ class EleZone(Zone):  # Electric zones (do *not* call for heat)
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if self._known_msg:
-            return
-
         if msg.code == "3150":  # ZV zones are Elec zones that also call for heat
             self._set_zone_type("VAL")
-
-        else:
-            assert False, f"Unknown packet ({msg.verb}/{msg.code}) for {self.id}"
 
     @property
     def actuator_enabled(self) -> Optional[bool]:  # 3EF0
@@ -896,14 +870,8 @@ class RadZone(ZoneDemand, Zone):
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if self._known_msg:
-            return
-
-        elif msg.code == "12B0":
+        if msg.code == "12B0":
             self._window_open = msg
-
-        else:
-            assert False, f"Unknown packet ({msg.verb}/{msg.code}) for {self.id}"
 
     @property
     def window_open(self) -> Optional[bool]:  # 12B0
@@ -926,14 +894,8 @@ class UfhZone(ZoneDemand, Zone):
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if self._known_msg:
-            return
-
-        elif msg.code == "22C9" and msg.verb == " I":
+        if msg.code == "22C9" and msg.verb == " I":
             self._ufh_setpoint = msg
-
-        else:
-            assert False, f"Unknown packet ({msg.verb}/{msg.code}) for {self.id}"
 
     @property
     def ufh_setpoint(self) -> Optional[float]:  # 22C9
@@ -956,14 +918,8 @@ class MixZone(Zone):
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if self._known_msg:
-            return
-
-        elif msg.code == "1030" and msg.verb == " I":
+        if msg.code == "1030" and msg.verb == " I":
             self._mix_config = msg
-
-        else:
-            assert False, f"Unknown packet ({msg.verb}/{msg.code}) for {self.id}"
 
     @property
     def mix_config(self) -> dict:
