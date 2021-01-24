@@ -40,6 +40,8 @@ from .schema import (
     DONT_UPDATE_ENTITIES,
 )
 
+CODE_NAMES = {k: v["name"] for k, v in HINTS_CODES.items()}
+
 DEV_MODE = _dev_mode_ or True
 
 _LOGGER = logging.getLogger(__name__)
@@ -118,7 +120,7 @@ class Message:
             src = ""
             dst = display_name(self.src)
 
-        code_name = HINTS_CODES.get(self.code, f"unknown_{self.code}")
+        code_name = CODE_NAMES.get(self.code, f"unknown_{self.code}")
         payload = self.raw_payload if self.len < 4 else f"{self.raw_payload[:5]}..."[:9]
 
         self._str = self._format.format(
