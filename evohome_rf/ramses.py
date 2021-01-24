@@ -8,64 +8,176 @@ _W = " W"
 RQ = "RQ"
 RP = "RP"
 
+NAME = "name"
+
 # This is the master list - all codes are here, even if there's no corresponding parser
 HINTS_CODE_SCHEMA = {
-    "0001": {"name": "rf_unknown"},
-    "0002": {"name": "sensor_weather"},
-    "0004": {"name": "zone_name"},
-    "0005": {"name": "system_zones"},
-    "0006": {"name": "schedule_sync"},
-    "0008": {"name": "relay_demand"},
-    "0009": {"name": "relay_failsafe"},
-    "000A": {"name": "zone_params"},
-    "000C": {"name": "zone_devices"},
-    "000E": {"name": "message_000e"},
-    "0016": {"name": "rf_check"},
-    "0100": {"name": "language"},
-    "01D0": {"name": "message_01d0"},
-    "01E9": {"name": "message_01e9"},
-    "0404": {"name": "zone_schedule"},
-    "0418": {"name": "system_fault"},
-    "042F": {"name": "message_042f"},
-    "0B04": {"name": "message_0b04"},
-    "1030": {"name": "mixvalve_params"},
-    "1060": {"name": "device_battery"},
-    "1090": {"name": "message_1090"},
-    "10A0": {"name": "dhw_params"},
-    "10E0": {"name": "device_info"},
-    "1100": {"name": "tpi_params"},
-    "1260": {"name": "dhw_temp"},
-    "1280": {"name": "outdoor_humidity"},
-    "1290": {"name": "outdoor_temp"},
-    "12A0": {"name": "indoor_humidity"},
-    "12B0": {"name": "window_state"},
-    "12C0": {"name": "message_12c0"},
-    "1F09": {"name": "system_sync"},
-    "1F41": {"name": "dhw_mode"},
-    "1FC9": {"name": "rf_bind"},
-    "1FD4": {"name": "opentherm_sync"},
-    "2249": {"name": "setpoint_now"},
-    "22C9": {"name": "ufh_setpoint"},
-    "22D0": {"name": "message_22d0"},
-    "22D9": {"name": "boiler_setpoint"},
-    "22F1": {"name": "switch_vent"},
-    "22F3": {"name": "switch_other"},
-    "2309": {"name": "setpoint"},
-    "2349": {"name": "zone_mode"},
-    "2D49": {"name": "message_2d49"},
-    "2E04": {"name": "system_mode"},
-    "30C9": {"name": "temperature"},
-    "3120": {"name": "message_3120"},
-    "313F": {"name": "datetime"},
-    "3150": {"name": "heat_demand"},
-    "31D9": {"name": "message_31d9"},
-    "31DA": {"name": "message_31da"},
-    "31E0": {"name": "message_31e0"},
-    "3220": {"name": "opentherm_msg"},
-    "3B00": {"name": "actuator_sync"},
-    "3EF0": {"name": "actuator_state"},
-    "3EF1": {"name": "actuator_cycle"},
-}  # also: "7FFF": {"name": "puzzle_packet"},
+    "0001": {
+        NAME: "rf_unknown",
+    },
+    "0002": {
+        NAME: "sensor_weather",
+    },
+    "0004": {
+        NAME: "zone_name",
+    },
+    "0005": {
+        NAME: "system_zones",
+    },
+    "0006": {
+        NAME: "schedule_sync",
+    },
+    "0008": {
+        NAME: "relay_demand",
+    },
+    "0009": {
+        NAME: "relay_failsafe",
+    },
+    "000A": {
+        NAME: "zone_params",
+    },
+    "000C": {
+        NAME: "zone_devices",
+    },
+    "000E": {
+        NAME: "message_000e",
+    },
+    "0016": {
+        NAME: "rf_check",
+    },
+    "0100": {
+        NAME: "language",
+    },
+    "01D0": {
+        NAME: "message_01d0",
+    },
+    "01E9": {
+        NAME: "message_01e9",
+    },
+    "0404": {
+        NAME: "zone_schedule",
+    },
+    "0418": {
+        NAME: "system_fault",
+    },
+    "042F": {
+        NAME: "message_042f",
+    },
+    "0B04": {
+        NAME: "message_0b04",
+    },
+    "1030": {
+        NAME: "mixvalve_params",
+    },
+    "1060": {
+        NAME: "device_battery",
+    },
+    "1090": {
+        NAME: "message_1090",
+    },
+    "10A0": {
+        NAME: "dhw_params",
+    },
+    "10E0": {
+        NAME: "device_info",
+    },
+    "1100": {
+        NAME: "tpi_params",
+    },
+    "1260": {
+        NAME: "dhw_temp",
+    },
+    "1280": {
+        NAME: "outdoor_humidity",
+    },
+    "1290": {
+        NAME: "outdoor_temp",
+    },
+    "12A0": {
+        NAME: "indoor_humidity",
+    },
+    "12B0": {
+        NAME: "window_state",
+    },
+    "12C0": {
+        NAME: "message_12c0",
+    },
+    "1F09": {
+        NAME: "system_sync",
+    },
+    "1F41": {
+        NAME: "dhw_mode",
+    },
+    "1FC9": {
+        NAME: "rf_bind",
+    },
+    "1FD4": {
+        NAME: "opentherm_sync",
+    },
+    "2249": {
+        NAME: "setpoint_now",
+    },
+    "22C9": {
+        NAME: "ufh_setpoint",
+    },
+    "22D0": {
+        NAME: "message_22d0",
+    },
+    "22D9": {
+        NAME: "boiler_setpoint",
+    },
+    "22F1": {
+        NAME: "switch_vent",
+    },
+    "22F3": {
+        NAME: "switch_other",
+    },
+    "2309": {
+        NAME: "setpoint",
+    },
+    "2349": {
+        NAME: "zone_mode",
+    },
+    "2D49": {
+        NAME: "message_2d49",
+    },
+    "2E04": {
+        NAME: "system_mode",
+    },
+    "30C9": {
+        NAME: "temperature",
+    },
+    "3120": {
+        NAME: "message_3120",
+    },
+    "313F": {
+        NAME: "datetime",
+    },
+    "3150": {
+        NAME: "heat_demand",
+    },
+    "31D9": {
+        NAME: "message_31d9",
+    },
+    "31DA": {
+        NAME: "message_31da",
+    },
+    "31E0": {
+        NAME: "message_31e0",
+    },
+    "3220": {
+        NAME: "opentherm_msg",
+    },
+    "3B00": {
+        NAME: "actuator_sync",
+    },
+    "3EF0": {
+        NAME: "actuator_state",
+    },
+    "3EF1": {
+        NAME: "actuator_cycle",
+    },
+}  # also: "7FFF": {NAME: "puzzle_packet",},
 
 HINTS_DEVICE_TYPES = {
     "01": {
