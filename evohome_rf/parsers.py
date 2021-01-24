@@ -1470,7 +1470,7 @@ def parser_3b00(payload, msg) -> Optional[dict]:
     # 064  I --- 01:078710 --:------ 01:078710 3B00 002 FCC8
 
     assert msg.len == 2, msg.len
-    assert payload[:2] in {"01": "FC", "23": "FC"}.get(msg.src.type, "00")
+    assert payload[:2] in {"01": "FC", "13": "00", "23": "FC"}.get(msg.src.type, "00")
     assert payload[2:] == "C8", payload[2:]  # Could it be a percentage?
 
     return {**_idx(payload[:2], msg), "actuator_sync": _bool(payload[2:])}
