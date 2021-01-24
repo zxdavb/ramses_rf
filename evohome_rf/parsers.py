@@ -27,6 +27,7 @@ from .const import (
 )
 from .helpers import dev_hex_to_id, dtm_from_hex as _dtm, dts_from_hex
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
+from .ramses import HINTS_CODE_SCHEMA as HINTS_CODES
 from .schema import MAX_ZONES
 
 DEV_MODE = _dev_mode_
@@ -34,6 +35,21 @@ DEV_MODE = _dev_mode_
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
+
+
+def _idx_new(seqx, msg) -> dict:
+    # TODO: To rationalise
+    assert len(seqx) == 2, seqx
+
+    if msg.code in CODES_SANS_DOMAIN_ID:  # don't idx, even though some != "00"
+        return {}
+
+    if seqx in ("F8", "F9", "FA", "FB", "FC", "FD", "FE"):
+        return {"domain_id": seqx}
+
+    # finally:
+    assert seqx == "00", seqx
+    return {}
 
 
 def _idx(seqx, msg) -> dict:
@@ -52,11 +68,6 @@ def _idx(seqx, msg) -> dict:
         # 1FC9: dict is currently encoded in a way that id/idx is not used
         # 2E04: payload[:2] is system mode, would fail final assert
         return {}
-
-    # TODO: these are not evohome, and list of msg codes ?not complete (e.g. 3150?)
-    # if {"03", "12", "22"} & {msg.src.type}:
-    #     assert seqx == "00"
-    #     return {}
 
     # 045  I --- 03:183434 --:------ 03:183434 1060 003 00FF00
     if {"03", "12", "22"} & {msg.src.type} and msg.src.type == msg.devs[2].type:
@@ -280,7 +291,7 @@ def parser_decorator(func):
             if "18" in (msg.src.type, msg.dst.type)
             else " - please report this as an issue"
         )
-        assert msg.code in CODE_SCHEMA, f"Code not known{hint}"
+        assert msg.code in HINTS_CODES, f"Code not known{hint}"
         assert False, f"Code {msg.code} not known to support an RQ{hint}"
 
     return wrapper
@@ -387,12 +398,14 @@ def parser_0001(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # sensor_weather
 def parser_0002(payload, msg) -> Optional[dict]:
+    # I --- 03:125829 --:------ 03:125829 0002 004 03020105  # seems to be faked
+
     assert msg.len == 4
 
     return {
         **_idx(payload[:2], msg),
         "temperature": _temp(payload[2:6]),
-        "unknown_0": payload[6:],
+        "_light_level": payload[6:],  # light level
     }
 
 
@@ -659,17 +672,25 @@ def parser_01e9(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # zone_schedule (fragment)
 def parser_0404(payload, msg) -> Optional[dict]:
-    #  W --- 18:013393 01:145038 --:------ 0404 048 0020000829010468DE6DCDCD09C24010...
-    #  I --- 01:145038 18:013393 --:------ 0404 007 00200008290104
-    #  W --- 18:013393 01:145038 --:------ 0404 048 0020000829020499C67BA59CE6AA22F3...
-    #  I --- 01:145038 18:013393 --:------ 0404 007 00200008290204
-    #  W --- 18:013393 01:145038 --:------ 0404 048 002000082903045F7B36D7C035700D5C...
-    #  I --- 01:145038 18:013393 --:------ 0404 007 00200008290304
-    #  W --- 18:013393 01:145038 --:------ 0404 013 00200008150404EB6E829BE016
-    #  I --- 01:145038 18:013393 --:------ 0404 007 00200008150400
+    # Retreival of Zone schedule
+    # 18:02:53.700 057 RQ --- 30:185469 01:037519 --:------ 0404 007 00200008000100
+    # 18:02:53.764 052 RP --- 01:037519 30:185469 --:------ 0404 048 002000082901036...
+    # 18:02:55.606 054 RQ --- 30:185469 01:037519 --:------ 0404 007 00200008000203
+    # 18:02:55.652 053 RP --- 01:037519 30:185469 --:------ 0404 048 002000082902034D...
+    # 18:02:57.300 054 RQ --- 30:185469 01:037519 --:------ 0404 007 00200008000303
+    # 18:02:57.338 052 RP --- 01:037519 30:185469 --:------ 0404 038 002000081F0303C1...
+
+    # Retreival of DHW schedule
+    # 18:04:26.097 055 RQ --- 30:185469 01:037519 --:------ 0404 007 00230008000100
+    # 18:04:26.170 049 RP --- 01:037519 30:185469 --:------ 0404 048 0023000829010368...
+    # 18:04:30.097 054 RQ --- 30:185469 01:037519 --:------ 0404 007 00230008000203
+    # 18:04:30.144 047 RP --- 01:037519 30:185469 --:------ 0404 048 00230008290203ED...
+    # 18:04:34.997 056 RQ --- 30:185469 01:037519 --:------ 0404 007 00230008000303
+    # 18:04:35.019 047 RP --- 01:037519 30:185469 --:------ 0404 014 002300080703031F...
 
     def _header(seqx) -> dict:
-        assert seqx[2:8] == "200008"
+        assert seqx[2:4] in ("20", "23"), seqx[2:4]  # Zones, DHW
+        assert seqx[4:8] == "0008", seqx[4:8]
 
         return {
             # **_idx(payload[:2], msg),  # added by wrapper

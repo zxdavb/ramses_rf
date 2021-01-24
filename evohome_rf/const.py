@@ -141,11 +141,8 @@ CODE_SCHEMA = {
 MAY_USE_DOMAIN_ID = ["0001", "0008", "0009", "1100", "1FC9", "3150", "3B00"]
 MAY_USE_ZONE_IDX = [k for k, v in CODE_SCHEMA.items() if v.get("uses_zone_idx")]
 # DES_SANS_ZONE_IDX = ["0002", "2E04"]  # not sure about "0016", "22C9"
-CODES_SANS_DOMAIN_ID = ("1F09", "1FC9", "2E04")
+CODES_SANS_DOMAIN_ID = ("0418", "1F09", "1FC9", "2E04")
 
-CODE_MAP = {k: v["name"] for k, v in CODE_SCHEMA.items()}
-
-# TODO: which device type/config pairs send what packets?
 DEVICE_TABLE = {
     # Honeywell evohome
     "01": {
@@ -177,7 +174,7 @@ DEVICE_TABLE = {
         "has_zone_sensor": True,
         "is_actuator": False,
         "is_sensor": True,
-        "archetype": "HCW80",  # also: HCF82
+        "archetype": "HCW82",  # also: HCF82
         "discover_schema": [],
     },
     "04": {

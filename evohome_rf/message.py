@@ -18,7 +18,6 @@ from .const import (
     ATTR_DHW_VALVE_HTG,
     ATTR_DHW_VALVE,
     ATTR_ZONE_SENSOR,
-    CODE_MAP,
     DEVICE_TYPES,
     MSG_FORMAT_10,
     MSG_FORMAT_18,
@@ -32,6 +31,7 @@ from .const import (
 from .devices import Device
 from .exceptions import EvoCorruptionError, CorruptPayloadError
 from .packet import _PKT_LOGGER  # TODO: I think should just use _LOGGER
+from .ramses import HINTS_CODE_SCHEMA as HINTS_CODES
 from .schema import (
     REDUCE_PROCESSING,
     USE_NAMES,
@@ -118,11 +118,11 @@ class Message:
             src = ""
             dst = display_name(self.src)
 
-        code = CODE_MAP.get(self.code, f"unknown_{self.code}")
+        code_name = HINTS_CODES.get(self.code, f"unknown_{self.code}")
         payload = self.raw_payload if self.len < 4 else f"{self.raw_payload[:5]}..."[:9]
 
         self._str = self._format.format(
-            src, dst, self.verb, code, payload, self._payload
+            src, dst, self.verb, code_name, payload, self._payload
         )
         return self._str
 

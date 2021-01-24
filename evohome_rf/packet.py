@@ -33,10 +33,11 @@ DEFAULT_LEVEL = logging.INFO
 # correct streams
 logging.basicConfig(level=DEFAULT_LEVEL, format=DEFAULT_FMT, datefmt=DEFAULT_DATEFMT)
 
+# TODO: make account for the non-printing characters
 CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
 # HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssss, shorter format for the console
 if DEV_MODE:  # Do this to have longer-format console messages
-    CONSOLE_FMT = "%(date)sT%(time)s %(message)s"
+    CONSOLE_FMT = "%(date)sT%(time)s " + f"%(message).{CONSOLE_COLS - 27}s"
 else:
     CONSOLE_FMT = "%(time).12s " + f"%(message).{CONSOLE_COLS - 13}s"
 PKT_LOG_FMT = "%(date)sT%(time)s %(_packet)s"

@@ -22,7 +22,7 @@ from .const import (
 )
 from .exceptions import CorruptStateError
 from .helpers import slugify_string as slugify, dev_id_to_hex
-from .ramses import HINTS_DEVICE_TYPES as HINTS_DEVICE
+from .ramses import HINTS_DEVICE_TYPES as HINTS_DEVICES
 
 DEV_MODE = _dev_mode_
 
@@ -347,17 +347,17 @@ class Device(DeviceInfo, DeviceBase):
         if msg.code in ("0016", "1FC9"):
             pass
 
-        elif self.type not in HINTS_DEVICE:
+        elif self.type not in HINTS_DEVICES:
             assert False, f"Unknown device type: {self.id}"
 
-        elif msg.code not in HINTS_DEVICE[self.type]:
+        elif msg.code not in HINTS_DEVICES[self.type]:
             assert (
-                HINTS_DEVICE[self.type] == {}
+                HINTS_DEVICES[self.type] == {}
             ), f"Unknown code for {self.id}: {msg.verb}/{msg.code}"
 
-        elif msg.verb not in HINTS_DEVICE[self.type][msg.code]:
+        elif msg.verb not in HINTS_DEVICES[self.type][msg.code]:
             assert (
-                HINTS_DEVICE[self.type][msg.code] == []
+                HINTS_DEVICES[self.type][msg.code] == []
             ), f"Unknown verb for {self.id}: {msg.verb}/{msg.code}"
 
         # TODO: status updates always, but...
