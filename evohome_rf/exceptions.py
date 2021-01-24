@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome serial."""
+"""Evohome RF - """
 
 
 class Error(Exception):
@@ -19,13 +19,19 @@ class ExpiredCallbackError(Error):
 
     def __str__(self) -> str:
         err_msg = "The callback has expired"
-        err_tip = "(no tip)"
+        err_tip = "(no hint)"
         if self.message:
             return f"{err_msg}: {self.message} {err_tip}"
         return f"{err_msg} {err_tip}"
 
 
-class CorruptPayloadError(Error):
+class EvoCorruptionError(Error):
+    """Base class for exceptions in this module."""
+
+    pass
+
+
+class CorruptPayloadError(EvoCorruptionError):
     """Raised when the payload is inconsistent."""
 
     def __init__(self, *args, **kwargs):
@@ -40,7 +46,7 @@ class CorruptPayloadError(Error):
         return f"{err_msg} {err_tip}"
 
 
-class CorruptStateError(Error):
+class CorruptStateError(EvoCorruptionError):
     """Raised when the system state is inconsistent."""
 
     def __init__(self, *args, **kwargs):
@@ -55,7 +61,7 @@ class CorruptStateError(Error):
         return f"{err_msg} {err_tip}"
 
 
-class MultipleControllerError(Error):
+class MultipleControllerError(EvoCorruptionError):
     """Raised when there is more than one controller."""
 
     def __init__(self, *args, **kwargs):

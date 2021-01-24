@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""A raw ser2net (local) serial_port to (remote) network relay."""
+"""Evohome RF - A raw ser2net (local) serial_port to (remote) network relay."""
 
 import asyncio
 import logging
 from string import printable
 from typing import Optional
 
-from .const import __dev_mode__
+from .const import _dev_mode_
 
 # timeouts in seconds, 0 means no timeout
 RECV_TIMEOUT = 0  # without hearing from client (from network) - not useful
@@ -34,20 +34,19 @@ WONT = 252  # Wont <option code>
 DO__ = 253  # Do <option code>
 DONT = 254  # Don't <option code>
 
+DEV_MODE = _dev_mode_
+
 _LOGGER = logging.getLogger(__name__)
-if __dev_mode__:
+if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
-else:
-    _LOGGER.setLevel(logging.WARNING)
 
 
 class Ser2NetProtocol(asyncio.Protocol):
     """A TCP socket interface."""
 
-    def __init__(self, cmd_que) -> None:
-        _LOGGER.debug("Ser2NetProtocol.__init__(%s)", cmd_que)
+    def __init__(self) -> None:
+        _LOGGER.debug("Ser2NetProtocol.__init__()")
 
-        self._cmd_que = cmd_que
         self.transport = None
 
         if RECV_TIMEOUT:
@@ -73,6 +72,9 @@ class Ser2NetProtocol(asyncio.Protocol):
     def data_received(self, data) -> None:
         _LOGGER.debug("Ser2NetProtocol.data_received(%s)", data)
         _LOGGER.debug(" - packet received from network: %s", data)
+
+        operation = None
+        option = None
 
         if self.timeout_handle:
             self.timeout_handle.cancel()
@@ -105,7 +107,9 @@ class Ser2NetProtocol(asyncio.Protocol):
 
         # pkt = Packet(packet)
         # cmd = Command(pkt)
-        self._cmd_que.put_nowait(packet)  # TODO: use factory: shld be Command, not str
+        # self._que.put_nowait(packet)  # TODO: use factory: shld be Command, not str
+        # TODO: the previous line be something like
+        asyncio.create_task(self._gwy.msg_protocol.send_data(packet))
         _LOGGER.debug(" - command sent to dispatch queue: %s", packet)
 
     def eof_received(self) -> Optional[bool]:
@@ -125,7 +129,6 @@ class Ser2NetServer:
         _LOGGER.debug("Ser2NetServer.__init__(%s, %s)", addr_port, cmd_que)
 
         self._addr, self._port = addr_port.split(":")
-        self._cmd_que = cmd_que
         self._loop = loop if loop else asyncio.get_running_loop()
         self.protocol = self.server = None
 
@@ -138,7 +141,7 @@ class Ser2NetServer:
     async def start(self) -> None:
         _LOGGER.debug("Ser2NetServer.start()")
 
-        self.protocol = Ser2NetProtocol(self._cmd_que)
+        self.protocol = Ser2NetProtocol()
         self.server = await self._loop.create_server(
             lambda: self.protocol, self._addr, int(self._port)
         )
@@ -162,7 +165,7 @@ class Ser2NetServer:
 
     if self.config.get("ser2net_server"):
         self._relay = Ser2NetServer(
-            self.config["ser2net_server"], self.cmd_que, loop=self._loop
+            self.config["ser2net_server"], self._que, loop=self._loop
         )
         self._tasks.append(asyncio.create_task(self._relay.start()))
 

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Schema processor."""
+"""Evohome RF - Schema processor."""
 
-import json
 import logging
 from typing import Tuple
 import voluptuous as vol
@@ -24,16 +23,9 @@ from .const import (
     ATTR_ZONES,
     DEFAULT_MAX_ZONES,
     ZONE_TYPE_SLUGS,
-    __dev_mode__,
+    _dev_mode_,
     id_to_address as addr,
 )
-
-# false = False; null = None; true = True
-
-# TODO: duplicated in __init__.py
-DONT_CREATE_MESSAGES = 3
-DONT_CREATE_ENTITIES = 2
-DONT_UPDATE_ENTITIES = 1
 
 DEVICE_ID_REGEXP = r"^[0-9]{2}:[0-9]{6}$"
 DEVICE_ID = vol.Match(DEVICE_ID_REGEXP)
@@ -62,20 +54,43 @@ SER2NET_SCHEMA = vol.Schema(
     {vol.Required("enabled"): bool, vol.Optional("socket", default="0.0.0.0:5000"): str}
 )
 
+# Config flags
+CONFIG = "config"
+DISABLE_DISCOVERY = "disable_discovery"
+DISABLE_SENDING = "disable_sending"
+ENFORCE_ALLOWLIST = "enforce_allowlist"
+ENFORCE_BLOCKLIST = "enforce_blocklist"
+EVOFW_FLAG = "evofw_flag"
+INPUT_FILE = "input_file"
+MAX_ZONES = "max_zones"
+PACKET_LOG = "packet_log"
+REDUCE_PROCESSING = "reduce_processing"
+SERIAL_PORT = "serial_port"
+SER2NET_RELAY = "ser2net_relay"
+USE_NAMES = "use_names"  # use friendly device names from allow_list
+USE_SCHEMA = "use_schema"
+ALLOW_LIST = "allowlist"
+BLOCK_LIST = "blocklist"
+
+
+DONT_CREATE_MESSAGES = 3
+DONT_CREATE_ENTITIES = 2
+DONT_UPDATE_ENTITIES = 1
+
 CONFIG_SCHEMA = vol.Schema(
     {
-        vol.Optional("disable_sending", default=False): vol.Any(None, bool),
-        vol.Optional("disable_discovery", default=False): vol.Any(None, bool),
-        vol.Optional("enforce_allowlist", default=False): vol.Any(None, bool),
-        vol.Optional("enforce_blocklist", default=True): vol.Any(None, bool),
-        vol.Optional("evofw_flag", default=None): vol.Any(None, bool),
-        # vol.Optional("input_file"): vol.Any(None, str),
-        vol.Optional("max_zones", default=DEFAULT_MAX_ZONES): vol.Any(None, int),
-        vol.Optional("packet_log", default=None): vol.Any(None, str),
-        vol.Optional("reduce_processing", default=0): vol.Any(None, int),
-        vol.Optional("serial_port"): vol.Any(None, str),
-        vol.Optional("ser2net_relay"): SER2NET_SCHEMA,
-        vol.Optional("use_schema", default=True): vol.Any(None, bool),
+        vol.Optional(SERIAL_PORT): vol.Any(None, str),
+        vol.Optional(DISABLE_SENDING, default=False): vol.Any(None, bool),
+        vol.Optional(DISABLE_DISCOVERY, default=False): vol.Any(None, bool),
+        vol.Optional(ENFORCE_ALLOWLIST, default=False): vol.Any(None, bool),
+        vol.Optional(ENFORCE_BLOCKLIST, default=True): vol.Any(None, bool),
+        vol.Optional(EVOFW_FLAG, default=None): vol.Any(None, str),
+        vol.Optional(MAX_ZONES, default=DEFAULT_MAX_ZONES): vol.Any(None, int),
+        vol.Optional(PACKET_LOG, default=None): vol.Any(None, str),
+        vol.Optional(REDUCE_PROCESSING, default=0): vol.Any(None, int),
+        # vol.Optional(SER2NET_RELAY): SER2NET_SCHEMA,
+        vol.Optional(USE_NAMES, default=True): vol.Any(None, bool),
+        vol.Optional(USE_SCHEMA, default=True): vol.Any(None, bool),
     },
     extra=vol.ALLOW_EXTRA,
 )
@@ -115,19 +130,14 @@ SYSTEM_SCHEMA = vol.Schema(
 KNOWNS_SCHEMA = vol.Schema(
     {
         vol.Optional(DEVICE_ID): vol.Any(
-            None,
-            {
-                vol.Optional("name", default=None): vol.Any(None, str),
-                vol.Optional("_parent_zone"): vol.Any(None, DOMAIN_ID),
-                vol.Optional("_has_battery"): vol.Any(None, bool),
-            },
+            None, {vol.Optional("name", default=None): vol.Any(None, str)}
         )  # , extra=vol.ALLOW_EXTRA
     }
 )
 FILTER_SCHEMA = vol.Schema(
     {
-        vol.Optional("allowlist"): vol.Any(None, vol.All(KNOWNS_SCHEMA)),
-        vol.Optional("blocklist"): vol.Any(None, vol.All(KNOWNS_SCHEMA)),
+        vol.Optional(ALLOW_LIST): vol.Any(None, vol.All(KNOWNS_SCHEMA)),
+        vol.Optional(BLOCK_LIST): vol.Any(None, vol.All(KNOWNS_SCHEMA)),
     }
 )
 # SCHEMA = vol.Schema(
@@ -140,139 +150,122 @@ FILTER_SCHEMA = vol.Schema(
 MONITOR_SCHEMA = vol.Schema(
     {
         vol.Optional("probe_system"): vol.Any(None, str),
-        vol.Optional("execut_cmd"): vol.Any(None, str),
-        vol.Optional("evofw_flag"): vol.Any(None, str),
-        vol.Optional("packet_log"): vol.Any(None, str),
+        vol.Optional("execute_cmd"): vol.Any(None, str),
+        vol.Optional(EVOFW_FLAG): vol.Any(None, str),
+        vol.Optional(PACKET_LOG): vol.Any(None, str),
     }
 )
 PARSE_SCHEMA = vol.Schema({})
 CLI_SCHEMA = vol.Schema({})
 
+DEV_MODE = _dev_mode_
+
 _LOGGER = logging.getLogger(__name__)
-if __dev_mode__:
+if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
-else:
-    _LOGGER.setLevel(logging.WARNING)
 
 
-def load_config(gwy, **config) -> Tuple[dict, list, list]:
+def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, list, list]:
     """Process the schema, and the configuration and return True if it is valid."""
 
-    # def proc_cli(config):
-    # self.config["input_file"] = config.get("input_file")
-    # config["known_devices"] = config.get("known_devices")
-    # self.config["reduce_processing"] = config.get("raw_output", 0)
+    config = CONFIG_SCHEMA(kwargs.get(CONFIG, {}))
+    allows = {}
+    blocks = {}
 
-    # if self.serial_port and self.config["input_file"]:
-    #     _LOGGER.warning(
-    #         "Serial port specified (%s), so ignoring input file (%s)",
-    #         self.serial_port,
-    #         self.config["input_file"],
-    #     )
-    #     self.config["input_file"] = None
+    if config[ENFORCE_ALLOWLIST]:
+        allows = KNOWNS_SCHEMA(kwargs.get(ALLOW_LIST, {}))
+        config[ENFORCE_BLOCKLIST] = False
+        if allows:
+            _LOGGER.debug("An allowlist has been created, len = %s", len(allows))
+        else:
+            _LOGGER.warning("An empty allowlist was configured, so will be ignored")
+            config[ENFORCE_ALLOWLIST] = False
 
-    # self.config["disable_sending"] = not config.get("probe_system")
-    # if self.config["input_file"]:
-    #     self.config["disable_sending"] = True
+    elif config[ENFORCE_BLOCKLIST]:
+        blocks = KNOWNS_SCHEMA(kwargs.get(BLOCK_LIST, {}))
+        if blocks:
+            _LOGGER.debug("A blocklist has been created, len = %s", len(blocks))
+        else:
+            _LOGGER.debug("An empty blocklist was configured, so will be ignored")
+            config[ENFORCE_BLOCKLIST] = False
 
-    # if self.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
-    #     config["message_log"] = None
-    #     _stream = (None, sys.stdout)
-    # else:
-    #     _stream = (sys.stdout, None)
+    if serial_port and input_file:
+        _LOGGER.warning(
+            "Serial port was specified (%s), so input file (%s) will be ignored",
+            serial_port,
+            input_file,
+        )
+    elif serial_port is None:
+        config[DISABLE_SENDING] = True
 
-    schema_filename = config.get("config_file")
+    if config[DISABLE_SENDING]:
+        config[DISABLE_DISCOVERY] = True
 
-    if schema_filename is None:
-        return {}, (), ()
+    # if not kwargs.get(ALLOW_LIST, {}):
+    #     config[USE_NAMES] = False
 
-    try:
-        with open(schema_filename) as schema_fp:
-            config = json.load(schema_fp)
-    except FileNotFoundError:  # if it doesn't exist, create it later
-        return {}, (), ()
-
-    # config = SCHEMA(config)
-    params, schema = config["configuration"], config["global_schema"]
-    gwy.known_devices = config["known_devices"]
-
-    allowlist = list(config["known_devices"]["allowlist"])
-    blocklist = list(config["known_devices"]["blocklist"])
-
-    if params["use_allowlist"] and allowlist:
-        _list = True
-    elif params["use_blocklist"] and blocklist:
-        _list = False
-    elif params["use_allowlist"] is not False and allowlist:
-        _list = True
-    elif params["use_blocklist"] is not False and blocklist:
-        _list = False
-    else:
-        _list = None
-
-    if params["use_schema"]:  # regardless of filters, & updates known/allow
-        (load_schema(gwy, k, v) for k, v in schema.items() if k != ATTR_ORPHANS)
-
-    if _list:
-        allowlist += [d for d in gwy.device_by_id if d not in allowlist]
-        blocklist = []
-    elif _list is False:
-        allowlist = []
-        blocklist = [d for d in blocklist if d not in gwy.device_by_id]
-    else:
-        allowlist = blocklist = []  # cheeky, but OK
-
-    return params, tuple(allowlist), tuple(blocklist)
+    return (config, allows, blocks)
 
 
-def load_schema(gwy, schema, **kwargs) -> dict:
+def load_schema(gwy, **kwargs) -> Tuple[dict, dict]:
     """Process the schema, and the configuration and return True if it is valid."""
     # TODO: check a sensor is not a device in another zone
 
+    schema = SYSTEM_SCHEMA(kwargs.get("schema", {})) if kwargs.get("schema") else {}
+
+    device_ids = schema.get(ATTR_ORPHANS, [])  # TODO: clean up
+    if device_ids is not None:
+        for device_id in device_ids:
+            gwy._get_device(addr(device_id))
+
     if not schema.get(ATTR_CONTROLLER):
-        return {}
+        return ({}, KNOWNS_SCHEMA(kwargs.get(ALLOW_LIST, {})))
 
     schema = SYSTEM_SCHEMA(schema)
 
-    for device_id in schema.get(ATTR_ORPHANS, []):
-        gwy.get_device(addr(device_id))
-
     ctl_id = schema[ATTR_CONTROLLER]
-    gwy.evo = ctl = gwy.get_device(addr(ctl_id), controller=addr(ctl_id))
+    ctl = gwy._get_device(addr(ctl_id), ctl_addr=addr(ctl_id))
 
-    htg_id = schema[ATTR_SYSTEM].get(ATTR_HTG_CONTROL)
-    if htg_id:
-        ctl._set_htg_control(gwy.get_device(addr(htg_id), controller=ctl))
+    htg_ctl_id = schema[ATTR_SYSTEM].get(ATTR_HTG_CONTROL)
+    if htg_ctl_id:
+        ctl._evo._set_htg_control(gwy._get_device(addr(htg_ctl_id), ctl_addr=ctl))
 
     for device_id in schema[ATTR_SYSTEM].get(ATTR_ORPHANS, []):
-        gwy.get_device(addr(device_id), controller=ctl)
+        gwy._get_device(addr(device_id), ctl_addr=ctl)
 
     dhw = schema.get(ATTR_STORED_HW)
     if dhw:
-        ctl._set_dhw(ctl.get_zone("FA"))
+        ctl._evo._set_dhw(ctl._evo._get_zone("HW"))
 
         dhw_sensor_id = dhw.get(ATTR_DHW_SENSOR)
         if dhw_sensor_id:
-            ctl.dhw._set_sensor(gwy.get_device(addr(dhw_sensor_id), controller=ctl))
+            ctl._evo._set_dhw_sensor(gwy._get_device(addr(dhw_sensor_id), ctl_addr=ctl))
 
-        dhw_id = dhw.get(ATTR_DHW_VALVE)
-        if dhw_id:
-            ctl.dhw._set_dhw_valve(gwy.get_device(addr(dhw_id), controller=ctl))
+        dhw_valve_id = dhw.get(ATTR_DHW_VALVE)
+        if dhw_valve_id:
+            ctl._evo._set_dhw_valve(gwy._get_device(addr(dhw_valve_id), ctl_addr=ctl))
 
-        htg_id = dhw.get(ATTR_DHW_VALVE_HTG)
-        if htg_id:
-            ctl.dhw._set_htg_valve(gwy.get_device(addr(htg_id), controller=ctl))
+        htg_valve_id = dhw.get(ATTR_DHW_VALVE_HTG)
+        if htg_valve_id:
+            ctl._evo._set_htg_valve(gwy._get_device(addr(htg_valve_id), ctl_addr=ctl))
 
     if ATTR_ZONES in schema:
         for zone_idx, attr in schema[ATTR_ZONES].items():
-            zone = ctl.get_zone(zone_idx, zone_type=attr.get(ATTR_ZONE_TYPE))
+            zone = ctl._evo._get_zone(zone_idx, zone_type=attr.get(ATTR_ZONE_TYPE))
 
             sensor_id = attr.get(ATTR_ZONE_SENSOR)
             if sensor_id:
-                zone._set_sensor(gwy.get_device(addr(sensor_id), controller=ctl))
+                zone._set_sensor(gwy._get_device(addr(sensor_id), ctl_addr=ctl))
 
-            for device_id in attr.get(ATTR_DEVICES, []):
-                gwy.get_device(addr(device_id), controller=ctl, domain_id=zone_idx)
+            device_ids = attr.get(ATTR_DEVICES)  # TODO: clean up
+            if device_ids is not None:
+                for device_id in device_ids:
+                    gwy._get_device(addr(device_id), ctl_addr=ctl, domain_id=zone_idx)
 
     # for ufh_ctl, ufh_schema in schema.get(ATTR_UFH_CONTROLLERS, []):
-    #     dev = gwy.get_device(addr(ufh_ctl), controller=ctl)
+    #     dev = gwy._get_device(addr(ufh_ctl), ctl_addr=ctl)
+
+    known_devices = KNOWNS_SCHEMA(kwargs.get(ALLOW_LIST, {}))
+    known_devices.update(KNOWNS_SCHEMA(kwargs.get(BLOCK_LIST, {})))
+
+    return (schema, known_devices)

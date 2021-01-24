@@ -1,62 +1,48 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome RF - a RAMSES-II protocol decoder & analyser."""
+"""Evohome RF - a RAMSES-II protocol decoder & analyser.
+
+Works with (amongst others):
+- evohome (up to 12 zones)
+- sundial (up to 2 zones)
+- chronotherm (CM60xNG can do 4 zones)
+- hometronics (16? zones)
+"""
 
 import asyncio
 from collections import deque
-from datetime import datetime as dt
 import json
 import logging
 import os
-from queue import PriorityQueue, Empty
 import signal
-import sys
 from threading import Lock
-from typing import Dict, List
+from typing import Callable, Dict, List, Tuple  # Any, Tuple
 
-from serial import serial_for_url
-from serial_asyncio import SerialTransport
-
-from .command import Command
-from .const import __dev_mode__, ATTR_ORPHANS
+from .const import _dev_mode_, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
-from .discovery import probe_device, poll_device
-from .logger import set_logging, BANDW_SUFFIX, COLOR_SUFFIX, CONSOLE_FMT, PKT_LOG_FMT
-from .message import _LOGGER as msg_logger, Message
-from .packet import (
-    _LOGGER as pkt_logger,
-    Packet,
-    file_pkts,
-    SerialProtocol,
-    SERIAL_CONFIG,
+from .message import process_msg
+from .packet import _PKT_LOGGER as pkt_logger, set_pkt_logging
+from .protocol import create_msg_stack
+from .transport import POLLER_TASK, create_pkt_stack
+from .schema import (
+    load_config,
+    load_schema,
+    DISABLE_DISCOVERY,
+    DONT_CREATE_MESSAGES,
+    PACKET_LOG,
+    REDUCE_PROCESSING,
+    USE_NAMES,
 )
-from .schema import CONFIG_SCHEMA, KNOWNS_SCHEMA, load_schema
-from .version import __version__  # noqa
+from .systems import SYSTEM_CLASSES, System, SystemBase
+from .version import __version__  # noqa: F401
 
-# from .ser2net import Ser2NetServer
-from .systems import EvoSystem
-
-# TODO: duplicated in schema.py
-DONT_CREATE_MESSAGES = 3
-DONT_CREATE_ENTITIES = 2
-DONT_UPDATE_ENTITIES = 1
+DEV_MODE = _dev_mode_
+VERSION = __version__
 
 _LOGGER = logging.getLogger(__name__)
-if False and __dev_mode__:
+if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
-else:
-    _LOGGER.setLevel(logging.WARNING)
-
-
-async def schedule_task(delay, func, *args, **kwargs):
-    """Start a coro after delay seconds."""
-
-    async def scheduled_func(delay, func, *args, **kwargs):
-        await asyncio.sleep(delay)
-        await func(*args, **kwargs)
-
-    asyncio.create_task(scheduled_func(delay, func, *args, **kwargs))
 
 
 class GracefulExit(SystemExit):
@@ -66,90 +52,53 @@ class GracefulExit(SystemExit):
 class Gateway:
     """The gateway class."""
 
-    def __init__(self, serial_port, loop=None, **config) -> None:
+    def __init__(self, serial_port, input_file=None, loop=None, **kwargs) -> None:
         """Initialise the class."""
 
-        if config.get("debug_mode"):
+        if kwargs.pop("debug_mode", None):
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
-            _LOGGER.debug("Starting evohome_rf, **config = %s", config)
-        else:
-            _LOGGER.warning("Starting evohome_rf, **config = %s", config)
+        _LOGGER.debug("Starting evohome_rf, **kwargs = %s", kwargs)
+
+        self._loop = loop if loop else asyncio.get_running_loop()
+        self._tasks = []
+        self._setup_event_handlers()
 
         self.serial_port = serial_port
-        self._loop = loop if loop else asyncio.get_running_loop()
-        self.config = CONFIG_SCHEMA(config)
+        self._input_file = input_file
 
-        self._protocol = None
-
-        if self.serial_port and self.config.get("input_file"):
-            _LOGGER.warning(
-                "Serial port specified (%s), so ignoring input file (%s)",
-                self.serial_port,
-                self.config["input_file"],
-            )
-            # self.config["input_file"] = None
-        elif self.config.get("input_file") is not None:
-            self.config["disable_sending"] = True
-
-        if self.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
-            _stream = (None, sys.stdout)
-        else:
-            _stream = (sys.stdout, None)
-        set_logging(msg_logger, stream=_stream[0], file_name=None)
-        set_logging(
-            pkt_logger,
-            stream=_stream[1],
-            file_name=self.config.get("packet_log"),
-            file_fmt=PKT_LOG_FMT + BANDW_SUFFIX,
-            cons_fmt=CONSOLE_FMT + COLOR_SUFFIX,
+        (self.config, self._include, self._exclude) = load_config(
+            serial_port, input_file, **kwargs
         )
 
-        self.cmd_que = PriorityQueue()  # TODO: maxsize=200)
+        set_pkt_logging(
+            pkt_logger,
+            file_name=self.config.get(PACKET_LOG),
+            cc_stdout=self.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES,
+        )
+
+        self.pkt_protocol, self.pkt_transport = None, None
+        self.msg_protocol, self.msg_transport = None, None
+        self.msg_protocol, self.msg_transport = self.create_client(process_msg)
+
         self._buffer = deque()
         self._sched_zone = None
         self._sched_lock = Lock()
-        self._callbacks = {}
-
-        self._prev_msg = None
-
-        self._tasks = []
-        self._setup_signal_handler()
 
         # if config.get("ser2net_server"):
         self._relay = None  # ser2net_server relay
 
-        # if self.config["reduce_processing"] > 0:
-        self.evo = None  # EvoSystem(controller=config["controller_id"])
-        self.systems: List[EvoSystem] = []
+        # if self.config[REDUCE_PROCESSING] > 0:
+        self.evo = None  # Evohome(controller=config["controller_id"])
+        self.systems: List[SystemBase] = []
         self.system_by_id: Dict = {}
         self.devices: List[Device] = []
         self.device_by_id: Dict = {}
 
-        self._schema = config.pop("schema", {})
-        self.known_devices = {}  # self._include_list + self._exclude_list
-        self._known_devices = (
-            load_schema(self, self._schema) if self.config["use_schema"] else {}
-        )
-        self.config["known_devices"] = False  # bool(self.known_devices)
+        self._schema, self.known_devices = load_schema(self, **kwargs)
+        if not self.known_devices:
+            self.config[USE_NAMES] = False
 
-        self._include_list = {}
-        self._exclude_list = {}
-        if self.config["enforce_allowlist"]:
-            self._include_list = KNOWNS_SCHEMA(config.pop("allowlist", {}))
-        elif self.config["enforce_blocklist"]:
-            self._exclude_list = KNOWNS_SCHEMA(config.pop("blocklist", {}))
-
-        if self.config.get("execute_cmd"):  # e.g. "RQ 01:145038 1F09 00"
-            cmd = self.config["execute_cmd"]
-            self.cmd_que.put_nowait(
-                Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], retry_limit=9)
-            )
-
-        if self.config.get("poll_devices"):
-            [poll_device(self.cmd_que, d) for d in self.config["poll_devices"]]
-
-        if self.config.get("probe_devices"):
-            [probe_device(self.cmd_que, d) for d in self.config["probe_devices"]]
+        self._prev_msg = None
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -159,171 +108,98 @@ class Gateway:
         """Return a brief readable string representation of this object."""
         return json.dumps(self.schema, indent=2)
 
-    def _setup_signal_handler(self):
-        def _sig_handler_win32(signalnum, frame):
-            """2 = signal.SIGINT (Ctrl-C)."""
-            _LOGGER.info("Received a signal (signalnum=%s), processing...", signalnum)
+    def _setup_event_handlers(self):
+        def handle_exception(loop, context):
+            """Handle exceptions on any platform."""
+            _LOGGER.error("handle_exception(): Caught: %s", context["message"])
 
-            if signalnum == signal.SIGINT:  # is this the only useful win32 signal?
-                self.cleanup("_sig_handler_win32()")
+            exc = context.get("exception")
+            if exc:
+                raise exc
+            # asyncio.create_task(self.stop())  # TODO: doesn't work here?
 
-                raise GracefulExit()
-
-        async def _sig_handler_posix(signal):
+        async def handle_sig_posix(sig):
             """Handle signals on posix platform."""
-            _LOGGER.info("Received a signal (%s), processing...", signal.name)
+            _LOGGER.debug("Received a signal (%s), processing...", sig.name)
 
-            if signal in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
-                self.cleanup("_sig_handler_posix()")  # OK for after tasks.cancel
+            if sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+                await self.stop("handle_sig_posix()")  # OK for after tasks.cancel
 
-                tasks = [
-                    t for t in asyncio.all_tasks() if t is not asyncio.current_task()
-                ]
-                [task.cancel() for task in tasks]
-                logging.debug(f"Cancelling {len(tasks)} outstanding tasks...")
-
-                # raise CancelledError
-                await asyncio.gather(*tasks, return_exceptions=True)
-
-            elif signal == signal.SIGUSR1:
+            elif sig == signal.SIGUSR1:
                 _LOGGER.info("Params: \r\n%s", {self.evo.id: self.evo.params})
 
-            elif signal == signal.SIGUSR2:
+            elif sig == signal.SIGUSR2:
                 _LOGGER.info("Status: \r\n%s", {self.evo.id: self.evo.status})
 
-        _LOGGER.debug("Creating signal handlers...")
+        def handle_sig_win32(signum, frame):  # can't be async?
+            """Handle signals on win32 platform."""
+            _LOGGER.debug(
+                "Received a signal (%s), processing...", signal.Signals(signum).name
+            )
+
+            if signum in (signal.SIGINT, signal.SIGTERM, signal.SIGBREAK):
+                # self.stop("handle_sig_win32()")
+                raise GracefulExit()
+
+        # signal.SIGBREAK: Int from keyboard (CTRL + BREAK)
+        # signal.SIGINT:   Int from keyboard (CTRL + C): to raise KeyboardInterrupt
+        # signal.SIGTERM:  Termination signal
+
+        _LOGGER.debug("_setup_event_handlers(): Creating exception handler...")
+        self._loop.set_exception_handler(handle_exception)
+
+        _LOGGER.debug("_setup_event_handlers(): Creating signal handlers...")
         signals = [signal.SIGINT, signal.SIGTERM]
 
-        if os.name == "nt":  # TODO: or is sys.platform better?
-            for sig in signals + [signal.SIGBREAK]:
-                signal.signal(sig, _sig_handler_win32)
-
-        else:  # if os.name == "posix":
+        if os.name == "posix":  # full support
             for sig in signals + [signal.SIGHUP, signal.SIGUSR1, signal.SIGUSR2]:
                 self._loop.add_signal_handler(
-                    sig, lambda sig=sig: asyncio.create_task(_sig_handler_posix(sig))
+                    sig, lambda sig=sig: asyncio.create_task(handle_sig_posix(sig))
                 )
+        elif os.name == "nt":  # supported, but YMMV
+            _LOGGER.warning("Be aware, YMMV with Windows.")
+            for signum in signals + [signal.SIGBREAK]:
+                signal.signal(signum, handle_sig_win32)
+        else:  # unsupported
+            raise RuntimeError("Unsupported OS for this module: %s", os.name)
 
-    def cleanup(self, xxx=None) -> None:
-        """Perform the non-async portion of a graceful shutdown."""
+    async def stop(self, xxx=None) -> None:
+        """Perform a graceful shutdown/stop."""
 
-        _LOGGER.debug("cleanup() invoked by: %s", xxx)
+        _LOGGER.warning("stop(): Invoked by: %s, doing housekeeping...", xxx)
+        tasks = [t for t in self._tasks if t is not asyncio.current_task()]
 
-        if self.config["known_devices"]:
-            _LOGGER.debug("cleanup(): Updating known_devices file...")
-            for d in self.devices:
-                device_attrs = {"friendly_name": d._friendly_name, "ignore": d._ignored}
-                if d.id in self.known_devices:
-                    self.known_devices[d.id].update(device_attrs)
-                else:
-                    self.known_devices[d.id] = device_attrs
+        logging.debug(f"stop(): Cancelling {len(tasks)} outstanding async tasks...")
+        # [print(t) for t in[asyncio.current_task()]]
+        # [print(t) for t in self._tasks]
+        # [print(t) for t in tasks]
+        # [print(t) for t in asyncio.all_tasks()]
+        [task.cancel() for task in tasks]
+        await asyncio.gather(*tasks, return_exceptions=False)
 
-            with open(self.config["known_devices"], "w") as json_file:
-                json.dump(self.known_devices, json_file, sort_keys=True, indent=4)
-
-    @asyncio.coroutine
-    def _create_serial_interface(self):
-        ser = serial_for_url(self.serial_port, **SERIAL_CONFIG)
-        self._protocol = SerialProtocol(self.cmd_que, self._process_packet)
-        transport = SerialTransport(self._loop, self._protocol, ser)
-        return (transport, self._protocol)
+        _LOGGER.debug("stop(): Complete.")
 
     async def start(self) -> None:
-        async def file_reader(fp):
-            async for raw_pkt in file_pkts(fp):
-                # include=self._include_list, exclude=self._exclude_list
-                self._process_packet(raw_pkt)
-                await asyncio.sleep(0)  # needed for Ctrl_C to work?
+        if self.serial_port:  # source of packets is a serial port
+            self.pkt_protocol, self.pkt_transport = create_pkt_stack(
+                self, self.msg_transport._pkt_receiver, serial_port=self.serial_port
+            )
+            self._tasks.append(
+                self.msg_transport._set_dispatcher(self.pkt_protocol.send_data)
+            )
 
-        async def port_writer():
-            while True:
-                if self.cmd_que.empty():
-                    await asyncio.sleep(0.05)
-                    continue
+        else:  # if self._input_file:
+            self.pkt_protocol, self.pkt_transport = create_pkt_stack(
+                self, self.msg_transport._pkt_receiver, packet_log=self._input_file
+            )
 
-                try:
-                    cmd = self.cmd_que.get(False)
-                except Empty:
-                    continue
+        if self.pkt_transport.get_extra_info(POLLER_TASK):
+            self._tasks.append(self.pkt_transport.get_extra_info(POLLER_TASK))
 
-                if self._protocol:  # or not self.config["disable_sending"]
-                    await self._protocol.send_data(cmd)  # put_pkt(cmd, _LOGGER)
+        await asyncio.gather(*self._tasks)
+        await self.stop("start()")
 
-                self.cmd_que.task_done()
-
-        # The source of packets is either a serial port, or a text stream
-        if self.serial_port:
-            reader = asyncio.create_task(self._create_serial_interface())
-            writer = asyncio.create_task(port_writer())
-
-            self._tasks.extend([reader, writer])
-            await writer
-
-        else:  # if self.config["input_file"]:
-            reader = asyncio.create_task(file_reader(self.config["input_file"]))
-            writer = asyncio.create_task(port_writer())  # to consume cmds
-
-            self._tasks.extend([reader, writer])
-            await reader
-
-        self.cleanup("start()")  # await asyncio.gather(*self._tasks)
-
-    def _process_packet(self, pkt: Packet) -> None:
-        """Decode the packet and its payload."""
-
-        def proc_callback(msg: Message) -> None:
-            # TODO: this needs to be a queue
-            dtm = dt.now()
-            [
-                v["func"](False, *v["args"], **v["kwargs"])
-                for v in self._callbacks.values()
-                if not v.get("daemon") and v.get("timeout", dt.max) <= dtm
-            ]  # first, alert expired callbacks
-
-            self._callbacks = {
-                k: v
-                for k, v in self._callbacks.items()
-                if v.get("daemon") or v.get("timeout", dt.max) > dtm
-            }  # then, discard expired callbacks
-
-            if msg._pkt._header in self._callbacks:
-                callback = self._callbacks[msg._pkt._header]
-                callback["func"](msg, *callback["args"], **callback["kwargs"])
-                if not callback.get("daemon"):
-                    del self._callbacks[msg._pkt._header]
-
-        if not pkt.is_wanted(include=self._include_list, exclude=self._exclude_list):
-            return
-
-        try:
-            if self.config["reduce_processing"] >= DONT_CREATE_MESSAGES:
-                return
-
-            msg = Message(self, pkt)  # trap/logs all invalids msgs appropriately
-            if msg._pkt._header in self._callbacks:
-                proc_callback(msg)
-
-            # 18:/RQs are unreliable, although any corresponding RPs are required
-            if msg.src.type == "18":
-                return
-
-            if self.config["reduce_processing"] >= DONT_CREATE_ENTITIES:
-                return
-
-            msg.create_devices()  # from pkt header & from msg payload (e.g. 000C)
-            msg.create_zones()  # create zones & ufh_zones (TBD)
-
-            if self.config["reduce_processing"] >= DONT_UPDATE_ENTITIES:
-                return
-
-            msg.update_entities(self._prev_msg)  # update the state database
-
-        except (AssertionError, NotImplementedError):
-            return
-
-        self._prev_msg = msg if msg.is_valid else None
-
-    def get_device(self, dev_addr, controller=None, domain_id=None) -> Device:
+    def _get_device(self, dev_addr, ctl_addr=None, domain_id=None) -> Device:
         """Return a device (will create it if required).
 
         Can also set a controller/system (will create as required). If a controller is
@@ -331,13 +207,36 @@ class Gateway:
         (heater_relay), HW (DHW sensor, relay), or None (unknown, TBA).
         """
 
-        ctl = (
-            None if controller is None else self.get_device(controller, domain_id="FF")
-        )
-        if self.evo is None:
-            self.evo = ctl
+        def create_system(ctl) -> SystemBase:
+            assert ctl.id not in self.system_by_id, f"Duplicate system id: {ctl.id}"
+            if ctl.id in self.system_by_id:
+                raise LookupError(f"Duplicated system id: {ctl.id}")
+
+            system = SYSTEM_CLASSES.get(ctl.type, System)(self, ctl)
+
+            if not self.config[DISABLE_DISCOVERY]:
+                system._discover()  # discover_flag=DISCOVER_ALL)
+
+            return system
+
+        def create_device(dev_addr, **kwargs) -> Device:
+            if dev_addr.id in self.device_by_id:
+                raise LookupError(f"Duplicated device id: {dev_addr.id}")
+
+            device = DEVICE_CLASSES.get(dev_addr.type, Device)(self, dev_addr, **kwargs)
+
+            if not self.config[DISABLE_DISCOVERY]:
+                device._discover()  # discover_flag=DISCOVER_ALL)
+
+            return device
+
+        ctl = None if ctl_addr is None else self._get_device(ctl_addr, domain_id="FF")
+        if ctl is not None and self.evo is None:
+            self.evo = ctl._evo
 
         if dev_addr.type in ("18", "63", "--"):  # valid addresses, but not devices
+            return
+        if dev_addr.id == "01:000001":  # valid addresses, but not devices
             return
 
         if isinstance(dev_addr, Device):
@@ -346,22 +245,21 @@ class Gateway:
             device = self.device_by_id.get(dev_addr.id)
 
         if device is None:
-            if dev_addr.type in ("01", "23") or domain_id == "FF":
-                device = EvoSystem(self, dev_addr, domain_id=domain_id)
-            else:
-                device = DEVICE_CLASSES.get(dev_addr.type, Device)(
-                    self, dev_addr, controller=ctl, domain_id=domain_id
-                )
-            if not self.config["disable_discovery"]:
-                device._discover()  # discover_flag=DISCOVER_ALL)
+            device = create_device(dev_addr, ctl=ctl, domain_id=domain_id)
+            # if isinstance(device, Controller):
+            # if device.is_controller:
+            # if dev_addr.type in SYSTEM_CLASSES:
+            if dev_addr.type in ("01", "23"):
+                device._evo = create_system(device)
+
         else:  # update the existing device with any metadata
             if ctl is not None:
                 device._set_ctl(ctl)
 
-            if domain_id in ("FC", "FF"):
+            if domain_id in ("F9", "FA", "FC", "FF"):
                 device._domain_id = domain_id
             elif domain_id is not None and ctl is not None:
-                device._set_zone(ctl.get_zone(domain_id))
+                device._set_zone(ctl._evo._get_zone(domain_id))
 
         return device
 
@@ -369,12 +267,13 @@ class Gateway:
     def schema(self) -> dict:
         """Return the global schema."""
 
-        schema = {"main_controller": self.evo.id if self.evo else None}
+        schema = {"main_controller": self.evo._ctl.id if self.evo else None}
 
         if self.evo:
-            schema[self.evo.id] = self.evo.schema
+            schema[self.evo._ctl.id] = self.evo.schema
         for evo in self.systems:
-            schema[evo.id] = evo.schema
+            if evo is not self.evo:
+                schema[evo._ctl.id] = evo.schema
 
         orphans = [d.id for d in self.devices if d.controller is None]
         orphans.sort()
@@ -401,3 +300,7 @@ class Gateway:
         }
 
         return result
+
+    def create_client(self, msg_handler) -> Tuple[Callable, Callable]:
+        """Create a client protocol for the RAMSES-II message transport."""
+        return create_msg_stack(self, msg_handler)

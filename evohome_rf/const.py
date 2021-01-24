@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome serial."""
+"""Evohome RF - a RAMSES-II protocol decoder & analyser."""
 
 from collections import namedtuple
 import re
@@ -11,10 +11,10 @@ def slug(string: str) -> str:
     return re.sub(r"[\W_]+", "_", string.lower())
 
 
+_dev_mode_ = False
+
 # grep ' F[89ABxDE]' | grep -vE ' (0008|1F09/F8|1FC9|2D49/FD) '
 # grep ' F[89ABCDE]' | grep -vE ' (0008|1F09/xx|1FC9|0001|0009|1100|3150|3B00) '
-
-__dev_mode__ = True
 
 HGI_DEV_ID = "18:000730"  # default type and address of HGI, 18:013393
 NON_DEV_ID = "--:------"
@@ -31,7 +31,7 @@ HGI_DEVICE = id_to_address(HGI_DEV_ID)
 NON_DEVICE = id_to_address(NON_DEV_ID)
 NUL_DEVICE = id_to_address(NUL_DEV_ID)
 
-DEFAULT_MAX_ZONES = 12
+DEFAULT_MAX_ZONES = 16
 # Evohome: 12 (0-11), older/initial version was 8
 # Hometronics: 16 (0-15), or more?
 # Sundial RF2: 2 (0-1), usually only one, but ST9520C can do two zones
@@ -39,6 +39,13 @@ DEFAULT_MAX_ZONES = 12
 # Packet codes
 CODE_SCHEMA = {
     # main codes - every sync_cycle
+    "000A": {
+        "name": "zone_params",
+        "null_resp": "007FFF7FFF",
+        "rp_len": 6,
+        "rq_len": 3,
+        "uses_zone_idx": True,
+    },
     "1F09": {"name": "system_sync", "rp_len": 3, "rq_len": 1, "w_len": 3},
     "2309": {
         "name": "setpoint",
@@ -49,13 +56,6 @@ CODE_SCHEMA = {
         "uses_zone_idx": True,
     },
     "30C9": {"name": "temperature", "null_resp": "7FFF", "uses_zone_idx": True},
-    "000A": {
-        "name": "zone_params",
-        "null_resp": "007FFF7FFF",
-        "rp_len": 6,
-        "rq_len": 3,
-        "uses_zone_idx": True,
-    },
     # zone codes
     "0004": {
         "name": "zone_name",
@@ -69,6 +69,7 @@ CODE_SCHEMA = {
         "null_resp": "007FFFFFFF",
         "uses_zone_idx": True,
     },  #
+    "0006": {"name": "schedule_sync", "rq_len": 1},  # RQ always 00
     "0404": {"name": "zone_schedule", "uses_zone_idx": True},
     "12B0": {"name": "window_state", "null_resp": "7FFF", "uses_zone_idx": True},
     "2349": {
@@ -100,7 +101,7 @@ CODE_SCHEMA = {
     "1100": {"name": "tpi_params"},
     "3B00": {"name": "actuator_sync"},  # was: tpi_sync/actuator_req
     "3EF0": {"name": "actuator_state", "uses_zone_idx": False},
-    "3EF1": {"name": "actuator_cycle", "uses_zone_idx": False, "rq_length": 2},
+    "3EF1": {"name": "actuator_cycle", "uses_zone_idx": True, "rq_length": 2},
     # OpenTherm codes
     "1FD4": {"name": "opentherm_sync"},
     "22D9": {"name": "boiler_setpoint"},
@@ -114,12 +115,11 @@ CODE_SCHEMA = {
     "22D0": {"name": "message_22d0", "uses_zone_idx": None},  # system switch?
     # unknown/unsure codes - some maybe not evohome, maybe not even Honeywell
     "0002": {"name": "sensor_weather"},
-    "0006": {"name": "schedule_sync"},  # for F9/FA/FC, idx for ELE, F8/FF (all?)
     "1280": {"name": "outdoor_humidity"},
     "1290": {"name": "outdoor_temp"},
     "12A0": {"name": "indoor_humidity"},  # Nuaire ventilation
     "12C0": {"name": "message_12c0"},  # I/34:/34:
-    "2249": {"name": "oth_setpoint", "uses_zone_idx": None},  # now/next setpoint
+    "2249": {"name": "setpoint_now", "uses_zone_idx": True},  # now/next setpoint
     # "2389": {"name": "message_2389"},  # not real?
     "22F1": {"name": "switch_vent"},
     "22F3": {"name": "switch_other"},
@@ -127,11 +127,13 @@ CODE_SCHEMA = {
     "31D9": {"name": "message_31d9"},  # HVAC/ventilation 30 min sync cycle?
     "31DA": {"name": "message_31da"},  # from HCE80, also Nuaire: Contains R/humidity??
     "31E0": {"name": "message_31e0"},  # Nuaire ventilation
+    # unknown codes, sent only by THM
+    "0B04": {"name": "message_0b04"},
     # unknown codes, sent only by STA
     "000E": {"name": "message_000e", "uses_zone_idx": False},
     "042F": {"name": "message_042f", "uses_zone_idx": False},
     "3120": {"name": "message_3120", "uses_zone_idx": False},
-    # unknown codes, initiated only by HR91
+    # unknown codes, sent only by HR91
     "01D0": {"name": "message_01d0", "uses_zone_idx": True},  # might yet be False
     "01E9": {"name": "message_01e9", "uses_zone_idx": True},  # might yet be False
 }
@@ -139,11 +141,8 @@ CODE_SCHEMA = {
 MAY_USE_DOMAIN_ID = ["0001", "0008", "0009", "1100", "1FC9", "3150", "3B00"]
 MAY_USE_ZONE_IDX = [k for k, v in CODE_SCHEMA.items() if v.get("uses_zone_idx")]
 # DES_SANS_ZONE_IDX = ["0002", "2E04"]  # not sure about "0016", "22C9"
-CODES_SANS_DOMAIN_ID = ("1F09", "1FC9", "2E04")
+CODES_SANS_DOMAIN_ID = ("0418", "1F09", "1FC9", "2E04")
 
-CODE_MAP = {k: v["name"] for k, v in CODE_SCHEMA.items()}
-
-# TODO: which device type/config pairs send what packets?
 DEVICE_TABLE = {
     # Honeywell evohome
     "01": {
@@ -156,6 +155,7 @@ DEVICE_TABLE = {
         "is_sensor": True,
         "archetype": "ATC928",
         "poll_codes": ["000C", "10E0", "1100", "313F"],
+        "discover_schema": [],
     },  # rechargeable
     "02": {
         "type": "UFC",
@@ -165,6 +165,7 @@ DEVICE_TABLE = {
         "is_controller": None,
         "is_sensor": None,
         "archetype": "HCE80(R)",
+        "discover_schema": [],
     },
     "03": {
         "type": "STa",
@@ -173,7 +174,8 @@ DEVICE_TABLE = {
         "has_zone_sensor": True,
         "is_actuator": False,
         "is_sensor": True,
-        "archetype": "HCW80",  # also: HCF82
+        "archetype": "HCW82",  # also: HCF82
+        "discover_schema": [],
     },
     "04": {
         "type": "TRV",
@@ -183,6 +185,7 @@ DEVICE_TABLE = {
         "is_actuator": True,
         "is_sensor": True,
         "archetype": "HR92",  # also: HR80
+        "discover_schema": [],
     },  #
     "07": {
         "type": "DHW",
@@ -191,6 +194,7 @@ DEVICE_TABLE = {
         "is_actuator": False,
         "is_sensor": True,
         "archetype": "CS92A",
+        "discover_schema": [],
     },
     "10": {
         "type": "OTB",
@@ -211,16 +215,8 @@ DEVICE_TABLE = {
             "3EF0",
             "3EF1",
         ],
+        "discover_schema": [],
     },  #
-    "12": {
-        "type": "THm",
-        "name": "Room Thermostat",
-        "has_battery": True,
-        "has_zone_sensor": True,
-        "is_actuator": False,
-        "is_sensor": True,
-        "archetype": "DTS92(E)",
-    },
     "13": {
         "type": "BDR",
         "name": "Wireless Relay",
@@ -229,6 +225,7 @@ DEVICE_TABLE = {
         "is_sensor": False,
         "archetype": "BDR91",  # also: HC60NG?
         "poll_codes": ["0008", "1100", "3EF1"],
+        "discover_schema": [],  # excl.: 10E0
     },
     "22": {
         "type": "THM",
@@ -238,6 +235,7 @@ DEVICE_TABLE = {
         "is_actuator": False,
         "is_sensor": True,
         "archetype": "DTS92(E)",
+        "discover_schema": [],
     },
     "30": {
         "type": "GWY",
@@ -246,6 +244,7 @@ DEVICE_TABLE = {
         "is_actuator": False,
         "is_sensor": False,
         "archetype": "-unclear-",  # RFG100, VMS?
+        "discover_schema": [],
     },
     "34": {
         "type": "STA",
@@ -255,6 +254,7 @@ DEVICE_TABLE = {
         "is_actuator": False,
         "is_sensor": True,
         "archetype": "T87RF",
+        "discover_schema": [],
     },
     # Honeywell evohome TBD
     "x1": {
@@ -289,6 +289,9 @@ DEVICE_TABLE = {
         "is_sensor": True,
         "archetype": "ST9420C",
     },
+    # Honeywell Jasper, HVAC?
+    "08": {"type": "JIM", "name": "HVAC?"},  # Jasper equipment interface module
+    "31": {"type": "JST", "name": "HVAC?"},  # Jasper Stat TXXX
     # non-Honeywell, HVAC? (also, 30: is a Nuaire PIV)
     "20": {"type": "VCE", "name": "HVAC?"},  # VCE-RF unit
     "32": {"type": "VMS", "name": "HVAC?"},  # sensor/switch
@@ -300,6 +303,12 @@ DEVICE_TABLE = {
 }
 # VMS includes Nuaire VMS-23HB33, VMS-23LMH23
 # What about Honeywell MT4 actuator?
+
+DEVICE_TABLE["12"] = dict(DEVICE_TABLE["22"])
+DEVICE_TABLE["12"]["type"] = "THm"
+
+DEVICE_TABLE["00"] = dict(DEVICE_TABLE["04"])
+DEVICE_TABLE["00"]["type"] = "TRv"
 
 # Example of:
 #  - Sundial RF2 Pack 3: 23:(ST9420C), 07:(CS92), and 22:(DTS92(E))
@@ -369,6 +378,7 @@ ZONE_TABLE = {
     "DHW": {"type": "x2", "sensor": "DHW", "name": "Stored DHW"},
 }
 ZONE_CLASS_MAP = {v["type"]: k for k, v in ZONE_TABLE.items()}
+ZONE_CLASS_MAP["00"] = ZONE_CLASS_MAP["04"]
 ZONE_TYPE_MAP = {k: slug(v["name"]) for k, v in ZONE_TABLE.items()}
 ZONE_TYPE_SLUGS = {slug(v["name"]): k for k, v in ZONE_TABLE.items()}
 
@@ -378,13 +388,14 @@ DTM_LONG_REGEX = re.compile(
 DTM_TIME_REGEX = re.compile(r"[0-2]\d:[0-5]\d:[0-5]\d\.\d{3} ?")  # 13:15:00.123
 
 # Used by packet structure validators
-a = r"(-{3}|\d{3})"
+a = r"(-{3}|\d{3}|\.{3})"  # '...' was used by an older version of evofw3
 b = r"( I|RP|RQ| W)"
 c = r"(-{2}:-{6}|\d{2}:\d{6})"
 d = r"[0-9A-F]{4}"
 e = r"\d{3}"
 f = r"([0-9A-F]{2})+"
 
+DEVICE_ID_REGEX = re.compile(f"^{c}$")
 COMMAND_REGEX = re.compile(f"^{b} {a} {c} {c} {c} {d} {e} {f}$")
 MESSAGE_REGEX = re.compile(f"^{a} {b} {a} {c} {c} {c} {d} {e} {f}$")
 
@@ -397,7 +408,7 @@ ATTR_DEVICES = "devices"
 ATTR_DHW_SENSOR = "hotwater_sensor"
 ATTR_DHW_VALVE = "hotwater_valve"
 ATTR_DHW_VALVE_HTG = "heating_valve"
-ATTR_HTG_CONTROL = "heating_control"
+ATTR_HTG_CONTROL = "heating_control"  # aka boiler relay, heating appliance
 ATTR_HTG_PUMP = "heat_pump_control"  # same as ATTR_HTG_CONTROL, but parameters differ
 ATTR_HEAT_DEMAND = "heat_demand"
 ATTR_OPEN_WINDOW = "open_window"
@@ -470,7 +481,7 @@ CODE_000C_DEVICE_TYPE = {
     "0B": "mix_actuators",
     # "0C": None,
     "0D": ATTR_DHW_SENSOR,  # FA, z_idx 0 only
-    "0E": ATTR_DHW_VALVE,  # FA, could be ATTR_DHW_VALVE_HTG
+    "0E": ATTR_DHW_VALVE,  # FA, could be F9, ATTR_DHW_VALVE_HTG
     "0F": ATTR_HTG_CONTROL,  # FC, z_idx 0 only
     "10": "Unknown",  # seen when binding a TR87RF
     "11": "ele_actuators",
@@ -480,14 +491,15 @@ CODE_000C_DEVICE_TYPE = {
 CODE_0418_DEVICE_CLASS = {
     "00": "controller",
     "01": "sensor",
-    "04": "actuator",
+    "04": "actuator",  # if domain is FC, then "boiler_relay"
     "05": "dhw_sensor",  # not ATTR_DHW_SENSOR
+    "06": "remote_gateway",  # 30:185469
 }
 CODE_0418_FAULT_STATE = {
     "00": "fault",
     "40": "restore",
-    "C0": "unknown_c0",
-}  # C0s do not appear in the evohome UI
+    "C0": "unknown_c0",  # C0s do not appear in the evohome UI
+}
 CODE_0418_FAULT_TYPE = {
     "01": "system_fault",
     "03": "mains_low",
