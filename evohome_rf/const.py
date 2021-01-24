@@ -31,7 +31,7 @@ HGI_DEVICE = id_to_address(HGI_DEV_ID)
 NON_DEVICE = id_to_address(NON_DEV_ID)
 NUL_DEVICE = id_to_address(NUL_DEV_ID)
 
-DEFAULT_MAX_ZONES = 16
+DEFAULT_MAX_ZONES = 12
 # Evohome: 12 (0-11), older/initial version was 8
 # Hometronics: 16 (0-15), or more?
 # Sundial RF2: 2 (0-1), usually only one, but ST9520C can do two zones
