@@ -500,9 +500,7 @@ def parser_0008(payload, msg) -> Optional[dict]:
     assert msg.len == 2, msg.len
 
     if payload[:2] not in ("F9", "FA", "FC"):
-        assert (
-            int(payload[:2], 16) < msg._gwy.config[MAX_ZONES]
-        ), payload[:2]  # TODO: when 0, when FC, when zone
+        assert int(payload[:2], 16) < msg._gwy.config[MAX_ZONES], payload[:2]
 
     return {**_idx(payload[:2], msg), "relay_demand": _percent(payload[2:4])}
 

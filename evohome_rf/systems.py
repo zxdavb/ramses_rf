@@ -28,7 +28,7 @@ from .const import (
     _dev_mode_,
 )
 from .devices import Device, Entity, _payload
-from .exceptions import CorruptStateError
+from .exceptions import CorruptStateError, ExpiredCallbackError
 from .helpers import dtm_to_hex
 from .schema import (
     ATTR_HTG_CONTROL,
@@ -67,7 +67,10 @@ class SysFaultLog(Entity):  # 0418
             pass
 
     async def get_fault_log(self, force_refresh=None) -> Optional[dict]:  # 0418
-        return await self._fault_log.get_fault_log(force_refresh=force_refresh)
+        try:
+            return await self._fault_log.get_fault_log(force_refresh=force_refresh)
+        except ExpiredCallbackError:
+            return
 
     @property
     def status(self) -> dict:

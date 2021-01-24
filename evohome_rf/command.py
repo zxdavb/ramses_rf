@@ -212,6 +212,8 @@ class FaultLog:  # 0418
         self._fault_log = None
         self._fault_log_done = None
 
+        self._limit = 11  # TODO: make configurable
+
     def __repr_(self) -> str:
         return json.dumps(self._fault_log) if self._fault_log_done else None
 
@@ -269,7 +271,10 @@ class FaultLog:  # 0418
             log_idx = int(log.pop("log_idx"), 16)
             self._fault_log[log_idx] = log
 
-            self._rq_log_entry(log_idx + 1)
+            if log_idx < self._limit:
+                self._rq_log_entry(log_idx + 1)
+            else:
+                self._fault_log_done = True
 
         # TODO: (make method) register callback for null response (no log_idx left)
         header = "|".join(("RP", self.id, "0418"))
