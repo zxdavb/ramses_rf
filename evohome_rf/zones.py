@@ -191,7 +191,10 @@ class HeatDemand:  # 3150
 
     @property
     def status(self) -> dict:
-        return {**super().status, "heat_demand": self.heat_demand}
+        return {
+            **super().status,
+            "heat_demand": self.heat_demand,
+        }
 
 
 class DhwZone(ZoneBase, HeatDemand):
@@ -329,11 +332,16 @@ class DhwZone(ZoneBase, HeatDemand):
 
     @property  # setpoint, config, mode (not schedule)
     def params(self) -> dict:
-        return {"dhw_params": self._dhw_params}
+        return {
+            "dhw_params": self._dhw_params,
+        }
 
     @property  # temp, open_windows
     def status(self) -> dict:
-        return {"temperature": self._temp, "dhw_mode": self._dhw_mode}
+        return {
+            "temperature": self._temp,
+            "dhw_mode": self._dhw_mode,
+        }
 
     async def cancel_override(self) -> bool:  # 1F41
         """Reset the DHW to follow its schedule."""
@@ -426,7 +434,10 @@ class ZoneSchedule:
 
     @property
     def status(self) -> dict:
-        return {**super().status, "schedule": self._schedule.schedule.get("schedule")}
+        return {
+            **super().status,
+            "schedule": self._schedule.schedule.get("schedule"),
+        }
 
 
 class Zone(ZoneSchedule, ZoneBase):
@@ -776,7 +787,7 @@ class Zone(ZoneSchedule, ZoneBase):
     def params(self) -> dict:
         """Return the zone's configuration (excl. schedule)."""
 
-        ATTR_NAME = "name"
+        ATTR_NAME = "name"  # TODO
         ATTR_MODE = "mode"
         ATTR_CONFIG = "zone_config"
 
@@ -790,7 +801,10 @@ class Zone(ZoneSchedule, ZoneBase):
     def status(self) -> dict:
         """Return the zone's current state."""
 
-        return {ATTR_SETPOINT: self.setpoint, ATTR_TEMP: self.temperature}
+        return {
+            ATTR_SETPOINT: self.setpoint,
+            ATTR_TEMP: self.temperature,
+        }
 
 
 class ZoneDemand:  # not all zone types call for heat
@@ -813,7 +827,10 @@ class ZoneDemand:  # not all zone types call for heat
 
     @property
     def status(self) -> dict:
-        return {**super().status, ATTR_HEAT_DEMAND: self.heat_demand}
+        return {
+            **super().status,
+            ATTR_HEAT_DEMAND: self.heat_demand,
+        }
 
 
 class EleZone(Zone):  # Electric zones (do *not* call for heat)
@@ -879,7 +896,10 @@ class RadZone(ZoneDemand, Zone):
 
     @property
     def status(self) -> dict:
-        return {**super().status, ATTR_OPEN_WINDOW: self.window_open}
+        return {
+            **super().status,
+            ATTR_OPEN_WINDOW: self.window_open,
+        }
 
 
 class UfhZone(ZoneDemand, Zone):
@@ -903,7 +923,10 @@ class UfhZone(ZoneDemand, Zone):
 
     @property
     def status(self) -> dict:
-        return {**super().status, "ufh_setpoint": self.ufh_setpoint}
+        return {
+            **super().status,
+            "ufh_setpoint": self.ufh_setpoint,
+        }
 
 
 class MixZone(Zone):

@@ -183,9 +183,6 @@ class DeviceBase(Entity, metaclass=ABCMeta):
     def schema(self) -> dict:
         """Return the fixed attributes of the device (e.g. TODO)."""
         raise NotImplementedError
-        # schema["device_info"] = {
-        #     d.id: d.hardware_info for d in self.devices if d.hardware_info is not None
-        # }
 
     @property
     @abstractmethod
@@ -215,13 +212,15 @@ class Actuator:  # 3EF0, 3EF1
         super().__init__(*args, **kwargs)
 
         self._actuator_cycle = None
+        self._actuator_enabled = None
         self._actuator_state = None
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code == "3EF0" and msg.verb == " I":  # NOT "RP"
+        if msg.code == "3EF0" and msg.verb == " I":  # NOT "RP", TODO: why????
             self._actuator_state = msg
+            self._actuator_enabled = msg
 
             qos = {"priority": Priority.LOW, "retries": 1}
             for code in ("0008", "3EF1"):
@@ -229,6 +228,7 @@ class Actuator:  # 3EF0, 3EF1
 
         elif msg.code == "3EF1" and msg.verb == "RP":
             self._actuator_cycle = msg
+            self._actuator_enabled = msg
 
     @property
     def actuator_cycle(self) -> Optional[dict]:  # 3EF1
@@ -239,11 +239,16 @@ class Actuator:  # 3EF0, 3EF1
         return _payload(self._actuator_state)
 
     @property
+    def enabled(self) -> Optional[bool]:  # 3EF0, 3EF1
+        return _payload(self._actuator_enabled, "actuator_enabled")
+
+    @property
     def status(self) -> dict:
         return {
             **super().status,
             "actuator_cycle": self.actuator_cycle,
             "actuator_state": self.actuator_state,
+            "enabled": self.enabled,
         }
 
 
@@ -269,7 +274,10 @@ class BatteryState:  # 1060
 
     @property
     def status(self) -> dict:
-        return {**super().status, "battery_state": self.battery_state}
+        return {
+            **super().status,
+            "battery_state": self.battery_state,
+        }
 
 
 class Setpoint:  # 2309
@@ -290,7 +298,10 @@ class Setpoint:  # 2309
 
     @property
     def status(self) -> dict:
-        return {**super().status, "setpoint": self.setpoint}
+        return {
+            **super().status,
+            "setpoint": self.setpoint,
+        }
 
 
 class Temperature:  # 30C9
@@ -311,7 +322,10 @@ class Temperature:  # 30C9
 
     @property
     def status(self) -> dict:
-        return {**super().status, "temperature": self.temperature}
+        return {
+            **super().status,
+            "temperature": self.temperature,
+        }
 
 
 class DeviceInfo:  # 10E0
@@ -332,14 +346,14 @@ class DeviceInfo:  # 10E0
 
     @property
     def schema(self) -> dict:
-        return {**super().status, "device_info": self.device_info}
+        return {
+            **super().schema,
+            "device_info": self.device_info,
+        }
 
 
-# ######################################################################################
-
-# 00: used for unknown device types
 class Device(DeviceInfo, DeviceBase):
-    """The Device class."""
+    """The Device base class - also used for unknown device types."""
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -588,27 +602,22 @@ class UfhController(Device):
 
     @property  # id, type
     def schema(self) -> dict:
-        schema = {"ufh_circuits": self._circuits}
-
-        return schema
+        return {
+            **super().schema,
+            "ufh_circuits": self._circuits,
+        }
 
     # @property  # setpoint, config, mode (not schedule)
     # def params(self) -> dict:
-    #     ATTR_NAME = "name"
-    #     ATTR_MODE = "mode"
-    #     ATTR_CONFIG = "zone_config"
 
     #     return {
-    #         ATTR_NAME: self.name,
-    #         ATTR_MODE: self.mode,
-    #         ATTR_CONFIG: self.zone_config,
+    #        **super().params,
     #     }
 
     # @property
     # def status(self) -> dict:
     #     return {
-    #         ATTR_SETPOINT: self.setpoint,
-    #         ATTR_TEMP: self.temperature,
+    #         **super().status,
     #     }
 
 
@@ -643,11 +652,17 @@ class DhwSensor(BatteryState, Device):
 
     # @property
     # def params(self) -> dict:
-    #     return {**super().params, "dhw_params": self.dhw_params}
+    #     return {
+    #         **super().params,
+    #         "dhw_params": self.dhw_params,
+    #     }
 
     @property
     def status(self) -> dict:
-        return {**super().status, "temperature": self.temperature}
+        return {
+            **super().status,
+            "temperature": self.temperature,
+        }
 
 
 # 10: "10E0", "3EF0", "3150";; "22D9", "3220" ("1FD4"), TODO: 3220
@@ -807,7 +822,6 @@ class BdrSwitch(Actuator, Device):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._actuator_enabled = None
         self._relay_demand = None
         self._tpi_params = None
 
@@ -851,16 +865,6 @@ class BdrSwitch(Actuator, Device):
             # for code in ("0008", "3EF1"):
             #     self._send_cmd(code, delay=1)
 
-        elif msg.code == "3EF0" and msg.verb == " I":  # actuator_state
-            self._actuator_enabled = msg
-
-            # qos = {"priority": Priority.LOW, "retries": 2}
-            # for code in ("0008", "3EF1"):
-            #     self._send_cmd(code, qos=qos)
-
-        elif msg.code == "3EF1" and msg.verb == "RP":
-            self._actuator_enabled = msg
-
     @property
     def role(self) -> Optional[str]:
         """Return the role of the BDR91A (there are six possibilities)."""
@@ -891,10 +895,6 @@ class BdrSwitch(Actuator, Device):
         return self._is_tpi
 
     @property
-    def actuator_enabled(self) -> Optional[bool]:  # 3EF0, 3EF1
-        return _payload(self._actuator_enabled, "actuator_enabled")
-
-    @property
     def relay_demand(self) -> Optional[float]:  # 0008
         return _payload(self._relay_demand, "relay_demand")
 
@@ -904,13 +904,15 @@ class BdrSwitch(Actuator, Device):
 
     @property
     def params(self) -> dict:
-        return {**super().status, "_tpi_params": self.tpi_params_wip}
+        return {
+            **super().params,
+            "_tpi_params": self.tpi_params_wip,
+        }
 
     @property
     def status(self) -> dict:
         return {
             **super().status,
-            "actuator_enabled": self.actuator_enabled,  # TODO: keep? (is duplicate)
             "relay_demand": self.relay_demand,
         }
 
@@ -942,9 +944,15 @@ class TrvActuator(BatteryState, Setpoint, Temperature, Device):
         return _payload(self._window_state, "window_open")
 
     @property
+    def enabled(self) -> Optional[bool]:  # 3EF0, 3EF1
+        if self.heat_demand is not None:
+            return bool(self.heat_demand)
+
+    @property
     def status(self) -> dict:
         return {
             **super().status,
+            "enabled": self.enabled,
             "heat_demand": self.heat_demand,
             "window_state": self.window_state,
         }

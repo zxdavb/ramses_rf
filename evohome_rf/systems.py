@@ -8,7 +8,7 @@ from datetime import timedelta as td
 import json
 import logging
 from threading import Lock
-from typing import Optional
+from typing import List, Optional
 
 from .command import Priority, FaultLog
 from .const import (
@@ -74,7 +74,10 @@ class SysFaultLog(Entity):  # 0418
 
     @property
     def status(self) -> dict:
-        return {**super().status, "fault_log": self._fault_log.fault_log}
+        return {
+            **super().status,
+            "fault_log": self._fault_log.fault_log,
+        }
 
 
 class SysDatetime(Entity):  # 313F
@@ -122,7 +125,10 @@ class SysDatetime(Entity):  # 313F
 
     @property
     def status(self) -> dict:
-        return {**super().status, "datetime": self.datetime}
+        return {
+            **super().status,
+            "datetime": self.datetime,
+        }
 
 
 class SysLanguage(Entity):  # 0100
@@ -148,7 +154,10 @@ class SysLanguage(Entity):  # 0100
 
     @property
     def params(self) -> dict:
-        return {**super().params, "language": self.language}
+        return {
+            **super().params,
+            "language": self.language,
+        }
 
 
 class SysMode:  # 2E04
@@ -202,7 +211,10 @@ class SysMode:  # 2E04
 
     @property
     def params(self) -> dict:
-        return {**super().params, "mode": self.mode}
+        return {
+            **super().params,
+            "mode": self.mode,
+        }
 
 
 class StoredHw:
@@ -572,15 +584,24 @@ class MultiZone:  # 0005 (+/- 000C?)
 
     @property
     def schema(self) -> dict:
-        return {**super().schema, ATTR_ZONES: {z.idx: z.schema for z in self._zones}}
+        return {
+            **super().schema,
+            ATTR_ZONES: {z.idx: z.schema for z in self._zones},
+        }
 
     @property
     def params(self) -> dict:
-        return {**super().params, ATTR_ZONES: {z.idx: z.params for z in self._zones}}
+        return {
+            **super().params,
+            ATTR_ZONES: {z.idx: z.params for z in self._zones},
+        }
 
     @property
     def status(self) -> dict:
-        return {**super().status, ATTR_ZONES: {z.idx: z.status for z in self._zones}}
+        return {
+            **super().status,
+            ATTR_ZONES: {z.idx: z.status for z in self._zones},
+        }
 
 
 class SystemBase(Entity):  # 3B00 (multi-relay)
@@ -729,6 +750,10 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         dest = kwargs.pop("dest_addr", self._ctl.id)
         payload = kwargs.pop("payload", "00")
         super()._send_cmd(code, dest, payload, **kwargs)
+
+    @property
+    def devices(self) -> List[Device]:
+        return self._ctl.devices
 
     # def _get_zone(self, *args, **kwargs):
     #     return self._evo._get_zone(*args, **kwargs)
