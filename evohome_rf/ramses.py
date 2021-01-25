@@ -9,6 +9,7 @@ RQ = "RQ"
 RP = "RP"
 
 NAME = "name"
+EXPIRY = "expiry"
 
 # This is the master list - all codes are here, even if there's no corresponding parser
 HINTS_CODE_SCHEMA = {
@@ -98,6 +99,7 @@ HINTS_CODE_SCHEMA = {
     },
     "12B0": {
         NAME: "window_state",
+        EXPIRY: 60 * 60,
     },
     "12C0": {
         NAME: "message_12c0",
@@ -247,7 +249,7 @@ HINTS_DEVICE_TYPES = {
         "1060": [_I],
         "10E0": [_I],
         "1F09": [RQ],
-        "12B0": [_I],
+        "12B0": [_I],  # sends every 1h
         "2309": [_I],
         "30C9": [_I],
         "313F": [RQ],
@@ -298,9 +300,10 @@ HINTS_DEVICE_TYPES = {
     },
     "13": {
         "0008": [RP],
-        "0009": [RP],
+        "0009a": [RP],  # needs confirming
+        "0016": [RP],
         "1100": [_I, RP],
-        "1FC9": [_W],
+        "1FC9": [RP, _W],
         "3B00": [_I],
         "3EF0": [_I],
         "3EF1": [RP],
