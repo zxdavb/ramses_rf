@@ -19,7 +19,7 @@ setuptools.setup(
     # packages=setuptools.find_packages(exclude=['test']),
     keywords=["evohome", "ramses"],
     # install_requires=[list(val.strip() for val in open("requirements.txt"))],
-    install_requires=["pyserial-asyncio==0.4", "voluptuous>=0.11.7"],
+    install_requires=["pyserial-asyncio==0.5", "voluptuous>=0.11.7"],
     python_requires=">=3.7",
     classifiers=[
         "Programming Language :: Python :: 3.7",
