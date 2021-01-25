@@ -87,7 +87,14 @@ class Entity:
         self._msgs.pop(code, None)  # remove the old one, so we can tell if RP'd rcvd
 
         cmd = Command(kwargs.pop("verb", "RQ"), dest, code, payload, **kwargs)
-        asyncio.create_task(self._gwy.msg_protocol.send_data(cmd))
+        try:  # TODO: convert create_task to run_coroutine_threadsafe
+            asyncio.create_task(
+                self._gwy.msg_protocol.send_data(cmd),
+            )
+        except RuntimeError:
+            asyncio.run_coroutine_threadsafe(
+                self._gwy.msg_protocol.send_data(cmd), self._gwy._loop
+            )
 
     @property
     def _pkt_codes(self) -> list:
@@ -145,7 +152,7 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         if discover_flag & DISCOVER_SCHEMA:
             # self._send_cmd("1FC9", retries=0)
             if self.type not in DEVICE_HAS_BATTERY and self.type not in ("13",):
-                self._send_cmd("10E0", retries=0)
+                self._send_cmd("10E0", retries=0)  # TODO: use device hints
 
         if discover_flag & DISCOVER_PARAMS:
             pass
