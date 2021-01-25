@@ -67,9 +67,9 @@ class Entity:
             }
 
     def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess
-        if "domain_id" in msg.payload:  # isinstance(msg.payload, dict) and
-            self._domain[msg.payload["domain_id"]] = {msg.code: msg}  # 01/02/23
-            return
+        # if "domain_id" in msg.payload:  # isinstance(msg.payload, dict) and
+        #     self._domain[msg.payload["domain_id"]] = {msg.code: msg}  # 01/02/23
+        #     return
 
         if msg.verb == " W":
             if msg.code in self._msgs and self._msgs[msg.code].verb != msg.verb:
@@ -137,7 +137,7 @@ class DeviceBase(Entity, metaclass=ABCMeta):
             self._is_sensor = None
 
         self._zone = None
-        self._domain = {}
+        # self._domain = {}  # TODO
 
     def __repr__(self) -> str:
         return f"{self.id} ({DEVICE_TYPES.get(self.type)})"

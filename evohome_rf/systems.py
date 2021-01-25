@@ -49,7 +49,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-class SysFaultLog(Entity):  # 0418
+class SysFaultLog:  # 0418
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._fault_log = FaultLog(self._ctl)
@@ -80,7 +80,7 @@ class SysFaultLog(Entity):  # 0418
         }
 
 
-class SysDatetime(Entity):  # 313F
+class SysDatetime:  # 313F
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._datetime = None
@@ -131,7 +131,7 @@ class SysDatetime(Entity):  # 313F
         }
 
 
-class SysLanguage(Entity):  # 0100
+class SysLanguage:  # 0100
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._language = None
@@ -727,7 +727,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                 else:
                     device = None
 
-                if device is not None:
+                if False and device is not None:  # TODO: FIXME
                     qos = {"priority": Priority.LOW, "retries": 2}
                     for code in ("0008", "3EF1"):
                         device._send_cmd(code, qos)
@@ -737,7 +737,6 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         #         self._relay_failsafes[msg.payload["domain_id"]] = msg
 
         if msg.code == "3150" and msg.verb in (" I", "RP"):
-            self._heat_demands[msg.payload["domain_id"]] = msg
             if "domain_id" in msg.payload:
                 self._heat_demands[msg.payload["domain_id"]] = msg
                 if msg.payload["domain_id"] == "FC":
@@ -997,6 +996,22 @@ class System(SysDatetime, SysFaultLog, SystemBase):
     def __repr__(self) -> str:
         return f"{self._ctl.id} (system)"
 
+    def _handle_msg(self, msg) -> bool:
+        super()._handle_msg(msg)
+
+        if "domain_id" in msg.payload:
+            idx = msg.payload["domain_id"]
+            if msg.code == "0008":
+                self._relay_demands[idx] = msg
+            elif msg.code == "0009":
+                self._relay_failsafes[idx] = msg
+            elif msg.code == "3150":
+                self._heat_demands[idx] = msg
+            elif msg.code in ("000C", "1100", "3B00"):
+                pass
+            else:
+                assert False, msg.code
+
 
 class Evohome(SysLanguage, SysMode, MultiZone, StoredHw, System):  # evohome
     """The Evohome system - some controllers are evohome-compatible."""
@@ -1014,6 +1029,7 @@ class Evohome(SysLanguage, SysMode, MultiZone, StoredHw, System):  # evohome
             self._send_cmd("1F09")
 
     def _handle_msg(self, msg) -> bool:
+        super()._handle_msg(msg)
 
         # def xxx(zone_dict):
         #     zone = self.zone_by_idx[zone_dict.pop("zone_idx")]
