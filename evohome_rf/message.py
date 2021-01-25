@@ -485,6 +485,8 @@ def process_msg(msg: Message) -> None:
         if evo is None:
             return
 
+        evo._handle_msg(msg)
+
         if isinstance(this.payload, dict) and "zone_idx" in this.payload:
             # 089  I --- 02:000921 --:------ 01:191718 3150 002 0300  # NOTE: is valid
             if this.payload["zone_idx"] in evo.zone_by_idx:
