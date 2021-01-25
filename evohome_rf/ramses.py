@@ -279,7 +279,7 @@ HINTS_DEVICE_TYPES = {
         "2349": [_I],
         "3150": [_I],
         "3220": [RP],
-        "3EF0": [RP],
+        "3EF0": [_I, RP],
         "3EF1": [RP],
     },
     "12": {  # TODO: also 22:
