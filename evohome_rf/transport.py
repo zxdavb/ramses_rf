@@ -24,7 +24,7 @@ from serial_asyncio import SerialTransport as SerialTransportAsync
 from .command import Command, Priority
 from .const import DTM_LONG_REGEX, HGI_DEVICE, NUL_DEVICE, _dev_mode_
 from .helpers import dt_str
-from .packet import Packet
+from .packet import _PKT_LOGGER, Packet
 from .protocol import create_protocol_factory
 from .schema import DISABLE_SENDING, ENFORCE_ALLOWLIST, ENFORCE_BLOCKLIST, EVOFW_FLAG
 from .version import __version__
@@ -61,8 +61,6 @@ QOS_TX_RETRIES = 2
 
 QOS_RX_TIMEOUT = td(seconds=0.20)  # 0.10 too low sometimes
 QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many?
-
-_PKT_LOGGER = logging.getLogger(f"{__name__}-log")  # don't setLevel here
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -395,7 +393,7 @@ class PacketProtocol(asyncio.Protocol):
                 await asyncio.sleep(0.005)
         while self._transport is None or self._transport.serial.out_waiting:
             await asyncio.sleep(0.005)
-        _PKT_LOGGER.debug("Tx:  %s", data, extra=self._extra(dt_str(), data))
+        _PKT_LOGGER.debug("Tx:     %s", data, extra=self._extra(dt_str(), data))
         self._transport.write(data)
         # await asyncio.sleep(0.05)
 
@@ -624,7 +622,8 @@ class PacketProtocolQos(PacketProtocol):
                 self._timeouts(dt.now())
                 await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
                 _logger_send(
-                    _LOGGER.warning, f"RE-SENT ({self._tx_retries}/{self._tx_retry_limit})"
+                    _LOGGER.warning,
+                    f"RE-SENT ({self._tx_retries}/{self._tx_retry_limit})"
                 )
 
             else:
