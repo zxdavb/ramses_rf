@@ -228,7 +228,7 @@ async def scan_full(gwy, dev_id: str):
             for data_id in ("00", "03"):  # these are mandatory READ_DATA data_ids
                 await _cmd(gwy, "RQ", dev_id, code, f"0000{data_id}0000", qos=qos)
 
-        elif CODE_SCHEMA[code].get("rq_len"):
+        elif code in CODE_SCHEMA and CODE_SCHEMA[code].get("rq_len"):
             rq_len = CODE_SCHEMA[code].get("rq_len") * 2
             await _cmd(gwy, "RQ", dev_id, code, f"{0:0{rq_len}X}", qos=qos)
 
@@ -237,7 +237,7 @@ async def scan_full(gwy, dev_id: str):
 
     # these are possible/difficult codes
     qos = {"priority": Priority.LOW, "retries": 3}
-    for code in ("0150", "0B04", "2389"):
+    for code in ("0150", "2389"):
         await _cmd(gwy, "RQ", dev_id, code, "0000", qos=qos)
 
 
