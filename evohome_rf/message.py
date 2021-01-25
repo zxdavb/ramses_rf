@@ -210,14 +210,14 @@ class Message:
             return self._is_expired
         elif self.code in ("1F09", "313F"):
             timeout = td(seconds=3)
-        elif self.code in ("12B0", "2309", "3C09"):
+        elif self.code in ("2309", "3C09"):
             timeout = td(minutes=15)
         elif self.code in ("3150",):
             timeout = td(minutes=20)  # sends I /20min
         elif self.code in ("000A",):
-            timeout = td(minutes=60)  # sends I (array)/1h
-        elif self.code in ("1260", "1F41", "2349", "2E04"):
-            timeout = td(minutes=60)
+            timeout = td(minutes=60)  # sends I (array) /1h
+        elif self.code in ("1260", "12B0", "1F41", "2349", "2E04"):
+            timeout = td(minutes=60)  # sends I /1h
         else:  # treat as never expiring
             self._is_expired = False
             return self._is_expired
