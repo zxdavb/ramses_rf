@@ -994,11 +994,13 @@ def parser_10a0(payload, msg) -> Optional[dict]:
 def parser_10e0(payload, msg) -> Optional[dict]:
     assert msg.len in (30, 36, 38), msg.len  # a non-evohome seen with 30
 
+    date = _date(payload[20:28])  # could be 'FFFFFFFF'
+
     return {  # TODO: add version?
-        "description": _str(payload[36:]),
-        "firmware": _date(payload[20:28]),  # could be 'FFFFFFFF'
-        "manufactured": _date(payload[28:36]),
         "_unknown": payload[:20],
+        "date_1": _date(payload[28:36]),
+        "date_2": date if date else '0000-00-00',
+        "description": _str(payload[36:]),
     }
 
 

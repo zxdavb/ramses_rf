@@ -342,7 +342,7 @@ async def main(lib_kwargs, **kwargs):
     if kwargs[COMMAND] == EXECUTE:
         print_results(**kwargs)
 
-    elif gwy.evo is None:
+    elif True or gwy.evo is None:
         print(f"Schema[gateway] = {json.dumps(gwy.schema)}\r\n")
         print(f"Params[gateway] = {json.dumps(gwy.params)}\r\n")
         print(f"Status[gateway] = {json.dumps(gwy.status)}")
