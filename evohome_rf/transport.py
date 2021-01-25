@@ -624,12 +624,12 @@ class PacketProtocolQos(PacketProtocol):
                 self._timeouts(dt.now())
                 await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
                 _logger_send(
-                    _LOGGER.info, f"RE-SENT ({self._tx_retries}/{self._tx_retry_limit})"
+                    _LOGGER.warning, f"RE-SENT ({self._tx_retries}/{self._tx_retry_limit})"
                 )
 
             else:
                 if self._qos_cmd.code != "7FFF":  # HACK: why expired when shouldn't
-                    _logger_send(_LOGGER.info, "EXPIRED")
+                    _logger_send(_LOGGER.error, "EXPIRED")
                 self._qos_lock.acquire()
                 self._qos_cmd = None
                 self._qos_lock.release()
