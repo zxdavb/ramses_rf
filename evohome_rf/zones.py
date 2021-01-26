@@ -34,7 +34,7 @@ from .const import (
     ZONE_MODE_MAP,
     _dev_mode_,
 )
-from .devices import Device, Entity, _payload
+from .devices import Device, Entity
 from .exceptions import CorruptStateError
 from .helpers import dtm_to_hex
 
@@ -187,7 +187,7 @@ class HeatDemand:  # 3150
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
-        return _payload(self._heat_demand, "heat_demand")
+        return self._msg_payload(self._heat_demand, "heat_demand")
 
     @property
     def status(self) -> dict:
@@ -215,7 +215,7 @@ class DhwZone(ZoneBase, HeatDemand):
         self._dhw_params = None
         self._relay_demand = None
         self._relay_failsafe = None
-        self._temp = None
+        self._temperature = None
 
         if sensor:
             self._set_sensor(sensor)
@@ -257,7 +257,7 @@ class DhwZone(ZoneBase, HeatDemand):
             self._dhw_params = msg
 
         elif msg.code == "1260":
-            self._temp = msg
+            self._temperature = msg
 
         elif msg.code == "1F41":
             self._setpoint_status = msg
@@ -294,19 +294,19 @@ class DhwZone(ZoneBase, HeatDemand):
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
-        return _payload(self._relay_demand, "relay_demand")
+        return self._msg_payload(self._relay_demand, "relay_demand")
 
     @property  # only seen with FC, but seems should pair with 0008?
     def relay_failsafe(self) -> Optional[float]:  # 0009
-        return _payload(self._relay_failsafe, "relay_failsafe")
+        return self._msg_payload(self._relay_failsafe, "relay_failsafe")
 
     @property
     def dhw_config(self) -> Optional[dict]:  # 10A0
-        return _payload(self._dhw_params)
+        return self._msg_payload(self._dhw_params)
 
     @property
     def mode(self) -> Optional[dict]:  # 1F41
-        return _payload(self._dhw_mode)
+        return self._msg_payload(self._dhw_mode)
 
     @property
     def name(self) -> str:
@@ -314,11 +314,11 @@ class DhwZone(ZoneBase, HeatDemand):
 
     @property
     def setpoint(self) -> Optional[float]:  # 1F41
-        return _payload(self._dhw_mode, "setpoint")
+        return self._msg_payload(self._dhw_mode, "setpoint")
 
     @property
     def temperature(self) -> Optional[float]:  # 1260
-        return _payload(self._temp, "temperature")
+        return self._msg_payload(self._temperature, "temperature")
 
     @property
     def schema(self) -> dict:
@@ -339,7 +339,7 @@ class DhwZone(ZoneBase, HeatDemand):
     @property  # temp, open_windows
     def status(self) -> dict:
         return {
-            "temperature": self._temp,
+            "temperature": self._temperature,
             "dhw_mode": self._dhw_mode,
         }
 
@@ -421,7 +421,7 @@ class ZoneSchedule:
         super()._handle_msg(msg)
 
         if msg.code == "0404" and msg.verb == "RP":
-            _LOGGER.debug("Zone(%s).update: Received RP/0404 (schedule)", self.id)
+            _LOGGER.debug("Zone(%s): Received RP/0404 (schedule) pkt", self)
 
     async def get_schedule(self, force_refresh=None) -> Optional[dict]:
         schedule = await self._schedule.get_schedule(force_refresh=force_refresh)
@@ -464,16 +464,18 @@ class Zone(ZoneSchedule, ZoneBase):
         self.device_by_id = {}
         self._sensor = None
 
+        self._heat_demand = None  # Not used by ELE
         self._mode = None
         # self._name = None  # from super()
         self._setpoint = None
-        self._temp = None
+        self._temperature = None
         self._zone_config = None
 
         # these needed here, as we can't use __init__
-        self._mix_config = None
-        self._ufh_setpoint = None
-        self._window_open = None
+        self._mix_config = None  # MIX
+        self._ufh_setpoint = None  # UFH
+        self._window_open = None  # RAD
+        self._actuator_state = None  # ELE, ZON
 
         self._schedule = Schedule(self)
 
@@ -537,7 +539,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
         elif msg.code == "30C9" and msg.verb in (" I", "RP"):  # used by sensor matching
             assert msg.src.type in DEVICE_HAS_ZONE_SENSOR + ("01",), "coding error"
-            self._temp = msg
+            self._temperature = msg
 
         elif msg.code == "3150":  # TODO: and msg.verb in (" I", "RP")?
             assert msg.src.type in ("00", "02", "04", "13")
@@ -644,11 +646,11 @@ class Zone(ZoneSchedule, ZoneBase):
 
     @property
     def mode(self) -> Optional[dict]:  # 2349
-        if not self._mode or self._mode.is_expired:
+        if not self._msg_expired("mode"):
             return
 
         elif isinstance(self._mode.payload, dict):
-            return _payload(self._mode)
+            return self._msg_payload(self._mode)
 
         elif isinstance(self._mode.payload, list):
             tmp = [z for z in self._mode.payload if z["zone_idx"] == self.idx]
@@ -657,19 +659,19 @@ class Zone(ZoneSchedule, ZoneBase):
     # async def get_name(self, force_refresh=None) -> Optional[str]:
     #     """Return the name of the zone."""
     #     if not force_refresh and self._name is not None:
-    #         return _payload(self._name, "name")
+    #         return self._msg_payload(self._name, "name")
 
     #     self._name = None
     #     self._send_cmd("0004", payload=f"{self.idx}00")
     #     while self._name is None:
     #         await asyncio.sleep(0.05)
 
-    #     return _payload(self._name, "name")
+    #     return self._msg_payload(self._name, "name")
 
     @property
     def name(self) -> Optional[str]:
         """Return the name of the zone."""
-        return _payload(self._name, "name")
+        return self._msg_payload(self._name, "name")
 
     # @name.setter
     # def name(self, value) -> Optional[str]:
@@ -678,11 +680,11 @@ class Zone(ZoneSchedule, ZoneBase):
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309 (2349 is a superset of 2309)
-        if not self._setpoint or self._setpoint.is_expired:
+        if not self._msg_expired("setpoint"):
             return
 
         elif isinstance(self._setpoint.payload, dict):
-            return _payload(self._setpoint, "setpoint")
+            return self._msg_payload(self._setpoint, "setpoint")
 
         elif isinstance(self._setpoint.payload, list):
             _zone = [z for z in self._setpoint.payload if z["zone_idx"] == self.idx]
@@ -698,27 +700,27 @@ class Zone(ZoneSchedule, ZoneBase):
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        if not self._temp or self._temp.is_expired:
-            if self.sensor and self.sensor.temperature:
-                self._temp = self.sensor._temp
+        # if not self._temperature or self._temperature.is_expired:
+        #     if self.sensor and self.sensor.temperature:
+        #         self._temperature = self.sensor._temp
 
-        if not self._temp or self._temp.is_expired:
+        if not self._msg_expired("temperature"):
             return
 
-        elif isinstance(self._temp.payload, dict):
-            return _payload(self._temp, "temperature")
+        elif isinstance(self._temperature.payload, dict):
+            return self._msg_payload(self._temperature, "temperature")
 
-        elif isinstance(self._temp.payload, list):
-            tmp = [z for z in self._temp.payload if z["zone_idx"] == self.idx]
+        elif isinstance(self._temperature.payload, list):
+            tmp = [z for z in self._temperature.payload if z["zone_idx"] == self.idx]
             return tmp[0]["temperature"]
 
     @property
     def zone_config(self) -> Optional[dict]:  # 000A
-        if not self._zone_config or self._zone_config.is_expired:
+        if not self._msg_expired("zone_config"):
             return
 
         elif isinstance(self._zone_config.payload, dict):
-            return _payload(self._zone_config)
+            return self._msg_payload(self._zone_config)
 
         elif isinstance(self._zone_config.payload, list):
             tmp = [z for z in self._zone_config.payload if z["zone_idx"] == self.idx]
@@ -845,22 +847,25 @@ class EleZone(Zone):  # Electric zones (do *not* call for heat)
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code == "3150":  # ZV zones are Elec zones that also call for heat
+        if msg.code == "3150":  # ZON zones are ELE zones that also call for heat
+            self._heat_demand = msg  # 3150
             self._set_zone_type("VAL")
 
+        elif msg.code == "3EF0":
+            self._actuator_state = msg  # 3EF0
+
     @property
-    def actuator_enabled(self) -> Optional[bool]:  # 3EF0
-        return self._get_msg_value("3EF0")  # , "actuator_enabled"
+    def enabled(self) -> Optional[bool]:  # 3EF0
+        return self._msg_payload(self._actuator_state, "actuator_enabled")
 
     @property
     def actuator_state(self) -> Optional[float]:  # 3EF1
-        return self._get_msg_value("3EF1")
+        return self._msg_payload(self._actuator_state)
 
     @property
     def status(self) -> dict:
         return {
             **super().status,
-            "actuator_enabled": self.actuator_enabled,
             "actuator_state": self.actuator_state,
         }
 
@@ -891,8 +896,8 @@ class RadZone(ZoneDemand, Zone):
             self._window_open = msg
 
     @property
-    def window_open(self) -> Optional[bool]:  # 12B0
-        return _payload(self._window_open, "window_open")  # TODO: doesn't work >1 TRV
+    def window_open(self) -> Optional[bool]:  # 12B0  # TODO: don't work >1 TRV
+        return self._msg_payload(self._window_open, "window_open")
 
     @property
     def status(self) -> dict:
@@ -919,7 +924,7 @@ class UfhZone(ZoneDemand, Zone):
 
     @property
     def ufh_setpoint(self) -> Optional[float]:  # 22C9
-        return _payload(self._ufh_setpoint, "setpoint")
+        return self._msg_payload(self._ufh_setpoint, "setpoint")
 
     @property
     def status(self) -> dict:
@@ -946,7 +951,7 @@ class MixZone(Zone):
 
     @property
     def mix_config(self) -> dict:
-        return _payload(self._mix_config)
+        return self._msg_payload(self._mix_config)
 
     @property
     def params(self) -> dict:

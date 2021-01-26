@@ -22,20 +22,13 @@ from .const import (
 )
 from .exceptions import CorruptStateError
 from .helpers import slugify_string as slugify, dev_id_to_hex
-from .ramses import HINTS_DEVICE_TYPES as HINTS_DEVICES
+from .ramses import RAMSES_DEVICES
 
 DEV_MODE = _dev_mode_
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
-
-
-def _payload(msg, key=None) -> Optional[Any]:
-    if msg and not msg.is_expired:
-        if key:
-            return msg.payload.get(key)
-        return {k: v for k, v in msg.payload.items() if k[:1] != "_"}
 
 
 class Entity:
@@ -95,6 +88,28 @@ class Entity:
             asyncio.run_coroutine_threadsafe(
                 self._gwy.msg_protocol.send_data(cmd), self._gwy._loop
             )
+
+    def _msg_payload(self, msg, key=None) -> Optional[Any]:
+        if msg and not msg.is_expired:
+            if key:
+                return msg.payload.get(key)
+            return {k: v for k, v in msg.payload.items() if k[:1] != "_"}
+
+    def _msg_expired(self, msg_name) -> Optional[bool]:
+        if not hasattr(self, f"_{msg_name}"):
+            _LOGGER.error("%s: is not tracking %s msgs", self, msg_name)
+            return
+
+        msg = getattr(self, f"_{msg_name}")
+        if not msg:
+            _LOGGER.warning("%s: has no valid %s msg", self, msg_name)
+        # elif msg_name != RAMSES_CODES[msg.code][NAME]:
+        #     _LOGGER.warning("%s: the %s msg's code doesn't match", self, msg_name)
+        #     assert False, msg.code
+        elif msg.is_expired:
+            _LOGGER.warning("%s: the %s msg has expired", self, msg_name)
+        else:
+            return True
 
     @property
     def _pkt_codes(self) -> list:
@@ -226,7 +241,7 @@ class Actuator:  # 3EF0, 3EF1
         super()._handle_msg(msg)
 
         if msg.code == "3EF0" and msg.verb == " I":  # NOT "RP", TODO: why????
-            self._actuator_state = msg
+            self._actuator_state = msg  # 3EF0
             self._actuator_enabled = msg
 
             qos = {"priority": Priority.LOW, "retries": 1}
@@ -234,20 +249,20 @@ class Actuator:  # 3EF0, 3EF1
                 self._send_cmd(code, qos=qos)
 
         elif msg.code == "3EF1" and msg.verb == "RP":
-            self._actuator_cycle = msg
+            self._actuator_cycle = msg  # 3EF1
             self._actuator_enabled = msg
 
     @property
     def actuator_cycle(self) -> Optional[dict]:  # 3EF1
-        return _payload(self._actuator_cycle)
+        return self._msg_payload(self._actuator_cycle)
 
     @property
     def actuator_state(self) -> Optional[dict]:  # 3EF0
-        return _payload(self._actuator_state)
+        return self._msg_payload(self._actuator_state)
 
     @property
     def enabled(self) -> Optional[bool]:  # 3EF0, 3EF1
-        return _payload(self._actuator_enabled, "actuator_enabled")
+        return self._msg_payload(self._actuator_enabled, "actuator_enabled")
 
     @property
     def status(self) -> dict:
@@ -273,11 +288,11 @@ class BatteryState:  # 1060
 
     @property
     def battery_low(self) -> Optional[bool]:  # 1060
-        return _payload(self._battery_state, "battery_low")
+        return self._msg_payload(self._battery_state, "battery_low")
 
     @property
     def battery_state(self) -> Optional[dict]:  # 1060
-        return _payload(self._battery_state)
+        return self._msg_payload(self._battery_state)
 
     @property
     def status(self) -> dict:
@@ -301,7 +316,7 @@ class Setpoint:  # 2309
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309
-        return _payload(self._setpoint, "setpoint")
+        return self._msg_payload(self._setpoint, "setpoint")
 
     @property
     def status(self) -> dict:
@@ -325,7 +340,7 @@ class Temperature:  # 30C9
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        return _payload(self._temp, "temperature")
+        return self._msg_payload(self._temp, "temperature")
 
     @property
     def status(self) -> dict:
@@ -349,7 +364,7 @@ class DeviceInfo:  # 10E0
 
     @property
     def device_info(self) -> Optional[dict]:  # 10E0
-        return _payload(self._device_info)
+        return self._msg_payload(self._device_info)
 
     @property
     def schema(self) -> dict:
@@ -368,17 +383,17 @@ class Device(DeviceInfo, DeviceBase):
         if msg.code in ("0016", "1FC9"):
             pass
 
-        elif self.type not in HINTS_DEVICES:
+        elif self.type not in RAMSES_DEVICES:
             assert False, f"Unknown device type: {self.id}"
 
-        elif msg.code not in HINTS_DEVICES[self.type]:
+        elif msg.code not in RAMSES_DEVICES[self.type]:
             assert (
-                HINTS_DEVICES[self.type] == {}
+                RAMSES_DEVICES[self.type] == {}
             ), f"Unknown code for {self.id}: {msg.verb}/{msg.code}"
 
-        elif msg.verb not in HINTS_DEVICES[self.type][msg.code]:
+        elif msg.verb not in RAMSES_DEVICES[self.type][msg.code]:
             assert (
-                HINTS_DEVICES[self.type][msg.code] == []
+                RAMSES_DEVICES[self.type][msg.code] == []
             ), f"Unknown verb for {self.id}: {msg.verb}/{msg.code}"
 
         # TODO: status updates always, but...
@@ -605,7 +620,7 @@ class UfhController(Device):
 
     @property
     def setpoints(self) -> Optional[Dict]:  # 22C9
-        return _payload(self._setpoints)
+        return self._msg_payload(self._setpoints)
 
     @property  # id, type
     def schema(self) -> dict:
@@ -651,11 +666,11 @@ class DhwSensor(BatteryState, Device):
 
     # @property
     # def dhw_params(self) -> Optional[dict]:
-    #     return _payload(self._dhw_params)
+    #     return self._msg_payload(self._dhw_params)
 
     @property
     def temperature(self) -> Optional[float]:
-        return _payload(self._temp, "temperature")
+        return self._msg_payload(self._temp, "temperature")
 
     # @property
     # def params(self) -> dict:
@@ -776,11 +791,11 @@ class OtbGateway(Actuator, Device):
 
     @property
     def boiler_setpoint(self) -> Optional[float]:  # 22D9
-        return _payload(self._boiler_setpoint, "boiler_setpoint")
+        return self._msg_payload(self._boiler_setpoint, "boiler_setpoint")
 
     @property
     def modulation_level(self) -> Optional[float]:  # 3EF0/3EF1
-        return _payload(self._modulation_level, "modulation_level")
+        return self._msg_payload(self._modulation_level, "modulation_level")
 
     @property
     def ot_status(self) -> dict:
@@ -903,11 +918,11 @@ class BdrSwitch(Actuator, Device):
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
-        return _payload(self._relay_demand, "relay_demand")
+        return self._msg_payload(self._relay_demand, "relay_demand")
 
     @property
     def tpi_params_wip(self) -> Optional[dict]:  # 1100
-        return _payload(self._tpi_params)
+        return self._msg_payload(self._tpi_params)
 
     @property
     def params(self) -> dict:
@@ -944,11 +959,11 @@ class TrvActuator(BatteryState, Setpoint, Temperature, Device):
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
-        return _payload(self._heat_demand, "heat_demand")
+        return self._msg_payload(self._heat_demand, "heat_demand")
 
     @property
     def window_state(self) -> Optional[bool]:  # 12B0
-        return _payload(self._window_state, "window_open")
+        return self._msg_payload(self._window_state, "window_open")
 
     @property
     def enabled(self) -> Optional[bool]:  # 3EF0, 3EF1

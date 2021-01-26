@@ -11,7 +11,7 @@ from typing import Any, List
 from .command import Command, Priority
 from .const import _dev_mode_, CODE_SCHEMA, DEVICE_TABLE, Address
 from .exceptions import ExpiredCallbackError
-from .ramses import HINTS_CODE_SCHEMA as HINTS_CODES
+from .ramses import RAMSES_CODES
 
 EXECUTE_CMD = "execute_cmd"
 GET_FAULTS = "get_faults"
@@ -194,7 +194,7 @@ async def scan_full(gwy, dev_id: str):
     _LOGGER.warning("scan_full() invoked - expect a lot of Warnings")
 
     qos = {"priority": Priority.LOW, "retries": 0}
-    for code in sorted(HINTS_CODES):
+    for code in sorted(RAMSES_CODES):
         if code == "0005":
             for zone_type in range(20):  # known up to 18
                 await _cmd(gwy, "RQ", dev_id, code, f"00{zone_type:02X}", qos=qos)

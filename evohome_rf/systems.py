@@ -27,7 +27,7 @@ from .const import (
     SYSTEM_MODE_MAP,
     _dev_mode_,
 )
-from .devices import Device, Entity, _payload
+from .devices import Device, Entity
 from .exceptions import CorruptStateError, ExpiredCallbackError
 from .helpers import dtm_to_hex
 from .schema import (
@@ -99,7 +99,7 @@ class SysDatetime:  # 313F
 
     @property
     def datetime(self) -> Optional[str]:
-        return _payload(self._datetime, "datetime")  # TODO: make a dt object
+        return self._msg_payload(self._datetime, "datetime")  # TODO: make a dt object
 
     # def wait_for(self, cmd, callback):
     # self._api_lock.acquire()
@@ -150,7 +150,7 @@ class SysLanguage:  # 0100
 
     @property
     def language(self) -> Optional[str]:  # 0100
-        return _payload(self._language, "language")
+        return self._msg_payload(self._language, "language")
 
     @property
     def params(self) -> dict:
@@ -186,7 +186,7 @@ class SysMode:  # 2E04
 
     @property
     def mode(self) -> Optional[dict]:  # 2E04
-        return _payload(self._mode)
+        return self._msg_payload(self._mode)
 
     async def set_mode(self, mode, until=None):
         """Set the system mode for a specified duration, or indefinitely."""
@@ -1007,9 +1007,7 @@ class System(SysDatetime, SysFaultLog, SystemBase):
                 self._relay_failsafes[idx] = msg
             elif msg.code == "3150":
                 self._heat_demands[idx] = msg
-            elif msg.code in ("000C", "1100", "3B00"):
-                pass
-            else:
+            elif msg.code not in ("000C", "0418", "1100", "3B00"):
                 assert False, msg.code
 
 

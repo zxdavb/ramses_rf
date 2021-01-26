@@ -31,7 +31,7 @@ from .const import (
 from .devices import Device
 from .exceptions import EvoCorruptionError, CorruptPayloadError
 from .packet import _PKT_LOGGER
-from .ramses import HINTS_CODE_SCHEMA as HINTS_CODES
+from .ramses import RAMSES_CODES as RAMSES_CODES
 from .schema import (
     REDUCE_PROCESSING,
     USE_NAMES,
@@ -40,7 +40,7 @@ from .schema import (
     DONT_UPDATE_ENTITIES,
 )
 
-CODE_NAMES = {k: v["name"] for k, v in HINTS_CODES.items()}
+CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
 
 DEV_MODE = _dev_mode_ or True
 

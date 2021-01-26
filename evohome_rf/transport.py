@@ -623,7 +623,7 @@ class PacketProtocolQos(PacketProtocol):
                 await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
                 _logger_send(
                     _LOGGER.warning,
-                    f"RE-SENT ({self._tx_retries}/{self._tx_retry_limit})"
+                    f"RE-SENT ({self._tx_retries}/{self._tx_retry_limit})",
                 )
 
             else:

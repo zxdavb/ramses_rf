@@ -27,7 +27,7 @@ from .const import (
 )
 from .helpers import dev_hex_to_id, dtm_from_hex as _dtm, dts_from_hex
 from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
-from .ramses import HINTS_CODE_SCHEMA as HINTS_CODES
+from .ramses import RAMSES_CODES as RAMSES_CODES
 from .schema import MAX_ZONES
 
 DEV_MODE = _dev_mode_
@@ -351,7 +351,7 @@ def parser_decorator(func):
             if "18" in (msg.src.type, msg.dst.type)
             else " - please report this as an issue"
         )
-        assert msg.code in HINTS_CODES, f"Code not known{hint}"
+        assert msg.code in RAMSES_CODES, f"Code not known{hint}"
         assert False, f"Code {msg.code} not known to support an RQ{hint}"
 
     return wrapper
@@ -997,10 +997,10 @@ def parser_10e0(payload, msg) -> Optional[dict]:
     date = _date(payload[20:28])  # could be 'FFFFFFFF'
 
     return {  # TODO: add version?
-        "_unknown": payload[:20],
-        "date_1": _date(payload[28:36]),
-        "date_2": date if date else '0000-00-00',
         "description": _str(payload[36:]),
+        "date_1": _date(payload[28:36]),
+        "date_2": date if date else "0000-00-00",
+        "_unknown": payload[:20],
     }
 
 

@@ -12,7 +12,7 @@ NAME = "name"
 EXPIRY = "expiry"
 
 # This is the master list - all codes are here, even if there's no corresponding parser
-HINTS_CODE_SCHEMA = {
+RAMSES_CODES = {
     "0001": {
         NAME: "rf_unknown",
     },
@@ -181,7 +181,7 @@ HINTS_CODE_SCHEMA = {
     },
 }  # also: "7FFF": {NAME: "puzzle_packet",},
 
-HINTS_DEVICE_TYPES = {
+RAMSES_DEVICES = {
     "01": {
         "0001": [_W],
         "0002": [RP],
@@ -373,10 +373,10 @@ HINTS_DEVICE_TYPES = {
     "37": {},
 }
 
-HINTS_DEVICE_TYPES["00"] = HINTS_DEVICE_TYPES["04"]
-HINTS_DEVICE_TYPES["22"] = HINTS_DEVICE_TYPES["12"]
+RAMSES_DEVICES["00"] = RAMSES_DEVICES["04"]
+RAMSES_DEVICES["22"] = RAMSES_DEVICES["12"]
 
-HINTS_ZONE_TYPES = {
+RAMSES_ZONES = {
     "RAD": [],
     "ELE": [],
     "VAL": [],
