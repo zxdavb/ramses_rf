@@ -225,7 +225,7 @@ class Message:
         dtm = self._gwy._prev_msg.dtm if self._gwy.serial_port is None else dt.now()
         if self.dtm < dtm - timeout * 2:
             self._is_expired = True
-            _LOGGER.debug("Messasge has expired: %s", self)
+            _LOGGER.debug("Message has expired: %s", self)
         return self._is_expired
 
     @property
