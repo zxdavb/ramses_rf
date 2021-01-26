@@ -340,7 +340,7 @@ class PacketProtocol(asyncio.Protocol):
         elif self._has_initialized is None:
             self._has_initialized = True
 
-        if self.is_wanted(pkt, self._include, self._exclude):
+        if self._callback and self.is_wanted(pkt, self._include, self._exclude):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
     def data_received(self, data: ByteString) -> None:
