@@ -225,6 +225,7 @@ class Message:
         dtm = self._gwy._prev_msg.dtm if self._gwy.serial_port is None else dt.now()
         if self.dtm < dtm - timeout * 2:
             self._is_expired = True
+            _LOGGER.debug("Messasge has expired: %s", self)
         return self._is_expired
 
     @property
@@ -485,7 +486,8 @@ def process_msg(msg: Message) -> None:
         if evo is None:
             return
 
-        evo._handle_msg(msg)
+        if this.src is evo._ctl:
+            evo._handle_msg(msg)
 
         if isinstance(this.payload, dict) and "zone_idx" in this.payload:
             # 089  I --- 02:000921 --:------ 01:191718 3150 002 0300  # NOTE: is valid
