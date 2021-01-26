@@ -4,13 +4,13 @@
 """Evohome RF - """
 
 
-class Error(Exception):
+class EvohomeError(Exception):
     """Base class for exceptions in this module."""
 
     pass
 
 
-class ExpiredCallbackError(Error):
+class ExpiredCallbackError(EvohomeError):
     """Raised when the callback has expired."""
 
     def __init__(self, *args, **kwargs):
@@ -25,7 +25,7 @@ class ExpiredCallbackError(Error):
         return f"{err_msg} {err_tip}"
 
 
-class EvoCorruptionError(Error):
+class EvoCorruptionError(EvohomeError):
     """Base class for exceptions in this module."""
 
     pass

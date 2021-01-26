@@ -26,6 +26,7 @@ from evohome_rf.discovery import (
     spawn_execute_scripts,
     spawn_monitor_scripts,
 )
+from evohome_rf.exceptions import EvohomeError
 from evohome_rf.helpers import is_valid_dev_id
 from evohome_rf.packet import CONSOLE_COLS
 from evohome_rf.schema import (
@@ -334,6 +335,8 @@ async def main(lib_kwargs, **kwargs):
         print(" - exiting via: GracefulExit")
     except KeyboardInterrupt:
         print(" - exiting via: KeyboardInterrupt")
+    except EvohomeError:
+        print(" - exiting via: EvohomeError")
     else:  # if no Exceptions raised, e.g. EOF when parsing
         print(" - exiting via: else-block (e.g. EOF when parsing)")
 
@@ -342,7 +345,7 @@ async def main(lib_kwargs, **kwargs):
     if kwargs[COMMAND] == EXECUTE:
         print_results(**kwargs)
 
-    elif True or gwy.evo is None:
+    elif gwy.evo is None:
         print(f"Schema[gateway] = {json.dumps(gwy.schema)}\r\n")
         print(f"Params[gateway] = {json.dumps(gwy.params)}\r\n")
         print(f"Status[gateway] = {json.dumps(gwy.status)}")
