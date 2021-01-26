@@ -117,68 +117,32 @@ class Gateway:
             exc = context.get("exception")
             if exc:
                 raise exc
-            # asyncio.create_task(self.stop())  # TODO: doesn't work here?
 
         async def handle_sig_posix(sig):
             """Handle signals on posix platform."""
             _LOGGER.debug("Received a signal (%s), processing...", sig.name)
 
-            if sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
-                await self.stop("handle_sig_posix()")  # OK for after tasks.cancel
-
-            elif sig == signal.SIGUSR1:
+            if sig == signal.SIGUSR1:
+                _LOGGER.info("Schema: \r\n%s", {self.evo.id: self.evo.schema})
                 _LOGGER.info("Params: \r\n%s", {self.evo.id: self.evo.params})
+                _LOGGER.info("Status: \r\n%s", {self.evo.id: self.evo.status})
 
             elif sig == signal.SIGUSR2:
                 _LOGGER.info("Status: \r\n%s", {self.evo.id: self.evo.status})
-
-        def handle_sig_win32(signum, frame):  # can't be async?
-            """Handle signals on win32 platform."""
-            _LOGGER.debug(
-                "Received a signal (%s), processing...", signal.Signals(signum).name
-            )
-
-            if signum in (signal.SIGINT, signal.SIGTERM, signal.SIGBREAK):
-                # self.stop("handle_sig_win32()")
-                raise GracefulExit()
-
-        # signal.SIGBREAK: Int from keyboard (CTRL + BREAK)
-        # signal.SIGINT:   Int from keyboard (CTRL + C): to raise KeyboardInterrupt
-        # signal.SIGTERM:  Termination signal
 
         _LOGGER.debug("_setup_event_handlers(): Creating exception handler...")
         self._loop.set_exception_handler(handle_exception)
 
         _LOGGER.debug("_setup_event_handlers(): Creating signal handlers...")
-        signals = [signal.SIGINT, signal.SIGTERM]
-
         if os.name == "posix":  # full support
-            for sig in signals + [signal.SIGHUP, signal.SIGUSR1, signal.SIGUSR2]:
+            for sig in [signal.SIGUSR1, signal.SIGUSR2]:
                 self._loop.add_signal_handler(
                     sig, lambda sig=sig: asyncio.create_task(handle_sig_posix(sig))
                 )
         elif os.name == "nt":  # supported, but YMMV
-            _LOGGER.warning("Be aware, YMMV with Windows.")
-            for signum in signals + [signal.SIGBREAK]:
-                signal.signal(signum, handle_sig_win32)
+            _LOGGER.warning("Be aware, YMMV with Windows...")
         else:  # unsupported
             raise RuntimeError("Unsupported OS for this module: %s", os.name)
-
-    async def stop(self, xxx=None) -> None:
-        """Perform a graceful shutdown/stop."""
-
-        _LOGGER.warning("stop(): Invoked by: %s, doing housekeeping...", xxx)
-        tasks = [t for t in self._tasks if t is not asyncio.current_task()]
-
-        logging.debug(f"stop(): Cancelling {len(tasks)} outstanding async tasks...")
-        # [print(t) for t in[asyncio.current_task()]]
-        # [print(t) for t in self._tasks]
-        # [print(t) for t in tasks]
-        # [print(t) for t in asyncio.all_tasks()]
-        [task.cancel() for task in tasks]
-        await asyncio.gather(*tasks, return_exceptions=False)
-
-        _LOGGER.debug("stop(): Complete.")
 
     async def start(self) -> None:
         if self.serial_port:  # source of packets is a serial port
@@ -192,6 +156,9 @@ class Gateway:
                     self.msg_transport._set_dispatcher(self.pkt_protocol.send_data)
                 )
 
+            while not self._tasks:
+                await asyncio.sleep(60)
+
         else:  # if self._input_file:
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
                 self,
@@ -203,7 +170,6 @@ class Gateway:
             self._tasks.append(self.pkt_transport.get_extra_info(POLLER_TASK))
 
         await asyncio.gather(*self._tasks)
-        await self.stop("start()")
 
     def _get_device(self, dev_addr, ctl_addr=None, domain_id=None) -> Device:
         """Return a device (will create it if required).

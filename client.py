@@ -329,16 +329,15 @@ async def main(lib_kwargs, **kwargs):
         await task
 
     except asyncio.CancelledError:
-        # print(" - exiting via: CancelledError (this is expected)")
-        pass
+        msg = " - ended via: CancelledError (e.g. SIGINT)"
     except GracefulExit:
-        print(" - exiting via: GracefulExit")
+        msg = " - ended via: GracefulExit"
     except KeyboardInterrupt:
-        print(" - exiting via: KeyboardInterrupt")
-    except EvohomeError:
-        print(" - exiting via: EvohomeError")
+        msg = " - ended via: KeyboardInterrupt"
+    except EvohomeError as err:
+        msg = f" - ended via: EvohomeError: {err}"
     else:  # if no Exceptions raised, e.g. EOF when parsing
-        print(" - exiting via: else-block (e.g. EOF when parsing)")
+        msg = " - ended without error (e.g. EOF)"
 
     print("\r\nclient.py: Finished evohome_rf, results:\r\n")
 
@@ -355,7 +354,7 @@ async def main(lib_kwargs, **kwargs):
         print(f"Params[{repr(gwy.evo)}] = {json.dumps(gwy.evo.params, indent=4)}\r\n")
         print(f"Status[{repr(gwy.evo)}] = {json.dumps(gwy.evo.status, indent=4)}")
 
-    print("\r\nclient.py: Finished evohome_rf.\r\n")
+    print(f"\r\nclient.py: Finished evohome_rf.\r\n{msg}\r\n")
 
 
 cli.add_command(parse)
