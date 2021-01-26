@@ -61,7 +61,6 @@ class Gateway:
 
         self._loop = loop if loop else asyncio.get_running_loop()
         self._tasks = []
-        self._setup_event_handlers()
 
         self.serial_port = serial_port
         self._input_file = input_file
@@ -95,11 +94,13 @@ class Gateway:
         self.devices: List[Device] = []
         self.device_by_id: Dict = {}
 
+        self._prev_msg = None
+
         self._schema, self.known_devices = load_schema(self, **kwargs)
         if not self.known_devices:
             self.config[USE_NAMES] = False
 
-        self._prev_msg = None
+        self._setup_event_handlers()
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -137,7 +138,7 @@ class Gateway:
         if os.name == "posix":  # full support
             for sig in [signal.SIGUSR1, signal.SIGUSR2]:
                 self._loop.add_signal_handler(
-                    sig, lambda sig=sig: asyncio.create_task(handle_sig_posix(sig))
+                    sig, lambda sig=sig: self._loop.create_task(handle_sig_posix(sig))
                 )
         elif os.name == "nt":  # supported, but YMMV
             _LOGGER.warning("Be aware, YMMV with Windows...")

@@ -73,7 +73,8 @@ class SerTransportFile(asyncio.Transport):
     def __init__(self, loop, protocol, packet_log, extra=None):
         _LOGGER.debug("SerTransFile.__init__() *** PACKET_LOG VERSION ***")
 
-        # self._loop = loop
+        self._loop = loop
+
         self._protocol = protocol
         self.fp = packet_log
         self._extra = {} if extra is None else extra
@@ -95,7 +96,7 @@ class SerTransportFile(asyncio.Transport):
 
         _LOGGER.debug("SerTransFile._start()")
 
-        self._extra[POLLER_TASK] = asyncio.create_task(_polling_loop())
+        self._extra[POLLER_TASK] = self._loop.create_task(_polling_loop())
 
     def write(self, cmd):
         """Write some data bytes to the transport."""
@@ -150,7 +151,7 @@ class SerTransportPoller(asyncio.Transport):
         _LOGGER.debug("SerTransPoll._start()")
         self._write_queue = Queue(maxsize=self.MAX_BUFFER_SIZE)
 
-        self._extra[POLLER_TASK] = asyncio.create_task(_polling_loop())
+        self._extra[POLLER_TASK] = self._loop.create_task(_polling_loop())
 
     def write(self, cmd):
         """Write some data bytes to the transport.
@@ -170,6 +171,7 @@ class SerTransportProcess(Process):  # TODO: WIP
         _LOGGER.warning("SerTransProc.__init__() *** PROCESS VERSION***")
 
         self._loop = loop
+
         self._protocol = protocol
         self._ser_port = ser_port
         self._extra = {} if extra is None else extra
@@ -246,6 +248,8 @@ class PacketProtocol(asyncio.Protocol):
     def __init__(self, gwy, pkt_receiver: Callable) -> None:
         _LOGGER.debug("PktProtocol.__init__(%s, %s)", gwy, pkt_receiver)
 
+        self._loop = gwy._loop
+
         self._gwy = gwy
         self._callback = pkt_receiver  # Could be None
 
@@ -259,7 +263,7 @@ class PacketProtocol(asyncio.Protocol):
 
         self._has_initialized = None
         if not self._gwy.config[DISABLE_SENDING]:
-            asyncio.create_task(self.send_data(INIT_CMD))  # HACK: port wakeup
+            self._loop.create_task(self.send_data(INIT_CMD))  # HACK: port wakeup
 
     def connection_made(self, transport: asyncio.Transport) -> None:
         """Called when a connection is made."""
@@ -369,7 +373,7 @@ class PacketProtocol(asyncio.Protocol):
             ):
                 flag = self._gwy.config[EVOFW_FLAG]
                 data = bytes(f"{flag}\r\n".encode("ascii"))
-                asyncio.create_task(self._send_data(data, ignore_pause=True))
+                self._loop.create_task(self._send_data(data, ignore_pause=True))
 
             _PKT_LOGGER.debug("Rx: %s", pkt_raw, extra=self._extra(dtm_str, pkt_raw))
 

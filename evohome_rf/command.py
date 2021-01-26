@@ -90,6 +90,8 @@ class Command:
     def __init__(self, verb, dest_addr, code, payload, **kwargs) -> None:
         """Initialise the class."""
 
+        # self._loop = ...
+
         self.verb = verb
         self.from_addr = kwargs.get("from_addr", HGI_DEVICE.id)
         self.dest_addr = dest_addr if dest_addr is not None else self.from_addr
@@ -204,6 +206,8 @@ class FaultLog:  # 0418
     def __init__(self, ctl, msg=None, **kwargs) -> None:
         _LOGGER.debug("FaultLog(ctl=%s).__init__()", ctl)
 
+        self._loop = ctl._gwy._loop
+
         self.id = ctl.id
         self._ctl = ctl
         # self._evo = ctl._evo
@@ -240,7 +244,7 @@ class FaultLog:  # 0418
         self._fault_log = {}
         self._fault_log_done = None
 
-        self._rq_log_entry(log_idx=0)  # calls asyncio.create_task()
+        self._rq_log_entry(log_idx=0)  # calls loop.create_task()
 
         time_start = dt.now()
         while not self._fault_log_done:
@@ -288,7 +292,7 @@ class FaultLog:  # 0418
 
         callback = {"func": rq_callback, "timeout": td(seconds=10)}
         cmd = Command("RQ", self._ctl.id, "0418", f"{log_idx:06X}", callback=callback)
-        asyncio.create_task(self._gwy.msg_protocol.send_data(cmd))
+        self._loop.create_task(self._gwy.msg_protocol.send_data(cmd))
 
 
 class Schedule:  # 0404
@@ -296,6 +300,8 @@ class Schedule:  # 0404
 
     def __init__(self, zone, **kwargs) -> None:
         _LOGGER.debug("Schedule(zone=%s).__init__()", zone)
+
+        self._loop = zone._gwy._loop
 
         self.id = zone.id
         self._zone = zone
@@ -352,7 +358,7 @@ class Schedule:  # 0404
             self._schedule_done = None
 
         if not self._schedule_done:
-            self._rq_fragment(frag_cnt=0)  # calls asyncio.create_task()
+            self._rq_fragment(frag_cnt=0)  # calls loop.create_task()
 
             time_start = dt.now()
             while not self._schedule_done:
@@ -422,7 +428,7 @@ class Schedule:  # 0404
         payload = f"{self.idx}20000800{frag_idx + 1:02d}{frag_cnt:02d}"  # DHW: 23000800
         callback = {"func": rq_callback, "timeout": td(seconds=1)}
         cmd = Command("RQ", self._ctl.id, "0404", payload, callback=callback)
-        asyncio.create_task(self._gwy.msg_protocol.send_data(cmd))
+        self._loop.create_task(self._gwy.msg_protocol.send_data(cmd))
 
     @staticmethod
     def _frags_to_sched(frags: list) -> dict:
@@ -519,7 +525,7 @@ class Schedule:  # 0404
         )
         callback = {"func": tx_callback, "timeout": td(seconds=3)}  # 1 sec too low
         cmd = Command(" W", self._ctl.id, "0404", payload, callback=callback)
-        asyncio.create_task(self._gwy.msg_protocol.send_data(cmd))
+        self._loop.create_task(self._gwy.msg_protocol.send_data(cmd))
 
     async def _obtain_lock(self) -> bool:  # Lock to prevent Rx/Tx at same time
         while True:

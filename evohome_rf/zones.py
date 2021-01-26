@@ -414,7 +414,7 @@ class ZoneSchedule:
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
 
         if discover_flag & DISCOVER_STATUS:
-            # asyncio.create_task(self.get_schedule())  # 0404
+            # self._loop.create_task(self.get_schedule())  # 0404
             pass
 
     def _handle_msg(self, msg) -> bool:
@@ -486,7 +486,7 @@ class Zone(ZoneSchedule, ZoneBase):
         super()._discover(discover_flag=discover_flag)
 
         if DEV_MODE and self.idx == "99":  # dev/test code
-            asyncio.create_task(  # TODO: test/dev only
+            self._loop.create_task(  # TODO: test/dev only
                 self.async_cancel_override()
                 # self.async_set_override(
                 #     setpoint=15.9,

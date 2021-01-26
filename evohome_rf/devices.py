@@ -36,6 +36,7 @@ class Entity:
 
     def __init__(self, gwy) -> None:
         self._gwy = gwy
+        self._loop = gwy._loop
 
         self.id = None
 
@@ -80,14 +81,7 @@ class Entity:
         self._msgs.pop(code, None)  # remove the old one, so we can tell if RP'd rcvd
 
         cmd = Command(kwargs.pop("verb", "RQ"), dest, code, payload, **kwargs)
-        try:  # TODO: convert create_task to run_coroutine_threadsafe
-            asyncio.create_task(
-                self._gwy.msg_protocol.send_data(cmd),
-            )
-        except RuntimeError:
-            asyncio.run_coroutine_threadsafe(
-                self._gwy.msg_protocol.send_data(cmd), self._gwy._loop
-            )
+        self._gwy._loop.create_task(self._gwy.msg_protocol.send_data(cmd))
 
     def _msg_payload(self, msg, key=None) -> Optional[Any]:
         if msg and not msg.is_expired:

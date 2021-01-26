@@ -58,7 +58,9 @@ class SysFaultLog:  # 0418
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
-            self._gwy._tasks.append(asyncio.create_task(self.get_fault_log()))  # 0418
+            self._gwy._tasks.append(
+                self._loop.create_task(self.get_fault_log())
+            )  # 0418
 
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
@@ -172,7 +174,7 @@ class SysMode:  # 2E04
             self._send_cmd("2E04", payload="FF")  # system mode
 
         # TODO: testing only
-        # asyncio.create_task(
+        # self._loop.create_task(
         #     self.async_set_mode(5, dt_now() + td(minutes=120))
         #     # self.async_set_mode(5)
         #     # self.async_reset_mode()

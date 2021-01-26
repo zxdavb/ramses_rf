@@ -48,8 +48,9 @@ class MessageTransport(asyncio.Transport):
     def __init__(self, gwy, protocol, extra=None):
         _LOGGER.debug("MsgTransport.__init__()")
 
-        self._gwy = gwy
+        self._loop = gwy._loop
 
+        self._gwy = gwy
         self._protocols = []
         self.add_protocol(protocol)
 
@@ -98,7 +99,7 @@ class MessageTransport(asyncio.Transport):
             [p.connection_lost(None) for p in self._protocols]
 
         self._dispatcher = dispatcher
-        self._extra[WRITER_TASK] = asyncio.create_task(pkt_dispatcher())
+        self._extra[WRITER_TASK] = self._loop.create_task(pkt_dispatcher())
 
         return self._extra[WRITER_TASK]
 
@@ -108,7 +109,9 @@ class MessageTransport(asyncio.Transport):
         for hdr, cbk in self._callbacks.items():  # 1st, notify all expired callbacks
             if cbk.get("timeout", dt.max) < pkt._dtm:
                 _LOGGER.error("MsgTransport._pkt_receiver(%s): Expired callback", hdr)
-                asyncio.create_task(cbk["func"](False, *cbk["args"], **cbk["kwargs"]))
+                self._loop.create_task(
+                    cbk["func"](False, *cbk["args"], **cbk["kwargs"])
+                )
 
         self._callbacks = {  # 2nd, discard expired callbacks
             hdr: cbk
@@ -128,7 +131,7 @@ class MessageTransport(asyncio.Transport):
 
         if msg._pkt._header in self._callbacks:  # 3rd, invoke any callback
             cbk = self._callbacks[msg._pkt._header]
-            asyncio.create_task(cbk["func"](msg, *cbk["args"], **cbk["kwargs"]))
+            self._loop.create_task(cbk["func"](msg, *cbk["args"], **cbk["kwargs"]))
             if not cbk.get("daemon"):
                 del self._callbacks[msg._pkt._header]
 

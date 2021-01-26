@@ -44,18 +44,16 @@ if DEV_MODE:
 class Ser2NetProtocol(asyncio.Protocol):
     """A TCP socket interface."""
 
-    def __init__(self) -> None:
+    def __init__(self, loop) -> None:
         _LOGGER.debug("Ser2NetProtocol.__init__()")
 
+        self._loop = loop
         self.transport = None
 
         if RECV_TIMEOUT:
-            self._loop = asyncio.get_running_loop()
             self.timeout_handle = self._loop.call_later(
                 RECV_TIMEOUT, self._recv_timeout
             )
-        else:
-            self._loop = self.timeout_handle = None
 
     def _recv_timeout(self):
         _LOGGER.debug("Ser2NetProtocol._recv_timeout()")
@@ -109,7 +107,7 @@ class Ser2NetProtocol(asyncio.Protocol):
         # cmd = Command(pkt)
         # self._que.put_nowait(packet)  # TODO: use factory: shld be Command, not str
         # TODO: the previous line be something like
-        asyncio.create_task(self._gwy.msg_protocol.send_data(packet))
+        self._loop.create_task(self._gwy.msg_protocol.send_data(packet))
         _LOGGER.debug(" - command sent to dispatch queue: %s", packet)
 
     def eof_received(self) -> Optional[bool]:
@@ -145,7 +143,7 @@ class Ser2NetServer:
         self.server = await self._loop.create_server(
             lambda: self.protocol, self._addr, int(self._port)
         )
-        asyncio.create_task(self.server.serve_forever())
+        self._loop.create_task(self.server.serve_forever())
         _LOGGER.debug(" - listening on %s:%s", self._addr, int(self._port))
 
     async def write(self, data: str) -> None:
@@ -167,6 +165,6 @@ class Ser2NetServer:
         self._relay = Ser2NetServer(
             self.config["ser2net_server"], self._que, loop=self._loop
         )
-        self._tasks.append(asyncio.create_task(self._relay.start()))
+        self._tasks.append(self._loop.create_task(self._relay.start()))
 
 """
