@@ -188,7 +188,7 @@ class DeviceBase(Entity, metaclass=ABCMeta):
             _LOGGER.debug("Setting controller for %s to %s", self, ctl)
 
             # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5  # has been seen
-            if not isinstance(ctl, Controller) and not ctl.is_controller:
+            if not isinstance(ctl, Controller) and not ctl._is_controller:
                 raise TypeError(f"Device {ctl} is not a controller")
 
             self._ctl = ctl
@@ -501,7 +501,7 @@ class Device(DeviceInfo, DeviceBase):
         return self._has_battery
 
     @property
-    def is_controller(self) -> Optional[bool]:  # 1F09
+    def _is_controller(self) -> Optional[bool]:  # 1F09
         if self._ctl is self:
             return True
         # if isinstance(self, Controller):

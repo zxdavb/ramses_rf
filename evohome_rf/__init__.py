@@ -78,7 +78,8 @@ class Gateway:
 
         self.pkt_protocol, self.pkt_transport = None, None
         self.msg_protocol, self.msg_transport = None, None
-        self.msg_protocol, self.msg_transport = self.create_client(process_msg)
+        if self.config[REDUCE_PROCESSING] < DONT_CREATE_MESSAGES:
+            self.msg_protocol, self.msg_transport = self.create_client(process_msg)
 
         self._buffer = deque()
         self._sched_zone = None
@@ -182,15 +183,20 @@ class Gateway:
     async def start(self) -> None:
         if self.serial_port:  # source of packets is a serial port
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
-                self, self.msg_transport._pkt_receiver, serial_port=self.serial_port
+                self,
+                self.msg_transport._pkt_receiver if self.msg_transport else None,
+                serial_port=self.serial_port,
             )
-            self._tasks.append(
-                self.msg_transport._set_dispatcher(self.pkt_protocol.send_data)
-            )
+            if self.msg_transport:
+                self._tasks.append(
+                    self.msg_transport._set_dispatcher(self.pkt_protocol.send_data)
+                )
 
         else:  # if self._input_file:
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
-                self, self.msg_transport._pkt_receiver, packet_log=self._input_file
+                self,
+                self.msg_transport._pkt_receiver if self.msg_transport else None,
+                packet_log=self._input_file,
             )
 
         if self.pkt_transport.get_extra_info(POLLER_TASK):
@@ -247,7 +253,7 @@ class Gateway:
         if device is None:
             device = create_device(dev_addr, ctl=ctl, domain_id=domain_id)
             # if isinstance(device, Controller):
-            # if device.is_controller:
+            # if device._is_controller:
             # if dev_addr.type in SYSTEM_CLASSES:
             if dev_addr.type in ("01", "23"):
                 device._evo = create_system(device)

@@ -247,7 +247,7 @@ class PacketProtocol(asyncio.Protocol):
         _LOGGER.debug("PktProtocol.__init__(%s, %s)", gwy, pkt_receiver)
 
         self._gwy = gwy
-        self._callback = pkt_receiver
+        self._callback = pkt_receiver  # Could be None
 
         self._transport = None
         self._pause_writing = True
@@ -565,7 +565,7 @@ class PacketProtocolQos(PacketProtocol):
             # self._timeouts(dt.now())
             _logger_rcvd(_LOGGER.debug, "XXXXXXX - ")
 
-        if self.is_wanted(pkt, self._include, self._exclude):
+        if self._callback and self.is_wanted(pkt, self._include, self._exclude):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
     async def send_data(self, cmd: Command) -> None:

@@ -35,7 +35,6 @@ from .ramses import RAMSES_CODES as RAMSES_CODES
 from .schema import (
     REDUCE_PROCESSING,
     USE_NAMES,
-    DONT_CREATE_MESSAGES,
     DONT_CREATE_ENTITIES,
     DONT_UPDATE_ENTITIES,
 )
@@ -208,24 +207,27 @@ class Message:
 
         if self._is_expired is not None:
             return self._is_expired
-        elif self.code in ("1F09", "313F"):
+        elif self.code in ("1F09", "313F") and self.src._is_controller:
             timeout = td(seconds=3)
-        elif self.code in ("2309", "3C09"):
+        elif self.code in ("2309", "3C09") and self.src._is_controller:
             timeout = td(minutes=15)
         elif self.code in ("3150",):
             timeout = td(minutes=20)  # sends I /20min
-        elif self.code in ("000A",):
+        elif self.code in ("000A",) and self.src._is_controller:
             timeout = td(minutes=60)  # sends I (array) /1h
-        elif self.code in ("1260", "12B0", "1F41", "2349", "2E04"):
+        elif self.code in ("2E04",) and self.src._is_controller:
+            timeout = td(minutes=60)  # sends I /1h
+        elif self.code in ("1260", "12B0", "1F41", "2349"):
             timeout = td(minutes=60)  # sends I /1h
         else:  # treat as never expiring
             self._is_expired = False
+            _LOGGER.debug("Message(%s) not expired: %s", self._pkt._header, self.dtm)
             return self._is_expired
 
         dtm = self._gwy._prev_msg.dtm if self._gwy.serial_port is None else dt.now()
-        if self.dtm < dtm - timeout * 2:
-            self._is_expired = True
-            _LOGGER.debug("Message has expired: %s", self)
+        if self.dtm < dtm - timeout * 2 + td(seconds=3):
+            self._is_expired = True  # TODO: below should be a debug
+            _LOGGER.warning("Message(%s) HAS EXPIRED: %s", self._pkt._header, self.dtm)
         return self._is_expired
 
     @property
@@ -356,11 +358,11 @@ def process_msg(msg: Message) -> None:
             this._gwy._get_device(this.src)
 
         # otherwise one will be a controller, *unless* dst is in ("--", "63")
-        elif isinstance(this.src, Device) and this.src.is_controller:
+        elif isinstance(this.src, Device) and this.src._is_controller:
             this._gwy._get_device(this.dst, ctl_addr=this.src)
 
         # TODO: may create a controller that doesn't exist
-        elif isinstance(this.dst, Device) and this.dst.is_controller:
+        elif isinstance(this.dst, Device) and this.dst._is_controller:
             this._gwy._get_device(this.src, ctl_addr=this.dst)
 
         else:
@@ -426,7 +428,7 @@ def process_msg(msg: Message) -> None:
         # # Eavesdropping (below) is used when discovery (above) is not an option
         # # TODO: needs work, e.g. RP/1F41 (excl. null_rp)
         # elif this.code in ("10A0", "1F41"):
-        #     if isinstance(this.dst, Device) and this.dst.is_controller:
+        #     if isinstance(this.dst, Device) and this.dst._is_controller:
         #         this.dst._get_zone("HW")
         #     else:
         #         evo._get_zone("HW ")
@@ -435,7 +437,7 @@ def process_msg(msg: Message) -> None:
         # elif isinstance(this._payload, dict):
         #     # TODO: only creating zones from arrays, presently, but could do so here
         #     if this._payload.get("zone_idx"):  # TODO: parent_zone too?
-        #         if this.src.is_controller:
+        #         if this.src._is_controller:
         #             evo._get_zone(this._payload["zone_idx"])
         #         else:
         #             this.dst._get_zone(this._payload["zone_idx"])
@@ -503,24 +505,19 @@ def process_msg(msg: Message) -> None:
                 if z["zone_idx"] in evo.zone_by_idx:
                     evo.zone_by_idx[z["zone_idx"]]._handle_msg(this)
 
+    # 18:/RQs are unreliable, although any corresponding RPs are often required
+    if msg.src.type == "18":
+        return
+
+    if msg._gwy.config[REDUCE_PROCESSING] >= DONT_CREATE_ENTITIES:
+        return
+
     try:
-        if msg._gwy.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES:
-            return
-
-        # 18:/RQs are unreliable, although any corresponding RPs are often required
-        if msg.src.type == "18":
-            return
-
-        if msg._gwy.config[REDUCE_PROCESSING] >= DONT_CREATE_ENTITIES:
-            return
-
         create_devices(msg)  # from pkt header & from msg payload (e.g. 000C)
         create_zones(msg)  # create zones & ufh_zones (TBD)
 
-        if msg._gwy.config[REDUCE_PROCESSING] >= DONT_UPDATE_ENTITIES:
-            return
-
-        update_entities(msg, msg._gwy._prev_msg)  # update the state database
+        if msg._gwy.config[REDUCE_PROCESSING] < DONT_UPDATE_ENTITIES:
+            update_entities(msg, msg._gwy._prev_msg)  # update the state database
 
     except (AssertionError, NotImplementedError) as err:
         _LOGGER.exception("%s < %s", msg._pkt, err.__class__.__name__)
