@@ -1516,23 +1516,23 @@ def parser_3220(payload, msg) -> Optional[dict]:
             int(payload[2:], 16) & 0x7FFFFFFF
         ), "Invalid OpenTherm check bit"
 
-    ot_msg_type = int(payload[2:4], 16) & 0x70
+    ot_msg_type = (int(payload[2:4], 16) & 0x70) >> 4
     assert (
         ot_msg_type in OPENTHERM_MSG_TYPE
-    ), f"Unknown OpenTherm msg type: {ot_msg_type:02X}"
+    ), f"Unknown OpenTherm msg type: 0b{ot_msg_type:03b} ({ot_msg_type})"
 
     assert int(payload[2:4], 16) & 0x0F == 0
 
     ot_msg_id = int(payload[4:6], 16)
     assert (
-        str(ot_msg_id) in OPENTHERM_MESSAGES["messages"]
+        ot_msg_id in OPENTHERM_MESSAGES["messages"]
     ), f"Unknown OpenTherm msg id: {ot_msg_id} (0x{ot_msg_id:02X})"
 
-    message = OPENTHERM_MESSAGES["messages"].get(str(ot_msg_id))
+    message = OPENTHERM_MESSAGES["messages"].get(ot_msg_id)
 
     result = {
         "id": payload[4:6],  # ot_msg_id,
-        "msg_name": message["en"],
+        "msg_name": message["en"] if message else None,
         "msg_type": OPENTHERM_MSG_TYPE[ot_msg_type],
     }
 
@@ -1540,14 +1540,18 @@ def parser_3220(payload, msg) -> Optional[dict]:
         return {**result, "value_raw": payload[6:]}
 
     if msg.verb == "RQ":
-        assert ot_msg_type < 48, f"Invalid OpenTherm msg type: {ot_msg_type:02X}"
+        assert (
+            ot_msg_type < 0b011
+        ), f"Invalid OpenTherm msg type: 0b{ot_msg_type:03b} ({ot_msg_type})"
         assert payload[6:10] == "0000", payload[6:10]
         return {
             **result,
             # "description": message["en"]
         }
 
-    assert ot_msg_type > 48, f"Invalid OpenTherm msg type: {ot_msg_type:02X}"
+    assert (
+        ot_msg_type >= 0b011
+    ), f"Invalid OpenTherm msg type: 0b{ot_msg_type:03b} ({ot_msg_type})"
 
     if isinstance(message["var"], dict):
         if isinstance(message["val"], dict):
