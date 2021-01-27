@@ -254,7 +254,7 @@ class Message:
 
         else:
             self._is_expired = self.NOT_EXPIRED
-            _LOGGER.info(  # TODO: should be a debug
+            _LOGGER.debug(  # TODO: should be a debug
                 "Message(%s) received at %s has not expired",
                 self._pkt._header,
                 f"{self.dtm:%H:%M:%S}",
