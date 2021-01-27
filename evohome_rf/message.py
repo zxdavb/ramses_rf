@@ -9,7 +9,7 @@ Decode/process a message (payload into JSON).
 from datetime import datetime as dt, timedelta as td
 import logging
 import re
-from typing import Any, Optional, Union
+from typing import Any, Optional, Tuple, Union
 
 from . import parsers
 from .const import (
@@ -53,6 +53,10 @@ class Message:
 
     Will trap/log all invalid msgs appropriately.
     """
+
+    HAS_EXPIRED = 2
+    IS_EXPIRING = 1
+    NOT_EXPIRED = 0
 
     def __init__(self, gwy, pkt) -> None:
         """Create a message, assumes a valid packet."""
@@ -202,14 +206,16 @@ class Message:
         return self._is_array
 
     @property
-    def is_expired(self) -> Optional[bool]:
+    def is_expired(self) -> Tuple[bool, Optional[bool]]:
         """Return True if the message is dated (does not require a valid payload)."""
 
+        # TODO: Use this, or retest every time (to get logger messages)
         if self._is_expired is not None:
             return self._is_expired
-        elif self.code in ("1F09", "313F") and self.src._is_controller:
+
+        if self.code in ("1F09", "313F") and self.src._is_controller:
             timeout = td(seconds=3)
-        elif self.code in ("2309", "3C09") and self.src._is_controller:
+        elif self.code in ("2309", "30C9") and self.src._is_controller:
             timeout = td(minutes=15)
         elif self.code in ("3150",):
             timeout = td(minutes=20)  # sends I /20min
@@ -220,14 +226,40 @@ class Message:
         elif self.code in ("1260", "12B0", "1F41", "2349"):
             timeout = td(minutes=60)  # sends I /1h
         else:  # treat as never expiring
-            self._is_expired = False
-            _LOGGER.debug("Message(%s) not expired: %s", self._pkt._header, self.dtm)
+            self._is_expired = self.NOT_EXPIRED
+            _LOGGER.debug(  # TODO: should be a debug
+                "Message(%s) received at %s is not expirable",
+                self._pkt._header,
+                f"{self.dtm:%H:%M:%S}",
+            )
             return self._is_expired
 
-        dtm = self._gwy._prev_msg.dtm if self._gwy.serial_port is None else dt.now()
-        if self.dtm < dtm - timeout * 2 + td(seconds=3):
-            self._is_expired = True  # TODO: below should be a debug
-            _LOGGER.warning("Message(%s) HAS EXPIRED: %s", self._pkt._header, self.dtm)
+        dtm_now = dt.now() if self._gwy.serial_port else self._gwy._prev_msg.dtm
+
+        if self.dtm < dtm_now - timeout * 2:
+            self._is_expired = self.HAS_EXPIRED
+            _LOGGER.error(  # TODO: should be a warning?
+                "Message(%s) received at %s HAS EXPIRED",
+                self._pkt._header,
+                f"{self.dtm:%H:%M:%S}",
+            )
+
+        elif self.dtm < dtm_now - timeout * 1:
+            self._is_expired = self.IS_EXPIRING
+            _LOGGER.warning(  # TODO: should be a info?
+                "Message(%s) received at %s has not expired, but is dated",
+                self._pkt._header,
+                f"{self.dtm:%H:%M:%S}",
+            )
+
+        else:
+            self._is_expired = self.NOT_EXPIRED
+            _LOGGER.info(  # TODO: should be a debug
+                "Message(%s) received at %s has not expired",
+                self._pkt._header,
+                f"{self.dtm:%H:%M:%S}",
+            )
+
         return self._is_expired
 
     @property

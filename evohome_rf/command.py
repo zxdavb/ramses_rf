@@ -258,7 +258,7 @@ class FaultLog:  # 0418
         """Request the next log entry."""
         _LOGGER.debug("FaultLog(%s)._rq_log_entry(%s)", self, log_idx)
 
-        async def rq_callback(msg) -> None:
+        def rq_callback(msg) -> None:
             _LOGGER.debug("FaultLog(%s)._proc_log_entry(%s)", self.id, msg)
 
             if not msg:
@@ -290,9 +290,10 @@ class FaultLog:  # 0418
                 "kwargs": {},
             }
 
-        callback = {"func": rq_callback, "timeout": td(seconds=10)}
-        cmd = Command("RQ", self._ctl.id, "0418", f"{log_idx:06X}", callback=callback)
-        self._loop.create_task(self._gwy.msg_protocol.send_data(cmd))
+        rq_callback = {"func": rq_callback, "timeout": td(seconds=10)}
+        self._gwy.send_data(
+            Command("RQ", self._ctl.id, "0418", f"{log_idx:06X}", callback=rq_callback)
+        )
 
 
 class Schedule:  # 0404
@@ -375,7 +376,7 @@ class Schedule:  # 0404
         """Request the next missing fragment (index starts at 1, not 0)."""
         _LOGGER.debug("Schedule(%s)._rq_fragment(%s)", self.id, frag_cnt)
 
-        async def rq_callback(msg) -> None:
+        def rq_callback(msg) -> None:
             if not msg:  # _LOGGER.debug()... TODO: needs fleshing out
                 # TODO: remove any callbacks from msg._gwy.msg_transport._callbacks
                 _LOGGER.warning(f"Schedule({self.id}): Callback timed out")
@@ -426,9 +427,10 @@ class Schedule:  # 0404
         # 046 RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0304 6BE...
 
         payload = f"{self.idx}20000800{frag_idx + 1:02d}{frag_cnt:02d}"  # DHW: 23000800
-        callback = {"func": rq_callback, "timeout": td(seconds=1)}
-        cmd = Command("RQ", self._ctl.id, "0404", payload, callback=callback)
-        self._loop.create_task(self._gwy.msg_protocol.send_data(cmd))
+        rq_callback = {"func": rq_callback, "timeout": td(seconds=1)}
+        self._gwy.send_data(
+            Command("RQ", self._ctl.id, "0404", payload, callback=rq_callback)
+        )
 
     @staticmethod
     def _frags_to_sched(frags: list) -> dict:
@@ -504,7 +506,7 @@ class Schedule:  # 0404
             "Schedule(%s)._tx_fragment(%s/%s)", self.id, frag_idx, len(self._tx_frags)
         )
 
-        async def tx_callback(msg) -> None:
+        def tx_callback(msg) -> None:
             _LOGGER.debug(
                 f"Schedule({self.id})._proc_fragment(msg), frag_idx=%s, frag_cnt=%s",
                 msg.payload.get("frag_index"),
@@ -523,9 +525,10 @@ class Schedule:  # 0404
             len(self._tx_frags),
             self._tx_frags[frag_idx],
         )
-        callback = {"func": tx_callback, "timeout": td(seconds=3)}  # 1 sec too low
-        cmd = Command(" W", self._ctl.id, "0404", payload, callback=callback)
-        self._loop.create_task(self._gwy.msg_protocol.send_data(cmd))
+        tx_callback = {"func": tx_callback, "timeout": td(seconds=3)}  # 1 sec too low
+        self._gwy.send_data(
+            Command(" W", self._ctl.id, "0404", payload, callback=tx_callback)
+        )
 
     async def _obtain_lock(self) -> bool:  # Lock to prevent Rx/Tx at same time
         while True:

@@ -277,3 +277,12 @@ class Gateway:
     def create_client(self, msg_handler) -> Tuple[Callable, Callable]:
         """Create a client protocol for the RAMSES-II message transport."""
         return create_msg_stack(self, msg_handler)
+
+    def send_data(self, data) -> asyncio.Task:
+        # TODO: validate data to be sent is cmd or !X
+        if self.msg_protocol:
+            task = self._loop.create_task(self.msg_protocol.send_data(data))
+        else:
+            raise RuntimeError("there is no message protocol client")
+
+        return task

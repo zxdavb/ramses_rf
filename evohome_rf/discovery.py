@@ -31,12 +31,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-async def _cmd(gwy, *args, **kwargs) -> None:
-    qos = kwargs.pop("qos", {})
-    await gwy.msg_protocol.send_data(Command(*args, **kwargs, qos=qos))
-
-
-async def spawn_execute_cmd(gwy, **kwargs):
+def spawn_execute_cmd(gwy, **kwargs):
     if kwargs.get(EXECUTE_CMD):  # e.g. "RQ 01:145038 1F09 00"
         cmd = kwargs[EXECUTE_CMD]
 
@@ -48,14 +43,14 @@ async def spawn_execute_cmd(gwy, **kwargs):
                 "Execute: Command is invalid, and will be ignored: '%s' (%s)", cmd, err
             )
         else:
-            await gwy.msg_protocol.send_data(cmd)
+            gwy.send_data(cmd)
 
 
 async def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
     tasks = []
 
     if kwargs.get(EXECUTE_CMD):
-        await spawn_execute_cmd(gwy, **kwargs)  # TODO: wrap in a try?
+        spawn_execute_cmd(gwy, **kwargs)  # TODO: wrap in a try?
 
     if kwargs.get("poll_devices"):
         tasks += [poll_device(gwy, d) for d in kwargs["poll_devices"]]
@@ -64,39 +59,39 @@ async def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
     return tasks
 
 
-async def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
+def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
 
     # this is to ensure the gateway interface has fully woken
     if not kwargs.get(EXECUTE_CMD) and gwy._include:
         dev_id = next(iter(gwy._include))
         qos = {"priority": Priority.HIGH, "retries": 5}
-        await gwy.msg_protocol.send_data(Command("RQ", dev_id, "0016", "00FF", qos=qos))
+        gwy.send_data(Command("RQ", dev_id, "0016", "00FF", qos=qos))
 
     tasks = []
 
     if kwargs.get(EXECUTE_CMD):  # TODO: wrap in a try?
-        await spawn_execute_cmd(gwy, **kwargs)
+        spawn_execute_cmd(gwy, **kwargs)
 
     if kwargs.get(GET_FAULTS):
-        tasks += [asyncio.create_task(get_faults(gwy, kwargs[GET_FAULTS]))]
+        tasks += [gwy._loop.create_task(get_faults(gwy, kwargs[GET_FAULTS]))]
 
     if kwargs.get(GET_SCHED) and kwargs[GET_SCHED][0]:
-        tasks += [asyncio.create_task(get_schedule(gwy, *kwargs[GET_SCHED]))]
+        tasks += [gwy._loop.create_task(get_schedule(gwy, *kwargs[GET_SCHED]))]
 
     if kwargs.get(SET_SCHED) and kwargs[SET_SCHED][0]:
-        tasks += [asyncio.create_task(set_schedule(gwy, *kwargs[SET_SCHED]))]
+        tasks += [gwy._loop.create_task(set_schedule(gwy, *kwargs[SET_SCHED]))]
 
     if kwargs.get(SCAN_DISC):
-        tasks += [asyncio.create_task(scan_disc(gwy, d)) for d in kwargs[SCAN_DISC]]
+        tasks += [gwy._loop.create_task(scan_disc(gwy, d)) for d in kwargs[SCAN_DISC]]
 
     if kwargs.get(SCAN_FULL):
-        tasks += [asyncio.create_task(scan_full(gwy, d)) for d in kwargs[SCAN_FULL]]
+        tasks += [gwy._loop.create_task(scan_full(gwy, d)) for d in kwargs[SCAN_FULL]]
 
     if kwargs.get(SCAN_HARD):
-        tasks += [asyncio.create_task(scan_hard(gwy, d)) for d in kwargs[SCAN_HARD]]
+        tasks += [gwy._loop.create_task(scan_hard(gwy, d)) for d in kwargs[SCAN_HARD]]
 
     if kwargs.get(SCAN_XXXX):
-        tasks += [asyncio.create_task(scan_xxxx(gwy, d)) for d in kwargs[SCAN_XXXX]]
+        tasks += [gwy._loop.create_task(scan_xxxx(gwy, d)) for d in kwargs[SCAN_XXXX]]
 
     gwy._tasks.extend(tasks)
     return tasks
@@ -105,7 +100,7 @@ async def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
 async def periodic(gwy, cmd, count=1, interval=None):
     async def _periodic():
         await asyncio.sleep(interval)
-        await gwy.msg_protocol.send_data(cmd)
+        gwy.send_data(cmd)
 
     if interval is None:
         interval = 0 if count == 1 else 60
@@ -174,10 +169,10 @@ def poll_device(gwy, dev_id) -> List[Any]:
 
     for code in codes:
         cmd = Command("RQ", dev_id, code, "00", qos=qos)
-        tasks.append(asyncio.create_task(periodic(gwy, cmd, count=0)))
+        tasks.append(gwy._loop.create_task(periodic(gwy, cmd, count=0)))
 
         cmd = Command("RQ", dev_id, code, "0000", qos=qos)
-        tasks.append(asyncio.create_task(periodic(gwy, cmd, count=0)))
+        tasks.append(gwy._loop.create_task(periodic(gwy, cmd, count=0)))
 
     gwy._tasks.extend(tasks)
     return tasks
@@ -197,48 +192,52 @@ async def scan_full(gwy, dev_id: str):
     for code in sorted(RAMSES_CODES):
         if code == "0005":
             for zone_type in range(20):  # known up to 18
-                await _cmd(gwy, "RQ", dev_id, code, f"00{zone_type:02X}", qos=qos)
+                gwy.send_data(
+                    Command("RQ", dev_id, code, f"00{zone_type:02X}", qos=qos)
+                )
             continue
 
         elif code == "000C":
             for zone_idx in range(16):  # also: FA-FF?
-                await _cmd(gwy, "RQ", dev_id, code, f"{zone_idx:02X}00", qos=qos)
+                gwy.send_data(Command("RQ", dev_id, code, f"{zone_idx:02X}00", qos=qos))
             continue
 
         if code == "0016":
             qos_alt = {"priority": Priority.LOW, "retries": 5}
-            await _cmd(gwy, "RQ", dev_id, code, "0000", qos=qos_alt)
+            gwy.send_data(Command("RQ", dev_id, code, "0000", qos=qos_alt))
             continue
 
         elif code == "0404":
-            await _cmd(gwy, "RQ", dev_id, code, "00200008000100", qos=qos)
+            gwy.send_data(Command("RQ", dev_id, code, "00200008000100", qos=qos))
 
         elif code == "0418":
             for log_idx in range(2):
-                await _cmd(gwy, "RQ", dev_id, code, f"{log_idx:06X}", qos=qos)
+                gwy.send_data(Command("RQ", dev_id, code, f"{log_idx:06X}", qos=qos))
             continue
 
         elif code == "1100":
-            await _cmd(gwy, "RQ", dev_id, code, "FC", qos=qos)
+            gwy.send_data(Command("RQ", dev_id, code, "FC", qos=qos))
 
         elif code == "2E04":
-            await _cmd(gwy, "RQ", dev_id, code, "FF", qos=qos)
+            gwy.send_data(Command("RQ", dev_id, code, "FF", qos=qos))
 
         elif code == "3220":
             for data_id in ("00", "03"):  # these are mandatory READ_DATA data_ids
-                await _cmd(gwy, "RQ", dev_id, code, f"0000{data_id}0000", qos=qos)
+                gwy.send_data(
+                    Command("RQ", dev_id, code, f"0000{data_id}0000", qos=qos)
+                )
 
         elif code in CODE_SCHEMA and CODE_SCHEMA[code].get("rq_len"):
             rq_len = CODE_SCHEMA[code].get("rq_len") * 2
-            await _cmd(gwy, "RQ", dev_id, code, f"{0:0{rq_len}X}", qos=qos)
+            gwy.send_data(Command("RQ", dev_id, code, f"{0:0{rq_len}X}", qos=qos))
 
         else:
-            await _cmd(gwy, "RQ", dev_id, code, "0000", qos=qos)
+            gwy.send_data(Command("RQ", dev_id, code, "0000", qos=qos))
 
     # these are possible/difficult codes
     qos = {"priority": Priority.LOW, "retries": 3}
     for code in ("0150", "2389"):
-        await _cmd(gwy, "RQ", dev_id, code, "0000", qos=qos)
+        gwy.send_data(Command("RQ", dev_id, code, "0000", qos=qos))
 
 
 async def scan_hard(gwy, dev_id: str):
@@ -246,7 +245,7 @@ async def scan_hard(gwy, dev_id: str):
 
     qos = {"priority": Priority.LOW, "retries": 0}
     for code in range(0x4000):
-        await _cmd(gwy, "RQ", dev_id, f"{code:04X}", "0000", qos=qos)
+        gwy.send_data(Command("RQ", dev_id, f"{code:04X}", "0000", qos=qos))
 
 
 async def scan_xxxx(gwy, dev_id: str):
@@ -254,5 +253,5 @@ async def scan_xxxx(gwy, dev_id: str):
 
     qos = {"priority": Priority.LOW, "retries": 3}
     for idx in range(0x10):
-        await _cmd(gwy, " W", dev_id, "000E", f"{idx:02X}0050", qos=qos)
-        await _cmd(gwy, "RQ", dev_id, "000E", f"{idx:02X}00C8", qos=qos)
+        gwy.send_data(Command(" W", dev_id, "000E", f"{idx:02X}0050", qos=qos))
+        gwy.send_data(Command("RQ", dev_id, "000E", f"{idx:02X}00C8", qos=qos))

@@ -76,7 +76,7 @@ class MessageTransport(asyncio.Transport):
                 cmd.callback["timeout"] = dt.now() + cmd.callback["timeout"]
                 self._callbacks[cmd.rx_header] = cmd.callback
 
-            await self._dispatcher(cmd)  # send_data, *after* registering callback
+            await self._dispatcher(cmd)  # send_data, *once* callback registered
 
         async def pkt_dispatcher():
             while True:
@@ -106,17 +106,18 @@ class MessageTransport(asyncio.Transport):
     def _pkt_receiver(self, pkt):
         _LOGGER.debug("MsgTransport._pkt_receiver(%s)", pkt)
 
-        for hdr, cbk in self._callbacks.items():  # 1st, notify all expired callbacks
-            if cbk.get("timeout", dt.max) < pkt._dtm:
+        for (
+            hdr,
+            callback,
+        ) in self._callbacks.items():  # 1st, notify all expired callbacks
+            if callback.get("timeout", dt.max) < pkt._dtm:
                 _LOGGER.error("MsgTransport._pkt_receiver(%s): Expired callback", hdr)
-                self._loop.create_task(
-                    cbk["func"](False, *cbk["args"], **cbk["kwargs"])
-                )
+                callback["func"](False, *callback["args"], **callback["kwargs"])
 
         self._callbacks = {  # 2nd, discard expired callbacks
-            hdr: cbk
-            for hdr, cbk in self._callbacks.items()
-            if cbk.get("daemon") or cbk.get("timeout", dt.max) >= pkt._dtm
+            hdr: callback
+            for hdr, callback in self._callbacks.items()
+            if callback.get("daemon") or callback.get("timeout", dt.max) >= pkt._dtm
         }
 
         if len(self._protocols) == 0:
@@ -130,9 +131,9 @@ class MessageTransport(asyncio.Transport):
             return
 
         if msg._pkt._header in self._callbacks:  # 3rd, invoke any callback
-            cbk = self._callbacks[msg._pkt._header]
-            self._loop.create_task(cbk["func"](msg, *cbk["args"], **cbk["kwargs"]))
-            if not cbk.get("daemon"):
+            callback = self._callbacks[msg._pkt._header]
+            callback["func"](msg, *callback["args"], **callback["kwargs"])
+            if not callback.get("daemon"):
                 del self._callbacks[msg._pkt._header]
 
         [p.data_received(msg) for p in self._protocols]

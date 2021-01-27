@@ -95,7 +95,7 @@ class Ser2NetProtocol(asyncio.Protocol):
             return
 
         try:
-            packet = "".join(
+            cmd = "".join(
                 c
                 for c in data.decode("ascii", errors="ignore").strip()
                 if c in printable
@@ -103,12 +103,12 @@ class Ser2NetProtocol(asyncio.Protocol):
         except UnicodeDecodeError:
             return
 
-        # pkt = Packet(packet)
+        # pkt = Packet(cmd)
         # cmd = Command(pkt)
-        # self._que.put_nowait(packet)  # TODO: use factory: shld be Command, not str
+        # self._que.put_nowait(cmd)  # TODO: use factory: shld be Command, not str
         # TODO: the previous line be something like
-        self._loop.create_task(self._gwy.msg_protocol.send_data(packet))
-        _LOGGER.debug(" - command sent to dispatch queue: %s", packet)
+        self._gwy.send_data(cmd)
+        _LOGGER.debug(" - command sent to dispatch queue: %s", cmd)
 
     def eof_received(self) -> Optional[bool]:
         _LOGGER.debug("Ser2NetProtocol.eof_received()")

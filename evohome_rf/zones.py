@@ -4,7 +4,6 @@
 """Evohome RF - The evohome-compatible zones."""
 
 from abc import ABCMeta, abstractmethod
-import asyncio
 import logging
 from typing import Optional
 
@@ -646,7 +645,8 @@ class Zone(ZoneSchedule, ZoneBase):
 
     @property
     def mode(self) -> Optional[dict]:  # 2349
-        if not self._msg_expired("mode"):
+        if not self._mode or self._mode.is_expired:
+            # task = get_data
             return
 
         elif isinstance(self._mode.payload, dict):
@@ -680,7 +680,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309 (2349 is a superset of 2309)
-        if not self._msg_expired("setpoint"):
+        if not self._setpoint or self._setpoint.is_expired:
             return
 
         elif isinstance(self._setpoint.payload, dict):
@@ -704,7 +704,7 @@ class Zone(ZoneSchedule, ZoneBase):
         #     if self.sensor and self.sensor.temperature:
         #         self._temperature = self.sensor._temp
 
-        if not self._msg_expired("temperature"):
+        if not self._temperature or self._temperature.is_expired:
             return
 
         elif isinstance(self._temperature.payload, dict):
@@ -716,7 +716,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
     @property
     def zone_config(self) -> Optional[dict]:  # 000A
-        if not self._msg_expired("zone_config"):
+        if not self._zone_config or self._zone_config.is_expired:
             return
 
         elif isinstance(self._zone_config.payload, dict):

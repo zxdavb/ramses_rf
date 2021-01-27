@@ -4,7 +4,6 @@
 """Evohome RF - a RAMSES-II protocol decoder & analyser."""
 
 from abc import ABCMeta, abstractmethod
-import asyncio
 import logging
 from typing import Any, Dict, Optional
 
@@ -35,9 +34,9 @@ class Entity:
     """The Device/Zone base class."""
 
     def __init__(self, gwy) -> None:
-        self._gwy = gwy
         self._loop = gwy._loop
 
+        self._gwy = gwy
         self.id = None
 
         self._msgs = {}
@@ -80,17 +79,19 @@ class Entity:
     def _send_cmd(self, code, dest, payload, **kwargs) -> None:
         self._msgs.pop(code, None)  # remove the old one, so we can tell if RP'd rcvd
 
-        cmd = Command(kwargs.pop("verb", "RQ"), dest, code, payload, **kwargs)
-        self._gwy._loop.create_task(self._gwy.msg_protocol.send_data(cmd))
+        self._gwy.send_data(
+            Command(kwargs.pop("verb", "RQ"), dest, code, payload, **kwargs)
+        )
 
     def _msg_payload(self, msg, key=None) -> Optional[Any]:
-        if msg and not msg.is_expired:
+        if msg:
             if key:
                 return msg.payload.get(key)
             return {k: v for k, v in msg.payload.items() if k[:1] != "_"}
 
-    def _msg_expired(self, msg_name) -> Optional[bool]:
-        if not hasattr(self, f"_{msg_name}"):
+    def _msg_expired(self, msg_name: str) -> Optional[bool]:
+        attr = f"_{msg_name}"
+        if not hasattr(self, attr):
             _LOGGER.error("%s: is not tracking %s msgs", self, msg_name)
             return
 
@@ -98,10 +99,17 @@ class Entity:
         if not msg:
             _LOGGER.warning("%s: has no valid %s msg", self, msg_name)
         # elif msg_name != RAMSES_CODES[msg.code][NAME]:
-        #     _LOGGER.warning("%s: the %s msg's code doesn't match", self, msg_name)
+        #     _LOGGER.warning(
+        #         "%s: Message(%s) doesn't match name: %s",
+        #         self,
+        #         msg._pkt._header,
+        #         msg_name,
+        #     )
         #     assert False, msg.code
         elif msg.is_expired:
-            _LOGGER.warning("%s: the %s msg has expired", self, msg_name)
+            _LOGGER.warning(
+                "%s: Message(%s) has expired (%s)", self, msg._pkt._header, attr
+            )
         else:
             return True
 
