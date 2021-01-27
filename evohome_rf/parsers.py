@@ -26,7 +26,20 @@ from .const import (
     _dev_mode_,
 )
 from .helpers import dev_hex_to_id, dtm_from_hex as _dtm, dts_from_hex
-from .opentherm import OPENTHERM_MESSAGES, OPENTHERM_MSG_TYPE, ot_msg_value, parity
+from .opentherm import (
+    OPENTHERM_MESSAGES,
+    OPENTHERM_MSG_TYPE,
+    FLAG8,
+    EN,
+    HB,
+    LB,
+    U8,
+    S8,
+    VAL,
+    VAR,
+    ot_msg_value,
+    parity,
+)
 from .ramses import RAMSES_CODES as RAMSES_CODES
 from .schema import MAX_ZONES
 
@@ -1517,10 +1530,6 @@ def parser_3220(payload, msg) -> Optional[dict]:
         ), "Invalid OpenTherm check bit"
 
     ot_msg_type = (int(payload[2:4], 16) & 0x70) >> 4
-    assert (
-        ot_msg_type in OPENTHERM_MSG_TYPE
-    ), f"Unknown OpenTherm msg type: 0b{ot_msg_type:03b} ({ot_msg_type})"
-
     assert int(payload[2:4], 16) & 0x0F == 0
 
     ot_msg_id = int(payload[4:6], 16)
@@ -1531,8 +1540,8 @@ def parser_3220(payload, msg) -> Optional[dict]:
     message = OPENTHERM_MESSAGES["messages"].get(ot_msg_id)
 
     result = {
-        "id": payload[4:6],  # ot_msg_id,
-        "msg_name": message["en"] if message else None,
+        "msg_id": f"0x{payload[4:6]}",  # ot_msg_id,
+        "msg_name": message[VAR] if message else None,
         "msg_type": OPENTHERM_MSG_TYPE[ot_msg_type],
     }
 
@@ -1540,40 +1549,36 @@ def parser_3220(payload, msg) -> Optional[dict]:
         return {**result, "value_raw": payload[6:]}
 
     if msg.verb == "RQ":
-        assert (
-            ot_msg_type < 0b011
-        ), f"Invalid OpenTherm msg type: 0b{ot_msg_type:03b} ({ot_msg_type})"
+        assert ot_msg_type < 0b011, f"Invalid OpenTherm msg type: 0b{ot_msg_type:03b}"
         assert payload[6:10] == "0000", payload[6:10]
         return {
             **result,
-            # "description": message["en"]
+            "description": message[EN],
         }
 
-    assert (
-        ot_msg_type >= 0b011
-    ), f"Invalid OpenTherm msg type: 0b{ot_msg_type:03b} ({ot_msg_type})"
+    assert ot_msg_type > 0b011, f"Invalid OpenTherm msg type: 0b{ot_msg_type:03b}"
 
-    if isinstance(message["var"], dict):
-        if isinstance(message["val"], dict):
+    if ot_msg_type != 0b111 and isinstance(message[VAR], dict):
+        if isinstance(message[VAL], dict):
             result["value_hb"] = ot_msg_value(
-                payload[6:8], message["val"].get("hb", message["val"])
+                payload[6:8], message[VAL].get(HB, message[VAL])
             )
             result["value_lb"] = ot_msg_value(
-                payload[8:10], message["val"].get("lb", message["val"])
+                payload[8:10], message[VAL].get(LB, message[VAL])
             )
         else:
-            result["value_hb"] = ot_msg_value(payload[6:8], message["val"])
-            result["value_lb"] = ot_msg_value(payload[8:10], message["val"])
+            result["value_hb"] = ot_msg_value(payload[6:8], message[VAL])
+            result["value_lb"] = ot_msg_value(payload[8:10], message[VAL])
 
-    else:
-        if message["val"] in ("flag8", "u8", "s8"):
-            result["value"] = ot_msg_value(payload[6:8], message["val"])
+    elif ot_msg_type != 0b111:
+        if message[VAL] in (FLAG8, U8, S8):
+            result["value"] = ot_msg_value(payload[6:8], message[VAL])
         else:
-            result["value"] = ot_msg_value(payload[6:10], message["val"])
+            result["value"] = ot_msg_value(payload[6:10], message[VAL])
 
     return {
         **result,
-        # "description": message["en"],
+        "description": message[EN],
     }
 
 
