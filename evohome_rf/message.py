@@ -41,7 +41,7 @@ from .schema import (
 
 CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
 
-DEV_MODE = _dev_mode_ or True
+DEV_MODE = _dev_mode_
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:

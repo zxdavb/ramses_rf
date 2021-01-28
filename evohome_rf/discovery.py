@@ -46,7 +46,7 @@ def spawn_execute_cmd(gwy, **kwargs):
             gwy.send_data(cmd)
 
 
-async def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
+def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
     tasks = []
 
     if kwargs.get(EXECUTE_CMD):

@@ -140,7 +140,7 @@ RAMSES_CODES = {
     "2349": {
         NAME: "zone_mode",
     },
-    "2D49": {
+    "2D49": {  # seen with Hometronic systems
         NAME: "message_2d49",
     },
     "2E04": {
@@ -301,12 +301,18 @@ RAMSES_DEVICES = {
     },
     "02": {
         "0001a": {},
-        "0005a": {},
+        "0005": {
+            RP: {},
+        },
         "0008": {
             I_: {},
         },
-        "000Aa": {},
-        "000Ca": {},
+        "000A": {
+            RP: {},
+        },
+        "000C": {
+            RP: {},
+        },
         "10E0": {
             I_: {},
             RP: {},
@@ -316,8 +322,11 @@ RAMSES_DEVICES = {
         },
         "22D0": {
             I_: {},
+            RP: {},
         },
-        "2309a": {},
+        "2309": {
+            RP: {},
+        },
         "3150": {
             I_: {},
         },
@@ -543,7 +552,16 @@ RAMSES_DEVICES = {
             I_: {},
             RP: {},
         },
+        "22F1": {
+            I_: {},
+        },
+        "22F3": {
+            I_: {},
+        },
         "31D9": {
+            I_: {},
+        },
+        "31DA": {
             I_: {},
         },
     },
@@ -705,10 +723,68 @@ RAMSES_DEVICES["00"] = RAMSES_DEVICES["04"]
 RAMSES_DEVICES["22"] = RAMSES_DEVICES["12"]
 
 RAMSES_ZONES = {
-    "RAD": {},
-    "ELE": {},
-    "VAL": {},
-    "UFH": {},
-    "MIX": {},
+    "ALL": {
+        "0004": {
+            I_: {},
+            RP: {},
+        },
+        "000C": {
+            RP: {},
+        },
+        "000A": {
+            I_: {},
+            RP: {},
+        },
+        "2309": {
+            I_: {},
+            RP: {},
+        },
+        "2349": {
+            I_: {},
+            RP: {},
+        },
+        "30C9": {
+            I_: {},
+            RP: {},
+        },
+    },
+    "RAD": {
+        "12B0": {
+            I_: {},
+            RP: {},
+        },
+        "3150a": {},
+    },
+    "ELE": {
+        "0008": {
+            I_: {},
+        },
+        "0009": {
+            I_: {},
+        },
+    },
+    "VAL": {
+        "0008": {
+            I_: {},
+        },
+        "0009": {
+            I_: {},
+        },
+        "3150a": {},
+    },
+    "UFH": {
+        "3150": {
+            I_: {},
+        },
+    },
+    "MIX": {
+        "0008": {
+            I_: {},
+        },
+        "3150a": {},
+    },
     "DHW": {},
 }
+RAMSES_ZONES_ALL = RAMSES_ZONES.pop("ALL")
+RAMSES_ZONES_DHW = RAMSES_ZONES["DHW"]
+[RAMSES_ZONES[k].update(RAMSES_ZONES_ALL) for k in RAMSES_ZONES if k != "DHW"]

@@ -178,6 +178,26 @@ class DeviceBase(Entity, metaclass=ABCMeta):
             # self._send_cmd("0016", payload="0000", retries=0)
             pass
 
+    def _handle_msg(self, msg) -> None:
+        """Validate packets by verb/code."""
+        super()._handle_msg(msg)
+
+        if msg.code in ("0016", "1FC9"):
+            pass
+
+        elif self.type not in RAMSES_DEVICES:
+            assert False, f"Unknown device type: {self.id} (likely a corrupt pkt)"
+
+        elif msg.code not in RAMSES_DEVICES[self.type]:
+            assert (
+                RAMSES_DEVICES[self.type] == {}
+            ), f"Unknown code for {self.id}: {msg.verb}/{msg.code}"
+
+        elif msg.verb not in RAMSES_DEVICES[self.type][msg.code]:
+            assert (
+                RAMSES_DEVICES[self.type][msg.code] == {}
+            ), f"Unknown verb for {self.id}: {msg.verb}/{msg.code}"
+
     def _send_cmd(self, code, **kwargs) -> None:
         dest = kwargs.pop("dest_addr", self.id)
         payload = kwargs.pop("payload", "00")
@@ -381,22 +401,6 @@ class Device(DeviceInfo, DeviceBase):
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
-
-        if msg.code in ("0016", "1FC9"):
-            pass
-
-        elif self.type not in RAMSES_DEVICES:
-            assert False, f"Unknown device type: {self.id}"
-
-        elif msg.code not in RAMSES_DEVICES[self.type]:
-            assert (
-                RAMSES_DEVICES[self.type] == {}
-            ), f"Unknown code for {self.id}: {msg.verb}/{msg.code}"
-
-        elif msg.verb not in RAMSES_DEVICES[self.type][msg.code]:
-            assert (
-                RAMSES_DEVICES[self.type][msg.code] == []
-            ), f"Unknown verb for {self.id}: {msg.verb}/{msg.code}"
 
         # TODO: status updates always, but...
         # TODO: schema updates only if eavesdropping is enabled.
@@ -753,7 +757,7 @@ class OtbGateway(Actuator, Device):
             self._boiler_setpoint = msg
 
         elif msg.code == "3220" and msg.verb == "RP":  # TODO: what about I/W (or RQ)
-            self._opentherm_msg[msg.payload["id"]] = msg  # TODO: these need to expire
+            self._opentherm_msg[msg.payload["msg_id"]] = msg  # TODO: need to expire
 
         elif msg.code == "3EF0" and msg.verb == "RP":
             self._modulation_level = msg

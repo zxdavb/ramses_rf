@@ -314,16 +314,15 @@ async def main(lib_kwargs, **kwargs):
         task = asyncio.create_task(gwy.start())
 
         if kwargs[COMMAND] == MONITOR:
-            tasks = await spawn_monitor_scripts(gwy, **kwargs)
+            tasks = spawn_monitor_scripts(gwy, **kwargs)
 
         if kwargs[COMMAND] == EXECUTE:
-            # await asyncio.sleep(2)  # HACK: for testing serial wake up
-            tasks = await spawn_execute_scripts(gwy, **kwargs)
+            tasks = spawn_execute_scripts(gwy, **kwargs)
             await asyncio.gather(*tasks)
 
             cmds = (EXECUTE_CMD, SCAN_DISC, SCAN_FULL, SCAN_HARD, SCAN_XXXX)
             if not any(kwargs[k] for k in cmds):
-                await gwy.stop()
+                # await gwy.stop()
                 task.cancel()
 
         await task

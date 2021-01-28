@@ -36,6 +36,7 @@ from .const import (
 from .devices import Device, Entity
 from .exceptions import CorruptStateError
 from .helpers import dtm_to_hex
+from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
 
 DEV_MODE = _dev_mode_
 
@@ -86,12 +87,27 @@ class ZoneBase(Entity, metaclass=ABCMeta):
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         raise NotImplementedError
 
-    def _handle_msg(self, msg) -> bool:
-        # super()._handle_msg(msg)
-        pass
+    def _handle_msg(self, msg) -> None:
+        """Validate packets by verb/code."""
+        super()._handle_msg(msg)
 
-        # else:
-        #     assert False, f"Unknown packet ({msg.verb}/{msg.code}) for {self.id}"
+        if True or not self._zone_type:
+            return
+
+        ramses_zones = RAMSES_ZONES if self._zone_type else {None: RAMSES_ZONES_ALL}
+
+        if self._zone_type not in ramses_zones:
+            assert False, f"Unknown zone type: {str(self)} (likely a corrupt pkt)"
+
+        elif msg.code not in ramses_zones[self._zone_type]:
+            assert (
+                ramses_zones[self._zone_type] == {}
+            ), f"Unknown code for {str(self)}: {msg.verb}/{msg.code}"
+
+        elif msg.verb not in ramses_zones[self._zone_type][msg.code]:
+            assert (
+                ramses_zones[self._zone_type][msg.code] == {}
+            ), f"Unknown verb for {str(self)}: {msg.verb}/{msg.code}"
 
     def _send_cmd(self, code, **kwargs) -> None:
         dest = kwargs.pop("dest_addr", self._ctl.id)
@@ -519,7 +535,7 @@ class Zone(ZoneSchedule, ZoneBase):
         # not UFH (it seems), but ELE or VAL; and possibly a MIX support 0008 too
         elif msg.code in ("0008", "0009"):  # TODO: how to determine is/isn't MIX?
             assert msg.src.type in ("01", "13"), msg.src.type  # 01 as a stat
-            assert self._zone_type in (None, "ELE", "VAL"), self._zone_type
+            assert self._zone_type in (None, "ELE", "VAL", "MIX"), self._zone_type
 
             if self._zone_type is None:
                 self._set_zone_type("ELE")  # might eventually be: "VAL"
