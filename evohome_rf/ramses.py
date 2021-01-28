@@ -179,7 +179,10 @@ RAMSES_CODES = {
     "3EF1": {
         NAME: "actuator_cycle",
     },
-}  # also: "7FFF": {NAME: "puzzle_packet",},
+    "7FFF": {
+        NAME: "puzzle_packet",
+    },
+}
 
 RAMSES_DEVICES = {
     "01": {

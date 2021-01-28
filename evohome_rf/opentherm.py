@@ -61,6 +61,7 @@ OPENTHERM_MSG_TYPE = {
     0b111: "Unknown-DataId",
 }
 
+# These must have either a FLAGS (preferred) or a VAR for their message name
 OPENTHERM_MESSAGES = {
     # OpenTherm status flags [ID 0: Master status (HB) & Slave status (LB)]
     "status_flags": {
@@ -69,7 +70,11 @@ OPENTHERM_MESSAGES = {
             NL: "Centrale verwarming aan",
             VAR: "StatusCHEnabled",
         },
-        "0x0200": {EN: "DHW enable", NL: "Tapwater aan", VAR: "StatusDHWEnabled"},
+        "0x0200": {
+            EN: "DHW enable",
+            NL: "Tapwater aan",
+            VAR: "StatusDHWEnabled",
+        },
         "0x0400": {
             EN: "Cooling enable",
             NL: "Koeling aan",

@@ -272,7 +272,7 @@ async def puzzle_cast(gwy, pkt_protocol, interval=None, count=0, length=48, **kw
         payload = f"7F{dts_to_hex(dt.now())}7F{ordinal % 0x10000:04X}7F{int_hex}7F"
         payload = payload.ljust(length * 2, "F")
 
-        qos = {"priority": Priority.ASAP, "retries": 0}
+        qos = {"priority": Priority.HIGHEST, "retries": 0}
         await msg_protocol.send_data(
             Command(" I", "63:262142", "7FFF", payload, qos=qos)
         )

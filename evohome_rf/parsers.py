@@ -29,8 +29,9 @@ from .helpers import dev_hex_to_id, dtm_from_hex as _dtm, dts_from_hex
 from .opentherm import (
     OPENTHERM_MESSAGES,
     OPENTHERM_MSG_TYPE,
-    FLAG8,
     EN,
+    FLAGS,
+    FLAG8,
     HB,
     LB,
     U8,
@@ -114,7 +115,7 @@ def _idx(seqx, msg) -> dict:
                 "domain_id": "FC",
             }
         if msg.src.type == "02":  # in (msg.src.type, msg.dst.type):  # TODO: above
-            assert int(seqx, 16) < 8
+            assert int(seqx, 16) < 8, "UFH Controllers only support 8 zones"
             if msg.raw_payload[4:6] == "7F":
                 return {
                     "ufh_idx": seqx,
@@ -253,46 +254,48 @@ def parser_decorator(func):
 
         # some packets have more than just a domain_id
         if msg.code == "0006":
-            assert msg.len == 1, msg.len
+            assert msg.len == 1, "expecting length 1"
             return {
                 **_idx(payload[:2], msg),
                 **func(*args, **kwargs),
             }
 
         if msg.code == "000C":
-            assert msg.len == 2, msg.len
+            assert msg.len == 2,  "expecting length 2"
             return {
                 **_idx(payload[:2], msg),
                 **func(*args, **kwargs),
             }
 
         if msg.code in ("0004", "0016", "12B0", "30C9"):
-            assert msg.len == 2, msg.len  # 12B0, 30C9 will RP to 1
+            assert msg.len == 2, "expecting length 2"  # 12B0, 30C9 will RP to 1
             return {
                 **_idx(payload[:2], msg),
             }
 
         if msg.code == "2349":
-            assert msg.len in (1, 2, 7), msg.len  # native evohome is 7
+            assert msg.len in (1, 2, 7), "expecting length 1,2,7"  # native evohome is 7
             return {
                 **_idx(payload[:2], msg),
             }
 
         if msg.code in ("000A", "2309"):
             if msg.src.type in ("12", "22"):  # is rp_length
-                assert msg.len == 6 if msg.code == "000A" else 3, msg.len
+                assert (
+                    msg.len == 6 if msg.code == "000A" else 3
+                ),  "expecting length 3,6"
             else:
-                assert msg.len in (1, 2), msg.len  # incl. 34:, rq_length
+                assert msg.len in (1, 2), "expecting length 1,2"  # incl. 34:/RQ
             return {
                 **_idx(payload[:2], msg),
             }
 
         if msg.code == "0005":
-            assert msg.len == 2, msg.len
+            assert msg.len == 2,  "expecting length 2"
             return func(*args, **kwargs)  # has no domain_id
 
         if msg.code == "0100":  # 04: will RQ language
-            assert msg.len in (1, 5), msg.len  # len(RQ) = 5, but 00 accepted
+            assert msg.len in (1, 5),  "expecting length 5"  # len(RQ) = 5, 00 accepted
             return func(*args, **kwargs)  # no context
 
         if msg.code == "0404":
@@ -302,7 +305,7 @@ def parser_decorator(func):
             }
 
         if msg.code == "0418":
-            assert msg.len == 3, msg.len
+            assert msg.len == 3, "expecting length 3"
             assert payload[:4] == "0000", payload[:4]
             assert int(payload[4:6], 16) <= 63, payload[4:6]
             return {
@@ -313,7 +316,7 @@ def parser_decorator(func):
             # 045 RQ --- 07:045960 01:145038 --:------ 10A0 006 0013740003E4
             # 037 RQ --- 18:013393 01:145038 --:------ 10A0 001 00
             # 054 RP --- 01:145038 18:013393 --:------ 10A0 006 0013880003E8
-            assert msg.len == 6 if msg.src.type == "07" else 1, msg.len
+            assert msg.len == 6 if msg.src.type == "07" else 1, "expecting length 1,7"
             return func(*args, **kwargs)
 
         if msg.code == "1100":
@@ -335,18 +338,18 @@ def parser_decorator(func):
             # 045 RQ --- 04:056061 01:145038 --:------ 313F 001 00
             # 045 RQ --- 01:158182 13:209679 --:------ 3EF0 001 00
             # 065 RQ --- 01:078710 10:067219 --:------ 3EF0 001 00
-            assert payload == "00", payload  # implies: msg.len == 1
+            assert payload == "00", "expecting payload 00"  # implies: msg.len == 1
             return {}
 
         if msg.code in ("31D9", "31DA"):  # ventilation
             # 047 RQ --- 32:168090 30:082155 --:------ 31DA 001 21
-            assert msg.len == 1, msg.len
+            assert msg.len == 1, "expecting length 1"
             return {
                 **_idx(payload[:2], msg),
             }
 
         if msg.code == "3220":  # CTL -> OTB (OpenTherm)
-            assert msg.len == 5, msg.len
+            assert msg.len == 5,  "expecting length 5"
             return func(*args, **kwargs)
 
         if msg.code == "3EF1":
@@ -665,8 +668,8 @@ def parser_000c(payload, msg) -> Optional[dict]:
 
     # RQ payload is zz00, NOTE: aggregation of parsing taken here
     def _parser(seqx) -> dict:
-        assert len(seqx) == 12
-        assert seqx[:2] == payload[:2]
+        assert len(seqx) == 12, len(seqx)
+        assert seqx[:2] == payload[:2], seqx[:2]
         # assert seqx[2:4] in CODE_000C_DEVICE_TYPE, f"Unknown device_type: {seqx[2:4]}"
         assert seqx[4:6] == "7F" or int(seqx[4:6], 16) < msg._gwy.config[MAX_ZONES]
 
@@ -1538,10 +1541,11 @@ def parser_3220(payload, msg) -> Optional[dict]:
     ), f"Unknown OpenTherm msg id: {ot_msg_id} (0x{ot_msg_id:02X})"
 
     message = OPENTHERM_MESSAGES["messages"].get(ot_msg_id)
+    msg_name = message.get(FLAGS, message.get(VAR))  # TODO: could still be a dict
 
     result = {
         "msg_id": f"0x{payload[4:6]}",  # ot_msg_id,
-        "msg_name": message[VAR] if message else None,
+        "msg_name": msg_name,
         "msg_type": OPENTHERM_MSG_TYPE[ot_msg_type],
     }
 
@@ -1742,7 +1746,7 @@ def parser_3ef1(payload, msg) -> dict:
 # def create_7fff(counter, length=48) -> Command:
 #     payload = f"7F{dts_to_hex(dt.now())}7F{counter % 0x10000:04X}7F{interval:04X}7F"
 #     payload = payload.ljust(length * 2, "F")
-#     return Command(" I", "63:262142", "7FFF", payload, qos={"retries": 0})
+#     return Command(" I", NUL_DEV_ID, "7FFF", payload, qos={"retries": 0})
 
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated
 def parser_7fff(payload, msg) -> Optional[dict]:

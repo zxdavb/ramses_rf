@@ -236,7 +236,7 @@ class StoredHw:
         def OUT_find_dhw_sensor(this):
             """Discover the stored HW this system (if any).
 
-            There is only 2 way2 to find a controller's DHW sensor:
+            There is only 2 ways to to find a controller's DHW sensor:
             1. The 10A0 RQ/RP *from/to a 07:* (1x/4h) - reliable
             2. Use sensor temp matching - non-deterministic
 

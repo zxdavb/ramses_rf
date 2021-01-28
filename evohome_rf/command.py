@@ -41,7 +41,7 @@ TIMER_LONG_TIMEOUT = td(seconds=60)
 FIVE_MINS = td(minutes=5)
 
 
-Priority = SimpleNamespace(LOW=6, DEFAULT=4, HIGH=2, ASAP=0)
+Priority = SimpleNamespace(LOWEST=8, LOW=6, DEFAULT=4, HIGH=2, HIGHEST=0)
 
 DEV_MODE = _dev_mode_
 

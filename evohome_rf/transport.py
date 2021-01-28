@@ -51,7 +51,7 @@ Pause = SimpleNamespace(
     LONG=td(seconds=0.5),
 )
 
-INIT_QOS = {"priority": Priority.ASAP, "retries": 24, "disable_backoff": True}
+INIT_QOS = {"priority": Priority.HIGHEST, "retries": 24, "disable_backoff": True}
 INIT_CMD = Command(" I", NUL_DEVICE.id, "0001", "00FFFF0200", qos=INIT_QOS)
 # INIT_CMD = Command(" I", HGI_DEVICE.id, "0001", "00FFFF0200", qos=INIT_QOS)
 

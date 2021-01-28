@@ -4,6 +4,7 @@
 """Evohome RF - discovery scripts."""
 
 import asyncio
+from datetime import datetime as dt
 import json
 import logging
 from typing import Any, List
@@ -11,6 +12,7 @@ from typing import Any, List
 from .command import Command, Priority
 from .const import _dev_mode_, CODE_SCHEMA, DEVICE_TABLE, NUL_DEV_ID, Address
 from .exceptions import ExpiredCallbackError
+from .helpers import dts_to_hex
 from .ramses import RAMSES_CODES
 
 EXECUTE_CMD = "execute_cmd"
@@ -188,7 +190,10 @@ async def scan_disc(gwy, dev_id: str):
 async def scan_full(gwy, dev_id: str):
     _LOGGER.warning("scan_full() invoked - expect a lot of Warnings")
 
-    qos = {"priority": Priority.LOW, "retries": 1}
+    qos = {"priority": Priority.HIGH, "retries": 5}
+    gwy.send_data(Command("RQ", dev_id, "0016", "0000", qos=qos))
+
+    qos = {"priority": Priority.DEFAULT, "retries": 1}
     for code in sorted(RAMSES_CODES):
         if code == "0005":
             for zone_type in range(20):  # known up to 18
@@ -203,8 +208,6 @@ async def scan_full(gwy, dev_id: str):
             continue
 
         if code == "0016":
-            qos_alt = {"priority": Priority.LOW, "retries": 5}
-            gwy.send_data(Command("RQ", dev_id, code, "0000", qos=qos_alt))
             continue
 
         elif code == "0404":
@@ -235,11 +238,14 @@ async def scan_full(gwy, dev_id: str):
             gwy.send_data(Command("RQ", dev_id, code, "0000", qos=qos))
 
     # these are possible/difficult codes
-    qos = {"priority": Priority.LOW, "retries": 2}
+    qos = {"priority": Priority.DEFAULT, "retries": 2}
     for code in ("0150", "2389"):
         gwy.send_data(Command("RQ", dev_id, code, "0000", qos=qos))
 
-    gwy.send_data(Command("RQ", NUL_DEV_ID, "7FFF", "7F", qos=qos))
+    # these are possible/difficult codes
+    qos = {"priority": Priority.LOW, "retries": 3}
+    payload = f"7F{dts_to_hex(dt.now())}7F00007F00007F"
+    gwy.send_data(Command(" I", NUL_DEV_ID, "7FFF", payload, qos=qos))
 
 
 async def scan_hard(gwy, dev_id: str):
