@@ -188,7 +188,7 @@ async def scan_disc(gwy, dev_id: str):
 async def scan_full(gwy, dev_id: str):
     _LOGGER.warning("scan_full() invoked - expect a lot of Warnings")
 
-    qos = {"priority": Priority.LOW, "retries": 0}
+    qos = {"priority": Priority.LOW, "retries": 1}
     for code in sorted(RAMSES_CODES):
         if code == "0005":
             for zone_type in range(20):  # known up to 18
@@ -235,7 +235,7 @@ async def scan_full(gwy, dev_id: str):
             gwy.send_data(Command("RQ", dev_id, code, "0000", qos=qos))
 
     # these are possible/difficult codes
-    qos = {"priority": Priority.LOW, "retries": 3}
+    qos = {"priority": Priority.LOW, "retries": 2}
     for code in ("0150", "2389"):
         gwy.send_data(Command("RQ", dev_id, code, "0000", qos=qos))
 

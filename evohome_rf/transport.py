@@ -397,7 +397,7 @@ class PacketProtocol(asyncio.Protocol):
                 await asyncio.sleep(0.005)
         while (
             self._transport is None
-            or self._transport.serial
+            or self._transport.serial is None  # Shouldn't be required, but is!
             or self._transport.serial.out_waiting
         ):
             await asyncio.sleep(0.005)
