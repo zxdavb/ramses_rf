@@ -395,7 +395,11 @@ class PacketProtocol(asyncio.Protocol):
         if not ignore_pause:
             while self._pause_writing:
                 await asyncio.sleep(0.005)
-        while self._transport is None or self._transport.serial.out_waiting:
+        while (
+            self._transport is None
+            or self._transport.serial
+            or self._transport.serial.out_waiting
+        ):
             await asyncio.sleep(0.005)
         _PKT_LOGGER.debug("Tx:     %s", data, extra=self._extra(dt_str(), data))
         self._transport.write(data)
