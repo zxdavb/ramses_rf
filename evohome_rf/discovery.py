@@ -9,7 +9,7 @@ import logging
 from typing import Any, List
 
 from .command import Command, Priority
-from .const import _dev_mode_, CODE_SCHEMA, DEVICE_TABLE, Address
+from .const import _dev_mode_, CODE_SCHEMA, DEVICE_TABLE, NUL_DEV_ID, Address
 from .exceptions import ExpiredCallbackError
 from .ramses import RAMSES_CODES
 
@@ -238,6 +238,8 @@ async def scan_full(gwy, dev_id: str):
     qos = {"priority": Priority.LOW, "retries": 2}
     for code in ("0150", "2389"):
         gwy.send_data(Command("RQ", dev_id, code, "0000", qos=qos))
+
+    gwy.send_data(Command("RQ", NUL_DEV_ID, "7FFF", "7F", qos=qos))
 
 
 async def scan_hard(gwy, dev_id: str):
