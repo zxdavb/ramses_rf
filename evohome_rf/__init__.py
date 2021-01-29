@@ -77,6 +77,10 @@ class Gateway:
 
         self.pkt_protocol, self.pkt_transport = None, None
         self.msg_protocol, self.msg_transport = None, None
+
+        # if self.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES:
+        #     return
+
         if self.config[REDUCE_PROCESSING] < DONT_CREATE_MESSAGES:
             self.msg_protocol, self.msg_transport = self.create_client(process_msg)
 
