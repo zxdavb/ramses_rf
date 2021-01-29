@@ -18,36 +18,46 @@ RAMSES_CODES = {
     },
     "0002": {
         NAME: "sensor_weather",
+        # RQ: r"^00$",  # TODO
     },
     "0004": {
         NAME: "zone_name",
+        RQ: r"^0[0-9A-F]00$",  # f"{zone_idx}00" TODO 12, or 16?
     },
     "0005": {
         NAME: "system_zones",
+        RQ: r"^00[01][0-9A-F]$",  # "00{zone_type}" TODO: "01{zone_type}"?
     },
     "0006": {
         NAME: "schedule_sync",
+        RQ: r"^00$",
     },
     "0008": {
         NAME: "relay_demand",
+        RQ: r"^00$",
     },
     "0009": {
         NAME: "relay_failsafe",
+        # RQ: r"^00$",  # TODO:
     },
     "000A": {
         NAME: "zone_params",
+        RQ: r"^0[0-9A-F]",  # TODO: 001, or 006
     },
     "000C": {
         NAME: "zone_devices",
+        RQ: r"^0[0-9A-F][01][0-9A-F]$",  # TODO: f"{zone_idx}{device_type}"
     },
     "000E": {
         NAME: "message_000e",
     },
     "0016": {
         NAME: "rf_check",
+        RQ: r"^00(00|FF)$",
     },
     "0100": {
         NAME: "language",
+        # RQ: r"^0x00$",  # TODO: 001, or 005
     },
     "01D0": {
         NAME: "message_01d0",
@@ -57,9 +67,11 @@ RAMSES_CODES = {
     },
     "0404": {
         NAME: "zone_schedule",
+        RQ: r"^0[0-9A-F](20|23)000800[0-9A-F]{4}$",
     },
     "0418": {
         NAME: "system_fault",
+        RQ: r"^0000[0-3][0-9A-F]$",
     },
     "042F": {
         NAME: "message_042f",
@@ -75,30 +87,37 @@ RAMSES_CODES = {
     },
     "1090": {
         NAME: "message_1090",
+        # RQ: r"^00$",  # TODO:
     },
     "10A0": {
         NAME: "dhw_params",
+        # RQ: r"^00$",  # TODO:
     },
     "10E0": {
         NAME: "device_info",
+        RQ: r"^00$",
     },
     "1100": {
         NAME: "tpi_params",
+        RQ: r"^(00|FC)",  # TODO: educated gues
     },
     "1260": {
         NAME: "dhw_temp",
+        RQ: r"^00$",  # RFG100 sends zz
     },
     "1280": {
         NAME: "outdoor_humidity",
     },
     "1290": {
         NAME: "outdoor_temp",
+        # RQ: r"^00$",  # TODO:
     },
     "12A0": {
         NAME: "indoor_humidity",
     },
     "12B0": {
         NAME: "window_state",
+        RQ: r"^0[0-9A-F](00)?$",
         EXPIRY: 60 * 60,
     },
     "12C0": {
@@ -106,12 +125,15 @@ RAMSES_CODES = {
     },
     "1F09": {
         NAME: "system_sync",
+        RQ: r"^00$",
     },
     "1F41": {
         NAME: "dhw_mode",
+        RQ: r"^00$",
     },
     "1FC9": {
         NAME: "rf_bind",
+        RQ: r"^00$",
     },
     "1FD4": {
         NAME: "opentherm_sync",
@@ -124,9 +146,11 @@ RAMSES_CODES = {
     },
     "22D0": {
         NAME: "message_22d0",
+        # RQ: r"^00$",  # TODO:
     },
     "22D9": {
         NAME: "boiler_setpoint",
+        RQ: r"^00$",
     },
     "22F1": {
         NAME: "switch_vent",
@@ -136,51 +160,62 @@ RAMSES_CODES = {
     },
     "2309": {
         NAME: "setpoint",
+        # RQ: r"^00$",  # TODO:
     },
     "2349": {
         NAME: "zone_mode",
+        # RQ: r"^00$",  # TODO:
     },
     "2D49": {  # seen with Hometronic systems
         NAME: "message_2d49",
     },
     "2E04": {
         NAME: "system_mode",
+        RQ: r"^FF$",
     },
     "30C9": {
         NAME: "temperature",
+        RQ: r"^0[0-9A-F](00)?$",  # RFG100 sends zz, but zz00 appears acceptable
     },
     "3120": {
         NAME: "message_3120",
     },
     "313F": {
         NAME: "datetime",
+        RQ: r"^00$",
     },
     "3150": {
         NAME: "heat_demand",
     },
     "31D9": {
         NAME: "message_31d9",
+        RQ: r"^00$",
     },
     "31DA": {
         NAME: "message_31da",
+        RQ: r"^00$",  # TODO: r"^(00|21)$"
     },
     "31E0": {
         NAME: "message_31e0",
     },
     "3220": {
         NAME: "opentherm_msg",
+        RQ: r"^00[0-9A-F]{4}0{4}$",
     },
     "3B00": {
         NAME: "actuator_sync",
-    },
+    },  # No RQ
     "3EF0": {
         NAME: "actuator_state",
+        RQ: r"^00$",
     },
     "3EF1": {
         NAME: "actuator_cycle",
+        RQ: r"^00(00)?$",  # NOTE: both seen in the wold
     },
     "7FFF": {
         NAME: "puzzle_packet",
+        I_: r"^7F[0-9A-F]{12}7F[0-9A-F]{4}7F[0-9A-F]{4}(7F)+",
     },
 }
 
@@ -618,6 +653,9 @@ RAMSES_DEVICES = {
         },
         # "2349": {RQ: {},},
         "2E04": {
+            RQ: {},
+        },
+        "30C9": {
             RQ: {},
         },
         "313F": {

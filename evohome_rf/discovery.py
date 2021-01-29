@@ -37,7 +37,7 @@ def spawn_execute_cmd(gwy, **kwargs):
     if kwargs.get(EXECUTE_CMD):  # e.g. "RQ 01:145038 1F09 00"
         cmd = kwargs[EXECUTE_CMD]
 
-        qos = {"priority": Priority.HIGH, "retries": 10}
+        qos = {"priority": Priority.HIGH, "retries": 3}
         try:
             cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], qos=qos)
         except ValueError as err:

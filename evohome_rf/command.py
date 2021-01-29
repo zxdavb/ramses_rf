@@ -426,7 +426,7 @@ class Schedule:  # 0404
         # 059 RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0304
         # 046 RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0304 6BE...
 
-        payload = f"{self.idx}20000800{frag_idx + 1:02d}{frag_cnt:02d}"  # DHW: 23000800
+        payload = f"{self.idx}20000800{frag_idx + 1:02X}{frag_cnt:02X}"  # DHW: 23000800
         rq_callback = {"func": rq_callback, "timeout": td(seconds=1)}
         self._gwy.send_data(
             Command("RQ", self._ctl.id, "0404", payload, callback=rq_callback)

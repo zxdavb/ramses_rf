@@ -5,6 +5,7 @@
 
 from datetime import datetime as dt, timedelta as td
 import logging
+import re
 from typing import Optional, Union
 
 from .const import (
@@ -41,7 +42,7 @@ from .opentherm import (
     ot_msg_value,
     parity,
 )
-from .ramses import RAMSES_CODES as RAMSES_CODES
+from .ramses import RAMSES_CODES, RQ
 from .schema import MAX_ZONES
 
 DEV_MODE = _dev_mode_
@@ -242,39 +243,56 @@ def parser_decorator(func):
                 **result,
             }
 
-        # except for 18:, these should return nothing - 000A is rq_len 1 or 3?
-        # grep -E 'RQ.* 002 ' | grep -vE ' (0004|0016|3EF1) '
-        # grep -E 'RQ.* 001 ' | grep -vE ' (000A|1F09|22D9|2309|313F|31DA|3EF0) '
+        try:
+            regexp = RAMSES_CODES[msg.code][RQ]
+            # assert (
+            #     re.compile(regexp).match(payload)
+            # ), f"Expecting payload to match '{regexp}'"
 
-        # # HACK: to keep logs clean - will need cleaning up eventually
-        # if msg.src.type == "18" and msg.verb == "RQ":
-        #     if msg.code in ("10A0", "12B0", "2349", "30C9"):
-        #         assert msg.len <= 2
-        #         return {**_idx(payload[:2], msg)}
+        except KeyError:
+            hint1 = " to support an RQ" if msg.code in RAMSES_CODES else ""
+            hint2 = (
+                " (OK to ignore)"
+                if "18" in (msg.src.type, msg.dst.type)
+                else " - please report this as an issue"
+            )
+            assert False, f"Code {msg.code} not known{hint1}{hint2}"
+            raise NotImplementedError(f"Code {msg.code} not known{hint1}{hint2}")
 
-        # some packets have more than just a domain_id
-        if msg.code == "0006":
-            assert msg.len == 1, "expecting length 1"
+        else:
+            if msg.src.type != "18a" and not re.compile(regexp).match(payload):
+                hint2 = (
+                    " (OK to ignore)"
+                    if "18" in (msg.src.type, msg.dst.type)
+                    else " - please report this as an issue"
+                )
+                raise ValueError(f"Payload doesn't match '{regexp}{hint2}'")
+
+        # Has index, but No payload
+        if msg.code == "0418":
+            return {
+                "log_idx": payload[4:6],
+            }  # assert int(payload[4:6], 16) <= 63, payload[4:6]
+
+        # Has index, and Has payload
+        if msg.code == ("000C", "0404"):
             return {
                 **_idx(payload[:2], msg),
                 **func(*args, **kwargs),
             }
 
-        if msg.code == "000C":
-            assert msg.len == 2,  "expecting length 2"
-            return {
-                **_idx(payload[:2], msg),
-                **func(*args, **kwargs),
-            }
-
-        if msg.code in ("0004", "0016", "12B0", "30C9"):
-            assert msg.len == 2, "expecting length 2"  # 12B0, 30C9 will RP to 1
+        # No index, but Has Payload (2E04?)
+        if msg.code in ("0004", "12B0", "30C9", "31D9", "31DA", "3EF1"):
+            # 047 RQ --- 32:168090 30:082155 --:------ 31DA 001 21
             return {
                 **_idx(payload[:2], msg),
             }
 
-        if msg.code == "2349":
-            assert msg.len in (1, 2, 7), "expecting length 1,2,7"  # native evohome is 7
+        if msg.code in ("1100", "2349"):
+            if msg.code == "1100" and msg.len > 2:  # these RQs have payloads!
+                return func(*args, **kwargs)
+            if msg.code == "2349":
+                assert msg.len in (1, 2, 7), "expecting len 1,2,7"  # evohome is 7
             return {
                 **_idx(payload[:2], msg),
             }
@@ -283,92 +301,27 @@ def parser_decorator(func):
             if msg.src.type in ("12", "22"):  # is rp_length
                 assert (
                     msg.len == 6 if msg.code == "000A" else 3
-                ),  "expecting length 3,6"
+                ), "expecting len 3,6"
             else:
-                assert msg.len in (1, 2), "expecting length 1,2"  # incl. 34:/RQ
+                assert msg.len in (1, 2), "expecting len 1,2"  # incl. 34:/RQ
             return {
                 **_idx(payload[:2], msg),
             }
 
-        if msg.code == "0005":
-            assert msg.len == 2,  "expecting length 2"
-            return func(*args, **kwargs)  # has no domain_id
-
-        if msg.code == "0100":  # 04: will RQ language
-            assert msg.len in (1, 5),  "expecting length 5"  # len(RQ) = 5, 00 accepted
+        if msg.code in ("0005", "0100", "10A0", "3220"):
+            if msg.code == "0100":  # 04: will RQ language
+                assert msg.len in (1, 5), "expecting len 5"  # len(RQ)=5, 00 accepted
+            if msg.code == "10A0":
+                # 045 RQ --- 07:045960 01:145038 --:------ 10A0 006 0013740003E4
+                # 037 RQ --- 18:013393 01:145038 --:------ 10A0 001 00
+                # 054 RP --- 01:145038 18:013393 --:------ 10A0 006 0013880003E8
+                assert msg.len == 6 if msg.src.type == "07" else 1, "expecting len 1,7"
             return func(*args, **kwargs)  # no context
 
-        if msg.code == "0404":
-            return {
-                **_idx(payload[:2], msg),
-                **func(*args, **kwargs),
-            }
-
-        if msg.code == "0418":
-            assert msg.len == 3, "expecting length 3"
-            assert payload[:4] == "0000", payload[:4]
-            assert int(payload[4:6], 16) <= 63, payload[4:6]
-            return {
-                "log_idx": payload[4:6],
-            }
-
-        if msg.code == "10A0":
-            # 045 RQ --- 07:045960 01:145038 --:------ 10A0 006 0013740003E4
-            # 037 RQ --- 18:013393 01:145038 --:------ 10A0 001 00
-            # 054 RP --- 01:145038 18:013393 --:------ 10A0 006 0013880003E8
-            assert msg.len == 6 if msg.src.type == "07" else 1, "expecting length 1,7"
-            return func(*args, **kwargs)
-
-        if msg.code == "1100":
-            assert payload[:2] in ("00", "FC"), payload[:2]
-            if msg.len > 2:  # these RQs have payloads!
-                return func(*args, **kwargs)
-            return {
-                **_idx(payload[:2], msg),
-            }
-
-        if msg.code in ("1260", "10E0", "1F41", "1FC9", "2E04"):  # TODO: Check these
-            # These have only been seen when sent by 18:
-            assert payload == "FF" if msg.code == "2E04" else "00"  # so: msg.len == 1
-            return {}
-
-        if msg.code in ("0008", "1F09", "22D9", "313F", "3B00", "3EF0"):
-            # 061 RQ --- 04:189082 01:145038 --:------ 1F09 001 00
-            # 067 RQ --- 01:187666 10:138822 --:------ 22D9 001 00
-            # 045 RQ --- 04:056061 01:145038 --:------ 313F 001 00
-            # 045 RQ --- 01:158182 13:209679 --:------ 3EF0 001 00
-            # 065 RQ --- 01:078710 10:067219 --:------ 3EF0 001 00
-            assert payload == "00", "expecting payload 00"  # implies: msg.len == 1
-            return {}
-
-        if msg.code in ("31D9", "31DA"):  # ventilation
-            # 047 RQ --- 32:168090 30:082155 --:------ 31DA 001 21
-            assert msg.len == 1, "expecting length 1"
-            return {
-                **_idx(payload[:2], msg),
-            }
-
-        if msg.code == "3220":  # CTL -> OTB (OpenTherm)
-            assert msg.len == 5,  "expecting length 5"
-            return func(*args, **kwargs)
-
-        if msg.code == "3EF1":
-            # 082 RQ --- 31:110943 13:068890 --:------ 3EF1 001 00
-            # 082 RQ --- 22:091267 01:140959 --:------ 3EF1 002 0700
-            # 088 RQ --- 22:054901 13:133379 --:------ 3EF1 002 0000
-            if msg.len > 1:
-                assert payload[2:] == "00", payload[2:]  # implies: msg.len >= 2
-            return {
-                **_idx(payload[:2], msg),
-            }
-
-        hint = (
-            " (OK to ignore)"
-            if "18" in (msg.src.type, msg.dst.type)
-            else " - please report this as an issue"
-        )
-        assert msg.code in RAMSES_CODES, f"Code not known{hint}"
-        assert False, f"Code {msg.code} not known to support an RQ{hint}"
+        # # No index, No payload
+        # if msg.code in ("0006", "0016",):
+        #     return {}
+        return {}
 
     return wrapper
 
@@ -1554,7 +1507,7 @@ def parser_3220(payload, msg) -> Optional[dict]:
 
     if msg.verb == "RQ":
         assert ot_msg_type < 0b011, f"Invalid OpenTherm msg type: 0b{ot_msg_type:03b}"
-        assert payload[6:10] == "0000", payload[6:10]
+        assert payload[6:] == "0000", payload[6:]
         return {
             **result,
             "description": message[EN],
@@ -1568,17 +1521,17 @@ def parser_3220(payload, msg) -> Optional[dict]:
                 payload[6:8], message[VAL].get(HB, message[VAL])
             )
             result["value_lb"] = ot_msg_value(
-                payload[8:10], message[VAL].get(LB, message[VAL])
+                payload[8:], message[VAL].get(LB, message[VAL])
             )
         else:
             result["value_hb"] = ot_msg_value(payload[6:8], message[VAL])
-            result["value_lb"] = ot_msg_value(payload[8:10], message[VAL])
+            result["value_lb"] = ot_msg_value(payload[8:], message[VAL])
 
     elif ot_msg_type != 0b111:
         if message[VAL] in (FLAG8, U8, S8):
             result["value"] = ot_msg_value(payload[6:8], message[VAL])
         else:
-            result["value"] = ot_msg_value(payload[6:10], message[VAL])
+            result["value"] = ot_msg_value(payload[6:], message[VAL])
 
     return {
         **result,
