@@ -388,16 +388,16 @@ DTM_LONG_REGEX = re.compile(
 DTM_TIME_REGEX = re.compile(r"[0-2]\d:[0-5]\d:[0-5]\d\.\d{3} ?")  # 13:15:00.123
 
 # Used by packet structure validators
-a = r"(-{3}|\d{3}|\.{3})"  # '...' was used by an older version of evofw3
-b = r"( I|RP|RQ| W)"
-c = r"(-{2}:-{6}|\d{2}:\d{6})"
-d = r"[0-9A-F]{4}"
-e = r"\d{3}"
-f = r"([0-9A-F]{2})+"
+r = r"(-{3}|\d{3}|\.{3})"  # RSSI, '...' was used by an older version of evofw3
+v = r"( I|RP|RQ| W)"  # Verb
+d = r"(-{2}:-{6}|\d{2}:\d{6})"  # Device ID
+c = r"[0-9A-F]{4}"  # Code
+l = r"\d{3}"  # Length # noqa: E741
+p = r"([0-9A-F]{2})+"  # Payload
 
-DEVICE_ID_REGEX = re.compile(f"^{c}$")
-COMMAND_REGEX = re.compile(f"^{b} {a} {c} {c} {c} {d} {e} {f}$")
-MESSAGE_REGEX = re.compile(f"^{a} {b} {a} {c} {c} {c} {d} {e} {f}$")
+DEVICE_ID_REGEX = re.compile(f"^{d}$")
+COMMAND_REGEX = re.compile(f"^{v} {r} {d} {d} {d} {c} {l} {p}$")
+MESSAGE_REGEX = re.compile(f"^{r} {v} {r} {d} {d} {d} {c} {l} {p}$")
 
 COMMAND_FORMAT = "{:<2} --- {} {} --:------ {} {:03d} {}"
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:8s} || {}"
