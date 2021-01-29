@@ -5,6 +5,7 @@
 
     evohome_rf is used to parse/process Honeywell's RAMSES-II packets.
     """
+
 import asyncio
 from datetime import datetime as dt, timedelta as td
 import json
@@ -18,6 +19,7 @@ from colorama import init as colorama_init, Fore, Style
 
 from evohome_rf import Gateway, GracefulExit
 from evohome_rf.command import Command, Priority
+from evohome_rf.exceptions import EvohomeError
 from evohome_rf.helpers import dts_to_hex, is_valid_dev_id
 from evohome_rf.packet import CONSOLE_COLS, _PKT_LOGGER, Packet
 from evohome_rf.protocol import create_protocol_factory
@@ -41,8 +43,6 @@ pkt_counting = None
 pkt_lock = Lock()
 pkt_seen = None
 
-DEBUG_MODE = "debug_mode"
-
 CONFIG = "config"
 COMMAND = "command"
 
@@ -52,6 +52,7 @@ QUIESCE_PERIOD = 0.5
 FREQ_WIDTH = 0x000800
 BASIC_FREQ = 0x21656A
 
+DEBUG_MODE = "debug_mode"
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
 
@@ -99,7 +100,7 @@ class DeviceIdParamType(click.ParamType):
         self.fail(f"{value!r} is not a valid device_id", param, ctx)
 
 
-class PuzzleProtocol(PacketProtocol):
+class LocalProtocol(PacketProtocol):
     """Interface for a packet protocol."""
 
     pkt_callback = None
@@ -448,11 +449,9 @@ async def puzzle_tune(
 
 
 async def main(lib_kwargs, **kwargs):
-    async def start() -> None:
-        pass
-
+    async def start(gwy) -> None:
         protocol_factory = create_protocol_factory(
-            PuzzleProtocol, gwy, gwy.msg_transport._pkt_receiver
+            LocalProtocol, gwy, gwy.msg_transport._pkt_receiver
         )
 
         gwy.pkt_protocol, gwy.pkt_transport = create_pkt_stack(
@@ -471,8 +470,7 @@ async def main(lib_kwargs, **kwargs):
     colorama_init(autoreset=True)
 
     gwy = Gateway(lib_kwargs[CONFIG].pop(SERIAL_PORT, None), **lib_kwargs)
-
-    await start()  # replaces asyncio.create_task(gwy.start())
+    await start(gwy)  # replaces asyncio.create_task(gwy.start())
 
     while gwy.pkt_protocol is None:
         await asyncio.sleep(0.05)
@@ -487,17 +485,17 @@ async def main(lib_kwargs, **kwargs):
         await task  # await gather gwy_tasks
 
     except asyncio.CancelledError:
-        # _LOGGER.info(" - exiting via: CancelledError (this is expected)")
-        pass
+        msg = " - ended via: CancelledError (e.g. SIGINT)"
     except GracefulExit:
-        _LOGGER.info(" - exiting via: GracefulExit")
+        msg = " - ended via: GracefulExit"
     except KeyboardInterrupt:
-        _LOGGER.info(" - exiting via: KeyboardInterrupt")
+        msg = " - ended via: KeyboardInterrupt"
+    except EvohomeError as err:
+        msg = f" - ended via: EvohomeError: {err}"
     else:  # if no Exceptions raised, e.g. EOF when parsing
-        # _LOGGER.info(" - exiting via: else-block (e.g. EOF when parsing)")
-        pass
+        msg = " - ended without error (e.g. EOF)"
 
-    print("\r\nclient.py: Finished evohome_rf.\r\n")
+    print(f"\r\nclient.py: Finished evohome_rf.\r\n{msg}\r\n")
 
 
 cli.add_command(tune)
