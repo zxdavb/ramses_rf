@@ -258,10 +258,10 @@ async def scan_hard(gwy, dev_id: str):
 
 async def scan_xxxx(gwy, dev_id: str):
     _LOGGER.warning("scan_xxxx() invoked - expect a lot of nonsense")
-    await scan_0002(gwy, dev_id)
+    await scan_002(gwy, dev_id)
 
 
-async def scan_0001(gwy, dev_id: str):
+async def scan_001(gwy, dev_id: str):
     _LOGGER.warning("scan_0001() invoked - expect a lot of nonsense")
 
     qos = {"priority": Priority.LOW, "retries": 3}
@@ -270,7 +270,7 @@ async def scan_0001(gwy, dev_id: str):
         gwy.send_data(Command("RQ", dev_id, "000E", f"{idx:02X}00C8", qos=qos))
 
 
-async def scan_0002(gwy, dev_id: str):
+async def scan_002(gwy, dev_id: str):
     _LOGGER.warning("scan_0002() invoked - expect a lot of nonsense")
 
     # Two modes, I and W & Two headers zz00 and zz
