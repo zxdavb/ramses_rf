@@ -313,7 +313,7 @@ async def puzzle_tune(
             msg, hdr = f"{pkt.dtm[11:23]}     {pkt._pkt_str}", f"{Fore.CYAN}"
         elif not pkt_counting:
             msg, hdr = f"{pkt.dtm[11:23]}     {pkt}", f"{Style.BRIGHT}{Fore.CYAN}"
-        elif device_id and pkt.src_addr.id != device_id:
+        elif device_id and device_id in (pkt.src_addr.id, pkt.dst_addr.id):
             msg, hdr = f"{pkt.dtm[11:23]}     {pkt}", f"{Style.BRIGHT}{Fore.CYAN}"
         else:
             msg, hdr = f"{pkt.dtm[11:23]} >>> {pkt}", f"{Style.BRIGHT}{Fore.CYAN}"
@@ -495,7 +495,7 @@ async def main(lib_kwargs, **kwargs):
     else:  # if no Exceptions raised, e.g. EOF when parsing
         msg = " - ended without error (e.g. EOF)"
 
-    print(f"\r\nclient.py: Finished evohome_rf.\r\n{msg}\r\n")
+    print(f"\r\nclient.py: Finished evohome_rf (puzzler).\r\n{msg}\r\n")
 
 
 cli.add_command(tune)
