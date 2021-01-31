@@ -358,7 +358,7 @@ ZONE_MODE_MAP = {
     "00": "follow_schedule",
     "01": "advanced_override",  # until the next scheduled setpoint
     "02": "permanent_override",
-    # "03": "day_override",  # ignores until, uses duration of 20h 15m!
+    "03": "day_override",  # ignores until, uses duration of 20h 15m!
     "04": "temporary_override",  # requires an until (datetime)
 }
 ZONE_MODE_LOOKUP = {v: k for k, v in ZONE_MODE_MAP.items()}
