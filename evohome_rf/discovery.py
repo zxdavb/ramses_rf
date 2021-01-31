@@ -257,9 +257,27 @@ async def scan_hard(gwy, dev_id: str):
 
 
 async def scan_xxxx(gwy, dev_id: str):
-    _LOGGER.warning("scan_xxx() invoked - expect a lot of nonsense")
+    _LOGGER.warning("scan_xxxx() invoked - expect a lot of nonsense")
+    await scan_0002(gwy, dev_id)
+
+
+async def scan_0001(gwy, dev_id: str):
+    _LOGGER.warning("scan_0001() invoked - expect a lot of nonsense")
 
     qos = {"priority": Priority.LOW, "retries": 3}
     for idx in range(0x10):
         gwy.send_data(Command(" W", dev_id, "000E", f"{idx:02X}0050", qos=qos))
         gwy.send_data(Command("RQ", dev_id, "000E", f"{idx:02X}00C8", qos=qos))
+
+
+async def scan_0002(gwy, dev_id: str):
+    _LOGGER.warning("scan_0002() invoked - expect a lot of nonsense")
+
+    # Two modes, I and W & Two headers zz00 and zz
+    message = "0000" + "".join([f"{ord(x):02X}" for x in "Hello there."]) + "00"
+    qos = {"priority": Priority.LOW, "retries": 0}
+    for code in [f"{c:04X}" for c in range(0x4000)]:
+        if code in RAMSES_CODES:  # no need to test known codes
+            continue
+        gwy.send_data(Command(" W", dev_id, code, message, qos=qos))
+
