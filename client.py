@@ -5,6 +5,7 @@
 
     evohome_rf is used to parse/process Honeywell's RAMSES-II packets.
     """
+
 import asyncio
 import json
 import sys
@@ -105,6 +106,7 @@ class DeviceIdParamType(click.ParamType):
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.option("-z", "--debug-mode", count=True, help="enable debugger")
 @click.option("-r", "--reduce-processing", count=True, help="-rrr will give packets")
+@click.option("-l/-nl", "--long-dates/--no-long-dates", default=None)
 @click.option("-c", "--config-file", type=click.File("r"))
 @click.pass_context
 def cli(ctx, config_file=None, **kwargs):
@@ -283,13 +285,28 @@ async def main(lib_kwargs, **kwargs):
         # else:
         #     print(gwy.device_by_id[kwargs["device_id"]])
 
+    def print_summary(gwy):
+        if gwy.evo is None:
+            print(f"Schema[gateway] = {json.dumps(gwy.schema)}\r\n")
+            print(f"Params[gateway] = {json.dumps(gwy.params)}\r\n")
+            print(f"Status[gateway] = {json.dumps(gwy.status)}")
+
+        else:
+            print(
+                f"Schema[{repr(gwy.evo)}] = {json.dumps(gwy.evo.schema, indent=4)}\r\n"
+            )
+            print(
+                f"Params[{repr(gwy.evo)}] = {json.dumps(gwy.evo.params, indent=4)}\r\n"
+            )
+            print(f"Status[{repr(gwy.evo)}] = {json.dumps(gwy.evo.status, indent=4)}")
+
     def process_message(msg) -> None:
         if kwargs[DEBUG_MODE]:
             dtm = f"{msg.dtm}"  # keep original timestamp
             print(f"{dtm} {msg}"[:CONSOLE_COLS])
             return
 
-        dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
+        dtm = msg.dtm if kwargs["long_dates"] else f"{msg.dtm:%H:%M:%S.%f}"[:-3]
         if msg.src.type == "18":
             print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
         else:
@@ -297,10 +314,7 @@ async def main(lib_kwargs, **kwargs):
 
     print("\r\nclient.py: Starting evohome_rf...")
 
-    # loop=asyncio.get_event_loop() causes: 'NoneType' object has no attribute 'serial'
-    if sys.platform == "win32":  # is better than os.name
-        # ERROR:asyncio:Cancelling an overlapped future failed
-        # future: ... cb=[BaseProactorEventLoop._loop_self_reading()]
+    if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     gwy = Gateway(lib_kwargs[CONFIG].pop(SERIAL_PORT, None), **lib_kwargs)
@@ -339,19 +353,10 @@ async def main(lib_kwargs, **kwargs):
         msg = " - ended without error (e.g. EOF)"
 
     print("\r\nclient.py: Finished evohome_rf, results:\r\n")
-
     if kwargs[COMMAND] == EXECUTE:
         print_results(**kwargs)
-
-    elif gwy.evo is None:
-        print(f"Schema[gateway] = {json.dumps(gwy.schema)}\r\n")
-        print(f"Params[gateway] = {json.dumps(gwy.params)}\r\n")
-        print(f"Status[gateway] = {json.dumps(gwy.status)}")
-
     else:
-        print(f"Schema[{repr(gwy.evo)}] = {json.dumps(gwy.evo.schema, indent=4)}\r\n")
-        print(f"Params[{repr(gwy.evo)}] = {json.dumps(gwy.evo.params, indent=4)}\r\n")
-        print(f"Status[{repr(gwy.evo)}] = {json.dumps(gwy.evo.status, indent=4)}")
+        print_summary(gwy)
 
     print(f"\r\nclient.py: Finished evohome_rf.\r\n{msg}\r\n")
 
