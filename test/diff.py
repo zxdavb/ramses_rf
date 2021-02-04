@@ -170,8 +170,7 @@ def compare(config) -> dict:
 
     def buffer_print(buffer, num_lines):
         for _ in range(num_lines):
-            print(buffer["packets"][0])
-            buffer["packets"].popleft()
+            print(buffer["packets"].popleft())
 
     def parse_line(raw_line: str) -> namedtuple:
         """Parse a line from a packet log into a dtm (detetime), payload (str) tuple.
