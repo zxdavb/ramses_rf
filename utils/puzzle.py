@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""A CLI for the evohome_rf library.
+"""A CLI (puzzle) for the evohome_rf library - RF tune.
 
-    evohome_rf is used to parse/process Honeywell's RAMSES-II packets.
-    """
+evohome_rf is used to parse/process Honeywell's RAMSES-II packets.
+"""
 
 import asyncio
 from datetime import datetime as dt, timedelta as td
