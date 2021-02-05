@@ -16,9 +16,9 @@ from .const import _dev_mode_
 from .message import Message
 from .schema import DISABLE_SENDING, DONT_CREATE_MESSAGES, REDUCE_PROCESSING
 
-WRITER_TASK = "writer_task"
-
 DEV_MODE = _dev_mode_
+
+WRITER_TASK = "writer_task"
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
