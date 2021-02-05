@@ -29,7 +29,7 @@ from .protocol import create_protocol_factory
 from .schema import DISABLE_SENDING, ENFORCE_ALLOWLIST, ENFORCE_BLOCKLIST, EVOFW_FLAG
 from .version import __version__
 
-DEV_MODE = _dev_mode_ or True
+DEV_MODE = _dev_mode_
 
 ERR_MSG_REGEX = re.compile(r"^([0-9A-F]{2}\.)+$")
 
@@ -71,7 +71,7 @@ class SerTransportFile(asyncio.Transport):
     """Interface for a packet transport using a file - Experimental."""
 
     def __init__(self, loop, protocol, packet_log, extra=None):
-        _LOGGER.debug("SerTransFile.__init__() *** PACKET_LOG VERSION ***")
+        _LOGGER.info("SerTransFile.__init__(%s) *** Packet log version ***", packet_log)
 
         self._loop = loop
 
@@ -83,7 +83,8 @@ class SerTransportFile(asyncio.Transport):
 
     def _start(self):
         async def _polling_loop():
-            _LOGGER.debug("SerTransFile._polling_loop() BEGUN")
+            if DEV_MODE:
+                _LOGGER.debug("SerTransFile._polling_loop() BEGUN")
             self._protocol.pause_writing()
             self._protocol.connection_made(self)
 
@@ -91,10 +92,12 @@ class SerTransportFile(asyncio.Transport):
                 self._protocol.data_received(dtm_pkt_line.strip())
                 # await asyncio.sleep(0)
 
-            _LOGGER.debug("SerTransFile._polling_loop() ENDED")
+            if DEV_MODE:
+                _LOGGER.debug("SerTransFile._polling_loop() ENDED")
             self._protocol.connection_lost(exc=None)
 
-        _LOGGER.debug("SerTransFile._start()")
+        if DEV_MODE:
+            _LOGGER.debug("SerTransFile._start() STARTING loop")
 
         self._extra[POLLER_TASK] = self._loop.create_task(_polling_loop())
 
@@ -111,7 +114,7 @@ class SerTransportPoller(asyncio.Transport):
     MAX_BUFFER_SIZE = 500
 
     def __init__(self, loop, protocol, ser_instance, extra=None):
-        _LOGGER.warning("SerTransPoll.__init__() *** POLLING VERSION ***")
+        _LOGGER.info("SerTransPoll.__init__(%s) *** Polling version ***", ser_instance)
 
         self._loop = loop
         self._protocol = protocol
@@ -125,7 +128,8 @@ class SerTransportPoller(asyncio.Transport):
 
     def _start(self):
         async def _polling_loop():
-            _LOGGER.debug("SerTransPoll._polling_loop() BEGUN")
+            if DEV_MODE:
+                _LOGGER.debug("SerTransPoll._polling_loop() BEGUN")
             self._protocol.connection_made(self)
 
             while self.serial.is_open:
@@ -145,10 +149,12 @@ class SerTransportPoller(asyncio.Transport):
                     self._write_queue.task_done()
                     continue
 
-            _LOGGER.error("SerTransPoll._polling_loop() ENDED")
+            if DEV_MODE:
+                _LOGGER.error("SerTransPoll._polling_loop() ENDED")
             self._protocol.connection_lost()
 
-        _LOGGER.debug("SerTransPoll._start()")
+        if DEV_MODE:
+            _LOGGER.debug("SerTransPoll._start() STARTING loop")
         self._write_queue = Queue(maxsize=self.MAX_BUFFER_SIZE)
 
         self._extra[POLLER_TASK] = self._loop.create_task(_polling_loop())
@@ -168,7 +174,7 @@ class SerTransportProcess(Process):  # TODO: WIP
     """Interface for a packet transport using a process - WIP."""
 
     def __init__(self, loop, protocol, ser_port, extra=None):
-        _LOGGER.warning("SerTransProc.__init__() *** PROCESS VERSION***")
+        _LOGGER.info("SerTransProc.__init__() *** Process version ***", ser_port)
 
         self._loop = loop
 
@@ -185,7 +191,8 @@ class SerTransportProcess(Process):  # TODO: WIP
 
     def _start(self):
         def _polling_loop(self):
-            _LOGGER.error("WinTransport._polling_loop()")
+            if DEV_MODE:
+                _LOGGER.error("WinTransport._polling_loop() BEGUN")
 
             # asyncio.set_event_loop(self._loop)
             asyncio.get_running_loop()  # TODO: this fails
@@ -216,7 +223,12 @@ class SerTransportProcess(Process):  # TODO: WIP
                 # print("sleep")
                 # time.sleep(0.005)
 
-        _LOGGER.debug("SerTransProc.start()")
+            if DEV_MODE:
+                _LOGGER.debug("SerTransProc._polling_loop() ENDED")
+            self._protocol.connection_lost(exc=None)
+
+        if DEV_MODE:
+            _LOGGER.debug("SerTransProc._start() STARTING loop")
         self._write_queue = Queue(maxsize=200)
 
         self.serial = serial_for_url(self._ser_port[0], **self._ser_port[1])
@@ -238,20 +250,18 @@ class SerTransportProcess(Process):  # TODO: WIP
         self._write_queue.put_nowait(cmd)
 
 
-class PacketProtocol(asyncio.Protocol):
+class PacketProtocolBase(asyncio.Protocol):
     """Interface for a packet protocol (no Qos).
 
     ex transport: self.data_received(bytes) -> self._callback(pkt)
     to transport: self.send_data(cmd)       -> self._transport.write(bytes)
     """
 
-    def __init__(self, gwy, pkt_receiver: Callable) -> None:
-        _LOGGER.debug("PktProtocol.__init__(%s, %s)", gwy, pkt_receiver)
-
+    def __init__(self, gwy, pkt_handler: Callable) -> None:
         self._loop = gwy._loop
 
         self._gwy = gwy
-        self._callback = pkt_receiver  # Could be None
+        self._callback = pkt_handler  # Could be None
 
         self._transport = None
         self._pause_writing = True
@@ -312,24 +322,28 @@ class PacketProtocol(asyncio.Protocol):
         # 000  I --- 18:140805 18:140805 --:------ 0001 005 00FFFF0200 # evofw3
         if pkt_line[10:14] == " 18:" and pkt_line[11:20] == pkt_line[21:30]:
             pkt_line = pkt_line[:21] + HGI_DEVICE.id + pkt_line[30:]
-            _LOGGER.debug("evofw3 packet line has been normalised (0x00)")
+            if DEV_MODE:  # TODO: should be _LOGGER.debug
+                _LOGGER.warning("evofw3 packet line has been normalised (0x00)")
 
         # non-RAMSES-II packets...
         elif (
             pkt_line[10:14] in (" 08:", " 31:") and pkt_line[-16:] == "* Checksum error"
         ):
             pkt_line = pkt_line[:-17] + " # Checksum error (ignored)"
-            # _LOGGER.debug("Packet line has been normalised (0x01)")
+            if DEV_MODE:  # TODO: should be _LOGGER.debug
+                _LOGGER.warning("Packet line has been normalised (0x01)")
 
         # bug fixed in evofw3 v0.6.x...
         elif pkt_line.startswith("!C"):
             pkt_line = "# " + pkt_line
-            # _LOGGER.debug("Packet line has been normalised (0x02)")
+            if DEV_MODE:  # TODO: should be _LOGGER.debug
+                _LOGGER.warning("Packet line has been normalised (0x02)")
 
         # old packet logs
         elif ERR_MSG_REGEX.match(pkt_line):
             pkt_line = "# " + pkt_line
-            # _LOGGER.debug("Packet line has been normalised (0x03)")
+            if DEV_MODE:  # TODO: should be _LOGGER.debug
+                _LOGGER.warning("Packet line has been normalised (0x03)")
 
         return pkt_line
 
@@ -337,6 +351,7 @@ class PacketProtocol(asyncio.Protocol):
         self, pkt_dtm: str, pkt_str: Optional[str], pkt_raw: Optional[ByteString] = None
     ) -> None:
         """Called when some normalised data is received (no QoS)."""
+        _LOGGER.info("PktProtocol.data_received(%s)", pkt_raw)
 
         pkt = Packet(pkt_dtm, pkt_str, raw_pkt_line=pkt_raw)
         if not pkt.is_valid:
@@ -348,8 +363,9 @@ class PacketProtocol(asyncio.Protocol):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
     def data_received(self, data: ByteString) -> None:
-        """Called when some data is received."""
-        _LOGGER.debug("PktProtocol.data_received(%s)", data)
+        """Called when some data (raw packet fragment) is received."""
+        if DEV_MODE:
+            _LOGGER.debug("PktProtocol.data_received(%s)", data)
 
         def create_pkt(pkt_raw: ByteString) -> Tuple:
             dtm_str = dt_str()  # done here & now for most-accurate timestamp
@@ -375,7 +391,10 @@ class PacketProtocol(asyncio.Protocol):
                 data = bytes(f"{flag}\r\n".encode("ascii"))
                 self._loop.create_task(self._send_data(data, ignore_pause=True))
 
-            _PKT_LOGGER.debug("Rx: %s", pkt_raw, extra=self._extra(dtm_str, pkt_raw))
+            if DEV_MODE:  # TODO: deleteme
+                _PKT_LOGGER.debug(
+                    "Rx: %s", pkt_raw, extra=self._extra(dtm_str, pkt_raw)
+                )
 
             return dtm_str, self._normalise(pkt_str), pkt_raw
 
@@ -401,13 +420,14 @@ class PacketProtocol(asyncio.Protocol):
             or self._transport.serial.out_waiting
         ):
             await asyncio.sleep(0.005)
-        _PKT_LOGGER.debug("Tx:     %s", data, extra=self._extra(dt_str(), data))
+        if DEV_MODE:  # TODO: deleteme
+            _PKT_LOGGER.debug("Tx:     %s", data, extra=self._extra(dt_str(), data))
         self._transport.write(data)
         # await asyncio.sleep(0.05)
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
-        _LOGGER.debug("PktProtocol.send_data(%s)", cmd)
+        _LOGGER.info("PktProtocol.send_data(%s)", cmd)
 
         if self._gwy.config[DISABLE_SENDING]:
             raise RuntimeError("Sending is disabled")
@@ -429,14 +449,14 @@ class PacketProtocol(asyncio.Protocol):
 
     def pause_writing(self) -> None:
         """Called when the transport's buffer goes over the high-water mark."""
-        _LOGGER.debug("PktProtocol.pause_writing()")
+        _LOGGER.warning("PktProtocol.pause_writing()")
         # self._transport.get_write_buffer_size()
 
         self._pause_writing = True
 
     def resume_writing(self) -> None:
         """Called when the transport's buffer drains below the low-water mark."""
-        _LOGGER.debug("PktProtocol.resume_writing()")
+        _LOGGER.warning("PktProtocol.resume_writing()")
         # self._transport.get_write_buffer_size()
 
         self._pause_writing = False
@@ -454,12 +474,24 @@ class PacketProtocol(asyncio.Protocol):
         }
 
 
+class PacketProtocol(PacketProtocolBase):
+    """Interface for a packet protocol (without QoS)."""
+
+    def __init__(self, gwy, pkt_handler: Callable) -> None:
+        _LOGGER.info("PktProtocol.__init__(gwy, %s)  *** Std version ***", pkt_handler)
+        super().__init__(gwy, pkt_handler)
+
+
 class PacketProtocolFile(PacketProtocol):
     """Interface for a packet protocol (for packet log)."""
 
+    def __init__(self, gwy, pkt_handler: Callable) -> None:
+        _LOGGER.info("PktProtocol.__init__(gwy, %s)  *** File version ***", pkt_handler)
+        super().__init__(gwy, pkt_handler)
+
     def data_received(self, data: str) -> None:
         """Called when some data is received."""
-        _LOGGER.debug("PktProtocolFile.data_received(%s)", data)
+        _LOGGER.info("PktProtocolFile.data_received(%s)", data)
 
         pkt_dtm, pkt_str = data[:26], data[27:]
 
@@ -483,6 +515,7 @@ class PacketProtocolQos(PacketProtocol):
     """Interface for a packet protocol (includes QoS)."""
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
+        _LOGGER.info("PktProtocol.__init__(gwy, %s)  *** QoS version ***", pkt_handler)
         super().__init__(gwy, pkt_handler)
 
         self._qos_lock = Lock()
@@ -578,7 +611,7 @@ class PacketProtocolQos(PacketProtocol):
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
-        _LOGGER.debug("PktProtocolQos.send_data(%s)", cmd)
+        _LOGGER.info("PktProtocolQos.send_data(%s)", cmd)
 
         def _logger_send(logger, msg: str) -> None:
             logger(
@@ -630,9 +663,9 @@ class PacketProtocolQos(PacketProtocol):
                 self._timeouts(dt.now())
                 await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
                 _logger_send(
-                    _LOGGER.warning,
+                    _LOGGER.info,
                     f"RE-SENT ({self._tx_retries}/{self._tx_retry_limit})",
-                )
+                )  # TODO: should be info/debug
 
             else:
                 if self._qos_cmd.code != "7FFF":  # HACK: why expired when shouldn't
