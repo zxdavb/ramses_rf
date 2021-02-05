@@ -18,20 +18,15 @@ from colorama import init as colorama_init, Fore, Style
 
 from evohome_rf import Gateway, GracefulExit
 from evohome_rf.exceptions import EvohomeError
-from evohome_rf.packet import CONSOLE_COLS, _PKT_LOGGER, Packet
+from evohome_rf.packet import CONSOLE_COLS, Packet
 from evohome_rf.protocol import create_protocol_factory
 from evohome_rf.transport import POLLER_TASK, PacketProtocolFile, create_pkt_stack
 from evohome_rf.schema import (
-    ALLOW_LIST,
-    DISABLE_DISCOVERY,
-    DISABLE_SENDING,
     DONT_CREATE_MESSAGES,
     ENFORCE_ALLOWLIST,
-    EVOFW_FLAG,
     INPUT_FILE,
     PACKET_LOG,
     REDUCE_PROCESSING,
-    SERIAL_PORT,
     USE_NAMES,
 )
 
@@ -340,6 +335,6 @@ SQL_CLEANUP_02 = """
 """
 
 """
-sqlite3 -separator ' ' packets.db 'select * from packets' | grep -vE 'RQ ... 18:' | python client.py -rr parse > /dev/null
-sqlite3 -separator ' ' packets.db 'select * from packets' | python client.py -rr parse > /dev/null
+sqlite3 -separator ' ' packets.db 'select * from packets' | grep -vE 'RQ ... 18:' | python client.py -rr parse > /dev/null  # noqa: E501
+sqlite3 -separator ' ' packets.db 'select * from packets' | python client.py -rr parse > /dev/null                          # noqa: E501
 """
