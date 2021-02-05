@@ -63,8 +63,9 @@ QOS_RX_TIMEOUT = td(seconds=0.20)  # 0.10 too low sometimes
 QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many?
 
 _LOGGER = logging.getLogger(__name__)
-if True or DEV_MODE:
-    _LOGGER.setLevel(logging.INFO)  # DEBUG may have too much detail
+_LOGGER.setLevel(logging.WARNING)  # INFO may have too much detail
+if DEV_MODE:
+    _LOGGER.setLevel(logging.INFO)  # INFO may have too much detail
 
 
 class SerTransportFile(asyncio.Transport):
