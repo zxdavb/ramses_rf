@@ -58,6 +58,7 @@ SER2NET_SCHEMA = vol.Schema(
 CONFIG = "config"
 DISABLE_DISCOVERY = "disable_discovery"
 DISABLE_SENDING = "disable_sending"
+ENABLE_EAVESDROP = "enable_eavesdrop"
 ENFORCE_ALLOWLIST = "enforce_allowlist"
 ENFORCE_BLOCKLIST = "enforce_blocklist"
 EVOFW_FLAG = "evofw_flag"
@@ -82,6 +83,7 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Optional(SERIAL_PORT): vol.Any(None, str),
         vol.Optional(DISABLE_SENDING, default=False): vol.Any(None, bool),
         vol.Optional(DISABLE_DISCOVERY, default=False): vol.Any(None, bool),
+        vol.Optional(ENABLE_EAVESDROP, default=False): vol.Any(None, bool),
         vol.Optional(ENFORCE_ALLOWLIST, default=False): vol.Any(None, bool),
         vol.Optional(ENFORCE_BLOCKLIST, default=True): vol.Any(None, bool),
         vol.Optional(EVOFW_FLAG, default=None): vol.Any(None, str),
