@@ -117,7 +117,7 @@ def _idx(seqx, msg) -> dict:
             }
 
         assert (
-            int(msg.raw_payload[4:6], 16) < msg._gwy.config[MAX_ZONES]
+            int(seqx, 16) < msg._gwy.config[MAX_ZONES]
         ), f"unknown zone_idx: '{seqx}'"
         return {
             "zone_idx": seqx,
