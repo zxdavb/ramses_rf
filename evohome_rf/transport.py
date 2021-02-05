@@ -63,7 +63,7 @@ QOS_RX_TIMEOUT = td(seconds=0.20)  # 0.10 too low sometimes
 QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many?
 
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
+if True or DEV_MODE:
     _LOGGER.setLevel(logging.INFO)  # DEBUG may have too much detail
 
 
@@ -351,7 +351,7 @@ class PacketProtocolBase(asyncio.Protocol):
         self, pkt_dtm: str, pkt_str: Optional[str], pkt_raw: Optional[ByteString] = None
     ) -> None:
         """Called when some normalised data is received (no QoS)."""
-        _LOGGER.info("PktProtocol.data_received(%s)", pkt_raw)
+        _LOGGER.info("PktProtocol.data_rcvd(%s)", pkt_raw)
 
         pkt = Packet(pkt_dtm, pkt_str, raw_pkt_line=pkt_raw)
         if not pkt.is_valid:
@@ -365,7 +365,7 @@ class PacketProtocolBase(asyncio.Protocol):
     def data_received(self, data: ByteString) -> None:
         """Called when some data (raw packet fragment) is received."""
         if DEV_MODE:
-            _LOGGER.debug("PktProtocol.data_received(%s)", data)
+            _LOGGER.debug("PktProtocol.data_rcvd(%s)", data)
 
         def create_pkt(pkt_raw: ByteString) -> Tuple:
             dtm_str = dt_str()  # done here & now for most-accurate timestamp
@@ -491,7 +491,7 @@ class PacketProtocolFile(PacketProtocol):
 
     def data_received(self, data: str) -> None:
         """Called when some data is received."""
-        _LOGGER.info("PktProtocolFile.data_received(%s)", data)
+        _LOGGER.debug("PktProtocolFile.data_rcvd(%s)", data)
 
         pkt_dtm, pkt_str = data[:26], data[27:]
 
@@ -549,6 +549,7 @@ class PacketProtocolQos(PacketProtocol):
         self, pkt_dtm: str, pkt_str: Optional[str], pkt_raw: Optional[ByteString] = None
     ) -> None:
         """Called when some data is received. Adjust backoff as required."""
+        _LOGGER.info("PktProtocolQos.data_rcvd(%s)", pkt_raw)
 
         def _logger_rcvd(logger, msg: str) -> None:
             if self._qos_cmd is None:
@@ -559,7 +560,7 @@ class PacketProtocolQos(PacketProtocol):
                 wanted = self._rx_hdr
 
             logger(
-                "PktProtocol.data_rcvd(%s): boff=%s, want=%s, tout=%s: %s",
+                "PktProtocolQos.data_rcvd(%s): boff=%s, want=%s, tout=%s: %s",
                 pkt._header,
                 self._backoff,
                 wanted,
@@ -602,9 +603,9 @@ class PacketProtocolQos(PacketProtocol):
             self._timeouts(dt.now())
             _logger_rcvd(_LOGGER.debug, f"CHECKED - {msg}")
 
-        else:  # throttle down the backoff
-            # self._timeouts(dt.now())
-            _logger_rcvd(_LOGGER.debug, "XXXXXXX - ")
+        # else:  # no outstanding cmd - ?throttle down the backoff
+        #     # self._timeouts(dt.now())
+        #     _logger_rcvd(_LOGGER.debug, "XXXXXXX - ")
 
         if self._callback and self.is_wanted(pkt, self._include, self._exclude):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
@@ -615,7 +616,7 @@ class PacketProtocolQos(PacketProtocol):
 
         def _logger_send(logger, msg: str) -> None:
             logger(
-                "PktProtocol.send_data(%s): boff=%s, want=%s, tout=%s: %s",
+                "PktProtocolQos.send_data(%s): boff=%s, want=%s, tout=%s: %s",
                 cmd.tx_header,
                 self._backoff,
                 self._tx_hdr if self._tx_hdr else self._rx_hdr,
@@ -628,7 +629,7 @@ class PacketProtocolQos(PacketProtocol):
 
         if not cmd.is_valid:
             _LOGGER.warning(
-                "PktProtocol.send_data(%s): invalid command: %s", cmd.tx_header, cmd
+                "PktProtocolQos.send_data(%s): invalid command: %s", cmd.tx_header, cmd
             )
             return
 
@@ -663,7 +664,7 @@ class PacketProtocolQos(PacketProtocol):
                 self._timeouts(dt.now())
                 await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
                 _logger_send(
-                    _LOGGER.info,
+                    _LOGGER.warning,
                     f"RE-SENT ({self._tx_retries}/{self._tx_retry_limit})",
                 )  # TODO: should be info/debug
 
@@ -679,7 +680,7 @@ class PacketProtocolQos(PacketProtocol):
         else:
             if self._timeout_half >= dt.now():
                 self._backoff = max(self._backoff - 1, 0)
-            # _logger_send(_LOGGER.debug, "SUCCEEDED")
+            # _logger_send(_LOGGER.debug, "SENT OK")
 
 
 def create_pkt_stack(
