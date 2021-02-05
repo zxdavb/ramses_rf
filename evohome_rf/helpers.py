@@ -198,6 +198,8 @@ def extract_addrs(pkt: str) -> Tuple[Address, Address, List[Address]]:
         raise TypeError("invalid addr set")
 
     device_addrs = list(filter(lambda x: x.type != "--", addrs))
+    if len(device_addrs) > 2:
+        raise TypeError("too many addrs (i.e. three addrs)")
 
     src_addr = device_addrs[0]
     dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEVICE
@@ -206,13 +208,10 @@ def extract_addrs(pkt: str) -> Tuple[Address, Address, List[Address]]:
         src_addr = dst_addr
     elif src_addr.type == "18" and dst_addr.id == HGI_DEVICE.id:
         # 000  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200 (valid, ex HGI80)
-        pass  # the above has been used for port wakeup
+        pass
     elif src_addr.type == dst_addr.type:
         # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5 (invalid)
         raise TypeError("invalid src/dst addr pair")
-
-    if len(device_addrs) > 2:
-        raise TypeError("too many addrs (i.e. three addrs)")
 
     return src_addr, dst_addr, addrs
 
