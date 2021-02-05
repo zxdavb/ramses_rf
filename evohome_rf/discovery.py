@@ -280,4 +280,3 @@ async def scan_002(gwy, dev_id: str):
         if code in RAMSES_CODES:  # no need to test known codes
             continue
         gwy.send_data(Command(" W", dev_id, code, message, qos=qos))
-
