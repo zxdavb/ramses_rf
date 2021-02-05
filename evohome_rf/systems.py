@@ -1006,7 +1006,7 @@ class System(SysDatetime, SysFaultLog, SystemBase):
                 self._relay_failsafes[idx] = msg
             elif msg.code == "3150":
                 self._heat_demands[idx] = msg
-            elif msg.code not in ("000C", "0418", "1100", "3B00"):
+            elif msg.code not in ("0001", "000C", "0418", "1100", "3B00"):
                 assert False, msg.code
 
 

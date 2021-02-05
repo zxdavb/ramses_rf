@@ -305,15 +305,17 @@ class Message:
 
         try:  # run the parser
             self._payload = payload_parser(self.raw_payload, self)
-            assert isinstance(self._payload, dict) or isinstance(self._payload, list)
+            assert isinstance(self._payload, dict) or isinstance(
+                self._payload, list
+            ), "message payload is not dict nor list"
 
         except AssertionError as err:
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
             hint = f": {err}" if str(err) != "" else ""
-            log_message(
-                _PKT_LOGGER.exception if DEV_MODE else _LOGGER.warning,
-                f"%s < Validation error{hint} ",
-            )
+            if not hint or DEV_MODE:
+                log_message(_PKT_LOGGER.exception, "%s < Validation error ")
+            elif self.src.type != "18":  # TODO: should be else:
+                log_message(_PKT_LOGGER.warning, f"%s < Validation error{hint} ")
             self._is_valid = False
             return self._is_valid
 
@@ -553,7 +555,7 @@ def process_msg(msg: Message) -> None:
 
     except (AssertionError, NotImplementedError) as err:
         _LOGGER.exception("%s < %s", msg._pkt, err.__class__.__name__)
-        return
+        raise  # TODO: should be a return
 
     except (AttributeError, LookupError, TypeError, ValueError) as err:
         _LOGGER.error("%s < %s", msg._pkt, err.__class__.__name__)

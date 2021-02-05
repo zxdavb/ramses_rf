@@ -21,7 +21,6 @@ from .const import (
 )
 from .exceptions import CorruptStateError
 from .helpers import slugify_string as slugify, dev_id_to_hex
-from .ramses import RAMSES_DEVICES
 
 DEV_MODE = _dev_mode_
 
@@ -177,26 +176,6 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         if discover_flag & DISCOVER_STATUS:
             # self._send_cmd("0016", payload="0000", retries=0)
             pass
-
-    def _handle_msg(self, msg) -> None:
-        """Validate packets by verb/code."""
-        super()._handle_msg(msg)
-
-        if msg.code in ("0016", "1FC9"):
-            pass
-
-        elif self.type not in RAMSES_DEVICES:
-            assert False, f"Unknown device type: {self.id} (likely a corrupt pkt)"
-
-        elif msg.code not in RAMSES_DEVICES[self.type]:
-            assert (
-                RAMSES_DEVICES[self.type] == {}
-            ), f"Unknown code for {self.id}: {msg.verb}/{msg.code}"
-
-        elif msg.verb not in RAMSES_DEVICES[self.type][msg.code]:
-            assert (
-                RAMSES_DEVICES[self.type][msg.code] == {}
-            ), f"Unknown verb for {self.id}: {msg.verb}/{msg.code}"
 
     def _send_cmd(self, code, **kwargs) -> None:
         dest = kwargs.pop("dest_addr", self.id)

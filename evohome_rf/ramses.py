@@ -8,6 +8,11 @@ W_ = " W"
 RQ = "RQ"
 RP = "RP"
 
+RQ_NULL = "rq_null"
+
+RQ_MAY_HAVE_DOMAIN = "rq_may_have_domain"
+RQ_MAY_HAVE_PAYLOAD = "rq_may_have_payload"
+
 NAME = "name"
 EXPIRY = "expiry"
 
@@ -18,15 +23,16 @@ RAMSES_CODES = {
     },
     "0002": {
         NAME: "sensor_weather",
-        # RQ: r"^00$",  # TODO
+        RQ: r"^00$",  # NOTE: sent by an RFG100
     },
     "0004": {
         NAME: "zone_name",
-        RQ: r"^0[0-9A-F]00$",  # f"{zone_idx}00" TODO 12, or 16?
+        RQ: r"^0[0-9A-F]00$",  # f"{zone_idx}00"
     },
     "0005": {
         NAME: "system_zones",
-        RQ: r"^00[01][0-9A-F]$",  # "00{zone_type}" TODO: "01{zone_type}"?
+        RQ: r"^00[01][0-9A-F]$",  # f"00{zone_type}"
+        RQ_MAY_HAVE_PAYLOAD: True,
     },
     "0006": {
         NAME: "schedule_sync",
@@ -38,26 +44,29 @@ RAMSES_CODES = {
     },
     "0009": {
         NAME: "relay_failsafe",
-        # RQ: r"^00$",  # TODO:
     },
     "000A": {
         NAME: "zone_params",
-        RQ: r"^0[0-9A-F]",  # TODO: 001, or 006
+        I_: r"^(0[0-9A-F][0-9A-F]{10}){1,8}$",
+        RQ: r"^0[0-9A-F]([0-9A-F]{10})?$",
+        RQ_MAY_HAVE_PAYLOAD: True,
+        # 17:54:13.126 063 RQ --- 34:064023 01:145038 --:------ 000A 001 03
+        # 17:54:13.141 045 RP --- 01:145038 34:064023 --:------ 000A 006 031002260B86
+        # 19:20:49.460 062 RQ --- 12:010740 01:145038 --:------ 000A 006 080001F40DAC
+        # 19:20:49.476 045 RP --- 01:145038 12:010740 --:------ 000A 006 081001F40DAC
     },
     "000C": {
         NAME: "zone_devices",
         RQ: r"^0[0-9A-F][01][0-9A-F]$",  # TODO: f"{zone_idx}{device_type}"
+        RQ_MAY_HAVE_PAYLOAD: True,
     },
     "000E": {
         NAME: "message_000e",
     },
     "0016": {
         NAME: "rf_check",
-        RQ: r"^00(00|FF)$",
-    },
-    "0100": {
-        NAME: "language",
-        # RQ: r"^0x00$",  # TODO: 001, or 005
+        RQ: r"^0[0-9A-F]([0-9A-F]{2})?$",  # TODO: officially: r"^0[0-9A-F]{3}$"
+        RP: r"^0[0-9A-F]{3}$",
     },
     "01D0": {
         NAME: "message_01d0",
@@ -68,10 +77,11 @@ RAMSES_CODES = {
     "0404": {
         NAME: "zone_schedule",
         RQ: r"^0[0-9A-F](20|23)000800[0-9A-F]{4}$",
+        RQ_MAY_HAVE_PAYLOAD: True,
     },
     "0418": {
         NAME: "system_fault",
-        RQ: r"^0000[0-3][0-9A-F]$",
+        RQ: r"^0000[0-3][0-9A-F]$",  # f"0000{log_idx}", no payload
     },
     "042F": {
         NAME: "message_042f",
@@ -91,7 +101,11 @@ RAMSES_CODES = {
     },
     "10A0": {
         NAME: "dhw_params",
-        # RQ: r"^00$",  # TODO:
+        # NOTE: RFG100 uses a domain id! (00|01)
+        # 19:14:24.662 051 RQ --- 30:185469 01:037519 --:------ 10A0 001 00
+        # 19:14:31.463 053 RQ --- 30:185469 01:037519 --:------ 10A0 001 01
+        RQ: r"^0[01]([0-9A-F]{10})?$",  # NOTE: RQ/07/10A0 has a payload
+        RQ_MAY_HAVE_PAYLOAD: True,
     },
     "10E0": {
         NAME: "device_info",
@@ -99,11 +113,18 @@ RAMSES_CODES = {
     },
     "1100": {
         NAME: "tpi_params",
-        RQ: r"^(00|FC)",  # TODO: educated gues
+        RQ: r"^(00|FC)",  # TODO: educated guess
     },
     "1260": {
         NAME: "dhw_temp",
-        RQ: r"^00$",  # RFG100 sends zz
+        # 18:51:49.158262 063 RQ --- 30:185469 01:037519 --:------ 1260 001 00
+        # 18:51:49.174182 051 RP --- 01:037519 30:185469 --:------ 1260 003 000837
+        # 16:48:51.536036 000 RQ --- 18:200202 10:067219 --:------ 1260 002 0000
+        # 16:49:51.644184 068 RP --- 10:067219 18:200202 --:------ 1260 003 007FFF
+        # 10:02:21.128654 049  I --- 07:045960 --:------ 07:045960 1260 003 0007A9
+        RQ: r"^00(00)?$",  # TODO: officially: r"^00$"
+        RP: r"^00[0-9A-F]{4}$",  # Null: r"^007FFF$"
+        I_: r"^00[0-9A-F]{4}$",
     },
     "1280": {
         NAME: "outdoor_humidity",
@@ -160,11 +181,13 @@ RAMSES_CODES = {
     },
     "2309": {
         NAME: "setpoint",
-        # RQ: r"^00$",  # TODO:
+        RQ: r"^0[0-9A-F]",
+        RQ_MAY_HAVE_PAYLOAD: True,
+        # RQ --- 12:010740 01:145038 --:------ 2309 003 03073A
     },
     "2349": {
         NAME: "zone_mode",
-        # RQ: r"^00$",  # TODO:
+        RQ: r"^0[0-9A-F]$",
     },
     "2D49": {  # seen with Hometronic systems
         NAME: "message_2d49",
@@ -175,14 +198,14 @@ RAMSES_CODES = {
     },
     "30C9": {
         NAME: "temperature",
-        RQ: r"^0[0-9A-F](00)?$",  # RFG100 sends zz, but zz00 appears acceptable
+        RQ: r"^0[0-9A-F](00)?$",  # TODO: officially: r"^0[0-9A-F]$"
+        # RQ --- 30:185469 01:037519 --:------ 30C9 001 00
+        RP: r"^0[0-9A-F][0-9A-F]{4}$",  # Null: r"^0[0-9A-F]7FFF$"
+        # RP --- 01:145038 18:013393 --:------ 30C9 003 FF7FFF
+        I_: r"^(0[0-9A-F][0-9A-F]{4}){1,8}$",
     },
     "3120": {
         NAME: "message_3120",
-    },
-    "313F": {
-        NAME: "datetime",
-        RQ: r"^00$",
     },
     "3150": {
         NAME: "heat_demand",
@@ -193,7 +216,8 @@ RAMSES_CODES = {
     },
     "31DA": {
         NAME: "message_31da",
-        RQ: r"^00$",  # TODO: r"^(00|21)$"
+        RQ: r"^(00|21)$"
+        # RQ --- 32:168090 30:082155 --:------ 31DA 001 21
     },
     "31E0": {
         NAME: "message_31e0",
@@ -201,6 +225,7 @@ RAMSES_CODES = {
     "3220": {
         NAME: "opentherm_msg",
         RQ: r"^00[0-9A-F]{4}0{4}$",
+        RQ_MAY_HAVE_PAYLOAD: True,
     },
     "3B00": {
         NAME: "actuator_sync",
@@ -211,11 +236,21 @@ RAMSES_CODES = {
     },
     "3EF1": {
         NAME: "actuator_cycle",
-        RQ: r"^00(00)?$",  # NOTE: both seen in the wold
+        RQ: r"^0[0-9A-F](00)?$",  # NOTE: both seen in the wold
     },
     "7FFF": {
         NAME: "puzzle_packet",
         I_: r"^7F[0-9A-F]{12}7F[0-9A-F]{4}7F[0-9A-F]{4}(7F)+",
+    },
+    "0100": {
+        NAME: "language",
+        RQ: r"^00([0-9A-F]{4}F{4})?$",  # NOTE: RQ/04/0100 has a payload
+        RQ_MAY_HAVE_DOMAIN: False,
+        RQ_MAY_HAVE_PAYLOAD: True,
+    },  # NOTE: parser has been checked
+    "313F": {
+        NAME: "datetime",
+        RQ: r"^00$",
     },
 }
 
@@ -225,6 +260,7 @@ RAMSES_DEVICES = {
             W_: {},
         },
         "0002": {
+            I_: {},
             RP: {},
         },
         "0004": {
@@ -252,10 +288,17 @@ RAMSES_DEVICES = {
             RP: {},
         },
         "0016": {
+            RQ: {},
             RP: {},
         },
         "0100": {
             RP: {},
+        },
+        "01D0": {
+            I_: {},
+        },
+        "01E9": {
+            I_: {},
         },
         "0404": {
             RP: {},
@@ -268,6 +311,7 @@ RAMSES_DEVICES = {
             I_: {},
         },
         "10A0": {
+            I_: {},
             RP: {},
         },
         "10E0": {
@@ -298,7 +342,11 @@ RAMSES_DEVICES = {
             I_: {},
         },
         "1F41": {
+            I_: {},
             RP: {},
+        },
+        "2249": {
+            I_: {},
         },
         "22D9": {
             RQ: {},
@@ -310,6 +358,9 @@ RAMSES_DEVICES = {
         "2349": {
             I_: {},
             RP: {},
+        },
+        "2D49": {
+            I_: {},
         },
         "2E04": {
             I_: {},
@@ -338,7 +389,10 @@ RAMSES_DEVICES = {
         },
     },
     "02": {
-        "0001a": {},
+        "0001": {
+            RP: {},
+            W_: {},
+        },
         "0005": {
             RP: {},
         },
@@ -405,6 +459,9 @@ RAMSES_DEVICES = {
         "0004": {
             RQ: {},
         },
+        "0016": {
+            RQ: {},
+        },
         "0100": {
             RQ: {},
         },
@@ -447,7 +504,7 @@ RAMSES_DEVICES = {
             I_: {},
         },
         "10A0": {
-            RQ: {},
+            RQ: {},  # This RQ/07/10A0 includes a payload
         },
         "1260": {
             I_: {},
@@ -464,7 +521,7 @@ RAMSES_DEVICES = {
             I_: {},
         },
         "1100": {
-            RQ: {},
+            I_: {},
         },
         "3EF0": {
             I_: {},
@@ -511,16 +568,23 @@ RAMSES_DEVICES = {
         },
     },
     "12": {  # TODO: also 22:
+        "0001": {
+            W_: {},
+        },
         "0008": {
             I_: {},
         },
         "0009": {
             I_: {},
         },
+        "0016": {
+            RQ: {},
+        },
         "1100": {
             I_: {},
         },
         "000A": {
+            I_: {},
             RQ: {},
             W_: {},
         },
@@ -535,6 +599,9 @@ RAMSES_DEVICES = {
         },
         "1090": {
             RQ: {},
+        },
+        "1F09": {
+            I_: {},
         },
         "2309": {
             I_: {},
@@ -585,6 +652,7 @@ RAMSES_DEVICES = {
             RP: {},
         },
     },
+    "18": {},
     "20": {
         "10E0": {
             I_: {},
@@ -604,7 +672,31 @@ RAMSES_DEVICES = {
         },
     },
     "23": {
+        "0009": {
+            I_: {},
+        },
         "1090": {
+            RP: {},
+        },
+        "1100": {
+            I_: {},
+        },
+        "1F09": {
+            I_: {},
+        },
+        "2249": {
+            I_: {},
+        },
+        "2309": {
+            I_: {},
+        },
+        "30C9": {
+            I_: {},
+        },
+        "3B00": {
+            I_: {},
+        },
+        "3EF1": {
             RP: {},
         },
     },
@@ -614,6 +706,7 @@ RAMSES_DEVICES = {
             RQ: {},
         },
         "0004": {
+            I_: {},
             RQ: {},
         },
         "0005": {
@@ -627,6 +720,9 @@ RAMSES_DEVICES = {
         },
         "000C": {
             RQ: {},
+        },
+        "0016": {
+            RP: {},
         },
         "0404": {
             RQ: {},
@@ -651,7 +747,10 @@ RAMSES_DEVICES = {
         "1F41": {
             RQ: {},
         },
-        # "2349": {RQ: {},},
+        "2349": {
+            RQ: {},
+            RP: {},
+        },
         "2E04": {
             RQ: {},
         },
@@ -660,20 +759,17 @@ RAMSES_DEVICES = {
         },
         "313F": {
             RQ: {},
+            RP: {},
             W_: {},
         },
         "3EF0": {
             RQ: {},
         },
-        # GWY:185469 - ???
-        "2349": {
-            RQ: {},
-            RP: {},
-        },
         # VMS:082155 - Nuaire Ventilation
         # "10E0": {I_: {}, RP: {},},
         "1F09": {
             I_: {},
+            RP: {},
         },
         "31D9": {
             I_: {},
