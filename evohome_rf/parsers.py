@@ -149,9 +149,9 @@ def _idx(seqx, msg) -> dict:
 
     # 045  I --- 03:183434 --:------ 03:183434 1060 003 00FF00
     if {"03", "12", "22"} & {msg.src.type} and msg.src.type == msg.devs[2].type:
-        # CM92x can do heating (other_idx = 01) and optionally cooling (other_idx = 01)
+        # CM92x can do heating (other_idx = 00) and optionally cooling (other_idx = 01)
         # msg.code in ("0008", "0009", "1030", "1060", "1100", "2309", "1030", "313F"):
-        if msg.code not in ("1030", "2309", "30C9"):
+        if msg.code not in ("000A", "1030", "2309", "30C9"):
             assert seqx == "00"
             return {}
         assert int(seqx, 16) < msg._gwy.config[MAX_ZONES]
