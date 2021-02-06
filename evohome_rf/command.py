@@ -23,9 +23,11 @@ from .const import (
     COMMAND_FORMAT,
     COMMAND_REGEX,
     HGI_DEVICE,
+    SYSTEM_MODE_LOOKUP,
+    ZONE_MODE_LOOKUP,
 )
 from .exceptions import ExpiredCallbackError
-from .helpers import dt_now, extract_addrs, str_to_hex, temp_to_hex
+from .helpers import dt_now, dtm_to_hex, extract_addrs, str_to_hex, temp_to_hex
 
 DAY_OF_WEEK = "day_of_week"
 HEAT_SETPOINT = "heat_setpoint"
@@ -557,17 +559,12 @@ def set_zone_name(
     name: str,
 ) -> Command:  # 0004
     """Set the name of a zone (reverse of parser_0004)."""
-    if isinstance(zone_idx, int):
-        zone_idx = f"{zone_idx:02X}"
-    payload = f"{zone_idx}00{str_to_hex(name)[:24]:0<40}"  # TODO: check limit 12 (24)?
-    return Command(" W", ctl_id, "0004", payload)
 
-    # TODO: remove me
-    KEYS = ("name", )
-    cmd = set_zone_name(
-        msg.src.id, payload[:2], **{k: v for k, v in msg.payload.items() if k in KEYS}
-    )
-    assert cmd.payload == payload, _str(payload)
+    payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
+
+    payload += f"00{str_to_hex(name)[:24]:0<40}"  # TODO: check limit 12 (24)?
+
+    return Command(" W", ctl_id, "0004", payload)
 
 
 def set_zone_config(
@@ -580,30 +577,24 @@ def set_zone_config(
     multiroom_mode: bool = False,
 ) -> Command:  # 000A
     """Set/reset the configuration of a zone (reverse of parser_000a)."""
+
+    payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
+
     assert 5 <= min_temp <= 30, min_temp
     assert 0 <= max_temp <= 35, max_temp
     assert isinstance(local_override, bool), local_override
     assert isinstance(openwindow_function, bool), openwindow_function
     assert isinstance(multiroom_mode, bool), multiroom_mode
 
-    min_temp = temp_to_hex(min_temp)
-    max_temp = temp_to_hex(max_temp)
-    bitmap = 0x0
-    payload = f"{zone_idx:02X}00{bitmap:02X}{min_temp}{max_temp}"
-    return Command(" W", ctl_id, "000A", payload)
+    bitmap = 0 if local_override else 1
+    bitmap |= 0 if openwindow_function else 2
+    bitmap |= 0 if multiroom_mode else 16
 
-    # TODO: remove me
-    KEYS = (
-        "min_temp",
-        "max_temp",
-        "local_override",
-        "openwindow_function",
-        "multiroom_mode",
-    )
-    cmd = set_zone_config(
-        msg.src.id, **{k: v for k, v in msg.payload.items() if k in KEYS}
-    )
-    assert cmd.payload == payload
+    payload += f"{bitmap}"
+    payload += temp_to_hex(min_temp)
+    payload += temp_to_hex(max_temp)
+
+    return Command(" W", ctl_id, "000A", payload)
 
 
 def set_mix_valve_params(
@@ -615,83 +606,106 @@ def set_mix_valve_params(
     pump_run_time=15,
 ) -> Command:  # 1030
     """Set/reset the mix valve parameters of a zone (reverse of parser_1030)."""
+
+    payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
+
     assert 0 <= max_flow_setpoint <= 99, max_flow_setpoint
     assert 0 <= min_flow_setpoint <= 50, min_flow_setpoint
     assert 0 <= valve_run_time <= 240, valve_run_time
     assert 0 <= pump_run_time <= 99, pump_run_time
 
-    PARAMS = {
-        "max_flow_setpoint": "C8",
-        "min_flow_setpoint": "C9",
-        "valve_run_time": "CA",
-        "pump_run_time": "CB",
-    }
-    #
-    payload = f"{zone_idx:02X}00..."
-    return Command(" W", ctl_id, "1030", payload)
+    payload += f"C801{max_flow_setpoint:02X}"
+    payload += f"C901{min_flow_setpoint:02X}"
+    payload += f"CA01{valve_run_time:02X}"
+    payload += f"CB01{pump_run_time:02X}"
+    payload += f"CC01{1:02X}"
 
-    # TODO: remove me
-    KEYS = (
-        "max_flow_setpoint", "min_flow_setpoint", "valve_run_time", "pump_run_time"
-    )
-    cmd = set_zone_config(
-        msg.src.id, **{k: v for k, v in msg.payload.items() if k in KEYS}
-    )
-    assert cmd.payload == payload
+    return Command(" W", ctl_id, "1030", payload)
 
 
 def set_dhw_params(
     ctl_id,
-    setpoint=50,  # TODO: check
-    overrun=5,  # TODO: check
-    differential=1.0,  # TODO: check
+    domain_id,
+    setpoint: float = 50,
+    overrun: int = 5,
+    differential: float = 1.0,
 ) -> Command:  # 10A0
     """Set/reset the parameters of the DHW (reverse of parser_10a0)."""
-    payload = ""
-    return Command(" W", ctl_id, "1030", payload)
 
-    # TODO: remove me
-    kwargs = {
-        k: v
-        for k, v in msg.payload.items()
-        if k in ("setpoint", "overrun", "differential")
-    }
-    cmd = set_zone_config(msg.src.id, **kwargs)
-    assert cmd.payload == payload
+    payload = f"{domain_id:02X}" if isinstance(domain_id, int) else domain_id
+
+    assert setpoint is None or 30 <= setpoint <= 85, setpoint
+    assert overrun is None or 0 <= overrun <= 10, overrun
+    assert differential is None or 1 <= differential <= 10, differential
+
+    payload += temp_to_hex(setpoint)
+    payload += f"{overrun:02X}"
+    payload += temp_to_hex(differential)
+
+    return Command(" W", ctl_id, "10A0", payload)
 
 
 def set_tpi_params(
     ctl_id,
+    domain_id,
     cycle_rate=3,  # TODO: check
     min_on_time=5,  # TODO: check
     min_off_time=5,  # TODO: check
     proportional_band_width=None,  # TODO: check
 ) -> Command:  # 1100
     """Set/reset the TPI parameters of a system (reverse of parser_1100)."""
-    payload = ""
+
+    payload = f"{domain_id:02X}" if isinstance(domain_id, int) else domain_id
+
+    assert cycle_rate is None or cycle_rate in (3, 6, 9, 12), cycle_rate
+    assert min_on_time is None or 1 <= min_on_time <= 5, min_on_time
+    assert min_off_time is None or 1 <= min_off_time <= 5, min_off_time
+    assert (
+        proportional_band_width is None or 1.5 <= proportional_band_width <= 3.0
+    ), proportional_band_width
+
+    payload += f"{cycle_rate * 4:02X}"
+    payload += f"{int(min_on_time * 4):02X}"
+    payload += f"{int(min_off_time * 4):02X}FF"
+    payload += f"{temp_to_hex(proportional_band_width)}01"
+
     return Command(" W", ctl_id, "1100", payload)
 
 
 def set_dhw_mode(
     ctl_id,
-    active=3,  # TODO: check
-    mode=5,  # TODO: check
-    until=None,  # TODO: check
+    domain_id,
+    active: bool,
+    mode,
+    until=None,
 ) -> Command:  # 1F41
     """Set/reset the mode of the DHW (reverse of parser_1f41)."""
-    payload = ""
+
+    payload = f"{domain_id:02X}" if isinstance(domain_id, int) else domain_id
+
+    assert isinstance(active, bool), active
+    assert mode in ZONE_MODE_LOOKUP, mode
+
+    payload += f"{int(active):02X}"
+    payload += f"{ZONE_MODE_LOOKUP[mode]}FFFFFF"
+    if ZONE_MODE_LOOKUP[mode] == "04":
+        payload += dtm_to_hex(until)
+
     return Command(" W", ctl_id, "1F41", payload)
 
 
 def set_zone_setpoint(
     ctl_id,
     zone_idx,
-    mode=None,
-    setpoint=None,
-    until=None,
+    setpoint,
 ) -> Command:  # 2309
     """Set the setpoint of a zone (reverse of parser_2309)."""
-    payload = f"{zone_idx:02X}00..."
+    #  W --- 34:092243 01:145038 --:------ 2309 003 0107D0
+
+    payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
+
+    payload += temp_to_hex(setpoint)
+
     return Command(" W", ctl_id, "2309", payload)
 
 
@@ -703,17 +717,36 @@ def set_zone_mode(
     until=None,
 ) -> Command:  # 2349
     """Set/reset the mode of a zone (reverse of parser_2349)."""
-    payload = f"{zone_idx:02X}00..."
-    return Command(" W", ctl_id, "2309", payload)
+    #  W --- 18:013393 01:145038 --:------ 2349 013 0004E201FFFFFF330B1A0607E4
+    #  W --- 22:017139 01:140959 --:------ 2349 007 0801F400FFFFFF
+
+    payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
+
+    assert mode in ZONE_MODE_LOOKUP, mode
+
+    payload += temp_to_hex(setpoint)
+    payload += f"{ZONE_MODE_LOOKUP[mode]}FFFFFF"
+    if ZONE_MODE_LOOKUP[mode] == "04":
+        payload += dtm_to_hex(until)
+
+    return Command(" W", ctl_id, "2349", payload)
 
 
 def set_system_mode(
     ctl_id,
-    system_mode=None,
+    mode=None,
     until=None,
 ) -> Command:  # 2E04
     """Set/reset the mode of a system (reverse of parser_2e04)."""
+
     payload = ""
+
+    assert mode in SYSTEM_MODE_LOOKUP, mode
+
+    payload += f"{SYSTEM_MODE_LOOKUP[mode]}FFFFFF"
+    if SYSTEM_MODE_LOOKUP[mode] == "04":
+        payload += dtm_to_hex(until)
+
     return Command(" W", ctl_id, "2E04", payload)
 
 
@@ -722,5 +755,9 @@ def set_system_time(
     datetime,
 ) -> Command:  # 313F
     """Set the datetime of a system."""
-    payload = ""
+    #  W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
+
+    payload = "006000"
+    payload += dtm_to_hex(datetime)
+
     return Command(" W", ctl_id, "313F", payload)

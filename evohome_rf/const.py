@@ -363,7 +363,7 @@ ZONE_MODE_MAP = {
 }
 ZONE_MODE_LOOKUP = {v: k for k, v in ZONE_MODE_MAP.items()}
 
-DHW_STATE_MAP = {"00": "Off", "01": "On"}
+DHW_STATE_MAP = {"00": "off", "01": "on"}
 DHW_STATE_LOOKUP = {v: k for k, v in DHW_STATE_MAP.items()}
 
 # Electric Heat - on/off relay (only)
