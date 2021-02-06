@@ -134,6 +134,20 @@ def dtm_from_hex(value: str) -> str:  # from parsers
     ).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def temp_to_hex(value: int) -> str:
+    """Convert an int to hex."""
+    if value is None:
+        return "7FFF"  # or: "31FF"?
+    temp = int(value * 100)
+    if temp > 0:
+        return f"{temp:04X}"  # TODO: two's complement
+
+
+def str_to_hex(value: str) -> str:
+    """Convert a string to ASCII hex."""
+    return "".join([f"{ord(x):02X}" for x in value])
+
+
 def is_valid_dev_id(value) -> bool:
     if not isinstance(value, str):
         return False
