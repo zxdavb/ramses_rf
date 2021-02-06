@@ -266,15 +266,14 @@ class FaultLog:  # 0418
                 # raise ExpiredCallbackError("failed to obtain log entry (short)")
                 return
 
-            if not msg.payload:
+            log = dict(msg.payload)
+            log_idx = int(log.pop("log_idx"), 16)
+            if not log:
                 # TODO: delete other callbacks rather than waiting for them to expire
                 self._fault_log_done = True
                 return
 
-            log = dict(msg.payload)
-            log_idx = int(log.pop("log_idx"), 16)
             self._fault_log[log_idx] = log
-
             if log_idx < self._limit:
                 self._rq_log_entry(log_idx + 1)
             else:
