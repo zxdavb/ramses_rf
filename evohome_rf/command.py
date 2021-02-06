@@ -160,6 +160,13 @@ class Command:
             self._rx_header = _pkt_header(f"... {self}", rx_header=True)
         return self._rx_header
 
+    # @property
+    # def null_header(self) -> Optional[str]:
+    #     """Return the QoS header of a null response packet (if any)."""
+    #     if self.tx_header and self._rx_header is None:
+    #         self._rx_header = _pkt_header(f"... {self}", null_header=True)
+    #     return self._rx_header
+
     @property
     def is_valid(self) -> Optional[bool]:
         """Return True if a valid command, otherwise return False/None."""
@@ -268,7 +275,7 @@ class FaultLog:  # 0418
 
             log = dict(msg.payload)
             log_idx = int(log.pop("log_idx"), 16)
-            if not log:
+            if not log:  # null response (no payload)
                 # TODO: delete other callbacks rather than waiting for them to expire
                 self._fault_log_done = True
                 return
@@ -279,10 +286,10 @@ class FaultLog:  # 0418
             else:
                 self._fault_log_done = True
 
-        # TODO: (make method) register callback for null response (no log_idx left)
-        header = "|".join(("RP", self.id, "0418"))
-        if header not in self._gwy.msg_transport._callbacks:
-            self._gwy.msg_transport._callbacks[header] = {
+        # TODO: (make method) register callback for null response (no payload)
+        null_header = "|".join(("RP", self.id, "0418"))
+        if null_header not in self._gwy.msg_transport._callbacks:
+            self._gwy.msg_transport._callbacks[null_header] = {
                 "func": rq_callback,
                 "daemon": True,
                 "args": [],

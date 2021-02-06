@@ -64,8 +64,8 @@ QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many?
 
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(logging.WARNING)  # INFO may have too much detail
-if DEV_MODE:
-    _LOGGER.setLevel(logging.INFO)  # INFO may have too much detail
+if DEV_MODE:  # or True:
+    _LOGGER.setLevel(logging.DEBUG)  # should be INFO
 
 
 class SerTransportFile(asyncio.Transport):
@@ -578,28 +578,42 @@ class PacketProtocolQos(PacketProtocol):
         if self._qos_cmd:
             # _logger_rcvd(_LOGGER.debug, "CHECKING")
 
-            if pkt._header == self._tx_hdr and self._rx_hdr is None:  # echo of tx pkt
-                msg = "matched Tx (now done)"  # no response is expected
+            # NOTE: is the Tx pkt, and no response is expected
+            if pkt._header == self._tx_hdr and self._rx_hdr is None:
+                msg = "matched the Tx pkt (not wanting a Rx pkt) - now done"
                 self._qos_lock.acquire()
                 self._qos_cmd = None
                 self._qos_lock.release()
 
-            elif pkt._header == self._tx_hdr:  # echo of (expected) tx pkt
-                msg = "matched Tx (now wanting Rx)"
+            # NOTE: is the Tx pkt, and a response *is* expected
+            elif pkt._header == self._tx_hdr:
+                msg = "matched the Tx pkt (now wanting a Rx pkt)"
                 self._tx_hdr = None
 
-            elif pkt._header == self._rx_hdr:  # rcpt of (expected) rx pkt
-                msg = "matched Rx (now done)"
+            # NOTE: is the Tx pkt, but is a *duplicate* - we've already seen it!
+            elif pkt._header == self._qos_cmd.tx_header:
+                msg = "duplicated Tx pkt (still wanting the Rx pkt)"
+                self._timeouts(dt.now())  # TODO: increase backoff?
+
+            # NOTE: is the Rx pkt, and is a non-Null (expected) response
+            elif pkt._header == self._rx_hdr:
+                msg = "matched the Rx pkt - now done"
                 self._qos_lock.acquire()
                 self._qos_cmd = None
                 self._qos_lock.release()
 
-            elif pkt._header == self._qos_cmd.tx_header:  # rcpt of (duplicate!) rx pkt
-                msg = "duplicated Tx (still wanting Rx)"
-                self._timeouts(dt.now())  # TODO: increase backoff?
+            # TODO: is the Rx pkt, but is a Null response
+            # elif pkt._header == self._qos_cmd.null_header:
+            #     msg = "matched a NULL Rx pkt - now done"
+            #     self._qos_lock.acquire()
+            #     self._qos_cmd = None
+            #     self._qos_lock.release()
 
-            else:  # not the packet that was expected
-                msg = "unmatched (still wanting " + ("Tx)" if self._tx_hdr else "Rx)")
+            # NOTE: is not the expected pkt, but another pkt
+            else:
+                msg = "unmatched pkt (still wanting a " + (
+                    "Tx" if self._tx_hdr else "Rx"
+                ) + " pkt)"
 
             self._timeouts(dt.now())
             _logger_rcvd(_LOGGER.debug, f"CHECKED - {msg}")
@@ -718,7 +732,7 @@ def create_pkt_stack(
     if os.name == "posix":
         try:
             ser_instance.set_low_latency_mode(True)  # only for FTDI?
-        except ValueError:
+        except AttributeError:  # TODO: also: ValueError?
             pass
 
     if os.name == "nt":
