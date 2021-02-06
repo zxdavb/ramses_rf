@@ -45,6 +45,8 @@ from .opentherm import (
 from .ramses import RAMSES_CODES, RAMSES_DEVICES, RQ, RQ_MAY_HAVE_PAYLOAD
 from .schema import MAX_ZONES
 
+from .command import set_zone_name
+
 DEV_MODE = _dev_mode_
 
 _LOGGER = logging.getLogger(__name__)
@@ -429,6 +431,10 @@ def parser_0004(payload, msg) -> Optional[dict]:
 
     if payload[4:] == "7F" * 20:
         return {**_idx(payload[:2], msg)}
+
+    # TODO: remove me
+    cmd = set_zone_name(msg.src.id, payload[:2], name=_str(payload[4:]))
+    assert cmd.payload == payload, _str(payload)
 
     return {
         **_idx(payload[:2], msg),
@@ -1361,7 +1367,7 @@ def parser_3120(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # datetime_sync
+@parser_decorator  # datetime
 def parser_313f(payload, msg) -> Optional[dict]:
     # 2020-03-28T03:59:21.315178 045 RP --- 01:158182 04:136513 --:------ 313F 009 00FC3500A41C0307E4  # noqa: E501
     # 2020-03-29T04:58:30.486343 045 RP --- 01:158182 04:136485 --:------ 313F 009 00FC8400C51D0307E4  # noqa: E501

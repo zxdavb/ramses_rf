@@ -25,7 +25,7 @@ from .const import (
     HGI_DEVICE,
 )
 from .exceptions import ExpiredCallbackError
-from .helpers import dt_now, extract_addrs
+from .helpers import dt_now, extract_addrs, str_to_hex, temp_to_hex
 
 DAY_OF_WEEK = "day_of_week"
 HEAT_SETPOINT = "heat_setpoint"
@@ -549,3 +549,178 @@ class Schedule:  # 0404
         self._evo.zone_lock.acquire()
         self._evo.zone_lock_idx = None
         self._evo.zone_lock.release()
+
+
+def set_zone_name(
+    ctl_id,
+    zone_idx,
+    name: str,
+) -> Command:  # 0004
+    """Set the name of a zone (reverse of parser_0004)."""
+    if isinstance(zone_idx, int):
+        zone_idx = f"{zone_idx:02X}"
+    payload = f"{zone_idx}00{str_to_hex(name)[:24]:0<40}"  # TODO: check limit 12 (24)?
+    return Command(" W", ctl_id, "0004", payload)
+
+    # TODO: remove me
+    KEYS = ("name", )
+    cmd = set_zone_name(
+        msg.src.id, payload[:2], **{k: v for k, v in msg.payload.items() if k in KEYS}
+    )
+    assert cmd.payload == payload, _str(payload)
+
+
+def set_zone_config(
+    ctl_id,
+    zone_idx,
+    min_temp: int = 5,
+    max_temp: int = 35,
+    local_override: bool = False,
+    openwindow_function: bool = False,
+    multiroom_mode: bool = False,
+) -> Command:  # 000A
+    """Set/reset the configuration of a zone (reverse of parser_000a)."""
+    assert 5 <= min_temp <= 30, min_temp
+    assert 0 <= max_temp <= 35, max_temp
+    assert isinstance(local_override, bool), local_override
+    assert isinstance(openwindow_function, bool), openwindow_function
+    assert isinstance(multiroom_mode, bool), multiroom_mode
+
+    min_temp = temp_to_hex(min_temp)
+    max_temp = temp_to_hex(max_temp)
+    bitmap = 0x0
+    payload = f"{zone_idx:02X}00{bitmap:02X}{min_temp}{max_temp}"
+    return Command(" W", ctl_id, "000A", payload)
+
+    # TODO: remove me
+    KEYS = (
+        "min_temp",
+        "max_temp",
+        "local_override",
+        "openwindow_function",
+        "multiroom_mode",
+    )
+    cmd = set_zone_config(
+        msg.src.id, **{k: v for k, v in msg.payload.items() if k in KEYS}
+    )
+    assert cmd.payload == payload
+
+
+def set_mix_valve_params(
+    ctl_id,
+    zone_idx,
+    max_flow_setpoint=55,
+    min_flow_setpoint=15,
+    valve_run_time=150,
+    pump_run_time=15,
+) -> Command:  # 1030
+    """Set/reset the mix valve parameters of a zone (reverse of parser_1030)."""
+    assert 0 <= max_flow_setpoint <= 99, max_flow_setpoint
+    assert 0 <= min_flow_setpoint <= 50, min_flow_setpoint
+    assert 0 <= valve_run_time <= 240, valve_run_time
+    assert 0 <= pump_run_time <= 99, pump_run_time
+
+    PARAMS = {
+        "max_flow_setpoint": "C8",
+        "min_flow_setpoint": "C9",
+        "valve_run_time": "CA",
+        "pump_run_time": "CB",
+    }
+    #
+    payload = f"{zone_idx:02X}00..."
+    return Command(" W", ctl_id, "1030", payload)
+
+    # TODO: remove me
+    KEYS = (
+        "max_flow_setpoint", "min_flow_setpoint", "valve_run_time", "pump_run_time"
+    )
+    cmd = set_zone_config(
+        msg.src.id, **{k: v for k, v in msg.payload.items() if k in KEYS}
+    )
+    assert cmd.payload == payload
+
+
+def set_dhw_params(
+    ctl_id,
+    setpoint=50,  # TODO: check
+    overrun=5,  # TODO: check
+    differential=1.0,  # TODO: check
+) -> Command:  # 10A0
+    """Set/reset the parameters of the DHW (reverse of parser_10a0)."""
+    payload = ""
+    return Command(" W", ctl_id, "1030", payload)
+
+    # TODO: remove me
+    kwargs = {
+        k: v
+        for k, v in msg.payload.items()
+        if k in ("setpoint", "overrun", "differential")
+    }
+    cmd = set_zone_config(msg.src.id, **kwargs)
+    assert cmd.payload == payload
+
+
+def set_tpi_params(
+    ctl_id,
+    cycle_rate=3,  # TODO: check
+    min_on_time=5,  # TODO: check
+    min_off_time=5,  # TODO: check
+    proportional_band_width=None,  # TODO: check
+) -> Command:  # 1100
+    """Set/reset the TPI parameters of a system (reverse of parser_1100)."""
+    payload = ""
+    return Command(" W", ctl_id, "1100", payload)
+
+
+def set_dhw_mode(
+    ctl_id,
+    active=3,  # TODO: check
+    mode=5,  # TODO: check
+    until=None,  # TODO: check
+) -> Command:  # 1F41
+    """Set/reset the mode of the DHW (reverse of parser_1f41)."""
+    payload = ""
+    return Command(" W", ctl_id, "1F41", payload)
+
+
+def set_zone_setpoint(
+    ctl_id,
+    zone_idx,
+    mode=None,
+    setpoint=None,
+    until=None,
+) -> Command:  # 2309
+    """Set the setpoint of a zone (reverse of parser_2309)."""
+    payload = f"{zone_idx:02X}00..."
+    return Command(" W", ctl_id, "2309", payload)
+
+
+def set_zone_mode(
+    ctl_id,
+    zone_idx,
+    mode=None,
+    setpoint=None,
+    until=None,
+) -> Command:  # 2349
+    """Set/reset the mode of a zone (reverse of parser_2349)."""
+    payload = f"{zone_idx:02X}00..."
+    return Command(" W", ctl_id, "2309", payload)
+
+
+def set_system_mode(
+    ctl_id,
+    system_mode=None,
+    until=None,
+) -> Command:  # 2E04
+    """Set/reset the mode of a system (reverse of parser_2e04)."""
+    payload = ""
+    return Command(" W", ctl_id, "2E04", payload)
+
+
+def set_system_time(
+    ctl_id,
+    datetime,
+) -> Command:  # 313F
+    """Set the datetime of a system."""
+    payload = ""
+    return Command(" W", ctl_id, "313F", payload)
