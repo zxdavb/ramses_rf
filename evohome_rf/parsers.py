@@ -1478,6 +1478,15 @@ def parser_313f(payload, msg) -> Optional[dict]:
 
     assert msg.len == 9
     assert payload[:2] == "00"  # evohome is always "00FC"? OTB is always 00xx
+    if msg.src.type == "01":
+        assert payload[2:4] in ("F0", "FC"), payload[2:4]
+    elif msg.src.type in ("12", "22"):
+        assert payload[2:4] == "38", payload[2:4]
+    elif msg.src.type == "30":
+        assert payload[2:4] == "60", payload[2:4]
+    else:
+        assert False, payload[2:4]
+
     result = {
         "datetime": _dtm(payload[4:18]),
         "is_dst": True if bool(int(payload[4:6], 16) & 0x80) else None,
