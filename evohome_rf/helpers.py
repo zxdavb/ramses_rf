@@ -135,16 +135,19 @@ def dtm_from_hex(value: str) -> str:  # from parsers
 
 
 def temp_to_hex(value: int) -> str:
-    """Convert an int to hex."""
+    """Convert an int to a 2-byte hex string."""
     if value is None:
         return "7FFF"  # or: "31FF"?
+    if value is False:
+        return "7EFF"
     temp = int(value * 100)
-    if temp > 0:
-        return f"{temp:04X}"  # TODO: two's complement
+    if temp < 0:
+        temp += 2 ** 16
+    return f"{temp:04X}"
 
 
 def str_to_hex(value: str) -> str:
-    """Convert a string to ASCII hex."""
+    """Convert a string to a variable-length ASCII hex string."""
     return "".join([f"{ord(x):02X}" for x in value])
 
 

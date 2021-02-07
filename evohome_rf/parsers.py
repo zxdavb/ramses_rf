@@ -8,6 +8,7 @@ import logging
 import re
 from typing import Optional, Union
 
+from .command import Command
 from .const import (
     ATTR_DHW_VALVE_HTG,
     ATTR_DHW_VALVE,
@@ -46,6 +47,7 @@ from .ramses import RAMSES_CODES, RAMSES_DEVICES, RQ, RQ_MAY_HAVE_PAYLOAD
 from .schema import MAX_ZONES
 
 DEV_MODE = _dev_mode_
+TEST_MODE = True
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -116,9 +118,7 @@ def _idx(seqx, msg) -> dict:
                 "domain_id": "FC",
             }
 
-        assert (
-            int(seqx, 16) < msg._gwy.config[MAX_ZONES]
-        ), f"unknown zone_idx: '{seqx}'"
+        assert int(seqx, 16) < msg._gwy.config[MAX_ZONES], f"unknown zone_idx: '{seqx}'"
         return {
             "zone_idx": seqx,
         }
@@ -167,9 +167,7 @@ def _idx(seqx, msg) -> dict:
     elif msg.code == "0016":  # WIP, not normally {"uses_zone_idx": True}
         # if {"12", "22"} & {msg.src.type, msg.dst.type}:
         assert int(seqx, 16) < msg._gwy.config[MAX_ZONES]
-        idx_name = (
-            "zone_idx" if msg.src.type in ("01", "02", "18") else "parent_idx"
-        )
+        idx_name = "zone_idx" if msg.src.type in ("01", "02", "18") else "parent_idx"
         return {
             idx_name: seqx,
         }
@@ -430,10 +428,18 @@ def parser_0004(payload, msg) -> Optional[dict]:
     if payload[4:] == "7F" * 20:
         return {**_idx(payload[:2], msg)}
 
-    return {
+    result = {
         **_idx(payload[:2], msg),
         "name": _str(payload[4:]),
     }
+
+    # TODO: remove me...
+    if TEST_MODE and msg.verb == " W":
+        cmd = Command.zone_name(msg.src.id, payload[:2], result["name"])
+        assert cmd.payload == payload, _str(payload)
+    # TODO: remove me...
+
+    return result
 
 
 @parser_decorator  # system_zone (add/del a zone?)
@@ -593,7 +599,24 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:
         return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
 
     assert msg.len == 6, "expecting length 6"
-    return _parser(payload)
+    result = _parser(payload)
+
+    # TODO: remove me...
+    if TEST_MODE and msg.verb == " W":
+        KEYS = (
+            "min_temp",
+            "max_temp",
+            "local_override",
+            "openwindow_function",
+            "multiroom_mode",
+        )
+        cmd = Command.zone_config(
+            msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
+        )
+        assert cmd.payload == payload, cmd.payload
+    # TODO: remove me...
+
+    return result
 
 
 @parser_decorator  # zone_devices
@@ -860,10 +883,26 @@ def parser_1030(payload, msg) -> Optional[dict]:
     assert payload[30:] in ("00", "01"), payload[30:]
 
     params = [_parser(payload[i : i + 6]) for i in range(2, len(payload), 6)]
-    return {
+    result = {
         **_idx(payload[:2], msg),
         **{k: v for x in params for k, v in x.items()},
     }
+
+    # TODO: remove me...
+    if TEST_MODE and msg.verb == " W":
+        KEYS = (
+            "max_flow_setpoint",
+            "min_flow_setpoint",
+            "valve_run_time",
+            "pump_run_time",
+        )
+        cmd = Command.mix_valve_params(
+            msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
+        )
+        assert cmd.payload == payload, cmd.payload
+    # TODO: remove me...
+
+    return result
 
 
 @parser_decorator  # device_battery (battery_state)
@@ -935,6 +974,15 @@ def parser_10a0(payload, msg) -> Optional[dict]:
     if msg.len >= 6:
         result["differential"] = _temp(payload[8:12])  # 1.0-10.0 C
 
+    # TODO: remove me...
+    if TEST_MODE and msg.verb == " W":
+        KEYS = ("setpoint", "overrun", "differential")
+        cmd = Command.dhw_params(
+            msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
+        )
+        assert cmd.payload == payload, cmd.payload
+    # TODO: remove me...
+
     return result
 
 
@@ -986,21 +1034,33 @@ def parser_1100(payload, msg) -> Optional[dict]:
     def _parser(seqx) -> dict:
         return {
             **_idx(seqx[:2], msg),
-            "cycle_rate": int(payload[2:4], 16) / 4,  # cycles/hour
+            "cycle_rate": int(int(payload[2:4], 16) / 4),  # cycles/hour
             "min_on_time": int(payload[4:6], 16) / 4,  # min
             "min_off_time": int(payload[6:8], 16) / 4,  # min
             "_unknown_0": payload[8:10],  # always 00, FF?
         }
 
-    if msg.len == 5:
-        return _parser(payload)
+    result = _parser(payload)
 
-    assert payload[14:] == "01", payload[14:]
-    return {
-        **_parser(payload[:10]),
-        "proportional_band_width": _temp(payload[10:14]),  # 1.5 (1.5-3.0) C
-        "_unknown_1": payload[14:],  # always 01?
-    }
+    if msg.len > 5:
+        assert payload[14:] == "01", payload[14:]
+        result.update(
+            {
+                "proportional_band_width": _temp(payload[10:14]),  # 1.5 (1.5-3.0) C
+                "_unknown_1": payload[14:],  # always 01?
+            }
+        )
+
+    # TODO: remove me...
+    if TEST_MODE and msg.verb == " W":
+        KEYS = ("cycle_rate", "min_on_time", "min_off_time", "proportional_band_width")
+        cmd = Command.tpi_params(
+            msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
+        )
+        assert cmd.payload == payload, cmd.payload
+    # TODO: remove me...
+
+    return result
 
 
 @parser_decorator  # dhw_temp
@@ -1079,15 +1139,27 @@ def parser_1f41(payload, msg) -> Optional[dict]:
     # 053 RP --- 01:145038 18:013393 --:------ 1F41 006 00FF00FFFFFF  # no stored DHW
     assert payload[2:4] in ("00", "01", "FF"), payload[2:4]
     assert payload[4:6] in ZONE_MODE_MAP, payload[4:6]
+    assert payload[6:12] == "FFFFFF", payload[6:12]
     if payload[4:6] == "04":
         assert msg.len == 12, msg.len
-        assert payload[6:12] == "FFFFFF", payload[6:12]
 
-    return {
+    result = {
         "active": {"00": False, "01": True, "FF": None}[payload[2:4]],
-        "dhw_mode": ZONE_MODE_MAP.get(payload[4:6]),
-        "until": _dtm(payload[12:24]) if payload[4:6] == "04" else None,
+        "mode": ZONE_MODE_MAP.get(payload[4:6]),
     }
+    if payload[4:6] == "04":  # temporary_override
+        result["until"] = _dtm(payload[12:24])
+
+    # TODO: remove me...
+    if TEST_MODE and msg.verb == " W":
+        KEYS = ("active", "mode", "until")
+        cmd = Command.dhw_mode(
+            msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
+        )
+        assert cmd.payload == payload, cmd.payload
+    # TODO: remove me...
+
+    return result
 
 
 @parser_decorator  # rf_bind
@@ -1264,7 +1336,15 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:
         return [_parser(payload[i : i + 6]) for i in range(0, len(payload), 6)]
 
     assert msg.len == 3, "expecting length 3"
-    return _parser(payload)
+    result = _parser(payload)
+
+    # TODO: remove me...
+    if TEST_MODE and msg.verb == " W":
+        cmd = Command.zone_setpoint(msg.src.id, payload[:2], result["setpoint"])
+        assert cmd.payload == payload, cmd.payload
+    # TODO: remove me...
+
+    return result
 
 
 @parser_decorator  # zone_mode
@@ -1280,7 +1360,10 @@ def parser_2349(payload, msg) -> Optional[dict]:
     assert msg.len in (4, 7, 13), msg.len  # has a dtm if mode == "04", OTB has 4
 
     assert payload[6:8] in ZONE_MODE_MAP, f"unknown zone_mode: {payload[6:8]}"
-    result = {"mode": ZONE_MODE_MAP.get(payload[6:8]), "setpoint": _temp(payload[2:6])}
+    result = {
+        "mode": ZONE_MODE_MAP.get(payload[6:8]),
+        "setpoint": _temp(payload[2:6]),
+    }
 
     if msg.len >= 7:
         assert payload[8:14] == "FFFFFF", payload[8:14]
@@ -1291,6 +1374,15 @@ def parser_2349(payload, msg) -> Optional[dict]:
             result["until"] = None
         else:
             result["until"] = _dtm(payload[14:26])
+
+    # TODO: remove me...
+    if TEST_MODE and msg.verb == " W":
+        KEYS = ("setpoint", "mode", "until")
+        cmd = Command.zone_mode(
+            msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
+        )
+        assert cmd.payload == payload, cmd.payload
+    # TODO: remove me...
 
     return {
         **_idx(payload[:2], msg),
@@ -1332,10 +1424,23 @@ def parser_2e04(payload, msg) -> Optional[dict]:
     else:
         assert False, msg.len  # msg.len in (8, 16)  # evohome 8, hometronics 16
 
-    return {
-        "system_mode": SYSTEM_MODE_MAP.get(payload[:2], payload[:2]),
+    result = {
+        "mode": SYSTEM_MODE_MAP.get(payload[:2], payload[:2]),
         "until": _dtm(payload[2:14]) if payload[14:16] != "00" else None,
     }  # TODO: double-check the final "00"
+
+    # TODO: remove me...
+    if TEST_MODE and msg.verb == " W":
+        KEYS = ("mode", "until")
+        cmd = Command.system_mode(
+            msg.src.id, **{k: v for k, v in result.items() if k in KEYS}
+        )
+        assert cmd.payload == payload, cmd.payload
+    # TODO: remove me...
+
+    assert False
+
+    return result
 
 
 @parser_decorator  # temperature (of device, zone/s)
@@ -1361,7 +1466,7 @@ def parser_3120(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # datetime_sync
+@parser_decorator  # datetime
 def parser_313f(payload, msg) -> Optional[dict]:
     # 2020-03-28T03:59:21.315178 045 RP --- 01:158182 04:136513 --:------ 313F 009 00FC3500A41C0307E4  # noqa: E501
     # 2020-03-29T04:58:30.486343 045 RP --- 01:158182 04:136485 --:------ 313F 009 00FC8400C51D0307E4  # noqa: E501
@@ -1375,11 +1480,19 @@ def parser_313f(payload, msg) -> Optional[dict]:
 
     assert msg.len == 9
     assert payload[:2] == "00"  # evohome is always "00FC"? OTB is always 00xx
-    return {
+    result = {
         "datetime": _dtm(payload[4:18]),
         "is_dst": True if bool(int(payload[4:6], 16) & 0x80) else None,
         "_unknown_0": payload[2:4],
     }
+
+    # TODO: remove me...
+    if TEST_MODE and msg.verb == " W":
+        cmd = Command.system_time(msg.src.id, result["datetime"])
+        assert cmd.payload == payload, cmd.payload
+    # TODO: remove me...
+
+    return result
 
 
 @parser_decorator  # heat_demand (of device, FC domain)

@@ -7,7 +7,7 @@ from abc import ABCMeta, abstractmethod
 import logging
 from typing import Optional
 
-from .command import Schedule
+from .command import Command, Schedule
 from .const import (
     ATTR_DEVICES,
     ATTR_DHW_SENSOR,
@@ -19,7 +19,6 @@ from .const import (
     ATTR_OPEN_WINDOW,
     ATTR_ZONE_SENSOR,
     ATTR_ZONE_TYPE,
-    # CODE_000C_DEVICE_TYPE,
     DEVICE_HAS_ZONE_SENSOR,
     DHW_STATE_MAP,
     DISCOVER_SCHEMA,
@@ -29,8 +28,6 @@ from .const import (
     ZONE_CLASS_MAP,
     ZONE_TYPE_MAP,
     ZONE_TYPE_SLUGS,
-    ZONE_MODE_LOOKUP,
-    ZONE_MODE_MAP,
     _dev_mode_,
 )
 from .devices import Device, Entity
@@ -43,22 +40,6 @@ DEV_MODE = _dev_mode_
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
-
-
-def _temp(value) -> str:
-    """Return a two's complement Temperature/Setpoint."""
-    if value is None:
-        return "7FFF"
-
-    try:
-        _value = float(value)
-    except (ValueError, TypeError):
-        raise ValueError(f"Invalid temperature: {value}")
-
-    if _value < 0:
-        raise ValueError(f"Invalid temperature: {value}")
-
-    return f"{int(_value*100):04X}"
 
 
 class ZoneBase(Entity, metaclass=ABCMeta):
@@ -369,8 +350,8 @@ class DhwZone(ZoneBase, HeatDemand):
         Use until = ? for until next scheduled on/off
         Use until = None for indefinitely
         """
-        # 053  I --- 01:145038 --:------ 01:145038 1F41 012 00 01 04 FFFFFF 1E061B0607E4
-        # 048  I --- 01:145038 --:------ 01:145038 1F41 012 00 00 04 FFFFFF 1E061B0607E4
+        # cmd = Command.dhw_mode(self._ctl.id, self.idx, mode, setpoint, until)
+        # self._gwy.send_data(cmd)
 
         # if mode is None and until is None:
         #     mode = "00" if setpoint is None else "02"  # Follow, Permanent
@@ -689,10 +670,10 @@ class Zone(ZoneSchedule, ZoneBase):
         """Return the name of the zone."""
         return self._msg_payload(self._name, "name")
 
-    # @name.setter
-    # def name(self, value) -> Optional[str]:
-    #     """Set the name of the zone."""
-    #     return
+    @name.setter
+    def name(self, value) -> Optional[str]:
+        """Set the name of the zone."""
+        self._gwy.send_data(Command.zone_name(self._ctl.id, self.idx, value))
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309 (2349 is a superset of 2309)
@@ -751,45 +732,10 @@ class Zone(ZoneSchedule, ZoneBase):
         self.set_override(mode="permanent_override", setpoint=5)  # TODO
 
     def set_override(self, mode=None, setpoint=None, until=None) -> None:
-        """Override the setpoint for a specified duration, or indefinitely.
+        """Override the setpoint for a specified duration, or indefinitely."""
 
-        The setpoint has a resolution of 0.1 C. If a setpoint temperature is required,
-        but none is provided, the controller will use the maximum possible value.
-
-        The until has a resolution of 1 min.
-
-        Incompatible combinations:
-          - mode == Follow & setpoint not None (will silently ignore setpoint)
-          - mode == Temporary & until is None (will silently ignore)
-        """
-
-        if mode is not None:
-            if isinstance(mode, int):
-                mode = f"{mode:02X}"
-            elif not isinstance(mode, str):
-                raise TypeError(f"Invalid zone mode: {mode}")
-            if mode in ZONE_MODE_MAP:
-                mode = ZONE_MODE_MAP["mode"]
-            elif mode not in ZONE_MODE_LOOKUP:
-                raise TypeError(f"Unknown zone mode: {mode}")
-        elif until is None:  # mode is None
-            mode = "advanced_override" if setpoint else "follow_schedule"
-        else:  # if until is not None:
-            mode = "temporary_override" if setpoint else "advanced_override"
-
-        setpoint = _temp(setpoint)  # None means max, if a temp is required
-
-        if until is None:
-            mode = "advanced_override" if mode == "temporary_override" else mode
-
-        mode = ZONE_MODE_LOOKUP[mode]
-
-        if until is None:
-            payload = f"{self.idx}{setpoint}{mode}FFFFFF"
-        else:  # required only by temporary_override, ignored by others
-            payload = f"{self.idx}{setpoint}{mode}FFFFFF{dtm_to_hex(until)}"
-
-        self._send_cmd("2349", verb=" W", payload=payload)
+        cmd = Command.zone_mode(self._ctl.id, self.idx, mode, setpoint, until)
+        self._gwy.send_data(cmd)
 
     @property  # id, type
     def schema(self) -> dict:
