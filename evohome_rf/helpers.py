@@ -139,11 +139,11 @@ def temp_to_hex(value: int) -> str:
     if value is None:
         return "7FFF"  # or: "31FF"?
     if value is False:
-        return "7EFF"  # or: "31FF"?
+        return "7EFF"
     temp = int(value * 100)
-    if temp >= 0:
-        return f"{temp:04X}"
-    return f"{temp + 2 ** 16:04X}"  # TODO: two's complement
+    if temp < 0:
+        temp += 2 ** 16
+    return f"{temp:04X}"
 
 
 def str_to_hex(value: str) -> str:
