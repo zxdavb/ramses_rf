@@ -22,7 +22,7 @@ from serial import serial_for_url  # Serial, SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerialTransportAsync
 
 from .command import Command, Priority
-from .const import DTM_LONG_REGEX, HGI_DEVICE, NUL_DEVICE, _dev_mode_
+from .const import DTM_LONG_REGEX, HGI_DEVICE, _dev_mode_
 from .helpers import dt_str
 from .packet import _PKT_LOGGER, Packet
 from .protocol import create_protocol_factory
@@ -52,8 +52,8 @@ Pause = SimpleNamespace(
 )
 
 INIT_QOS = {"priority": Priority.HIGHEST, "retries": 24, "disable_backoff": True}
-INIT_CMD = Command(" I", NUL_DEVICE.id, "0001", "00FFFF0200", qos=INIT_QOS)
-# INIT_CMD = Command(" I", HGI_DEVICE.id, "0001", "00FFFF0200", qos=INIT_QOS)
+INIT_CMD = Command._puzzle(message=f"evohome_rf v{__version__}", qos=INIT_QOS)
+# INIT_CMD = Command(" I", NUL_DEVICE.id, "0001", "00FFFF0200", qos=INIT_QOS)
 
 # tx (from sent to gwy, to get back from gwy) seems to takes approx. 0.025s
 QOS_TX_TIMEOUT = td(seconds=0.05)  # 0.20 OK, but too high?

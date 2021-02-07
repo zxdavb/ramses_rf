@@ -1810,18 +1810,15 @@ def parser_3ef1(payload, msg) -> dict:
     }
 
 
-# def create_7fff(counter, length=48) -> Command:
-#     payload = f"7F{dts_to_hex(dt.now())}7F{counter % 0x10000:04X}7F{interval:04X}7F"
-#     payload = payload.ljust(length * 2, "F")
-#     return Command(" I", NUL_DEV_ID, "7FFF", payload, qos={"retries": 0})
-
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated
 def parser_7fff(payload, msg) -> Optional[dict]:
-    return {
-        "counter": int(payload[16:20], 16),
-        "datetime": dts_from_hex(payload[2:14]),
-        "interval": int(payload[22:26], 16) / 100,
-    }
+    result = {"datetime": dts_from_hex(payload[2:14])}
+    if payload[:2] == "00":
+        result["message"] = _str(payload[16:])
+    elif payload[:2] == "7F":
+        result["counter"] = int(payload[16:20], 16)
+        result["interval"] = int(payload[22:26], 16) / 100
+    return result
 
 
 @parser_decorator

@@ -23,12 +23,15 @@ from .const import (
     COMMAND_FORMAT,
     COMMAND_REGEX,
     HGI_DEVICE,
+    NUL_DEVICE,
     SYSTEM_MODE_LOOKUP,
     ZONE_MODE_LOOKUP,
     ZONE_MODE_MAP,
 )
 from .exceptions import ExpiredCallbackError
-from .helpers import dt_now, dtm_to_hex, extract_addrs, str_to_hex, temp_to_hex
+from .helpers import (
+    dt_now, dtm_to_hex, dts_to_hex, extract_addrs, str_to_hex, temp_to_hex
+)
 
 DAY_OF_WEEK = "day_of_week"
 HEAT_SETPOINT = "heat_setpoint"
@@ -217,6 +220,7 @@ class Command:
         setpoint: float = 50,
         overrun: int = 5,
         differential: float = 1.0,
+        **kwargs,
     ):
         """Constructor to set the params of the DHW (c.f. parser_10a0)."""
 
@@ -230,10 +234,10 @@ class Command:
         payload += f"{overrun:02X}"
         payload += temp_to_hex(differential)
 
-        return cls(" W", ctl_id, "10A0", payload)
+        return cls(" W", ctl_id, "10A0", payload, **kwargs)
 
     @classmethod  # constructor for 1F41  # TODO
-    def dhw_mode(cls, ctl_id, domain_id, active: bool, mode, until=None):
+    def dhw_mode(cls, ctl_id, domain_id, active: bool, mode, until=None, **kwargs):
         """Constructor to set/reset the mode of the DHW (c.f. parser_1f41)."""
 
         payload = f"{domain_id:02X}" if isinstance(domain_id, int) else domain_id
@@ -246,7 +250,7 @@ class Command:
         if ZONE_MODE_LOOKUP[mode] == "04":
             payload += dtm_to_hex(until)
 
-        return cls(" W", ctl_id, "1F41", payload)
+        return cls(" W", ctl_id, "1F41", payload, **kwargs)
 
     @classmethod  # constructor for 1030  # TODO
     def mix_valve_params(
@@ -257,6 +261,7 @@ class Command:
         min_flow_setpoint=15,
         valve_run_time=150,
         pump_run_time=15,
+        **kwargs,
     ):
         """Constructor to set the mix valve params of a zone (c.f. parser_1030)."""
 
@@ -273,10 +278,10 @@ class Command:
         payload += f"CB01{pump_run_time:02X}"
         payload += f"CC01{1:02X}"
 
-        return cls(" W", ctl_id, "1030", payload)
+        return cls(" W", ctl_id, "1030", payload, **kwargs)
 
     @classmethod  # constructor for 2E04  # TODO
-    def system_mode(cls, ctl_id, mode=None, until=None):
+    def system_mode(cls, ctl_id, mode=None, until=None, **kwargs):
         """Constructor to set/reset the mode of a system (c.f. parser_2e04)."""
 
         payload = ""
@@ -287,10 +292,10 @@ class Command:
         if SYSTEM_MODE_LOOKUP[mode] == "04":
             payload += dtm_to_hex(until)
 
-        return cls(" W", ctl_id, "2E04", payload)
+        return cls(" W", ctl_id, "2E04", payload, **kwargs)
 
     @classmethod  # constructor for 313F
-    def system_time(cls, ctl_id, datetime):
+    def system_time(cls, ctl_id, datetime, **kwargs):
         """Constructor to set the datetime of a system (c.f. parser_313f)."""
         #  W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
 
@@ -305,6 +310,7 @@ class Command:
         min_on_time=5,  # TODO: check
         min_off_time=5,  # TODO: check
         proportional_band_width=None,  # TODO: check
+        **kwargs,
     ):
         """Constructor to set the TPI params of a system (c.f. parser_1100)."""
 
@@ -322,7 +328,7 @@ class Command:
         payload += f"{int(min_off_time * 4):02X}FF"
         payload += f"{temp_to_hex(proportional_band_width)}01"
 
-        return cls(" W", ctl_id, "1100", payload)
+        return cls(" W", ctl_id, "1100", payload, **kwargs)
 
     @classmethod  # constructor for 000A  # TODO
     def zone_config(
@@ -334,6 +340,7 @@ class Command:
         local_override: bool = False,
         openwindow_function: bool = False,
         multiroom_mode: bool = False,
+        **kwargs,
     ):
         """Constructor to set the config of a zone (c.f. parser_000a)."""
 
@@ -353,10 +360,12 @@ class Command:
         payload += temp_to_hex(min_temp)
         payload += temp_to_hex(max_temp)
 
-        return cls(" W", ctl_id, "000A", payload)
+        return cls(" W", ctl_id, "000A", payload, **kwargs)
 
     @classmethod  # constructor for 2349
-    def zone_mode(cls, ctl_id, zone_idx, mode=None, setpoint=None, until=None):
+    def zone_mode(
+        cls, ctl_id, zone_idx, mode=None, setpoint=None, until=None, **kwargs
+    ):
         """Constructor to set/reset the mode of a zone (c.f. parser_2349).
 
         The setpoint has a resolution of 0.1 C. If a setpoint temperature is required,
@@ -396,27 +405,43 @@ class Command:
         payload += ZONE_MODE_LOOKUP[mode] + "FFFFFF"
         payload += "" if until is None else dtm_to_hex(until)
 
-        return cls(" W", ctl_id, "2349", payload)
+        return cls(" W", ctl_id, "2349", payload, **kwargs)
 
     @classmethod  # constructor for 0004  # TODO
-    def zone_name(cls, ctl_id, zone_idx, name: str):
+    def zone_name(cls, ctl_id, zone_idx, name: str, **kwargs):
         """Constructor to set the name of a zone (c.f. parser_0004)."""
 
         payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
 
         payload += f"00{str_to_hex(name)[:24]:0<40}"  # TODO: check limit 12 (24)?
 
-        return cls(" W", ctl_id, "0004", payload)
+        return cls(" W", ctl_id, "0004", payload, **kwargs)
 
     @classmethod  # constructor for 2309
-    def zone_setpoint(cls, ctl_id, zone_idx, setpoint: float):
+    def zone_setpoint(cls, ctl_id, zone_idx, setpoint: float, **kwargs):
         """Constructor to set the setpoint of a zone (c.f. parser_2309)."""
         #  W --- 34:092243 01:145038 --:------ 2309 003 0107D0
 
         payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
         payload += temp_to_hex(setpoint)
 
-        return cls(" W", ctl_id, "2309", payload)
+        return cls(" W", ctl_id, "2309", payload, **kwargs)
+
+    @classmethod
+    def _puzzle(cls, message=None, ordinal=0, interval=0, length=None, **kwargs):
+
+        if message:
+            payload = f"00{dts_to_hex(dt.now())}7F"
+            payload += f"{str_to_hex(message)}7F"
+        else:
+            payload = f"7F{dts_to_hex(dt.now())}7F"
+            payload += f"{ordinal % 0x10000:04X}7F"
+            payload += f"{int(interval * 100):04X}7F"
+
+        if length:
+            payload = payload.ljust(length * 2, "F")
+
+        return cls(" I", NUL_DEVICE.id, "7FFF", payload, **kwargs)
 
 
 class FaultLog:  # 0418
