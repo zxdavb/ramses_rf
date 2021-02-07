@@ -1436,7 +1436,6 @@ def parser_2e04(payload, msg) -> Optional[dict]:
             msg.src.id, **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
-        print(payload, cmd.payload)
     # TODO: remove me...
 
     assert False
