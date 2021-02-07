@@ -426,38 +426,44 @@ def process_msg(msg: Message) -> None:
                     if flag == 1
                 ]
 
-        if this.code == "000C" and this.payload["devices"] and this.src.type == "01":
-            devices = [this.src.device_by_id[d] for d in this.payload["devices"]]
+        if this.code == "000C" and this.src.type == "01":
+            if this.payload["devices"]:
+                devices = [this.src.device_by_id[d] for d in this.payload["devices"]]
 
-            if this.payload["device_class"] == ATTR_ZONE_SENSOR:
-                zone = evo._get_zone(this.payload["zone_idx"])
-                try:
-                    zone._set_sensor(devices[0])
-                except TypeError:  # ignore invalid device types, e.g. 17:
-                    pass
+                if this.payload["device_class"] == ATTR_ZONE_SENSOR:
+                    zone = evo._get_zone(this.payload["zone_idx"])
+                    try:
+                        zone._set_sensor(devices[0])
+                    except TypeError:  # ignore invalid device types, e.g. 17:
+                        pass
 
-            elif this.payload["device_class"] == "zone_actuators":
-                # TODO: is this better, or...
-                # evo._get_zone(this.payload["zone_idx"], actuators=devices)
-                # TODO: is it this one?
-                zone = evo._get_zone(this.payload["zone_idx"])
-                for d in devices:
-                    d._set_zone(zone)
+                elif this.payload["device_class"] == "zone_actuators":
+                    # TODO: is this better, or...
+                    # evo._get_zone(this.payload["zone_idx"], actuators=devices)
+                    # TODO: is it this one?
+                    zone = evo._get_zone(this.payload["zone_idx"])
+                    for d in devices:
+                        d._set_zone(zone)
+
+                elif this.payload["device_class"] == ATTR_HTG_CONTROL:
+                    evo._set_htg_control(devices[0])
+
+                elif this.payload["device_class"] == ATTR_DHW_SENSOR:
+                    # evo._get_zone("HW")._set_sensor(devices[0])
+                    evo._get_zone("HW")._set_sensor(devices[0])
+
+                elif this.payload["device_class"] == ATTR_DHW_VALVE:
+                    # evo._get_zone("HW")._set_dhw_valve(devices[0])
+                    evo._set_dhw_valve(devices[0])
+
+                elif this.payload["device_class"] == ATTR_DHW_VALVE_HTG:
+                    # evo._get_zone("HW")._set_htg_valve(devices[0])
+                    evo._set_htg_valve(devices[0])
 
             elif this.payload["device_class"] == ATTR_HTG_CONTROL:
-                evo._set_htg_control(devices[0])
-
-            elif this.payload["device_class"] == ATTR_DHW_SENSOR:
-                # evo._get_zone("HW")._set_sensor(devices[0])
-                evo._get_zone("HW")._set_sensor(devices[0])
-
-            elif this.payload["device_class"] == ATTR_DHW_VALVE:
-                # evo._get_zone("HW")._set_dhw_valve(devices[0])
-                evo._set_dhw_valve(devices[0])
-
-            elif this.payload["device_class"] == ATTR_DHW_VALVE_HTG:
-                # evo._get_zone("HW")._set_htg_valve(devices[0])
-                evo._set_htg_valve(devices[0])
+                # TODO: maybe the htg controller is an OTB? via eavesdropping
+                # evo._set_htg_control(devices[0])
+                pass
 
         # # Eavesdropping (below) is used when discovery (above) is not an option
         # # TODO: needs work, e.g. RP/1F41 (excl. null_rp)

@@ -526,6 +526,9 @@ class MultiZone:  # 0005 (+/- 000C?)
             pass
             # if isinstance(msg.payload, list):
 
+        # elif msg.code == "000C":
+        #     self._msgs[f"{msg.code}"] = msg
+
         # elif msg.code == "0005" and prev_msg is not None:
         #     zone_added = bool(prev_msg.code == "0004")  # else zone_deleted
 
