@@ -1487,6 +1487,7 @@ def parser_313f(payload, msg) -> Optional[dict]:
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
         cmd = Command.system_time(msg.src.id, result["datetime"])
+        payload = payload[:4] + "00" + payload[6:]  # 00, 01, 02, 03?
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
 
