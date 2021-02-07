@@ -1438,8 +1438,6 @@ def parser_2e04(payload, msg) -> Optional[dict]:
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
 
-    assert False
-
     return result
 
 
