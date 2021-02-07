@@ -185,7 +185,7 @@ RAMSES_CODES = {
         RQ_MAY_HAVE_PAYLOAD: True,
         # RQ --- 12:010740 01:145038 --:------ 2309 003 03073A
     },
-    "2349": {
+    "2349": {  # zone_mode
         NAME: "zone_mode",
         RQ: r"^0[0-9A-F]$",
     },
@@ -552,9 +552,6 @@ RAMSES_DEVICES = {
         },
         "22D9": {
             RP: {},
-        },
-        "2349": {
-            I_: {},
         },
         "3150": {
             I_: {},
