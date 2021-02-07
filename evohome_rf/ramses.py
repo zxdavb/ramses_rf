@@ -29,7 +29,7 @@ RAMSES_CODES = {
         NAME: "zone_name",
         RQ: r"^0[0-9A-F]00$",  # f"{zone_idx}00"
     },
-    "0005": {
+    "0005": {  # system_zones
         NAME: "system_zones",
         RQ: r"^00[01][0-9A-F]$",  # f"00{zone_type}"
         RQ_MAY_HAVE_PAYLOAD: True,
@@ -55,7 +55,7 @@ RAMSES_CODES = {
         # 19:20:49.460 062 RQ --- 12:010740 01:145038 --:------ 000A 006 080001F40DAC
         # 19:20:49.476 045 RP --- 01:145038 12:010740 --:------ 000A 006 081001F40DAC
     },
-    "000C": {
+    "000C": {  # zone_devices
         NAME: "zone_devices",
         RQ: r"^0[0-9A-F][01][0-9A-F]$",  # TODO: f"{zone_idx}{device_type}"
         RQ_MAY_HAVE_PAYLOAD: True,
@@ -173,7 +173,7 @@ RAMSES_CODES = {
         NAME: "boiler_setpoint",
         RQ: r"^00$",
     },
-    "22F1": {
+    "22F1": {  # TODO - change name - Sent by an UFC
         NAME: "switch_vent",
     },
     "22F3": {
@@ -415,6 +415,9 @@ RAMSES_DEVICES = {
         "22D0": {
             I_: {},
             RP: {},
+        },
+        "22F1": {
+            I_: {},
         },
         "2309": {
             RP: {},
