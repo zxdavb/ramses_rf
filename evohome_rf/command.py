@@ -209,7 +209,7 @@ class Command:
             other._priority_dtm,
         )
 
-    @classmethod  # constructor
+    @classmethod  # constructor for 10A0  # TODO
     def dhw_params(
         cls,
         ctl_id,
@@ -217,8 +217,8 @@ class Command:
         setpoint: float = 50,
         overrun: int = 5,
         differential: float = 1.0,
-    ):  # TOOD: 10A0
-        """Set/reset the parameters of the DHW (reverse of parser_10a0)."""
+    ):
+        """Constructor to set the params of the DHW (c.f. parser_10a0)."""
 
         payload = f"{domain_id:02X}" if isinstance(domain_id, int) else domain_id
 
@@ -232,9 +232,9 @@ class Command:
 
         return cls(" W", ctl_id, "10A0", payload)
 
-    @classmethod  # constructor
-    def dhw_mode(cls, ctl_id, domain_id, active: bool, mode, until=None):  # TODO: 1F41
-        """Set/reset the mode of the DHW (reverse of parser_1f41)."""
+    @classmethod  # constructor for 1F41  # TODO
+    def dhw_mode(cls, ctl_id, domain_id, active: bool, mode, until=None):
+        """Constructor to set/reset the mode of the DHW (c.f. parser_1f41)."""
 
         payload = f"{domain_id:02X}" if isinstance(domain_id, int) else domain_id
 
@@ -248,7 +248,7 @@ class Command:
 
         return cls(" W", ctl_id, "1F41", payload)
 
-    @classmethod  # constructor
+    @classmethod  # constructor for 1030  # TODO
     def mix_valve_params(
         cls,
         ctl_id,
@@ -257,8 +257,8 @@ class Command:
         min_flow_setpoint=15,
         valve_run_time=150,
         pump_run_time=15,
-    ):  # TODO: 1030
-        """Set/reset the mix valve parameters of a zone (reverse of parser_1030)."""
+    ):
+        """Constructor to set the mix valve params of a zone (c.f. parser_1030)."""
 
         payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
 
@@ -275,9 +275,9 @@ class Command:
 
         return cls(" W", ctl_id, "1030", payload)
 
-    @classmethod  # constructor
-    def system_mode(cls, ctl_id, mode=None, until=None):  # TODO: 2E04
-        """Set/reset the mode of a system (reverse of parser_2e04)."""
+    @classmethod  # constructor for 2E04  # TODO
+    def system_mode(cls, ctl_id, mode=None, until=None):
+        """Constructor to set/reset the mode of a system (c.f. parser_2e04)."""
 
         payload = ""
 
@@ -289,14 +289,14 @@ class Command:
 
         return cls(" W", ctl_id, "2E04", payload)
 
-    @classmethod  # constructor
-    def system_time(cls, ctl_id, datetime):  # 313F
-        """Set the datetime of a system."""
+    @classmethod  # constructor for 313F
+    def system_time(cls, ctl_id, datetime):
+        """Constructor to set the datetime of a system (c.f. parser_313f)."""
         #  W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
 
         return cls(" W", ctl_id, "313F", f"006000{dtm_to_hex(datetime)}")
 
-    @classmethod  # constructor
+    @classmethod  # constructor for 1100  # TODO
     def tpi_params(
         cls,
         ctl_id,
@@ -305,8 +305,8 @@ class Command:
         min_on_time=5,  # TODO: check
         min_off_time=5,  # TODO: check
         proportional_band_width=None,  # TODO: check
-    ):  # TODO: 1100
-        """Set/reset the TPI parameters of a system (reverse of parser_1100)."""
+    ):
+        """Constructor to set the TPI params of a system (c.f. parser_1100)."""
 
         payload = f"{domain_id:02X}" if isinstance(domain_id, int) else domain_id
 
@@ -324,7 +324,7 @@ class Command:
 
         return cls(" W", ctl_id, "1100", payload)
 
-    @classmethod  # constructor
+    @classmethod  # constructor for 000A  # TODO
     def zone_config(
         cls,
         ctl_id,
@@ -334,8 +334,8 @@ class Command:
         local_override: bool = False,
         openwindow_function: bool = False,
         multiroom_mode: bool = False,
-    ):  # TODO: 000A
-        """Set/reset the configuration of a zone (reverse of parser_000a)."""
+    ):
+        """Constructor to set the config of a zone (c.f. parser_000a)."""
 
         payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
 
@@ -355,9 +355,9 @@ class Command:
 
         return cls(" W", ctl_id, "000A", payload)
 
-    @classmethod  # constructor
-    def zone_mode(cls, ctl_id, zone_idx, mode=None, setpoint=None, until=None):  # 2349
-        """Set/reset the mode of a zone (reverse of parser_2349).
+    @classmethod  # constructor for 2349
+    def zone_mode(cls, ctl_id, zone_idx, mode=None, setpoint=None, until=None):
+        """Constructor to set/reset the mode of a zone (c.f. parser_2349).
 
         The setpoint has a resolution of 0.1 C. If a setpoint temperature is required,
         but none is provided, evohome will use the maximum possible value.
@@ -398,9 +398,9 @@ class Command:
 
         return cls(" W", ctl_id, "2349", payload)
 
-    @classmethod  # constructor
-    def zone_name(cls, ctl_id, zone_idx, name: str):  # TODO: 0004
-        """Set the name of a zone (reverse of parser_0004)."""
+    @classmethod  # constructor for 0004  # TODO
+    def zone_name(cls, ctl_id, zone_idx, name: str):
+        """Constructor to set the name of a zone (c.f. parser_0004)."""
 
         payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
 
@@ -408,9 +408,9 @@ class Command:
 
         return cls(" W", ctl_id, "0004", payload)
 
-    @classmethod  # constructor
-    def zone_setpoint(cls, ctl_id, zone_idx, setpoint: float):  # 2309
-        """Set the setpoint of a zone (reverse of parser_2309)."""
+    @classmethod  # constructor for 2309
+    def zone_setpoint(cls, ctl_id, zone_idx, setpoint: float):
+        """Constructor to set the setpoint of a zone (c.f. parser_2309)."""
         #  W --- 34:092243 01:145038 --:------ 2309 003 0107D0
 
         payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
