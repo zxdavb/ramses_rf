@@ -383,6 +383,9 @@ class MultiZone:  # 0005 (+/- 000C?)
                 for zone_type in ("00", "04", "0C", "0F", "10")
             ]
 
+        if discover_flag & DISCOVER_STATUS:
+            self._send_cmd("0006")
+
     def _handle_msg(self, msg, prev_msg=None):
         def OUT_find_zone_sensors() -> None:
             """Determine each zone's sensor by matching zone/sensor temperatures.

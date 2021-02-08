@@ -169,31 +169,7 @@ class ZoneBase(Entity, metaclass=ABCMeta):
     #     raise NotImplementedError
 
 
-class HeatDemand:  # 3150
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-
-        self._heat_demand = None
-
-    def _handle_msg(self, msg) -> bool:
-        super()._handle_msg(msg)
-
-        if msg.code == "3150" and msg.verb == " I":
-            self._heat_demand = msg
-
-    @property
-    def heat_demand(self) -> Optional[float]:  # 3150
-        return self._msg_payload(self._heat_demand, "heat_demand")
-
-    @property
-    def status(self) -> dict:
-        return {
-            **super().status,
-            "heat_demand": self.heat_demand,
-        }
-
-
-class DhwZone(ZoneBase, HeatDemand):
+class DhwZone(ZoneBase):
     """The DHW class."""
 
     def __init__(self, ctl, sensor=None, dhw_valve=None, htg_valve=None) -> None:
@@ -212,6 +188,8 @@ class DhwZone(ZoneBase, HeatDemand):
         self._relay_demand = None
         self._relay_failsafe = None
         self._temperature = None
+
+        self._heat_demand = None
 
         if sensor:
             self._set_sensor(sensor)
@@ -258,6 +236,9 @@ class DhwZone(ZoneBase, HeatDemand):
         elif msg.code == "1F41":
             self._setpoint_status = msg
 
+        elif msg.code == "3150" and msg.verb == " I":
+            self._heat_demand = msg
+
         # elif msg.code in ("1100", "3150", "3B00"):
         #     pass
 
@@ -301,6 +282,10 @@ class DhwZone(ZoneBase, HeatDemand):
         return self._msg_payload(self._dhw_params)
 
     @property
+    def heat_demand(self) -> Optional[float]:  # 3150
+        return self._msg_payload(self._heat_demand, "heat_demand")
+
+    @property
     def mode(self) -> Optional[dict]:  # 1F41
         return self._msg_payload(self._dhw_mode)
 
@@ -337,6 +322,7 @@ class DhwZone(ZoneBase, HeatDemand):
         return {
             "temperature": self._temperature,
             "dhw_mode": self._dhw_mode,
+            "heat_demand": self.heat_demand,
         }
 
     async def cancel_override(self) -> bool:  # 1F41
@@ -400,43 +386,7 @@ class DhwZone(ZoneBase, HeatDemand):
         raise NotImplementedError
 
 
-class ZoneSchedule:
-    """Evohome zones have a schedule."""
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._schedule = Schedule(self)
-
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-
-        if discover_flag & DISCOVER_STATUS:
-            # self._loop.create_task(self.get_schedule())  # 0404
-            pass
-
-    def _handle_msg(self, msg) -> bool:
-        super()._handle_msg(msg)
-
-        if msg.code == "0404" and msg.verb == "RP":
-            _LOGGER.debug("Zone(%s): Received RP/0404 (schedule) pkt", self)
-
-    async def get_schedule(self, force_refresh=None) -> Optional[dict]:
-        schedule = await self._schedule.get_schedule(force_refresh=force_refresh)
-        if schedule:
-            return schedule["schedule"]
-
-    async def set_schedule(self, schedule) -> None:
-        schedule = {"zone_idx": self.idx, "schedule": schedule}
-        await self._schedule.set_schedule(schedule)
-
-    @property
-    def status(self) -> dict:
-        return {
-            **super().status,
-            "schedule": self._schedule.schedule.get("schedule"),
-        }
-
-
-class Zone(ZoneSchedule, ZoneBase):
+class Zone(ZoneBase):
     """The Zone class."""
 
     def __init__(self, ctl, zone_idx, sensor=None, actuators=None) -> None:
@@ -470,7 +420,7 @@ class Zone(ZoneSchedule, ZoneBase):
         # these needed here, as we can't use __init__
         self._mix_config = None  # MIX
         self._ufh_setpoint = None  # UFH
-        self._window_open = None  # RAD
+        self._window_open = None  # RAD (or: ALL)
         self._actuator_state = None  # ELE, ZON
 
         self._schedule = Schedule(self)
@@ -479,10 +429,11 @@ class Zone(ZoneSchedule, ZoneBase):
             self._set_sensor(sensor)
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        super()._discover(discover_flag=discover_flag)
+        # super()._discover(discover_flag=discover_flag)
 
-        if DEV_MODE and self.idx == "99":  # dev/test code
-            self._loop.create_task(  # TODO: test/dev only
+        # HACK: dev/test code
+        if DEV_MODE and self.idx == "99":
+            self._loop.create_task(
                 self.async_cancel_override()
                 # self.async_set_override(
                 #     setpoint=15.9,
@@ -492,17 +443,22 @@ class Zone(ZoneSchedule, ZoneBase):
             )
 
         # TODO: add code to determine zone type if it doesn't have one, using 0005s
+        if discover_flag & DISCOVER_SCHEMA:
+            [  # 000C: find the sensor and the actuators, if any
+                self._send_cmd("000C", payload=f"{self.idx}{dev_type}")
+                for dev_type in ("00", "04")  # CODE_000C_ZONE_TYPE
+            ]
 
-        [  # 000C: find the sensor and the actuators, if any
-            self._send_cmd("000C", payload=f"{self.idx}{dev_type}")
-            for dev_type in ("00", "04")  # CODE_000C_ZONE_TYPE
-        ]  # TODO: use 08, not 00
+        if discover_flag & DISCOVER_PARAMS:
+            for code in ("0004", "000A"):
+                self._send_cmd(code)  # , payload=self.idx)
+
+        if discover_flag & DISCOVER_STATUS:
+            for code in ("12B0", "2349", "30C9"):  # sadly, no 3150
+                self._send_cmd(code)  # , payload=self.idx)
 
         # start collecting the schedule
         # self._schedule.req_schedule()  # , restart=True) start collecting schedule
-
-        for code in ("0004", "000A", "2349", "30C9"):  # sadly, no 3150
-            self._send_cmd(code)  # , payload=self.idx)
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -523,6 +479,9 @@ class Zone(ZoneSchedule, ZoneBase):
 
         elif msg.code == "000A":
             self._zone_config = msg
+
+        elif msg.code == "12B0":
+            self._window_open = msg
 
         elif msg.code == "2309" and msg.verb in (" I", "RP"):  # setpoint
             assert msg.src.type == "01", "coding error"
@@ -712,6 +671,10 @@ class Zone(ZoneSchedule, ZoneBase):
             return tmp[0]["temperature"]
 
     @property
+    def window_open(self) -> Optional[bool]:  # 12B0  # TODO: don't work >1 TRV?
+        return self._msg_payload(self._window_open, "window_open")
+
+    @property
     def zone_config(self) -> Optional[dict]:  # 000A
         if not self._zone_config or self._zone_config.is_expired:
             return
@@ -768,6 +731,44 @@ class Zone(ZoneSchedule, ZoneBase):
         return {
             ATTR_SETPOINT: self.setpoint,
             ATTR_TEMP: self.temperature,
+            ATTR_OPEN_WINDOW: self.window_open,
+        }
+
+
+class ZoneSchedule:  # 0404
+    """Evohome zones have a schedule."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self._schedule = Schedule(self)
+
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+
+        if discover_flag & DISCOVER_STATUS:
+            # self._loop.create_task(self.get_schedule())  # 0404
+            pass
+
+    def _handle_msg(self, msg) -> bool:
+        super()._handle_msg(msg)
+
+        if msg.code == "0404" and msg.verb == "RP":
+            _LOGGER.debug("Zone(%s): Received RP/0404 (schedule) pkt", self)
+
+    async def get_schedule(self, force_refresh=None) -> Optional[dict]:
+        schedule = await self._schedule.get_schedule(force_refresh=force_refresh)
+        if schedule:
+            return schedule["schedule"]
+
+    async def set_schedule(self, schedule) -> None:
+        schedule = {"zone_idx": self.idx, "schedule": schedule}
+        await self._schedule.set_schedule(schedule)
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            "schedule": self._schedule.schedule.get("schedule"),
         }
 
 
@@ -777,8 +778,8 @@ class ZoneDemand:  # not all zone types call for heat
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_STATUS:
-            self._send_cmd("12B0")  # , payload=self.idx
+        if discover_flag & DISCOVER_STATUS:  # controller will not respond to this
+            self._send_cmd("3150")  # , payload=self.idx
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
@@ -850,23 +851,6 @@ class RadZone(ZoneDemand, Zone):
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
         self._send_cmd("000C", payload=f"{self.idx}08")
-
-    def _handle_msg(self, msg) -> bool:
-        super()._handle_msg(msg)
-
-        if msg.code == "12B0":
-            self._window_open = msg
-
-    @property
-    def window_open(self) -> Optional[bool]:  # 12B0  # TODO: don't work >1 TRV
-        return self._msg_payload(self._window_open, "window_open")
-
-    @property
-    def status(self) -> dict:
-        return {
-            **super().status,
-            ATTR_OPEN_WINDOW: self.window_open,
-        }
 
 
 class UfhZone(ZoneDemand, Zone):
