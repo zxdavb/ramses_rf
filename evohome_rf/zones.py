@@ -64,6 +64,11 @@ class ZoneBase(Entity, metaclass=ABCMeta):
     def __str__(self) -> str:
         return f"{self.id} ({self._zone_type})"
 
+    def __lt__(self, other) -> bool:
+        if not hasattr(other, "idx"):
+            return NotImplemented
+        return self.idx < other.idx
+
     @abstractmethod
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         raise NotImplementedError
