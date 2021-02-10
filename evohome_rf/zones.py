@@ -386,7 +386,44 @@ class DhwZone(ZoneBase):
         raise NotImplementedError
 
 
-class Zone(ZoneBase):
+class ZoneSchedule:  # 0404
+    """Evohome zones have a schedule."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self._schedule = Schedule(self)
+
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+
+        if discover_flag & DISCOVER_STATUS:
+            self._loop.create_task(self.get_schedule())  # 0404
+            pass
+
+    def _handle_msg(self, msg) -> bool:
+        super()._handle_msg(msg)
+
+        if msg.code == "0404" and msg.verb == "RP":
+            _LOGGER.debug("Zone(%s): Received RP/0404 (schedule) pkt", self)
+
+    async def get_schedule(self, force_refresh=None) -> Optional[dict]:
+        schedule = await self._schedule.get_schedule(force_refresh=force_refresh)
+        if schedule:
+            return schedule["schedule"]
+
+    async def set_schedule(self, schedule) -> None:
+        schedule = {"zone_idx": self.idx, "schedule": schedule}
+        await self._schedule.set_schedule(schedule)
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            "schedule": self._schedule.schedule.get("schedule"),
+        }
+
+
+class Zone(ZoneSchedule, ZoneBase):
     """The Zone class."""
 
     def __init__(self, ctl, zone_idx, sensor=None, actuators=None) -> None:
@@ -429,7 +466,7 @@ class Zone(ZoneBase):
             self._set_sensor(sensor)
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        # super()._discover(discover_flag=discover_flag)
+        super()._discover(discover_flag=discover_flag)
 
         # HACK: dev/test code
         if DEV_MODE and self.idx == "99":
@@ -732,43 +769,6 @@ class Zone(ZoneBase):
             ATTR_SETPOINT: self.setpoint,
             ATTR_TEMP: self.temperature,
             ATTR_OPEN_WINDOW: self.window_open,
-        }
-
-
-class ZoneSchedule:  # 0404
-    """Evohome zones have a schedule."""
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-
-        self._schedule = Schedule(self)
-
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-
-        if discover_flag & DISCOVER_STATUS:
-            # self._loop.create_task(self.get_schedule())  # 0404
-            pass
-
-    def _handle_msg(self, msg) -> bool:
-        super()._handle_msg(msg)
-
-        if msg.code == "0404" and msg.verb == "RP":
-            _LOGGER.debug("Zone(%s): Received RP/0404 (schedule) pkt", self)
-
-    async def get_schedule(self, force_refresh=None) -> Optional[dict]:
-        schedule = await self._schedule.get_schedule(force_refresh=force_refresh)
-        if schedule:
-            return schedule["schedule"]
-
-    async def set_schedule(self, schedule) -> None:
-        schedule = {"zone_idx": self.idx, "schedule": schedule}
-        await self._schedule.set_schedule(schedule)
-
-    @property
-    def status(self) -> dict:
-        return {
-            **super().status,
-            "schedule": self._schedule.schedule.get("schedule"),
         }
 
 
