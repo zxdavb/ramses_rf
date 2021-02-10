@@ -161,6 +161,11 @@ class DeviceBase(Entity, metaclass=ABCMeta):
     def __str__(self) -> str:
         return f"{self.id} ({DEVICE_TYPES.get(self.id[:2])})"
 
+    def __lt__(self, other) -> bool:
+        if not hasattr(other, "id"):
+            return NotImplemented
+        return self.id < other.id
+
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # sometimes, battery-powered devices do respond to an RQ (e.g. bind mode)
         # super()._discover(discover_flag=discover_flag)
