@@ -280,28 +280,11 @@ class PacketProtocolBase(asyncio.Protocol):
         """Called when a connection is made."""
         _LOGGER.debug("PktProtocol.connection_made(%s)", transport)
 
-        # print(transport.serial)  # TODO: evofw_flag here
-        # for attr in dir(transport.serial):
-        #     print("obj.%s = %r" % (attr, getattr(transport, attr)))
-
-        # from time import sleep
-        # sleep(4)
-
-        # print(transport.serial)  # TODO: evofw_flag here
-        # for attr in dir(transport.serial):
-        #     print("obj.%s = %r" % (attr, getattr(transport, attr)))
+        self._transport = transport
 
         _PKT_LOGGER.warning(
             "# evohome_rf %s", __version__, extra=self._extra(dt_str(), "")
         )
-
-        self._transport = transport
-        # self._transport.serial.rts = False
-
-        self._loop.create_task(
-            self._send_data(bytes("!V\r\n".encode("ascii")), ignore_pause=False)
-        )  # Used to see if using a evofw3 rather than a HGI80
-        self._pause_writing = False  # TODO: needs work
 
     @staticmethod
     def is_wanted(pkt, include_list, exclude_list) -> bool:
@@ -488,8 +471,19 @@ class PacketProtocol(PacketProtocolBase):
         _LOGGER.info("PktProtocol.__init__(gwy, %s)  *** Std version ***", pkt_handler)
         super().__init__(gwy, pkt_handler)
 
+    def connection_made(self, transport: asyncio.Transport) -> None:
+        """Called when a connection is made."""
+        super().connection_made(transport)
 
-class PacketProtocolFile(PacketProtocol):
+        # self._transport.serial.rts = False
+
+        self._loop.create_task(
+            self._send_data(bytes("!V\r\n".encode("ascii")), ignore_pause=False)
+        )  # Used to see if using a evofw3 rather than a HGI80
+        self._pause_writing = False  # TODO: needs work
+
+
+class PacketProtocolFile(PacketProtocolBase):
     """Interface for a packet protocol (for packet log)."""
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
