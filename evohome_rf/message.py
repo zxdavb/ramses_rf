@@ -87,6 +87,7 @@ class Message:
         self._is_array = None
         self._is_expired = None
         self._is_fragment = None
+        self._is_valid = None
         self._is_valid = self.is_valid
 
     def __repr__(self) -> str:
