@@ -298,6 +298,9 @@ class PacketProtocolBase(asyncio.Protocol):
         self._transport = transport
         # self._transport.serial.rts = False
 
+        self._loop.create_task(
+            self._send_data(bytes("!V\r\n".encode("ascii"))), ignore_pause=False
+        )  # Used to see if using a evofw3 rather than a HGI80
         self._pause_writing = False  # TODO: needs work
 
     @staticmethod
@@ -439,6 +442,9 @@ class PacketProtocolBase(asyncio.Protocol):
             )
             return
 
+        # self._loop.create_task(
+        #     self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
+        # )
         await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
@@ -729,10 +735,10 @@ def create_pkt_stack(
         return (pkt_protocol, pkt_transport)
 
     ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
-    if os.name == "posix":
+    if os.name == "posix":  # or use: NotImplementedError
         try:
             ser_instance.set_low_latency_mode(True)  # only for FTDI?
-        except AttributeError:  # TODO: also: ValueError?
+        except (AttributeError, ValueError):  # AttributeError shouldn't be needed
             pass
 
     if os.name == "nt":
