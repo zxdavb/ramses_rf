@@ -299,7 +299,7 @@ class PacketProtocolBase(asyncio.Protocol):
         # self._transport.serial.rts = False
 
         self._loop.create_task(
-            self._send_data(bytes("!V\r\n".encode("ascii"))), ignore_pause=False
+            self._send_data(bytes("!V\r\n".encode("ascii")), ignore_pause=False)
         )  # Used to see if using a evofw3 rather than a HGI80
         self._pause_writing = False  # TODO: needs work
 
