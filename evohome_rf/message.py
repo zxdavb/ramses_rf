@@ -76,15 +76,17 @@ class Message:
         self.verb = pkt.packet[4:6]
         self.seqn = pkt.packet[7:10]  # sequence number (as used by 31D9)?
         self.code = pkt.packet[41:45]
-
         self.len = int(pkt.packet[46:49])  # TODO:  is useful? / is user used?
         self.raw_payload = pkt.packet[50:]
 
-        self._payload = self._str = None
-
+        self.code_name = CODE_NAMES.get(self.code, f"unknown_{self.code}")
         self._format = MSG_FORMAT_18 if gwy.config[USE_NAMES] else MSG_FORMAT_10
+        self._payload = None
+        self._str = None
 
-        self._is_valid = self._is_array = self._is_expired = self._is_fragment = None
+        self._is_array = None
+        self._is_expired = None
+        self._is_fragment = None
         self._is_valid = self.is_valid
 
     def __repr__(self) -> str:
@@ -123,11 +125,10 @@ class Message:
             src = ""
             dst = display_name(self.src)
 
-        code_name = CODE_NAMES.get(self.code, f"unknown_{self.code}")
         payload = self.raw_payload if self.len < 4 else f"{self.raw_payload[:5]}..."[:9]
 
         self._str = self._format.format(
-            src, dst, self.verb, code_name, payload, self._payload
+            src, dst, self.verb, self.code_name, payload, self._payload
         )
         return self._str
 
