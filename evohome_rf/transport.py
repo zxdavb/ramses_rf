@@ -670,7 +670,8 @@ class PacketProtocolQos(PacketProtocol):
         self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
 
         self._sequence_no = (self._sequence_no + 1) % 1000
-        self._qos_cmd.seqx = f"{self._sequence_no:03d}"
+        if self._qos_cmd.seqx == "---":
+            self._qos_cmd.seqx = f"{self._sequence_no:03d}"
 
         self._timeouts(dt.now())
         await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
