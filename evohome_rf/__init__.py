@@ -17,11 +17,12 @@ import logging
 import os
 import signal
 from threading import Lock
-from typing import Callable, Dict, List, Tuple  # Any, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
+from .command import Command
 from .const import _dev_mode_, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
-from .message import process_msg
+from .message import Message, process_msg
 from .packet import _PKT_LOGGER as pkt_logger, set_pkt_logging
 from .protocol import create_msg_stack
 from .transport import POLLER_TASK, create_pkt_stack
@@ -282,11 +283,18 @@ class Gateway:
         """Create a client protocol for the RAMSES-II message transport."""
         return create_msg_stack(self, msg_handler)
 
-    def send_data(self, data) -> asyncio.Task:
-        # TODO: validate data to be sent is cmd or !X
-        if self.msg_protocol:
-            task = self._loop.create_task(self.msg_protocol.send_data(data))
-        else:
-            raise RuntimeError("there is no message protocol client")
+    def send_cmd(self, cmd: Command, callback: Callable = None) -> asyncio.Task:
+        """Send a command with the option to return any response via a callback."""
+        if not self.msg_protocol:
+            raise RuntimeError("there is no message protocol")
+        return self._loop.create_task(
+            self.msg_protocol.send_data(cmd, callback=callback)
+        )
 
-        return task
+    async def async_send_cmd(
+        self, cmd: Command, awaitable: bool = True
+    ) -> Optional[Message]:
+        """Send a command with the option to return any response."""
+        if not self.msg_protocol:
+            raise RuntimeError("there is no message protocol")
+        return await self.msg_protocol.send_data(cmd, awaitable=awaitable)

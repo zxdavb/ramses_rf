@@ -764,7 +764,10 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
     @property
     def heating_control(self) -> Device:
-        return self._htg_control
+        if self._htg_control:
+            return self._htg_control
+        htg_control = [d for d in self._ctl.devices if d._domain_id == "FC"]
+        return htg_control[0] if len(htg_control) == 1 else None  # HACK for 10:
 
     def _set_htg_control(self, device: Device) -> None:  # self._htg_control
         """Set the heating control relay for this system (10: or 13:)."""
@@ -898,32 +901,25 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     def schema(self) -> dict:
         """Return the system's schema."""
 
-        schema = {ATTR_CONTROLLER: self._ctl.id}
-
-        # devices without a parent zone, NB: CTL can be a sensor for a zones
-        orphans = [
-            d.id for d in self._ctl.devices if not d._domain_id and d.type != "02"
-        ]
-        orphans.sort()
-        # system" schema[ATTR_SYSTEM][ATTR_ORPHANS] = orphans
-
-        schema[ATTR_SYSTEM] = {
-            ATTR_HTG_CONTROL: self.heating_control.id
-            if self.heating_control is not None
-            else None,
-            ATTR_ORPHANS: orphans,
-        }
-
-        # schema[ATTR_STORED_HW] = self.dhw.schema if self.dhw is not None else None
-
-        schema[ATTR_UFH_CONTROLLERS] = {
-            u.id: u.schema
-            for u in sorted(
-                [d for d in self._ctl.devices if d.type == "02"], key=lambda x: x.id
+        system = {
+            ATTR_HTG_CONTROL: (
+                self.heating_control.id if self.heating_control else None
             )
         }
+        system[ATTR_UFH_CONTROLLERS] = {
+            d.id: d.schema for d in sorted(self._ctl.devices) if d.type == "02"
+        }
+        # devices without a parent zone, NB: CTL can be a sensor for a zones
+        system[ATTR_ORPHANS] = [
+            d.id
+            for d in sorted(self._ctl.devices)
+            if not d._domain_id and d.type != "02"
+        ]
 
-        return schema
+        return {
+            ATTR_CONTROLLER: self._ctl.id,
+            "system": system,
+        }
 
     @property
     def params(self) -> dict:

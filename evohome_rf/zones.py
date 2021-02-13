@@ -342,7 +342,7 @@ class DhwZone(ZoneBase):
         Use until = None for indefinitely
         """
         # cmd = Command.dhw_mode(self._ctl.id, self.idx, mode, setpoint, until)
-        # self._gwy.send_data(cmd)
+        # self._gwy.send_cmd(cmd)
 
         # if mode is None and until is None:
         #     mode = "00" if setpoint is None else "02"  # Follow, Permanent
@@ -401,9 +401,8 @@ class ZoneSchedule:  # 0404
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
 
-        if discover_flag & DISCOVER_STATUS:
+        if False and discover_flag & DISCOVER_STATUS:  # TODO: add back in
             self._loop.create_task(self.get_schedule())  # 0404
-            pass
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -492,8 +491,11 @@ class Zone(ZoneSchedule, ZoneBase):
             ]
 
         if discover_flag & DISCOVER_PARAMS:
-            for code in ("0004", "000A"):
+            for code in ("000A",):  # "0004"):  # TODO:
                 self._send_cmd(code)  # , payload=self.idx)
+
+            cmd = Command.get_zone_name(self._ctl.id, self.idx)
+            self._gwy.send_cmd(cmd)
 
         if discover_flag & DISCOVER_STATUS:
             for code in ("12B0", "2349", "30C9"):  # sadly, no 3150
@@ -674,7 +676,7 @@ class Zone(ZoneSchedule, ZoneBase):
     @name.setter
     def name(self, value) -> Optional[str]:
         """Set the name of the zone."""
-        self._gwy.send_data(Command.zone_name(self._ctl.id, self.idx, value))
+        self._gwy.send_cmd(Command.zone_name(self._ctl.id, self.idx, value))
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309 (2349 is a superset of 2309)
@@ -740,7 +742,7 @@ class Zone(ZoneSchedule, ZoneBase):
         """Override the setpoint for a specified duration, or indefinitely."""
 
         cmd = Command.zone_mode(self._ctl.id, self.idx, mode, setpoint, until)
-        self._gwy.send_data(cmd)
+        self._gwy.send_cmd(cmd)
 
     @property  # id, type
     def schema(self) -> dict:

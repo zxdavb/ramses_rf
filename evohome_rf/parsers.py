@@ -1089,11 +1089,16 @@ def parser_1290(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # indoor_humidity (Nuaire RH sensor)
 def parser_12a0(payload, msg) -> Optional[dict]:
-    assert msg.len == 6, msg.len
+    # assert msg.len == 6 if type == ?? else 2, msg.len
     assert payload[:2] == "00", payload[:2]  # domain?
 
+    rh = int(payload[2:4], 16) / 100 if payload[2:4] != "EF" else None
+    if msg.len == 2:
+        return {"relative_humidity": rh}
+
+    assert msg.len == 6, f"pkt length is {msg.len}, expected 6"
     return {
-        "relative_humidity": int(payload[2:4], 16) / 100,  # is not /200
+        "relative_humidity": rh,
         "temperature": _temp(payload[4:8]),
         "dewpoint_temp": _temp(payload[8:12]),
     }
@@ -1292,11 +1297,16 @@ def parser_22f1(payload, msg) -> Optional[dict]:
     assert payload[4:] in ("04", "0A"), payload[4:]
 
     bitmap = int(payload[2:4], 16)
-
     _bitmap = {"_bitmap": bitmap}
 
-    if bitmap in (2, 3):
-        _action = {"fan_mode": "normal" if bitmap == 2 else "boost"}
+    MAP = {
+        2: "low",  # "normal"
+        3: "auto",  # "boost"
+        4: "high",
+    }
+
+    if bitmap in (2, 3, 4):
+        _action = {"fan_mode": MAP[bitmap]}
     elif bitmap in (9, 10):
         _action = {"heater_mode": "auto" if bitmap == 10 else "off"}
     else:
@@ -1313,10 +1323,11 @@ def parser_22f1(payload, msg) -> Optional[dict]:
 def parser_22f3(payload, msg) -> Optional[dict]:
     assert msg.len == 3, msg.len
     assert payload[:2] == "00", payload[:2]  # has no domain
-    assert payload[4:6] == "0A", payload[4:6]
+    assert payload[2:4] == "00", payload[2:4]
+    assert payload[4:6] in ("0A", "14", "1E"), payload[4:6]
 
     return {
-        "_bitmap": int(payload[2:4], 16),
+        "minutes": int(payload[4:6], 16),
     }
 
 
@@ -1454,13 +1465,15 @@ def parser_30c9(payload, msg) -> Optional[dict]:
     return _parser(payload)
 
 
-@parser_decorator  # unknown, from STA
+@parser_decorator  # unknown, from STA, VCE
 def parser_3120(payload, msg) -> Optional[dict]:
     # sent by STAs every ~3:45:00, why?
-    assert msg.src.type == "34", msg.src.type
-    assert payload == "0070B0000000FF", payload
+    assert payload[:10] == "0070B00000", payload[:10]
+    assert payload[12:] == "FF", payload[12:]
     return {
-        "unknown_0": payload,
+        "unknown_1": payload[10:12],
+        "unknown_0": payload[:10],
+        "unknown_2": payload[12:],
     }
 
 
@@ -1562,12 +1575,12 @@ def parser_31da(payload, msg) -> Optional[dict]:
 
     return {
         **_idx(payload[:2], msg),
+        "percent_4": _percent(payload[38:40]),
         "relative_humidity": rh,
+        "minutes": int(payload[44:46], 16),
+        "unknown_3": payload[36:38],
         "unknown_1": payload[30:32],
         "unknown_2": payload[32:34],
-        "unknown_3": payload[36:38],
-        "unknown_4": payload[38:40],
-        "unknown_5": payload[44:46],
     }
 
 

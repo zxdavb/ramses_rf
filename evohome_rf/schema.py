@@ -18,6 +18,7 @@ from .const import (
     ATTR_STORED_HW,
     ATTR_SYSTEM,
     ATTR_UFH_CONTROLLERS,
+    ATTR_ZONE_IDX,
     ATTR_ZONE_TYPE,
     ATTR_ZONE_SENSOR,
     ATTR_ZONES,
@@ -36,6 +37,9 @@ DOMAIN_ID = vol.Match(DOMAIN_ID_REGEXP)
 ZONE_IDX_REGEXP = r"^0[0-9AB]$"  # TODO: what if > 12 zones? (e.g. hometronics)
 ZONE_IDX = vol.Match(ZONE_IDX_REGEXP)
 
+UFH_IDX_REGEXP = r"^0[0-8]$"
+UFH_IDX = vol.Match(UFH_IDX_REGEXP)
+
 ZONE_SCHEMA = vol.Schema(
     {
         vol.Required(ZONE_IDX): vol.Any(
@@ -50,6 +54,7 @@ ZONE_SCHEMA = vol.Schema(
         )
     }
 )
+
 SER2NET_SCHEMA = vol.Schema(
     {vol.Required("enabled"): bool, vol.Optional("socket", default="0.0.0.0:5000"): str}
 )
@@ -103,31 +108,49 @@ DHW_SCHEMA = vol.Schema(
         vol.Optional(ATTR_DHW_VALVE_HTG): vol.Any(None, vol.Match(r"^13:[0-9]{6}$")),
     }
 )
-UFH_SCHEMA = vol.Schema({})
 ORPHAN_SCHEMA = vol.Schema(
-    {vol.Optional(ATTR_ORPHANS): vol.Any(None, vol.All(DEVICE_ID))}
+    {vol.Optional(ATTR_ORPHANS, default=[]): vol.Any([], vol.All(DEVICE_ID))}
+)
+UFC_SCHEMA = vol.Schema(  # ufh_circuits
+    {
+        vol.Required(UFH_IDX): vol.Any(
+            {
+                vol.Optional(ATTR_ZONE_IDX): vol.Any(ZONE_IDX),
+            },
+        )
+    }
+)
+UFH_SCHEMA = vol.Schema(
+    {
+        vol.Required(DEVICE_ID): vol.Any(
+            None,
+            {
+                vol.Optional("ufh_circuits"): vol.Any(None, dict),
+            },
+        )
+    }
 )
 SYSTEM_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_CONTROLLER): vol.Match(r"^(01|23):[0-9]{6}$"),
-        vol.Optional(ATTR_SYSTEM, default={}): vol.Schema(
-            {
-                vol.Optional(ATTR_HTG_CONTROL): vol.Any(
-                    None, vol.Match(r"^(10|13):[0-9]{6}$")
-                ),
-                vol.Optional(ATTR_ORPHANS): vol.Any(None, vol.All([DEVICE_ID])),
-            }
-        ),
+        vol.Optional(ATTR_HTG_CONTROL): vol.Any(None, vol.Match(r"^(10|13):[0-9]{6}$")),
         vol.Optional(ATTR_STORED_HW): vol.Any(None, DHW_SCHEMA),
         vol.Optional(ATTR_ZONES): vol.Any(
             None, vol.All(ZONE_SCHEMA, vol.Length(min=1, max=DEFAULT_MAX_ZONES))
         ),
-        vol.Optional(ATTR_UFH_CONTROLLERS): vol.Any(None, [UFH_SCHEMA]),
+        vol.Optional(ATTR_UFH_CONTROLLERS): vol.Any(
+            None, vol.All(UFH_SCHEMA, vol.Length(min=1, max=3))
+        ),
+        vol.Optional(ATTR_ORPHANS): vol.Any([], vol.All([DEVICE_ID])),
     },
-    extra=vol.ALLOW_EXTRA,
+    extra=vol.ALLOW_EXTRA,  # TODO: remove me
 )
+SYSTEM_SCHEMA = vol.Schema(vol.Any({}, SYSTEM_SCHEMA))
+
 # GLOBAL_SCHEMA = vol.Schema(
-#     vol.Any(SYSTEM_SCHEMA, vol.Length(min=0)), ORPHAN_SCHEMA, extra=vol.ALLOW_EXTRA
+#     vol.Any(SYSTEM_SCHEMA, vol.Length(min=0)),
+#     ORPHAN_SCHEMA,
+#     extra=vol.ALLOW_EXTRA
 # )
 KNOWNS_SCHEMA = vol.Schema(
     {
@@ -213,15 +236,15 @@ def load_schema(gwy, **kwargs) -> Tuple[dict, dict]:
     """Process the schema, and the configuration and return True if it is valid."""
     # TODO: check a sensor is not a device in another zone
 
-    schema = SYSTEM_SCHEMA(kwargs.get("schema", {})) if kwargs.get("schema") else {}
+    known_devices = KNOWNS_SCHEMA(kwargs.get(ALLOW_LIST, {}))
+    known_devices.update(KNOWNS_SCHEMA(kwargs.get(BLOCK_LIST, {})))
 
-    device_ids = schema.get(ATTR_ORPHANS, [])  # TODO: clean up
-    if device_ids is not None:
-        for device_id in device_ids:
-            gwy._get_device(addr(device_id))
+    schema = SYSTEM_SCHEMA(kwargs.get("schema", {}))
+
+    [gwy._get_device(addr(d)) for d in schema.get(ATTR_ORPHANS, [])]
 
     if not schema.get(ATTR_CONTROLLER):
-        return ({}, KNOWNS_SCHEMA(kwargs.get(ALLOW_LIST, {})))
+        return ({}, known_devices)
 
     schema = SYSTEM_SCHEMA(schema)
 
@@ -266,8 +289,5 @@ def load_schema(gwy, **kwargs) -> Tuple[dict, dict]:
 
     # for ufh_ctl, ufh_schema in schema.get(ATTR_UFH_CONTROLLERS, []):
     #     dev = gwy._get_device(addr(ufh_ctl), ctl_addr=ctl)
-
-    known_devices = KNOWNS_SCHEMA(kwargs.get(ALLOW_LIST, {}))
-    known_devices.update(KNOWNS_SCHEMA(kwargs.get(BLOCK_LIST, {})))
 
     return (schema, known_devices)

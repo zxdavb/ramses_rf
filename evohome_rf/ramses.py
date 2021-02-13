@@ -174,10 +174,10 @@ RAMSES_CODES = {
         RQ: r"^00$",
     },
     "22F1": {  # TODO - change name - Sent by an UFC
-        NAME: "switch_vent",
+        NAME: "switch_speed",
     },
     "22F3": {
-        NAME: "switch_other",
+        NAME: "switch_duration",
     },
     "2309": {
         NAME: "setpoint",
@@ -653,9 +653,12 @@ RAMSES_DEVICES = {
         },
     },
     "18": {},
-    "20": {
+    "20": {  # HVAC: ventilation unit
         "10E0": {
             I_: {},
+            RP: {},
+        },
+        "12A0": {
             RP: {},
         },
         "22F1": {
@@ -664,13 +667,17 @@ RAMSES_DEVICES = {
         "22F3": {
             I_: {},
         },
+        "3120": {
+            RP: {},
+        },
         "31D9": {
             I_: {},
+            RP: {},
         },
         "31DA": {
             I_: {},
         },
-    },
+    },  # e.g. https://www.ithodaalderop.nl/nl-NL/professional/product/545-5036
     "23": {
         "0009": {
             I_: {},
@@ -854,6 +861,14 @@ RAMSES_DEVICES = {
         },
     },
     "37": {},
+    "39": {  # HVAC: two-way switch
+        "22F1": {
+            I_: {},
+        },
+        "22F3": {
+            I_: {},
+        },
+    },  # https://www.ithodaalderop.nl/nl-NL/professional/product/536-0124
 }
 
 RAMSES_DEVICES["00"] = RAMSES_DEVICES["04"]

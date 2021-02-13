@@ -7,11 +7,12 @@ Operates at the msg layer of: app - msg - pkt - h/w
 """
 
 import asyncio
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta as td
 import logging
-from queue import PriorityQueue, Empty
+from queue import Empty, PriorityQueue, SimpleQueue
 from typing import Callable, List, Optional, Tuple
 
+from .command import Command
 from .const import _dev_mode_
 from .message import Message
 from .schema import DISABLE_SENDING, DONT_CREATE_MESSAGES, REDUCE_PROCESSING
@@ -23,6 +24,33 @@ WRITER_TASK = "writer_task"
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
+
+
+class MakeCallbackAwaitable:
+    def __init__(self, loop, timeout=None):
+        self._loop = loop if loop else asyncio.get_event_loop()
+        self._timeout = timeout if timeout else 3
+        self._queue = None
+        self._result = None
+
+    async def create_pair(self) -> Tuple[Callable, Callable]:
+        self._queue = SimpleQueue()  # maxsize=1)
+
+        def putter(*args):  # callback
+            self._loop.call_soon_threadsafe(self._queue.put_nowait, args)
+
+        async def getter(timeout=None) -> Tuple:
+            dt_expired = dt.now() + td(seconds=3 if timeout is None else timeout)
+            while dt.now() < dt_expired:
+                try:
+                    self._result = self._queue.get_nowait()
+                except Empty:
+                    await asyncio.sleep(0.005)
+                else:
+                    return self._result
+            raise TimeoutError
+
+        return getter, putter  # awaitable, callback
 
 
 class MessageTransport(asyncio.Transport):
@@ -67,13 +95,17 @@ class MessageTransport(asyncio.Transport):
         self._que = PriorityQueue(maxsize=self.MAX_BUFFER_SIZE)
         self.set_write_buffer_limits()
 
-    def _set_dispatcher(self, dispatcher):
+    def _set_dispatcher(self, dispatcher: Callable):
         _LOGGER.debug("MsgTransport._set_dispatcher(%s)", dispatcher)
 
         async def call_send_data(cmd):
-            _LOGGER.debug("MsgTransport.pkt_dispatcher(%s): send_data", cmd)
+            _LOGGER.warning("MsgTransport.pkt_dispatcher(%s): send_data", cmd)
             if cmd.callback:
-                cmd.callback["timeout"] = dt.now() + cmd.callback["timeout"]
+                cmd.callback["expires"] = (
+                    dt.max
+                    if cmd.callback.get("daemon")
+                    else dt.now() + td(cmd.callback.get("timeout", 1))
+                )
                 self._callbacks[cmd.rx_header] = cmd.callback
 
             await self._dispatcher(cmd)  # send_data, *once* callback registered
@@ -110,14 +142,14 @@ class MessageTransport(asyncio.Transport):
             hdr,
             callback,
         ) in self._callbacks.items():  # 1st, notify all expired callbacks
-            if callback.get("timeout", dt.max) < pkt._dtm:
+            if callback.get("expires", dt.max) < pkt._dtm:
                 _LOGGER.error("MsgTransport._pkt_receiver(%s): Expired callback", hdr)
-                callback["func"](False, *callback["args"], **callback["kwargs"])
+                callback["func"](False, *callback.get("args", tuple()))
 
         self._callbacks = {  # 2nd, discard expired callbacks
             hdr: callback
             for hdr, callback in self._callbacks.items()
-            if callback.get("daemon") or callback.get("timeout", dt.max) >= pkt._dtm
+            if callback.get("daemon") or callback["expires"] >= pkt._dtm
         }
 
         if len(self._protocols) == 0:
@@ -132,7 +164,7 @@ class MessageTransport(asyncio.Transport):
 
         if msg._pkt._header in self._callbacks:  # 3rd, invoke any callback
             callback = self._callbacks[msg._pkt._header]
-            callback["func"](msg, *callback["args"], **callback["kwargs"])
+            callback["func"](msg, *callback.get("args", tuple()))
             if not callback.get("daemon"):
                 del self._callbacks[msg._pkt._header]
 
@@ -351,8 +383,9 @@ class MessageProtocol(asyncio.Protocol):
     * CL: connection_lost()
     """
 
-    def __init__(self, callback) -> None:
+    def __init__(self, gwy, callback: Callable) -> None:
         _LOGGER.debug("MsgProtocol.__init__(%s)", callback)
+        self._loop = gwy._loop  # self._gwy = gwy is not used
         self._callback = callback
         self._transport = None
         self._pause_writing = None
@@ -362,17 +395,33 @@ class MessageProtocol(asyncio.Protocol):
         _LOGGER.debug("MsgProtocol.connection_made(%s)", transport)
         self._transport = transport
 
-    def data_received(self, msg) -> None:
+    def data_received(self, msg: Message) -> None:
         """Called by the transport when some data is received."""
         _LOGGER.debug("MsgProtocol.data_received(%s)", msg)  # or: use repr(msg)
         self._callback(msg)
 
-    async def send_data(self, cmd) -> None:
-        """Called when some data is to be sent (not a callback)."""
+    async def send_data(
+        self, cmd: Command, awaitable=None, callback=None
+    ) -> Optional[Message]:
+        """Called when a command is to be sent."""
         _LOGGER.debug("MsgProtocol.send_data(%s)", cmd)
+
+        if awaitable is not None and callback is not None:
+            raise ValueError("only one of `awaitable` and `callback` can be provided")
+
+        if awaitable:
+            awaitable, callback = await MakeCallbackAwaitable(self._loop).create_pair()
+        if callback:
+            cmd.callback = {"func": callback, "timeout": 3}
+
         while self._pause_writing:
             await asyncio.sleep(0.005)
+
         self._transport.write(cmd)
+
+        if awaitable:
+            result = await awaitable(timeout=4)  # may: raise TimeoutError
+            return result[0]
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
@@ -407,7 +456,7 @@ def create_msg_stack(
     """
 
     def _protocol_factory():
-        return create_protocol_factory(MessageProtocol, msg_handler)()
+        return create_protocol_factory(MessageProtocol, gwy, msg_handler)()
 
     msg_protocol = protocol_factory() if protocol_factory else _protocol_factory()
 

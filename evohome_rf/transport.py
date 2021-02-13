@@ -268,6 +268,8 @@ class PacketProtocolBase(asyncio.Protocol):
         self._pause_writing = True
         self._recv_buffer = bytes()
 
+        self._sequence_no = 0
+
         # TODO: this is a little messy...
         self._include = list(gwy._include) if gwy.config[ENFORCE_ALLOWLIST] else []
         self._exclude = list(gwy._exclude) if gwy.config[ENFORCE_BLOCKLIST] else []
@@ -424,6 +426,9 @@ class PacketProtocolBase(asyncio.Protocol):
                 "PktProtocol.send_data(%s): invalid command: %s", cmd.tx_header, cmd
             )
             return
+
+        self._sequence_no = (self._sequence_no + 1) % 1000
+        self._qos_cmd.seqx = f"{self._sequence_no:03d}"
 
         # self._loop.create_task(
         #     self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
@@ -660,6 +665,9 @@ class PacketProtocolQos(PacketProtocol):
         self._rx_hdr = cmd.rx_header  # Could be None
         self._tx_retries = 0
         self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
+
+        self._sequence_no = (self._sequence_no + 1) % 1000
+        self._qos_cmd.seqx = f"{self._sequence_no:03d}"
 
         self._timeouts(dt.now())
         await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))

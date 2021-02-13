@@ -296,6 +296,7 @@ DEVICE_TABLE = {
     "20": {"type": "VCE", "name": "HVAC?"},  # VCE-RF unit
     "32": {"type": "VMS", "name": "HVAC?"},  # sensor/switch
     "37": {"type": " 37", "name": "HVAC?"},  # VCE
+    "39": {"type": "VMS", "name": "HVAC?"},  # sensor/switch
     "49": {"type": " 49", "name": "HVAC?"},  # VCE switch
     # specials
     "63": {"type": "NUL", "name": "Null Device"},
@@ -399,7 +400,6 @@ DEVICE_ID_REGEX = re.compile(f"^{d}$")
 COMMAND_REGEX = re.compile(f"^{v} {r} {d} {d} {d} {c} {l} {p}$")
 MESSAGE_REGEX = re.compile(f"^{r} {v} {r} {d} {d} {d} {c} {l} {p}$")
 
-COMMAND_FORMAT = "{:<2} --- {} {} --:------ {} {:03d} {}"
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:8s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:8s} || {}"
 

@@ -78,7 +78,7 @@ class Entity:
     def _send_cmd(self, code, dest, payload, **kwargs) -> None:
         self._msgs.pop(code, None)  # remove the old one, so we can tell if RP'd rcvd
 
-        self._gwy.send_data(
+        self._gwy.send_cmd(
             Command(kwargs.pop("verb", "RQ"), dest, code, payload, **kwargs)
         )
 

@@ -15,6 +15,7 @@ import click
 from colorama import init as colorama_init, Fore, Style
 
 from evohome_rf import Gateway, GracefulExit
+from evohome_rf.command import Command
 from evohome_rf.discovery import (
     EXECUTE_CMD,
     GET_FAULTS,
@@ -301,11 +302,6 @@ async def main(lib_kwargs, **kwargs):
             print(f"Status[{repr(gwy.evo)}] = {json.dumps(gwy.evo.status, indent=4)}")
 
     def process_message(msg) -> None:
-        if kwargs[DEBUG_MODE]:
-            dtm = f"{msg.dtm}"  # keep original timestamp
-            print(f"{dtm} {msg}"[:CONSOLE_COLS])
-            return
-
         dtm = msg.dtm if kwargs["long_dates"] else f"{msg.dtm:%H:%M:%S.%f}"[:-3]
         if msg.src.type == "18":
             print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
@@ -338,6 +334,16 @@ async def main(lib_kwargs, **kwargs):
             if not any(kwargs[k] for k in cmds):
                 # await gwy.stop()
                 task.cancel()
+
+        if False:  # TODO: temp test code
+            print("AAA")
+            await asyncio.sleep(3)
+            print("BBB")
+            cmd = Command.get_zone_name("01:145038", "00")
+            msg = await gwy.async_send_cmd(cmd)
+            print("CCC")
+            print(msg)
+            print("ZZZ")
 
         await task
 
