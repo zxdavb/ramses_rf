@@ -99,7 +99,7 @@ class MessageTransport(asyncio.Transport):
         _LOGGER.debug("MsgTransport._set_dispatcher(%s)", dispatcher)
 
         async def call_send_data(cmd):
-            _LOGGER.warning("MsgTransport.pkt_dispatcher(%s): send_data", cmd)
+            _LOGGER.debug("MsgTransport.pkt_dispatcher(%s): send_data", cmd)
             if cmd.callback:
                 cmd.callback["expires"] = (
                     dt.max

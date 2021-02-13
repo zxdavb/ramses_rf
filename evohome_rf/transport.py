@@ -651,7 +651,7 @@ class PacketProtocolQos(PacketProtocol):
             raise RuntimeError("Sending is disabled")
 
         if not cmd.is_valid:
-            _LOGGER.warning(
+            _LOGGER.info(
                 "PktProtocolQos.send_data(%s): invalid command: %s", cmd.tx_header, cmd
             )
             return
