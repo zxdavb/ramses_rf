@@ -284,7 +284,10 @@ class Gateway:
         return create_msg_stack(self, msg_handler)
 
     def send_cmd(self, cmd: Command, callback: Callable = None) -> asyncio.Task:
-        """Send a command with the option to return any response via a callback."""
+        """Send a command with the option to return any response via callback.
+
+        Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
+        """
         if not self.msg_protocol:
             raise RuntimeError("there is no message protocol")
         return self._loop.create_task(
@@ -294,7 +297,10 @@ class Gateway:
     async def async_send_cmd(
         self, cmd: Command, awaitable: bool = True
     ) -> Optional[Message]:
-        """Send a command with the option to return any response."""
+        """Send a command with the option to return any response.
+
+        Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
+        """
         if not self.msg_protocol:
             raise RuntimeError("there is no message protocol")
         return await self.msg_protocol.send_data(cmd, awaitable=awaitable)
