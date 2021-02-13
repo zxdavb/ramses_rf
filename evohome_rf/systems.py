@@ -162,7 +162,7 @@ class SysLanguage:  # 0100
 class SysMode:  # 2E04
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._mode = None
+        self._system_mode = None
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
@@ -181,28 +181,28 @@ class SysMode:  # 2E04
         super()._handle_msg(msg)
 
         if msg.code == "2E04" and msg.verb in (" I", "RP"):  # this is a special case
-            self._mode = msg
+            self._system_mode = msg
 
     @property
-    def mode(self) -> Optional[dict]:  # 2E04
-        return self._msg_payload(self._mode)
+    def system_mode(self) -> Optional[dict]:  # 2E04
+        return self._msg_payload(self._system_mode)
 
-    async def set_mode(self, mode, until=None):
+    async def set_mode(self, system_mode, until=None):
         """Set the system mode for a specified duration, or indefinitely."""
 
-        if isinstance(mode, int):
-            mode = f"{mode:02X}"
-        elif not isinstance(mode, str):
-            raise TypeError("Invalid system mode")
-        elif mode in SYSTEM_MODE_LOOKUP:
-            mode = SYSTEM_MODE_LOOKUP[mode]
+        if isinstance(system_mode, int):
+            system_mode = f"{system_mode:02X}"
+        elif not isinstance(system_mode, str):
+            raise TypeError(f"Invalid system mode: {system_mode}")
+        elif system_mode in SYSTEM_MODE_LOOKUP:
+            system_mode = SYSTEM_MODE_LOOKUP[system_mode]
 
-        if mode not in SYSTEM_MODE_MAP:
-            raise ValueError("Unknown system mode")
+        if system_mode not in SYSTEM_MODE_MAP:
+            raise ValueError(f"Unknown system mode: {system_mode}")
 
         until = dtm_to_hex(until) + "00" if until is None else "01"
 
-        self._send_cmd("2E04", verb=" W", payload=f"{mode}{until}")
+        self._send_cmd("2E04", verb=" W", payload=f"{system_mode}{until}")
 
     async def reset_mode(self) -> None:
         """Revert the system mode to Auto."""  # TODO: is it AutoWithReset?
@@ -212,7 +212,7 @@ class SysMode:  # 2E04
     def params(self) -> dict:
         return {
             **super().params,
-            "mode": self.mode,
+            "system_mode": self.system_mode,
         }
 
 
@@ -928,7 +928,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         params = {}
 
         params[ATTR_SYSTEM] = {
-            "mode": self._get_msg_value("2E04"),  # **self.mode()
+            "system_mode": self._get_msg_value("2E04"),  # **self.system_mode()
             "language": self._get_msg_value("0100", "language"),
             ATTR_HTG_CONTROL: {},
         }

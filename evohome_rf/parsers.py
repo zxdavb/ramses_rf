@@ -1436,13 +1436,13 @@ def parser_2e04(payload, msg) -> Optional[dict]:
         assert False, msg.len  # msg.len in (8, 16)  # evohome 8, hometronics 16
 
     result = {
-        "mode": SYSTEM_MODE_MAP.get(payload[:2], payload[:2]),
+        "system_mode": SYSTEM_MODE_MAP.get(payload[:2], payload[:2]),
         "until": _dtm(payload[2:14]) if payload[14:16] != "00" else None,
     }  # TODO: double-check the final "00"
 
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
-        KEYS = ("mode", "until")
+        KEYS = ("system_mode", "until")
         cmd = Command.system_mode(
             msg.src.id, **{k: v for k, v in result.items() if k in KEYS}
         )

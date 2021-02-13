@@ -296,15 +296,17 @@ class Command:
         return cls(" W", ctl_id, "1030", payload, **kwargs)
 
     @classmethod  # constructor for 2E04  # TODO
-    def set_system_mode(cls, ctl_id, mode=None, until=None, **kwargs):
+    def set_system_mode(cls, ctl_id, system_mode=None, until=None, **kwargs):
         """Constructor to set/reset the mode of a system (c.f. parser_2e04)."""
 
         payload = ""
 
-        assert mode in SYSTEM_MODE_LOOKUP, mode
+        assert (
+            system_mode in SYSTEM_MODE_LOOKUP
+        ), f"unkown system mode: {system_mode}"
 
-        payload += f"{SYSTEM_MODE_LOOKUP[mode]}FFFFFF"
-        if SYSTEM_MODE_LOOKUP[mode] == "04":
+        payload += f"{SYSTEM_MODE_LOOKUP[system_mode]}FFFFFF"
+        if SYSTEM_MODE_LOOKUP[system_mode] == "04":
             payload += dtm_to_hex(until)
 
         return cls(" W", ctl_id, "2E04", payload, **kwargs)
