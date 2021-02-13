@@ -187,7 +187,9 @@ class Packet:
         def invalid_addresses() -> bool:
             """Return True if the address fields are invalid (create any addresses)."""
             try:
-                self.src_addr, self.dst_addr, self.addrs = extract_addrs(self.packet)
+                self.src_addr, self.dst_addr, self.addrs = extract_addrs(
+                    self.packet[11:40]
+                )
             except TypeError:
                 return True
 

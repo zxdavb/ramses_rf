@@ -21,8 +21,8 @@ from .const import (
     DEVICE_TYPES,
     MSG_FORMAT_10,
     MSG_FORMAT_18,
-    NON_DEVICE,
-    NUL_DEVICE,
+    NON_DEV_ADDR,
+    NUL_DEV_ADDR,
     CODE_0005_ZONE_TYPE,
     ZONE_TYPE_SLUGS,
     Address,
@@ -105,10 +105,10 @@ class Message:
                 except (KeyError, TypeError):
                     pass
 
-            if dev is NON_DEVICE:
+            if dev is NON_DEV_ADDR:
                 return f"{'':<10}"
 
-            if dev is NUL_DEVICE:
+            if dev is NUL_DEV_ADDR:
                 return "NUL:------"
 
             return f"{DEVICE_TYPES.get(dev.type, f'{dev.type:>3}')}:{dev.id[3:]}"

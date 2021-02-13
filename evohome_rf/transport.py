@@ -22,7 +22,7 @@ from serial import serial_for_url  # Serial, SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerialTransportAsync
 
 from .command import Command, Priority
-from .const import DTM_LONG_REGEX, HGI_DEVICE, _dev_mode_
+from .const import DTM_LONG_REGEX, HGI_DEV_ADDR, _dev_mode_
 from .helpers import dt_str
 from .packet import _PKT_LOGGER, Packet
 from .protocol import create_protocol_factory
@@ -53,7 +53,7 @@ Pause = SimpleNamespace(
 
 INIT_QOS = {"priority": Priority.HIGHEST, "retries": 24, "disable_backoff": True}
 INIT_CMD = Command._puzzle(message=f"evohome_rf v{__version__}", qos=INIT_QOS)
-# INIT_CMD = Command(" I", NUL_DEVICE.id, "0001", "00FFFF0200", qos=INIT_QOS)
+# INIT_CMD = Command(" I", NUL_DEV_ADDR.id, "0001", "00FFFF0200", qos=INIT_QOS)
 
 # tx (from sent to gwy, to get back from gwy) seems to takes approx. 0.025s
 QOS_TX_TIMEOUT = td(seconds=0.05)  # 0.20 OK, but too high?
@@ -310,7 +310,7 @@ class PacketProtocolBase(asyncio.Protocol):
         # 095  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200 # HGI80
         # 000  I --- 18:140805 18:140805 --:------ 0001 005 00FFFF0200 # evofw3
         if pkt_line[10:14] == " 18:" and pkt_line[11:20] == pkt_line[21:30]:
-            pkt_line = pkt_line[:21] + HGI_DEVICE.id + pkt_line[30:]
+            pkt_line = pkt_line[:21] + HGI_DEV_ADDR.id + pkt_line[30:]
             if DEV_MODE:  # TODO: should be _LOGGER.debug
                 _LOGGER.warning("evofw3 packet line has been normalised (0x00)")
 
@@ -428,7 +428,8 @@ class PacketProtocolBase(asyncio.Protocol):
             return
 
         self._sequence_no = (self._sequence_no + 1) % 1000
-        self._qos_cmd.seqx = f"{self._sequence_no:03d}"
+        if self._qos_cmd.seqx == "---":
+            self._qos_cmd.seqx = f"{self._sequence_no:03d}"
 
         # self._loop.create_task(
         #     self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
@@ -616,9 +617,11 @@ class PacketProtocolQos(PacketProtocol):
 
             # NOTE: is not the expected pkt, but another pkt
             else:
-                msg = "unmatched pkt (still wanting a " + (
-                    "Tx" if self._tx_hdr else "Rx"
-                ) + " pkt)"
+                msg = (
+                    "unmatched pkt (still wanting a "
+                    + ("Tx" if self._tx_hdr else "Rx")
+                    + " pkt)"
+                )
 
             self._timeouts(dt.now())
             _logger_rcvd(_LOGGER.debug, f"CHECKED - {msg}")

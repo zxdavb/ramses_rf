@@ -16,10 +16,6 @@ _dev_mode_ = False
 # grep ' F[89ABxDE]' | grep -vE ' (0008|1F09/F8|1FC9|2D49/FD) '
 # grep ' F[89ABCDE]' | grep -vE ' (0008|1F09/xx|1FC9|0001|0009|1100|3150|3B00) '
 
-HGI_DEV_ID = "18:000730"  # default type and address of HGI, 18:013393
-NON_DEV_ID = "--:------"
-NUL_DEV_ID = "63:262142"  # 7FFFFF - send here if not bound?
-
 Address = namedtuple("DeviceAddress", "id, type")
 
 
@@ -27,9 +23,13 @@ def id_to_address(device_id) -> Address:
     return Address(id=device_id, type=device_id[:2])
 
 
-HGI_DEVICE = id_to_address(HGI_DEV_ID)
-NON_DEVICE = id_to_address(NON_DEV_ID)
-NUL_DEVICE = id_to_address(NUL_DEV_ID)
+HGI_DEVICE_ID = "18:000730"  # default type and address of HGI, 18:013393
+NON_DEVICE_ID = "--:------"
+NUL_DEVICE_ID = "63:262142"  # 7FFFFF - send here if not bound?
+
+HGI_DEV_ADDR = id_to_address(HGI_DEVICE_ID)
+NON_DEV_ADDR = id_to_address(NON_DEVICE_ID)
+NUL_DEV_ADDR = id_to_address(NUL_DEVICE_ID)
 
 DEFAULT_MAX_ZONES = 12
 # Evohome: 12 (0-11), older/initial version was 8

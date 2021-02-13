@@ -21,8 +21,9 @@ from .const import (
     CODES_SANS_DOMAIN_ID,
     CODE_SCHEMA,
     COMMAND_REGEX,
-    HGI_DEVICE,
-    NUL_DEVICE,
+    HGI_DEV_ADDR,
+    NON_DEV_ADDR,
+    NUL_DEV_ADDR,
     SYSTEM_MODE_LOOKUP,
     ZONE_MODE_LOOKUP,
     ZONE_MODE_MAP,
@@ -39,7 +40,7 @@ from .helpers import (
 
 # from .ramses import RAMSES_CODES
 
-COMMAND_FORMAT = "{:<2} {} {} {} --:------ {} {:03d} {}"
+COMMAND_FORMAT = "{:<2} {} {} {} {} {} {:03d} {}"
 
 DAY_OF_WEEK = "day_of_week"
 HEAT_SETPOINT = "heat_setpoint"
@@ -71,7 +72,7 @@ def _pkt_header(pkt: str, rx_header=None) -> Optional[str]:
     if rx_header:
         verb = "RP" if verb == "RQ" else " I"  # RQ/RP, or W/I
     code = pkt[41:45]
-    src, dst, _ = extract_addrs(pkt)
+    src, dst, _ = extract_addrs(pkt[11:40])
     addr = dst.id if src.type == "18" else src.id
     payload = pkt[50:]
 
@@ -101,13 +102,14 @@ def _pkt_header(pkt: str, rx_header=None) -> Optional[str]:
 class Command:
     """The command class."""
 
-    def __init__(self, verb, dest_addr, code, payload, **kwargs) -> None:
+    def __init__(self, verb, dest_id, code, payload, **kwargs) -> None:
         """Initialise the class."""
 
         self.verb = verb
         self.seqx = "---"
-        self.from_addr = kwargs.get("from_addr", HGI_DEVICE.id)
-        self.dest_addr = dest_addr if dest_addr is not None else self.from_addr
+        self.from_addr, self.dest_addr, self.addrs = extract_addrs(
+            f"{kwargs.get('from_id', HGI_DEV_ADDR.id)} {dest_id} {NON_DEV_ADDR.id}"
+        )
         self.code = code
         self.payload = payload
 
@@ -118,6 +120,7 @@ class Command:
         self.callback = kwargs.get("callback", {})  # func, args, daemon, timeout
         self.qos = self._qos  # retries
         self.qos.update(kwargs.get("qos", {}))
+
         self._priority = self.qos["priority"]
         self._priority_dtm = dt_now()  # used for __lt__, etc.
 
@@ -135,8 +138,9 @@ class Command:
         return COMMAND_FORMAT.format(
             self.verb,
             self.seqx,
-            self.from_addr,
-            self.dest_addr,
+            self.addrs[0].id,
+            self.addrs[1].id,
+            self.addrs[2].id,
             self.code,
             int(len(self.payload) / 2),
             self.payload,
@@ -193,7 +197,7 @@ class Command:
 
         if not COMMAND_REGEX.match(str(self)):
             self._is_valid = False
-        elif 0 > len(self.payload) > 96:
+        elif 2 > len(self.payload) > 96:
             self._is_valid = False
         else:
             self._is_valid = True
@@ -461,7 +465,28 @@ class Command:
         if length:
             payload = payload.ljust(length * 2, "F")
 
-        return cls(" I", NUL_DEVICE.id, "7FFF", payload, **kwargs)
+        return cls(" I", NUL_DEV_ADDR.id, "7FFF", payload, **kwargs)
+
+    @classmethod
+    def packet(cls, verb, seqx, addr0, addr1, addr2, code, payload, **kwargs):
+        """Construct commands with fewer assumptions/checks than the main constructor.
+
+        For example:
+            I --- --:------ --:------ 02:123456 22FD 003 000404
+        """
+        cmd = cls(verb, NUL_DEV_ADDR.id, code, payload, **kwargs)
+        if seqx is not None:
+            cmd.seqx = f"{seqx:03d}"
+
+        cmd.from_addr, cmd.dest_addr, cmd.addrs = extract_addrs(
+            f"{addr0} {addr1} {addr2}"
+        )
+
+        cmd.self._is_valid = None
+        if not cmd.is_valid:
+            raise ValueError(f"Invalid parameter values for command: {cmd}")
+
+        return cmd
 
 
 class FaultLog:  # 0418
