@@ -400,6 +400,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
         The _pause_writing flag can be ignored, is useful for sending traceflags.
         """
+
         if not ignore_pause:
             while self._pause_writing:
                 await asyncio.sleep(0.005)
@@ -411,6 +412,7 @@ class PacketProtocolBase(asyncio.Protocol):
             await asyncio.sleep(0.005)
         if DEV_MODE:  # TODO: deleteme
             _PKT_LOGGER.debug("Tx:     %s", data, extra=self._extra(dt_str(), data))
+
         self._transport.write(data)
         # await asyncio.sleep(0.05)
 
@@ -430,6 +432,11 @@ class PacketProtocolBase(asyncio.Protocol):
         self._sequence_no = (self._sequence_no + 1) % 1000
         if self._qos_cmd.seqx == "---":
             self._qos_cmd.seqx = f"{self._sequence_no:03d}"
+
+        if cmd.from_addr.type != "18":
+            _LOGGER.warning(
+                "PktProtocol.send_data(%s): IMPERSONATING!", cmd.tx_header
+            )
 
         # self._loop.create_task(
         #     self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
@@ -651,12 +658,10 @@ class PacketProtocolQos(PacketProtocol):
             raise RuntimeError("Sending is disabled")
 
         if not cmd.is_valid:
-            _LOGGER.info(
+            _LOGGER.warning(
                 "PktProtocolQos.send_data(%s): invalid command: %s", cmd.tx_header, cmd
             )
             return
-
-        # _logger_send(_LOGGER.debug, "SENDING")
 
         while self._qos_cmd is not None:
             await asyncio.sleep(0.005)
@@ -672,6 +677,11 @@ class PacketProtocolQos(PacketProtocol):
         self._sequence_no = (self._sequence_no + 1) % 1000
         if self._qos_cmd.seqx == "---":
             self._qos_cmd.seqx = f"{self._sequence_no:03d}"
+
+        if cmd.from_addr.type != "18":
+            _LOGGER.warning(
+                "PacketProtocolQos.send_data(%s): IMPERSONATING!", cmd.tx_header
+            )
 
         self._timeouts(dt.now())
         await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
