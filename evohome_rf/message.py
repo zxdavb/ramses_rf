@@ -316,7 +316,9 @@ class Message:
             hint = f": {err}" if str(err) != "" else ""
             if not hint or DEV_MODE:
                 log_message(_PKT_LOGGER.exception, "%s < Validation error ")
-            elif self.src.type != "18":  # TODO: should be else:
+            elif self.src.type != "18":
+                log_message(_PKT_LOGGER.warning, f"%s < Validation error{hint} ")
+            else:  # elif DEV_MODE:  # TODO: consider info/debug for the following
                 log_message(_PKT_LOGGER.warning, f"%s < Validation error{hint} ")
             self._is_valid = False
             return self._is_valid
