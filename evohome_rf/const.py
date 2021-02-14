@@ -31,6 +31,23 @@ HGI_DEV_ADDR = id_to_address(HGI_DEVICE_ID)
 NON_DEV_ADDR = id_to_address(NON_DEVICE_ID)
 NUL_DEV_ADDR = id_to_address(NUL_DEVICE_ID)
 
+# ATTR_DEVICE_ID = "device_id"
+# ATTR_SENSOR_ID = "sensor_id"
+# ATTR_CTL_DEVICE_ID = "controller_id"
+# ATTR_DHW_SENSOR_ID = "sensor_id"
+# ATTR_HTG_DEVICE_ID = "heater_id"
+# ATTR_UFC_DEVICE_ID = "ufh_controller_id"
+# ATTR_RELAY_DEVICE_ID = "relay_id"
+
+ALL_DEVICE_ID = r"^[0-9]{2}:[0-9]{6}$"
+ZON_SENSOR_ID = r"^('01'|'03'|'04'|'12'|'22'|'34'):[0-9]{6}$"
+CTL_DEVICE_ID = r"^(01|23):[0-9]{6}$"
+DHW_SENSOR_ID = r"^07:[0-9]{6}$"
+HTG_DEVICE_ID = r"^(10|13):[0-9]{6}$"
+UFC_DEVICE_ID = r"^02:[0-9]{6}$"
+RLY_DEVICE_ID = r"^13:[0-9]{6}$"
+
+
 DEFAULT_MAX_ZONES = 12
 # Evohome: 12 (0-11), older/initial version was 8
 # Hometronics: 16 (0-15), or more?

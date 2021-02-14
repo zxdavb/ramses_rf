@@ -20,7 +20,7 @@ from .const import (
     DOMAIN_TYPE_MAP,
 )
 from .exceptions import CorruptStateError
-from .helpers import slugify_string as slugify, dev_id_to_hex
+from .helpers import dev_id_to_hex
 
 DEV_MODE = _dev_mode_
 
@@ -546,6 +546,7 @@ class UfhController(Device):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        self.klass = "UFC"
 
         self._circuits = {}
         self._setpoints = None
@@ -594,10 +595,12 @@ class UfhController(Device):
         super()._handle_msg(msg)
 
         if msg.code == "000C":
-            if "ufh_idx" in msg.payload and msg.payload["zone_id"] is not None:
-                self._circuits[msg.payload["ufh_idx"]] = {
-                    "zone_idx": msg.payload["zone_id"]
-                }
+            assert "ufh_idx" in msg.payload, "wsdfh"
+            if msg.payload["zone_id"] is not None:
+                self._circuits[msg.payload["ufh_idx"]] = msg
+
+        elif msg.code == "22C9":
+            self._setpoints = msg
 
         # "0008|FA/FC", "22C9|array", "22D0|none", "3150|ZZ/array(/FC?)"
 
@@ -607,28 +610,57 @@ class UfhController(Device):
         #     assert False, "Unknown packet code"
 
     @property
+    def circuits(self) -> Optional[Dict]:  # 000C
+        def fix(k):
+            return "zone_idx" if k == "zone_id" else k
+
+        return [
+            {fix(k): v for k, v in m.payload.items() if k in ("ufh_idx", "zone_id")}
+            for m in self._circuits.values()
+        ]
+
+    @property
+    def heat_demand(self) -> Optional[Dict]:  # 3150
+        try:
+            return self._msgs["3150"].payload["heat_demand"]
+        except KeyError:
+            return
+
+    @property
+    def relay_demand(self) -> Optional[Dict]:  # 0008
+        try:
+            return self._msgs["0008"].payload["relay_demand"]
+        except KeyError:
+            return
+
+    @property
     def setpoints(self) -> Optional[Dict]:  # 22C9
-        return self._msg_payload(self._setpoints)
+        return [
+            {k: v for k, v in d.items() if k in ("ufh_idx", "temp_high", "temp_low")}
+            for d in self._setpoints.payload
+        ]
 
     @property  # id, type
     def schema(self) -> dict:
         return {
             **super().schema,
-            "ufh_circuits": self._circuits,
+            "circuits": self.circuits,
         }
 
-    # @property  # setpoint, config, mode (not schedule)
-    # def params(self) -> dict:
+    @property  # setpoint, config, mode (not schedule)
+    def params(self) -> dict:
+        return {
+            **super().params,
+            "setpoints": self.setpoints,
+        }
 
-    #     return {
-    #        **super().params,
-    #     }
-
-    # @property
-    # def status(self) -> dict:
-    #     return {
-    #         **super().status,
-    #     }
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            "heat_demand": self.heat_demand,
+            "relay_demand": self.relay_demand,
+        }
 
 
 # 07: "1260" "10A0" (and "1060")
@@ -660,12 +692,12 @@ class DhwSensor(BatteryState, Device):
     def temperature(self) -> Optional[float]:
         return self._msg_payload(self._temp, "temperature")
 
-    # @property
-    # def params(self) -> dict:
-    #     return {
-    #         **super().params,
-    #         "dhw_params": self.dhw_params,
-    #     }
+    @property
+    def params(self) -> dict:
+        return {
+            **super().params,
+            "dhw_params": self.dhw_params,
+        }
 
     @property
     def status(self) -> dict:
@@ -748,34 +780,46 @@ class OtbGateway(Actuator, Device):
             self._modulation_level = msg
 
     @property
-    def boiler_temp(self) -> Optional[float]:  # 3220
-        if "19" in self._opentherm_msg:
-            return self._opentherm_msg["19"].payload["value"]
+    def boiler_water_temp(self) -> Optional[float]:  # 3220
+        try:
+            return self._opentherm_msg["0x19"].payload["value"]
+        except KeyError:
+            return
 
     @property
-    def ch_pressure(self) -> Optional[float]:  # 3220
-        if "12" in self._opentherm_msg:
-            return self._opentherm_msg["12"].payload["value"]
+    def ch_water_pressure(self) -> Optional[float]:  # 3220
+        try:
+            return self._opentherm_msg["0x12"].payload["value"]
+        except KeyError:
+            return
 
     @property
     def dhw_flow_rate(self) -> Optional[float]:  # 3220
-        if "13" in self._opentherm_msg:
-            return self._opentherm_msg["13"].payload["value"]
+        try:
+            return self._opentherm_msg["0x13"].payload["value"]
+        except KeyError:
+            return
 
     @property
-    def dwh_temp(self) -> Optional[float]:  # 3220
-        if "1A" in self._opentherm_msg:
-            return self._opentherm_msg["1A"].payload["value"]
+    def dhw_temp(self) -> Optional[float]:  # 3220
+        try:
+            return self._opentherm_msg["0x1A"].payload["value"]
+        except KeyError:
+            return
 
     @property
     def rel_modulation_level(self) -> Optional[float]:  # 3220
-        if "11" in self._opentherm_msg:
-            return self._opentherm_msg["11"].payload["value"]
+        try:
+            return self._opentherm_msg["0x11"].payload["value"]
+        except KeyError:
+            return
 
     @property
     def return_cv_temp(self) -> Optional[float]:  # 3220
-        if "1C" in self._opentherm_msg:
-            return self._opentherm_msg["1C"].payload["value"]
+        try:
+            return self._opentherm_msg["0x1C"].payload["value"]
+        except KeyError:
+            return
 
     @property
     def boiler_setpoint(self) -> Optional[float]:  # 22D9
@@ -786,14 +830,22 @@ class OtbGateway(Actuator, Device):
         return self._msg_payload(self._modulation_level, "modulation_level")
 
     @property
-    def ot_status(self) -> dict:
+    def opentherm_status(self) -> dict:
         return {
-            slugify(self._opentherm_msg[msg_id].payload["msg_name"]): (
-                self._opentherm_msg[msg_id].payload["value"]
-            )
-            for msg_id in ("11", "12", "13", "19", "1A", "1C")
-            if msg_id in self._opentherm_msg
+            "boiler_temp": self.boiler_water_temp,
+            "ch_pressure": self.ch_water_pressure,
+            "dhw_flow_rate": self.dhw_flow_rate,
+            "dhw_temp": self.dhw_temp,
+            "rel_modulation_level": self.rel_modulation_level,
+            "return_cv_temp": self.return_cv_temp,
         }
+        # return {
+        #     slugify(self._opentherm_msg[msg_id].payload["msg_name"]): (
+        #         self._opentherm_msg[msg_id].payload["value"]
+        #     )
+        #     for msg_id in ("0x11", "0x12", "0x13", "0x19", "0x1A", "0x1C")
+        #     if msg_id in self._opentherm_msg
+        # }
 
     @property
     def status(self) -> dict:
@@ -801,12 +853,7 @@ class OtbGateway(Actuator, Device):
             **super().status,
             "boiler_setpoint": self.boiler_setpoint,
             "modulation_level": self.modulation_level,  # TODO: keep? (is duplicate)
-            "boiler_temp": self.boiler_temp,
-            "ch_pressure": self.ch_pressure,
-            "dhw_flow_rate": self.dhw_flow_rate,
-            "dwh_temp": self.dwh_temp,
-            "rel_modulation_level": self.rel_modulation_level,
-            "return_cv_temp": self.return_cv_temp,
+            "opentherm_status": self.opentherm_status,
         }
 
 
@@ -971,17 +1018,33 @@ class TrvActuator(BatteryState, Setpoint, Temperature, Device):
         }
 
 
+DEVICE_KLASS_TO_CLASS = {
+    "TRV": TrvActuator,
+    "CTL": Controller,
+    "PRG": Controller,
+    "UFC": UfhController,
+    "THM": Thermostat,
+    "DHW": DhwSensor,
+    "OTB": OtbGateway,
+    "BDR": BdrSwitch,
+}
+DEVICE_TYPE_TO_KLASS = {
+    "00": "TRV",
+    "01": "CTL",
+    "02": "UFC",
+    "03": "THM",
+    "04": "TRV",
+    "07": "DHE",
+    "10": "OTB",
+    "12": "THM",
+    "13": "BDR",
+    "22": "THM",
+    "23": "PRG",
+    "34": "THM",
+}
 DEVICE_CLASSES = {
-    "00": TrvActuator,
-    "01": Controller,
-    "02": UfhController,
-    "03": Thermostat,
-    "04": TrvActuator,
-    "07": DhwSensor,
-    "10": OtbGateway,
-    "12": Thermostat,
-    "13": BdrSwitch,
-    "22": Thermostat,
-    "23": Controller,
-    "34": Thermostat,
+    k1: v2
+    for k1, v1 in DEVICE_TYPE_TO_KLASS.items()
+    for k2, v2 in DEVICE_KLASS_TO_CLASS.items()
+    if v1 == k2
 }
