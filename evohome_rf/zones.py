@@ -908,7 +908,10 @@ class MixZone(Zone):
 
     @property
     def params(self) -> dict:
-        return {**super().status, "mix_config": self.mix_config}
+        return {
+            **super().status,
+            "mix_config": self.mix_config,
+        }
 
 
 ZONE_CLASSES = {
