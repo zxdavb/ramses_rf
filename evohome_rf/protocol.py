@@ -401,7 +401,7 @@ class MessageProtocol(asyncio.Protocol):
         self._callback(msg)
 
     async def send_data(
-        self, cmd: Command, awaitable=None, callback=None
+        self, cmd: Command, awaitable=None, callback=None, **kwargs
     ) -> Optional[Message]:
         """Called when a command is to be sent."""
         _LOGGER.debug("MsgProtocol.send_data(%s)", cmd)
@@ -412,7 +412,10 @@ class MessageProtocol(asyncio.Protocol):
         if awaitable:
             awaitable, callback = await MakeCallbackAwaitable(self._loop).create_pair()
         if callback:
-            cmd.callback = {"func": callback, "timeout": 3}
+            cmd.callback = {
+                "func": callback,
+                "timeout": 3,
+            }  # func, args, daemon, timeout (& expired)
 
         while self._pause_writing:
             await asyncio.sleep(0.005)

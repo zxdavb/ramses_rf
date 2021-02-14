@@ -214,7 +214,7 @@ def parser_decorator(func):
         """Check the length of a payload."""
         payload, msg = args[0], args[1]
 
-        # Check source device against ver/code pair
+        # STEP 0: Check verb/code pair against source device type
         if msg.code == "1FC9":
             pass
 
@@ -231,7 +231,16 @@ def parser_decorator(func):
                 RAMSES_DEVICES[msg.src.type][msg.code] == {}
             ), f"Invalid verb/code for {msg.src.id}: {msg.verb}/{msg.code}"
 
-        # These are expections to the rules
+        # STEP 1: Check payload against verb/code pair
+        try:
+            regexp = RAMSES_CODES[msg.code][msg.verb]
+            assert (
+                re.compile(regexp).match(payload)
+            ), f"Expecting payload to match '{regexp}'"
+        except KeyError:
+            pass
+
+        # STEP 2: These are expections to the rules
         if msg.src.type in ("08", "31"):  # Honeywell Jasper HVAC
             # assert RAMSES_DEVICES
             return func(*args, **kwargs)
@@ -435,7 +444,7 @@ def parser_0004(payload, msg) -> Optional[dict]:
 
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
-        cmd = Command.zone_name(msg.src.id, payload[:2], result["name"])
+        cmd = Command.set_zone_name(msg.src.id, payload[:2], result["name"])
         assert cmd.payload == payload, _str(payload)
     # TODO: remove me...
 
@@ -610,7 +619,7 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:
             "openwindow_function",
             "multiroom_mode",
         )
-        cmd = Command.zone_config(
+        cmd = Command.set_zone_config(
             msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
@@ -896,7 +905,7 @@ def parser_1030(payload, msg) -> Optional[dict]:
             "valve_run_time",
             "pump_run_time",
         )
-        cmd = Command.mix_valve_params(
+        cmd = Command.set_mix_valve_params(
             msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
@@ -977,7 +986,7 @@ def parser_10a0(payload, msg) -> Optional[dict]:
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
         KEYS = ("setpoint", "overrun", "differential")
-        cmd = Command.dhw_params(
+        cmd = Command.set_dhw_params(
             msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
@@ -1054,7 +1063,7 @@ def parser_1100(payload, msg) -> Optional[dict]:
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
         KEYS = ("cycle_rate", "min_on_time", "min_off_time", "proportional_band_width")
-        cmd = Command.tpi_params(
+        cmd = Command.set_tpi_params(
             msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
@@ -1158,7 +1167,7 @@ def parser_1f41(payload, msg) -> Optional[dict]:
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
         KEYS = ("active", "mode", "until")
-        cmd = Command.dhw_mode(
+        cmd = Command.set_dhw_mode(
             msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
@@ -1351,7 +1360,7 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:
 
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
-        cmd = Command.zone_setpoint(msg.src.id, payload[:2], result["setpoint"])
+        cmd = Command.set_zone_setpoint(msg.src.id, payload[:2], result["setpoint"])
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
 
@@ -1389,7 +1398,7 @@ def parser_2349(payload, msg) -> Optional[dict]:
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
         KEYS = ("setpoint", "mode", "until")
-        cmd = Command.zone_mode(
+        cmd = Command.set_zone_mode(
             msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
@@ -1433,7 +1442,8 @@ def parser_2e04(payload, msg) -> Optional[dict]:
         # assert False
 
     else:
-        assert False, msg.len  # msg.len in (8, 16)  # evohome 8, hometronics 16
+        # msg.len in (8, 16)  # evohome 8, hometronics 16
+        assert False, f"Packet length is {msg.len} (expecting 8, 16)"
 
     result = {
         "system_mode": SYSTEM_MODE_MAP.get(payload[:2], payload[:2]),
@@ -1443,8 +1453,8 @@ def parser_2e04(payload, msg) -> Optional[dict]:
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
         KEYS = ("system_mode", "until")
-        cmd = Command.system_mode(
-            msg.src.id, **{k: v for k, v in result.items() if k in KEYS}
+        cmd = Command.set_system_mode(
+            msg.dst.id, **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
@@ -1508,7 +1518,7 @@ def parser_313f(payload, msg) -> Optional[dict]:
 
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
-        cmd = Command.system_time(msg.src.id, result["datetime"])
+        cmd = Command.set_system_time(msg.src.id, result["datetime"])
         payload = payload[:4] + "00" + payload[6:]  # 00, 01, 02, 03?
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...

@@ -9,7 +9,7 @@ import logging
 from threading import Lock
 from typing import List, Optional
 
-from .command import Priority, FaultLog
+from .command import Command, FaultLog, Priority
 from .const import (
     ATTR_CONTROLLER,
     ATTR_DEVICES,
@@ -22,13 +22,10 @@ from .const import (
     DISCOVER_PARAMS,
     DISCOVER_STATUS,
     DISCOVER_ALL,
-    SYSTEM_MODE_LOOKUP,
-    SYSTEM_MODE_MAP,
     _dev_mode_,
 )
 from .devices import Device, Entity
 from .exceptions import CorruptStateError, ExpiredCallbackError
-from .helpers import dtm_to_hex
 from .schema import (
     ATTR_HTG_CONTROL,
     ATTR_ORPHANS,
@@ -88,7 +85,8 @@ class SysDatetime:  # 313F
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
-            self._send_cmd("313F")
+            self._gwy.send_cmd(Command.get_system_time(self.id))
+            # self._send_cmd("313F")
 
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
@@ -168,14 +166,8 @@ class SysMode:  # 2E04
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
-            self._send_cmd("2E04", payload="FF")  # system mode
-
-        # TODO: testing only
-        # self._loop.create_task(
-        #     self.async_set_mode(5, dt_now() + td(minutes=120))
-        #     # self.async_set_mode(5)
-        #     # self.async_reset_mode()
-        # )
+            # self._send_cmd("2E04", payload="FF")  # system mode
+            self._gwy.send_cmd(Command.get_system_mode(self.id))
 
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
@@ -187,26 +179,17 @@ class SysMode:  # 2E04
     def system_mode(self) -> Optional[dict]:  # 2E04
         return self._msg_payload(self._system_mode)
 
-    async def set_mode(self, system_mode, until=None):
+    async def set_mode(self, system_mode=None, until=None):
         """Set the system mode for a specified duration, or indefinitely."""
-
-        if isinstance(system_mode, int):
-            system_mode = f"{system_mode:02X}"
-        elif not isinstance(system_mode, str):
-            raise TypeError(f"Invalid system mode: {system_mode}")
-        elif system_mode in SYSTEM_MODE_LOOKUP:
-            system_mode = SYSTEM_MODE_LOOKUP[system_mode]
-
-        if system_mode not in SYSTEM_MODE_MAP:
-            raise ValueError(f"Unknown system mode: {system_mode}")
-
-        until = dtm_to_hex(until) + "00" if until is None else "01"
-
-        self._send_cmd("2E04", verb=" W", payload=f"{system_mode}{until}")
+        self._gwy.send_cmd(
+            Command.set_system_mode(self.id, system_mode=system_mode, until=until)
+        )
 
     async def reset_mode(self) -> None:
         """Revert the system mode to Auto."""  # TODO: is it AutoWithReset?
-        self._send_cmd("2E04", verb=" W", payload="00FFFFFFFFFFFF00")
+        self._gwy.send_cmd(
+            Command.set_system_mode(self.id, system_mode="auto_with_reset")
+        )
 
     @property
     def params(self) -> dict:
@@ -1065,6 +1048,9 @@ class Evohome(SysLanguage, SysMode, MultiZone, StoredHw, System):  # evohome
         return super().status
 
 
+class Programmer(Evohome):
+    pass
+
 # class Chronotherm(System):
 # class Hometronics(System):
 # class Sundial(System):
@@ -1073,4 +1059,4 @@ class Evohome(SysLanguage, SysMode, MultiZone, StoredHw, System):  # evohome
 #         pass
 
 
-SYSTEM_CLASSES = {"01": Evohome, "12": System, "22": System, "23": System}
+SYSTEM_CLASSES = {"01": Evohome, "12": System, "22": System, "23": Programmer}

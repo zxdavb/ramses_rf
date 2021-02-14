@@ -24,6 +24,7 @@ from .const import (
     HGI_DEV_ADDR,
     NON_DEV_ADDR,
     NUL_DEV_ADDR,
+    SYSTEM_MODE_MAP,
     SYSTEM_MODE_LOOKUP,
     ZONE_MODE_LOOKUP,
     ZONE_MODE_MAP,
@@ -295,28 +296,48 @@ class Command:
 
         return cls(" W", ctl_id, "1030", payload, **kwargs)
 
+    @classmethod  # constructor for 0418  # TODO
+    def get_system_log_entry(cls, ctl_id, log_idx, **kwargs):
+        """Constructor to get a log entry from a system (c.f. parser_0418)."""
+
+        return cls("RQ", ctl_id, "0418", f"{log_idx:06X}", **kwargs)
+
+    @classmethod  # constructor for 2E04
+    def get_system_mode(cls, ctl_id, **kwargs):
+        """Constructor to get the mode of a system (c.f. parser_2e04)."""
+
+        return cls("RQ", ctl_id, "2E04", "FF", **kwargs)
+
     @classmethod  # constructor for 2E04  # TODO
-    def set_system_mode(cls, ctl_id, system_mode=None, until=None, **kwargs):
+    def set_system_mode(cls, ctl_id, system_mode="auto", until=None, **kwargs):
         """Constructor to set/reset the mode of a system (c.f. parser_2e04)."""
 
-        payload = ""
+        if isinstance(system_mode, int):
+            system_mode = f"{system_mode:02X}"
+        elif not isinstance(system_mode, str):
+            raise TypeError(f"Invalid system mode: {system_mode}")
+        elif system_mode in SYSTEM_MODE_LOOKUP:
+            system_mode = SYSTEM_MODE_LOOKUP[system_mode]
 
-        assert (
-            system_mode in SYSTEM_MODE_LOOKUP
-        ), f"unkown system mode: {system_mode}"
+        if system_mode not in SYSTEM_MODE_MAP:
+            raise ValueError(f"Unknown system mode: {system_mode}")
 
-        payload += f"{SYSTEM_MODE_LOOKUP[system_mode]}FFFFFF"
-        if SYSTEM_MODE_LOOKUP[system_mode] == "04":
-            payload += dtm_to_hex(until)
+        until = dtm_to_hex(until) + ("00" if until is None else "01")
 
-        return cls(" W", ctl_id, "2E04", payload, **kwargs)
+        return cls(" W", ctl_id, "2E04", f"{system_mode}{until}", **kwargs)
+
+    @classmethod  # constructor for 313F
+    def get_system_time(cls, ctl_id, **kwargs):
+        """Constructor to get the datetime of a system (c.f. parser_313f)."""
+
+        return cls("RQ", ctl_id, "313F", "00", **kwargs)
 
     @classmethod  # constructor for 313F
     def set_system_time(cls, ctl_id, datetime, **kwargs):
         """Constructor to set the datetime of a system (c.f. parser_313f)."""
         #  W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
 
-        return cls(" W", ctl_id, "313F", f"006000{dtm_to_hex(datetime)}")
+        return cls(" W", ctl_id, "313F", f"006000{dtm_to_hex(datetime)}", **kwargs)
 
     @classmethod  # constructor for 1100  # TODO
     def set_tpi_params(
@@ -474,7 +495,7 @@ class Command:
         """Construct commands with fewer assumptions/checks than the main constructor.
 
         For example:
-            I --- --:------ --:------ 02:123456 22FD 003 000404
+            I 056 --:------ --:------ 02:123456 99FD 003 000404
         """
         cmd = cls(verb, NUL_DEV_ADDR.id, code, payload, **kwargs)
         if seqx is not None:
@@ -580,7 +601,7 @@ class FaultLog:  # 0418
 
         rq_callback = {"func": rq_callback, "timeout": 10}
         self._gwy.send_cmd(
-            Command("RQ", self._ctl.id, "0418", f"{log_idx:06X}", callback=rq_callback)
+            Command.get_system_log_entry(self._ctl.id, log_idx, callback=rq_callback),
         )
 
 
