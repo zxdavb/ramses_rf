@@ -234,8 +234,8 @@ def parser_decorator(func):
         # STEP 1: Check payload against verb/code pair
         try:
             regexp = RAMSES_CODES[msg.code][msg.verb]
-            assert (
-                re.compile(regexp).match(payload)
+            assert re.compile(regexp).match(
+                payload
             ), f"Expecting payload to match '{regexp}'"
         except KeyError:
             pass
