@@ -27,7 +27,9 @@ RAMSES_CODES = {
     },
     "0004": {
         NAME: "zone_name",
-        RQ: r"^0[0-9A-F]00$",  # f"{zone_idx}00"
+        RQ: r"^0[0-9A-F]00$",
+        RP: r"^0[0-9A-F]00([0-9A-F]){40}$",
+        I_: r"^0[0-9A-F]00([0-9A-F]){40}$",
     },
     "0005": {  # system_zones
         NAME: "system_zones",
@@ -37,6 +39,7 @@ RAMSES_CODES = {
     "0006": {
         NAME: "schedule_sync",
         RQ: r"^00$",
+        RP: r"^0005[0-9A-F]{4}$",
     },
     "0008": {
         NAME: "relay_demand",
@@ -48,7 +51,8 @@ RAMSES_CODES = {
     "000A": {
         NAME: "zone_params",
         I_: r"^(0[0-9A-F][0-9A-F]{10}){1,8}$",
-        RQ: r"^0[0-9A-F]([0-9A-F]{10})?$",
+        RQ: r"^0[0-9A-F]((00)?|([0-9A-F]{10})+)$",  # is: r"^0[0-9A-F]([0-9A-F]{10})+$"
+        RP: r"^0[0-9A-F]([0-9A-F]{10})+$",
         RQ_MAY_HAVE_PAYLOAD: True,
         # 17:54:13.126 063 RQ --- 34:064023 01:145038 --:------ 000A 001 03
         # 17:54:13.141 045 RP --- 01:145038 34:064023 --:------ 000A 006 031002260B86
@@ -187,14 +191,17 @@ RAMSES_CODES = {
     },
     "2349": {  # zone_mode
         NAME: "zone_mode",
-        RQ: r"^0[0-9A-F]$",
+        RQ: r"^0[0-9A-F](00)?$",  # is actually: r"^0[0-9A-F]$"
     },
     "2D49": {  # seen with Hometronic systems
         NAME: "message_2d49",
     },
     "2E04": {
         NAME: "system_mode",
+        I_: r"^0[0-7][0-9A-F]{12}0[01]$",
         RQ: r"^FF$",
+        RP: r"^0[0-7][0-9A-F]{12}0[01]$",
+        W_: r"^0[0-7][0-9A-F]{12}0[01]$",
     },
     "30C9": {
         NAME: "temperature",
@@ -202,7 +209,7 @@ RAMSES_CODES = {
         # RQ --- 30:185469 01:037519 --:------ 30C9 001 00
         RP: r"^0[0-9A-F][0-9A-F]{4}$",  # Null: r"^0[0-9A-F]7FFF$"
         # RP --- 01:145038 18:013393 --:------ 30C9 003 FF7FFF
-        I_: r"^(0[0-9A-F][0-9A-F]{4}){1,8}$",
+        I_: r"^(0[0-9A-F][0-9A-F]{4}){1,12}$",
     },
     "3120": {
         NAME: "message_3120",
@@ -760,6 +767,7 @@ RAMSES_DEVICES = {
         },
         "2E04": {
             RQ: {},
+            W_: {},
         },
         "30C9": {
             RQ: {},
