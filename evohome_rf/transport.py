@@ -434,9 +434,7 @@ class PacketProtocolBase(asyncio.Protocol):
             self._qos_cmd.seqx = f"{self._sequence_no:03d}"
 
         if cmd.from_addr.type != "18":
-            _LOGGER.warning(
-                "PktProtocol.send_data(%s): IMPERSONATING!", cmd.tx_header
-            )
+            _LOGGER.warning("PktProtocol.send_data(%s): IMPERSONATING!", cmd.tx_header)
 
         # self._loop.create_task(
         #     self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
