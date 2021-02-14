@@ -121,6 +121,9 @@ def dtm_from_hex(value: str) -> str:  # from parsers
     #        00141B0A07E3  (...HH:MM:00)    for system_mode, zone_mode (schedules?)
     #      0400041C0A07E3  (...HH:MM:SS)    for sync_datetime
 
+    if value == "FF" * 6:
+        return None
+
     if len(value) == 12:
         value = f"00{value}"
     # assert len(value) == 14
