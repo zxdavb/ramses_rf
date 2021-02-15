@@ -241,12 +241,6 @@ class DhwZone(ZoneBase):
         elif msg.code == "1F41":
             self._setpoint_status = msg
 
-        elif msg.code == "3150" and msg.verb == " I":
-            self._heat_demand = msg
-
-        # elif msg.code in ("1100", "3150", "3B00"):
-        #     pass
-
     @property
     def sensor(self) -> Device:
         return self._sensor
@@ -308,8 +302,6 @@ class DhwZone(ZoneBase):
 
     @property
     def schema(self) -> dict:
-        """Return the stored HW's schema."""
-
         return {
             ATTR_DHW_SENSOR: self.sensor.id if self.sensor else None,
             ATTR_DHW_VALVE: self.hotwater_valve.id if self.hotwater_valve else None,
