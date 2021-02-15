@@ -293,7 +293,7 @@ def load_schema(gwy, **kwargs) -> Tuple[dict, dict]:
 
     ufh_ctl_ids = schema.get(ATTR_UFH_SYSTEM)
     if ufh_ctl_ids:
-        for ufc_id, _ in ufh_ctl_ids:
+        for ufc_id, _ in ufh_ctl_ids.items():
             _ = gwy._get_device(addr(ufc_id), ctl_addr=ctl)
 
     return (schema, known_devices)
