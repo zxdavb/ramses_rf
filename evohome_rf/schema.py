@@ -259,7 +259,7 @@ def load_schema(gwy, **kwargs) -> Tuple[dict, dict]:
     if htg_ctl_id:
         ctl._evo._set_htg_control(gwy._get_device(addr(htg_ctl_id), ctl_addr=ctl))
 
-    dhw = schema.get(ATTR_DHW_SYSTEM)
+    dhw = schema.get(ATTR_DHW_SYSTEM, {})
     if dhw:
         ctl._evo._set_dhw(ctl._evo._get_zone("HW"))
 
@@ -275,7 +275,7 @@ def load_schema(gwy, **kwargs) -> Tuple[dict, dict]:
         if htg_valve_id:
             ctl._evo._set_htg_valve(gwy._get_device(addr(htg_valve_id), ctl_addr=ctl))
 
-    zones = schema.get(ATTR_ZONES)
+    zones = schema.get(ATTR_ZONES, {})
     if zones:
         for zone_idx, attr in schema[ATTR_ZONES].items():
             zone = ctl._evo._get_zone(zone_idx, zone_type=attr.get(ATTR_ZONE_TYPE))
@@ -284,14 +284,14 @@ def load_schema(gwy, **kwargs) -> Tuple[dict, dict]:
             if sensor_id:
                 zone._set_sensor(gwy._get_device(addr(sensor_id), ctl_addr=ctl))
 
-            for device_id in attr.get(ATTR_DEVICES):
+            for device_id in attr.get(ATTR_DEVICES, []):
                 gwy._get_device(addr(device_id), ctl_addr=ctl, domain_id=zone_idx)
 
-    orphan_ids = schema.get(ATTR_ORPHANS)
+    orphan_ids = schema.get(ATTR_ORPHANS, [])
     if orphan_ids:
         [gwy._get_device(addr(device_id), ctl_addr=ctl) for device_id in orphan_ids]
 
-    ufh_ctl_ids = schema.get(ATTR_UFH_SYSTEM)
+    ufh_ctl_ids = schema.get(ATTR_UFH_SYSTEM, {})
     if ufh_ctl_ids:
         for ufc_id, _ in ufh_ctl_ids.items():
             _ = gwy._get_device(addr(ufc_id), ctl_addr=ctl)
