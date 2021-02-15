@@ -637,7 +637,7 @@ class UfhController(Device):
     def setpoints(self) -> Optional[Dict]:  # 22C9
         return [
             {k: v for k, v in d.items() if k in ("ufh_idx", "temp_high", "temp_low")}
-            for d in self._setpoints.payload
+            for d in (self._setpoints.payload if self._setpoints else [])
         ]
 
     @property  # id, type
