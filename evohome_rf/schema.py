@@ -103,22 +103,14 @@ CONFIG_SCHEMA = vol.Schema(
 )
 HTG_SCHEMA = vol.Schema(
     {
-        vol.Optional(ATTR_HTG_RELAY, default=None): vol.Any(
-            None, vol.Match(HTG_DEVICE_ID)
-        ),
+        vol.Optional(ATTR_HTG_RELAY, default=None): vol.Any(None, HTG_DEVICE_ID),
     }
 )
 DHW_SCHEMA = vol.Schema(
     {
-        vol.Optional(ATTR_DHW_SENSOR, default=None): vol.Any(
-            None, vol.Match(DHW_SENSOR_ID)
-        ),
-        vol.Optional(ATTR_DHW_VALVE, default=None): vol.Any(
-            None, vol.Match(RLY_DEVICE_ID)
-        ),
-        vol.Optional(ATTR_DHW_VALVE_HTG, default=None): vol.Any(
-            None, vol.Match(RLY_DEVICE_ID)
-        ),
+        vol.Optional(ATTR_DHW_SENSOR, default=None): vol.Any(None, DHW_SENSOR_ID),
+        vol.Optional(ATTR_DHW_VALVE, default=None): vol.Any(None, RLY_DEVICE_ID),
+        vol.Optional(ATTR_DHW_VALVE_HTG, default=None): vol.Any(None, RLY_DEVICE_ID),
     }
 )
 UFC_CIRCUIT = vol.Schema(
@@ -152,7 +144,7 @@ ZONE_SCHEMA = vol.Schema({vol.Required(ZONE_IDX): ZONE_SCHEMA})
 ZONE_SCHEMA = vol.All(ZONE_SCHEMA, vol.Length(min=1, max=DEFAULT_MAX_ZONES))
 SYSTEM_SCHEMA = vol.Schema(
     {
-        vol.Required(ATTR_CONTROLLER): vol.Match(CTL_DEVICE_ID),
+        vol.Required(ATTR_CONTROLLER): CTL_DEVICE_ID,
         vol.Optional(ATTR_HTG_SYSTEM, default={}): vol.Any({}, HTG_SCHEMA),
         vol.Optional(ATTR_DHW_SYSTEM, default={}): vol.Any({}, DHW_SCHEMA),
         vol.Optional(ATTR_UFH_SYSTEM, default={}): vol.Any({}, UFH_SCHEMA),
