@@ -212,9 +212,6 @@ class StoredHw:
         super().__init__(*args, **kwargs)
         self._dhw = None
 
-    def __repr__(self) -> str:
-        return f"{self._ctl.id}_HW (DHW)"
-
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -324,6 +321,84 @@ class StoredHw:
             # self.add_device(dhw.sensor)
             # self.add_device(dhw.relay)
             self._dhw = dhw
+
+    @property
+    def dhw_sensor(self) -> Device:
+        """Blah it now.
+
+        Check and Verb the DHW sensor (07:) of this system/CTL (if there is one).
+
+        There is only 1 way to find a controller's DHW sensor:
+        1.  The 10A0 RQ/RP *from/to a 07:* (1x/4h)
+
+        The RQ is initiated by the DHW, so is not authorative (the CTL will RP any RQ).
+        The I/1260 is not to/from a controller, so is not useful.
+        """  # noqa: D402
+
+        # 07:38:39.124 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
+        # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
+
+        # if "10A0" in self._msgs:
+        #     return self._msgs["10A0"].dst.addr
+
+        return self._dhw_sensor
+
+    def _set_dhw_sensor(self, device: Device) -> None:  # self._sensor
+        """Set the temp sensor for this DHW system (07: only)."""
+
+        if self._dhw_sensor != device and self._dhw_sensor is not None:
+            raise CorruptStateError(
+                f"{ATTR_ZONE_SENSOR} shouldn't change: {self._dhw_sensor} to {device}"
+            )
+
+        if not isinstance(device, Device) or device.type != "07":
+            raise TypeError(f"{ATTR_ZONE_SENSOR} can't be: {device}")
+
+        if self._dhw_sensor is None:
+            self._dhw_sensor = device
+            device._set_parent(self, domain="FA")
+
+    @property
+    def hotwater_valve(self) -> Device:
+        return self._dhw_valve
+
+    def _set_dhw_valve(self, device: Device) -> None:  # self._dhw_valve
+        """Set the hotwater valve relay for this DHW system (13: only)."""
+
+        if not isinstance(device, Device) or device.type != "13":
+            raise TypeError(f"{ATTR_DHW_VALVE} can't be: {device}")
+
+        if self._dhw_valve is not None:
+            if self._dhw_valve is device:
+                return
+            raise CorruptStateError(
+                f"{ATTR_DHW_VALVE} shouldn't change: {self._dhw_valve} to {device}"
+            )
+
+        if self._dhw_valve is None:
+            self._dhw_valve = device
+            device._set_parent(self, domain="FA")
+
+    @property
+    def heating_valve(self) -> Device:
+        return self._htg_valve
+
+    def _set_htg_valve(self, device: Device) -> None:  # self._htg_valve
+        """Set the heating valve relay for this DHW system (13: only)."""
+
+        if not isinstance(device, Device) or device.type != "13":
+            raise TypeError(f"{ATTR_DHW_VALVE_HTG} can't be: {device}")
+
+        if self._htg_valve is not None:
+            if self._htg_valve is device:
+                return
+            raise CorruptStateError(
+                f"{ATTR_DHW_VALVE_HTG} shouldn't change: {self._htg_valve} to {device}"
+            )
+
+        if self._htg_valve is None:
+            self._htg_valve = device
+            device._set_parent(self, domain="F9")
 
     @property
     def schema(self) -> dict:
@@ -640,7 +715,6 @@ class UfhSystem:
 
 class SystemBase(Entity):  # 3B00 (multi-relay)
     """The most basic controllers - a generic controller (e.g. ST9420C)."""
-
     # 0008|0009|1030|1100|2309|3B00
 
     def __init__(self, gwy, ctl, **kwargs) -> None:
@@ -663,7 +737,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         self._htg_valve = None
 
     def __repr__(self) -> str:
-        return f"{self._ctl.id} (controller)"
+        return f"{self._ctl.id} (system)"
 
     def __str__(self) -> str:  # TODO: WIP
         return json.dumps({self._ctl.id: self.schema})
@@ -788,9 +862,6 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     def devices(self) -> List[Device]:
         return self._ctl.devices
 
-    # def _get_zone(self, *args, **kwargs):
-    #     return self._evo._get_zone(*args, **kwargs)
-
     @property
     def heating_control(self) -> Device:
         if self._htg_control:
@@ -817,84 +888,6 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         if self._htg_control is None:
             self._htg_control = device
             device._set_parent(self, domain="FC")
-
-    @property
-    def dhw_sensor(self) -> Device:
-        """Blah it now.
-
-        Check and Verb the DHW sensor (07:) of this system/CTL (if there is one).
-
-        There is only 1 way to find a controller's DHW sensor:
-        1.  The 10A0 RQ/RP *from/to a 07:* (1x/4h)
-
-        The RQ is initiated by the DHW, so is not authorative (the CTL will RP any RQ).
-        The I/1260 is not to/from a controller, so is not useful.
-        """  # noqa: D402
-
-        # 07:38:39.124 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
-        # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
-
-        # if "10A0" in self._msgs:
-        #     return self._msgs["10A0"].dst.addr
-
-        return self._dhw_sensor
-
-    def _set_dhw_sensor(self, device: Device) -> None:  # self._sensor
-        """Set the temp sensor for this DHW system (07: only)."""
-
-        if self._dhw_sensor != device and self._dhw_sensor is not None:
-            raise CorruptStateError(
-                f"{ATTR_ZONE_SENSOR} shouldn't change: {self._dhw_sensor} to {device}"
-            )
-
-        if not isinstance(device, Device) or device.type != "07":
-            raise TypeError(f"{ATTR_ZONE_SENSOR} can't be: {device}")
-
-        if self._dhw_sensor is None:
-            self._dhw_sensor = device
-            device._set_parent(self, domain="FA")
-
-    @property
-    def hotwater_valve(self) -> Device:
-        return self._dhw_valve
-
-    def _set_dhw_valve(self, device: Device) -> None:  # self._dhw_valve
-        """Set the hotwater valve relay for this DHW system (13: only)."""
-
-        if not isinstance(device, Device) or device.type != "13":
-            raise TypeError(f"{ATTR_DHW_VALVE} can't be: {device}")
-
-        if self._dhw_valve is not None:
-            if self._dhw_valve is device:
-                return
-            raise CorruptStateError(
-                f"{ATTR_DHW_VALVE} shouldn't change: {self._dhw_valve} to {device}"
-            )
-
-        if self._dhw_valve is None:
-            self._dhw_valve = device
-            device._set_parent(self, domain="FA")
-
-    @property
-    def heating_valve(self) -> Device:
-        return self._htg_valve
-
-    def _set_htg_valve(self, device: Device) -> None:  # self._htg_valve
-        """Set the heating valve relay for this DHW system (13: only)."""
-
-        if not isinstance(device, Device) or device.type != "13":
-            raise TypeError(f"{ATTR_DHW_VALVE_HTG} can't be: {device}")
-
-        if self._htg_valve is not None:
-            if self._htg_valve is device:
-                return
-            raise CorruptStateError(
-                f"{ATTR_DHW_VALVE_HTG} shouldn't change: {self._htg_valve} to {device}"
-            )
-
-        if self._htg_valve is None:
-            self._htg_valve = device
-            device._set_parent(self, domain="F9")
 
     @property
     def tpi_params(self) -> Optional[float]:  # 1100
@@ -968,8 +961,10 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         # )
 
         assert "tpi_params" not in params[ATTR_HTG_SYSTEM]  # TODO: removeme
-        params[ATTR_HTG_SYSTEM]["tpi_params"] = self.heating_control._get_msg_value(
-            "1100"
+        params[ATTR_HTG_SYSTEM]["tpi_params"] = (
+            self.heating_control._get_msg_value("1100")
+            if self.heating_control
+            else None
         )
 
         # devices don't have params
@@ -1002,7 +997,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         return status
 
 
-class System(SysDatetime, SysFaultLog, SystemBase):
+class System(StoredHw, SysDatetime, SysFaultLog, SystemBase):
     """The Controller class."""
 
     def __init__(self, gwy, ctl, **kwargs) -> None:
@@ -1030,7 +1025,7 @@ class System(SysDatetime, SysFaultLog, SystemBase):
                 assert False, msg.code
 
 
-class Evohome(SysLanguage, SysMode, MultiZone, StoredHw, UfhSystem, System):  # evohome
+class Evohome(SysLanguage, SysMode, MultiZone, UfhSystem, System):  # evohome
     """The Evohome system - some controllers are evohome-compatible."""
 
     def __init__(self, gwy, ctl, **kwargs) -> None:
@@ -1069,7 +1064,9 @@ class Evohome(SysLanguage, SysMode, MultiZone, StoredHw, UfhSystem, System):  # 
 
 
 class Programmer(Evohome):
-    pass
+
+    def __repr__(self) -> str:
+        return f"{self._ctl.id} (programmer)"
 
 
 # class Chronotherm(System):
@@ -1078,6 +1075,5 @@ class Programmer(Evohome):
 # class Cm927(System):
 #     def __init__(self, gwy, ctl, synchronizer=False, **kwargs) -> None:
 #         pass
-
 
 SYSTEM_CLASSES = {"01": Evohome, "12": System, "22": System, "23": Programmer}

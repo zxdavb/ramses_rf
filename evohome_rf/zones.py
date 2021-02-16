@@ -62,7 +62,7 @@ class ZoneBase(Entity, metaclass=ABCMeta):
     #     return json.dumps(self.schema, indent=2)
 
     def __str__(self) -> str:
-        return f"{self.id} ({self._zone_type})"
+        return f"{self._ctl.id}_{self.id} ({self._zone_type})"
 
     def __lt__(self, other) -> bool:
         if not hasattr(other, "idx"):
@@ -203,6 +203,9 @@ class DhwZone(ZoneBase):
         if htg_valve:
             self._set_htg_valve(htg_valve)
 
+    def __str__(self) -> str:  # TODO: rationalise
+        return f"{self._ctl.id}_HW (DHW)"
+
     def _discover(self, discover_flags=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
 
@@ -243,30 +246,18 @@ class DhwZone(ZoneBase):
 
     @property
     def sensor(self) -> Device:
-        return self._sensor
+        return self._evo.dhw_sensor
 
-    def _set_sensor(self, device: Device) -> None:  # self._sensor
-        """Set the temp sensor for this DHW system (07: only)."""
-
-        if self._sensor != device and self._sensor is not None:
-            raise CorruptStateError(
-                f"{ATTR_ZONE_SENSOR} shouldn't change: {self._sensor} to {device}"
-            )
-
-        if not isinstance(device, Device) or device.type != "07":
-            raise TypeError(f"{ATTR_ZONE_SENSOR} can't be: {device}")
-
-        if self._sensor is None:
-            self._sensor = device
-            device._set_parent(self, domain="FA")
+    def _set_sensor(self, device: Device) -> None:  # TODO migrate from system.StoredHw
+        raise NotImplementedError
 
     @property
     def hotwater_valve(self) -> Device:
-        return self._evo._dhw_valve
+        return self._evo.hotwater_valve
 
     @property
     def heating_valve(self) -> Device:
-        return self._evo._htg_valve
+        return self._evo.heating_valve
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
