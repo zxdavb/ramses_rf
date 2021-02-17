@@ -420,7 +420,7 @@ class Command:
 
         payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
 
-        assert mode in ZONE_MODE_LOOKUP, mode
+        assert mode is None or mode in ZONE_MODE_LOOKUP, mode
 
         if mode is not None:
             if isinstance(mode, int):
