@@ -715,6 +715,7 @@ class UfhSystem:
 
 class SystemBase(Entity):  # 3B00 (multi-relay)
     """The most basic controllers - a generic controller (e.g. ST9420C)."""
+
     # 0008|0009|1030|1100|2309|3B00
 
     def __init__(self, gwy, ctl, **kwargs) -> None:
@@ -1064,7 +1065,6 @@ class Evohome(SysLanguage, SysMode, MultiZone, UfhSystem, System):  # evohome
 
 
 class Programmer(Evohome):
-
     def __repr__(self) -> str:
         return f"{self._ctl.id} (programmer)"
 
