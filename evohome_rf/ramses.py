@@ -20,6 +20,7 @@ EXPIRY = "expiry"
 RAMSES_CODES = {
     "0001": {
         NAME: "rf_unknown",
+        W_: r"^[0-9A-F]{2}0{4}05(05|01)$",
     },
     "0002": {
         NAME: "sensor_weather",
@@ -43,7 +44,9 @@ RAMSES_CODES = {
     },
     "0008": {
         NAME: "relay_demand",
-        RQ: r"^00$",
+        RQ: r"^00$",  # TODO: an assumption
+        I_: r"^(F[9AC]|0[0-9A-F])[0-9A-F]{2}$",
+        # 000 I --- 31:012319 08:006244 --:------ 0008 013 0006958C33CA6ECD2067AA53DD
     },
     "0009": {
         NAME: "relay_failsafe",
@@ -117,7 +120,8 @@ RAMSES_CODES = {
     },
     "1100": {
         NAME: "tpi_params",
-        RQ: r"^(00|FC)",  # TODO: educated guess
+        RQ: r"^(00|FC)[0-9A-F]{12}01$",  # TODO: is there no RP?
+        W_: r"^(00|FC)[0-9A-F]{12}01$",  # TODO: is there no I?
     },
     "1260": {
         NAME: "dhw_temp",
@@ -152,7 +156,7 @@ RAMSES_CODES = {
         NAME: "system_sync",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",  # xx-secs
-        I_: r"^FF[0-9A-F]{4}$",
+        I_: r"^(00|01|DB|FF)[0-9A-F]{4}$",  # FF is evohome, DB is Hometronics
         W_: r"^F8[0-9A-F]{4}$",
     },
     "1F41": {
@@ -162,9 +166,9 @@ RAMSES_CODES = {
     "1FC9": {
         NAME: "rf_bind",
         RQ: r"^00$",
-        RP: r"^([0-9A-F]{12})+$",  # xx-code-dev_id
-        I_: r"^([0-9A-F]{12})+$",
-        W_: r"^([0-9A-F]{12})+$",
+        RP: r"^((F[9ABCF]|0[0-9A-F])([0-9A-F]{10}))+$",  # xx-code-dev_id
+        I_: r"^((F[9ABCF]|0[0-9A-F])([0-9A-F]{10}))+$",
+        W_: r"^((F[9ABCF]|0[0-9A-F])([0-9A-F]{10}))+$",
     },
     "1FD4": {
         NAME: "opentherm_sync",
@@ -198,6 +202,7 @@ RAMSES_CODES = {
     "2349": {  # zone_mode
         NAME: "zone_mode",
         RQ: r"^0[0-9A-F](00)?$",  # is actually: r"^0[0-9A-F]$"
+        I_: r"^0[0-9A-F](([0-9A-F]){12}){1,2}$",
     },
     "2D49": {  # seen with Hometronic systems
         NAME: "message_2d49",
@@ -353,6 +358,7 @@ RAMSES_DEVICES = {
         },
         "1FC9": {
             I_: {},
+            W_: {},
         },
         "1F41": {
             I_: {},
