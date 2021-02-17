@@ -324,7 +324,7 @@ class DhwZone(ZoneBase):
         Use until = ? for until next scheduled on/off
         Use until = None for indefinitely
         """
-        # cmd = Command.dhw_mode(self._ctl.id, self.idx, mode, setpoint, until)
+        # cmd = Command.get_dhw_mode(self._ctl.id, self.idx, mode, setpoint, until)
         # self._gwy.send_cmd(cmd)
 
         # if mode is None and until is None:
@@ -659,7 +659,7 @@ class Zone(ZoneSchedule, ZoneBase):
     @name.setter
     def name(self, value) -> Optional[str]:
         """Set the name of the zone."""
-        self._gwy.send_cmd(Command.zone_name(self._ctl.id, self.idx, value))
+        self._gwy.send_cmd(Command.set_zone_name(self._ctl.id, self.idx, value))
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309 (2349 is a superset of 2309)
@@ -724,7 +724,7 @@ class Zone(ZoneSchedule, ZoneBase):
     def set_override(self, mode=None, setpoint=None, until=None) -> None:
         """Override the setpoint for a specified duration, or indefinitely."""
 
-        cmd = Command.zone_mode(self._ctl.id, self.idx, mode, setpoint, until)
+        cmd = Command.set_zone_mode(self._ctl.id, self.idx, mode, setpoint, until)
         self._gwy.send_cmd(cmd)
 
     @property  # id, type
