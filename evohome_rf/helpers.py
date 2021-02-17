@@ -20,6 +20,7 @@ from .const import (
     Address,
     id_to_address,
 )
+from .exceptions import CorruptAddrSetError
 
 
 class FILETIME(ctypes.Structure):
@@ -215,11 +216,11 @@ def extract_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
             addrs[0].id == addrs[1].id == NON_DEV_ADDR.id,
         )
     ):
-        raise TypeError("invalid addr set")
+        raise CorruptAddrSetError("Invalid addr set")
 
     device_addrs = list(filter(lambda x: x.type != "--", addrs))
     if len(device_addrs) > 2:
-        raise TypeError("too many addrs (i.e. three addrs)")
+        raise CorruptAddrSetError("Too many addrs (i.e. three addrs)")
 
     src_addr = device_addrs[0]
     dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEV_ADDR
@@ -231,7 +232,7 @@ def extract_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
         pass
     elif src_addr.type == dst_addr.type:
         # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5 (invalid)
-        raise TypeError("invalid src/dst addr pair")
+        raise CorruptAddrSetError("Invalid src/dst addr pair")
 
     return src_addr, dst_addr, addrs
 

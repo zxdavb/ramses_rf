@@ -27,6 +27,7 @@ from .const import (
     ZONE_MODE_MAP,
     _dev_mode_,
 )
+from .exceptions import CorruptPacketError, CorruptPayloadError
 from .helpers import dev_hex_to_id, dtm_from_hex as _dtm, dts_from_hex
 from .opentherm import (
     OPENTHERM_MESSAGES,
@@ -214,38 +215,59 @@ def parser_decorator(func):
         """Check the length of a payload."""
         payload, msg = args[0], args[1]
 
-        # STEP 0: Check verb/code pair against source device type
-        if msg.code == "1FC9":
-            pass
-
-        elif msg.src.type not in RAMSES_DEVICES:
-            assert False, f"Unknown device type: {msg.src.id} (likely a corrupt pkt)"
+        # STEP 0: Check verb/code pair against src device type
+        if msg.src.type not in RAMSES_DEVICES:
+            raise CorruptPacketError(f"Unknown src device type: {msg.src.id} (0x00)")
 
         elif msg.code not in RAMSES_DEVICES[msg.src.type]:
-            assert (
-                RAMSES_DEVICES[msg.src.type] == {}
-            ), f"Invalid code for {msg.src.id}: {msg.code} (consider a corrupt pkt)"
+            if RAMSES_DEVICES[msg.src.type]:
+                raise CorruptPacketError(
+                    f"Invalid code for {msg.src.id}: {msg.code} (0x01)"
+                )
 
         elif msg.verb not in RAMSES_DEVICES[msg.src.type][msg.code]:
-            assert (
-                RAMSES_DEVICES[msg.src.type][msg.code] == {}
-            ), f"Invalid verb/code for {msg.src.id}: {msg.verb}/{msg.code}"
+            if RAMSES_DEVICES[msg.src.type][msg.code]:
+                raise CorruptPacketError(
+                    f"Invalid verb/code for {msg.src.id}: {msg.verb}/{msg.code} (0x02)"
+                )
 
-        # STEP 1: Check payload against verb/code pair
+        # STEP 1: Check verb/code pair against dst device type
+        if msg.dst.type in ("--", "63"):
+            pass
+
+        elif msg.dst.type not in RAMSES_DEVICES:
+            raise CorruptPacketError(f"Unknown dst device type: {msg.dst.id} (0x10)")
+
+        elif msg.verb == " I":
+            pass
+
+        elif msg.code not in RAMSES_DEVICES[msg.dst.type]:
+            if RAMSES_DEVICES[msg.dst.type]:
+                raise CorruptPacketError(
+                    f"Invalid code for {msg.dst.id}: {msg.code} (0x11)"
+                )
+
+        else:
+            verb = {"RQ": "RP", "RP": "RQ", " W": " I"}[msg.verb]
+            if verb not in RAMSES_DEVICES[msg.dst.type][msg.code]:
+                if RAMSES_DEVICES[msg.dst.type][msg.code]:
+                    raise CorruptPacketError(
+                        f"Invalid verb/code for {msg.dst.id}: {verb}/{msg.code} (0x12)"
+                    )
+
+        # STEP 2: Check payload against verb/code pair
         try:
             regexp = RAMSES_CODES[msg.code][msg.verb]
-            assert re.compile(regexp).match(
-                payload
-            ), f"Expecting payload to match '{regexp}'"
+            if not re.compile(regexp).match(payload):
+                raise CorruptPayloadError(f"Expecting payload to match '{regexp}'")
         except KeyError:
             pass
 
-        # STEP 2: These are expections to the rules
+        # STEP 3: These are expections to the following rules
         if msg.src.type in ("08", "31"):  # Honeywell Jasper HVAC
-            # assert RAMSES_DEVICES
             return func(*args, **kwargs)
 
-        # Next check W
+        # STEP 4: Next check W
         if msg.verb == " W":  # TODO: WIP, need to check _idx()
             if msg.code in ("0001",):
                 return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
@@ -266,7 +288,7 @@ def parser_decorator(func):
 
             return func(*args, **kwargs)
 
-        # Then check I, RP
+        # STEP 5: Then check I, RP
         if msg.verb != "RQ":  # i.e. in (" I", "RP")
             result = func(*args, **kwargs)
             if isinstance(result, list):
@@ -276,7 +298,7 @@ def parser_decorator(func):
                 **result,
             }
 
-        # Finally check RQ
+        # STEP 6: Finally check RQ
         try:
             regexp = RAMSES_CODES[msg.code][RQ]
             # assert (
@@ -290,8 +312,7 @@ def parser_decorator(func):
                 if "18" in (msg.src.type, msg.dst.type)
                 else " - please report to the github repo as an issue"
             )
-            assert False, f"Code {msg.code} not known{hint1}{hint2}"
-            raise NotImplementedError(f"Code {msg.code} not known{hint1}{hint2}")
+            raise CorruptPacketError(f"Code {msg.code} not known{hint1}{hint2}")
 
         else:
             if msg.src.type != "18a" and not re.compile(regexp).match(payload):
@@ -300,8 +321,7 @@ def parser_decorator(func):
                     if "18" in (msg.src.type, msg.dst.type)
                     else " - please report this as an issue"
                 )
-                assert False, f"Payload doesn't match '{regexp}'{hint2}"
-                raise ValueError(f"Payload doesn't match '{regexp}'{hint2}")
+                raise CorruptPayloadError(f"Payload doesn't match '{regexp}'{hint2}")
 
         result = _idx(payload[:2], msg)
         if RAMSES_CODES[msg.code].get(RQ_MAY_HAVE_PAYLOAD):
@@ -1399,7 +1419,7 @@ def parser_2349(payload, msg) -> Optional[dict]:
     if TEST_MODE and msg.verb == " W":
         KEYS = ("setpoint", "mode", "until")
         cmd = Command.set_zone_mode(
-            msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
+            msg.dst.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
@@ -1847,5 +1867,5 @@ def parser_7fff(payload, msg) -> Optional[dict]:
 
 @parser_decorator
 def parser_unknown(payload, msg) -> Optional[dict]:
-    # TODO: it may be useful to search payloads for hex_ids, commands, etc.
+    # TODO: it may be useful to generically search payloads for hex_ids, commands, etc.
     raise NotImplementedError

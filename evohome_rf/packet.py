@@ -21,6 +21,7 @@ except ModuleNotFoundError:
 
 from .command import _pkt_header
 from .const import MESSAGE_REGEX, _dev_mode_
+from .exceptions import CorruptAddrSetError
 from .helpers import extract_addrs
 
 DEV_MODE = _dev_mode_  # or True
@@ -190,7 +191,7 @@ class Packet:
                 self.src_addr, self.dst_addr, self.addrs = extract_addrs(
                     self.packet[11:40]
                 )
-            except TypeError:
+            except CorruptAddrSetError:
                 return True
 
         if self._is_valid is not None or not self._pkt_str:

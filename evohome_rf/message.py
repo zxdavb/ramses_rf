@@ -29,7 +29,12 @@ from .const import (
     _dev_mode_,
 )
 from .devices import Device
-from .exceptions import EvoCorruptionError, CorruptPayloadError
+from .exceptions import (
+    CorruptEvohomeError,
+    CorruptPacketError,
+    CorruptPayloadError,
+    CorruptStateError,
+)
 from .packet import _PKT_LOGGER
 from .ramses import RAMSES_CODES as RAMSES_CODES
 from .schema import (
@@ -305,7 +310,7 @@ class Message:
         except AttributeError:  # there's no parser for this command code!
             payload_parser = getattr(parsers, "parser_unknown")
 
-        try:  # run the parser
+        try:  # parse the packet
             self._payload = payload_parser(self.raw_payload, self)
             assert isinstance(self._payload, dict) or isinstance(
                 self._payload, list
@@ -321,23 +326,18 @@ class Message:
             else:  # elif DEV_MODE:  # TODO: consider info/debug for the following
                 log_message(_PKT_LOGGER.warning, f"%s < Validation error{hint} ")
             self._is_valid = False
-            return self._is_valid
 
-        except CorruptPayloadError as err:
-            hint = f": {err}" if str(err) != "" else ""
-            log_message(_PKT_LOGGER.warning, f"%s < Validation error{hint} (payload) ")
+        except (CorruptPacketError, CorruptPayloadError) as err:  # CorruptEvohomeError
+            log_message(_PKT_LOGGER.warning, f"%s < {err}")
             self._is_valid = False
-            return self._is_valid
 
-        except (AttributeError, LookupError, TypeError, ValueError):  # for development
+        except (AttributeError, LookupError, TypeError, ValueError):  # TODO: dev only
             log_message(_PKT_LOGGER.exception, "%s < Coding error ")
             self._is_valid = False
-            return self._is_valid
 
-        except NotImplementedError:  # unknown packet code
+        except NotImplementedError:  # parser_unknown (unknown packet code)
             log_message(_PKT_LOGGER.warning, "%s < Unknown packet code ")
             self._is_valid = False
-            return self._is_valid
 
         else:
             self._is_valid = True
@@ -508,6 +508,10 @@ def process_msg(msg: Message) -> None:
         # some devices aren't created if they're filtered out (in create_devices?)
         if this.src not in this._gwy.devices:
             return
+            # 0008: BDR/RP, ir CTL/I/domain_id = F9/FA
+            # 10A0: CTL/RP/dhw_idx
+            # 1260: RP from CTL, or eavesdrop sensor
+            # 1F41: eavesdrop
 
         # some empty payloads may still be useful (e.g. RQ/3EF1/{})
         this._gwy.device_by_id[this.src.id]._handle_msg(this)
@@ -556,7 +560,7 @@ def process_msg(msg: Message) -> None:
     if msg._gwy.config[REDUCE_PROCESSING] >= DONT_CREATE_ENTITIES:
         return
 
-    try:
+    try:  # process the payload
         create_devices(msg)  # from pkt header & from msg payload (e.g. 000C)
         create_zones(msg)  # create zones & ufh_zones (TBD)
 
@@ -571,7 +575,15 @@ def process_msg(msg: Message) -> None:
         _LOGGER.error("%s < %s", msg._pkt, err.__class__.__name__)
         raise
 
-    except EvoCorruptionError as err:
+    # except CorruptPacketError as err:
+    #     _LOGGER.error("%s < %s", msg._pkt, err.__class__.__name__)
+    #     return
+
+    except CorruptStateError as err:
+        _LOGGER.error("%s < %s", msg._pkt, err.__class__.__name__)
+        return  # TODO: bad pkt, or Schema
+
+    except CorruptEvohomeError as err:
         _LOGGER.error("%s < %s", msg._pkt, err.__class__.__name__)
         raise
 
