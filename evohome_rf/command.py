@@ -420,8 +420,6 @@ class Command:
 
         payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
 
-        assert mode is None or mode in ZONE_MODE_LOOKUP, mode
-
         if mode is not None:
             if isinstance(mode, int):
                 mode = f"{mode:02X}"
@@ -438,6 +436,8 @@ class Command:
             mode = "temporary_override" if setpoint else "advanced_override"
         if until is None:
             mode = "advanced_override" if mode == "temporary_override" else mode
+
+        assert mode in ZONE_MODE_LOOKUP, mode
 
         payload += temp_to_hex(setpoint)  # None means max, if a temp is required
         payload += ZONE_MODE_LOOKUP[mode] + "FFFFFF"
