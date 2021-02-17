@@ -196,6 +196,7 @@ RAMSES_CODES = {
     "2309": {
         NAME: "setpoint",
         RQ: r"^0[0-9A-F]",
+        I_: r"^(0[0-9A-F]{5})+",
         RQ_MAY_HAVE_PAYLOAD: True,
         # RQ --- 12:010740 01:145038 --:------ 2309 003 03073A
     },
