@@ -151,6 +151,9 @@ RAMSES_CODES = {
     "1F09": {
         NAME: "system_sync",
         RQ: r"^00$",
+        RP: r"^00[0-9A-F]{4}$",  # xx-secs
+        I_: r"^FF[0-9A-F]{4}$",
+        W_: r"^F8[0-9A-F]{4}$",
     },
     "1F41": {
         NAME: "dhw_mode",
@@ -159,6 +162,9 @@ RAMSES_CODES = {
     "1FC9": {
         NAME: "rf_bind",
         RQ: r"^00$",
+        RP: r"^([0-9A-F]{12})+$",  # xx-code-dev_id
+        I_: r"^([0-9A-F]{12})+$",
+        W_: r"^([0-9A-F]{12})+$",
     },
     "1FD4": {
         NAME: "opentherm_sync",
@@ -654,6 +660,7 @@ RAMSES_DEVICES = {
         },
         "3EF0": {
             I_: {},
+            # RP: {},  # RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
         },
         "3EF1": {
             RP: {},
