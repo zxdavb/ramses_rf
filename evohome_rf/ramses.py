@@ -120,7 +120,7 @@ RAMSES_CODES = {
     },
     "1100": {
         NAME: "tpi_params",
-        RQ: r"^(00|FC)[0-9A-F]{12}01$",  # TODO: is there no RP?
+        RQ: r"^(00|FC)([0-9A-F]{12}01)?$",  # TODO: is there no RP?
         W_: r"^(00|FC)[0-9A-F]{12}01$",  # TODO: is there no I?
     },
     "1260": {
