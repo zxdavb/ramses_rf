@@ -50,6 +50,7 @@ RAMSES_CODES = {
     },
     "0009": {
         NAME: "relay_failsafe",
+        I_: r"^((F[9AC]|0[0-9A-F])0[0-1]FF)+$",
     },
     "000A": {
         NAME: "zone_params",
@@ -98,9 +99,12 @@ RAMSES_CODES = {
     },
     "1030": {
         NAME: "mixvalve_params",
+        #  I --- --:------ --:------ 12:138834 1030 016 01C80137C9010FCA0196CB010FCC0101
+        I_: r"^0[0-9A-F](C[89A-C]01[0-9A-F]{2}){5}$",
     },
     "1060": {
         NAME: "device_battery",
+        I_: r"^0[0-9A-F](FF|[0-9A-F]{2})0[01]$",
     },
     "1090": {
         NAME: "message_1090",
@@ -117,6 +121,8 @@ RAMSES_CODES = {
     "10E0": {
         NAME: "device_info",
         RQ: r"^00$",
+        RP: r"^00([0-9A-F]){30,}$",
+        I_: r"^00([0-9A-F]){30,}$",
     },
     "1100": {
         NAME: "tpi_params",
@@ -189,16 +195,18 @@ RAMSES_CODES = {
     },
     "22F1": {  # TODO - change name - Sent by an UFC
         NAME: "switch_speed",
+        I_: r"^00(0[0-9A-F]){2}$",
     },
     "22F3": {
-        NAME: "switch_duration",
+        NAME: "switch_duration",  # minutes
+        I_: r"^0000[0-9A-F]{2}$",
     },
     "2309": {
         NAME: "setpoint",
-        RQ: r"^0[0-9A-F]",
-        I_: r"^(0[0-9A-F]{5})+",
+        RQ: r"^0[0-9A-F]([0-9A-F]{4})?$",  # NOTE: 12 uses: r"^0[0-9A-F]$"
+        I_: r"^(0[0-9A-F]{5})+$",
         RQ_MAY_HAVE_PAYLOAD: True,
-        # RQ --- 12:010740 01:145038 --:------ 2309 003 03073A
+        # RQ --- 12:010740 01:145038 --:------ 2309 003 03073A # No RPs
     },
     "2349": {  # zone_mode
         NAME: "zone_mode",
