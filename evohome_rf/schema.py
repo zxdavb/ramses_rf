@@ -20,6 +20,7 @@ from .const import (
     ALL_DEVICE_ID as DEVICE_ID_REGEX,
     CTL_DEVICE_ID as CTL_DEVICE_ID_REGEX,
     DHW_SENSOR_ID as DHW_SENSOR_ID_REGEX,
+    GWY_DEVICE_ID as GWY_DEVICE_ID_REGEX,
     HTG_DEVICE_ID as HTG_DEVICE_ID_REGEX,
     UFC_DEVICE_ID as UFC_DEVICE_ID_REGEX,
     RLY_DEVICE_ID as RLY_DEVICE_ID_REGEX,
@@ -44,6 +45,7 @@ DEVICE_ID = vol.Match(DEVICE_ID_REGEX)
 SENSOR_ID = vol.Match(SENSOR_ID_REGEX)
 CTL_DEVICE_ID = vol.Match(CTL_DEVICE_ID_REGEX)
 DHW_SENSOR_ID = vol.Match(DHW_SENSOR_ID_REGEX)
+GWY_DEVICE_ID = vol.Match(GWY_DEVICE_ID_REGEX)
 HTG_DEVICE_ID = vol.Match(HTG_DEVICE_ID_REGEX)
 UFC_DEVICE_ID = vol.Match(UFC_DEVICE_ID_REGEX)
 RLY_DEVICE_ID = vol.Match(RLY_DEVICE_ID_REGEX)
@@ -78,6 +80,8 @@ USE_SCHEMA = "use_schema"
 ALLOW_LIST = "allowlist"
 BLOCK_LIST = "blocklist"
 
+LOG_ROTATE_BYTES = "log_rotate_bytes"
+LOG_ROTATE_COUNT = "log_rotate_backups"
 
 DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
@@ -92,6 +96,8 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Optional(ENFORCE_ALLOWLIST, default=False): vol.Any(None, bool),
         vol.Optional(ENFORCE_BLOCKLIST, default=True): vol.Any(None, bool),
         vol.Optional(EVOFW_FLAG, default=None): vol.Any(None, str),
+        vol.Optional(LOG_ROTATE_COUNT, default=0): vol.Any(None, int),
+        vol.Optional(LOG_ROTATE_BYTES, default=None): vol.Any(None, int),
         vol.Optional(MAX_ZONES, default=DEFAULT_MAX_ZONES): vol.Any(None, int),
         vol.Optional(PACKET_LOG, default=None): vol.Any(None, str),
         vol.Optional(REDUCE_PROCESSING, default=0): vol.Any(None, int),
@@ -240,7 +246,7 @@ def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, list, list]:
     return (config, allows, blocks)
 
 
-def load_schema(gwy, **kwargs) -> Tuple[dict, dict]:
+def load_schema(gwy, create_entities=True, **kwargs) -> Tuple[dict, dict]:
     """Process the schema, and the configuration and return True if it is valid."""
     # TODO: check a sensor is not a device in another zone
 
@@ -253,26 +259,30 @@ def load_schema(gwy, **kwargs) -> Tuple[dict, dict]:
     if not ctl_id:
         return ({}, known_devices)
 
-    ctl = gwy._get_device(addr(ctl_id), ctl_addr=addr(ctl_id))
+    if create_entities:
+        ctl = gwy._get_device(addr(ctl_id), ctl_addr=addr(ctl_id))
+    else:
+        ctl = None
 
     htg_ctl_id = schema[ATTR_HTG_SYSTEM].get(ATTR_HTG_RELAY)
-    if htg_ctl_id:
+    if create_entities and htg_ctl_id:
         ctl._evo._set_htg_control(gwy._get_device(addr(htg_ctl_id), ctl_addr=ctl))
 
     dhw = schema.get(ATTR_DHW_SYSTEM, {})
     if dhw:
-        ctl._evo._set_dhw(ctl._evo._get_zone("HW"))
+        if create_entities:
+            ctl._evo._set_dhw(ctl._evo._get_zone("HW"))
 
         dhw_sensor_id = dhw.get(ATTR_DHW_SENSOR)
-        if dhw_sensor_id:
+        if create_entities and dhw_sensor_id:
             ctl._evo._set_dhw_sensor(gwy._get_device(addr(dhw_sensor_id), ctl_addr=ctl))
 
         dhw_valve_id = dhw.get(ATTR_DHW_VALVE)
-        if dhw_valve_id:
+        if create_entities and dhw_valve_id:
             ctl._evo._set_dhw_valve(gwy._get_device(addr(dhw_valve_id), ctl_addr=ctl))
 
         htg_valve_id = dhw.get(ATTR_DHW_VALVE_HTG)
-        if htg_valve_id:
+        if create_entities and htg_valve_id:
             ctl._evo._set_htg_valve(gwy._get_device(addr(htg_valve_id), ctl_addr=ctl))
 
     zones = schema.get(ATTR_ZONES, {})

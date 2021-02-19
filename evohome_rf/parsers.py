@@ -211,11 +211,8 @@ def _idx(seqx, msg) -> dict:
 def parser_decorator(func):
     """Validate message payload (or meta-data), e.g payload length)."""
 
-    def wrapper(*args, **kwargs) -> Optional[dict]:
-        """Check the length of a payload."""
-        payload, msg = args[0], args[1]
-
-        # STEP 0: Check verb/code pair against src device type
+    def check_verb_code_src(msg) -> None:
+        # STEP 1: Check verb/code pair against src device type
         if msg.src.type not in RAMSES_DEVICES:
             raise CorruptPacketError(f"Unknown src device type: {msg.src.id} (0x00)")
 
@@ -231,7 +228,8 @@ def parser_decorator(func):
                     f"Invalid verb/code for {msg.src.id}: {msg.verb}/{msg.code} (0x02)"
                 )
 
-        # STEP 1: Check verb/code pair against dst device type
+    def check_verb_code_dst(msg) -> None:
+        # STEP 2: Check (expected) verb/code pair against dst device type
         if msg.dst.type in ("--", "63"):
             pass
 
@@ -247,14 +245,22 @@ def parser_decorator(func):
                     f"Invalid code for {msg.dst.id}: {msg.code} (0x11)"
                 )
 
-        else:
-            verb = {"RQ": "RP", "RP": "RQ", " W": " I"}[msg.verb]
-            if verb not in RAMSES_DEVICES[msg.dst.type][msg.code]:
-                if RAMSES_DEVICES[msg.dst.type][msg.code]:
-                    raise CorruptPacketError(
-                        f"Invalid verb/code for {msg.dst.id}: {verb}/{msg.code} (0x12)"
-                    )
+        elif msg.verb == " W" and msg.code in ("0001",):
+            pass
 
+        elif msg.verb == "RQ" and msg.code in ("3EF0",) and msg.dst.type == "13":
+            # RQ --- 01:145038 13:237335 --:------ 3EF0 001 00  # 13: doesn't RP/3EF0
+            pass
+
+        # else:  # TODO: this is a bit problematic
+        #     verb = {"RQ": "RP", "RP": "RQ", " W": " I"}[msg.verb]
+        #     if verb not in RAMSES_DEVICES[msg.dst.type][msg.code]:
+        #         if RAMSES_DEVICES[msg.dst.type][msg.code]:
+        #             raise CorruptPacketError(
+        #                 f"Invalid verb/code for {msg.dst.id}: {verb}/{msg.code} (0x12)"
+        #             )
+
+    def check_verb_code_payload(msg, payload) -> None:
         # STEP 2: Check payload against verb/code pair
         try:
             regexp = RAMSES_CODES[msg.code][msg.verb]
@@ -263,11 +269,28 @@ def parser_decorator(func):
         except KeyError:
             pass
 
+    def wrapper(*args, **kwargs) -> Optional[dict]:
+        """Check the length of a payload."""
+        payload, msg = args[0], args[1]
+
+        # STEP 0: Check verb/code pair against src/dst device type & payload
+        if msg.code != "1FC9":
+            check_verb_code_src(msg)
+            check_verb_code_dst(msg)
+
         # STEP 3: These are expections to the following rules
         if msg.src.type in ("08", "31"):  # Honeywell Jasper HVAC
             return func(*args, **kwargs)
 
+        check_verb_code_payload(msg, payload)  # can't use msg.payload
+
         # STEP 4: Next check W
+        # z_idx/d_id: 0001, 0008, 1FC9 (array)
+        # special:   1100 (00|FC)
+        # zone_idx:  0004, 000A, 2309/2349,
+        # none_idx:  1F09 (xx), 2E04 (xx), 313F (00)
+        # unknown:   01D0, 01E9
+
         if msg.verb == " W":  # TODO: WIP, need to check _idx()
             if msg.code in ("0001",):
                 return {**_idx(payload[:2], msg), **func(*args, **kwargs)}

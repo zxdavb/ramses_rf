@@ -26,7 +26,14 @@ from .const import DTM_LONG_REGEX, HGI_DEV_ADDR, _dev_mode_
 from .helpers import dt_str
 from .packet import _PKT_LOGGER, Packet
 from .protocol import create_protocol_factory
-from .schema import DISABLE_SENDING, ENFORCE_ALLOWLIST, ENFORCE_BLOCKLIST, EVOFW_FLAG
+from .schema import (
+    ALLOW_LIST,
+    BLOCK_LIST,
+    DISABLE_SENDING,
+    ENFORCE_ALLOWLIST,
+    ENFORCE_BLOCKLIST,
+    EVOFW_FLAG,
+)
 from .version import __version__
 
 DEV_MODE = _dev_mode_
@@ -72,7 +79,7 @@ class SerTransportFile(asyncio.Transport):
     """Interface for a packet transport using a file - Experimental."""
 
     def __init__(self, loop, protocol, packet_log, extra=None):
-        _LOGGER.info("SerTransFile.__init__(%s) *** Packet log version ***", packet_log)
+        _LOGGER.info("SerTransFile.__init__(%s) *** log file version ***", packet_log)
 
         self._loop = loop
 
@@ -270,9 +277,16 @@ class PacketProtocolBase(asyncio.Protocol):
 
         self._sequence_no = 0
 
-        # TODO: this is a little messy...
+        # TODO: this is a little messy - the gwy.config[...] are mutex...
         self._include = list(gwy._include) if gwy.config[ENFORCE_ALLOWLIST] else []
         self._exclude = list(gwy._exclude) if gwy.config[ENFORCE_BLOCKLIST] else []
+
+        if self._include:
+            _LOGGER.info("Using an %s: %s", ALLOW_LIST, self._include)
+        elif self._exclude:
+            _LOGGER.info("Using an %s: %s", BLOCK_LIST, self._exclude)
+        else:
+            _LOGGER.warning("Not Using an device filter (an allow_list is recommended)")
 
         self._has_initialized = None
         if not self._gwy.config[DISABLE_SENDING]:
@@ -283,10 +297,16 @@ class PacketProtocolBase(asyncio.Protocol):
         _LOGGER.debug("PktProtocol.connection_made(%s)", transport)
 
         self._transport = transport
+        # self._transport.serial.rts = False
 
         _PKT_LOGGER.warning(
             "# evohome_rf %s", __version__, extra=self._extra(dt_str(), "")
         )
+
+        self._loop.create_task(
+            self._send_data(bytes("!V\r\n".encode("ascii")), ignore_pause=False)
+        )  # Used to see if using a evofw3 rather than a HGI80
+        self._pause_writing = False  # TODO: needs work
 
     @staticmethod
     def is_wanted(pkt, include_list, exclude_list) -> bool:
@@ -479,27 +499,32 @@ class PacketProtocol(PacketProtocolBase):
     """Interface for a packet protocol (without QoS)."""
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
-        _LOGGER.info("PktProtocol.__init__(gwy, %s)  *** Std version ***", pkt_handler)
+        _LOGGER.info(
+            "PktProtocol.__init__(gwy, %s) *** Std version ***",
+            pkt_handler.__name__ if pkt_handler else None
+        )
         super().__init__(gwy, pkt_handler)
-
-    def connection_made(self, transport: asyncio.Transport) -> None:
-        """Called when a connection is made."""
-        super().connection_made(transport)
-
-        # self._transport.serial.rts = False
-
-        self._loop.create_task(
-            self._send_data(bytes("!V\r\n".encode("ascii")), ignore_pause=False)
-        )  # Used to see if using a evofw3 rather than a HGI80
-        self._pause_writing = False  # TODO: needs work
 
 
 class PacketProtocolFile(PacketProtocolBase):
     """Interface for a packet protocol (for packet log)."""
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
-        _LOGGER.info("PktProtocol.__init__(gwy, %s)  *** File version ***", pkt_handler)
+        _LOGGER.info(
+            "PacketProtocolFile.__init__(gwy, %s) *** Log version ***",
+            pkt_handler.__name__ if pkt_handler else None
+        )
         super().__init__(gwy, pkt_handler)
+
+    def connection_made(self, transport: asyncio.Transport) -> None:
+        """Called when a connection is made."""
+        _LOGGER.debug("PacketProtocolFile.connection_made(%s)", transport)
+
+        self._transport = transport
+
+        _PKT_LOGGER.warning(
+            "# evohome_rf %s", __version__, extra=self._extra(dt_str(), "")
+        )
 
     def data_received(self, data: str) -> None:
         """Called when some data is received."""
@@ -523,11 +548,14 @@ class PacketProtocolFile(PacketProtocolBase):
             self._data_received(pkt_dtm, self._normalise(pkt_str), None)
 
 
-class PacketProtocolQos(PacketProtocol):
+class PacketProtocolQos(PacketProtocolBase):
     """Interface for a packet protocol (includes QoS)."""
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
-        _LOGGER.info("PktProtocol.__init__(gwy, %s)  *** QoS version ***", pkt_handler)
+        _LOGGER.info(
+            "PktProtocol.__init__(gwy, %s) *** Qos version ***",
+            pkt_handler.__name__ if pkt_handler else None
+        )
         super().__init__(gwy, pkt_handler)
 
         self._qos_lock = Lock()
@@ -598,11 +626,13 @@ class PacketProtocolQos(PacketProtocol):
 
             # NOTE: is the Tx pkt, and a response *is* expected
             elif pkt._header == self._tx_hdr:
+                # assert str(pkt)[4:] == str(self._qos_cmd), "Packets dont match"
                 msg = "matched the Tx pkt (now wanting a Rx pkt)"
                 self._tx_hdr = None
 
             # NOTE: is the Tx pkt, but is a *duplicate* - we've already seen it!
             elif pkt._header == self._qos_cmd.tx_header:
+                # assert str(pkt) == str(self._qos_cmd), "Packets dont match"
                 msg = "duplicated Tx pkt (still wanting the Rx pkt)"
                 self._timeouts(dt.now())  # TODO: increase backoff?
 
