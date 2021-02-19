@@ -99,8 +99,8 @@ def set_pkt_logging(
     """Create/configure handlers, formatters, etc.
 
     Parameters:
-     - backup_count: keep this many copies, rotate at midnight unless...
-     - max_bytes: rotate when log > rotate_size
+    - backup_count: keep this many copies, and rotate at midnight unless...
+    - max_bytes: rotate log files when log > rotate_size
     """
     logger.propagate = False
 
