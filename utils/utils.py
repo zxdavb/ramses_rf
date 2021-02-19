@@ -222,13 +222,12 @@ async def main(lib_kwargs, **kwargs):
                 print(err)
 
             else:
-                counter += 1
-                if counter == 1000:
-                    counter = 0
-
-                    con.commit()
+                if counter % 1000 == 0:
                     msg, hdr = f"{pkt.dtm} {pkt}", f"{Style.BRIGHT}{Fore.CYAN}"
                     print(f"{hdr}{msg[:CONSOLE_COLS]}")
+                elif counter % 1000 == 1:
+                    con.commit()
+                counter += 1
 
             return cur.lastrowid
 
@@ -255,6 +254,8 @@ async def main(lib_kwargs, **kwargs):
 
         else:
             insert_pkt(pkt)
+
+    global counter
 
     print("\r\nclient.py: Starting evohome_rf (utils)...")
 
@@ -289,6 +290,7 @@ async def main(lib_kwargs, **kwargs):
     con.commit()
 
     print(f"\r\nclient.py: Finished evohome_rf (utils).\r\n{msg}\r\n")
+    print(f"  - uploaded {counter} rows\r\n")
 
 
 cli.add_command(archive)
