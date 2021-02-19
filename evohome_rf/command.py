@@ -326,6 +326,12 @@ class Command:
 
         return cls(" W", ctl_id, "2E04", f"{system_mode}{until}", **kwargs)
 
+    @classmethod  # constructor for 3220  # TODO
+    def get_opentherm_msg(cls, dev_id, msg_id, **kwargs):
+        """Constructor to get opentherm msg value (c.f. parser_3220)."""
+
+        return cls("RQ", dev_id, "3220", f"0000{msg_id:02X}0000", **kwargs)
+
     @classmethod  # constructor for 313F
     def get_system_time(cls, ctl_id, **kwargs):
         """Constructor to get the datetime of a system (c.f. parser_313f)."""

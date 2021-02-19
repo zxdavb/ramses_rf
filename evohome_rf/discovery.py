@@ -250,11 +250,11 @@ async def scan_hard(gwy, dev_id: str):
 
 async def scan_xxxx(gwy, dev_id: str):
     _LOGGER.warning("scan_xxxx() invoked - expect a lot of nonsense")
-    await scan_002(gwy, dev_id)
+    await scan_001(gwy, dev_id)
 
 
 async def scan_001(gwy, dev_id: str):
-    _LOGGER.warning("scan_0001() invoked - expect a lot of nonsense")
+    _LOGGER.warning("scan_001() invoked - expect a lot of nonsense")
 
     qos = {"priority": Priority.LOW, "retries": 3}
     for idx in range(0x10):
@@ -263,7 +263,7 @@ async def scan_001(gwy, dev_id: str):
 
 
 async def scan_002(gwy, dev_id: str):
-    _LOGGER.warning("scan_0002() invoked - expect a lot of nonsense")
+    _LOGGER.warning("scan_002() invoked - expect a lot of nonsense")
 
     # Two modes, I and W & Two headers zz00 and zz
     message = "0000" + "".join([f"{ord(x):02X}" for x in "Hello there."]) + "00"
@@ -272,3 +272,11 @@ async def scan_002(gwy, dev_id: str):
         if code in RAMSES_CODES:  # no need to test known codes
             continue
         gwy.send_cmd(Command(" W", dev_id, code, message, qos=qos))
+
+
+async def scan_003(gwy, dev_id: str):
+    _LOGGER.warning("scan_003() invoked - expect a lot of nonsense")
+
+    qos = {"priority": Priority.LOW, "retries": 0}
+    for msg_id in range(0x100):
+        gwy.send_cmd(Command.get_opentherm_msg(dev_id, msg_id, qos=qos))
