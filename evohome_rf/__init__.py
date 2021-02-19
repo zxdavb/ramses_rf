@@ -31,6 +31,8 @@ from .schema import (
     load_schema,
     DISABLE_DISCOVERY,
     DONT_CREATE_MESSAGES,
+    LOG_ROTATE_BYTES,
+    LOG_ROTATE_COUNT,
     PACKET_LOG,
     REDUCE_PROCESSING,
     USE_NAMES,
@@ -74,6 +76,8 @@ class Gateway:
             pkt_logger,
             file_name=self.config.get(PACKET_LOG),
             cc_stdout=self.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES,
+            backup_count=self.config[LOG_ROTATE_COUNT],
+            max_bytes=self.config[LOG_ROTATE_BYTES],
         )
 
         self.pkt_protocol, self.pkt_transport = None, None
