@@ -501,7 +501,7 @@ class PacketProtocol(PacketProtocolBase):
     def __init__(self, gwy, pkt_handler: Callable) -> None:
         _LOGGER.info(
             "PktProtocol.__init__(gwy, %s) *** Std version ***",
-            pkt_handler.__name__ if pkt_handler else None
+            pkt_handler.__name__ if pkt_handler else None,
         )
         super().__init__(gwy, pkt_handler)
 
@@ -512,7 +512,7 @@ class PacketProtocolFile(PacketProtocolBase):
     def __init__(self, gwy, pkt_handler: Callable) -> None:
         _LOGGER.info(
             "PacketProtocolFile.__init__(gwy, %s) *** Log version ***",
-            pkt_handler.__name__ if pkt_handler else None
+            pkt_handler.__name__ if pkt_handler else None,
         )
         super().__init__(gwy, pkt_handler)
 
@@ -554,7 +554,7 @@ class PacketProtocolQos(PacketProtocolBase):
     def __init__(self, gwy, pkt_handler: Callable) -> None:
         _LOGGER.info(
             "PktProtocol.__init__(gwy, %s) *** Qos version ***",
-            pkt_handler.__name__ if pkt_handler else None
+            pkt_handler.__name__ if pkt_handler else None,
         )
         super().__init__(gwy, pkt_handler)
 
