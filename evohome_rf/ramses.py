@@ -662,6 +662,7 @@ RAMSES_DEVICES = {
         "0016": {
             RP: {},
         },
+        # "10E0": {},  # 13: will not RP/10E0 # TODO; how to indicate that fact here
         "1100": {
             I_: {},
             RP: {},
