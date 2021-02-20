@@ -118,12 +118,15 @@ class Command:
         if not self.is_valid:
             raise ValueError(f"Invalid parameter values for command: {self}")
 
-        self.callback = kwargs.get("callback", {})  # func, args, daemon, timeout
-        self.qos = self._qos  # retries
-        self.qos.update(kwargs.get("qos", {}))
+        # callback used by app layer (protocol.py)
+        self.callback = kwargs.pop("callback", {})  # func, args, daemon, timeout
 
-        self._priority = self.qos["priority"]
-        self._priority_dtm = dt_now()  # used for __lt__, etc.
+        # qos used by pkt layer (transport.py)
+        self.qos = self._qos(**kwargs)  # disable_backoff, priority, retries, timeout
+
+        # priority used by msg layer for next cmd to send (protocol.py)
+        self._priority = self.qos.pop("priority", Priority.DEFAULT)
+        self._priority_dtm = dt_now()
 
         self._rx_header = None
         self._tx_header = None
@@ -147,22 +150,25 @@ class Command:
             self.payload,
         )
 
-    @property
-    def _qos(self) -> dict:
+    def _qos(self, **kwargs) -> dict:
         """Return the default QoS params of this (request) packet."""
 
-        # the defaults for these are in packet.py
-        # qos = {"priority": Priority.DEFAULT, "retries": 3, "timeout": td(seconds=0.5)}
-        qos = {"priority": Priority.DEFAULT, "retries": 3}
+        KEYS = ("disable_backoff", "priority", "retries", "timeout")
+        qos = {
+            k: v for k, v in kwargs.items() if k in KEYS
+        }  # the defaults for these are in packet.py
 
         if self.code in ("0016", "1F09") and self.verb == "RQ":
-            qos.update({"priority": Priority.HIGH, "retries": 5})
+            qos["priority"] = qos.get("priority", Priority.HIGH)
+            qos["retries"] = qos.get("retries", 5)
 
         elif self.code == "0404" and self.verb in ("RQ", " W"):
-            qos.update({"priority": Priority.HIGH, "timeout": td(seconds=0.30)})
+            qos["priority"] = qos.get("priority", Priority.HIGH)
+            qos["timeout"] = qos.get("timeout", td(seconds=0.30))
 
         elif self.code == "0418" and self.verb == "RQ":
-            qos.update({"priority": Priority.LOW, "retries": 3})
+            qos["priority"] = qos.get("priority", Priority.LOW)
+            qos["retries"] = qos.get("retries", 3)
 
         return qos
 
@@ -296,16 +302,15 @@ class Command:
 
         return cls(" W", ctl_id, "1030", payload, **kwargs)
 
-    @classmethod  # constructor for 0418  # TODO
+    @classmethod  # constructor for RQ/0418  # TODO
     def get_system_log_entry(cls, ctl_id, log_idx, **kwargs):
         """Constructor to get a log entry from a system (c.f. parser_0418)."""
-
+        log_idx = log_idx if isinstance(log_idx, int) else int(log_idx, 16)
         return cls("RQ", ctl_id, "0418", f"{log_idx:06X}", **kwargs)
 
-    @classmethod  # constructor for 2E04
+    @classmethod  # constructor for RQ/2E04
     def get_system_mode(cls, ctl_id, **kwargs):
         """Constructor to get the mode of a system (c.f. parser_2e04)."""
-
         return cls("RQ", ctl_id, "2E04", "FF", **kwargs)
 
     @classmethod  # constructor for 2E04  # TODO
@@ -326,16 +331,15 @@ class Command:
 
         return cls(" W", ctl_id, "2E04", f"{system_mode}{until}", **kwargs)
 
-    @classmethod  # constructor for 3220  # TODO
+    @classmethod  # constructor for RQ/3220  # TODO
     def get_opentherm_msg(cls, dev_id, msg_id, **kwargs):
         """Constructor to get opentherm msg value (c.f. parser_3220)."""
-
+        msg_id = msg_id if isinstance(msg_id, int) else int(msg_id, 16)
         return cls("RQ", dev_id, "3220", f"0000{msg_id:02X}0000", **kwargs)
 
-    @classmethod  # constructor for 313F
+    @classmethod  # constructor for RQ/313F
     def get_system_time(cls, ctl_id, **kwargs):
         """Constructor to get the datetime of a system (c.f. parser_313f)."""
-
         return cls("RQ", ctl_id, "313F", "00", **kwargs)
 
     @classmethod  # constructor for 313F
@@ -374,6 +378,12 @@ class Command:
 
         return cls(" W", ctl_id, "1100", payload, **kwargs)
 
+    @classmethod  # constructor for RQ/000A  # TODO
+    def get_zone_config(cls, ctl_id, zone_idx, **kwargs):
+        """Constructor to get the config of a zone (c.f. parser_000a)."""
+        zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
+        return cls("RQ", ctl_id, "000A", f"{zone_idx:02X}00", **kwargs)
+
     @classmethod  # constructor for 000A  # TODO
     def set_zone_config(
         cls,
@@ -406,7 +416,13 @@ class Command:
 
         return cls(" W", ctl_id, "000A", payload, **kwargs)
 
-    @classmethod  # constructor for 2349
+    @classmethod  # constructor for RQ/2349
+    def get_zone_mode(cls, ctl_id, zone_idx, **kwargs):
+        """Constructor to get the mode of a zone (c.f. parser_2349)."""
+        zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
+        return cls("RQ", ctl_id, "2349", f"{zone_idx:02X}00", **kwargs)
+
+    @classmethod  # constructor for W/2349
     def set_zone_mode(
         cls, ctl_id, zone_idx, mode=None, setpoint=None, until=None, **kwargs
     ):
@@ -451,6 +467,12 @@ class Command:
 
         return cls(" W", ctl_id, "2349", payload, **kwargs)
 
+    @classmethod  # constructor for RQ/0004  # TODO
+    def get_zone_name(cls, ctl_id, zone_idx, **kwargs):
+        """Constructor to get the name of a zone (c.f. parser_0004)."""
+        zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
+        return cls("RQ", ctl_id, "0004", f"{zone_idx:02X}00", **kwargs)
+
     @classmethod  # constructor for 0004  # TODO
     def set_zone_name(cls, ctl_id, zone_idx, name: str, **kwargs):
         """Constructor to set the name of a zone (c.f. parser_0004)."""
@@ -460,15 +482,6 @@ class Command:
         payload += f"00{str_to_hex(name)[:24]:0<40}"  # TODO: check limit 12 (24)?
 
         return cls(" W", ctl_id, "0004", payload, **kwargs)
-
-    @classmethod  # constructor for 0004  # TODO
-    def get_zone_name(cls, ctl_id, zone_idx, **kwargs):
-        """Constructor to get the name of a zone (c.f. parser_0004)."""
-
-        payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
-        payload += "00"
-
-        return cls("RQ", ctl_id, "0004", payload, **kwargs)
 
     @classmethod  # constructor for 2309
     def set_zone_setpoint(cls, ctl_id, zone_idx, setpoint: float, **kwargs):

@@ -170,10 +170,12 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         # sometimes, battery-powered devices do respond to an RQ (e.g. bind mode)
         # super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_SCHEMA:
-            # self._send_cmd("1FC9", retries=0)
-            if self.type not in DEVICE_HAS_BATTERY and self.type not in ("13",):
-                self._send_cmd("10E0", retries=0)  # TODO: use device hints
+        if discover_flag & DISCOVER_SCHEMA:  # TODO: use device hints
+            if self.type not in DEVICE_HAS_BATTERY:
+                self._send_cmd("0016", retries=0)
+                self._send_cmd("1FC9", retries=0)
+                if self.type not in ("13",):
+                    self._send_cmd("10E0", retries=0)  # TODO: use device hints
 
         if discover_flag & DISCOVER_PARAMS:
             pass
@@ -1034,7 +1036,7 @@ DEVICE_TYPE_TO_KLASS = {
     "02": "UFC",
     "03": "THM",
     "04": "TRV",
-    "07": "DHE",
+    "07": "DHW",
     "10": "OTB",
     "12": "THM",
     "13": "BDR",

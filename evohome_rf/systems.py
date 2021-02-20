@@ -11,13 +11,7 @@ from typing import List, Optional
 
 from .command import Command, FaultLog, Priority
 from .const import (
-    # ATTR_CONTROLLER,
-    # ATTR_DEVICES,
-    ATTR_DHW_VALVE,
-    ATTR_DHW_VALVE_HTG,
-    # ATTR_HTG_RELAY,
-    # ATTR_SYSTEM,
-    ATTR_ZONE_SENSOR,
+    ATTR_DEVICES,
     DEVICE_HAS_ZONE_SENSOR,
     DISCOVER_SCHEMA,
     DISCOVER_PARAMS,
@@ -32,7 +26,6 @@ from .schema import (
     ATTR_DHW_SYSTEM,
     ATTR_HTG_RELAY,
     ATTR_HTG_SYSTEM,
-    # ATTR_HTG_CONTROL,
     ATTR_ORPHANS,
     ATTR_UFH_SYSTEM,
     ATTR_ZONES,
@@ -268,12 +261,12 @@ class StoredHw:
     def _get_zone(self, zone_idx, sensor=None, **kwargs) -> DhwZone:
         """Return a DHW zone (will create it if required).
 
-        Can also set a DHW zone's sensor.
+        Can also set a DHW zone's sensor & valves?.
         """
 
-        def create_dhw() -> DhwZone:
+        def create_dhw(zone_idx) -> DhwZone:
             if self.dhw:
-                raise LookupError(f"Duplicate stored hw: {zone_idx}")
+                raise LookupError(f"Duplicate stored HW: {zone_idx}")
 
             dhw = self._dhw = DhwZone(self)
 
@@ -282,22 +275,21 @@ class StoredHw:
 
             return dhw
 
-        if zone_idx == "HW":
-            zone = self.dhw
-            if zone is None:
-                zone = create_dhw()
+        if zone_idx != "HW":
+            return
 
-            if kwargs.get("dhw_valve"):
-                zone._set_dhw_valve(kwargs["dhw_valve"])
+        zone = self.dhw  # TODO: self.zone_by_idx.get("HW") too?
+        if zone is None:
+            zone = create_dhw(zone_idx)
 
-            if kwargs.get("htg_valve"):
-                zone._set_dhw_valve(kwargs["htg_valve"])
+        if kwargs.get("dhw_valve"):
+            zone._set_dhw_valve(kwargs["dhw_valve"])
 
-        else:
-            raise ValueError(f"Unknown zone_idx/domain_id: {zone_idx}")
+        if kwargs.get("htg_valve"):
+            zone._set_dhw_valve(kwargs["htg_valve"])
 
         if sensor is not None:
-            zone._set_sensor(sensor)
+            zone._set_dhw_sensor(sensor)
 
         return zone
 
@@ -324,81 +316,15 @@ class StoredHw:
 
     @property
     def dhw_sensor(self) -> Device:
-        """Blah it now.
-
-        Check and Verb the DHW sensor (07:) of this system/CTL (if there is one).
-
-        There is only 1 way to find a controller's DHW sensor:
-        1.  The 10A0 RQ/RP *from/to a 07:* (1x/4h)
-
-        The RQ is initiated by the DHW, so is not authorative (the CTL will RP any RQ).
-        The I/1260 is not to/from a controller, so is not useful.
-        """  # noqa: D402
-
-        # 07:38:39.124 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
-        # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
-
-        # if "10A0" in self._msgs:
-        #     return self._msgs["10A0"].dst.addr
-
-        return self._dhw_sensor
-
-    def _set_dhw_sensor(self, device: Device) -> None:  # self._sensor
-        """Set the temp sensor for this DHW system (07: only)."""
-
-        if self._dhw_sensor != device and self._dhw_sensor is not None:
-            raise CorruptStateError(
-                f"{ATTR_ZONE_SENSOR} shouldn't change: {self._dhw_sensor} to {device}"
-            )
-
-        if not isinstance(device, Device) or device.type != "07":
-            raise TypeError(f"{ATTR_ZONE_SENSOR} can't be: {device}")
-
-        if self._dhw_sensor is None:
-            self._dhw_sensor = device
-            device._set_parent(self, domain="FA")
+        return self._dhw._dhw_sensor if self._dhw else None
 
     @property
     def hotwater_valve(self) -> Device:
-        return self._dhw_valve
-
-    def _set_dhw_valve(self, device: Device) -> None:  # self._dhw_valve
-        """Set the hotwater valve relay for this DHW system (13: only)."""
-
-        if not isinstance(device, Device) or device.type != "13":
-            raise TypeError(f"{ATTR_DHW_VALVE} can't be: {device}")
-
-        if self._dhw_valve is not None:
-            if self._dhw_valve is device:
-                return
-            raise CorruptStateError(
-                f"{ATTR_DHW_VALVE} shouldn't change: {self._dhw_valve} to {device}"
-            )
-
-        if self._dhw_valve is None:
-            self._dhw_valve = device
-            device._set_parent(self, domain="FA")
+        return self._dhw._dhw_valve if self._dhw else None
 
     @property
     def heating_valve(self) -> Device:
-        return self._htg_valve
-
-    def _set_htg_valve(self, device: Device) -> None:  # self._htg_valve
-        """Set the heating valve relay for this DHW system (13: only)."""
-
-        if not isinstance(device, Device) or device.type != "13":
-            raise TypeError(f"{ATTR_DHW_VALVE_HTG} can't be: {device}")
-
-        if self._htg_valve is not None:
-            if self._htg_valve is device:
-                return
-            raise CorruptStateError(
-                f"{ATTR_DHW_VALVE_HTG} shouldn't change: {self._htg_valve} to {device}"
-            )
-
-        if self._htg_valve is None:
-            self._htg_valve = device
-            device._set_parent(self, domain="F9")
+        return self._dhw._htg_valve if self._dhw else None
 
     @property
     def schema(self) -> dict:
@@ -594,6 +520,13 @@ class MultiZone:  # 0005 (+/- 000C?)
 
         super()._handle_msg(msg)
 
+        if msg.code in ("000A",) and isinstance(msg.payload, list):
+            for zone_idx in self.zone_by_idx:
+                cmd = Command.get_zone_mode(self.id, zone_idx, priority=Priority.LOW)
+                self._gwy.send_cmd(cmd)
+            # for zone in self.zones:
+            #     zone._discover(discover_flags=DISCOVER_PARAMS)
+
         if msg.code in ("000A", "2309", "30C9"):
             pass
             # if isinstance(msg.payload, list):
@@ -610,14 +543,13 @@ class MultiZone:  # 0005 (+/- 000C?)
     def _get_zone(self, zone_idx, sensor=None, **kwargs) -> Zone:
         """Return a zone (will create it if required).
 
-        Can also set a zone's sensor, and zone_type.
+        Can also set a zone's sensor, and zone_type, and actuators.
         """
 
         def create_zone(zone_idx) -> Zone:
             if int(zone_idx, 16) >= self._gwy.config[MAX_ZONES]:
                 raise ValueError(f"Invalid zone idx: {zone_idx} (exceeds max_zones)")
 
-            assert zone_idx not in self.zone_by_idx, f"Dup zone: {zone_idx} for {self}"
             if zone_idx in self.zone_by_idx:
                 raise LookupError(f"Duplicated zone: {zone_idx} for {self}")
 
@@ -630,22 +562,20 @@ class MultiZone:  # 0005 (+/- 000C?)
 
         if zone_idx == "HW":
             return super()._get_zone(zone_idx, sensor=sensor, **kwargs)
-
-        if int(zone_idx, 16) <= self._gwy.config[MAX_ZONES]:
-            zone = self.zone_by_idx.get(zone_idx)
-            if zone is None:
-                zone = create_zone(zone_idx)
-
-            if kwargs.get("zone_type"):
-                zone._set_zone_type(kwargs["zone_type"])
-
-            if kwargs.get("actuators"):  # TODO: check not an address before implmenting
-                for device in [d for d in kwargs["actuators"] if d not in zone.devices]:
-                    zone.devices.append(device)
-                    zone.device_by_id[device.id] = device
-
-        else:
+        if int(zone_idx, 16) >= self._gwy.config[MAX_ZONES]:
             raise ValueError(f"Unknown zone_idx/domain_id: {zone_idx}")
+
+        zone = self.zone_by_idx.get(zone_idx)
+        if zone is None:
+            zone = create_zone(zone_idx)
+
+        if kwargs.get("zone_type"):
+            zone._set_zone_type(kwargs["zone_type"])
+
+        if kwargs.get("actuators"):  # TODO: check not an address before implmenting
+            for device in [d for d in kwargs["actuators"] if d not in zone.devices]:
+                zone.devices.append(device)
+                zone.device_by_id[device.id] = device
 
         if sensor is not None:
             zone._set_sensor(sensor)
@@ -968,10 +898,6 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             else None
         )
 
-        # devices don't have params
-        # assert "devices" not in params  # TODO: removeme
-        # params["devices"] = {d.id: d.params for d in sorted(self._ctl.devices)}
-
         return params
 
     @property
@@ -992,13 +918,12 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         status[ATTR_HTG_SYSTEM]["heat_demands"] = self.heat_demands
         status[ATTR_HTG_SYSTEM]["relay_demands"] = self.relay_demands
 
-        assert "devices" not in status  # TODO: removeme
-        status["devices"] = {d.id: d.status for d in sorted(self._ctl.devices)}
+        status[ATTR_DEVICES] = {d.id: d.status for d in sorted(self._ctl.devices)}
 
         return status
 
 
-class System(StoredHw, SysDatetime, SysFaultLog, SystemBase):
+class System(StoredHw, SysDatetime, SystemBase):  # , SysFaultLog
     """The Controller class."""
 
     def __init__(self, gwy, ctl, **kwargs) -> None:
@@ -1027,6 +952,7 @@ class System(StoredHw, SysDatetime, SysFaultLog, SystemBase):
 
 
 class Evohome(SysLanguage, SysMode, MultiZone, UfhSystem, System):  # evohome
+    # class Evohome(System):  # evohome
     """The Evohome system - some controllers are evohome-compatible."""
 
     def __init__(self, gwy, ctl, **kwargs) -> None:

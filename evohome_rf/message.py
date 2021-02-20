@@ -17,6 +17,7 @@ from .const import (
     ATTR_DHW_SENSOR,
     ATTR_DHW_VALVE_HTG,
     ATTR_DHW_VALVE,
+    ATTR_ZONE_ACTUATORS,
     ATTR_ZONE_SENSOR,
     DEVICE_TYPES,
     MSG_FORMAT_10,
@@ -231,7 +232,7 @@ class Message:
         elif self.code in ("2E04",) and self.src._is_controller:
             timeout = td(minutes=60)  # sends I /1h
         elif self.code in ("1260", "12B0", "1F41", "2349"):
-            timeout = td(minutes=60)  # sends I /1h
+            timeout = td(minutes=60)  # sends I /1h, RP/2349s not sent spontaneously
         else:  # treat as never expiring
             self._is_expired = self.NOT_EXPIRED
             _LOGGER.debug(  # TODO: should be a debug
@@ -441,7 +442,7 @@ def process_msg(msg: Message) -> None:
                     except TypeError:  # ignore invalid device types, e.g. 17:
                         pass
 
-                elif this.payload["device_class"] == "zone_actuators":
+                elif this.payload["device_class"] == ATTR_ZONE_ACTUATORS:
                     # TODO: is this better, or...
                     # evo._get_zone(this.payload["zone_idx"], actuators=devices)
                     # TODO: is it this one?
@@ -453,16 +454,13 @@ def process_msg(msg: Message) -> None:
                     evo._set_htg_control(devices[0])
 
                 elif this.payload["device_class"] == ATTR_DHW_SENSOR:
-                    # evo._get_zone("HW")._set_sensor(devices[0])
                     evo._get_zone("HW")._set_sensor(devices[0])
 
                 elif this.payload["device_class"] == ATTR_DHW_VALVE:
-                    # evo._get_zone("HW")._set_dhw_valve(devices[0])
-                    evo._set_dhw_valve(devices[0])
+                    evo._get_zone("HW")._set_dhw_valve(devices[0])
 
                 elif this.payload["device_class"] == ATTR_DHW_VALVE_HTG:
-                    # evo._get_zone("HW")._set_htg_valve(devices[0])
-                    evo._set_htg_valve(devices[0])
+                    evo._get_zone("HW")._set_htg_valve(devices[0])
 
             elif this.payload["device_class"] == ATTR_HTG_CONTROL:
                 # TODO: maybe the htg controller is an OTB? via eavesdropping
@@ -519,12 +517,11 @@ def process_msg(msg: Message) -> None:
         if not this.payload:
             return
 
-        # # try to find the boiler relay, dhw sensor
-        # for evo in this._gwy.systems:
-        #     if this.src == evo:  # TODO: or this.src.id == evo.id?
-        #         if this.code in ("10A0", "1260", "1F41") and evo._dhw is not None:
-        #             evo._dhw._handle_msg(this)
-        #         break
+        for evo in this._gwy.systems:
+            # if this.src == evo:  # TODO: or this.src.id == evo.id?
+            if this.code in ("10A0", "1260", "1F41") and evo._dhw is not None:
+                evo._dhw._handle_msg(this)
+            break
 
         #     if this.src.controller == evo:  # TODO: this.src.controller.id == evo.id?
         #         evo._handle_msg(this, prev)  # TODO: WIP
@@ -538,6 +535,9 @@ def process_msg(msg: Message) -> None:
 
         if this.src is evo._ctl:
             evo._handle_msg(msg)
+
+        if not hasattr(evo, "zone_by_idx"):
+            return
 
         if isinstance(this.payload, dict) and "zone_idx" in this.payload:
             # 089  I --- 02:000921 --:------ 01:191718 3150 002 0300  # NOTE: is valid
