@@ -337,7 +337,8 @@ class DhwZone(ZoneBase):
     @property
     def config(self) -> Optional[dict]:  # 10A0
         result = self._msg_payload(self._dhw_params)
-        return {k: v for k, v in result.items() if k != "dhw_idx"}
+        if result:
+            return {k: v for k, v in result.items() if k != "dhw_idx"}
 
     @property
     def mode(self) -> Optional[dict]:  # 1F41
@@ -715,11 +716,14 @@ class Zone(ZoneSchedule, ZoneBase):
             return
 
         elif isinstance(self._zone_config.payload, dict):
-            return self._msg_payload(self._zone_config)
+            result = self._msg_payload(self._zone_config)
 
         elif isinstance(self._zone_config.payload, list):
             tmp = [z for z in self._zone_config.payload if z["zone_idx"] == self.idx]
-            return {k: v for k, v in tmp[0].items() if k[:1] != "_" and k != "zone_idx"}
+            result = {k: v for k, v in tmp[0].items() if k[:1] != "_"}
+
+        if result:
+            return {k: v for k, v in result.items() if k != "zone_idx"}
 
     @property
     def mode(self) -> Optional[dict]:  # 2349
@@ -727,14 +731,9 @@ class Zone(ZoneSchedule, ZoneBase):
         if not self._mode or self._mode.is_expired:
             return
 
-        elif isinstance(self._mode.payload, dict):
-            result = self._msg_payload(self._mode)
-
-        elif isinstance(self._mode.payload, list):
-            tmp = [z for z in self._mode.payload if z["zone_idx"] == self.idx]
-            result = {k: v for k, v in tmp[0].items() if k[:1] != "_"}
-
-        return {k: v for k, v in result.items() if k != "zone_idx"}
+        result = self._msg_payload(self._mode)
+        if result:
+            return {k: v for k, v in result.items() if k != "zone_idx"}
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309 (2349 is a superset of 2309)

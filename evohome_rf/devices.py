@@ -170,19 +170,16 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         # sometimes, battery-powered devices do respond to an RQ (e.g. bind mode)
         # super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_SCHEMA:  # TODO: use device hints
-            if self.type not in DEVICE_HAS_BATTERY:
-                self._send_cmd("0016", retries=0)
-                self._send_cmd("1FC9", retries=0)
-                if self.type not in ("13",):
-                    self._send_cmd("10E0", retries=0)  # TODO: use device hints
+        if discover_flag & DISCOVER_SCHEMA and self.type not in DEVICE_HAS_BATTERY:
+            # self._send_cmd("1FC9", retries=3)
+            if self.type not in ("13",):
+                self._send_cmd("10E0", retries=0)  # TODO: use device hints
 
-        if discover_flag & DISCOVER_PARAMS:
-            pass
+        # if discover_flag & DISCOVER_PARAMS and self.type not in DEVICE_HAS_BATTERY:
+        #     pass
 
-        if discover_flag & DISCOVER_STATUS:
-            # self._send_cmd("0016", payload="0000", retries=0)
-            pass
+        # if discover_flag & DISCOVER_STATUS and self.type not in DEVICE_HAS_BATTERY:
+        #     self._send_cmd("0016", retries=3)
 
     def _send_cmd(self, code, **kwargs) -> None:
         dest = kwargs.pop("dest_addr", self.id)
@@ -534,6 +531,15 @@ class Controller(Device):
 
         self.devices = list()  # [self]
         self.device_by_id = dict()  # {self.id: self}
+
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        super()._discover(discover_flag=discover_flag)
+
+        if discover_flag & DISCOVER_SCHEMA and self.type not in DEVICE_HAS_BATTERY:
+            self._send_cmd("1FC9", retries=3)  # rf_bind
+
+        if discover_flag & DISCOVER_STATUS and self.type not in DEVICE_HAS_BATTERY:
+            self._send_cmd("0016", retries=3)  # rf_check
 
 
 # 02: "10E0", "3150";; "0008", "22C9", "22D0"
@@ -890,12 +896,17 @@ class BdrSwitch(Actuator, Device):
         #     self._ctl._set_htg_control(self)
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        """The BDRs fail(?) to respond to RQs for: 3B00, 3EF0, 0009.
+        """The BDRs have one of six roles:
+         - heater relay *or* a heat pump relay (alternative to an OTB)
+         - DHW hot water valve *or* DHW heating valve
+         - Zones: Electric relay *or* Zone valve relay
 
-        They all seem to respond to (haven't checked a zone-valve zone):
-        - 0008: varies on/off
-        - 1100
-        - 3EF1: has sub-domains?
+        They all seem to respond thus (TODO heat pump/zone valve relay):
+         - all BDR91As will (erractically) RP to these RQs
+             0016, 1FC9 & 0008, 1100, 3EF1
+         - all BDR91As will *not* RP to these RQs
+             0009, 10E0, 3B00, 3EF0
+         - a BDR91A will *periodically* send an I/3B00/00CB if it is the heater relay
         """
 
         super()._discover(discover_flag=discover_flag)
@@ -904,7 +915,7 @@ class BdrSwitch(Actuator, Device):
             pass
 
         if discover_flag & DISCOVER_PARAMS:
-            self._send_cmd("1100")  # heater_relay wont RP to RQ/3B00?
+            self._send_cmd("1100")
 
         if discover_flag & DISCOVER_STATUS:
             for code in ("0008", "3EF1"):

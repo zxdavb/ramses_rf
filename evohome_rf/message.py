@@ -224,15 +224,20 @@ class Message:
         if self.code in ("1F09", "313F") and self.src._is_controller:
             timeout = td(seconds=3)
         elif self.code in ("2309", "30C9") and self.src._is_controller:
-            timeout = td(minutes=15)
+            timeout = td(minutes=15)  # send I /sync_interval (~3 mins)
         elif self.code in ("3150",):
             timeout = td(minutes=20)  # sends I /20min
-        elif self.code in ("000A",) and self.src._is_controller:
-            timeout = td(minutes=60)  # sends I (array) /1h
-        elif self.code in ("2E04",) and self.src._is_controller:
+        elif self.code in ("000A", "2E04") and self.src._is_controller:
             timeout = td(minutes=60)  # sends I /1h
-        elif self.code in ("1260", "12B0", "1F41", "2349"):
-            timeout = td(minutes=60)  # sends I /1h, RP/2349s not sent spontaneously
+        elif self.code in ("1260", "12B0", "1F41"):
+            timeout = td(minutes=60)  # sends I /1h
+        elif self.code in ("2349",):  # no spontaneous I/2349, must be RQ'd
+            timeout = td(minutes=60)  # or longer if READ_ONLY mode?
+
+        # TODO: 0008, 3EF0, 3EF1
+        # elif self.code in ("3B00", "3EF0", ):
+        #     timeout = td(minutes=6.7)  # TODO: WIP
+
         else:  # treat as never expiring
             self._is_expired = self.NOT_EXPIRED
             _LOGGER.debug(  # TODO: should be a debug
