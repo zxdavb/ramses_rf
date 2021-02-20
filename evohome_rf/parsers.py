@@ -257,7 +257,7 @@ def parser_decorator(func):
         #     if verb not in RAMSES_DEVICES[msg.dst.type][msg.code]:
         #         if RAMSES_DEVICES[msg.dst.type][msg.code]:
         #             raise CorruptPacketError(
-        #                 f"Invalid verb/code for {msg.dst.id}: {verb}/{msg.code} (0x12)"
+        #                 f"Invalid verb/code for {msg.dst.id}: {verb}/{msg.code} (0x12)
         #             )
 
     def check_verb_code_payload(msg, payload) -> None:
