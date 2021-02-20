@@ -27,6 +27,7 @@ from .const import (
     ZONE_MODE_MAP,
     _dev_mode_,
 )
+from .exceptions import CorruptPacketError, CorruptPayloadError
 from .helpers import dev_hex_to_id, dtm_from_hex as _dtm, dts_from_hex
 from .opentherm import (
     OPENTHERM_MESSAGES,
@@ -210,33 +211,86 @@ def _idx(seqx, msg) -> dict:
 def parser_decorator(func):
     """Validate message payload (or meta-data), e.g payload length)."""
 
+    def check_verb_code_src(msg) -> None:
+        # STEP 1: Check verb/code pair against src device type
+        if msg.src.type not in RAMSES_DEVICES:
+            raise CorruptPacketError(f"Unknown src device type: {msg.src.id} (0x00)")
+
+        elif msg.code not in RAMSES_DEVICES[msg.src.type]:
+            if RAMSES_DEVICES[msg.src.type]:
+                raise CorruptPacketError(
+                    f"Invalid code for {msg.src.id}: {msg.code} (0x01)"
+                )
+
+        elif msg.verb not in RAMSES_DEVICES[msg.src.type][msg.code]:
+            if RAMSES_DEVICES[msg.src.type][msg.code]:
+                raise CorruptPacketError(
+                    f"Invalid verb/code for {msg.src.id}: {msg.verb}/{msg.code} (0x02)"
+                )
+
+    def check_verb_code_dst(msg) -> None:
+        # STEP 2: Check (expected) verb/code pair against dst device type
+        if msg.dst.type in ("--", "63"):
+            pass
+
+        elif msg.dst.type not in RAMSES_DEVICES:
+            raise CorruptPacketError(f"Unknown dst device type: {msg.dst.id} (0x10)")
+
+        elif msg.verb == " I":
+            pass
+
+        elif msg.code not in RAMSES_DEVICES[msg.dst.type]:
+            if RAMSES_DEVICES[msg.dst.type]:
+                raise CorruptPacketError(
+                    f"Invalid code for {msg.dst.id}: {msg.code} (0x11)"
+                )
+
+        elif msg.verb == " W" and msg.code in ("0001",):
+            pass
+
+        elif msg.verb == "RQ" and msg.code in ("3EF0",) and msg.dst.type == "13":
+            # RQ --- 01:145038 13:237335 --:------ 3EF0 001 00  # 13: doesn't RP/3EF0
+            pass
+
+        # else:  # TODO: this is a bit problematic
+        #     verb = {"RQ": "RP", "RP": "RQ", " W": " I"}[msg.verb]
+        #     if verb not in RAMSES_DEVICES[msg.dst.type][msg.code]:
+        #         if RAMSES_DEVICES[msg.dst.type][msg.code]:
+        #             raise CorruptPacketError(
+        #                 f"Invalid verb/code for {msg.dst.id}: {verb}/{msg.code} (0x12)
+        #             )
+
+    def check_verb_code_payload(msg, payload) -> None:
+        # STEP 2: Check payload against verb/code pair
+        try:
+            regexp = RAMSES_CODES[msg.code][msg.verb]
+            if not re.compile(regexp).match(payload):
+                raise CorruptPayloadError(f"Expecting payload to match '{regexp}'")
+        except KeyError:
+            pass
+
     def wrapper(*args, **kwargs) -> Optional[dict]:
         """Check the length of a payload."""
         payload, msg = args[0], args[1]
 
-        # Check source device against ver/code pair
-        if msg.code == "1FC9":
-            pass
+        # STEP 0: Check verb/code pair against src/dst device type & payload
+        if msg.code != "1FC9":
+            check_verb_code_src(msg)
+            check_verb_code_dst(msg)
 
-        elif msg.src.type not in RAMSES_DEVICES:
-            assert False, f"Unknown device type: {msg.src.id} (likely a corrupt pkt)"
-
-        elif msg.code not in RAMSES_DEVICES[msg.src.type]:
-            assert (
-                RAMSES_DEVICES[msg.src.type] == {}
-            ), f"Invalid code for {msg.src.id}: {msg.code} (consider a corrupt pkt)"
-
-        elif msg.verb not in RAMSES_DEVICES[msg.src.type][msg.code]:
-            assert (
-                RAMSES_DEVICES[msg.src.type][msg.code] == {}
-            ), f"Invalid verb/code for {msg.src.id}: {msg.verb}/{msg.code}"
-
-        # These are expections to the rules
+        # STEP 3: These are expections to the following rules
         if msg.src.type in ("08", "31"):  # Honeywell Jasper HVAC
-            # assert RAMSES_DEVICES
             return func(*args, **kwargs)
 
-        # Next check W
+        check_verb_code_payload(msg, payload)  # can't use msg.payload
+
+        # STEP 4: Next check W
+        # z_idx/d_id: 0001, 0008, 1FC9 (array)
+        # special:   1100 (00|FC)
+        # zone_idx:  0004, 000A, 2309/2349,
+        # none_idx:  1F09 (xx), 2E04 (xx), 313F (00)
+        # unknown:   01D0, 01E9
+
         if msg.verb == " W":  # TODO: WIP, need to check _idx()
             if msg.code in ("0001",):
                 return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
@@ -257,7 +311,7 @@ def parser_decorator(func):
 
             return func(*args, **kwargs)
 
-        # Then check I, RP
+        # STEP 5: Then check I, RP
         if msg.verb != "RQ":  # i.e. in (" I", "RP")
             result = func(*args, **kwargs)
             if isinstance(result, list):
@@ -267,7 +321,7 @@ def parser_decorator(func):
                 **result,
             }
 
-        # Finally check RQ
+        # STEP 6: Finally check RQ
         try:
             regexp = RAMSES_CODES[msg.code][RQ]
             # assert (
@@ -281,8 +335,7 @@ def parser_decorator(func):
                 if "18" in (msg.src.type, msg.dst.type)
                 else " - please report to the github repo as an issue"
             )
-            assert False, f"Code {msg.code} not known{hint1}{hint2}"
-            raise NotImplementedError(f"Code {msg.code} not known{hint1}{hint2}")
+            raise CorruptPacketError(f"Code {msg.code} not known{hint1}{hint2}")
 
         else:
             if msg.src.type != "18a" and not re.compile(regexp).match(payload):
@@ -291,8 +344,7 @@ def parser_decorator(func):
                     if "18" in (msg.src.type, msg.dst.type)
                     else " - please report this as an issue"
                 )
-                assert False, f"Payload doesn't match '{regexp}'{hint2}"
-                raise ValueError(f"Payload doesn't match '{regexp}'{hint2}")
+                raise CorruptPayloadError(f"Payload doesn't match '{regexp}'{hint2}")
 
         result = _idx(payload[:2], msg)
         if RAMSES_CODES[msg.code].get(RQ_MAY_HAVE_PAYLOAD):
@@ -435,7 +487,7 @@ def parser_0004(payload, msg) -> Optional[dict]:
 
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
-        cmd = Command.zone_name(msg.src.id, payload[:2], result["name"])
+        cmd = Command.set_zone_name(msg.src.id, payload[:2], result["name"])
         assert cmd.payload == payload, _str(payload)
     # TODO: remove me...
 
@@ -610,7 +662,7 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:
             "openwindow_function",
             "multiroom_mode",
         )
-        cmd = Command.zone_config(
+        cmd = Command.set_zone_config(
             msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
@@ -896,7 +948,7 @@ def parser_1030(payload, msg) -> Optional[dict]:
             "valve_run_time",
             "pump_run_time",
         )
-        cmd = Command.mix_valve_params(
+        cmd = Command.set_mix_valve_params(
             msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
@@ -977,7 +1029,7 @@ def parser_10a0(payload, msg) -> Optional[dict]:
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
         KEYS = ("setpoint", "overrun", "differential")
-        cmd = Command.dhw_params(
+        cmd = Command.set_dhw_params(
             msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
@@ -1054,7 +1106,7 @@ def parser_1100(payload, msg) -> Optional[dict]:
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
         KEYS = ("cycle_rate", "min_on_time", "min_off_time", "proportional_band_width")
-        cmd = Command.tpi_params(
+        cmd = Command.set_tpi_params(
             msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
@@ -1089,11 +1141,16 @@ def parser_1290(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # indoor_humidity (Nuaire RH sensor)
 def parser_12a0(payload, msg) -> Optional[dict]:
-    assert msg.len == 6, msg.len
+    # assert msg.len == 6 if type == ?? else 2, msg.len
     assert payload[:2] == "00", payload[:2]  # domain?
 
+    rh = int(payload[2:4], 16) / 100 if payload[2:4] != "EF" else None
+    if msg.len == 2:
+        return {"relative_humidity": rh}
+
+    assert msg.len == 6, f"pkt length is {msg.len}, expected 6"
     return {
-        "relative_humidity": int(payload[2:4], 16) / 100,  # is not /200
+        "relative_humidity": rh,
         "temperature": _temp(payload[4:8]),
         "dewpoint_temp": _temp(payload[8:12]),
     }
@@ -1153,7 +1210,7 @@ def parser_1f41(payload, msg) -> Optional[dict]:
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
         KEYS = ("active", "mode", "until")
-        cmd = Command.dhw_mode(
+        cmd = Command.set_dhw_mode(
             msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
@@ -1292,11 +1349,16 @@ def parser_22f1(payload, msg) -> Optional[dict]:
     assert payload[4:] in ("04", "0A"), payload[4:]
 
     bitmap = int(payload[2:4], 16)
-
     _bitmap = {"_bitmap": bitmap}
 
-    if bitmap in (2, 3):
-        _action = {"fan_mode": "normal" if bitmap == 2 else "boost"}
+    MAP = {
+        2: "low",  # "normal"
+        3: "auto",  # "boost"
+        4: "high",
+    }
+
+    if bitmap in (2, 3, 4):
+        _action = {"fan_mode": MAP[bitmap]}
     elif bitmap in (9, 10):
         _action = {"heater_mode": "auto" if bitmap == 10 else "off"}
     else:
@@ -1313,10 +1375,11 @@ def parser_22f1(payload, msg) -> Optional[dict]:
 def parser_22f3(payload, msg) -> Optional[dict]:
     assert msg.len == 3, msg.len
     assert payload[:2] == "00", payload[:2]  # has no domain
-    assert payload[4:6] == "0A", payload[4:6]
+    assert payload[2:4] == "00", payload[2:4]
+    assert payload[4:6] in ("0A", "14", "1E"), payload[4:6]
 
     return {
-        "_bitmap": int(payload[2:4], 16),
+        "minutes": int(payload[4:6], 16),
     }
 
 
@@ -1340,7 +1403,7 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:
 
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
-        cmd = Command.zone_setpoint(msg.src.id, payload[:2], result["setpoint"])
+        cmd = Command.set_zone_setpoint(msg.src.id, payload[:2], result["setpoint"])
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
 
@@ -1378,8 +1441,8 @@ def parser_2349(payload, msg) -> Optional[dict]:
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
         KEYS = ("setpoint", "mode", "until")
-        cmd = Command.zone_mode(
-            msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
+        cmd = Command.set_zone_mode(
+            msg.dst.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
@@ -1422,18 +1485,19 @@ def parser_2e04(payload, msg) -> Optional[dict]:
         # assert False
 
     else:
-        assert False, msg.len  # msg.len in (8, 16)  # evohome 8, hometronics 16
+        # msg.len in (8, 16)  # evohome 8, hometronics 16
+        assert False, f"Packet length is {msg.len} (expecting 8, 16)"
 
     result = {
-        "mode": SYSTEM_MODE_MAP.get(payload[:2], payload[:2]),
+        "system_mode": SYSTEM_MODE_MAP.get(payload[:2], payload[:2]),
         "until": _dtm(payload[2:14]) if payload[14:16] != "00" else None,
     }  # TODO: double-check the final "00"
 
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
-        KEYS = ("mode", "until")
-        cmd = Command.system_mode(
-            msg.src.id, **{k: v for k, v in result.items() if k in KEYS}
+        KEYS = ("system_mode", "until")
+        cmd = Command.set_system_mode(
+            msg.dst.id, **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
@@ -1454,13 +1518,15 @@ def parser_30c9(payload, msg) -> Optional[dict]:
     return _parser(payload)
 
 
-@parser_decorator  # unknown, from STA
+@parser_decorator  # unknown, from STA, VCE
 def parser_3120(payload, msg) -> Optional[dict]:
     # sent by STAs every ~3:45:00, why?
-    assert msg.src.type == "34", msg.src.type
-    assert payload == "0070B0000000FF", payload
+    assert payload[:10] == "0070B00000", payload[:10]
+    assert payload[12:] == "FF", payload[12:]
     return {
-        "unknown_0": payload,
+        "unknown_1": payload[10:12],
+        "unknown_0": payload[:10],
+        "unknown_2": payload[12:],
     }
 
 
@@ -1478,6 +1544,15 @@ def parser_313f(payload, msg) -> Optional[dict]:
 
     assert msg.len == 9
     assert payload[:2] == "00"  # evohome is always "00FC"? OTB is always 00xx
+    if msg.src.type == "01":
+        assert payload[2:4] in ("F0", "FC"), payload[2:4]
+    elif msg.src.type in ("12", "22"):
+        assert payload[2:4] == "38", payload[2:4]
+    elif msg.src.type == "30":
+        assert payload[2:4] == "60", payload[2:4]
+    else:
+        assert False, payload[2:4]
+
     result = {
         "datetime": _dtm(payload[4:18]),
         "is_dst": True if bool(int(payload[4:6], 16) & 0x80) else None,
@@ -1486,7 +1561,7 @@ def parser_313f(payload, msg) -> Optional[dict]:
 
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
-        cmd = Command.system_time(msg.src.id, result["datetime"])
+        cmd = Command.set_system_time(msg.src.id, result["datetime"])
         payload = payload[:4] + "00" + payload[6:]  # 00, 01, 02, 03?
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
@@ -1553,12 +1628,12 @@ def parser_31da(payload, msg) -> Optional[dict]:
 
     return {
         **_idx(payload[:2], msg),
+        "percent_4": _percent(payload[38:40]),
         "relative_humidity": rh,
+        "minutes": int(payload[44:46], 16),
+        "unknown_3": payload[36:38],
         "unknown_1": payload[30:32],
         "unknown_2": payload[32:34],
-        "unknown_3": payload[36:38],
-        "unknown_4": payload[38:40],
-        "unknown_5": payload[44:46],
     }
 
 
@@ -1618,7 +1693,8 @@ def parser_3220(payload, msg) -> Optional[dict]:
             "description": message[EN],
         }
 
-    assert ot_msg_type > 0b011, f"Invalid OpenTherm msg type: 0b{ot_msg_type:03b}"
+    # TODO: Should be > 0b011, but >= 0b011 seems required?
+    assert ot_msg_type >= 0b011, f"Invalid OpenTherm msg type: 0b{ot_msg_type:03b}"
 
     if ot_msg_type != 0b111 and isinstance(message[VAR], dict):
         if isinstance(message[VAL], dict):
@@ -1801,21 +1877,18 @@ def parser_3ef1(payload, msg) -> dict:
     }
 
 
-# def create_7fff(counter, length=48) -> Command:
-#     payload = f"7F{dts_to_hex(dt.now())}7F{counter % 0x10000:04X}7F{interval:04X}7F"
-#     payload = payload.ljust(length * 2, "F")
-#     return Command(" I", NUL_DEV_ID, "7FFF", payload, qos={"retries": 0})
-
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated
 def parser_7fff(payload, msg) -> Optional[dict]:
-    return {
-        "counter": int(payload[16:20], 16),
-        "datetime": dts_from_hex(payload[2:14]),
-        "interval": int(payload[22:26], 16) / 100,
-    }
+    result = {"datetime": dts_from_hex(payload[2:14])}
+    if payload[:2] == "00":
+        result["message"] = _str(payload[16:])
+    elif payload[:2] == "7F":
+        result["counter"] = int(payload[16:20], 16)
+        result["interval"] = int(payload[22:26], 16) / 100
+    return result
 
 
 @parser_decorator
 def parser_unknown(payload, msg) -> Optional[dict]:
-    # TODO: it may be useful to search payloads for hex_ids, commands, etc.
+    # TODO: it may be useful to generically search payloads for hex_ids, commands, etc.
     raise NotImplementedError

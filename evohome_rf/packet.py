@@ -8,6 +8,7 @@ Decode/process a packet (packet that was received).
 
 from datetime import datetime as dt
 import logging
+from logging.handlers import TimedRotatingFileHandler, RotatingFileHandler
 import shutil
 import sys
 from typing import Optional, Tuple
@@ -21,6 +22,7 @@ except ModuleNotFoundError:
 
 from .command import _pkt_header
 from .const import MESSAGE_REGEX, _dev_mode_
+from .exceptions import CorruptAddrSetError
 from .helpers import extract_addrs
 
 DEV_MODE = _dev_mode_  # or True
@@ -91,8 +93,15 @@ class FileFilter(logging.Filter):
         return record.levelno in (logging.INFO, logging.WARNING)
 
 
-def set_pkt_logging(logger, file_name=None, cc_stdout=False, rotate_days=None) -> None:
-    """Create/configure handlers, formatters, etc."""
+def set_pkt_logging(
+    logger, file_name=None, cc_stdout=False, backup_count=0, max_bytes=None
+) -> None:
+    """Create/configure handlers, formatters, etc.
+
+    Parameters:
+    - backup_count: keep this many copies, and rotate at midnight unless...
+    - max_bytes: rotate log files when log > rotate_size
+    """
     logger.propagate = False
 
     if _use_color_:
@@ -117,17 +126,25 @@ def set_pkt_logging(logger, file_name=None, cc_stdout=False, rotate_days=None) -
         handler.addFilter(StdOutFilter())
         logger.addHandler(handler)
 
-    if file_name:
-        if rotate_days:
-            handler = logging.handlers.TimedRotatingFileHandler(
-                file_name, when="midnight", backupCount=rotate_days
-            )
-        else:
-            handler = logging.FileHandler(file_name)
-        handler.setFormatter(logging.Formatter(fmt=PKT_LOG_FMT + BANDW_SUFFIX))
-        handler.setLevel(logging.INFO)  # INFO (usually), or DEBUG
-        handler.addFilter(FileFilter())
-        logger.addHandler(handler)
+    if not file_name:
+        return
+
+    if max_bytes:
+        backup_count = backup_count if backup_count else 2
+        handler = RotatingFileHandler(
+            file_name, maxBytes=max_bytes, backupCount=backup_count
+        )
+    elif backup_count:
+        handler = TimedRotatingFileHandler(
+            file_name, when="midnight", backupCount=backup_count
+        )
+    else:
+        handler = logging.FileHandler(file_name)
+
+    handler.setFormatter(logging.Formatter(fmt=PKT_LOG_FMT + BANDW_SUFFIX))
+    handler.setLevel(logging.INFO)  # INFO (usually), or DEBUG
+    handler.addFilter(FileFilter())
+    logger.addHandler(handler)
 
 
 class Packet:
@@ -187,8 +204,10 @@ class Packet:
         def invalid_addresses() -> bool:
             """Return True if the address fields are invalid (create any addresses)."""
             try:
-                self.src_addr, self.dst_addr, self.addrs = extract_addrs(self.packet)
-            except TypeError:
+                self.src_addr, self.dst_addr, self.addrs = extract_addrs(
+                    self.packet[11:40]
+                )
+            except CorruptAddrSetError:
                 return True
 
         if self._is_valid is not None or not self._pkt_str:

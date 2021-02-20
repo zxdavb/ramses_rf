@@ -9,30 +9,25 @@ import logging
 from threading import Lock
 from typing import List, Optional
 
-from .command import Priority, FaultLog
+from .command import Command, FaultLog, Priority
 from .const import (
-    ATTR_CONTROLLER,
     ATTR_DEVICES,
-    ATTR_DHW_VALVE,
-    ATTR_DHW_VALVE_HTG,
-    ATTR_SYSTEM,
-    ATTR_ZONE_SENSOR,
     DEVICE_HAS_ZONE_SENSOR,
     DISCOVER_SCHEMA,
     DISCOVER_PARAMS,
     DISCOVER_STATUS,
     DISCOVER_ALL,
-    SYSTEM_MODE_LOOKUP,
-    SYSTEM_MODE_MAP,
     _dev_mode_,
 )
 from .devices import Device, Entity
 from .exceptions import CorruptStateError, ExpiredCallbackError
-from .helpers import dtm_to_hex
 from .schema import (
-    ATTR_HTG_CONTROL,
+    ATTR_CONTROLLER,
+    ATTR_DHW_SYSTEM,
+    ATTR_HTG_RELAY,
+    ATTR_HTG_SYSTEM,
     ATTR_ORPHANS,
-    ATTR_UFH_CONTROLLERS,
+    ATTR_UFH_SYSTEM,
     ATTR_ZONES,
     DISABLE_DISCOVERY,
     MAX_ZONES,
@@ -73,10 +68,10 @@ class SysFaultLog:  # 0418
 
     @property
     def status(self) -> dict:
-        return {
-            **super().status,
-            "fault_log": self._fault_log.fault_log,
-        }
+        status = super().status
+        assert "fault_log" not in status  # TODO: removeme
+        status["fault_log"] = self._fault_log.fault_log
+        return status
 
 
 class SysDatetime:  # 313F
@@ -88,7 +83,8 @@ class SysDatetime:  # 313F
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
-            self._send_cmd("313F")
+            self._gwy.send_cmd(Command.get_system_time(self.id))
+            # self._send_cmd("313F")
 
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
@@ -124,10 +120,11 @@ class SysDatetime:  # 313F
 
     @property
     def status(self) -> dict:
-        return {
-            **super().status,
-            "datetime": self.datetime,
-        }
+        status = super().status
+        assert ATTR_HTG_SYSTEM in status  # TODO: removeme
+        assert "datetime" not in status[ATTR_HTG_SYSTEM]  # TODO: removeme
+        status[ATTR_HTG_SYSTEM]["datetime"] = self.datetime
+        return status
 
 
 class SysLanguage:  # 0100
@@ -153,76 +150,60 @@ class SysLanguage:  # 0100
 
     @property
     def params(self) -> dict:
-        return {
-            **super().params,
-            "language": self.language,
-        }
+        params = super().params
+        assert ATTR_HTG_SYSTEM in params  # TODO: removeme
+        assert "language" not in params[ATTR_HTG_SYSTEM]  # TODO: removeme
+        params[ATTR_HTG_SYSTEM]["language"] = self.language
+        return params
 
 
 class SysMode:  # 2E04
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._mode = None
+        self._system_mode = None
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
-            self._send_cmd("2E04", payload="FF")  # system mode
-
-        # TODO: testing only
-        # self._loop.create_task(
-        #     self.async_set_mode(5, dt_now() + td(minutes=120))
-        #     # self.async_set_mode(5)
-        #     # self.async_reset_mode()
-        # )
+            # self._send_cmd("2E04", payload="FF")  # system mode
+            self._gwy.send_cmd(Command.get_system_mode(self.id))
 
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
 
         if msg.code == "2E04" and msg.verb in (" I", "RP"):  # this is a special case
-            self._mode = msg
+            self._system_mode = msg
 
     @property
-    def mode(self) -> Optional[dict]:  # 2E04
-        return self._msg_payload(self._mode)
+    def system_mode(self) -> Optional[dict]:  # 2E04
+        return self._msg_payload(self._system_mode)
 
-    async def set_mode(self, mode, until=None):
+    async def set_mode(self, system_mode=None, until=None):
         """Set the system mode for a specified duration, or indefinitely."""
-
-        if isinstance(mode, int):
-            mode = f"{mode:02X}"
-        elif not isinstance(mode, str):
-            raise TypeError("Invalid system mode")
-        elif mode in SYSTEM_MODE_LOOKUP:
-            mode = SYSTEM_MODE_LOOKUP[mode]
-
-        if mode not in SYSTEM_MODE_MAP:
-            raise ValueError("Unknown system mode")
-
-        until = dtm_to_hex(until) + "00" if until is None else "01"
-
-        self._send_cmd("2E04", verb=" W", payload=f"{mode}{until}")
+        self._gwy.send_cmd(
+            Command.set_system_mode(self.id, system_mode=system_mode, until=until)
+        )
 
     async def reset_mode(self) -> None:
         """Revert the system mode to Auto."""  # TODO: is it AutoWithReset?
-        self._send_cmd("2E04", verb=" W", payload="00FFFFFFFFFFFF00")
+        self._gwy.send_cmd(
+            Command.set_system_mode(self.id, system_mode="auto_with_reset")
+        )
 
     @property
     def params(self) -> dict:
-        return {
-            **super().params,
-            "mode": self.mode,
-        }
+        params = super().params
+        assert ATTR_HTG_SYSTEM in params  # TODO: removeme
+        assert "system_mode" not in params[ATTR_HTG_SYSTEM]  # TODO: removeme
+        params[ATTR_HTG_SYSTEM]["system_mode"] = self.system_mode
+        return params
 
 
 class StoredHw:
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._dhw = None
-
-    def __repr__(self) -> str:
-        return f"{self._ctl.id}_HW (DHW)"
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
@@ -280,12 +261,12 @@ class StoredHw:
     def _get_zone(self, zone_idx, sensor=None, **kwargs) -> DhwZone:
         """Return a DHW zone (will create it if required).
 
-        Can also set a DHW zone's sensor.
+        Can also set a DHW zone's sensor & valves?.
         """
 
-        def create_dhw() -> DhwZone:
+        def create_dhw(zone_idx) -> DhwZone:
             if self.dhw:
-                raise LookupError(f"Duplicate stored hw: {zone_idx}")
+                raise LookupError(f"Duplicate stored HW: {zone_idx}")
 
             dhw = self._dhw = DhwZone(self)
 
@@ -294,22 +275,21 @@ class StoredHw:
 
             return dhw
 
-        if zone_idx == "HW":
-            zone = self.dhw
-            if zone is None:
-                zone = create_dhw()
+        if zone_idx != "HW":
+            return
 
-            if kwargs.get("dhw_valve"):
-                zone._set_dhw_valve(kwargs["dhw_valve"])
+        zone = self.dhw  # TODO: self.zone_by_idx.get("HW") too?
+        if zone is None:
+            zone = create_dhw(zone_idx)
 
-            if kwargs.get("htg_valve"):
-                zone._set_dhw_valve(kwargs["htg_valve"])
+        if kwargs.get("dhw_valve"):
+            zone._set_dhw_valve(kwargs["dhw_valve"])
 
-        else:
-            raise ValueError(f"Unknown zone_idx/domain_id: {zone_idx}")
+        if kwargs.get("htg_valve"):
+            zone._set_dhw_valve(kwargs["htg_valve"])
 
         if sensor is not None:
-            zone._set_sensor(sensor)
+            zone._set_dhw_sensor(sensor)
 
         return zone
 
@@ -335,24 +315,39 @@ class StoredHw:
             self._dhw = dhw
 
     @property
+    def dhw_sensor(self) -> Device:
+        return self._dhw._dhw_sensor if self._dhw else None
+
+    @property
+    def hotwater_valve(self) -> Device:
+        return self._dhw._dhw_valve if self._dhw else None
+
+    @property
+    def heating_valve(self) -> Device:
+        return self._dhw._htg_valve if self._dhw else None
+
+    @property
     def schema(self) -> dict:
+        assert ATTR_DHW_SYSTEM not in super().schema  # TODO: removeme
         return {
             **super().schema,
-            "stored_hotwater": None if self.dhw is None else self.dhw.schema,
+            ATTR_DHW_SYSTEM: self.dhw.schema if self.dhw else {},
         }
 
     @property
     def params(self) -> dict:
+        assert ATTR_DHW_SYSTEM not in super().params  # TODO: removeme
         return {
             **super().params,
-            "stored_hotwater": None if self.dhw is None else self.dhw.params,
+            ATTR_DHW_SYSTEM: self.dhw.params if self.dhw else {},
         }
 
     @property
     def status(self) -> dict:
+        assert ATTR_DHW_SYSTEM not in super().status  # TODO: removeme
         return {
             **super().status,
-            "stored_hotwater": None if self.dhw is None else self.dhw.status,
+            ATTR_DHW_SYSTEM: self.dhw.status if self.dhw else {},
         }
 
 
@@ -382,6 +377,9 @@ class MultiZone:  # 0005 (+/- 000C?)
                 self._send_cmd("0005", payload=f"00{zone_type}")
                 for zone_type in ("00", "04", "0C", "0F", "10")
             ]
+
+        if discover_flag & DISCOVER_STATUS:
+            self._send_cmd("0006")
 
     def _handle_msg(self, msg, prev_msg=None):
         def OUT_find_zone_sensors() -> None:
@@ -522,9 +520,19 @@ class MultiZone:  # 0005 (+/- 000C?)
 
         super()._handle_msg(msg)
 
+        if msg.code in ("000A",) and isinstance(msg.payload, list):
+            for zone_idx in self.zone_by_idx:
+                cmd = Command.get_zone_mode(self.id, zone_idx, priority=Priority.LOW)
+                self._gwy.send_cmd(cmd)
+            # for zone in self.zones:
+            #     zone._discover(discover_flags=DISCOVER_PARAMS)
+
         if msg.code in ("000A", "2309", "30C9"):
             pass
             # if isinstance(msg.payload, list):
+
+        # elif msg.code == "000C":
+        #     self._msgs[f"{msg.code}"] = msg
 
         # elif msg.code == "0005" and prev_msg is not None:
         #     zone_added = bool(prev_msg.code == "0004")  # else zone_deleted
@@ -535,14 +543,13 @@ class MultiZone:  # 0005 (+/- 000C?)
     def _get_zone(self, zone_idx, sensor=None, **kwargs) -> Zone:
         """Return a zone (will create it if required).
 
-        Can also set a zone's sensor, and zone_type.
+        Can also set a zone's sensor, and zone_type, and actuators.
         """
 
         def create_zone(zone_idx) -> Zone:
             if int(zone_idx, 16) >= self._gwy.config[MAX_ZONES]:
                 raise ValueError(f"Invalid zone idx: {zone_idx} (exceeds max_zones)")
 
-            assert zone_idx not in self.zone_by_idx, f"Dup zone: {zone_idx} for {self}"
             if zone_idx in self.zone_by_idx:
                 raise LookupError(f"Duplicated zone: {zone_idx} for {self}")
 
@@ -555,22 +562,20 @@ class MultiZone:  # 0005 (+/- 000C?)
 
         if zone_idx == "HW":
             return super()._get_zone(zone_idx, sensor=sensor, **kwargs)
-
-        if int(zone_idx, 16) <= self._gwy.config[MAX_ZONES]:
-            zone = self.zone_by_idx.get(zone_idx)
-            if zone is None:
-                zone = create_zone(zone_idx)
-
-            if kwargs.get("zone_type"):
-                zone._set_zone_type(kwargs["zone_type"])
-
-            if kwargs.get("actuators"):  # TODO: check not an address before implmenting
-                for device in [d for d in kwargs["actuators"] if d not in zone.devices]:
-                    zone.devices.append(device)
-                    zone.device_by_id[device.id] = device
-
-        else:
+        if int(zone_idx, 16) >= self._gwy.config[MAX_ZONES]:
             raise ValueError(f"Unknown zone_idx/domain_id: {zone_idx}")
+
+        zone = self.zone_by_idx.get(zone_idx)
+        if zone is None:
+            zone = create_zone(zone_idx)
+
+        if kwargs.get("zone_type"):
+            zone._set_zone_type(kwargs["zone_type"])
+
+        if kwargs.get("actuators"):  # TODO: check not an address before implmenting
+            for device in [d for d in kwargs["actuators"] if d not in zone.devices]:
+                zone.devices.append(device)
+                zone.device_by_id[device.id] = device
 
         if sensor is not None:
             zone._set_sensor(sensor)
@@ -583,6 +588,7 @@ class MultiZone:  # 0005 (+/- 000C?)
 
     @property
     def schema(self) -> dict:
+        assert ATTR_ZONES not in super().schema  # TODO: removeme
         return {
             **super().schema,
             ATTR_ZONES: {z.idx: z.schema for z in self._zones},
@@ -590,6 +596,7 @@ class MultiZone:  # 0005 (+/- 000C?)
 
     @property
     def params(self) -> dict:
+        assert ATTR_ZONES not in super().params  # TODO: removeme
         return {
             **super().params,
             ATTR_ZONES: {z.idx: z.params for z in self._zones},
@@ -597,9 +604,42 @@ class MultiZone:  # 0005 (+/- 000C?)
 
     @property
     def status(self) -> dict:
+        assert ATTR_ZONES not in super().status  # TODO: removeme
         return {
             **super().status,
             ATTR_ZONES: {z.idx: z.status for z in self._zones},
+        }
+
+
+class UfhSystem:
+    @property
+    def schema(self) -> dict:
+        assert ATTR_UFH_SYSTEM not in super().schema  # TODO: removeme
+        return {
+            **super().schema,
+            ATTR_UFH_SYSTEM: {
+                d.id: d.schema for d in sorted(self._ctl.devices) if d.type == "02"
+            },
+        }
+
+    @property
+    def params(self) -> dict:
+        assert ATTR_UFH_SYSTEM not in super().params  # TODO: removeme
+        return {
+            **super().params,
+            ATTR_UFH_SYSTEM: {
+                d.id: d.params for d in sorted(self._ctl.devices) if d.type == "02"
+            },
+        }
+
+    @property
+    def status(self) -> dict:
+        assert ATTR_UFH_SYSTEM not in super().status  # TODO: removeme
+        return {
+            **super().status,
+            ATTR_UFH_SYSTEM: {
+                d.id: d.status for d in sorted(self._ctl.devices) if d.type == "02"
+            },
         }
 
 
@@ -628,7 +668,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         self._htg_valve = None
 
     def __repr__(self) -> str:
-        return f"{self._ctl.id} (controller)"
+        return f"{self._ctl.id} (system)"
 
     def __str__(self) -> str:  # TODO: WIP
         return json.dumps({self._ctl.id: self.schema})
@@ -753,24 +793,24 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     def devices(self) -> List[Device]:
         return self._ctl.devices
 
-    # def _get_zone(self, *args, **kwargs):
-    #     return self._evo._get_zone(*args, **kwargs)
-
     @property
     def heating_control(self) -> Device:
-        return self._htg_control
+        if self._htg_control:
+            return self._htg_control
+        htg_control = [d for d in self._ctl.devices if d._domain_id == "FC"]
+        return htg_control[0] if len(htg_control) == 1 else None  # HACK for 10:
 
     def _set_htg_control(self, device: Device) -> None:  # self._htg_control
         """Set the heating control relay for this system (10: or 13:)."""
 
         if not isinstance(device, Device) or device.type not in ("10", "13"):
-            raise TypeError(f"{ATTR_HTG_CONTROL} can't be: {device}")
+            raise TypeError(f"{ATTR_HTG_RELAY} can't be: {device}")
 
         if self._htg_control is not None:
             if self._htg_control is device:
                 return
             raise CorruptStateError(
-                f"{ATTR_HTG_CONTROL} shouldn't change: {self._htg_control} to {device}"
+                f"{ATTR_HTG_RELAY} shouldn't change: {self._htg_control} to {device}"
             )
 
         # if device.evo is not None and device.evo is not self:
@@ -779,84 +819,6 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         if self._htg_control is None:
             self._htg_control = device
             device._set_parent(self, domain="FC")
-
-    @property
-    def dhw_sensor(self) -> Device:
-        """Blah it now.
-
-        Check and Verb the DHW sensor (07:) of this system/CTL (if there is one).
-
-        There is only 1 way to find a controller's DHW sensor:
-        1.  The 10A0 RQ/RP *from/to a 07:* (1x/4h)
-
-        The RQ is initiated by the DHW, so is not authorative (the CTL will RP any RQ).
-        The I/1260 is not to/from a controller, so is not useful.
-        """  # noqa: D402
-
-        # 07:38:39.124 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
-        # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
-
-        # if "10A0" in self._msgs:
-        #     return self._msgs["10A0"].dst.addr
-
-        return self._dhw_sensor
-
-    def _set_dhw_sensor(self, device: Device) -> None:  # self._sensor
-        """Set the temp sensor for this DHW system (07: only)."""
-
-        if self._dhw_sensor != device and self._dhw_sensor is not None:
-            raise CorruptStateError(
-                f"{ATTR_ZONE_SENSOR} shouldn't change: {self._dhw_sensor} to {device}"
-            )
-
-        if not isinstance(device, Device) or device.type != "07":
-            raise TypeError(f"{ATTR_ZONE_SENSOR} can't be: {device}")
-
-        if self._dhw_sensor is None:
-            self._dhw_sensor = device
-            device._set_parent(self, domain="FA")
-
-    @property
-    def hotwater_valve(self) -> Device:
-        return self._dhw_valve
-
-    def _set_dhw_valve(self, device: Device) -> None:  # self._dhw_valve
-        """Set the hotwater valve relay for this DHW system (13: only)."""
-
-        if not isinstance(device, Device) or device.type != "13":
-            raise TypeError(f"{ATTR_DHW_VALVE} can't be: {device}")
-
-        if self._dhw_valve is not None:
-            if self._dhw_valve is device:
-                return
-            raise CorruptStateError(
-                f"{ATTR_DHW_VALVE} shouldn't change: {self._dhw_valve} to {device}"
-            )
-
-        if self._dhw_valve is None:
-            self._dhw_valve = device
-            device._set_parent(self, domain="FA")
-
-    @property
-    def heating_valve(self) -> Device:
-        return self._htg_valve
-
-    def _set_htg_valve(self, device: Device) -> None:  # self._htg_valve
-        """Set the heating valve relay for this DHW system (13: only)."""
-
-        if not isinstance(device, Device) or device.type != "13":
-            raise TypeError(f"{ATTR_DHW_VALVE_HTG} can't be: {device}")
-
-        if self._htg_valve is not None:
-            if self._htg_valve is device:
-                return
-            raise CorruptStateError(
-                f"{ATTR_DHW_VALVE_HTG} shouldn't change: {self._htg_valve} to {device}"
-            )
-
-        if self._htg_valve is None:
-            self._htg_valve = device
-            device._set_parent(self, domain="F9")
 
     @property
     def tpi_params(self) -> Optional[float]:  # 1100
@@ -892,30 +854,25 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     def schema(self) -> dict:
         """Return the system's schema."""
 
-        schema = {ATTR_CONTROLLER: self._ctl.id}
-
-        # devices without a parent zone, NB: CTL can be a sensor for a zones
-        orphans = [
-            d.id for d in self._ctl.devices if not d._domain_id and d.type != "02"
-        ]
-        orphans.sort()
-        # system" schema[ATTR_SYSTEM][ATTR_ORPHANS] = orphans
-
-        schema[ATTR_SYSTEM] = {
-            ATTR_HTG_CONTROL: self.heating_control.id
-            if self.heating_control is not None
-            else None,
-            ATTR_ORPHANS: orphans,
+        schema = {
+            ATTR_CONTROLLER: self._ctl.id,
+            ATTR_HTG_SYSTEM: {},
         }
+        assert ATTR_HTG_SYSTEM in schema  # TODO: removeme
 
-        # schema[ATTR_STORED_HW] = self.dhw.schema if self.dhw is not None else None
+        assert ATTR_HTG_RELAY not in schema[ATTR_HTG_SYSTEM]  # TODO: removeme
+        schema[ATTR_HTG_SYSTEM][ATTR_HTG_RELAY] = (
+            self.heating_control.id if self.heating_control else None
+        )
 
-        schema[ATTR_UFH_CONTROLLERS] = {
-            u.id: u.schema
-            for u in sorted(
-                [d for d in self._ctl.devices if d.type == "02"], key=lambda x: x.id
-            )
-        }
+        assert ATTR_ORPHANS not in schema[ATTR_HTG_SYSTEM]  # TODO: removeme
+        schema[ATTR_ORPHANS] = sorted(
+            [d.id for d in self._ctl.devices if not d._domain_id and d.type != "02"]
+        )  # devices without a parent zone, NB: CTL can be a sensor for a zones
+
+        # TODO: where to put this?
+        # assert "devices" not in schema  # TODO: removeme
+        # schema["devices"] = {d.id: d.device_info for d in sorted(self._ctl.devices)}
 
         return schema
 
@@ -923,38 +880,23 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     def params(self) -> dict:
         """Return the system's configuration."""
 
-        params = {}
-
-        params[ATTR_SYSTEM] = {
-            "mode": self._get_msg_value("2E04"),  # **self.mode()
-            "language": self._get_msg_value("0100", "language"),
-            ATTR_HTG_CONTROL: {},
+        params = {
+            ATTR_HTG_SYSTEM: {},
         }
+        assert ATTR_HTG_SYSTEM in params  # TODO: removeme
 
-        if self.heating_control is not None:
-            params[ATTR_SYSTEM][ATTR_HTG_CONTROL] = {
-                "tpi_params": self.heating_control._get_msg_value("1100"),
-                "boiler_setpoint": self.heating_control._get_msg_value("22D9"),
-            }
+        # devices don't have params
+        # assert ATTR_HTG_RELAY not in params[ATTR_HTG_SYSTEM]  # TODO: removeme
+        # params[ATTR_HTG_SYSTEM][ATTR_HTG_RELAY] = (
+        #     self.heating_control.params if self.heating_control else None
+        # )
 
-        # params[ATTR_STORED_HW] = self.dhw.params if self.dhw is not None else None
-
-        # ufh_controllers = [
-        #     {d.id: d.config}
-        #     for d in sorted(self.devices, key=lambda x: x.idx)
-        #     if d.type == "02"
-        # ]
-        # ufh_controllers.sort()
-        # config[ATTR_UFH_CONTROLLERS] = ufh_controllers
-
-        # orphans = [
-        #     {d.id: d.config}
-        #     for d in sorted(self.devices, key=lambda x: x.idx)
-        #     if d._zone is None
-        #     # and d._ctl != d
-        # ]  # devices without a parent zone, CTL can be a sensor for a zones
-        # orphans.sort()
-        # config[ATTR_ORPHANS] = orphans
+        assert "tpi_params" not in params[ATTR_HTG_SYSTEM]  # TODO: removeme
+        params[ATTR_HTG_SYSTEM]["tpi_params"] = (
+            self.heating_control._get_msg_value("1100")
+            if self.heating_control
+            else None
+        )
 
         return params
 
@@ -962,27 +904,26 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     def status(self) -> dict:
         """Return the system's current state."""
 
-        result = {ATTR_SYSTEM: {}}
-
-        if self.heating_control is not None:
-            result[ATTR_SYSTEM][ATTR_HTG_CONTROL] = self.heating_control.status
-
-        # result[ATTR_STORED_HW] = self.dhw.status if self.dhw is not None else None
-
-        result[ATTR_DEVICES] = {
-            d.id: d.status
-            for d in sorted(self._ctl.devices, key=lambda x: x.id)
-            if d.id != self._ctl.id
+        status = {
+            ATTR_HTG_SYSTEM: {},
         }
+        assert ATTR_HTG_SYSTEM in status  # TODO: removeme
 
-        result["heat_demand"] = self.heat_demand
-        result["heat_demands"] = self.heat_demands
-        result["relay_demands"] = self.relay_demands
+        # assert ATTR_HTG_RELAY not in status[ATTR_HTG_SYSTEM]  # TODO: removeme
+        # status[ATTR_HTG_SYSTEM][ATTR_HTG_RELAY] = (
+        #     self.heating_control.status if self.heating_control else None
+        # )
 
-        return result
+        status[ATTR_HTG_SYSTEM]["heat_demand"] = self.heat_demand
+        status[ATTR_HTG_SYSTEM]["heat_demands"] = self.heat_demands
+        status[ATTR_HTG_SYSTEM]["relay_demands"] = self.relay_demands
+
+        status[ATTR_DEVICES] = {d.id: d.status for d in sorted(self._ctl.devices)}
+
+        return status
 
 
-class System(SysDatetime, SysFaultLog, SystemBase):
+class System(StoredHw, SysDatetime, SystemBase):  # , SysFaultLog
     """The Controller class."""
 
     def __init__(self, gwy, ctl, **kwargs) -> None:
@@ -1010,7 +951,8 @@ class System(SysDatetime, SysFaultLog, SystemBase):
                 assert False, msg.code
 
 
-class Evohome(SysLanguage, SysMode, MultiZone, StoredHw, System):  # evohome
+class Evohome(SysLanguage, SysMode, MultiZone, UfhSystem, System):  # evohome
+    # class Evohome(System):  # evohome
     """The Evohome system - some controllers are evohome-compatible."""
 
     def __init__(self, gwy, ctl, **kwargs) -> None:
@@ -1047,20 +989,10 @@ class Evohome(SysLanguage, SysMode, MultiZone, StoredHw, System):  # evohome
         if msg.code in ("000A", "2309", "30C9") and isinstance(msg.payload, list):
             pass
 
-    @property
-    def schema(self) -> dict:
-        """Return the system's schema."""
-        return super().schema
 
-    @property
-    def params(self) -> dict:
-        """Return the system's current state."""
-        return super().params
-
-    @property
-    def status(self) -> dict:
-        """Return the system's current state."""
-        return super().status
+class Programmer(Evohome):
+    def __repr__(self) -> str:
+        return f"{self._ctl.id} (programmer)"
 
 
 # class Chronotherm(System):
@@ -1070,5 +1002,4 @@ class Evohome(SysLanguage, SysMode, MultiZone, StoredHw, System):  # evohome
 #     def __init__(self, gwy, ctl, synchronizer=False, **kwargs) -> None:
 #         pass
 
-
-SYSTEM_CLASSES = {"01": Evohome, "12": System, "22": System, "23": System}
+SYSTEM_CLASSES = {"01": Evohome, "12": System, "22": System, "23": Programmer}

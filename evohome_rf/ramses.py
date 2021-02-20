@@ -20,6 +20,7 @@ EXPIRY = "expiry"
 RAMSES_CODES = {
     "0001": {
         NAME: "rf_unknown",
+        W_: r"^[0-9A-F]{2}0{4}05(05|01)$",
     },
     "0002": {
         NAME: "sensor_weather",
@@ -27,9 +28,11 @@ RAMSES_CODES = {
     },
     "0004": {
         NAME: "zone_name",
-        RQ: r"^0[0-9A-F]00$",  # f"{zone_idx}00"
+        RQ: r"^0[0-9A-F]00$",
+        RP: r"^0[0-9A-F]00([0-9A-F]){40}$",
+        I_: r"^0[0-9A-F]00([0-9A-F]){40}$",
     },
-    "0005": {
+    "0005": {  # system_zones
         NAME: "system_zones",
         RQ: r"^00[01][0-9A-F]$",  # f"00{zone_type}"
         RQ_MAY_HAVE_PAYLOAD: True,
@@ -37,25 +40,30 @@ RAMSES_CODES = {
     "0006": {
         NAME: "schedule_sync",
         RQ: r"^00$",
+        RP: r"^0005[0-9A-F]{4}$",
     },
     "0008": {
         NAME: "relay_demand",
-        RQ: r"^00$",
+        RQ: r"^00$",  # TODO: an assumption
+        I_: r"^(F[9AC]|0[0-9A-F])[0-9A-F]{2}$",
+        # 000 I --- 31:012319 08:006244 --:------ 0008 013 0006958C33CA6ECD2067AA53DD
     },
     "0009": {
         NAME: "relay_failsafe",
+        I_: r"^((F[9AC]|0[0-9A-F])0[0-1]FF)+$",
     },
     "000A": {
         NAME: "zone_params",
         I_: r"^(0[0-9A-F][0-9A-F]{10}){1,8}$",
-        RQ: r"^0[0-9A-F]([0-9A-F]{10})?$",
+        RQ: r"^0[0-9A-F]((00)?|([0-9A-F]{10})+)$",  # is: r"^0[0-9A-F]([0-9A-F]{10})+$"
+        RP: r"^0[0-9A-F]([0-9A-F]{10})+$",
         RQ_MAY_HAVE_PAYLOAD: True,
         # 17:54:13.126 063 RQ --- 34:064023 01:145038 --:------ 000A 001 03
         # 17:54:13.141 045 RP --- 01:145038 34:064023 --:------ 000A 006 031002260B86
         # 19:20:49.460 062 RQ --- 12:010740 01:145038 --:------ 000A 006 080001F40DAC
         # 19:20:49.476 045 RP --- 01:145038 12:010740 --:------ 000A 006 081001F40DAC
     },
-    "000C": {
+    "000C": {  # zone_devices
         NAME: "zone_devices",
         RQ: r"^0[0-9A-F][01][0-9A-F]$",  # TODO: f"{zone_idx}{device_type}"
         RQ_MAY_HAVE_PAYLOAD: True,
@@ -91,9 +99,12 @@ RAMSES_CODES = {
     },
     "1030": {
         NAME: "mixvalve_params",
+        #  I --- --:------ --:------ 12:138834 1030 016 01C80137C9010FCA0196CB010FCC0101
+        I_: r"^0[0-9A-F](C[89A-C]01[0-9A-F]{2}){5}$",
     },
     "1060": {
         NAME: "device_battery",
+        I_: r"^0[0-9A-F](FF|[0-9A-F]{2})0[01]$",
     },
     "1090": {
         NAME: "message_1090",
@@ -110,10 +121,13 @@ RAMSES_CODES = {
     "10E0": {
         NAME: "device_info",
         RQ: r"^00$",
+        RP: r"^00([0-9A-F]){30,}$",
+        I_: r"^00([0-9A-F]){30,}$",
     },
     "1100": {
         NAME: "tpi_params",
-        RQ: r"^(00|FC)",  # TODO: educated guess
+        RQ: r"^(00|FC)([0-9A-F]{12}01)?$",  # TODO: is there no RP?
+        W_: r"^(00|FC)[0-9A-F]{12}01$",  # TODO: is there no I?
     },
     "1260": {
         NAME: "dhw_temp",
@@ -147,6 +161,9 @@ RAMSES_CODES = {
     "1F09": {
         NAME: "system_sync",
         RQ: r"^00$",
+        RP: r"^00[0-9A-F]{4}$",  # xx-secs
+        I_: r"^(00|01|DB|FF)[0-9A-F]{4}$",  # FF is evohome, DB is Hometronics
+        W_: r"^F8[0-9A-F]{4}$",
     },
     "1F41": {
         NAME: "dhw_mode",
@@ -155,6 +172,9 @@ RAMSES_CODES = {
     "1FC9": {
         NAME: "rf_bind",
         RQ: r"^00$",
+        RP: r"^((F[9ABCF]|0[0-9A-F])([0-9A-F]{10}))+$",  # xx-code-dev_id
+        I_: r"^((F[9ABCF]|0[0-9A-F])([0-9A-F]{10}))+$",
+        W_: r"^((F[9ABCF]|0[0-9A-F])([0-9A-F]{10}))+$",
     },
     "1FD4": {
         NAME: "opentherm_sync",
@@ -173,28 +193,35 @@ RAMSES_CODES = {
         NAME: "boiler_setpoint",
         RQ: r"^00$",
     },
-    "22F1": {
-        NAME: "switch_vent",
+    "22F1": {  # TODO - change name - Sent by an UFC
+        NAME: "switch_speed",
+        I_: r"^00(0[0-9A-F]){2}$",
     },
     "22F3": {
-        NAME: "switch_other",
+        NAME: "switch_duration",  # minutes
+        I_: r"^0000[0-9A-F]{2}$",
     },
     "2309": {
         NAME: "setpoint",
-        RQ: r"^0[0-9A-F]",
+        RQ: r"^0[0-9A-F]([0-9A-F]{4})?$",  # NOTE: 12 uses: r"^0[0-9A-F]$"
+        I_: r"^(0[0-9A-F]{5})+$",
         RQ_MAY_HAVE_PAYLOAD: True,
-        # RQ --- 12:010740 01:145038 --:------ 2309 003 03073A
+        # RQ --- 12:010740 01:145038 --:------ 2309 003 03073A # No RPs
     },
-    "2349": {
+    "2349": {  # zone_mode
         NAME: "zone_mode",
-        RQ: r"^0[0-9A-F]$",
+        RQ: r"^0[0-9A-F](00)?$",  # is actually: r"^0[0-9A-F]$"
+        I_: r"^0[0-9A-F](([0-9A-F]){12}){1,2}$",
     },
     "2D49": {  # seen with Hometronic systems
         NAME: "message_2d49",
     },
     "2E04": {
         NAME: "system_mode",
+        I_: r"^0[0-7][0-9A-F]{12}0[01]$",
         RQ: r"^FF$",
+        RP: r"^0[0-7][0-9A-F]{12}0[01]$",
+        W_: r"^0[0-7][0-9A-F]{12}0[01]$",
     },
     "30C9": {
         NAME: "temperature",
@@ -202,7 +229,7 @@ RAMSES_CODES = {
         # RQ --- 30:185469 01:037519 --:------ 30C9 001 00
         RP: r"^0[0-9A-F][0-9A-F]{4}$",  # Null: r"^0[0-9A-F]7FFF$"
         # RP --- 01:145038 18:013393 --:------ 30C9 003 FF7FFF
-        I_: r"^(0[0-9A-F][0-9A-F]{4}){1,8}$",
+        I_: r"^(0[0-9A-F][0-9A-F]{4}){1,12}$",
     },
     "3120": {
         NAME: "message_3120",
@@ -340,6 +367,7 @@ RAMSES_DEVICES = {
         },
         "1FC9": {
             I_: {},
+            W_: {},
         },
         "1F41": {
             I_: {},
@@ -415,6 +443,9 @@ RAMSES_DEVICES = {
         "22D0": {
             I_: {},
             RP: {},
+        },
+        "22F1": {
+            I_: {},
         },
         "2309": {
             RP: {},
@@ -550,9 +581,6 @@ RAMSES_DEVICES = {
         "22D9": {
             RP: {},
         },
-        "2349": {
-            I_: {},
-        },
         "3150": {
             I_: {},
         },
@@ -634,6 +662,7 @@ RAMSES_DEVICES = {
         "0016": {
             RP: {},
         },
+        # "10E0": {},  # 13: will not RP/10E0 # TODO; how to indicate that fact here
         "1100": {
             I_: {},
             RP: {},
@@ -647,15 +676,19 @@ RAMSES_DEVICES = {
         },
         "3EF0": {
             I_: {},
+            # RP: {},  # RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
         },
         "3EF1": {
             RP: {},
         },
     },
     "18": {},
-    "20": {
+    "20": {  # HVAC: ventilation unit
         "10E0": {
             I_: {},
+            RP: {},
+        },
+        "12A0": {
             RP: {},
         },
         "22F1": {
@@ -664,13 +697,17 @@ RAMSES_DEVICES = {
         "22F3": {
             I_: {},
         },
+        "3120": {
+            RP: {},
+        },
         "31D9": {
             I_: {},
+            RP: {},
         },
         "31DA": {
             I_: {},
         },
-    },
+    },  # e.g. https://www.ithodaalderop.nl/nl-NL/professional/product/545-5036
     "23": {
         "0009": {
             I_: {},
@@ -753,6 +790,7 @@ RAMSES_DEVICES = {
         },
         "2E04": {
             RQ: {},
+            W_: {},
         },
         "30C9": {
             RQ: {},
@@ -854,6 +892,14 @@ RAMSES_DEVICES = {
         },
     },
     "37": {},
+    "39": {  # HVAC: two-way switch
+        "22F1": {
+            I_: {},
+        },
+        "22F3": {
+            I_: {},
+        },
+    },  # https://www.ithodaalderop.nl/nl-NL/professional/product/536-0124
 }
 
 RAMSES_DEVICES["00"] = RAMSES_DEVICES["04"]

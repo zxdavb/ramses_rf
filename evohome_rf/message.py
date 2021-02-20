@@ -17,19 +17,25 @@ from .const import (
     ATTR_DHW_SENSOR,
     ATTR_DHW_VALVE_HTG,
     ATTR_DHW_VALVE,
+    ATTR_ZONE_ACTUATORS,
     ATTR_ZONE_SENSOR,
     DEVICE_TYPES,
     MSG_FORMAT_10,
     MSG_FORMAT_18,
-    NON_DEVICE,
-    NUL_DEVICE,
+    NON_DEV_ADDR,
+    NUL_DEV_ADDR,
     CODE_0005_ZONE_TYPE,
     ZONE_TYPE_SLUGS,
     Address,
     _dev_mode_,
 )
 from .devices import Device
-from .exceptions import EvoCorruptionError, CorruptPayloadError
+from .exceptions import (
+    CorruptEvohomeError,
+    CorruptPacketError,
+    CorruptPayloadError,
+    CorruptStateError,
+)
 from .packet import _PKT_LOGGER
 from .ramses import RAMSES_CODES as RAMSES_CODES
 from .schema import (
@@ -76,15 +82,18 @@ class Message:
         self.verb = pkt.packet[4:6]
         self.seqn = pkt.packet[7:10]  # sequence number (as used by 31D9)?
         self.code = pkt.packet[41:45]
-
         self.len = int(pkt.packet[46:49])  # TODO:  is useful? / is user used?
         self.raw_payload = pkt.packet[50:]
 
-        self._payload = self._str = None
-
+        self.code_name = CODE_NAMES.get(self.code, f"unknown_{self.code}")
         self._format = MSG_FORMAT_18 if gwy.config[USE_NAMES] else MSG_FORMAT_10
+        self._payload = None
+        self._str = None
 
-        self._is_valid = self._is_array = self._is_expired = self._is_fragment = None
+        self._is_array = None
+        self._is_expired = None
+        self._is_fragment = None
+        self._is_valid = None
         self._is_valid = self.is_valid
 
     def __repr__(self) -> str:
@@ -102,10 +111,10 @@ class Message:
                 except (KeyError, TypeError):
                     pass
 
-            if dev is NON_DEVICE:
+            if dev is NON_DEV_ADDR:
                 return f"{'':<10}"
 
-            if dev is NUL_DEVICE:
+            if dev is NUL_DEV_ADDR:
                 return "NUL:------"
 
             return f"{DEVICE_TYPES.get(dev.type, f'{dev.type:>3}')}:{dev.id[3:]}"
@@ -123,11 +132,10 @@ class Message:
             src = ""
             dst = display_name(self.src)
 
-        code_name = CODE_NAMES.get(self.code, f"unknown_{self.code}")
         payload = self.raw_payload if self.len < 4 else f"{self.raw_payload[:5]}..."[:9]
 
         self._str = self._format.format(
-            src, dst, self.verb, code_name, payload, self._payload
+            src, dst, self.verb, self.code_name, payload, self._payload
         )
         return self._str
 
@@ -216,15 +224,20 @@ class Message:
         if self.code in ("1F09", "313F") and self.src._is_controller:
             timeout = td(seconds=3)
         elif self.code in ("2309", "30C9") and self.src._is_controller:
-            timeout = td(minutes=15)
+            timeout = td(minutes=15)  # send I /sync_interval (~3 mins)
         elif self.code in ("3150",):
             timeout = td(minutes=20)  # sends I /20min
-        elif self.code in ("000A",) and self.src._is_controller:
-            timeout = td(minutes=60)  # sends I (array) /1h
-        elif self.code in ("2E04",) and self.src._is_controller:
+        elif self.code in ("000A", "2E04") and self.src._is_controller:
             timeout = td(minutes=60)  # sends I /1h
-        elif self.code in ("1260", "12B0", "1F41", "2349"):
+        elif self.code in ("1260", "12B0", "1F41"):
             timeout = td(minutes=60)  # sends I /1h
+        elif self.code in ("2349",):  # no spontaneous I/2349, must be RQ'd
+            timeout = td(minutes=60)  # or longer if READ_ONLY mode?
+
+        # TODO: 0008, 3EF0, 3EF1
+        # elif self.code in ("3B00", "3EF0", ):
+        #     timeout = td(minutes=6.7)  # TODO: WIP
+
         else:  # treat as never expiring
             self._is_expired = self.NOT_EXPIRED
             _LOGGER.debug(  # TODO: should be a debug
@@ -303,7 +316,7 @@ class Message:
         except AttributeError:  # there's no parser for this command code!
             payload_parser = getattr(parsers, "parser_unknown")
 
-        try:  # run the parser
+        try:  # parse the packet
             self._payload = payload_parser(self.raw_payload, self)
             assert isinstance(self._payload, dict) or isinstance(
                 self._payload, list
@@ -314,26 +327,23 @@ class Message:
             hint = f": {err}" if str(err) != "" else ""
             if not hint or DEV_MODE:
                 log_message(_PKT_LOGGER.exception, "%s < Validation error ")
-            elif self.src.type != "18":  # TODO: should be else:
+            elif self.src.type != "18":
+                log_message(_PKT_LOGGER.warning, f"%s < Validation error{hint} ")
+            else:  # elif DEV_MODE:  # TODO: consider info/debug for the following
                 log_message(_PKT_LOGGER.warning, f"%s < Validation error{hint} ")
             self._is_valid = False
-            return self._is_valid
 
-        except CorruptPayloadError as err:
-            hint = f": {err}" if str(err) != "" else ""
-            log_message(_PKT_LOGGER.warning, f"%s < Validation error{hint} (payload) ")
+        except (CorruptPacketError, CorruptPayloadError) as err:  # CorruptEvohomeError
+            log_message(_PKT_LOGGER.warning, f"%s < {err}")
             self._is_valid = False
-            return self._is_valid
 
-        except (AttributeError, LookupError, TypeError, ValueError):  # for development
+        except (AttributeError, LookupError, TypeError, ValueError):  # TODO: dev only
             log_message(_PKT_LOGGER.exception, "%s < Coding error ")
             self._is_valid = False
-            return self._is_valid
 
-        except NotImplementedError:  # unknown packet code
+        except NotImplementedError:  # parser_unknown (unknown packet code)
             log_message(_PKT_LOGGER.warning, "%s < Unknown packet code ")
             self._is_valid = False
-            return self._is_valid
 
         else:
             self._is_valid = True
@@ -426,38 +436,41 @@ def process_msg(msg: Message) -> None:
                     if flag == 1
                 ]
 
-        if this.code == "000C" and this.payload["devices"] and this.src.type == "01":
-            devices = [this.src.device_by_id[d] for d in this.payload["devices"]]
+        if this.code == "000C" and this.src.type == "01":
+            if this.payload["devices"]:
+                devices = [this.src.device_by_id[d] for d in this.payload["devices"]]
 
-            if this.payload["device_class"] == ATTR_ZONE_SENSOR:
-                zone = evo._get_zone(this.payload["zone_idx"])
-                try:
-                    zone._set_sensor(devices[0])
-                except TypeError:  # ignore invalid device types, e.g. 17:
-                    pass
+                if this.payload["device_class"] == ATTR_ZONE_SENSOR:
+                    zone = evo._get_zone(this.payload["zone_idx"])
+                    try:
+                        zone._set_sensor(devices[0])
+                    except TypeError:  # ignore invalid device types, e.g. 17:
+                        pass
 
-            elif this.payload["device_class"] == "zone_actuators":
-                # TODO: is this better, or...
-                # evo._get_zone(this.payload["zone_idx"], actuators=devices)
-                # TODO: is it this one?
-                zone = evo._get_zone(this.payload["zone_idx"])
-                for d in devices:
-                    d._set_zone(zone)
+                elif this.payload["device_class"] == ATTR_ZONE_ACTUATORS:
+                    # TODO: is this better, or...
+                    # evo._get_zone(this.payload["zone_idx"], actuators=devices)
+                    # TODO: is it this one?
+                    zone = evo._get_zone(this.payload["zone_idx"])
+                    for d in devices:
+                        d._set_zone(zone)
+
+                elif this.payload["device_class"] == ATTR_HTG_CONTROL:
+                    evo._set_htg_control(devices[0])
+
+                elif this.payload["device_class"] == ATTR_DHW_SENSOR:
+                    evo._get_zone("HW")._set_sensor(devices[0])
+
+                elif this.payload["device_class"] == ATTR_DHW_VALVE:
+                    evo._get_zone("HW")._set_dhw_valve(devices[0])
+
+                elif this.payload["device_class"] == ATTR_DHW_VALVE_HTG:
+                    evo._get_zone("HW")._set_htg_valve(devices[0])
 
             elif this.payload["device_class"] == ATTR_HTG_CONTROL:
-                evo._set_htg_control(devices[0])
-
-            elif this.payload["device_class"] == ATTR_DHW_SENSOR:
-                # evo._get_zone("HW")._set_sensor(devices[0])
-                evo._get_zone("HW")._set_sensor(devices[0])
-
-            elif this.payload["device_class"] == ATTR_DHW_VALVE:
-                # evo._get_zone("HW")._set_dhw_valve(devices[0])
-                evo._set_dhw_valve(devices[0])
-
-            elif this.payload["device_class"] == ATTR_DHW_VALVE_HTG:
-                # evo._get_zone("HW")._set_htg_valve(devices[0])
-                evo._set_htg_valve(devices[0])
+                # TODO: maybe the htg controller is an OTB? via eavesdropping
+                # evo._set_htg_control(devices[0])
+                pass
 
         # # Eavesdropping (below) is used when discovery (above) is not an option
         # # TODO: needs work, e.g. RP/1F41 (excl. null_rp)
@@ -498,6 +511,10 @@ def process_msg(msg: Message) -> None:
         # some devices aren't created if they're filtered out (in create_devices?)
         if this.src not in this._gwy.devices:
             return
+            # 0008: BDR/RP, ir CTL/I/domain_id = F9/FA
+            # 10A0: CTL/RP/dhw_idx
+            # 1260: RP from CTL, or eavesdrop sensor
+            # 1F41: eavesdrop
 
         # some empty payloads may still be useful (e.g. RQ/3EF1/{})
         this._gwy.device_by_id[this.src.id]._handle_msg(this)
@@ -505,12 +522,11 @@ def process_msg(msg: Message) -> None:
         if not this.payload:
             return
 
-        # # try to find the boiler relay, dhw sensor
-        # for evo in this._gwy.systems:
-        #     if this.src == evo:  # TODO: or this.src.id == evo.id?
-        #         if this.code in ("10A0", "1260", "1F41") and evo._dhw is not None:
-        #             evo._dhw._handle_msg(this)
-        #         break
+        for evo in this._gwy.systems:
+            # if this.src == evo:  # TODO: or this.src.id == evo.id?
+            if this.code in ("10A0", "1260", "1F41") and evo._dhw is not None:
+                evo._dhw._handle_msg(this)
+            break
 
         #     if this.src.controller == evo:  # TODO: this.src.controller.id == evo.id?
         #         evo._handle_msg(this, prev)  # TODO: WIP
@@ -524,6 +540,9 @@ def process_msg(msg: Message) -> None:
 
         if this.src is evo._ctl:
             evo._handle_msg(msg)
+
+        if not hasattr(evo, "zone_by_idx"):
+            return
 
         if isinstance(this.payload, dict) and "zone_idx" in this.payload:
             # 089  I --- 02:000921 --:------ 01:191718 3150 002 0300  # NOTE: is valid
@@ -546,7 +565,7 @@ def process_msg(msg: Message) -> None:
     if msg._gwy.config[REDUCE_PROCESSING] >= DONT_CREATE_ENTITIES:
         return
 
-    try:
+    try:  # process the payload
         create_devices(msg)  # from pkt header & from msg payload (e.g. 000C)
         create_zones(msg)  # create zones & ufh_zones (TBD)
 
@@ -561,7 +580,15 @@ def process_msg(msg: Message) -> None:
         _LOGGER.error("%s < %s", msg._pkt, err.__class__.__name__)
         raise
 
-    except EvoCorruptionError as err:
+    # except CorruptPacketError as err:
+    #     _LOGGER.error("%s < %s", msg._pkt, err.__class__.__name__)
+    #     return
+
+    except CorruptStateError as err:
+        _LOGGER.error("%s < %s", msg._pkt, err.__class__.__name__)
+        return  # TODO: bad pkt, or Schema
+
+    except CorruptEvohomeError as err:
         _LOGGER.error("%s < %s", msg._pkt, err.__class__.__name__)
         raise
 

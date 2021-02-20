@@ -22,11 +22,18 @@ from serial import serial_for_url  # Serial, SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerialTransportAsync
 
 from .command import Command, Priority
-from .const import DTM_LONG_REGEX, HGI_DEVICE, NUL_DEVICE, _dev_mode_
+from .const import DTM_LONG_REGEX, HGI_DEV_ADDR, _dev_mode_
 from .helpers import dt_str
 from .packet import _PKT_LOGGER, Packet
 from .protocol import create_protocol_factory
-from .schema import DISABLE_SENDING, ENFORCE_ALLOWLIST, ENFORCE_BLOCKLIST, EVOFW_FLAG
+from .schema import (
+    ALLOW_LIST,
+    BLOCK_LIST,
+    DISABLE_SENDING,
+    ENFORCE_ALLOWLIST,
+    ENFORCE_BLOCKLIST,
+    EVOFW_FLAG,
+)
 from .version import __version__
 
 DEV_MODE = _dev_mode_
@@ -52,8 +59,8 @@ Pause = SimpleNamespace(
 )
 
 INIT_QOS = {"priority": Priority.HIGHEST, "retries": 24, "disable_backoff": True}
-INIT_CMD = Command(" I", NUL_DEVICE.id, "0001", "00FFFF0200", qos=INIT_QOS)
-# INIT_CMD = Command(" I", HGI_DEVICE.id, "0001", "00FFFF0200", qos=INIT_QOS)
+INIT_CMD = Command._puzzle(message=f"evohome_rf v{__version__}", qos=INIT_QOS)
+# INIT_CMD = Command(" I", NUL_DEV_ADDR.id, "0001", "00FFFF0200", qos=INIT_QOS)
 
 # tx (from sent to gwy, to get back from gwy) seems to takes approx. 0.025s
 QOS_TX_TIMEOUT = td(seconds=0.05)  # 0.20 OK, but too high?
@@ -72,7 +79,7 @@ class SerTransportFile(asyncio.Transport):
     """Interface for a packet transport using a file - Experimental."""
 
     def __init__(self, loop, protocol, packet_log, extra=None):
-        _LOGGER.info("SerTransFile.__init__(%s) *** Packet log version ***", packet_log)
+        _LOGGER.info("SerTransFile.__init__(%s) *** log file version ***", packet_log)
 
         self._loop = loop
 
@@ -268,9 +275,18 @@ class PacketProtocolBase(asyncio.Protocol):
         self._pause_writing = True
         self._recv_buffer = bytes()
 
-        # TODO: this is a little messy...
+        self._sequence_no = 0
+
+        # TODO: this is a little messy - the gwy.config[...] are mutex...
         self._include = list(gwy._include) if gwy.config[ENFORCE_ALLOWLIST] else []
         self._exclude = list(gwy._exclude) if gwy.config[ENFORCE_BLOCKLIST] else []
+
+        if self._include:
+            _LOGGER.info("Using an %s: %s", ALLOW_LIST, self._include)
+        elif self._exclude:
+            _LOGGER.info("Using an %s: %s", BLOCK_LIST, self._exclude)
+        else:
+            _LOGGER.warning("Not Using an device filter (an allow_list is recommended)")
 
         self._has_initialized = None
         if not self._gwy.config[DISABLE_SENDING]:
@@ -280,24 +296,16 @@ class PacketProtocolBase(asyncio.Protocol):
         """Called when a connection is made."""
         _LOGGER.debug("PktProtocol.connection_made(%s)", transport)
 
-        # print(transport.serial)  # TODO: evofw_flag here
-        # for attr in dir(transport.serial):
-        #     print("obj.%s = %r" % (attr, getattr(transport, attr)))
-
-        # from time import sleep
-        # sleep(4)
-
-        # print(transport.serial)  # TODO: evofw_flag here
-        # for attr in dir(transport.serial):
-        #     print("obj.%s = %r" % (attr, getattr(transport, attr)))
+        self._transport = transport
+        # self._transport.serial.rts = False
 
         _PKT_LOGGER.warning(
             "# evohome_rf %s", __version__, extra=self._extra(dt_str(), "")
         )
 
-        self._transport = transport
-        # self._transport.serial.rts = False
-
+        self._loop.create_task(
+            self._send_data(bytes("!V\r\n".encode("ascii")), ignore_pause=False)
+        )  # Used to see if using a evofw3 rather than a HGI80
         self._pause_writing = False  # TODO: needs work
 
     @staticmethod
@@ -322,7 +330,7 @@ class PacketProtocolBase(asyncio.Protocol):
         # 095  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200 # HGI80
         # 000  I --- 18:140805 18:140805 --:------ 0001 005 00FFFF0200 # evofw3
         if pkt_line[10:14] == " 18:" and pkt_line[11:20] == pkt_line[21:30]:
-            pkt_line = pkt_line[:21] + HGI_DEVICE.id + pkt_line[30:]
+            pkt_line = pkt_line[:21] + HGI_DEV_ADDR.id + pkt_line[30:]
             if DEV_MODE:  # TODO: should be _LOGGER.debug
                 _LOGGER.warning("evofw3 packet line has been normalised (0x00)")
 
@@ -412,6 +420,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
         The _pause_writing flag can be ignored, is useful for sending traceflags.
         """
+
         if not ignore_pause:
             while self._pause_writing:
                 await asyncio.sleep(0.005)
@@ -423,6 +432,7 @@ class PacketProtocolBase(asyncio.Protocol):
             await asyncio.sleep(0.005)
         if DEV_MODE:  # TODO: deleteme
             _PKT_LOGGER.debug("Tx:     %s", data, extra=self._extra(dt_str(), data))
+
         self._transport.write(data)
         # await asyncio.sleep(0.05)
 
@@ -439,6 +449,16 @@ class PacketProtocolBase(asyncio.Protocol):
             )
             return
 
+        self._sequence_no = (self._sequence_no + 1) % 1000
+        if self._qos_cmd.seqx == "---":
+            self._qos_cmd.seqx = f"{self._sequence_no:03d}"
+
+        if cmd.from_addr.type != "18":
+            _LOGGER.warning("PktProtocol.send_data(%s): IMPERSONATING!", cmd.tx_header)
+
+        # self._loop.create_task(
+        #     self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
+        # )
         await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
@@ -479,16 +499,32 @@ class PacketProtocol(PacketProtocolBase):
     """Interface for a packet protocol (without QoS)."""
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
-        _LOGGER.info("PktProtocol.__init__(gwy, %s)  *** Std version ***", pkt_handler)
+        _LOGGER.info(
+            "PktProtocol.__init__(gwy, %s) *** Std version ***",
+            pkt_handler.__name__ if pkt_handler else None,
+        )
         super().__init__(gwy, pkt_handler)
 
 
-class PacketProtocolFile(PacketProtocol):
+class PacketProtocolFile(PacketProtocolBase):
     """Interface for a packet protocol (for packet log)."""
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
-        _LOGGER.info("PktProtocol.__init__(gwy, %s)  *** File version ***", pkt_handler)
+        _LOGGER.info(
+            "PacketProtocolFile.__init__(gwy, %s) *** Log version ***",
+            pkt_handler.__name__ if pkt_handler else None,
+        )
         super().__init__(gwy, pkt_handler)
+
+    def connection_made(self, transport: asyncio.Transport) -> None:
+        """Called when a connection is made."""
+        _LOGGER.debug("PacketProtocolFile.connection_made(%s)", transport)
+
+        self._transport = transport
+
+        _PKT_LOGGER.warning(
+            "# evohome_rf %s", __version__, extra=self._extra(dt_str(), "")
+        )
 
     def data_received(self, data: str) -> None:
         """Called when some data is received."""
@@ -512,11 +548,14 @@ class PacketProtocolFile(PacketProtocol):
             self._data_received(pkt_dtm, self._normalise(pkt_str), None)
 
 
-class PacketProtocolQos(PacketProtocol):
+class PacketProtocolQos(PacketProtocolBase):
     """Interface for a packet protocol (includes QoS)."""
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
-        _LOGGER.info("PktProtocol.__init__(gwy, %s)  *** QoS version ***", pkt_handler)
+        _LOGGER.info(
+            "PktProtocol.__init__(gwy, %s) *** Qos version ***",
+            pkt_handler.__name__ if pkt_handler else None,
+        )
         super().__init__(gwy, pkt_handler)
 
         self._qos_lock = Lock()
@@ -587,11 +626,13 @@ class PacketProtocolQos(PacketProtocol):
 
             # NOTE: is the Tx pkt, and a response *is* expected
             elif pkt._header == self._tx_hdr:
+                # assert str(pkt)[4:] == str(self._qos_cmd), "Packets dont match"
                 msg = "matched the Tx pkt (now wanting a Rx pkt)"
                 self._tx_hdr = None
 
             # NOTE: is the Tx pkt, but is a *duplicate* - we've already seen it!
             elif pkt._header == self._qos_cmd.tx_header:
+                # assert str(pkt) == str(self._qos_cmd), "Packets dont match"
                 msg = "duplicated Tx pkt (still wanting the Rx pkt)"
                 self._timeouts(dt.now())  # TODO: increase backoff?
 
@@ -611,9 +652,11 @@ class PacketProtocolQos(PacketProtocol):
 
             # NOTE: is not the expected pkt, but another pkt
             else:
-                msg = "unmatched pkt (still wanting a " + (
-                    "Tx" if self._tx_hdr else "Rx"
-                ) + " pkt)"
+                msg = (
+                    "unmatched pkt (still wanting a "
+                    + ("Tx" if self._tx_hdr else "Rx")
+                    + " pkt)"
+                )
 
             self._timeouts(dt.now())
             _logger_rcvd(_LOGGER.debug, f"CHECKED - {msg}")
@@ -648,8 +691,6 @@ class PacketProtocolQos(PacketProtocol):
             )
             return
 
-        # _logger_send(_LOGGER.debug, "SENDING")
-
         while self._qos_cmd is not None:
             await asyncio.sleep(0.005)
 
@@ -660,6 +701,15 @@ class PacketProtocolQos(PacketProtocol):
         self._rx_hdr = cmd.rx_header  # Could be None
         self._tx_retries = 0
         self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
+
+        self._sequence_no = (self._sequence_no + 1) % 1000
+        if self._qos_cmd.seqx == "---":
+            self._qos_cmd.seqx = f"{self._sequence_no:03d}"
+
+        if cmd.from_addr.type != "18":
+            _LOGGER.warning(
+                "PacketProtocolQos.send_data(%s): IMPERSONATING!", cmd.tx_header
+            )
 
         self._timeouts(dt.now())
         await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
@@ -729,10 +779,10 @@ def create_pkt_stack(
         return (pkt_protocol, pkt_transport)
 
     ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
-    if os.name == "posix":
+    if os.name == "posix":  # or use: NotImplementedError
         try:
             ser_instance.set_low_latency_mode(True)  # only for FTDI?
-        except AttributeError:  # TODO: also: ValueError?
+        except (AttributeError, ValueError):  # AttributeError shouldn't be needed
             pass
 
     if os.name == "nt":

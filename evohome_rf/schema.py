@@ -8,16 +8,8 @@ from typing import Tuple
 import voluptuous as vol
 
 from .const import (
-    ATTR_CONTROLLER,
     ATTR_DEVICES,
-    ATTR_DHW_SENSOR,
-    ATTR_DHW_VALVE_HTG,
-    ATTR_DHW_VALVE,
-    ATTR_HTG_CONTROL,
-    ATTR_ORPHANS,
-    ATTR_STORED_HW,
-    ATTR_SYSTEM,
-    ATTR_UFH_CONTROLLERS,
+    ATTR_ZONE_IDX,
     ATTR_ZONE_TYPE,
     ATTR_ZONE_SENSOR,
     ATTR_ZONES,
@@ -25,31 +17,46 @@ from .const import (
     ZONE_TYPE_SLUGS,
     _dev_mode_,
     id_to_address as addr,
+    ALL_DEVICE_ID as DEVICE_ID_REGEX,
+    CTL_DEVICE_ID as CTL_DEVICE_ID_REGEX,
+    DHW_SENSOR_ID as DHW_SENSOR_ID_REGEX,
+    GWY_DEVICE_ID as GWY_DEVICE_ID_REGEX,
+    HTG_DEVICE_ID as HTG_DEVICE_ID_REGEX,
+    UFC_DEVICE_ID as UFC_DEVICE_ID_REGEX,
+    RLY_DEVICE_ID as RLY_DEVICE_ID_REGEX,
+    ZON_SENSOR_ID as SENSOR_ID_REGEX,
 )
 
-DEVICE_ID_REGEXP = r"^[0-9]{2}:[0-9]{6}$"
-DEVICE_ID = vol.Match(DEVICE_ID_REGEXP)
+# schema attrs
+ATTR_CONTROLLER = "controller"
+ATTR_HTG_SYSTEM = "system"
+ATTR_DHW_SYSTEM = "stored_hotwater"
+ATTR_UFH_SYSTEM = "underfloor_heating"
+ATTR_ORPHANS = "orphans"
 
-DOMAIN_ID_REGEXP = r"^[0-9A-F]{2}$"
-DOMAIN_ID = vol.Match(DOMAIN_ID_REGEXP)
+ATTR_HTG_RELAY = "heating_relay"
+ATTR_DHW_SENSOR = "dhw_sensor"
+ATTR_DHW_VALVE = "dhw_relay"
+ATTR_DHW_VALVE_HTG = "dhw_htg_relay"
 
-ZONE_IDX_REGEXP = r"^0[0-9AB]$"  # TODO: what if > 12 zones? (e.g. hometronics)
-ZONE_IDX = vol.Match(ZONE_IDX_REGEXP)
+ATTR_UFH_CTL = "ufh_controller"
 
-ZONE_SCHEMA = vol.Schema(
-    {
-        vol.Required(ZONE_IDX): vol.Any(
-            None,
-            {
-                vol.Optional(ATTR_ZONE_TYPE, default=None): vol.Any(
-                    None, vol.Any(*list(ZONE_TYPE_SLUGS))
-                ),
-                vol.Optional(ATTR_ZONE_SENSOR, default=None): vol.Any(None, DEVICE_ID),
-                vol.Optional(ATTR_DEVICES, default=[]): vol.Any(None, [DEVICE_ID]),
-            },
-        )
-    }
-)
+DEVICE_ID = vol.Match(DEVICE_ID_REGEX)
+SENSOR_ID = vol.Match(SENSOR_ID_REGEX)
+CTL_DEVICE_ID = vol.Match(CTL_DEVICE_ID_REGEX)
+DHW_SENSOR_ID = vol.Match(DHW_SENSOR_ID_REGEX)
+GWY_DEVICE_ID = vol.Match(GWY_DEVICE_ID_REGEX)
+HTG_DEVICE_ID = vol.Match(HTG_DEVICE_ID_REGEX)
+UFC_DEVICE_ID = vol.Match(UFC_DEVICE_ID_REGEX)
+RLY_DEVICE_ID = vol.Match(RLY_DEVICE_ID_REGEX)
+
+ZONE_TYPE_SLUGS = list(ZONE_TYPE_SLUGS)
+
+DOMAIN_ID = vol.Match(r"^[0-9A-F]{2}$")
+UFH_IDX_REGEXP = r"^0[0-8]$"
+UFH_IDX = vol.Match(UFH_IDX_REGEXP)
+ZONE_IDX = vol.Match(r"^0[0-9AB]$")  # TODO: what if > 12 zones? (e.g. hometronics)
+
 SER2NET_SCHEMA = vol.Schema(
     {vol.Required("enabled"): bool, vol.Optional("socket", default="0.0.0.0:5000"): str}
 )
@@ -73,6 +80,8 @@ USE_SCHEMA = "use_schema"
 ALLOW_LIST = "allowlist"
 BLOCK_LIST = "blocklist"
 
+LOG_ROTATE_BYTES = "log_rotate_bytes"
+LOG_ROTATE_COUNT = "log_rotate_backups"
 
 DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
@@ -80,13 +89,15 @@ DONT_UPDATE_ENTITIES = 1
 
 CONFIG_SCHEMA = vol.Schema(
     {
-        vol.Optional(SERIAL_PORT): vol.Any(None, str),
+        # vol.Optional(SERIAL_PORT): vol.Any(None, str),
         vol.Optional(DISABLE_SENDING, default=False): vol.Any(None, bool),
         vol.Optional(DISABLE_DISCOVERY, default=False): vol.Any(None, bool),
         vol.Optional(ENABLE_EAVESDROP, default=False): vol.Any(None, bool),
         vol.Optional(ENFORCE_ALLOWLIST, default=False): vol.Any(None, bool),
         vol.Optional(ENFORCE_BLOCKLIST, default=True): vol.Any(None, bool),
         vol.Optional(EVOFW_FLAG, default=None): vol.Any(None, str),
+        vol.Optional(LOG_ROTATE_COUNT, default=0): vol.Any(None, int),
+        vol.Optional(LOG_ROTATE_BYTES, default=None): vol.Any(None, int),
         vol.Optional(MAX_ZONES, default=DEFAULT_MAX_ZONES): vol.Any(None, int),
         vol.Optional(PACKET_LOG, default=None): vol.Any(None, str),
         vol.Optional(REDUCE_PROCESSING, default=0): vol.Any(None, int),
@@ -96,38 +107,64 @@ CONFIG_SCHEMA = vol.Schema(
     },
     extra=vol.ALLOW_EXTRA,
 )
-DHW_SCHEMA = vol.Schema(
+HTG_SCHEMA = vol.Schema(
     {
-        vol.Optional(ATTR_DHW_SENSOR): vol.Any(None, vol.Match(r"^07:[0-9]{6}$")),
-        vol.Optional(ATTR_DHW_VALVE): vol.Any(None, vol.Match(r"^13:[0-9]{6}$")),
-        vol.Optional(ATTR_DHW_VALVE_HTG): vol.Any(None, vol.Match(r"^13:[0-9]{6}$")),
+        vol.Optional(ATTR_HTG_RELAY, default=None): vol.Any(None, HTG_DEVICE_ID),
     }
 )
-UFH_SCHEMA = vol.Schema({})
-ORPHAN_SCHEMA = vol.Schema(
-    {vol.Optional(ATTR_ORPHANS): vol.Any(None, vol.All(DEVICE_ID))}
+DHW_SCHEMA = vol.Schema(
+    {
+        vol.Optional(ATTR_DHW_SENSOR, default=None): vol.Any(None, DHW_SENSOR_ID),
+        vol.Optional(ATTR_DHW_VALVE, default=None): vol.Any(None, RLY_DEVICE_ID),
+        vol.Optional(ATTR_DHW_VALVE_HTG, default=None): vol.Any(None, RLY_DEVICE_ID),
+    }
 )
+UFC_CIRCUIT = vol.Schema(
+    {
+        vol.Required(UFH_IDX): vol.Any(
+            {
+                vol.Optional(ATTR_ZONE_IDX): vol.Any(ZONE_IDX),
+            },
+        )
+    }
+)
+UFH_SCHEMA = vol.Schema(
+    {
+        vol.Required(DEVICE_ID): vol.Any(
+            None,
+            {
+                vol.Optional("ufh_circuits"): vol.Any(None, dict),
+            },
+        )
+    }
+)
+UFH_SCHEMA = vol.All(UFH_SCHEMA, vol.Length(min=1, max=3))
+ZONE_SCHEMA = vol.Schema(
+    {
+        vol.Optional(ATTR_ZONE_TYPE, default=None): vol.Any(None, ZONE_TYPE_SLUGS),
+        vol.Optional(ATTR_ZONE_SENSOR, default=None): vol.Any(None, SENSOR_ID),
+        vol.Optional(ATTR_DEVICES, default=[]): vol.Any([], [DEVICE_ID]),
+    }
+)
+ZONE_SCHEMA = vol.Schema({vol.Required(ZONE_IDX): ZONE_SCHEMA})
+ZONE_SCHEMA = vol.All(ZONE_SCHEMA, vol.Length(min=1, max=DEFAULT_MAX_ZONES))
 SYSTEM_SCHEMA = vol.Schema(
     {
-        vol.Required(ATTR_CONTROLLER): vol.Match(r"^(01|23):[0-9]{6}$"),
-        vol.Optional(ATTR_SYSTEM, default={}): vol.Schema(
-            {
-                vol.Optional(ATTR_HTG_CONTROL): vol.Any(
-                    None, vol.Match(r"^(10|13):[0-9]{6}$")
-                ),
-                vol.Optional(ATTR_ORPHANS): vol.Any(None, vol.All([DEVICE_ID])),
-            }
-        ),
-        vol.Optional(ATTR_STORED_HW): vol.Any(None, DHW_SCHEMA),
-        vol.Optional(ATTR_ZONES): vol.Any(
-            None, vol.All(ZONE_SCHEMA, vol.Length(min=1, max=DEFAULT_MAX_ZONES))
-        ),
-        vol.Optional(ATTR_UFH_CONTROLLERS): vol.Any(None, [UFH_SCHEMA]),
+        vol.Required(ATTR_CONTROLLER): CTL_DEVICE_ID,
+        vol.Optional(ATTR_HTG_SYSTEM, default={}): vol.Any({}, HTG_SCHEMA),
+        vol.Optional(ATTR_DHW_SYSTEM, default={}): vol.Any({}, DHW_SCHEMA),
+        vol.Optional(ATTR_UFH_SYSTEM, default={}): vol.Any({}, UFH_SCHEMA),
+        vol.Optional(ATTR_ORPHANS, default=[]): vol.Any([], [DEVICE_ID]),
+        vol.Optional(ATTR_ZONES, default={}): vol.Any({}, ZONE_SCHEMA),
     },
-    extra=vol.ALLOW_EXTRA,
+    extra=vol.ALLOW_EXTRA,  # TODO: remove me
 )
+SYSTEM_SCHEMA = vol.Schema(vol.Any({}, SYSTEM_SCHEMA))
+
 # GLOBAL_SCHEMA = vol.Schema(
-#     vol.Any(SYSTEM_SCHEMA, vol.Length(min=0)), ORPHAN_SCHEMA, extra=vol.ALLOW_EXTRA
+#     vol.Any(SYSTEM_SCHEMA, vol.Length(min=0)),
+#     ORPHAN_SCHEMA,
+#     extra=vol.ALLOW_EXTRA
 # )
 KNOWNS_SCHEMA = vol.Schema(
     {
@@ -209,49 +246,47 @@ def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, list, list]:
     return (config, allows, blocks)
 
 
-def load_schema(gwy, **kwargs) -> Tuple[dict, dict]:
+def load_schema(gwy, create_entities=True, **kwargs) -> Tuple[dict, dict]:
     """Process the schema, and the configuration and return True if it is valid."""
     # TODO: check a sensor is not a device in another zone
 
-    schema = SYSTEM_SCHEMA(kwargs.get("schema", {})) if kwargs.get("schema") else {}
+    known_devices = KNOWNS_SCHEMA(kwargs.get(ALLOW_LIST, {}))
+    known_devices.update(KNOWNS_SCHEMA(kwargs.get(BLOCK_LIST, {})))
 
-    device_ids = schema.get(ATTR_ORPHANS, [])  # TODO: clean up
-    if device_ids is not None:
-        for device_id in device_ids:
-            gwy._get_device(addr(device_id))
+    schema = SYSTEM_SCHEMA(kwargs.get("schema", {}))
 
-    if not schema.get(ATTR_CONTROLLER):
-        return ({}, KNOWNS_SCHEMA(kwargs.get(ALLOW_LIST, {})))
+    ctl_id = schema.get(ATTR_CONTROLLER)
+    if not ctl_id:
+        return ({}, known_devices)
 
-    schema = SYSTEM_SCHEMA(schema)
+    if create_entities:
+        ctl = gwy._get_device(addr(ctl_id), ctl_addr=addr(ctl_id))
+    else:
+        ctl = None
 
-    ctl_id = schema[ATTR_CONTROLLER]
-    ctl = gwy._get_device(addr(ctl_id), ctl_addr=addr(ctl_id))
-
-    htg_ctl_id = schema[ATTR_SYSTEM].get(ATTR_HTG_CONTROL)
-    if htg_ctl_id:
+    htg_ctl_id = schema[ATTR_HTG_SYSTEM].get(ATTR_HTG_RELAY)
+    if create_entities and htg_ctl_id:
         ctl._evo._set_htg_control(gwy._get_device(addr(htg_ctl_id), ctl_addr=ctl))
 
-    for device_id in schema[ATTR_SYSTEM].get(ATTR_ORPHANS, []):
-        gwy._get_device(addr(device_id), ctl_addr=ctl)
-
-    dhw = schema.get(ATTR_STORED_HW)
+    dhw = schema.get(ATTR_DHW_SYSTEM, {})
     if dhw:
-        ctl._evo._set_dhw(ctl._evo._get_zone("HW"))
+        if create_entities:
+            ctl._evo._set_dhw(ctl._evo._get_zone("HW"))
 
         dhw_sensor_id = dhw.get(ATTR_DHW_SENSOR)
-        if dhw_sensor_id:
+        if create_entities and dhw_sensor_id:
             ctl._evo._set_dhw_sensor(gwy._get_device(addr(dhw_sensor_id), ctl_addr=ctl))
 
         dhw_valve_id = dhw.get(ATTR_DHW_VALVE)
-        if dhw_valve_id:
+        if create_entities and dhw_valve_id:
             ctl._evo._set_dhw_valve(gwy._get_device(addr(dhw_valve_id), ctl_addr=ctl))
 
         htg_valve_id = dhw.get(ATTR_DHW_VALVE_HTG)
-        if htg_valve_id:
+        if create_entities and htg_valve_id:
             ctl._evo._set_htg_valve(gwy._get_device(addr(htg_valve_id), ctl_addr=ctl))
 
-    if ATTR_ZONES in schema:
+    zones = schema.get(ATTR_ZONES, {})
+    if zones:
         for zone_idx, attr in schema[ATTR_ZONES].items():
             zone = ctl._evo._get_zone(zone_idx, zone_type=attr.get(ATTR_ZONE_TYPE))
 
@@ -259,15 +294,16 @@ def load_schema(gwy, **kwargs) -> Tuple[dict, dict]:
             if sensor_id:
                 zone._set_sensor(gwy._get_device(addr(sensor_id), ctl_addr=ctl))
 
-            device_ids = attr.get(ATTR_DEVICES)  # TODO: clean up
-            if device_ids is not None:
-                for device_id in device_ids:
-                    gwy._get_device(addr(device_id), ctl_addr=ctl, domain_id=zone_idx)
+            for device_id in attr.get(ATTR_DEVICES, []):
+                gwy._get_device(addr(device_id), ctl_addr=ctl, domain_id=zone_idx)
 
-    # for ufh_ctl, ufh_schema in schema.get(ATTR_UFH_CONTROLLERS, []):
-    #     dev = gwy._get_device(addr(ufh_ctl), ctl_addr=ctl)
+    orphan_ids = schema.get(ATTR_ORPHANS, [])
+    if orphan_ids:
+        [gwy._get_device(addr(device_id), ctl_addr=ctl) for device_id in orphan_ids]
 
-    known_devices = KNOWNS_SCHEMA(kwargs.get(ALLOW_LIST, {}))
-    known_devices.update(KNOWNS_SCHEMA(kwargs.get(BLOCK_LIST, {})))
+    ufh_ctl_ids = schema.get(ATTR_UFH_SYSTEM, {})
+    if ufh_ctl_ids:
+        for ufc_id, _ in ufh_ctl_ids.items():
+            _ = gwy._get_device(addr(ufc_id), ctl_addr=ctl)
 
     return (schema, known_devices)

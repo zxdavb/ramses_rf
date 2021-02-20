@@ -14,12 +14,13 @@ from .const import (
     DEVICE_ID_REGEX,
     DEVICE_TYPES,
     DEVICE_LOOKUP,
-    HGI_DEVICE,
-    NON_DEVICE,
-    NUL_DEVICE,
+    HGI_DEV_ADDR,
+    NON_DEV_ADDR,
+    NUL_DEV_ADDR,
     Address,
     id_to_address,
 )
+from .exceptions import CorruptAddrSetError
 
 
 class FILETIME(ctypes.Structure):
@@ -121,6 +122,9 @@ def dtm_from_hex(value: str) -> str:  # from parsers
     #        00141B0A07E3  (...HH:MM:00)    for system_mode, zone_mode (schedules?)
     #      0400041C0A07E3  (...HH:MM:SS)    for sync_datetime
 
+    if value == "FF" * 6:
+        return None
+
     if len(value) == 12:
         value = f"00{value}"
     # assert len(value) == 14
@@ -168,10 +172,10 @@ def dev_hex_to_id(device_hex: str, friendly_id=False) -> str:
     """Convert (say) '06368E' to '01:145038' (or 'CTL:145038')."""
 
     if device_hex == "FFFFFE":  # aka '63:262142'
-        return ">null dev<" if friendly_id else NUL_DEVICE.id
+        return ">null dev<" if friendly_id else NUL_DEV_ADDR.id
 
     if not device_hex.strip():  # aka '--:------'
-        return f"{'':10}" if friendly_id else NON_DEVICE.id
+        return f"{'':10}" if friendly_id else NON_DEV_ADDR.id
 
     _tmp = int(device_hex, 16)
     dev_type = f"{(_tmp & 0xFC0000) >> 18:02d}"
@@ -193,42 +197,42 @@ def dev_id_to_hex(device_id: str) -> str:
     return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # no preceding 0x
 
 
-def extract_addrs(pkt: str) -> Tuple[Address, Address, List[Address]]:
-    """Return the address fields."""
+def extract_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
+    """Return the address fields from (e.g): '01:078710 --:------ 01:144246 '."""
 
-    addrs = [id_to_address(pkt[i : i + 9]) for i in range(11, 32, 10)]
+    addrs = [id_to_address(pkt_fragment[i : i + 9]) for i in range(0, 30, 10)]
 
     # This check will invalidate these rare pkts (which are never transmitted)
     # ---  I --- --:------ --:------ --:------ 0001 005 00FFFF02FF
     # ---  I --- --:------ --:------ --:------ 0001 005 00FFFF0200
     if not all(
         (
-            addrs[0].id not in (NON_DEVICE.id, NUL_DEVICE.id),
-            (addrs[1].id, addrs[2].id).count(NON_DEVICE.id) == 1,
+            addrs[0].id not in (NON_DEV_ADDR.id, NUL_DEV_ADDR.id),
+            (addrs[1].id, addrs[2].id).count(NON_DEV_ADDR.id) == 1,
         )
     ) and not all(
         (
-            addrs[2].id not in (NON_DEVICE.id, NUL_DEVICE.id),
-            addrs[0].id == addrs[1].id == NON_DEVICE.id,
+            addrs[2].id not in (NON_DEV_ADDR.id, NUL_DEV_ADDR.id),
+            addrs[0].id == addrs[1].id == NON_DEV_ADDR.id,
         )
     ):
-        raise TypeError("invalid addr set")
+        raise CorruptAddrSetError("Invalid addr set")
 
     device_addrs = list(filter(lambda x: x.type != "--", addrs))
     if len(device_addrs) > 2:
-        raise TypeError("too many addrs (i.e. three addrs)")
+        raise CorruptAddrSetError("Too many addrs (i.e. three addrs)")
 
     src_addr = device_addrs[0]
-    dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEVICE
+    dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEV_ADDR
 
     if src_addr.id == dst_addr.id:
         src_addr = dst_addr
-    elif src_addr.type == "18" and dst_addr.id == HGI_DEVICE.id:
+    elif src_addr.type == "18" and dst_addr.id == HGI_DEV_ADDR.id:
         # 000  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200 (valid, ex HGI80)
         pass
     elif src_addr.type == dst_addr.type:
         # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5 (invalid)
-        raise TypeError("invalid src/dst addr pair")
+        raise CorruptAddrSetError("Invalid src/dst addr pair")
 
     return src_addr, dst_addr, addrs
 

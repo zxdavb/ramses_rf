@@ -4,15 +4,13 @@
 """Evohome RF - discovery scripts."""
 
 import asyncio
-from datetime import datetime as dt
 import json
 import logging
 from typing import Any, List
 
 from .command import Command, Priority
-from .const import _dev_mode_, CODE_SCHEMA, DEVICE_TABLE, NUL_DEV_ID, Address
+from .const import _dev_mode_, CODE_SCHEMA, DEVICE_TABLE, Address
 from .exceptions import ExpiredCallbackError
-from .helpers import dts_to_hex
 from .ramses import RAMSES_CODES
 
 EXECUTE_CMD = "execute_cmd"
@@ -45,7 +43,7 @@ def spawn_execute_cmd(gwy, **kwargs):
                 "Execute: Command is invalid, and will be ignored: '%s' (%s)", cmd, err
             )
         else:
-            gwy.send_data(cmd)
+            gwy.send_cmd(cmd)
 
 
 def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
@@ -67,7 +65,7 @@ def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
     if not kwargs.get(EXECUTE_CMD) and gwy._include:
         dev_id = next(iter(gwy._include))
         qos = {"priority": Priority.HIGH, "retries": 5}
-        gwy.send_data(Command("RQ", dev_id, "0016", "00FF", qos=qos))
+        gwy.send_cmd(Command("RQ", dev_id, "0016", "00FF", qos=qos))
 
     tasks = []
 
@@ -102,7 +100,7 @@ def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
 async def periodic(gwy, cmd, count=1, interval=None):
     async def _periodic():
         await asyncio.sleep(interval)
-        gwy.send_data(cmd)
+        gwy.send_cmd(cmd)
 
     if interval is None:
         interval = 0 if count == 1 else 60
@@ -190,62 +188,56 @@ async def scan_disc(gwy, dev_id: str):
 async def scan_full(gwy, dev_id: str):
     _LOGGER.warning("scan_full() invoked - expect a lot of Warnings")
 
-    qos = {"priority": Priority.HIGH, "retries": 5}
-    gwy.send_data(Command("RQ", dev_id, "0016", "0000", qos=qos))
+    qos = {"priority": Priority.HIGH, "retries": 3}
+    gwy.send_cmd(Command._puzzle(message="full scan: begins...", qos=qos))
+
+    qos = {"priority": Priority.DEFAULT, "retries": 5}
+    gwy.send_cmd(Command("RQ", dev_id, "0016", "0000", qos=qos))
 
     qos = {"priority": Priority.DEFAULT, "retries": 1}
     for code in sorted(RAMSES_CODES):
         if code == "0005":
             for zone_type in range(20):  # known up to 18
-                gwy.send_data(
-                    Command("RQ", dev_id, code, f"00{zone_type:02X}", qos=qos)
-                )
-            continue
+                gwy.send_cmd(Command("RQ", dev_id, code, f"00{zone_type:02X}", qos=qos))
 
         elif code == "000C":
             for zone_idx in range(16):  # also: FA-FF?
-                gwy.send_data(Command("RQ", dev_id, code, f"{zone_idx:02X}00", qos=qos))
-            continue
+                gwy.send_cmd(Command("RQ", dev_id, code, f"{zone_idx:02X}00", qos=qos))
 
-        if code == "0016":
+        elif code == "0016":
             continue
 
         elif code == "0404":
-            gwy.send_data(Command("RQ", dev_id, code, "00200008000100", qos=qos))
+            gwy.send_cmd(Command("RQ", dev_id, code, "00200008000100", qos=qos))
 
         elif code == "0418":
             for log_idx in range(2):
-                gwy.send_data(Command("RQ", dev_id, code, f"{log_idx:06X}", qos=qos))
-            continue
+                gwy.send_cmd(Command("RQ", dev_id, code, f"{log_idx:06X}", qos=qos))
 
         elif code == "1100":
-            gwy.send_data(Command("RQ", dev_id, code, "FC", qos=qos))
+            gwy.send_cmd(Command("RQ", dev_id, code, "FC", qos=qos))
 
         elif code == "2E04":
-            gwy.send_data(Command("RQ", dev_id, code, "FF", qos=qos))
+            gwy.send_cmd(Command("RQ", dev_id, code, "FF", qos=qos))
 
         elif code == "3220":
             for data_id in ("00", "03"):  # these are mandatory READ_DATA data_ids
-                gwy.send_data(
-                    Command("RQ", dev_id, code, f"0000{data_id}0000", qos=qos)
-                )
+                gwy.send_cmd(Command("RQ", dev_id, code, f"0000{data_id}0000", qos=qos))
 
         elif code in CODE_SCHEMA and CODE_SCHEMA[code].get("rq_len"):
             rq_len = CODE_SCHEMA[code].get("rq_len") * 2
-            gwy.send_data(Command("RQ", dev_id, code, f"{0:0{rq_len}X}", qos=qos))
+            gwy.send_cmd(Command("RQ", dev_id, code, f"{0:0{rq_len}X}", qos=qos))
 
         else:
-            gwy.send_data(Command("RQ", dev_id, code, "0000", qos=qos))
+            gwy.send_cmd(Command("RQ", dev_id, code, "0000", qos=qos))
 
     # these are possible/difficult codes
     qos = {"priority": Priority.DEFAULT, "retries": 2}
     for code in ("0150", "2389"):
-        gwy.send_data(Command("RQ", dev_id, code, "0000", qos=qos))
+        gwy.send_cmd(Command("RQ", dev_id, code, "0000", qos=qos))
 
-    # these are possible/difficult codes
     qos = {"priority": Priority.LOW, "retries": 3}
-    payload = f"7F{dts_to_hex(dt.now())}7F00007F00007F"
-    gwy.send_data(Command(" I", NUL_DEV_ID, "7FFF", payload, qos=qos))
+    gwy.send_cmd(Command._puzzle(message="full scan: ended.", qos=qos))
 
 
 async def scan_hard(gwy, dev_id: str):
@@ -253,25 +245,25 @@ async def scan_hard(gwy, dev_id: str):
 
     qos = {"priority": Priority.LOW, "retries": 0}
     for code in range(0x4000):
-        gwy.send_data(Command("RQ", dev_id, f"{code:04X}", "0000", qos=qos))
+        gwy.send_cmd(Command("RQ", dev_id, f"{code:04X}", "0000", qos=qos))
 
 
 async def scan_xxxx(gwy, dev_id: str):
     _LOGGER.warning("scan_xxxx() invoked - expect a lot of nonsense")
-    await scan_002(gwy, dev_id)
+    await scan_001(gwy, dev_id)
 
 
 async def scan_001(gwy, dev_id: str):
-    _LOGGER.warning("scan_0001() invoked - expect a lot of nonsense")
+    _LOGGER.warning("scan_001() invoked - expect a lot of nonsense")
 
     qos = {"priority": Priority.LOW, "retries": 3}
     for idx in range(0x10):
-        gwy.send_data(Command(" W", dev_id, "000E", f"{idx:02X}0050", qos=qos))
-        gwy.send_data(Command("RQ", dev_id, "000E", f"{idx:02X}00C8", qos=qos))
+        gwy.send_cmd(Command(" W", dev_id, "000E", f"{idx:02X}0050", qos=qos))
+        gwy.send_cmd(Command("RQ", dev_id, "000E", f"{idx:02X}00C8", qos=qos))
 
 
 async def scan_002(gwy, dev_id: str):
-    _LOGGER.warning("scan_0002() invoked - expect a lot of nonsense")
+    _LOGGER.warning("scan_002() invoked - expect a lot of nonsense")
 
     # Two modes, I and W & Two headers zz00 and zz
     message = "0000" + "".join([f"{ord(x):02X}" for x in "Hello there."]) + "00"
@@ -279,4 +271,12 @@ async def scan_002(gwy, dev_id: str):
     for code in [f"{c:04X}" for c in range(0x4000)]:
         if code in RAMSES_CODES:  # no need to test known codes
             continue
-        gwy.send_data(Command(" W", dev_id, code, message, qos=qos))
+        gwy.send_cmd(Command(" W", dev_id, code, message, qos=qos))
+
+
+async def scan_003(gwy, dev_id: str):
+    _LOGGER.warning("scan_003() invoked - expect a lot of nonsense")
+
+    qos = {"priority": Priority.LOW, "retries": 0}
+    for msg_id in range(0x100):
+        gwy.send_cmd(Command.get_opentherm_msg(dev_id, msg_id, qos=qos))

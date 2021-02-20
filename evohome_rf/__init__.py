@@ -17,11 +17,12 @@ import logging
 import os
 import signal
 from threading import Lock
-from typing import Callable, Dict, List, Tuple  # Any, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
+from .command import Command
 from .const import _dev_mode_, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
-from .message import process_msg
+from .message import Message, process_msg
 from .packet import _PKT_LOGGER as pkt_logger, set_pkt_logging
 from .protocol import create_msg_stack
 from .transport import POLLER_TASK, create_pkt_stack
@@ -30,6 +31,8 @@ from .schema import (
     load_schema,
     DISABLE_DISCOVERY,
     DONT_CREATE_MESSAGES,
+    LOG_ROTATE_BYTES,
+    LOG_ROTATE_COUNT,
     PACKET_LOG,
     REDUCE_PROCESSING,
     USE_NAMES,
@@ -73,6 +76,8 @@ class Gateway:
             pkt_logger,
             file_name=self.config.get(PACKET_LOG),
             cc_stdout=self.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES,
+            backup_count=self.config[LOG_ROTATE_COUNT],
+            max_bytes=self.config[LOG_ROTATE_BYTES],
         )
 
         self.pkt_protocol, self.pkt_transport = None, None
@@ -282,11 +287,26 @@ class Gateway:
         """Create a client protocol for the RAMSES-II message transport."""
         return create_msg_stack(self, msg_handler)
 
-    def send_data(self, data) -> asyncio.Task:
-        # TODO: validate data to be sent is cmd or !X
-        if self.msg_protocol:
-            task = self._loop.create_task(self.msg_protocol.send_data(data))
-        else:
-            raise RuntimeError("there is no message protocol client")
+    def send_cmd(
+        self, cmd: Command, callback: Callable = None, **kwargs
+    ) -> asyncio.Task:
+        """Send a command with the option to return any response via callback.
 
-        return task
+        Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
+        """
+        if not self.msg_protocol:
+            raise RuntimeError("there is no message protocol")
+        return self._loop.create_task(
+            self.msg_protocol.send_data(cmd, callback=callback, **kwargs)
+        )
+
+    async def async_send_cmd(
+        self, cmd: Command, awaitable: bool = True, **kwargs
+    ) -> Optional[Message]:
+        """Send a command with the option to return any response.
+
+        Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
+        """
+        if not self.msg_protocol:
+            raise RuntimeError("there is no message protocol")
+        return await self.msg_protocol.send_data(cmd, awaitable=awaitable, **kwargs)

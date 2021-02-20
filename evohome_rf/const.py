@@ -16,10 +16,6 @@ _dev_mode_ = False
 # grep ' F[89ABxDE]' | grep -vE ' (0008|1F09/F8|1FC9|2D49/FD) '
 # grep ' F[89ABCDE]' | grep -vE ' (0008|1F09/xx|1FC9|0001|0009|1100|3150|3B00) '
 
-HGI_DEV_ID = "18:000730"  # default type and address of HGI, 18:013393
-NON_DEV_ID = "--:------"
-NUL_DEV_ID = "63:262142"  # 7FFFFF - send here if not bound?
-
 Address = namedtuple("DeviceAddress", "id, type")
 
 
@@ -27,9 +23,31 @@ def id_to_address(device_id) -> Address:
     return Address(id=device_id, type=device_id[:2])
 
 
-HGI_DEVICE = id_to_address(HGI_DEV_ID)
-NON_DEVICE = id_to_address(NON_DEV_ID)
-NUL_DEVICE = id_to_address(NUL_DEV_ID)
+HGI_DEVICE_ID = "18:000730"  # default type and address of HGI, 18:013393
+NON_DEVICE_ID = "--:------"
+NUL_DEVICE_ID = "63:262142"  # 7FFFFF - send here if not bound?
+
+HGI_DEV_ADDR = id_to_address(HGI_DEVICE_ID)
+NON_DEV_ADDR = id_to_address(NON_DEVICE_ID)
+NUL_DEV_ADDR = id_to_address(NUL_DEVICE_ID)
+
+# ATTR_DEVICE_ID = "device_id"
+# ATTR_SENSOR_ID = "sensor_id"
+# ATTR_CTL_DEVICE_ID = "controller_id"
+# ATTR_DHW_SENSOR_ID = "sensor_id"
+# ATTR_HTG_DEVICE_ID = "heater_id"
+# ATTR_UFC_DEVICE_ID = "ufh_controller_id"
+# ATTR_RELAY_DEVICE_ID = "relay_id"
+
+ALL_DEVICE_ID = r"^[0-9]{2}:[0-9]{6}$"
+ZON_SENSOR_ID = r"^('01'|'03'|'04'|'12'|'22'|'34'):[0-9]{6}$"
+CTL_DEVICE_ID = r"^(01|23):[0-9]{6}$"
+DHW_SENSOR_ID = r"^07:[0-9]{6}$"
+GWY_DEVICE_ID = r"^18:[0-9]{6}$"
+HTG_DEVICE_ID = r"^(10|13):[0-9]{6}$"
+UFC_DEVICE_ID = r"^02:[0-9]{6}$"
+RLY_DEVICE_ID = r"^13:[0-9]{6}$"
+
 
 DEFAULT_MAX_ZONES = 12
 # Evohome: 12 (0-11), older/initial version was 8
@@ -296,6 +314,7 @@ DEVICE_TABLE = {
     "20": {"type": "VCE", "name": "HVAC?"},  # VCE-RF unit
     "32": {"type": "VMS", "name": "HVAC?"},  # sensor/switch
     "37": {"type": " 37", "name": "HVAC?"},  # VCE
+    "39": {"type": "VMS", "name": "HVAC?"},  # sensor/switch
     "49": {"type": " 49", "name": "HVAC?"},  # VCE switch
     # specials
     "63": {"type": "NUL", "name": "Null Device"},
@@ -399,7 +418,6 @@ DEVICE_ID_REGEX = re.compile(f"^{d}$")
 COMMAND_REGEX = re.compile(f"^{v} {r} {d} {d} {d} {c} {l} {p}$")
 MESSAGE_REGEX = re.compile(f"^{r} {v} {r} {d} {d} {d} {c} {l} {p}$")
 
-COMMAND_FORMAT = "{:<2} --- {} {} --:------ {} {:03d} {}"
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:8s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:8s} || {}"
 
@@ -418,6 +436,8 @@ ATTR_STORED_HW = "stored_hotwater"
 ATTR_SYSTEM = "system"
 ATTR_TEMP = "temperature"
 ATTR_UFH_CONTROLLERS = "ufh_controllers"
+ATTR_ZONE_ACTUATORS = "zone_actuators"
+ATTR_ZONE_IDX = "zone_idx"
 ATTR_ZONE_SENSOR = "sensor"
 ATTR_ZONE_TYPE = "heating_type"
 ATTR_ZONES = "zones"
