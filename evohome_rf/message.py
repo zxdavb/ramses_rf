@@ -247,7 +247,10 @@ class Message:
             )
             return self._is_expired
 
-        dtm_now = dt.now() if self._gwy.serial_port else self._gwy._prev_msg.dtm
+        if self._gwy.serial_port:
+            dtm_now = dt.now()
+        else:
+            dtm_now = self._gwy._prev_msg.dtm if self._gwy._prev_msg else self.dtm
 
         if self.dtm < dtm_now - timeout * 2:
             self._is_expired = self.HAS_EXPIRED
