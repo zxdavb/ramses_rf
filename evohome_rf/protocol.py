@@ -22,7 +22,7 @@ DEV_MODE = _dev_mode_
 WRITER_TASK = "writer_task"
 
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
+if False and DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
@@ -397,7 +397,7 @@ class MessageProtocol(asyncio.Protocol):
 
     def data_received(self, msg: Message) -> None:
         """Called by the transport when some data is received."""
-        _LOGGER.info("MsgProtocol.data_received(%s)", msg)  # or: use repr(msg)
+        _LOGGER.debug("MsgProtocol.data_received(%s)", msg)  # or: use repr(msg)
         self._callback(msg)
 
     async def send_data(
