@@ -33,6 +33,7 @@ from .schema import (
     ENFORCE_ALLOWLIST,
     ENFORCE_BLOCKLIST,
     EVOFW_FLAG,
+    SERIAL_CONFIG,
 )
 from .version import __version__
 
@@ -42,7 +43,7 @@ ERR_MSG_REGEX = re.compile(r"^([0-9A-F]{2}\.)+$")
 
 POLLER_TASK = "poller_task"
 
-SERIAL_CONFIG = {
+DEFAULT_SERIAL_CONFIG = {
     "baudrate": 115200,
     "timeout": 0,  # None
     "dsrdtr": False,
@@ -778,7 +779,10 @@ def create_pkt_stack(
         pkt_transport = SerTransportFile(gwy._loop, pkt_protocol, packet_log)
         return (pkt_protocol, pkt_transport)
 
-    ser_instance = serial_for_url(serial_port, **SERIAL_CONFIG)
+    serial_config = DEFAULT_SERIAL_CONFIG
+    serial_config.update(gwy.config[SERIAL_CONFIG])
+
+    ser_instance = serial_for_url(serial_port, **serial_config)
     if os.name == "posix":  # or use: NotImplementedError
         try:
             ser_instance.set_low_latency_mode(True)  # only for FTDI?
