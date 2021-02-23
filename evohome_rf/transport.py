@@ -402,9 +402,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 self._loop.create_task(self._send_data(data, ignore_pause=True))
 
             if DEV_MODE:  # TODO: deleteme
-                _PKT_LOGGER.debug(
-                    "Rx: %s", pkt_raw, extra=self._extra(dtm_str, pkt_raw)
-                )
+                _LOGGER.debug("Rx: %s", pkt_raw, extra=self._extra(dtm_str, pkt_raw))
 
             return dtm_str, self._normalise(pkt_str), pkt_raw
 
@@ -432,7 +430,7 @@ class PacketProtocolBase(asyncio.Protocol):
         ):
             await asyncio.sleep(0.005)
         if DEV_MODE:  # TODO: deleteme
-            _PKT_LOGGER.debug("Tx:     %s", data, extra=self._extra(dt_str(), data))
+            _LOGGER.debug("Tx:     %s", data, extra=self._extra(dt_str(), data))
 
         self._transport.write(data)
         # await asyncio.sleep(0.05)
@@ -450,8 +448,8 @@ class PacketProtocolBase(asyncio.Protocol):
             )
             return
 
-        self._sequence_no = (self._sequence_no + 1) % 1000
-        if self._qos_cmd.seqx == "---":
+        self._sequence_no = (self._sequence_no + 1) % 256
+        if False and self._qos_cmd.seqx == "---":
             self._qos_cmd.seqx = f"{self._sequence_no:03d}"
 
         if cmd.from_addr.type != "18":
@@ -703,8 +701,8 @@ class PacketProtocolQos(PacketProtocolBase):
         self._tx_retries = 0
         self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
 
-        self._sequence_no = (self._sequence_no + 1) % 1000
-        if self._qos_cmd.seqx == "---":
+        self._sequence_no = (self._sequence_no + 1) % 256
+        if False and self._qos_cmd.seqx == "---":
             self._qos_cmd.seqx = f"{self._sequence_no:03d}"
 
         if cmd.from_addr.type != "18":
