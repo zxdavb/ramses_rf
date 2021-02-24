@@ -373,4 +373,7 @@ cli.add_command(execute)
 cli.add_command(listen)
 
 if __name__ == "__main__":
-    cli()
+    try:
+        cli()
+    except SystemExit:
+        pass
