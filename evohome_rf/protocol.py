@@ -20,6 +20,7 @@ from .schema import DISABLE_SENDING, DONT_CREATE_MESSAGES, REDUCE_PROCESSING
 DEV_MODE = _dev_mode_
 
 _LOGGER = logging.getLogger(__name__)
+_LOGGER.setLevel(logging.WARNING)  # TODO: needs fixing - this should be the default
 if DEV_MODE and False:
     _LOGGER.setLevel(logging.DEBUG)
 
@@ -161,6 +162,7 @@ class MessageTransport(asyncio.Transport):
         if not msg.is_valid:
             return
 
+        _LOGGER.info("MsgTransport._pkt_receiver(pkt): %s", msg)
         if msg._pkt._header in self._callbacks:  # 3rd, invoke any callback
             callback = self._callbacks[msg._pkt._header]
             callback["func"](msg, *callback.get("args", tuple()))
@@ -396,7 +398,8 @@ class MessageProtocol(asyncio.Protocol):
 
     def data_received(self, msg: Message) -> None:
         """Called by the transport when some data is received."""
-        # _LOGGER.info("MsgProtocol.data_received(%s)", msg)  # or: use repr(msg)
+        # NOTE: will get double-logging if >1 subscribers to msg transport
+        # _LOGGER.info("MsgProtocol.data_received(%s)", msg)  # or: use repr(msg)?
         self._callback(msg)
 
     async def send_data(
