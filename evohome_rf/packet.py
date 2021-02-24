@@ -59,8 +59,8 @@ LOG_COLOURS = {
     "CRITICAL": "bold_red",
 }  # default_log_colors
 
-_PKT_LOGGER = logging.getLogger(f"{__name__}_log")  # don't setLevel here
-_PKT_LOGGER.setLevel(logging.INFO)
+_PKT_LOGGER = logging.getLogger(f"{__name__}_log")
+# NOTE: cant _PKT_LOGGER.setLevel(logging.XXXX) here
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
