@@ -1595,7 +1595,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
     if msg.len == 3:  # usu: I -->20: (no seq#)
         return {
             **_idx(payload[:2], msg),
-            "fan_power": _percent(payload[4:6]),
+            "fan_power": _percent(payload[4:6]),  # NOTE: is 31DA/payload[38:40]
             "unknown_0": payload[2:4],
         }
 
@@ -1605,7 +1605,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
 
     return {
         **_idx(payload[:2], msg),
-        "fan_power": _percent(payload[4:6]),
+        "fan_power": _percent(payload[4:6]),  # NOTE: is 31DA/payload[38:40]
         "unknown_0": payload[2:4],
         "unknown_2": payload[6:8],
         "unknown_3": payload[8:32],
@@ -1628,7 +1628,7 @@ def parser_31da(payload, msg) -> Optional[dict]:
 
     return {
         **_idx(payload[:2], msg),
-        "fan_speed": _percent(payload[38:40]),
+        "fan_power": _percent(payload[38:40]),  # NOTE: is 31D9/payload[4:6]
         "relative_humidity": rh,
         "minutes": int(payload[44:46], 16),
         "unknown_3": payload[36:38],
