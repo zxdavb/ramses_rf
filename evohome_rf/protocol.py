@@ -19,10 +19,8 @@ from .schema import DISABLE_SENDING, DONT_CREATE_MESSAGES, REDUCE_PROCESSING
 
 DEV_MODE = _dev_mode_
 
-WRITER_TASK = "writer_task"
-
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
+if DEV_MODE and False:
     _LOGGER.setLevel(logging.DEBUG)
 
 
@@ -72,6 +70,7 @@ class MessageTransport(asyncio.Transport):
 
     MAX_BUFFER_SIZE = 200
     MAX_SUBSCRIBERS = 3
+    WRITER_TASK = "writer_task"
 
     def __init__(self, gwy, protocol, extra=None):
         _LOGGER.debug("MsgTransport.__init__()")
@@ -131,9 +130,9 @@ class MessageTransport(asyncio.Transport):
             [p.connection_lost(None) for p in self._protocols]
 
         self._dispatcher = dispatcher
-        self._extra[WRITER_TASK] = self._loop.create_task(pkt_dispatcher())
+        self._extra[self.WRITER_TASK] = self._loop.create_task(pkt_dispatcher())
 
-        return self._extra[WRITER_TASK]
+        return self._extra[self.WRITER_TASK]
 
     def _pkt_receiver(self, pkt):
         _LOGGER.debug("MsgTransport._pkt_receiver(%s)", pkt)
@@ -397,7 +396,7 @@ class MessageProtocol(asyncio.Protocol):
 
     def data_received(self, msg: Message) -> None:
         """Called by the transport when some data is received."""
-        _LOGGER.info("MsgProtocol.data_received(%s)", msg)  # or: use repr(msg)
+        # _LOGGER.info("MsgProtocol.data_received(%s)", msg)  # or: use repr(msg)
         self._callback(msg)
 
     async def send_data(
