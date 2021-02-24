@@ -40,9 +40,8 @@ class MakeCallbackAwaitable:
             self._loop.call_soon_threadsafe(self._queue.put_nowait, args)
 
         async def getter(timeout=self.DEFAULT_TIMEOUT) -> Tuple:
-            dt_expired = dt.now() + td(
-                seconds=self.DEFAULT_TIMEOUT if timeout is None else timeout
-            )
+            timeout = self.DEFAULT_TIMEOUT if timeout is None else timeout
+            dt_expired = dt.now() + td(seconds=timeout)
             while dt.now() < dt_expired:
                 try:
                     return self._queue.get_nowait()
@@ -423,8 +422,7 @@ class MessageProtocol(asyncio.Protocol):
         self._transport.write(cmd)
 
         if awaitable:
-            timeout = kwargs.get("timeout", MakeCallbackAwaitable.DEFAULT_TIMEOUT)
-            result = await awaitable(timeout=timeout)  # may: raise TimeoutError
+            result = await awaitable(timeout=kwargs.get("timeout"))  # may: TimeoutError
             return result[0]  # a Message (or None/False?)
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
