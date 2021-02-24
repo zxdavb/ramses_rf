@@ -45,11 +45,9 @@ class MakeCallbackAwaitable:
             )
             while dt.now() < dt_expired:
                 try:
-                    result = self._queue.get_nowait()
+                    return self._queue.get_nowait()
                 except Empty:
                     await asyncio.sleep(0.005)
-                else:
-                    return result
             raise TimeoutError
 
         return getter, putter  # awaitable, callback
