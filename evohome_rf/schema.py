@@ -73,6 +73,7 @@ INPUT_FILE = "input_file"
 MAX_ZONES = "max_zones"
 PACKET_LOG = "packet_log"
 REDUCE_PROCESSING = "reduce_processing"
+SERIAL_CONFIG = "serial_config"
 SERIAL_PORT = "serial_port"
 SER2NET_RELAY = "ser2net_relay"
 USE_NAMES = "use_names"  # use friendly device names from allow_list
@@ -87,9 +88,19 @@ DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
 DONT_UPDATE_ENTITIES = 1
 
+SERIAL_CONFIG_SCHEMA = vol.Schema(
+    {
+        vol.Optional("baudrate", default=115200): vol.All(
+            vol.Coerce(int), vol.Range(min=0)
+        ),
+        vol.Optional("timeout", default=0): vol.Any(None, int),
+        vol.Optional("dsrdtr", default=False): bool,
+        vol.Optional("rtscts", default=False): bool,
+        vol.Optional("xonxoff", default=True): bool,
+    },
+)
 CONFIG_SCHEMA = vol.Schema(
     {
-        # vol.Optional(SERIAL_PORT): vol.Any(None, str),
         vol.Optional(DISABLE_SENDING, default=False): vol.Any(None, bool),
         vol.Optional(DISABLE_DISCOVERY, default=False): vol.Any(None, bool),
         vol.Optional(ENABLE_EAVESDROP, default=False): vol.Any(None, bool),
@@ -107,6 +118,7 @@ CONFIG_SCHEMA = vol.Schema(
     },
     extra=vol.ALLOW_EXTRA,
 )
+
 HTG_SCHEMA = vol.Schema(
     {
         vol.Optional(ATTR_HTG_RELAY, default=None): vol.Any(None, HTG_DEVICE_ID),
@@ -236,6 +248,8 @@ def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, list, list]:
         )
     elif serial_port is None:
         config[DISABLE_SENDING] = True
+
+    config[SERIAL_CONFIG] = SERIAL_CONFIG_SCHEMA(kwargs.get(SERIAL_CONFIG, {}))
 
     if config[DISABLE_SENDING]:
         config[DISABLE_DISCOVERY] = True

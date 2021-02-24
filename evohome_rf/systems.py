@@ -663,10 +663,6 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         self._heat_demand = None
         self._htg_control = None
 
-        self._dhw_sensor = None
-        self._dhw_valve = None
-        self._htg_valve = None
-
     def __repr__(self) -> str:
         return f"{self._ctl.id} (system)"
 
@@ -771,15 +767,9 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                     for code in ("0008", "3EF1"):
                         device._send_cmd(code, qos)
 
-        # if msg.code == "0009" and msg.verb in (" I", "RP"):
-        #     if "domain_id" in msg.payload:
-        #         self._relay_failsafes[msg.payload["domain_id"]] = msg
-
         if msg.code == "3150" and msg.verb in (" I", "RP"):
-            if "domain_id" in msg.payload:
-                self._heat_demands[msg.payload["domain_id"]] = msg
-                if msg.payload["domain_id"] == "FC":
-                    self._heat_demand = msg.payload
+            if "domain_id" in msg.payload and msg.payload["domain_id"] == "FC":
+                self._heat_demand = msg.payload
 
         # if msg.code in ("3220", "3B00", "3EF0"):  # self.heating_control is None and
         #     find_htg_relay(msg, prev=prev_msg)
@@ -825,21 +815,9 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         return self._get_msg_value("1100")
 
     @property
-    def relay_demands(self) -> Optional[dict]:  # 0008
-        if self._relay_demands:
-            return {
-                k: v.payload["relay_demand"] for k, v in self._relay_demands.items()
-            }
-
-    @property
     def heat_demand(self) -> Optional[float]:  # 3150/FC
         if self._heat_demand:
             return self._heat_demand["heat_demand"]
-
-    @property
-    def heat_demands(self) -> Optional[dict]:  # 3150
-        if self._heat_demands:
-            return {k: v.payload["heat_demand"] for k, v in self._heat_demands.items()}
 
     @property
     def is_calling_for_heat(self) -> Optional[bool]:
@@ -915,8 +893,6 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         # )
 
         status[ATTR_HTG_SYSTEM]["heat_demand"] = self.heat_demand
-        status[ATTR_HTG_SYSTEM]["heat_demands"] = self.heat_demands
-        status[ATTR_HTG_SYSTEM]["relay_demands"] = self.relay_demands
 
         status[ATTR_DEVICES] = {d.id: d.status for d in sorted(self._ctl.devices)}
 
@@ -949,6 +925,36 @@ class System(StoredHw, SysDatetime, SystemBase):  # , SysFaultLog
                 self._heat_demands[idx] = msg
             elif msg.code not in ("0001", "000C", "0418", "1100", "3B00"):
                 assert False, msg.code
+
+    @property
+    def heat_demands(self) -> Optional[dict]:  # 3150
+        if self._heat_demands:
+            return {k: v.payload["heat_demand"] for k, v in self._heat_demands.items()}
+
+    @property
+    def relay_demands(self) -> Optional[dict]:  # 0008
+        if self._relay_demands:
+            return {
+                k: v.payload["relay_demand"] for k, v in self._relay_demands.items()
+            }
+
+    @property
+    def relay_failsafes(self) -> Optional[dict]:  # 0009
+        if self._relay_failsafes:
+            return {}  # failsafe_enabled
+
+    @property
+    def status(self) -> dict:
+        """Return the system's current state."""
+
+        status = super().status
+        assert ATTR_HTG_SYSTEM in status  # TODO: removeme
+
+        status[ATTR_HTG_SYSTEM]["heat_demands"] = self.heat_demands
+        status[ATTR_HTG_SYSTEM]["relay_demands"] = self.relay_demands
+        status[ATTR_HTG_SYSTEM]["relay_failsafes"] = self.relay_failsafes
+
+        return status
 
 
 class Evohome(SysLanguage, SysMode, MultiZone, UfhSystem, System):  # evohome
@@ -995,8 +1001,15 @@ class Programmer(Evohome):
         return f"{self._ctl.id} (programmer)"
 
 
+class Hometronics(System):
+    RQ_SUPPORTED = ("0004", "000C", "2E04", "313F")  # TODO: WIP
+    RQ_UNSUPPORTED = ("xxxx",)  # 10E0?
+
+    def __repr__(self) -> str:
+        return f"{self._ctl.id} (hometronics)"
+
+
 # class Chronotherm(System):
-# class Hometronics(System):
 # class Sundial(System):
 # class Cm927(System):
 #     def __init__(self, gwy, ctl, synchronizer=False, **kwargs) -> None:

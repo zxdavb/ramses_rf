@@ -26,11 +26,11 @@ if DEV_MODE and False:
 
 
 class MakeCallbackAwaitable:
-    def __init__(self, loop, timeout=None):
+    DEFAULT_TIMEOUT = 3  # in seconds
+
+    def __init__(self, loop):
         self._loop = loop if loop else asyncio.get_event_loop()
-        self._timeout = timeout if timeout else 3
         self._queue = None
-        self._result = None
 
     async def create_pair(self) -> Tuple[Callable, Callable]:
         self._queue = SimpleQueue()  # maxsize=1)
@@ -38,15 +38,14 @@ class MakeCallbackAwaitable:
         def putter(*args):  # callback
             self._loop.call_soon_threadsafe(self._queue.put_nowait, args)
 
-        async def getter(timeout=None) -> Tuple:
-            dt_expired = dt.now() + td(seconds=3 if timeout is None else timeout)
+        async def getter(timeout=self.DEFAULT_TIMEOUT) -> Tuple:
+            timeout = self.DEFAULT_TIMEOUT if timeout is None else timeout
+            dt_expired = dt.now() + td(seconds=timeout)
             while dt.now() < dt_expired:
                 try:
-                    self._result = self._queue.get_nowait()
+                    return self._queue.get_nowait()
                 except Empty:
                     await asyncio.sleep(0.005)
-                else:
-                    return self._result
             raise TimeoutError
 
         return getter, putter  # awaitable, callback
@@ -425,8 +424,8 @@ class MessageProtocol(asyncio.Protocol):
         self._transport.write(cmd)
 
         if awaitable:
-            result = await awaitable(timeout=4)  # may: raise TimeoutError
-            return result[0]
+            result = await awaitable(timeout=kwargs.get("timeout"))  # may: TimeoutError
+            return result[0]  # a Message (or None/False?)
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
