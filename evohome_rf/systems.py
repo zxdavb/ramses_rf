@@ -1003,7 +1003,7 @@ class Programmer(Evohome):
 
 class Hometronics(System):
     RQ_SUPPORTED = ("0004", "000C", "2E04", "313F")  # TODO: WIP
-    RQ_UNSUPPORTED = ("xxxx")  # 10E0?
+    RQ_UNSUPPORTED = ("xxxx",)  # 10E0?
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (hometronics)"
