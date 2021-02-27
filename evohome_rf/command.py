@@ -517,14 +517,16 @@ class Command:
             I 056 --:------ --:------ 02:123456 99FD 003 000404
         """
         cmd = cls(verb, NUL_DEV_ADDR.id, code, payload, **kwargs)
-        if seqx is not None:
-            cmd.seqx = f"{seqx:03d}"
+        if seqx in ("", "-", "-", "---"):
+            cmd.seqx = "---"
+        elif seqx is not None:
+            cmd.seqx = f"{int(seqx):03d}"
 
         cmd.from_addr, cmd.dest_addr, cmd.addrs = extract_addrs(
             f"{addr0} {addr1} {addr2}"
         )
 
-        cmd.self._is_valid = None
+        cmd._is_valid = None
         if not cmd.is_valid:
             raise ValueError(f"Invalid parameter values for command: {cmd}")
 
