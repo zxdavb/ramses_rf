@@ -134,10 +134,8 @@ DHW_SCHEMA = vol.Schema(
 UFC_CIRCUIT = vol.Schema(
     {
         vol.Required(UFH_IDX): vol.Any(
-            {
-                vol.Optional(ATTR_ZONE_IDX): vol.Any(ZONE_IDX),
-            },
-        )
+            {vol.Optional(ATTR_ZONE_IDX): vol.Any(ZONE_IDX)}
+        ),
     }
 )
 UFH_SCHEMA = vol.Schema(

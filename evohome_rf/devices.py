@@ -273,7 +273,6 @@ class Actuator:  # 3EF0, 3EF1
             **super().status,
             "actuator_cycle": self.actuator_cycle,
             "actuator_state": self.actuator_state,
-            "enabled": self.enabled,
         }
 
 
@@ -452,7 +451,7 @@ class Device(DeviceInfo, DeviceBase):
         if self._zone is not None:
             if self._zone is not zone:
                 raise CorruptStateError(
-                    f"Device {self} has a mismatched parent zone: "
+                    f"Device {self} appears claimed by multiple parent zones: "
                     f"old={self._zone}, new={zone}"
                 )
             return
@@ -518,7 +517,7 @@ class Device(DeviceInfo, DeviceBase):
         return {}
 
 
-# 01:
+# CTL: 01:
 class Controller(Device):
     """The Controller base class."""
 
@@ -542,7 +541,7 @@ class Controller(Device):
             self._send_cmd("0016", retries=3)  # rf_check
 
 
-# 02: "10E0", "3150";; "0008", "22C9", "22D0"
+# UFC: 02: "10E0", "3150";; "0008", "22C9", "22D0"
 class UfhController(Device):
     """The UFC class, the HCE80 that controls the UFH zones."""
 
@@ -671,7 +670,7 @@ class UfhController(Device):
         }
 
 
-# 07: "1260" "10A0" (and "1060")
+# DHW: 07: "1260" "10A0" (and "1060")
 class DhwSensor(BatteryState, Device):
     """The DHW class, such as a CS92."""
 
@@ -704,7 +703,7 @@ class DhwSensor(BatteryState, Device):
     def params(self) -> dict:
         return {
             **super().params,
-            "dhw_params": self.dhw_params,
+            # "dhw_params": self.dhw_params,  # TODO
         }
 
     @property
@@ -715,7 +714,7 @@ class DhwSensor(BatteryState, Device):
         }
 
 
-# 10: "10E0", "3EF0", "3150";; "22D9", "3220" ("1FD4"), TODO: 3220
+# OTB: 10: "10E0", "3EF0", "3150";; "22D9", "3220" ("1FD4"), TODO: 3220
 class OtbGateway(Actuator, Device):
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
@@ -765,7 +764,7 @@ class OtbGateway(Actuator, Device):
             # 13 - DHW flow rate (litres/minute)
             # 19 - Boiler water temperature
             # 1A - DHW temperature
-            for msg_id in ("0005", "0011", "0012", "8013", "8019", "801A"):
+            for msg_id in ("0005", "0011", "0012", "8013", "8019", "801A", "001B"):
                 self._send_cmd("3220", payload=f"00{msg_id}0000")
             # 1C - Return water temperature
             # 73 - OEM diagnostic code
@@ -865,7 +864,7 @@ class OtbGateway(Actuator, Device):
         }
 
 
-# 03/12/22/34: 1060/2309/30C9;; (03/22: 0008/0009/3EF1, 2349?) (34: 000A/10E0/3120)
+# STA: 03/12/22/34: 1060/2309/30C9;; (03/22: 0008/0009/3EF1, 2349?) (34: 000A/10E0/3120)
 class Thermostat(BatteryState, Setpoint, Temperature, Device):
     """The THM/STA class, such as a TR87RF."""
 
@@ -873,7 +872,7 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):
         super()._handle_msg(msg)
 
 
-# 13: 0008/1100/3B00/3EF0/3EF1
+# BDR: 13: 0008/1100/3B00/3EF0/3EF1
 class BdrSwitch(Actuator, Device):
     """The BDR class, such as a BDR91.
 
@@ -990,6 +989,7 @@ class BdrSwitch(Actuator, Device):
         }
 
 
+# TRV: 00/04:
 class TrvActuator(BatteryState, Setpoint, Temperature, Device):
     """The TRV class, such as a HR92."""
 
@@ -1025,9 +1025,46 @@ class TrvActuator(BatteryState, Setpoint, Temperature, Device):
     def status(self) -> dict:
         return {
             **super().status,
-            "enabled": self.enabled,
             "heat_demand": self.heat_demand,
             "window_state": self.window_state,
+        }
+
+
+# FAN: 39:
+class FanSwitch(BatteryState, Device):
+    """The FAN (switch) class, such as a 4-way switch."""
+
+    DEVICE_CLASS = "SWI"
+    DEVICE_TYPES = ("39",)
+
+    BOOST_TIMER = "boost_timer"  # e.g. 10, 20, 30 minutes
+    HEATER_MODE = "heater_mode"  # e.g. auto, off
+    HEATER_MODES = {9: "off", 10: "auto"}  # TODO:
+
+    FAN_MODE = "fan_mode"  # e.g. low. high
+    FAN_MODES = {
+        0: "standby",
+        1: "auto",
+        2: "low",
+        3: "medium",
+        4: "high",  # a.k.a. boost if timer on
+    }
+    FAN_RATE = "fan_rate"  # 0.0 - 1.0
+
+    @property
+    def fan_mode(self) -> Optional[float]:
+        return self._msg_payload(self._msgs["22F1"], self.FAN_MODE)
+
+    @property
+    def boost_timer(self) -> Optional[bool]:
+        return self._msg_payload(self._msgs["22F3"], self.BOOST_TIMER)
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            self.FAN_MODE: self.fan_mode,
+            self.BOOST_TIMER: self.boost_timer,
         }
 
 
@@ -1040,6 +1077,7 @@ DEVICE_KLASS_TO_CLASS = {
     "DHW": DhwSensor,
     "OTB": OtbGateway,
     "BDR": BdrSwitch,
+    "SWI": FanSwitch,
 }
 DEVICE_TYPE_TO_KLASS = {
     "00": "TRV",
@@ -1054,6 +1092,7 @@ DEVICE_TYPE_TO_KLASS = {
     "22": "THM",
     "23": "PRG",
     "34": "THM",
+    "39": "SWI",
 }
 DEVICE_CLASSES = {
     k1: v2

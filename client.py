@@ -291,15 +291,18 @@ async def main(lib_kwargs, **kwargs):
             print(f"Schema[gateway] = {json.dumps(gwy.schema)}\r\n")
             print(f"Params[gateway] = {json.dumps(gwy.params)}\r\n")
             print(f"Status[gateway] = {json.dumps(gwy.status)}")
+            return
 
-        else:
-            print(
-                f"Schema[{repr(gwy.evo)}] = {json.dumps(gwy.evo.schema, indent=4)}\r\n"
-            )
-            print(
-                f"Params[{repr(gwy.evo)}] = {json.dumps(gwy.evo.params, indent=4)}\r\n"
-            )
-            print(f"Status[{repr(gwy.evo)}] = {json.dumps(gwy.evo.status, indent=4)}")
+        print(f"Schema[{repr(gwy.evo)}] = {json.dumps(gwy.evo.schema, indent=4)}\r\n")
+        print(f"Params[{repr(gwy.evo)}] = {json.dumps(gwy.evo.params, indent=4)}\r\n")
+        print(f"Status[{repr(gwy.evo)}] = {json.dumps(gwy.evo.status, indent=4)}\r\n")
+
+        orphans = {
+            "orphans": {
+                d.id: d.status for d in sorted(gwy.devices) if d not in gwy.evo.devices
+            }
+        }
+        print(f"Status[gateway] = {json.dumps(orphans, indent=4)}")
 
     def process_message(msg) -> None:
         dtm = msg.dtm if kwargs["long_dates"] else f"{msg.dtm:%H:%M:%S.%f}"[:-3]

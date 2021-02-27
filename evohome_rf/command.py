@@ -620,7 +620,7 @@ class FaultLog:  # 0418
 
         rq_callback = {"func": rq_callback, "timeout": 10}
         self._gwy.send_cmd(
-            Command.get_system_log_entry(self._ctl.id, log_idx, callback=rq_callback),
+            Command.get_system_log_entry(self._ctl.id, log_idx, callback=rq_callback)
         )
 
 
