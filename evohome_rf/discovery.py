@@ -6,11 +6,21 @@
 import asyncio
 import json
 import logging
+import re
 from typing import Any, List
 
 from .command import Command, Priority
-from .const import _dev_mode_, CODE_SCHEMA, DEVICE_TABLE, Address
+from .const import (
+    _dev_mode_,
+    ALL_DEVICE_ID,
+    CODE_SCHEMA,
+    DEVICE_TABLE,
+    HGI_DEV_ADDR,
+    NON_DEV_ADDR,
+    Address,
+)
 from .exceptions import ExpiredCallbackError
+from .helpers import extract_addrs
 from .ramses import RAMSES_CODES
 
 EXECUTE_CMD = "execute_cmd"
@@ -23,6 +33,8 @@ SCAN_FULL = "scan_full"
 SCAN_HARD = "scan_hard"
 SCAN_XXXX = "scan_xxxx"
 
+DEVICE_ID_REGEX = re.compile(ALL_DEVICE_ID)
+
 
 DEV_MODE = _dev_mode_
 
@@ -33,14 +45,37 @@ if DEV_MODE:
 
 def spawn_execute_cmd(gwy, **kwargs):
     if kwargs.get(EXECUTE_CMD):  # e.g. "RQ 01:145038 1F09 00"
-        cmd = kwargs[EXECUTE_CMD]
+        cmd = kwargs[EXECUTE_CMD].split()
+
+        verb = cmd.pop(0)
+        seqn = "---" if DEVICE_ID_REGEX.match(cmd[0]) else cmd.pop(0)
+
+        payload = cmd.pop()
+        code = cmd.pop()
+
+        if len(cmd) == 1:
+            addrs = extract_addrs(f"{HGI_DEV_ADDR.id} {cmd[0]} {NON_DEV_ADDR.id}")[2]
+        elif len(cmd) == 2:
+            addrs = extract_addrs(f"{cmd[0]} {cmd[1]} {NON_DEV_ADDR.id}")[2]
+        elif len(cmd) == 3:
+            addrs = extract_addrs(f"{cmd[0]} {cmd[1]} {cmd[2]}")[2]
+        else:
+            _LOGGER.warning(
+                "Execute: Command is invalid, and will be ignored: '%s'",
+                kwargs[EXECUTE_CMD],
+            )
+            return
 
         qos = {"priority": Priority.HIGH, "retries": 3}
         try:
-            cmd = Command(cmd[:2], cmd[3:12], cmd[13:17], cmd[18:], qos=qos)
+            cmd = Command.packet(
+                verb, seqn, *[a.id for a in addrs], code, payload, qos=qos
+            )
         except ValueError as err:
             _LOGGER.warning(
-                "Execute: Command is invalid, and will be ignored: '%s' (%s)", cmd, err
+                "Execute: Command is invalid, and will be ignored: '%s' (%s)",
+                kwargs[EXECUTE_CMD],
+                err,
             )
         else:
             gwy.send_cmd(cmd)
