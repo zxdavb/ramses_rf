@@ -38,6 +38,7 @@ from .helpers import (
     str_to_hex,
     temp_to_hex,
 )
+from .opentherm import parity
 
 # from .ramses import RAMSES_CODES
 
@@ -333,9 +334,10 @@ class Command:
 
     @classmethod  # constructor for RQ/3220  # TODO
     def get_opentherm_msg(cls, dev_id, msg_id, **kwargs):
-        """Constructor to get opentherm msg value (c.f. parser_3220)."""
+        """Constructor to get (Read-Data) opentherm msg value (c.f. parser_3220)."""
         msg_id = msg_id if isinstance(msg_id, int) else int(msg_id, 16)
-        return cls("RQ", dev_id, "3220", f"0000{msg_id:02X}0000", **kwargs)
+        payload = f"0080{msg_id:02X}0000" if parity(msg_id) else f"0000{msg_id:02X}0000"
+        return cls("RQ", dev_id, "3220", payload, **kwargs)
 
     @classmethod  # constructor for RQ/313F
     def get_system_time(cls, ctl_id, **kwargs):
