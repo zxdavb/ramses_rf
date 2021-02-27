@@ -718,6 +718,8 @@ class DhwSensor(BatteryState, Device):
 class OtbGateway(Actuator, Device):
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
+    # see: https://www.opentherm.eu/request-details/?post_ids=2944
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -728,48 +730,35 @@ class OtbGateway(Actuator, Device):
         self._opentherm_msg = {}
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        # 086 RQ --- 01:123456 63:262143 --:------ 3220 005 0000050000
-        # 049 RP --- 63:262143 01:123456 --:------ 3220 005 00F0050000
-        # 092 RQ --- 01:123456 63:262143 --:------ 3220 005 0000110000
-        # 049 RP --- 63:262143 01:123456 --:------ 3220 005 00C0110000
-        # 082 RQ --- 01:123456 63:262143 --:------ 3220 005 0000120000
-        # 076 RQ --- 01:123456 63:262143 --:------ 3220 005 0000120000
-        # 049 RP --- 63:262143 01:123456 --:------ 3220 005 0040120166
-        # 075 RQ --- 01:123456 63:262143 --:------ 3220 005 0080130000
-        # 049 RP --- 63:262143 01:123456 --:------ 3220 005 0070130000
-        # 074 RQ --- 01:123456 63:262143 --:------ 3220 005 0080190000
-        # 049 RP --- 63:262143 01:123456 --:------ 3220 005 00401929E6
-        # 072 RQ --- 01:123456 63:262143 --:------ 3220 005 00801A0000
-        # 048 RP --- 63:262143 01:123456 --:------ 3220 005 00401A3033
-        # 073 RQ --- 01:123456 63:262143 --:------ 3220 005 00801C0000
-        # 049 RP --- 63:262143 01:123456 --:------ 3220 005 00401C29B3
-        # 074 RQ --- 01:123456 63:262143 --:------ 3220 005 0080730000
-        # 048 RP --- 63:262143 01:123456 --:------ 3220 005 00407300CC
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_SCHEMA:
-            # TODO: From OT v2.2: version numbers
-            for msg_id in range(124, 128):
-                self._send_cmd("3220", payload=f"0000{msg_id:02X}0000")
+            for msg_id in range(0x7C, 0x80):  # From OT v2.2: version numbers
+                self._send_cmd(Command.get_opentherm_msg(self.ctl.id, msg_id))
 
         if discover_flag & DISCOVER_PARAMS:
             pass
 
         if discover_flag & DISCOVER_STATUS:  # TODO: these need to be periodic
-            # From OT v2.2, these are mandatory: 00, 01, 03, 0E, 11, 19
-            # From evohome:
+            # From OT v2.2, these are mandatory: 00, 01, 03, 0E, 11, 19...
+            msg_ids = {0x00, 0x01, 0x03, 0x0E, 0x11, 0x19}
+
+            # and, From evohome: 05, 11, 12, 13, 19, 1A...
+            msg_ids |= {0x05, 0x11, 0x12, 0x13, 0x19, 0x1A}
             # 05 - Fault flags & OEM fault code
             # 11 - Relative modulation level
             # 12 - Central heating water pressure
             # 13 - DHW flow rate (litres/minute)
             # 19 - Boiler water temperature
             # 1A - DHW temperature
-            for msg_id in ("0005", "0011", "0012", "8013", "8019", "801A", "001B"):
-                self._send_cmd("3220", payload=f"00{msg_id}0000")
+
+            # and, others...
+            msg_ids |= {0x1B, 0x1C, 0x73}
+            # 1B - Outside temperature
             # 1C - Return water temperature
             # 73 - OEM diagnostic code
-            for msg_id in ("801C", "8073"):
-                self._send_cmd("3220", payload=f"00{msg_id}0000")
+            for msg_id in msg_ids:
+                self._send_cmd(Command.get_opentherm_msg(self.ctl.id, msg_id))
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
