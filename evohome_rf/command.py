@@ -275,6 +275,12 @@ class Command:
 
         return cls(" W", ctl_id, "10A0", payload, **kwargs)
 
+    @classmethod  # constructor for RQ/0404  # TODO
+    def get_dhw_schedule_fragment(cls, ctl_id, frag_idx, frag_cnt, **kwargs):
+        """Constructor to get a DHW schedule fragment (c.f. parser_0404)."""
+        payload = f"0023000800{frag_idx + 1:02X}{frag_cnt:02X}"
+        return cls("RQ", ctl_id, "0404", payload, **kwargs)
+
     @classmethod  # constructor for 1030  # TODO
     def set_mix_valve_params(
         cls,
@@ -350,6 +356,11 @@ class Command:
         #  W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
 
         return cls(" W", ctl_id, "313F", f"006000{dtm_to_hex(datetime)}", **kwargs)
+
+    @classmethod  # constructor for RQ/1100  # TODO
+    def get_tpi_params(cls, ctl_id, **kwargs):
+        """Constructor to get the TPI params of a system (c.f. parser_1100)."""
+        return cls("RQ", ctl_id, "1100", "FC", **kwargs)
 
     @classmethod  # constructor for 1100  # TODO
     def set_tpi_params(
@@ -495,6 +506,13 @@ class Command:
 
         return cls(" W", ctl_id, "2309", payload, **kwargs)
 
+    @classmethod  # constructor for RQ/0404  # TODO
+    def get_zone_schedule_fragment(cls, ctl_id, zone_idx, frag_idx, frag_cnt, **kwargs):
+        """Constructor to get a zone schedule fragment (c.f. parser_0404)."""
+        zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
+        payload = f"{zone_idx:02X}20000800{frag_idx + 1:02X}{frag_cnt:02X}"
+        return cls("RQ", ctl_id, "0404", payload, **kwargs)
+
     @classmethod
     def _puzzle(cls, message=None, ordinal=0, interval=0, length=None, **kwargs):
 
@@ -518,8 +536,10 @@ class Command:
         For example:
             I 056 --:------ --:------ 02:123456 99FD 003 000404
         """
+        verb = " I" if verb == "I" else " W" if verb == "W" else verb
+
         cmd = cls(verb, NUL_DEV_ADDR.id, code, payload, **kwargs)
-        if seqx in ("", "-", "-", "---"):
+        if seqx in ("", "-", "--", "---"):
             cmd.seqx = "---"
         elif seqx is not None:
             cmd.seqx = f"{int(seqx):03d}"
@@ -758,11 +778,11 @@ class Schedule:  # 0404
         # 059 RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0304
         # 046 RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0304 6BE...
 
-        payload = f"{self.idx}20000800{frag_idx + 1:02X}{frag_cnt:02X}"  # DHW: 23000800
         rq_callback = {"func": rq_callback, "timeout": 1}
-        self._gwy.send_cmd(
-            Command("RQ", self._ctl.id, "0404", payload, callback=rq_callback)
+        cmd = Command.get_zone_schedule_fragment(
+            self._ctl.id, self.idx, frag_idx, frag_cnt, callback=rq_callback
         )
+        self._gwy.send_cmd(cmd)
 
     @staticmethod
     def _frags_to_sched(frags: list) -> dict:

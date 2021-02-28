@@ -20,7 +20,6 @@ from .const import (
     Address,
 )
 from .exceptions import ExpiredCallbackError
-from .helpers import extract_addrs
 from .ramses import RAMSES_CODES
 
 EXECUTE_CMD = "execute_cmd"
@@ -44,41 +43,40 @@ if DEV_MODE:
 
 
 def spawn_execute_cmd(gwy, **kwargs):
-    if kwargs.get(EXECUTE_CMD):  # e.g. "RQ 01:145038 1F09 00"
-        cmd = kwargs[EXECUTE_CMD].split()
+    if not kwargs.get(EXECUTE_CMD):  # e.g. "RQ 01:145038 1F09 00"
+        _LOGGER.warning("Execute: Command is invalid: '%s'", kwargs[EXECUTE_CMD])
+        return
 
-        verb = cmd.pop(0)
-        seqn = "---" if DEVICE_ID_REGEX.match(cmd[0]) else cmd.pop(0)
+    cmd = kwargs[EXECUTE_CMD].upper().split()
+    if len(cmd) < 4:
+        _LOGGER.warning("Execute: Command is invalid: '%s'", kwargs[EXECUTE_CMD])
+        return
 
-        payload = cmd.pop()
-        code = cmd.pop()
+    verb = cmd.pop(0)
+    seqn = "---" if DEVICE_ID_REGEX.match(cmd[0]) else cmd.pop(0)
+    payload = cmd.pop()
+    code = cmd.pop()
 
-        if len(cmd) == 1:
-            addrs = extract_addrs(f"{HGI_DEV_ADDR.id} {cmd[0]} {NON_DEV_ADDR.id}")[2]
-        elif len(cmd) == 2:
-            addrs = extract_addrs(f"{cmd[0]} {cmd[1]} {NON_DEV_ADDR.id}")[2]
-        elif len(cmd) == 3:
-            addrs = extract_addrs(f"{cmd[0]} {cmd[1]} {cmd[2]}")[2]
-        else:
-            _LOGGER.warning(
-                "Execute: Command is invalid, and will be ignored: '%s'",
-                kwargs[EXECUTE_CMD],
-            )
-            return
+    if not 0 < len(cmd) < 4:
+        _LOGGER.warning("Execute: Command is invalid: '%s'", kwargs[EXECUTE_CMD])
+        return
+    elif len(cmd) == 1:
+        addrs = (HGI_DEV_ADDR.id, cmd[0], NON_DEV_ADDR.id)
+    elif len(cmd) == 3:
+        addrs = (cmd[0], cmd[1], cmd[2])
+    elif cmd[0] == cmd[1]:
+        addrs = (cmd[0], NON_DEV_ADDR.id, cmd[1])
+    else:
+        addrs = (cmd[0], cmd[1], NON_DEV_ADDR.id)
 
-        qos = {"priority": Priority.HIGH, "retries": 3}
-        try:
-            cmd = Command.packet(
-                verb, seqn, *[a.id for a in addrs], code, payload, qos=qos
-            )
-        except ValueError as err:
-            _LOGGER.warning(
-                "Execute: Command is invalid, and will be ignored: '%s' (%s)",
-                kwargs[EXECUTE_CMD],
-                err,
-            )
-        else:
-            gwy.send_cmd(cmd)
+    qos = {"priority": Priority.HIGH, "retries": 3}
+    try:
+        cmd = Command.packet(verb, seqn, *addrs, code, payload, qos=qos)
+    except ValueError as err:
+        _LOGGER.warning(
+            "Execute: Command is invalid: '%s' (%s)", kwargs[EXECUTE_CMD], err,
+        )
+    gwy.send_cmd(cmd)
 
 
 def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
@@ -216,8 +214,14 @@ def poll_device(gwy, dev_id) -> List[Any]:
 async def scan_disc(gwy, dev_id: str):
     _LOGGER.warning("scan_quick() invoked...")
 
+    qos = {"priority": Priority.HIGH, "retries": 3}
+    gwy.send_cmd(Command._puzzle(message="discovery scan: begins...", qos=qos))
+
     device = gwy._get_device(Address(id=dev_id, type=dev_id[:2]))  # not always a CTL
     device._discover()  # discover_flag=DISCOVER_ALL)
+
+    qos = {"priority": Priority.LOW, "retries": 3}
+    gwy.send_cmd(Command._puzzle(message="discovery scan: ended.", qos=qos))
 
 
 async def scan_full(gwy, dev_id: str):
@@ -247,17 +251,17 @@ async def scan_full(gwy, dev_id: str):
 
         elif code == "0418":
             for log_idx in range(2):
-                gwy.send_cmd(Command("RQ", dev_id, code, f"{log_idx:06X}", qos=qos))
+                gwy.send_cmd(Command.get_system_log_entry(dev_id, log_idx, qos=qos))
 
         elif code == "1100":
-            gwy.send_cmd(Command("RQ", dev_id, code, "FC", qos=qos))
+            gwy.send_cmd(Command.get_tpi_params(dev_id, qos=qos))
 
         elif code == "2E04":
-            gwy.send_cmd(Command("RQ", dev_id, code, "FF", qos=qos))
+            gwy.send_cmd(Command.get_system_mode(dev_id, qos=qos))
 
         elif code == "3220":
-            for data_id in ("00", "03"):  # these are mandatory READ_DATA data_ids
-                gwy.send_cmd(Command("RQ", dev_id, code, f"0000{data_id}0000", qos=qos))
+            for data_id in (0, 3):  # these are mandatory READ_DATA data_ids
+                gwy.send_cmd(Command.get_opentherm_msg(dev_id, data_id, qos=qos))
 
         elif code in CODE_SCHEMA and CODE_SCHEMA[code].get("rq_len"):
             rq_len = CODE_SCHEMA[code].get("rq_len") * 2
@@ -278,9 +282,15 @@ async def scan_full(gwy, dev_id: str):
 async def scan_hard(gwy, dev_id: str):
     _LOGGER.warning("scan_deep() invoked - expect some Warnings")
 
+    qos = {"priority": Priority.HIGH, "retries": 3}
+    gwy.send_cmd(Command._puzzle(message="hard scan: begins...", qos=qos))
+
     qos = {"priority": Priority.LOW, "retries": 0}
     for code in range(0x4000):
         gwy.send_cmd(Command("RQ", dev_id, f"{code:04X}", "0000", qos=qos))
+
+    qos = {"priority": Priority.LOW, "retries": 3}
+    gwy.send_cmd(Command._puzzle(message="hard scan: ended.", qos=qos))
 
 
 async def scan_xxxx(gwy, dev_id: str):

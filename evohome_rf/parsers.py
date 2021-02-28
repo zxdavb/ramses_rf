@@ -682,7 +682,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # unknown, from STA
 def parser_000e(payload, msg) -> Optional[dict]:
-    assert payload == "000014"  # rarely, from STA:xxxxxx
+    assert payload in ("000000", "000014")  # rarely, from STA:xxxxxx
     return {"unknown_0": payload}
 
 
@@ -1129,14 +1129,14 @@ def parser_12b0(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # unknown
+@parser_decorator  # displayed_temp (on a TR87RF bound to a RFG100)
 def parser_12c0(payload, msg) -> Optional[dict]:
-    #  I --- 34:225071 --:------ 34:225071 12C0 003 002D01  # 3x ~.07
-    #  I --- 34:021943 --:------ 34:021943 12C0 003 002B01  # 3x ~.07
     assert payload[:2] == "00", f"expecting 00, not {payload[:2]}"
     assert payload[4:] == "01", f"expecting 01, not {payload[4:]}"
 
-    return {"_unknown": payload[2:4]}
+    temp = None if payload[2:4] == "80" else int(payload[2:4], 16) / 2
+
+    return {"temperature": temp}
 
 
 @parser_decorator  # system_sync
