@@ -1832,13 +1832,27 @@ def parser_3ef1(payload, msg) -> dict:
 
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated
 def parser_7fff(payload, msg) -> Optional[dict]:
-    result = {"datetime": dts_from_hex(payload[2:14])}
+    LOOKUP = {"01": "evohome_rf", "02": "impersonating", "03": "message"}
+
     if payload[:2] == "00":
-        result["message"] = _str(payload[16:])
+        return {
+            "datetime": dts_from_hex(payload[2:14]),
+            "message": _str(payload[16:]),
+        }
+
+    elif payload[:2] in LOOKUP:
+        return {LOOKUP[payload[:2]]: _str(payload[2:])}
+
     elif payload[:2] == "7F":
-        result["counter"] = int(payload[16:20], 16)
-        result["interval"] = int(payload[22:26], 16) / 100
-    return result
+        return {
+            "datetime": dts_from_hex(payload[2:14]),
+            "counter": int(payload[16:20], 16),
+            "interval": int(payload[22:26], 16) / 100,
+        }
+    return {
+        "header": payload[:2],
+        "payload": payload[2:],
+    }
 
 
 @parser_decorator

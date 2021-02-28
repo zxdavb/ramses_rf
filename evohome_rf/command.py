@@ -107,8 +107,10 @@ class Command:
     def __init__(self, verb, dest_id, code, payload, **kwargs) -> None:
         """Initialise the class."""
 
+        assert "qos" not in kwargs, "FIXME"
+
         self.verb = verb
-        self.seqx = "---"
+        self.seqn = "---"
         self.from_addr, self.dest_addr, self.addrs = extract_addrs(
             f"{kwargs.get('from_id', HGI_DEV_ADDR.id)} {dest_id} {NON_DEV_ADDR.id}"
         )
@@ -142,7 +144,7 @@ class Command:
 
         return COMMAND_FORMAT.format(
             self.verb,
-            self.seqx,
+            self.seqn,
             self.addrs[0].id,
             self.addrs[1].id,
             self.addrs[2].id,
@@ -514,35 +516,42 @@ class Command:
         return cls("RQ", ctl_id, "0404", payload, **kwargs)
 
     @classmethod
-    def _puzzle(cls, message=None, ordinal=0, interval=0, length=None, **kwargs):
+    def _puzzle(
+        cls, msg_type="01", message=None, ordinal=0, interval=0, length=None, **kwargs
+    ):
 
-        if message:
+        if msg_type == "00":
             payload = f"00{dts_to_hex(dt.now())}7F"
             payload += f"{str_to_hex(message)}7F"
+
+        elif msg_type in ("01", "02", "03"):
+            payload = f"{msg_type}{str_to_hex(message)}7F"
+
         else:
             payload = f"7F{dts_to_hex(dt.now())}7F"
-            payload += f"{ordinal % 0x10000:04X}7F"
-            payload += f"{int(interval * 100):04X}7F"
+            payload += f"{ordinal % 0x10000:04X}7F{int(interval * 100):04X}7F"
 
         if length:
             payload = payload.ljust(length * 2, "F")
 
-        return cls(" I", NUL_DEV_ADDR.id, "7FFF", payload, **kwargs)
+        return cls(" I", NUL_DEV_ADDR.id, "7FFF", payload[:48], **kwargs)
 
     @classmethod
-    def packet(cls, verb, seqx, addr0, addr1, addr2, code, payload, **kwargs):
+    def packet(cls, verb, seqn, addr0, addr1, addr2, code, payload, **kwargs):
         """Construct commands with fewer assumptions/checks than the main constructor.
 
         For example:
             I 056 --:------ --:------ 02:123456 99FD 003 000404
         """
+
         verb = " I" if verb == "I" else " W" if verb == "W" else verb
 
         cmd = cls(verb, NUL_DEV_ADDR.id, code, payload, **kwargs)
-        if seqx in ("", "-", "--", "---"):
-            cmd.seqx = "---"
-        elif seqx is not None:
-            cmd.seqx = f"{int(seqx):03d}"
+
+        if seqn in ("", "-", "--", "---"):
+            cmd.seqn = "---"
+        elif seqn is not None:
+            cmd.seqn = f"{int(seqn):03d}"
 
         cmd.from_addr, cmd.dest_addr, cmd.addrs = extract_addrs(
             f"{addr0} {addr1} {addr2}"

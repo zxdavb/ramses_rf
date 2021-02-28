@@ -60,8 +60,7 @@ Pause = SimpleNamespace(
 )
 
 INIT_QOS = {"priority": Priority.HIGHEST, "retries": 24, "disable_backoff": True}
-INIT_CMD = Command._puzzle(message=f"evohome_rf v{__version__}", qos=INIT_QOS)
-# INIT_CMD = Command(" I", NUL_DEV_ADDR.id, "0001", "00FFFF0200", qos=INIT_QOS)
+INIT_CMD = Command._puzzle(message=f"v{__version__}", **INIT_QOS)
 
 # tx (from sent to gwy, to get back from gwy) seems to takes approx. 0.025s
 QOS_TX_TIMEOUT = td(seconds=0.05)  # 0.20 OK, but too high?
@@ -449,11 +448,13 @@ class PacketProtocolBase(asyncio.Protocol):
             return
 
         self._sequence_no = (self._sequence_no + 1) % 256
-        if False and self._qos_cmd.seqx == "---":
-            self._qos_cmd.seqx = f"{self._sequence_no:03d}"
+        if False and self._qos_cmd.seqn == "---":
+            self._qos_cmd.seqn = f"{self._sequence_no:03d}"
 
         if cmd.from_addr.type != "18":
             _LOGGER.warning("PktProtocol.send_data(%s): IMPERSONATING!", cmd.tx_header)
+            kmd = Command._puzzle("02", cmd.tx_header)
+            await self._send_data(bytes(f"{kmd}\r\n".encode("ascii")))
 
         # self._loop.create_task(
         #     self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
@@ -702,13 +703,15 @@ class PacketProtocolQos(PacketProtocolBase):
         self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
 
         self._sequence_no = (self._sequence_no + 1) % 256
-        if False and self._qos_cmd.seqx == "---":
-            self._qos_cmd.seqx = f"{self._sequence_no:03d}"
+        if False and self._qos_cmd.seqn == "---":
+            self._qos_cmd.seqn = f"{self._sequence_no:03d}"
 
         if cmd.from_addr.type != "18":
             _LOGGER.warning(
                 "PacketProtocolQos.send_data(%s): IMPERSONATING!", cmd.tx_header
             )
+            kmd = Command._puzzle("02", cmd.tx_header)
+            await self._send_data(bytes(f"{kmd}\r\n".encode("ascii")))
 
         self._timeouts(dt.now())
         await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))

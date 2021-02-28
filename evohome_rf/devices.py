@@ -249,7 +249,7 @@ class Actuator:  # 3EF0, 3EF1
             self._actuator_state = msg  # 3EF0
             self._actuator_enabled = msg
 
-            self._send_cmd("3EF1", qos={"priority": Priority.LOW, "retries": 1})
+            self._send_cmd("3EF1", priority=Priority.LOW, retries=1)
 
         elif msg.code == "3EF1" and msg.verb == "RP":
             self._actuator_cycle = msg  # 3EF1
@@ -924,7 +924,7 @@ class BdrSwitch(Actuator, Device):
             #     self._send_cmd(code, delay=1)
 
         elif msg.code == "3EF0" and msg.verb == " I":  # NOT "RP", TODO: why????
-            self._send_cmd("0008", qos={"priority": Priority.LOW, "retries": 1})
+            self._send_cmd("0008", priority=Priority.LOW, retries=1)
 
     @property
     def role(self) -> Optional[str]:
