@@ -249,7 +249,7 @@ class Actuator:  # 3EF0, 3EF1
             self._actuator_state = msg  # 3EF0
             self._actuator_enabled = msg
 
-            self._send_cmd("3EF1", qos={"priority": Priority.LOW, "retries": 1})
+            self._send_cmd("3EF1", priority=Priority.LOW, retries=1)
 
         elif msg.code == "3EF1" and msg.verb == "RP":
             self._actuator_cycle = msg  # 3EF1
@@ -273,7 +273,6 @@ class Actuator:  # 3EF0, 3EF1
             **super().status,
             "actuator_cycle": self.actuator_cycle,
             "actuator_state": self.actuator_state,
-            "enabled": self.enabled,
         }
 
 
@@ -452,7 +451,7 @@ class Device(DeviceInfo, DeviceBase):
         if self._zone is not None:
             if self._zone is not zone:
                 raise CorruptStateError(
-                    f"Device {self} has a mismatched parent zone: "
+                    f"Device {self} appears claimed by multiple parent zones: "
                     f"old={self._zone}, new={zone}"
                 )
             return
@@ -518,7 +517,7 @@ class Device(DeviceInfo, DeviceBase):
         return {}
 
 
-# 01:
+# CTL: 01:
 class Controller(Device):
     """The Controller base class."""
 
@@ -542,7 +541,7 @@ class Controller(Device):
             self._send_cmd("0016", retries=3)  # rf_check
 
 
-# 02: "10E0", "3150";; "0008", "22C9", "22D0"
+# UFC: 02: "10E0", "3150";; "0008", "22C9", "22D0"
 class UfhController(Device):
     """The UFC class, the HCE80 that controls the UFH zones."""
 
@@ -671,7 +670,7 @@ class UfhController(Device):
         }
 
 
-# 07: "1260" "10A0" (and "1060")
+# DHW: 07: "1260" "10A0" (and "1060")
 class DhwSensor(BatteryState, Device):
     """The DHW class, such as a CS92."""
 
@@ -704,7 +703,7 @@ class DhwSensor(BatteryState, Device):
     def params(self) -> dict:
         return {
             **super().params,
-            "dhw_params": self.dhw_params,
+            # "dhw_params": self.dhw_params,  # TODO
         }
 
     @property
@@ -715,9 +714,11 @@ class DhwSensor(BatteryState, Device):
         }
 
 
-# 10: "10E0", "3EF0", "3150";; "22D9", "3220" ("1FD4"), TODO: 3220
+# OTB: 10: "10E0", "3EF0", "3150";; "22D9", "3220" ("1FD4"), TODO: 3220
 class OtbGateway(Actuator, Device):
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
+
+    # see: https://www.opentherm.eu/request-details/?post_ids=2944
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -729,48 +730,35 @@ class OtbGateway(Actuator, Device):
         self._opentherm_msg = {}
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        # 086 RQ --- 01:123456 63:262143 --:------ 3220 005 0000050000
-        # 049 RP --- 63:262143 01:123456 --:------ 3220 005 00F0050000
-        # 092 RQ --- 01:123456 63:262143 --:------ 3220 005 0000110000
-        # 049 RP --- 63:262143 01:123456 --:------ 3220 005 00C0110000
-        # 082 RQ --- 01:123456 63:262143 --:------ 3220 005 0000120000
-        # 076 RQ --- 01:123456 63:262143 --:------ 3220 005 0000120000
-        # 049 RP --- 63:262143 01:123456 --:------ 3220 005 0040120166
-        # 075 RQ --- 01:123456 63:262143 --:------ 3220 005 0080130000
-        # 049 RP --- 63:262143 01:123456 --:------ 3220 005 0070130000
-        # 074 RQ --- 01:123456 63:262143 --:------ 3220 005 0080190000
-        # 049 RP --- 63:262143 01:123456 --:------ 3220 005 00401929E6
-        # 072 RQ --- 01:123456 63:262143 --:------ 3220 005 00801A0000
-        # 048 RP --- 63:262143 01:123456 --:------ 3220 005 00401A3033
-        # 073 RQ --- 01:123456 63:262143 --:------ 3220 005 00801C0000
-        # 049 RP --- 63:262143 01:123456 --:------ 3220 005 00401C29B3
-        # 074 RQ --- 01:123456 63:262143 --:------ 3220 005 0080730000
-        # 048 RP --- 63:262143 01:123456 --:------ 3220 005 00407300CC
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_SCHEMA:
-            # TODO: From OT v2.2: version numbers
-            for msg_id in range(124, 128):
-                self._send_cmd("3220", payload=f"0000{msg_id:02X}0000")
+            for msg_id in range(0x7C, 0x80):  # From OT v2.2: version numbers
+                self._send_cmd(Command.get_opentherm_msg(self.ctl.id, msg_id))
 
         if discover_flag & DISCOVER_PARAMS:
             pass
 
         if discover_flag & DISCOVER_STATUS:  # TODO: these need to be periodic
-            # From OT v2.2, these are mandatory: 00, 01, 03, 0E, 11, 19
-            # From evohome:
+            # From OT v2.2, these are mandatory: 00, 01, 03, 0E, 11, 19...
+            msg_ids = {0x00, 0x01, 0x03, 0x0E, 0x11, 0x19}
+
+            # and, From evohome: 05, 11, 12, 13, 19, 1A...
+            msg_ids |= {0x05, 0x11, 0x12, 0x13, 0x19, 0x1A}
             # 05 - Fault flags & OEM fault code
             # 11 - Relative modulation level
             # 12 - Central heating water pressure
             # 13 - DHW flow rate (litres/minute)
             # 19 - Boiler water temperature
             # 1A - DHW temperature
-            for msg_id in ("0005", "0011", "0012", "8013", "8019", "801A"):
-                self._send_cmd("3220", payload=f"00{msg_id}0000")
+
+            # and, others...
+            msg_ids |= {0x1B, 0x1C, 0x73}
+            # 1B - Outside temperature
             # 1C - Return water temperature
             # 73 - OEM diagnostic code
-            for msg_id in ("801C", "8073"):
-                self._send_cmd("3220", payload=f"00{msg_id}0000")
+            for msg_id in msg_ids:
+                self._send_cmd(Command.get_opentherm_msg(self.ctl.id, msg_id))
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -865,7 +853,7 @@ class OtbGateway(Actuator, Device):
         }
 
 
-# 03/12/22/34: 1060/2309/30C9;; (03/22: 0008/0009/3EF1, 2349?) (34: 000A/10E0/3120)
+# STA: 03/12/22/34: 1060/2309/30C9;; (03/22: 0008/0009/3EF1, 2349?) (34: 000A/10E0/3120)
 class Thermostat(BatteryState, Setpoint, Temperature, Device):
     """The THM/STA class, such as a TR87RF."""
 
@@ -873,7 +861,7 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):
         super()._handle_msg(msg)
 
 
-# 13: 0008/1100/3B00/3EF0/3EF1
+# BDR: 13: 0008/1100/3B00/3EF0/3EF1
 class BdrSwitch(Actuator, Device):
     """The BDR class, such as a BDR91.
 
@@ -936,7 +924,7 @@ class BdrSwitch(Actuator, Device):
             #     self._send_cmd(code, delay=1)
 
         elif msg.code == "3EF0" and msg.verb == " I":  # NOT "RP", TODO: why????
-            self._send_cmd("0008", qos={"priority": Priority.LOW, "retries": 1})
+            self._send_cmd("0008", priority=Priority.LOW, retries=1)
 
     @property
     def role(self) -> Optional[str]:
@@ -990,6 +978,7 @@ class BdrSwitch(Actuator, Device):
         }
 
 
+# TRV: 00/04:
 class TrvActuator(BatteryState, Setpoint, Temperature, Device):
     """The TRV class, such as a HR92."""
 
@@ -1025,9 +1014,46 @@ class TrvActuator(BatteryState, Setpoint, Temperature, Device):
     def status(self) -> dict:
         return {
             **super().status,
-            "enabled": self.enabled,
             "heat_demand": self.heat_demand,
             "window_state": self.window_state,
+        }
+
+
+# FAN: 39:
+class FanSwitch(BatteryState, Device):
+    """The FAN (switch) class, such as a 4-way switch."""
+
+    DEVICE_CLASS = "SWI"
+    DEVICE_TYPES = ("39",)
+
+    BOOST_TIMER = "boost_timer"  # e.g. 10, 20, 30 minutes
+    HEATER_MODE = "heater_mode"  # e.g. auto, off
+    HEATER_MODES = {9: "off", 10: "auto"}  # TODO:
+
+    FAN_MODE = "fan_mode"  # e.g. low. high
+    FAN_MODES = {
+        0: "standby",
+        1: "auto",
+        2: "low",
+        3: "medium",
+        4: "high",  # a.k.a. boost if timer on
+    }
+    FAN_RATE = "fan_rate"  # 0.0 - 1.0
+
+    @property
+    def fan_mode(self) -> Optional[float]:
+        return self._msg_payload(self._msgs["22F1"], self.FAN_MODE)
+
+    @property
+    def boost_timer(self) -> Optional[bool]:
+        return self._msg_payload(self._msgs["22F3"], self.BOOST_TIMER)
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            self.FAN_MODE: self.fan_mode,
+            self.BOOST_TIMER: self.boost_timer,
         }
 
 
@@ -1040,6 +1066,7 @@ DEVICE_KLASS_TO_CLASS = {
     "DHW": DhwSensor,
     "OTB": OtbGateway,
     "BDR": BdrSwitch,
+    "SWI": FanSwitch,
 }
 DEVICE_TYPE_TO_KLASS = {
     "00": "TRV",
@@ -1054,6 +1081,7 @@ DEVICE_TYPE_TO_KLASS = {
     "22": "THM",
     "23": "PRG",
     "34": "THM",
+    "39": "SWI",
 }
 DEVICE_CLASSES = {
     k1: v2

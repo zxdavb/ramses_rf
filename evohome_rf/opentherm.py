@@ -16,10 +16,10 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 # Data structure shamelessy copied, with thanks to @nlrb, from:
-# github.com/nlrb/com.tclcode.otgw (ot_msg.js),
+# github.com/nlrb/com.tclcode.otgw (node_modules/otg-api/lib/ot_msg.js),
 
 # Other code shamelessy copied, with thanks to @mvn23, from:
-# github.com/mvn23/pyotgw (protocol.py),
+# github.com/mvn23/pyotgw (pyotgw/protocol.py),
 
 READ_WRITE = "RW"
 READ_ONLY = "R-"
@@ -224,13 +224,13 @@ OPENTHERM_MESSAGES = {
     },
     # OpenTherm messages
     "messages": {
-        0: {
+        0x00: {  # 0, Status
             EN: "Status",
             DIR: READ_ONLY,
             VAL: FLAG8,
             FLAGS: "StatusFlags",
         },
-        1: {
+        0x01: {  # 1, Control Setpoint
             EN: "Control setpoint",
             NL: "Ketel doeltemperatuur",
             DIR: WRITE_ONLY,
@@ -238,54 +238,54 @@ OPENTHERM_MESSAGES = {
             VAR: "ControlSetpoint",
             SENSOR: TEMPERATURE,
         },
-        2: {
+        0x02: {  # 2, Master Member ID
             EN: "Master configuration",
             DIR: WRITE_ONLY,
             VAL: {HB: FLAG8, LB: U8},
             FLAGS: "MasterConfigFlags",
             VAR: {LB: "MasterMemberId"},
         },
-        3: {
+        0x03: {  # 3, Slave Member ID
             EN: "Slave configuration",
             DIR: READ_ONLY,
             VAL: {HB: FLAG8, LB: U8},
             FLAGS: "SlaveConfigFlags",
             VAR: {LB: "SlaveMemberId"},
         },
-        4: {
+        0x04: {  # 4, Remote Command
             EN: "Remote command",
             DIR: WRITE_ONLY,
             VAL: U8,
             VAR: "RemoteCommand",
         },
-        5: {
+        0x05: {  # 5, OEM Fault Code
             EN: "Fault flags & OEM fault code",
             DIR: READ_ONLY,
             VAL: {HB: FLAG8, LB: U8},
             VAR: {LB: "OEMFaultCode"},
             FLAGS: "FaultFlags",
         },
-        6: {
+        0x06: {  # 6, Remote Flags
             EN: "Remote parameter flags",
             DIR: READ_ONLY,
             VAL: FLAG8,
             FLAGS: "RemoteFlags",
         },
-        7: {
+        0x07: {  # 7, Cooling Control Signal
             EN: "Cooling control signal",
             DIR: WRITE_ONLY,
             VAL: F8_8,
             VAR: "CoolingControlSignal",
             SENSOR: PERCENTAGE,
         },
-        8: {
-            EN: "Control setpoint central heating 2",
+        0x08: {  # 8, CH2 Control Setpoint
+            EN: "Control setpoint for 2nd CH circuit",
             DIR: WRITE_ONLY,
             VAL: F8_8,
             VAR: "CH2ControlSetpoint",
             SENSOR: TEMPERATURE,
         },
-        9: {
+        0x09: {  # 9, Remote Override Room Setpoint
             EN: "Remote override room setpoint",
             NL: "Overschreven kamer doeltemperatuur",
             DIR: READ_ONLY,
@@ -293,31 +293,31 @@ OPENTHERM_MESSAGES = {
             VAR: "RemoteOverrideRoomSetpoint",
             SENSOR: TEMPERATURE,
         },
-        10: {
-            EN: "Number of transparent slave parameters (TSP) supported by slave",
+        0x0A: {  # 10, TSP Number
+            EN: "Number of transparent slave parameters supported by slave",
             DIR: READ_ONLY,
             VAL: U8,
             VAR: {HB: "TSPNumber"},
         },
-        11: {
-            EN: "Index number/value of referred-to transparent slave parameter (TSP)",
+        0x0B: {  # 11, TSP Entry
+            EN: "Index number/value of referred-to transparent slave parameter",
             DIR: READ_WRITE,
             VAL: U8,
             VAR: {HB: "TSPIndex", LB: "TSPValue"},
         },
-        12: {
-            EN: "Size of fault history buffer (FHB) supported by slave",
+        0x0C: {  # 12, FHB Size
+            EN: "Size of fault history buffer supported by slave",
             DIR: READ_ONLY,
             VAL: U8,
             VAR: {HB: "FHBSize"},
         },
-        13: {
-            EN: "Index number/value of referred-to fault history buffer (FHB) entry",
+        0x0D: {  # 13, FHB Entry
+            EN: "Index number/value of referred-to fault history buffer entry",
             DIR: READ_ONLY,
             VAL: U8,
             VAR: {HB: "FHBIndex", LB: "FHBValue"},
         },
-        14: {
+        0x0E: {  # 14, Max Relative Modulation Level
             EN: "Max. relative modulation level",
             NL: "Max. relatief modulatie-niveau",
             DIR: WRITE_ONLY,
@@ -325,13 +325,13 @@ OPENTHERM_MESSAGES = {
             VAR: "MaxRelativeModulationLevel",
             SENSOR: PERCENTAGE,
         },
-        15: {
+        0x0F: {  # 15, Max Boiler Capacity & Min Modulation Level
             EN: "Max. boiler capacity (kW) and modulation level setting (%)",
             DIR: READ_ONLY,
             VAL: U8,
             VAR: {HB: "MaxBoilerCapacity", LB: "MinModulationLevel"},
         },
-        16: {
+        0x10: {  # 16, Current Setpoint
             EN: "Room setpoint",
             NL: "Kamer doeltemperatuur",
             DIR: WRITE_ONLY,
@@ -339,7 +339,7 @@ OPENTHERM_MESSAGES = {
             VAR: "CurrentSetpoint",
             SENSOR: TEMPERATURE,
         },
-        17: {
+        0x11: {  # 17, Relative Modulation Level
             EN: "Relative modulation level",
             NL: "Relatief modulatie-niveau",
             DIR: READ_ONLY,
@@ -347,7 +347,7 @@ OPENTHERM_MESSAGES = {
             VAR: "RelativeModulationLevel",
             SENSOR: PERCENTAGE,
         },
-        18: {
+        0x12: {  # 18, CH Water Pressure
             EN: "Central heating water pressure",
             NL: "Keteldruk",
             DIR: READ_ONLY,
@@ -355,46 +355,46 @@ OPENTHERM_MESSAGES = {
             VAR: "CHWaterPressure",
             SENSOR: PRESSURE,
         },
-        19: {
+        0x13: {  # 19, DHW Flow Rate
             EN: "DHW flow rate (litres/minute)",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "DHWFlowRate",
             SENSOR: "flow",
         },
-        20: {
+        0x14: {  # 20, Day/Time
             EN: "Day of week & time of day",
             DIR: READ_WRITE,
             VAR: "DayTime",
         },
-        21: {
+        0x15: {  # 21, Date
             EN: "Date",
             DIR: READ_WRITE,
             VAL: U8,
             VAR: "Date",
         },
-        22: {
+        0x16: {  # 22, Year
             EN: "Year",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "Year",
         },
-        23: {
-            EN: "Room setpoint central heating 2",
+        0x17: {  # 23, CH2 Current Setpoint
+            EN: "Room setpoint for 2nd CH circuit",
             DIR: WRITE_ONLY,
             VAL: F8_8,
             VAR: "CH2CurrentSetpoint",
             SENSOR: TEMPERATURE,
         },
-        24: {
+        0x18: {  # 24, Current Room Temperature
             EN: "Room temperature",
             NL: "Kamertemperatuur",
-            DIR: WRITE_ONLY,
+            DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "CurrentTemperature",
             SENSOR: TEMPERATURE,
         },
-        25: {
+        0x19: {  # 25, Boiler Water Temperature
             EN: "Boiler water temperature",
             NL: "Ketelwatertemperatuur",
             DIR: READ_ONLY,
@@ -402,7 +402,7 @@ OPENTHERM_MESSAGES = {
             VAR: "BoilerWaterTemperature",
             SENSOR: TEMPERATURE,
         },
-        26: {
+        0x1A: {  # 26, DHW Temperature
             EN: "DHW temperature",
             NL: "Tapwatertemperatuur",
             DIR: READ_ONLY,
@@ -410,7 +410,7 @@ OPENTHERM_MESSAGES = {
             VAR: "DHWTemperature",
             SENSOR: TEMPERATURE,
         },
-        27: {
+        0x1B: {  # 27, Outside Temperature
             EN: "Outside temperature",
             NL: "Buitentemperatuur",
             DIR: READ_ONLY,
@@ -418,7 +418,7 @@ OPENTHERM_MESSAGES = {
             VAR: "OutsideTemperature",
             SENSOR: TEMPERATURE,
         },
-        28: {
+        0x1C: {  # 28, Return Water Temperature
             EN: "Return water temperature",
             NL: "Retourtemperatuur",
             DIR: READ_ONLY,
@@ -426,62 +426,62 @@ OPENTHERM_MESSAGES = {
             VAR: "ReturnWaterTemperature",
             SENSOR: TEMPERATURE,
         },
-        29: {
+        0x1D: {  # 29, Solar Storage Temperature
             EN: "Solar storage temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "SolarStorageTemperature",
             SENSOR: TEMPERATURE,
         },
-        30: {
+        0x1E: {  # 30, Solar Collector Temperature
             EN: "Solar collector temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "SolarCollectorTemperature",
             SENSOR: TEMPERATURE,
         },
-        31: {
-            EN: "Flow temperature central heating 2",
+        0x1F: {  # 31, CH2 Flow Temperature
+            EN: "Flow temperature for 2nd CH circuit",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "CH2FlowTemperature",
             SENSOR: TEMPERATURE,
         },
-        32: {
+        0x20: {  # 32, DHW2 Temperature
             EN: "DHW 2 temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "DHW2Temperature",
             SENSOR: TEMPERATURE,
         },
-        33: {
+        0x21: {  # 33, Boiler Exhaust Temperature
             EN: "Boiler exhaust temperature",
             DIR: READ_ONLY,
             VAL: S16,
             VAR: "BoilerExhaustTemperature",
             SENSOR: TEMPERATURE,
         },
-        48: {
+        0x30: {  # 48, DHW Boundaries
             EN: "DHW setpoint boundaries",
             DIR: READ_ONLY,
             VAL: S8,
-            VAR: "DHWBounadries",
+            VAR: "DHWBoundaries",
             SENSOR: TEMPERATURE,
         },
-        49: {
+        0x31: {  # 49, CH Boundaries
             EN: "Max. central heating setpoint boundaries",
             DIR: READ_ONLY,
             VAL: S8,
             VAR: "CHBoundaries",
             SENSOR: TEMPERATURE,
         },
-        50: {
+        0x32: {  # 50, OTC Boundaries
             EN: "OTC heat curve ratio upper & lower bounds",
             DIR: READ_ONLY,
             VAL: S8,
             VAR: "OTCBoundaries",
         },
-        56: {
+        0x38: {  # 56, DHW Setpoint
             EN: "DHW setpoint",
             NL: "Tapwater doeltemperatuur",
             DIR: READ_WRITE,
@@ -489,7 +489,7 @@ OPENTHERM_MESSAGES = {
             VAR: "DHWSetpoint",
             SENSOR: TEMPERATURE,
         },
-        57: {
+        0x39: {  # 57, Max CH Water Setpoint
             EN: "Max. central heating water setpoint",
             NL: "Max. ketel doeltemperatuur",
             DIR: READ_WRITE,
@@ -497,7 +497,7 @@ OPENTHERM_MESSAGES = {
             VAR: "MaxCHWaterSetpoint",
             SENSOR: TEMPERATURE,
         },
-        58: {
+        0x3A: {  # 58, OTC Heat Curve Ratio
             EN: "OTC heat curve ratio",
             DIR: READ_WRITE,
             VAL: F8_8,
@@ -505,55 +505,55 @@ OPENTHERM_MESSAGES = {
             SENSOR: TEMPERATURE,
         },
         # OpenTherm 2.3 IDs (70-91) for ventilation/heat-recovery applications
-        70: {
+        0x46: {  # 70, VH Status
             EN: "Status ventilation/heat-recovery",
             DIR: READ_ONLY,
             VAL: FLAG8,
             VAR: "VHStatus",
         },
-        71: {
+        0x47: {  # 71, VH Control Setpoint
             EN: "Control setpoint ventilation/heat-recovery",
             DIR: WRITE_ONLY,
             VAL: U8,
             VAR: {HB: "VHControlSetpoint"},
         },
-        72: {
+        0x48: {  # 72, VH Fault Code
             EN: "Fault flags/code ventilation/heat-recovery",
             DIR: READ_ONLY,
             VAL: {HB: FLAG, LB: U8},
             VAR: {LB: "VHFaultCode"},
         },
-        73: {
+        0x49: {  # 73, VH Diagnostic Code
             EN: "Diagnostic code ventilation/heat-recovery",
             DIR: READ_ONLY,
             VAL: U16,
             VAR: "VHDiagnosticCode",
         },
-        74: {
+        0x4A: {  # 74, VH Member ID
             EN: "Config/memberID ventilation/heat-recovery",
             DIR: READ_ONLY,
             VAL: {HB: FLAG, LB: U8},
             VAR: {LB: "VHMemberId"},
         },
-        75: {
+        0x4B: {  # 75, VH OpenTherm Version
             EN: "OpenTherm version ventilation/heat-recovery",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "VHOpenThermVersion",
         },
-        76: {
+        0x4C: {  # 76, VH Product Type/Version
             EN: "Version & type ventilation/heat-recovery",
             DIR: READ_ONLY,
             VAL: U8,
             VAR: {HB: "VHProductType", LB: "VHProductVersion"},
         },
-        77: {
+        0x4D: {  # 77, Relative Ventilation
             EN: "Relative ventilation",
             DIR: READ_ONLY,
             VAL: U8,
             VAR: {HB: "RelativeVentilation"},
         },
-        78: {
+        0x4E: {  # 78, Relative Humidity
             EN: "Relative humidity",
             NL: "Luchtvochtigheid",
             DIR: READ_WRITE,
@@ -561,7 +561,7 @@ OPENTHERM_MESSAGES = {
             VAR: {HB: "RelativeHumidity"},
             SENSOR: HUMIDITY,
         },
-        79: {
+        0x4F: {  # 79, CO2 Level
             EN: "CO2 level",
             NL: "CO2 niveau",
             DIR: READ_WRITE,
@@ -569,189 +569,212 @@ OPENTHERM_MESSAGES = {
             VAR: "CO2Level",
             SENSOR: "co2",
         },
-        80: {
+        0x50: {  # 80, Supply Inlet Temperature
             EN: "Supply inlet temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "SupplyInletTemperature",
             SENSOR: TEMPERATURE,
         },
-        81: {
+        0x51: {  # 81, Supply Outlet Temperature
             EN: "Supply outlet temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "SupplyOutletTemperature",
             SENSOR: TEMPERATURE,
         },
-        82: {
+        0x52: {  # 82, Exhaust Inlet Temperature
             EN: "Exhaust inlet temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "ExhaustInletTemperature",
             SENSOR: TEMPERATURE,
         },
-        83: {
+        0x53: {  # 83, Exhaust Outlet Temperature
             EN: "Exhaust outlet temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "ExhaustOutletTemperature",
             SENSOR: TEMPERATURE,
         },
-        84: {
+        0x54: {  # 84, Exhaust Fan Speed
             EN: "Actual exhaust fan speed",
             DIR: READ_ONLY,
             VAL: U16,
             VAR: "ExhaustFanSpeed",
         },
-        85: {
+        0x55: {  # 85, Inlet Fan Speed
             EN: "Actual inlet fan speed",
             DIR: READ_ONLY,
             VAL: U16,
             VAR: "InletFanSpeed",
         },
-        86: {
+        0x56: {  # 86, VH Remote Parameter
             EN: "Remote parameter settings ventilation/heat-recovery",
             DIR: READ_ONLY,
             VAL: FLAG8,
             VAR: "VHRemoteParameter",
         },
-        87: {
+        0x57: {  # 87, Nominal Ventilation
             EN: "Nominal ventilation value",
             DIR: READ_WRITE,
             VAL: U8,
             VAR: "NominalVentilation",
         },
-        88: {
+        0x58: {  # 88, VH TSP Size
             EN: "TSP number ventilation/heat-recovery",
             DIR: READ_ONLY,
             VAL: U8,
             VAR: {HB: "VHTSPSize"},
         },
-        89: {
+        0x59: {  # 89, VH TSP Entry
             EN: "TSP entry ventilation/heat-recovery",
             DIR: READ_WRITE,
             VAL: U8,
             VAR: {HB: "VHTSPIndex", LB: "VHTSPValue"},
         },
-        90: {
+        0x5A: {  # 90, VH FHB Size
             EN: "Fault buffer size ventilation/heat-recovery",
             DIR: READ_ONLY,
             VAL: U8,
             VAR: {HB: "VHFHBSize"},
         },
-        91: {
+        0x5B: {  # 91, VH FHB Entry
             EN: "Fault buffer entry ventilation/heat-recovery",
             DIR: READ_ONLY,
             VAL: U8,
             VAR: {HB: "VHFHBIndex", LB: "VHFHBValue"},
         },
         # OpenTherm 2.2 IDs
-        100: {
+        0x64: {  # 100, Remote Override Function
             EN: "Remote override function",
             DIR: READ_ONLY,
             VAL: {HB: FLAG8, LB: U8},
             VAR: {HB: "RemoteOverrideFunction"},
         },
-        115: {
+        0x73: {  # 115, OEM Diagnostic Code
             EN: "OEM diagnostic code",
             DIR: READ_ONLY,
             VAL: U16,
             VAR: "OEMDiagnosticCode",
         },
-        116: {
+        0x74: {  # 116, Starts Burner
             EN: "Number of starts burner",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "StartsBurner",
             SENSOR: COUNTER,
         },
-        117: {
+        0x75: {  # 117, Starts CH Pump
             EN: "Number of starts central heating pump",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "StartsCHPump",
             SENSOR: COUNTER,
         },
-        118: {
+        0x76: {  # 118, Starts DHW Pump
             EN: "Number of starts DHW pump/valve",
             DIR: READ_WRITE,
             VAL: U16,
-            VAR: "StartsHDWPump",
+            VAR: "StartsDHWPump",
             SENSOR: COUNTER,
         },
-        119: {
+        0x77: {  # 119, Starts Burner DHW
             EN: "Number of starts burner during DHW mode",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "StartsBurnerDHW",
             SENSOR: COUNTER,
         },
-        120: {
+        0x78: {  # 120, Hours Burner
             EN: "Number of hours burner is in operation (i.e. flame on)",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "HoursBurner",
             SENSOR: COUNTER,
         },
-        121: {
+        0x79: {  # 121, Hours CH Pump
             EN: "Number of hours central heating pump has been running",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "HoursCHPump",
             SENSOR: COUNTER,
         },
-        122: {
+        0x7A: {  # 122, Hours DHW Pump
             EN: "Number of hours DHW pump has been running/valve has been opened",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "HoursDHWPump",
             SENSOR: COUNTER,
         },
-        123: {
+        0x7B: {  # 123, Hours DHW Burner
             EN: "Number of hours DHW burner is in operation during DHW mode",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "HoursDHWBurner",
             SENSOR: COUNTER,
         },
-        124: {
+        0x7C: {  # 124, Master OpenTherm Version
             EN: "Opentherm version Master",
             DIR: WRITE_ONLY,
             VAL: F8_8,
             VAR: "MasterOpenThermVersion",
         },
-        125: {
+        0x7D: {  # 125, Slave OpenTherm Version
             EN: "Opentherm version Slave",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "SlaveOpenThermVersion",
         },
-        126: {
+        0x7E: {  # 126, Master Product Type/Version
             EN: "Master product version and type",
             DIR: WRITE_ONLY,
             VAL: U8,
             VAR: {HB: "MasterProductType", LB: "MasterProductVersion"},
         },
-        127: {
+        0x7F: {  # 127, Slave Product Type/Version
             EN: "Slave product version and type",
             DIR: READ_ONLY,
             VAL: U8,
             VAR: {HB: "SlaveProductType", LB: "SlaveProductVersion"},
         },
         # ZX-DAVB extras
-        113: {
+        0x71: {  # 113, Bad Starts Burner
             EN: "Number of un-successful burner starts",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "BadStartsBurner?",
             SENSOR: COUNTER,
         },
-        114: {
+        0x72: {  # 114, Low Signals Flame
             EN: "Number of times flame signal was too low",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "LowSignalsFlame?",
             SENSOR: COUNTER,
+        },
+        # https://www.domoticaforum.eu/viewtopic.php?f=70&t=10893
+        # 0x23: {  # 35, Boiler Fan Speed (rpm/60?)?
+        # },
+        0x24: {  # 36, Electrical current through burner flame (µA)
+            EN: "Electrical current through burner flame (µA)",
+            DIR: READ_ONLY,
+            VAL: F8_8,
+            VAR: "BurnerCurrent",
+        },
+        0x25: {  # 37, CH2 Room Temperature
+            EN: "Room temperature for 2nd CH circuit",
+            DIR: READ_ONLY,
+            VAL: F8_8,
+            VAR: "CH2CurrentTemperature",
+            SENSOR: TEMPERATURE,
+        },
+        0x26: {  # 38, Relative Humidity, c.f. 0x4E
+            EN: "Relative humidity",
+            DIR: READ_ONLY,
+            VAL: U8,
+            VAR: {HB: "RelativeHumidity"},  # TODO: or LB?
+            SENSOR: HUMIDITY,
         },
     },
 }
@@ -831,7 +854,7 @@ def ot_msg_value(val_seqx, val_type) -> Any:
 # ID1: Control Setpoint i.e. CH water temperature Setpoint (°C)
 
 # ID2:HB0: Master configuration: Smart power
-# ID2:LB: Master MemberID Code
+# ID2:LB:  Master MemberID Code
 
 # ID3:HB0: Slave configuration: DHW present
 # ID3:HB1: Slave configuration: Control type
@@ -843,14 +866,14 @@ def ot_msg_value(val_seqx, val_type) -> Any:
 # ID5:HB3: Gas/flame fault
 # ID5:HB4: Air pressure fault
 # ID5:HB5: Water over-temperature
-# ID5:LB: OEM fault code
+# ID5:LB:  OEM fault code
 
 # ID6:HB0: Remote boiler parameter transfer-enable: DHW setpoint
 # ID6:HB1: Remote boiler parameter transfer-enable: max. CH setpoint
 # ID6:LB0: Remote boiler parameter read/write: DHW setpoint
 # ID6:LB1: Remote boiler parameter read/write: max. CH setpoint
 
-# ID9: Remote override room Setpoint
+# ID9:  Remote override room Setpoint
 # ID10: Number of Transparent-Slave-Parameters supported by slave
 # ID12: Size of Fault-History-Buffer supported by slave
 # ID14: Maximum relative modulation level setting (%)
@@ -870,3 +893,52 @@ def ot_msg_value(val_seqx, val_type) -> Any:
 
 # ID126: Master product version number and type
 # ID127: Slave product version number and type
+
+
+# https://github.com/rvdbreemen/OTGW-firmware/blob/main/Specification/New%20OT%20data-ids.txt  # noqa
+"""
+New OT Data-ID's - Found two new ID's at this device description:
+http://www.opentherm.eu/product/view/18/feeling-d201-ot
+    ID 98: For a specific RF sensor the RF strength and battery level is written
+    ID 99: Operating Mode HC1, HC2/ Operating Mode DHW
+
+Found new data-id's at this page:
+https://www.opentherm.eu/request-details/?post_ids=1833
+    ID 109: Electricity producer starts
+    ID 110: Electricity producer hours
+    ID 111: Electricity production
+    ID 112: Cumulative Electricity production
+
+Found new Data-ID's at this page:
+https://www.opentherm.eu/request-details/?post_ids=1833
+    ID 36:   {f8.8}   "Electrical current through burner flame" (µA)
+    ID 37:   {f8.8}   "Room temperature for 2nd CH circuit"
+    ID 38:   {u8 u8}  "Relative Humidity"
+
+For Data-ID's 37 and 38 I assumed their data types, for Data ID 36 I determined it by
+matching qSense value with the correct data-type.
+
+I also analysed OT Remeha qSense <-> Remeha Tzerra communication.
+    ID 131:   {u8 u8}   "Remeha dF-/dU-codes"
+    ID 132:   {u8 u8}   "Remeha Service message"
+    ID 133:   {u8 u8}   "Remeha detection connected SCU’s"
+
+"Remeha dF-/dU-codes": Should match the dF-/dU-codes written on boiler nameplate.
+Read-Data Request (0 0) returns the data. Also accepts Write-Data Requests (dF dU),
+this returns the boiler to its factory defaults.
+
+"Remeha Service message" Read-Data Request (0 0), boiler returns (0 2) in case of no
+boiler service. Write-Data Request (1 255) clears the boiler service message.
+    boiler returns (1 1) = next service type is "A"
+    boiler returns (1 2) = next service type is "B"
+    boiler returns (1 3) = next service type is "C"
+
+"Remeha detection connected SCU’s": Write-Data Request (255 1) enables detection of
+connected SCU prints, correct response is (Write-Ack 255 1).
+
+Other Remeha info:
+    ID   5: correponds with the Remeha E:xx fault codes
+    ID  11: correponds with the Remeha Pxx parameter codes
+    ID  35: reported value is fan speed in rpm/60
+    ID 115: correponds with the Remeha Status and Sub-status numbers, {u8 u8} data-type
+"""

@@ -781,7 +781,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
     @property
     def devices(self) -> List[Device]:
-        return self._ctl.devices
+        return self._ctl.devices + [self._ctl]  # TODO: to sort out
 
     @property
     def heating_control(self) -> Device:

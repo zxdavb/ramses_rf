@@ -156,7 +156,8 @@ RAMSES_CODES = {
         EXPIRY: 60 * 60,
     },
     "12C0": {
-        NAME: "message_12c0",
+        NAME: "displayed_temp",
+        I_: r"^00[0-9A-F]{2}01$",
     },
     "1F09": {
         NAME: "system_sync",
@@ -198,9 +199,9 @@ RAMSES_CODES = {
         I_: r"^00(0[0-9A-F]){2}$",
     },
     "22F3": {
-        NAME: "switch_duration",  # minutes
+        NAME: "switch_duration",
         I_: r"^0000[0-9A-F]{2}$",
-    },
+    },  # minutes
     "2309": {
         NAME: "setpoint",
         RQ: r"^0[0-9A-F]([0-9A-F]{4})?$",  # NOTE: 12 uses: r"^0[0-9A-F]$"
@@ -213,12 +214,12 @@ RAMSES_CODES = {
         RQ: r"^0[0-9A-F](00)?$",  # is actually: r"^0[0-9A-F]$"
         I_: r"^0[0-9A-F](([0-9A-F]){12}){1,2}$",
     },
-    "2D49": {  # seen with Hometronic systems
+    "2D49": {
         NAME: "message_2d49",
-    },
+    },  # seen with Hometronic systems
     "2E04": {
         NAME: "system_mode",
-        I_: r"^0[0-7][0-9A-F]{12}0[01]$",
+        I_: r"^0[0-7][0-9A-F]{12}0[01]$",  # evo: r"^0[0-7][0-9A-F]{12}0[01]$",
         RQ: r"^FF$",
         RP: r"^0[0-7][0-9A-F]{12}0[01]$",
         W_: r"^0[0-7][0-9A-F]{12}0[01]$",
@@ -229,7 +230,7 @@ RAMSES_CODES = {
         # RQ --- 30:185469 01:037519 --:------ 30C9 001 00
         RP: r"^0[0-9A-F][0-9A-F]{4}$",  # Null: r"^0[0-9A-F]7FFF$"
         # RP --- 01:145038 18:013393 --:------ 30C9 003 FF7FFF
-        I_: r"^(0[0-9A-F][0-9A-F]{4}){1,12}$",
+        I_: r"^(0[0-9A-F][0-9A-F]{4})+$",
     },
     "3120": {
         NAME: "message_3120",
@@ -535,8 +536,8 @@ RAMSES_DEVICES = {
             I_: {},
         },
         "10A0": {
-            RQ: {},  # This RQ/07/10A0 includes a payload
-        },
+            RQ: {},
+        },  # This RQ/07/10A0 includes a payload
         "1260": {
             I_: {},
         },
@@ -682,6 +683,7 @@ RAMSES_DEVICES = {
             RP: {},
         },
     },
+    "17": {},
     "18": {},
     "20": {  # HVAC: ventilation unit
         "10E0": {
@@ -758,6 +760,9 @@ RAMSES_DEVICES = {
         "000C": {
             RQ: {},
         },
+        "000E": {
+            W_: {},
+        },
         "0016": {
             RP: {},
         },
@@ -784,12 +789,14 @@ RAMSES_DEVICES = {
         "1F41": {
             RQ: {},
         },
+        "2309": {},
         "2349": {
             RQ: {},
             RP: {},
         },
         "2E04": {
             RQ: {},
+            I_: {},
             W_: {},
         },
         "30C9": {
@@ -890,8 +897,25 @@ RAMSES_DEVICES = {
         "3120": {
             I_: {},
         },
+        "3EF0": {
+            RQ: {},  # when bound direct to a 13:
+        },
+        "3EF1": {
+            RQ: {},  # when bound direct to a 13:
+        },
     },
-    "37": {},
+    "37": {  # HVAC: ventilation unit
+        "10E0": {
+            I_: {},
+            RP: {},
+        },
+        "31D9": {
+            I_: {},
+        },
+        "31DA": {
+            I_: {},
+        },
+    },
     "39": {  # HVAC: two-way switch
         "22F1": {
             I_: {},

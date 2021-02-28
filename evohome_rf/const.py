@@ -23,6 +23,11 @@ def id_to_address(device_id) -> Address:
     return Address(id=device_id, type=device_id[:2])
 
 
+DEFAULT_MAX_ZONES = 12
+# Evohome: 12 (0-11), older/initial version was 8
+# Hometronics: 16 (0-15), or more?
+# Sundial RF2: 2 (0-1), usually only one, but ST9520C can do two zones
+
 HGI_DEVICE_ID = "18:000730"  # default type and address of HGI, 18:013393
 NON_DEVICE_ID = "--:------"
 NUL_DEVICE_ID = "63:262142"  # 7FFFFF - send here if not bound?
@@ -48,11 +53,6 @@ HTG_DEVICE_ID = r"^(10|13):[0-9]{6}$"
 UFC_DEVICE_ID = r"^02:[0-9]{6}$"
 RLY_DEVICE_ID = r"^13:[0-9]{6}$"
 
-
-DEFAULT_MAX_ZONES = 12
-# Evohome: 12 (0-11), older/initial version was 8
-# Hometronics: 16 (0-15), or more?
-# Sundial RF2: 2 (0-1), usually only one, but ST9520C can do two zones
 
 # Packet codes
 CODE_SCHEMA = {

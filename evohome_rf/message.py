@@ -584,15 +584,15 @@ def process_msg(msg: Message) -> None:
         raise
 
     # except CorruptPacketError as err:
-    #     _LOGGER.error("%s < %s", msg._pkt, err.__class__.__name__)
+    #     _LOGGER.error("%s < %s", msg._pkt, err)
     #     return
 
     except CorruptStateError as err:
-        _LOGGER.error("%s < %s", msg._pkt, err.__class__.__name__)
+        _LOGGER.error("%s < %s", msg._pkt, err)
         return  # TODO: bad pkt, or Schema
 
     except CorruptEvohomeError as err:
-        _LOGGER.error("%s < %s", msg._pkt, err.__class__.__name__)
+        _LOGGER.error("%s < %s", msg._pkt, err)
         raise
 
     msg._gwy._prev_msg = msg if msg.is_valid else None

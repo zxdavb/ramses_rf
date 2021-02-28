@@ -20,7 +20,7 @@ from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .command import Command
-from .const import _dev_mode_, ATTR_ORPHANS
+from .const import _dev_mode_, ATTR_DEVICES, ATTR_ORPHANS
 from .devices import DEVICE_CLASSES, Device
 from .message import Message, process_msg
 from .packet import _PKT_LOGGER as pkt_logger, set_pkt_logging
@@ -257,31 +257,25 @@ class Gateway:
             if evo is not self.evo:
                 schema[evo._ctl.id] = evo.schema
 
-        orphans = [d.id for d in self.devices if d.controller is None]
-        orphans.sort()
+        orphans = [d.id for d in self.devices]
+
+        # orphans = [d.id for d in self.devices if d.controller is None]
+        # orphans.sort()
         schema[ATTR_ORPHANS] = orphans
 
         return schema
 
     @property
     def params(self) -> dict:
-        result = {}
-
-        result["devices"] = {
-            d.id: d.params for d in sorted(self.devices, key=lambda x: x.id)
+        return {
+            ATTR_DEVICES: {d.id: d.params for d in sorted(self.devices)},
         }
-
-        return result
 
     @property
     def status(self) -> dict:
-        result = {}
-
-        result["devices"] = {
-            d.id: d.status for d in sorted(self.devices, key=lambda x: x.id)
+        return {
+            ATTR_DEVICES: {d.id: d.status for d in sorted(self.devices)},
         }
-
-        return result
 
     def create_client(self, msg_handler) -> Tuple[Callable, Callable]:
         """Create a client protocol for the RAMSES-II message transport."""

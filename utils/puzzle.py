@@ -20,7 +20,7 @@ from colorama import init as colorama_init, Fore, Style
 from evohome_rf import Gateway, GracefulExit
 from evohome_rf.command import Command, Priority
 from evohome_rf.exceptions import EvohomeError
-from evohome_rf.helpers import dts_to_hex, is_valid_dev_id
+from evohome_rf.helpers import is_valid_dev_id
 from evohome_rf.packet import CONSOLE_COLS, _PKT_LOGGER, Packet
 from evohome_rf.protocol import create_protocol_factory
 from evohome_rf.transport import PacketProtocol, create_pkt_stack
@@ -269,13 +269,11 @@ async def puzzle_cast(gwy, pkt_protocol, interval=None, count=0, length=48, **kw
         else:
             print(f"{Fore.GREEN}{dtm} {msg}"[:CONSOLE_COLS])
 
-    async def cast_puzzle_pkt(ordinal):
-        payload = f"7F{dts_to_hex(dt.now())}7F{ordinal % 0x10000:04X}7F{int_hex}7F"
-        payload = payload.ljust(length * 2, "F")
-
+    async def cast_puzzle_pkt(ordinal):  # TODO: broken
+        ordinal = ordinal % 0x10000
         qos = {"priority": Priority.HIGHEST, "retries": 0}
         await msg_protocol.send_data(
-            Command(" I", "63:262142", "7FFF", payload, qos=qos)
+            Command._puzzle("7F", ordinal=ordinal, interval=int_hex, length=length**qos)
         )
 
     msg_protocol, _ = gwy.create_client(print_message)

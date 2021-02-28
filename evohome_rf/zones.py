@@ -62,7 +62,7 @@ class ZoneBase(Entity, metaclass=ABCMeta):
     #     return json.dumps(self.schema, indent=2)
 
     def __str__(self) -> str:
-        return f"{self._ctl.id}_{self.id} ({self._zone_type})"
+        return f"{self.id} ({self._zone_type})"
 
     def __lt__(self, other) -> bool:
         if not hasattr(other, "idx"):

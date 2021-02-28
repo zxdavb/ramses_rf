@@ -38,6 +38,7 @@ from .helpers import (
     str_to_hex,
     temp_to_hex,
 )
+from .opentherm import parity
 
 # from .ramses import RAMSES_CODES
 
@@ -106,8 +107,10 @@ class Command:
     def __init__(self, verb, dest_id, code, payload, **kwargs) -> None:
         """Initialise the class."""
 
+        assert "qos" not in kwargs, "FIXME"
+
         self.verb = verb
-        self.seqx = "---"
+        self.seqn = "---"
         self.from_addr, self.dest_addr, self.addrs = extract_addrs(
             f"{kwargs.get('from_id', HGI_DEV_ADDR.id)} {dest_id} {NON_DEV_ADDR.id}"
         )
@@ -141,7 +144,7 @@ class Command:
 
         return COMMAND_FORMAT.format(
             self.verb,
-            self.seqx,
+            self.seqn,
             self.addrs[0].id,
             self.addrs[1].id,
             self.addrs[2].id,
@@ -274,6 +277,12 @@ class Command:
 
         return cls(" W", ctl_id, "10A0", payload, **kwargs)
 
+    @classmethod  # constructor for RQ/0404  # TODO
+    def get_dhw_schedule_fragment(cls, ctl_id, frag_idx, frag_cnt, **kwargs):
+        """Constructor to get a DHW schedule fragment (c.f. parser_0404)."""
+        payload = f"0023000800{frag_idx + 1:02X}{frag_cnt:02X}"
+        return cls("RQ", ctl_id, "0404", payload, **kwargs)
+
     @classmethod  # constructor for 1030  # TODO
     def set_mix_valve_params(
         cls,
@@ -333,9 +342,10 @@ class Command:
 
     @classmethod  # constructor for RQ/3220  # TODO
     def get_opentherm_msg(cls, dev_id, msg_id, **kwargs):
-        """Constructor to get opentherm msg value (c.f. parser_3220)."""
+        """Constructor to get (Read-Data) opentherm msg value (c.f. parser_3220)."""
         msg_id = msg_id if isinstance(msg_id, int) else int(msg_id, 16)
-        return cls("RQ", dev_id, "3220", f"0000{msg_id:02X}0000", **kwargs)
+        payload = f"0080{msg_id:02X}0000" if parity(msg_id) else f"0000{msg_id:02X}0000"
+        return cls("RQ", dev_id, "3220", payload, **kwargs)
 
     @classmethod  # constructor for RQ/313F
     def get_system_time(cls, ctl_id, **kwargs):
@@ -348,6 +358,11 @@ class Command:
         #  W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
 
         return cls(" W", ctl_id, "313F", f"006000{dtm_to_hex(datetime)}", **kwargs)
+
+    @classmethod  # constructor for RQ/1100  # TODO
+    def get_tpi_params(cls, ctl_id, **kwargs):
+        """Constructor to get the TPI params of a system (c.f. parser_1100)."""
+        return cls("RQ", ctl_id, "1100", "FC", **kwargs)
 
     @classmethod  # constructor for 1100  # TODO
     def set_tpi_params(
@@ -493,38 +508,56 @@ class Command:
 
         return cls(" W", ctl_id, "2309", payload, **kwargs)
 
-    @classmethod
-    def _puzzle(cls, message=None, ordinal=0, interval=0, length=None, **kwargs):
+    @classmethod  # constructor for RQ/0404  # TODO
+    def get_zone_schedule_fragment(cls, ctl_id, zone_idx, frag_idx, frag_cnt, **kwargs):
+        """Constructor to get a zone schedule fragment (c.f. parser_0404)."""
+        zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
+        payload = f"{zone_idx:02X}20000800{frag_idx + 1:02X}{frag_cnt:02X}"
+        return cls("RQ", ctl_id, "0404", payload, **kwargs)
 
-        if message:
+    @classmethod
+    def _puzzle(
+        cls, msg_type="01", message=None, ordinal=0, interval=0, length=None, **kwargs
+    ):
+
+        if msg_type == "00":
             payload = f"00{dts_to_hex(dt.now())}7F"
             payload += f"{str_to_hex(message)}7F"
+
+        elif msg_type in ("01", "02", "03"):
+            payload = f"{msg_type}{str_to_hex(message)}7F"
+
         else:
             payload = f"7F{dts_to_hex(dt.now())}7F"
-            payload += f"{ordinal % 0x10000:04X}7F"
-            payload += f"{int(interval * 100):04X}7F"
+            payload += f"{ordinal % 0x10000:04X}7F{int(interval * 100):04X}7F"
 
         if length:
             payload = payload.ljust(length * 2, "F")
 
-        return cls(" I", NUL_DEV_ADDR.id, "7FFF", payload, **kwargs)
+        return cls(" I", NUL_DEV_ADDR.id, "7FFF", payload[:48], **kwargs)
 
     @classmethod
-    def packet(cls, verb, seqx, addr0, addr1, addr2, code, payload, **kwargs):
+    def packet(cls, verb, seqn, addr0, addr1, addr2, code, payload, **kwargs):
         """Construct commands with fewer assumptions/checks than the main constructor.
 
         For example:
             I 056 --:------ --:------ 02:123456 99FD 003 000404
         """
+
+        verb = " I" if verb == "I" else " W" if verb == "W" else verb
+
         cmd = cls(verb, NUL_DEV_ADDR.id, code, payload, **kwargs)
-        if seqx is not None:
-            cmd.seqx = f"{seqx:03d}"
+
+        if seqn in ("", "-", "--", "---"):
+            cmd.seqn = "---"
+        elif seqn is not None:
+            cmd.seqn = f"{int(seqn):03d}"
 
         cmd.from_addr, cmd.dest_addr, cmd.addrs = extract_addrs(
             f"{addr0} {addr1} {addr2}"
         )
 
-        cmd.self._is_valid = None
+        cmd._is_valid = None
         if not cmd.is_valid:
             raise ValueError(f"Invalid parameter values for command: {cmd}")
 
@@ -620,7 +653,7 @@ class FaultLog:  # 0418
 
         rq_callback = {"func": rq_callback, "timeout": 10}
         self._gwy.send_cmd(
-            Command.get_system_log_entry(self._ctl.id, log_idx, callback=rq_callback),
+            Command.get_system_log_entry(self._ctl.id, log_idx, callback=rq_callback)
         )
 
 
@@ -754,11 +787,11 @@ class Schedule:  # 0404
         # 059 RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0304
         # 046 RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0304 6BE...
 
-        payload = f"{self.idx}20000800{frag_idx + 1:02X}{frag_cnt:02X}"  # DHW: 23000800
         rq_callback = {"func": rq_callback, "timeout": 1}
-        self._gwy.send_cmd(
-            Command("RQ", self._ctl.id, "0404", payload, callback=rq_callback)
+        cmd = Command.get_zone_schedule_fragment(
+            self._ctl.id, self.idx, frag_idx, frag_cnt, callback=rq_callback
         )
+        self._gwy.send_cmd(cmd)
 
     @staticmethod
     def _frags_to_sched(frags: list) -> dict:
