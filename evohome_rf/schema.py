@@ -92,7 +92,7 @@ SERIAL_CONFIG_SCHEMA = vol.Schema(
     {
         vol.Optional("baudrate", default=115200): vol.All(
             vol.Coerce(int), vol.Any(57600, 115200)
-        ),  # NB: HGI80 does not work, except at 115200?
+        ),  # NB: HGI80 does not work, except at 115200 - so must be default
         vol.Optional("timeout", default=0): vol.Any(None, int),
         vol.Optional("dsrdtr", default=False): bool,
         vol.Optional("rtscts", default=False): bool,
