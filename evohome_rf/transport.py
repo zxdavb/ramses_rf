@@ -34,6 +34,7 @@ from .schema import (
     ENFORCE_BLOCKLIST,
     EVOFW_FLAG,
     SERIAL_CONFIG,
+    SERIAL_CONFIG_SCHEMA,
 )
 from .version import __version__
 
@@ -43,13 +44,7 @@ ERR_MSG_REGEX = re.compile(r"^([0-9A-F]{2}\.)+$")
 
 POLLER_TASK = "poller_task"
 
-DEFAULT_SERIAL_CONFIG = {
-    "baudrate": 115200,
-    "timeout": 0,  # None
-    "dsrdtr": False,
-    "rtscts": False,
-    "xonxoff": True,  # set True to remove \x11
-}
+DEFAULT_SERIAL_CONFIG = SERIAL_CONFIG_SCHEMA(dict())
 
 Pause = SimpleNamespace(
     NONE=td(seconds=0),

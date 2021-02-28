@@ -91,12 +91,12 @@ DONT_UPDATE_ENTITIES = 1
 SERIAL_CONFIG_SCHEMA = vol.Schema(
     {
         vol.Optional("baudrate", default=115200): vol.All(
-            vol.Coerce(int), vol.Range(min=0)
-        ),
+            vol.Coerce(int), vol.Any(57600, 115200)
+        ),  # NB: HGI80 does not work, except at 115200?
         vol.Optional("timeout", default=0): vol.Any(None, int),
         vol.Optional("dsrdtr", default=False): bool,
         vol.Optional("rtscts", default=False): bool,
-        vol.Optional("xonxoff", default=True): bool,
+        vol.Optional("xonxoff", default=True): bool,  # set True to remove \x11
     },
 )
 CONFIG_SCHEMA = vol.Schema(
