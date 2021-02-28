@@ -219,7 +219,7 @@ RAMSES_CODES = {
     },  # seen with Hometronic systems
     "2E04": {
         NAME: "system_mode",
-        I_: r"^0[0-7][0-9A-F]{12}0[01]$",
+        I_: r"^0[0-7][0-9A-F]{12}0[01]$",  # evo: r"^0[0-7][0-9A-F]{12}0[01]$",
         RQ: r"^FF$",
         RP: r"^0[0-7][0-9A-F]{12}0[01]$",
         W_: r"^0[0-7][0-9A-F]{12}0[01]$",
