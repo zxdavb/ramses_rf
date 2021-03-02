@@ -10,6 +10,10 @@ from typing import Any, Dict, Optional
 from .command import Command, Priority
 from .const import (
     _dev_mode_,
+    ATTR_HEAT_DEMAND,
+    ATTR_SETPOINT,
+    ATTR_TEMP,
+    ATTR_WINDOW_OPEN,
     DEVICE_HAS_BATTERY,
     DEVICE_TABLE,
     DEVICE_TYPES,
@@ -19,6 +23,7 @@ from .const import (
     DISCOVER_ALL,
     DOMAIN_TYPE_MAP,
 )
+
 from .exceptions import CorruptStateError
 from .helpers import dev_id_to_hex
 
@@ -265,6 +270,7 @@ class Actuator:  # 3EF0, 3EF1
 
     @property
     def enabled(self) -> Optional[bool]:  # 3EF0, 3EF1
+        """Return the actuator's current state."""
         return self._msg_payload(self._actuator_enabled, "actuator_enabled")
 
     @property
@@ -318,13 +324,13 @@ class Setpoint:  # 2309
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309
-        return self._msg_payload(self._setpoint, "setpoint")
+        return self._msg_payload(self._setpoint, ATTR_SETPOINT)
 
     @property
     def status(self) -> dict:
         return {
             **super().status,
-            "setpoint": self.setpoint,
+            ATTR_SETPOINT: self.setpoint,
         }
 
 
@@ -342,13 +348,13 @@ class Temperature:  # 30C9
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        return self._msg_payload(self._temp, "temperature")
+        return self._msg_payload(self._temp, ATTR_TEMP)
 
     @property
     def status(self) -> dict:
         return {
             **super().status,
-            "temperature": self.temperature,
+            ATTR_TEMP: self.temperature,
         }
 
 
@@ -629,7 +635,7 @@ class UfhController(Device):
     @property
     def heat_demand(self) -> Optional[Dict]:  # 3150
         try:
-            return self._msgs["3150"].payload["heat_demand"]
+            return self._msgs["3150"].payload[ATTR_HEAT_DEMAND]
         except KeyError:
             return
 
@@ -665,7 +671,7 @@ class UfhController(Device):
     def status(self) -> dict:
         return {
             **super().status,
-            "heat_demand": self.heat_demand,
+            ATTR_HEAT_DEMAND: self.heat_demand,
             "relay_demand": self.relay_demand,
         }
 
@@ -697,7 +703,7 @@ class DhwSensor(BatteryState, Device):
 
     @property
     def temperature(self) -> Optional[float]:
-        return self._msg_payload(self._temp, "temperature")
+        return self._msg_payload(self._temp, ATTR_TEMP)
 
     @property
     def params(self) -> dict:
@@ -710,7 +716,7 @@ class DhwSensor(BatteryState, Device):
     def status(self) -> dict:
         return {
             **super().status,
-            "temperature": self.temperature,
+            ATTR_TEMP: self.temperature,
         }
 
 
@@ -719,6 +725,8 @@ class OtbGateway(Actuator, Device):
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
     # see: https://www.opentherm.eu/request-details/?post_ids=2944
+
+    VALUE = "value"
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -778,42 +786,42 @@ class OtbGateway(Actuator, Device):
     @property
     def boiler_water_temp(self) -> Optional[float]:  # 3220
         try:
-            return self._opentherm_msg["0x19"].payload["value"]
+            return self._opentherm_msg["0x19"].payload[self.VALUE]
         except KeyError:
             return
 
     @property
     def ch_water_pressure(self) -> Optional[float]:  # 3220
         try:
-            return self._opentherm_msg["0x12"].payload["value"]
+            return self._opentherm_msg["0x12"].payload[self.VALUE]
         except KeyError:
             return
 
     @property
     def dhw_flow_rate(self) -> Optional[float]:  # 3220
         try:
-            return self._opentherm_msg["0x13"].payload["value"]
+            return self._opentherm_msg["0x13"].payload[self.VALUE]
         except KeyError:
             return
 
     @property
     def dhw_temp(self) -> Optional[float]:  # 3220
         try:
-            return self._opentherm_msg["0x1A"].payload["value"]
+            return self._opentherm_msg["0x1A"].payload[self.VALUE]
         except KeyError:
             return
 
     @property
     def rel_modulation_level(self) -> Optional[float]:  # 3220
         try:
-            return self._opentherm_msg["0x11"].payload["value"]
+            return self._opentherm_msg["0x11"].payload[self.VALUE]
         except KeyError:
             return
 
     @property
     def return_cv_temp(self) -> Optional[float]:  # 3220
         try:
-            return self._opentherm_msg["0x1C"].payload["value"]
+            return self._opentherm_msg["0x1C"].payload[self.VALUE]
         except KeyError:
             return
 
@@ -999,14 +1007,14 @@ class TrvActuator(BatteryState, Setpoint, Temperature, Device):
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
-        return self._msg_payload(self._heat_demand, "heat_demand")
+        return self._msg_payload(self._heat_demand, ATTR_HEAT_DEMAND)
 
     @property
-    def window_state(self) -> Optional[bool]:  # 12B0
-        return self._msg_payload(self._window_state, "window_open")
+    def window_open(self) -> Optional[bool]:  # 12B0
+        return self._msg_payload(self._window_state, ATTR_WINDOW_OPEN)
 
     @property
-    def enabled(self) -> Optional[bool]:  # 3EF0, 3EF1
+    def enabled(self) -> Optional[bool]:
         if self.heat_demand is not None:
             return bool(self.heat_demand)
 
@@ -1014,8 +1022,8 @@ class TrvActuator(BatteryState, Setpoint, Temperature, Device):
     def status(self) -> dict:
         return {
             **super().status,
-            "heat_demand": self.heat_demand,
-            "window_state": self.window_state,
+            ATTR_HEAT_DEMAND: self.heat_demand,
+            ATTR_WINDOW_OPEN: self.window_open,
         }
 
 

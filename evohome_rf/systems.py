@@ -3,6 +3,7 @@
 #
 """Evohome RF - The evohome-compatible system."""
 
+from asyncio import Task
 from datetime import timedelta as td
 import json
 import logging
@@ -179,17 +180,20 @@ class SysMode:  # 2E04
     def system_mode(self) -> Optional[dict]:  # 2E04
         return self._msg_payload(self._system_mode)
 
-    async def set_mode(self, system_mode=None, until=None):
-        """Set the system mode for a specified duration, or indefinitely."""
-        self._gwy.send_cmd(
-            Command.set_system_mode(self.id, system_mode=system_mode, until=until)
-        )
+    def set_mode(self, system_mode=None, until=None) -> Task:
+        """Set a system mode for a specified duration, or indefinitely."""
+        cmd = Command.set_system_mode(self.id, system_mode=system_mode, until=until)
+        return self._gwy.send_cmd(cmd)
 
-    async def reset_mode(self) -> None:
-        """Revert the system mode to Auto."""  # TODO: is it AutoWithReset?
-        self._gwy.send_cmd(
-            Command.set_system_mode(self.id, system_mode="auto_with_reset")
-        )
+    def set_auto_mode(self) -> Task:
+        """Revert system to Auto, set non-PermanentOverride zones to FollowSchedule."""
+        cmd = Command.set_system_mode(self.id, system_mode="auto")
+        return self._gwy.send_cmd(cmd)
+
+    def reset_mode(self) -> Task:
+        """Revert system to Auto, force *all* zones to FollowSchedule."""
+        cmd = Command.set_system_mode(self.id, system_mode="auto_with_reset")
+        return self._gwy.send_cmd(cmd)
 
     @property
     def params(self) -> dict:

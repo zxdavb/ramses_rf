@@ -32,7 +32,7 @@ class MakeCallbackAwaitable:
         self._loop = loop if loop else asyncio.get_event_loop()
         self._queue = None
 
-    async def create_pair(self) -> Tuple[Callable, Callable]:
+    def create_pair(self) -> Tuple[Callable, Callable]:
         self._queue = SimpleQueue()  # maxsize=1)
 
         def putter(*args):  # callback
@@ -411,7 +411,7 @@ class MessageProtocol(asyncio.Protocol):
             raise ValueError("only one of `awaitable` and `callback` can be provided")
 
         if awaitable:
-            awaitable, callback = await MakeCallbackAwaitable(self._loop).create_pair()
+            awaitable, callback = MakeCallbackAwaitable(self._loop).create_pair()
         if callback:
             cmd.callback = {
                 "func": callback,

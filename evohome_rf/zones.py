@@ -4,6 +4,8 @@
 """Evohome RF - The evohome-compatible zones."""
 
 from abc import ABCMeta, abstractmethod
+from asyncio import Task
+from datetime import datetime as dt, timedelta as td
 import logging
 from typing import Optional
 
@@ -16,7 +18,7 @@ from .const import (
     ATTR_HEAT_DEMAND,
     ATTR_SETPOINT,
     ATTR_TEMP,
-    ATTR_OPEN_WINDOW,
+    ATTR_WINDOW_OPEN,
     ATTR_ZONE_SENSOR,
     ATTR_ZONE_TYPE,
     DEVICE_HAS_ZONE_SENSOR,
@@ -44,6 +46,12 @@ if DEV_MODE:
 
 class ZoneBase(Entity, metaclass=ABCMeta):
     """The Zone/DHW base class."""
+    DHW = "DHW"
+    ELE = "ELE"
+    MIX = "MIX"
+    RAD = "RAD"
+    UFH = "UFH"
+    VAL = "VAL"
 
     def __init__(self, evo, zone_idx) -> None:
         _LOGGER.debug("Creating a Zone: %s_%s (%s)", evo.id, zone_idx, self.__class__)
@@ -195,7 +203,7 @@ class DhwZone(ZoneBase):
         self._dhw_valve = None
         self._htg_valve = None
 
-        self.heating_type = "DHW"
+        self.heating_type = Zone.DHW
 
         self._dhw_mode = None
         self._dhw_params = None
@@ -213,7 +221,7 @@ class DhwZone(ZoneBase):
             self._set_htg_valve(htg_valve)
 
     def __str__(self) -> str:  # TODO: rationalise
-        return f"{self._ctl.id}_HW (DHW)"
+        return f"{self._ctl.id}_HW ({Zone.DHW})"
 
     def _discover(self, discover_flags=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
@@ -347,15 +355,15 @@ class DhwZone(ZoneBase):
 
     @property
     def setpoint(self) -> Optional[float]:  # 1F41
-        return self._msg_payload(self._dhw_mode, "setpoint")
+        return self._msg_payload(self._dhw_params, ATTR_SETPOINT)
 
     @property
     def temperature(self) -> Optional[float]:  # 1260
-        return self._msg_payload(self._dhw_temp, "temperature")
+        return self._msg_payload(self._dhw_temp, ATTR_TEMP)
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
-        return self._msg_payload(self._heat_demand, "heat_demand")
+        return self._msg_payload(self._heat_demand, ATTR_HEAT_DEMAND)
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
@@ -365,33 +373,39 @@ class DhwZone(ZoneBase):
     def relay_failsafe(self) -> Optional[float]:  # 0009
         return self._msg_payload(self._relay_failsafe, "relay_failsafe")
 
-    @property
-    def schema(self) -> dict:
-        return {
-            ATTR_DHW_SENSOR: self.sensor.id if self.sensor else None,
-            ATTR_DHW_VALVE: self.hotwater_valve.id if self.hotwater_valve else None,
-            ATTR_DHW_VALVE_HTG: self.heating_valve.id if self.heating_valve else None,
-        }
+    def set_mode(self, mode=None, active=None, until=None) -> Task:
+        """Set the DHW mode (mode, active, until)."""
+        cmd = Command.set_dhw_mode(self._ctl.id, mode, active, until)
+        return self._gwy.send_cmd(cmd)
 
-    @property  # setpoint, config, mode (not schedule)
-    def params(self) -> dict:
-        return {
-            "config": self.config,
-            "mode": self.mode,
-        }
+    def set_boost_mode(self) -> Task:
+        """Enable DHW for an hour, despite any schedule."""
+        return self.set_mode(
+            mode="temporary_override", active=True, until=dt.now() + td(hours=1)
+        )
 
-    @property  # temp, open_windows
-    def status(self) -> dict:
-        return {
-            "temperature": self.temperature,
-            "heat_demand": self.heat_demand,
-        }
+    def reset_mode(self) -> Task:  # 1F41
+        """Revert the DHW to following its schedule."""
+        return self.set_mode(mode="follow_schedule")
 
-    async def cancel_override(self) -> bool:  # 1F41
-        """Reset the DHW to follow its schedule."""
-        raise NotImplementedError
+    def set_config(self, setpoint=None, overrun=None, differential=None) -> Task:
+        """Set the DHW parameters (setpoint, overrun, differential)."""
+        # if self._dhw_params:  # 10A0
+            # if setpoint is None:
+            #     setpoint = self._msg_payload(self._dhw_params, ATTR_SETPOINT)
+            # if overrun is None:
+            #     overrun = self._msg_payload(self._dhw_params, "overrun")
+            # if differential is None:
+            #     setpoint = self._msg_payload(self._dhw_params, "differential")
 
-    async def set_override(self, mode=None, state=None, until=None) -> bool:
+        cmd = Command.set_dhw_params(self._ctl.id, setpoint, overrun, differential)
+        return self._gwy.send_cmd(cmd)
+
+    def reset_config(self) -> Task:  # 10A0
+        """Reset the DHW parameters to their default values."""
+        return self.set_config(setpoint=50, overrun=5, differential=1)
+
+    async def _old_set_override(self, mode=None, state=None, until=None) -> bool:
         """Force the DHW on/off for a duration, or indefinitely.
 
         Use until = ? for 1hr boost (obligates on)
@@ -439,13 +453,24 @@ class DhwZone(ZoneBase):
         self._send_cmd("1F41", verb=" W", payload=payload)
         return False
 
-    async def reset_config(self) -> bool:  # 10A0
-        """Reset the DHW parameters to their default values."""
-        raise NotImplementedError
+    @property
+    def schema(self) -> dict:
+        """Return the DHW's schema (devices)."""
+        return {
+            ATTR_DHW_SENSOR: self.sensor.id if self.sensor else None,
+            ATTR_DHW_VALVE: self.hotwater_valve.id if self.hotwater_valve else None,
+            ATTR_DHW_VALVE_HTG: self.heating_valve.id if self.heating_valve else None,
+        }
 
-    async def set_config(self, setpoint, overrun=None, differential=None) -> bool:
-        """Set the DHW parameters."""
-        raise NotImplementedError
+    @property
+    def params(self) -> dict:
+        """Return the DHW's configuration (excl. schedule)."""
+        return {a: getattr(self, a) for a in ("config", "mode")}
+
+    @property
+    def status(self) -> dict:
+        """Return the DHW's current state."""
+        return {a: getattr(self, a) for a in (ATTR_TEMP, ATTR_HEAT_DEMAND)}
 
 
 class ZoneSchedule:  # 0404
@@ -583,11 +608,11 @@ class Zone(ZoneSchedule, ZoneBase):
             self._window_open = msg
 
         elif msg.code == "2309" and msg.verb in (" I", "RP"):  # setpoint
-            assert msg.src.type == "01", "coding error"
+            assert msg.src.type == "01", "coding error zxw"
             self._setpoint = msg
 
         elif msg.code == "2349" and msg.verb in (" I", "RP"):  # mode, setpoint
-            assert msg.src.type == "01", "coding error"
+            assert msg.src.type == "01", "coding error zxx"
             self._mode = msg
             self._setpoint = msg
 
@@ -741,19 +766,22 @@ class Zone(ZoneSchedule, ZoneBase):
             return
 
         elif isinstance(self._setpoint.payload, dict):
-            return self._msg_payload(self._setpoint, "setpoint")
+            return self._msg_payload(self._setpoint, ATTR_SETPOINT)
 
         elif isinstance(self._setpoint.payload, list):
             _zone = [z for z in self._setpoint.payload if z["zone_idx"] == self.idx]
-            return _zone[0]["setpoint"]
+            return _zone[0][ATTR_SETPOINT]
 
     @setpoint.setter
     def setpoint(self, value) -> None:
         """Set the target temperature, until the next scheduled setpoint."""
         if value is None:
-            self.cancel_override()
+            self.reset_mode()
         else:
-            self.set_override(mode="advanced_override", setpoint=value)
+            # NOTE: the following doesn't wotk for e.g. Hometronics
+            # self.set_mode(mode="advanced_override", setpoint=value)
+            cmd = Command.set_zone_setpoint(self._ctl.id, self.idx, value)
+            self._gwy.send_cmd(cmd)
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
@@ -765,72 +793,81 @@ class Zone(ZoneSchedule, ZoneBase):
             return
 
         elif isinstance(self._temperature.payload, dict):
-            return self._msg_payload(self._temperature, "temperature")
+            return self._msg_payload(self._temperature, ATTR_TEMP)
 
         elif isinstance(self._temperature.payload, list):
             tmp = [z for z in self._temperature.payload if z["zone_idx"] == self.idx]
-            return tmp[0]["temperature"]
+            return tmp[0][ATTR_TEMP]
 
     @property
     def heat_demand(self) -> Optional[float]:
+        """Return an estimate of the zone's current heat demand."""
         demands = [
             d.heat_demand
             for d in self.devices
-            if hasattr(d, "heat_demand") and d.heat_demand is not None
+            if hasattr(d, ATTR_HEAT_DEMAND) and d.heat_demand is not None
         ]
         # return max(demands) if demands else None
         return round(sum(demands) / len(demands), 1) if demands else None
 
     @property
     def window_open(self) -> Optional[bool]:  # 12B0  # TODO: don't work >1 TRV?
-        return self._msg_payload(self._window_open, "window_open")
+        """Return an estimate of the zone's current window_open state."""
+        windows = [
+            d.window_open
+            for d in self.devices
+            if hasattr(d, ATTR_WINDOW_OPEN) and d.window_open is not None
+        ]
+        return any(windows) if windows else None
 
-    def cancel_override(self) -> None:  # 2349
-        """Revert to following the schedule."""
-        self.set_override()
-
-    def frost_protect(self) -> None:  # 2349
-        """Set the zone to the lowest possible setpoint, indefinitely."""
-        self.set_override(mode="permanent_override", setpoint=5)  # TODO
-
-    def set_override(self, mode=None, setpoint=None, until=None) -> None:
-        """Override the setpoint for a specified duration, or indefinitely."""
-
+    def set_mode(self, mode=None, setpoint=None, until=None) -> Task:
+        """Override the zone's setpoint for a specified duration, or indefinitely."""
+        if all(v is None for v in (mode, setpoint, until)):
+            return self.reset_mode()
         cmd = Command.set_zone_mode(self._ctl.id, self.idx, mode, setpoint, until)
-        self._gwy.send_cmd(cmd)
+        return self._gwy.send_cmd(cmd)
 
-    @property  # id, type
+    def set_frost_mode(self) -> Task:  # 2349
+        """Set the zone to the lowest possible setpoint, indefinitely."""
+        return self.set_mode(mode="permanent_override", setpoint=5)  # TODO
+
+    def reset_mode(self) -> Task:  # 2349
+        """Revert the zone to following its schedule."""
+        return self.set_mode(mode="follow_schedule")
+
+    def set_config(self, setpoint=None, overrun=None, differential=None) -> Task:
+        """Set the zone's parameters (setpoint, overrun, differential)."""
+        cmd = Command.set_zone_config(self._ctl.id, setpoint, overrun, differential)
+        return self._gwy.send_cmd(cmd)
+
+    def reset_config(self) -> Task:
+        """Reset the zone's parameters to their default values."""
+        return self.set_config(setpoint=50, overrun=5, differential=1)
+
+    def set_name(self, name) -> Task:
+        """Set the zone's name."""
+        cmd = Command.set_zone_name(self._ctl.id, self.idx, name)
+        return self._gwy.send_cmd(cmd)
+
+    @property
     def schema(self) -> dict:
-        """Return the zone's schema."""
-
+        """Return the zone's schema (type, devices)."""
         return {
             ATTR_ZONE_TYPE: self.heating_type,
             ATTR_ZONE_SENSOR: self._sensor.id if self._sensor else None,
             ATTR_DEVICES: [d.id for d in self.devices],
         }
 
-    @property  # setpoint, config, mode (not schedule)
+    @property  # TODO: setpoint
     def params(self) -> dict:
         """Return the zone's configuration (excl. schedule)."""
-
-        ATTR_NAME = "name"  # TODO
-        ATTR_MODE = "mode"
-        ATTR_CONFIG = "config"
-
-        return {
-            ATTR_NAME: self.name,
-            ATTR_MODE: self.mode,
-            ATTR_CONFIG: self.config,
-        }
+        return {a: getattr(self, a) for a in ("config", "mode", "name")}
 
     @property
     def status(self) -> dict:
         """Return the zone's current state."""
-
         return {
-            ATTR_SETPOINT: self.setpoint,
-            ATTR_TEMP: self.temperature,
-            ATTR_OPEN_WINDOW: self.window_open,
+            a: getattr(self, a) for a in (ATTR_SETPOINT, ATTR_TEMP)
         }
 
 
@@ -848,7 +885,7 @@ class ZoneDemand:  # not all zone types call for heat
         demands = [
             d.heat_demand
             for d in self.devices
-            if hasattr(d, "heat_demand") and d.heat_demand is not None
+            if hasattr(d, ATTR_HEAT_DEMAND) and d.heat_demand is not None
         ]
         return max(demands + [0]) if demands else None
 
@@ -932,7 +969,7 @@ class UfhZone(ZoneDemand, Zone):
 
     @property
     def ufh_setpoint(self) -> Optional[float]:  # 22C9
-        return self._msg_payload(self._ufh_setpoint, "setpoint")
+        return self._msg_payload(self._ufh_setpoint, ATTR_SETPOINT)
 
     @property
     def status(self) -> dict:
@@ -970,10 +1007,10 @@ class MixZone(Zone):
 
 
 ZONE_CLASSES = {
-    "RAD": RadZone,
-    "ELE": EleZone,
-    "VAL": ValZone,
-    "UFH": UfhZone,
-    "MIX": MixZone,
-    "DHW": DhwZone,
+    Zone.RAD: RadZone,
+    Zone.ELE: EleZone,
+    Zone.VAL: ValZone,
+    Zone.UFH: UfhZone,
+    Zone.MIX: MixZone,
+    Zone.DHW: DhwZone,
 }

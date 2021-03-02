@@ -74,7 +74,7 @@ def spawn_execute_cmd(gwy, **kwargs):
         cmd = Command.packet(verb, seqn, *addrs, code, payload, **qos)
     except ValueError as err:
         _LOGGER.warning(
-            "Execute: Command is invalid: '%s' (%s)", kwargs[EXECUTE_CMD], err,
+            "Execute: Command is invalid: '%s' (%s)", kwargs[EXECUTE_CMD], err
         )
     gwy.send_cmd(cmd)
 

@@ -1122,7 +1122,6 @@ def parser_12b0(payload, msg) -> Optional[dict]:
     assert payload[2:] in ("0000", "C800", "FFFF"), payload[2:]  # "FFFF" means N/A
     # assert msg.len == 3, msg.len  # implied
 
-    # TODO: zone.open_window = any(TRV.open_windows)?
     return {
         **_idx(payload[:2], msg),
         "window_open": _bool(payload[2:4]),

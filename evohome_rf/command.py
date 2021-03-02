@@ -109,7 +109,9 @@ class Command:
 
         assert "qos" not in kwargs, "FIXME"
 
-        self.verb = verb
+        self.verb = f"{verb:>2}"[:2]
+        assert self.verb in (" I", "RQ", "RP", " W"), f"invalid verb: '{self.verb}'"
+
         self.seqn = "---"
         self.from_addr, self.dest_addr, self.addrs = extract_addrs(
             f"{kwargs.get('from_id', HGI_DEV_ADDR.id)} {dest_id} {NON_DEV_ADDR.id}"
@@ -241,7 +243,7 @@ class Command:
     def set_dhw_mode(cls, ctl_id, domain_id, active: bool, mode, until=None, **kwargs):
         """Constructor to set/reset the mode of the DHW (c.f. parser_1f41)."""
 
-        payload = f"{domain_id:02X}" if isinstance(domain_id, int) else domain_id
+        payload = "00"
 
         assert isinstance(active, bool), active
         assert mode in ZONE_MODE_LOOKUP, mode
@@ -251,13 +253,12 @@ class Command:
         if ZONE_MODE_LOOKUP[mode] == "04":
             payload += dtm_to_hex(until)
 
-        return cls(" W", ctl_id, "1F41", payload, **kwargs)
+        return cls("W", ctl_id, "1F41", payload, **kwargs)
 
     @classmethod  # constructor for 10A0  # TODO
     def set_dhw_params(
         cls,
         ctl_id,
-        domain_id,
         setpoint: float = 50,
         overrun: int = 5,
         differential: float = 1.0,
@@ -265,17 +266,17 @@ class Command:
     ):
         """Constructor to set the params of the DHW (c.f. parser_10a0)."""
 
-        payload = f"{domain_id:02X}" if isinstance(domain_id, int) else domain_id
+        setpoint = 50.0 if setpoint is None else setpoint
+        overrun = 5 if overrun is None else overrun
+        differential = 1.0 if differential is None else differential
 
-        assert setpoint is None or 30 <= setpoint <= 85, setpoint
-        assert overrun is None or 0 <= overrun <= 10, overrun
-        assert differential is None or 1 <= differential <= 10, differential
+        assert 30 <= setpoint <= 85, setpoint
+        assert 0 <= overrun <= 10, overrun
+        assert 1 <= differential <= 10, differential
 
-        payload += temp_to_hex(setpoint)
-        payload += f"{overrun:02X}"
-        payload += temp_to_hex(differential)
+        payload = f"00{temp_to_hex(setpoint)}{overrun:02X}{temp_to_hex(differential)}"
 
-        return cls(" W", ctl_id, "10A0", payload, **kwargs)
+        return cls("W", ctl_id, "10A0", payload, **kwargs)
 
     @classmethod  # constructor for RQ/0404  # TODO
     def get_dhw_schedule_fragment(cls, ctl_id, frag_idx, frag_cnt, **kwargs):
@@ -309,7 +310,7 @@ class Command:
         payload += f"CB01{pump_run_time:02X}"
         payload += f"CC01{1:02X}"
 
-        return cls(" W", ctl_id, "1030", payload, **kwargs)
+        return cls("W", ctl_id, "1030", payload, **kwargs)
 
     @classmethod  # constructor for RQ/0418  # TODO
     def get_system_log_entry(cls, ctl_id, log_idx, **kwargs):
@@ -338,7 +339,7 @@ class Command:
 
         until = dtm_to_hex(until) + ("00" if until is None else "01")
 
-        return cls(" W", ctl_id, "2E04", f"{system_mode}{until}", **kwargs)
+        return cls("W", ctl_id, "2E04", f"{system_mode}{until}", **kwargs)
 
     @classmethod  # constructor for RQ/3220  # TODO
     def get_opentherm_msg(cls, dev_id, msg_id, **kwargs):
@@ -357,7 +358,7 @@ class Command:
         """Constructor to set the datetime of a system (c.f. parser_313f)."""
         #  W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
 
-        return cls(" W", ctl_id, "313F", f"006000{dtm_to_hex(datetime)}", **kwargs)
+        return cls("W", ctl_id, "313F", f"006000{dtm_to_hex(datetime)}", **kwargs)
 
     @classmethod  # constructor for RQ/1100  # TODO
     def get_tpi_params(cls, ctl_id, **kwargs):
@@ -391,7 +392,7 @@ class Command:
         payload += f"{int(min_off_time * 4):02X}FF"
         payload += f"{temp_to_hex(proportional_band_width)}01"
 
-        return cls(" W", ctl_id, "1100", payload, **kwargs)
+        return cls("W", ctl_id, "1100", payload, **kwargs)
 
     @classmethod  # constructor for RQ/000A  # TODO
     def get_zone_config(cls, ctl_id, zone_idx, **kwargs):
@@ -429,7 +430,7 @@ class Command:
         payload += temp_to_hex(min_temp)
         payload += temp_to_hex(max_temp)
 
-        return cls(" W", ctl_id, "000A", payload, **kwargs)
+        return cls("W", ctl_id, "000A", payload, **kwargs)
 
     @classmethod  # constructor for RQ/2349
     def get_zone_mode(cls, ctl_id, zone_idx, **kwargs):
@@ -480,7 +481,7 @@ class Command:
         payload += ZONE_MODE_LOOKUP[mode] + "FFFFFF"
         payload += "" if until is None else dtm_to_hex(until)
 
-        return cls(" W", ctl_id, "2349", payload, **kwargs)
+        return cls("W", ctl_id, "2349", payload, **kwargs)
 
     @classmethod  # constructor for RQ/0004  # TODO
     def get_zone_name(cls, ctl_id, zone_idx, **kwargs):
@@ -496,7 +497,7 @@ class Command:
 
         payload += f"00{str_to_hex(name)[:24]:0<40}"  # TODO: check limit 12 (24)?
 
-        return cls(" W", ctl_id, "0004", payload, **kwargs)
+        return cls("W", ctl_id, "0004", payload, **kwargs)
 
     @classmethod  # constructor for 2309
     def set_zone_setpoint(cls, ctl_id, zone_idx, setpoint: float, **kwargs):
@@ -506,7 +507,7 @@ class Command:
         payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
         payload += temp_to_hex(setpoint)
 
-        return cls(" W", ctl_id, "2309", payload, **kwargs)
+        return cls("W", ctl_id, "2309", payload, **kwargs)
 
     @classmethod  # constructor for RQ/0404  # TODO
     def get_zone_schedule_fragment(cls, ctl_id, zone_idx, frag_idx, frag_cnt, **kwargs):
@@ -534,7 +535,7 @@ class Command:
         if length:
             payload = payload.ljust(length * 2, "F")
 
-        return cls(" I", NUL_DEV_ADDR.id, "7FFF", payload[:48], **kwargs)
+        return cls("I", NUL_DEV_ADDR.id, "7FFF", payload[:48], **kwargs)
 
     @classmethod
     def packet(cls, verb, seqn, addr0, addr1, addr2, code, payload, **kwargs):
@@ -888,7 +889,7 @@ class Schedule:  # 0404
         )
         tx_callback = {"func": tx_callback, "timeout": 3}  # 1 sec too low
         self._gwy.send_cmd(
-            Command(" W", self._ctl.id, "0404", payload, callback=tx_callback)
+            Command("W", self._ctl.id, "0404", payload, callback=tx_callback)
         )
 
     async def _obtain_lock(self) -> bool:  # Lock to prevent Rx/Tx at same time
