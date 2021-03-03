@@ -357,6 +357,10 @@ class DhwZone(ZoneBase):
     def setpoint(self) -> Optional[float]:  # 1F41
         return self._msg_payload(self._dhw_params, ATTR_SETPOINT)
 
+    @setpoint.setter
+    def setpoint(self, value) -> None:  # 1F41
+        return self.set_config(setpoint=value)
+
     @property
     def temperature(self) -> Optional[float]:  # 1260
         return self._msg_payload(self._dhw_temp, ATTR_TEMP)
@@ -778,10 +782,10 @@ class Zone(ZoneSchedule, ZoneBase):
         if value is None:
             self.reset_mode()
         else:
-            # NOTE: the following doesn't wotk for e.g. Hometronics
-            # self.set_mode(mode="advanced_override", setpoint=value)
             cmd = Command.set_zone_setpoint(self._ctl.id, self.idx, value)
             self._gwy.send_cmd(cmd)
+            # NOTE: the following doesn't wotk for e.g. Hometronics
+            # self.set_mode(mode="advanced_override", setpoint=value)
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
