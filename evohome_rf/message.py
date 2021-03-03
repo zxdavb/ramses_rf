@@ -337,7 +337,10 @@ class Message:
             self._is_valid = False
 
         except (CorruptPacketError, CorruptPayloadError) as err:  # CorruptEvohomeError
-            log_message(_PKT_LOGGER.warning, f"%s < {err}")
+            if DEV_MODE:
+                log_message(_PKT_LOGGER.exception, f"%s < {err}")
+            else:
+                log_message(_PKT_LOGGER.warning, f"%s < {err}")
             self._is_valid = False
 
         except (AttributeError, LookupError, TypeError, ValueError):  # TODO: dev only
@@ -588,11 +591,17 @@ def process_msg(msg: Message) -> None:
     #     return
 
     except CorruptStateError as err:
-        _LOGGER.error("%s < %s", msg._pkt, err)
+        if DEV_MODE:
+            _LOGGER.exception("%s < %s", msg._pkt, err)
+        else:
+            _LOGGER.error("%s < %s", msg._pkt, err)
         return  # TODO: bad pkt, or Schema
 
     except CorruptEvohomeError as err:
-        _LOGGER.error("%s < %s", msg._pkt, err)
+        if DEV_MODE:
+            _LOGGER.exception("%s < %s", msg._pkt, err)
+        else:
+            _LOGGER.error("%s < %s", msg._pkt, err)
         raise
 
     msg._gwy._prev_msg = msg if msg.is_valid else None
