@@ -460,7 +460,7 @@ def parser_0004(payload, msg) -> Optional[dict]:
 
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
-        cmd = Command.set_zone_name(msg.src.id, payload[:2], result["name"])
+        cmd = Command.set_zone_name(msg.dst.id, payload[:2], result["name"])
         assert cmd.payload == payload, _str(payload)
     # TODO: remove me...
 
@@ -636,7 +636,7 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:
             "multiroom_mode",
         )
         cmd = Command.set_zone_config(
-            msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
+            msg.dst.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
@@ -914,7 +914,7 @@ def parser_1030(payload, msg) -> Optional[dict]:
             "pump_run_time",
         )
         cmd = Command.set_mix_valve_params(
-            msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
+            msg.dst.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
@@ -995,7 +995,7 @@ def parser_10a0(payload, msg) -> Optional[dict]:
     if TEST_MODE and msg.verb == " W":
         KEYS = ("setpoint", "overrun", "differential")
         cmd = Command.set_dhw_params(
-            msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
+            msg.dst.id, **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
@@ -1072,7 +1072,7 @@ def parser_1100(payload, msg) -> Optional[dict]:
     if TEST_MODE and msg.verb == " W":
         KEYS = ("cycle_rate", "min_on_time", "min_off_time", "proportional_band_width")
         cmd = Command.set_tpi_params(
-            msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
+            msg.dst.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
@@ -1134,7 +1134,6 @@ def parser_12c0(payload, msg) -> Optional[dict]:
     assert payload[4:] == "01", f"expecting 01, not {payload[4:]}"
 
     temp = None if payload[2:4] == "80" else int(payload[2:4], 16) / 2
-
     return {"temperature": temp}
 
 
@@ -1176,7 +1175,7 @@ def parser_1f41(payload, msg) -> Optional[dict]:
     if TEST_MODE and msg.verb == " W":
         KEYS = ("active", "mode", "until")
         cmd = Command.set_dhw_mode(
-            msg.src.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
+            msg.dst.id, **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
@@ -1355,7 +1354,7 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:
 
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
-        cmd = Command.set_zone_setpoint(msg.src.id, payload[:2], result["setpoint"])
+        cmd = Command.set_zone_setpoint(msg.dst.id, payload[:2], result["setpoint"])
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
 
@@ -1513,7 +1512,7 @@ def parser_313f(payload, msg) -> Optional[dict]:
 
     # TODO: remove me...
     if TEST_MODE and msg.verb == " W":
-        cmd = Command.set_system_time(msg.src.id, result["datetime"])
+        cmd = Command.set_system_time(msg.dst.id, result["datetime"])
         payload = payload[:4] + "00" + payload[6:]  # 00, 01, 02, 03?
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
