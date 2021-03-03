@@ -295,7 +295,7 @@ async def scan_hard(gwy, dev_id: str):
 
 async def scan_xxxx(gwy, dev_id: str):
     _LOGGER.warning("scan_xxxx() invoked - expect a lot of nonsense")
-    await scan_001(gwy, dev_id)
+    await scan_004(gwy, dev_id)
 
 
 async def scan_001(gwy, dev_id: str):
@@ -325,3 +325,13 @@ async def scan_003(gwy, dev_id: str):
     qos = {"priority": Priority.LOW, "retries": 0}
     for msg_id in range(0x100):
         gwy.send_cmd(Command.get_opentherm_msg(dev_id, msg_id, **qos))
+
+
+async def scan_004(gwy, dev_id: str):
+    _LOGGER.warning("scan_004() invoked - expect a lot of nonsense")
+
+    qos = {"priority": Priority.LOW, "retries": 0}
+
+    cmd = Command.get_dhw_mode(dev_id, **qos)
+
+    return gwy._loop.create_task(periodic(gwy, cmd, count=0, interval=5))
