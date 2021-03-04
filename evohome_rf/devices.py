@@ -742,7 +742,7 @@ class OtbGateway(Actuator, Device):
 
         if discover_flag & DISCOVER_SCHEMA:
             for msg_id in range(0x7C, 0x80):  # From OT v2.2: version numbers
-                self._send_cmd(Command.get_opentherm_msg(self.ctl.id, msg_id))
+                self._send_cmd(Command.get_opentherm_msg(self._ctl.id, msg_id))
 
         if discover_flag & DISCOVER_PARAMS:
             pass
@@ -766,7 +766,7 @@ class OtbGateway(Actuator, Device):
             # 1C - Return water temperature
             # 73 - OEM diagnostic code
             for msg_id in msg_ids:
-                self._send_cmd(Command.get_opentherm_msg(self.ctl.id, msg_id))
+                self._send_cmd(Command.get_opentherm_msg(self._ctl.id, msg_id))
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -959,7 +959,7 @@ class BdrSwitch(Actuator, Device):
 
         if self._is_tpi:
             self._domain_id = "FC"  # TODO: check is None first
-            self.ctl._set_htg_control(self)
+            self._ctl._set_htg_control(self)
 
         return self._is_tpi
 
