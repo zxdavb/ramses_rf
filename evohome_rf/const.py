@@ -11,7 +11,7 @@ def slug(string: str) -> str:
     return re.sub(r"[\W_]+", "_", string.lower())
 
 
-_dev_mode_ = False
+DEV_MODE = _dev_mode_ = False
 
 # grep ' F[89ABxDE]' | grep -vE ' (0008|1F09/F8|1FC9|2D49/FD) '
 # grep ' F[89ABCDE]' | grep -vE ' (0008|1F09/xx|1FC9|0001|0009|1100|3150|3B00) '
@@ -23,7 +23,7 @@ def id_to_address(device_id) -> Address:
     return Address(id=device_id, type=device_id[:2])
 
 
-DEFAULT_MAX_ZONES = 12
+DEFAULT_MAX_ZONES = 16 if DEV_MODE else 12
 # Evohome: 12 (0-11), older/initial version was 8
 # Hometronics: 16 (0-15), or more?
 # Sundial RF2: 2 (0-1), usually only one, but ST9520C can do two zones

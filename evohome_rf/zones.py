@@ -46,6 +46,7 @@ if DEV_MODE:
 
 class ZoneBase(Entity, metaclass=ABCMeta):
     """The Zone/DHW base class."""
+
     DHW = "DHW"
     ELE = "ELE"
     MIX = "MIX"
@@ -66,11 +67,8 @@ class ZoneBase(Entity, metaclass=ABCMeta):
         self._evo = evo
         self._ctl = evo._ctl
 
-    # def __repr__(self) -> str:
-    #     return json.dumps(self.schema, indent=2)
-
-    def __str__(self) -> str:
-        return f"{self.id} ({self._zone_type})"
+    def __repr__(self) -> str:
+        return f"{self.id} ({self.heating_type})"
 
     def __lt__(self, other) -> bool:
         if not hasattr(other, "idx"):
@@ -219,9 +217,6 @@ class DhwZone(ZoneBase):
             self._set_dhw_valve(dhw_valve)
         if htg_valve:
             self._set_htg_valve(htg_valve)
-
-    def __str__(self) -> str:  # TODO: rationalise
-        return f"{self._ctl.id}_HW ({Zone.DHW})"
 
     def _discover(self, discover_flags=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
@@ -379,7 +374,7 @@ class DhwZone(ZoneBase):
 
     def set_mode(self, mode=None, active=None, until=None) -> Task:
         """Set the DHW mode (mode, active, until)."""
-        cmd = Command.set_dhw_mode(self._ctl.id, mode, active, until)
+        cmd = Command.set_dhw_mode(self._ctl.id, mode=mode, active=active, until=until)
         return self._gwy.send_cmd(cmd)
 
     def set_boost_mode(self) -> Task:
@@ -395,12 +390,12 @@ class DhwZone(ZoneBase):
     def set_config(self, setpoint=None, overrun=None, differential=None) -> Task:
         """Set the DHW parameters (setpoint, overrun, differential)."""
         # if self._dhw_params:  # 10A0
-            # if setpoint is None:
-            #     setpoint = self._msg_payload(self._dhw_params, ATTR_SETPOINT)
-            # if overrun is None:
-            #     overrun = self._msg_payload(self._dhw_params, "overrun")
-            # if differential is None:
-            #     setpoint = self._msg_payload(self._dhw_params, "differential")
+        # if setpoint is None:
+        #     setpoint = self._msg_payload(self._dhw_params, ATTR_SETPOINT)
+        # if overrun is None:
+        #     overrun = self._msg_payload(self._dhw_params, "overrun")
+        # if differential is None:
+        #     setpoint = self._msg_payload(self._dhw_params, "differential")
 
         cmd = Command.set_dhw_params(self._ctl.id, setpoint, overrun, differential)
         return self._gwy.send_cmd(cmd)
@@ -870,9 +865,7 @@ class Zone(ZoneSchedule, ZoneBase):
     @property
     def status(self) -> dict:
         """Return the zone's current state."""
-        return {
-            a: getattr(self, a) for a in (ATTR_SETPOINT, ATTR_TEMP)
-        }
+        return {a: getattr(self, a) for a in (ATTR_SETPOINT, ATTR_TEMP)}
 
 
 class ZoneDemand:  # not all zone types call for heat

@@ -205,6 +205,10 @@ class SysMode:  # 2E04
 
 
 class StoredHw:
+    MIN_SETPOINT = 30.0  # NOTE: these may be removed
+    MAX_SETPOINT = 85.0
+    DEFAULT_SETPOINT = 50.0
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._dhw = None

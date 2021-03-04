@@ -216,11 +216,11 @@ def extract_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
             addrs[0].id == addrs[1].id == NON_DEV_ADDR.id,
         )
     ):
-        raise CorruptAddrSetError("Invalid addr set")
+        raise CorruptAddrSetError(f"Invalid addr set: {pkt_fragment}")
 
     device_addrs = list(filter(lambda x: x.type != "--", addrs))
     if len(device_addrs) > 2:
-        raise CorruptAddrSetError("Too many addrs (i.e. three addrs)")
+        raise CorruptAddrSetError(f"Invalid addr set (i.e. 3 addrs): {pkt_fragment}")
 
     src_addr = device_addrs[0]
     dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEV_ADDR
@@ -229,10 +229,16 @@ def extract_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
         src_addr = dst_addr
     elif src_addr.type == "18" and dst_addr.id == HGI_DEV_ADDR.id:
         # 000  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200 (valid, ex HGI80)
-        pass
+        raise CorruptAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
+        # pass
+    elif dst_addr.type == "18" and src_addr.id == HGI_DEV_ADDR.id:
+        raise CorruptAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
+        # pass
+    elif {src_addr.type, dst_addr.type}.issubset({"01", "23"}):
+        raise CorruptAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
     elif src_addr.type == dst_addr.type:
         # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5 (invalid)
-        raise CorruptAddrSetError("Invalid src/dst addr pair")
+        raise CorruptAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
 
     return src_addr, dst_addr, addrs
 
