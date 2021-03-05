@@ -3,4 +3,4 @@
 #
 """Evohome RF - a RAMSES-II protocol decoder & analyser."""
 
-__version__ = "0.5.12"
+__version__ = "0.5.13"
