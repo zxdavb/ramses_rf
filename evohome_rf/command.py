@@ -7,6 +7,7 @@ Construct a command (packet that is to be sent).
 """
 
 import asyncio
+# from collections import namedtuple
 from datetime import datetime as dt, timedelta as td
 from functools import total_ordering
 import json
@@ -602,7 +603,7 @@ class Command:
         return cmd
 
 
-class FaultLog:  # 0418
+class FaultLog:  # 0418  # TODO: used a NamedTuple
     """The fault log of a system."""
 
     def __init__(self, ctl, msg=None, **kwargs) -> None:
@@ -643,7 +644,7 @@ class FaultLog:  # 0418
         """Get the fault log of a system."""
         _LOGGER.debug("FaultLog(%s).get_fault_log()", self)
 
-        self._fault_log = {}
+        self._fault_log = {}  # TODO: = namedtuple("Fault", "timestamp fault_state ...")
         self._fault_log_done = None
 
         self._rq_log_entry(log_idx=0)  # calls loop.create_task()
@@ -675,7 +676,7 @@ class FaultLog:  # 0418
                 self._fault_log_done = True
                 return
 
-            self._fault_log[log_idx] = log
+            self._fault_log[log_idx] = log  # TODO: make a named tuple
             if log_idx < self._limit:
                 self._rq_log_entry(log_idx + 1)
             else:
