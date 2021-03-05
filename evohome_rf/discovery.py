@@ -261,7 +261,7 @@ async def scan_full(gwy, dev_id: str):
 
         elif code == "3220":
             for data_id in (0, 3):  # these are mandatory READ_DATA data_ids
-                gwy.send_cmd(Command.get_opentherm_msg(dev_id, data_id, **qos))
+                gwy.send_cmd(Command.get_opentherm_data(dev_id, data_id, **qos))
 
         elif code in CODE_SCHEMA and CODE_SCHEMA[code].get("rq_len"):
             rq_len = CODE_SCHEMA[code].get("rq_len") * 2
@@ -324,7 +324,7 @@ async def scan_003(gwy, dev_id: str):
 
     qos = {"priority": Priority.LOW, "retries": 0}
     for msg_id in range(0x100):
-        gwy.send_cmd(Command.get_opentherm_msg(dev_id, msg_id, **qos))
+        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **qos))
 
 
 async def scan_004(gwy, dev_id: str):

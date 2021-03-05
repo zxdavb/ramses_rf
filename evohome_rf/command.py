@@ -379,7 +379,7 @@ class Command:
         return cls("W", ctl_id, "2E04", f"{system_mode}{until}", **kwargs)
 
     @classmethod  # constructor for RQ/3220  # TODO
-    def get_opentherm_msg(cls, dev_id, msg_id, **kwargs):
+    def get_opentherm_data(cls, dev_id, msg_id, **kwargs):
         """Constructor to get (Read-Data) opentherm msg value (c.f. parser_3220)."""
         msg_id = msg_id if isinstance(msg_id, int) else int(msg_id, 16)
         payload = f"0080{msg_id:02X}0000" if parity(msg_id) else f"0000{msg_id:02X}0000"
