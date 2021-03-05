@@ -159,6 +159,15 @@ class SysLanguage:  # 0100
 
 
 class SysMode:  # 2E04
+    AUTO = "auto",
+    HEAT_OFF = "heat_off",
+    ECO = "eco",
+    AWAY = "away",
+    DAY_OFF = "day_off",
+    DAY_OFF_ECO = "day_off_eco",
+    AUTO_RESET = "auto_with_reset",
+    CUSTOM = "custom",
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._system_mode = None
@@ -187,12 +196,12 @@ class SysMode:  # 2E04
 
     def set_auto_mode(self) -> Task:
         """Revert system to Auto, set non-PermanentOverride zones to FollowSchedule."""
-        cmd = Command.set_system_mode(self.id, system_mode="auto")
+        cmd = Command.set_system_mode(self.id, system_mode=self.AUTO)
         return self._gwy.send_cmd(cmd)
 
     def reset_mode(self) -> Task:
         """Revert system to Auto, force *all* zones to FollowSchedule."""
-        cmd = Command.set_system_mode(self.id, system_mode="auto_with_reset")
+        cmd = Command.set_system_mode(self.id, system_mode=self.AUTO_RESET)
         return self._gwy.send_cmd(cmd)
 
     @property

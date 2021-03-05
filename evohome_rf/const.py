@@ -5,6 +5,7 @@
 
 from collections import namedtuple
 import re
+from types import SimpleNamespace
 
 
 def slug(string: str) -> str:
@@ -356,10 +357,21 @@ DOMAIN_TYPE_MAP = {
     "FA": "hotwater_valve",  # DHW HW Valve (or UFH loop if src.type == "02"?)
     "FB": None,
     "FC": "heating_control",  # "heat_relay": BDR (Boiler, District heating), or OTB
-    "FD": None,  # seen with hometronics
+    "FD": "unknown",  # seen with hometronics
     "FF": "system",  # TODO: remove this, is not a domain
 }  # "21": "Ventilation",
 DOMAIN_TYPE_LOOKUP = {v: k for k, v in DOMAIN_TYPE_MAP.items() if k != "FF"}
+
+SystemMode = SimpleNamespace(
+    AUTO="00",
+    HEAT_OFF="01",
+    ECO="02",
+    AWAY="03",
+    DAY_OFF="04",
+    DAY_OFF_ECO="05",  # set to Eco when DayOff ends
+    AUTO_RESET="06",
+    CUSTOM="07",
+)
 
 SYSTEM_MODE_MAP = {
     "00": "auto",
