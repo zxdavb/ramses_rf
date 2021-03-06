@@ -1647,7 +1647,7 @@ def parser_3220(payload, msg) -> Optional[dict]:
     # TODO: Should be > 0b011, but >= 0b011 seems required?
     assert ot_msg_type >= 0b011, f"Invalid OpenTherm msg type: 0b{ot_msg_type:03b}"
 
-    if ot_msg_type != 0b111 and isinstance(message[VAR], dict):
+    if ot_msg_type != 0b111 and isinstance(message.get(VAR), dict):
         if isinstance(message[VAL], dict):
             result["value_hb"] = ot_msg_value(
                 payload[6:8], message[VAL].get(HB, message[VAL])
