@@ -553,17 +553,6 @@ class Zone(ZoneSchedule, ZoneBase):
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
-        # HACK: dev/test code
-        if DEV_MODE and self.idx == "99":
-            self._loop.create_task(
-                self.async_cancel_override()
-                # self.async_set_override(
-                #     setpoint=15.9,
-                #     mode="AdvancedOverride",
-                #     # until=dt_now() + td(minutes=120)
-                # )
-            )
-
         # TODO: add code to determine zone type if it doesn't have one, using 0005s
         if discover_flag & DISCOVER_SCHEMA:
             [  # 000C: find the sensor and the actuators, if any
