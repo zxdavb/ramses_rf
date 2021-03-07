@@ -30,10 +30,9 @@ DEV_MODE = _dev_mode_  # or True
 DEFAULT_FMT = "%(asctime)s.%(msecs)03d %(message)s"
 DEFAULT_DATEFMT = "%H:%M:%S"
 DEFAULT_LEVEL = logging.INFO
-
 # basicConfig must be called after importing colorlog to ensure its handlers wrap the
 # correct streams
-logging.basicConfig(level=DEFAULT_LEVEL, format=DEFAULT_FMT, datefmt=DEFAULT_DATEFMT)
+# logging.basicConfig(level=DEFAULT_LEVEL, format=DEFAULT_FMT, datefmt=DEFAULT_DATEFMT)
 
 # TODO: make account for the non-printing characters
 CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)

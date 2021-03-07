@@ -8,6 +8,7 @@
 
 import asyncio
 import json
+import logging
 import sys
 from typing import Tuple
 
@@ -30,7 +31,12 @@ from evohome_rf.discovery import (
 )
 from evohome_rf.exceptions import EvohomeError
 from evohome_rf.helpers import is_valid_dev_id
-from evohome_rf.packet import CONSOLE_COLS
+from evohome_rf.packet import (
+    CONSOLE_COLS,
+    DEFAULT_FMT,
+    DEFAULT_DATEFMT,
+    DEFAULT_LEVEL,
+)
 from evohome_rf.schema import (
     ALLOW_LIST,
     CONFIG,
@@ -46,6 +52,10 @@ from evohome_rf.schema import (
 )
 
 DEBUG_MODE = "debug_mode"
+
+# this is called after import colorlog to ensure its handlers wrap th ecorrect streams
+logging.basicConfig(level=DEFAULT_LEVEL, format=DEFAULT_FMT, datefmt=DEFAULT_DATEFMT)
+
 
 COMMAND = "command"
 EXECUTE = "execute"
