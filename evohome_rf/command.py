@@ -272,7 +272,7 @@ class Command:
         elif until is not None and mode in ("follow_schedule", "permanent_override"):
             raise ValueError(f"Invalid args: For {mode}, until should be None")
 
-        assert mode in ZONE_MODE_MAP, mode
+        assert mode in ZONE_MODE_LOOKUP, mode
 
         payload = "00"
         payload += "01" if bool(active) else "00"
@@ -509,7 +509,7 @@ class Command:
 
         if setpoint is None and mode != "follow_schedule":
             raise ValueError(f"Invalid args: For {mode}, setpoint cant be None")
-        elif setpoint is not None and not isinstance(setpoint, float):
+        elif setpoint is not None and not isinstance(setpoint, (int, float)):
             raise ValueError(f"Invalid args: setpoint={setpoint}, should be float")
 
         if until is None and mode == "temporary_override":
@@ -517,7 +517,7 @@ class Command:
         elif until is not None and mode in ("follow_schedule", "permanent_override"):
             raise ValueError(f"Invalid args: For {mode}, until should be None")
 
-        assert mode in ZONE_MODE_MAP, mode
+        assert mode in ZONE_MODE_LOOKUP, mode
 
         payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
         payload += temp_to_hex(setpoint)  # None means max, if a temp is required
