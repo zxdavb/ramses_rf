@@ -1056,7 +1056,7 @@ class FanSwitch(BatteryState, Device):
         return self._msg_payload(self._msgs["22F1"], self.FAN_MODE)
 
     @property
-    def boost_timer(self) -> Optional[bool]:
+    def boost_timer(self) -> Optional[int]:
         return self._msg_payload(self._msgs["22F3"], self.BOOST_TIMER)
 
     @property

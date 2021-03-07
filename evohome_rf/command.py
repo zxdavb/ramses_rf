@@ -247,9 +247,7 @@ class Command:
         return cls("RQ", ctl_id, "1F41", "00", **kwargs)
 
     @classmethod  # constructor for 1F41  # TODO
-    def set_dhw_mode(
-        cls, ctl_id, *, mode=None, active: bool = None, until=None, **kwargs
-    ):
+    def set_dhw_mode(cls, ctl_id, mode=None, active: bool = None, until=None, **kwargs):
         """Constructor to set/reset the mode of the DHW (c.f. parser_1f41)."""
 
         if mode is None and active is None:
@@ -287,7 +285,6 @@ class Command:
     def set_dhw_params(
         cls,
         ctl_id,
-        *,
         setpoint: float = 50.0,
         overrun: int = 5,
         differential: int = 1,
@@ -322,7 +319,6 @@ class Command:
         cls,
         ctl_id,
         zone_idx,
-        *,
         max_flow_setpoint=55,
         min_flow_setpoint=15,
         valve_run_time=150,
@@ -358,7 +354,7 @@ class Command:
         return cls("RQ", ctl_id, "2E04", "FF", **kwargs)
 
     @classmethod  # constructor for 2E04  # TODO
-    def set_system_mode(cls, ctl_id, system_mode, *, until=None, **kwargs):
+    def set_system_mode(cls, ctl_id, system_mode, until=None, **kwargs):
         """Constructor to set/reset the mode of a system (c.f. parser_2e04)."""
 
         if system_mode is None:
@@ -413,7 +409,6 @@ class Command:
         cls,
         ctl_id,
         domain_id,
-        *,
         cycle_rate=3,  # TODO: check
         min_on_time=5,  # TODO: check
         min_off_time=5,  # TODO: check
@@ -449,7 +444,6 @@ class Command:
         cls,
         ctl_id,
         zone_idx,
-        *,
         min_temp=5,
         max_temp=35,
         local_override: bool = False,
@@ -485,7 +479,7 @@ class Command:
 
     @classmethod  # constructor for W/2349
     def set_zone_mode(
-        cls, ctl_id, zone_idx, *, mode=None, setpoint=None, until=None, **kwargs
+        cls, ctl_id, zone_idx, mode=None, setpoint=None, until=None, **kwargs
     ):
         """Constructor to set/reset the mode of a zone (c.f. parser_2349).
 
@@ -539,7 +533,7 @@ class Command:
         return cls("RQ", ctl_id, "0004", f"{zone_idx:02X}00", **kwargs)
 
     @classmethod  # constructor for 0004  # TODO
-    def set_zone_name(cls, ctl_id, zone_idx, *, name: str, **kwargs):
+    def set_zone_name(cls, ctl_id, zone_idx, name: str, **kwargs):
         """Constructor to set the name of a zone (c.f. parser_0004)."""
 
         payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
@@ -549,7 +543,7 @@ class Command:
         return cls("W", ctl_id, "0004", payload, **kwargs)
 
     @classmethod  # constructor for 2309
-    def set_zone_setpoint(cls, ctl_id, zone_idx, *, setpoint: float, **kwargs):
+    def set_zone_setpoint(cls, ctl_id, zone_idx, setpoint: float, **kwargs):
         """Constructor to set the setpoint of a zone (c.f. parser_2309)."""
         #  W --- 34:092243 01:145038 --:------ 2309 003 0107D0
 
@@ -568,7 +562,6 @@ class Command:
     @classmethod
     def _puzzle(
         cls,
-        *,
         msg_type="01",
         message=None,
         ordinal=0,
