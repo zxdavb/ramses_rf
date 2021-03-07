@@ -159,14 +159,14 @@ class SysLanguage:  # 0100
 
 
 class SysMode:  # 2E04
-    AUTO = "auto",
-    HEAT_OFF = "heat_off",
-    ECO = "eco",
-    AWAY = "away",
-    DAY_OFF = "day_off",
-    DAY_OFF_ECO = "day_off_eco",
-    AUTO_RESET = "auto_with_reset",
-    CUSTOM = "custom",
+    AUTO = "auto"  # NOTE: don't rely upon these
+    HEAT_OFF = "heat_off"
+    ECO = "eco"
+    AWAY = "away"
+    DAY_OFF = "day_off"
+    DAY_OFF_ECO = "day_off_eco"
+    AUTO_RESET = "auto_with_reset"
+    CUSTOM = "custom"
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
