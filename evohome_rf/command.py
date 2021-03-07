@@ -371,6 +371,12 @@ class Command:
         elif system_mode not in SYSTEM_MODE_LOOKUP:
             raise TypeError(f"Invalid args: Unknown system_mode: {system_mode}")
 
+        # TODO: these need fixing
+        # if until is None and system_mode == "xxx":
+        #     system_mode = "advanced_override"  # until = dt.now() + td(hour=1)
+        # elif until is not None and system_mode in ("auto", "auto_with_reset"):
+        #     raise ValueError(f"Invalid args: For {system_mode}, until should be None")
+
         assert system_mode in SYSTEM_MODE_LOOKUP, system_mode
 
         payload = SYSTEM_MODE_LOOKUP[system_mode]
