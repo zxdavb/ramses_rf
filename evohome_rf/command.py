@@ -7,6 +7,7 @@ Construct a command (packet that is to be sent).
 """
 
 import asyncio
+
 # from collections import namedtuple
 from datetime import datetime as dt, timedelta as td
 from functools import total_ordering
@@ -246,45 +247,39 @@ class Command:
         return cls("RQ", ctl_id, "1F41", "00", **kwargs)
 
     @classmethod  # constructor for 1F41  # TODO
-    def set_dhw_mode(cls, ctl_id, mode=None, active: bool = None, until=None, **kwargs):
+    def set_dhw_mode(
+        cls, ctl_id, *, mode=None, active: bool = None, until=None, **kwargs
+    ):
         """Constructor to set/reset the mode of the DHW (c.f. parser_1f41)."""
 
-        if mode is not None:
-            if isinstance(mode, int):
-                mode = f"{mode:02X}"
-            elif not isinstance(mode, str):
-                raise TypeError(f"Invalid DHW mode: {mode}")
+        if mode is None and active is None:
+            raise ValueError("Invalid args: Both mode and active cant be None")
 
-            if mode in ZONE_MODE_LOOKUP:
-                mode = ZONE_MODE_LOOKUP[mode]
-            elif mode not in ZONE_MODE_MAP:
-                raise TypeError(f"Unknown DHW mode: {mode}")
+        if mode is None:  # and active is not None: TODO: use: advanced_override?
+            mode = "temporary_override" if until else "permanent_override"
+        elif isinstance(mode, int):
+            mode = f"{mode:02X}"
+        if mode in ZONE_MODE_MAP:
+            mode = ZONE_MODE_MAP[mode]
+        elif mode not in ZONE_MODE_LOOKUP:
+            raise TypeError(f"Invalid args: Unknown mode: {mode}")
 
-        if mode == ZONE_MODE_LOOKUP["follow_schedule"]:
-            if until is not None:  # active is ignored
-                raise ValueError("Invalid parameters: until should be None")
+        if active is None and mode != "follow_schedule":
+            raise ValueError(f"Invalid args: For {mode}, active cant be None")
+        elif not isinstance(active, (None, bool, int)):
+            raise ValueError(f"Invalid args: active={active}, should be bool")
 
-        elif mode == ZONE_MODE_LOOKUP["permanent_override"] and until is not None:
-            raise ValueError("Invalid parameters: until should be None")
+        if until is None and mode == "temporary_override":
+            mode = "advanced_override"  # until = dt.now() + td(hour=1)
+        elif until is not None and mode in ("follow_schedule", "permanent_override"):
+            raise ValueError(f"Invalid args: For {mode}, until should be None")
 
-        elif mode == ZONE_MODE_LOOKUP["temporary_override"] and until is None:
-            until = dt.now() + td(hour=1)
+        assert mode in ZONE_MODE_MAP, mode
 
-        elif not isinstance(active, bool):
-            raise ValueError(f"Invalid parameters: active={active}, should be bool")
-
-        elif until is None:
-            mode = ZONE_MODE_LOOKUP["permanent_override"]
-
-        else:
-            mode = ZONE_MODE_LOOKUP["temporary_override"]
-
-        active = "00" if active is None else f"{int(active):02X}"
-
-        payload = f"00{active}{mode}FFFFFF"
-
-        if until is not None:  # ZONE_MODE_LOOKUP[mode] == "04":
-            payload += dtm_to_hex(until)
+        payload = "00"
+        payload += f"{int(bool(active)):02X}"
+        payload += ZONE_MODE_LOOKUP[mode] + "FFFFFF"
+        payload += "" if until is None else dtm_to_hex(until)
 
         return cls("W", ctl_id, "1F41", payload, **kwargs)
 
@@ -292,6 +287,7 @@ class Command:
     def set_dhw_params(
         cls,
         ctl_id,
+        *,
         setpoint: float = 50.0,
         overrun: int = 5,
         differential: int = 1,
@@ -326,6 +322,7 @@ class Command:
         cls,
         ctl_id,
         zone_idx,
+        *,
         max_flow_setpoint=55,
         min_flow_setpoint=15,
         valve_run_time=150,
@@ -361,22 +358,25 @@ class Command:
         return cls("RQ", ctl_id, "2E04", "FF", **kwargs)
 
     @classmethod  # constructor for 2E04  # TODO
-    def set_system_mode(cls, ctl_id, system_mode, until=None, **kwargs):
+    def set_system_mode(cls, ctl_id, system_mode, *, until=None, **kwargs):
         """Constructor to set/reset the mode of a system (c.f. parser_2e04)."""
+
+        if system_mode is None:
+            raise ValueError("Invalid args: system_mode cant be None")
 
         if isinstance(system_mode, int):
             system_mode = f"{system_mode:02X}"
-        elif not isinstance(system_mode, str):
-            raise TypeError(f"Invalid system mode: {system_mode}")
-        elif system_mode in SYSTEM_MODE_LOOKUP:
-            system_mode = SYSTEM_MODE_LOOKUP[system_mode]
+        if system_mode in SYSTEM_MODE_MAP:
+            system_mode = SYSTEM_MODE_MAP[system_mode]
+        elif system_mode not in SYSTEM_MODE_LOOKUP:
+            raise TypeError(f"Invalid args: Unknown system_mode: {system_mode}")
 
-        if system_mode not in SYSTEM_MODE_MAP:
-            raise ValueError(f"Unknown system mode: {system_mode}")
+        assert system_mode in SYSTEM_MODE_LOOKUP, system_mode
 
-        until = dtm_to_hex(until) + ("00" if until is None else "01")
+        payload = SYSTEM_MODE_LOOKUP[system_mode]
+        payload += dtm_to_hex(until) + ("00" if until is None else "01")
 
-        return cls("W", ctl_id, "2E04", f"{system_mode}{until}", **kwargs)
+        return cls("W", ctl_id, "2E04", payload, **kwargs)
 
     @classmethod  # constructor for RQ/3220  # TODO
     def get_opentherm_data(cls, dev_id, msg_id, **kwargs):
@@ -407,6 +407,7 @@ class Command:
         cls,
         ctl_id,
         domain_id,
+        *,
         cycle_rate=3,  # TODO: check
         min_on_time=5,  # TODO: check
         min_off_time=5,  # TODO: check
@@ -442,6 +443,7 @@ class Command:
         cls,
         ctl_id,
         zone_idx,
+        *,
         min_temp=5,
         max_temp=35,
         local_override: bool = False,
@@ -477,7 +479,7 @@ class Command:
 
     @classmethod  # constructor for W/2349
     def set_zone_mode(
-        cls, ctl_id, zone_idx, mode=None, setpoint=None, until=None, **kwargs
+        cls, ctl_id, zone_idx, *, mode=None, setpoint=None, until=None, **kwargs
     ):
         """Constructor to set/reset the mode of a zone (c.f. parser_2349).
 
@@ -493,28 +495,31 @@ class Command:
         #  W --- 18:013393 01:145038 --:------ 2349 013 0004E201FFFFFF330B1A0607E4
         #  W --- 22:017139 01:140959 --:------ 2349 007 0801F400FFFFFF
 
+        if mode is None and setpoint is None:
+            raise ValueError("Invalid args: Both mode and setpoint cant be None")
+
+        if mode is None:  # and setpoint is not None: TODO: use: advanced_override?
+            mode = "temporary_override" if until else "permanent_override"
+        elif isinstance(mode, int):
+            mode = f"{mode:02X}"
+        if mode in ZONE_MODE_MAP:
+            mode = ZONE_MODE_MAP[mode]
+        elif mode not in ZONE_MODE_LOOKUP:
+            raise TypeError(f"Invalid args: Unknown mode: {mode}")
+
+        if setpoint is None and mode != "follow_schedule":
+            raise ValueError(f"Invalid args: For {mode}, active cant be None")
+        elif not isinstance(setpoint, (None, float)):
+            raise ValueError(f"Invalid args: setpoint={setpoint}, should be float")
+
+        if until is None and mode == "temporary_override":
+            mode = "advanced_override"  # until = dt.now() + td(hour=1)
+        elif until is not None and mode in ("follow_schedule", "permanent_override"):
+            raise ValueError(f"Invalid args: For {mode}, until should be None")
+
+        assert mode in ZONE_MODE_MAP, mode
+
         payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
-
-        if mode is not None:
-            if isinstance(mode, int):
-                mode = f"{mode:02X}"
-            elif not isinstance(mode, str):
-                raise TypeError(f"Invalid zone mode: {mode}")
-
-            if mode in ZONE_MODE_LOOKUP:
-                mode = ZONE_MODE_LOOKUP[mode]
-            elif mode not in ZONE_MODE_MAP:
-                raise TypeError(f"Unknown zone mode: {mode}")
-
-        elif until is None:  # mode is None
-            mode = "advanced_override" if setpoint else "follow_schedule"
-        else:  # mode is None, until is not None:
-            mode = "temporary_override" if setpoint else "advanced_override"
-        if until is None:
-            mode = "advanced_override" if mode == "temporary_override" else mode
-
-        assert mode in ZONE_MODE_LOOKUP, mode
-
         payload += temp_to_hex(setpoint)  # None means max, if a temp is required
         payload += ZONE_MODE_LOOKUP[mode] + "FFFFFF"
         payload += "" if until is None else dtm_to_hex(until)
@@ -528,7 +533,7 @@ class Command:
         return cls("RQ", ctl_id, "0004", f"{zone_idx:02X}00", **kwargs)
 
     @classmethod  # constructor for 0004  # TODO
-    def set_zone_name(cls, ctl_id, zone_idx, name: str, **kwargs):
+    def set_zone_name(cls, ctl_id, zone_idx, *, name: str, **kwargs):
         """Constructor to set the name of a zone (c.f. parser_0004)."""
 
         payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
@@ -538,7 +543,7 @@ class Command:
         return cls("W", ctl_id, "0004", payload, **kwargs)
 
     @classmethod  # constructor for 2309
-    def set_zone_setpoint(cls, ctl_id, zone_idx, setpoint: float, **kwargs):
+    def set_zone_setpoint(cls, ctl_id, zone_idx, *, setpoint: float, **kwargs):
         """Constructor to set the setpoint of a zone (c.f. parser_2309)."""
         #  W --- 34:092243 01:145038 --:------ 2309 003 0107D0
 
@@ -556,7 +561,14 @@ class Command:
 
     @classmethod
     def _puzzle(
-        cls, msg_type="01", message=None, ordinal=0, interval=0, length=None, **kwargs
+        cls,
+        *,
+        msg_type="01",
+        message=None,
+        ordinal=0,
+        interval=0,
+        length=None,
+        **kwargs,
     ):
 
         if msg_type == "00":
