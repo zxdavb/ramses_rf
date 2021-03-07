@@ -765,8 +765,11 @@ class OtbGateway(Actuator, Device):
             # 1B - Outside temperature
             # 1C - Return water temperature
             # 73 - OEM diagnostic code
+
             for msg_id in msg_ids:
-                self._gwy.send_cmd(Command.get_opentherm_data(self.id, msg_id))
+                self._gwy.send_cmd(
+                    Command.get_opentherm_data(self.id, msg_id, retries=0)
+                )
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
