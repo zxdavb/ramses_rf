@@ -264,7 +264,7 @@ class Command:
 
         if active is None and mode != "follow_schedule":
             raise ValueError(f"Invalid args: For {mode}, active cant be None")
-        elif not isinstance(active, (None, bool, int)):
+        elif active is not None and not isinstance(active, (bool, int)):
             raise ValueError(f"Invalid args: active={active}, should be bool")
 
         if until is None and mode == "temporary_override":
@@ -275,7 +275,7 @@ class Command:
         assert mode in ZONE_MODE_MAP, mode
 
         payload = "00"
-        payload += f"{int(bool(active)):02X}"
+        payload += "01" if bool(active) else "00"
         payload += ZONE_MODE_LOOKUP[mode] + "FFFFFF"
         payload += "" if until is None else dtm_to_hex(until)
 
@@ -483,17 +483,17 @@ class Command:
     ):
         """Constructor to set/reset the mode of a zone (c.f. parser_2349).
 
-        The setpoint has a resolution of 0.1 C. If a setpoint temperature is required,
-        but none is provided, evohome will use the maximum possible value.
+            The setpoint has a resolution of 0.1 C. If a setpoint temperature is required,
+            but none is provided, evohome will use the maximum possible value.
 
-        The until has a resolution of 1 min.
+            The until has a resolution of 1 min.
 
-        Incompatible combinations:
-        - mode == Follow & setpoint not None (will silently ignore setpoint)
-        - mode == Temporary & until is None (will silently ignore)
-        """
-        #  W --- 18:013393 01:145038 --:------ 2349 013 0004E201FFFFFF330B1A0607E4
-        #  W --- 22:017139 01:140959 --:------ 2349 007 0801F400FFFFFF
+            Incompatible combinations:
+            - mode == Follow & setpoint not None (will silently ignore setpoint)
+            - mode == Temporary & until is None (will silently ignore)
+            """
+            #  W --- 18:013393 01:145038 --:------ 2349 013 0004E201FFFFFF330B1A0607E4
+            #  W --- 22:017139 01:140959 --:------ 2349 007 0801F400FFFFFF
 
         if mode is None and setpoint is None:
             raise ValueError("Invalid args: Both mode and setpoint cant be None")
@@ -508,8 +508,8 @@ class Command:
             raise TypeError(f"Invalid args: Unknown mode: {mode}")
 
         if setpoint is None and mode != "follow_schedule":
-            raise ValueError(f"Invalid args: For {mode}, active cant be None")
-        elif not isinstance(setpoint, (None, float)):
+            raise ValueError(f"Invalid args: For {mode}, setpoint cant be None")
+        elif setpoint is not None and not isinstance(setpoint, float):
             raise ValueError(f"Invalid args: setpoint={setpoint}, should be float")
 
         if until is None and mode == "temporary_override":
