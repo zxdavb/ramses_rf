@@ -30,13 +30,13 @@ jobs: # A basic unit of work in a run
       - run:
           name: Check formatting 1 (black)
           command: |
-            . venv/bin/activate
+            # . venv/bin/activate
             black --safe --quiet client.py
             black --safe --quiet evohome_rf
       - run:
           name: Check formatting 2 (black)
           command: |
-            . venv/bin/activate
+            # . venv/bin/activate
             black --diff --check *client.py
             black --diff --check evohome_rf
       # - run:
