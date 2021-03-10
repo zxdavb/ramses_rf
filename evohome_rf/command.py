@@ -62,7 +62,7 @@ FIVE_MINS = td(minutes=5)
 
 Priority = SimpleNamespace(LOWEST=8, LOW=6, DEFAULT=4, HIGH=2, HIGHEST=0)
 
-DEV_MODE = _dev_mode_
+DEV_MODE = _dev_mode_ and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -483,17 +483,17 @@ class Command:
     ):
         """Constructor to set/reset the mode of a zone (c.f. parser_2349).
 
-            The setpoint has a resolution of 0.1 C. If a setpoint temperature is required,
-            but none is provided, evohome will use the maximum possible value.
+        The setpoint has a resolution of 0.1 C. If a setpoint temperature is required,
+        but none is provided, evohome will use the maximum possible value.
 
-            The until has a resolution of 1 min.
+        The until has a resolution of 1 min.
 
-            Incompatible combinations:
-            - mode == Follow & setpoint not None (will silently ignore setpoint)
-            - mode == Temporary & until is None (will silently ignore)
-            """
-            #  W --- 18:013393 01:145038 --:------ 2349 013 0004E201FFFFFF330B1A0607E4
-            #  W --- 22:017139 01:140959 --:------ 2349 007 0801F400FFFFFF
+        Incompatible combinations:
+        - mode == Follow & setpoint not None (will silently ignore setpoint)
+        - mode == Temporary & until is None (will silently ignore)
+        """
+        #  W --- 18:013393 01:145038 --:------ 2349 013 0004E201FFFFFF330B1A0607E4
+        #  W --- 22:017139 01:140959 --:------ 2349 007 0801F400FFFFFF
 
         if mode is None and setpoint is None:
             raise ValueError("Invalid args: Both mode and setpoint cant be None")
@@ -711,7 +711,7 @@ class Schedule:  # 0404
     """The schedule of a zone."""
 
     def __init__(self, zone, **kwargs) -> None:
-        _LOGGER.debug("Schedule(zone=%s).__init__()", zone)
+        _LOGGER.debug("Schedule(zone=%s).__init__()", zone.id)  # TODO: str(zone) breaks
 
         self._loop = zone._gwy._loop
 
