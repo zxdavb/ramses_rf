@@ -4,16 +4,16 @@
 """Evohome RF - Helper functions."""
 
 import ctypes
-from datetime import datetime as dt
 import re
 import sys
 import time
+from datetime import datetime as dt
 from typing import List, Optional, Tuple, Union
 
 from .const import (
     DEVICE_ID_REGEX,
-    DEVICE_TYPES,
     DEVICE_LOOKUP,
+    DEVICE_TYPES,
     HGI_DEV_ADDR,
     NON_DEV_ADDR,
     NUL_DEV_ADDR,

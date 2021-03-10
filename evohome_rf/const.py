@@ -3,8 +3,8 @@
 #
 """Evohome RF - a RAMSES-II protocol decoder & analyser."""
 
-from collections import namedtuple
 import re
+from collections import namedtuple
 from types import SimpleNamespace
 
 

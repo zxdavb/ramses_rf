@@ -20,3 +20,8 @@ repos:
         files: ^evohome.*/.+\.py$
         exclude: ^evohome.*/tests\.py$
 
+  - repo: https://github.com/pycqa/isort
+    rev: 5.7.0
+    hooks:
+      - id: isort
+        args: ["--profile", "black", "--filter-files"]

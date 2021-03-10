@@ -7,29 +7,30 @@ Construct a command (packet that is to be sent).
 """
 
 import asyncio
-
-# from collections import namedtuple
-from datetime import datetime as dt, timedelta as td
-from functools import total_ordering
 import json
 import logging
 import struct
-from types import SimpleNamespace
-from typing import Optional
 import zlib
 
+# from collections import namedtuple
+from datetime import datetime as dt
+from datetime import timedelta as td
+from functools import total_ordering
+from types import SimpleNamespace
+from typing import Optional
+
 from .const import (
-    __dev_mode__,
-    CODES_SANS_DOMAIN_ID,
     CODE_SCHEMA,
+    CODES_SANS_DOMAIN_ID,
     COMMAND_REGEX,
     HGI_DEV_ADDR,
     NON_DEV_ADDR,
     NUL_DEV_ADDR,
-    SYSTEM_MODE_MAP,
     SYSTEM_MODE_LOOKUP,
+    SYSTEM_MODE_MAP,
     ZONE_MODE_LOOKUP,
     ZONE_MODE_MAP,
+    __dev_mode__,
 )
 from .exceptions import ExpiredCallbackError
 from .helpers import (

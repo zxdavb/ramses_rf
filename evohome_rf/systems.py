@@ -3,10 +3,10 @@
 #
 """Evohome RF - The evohome-compatible system."""
 
-from asyncio import Task
-from datetime import timedelta as td
 import json
 import logging
+from asyncio import Task
+from datetime import timedelta as td
 from threading import Lock
 from typing import List, Optional
 
@@ -14,10 +14,10 @@ from .command import Command, FaultLog, Priority
 from .const import (
     ATTR_DEVICES,
     DEVICE_HAS_ZONE_SENSOR,
-    DISCOVER_SCHEMA,
-    DISCOVER_PARAMS,
-    DISCOVER_STATUS,
     DISCOVER_ALL,
+    DISCOVER_PARAMS,
+    DISCOVER_SCHEMA,
+    DISCOVER_STATUS,
     __dev_mode__,
 )
 from .devices import Device, Entity
@@ -33,8 +33,6 @@ from .schema import (
     DISABLE_DISCOVERY,
     MAX_ZONES,
 )
-
-
 from .zones import DhwZone, Zone
 
 DEV_MODE = __dev_mode__

@@ -6,7 +6,7 @@
 import logging
 import re
 
-from .const import __dev_mode__, DEVICE_LOOKUP, DEVICE_TYPES
+from .const import DEVICE_LOOKUP, DEVICE_TYPES, __dev_mode__
 
 __device_id_regex__ = re.compile(r"^(-{2}:-{6}|\d{2}:\d{6})$")
 

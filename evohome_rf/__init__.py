@@ -11,24 +11,22 @@ Works with (amongst others):
 """
 
 import asyncio
-from collections import deque
 import json
 import logging
 import os
 import signal
+from collections import deque
 from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .command import Command
-from .const import __dev_mode__, ATTR_DEVICES, ATTR_ORPHANS, NUL_DEVICE_ID
+from .const import ATTR_DEVICES, ATTR_ORPHANS, NUL_DEVICE_ID, __dev_mode__
 from .devices import DEVICE_CLASSES, Device
 from .message import Message, process_msg
-from .packet import _PKT_LOGGER as pkt_logger, set_pkt_logging
+from .packet import _PKT_LOGGER as pkt_logger
+from .packet import set_pkt_logging
 from .protocol import create_msg_stack
-from .transport import POLLER_TASK, create_pkt_stack
 from .schema import (
-    load_config,
-    load_schema,
     DISABLE_DISCOVERY,
     DONT_CREATE_MESSAGES,
     LOG_ROTATE_BYTES,
@@ -36,8 +34,11 @@ from .schema import (
     PACKET_LOG,
     REDUCE_PROCESSING,
     USE_NAMES,
+    load_config,
+    load_schema,
 )
 from .systems import SYSTEM_CLASSES, System, SystemBase
+from .transport import POLLER_TASK, create_pkt_stack
 from .version import __version__  # noqa: F401
 
 DEV_MODE = __dev_mode__ and False

@@ -7,14 +7,15 @@ Operates at the pkt layer of: app - msg - pkt - h/w
 """
 
 import asyncio
-from datetime import datetime as dt, timedelta as td
 import logging
-from multiprocessing import Process
 import os
-from queue import Queue
 import re
+from datetime import datetime as dt
+from datetime import timedelta as td
+from multiprocessing import Process
+from queue import Queue
 from string import printable
-from threading import Thread, Lock
+from threading import Lock, Thread
 from types import SimpleNamespace
 from typing import ByteString, Callable, Optional, Tuple
 
@@ -38,7 +39,7 @@ from .schema import (
 )
 from .version import __version__
 
-DEV_MODE = __dev_mode__
+DEV_MODE = __dev_mode__ and False
 
 ERR_MSG_REGEX = re.compile(r"^([0-9A-F]{2}\.)+$")
 
@@ -61,7 +62,7 @@ INIT_CMD = Command._puzzle(message=f"v{__version__}", **INIT_QOS)
 QOS_TX_TIMEOUT = td(seconds=0.05)  # 0.20 OK, but too high?
 QOS_TX_RETRIES = 2
 
-QOS_RX_TIMEOUT = td(seconds=0.20)  # 0.10 too low sometimes
+QOS_RX_TIMEOUT = td(seconds=0.50)  # 0.20 seems OK, 0.10 too low sometimes
 QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many?
 
 _LOGGER = logging.getLogger(__name__)
@@ -150,7 +151,6 @@ class SerTransportPoller(asyncio.Transport):
                 if not self._write_queue.empty():
                     self.serial.write(self._write_queue.get())
                     self._write_queue.task_done()
-                    continue
 
             if DEV_MODE:
                 _LOGGER.error("SerTransPoll._polling_loop() ENDED")
@@ -168,7 +168,7 @@ class SerTransportPoller(asyncio.Transport):
         This does not block; it buffers the data and arranges for it to be sent out
         asynchronously.
         """
-        _LOGGER.debug("SerTransPoll.write(%s)", cmd)
+        # _LOGGER.debug("SerTransPoll.write(%s)", cmd)
 
         self._write_queue.put_nowait(cmd)
 
@@ -248,7 +248,7 @@ class SerTransportProcess(Process):  # TODO: WIP
         This does not block; it buffers the data and arranges for it to be sent out
         asynchronously.
         """
-        _LOGGER.debug("SerTransProc.write(%s)", cmd)
+        # _LOGGER.debug("SerTransProc.write(%s)", cmd)
 
         self._write_queue.put_nowait(cmd)
 
@@ -427,7 +427,8 @@ class PacketProtocolBase(asyncio.Protocol):
             _LOGGER.debug("Tx:     %s", data, extra=self._extra(dt_str(), data))
 
         self._transport.write(data)
-        # await asyncio.sleep(0.05)
+        # 0.2: can still exceed with back-to-back restarts
+        # await asyncio.sleep(0.2)  # TODO: RF Duty cycle, make configurable?
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
@@ -565,6 +566,7 @@ class PacketProtocolQos(PacketProtocolBase):
         self._timeout_half = None
 
     def _timeouts(self, dtm: dt) -> Tuple[dt, dt]:
+        """Update self._timeout_full, self._timeout_half"""
         if self._qos_cmd:
             if self._tx_hdr:
                 timeout = QOS_TX_TIMEOUT
@@ -573,12 +575,17 @@ class PacketProtocolQos(PacketProtocolBase):
             self._timeout_full = dtm + timeout * 2 ** self._backoff
             self._timeout_half = dtm + timeout * 2 ** (self._backoff - 1)
 
+            _LOGGER.debug(
+                "backoff=%s, timeout=%s, timeout_full=%s",
+                self._backoff,
+                timeout,
+                self._timeout_full,
+            )
+
         # if self._timeout_half >= dtm:
         #     self._backoff = max(self._backoff - 1, 0)
         # if self._timeout_full >= dtm:
         #     self._backoff = min(self._backoff + 1, QOS_MAX_BACKOFF)
-
-        # _LOGGER.debug("%s %s %s", self._backoff, timeout, self._timeout_full)
 
     def _data_received(  # with Qos
         self, pkt_dtm: str, pkt_str: Optional[str], pkt_raw: Optional[ByteString] = None
@@ -610,7 +617,7 @@ class PacketProtocolQos(PacketProtocolBase):
             self._has_initialized = True
 
         if self._qos_cmd:
-            # _logger_rcvd(_LOGGER.debug, "CHECKING")
+            _logger_rcvd(_LOGGER.debug, "CHECKING")
 
             # NOTE: is the Tx pkt, and no response is expected
             if pkt._header == self._tx_hdr and self._rx_hdr is None:
@@ -656,9 +663,9 @@ class PacketProtocolQos(PacketProtocolBase):
             self._timeouts(dt.now())
             _logger_rcvd(_LOGGER.debug, f"CHECKED - {msg}")
 
-        # else:  # no outstanding cmd - ?throttle down the backoff
-        #     # self._timeouts(dt.now())
-        #     _logger_rcvd(_LOGGER.debug, "XXXXXXX - ")
+        else:  # no outstanding cmd - ?throttle down the backoff
+            # self._timeouts(dt.now())
+            _logger_rcvd(_LOGGER.debug, "XXXXXXX - ")
 
         if self._callback and self.is_wanted(pkt, self._include, self._exclude):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
@@ -712,11 +719,13 @@ class PacketProtocolQos(PacketProtocolBase):
         await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
 
         while self._qos_cmd is not None:  # until sent (may need re-transmit) or expired
+            await asyncio.sleep(0.005)
             if self._timeout_full > dt.now():
-                await asyncio.sleep(0.005)
+                await asyncio.sleep(0.02)
+                await self._send_data(bytes("\r\n".encode("ascii")))
 
-            elif self._qos_cmd is None:  # can be set to None by data_received
-                continue
+            # elif self._qos_cmd is None:  # can be set to None by data_received
+            #     continue
 
             elif self._tx_retries < self._tx_retry_limit:
                 self._tx_hdr = cmd.tx_header
@@ -742,7 +751,7 @@ class PacketProtocolQos(PacketProtocolBase):
         else:
             if self._timeout_half >= dt.now():
                 self._backoff = max(self._backoff - 1, 0)
-            # _logger_send(_LOGGER.debug, "SENT OK")
+            _logger_send(_LOGGER.debug, "SENT OK")
 
 
 def create_pkt_stack(
@@ -785,7 +794,7 @@ def create_pkt_stack(
         except (AttributeError, ValueError):  # AttributeError shouldn't be needed
             pass
 
-    if os.name == "nt":
+    if True or os.name == "nt":
         pkt_transport = SerTransportPoller(gwy._loop, pkt_protocol, ser_instance)
     else:
         pkt_transport = SerialTransportAsync(gwy._loop, pkt_protocol, ser_instance)

@@ -5,27 +5,27 @@
 
 import logging
 from typing import Tuple
+
 import voluptuous as vol
 
+from .const import ALL_DEVICE_ID as DEVICE_ID_REGEX
 from .const import (
     ATTR_DEVICES,
     ATTR_ZONE_IDX,
-    ATTR_ZONE_TYPE,
     ATTR_ZONE_SENSOR,
+    ATTR_ZONE_TYPE,
     ATTR_ZONES,
-    DEFAULT_MAX_ZONES,
-    ZONE_TYPE_SLUGS,
-    __dev_mode__,
-    id_to_address as addr,
-    ALL_DEVICE_ID as DEVICE_ID_REGEX,
-    CTL_DEVICE_ID as CTL_DEVICE_ID_REGEX,
-    DHW_SENSOR_ID as DHW_SENSOR_ID_REGEX,
-    GWY_DEVICE_ID as GWY_DEVICE_ID_REGEX,
-    HTG_DEVICE_ID as HTG_DEVICE_ID_REGEX,
-    UFC_DEVICE_ID as UFC_DEVICE_ID_REGEX,
-    RLY_DEVICE_ID as RLY_DEVICE_ID_REGEX,
-    ZON_SENSOR_ID as SENSOR_ID_REGEX,
 )
+from .const import CTL_DEVICE_ID as CTL_DEVICE_ID_REGEX
+from .const import DEFAULT_MAX_ZONES
+from .const import DHW_SENSOR_ID as DHW_SENSOR_ID_REGEX
+from .const import GWY_DEVICE_ID as GWY_DEVICE_ID_REGEX
+from .const import HTG_DEVICE_ID as HTG_DEVICE_ID_REGEX
+from .const import RLY_DEVICE_ID as RLY_DEVICE_ID_REGEX
+from .const import UFC_DEVICE_ID as UFC_DEVICE_ID_REGEX
+from .const import ZON_SENSOR_ID as SENSOR_ID_REGEX
+from .const import ZONE_TYPE_SLUGS, __dev_mode__
+from .const import id_to_address as addr
 
 # schema attrs
 ATTR_CONTROLLER = "controller"

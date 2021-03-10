@@ -7,8 +7,9 @@ Operates at the msg layer of: app - msg - pkt - h/w
 """
 
 import asyncio
-from datetime import datetime as dt, timedelta as td
 import logging
+from datetime import datetime as dt
+from datetime import timedelta as td
 from queue import Empty, PriorityQueue, SimpleQueue
 from typing import Callable, List, Optional, Tuple
 

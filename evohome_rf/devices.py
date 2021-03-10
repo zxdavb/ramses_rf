@@ -3,13 +3,12 @@
 #
 """Evohome RF - a RAMSES-II protocol decoder & analyser."""
 
-from abc import ABCMeta, abstractmethod
 import logging
+from abc import ABCMeta, abstractmethod
 from typing import Any, Dict, Optional
 
 from .command import Command, Priority
 from .const import (
-    __dev_mode__,
     ATTR_HEAT_DEMAND,
     ATTR_SETPOINT,
     ATTR_TEMP,
@@ -17,13 +16,13 @@ from .const import (
     DEVICE_HAS_BATTERY,
     DEVICE_TABLE,
     DEVICE_TYPES,
-    DISCOVER_SCHEMA,
-    DISCOVER_PARAMS,
-    DISCOVER_STATUS,
     DISCOVER_ALL,
+    DISCOVER_PARAMS,
+    DISCOVER_SCHEMA,
+    DISCOVER_STATUS,
     DOMAIN_TYPE_MAP,
+    __dev_mode__,
 )
-
 from .exceptions import CorruptStateError
 from .helpers import dev_id_to_hex
 

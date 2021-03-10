@@ -3,10 +3,11 @@
 #
 """Evohome RF - The evohome-compatible zones."""
 
+import logging
 from abc import ABCMeta, abstractmethod
 from asyncio import Task
-from datetime import datetime as dt, timedelta as td
-import logging
+from datetime import datetime as dt
+from datetime import timedelta as td
 from typing import Optional
 
 from .command import Command, Schedule
@@ -23,10 +24,10 @@ from .const import (
     ATTR_ZONE_TYPE,
     DEVICE_HAS_ZONE_SENSOR,
     DHW_STATE_MAP,
-    DISCOVER_SCHEMA,
-    DISCOVER_PARAMS,
-    DISCOVER_STATUS,
     DISCOVER_ALL,
+    DISCOVER_PARAMS,
+    DISCOVER_SCHEMA,
+    DISCOVER_STATUS,
     ZONE_CLASS_MAP,
     ZONE_TYPE_MAP,
     ZONE_TYPE_SLUGS,

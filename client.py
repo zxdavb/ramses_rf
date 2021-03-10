@@ -13,7 +13,8 @@ import sys
 from typing import Tuple
 
 import click
-from colorama import init as colorama_init, Fore, Style
+from colorama import Fore, Style
+from colorama import init as colorama_init
 
 from evohome_rf import Gateway, GracefulExit
 from evohome_rf.command import Command
@@ -21,22 +22,17 @@ from evohome_rf.discovery import (
     EXECUTE_CMD,
     GET_FAULTS,
     GET_SCHED,
-    SET_SCHED,
     SCAN_DISC,
     SCAN_FULL,
     SCAN_HARD,
     SCAN_XXXX,
+    SET_SCHED,
     spawn_execute_scripts,
     spawn_monitor_scripts,
 )
 from evohome_rf.exceptions import EvohomeError
 from evohome_rf.helpers import is_valid_dev_id
-from evohome_rf.packet import (
-    CONSOLE_COLS,
-    DEFAULT_FMT,
-    DEFAULT_DATEFMT,
-    DEFAULT_LEVEL,
-)
+from evohome_rf.packet import CONSOLE_COLS, DEFAULT_DATEFMT, DEFAULT_FMT, DEFAULT_LEVEL
 from evohome_rf.schema import (
     ALLOW_LIST,
     CONFIG,

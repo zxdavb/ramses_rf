@@ -6,11 +6,11 @@
 Decode/process a packet (packet that was received).
 """
 
-from datetime import datetime as dt
 import logging
-from logging.handlers import TimedRotatingFileHandler, RotatingFileHandler
 import shutil
 import sys
+from datetime import datetime as dt
+from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 from typing import Optional, Tuple
 
 try:
