@@ -794,7 +794,7 @@ def create_pkt_stack(
         except (AttributeError, ValueError):  # AttributeError shouldn't be needed
             pass
 
-    if True or os.name == "nt":
+    if os.name == "nt":
         pkt_transport = SerTransportPoller(gwy._loop, pkt_protocol, ser_instance)
     else:
         pkt_transport = SerialTransportAsync(gwy._loop, pkt_protocol, ser_instance)
