@@ -22,7 +22,7 @@ from serial import serial_for_url  # Serial, SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerialTransportAsync
 
 from .command import Command, Priority
-from .const import DTM_LONG_REGEX, HGI_DEV_ADDR, _dev_mode_
+from .const import DTM_LONG_REGEX, HGI_DEV_ADDR, __dev_mode__
 from .helpers import dt_str
 from .packet import _PKT_LOGGER, Packet
 from .protocol import create_protocol_factory
@@ -38,7 +38,7 @@ from .schema import (
 )
 from .version import __version__
 
-DEV_MODE = _dev_mode_
+DEV_MODE = __dev_mode__
 
 ERR_MSG_REGEX = re.compile(r"^([0-9A-F]{2}\.)+$")
 

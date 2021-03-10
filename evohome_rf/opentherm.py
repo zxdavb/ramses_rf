@@ -7,9 +7,9 @@ import logging
 import struct
 from typing import Any
 
-from .const import _dev_mode_
+from .const import __dev_mode__
 
-DEV_MODE = _dev_mode_
+DEV_MODE = __dev_mode__
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:

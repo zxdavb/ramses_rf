@@ -15,7 +15,7 @@ from .const import (
     ATTR_ZONES,
     DEFAULT_MAX_ZONES,
     ZONE_TYPE_SLUGS,
-    _dev_mode_,
+    __dev_mode__,
     id_to_address as addr,
     ALL_DEVICE_ID as DEVICE_ID_REGEX,
     CTL_DEVICE_ID as CTL_DEVICE_ID_REGEX,
@@ -210,7 +210,7 @@ MONITOR_SCHEMA = vol.Schema(
 PARSE_SCHEMA = vol.Schema({})
 CLI_SCHEMA = vol.Schema({})
 
-DEV_MODE = _dev_mode_
+DEV_MODE = __dev_mode__
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:

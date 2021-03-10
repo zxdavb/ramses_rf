@@ -6,7 +6,7 @@
 import logging
 import re
 
-from .const import _dev_mode_, DEVICE_LOOKUP, DEVICE_TYPES
+from .const import __dev_mode__, DEVICE_LOOKUP, DEVICE_TYPES
 
 __device_id_regex__ = re.compile(r"^(-{2}:-{6}|\d{2}:\d{6})$")
 
@@ -14,7 +14,7 @@ __hgi_device_id__ = "18:000730"
 __non_device_id__ = "--:------"
 __nul_device_id__ = "63:262142"
 
-DEV_MODE = _dev_mode_
+DEV_MODE = __dev_mode__
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:

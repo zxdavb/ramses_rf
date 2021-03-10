@@ -8,7 +8,7 @@ import logging
 from string import printable
 from typing import Optional
 
-from .const import _dev_mode_
+from .const import __dev_mode__
 
 # timeouts in seconds, 0 means no timeout
 RECV_TIMEOUT = 0  # without hearing from client (from network) - not useful
@@ -34,7 +34,7 @@ WONT = 252  # Wont <option code>
 DO__ = 253  # Do <option code>
 DONT = 254  # Don't <option code>
 
-DEV_MODE = _dev_mode_
+DEV_MODE = __dev_mode__
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:

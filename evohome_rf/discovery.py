@@ -11,7 +11,7 @@ from typing import Any, List
 
 from .command import Command, Priority
 from .const import (
-    _dev_mode_,
+    __dev_mode__,
     ALL_DEVICE_ID,
     CODE_SCHEMA,
     DEVICE_TABLE,
@@ -35,7 +35,7 @@ SCAN_XXXX = "scan_xxxx"
 DEVICE_ID_REGEX = re.compile(ALL_DEVICE_ID)
 
 
-DEV_MODE = _dev_mode_
+DEV_MODE = __dev_mode__
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:

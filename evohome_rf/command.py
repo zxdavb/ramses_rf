@@ -19,7 +19,7 @@ from typing import Optional
 import zlib
 
 from .const import (
-    _dev_mode_,
+    __dev_mode__,
     CODES_SANS_DOMAIN_ID,
     CODE_SCHEMA,
     COMMAND_REGEX,
@@ -62,7 +62,7 @@ FIVE_MINS = td(minutes=5)
 
 Priority = SimpleNamespace(LOWEST=8, LOW=6, DEFAULT=4, HIGH=2, HIGHEST=0)
 
-DEV_MODE = _dev_mode_ and False
+DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:

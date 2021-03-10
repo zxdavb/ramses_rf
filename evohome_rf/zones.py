@@ -30,14 +30,14 @@ from .const import (
     ZONE_CLASS_MAP,
     ZONE_TYPE_MAP,
     ZONE_TYPE_SLUGS,
-    _dev_mode_,
+    __dev_mode__,
 )
 from .devices import Device, Entity
 from .exceptions import CorruptStateError
 from .helpers import dtm_to_hex
 from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
 
-DEV_MODE = _dev_mode_ and False
+DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -221,7 +221,7 @@ class DhwZone(ZoneBase):
     def _discover(self, discover_flags=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
 
-        # if False and _dev_mode_ and self.idx == "FA":  # dev/test code
+        # if False and __dev_mode__ and self.idx == "FA":  # dev/test code
         #     self.async_set_override(state="On")
 
         if discover_flags & DISCOVER_SCHEMA:

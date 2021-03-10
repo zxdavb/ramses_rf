@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 
 from .command import Command, Priority
 from .const import (
-    _dev_mode_,
+    __dev_mode__,
     ATTR_HEAT_DEMAND,
     ATTR_SETPOINT,
     ATTR_TEMP,
@@ -27,7 +27,7 @@ from .const import (
 from .exceptions import CorruptStateError
 from .helpers import dev_id_to_hex
 
-DEV_MODE = _dev_mode_ and False
+DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:

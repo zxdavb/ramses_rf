@@ -25,7 +25,7 @@ from .const import (
     MAY_USE_ZONE_IDX,
     SYSTEM_MODE_MAP,
     ZONE_MODE_MAP,
-    _dev_mode_,
+    __dev_mode__,
 )
 from .devices import FanSwitch
 from .exceptions import CorruptPacketError, CorruptPayloadError
@@ -48,7 +48,7 @@ from .opentherm import (
 from .ramses import RAMSES_CODES, RAMSES_DEVICES, RQ, RQ_MAY_HAVE_PAYLOAD
 from .schema import MAX_ZONES
 
-DEV_MODE = _dev_mode_
+DEV_MODE = __dev_mode__
 TEST_MODE = True
 
 _LOGGER = logging.getLogger(__name__)

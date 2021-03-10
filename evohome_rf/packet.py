@@ -21,11 +21,11 @@ except ModuleNotFoundError:
     _use_color_ = False
 
 from .command import _pkt_header
-from .const import MESSAGE_REGEX, _dev_mode_
+from .const import MESSAGE_REGEX, __dev_mode__
 from .exceptions import CorruptAddrSetError
 from .helpers import extract_addrs
 
-DEV_MODE = _dev_mode_  # or True
+DEV_MODE = __dev_mode__  # or True
 
 DEFAULT_FMT = "%(asctime)s.%(msecs)03d %(message)s"
 DEFAULT_DATEFMT = "%H:%M:%S"

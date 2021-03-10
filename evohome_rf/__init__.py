@@ -20,7 +20,7 @@ from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .command import Command
-from .const import _dev_mode_, ATTR_DEVICES, ATTR_ORPHANS, NUL_DEVICE_ID
+from .const import __dev_mode__, ATTR_DEVICES, ATTR_ORPHANS, NUL_DEVICE_ID
 from .devices import DEVICE_CLASSES, Device
 from .message import Message, process_msg
 from .packet import _PKT_LOGGER as pkt_logger, set_pkt_logging
@@ -40,7 +40,7 @@ from .schema import (
 from .systems import SYSTEM_CLASSES, System, SystemBase
 from .version import __version__  # noqa: F401
 
-DEV_MODE = _dev_mode_ and False
+DEV_MODE = __dev_mode__ and False
 VERSION = __version__
 
 _LOGGER = logging.getLogger(__name__)

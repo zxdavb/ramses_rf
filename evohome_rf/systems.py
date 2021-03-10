@@ -18,7 +18,7 @@ from .const import (
     DISCOVER_PARAMS,
     DISCOVER_STATUS,
     DISCOVER_ALL,
-    _dev_mode_,
+    __dev_mode__,
 )
 from .devices import Device, Entity
 from .exceptions import CorruptStateError, ExpiredCallbackError
@@ -37,7 +37,7 @@ from .schema import (
 
 from .zones import DhwZone, Zone
 
-DEV_MODE = _dev_mode_
+DEV_MODE = __dev_mode__
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:

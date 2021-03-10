@@ -13,11 +13,11 @@ from queue import Empty, PriorityQueue, SimpleQueue
 from typing import Callable, List, Optional, Tuple
 
 from .command import Command
-from .const import _dev_mode_
+from .const import __dev_mode__
 from .message import Message
 from .schema import DISABLE_SENDING, DONT_CREATE_MESSAGES, REDUCE_PROCESSING
 
-DEV_MODE = _dev_mode_ and False
+DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(logging.WARNING)  # TODO: needs fixing - this should be the default

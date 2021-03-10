@@ -27,7 +27,7 @@ from .const import (
     CODE_0005_ZONE_TYPE,
     ZONE_TYPE_SLUGS,
     Address,
-    _dev_mode_,
+    __dev_mode__,
 )
 from .devices import Device
 from .exceptions import (
@@ -47,7 +47,7 @@ from .schema import (
 
 CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
 
-DEV_MODE = _dev_mode_
+DEV_MODE = __dev_mode__
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:

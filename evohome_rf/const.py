@@ -12,7 +12,7 @@ def slug(string: str) -> str:
     return re.sub(r"[\W_]+", "_", string.lower())
 
 
-DEV_MODE = _dev_mode_ = True
+DEV_MODE = __dev_mode__ = True
 
 # grep ' F[89ABxDE]' | grep -vE ' (0008|1F09/F8|1FC9|2D49/FD) '
 # grep ' F[89ABCDE]' | grep -vE ' (0008|1F09/xx|1FC9|0001|0009|1100|3150|3B00) '
