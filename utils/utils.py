@@ -14,13 +14,13 @@ import sys
 from typing import ByteString, Optional, Tuple
 
 import click
-from colorama import init as colorama_init, Fore, Style
+from colorama import Fore, Style
+from colorama import init as colorama_init
 
 from evohome_rf import Gateway, GracefulExit
 from evohome_rf.exceptions import EvohomeError
 from evohome_rf.packet import CONSOLE_COLS, Packet
 from evohome_rf.protocol import create_protocol_factory
-from evohome_rf.transport import POLLER_TASK, PacketProtocolFile, create_pkt_stack
 from evohome_rf.schema import (
     DONT_CREATE_MESSAGES,
     ENFORCE_ALLOWLIST,
@@ -29,6 +29,7 @@ from evohome_rf.schema import (
     REDUCE_PROCESSING,
     USE_NAMES,
 )
+from evohome_rf.transport import POLLER_TASK, PacketProtocolFile, create_pkt_stack
 
 CONFIG = "config"
 COMMAND = "command"

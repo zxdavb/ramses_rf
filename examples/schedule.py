@@ -10,7 +10,8 @@ import json
 import sys
 
 import click
-from colorama import init as colorama_init, Fore
+from colorama import Fore
+from colorama import init as colorama_init
 
 # Ugly hack to allow absolute import from the root folder. Please forgive the heresy.
 if __name__ == "__main__" and __package__ is None:

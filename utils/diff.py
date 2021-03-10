@@ -7,10 +7,11 @@ evohome_rf is used to parse/process Honeywell's RAMSES-II packets.
 """
 
 import argparse
-from collections import deque, namedtuple
-from datetime import datetime as dt, timedelta as td
 import os
 import re
+from collections import deque, namedtuple
+from datetime import datetime as dt
+from datetime import timedelta as td
 
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678

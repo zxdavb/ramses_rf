@@ -7,23 +7,24 @@ evohome_rf is used to parse/process Honeywell's RAMSES-II packets.
 """
 
 import asyncio
-from datetime import datetime as dt, timedelta as td
 import json
 import logging
 import sys
+from datetime import datetime as dt
+from datetime import timedelta as td
 from threading import Lock
 from typing import ByteString, Optional, Tuple
 
 import click
-from colorama import init as colorama_init, Fore, Style
+from colorama import Fore, Style
+from colorama import init as colorama_init
 
 from evohome_rf import Gateway, GracefulExit
 from evohome_rf.command import Command, Priority
 from evohome_rf.exceptions import EvohomeError
 from evohome_rf.helpers import is_valid_dev_id
-from evohome_rf.packet import CONSOLE_COLS, _PKT_LOGGER, Packet
+from evohome_rf.packet import _PKT_LOGGER, CONSOLE_COLS, Packet
 from evohome_rf.protocol import create_protocol_factory
-from evohome_rf.transport import PacketProtocol, create_pkt_stack
 from evohome_rf.schema import (
     ALLOW_LIST,
     DISABLE_DISCOVERY,
@@ -37,6 +38,7 @@ from evohome_rf.schema import (
     SERIAL_PORT,
     USE_NAMES,
 )
+from evohome_rf.transport import PacketProtocol, create_pkt_stack
 
 device_id = None
 pkt_counting = None

@@ -4,10 +4,10 @@
 """The setup.py file."""
 
 import os
-from setuptools import find_packages, setup
-from setuptools.command.install import install
 import sys
 
+from setuptools import find_packages, setup
+from setuptools.command.install import install
 
 from evohome_rf import __version__ as VERSION
 
