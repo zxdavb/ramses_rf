@@ -17,11 +17,11 @@ from .const import _dev_mode_
 from .message import Message
 from .schema import DISABLE_SENDING, DONT_CREATE_MESSAGES, REDUCE_PROCESSING
 
-DEV_MODE = _dev_mode_
+DEV_MODE = _dev_mode_ and False
 
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(logging.WARNING)  # TODO: needs fixing - this should be the default
-if DEV_MODE and False:
+if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 

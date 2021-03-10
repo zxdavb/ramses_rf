@@ -27,7 +27,7 @@ from .const import (
 from .exceptions import CorruptStateError
 from .helpers import dev_id_to_hex
 
-DEV_MODE = _dev_mode_
+DEV_MODE = _dev_mode_ and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -391,7 +391,7 @@ class Device(DeviceInfo, DeviceBase):
         # TODO: status updates always, but...
         # TODO: schema updates only if eavesdropping is enabled.
         # if self._ctl is not None and "parent_idx" in msg.payload:
-        #     self._set_zone(self._evo._get_zone(msg.payload["parent_idx"]))
+        #     self._set_zone(self._ctl._evo._get_zone(msg.payload["parent_idx"]))
 
     def _set_parent(self, parent, domain=None) -> None:
         """Set the device's parent zone, after validating it."""

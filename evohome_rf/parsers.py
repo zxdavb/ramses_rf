@@ -483,7 +483,7 @@ def parser_0005(payload, msg) -> Optional[dict]:
                 byte = byte >> 1
             return ret
 
-        assert len(seqx) == 8
+        assert len(seqx) in (8, 12)  # 8 for evohome, 12 for Hometronics (16 zones)
         assert seqx[:2] == payload[:2]
         assert seqx[:2] == "00"  # done in _idx
         # assert payload[2:4] in CODE_0005_ZONE_TYPE, f"Unknown zone_type: {seqx[2:4]}"

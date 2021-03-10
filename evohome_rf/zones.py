@@ -37,7 +37,7 @@ from .exceptions import CorruptStateError
 from .helpers import dtm_to_hex
 from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
 
-DEV_MODE = _dev_mode_
+DEV_MODE = _dev_mode_ and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -55,7 +55,7 @@ class ZoneBase(Entity, metaclass=ABCMeta):
     VAL = "VAL"
 
     def __init__(self, evo, zone_idx) -> None:
-        _LOGGER.debug("Creating a Zone: %s_%s (%s)", evo.id, zone_idx, self.__class__)
+        _LOGGER.debug("Creating a Zone: %s_%s", evo.id, zone_idx)
         super().__init__(evo._gwy)
 
         self.id = f"{evo.id}_{zone_idx}"
