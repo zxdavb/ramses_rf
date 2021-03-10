@@ -24,8 +24,9 @@ jobs: # A basic unit of work in a run
     steps:
       - checkout
       - run:
-          command: sudo pip install black
-          command: mkdir test-results
+          command: |
+            sudo pip install black
+            mkdir test-results
       - run:
           name: Check formatting 1 (black)
           command: |
