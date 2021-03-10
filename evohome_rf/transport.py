@@ -38,9 +38,8 @@ from .schema import (
     SERIAL_CONFIG_SCHEMA,
 )
 from .version import __version__
-_dev_mode_ = False
 
-DEV_MODE = _dev_mode_ and False
+DEV_MODE = __dev_mode__ and False
 
 ERR_MSG_REGEX = re.compile(r"^([0-9A-F]{2}\.)+$")
 
