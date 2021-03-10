@@ -20,7 +20,7 @@ from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .command import Command
-from .const import _dev_mode_, ATTR_DEVICES, ATTR_ORPHANS
+from .const import _dev_mode_, ATTR_DEVICES, ATTR_ORPHANS, NUL_DEVICE_ID
 from .devices import DEVICE_CLASSES, Device
 from .message import Message, process_msg
 from .packet import _PKT_LOGGER as pkt_logger, set_pkt_logging
@@ -40,7 +40,7 @@ from .schema import (
 from .systems import SYSTEM_CLASSES, System, SystemBase
 from .version import __version__  # noqa: F401
 
-DEV_MODE = _dev_mode_
+DEV_MODE = _dev_mode_ and False
 VERSION = __version__
 
 _LOGGER = logging.getLogger(__name__)
@@ -181,7 +181,7 @@ class Gateway:
 
         await asyncio.gather(*self._tasks)
 
-    def _get_device(self, dev_addr, ctl_addr=None, domain_id=None) -> Device:
+    def _get_device(self, dev_addr, ctl_addr=None, domain_id=None, **kwargs) -> Device:
         """Return a device (will create it if required).
 
         Can also set a controller/system (will create as required). If a controller is
@@ -189,59 +189,65 @@ class Gateway:
         (heater_relay), HW (DHW sensor, relay), or None (unknown, TBA).
         """
 
-        def create_system(ctl) -> SystemBase:
+        def create_system(ctl, profile=None) -> SystemBase:
             assert ctl.id not in self.system_by_id, f"Duplicate system id: {ctl.id}"
             if ctl.id in self.system_by_id:
                 raise LookupError(f"Duplicated system id: {ctl.id}")
 
-            system = SYSTEM_CLASSES.get(ctl.type, System)(self, ctl)
+            system = SYSTEM_CLASSES.get(profile, System)(self, ctl)
 
             if not self.config[DISABLE_DISCOVERY]:
                 system._discover()  # discover_flag=DISCOVER_ALL)
 
             return system
 
-        def create_device(dev_addr, **kwargs) -> Device:
+        def create_device(dev_addr, ctl=None, domain_id=None) -> Device:
             if dev_addr.id in self.device_by_id:
                 raise LookupError(f"Duplicated device id: {dev_addr.id}")
 
-            device = DEVICE_CLASSES.get(dev_addr.type, Device)(self, dev_addr, **kwargs)
+            device = DEVICE_CLASSES.get(dev_addr.type, Device)(self, dev_addr)
 
             if not self.config[DISABLE_DISCOVERY]:
                 device._discover()  # discover_flag=DISCOVER_ALL)
 
             return device
 
-        ctl = None if ctl_addr is None else self._get_device(ctl_addr, domain_id="FF")
-        if ctl is not None and self.evo is None:
-            self.evo = ctl._evo
+        if ctl_addr is None:
+            ctl = None
+        else:
+            ctl = self._get_device(ctl_addr, domain_id="FF", **kwargs)
+            if self.evo is None:
+                self.evo = ctl._evo
 
-        if dev_addr.type in ("18", "63", "--"):  # valid addresses, but not devices
+        if dev_addr.type in ("18", "--"):  # not valid devices
             return
-        if dev_addr.id == "01:000001":  # valid addresses, but not devices
+        if dev_addr.id in (NUL_DEVICE_ID, "01:000001"):  # not real devices
             return
 
         if isinstance(dev_addr, Device):
             device = dev_addr
         else:
             device = self.device_by_id.get(dev_addr.id)
+            if device is None:
+                device = create_device(dev_addr, ctl=ctl, domain_id=domain_id)
+                # if isinstance(device, Controller):
+                # if device._is_controller:
+                # if dev_addr.type in SYSTEM_CLASSES:
+                # if domain_id = "FF"
 
-        if device is None:
-            device = create_device(dev_addr, ctl=ctl, domain_id=domain_id)
-            # if isinstance(device, Controller):
-            # if device._is_controller:
-            # if dev_addr.type in SYSTEM_CLASSES:
-            if dev_addr.type in ("01", "23"):
-                device._evo = create_system(device)
+                if dev_addr.type in ("01", "23"):
+                    profile = kwargs.get("profile")
+                    if profile is None:
+                        profile = "programmer" if dev_addr.type == "23" else "evohome"
+                    device._evo = create_system(device, profile=profile)
 
-        else:  # update the existing device with any metadata
-            if ctl is not None:
-                device._set_ctl(ctl)
-
-            if domain_id in ("F9", "FA", "FC", "FF"):
-                device._domain_id = domain_id
-            elif domain_id is not None and ctl is not None:
-                device._set_zone(ctl._evo._get_zone(domain_id))
+        # update the existing device with any metadata
+        if ctl is not None:
+            device._set_ctl(ctl)
+        if domain_id in ("F9", "FA", "FC", "FF"):
+            device._domain_id = domain_id
+        elif domain_id is not None and ctl is not None:
+            device._set_zone(ctl._evo._get_zone(domain_id))
 
         return device
 

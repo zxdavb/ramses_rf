@@ -118,11 +118,14 @@ CONFIG_SCHEMA = vol.Schema(
     },
     extra=vol.ALLOW_EXTRA,
 )
-
+ATTR_SYS_PROFILE = "_profile"
+SYSTEM_PROFILES = ("evohome", "hometronics", "sundial")
 HTG_SCHEMA = vol.Schema(
     {
         vol.Optional(ATTR_HTG_RELAY, default=None): vol.Any(None, HTG_DEVICE_ID),
-    }
+        vol.Optional(ATTR_SYS_PROFILE, default="evohome"): vol.Any(*SYSTEM_PROFILES),
+    },
+    extra=vol.ALLOW_EXTRA,  # TODO: remove me
 )
 DHW_SCHEMA = vol.Schema(
     {
@@ -272,7 +275,8 @@ def load_schema(gwy, create_entities=True, **kwargs) -> Tuple[dict, dict]:
         return ({}, known_devices)
 
     if create_entities:
-        ctl = gwy._get_device(addr(ctl_id), ctl_addr=addr(ctl_id))
+        profile = schema[ATTR_HTG_SYSTEM].get(ATTR_SYS_PROFILE)
+        ctl = gwy._get_device(addr(ctl_id), ctl_addr=addr(ctl_id), profile=profile)
     else:
         ctl = None
 

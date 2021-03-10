@@ -681,7 +681,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         self._htg_control = None
 
     def __repr__(self) -> str:
-        return f"{self._ctl.id} (system)"
+        return f"{self._ctl.id} (sys_base)"
 
     def __str__(self) -> str:  # TODO: WIP
         return json.dumps({self._ctl.id: self.schema})
@@ -1013,9 +1013,9 @@ class Evohome(SysLanguage, SysMode, MultiZone, UfhSystem, System):  # evohome
             pass
 
 
-class Programmer(Evohome):
+class Chronotherm(Evohome):
     def __repr__(self) -> str:
-        return f"{self._ctl.id} (programmer)"
+        return f"{self._ctl.id} (chronotherm)"
 
 
 class Hometronics(System):
@@ -1025,11 +1025,31 @@ class Hometronics(System):
     def __repr__(self) -> str:
         return f"{self._ctl.id} (hometronics)"
 
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        # super()._discover(discover_flag=discover_flag)
 
-# class Chronotherm(System):
-# class Sundial(System):
-# class Cm927(System):
-#     def __init__(self, gwy, ctl, synchronizer=False, **kwargs) -> None:
-#         pass
+        # will RP to: 0005/configured_zones_alt, but not: configured_zones
+        # will RP to: 0004
 
-SYSTEM_CLASSES = {"01": Evohome, "12": System, "22": System, "23": Programmer}
+        if discover_flag & DISCOVER_STATUS:
+            self._send_cmd("1F09")
+
+
+class Programmer(Evohome):
+    def __repr__(self) -> str:
+        return f"{self._ctl.id} (programmer)"
+
+
+class Sundial(Evohome):
+    def __repr__(self) -> str:
+        return f"{self._ctl.id} (sundial)"
+
+
+SYSTEM_CLASSES = {
+    "chronotherm": Chronotherm,
+    "evohome": Evohome,
+    "hometronics": Hometronics,
+    "programmer": Programmer,
+    "sundial": Sundial,
+    "system": System,
+}
