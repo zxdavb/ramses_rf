@@ -39,7 +39,10 @@ from .schema import (
 )
 from .version import __version__
 
+_dev_mode_ = True
+
 DEV_MODE = __dev_mode__ and False
+DEV_MODE = _dev_mode_ and False
 
 ERR_MSG_REGEX = re.compile(r"^([0-9A-F]{2}\.)+$")
 
