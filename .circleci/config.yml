@@ -1,16 +1,14 @@
-# CircleCI 2.1 configuration file for https://github.com/zxdavb/evohome_rf
+# CircleCI 2.1 configuration file for https://github.com/zxdavb/geniushub-client
 # Check https://circleci.com/docs/2.0/language-python/ for more details
 
 version: 2.1
 
 
-jobs: # A basic unit of work in a run
-  build: # runs not using Workflows must have a `build` job as entry point
-    # directory where steps are run
-    working_directory: ~/working_directory
+jobs:
+  build:
     docker: # run the steps with Docker
-      # CircleCI Python images available at: https://hub.docker.com/r/circleci/python/
       - image: circleci/python:3.7.5
+    working_directory: ~/working_directory
     steps: # steps that comprise the `build` job
       - checkout # check out source code to working directory
       - run: sudo chown -R circleci:circleci /usr/local/bin
@@ -18,7 +16,7 @@ jobs: # A basic unit of work in a run
       - run: sudo pip install pylint
       - run: mkdir test-results
 
-  delint:
+  lint:
     docker:
       - image: circleci/python:3.7.5
     steps:
@@ -31,12 +29,12 @@ jobs: # A basic unit of work in a run
           name: "Check formatting 1: black"
           command: |
             black --diff --check *client.py
-            black --diff --check evohome_rf
+            black --diff --check evohome*
       - run:
           name: "Check formatting 2: isort"
           command: |
             isort --check --diff *client.py
-            isort --check --diff evohome_rf
+            isort --check --diff evohome*
       - store_test_results: # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
           path: test-results
       - store_artifacts: # Upload test summary for display in Artifacts: https://circleci.com/docs/2.0/artifacts/
@@ -89,7 +87,7 @@ workflows:
           filters: # required since `deploy` has tag filters AND requires `build`
             tags:
               only: /.*/
-      - delint:
+      - lint:
           requires:
             - build
           filters: # required since `deploy` has tag filters AND requires `build`
@@ -98,7 +96,7 @@ workflows:
       - deploy:
           requires:
             - build
-            - delint
+            - lint
           filters:
             tags:
               only: /[0-9]+(\.[0-9]+)*/
