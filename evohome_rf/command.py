@@ -30,6 +30,7 @@ from .const import (
     SYSTEM_MODE_MAP,
     ZONE_MODE_LOOKUP,
     ZONE_MODE_MAP,
+    ZoneMode,
     __dev_mode__,
 )
 from .exceptions import ExpiredCallbackError
@@ -255,7 +256,7 @@ class Command:
             raise ValueError("Invalid args: Both mode and active cant be None")
 
         if mode is None:  # and active is not None: TODO: use: advanced_override?
-            mode = "temporary_override" if until else "permanent_override"
+            mode = ZoneMode.TEMPORARY if until else ZoneMode.PERMANENT
         elif isinstance(mode, int):
             mode = f"{mode:02X}"
         if mode in ZONE_MODE_MAP:
@@ -263,14 +264,14 @@ class Command:
         elif mode not in ZONE_MODE_LOOKUP:
             raise TypeError(f"Invalid args: Unknown mode: {mode}")
 
-        if active is None and mode != "follow_schedule":
+        if active is None and mode != ZoneMode.SCHEDULE:
             raise ValueError(f"Invalid args: For {mode}, active cant be None")
         elif active is not None and not isinstance(active, (bool, int)):
             raise ValueError(f"Invalid args: active={active}, should be bool")
 
-        if until is None and mode == "temporary_override":
-            mode = "advanced_override"  # until = dt.now() + td(hour=1)
-        elif until is not None and mode in ("follow_schedule", "permanent_override"):
+        if until is None and mode == ZoneMode.TEMPORARY:
+            mode = ZoneMode.ADVANCED  # until = dt.now() + td(hour=1)
+        elif until is not None and mode in (ZoneMode.SCHEDULE, ZoneMode.PERMANENT):
             raise ValueError(f"Invalid args: For {mode}, until should be None")
 
         assert mode in ZONE_MODE_LOOKUP, mode
@@ -370,8 +371,8 @@ class Command:
 
         # TODO: these need fixing
         # if until is None and system_mode == "xxx":
-        #     system_mode = "advanced_override"  # until = dt.now() + td(hour=1)
-        # elif until is not None and system_mode in ("auto", "auto_with_reset"):
+        #     system_mode = ZoneMode.ADVANCED  # until = dt.now() + td(hour=1)
+        # elif until is not None and system_mode in (SystemMode.AUTO, SystemMode.RESET):
         #     raise ValueError(f"Invalid args: For {system_mode}, until should be None")
 
         assert system_mode in SYSTEM_MODE_LOOKUP, system_mode
@@ -500,7 +501,7 @@ class Command:
             raise ValueError("Invalid args: Both mode and setpoint cant be None")
 
         if mode is None:  # and setpoint is not None: TODO: use: advanced_override?
-            mode = "temporary_override" if until else "permanent_override"
+            mode = ZoneMode.TEMPORARY if until else ZoneMode.PERMANENT
         elif isinstance(mode, int):
             mode = f"{mode:02X}"
         if mode in ZONE_MODE_MAP:
@@ -508,14 +509,14 @@ class Command:
         elif mode not in ZONE_MODE_LOOKUP:
             raise TypeError(f"Invalid args: Unknown mode: {mode}")
 
-        if setpoint is None and mode != "follow_schedule":
+        if setpoint is None and mode != ZoneMode.SCHEDULE:
             raise ValueError(f"Invalid args: For {mode}, setpoint cant be None")
         elif setpoint is not None and not isinstance(setpoint, (int, float)):
             raise ValueError(f"Invalid args: setpoint={setpoint}, should be float")
 
-        if until is None and mode == "temporary_override":
-            mode = "advanced_override"  # until = dt.now() + td(hour=1)
-        elif until is not None and mode in ("follow_schedule", "permanent_override"):
+        if until is None and mode == ZoneMode.TEMPORARY:
+            mode = ZoneMode.ADVANCED  # until = dt.now() + td(hour=1)
+        elif until is not None and mode in (ZoneMode.SCHEDULE, ZoneMode.PERMANENT):
             raise ValueError(f"Invalid args: For {mode}, until should be None")
 
         assert mode in ZONE_MODE_LOOKUP, mode

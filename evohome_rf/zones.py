@@ -23,7 +23,6 @@ from .const import (
     ATTR_ZONE_SENSOR,
     ATTR_ZONE_TYPE,
     DEVICE_HAS_ZONE_SENSOR,
-    DHW_STATE_MAP,
     DISCOVER_ALL,
     DISCOVER_PARAMS,
     DISCOVER_SCHEMA,
@@ -31,11 +30,11 @@ from .const import (
     ZONE_CLASS_MAP,
     ZONE_TYPE_MAP,
     ZONE_TYPE_SLUGS,
+    ZoneMode,
     __dev_mode__,
 )
 from .devices import Device, Entity
 from .exceptions import CorruptStateError
-from .helpers import dtm_to_hex
 from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
 
 DEV_MODE = __dev_mode__ and False
@@ -381,12 +380,12 @@ class DhwZone(ZoneBase):
     def set_boost_mode(self) -> Task:
         """Enable DHW for an hour, despite any schedule."""
         return self.set_mode(
-            mode="temporary_override", active=True, until=dt.now() + td(hours=1)
+            mode=ZoneMode.TEMPORARY, active=True, until=dt.now() + td(hours=1)
         )
 
     def reset_mode(self) -> Task:  # 1F41
         """Revert the DHW to following its schedule."""
-        return self.set_mode(mode="follow_schedule")
+        return self.set_mode(mode=ZoneMode.SCHEDULE)
 
     def set_config(self, setpoint=None, overrun=None, differential=None) -> Task:
         """Set the DHW parameters (setpoint, overrun, differential)."""
@@ -404,54 +403,6 @@ class DhwZone(ZoneBase):
     def reset_config(self) -> Task:  # 10A0
         """Reset the DHW parameters to their default values."""
         return self.set_config(setpoint=50, overrun=5, differential=1)
-
-    async def _old_set_override(self, mode=None, state=None, until=None) -> bool:
-        """Force the DHW on/off for a duration, or indefinitely.
-
-        Use until = ? for 1hr boost (obligates on)
-        Use until = ? for until next scheduled on/off
-        Use until = None for indefinitely
-        """
-        # cmd = Command.get_dhw_mode(self._ctl.id, self.idx, mode, setpoint, until)
-        # self._gwy.send_cmd(cmd)
-
-        # if mode is None and until is None:
-        #     mode = "00" if setpoint is None else "02"  # Follow, Permanent
-        # elif mode is None:  # and until is not None
-        #     mode = "04"  # Temporary
-        # elif isinstance(mode, int):
-        #     mode = f"{mode:02X}"
-        # elif not isinstance(mode, str):
-        #     raise TypeError("Invalid zone mode")
-        # elif mode in ZONE_MODE_LOOKUP:
-        #     mode = ZONE_MODE_LOOKUP[mode]
-
-        # if mode not in ZONE_MODE_MAP:
-        #     raise ValueError("Unknown zone mode")
-
-        # if state is None and until is None:
-        #     state = "01"
-        # elif state is None:  # and until is not None
-        #     state = "01"
-        # elif isinstance(state, int):
-        #     mode = f"{mode:02X}"
-        # elif isinstance(state, bool):
-        #     mode = "01" if mode is True else "00"
-        # elif not isinstance(mode, str):
-        #     raise TypeError("Invalid DHW state")
-        # elif state in DHW_STATE_LOOKUP:
-        #     state = DHW_STATE_LOOKUP[mode]
-
-        if state not in DHW_STATE_MAP:
-            raise ValueError("Unknown DHW state")
-
-        if until is None:
-            payload = f"00{state}{mode}FFFFFF"
-        else:  # required only by: 04, Temporary, ignored by others
-            payload = f"00{state}{mode}FFFFFF{dtm_to_hex(until)}"
-
-        self._send_cmd("1F41", verb=" W", payload=payload)
-        return False
 
     @property
     def schema(self) -> dict:
@@ -770,7 +721,7 @@ class Zone(ZoneSchedule, ZoneBase):
             cmd = Command.set_zone_setpoint(self._ctl.id, self.idx, value)
             self._gwy.send_cmd(cmd)
             # NOTE: the following doesn't wotk for e.g. Hometronics
-            # self.set_mode(mode="advanced_override", setpoint=value)
+            # self.set_mode(mode=ZoneMode.ADVANCED, setpoint=value)
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
@@ -818,11 +769,11 @@ class Zone(ZoneSchedule, ZoneBase):
 
     def set_frost_mode(self) -> Task:  # 2349
         """Set the zone to the lowest possible setpoint, indefinitely."""
-        return self.set_mode(mode="permanent_override", setpoint=5)  # TODO
+        return self.set_mode(mode=ZoneMode.PERMANENT, setpoint=5)  # TODO
 
     def reset_mode(self) -> Task:  # 2349
         """Revert the zone to following its schedule."""
-        return self.set_mode(mode="follow_schedule")
+        return self.set_mode(mode=ZoneMode.SCHEDULE)
 
     def set_config(self, setpoint=None, overrun=None, differential=None) -> Task:
         """Set the zone's parameters (setpoint, overrun, differential)."""

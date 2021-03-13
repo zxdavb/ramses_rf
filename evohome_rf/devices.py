@@ -160,7 +160,7 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         # self._domain = {}  # TODO
 
     def __repr__(self) -> str:
-        return f"{self.id} ({DEVICE_TYPES.get(self.type)})"
+        return f"{self.id} ({self._domain_id})"
 
     def __str__(self) -> str:
         return f"{self.id} ({DEVICE_TYPES.get(self.id[:2])})"
@@ -687,6 +687,9 @@ class DhwSensor(BatteryState, Device):
         self._dhw_params = None
         self._temp = None
 
+    def __repr__(self) -> str:
+        return f"{self.id} ({self._domain_id}): {self.temperature}"
+
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
@@ -735,6 +738,9 @@ class OtbGateway(Actuator, Device):
         self._boiler_setpoint = None
         self._modulation_level = None
         self._opentherm_msg = {}
+
+    def __repr__(self) -> str:
+        return f"{self.id} ({self._domain_id}): {self.rel_modulation_level}"
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
@@ -867,6 +873,9 @@ class OtbGateway(Actuator, Device):
 class Thermostat(BatteryState, Setpoint, Temperature, Device):
     """The THM/STA class, such as a TR87RF."""
 
+    def __repr__(self) -> str:
+        return f"{self.id} ({self._domain_id}): {self.temperature}"
+
     def _handle_msg(self, msg) -> bool:  # TODO: needs checking for false +ves
         super()._handle_msg(msg)
 
@@ -892,6 +901,9 @@ class BdrSwitch(Actuator, Device):
 
         # if kwargs.get("domain_id") == "FC":  # TODO: F9/FA/FC, zone_idx
         #     self._ctl._set_htg_control(self)
+
+    def __repr__(self) -> str:
+        return f"{self.id} ({self._domain_id}): {self.relay_demand}"
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         """The BDRs have one of six roles:
@@ -998,6 +1010,9 @@ class TrvActuator(BatteryState, Setpoint, Temperature, Device):
         self._heat_demand = None
         self._window_state = None
 
+    def __repr__(self) -> str:
+        return f"{self.id} ({self._domain_id}): {self.heat_demand}"
+
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
@@ -1014,11 +1029,6 @@ class TrvActuator(BatteryState, Setpoint, Temperature, Device):
     @property
     def window_open(self) -> Optional[bool]:  # 12B0
         return self._msg_payload(self._window_state, ATTR_WINDOW_OPEN)
-
-    @property
-    def enabled(self) -> Optional[bool]:
-        if self.heat_demand is not None:
-            return bool(self.heat_demand)
 
     @property
     def status(self) -> dict:

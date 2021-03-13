@@ -362,35 +362,56 @@ DOMAIN_TYPE_MAP = {
 }  # "21": "Ventilation",
 DOMAIN_TYPE_LOOKUP = {v: k for k, v in DOMAIN_TYPE_MAP.items() if k != "FF"}
 
-SystemMode = SimpleNamespace(
-    AUTO="00",
-    HEAT_OFF="01",
-    ECO="02",
-    AWAY="03",
-    DAY_OFF="04",
-    DAY_OFF_ECO="05",  # set to Eco when DayOff ends
-    AUTO_RESET="06",
-    CUSTOM="07",
-)
+SYS_MODE_AUTO = "00"
+SYS_MODE_HEAT_OFF = "01"
+SYS_MODE_ECO = "02"
+SYS_MODE_AWAY = "03"
+SYS_MODE_DAY_OFF = "04"
+SYS_MODE_DAY_OFF_ECO = "05"  # set to Eco when DayOff ends
+SYS_MODE_AUTO_WITH_RESET = "06"
+SYS_MODE_CUSTOM = "07"
 
+SystemMode = SimpleNamespace(
+    AUTO="auto",
+    AWAY="away",
+    CUSTOM="custom",
+    DAY_OFF="day_off",
+    DAY_OFF_ECO="day_off_eco",
+    ECO="eco",
+    HEAT_OFF="heat_off",
+    RESET="auto_with_reset",
+)
 SYSTEM_MODE_MAP = {
-    "00": "auto",
-    "01": "heat_off",
-    "02": "eco",
-    "03": "away",
-    "04": "day_off",
-    "05": "day_off_eco",  # set to Eco when DayOff ends
-    "06": "auto_with_reset",
-    "07": "custom",
+    SYS_MODE_AUTO: SystemMode.AUTO,
+    SYS_MODE_HEAT_OFF: SystemMode.HEAT_OFF,
+    SYS_MODE_ECO: SystemMode.ECO,
+    SYS_MODE_AWAY: SystemMode.AWAY,
+    SYS_MODE_DAY_OFF: SystemMode.DAY_OFF,
+    SYS_MODE_DAY_OFF_ECO: SystemMode.AUTO,
+    SYS_MODE_AUTO_WITH_RESET: SystemMode.RESET,
+    SYS_MODE_CUSTOM: SystemMode.CUSTOM,
 }
 SYSTEM_MODE_LOOKUP = {v: k for k, v in SYSTEM_MODE_MAP.items()}
 
+ZONE_MODE_FOLLOW_SCHEDULE = "00"
+ZONE_MODE_ADVANCED_OVERRIDE = "01"  # until the next scheduled setpoint
+ZONE_MODE_PERMANENT_OVERRIDE = "02"
+ZONE_MODE_DAY_OVERRIDE = "03"  # ignores until, uses duration of 20h 15m!
+ZONE_MODE_TEMPORARY_OVERRIDE = "04"  # requires an until (datetime)
+
+ZoneMode = SimpleNamespace(
+    SCHEDULE="follow_schedule",
+    ADVANCED="advanced_override",
+    PERMANENT="permanent_override",
+    _UNKNOWN="day_override",
+    TEMPORARY="temporary_override",
+)
 ZONE_MODE_MAP = {
-    "00": "follow_schedule",
-    "01": "advanced_override",  # until the next scheduled setpoint
-    "02": "permanent_override",
-    "03": "day_override",  # ignores until, uses duration of 20h 15m!
-    "04": "temporary_override",  # requires an until (datetime)
+    ZONE_MODE_FOLLOW_SCHEDULE: ZoneMode.SCHEDULE,
+    ZONE_MODE_ADVANCED_OVERRIDE: ZoneMode.ADVANCED,
+    ZONE_MODE_PERMANENT_OVERRIDE: ZoneMode.PERMANENT,
+    ZONE_MODE_DAY_OVERRIDE: ZoneMode._UNKNOWN,
+    ZONE_MODE_TEMPORARY_OVERRIDE: ZoneMode.TEMPORARY,
 }
 ZONE_MODE_LOOKUP = {v: k for k, v in ZONE_MODE_MAP.items()}
 
