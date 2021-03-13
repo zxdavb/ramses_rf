@@ -46,13 +46,12 @@ jobs:
       - image: circleci/python:3.7.5
     steps:
       - checkout
-      - run:
-          command: sudo pip install twine
+      - run: sudo pip install -r requirements.txt
       - run:
           name: Verify git tag vs. package version
           command: python setup.py verify
       - run:
-          name: Build the  package
+          name: Build the package
           command: |
             python setup.py sdist        # create a source distribution
             python setup.py bdist_wheel  # create a wheel
@@ -74,6 +73,7 @@ jobs:
             echo -e "username = $PYPI_USERNAME"                    >> ~/.pypirc
             echo -e "password = $PYPI_PASSWORD"                    >> ~/.pypirc
             echo -e ""                                             >> ~/.pypirc
+      - run: sudo pip install twine
       - run:
           name: Upload to PyPi
           command: twine upload -r pypi dist/*
