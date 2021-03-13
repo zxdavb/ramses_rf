@@ -16,7 +16,7 @@ jobs:
       - run: sudo pip install pylint
       - run: mkdir test-results
 
-  lint:
+  check_lint:
     docker:
       - image: circleci/python:3.7.5
     steps:
@@ -87,7 +87,7 @@ workflows:
           filters: # required since `deploy` has tag filters AND requires `build`
             tags:
               only: /.*/
-      - lint:
+      - check_lint:
           requires:
             - build
           filters: # required since `deploy` has tag filters AND requires `build`
@@ -96,7 +96,7 @@ workflows:
       - deploy:
           requires:
             - build
-            - lint
+            - check_lint
           filters:
             tags:
               only: /[0-9]+(\.[0-9]+)*/
