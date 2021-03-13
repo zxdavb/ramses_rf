@@ -49,7 +49,7 @@ from evohome_rf.schema import (
 
 DEBUG_MODE = "debug_mode"
 
-# this is called after import colorlog to ensure its handlers wrap th ecorrect streams
+# this is called after import colorlog to ensure its handlers wrap the correct streams
 logging.basicConfig(level=DEFAULT_LEVEL, format=DEFAULT_FMT, datefmt=DEFAULT_DATEFMT)
 
 
