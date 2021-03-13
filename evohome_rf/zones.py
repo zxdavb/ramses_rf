@@ -760,29 +760,42 @@ class Zone(ZoneSchedule, ZoneBase):
         ]
         return any(windows) if windows else None
 
-    def set_mode(self, mode=None, setpoint=None, until=None) -> Task:
-        """Override the zone's setpoint for a specified duration, or indefinitely."""
-        if all(v is None for v in (mode, setpoint, until)):
-            return self.reset_mode()
-        cmd = Command.set_zone_mode(self._ctl.id, self.idx, mode, setpoint, until)
-        return self._gwy.send_cmd(cmd)
+    def reset_config(self) -> Task:
+        """Reset the zone's parameters to their default values."""
+        return self.set_config()
 
-    def set_frost_mode(self) -> Task:  # 2349
-        """Set the zone to the lowest possible setpoint, indefinitely."""
-        return self.set_mode(mode=ZoneMode.PERMANENT, setpoint=5)  # TODO
+    def set_config(
+        self,
+        min_temp=5,
+        max_temp=35,
+        local_override: bool = False,
+        openwindow_function: bool = False,
+        multiroom_mode: bool = False,
+    ) -> Task:
+        """Set the zone's parameters (min_temp, max_temp, etc.)."""
+        cmd = Command.set_zone_config(
+            self._ctl.id,
+            self.idx,
+            min_temp=min_temp,
+            max_temp=max_temp,
+            local_override=local_override,
+            openwindow_function=openwindow_function,
+            multiroom_mode=multiroom_mode,
+        )
+        return self._gwy.send_cmd(cmd)
 
     def reset_mode(self) -> Task:  # 2349
         """Revert the zone to following its schedule."""
         return self.set_mode(mode=ZoneMode.SCHEDULE)
 
-    def set_config(self, setpoint=None, overrun=None, differential=None) -> Task:
-        """Set the zone's parameters (setpoint, overrun, differential)."""
-        cmd = Command.set_zone_config(self._ctl.id, setpoint, overrun, differential)
-        return self._gwy.send_cmd(cmd)
+    def set_frost_mode(self) -> Task:  # 2349
+        """Set the zone to the lowest possible setpoint, indefinitely."""
+        return self.set_mode(mode=ZoneMode.PERMANENT, setpoint=5)  # TODO
 
-    def reset_config(self) -> Task:
-        """Reset the zone's parameters to their default values."""
-        return self.set_config(setpoint=50, overrun=5, differential=1)
+    def set_mode(self, mode=None, setpoint=None, until=None) -> Task:
+        """Override the zone's setpoint for a specified duration, or indefinitely."""
+        cmd = Command.set_zone_mode(self._ctl.id, self.idx, mode, setpoint, until)
+        return self._gwy.send_cmd(cmd)
 
     def set_name(self, name) -> Task:
         """Set the zone's name."""

@@ -457,8 +457,8 @@ class Command:
 
         payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
 
-        assert 5 <= min_temp <= 30, min_temp
-        assert 0 <= max_temp <= 35, max_temp
+        assert 5 <= min_temp <= 21, min_temp
+        assert 21 <= max_temp <= 35, max_temp
         assert isinstance(local_override, bool), local_override
         assert isinstance(openwindow_function, bool), openwindow_function
         assert isinstance(multiroom_mode, bool), multiroom_mode
@@ -467,7 +467,7 @@ class Command:
         bitmap |= 0 if openwindow_function else 2
         bitmap |= 0 if multiroom_mode else 16
 
-        payload += f"{bitmap}"
+        payload += f"{bitmap:02X}"
         payload += temp_to_hex(min_temp)
         payload += temp_to_hex(max_temp)
 

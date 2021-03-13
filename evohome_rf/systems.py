@@ -184,15 +184,13 @@ class SysMode:  # 2E04
         cmd = Command.set_system_mode(self.id, system_mode=system_mode, until=until)
         return self._gwy.send_cmd(cmd)
 
-    def set_auto_mode(self) -> Task:
+    def set_auto(self) -> Task:
         """Revert system to Auto, set non-PermanentOverride zones to FollowSchedule."""
-        cmd = Command.set_system_mode(self.id, system_mode=SystemMode.AUTO)
-        return self._gwy.send_cmd(cmd)
+        return self.set_mode(SystemMode.AUTO)
 
     def reset_mode(self) -> Task:
         """Revert system to Auto, force *all* zones to FollowSchedule."""
-        cmd = Command.set_system_mode(self.id, system_mode=SystemMode.RESET)
-        return self._gwy.send_cmd(cmd)
+        return self.set_mode(SystemMode.RESET)
 
     @property
     def params(self) -> dict:
