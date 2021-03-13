@@ -722,10 +722,10 @@ class PacketProtocolQos(PacketProtocolBase):
             await asyncio.sleep(0.005)
             if self._timeout_full > dt.now():
                 await asyncio.sleep(0.02)
-                await self._send_data(bytes("\r\n".encode("ascii")))
+                # await self._send_data(bytes("\r\n".encode("ascii")))
 
-            # elif self._qos_cmd is None:  # can be set to None by data_received
-            #     continue
+            elif self._qos_cmd is None:  # can be set to None by data_received
+                continue
 
             elif self._tx_retries < self._tx_retry_limit:
                 self._tx_hdr = cmd.tx_header
