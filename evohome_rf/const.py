@@ -364,7 +364,7 @@ DOMAIN_TYPE_LOOKUP = {v: k for k, v in DOMAIN_TYPE_MAP.items() if k != "FF"}
 
 SYS_MODE_AUTO = "00"
 SYS_MODE_HEAT_OFF = "01"
-SYS_MODE_ECO = "02"
+SYS_MODE_ECO_BOOST = "02"  # Eco, or Boost
 SYS_MODE_AWAY = "03"
 SYS_MODE_DAY_OFF = "04"
 SYS_MODE_DAY_OFF_ECO = "05"  # set to Eco when DayOff ends
@@ -377,17 +377,17 @@ SystemMode = SimpleNamespace(
     CUSTOM="custom",
     DAY_OFF="day_off",
     DAY_OFF_ECO="day_off_eco",
-    ECO="eco",
+    ECO_BOOST="eco_boost",
     HEAT_OFF="heat_off",
     RESET="auto_with_reset",
 )
 SYSTEM_MODE_MAP = {
     SYS_MODE_AUTO: SystemMode.AUTO,
     SYS_MODE_HEAT_OFF: SystemMode.HEAT_OFF,
-    SYS_MODE_ECO: SystemMode.ECO,
+    SYS_MODE_ECO_BOOST: SystemMode.ECO_BOOST,
     SYS_MODE_AWAY: SystemMode.AWAY,
     SYS_MODE_DAY_OFF: SystemMode.DAY_OFF,
-    SYS_MODE_DAY_OFF_ECO: SystemMode.AUTO,
+    SYS_MODE_DAY_OFF_ECO: SystemMode.DAY_OFF_ECO,
     SYS_MODE_AUTO_WITH_RESET: SystemMode.RESET,
     SYS_MODE_CUSTOM: SystemMode.CUSTOM,
 }

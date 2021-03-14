@@ -739,7 +739,7 @@ RAMSES_DEVICES = {
             RP: {},
         },
     },
-    "30": {
+    "30": {  # Honeywell RFG100 (and others)
         # GWY:185469 - Honeywell RFG100
         "0002": {
             RQ: {},
@@ -855,7 +855,7 @@ RAMSES_DEVICES = {
             I_: {},
         },
     },
-    "34": {
+    "34": {  # Honeywell TR87RF
         "0005": {
             I_: {},
         },
