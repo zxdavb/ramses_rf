@@ -73,6 +73,7 @@ INPUT_FILE = "input_file"
 MAX_ZONES = "max_zones"
 PACKET_LOG = "packet_log"
 REDUCE_PROCESSING = "reduce_processing"
+SCHEMA = "schema"
 SERIAL_CONFIG = "serial_config"
 SERIAL_PORT = "serial_port"
 SER2NET_RELAY = "ser2net_relay"
@@ -268,7 +269,7 @@ def load_schema(gwy, create_entities=True, **kwargs) -> Tuple[dict, dict]:
     known_devices = KNOWNS_SCHEMA(kwargs.get(ALLOW_LIST, {}))
     known_devices.update(KNOWNS_SCHEMA(kwargs.get(BLOCK_LIST, {})))
 
-    schema = SYSTEM_SCHEMA(kwargs.get("schema", {}))
+    schema = SYSTEM_SCHEMA(kwargs.get(SCHEMA, {}))
 
     ctl_id = schema.get(ATTR_CONTROLLER)
     if not ctl_id:
