@@ -5,7 +5,7 @@
 
 import logging
 from abc import ABCMeta, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from .command import Command, Priority
 from .const import (
@@ -78,6 +78,10 @@ class Entity:
         # may get an RQ/W initially, but RP/I will override
         # self._msgs.update({msg.code: msg})
         self._msgs[msg.code] = msg
+
+    @property
+    def _dump_msgs(self) -> List:
+        return [msg for msg in self._msgs.values()]
 
     def _send_cmd(self, code, dest, payload, **kwargs) -> None:
         self._msgs.pop(code, None)  # remove the old one, so we can tell if RP'd rcvd
