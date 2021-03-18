@@ -184,7 +184,7 @@ class SerTransportPoller(asyncio.Transport):
                     )  # NOTE: cant use readline(), as it blocks until a newline
                     continue
 
-                if self.serial.out_waiting:
+                if hasattr(self.serial, "out_waiting") and self.serial.out_waiting:
                     continue
 
                 if not self._write_queue.empty():
@@ -445,7 +445,9 @@ class PacketProtocolBase(asyncio.Protocol):
             self._recv_buffer = lines[-1]
 
             for line in lines[:-1]:
-                self._data_received(*create_pkt(line))
+                pkt_dtm, pkt_str, pkt_raw = create_pkt(line)
+                if pkt_str:
+                    self._data_received(pkt_dtm, pkt_str, pkt_raw)
 
     async def _send_data(self, data: ByteString, ignore_pause=False) -> None:
         """Send a bytearray to the transport (serial) interface.
@@ -459,7 +461,10 @@ class PacketProtocolBase(asyncio.Protocol):
         while (
             self._transport is None
             or self._transport.serial is None  # Shouldn't be required, but is!
-            or self._transport.serial.out_waiting
+            or (
+                hasattr(self._transport.serial, "out_waiting")
+                and self._transport.serial.out_waiting
+            )
         ):
             await asyncio.sleep(0.005)
         if DEV_MODE:  # TODO: deleteme
@@ -833,7 +838,13 @@ def create_pkt_stack(
         except (AttributeError, ValueError):  # AttributeError shouldn't be needed
             pass
 
-    if os.name == "nt":
+    if any(
+        (
+            serial_port.startswith("rfc2217:"),
+            serial_port.startswith("socket:"),
+            os.name == "nt",
+        )
+    ):
         pkt_transport = SerTransportPoller(gwy._loop, pkt_protocol, ser_instance)
     else:
         pkt_transport = SerialTransportAsync(gwy._loop, pkt_protocol, ser_instance)
