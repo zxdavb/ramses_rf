@@ -71,6 +71,46 @@ if DEV_MODE:  # or True:
     _LOGGER.setLevel(logging.DEBUG)  # should be INFO
 
 
+class SerTransportDict(asyncio.Transport):
+    """Interface for a packet transport using a file - Experimental."""
+
+    def __init__(self, loop, protocol, packet_dict, extra=None):
+        _LOGGER.info("SerTransDict.__init__(%s) *** dict version ***")
+
+        self._loop = loop
+
+        self._protocol = protocol
+        self._pkt_dict = packet_dict
+        self._extra = {} if extra is None else extra
+
+        self._start()
+
+    def _start(self):
+        async def _polling_loop():
+            if DEV_MODE:
+                _LOGGER.debug("SerTransDict._polling_loop() BEGUN")
+            self._protocol.pause_writing()
+            self._protocol.connection_made(self)
+
+            for dtm, pkt in self._pkt_dict:
+                self._protocol.data_received(f"{dtm} {pkt}")
+                await asyncio.sleep(0)
+
+            if DEV_MODE:
+                _LOGGER.debug("SerTransDict._polling_loop() ENDED")
+            self._protocol.connection_lost(exc=None)
+
+        if DEV_MODE:
+            _LOGGER.debug("SerTransDict._start() STARTING loop")
+        self._extra[POLLER_TASK] = self._loop.create_task(_polling_loop())
+
+    def write(self, cmd):
+        """Write some data bytes to the transport."""
+        _LOGGER.debug("SerTransDict.write(%s)", cmd)
+
+        raise NotImplementedError
+
+
 class SerTransportFile(asyncio.Transport):
     """Interface for a packet transport using a file - Experimental."""
 
@@ -80,7 +120,7 @@ class SerTransportFile(asyncio.Transport):
         self._loop = loop
 
         self._protocol = protocol
-        self.fp = packet_log
+        self._pkt_fp = packet_log
         self._extra = {} if extra is None else extra
 
         self._start()
@@ -92,7 +132,7 @@ class SerTransportFile(asyncio.Transport):
             self._protocol.pause_writing()
             self._protocol.connection_made(self)
 
-            for dtm_pkt_line in self.fp:
+            for dtm_pkt_line in self._pkt_fp:
                 self._protocol.data_received(dtm_pkt_line.strip())
                 # await asyncio.sleep(0)
 
@@ -102,7 +142,6 @@ class SerTransportFile(asyncio.Transport):
 
         if DEV_MODE:
             _LOGGER.debug("SerTransFile._start() STARTING loop")
-
         self._extra[POLLER_TASK] = self._loop.create_task(_polling_loop())
 
     def write(self, cmd):
