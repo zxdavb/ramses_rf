@@ -13,6 +13,7 @@
 *.old
 *.out
 *.txt
+*.yaml
 
 .vscode/*
 .secrets/*
