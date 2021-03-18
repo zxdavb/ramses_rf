@@ -45,8 +45,7 @@ from .schema import (
     REDUCE_PROCESSING,
     USE_NAMES,
 )
-
-# from .systems import Evohome
+from .systems import Evohome
 
 CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
 
@@ -401,12 +400,12 @@ def process_msg(msg: Message) -> None:
                         this.src, ctl_addr=Address(id=device_id, type=device_id[:2])
                     )
 
-        # if not isinstance(this._gwy.evo, Evohome):  # WIP: config{"use_eavesdropper"}
-        elif this.src.type in ("01", "23"):  # TODO: "30" for VMS
-            this._gwy._get_device(this.dst, ctl_addr=this.src)
+        if not isinstance(this._gwy.evo, Evohome):  # WIP: config{"use_eavesdropper"}
+            if this.src.type in ("01", "23"):  # TODO: "30" for VMS
+                this._gwy._get_device(this.dst, ctl_addr=this.src)
 
-        elif this.dst.type in ("01", "23"):  # TODO: "30" for VMS
-            this._gwy._get_device(this.src, ctl_addr=this.dst)
+            elif this.dst.type in ("01", "23"):  # TODO: "30" for VMS
+                this._gwy._get_device(this.src, ctl_addr=this.dst)
 
         # TODO: will need other changes before these two will work...
         # TODO: the issue is, if the 1st pkt is not a 1F09 (or a list 000A/2309/30C9)
