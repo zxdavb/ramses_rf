@@ -373,6 +373,21 @@ async def main(lib_kwargs, **kwargs):
     else:
         print_summary(gwy)
 
+    # schema, msgs = gwy._get_state()
+    # f = open("state_msgs.log", "w")
+    # [
+    #     f.write(f"{m.dtm.isoformat(sep='T')} {m._pkt}\r\n")
+    #     for m in msgs.values()
+    #     # if not m.is_expired
+    # ]
+    # f.close()
+
+    # f = open("state_schema.json", "w")
+    # f.write(json.dumps(schema, indent=4))
+    # f.close()
+
+    # # await gwy._set_state(schema, msgs)
+
     print(f"\r\nclient.py: Finished evohome_rf.\r\n{msg}\r\n")
 
 
