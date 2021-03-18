@@ -3,7 +3,6 @@
 #
 """Evohome RF - The evohome-compatible system."""
 
-import json
 import logging
 from asyncio import Task
 from datetime import timedelta as td
@@ -26,7 +25,7 @@ from .exceptions import CorruptStateError, ExpiredCallbackError
 from .schema import (
     ATTR_CONTROLLER,
     ATTR_DHW_SYSTEM,
-    ATTR_HTG_RELAY,
+    ATTR_HTG_CONTROL,
     ATTR_HTG_SYSTEM,
     ATTR_ORPHANS,
     ATTR_UFH_SYSTEM,
@@ -671,8 +670,8 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     def __repr__(self) -> str:
         return f"{self._ctl.id} (sys_base)"
 
-    def __str__(self) -> str:  # TODO: WIP
-        return json.dumps({self._ctl.id: self.schema})
+    # def __str__(self) -> str:  # TODO: WIP
+    #     return json.dumps({self._ctl.id: self.schema})
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
@@ -799,13 +798,13 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         """Set the heating control relay for this system (10: or 13:)."""
 
         if not isinstance(device, Device) or device.type not in ("10", "13"):
-            raise TypeError(f"{ATTR_HTG_RELAY} can't be: {device}")
+            raise TypeError(f"{ATTR_HTG_CONTROL} can't be: {device}")
 
         if self._htg_control is not None:
             if self._htg_control is device:
                 return
             raise CorruptStateError(
-                f"{ATTR_HTG_RELAY} shouldn't change: {self._htg_control} to {device}"
+                f"{ATTR_HTG_CONTROL} shouldn't change: {self._htg_control} to {device}"
             )
 
         # if device.evo is not None and device.evo is not self:
@@ -843,8 +842,8 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         }
         assert ATTR_HTG_SYSTEM in schema  # TODO: removeme
 
-        assert ATTR_HTG_RELAY not in schema[ATTR_HTG_SYSTEM]  # TODO: removeme
-        schema[ATTR_HTG_SYSTEM][ATTR_HTG_RELAY] = (
+        assert ATTR_HTG_CONTROL not in schema[ATTR_HTG_SYSTEM]  # TODO: removeme
+        schema[ATTR_HTG_SYSTEM][ATTR_HTG_CONTROL] = (
             self.heating_control.id if self.heating_control else None
         )
 
@@ -869,8 +868,8 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         assert ATTR_HTG_SYSTEM in params  # TODO: removeme
 
         # devices don't have params
-        # assert ATTR_HTG_RELAY not in params[ATTR_HTG_SYSTEM]  # TODO: removeme
-        # params[ATTR_HTG_SYSTEM][ATTR_HTG_RELAY] = (
+        # assert ATTR_HTG_CONTROL not in params[ATTR_HTG_SYSTEM]  # TODO: removeme
+        # params[ATTR_HTG_SYSTEM][ATTR_HTG_CONTROL] = (
         #     self.heating_control.params if self.heating_control else None
         # )
 
@@ -892,8 +891,8 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         }
         assert ATTR_HTG_SYSTEM in status  # TODO: removeme
 
-        # assert ATTR_HTG_RELAY not in status[ATTR_HTG_SYSTEM]  # TODO: removeme
-        # status[ATTR_HTG_SYSTEM][ATTR_HTG_RELAY] = (
+        # assert ATTR_HTG_CONTROL not in status[ATTR_HTG_SYSTEM]  # TODO: removeme
+        # status[ATTR_HTG_SYSTEM][ATTR_HTG_CONTROL] = (
         #     self.heating_control.status if self.heating_control else None
         # )
 

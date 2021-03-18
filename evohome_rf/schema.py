@@ -4,18 +4,23 @@
 """Evohome RF - Schema processor."""
 
 import logging
+import re
 from typing import Tuple
 
 import voluptuous as vol
 
 from .const import ALL_DEVICE_ID as DEVICE_ID_REGEX
 from .const import (
+    ATTR_CONTROLLER,
     ATTR_DEVICES,
-    ATTR_ZONE_IDX,
-    ATTR_ZONE_SENSOR,
-    ATTR_ZONE_TYPE,
-    ATTR_ZONES,
+    ATTR_DHW_SENSOR,
+    ATTR_DHW_VALVE,
+    ATTR_DHW_VALVE_HTG,
+    ATTR_HTG_CONTROL,
 )
+from .const import ATTR_STORED_HW as ATTR_DHW_SYSTEM
+from .const import ATTR_UFH_HTG as ATTR_UFH_SYSTEM
+from .const import ATTR_ZONE_IDX, ATTR_ZONE_SENSOR, ATTR_ZONE_TYPE, ATTR_ZONES
 from .const import CTL_DEVICE_ID as CTL_DEVICE_ID_REGEX
 from .const import DEFAULT_MAX_ZONES
 from .const import DHW_SENSOR_ID as DHW_SENSOR_ID_REGEX
@@ -28,17 +33,8 @@ from .const import ZONE_TYPE_SLUGS, __dev_mode__
 from .const import id_to_address as addr
 
 # schema attrs
-ATTR_CONTROLLER = "controller"
 ATTR_HTG_SYSTEM = "system"
-ATTR_DHW_SYSTEM = "stored_hotwater"
-ATTR_UFH_SYSTEM = "underfloor_heating"
 ATTR_ORPHANS = "orphans"
-
-ATTR_HTG_RELAY = "heating_relay"
-ATTR_DHW_SENSOR = "dhw_sensor"
-ATTR_DHW_VALVE = "dhw_relay"
-ATTR_DHW_VALVE_HTG = "dhw_htg_relay"
-
 ATTR_UFH_CTL = "ufh_controller"
 
 DEVICE_ID = vol.Match(DEVICE_ID_REGEX)
@@ -61,7 +57,9 @@ SER2NET_SCHEMA = vol.Schema(
     {vol.Required("enabled"): bool, vol.Optional("socket", default="0.0.0.0:5000"): str}
 )
 
-# Config flags
+SERIAL_PORT = "serial_port"
+INPUT_FILE = "input_file"
+# Config parameters
 CONFIG = "config"
 DISABLE_DISCOVERY = "disable_discovery"
 DISABLE_SENDING = "disable_sending"
@@ -69,21 +67,22 @@ ENABLE_EAVESDROP = "enable_eavesdrop"
 ENFORCE_ALLOWLIST = "enforce_allowlist"
 ENFORCE_BLOCKLIST = "enforce_blocklist"
 EVOFW_FLAG = "evofw_flag"
-INPUT_FILE = "input_file"
-MAX_ZONES = "max_zones"
-PACKET_LOG = "packet_log"
-REDUCE_PROCESSING = "reduce_processing"
-SCHEMA = "schema"
-SERIAL_CONFIG = "serial_config"
-SERIAL_PORT = "serial_port"
-SER2NET_RELAY = "ser2net_relay"
-USE_NAMES = "use_names"  # use friendly device names from allow_list
-USE_SCHEMA = "use_schema"
-ALLOW_LIST = "allowlist"
-BLOCK_LIST = "blocklist"
-
 LOG_ROTATE_BYTES = "log_rotate_bytes"
 LOG_ROTATE_COUNT = "log_rotate_backups"
+MAX_ZONES = "max_zones"
+PACKET_LOG = "packet_log"  # output
+REDUCE_PROCESSING = "reduce_processing"
+SERIAL_CONFIG = "serial_config"
+# SER2NET_RELAY = "ser2net_relay"
+USE_NAMES = "use_names"  # use friendly device names from allow_list
+USE_SCHEMA = "use_schema"
+
+# Schema parameters
+SCHEMA = "schema"
+MAIN_CONTROLLER = "main_controller"
+
+ALLOW_LIST = "allow_list"
+BLOCK_LIST = "block_list"
 
 DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
@@ -102,14 +101,14 @@ SERIAL_CONFIG_SCHEMA = vol.Schema(
 )
 CONFIG_SCHEMA = vol.Schema(
     {
-        vol.Optional(DISABLE_SENDING, default=False): vol.Any(None, bool),
         vol.Optional(DISABLE_DISCOVERY, default=False): vol.Any(None, bool),
+        vol.Optional(DISABLE_SENDING, default=False): vol.Any(None, bool),
         vol.Optional(ENABLE_EAVESDROP, default=False): vol.Any(None, bool),
         vol.Optional(ENFORCE_ALLOWLIST, default=False): vol.Any(None, bool),
         vol.Optional(ENFORCE_BLOCKLIST, default=True): vol.Any(None, bool),
         vol.Optional(EVOFW_FLAG, default=None): vol.Any(None, str),
-        vol.Optional(LOG_ROTATE_COUNT, default=0): vol.Any(None, int),
         vol.Optional(LOG_ROTATE_BYTES, default=None): vol.Any(None, int),
+        vol.Optional(LOG_ROTATE_COUNT, default=0): vol.Any(None, int),
         vol.Optional(MAX_ZONES, default=DEFAULT_MAX_ZONES): vol.Any(None, int),
         vol.Optional(PACKET_LOG, default=None): vol.Any(None, str),
         vol.Optional(REDUCE_PROCESSING, default=0): vol.Any(None, int),
@@ -123,7 +122,7 @@ ATTR_SYS_PROFILE = "_profile"
 SYSTEM_PROFILES = ("evohome", "hometronics", "sundial")
 HTG_SCHEMA = vol.Schema(
     {
-        vol.Optional(ATTR_HTG_RELAY, default=None): vol.Any(None, HTG_DEVICE_ID),
+        vol.Optional(ATTR_HTG_CONTROL, default=None): vol.Any(None, HTG_DEVICE_ID),
         vol.Optional(ATTR_SYS_PROFILE, default="evohome"): vol.Any(*SYSTEM_PROFILES),
     },
     extra=vol.ALLOW_EXTRA,  # TODO: remove me
@@ -211,6 +210,7 @@ MONITOR_SCHEMA = vol.Schema(
 PARSE_SCHEMA = vol.Schema({})
 CLI_SCHEMA = vol.Schema({})
 
+
 DEV_MODE = __dev_mode__
 
 _LOGGER = logging.getLogger(__name__)
@@ -218,29 +218,23 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, list, list]:
+def load_config(
+    serial_port,
+    input_file,
+    allow_list=None,
+    block_list=None,
+    config=None,
+    **kwargs,
+) -> Tuple[dict, list, list]:
     """Process the schema, and the configuration and return True if it is valid."""
 
-    config = CONFIG_SCHEMA(kwargs.get(CONFIG, {}))
-    allows = {}
-    blocks = {}
+    # assert kwargs == {}  # TODO: remove
 
-    if config[ENFORCE_ALLOWLIST]:
-        allows = KNOWNS_SCHEMA(kwargs.get(ALLOW_LIST, {}))
-        config[ENFORCE_BLOCKLIST] = False
-        if allows:
-            _LOGGER.debug("An allowlist has been created, len = %s", len(allows))
-        else:
-            _LOGGER.warning("An empty allowlist was configured, so will be ignored")
-            config[ENFORCE_ALLOWLIST] = False
+    config = CONFIG_SCHEMA(config if config else {})
+    config[SERIAL_CONFIG] = SERIAL_CONFIG_SCHEMA(config.get(SERIAL_CONFIG, {}))
 
-    elif config[ENFORCE_BLOCKLIST]:
-        blocks = KNOWNS_SCHEMA(kwargs.get(BLOCK_LIST, {}))
-        if blocks:
-            _LOGGER.debug("A blocklist has been created, len = %s", len(blocks))
-        else:
-            _LOGGER.debug("An empty blocklist was configured, so will be ignored")
-            config[ENFORCE_BLOCKLIST] = False
+    allow_list = KNOWNS_SCHEMA(allow_list if allow_list else {})
+    block_list = KNOWNS_SCHEMA(block_list if block_list else {})
 
     if serial_port and input_file:
         _LOGGER.warning(
@@ -251,68 +245,95 @@ def load_config(serial_port, input_file, **kwargs) -> Tuple[dict, list, list]:
     elif serial_port is None:
         config[DISABLE_SENDING] = True
 
-    config[SERIAL_CONFIG] = SERIAL_CONFIG_SCHEMA(kwargs.get(SERIAL_CONFIG, {}))
-
     if config[DISABLE_SENDING]:
         config[DISABLE_DISCOVERY] = True
+
+    if config[ENFORCE_ALLOWLIST]:
+        config[ENFORCE_BLOCKLIST] = False
+        if allow_list:
+            _LOGGER.debug("An allowlist has been created, len = %s", len(allow_list))
+        else:
+            _LOGGER.warning("An empty allowlist was configured, so will be ignored")
+            config[ENFORCE_ALLOWLIST] = False
+
+    elif config[ENFORCE_BLOCKLIST]:
+        if block_list:
+            _LOGGER.debug("A blocklist has been created, len = %s", len(block_list))
+        else:
+            _LOGGER.warning("An empty blocklist was configured, so will be ignored")
+            config[ENFORCE_BLOCKLIST] = False
 
     # if not kwargs.get(ALLOW_LIST, {}):
     #     config[USE_NAMES] = False
 
-    return (config, allows, blocks)
+    return (config, allow_list, block_list)
 
 
-def load_schema(gwy, create_entities=True, **kwargs) -> Tuple[dict, dict]:
+def load_schema(gwy, allow_list, block_list, create_entities=True, **kwargs) -> dict:
     """Process the schema, and the configuration and return True if it is valid."""
     # TODO: check a sensor is not a device in another zone
 
-    known_devices = KNOWNS_SCHEMA(kwargs.get(ALLOW_LIST, {}))
-    known_devices.update(KNOWNS_SCHEMA(kwargs.get(BLOCK_LIST, {})))
+    known_devices = allow_list
+    known_devices.update(block_list)
 
-    schema = SYSTEM_SCHEMA(kwargs.get(SCHEMA, {}))
+    [gwy._get_device(addr(device_id)) for device_id in kwargs.get(ATTR_ORPHANS, [])]
 
-    ctl_id = schema.get(ATTR_CONTROLLER)
-    if not ctl_id:
-        return ({}, known_devices)
+    if SCHEMA in kwargs:
+        _load_schema(gwy, kwargs[SCHEMA], create_entities=create_entities)
+        gwy.evo = gwy.system_by_id[kwargs[SCHEMA][ATTR_CONTROLLER]]
+        return known_devices
 
-    if create_entities:
-        profile = schema[ATTR_HTG_SYSTEM].get(ATTR_SYS_PROFILE)
-        ctl = gwy._get_device(addr(ctl_id), ctl_addr=addr(ctl_id), profile=profile)
-    else:
-        ctl = None
+    elif kwargs.get(MAIN_CONTROLLER):
+        [
+            _load_schema(gwy, schema, create_entities=create_entities)
+            for k, schema in kwargs.items()
+            if re.match(DEVICE_ID_REGEX, k)
+        ]
+        gwy.evo = gwy.system_by_id[kwargs[MAIN_CONTROLLER]]
 
-    htg_ctl_id = schema[ATTR_HTG_SYSTEM].get(ATTR_HTG_RELAY)
-    if create_entities and htg_ctl_id:
+    return known_devices
+
+
+def _load_schema(gwy, schema) -> Tuple[dict, dict]:
+    schema = SYSTEM_SCHEMA(schema)
+
+    ctl_id = schema[ATTR_CONTROLLER]
+    profile = schema[ATTR_HTG_SYSTEM].get(ATTR_SYS_PROFILE)
+    ctl = gwy._get_device(addr(ctl_id), ctl_addr=addr(ctl_id), profile=profile)
+
+    htg_ctl_id = schema[ATTR_HTG_SYSTEM].get(ATTR_HTG_CONTROL)
+    if htg_ctl_id:
         ctl._evo._set_htg_control(gwy._get_device(addr(htg_ctl_id), ctl_addr=ctl))
 
     dhw = schema.get(ATTR_DHW_SYSTEM, {})
     if dhw:
-        if create_entities:
-            ctl._evo._set_dhw(ctl._evo._get_zone("HW"))
+        ctl._evo._set_dhw(ctl._evo._get_zone("HW"))
 
         dhw_sensor_id = dhw.get(ATTR_DHW_SENSOR)
-        if create_entities and dhw_sensor_id:
-            ctl._evo._set_dhw_sensor(gwy._get_device(addr(dhw_sensor_id), ctl_addr=ctl))
+        if dhw_sensor_id:
+            ctl._evo.dhw._set_sensor(gwy._get_device(addr(dhw_sensor_id), ctl_addr=ctl))
 
         dhw_valve_id = dhw.get(ATTR_DHW_VALVE)
-        if create_entities and dhw_valve_id:
-            ctl._evo._set_dhw_valve(gwy._get_device(addr(dhw_valve_id), ctl_addr=ctl))
+        if dhw_valve_id:
+            ctl._evo.dhw._set_dhw_valve(
+                gwy._get_device(addr(dhw_valve_id), ctl_addr=ctl)
+            )
 
         htg_valve_id = dhw.get(ATTR_DHW_VALVE_HTG)
-        if create_entities and htg_valve_id:
-            ctl._evo._set_htg_valve(gwy._get_device(addr(htg_valve_id), ctl_addr=ctl))
+        if htg_valve_id:
+            ctl._evo.dhw._set_htg_valve(
+                gwy._get_device(addr(htg_valve_id), ctl_addr=ctl)
+            )
 
-    zones = schema.get(ATTR_ZONES, {})
-    if zones:
-        for zone_idx, attr in schema[ATTR_ZONES].items():
-            zone = ctl._evo._get_zone(zone_idx, zone_type=attr.get(ATTR_ZONE_TYPE))
+    for zone_idx, attr in schema[ATTR_ZONES].items():
+        zone = ctl._evo._get_zone(zone_idx, zone_type=attr.get(ATTR_ZONE_TYPE))
 
-            sensor_id = attr.get(ATTR_ZONE_SENSOR)
-            if sensor_id:
-                zone._set_sensor(gwy._get_device(addr(sensor_id), ctl_addr=ctl))
+        sensor_id = attr.get(ATTR_ZONE_SENSOR)
+        if sensor_id:
+            zone._set_sensor(gwy._get_device(addr(sensor_id), ctl_addr=ctl))
 
-            for device_id in attr.get(ATTR_DEVICES, []):
-                gwy._get_device(addr(device_id), ctl_addr=ctl, domain_id=zone_idx)
+        for device_id in attr.get(ATTR_DEVICES, []):
+            gwy._get_device(addr(device_id), ctl_addr=ctl, domain_id=zone_idx)
 
     orphan_ids = schema.get(ATTR_ORPHANS, [])
     if orphan_ids:
@@ -323,4 +344,4 @@ def load_schema(gwy, create_entities=True, **kwargs) -> Tuple[dict, dict]:
         for ufc_id, _ in ufh_ctl_ids.items():
             _ = gwy._get_device(addr(ufc_id), ctl_addr=ctl)
 
-    return (schema, known_devices)
+    assert schema == gwy.system_by_id[ctl_id].schema

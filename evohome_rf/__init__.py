@@ -17,7 +17,9 @@ import os
 import signal
 from collections import deque
 from threading import Lock
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
+import voluptuous as vol
 
 from .command import Command
 from .const import ATTR_DEVICES, ATTR_ORPHANS, NUL_DEVICE_ID, __dev_mode__
@@ -27,18 +29,23 @@ from .packet import _PKT_LOGGER as pkt_logger
 from .packet import set_pkt_logging
 from .protocol import create_msg_stack
 from .schema import (
+    ALLOW_LIST,
+    BLOCK_LIST,
+    CONFIG,
     DISABLE_DISCOVERY,
     DONT_CREATE_MESSAGES,
+    INPUT_FILE,
     LOG_ROTATE_BYTES,
     LOG_ROTATE_COUNT,
     PACKET_LOG,
     REDUCE_PROCESSING,
+    SCHEMA,
     USE_NAMES,
     load_config,
     load_schema,
 )
 from .systems import SYSTEM_CLASSES, System, SystemBase
-from .transport import POLLER_TASK, create_pkt_stack
+from .transport import POLLER_TASK, create_pkt_stack  # SerTransportDict
 from .version import __version__  # noqa: F401
 
 DEV_MODE = __dev_mode__ and False
@@ -49,6 +56,18 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
+KWARGS_SCHEMA = vol.Schema(
+    {
+        vol.Optional(INPUT_FILE): vol.Any(None, Any),
+        vol.Optional(CONFIG, default={}): dict,
+        vol.Optional(SCHEMA, default={}): dict,
+        vol.Optional(ALLOW_LIST, default={}): dict,
+        vol.Optional(BLOCK_LIST, default={}): dict,
+        vol.Optional("debug_mode", default=False): vol.Any(None, bool),
+    }
+)
+
+
 class GracefulExit(SystemExit):
     code = 1
 
@@ -56,8 +75,10 @@ class GracefulExit(SystemExit):
 class Gateway:
     """The gateway class."""
 
-    def __init__(self, serial_port, input_file=None, loop=None, **kwargs) -> None:
+    def __init__(self, serial_port, loop=None, **kwargs) -> None:
         """Initialise the class."""
+
+        # kwargs = KWARGS_SCHEMA(kwargs)  # TODO: consider removing
 
         if kwargs.pop("debug_mode", None):
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
@@ -67,10 +88,14 @@ class Gateway:
         self._tasks = []
 
         self.serial_port = serial_port
-        self._input_file = input_file
+        self._input_file = kwargs.pop(INPUT_FILE, None)
 
         (self.config, self._include, self._exclude) = load_config(
-            serial_port, input_file, **kwargs
+            serial_port,
+            self._input_file,
+            allow_list=kwargs.pop(ALLOW_LIST, None),
+            block_list=kwargs.pop(BLOCK_LIST, None),
+            **kwargs,
         )
 
         set_pkt_logging(
@@ -106,7 +131,9 @@ class Gateway:
 
         self._prev_msg = None
 
-        self._schema, self.known_devices = load_schema(self, **kwargs)
+        self.known_devices = load_schema(
+            self, allow_list=self._include, block_list=self._exclude, **kwargs
+        )
         if not self.known_devices:
             self.config[USE_NAMES] = False
 
@@ -192,8 +219,6 @@ class Gateway:
 
         def create_system(ctl, profile=None) -> SystemBase:
             assert ctl.id not in self.system_by_id, f"Duplicate system id: {ctl.id}"
-            if ctl.id in self.system_by_id:
-                raise LookupError(f"Duplicated system id: {ctl.id}")
 
             system = SYSTEM_CLASSES.get(profile, System)(self, ctl)
 
@@ -252,6 +277,51 @@ class Gateway:
 
         return device
 
+    def _clear_state(self) -> None:
+        self.evo = None
+        self.systems = []
+        self.system_by_id = {}
+        self.device_by_id: Dict = {}
+        self.devices = []
+
+        self._prev_msg = None
+
+    def _get_state(self) -> Tuple[Dict, Dict]:
+        # pause engine
+        self.pkt_protocol.pause_writing()
+        self.pkt_protocol._callback, pkt_receiver = None, self.pkt_protocol._callback
+
+        msgs = {v.dtm: v for d in self.devices for v in d._msgs.values()}
+        for system in self.systems:
+            msgs.update({v.dtm: v for v in system._msgs.values()})
+            msgs.update({v.dtm: v for z in system.zones for v in z._msgs.values()})
+
+        # msgs = {dtm: msg for dtm, msg in msgs if not msg.is_expired}
+
+        schema, pkts = self.schema, dict(sorted(msgs.items()))
+
+        # resume engine
+        self.pkt_protocol._callback = pkt_receiver
+        self.pkt_protocol.resume_writing()
+
+        return schema, pkts
+
+    async def _set_state(self, schema: Dict, pkts: Dict) -> None:
+
+        # pause engine
+        self.pkt_protocol.pause_writing()
+        self.pkt_protocol._callback, pkt_receiver = None, self.pkt_protocol._callback
+
+        self.known_devices = load_schema(self, **schema)  # keep old k_d?
+
+        # pkt_transport = SerTransportDict(self._loop, self.pkt_protocol, pkts)
+        # await pkt_transport.get_extra_info(POLLER_TASK)
+        # pkt_transport = None
+
+        # resume engine
+        self.pkt_protocol._callback = pkt_receiver
+        self.pkt_protocol.resume_writing()
+
     @property
     def schema(self) -> dict:
         """Return the global schema."""
@@ -264,7 +334,7 @@ class Gateway:
             if evo is not self.evo:
                 schema[evo._ctl.id] = evo.schema
 
-        orphans = [d.id for d in self.devices]
+        orphans = [d.id for d in self.devices if d._ctl is None]
 
         # orphans = [d.id for d in self.devices if d.controller is None]
         # orphans.sort()
