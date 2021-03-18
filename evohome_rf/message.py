@@ -46,9 +46,11 @@ from .schema import (
     USE_NAMES,
 )
 
+# from .systems import Evohome
+
 CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
 
-DEV_MODE = __dev_mode__
+DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -141,6 +143,8 @@ class Message:
         return self._str
 
     def __eq__(self, other) -> bool:
+        if not isinstance(other, Message):
+            return NotImplemented
         return all(
             self.verb == other.verb,
             self.code == other.code,
@@ -148,6 +152,11 @@ class Message:
             self.dst.id == other.dst.id,
             self.raw_payload == other.raw_payload,
         )
+
+    def __lt__(self, other) -> bool:
+        if not isinstance(other, Message):
+            return NotImplemented
+        return self.dtm < other.dtm
 
     @property
     def payload(self) -> Any:  # Any[dict, List[dict]]:
@@ -241,11 +250,12 @@ class Message:
 
         else:  # treat as never expiring
             self._is_expired = self.NOT_EXPIRED
-            _LOGGER.debug(  # TODO: should be a debug
-                "Message(%s) received at %s is not expirable",
-                self._pkt._header,
-                f"{self.dtm:%H:%M:%S}",
-            )
+            if DEV_MODE:
+                _LOGGER.debug(  # TODO: should be a debug
+                    "Message(%s) received at %s is not expirable",
+                    self._pkt._header,
+                    f"{self.dtm:%H:%M:%S}",
+                )
             return self._is_expired
 
         if self._gwy.serial_port:
@@ -255,27 +265,30 @@ class Message:
 
         if self.dtm < dtm_now - timeout * 2:
             self._is_expired = self.HAS_EXPIRED
-            _LOGGER.error(  # TODO: should be a warning?
-                "Message(%s) received at %s HAS EXPIRED",
-                self._pkt._header,
-                f"{self.dtm:%H:%M:%S}",
-            )
+            if DEV_MODE:
+                _LOGGER.error(  # TODO: should be a warning?
+                    "Message(%s) received at %s HAS EXPIRED",
+                    self._pkt._header,
+                    f"{self.dtm:%H:%M:%S}",
+                )
 
         elif self.dtm < dtm_now - timeout * 1:
             self._is_expired = self.IS_EXPIRING
-            _LOGGER.warning(  # TODO: should be a info?
-                "Message(%s) received at %s has not expired, but is dated",
-                self._pkt._header,
-                f"{self.dtm:%H:%M:%S}",
-            )
+            if DEV_MODE:
+                _LOGGER.warning(  # TODO: should be a info?
+                    "Message(%s) received at %s has not expired, but is dated",
+                    self._pkt._header,
+                    f"{self.dtm:%H:%M:%S}",
+                )
 
         else:
             self._is_expired = self.NOT_EXPIRED
-            _LOGGER.debug(  # TODO: should be a debug
-                "Message(%s) received at %s has not expired",
-                self._pkt._header,
-                f"{self.dtm:%H:%M:%S}",
-            )
+            if DEV_MODE:
+                _LOGGER.debug(  # TODO: should be a debug
+                    "Message(%s) received at %s has not expired",
+                    self._pkt._header,
+                    f"{self.dtm:%H:%M:%S}",
+                )
 
         return self._is_expired
 
@@ -388,6 +401,7 @@ def process_msg(msg: Message) -> None:
                         this.src, ctl_addr=Address(id=device_id, type=device_id[:2])
                     )
 
+        # if not isinstance(this._gwy.evo, Evohome):  # WIP: config{"use_eavesdropper"}
         elif this.src.type in ("01", "23"):  # TODO: "30" for VMS
             this._gwy._get_device(this.dst, ctl_addr=this.src)
 
