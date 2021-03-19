@@ -1043,12 +1043,12 @@ class TrvActuator(BatteryState, Setpoint, Temperature, Device):
         }
 
 
-# FAN: 39:
+# SWI: 39:
 class FanSwitch(BatteryState, Device):
     """The FAN (switch) class, such as a 4-way switch."""
 
-    DEVICE_CLASS = "SWI"
-    DEVICE_TYPES = ("39",)
+    # DEVICE_CLASS = "SWI"
+    # DEVICE_TYPES = ("39",)
 
     BOOST_TIMER = "boost_timer"  # e.g. 10, 20, 30 minutes
     HEATER_MODE = "heater_mode"  # e.g. auto, off
@@ -1065,12 +1065,14 @@ class FanSwitch(BatteryState, Device):
     FAN_RATE = "fan_rate"  # 0.0 - 1.0
 
     @property
-    def fan_mode(self) -> Optional[float]:
-        return self._msg_payload(self._msgs["22F1"], self.FAN_MODE)
+    def fan_mode(self) -> Optional[str]:
+        if "22F1" in self._msgs:
+            return self._msgs["22F1"].payload[self.FAN_MODE]
 
     @property
     def boost_timer(self) -> Optional[int]:
-        return self._msg_payload(self._msgs["22F3"], self.BOOST_TIMER)
+        if "22F3" in self._msgs:
+            return self._msgs["22F3"].payload[self.BOOST_TIMER]
 
     @property
     def status(self) -> dict:
@@ -1078,6 +1080,42 @@ class FanSwitch(BatteryState, Device):
             **super().status,
             self.FAN_MODE: self.fan_mode,
             self.BOOST_TIMER: self.boost_timer,
+        }
+
+
+# FAN: 20, 37:
+class FanDevice(Device):
+    """The Ventilation class."""
+
+    # DEVICE_CLASS = "FAN"
+    # DEVICE_TYPES = ("20", "37")
+
+    BOOST_TIMER = "boost_timer"
+    FAN_RATE = "fan_rate"
+    RELATIVE_HUMIDITY = "relative_humidity"
+
+    @property
+    def fan_rate(self) -> Optional[float]:
+        msg = max([m for m in self._msgs.values() if m.code in ("31D9", "31DA")])
+        return msg.payload[self.FAN_RATE] if msg else None
+
+    @property
+    def boost_timer(self) -> Optional[int]:
+        if "31DA" in self._msgs:
+            return self._msgs["31DA"].payload[self.BOOST_TIMER]
+
+    @property
+    def relative_humidity(self) -> Optional[float]:
+        if "31DA" in self._msgs:
+            return self._msgs["31DA"].payload[self.RELATIVE_HUMIDITY]
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            self.BOOST_TIMER: self.boost_timer,
+            self.FAN_RATE: self.fan_rate,
+            self.RELATIVE_HUMIDITY: self.relative_humidity,
         }
 
 
@@ -1091,6 +1129,7 @@ DEVICE_KLASS_TO_CLASS = {
     "OTB": OtbGateway,
     "BDR": BdrSwitch,
     "SWI": FanSwitch,
+    "FAN": FanDevice,
 }
 DEVICE_TYPE_TO_KLASS = {
     "00": "TRV",
@@ -1102,9 +1141,11 @@ DEVICE_TYPE_TO_KLASS = {
     "10": "OTB",
     "12": "THM",
     "13": "BDR",
+    "20": "FAN",
     "22": "THM",
     "23": "PRG",
     "34": "THM",
+    "37": "FAN",
     "39": "SWI",
 }
 DEVICE_CLASSES = {

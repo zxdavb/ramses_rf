@@ -1010,13 +1010,14 @@ def parser_10a0(payload, msg) -> Optional[dict]:
 def parser_10e0(payload, msg) -> Optional[dict]:
     assert msg.len in (19, 30, 36, 38), msg.len  # a non-evohome seen with 30
 
-    date = _date(payload[20:28])  # could be 'FFFFFFFF'
+    date_2 = _date(payload[20:28])  # could be 'FFFFFFFF'
+    date_1 = _date(payload[28:36])  # could be 'FFFFFFFF'
 
     return {  # TODO: add version?
-        "description": _str(payload[36:]),
-        "date_1": _date(payload[28:36]),
-        "date_2": date if date else "0000-00-00",
         "_unknown": payload[:20],
+        "date_2": date_2 if date_2 else "0000-00-00",
+        "date_1": date_1 if date_1 else "0000-00-00",
+        "description": _str(payload[36:]),
     }
 
 
@@ -1560,7 +1561,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
 
     return {
         # **_idx(payload[:2], msg),
-        FanSwitch.FAN_RATE: _percent(payload[4:6]),  # NOTE: is 31DA/payload[38:40]
+        FanSwitch.FAN_RATE: _percent(payload[4:6]),  # NOTE: is 31D9/payload[4:6]
         "unknown_0": payload[2:4],
         "unknown_2": payload[6:8],
         "unknown_3": payload[8:32],
