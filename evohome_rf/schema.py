@@ -269,7 +269,7 @@ def load_config(
     return (config, allow_list, block_list)
 
 
-def load_schema(gwy, allow_list, block_list, create_entities=True, **kwargs) -> dict:
+def load_schema(gwy, allow_list, block_list, **kwargs) -> dict:
     """Process the schema, and the configuration and return True if it is valid."""
     # TODO: check a sensor is not a device in another zone
 
@@ -279,13 +279,13 @@ def load_schema(gwy, allow_list, block_list, create_entities=True, **kwargs) -> 
     [gwy._get_device(addr(device_id)) for device_id in kwargs.get(ATTR_ORPHANS, [])]
 
     if SCHEMA in kwargs:
-        _load_schema(gwy, kwargs[SCHEMA], create_entities=create_entities)
+        _load_schema(gwy, kwargs[SCHEMA])
         gwy.evo = gwy.system_by_id[kwargs[SCHEMA][ATTR_CONTROLLER]]
         return known_devices
 
     elif kwargs.get(MAIN_CONTROLLER):
         [
-            _load_schema(gwy, schema, create_entities=create_entities)
+            _load_schema(gwy, schema)
             for k, schema in kwargs.items()
             if re.match(DEVICE_ID_REGEX, k)
         ]
@@ -344,4 +344,4 @@ def _load_schema(gwy, schema) -> Tuple[dict, dict]:
         for ufc_id, _ in ufh_ctl_ids.items():
             _ = gwy._get_device(addr(ufc_id), ctl_addr=ctl)
 
-    assert schema == gwy.system_by_id[ctl_id].schema
+    # assert schema == gwy.system_by_id[ctl_id].schema
