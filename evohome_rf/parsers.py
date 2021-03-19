@@ -1386,10 +1386,11 @@ def parser_2349(payload, msg) -> Optional[dict]:
         assert payload[8:14] == "FFFFFF", payload[8:14]
 
     if msg.len >= 13:
-        assert payload[6:8] in ("00", "04"), payload[6:8]
         if payload[14:] == "FF" * 6:
+            assert payload[6:8] in ("00", "02"), payload[6:8]
             result["until"] = None
         else:
+            assert payload[6:8] not in ("00", "02"), payload[6:8]
             result["until"] = _dtm(payload[14:26])
 
     # TODO: remove me...
