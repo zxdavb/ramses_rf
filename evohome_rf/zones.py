@@ -81,6 +81,7 @@ class ZoneBase(Entity, metaclass=ABCMeta):
 
     def _handle_msg(self, msg) -> None:
         """Validate packets by verb/code."""
+        # TODO: assert msg.src is self, "Devices should only keep msgs they sent"
         super()._handle_msg(msg)
 
         if True or not self._zone_type:
