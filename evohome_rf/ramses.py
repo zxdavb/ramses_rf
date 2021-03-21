@@ -76,6 +76,12 @@ RAMSES_CODES = {
         RQ: r"^0[0-9A-F]([0-9A-F]{2})?$",  # TODO: officially: r"^0[0-9A-F]{3}$"
         RP: r"^0[0-9A-F]{3}$",
     },
+    "0100": {
+        NAME: "language",
+        RQ: r"^00([0-9A-F]{4}F{4})?$",  # NOTE: RQ/04/0100 has a payload
+        RQ_MAY_HAVE_DOMAIN: False,
+        RQ_MAY_HAVE_PAYLOAD: True,
+    },  # NOTE: parser has been checked
     "01D0": {
         NAME: "message_01d0",
     },
@@ -156,7 +162,7 @@ RAMSES_CODES = {
         EXPIRY: 60 * 60,
     },
     "12C0": {
-        NAME: "displayed_temp",
+        NAME: "displayed_temp",  # displayed room temp
         I_: r"^00[0-9A-F]{2}01$",
     },
     "1F09": {
@@ -233,7 +239,11 @@ RAMSES_CODES = {
         I_: r"^(0[0-9A-F][0-9A-F]{4})+$",
     },
     "3120": {
-        NAME: "message_3120",
+        NAME: "message_3120",  # Error Report?
+    },
+    "313F": {
+        NAME: "datetime",
+        RQ: r"^00$",
     },
     "3150": {
         NAME: "heat_demand",
@@ -248,7 +258,8 @@ RAMSES_CODES = {
         # RQ --- 32:168090 30:082155 --:------ 31DA 001 21
     },
     "31E0": {
-        NAME: "message_31e0",
+        NAME: "ext_ventilation",  # External Ventilation?
+        I_: r"^0000(00|C8)00$",
     },
     "3220": {
         NAME: "opentherm_msg",
@@ -269,16 +280,6 @@ RAMSES_CODES = {
     "7FFF": {
         NAME: "puzzle_packet",
         I_: r"^7F[0-9A-F]{12}7F[0-9A-F]{4}7F[0-9A-F]{4}(7F)+",
-    },
-    "0100": {
-        NAME: "language",
-        RQ: r"^00([0-9A-F]{4}F{4})?$",  # NOTE: RQ/04/0100 has a payload
-        RQ_MAY_HAVE_DOMAIN: False,
-        RQ_MAY_HAVE_PAYLOAD: True,
-    },  # NOTE: parser has been checked
-    "313F": {
-        NAME: "datetime",
-        RQ: r"^00$",
     },
 }
 
@@ -562,7 +563,7 @@ RAMSES_DEVICES = {
             RP: {},
         },
     },
-    "10": {
+    "10": {  # Honeywell R8810
         "10A0": {
             RP: {},
         },
@@ -595,8 +596,8 @@ RAMSES_DEVICES = {
         "3EF1": {
             RP: {},
         },
-    },
-    "12": {  # TODO: also 22:
+    },  # see: https://www.opentherm.eu/request-details/?post_ids=2944
+    "12": {
         "0001": {
             W_: {},
         },
@@ -663,7 +664,7 @@ RAMSES_DEVICES = {
         "0016": {
             RP: {},
         },
-        # "10E0": {},  # 13: will not RP/10E0 # TODO; how to indicate that fact here
+        # "10E0": {},  # 13: will not RP/10E0 # TODO: how to indicate that fact here
         "1100": {
             I_: {},
             RP: {},
@@ -685,7 +686,7 @@ RAMSES_DEVICES = {
     },
     "17": {},
     "18": {},
-    "20": {  # HVAC: ventilation unit
+    "20": {  # HVAC: ventilation unit, or switch/sensor?
         "10E0": {
             I_: {},
             RP: {},
@@ -810,7 +811,7 @@ RAMSES_DEVICES = {
         "3EF0": {
             RQ: {},
         },
-        # VMS:082155 - Nuaire Ventilation
+        # VMS:082155 - HVAC: Nuaire Ventilation
         # "10E0": {I_: {}, RP: {},},
         "1F09": {
             I_: {},
@@ -835,7 +836,7 @@ RAMSES_DEVICES = {
             RQ: {},
         },
     },
-    "32": {
+    "32": {  # HVAC: switch/sensor?
         "1060": {
             I_: {},
         },
