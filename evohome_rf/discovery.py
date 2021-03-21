@@ -263,6 +263,9 @@ async def scan_full(gwy, dev_id: str):
             for data_id in (0, 3):  # these are mandatory READ_DATA data_ids
                 gwy.send_cmd(Command.get_opentherm_data(dev_id, data_id, **qos))
 
+        elif code == "7FFF":
+            continue
+
         elif code in CODE_SCHEMA and CODE_SCHEMA[code].get("rq_len"):
             rq_len = CODE_SCHEMA[code].get("rq_len") * 2
             gwy.send_cmd(Command("RQ", dev_id, code, f"{0:0{rq_len}X}", **qos))
