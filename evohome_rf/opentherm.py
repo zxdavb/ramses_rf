@@ -44,6 +44,8 @@ S16 = "s16"
 HB = "hb"
 LB = "lb"
 
+VALUE = "value"
+
 COUNTER = "counter"
 HUMIDITY = "humidity"
 PERCENTAGE = "percentage"

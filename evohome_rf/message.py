@@ -30,7 +30,7 @@ from .const import (
     Address,
     __dev_mode__,
 )
-from .devices import Device
+from .devices import Device, FanDevice
 from .exceptions import (
     CorruptEvohomeError,
     CorruptPacketError,
@@ -401,6 +401,11 @@ def process_msg(msg: Message) -> None:
                         this.src, ctl_addr=Address(id=device_id, type=device_id[:2])
                     )
 
+        elif this.code in ("31D9", "31DA", "31E0") and this.verb in (" I", "RP"):
+            device = this._gwy._get_device(this.src)
+            if device.__class__ is Device:
+                device.__class__ = FanDevice  # HACK: because my HVAC is a 30:
+
         # if not isinstance(this._gwy.evo, Evohome):  # WIP: config{"use_eavesdropper"}
         if this.src.type in ("01", "23"):  # TODO: "30" for VMS
             this._gwy._get_device(this.dst, ctl_addr=this.src)
@@ -414,8 +419,6 @@ def process_msg(msg: Message) -> None:
         # elif this.code == "1F09" and this.verb == " I":
         #     this._gwy._get_device(this.dst, ctl_addr=this.src)
 
-        # elif this.code == "31D9" and this.verb == " I":  # HVAC
-        #     this._gwy._get_device(this.dst, ctl_addr=this.src)
         # TODO: ...such as means to promote a device to a controller
 
         # this should catch all non-controller (and *some* controller) devices
