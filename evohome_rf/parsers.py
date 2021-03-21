@@ -1593,21 +1593,18 @@ def parser_31da(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # ???? (Nuaire on/off)
+@parser_decorator  # external ventilation
 def parser_31e0(payload, msg) -> Optional[dict]:
-    # cat pkts.log | grep 31DA | grep -v ' I ' (event-driven ex 168090, humidity sensor)
-    # 11:09:49.973 045  I --- VNT:168090 GWY:082155  --:------ 31E0 004 00 00 00 00
-    # 11:14:46.168 045  I --- VNT:168090 GWY:082155  --:------ 31E0 004 00 00 C8 00
-    # TODO: track humidity against 00/C8, OR HEATER?
+    # seems active when humdity > 0.57-0.59
 
     assert msg.len == 4, msg.len  # usu: I VNT->GWY
     assert payload[:4] == "0000", payload[:4]  # domain?
     assert payload[4:] in ("0000", "C800"), payload[4:]
 
     return {
-        "state_31e0": _bool(payload[4:6]),
-        "unknown_0": payload[:4],
-        "unknown_1": payload[6:],
+        "active": _bool(payload[4:6]),
+        "_unknown_0": payload[:4],
+        "_unknown_1": payload[6:],
     }
 
 
@@ -1710,41 +1707,6 @@ def parser_3b00(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # actuator_state
 def parser_3ef0(payload, msg) -> dict:
-    # 045 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 3C 10 0000FF
-    # 074 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 3C 10 0000FF
-
-    # --- RP --- 10:138822 01:187666 --:------ 3EF0 006 00 00 10 0200FF
-    # 063 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 01 10 0200FF
-
-    # 066 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 00 10 0A00FF
-    # 068 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 2F 10 0A00FF
-    # 066 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 2F 10 0A00FF
-    # 066 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 2F 10 0A00FF
-    # 069 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 1D 10 0A00FF
-    # 070 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 12 10 0A00FF
-    # 071 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 11 10 0000FF
-
-    # 072 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 00 10 0000FF
-    # 072 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 00 10 0A00FF
-    # 074 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 00 10 0000FF
-
-    # 095 RP --- 10:139656 34:212252 --:------ 3EF0 006 00 00 11 0000FF
-    # 095 RP --- 10:114131 34:254475 --:------ 3EF0 006 00 00 10 000000
-
-    # 060 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 64 10 0C00FF
-    # 058 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 00 10 0400FF
-    # 061 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 64 10 0800FF
-
-    # 063 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 01 11 0100FF
-    # 058 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 00 11 0100FF
-    # 057 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 01 10 FA00FF
-    # 062 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 00 11 0100FF
-    # 065 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 FF 10 0200FF
-    # 060 RP --- 10:138822 01:187666 --:------ 3EF0 006 00 00 11 0100FF
-    # 062 RP --- 10:067219 01:078710 --:------ 3EF0 006 00 11 10 0AFFFF
-
-    # 051  I --- 13:049225 --:------ 13:049225 3EF0 003 00 00 FF
-    # 054  I --- 13:209679 --:------ 13:209679 3EF0 003 00 C8 FF
 
     if msg.src.type in "08":  # Honeywell Japser ?HVAC
         assert msg.len == 20, msg.len
@@ -1755,12 +1717,14 @@ def parser_3ef0(payload, msg) -> dict:
 
     assert payload[:2] == "00", f"domain_id is not 00: {payload[:2]}"
     if msg.len == 3:
-        assert payload[2:4] in ("00", "C8", "FF"), payload[2:4]
-        assert payload[4:6] == "FF", payload[4:6]
+        assert payload[2:4] in ("00", "C8", "FF"), f"byte 2: {payload[2:4]}"
+        assert payload[4:6] == "FF", f"byte 3: {payload[4:6]}"
 
     if msg.len >= 6:  # for OTB, TODO: why 100 & not 200
-        assert payload[2:4] == "FF" or int(payload[2:4], 16) <= 100, payload[2:4]
-        assert payload[4:6] in ("10", "11"), payload[4:6]
+        assert (
+            payload[2:4] == "FF" or int(payload[2:4], 16) <= 100
+        ), f"byte 2: {payload[2:4]}"
+        assert payload[4:6] in ("10", "11"), f"byte 3: {payload[4:6]}"
 
     result = {
         # **_idx(payload[:2], msg),
@@ -1771,20 +1735,18 @@ def parser_3ef0(payload, msg) -> dict:
 
     if msg.len >= 6:  # for OTB (there's no reliable) modulation_level <-> flame_state)
         # assert payload[6:8] in (
-        #     "00",
-        #     "01",
-        #     "02",
-        #     "04",
-        #     "08",
-        #     "0A",
-        #     "0C",
-        #     "42",
+        #     "00", "01", "02", "04", "08", "0A", "0C", "42",
         # ), payload[6:8]
         # assert payload[8:12] in ("0000", "00FF")  # and "FFFF"?
 
+        # assert bool(int(payload[6:8], 16) & 0x0A) == {"0A": True}.get(
+        #     payload[6:8], False
+        # ), f"{payload[6:8]} xxx"
+
         result.update(
             {
-                "flame_active": {"0A": True}.get(payload[6:8], False),
+                # "flame_active": {"0A": True}.get(payload[6:8], False),
+                "flame_active": int(payload[6:8], 16) & 0x0A,
                 "flame_state": payload[6:8],
                 "_unknown_1": payload[8:],
             }
@@ -1795,7 +1757,6 @@ def parser_3ef0(payload, msg) -> dict:
 
 @parser_decorator  # actuator_cycle
 def parser_3ef1(payload, msg) -> dict:
-    # RP --- 10:067219 18:200202 --:------ 3EF1 007 00-7FFF-003C-0010
 
     if msg.src.type == "08":  # Honeywell Japser ?HVAC
         assert msg.len == 18, f"expecting len 18, got {msg.len}"
