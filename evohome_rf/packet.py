@@ -24,6 +24,7 @@ from .command import _pkt_header
 from .const import MESSAGE_REGEX, __dev_mode__
 from .exceptions import CorruptAddrSetError
 from .helpers import extract_addrs
+from .schema import LOG_FILE_NAME, LOG_ROTATE_BYTES, LOG_ROTATE_COUNT
 
 DEV_MODE = __dev_mode__  # or True
 
@@ -93,15 +94,17 @@ class FileFilter(logging.Filter):
         return record.levelno in (logging.INFO, logging.WARNING)
 
 
-def set_pkt_logging(
-    logger, file_name=None, cc_stdout=False, backup_count=0, max_bytes=None
-) -> None:
+def set_pkt_logging(logger, cc_stdout=False, **kwargs) -> None:
     """Create/configure handlers, formatters, etc.
 
     Parameters:
     - backup_count: keep this many copies, and rotate at midnight unless...
     - max_bytes: rotate log files when log > rotate_size
     """
+    file_name = kwargs.get(LOG_FILE_NAME, 0)
+    backup_count = kwargs.get(LOG_ROTATE_COUNT, 0)
+    max_bytes = kwargs.get(LOG_ROTATE_BYTES, None)
+
     logger.propagate = False
 
     if _use_color_:

@@ -18,6 +18,7 @@ from .const import (
     DISCOVER_SCHEMA,
     DISCOVER_STATUS,
     SystemMode,
+    SystemType,
     __dev_mode__,
 )
 from .devices import Device, Entity
@@ -1033,10 +1034,10 @@ class Sundial(Evohome):
 
 
 SYSTEM_CLASSES = {
-    "chronotherm": Chronotherm,
-    "evohome": Evohome,
-    "hometronics": Hometronics,
-    "programmer": Programmer,
-    "sundial": Sundial,
-    "system": System,
+    SystemType.CHRONOTHERM: Chronotherm,
+    SystemType.EVOHOME: Evohome,
+    SystemType.HOMETRONICS: Hometronics,
+    SystemType.PROGRAMMER: Programmer,
+    SystemType.SUNDIAL: Sundial,
+    SystemType.GENERIC: System,
 }

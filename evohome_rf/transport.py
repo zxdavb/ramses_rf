@@ -316,11 +316,13 @@ class PacketProtocolBase(asyncio.Protocol):
         self._exclude = list(gwy._exclude) if gwy.config[ENFORCE_BLOCKLIST] else []
 
         if self._include:
-            _LOGGER.info("Using an %s: %s", ALLOW_LIST, self._include)
+            _LOGGER.warning(f"Using an {ALLOW_LIST}: %s", self._include)
         elif self._exclude:
-            _LOGGER.info("Using an %s: %s", BLOCK_LIST, self._exclude)
+            _LOGGER.warning(f"Using an {BLOCK_LIST}: %s", self._exclude)
         else:
-            _LOGGER.warning("Not Using an device filter (an allow_list is recommended)")
+            _LOGGER.error(
+                f"Not using a device filter (an {ALLOW_LIST} is strongly recommended)"
+            )
 
         self._has_initialized = None
         if not self._gwy.config[DISABLE_SENDING]:
@@ -427,7 +429,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
             if (  # "# evofw3" in pkt_str
                 "# evofw3" in pkt_str
-                and self._gwy.config[EVOFW_FLAG]
+                and self._gwy.config.get(EVOFW_FLAG)
                 and self._gwy.config[EVOFW_FLAG] != "!V"
             ):
                 flag = self._gwy.config[EVOFW_FLAG]

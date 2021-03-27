@@ -395,22 +395,22 @@ SYSTEM_MODE_LOOKUP = {v: k for k, v in SYSTEM_MODE_MAP.items()}
 
 ZONE_MODE_FOLLOW_SCHEDULE = "00"
 ZONE_MODE_ADVANCED_OVERRIDE = "01"  # until the next scheduled setpoint
-ZONE_MODE_PERMANENT_OVERRIDE = "02"
-ZONE_MODE_DAY_OVERRIDE = "03"  # ignores until, uses duration of 20h 15m!
-ZONE_MODE_TEMPORARY_OVERRIDE = "04"  # requires an until (datetime)
+ZONE_MODE_PERMANENT_OVERRIDE = "02"  # indefinitely
+ZONE_MODE_COUNTDOWN_OVERRIDE = "03"  # for a number of minutes (duration, max 1,215)
+ZONE_MODE_TEMPORARY_OVERRIDE = "04"  # until a given date/time (until)
 
 ZoneMode = SimpleNamespace(
     SCHEDULE="follow_schedule",
-    ADVANCED="advanced_override",
-    PERMANENT="permanent_override",
-    _UNKNOWN="day_override",
-    TEMPORARY="temporary_override",
+    ADVANCED="advanced_override",  # until the next setpoint
+    PERMANENT="permanent_override",  # indefinitely
+    COUNTDOWN="countdown_override",  # for a number of minutes (max 1,215)
+    TEMPORARY="temporary_override",  # until a given date/time
 )
 ZONE_MODE_MAP = {
     ZONE_MODE_FOLLOW_SCHEDULE: ZoneMode.SCHEDULE,
     ZONE_MODE_ADVANCED_OVERRIDE: ZoneMode.ADVANCED,
     ZONE_MODE_PERMANENT_OVERRIDE: ZoneMode.PERMANENT,
-    ZONE_MODE_DAY_OVERRIDE: ZoneMode._UNKNOWN,
+    ZONE_MODE_COUNTDOWN_OVERRIDE: ZoneMode.COUNTDOWN,
     ZONE_MODE_TEMPORARY_OVERRIDE: ZoneMode.TEMPORARY,
 }
 ZONE_MODE_LOOKUP = {v: k for k, v in ZONE_MODE_MAP.items()}
@@ -566,3 +566,12 @@ DISCOVER_SCHEMA = 1
 DISCOVER_PARAMS = 2
 DISCOVER_STATUS = 4
 DISCOVER_ALL = DISCOVER_SCHEMA | DISCOVER_PARAMS | DISCOVER_STATUS
+
+SystemType = SimpleNamespace(
+    CHRONOTHERM="chronotherm",
+    EVOHOME="evohome",
+    HOMETRONICS="hometronics",
+    PROGRAMMER="programmer",
+    SUNDIAL="sundial",
+    GENERIC="generic",
+)

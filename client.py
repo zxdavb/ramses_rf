@@ -42,7 +42,9 @@ from evohome_rf.schema import (
     ENFORCE_ALLOWLIST,
     EVOFW_FLAG,
     INPUT_FILE,
+    LOG_FILE_NAME,
     PACKET_LOG,
+    PACKET_LOG_SCHEMA,
     REDUCE_PROCESSING,
     SERIAL_PORT,
 )
@@ -60,7 +62,7 @@ MONITOR = "monitor"
 PARSE = "parse"
 
 DEBUG_ADDR = "0.0.0.0"
-DEBUG_PORT = 5678
+DEBUG_PORT = 5679
 
 COLORS = {" I": Fore.GREEN, "RP": Fore.CYAN, "RQ": Fore.CYAN, " W": Fore.MAGENTA}
 
@@ -74,6 +76,19 @@ LIB_KEYS = (
     # "process_level",  # TODO
     REDUCE_PROCESSING,
 )
+
+
+def normalise_config_schema(config) -> Tuple[str, dict]:
+    """Convert a HA config dict into the client library's own format."""
+
+    serial_port = config[CONFIG].pop(SERIAL_PORT, None)
+
+    if not isinstance(config[CONFIG][PACKET_LOG], dict):
+        config[CONFIG][PACKET_LOG] = PACKET_LOG_SCHEMA(
+            {LOG_FILE_NAME: config[CONFIG][PACKET_LOG]}
+        )
+
+    return serial_port, config
 
 
 def _proc_kwargs(obj, kwargs) -> Tuple[dict, dict]:
@@ -310,6 +325,9 @@ async def main(lib_kwargs, **kwargs):
         }
         print(f"Status[gateway] = {json.dumps(orphans, indent=4)}")
 
+        devices = {"devices": {d.id: d.schema for d in sorted(gwy.devices)}}
+        print(f"Schema[devices] = {json.dumps(devices, indent=4)}")
+
     def process_message(msg) -> None:
         dtm = msg.dtm if kwargs["long_dates"] else f"{msg.dtm:%H:%M:%S.%f}"[:-3]
         if msg.src.type == "18":
@@ -322,7 +340,8 @@ async def main(lib_kwargs, **kwargs):
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-    gwy = Gateway(lib_kwargs[CONFIG].pop(SERIAL_PORT, None), **lib_kwargs)
+    serial_port, kwargs = normalise_config_schema(lib_kwargs)
+    gwy = Gateway(serial_port, **kwargs)
 
     if kwargs[REDUCE_PROCESSING] < DONT_CREATE_MESSAGES:
         # no MSGs will be sent to STDOUT, so send PKTs instead

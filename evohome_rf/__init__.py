@@ -17,9 +17,7 @@ import os
 import signal
 from collections import deque
 from threading import Lock
-from typing import Any, Callable, Dict, List, Optional, Tuple
-
-import voluptuous as vol
+from typing import Callable, Dict, List, Optional, Tuple
 
 from .command import Command
 from .const import ATTR_DEVICES, ATTR_ORPHANS, NUL_DEVICE_ID, __dev_mode__
@@ -29,20 +27,16 @@ from .packet import _PKT_LOGGER as pkt_logger
 from .packet import set_pkt_logging
 from .protocol import create_msg_stack
 from .schema import (
-    ALLOW_LIST,
-    BLOCK_LIST,
-    CONFIG,
+    DEBUG_MODE,
     DISABLE_DISCOVERY,
     DONT_CREATE_MESSAGES,
+    GLOBAL_CONFIG_SCHEMA,
     INPUT_FILE,
-    LOG_ROTATE_BYTES,
-    LOG_ROTATE_COUNT,
     PACKET_LOG,
     REDUCE_PROCESSING,
-    SCHEMA,
     USE_NAMES,
-    load_config,
-    load_schema,
+    load_config_schema,
+    load_system_schema,
 )
 from .systems import SYSTEM_CLASSES, System, SystemBase
 from .transport import POLLER_TASK, create_pkt_stack  # SerTransportDict
@@ -56,18 +50,6 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-KWARGS_SCHEMA = vol.Schema(
-    {
-        vol.Optional(INPUT_FILE): vol.Any(None, Any),
-        vol.Optional(CONFIG, default={}): dict,
-        vol.Optional(SCHEMA, default={}): dict,
-        vol.Optional(ALLOW_LIST, default={}): dict,
-        vol.Optional(BLOCK_LIST, default={}): dict,
-        vol.Optional("debug_mode", default=False): vol.Any(None, bool),
-    }
-)
-
-
 class GracefulExit(SystemExit):
     code = 1
 
@@ -78,9 +60,7 @@ class Gateway:
     def __init__(self, serial_port, loop=None, **kwargs) -> None:
         """Initialise the class."""
 
-        # kwargs = KWARGS_SCHEMA(kwargs)  # TODO: consider removing
-
-        if kwargs.pop("debug_mode", None):
+        if kwargs.pop(DEBUG_MODE, None):
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
         _LOGGER.debug("Starting evohome_rf, **kwargs = %s", kwargs)
 
@@ -90,20 +70,14 @@ class Gateway:
         self.serial_port = serial_port
         self._input_file = kwargs.pop(INPUT_FILE, None)
 
-        (self.config, self._include, self._exclude) = load_config(
-            serial_port,
-            self._input_file,
-            allow_list=kwargs.pop(ALLOW_LIST, None),
-            block_list=kwargs.pop(BLOCK_LIST, None),
-            **kwargs,
+        (self.config, self._include, self._exclude) = load_config_schema(
+            serial_port, self._input_file, **GLOBAL_CONFIG_SCHEMA(kwargs)
         )
 
         set_pkt_logging(
             pkt_logger,
-            file_name=self.config.get(PACKET_LOG),
             cc_stdout=self.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES,
-            backup_count=self.config[LOG_ROTATE_COUNT],
-            max_bytes=self.config[LOG_ROTATE_BYTES],
+            **self.config[PACKET_LOG],  # TODO: ZZZ
         )
 
         self.pkt_protocol, self.pkt_transport = None, None
@@ -131,9 +105,8 @@ class Gateway:
 
         self._prev_msg = None
 
-        self.known_devices = load_schema(
-            self, allow_list=self._include, block_list=self._exclude, **kwargs
-        )
+        schema = {k: v for k, v in kwargs.items() if k not in self.config}
+        self.known_devices = load_system_schema(self, **schema)
         if not self.known_devices:
             self.config[USE_NAMES] = False
 
@@ -312,7 +285,7 @@ class Gateway:
         self.pkt_protocol.pause_writing()
         self.pkt_protocol._callback, pkt_receiver = None, self.pkt_protocol._callback
 
-        self.known_devices = load_schema(self, **schema)  # keep old k_d?
+        self.known_devices = load_system_schema(self, **schema)  # keep old k_d?
 
         # pkt_transport = SerTransportDict(self._loop, self.pkt_protocol, pkts)
         # await pkt_transport.get_extra_info(POLLER_TASK)
