@@ -217,7 +217,8 @@ RAMSES_CODES = {
     },
     "2349": {  # zone_mode
         NAME: "zone_mode",
-        RQ: r"^0[0-9A-F](00)?$",  # is actually: r"^0[0-9A-F]$"
+        # RQ: r"^0[0-9A-F](00)?$",  # is usually: r"^0[0-9A-F]$"
+        RQ: r"^0[0-9A-F].*",  # r"^0[0-9A-F](00)?$",
         I_: r"^0[0-9A-F](([0-9A-F]){12}){1,2}$",
     },
     "2D49": {
@@ -275,7 +276,7 @@ RAMSES_CODES = {
     },
     "3EF1": {
         NAME: "actuator_cycle",
-        RQ: r"^0[0-9A-F](00)?$",  # NOTE: both seen in the wold
+        RQ: r"^0[0-9A-F](00)?$",  # NOTE: both seen in the wild
     },
     "7FFF": {
         NAME: "puzzle_packet",
@@ -639,6 +640,7 @@ RAMSES_DEVICES = {
             W_: {},
         },
         "2349": {
+            RQ: {},
             W_: {},
         },
         "30C9": {
@@ -929,6 +931,7 @@ RAMSES_DEVICES = {
 }
 
 RAMSES_DEVICES["00"] = RAMSES_DEVICES["04"]
+RAMSES_DEVICES["21"] = RAMSES_DEVICES["34"]  # T87RF1003
 RAMSES_DEVICES["22"] = RAMSES_DEVICES["12"]
 
 RAMSES_ZONES = {

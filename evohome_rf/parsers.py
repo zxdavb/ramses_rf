@@ -380,6 +380,16 @@ def _temp(value: str) -> Union[float, bool, None]:
     return (temp if temp < 2 ** 15 else temp - 2 ** 16) / 100
 
 
+def _flag8(byte, *args) -> list:
+    """Split a byte (as a str) into a list of 8 bits (1/0)."""
+    ret = [0] * 8
+    byte = bytes.fromhex(byte)[0]
+    for i in range(0, 8):
+        ret[i] = byte & 1
+        byte = byte >> 1
+    return ret
+
+
 @parser_decorator  # rf_unknown
 def parser_0001(payload, msg) -> Optional[dict]:
     # When in test mode, a 12: will send a W every 6 seconds, *on?* the second:
@@ -477,14 +487,6 @@ def parser_0005(payload, msg) -> Optional[dict]:
 
     # RQ payload is xx00, controller wont respond to a xx
     def _parser(seqx) -> dict:
-        def get_flag8(byte, *args) -> list:
-            """Split a byte (as a str) into a list of 8 bits (1/0)."""
-            ret = [0] * 8
-            byte = bytes.fromhex(byte)[0]
-            for i in range(0, 8):
-                ret[i] = byte & 1
-                byte = byte >> 1
-            return ret
 
         assert len(seqx) in (8, 12)  # 8 for evohome, 12 for Hometronics (16 zones)
         assert seqx[:2] == payload[:2]
@@ -493,7 +495,7 @@ def parser_0005(payload, msg) -> Optional[dict]:
 
         max_zones = msg._gwy.config[MAX_ZONES]
         return {
-            "zone_mask": (get_flag8(seqx[4:6]) + get_flag8(seqx[6:8]))[:max_zones],
+            "zone_mask": (_flag8(seqx[4:6]) + _flag8(seqx[6:8]))[:max_zones],
             "zone_type": CODE_0005_ZONE_TYPE.get(seqx[2:4], seqx[2:4]),
         }
 
@@ -1008,7 +1010,7 @@ def parser_10a0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # device_info
 def parser_10e0(payload, msg) -> Optional[dict]:
-    assert msg.len in (19, 30, 36, 38), msg.len  # a non-evohome seen with 30
+    assert msg.len in (19, 28, 30, 36, 38), msg.len  # a non-evohome seen with 30
 
     date_2 = _date(payload[20:28])  # could be 'FFFFFFFF'
     date_1 = _date(payload[28:36])  # could be 'FFFFFFFF'
@@ -1384,23 +1386,28 @@ def parser_2349(payload, msg) -> Optional[dict]:
     }
 
     if msg.len >= 7:
-        assert payload[8:14] == "FFFFFF", payload[8:14]
+        # assert payload[8:14] == "FFFFFF", payload[8:14]
+        if payload[8:14] == "FF" * 3:  # 03/FFFFFF OK if W?
+            assert payload[6:8] in ("00", "02", "04"), f"{payload[6:8]} (00)"
+        else:
+            assert payload[6:8] in ("03",), f"{payload[6:8]} (01)"
+            result["minutes_remaining"] = int(payload[8:14], 16)
 
     if msg.len >= 13:
         if payload[14:] == "FF" * 6:
-            assert payload[6:8] in ("00", "02"), payload[6:8]
+            assert payload[6:8] in ("00", "02"), f"{payload[6:8]} (02)"
             result["until"] = None
         else:
-            assert payload[6:8] not in ("00", "02"), payload[6:8]
+            assert payload[6:8] not in ("00", "02"), f"{payload[6:8]} (03)"
             result["until"] = _dtm(payload[14:26])
 
     # TODO: remove me...
-    if TEST_MODE and msg.verb == " W":
+    if False and TEST_MODE and msg.verb == " W":
         KEYS = ("setpoint", "mode", "until")
         cmd = Command.set_zone_mode(
             msg.dst.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
         )
-        assert cmd.payload == payload, cmd.payload
+        assert cmd.payload == payload, f"test payload: {cmd.payload}"
     # TODO: remove me...
 
     return {
@@ -1707,6 +1714,7 @@ def parser_3b00(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # actuator_state
 def parser_3ef0(payload, msg) -> dict:
+    # Some of this data thanks to @ReneKlootwijk
 
     if msg.src.type in "08":  # Honeywell Japser ?HVAC
         assert msg.len == 20, msg.len
@@ -1715,40 +1723,50 @@ def parser_3ef0(payload, msg) -> dict:
             "blob": payload[8:],
         }
 
-    assert payload[:2] == "00", f"domain_id is not 00: {payload[:2]}"
-    if msg.len == 3:
-        assert payload[2:4] in ("00", "C8", "FF"), f"byte 2: {payload[2:4]}"
-        assert payload[4:6] == "FF", f"byte 3: {payload[4:6]}"
+    assert payload[:2] == "00", f"byte 1: {payload[:2]}"
 
-    if msg.len >= 6:  # for OTB, TODO: why 100 & not 200
-        assert (
-            payload[2:4] == "FF" or int(payload[2:4], 16) <= 100
-        ), f"byte 2: {payload[2:4]}"
-        assert payload[4:6] in ("10", "11"), f"byte 3: {payload[4:6]}"
+    if 1 < msg.len <= 3:
+        assert payload[2:4] in ("00", "C8", "FF"), f"byte 1: {payload[2:4]}"
+        assert payload[4:6] == "FF", f"byte 2: {payload[4:6]}"
+
+    if msg.len > 3:  # for all OTB
+        if payload[2:4] != "FF":
+            assert int(payload[2:4], 16) <= 100, f"byte 1: {payload[2:4]}"
+        assert payload[4:6] in ("10", "11"), f"byte 2: {payload[4:6]}"
+        assert payload[8:12] in ("0000", "00FF"), f"byte 4: {payload[4:6]}"  # "FFFF"?
+
+    if msg.len > 6:  # <= 9: # for some OTB
+        assert payload[-2:] in ("00", "64"), f"byte x: {payload[-2:]}"
 
     result = {
-        # **_idx(payload[:2], msg),
         "actuator_enabled": bool(_percent(payload[2:4])),
-        "modulation_level": _percent(payload[2:4]),
-        "_unknown_0": payload[4:6],
+        "modulation_level": _percent(payload[2:4]),  # TODO: rel_modulation_level
+        "_unknown_2": _flag8(payload[4:6]),
     }
 
-    if msg.len >= 6:  # for OTB (there's no reliable) modulation_level <-> flame_state)
+    if msg.len > 3:  # for OTB (there's no reliable) modulation_level <-> flame_state)
         # assert payload[6:8] in (
         #     "00", "01", "02", "04", "08", "0A", "0C", "42",
         # ), payload[6:8]
-        # assert payload[8:12] in ("0000", "00FF")  # and "FFFF"?
-
-        # assert bool(int(payload[6:8], 16) & 0x0A) == {"0A": True}.get(
-        #     payload[6:8], False
-        # ), f"{payload[6:8]} xxx"
 
         result.update(
             {
-                # "flame_active": {"0A": True}.get(payload[6:8], False),
-                "flame_active": int(payload[6:8], 16) & 0x0A,
-                "flame_state": payload[6:8],
-                "_unknown_1": payload[8:],
+                "_unknown_3": _flag8(payload[6:8]),
+                "flame_active": bool(int(payload[6:8], 0x10) & 1 << 3),
+                "dhw_active": bool(int(payload[6:8], 0x10) & 1 << 2),
+                "ch_enabled": bool(int(payload[6:8], 0x10) & 1 << 1),
+                "_unknown_4": payload[8:10],
+                "_unknown_5": payload[10:12],
+            }
+        )
+
+    if msg.len > 6:
+        result.update(
+            {
+                "_unknown_6": _flag8(payload[12:14]),
+                "ch_active": bool(int(payload[12:14], 0x10) & 1 << 0),
+                "ch_setpoint": int(payload[14:16], 0x10),
+                "max_rel_modulation": int(payload[16:18], 0x10),
             }
         )
 
