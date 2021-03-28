@@ -133,7 +133,7 @@ class SerTransportFile(asyncio.Transport):
             self._protocol.connection_made(self)
 
             for dtm_pkt_line in self._pkt_fp:
-                self._protocol.data_received(dtm_pkt_line.strip())
+                self._protocol.data_received(dtm_pkt_line.strip().upper())
                 # await asyncio.sleep(0)
 
             if DEV_MODE:

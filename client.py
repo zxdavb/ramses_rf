@@ -340,8 +340,8 @@ async def main(lib_kwargs, **kwargs):
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-    serial_port, kwargs = normalise_config_schema(lib_kwargs)
-    gwy = Gateway(serial_port, **kwargs)
+    serial_port, lib_kwargs = normalise_config_schema(lib_kwargs)
+    gwy = Gateway(serial_port, **lib_kwargs)
 
     if kwargs[REDUCE_PROCESSING] < DONT_CREATE_MESSAGES:
         # no MSGs will be sent to STDOUT, so send PKTs instead

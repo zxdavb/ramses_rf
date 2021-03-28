@@ -294,12 +294,12 @@ def load_config_schema(serial_port, input_file, **kwargs) -> Tuple[dict, list, l
     return (config, allow_list, block_list)
 
 
-def load_system_schema(gwy, allow_list, block_list, **kwargs) -> dict:
+def load_system_schema(gwy, **kwargs) -> dict:
     """Process the schema, and the configuration and return True if it is valid."""
     # TODO: check a sensor is not a device in another zone
 
-    known_devices = allow_list
-    known_devices.update(block_list)
+    known_devices = kwargs.pop(ALLOW_LIST, {})
+    known_devices.update(kwargs.pop(BLOCK_LIST, {}))
 
     [gwy._get_device(addr(device_id)) for device_id in kwargs.pop(ATTR_ORPHANS, [])]
 
