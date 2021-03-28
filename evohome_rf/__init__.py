@@ -331,6 +331,11 @@ class Gateway:
         """Create a client protocol for the RAMSES-II message transport."""
         return create_msg_stack(self, msg_handler)
 
+    def make_cmd(self, verb, device_id, code, payload, **kwargs) -> Command:
+        """Make a command."""
+        dest_id = device_id
+        return Command(verb, dest_id, code, payload)
+
     def send_cmd(
         self, cmd: Command, callback: Callable = None, **kwargs
     ) -> asyncio.Task:

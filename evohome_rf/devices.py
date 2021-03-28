@@ -805,7 +805,7 @@ class OtbGateway(Actuator, Device):  # OTB: 10
     @property
     def boiler_setpoint(self) -> Optional[float]:  # 22D9
         if "22D9" in self._msgs:
-            return self._msgs["22D9"].payload[self.BATTERY_LOW]
+            return self._msgs["22D9"].payload[self.BOILER_SETPOINT]
 
     @property
     def modulation_level(self) -> Optional[float]:  # 3EF0/3EF1

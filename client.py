@@ -83,10 +83,13 @@ def normalise_config_schema(config) -> Tuple[str, dict]:
 
     serial_port = config[CONFIG].pop(SERIAL_PORT, None)
 
-    if not isinstance(config[CONFIG][PACKET_LOG], dict):
-        config[CONFIG][PACKET_LOG] = PACKET_LOG_SCHEMA(
-            {LOG_FILE_NAME: config[CONFIG][PACKET_LOG]}
-        )
+    if config[CONFIG].get(PACKET_LOG):
+        if not isinstance(config[CONFIG][PACKET_LOG], dict):
+            config[CONFIG][PACKET_LOG] = PACKET_LOG_SCHEMA(
+                {LOG_FILE_NAME: config[CONFIG][PACKET_LOG]}
+            )
+    else:
+        config[CONFIG][PACKET_LOG] = {}
 
     return serial_port, config
 
