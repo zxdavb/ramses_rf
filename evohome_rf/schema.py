@@ -172,17 +172,14 @@ DHW_SCHEMA = vol.Schema(
 UFC_CIRCUIT = vol.Schema(
     {
         vol.Required(UFH_IDX): vol.Any(
-            {vol.Optional(ATTR_ZONE_IDX): vol.Any(ZONE_IDX)}
+            {vol.Optional(ATTR_ZONE_IDX): vol.Any(ZONE_IDX)},
         ),
     }
 )
 UFH_SCHEMA = vol.Schema(
     {
         vol.Required(DEVICE_ID): vol.Any(
-            None,
-            {
-                vol.Optional("ufh_circuits"): vol.Any(None, dict),
-            },
+            None, {vol.Optional("ufh_circuits"): vol.Any(None, dict)}
         )
     }
 )
@@ -297,6 +294,8 @@ def load_config_schema(serial_port, input_file, **kwargs) -> Tuple[dict, list, l
 def load_system_schema(gwy, **kwargs) -> dict:
     """Process the schema, and the configuration and return True if it is valid."""
     # TODO: check a sensor is not a device in another zone
+
+    # gwy._clear_state()  # TODO: consider need fro this
 
     known_devices = kwargs.pop(ALLOW_LIST, {})
     known_devices.update(kwargs.pop(BLOCK_LIST, {}))
