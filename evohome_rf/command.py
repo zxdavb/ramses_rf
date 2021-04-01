@@ -563,13 +563,7 @@ class Command:
 
     @classmethod
     def _puzzle(
-        cls,
-        msg_type="01",
-        message=None,
-        ordinal=0,
-        interval=0,
-        length=None,
-        **kwargs,
+        cls, msg_type="01", message=None, ordinal=0, interval=0, length=None, **kwargs
     ):
 
         if msg_type == "00":
