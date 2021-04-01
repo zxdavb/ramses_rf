@@ -455,10 +455,7 @@ class ZoneSchedule:  # 0404
 
     @property
     def status(self) -> dict:
-        return {
-            **super().status,
-            "schedule": self._schedule.schedule.get("schedule"),
-        }
+        return {**super().status, "schedule": self._schedule.schedule.get("schedule")}
 
 
 class Zone(ZoneSchedule, ZoneBase):
@@ -843,10 +840,7 @@ class ZoneDemand:  # not all zone types call for heat
 
     @property
     def status(self) -> dict:
-        return {
-            **super().status,
-            ATTR_HEAT_DEMAND: self.heat_demand,
-        }
+        return {**super().status, ATTR_HEAT_DEMAND: self.heat_demand}
 
 
 class EleZone(Zone):  # Electric zones (do *not* call for heat)
@@ -878,10 +872,7 @@ class EleZone(Zone):  # Electric zones (do *not* call for heat)
 
     @property
     def status(self) -> dict:
-        return {
-            **super().status,
-            "actuator_state": self.actuator_state,
-        }
+        return {**super().status, "actuator_state": self.actuator_state}
 
 
 class ValZone(ZoneDemand, EleZone):
@@ -925,10 +916,7 @@ class UfhZone(ZoneDemand, Zone):
 
     @property
     def status(self) -> dict:
-        return {
-            **super().status,
-            "ufh_setpoint": self.ufh_setpoint,
-        }
+        return {**super().status, "ufh_setpoint": self.ufh_setpoint}
 
 
 class MixZone(Zone):
@@ -952,10 +940,7 @@ class MixZone(Zone):
 
     @property
     def params(self) -> dict:
-        return {
-            **super().status,
-            "mix_config": self.mix_config,
-        }
+        return {**super().status, "mix_config": self.mix_config}
 
 
 ZONE_CLASSES = {
