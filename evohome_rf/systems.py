@@ -65,7 +65,7 @@ class SysFaultLog:  # 0418
         status = super().status
         assert "fault_log" not in status  # TODO: removeme
         status["fault_log"] = self._fault_log.fault_log
-        # status["last_fault"] = self._msgz[" I"].get("0418")
+        status["last_fault"] = self._msgz[" I"].get("0418")
         return status
 
 

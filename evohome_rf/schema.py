@@ -295,7 +295,7 @@ def load_system_schema(gwy, **kwargs) -> dict:
     """Process the schema, and the configuration and return True if it is valid."""
     # TODO: check a sensor is not a device in another zone
 
-    # gwy._clear_state()  # TODO: consider need fro this
+    gwy._clear_state()  # TODO: consider need fro this
 
     known_devices = kwargs.pop(ALLOW_LIST, {})
     known_devices.update(kwargs.pop(BLOCK_LIST, {}))

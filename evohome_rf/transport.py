@@ -71,16 +71,17 @@ if DEV_MODE:  # or True:
     _LOGGER.setLevel(logging.DEBUG)  # should be INFO
 
 
-class SerTransportDict(asyncio.Transport):
-    """Interface for a packet transport using a file - Experimental."""
+class SerTransportRead(asyncio.ReadTransport):
+    """Interface for a packet transport using a dict/file."""
 
-    def __init__(self, loop, protocol, packet_dict, extra=None):
-        _LOGGER.info("SerTransDict.__init__(%s) *** dict version ***")
+    def __init__(self, loop, protocol, packet_source, extra=None):
+        _LOGGER.info("SerTransRead.__init__(%s) *** dict version ***")
 
         self._loop = loop
 
         self._protocol = protocol
-        self._pkt_dict = packet_dict
+        self._protocol.pause_writing()
+        self._packets = packet_source
         self._extra = {} if extra is None else extra
 
         self._start()
@@ -88,67 +89,25 @@ class SerTransportDict(asyncio.Transport):
     def _start(self):
         async def _polling_loop():
             if DEV_MODE:
-                _LOGGER.debug("SerTransDict._polling_loop() BEGUN")
-            self._protocol.pause_writing()
+                _LOGGER.debug("SerTransRead._polling_loop() BEGUN")
             self._protocol.connection_made(self)
 
-            for dtm, pkt in self._pkt_dict:
-                self._protocol.data_received(f"{dtm} {pkt}")
-                await asyncio.sleep(0)
+            if isinstance(self._packets, dict):
+                for pkt_dtm, pkt_str in self._packets.items():
+                    self._protocol.data_received(f"{pkt_dtm} {pkt_str}")
+                    await asyncio.sleep(0)
+            else:
+                for dtm_pkt_line in self._packets:
+                    self._protocol.data_received(dtm_pkt_line.strip())  # .upper()
+                    await asyncio.sleep(0)
 
             if DEV_MODE:
-                _LOGGER.debug("SerTransDict._polling_loop() ENDED")
-            self._protocol.connection_lost(exc=None)
+                _LOGGER.debug("SerTransRead._polling_loop() ENDED")
+            self._protocol.connection_lost(exc=None)  # EOF
 
         if DEV_MODE:
-            _LOGGER.debug("SerTransDict._start() STARTING loop")
+            _LOGGER.debug("SerTransRead._start() STARTING loop")
         self._extra[POLLER_TASK] = self._loop.create_task(_polling_loop())
-
-    def write(self, cmd):
-        """Write some data bytes to the transport."""
-        _LOGGER.debug("SerTransDict.write(%s)", cmd)
-
-        raise NotImplementedError
-
-
-class SerTransportFile(asyncio.Transport):
-    """Interface for a packet transport using a file - Experimental."""
-
-    def __init__(self, loop, protocol, packet_log, extra=None):
-        _LOGGER.info("SerTransFile.__init__(%s) *** log file version ***", packet_log)
-
-        self._loop = loop
-
-        self._protocol = protocol
-        self._pkt_fp = packet_log
-        self._extra = {} if extra is None else extra
-
-        self._start()
-
-    def _start(self):
-        async def _polling_loop():
-            if DEV_MODE:
-                _LOGGER.debug("SerTransFile._polling_loop() BEGUN")
-            self._protocol.pause_writing()
-            self._protocol.connection_made(self)
-
-            for dtm_pkt_line in self._pkt_fp:
-                self._protocol.data_received(dtm_pkt_line.strip().upper())
-                # await asyncio.sleep(0)
-
-            if DEV_MODE:
-                _LOGGER.debug("SerTransFile._polling_loop() ENDED")
-            self._protocol.connection_lost(exc=None)
-
-        if DEV_MODE:
-            _LOGGER.debug("SerTransFile._start() STARTING loop")
-        self._extra[POLLER_TASK] = self._loop.create_task(_polling_loop())
-
-    def write(self, cmd):
-        """Write some data bytes to the transport."""
-        _LOGGER.debug("SerTransFile.write(%s)", cmd)
-
-        raise NotImplementedError
 
 
 class SerTransportPoller(asyncio.Transport):
@@ -309,7 +268,7 @@ class PacketProtocolBase(asyncio.Protocol):
         self._pause_writing = True
         self._recv_buffer = bytes()
 
-        self._sequence_no = 0
+        self._sequence_no = 0  # TODO: remove
 
         # TODO: this is a little messy - the gwy.config[...] are mutex...
         self._include = list(gwy._include) if gwy.config[ENFORCE_ALLOWLIST] else []
@@ -396,7 +355,7 @@ class PacketProtocolBase(asyncio.Protocol):
         self, pkt_dtm: str, pkt_str: Optional[str], pkt_raw: Optional[ByteString] = None
     ) -> None:
         """Called when some normalised data is received (no QoS)."""
-        _LOGGER.info("PktProtocol.data_rcvd(%s)", pkt_raw)
+        _LOGGER.info("PktProtocol._data_rcvd(%s)", pkt_str)
 
         pkt = Packet(pkt_dtm, pkt_str, raw_pkt_line=pkt_raw)
         if not pkt.is_valid:
@@ -409,7 +368,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
     def data_received(self, data: ByteString) -> None:
         """Called when some data (raw packet fragment) is received."""
-        if DEV_MODE:
+        if DEV_MODE and False:
             _LOGGER.debug("PktProtocol.data_rcvd(%s)", data)
 
         def create_pkt(pkt_raw: ByteString) -> Tuple:
@@ -548,19 +507,19 @@ class PacketProtocol(PacketProtocolBase):
         super().__init__(gwy, pkt_handler)
 
 
-class PacketProtocolFile(PacketProtocolBase):
+class PacketProtocolRead(PacketProtocolBase):
     """Interface for a packet protocol (for packet log)."""
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
         _LOGGER.info(
-            "PacketProtocolFile.__init__(gwy, %s) *** Log version ***",
+            "PacketProtocolRead.__init__(gwy, %s) *** R/O version ***",
             pkt_handler.__name__ if pkt_handler else None,
         )
         super().__init__(gwy, pkt_handler)
 
     def connection_made(self, transport: asyncio.Transport) -> None:
         """Called when a connection is made."""
-        _LOGGER.debug("PacketProtocolFile.connection_made(%s)", transport)
+        _LOGGER.debug("PacketProtocolRead.connection_made(%s)", transport)
 
         self._transport = transport
 
@@ -801,7 +760,12 @@ class PacketProtocolQos(PacketProtocolBase):
 
 
 def create_pkt_stack(
-    gwy, msg_handler, protocol_factory=None, serial_port=None, packet_log=None
+    gwy,
+    msg_handler,
+    protocol_factory=None,
+    serial_port=None,
+    packet_log=None,
+    packet_dict=None,
 ) -> Tuple[asyncio.Protocol, asyncio.Transport]:
     """Utility function to provide a transport to the internal protocol.
 
@@ -813,21 +777,21 @@ def create_pkt_stack(
     """
 
     def _protocol_factory():
-        if packet_log:
-            return create_protocol_factory(PacketProtocolFile, gwy, msg_handler)()
+        if packet_dict or packet_log:
+            return create_protocol_factory(PacketProtocolRead, gwy, msg_handler)()
         elif gwy.config[DISABLE_SENDING]:
             return create_protocol_factory(PacketProtocol, gwy, msg_handler)()
         else:
             return create_protocol_factory(PacketProtocolQos, gwy, msg_handler)()
 
-    assert (serial_port is not None and packet_log is None) or (
-        serial_port is None and packet_log is not None
-    ), "port / file are not mutually exclusive"
+    if len([x for x in (packet_dict, packet_log, serial_port) if x is not None]) != 1:
+        raise TypeError("port / file / dict are not mutually exclusive")
 
     pkt_protocol = protocol_factory() if protocol_factory else _protocol_factory()
 
-    if packet_log:
-        pkt_transport = SerTransportFile(gwy._loop, pkt_protocol, packet_log)
+    if packet_dict or packet_log:
+        packet_source = packet_dict if packet_dict else packet_log
+        pkt_transport = SerTransportRead(gwy._loop, pkt_protocol, packet_source)
         return (pkt_protocol, pkt_transport)
 
     serial_config = DEFAULT_SERIAL_CONFIG

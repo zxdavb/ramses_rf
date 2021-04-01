@@ -29,6 +29,7 @@ from .protocol import create_msg_stack
 from .schema import (
     DEBUG_MODE,
     DISABLE_DISCOVERY,
+    DISABLE_SENDING,
     DONT_CREATE_MESSAGES,
     GLOBAL_CONFIG_SCHEMA,
     INPUT_FILE,
@@ -39,7 +40,7 @@ from .schema import (
     load_system_schema,
 )
 from .systems import SYSTEM_CLASSES, System, SystemBase
-from .transport import POLLER_TASK, create_pkt_stack  # SerTransportDict
+from .transport import POLLER_TASK, create_pkt_stack
 from .version import __version__  # noqa: F401
 
 DEV_MODE = __dev_mode__ and False
@@ -251,13 +252,14 @@ class Gateway:
         return device
 
     def _clear_state(self) -> None:
-        self.evo = None
-        self.systems = []
-        self.system_by_id = {}
-        self.device_by_id: Dict = {}
-        self.devices = []
+        gwy = self
+        gwy._prev_msg = None
 
-        self._prev_msg = None
+        gwy.evo = None
+        gwy.systems = []
+        gwy.system_by_id = {}
+        gwy.device_by_id = {}
+        gwy.devices = []
 
     def _get_state(self) -> Tuple[Dict, Dict]:
         # pause engine
@@ -269,9 +271,13 @@ class Gateway:
             msgs.update({v.dtm: v for v in system._msgs.values()})
             msgs.update({v.dtm: v for z in system.zones for v in z._msgs.values()})
 
-        # msgs = {dtm: msg for dtm, msg in msgs if not msg.is_expired}
+        pkts = {
+            dtm.isoformat(sep="T", timespec="auto"): repr(msg)
+            for dtm, msg in msgs.items()
+            # if not msg.is_expired
+        }
 
-        schema, pkts = self.schema, dict(sorted(msgs.items()))
+        schema, pkts = self.schema, dict(sorted(pkts.items()))
 
         # resume engine
         self.pkt_protocol._callback = pkt_receiver
@@ -279,21 +285,30 @@ class Gateway:
 
         return schema, pkts
 
-    async def _set_state(self, schema: Dict, pkts: Dict) -> None:
+    async def _set_state(self, schema: Dict, packets: Dict) -> None:
 
         # pause engine
-        self.pkt_protocol.pause_writing()
-        self.pkt_protocol._callback, pkt_receiver = None, self.pkt_protocol._callback
+        self.pkt_protocol.pause_writing()  # pause writes
+        self.pkt_protocol._callback = None  # HACK: pause reads
 
-        self.known_devices = load_system_schema(self, **schema)  # keep old k_d?
+        self.config[DISABLE_DISCOVERY], discovery = True, self.config[DISABLE_DISCOVERY]
+        self.config[DISABLE_SENDING], sending = True, self.config[DISABLE_SENDING]
 
-        # pkt_transport = SerTransportDict(self._loop, self.pkt_protocol, pkts)
-        # await pkt_transport.get_extra_info(POLLER_TASK)
-        # pkt_transport = None
+        self.known_devices = load_system_schema(self, **schema)  # keep old known_devs?
+
+        _, tmp_transport = create_pkt_stack(
+            self,
+            self.msg_transport._pkt_receiver if self.msg_transport else None,
+            packet_dict=packets,
+        )
+        await tmp_transport.get_extra_info(POLLER_TASK)
 
         # resume engine
-        self.pkt_protocol._callback = pkt_receiver
+        self.pkt_protocol._callback = self.msg_transport._pkt_receiver
         self.pkt_protocol.resume_writing()
+
+        self.config[DISABLE_DISCOVERY] = discovery
+        self.config[DISABLE_SENDING] = sending
 
     @property
     def schema(self) -> dict:
@@ -317,15 +332,11 @@ class Gateway:
 
     @property
     def params(self) -> dict:
-        return {
-            ATTR_DEVICES: {d.id: d.params for d in sorted(self.devices)},
-        }
+        return {ATTR_DEVICES: {d.id: d.params for d in sorted(self.devices)}}
 
     @property
     def status(self) -> dict:
-        return {
-            ATTR_DEVICES: {d.id: d.status for d in sorted(self.devices)},
-        }
+        return {ATTR_DEVICES: {d.id: d.status for d in sorted(self.devices)}}
 
     def create_client(self, msg_handler) -> Tuple[Callable, Callable]:
         """Create a client protocol for the RAMSES-II message transport."""
