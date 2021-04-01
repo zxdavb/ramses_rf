@@ -30,7 +30,7 @@ from .ramses import RAMSES_DEVICES
 
 MSG_ID = "msg_id"
 
-DEV_MODE = __dev_mode__  # and False
+DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
