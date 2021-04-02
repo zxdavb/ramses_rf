@@ -398,7 +398,7 @@ class Device(DeviceInfo, DeviceBase):
             self._domain_id = domain
 
         else:
-            raise TypeError(f"paren can't be: {parent}")
+            raise TypeError(f"parent can't be: {parent}")
 
         if self._zone is not None:
             if self._zone is not parent:
@@ -665,7 +665,7 @@ class UfhController(Device):  # UFC: 02
 class DhwSensor(BatteryState, Device):  # DHW: 07
     """The DHW class, such as a CS92."""
 
-    DEVICE_CLASS = "DWH"  # DEVICE_TYPES = ("07", )
+    DEVICE_CLASS = "DHW"  # DEVICE_TYPES = ("07", )
 
     DHW_PARAMS = "dhw_params"
     TEMPERATURE = ATTR_TEMP
@@ -843,7 +843,7 @@ class OtbGateway(Actuator, Device):  # OTB: 10
 class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM:
     """The THM/STA class, such as a TR87RF."""
 
-    DEVICE_CLASS = "THM"  # DEVICE_TYPES = ("03", "12", "22", "34")
+    DEVICE_CLASS = "STA"  # DEVICE_TYPES = ("03", "12", "22", "34")
 
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id}): {self.temperature}"
@@ -1086,18 +1086,18 @@ DEVICE_TYPE_TO_KLASS = {
     "00": "TRV",
     "01": "CTL",
     "02": "UFC",
-    "03": "THM",
+    "03": "STA",
     "04": "TRV",
     "07": "DHW",
     "10": "OTB",
-    "12": "THM",
+    "12": "STA",
     "13": "BDR",
     "18": "HGI",
     "20": "FAN",
-    "22": "THM",
+    "22": "STA",
     "23": "PRG",
     "30": "GWY",
-    "34": "THM",
+    "34": "STA",
     "37": "FAN",
     "39": "SWI",
 }
