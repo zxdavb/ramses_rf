@@ -262,6 +262,8 @@ class Gateway:
         gwy.devices = []
 
     def _pause_engine(self) -> Tuple[Callable, bool, bool]:
+        callback = None
+
         if self.pkt_protocol:
             self.pkt_protocol.pause_writing()
             self.pkt_protocol._callback, callback = None, self.pkt_protocol._callback
