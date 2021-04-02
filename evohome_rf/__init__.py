@@ -261,10 +261,28 @@ class Gateway:
         gwy.device_by_id = {}
         gwy.devices = []
 
+    def _pause_engine(self) -> Tuple[Callable, bool, bool]:
+        if self.pkt_protocol:
+            self.pkt_protocol.pause_writing()
+            self.pkt_protocol._callback, callback = None, self.pkt_protocol._callback
+
+        self.config[DISABLE_DISCOVERY], discovery = True, self.config[DISABLE_DISCOVERY]
+        self.config[DISABLE_SENDING], sending = True, self.config[DISABLE_SENDING]
+
+        return (callback, discovery, sending)
+
+    def _resume_engine(
+        self, callback: Callable, discovery: bool, sending: bool
+    ) -> None:
+        if self.pkt_protocol:
+            self.pkt_protocol._callback = callback  # self.msg_transport._pkt_receiver
+            self.pkt_protocol.resume_writing()
+
+        self.config[DISABLE_DISCOVERY] = discovery
+        self.config[DISABLE_SENDING] = sending
+
     def _get_state(self) -> Tuple[Dict, Dict]:
-        # pause engine
-        self.pkt_protocol.pause_writing()
-        self.pkt_protocol._callback, pkt_receiver = None, self.pkt_protocol._callback
+        engine_state = self._pause_engine()
 
         msgs = {v.dtm: v for d in self.devices for v in d._msgs.values()}
         for system in self.systems:
@@ -274,25 +292,16 @@ class Gateway:
         pkts = {
             dtm.isoformat(sep="T", timespec="auto"): repr(msg)
             for dtm, msg in msgs.items()
-            # if not msg.is_expired
+            if not msg.is_expired
         }
 
         schema, pkts = self.schema, dict(sorted(pkts.items()))
 
-        # resume engine
-        self.pkt_protocol._callback = pkt_receiver
-        self.pkt_protocol.resume_writing()
-
+        self._resume_engine(*engine_state)
         return schema, pkts
 
     async def _set_state(self, schema: Dict, packets: Dict) -> None:
-
-        # pause engine
-        self.pkt_protocol.pause_writing()  # pause writes
-        self.pkt_protocol._callback = None  # HACK: pause reads
-
-        self.config[DISABLE_DISCOVERY], discovery = True, self.config[DISABLE_DISCOVERY]
-        self.config[DISABLE_SENDING], sending = True, self.config[DISABLE_SENDING]
+        engine_state = self._pause_engine()
 
         self.known_devices = load_system_schema(self, **schema)  # keep old known_devs?
 
@@ -303,12 +312,7 @@ class Gateway:
         )
         await tmp_transport.get_extra_info(POLLER_TASK)
 
-        # resume engine
-        self.pkt_protocol._callback = self.msg_transport._pkt_receiver
-        self.pkt_protocol.resume_writing()
-
-        self.config[DISABLE_DISCOVERY] = discovery
-        self.config[DISABLE_SENDING] = sending
+        self._resume_engine(*engine_state)
 
     @property
     def schema(self) -> dict:
