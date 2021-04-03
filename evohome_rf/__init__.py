@@ -193,64 +193,56 @@ class Gateway:
         """
 
         def create_system(ctl, profile=None) -> SystemBase:
-            assert ctl.id not in self.system_by_id, f"Duplicate system id: {ctl.id}"
+            # assert ctl.id not in self.system_by_id, f"Dup. sys_id: {ctl.id}"
+
+            if profile is None:
+                profile = "programmer" if dev_addr.type == "23" else "evohome"
 
             system = SYSTEM_CLASSES.get(profile, System)(self, ctl)
+            if self.evo is None:
+                self.evo = system
 
             if not self.config[DISABLE_DISCOVERY]:
                 system._discover()  # discover_flag=DISCOVER_ALL)
-
             return system
 
-        def create_device(dev_addr, ctl=None, domain_id=None) -> Device:
-            if dev_addr.id in self.device_by_id:
-                raise LookupError(f"Duplicated device id: {dev_addr.id}")
+        def create_device(dev_addr) -> Device:
+            # assert dev_addr.id not in self.device_by_id, f"Dup. dev_id: {dev_addr.id}"
 
             device = DEVICE_CLASSES.get(dev_addr.type, Device)(self, dev_addr)
 
+            # if isinstance(device, Controller):
+            # if device._is_controller:
+            # if dev_addr.type in SYSTEM_CLASSES:
+            # if domain_id == "FF"
+            if dev_addr.type in ("01", "23"):
+                device._evo = create_system(device, profile=kwargs.get("profile"))
+
             if not self.config[DISABLE_DISCOVERY]:
                 device._discover()  # discover_flag=DISCOVER_ALL)
-
             return device
 
-        if ctl_addr is None:
-            ctl = None
-        else:
-            ctl = self._get_device(ctl_addr, domain_id="FF", **kwargs)
-            if self.evo is None:
-                self.evo = ctl._evo
+        if ctl_addr is not None:
+            ctl = self.device_by_id.get(ctl_addr.id)
+            if ctl is None:
+                ctl = self._get_device(ctl_addr, domain_id="FF", **kwargs)
 
-        if dev_addr.type in ("18", "--"):  # not valid devices
-            return
-        if dev_addr.id in (NUL_DEVICE_ID, "01:000001"):  # not real devices
-            return
+        if dev_addr.type in ("18", "--") or dev_addr.id in (NUL_DEVICE_ID, "01:000001"):
+            return  # not valid device types/real devices
 
-        if isinstance(dev_addr, Device):
-            device = dev_addr
-        else:
-            device = self.device_by_id.get(dev_addr.id)
-            if device is None:
-                device = create_device(dev_addr, ctl=ctl, domain_id=domain_id)
-                # if isinstance(device, Controller):
-                # if device._is_controller:
-                # if dev_addr.type in SYSTEM_CLASSES:
-                # if domain_id = "FF"
-
-                if dev_addr.type in ("01", "23"):
-                    profile = kwargs.get("profile")
-                    if profile is None:
-                        profile = "programmer" if dev_addr.type == "23" else "evohome"
-                    device._evo = create_system(device, profile=profile)
+        dev = self.device_by_id.get(dev_addr.id)
+        if dev is None:  # TODO: take into account device filter?
+            dev = create_device(dev_addr)
 
         # update the existing device with any metadata
-        if ctl is not None:
-            device._set_ctl(ctl)
+        if ctl_addr is not None:
+            dev._set_ctl(ctl)
         if domain_id in ("F9", "FA", "FC", "FF"):
-            device._domain_id = domain_id
-        elif domain_id is not None and ctl is not None:
-            device._set_zone(ctl._evo._get_zone(domain_id))
+            dev._domain_id = domain_id
+        elif domain_id is not None and ctl_addr is not None:
+            dev._set_zone(ctl._evo._get_zone(domain_id))
 
-        return device
+        return dev
 
     def _clear_state(self) -> None:
         gwy = self
