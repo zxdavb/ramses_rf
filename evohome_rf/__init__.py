@@ -142,8 +142,9 @@ class Gateway:
             elif sig == signal.SIGUSR2:
                 _LOGGER.info("Status: \r\n%s", {self.evo.id: self.evo.status})
 
-        _LOGGER.debug("_setup_event_handlers(): Creating exception handler...")
-        self._loop.set_exception_handler(handle_exception)
+        if DEV_MODE:
+            _LOGGER.debug("_setup_event_handlers(): Creating exception handler...")
+            self._loop.set_exception_handler(handle_exception)
 
         _LOGGER.debug("_setup_event_handlers(): Creating signal handlers...")
         if os.name == "posix":  # full support
