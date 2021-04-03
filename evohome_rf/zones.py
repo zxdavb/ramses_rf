@@ -260,7 +260,9 @@ class DhwZone(ZoneBase):
     def _set_sensor(self, device: Device) -> None:
         """Set the temp sensor for this DHW system (07: only)."""
 
-        if self._dhw_sensor != device and self._dhw_sensor is not None:
+        if self._dhw_sensor is device:
+            return
+        elif self._dhw_sensor is not None:
             raise CorruptStateError(
                 f"{ATTR_ZONE_SENSOR} shouldn't change: {self._dhw_sensor} to {device}"
             )
@@ -576,7 +578,9 @@ class Zone(ZoneSchedule, ZoneBase):
     def _set_sensor(self, device: Device):  # self._sensor
         """Set the temp sensor for this zone (one of: 01:, 03:, 04:, 12:, 22:, 34:)."""
 
-        if self._sensor != device and self._sensor is not None:
+        if self._sensor is device:
+            return
+        elif self._sensor is not None:
             raise CorruptStateError(
                 f"{ATTR_ZONE_SENSOR} shouldn't change: {self._sensor} to {device}"
             )
@@ -587,7 +591,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
         if self._sensor is None:
             self._sensor = device
-            device._set_parent(self)
+            device._set_parent(self)  # , domain=self.idx)
 
     @property
     def heating_type(self) -> Optional[str]:
