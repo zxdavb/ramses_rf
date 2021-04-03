@@ -224,7 +224,7 @@ class Packet:
             return False
 
         if not self.packet and self.comment:  # log null packets only if has a comment
-            _PKT_LOGGER.warning("", extra=self.__dict__)  # normally a warning
+            _PKT_LOGGER.warning("", extra=self.__dict__)  # best as a debug?
             return False
 
         # TODO: these packets shouldn't go to the packet log, only STDERR?
@@ -241,7 +241,7 @@ class Packet:
             _PKT_LOGGER.info("%s ", self.packet, extra=self.__dict__)
             return True
 
-        _PKT_LOGGER.warning("%s < Bad packet: %s ", self, err_msg, extra=self.__dict__)
+        _PKT_LOGGER.debug("%s < Bad packet: %s ", self, err_msg, extra=self.__dict__)
         return False
 
     @property
