@@ -100,7 +100,7 @@ class MultipleControllerError(CorruptEvohomeError):
 
     def __str__(self) -> str:
         err_msg = "There is more than one Evohome controller"
-        err_tip = " (consider using an allowlist)"
+        err_tip = " (consider using an allow_list)"
         if self.message:
             return f"{err_msg}: {self.message}{err_tip}"
         return f"{err_msg} {err_tip}"
