@@ -17,16 +17,16 @@ NAME = "name"
 EXPIRY = "expiry"
 
 # This is the master list - all codes are here, even if there's no corresponding parser
-RAMSES_CODES = {
+RAMSES_CODES = {  # rf_unknown
     "0001": {
         NAME: "rf_unknown",
         W_: r"^[0-9A-F]{2}0{4}05(05|01)$",
     },
-    "0002": {
+    "0002": {  # sensor_weather
         NAME: "sensor_weather",
         RQ: r"^00$",  # NOTE: sent by an RFG100
     },
-    "0004": {
+    "0004": {  # zone_name
         NAME: "zone_name",
         RQ: r"^0[0-9A-F]00$",
         RP: r"^0[0-9A-F]00([0-9A-F]){40}$",
@@ -37,22 +37,22 @@ RAMSES_CODES = {
         RQ: r"^00[01][0-9A-F]$",  # f"00{zone_type}"
         RQ_MAY_HAVE_PAYLOAD: True,
     },
-    "0006": {
+    "0006": {  # schedule_sync
         NAME: "schedule_sync",
         RQ: r"^00$",
         RP: r"^0005[0-9A-F]{4}$",
     },
-    "0008": {
+    "0008": {  # relay_demand
         NAME: "relay_demand",
         RQ: r"^00$",  # TODO: an assumption
         I_: r"^(F[9AC]|0[0-9A-F])[0-9A-F]{2}$",
         # 000 I --- 31:012319 08:006244 --:------ 0008 013 0006958C33CA6ECD2067AA53DD
     },
-    "0009": {
+    "0009": {  # relay_failsafe
         NAME: "relay_failsafe",
         I_: r"^((F[9AC]|0[0-9A-F])0[0-1]FF)+$",
     },
-    "000A": {
+    "000A": {  # zone_params
         NAME: "zone_params",
         I_: r"^(0[0-9A-F][0-9A-F]{10}){1,8}$",
         RQ: r"^0[0-9A-F]((00)?|([0-9A-F]{10})+)$",  # is: r"^0[0-9A-F]([0-9A-F]{10})+$"
@@ -68,55 +68,55 @@ RAMSES_CODES = {
         RQ: r"^0[0-9A-F][01][0-9A-F]$",  # TODO: f"{zone_idx}{device_type}"
         RQ_MAY_HAVE_PAYLOAD: True,
     },
-    "000E": {
+    "000E": {  # unknown
         NAME: "message_000e",
     },
-    "0016": {
+    "0016": {  # rf_check
         NAME: "rf_check",
         RQ: r"^0[0-9A-F]([0-9A-F]{2})?$",  # TODO: officially: r"^0[0-9A-F]{3}$"
         RP: r"^0[0-9A-F]{3}$",
     },
-    "0100": {
+    "0100": {  # language
         NAME: "language",
         RQ: r"^00([0-9A-F]{4}F{4})?$",  # NOTE: RQ/04/0100 has a payload
         RQ_MAY_HAVE_DOMAIN: False,
         RQ_MAY_HAVE_PAYLOAD: True,
     },  # NOTE: parser has been checked
-    "01D0": {
+    "01D0": {  # unknown
         NAME: "message_01d0",
     },
-    "01E9": {
+    "01E9": {  # unknown
         NAME: "message_01e9",
     },
-    "0404": {
+    "0404": {  # zone_schedule
         NAME: "zone_schedule",
         RQ: r"^0[0-9A-F](20|23)000800[0-9A-F]{4}$",
         RQ_MAY_HAVE_PAYLOAD: True,
     },
-    "0418": {
+    "0418": {  # system_fault
         NAME: "system_fault",
         RQ: r"^0000[0-3][0-9A-F]$",  # f"0000{log_idx}", no payload
     },
-    "042F": {
+    "042F": {  # unknown
         NAME: "message_042f",
     },
-    "0B04": {
+    "0B04": {  # unknown
         NAME: "message_0b04",
     },
-    "1030": {
+    "1030": {  # mixvalve_params
         NAME: "mixvalve_params",
         #  I --- --:------ --:------ 12:138834 1030 016 01C80137C9010FCA0196CB010FCC0101
         I_: r"^0[0-9A-F](C[89A-C]01[0-9A-F]{2}){5}$",
     },
-    "1060": {
+    "1060": {  # device_battery
         NAME: "device_battery",
         I_: r"^0[0-9A-F](FF|[0-9A-F]{2})0[01]$",
     },
-    "1090": {
+    "1090": {  # unknown
         NAME: "message_1090",
         # RQ: r"^00$",  # TODO:
     },
-    "10A0": {
+    "10A0": {  # dhw_params
         NAME: "dhw_params",
         # NOTE: RFG100 uses a domain id! (00|01)
         # 19:14:24.662 051 RQ --- 30:185469 01:037519 --:------ 10A0 001 00
@@ -124,18 +124,18 @@ RAMSES_CODES = {
         RQ: r"^0[01]([0-9A-F]{10})?$",  # NOTE: RQ/07/10A0 has a payload
         RQ_MAY_HAVE_PAYLOAD: True,
     },
-    "10E0": {
+    "10E0": {  # device_info
         NAME: "device_info",
         RQ: r"^00$",
         RP: r"^00([0-9A-F]){30,}$",
         I_: r"^00([0-9A-F]){30,}$",
     },
-    "1100": {
+    "1100": {  # tpi_params
         NAME: "tpi_params",
         RQ: r"^(00|FC)([0-9A-F]{12}01)?$",  # TODO: is there no RP?
         W_: r"^(00|FC)[0-9A-F]{12}01$",  # TODO: is there no I?
     },
-    "1260": {
+    "1260": {  # dhw_temp
         NAME: "dhw_temp",
         # 18:51:49.158262 063 RQ --- 30:185469 01:037519 --:------ 1260 001 00
         # 18:51:49.174182 051 RP --- 01:037519 30:185469 --:------ 1260 003 000837
@@ -146,33 +146,33 @@ RAMSES_CODES = {
         RP: r"^00[0-9A-F]{4}$",  # Null: r"^007FFF$"
         I_: r"^00[0-9A-F]{4}$",
     },
-    "1280": {
+    "1280": {  # outdoor_humidity
         NAME: "outdoor_humidity",
     },
-    "1290": {
+    "1290": {  # outdoor_temp
         NAME: "outdoor_temp",
         # RQ: r"^00$",  # TODO:
     },
-    "12A0": {
+    "12A0": {  # indoor_humidity
         NAME: "indoor_humidity",
     },
-    "12B0": {
+    "12B0": {  # window_state
         NAME: "window_state",
         RQ: r"^0[0-9A-F](00)?$",
         EXPIRY: 60 * 60,
     },
-    "12C0": {
+    "12C0": {  # displayed_temp
         NAME: "displayed_temp",  # displayed room temp
         I_: r"^00[0-9A-F]{2}01$",
     },
-    "1F09": {
+    "1F09": {  # system_sync
         NAME: "system_sync",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",  # xx-secs
         I_: r"^(00|01|DB|FF)[0-9A-F]{4}$",  # FF is evohome, DB is Hometronics
         W_: r"^F8[0-9A-F]{4}$",
     },
-    "1F41": {
+    "1F41": {  # dhw_mode
         NAME: "dhw_mode",
         RQ: r"^00$",
     },
@@ -183,32 +183,32 @@ RAMSES_CODES = {
         I_: r"^((F[9ABCF]|0[0-9A-F])([0-9A-F]{10}))+$",
         W_: r"^((F[9ABCF]|0[0-9A-F])([0-9A-F]{10}))+$",
     },
-    "1FD4": {
+    "1FD4": {  # opentherm_sync
         NAME: "opentherm_sync",
     },
-    "2249": {
+    "2249": {  # setpoint_now
         NAME: "setpoint_now",
     },
-    "22C9": {
+    "22C9": {  # ufh_setpoint
         NAME: "ufh_setpoint",
     },
-    "22D0": {
+    "22D0": {  # message_22d0
         NAME: "message_22d0",
         # RQ: r"^00$",  # TODO:
     },
-    "22D9": {
+    "22D9": {  # boiler_setpoint
         NAME: "boiler_setpoint",
         RQ: r"^00$",
     },
-    "22F1": {  # TODO - change name - Sent by an UFC
+    "22F1": {  # switch_speed - TODO - change name - Sent by an UFC
         NAME: "switch_speed",
         I_: r"^00(0[0-9A-F]){2}$",
     },
-    "22F3": {
+    "22F3": {  # switch_duration
         NAME: "switch_duration",
         I_: r"^0000[0-9A-F]{2}$",
     },  # minutes
-    "2309": {
+    "2309": {  # setpoint
         NAME: "setpoint",
         RQ: r"^0[0-9A-F]([0-9A-F]{4})?$",  # NOTE: 12 uses: r"^0[0-9A-F]$"
         I_: r"^(0[0-9A-F]{5})+$",
@@ -221,17 +221,17 @@ RAMSES_CODES = {
         RQ: r"^0[0-9A-F].*",  # r"^0[0-9A-F](00)?$",
         I_: r"^0[0-9A-F](([0-9A-F]){12}){1,2}$",
     },
-    "2D49": {
+    "2D49": {  # unknown
         NAME: "message_2d49",
     },  # seen with Hometronic systems
-    "2E04": {
+    "2E04": {  # system_mode
         NAME: "system_mode",
         I_: r"^0[0-7][0-9A-F]{12}0[01]$",  # evo: r"^0[0-7][0-9A-F]{12}0[01]$",
         RQ: r"^FF$",
         RP: r"^0[0-7][0-9A-F]{12}0[01]$",
         W_: r"^0[0-7][0-9A-F]{12}0[01]$",
     },
-    "30C9": {
+    "30C9": {  # temperature
         NAME: "temperature",
         RQ: r"^0[0-9A-F](00)?$",  # TODO: officially: r"^0[0-9A-F]$"
         # RQ --- 30:185469 01:037519 --:------ 30C9 001 00
@@ -239,42 +239,42 @@ RAMSES_CODES = {
         # RP --- 01:145038 18:013393 --:------ 30C9 003 FF7FFF
         I_: r"^(0[0-9A-F][0-9A-F]{4})+$",
     },
-    "3120": {
-        NAME: "message_3120",  # Error Report?
+    "3120": {  # unknown - Error Report?
+        NAME: "message_3120",
     },
-    "313F": {
+    "313F": {  # datetime
         NAME: "datetime",
         RQ: r"^00$",
     },
-    "3150": {
+    "3150": {  # heat_demand
         NAME: "heat_demand",
     },
-    "31D9": {
+    "31D9": {  # unknown
         NAME: "message_31d9",
         RQ: r"^00$",
     },
-    "31DA": {
+    "31DA": {  # unknown
         NAME: "message_31da",
         RQ: r"^(00|21)$"
         # RQ --- 32:168090 30:082155 --:------ 31DA 001 21
     },
-    "31E0": {
-        NAME: "ext_ventilation",  # External Ventilation?
+    "31E0": {  # ext_ventilation - External Ventilation?
+        NAME: "ext_ventilation",
         I_: r"^0000(00|C8)00$",
     },
-    "3220": {
+    "3220": {  # opentherm_msg
         NAME: "opentherm_msg",
         RQ: r"^00[0-9A-F]{4}0{4}$",
         RQ_MAY_HAVE_PAYLOAD: True,
     },
-    "3B00": {
+    "3B00": {  # actuator_sync
         NAME: "actuator_sync",
     },  # No RQ
-    "3EF0": {
+    "3EF0": {  # actuator_state
         NAME: "actuator_state",
         RQ: r"^00$",
     },
-    "3EF1": {
+    "3EF1": {  # actuator_cycle
         NAME: "actuator_cycle",
         RQ: r"^0[0-9A-F](00)?$",  # NOTE: both seen in the wild
     },
@@ -472,7 +472,11 @@ RAMSES_DEVICES = {
         "31D9": {I_: {}},
         "31DA": {I_: {}, RP: {}},
     },
-    "31": {"0008": {I_: {}}, "10E0": {I_: {}}, "3EF1": {RQ: {}}},
+    "31": {
+        "0008": {I_: {}},
+        "10E0": {I_: {}},
+        "3EF1": {RQ: {}},
+    },
     "32": {  # HVAC: switch/sensor?
         "1060": {I_: {}},
         "10E0": {I_: {}},
