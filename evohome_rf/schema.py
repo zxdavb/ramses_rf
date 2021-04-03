@@ -254,13 +254,18 @@ def load_config_schema(serial_port, input_file, **kwargs) -> Tuple[dict, list, l
     if config[DISABLE_SENDING]:
         config[DISABLE_DISCOVERY] = True
 
-    if config[ENFORCE_ALLOWLIST] and config[ENFORCE_BLOCKLIST] is None:
-        config[ENFORCE_BLOCKLIST] = False
-    elif config[ENFORCE_BLOCKLIST] and config[ENFORCE_ALLOWLIST] is None:
-        config[ENFORCE_ALLOWLIST] = False
-    elif config[ENFORCE_ALLOWLIST] is None and config[ENFORCE_BLOCKLIST] is None:
-        config[ENFORCE_ALLOWLIST] = bool(allow_list)
-        config[ENFORCE_BLOCKLIST] = bool(block_list)
+    if config[ENFORCE_ALLOWLIST] is None:
+        config[ENFORCE_ALLOWLIST] = (
+            False if config[ENFORCE_BLOCKLIST] else bool(allow_list)
+        )
+    if config[ENFORCE_BLOCKLIST] is None:
+        config[ENFORCE_BLOCKLIST] = (
+            False if config[ENFORCE_ALLOWLIST] else bool(block_list)
+        )
+
+    assert (
+        config[ENFORCE_ALLOWLIST] is not None and config[ENFORCE_BLOCKLIST] is not None
+    )
 
     if config[ENFORCE_ALLOWLIST] and not allow_list:
         _LOGGER.warning(f"An empty {ALLOW_LIST} was enabled, so will be ignored")
