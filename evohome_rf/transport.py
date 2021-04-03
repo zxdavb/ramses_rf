@@ -98,7 +98,7 @@ class SerTransportRead(asyncio.ReadTransport):
                     await asyncio.sleep(0)
             else:
                 for dtm_pkt_line in self._packets:
-                    self._protocol.data_received(dtm_pkt_line.strip())  # .upper()
+                    self._protocol.data_received(dtm_pkt_line.strip())  # .upper())
                     await asyncio.sleep(0)
 
             if DEV_MODE:
