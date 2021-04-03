@@ -150,10 +150,18 @@ def _idx(seqx, msg) -> dict:
         return {"other_idx": seqx}
 
     elif msg.code == "0016":  # WIP, not normally {"uses_zone_idx": True}
-        # if {"12", "22"} & {msg.src.type, msg.dst.type}:
-        assert int(seqx, 16) < msg._gwy.config[MAX_ZONES]
-        idx_name = "zone_idx" if msg.src.type in ("01", "02", "18") else "parent_idx"
-        return {idx_name: seqx}
+        if {"12", "22"} & {msg.src.type, msg.dst.type}:
+            assert int(seqx, 16) < msg._gwy.config[MAX_ZONES], "22/0016: invalid _idx"
+            idx_name = (
+                "zone_idx" if msg.src.type in ("01", "02", "18") else "parent_idx"
+            )
+            return {idx_name: seqx}
+        elif {"07", "10", "13"} & {msg.src.type, msg.dst.type}:
+            assert seqx == "00", "xx/0016: invalid _idx"
+            return {}
+        else:
+            assert seqx == "00", "zz/0016: invalid _idx"
+            return {}
 
     elif msg.code in MAY_USE_DOMAIN_ID and seqx in DOMAIN_TYPE_MAP:
         # no false +ve/-ves, although FF is not a true domain
