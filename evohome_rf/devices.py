@@ -513,8 +513,8 @@ class Controller(Device):  # CTL: 01
         self._domain_id = "FF"
         self._evo = None
 
-        self.devices = list()  # [self]
-        self.device_by_id = dict()  # {self.id: self}
+        self.devices = []  # [self]
+        self.device_by_id = {}  # {self.id: self}
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
@@ -552,8 +552,8 @@ class UfhController(Device):  # UFC: 02
         self._circuits = {}
         self._setpoints = None
 
-        self.devices = list()  # [self]
-        self.device_by_id = dict()  # {self.id: self}
+        self.devices = []  # [self]
+        self.device_by_id = {}  # {self.id: self}
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
