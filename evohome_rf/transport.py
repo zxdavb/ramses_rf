@@ -45,7 +45,7 @@ ERR_MSG_REGEX = re.compile(r"^([0-9A-F]{2}\.)+$")
 
 POLLER_TASK = "poller_task"
 
-DEFAULT_SERIAL_CONFIG = SERIAL_CONFIG_SCHEMA(dict())
+DEFAULT_SERIAL_CONFIG = SERIAL_CONFIG_SCHEMA({})
 
 Pause = SimpleNamespace(
     NONE=td(seconds=0),
