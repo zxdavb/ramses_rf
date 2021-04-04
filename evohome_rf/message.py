@@ -42,6 +42,7 @@ from .ramses import RAMSES_CODES as RAMSES_CODES
 from .schema import (
     DONT_CREATE_ENTITIES,
     DONT_UPDATE_ENTITIES,
+    ENABLE_EAVESDROP,
     REDUCE_PROCESSING,
     USE_NAMES,
 )
@@ -406,12 +407,15 @@ def process_msg(msg: Message) -> None:
             if device.__class__ is Device:
                 device.__class__ = FanDevice  # HACK: because my HVAC is a 30:
 
-        # if not isinstance(this._gwy.evo, Evohome):  # WIP: config{"use_eavesdropper"}
-        if this.src.type in ("01", "23"):  # TODO: "30" for VMS
-            this._gwy._get_device(this.dst, ctl_addr=this.src)
+        if this.src.type in ("01", "23") and this.src is not this.dst:  # TODO: all CTLs
+            this.src = this._gwy._get_device(this.src, ctl_addr=this.src)
+            ctl_addr = this.src if msg._gwy.config[ENABLE_EAVESDROP] else None
+            this._gwy._get_device(this.dst, ctl_addr=ctl_addr)
 
-        elif this.dst.type in ("01", "23"):  # TODO: "30" for VMS
-            this._gwy._get_device(this.src, ctl_addr=this.dst)
+        elif this.dst.type in ("01", "23") and this.src is not this.dst:  # all CTLs
+            this.dst = this._gwy._get_device(this.dst, ctl_addr=this.dst)
+            ctl_addr = this.dst if msg._gwy.config[ENABLE_EAVESDROP] else None
+            this._gwy._get_device(this.src, ctl_addr=ctl_addr)
 
         # TODO: will need other changes before these two will work...
         # TODO: the issue is, if the 1st pkt is not a 1F09 (or a list 000A/2309/30C9)
@@ -422,7 +426,7 @@ def process_msg(msg: Message) -> None:
         # TODO: ...such as means to promote a device to a controller
 
         # this should catch all non-controller (and *some* controller) devices
-        elif this.dst is this.src:
+        elif this.src is this.dst:
             this._gwy._get_device(this.src)
 
         # otherwise one will be a controller, *unless* dst is in ("--", "63")
@@ -534,17 +538,18 @@ def process_msg(msg: Message) -> None:
 
         # some devices aren't created if they're filtered out (in create_devices?)
         if this.src not in this._gwy.devices:
+            assert False, "what!!"
             return
             # 0008: BDR/RP, ir CTL/I/domain_id = F9/FA
             # 10A0: CTL/RP/dhw_idx
             # 1260: RP from CTL, or eavesdrop sensor
             # 1F41: eavesdrop
 
-        # some empty payloads may still be useful (e.g. RQ/3EF1/{})
+        # some empty payloads may still be useful (e.g. Rx/3EF0/{}, RQ/3EF1/{})
         this._gwy.device_by_id[this.src.id]._handle_msg(this)
         # if payload is {} (empty dict; lists shouldn't ever be empty)
-        if not this.payload:
-            return
+        # if not this.payload:
+        #     return
 
         for evo in this._gwy.systems:
             # if this.src == evo:  # TODO: or this.src.id == evo.id?
@@ -591,6 +596,7 @@ def process_msg(msg: Message) -> None:
 
     try:  # process the payload
         create_devices(msg)  # from pkt header & from msg payload (e.g. 000C)
+        # if msg._evo:  # TODO:
         create_zones(msg)  # create zones & ufh_zones (TBD)
 
         if msg._gwy.config[REDUCE_PROCESSING] < DONT_UPDATE_ENTITIES:

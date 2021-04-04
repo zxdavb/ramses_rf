@@ -27,6 +27,7 @@ from .exceptions import CorruptStateError
 from .helpers import dev_id_to_hex
 from .opentherm import VALUE
 from .ramses import RAMSES_DEVICES
+from .schema import ENABLE_EAVESDROP
 
 MSG_ID = "msg_id"
 
@@ -364,10 +365,9 @@ class Device(DeviceInfo, DeviceBase):
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        # TODO: status updates always, but...
-        # TODO: schema updates only if eavesdropping is enabled.
-        # if self._ctl is not None and "parent_idx" in msg.payload:
-        #     self._set_zone(self._ctl._evo._get_zone(msg.payload["parent_idx"]))
+        if msg._gwy.config[ENABLE_EAVESDROP]:
+            if self._ctl is not None and "parent_idx" in msg.payload:
+                self._set_zone(self._ctl._evo._get_zone(msg.payload["parent_idx"]))
 
     def _set_parent(self, parent, domain=None) -> None:
         """Set the device's parent zone, after validating it."""
