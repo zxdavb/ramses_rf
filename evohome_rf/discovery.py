@@ -314,12 +314,13 @@ async def scan_002(gwy, dev_id: str):
     _LOGGER.warning("scan_002() invoked - expect a lot of nonsense")
 
     # Two modes, I and W & Two headers zz00 and zz
-    message = "0000" + "".join([f"{ord(x):02X}" for x in "Hello there."]) + "00"
+    message = "0000" + "".join(f"{ord(x):02X}" for x in "Hello there.") + "00"
     qos = {"priority": Priority.LOW, "retries": 0}
-    for code in [f"{c:04X}" for c in range(0x4000)]:
-        if code in RAMSES_CODES:  # no need to test known codes
-            continue
-        gwy.send_cmd(Command(" W", dev_id, code, message, **qos))
+    [
+        gwy.send_cmd(Command(" W", dev_id, f"{c:04X}", message, **qos))
+        for c in range(0x4000)
+        if c not in RAMSES_CODES
+    ]
 
 
 async def scan_003(gwy, dev_id: str):
