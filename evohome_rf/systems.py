@@ -424,7 +424,6 @@ class MultiZone:  # 0005 (+/- 000C?)
             }  # zones with changed temps
             _LOGGER.debug("Changed zones (from 30C9): %s", changed_zones)
             if not changed_zones:
-                print("AAA")
                 return  # ctl's 30C9 says no zones have changed temps during this cycle
 
             testable_zones = _testable_zones(changed_zones)
