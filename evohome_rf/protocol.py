@@ -30,7 +30,7 @@ class MakeCallbackAwaitable:
     DEFAULT_TIMEOUT = 3  # in seconds
 
     def __init__(self, loop):
-        self._loop = loop if loop else asyncio.get_event_loop()
+        self._loop = loop or asyncio.get_event_loop()
         self._queue = None
 
     def create_pair(self) -> Tuple[Callable, Callable]:
@@ -146,7 +146,7 @@ class MessageTransport(asyncio.Transport):
                 _LOGGER.error("MsgTransport._pkt_receiver(%s): Expired callback", hdr)
                 callback["func"](False, *callback.get("args", tuple()))
 
-        self._callbacks = {  # 2nd, discard expired callbacks
+        self._callbacks = {  # 2nd, discard any expired callbacks
             hdr: callback
             for hdr, callback in self._callbacks.items()
             if callback.get("daemon") or callback["expires"] >= pkt._dtm
@@ -163,13 +163,15 @@ class MessageTransport(asyncio.Transport):
             return
 
         _LOGGER.info("MsgTransport._pkt_receiver(pkt): %s", msg)
-        if msg._pkt._header in self._callbacks:  # 3rd, invoke any callback
-            callback = self._callbacks[msg._pkt._header]
+        # NOTE: msg._pkt._header is expensive - don't call it unless there's callbacks
+        if self._callbacks and msg._pkt._header in self._callbacks:
+            callback = self._callbacks[msg._pkt._header]  # 3rd, invoke any callback
             callback["func"](msg, *callback.get("args", tuple()))
             if not callback.get("daemon"):
                 del self._callbacks[msg._pkt._header]
 
         [p.data_received(msg) for p in self._protocols]
+        # NOTE: this doesn't appear to be any faster...
         # [
         #     self._gwy._loop.run_in_executor(None, p.data_received, msg)
         #     for p in self._protocols
@@ -274,15 +276,10 @@ class MessageTransport(asyncio.Transport):
         """
         _LOGGER.debug("MsgTransport.set_write_buffer_limits()")
 
-        if high is None:
-            self._write_buffer_limit_high = 10
-        else:
-            self._write_buffer_limit_high = high
-
-        if low is None:
-            self._write_buffer_limit_low = int(self._write_buffer_limit_high * 0.8)
-        else:
-            self._write_buffer_limit_low = low
+        self._write_buffer_limit_high = 10 if high is None else high
+        self._write_buffer_limit_low = (
+            int(self._write_buffer_limit_high * 0.8) if low is None else low
+        )
 
         assert 0 <= self._write_buffer_limit_low <= self._write_buffer_limit_high
 
@@ -432,7 +429,7 @@ class MessageProtocol(asyncio.Protocol):
         """Called when the connection is lost or closed."""
         _LOGGER.debug("MsgProtocol.connection_lost(%s)", exc)
         if exc is not None:
-            pass
+            raise exc
 
     def pause_writing(self) -> None:
         """Called by the transport when it's buffer goes over the high-water mark."""
