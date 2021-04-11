@@ -65,7 +65,7 @@ class Gateway:
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
         _LOGGER.debug("Starting evohome_rf, **kwargs = %s", kwargs)
 
-        self._loop = loop if loop else asyncio.get_running_loop()
+        self._loop = loop or asyncio.get_running_loop()
         self._tasks = []
 
         self.serial_port = serial_port
