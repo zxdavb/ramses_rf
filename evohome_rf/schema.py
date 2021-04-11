@@ -213,7 +213,7 @@ GLOBAL_CONFIG_SCHEMA = vol.Schema(
         vol.Required(CONFIG): CONFIG_SCHEMA.extend(
             {
                 vol.Optional(SERIAL_CONFIG): SERIAL_CONFIG_SCHEMA,
-                vol.Optional(PACKET_LOG): PACKET_LOG_SCHEMA,
+                vol.Optional(PACKET_LOG, default={}): vol.Any({}, PACKET_LOG_SCHEMA),
             }
         ),
         vol.Optional(ALLOW_LIST, default={}): vol.All(KNOWNS_SCHEMA, vol.Length(min=0)),
