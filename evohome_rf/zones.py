@@ -35,7 +35,8 @@ from .const import (
 )
 from .devices import Device, Entity
 from .exceptions import CorruptStateError
-from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
+
+# from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
 
 DEV_MODE = __dev_mode__ and False
 
@@ -84,23 +85,15 @@ class ZoneBase(Entity, metaclass=ABCMeta):
         # TODO: assert msg.src is self, "Devices should only keep msgs they sent"
         super()._handle_msg(msg)
 
-        if True or not self._zone_type:
-            return
-
-        ramses_zones = RAMSES_ZONES if self._zone_type else {None: RAMSES_ZONES_ALL}
-
-        if self._zone_type not in ramses_zones:
-            assert False, f"Unknown zone type: {str(self)} (likely a corrupt pkt)"
-
-        elif msg.code not in ramses_zones[self._zone_type]:
-            assert (
-                ramses_zones[self._zone_type] == {}
-            ), f"Unknown code for {str(self)}: {msg.verb}/{msg.code}"
-
-        elif msg.verb not in ramses_zones[self._zone_type][msg.code]:
-            assert (
-                ramses_zones[self._zone_type][msg.code] == {}
-            ), f"Unknown verb for {str(self)}: {msg.verb}/{msg.code}"
+        # if not self._zone_type:
+        #     return
+        # ramses_zones = RAMSES_ZONES.get(self._zone_type, RAMSES_ZONES_ALL)
+        # assert (
+        #     msg.code in ramses_zones
+        # ), f"Unknown code for {str(self)}: {msg.verb}/{msg.code}"
+        # assert (
+        #     msg.verb in ramses_zones[msg.code]
+        # ), f"Unknown verb for {str(self)}: {msg.verb}/{msg.code}"
 
     def _send_cmd(self, code, **kwargs) -> None:
         dest = kwargs.pop("dest_addr", self._ctl.id)
@@ -172,11 +165,10 @@ class ZoneBase(Entity, metaclass=ABCMeta):
         """Return the measured temperature of the zone/DHW."""
         raise NotImplementedError
 
-    # @property
-    # @abstractmethod
-    # def type(self) -> str:
-    #     """Return the type of the zone/DHW (e.g. electric_zone, stored_dhw)."""
-    #     raise NotImplementedError
+    @property
+    def heating_type(self) -> str:
+        """Return the type of the zone/DHW (e.g. electric_zone, stored_dhw)."""
+        return self._zone_type
 
     # @abstractmethod
     # def ._set_zone_type(self, value: str) -> None:
@@ -202,7 +194,7 @@ class DhwZone(ZoneBase):
         self._dhw_valve = None
         self._htg_valve = None
 
-        self.heating_type = Zone.DHW
+        self._zone_type = Zone.DHW
 
         self._dhw_mode = None
         self._dhw_params = None
@@ -640,14 +632,15 @@ class Zone(ZoneSchedule, ZoneBase):
         if _type not in ZONE_CLASSES:
             raise ValueError(f"Not a known zone type: {zone_type}")
 
-        if self._zone_type is not None:
-            if self._zone_type != _type and (
-                self._zone_type != "ELE" and _type != "VAL"
-            ):
-                raise CorruptStateError(
-                    f"Zone {self} has a mismatched type: "
-                    f"old={self._zone_type}, new={_type}"
-                )
+        if (
+            self._zone_type is not None
+            and self._zone_type != _type
+            and (self._zone_type != "ELE" and _type != "VAL")
+        ):
+            raise CorruptStateError(
+                f"Zone {self} has a mismatched type: "
+                f"old={self._zone_type}, new={_type}"
+            )
 
         self._zone_type = _type
         self.__class__ = ZONE_CLASSES[_type]
