@@ -798,7 +798,7 @@ def ot_msg_value(val_seqx, val_type) -> Any:
         """Split a byte (as a str) into a list of 8 bits (1/0)."""
         ret = [0] * 8
         byte = bytes.fromhex(byte)[0]
-        for i in range(0, 8):
+        for i in range(8):
             ret[i] = byte & 1
             byte = byte >> 1
         return ret
