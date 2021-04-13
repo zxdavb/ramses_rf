@@ -21,7 +21,6 @@ from typing import Optional
 
 from .const import (
     CODE_SCHEMA,
-    CODES_SANS_DOMAIN_ID,
     COMMAND_REGEX,
     HGI_DEV_ADDR,
     NON_DEV_ADDR,
@@ -61,6 +60,25 @@ TIMER_LONG_TIMEOUT = td(seconds=60)
 
 FIVE_MINS = td(minutes=5)
 
+CALLBACK = "callback"
+DEAMON = "daemon"
+EXPIRES = "expires"
+FUNC = "func"
+ARGS = "args"
+
+QOS = "qos"
+DISABLE_BACKOFF = "disable_backoff"
+PRIORITY = "priority"
+RETRIES = "retries"
+TIMEOUT = "timeout"
+QOS_KEYS = (DISABLE_BACKOFF, PRIORITY, RETRIES, TIMEOUT)
+
+FRAGMENT = "fragment"
+FRAG_INDEX = "frag_index"
+FRAG_TOTAL = "frag_total"
+MSG = "msg"
+
+I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
 
 Priority = SimpleNamespace(LOWEST=8, LOW=6, DEFAULT=4, HIGH=2, HIGHEST=0)
 
@@ -76,15 +94,15 @@ def _pkt_header(pkt: str, rx_header=None) -> Optional[str]:
 
     verb = pkt[4:6]
     if rx_header:
-        verb = "RP" if verb == "RQ" else " I"  # RQ/RP, or W/I
+        verb = RP if verb == RQ else I_  # RQ/RP, or W/I
     code = pkt[41:45]
     src, dst, _ = extract_addrs(pkt[11:40])
-    addr = dst.id if src.type == "18" else src.id
+    addr = dst if src.type == "18" else src
     payload = pkt[50:]
 
-    header = "|".join((verb, addr, code))
+    header = "|".join((verb, addr.id, code))
 
-    if code in ("0001", "7FFF") and rx_header:
+    if code in ("0001", "7FFF") and rx_header:  # code has no no RQ, no W
         return
 
     if code in ("0005", "000C"):  # zone_idx, device_class
@@ -98,7 +116,7 @@ def _pkt_header(pkt: str, rx_header=None) -> Optional[str]:
             return header
         return "|".join((header, payload[4:6]))
 
-    if code in CODES_SANS_DOMAIN_ID:  # have no domain_id
+    if code in ("1F09", "1FC9", "2E04"):  # have no domain_id
         return header
 
     return "|".join((header, payload[:2]))  # assume has a domain_id
@@ -111,10 +129,10 @@ class Command:
     def __init__(self, verb, dest_id, code, payload, **kwargs) -> None:
         """Initialise the class."""
 
-        assert "qos" not in kwargs, "FIXME"
+        assert QOS not in kwargs, "FIXME"
 
         self.verb = f"{verb:>2}"[:2]
-        assert self.verb in (" I", "RQ", "RP", " W"), f"invalid verb: '{self.verb}'"
+        assert self.verb in (I_, RQ, RP, W_), f"invalid verb: '{self.verb}'"
 
         self.seqn = "---"
         self.from_addr, self.dest_addr, self.addrs = extract_addrs(
@@ -128,13 +146,13 @@ class Command:
             raise ValueError(f"Invalid parameter values for command: {self}")
 
         # callback used by app layer (protocol.py)
-        self.callback = kwargs.pop("callback", {})  # func, args, daemon, timeout
+        self.callback = kwargs.pop(CALLBACK, {})  # func, args, daemon, timeout
 
         # qos used by pkt layer (transport.py)
         self.qos = self._qos(**kwargs)  # disable_backoff, priority, retries, timeout
 
         # priority used by msg layer for next cmd to send (protocol.py)
-        self._priority = self.qos.pop("priority", Priority.DEFAULT)
+        self._priority = self.qos.pop(PRIORITY, Priority.DEFAULT)
         self._priority_dtm = dt_now()
 
         self._rx_header = None
@@ -162,22 +180,21 @@ class Command:
     def _qos(self, **kwargs) -> dict:
         """Return the default QoS params of this (request) packet."""
 
-        KEYS = ("disable_backoff", "priority", "retries", "timeout")
         qos = {
-            k: v for k, v in kwargs.items() if k in KEYS
+            k: v for k, v in kwargs.items() if k in QOS_KEYS
         }  # the defaults for these are in packet.py
 
-        if self.code in ("0016", "1F09") and self.verb == "RQ":
-            qos["priority"] = qos.get("priority", Priority.HIGH)
-            qos["retries"] = qos.get("retries", 5)
+        if self.code in ("0016", "1F09") and self.verb == RQ:
+            qos[PRIORITY] = qos.get(PRIORITY, Priority.HIGH)
+            qos[RETRIES] = qos.get(RETRIES, 5)
 
-        elif self.code == "0404" and self.verb in ("RQ", " W"):
-            qos["priority"] = qos.get("priority", Priority.HIGH)
-            qos["timeout"] = qos.get("timeout", td(seconds=0.30))
+        elif self.code == "0404" and self.verb in (RQ, W_):
+            qos[PRIORITY] = qos.get(PRIORITY, Priority.HIGH)
+            qos[TIMEOUT] = qos.get(TIMEOUT, td(seconds=0.30))
 
-        elif self.code == "0418" and self.verb == "RQ":
-            qos["priority"] = qos.get("priority", Priority.LOW)
-            qos["retries"] = qos.get("retries", 3)
+        elif self.code == "0418" and self.verb == RQ:
+            qos[PRIORITY] = qos.get(PRIORITY, Priority.LOW)
+            qos[RETRIES] = qos.get(RETRIES, 3)
 
         return qos
 
@@ -211,9 +228,7 @@ class Command:
 
         # assert self.code in [k for k, v in RAMSES_CODES.items() if v.get(self.verb)]
 
-        if not COMMAND_REGEX.match(str(self)):
-            self._is_valid = False
-        elif 2 > len(self.payload) > 96:
+        if not COMMAND_REGEX.match(str(self)) or 2 > len(self.payload) > 96:
             self._is_valid = False
         else:
             self._is_valid = True
@@ -246,7 +261,7 @@ class Command:
     @classmethod  # constructor for 1F41  # TODO
     def get_dhw_mode(cls, ctl_id, **kwargs):
         """Constructor to get the mode of the DHW (c.f. parser_1f41)."""
-        return cls("RQ", ctl_id, "1F41", "00", **kwargs)
+        return cls(RQ, ctl_id, "1F41", "00", **kwargs)
 
     @classmethod  # constructor for 1F41  # TODO
     def set_dhw_mode(cls, ctl_id, mode=None, active: bool = None, until=None, **kwargs):
@@ -281,7 +296,7 @@ class Command:
         payload += ZONE_MODE_LOOKUP[mode] + "FFFFFF"
         payload += "" if until is None else dtm_to_hex(until)
 
-        return cls("W", ctl_id, "1F41", payload, **kwargs)
+        return cls(W_, ctl_id, "1F41", payload, **kwargs)
 
     @classmethod  # constructor for 10A0  # TODO
     def set_dhw_params(
@@ -308,13 +323,13 @@ class Command:
 
         payload = f"00{temp_to_hex(setpoint)}{overrun:02X}{temp_to_hex(differential)}"
 
-        return cls("W", ctl_id, "10A0", payload, **kwargs)
+        return cls(W_, ctl_id, "10A0", payload, **kwargs)
 
     @classmethod  # constructor for RQ/0404  # TODO
     def get_dhw_schedule_fragment(cls, ctl_id, frag_idx, frag_cnt, **kwargs):
         """Constructor to get a DHW schedule fragment (c.f. parser_0404)."""
         payload = f"0023000800{frag_idx + 1:02X}{frag_cnt:02X}"
-        return cls("RQ", ctl_id, "0404", payload, **kwargs)
+        return cls(RQ, ctl_id, "0404", payload, **kwargs)
 
     @classmethod  # constructor for 1030  # TODO
     def set_mix_valve_params(
@@ -342,18 +357,18 @@ class Command:
         payload += f"CB01{pump_run_time:02X}"
         payload += f"CC01{1:02X}"
 
-        return cls("W", ctl_id, "1030", payload, **kwargs)
+        return cls(W_, ctl_id, "1030", payload, **kwargs)
 
     @classmethod  # constructor for RQ/0418  # TODO
     def get_system_log_entry(cls, ctl_id, log_idx, **kwargs):
         """Constructor to get a log entry from a system (c.f. parser_0418)."""
         log_idx = log_idx if isinstance(log_idx, int) else int(log_idx, 16)
-        return cls("RQ", ctl_id, "0418", f"{log_idx:06X}", **kwargs)
+        return cls(RQ, ctl_id, "0418", f"{log_idx:06X}", **kwargs)
 
     @classmethod  # constructor for RQ/2E04
     def get_system_mode(cls, ctl_id, **kwargs):
         """Constructor to get the mode of a system (c.f. parser_2e04)."""
-        return cls("RQ", ctl_id, "2E04", "FF", **kwargs)
+        return cls(RQ, ctl_id, "2E04", "FF", **kwargs)
 
     @classmethod  # constructor for 2E04  # TODO
     def set_system_mode(cls, ctl_id, system_mode, until=None, **kwargs):
@@ -380,31 +395,31 @@ class Command:
         payload = SYSTEM_MODE_LOOKUP[system_mode]
         payload += dtm_to_hex(until) + ("00" if until is None else "01")
 
-        return cls("W", ctl_id, "2E04", payload, **kwargs)
+        return cls(W_, ctl_id, "2E04", payload, **kwargs)
 
     @classmethod  # constructor for RQ/3220  # TODO
     def get_opentherm_data(cls, dev_id, msg_id, **kwargs):
         """Constructor to get (Read-Data) opentherm msg value (c.f. parser_3220)."""
         msg_id = msg_id if isinstance(msg_id, int) else int(msg_id, 16)
         payload = f"0080{msg_id:02X}0000" if parity(msg_id) else f"0000{msg_id:02X}0000"
-        return cls("RQ", dev_id, "3220", payload, **kwargs)
+        return cls(RQ, dev_id, "3220", payload, **kwargs)
 
     @classmethod  # constructor for RQ/313F
     def get_system_time(cls, ctl_id, **kwargs):
         """Constructor to get the datetime of a system (c.f. parser_313f)."""
-        return cls("RQ", ctl_id, "313F", "00", **kwargs)
+        return cls(RQ, ctl_id, "313F", "00", **kwargs)
 
     @classmethod  # constructor for 313F
     def set_system_time(cls, ctl_id, datetime, **kwargs):
         """Constructor to set the datetime of a system (c.f. parser_313f)."""
         #  W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
 
-        return cls("W", ctl_id, "313F", f"006000{dtm_to_hex(datetime)}", **kwargs)
+        return cls(W_, ctl_id, "313F", f"006000{dtm_to_hex(datetime)}", **kwargs)
 
     @classmethod  # constructor for RQ/1100  # TODO
     def get_tpi_params(cls, ctl_id, **kwargs):
         """Constructor to get the TPI params of a system (c.f. parser_1100)."""
-        return cls("RQ", ctl_id, "1100", "FC", **kwargs)
+        return cls(RQ, ctl_id, "1100", "FC", **kwargs)
 
     @classmethod  # constructor for 1100  # TODO
     def set_tpi_params(
@@ -433,13 +448,13 @@ class Command:
         payload += f"{int(min_off_time * 4):02X}FF"
         payload += f"{temp_to_hex(proportional_band_width)}01"
 
-        return cls("W", ctl_id, "1100", payload, **kwargs)
+        return cls(W_, ctl_id, "1100", payload, **kwargs)
 
     @classmethod  # constructor for RQ/000A  # TODO
     def get_zone_config(cls, ctl_id, zone_idx, **kwargs):
         """Constructor to get the config of a zone (c.f. parser_000a)."""
         zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
-        return cls("RQ", ctl_id, "000A", f"{zone_idx:02X}00", **kwargs)
+        return cls(RQ, ctl_id, "000A", f"{zone_idx:02X}00", **kwargs)
 
     @classmethod  # constructor for 000A  # TODO
     def set_zone_config(
@@ -471,13 +486,13 @@ class Command:
         payload += temp_to_hex(min_temp)
         payload += temp_to_hex(max_temp)
 
-        return cls("W", ctl_id, "000A", payload, **kwargs)
+        return cls(W_, ctl_id, "000A", payload, **kwargs)
 
     @classmethod  # constructor for RQ/2349
     def get_zone_mode(cls, ctl_id, zone_idx, **kwargs):
         """Constructor to get the mode of a zone (c.f. parser_2349)."""
         zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
-        return cls("RQ", ctl_id, "2349", f"{zone_idx:02X}00", **kwargs)
+        return cls(RQ, ctl_id, "2349", f"{zone_idx:02X}00", **kwargs)
 
     @classmethod  # constructor for W/2349
     def set_zone_mode(
@@ -526,13 +541,13 @@ class Command:
         payload += ZONE_MODE_LOOKUP[mode] + "FFFFFF"
         payload += "" if until is None else dtm_to_hex(until)
 
-        return cls("W", ctl_id, "2349", payload, **kwargs)
+        return cls(W_, ctl_id, "2349", payload, **kwargs)
 
     @classmethod  # constructor for RQ/0004  # TODO
     def get_zone_name(cls, ctl_id, zone_idx, **kwargs):
         """Constructor to get the name of a zone (c.f. parser_0004)."""
         zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
-        return cls("RQ", ctl_id, "0004", f"{zone_idx:02X}00", **kwargs)
+        return cls(RQ, ctl_id, "0004", f"{zone_idx:02X}00", **kwargs)
 
     @classmethod  # constructor for 0004  # TODO
     def set_zone_name(cls, ctl_id, zone_idx, name: str, **kwargs):
@@ -542,7 +557,7 @@ class Command:
 
         payload += f"00{str_to_hex(name)[:24]:0<40}"  # TODO: check limit 12 (24)?
 
-        return cls("W", ctl_id, "0004", payload, **kwargs)
+        return cls(W_, ctl_id, "0004", payload, **kwargs)
 
     @classmethod  # constructor for 2309
     def set_zone_setpoint(cls, ctl_id, zone_idx, setpoint: float, **kwargs):
@@ -552,14 +567,14 @@ class Command:
         payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
         payload += temp_to_hex(setpoint)
 
-        return cls("W", ctl_id, "2309", payload, **kwargs)
+        return cls(W_, ctl_id, "2309", payload, **kwargs)
 
     @classmethod  # constructor for RQ/0404  # TODO
     def get_zone_schedule_fragment(cls, ctl_id, zone_idx, frag_idx, frag_cnt, **kwargs):
         """Constructor to get a zone schedule fragment (c.f. parser_0404)."""
         zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
         payload = f"{zone_idx:02X}20000800{frag_idx + 1:02X}{frag_cnt:02X}"
-        return cls("RQ", ctl_id, "0404", payload, **kwargs)
+        return cls(RQ, ctl_id, "0404", payload, **kwargs)
 
     @classmethod
     def _puzzle(
@@ -580,7 +595,7 @@ class Command:
         if length:
             payload = payload.ljust(length * 2, "F")
 
-        return cls("I", NUL_DEV_ADDR.id, "7FFF", payload[:48], **kwargs)
+        return cls(I_, NUL_DEV_ADDR.id, "7FFF", payload[:48], **kwargs)
 
     @classmethod
     def packet(cls, verb, seqn, addr0, addr1, addr2, code, payload, **kwargs):
@@ -590,7 +605,7 @@ class Command:
             I 056 --:------ --:------ 02:123456 99FD 003 000404
         """
 
-        verb = " I" if verb == "I" else " W" if verb == "W" else verb
+        verb = I_ if verb == I_ else W_ if verb == W_ else verb
 
         cmd = cls(verb, NUL_DEV_ADDR.id, code, payload, **kwargs)
 
@@ -690,14 +705,14 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
                 self._fault_log_done = True
 
         # TODO: (make method) register callback for null response (no payload)
-        null_header = "|".join(("RP", self.id, "0418"))
+        null_header = "|".join((RP, self.id, "0418"))
         if null_header not in self._gwy.msg_transport._callbacks:
             self._gwy.msg_transport._callbacks[null_header] = {
-                "func": rq_callback,
-                "daemon": True,
+                FUNC: rq_callback,
+                DEAMON: True,
             }
 
-        rq_callback = {"func": rq_callback, "timeout": 10}
+        rq_callback = {FUNC: rq_callback, TIMEOUT: 10}
         self._gwy.send_cmd(
             Command.get_system_log_entry(self._ctl.id, log_idx, callback=rq_callback)
         )
@@ -741,10 +756,10 @@ class Schedule:  # 0404
         if self._schedule:
             return self._schedule
 
-        if self._rx_frags[0]["msg"].payload["frag_total"] == 255:
+        if self._rx_frags[0][MSG].payload[FRAG_TOTAL] == 255:
             return {}
 
-        frags = [v for d in self._rx_frags for k, v in d.items() if k == "fragment"]
+        frags = [v for d in self._rx_frags for k, v in d.items() if k == FRAGMENT]
 
         try:
             self._schedule = self._frags_to_sched(frags)
@@ -792,29 +807,29 @@ class Schedule:  # 0404
 
             _LOGGER.debug(
                 f"Schedule({self.id})._proc_fragment(msg), frag_idx=%s, frag_cnt=%s",
-                msg.payload.get("frag_index"),
-                msg.payload.get("frag_total"),
+                msg.payload.get(FRAG_INDEX),
+                msg.payload.get(FRAG_TOTAL),
             )
 
-            if msg.payload["frag_total"] == 255:  # no schedule (i.e. no zone)
+            if msg.payload[FRAG_TOTAL] == 255:  # no schedule (i.e. no zone)
                 _LOGGER.warning(f"Schedule({self.id}): No schedule")
                 # TODO: remove any callbacks from msg._gwy.msg_transport._callbacks
                 pass  # self._rx_frags = [None]
 
-            elif msg.payload["frag_total"] != len(self._rx_frags):  # e.g. 1st frag
-                self._rx_frags = [None] * msg.payload["frag_total"]
+            elif msg.payload[FRAG_TOTAL] != len(self._rx_frags):  # e.g. 1st frag
+                self._rx_frags = [None] * msg.payload[FRAG_TOTAL]
 
-            self._rx_frags[msg.payload["frag_index"] - 1] = {
-                "fragment": msg.payload["fragment"],
-                "msg": msg,
+            self._rx_frags[msg.payload[FRAG_INDEX] - 1] = {
+                FRAGMENT: msg.payload[FRAGMENT],
+                MSG: msg,
             }
 
             # discard any fragments significantly older that this most recent fragment
             for frag in [f for f in self._rx_frags if f is not None]:
-                frag = None if frag["msg"].dtm < msg.dtm - FIVE_MINS else frag
+                frag = None if frag[MSG].dtm < msg.dtm - FIVE_MINS else frag
 
             if None in self._rx_frags:  # there are still frags to get
-                self._rq_fragment(frag_cnt=msg.payload["frag_total"])
+                self._rq_fragment(frag_cnt=msg.payload[FRAG_TOTAL])
             else:
                 self._schedule_done = True
 
@@ -833,7 +848,7 @@ class Schedule:  # 0404
         # 059 RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0304
         # 046 RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0304 6BE...
 
-        rq_callback = {"func": rq_callback, "timeout": 1}
+        rq_callback = {FUNC: rq_callback, TIMEOUT: 1}
         cmd = Command.get_zone_schedule_fragment(
             self._ctl.id, self.idx, frag_idx, frag_cnt, callback=rq_callback
         )
@@ -916,12 +931,12 @@ class Schedule:  # 0404
         def tx_callback(msg) -> None:
             _LOGGER.debug(
                 f"Schedule({self.id})._proc_fragment(msg), frag_idx=%s, frag_cnt=%s",
-                msg.payload.get("frag_index"),
-                msg.payload.get("frag_total"),
+                msg.payload.get(FRAG_INDEX),
+                msg.payload.get(FRAG_TOTAL),
             )
 
-            if msg.payload["frag_index"] < msg.payload["frag_total"]:
-                self._tx_fragment(frag_idx=msg.payload.get("frag_index"))
+            if msg.payload[FRAG_INDEX] < msg.payload[FRAG_TOTAL]:
+                self._tx_fragment(frag_idx=msg.payload.get(FRAG_INDEX))
             else:
                 self._schedule_done = True
 
@@ -932,9 +947,9 @@ class Schedule:  # 0404
             len(self._tx_frags),
             self._tx_frags[frag_idx],
         )
-        tx_callback = {"func": tx_callback, "timeout": 3}  # 1 sec too low
+        tx_callback = {FUNC: tx_callback, TIMEOUT: 3}  # 1 sec too low
         self._gwy.send_cmd(
-            Command("W", self._ctl.id, "0404", payload, callback=tx_callback)
+            Command(W_, self._ctl.id, "0404", payload, callback=tx_callback)
         )
 
     async def _obtain_lock(self) -> bool:  # Lock to prevent Rx/Tx at same time

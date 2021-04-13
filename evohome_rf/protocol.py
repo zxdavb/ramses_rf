@@ -13,7 +13,7 @@ from datetime import timedelta as td
 from queue import Empty, PriorityQueue, SimpleQueue
 from typing import Callable, List, Optional, Tuple
 
-from .command import Command
+from .command import ARGS, DEAMON, EXPIRES, FUNC, TIMEOUT, Command
 from .const import __dev_mode__
 from .message import Message
 from .schema import DISABLE_SENDING, DONT_CREATE_MESSAGES, REDUCE_PROCESSING
@@ -101,10 +101,10 @@ class MessageTransport(asyncio.Transport):
         async def call_send_data(cmd):
             _LOGGER.debug("MsgTransport.pkt_dispatcher(%s): send_data", cmd)
             if cmd.callback:
-                cmd.callback["expires"] = (
+                cmd.callback[EXPIRES] = (
                     dt.max
-                    if cmd.callback.get("daemon")
-                    else dt.now() + td(cmd.callback.get("timeout", 1))
+                    if cmd.callback.get(DEAMON)
+                    else dt.now() + td(cmd.callback.get(TIMEOUT, 1))
                 )
                 self._callbacks[cmd.rx_header] = cmd.callback
 
@@ -136,20 +136,20 @@ class MessageTransport(asyncio.Transport):
         return self._extra[self.WRITER_TASK]
 
     def _pkt_receiver(self, pkt):
-        _LOGGER.debug("MsgTransport._pkt_receiver(%s)", pkt)
+        # _LOGGER.debug("MsgTransport._pkt_receiver(%s)", pkt)
 
         for (
             hdr,
             callback,
         ) in self._callbacks.items():  # 1st, notify all expired callbacks
-            if callback.get("expires", dt.max) < pkt._dtm:
+            if callback.get(EXPIRES, dt.max) < pkt._dtm:
                 _LOGGER.error("MsgTransport._pkt_receiver(%s): Expired callback", hdr)
-                callback["func"](False, *callback.get("args", tuple()))
+                callback[FUNC](False, *callback.get(ARGS, tuple()))
 
         self._callbacks = {  # 2nd, discard any expired callbacks
             hdr: callback
             for hdr, callback in self._callbacks.items()
-            if callback.get("daemon") or callback["expires"] >= pkt._dtm
+            if callback.get(DEAMON) or callback[EXPIRES] >= pkt._dtm
         }
 
         if len(self._protocols) == 0:
@@ -162,16 +162,17 @@ class MessageTransport(asyncio.Transport):
         if not msg.is_valid:
             return
 
-        _LOGGER.info("MsgTransport._pkt_receiver(pkt): %s", msg)
+        # _LOGGER.info("MsgTransport._pkt_receiver(pkt): %s", msg)
         # NOTE: msg._pkt._header is expensive - don't call it unless there's callbacks
         if self._callbacks and msg._pkt._header in self._callbacks:
             callback = self._callbacks[msg._pkt._header]  # 3rd, invoke any callback
-            callback["func"](msg, *callback.get("args", tuple()))
-            if not callback.get("daemon"):
+            callback[FUNC](msg, *callback.get(ARGS, tuple()))
+            if not callback.get(DEAMON):
                 del self._callbacks[msg._pkt._header]
 
+        # TODO: think about wrapping in an exceptionhandler...
         [p.data_received(msg) for p in self._protocols]
-        # NOTE: this doesn't appear to be any faster...
+        # NOTE: this doesn't work...
         # [
         #     self._gwy._loop.run_in_executor(None, p.data_received, msg)
         #     for p in self._protocols
@@ -412,8 +413,8 @@ class MessageProtocol(asyncio.Protocol):
             awaitable, callback = MakeCallbackAwaitable(self._loop).create_pair()
         if callback:
             cmd.callback = {
-                "func": callback,
-                "timeout": 3,
+                FUNC: callback,
+                TIMEOUT: 3,
             }  # func, args, daemon, timeout (& expired)
 
         while self._pause_writing:
@@ -422,7 +423,7 @@ class MessageProtocol(asyncio.Protocol):
         self._transport.write(cmd)
 
         if awaitable:
-            result = await awaitable(timeout=kwargs.get("timeout"))  # may: TimeoutError
+            result = await awaitable(timeout=kwargs.get(TIMEOUT))  # may: TimeoutError
             return result[0]  # a Message (or None/False?)
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
