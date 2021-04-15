@@ -38,6 +38,8 @@ from .exceptions import CorruptStateError
 
 # from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
 
+I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
+
 DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
@@ -435,7 +437,7 @@ class ZoneSchedule:  # 0404
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code == "0404" and msg.verb == "RP":
+        if msg.code == "0404" and msg.verb == RP:
             _LOGGER.debug("Zone(%s): Received RP/0404 (schedule) pkt", self)
 
     async def get_schedule(self, force_refresh=None) -> Optional[dict]:
@@ -539,20 +541,20 @@ class Zone(ZoneSchedule, ZoneBase):
         elif msg.code == "12B0":
             self._window_open = msg
 
-        elif msg.code == "2309" and msg.verb in (" I", "RP"):  # setpoint
+        elif msg.code == "2309" and msg.verb in (I_, RP):  # setpoint
             assert msg.src.type == "01", "coding error zxw"
             self._setpoint = msg
 
-        elif msg.code == "2349" and msg.verb in (" I", "RP"):  # mode, setpoint
+        elif msg.code == "2349" and msg.verb in (I_, RP):  # mode, setpoint
             assert msg.src.type == "01", "coding error zxx"
             self._mode = msg
             self._setpoint = msg
 
-        elif msg.code == "30C9" and msg.verb in (" I", "RP"):  # used by sensor matching
+        elif msg.code == "30C9" and msg.verb in (I_, RP):  # used by sensor matching
             assert msg.src.type in DEVICE_HAS_ZONE_SENSOR + ("01",), "coding error"
             self._temperature = msg
 
-        elif msg.code == "3150":  # TODO: and msg.verb in (" I", "RP")?
+        elif msg.code == "3150":  # TODO: and msg.verb in (I_, RP)?
             assert msg.src.type in ("00", "02", "04", "13")
             assert self._zone_type in (None, "RAD", "UFH", "VAL")  # MIX/ELE don't 3150
 
@@ -904,7 +906,7 @@ class UfhZone(ZoneDemand, Zone):
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code == "22C9" and msg.verb == " I":
+        if msg.code == "22C9" and msg.verb == I_:
             self._ufh_setpoint = msg
 
     @property
@@ -928,7 +930,7 @@ class MixZone(Zone):
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code == "1030" and msg.verb == " I":
+        if msg.code == "1030" and msg.verb == I_:
             self._mix_config = msg
 
     @property
