@@ -199,7 +199,7 @@ def dev_id_to_hex(device_id: str) -> str:
     return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # no preceding 0x
 
 
-@lru_cache(maxsize=128)
+@lru_cache(maxsize=256)  # there is definite value in caching this
 def extract_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
     """Return the address fields from (e.g): '01:078710 --:------ 01:144246 '."""
 
