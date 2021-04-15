@@ -6,6 +6,9 @@
 evohome_rf is used to parse/process Honeywell's RAMSES-II packets.
 """
 
+# import cProfile
+# import pstats
+
 import asyncio
 import json
 import logging
@@ -195,6 +198,7 @@ class PortCommand(click.Command):
 @click.pass_obj
 def parse(obj, **kwargs):
     """Parse a log file for messages/packets."""
+
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
     lib_kwargs[INPUT_FILE] = lib_kwargs[CONFIG].pop(INPUT_FILE)
@@ -332,6 +336,7 @@ async def main(lib_kwargs, **kwargs):
         print(f"Schema[devices] = {json.dumps(devices, indent=4)}")
 
     def process_message(msg) -> None:
+        # return
         dtm = msg.dtm if kwargs["long_dates"] else f"{msg.dtm:%H:%M:%S.%f}"[:-3]
         if msg.src.type == "18":
             print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
@@ -419,7 +424,13 @@ cli.add_command(execute)
 cli.add_command(listen)
 
 if __name__ == "__main__":
+    # profile = cProfile.Profile()
+
     try:
+        # profile.run("cli()")
         cli()
     except SystemExit:
         pass
+
+    # ps = pstats.Stats(profile)
+    # ps.sort_stats(pstats.SortKey.TIME).print_stats(60)
