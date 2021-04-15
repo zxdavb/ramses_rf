@@ -29,7 +29,7 @@ from evohome_rf.schema import (
     REDUCE_PROCESSING,
     USE_NAMES,
 )
-from evohome_rf.transport import POLLER_TASK, PacketProtocolFile, create_pkt_stack
+from evohome_rf.transport import POLLER_TASK, PacketProtocolRead, create_pkt_stack
 
 CONFIG = "config"
 COMMAND = "command"
@@ -87,7 +87,7 @@ counter = 0
 last_pkt = None
 
 
-class LocalProtocol(PacketProtocolFile):
+class LocalProtocol(PacketProtocolRead):
     """Interface for a packet protocol."""
 
     pkt_callback = None

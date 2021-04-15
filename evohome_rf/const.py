@@ -3,14 +3,10 @@
 #
 """Evohome RF - a RAMSES-II protocol decoder & analyser."""
 
+import functools
 import re
 from collections import namedtuple
 from types import SimpleNamespace
-
-
-def slug(string: str) -> str:
-    return re.sub(r"[\W_]+", "_", string.lower())
-
 
 DEV_MODE = __dev_mode__ = True
 
@@ -20,8 +16,13 @@ DEV_MODE = __dev_mode__ = True
 Address = namedtuple("DeviceAddress", "id, type")
 
 
+@functools.lru_cache(maxsize=128)
 def id_to_address(device_id) -> Address:
     return Address(id=device_id, type=device_id[:2])
+
+
+def slug(string: str) -> str:
+    return re.sub(r"[\W_]+", "_", string.lower())
 
 
 DEFAULT_MAX_ZONES = 16 if DEV_MODE else 12
@@ -55,112 +56,43 @@ UFC_DEVICE_ID = r"^02:[0-9]{6}$"
 RLY_DEVICE_ID = r"^13:[0-9]{6}$"
 
 
-# Packet codes
+# Packet codes (this dict is being deprecated) - check against ramses.py
 CODE_SCHEMA = {
-    # main codes - every sync_cycle
-    "000A": {
-        "name": "zone_params",
-        "null_resp": "007FFF7FFF",
-        "rp_len": 6,
-        "rq_len": 3,
-        "uses_zone_idx": True,
-    },
-    "1F09": {"name": "system_sync", "rp_len": 3, "rq_len": 1, "w_len": 3},
-    "2309": {
-        "name": "setpoint",
-        "null_resp": "7FFF",
-        "rp_len": 3,
-        "rq_len": 1,
-        "w_len": 3,
-        "uses_zone_idx": True,
-    },
-    "30C9": {"name": "temperature", "null_resp": "7FFF", "uses_zone_idx": True},
-    # zone codes
-    "0004": {
-        "name": "zone_name",
-        "null_resp": "7F" * 20,
-        "rp_len": 22,
-        "rq_len": 2,
-        "uses_zone_idx": True,
-    },
-    "000C": {
-        "name": "zone_devices",
-        "null_resp": "007FFFFFFF",
-        "uses_zone_idx": True,
-    },  #
-    "0006": {"name": "schedule_sync", "rq_len": 1},  # RQ always 00
-    "0404": {"name": "zone_schedule", "uses_zone_idx": True},
-    "12B0": {"name": "window_state", "null_resp": "7FFF", "uses_zone_idx": True},
-    "2349": {
-        "name": "zone_mode",
-        "uses_zone_idx": True,
-        "null_resp": "7FFF00FFFFFF",
-    },  #
-    "3150": {"name": "heat_demand", "uses_zone_idx": True},
-    # controller/system codes
-    "0005": {"name": "system_zones", "rq_length": 2},
-    "0418": {
-        "name": "system_fault",
-        "null_rp": "000000B0000000000000000000007FFFFF7000000000",
-    },
-    "2E04": {"name": "system_mode", "uses_zone_idx": False},
-    "313F": {"name": "datetime"},  # aka ping, datetime_req
-    # device codes
-    "0001": {"name": "rf_unknown", "uses_zone_idx": True},  # unknown
-    "0016": {"name": "rf_check", "rq_length": 2},
-    "0100": {"name": "language", "rq_length": 5},
-    "1060": {"name": "device_battery", "uses_zone_idx": True},
-    "10E0": {"name": "device_info"},
-    "1FC9": {"name": "rf_bind", "uses_zone_idx": True, "rq_len": 1},  # was bind_device
-    # dhw codes
-    "10A0": {"name": "dhw_params", "rq_length": len("0000") / 2},
-    "1260": {"name": "dhw_temp"},
-    "1F41": {"name": "dhw_mode"},
-    # tpi codes
-    "1100": {"name": "tpi_params"},
-    "3B00": {"name": "actuator_sync"},  # was: tpi_sync/actuator_req
-    "3EF0": {"name": "actuator_state", "uses_zone_idx": False},
-    "3EF1": {"name": "actuator_cycle", "uses_zone_idx": True, "rq_length": 2},
-    # OpenTherm codes
-    "1FD4": {"name": "opentherm_sync"},
-    "22D9": {"name": "boiler_setpoint"},
-    "3220": {"name": "opentherm_msg"},
-    # Other codes...
-    "0008": {"name": "relay_demand", "uses_zone_idx": True},
-    "0009": {"name": "relay_failsafe", "uses_zone_idx": True},
-    "1030": {"name": "mixvalve_params", "uses_zone_idx": True},
-    # UFH-specific codes...
-    "22C9": {"name": "ufh_setpoint"},
-    "22D0": {"name": "message_22d0", "uses_zone_idx": None},  # system switch?
-    # unknown/unsure codes - some maybe not evohome, maybe not even Honeywell
-    "0002": {"name": "sensor_weather"},
-    "1280": {"name": "outdoor_humidity"},
-    "1290": {"name": "outdoor_temp"},
-    "12A0": {"name": "indoor_humidity"},  # Nuaire ventilation
-    "12C0": {"name": "message_12c0"},  # I/34:/34:
-    "2249": {"name": "setpoint_now", "uses_zone_idx": True},  # now/next setpoint
-    # "2389": {"name": "message_2389"},  # not real?
-    "22F1": {"name": "switch_vent"},
-    "22F3": {"name": "switch_other"},
-    "2D49": {"name": "message_2d49"},  # hometronics only? has a domain = FD!
-    "31D9": {"name": "message_31d9"},  # HVAC/ventilation 30 min sync cycle?
-    "31DA": {"name": "message_31da"},  # from HCE80, also Nuaire: Contains R/humidity??
-    "31E0": {"name": "message_31e0"},  # Nuaire ventilation
-    # unknown codes, sent only by THM
-    "0B04": {"name": "message_0b04"},
-    # unknown codes, sent only by STA
-    "000E": {"name": "message_000e", "uses_zone_idx": False},
-    "042F": {"name": "message_042f", "uses_zone_idx": False},
-    "3120": {"name": "message_3120", "uses_zone_idx": False},
-    # unknown codes, sent only by HR91
-    "01D0": {"name": "message_01d0", "uses_zone_idx": True},  # might yet be False
-    "01E9": {"name": "message_01e9", "uses_zone_idx": True},  # might yet be False
+    "0001": {"uses_zone_idx": True},  # unknown
+    "0004": {"rq_len": 2, "uses_zone_idx": True},  # "null_resp": "7F" * 20,
+    "0005": {"rq_length": 2},
+    "0006": {"rq_len": 1},
+    "0008": {"uses_zone_idx": True},
+    "0009": {"uses_zone_idx": True},
+    "000A": {"rq_len": 3, "uses_zone_idx": True},  # "null_resp": "007FFF7FFF",
+    "000E": {"uses_zone_idx": False},
+    "0016": {"rq_length": 2},
+    "0100": {"rq_length": 5},
+    "01D0": {"uses_zone_idx": True},  # might yet be False
+    "01E9": {"uses_zone_idx": True},  # might yet be False
+    "0404": {"uses_zone_idx": True},
+    "0418": {"null_rp": "000000B0000000000000000000007FFFFF7000000000"},
+    "042F": {"uses_zone_idx": False},
+    "1030": {"uses_zone_idx": True},
+    "1060": {"uses_zone_idx": True},
+    "10A0": {"rq_length": len("0000") / 2},
+    "12B0": {"uses_zone_idx": True},
+    "1F09": {"rq_len": 1},
+    "1FC9": {"uses_zone_idx": True, "rq_len": 1},  # was bind_device
+    "2249": {"uses_zone_idx": True},
+    "22D0": {"uses_zone_idx": None},
+    "2309": {"uses_zone_idx": True, "rq_len": 1},
+    "2349": {"uses_zone_idx": True},  # "null_resp": "7FFF00FFFFFF"
+    "2E04": {"uses_zone_idx": False},
+    "30C9": {"uses_zone_idx": True},
+    "3120": {"uses_zone_idx": False},
+    "3150": {"uses_zone_idx": True},
+    "3EF0": {"uses_zone_idx": False},
+    "3EF1": {"uses_zone_idx": True, "rq_length": 2},
 }
 
 MAY_USE_DOMAIN_ID = ["0001", "0008", "0009", "1100", "1FC9", "3150", "3B00"]
 MAY_USE_ZONE_IDX = [k for k, v in CODE_SCHEMA.items() if v.get("uses_zone_idx")]
-# DES_SANS_ZONE_IDX = ["0002", "2E04"]  # not sure about "0016", "22C9"
-CODES_SANS_DOMAIN_ID = ("0418", "1F09", "1FC9", "2E04")
 
 DEVICE_TABLE = {
     # Honeywell evohome
@@ -338,7 +270,7 @@ DEVICE_TABLE["00"]["type"] = "TRv"
 
 DEVICE_TYPES = {k: v["type"] for k, v in DEVICE_TABLE.items()}
 DEVICE_LOOKUP = {v: k for k, v in DEVICE_TYPES.items()}
-DEVICE_CLASSES = {v["type"]: v["name"] for _, v in DEVICE_TABLE.items()}
+# DEVICE_CLASSES = {v["type"]: v["name"] for _, v in DEVICE_TABLE.items()}
 
 DEVICE_HAS_BATTERY = tuple(
     k for k, v in DEVICE_TABLE.items() if v.get("has_battery") is True
@@ -346,9 +278,9 @@ DEVICE_HAS_BATTERY = tuple(
 DEVICE_HAS_ZONE_SENSOR = tuple(
     k for k, v in DEVICE_TABLE.items() if v.get("has_zone_sensor") is True
 )  # other sensors (e.g. 07:) can't be used as a zone sensor
-DEVICE_IS_ACTUATOR = tuple(
-    k for k, v in DEVICE_TABLE.items() if v.get("is_actuator") is True
-)  # c.f. 000C packet
+# DEVICE_IS_ACTUATOR = tuple(
+#     k for k, v in DEVICE_TABLE.items() if v.get("is_actuator") is True
+# )  # c.f. 000C packet
 
 # Domains
 DOMAIN_TYPE_MAP = {
@@ -358,7 +290,7 @@ DOMAIN_TYPE_MAP = {
     "FB": None,
     "FC": "heating_control",  # "heat_relay": BDR (Boiler, District heating), or OTB
     "FD": "unknown",  # seen with hometronics
-    "FF": "system",  # TODO: remove this, is not a domain
+    # "FF": "system",  # TODO: remove this, is not a domain
 }  # "21": "Ventilation",
 DOMAIN_TYPE_LOOKUP = {v: k for k, v in DOMAIN_TYPE_MAP.items() if k != "FF"}
 
@@ -445,7 +377,7 @@ v = r"( I|RP|RQ| W)"  # Verb
 d = r"(-{2}:-{6}|\d{2}:\d{6})"  # Device ID
 c = r"[0-9A-F]{4}"  # Code
 l = r"\d{3}"  # Length # noqa: E741
-p = r"([0-9A-F]{2})+"  # Payload
+p = r"([0-9A-F]{2}){1,48}"  # Payload
 
 DEVICE_ID_REGEX = re.compile(f"^{d}$")
 COMMAND_REGEX = re.compile(f"^{v} {r} {d} {d} {d} {c} {l} {p}$")

@@ -133,7 +133,7 @@ def set_pkt_logging(logger, cc_stdout=False, **kwargs) -> None:
         return
 
     if max_bytes:
-        backup_count = backup_count if backup_count else 2
+        backup_count = backup_count or 2
         handler = RotatingFileHandler(
             file_name, maxBytes=max_bytes, backupCount=backup_count
         )
@@ -153,11 +153,13 @@ def set_pkt_logging(logger, cc_stdout=False, **kwargs) -> None:
 class Packet:
     """The packet class."""
 
-    def __init__(self, dtm_str: str, pkt_line: str, raw_pkt_line: str) -> None:
+    def __init__(
+        self, pkt_dtm: dt, dtm_str: str, pkt_line: str, raw_pkt_line: str
+    ) -> None:
         """Create a packet."""
-        self._dtm = dt.fromisoformat(dtm_str)
+        self._dtm = pkt_dtm
         self.dtm = dtm_str
-        self.date, self.time = dtm_str.split("T")  # dtm assumed to be valid
+        self.date, self.time = self.dtm.split("T")
 
         self._pkt_str = pkt_line
         self._raw_pkt_str = raw_pkt_line
@@ -166,17 +168,19 @@ class Packet:
 
         self.addrs = [None] * 3
         self.src_addr = self.dst_addr = None
+        self._pkt_header = None
 
         self._is_valid = None
-        self._is_valid = self.is_valid
+        if not self.is_valid:
+            raise ValueError("not a valid packet")
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
-        return str(self._raw_pkt_str if self._raw_pkt_str else self._pkt_str)
+        return str(self._raw_pkt_str or self._pkt_str)
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
-        return self.packet if self.packet else ""
+        return self.packet or ""
 
     def __eq__(self, other) -> bool:
         if not hasattr(other, "packet"):
@@ -186,17 +190,14 @@ class Packet:
     @staticmethod
     def _split_pkt_line(pkt_line: str) -> Tuple[str, str, str]:
         # format: 'datetime packet < parser-message: * evofw3-errmsg # evofw3-comment'
-        def _split(text: str, char: str) -> Tuple[str, str]:
-            _list = text.split(char, maxsplit=1)
-            return _list[0].strip(), _list[1].strip() if len(_list) == 2 else ""
 
-        packet_tmp, comment = _split(pkt_line, "#")
-        packet_tmp, error = _split(packet_tmp, "*")
-        packet, _ = _split(packet_tmp, "<")
+        packet_str, _, pkt_line = pkt_line.partition("<")
+        _, _, pkt_line = pkt_line.partition("*")
+        packet_err, _, packet_comment = pkt_line.partition("#")
         return (
-            packet,
-            f"* {error} " if error else "",
-            f"# {comment} " if comment else "",
+            packet_str.strip(),
+            f"* {packet_err.strip()} " if packet_err else "",
+            f"# {packet_comment.strip()} " if packet_comment else "",
         )
 
     @property
@@ -210,6 +211,7 @@ class Packet:
                 self.src_addr, self.dst_addr, self.addrs = extract_addrs(
                     self.packet[11:40]
                 )
+                # print(extract_addrs.cache_info())
             except CorruptAddrSetError:
                 return True
 
@@ -228,11 +230,8 @@ class Packet:
             return False
 
         # TODO: these packets shouldn't go to the packet log, only STDERR?
-        err_msg = ""
         if not MESSAGE_REGEX.match(self.packet):
             err_msg = "invalid packet structure"
-        elif int(self.packet[46:49]) > 48:
-            err_msg = "excessive payload length"
         elif int(self.packet[46:49]) * 2 != len(self.packet[50:]):
             err_msg = "mismatched payload length"
         elif invalid_addresses():
@@ -248,5 +247,7 @@ class Packet:
     def _header(self) -> Optional[str]:
         """Return the QoS header of this packet."""
 
-        if self.is_valid:
-            return _pkt_header(self.packet)
+        # TODO: a mess: extract_addrs, an expensive function, is possibly called twice
+        if self._pkt_header is None and self.is_valid:
+            self._pkt_header = _pkt_header(self.packet)
+        return self._pkt_header

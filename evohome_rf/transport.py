@@ -7,6 +7,7 @@ Operates at the pkt layer of: app - msg - pkt - h/w
 """
 
 import asyncio
+import functools
 import logging
 import os
 import re
@@ -14,7 +15,7 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 from multiprocessing import Process
 from queue import Queue
-from string import printable
+from string import printable  # ascii_letters, digits
 from threading import Lock, Thread
 from types import SimpleNamespace
 from typing import ByteString, Callable, Optional, Tuple
@@ -24,7 +25,7 @@ from serial_asyncio import SerialTransport as SerialTransportAsync
 
 from .command import Command, Priority
 from .const import DTM_LONG_REGEX, HGI_DEV_ADDR, __dev_mode__
-from .helpers import dt_str
+from .helpers import dt_now, dt_str
 from .packet import _PKT_LOGGER, Packet
 from .protocol import create_protocol_factory
 from .schema import (
@@ -54,6 +55,8 @@ Pause = SimpleNamespace(
     DEFAULT=td(seconds=0.15),
     LONG=td(seconds=0.5),
 )
+
+VALID_CHARACTERS = printable  # "".join((ascii_letters, digits, ":-<*# "))
 
 INIT_QOS = {"priority": Priority.HIGHEST, "retries": 24, "disable_backoff": True}
 INIT_CMD = Command._puzzle(message=f"v{__version__}", **INIT_QOS)
@@ -93,11 +96,12 @@ class SerTransportRead(asyncio.ReadTransport):
             self._protocol.connection_made(self)
 
             if isinstance(self._packets, dict):
-                for pkt_dtm, pkt_str in self._packets.items():
-                    self._protocol.data_received(f"{pkt_dtm} {pkt_str}")
+                for dtm_str, pkt_str in self._packets.items():  # can assume dtm_str OK
+                    self._protocol.data_received(f"{dtm_str} {pkt_str}")
                     await asyncio.sleep(0)
             else:
                 for dtm_pkt_line in self._packets:
+                    # need to check dtm_str is OK
                     self._protocol.data_received(dtm_pkt_line.strip())  # .upper())
                     await asyncio.sleep(0)
 
@@ -221,7 +225,6 @@ class SerTransportProcess(Process):  # TODO: WIP
                     # time.sleep(0.005)
                     continue
 
-                # print("sleep")
                 # time.sleep(0.005)
 
             if DEV_MODE:
@@ -268,11 +271,8 @@ class PacketProtocolBase(asyncio.Protocol):
         self._pause_writing = True
         self._recv_buffer = bytes()
 
-        self._sequence_no = 0  # TODO: remove
-
-        # TODO: this is a little messy - the gwy.config[...] are mutex...
-        self._include = list(gwy._include) if gwy.config[ENFORCE_ALLOWLIST] else []
-        self._exclude = list(gwy._exclude) if gwy.config[ENFORCE_BLOCKLIST] else []
+        self._include = gwy._include if gwy.config[ENFORCE_ALLOWLIST] else {}
+        self._exclude = gwy._exclude if gwy.config[ENFORCE_BLOCKLIST] else {}
 
         if self._include:
             _LOGGER.warning(f"Using an {ALLOW_LIST}: %s", self._include)
@@ -303,16 +303,14 @@ class PacketProtocolBase(asyncio.Protocol):
         )  # Used to see if using a evofw3 rather than a HGI80
         self._pause_writing = False  # TODO: needs work
 
-    @staticmethod
-    def is_wanted(pkt, include_list, exclude_list) -> bool:
+    @functools.lru_cache(maxsize=128)
+    def is_wanted(self, src_addr, dst_addr) -> bool:
         """Parse the packet, return True if the packet is not to be filtered out."""
-        if " 18:" in str(pkt):  # NOTE: " 18:", leading space is required
+        pkt_addrs = {src_addr, dst_addr}
+        if any(d.type == "18" for d in pkt_addrs):
             return True
-        if include_list:
-            return any(device in str(pkt) for device in include_list)
-        if exclude_list:
-            return not any(device in str(pkt) for device in exclude_list)
-        return True
+        wanted = not self._include or any(d.id in self._include for d in pkt_addrs)
+        return wanted and all(d.id not in self._exclude for d in pkt_addrs)
 
     @staticmethod
     def _normalise(pkt_line: str) -> str:
@@ -338,32 +336,36 @@ class PacketProtocolBase(asyncio.Protocol):
                 _LOGGER.warning("Packet line has been normalised (0x01)")
 
         # bug fixed in evofw3 v0.6.x...
-        elif pkt_line.startswith("!C"):
+        elif pkt_line[:2] == "!C":
             pkt_line = "# " + pkt_line
             if DEV_MODE:  # TODO: should be _LOGGER.debug
                 _LOGGER.warning("Packet line has been normalised (0x02)")
 
-        # old packet logs
-        elif ERR_MSG_REGEX.match(pkt_line):
-            pkt_line = "# " + pkt_line
-            if DEV_MODE:  # TODO: should be _LOGGER.debug
-                _LOGGER.warning("Packet line has been normalised (0x03)")
+        # TODO: old packet logs - taken out because expensive
+        # elif ERR_MSG_REGEX.match(pkt_line):
+        #     pkt_line = "# " + pkt_line
+        #     if DEV_MODE:  # TODO: should be _LOGGER.debug
+        #         _LOGGER.warning("Packet line has been normalised (0x03)")
 
         return pkt_line
 
     def _data_received(  # sans QoS
-        self, pkt_dtm: str, pkt_str: Optional[str], pkt_raw: Optional[ByteString] = None
+        self,
+        pkt_dtm: dt,
+        dtm_str: str,
+        pkt_str: str,
+        pkt_raw: Optional[ByteString] = None,
     ) -> None:
         """Called when some normalised data is received (no QoS)."""
-        _LOGGER.info("PktProtocol._data_rcvd(%s)", pkt_str)
+        # _LOGGER.info("PktProtocol._data_rcvd(%s)", pkt_str)
 
-        pkt = Packet(pkt_dtm, pkt_str, raw_pkt_line=pkt_raw)
-        if not pkt.is_valid:
+        try:
+            pkt = Packet(pkt_dtm, dtm_str, pkt_str, raw_pkt_line=pkt_raw)
+        except ValueError:  # not a valid packet
             return
-        elif self._has_initialized is None:
-            self._has_initialized = True
+        self._has_initialized = True
 
-        if self._callback and self.is_wanted(pkt, self._include, self._exclude):
+        if self._callback and self.is_wanted(pkt.src_addr, pkt.dst_addr):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
     def data_received(self, data: ByteString) -> None:
@@ -372,19 +374,20 @@ class PacketProtocolBase(asyncio.Protocol):
             _LOGGER.debug("PktProtocol.data_rcvd(%s)", data)
 
         def create_pkt(pkt_raw: ByteString) -> Tuple:
-            dtm_str = dt_str()  # done here & now for most-accurate timestamp
+            pkt_dtm = dt_now()  # done here & now for most-accurate timestamp
+            dtm_str = pkt_dtm.isoformat(sep="T")
 
             try:
                 pkt_str = "".join(
                     c
                     for c in pkt_raw.decode("ascii", errors="strict").strip()
-                    if c in printable
+                    if c in VALID_CHARACTERS
                 )
             except UnicodeDecodeError:
                 _PKT_LOGGER.warning(
                     "%s < Bad pkt", pkt_raw, extra=self._extra(dtm_str, pkt_raw)
                 )
-                return dtm_str, None, pkt_raw
+                return pkt_dtm, None, pkt_raw
 
             if (  # "# evofw3" in pkt_str
                 "# evofw3" in pkt_str
@@ -398,7 +401,7 @@ class PacketProtocolBase(asyncio.Protocol):
             if DEV_MODE:  # TODO: deleteme
                 _LOGGER.debug("Rx: %s", pkt_raw, extra=self._extra(dtm_str, pkt_raw))
 
-            return dtm_str, self._normalise(pkt_str), pkt_raw
+            return pkt_dtm, dtm_str, self._normalise(pkt_str), pkt_raw
 
         self._recv_buffer += data
         if b"\r\n" in self._recv_buffer:
@@ -406,9 +409,9 @@ class PacketProtocolBase(asyncio.Protocol):
             self._recv_buffer = lines[-1]
 
             for line in lines[:-1]:
-                pkt_dtm, pkt_str, pkt_raw = create_pkt(line)
+                pkt_dtm, dtm_str, pkt_str, pkt_raw = create_pkt(line)
                 if pkt_str:
-                    self._data_received(pkt_dtm, pkt_str, pkt_raw)
+                    self._data_received(pkt_dtm, dtm_str, pkt_str, pkt_raw)
 
     async def _send_data(self, data: ByteString, ignore_pause=False) -> None:
         """Send a bytearray to the transport (serial) interface.
@@ -448,10 +451,6 @@ class PacketProtocolBase(asyncio.Protocol):
             )
             return
 
-        self._sequence_no = (self._sequence_no + 1) % 256
-        if False and self._qos_cmd.seqn == "---":
-            self._qos_cmd.seqn = f"{self._sequence_no:03d}"
-
         if cmd.from_addr.type != "18":
             _LOGGER.warning("PktProtocol.send_data(%s): IMPERSONATING!", cmd.tx_header)
             kmd = Command._puzzle("02", cmd.tx_header)
@@ -467,18 +466,18 @@ class PacketProtocolBase(asyncio.Protocol):
         _LOGGER.debug("PktProtocol.connection_lost(%s)", exc)
 
         if exc is not None:
-            pass
+            raise exc
 
     def pause_writing(self) -> None:
         """Called when the transport's buffer goes over the high-water mark."""
-        _LOGGER.warning("PktProtocol.pause_writing()")
+        _LOGGER.debug("PktProtocol.pause_writing()")
         # self._transport.get_write_buffer_size()
 
         self._pause_writing = True
 
     def resume_writing(self) -> None:
         """Called when the transport's buffer drains below the low-water mark."""
-        _LOGGER.warning("PktProtocol.resume_writing()")
+        _LOGGER.debug("PktProtocol.resume_writing()")
         # self._transport.get_write_buffer_size()
 
         self._pause_writing = False
@@ -529,16 +528,16 @@ class PacketProtocolRead(PacketProtocolBase):
 
     def data_received(self, data: str) -> None:
         """Called when some data is received."""
-        _LOGGER.debug("PktProtocolFile.data_rcvd(%s)", data)
+        # _LOGGER.debug("PktProtocolFile.data_rcvd(%s)", data)
 
-        pkt_dtm, pkt_str = data[:26], data[27:]
+        dtm_str, pkt_str = data[:26], data[27:]
 
         try:
-            assert DTM_LONG_REGEX.match(pkt_dtm)
-            dt.fromisoformat(pkt_dtm)
+            assert DTM_LONG_REGEX.match(dtm_str)
+            pkt_dtm = dt.fromisoformat(dtm_str)  # faster than: dt.strptime(
 
         except (AssertionError, TypeError, ValueError):
-            if data != "" and pkt_dtm.strip()[:1] != "#":
+            if data != "" and dtm_str.strip()[:1] != "#":
                 _PKT_LOGGER.debug(
                     "%s < Packet line has an invalid timestamp (ignoring)",
                     data,  # TODO: None?
@@ -546,7 +545,7 @@ class PacketProtocolRead(PacketProtocolBase):
                 )
 
         else:
-            self._data_received(pkt_dtm, self._normalise(pkt_str), None)
+            self._data_received(pkt_dtm, dtm_str, self._normalise(pkt_str), None)
 
 
 class PacketProtocolQos(PacketProtocolBase):
@@ -593,12 +592,16 @@ class PacketProtocolQos(PacketProtocolBase):
         #     self._backoff = min(self._backoff + 1, QOS_MAX_BACKOFF)
 
     def _data_received(  # with Qos
-        self, pkt_dtm: str, pkt_str: Optional[str], pkt_raw: Optional[ByteString] = None
+        self,
+        pkt_dtm: dt,
+        dtm_str: str,
+        pkt_str: str,
+        pkt_raw: Optional[ByteString] = None,
     ) -> None:
         """Called when some data is received. Adjust backoff as required."""
-        _LOGGER.info("PktProtocolQos.data_rcvd(%s)", pkt_raw)
+        # _LOGGER.info("PktProtocolQos.data_rcvd(%s)", pkt_str)
 
-        def _logger_rcvd(logger, msg: str) -> None:
+        def _logger_rcvd(logger, log_msg: str) -> None:
             if self._qos_cmd is None:
                 wanted = None
             elif self._tx_hdr:
@@ -607,19 +610,19 @@ class PacketProtocolQos(PacketProtocolBase):
                 wanted = self._rx_hdr
 
             logger(
-                "PktProtocolQos.data_rcvd(%s): boff=%s, want=%s, tout=%s: %s",
-                pkt._header,
+                "PktProtocolQos.data_rcvd(rcvd=%s): boff=%s, want=%s, tout=%s: %s",
+                pkt._header or str(pkt),
                 self._backoff,
                 wanted,
                 self._timeout_full,
-                msg,
+                log_msg,
             )
 
-        pkt = Packet(pkt_dtm, pkt_str, raw_pkt_line=pkt_raw)
-        if not pkt.is_valid:
+        try:
+            pkt = Packet(pkt_dtm, dtm_str, pkt_str, raw_pkt_line=pkt_raw)
+        except ValueError:  # not a valid packet
             return
-        elif self._has_initialized is None:
-            self._has_initialized = True
+        self._has_initialized = True
 
         if self._qos_cmd:
             _logger_rcvd(_LOGGER.debug, "CHECKING")
@@ -668,11 +671,11 @@ class PacketProtocolQos(PacketProtocolBase):
             self._timeouts(dt.now())
             _logger_rcvd(_LOGGER.debug, f"CHECKED - {msg}")
 
-        else:  # no outstanding cmd - ?throttle down the backoff
+        else:  # TODO: no outstanding cmd - ?throttle down the backoff
             # self._timeouts(dt.now())
             _logger_rcvd(_LOGGER.debug, "XXXXXXX - ")
 
-        if self._callback and self.is_wanted(pkt, self._include, self._exclude):
+        if self._callback and self.is_wanted(pkt.src_addr, pkt.dst_addr):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
     async def send_data(self, cmd: Command) -> None:
@@ -684,7 +687,7 @@ class PacketProtocolQos(PacketProtocolBase):
                 "PktProtocolQos.send_data(%s): boff=%s, want=%s, tout=%s: %s",
                 cmd.tx_header,
                 self._backoff,
-                self._tx_hdr if self._tx_hdr else self._rx_hdr,
+                self._tx_hdr or self._rx_hdr,
                 self._timeout_full,
                 msg,
             )
@@ -708,10 +711,6 @@ class PacketProtocolQos(PacketProtocolBase):
         self._rx_hdr = cmd.rx_header  # Could be None
         self._tx_retries = 0
         self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
-
-        self._sequence_no = (self._sequence_no + 1) % 256
-        if False and self._qos_cmd.seqn == "---":
-            self._qos_cmd.seqn = f"{self._sequence_no:03d}"
 
         if cmd.from_addr.type != "18":
             _LOGGER.warning(

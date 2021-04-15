@@ -158,8 +158,9 @@ class MessageTransport(asyncio.Transport):
         if self._gwy.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES:
             return
 
-        msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
-        if not msg.is_valid:
+        try:
+            msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
+        except ValueError:  # not a valid message
             return
 
         # _LOGGER.info("MsgTransport._pkt_receiver(pkt): %s", msg)
@@ -170,8 +171,14 @@ class MessageTransport(asyncio.Transport):
             if not callback.get(DEAMON):
                 del self._callbacks[msg._pkt._header]
 
-        # TODO: think about wrapping in an exceptionhandler...
-        [p.data_received(msg) for p in self._protocols]
+        # TODO: wrap in an exception handler because can't trust them...
+        # [p.data_received(msg) for p in self._protocols]
+        for p in self._protocols:
+            try:
+                p.data_received(msg)
+            except AttributeError:
+                pass
+
         # NOTE: this doesn't work...
         # [
         #     self._gwy._loop.run_in_executor(None, p.data_received, msg)

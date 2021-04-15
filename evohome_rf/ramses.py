@@ -3,10 +3,8 @@
 #
 """Evohome RF - a RAMSES-II protocol decoder & analyser."""
 
-I_ = " I"
-W_ = " W"
-RQ = "RQ"
-RP = "RP"
+I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
+
 
 RQ_NULL = "rq_null"
 
@@ -20,7 +18,7 @@ EXPIRY = "expiry"
 RAMSES_CODES = {  # rf_unknown
     "0001": {
         NAME: "rf_unknown",
-        W_: r"^[0-9A-F]{2}0{4}05(05|01)$",
+        W_: r"^(FA|FC|FF|0[0-9A-F])0{4}05(05|01)$",
     },
     "0002": {  # sensor_weather
         NAME: "sensor_weather",
@@ -34,7 +32,9 @@ RAMSES_CODES = {  # rf_unknown
     },
     "0005": {  # system_zones
         NAME: "system_zones",
+        I_: r"^00[01][0-9A-F]{5}$",  # f"00{zone_type}"
         RQ: r"^00[01][0-9A-F]$",  # f"00{zone_type}"
+        RP: r"^00[01][0-9A-F]{5}$",  # f"00{zone_type}"
         RQ_MAY_HAVE_PAYLOAD: True,
     },
     "0006": {  # schedule_sync
@@ -44,8 +44,8 @@ RAMSES_CODES = {  # rf_unknown
     },
     "0008": {  # relay_demand
         NAME: "relay_demand",
-        RQ: r"^00$",  # TODO: an assumption
-        I_: r"^(F[9AC]|0[0-9A-F])[0-9A-F]{2}$",
+        RQ: r"^00$",  # it seems only 13: RP (TODO: what about 10:, 08/31:)
+        I_: r"^((F[9AC]|0[0-9A-F])[0-9A-F]{2}|00[0-9A-F]{24})$",
         # 000 I --- 31:012319 08:006244 --:------ 0008 013 0006958C33CA6ECD2067AA53DD
     },
     "0009": {  # relay_failsafe
@@ -70,6 +70,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     "000E": {  # unknown
         NAME: "message_000e",
+        I_: r"^000014$",
     },
     "0016": {  # rf_check
         NAME: "rf_check",
@@ -79,13 +80,14 @@ RAMSES_CODES = {  # rf_unknown
     "0100": {  # language
         NAME: "language",
         RQ: r"^00([0-9A-F]{4}F{4})?$",  # NOTE: RQ/04/0100 has a payload
+        RP: r"^00[0-9A-F]{4}F{4}$",
         RQ_MAY_HAVE_DOMAIN: False,
         RQ_MAY_HAVE_PAYLOAD: True,
     },  # NOTE: parser has been checked
-    "01D0": {  # unknown
+    "01D0": {  # unknown, but definitely real
         NAME: "message_01d0",
     },
-    "01E9": {  # unknown
+    "01E9": {  # unknown, but definitely real
         NAME: "message_01e9",
     },
     "0404": {  # zone_schedule
@@ -96,12 +98,12 @@ RAMSES_CODES = {  # rf_unknown
     "0418": {  # system_fault
         NAME: "system_fault",
         RQ: r"^0000[0-3][0-9A-F]$",  # f"0000{log_idx}", no payload
+        RP: r"^00[0-9A-F]{42}",  # TODO: 004000B0061C040000008F14B0DB7FFFFF7000367F95
     },
-    "042F": {  # unknown
+    "042F": {  # unknown, # non-evohome are len==9, seen only once?
+        # 16:48:11.813119 060  I --- 32:168090 --:------ 32:168090 042F 009 000000100F00105050  # noqa
         NAME: "message_042f",
-    },
-    "0B04": {  # unknown
-        NAME: "message_0b04",
+        I_: r"^00([0-9A-F]{2}){7}$",
     },
     "1030": {  # mixvalve_params
         NAME: "mixvalve_params",
@@ -118,6 +120,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     "10A0": {  # dhw_params
         NAME: "dhw_params",
+        # RQ --- 07:045960 01:145038 --:------ 10A0 006 0013740003E4
         # NOTE: RFG100 uses a domain id! (00|01)
         # 19:14:24.662 051 RQ --- 30:185469 01:037519 --:------ 10A0 001 00
         # 19:14:31.463 053 RQ --- 30:185469 01:037519 --:------ 10A0 001 01
@@ -151,21 +154,25 @@ RAMSES_CODES = {  # rf_unknown
     },
     "1290": {  # outdoor_temp
         NAME: "outdoor_temp",
-        # RQ: r"^00$",  # TODO:
+        I_: r"^00[0-9A-F]{4}$",
+        RQ: r"^00$",
+        RP: r"^00[0-9A-F]{4}$",
     },
     "12A0": {  # indoor_humidity
         NAME: "indoor_humidity",
+        I_: r"^00[0-9A-F]{10}$",
     },
     "12B0": {  # window_state
         NAME: "window_state",
-        RQ: r"^0[0-9A-F](00)?$",
+        # RQ: r"^0[0-9A-F](00)?$",
+        I_: r"^0[0-9A-F](0000|C800|FFFF)$",
         EXPIRY: 60 * 60,
     },
     "12C0": {  # displayed_temp
         NAME: "displayed_temp",  # displayed room temp
         I_: r"^00[0-9A-F]{2}01$",
     },
-    "1F09": {  # system_sync
+    "1F09": {  # system_sync - "FF" (I), "00" (RP), "F8" (W, after 1FC9)
         NAME: "system_sync",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",  # xx-secs
@@ -174,17 +181,22 @@ RAMSES_CODES = {  # rf_unknown
     },
     "1F41": {  # dhw_mode
         NAME: "dhw_mode",
-        RQ: r"^00$",
+        RQ: r"^00(00)?$",  # officially: r"^00$"
+        RP: r"^00(00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
     },
-    "1FC9": {
+    "1FC9": {  # rf_bind
+        # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-3FF1-956ABD
+        # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-7FE1-DD6ABD
+        # RP --- 01:145038 18:013393 --:------ 1FC9 012 FF-10E0-06368E FF-1FC9-06368E
         NAME: "rf_bind",
         RQ: r"^00$",
-        RP: r"^((F[9ABCF]|0[0-9A-F])([0-9A-F]{10}))+$",  # xx-code-dev_id
+        RP: r"^((F[9ABCF]|0[0-9A-F]|90)([0-9A-F]{10}))+$",  # xx-code-dev_id
         I_: r"^((F[9ABCF]|0[0-9A-F])([0-9A-F]{10}))+$",
         W_: r"^((F[9ABCF]|0[0-9A-F])([0-9A-F]{10}))+$",
     },
     "1FD4": {  # opentherm_sync
         NAME: "opentherm_sync",
+        I_: r"^00([0-9A-F]{4})$",
     },
     "2249": {  # setpoint_now
         NAME: "setpoint_now",
@@ -194,11 +206,12 @@ RAMSES_CODES = {  # rf_unknown
     },
     "22D0": {  # message_22d0
         NAME: "message_22d0",
-        # RQ: r"^00$",  # TODO:
+        I_: r"^00000002$",  # TODO:
     },
     "22D9": {  # boiler_setpoint
         NAME: "boiler_setpoint",
         RQ: r"^00$",
+        RP: r"^00[0-9A-F]{4}$",
     },
     "22F1": {  # switch_speed - TODO - change name - Sent by an UFC
         NAME: "switch_speed",
@@ -234,28 +247,35 @@ RAMSES_CODES = {  # rf_unknown
     "30C9": {  # temperature
         NAME: "temperature",
         RQ: r"^0[0-9A-F](00)?$",  # TODO: officially: r"^0[0-9A-F]$"
-        # RQ --- 30:185469 01:037519 --:------ 30C9 001 00
         RP: r"^0[0-9A-F][0-9A-F]{4}$",  # Null: r"^0[0-9A-F]7FFF$"
-        # RP --- 01:145038 18:013393 --:------ 30C9 003 FF7FFF
         I_: r"^(0[0-9A-F][0-9A-F]{4})+$",
     },
     "3120": {  # unknown - Error Report?
         NAME: "message_3120",
+        I_: r"^00[0-9A-F]{10}FF$",  # only ever: 34:/0070B0000000FF
+        RP: r"^00[0-9A-F]{10}FF$",  # only ever: 20:/0070B000009CFF
     },
     "313F": {  # datetime
         NAME: "datetime",
+        I_: r"^00[0-9A-F]{16}$",
         RQ: r"^00$",
+        RP: r"^00[0-9A-F]{16}$",
+        W_: r"^00[0-9A-F]{16}$",
     },
     "3150": {  # heat_demand
         NAME: "heat_demand",
+        I_: r"^(FC[0-9A-F]{2}|(0[0-9A-F])[0-9A-F]{2})+$",
     },
     "31D9": {  # unknown
         NAME: "message_31d9",
+        # I_: r"^(00|21)[0-9A-F]{32}$",
+        I_: r"^(00|01|21)[0-9A-F]{4}([02]{28})?$",
         RQ: r"^00$",
     },
     "31DA": {  # unknown
         NAME: "message_31da",
-        RQ: r"^(00|21)$"
+        I_: r"^(00|01|21)[0-9A-F]{56}$",
+        RQ: r"^(00|01|21)$"
         # RQ --- 32:168090 30:082155 --:------ 31DA 001 21
     },
     "31E0": {  # ext_ventilation - External Ventilation?
@@ -265,24 +285,35 @@ RAMSES_CODES = {  # rf_unknown
     "3220": {  # opentherm_msg
         NAME: "opentherm_msg",
         RQ: r"^00[0-9A-F]{4}0{4}$",
+        RP: r"^00[0-9A-F]{8}$",
         RQ_MAY_HAVE_PAYLOAD: True,
     },
     "3B00": {  # actuator_sync
         NAME: "actuator_sync",
+        I_: r"^(00|FC)(00|C8)$",
     },  # No RQ
     "3EF0": {  # actuator_state
         NAME: "actuator_state",
+        # I_: r"^00[0-9A-C][0-9A-F]([0-9A-F]{6})?FF$",
+        I_: r"^00",
         RQ: r"^00$",
+        RP: r"^00",
     },
     "3EF1": {  # actuator_cycle
         NAME: "actuator_cycle",
-        RQ: r"^0[0-9A-F](00)?$",  # NOTE: both seen in the wild
+        RQ: r"^(0[0-9A-F](00)?|00[0-9A-F]{22})$",  # NOTE: both seen in the wild
+        # RP: r"^(0[0-9A-F](00)?|00[0-9A-F]{22})$",  # NOTE: both seen in the wild
+        RQ_MAY_HAVE_PAYLOAD: True,
     },
     "7FFF": {
         NAME: "puzzle_packet",
         I_: r"^7F[0-9A-F]{12}7F[0-9A-F]{4}7F[0-9A-F]{4}(7F)+",
     },
 }
+
+# 0001 is not fully understood
+CODES_WITH_COMPLEX_IDX = ("0001", "0008", "000C", "0418", "1100", "1F41", "3B00")
+CODES_WITHOUT_IDX = ("1F09", "2E04")  # other than r"^00"
 
 RAMSES_DEVICES = {
     "01": {
@@ -309,7 +340,7 @@ RAMSES_DEVICES = {
         "1290": {RP: {}},
         "12B0": {I_: {}, RP: {}},
         "1F09": {I_: {}, RP: {}, W_: {}},
-        "1FC9": {I_: {}, W_: {}},
+        "1FC9": {I_: {}, RQ: {}, RP: {}, W_: {}},
         "1F41": {I_: {}, RP: {}},
         "2249": {I_: {}},
         "22D9": {RQ: {}},
@@ -359,6 +390,7 @@ RAMSES_DEVICES = {
         "10E0": {I_: {}},
         "1F09": {RQ: {}},
         "12B0": {I_: {}},  # sends every 1h
+        "1FC9": {I_: {}, W_: {}},
         "2309": {I_: {}},
         "30C9": {I_: {}},
         "313F": {RQ: {}},
@@ -383,6 +415,7 @@ RAMSES_DEVICES = {
         "10E0": {I_: {}, RP: {}},
         "1260": {RP: {}},
         "1290": {RP: {}},
+        "1FC9": {I_: {}, W_: {}},
         "1FD4": {I_: {}},
         "22D9": {RP: {}},
         "3150": {I_: {}},
@@ -394,14 +427,15 @@ RAMSES_DEVICES = {
         "0001": {W_: {}},
         "0008": {I_: {}},
         "0009": {I_: {}},
-        "0016": {RQ: {}},
-        "1100": {I_: {}},
         "000A": {I_: {}, RQ: {}, W_: {}},
+        "0016": {RQ: {}},
         "0B04": {I_: {}},
         "1030": {I_: {}},
         "1060": {I_: {}},
         "1090": {RQ: {}},
+        "1100": {I_: {}},
         "1F09": {I_: {}},
+        "1FC9": {I_: {}},
         "2309": {I_: {}, RQ: {}, W_: {}},
         "2349": {RQ: {}, W_: {}},
         "30C9": {I_: {}},
@@ -422,7 +456,9 @@ RAMSES_DEVICES = {
         "3EF1": {RP: {}},
     },
     "17": {},
-    "18": {},
+    "18": {
+        "3220": {RQ: {}},
+    },
     "20": {  # HVAC: ventilation unit, or switch/sensor?
         "10E0": {I_: {}, RP: {}},
         "12A0": {RP: {}},
@@ -435,6 +471,7 @@ RAMSES_DEVICES = {
     "23": {
         "0009": {I_: {}},
         "1090": {RP: {}},
+        "10A0": {RP: {}},
         "1100": {I_: {}},
         "1F09": {I_: {}},
         "2249": {I_: {}},
@@ -460,7 +497,8 @@ RAMSES_DEVICES = {
         "1260": {RQ: {}},
         "1290": {I_: {}},
         "1F41": {RQ: {}},
-        "2309": {},
+        "1FC9": {RP: {}, W_: {}},
+        "2309": {I_: {}},
         "2349": {RQ: {}, RP: {}},
         "2E04": {RQ: {}, I_: {}, W_: {}},
         "30C9": {RQ: {}},
@@ -475,7 +513,7 @@ RAMSES_DEVICES = {
     "31": {
         "0008": {I_: {}},
         "10E0": {I_: {}},
-        "3EF1": {RQ: {}},
+        "3EF1": {RQ: {}, RP: {}},
     },
     "32": {  # HVAC: switch/sensor?
         "1060": {I_: {}},
@@ -495,6 +533,7 @@ RAMSES_DEVICES = {
         "1060": {I_: {}},
         "10E0": {I_: {}},
         "12C0": {I_: {}},
+        "1FC9": {I_: {}},
         "2309": {I_: {}, RQ: {}, W_: {}},
         "2349": {RQ: {}},
         "30C9": {I_: {}},
@@ -507,7 +546,7 @@ RAMSES_DEVICES = {
         "31D9": {I_: {}},
         "31DA": {I_: {}},
     },
-    "39": {  # HVAC: two-way switch
+    "39": {  # HVAC: two-way switch; also an "06/22F1"?
         "22F1": {I_: {}},
         "22F3": {I_: {}},
     },  # https://www.ithodaalderop.nl/nl-NL/professional/product/536-0124
@@ -528,10 +567,23 @@ RAMSES_ZONES = {
     },
     "RAD": {"12B0": {I_: {}, RP: {}}, "3150a": {}},
     "ELE": {"0008": {I_: {}}, "0009": {I_: {}}},
-    "VAL": {"0008": {I_: {}}, "0009": {I_: {}}, "3150a": {}},
-    "UFH": {"3150": {I_: {}}},
-    "MIX": {"0008": {I_: {}}, "3150a": {}},
-    "DHW": {},
+    "VAL": {
+        "0008": {I_: {}},
+        "0009": {I_: {}},
+        "3150a": {},
+    },
+    "UFH": {
+        "3150": {I_: {}},
+    },
+    "MIX": {
+        "0008": {I_: {}},
+        "3150a": {},
+    },
+    "DHW": {
+        "10A0": {RQ: {}, RP: {}},
+        "1260": {I_: {}},
+        "1F41": {I_: {}},
+    },
 }
 RAMSES_ZONES_ALL = RAMSES_ZONES.pop("ALL")
 RAMSES_ZONES_DHW = RAMSES_ZONES["DHW"]
