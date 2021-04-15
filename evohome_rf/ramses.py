@@ -164,8 +164,9 @@ RAMSES_CODES = {  # rf_unknown
     },
     "12B0": {  # window_state
         NAME: "window_state",
-        # RQ: r"^0[0-9A-F](00)?$",
         I_: r"^0[0-9A-F](0000|C800|FFFF)$",
+        RQ: r"^0[0-9A-F](00)?$",
+        RP: r"^0[0-9A-F](0000|C800|FFFF)$",
         EXPIRY: 60 * 60,
     },
     "12C0": {  # displayed_temp
