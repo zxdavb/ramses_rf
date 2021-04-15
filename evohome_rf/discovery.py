@@ -34,6 +34,8 @@ SCAN_XXXX = "scan_xxxx"
 
 DEVICE_ID_REGEX = re.compile(ALL_DEVICE_ID)
 
+I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
+
 
 DEV_MODE = __dev_mode__
 
@@ -98,7 +100,7 @@ def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
     if not kwargs.get(EXECUTE_CMD) and gwy._include:
         dev_id = next(iter(gwy._include))
         qos = {"priority": Priority.HIGH, "retries": 5}
-        gwy.send_cmd(Command("RQ", dev_id, "0016", "00FF", **qos))
+        gwy.send_cmd(Command(RQ, dev_id, "0016", "00FF", **qos))
 
     tasks = []
 
@@ -201,10 +203,10 @@ def poll_device(gwy, dev_id) -> List[Any]:
     tasks = []
 
     for code in codes:
-        cmd = Command("RQ", dev_id, code, "00", **qos)
+        cmd = Command(RQ, dev_id, code, "00", **qos)
         tasks.append(gwy._loop.create_task(periodic(gwy, cmd, count=0)))
 
-        cmd = Command("RQ", dev_id, code, "0000", **qos)
+        cmd = Command(RQ, dev_id, code, "0000", **qos)
         tasks.append(gwy._loop.create_task(periodic(gwy, cmd, count=0)))
 
     gwy._tasks.extend(tasks)
@@ -231,23 +233,23 @@ async def scan_full(gwy, dev_id: str):
     gwy.send_cmd(Command._puzzle("00", message="full scan: begins...", **qos))
 
     qos = {"priority": Priority.DEFAULT, "retries": 5}
-    gwy.send_cmd(Command("RQ", dev_id, "0016", "0000", **qos))
+    gwy.send_cmd(Command(RQ, dev_id, "0016", "0000", **qos))
 
     qos = {"priority": Priority.DEFAULT, "retries": 1}
     for code in sorted(RAMSES_CODES):
         if code == "0005":
             for zone_type in range(20):  # known up to 18
-                gwy.send_cmd(Command("RQ", dev_id, code, f"00{zone_type:02X}", **qos))
+                gwy.send_cmd(Command(RQ, dev_id, code, f"00{zone_type:02X}", **qos))
 
         elif code == "000C":
             for zone_idx in range(16):  # also: FA-FF?
-                gwy.send_cmd(Command("RQ", dev_id, code, f"{zone_idx:02X}00", **qos))
+                gwy.send_cmd(Command(RQ, dev_id, code, f"{zone_idx:02X}00", **qos))
 
         elif code == "0016":
             continue
 
         elif code == "0404":
-            gwy.send_cmd(Command("RQ", dev_id, code, "00200008000100", **qos))
+            gwy.send_cmd(Command(RQ, dev_id, code, "00200008000100", **qos))
 
         elif code == "0418":
             for log_idx in range(2):
@@ -268,15 +270,15 @@ async def scan_full(gwy, dev_id: str):
 
         elif code in CODE_SCHEMA and CODE_SCHEMA[code].get("rq_len"):
             rq_len = CODE_SCHEMA[code].get("rq_len") * 2
-            gwy.send_cmd(Command("RQ", dev_id, code, f"{0:0{rq_len}X}", **qos))
+            gwy.send_cmd(Command(RQ, dev_id, code, f"{0:0{rq_len}X}", **qos))
 
         else:
-            gwy.send_cmd(Command("RQ", dev_id, code, "0000", **qos))
+            gwy.send_cmd(Command(RQ, dev_id, code, "0000", **qos))
 
     # these are possible/difficult codes
     qos = {"priority": Priority.DEFAULT, "retries": 2}
     for code in ("0150", "2389"):
-        gwy.send_cmd(Command("RQ", dev_id, code, "0000", **qos))
+        gwy.send_cmd(Command(RQ, dev_id, code, "0000", **qos))
 
     qos = {"priority": Priority.LOW, "retries": 3}
     gwy.send_cmd(Command._puzzle("00", message="full scan: ended.", **qos))
@@ -290,7 +292,7 @@ async def scan_hard(gwy, dev_id: str):
 
     qos = {"priority": Priority.LOW, "retries": 0}
     for code in range(0x4000):
-        gwy.send_cmd(Command("RQ", dev_id, f"{code:04X}", "0000", **qos))
+        gwy.send_cmd(Command(RQ, dev_id, f"{code:04X}", "0000", **qos))
 
     qos = {"priority": Priority.LOW, "retries": 3}
     gwy.send_cmd(Command._puzzle("00", message="hard scan: ended.", **qos))
@@ -306,8 +308,8 @@ async def scan_001(gwy, dev_id: str):
 
     qos = {"priority": Priority.LOW, "retries": 3}
     for idx in range(0x10):
-        gwy.send_cmd(Command(" W", dev_id, "000E", f"{idx:02X}0050", **qos))
-        gwy.send_cmd(Command("RQ", dev_id, "000E", f"{idx:02X}00C8", **qos))
+        gwy.send_cmd(Command(W_, dev_id, "000E", f"{idx:02X}0050", **qos))
+        gwy.send_cmd(Command(RQ, dev_id, "000E", f"{idx:02X}00C8", **qos))
 
 
 async def scan_002(gwy, dev_id: str):
@@ -317,7 +319,7 @@ async def scan_002(gwy, dev_id: str):
     message = "0000" + "".join(f"{ord(x):02X}" for x in "Hello there.") + "00"
     qos = {"priority": Priority.LOW, "retries": 0}
     [
-        gwy.send_cmd(Command(" W", dev_id, f"{c:04X}", message, **qos))
+        gwy.send_cmd(Command(W_, dev_id, f"{c:04X}", message, **qos))
         for c in range(0x4000)
         if c not in RAMSES_CODES
     ]
