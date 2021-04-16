@@ -854,10 +854,10 @@ class EleZone(Zone):  # Electric zones (do *not* call for heat)
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code == "3150":  # ZON zones are ELE zones that also call for heat
-            self._heat_demand = msg  # 3150
+        if msg.code == "0008":  # ZON zones are ELE zones that also call for heat
             self._set_zone_type("VAL")
-
+        elif msg.code == "3150":
+            raise TypeError("WHAT")
         elif msg.code == "3EF0":
             self._actuator_state = msg  # 3EF0
 
@@ -871,10 +871,13 @@ class EleZone(Zone):  # Electric zones (do *not* call for heat)
 
     @property
     def status(self) -> dict:
-        return {**super().status, "actuator_state": self.actuator_state}
+        return {
+            **super().status,
+            "actuator_state": self.actuator_state,
+        }
 
 
-class ValZone(ZoneDemand, EleZone):
+class ValZone(EleZone):  # ZoneDemand
     """For a motorised valve controlled by a BDR91 (will also call for heat)."""
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
@@ -882,6 +885,18 @@ class ValZone(ZoneDemand, EleZone):
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
         self._send_cmd("000C", payload=f"{self.idx}0A")
+
+    @property
+    def heat_demand(self) -> Optional[float]:  # 0008 (NOTE: not 3150)
+        if "0008" in self._msgs:
+            return self._msgs["0008"].payload["relay_demand"]
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            ATTR_HEAT_DEMAND: self.heat_demand,
+        }
 
 
 class RadZone(ZoneDemand, Zone):
