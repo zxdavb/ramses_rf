@@ -312,6 +312,10 @@ RAMSES_CODES = {  # rf_unknown
     },
 }
 
+# for code in RAMSES_CODES:
+#     if RQ in code and RP not in code and I_ in code:
+#         code[RP] = code[I_]
+
 # 0001 is not fully understood
 CODES_WITH_COMPLEX_IDX = ("0001", "0008", "000C", "0418", "1100", "1F41", "3B00")
 CODES_WITHOUT_IDX = ("1F09", "2E04")  # other than r"^00"
