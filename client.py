@@ -168,14 +168,20 @@ class FileCommand(click.Command):
         self.params.insert(
             0, click.Argument(("input-file",), type=click.File("r"), default=sys.stdin)
         )
-        # self.params.insert(1, click.Option(("-r", "--process_level"), count=True))
+        # self.params.insert(
+        #     1,
+        #     click.Option(
+        #         ("-o", "--packet-log"),
+        #         type=click.Path(),
+        #         help="Log all packets to this file",
+        #     ),
+        # )
 
 
 class PortCommand(click.Command):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.params.insert(0, click.Argument(("serial-port",)))
-        # self.params.insert(1, click.Option(("-r", "--process_level"), count=True))
         self.params.insert(
             1,
             click.Option(
