@@ -854,27 +854,12 @@ class EleZone(Zone):  # Electric zones (do *not* call for heat)
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code == "0008":  # ZON zones are ELE zones that also call for heat
-            self._set_zone_type("VAL")
-        elif msg.code == "3150":
-            raise TypeError("WHAT")
+        # if msg.code == "0008":  # ZON zones are ELE zones that also call for heat
+        #     self._set_zone_type("VAL")
+        if msg.code == "3150":
+            raise TypeError("WHAT 1")
         elif msg.code == "3EF0":
-            self._actuator_state = msg  # 3EF0
-
-    @property
-    def enabled(self) -> Optional[bool]:  # 3EF0
-        return self._msg_payload(self._actuator_state, "actuator_enabled")
-
-    @property
-    def actuator_state(self) -> Optional[float]:  # 3EF1
-        return self._msg_payload(self._actuator_state)
-
-    @property
-    def status(self) -> dict:
-        return {
-            **super().status,
-            "actuator_state": self.actuator_state,
-        }
+            raise TypeError("WHAT 2")
 
 
 class ValZone(EleZone):  # ZoneDemand
