@@ -53,6 +53,11 @@ CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
 
 I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
 
+# TODO: WIP
+MSG_TIMEOUTS = {
+    "1060": {I_: td(days=1)},
+}
+
 DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
@@ -300,6 +305,10 @@ class Message:
 
         def _timeout() -> td:
             timeout = None
+
+            if self.code in MSG_TIMEOUTS and self.verb in MSG_TIMEOUTS[self.code]:
+                return MSG_TIMEOUTS[self.code][self.verb]
+
             # TODO: Use this, or retest every time (to get logger messages)
             if self.code in ("1F09", "313F") and self.src._is_controller:
                 timeout = td(seconds=3)
