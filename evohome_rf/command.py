@@ -515,7 +515,8 @@ class Command:
         if mode is None and setpoint is None:
             raise ValueError("Invalid args: Both mode and setpoint cant be None")
 
-        if mode is None:  # and setpoint is not None: TODO: use: advanced_override?
+        if mode is None:
+            # TODO: the else may need to be profile-specific, e.g. ADVANCED for 01:
             mode = ZoneMode.TEMPORARY if until else ZoneMode.PERMANENT
         elif isinstance(mode, int):
             mode = f"{mode:02X}"
