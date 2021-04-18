@@ -37,7 +37,7 @@ from .exceptions import (
     CorruptPayloadError,
     CorruptStateError,
 )
-from .packet import _PKT_LOGGER
+from .packet import _PKT_LOGGER  # TODO: bad packets are being logged twice!
 from .ramses import CODES_WITH_COMPLEX_IDX, CODES_WITHOUT_IDX, RAMSES_CODES
 from .schema import (
     DONT_CREATE_ENTITIES,
@@ -61,6 +61,7 @@ MSG_TIMEOUTS = {
 DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
+# _PKT_LOGGER = _LOGGER
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
