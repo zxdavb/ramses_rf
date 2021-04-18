@@ -161,7 +161,7 @@ class Gateway:
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
                 self,
                 self.msg_transport._pkt_receiver if self.msg_transport else None,
-                serial_port=self.serial_port,
+                ser_port=self.serial_port,
             )
             if self.msg_transport:
                 self._tasks.append(

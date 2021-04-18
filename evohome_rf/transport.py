@@ -20,7 +20,7 @@ from threading import Lock, Thread
 from types import SimpleNamespace
 from typing import ByteString, Callable, Optional, Tuple
 
-from serial import serial_for_url  # Serial, SerialException, serial_for_url
+from serial import SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerialTransportAsync
 
 from .command import Command, Priority
@@ -175,7 +175,7 @@ class SerTransportPoller(asyncio.Transport):
         self._write_queue.put_nowait(cmd)
 
 
-class SerTransportProcess(Process):  # TODO: WIP
+class WIP_SerTransportProcess(Process):  # TODO: WIP
     """Interface for a packet transport using a process - WIP."""
 
     def __init__(self, loop, protocol, ser_port, extra=None):
@@ -762,7 +762,7 @@ def create_pkt_stack(
     gwy,
     msg_handler,
     protocol_factory=None,
-    serial_port=None,
+    ser_port=None,
     packet_log=None,
     packet_dict=None,
 ) -> Tuple[asyncio.Protocol, asyncio.Transport]:
@@ -783,20 +783,28 @@ def create_pkt_stack(
         else:
             return create_protocol_factory(PacketProtocolQos, gwy, msg_handler)()
 
-    if len([x for x in (packet_dict, packet_log, serial_port) if x is not None]) != 1:
-        raise TypeError("port / file / dict are not mutually exclusive")
+    if len([x for x in (packet_dict, packet_log, ser_port) if x is not None]) != 1:
+        raise TypeError("port / file / dict should be mutually exclusive")
 
     pkt_protocol = protocol_factory() if protocol_factory else _protocol_factory()
 
-    if packet_dict or packet_log:
-        packet_source = packet_dict if packet_dict else packet_log
-        pkt_transport = SerTransportRead(gwy._loop, pkt_protocol, packet_source)
+    if packet_log or packet_dict is not None:  # {} is a processable packet_dict
+        pkt_transport = SerTransportRead(
+            gwy._loop, pkt_protocol, packet_log or packet_dict
+        )
         return (pkt_protocol, pkt_transport)
 
-    serial_config = DEFAULT_SERIAL_CONFIG
-    serial_config.update(gwy.config[SERIAL_CONFIG])
+    ser_config = DEFAULT_SERIAL_CONFIG
+    ser_config.update(gwy.config[SERIAL_CONFIG])
 
-    ser_instance = serial_for_url(serial_port, **serial_config)
+    try:
+        ser_instance = serial_for_url(ser_port, **ser_config)
+    except SerialException as err:
+        _LOGGER.error(
+            "Failed to open port: %s (config: %s): %s", ser_port, ser_config, err
+        )
+        raise
+
     if os.name == "posix":  # or use: NotImplementedError
         try:
             ser_instance.set_low_latency_mode(True)  # only for FTDI?
@@ -805,8 +813,8 @@ def create_pkt_stack(
 
     if any(
         (
-            serial_port.startswith("rfc2217:"),
-            serial_port.startswith("socket:"),
+            ser_port.startswith("rfc2217:"),
+            ser_port.startswith("socket:"),
             os.name == "nt",
         )
     ):
