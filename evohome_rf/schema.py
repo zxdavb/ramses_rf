@@ -49,8 +49,8 @@ RLY_DEVICE_ID = vol.Match(RLY_DEVICE_ID_REGEX)
 ZONE_TYPE_SLUGS = list(ZONE_TYPE_SLUGS)
 
 DOMAIN_ID = vol.Match(r"^[0-9A-F]{2}$")
-UFH_IDX_REGEXP = r"^0[0-8]$"
-UFH_IDX = vol.Match(UFH_IDX_REGEXP)
+UFH_IDX_REGEX = r"^0[0-8]$"
+UFH_IDX = vol.Match(UFH_IDX_REGEX)
 ZONE_IDX = vol.Match(r"^0[0-9AB]$")  # TODO: what if > 12 zones? (e.g. hometronics)
 
 SERIAL_PORT = "serial_port"
@@ -213,7 +213,7 @@ GLOBAL_CONFIG_SCHEMA = vol.Schema(
         vol.Required(CONFIG): CONFIG_SCHEMA.extend(
             {
                 vol.Optional(SERIAL_CONFIG): SERIAL_CONFIG_SCHEMA,
-                vol.Optional(PACKET_LOG): PACKET_LOG_SCHEMA,
+                vol.Optional(PACKET_LOG, default={}): vol.Any({}, PACKET_LOG_SCHEMA),
             }
         ),
         vol.Optional(ALLOW_LIST, default={}): vol.All(KNOWNS_SCHEMA, vol.Length(min=0)),

@@ -37,6 +37,8 @@ from .schema import (
 )
 from .zones import DhwZone, Zone
 
+I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
+
 DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
@@ -66,7 +68,7 @@ class SysFaultLog:  # 0418
         status = super().status
         assert "fault_log" not in status  # TODO: removeme
         status["fault_log"] = self._fault_log.fault_log
-        status["last_fault"] = self._msgz[" I"].get("0418")
+        status["last_fault"] = self._msgz[I_].get("0418")
         return status
 
 
@@ -85,7 +87,7 @@ class SysDatetime:  # 313F
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
 
-        if msg.code == "313F" and msg.verb in (" I", "RP"):  # TODO: W
+        if msg.code == "313F" and msg.verb in (I_, RP):  # TODO: W
             self._datetime = msg
 
     @property
@@ -95,7 +97,7 @@ class SysDatetime:  # 313F
     # def wait_for(self, cmd, callback):
     # self._api_lock.acquire()
 
-    # self._send_cmd("313F", verb="RQ", callback=callback)
+    # self._send_cmd("313F", verb=RQ, callback=callback)
 
     #     time_start = dt.now()
     # while not self._schedule_done:
@@ -107,11 +109,11 @@ class SysDatetime:  # 313F
     # self._api_lock.release()
 
     # async def get_datetime(self) -> str:  # wait for the RP/313F
-    # await self.wait_for(Command("313F", verb="RQ"))
+    # await self.wait_for(Command("313F", verb=RQ))
     # return self.datetime
 
     # async def set_datetime(self, dtm: dt) -> str:  # wait for the I/313F
-    # await self.wait_for(Command("313F", verb=" W", payload=f"00{dtm_to_hex(dtm)}"))
+    # await self.wait_for(Command("313F", verb=W_, payload=f"00{dtm_to_hex(dtm)}"))
     # return self.datetime
 
     @property
@@ -137,7 +139,7 @@ class SysLanguage:  # 0100
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
 
-        if msg.code == "0100" and msg.verb in (" I", "RP"):
+        if msg.code == "0100" and msg.verb in (I_, RP):
             self._language = msg
 
     @property
@@ -168,7 +170,7 @@ class SysMode:  # 2E04
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
 
-        if msg.code == "2E04" and msg.verb in (" I", "RP"):  # this is a special case
+        if msg.code == "2E04" and msg.verb in (I_, RP):  # this is a special case
             self._system_mode = msg
 
     @property
@@ -239,7 +241,7 @@ class StoredHw:
             if all(
                 (
                     this.code == "10A0",
-                    this.verb == "RP",
+                    this.verb == RP,
                     this.src is self._ctl,
                     this.dst.type == "07",
                 )
@@ -701,15 +703,15 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             # note the order: most to least reliable
             heater = None
 
-            if this.code == "3220" and this.verb == "RQ":
+            if this.code == "3220" and this.verb == RQ:
                 if this.src is self._ctl and this.dst.type == "10":
                     heater = this.dst
 
-            elif this.code == "3EF0" and this.verb == "RQ":
+            elif this.code == "3EF0" and this.verb == RQ:
                 if this.src is self._ctl and this.dst.type in ("10", "13"):
                     heater = this.dst
 
-            elif this.code == "3B00" and this.verb == " I" and prev is not None:
+            elif this.code == "3B00" and this.verb == I_ and prev is not None:
                 if this.src is self._ctl and prev.src.type == "13":
                     if prev.code == this.code and prev.verb == this.verb:
                         heater = prev.src
@@ -724,7 +726,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         else:
             super()._handle_msg(msg)
 
-        if msg.code == "0008" and msg.verb in (" I", "RP"):
+        if msg.code == "0008" and msg.verb in (I_, RP):
             if "domain_id" in msg.payload:
                 self._relay_demands[msg.payload["domain_id"]] = msg
                 if msg.payload["domain_id"] == "F9":
@@ -741,7 +743,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                     for code in ("0008", "3EF1"):
                         device._send_cmd(code, qos)
 
-        if msg.code == "3150" and msg.verb in (" I", "RP"):
+        if msg.code == "3150" and msg.verb in (I_, RP):
             if "domain_id" in msg.payload and msg.payload["domain_id"] == "FC":
                 self._heat_demand = msg.payload
 

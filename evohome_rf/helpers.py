@@ -8,6 +8,7 @@ import re
 import sys
 import time
 from datetime import datetime as dt
+from functools import lru_cache
 from typing import List, Optional, Tuple, Union
 
 from .const import (
@@ -152,7 +153,8 @@ def temp_to_hex(value: int) -> str:
 
 def str_to_hex(value: str) -> str:
     """Convert a string to a variable-length ASCII hex string."""
-    return "".join([f"{ord(x):02X}" for x in value])
+    return "".join(f"{ord(x):02X}" for x in value)
+    # return value.encode().hex()
 
 
 def is_valid_dev_id(value) -> bool:
@@ -197,6 +199,7 @@ def dev_id_to_hex(device_id: str) -> str:
     return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # no preceding 0x
 
 
+@lru_cache(maxsize=256)  # there is definite value in caching this
 def extract_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
     """Return the address fields from (e.g): '01:078710 --:------ 01:144246 '."""
 

@@ -31,6 +31,8 @@ from .schema import ENABLE_EAVESDROP
 
 MSG_ID = "msg_id"
 
+I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
+
 DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
@@ -48,7 +50,7 @@ class Entity:
         self.id = None
 
         self._msgs = {}
-        self._msgz = {" I": {}, "RQ": {}, "RP": {}, " W": {}}
+        self._msgz = {I_: {}, RQ: {}, RP: {}, W_: {}}
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         pass
@@ -71,10 +73,10 @@ class Entity:
     def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess
         self._msgz[msg.verb][msg.code] = msg
 
-        if msg.verb == " W":
+        if msg.verb == W_:
             # if msg.code in self._msgs and self._msgs[msg.code].verb != msg.verb:
             return
-        if msg.verb == "RQ":  # and msg.payload:
+        if msg.verb == RQ:  # and msg.payload:
             # if msg.code in self._msgs and self._msgs[msg.code].verb != msg.verb:
             return
 
@@ -88,7 +90,7 @@ class Entity:
         self._msgs.pop(code, None)  # remove the old one, so we can tell if RP'd rcvd
 
         self._gwy.send_cmd(
-            Command(kwargs.pop("verb", "RQ"), dest, code, payload, **kwargs)
+            Command(kwargs.pop("verb", RQ), dest, code, payload, **kwargs)
         )
 
     def _msg_payload(self, msg, key=None) -> Optional[Any]:
@@ -259,7 +261,7 @@ class Actuator:  # 3EF0, 3EF1
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code == "3EF0" and msg.verb == " I":  # NOT "RP", TODO: why????
+        if msg.code == "3EF0" and msg.verb == I_:  # NOT RP, TODO: why????
             self._send_cmd("3EF1", priority=Priority.LOW, retries=1)
 
     @property
@@ -477,14 +479,14 @@ class Device(DeviceInfo, DeviceBase):
         # if self.type in ("01", "23"):
         #     return True
         # if "1F09" in self._msgs:  # TODO: needs to add msg to instaition
-        #     return self._msgs["1F09"].verb == " I"
+        #     return self._msgs["1F09"].verb == I_
         # if "31D9" in self._msgs:  # TODO: needs to add msg to instaition
-        #     return self._msgs["31D9"].verb == " I"
+        #     return self._msgs["31D9"].verb == I_
         return False
 
     @property
     def _is_present(self) -> bool:
-        return any([m.src.id == self.id for m in self._msgs.values()])
+        return any(m.src.id == self.id for m in self._msgs.values())
 
     @property
     def schema(self):
@@ -757,7 +759,7 @@ class OtbGateway(Actuator, Device):  # OTB: 10
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code == "3220" and msg.verb == "RP":  # TODO: what about I/W (or RQ)
+        if msg.code == "3220" and msg.verb == RP:  # TODO: what about I/W (or RQ)
             self._opentherm_msg[msg.payload[MSG_ID]] = msg  # TODO: need to expire
 
     @property
@@ -904,12 +906,12 @@ class BdrSwitch(Actuator, Device):  # BDR: 13
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code == "3B00" and msg.verb == " I":
+        if msg.code == "3B00" and msg.verb == I_:
             pass  # only a heater_relay will I/3B00
             # for code in ("0008", "3EF1"):
             #     self._send_cmd(code, delay=1)
 
-        elif msg.code == "3EF0" and msg.verb == " I":  # NOT "RP", TODO: why????
+        elif msg.code == "3EF0" and msg.verb == I_:  # NOT RP, TODO: why????
             self._send_cmd("0008", priority=Priority.LOW, retries=1)
 
     @property
@@ -928,11 +930,11 @@ class BdrSwitch(Actuator, Device):  # BDR: 13
         if self._is_tpi is not None:
             return self._is_tpi
 
-        elif "1FC9" in self._msgs and self._msgs["1FC9"].verb == "RP":
+        elif "1FC9" in self._msgs and self._msgs["1FC9"].verb == RP:
             if "3B00" in self._msgs["1FC9"].raw_payload:
                 self._is_tpi = True
 
-        elif "3B00" in self._msgs and self._msgs["3B00"].verb == " I":
+        elif "3B00" in self._msgs and self._msgs["3B00"].verb == I_:
             self._is_tpi = True
 
         if self._is_tpi:

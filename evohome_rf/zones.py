@@ -35,7 +35,10 @@ from .const import (
 )
 from .devices import Device, Entity
 from .exceptions import CorruptStateError
-from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
+
+# from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
+
+I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
 
 DEV_MODE = __dev_mode__ and False
 
@@ -84,23 +87,15 @@ class ZoneBase(Entity, metaclass=ABCMeta):
         # TODO: assert msg.src is self, "Devices should only keep msgs they sent"
         super()._handle_msg(msg)
 
-        if True or not self._zone_type:
-            return
-
-        ramses_zones = RAMSES_ZONES if self._zone_type else {None: RAMSES_ZONES_ALL}
-
-        if self._zone_type not in ramses_zones:
-            assert False, f"Unknown zone type: {str(self)} (likely a corrupt pkt)"
-
-        elif msg.code not in ramses_zones[self._zone_type]:
-            assert (
-                ramses_zones[self._zone_type] == {}
-            ), f"Unknown code for {str(self)}: {msg.verb}/{msg.code}"
-
-        elif msg.verb not in ramses_zones[self._zone_type][msg.code]:
-            assert (
-                ramses_zones[self._zone_type][msg.code] == {}
-            ), f"Unknown verb for {str(self)}: {msg.verb}/{msg.code}"
+        # if not self._zone_type:
+        #     return
+        # ramses_zones = RAMSES_ZONES.get(self._zone_type, RAMSES_ZONES_ALL)
+        # assert (
+        #     msg.code in ramses_zones
+        # ), f"Unknown code for {str(self)}: {msg.verb}/{msg.code}"
+        # assert (
+        #     msg.verb in ramses_zones[msg.code]
+        # ), f"Unknown verb for {str(self)}: {msg.verb}/{msg.code}"
 
     def _send_cmd(self, code, **kwargs) -> None:
         dest = kwargs.pop("dest_addr", self._ctl.id)
@@ -172,11 +167,10 @@ class ZoneBase(Entity, metaclass=ABCMeta):
         """Return the measured temperature of the zone/DHW."""
         raise NotImplementedError
 
-    # @property
-    # @abstractmethod
-    # def type(self) -> str:
-    #     """Return the type of the zone/DHW (e.g. electric_zone, stored_dhw)."""
-    #     raise NotImplementedError
+    @property
+    def heating_type(self) -> str:
+        """Return the type of the zone/DHW (e.g. electric_zone, stored_dhw)."""
+        return self._zone_type
 
     # @abstractmethod
     # def ._set_zone_type(self, value: str) -> None:
@@ -202,7 +196,7 @@ class DhwZone(ZoneBase):
         self._dhw_valve = None
         self._htg_valve = None
 
-        self.heating_type = Zone.DHW
+        self._zone_type = Zone.DHW
 
         self._dhw_mode = None
         self._dhw_params = None
@@ -443,7 +437,7 @@ class ZoneSchedule:  # 0404
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code == "0404" and msg.verb == "RP":
+        if msg.code == "0404" and msg.verb == RP:
             _LOGGER.debug("Zone(%s): Received RP/0404 (schedule) pkt", self)
 
     async def get_schedule(self, force_refresh=None) -> Optional[dict]:
@@ -547,20 +541,20 @@ class Zone(ZoneSchedule, ZoneBase):
         elif msg.code == "12B0":
             self._window_open = msg
 
-        elif msg.code == "2309" and msg.verb in (" I", "RP"):  # setpoint
+        elif msg.code == "2309" and msg.verb in (I_, RP):  # setpoint
             assert msg.src.type == "01", "coding error zxw"
             self._setpoint = msg
 
-        elif msg.code == "2349" and msg.verb in (" I", "RP"):  # mode, setpoint
+        elif msg.code == "2349" and msg.verb in (I_, RP):  # mode, setpoint
             assert msg.src.type == "01", "coding error zxx"
             self._mode = msg
             self._setpoint = msg
 
-        elif msg.code == "30C9" and msg.verb in (" I", "RP"):  # used by sensor matching
+        elif msg.code == "30C9" and msg.verb in (I_, RP):  # used by sensor matching
             assert msg.src.type in DEVICE_HAS_ZONE_SENSOR + ("01",), "coding error"
             self._temperature = msg
 
-        elif msg.code == "3150":  # TODO: and msg.verb in (" I", "RP")?
+        elif msg.code == "3150":  # TODO: and msg.verb in (I_, RP)?
             assert msg.src.type in ("00", "02", "04", "13")
             assert self._zone_type in (None, "RAD", "UFH", "VAL")  # MIX/ELE don't 3150
 
@@ -640,14 +634,15 @@ class Zone(ZoneSchedule, ZoneBase):
         if _type not in ZONE_CLASSES:
             raise ValueError(f"Not a known zone type: {zone_type}")
 
-        if self._zone_type is not None:
-            if self._zone_type != _type and (
-                self._zone_type != "ELE" and _type != "VAL"
-            ):
-                raise CorruptStateError(
-                    f"Zone {self} has a mismatched type: "
-                    f"old={self._zone_type}, new={_type}"
-                )
+        if (
+            self._zone_type is not None
+            and self._zone_type != _type
+            and (self._zone_type != "ELE" and _type != "VAL")
+        ):
+            raise CorruptStateError(
+                f"Zone {self} has a mismatched type: "
+                f"old={self._zone_type}, new={_type}"
+            )
 
         self._zone_type = _type
         self.__class__ = ZONE_CLASSES[_type]
@@ -859,27 +854,15 @@ class EleZone(Zone):  # Electric zones (do *not* call for heat)
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code == "3150":  # ZON zones are ELE zones that also call for heat
-            self._heat_demand = msg  # 3150
-            self._set_zone_type("VAL")
-
+        # if msg.code == "0008":  # ZON zones are ELE zones that also call for heat
+        #     self._set_zone_type("VAL")
+        if msg.code == "3150":
+            raise TypeError("WHAT 1")
         elif msg.code == "3EF0":
-            self._actuator_state = msg  # 3EF0
-
-    @property
-    def enabled(self) -> Optional[bool]:  # 3EF0
-        return self._msg_payload(self._actuator_state, "actuator_enabled")
-
-    @property
-    def actuator_state(self) -> Optional[float]:  # 3EF1
-        return self._msg_payload(self._actuator_state)
-
-    @property
-    def status(self) -> dict:
-        return {**super().status, "actuator_state": self.actuator_state}
+            raise TypeError("WHAT 2")
 
 
-class ValZone(ZoneDemand, EleZone):
+class ValZone(EleZone):  # ZoneDemand
     """For a motorised valve controlled by a BDR91 (will also call for heat)."""
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
@@ -887,6 +870,18 @@ class ValZone(ZoneDemand, EleZone):
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
         self._send_cmd("000C", payload=f"{self.idx}0A")
+
+    @property
+    def heat_demand(self) -> Optional[float]:  # 0008 (NOTE: not 3150)
+        if "0008" in self._msgs:
+            return self._msgs["0008"].payload["relay_demand"]
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            ATTR_HEAT_DEMAND: self.heat_demand,
+        }
 
 
 class RadZone(ZoneDemand, Zone):
@@ -911,7 +906,7 @@ class UfhZone(ZoneDemand, Zone):
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code == "22C9" and msg.verb == " I":
+        if msg.code == "22C9" and msg.verb == I_:
             self._ufh_setpoint = msg
 
     @property
@@ -935,7 +930,7 @@ class MixZone(Zone):
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code == "1030" and msg.verb == " I":
+        if msg.code == "1030" and msg.verb == I_:
             self._mix_config = msg
 
     @property

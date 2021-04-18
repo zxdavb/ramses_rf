@@ -13,7 +13,7 @@ from datetime import timedelta as td
 from queue import Empty, PriorityQueue, SimpleQueue
 from typing import Callable, List, Optional, Tuple
 
-from .command import Command
+from .command import ARGS, DEAMON, EXPIRES, FUNC, TIMEOUT, Command
 from .const import __dev_mode__
 from .message import Message
 from .schema import DISABLE_SENDING, DONT_CREATE_MESSAGES, REDUCE_PROCESSING
@@ -30,7 +30,7 @@ class MakeCallbackAwaitable:
     DEFAULT_TIMEOUT = 3  # in seconds
 
     def __init__(self, loop):
-        self._loop = loop if loop else asyncio.get_event_loop()
+        self._loop = loop or asyncio.get_event_loop()
         self._queue = None
 
     def create_pair(self) -> Tuple[Callable, Callable]:
@@ -101,10 +101,10 @@ class MessageTransport(asyncio.Transport):
         async def call_send_data(cmd):
             _LOGGER.debug("MsgTransport.pkt_dispatcher(%s): send_data", cmd)
             if cmd.callback:
-                cmd.callback["expires"] = (
+                cmd.callback[EXPIRES] = (
                     dt.max
-                    if cmd.callback.get("daemon")
-                    else dt.now() + td(cmd.callback.get("timeout", 1))
+                    if cmd.callback.get(DEAMON)
+                    else dt.now() + td(cmd.callback.get(TIMEOUT, 1))
                 )
                 self._callbacks[cmd.rx_header] = cmd.callback
 
@@ -136,20 +136,20 @@ class MessageTransport(asyncio.Transport):
         return self._extra[self.WRITER_TASK]
 
     def _pkt_receiver(self, pkt):
-        _LOGGER.debug("MsgTransport._pkt_receiver(%s)", pkt)
+        # _LOGGER.debug("MsgTransport._pkt_receiver(%s)", pkt)
 
         for (
             hdr,
             callback,
         ) in self._callbacks.items():  # 1st, notify all expired callbacks
-            if callback.get("expires", dt.max) < pkt._dtm:
+            if callback.get(EXPIRES, dt.max) < pkt._dtm:
                 _LOGGER.error("MsgTransport._pkt_receiver(%s): Expired callback", hdr)
-                callback["func"](False, *callback.get("args", tuple()))
+                callback[FUNC](False, *callback.get(ARGS, tuple()))
 
-        self._callbacks = {  # 2nd, discard expired callbacks
+        self._callbacks = {  # 2nd, discard any expired callbacks
             hdr: callback
             for hdr, callback in self._callbacks.items()
-            if callback.get("daemon") or callback["expires"] >= pkt._dtm
+            if callback.get(DEAMON) or callback[EXPIRES] >= pkt._dtm
         }
 
         if len(self._protocols) == 0:
@@ -158,18 +158,28 @@ class MessageTransport(asyncio.Transport):
         if self._gwy.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES:
             return
 
-        msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
-        if not msg.is_valid:
+        try:
+            msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
+        except ValueError:  # not a valid message
             return
 
-        _LOGGER.info("MsgTransport._pkt_receiver(pkt): %s", msg)
-        if msg._pkt._header in self._callbacks:  # 3rd, invoke any callback
-            callback = self._callbacks[msg._pkt._header]
-            callback["func"](msg, *callback.get("args", tuple()))
-            if not callback.get("daemon"):
+        # _LOGGER.info("MsgTransport._pkt_receiver(pkt): %s", msg)
+        # NOTE: msg._pkt._header is expensive - don't call it unless there's callbacks
+        if self._callbacks and msg._pkt._header in self._callbacks:
+            callback = self._callbacks[msg._pkt._header]  # 3rd, invoke any callback
+            callback[FUNC](msg, *callback.get(ARGS, tuple()))
+            if not callback.get(DEAMON):
                 del self._callbacks[msg._pkt._header]
 
-        [p.data_received(msg) for p in self._protocols]
+        # TODO: wrap in an exception handler because can't trust them...
+        # [p.data_received(msg) for p in self._protocols]
+        for p in self._protocols:
+            try:
+                p.data_received(msg)
+            except AttributeError:
+                pass
+
+        # NOTE: this doesn't work...
         # [
         #     self._gwy._loop.run_in_executor(None, p.data_received, msg)
         #     for p in self._protocols
@@ -274,15 +284,10 @@ class MessageTransport(asyncio.Transport):
         """
         _LOGGER.debug("MsgTransport.set_write_buffer_limits()")
 
-        if high is None:
-            self._write_buffer_limit_high = 10
-        else:
-            self._write_buffer_limit_high = high
-
-        if low is None:
-            self._write_buffer_limit_low = int(self._write_buffer_limit_high * 0.8)
-        else:
-            self._write_buffer_limit_low = low
+        self._write_buffer_limit_high = 10 if high is None else high
+        self._write_buffer_limit_low = (
+            int(self._write_buffer_limit_high * 0.8) if low is None else low
+        )
 
         assert 0 <= self._write_buffer_limit_low <= self._write_buffer_limit_high
 
@@ -317,11 +322,11 @@ class MessageTransport(asyncio.Transport):
             raise RuntimeError("MsgTransport is closing or has closed")
 
         if self._gwy.config[DISABLE_SENDING]:
-            msg = "MsgTransport.write(%s): sending disabled: discarded"
+            message = "MsgTransport.write(%s): sending disabled: discarded"
             if DEV_MODE:
-                _LOGGER.warning(msg, cmd)
+                _LOGGER.warning(message, cmd)
             else:
-                _LOGGER.debug(msg, cmd)
+                _LOGGER.debug(message, cmd)
 
         else:
             if not self._dispatcher:  # TODO: do better?
@@ -415,8 +420,8 @@ class MessageProtocol(asyncio.Protocol):
             awaitable, callback = MakeCallbackAwaitable(self._loop).create_pair()
         if callback:
             cmd.callback = {
-                "func": callback,
-                "timeout": 3,
+                FUNC: callback,
+                TIMEOUT: 3,
             }  # func, args, daemon, timeout (& expired)
 
         while self._pause_writing:
@@ -425,14 +430,14 @@ class MessageProtocol(asyncio.Protocol):
         self._transport.write(cmd)
 
         if awaitable:
-            result = await awaitable(timeout=kwargs.get("timeout"))  # may: TimeoutError
+            result = await awaitable(timeout=kwargs.get(TIMEOUT))  # may: TimeoutError
             return result[0]  # a Message (or None/False?)
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
         _LOGGER.debug("MsgProtocol.connection_lost(%s)", exc)
         if exc is not None:
-            pass
+            raise exc
 
     def pause_writing(self) -> None:
         """Called by the transport when it's buffer goes over the high-water mark."""

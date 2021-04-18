@@ -23,8 +23,7 @@ from .command import Command
 from .const import ATTR_DEVICES, ATTR_ORPHANS, NUL_DEVICE_ID, __dev_mode__
 from .devices import DEVICE_CLASSES, Device
 from .message import Message, process_msg
-from .packet import _PKT_LOGGER as pkt_logger
-from .packet import set_pkt_logging
+from .packet import _PKT_LOGGER, set_pkt_logging
 from .protocol import create_msg_stack
 from .schema import (
     DEBUG_MODE,
@@ -65,7 +64,7 @@ class Gateway:
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
         _LOGGER.debug("Starting evohome_rf, **kwargs = %s", kwargs)
 
-        self._loop = loop if loop else asyncio.get_running_loop()
+        self._loop = loop or asyncio.get_running_loop()
         self._tasks = []
 
         self.serial_port = serial_port
@@ -76,7 +75,7 @@ class Gateway:
         )
 
         set_pkt_logging(
-            pkt_logger,
+            _PKT_LOGGER,
             cc_stdout=self.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES,
             **self.config[PACKET_LOG],  # TODO: ZZZ
         )
@@ -162,7 +161,7 @@ class Gateway:
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
                 self,
                 self.msg_transport._pkt_receiver if self.msg_transport else None,
-                serial_port=self.serial_port,
+                ser_port=self.serial_port,
             )
             if self.msg_transport:
                 self._tasks.append(
