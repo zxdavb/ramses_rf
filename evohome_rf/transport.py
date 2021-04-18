@@ -601,7 +601,7 @@ class PacketProtocolQos(PacketProtocolBase):
         """Called when some data is received. Adjust backoff as required."""
         # _LOGGER.info("PktProtocolQos.data_rcvd(%s)", pkt_str)
 
-        def _logger_rcvd(logger, log_msg: str) -> None:
+        def _logger_rcvd(logger, message: str) -> None:
             if self._qos_cmd is None:
                 wanted = None
             elif self._tx_hdr:
@@ -615,7 +615,7 @@ class PacketProtocolQos(PacketProtocolBase):
                 self._backoff,
                 wanted,
                 self._timeout_full,
-                log_msg,
+                message,
             )
 
         try:
@@ -629,7 +629,7 @@ class PacketProtocolQos(PacketProtocolBase):
 
             # NOTE: is the Tx pkt, and no response is expected
             if pkt._header == self._tx_hdr and self._rx_hdr is None:
-                msg = "matched the Tx pkt (not wanting a Rx pkt) - now done"
+                log_msg = "matched the Tx pkt (not wanting a Rx pkt) - now done"
                 self._qos_lock.acquire()
                 self._qos_cmd = None
                 self._qos_lock.release()
@@ -637,39 +637,39 @@ class PacketProtocolQos(PacketProtocolBase):
             # NOTE: is the Tx pkt, and a response *is* expected
             elif pkt._header == self._tx_hdr:
                 # assert str(pkt)[4:] == str(self._qos_cmd), "Packets dont match"
-                msg = "matched the Tx pkt (now wanting a Rx pkt)"
+                log_msg = "matched the Tx pkt (now wanting a Rx pkt)"
                 self._tx_hdr = None
 
             # NOTE: is the Tx pkt, but is a *duplicate* - we've already seen it!
             elif pkt._header == self._qos_cmd.tx_header:
                 # assert str(pkt) == str(self._qos_cmd), "Packets dont match"
-                msg = "duplicated Tx pkt (still wanting the Rx pkt)"
+                log_msg = "duplicated Tx pkt (still wanting the Rx pkt)"
                 self._timeouts(dt.now())  # TODO: increase backoff?
 
             # NOTE: is the Rx pkt, and is a non-Null (expected) response
             elif pkt._header == self._rx_hdr:
-                msg = "matched the Rx pkt - now done"
+                log_msg = "matched the Rx pkt - now done"
                 self._qos_lock.acquire()
                 self._qos_cmd = None
                 self._qos_lock.release()
 
             # TODO: is the Rx pkt, but is a Null response
             # elif pkt._header == self._qos_cmd.null_header:
-            #     msg = "matched a NULL Rx pkt - now done"
+            #     log_msg = "matched a NULL Rx pkt - now done"
             #     self._qos_lock.acquire()
             #     self._qos_cmd = None
             #     self._qos_lock.release()
 
             # NOTE: is not the expected pkt, but another pkt
             else:
-                msg = (
+                log_msg = (
                     "unmatched pkt (still wanting a "
                     + ("Tx" if self._tx_hdr else "Rx")
                     + " pkt)"
                 )
 
             self._timeouts(dt.now())
-            _logger_rcvd(_LOGGER.debug, f"CHECKED - {msg}")
+            _logger_rcvd(_LOGGER.debug, f"CHECKED - {log_msg}")
 
         else:  # TODO: no outstanding cmd - ?throttle down the backoff
             # self._timeouts(dt.now())
@@ -682,14 +682,14 @@ class PacketProtocolQos(PacketProtocolBase):
         """Called when some data is to be sent (not a callback)."""
         _LOGGER.info("PktProtocolQos.send_data(%s)", cmd)
 
-        def _logger_send(logger, msg: str) -> None:
+        def _logger_send(logger, message: str) -> None:
             logger(
                 "PktProtocolQos.send_data(%s): boff=%s, want=%s, tout=%s: %s",
                 cmd.tx_header,
                 self._backoff,
                 self._tx_hdr or self._rx_hdr,
                 self._timeout_full,
-                msg,
+                message,
             )
 
         if self._gwy.config[DISABLE_SENDING]:

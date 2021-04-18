@@ -322,11 +322,11 @@ class MessageTransport(asyncio.Transport):
             raise RuntimeError("MsgTransport is closing or has closed")
 
         if self._gwy.config[DISABLE_SENDING]:
-            msg = "MsgTransport.write(%s): sending disabled: discarded"
+            message = "MsgTransport.write(%s): sending disabled: discarded"
             if DEV_MODE:
-                _LOGGER.warning(msg, cmd)
+                _LOGGER.warning(message, cmd)
             else:
-                _LOGGER.debug(msg, cmd)
+                _LOGGER.debug(message, cmd)
 
         else:
             if not self._dispatcher:  # TODO: do better?
