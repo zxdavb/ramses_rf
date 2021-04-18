@@ -321,7 +321,7 @@ CODES_WITH_COMPLEX_IDX = ("0001", "0008", "000C", "0418", "1100", "1F41", "3B00"
 CODES_WITHOUT_IDX = ("1F09", "2E04")  # other than r"^00"
 
 RAMSES_DEVICES = {
-    "01": {
+    "01": {  # e.g. ATC928: Evohome Colour Controller
         "0001": {W_: {}},
         "0002": {I_: {}, RP: {}},
         "0004": {I_: {}, RP: {}},
@@ -360,7 +360,7 @@ RAMSES_DEVICES = {
         "3B00": {I_: {}},
         "3EF0": {RQ: {}},
     },
-    "02": {
+    "02": {  # e.g. HCE80/HCC80: Underfloor Heating Controller
         "0001": {RP: {}, W_: {}},
         "0005": {RP: {}},
         "0008": {I_: {}},
@@ -373,7 +373,7 @@ RAMSES_DEVICES = {
         "2309": {RP: {}},
         "3150": {I_: {}},
     },
-    "03": {
+    "03": {  # e.g. HCF82/HCW82: Room Temperature Sensor
         "0001": {W_: {}},
         "0008": {I_: {}},
         "0009": {I_: {}},
@@ -384,7 +384,7 @@ RAMSES_DEVICES = {
         "2309": {I_: {}},
         "30C9": {I_: {}},
     },
-    "04": {
+    "04": {  # e.g. HR92/HR91: Radiator Controller
         "0001": {W_: {}},
         "0004": {RQ: {}},
         "0016": {RQ: {}},
@@ -401,7 +401,7 @@ RAMSES_DEVICES = {
         "313F": {RQ: {}},
         "3150": {I_: {}},
     },
-    "07": {
+    "07": {  # e.g. CS92: (DHW) Cylinder Thermostat
         "0016": {RQ: {}},
         "1060": {I_: {}},
         "10A0": {RQ: {}},  # This RQ/07/10A0 includes a payload
@@ -415,7 +415,7 @@ RAMSES_DEVICES = {
         "3EF0": {I_: {}},
         "3EF1": {RP: {}},
     },
-    "10": {  # Honeywell R8810
+    "10": {  # e.g. R8810: OpenTherm Bridge
         "10A0": {RP: {}},
         "10E0": {I_: {}, RP: {}},
         "1260": {RP: {}},
@@ -428,7 +428,7 @@ RAMSES_DEVICES = {
         "3EF0": {I_: {}, RP: {}},
         "3EF1": {RP: {}},
     },  # see: https://www.opentherm.eu/request-details/?post_ids=2944
-    "12": {
+    "12": {  # e.g. DTS92(E): Digital Room Thermostat
         "0001": {W_: {}},
         "0008": {I_: {}},
         "0009": {I_: {}},
@@ -448,7 +448,7 @@ RAMSES_DEVICES = {
         "3B00": {I_: {}},
         "3EF1": {RQ: {}},
     },
-    "13": {
+    "13": {  # e.g. BDR91A/BDR91T: Wireless Relay Box
         "0008": {RP: {}},
         "0009a": {RP: {}},  # TODO: needs confirming
         "0016": {RP: {}},
@@ -485,7 +485,7 @@ RAMSES_DEVICES = {
         "3B00": {I_: {}},
         "3EF1": {RP: {}},
     },
-    "30": {  # Honeywell RFG100 (and others)
+    "30": {  # e.g. RFG100 (and others)
         # GWY:185469 - Honeywell RFG100
         "0002": {RQ: {}},
         "0004": {I_: {}, RQ: {}},
@@ -528,7 +528,7 @@ RAMSES_DEVICES = {
         "31DA": {RQ: {}},
         "31E0": {I_: {}},
     },
-    "34": {  # Honeywell TR87RF
+    "34": {  # e.g. TR87RF: Single (round) Zone Thermostat
         "0005": {I_: {}},
         "0008": {I_: {}},
         "000A": {I_: {}, RQ: {}},
@@ -557,9 +557,9 @@ RAMSES_DEVICES = {
     },  # https://www.ithodaalderop.nl/nl-NL/professional/product/536-0124
 }
 
-RAMSES_DEVICES["00"] = RAMSES_DEVICES["04"]
+RAMSES_DEVICES["00"] = RAMSES_DEVICES["04"]  # HR80
 RAMSES_DEVICES["21"] = RAMSES_DEVICES["34"]  # T87RF1003
-RAMSES_DEVICES["22"] = RAMSES_DEVICES["12"]
+RAMSES_DEVICES["22"] = RAMSES_DEVICES["12"]  # DTS92
 
 RAMSES_ZONES = {
     "ALL": {
