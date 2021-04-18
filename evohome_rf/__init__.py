@@ -23,8 +23,7 @@ from .command import Command
 from .const import ATTR_DEVICES, ATTR_ORPHANS, NUL_DEVICE_ID, __dev_mode__
 from .devices import DEVICE_CLASSES, Device
 from .message import Message, process_msg
-from .packet import _PKT_LOGGER as pkt_logger
-from .packet import set_pkt_logging
+from .packet import _PKT_LOGGER, set_pkt_logging
 from .protocol import create_msg_stack
 from .schema import (
     DEBUG_MODE,
@@ -76,7 +75,7 @@ class Gateway:
         )
 
         set_pkt_logging(
-            pkt_logger,
+            _PKT_LOGGER,
             cc_stdout=self.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES,
             **self.config[PACKET_LOG],  # TODO: ZZZ
         )
