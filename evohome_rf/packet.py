@@ -89,8 +89,24 @@ class StdOutFilter(logging.Filter):
 class FileFilter(logging.Filter):
     """For packet logs file, process only wanted packets."""
 
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.prev_record = None
+
     def filter(self, record) -> bool:
-        """Return True if the record is to be processed. """
+        """Return True if the record is to be processed."""
+        return record.levelno in (logging.INFO, logging.WARNING)
+
+        # HACK: to stop duplicate logging...
+        if not hasattr(record, "dtm"):
+            self.prev_record = None
+        elif self.prev_record:
+            if self.prev_record.dtm != record.dtm:
+                record, self.prev_record = self.prev_record, record
+        else:
+            self.prev_record = record
+            return False
+
         return record.levelno in (logging.INFO, logging.WARNING)
 
 
