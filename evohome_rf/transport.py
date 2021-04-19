@@ -271,8 +271,12 @@ class PacketProtocolBase(asyncio.Protocol):
         self._pause_writing = True
         self._recv_buffer = bytes()
 
-        self._include = gwy._include if gwy.config[ENFORCE_ALLOWLIST] else {}
-        self._exclude = gwy._exclude if gwy.config[ENFORCE_BLOCKLIST] else {}
+        self._include = (
+            list(gwy._include.keys()) if gwy.config[ENFORCE_ALLOWLIST] else []
+        )
+        self._exclude = (
+            list(gwy._exclude.keys()) if gwy.config[ENFORCE_BLOCKLIST] else []
+        )
 
         if self._include:
             _LOGGER.warning(f"Using an {ALLOW_LIST}: %s", self._include)
