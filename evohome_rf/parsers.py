@@ -26,6 +26,7 @@ from .const import (
     MAY_USE_ZONE_IDX,
     SYSTEM_MODE_MAP,
     ZONE_MODE_MAP,
+    ZoneMode,
     __dev_mode__,
 )
 from .devices import FanSwitch
@@ -1399,19 +1400,18 @@ def parser_2349(payload, msg) -> Optional[dict]:
     }
 
     if msg.len >= 7:
-        # assert payload[8:14] == "FFFFFF", payload[8:14]
         if payload[8:14] == "FF" * 3:  # 03/FFFFFF OK if W?
-            assert payload[6:8] in ("00", "02", "04"), f"{payload[6:8]} (00)"
+            assert payload[6:8] != ZoneMode.COUNTDOWN, f"{payload[6:8]} (0x00)"
         else:
-            assert payload[6:8] in ("03",), f"{payload[6:8]} (01)"
+            assert payload[6:8] == ZoneMode.COUNTDOWN, f"{payload[6:8]} (0x01)"
             result["minutes_remaining"] = int(payload[8:14], 16)
 
     if msg.len >= 13:
         if payload[14:] == "FF" * 6:
-            assert payload[6:8] in ("00", "02"), f"{payload[6:8]} (02)"
+            assert payload[6:8] in ("00", "02"), f"{payload[6:8]} (0x02)"
             result["until"] = None
         else:
-            assert payload[6:8] not in ("00", "02"), f"{payload[6:8]} (03)"
+            assert payload[6:8] not in ("00", "02"), f"{payload[6:8]} (0x03)"
             result["until"] = _dtm(payload[14:26])
 
     # TODO: remove me...
