@@ -205,15 +205,15 @@ class Packet:
 
     @staticmethod
     def _split_pkt_line(pkt_line: str) -> Tuple[str, str, str]:
-        # format: 'datetime packet < parser-message: * evofw3-errmsg # evofw3-comment'
+        # dtm_str pkt_str[ < parser-message:][ * evofw3-err_msg][ # evofw3-comment]
 
-        packet_str, _, pkt_line = pkt_line.partition("<")
-        _, _, pkt_line = pkt_line.partition("*")
-        packet_err, _, packet_comment = pkt_line.partition("#")
+        pkt_line, _, pkt_comment = pkt_line.partition("#")
+        pkt_line, _, pkt_err_msg = pkt_line.partition("*")
+        packet_str, _, _ = pkt_line.partition("<")
         return (
             packet_str.strip(),
-            f"* {packet_err.strip()} " if packet_err else "",
-            f"# {packet_comment.strip()} " if packet_comment else "",
+            f" * {pkt_err_msg.strip()}" if pkt_err_msg else "",
+            f" # {pkt_comment.strip()}" if pkt_comment else "",
         )
 
     @property
