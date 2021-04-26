@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome RF - payload processors."""
+"""RAMSES RF - payload processors."""
 
 import logging
 import re
@@ -1836,7 +1836,7 @@ def parser_3ef1(payload, msg) -> dict:
 
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated
 def parser_7fff(payload, msg) -> Optional[dict]:
-    LOOKUP = {"01": "evohome_rf", "02": "impersonating", "03": "message"}
+    LOOKUP = {"01": "ramses_rf", "02": "impersonating", "03": "message"}
 
     if payload[:2] == "00":
         return {

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome RF - a RAMSES-II protocol decoder & analyser."""
+"""RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
 import logging
 from abc import ABCMeta, abstractmethod
@@ -258,7 +258,7 @@ class Actuator:  # 3EF0, 3EF1
     ACTUATOR_ENABLED = "actuator_enabled"
     ACTUATOR_STATE = "actuator_state"
 
-    def _handle_msg(self, msg) -> bool:
+    def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
         if msg.code == "3EF0" and msg.verb == I_:  # NOT RP, TODO: why????
@@ -364,7 +364,7 @@ class Device(DeviceInfo, DeviceBase):
 
     DEVICE_CLASS = "???"  # DEVICE_TYPES = ("??", )
 
-    def _handle_msg(self, msg) -> bool:
+    def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
         if msg._gwy.config[ENABLE_EAVESDROP]:
@@ -490,9 +490,7 @@ class Device(DeviceInfo, DeviceBase):
 
     @property
     def schema(self):
-        return {
-            **super().schema,
-        }
+        return super().schema
 
     @property
     def params(self):
@@ -594,7 +592,7 @@ class UfhController(Device):  # UFC: 02
         #     for zone_type in CODE_0005_ZONE_TYPE
         # ]
 
-    def _handle_msg(self, msg) -> bool:
+    def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
         if msg.code == "000C":
@@ -756,7 +754,7 @@ class OtbGateway(Actuator, Device):  # OTB: 10
                     Command.get_opentherm_data(self.id, msg_id, retries=0)
                 )
 
-    def _handle_msg(self, msg) -> bool:
+    def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
         if msg.code == "3220" and msg.verb == RP:  # TODO: what about I/W (or RQ)
@@ -893,8 +891,8 @@ class BdrSwitch(Actuator, Device):  # BDR: 13
 
         super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_SCHEMA:
-            pass
+        # if discover_flag & DISCOVER_SCHEMA:
+        #     pass
 
         if discover_flag & DISCOVER_PARAMS:
             self._send_cmd("1100")
@@ -903,7 +901,7 @@ class BdrSwitch(Actuator, Device):  # BDR: 13
             for code in ("0008", "3EF1"):
                 self._send_cmd(code)
 
-    def _handle_msg(self, msg) -> bool:
+    def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
         if msg.code == "3B00" and msg.verb == I_:
@@ -1098,7 +1096,7 @@ DEVICE_TYPE_TO_KLASS = {
     "20": "FAN",
     "22": "STA",
     "23": "PRG",
-    "30": "GWY",
+    "30": "RFG",
     "34": "STA",
     "37": "FAN",
     "39": "SWI",

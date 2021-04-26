@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome RF - RAMSES-II compatble Packet processor.
+"""RAMSES RF - RAMSES-II compatble Packet processor.
 
 Operates at the pkt layer of: app - msg - pkt - h/w
 """
@@ -299,7 +299,7 @@ class PacketProtocolBase(asyncio.Protocol):
             )
 
         _PKT_LOGGER.warning(
-            "# evohome_rf %s", __version__, extra=self._extra(dt_str(), "")
+            "# ramses_rf %s", __version__, extra=self._extra(dt_str(), "")
         )
 
         self._loop.create_task(
@@ -529,7 +529,7 @@ class PacketProtocolRead(PacketProtocolBase):
         self._transport = transport
 
         _PKT_LOGGER.warning(
-            "# evohome_rf %s", __version__, extra=self._extra(dt_str(), "")
+            "# ramses_rf %s", __version__, extra=self._extra(dt_str(), "")
         )
 
     def data_received(self, data: str) -> None:

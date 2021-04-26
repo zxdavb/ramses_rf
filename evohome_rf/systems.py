@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome RF - The evohome-compatible system."""
+"""RAMSES RF - The evohome-compatible system."""
 
 import logging
 from asyncio import Task

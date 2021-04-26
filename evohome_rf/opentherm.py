@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome RF - Opentherm processor."""
+"""RAMSES RF - Opentherm processor."""
 
 import logging
 import struct

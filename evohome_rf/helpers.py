@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome RF - Helper functions."""
+"""RAMSES RF - Helper functions."""
 
 import ctypes
 import re

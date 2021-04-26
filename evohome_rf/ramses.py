@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome RF - a RAMSES-II protocol decoder & analyser."""
+"""RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
 I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome RF - The evohome-compatible zones."""
+"""RAMSES RF - The evohome-compatible zones."""
 
 import logging
 from abc import ABCMeta, abstractmethod

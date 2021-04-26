@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome RF - discovery scripts."""
+"""RAMSES RF - discovery scripts."""
 
 import asyncio
 import json

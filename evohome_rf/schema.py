@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome RF - Schema processor."""
+"""RAMSES RF - Schema processor."""
 
 import logging
 import re

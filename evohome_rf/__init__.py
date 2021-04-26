@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""Evohome RF - a RAMSES-II protocol decoder & analyser.
+"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
 Works with (amongst others):
 - evohome (up to 12 zones)
@@ -61,7 +61,7 @@ class Gateway:
 
         if kwargs.pop(DEBUG_MODE, None):
             _LOGGER.setLevel(logging.DEBUG)  # should be INFO?
-        _LOGGER.debug("Starting evohome_rf, **kwargs = %s", kwargs)
+        _LOGGER.debug("Starting RAMSES RF, **kwargs = %s", kwargs)
 
         self._loop = loop or asyncio.get_running_loop()
         self._tasks = []
