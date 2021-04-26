@@ -23,7 +23,7 @@ from .command import Command
 from .const import ATTR_DEVICES, ATTR_ORPHANS, NUL_DEVICE_ID, __dev_mode__
 from .devices import DEVICE_CLASSES, Device
 from .message import Message, process_msg
-from .packet import _PKT_LOGGER, set_pkt_logging
+from .packet import set_pkt_logging
 from .protocol import create_msg_stack
 from .schema import (
     DEBUG_MODE,
@@ -34,7 +34,6 @@ from .schema import (
     INPUT_FILE,
     PACKET_LOG,
     REDUCE_PROCESSING,
-    USE_NAMES,
     load_config_schema,
     load_system_schema,
 )
@@ -75,9 +74,8 @@ class Gateway:
         )
 
         set_pkt_logging(
-            _PKT_LOGGER,
             cc_stdout=self.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES,
-            **self.config[PACKET_LOG],  # TODO: ZZZ
+            **self.config[PACKET_LOG],
         )
 
         self.pkt_protocol, self.pkt_transport = None, None
@@ -107,8 +105,6 @@ class Gateway:
 
         schema = {k: v for k, v in kwargs.items() if k not in self.config}
         self.known_devices = load_system_schema(self, **schema)
-        if not self.known_devices:
-            self.config[USE_NAMES] = False
 
         self._setup_event_handlers()
 

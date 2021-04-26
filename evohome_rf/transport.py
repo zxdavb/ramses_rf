@@ -69,7 +69,7 @@ QOS_RX_TIMEOUT = td(seconds=0.50)  # 0.20 seems OK, 0.10 too low sometimes
 QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many?
 
 _LOGGER = logging.getLogger(__name__)
-_LOGGER.setLevel(logging.WARNING)  # INFO may have too much detail
+# _LOGGER.setLevel(logging.WARNING)  # INFO may have too much detail
 if DEV_MODE:  # or True:
     _LOGGER.setLevel(logging.DEBUG)  # should be INFO
 
@@ -78,7 +78,7 @@ class SerTransportRead(asyncio.ReadTransport):
     """Interface for a packet transport using a dict/file."""
 
     def __init__(self, loop, protocol, packet_source, extra=None):
-        _LOGGER.info("SerTransRead.__init__(%s) *** dict version ***")
+        _LOGGER.debug("SerTransRead.__init__(%s) *** dict version ***")
 
         self._loop = loop
 
@@ -120,7 +120,7 @@ class SerTransportPoller(asyncio.Transport):
     MAX_BUFFER_SIZE = 500
 
     def __init__(self, loop, protocol, ser_instance, extra=None):
-        _LOGGER.info("SerTransPoll.__init__(%s) *** Polling version ***", ser_instance)
+        _LOGGER.debug("SerTransPoll.__init__(%s) *** Polling version ***", ser_instance)
 
         self._loop = loop
         self._protocol = protocol
@@ -179,7 +179,7 @@ class WIP_SerTransportProcess(Process):  # TODO: WIP
     """Interface for a packet transport using a process - WIP."""
 
     def __init__(self, loop, protocol, ser_port, extra=None):
-        _LOGGER.info("SerTransProc.__init__() *** Process version ***", ser_port)
+        _LOGGER.debug("SerTransProc.__init__() *** Process version ***", ser_port)
 
         self._loop = loop
 
@@ -278,15 +278,6 @@ class PacketProtocolBase(asyncio.Protocol):
             list(gwy._exclude.keys()) if gwy.config[ENFORCE_BLOCKLIST] else []
         )
 
-        if self._include:
-            _LOGGER.warning(f"Using an {ALLOW_LIST}: %s", self._include)
-        elif self._exclude:
-            _LOGGER.warning(f"Using an {BLOCK_LIST}: %s", self._exclude)
-        else:
-            _LOGGER.error(
-                f"Not using a device filter (an {ALLOW_LIST} is strongly recommended)"
-            )
-
         self._has_initialized = None
         if not self._gwy.config[DISABLE_SENDING]:
             self._loop.create_task(self.send_data(INIT_CMD))  # HACK: port wakeup
@@ -297,6 +288,15 @@ class PacketProtocolBase(asyncio.Protocol):
 
         self._transport = transport
         # self._transport.serial.rts = False
+
+        if self._include:  # TODO: here, or in init?
+            _LOGGER.warning(f"Using an {ALLOW_LIST}: %s", self._include)
+        elif self._exclude:
+            _LOGGER.warning(f"Using an {BLOCK_LIST}: %s", self._exclude)
+        else:
+            _LOGGER.error(
+                f"Not using a device filter (an {ALLOW_LIST} is strongly recommended)"
+            )
 
         _PKT_LOGGER.warning(
             "# evohome_rf %s", __version__, extra=self._extra(dt_str(), "")
@@ -361,12 +361,14 @@ class PacketProtocolBase(asyncio.Protocol):
         pkt_raw: Optional[ByteString] = None,
     ) -> None:
         """Called when some normalised data is received (no QoS)."""
-        # _LOGGER.info("PktProtocol._data_rcvd(%s)", pkt_str)
+        # _LOGGER.debug("PktProtocol._data_rcvd(%s)", pkt_str)
 
         try:
             pkt = Packet(pkt_dtm, dtm_str, pkt_str, raw_pkt_line=pkt_raw)
         except ValueError:  # not a valid packet
             return
+        if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
+            _LOGGER.info(pkt)
         self._has_initialized = True
 
         if self._callback and self.is_wanted(pkt.src_addr, pkt.dst_addr):
@@ -444,7 +446,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
-        _LOGGER.info("PktProtocol.send_data(%s)", cmd)
+        _LOGGER.debug("PktProtocol.send_data(%s)", cmd)
 
         if self._gwy.config[DISABLE_SENDING]:
             raise RuntimeError("Sending is disabled")
@@ -503,7 +505,7 @@ class PacketProtocol(PacketProtocolBase):
     """Interface for a packet protocol (without QoS)."""
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
-        _LOGGER.info(
+        _LOGGER.debug(
             "PktProtocol.__init__(gwy, %s) *** Std version ***",
             pkt_handler.__name__ if pkt_handler else None,
         )
@@ -514,7 +516,7 @@ class PacketProtocolRead(PacketProtocolBase):
     """Interface for a packet protocol (for packet log)."""
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
-        _LOGGER.info(
+        _LOGGER.debug(
             "PacketProtocolRead.__init__(gwy, %s) *** R/O version ***",
             pkt_handler.__name__ if pkt_handler else None,
         )
@@ -556,7 +558,7 @@ class PacketProtocolQos(PacketProtocolBase):
     """Interface for a packet protocol (includes QoS)."""
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
-        _LOGGER.info(
+        _LOGGER.debug(
             "PktProtocol.__init__(gwy, %s) *** Qos version ***",
             pkt_handler.__name__ if pkt_handler else None,
         )
@@ -603,7 +605,7 @@ class PacketProtocolQos(PacketProtocolBase):
         pkt_raw: Optional[ByteString] = None,
     ) -> None:
         """Called when some data is received. Adjust backoff as required."""
-        # _LOGGER.info("PktProtocolQos.data_rcvd(%s)", pkt_str)
+        # _LOGGER.debug("PktProtocolQos.data_rcvd(%s)", pkt_str)
 
         def _logger_rcvd(logger, message: str) -> None:
             if self._qos_cmd is None:
@@ -626,6 +628,8 @@ class PacketProtocolQos(PacketProtocolBase):
             pkt = Packet(pkt_dtm, dtm_str, pkt_str, raw_pkt_line=pkt_raw)
         except ValueError:  # not a valid packet
             return
+        if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
+            _LOGGER.info(pkt)
         self._has_initialized = True
 
         if self._qos_cmd:
@@ -684,7 +688,7 @@ class PacketProtocolQos(PacketProtocolBase):
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
-        _LOGGER.info("PktProtocolQos.send_data(%s)", cmd)
+        _LOGGER.debug("PktProtocolQos.send_data(%s)", cmd)
 
         def _logger_send(logger, message: str) -> None:
             logger(

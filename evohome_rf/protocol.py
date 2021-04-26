@@ -21,7 +21,7 @@ from .schema import DISABLE_SENDING, DONT_CREATE_MESSAGES, REDUCE_PROCESSING
 DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
-_LOGGER.setLevel(logging.WARNING)  # TODO: needs fixing - this should be the default
+# _LOGGER.setLevel(logging.INFO)  # TODO: needs fixing - this should be the default
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
@@ -110,6 +110,9 @@ class MessageTransport(asyncio.Transport):
 
             await self._dispatcher(cmd)  # send_data, *once* callback registered
 
+            if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
+                _LOGGER.info("sent:     %s", cmd)
+
         async def pkt_dispatcher():
             while True:
                 try:
@@ -137,6 +140,8 @@ class MessageTransport(asyncio.Transport):
 
     def _pkt_receiver(self, pkt):
         # _LOGGER.debug("MsgTransport._pkt_receiver(%s)", pkt)
+        if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
+            _LOGGER.info("rcvd: %s", pkt)
 
         for (
             hdr,

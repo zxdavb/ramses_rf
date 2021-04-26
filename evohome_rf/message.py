@@ -646,6 +646,9 @@ def process_msg(msg: Message) -> None:
                 if z["zone_idx"] in evo.zone_by_idx:
                     evo.zone_by_idx[z["zone_idx"]]._handle_msg(this)
 
+    if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
+        _LOGGER.info(msg)
+
     # 18:/RQs are unreliable, although any corresponding RPs are often required
     if msg.src.type == "18":
         return

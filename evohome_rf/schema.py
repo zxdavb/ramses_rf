@@ -133,7 +133,7 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Optional(USE_SCHEMA, default=True): vol.Any(None, bool),
         vol.Optional(ENFORCE_ALLOWLIST, default=None): vol.Any(None, bool),
         vol.Optional(ENFORCE_BLOCKLIST, default=None): vol.Any(None, bool),
-        vol.Optional(USE_NAMES, default=True): vol.Any(None, bool),
+        vol.Optional(USE_NAMES, default=None): vol.Any(None, bool),
         vol.Optional(EVOFW_FLAG, default=None): vol.Any(None, str),
     },
     extra=vol.ALLOW_EXTRA,  # TODO: remove for production
@@ -242,6 +242,14 @@ def load_config_schema(serial_port, input_file, **kwargs) -> Tuple[dict, list, l
         {vol.Optional(SERIAL_CONFIG, default={}): SERIAL_CONFIG_SCHEMA}
     )(kwargs[CONFIG])
 
+    known_devices = {**allow_list, **block_list}
+    if config[USE_NAMES] is None:
+        config[USE_NAMES] = known_devices and any(
+            v.get("name")
+            for v in known_devices.values()
+            if v is not None  # if isinstance(v, dict)
+        )
+
     if serial_port and input_file:
         _LOGGER.warning(
             "Serial port was specified (%s), so input file (%s) will be ignored",
@@ -290,8 +298,13 @@ def load_config_schema(serial_port, input_file, **kwargs) -> Tuple[dict, list, l
     elif config[ENFORCE_BLOCKLIST]:
         _LOGGER.debug(f"A {BLOCK_LIST} has been created, length = {len(block_list)}")
 
-    # if not kwargs.get(ALLOW_LIST, {}):
-    #     config[USE_NAMES] = False
+    # TODO: use dict or list?
+    # allow_list = (
+    #     list(allow_list.keys()) if config[ENFORCE_ALLOWLIST] else []
+    # )
+    # block_list = (
+    #     list(block_list.keys()) if config[ENFORCE_BLOCKLIST] else []
+    # )
 
     return (config, allow_list, block_list)
 
@@ -300,7 +313,7 @@ def load_system_schema(gwy, **kwargs) -> dict:
     """Process the schema, and the configuration and return True if it is valid."""
     # TODO: check a sensor is not a device in another zone
 
-    gwy._clear_state()  # TODO: consider need fro this
+    gwy._clear_state()  # TODO: consider need for this (here, or at all)
 
     known_devices = kwargs.pop(ALLOW_LIST, {})
     known_devices.update(kwargs.pop(BLOCK_LIST, {}))
@@ -310,7 +323,6 @@ def load_system_schema(gwy, **kwargs) -> dict:
     if SCHEMA in kwargs:
         _load_system_schema(gwy, kwargs[SCHEMA])
         gwy.evo = gwy.system_by_id[kwargs[SCHEMA][ATTR_CONTROLLER]]
-        return known_devices
 
     elif kwargs.get(MAIN_CONTROLLER):
         [
@@ -320,7 +332,10 @@ def load_system_schema(gwy, **kwargs) -> dict:
         ]
         gwy.evo = gwy.system_by_id[kwargs[MAIN_CONTROLLER]]
 
-    return known_devices
+    return {
+        **known_devices,
+        **{d: None for d in gwy.device_by_id if d not in known_devices},
+    }
 
 
 def _load_system_schema(gwy, schema) -> Tuple[dict, dict]:

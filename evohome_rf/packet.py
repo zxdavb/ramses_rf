@@ -10,15 +10,7 @@ import logging
 import shutil
 import sys
 from datetime import datetime as dt
-from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 from typing import Optional, Tuple
-
-try:
-    import colorlog
-
-    _use_color_ = True
-except ModuleNotFoundError:
-    _use_color_ = False
 
 from .command import _pkt_header
 from .const import MESSAGE_REGEX, __dev_mode__
@@ -30,10 +22,17 @@ DEV_MODE = __dev_mode__  # or True
 
 DEFAULT_FMT = "%(asctime)s.%(msecs)03d %(message)s"
 DEFAULT_DATEFMT = "%H:%M:%S"
-DEFAULT_LEVEL = logging.INFO
-# basicConfig must be called after importing colorlog to ensure its handlers wrap the
-# correct streams
-# logging.basicConfig(level=DEFAULT_LEVEL, format=DEFAULT_FMT, datefmt=DEFAULT_DATEFMT)
+
+try:
+    import colorlog
+except ModuleNotFoundError:
+    _use_color_ = False
+else:
+    _use_color_ = True
+    # basicConfig must be called after importing colorlog to ensure its handlers wrap
+    # the correct streams
+    # logging.basicConfig(format=DEFAULT_FMT, datefmt=DEFAULT_DATEFMT)
+    # logging.basicConfig()
 
 # TODO: make account for the non-printing characters
 CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
@@ -59,18 +58,18 @@ LOG_COLOURS = {
     "CRITICAL": "bold_red",
 }  # default_log_colors
 
-_PKT_LOGGER = logging.getLogger(f"{__name__}_log")
-# NOTE: cant _PKT_LOGGER.setLevel() here, use set_pkt_logging()
-
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)  # DEBUG may have too much detail
+
+_PKT_LOGGER = logging.getLogger(f"{__name__}_log")
+# _PKT_LOGGER.setLevel(logging.NOTSET)
 
 if not _use_color_:
     _LOGGER.warning("Consider installing the colorlog library for colored output")
 
 
-class StdErrFilter(logging.Filter):
+class StdErrFilter(logging.Filter):  # record.levelno >= logging.WARNING
     """For sys.stderr, process only wanted packets."""
 
     def filter(self, record) -> bool:
@@ -78,7 +77,7 @@ class StdErrFilter(logging.Filter):
         return record.levelno >= logging.WARNING
 
 
-class StdOutFilter(logging.Filter):
+class StdOutFilter(logging.Filter):  # record.levelno < logging.WARNING
     """For sys.stdout, process only wanted packets."""
 
     def filter(self, record) -> bool:
@@ -86,7 +85,7 @@ class StdOutFilter(logging.Filter):
         return record.levelno < logging.WARNING
 
 
-class FileFilter(logging.Filter):
+class FileFilter(logging.Filter):  # record.levelno in (logging.INFO, logging.WARNING)
     """For packet logs file, process only wanted packets."""
 
     def __init__(self, *args, **kwargs) -> None:
@@ -110,18 +109,20 @@ class FileFilter(logging.Filter):
         return record.levelno in (logging.INFO, logging.WARNING)
 
 
-def set_pkt_logging(logger, cc_stdout=False, **kwargs) -> None:
+def set_pkt_logging(logger=_PKT_LOGGER, cc_stdout=False, **kwargs) -> None:
     """Create/configure handlers, formatters, etc.
 
     Parameters:
     - backup_count: keep this many copies, and rotate at midnight unless...
     - max_bytes: rotate log files when log > rotate_size
     """
+
+    logger.propagate = False  # this is a distinct log from any app/debug logging
+    logger.setLevel(logging.INFO)
+
     file_name = kwargs.get(LOG_FILE_NAME, 0)
     backup_count = kwargs.get(LOG_ROTATE_COUNT, 0)
     max_bytes = kwargs.get(LOG_ROTATE_BYTES, None)
-
-    logger.propagate = False
 
     if _use_color_:
         cons_fmt = colorlog.ColoredFormatter(
@@ -150,11 +151,11 @@ def set_pkt_logging(logger, cc_stdout=False, **kwargs) -> None:
 
     if max_bytes:
         backup_count = backup_count or 2
-        handler = RotatingFileHandler(
+        handler = logging.handlers.RotatingFileHandler(
             file_name, maxBytes=max_bytes, backupCount=backup_count
         )
     elif backup_count:
-        handler = TimedRotatingFileHandler(
+        handler = logging.handlers.TimedRotatingFileHandler(
             file_name, when="midnight", backupCount=backup_count
         )
     else:
