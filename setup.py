@@ -42,7 +42,7 @@ setup(
     author_email="zxdavb@gmail.com",
     url=URL,
     download_url=f"{URL}/archive/{VERSION}.tar.gz",
-    install_requires=[list(val.strip() for val in open("requirements.txt"))],
+    install_requires=[val.strip() for val in open("requirements.txt")],
     long_description=LONG_DESCRIPTION,
     long_description_content_type="text/markdown",
     packages=find_packages(exclude=["test", "docs"]),
@@ -56,7 +56,5 @@ setup(
         "Programming Language :: Python :: 3.7",
         "Topic :: Home Automation",
     ],
-    cmdclass={
-        "verify": VerifyVersionCommand,
-    },
+    cmdclass={"verify": VerifyVersionCommand},
 )
