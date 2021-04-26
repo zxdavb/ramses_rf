@@ -80,7 +80,7 @@ class StdOutFilter(logging.Filter):  # record.levelno < logging.WARNING
     """For sys.stdout, process only wanted packets."""
 
     def filter(self, record) -> bool:
-        """Return True if the record is to be processed. """
+        """Return True if the record is to be processed."""
         return record.levelno < logging.WARNING
 
 
