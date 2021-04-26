@@ -26,15 +26,13 @@ RAMSES_CODES = {  # rf_unknown
     },
     "0004": {  # zone_name
         NAME: "zone_name",
+        I_: r"^0[0-9A-F]00([0-9A-F]){40}$",  # NOTE: RP is same
         RQ: r"^0[0-9A-F]00$",
-        RP: r"^0[0-9A-F]00([0-9A-F]){40}$",
-        I_: r"^0[0-9A-F]00([0-9A-F]){40}$",
     },
     "0005": {  # system_zones
         NAME: "system_zones",
-        I_: r"^00[01][0-9A-F]{5}$",  # f"00{zone_type}"
+        I_: r"^00[01][0-9A-F]{5}$",  # NOTE: RP is same
         RQ: r"^00[01][0-9A-F]$",  # f"00{zone_type}"
-        RP: r"^00[01][0-9A-F]{5}$",  # f"00{zone_type}"
         RQ_MAY_HAVE_PAYLOAD: True,
     },
     "0006": {  # schedule_sync
@@ -42,11 +40,12 @@ RAMSES_CODES = {  # rf_unknown
         RQ: r"^00$",
         RP: r"^0005[0-9A-F]{4}$",
     },
-    "0008": {  # relay_demand
+    "0008": {  # relay_demand, TODO: check RP
         NAME: "relay_demand",
-        RQ: r"^00$",  # it seems only 13: RP (TODO: what about 10:, 08/31:)
-        I_: r"^((F[9AC]|0[0-9A-F])[0-9A-F]{2}|00[0-9A-F]{24})$",
         # 000 I --- 31:012319 08:006244 --:------ 0008 013 0006958C33CA6ECD2067AA53DD
+        I_: r"^((F[9AC]|0[0-9A-F])[0-9A-F]{2}|00[0-9A-F]{24})$",
+        RQ: r"^00$",
+        RP: r"^00[0-9A-F]{2}$",  # seems only 13: RP (TODO: what about 10:, 08/31:)
     },
     "0009": {  # relay_failsafe
         NAME: "relay_failsafe",
@@ -63,7 +62,7 @@ RAMSES_CODES = {  # rf_unknown
         # 19:20:49.460 062 RQ --- 12:010740 01:145038 --:------ 000A 006 080001F40DAC
         # 19:20:49.476 045 RP --- 01:145038 12:010740 --:------ 000A 006 081001F40DAC
     },
-    "000C": {  # zone_devices
+    "000C": {  # zone_devices, TODO: needs I/RP
         NAME: "zone_devices",
         RQ: r"^0[0-9A-F][01][0-9A-F]$",  # TODO: f"{zone_idx}{device_type}"
         RQ_MAY_HAVE_PAYLOAD: True,
@@ -129,9 +128,8 @@ RAMSES_CODES = {  # rf_unknown
     },
     "10E0": {  # device_info
         NAME: "device_info",
+        I_: r"^00([0-9A-F]){30,}$",  # NOTE: RP is same
         RQ: r"^00$",
-        RP: r"^00([0-9A-F]){30,}$",
-        I_: r"^00([0-9A-F]){30,}$",
     },
     "1100": {  # tpi_params
         NAME: "tpi_params",
@@ -145,18 +143,16 @@ RAMSES_CODES = {  # rf_unknown
         # 16:48:51.536036 000 RQ --- 18:200202 10:067219 --:------ 1260 002 0000
         # 16:49:51.644184 068 RP --- 10:067219 18:200202 --:------ 1260 003 007FFF
         # 10:02:21.128654 049  I --- 07:045960 --:------ 07:045960 1260 003 0007A9
+        I_: r"^00[0-9A-F]{4}$",  # NOTE: RP is same
         RQ: r"^00(00)?$",  # TODO: officially: r"^00$"
-        RP: r"^00[0-9A-F]{4}$",  # Null: r"^007FFF$"
-        I_: r"^00[0-9A-F]{4}$",
     },
     "1280": {  # outdoor_humidity
         NAME: "outdoor_humidity",
     },
     "1290": {  # outdoor_temp
         NAME: "outdoor_temp",
-        I_: r"^00[0-9A-F]{4}$",
+        I_: r"^00[0-9A-F]{4}$",  # NOTE: RP is same
         RQ: r"^00$",
-        RP: r"^00[0-9A-F]{4}$",
     },
     "12A0": {  # indoor_humidity
         NAME: "indoor_humidity",
@@ -164,9 +160,8 @@ RAMSES_CODES = {  # rf_unknown
     },
     "12B0": {  # window_state
         NAME: "window_state",
-        I_: r"^0[0-9A-F](0000|C800|FFFF)$",
+        I_: r"^0[0-9A-F](0000|C800|FFFF)$",  # NOTE: RP is same
         RQ: r"^0[0-9A-F](00)?$",
-        RP: r"^0[0-9A-F](0000|C800|FFFF)$",
         EXPIRY: 60 * 60,
     },
     "12C0": {  # displayed_temp
@@ -175,9 +170,9 @@ RAMSES_CODES = {  # rf_unknown
     },
     "1F09": {  # system_sync - "FF" (I), "00" (RP), "F8" (W, after 1FC9)
         NAME: "system_sync",
+        I_: r"^(00|01|DB|FF)[0-9A-F]{4}$",  # FF is evohome, DB is Hometronics
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",  # xx-secs
-        I_: r"^(00|01|DB|FF)[0-9A-F]{4}$",  # FF is evohome, DB is Hometronics
         W_: r"^F8[0-9A-F]{4}$",
     },
     "1F41": {  # dhw_mode
@@ -242,7 +237,6 @@ RAMSES_CODES = {  # rf_unknown
         NAME: "system_mode",
         I_: r"^0[0-7][0-9A-F]{12}0[01]$",  # evo: r"^0[0-7][0-9A-F]{12}0[01]$",
         RQ: r"^FF$",
-        RP: r"^0[0-7][0-9A-F]{12}0[01]$",
         W_: r"^0[0-7][0-9A-F]{12}0[01]$",
     },
     "30C9": {  # temperature
@@ -254,13 +248,13 @@ RAMSES_CODES = {  # rf_unknown
     "3120": {  # unknown - Error Report?
         NAME: "message_3120",
         I_: r"^00[0-9A-F]{10}FF$",  # only ever: 34:/0070B0000000FF
-        RP: r"^00[0-9A-F]{10}FF$",  # only ever: 20:/0070B000009CFF
+        # RP: r"^00[0-9A-F]{10}FF$",  # only ever: 20:/0070B000009CFF
     },
     "313F": {  # datetime
         NAME: "datetime",
-        I_: r"^00[0-9A-F]{16}$",
+        I_: r"^00[0-9A-F]{16}$",  # NOTE: RP is same
         RQ: r"^00$",
-        RP: r"^00[0-9A-F]{16}$",
+        # RP: r"^00[0-9A-F]{16}$",
         W_: r"^00[0-9A-F]{16}$",
     },
     "3150": {  # heat_demand
@@ -311,10 +305,9 @@ RAMSES_CODES = {  # rf_unknown
         I_: r"^7F[0-9A-F]{12}7F[0-9A-F]{4}7F[0-9A-F]{4}(7F)+",
     },
 }
-
-# for code in RAMSES_CODES:
-#     if RQ in code and RP not in code and I_ in code:
-#         code[RP] = code[I_]
+for code in RAMSES_CODES.values():
+    if RQ in code and RP not in code and I_ in code:
+        code[RP] = code[I_]
 
 # 0001 is not fully understood
 CODES_WITH_COMPLEX_IDX = ("0001", "0008", "000C", "0418", "1100", "1F41", "3B00")
@@ -570,8 +563,14 @@ RAMSES_ZONES = {
         "2349": {I_: {}, RP: {}},
         "30C9": {I_: {}, RP: {}},
     },
-    "RAD": {"12B0": {I_: {}, RP: {}}, "3150a": {}},
-    "ELE": {"0008": {I_: {}}, "0009": {I_: {}}},
+    "RAD": {
+        "12B0": {I_: {}, RP: {}},
+        "3150a": {},
+    },
+    "ELE": {
+        "0008": {I_: {}},
+        "0009": {I_: {}},
+    },
     "VAL": {
         "0008": {I_: {}},
         "0009": {I_: {}},
