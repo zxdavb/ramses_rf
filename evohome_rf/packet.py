@@ -63,7 +63,6 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)  # DEBUG may have too much detail
 
 _PKT_LOGGER = logging.getLogger(f"{__name__}_log")
-# _PKT_LOGGER.setLevel(logging.NOTSET)
 
 if not _use_color_:
     _LOGGER.warning("Consider installing the colorlog library for colored output")
@@ -255,7 +254,7 @@ class Packet:
         elif invalid_addresses():
             err_msg = "invalid packet addresses"
         else:
-            _PKT_LOGGER.info("%s ", self.packet, extra=self.__dict__)  # double-logging
+            _PKT_LOGGER.info("%s ", self.packet, extra=self.__dict__)
             self._is_valid = True
             return True
 
