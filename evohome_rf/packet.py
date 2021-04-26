@@ -235,6 +235,7 @@ class Packet:
         if self._is_valid is not None or not self._pkt_str:
             return self._is_valid
 
+        self._is_valid = False
         if self.error_text:  # log all packets with an error
             if self.packet:
                 _PKT_LOGGER.warning("%s < Bad packet: ", self, extra=self.__dict__)
@@ -254,7 +255,8 @@ class Packet:
         elif invalid_addresses():
             err_msg = "invalid packet addresses"
         else:
-            _PKT_LOGGER.info("%s ", self.packet, extra=self.__dict__)
+            _PKT_LOGGER.info("%s ", self.packet, extra=self.__dict__)  # double-logging
+            self._is_valid = True
             return True
 
         _PKT_LOGGER.debug("%s < Bad packet: %s ", self, err_msg, extra=self.__dict__)
