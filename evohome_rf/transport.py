@@ -23,7 +23,14 @@ from typing import ByteString, Callable, Optional, Tuple
 from serial import SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerialTransportAsync
 
-from .command import Command, Priority
+from .command import (
+    QOS_MAX_BACKOFF,
+    QOS_RX_TIMEOUT,
+    QOS_TX_RETRIES,
+    QOS_TX_TIMEOUT,
+    Command,
+    Priority,
+)
 from .const import DTM_LONG_REGEX, HGI_DEV_ADDR, __dev_mode__
 from .helpers import dt_now, dt_str
 from .packet import _PKT_LOGGER, Packet
@@ -60,13 +67,6 @@ VALID_CHARACTERS = printable  # "".join((ascii_letters, digits, ":-<*# "))
 
 INIT_QOS = {"priority": Priority.HIGHEST, "retries": 24, "disable_backoff": True}
 INIT_CMD = Command._puzzle(message=f"v{__version__}", **INIT_QOS)
-
-# tx (from sent to gwy, to get back from gwy) seems to takes approx. 0.025s
-QOS_TX_TIMEOUT = td(seconds=0.05)  # 0.20 OK, but too high?
-QOS_TX_RETRIES = 2
-
-QOS_RX_TIMEOUT = td(seconds=0.50)  # 0.20 seems OK, 0.10 too low sometimes
-QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many?
 
 _LOGGER = logging.getLogger(__name__)
 # _LOGGER.setLevel(logging.WARNING)  # INFO may have too much detail

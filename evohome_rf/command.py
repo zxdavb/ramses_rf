@@ -82,6 +82,23 @@ I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
 
 Priority = SimpleNamespace(LOWEST=8, LOW=6, DEFAULT=4, HIGH=2, HIGHEST=0)
 
+# tx (from sent to gwy, to get back from gwy) seems to takes approx. 0.025s
+QOS_TX_TIMEOUT = td(seconds=0.05)  # 0.20 OK, but too high?
+QOS_TX_RETRIES = 2
+QOS_TX_DEFAULT = (Priority.DEFAULT, QOS_TX_RETRIES, QOS_TX_TIMEOUT, False)
+
+QOS_RX_TIMEOUT = td(seconds=0.50)  # 0.20 seems OK, 0.10 too low sometimes
+QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many?
+
+QOS_TABLE = {
+    "RQ/0016": (Priority.HIGH, 5, None, None),
+    "RQ/1F09": (Priority.HIGH, 5, None, None),
+    " I/1FC9": (Priority.HIGH, 2, td(seconds=1), True),
+    " I/0404": (Priority.HIGH, 5, td(seconds=0.30), None),  # TODO: short Tx...
+    " W/0404": (Priority.HIGH, 5, td(seconds=0.30), None),  # TODO: but long Rx
+    "RQ/0418": (Priority.LOW, 3, None, None),
+}  # priority, retries, timeout, disable_backoff
+
 DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
@@ -93,13 +110,22 @@ def _pkt_header(pkt: str, rx_header=None) -> Optional[str]:
     """Return the QoS header of a packet."""
 
     verb = pkt[4:6]
-    if rx_header:
-        verb = RP if verb == RQ else I_  # RQ/RP, or W/I
-    code = pkt[41:45]
     src, dst, _ = extract_addrs(pkt[11:40])
-    addr = dst if src.type == "18" else src
+    code = pkt[41:45]
     payload = pkt[50:]
 
+    if code == "1FC9":
+        if src == dst:
+            return "|".join((W_, dst.id, code) if rx_header else (I_, src.id, code))
+        elif verb == W_:
+            return "|".join((W_, dst.id, code)) if not rx_header else None
+
+    if rx_header:
+        if src == dst:  # usually announcements, not requiring an Rx
+            return
+        verb = RP if verb == RQ else I_  # RQ/RP, or W/I
+
+    addr = dst if src.type == "18" else src
     header = "|".join((verb, addr.id, code))
 
     if code in ("0001", "7FFF") and rx_header:  # code has no no RQ, no W
@@ -116,7 +142,7 @@ def _pkt_header(pkt: str, rx_header=None) -> Optional[str]:
             return header
         return "|".join((header, payload[4:6]))
 
-    if code in ("1F09", "1FC9", "2E04"):  # have no domain_id
+    if code in ("1F09", "1FC9", "2E04"):  # have no domain_id (1FC9 can)
         return header
 
     return "|".join((header, payload[:2]))  # assume has a domain_id
@@ -180,21 +206,23 @@ class Command:
     def _qos(self, **kwargs) -> dict:
         """Return the default QoS params of this (request) packet."""
 
-        qos = {
-            k: v for k, v in kwargs.items() if k in QOS_KEYS
-        }  # the defaults for these are in packet.py
+        qos = {k: v for k, v in kwargs.items() if k in QOS_KEYS}
+        (priority, retries, timeout, backoff) = QOS_TABLE.get(
+            f"{self.verb}/{self.code}", QOS_TX_DEFAULT
+        )
 
-        if self.code in ("0016", "1F09") and self.verb == RQ:
-            qos[PRIORITY] = qos.get(PRIORITY, Priority.HIGH)
-            qos[RETRIES] = qos.get(RETRIES, 5)
-
-        elif self.code == "0404" and self.verb in (RQ, W_):
-            qos[PRIORITY] = qos.get(PRIORITY, Priority.HIGH)
-            qos[TIMEOUT] = qos.get(TIMEOUT, td(seconds=0.30))
-
-        elif self.code == "0418" and self.verb == RQ:
-            qos[PRIORITY] = qos.get(PRIORITY, Priority.LOW)
-            qos[RETRIES] = qos.get(RETRIES, 3)
+        qos[PRIORITY] = qos.get(
+            PRIORITY, QOS_TX_DEFAULT[0] if priority is None else priority
+        )
+        qos[RETRIES] = qos.get(
+            RETRIES, QOS_TX_DEFAULT[1] if retries is None else retries
+        )
+        qos[TIMEOUT] = qos.get(
+            TIMEOUT, QOS_TX_DEFAULT[2] if timeout is None else timeout
+        )
+        qos[DISABLE_BACKOFF] = qos.get(
+            DISABLE_BACKOFF, QOS_TX_DEFAULT[3] if backoff is None else backoff
+        )
 
         return qos
 
@@ -555,7 +583,6 @@ class Command:
         """Constructor to set the name of a zone (c.f. parser_0004)."""
 
         payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
-
         payload += f"00{str_to_hex(name)[:24]:0<40}"  # TODO: check limit 12 (24)?
 
         return cls(W_, ctl_id, "0004", payload, **kwargs)
@@ -576,27 +603,6 @@ class Command:
         zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
         payload = f"{zone_idx:02X}20000800{frag_idx + 1:02X}{frag_cnt:02X}"
         return cls(RQ, ctl_id, "0404", payload, **kwargs)
-
-    @classmethod
-    def _puzzle(
-        cls, msg_type="01", message=None, ordinal=0, interval=0, length=None, **kwargs
-    ):
-
-        if msg_type == "00":
-            payload = f"00{dts_to_hex(dt.now())}7F"
-            payload += f"{str_to_hex(message)}7F"
-
-        elif msg_type in ("01", "02", "03"):
-            payload = f"{msg_type}{str_to_hex(message)}7F"
-
-        else:
-            payload = f"7F{dts_to_hex(dt.now())}7F"
-            payload += f"{ordinal % 0x10000:04X}7F{int(interval * 100):04X}7F"
-
-        if length:
-            payload = payload.ljust(length * 2, "F")
-
-        return cls(I_, NUL_DEV_ADDR.id, "7FFF", payload[:48], **kwargs)
 
     @classmethod
     def packet(cls, verb, seqn, addr0, addr1, addr2, code, payload, **kwargs):
@@ -624,6 +630,27 @@ class Command:
             raise ValueError(f"Invalid parameter values for command: {cmd}")
 
         return cmd
+
+    @classmethod
+    def _puzzle(
+        cls, msg_type="01", message=None, ordinal=0, interval=0, length=None, **kwargs
+    ):
+
+        if msg_type == "00":
+            payload = f"00{dts_to_hex(dt.now())}7F"
+            payload += f"{str_to_hex(message)}7F"
+
+        elif msg_type in ("01", "02", "03"):
+            payload = f"{msg_type}{str_to_hex(message)}7F"
+
+        else:
+            payload = f"7F{dts_to_hex(dt.now())}7F"
+            payload += f"{ordinal % 0x10000:04X}7F{int(interval * 100):04X}7F"
+
+        if length:
+            payload = payload.ljust(length * 2, "F")
+
+        return cls(I_, NUL_DEV_ADDR.id, "7FFF", payload[:48], **kwargs)
 
 
 class FaultLog:  # 0418  # TODO: used a NamedTuple
