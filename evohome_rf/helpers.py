@@ -157,20 +157,36 @@ def str_to_hex(value: str) -> str:
     # return value.encode().hex()
 
 
-def is_valid_dev_id(value) -> bool:
-    if not isinstance(value, str):
-        return False
+def create_dev_id(dev_type, known_devices=None) -> str:
+    """Create a unique device_id (i.e. one that is not already known)."""
 
-    elif not DEVICE_ID_REGEX.match(value):
-        return False
+    from random import randint
 
-    elif value[:2] not in DEVICE_TYPES:
-        return False
+    # TODO: assert inputs
 
-    return True
+    counter = 0
+    while counter < 128:
+        device_id = f"{dev_type}:{randint(256000, 256031):06d}"
+        if not known_devices or device_id not in known_devices:
+            return device_id
+        counter += 1
+    else:
+        raise IndexError("Unable to generate a unique device id of type '{dev_type}'")
 
 
-def dev_hex_to_id(device_hex: str, friendly_id=False) -> str:
+def dev_id_to_hex(device_id: str) -> str:
+    """Convert (say) '01:145038' (or 'CTL:145038') to '06368E'."""
+
+    if len(device_id) == 9:  # e.g. '01:123456'
+        dev_type = device_id[:2]
+
+    else:  # len(device_id) == 10, e.g. 'CTL:123456', or ' 63:262142'
+        dev_type = DEVICE_LOOKUP.get(device_id[:3], device_id[1:3])
+
+    return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # no preceding 0x
+
+
+def hex_id_to_dec(device_hex: str, friendly_id=False) -> str:
     """Convert (say) '06368E' to '01:145038' (or 'CTL:145038')."""
 
     if device_hex == "FFFFFE":  # aka '63:262142'
@@ -187,19 +203,29 @@ def dev_hex_to_id(device_hex: str, friendly_id=False) -> str:
     return f"{dev_type}:{_tmp & 0x03FFFF:06d}"
 
 
-def dev_id_to_hex(device_id: str) -> str:
-    """Convert (say) '01:145038' (or 'CTL:145038') to '06368E'."""
+@lru_cache(maxsize=128)
+def is_valid_dev_id(value, dev_type=None) -> bool:
+    """Return True if a device_id is valid."""
 
-    if len(device_id) == 9:  # e.g. '01:123456'
-        dev_type = device_id[:2]
+    if not isinstance(value, str):
+        return False
 
-    else:  # len(device_id) == 10, e.g. 'CTL:123456', or ' 63:262142'
-        dev_type = DEVICE_LOOKUP.get(device_id[:3], device_id[1:3])
+    elif not DEVICE_ID_REGEX.match(value):
+        return False
 
-    return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # no preceding 0x
+    # elif value != hex_id_to_dec(dev_id_to_hex(value)):
+    #     return False
+
+    elif value.split(":", 1)[0] not in DEVICE_TYPES:
+        return False
+
+    elif dev_type is not None and dev_type != value.split(":", 1)[0]:
+        raise TypeError(f"The device type does not match '{dev_type}'")
+
+    return True
 
 
-@lru_cache(maxsize=256)  # there is definite value in caching this
+@lru_cache(maxsize=256)  # there is definite benefit in caching this
 def extract_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
     """Return the address fields from (e.g): '01:078710 --:------ 01:144246 '."""
 

@@ -30,9 +30,8 @@ from .const import (
 )
 from .devices import FanSwitch
 from .exceptions import CorruptPacketError, CorruptPayloadError
-from .helpers import dev_hex_to_id
 from .helpers import dtm_from_hex as _dtm
-from .helpers import dts_from_hex
+from .helpers import dts_from_hex, hex_id_to_dec
 from .opentherm import (
     EN,
     FLAG8,
@@ -658,7 +657,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
         assert seqx[:2] == payload[:2], seqx[:2]
         # assert seqx[2:4] in CODE_000C_DEVICE_TYPE, f"Unknown device_type: {seqx[2:4]}"
         assert seqx[4:6] == "7F" or int(seqx[4:6], 16) < msg._gwy.config[MAX_ZONES]
-        return {dev_hex_to_id(seqx[6:12]): seqx[4:6]}
+        return {hex_id_to_dec(seqx[6:12]): seqx[4:6]}
 
     if msg.verb == RQ:
         assert msg.len == 2, msg.len
@@ -835,7 +834,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
     if payload[38:] == "000002":  # "00:000002 for Unknown?
         result.update({"device_id": None})
     elif payload[38:] not in ("000000", "000001"):  # "00:000001 for Controller?
-        result.update({"device_id": dev_hex_to_id(payload[38:])})
+        result.update({"device_id": hex_id_to_dec(payload[38:])})
 
     assert payload[6:8] == "B0", payload[6:8]  # unknown_1, ?priority
     assert payload[14:18] == "0000", payload[14:18]  # unknown_2
@@ -1237,11 +1236,11 @@ def parser_1fc9(payload, msg) -> Optional[dict]:
             "FF",
         ):  # or: not in DOMAIN_TYPE_MAP: ??
             assert int(seqx[:2], 16) < msg._gwy.config[MAX_ZONES]
-        return [seqx[:2], seqx[2:6], dev_hex_to_id(seqx[6:])]
+        return [seqx[:2], seqx[2:6], hex_id_to_dec(seqx[6:])]
 
     assert msg.len >= 6 and msg.len % 6 == 0, msg.len  # assuming not RQ
     assert msg.verb in (I_, W_, RP), msg.verb  # devices will respond to a RQ!
-    assert msg.src.id == dev_hex_to_id(payload[6:12]), payload[6:12]
+    assert msg.src.id == hex_id_to_dec(payload[6:12]), payload[6:12]
     return [
         _parser(payload[i : i + 12])
         for i in range(0, len(payload), 12)
