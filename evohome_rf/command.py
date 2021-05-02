@@ -152,7 +152,7 @@ def _pkt_header(pkt: str, rx_header=None) -> Optional[str]:
 class Command:
     """The command class."""
 
-    def __init__(self, verb, dest_id, code, payload, **kwargs) -> None:
+    def __init__(self, verb, code, payload, dest_id, **kwargs) -> None:
         """Initialise the class."""
 
         assert QOS not in kwargs, "FIXME"
@@ -289,7 +289,7 @@ class Command:
     @classmethod  # constructor for 1F41  # TODO
     def get_dhw_mode(cls, ctl_id, **kwargs):
         """Constructor to get the mode of the DHW (c.f. parser_1f41)."""
-        return cls(RQ, ctl_id, "1F41", "00", **kwargs)
+        return cls(RQ, "1F41", "00", ctl_id, **kwargs)
 
     @classmethod  # constructor for 1F41  # TODO
     def set_dhw_mode(cls, ctl_id, mode=None, active: bool = None, until=None, **kwargs):
@@ -324,7 +324,7 @@ class Command:
         payload += ZONE_MODE_LOOKUP[mode] + "FFFFFF"
         payload += "" if until is None else dtm_to_hex(until)
 
-        return cls(W_, ctl_id, "1F41", payload, **kwargs)
+        return cls(W_, "1F41", payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for 10A0  # TODO
     def set_dhw_params(
@@ -351,13 +351,13 @@ class Command:
 
         payload = f"00{temp_to_hex(setpoint)}{overrun:02X}{temp_to_hex(differential)}"
 
-        return cls(W_, ctl_id, "10A0", payload, **kwargs)
+        return cls(W_, "10A0", payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/0404  # TODO
     def get_dhw_schedule_fragment(cls, ctl_id, frag_idx, frag_cnt, **kwargs):
         """Constructor to get a DHW schedule fragment (c.f. parser_0404)."""
         payload = f"0023000800{frag_idx + 1:02X}{frag_cnt:02X}"
-        return cls(RQ, ctl_id, "0404", payload, **kwargs)
+        return cls(RQ, "0404", payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for 1030  # TODO
     def set_mix_valve_params(
@@ -385,18 +385,18 @@ class Command:
         payload += f"CB01{pump_run_time:02X}"
         payload += f"CC01{1:02X}"
 
-        return cls(W_, ctl_id, "1030", payload, **kwargs)
+        return cls(W_, "1030", payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/0418  # TODO
     def get_system_log_entry(cls, ctl_id, log_idx, **kwargs):
         """Constructor to get a log entry from a system (c.f. parser_0418)."""
         log_idx = log_idx if isinstance(log_idx, int) else int(log_idx, 16)
-        return cls(RQ, ctl_id, "0418", f"{log_idx:06X}", **kwargs)
+        return cls(RQ, "0418", f"{log_idx:06X}", ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/2E04
     def get_system_mode(cls, ctl_id, **kwargs):
         """Constructor to get the mode of a system (c.f. parser_2e04)."""
-        return cls(RQ, ctl_id, "2E04", "FF", **kwargs)
+        return cls(RQ, "2E04", "FF", ctl_id, **kwargs)
 
     @classmethod  # constructor for 2E04  # TODO
     def set_system_mode(cls, ctl_id, system_mode, until=None, **kwargs):
@@ -423,31 +423,31 @@ class Command:
         payload = SYSTEM_MODE_LOOKUP[system_mode]
         payload += dtm_to_hex(until) + ("00" if until is None else "01")
 
-        return cls(W_, ctl_id, "2E04", payload, **kwargs)
+        return cls(W_, "2E04", payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/3220  # TODO
     def get_opentherm_data(cls, dev_id, msg_id, **kwargs):
         """Constructor to get (Read-Data) opentherm msg value (c.f. parser_3220)."""
         msg_id = msg_id if isinstance(msg_id, int) else int(msg_id, 16)
         payload = f"0080{msg_id:02X}0000" if parity(msg_id) else f"0000{msg_id:02X}0000"
-        return cls(RQ, dev_id, "3220", payload, **kwargs)
+        return cls(RQ, "3220", payload, dev_id, **kwargs)
 
     @classmethod  # constructor for RQ/313F
     def get_system_time(cls, ctl_id, **kwargs):
         """Constructor to get the datetime of a system (c.f. parser_313f)."""
-        return cls(RQ, ctl_id, "313F", "00", **kwargs)
+        return cls(RQ, "313F", "00", ctl_id, **kwargs)
 
     @classmethod  # constructor for 313F
     def set_system_time(cls, ctl_id, datetime, **kwargs):
         """Constructor to set the datetime of a system (c.f. parser_313f)."""
         #  W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
 
-        return cls(W_, ctl_id, "313F", f"006000{dtm_to_hex(datetime)}", **kwargs)
+        return cls(W_, "313F", f"006000{dtm_to_hex(datetime)}", ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/1100  # TODO
     def get_tpi_params(cls, ctl_id, **kwargs):
         """Constructor to get the TPI params of a system (c.f. parser_1100)."""
-        return cls(RQ, ctl_id, "1100", "FC", **kwargs)
+        return cls(RQ, "1100", "FC", ctl_id, **kwargs)
 
     @classmethod  # constructor for 1100  # TODO
     def set_tpi_params(
@@ -476,13 +476,13 @@ class Command:
         payload += f"{int(min_off_time * 4):02X}FF"
         payload += f"{temp_to_hex(proportional_band_width)}01"
 
-        return cls(W_, ctl_id, "1100", payload, **kwargs)
+        return cls(W_, "1100", payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/000A  # TODO
     def get_zone_config(cls, ctl_id, zone_idx, **kwargs):
         """Constructor to get the config of a zone (c.f. parser_000a)."""
         zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
-        return cls(RQ, ctl_id, "000A", f"{zone_idx:02X}00", **kwargs)
+        return cls(RQ, "000A", f"{zone_idx:02X}00", ctl_id, **kwargs)
 
     @classmethod  # constructor for 000A  # TODO
     def set_zone_config(
@@ -514,13 +514,13 @@ class Command:
         payload += temp_to_hex(min_temp)
         payload += temp_to_hex(max_temp)
 
-        return cls(W_, ctl_id, "000A", payload, **kwargs)
+        return cls(W_, "000A", payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/2349
     def get_zone_mode(cls, ctl_id, zone_idx, **kwargs):
         """Constructor to get the mode of a zone (c.f. parser_2349)."""
         zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
-        return cls(RQ, ctl_id, "2349", f"{zone_idx:02X}00", **kwargs)
+        return cls(RQ, "2349", f"{zone_idx:02X}00", ctl_id, **kwargs)
 
     @classmethod  # constructor for W/2349
     def set_zone_mode(
@@ -570,13 +570,13 @@ class Command:
         payload += ZONE_MODE_LOOKUP[mode] + "FFFFFF"
         payload += "" if until is None else dtm_to_hex(until)
 
-        return cls(W_, ctl_id, "2349", payload, **kwargs)
+        return cls(W_, "2349", payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/0004  # TODO
     def get_zone_name(cls, ctl_id, zone_idx, **kwargs):
         """Constructor to get the name of a zone (c.f. parser_0004)."""
         zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
-        return cls(RQ, ctl_id, "0004", f"{zone_idx:02X}00", **kwargs)
+        return cls(RQ, "0004", f"{zone_idx:02X}00", ctl_id, **kwargs)
 
     @classmethod  # constructor for 0004  # TODO
     def set_zone_name(cls, ctl_id, zone_idx, name: str, **kwargs):
@@ -585,7 +585,7 @@ class Command:
         payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
         payload += f"00{str_to_hex(name)[:24]:0<40}"  # TODO: check limit 12 (24)?
 
-        return cls(W_, ctl_id, "0004", payload, **kwargs)
+        return cls(W_, "0004", payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for 2309
     def set_zone_setpoint(cls, ctl_id, zone_idx, setpoint: float, **kwargs):
@@ -595,26 +595,36 @@ class Command:
         payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
         payload += temp_to_hex(setpoint)
 
-        return cls(W_, ctl_id, "2309", payload, **kwargs)
+        return cls(W_, "2309", payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/0404  # TODO
     def get_zone_schedule_fragment(cls, ctl_id, zone_idx, frag_idx, frag_cnt, **kwargs):
         """Constructor to get a zone schedule fragment (c.f. parser_0404)."""
         zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
         payload = f"{zone_idx:02X}20000800{frag_idx + 1:02X}{frag_cnt:02X}"
-        return cls(RQ, ctl_id, "0404", payload, **kwargs)
+        return cls(RQ, "0404", payload, ctl_id, **kwargs)
 
     @classmethod
-    def packet(cls, verb, seqn, addr0, addr1, addr2, code, payload, **kwargs):
+    def packet(
+        cls,
+        verb,
+        code,
+        payload,
+        addr0=NUL_DEV_ADDR.id,
+        addr1=NUL_DEV_ADDR.id,
+        addr2=NUL_DEV_ADDR.id,
+        seqn=None,
+        **kwargs,
+    ):
         """Construct commands with fewer assumptions/checks than the main constructor.
 
         For example:
             I 056 --:------ --:------ 02:123456 99FD 003 000404
         """
 
-        verb = I_ if verb == I_ else W_ if verb == W_ else verb
+        verb = I_ if verb == "I" else W_ if verb == "W" else verb
 
-        cmd = cls(verb, NUL_DEV_ADDR.id, code, payload, **kwargs)
+        cmd = cls(verb, code, payload, addr1, **kwargs)
 
         if seqn in ("", "-", "--", "---"):
             cmd.seqn = "---"
@@ -637,9 +647,7 @@ class Command:
         #  I --- 34:021943 --:------ 34:021943 30C9 003 000C0D
 
         payload = f"00{temp_to_hex(temperature)}"
-        return cls.packet(
-            I_, None, dev_id, NON_DEV_ADDR.id, dev_id, "30C9", payload, **kwargs
-        )
+        return cls.packet(I_, "30C9", payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
     @classmethod
     def _puzzle(
@@ -660,7 +668,7 @@ class Command:
         if length:
             payload = payload.ljust(length * 2, "F")
 
-        return cls(I_, NUL_DEV_ADDR.id, "7FFF", payload[:48], **kwargs)
+        return cls(I_, "7FFF", payload[:48], NUL_DEV_ADDR.id, **kwargs)
 
 
 class FaultLog:  # 0418  # TODO: used a NamedTuple
@@ -987,7 +995,7 @@ class Schedule:  # 0404
         )
         tx_callback = {FUNC: tx_callback, TIMEOUT: 3}  # 1 sec too low
         self._gwy.send_cmd(
-            Command(W_, self._ctl.id, "0404", payload, callback=tx_callback)
+            Command(W_, "0404", payload, self._ctl.id, callback=tx_callback)
         )
 
     async def _obtain_lock(self) -> bool:  # Lock to prevent Rx/Tx at same time

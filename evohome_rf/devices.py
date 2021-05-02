@@ -21,7 +21,6 @@ from .const import (
     DISCOVER_SCHEMA,
     DISCOVER_STATUS,
     DOMAIN_TYPE_MAP,
-    NON_DEVICE_ID,
     __dev_mode__,
     id_to_address,
 )
@@ -88,12 +87,10 @@ class Entity:
     def _dump_msgs(self) -> List:
         return [msg for msg in self._msgs.values()]
 
-    def _send_cmd(self, code, dest, payload, **kwargs) -> None:
+    def _send_cmd(self, code, dest_id, payload, verb=RQ, **kwargs) -> None:
         self._msgs.pop(code, None)  # remove the old one, so we can tell if RP'd rcvd
 
-        self._gwy.send_cmd(
-            Command(kwargs.pop("verb", RQ), dest, code, payload, **kwargs)
-        )
+        self._gwy.send_cmd(Command(verb, code, payload, dest_id, **kwargs))
 
     def _msg_payload(self, msg, key=None) -> Optional[Any]:
         if msg and not msg.is_expired:
@@ -568,11 +565,11 @@ class UfhController(Device):  # UFC: 02
                 for idx in range(8)  # for each possible UFH channel
             ]
 
-        if discover_flag & DISCOVER_PARAMS:
-            pass
+        # if discover_flag & DISCOVER_PARAMS:
+        #     pass
 
-        if discover_flag & DISCOVER_STATUS:
-            pass
+        # if discover_flag & DISCOVER_STATUS:
+        #     pass
 
         # [  # 3150: no answer
         #     self._send_cmd("3150", payload=f"{zone_idx:02X}")for zone_idx in range(8)
@@ -729,8 +726,8 @@ class OtbGateway(Actuator, Device):  # OTB: 10
             for msg_id in range(0x7C, 0x80):  # From OT v2.2: version numbers
                 self._gwy.send_cmd(Command.get_opentherm_data(self.id, msg_id))
 
-        if discover_flag & DISCOVER_PARAMS:
-            pass
+        # if discover_flag & DISCOVER_PARAMS:
+        #     pass
 
         if discover_flag & DISCOVER_STATUS:  # TODO: these need to be periodic
             # From OT v2.2, these are mandatory: 00, 01, 03, 0E, 11, 19...
@@ -879,7 +876,7 @@ class FakeThermostat(Thermostat):
         self._ctl.evo._get_zone(zone_idx)._set_sensor(self)
         self._1fc9_state == "bound"
 
-        self._gwy.send_cmd(Command(I_, self._ctl, "1FC9", f"002309{self.hex_id}"))
+        self._gwy.send_cmd(Command(I_, "1FC9", f"002309{self.hex_id}", self._ctl))
 
     def _bind(self):
         self._1fc9_state == "binding"
@@ -888,7 +885,7 @@ class FakeThermostat(Thermostat):
             f"00{c}{self.hex_id}" for c in ("2309", "30C9", "0008", "1FC9")
         )
         self._gwy.send_cmd(
-            Command.packet(I_, None, self.id, NON_DEVICE_ID, self.id, "1FC9", payload)
+            Command.packet(I_, "1FC9", payload, dev0=self.id, dev2=self.id)
         )
 
     @property

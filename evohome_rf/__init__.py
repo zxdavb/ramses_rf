@@ -337,9 +337,8 @@ class Gateway:
         return create_msg_stack(self, msg_handler)
 
     def make_cmd(self, verb, device_id, code, payload, **kwargs) -> Command:
-        """Make a command."""
-        dest_id = device_id
-        return Command(verb, dest_id, code, payload)
+        """Make a command addressed to device_id."""
+        return Command(verb, code, payload, device_id)
 
     def send_cmd(
         self, cmd: Command, callback: Callable = None, **kwargs
@@ -387,7 +386,7 @@ class Gateway:
         #     ???
 
         sensor = self._get_device(id_to_address(sensor_id))
-        sensor._make_fake()  # promote to a fake device
+        sensor._make_fake()  # promote to a fake device, ?or in init (if dev_type)
         sensor._bind()
         # sensor.temperature = 19.5  # XXX: for testing
 
