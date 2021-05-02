@@ -726,7 +726,9 @@ class Zone(ZoneSchedule, ZoneBase):
         #     if self.sensor and self.sensor.temperature:
         #         self._temperature = self.sensor._temp
 
-        if not self._temperature or self._temperature.is_expired:
+        if not self._temperature or (
+            self._temperature.is_expired == self._temperature.HAS_EXPIRED
+        ):
             return
 
         elif isinstance(self._temperature.payload, dict):
