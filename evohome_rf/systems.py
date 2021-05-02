@@ -208,12 +208,6 @@ class StoredHw:
         super().__init__(*args, **kwargs)
         self._dhw = None
 
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        super()._discover(discover_flag=discover_flag)
-
-        if discover_flag & DISCOVER_STATUS:
-            pass
-
     def _handle_msg(self, msg, prev_msg=None):
         def find_dhw_sensor(this) -> None:
             """Eavesdrop packets, or pairs of packets, to maintain the system state.
