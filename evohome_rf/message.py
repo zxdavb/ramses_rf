@@ -327,7 +327,7 @@ class Message:
             #     timeout = td(minutes=6.7)  # TODO: WIP
             return timeout
 
-        if self._is_expired is not None:
+        if self._is_expired == self.HAS_EXPIRED:
             return self._is_expired
 
         timeout = _timeout()
