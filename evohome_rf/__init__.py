@@ -364,3 +364,35 @@ class Gateway:
         if not self.msg_protocol:
             raise RuntimeError("there is no message protocol")
         return await self.msg_protocol.send_data(cmd, awaitable=awaitable, **kwargs)
+
+    def _bind_fake_sensor(self, sensor_id=None) -> Device:
+        """Bind a faked temperature sensor to a controller (i.e. a controller's zone).
+
+        If required, will create a faked TR87RF.
+        """
+
+        from .const import id_to_address
+        from .helpers import create_dev_id, is_valid_dev_id
+
+        DEV_TYPE = "43"
+
+        if sensor_id is None:
+            sensor_id = create_dev_id(
+                DEV_TYPE, [d.id for d in self.devices if d.type == DEV_TYPE]
+            )
+        elif not is_valid_dev_id(sensor_id, dev_type=DEV_TYPE):
+            raise TypeError("The sensor id is not valid")
+
+        # if sensor_id in self.device_by_id:  # TODO: what about using the HGI
+        #     ???
+
+        sensor = self._get_device(id_to_address(sensor_id))
+        sensor._make_fake()  # promote to a fake device
+        sensor._bind()
+        # sensor.temperature = 19.5  # XXX: for testing
+
+    # TODO: def _bind_fake_relay(self, relay_id=None) -> Device:
+    #     """Bind a faked relay to a controller.
+
+    #     If required, will create a faked BDR91A.
+    #     """

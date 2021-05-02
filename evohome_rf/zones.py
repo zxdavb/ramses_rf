@@ -579,7 +579,7 @@ class Zone(ZoneSchedule, ZoneBase):
                 f"{ATTR_ZONE_SENSOR} shouldn't change: {self._sensor} to {device}"
             )
 
-        sensor_types = ("00", "01", "03", "04", "12", "22", "34")
+        sensor_types = ("00", "01", "03", "04", "12", "22", "34", "43")
         if not isinstance(device, Device) or device.type not in sensor_types:
             raise TypeError(f"{ATTR_ZONE_SENSOR} can't be: {device}")
 

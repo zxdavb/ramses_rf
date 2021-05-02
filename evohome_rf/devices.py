@@ -21,7 +21,9 @@ from .const import (
     DISCOVER_SCHEMA,
     DISCOVER_STATUS,
     DOMAIN_TYPE_MAP,
+    NON_DEVICE_ID,
     __dev_mode__,
+    id_to_address,
 )
 from .exceptions import CorruptStateError
 from .helpers import dev_id_to_hex
@@ -845,8 +847,61 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM:
 
     DEVICE_CLASS = "STA"  # DEVICE_TYPES = ("03", "12", "22", "34")
 
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        if self.type == "43":
+            self._make_fake()
+
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id}): {self.temperature}"
+
+    def _make_fake(self):
+        self.__class__ = FakeThermostat
+        setattr(self, "_1fc9_state", None)
+
+
+class FakeThermostat(Thermostat):
+    """The Fake THM/STA class."""
+
+    # DEVICE_CLASS = "sta"  # DEVICE_TYPES = ("43",) ???
+
+    def _handle_msg(self, msg) -> None:
+        super()._handle_msg(msg)
+
+        if msg.code != "1FC9" or msg.verb != W_ or self._1fc9_state != "binding":
+            return
+
+        ctl_addr = id_to_address(msg.payload[0][2])
+        zone_idx = msg.payload[0][0]
+
+        self._gwy._get_device(self, ctl_addr=ctl_addr)
+        self._ctl.evo._get_zone(zone_idx)._set_sensor(self)
+        self._1fc9_state == "bound"
+
+        self._gwy.send_cmd(Command(I_, self._ctl, "1FC9", f"002309{self.hex_id}"))
+
+    def _bind(self):
+        self._1fc9_state == "binding"
+
+        payload = "".join(
+            f"00{c}{self.hex_id}" for c in ("2309", "30C9", "0008", "1FC9")
+        )
+        self._gwy.send_cmd(
+            Command.packet(I_, None, self.id, NON_DEVICE_ID, self.id, "1FC9", payload)
+        )
+
+    @property
+    def temperature(self) -> Optional[float]:  # 30C9
+        return super().temperature
+
+    @temperature.setter
+    def temperature(self, value) -> None:  # 30C9
+        self._gwy.send_cmd(Command.put_sensor_temp(self.id, value))
+
+    @property
+    def device_info(self) -> Optional[dict]:  # 10E0
+        return {"description": "Fake Temperature Sensor"}
 
 
 class BdrSwitch(Actuator, Device):  # BDR: 13
@@ -1100,6 +1155,7 @@ DEVICE_TYPE_TO_KLASS = {
     "34": "STA",
     "37": "FAN",
     "39": "SWI",
+    "43": "STA",
 }
 DEVICE_CLASSES = {
     k1: v2

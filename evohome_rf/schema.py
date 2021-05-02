@@ -380,8 +380,10 @@ def _load_system_schema(gwy, schema) -> Tuple[dict, dict]:
         zone = ctl._evo._get_zone(zone_idx, zone_type=attr.get(ATTR_ZONE_TYPE))
 
         sensor_id = attr.get(ATTR_ZONE_SENSOR)
-        if sensor_id:  # TODO: use , domain_id=zone_idx or not
-            zone._set_sensor(gwy._get_device(addr(sensor_id), ctl_addr=ctl))
+        if sensor_id:
+            zone._set_sensor(
+                gwy._get_device(addr(sensor_id), ctl_addr=ctl, domain_id=zone_idx)
+            )  # TODO: use domain_id=zone_idx or not
 
         for device_id in attr.get(ATTR_DEVICES, []):
             gwy._get_device(addr(device_id), ctl_addr=ctl, domain_id=zone_idx)
