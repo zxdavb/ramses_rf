@@ -256,11 +256,11 @@ DEVICE_TABLE = {
 # VMS includes Nuaire VMS-23HB33, VMS-23LMH23
 # What about Honeywell MT4 actuator?
 
-DEVICE_TABLE["12"] = dict(DEVICE_TABLE["22"])
-DEVICE_TABLE["12"]["type"] = "THm"
-
 DEVICE_TABLE["00"] = dict(DEVICE_TABLE["04"])
 DEVICE_TABLE["00"]["type"] = "TRv"
+
+DEVICE_TABLE["12"] = dict(DEVICE_TABLE["22"])
+DEVICE_TABLE["12"]["type"] = "THm"
 
 # Example of:
 #  - Sundial RF2 Pack 3: 23:(ST9420C), 07:(CS92), and 22:(DTS92(E))
