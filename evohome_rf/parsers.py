@@ -178,8 +178,8 @@ def parser_decorator(func):
         if msg.src.type not in RAMSES_DEVICES:
             raise CorruptPacketError(f"Unknown src device type: {msg.src.id}")
 
-        if msg.src.type == "18":
-            if msg.code not in RAMSES_CODES:
+        if msg.src.type == "18":  # TODO: make a dynamic list if sensor/relay faking
+            if msg.code not in RAMSES_CODES:  # NOTE: HGI can send whatever it likes
                 # currently, there isn't complete detail in RAMSES_DEVICES for HGI
                 raise CorruptPacketError(
                     f"Unknown code for {msg.src.id} to Tx: {msg.code}"
