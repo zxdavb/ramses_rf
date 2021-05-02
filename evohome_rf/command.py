@@ -631,6 +631,16 @@ class Command:
 
         return cmd
 
+    @classmethod  # constructor for 30C9
+    def put_sensor_temp(cls, dev_id, temperature: float, **kwargs):
+        """Constructor to announce the temperature of a sensor (c.f. parser_3C09)."""
+        #  I --- 34:021943 --:------ 34:021943 30C9 003 000C0D
+
+        payload = f"00{temp_to_hex(temperature)}"
+        return cls.packet(
+            I_, None, dev_id, NON_DEV_ADDR.id, dev_id, "30C9", payload, **kwargs
+        )
+
     @classmethod
     def _puzzle(
         cls, msg_type="01", message=None, ordinal=0, interval=0, length=None, **kwargs
