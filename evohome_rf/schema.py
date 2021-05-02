@@ -20,16 +20,23 @@ from .const import (
 )
 from .const import ATTR_STORED_HW as ATTR_DHW_SYSTEM
 from .const import ATTR_UFH_HTG as ATTR_UFH_SYSTEM
-from .const import ATTR_ZONE_IDX, ATTR_ZONE_SENSOR, ATTR_ZONE_TYPE, ATTR_ZONES
-from .const import CTL_DEVICE_ID as CTL_DEVICE_ID_REGEX
-from .const import DEFAULT_MAX_ZONES
-from .const import DHW_SENSOR_ID as DHW_SENSOR_ID_REGEX
-from .const import GWY_DEVICE_ID as GWY_DEVICE_ID_REGEX
-from .const import HTG_DEVICE_ID as HTG_DEVICE_ID_REGEX
-from .const import RLY_DEVICE_ID as RLY_DEVICE_ID_REGEX
-from .const import UFC_DEVICE_ID as UFC_DEVICE_ID_REGEX
-from .const import ZON_SENSOR_ID as SENSOR_ID_REGEX
-from .const import ZONE_TYPE_SLUGS, SystemType, __dev_mode__
+from .const import (
+    ATTR_ZONE_IDX,
+    ATTR_ZONE_SENSOR,
+    ATTR_ZONE_TYPE,
+    ATTR_ZONES,
+    CTL_DEVICE_ID,
+    DEFAULT_MAX_ZONES,
+    DHW_SENSOR_ID,
+    GWY_DEVICE_ID,
+    HTG_DEVICE_ID,
+    RLY_DEVICE_ID,
+    UFC_DEVICE_ID,
+    ZON_SENSOR_ID,
+    ZONE_TYPE_SLUGS,
+    SystemType,
+    __dev_mode__,
+)
 from .const import id_to_address as addr
 
 # schema attrs
@@ -38,13 +45,13 @@ ATTR_ORPHANS = "orphans"
 ATTR_UFH_CTL = "ufh_controller"
 
 DEVICE_ID = vol.Match(DEVICE_ID_REGEX)
-SENSOR_ID = vol.Match(SENSOR_ID_REGEX)
-CTL_DEVICE_ID = vol.Match(CTL_DEVICE_ID_REGEX)
-DHW_SENSOR_ID = vol.Match(DHW_SENSOR_ID_REGEX)
-GWY_DEVICE_ID = vol.Match(GWY_DEVICE_ID_REGEX)
-HTG_DEVICE_ID = vol.Match(HTG_DEVICE_ID_REGEX)
-UFC_DEVICE_ID = vol.Match(UFC_DEVICE_ID_REGEX)
-RLY_DEVICE_ID = vol.Match(RLY_DEVICE_ID_REGEX)
+SENSOR_ID = vol.Match(ZON_SENSOR_ID)
+CTL_DEVICE_ID = vol.Match(CTL_DEVICE_ID)
+DHW_SENSOR_ID = vol.Match(DHW_SENSOR_ID)
+GWY_DEVICE_ID = vol.Match(GWY_DEVICE_ID)
+HTG_DEVICE_ID = vol.Match(HTG_DEVICE_ID)
+RLY_DEVICE_ID = vol.Match(RLY_DEVICE_ID)
+UFC_DEVICE_ID = vol.Match(UFC_DEVICE_ID)
 
 ZONE_TYPE_SLUGS = list(ZONE_TYPE_SLUGS)
 
@@ -373,12 +380,13 @@ def _load_system_schema(gwy, schema) -> Tuple[dict, dict]:
         zone = ctl._evo._get_zone(zone_idx, zone_type=attr.get(ATTR_ZONE_TYPE))
 
         sensor_id = attr.get(ATTR_ZONE_SENSOR)
-        if sensor_id:
+        if sensor_id:  # TODO: use , domain_id=zone_idx or not
             zone._set_sensor(gwy._get_device(addr(sensor_id), ctl_addr=ctl))
 
         for device_id in attr.get(ATTR_DEVICES, []):
             gwy._get_device(addr(device_id), ctl_addr=ctl, domain_id=zone_idx)
 
+    # TODO: not create orphans by default?
     orphan_ids = schema.get(ATTR_ORPHANS, [])
     if orphan_ids:
         [gwy._get_device(addr(device_id), ctl_addr=ctl) for device_id in orphan_ids]
