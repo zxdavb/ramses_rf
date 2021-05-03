@@ -9,6 +9,7 @@ It does three things:
  - decodes RAMSES II-compatible packets and converts them into useful JSON
  - builds a picture (schema, config & state) of an evohome-compatible system - either passively (by eavesdropping), or actively (probing)
  - allows you to send commands to evohome, or monitor for state changes
+ - allows you to emulate some hardware devices
 
 The simplest way to know if it will work with your system is to identify the box connected to your heat source (boiler or other heat appliance) as one of:
  - **R8810A**: OpenTherm Bridge
