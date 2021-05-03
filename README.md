@@ -4,7 +4,7 @@
 **ramses_rf** is a client library/CLI utility used to interface with some Honeywell-compatible HVAC & CH/DHW systems that use 868MHz RF, such as **evohome**, **Sundial**, **Hometronic**, **Chronotherm** and many others.  
 
 It does three things:
- - convert the RF packets into useful JSON
+ - decodes RF packets and converts them into useful JSON
  - builds a picture (schema, config & state) of an evohome-compatible system - either passively (by eavesdropping), or actively (probing)
  - allows you to send commands to evohome, or monitor for state changes
 
