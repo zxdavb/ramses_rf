@@ -4,16 +4,16 @@
 **ramses_rf** is a client library/CLI utility used to interface with some Honeywell-compatible HVAC & CH/DHW systems that use 868MHz RF, such as **evohome**, **Sundial**, **Hometronic**, **Chronotherm** and many others.  
 
 It does three things:
-a) convert the RF packets into useful JSON
-b) builds a picture (schema, config & state) of an evohome-compatible system - either passively (by eavesdropping), or actively (probing)
-c) allows you to send commands to evohome, or monitor for state changes
+ a) convert the RF packets into useful JSON
+ b) builds a picture (schema, config & state) of an evohome-compatible system - either passively (by eavesdropping), or actively (probing)
+ c) allows you to send commands to evohome, or monitor for state changes
 
 The simplest way to know if it will work with your system is to identify the box connected to your heat source (boiler or other heat appliance) as one of:
  - **R8810A**: OpenTherm Bridge
  - **BDR91A**: Wireless Relay (also BDR91T)
  - **HC60NG**: Wireless Relay (older hardware)
 
-Other systems may well work (Itho Dallderop HVAC systems).
+Other systems may well work, such as some Itho Dallderop HVAC systems.
 
 It uses the [evohome_rf](https://github.com/zxdavb/evohome_rf) client library to decode the RAMSES-II protocol used by these devices. Note that other systems, such as HVAC, also use this protocol, YMMV.
 
