@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""A CLI for the evohome_rf library.
+"""A CLI for the ramses_rf library.
 
-evohome_rf is used to parse Honeywell's RAMSES-II packets, either via RF or from a file.
+ramses_rf is used to parse Honeywell's RAMSES-II packets, either via RF or from a file.
 """
 import asyncio
 import json
@@ -20,8 +20,8 @@ if __name__ == "__main__" and __package__ is None:
     sys.path.append(dirname(sys.path[0]))
     __package__ = "examples"
 
-from evohome_rf import Gateway, GracefulExit
-from evohome_rf.schema import ATTR_CONTROLLER
+from ramses_rf import Gateway, GracefulExit
+from ramses_rf.schema import ATTR_CONTROLLER
 
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678

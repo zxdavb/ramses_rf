@@ -25,8 +25,8 @@ It includes a CLI and can be used as a standalone tool, but also is used as a cl
 ## Installation
 
 ```
-git clone https://github.com/zxdavb/evohome_rf
-cd evohome_rf
+git clone https://github.com/zxdavb/ramses_rf
+cd ramses_rf
 pip install -r requirements.txt
 ```
 
