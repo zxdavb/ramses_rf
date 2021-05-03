@@ -35,8 +35,10 @@ class VerifyVersionCommand(install):
 
 
 setup(
-    name="evohome-rf",
-    description="An interface for Honeywell RF (RAMSES II), as used by HVAC, CH/DHW.",
+    name="ramses-rf",
+    description="""An interface for the RAMSES RF protocol,
+        as used by Honeywell-compatible HVAC & CH/DHW systems.
+    """,
     keywords=["ramses", "evohome", "sunidal", "chronotherm", "hometronics"],
     author="David Bonnes",
     author_email="zxdavb@gmail.com",
