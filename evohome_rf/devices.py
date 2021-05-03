@@ -865,8 +865,6 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM:
         super().__init__(*args, **kwargs)
 
         self._1fc9_state = None
-        if self.type == "43":  # TODO: remove
-            self._make_fake()
 
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id}): {self.temperature}"
@@ -1147,7 +1145,6 @@ DEVICE_TYPE_TO_KLASS = {
     "34": "STA",
     "37": "FAN",
     "39": "SWI",
-    "43": "STA",
 }
 DEVICE_CLASSES = {
     k1: v2

@@ -580,7 +580,7 @@ class Zone(ZoneSchedule, ZoneBase):
             #     f"{ATTR_ZONE_SENSOR} shouldn't change: {self._sensor} to {device}"
             # )
 
-        sensor_types = ("00", "01", "03", "04", "12", "22", "34", "43")
+        sensor_types = ("00", "01", "03", "04", "12", "22", "34")
         if not isinstance(device, Device) or device.type not in sensor_types:
             raise TypeError(f"{ATTR_ZONE_SENSOR} can't be: {device}")
 
@@ -804,9 +804,16 @@ class Zone(ZoneSchedule, ZoneBase):
     @property
     def schema(self) -> dict:
         """Return the zone's schema (type, devices)."""
+        if not self._sensor:
+            sensor_schema = None
+        elif not self._sensor._30C9_faked:
+            sensor_schema = self._sensor.id
+        else:
+            sensor_schema = {"device_id": self._sensor.id, "is_faked": True}
+
         return {
             ATTR_ZONE_TYPE: self.heating_type,
-            ATTR_ZONE_SENSOR: self._sensor.id if self._sensor else None,
+            ATTR_ZONE_SENSOR: sensor_schema,
             ATTR_DEVICES: [d.id for d in self.devices],
         }
 

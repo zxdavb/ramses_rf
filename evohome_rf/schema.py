@@ -40,6 +40,7 @@ from .const import (
 from .const import id_to_address as addr
 
 # schema attrs
+ATTR_DEVICE_ID = "device_id"
 ATTR_HTG_SYSTEM = "system"
 ATTR_ORPHANS = "orphans"
 ATTR_UFH_CTL = "ufh_controller"
@@ -191,10 +192,20 @@ UFH_SCHEMA = vol.Schema(
     }
 )
 UFH_SCHEMA = vol.All(UFH_SCHEMA, vol.Length(min=1, max=3))
+
+SENSOR_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_DEVICE_ID): SENSOR_ID,
+        vol.Optional("is_faked"): bool,
+        # vol.Optional("native_id"): DEVICE_ID,
+    }
+)
 ZONE_SCHEMA = vol.Schema(
     {
         vol.Optional(ATTR_ZONE_TYPE, default=None): vol.Any(None, ZONE_TYPE_SLUGS),
-        vol.Optional(ATTR_ZONE_SENSOR, default=None): vol.Any(None, SENSOR_ID),
+        vol.Optional(ATTR_ZONE_SENSOR, default=None): vol.Any(
+            None, SENSOR_ID, SENSOR_SCHEMA
+        ),
         vol.Optional(ATTR_DEVICES, default=[]): vol.Any([], [DEVICE_ID]),
     }
 )
@@ -380,10 +391,18 @@ def _load_system_schema(gwy, schema) -> Tuple[dict, dict]:
         zone = ctl._evo._get_zone(zone_idx, zone_type=attr.get(ATTR_ZONE_TYPE))
 
         sensor_id = attr.get(ATTR_ZONE_SENSOR)
+        is_faked = None
+        if isinstance(sensor_id, dict):
+            is_faked = sensor_id.get("is_faked")
+            sensor_id = sensor_id[ATTR_DEVICE_ID]
+
         if sensor_id:
             zone._set_sensor(
                 gwy._get_device(addr(sensor_id), ctl_addr=ctl, domain_id=zone_idx)
             )  # TODO: use domain_id=zone_idx or not
+
+        if is_faked:
+            zone.sensor._make_fake()
 
         for device_id in attr.get(ATTR_DEVICES, []):
             gwy._get_device(addr(device_id), ctl_addr=ctl, domain_id=zone_idx)

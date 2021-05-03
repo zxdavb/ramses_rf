@@ -262,9 +262,6 @@ DEVICE_TABLE["00"]["type"] = "TRv"
 DEVICE_TABLE["12"] = dict(DEVICE_TABLE["22"])
 DEVICE_TABLE["12"]["type"] = "THm"
 
-DEVICE_TABLE["43"] = dict(DEVICE_TABLE["34"])
-DEVICE_TABLE["43"]["type"] = "thm"
-
 # Example of:
 #  - Sundial RF2 Pack 3: 23:(ST9420C), 07:(CS92), and 22:(DTS92(E))
 

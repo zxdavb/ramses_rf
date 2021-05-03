@@ -373,7 +373,7 @@ class Gateway:
         from .const import id_to_address
         from .helpers import create_dev_id, is_valid_dev_id
 
-        DEV_TYPE = "43"
+        DEV_TYPE = "03"  # NOTE: named like a 03:, but behaves like a 34:
 
         if sensor_id is None:
             sensor_id = create_dev_id(
