@@ -6,7 +6,7 @@
 It requires a USB-to-RF device, either a Honeywell HGI80 (somewhat rare, expensive) or something running the [evofw3](https://github.com/ghoti57/evofw3) firmware, such as the one from [here](https://indalo-tech.onlineweb.shop/).
 
 It does three things:
- - decodes RF packets and converts them into useful JSON
+ - decodes RAMSES II-compatible packets and converts them into useful JSON
  - builds a picture (schema, config & state) of an evohome-compatible system - either passively (by eavesdropping), or actively (probing)
  - allows you to send commands to evohome, or monitor for state changes
 
