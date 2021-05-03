@@ -3,4 +3,4 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
-__version__ = "0.8.6"
+__version__ = "0.9.1"

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""A CLI (puzzle) for the evohome_rf library - RF tune.
+"""A CLI (puzzle) for the ramses_rf library - RF tune.
 
-evohome_rf is used to parse/process Honeywell's RAMSES-II packets.
+ramses_rf is used to parse/process Honeywell's RAMSES-II packets.
 """
 
 import asyncio
@@ -19,13 +19,13 @@ import click
 from colorama import Fore, Style
 from colorama import init as colorama_init
 
-from evohome_rf import Gateway, GracefulExit
-from evohome_rf.command import Command, Priority
-from evohome_rf.exceptions import EvohomeError
-from evohome_rf.helpers import is_valid_dev_id
-from evohome_rf.packet import _PKT_LOGGER, CONSOLE_COLS, Packet
-from evohome_rf.protocol import create_protocol_factory
-from evohome_rf.schema import (
+from ramses_rf import Gateway, GracefulExit
+from ramses_rf.command import Command, Priority
+from ramses_rf.exceptions import EvohomeError
+from ramses_rf.helpers import is_valid_dev_id
+from ramses_rf.packet import _PKT_LOGGER, CONSOLE_COLS, Packet
+from ramses_rf.protocol import create_protocol_factory
+from ramses_rf.schema import (
     ALLOW_LIST,
     DISABLE_DISCOVERY,
     DISABLE_SENDING,
@@ -38,7 +38,7 @@ from evohome_rf.schema import (
     SERIAL_PORT,
     USE_NAMES,
 )
-from evohome_rf.transport import PacketProtocol, create_pkt_stack
+from ramses_rf.transport import PacketProtocol, create_pkt_stack
 
 device_id = None
 pkt_counting = None
@@ -133,7 +133,7 @@ def _proc_kwargs(obj, kwargs) -> Tuple[dict, dict]:
 @click.option("-c", "--config-file", type=click.File("r"))
 @click.pass_context
 def cli(ctx, config_file=None, **kwargs):
-    """A CLI for the evohome_rf library."""
+    """A CLI for the ramses_rf library."""
 
     if kwargs[DEBUG_MODE]:
         import debugpy
@@ -462,7 +462,7 @@ async def main(lib_kwargs, **kwargs):
         )
         gwy._tasks.append(gwy.msg_transport._set_dispatcher(gwy.pkt_protocol.send_data))
 
-    print("\r\nclient.py: Starting evohome_rf (puzzler)...")
+    print("\r\nclient.py: Starting ramses_rf (puzzler)...")
 
     if sys.platform == "win32":  # is better than os.name?
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -495,7 +495,7 @@ async def main(lib_kwargs, **kwargs):
     else:  # if no Exceptions raised, e.g. EOF when parsing
         msg = " - ended without error (e.g. EOF)"
 
-    print(f"\r\nclient.py: Finished evohome_rf (puzzler).\r\n{msg}\r\n")
+    print(f"\r\nclient.py: Finished ramses_rf (puzzler).\r\n{msg}\r\n")
 
 
 cli.add_command(tune)

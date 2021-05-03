@@ -29,12 +29,12 @@ jobs:
           name: "Check formatting 1: black"
           command: |
             black --diff --check *client.py
-            black --diff --check evohome*
+            black --diff --check ramses*
       - run:
           name: "Check formatting 2: isort"
           command: |
             isort --check --diff *client.py
-            isort --check --diff evohome*
+            isort --check --diff ramses*
       - store_test_results: # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
           path: test-results
       - store_artifacts: # Upload test summary for display in Artifacts: https://circleci.com/docs/2.0/artifacts/

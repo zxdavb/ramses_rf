@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""A CLI for the evohome_rf library.
+"""A CLI for the ramses_rf library.
 
-evohome_rf is used to parse/process Honeywell's RAMSES-II packets.
+ramses_rf is used to parse/process Honeywell's RAMSES-II packets.
 """
 
 # import cProfile
@@ -19,9 +19,9 @@ import click
 from colorama import Fore, Style
 from colorama import init as colorama_init
 
-from evohome_rf import Gateway, GracefulExit
-from evohome_rf.command import Command
-from evohome_rf.discovery import (
+from ramses_rf import Gateway, GracefulExit
+from ramses_rf.command import Command
+from ramses_rf.discovery import (
     EXECUTE_CMD,
     GET_FAULTS,
     GET_SCHED,
@@ -33,10 +33,10 @@ from evohome_rf.discovery import (
     spawn_execute_scripts,
     spawn_monitor_scripts,
 )
-from evohome_rf.exceptions import EvohomeError
-from evohome_rf.helpers import is_valid_dev_id
-from evohome_rf.packet import CONSOLE_COLS, DEFAULT_DATEFMT, DEFAULT_FMT
-from evohome_rf.schema import (
+from ramses_rf.exceptions import EvohomeError
+from ramses_rf.helpers import is_valid_dev_id
+from ramses_rf.packet import CONSOLE_COLS, DEFAULT_DATEFMT, DEFAULT_FMT
+from ramses_rf.schema import (
     ALLOW_LIST,
     CONFIG,
     DISABLE_DISCOVERY,
@@ -138,7 +138,7 @@ class DeviceIdParamType(click.ParamType):
 @click.option("-c", "--config-file", type=click.File("r"))
 @click.pass_context
 def cli(ctx, config_file=None, **kwargs):
-    """A CLI for the evohome_rf library."""
+    """A CLI for the ramses_rf library."""
 
     if 0 < kwargs[DEBUG_MODE] < 3:
         import debugpy
@@ -349,7 +349,7 @@ async def main(lib_kwargs, **kwargs):
         else:
             print(f"{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
 
-    print("\r\nclient.py: Starting evohome_rf...")
+    print("\r\nclient.py: Starting ramses_rf...")
 
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -400,7 +400,7 @@ async def main(lib_kwargs, **kwargs):
     else:  # if no Exceptions raised, e.g. EOF when parsing
         msg = " - ended without error (e.g. EOF)"
 
-    print("\r\nclient.py: Finished evohome_rf, results:\r\n")
+    print("\r\nclient.py: Finished ramses_rf, results:\r\n")
     if kwargs[COMMAND] == EXECUTE:
         print_results(**kwargs)
     else:
@@ -421,7 +421,7 @@ async def main(lib_kwargs, **kwargs):
 
     # # await gwy._set_state(schema, msgs)
 
-    print(f"\r\nclient.py: Finished evohome_rf.\r\n{msg}\r\n")
+    print(f"\r\nclient.py: Finished ramses_rf.\r\n{msg}\r\n")
 
 
 cli.add_command(parse)
