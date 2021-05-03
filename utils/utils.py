@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""A CLI (utils) for the evohome_rf library - logarchiver.
+"""A CLI (utils) for the ramses_rf library - logarchiver.
 
-evohome_rf is used to parse/process Honeywell's RAMSES-II packets.
+ramses_rf is used to parse/process Honeywell's RAMSES-II packets.
 """
 
 import asyncio
@@ -17,11 +17,11 @@ import click
 from colorama import Fore, Style
 from colorama import init as colorama_init
 
-from evohome_rf import Gateway, GracefulExit
-from evohome_rf.exceptions import EvohomeError
-from evohome_rf.packet import CONSOLE_COLS, Packet
-from evohome_rf.protocol import create_protocol_factory
-from evohome_rf.schema import (
+from ramses_rf import Gateway, GracefulExit
+from ramses_rf.exceptions import EvohomeError
+from ramses_rf.packet import CONSOLE_COLS, Packet
+from ramses_rf.protocol import create_protocol_factory
+from ramses_rf.schema import (
     DONT_CREATE_MESSAGES,
     ENFORCE_ALLOWLIST,
     INPUT_FILE,
@@ -29,7 +29,7 @@ from evohome_rf.schema import (
     REDUCE_PROCESSING,
     USE_NAMES,
 )
-from evohome_rf.transport import POLLER_TASK, PacketProtocolRead, create_pkt_stack
+from ramses_rf.transport import POLLER_TASK, PacketProtocolRead, create_pkt_stack
 
 CONFIG = "config"
 COMMAND = "command"
@@ -117,7 +117,7 @@ def _proc_kwargs(obj, kwargs) -> Tuple[dict, dict]:
 @click.option("-c", "--config-file", type=click.File("r"))
 @click.pass_context
 def cli(ctx, config_file=None, **kwargs):
-    """A CLI for the evohome_rf library."""
+    """A CLI for the ramses_rf library."""
 
     if kwargs[DEBUG_MODE]:
         import debugpy
@@ -258,7 +258,7 @@ async def main(lib_kwargs, **kwargs):
 
     global counter
 
-    print("\r\nclient.py: Starting evohome_rf (utils)...")
+    print("\r\nclient.py: Starting ramses_rf (utils)...")
 
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -290,7 +290,7 @@ async def main(lib_kwargs, **kwargs):
 
     con.commit()
 
-    print(f"\r\nclient.py: Finished evohome_rf (utils).\r\n{msg}\r\n")
+    print(f"\r\nclient.py: Finished ramses_rf (utils).\r\n{msg}\r\n")
     print(f"  - uploaded {counter} rows\r\n")
 
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""A CLI (diff) for the evohome_rf library - log diff utility.
+"""A CLI (diff) for the ramses_rf library - log diff utility.
 
-evohome_rf is used to parse/process Honeywell's RAMSES-II packets.
+ramses_rf is used to parse/process Honeywell's RAMSES-II packets.
 """
 
 import argparse

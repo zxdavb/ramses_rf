@@ -9,16 +9,16 @@ import sys
 from setuptools import find_packages, setup
 from setuptools.command.install import install
 
-# from evohome_rf import __version__ as VERSION
+# from ramses_rf import __version__ as VERSION
 
 
-with open("evohome_rf/version.py") as fh:
+with open("ramses_rf/version.py") as fh:
     for line in fh:
         if line.strip().startswith("__version__"):
             VERSION = eval(line.split("=")[-1])
             break
 
-URL = "https://github.com/zxdavb/evohome_rf"
+URL = "https://github.com/zxdavb/ramses_rf"
 
 with open("README.md", "r") as fh:
     LONG_DESCRIPTION = fh.read()
@@ -35,8 +35,8 @@ class VerifyVersionCommand(install):
 
 
 setup(
-    name="evohome-rf",
-    description="An interface for Honeywell RF (RAMSES II), as used by HVAC, CH/DHW.",
+    name="ramses-rf",
+    description="An interface for the RAMSES RF protocol, as used by HVAC, CH/DHW.",
     keywords=["ramses", "evohome", "sunidal", "chronotherm", "hometronics"],
     author="David Bonnes",
     author_email="zxdavb@gmail.com",

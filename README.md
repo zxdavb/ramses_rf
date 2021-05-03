@@ -1,6 +1,6 @@
-# evohome_rf
+# ramses_rf
 
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![CircleCI](https://circleci.com/gh/zxdavb/evohome_rf.svg?style=svg)](https://circleci.com/gh/zxdavb/evohome_rf) [![Join the chat at https://gitter.im/evohome_rf/community](https://badges.gitter.im/evohome_rf/community.svg)](https://gitter.im/evohome_rf/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![CircleCI](https://circleci.com/gh/zxdavb/ramses_rf.svg?style=svg)](https://circleci.com/gh/zxdavb/ramses_rf) [![Join the chat at https://gitter.im/ramses_rf/community](https://badges.gitter.im/ramses_rf/community.svg)](https://gitter.im/ramses_rf/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 It does three things:
 a) convert the RF packets in useful JSON
@@ -14,8 +14,8 @@ It requires a USB-to-RF device, either a Honeywell HGI80 (rare, expensive) or so
 ## Installation
 
 ```
-git clone https://github.com/zxdavb/evohome_rf
-cd evohome_rf
+git clone https://github.com/zxdavb/ramses_rf
+cd ramses_rf
 pip install -r requirements.txt
 ```
 
