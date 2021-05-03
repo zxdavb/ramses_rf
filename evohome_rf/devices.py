@@ -7,7 +7,7 @@ import logging
 from abc import ABCMeta, abstractmethod
 from typing import Any, Dict, List, Optional
 
-from .command import Command, Priority
+from .command import FUNC, TIMEOUT, Command, Priority
 from .const import (
     ATTR_HEAT_DEMAND,
     ATTR_SETPOINT,
@@ -89,7 +89,6 @@ class Entity:
 
     def _send_cmd(self, code, dest_id, payload, verb=RQ, **kwargs) -> None:
         self._msgs.pop(code, None)  # remove the old one, so we can tell if RP'd rcvd
-
         self._gwy.send_cmd(Command(verb, code, payload, dest_id, **kwargs))
 
     def _msg_payload(self, msg, key=None) -> Optional[Any]:
@@ -863,30 +862,28 @@ class FakeThermostat(Thermostat):
 
     # DEVICE_CLASS = "sta"  # DEVICE_TYPES = ("43",) ???
 
-    def _handle_msg(self, msg) -> None:
-        super()._handle_msg(msg)
-
-        if msg.code != "1FC9" or msg.verb != W_ or self._1fc9_state != "binding":
-            return
-
-        ctl_addr = id_to_address(msg.payload[0][2])
-        zone_idx = msg.payload[0][0]
-
-        self._gwy._get_device(self, ctl_addr=ctl_addr)
-        self._ctl.evo._get_zone(zone_idx)._set_sensor(self)
-        self._1fc9_state == "bound"
-
-        self._gwy.send_cmd(Command(I_, "1FC9", f"002309{self.hex_id}", self._ctl))
-
     def _bind(self):
-        self._1fc9_state == "binding"
+        def bind_callback(msg) -> None:
+            self._1fc9_state == "bound"
 
+            self._gwy._get_device(self, ctl_addr=id_to_address(msg.payload[0][2]))
+            self._ctl._evo._get_zone(msg.payload[0][0])._set_sensor(self)
+
+            cmd = Command(
+                I_, "1FC9", f"002309{self.hex_id}", self._ctl.id, from_id=self.id
+            )
+            self._gwy.send_cmd(cmd)
+
+        self._1fc9_state = "binding"
+
+        callback = {FUNC: bind_callback, TIMEOUT: 3}
         payload = "".join(
             f"00{c}{self.hex_id}" for c in ("2309", "30C9", "0008", "1FC9")
         )
-        self._gwy.send_cmd(
-            Command.packet(I_, "1FC9", payload, dev0=self.id, dev2=self.id)
+        cmd = Command.packet(
+            I_, "1FC9", payload, addr0=self.id, addr2=self.id, callback=callback
         )
+        self._gwy.send_cmd(cmd)
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9

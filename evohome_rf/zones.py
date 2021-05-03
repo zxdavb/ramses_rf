@@ -575,17 +575,17 @@ class Zone(ZoneSchedule, ZoneBase):
         if self._sensor is device:
             return
         elif self._sensor is not None:
-            raise CorruptStateError(
-                f"{ATTR_ZONE_SENSOR} shouldn't change: {self._sensor} to {device}"
-            )
+            _LOGGER.error("Changing the Zone sensor for %s to %s", self, device)
+            # raise CorruptStateError(
+            #     f"{ATTR_ZONE_SENSOR} shouldn't change: {self._sensor} to {device}"
+            # )
 
         sensor_types = ("00", "01", "03", "04", "12", "22", "34", "43")
         if not isinstance(device, Device) or device.type not in sensor_types:
             raise TypeError(f"{ATTR_ZONE_SENSOR} can't be: {device}")
 
-        if self._sensor is None:
-            self._sensor = device
-            device._set_parent(self)  # , domain=self.idx)
+        self._sensor = device
+        device._set_parent(self)  # , domain=self.idx)
 
     @property
     def heating_type(self) -> Optional[str]:

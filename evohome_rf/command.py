@@ -117,8 +117,10 @@ def _pkt_header(pkt: str, rx_header=None) -> Optional[str]:
     if code == "1FC9":
         if src == dst:
             return "|".join((W_, dst.id, code) if rx_header else (I_, src.id, code))
-        elif verb == W_:
+        if verb == W_:
             return "|".join((W_, dst.id, code)) if not rx_header else None
+        if rx_header:
+            return
 
     if rx_header:
         if src == dst:  # usually announcements, not requiring an Rx
@@ -610,9 +612,9 @@ class Command:
         verb,
         code,
         payload,
-        addr0=NUL_DEV_ADDR.id,
-        addr1=NUL_DEV_ADDR.id,
-        addr2=NUL_DEV_ADDR.id,
+        addr0=NON_DEV_ADDR.id,
+        addr1=NON_DEV_ADDR.id,
+        addr2=NON_DEV_ADDR.id,
         seqn=None,
         **kwargs,
     ):
@@ -624,7 +626,7 @@ class Command:
 
         verb = I_ if verb == "I" else W_ if verb == "W" else verb
 
-        cmd = cls(verb, code, payload, addr1, **kwargs)
+        cmd = cls(verb, code, payload, NUL_DEV_ADDR.id, **kwargs)
 
         if seqn in ("", "-", "--", "---"):
             cmd.seqn = "---"
