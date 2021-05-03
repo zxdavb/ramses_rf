@@ -11,7 +11,7 @@ It does three things:
  - allows you to send commands to evohome, or monitor for state changes
  - allows you to emulate some hardware devices
 
-The simplest way to know if it will work with your system is to identify the box connected to your heat source (boiler or other heat appliance) as one of:
+The simplest way to know if it will work with your system is to identify the box connected to your boiler/HVAC appliance as one of:
  - **R8810A**: OpenTherm Bridge
  - **BDR91A**: Wireless Relay (also BDR91T)
  - **HC60NG**: Wireless Relay (older hardware)
