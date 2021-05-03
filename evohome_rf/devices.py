@@ -328,10 +328,51 @@ class Temperature:  # 30C9
 
     TEMPERATURE = ATTR_TEMP
 
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self._30C9_faked = None
+        self._1fc9_state = None
+
+    def _make_fake(self):
+        self._30C9_faked = True
+
+    def _bind(self):
+        def bind_callback(msg) -> None:
+            self._1fc9_state == "bound"
+
+            self._gwy._get_device(self, ctl_addr=id_to_address(msg.payload[0][2]))
+            self._ctl._evo._get_zone(msg.payload[0][0])._set_sensor(self)
+
+            cmd = Command(
+                I_, "1FC9", f"002309{self.hex_id}", self._ctl.id, from_id=self.id
+            )
+            self._gwy.send_cmd(cmd)
+
+        if not self._30C9_faked:
+            raise TypeError("Can't bind sensor (Faking is not enabled)")
+
+        self._1fc9_state = "binding"
+
+        callback = {FUNC: bind_callback, TIMEOUT: 3}
+        payload = "".join(
+            f"00{c}{self.hex_id}" for c in ("2309", "30C9", "0008", "1FC9")
+        )
+        cmd = Command.packet(
+            I_, "1FC9", payload, addr0=self.id, addr2=self.id, callback=callback
+        )
+        self._gwy.send_cmd(cmd)
+
     @property
     def temperature(self) -> Optional[float]:  # 30C9
         if "30C9" in self._msgs:
             return self._msgs["30C9"].payload[self.TEMPERATURE]
+
+    @temperature.setter
+    def temperature(self, value) -> None:  # 30C9
+        if not self._30C9_faked:
+            raise AttributeError("Can't set attribute (Faking is not enabled)")
+        self._gwy.send_cmd(Command.put_sensor_temp(self.id, value))
 
     @property
     def status(self) -> dict:
@@ -851,51 +892,6 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM:
 
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id}): {self.temperature}"
-
-    def _make_fake(self):
-        self.__class__ = FakeThermostat
-        setattr(self, "_1fc9_state", None)
-
-
-class FakeThermostat(Thermostat):
-    """The Fake THM/STA class."""
-
-    # DEVICE_CLASS = "sta"  # DEVICE_TYPES = ("43",) ???
-
-    def _bind(self):
-        def bind_callback(msg) -> None:
-            self._1fc9_state == "bound"
-
-            self._gwy._get_device(self, ctl_addr=id_to_address(msg.payload[0][2]))
-            self._ctl._evo._get_zone(msg.payload[0][0])._set_sensor(self)
-
-            cmd = Command(
-                I_, "1FC9", f"002309{self.hex_id}", self._ctl.id, from_id=self.id
-            )
-            self._gwy.send_cmd(cmd)
-
-        self._1fc9_state = "binding"
-
-        callback = {FUNC: bind_callback, TIMEOUT: 3}
-        payload = "".join(
-            f"00{c}{self.hex_id}" for c in ("2309", "30C9", "0008", "1FC9")
-        )
-        cmd = Command.packet(
-            I_, "1FC9", payload, addr0=self.id, addr2=self.id, callback=callback
-        )
-        self._gwy.send_cmd(cmd)
-
-    @property
-    def temperature(self) -> Optional[float]:  # 30C9
-        return super().temperature
-
-    @temperature.setter
-    def temperature(self, value) -> None:  # 30C9
-        self._gwy.send_cmd(Command.put_sensor_temp(self.id, value))
-
-    @property
-    def device_info(self) -> Optional[dict]:  # 10E0
-        return {"description": "Fake Temperature Sensor"}
 
 
 class BdrSwitch(Actuator, Device):  # BDR: 13
