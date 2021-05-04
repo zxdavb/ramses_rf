@@ -723,6 +723,7 @@ class Zone(ZoneSchedule, ZoneBase):
     @property
     def temperature(self) -> Optional[float]:  # 30C9
         # if not self._temperature or self._temperature.is_expired:
+        #       # NOTE: CTL (as sensor) won't have this attr...
         #     if self.sensor and self.sensor.temperature:
         #         self._temperature = self.sensor._temp
 
@@ -806,10 +807,14 @@ class Zone(ZoneSchedule, ZoneBase):
         """Return the zone's schema (type, devices)."""
         if not self._sensor:
             sensor_schema = None
-        elif not self._sensor._30C9_faked:
+        elif getattr(self._sensor, "_30C9_faked", None) is None:
+            # NOTE: CTL (as sensor) won't have this attr...
             sensor_schema = self._sensor.id
         else:
-            sensor_schema = {"device_id": self._sensor.id, "is_faked": True}
+            sensor_schema = {
+                "device_id": self._sensor.id,
+                "is_faked": self._sensor._30C9_faked,
+            }
 
         return {
             ATTR_ZONE_TYPE: self.heating_type,
