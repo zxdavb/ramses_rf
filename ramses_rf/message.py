@@ -61,9 +61,10 @@ MSG_TIMEOUTS = {
 DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
-# _PKT_LOGGER = _LOGGER
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
+
+# _PKT_LOGGER = _LOGGER
 
 
 class Message:
@@ -298,7 +299,7 @@ class Message:
         """Return True if the message is dated (does not require a valid payload)."""
 
         def _logger_send(logger, message) -> None:
-            if DEV_MODE:
+            if True or DEV_MODE:
                 logger(
                     f"Message(%s) received at {self.dtm:%H:%M:%S} {message}",
                     self._pkt._header,
@@ -317,12 +318,12 @@ class Message:
                 timeout = td(minutes=15)  # send I /sync_interval (~3 mins)
             elif self.code in ("3150",):
                 timeout = td(minutes=20)  # sends I /20min
-            elif self.code in ("000A", "2E04") and self.src._is_controller:
-                timeout = td(minutes=60)  # sends I /1h
+            # elif self.code in ("000A", "2E04") and self.src._is_controller:
+            #     timeout = td(minutes=60)  # sends I /1h
             elif self.code in ("1260", "12B0", "1F41"):
                 timeout = td(minutes=60)  # sends I /1h
-            elif self.code in ("2349",):  # no spontaneous I/2349, must be RQ'd
-                timeout = td(minutes=60)  # or longer if READ_ONLY mode?
+            # elif self.code in ("2349",):  # no spontaneous I/2349, must be RQ'd
+            #     timeout = td(minutes=60)  # or longer if READ_ONLY mode?
             # elif self.code in ("3B00", "3EF0", ):  # TODO: 0008, 3EF0, 3EF1
             #     timeout = td(minutes=6.7)  # TODO: WIP
             return timeout
@@ -344,13 +345,13 @@ class Message:
 
         if self.dtm < dtm_now - timeout * 2:
             self._is_expired = self.HAS_EXPIRED
-            _logger_send(_LOGGER.error, "HAS EXPIRED")
+            _logger_send(_LOGGER.warning, "msg has expired")
         elif self.dtm < dtm_now - timeout * 1:
             self._is_expired = self.IS_EXPIRING
-            _logger_send(_LOGGER.warning, "has not expired, but is dated")
+            _logger_send(_LOGGER.info, "msg has not expired, but is dated")
         else:
             self._is_expired = self.NOT_EXPIRED
-            _logger_send(_LOGGER.debug, "has not expired")
+            _logger_send(_LOGGER.debug, "msg has not expired")
         return self._is_expired
 
     @property
