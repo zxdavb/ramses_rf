@@ -320,7 +320,7 @@ class Message:
                 timeout = td(minutes=20)  # sends I /20min
             # elif self.code in ("000A", "2E04") and self.src._is_controller:
             #     timeout = td(minutes=60)  # sends I /1h
-            elif self.code in ("1260", "12B0", "1F41"):
+            elif self.code in ("1260", "12B0"):  # , "1F41"):
                 timeout = td(minutes=60)  # sends I /1h
             # elif self.code in ("2349",):  # no spontaneous I/2349, must be RQ'd
             #     timeout = td(minutes=60)  # or longer if READ_ONLY mode?
