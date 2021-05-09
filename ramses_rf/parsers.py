@@ -415,9 +415,8 @@ def parser_0002(payload, msg) -> Optional[dict]:
     assert msg.len == 4
 
     return {
-        # **_idx(payload[:2], msg),
         "temperature": _temp(payload[2:6]),
-        "_light_level": payload[6:],  # light level
+        "_unknown": payload[6:],
     }
 
 
