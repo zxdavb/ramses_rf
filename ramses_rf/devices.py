@@ -203,7 +203,7 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         if self._ctl is None:
             _LOGGER.debug("Setting controller for %s to %s", self, ctl)
 
-            # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5  # has been seen
+            #  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5  # has been seen
             if not isinstance(ctl, Controller) and not ctl._is_controller:
                 raise TypeError(f"Device {ctl} is not a controller")
 
@@ -220,6 +220,10 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         """Check that devices only handle messages they have sent."""
         assert msg.src is self, "Devices should only keep msgs they sent"
         super()._handle_msg(msg)
+
+    @property
+    def description(self) -> Optional[str]:
+        return DEVICE_TABLE[self.type]["name"] if self.type in DEVICE_TABLE else None
 
     @property
     @abstractmethod
@@ -239,11 +243,11 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         """Return the current state of the device (e.g. TODO)."""
         raise NotImplementedError
 
-    @property
-    @abstractmethod
-    def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
-        """Return parent zone of the device, if known."""
-        raise NotImplementedError
+    # @property
+    # @abstractmethod
+    # def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
+    #     """Return parent zone of the device, if known."""
+    #     raise NotImplementedError
 
     # @abstractmethod
     # def _set_zone(self, zone: Entity) -> None:  # should be: zone: Zone
@@ -324,7 +328,7 @@ class Setpoint:  # 2309
         }
 
 
-class Temperature:  # 30C9
+class Temperature:  # 30C9 (fakeable)
 
     TEMPERATURE = ATTR_TEMP
 
@@ -333,8 +337,10 @@ class Temperature:  # 30C9
 
         self._30C9_faked = None
 
-    def _make_fake(self):
+    def _make_fake(self, bind=None):
         self._30C9_faked = True
+        if bind:
+            self._bind()
 
     def _bind(self):
         if not self._30C9_faked:
@@ -355,7 +361,7 @@ class Temperature:  # 30C9
     def status(self) -> dict:
         return {
             **super().status,
-            ATTR_TEMP: self.temperature,
+            self.TEMPERATURE: self.temperature,
         }
 
 
@@ -471,10 +477,6 @@ class Device(DeviceInfo, DeviceBase):
         _LOGGER.debug("Device %s: parent zone now set to %s", self.id, self._zone)
 
     @property
-    def description(self) -> Optional[str]:
-        return DEVICE_TABLE[self.type]["name"] if self.type in DEVICE_TABLE else None
-
-    @property
     def has_battery(self) -> Optional[bool]:  # 1060
         """Return True if a device is battery powered (excludes battery-backup)."""
 
@@ -502,7 +504,7 @@ class Device(DeviceInfo, DeviceBase):
 
     @property
     def _is_present(self) -> bool:
-        return any(m.src.id == self.id for m in self._msgs.values())
+        return any(m.src == self for m in self._msgs.values())
 
     @property
     def schema(self):
@@ -542,7 +544,7 @@ class Controller(Device):  # CTL: 01
             self._send_cmd("0016", retries=3)  # rf_check
 
 
-class Programmer(Controller):  # CTL: 23
+class Programmer(Controller):  # PRG: 23
     """The Controller base class."""
 
     DEVICE_CLASS = "PRG"  # DEVICE_TYPES = ("23", )
