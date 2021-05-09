@@ -660,35 +660,35 @@ def process_msg(msg: Message) -> None:
     try:  # process the payload
         create_devices(msg)  # from pkt header & from msg payload (e.g. 000C)
         # if msg._evo:  # TODO:
-        create_zones(msg)  # create zones & ufh_zones (TBD)
+        create_zones(msg)  # create zones & (TBD) ufh_zones too?
 
         if msg._gwy.config[REDUCE_PROCESSING] < DONT_UPDATE_ENTITIES:
             update_entities(msg, msg._gwy._prev_msg)  # update the state database
 
     except (AssertionError, NotImplementedError) as err:
-        _LOGGER.exception("%s < %s", msg._pkt, err.__class__.__name__)
-        raise  # TODO: should be a return?
+        (_LOGGER.exception if DEV_MODE else _LOGGER.error)(
+            "%s < %s", msg._pkt, err.__class__.__name__
+        )
+        return  # NOTE: use raise only when debugging
 
     except (AttributeError, LookupError, TypeError, ValueError) as err:
-        _LOGGER.error("%s < %s", msg._pkt, err.__class__.__name__)
-        raise  # TODO: should be a return too?
+        (_LOGGER.exception if DEV_MODE else _LOGGER.error)(
+            "%s < %s", msg._pkt, err.__class__.__name__
+        )
+        return  # NOTE: use raise only when debugging
 
     # except CorruptPacketError as err:
-    #     _LOGGER.error("%s < %s", msg._pkt, err)
-    #     return
+    #     (_LOGGER.exception if DEV_MODE else _LOGGER.error)(
+    #         "%s < %s", msg._pkt, err
+    #     )
+    #     return  # NOTE: use raise only when debugging
 
     except CorruptStateError as err:
-        if DEV_MODE:
-            _LOGGER.exception("%s < %s", msg._pkt, err)
-        else:
-            _LOGGER.error("%s < %s", msg._pkt, err)
+        (_LOGGER.exception if DEV_MODE else _LOGGER.error)("%s < %s", msg._pkt, err)
         return  # TODO: bad pkt, or Schema
 
     except CorruptEvohomeError as err:
-        if DEV_MODE:
-            _LOGGER.exception("%s < %s", msg._pkt, err)
-        else:
-            _LOGGER.error("%s < %s", msg._pkt, err)
+        (_LOGGER.exception if DEV_MODE else _LOGGER.error)("%s < %s", msg._pkt, err)
         raise
 
     msg._gwy._prev_msg = msg if msg.is_valid else None
