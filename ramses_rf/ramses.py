@@ -20,9 +20,11 @@ RAMSES_CODES = {  # rf_unknown
         NAME: "rf_unknown",
         W_: r"^(FA|FC|FF|0[0-9A-F])0{4}05(05|01)$",
     },
-    "0002": {  # sensor_weather
-        NAME: "sensor_weather",
+    "0002": {  # WIP: outdoor_sensor
+        NAME: "outdoor_sensor",
+        I_: r"^0[0-4][0-9A-F]{4}(00|01|02|05)$",  # Domoticz sends ^02!!
         RQ: r"^00$",  # NOTE: sent by an RFG100
+        RP: r"^00[0-9A-F]{4}(00|01)$",  # 007FFF00 is null resp?
     },
     "0004": {  # zone_name
         NAME: "zone_name",
@@ -453,7 +455,9 @@ RAMSES_DEVICES = {
         # RP: {},  # RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
         "3EF1": {RP: {}},
     },
-    "17": {},
+    "17": {
+        "0002": {I_: {}},
+    },  # i.e. HB85 (ext. temperature/luminosity(lux)), HB95 (+ wind speed)
     "18": {
         "3220": {RQ: {}},
     },
