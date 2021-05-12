@@ -1,3 +1,4 @@
-colorlog>=4.7.2
+# for using CLI, see requiremenst-dev
+colorlog>=5.0.1
 pyserial-asyncio>=0.5
 voluptuous>=0.12.1
