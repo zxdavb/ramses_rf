@@ -95,13 +95,12 @@ class SerTransportRead(asyncio.ReadTransport):
                 _LOGGER.debug("SerTransRead._polling_loop() BEGUN")
             self._protocol.connection_made(self)
 
-            if isinstance(self._packets, dict):
-                for dtm_str, pkt_str in self._packets.items():  # can assume dtm_str OK
+            if isinstance(self._packets, dict):  # can assume dtm_str is OK
+                for dtm_str, pkt_str in self._packets.items():
                     self._protocol.data_received(f"{dtm_str} {pkt_str}")
                     await asyncio.sleep(0)
             else:
-                for dtm_pkt_line in self._packets:
-                    # need to check dtm_str is OK
+                for dtm_pkt_line in self._packets:  # need to check dtm_str is OK
                     self._protocol.data_received(dtm_pkt_line.strip())  # .upper())
                     await asyncio.sleep(0)
 
@@ -794,7 +793,7 @@ def create_pkt_stack(
     if len([x for x in (packet_dict, packet_log, ser_port) if x is not None]) != 1:
         raise TypeError("port / file / dict should be mutually exclusive")
 
-    pkt_protocol = protocol_factory() if protocol_factory else _protocol_factory()
+    pkt_protocol = (protocol_factory or _protocol_factory)()
 
     if packet_log or packet_dict is not None:  # {} is a processable packet_dict
         pkt_transport = SerTransportRead(
