@@ -365,9 +365,6 @@ async def main(lib_kwargs, **kwargs):
     try:  # main code here
         task = asyncio.create_task(gwy.start())
 
-        if kwargs[COMMAND] == MONITOR:
-            tasks = spawn_monitor_scripts(gwy, **kwargs)
-
         if kwargs[COMMAND] == EXECUTE:
             tasks = spawn_execute_scripts(gwy, **kwargs)
             await asyncio.gather(*tasks)
@@ -377,15 +374,14 @@ async def main(lib_kwargs, **kwargs):
                 # await gwy.stop()
                 task.cancel()
 
+        if kwargs[COMMAND] == MONITOR:
+            tasks = spawn_monitor_scripts(gwy, **kwargs)
+
         if False:  # TODO: temp test code
-            print("AAA")
             await asyncio.sleep(3)
-            print("BBB")
             cmd = Command.get_zone_name("01:145038", "00")
             msg = await gwy.async_send_cmd(cmd)
-            print("CCC")
             print(msg)
-            print("ZZZ")
 
         await task
 
