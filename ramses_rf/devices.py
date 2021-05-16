@@ -257,8 +257,10 @@ class DeviceBase(Entity, metaclass=ABCMeta):
 class Actuator:  # 3EF0, 3EF1
 
     ACTUATOR_CYCLE = "actuator_cycle"
-    ACTUATOR_ENABLED = "actuator_enabled"
+    ACTUATOR_ENABLED = "actuator_enabled"  # boolean
     ACTUATOR_STATE = "actuator_state"
+    ENABLED = "enabled"
+    MODULATION_LEVEL = "modulation_level"
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -281,18 +283,24 @@ class Actuator:  # 3EF0, 3EF1
         return max(msgs).payload[self.ACTUATOR_ENABLED] if msgs else None
 
     @property
+    def modulation_level(self) -> Optional[float]:  # 3EF0/3EF1
+        msgs = [m for m in self._msgs.values() if m.code in ("3EF0", "3EF1")]
+        return max(msgs).payload[self.MODULATION_LEVEL] if msgs else None
+
+    @property
     def status(self) -> dict:
         return {
             **super().status,
             self.ACTUATOR_CYCLE: self.actuator_cycle,
             self.ACTUATOR_STATE: self.actuator_state,
+            self.MODULATION_LEVEL: self.modulation_level,  # TODO: keep? (is duplicate)
         }
 
 
 class BatteryState:  # 1060
 
-    BATTERY_LOW = "battery_low"
-    BATTERY_STATE = "battery_state"
+    BATTERY_LOW = "battery_low"  # boolean
+    BATTERY_STATE = "battery_state"  # percentage
 
     @property
     def battery_low(self) -> Optional[bool]:  # 1060
@@ -313,7 +321,7 @@ class BatteryState:  # 1060
 
 class Setpoint:  # 2309
 
-    SETPOINT = ATTR_SETPOINT
+    SETPOINT = ATTR_SETPOINT  # degrees Celsius
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309
@@ -330,7 +338,7 @@ class Setpoint:  # 2309
 
 class Temperature:  # 30C9 (fakeable)
 
-    TEMPERATURE = ATTR_TEMP
+    TEMPERATURE = ATTR_TEMP  # degrees Celsius
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -519,7 +527,7 @@ class Device(DeviceInfo, DeviceBase):
         return {}
 
 
-class Controller(Device):  # CTL: 01
+class Controller(Device):  # CTL (01):
     """The Controller base class."""
 
     DEVICE_CLASS = "CTL"  # DEVICE_TYPES = ("01", )
@@ -544,13 +552,13 @@ class Controller(Device):  # CTL: 01
             self._send_cmd("0016", retries=3)  # rf_check
 
 
-class Programmer(Controller):  # PRG: 23
+class Programmer(Controller):  # PRG (23):
     """The Controller base class."""
 
     DEVICE_CLASS = "PRG"  # DEVICE_TYPES = ("23", )
 
 
-class UfhController(Device):  # UFC: 02
+class UfhController(Device):  # UFC (02):
     """The UFC class, the HCE80 that controls the UFH zones."""
 
     DEVICE_CLASS = "UFC"  # DEVICE_TYPES = ("02", )
@@ -680,13 +688,14 @@ class UfhController(Device):  # UFC: 02
         }
 
 
-class DhwSensor(BatteryState, Device):  # DHW: 07
+class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
     """The DHW class, such as a CS92."""
 
     DEVICE_CLASS = "DHW"  # DEVICE_TYPES = ("07", )
 
     DHW_PARAMS = "dhw_params"
     TEMPERATURE = ATTR_TEMP
+    # _STATE = TEMPERATURE
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -720,14 +729,14 @@ class DhwSensor(BatteryState, Device):  # DHW: 07
         }
 
 
-class OtbGateway(Actuator, Device):  # OTB: 10
+class OtbGateway(Actuator, Device):  # OTB (10): 22D9, 3220
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
     DEVICE_CLASS = "OTB"  # DEVICE_TYPES = ("10", )
 
     BOILER_SETPOINT = "boiler_setpoint"
-    MODULATION_LEVEL = "modulation_level"
     OPENTHERM_STATUS = "opentherm_status"
+    # _STATE = super().MODULATION_LEVEL
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -736,7 +745,7 @@ class OtbGateway(Actuator, Device):  # OTB: 10
         self._opentherm_msg = {}
 
     def __repr__(self) -> str:
-        return f"{self.id} ({self._domain_id}): {self.rel_modulation_level}"
+        return f"{self.id} ({self._domain_id}): {self.modulation_level}"  # 3EF0
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
@@ -826,11 +835,6 @@ class OtbGateway(Actuator, Device):  # OTB: 10
             return self._msgs["22D9"].payload[self.BOILER_SETPOINT]
 
     @property
-    def modulation_level(self) -> Optional[float]:  # 3EF0/3EF1
-        msgs = [m for m in self._msgs.values() if m.code in ("3EF0", "3EF1")]
-        return max(msgs).payload[self.MODULATION_LEVEL] if msgs else None
-
-    @property
     def opentherm_status(self) -> dict:
         return {
             "boiler_temp": self.boiler_water_temp,
@@ -853,15 +857,16 @@ class OtbGateway(Actuator, Device):  # OTB: 10
         return {
             **super().status,
             self.BOILER_SETPOINT: self.boiler_setpoint,
-            self.MODULATION_LEVEL: self.modulation_level,  # TODO: keep? (is duplicate)
-            self.OPENTHERM_STATUS: self.opentherm_status,
+            **self.opentherm_status,
         }
 
 
-class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM:
+class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
     """The THM/STA class, such as a TR87RF."""
 
     DEVICE_CLASS = "STA"  # DEVICE_TYPES = ("03", "12", "22", "34")
+
+    # _STATE = super().TEMPERATURE
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -896,7 +901,7 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM:
         self._gwy.send_cmd(cmd)
 
 
-class BdrSwitch(Actuator, Device):  # BDR: 13
+class BdrSwitch(Actuator, Device):  # BDR (13):
     """The BDR class, such as a BDR91.
 
     BDR91s can be used in six disctinct modes, including:
@@ -908,8 +913,9 @@ class BdrSwitch(Actuator, Device):  # BDR: 13
 
     DEVICE_CLASS = "BDR"  # DEVICE_TYPES = ("13", )
 
-    RELAY_DEMAND = "relay_demand"
-    TPI_PARAMS = "tpy_params"
+    RELAY_DEMAND = "relay_demand"  # percentage
+    TPI_PARAMS = "tpi_params"
+    # _STATE = super().ENABLED, or relay_demand
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -920,7 +926,7 @@ class BdrSwitch(Actuator, Device):  # BDR: 13
         #     self._ctl._set_htg_control(self)
 
     def __repr__(self) -> str:
-        return f"{self.id} ({self._domain_id}): {self.relay_demand}"
+        return f"{self.id} ({self._domain_id}): {self.enabled}"  # or: relay_demand?
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         """The BDRs have one of six roles:
@@ -1012,13 +1018,14 @@ class BdrSwitch(Actuator, Device):  # BDR: 13
         }
 
 
-class TrvActuator(BatteryState, Setpoint, Temperature, Device):  # TRV: 00, 04
+class TrvActuator(BatteryState, Setpoint, Temperature, Device):  # TRV (00/04):
     """The TRV class, such as a HR92."""
 
     DEVICE_CLASS = "TRV"  # DEVICE_TYPES = ("00", "04")
 
-    HEAT_DEMAND = ATTR_HEAT_DEMAND
-    WINDOW_OPEN = ATTR_WINDOW_OPEN
+    HEAT_DEMAND = ATTR_HEAT_DEMAND  # percentage
+    WINDOW_OPEN = ATTR_WINDOW_OPEN  # boolean
+    # _STATE = HEAT_DEMAND
 
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id}): {self.heat_demand}"
@@ -1042,12 +1049,12 @@ class TrvActuator(BatteryState, Setpoint, Temperature, Device):  # TRV: 00, 04
         }
 
 
-class FanSwitch(BatteryState, Device):  # SWI: 39
+class FanSwitch(BatteryState, Device):  # SWI (39):
     """The FAN (switch) class, such as a 4-way switch."""
 
     DEVICE_CLASS = "SWI"  # DEVICE_TYPES = ("39",)
 
-    BOOST_TIMER = "boost_timer"  # e.g. 10, 20, 30 minutes
+    BOOST_TIMER = "boost_timer"  # minutes, e.g. 10, 20, 30 minutes
     HEATER_MODE = "heater_mode"  # e.g. auto, off
     HEATER_MODES = {9: "off", 10: "auto"}  # TODO:
 
@@ -1059,7 +1066,7 @@ class FanSwitch(BatteryState, Device):  # SWI: 39
         3: "medium",
         4: "high",  # a.k.a. boost if timer on
     }
-    FAN_RATE = "fan_rate"  # 0.0 - 1.0
+    FAN_RATE = "fan_rate"  # percentage, 0.0 - 1.0
 
     @property
     def fan_mode(self) -> Optional[str]:
@@ -1080,14 +1087,14 @@ class FanSwitch(BatteryState, Device):  # SWI: 39
         }
 
 
-class FanDevice(Device):  # FAN: 20, 37
+class FanDevice(Device):  # FAN (20/37):
     """The Ventilation class."""
 
     DEVICE_CLASS = "FAN"  # DEVICE_TYPES = ("20", "37")
 
-    BOOST_TIMER = "boost_timer"
-    FAN_RATE = "fan_rate"
-    RELATIVE_HUMIDITY = "relative_humidity"
+    BOOST_TIMER = "boost_timer"  # minutes (remaining?)
+    FAN_RATE = "fan_rate"  # percentage
+    RELATIVE_HUMIDITY = "relative_humidity"  # percentage
 
     @property
     def fan_rate(self) -> Optional[float]:
