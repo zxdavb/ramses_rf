@@ -540,6 +540,9 @@ RAMSES_DEVICES = {
         "2349": {RQ: {}},
         "30C9": {I_: {}},
         "3120": {I_: {}},
+        "313F": {
+            I_: {}
+        },  # W --- 30:253184 34:010943 --:------ 313F 009 006000070E0E0507E5
         "3EF0": {RQ: {}},  # when bound direct to a 13:
         "3EF1": {RQ: {}},  # when bound direct to a 13:
     },

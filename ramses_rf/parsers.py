@@ -1383,6 +1383,7 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:
 def parser_2349(payload, msg) -> Optional[dict]:
     # RQ --- 34:225071 30:258557 --:------ 2349 001 00
     # RP --- 30:258557 34:225071 --:------ 2349 013 007FFF00FFFFFFFFFFFFFFFFFF
+    # RP --- 30:253184 34:010943 --:------ 2349 013 00064000FFFFFF00110E0507E5
     #  I --- 10:067219 --:------ 10:067219 2349 004 00000001
     if msg.verb == RQ:  # TODO: needs checking
         assert msg.len in (1, 2, 7), "expecting len 1,2,7"
@@ -1408,7 +1409,7 @@ def parser_2349(payload, msg) -> Optional[dict]:
             assert payload[6:8] in ("00", "02"), f"{payload[6:8]} (0x02)"
             result["until"] = None  # TODO: remove?
         else:
-            assert payload[6:8] not in ("00", "02"), f"{payload[6:8]} (0x03)"
+            assert payload[6:8] != "02", f"{payload[6:8]} (0x03)"
             result["until"] = _dtm(payload[14:26])
 
     # TODO: remove me...
