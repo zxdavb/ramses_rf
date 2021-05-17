@@ -369,7 +369,9 @@ class Temperature:  # 30C9 (fakeable)
     def temperature(self, value) -> None:  # 30C9
         if not self._30C9_faked:
             raise AttributeError("Can't set attribute (Faking is not enabled)")
-        self._gwy.send_cmd(Command.put_sensor_temp(self.id, value))
+
+        cmd = Command.put_sensor_temp(self.id, value)
+        self._gwy.send_cmd(cmd)
 
     @property
     def status(self) -> dict:
@@ -398,7 +400,7 @@ class DeviceInfo:  # 10E0
 class Device(DeviceInfo, DeviceBase):
     """The Device base class - also used for unknown device types."""
 
-    DEVICE_CLASS = "???"  # DEVICE_TYPES = ("??", )
+    DEVICE_CLASS = "DEV"  # DEVICE_TYPES = ("??", )
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -519,7 +521,7 @@ class Device(DeviceInfo, DeviceBase):
         return False
 
     @property
-    def _is_present(self) -> bool:
+    def _is_present(self) -> bool:  # TODO: add msg expiry?
         return any(m.src == self for m in self._msgs.values())
 
     @property
@@ -734,6 +736,96 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
         return {
             **super().status,
             self.TEMPERATURE: self.temperature,
+        }
+
+
+class ExtSensor(Device):  # EXT: 17
+    """The EXT class (external sensor), such as a HB85/HB95."""
+
+    DEVICE_CLASS = "EXT"  # DEVICE_TYPES = ("17", )
+
+    LUMINOSITY = "luminosity"  # lux
+    TEMPERATURE = "temperature"  # Celsius
+    WINDSPEED = "windspeed"  # km/h
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self._0002_faked = None
+        self._1fc9_state = None
+
+    def __repr__(self) -> str:
+        return f"{self.id} ({self._domain_id}): {self.temperature}"
+
+    def _make_fake(self, bind=None):
+        self._0002_faked = True
+        if bind:
+            self._bind()
+
+    def _bind(self):
+        def bind_callback(msg) -> None:
+            self._1fc9_state == "bound"
+
+            self._gwy._get_device(self, ctl_addr=id_to_address(msg.payload[0][2]))
+            self._ctl._evo._get_zone(msg.payload[0][0])._set_sensor(self)
+
+            cmd = Command(
+                I_, "1FC9", f"002309{self.hex_id}", self._ctl.id, from_id=self.id
+            )
+            self._gwy.send_cmd(cmd)
+
+        if not self._0002_faked:
+            raise TypeError("Can't bind sensor (Faking is not enabled)")
+        self._1fc9_state = "binding"
+
+        cmd = Command.packet(
+            I_,
+            "1FC9",
+            f"000002{self.hex_id}",
+            addr0=self.id,
+            addr2=self.id,
+            callback={FUNC: bind_callback, TIMEOUT: 3},
+        )
+        self._gwy.send_cmd(cmd)
+
+    @property
+    def temperature(self) -> Optional[float]:  # 0002
+        if "0002" in self._msgs:
+            return self._msgs["0002"].payload[self.TEMPERATURE]
+
+    @temperature.setter
+    def temperature(self, value) -> None:  # 0002
+        if not self._0002_faked:
+            raise AttributeError("Can't set attribute (Faking is not enabled)")
+
+        cmd = Command.put_outdoor_temp(
+            self._gwy.rfg.id if self == self._gwy.rfg._faked_ext else self.id, value
+        )
+        self._gwy.send_cmd(cmd)
+
+    @property
+    def luminosity(self) -> Optional[float]:  # 0002
+        raise NotImplementedError
+
+    @luminosity.setter
+    def luminosity(self, value) -> None:  # 0002
+        raise NotImplementedError
+
+    @property
+    def windspeed(self) -> Optional[float]:  # 0002
+        raise NotImplementedError
+
+    @windspeed.setter
+    def windspeed(self, value) -> None:  # 0002
+        raise NotImplementedError
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            self.LUMINOSITY: self.luminosity,
+            self.TEMPERATURE: self.temperature,
+            self.WINDSPEED: self.windspeed,
         }
 
 
@@ -1130,10 +1222,11 @@ class FanDevice(Device):  # FAN (20/37):
 
 DEVICES_CLASSES = (
     BdrSwitch,
-    FanDevice,
-    FanSwitch,
     Controller,
     DhwSensor,
+    ExtSensor,
+    FanDevice,
+    FanSwitch,
     OtbGateway,
     Programmer,
     Thermostat,
@@ -1153,7 +1246,7 @@ DEVICE_TYPE_TO_KLASS = {
     "10": "OTB",
     "12": "STA",
     "13": "BDR",
-    "18": "HGI",
+    "17": "EXT",
     "20": "FAN",
     "22": "STA",
     "23": "PRG",
