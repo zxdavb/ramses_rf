@@ -322,7 +322,7 @@ async def main(lib_kwargs, **kwargs):
 
     def print_summary(gwy):
         if gwy.evo is None:
-            print(f"Schema[gateway] = {json.dumps(gwy.schema)}\r\n")
+            print(f"Schema[gateway] = {json.dumps(gwy.schema, indent=4)}\r\n")
             print(f"Params[gateway] = {json.dumps(gwy.params)}\r\n")
             print(f"Status[gateway] = {json.dumps(gwy.status)}")
             return
