@@ -403,9 +403,11 @@ class Device(DeviceInfo, DeviceBase):
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg._gwy.config[ENABLE_EAVESDROP]:
-            if self._ctl is not None and "parent_idx" in msg.payload:
-                self._set_zone(self._ctl._evo._get_zone(msg.payload["parent_idx"]))
+        if not msg._gwy.config[ENABLE_EAVESDROP]:
+            return
+
+        if self._ctl is not None and "parent_idx" in msg.payload:
+            self._set_zone(self._ctl._evo._get_zone(msg.payload["parent_idx"]))
 
     def _set_parent(self, parent, domain=None) -> None:
         """Set the device's parent zone, after validating it."""
