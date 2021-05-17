@@ -262,6 +262,12 @@ class Actuator:  # 3EF0, 3EF1
     ENABLED = "enabled"
     MODULATION_LEVEL = "modulation_level"
 
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        super()._discover(discover_flag=discover_flag)
+
+        if discover_flag & DISCOVER_STATUS:
+            self._send_cmd("3EF1")  # No RPs to 3EF0
+
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
@@ -273,7 +279,7 @@ class Actuator:  # 3EF0, 3EF1
         return self._msg_payload(self._msgs.get("3EF1"))
 
     @property
-    def actuator_state(self) -> Optional[dict]:  # 3EF0
+    def actuator_state(self) -> Optional[dict]:  # 3EF0 (mod_level, flame_active, etc.)
         return self._msg_payload(self._msgs.get("3EF0"))
 
     @property
@@ -951,8 +957,7 @@ class BdrSwitch(Actuator, Device):  # BDR (13):
             self._send_cmd("1100")
 
         if discover_flag & DISCOVER_STATUS:
-            for code in ("0008", "3EF1"):
-                self._send_cmd(code)
+            self._send_cmd("0008")
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
