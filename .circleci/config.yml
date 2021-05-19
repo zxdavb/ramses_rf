@@ -3,22 +3,21 @@
 
 version: 2.1
 
-
 jobs:
   build:
-    docker: # run the steps with Docker
-      - image: circleci/python:3.7.5
+    docker:  # see: at: https://hub.docker.com/r/circleci/python/
+      - image: circleci/python:3.8.9
     working_directory: ~/working_directory
     steps: # steps that comprise the `build` job
       - checkout # check out source code to working directory
-      - run: sudo chown -R circleci:circleci /usr/local/bin
-      - run: sudo chown -R circleci:circleci /usr/local/lib/python3.7/site-packages
+      # - run: sudo chown -R circleci:circleci /usr/local/bin
+      # - run: sudo chown -R circleci:circleci /usr/local/lib/python*/site-packages
       - run: sudo pip install pylint
       - run: mkdir test-results
 
   check_lint:
     docker:
-      - image: circleci/python:3.7.5
+      - image: circleci/python:3.8.9
     steps:
       - checkout
       - run:
@@ -43,7 +42,7 @@ jobs:
 
   deploy:
     docker:
-      - image: circleci/python:3.7.5
+      - image: circleci/python:3.8.9
     steps:
       - checkout
       # - run: sudo chown -R circleci:circleci /usr/local/bin
@@ -55,12 +54,12 @@ jobs:
             sudo pip install twine
       - run:
           name: Verify git tag vs. package version
-          command: python setup.py verify
+          command: python setup.py verify  # NOTE: $CIRCLE_TAG is not available to su
       - run:
           name: Build the package
           command: |
-            python setup.py sdist        # create a source distribution
-            python setup.py bdist_wheel  # create a wheel
+            sudo python setup.py sdist        # create a source distribution
+            sudo python setup.py bdist_wheel  # create a wheel
       - run:
           name: Create .pypirc
           command: |
@@ -90,13 +89,13 @@ workflows:
   build-and-deploy:
     jobs:
       - build:
-          filters: # required since `deploy` has tag filters AND requires `build`
+          filters: # required since `check_lint` has tag filters AND requires `build`
             tags:
               only: /.*/
       - check_lint:
           requires:
             - build
-          filters: # required since `deploy` has tag filters AND requires `build`
+          filters: # required since `deploy` has tag filters AND requires `check_lint`
             tags:
               only: /.*/
       - deploy:

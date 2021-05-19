@@ -30,7 +30,7 @@ class VerifyVersionCommand(install):
     def run(self):
         tag = os.getenv("CIRCLE_TAG")
         if tag != VERSION:
-            info = "Git tag: {tag} does not match the version of this pkg: {VERSION}"
+            info = f"The git tag: '{tag}' does not match the package ver: '{VERSION}'"
             sys.exit(info)
 
 
@@ -39,7 +39,7 @@ setup(
     description="""An interface for the RAMSES RF protocol,
         as used by Honeywell-compatible HVAC & CH/DHW systems.
     """,
-    keywords=["ramses", "evohome", "sunidal", "chronotherm", "hometronics"],
+    keywords=["ramses", "evohome", "sundial", "chronotherm", "hometronics"],
     author="David Bonnes",
     author_email="zxdavb@gmail.com",
     url=URL,
