@@ -363,7 +363,7 @@ class Gateway:
     async def async_send_cmd(
         self, cmd: Command, awaitable: bool = True, **kwargs
     ) -> Optional[Message]:
-        """Send a command with the option to return any response.
+        """Send a command with the option to not wait for a response (awaitable=False).
 
         Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
         """
