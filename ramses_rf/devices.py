@@ -34,7 +34,12 @@ MSG_ID = "msg_id"
 
 I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
 
-DEV_MODE = __dev_mode__ and False
+DEFAULT_BDR_ID = "13:000730"
+DEFAULT_EXT_ID = "17:000730"
+DEFAULT_THM_ID = "03:000730"
+
+
+DEV_MODE = __dev_mode__  # and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -376,6 +381,9 @@ class Temperature:  # 30C9 (fakeable)
             raise AttributeError("Can't set attribute (Faking is not enabled)")
 
         cmd = Command.put_sensor_temp(self.id, value)
+        # cmd = Command.put_sensor_temp(
+        #     self._gwy.rfg.id if self == self._gwy.rfg._faked_thm else self.id, value
+        # )
         self._gwy.send_cmd(cmd)
 
     @property
@@ -526,12 +534,129 @@ class Device(DeviceInfo, DeviceBase):
         return False
 
     @property
-    def _is_present(self) -> bool:  # TODO: add msg expiry?
-        return any(m.src == self for m in self._msgs.values())
+    def schema(self):
+        return super().schema
+
+    @property
+    def params(self):
+        return {}
+
+    @property
+    def status(self):
+        return {}
+
+
+class RfiGateway(DeviceBase):  # RFG: 18
+    """The RFG100 base class."""
+
+    DEVICE_CLASS = "RFG"  # DEVICE_TYPES = ("18", )
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self._ctl = None
+        self._domain_id = "FF"
+        self._evo = None
+
+        self._faked_bdr = None
+        self._faked_ext = None
+        self._faked_thm = None
+
+    def _handle_msg(self, msg) -> None:
+        def fake_addrs(msg, faked_dev):
+            msg.src == faked_dev if msg.src is self else self
+            msg.dst == faked_dev if msg.dst is self else self
+            return msg
+
+        super()._handle_msg(msg)
+
+        # the following is for aliased devices (not fully-faked devices)
+        if msg.code in ("3EF0",) and self._faked_bdr:
+            self._faked_bdr._handle_msg(fake_addrs(msg, self._faked_bdr))
+
+        if msg.code in ("0002",) and self._faked_ext:
+            self._faked_ext._handle_msg(fake_addrs(msg, self._faked_ext))
+
+        if msg.code in ("30C9",) and self._faked_thm:
+            self._faked_thm._handle_msg(fake_addrs(msg, self._faked_thm))
+
+    def _create_fake_dev(self, dev_type, device_id) -> Device:
+        if device_id[:2] != dev_type:
+            raise TypeError(f"Invalid device ID {device_id} for type '{dev_type}:'")
+
+        dev = self.device_by_id.get(device_id)
+        if dev:
+            _LOGGER.warning("Destroying %s", dev)
+            if dev._ctl:
+                del dev._ctl.device_by_id[dev.id]
+                dev._ctl.devices.remove(dev)
+                dev._ctl = None
+            del self.device_by_id[dev.id]
+            self.devices.remove(dev)
+            dev = None
+
+        dev = self._get_device(id_to_address(device_id))
+        dev._make_fake(bind=True)
+        return dev
+
+    def create_fake_bdr(self, device_id=DEFAULT_BDR_ID) -> Device:
+        """Bind a faked relay (BDR91A) to a controller (i.e. to a domain/zone).
+
+        Will alias the RFG gateway (as "13:000730"), or create a fully-faked 13:.
+
+        HGI80s can only alias one device of a type (use_gateway), but evofw3-based RFGs
+        can also fully fake multiple devices of the same type.
+        """
+        if device_id in (self.id, None):
+            device_id = DEFAULT_BDR_ID
+        device = self._create_fake_dev("13", device_id=device_id)
+
+        if device.id == DEFAULT_BDR_ID:
+            self._faked_bdr = device
+        return device
+
+    def create_fake_ext(self, device_id=DEFAULT_EXT_ID) -> Device:
+        """Bind a faked external sensor (???) to a controller.
+
+        Will alias the RFG gateway (as "17:000730"), or create a fully-faked 17:.
+
+        HGI80s can only alias one device of a type (use_gateway), but evofw3-based RFGs
+        can also fully fake multiple devices of the same type.
+        """
+
+        if device_id in (self.id, None):
+            device_id = DEFAULT_EXT_ID
+        device = self._create_fake_dev("17", device_id=device_id)
+
+        if device.id == DEFAULT_EXT_ID:
+            self._faked_ext = device
+        return device
+
+    def create_fake_thm(self, device_id=DEFAULT_THM_ID) -> Device:
+        """Bind a faked zone sensor (TR87RF) to a controller (i.e. to a zone).
+
+        Will alias the RFG (as "03:000730"), or create a fully-faked 34:, albeit named
+        "03:xxxxxx".
+
+        HGI80s can only alias one device of a type (use_gateway), but evofw3-based RFGs
+        can also fully fake multiple devices of the same type.
+        """
+        if device_id in (self.id, None):
+            device_id = DEFAULT_THM_ID
+        device = self._create_fake_dev("03", device_id=device_id)
+
+        if device.id == DEFAULT_THM_ID:
+            self._faked_thm = device
+        return device
 
     @property
     def schema(self):
-        return super().schema
+        return {
+            "device_id": self.id,
+            "faked_bdr": self._faked_bdr and self._faked_bdr.id,
+            "faked_ext": self._faked_ext and self._faked_ext.id,
+            "faked_thm": self._faked_thm and self._faked_thm.id,
+        }
 
     @property
     def params(self):
