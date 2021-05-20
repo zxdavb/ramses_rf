@@ -378,10 +378,19 @@ async def main(lib_kwargs, **kwargs):
             tasks = spawn_monitor_scripts(gwy, **kwargs)
 
         if False:  # TODO: temp test code
+
+            def callback(msg):
+                print(msg or "Callback has expired")
+
             await asyncio.sleep(3)
-            cmd = Command.get_zone_name("01:145038", "00")
-            msg = await gwy.async_send_cmd(cmd)
-            print(msg)
+            cmd = Command.get_zone_name("01:145039", "00")
+
+            gwy.send_cmd(cmd, callback=callback)
+
+            # try:
+            #     print(await gwy.async_send_cmd(cmd, awaitable=False))
+            # except TimeoutError:
+            #     print("TimeoutError")
 
         await task
 
