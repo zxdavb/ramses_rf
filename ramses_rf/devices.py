@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 from .command import FUNC, TIMEOUT, Command, Priority
 from .const import (
     ATTR_HEAT_DEMAND,
+    ATTR_RELAY_DEMAND,
     ATTR_SETPOINT,
     ATTR_TEMP,
     ATTR_WINDOW_OPEN,
@@ -717,6 +718,7 @@ class UfhController(Device):  # UFC (02):
 
         self._circuits = {}
         self._setpoints = None
+        self._heat_demand = None
 
         self.devices = []  # [self]
         self.device_by_id = {}  # {self.id: self}
@@ -767,14 +769,20 @@ class UfhController(Device):  # UFC (02):
                 self._circuits[msg.payload["ufh_idx"]] = msg
 
         elif msg.code == "22C9":
-            self._setpoints = msg
+            if isinstance(msg.payload, list):
+                self._setpoints = msg
+            # else:
+            #     pass  # update the self._circuits[]
+
+        elif msg.code == "3150":
+            if isinstance(msg.payload, list):
+                self._heat_demands = msg
+            elif "domain_id" in msg.payload:
+                self._heat_demand = msg
+            # else:
+            #     pass  # update the self._circuits[]
 
         # "0008|FA/FC", "22C9|array", "22D0|none", "3150|ZZ/array(/FC?)"
-
-        # if msg.code in ("22C9",) and not isinstance(msg.payload, list):
-        #     pass
-        # else:
-        #     assert False, "Unknown packet code"
 
     @property
     def circuits(self) -> Optional[Dict]:  # 000C
@@ -788,13 +796,13 @@ class UfhController(Device):  # UFC (02):
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
-        if "3150" in self._msgs:
-            return self._msgs["3150"].payload[self.HEAT_DEMAND]
+        if self._heat_demand:
+            return self._heat_demand.payload[self.HEAT_DEMAND]
 
     @property
     def relay_demand(self) -> Optional[Dict]:  # 0008
         try:
-            return self._msgs["0008"].payload["relay_demand"]
+            return self._msgs["0008"].payload[ATTR_RELAY_DEMAND]
         except KeyError:
             return
 
@@ -824,7 +832,7 @@ class UfhController(Device):  # UFC (02):
         return {
             **super().status,
             ATTR_HEAT_DEMAND: self.heat_demand,
-            "relay_demand": self.relay_demand,
+            ATTR_RELAY_DEMAND: self.relay_demand,
         }
 
 
