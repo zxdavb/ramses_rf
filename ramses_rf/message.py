@@ -299,7 +299,7 @@ class Message:
         """Return True if the message is dated (does not require a valid payload)."""
 
         def _logger_send(logger, message) -> None:
-            if DEV_MODE:
+            if True or DEV_MODE:
                 logger(
                     "Message(%s), received at %s: %s",
                     self._pkt._header,
