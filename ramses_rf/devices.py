@@ -40,7 +40,7 @@ DEFAULT_EXT_ID = "17:000730"
 DEFAULT_THM_ID = "03:000730"
 
 
-DEV_MODE = __dev_mode__  # and False
+DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
