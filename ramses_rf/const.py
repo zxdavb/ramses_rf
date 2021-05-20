@@ -396,6 +396,7 @@ ATTR_HTG_PUMP = "heat_pump_control"  # same as ATTR_HTG_CONTROL, but parameters 
 ATTR_HEAT_DEMAND = "heat_demand"
 ATTR_WINDOW_OPEN = "window_open"
 ATTR_ORPHANS = "orphans"
+ATTR_RELAY_DEMAND = "relay_demand"
 ATTR_SETPOINT = "setpoint"
 ATTR_STORED_HW = "stored_hotwater"
 ATTR_SYSTEM = "system"

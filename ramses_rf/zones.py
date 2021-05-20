@@ -17,6 +17,7 @@ from .const import (
     ATTR_DHW_VALVE,
     ATTR_DHW_VALVE_HTG,
     ATTR_HEAT_DEMAND,
+    ATTR_RELAY_DEMAND,
     ATTR_SETPOINT,
     ATTR_TEMP,
     ATTR_WINDOW_OPEN,
@@ -180,11 +181,63 @@ class ZoneBase(Entity, metaclass=ABCMeta):
     @property
     @abstractmethod
     def heat_demand(self) -> Optional[float]:
-        """Return the (estimated) heat_demand of the zone/DHW."""
+        """Return the heat_demand of the zone/DHW."""
         raise NotImplementedError
 
 
-class DhwZone(ZoneBase):
+class ZoneSchedule:  # 0404  # TODO: add for DHW
+    """Evohome zones have a schedule."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self._schedule = Schedule(self)
+
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+
+        if False and discover_flag & DISCOVER_STATUS:  # TODO: add back in
+            self._loop.create_task(self.get_schedule())  # 0404
+
+    def _handle_msg(self, msg) -> bool:
+        super()._handle_msg(msg)
+
+        if msg.code == "0404" and msg.verb == RP:
+            _LOGGER.debug("Zone(%s): Received RP/0404 (schedule) pkt", self)
+
+    async def get_schedule(self, force_refresh=None) -> Optional[dict]:
+        schedule = await self._schedule.get_schedule(force_refresh=force_refresh)
+        if schedule:
+            return schedule["schedule"]
+
+    async def set_schedule(self, schedule) -> None:
+        schedule = {"zone_idx": self.idx, "schedule": schedule}
+        await self._schedule.set_schedule(schedule)
+
+    @property
+    def status(self) -> dict:
+        return {**super().status, "schedule": self._schedule.schedule.get("schedule")}
+
+
+class RelayDemand:  # 0008
+    """Not all zones call for heat."""
+
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        super()._discover(discover_flag=discover_flag)
+
+        if discover_flag & DISCOVER_STATUS:
+            self._send_cmd("0008")  # , payload=self.idx
+
+    @property
+    def relay_demand(self) -> Optional[float]:  # 0008
+        if "0008" in self._msgs:
+            return self._msgs["0008"].payload[ATTR_RELAY_DEMAND]
+
+    @property
+    def status(self) -> dict:
+        return {**super().status, ATTR_RELAY_DEMAND: self.relay_demand}
+
+
+class DhwZone(ZoneBase):  # CS92A  # TODO: add Schedule
     """The DHW class."""
 
     def __init__(self, ctl, sensor=None, dhw_valve=None, htg_valve=None) -> None:
@@ -421,41 +474,8 @@ class DhwZone(ZoneBase):
         return {a: getattr(self, a) for a in (ATTR_TEMP, ATTR_HEAT_DEMAND)}
 
 
-class ZoneSchedule:  # 0404
-    """Evohome zones have a schedule."""
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-
-        self._schedule = Schedule(self)
-
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-
-        if False and discover_flag & DISCOVER_STATUS:  # TODO: add back in
-            self._loop.create_task(self.get_schedule())  # 0404
-
-    def _handle_msg(self, msg) -> bool:
-        super()._handle_msg(msg)
-
-        if msg.code == "0404" and msg.verb == RP:
-            _LOGGER.debug("Zone(%s): Received RP/0404 (schedule) pkt", self)
-
-    async def get_schedule(self, force_refresh=None) -> Optional[dict]:
-        schedule = await self._schedule.get_schedule(force_refresh=force_refresh)
-        if schedule:
-            return schedule["schedule"]
-
-    async def set_schedule(self, schedule) -> None:
-        schedule = {"zone_idx": self.idx, "schedule": schedule}
-        await self._schedule.set_schedule(schedule)
-
-    @property
-    def status(self) -> dict:
-        return {**super().status, "schedule": self._schedule.schedule.get("schedule")}
-
-
 class Zone(ZoneSchedule, ZoneBase):
-    """The Zone class."""
+    """The Zone base class."""
 
     def __init__(self, ctl, zone_idx, sensor=None, actuators=None) -> None:
         """Create a zone.
@@ -512,7 +532,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
         if discover_flag & DISCOVER_STATUS:
             self._gwy.send_cmd(Command.get_zone_mode(self._ctl.id, self.idx))  # 2349
-            for code in ("12B0", "30C9"):  # sadly, no 3150
+            for code in ("12B0", "30C9"):  # sadly, CTL will not respond to a 3150
                 self._send_cmd(code)  # , payload=self.idx)
 
         # start collecting the schedule
@@ -740,15 +760,15 @@ class Zone(ZoneSchedule, ZoneBase):
             return tmp[0][ATTR_TEMP]
 
     @property
-    def heat_demand(self) -> Optional[float]:
-        """Return an estimate of the zone's current heat demand."""
+    def heat_demand(self) -> Optional[float]:  # 3150
+        """Return the zone's heat demand, estimated from its devices' heat demand."""
         demands = [
             d.heat_demand
             for d in self.devices
             if hasattr(d, ATTR_HEAT_DEMAND) and d.heat_demand is not None
         ]
-        # return max(demands) if demands else None
-        return round(sum(demands) / len(demands), 1) if demands else None
+        # return round(sum(demands) / len(demands), 1) if demands else None
+        return max(demands + [0]) if demands else None
 
     @property
     def window_open(self) -> Optional[bool]:  # 12B0  # TODO: don't work >1 TRV?
@@ -830,33 +850,12 @@ class Zone(ZoneSchedule, ZoneBase):
     @property
     def status(self) -> dict:
         """Return the zone's current state."""
-        return {a: getattr(self, a) for a in (ATTR_SETPOINT, ATTR_TEMP)}
+        return {
+            a: getattr(self, a) for a in (ATTR_SETPOINT, ATTR_TEMP, ATTR_HEAT_DEMAND)
+        }
 
 
-class ZoneDemand:  # not all zone types call for heat
-    """Not all zones call for heat."""
-
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        super()._discover(discover_flag=discover_flag)
-
-        if discover_flag & DISCOVER_STATUS:  # controller will not respond to this
-            self._send_cmd("3150")  # , payload=self.idx
-
-    @property
-    def heat_demand(self) -> Optional[float]:  # 3150
-        demands = [
-            d.heat_demand
-            for d in self.devices
-            if hasattr(d, ATTR_HEAT_DEMAND) and d.heat_demand is not None
-        ]
-        return max(demands + [0]) if demands else None
-
-    @property
-    def status(self) -> dict:
-        return {**super().status, ATTR_HEAT_DEMAND: self.heat_demand}
-
-
-class EleZone(Zone):  # Electric zones (do *not* call for heat)
+class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
     """For a small electric load controlled by a relay (never calls for heat)."""
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
@@ -875,30 +874,40 @@ class EleZone(Zone):  # Electric zones (do *not* call for heat)
         elif msg.code == "3EF0":
             raise TypeError("WHAT 2")
 
+    @property
+    def heat_demand(self) -> None:  # Electric zones (do *not* call for heat)
+        """Return None as the zone's heat demand, electric zones don't call for heat."""
+        return
 
-class ValZone(EleZone):  # ZoneDemand
-    """For a motorised valve controlled by a BDR91 (will also call for heat)."""
+
+class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
+    """For a modulating valve controlled by a HM80 (will also call for heat).
+
+    Note that HM80s are listen-only devices.
+    """
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
-        self._send_cmd("000C", payload=f"{self.idx}0A")
+        self._send_cmd("000C", payload=f"{self.idx}0B")
+
+    def _handle_msg(self, msg) -> bool:
+        super()._handle_msg(msg)
+
+        if msg.code == "1030" and msg.verb == I_:
+            self._mix_config = msg
 
     @property
-    def heat_demand(self) -> Optional[float]:  # 0008 (NOTE: not 3150)
-        if "0008" in self._msgs:
-            return self._msgs["0008"].payload["relay_demand"]
+    def mix_config(self) -> dict:
+        return self._msg_payload(self._mix_config)
 
     @property
-    def status(self) -> dict:
-        return {
-            **super().status,
-            ATTR_HEAT_DEMAND: self.heat_demand,
-        }
+    def params(self) -> dict:
+        return {**super().status, "mix_config": self.mix_config}
 
 
-class RadZone(ZoneDemand, Zone):
+class RadZone(Zone):  # HR92/HR80
     """For radiators controlled by HR92s or HR80s (will also call for heat)."""
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
@@ -908,7 +917,7 @@ class RadZone(ZoneDemand, Zone):
         self._send_cmd("000C", payload=f"{self.idx}08")
 
 
-class UfhZone(ZoneDemand, Zone):
+class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
     """For underfloor heating controlled by an HCE80/HCC80 (will also call for heat)."""
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
@@ -932,35 +941,26 @@ class UfhZone(ZoneDemand, Zone):
         return {**super().status, "ufh_setpoint": self.ufh_setpoint}
 
 
-class MixZone(Zone):
-    """For a modulating valve controlled by a HM80 (will also call for heat)."""
+class ValZone(EleZone):  # BDR91A/T
+    """For a motorised valve controlled by a BDR91 (will also call for heat)."""
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
-        self._send_cmd("000C", payload=f"{self.idx}0B")
-
-    def _handle_msg(self, msg) -> bool:
-        super()._handle_msg(msg)
-
-        if msg.code == "1030" and msg.verb == I_:
-            self._mix_config = msg
+        self._send_cmd("000C", payload=f"{self.idx}0A")
 
     @property
-    def mix_config(self) -> dict:
-        return self._msg_payload(self._mix_config)
-
-    @property
-    def params(self) -> dict:
-        return {**super().status, "mix_config": self.mix_config}
+    def heat_demand(self) -> Optional[float]:  # 0008 (NOTE: not 3150)
+        """Return the zone's heat demand, using relay demand as a proxy."""
+        return self.relay_demand
 
 
 ZONE_CLASSES = {
-    Zone.RAD: RadZone,
+    Zone.DHW: DhwZone,
     Zone.ELE: EleZone,
+    Zone.MIX: MixZone,
+    Zone.RAD: RadZone,
     Zone.VAL: ValZone,
     Zone.UFH: UfhZone,
-    Zone.MIX: MixZone,
-    Zone.DHW: DhwZone,
 }
