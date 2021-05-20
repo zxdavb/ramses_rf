@@ -104,7 +104,7 @@ class MessageTransport(asyncio.Transport):
                 cmd.callback[EXPIRES] = (
                     dt.max
                     if cmd.callback.get(DEAMON)
-                    else dt.now() + td(cmd.callback.get(TIMEOUT, 1))
+                    else dt.now() + td(seconds=cmd.callback.get(TIMEOUT, 1))
                 )
                 self._callbacks[cmd.rx_header] = cmd.callback
 
