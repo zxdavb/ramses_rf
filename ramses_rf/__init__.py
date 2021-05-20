@@ -95,7 +95,8 @@ class Gateway:
         self._relay = None  # ser2net_server relay
 
         # if self.config[REDUCE_PROCESSING] > 0:
-        self.evo = None  # Evohome(controller=config["controller_id"])
+        self.rfg = None
+        self.evo = None
         self.systems: List[SystemBase] = []
         self.system_by_id: Dict = {}
         self.devices: List[Device] = []
@@ -229,6 +230,9 @@ class Gateway:
         if dev is None:  # TODO: take into account device filter?
             dev = create_device(dev_addr)
 
+        if not self.rfg and dev.type == "18":
+            self.rfg = dev
+
         # update the existing device with any metadata
         if ctl_addr is not None:
             dev._set_ctl(ctl)
@@ -308,7 +312,12 @@ class Gateway:
     def schema(self) -> dict:
         """Return the global schema."""
 
-        schema = {"main_controller": self.evo._ctl.id if self.evo else None}
+        schema = {
+            # "rf_gateway": self.rfg and self.rfg.schema,
+            "main_controller": self.evo._ctl.id
+            if self.evo
+            else None
+        }
 
         if self.evo:
             schema[self.evo._ctl.id] = self.evo.schema
@@ -393,3 +402,24 @@ class Gateway:
 
     #     If required, will create a faked BDR91A.
     #     """
+
+    def create_fake_outdoor_sensor(self, device_id=None) -> Device:
+        """Create/bind a faked outdoor temperature sensor to a controller.
+
+        If no device_id is provided, the RF gateway is used.
+        """
+        return self._rfg.create_fake_ext(device_id=device_id)
+
+    def create_fake_relay(self, device_id=None) -> Device:
+        """Create/bind a faked relay to a controller (i.e. to a domain/zone).
+
+        If no device_id is provided, the RF gateway is used.
+        """
+        return self._rfg.create_fake_bdr(device_id=device_id)
+
+    def create_fake_zone_sensor(self, device_id=None) -> Device:
+        """Create/bind a faked temperature sensor to a controller' zone.
+
+        If no device_id is provided, the RF gateway is used.
+        """
+        return self._rfg.create_fake_thm(device_id=device_id)
