@@ -961,9 +961,9 @@ class ExtSensor(Device):  # EXT: 17
     def status(self) -> dict:
         return {
             **super().status,
-            self.LUMINOSITY: self.luminosity,
+            # self.LUMINOSITY: self.luminosity,
             self.TEMPERATURE: self.temperature,
-            self.WINDSPEED: self.windspeed,
+            # self.WINDSPEED: self.windspeed,
         }
 
 
@@ -1384,8 +1384,8 @@ DEVICE_TYPE_TO_KLASS = {
     "10": "OTB",
     "12": "STA",
     "13": "BDR",
-    "17": "EXT",
-    "18": "GWY",
+    # "17": "EXT",  # TODO: not yet ready
+    # "18": "GWY",  # TODO: not yet ready
     "20": "FAN",
     "22": "STA",
     "23": "PRG",
