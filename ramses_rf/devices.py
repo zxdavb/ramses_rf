@@ -957,7 +957,7 @@ class OtbGateway(Actuator, Device):  # OTB (10): 22D9, 3220
         return {
             **super().status,
             self.BOILER_SETPOINT: self.boiler_setpoint,
-            **self.opentherm_status,
+            self.OPENTHERM_STATUS: self.opentherm_status,
         }
 
 
