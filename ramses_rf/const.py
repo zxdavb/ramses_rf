@@ -76,7 +76,9 @@ CODE_SCHEMA = {
     "1030": {"uses_zone_idx": True},
     "1060": {"uses_zone_idx": True},
     "10A0": {"rq_length": len("0000") / 2},
+    "1298": {"uses_zone_idx": False},
     "12B0": {"uses_zone_idx": True},
+    "12C8": {"uses_zone_idx": False},
     "1F09": {"rq_len": 1},
     "1FC9": {"uses_zone_idx": True, "rq_len": 1},  # was bind_device
     "2249": {"uses_zone_idx": True},

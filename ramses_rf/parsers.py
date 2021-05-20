@@ -1109,6 +1109,12 @@ def parser_1290(payload, msg) -> Optional[dict]:
     return {"temperature": _temp(payload[2:])}
 
 
+@parser_decorator  # hvac_1298
+def parser_1298(payload, msg) -> Optional[dict]:
+    #  I --- 37:258565 --:------ 37:258565 1298 003 0007D0
+    return {"_unknown": _temp(payload[2:])}  # TODO: _temp is a guess
+
+
 @parser_decorator  # indoor_humidity (Nuaire RH sensor)
 def parser_12a0(payload, msg) -> Optional[dict]:
     # assert msg.len == 6 if type == ?? else 2, msg.len
@@ -1144,6 +1150,12 @@ def parser_12c0(payload, msg) -> Optional[dict]:
 
     temp = None if payload[2:4] == "80" else int(payload[2:4], 16) / 2
     return {"temperature": temp}
+
+
+@parser_decorator  # hvac_12C8
+def parser_12c8(payload, msg) -> Optional[dict]:
+    #  I --- 37:261128 --:------ 37:261128 12C8 003 000040
+    return {"_unknown": _percent(payload[4:])}  # TODO: _percent is a guess
 
 
 @parser_decorator  # system_sync
@@ -1593,7 +1605,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
 def parser_31da(payload, msg) -> Optional[dict]:
     assert msg.len == 29, msg.len  # usu: I CTL-->CTL
 
-    assert payload[2:10] == "EF007FFF", payload[2:10]
+    assert payload[2:10] in ("004007D0", "EF007FFF"), payload[2:10]  # also: "004007D0"
     assert payload[12:30] == "EF7FFF7FFF7FFF7FFF", payload[12:30]
     assert payload[34:36] == "EF", payload[34:36]
     assert payload[42:44] == "00", payload[42:44]
@@ -1604,12 +1616,12 @@ def parser_31da(payload, msg) -> Optional[dict]:
 
     return {
         # **_idx(payload[:2], msg),
+        "unknown_12c8": payload[4:6],
+        "unknown_1298": payload[6:10],
+        "relative_humidity": rh,  # [10:12]
+        "unknown_1": payload[30:38],
         FanSwitch.FAN_RATE: _percent(payload[38:40]),  # NOTE: is 31D9/payload[4:6]
-        "relative_humidity": rh,
         FanSwitch.BOOST_TIMER: int(payload[44:46], 16),
-        "unknown_3": payload[36:38],
-        "unknown_1": payload[30:32],
-        "unknown_2": payload[32:34],
     }
 
 
