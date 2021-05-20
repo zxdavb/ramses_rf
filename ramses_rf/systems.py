@@ -813,7 +813,11 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         assert ATTR_ORPHANS not in schema[ATTR_HTG_SYSTEM]  # TODO: removeme
         schema[ATTR_ORPHANS] = sorted(
-            [d.id for d in self._ctl.devices if not d._domain_id and d.type != "02"]
+            [
+                d.id
+                for d in self._ctl.devices
+                if not d._domain_id and d.type != "02" and d._is_present
+            ]
         )  # devices without a parent zone, NB: CTL can be a sensor for a zones
 
         # TODO: where to put this?

@@ -222,6 +222,11 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         super()._handle_msg(msg)
 
     @property
+    def _is_present(self) -> bool:
+        """Try to exclude ghost devices (as caused by corrupt packet addresses)."""
+        return any(m.src == self for m in self._msgs.values() if not m.is_expired)
+
+    @property
     def description(self) -> Optional[str]:
         return DEVICE_TABLE[self.type]["name"] if self.type in DEVICE_TABLE else None
 
@@ -1247,6 +1252,7 @@ DEVICE_TYPE_TO_KLASS = {
     "12": "STA",
     "13": "BDR",
     "17": "EXT",
+    "18": "GWY",
     "20": "FAN",
     "22": "STA",
     "23": "PRG",

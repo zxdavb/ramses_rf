@@ -316,11 +316,9 @@ class Gateway:
             if evo is not self.evo:
                 schema[evo._ctl.id] = evo.schema
 
-        orphans = [d.id for d in self.devices if d._ctl is None]
-
-        # orphans = [d.id for d in self.devices if d.controller is None]
-        # orphans.sort()
-        schema[ATTR_ORPHANS] = orphans
+        schema[ATTR_ORPHANS] = [
+            d.id for d in self.devices if d._ctl is None and d._is_present
+        ]
 
         return schema
 
