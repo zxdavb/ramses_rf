@@ -66,7 +66,7 @@ class SysFaultLog:  # 0418
     @property
     def status(self) -> dict:
         status = super().status
-        assert "fault_log" not in status  # TODO: removeme
+        # assert "fault_log" not in status  # TODO: removeme
         status["fault_log"] = self._fault_log.fault_log
         status["last_fault"] = self._msgz[I_].get("0418")
         return status
@@ -119,8 +119,8 @@ class SysDatetime:  # 313F
     @property
     def status(self) -> dict:
         status = super().status
-        assert ATTR_HTG_SYSTEM in status  # TODO: removeme
-        assert "datetime" not in status[ATTR_HTG_SYSTEM]  # TODO: removeme
+        # assert ATTR_HTG_SYSTEM in status  # TODO: removeme
+        # assert "datetime" not in status[ATTR_HTG_SYSTEM]  # TODO: removeme
         status[ATTR_HTG_SYSTEM]["datetime"] = self.datetime
         return status
 
@@ -149,8 +149,8 @@ class SysLanguage:  # 0100
     @property
     def params(self) -> dict:
         params = super().params
-        assert ATTR_HTG_SYSTEM in params  # TODO: removeme
-        assert "language" not in params[ATTR_HTG_SYSTEM]  # TODO: removeme
+        # assert ATTR_HTG_SYSTEM in params  # TODO: removeme
+        # assert "language" not in params[ATTR_HTG_SYSTEM]  # TODO: removeme
         params[ATTR_HTG_SYSTEM]["language"] = self.language
         return params
 
@@ -193,8 +193,8 @@ class SysMode:  # 2E04
     @property
     def params(self) -> dict:
         params = super().params
-        assert ATTR_HTG_SYSTEM in params  # TODO: removeme
-        assert "system_mode" not in params[ATTR_HTG_SYSTEM]  # TODO: removeme
+        # assert ATTR_HTG_SYSTEM in params  # TODO: removeme
+        # assert "system_mode" not in params[ATTR_HTG_SYSTEM]  # TODO: removeme
         params[ATTR_HTG_SYSTEM]["system_mode"] = self.system_mode
         return params
 
@@ -324,17 +324,17 @@ class StoredHw:
 
     @property
     def schema(self) -> dict:
-        assert ATTR_DHW_SYSTEM not in super().schema  # TODO: removeme
+        # assert ATTR_DHW_SYSTEM not in super().schema  # TODO: removeme
         return {**super().schema, ATTR_DHW_SYSTEM: self.dhw.schema if self.dhw else {}}
 
     @property
     def params(self) -> dict:
-        assert ATTR_DHW_SYSTEM not in super().params  # TODO: removeme
+        # assert ATTR_DHW_SYSTEM not in super().params  # TODO: removeme
         return {**super().params, ATTR_DHW_SYSTEM: self.dhw.params if self.dhw else {}}
 
     @property
     def status(self) -> dict:
-        assert ATTR_DHW_SYSTEM not in super().status  # TODO: removeme
+        # assert ATTR_DHW_SYSTEM not in super().status  # TODO: removeme
         return {**super().status, ATTR_DHW_SYSTEM: self.dhw.status if self.dhw else {}}
 
 
@@ -568,24 +568,24 @@ class MultiZone:  # 0005 (+/- 000C?)
 
     @property
     def schema(self) -> dict:
-        assert ATTR_ZONES not in super().schema  # TODO: removeme
+        # assert ATTR_ZONES not in super().schema  # TODO: removeme
         return {**super().schema, ATTR_ZONES: {z.idx: z.schema for z in self._zones}}
 
     @property
     def params(self) -> dict:
-        assert ATTR_ZONES not in super().params  # TODO: removeme
+        # assert ATTR_ZONES not in super().params  # TODO: removeme
         return {**super().params, ATTR_ZONES: {z.idx: z.params for z in self._zones}}
 
     @property
     def status(self) -> dict:
-        assert ATTR_ZONES not in super().status  # TODO: removeme
+        # assert ATTR_ZONES not in super().status  # TODO: removeme
         return {**super().status, ATTR_ZONES: {z.idx: z.status for z in self._zones}}
 
 
 class UfhSystem:
     @property
     def schema(self) -> dict:
-        assert ATTR_UFH_SYSTEM not in super().schema  # TODO: removeme
+        # assert ATTR_UFH_SYSTEM not in super().schema  # TODO: removeme
         return {
             **super().schema,
             ATTR_UFH_SYSTEM: {
@@ -595,7 +595,7 @@ class UfhSystem:
 
     @property
     def params(self) -> dict:
-        assert ATTR_UFH_SYSTEM not in super().params  # TODO: removeme
+        # assert ATTR_UFH_SYSTEM not in super().params  # TODO: removeme
         return {
             **super().params,
             ATTR_UFH_SYSTEM: {
@@ -605,7 +605,7 @@ class UfhSystem:
 
     @property
     def status(self) -> dict:
-        assert ATTR_UFH_SYSTEM not in super().status  # TODO: removeme
+        # assert ATTR_UFH_SYSTEM not in super().status  # TODO: removeme
         return {
             **super().status,
             ATTR_UFH_SYSTEM: {
@@ -804,14 +804,14 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         """Return the system's schema."""
 
         schema = {ATTR_CONTROLLER: self._ctl.id, ATTR_HTG_SYSTEM: {}}
-        assert ATTR_HTG_SYSTEM in schema  # TODO: removeme
+        # assert ATTR_HTG_SYSTEM in schema  # TODO: removeme
 
-        assert ATTR_HTG_CONTROL not in schema[ATTR_HTG_SYSTEM]  # TODO: removeme
+        # assert ATTR_HTG_CONTROL not in schema[ATTR_HTG_SYSTEM]  # TODO: removeme
         schema[ATTR_HTG_SYSTEM][ATTR_HTG_CONTROL] = (
             self.heating_control.id if self.heating_control else None
         )
 
-        assert ATTR_ORPHANS not in schema[ATTR_HTG_SYSTEM]  # TODO: removeme
+        # assert ATTR_ORPHANS not in schema[ATTR_HTG_SYSTEM]  # TODO: removeme
         schema[ATTR_ORPHANS] = sorted(
             [
                 d.id
@@ -831,7 +831,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         """Return the system's configuration."""
 
         params = {ATTR_HTG_SYSTEM: {}}
-        assert ATTR_HTG_SYSTEM in params  # TODO: removeme
+        # assert ATTR_HTG_SYSTEM in params  # TODO: removeme
 
         # devices don't have params
         # assert ATTR_HTG_CONTROL not in params[ATTR_HTG_SYSTEM]  # TODO: removeme
@@ -839,7 +839,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         #     self.heating_control.params if self.heating_control else None
         # )
 
-        assert "tpi_params" not in params[ATTR_HTG_SYSTEM]  # TODO: removeme
+        # assert "tpi_params" not in params[ATTR_HTG_SYSTEM]  # TODO: removeme
         params[ATTR_HTG_SYSTEM]["tpi_params"] = (
             self.heating_control._get_msg_value("1100")
             if self.heating_control
@@ -853,7 +853,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         """Return the system's current state."""
 
         status = {ATTR_HTG_SYSTEM: {}}
-        assert ATTR_HTG_SYSTEM in status  # TODO: removeme
+        # assert ATTR_HTG_SYSTEM in status  # TODO: removeme
 
         # assert ATTR_HTG_CONTROL not in status[ATTR_HTG_SYSTEM]  # TODO: removeme
         # status[ATTR_HTG_SYSTEM][ATTR_HTG_CONTROL] = (
@@ -916,7 +916,7 @@ class System(StoredHw, SysDatetime, SystemBase):  # , SysFaultLog
         """Return the system's current state."""
 
         status = super().status
-        assert ATTR_HTG_SYSTEM in status  # TODO: removeme
+        # assert ATTR_HTG_SYSTEM in status  # TODO: removeme
 
         status[ATTR_HTG_SYSTEM]["heat_demands"] = self.heat_demands
         status[ATTR_HTG_SYSTEM]["relay_demands"] = self.relay_demands
