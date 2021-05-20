@@ -156,6 +156,10 @@ RAMSES_CODES = {  # rf_unknown
         I_: r"^00[0-9A-F]{4}$",  # NOTE: RP is same
         RQ: r"^00$",
     },
+    "1298": {  # hvac_1298 - temperature/C?
+        NAME: "hvac_1298",
+        I_: r"^00[0-9A-F]{4}$",
+    },
     "12A0": {  # indoor_humidity
         NAME: "indoor_humidity",
         I_: r"^00[0-9A-F]{10}$",
@@ -169,6 +173,10 @@ RAMSES_CODES = {  # rf_unknown
     "12C0": {  # displayed_temp
         NAME: "displayed_temp",  # displayed room temp
         I_: r"^00[0-9A-F]{2}01$",
+    },
+    "12C8": {  # hvac_12C8 - %?
+        NAME: "hvac_12C8",
+        I_: r"^0000[0-9A-F]{2}$",
     },
     "1F09": {  # system_sync - "FF" (I), "00" (RP), "F8" (W, after 1FC9)
         NAME: "system_sync",
@@ -500,11 +508,13 @@ RAMSES_DEVICES = {
         "1290": {I_: {}},
         "1F41": {RQ: {}},
         "1FC9": {RP: {}, W_: {}},
+        "22D9": {RQ: {}},
         "2309": {I_: {}},
         "2349": {RQ: {}, RP: {}},
         "2E04": {RQ: {}, I_: {}, W_: {}},
         "30C9": {RQ: {}},
         "313F": {RQ: {}, RP: {}, W_: {}},
+        "3220": {RQ: {}},
         "3EF0": {RQ: {}},
         # VMS:082155 - HVAC: Nuaire Ventilation
         # "10E0": {I_: {}, RP: {},},
@@ -548,6 +558,9 @@ RAMSES_DEVICES = {
     },
     "37": {  # HVAC: ventilation unit
         "10E0": {I_: {}, RP: {}},
+        "1298": {I_: {}},
+        "12C8": {I_: {}},
+        "3120": {I_: {}},
         "31D9": {I_: {}},
         "31DA": {I_: {}},
     },
