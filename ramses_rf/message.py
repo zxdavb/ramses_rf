@@ -299,10 +299,12 @@ class Message:
         """Return True if the message is dated (does not require a valid payload)."""
 
         def _logger_send(logger, message) -> None:
-            if True or DEV_MODE:
+            if DEV_MODE:
                 logger(
-                    f"Message(%s) received at {self.dtm:%H:%M:%S} {message}",
+                    "Message(%s), received at %s: %s",
                     self._pkt._header,
+                    self.dtm,
+                    message,
                 )
 
         def _timeout() -> td:
@@ -650,6 +652,7 @@ def process_msg(msg: Message) -> None:
     if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
         _LOGGER.info(msg)
 
+    # TODO: This will need to be removed for HGI80-impersonation
     # 18:/RQs are unreliable, although any corresponding RPs are often required
     if msg.src.type == "18":
         return
