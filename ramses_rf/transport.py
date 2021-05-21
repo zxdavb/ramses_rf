@@ -24,6 +24,9 @@ from serial import SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerialTransportAsync
 
 from .command import (
+    ARGS,
+    DEAMON,
+    FUNC,
     QOS_MAX_BACKOFF,
     QOS_RX_TIMEOUT,
     QOS_TX_RETRIES,
@@ -699,6 +702,15 @@ class PacketProtocolQos(PacketProtocolBase):
                 message,
             )
 
+        def _expired_pkt(cmd):
+            hdr = cmd.tx_header
+            callback = cmd.callback
+            if callback and not callback.get("expired"):
+                # see  also: MsgTransport._pkt_receiver()
+                _LOGGER.error("PktProtocolQos._send_data(%s): Expired callback", hdr)
+                callback[FUNC](False, *callback.get(ARGS, tuple()))
+                callback["expired"] = not callback.get(DEAMON, False)
+
         if self._gwy.config[DISABLE_SENDING]:
             raise RuntimeError("Sending is disabled")
 
@@ -753,6 +765,8 @@ class PacketProtocolQos(PacketProtocolBase):
             else:
                 if self._qos_cmd.code != "7FFF":  # HACK: why expired when shouldn't
                     _logger_send(_LOGGER.error, "EXPIRED")
+                    _expired_pkt(self._qos_cmd)
+
                 self._qos_lock.acquire()
                 self._qos_cmd = None
                 self._qos_lock.release()
