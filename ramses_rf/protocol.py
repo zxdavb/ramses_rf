@@ -147,14 +147,17 @@ class MessageTransport(asyncio.Transport):
             hdr,
             callback,
         ) in self._callbacks.items():  # 1st, notify all expired callbacks
-            if callback.get(EXPIRES, dt.max) < pkt._dtm:
+            if callback.get(EXPIRES, dt.max) < pkt._dtm and not callback.get("expired"):
+                # see  also: PktProtocolQos.send_data()
                 _LOGGER.error("MsgTransport._pkt_receiver(%s): Expired callback", hdr)
                 callback[FUNC](False, *callback.get(ARGS, tuple()))
+                callback["expired"] = not callback.get(DEAMON, False)
 
         self._callbacks = {  # 2nd, discard any expired callbacks
             hdr: callback
             for hdr, callback in self._callbacks.items()
-            if callback.get(DEAMON) or callback[EXPIRES] >= pkt._dtm
+            if callback.get(DEAMON)
+            or (callback[EXPIRES] >= pkt._dtm and not not callback.get("expired"))
         }
 
         if len(self._protocols) == 0:
