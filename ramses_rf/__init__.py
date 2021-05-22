@@ -15,8 +15,6 @@ import json
 import logging
 import os
 import signal
-from collections import deque
-from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .command import Command
@@ -87,9 +85,9 @@ class Gateway:
         if self.config[REDUCE_PROCESSING] < DONT_CREATE_MESSAGES:
             self.msg_protocol, self.msg_transport = self.create_client(process_msg)
 
-        self._buffer = deque()
-        self._sched_zone = None
-        self._sched_lock = Lock()
+        # self._buffer = deque()
+        # self._sched_zone = None
+        # self._sched_lock = Lock()
 
         # if self.config[REDUCE_PROCESSING] > 0:
         self.rfg = None
