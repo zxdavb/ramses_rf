@@ -91,9 +91,6 @@ class Gateway:
         self._sched_zone = None
         self._sched_lock = Lock()
 
-        # if config.get("ser2net_server"):
-        self._relay = None  # ser2net_server relay
-
         # if self.config[REDUCE_PROCESSING] > 0:
         self.rfg = None
         self.evo = None
