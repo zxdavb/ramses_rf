@@ -786,13 +786,17 @@ class UfhController(Device):  # UFC (02):
 
     @property
     def circuits(self) -> Optional[Dict]:  # 000C
-        def fix(k):
-            return "zone_idx" if k == "zone_id" else k
+        return {
+            k: {"zone_idx": m.payload["zone_id"]} for k, m in self._circuits.items()
+        }
 
-        return [
-            {fix(k): v for k, v in m.payload.items() if k in ("ufh_idx", "zone_id")}
-            for m in self._circuits.values()
-        ]
+        # def fix(k):
+        #     return "zone_idx" if k == "zone_id" else k
+
+        # return [
+        #     {fix(k): v for k, v in m.payload.items() if k in ("ufh_idx", "zone_id")}
+        #     for m in self._circuits.values()
+        # ]
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
@@ -808,10 +812,14 @@ class UfhController(Device):  # UFC (02):
 
     @property
     def setpoints(self) -> Optional[Dict]:  # 22C9
-        return [
-            {k: v for k, v in d.items() if k in ("ufh_idx", "temp_high", "temp_low")}
-            for d in (self._setpoints.payload if self._setpoints else [])
-        ]
+        return {
+            c["ufh_idx"]: {"temp_high": c["temp_high"], "temp_low": c["temp_low"]}
+            for c in self._setpoints.payload
+        }
+        # return [
+        #     {k: v for k, v in d.items() if k in ("ufh_idx", "temp_high", "temp_low")}
+        #     for d in (self._setpoints.payload if self._setpoints else [])
+        # ]
 
     @property  # id, type
     def schema(self) -> dict:
@@ -824,7 +832,7 @@ class UfhController(Device):  # UFC (02):
     def params(self) -> dict:
         return {
             **super().params,
-            "setpoints": self.setpoints,
+            "circuits": self.setpoints,
         }
 
     @property
