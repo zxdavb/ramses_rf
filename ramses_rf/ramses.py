@@ -259,6 +259,7 @@ RAMSES_CODES = {  # rf_unknown
     "3120": {  # unknown - Error Report?
         NAME: "message_3120",
         I_: r"^00[0-9A-F]{10}FF$",  # only ever: 34:/0070B0000000FF
+        RQ: r"^00$",  # 20: will RP an RQ?
         # RP: r"^00[0-9A-F]{10}FF$",  # only ever: 20:/0070B000009CFF
     },
     "313F": {  # datetime
@@ -491,6 +492,10 @@ RAMSES_DEVICES = {
         "3B00": {I_: {}},
         "3EF1": {RP: {}},
     },
+    "29": {  # HVAC: Orcon MVS-15RP / MVS-15LF (vent mech. control)
+        "10E0": {I_: {}},  # VMC-15RP01 / VMN-15LF01
+        "31D9": {I_: {}},
+    },  # e.g. https://www.orcon.nl/blueline-mvs-15rp-2/
     "30": {  # e.g. RFG100 (and others)
         # GWY:185469 - Honeywell RFG100
         "0002": {RQ: {}},
@@ -511,7 +516,7 @@ RAMSES_DEVICES = {
         "1FC9": {RP: {}, W_: {}},
         "22D9": {RQ: {}},
         "2309": {I_: {}},
-        "2349": {RQ: {}, RP: {}},
+        "2349": {RQ: {}, RP: {}, W_: {}},
         "2E04": {RQ: {}, I_: {}, W_: {}},
         "30C9": {RQ: {}},
         "313F": {RQ: {}, RP: {}, W_: {}},
