@@ -118,7 +118,8 @@ def _idx_idx(seqx, code, src_type, dst_type) -> dict:
 
         return {}
 
-    raise TypeError(code)
+    # Consider RAMSES_CODES, or CODES_WITHOUT_IDX
+    raise TypeError(f"{src_type}:", code, seqx)
 
 
 def _idx(seqx, msg) -> dict:
@@ -317,7 +318,7 @@ def _date(value: str) -> Optional[str]:  # YY-MM-DD
 def _percent(value: str) -> Optional[float]:  # a percentage 0-100% (0.0 to 1.0)
     """Return a percentage, 0-100% with resolution of 0.5%."""
     assert len(value) == 2, "len is not 2"
-    if value in ("FE", "FF"):  # TODO: diff b/w FE (seen with 3150) & FF
+    if value in ("EF", "FE", "FF"):  # TODO: diff b/w FE (seen with 3150) & FF
         return
     assert int(value, 16) <= 200, "max value should be C8"
     return int(value, 16) / 200
@@ -353,6 +354,15 @@ def _flag8(byte, *args) -> list:
         ret[i] = byte & 1
         byte = byte >> 1
     return ret
+
+
+def _double(val, factor=1) -> Optional[float]:
+    """Return a double, used by 31DA."""
+    if val == "7FFF":
+        return
+    result = int(val, 16)
+    assert result < 32767
+    return result if factor == 1 else result / factor
 
 
 @parser_decorator  # rf_unknown
@@ -1203,7 +1213,8 @@ def parser_12c0(payload, msg) -> Optional[dict]:
 @parser_decorator  # hvac_12C8
 def parser_12c8(payload, msg) -> Optional[dict]:
     #  I --- 37:261128 --:------ 37:261128 12C8 003 000040
-    return {"_unknown": _percent(payload[4:])}  # TODO: _percent is a guess
+    assert payload[2:4] == "00"
+    return {"_unknown": _percent(payload[4:])}
 
 
 @parser_decorator  # system_sync
@@ -1556,12 +1567,18 @@ def parser_30c9(payload, msg) -> Optional[dict]:
 def parser_3120(payload, msg) -> Optional[dict]:
     #  I --- 34:136285 --:------ 34:136285 3120 007 0070B0000000FF  # every ~3:45:00!
     # RP --- 20:008749 18:142609 --:------ 3120 007 0070B000009CFF
+    #  I --- 37:258565 --:------ 37:258565 3120 007 0080B0010003FF
 
-    assert payload[:10] == "0070B00000", payload[:10]
+    assert payload[:2] == "00", payload[:2]
+    assert payload[2:4] in ("70", "80"), payload[2:4]
+    assert payload[4:6] == "B0", payload[4:6]
+    assert payload[6:8] in ("00", "01"), payload[6:8]
+    assert payload[8:10] == "00", payload[8:10]
+    assert payload[10:12] in ("00", "03", "9C"), payload[8:12]
     assert payload[12:] == "FF", payload[12:]
     return {
-        "unknown_1": payload[10:12],
         "unknown_0": payload[2:10],
+        "unknown_1": payload[10:12],
         "unknown_2": payload[12:],
     }
 
@@ -1625,51 +1642,86 @@ def parser_3150(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # ???
 def parser_31d9(payload, msg) -> Optional[dict]:
-    assert payload[2:4] in ("00", "06"), payload[2:4]
+    assert payload[2:4] in ("00", "06", "80"), payload[2:4]
     assert payload[4:6] == "FF" or int(payload[4:6], 16) <= 200, payload[4:6]
 
+    result = {
+        FanSwitch.FAN_RATE: _percent(payload[4:6]),  # NOTE: is 31DA/payload[38:40]
+        "_unknown_0": payload[2:4],
+    }
+
     if msg.len == 3:  # usu: I -->20: (no seq#)
-        return {
-            **_idx(payload[:2], msg),
-            FanSwitch.FAN_RATE: _percent(payload[4:6]),  # NOTE: is 31DA/payload[38:40]
-            "unknown_0": payload[2:4],
-        }
+        return result
 
     assert msg.len == 17, msg.len  # usu: I 30:-->30:, (or 20:) with a seq#!
     assert payload[6:8] == "00", payload[6:8]
     assert payload[8:32] in ("00" * 12, "20" * 12), payload[8:32]
+    assert payload[32:] == "00", payload[32:]
 
     return {
-        # **_idx(payload[:2], msg),
-        FanSwitch.FAN_RATE: _percent(payload[4:6]),  # NOTE: is 31D9/payload[4:6]
-        "unknown_0": payload[2:4],
-        "unknown_2": payload[6:8],
-        "unknown_3": payload[8:32],
-        "unknown_4": payload[32:],
+        **result,
+        "_unknown_2": payload[6:8],
+        "_unknown_3": payload[8:32],
+        "_unknown_4": payload[32:],
     }
 
 
 @parser_decorator  # UFC HCE80 (Nuaire humidity)
 def parser_31da(payload, msg) -> Optional[dict]:
-    assert msg.len == 29, msg.len  # usu: I CTL-->CTL
+    def _percent(val, precision=0.5) -> Optional[float]:
+        if val in ("EF", "FF"):
+            return
+        if len(val) != 2:
+            raise TypeError
+        result = int(val, 16)
+        if result > 100 / precision:
+            raise ValueError(result)
+        return result / 100 / precision
 
-    assert payload[2:10] in ("004007D0", "EF007FFF"), payload[2:10]  # also: "004007D0"
-    assert payload[12:30] == "EF7FFF7FFF7FFF7FFF", payload[12:30]
+    assert msg.len == 29, f"expected length 29, not {msg.len}"
+
+    assert payload[2:4] in ("00", "EF"), payload[2:4]
+    assert payload[4:6] in ("00", "40"), payload[4:6]
+    assert payload[6:10] in ("07D0", "7FFF"), payload[6:10]
+    assert payload[10:12] == "EF" or int(payload[10:12], 16) <= 100, payload[10:12]
+    assert payload[12:14] == "EF", payload[12:14]
+    assert payload[14:18] == "7FFF", payload[14:18]
+    assert payload[18:22] == "7FFF", payload[18:22]
+    assert payload[22:26] == "7FFF", payload[22:26]
+    assert payload[26:30] == "7FFF", payload[26:30]
+    assert payload[30:34] in ("0002", "F000", "F800", "F808", "7FFF"), payload[30:34]
     assert payload[34:36] == "EF", payload[34:36]
-    assert payload[42:44] == "00", payload[42:44]
+    assert payload[36:38] in ("01", "02", "03", "0D", "18", "83", "EF"), payload[36:38]
+    assert payload[38:40] in ("EF", "FF") or int(payload[38:40], 16) <= 200, payload[
+        38:40
+    ]
+    assert payload[40:42] in ("00", "EF", "FF"), payload[40:42]
+    # assert payload[42:46] == "0000", payload[42:46]
     assert payload[46:48] in ("00", "EF"), payload[46:48]
-    assert payload[48:] in ("EF7FFF7FFF", "EF7FFFFFFF"), payload[48:]
-
-    rh = int(payload[10:12], 16) / 100 if payload[10:12] != "EF" else None  # not /200!
+    assert payload[48:50] == "EF", payload[48:50]
+    assert payload[50:54] == "7FFF", payload[50:54]
+    assert payload[54:58] == "7FFF", payload[54:58]
 
     return {
-        # **_idx(payload[:2], msg),
-        "unknown_12c8": payload[4:6],
-        "unknown_1298": payload[6:10],
-        "relative_humidity": rh,  # [10:12]
-        "unknown_1": payload[30:38],
-        FanSwitch.FAN_RATE: _percent(payload[38:40]),  # NOTE: is 31D9/payload[4:6]
-        FanSwitch.BOOST_TIMER: int(payload[44:46], 16),
+        "_unknown_00": _percent(payload[2:4]),
+        "unknown_12c8": _percent(payload[4:6]),  # NOTE: 12C8/payload[4:6]
+        "unknown_1298": _double(payload[6:10]),  # NOTE: 1298/payload[2:6]
+        "relative_humidity": _percent(payload[10:12], precision=1),
+        "_unknown_04": _percent(payload[12:14], precision=1),
+        "_unknown_05": _double(payload[14:18]),
+        "_unknown_06": _double(payload[18:22]),
+        "_unknown_07": _double(payload[22:26], factor=100),
+        "_unknown_08": _double(payload[26:30]),
+        "unknown_0x": int(payload[30:34], 16),
+        "_unknown_09": _percent(payload[34:36]),
+        "unknown_10": payload[36:38],  # TODO: & 0x1F ?
+        FanSwitch.FAN_RATE: _percent(payload[38:40]),  # NOTE: 31D9/payload[4:6]
+        "unknown_12": _percent(payload[40:42]),
+        FanSwitch.BOOST_TIMER: _double(payload[42:46]),  # NOTE: 22F3/payload[2:6]
+        "_unknown_14": _percent(payload[46:48]),
+        "_unknown_15": _percent(payload[48:50]),
+        "_unknown_16": _double(payload[50:54], factor=100),
+        "_unknown_17": _double(payload[54:58], factor=100),
     }
 
 
@@ -1814,7 +1866,7 @@ def parser_3ef0(payload, msg) -> dict:
             assert int(payload[2:4], 16) <= 100, f"byte 1: {payload[2:4]}"
         assert payload[4:6] in ("10", "11"), f"byte 2: {payload[4:6]}"
         assert payload[8:10] in ("00", "01", "FF"), f"byte 4: {payload[8:10]}"
-        assert payload[10:12] == "FF", f"byte 5: {payload[10:12]}"
+        assert payload[10:12] in ("00", "FF"), f"byte 5: {payload[10:12]}"
 
     if msg.len > 6:  # <= 9: # for some OTB
         assert payload[-2:] in ("00", "64"), f"byte x: {payload[-2:]}"
