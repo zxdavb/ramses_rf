@@ -1010,57 +1010,51 @@ def parser_10a0(payload, msg) -> Optional[dict]:
 def parser_10e0(payload, msg) -> Optional[dict]:
     assert msg.len >= 19, msg.len  # in (19, 28, 30, 36, 38), msg.len
 
-    # DEV_MODE = False
-    # if msg.src.type == "01" and DEV_MODE:
-    #     assert payload[2:20] in (
-    #         "0002FF0119FFFFFFFF",
-    #         "0002FF0163FFFFFFFF",
-    #     ), payload[2:20]
-    # elif msg.src.type == "02" and DEV_MODE:
-    #     assert payload[2:20] in (
-    #         "0003FF0203FFFF0001",
-    #     ), payload[2:20]
-    # elif msg.src.type == "04" and DEV_MODE:
-    #     assert payload[2:20] in (
-    #         "0002FF0412FFFFFFFF",
-    #         "0002FF050BFFFFFFFF",
-    #     ), payload[2:20]
-    # elif msg.src.type == "08" and DEV_MODE:
-    #     assert payload[2:20] in (
-    #         "0002FF0802FFFFFFFE",
-    #     ), payload[2:20]
-    # elif msg.src.type == "10" and DEV_MODE:
-    #     assert payload[2:20] in (
-    #         "0001C8810B0700FEFF",
-    #         "0002FF0A0CFFFFFFFF",
-    #     ), payload[2:20]
-    # elif msg.src.type == "20" and DEV_MODE:
-    #     assert payload[2:20] in (
-    #         "000100140C06010000",
-    #         "0001001B190B010000",
-    #         "0001001B221201FEFF",
-    #         "0001001B271501FEFF",
-    #         "0001001B281501FEFF",
-    #     ), payload[2:20]
-    # elif msg.src.type == "30" and DEV_MODE:
-    #     assert payload[2:20] in (
-    #         "0001C90011006CFEFF",
-    #         "0002FF1E01FFFFFFFF",
-    #         "0002FF1E03FFFFFFFF",
-    #     ), payload[2:20]
-    # elif msg.src.type == "31" and DEV_MODE:
-    #     assert payload[2:20] in (
-    #         "0002FF1F02FFFFFFFF",
-    #     ), payload[2:20]
-    # elif msg.src.type == "32" and DEV_MODE:
-    #     assert payload[2:20] in (
-    #         "0001C85802016CFFFF",
-    #     ), payload[2:20]
-    # elif msg.src.type == "34" and DEV_MODE:
-    #     assert payload[2:20] in (
-    #         "0001C8380A0100F1FF",
-    #         "0001C8380F0100F1FF",
-    #     ), payload[2:20]
+    DEV_MODE = False
+    if not DEV_MODE:
+        pass
+    elif msg.src.type == "01":
+        assert payload[2:20] in (
+            "0002FF0119FFFFFFFF",
+            "0002FF0163FFFFFFFF",
+        ), payload[2:20]
+    elif msg.src.type == "02":
+        assert payload[2:20] in ("0003FF0203FFFF0001",), payload[2:20]
+    elif msg.src.type == "04":
+        assert payload[2:20] in (
+            "0002FF0412FFFFFFFF",
+            "0002FF050BFFFFFFFF",
+        ), payload[2:20]
+    elif msg.src.type == "08":
+        assert payload[2:20] in ("0002FF0802FFFFFFFE",), payload[2:20]
+    elif msg.src.type == "10":
+        assert payload[2:20] in (
+            "0001C8810B0700FEFF",
+            "0002FF0A0CFFFFFFFF",
+        ), payload[2:20]
+    elif msg.src.type == "20":
+        assert payload[2:20] in (
+            "000100140C06010000",
+            "0001001B190B010000",
+            "0001001B221201FEFF",
+            "0001001B271501FEFF",
+            "0001001B281501FEFF",
+        ), payload[2:20]
+    elif msg.src.type == "30":
+        assert payload[2:20] in (
+            "0001C90011006CFEFF",
+            "0002FF1E01FFFFFFFF",
+            "0002FF1E03FFFFFFFF",
+        ), payload[2:20]
+    elif msg.src.type == "31":
+        assert payload[2:20] in ("0002FF1F02FFFFFFFF",), payload[2:20]
+    elif msg.src.type == "32":
+        assert payload[2:20] in ("0001C85802016CFFFF",), payload[2:20]
+    elif msg.src.type == "34":
+        assert payload[2:20] in (
+            "0001C8380A0100F1FF",
+            "0001C8380F0100F1FF",
+        ), payload[2:20]
 
     date_2 = _date(payload[20:28])  # could be 'FFFFFFFF'
     date_1 = _date(payload[28:36])  # could be 'FFFFFFFF'
