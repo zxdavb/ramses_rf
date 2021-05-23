@@ -331,15 +331,13 @@ async def main(lib_kwargs, **kwargs):
         print(f"Params[{repr(gwy.evo)}] = {json.dumps(gwy.evo.params, indent=4)}\r\n")
         print(f"Status[{repr(gwy.evo)}] = {json.dumps(gwy.evo.status, indent=4)}\r\n")
 
-        orphans = {
-            "orphans": {
-                d.id: d.status for d in sorted(gwy.devices) if d not in gwy.evo.devices
-            }
-        }
-        print(f"Status[gateway] = {json.dumps(orphans, indent=4)}")
-
-        devices = {"devices": {d.id: d.schema for d in sorted(gwy.devices)}}
-        print(f"Schema[devices] = {json.dumps(devices, indent=4)}")
+        orphans = [d for d in sorted(gwy.devices) if d not in gwy.evo.devices]
+        devices = {d.id: d.schema for d in orphans}
+        print(f"Schema[orphans] = {json.dumps({'schema': devices}, indent=4)}")
+        devices = {d.id: d.params for d in orphans}
+        print(f"Params[orphans] = {json.dumps({'params': devices}, indent=4)}")
+        devices = {d.id: d.status for d in orphans}
+        print(f"Status[orphans] = {json.dumps({'status': devices}, indent=4)}")
 
     def process_message(msg) -> None:
         # return
