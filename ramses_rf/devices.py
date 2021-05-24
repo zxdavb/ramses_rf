@@ -1344,17 +1344,17 @@ class FanDevice(Device):  # FAN (20/37):
     @property
     def fan_rate(self) -> Optional[float]:
         msgs = [m for m in self._msgs.values() if m.code in ("31D9", "31DA")]
-        return max(msgs).payload[self.FAN_RATE] if msgs else None
+        return max(msgs).payload["exhaust_fan_speed"] if msgs else None
 
     @property
     def boost_timer(self) -> Optional[int]:
         if "31DA" in self._msgs:
-            return self._msgs["31DA"].payload[self.BOOST_TIMER]
+            return self._msgs["31DA"].payload["remaining_time"]
 
     @property
     def relative_humidity(self) -> Optional[float]:
         if "31DA" in self._msgs:
-            return self._msgs["31DA"].payload[self.RELATIVE_HUMIDITY]
+            return self._msgs["31DA"].payload["indoor_humidity"]
 
     @property
     def status(self) -> dict:

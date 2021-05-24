@@ -320,7 +320,7 @@ def _percent(value: str) -> Optional[float]:  # a percentage 0-100% (0.0 to 1.0)
     assert len(value) == 2, "len is not 2"
     if value in ("EF", "FE", "FF"):  # TODO: diff b/w FE (seen with 3150) & FF
         return
-    assert int(value, 16) <= 200, "max value should be C8"
+    assert int(value, 16) <= 200, "max value should be 0xC8, not 0x{value}"
     return int(value, 16) / 200
 
 
@@ -1170,7 +1170,7 @@ def parser_1290(payload, msg) -> Optional[dict]:
 @parser_decorator  # hvac_1298
 def parser_1298(payload, msg) -> Optional[dict]:
     #  I --- 37:258565 --:------ 37:258565 1298 003 0007D0
-    return {"_unknown": _temp(payload[2:])}  # TODO: _temp is a guess
+    return {"unknown": _double(payload[2:])}
 
 
 @parser_decorator  # indoor_humidity (Nuaire RH sensor)
@@ -1214,7 +1214,7 @@ def parser_12c0(payload, msg) -> Optional[dict]:
 def parser_12c8(payload, msg) -> Optional[dict]:
     #  I --- 37:261128 --:------ 37:261128 12C8 003 000040
     assert payload[2:4] == "00"
-    return {"_unknown": _percent(payload[4:])}
+    return {"unknown": _percent(payload[4:])}
 
 
 @parser_decorator  # system_sync
@@ -1668,11 +1668,40 @@ def parser_31d9(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # UFC HCE80 (Nuaire humidity)
 def parser_31da(payload, msg) -> Optional[dict]:
+
+    FAN_INFO = {
+        0x00: "off",
+        0x01: "speed 1",
+        0x02: "speed 2",
+        0x03: "speed 3",
+        0x04: "speed 4",
+        0x05: "speed 5",
+        0x06: "speed 6",
+        0x07: "speed 7",
+        0x08: "speed 8",
+        0x09: "speed 9",
+        0x0A: "speed 10",
+        0x0B: "speed 1 temporary override",
+        0x0C: "speed 2 temporary override",
+        0x0D: "speed 3 temporary override",
+        0x0E: "speed 4 temporary override",
+        0x0F: "speed 5 temporary override",
+        0x10: "speed 6 temporary override",
+        0x11: "speed 7 temporary override",
+        0x12: "speed 8 temporary override",
+        0x13: "speed 9 temporary override",
+        0x14: "speed 10 temporary override",
+        0x15: "away",
+        0x16: "absolute minimum",
+        0x17: "absolute maximum",
+        0x18: "auto",
+    }
+
     def _percent(val, precision=0.5) -> Optional[float]:
         if val in ("EF", "FF"):
             return
         if len(val) != 2:
-            raise TypeError
+            raise TypeError(val)
         result = int(val, 16)
         if result > 100 / precision:
             raise ValueError(result)
@@ -1691,7 +1720,9 @@ def parser_31da(payload, msg) -> Optional[dict]:
     assert payload[26:30] == "7FFF", payload[26:30]
     assert payload[30:34] in ("0002", "F000", "F800", "F808", "7FFF"), payload[30:34]
     assert payload[34:36] == "EF", payload[34:36]
-    assert payload[36:38] in ("01", "02", "03", "0D", "18", "83", "EF"), payload[36:38]
+    assert payload[36:38] == "EF" or int(payload[36:38], 16) & 0x1F <= 0x18, payload[
+        36:38
+    ]
     assert payload[38:40] in ("EF", "FF") or int(payload[38:40], 16) <= 200, payload[
         38:40
     ]
@@ -1703,25 +1734,25 @@ def parser_31da(payload, msg) -> Optional[dict]:
     assert payload[54:58] == "7FFF", payload[54:58]
 
     return {
-        "_unknown_00": _percent(payload[2:4]),
-        "unknown_12c8": _percent(payload[4:6]),  # NOTE: 12C8/payload[4:6]
-        "unknown_1298": _double(payload[6:10]),  # NOTE: 1298/payload[2:6]
-        "relative_humidity": _percent(payload[10:12], precision=1),
-        "_unknown_04": _percent(payload[12:14], precision=1),
-        "_unknown_05": _double(payload[14:18]),
-        "_unknown_06": _double(payload[18:22]),
-        "_unknown_07": _double(payload[22:26], factor=100),
-        "_unknown_08": _double(payload[26:30]),
-        "unknown_0x": int(payload[30:34], 16),
-        "_unknown_09": _percent(payload[34:36]),
-        "unknown_10": payload[36:38],  # TODO: & 0x1F ?
-        FanSwitch.FAN_RATE: _percent(payload[38:40]),  # NOTE: 31D9/payload[4:6]
-        "unknown_12": _percent(payload[40:42]),
-        FanSwitch.BOOST_TIMER: _double(payload[42:46]),  # NOTE: 22F3/payload[2:6]
-        "_unknown_14": _percent(payload[46:48]),
-        "_unknown_15": _percent(payload[48:50]),
-        "_unknown_16": _double(payload[50:54], factor=100),
-        "_unknown_17": _double(payload[54:58], factor=100),
+        "air_quality": _percent(payload[2:4]),
+        "air_quality_base": int(payload[4:6], 16),  # NOTE: 12C8/payload[4:6]
+        "co2_level": _double(payload[6:10]),  # ppm NOTE: 1298/payload[2:6]
+        "indoor_humidity": _percent(payload[10:12], precision=1),
+        "outdoor_humidity": _percent(payload[12:14], precision=1),
+        "exhaust_temperature": _double(payload[14:18], factor=100),
+        "supply_temperature": _double(payload[18:22], factor=100),
+        "indoor_temperature": _double(payload[22:26], factor=100),
+        "outdoor_temperature": _double(payload[26:30], factor=100),
+        "speed_cap": int(payload[30:34], 16),
+        "bypass_pos": _percent(payload[34:36]),
+        "fan_info": FAN_INFO[int(payload[36:38], 16) & 0x1F],
+        "exhaust_fan_speed": _percent(payload[38:40]),  # NOTE: 31D9/payload[4:6]
+        "supply_fan_speed": _percent(payload[40:42]),
+        "remaining_time": _double(payload[42:46]),  # mins NOTE: 22F3/payload[2:6]
+        "post_heat": _percent(payload[46:48]),
+        "pre_heat": _percent(payload[48:50]),
+        "supply_flow": _double(payload[50:54], factor=100),  # L/sec
+        "exhaust_flow": _double(payload[54:58], factor=100),  # L/sec
     }
 
 
