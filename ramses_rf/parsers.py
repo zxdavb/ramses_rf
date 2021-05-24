@@ -1737,12 +1737,12 @@ def parser_31da(payload, msg) -> Optional[dict]:
         "air_quality": _percent(payload[2:4]),
         "air_quality_base": int(payload[4:6], 16),  # NOTE: 12C8/payload[4:6]
         "co2_level": _double(payload[6:10]),  # ppm NOTE: 1298/payload[2:6]
-        "indoor_humidity": _percent(payload[10:12], precision=1),
+        "indoor_humidity": _percent(payload[10:12], precision=1),  # TODO: 12A0?
         "outdoor_humidity": _percent(payload[12:14], precision=1),
         "exhaust_temperature": _double(payload[14:18], factor=100),
         "supply_temperature": _double(payload[18:22], factor=100),
         "indoor_temperature": _double(payload[22:26], factor=100),
-        "outdoor_temperature": _double(payload[26:30], factor=100),
+        "outdoor_temperature": _double(payload[26:30], factor=100),  # TODO: 1290?
         "speed_cap": int(payload[30:34], 16),
         "bypass_pos": _percent(payload[34:36]),
         "fan_info": FAN_INFO[int(payload[36:38], 16) & 0x1F],
