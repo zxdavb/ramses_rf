@@ -299,7 +299,7 @@ class Message:
         """Return True if the message is dated (does not require a valid payload)."""
 
         def _logger_send(logger, message) -> None:
-            if True or DEV_MODE:
+            if True or DEV_MODE:  # TODO: remove 'True or'
                 logger(
                     "Message(%s), received at %s: %s",
                     self._pkt._header,
@@ -307,7 +307,7 @@ class Message:
                     message,
                 )
 
-        def _timeout() -> td:
+        def _timeout() -> td:  # TODO: move this to RAMSES pkt schema
             timeout = None
 
             if self.code in MSG_TIMEOUTS and self.verb in MSG_TIMEOUTS[self.code]:
@@ -328,7 +328,7 @@ class Message:
             #     timeout = td(minutes=60)  # or longer if READ_ONLY mode?
             # elif self.code in ("3B00", "3EF0", ):  # TODO: 0008, 3EF0, 3EF1
             #     timeout = td(minutes=6.7)  # TODO: WIP
-            return timeout
+            return timeout or td(minutes=60)
 
         if self._is_expired == self.HAS_EXPIRED:
             return self._is_expired
@@ -337,7 +337,7 @@ class Message:
 
         if timeout is None:  # treat as never expiring
             self._is_expired = self.NOT_EXPIRED
-            _logger_send(_LOGGER.debug, "is not expirable")
+            _logger_send(_LOGGER.debug, "is not expirable (be careful)")
             return self._is_expired
 
         if self._gwy.serial_port:
