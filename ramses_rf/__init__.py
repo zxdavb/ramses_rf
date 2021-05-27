@@ -24,6 +24,8 @@ from .message import Message, process_msg
 from .packet import set_pkt_logging
 from .protocol import create_msg_stack
 from .schema import (
+    ALLOW_LIST,
+    BLOCK_LIST,
     DEBUG_MODE,
     DISABLE_DISCOVERY,
     DISABLE_SENDING,
@@ -197,9 +199,22 @@ class Gateway:
                 system._discover()  # discover_flag=DISCOVER_ALL)
             return system
 
-        def create_device(dev_addr) -> Device:
+        def create_device(dev_addr) -> Device:  # TODO: Optional[Device]
             # assert dev_addr.id not in self.device_by_id, f"Dup. dev_id: {dev_addr.id}"
 
+            if self._include and dev_addr.id not in self._include:
+                _LOGGER.warning(
+                    f"Creating a non-allowed device_id: {dev_addr.id}"
+                    f" (consider addding it to the {ALLOW_LIST})"
+                )
+
+            elif dev_addr.id in self._exclude:
+                _LOGGER.warning(
+                    f"Creating a blocked device_id: {dev_addr.id}"
+                    f" (consider removing it from the {BLOCK_LIST})"
+                )
+
+            # else:
             device = DEVICE_CLASSES.get(dev_addr.type, Device)(self, dev_addr)
 
             # if isinstance(device, Controller):
@@ -229,11 +244,11 @@ class Gateway:
             self.rfg = dev
 
         # update the existing device with any metadata
-        if ctl_addr is not None:
+        if ctl_addr and ctl:
             dev._set_ctl(ctl)
         if domain_id in ("F9", "FA", "FC", "FF"):
             dev._domain_id = domain_id
-        elif domain_id is not None and ctl_addr is not None:
+        elif domain_id is not None and ctl_addr and ctl:
             dev._set_zone(ctl._evo._get_zone(domain_id))
 
         return dev
