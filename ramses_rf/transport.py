@@ -313,10 +313,10 @@ class PacketProtocolBase(asyncio.Protocol):
     def is_wanted(self, src_addr, dst_addr) -> bool:
         """Parse the packet, return True if the packet is not to be filtered out."""
         pkt_addrs = {src_addr, dst_addr}
-        if any(d.type == "18" for d in pkt_addrs):
+        if any(d.type == "18" for d in pkt_addrs):  # TODO: use GWY's full addr
             return True
         wanted = not self._include or any(d.id in self._include for d in pkt_addrs)
-        return wanted and all(d.id not in self._exclude for d in pkt_addrs)
+        return wanted or not all(d.id not in self._exclude for d in pkt_addrs)
 
     @staticmethod
     def _normalise(pkt_line: str) -> str:
