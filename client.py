@@ -65,7 +65,7 @@ MONITOR = "monitor"
 PARSE = "parse"
 
 DEBUG_ADDR = "0.0.0.0"
-DEBUG_PORT = 5679
+DEBUG_PORT = 5678
 
 COLORS = {" I": Fore.GREEN, "RP": Fore.CYAN, "RQ": Fore.CYAN, " W": Fore.MAGENTA}
 
