@@ -573,7 +573,14 @@ class Command:
     @classmethod  # constructor for W/2349
     @validate_zone_args
     def set_zone_mode(
-        cls, ctl_id: str, zone_idx: int, mode=None, setpoint=None, until=None, **kwargs
+        cls,
+        ctl_id: str,
+        zone_idx: int,
+        mode: str = None,
+        setpoint: float = None,
+        until: dt = None,
+        duration: int = None,
+        **kwargs,
     ):
         """Constructor to set/reset the mode of a zone (c.f. parser_2349).
 
@@ -585,31 +592,39 @@ class Command:
         Incompatible combinations:
         - mode == Follow & setpoint not None (will silently ignore setpoint)
         - mode == Temporary & until is None (will silently ignore ???)
+        - until and duration are mutually exclusive
         """
         #  W --- 18:013393 01:145038 --:------ 2349 013 0004E201FFFFFF330B1A0607E4
         #  W --- 22:017139 01:140959 --:------ 2349 007 0801F400FFFFFF
 
-        if mode is None and setpoint is None:
-            raise ValueError("Invalid args: Both mode and setpoint cant be None")
-
         if mode is None:
-            # TODO: the else may need to be profile-specific, e.g. ADVANCED for 01:
-            mode = ZoneMode.TEMPORARY if until else ZoneMode.PERMANENT
+            if setpoint is None:
+                raise ValueError("Invalid args: Both mode and setpoint are None")
+            elif until:
+                mode = ZoneMode.TEMPORARY
+            elif duration:
+                mode = ZoneMode.COUNTDOWN
+            else:
+                mode = ZoneMode.PERMANENT  # or: ZoneMode.ADVANCED
         elif isinstance(mode, int):
             mode = f"{mode:02X}"
+
         if mode in ZONE_MODE_MAP:
             mode = ZONE_MODE_MAP[mode]
         elif mode not in ZONE_MODE_LOOKUP:
             raise TypeError(f"Invalid args: Unknown mode: {mode}")
 
-        if setpoint is None and mode != ZoneMode.SCHEDULE:
-            raise ValueError(f"Invalid args: For {mode}, setpoint cant be None")
-        elif setpoint is not None and not isinstance(setpoint, (int, float)):
+        if setpoint is None:
+            if mode != ZoneMode.SCHEDULE:
+                raise ValueError(f"Invalid args: For {mode}, setpoint cant be None")
+        elif not isinstance(setpoint, (int, float)):
             raise ValueError(f"Invalid args: setpoint={setpoint}, should be float")
 
-        if until is None and mode == ZoneMode.TEMPORARY:
+        if mode == ZoneMode.TEMPORARY and until is None:
             mode = ZoneMode.ADVANCED  # until = dt.now() + td(hour=1)
-        elif until is not None and mode in (ZoneMode.SCHEDULE, ZoneMode.PERMANENT):
+        elif mode in (ZoneMode.SCHEDULE, ZoneMode.PERMANENT) and (
+            until is not None or duration is not None
+        ):
             raise ValueError(f"Invalid args: For {mode}, until should be None")
 
         assert mode in ZONE_MODE_LOOKUP, mode
@@ -617,7 +632,7 @@ class Command:
         payload = f"{zone_idx:02X}"
         payload += temp_to_hex(setpoint)  # None means max, if a temp is required
         payload += ZONE_MODE_LOOKUP[mode]
-        payload += "FFFFFF"  # duration (minutes remaining)
+        payload += "FFFFFF" if duration is None else f"{duration:06X}"
         payload += "" if until is None else dtm_to_hex(until)
 
         return cls(W_, "2349", payload, ctl_id, **kwargs)
