@@ -62,7 +62,7 @@ IDX_NAMES = {
 I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
 
 DEV_MODE = __dev_mode__
-TEST_MODE = False
+TEST_MODE = False  # enable to test constructors (usu. W)
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -1473,7 +1473,7 @@ def parser_2349(payload, msg) -> Optional[dict]:
             assert payload[6:8] != "03", f"{payload[6:8]} (0x00)"
         else:
             assert payload[6:8] == "03", f"{payload[6:8]} (0x01)"
-            result["minutes_remaining"] = int(payload[8:14], 16)
+            result["duration"] = int(payload[8:14], 16)
 
     if msg.len >= 13:
         if payload[14:] == "FF" * 6:
@@ -1485,11 +1485,11 @@ def parser_2349(payload, msg) -> Optional[dict]:
 
     # TODO: remove me...
     if TEST_MODE and msg.verb == W_:
-        KEYS = ("setpoint", "mode", "until")
+        KEYS = ("mode", "setpoint", "until", "duration")
         cmd = Command.set_zone_mode(
             msg.dst.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
         )
-        assert cmd.payload == payload, f"test payload: {cmd.payload}"
+        assert cmd.payload == payload, f"{cmd.payload}, not {payload}"
     # TODO: remove me...
 
     return result
