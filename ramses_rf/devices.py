@@ -356,7 +356,7 @@ class Setpoint:  # 2309
     @property
     def setpoint(self) -> Optional[float]:  # 2309
         if "2309" in self._msgs:
-            print(self._msgs["2309"])
+            # print(self._msgs["2309"])
             return self._msgs["2309"].payload[self.SETPOINT]
 
     @property
