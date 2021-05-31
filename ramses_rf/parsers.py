@@ -1675,7 +1675,7 @@ def parser_3150(payload, msg) -> Optional[dict]:
 
     def _parser(seqx) -> dict:
         # assert seqx[:2] == "FC" or (int(seqx[:2], 16) < MAX_ZONES)  # <5, 8 for UFC
-        assert seqx[2:] & 0xF0 == 0xF0 or int(seqx[2:], 16) <= 200
+        assert int(seqx[2:], 16) & 0xF0 == 0xF0 or int(seqx[2:], 16) <= 200
         return {**_idx(seqx[:2], msg), "heat_demand": _percent(seqx[2:])}
 
     if msg.src.type == "02" and msg.is_array:  # TODO: hometronics only?
