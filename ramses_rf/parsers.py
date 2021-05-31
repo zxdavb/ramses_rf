@@ -3,6 +3,11 @@
 #
 """RAMSES RF - payload processors."""
 
+# Many thanks to:
+# - Evsdd: 0404
+# - Ierlandfan: 3150, 31D9, 31DA, others
+# - ReneKlootwijk: 3EF0
+
 import logging
 import re
 from datetime import datetime as dt
@@ -1188,6 +1193,28 @@ def parser_12a0(payload, msg) -> Optional[dict]:
     # assert msg.len == 6 if type == ?? else 2, msg.len
     assert payload[:2] == "00", payload[:2]  # domain?
 
+    RHUM_STATE = {
+        "EF": "not available",
+        "F0": "sensor short circuit",
+        "F1": "sensor open",
+        "F2": "not available",
+        "F3": "sensor value too high",
+        "F4": "sensor value too low",
+        "F5": "sensor unreliable",
+    }  # EFFF = N/A
+    assert payload[2:4] in RHUM_STATE or int(payload[2:4], 16) <= 100
+
+    TEMP_STATE = {
+        "7F": "not available",
+        "80": "sensor short circuit",
+        "81": "sensor open",
+        "82": "not available",
+        "83": "sensor value too high",
+        "84": "sensor value too low",
+        "85": "sensor unreliable",
+    }  # 7F = N/A, same for 1298
+    assert payload[4:6] in TEMP_STATE or int(payload[4:8], 16) <= 200
+
     rh = int(payload[2:4], 16) / 100 if payload[2:4] != "EF" else None
     if msg.len == 2:
         return {"relative_humidity": rh}
@@ -1637,10 +1664,18 @@ def parser_3150(payload, msg) -> Optional[dict]:
     # event-driven, and periodically; FC domain is maximum of all zones
     # TODO: all have a valid domain will UFC/CTL respond to an RQ, for FC, for a zone?
 
-    #  I --- 04:136513 --:------ 01:158182 3150 002 01CA < Often see CA
+    #  I --- 04:136513 --:------ 01:158182 3150 002 01CA < often see CA
+
+    # VALVE_STATE = {
+    #     0x00: "open circuit",
+    #     0x01: "short circuit",
+    #     0x0D: "damper/valve stuck",
+    #     0x0E: "actuator stuck",
+    # }  # VALVE_STATE.get(seqx[2:], "malfunction")
 
     def _parser(seqx) -> dict:
         # assert seqx[:2] == "FC" or (int(seqx[:2], 16) < MAX_ZONES)  # <5, 8 for UFC
+        assert seqx[2:] & 0xF0 == 0xF0 or int(seqx[2:], 16) <= 200
         return {**_idx(seqx[:2], msg), "heat_demand": _percent(seqx[2:])}
 
     if msg.src.type == "02" and msg.is_array:  # TODO: hometronics only?
@@ -1652,12 +1687,20 @@ def parser_3150(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # ???
 def parser_31d9(payload, msg) -> Optional[dict]:
+    assert payload[:2] in ("00", "01", "21"), payload[2:4]
     assert payload[2:4] in ("00", "06", "80"), payload[2:4]
     assert payload[4:6] == "FF" or int(payload[4:6], 16) <= 200, payload[4:6]
 
+    bitmap = int(payload[2:4], 16)
+
     result = {
-        FanSwitch.FAN_RATE: _percent(payload[4:6]),  # NOTE: is 31DA/payload[38:40]
-        "_unknown_0": payload[2:4],
+        "exhaust_fan_speed": _percent(payload[4:6]),  # NOTE: is 31DA/payload[38:40]
+        "_passive": bool(bitmap & 0x02),
+        "_damper_only": bool(bitmap & 0x04),
+        "_filter_dirty": bool(bitmap & 0x20),
+        "_frost_cycle": bool(bitmap & 0x40),
+        "_has_fault": bool(bitmap & 0x80),
+        "_bitmap_0": payload[2:4],
     }
 
     if msg.len == 3:  # usu: I -->20: (no seq#)
@@ -1679,7 +1722,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
 @parser_decorator  # UFC HCE80 (Nuaire humidity)
 def parser_31da(payload, msg) -> Optional[dict]:
 
-    FAN_INFO = {
+    CODE_31DA_FAN_INFO = {
         0x00: "off",
         0x01: "speed 1",
         0x02: "speed 2",
@@ -1755,7 +1798,7 @@ def parser_31da(payload, msg) -> Optional[dict]:
         "outdoor_temperature": _double(payload[26:30], factor=100),  # TODO: 1290?
         "speed_cap": int(payload[30:34], 16),
         "bypass_pos": _percent(payload[34:36]),
-        "fan_info": FAN_INFO[int(payload[36:38], 16) & 0x1F],
+        "fan_info": CODE_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],
         "exhaust_fan_speed": _percent(payload[38:40]),  # NOTE: 31D9/payload[4:6]
         "supply_fan_speed": _percent(payload[40:42]),
         "remaining_time": _double(payload[42:46]),  # mins NOTE: 22F3/payload[2:6]
@@ -1887,7 +1930,6 @@ def parser_3b00(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # actuator_state
 def parser_3ef0(payload, msg) -> dict:
-    # Some of this data thanks to @ReneKlootwijk
 
     if msg.src.type in "08":  # Honeywell Jasper ?HVAC
         assert msg.len == 20, f"expecting len 20, got: {msg.len}"
