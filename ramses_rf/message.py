@@ -55,7 +55,22 @@ I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
 
 # TODO: WIP
 MSG_TIMEOUTS = {
+    "0004": {I_: td(days=1), RP: td(days=1)},
+    "0005": {I_: td(days=1), RP: td(days=1)},
+    "000A": {I_: td(days=1), RP: td(days=1)},
+    "000C": {I_: td(days=1), RP: td(days=1)},
+    "0100": {I_: td(days=1), RP: td(days=1)},
     "1060": {I_: td(days=1)},
+    "10E0": {I_: td(days=7), RP: td(days=7)},
+    "1260": {I_: td(hours=1), RP: td(hours=1)},
+    "12B0": {I_: td(hours=1), RP: td(hours=1)},
+    "1F41": {I_: td(hours=4), RP: td(hours=4)},
+    "2309": {I_: td(minutes=15), RP: td(minutes=4)},
+    "2349": {I_: td(hours=4), RP: td(hours=4)},
+    "2E04": {I_: td(hours=4), RP: td(hours=4)},
+    "313F": {I_: td(seconds=3), RP: td(seconds=3)},
+    "3150": {I_: td(minutes=20)},
+    "3C09": {I_: td(hours=4), RP: td(hours=4)},
 }
 
 DEV_MODE = __dev_mode__ and False
@@ -253,10 +268,22 @@ class Message:
         if self._is_array is not None:
             return self._is_array
 
-        if self.code in ("000C", "1FC9"):  # also: 0005?
+        if self.verb in (RQ, W_):
+            self._is_array = False
+
+        elif self.code in ("000C", "1FC9"):  # also: 0005?
             # grep -E ' (I|RP).* 000C '  #  from 01:/30: (VMS) only
             # grep -E ' (I|RP).* 1FC9 '  #  from 01:/13:/other (not W)
-            self._is_array = self.verb in (I_, RP)
+            self._is_array = True
+
+        # elif self.verb == RP:
+        #     self._is_array = False
+
+        # # 087  I 092 --:------ --:------ 12:126457 2309 006 0107D0-020708
+        # # 090  I 093 --:------ --:------ 12:126457 30C9 003 017FFF
+        # # 089  I 094 --:------ --:------ 12:126457 000A 012 010001F40BB8-020001F40BB8
+        # elif self.code in ("000A", "2309", "30C9") and self.src.type == "12":
+        #     self._is_array = self.verb == I_ and self.dst.id == "--:------"
 
         elif self.verb not in (I_, RP) or self.src.id != self.dst.id:
             self._is_array = False
@@ -310,24 +337,24 @@ class Message:
         def _timeout() -> td:  # TODO: move this to RAMSES pkt schema
             timeout = None
 
-            if self.code in MSG_TIMEOUTS and self.verb in MSG_TIMEOUTS[self.code]:
+            if self.verb in (RQ, W_):
+                timeout = td(seconds=3)
+
+            elif self.code == "1F09":
+                timeout = td(seconds=self.payload["remaining_seconds"])
+
+            elif self.code == "000A" and self._is_array:
+                timeout = td(minutes=60)  # sends I /1h
+
+            elif self.code in ("2309", "30C9") and self._is_array:
+                timeout = td(minutes=15)  # sends I /sync_cycle
+
+            elif self.code in MSG_TIMEOUTS and self.verb in MSG_TIMEOUTS[self.code]:
                 return MSG_TIMEOUTS[self.code][self.verb]
 
-            # TODO: Use this, or retest every time (to get logger messages)
-            if self.code in ("1F09", "313F") and self.src._is_controller:
-                timeout = td(seconds=3)
-            elif self.code in ("2309", "30C9") and self.src._is_controller:
-                timeout = td(minutes=15)  # send I /sync_interval (~3 mins)
-            elif self.code in ("3150",):
-                timeout = td(minutes=20)  # sends I /20min
-            # elif self.code in ("000A", "2E04") and self.src._is_controller:
-            #     timeout = td(minutes=60)  # sends I /1h
-            elif self.code in ("1260", "12B0"):  # , "1F41"):
-                timeout = td(minutes=60)  # sends I /1h
-            # elif self.code in ("2349",):  # no spontaneous I/2349, must be RQ'd
-            #     timeout = td(minutes=60)  # or longer if READ_ONLY mode?
             # elif self.code in ("3B00", "3EF0", ):  # TODO: 0008, 3EF0, 3EF1
             #     timeout = td(minutes=6.7)  # TODO: WIP
+
             return timeout or td(minutes=60)
 
         if self._is_expired == self.HAS_EXPIRED:
@@ -337,7 +364,7 @@ class Message:
 
         if timeout is None:  # treat as never expiring
             self._is_expired = self.NOT_EXPIRED
-            _logger_send(_LOGGER.debug, "is not expirable (be careful)")
+            _logger_send(_LOGGER.debug, "msg is not expirable ({dtm_now}, {timeout})")
             return self._is_expired
 
         if self._gwy.serial_port:
@@ -347,13 +374,13 @@ class Message:
 
         if self.dtm < dtm_now - timeout * 2:
             self._is_expired = self.HAS_EXPIRED
-            _logger_send(_LOGGER.warning, "msg has expired")
+            _logger_send(_LOGGER.error, f"msg has tombstoned ({dtm_now}, {timeout})")
         elif self.dtm < dtm_now - timeout * 1:
             self._is_expired = self.IS_EXPIRING
-            _logger_send(_LOGGER.info, "msg has not expired, but is dated")
+            _logger_send(_LOGGER.info, f"msg has expired ({dtm_now}, {timeout})")
         else:
             self._is_expired = self.NOT_EXPIRED
-            _logger_send(_LOGGER.debug, "msg has not expired")
+            _logger_send(_LOGGER.debug, f"msg has not expired ({dtm_now}, {timeout})")
         return self._is_expired
 
     @property
