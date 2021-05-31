@@ -82,7 +82,6 @@ class SysDatetime:  # 313F
 
         if discover_flag & DISCOVER_STATUS:
             self._gwy.send_cmd(Command.get_system_time(self.id))
-            # self._send_cmd("313F")
 
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
@@ -134,7 +133,8 @@ class SysLanguage:  # 0100
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_PARAMS:
-            self._send_cmd("0100")  # language
+            # self._send_cmd("0100")  # language
+            self._gwy.send_cmd(Command.get_system_language(self.id))
 
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
@@ -164,7 +164,6 @@ class SysMode:  # 2E04
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
-            # self._send_cmd("2E04", payload="FF")  # system mode
             self._gwy.send_cmd(Command.get_system_mode(self.id))
 
     def _handle_msg(self, msg, prev_msg=None):
@@ -652,7 +651,8 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             ]
 
         if discover_flag & DISCOVER_PARAMS:
-            self._send_cmd("1100", payload="FC")  # TPI params
+            # self._send_cmd("1100", payload="FC")  # TPI params
+            self._gwy.send_cmd(Command.get_tpi_params(self.id))
 
         # # for code in ("3B00",):  # 3EF0, 3EF1
         # #     for payload in ("0000", "00", "F8", "F9", "FA", "FB", "FC", "FF"):

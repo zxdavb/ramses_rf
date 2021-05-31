@@ -150,6 +150,25 @@ def _pkt_header(pkt: str, rx_header=None) -> Optional[str]:
     return "|".join((header, payload[:2]))  # assume has a domain_id
 
 
+def validate_system_args(fcn):
+    """Validate/normalise any args common to all systems calls (ctl_id)."""
+
+    def wrapper(cls, ctl_id, *args, **kwargs):
+        return fcn(cls, ctl_id, *args, **kwargs)
+
+    return wrapper
+
+
+def validate_zone_args(fcn):
+    """Validate/normalise any args common to all zone calls (ctl_id, zone_idx)."""
+
+    def wrapper(cls, ctl_id, zone_idx, *args, **kwargs):
+        zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
+        return fcn(cls, ctl_id, zone_idx, *args, **kwargs)
+
+    return wrapper
+
+
 @total_ordering
 class Command:
     """The command class."""
@@ -288,13 +307,17 @@ class Command:
             other._priority_dtm,
         )
 
-    @classmethod  # constructor for 1F41  # TODO
-    def get_dhw_mode(cls, ctl_id, **kwargs):
+    @classmethod  # constructor for RQ/1F41
+    @validate_system_args
+    def get_dhw_mode(cls, ctl_id: str, **kwargs):
         """Constructor to get the mode of the DHW (c.f. parser_1f41)."""
         return cls(RQ, "1F41", "00", ctl_id, **kwargs)
 
-    @classmethod  # constructor for 1F41  # TODO
-    def set_dhw_mode(cls, ctl_id, mode=None, active: bool = None, until=None, **kwargs):
+    @classmethod  # constructor for RQ/1F41
+    @validate_system_args
+    def set_dhw_mode(
+        cls, ctl_id: str, mode=None, active: bool = None, until=None, **kwargs
+    ):
         """Constructor to set/reset the mode of the DHW (c.f. parser_1f41)."""
 
         if mode is None and active is None:
@@ -328,10 +351,11 @@ class Command:
 
         return cls(W_, "1F41", payload, ctl_id, **kwargs)
 
-    @classmethod  # constructor for 10A0  # TODO
+    @classmethod  # constructor for RQ/10A0
+    @validate_system_args
     def set_dhw_params(
         cls,
-        ctl_id,
+        ctl_id: str,
         setpoint: float = 50.0,
         overrun: int = 5,
         differential: int = 1,
@@ -355,53 +379,44 @@ class Command:
 
         return cls(W_, "10A0", payload, ctl_id, **kwargs)
 
-    @classmethod  # constructor for RQ/0404  # TODO
-    def get_dhw_schedule_fragment(cls, ctl_id, frag_idx, frag_cnt, **kwargs):
+    @classmethod  # constructor for RQ/0404
+    @validate_system_args
+    def get_dhw_schedule_fragment(
+        cls, ctl_id: str, frag_idx: int, frag_cnt: int, **kwargs
+    ):
         """Constructor to get a DHW schedule fragment (c.f. parser_0404)."""
         payload = f"0023000800{frag_idx + 1:02X}{frag_cnt:02X}"
         return cls(RQ, "0404", payload, ctl_id, **kwargs)
 
-    @classmethod  # constructor for 1030  # TODO
-    def set_mix_valve_params(
-        cls,
-        ctl_id,
-        zone_idx,
-        max_flow_setpoint=55,
-        min_flow_setpoint=15,
-        valve_run_time=150,
-        pump_run_time=15,
-        **kwargs,
-    ):
-        """Constructor to set the mix valve params of a zone (c.f. parser_1030)."""
+    @classmethod  # constructor for RQ/3220
+    def get_opentherm_data(cls, dev_id: str, msg_id: int, **kwargs):
+        """Constructor to get (Read-Data) opentherm msg value (c.f. parser_3220)."""
+        msg_id = msg_id if isinstance(msg_id, int) else int(msg_id, 16)
+        payload = f"0080{msg_id:02X}0000" if parity(msg_id) else f"0000{msg_id:02X}0000"
+        return cls(RQ, "3220", payload, dev_id, **kwargs)
 
-        payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
-
-        assert 0 <= max_flow_setpoint <= 99, max_flow_setpoint
-        assert 0 <= min_flow_setpoint <= 50, min_flow_setpoint
-        assert 0 <= valve_run_time <= 240, valve_run_time
-        assert 0 <= pump_run_time <= 99, pump_run_time
-
-        payload += f"C801{max_flow_setpoint:02X}"
-        payload += f"C901{min_flow_setpoint:02X}"
-        payload += f"CA01{valve_run_time:02X}"
-        payload += f"CB01{pump_run_time:02X}"
-        payload += f"CC01{1:02X}"
-
-        return cls(W_, "1030", payload, ctl_id, **kwargs)
-
-    @classmethod  # constructor for RQ/0418  # TODO
-    def get_system_log_entry(cls, ctl_id, log_idx, **kwargs):
+    @classmethod  # constructor for RQ/0418
+    @validate_system_args
+    def get_system_log_entry(cls, ctl_id: str, log_idx: int, **kwargs):
         """Constructor to get a log entry from a system (c.f. parser_0418)."""
         log_idx = log_idx if isinstance(log_idx, int) else int(log_idx, 16)
         return cls(RQ, "0418", f"{log_idx:06X}", ctl_id, **kwargs)
 
+    @classmethod  # constructor for RQ/0100
+    @validate_system_args
+    def get_system_language(cls, ctl_id: str, **kwargs):
+        """Constructor to get the language of a system (c.f. parser_0100)."""
+        return cls(RQ, "0100", "00", ctl_id, **kwargs)
+
     @classmethod  # constructor for RQ/2E04
-    def get_system_mode(cls, ctl_id, **kwargs):
+    @validate_system_args
+    def get_system_mode(cls, ctl_id: str, **kwargs):
         """Constructor to get the mode of a system (c.f. parser_2e04)."""
         return cls(RQ, "2E04", "FF", ctl_id, **kwargs)
 
-    @classmethod  # constructor for 2E04  # TODO
-    def set_system_mode(cls, ctl_id, system_mode, until=None, **kwargs):
+    @classmethod  # constructor for W/2E04
+    @validate_system_args
+    def set_system_mode(cls, ctl_id: str, system_mode, until=None, **kwargs):
         """Constructor to set/reset the mode of a system (c.f. parser_2e04)."""
 
         if system_mode is None:
@@ -427,35 +442,32 @@ class Command:
 
         return cls(W_, "2E04", payload, ctl_id, **kwargs)
 
-    @classmethod  # constructor for RQ/3220  # TODO
-    def get_opentherm_data(cls, dev_id, msg_id, **kwargs):
-        """Constructor to get (Read-Data) opentherm msg value (c.f. parser_3220)."""
-        msg_id = msg_id if isinstance(msg_id, int) else int(msg_id, 16)
-        payload = f"0080{msg_id:02X}0000" if parity(msg_id) else f"0000{msg_id:02X}0000"
-        return cls(RQ, "3220", payload, dev_id, **kwargs)
-
     @classmethod  # constructor for RQ/313F
-    def get_system_time(cls, ctl_id, **kwargs):
+    @validate_system_args
+    def get_system_time(cls, ctl_id: str, **kwargs):
         """Constructor to get the datetime of a system (c.f. parser_313f)."""
         return cls(RQ, "313F", "00", ctl_id, **kwargs)
 
-    @classmethod  # constructor for 313F
-    def set_system_time(cls, ctl_id, datetime, **kwargs):
+    @classmethod  # constructor for W/313F
+    @validate_system_args
+    def set_system_time(cls, ctl_id: str, datetime, **kwargs):
         """Constructor to set the datetime of a system (c.f. parser_313f)."""
         #  W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
 
         return cls(W_, "313F", f"006000{dtm_to_hex(datetime)}", ctl_id, **kwargs)
 
-    @classmethod  # constructor for RQ/1100  # TODO
-    def get_tpi_params(cls, ctl_id, **kwargs):
+    @classmethod  # constructor for RQ/1100
+    @validate_system_args
+    def get_tpi_params(cls, ctl_id: str, **kwargs):
         """Constructor to get the TPI params of a system (c.f. parser_1100)."""
         return cls(RQ, "1100", "FC", ctl_id, **kwargs)
 
-    @classmethod  # constructor for 1100  # TODO
+    @classmethod  # constructor for W/1100
+    @validate_system_args
     def set_tpi_params(
         cls,
-        ctl_id,
-        domain_id,
+        ctl_id: str,
+        domain_id: str,
         cycle_rate=3,  # TODO: check
         min_on_time=5,  # TODO: check
         min_off_time=5,  # TODO: check
@@ -480,17 +492,18 @@ class Command:
 
         return cls(W_, "1100", payload, ctl_id, **kwargs)
 
-    @classmethod  # constructor for RQ/000A  # TODO
-    def get_zone_config(cls, ctl_id, zone_idx, **kwargs):
+    @classmethod  # constructor for RQ/000A
+    @validate_zone_args
+    def get_zone_config(cls, ctl_id: str, zone_idx: int, **kwargs):
         """Constructor to get the config of a zone (c.f. parser_000a)."""
-        zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
-        return cls(RQ, "000A", f"{zone_idx:02X}00", ctl_id, **kwargs)
+        return cls(RQ, "000A", f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
 
-    @classmethod  # constructor for 000A  # TODO
+    @classmethod  # constructor for W/000A
+    @validate_zone_args
     def set_zone_config(
         cls,
-        ctl_id,
-        zone_idx,
+        ctl_id: str,
+        zone_idx: int,
         min_temp=5,
         max_temp=35,
         local_override: bool = False,
@@ -499,8 +512,6 @@ class Command:
         **kwargs,
     ):
         """Constructor to set the config of a zone (c.f. parser_000a)."""
-
-        payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
 
         assert 5 <= min_temp <= 21, min_temp
         assert 21 <= max_temp <= 35, max_temp
@@ -512,21 +523,57 @@ class Command:
         bitmap |= 0 if openwindow_function else 2
         bitmap |= 0 if multiroom_mode else 16
 
+        payload = f"{zone_idx:02X}"
         payload += f"{bitmap:02X}"
         payload += temp_to_hex(min_temp)
         payload += temp_to_hex(max_temp)
 
         return cls(W_, "000A", payload, ctl_id, **kwargs)
 
+    @classmethod  # constructor for RQ/1030
+    @validate_zone_args
+    def get_mix_valve_params(cls, ctl_id: str, zone_idx: int, **kwargs):
+        """Constructor to get the mix valve params of a zone (c.f. parser_1030)."""
+        return cls(RQ, "1030", f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
+
+    @classmethod  # constructor for W/1030
+    @validate_zone_args
+    def set_mix_valve_params(
+        cls,
+        ctl_id: str,
+        zone_idx: int,
+        max_flow_setpoint=55,
+        min_flow_setpoint=15,
+        valve_run_time=150,
+        pump_run_time=15,
+        **kwargs,
+    ):
+        """Constructor to set the mix valve params of a zone (c.f. parser_1030)."""
+
+        assert 0 <= max_flow_setpoint <= 99, max_flow_setpoint
+        assert 0 <= min_flow_setpoint <= 50, min_flow_setpoint
+        assert 0 <= valve_run_time <= 240, valve_run_time
+        assert 0 <= pump_run_time <= 99, pump_run_time
+
+        payload = f"{zone_idx:02X}"
+        payload += f"C801{max_flow_setpoint:02X}"
+        payload += f"C901{min_flow_setpoint:02X}"
+        payload += f"CA01{valve_run_time:02X}"
+        payload += f"CB01{pump_run_time:02X}"
+        payload += f"CC01{1:02X}"
+
+        return cls(W_, "1030", payload, ctl_id, **kwargs)
+
     @classmethod  # constructor for RQ/2349
-    def get_zone_mode(cls, ctl_id, zone_idx, **kwargs):
+    @validate_zone_args
+    def get_zone_mode(cls, ctl_id: str, zone_idx: int, **kwargs):
         """Constructor to get the mode of a zone (c.f. parser_2349)."""
-        zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
-        return cls(RQ, "2349", f"{zone_idx:02X}00", ctl_id, **kwargs)
+        return cls(RQ, "2349", f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
 
     @classmethod  # constructor for W/2349
+    @validate_zone_args
     def set_zone_mode(
-        cls, ctl_id, zone_idx, mode=None, setpoint=None, until=None, **kwargs
+        cls, ctl_id: str, zone_idx: int, mode=None, setpoint=None, until=None, **kwargs
     ):
         """Constructor to set/reset the mode of a zone (c.f. parser_2349).
 
@@ -537,7 +584,7 @@ class Command:
 
         Incompatible combinations:
         - mode == Follow & setpoint not None (will silently ignore setpoint)
-        - mode == Temporary & until is None (will silently ignore)
+        - mode == Temporary & until is None (will silently ignore ???)
         """
         #  W --- 18:013393 01:145038 --:------ 2349 013 0004E201FFFFFF330B1A0607E4
         #  W --- 22:017139 01:140959 --:------ 2349 007 0801F400FFFFFF
@@ -567,44 +614,55 @@ class Command:
 
         assert mode in ZONE_MODE_LOOKUP, mode
 
-        payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
+        payload = f"{zone_idx:02X}"
         payload += temp_to_hex(setpoint)  # None means max, if a temp is required
-        payload += ZONE_MODE_LOOKUP[mode] + "FFFFFF"
+        payload += ZONE_MODE_LOOKUP[mode]
+        payload += "FFFFFF"  # duration (minutes remaining)
         payload += "" if until is None else dtm_to_hex(until)
 
         return cls(W_, "2349", payload, ctl_id, **kwargs)
 
-    @classmethod  # constructor for RQ/0004  # TODO
-    def get_zone_name(cls, ctl_id, zone_idx, **kwargs):
+    @classmethod  # constructor for RQ/0004
+    @validate_zone_args
+    def get_zone_name(cls, ctl_id: str, zone_idx: int, **kwargs):
         """Constructor to get the name of a zone (c.f. parser_0004)."""
-        zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
-        return cls(RQ, "0004", f"{zone_idx:02X}00", ctl_id, **kwargs)
+        return cls(RQ, "0004", f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
 
-    @classmethod  # constructor for 0004  # TODO
-    def set_zone_name(cls, ctl_id, zone_idx, name: str, **kwargs):
+    @classmethod  # constructor for W/0004
+    @validate_zone_args
+    def set_zone_name(cls, ctl_id: str, zone_idx: int, name: str, **kwargs):
         """Constructor to set the name of a zone (c.f. parser_0004)."""
-
-        payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
-        payload += f"00{str_to_hex(name)[:24]:0<40}"  # TODO: check limit 12 (24)?
-
+        payload = f"{zone_idx:02X}00{str_to_hex(name)[:24]:0<40}"  # TODO: check 12/24?
         return cls(W_, "0004", payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for 2309
-    def set_zone_setpoint(cls, ctl_id, zone_idx, setpoint: float, **kwargs):
+    @validate_zone_args
+    def set_zone_setpoint(cls, ctl_id: str, zone_idx: int, setpoint: float, **kwargs):
         """Constructor to set the setpoint of a zone (c.f. parser_2309)."""
         #  W --- 34:092243 01:145038 --:------ 2309 003 0107D0
-
-        payload = f"{zone_idx:02X}" if isinstance(zone_idx, int) else zone_idx
-        payload += temp_to_hex(setpoint)
-
+        payload = f"{zone_idx:02X}{temp_to_hex(setpoint)}"
         return cls(W_, "2309", payload, ctl_id, **kwargs)
 
-    @classmethod  # constructor for RQ/0404  # TODO
-    def get_zone_schedule_fragment(cls, ctl_id, zone_idx, frag_idx, frag_cnt, **kwargs):
+    @classmethod  # constructor for RQ/0404
+    @validate_zone_args
+    def get_zone_schedule_fragment(
+        cls, ctl_id: str, zone_idx: int, frag_idx: int, frag_cnt: int, **kwargs
+    ):
         """Constructor to get a zone schedule fragment (c.f. parser_0404)."""
-        zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
         payload = f"{zone_idx:02X}20000800{frag_idx + 1:02X}{frag_cnt:02X}"
         return cls(RQ, "0404", payload, ctl_id, **kwargs)
+
+    @classmethod  # constructor for RQ/30C9
+    @validate_zone_args
+    def get_zone_temperature(cls, ctl_id: str, zone_idx: int, **kwargs):
+        """Constructor to get the current temperature of a zone (c.f. parser_30c9)."""
+        return cls(RQ, "30C9", f"{zone_idx:02X}", ctl_id, **kwargs)
+
+    @classmethod  # constructor for RQ/12B0
+    @validate_zone_args
+    def get_zone_window_state(cls, ctl_id: str, zone_idx: int, **kwargs):
+        """Constructor to get the openwindow state of a zone (c.f. parser_12b0)."""
+        return cls(RQ, "12B0", f"{zone_idx:02X}", ctl_id, **kwargs)
 
     @classmethod
     def packet(
@@ -644,14 +702,14 @@ class Command:
         return cmd
 
     @classmethod  # constructor for 0002
-    def put_outdoor_temp(cls, dev_id, temperature: float, **kwargs):
+    def put_outdoor_temp(cls, dev_id: str, temperature: float, **kwargs):
         """Constructor to announce the temperature of an external sensor (0002)."""
 
         payload = f"00{temp_to_hex(temperature)}01"
         return cls.packet(I_, "0002", payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
     @classmethod  # constructor for 30C9
-    def put_sensor_temp(cls, dev_id, temperature: float, **kwargs):
+    def put_sensor_temp(cls, dev_id: str, temperature: float, **kwargs):
         """Constructor to announce the temperature of a zone sensor (3C09)."""
         #  I --- 34:021943 --:------ 34:021943 30C9 003 000C0D
 

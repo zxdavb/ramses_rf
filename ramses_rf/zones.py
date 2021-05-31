@@ -526,14 +526,14 @@ class Zone(ZoneSchedule, ZoneBase):
                 for dev_type in ("00", "04")  # CODE_000C_ZONE_TYPE
             ]
 
-        if discover_flag & DISCOVER_PARAMS:
+        if discover_flag & DISCOVER_PARAMS:  # every 4h
             self._gwy.send_cmd(Command.get_zone_config(self._ctl.id, self.idx))  # 000A
             self._gwy.send_cmd(Command.get_zone_name(self._ctl.id, self.idx))  # 0004
 
-        if discover_flag & DISCOVER_STATUS:
-            self._gwy.send_cmd(Command.get_zone_mode(self._ctl.id, self.idx))  # 2349
-            for code in ("12B0", "30C9"):  # sadly, CTL will not respond to a 3150
-                self._send_cmd(code)  # , payload=self.idx)
+        if discover_flag & DISCOVER_STATUS:  # every 1h, CTL will not respond to a 3150
+            self._gwy.send_cmd(Command.get_zone_mode(self._ctl.id, self.idx))
+            self._gwy.send_cmd(Command.get_zone_temperature(self._ctl.id, self.idx))
+            self._gwy.send_cmd(Command.get_zone_window_state(self._ctl.id, self.idx))
 
         # start collecting the schedule
         # self._schedule.req_schedule()  # , restart=True) start collecting schedule
@@ -862,7 +862,8 @@ class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
-        self._send_cmd("000C", payload=f"{self.idx}11")
+        if discover_flag & DISCOVER_SCHEMA:
+            self._send_cmd("000C", payload=f"{self.idx}11")
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -890,7 +891,11 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
-        self._send_cmd("000C", payload=f"{self.idx}0B")
+        if discover_flag & DISCOVER_SCHEMA:
+            self._send_cmd("000C", payload=f"{self.idx}0B")
+
+        if discover_flag & DISCOVER_PARAMS:
+            self._gwy.send_cmd(Command.get_mix_valve_params(self._ctl.id, self.idx))
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -914,7 +919,8 @@ class RadZone(Zone):  # HR92/HR80
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
-        self._send_cmd("000C", payload=f"{self.idx}08")
+        if discover_flag & DISCOVER_SCHEMA:
+            self._send_cmd("000C", payload=f"{self.idx}08")
 
 
 class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
@@ -924,7 +930,8 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
-        self._send_cmd("000C", payload=f"{self.idx}09")
+        if discover_flag & DISCOVER_SCHEMA:
+            self._send_cmd("000C", payload=f"{self.idx}09")
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -948,7 +955,8 @@ class ValZone(EleZone):  # BDR91A/T
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
-        self._send_cmd("000C", payload=f"{self.idx}0A")
+        if discover_flag & DISCOVER_SCHEMA:
+            self._send_cmd("000C", payload=f"{self.idx}0A")
 
     @property
     def heat_demand(self) -> Optional[float]:  # 0008 (NOTE: not 3150)

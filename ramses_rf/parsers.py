@@ -77,7 +77,7 @@ def re_compile_re_match(regex, string) -> bool:
 @lru_cache(maxsize=128)
 def _idx_idx(seqx, code, src_type, dst_type) -> dict:
 
-    if code in IDX_NAMES:
+    if code in IDX_NAMES:  # these codes always have these idx_names
         return {IDX_NAMES[code]: seqx}
 
     elif code == "0016":  # WIP, not normally {"uses_zone_idx": True}
@@ -604,7 +604,7 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:
     if msg.verb == RQ and msg.len <= 2:
         return _idx(payload[:2], msg)
 
-    if msg.is_array:  # TODO: these msgs can require 2 pkts!
+    if msg.is_array:  # or msg.len >= 6:  # TODO: these msgs can require 2 pkts!
         assert msg.len >= 6 and msg.len % 6 == 0, "expecting length mod 6"
         return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
 
@@ -927,7 +927,7 @@ def parser_1030(payload, msg) -> Optional[dict]:
             "valve_run_time",
             "pump_run_time",
         )
-        cmd = Command.set_mix_valve_params(
+        cmd = Command.get_mix_valve_params(
             msg.dst.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
         )
         assert cmd.payload == payload, cmd.payload
@@ -1434,7 +1434,7 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:
     if msg.verb == RQ and msg.len <= 2:
         return _idx(payload[:2], msg)
 
-    if msg.is_array:
+    if msg.is_array:  # or msg.len >= 6:
         assert msg.len >= 3 and msg.len % 3 == 0, "expecting length mod 3"
         return [_parser(payload[i : i + 6]) for i in range(0, len(payload), 6)]
 
