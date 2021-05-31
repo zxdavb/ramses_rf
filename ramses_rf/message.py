@@ -276,14 +276,14 @@ class Message:
             # grep -E ' (I|RP).* 1FC9 '  #  from 01:/13:/other (not W)
             self._is_array = True
 
-        # elif self.verb == RP:
-        #     self._is_array = False
+        elif self.verb == RP:
+            self._is_array = False
 
-        # # 087  I 092 --:------ --:------ 12:126457 2309 006 0107D0-020708
-        # # 090  I 093 --:------ --:------ 12:126457 30C9 003 017FFF
-        # # 089  I 094 --:------ --:------ 12:126457 000A 012 010001F40BB8-020001F40BB8
-        # elif self.code in ("000A", "2309", "30C9") and self.src.type == "12":
-        #     self._is_array = self.verb == I_ and self.dst.id == "--:------"
+        # 087  I 092 --:------ --:------ 12:126457 2309 006 0107D0-020708
+        # 090  I 093 --:------ --:------ 12:126457 30C9 003 017FFF
+        # 089  I 094 --:------ --:------ 12:126457 000A 012 010001F40BB8-020001F40BB8
+        elif self.code in ("000A", "2309", "30C9") and self.src.type == "12":
+            self._is_array = self.verb == I_ and self.dst.id == "--:------"
 
         elif self.verb not in (I_, RP) or self.src.id != self.dst.id:
             self._is_array = False

@@ -3,6 +3,7 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
+import asyncio
 import logging
 from abc import ABCMeta, abstractmethod
 from typing import Any, Dict, List, Optional
@@ -45,6 +46,18 @@ DEV_MODE = __dev_mode__ and False
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
+
+
+def periodic(period):
+    def scheduler(fcn):
+        async def wrapper(*args, **kwargs):
+            while True:
+                asyncio.create_task(fcn(*args, **kwargs))
+                await asyncio.sleep(period)
+
+        return wrapper
+
+    return scheduler
 
 
 class Entity:
@@ -343,6 +356,7 @@ class Setpoint:  # 2309
     @property
     def setpoint(self) -> Optional[float]:  # 2309
         if "2309" in self._msgs:
+            print(self._msgs["2309"])
             return self._msgs["2309"].payload[self.SETPOINT]
 
     @property

@@ -100,6 +100,16 @@ def _idx_idx(seqx, code, src_type, dst_type) -> dict:
             )
             return {idx_name: seqx}
 
+        if src_type != dst_type and not {src_type} & {
+            "01",
+            "12",
+            "23",
+        }:  # to/from a controller
+            idx_name = (
+                "zone_idx" if src_type in ("01", "02", "23", "18") else "parent_idx"
+            )
+            return {idx_name: seqx}
+
         #  I --- 02:001075 --:------ 02:001075 3150 006 000001000200
         #  I --- 02:000921 --:------ 02:000921 3150 006 00B201C802A8
         if src_type == "02":  # and src_type == dst_type:  # src == dst:
