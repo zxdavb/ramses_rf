@@ -344,10 +344,13 @@ class Command:
 
         assert mode in ZONE_MODE_LOOKUP, mode
 
-        payload = "00"
-        payload += "01" if bool(active) else "00"
-        payload += ZONE_MODE_LOOKUP[mode] + "FFFFFF"
-        payload += "" if until is None else dtm_to_hex(until)
+        payload = "".join(
+            "00",
+            "01" if bool(active) else "00",
+            ZONE_MODE_LOOKUP[mode],
+            "FFFFFF",  # duration?
+            "" if until is None else dtm_to_hex(until),
+        )
 
         return cls(W_, "1F41", payload, ctl_id, **kwargs)
 
@@ -476,8 +479,6 @@ class Command:
     ):
         """Constructor to set the TPI params of a system (c.f. parser_1100)."""
 
-        payload = f"{domain_id:02X}" if isinstance(domain_id, int) else domain_id
-
         assert cycle_rate is None or cycle_rate in (3, 6, 9, 12), cycle_rate
         assert min_on_time is None or 1 <= min_on_time <= 5, min_on_time
         assert min_off_time is None or 1 <= min_off_time <= 5, min_off_time
@@ -485,10 +486,13 @@ class Command:
             proportional_band_width is None or 1.5 <= proportional_band_width <= 3.0
         ), proportional_band_width
 
-        payload += f"{cycle_rate * 4:02X}"
-        payload += f"{int(min_on_time * 4):02X}"
-        payload += f"{int(min_off_time * 4):02X}FF"
-        payload += f"{temp_to_hex(proportional_band_width)}01"
+        payload = "".join(
+            f"{domain_id:02X}" if isinstance(domain_id, int) else domain_id,
+            f"{cycle_rate * 4:02X}",
+            f"{int(min_on_time * 4):02X}",
+            f"{int(min_off_time * 4):02X}FF",
+            f"{temp_to_hex(proportional_band_width)}01",
+        )
 
         return cls(W_, "1100", payload, ctl_id, **kwargs)
 
@@ -523,10 +527,12 @@ class Command:
         bitmap |= 0 if openwindow_function else 2
         bitmap |= 0 if multiroom_mode else 16
 
-        payload = f"{zone_idx:02X}"
-        payload += f"{bitmap:02X}"
-        payload += temp_to_hex(min_temp)
-        payload += temp_to_hex(max_temp)
+        payload = "".join(
+            f"{zone_idx:02X}",
+            f"{bitmap:02X}",
+            temp_to_hex(min_temp),
+            temp_to_hex(max_temp),
+        )
 
         return cls(W_, "000A", payload, ctl_id, **kwargs)
 
@@ -555,12 +561,14 @@ class Command:
         assert 0 <= valve_run_time <= 240, valve_run_time
         assert 0 <= pump_run_time <= 99, pump_run_time
 
-        payload = f"{zone_idx:02X}"
-        payload += f"C801{max_flow_setpoint:02X}"
-        payload += f"C901{min_flow_setpoint:02X}"
-        payload += f"CA01{valve_run_time:02X}"
-        payload += f"CB01{pump_run_time:02X}"
-        payload += f"CC01{1:02X}"
+        payload = "".join(
+            f"{zone_idx:02X}",
+            f"C801{max_flow_setpoint:02X}",
+            f"C901{min_flow_setpoint:02X}",
+            f"CA01{valve_run_time:02X}",
+            f"CB01{pump_run_time:02X}",
+            f"CC01{1:02X}",
+        )
 
         return cls(W_, "1030", payload, ctl_id, **kwargs)
 
@@ -629,11 +637,13 @@ class Command:
 
         assert mode in ZONE_MODE_LOOKUP, mode
 
-        payload = f"{zone_idx:02X}"
-        payload += temp_to_hex(setpoint)  # None means max, if a temp is required
-        payload += ZONE_MODE_LOOKUP[mode]
-        payload += "FFFFFF" if duration is None else f"{duration:06X}"
-        payload += "" if until is None else dtm_to_hex(until)
+        payload = "".join(
+            f"{zone_idx:02X}",
+            temp_to_hex(setpoint),  # None means max, if a temp is required
+            ZONE_MODE_LOOKUP[mode],
+            "FFFFFF" if duration is None else f"{duration:06X}",
+            "" if until is None else dtm_to_hex(until),
+        )
 
         return cls(W_, "2349", payload, ctl_id, **kwargs)
 
