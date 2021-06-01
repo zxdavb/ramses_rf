@@ -355,9 +355,11 @@ class Setpoint:  # 2309
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309
-        if "2309" in self._msgs:
-            # print(self._msgs["2309"])
-            return self._msgs["2309"].payload[self.SETPOINT]
+        try:
+            if "2309" in self._msgs:
+                return self._msgs["2309"].payload[self.SETPOINT]
+        except TypeError:  # FIXME: 12: as a controller = {[{}, ...]}, not {}
+            pass
 
     @property
     def status(self) -> dict:
@@ -387,8 +389,11 @@ class Temperature:  # 30C9 (fakeable)
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        if "30C9" in self._msgs:
-            return self._msgs["30C9"].payload[self.TEMPERATURE]
+        try:
+            if "30C9" in self._msgs:
+                return self._msgs["30C9"].payload[self.TEMPERATURE]
+        except TypeError:  # FIXME: 12: as a controller = {[{}, ...]}, not {}
+            pass
 
     @temperature.setter
     def temperature(self, value) -> None:  # 30C9
