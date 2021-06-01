@@ -750,7 +750,7 @@ class UfhController(Device):  # UFC (02):
                 self._send_cmd("000C", payload=f"{idx:02X}{dev_type}")
                 for dev_type in ("09",)  # CODE_000C_DEVICE_TYPE, also ("00", "04")
                 # for dev_type in CODE_000C_DEVICE_TYPE
-                for idx in range(8)  # for each possible UFH channel
+                for idx in range(8)  # for each possible UFH channel/circuit
             ]
 
         # if discover_flag & DISCOVER_PARAMS:
@@ -831,6 +831,9 @@ class UfhController(Device):  # UFC (02):
 
     @property
     def setpoints(self) -> Optional[Dict]:  # 22C9
+        if self._setpoints is None:
+            return
+
         return {
             c["ufh_idx"]: {"temp_high": c["temp_high"], "temp_low": c["temp_low"]}
             for c in self._setpoints.payload
