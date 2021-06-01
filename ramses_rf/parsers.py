@@ -1204,16 +1204,16 @@ def parser_12a0(payload, msg) -> Optional[dict]:
     }  # EFFF = N/A
     assert payload[2:4] in RHUM_STATE or int(payload[2:4], 16) <= 100
 
-    TEMP_STATE = {
-        "7F": "not available",
-        "80": "sensor short circuit",
-        "81": "sensor open",
-        "82": "not available",
-        "83": "sensor value too high",
-        "84": "sensor value too low",
-        "85": "sensor unreliable",
-    }  # 7F = N/A, same for 1298
-    assert payload[4:6] in TEMP_STATE or int(payload[4:8], 16) <= 200
+    # TEMP_STATE = {
+    #     "7F": "not available",
+    #     "80": "sensor short circuit",
+    #     "81": "sensor open",
+    #     "82": "not available",
+    #     "83": "sensor value too high",
+    #     "84": "sensor value too low",
+    #     "85": "sensor unreliable",
+    # }  # 7F = N/A, same for 1298
+    # assert payload[4:6] in TEMP_STATE or ...
 
     rh = int(payload[2:4], 16) / 100 if payload[2:4] != "EF" else None
     if msg.len == 2:
