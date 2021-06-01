@@ -61,11 +61,13 @@ MSG_TIMEOUTS = {
     "000C": {I_: td(days=1), RP: td(days=1)},
     "0100": {I_: td(days=1), RP: td(days=1)},
     "1060": {I_: td(days=1)},
+    "10A0": {I_: td(hours=2), RP: td(hours=2)},
     "10E0": {I_: td(days=7), RP: td(days=7)},
+    "1100": {I_: td(days=1), RP: td(days=1)},
     "1260": {I_: td(hours=1), RP: td(hours=1)},
     "12B0": {I_: td(hours=1), RP: td(hours=1)},
     "1F41": {I_: td(hours=4), RP: td(hours=4)},
-    "2309": {I_: td(minutes=15), RP: td(minutes=4)},
+    "2309": {I_: td(minutes=30), RP: td(minutes=30)},
     "2349": {I_: td(hours=4), RP: td(hours=4)},
     "2E04": {I_: td(hours=4), RP: td(hours=4)},
     "313F": {I_: td(seconds=3), RP: td(seconds=3)},
@@ -374,13 +376,19 @@ class Message:
 
         if self.dtm < dtm_now - timeout * 2:
             self._is_expired = self.HAS_EXPIRED
-            _logger_send(_LOGGER.error, f"msg has tombstoned ({dtm_now}, {timeout})")
+            _logger_send(
+                _LOGGER.error, f"msg has tombstoned ({dtm_now - self.dtm}, {timeout})"
+            )
         elif self.dtm < dtm_now - timeout * 1:
             self._is_expired = self.IS_EXPIRING
-            _logger_send(_LOGGER.info, f"msg has expired ({dtm_now}, {timeout})")
+            _logger_send(
+                _LOGGER.info, f"msg has expired ({dtm_now - self.dtm}, {timeout})"
+            )
         else:
             self._is_expired = self.NOT_EXPIRED
-            _logger_send(_LOGGER.debug, f"msg has not expired ({dtm_now}, {timeout})")
+            _logger_send(
+                _LOGGER.debug, f"msg has not expired ({dtm_now - self.dtm}, {timeout})"
+            )
         return self._is_expired
 
     @property
