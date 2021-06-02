@@ -14,13 +14,13 @@ from typing import Any, Optional, Tuple, Union
 
 from . import parsers
 from .const import (
+    _0005_ZONE_TYPE,
     ATTR_DHW_SENSOR,
     ATTR_DHW_VALVE,
     ATTR_DHW_VALVE_HTG,
     ATTR_HTG_CONTROL,
     ATTR_ZONE_ACTUATORS,
     ATTR_ZONE_SENSOR,
-    CODE_0005_ZONE_TYPE,
     DEVICE_TYPES,
     MSG_FORMAT_10,
     MSG_FORMAT_18,
@@ -551,7 +551,7 @@ def process_msg(msg: Message) -> None:
 
         # TODO: a I/0005: zones have changed & may need a restart (del) or not (add)
         if this.code == "0005":  # RP, and also I
-            if this._payload["zone_type"] in CODE_0005_ZONE_TYPE.values():
+            if this._payload["zone_type"] in _0005_ZONE_TYPE.values():
                 [
                     evo._get_zone(
                         f"{idx:02X}",
