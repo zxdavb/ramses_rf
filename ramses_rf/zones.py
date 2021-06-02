@@ -12,6 +12,7 @@ from typing import Optional
 
 from .command import Command, Schedule
 from .const import (
+    _000C_DEVICE,
     ATTR_DEVICES,
     ATTR_DHW_SENSOR,
     ATTR_DHW_VALVE,
@@ -273,9 +274,13 @@ class DhwZone(ZoneBase):  # CS92A  # TODO: add Schedule
         #     self.async_set_override(state="On")
 
         if discover_flags & DISCOVER_SCHEMA:
-            [  # 000C: find the DHW relay(s), if any, see: CODE_000C_DEVICE_TYPE
+            [  # 000C: find the DHW relay(s), if any, see: _000C_DEVICE_TYPE
                 self._send_cmd("000C", payload=dev_type)
-                for dev_type in ("000D", "000E", "010E")  # for DHW sensor, relay(s)
+                for dev_type in (
+                    f"00{_000C_DEVICE.DHW_SENSOR}",
+                    f"00{_000C_DEVICE.DHW}",
+                    f"01{_000C_DEVICE.DHW}",
+                )
             ]
 
         if discover_flags & DISCOVER_PARAMS:
@@ -523,7 +528,7 @@ class Zone(ZoneSchedule, ZoneBase):
         if discover_flag & DISCOVER_SCHEMA:
             [  # 000C: find the sensor and the actuators, if any
                 self._send_cmd("000C", payload=f"{self.idx}{dev_type}")
-                for dev_type in ("00", "04")  # CODE_000C_ZONE_TYPE
+                for dev_type in (_000C_DEVICE.ALL,)  # _000C_DEVICE.ALL_SENSOR)
             ]
 
         if discover_flag & DISCOVER_PARAMS:  # every 4h
@@ -863,7 +868,7 @@ class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
         if discover_flag & DISCOVER_SCHEMA:
-            self._send_cmd("000C", payload=f"{self.idx}11")
+            self._send_cmd("000C", payload=f"{self.idx}{_000C_DEVICE.ELE}")
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -892,7 +897,7 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
         if discover_flag & DISCOVER_SCHEMA:
-            self._send_cmd("000C", payload=f"{self.idx}0B")
+            self._send_cmd("000C", payload=f"{self.idx}{_000C_DEVICE.MIX}")
 
         if discover_flag & DISCOVER_PARAMS:
             self._gwy.send_cmd(Command.get_mix_valve_params(self._ctl.id, self.idx))
@@ -920,7 +925,7 @@ class RadZone(Zone):  # HR92/HR80
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
         if discover_flag & DISCOVER_SCHEMA:
-            self._send_cmd("000C", payload=f"{self.idx}08")
+            self._send_cmd("000C", payload=f"{self.idx}{_000C_DEVICE.RAD}")
 
 
 class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
@@ -931,7 +936,7 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
         if discover_flag & DISCOVER_SCHEMA:
-            self._send_cmd("000C", payload=f"{self.idx}09")
+            self._send_cmd("000C", payload=f"{self.idx}{_000C_DEVICE.UFH}")
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -956,7 +961,7 @@ class ValZone(EleZone):  # BDR91A/T
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
         if discover_flag & DISCOVER_SCHEMA:
-            self._send_cmd("000C", payload=f"{self.idx}0A")
+            self._send_cmd("000C", payload=f"{self.idx}{_000C_DEVICE.VAL}")
 
     @property
     def heat_demand(self) -> Optional[float]:  # 0008 (NOTE: not 3150)

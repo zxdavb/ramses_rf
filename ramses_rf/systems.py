@@ -11,6 +11,8 @@ from typing import List, Optional
 
 from .command import Command, FaultLog, Priority
 from .const import (
+    _000C_DEVICE,
+    _0005_ZONE,
     ATTR_DEVICES,
     DEVICE_HAS_ZONE_SENSOR,
     DISCOVER_ALL,
@@ -356,12 +358,24 @@ class MultiZone:  # 0005 (+/- 000C?)
         if discover_flag & DISCOVER_SCHEMA:
             [  # 0005: find any zones + their type (RAD, UFH, VAL, MIX, ELE)
                 self._send_cmd("0005", payload=f"00{zone_type}")
-                for zone_type in ("08", "09", "0A", "0B", "11")  # CODE_0005_ZONE_TYPE
+                for zone_type in (
+                    _0005_ZONE.RAD,
+                    _0005_ZONE.UFH,
+                    _0005_ZONE.VAL,
+                    _0005_ZONE.MIX,
+                    _0005_ZONE.ELE,
+                )
             ]
 
             [  # 0005: find any others - as per an RFG100
                 self._send_cmd("0005", payload=f"00{zone_type}")
-                for zone_type in ("00", "04", "0C", "0F", "10")
+                for zone_type in (
+                    _0005_ZONE.ALL,
+                    _0005_ZONE.ALL_SENSORS,
+                    "0C",  # ???
+                    _0005_ZONE.HTG,
+                    "10",  # ???
+                )
             ]
 
         if discover_flag & DISCOVER_STATUS:
@@ -644,10 +658,8 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         if discover_flag & DISCOVER_SCHEMA:
             [  # 000C: find the HTG relay and DHW sensor, if any (DHW relays in DHW)
-                self._send_cmd("000C", payload=dev_type)
-                for dev_type in ("000D", "000F")  # CODE_000C_DEVICE_TYPE
-                # for dev_type, description in CODE_000C_DEVICE_TYPE.items() fix payload
-                # if description is not None
+                self._send_cmd("000C", payload=f"00{dev_type}")
+                for dev_type in (_000C_DEVICE.HTG, _000C_DEVICE.DHW_SENSOR)
             ]
 
         if discover_flag & DISCOVER_PARAMS:

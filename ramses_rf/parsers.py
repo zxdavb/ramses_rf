@@ -17,11 +17,11 @@ from typing import Optional, Union
 
 from .command import Command
 from .const import (
+    _000C_DEVICE_TYPE,
+    _0005_ZONE_TYPE,
     ATTR_DHW_VALVE,
     ATTR_DHW_VALVE_HTG,
     ATTR_HTG_CONTROL,
-    CODE_000C_DEVICE_TYPE,
-    CODE_0005_ZONE_TYPE,
     CODE_0418_DEVICE_CLASS,
     CODE_0418_FAULT_STATE,
     CODE_0418_FAULT_TYPE,
@@ -480,18 +480,18 @@ def parser_0005(payload, msg) -> Optional[dict]:
         assert len(seqx) in (8, 12)  # 8 for evohome, 12 for Hometronics (16 zones)
         assert seqx[:2] == payload[:2]
         assert seqx[:2] == "00"  # done in _idx
-        # assert payload[2:4] in CODE_0005_ZONE_TYPE, f"Unknown zone_type: {seqx[2:4]}"
+        # assert payload[2:4] in _0005_ZONE_TYPE, f"Unknown zone_type: {seqx[2:4]}"
 
         max_zones = msg._gwy.config[MAX_ZONES]
         return {
             "zone_mask": (_flag8(seqx[4:6]) + _flag8(seqx[6:8]))[:max_zones],
-            "zone_type": CODE_0005_ZONE_TYPE.get(seqx[2:4], seqx[2:4]),
+            "zone_type": _0005_ZONE_TYPE.get(seqx[2:4], seqx[2:4]),
         }
 
     if msg.verb == RQ:
         assert payload[:2] == "00", payload[:2]
         return {
-            "zone_type": CODE_0005_ZONE_TYPE.get(payload[2:4], payload[2:4]),
+            "zone_type": _0005_ZONE_TYPE.get(payload[2:4], payload[2:4]),
         }
 
     assert msg.verb in (I_, RP)
@@ -679,7 +679,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
     def _parser(seqx) -> dict:
         # assert len(seqx) == 12, len(seqx)  # not needed
         assert seqx[:2] == payload[:2], seqx[:2]
-        # assert seqx[2:4] in CODE_000C_DEVICE_TYPE, f"Unknown device_type: {seqx[2:4]}"
+        # assert seqx[2:4] in _000C_DEVICE_TYPE, f"Unknown device_type: {seqx[2:4]}"
         assert seqx[4:6] == "7F" or int(seqx[4:6], 16) < msg._gwy.config[MAX_ZONES]
         return {hex_id_to_dec(seqx[6:12]): seqx[4:6]}
 
@@ -688,7 +688,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
     else:
         assert msg.len >= 6 and msg.len % 6 == 0, msg.len  # assuming not RQ
 
-    device_class = CODE_000C_DEVICE_TYPE.get(payload[2:4], f"unknown_{payload[2:4]}")
+    device_class = _000C_DEVICE_TYPE.get(payload[2:4], f"unknown_{payload[2:4]}")
     if device_class == ATTR_DHW_VALVE and msg.raw_payload[:2] == "01":
         device_class = ATTR_DHW_VALVE_HTG
 

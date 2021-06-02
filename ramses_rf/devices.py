@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from .command import FUNC, TIMEOUT, Command, Priority
 from .const import (
+    _000C_DEVICE,
     ATTR_HEAT_DEMAND,
     ATTR_RELAY_DEMAND,
     ATTR_SETPOINT,
@@ -747,9 +748,7 @@ class UfhController(Device):  # UFC (02):
 
         if discover_flag & DISCOVER_SCHEMA:
             [  # 000C: used to find evo zone for each configured channel
-                self._send_cmd("000C", payload=f"{idx:02X}{dev_type}")
-                for dev_type in ("09",)  # CODE_000C_DEVICE_TYPE, also ("00", "04")
-                # for dev_type in CODE_000C_DEVICE_TYPE
+                self._send_cmd("000C", payload=f"{idx:02X}{_000C_DEVICE.UFH}")
                 for idx in range(8)  # for each possible UFH channel/circuit
             ]
 
@@ -775,8 +774,8 @@ class UfhController(Device):  # UFC (02):
 
         # [  # 0005: shows which channels are active - ?no use? (see above)
         #     self._send_cmd("0005", payload=f"00{zone_type}")
-        #     # for zone_type in ("09",)  # CODE_0005_ZONE_TYPE, also ("00", "04", "0F")
-        #     for zone_type in CODE_0005_ZONE_TYPE
+        #     # for zone_type in ("09",)  # _0005_ZONE_TYPE, also ("00", "04", "0F")
+        #     for zone_type in _0005_ZONE_TYPE
         # ]
 
     def _handle_msg(self, msg) -> None:

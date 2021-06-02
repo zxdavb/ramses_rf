@@ -429,50 +429,63 @@ BDR_ROLES = {
     5: ATTR_ELEC_HEAT,
 }
 
-
-CODE_0005_ZONE_TYPE = {
-    "00": "configured_zones",  # same as 04?
+_0005_ZONE = SimpleNamespace(
+    ALL="00",  # All Zone types
+    ALL_SENSOR="04",  # All Zone types (with a sensor?)
+    RAD="08",  # Radiator zones
+    UFH="09",  # UFH zones
+    VAL="0A",  # Zone valve zones
+    MIX="0B",  # Mix valve zones
+    DHW_SENSOR="0D",  # DHW sensor domains
+    DHW="0E",  # DHW valve domains
+    HTG="0F",  # Heating control domains
+    UNKNOWN="10",
+    ELE="11",  # Electrical zones
+)
+_0005_ZONE_TYPE = {
+    _0005_ZONE.ALL: "configured_zones",  # zones with actuators?
     # "01": None,
     # "02": None,  # no response?
     # "03": None,
-    "04": "configured_zones_alt",  # zones that can have a sensor?
+    _0005_ZONE.ALL_SENSOR: "configured_zones_alt",  # zones with sensors?
     # "05": None,  # no response?
     # "06": None,  # no response
     # "07": None,  # no response
-    "08": ATTR_RAD_VALVE,
-    "09": ATTR_UFH_HTG,
-    "0A": ATTR_ZON_VALVE,
-    "0B": ATTR_MIX_VALVE,
+    _0005_ZONE.RAD: ATTR_RAD_VALVE,
+    _0005_ZONE.UFH: ATTR_UFH_HTG,
+    _0005_ZONE.VAL: ATTR_ZON_VALVE,
+    _0005_ZONE.MIX: ATTR_MIX_VALVE,
     # "0C": None,
-    "0D": ATTR_DHW_SENSOR,
-    "0E": ATTR_DHW_VALVE,  # can be 0, 1 or 2 (i.e. 1,1,0,...) of them
-    "0F": ATTR_HTG_CONTROL,
+    _0005_ZONE.DHW_SENSOR: ATTR_DHW_SENSOR,
+    _0005_ZONE.DHW: ATTR_DHW_VALVE,  # can be 0, 1 or 2 (i.e. 1,1,0,...) of them
+    _0005_ZONE.HTG: ATTR_HTG_CONTROL,
     # "10": None,
-    "11": ATTR_ELEC_HEAT,
+    _0005_ZONE.ELE: ATTR_ELEC_HEAT,
 }  # 03, 05, 06, 07: & >11 - no response from 01:
 
 # RP|zone_devices | 000E0... || {'domain_id': 'FA', 'device_class': 'dhw_actuator', 'devices': ['13:081807']}  # noqa
 # RP|zone_devices | 010E0... || {'domain_id': 'FA', 'device_class': 'dhw_actuator', 'devices': ['13:106039']}  # noqa
 
-CODE_000C_DEVICE_TYPE = {
-    "00": "zone_actuators",
+_000C_DEVICE = _0005_ZONE
+_000C_DEVICE_TYPE = {
+    _000C_DEVICE.ALL: "zone_actuators",
     # "01": None,
     # "02": None,
     # "03": None,  # no response
-    "04": ATTR_ZONE_SENSOR,  # 03:, 04:, 34: (if is 01:, will == [], as if no sensor)
+    _000C_DEVICE.ALL_SENSOR: ATTR_ZONE_SENSOR,  # 03:, 04:, 34: (if is 01:, will == [], as if no sensor)
     # "05": None,  # no response
     # "06": None,  # no response
     # "07": None,  # no response
-    "08": "rad_actuators",
-    "09": "ufh_actuators",
-    "0A": "val_actuators",
-    "0B": "mix_actuators",
+    _000C_DEVICE.RAD: "rad_actuators",
+    _000C_DEVICE.UFH: "ufh_actuators",
+    _000C_DEVICE.VAL: "val_actuators",
+    _000C_DEVICE.MIX: "mix_actuators",
     # "0C": None,
-    "0D": ATTR_DHW_SENSOR,  # FA, z_idx 0 only
-    "0E": ATTR_DHW_VALVE,  # FA, could be F9, ATTR_DHW_VALVE_HTG
-    "0F": ATTR_HTG_CONTROL,  # FC, z_idx 0 only
-    "10": "unknown",  # seen when binding a TR87RF, ?UFC
-    "11": "ele_actuators",
+    _000C_DEVICE.DHW_SENSOR: ATTR_DHW_SENSOR,  # FA, z_idx 0 only
+    _000C_DEVICE.DHW: ATTR_DHW_VALVE,  # FA, could be F9, ATTR_DHW_VALVE_HTG
+    _000C_DEVICE.HTG: ATTR_HTG_CONTROL,  # FC, z_idx 0 only
+    # _000C_DEVICE.UNKNOWN: "unknown",  # seen when binding a TR87RF, ?UFC, ?RFG
+    _000C_DEVICE.ELE: "ele_actuators",
 }
 
 # Used by 0418/system_fault parser
