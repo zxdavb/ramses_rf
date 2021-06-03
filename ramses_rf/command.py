@@ -356,6 +356,12 @@ class Command:
 
     @classmethod  # constructor for RQ/10A0
     @validate_system_args
+    def get_dhw_params(cls, ctl_id: str, **kwargs):
+        """Constructor to get the params of the DHW (c.f. parser_10a0)."""
+        return cls(RQ, "10A0", "00", ctl_id, **kwargs)
+
+    @classmethod  # constructor for RQ/10A0
+    @validate_system_args
     def set_dhw_params(
         cls,
         ctl_id: str,
@@ -390,6 +396,12 @@ class Command:
         """Constructor to get a DHW schedule fragment (c.f. parser_0404)."""
         payload = f"0023000800{frag_idx + 1:02X}{frag_cnt:02X}"
         return cls(RQ, "0404", payload, ctl_id, **kwargs)
+
+    @classmethod  # constructor for RQ/10A0
+    @validate_system_args
+    def get_dhw_temp(cls, ctl_id: str, **kwargs):
+        """Constructor to get the temperature of the DHW sensor (c.f. parser_10a0)."""
+        return cls(RQ, "1260", "00", ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/3220
     def get_opentherm_data(cls, dev_id: str, msg_id: int, **kwargs):
