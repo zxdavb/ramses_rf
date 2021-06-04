@@ -345,11 +345,13 @@ class Command:
         assert mode in ZONE_MODE_LOOKUP, mode
 
         payload = "".join(
-            "00",
-            "01" if bool(active) else "00",
-            ZONE_MODE_LOOKUP[mode],
-            "FFFFFF",  # duration?
-            "" if until is None else dtm_to_hex(until),
+            (
+                "00",
+                "01" if bool(active) else "00",
+                ZONE_MODE_LOOKUP[mode],
+                "FFFFFF",  # duration?
+                "" if until is None else dtm_to_hex(until),
+            )
         )
 
         return cls(W_, "1F41", payload, ctl_id, **kwargs)
@@ -499,11 +501,13 @@ class Command:
         ), proportional_band_width
 
         payload = "".join(
-            f"{domain_id:02X}" if isinstance(domain_id, int) else domain_id,
-            f"{cycle_rate * 4:02X}",
-            f"{int(min_on_time * 4):02X}",
-            f"{int(min_off_time * 4):02X}FF",
-            f"{temp_to_hex(proportional_band_width)}01",
+            (
+                f"{domain_id:02X}" if isinstance(domain_id, int) else domain_id,
+                f"{cycle_rate * 4:02X}",
+                f"{int(min_on_time * 4):02X}",
+                f"{int(min_off_time * 4):02X}FF",
+                f"{temp_to_hex(proportional_band_width)}01",
+            )
         )
 
         return cls(W_, "1100", payload, ctl_id, **kwargs)
@@ -540,10 +544,12 @@ class Command:
         bitmap |= 0 if multiroom_mode else 16
 
         payload = "".join(
-            f"{zone_idx:02X}",
-            f"{bitmap:02X}",
-            temp_to_hex(min_temp),
-            temp_to_hex(max_temp),
+            (
+                f"{zone_idx:02X}",
+                f"{bitmap:02X}",
+                temp_to_hex(min_temp),
+                temp_to_hex(max_temp),
+            )
         )
 
         return cls(W_, "000A", payload, ctl_id, **kwargs)
@@ -574,12 +580,14 @@ class Command:
         assert 0 <= pump_run_time <= 99, pump_run_time
 
         payload = "".join(
-            f"{zone_idx:02X}",
-            f"C801{max_flow_setpoint:02X}",
-            f"C901{min_flow_setpoint:02X}",
-            f"CA01{valve_run_time:02X}",
-            f"CB01{pump_run_time:02X}",
-            f"CC01{1:02X}",
+            (
+                f"{zone_idx:02X}",
+                f"C801{max_flow_setpoint:02X}",
+                f"C901{min_flow_setpoint:02X}",
+                f"CA01{valve_run_time:02X}",
+                f"CB01{pump_run_time:02X}",
+                f"CC01{1:02X}",
+            )
         )
 
         return cls(W_, "1030", payload, ctl_id, **kwargs)
@@ -650,11 +658,13 @@ class Command:
         assert mode in ZONE_MODE_LOOKUP, mode
 
         payload = "".join(
-            f"{zone_idx:02X}",
-            temp_to_hex(setpoint),  # None means max, if a temp is required
-            ZONE_MODE_LOOKUP[mode],
-            "FFFFFF" if duration is None else f"{duration:06X}",
-            "" if until is None else dtm_to_hex(until),
+            (
+                f"{zone_idx:02X}",
+                temp_to_hex(setpoint),  # None means max, if a temp is required
+                ZONE_MODE_LOOKUP[mode],
+                "FFFFFF" if duration is None else f"{duration:06X}",
+                "" if until is None else dtm_to_hex(until),
+            )
         )
 
         return cls(W_, "2349", payload, ctl_id, **kwargs)
@@ -1046,7 +1056,7 @@ class Schedule:  # 0404
         frags = [struct.pack("<xxxxBxxxBxxxHxxHxx", *s) for s in frags]
 
         cobj = zlib.compressobj(level=9, wbits=14)
-        blob = b"".join([cobj.compress(s) for s in frags]) + cobj.flush()
+        blob = b"".join(cobj.compress(s) for s in frags) + cobj.flush()
         blob = blob.hex().upper()
 
         return [blob[i : i + 82] for i in range(0, len(blob), 82)]
