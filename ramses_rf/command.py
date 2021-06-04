@@ -313,7 +313,7 @@ class Command:
         """Constructor to get the mode of the DHW (c.f. parser_1f41)."""
         return cls(RQ, "1F41", "00", ctl_id, **kwargs)
 
-    @classmethod  # constructor for RQ/1F41
+    @classmethod  # constructor for W_/1F41
     @validate_system_args
     def set_dhw_mode(
         cls, ctl_id: str, mode=None, active: bool = None, until=None, **kwargs
@@ -362,7 +362,7 @@ class Command:
         """Constructor to get the params of the DHW (c.f. parser_10a0)."""
         return cls(RQ, "10A0", "00", ctl_id, **kwargs)
 
-    @classmethod  # constructor for RQ/10A0
+    @classmethod  # constructor for W_/10A0
     @validate_system_args
     def set_dhw_params(
         cls,
@@ -399,7 +399,7 @@ class Command:
         payload = f"0023000800{frag_idx + 1:02X}{frag_cnt:02X}"
         return cls(RQ, "0404", payload, ctl_id, **kwargs)
 
-    @classmethod  # constructor for RQ/10A0
+    @classmethod  # constructor for RQ/1260
     @validate_system_args
     def get_dhw_temp(cls, ctl_id: str, **kwargs):
         """Constructor to get the temperature of the DHW sensor (c.f. parser_10a0)."""
@@ -783,6 +783,37 @@ class Command:
             payload = payload.ljust(length * 2, "F")
 
         return cls(I_, "7FFF", payload[:48], NUL_DEV_ADDR.id, **kwargs)
+
+
+# A convenience dict
+_COMMANDS = {
+    f"{I_}/0002": Command.put_outdoor_temp,
+    f"{RQ}/0004": Command.get_zone_name,
+    f"{W_}/0004": Command.set_zone_name,
+    f"{RQ}/000A": Command.get_zone_config,
+    f"{W_}/000A": Command.set_zone_config,
+    f"{RQ}/0100": Command.get_system_language,
+    f"{RQ}/0418": Command.get_system_log_entry,
+    f"{RQ}/1030": Command.get_mix_valve_params,
+    f"{W_}/1030": Command.set_mix_valve_params,
+    f"{RQ}/10A0": Command.get_dhw_params,
+    f"{W_}/10A0": Command.set_dhw_params,
+    f"{RQ}/1100": Command.get_tpi_params,
+    f"{W_}/1100": Command.set_tpi_params,
+    f"{RQ}/1260": Command.get_dhw_temp,
+    f"{RQ}/12B0": Command.get_zone_window_state,
+    f"{RQ}/1F41": Command.get_dhw_mode,
+    f"{W_}/1F41": Command.set_dhw_mode,
+    f"{RQ}/2349": Command.get_zone_mode,
+    f"{W_}/2349": Command.set_zone_mode,
+    f"{RQ}/2E04": Command.get_system_mode,
+    f"{W_}/2E04": Command.set_system_mode,
+    f"{I_}/30C9": Command.put_sensor_temp,
+    f"{RQ}/30C9": Command.get_zone_temperature,
+    f"{RQ}/313F": Command.get_system_time,
+    f"{W_}/313F": Command.set_system_time,
+    f"{RQ}/3220": Command.get_opentherm_data,
+}  # TODO: RQ/0404 (Zone & DHW)
 
 
 class FaultLog:  # 0418  # TODO: used a NamedTuple
