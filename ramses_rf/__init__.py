@@ -285,6 +285,12 @@ class Gateway:
         self.config[DISABLE_DISCOVERY] = discovery
         self.config[DISABLE_SENDING] = sending
 
+        # [
+        #     zone._discover(discover_flag=6)
+        #     for evo in self.systems
+        #     for zone in evo.zones
+        # ]
+
     def _get_state(self) -> Tuple[Dict, Dict]:
         engine_state = self._pause_engine()
 
@@ -366,6 +372,18 @@ class Gateway:
         """
         if not self.msg_protocol:
             raise RuntimeError("there is no message protocol")
+
+        async def scheduler(period, *args, **kwargs):
+            while True:
+                await self.msg_protocol.send_data(*args, **kwargs)
+                await asyncio.sleep(period)  # drift is OK
+
+        periodic = kwargs.pop("period", None)  # a timedelta object
+        if periodic:
+            return self._loop.create_task(
+                scheduler(periodic.total_seconds(), cmd, **kwargs)
+            )
+
         return self._loop.create_task(
             self.msg_protocol.send_data(cmd, callback=callback, **kwargs)
         )
