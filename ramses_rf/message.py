@@ -39,13 +39,7 @@ from .exceptions import (
 )
 from .packet import _PKT_LOGGER  # TODO: bad packets are being logged twice!
 from .ramses import CODES_WITH_COMPLEX_IDX, CODES_WITHOUT_IDX, RAMSES_CODES
-from .schema import (
-    DONT_CREATE_ENTITIES,
-    DONT_UPDATE_ENTITIES,
-    ENABLE_EAVESDROP,
-    REDUCE_PROCESSING,
-    USE_NAMES,
-)
+from .schema import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES
 
 # from .systems import Evohome
 
@@ -56,13 +50,10 @@ I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
 # TODO: WIP
 MSG_TIMEOUTS = {
     "0004": {I_: td(days=1), RP: td(days=1)},
-    "0005": {I_: td(days=1), RP: td(days=1)},
     "000A": {I_: td(days=1), RP: td(days=1)},
-    "000C": {I_: td(days=1), RP: td(days=1)},
     "0100": {I_: td(days=1), RP: td(days=1)},
     "1060": {I_: td(days=1)},
     "10A0": {I_: td(hours=2), RP: td(hours=2)},
-    "10E0": {I_: td(days=7), RP: td(days=7)},
     "1100": {I_: td(days=1), RP: td(days=1)},
     "1260": {I_: td(hours=1), RP: td(hours=1)},
     "12B0": {I_: td(hours=1), RP: td(hours=1)},
@@ -73,9 +64,9 @@ MSG_TIMEOUTS = {
     "313F": {I_: td(seconds=3), RP: td(seconds=3)},
     "3150": {I_: td(minutes=20)},
     "3C09": {I_: td(hours=4), RP: td(hours=4)},
-}
+}  # not arrays
 
-DEV_MODE = __dev_mode__ and False
+DEV_MODE = True or __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -139,7 +130,7 @@ class Message:
 
         def display_name(dev: Union[Address, Device]) -> str:
             """Return a formatted device name, uses a friendly name if there is one."""
-            if self._gwy.config[USE_NAMES]:
+            if self._gwy.config.use_names:
                 try:
                     return f"{self._gwy.known_devices[dev.id]['name']:<18}"
                 except (KeyError, TypeError):
@@ -172,7 +163,7 @@ class Message:
 
         payload = self.raw_payload if self.len < 4 else f"{self.raw_payload[:5]}..."[:9]
 
-        _format = MSG_FORMAT_18 if self._gwy.config[USE_NAMES] else MSG_FORMAT_10
+        _format = MSG_FORMAT_18 if self._gwy.config.use_names else MSG_FORMAT_10
         self._str = _format.format(
             src, dst, self.verb, self.code_name, payload, self._payload
         )
@@ -342,6 +333,12 @@ class Message:
             if self.verb in (RQ, W_):
                 timeout = td(seconds=3)
 
+            elif self.code in ("0005", "000C", "10E0"):
+                return  # TODO: exclude/remove devices caused by corrupt ADDRs?
+
+            elif self.code == "1FC9" and self.verb == RP:
+                return  # TODO: check other verbs, they seem variable
+
             elif self.code == "1F09":
                 timeout = td(seconds=self.payload["remaining_seconds"])
 
@@ -505,12 +502,12 @@ def process_msg(msg: Message) -> None:
 
         if this.src.type in ("01", "23") and this.src is not this.dst:  # TODO: all CTLs
             this.src = this._gwy._get_device(this.src, ctl_addr=this.src)
-            ctl_addr = this.src if msg._gwy.config[ENABLE_EAVESDROP] else None
+            ctl_addr = this.src if msg._gwy.config.enable_eavesdrop else None
             this._gwy._get_device(this.dst, ctl_addr=ctl_addr)
 
         elif this.dst.type in ("01", "23") and this.src is not this.dst:  # all CTLs
             this.dst = this._gwy._get_device(this.dst, ctl_addr=this.dst)
-            ctl_addr = this.dst if msg._gwy.config[ENABLE_EAVESDROP] else None
+            ctl_addr = this.dst if msg._gwy.config.enable_eavesdrop else None
             this._gwy._get_device(this.src, ctl_addr=ctl_addr)
 
         # TODO: will need other changes before these two will work...
@@ -584,13 +581,13 @@ def process_msg(msg: Message) -> None:
                     evo._set_htg_control(devices[0])
 
                 elif this.payload["device_class"] == ATTR_DHW_SENSOR:
-                    evo._get_zone("HW")._set_sensor(devices[0])
+                    evo._get_dhw()._set_sensor(devices[0])
 
                 elif this.payload["device_class"] == ATTR_DHW_VALVE:
-                    evo._get_zone("HW")._set_dhw_valve(devices[0])
+                    evo._get_dhw()._set_dhw_valve(devices[0])
 
                 elif this.payload["device_class"] == ATTR_DHW_VALVE_HTG:
-                    evo._get_zone("HW")._set_htg_valve(devices[0])
+                    evo._get_dhw()._set_htg_valve(devices[0])
 
             elif this.payload["device_class"] == ATTR_HTG_CONTROL:
                 # TODO: maybe the htg controller is an OTB? via eavesdropping
@@ -601,9 +598,9 @@ def process_msg(msg: Message) -> None:
         # # TODO: needs work, e.g. RP/1F41 (excl. null_rp)
         # elif this.code in ("10A0", "1F41"):
         #     if isinstance(this.dst, Device) and this.dst._is_controller:
-        #         this.dst._get_zone("HW")
+        #         this.dst._get_dhw()
         #     else:
-        #         evo._get_zone("HW ")
+        #         evo._get_dhw()
 
         # # TODO: also process ufh_idx (but never domain_id)
         # elif isinstance(this._payload, dict):
@@ -692,7 +689,7 @@ def process_msg(msg: Message) -> None:
     if msg.src.type == "18":
         return
 
-    if msg._gwy.config[REDUCE_PROCESSING] >= DONT_CREATE_ENTITIES:
+    if msg._gwy.config.reduce_processing >= DONT_CREATE_ENTITIES:
         return
 
     try:  # process the payload
@@ -700,7 +697,7 @@ def process_msg(msg: Message) -> None:
         # if msg._evo:  # TODO:
         create_zones(msg)  # create zones & (TBD) ufh_zones too?
 
-        if msg._gwy.config[REDUCE_PROCESSING] < DONT_UPDATE_ENTITIES:
+        if msg._gwy.config.reduce_processing < DONT_UPDATE_ENTITIES:
             update_entities(msg, msg._gwy._prev_msg)  # update the state database
 
     except (AssertionError, NotImplementedError) as err:

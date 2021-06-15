@@ -5,6 +5,7 @@
 
 import logging
 import re
+from types import SimpleNamespace
 from typing import Any, Optional, Tuple
 
 import voluptuous as vol
@@ -248,7 +249,9 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def load_config_schema(serial_port, input_file, **kwargs) -> Tuple[dict, list, list]:
+def load_config_schema(
+    serial_port, input_file, **kwargs
+) -> Tuple[SimpleNamespace, dict, list, list]:
     """Process the configuration, including any filter lists."""
 
     kwargs = GLOBAL_CONFIG_SCHEMA(kwargs)
@@ -316,7 +319,7 @@ def load_config_schema(serial_port, input_file, **kwargs) -> Tuple[dict, list, l
     elif config[ENFORCE_BLOCKLIST]:
         _LOGGER.debug(f"A {BLOCK_LIST} has been created, length = {len(block_list)}")
 
-    # TODO: use dict or list?
+    # TODO: use dict or list? - will need to add 18? when we see it?
     # allow_list = (
     #     list(allow_list.keys()) if config[ENFORCE_ALLOWLIST] else []
     # )
@@ -324,7 +327,10 @@ def load_config_schema(serial_port, input_file, **kwargs) -> Tuple[dict, list, l
     #     list(block_list.keys()) if config[ENFORCE_BLOCKLIST] else []
     # )
 
-    return (config, allow_list, block_list)
+    schema = {k: v for k, v in kwargs.items() if k not in config}
+    config = SimpleNamespace(**config)
+
+    return (config, schema, allow_list, block_list)
 
 
 def _get_device(gwy, dev_addr, ctl_addr=None, **kwargs) -> Optional[Any]:
@@ -394,7 +400,7 @@ def _load_system_schema(gwy, schema) -> Tuple[dict, dict]:
 
     dhw = schema.get(ATTR_DHW_SYSTEM, {})
     if dhw:
-        ctl._evo._set_dhw(ctl._evo._get_zone("HW"))
+        ctl._evo._set_dhw(ctl._evo._get_dhw())
 
         dhw_sensor_id = dhw.get(ATTR_DHW_SENSOR)
         if dhw_sensor_id:

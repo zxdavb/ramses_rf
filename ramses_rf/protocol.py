@@ -16,7 +16,7 @@ from typing import Callable, List, Optional, Tuple
 from .command import ARGS, DEAMON, EXPIRES, FUNC, TIMEOUT, Command
 from .const import __dev_mode__
 from .message import Message
-from .schema import DISABLE_SENDING, DONT_CREATE_MESSAGES, REDUCE_PROCESSING
+from .schema import DONT_CREATE_MESSAGES
 
 DEV_MODE = __dev_mode__ and False
 
@@ -163,7 +163,7 @@ class MessageTransport(asyncio.Transport):
         if len(self._protocols) == 0:
             return
 
-        if self._gwy.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES:
+        if self._gwy.config.reduce_processing >= DONT_CREATE_MESSAGES:
             return
 
         try:
@@ -329,7 +329,7 @@ class MessageTransport(asyncio.Transport):
         if self._is_closing:
             raise RuntimeError("MsgTransport is closing or has closed")
 
-        if self._gwy.config[DISABLE_SENDING]:
+        if self._gwy.config.disable_sending:
             message = "MsgTransport.write(%s): sending disabled: discarded"
             if DEV_MODE:
                 _LOGGER.warning(message, cmd)

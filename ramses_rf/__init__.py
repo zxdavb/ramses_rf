@@ -15,11 +15,12 @@ import json
 import logging
 import os
 import signal
+from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .command import Command
 from .const import ATTR_DEVICES, ATTR_ORPHANS, NUL_DEVICE_ID, __dev_mode__
-from .devices import DEVICE_CLASSES, Device
+from .devices import Device, create_device
 from .message import Message, process_msg
 from .packet import set_pkt_logging
 from .protocol import create_msg_stack
@@ -27,19 +28,17 @@ from .schema import (
     ALLOW_LIST,
     BLOCK_LIST,
     DEBUG_MODE,
-    DISABLE_DISCOVERY,
-    DISABLE_SENDING,
     DONT_CREATE_MESSAGES,
     GLOBAL_CONFIG_SCHEMA,
     INPUT_FILE,
-    PACKET_LOG,
-    REDUCE_PROCESSING,
     load_config_schema,
     load_system_schema,
 )
-from .systems import SYSTEM_CLASSES, System, SystemBase
+from .systems import System, create_system
 from .transport import POLLER_TASK, create_pkt_stack
 from .version import __version__  # noqa: F401
+
+I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
 
 DEV_MODE = __dev_mode__ and False
 VERSION = __version__
@@ -69,39 +68,41 @@ class Gateway:
         self.serial_port = serial_port
         self._input_file = kwargs.pop(INPUT_FILE, None)
 
-        (self.config, self._include, self._exclude) = load_config_schema(
+        (self.config, schema, self._include, self._exclude) = load_config_schema(
             serial_port, self._input_file, **GLOBAL_CONFIG_SCHEMA(kwargs)
         )
 
         set_pkt_logging(
-            cc_stdout=self.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES,
-            **self.config[PACKET_LOG],
+            cc_stdout=self.config.reduce_processing >= DONT_CREATE_MESSAGES,
+            **self.config.packet_log,
         )
 
         self.pkt_protocol, self.pkt_transport = None, None
         self.msg_protocol, self.msg_transport = None, None
 
-        # if self.config[REDUCE_PROCESSING] >= DONT_CREATE_MESSAGES:
+        # if self.config.reduce_processing >= DONT_CREATE_MESSAGES:
         #     return
 
-        if self.config[REDUCE_PROCESSING] < DONT_CREATE_MESSAGES:
+        if self.config.reduce_processing < DONT_CREATE_MESSAGES:
             self.msg_protocol, self.msg_transport = self.create_client(process_msg)
 
         # self._buffer = deque()
         # self._sched_zone = None
         # self._sched_lock = Lock()
 
-        # if self.config[REDUCE_PROCESSING] > 0:
+        self._state_lock = Lock()
+        self._state_params = None
+
+        # if self.config.reduce_processing > 0:
         self.rfg = None
         self.evo = None
-        self.systems: List[SystemBase] = []
+        self.systems: List[System] = []
         self.system_by_id: Dict = {}
         self.devices: List[Device] = []
         self.device_by_id: Dict = {}
 
         self._prev_msg = None
 
-        schema = {k: v for k, v in kwargs.items() if k not in self.config}
         self.known_devices = load_system_schema(self, **schema)
 
         self._setup_event_handlers()
@@ -180,54 +181,27 @@ class Gateway:
     def _get_device(self, dev_addr, ctl_addr=None, domain_id=None, **kwargs) -> Device:
         """Return a device (will create it if required).
 
+        NB: a device can be safely considered bound to a controller only if the
+        controller says it is.
+
         Can also set a controller/system (will create as required). If a controller is
         provided, can also set the domain_id as one of: zone_idx, FF (controllers), FC
         (heater_relay), HW (DHW sensor, relay), or None (unknown, TBA).
         """
 
-        def create_system(ctl, profile=None) -> SystemBase:
-            # assert ctl.id not in self.system_by_id, f"Dup. sys_id: {ctl.id}"
+        if self._include and dev_addr.id not in self._include:
+            _LOGGER.warning(
+                f"Creating a non-allowed device_id: {dev_addr.id}"
+                f" (consider addding it to the {ALLOW_LIST})"
+            )
 
-            if profile is None:
-                profile = "programmer" if dev_addr.type == "23" else "evohome"
+        elif dev_addr.id in self._exclude:
+            _LOGGER.warning(
+                f"Creating a blocked device_id: {dev_addr.id}"
+                f" (consider removing it from the {BLOCK_LIST})"
+            )
 
-            system = SYSTEM_CLASSES.get(profile, System)(self, ctl)
-            if self.evo is None:
-                self.evo = system
-
-            if not self.config[DISABLE_DISCOVERY]:
-                system._discover()  # discover_flag=DISCOVER_ALL)
-            return system
-
-        def create_device(dev_addr) -> Device:  # TODO: Optional[Device]
-            # assert dev_addr.id not in self.device_by_id, f"Dup. dev_id: {dev_addr.id}"
-
-            if self._include and dev_addr.id not in self._include:
-                _LOGGER.warning(
-                    f"Creating a non-allowed device_id: {dev_addr.id}"
-                    f" (consider addding it to the {ALLOW_LIST})"
-                )
-
-            elif dev_addr.id in self._exclude:
-                _LOGGER.warning(
-                    f"Creating a blocked device_id: {dev_addr.id}"
-                    f" (consider removing it from the {BLOCK_LIST})"
-                )
-
-            # else:
-            device = DEVICE_CLASSES.get(dev_addr.type, Device)(self, dev_addr)
-
-            # if isinstance(device, Controller):
-            # if device._is_controller:
-            # if dev_addr.type in SYSTEM_CLASSES:
-            # if domain_id == "FF"
-            if dev_addr.type in ("01", "23"):
-                device._evo = create_system(device, profile=kwargs.get("profile"))
-
-            if not self.config[DISABLE_DISCOVERY]:
-                device._discover()  # discover_flag=DISCOVER_ALL)
-            return device
-
+        # else:
         if ctl_addr is not None:
             ctl = self.device_by_id.get(ctl_addr.id)
             if ctl is None:
@@ -238,7 +212,10 @@ class Gateway:
 
         dev = self.device_by_id.get(dev_addr.id)
         if dev is None:  # TODO: take into account device filter?
-            dev = create_device(dev_addr)
+            dev = create_device(self, dev_addr)
+
+        if dev._is_controller and dev._evo is None:
+            dev._evo = create_system(self, dev, profile=kwargs.get("profile"))
 
         if not self.rfg and dev.type == "18":
             self.rfg = dev
@@ -264,35 +241,47 @@ class Gateway:
         gwy.devices = []
 
     def _pause_engine(self) -> Tuple[Callable, bool, bool]:
+        self._state_lock.acquire()
+        if self._state_params is not None:
+            self._state_lock.release()
+            raise RuntimeError("Unable to pause, the engine is already paused")
+
         callback = None
 
         if self.pkt_protocol:
             self.pkt_protocol.pause_writing()
             self.pkt_protocol._callback, callback = None, self.pkt_protocol._callback
 
-        self.config[DISABLE_DISCOVERY], discovery = True, self.config[DISABLE_DISCOVERY]
-        self.config[DISABLE_SENDING], sending = True, self.config[DISABLE_SENDING]
+        self.config.disable_discovery, discovery = True, self.config.disable_discovery
+        self.config.disable_sending, sending = True, self.config.disable_sending
 
-        return (callback, discovery, sending)
+        self._state_params = (callback, discovery, sending)
+        self._state_lock.release()
 
-    def _resume_engine(
-        self, callback: Callable, discovery: bool, sending: bool
-    ) -> None:
+    def _resume_engine(self) -> None:
+        self._state_lock.acquire()
+        if self._state_params is None:
+            self._state_lock.release()
+            raise RuntimeError("Unable to resume, the engine is not paused")
+
+        self._state_params, (callback, discovery, sending) = None, self._state_params
+
         if self.pkt_protocol:
             self.pkt_protocol._callback = callback  # self.msg_transport._pkt_receiver
             self.pkt_protocol.resume_writing()
 
-        self.config[DISABLE_DISCOVERY] = discovery
-        self.config[DISABLE_SENDING] = sending
+        self.config.disable_discovery = discovery
+        self.config.disable_sending = sending
 
         # [
         #     zone._discover(discover_flag=6)
         #     for evo in self.systems
         #     for zone in evo.zones
         # ]
+        self._state_lock.release()
 
     def _get_state(self) -> Tuple[Dict, Dict]:
-        engine_state = self._pause_engine()
+        self._pause_engine()
 
         msgs = {v.dtm: v for d in self.devices for v in d._msgs.values()}
         for system in self.systems:
@@ -302,12 +291,12 @@ class Gateway:
         pkts = {
             dtm.isoformat(sep="T", timespec="auto"): repr(msg)
             for dtm, msg in msgs.items()
-            if not msg.is_expired
+            if msg.verb in (I_, RP) and not msg.is_expired
         }
 
         schema, pkts = self.schema, dict(sorted(pkts.items()))
 
-        self._resume_engine(*engine_state)
+        self._resume_engine()
         return schema, pkts
 
     async def _set_state(self, schema: Dict, packets: Dict) -> None:

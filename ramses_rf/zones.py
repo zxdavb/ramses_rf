@@ -4,10 +4,12 @@
 """RAMSES RF - The evohome-compatible zones."""
 
 import logging
-from abc import ABCMeta, abstractmethod
 from asyncio import Task
 from datetime import datetime as dt
 from datetime import timedelta as td
+from inspect import getmembers, isclass
+from sys import modules
+from types import SimpleNamespace
 from typing import Optional
 
 from .command import Command, Schedule
@@ -49,28 +51,37 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-class ZoneBase(Entity, metaclass=ABCMeta):
+ZONE_CLASS = SimpleNamespace(
+    DHW="DHW",  # Stored HW (not a zone)
+    ELE="ELE",  # Electric
+    MIX="MIX",  # Mix valve
+    RAD="RAD",  # Radiator
+    UFH="UFH",  # Underfloor heating
+    VAL="VAL",  # Zone valve
+)
+
+
+class ZoneBase(Entity):
     """The Zone/DHW base class."""
 
-    DHW = "DHW"
-    ELE = "ELE"
-    MIX = "MIX"
-    RAD = "RAD"
-    UFH = "UFH"
-    VAL = "VAL"
+    # __zon_class__ = None  # NOTE: this would cause problems
 
     def __init__(self, evo, zone_idx) -> None:
-        _LOGGER.debug("Creating a Zone: %s_%s", evo.id, zone_idx)
+        _LOGGER.debug("Creating a Zone: %s_%s (%s)", evo.id, zone_idx, self.__class__)
         super().__init__(evo._gwy)
 
-        self.id = f"{evo.id}_{zone_idx}"
-        self.idx = zone_idx
+        self.id, self.idx = f"{evo.id}_{zone_idx}", zone_idx
+        if self.idx in evo.zone_by_idx:
+            raise LookupError(f"Duplicate zone: {self.id}")
+
+        evo.zone_by_idx[self.idx] = self
+        evo.zones.append(self)
+
+        self._ctl = evo._ctl
+        self._evo = evo
 
         self._name = None
         self._zone_type = None
-
-        self._evo = evo
-        self._ctl = evo._ctl
 
     def __repr__(self) -> str:
         return f"{self.id} ({self.heating_type})"
@@ -79,10 +90,6 @@ class ZoneBase(Entity, metaclass=ABCMeta):
         if not hasattr(other, "idx"):
             return NotImplemented
         return self.idx < other.idx
-
-    @abstractmethod
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        raise NotImplementedError
 
     def _handle_msg(self, msg) -> None:
         """Validate packets by verb/code."""
@@ -105,85 +112,9 @@ class ZoneBase(Entity, metaclass=ABCMeta):
         super()._send_cmd(code, dest, payload, **kwargs)
 
     @property
-    @abstractmethod
-    def schema(self) -> dict:
-        """Return the schema of the zone/DHW (e.g. sensor_id, zone_type)."""
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def params(self) -> dict:
-        """Return the configuration of the zone/DHW (e.g. min_temp, overrun)."""
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def status(self) -> dict:
-        """Return the current state of the zone/DHW (e.g. setpoint, temperature)."""
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def sensor(self) -> Device:
-        """Return the temperature sensor of the zone/DHW."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def _set_sensor(self, value: Device) -> None:
-        """Set the temperature sensor for the zone (or for the DHW)."""
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def name(self) -> Optional[str]:
-        """Return the name of the zone/DHW."""
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def config(self) -> Optional[dict]:
-        """Return the configuration (parameters) of the zone/DHW."""
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def mode(self) -> Optional[dict]:
-        """Return the operating mode of the zone/DHW (mode, setpoint/active, until)."""
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def setpoint(self) -> Optional[float]:
-        """Return the target temperature of the zone/DHW."""
-        raise NotImplementedError
-
-    # @setpoint.setter
-    # @abstractmethod
-    # def setpoint(self, value: float) -> None:  # TODO: also mode, name attrs
-    #     """Set the target temperature of the zone/DHW."""
-    #     raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def temperature(self) -> Optional[float]:
-        """Return the measured temperature of the zone/DHW."""
-        raise NotImplementedError
-
-    @property
-    def heating_type(self) -> str:
+    def heating_type(self) -> Optional[str]:
         """Return the type of the zone/DHW (e.g. electric_zone, stored_dhw)."""
-        return self._zone_type
-
-    # @abstractmethod
-    # def ._set_zone_type(self, value: str) -> None:
-    #     """Set the type of the zone/DHW (e.g. electric_zone, stored_dhw)."""
-    #     raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def heat_demand(self) -> Optional[float]:
-        """Return the heat_demand of the zone/DHW."""
-        raise NotImplementedError
+        return self.__zon_class__
 
 
 class ZoneSchedule:  # 0404  # TODO: add for DHW
@@ -194,10 +125,10 @@ class ZoneSchedule:  # 0404  # TODO: add for DHW
 
         self._schedule = Schedule(self)
 
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
 
-        if False and discover_flag & DISCOVER_STATUS:  # TODO: add back in
-            self._loop.create_task(self.get_schedule())  # 0404
+    #     if discover_flag & DISCOVER_STATUS:  # TODO: add back in
+    #         self._loop.create_task(self.get_schedule())  # 0404
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -241,16 +172,22 @@ class RelayDemand:  # 0008
 class DhwZone(ZoneBase):  # CS92A  # TODO: add Schedule
     """The DHW class."""
 
-    def __init__(self, ctl, sensor=None, dhw_valve=None, htg_valve=None) -> None:
-        super().__init__(ctl, "HW")
+    __zon_class__ = ZONE_CLASS.DHW
+
+    def __init__(
+        self, ctl, zone_idx="HW", sensor=None, dhw_valve=None, htg_valve=None
+    ) -> None:
+        super().__init__(ctl, zone_idx)
 
         ctl._set_dhw(self)
+        # if profile == ZONE_CLASS.DHW and evo.dhw is None:
+        #     evo.dhw = zone
 
         self._dhw_sensor = None
         self._dhw_valve = None
         self._htg_valve = None
 
-        self._zone_type = Zone.DHW
+        self._zone_type = ZONE_CLASS.DHW
 
         self._dhw_mode = None
         self._dhw_params = None
@@ -284,12 +221,15 @@ class DhwZone(ZoneBase):  # CS92A  # TODO: add Schedule
             ]
 
         if discover_flags & DISCOVER_PARAMS:
-            for code in ("10A0",):
-                self._send_cmd(code, payload="00")  # payload="00" (or "0000"), not "FA"
+            self._gwy.send_cmd(
+                Command.get_dhw_params(self._ctl.id), period=td(hours=12)
+            )
 
         if discover_flags & DISCOVER_STATUS:
-            for code in ("1260", "1F41"):
-                self._send_cmd(code, payload="00")  # payload="00" or "0000", not "FA"
+            self._gwy.send_cmd(Command.get_dhw_mode(self._ctl.id), period=td(hours=12))
+            self._gwy.send_cmd(
+                Command.get_dhw_temp(self._ctl.id), period=td(minutes=30)
+            )
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -482,7 +422,9 @@ class DhwZone(ZoneBase):  # CS92A  # TODO: add Schedule
 class Zone(ZoneSchedule, ZoneBase):
     """The Zone base class."""
 
-    def __init__(self, ctl, zone_idx, sensor=None, actuators=None) -> None:
+    __zon_class__ = None  # Unknown
+
+    def __init__(self, evo, zone_idx, sensor=None, actuators=None) -> None:
         """Create a zone.
 
         The type of zone may not be known at instantiation. Even when it is known, zones
@@ -491,13 +433,10 @@ class Zone(ZoneSchedule, ZoneBase):
 
         In addition, an electric zone may subsequently turn out to be a zone valve zone.
         """
-        # _LOGGER.debug("Creating a Zone: %s (%s)", zone_idx, self.__class__)
-        super().__init__(ctl, zone_idx)
+        if int(zone_idx, 16) >= evo.max_zones:
+            raise ValueError(f"Invalid zone idx: {zone_idx} (exceeds max_zones)")
 
-        # self.id = f"{ctl.id}_{zone_idx}"
-        ctl.zones.append(self)
-        ctl.zone_by_idx[zone_idx] = self
-        # ctl.zone_by_name[self.name] = self
+        super().__init__(evo, zone_idx)
 
         self.devices = []
         self.device_by_id = {}
@@ -510,13 +449,13 @@ class Zone(ZoneSchedule, ZoneBase):
         self._temperature = None
         self._zone_config = None
 
-        # these needed here, as we can't use __init__
+        # these needed here, as we can't use those __init__()s
         self._mix_config = None  # MIX
         self._ufh_setpoint = None  # UFH
         self._window_open = None  # RAD (or: ALL)
         self._actuator_state = None  # ELE, ZON
 
-        self._schedule = Schedule(self)
+        # self._schedule = Schedule(self)  # TODO:
 
         if sensor:
             self._set_sensor(sensor)
@@ -526,17 +465,19 @@ class Zone(ZoneSchedule, ZoneBase):
 
         # TODO: add code to determine zone type if it doesn't have one, using 0005s
         if discover_flag & DISCOVER_SCHEMA:
-            [  # 000C: find the sensor and the actuators, if any
-                self._send_cmd("000C", payload=f"{self.idx}{dev_type}")
-                for dev_type in (_000C_DEVICE.ALL,)  # _000C_DEVICE.ALL_SENSOR)
-            ]
+            self._send_cmd("000C", payload=f"{self.idx}{_000C_DEVICE.ALL}")
+            self._send_cmd("000C", payload=f"{self.idx}{_000C_DEVICE.ALL_SENSOR}")
 
-        if discover_flag & DISCOVER_PARAMS:  # every 4h
-            self._gwy.send_cmd(Command.get_zone_config(self._ctl.id, self.idx))  # 000A
-            self._gwy.send_cmd(Command.get_zone_name(self._ctl.id, self.idx))  # 0004
+        if discover_flag & DISCOVER_PARAMS:
+            self._gwy.send_cmd(Command.get_zone_config(self._ctl.id, self.idx))
+            self._gwy.send_cmd(
+                Command.get_zone_name(self._ctl.id, self.idx), period=td(hours=4)
+            )
 
         if discover_flag & DISCOVER_STATUS:  # every 1h, CTL will not respond to a 3150
-            self._gwy.send_cmd(Command.get_zone_mode(self._ctl.id, self.idx))
+            self._gwy.send_cmd(
+                Command.get_zone_mode(self._ctl.id, self.idx), period=td(minutes=30)
+            )
             self._gwy.send_cmd(Command.get_zone_temperature(self._ctl.id, self.idx))
             self._gwy.send_cmd(Command.get_zone_window_state(self._ctl.id, self.idx))
 
@@ -656,7 +597,7 @@ class Zone(ZoneSchedule, ZoneBase):
         """
 
         _type = ZONE_TYPE_SLUGS.get(zone_type, zone_type)
-        if _type not in ZONE_CLASSES:
+        if _type not in ZONE_BY_CLASS_ID:
             raise ValueError(f"Not a known zone type: {zone_type}")
 
         if (
@@ -670,7 +611,7 @@ class Zone(ZoneSchedule, ZoneBase):
             )
 
         self._zone_type = _type
-        self.__class__ = ZONE_CLASSES[_type]
+        self.__class__ = ZONE_BY_CLASS_ID[_type]
         _LOGGER.debug("Zone %s: type now set to %s", self.id, self._zone_type)
 
         self._discover()  # TODO: needs tidyup (ref #67)
@@ -863,6 +804,8 @@ class Zone(ZoneSchedule, ZoneBase):
 class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
     """For a small electric load controlled by a relay (never calls for heat)."""
 
+    __zon_class__ = ZONE_CLASS.ELE
+
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
@@ -892,6 +835,8 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
     Note that HM80s are listen-only devices.
     """
 
+    __zon_class__ = ZONE_CLASS.MIX
+
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
@@ -920,6 +865,8 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
 class RadZone(Zone):  # HR92/HR80
     """For radiators controlled by HR92s or HR80s (will also call for heat)."""
 
+    __zon_class__ = ZONE_CLASS.RAD
+
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
@@ -930,6 +877,8 @@ class RadZone(Zone):  # HR92/HR80
 
 class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
     """For underfloor heating controlled by an HCE80/HCC80 (will also call for heat)."""
+
+    __zon_class__ = ZONE_CLASS.UFH
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -956,6 +905,8 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
 class ValZone(EleZone):  # BDR91A/T
     """For a motorised valve controlled by a BDR91 (will also call for heat)."""
 
+    __zon_class__ = ZONE_CLASS.VAL
+
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
@@ -969,11 +920,24 @@ class ValZone(EleZone):  # BDR91A/T
         return self.relay_demand
 
 
-ZONE_CLASSES = {
-    Zone.DHW: DhwZone,
-    Zone.ELE: EleZone,
-    Zone.MIX: MixZone,
-    Zone.RAD: RadZone,
-    Zone.VAL: ValZone,
-    Zone.UFH: UfhZone,
-}
+CLASS_ATTR = "__zon_class__"
+ZONE_BY_CLASS_ID = {
+    getattr(c[1], CLASS_ATTR): c[1]
+    for c in getmembers(
+        modules[__name__],
+        lambda m: isclass(m) and m.__module__ == __name__ and hasattr(m, CLASS_ATTR),
+    )
+}  # e.g. "RAD": RadZone
+
+
+def create_zone(evo, zone_idx, profile=None, **kwargs) -> Zone:
+    """Create a zone, and optionally perform discovery & start polling."""
+
+    if profile is None:
+        profile = ZONE_CLASS.DHW if zone_idx == "HW" else None
+
+    zone = ZONE_BY_CLASS_ID.get(profile, Zone)(evo, zone_idx, **kwargs)
+
+    if not evo._gwy.config.disable_discovery:  # TODO: needs tidyup (ref #67)
+        zone._discover()  # discover_flag=DISCOVER_ALL)
+    return zone
