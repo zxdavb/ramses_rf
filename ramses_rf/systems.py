@@ -26,7 +26,7 @@ from .const import (
     SystemType,
     __dev_mode__,
 )
-from .devices import Device, Entity
+from .devices import BdrSwitch, Device, Entity, OtbGateway
 from .exceptions import CorruptStateError, ExpiredCallbackError
 from .schema import (
     ATTR_CONTROLLER,
@@ -748,22 +748,18 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     def _set_htg_control(self, device: Device) -> None:  # self._htg_control
         """Set the heating control relay for this system (10: or 13:)."""
 
-        if not isinstance(device, Device) or device.type not in ("10", "13"):
-            raise TypeError(f"{ATTR_HTG_CONTROL} can't be: {device}")
-
-        if self._htg_control is not None:
-            if self._htg_control is device:
-                return
+        if self._htg_control is device:
+            return
+        elif self._htg_control is not None:
             raise CorruptStateError(
                 f"{ATTR_HTG_CONTROL} shouldn't change: {self._htg_control} to {device}"
             )
 
-        # if device.evo is not None and device.evo is not self:
-        #     raise LookupError
+        if not isinstance(device, (BdrSwitch, OtbGateway)):
+            raise TypeError(f"{ATTR_HTG_CONTROL} can't be: {device}")
 
-        if self._htg_control is None:
-            self._htg_control = device
-            device._set_parent(self, domain="FC")
+        self._htg_control = device
+        device._set_parent(self, domain="FC")  # TODO: _set_domain()
 
     @property
     def tpi_params(self) -> Optional[float]:  # 1100
