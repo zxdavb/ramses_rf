@@ -207,7 +207,7 @@ class DeviceBase(Entity):
         self._ctl = self._set_ctl(ctl) if ctl else None
 
         self._domain_id = domain_id
-        self._zone = None
+        self._parent = None
 
         self.addr = dev_addr
         self.hex_id = dev_id_to_hex(dev_addr.id)
@@ -254,21 +254,19 @@ class DeviceBase(Entity):
     def _set_ctl(self, ctl) -> None:  # self._ctl
         """Set the device's parent controller, after validating it."""
 
-        if self._ctl is None:
-            _LOGGER.debug("Setting controller for %s to %s", self, ctl)
+        if self._ctl is ctl:
+            return
+        if self._ctl is not None:
+            raise CorruptStateError(f"{self} changed controller: {self._ctl} to {ctl}")
 
-            #  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5  # has been seen
-            if not isinstance(ctl, Controller) and not ctl._is_controller:
-                raise TypeError(f"Device {ctl} is not a controller")
+        #  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5  # has been seen
+        if not isinstance(ctl, Controller) and not ctl._is_controller:
+            raise TypeError(f"Device {ctl} is not a controller")
 
-            self._ctl = ctl
-            self._ctl.device_by_id[self.id] = self
-            self._ctl.devices.append(self)
-
-        elif self._ctl is not ctl:
-            raise CorruptStateError(
-                f"{self} has changed controller: {self._ctl.id} to {ctl.id}"
-            )
+        self._ctl = ctl
+        ctl.device_by_id[self.id] = self
+        ctl.devices.append(self)
+        _LOGGER.debug("Entity %s: controller now set to %s", self, ctl)
 
     def _handle_msg(self, msg) -> None:
         """Check that devices only handle messages they have sent."""
@@ -289,7 +287,6 @@ class DeviceBase(Entity):
 
         # if isinstance(device, Controller):
         # if domain_id == "FF"
-
         # if dev_addr.type in SYSTEM_CLASSES:
         if self.type in ("01", "23"):
             pass
@@ -467,7 +464,7 @@ class DeviceInfo:  # 10E0
     @property
     def schema(self) -> dict:
         result = super().schema
-        result.update({self.RF_BIND: self._msg_payload(self._msgs.get("1FC9"))})
+        # result.update({self.RF_BIND: self._msg_payload(self._msgs.get("1FC9"))})
         if "10E0" in self._msgs or "10E0" in RAMSES_DEVICES.get(self.type, []):
             result.update({self.DEVICE_INFO: self.device_info})
         return result
@@ -485,47 +482,9 @@ class Device(DeviceInfo, DeviceBase):
             return
 
         if self._ctl is not None and "parent_idx" in msg.payload:
-            self._set_zone(self._ctl._evo._get_zone(msg.payload["parent_idx"]))
+            self._set_parent(self._ctl._evo._get_zone(msg.payload["parent_idx"]))
 
-    def _set_parent(self, parent, domain=None) -> None:
-        """Set the device's parent zone, after validating it."""
-
-        # these imports are here to prevent circular references
-        from .systems import System
-        from .zones import DhwZone, Zone
-
-        if isinstance(parent, Zone):
-            if domain and domain != parent.idx:
-                raise TypeError(f"domain can't be: {domain} (must be {parent.idx})")
-            domain = parent.idx
-
-        elif isinstance(parent, DhwZone):
-            if domain and domain not in ("F9", "FA"):
-                raise TypeError(f"domain can't be: {domain}")
-
-        elif isinstance(parent, System):
-            if domain not in ("F9", "FA", "FC", "HW"):
-                raise TypeError(f"domain can't be: {domain}")
-
-        else:
-            raise TypeError(f"parent can't be: {parent}")
-
-        if self._zone and self._zone is not parent:
-            raise CorruptStateError(
-                f"{self} shouldn't change parent: {self._zone} to {parent}"
-            )
-
-        self._set_ctl(parent._ctl)
-        self._zone = parent
-        self._domain_id = domain
-
-    @property
-    def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
-        """Return the device's parent zone, if known."""
-
-        return self._zone
-
-    def _set_zone(self, zone: Entity) -> None:  # self._zone
+    def _set_parent(self, parent, domain=None) -> None:  # self._parent
         """Set the device's parent zone, after validating it.
 
         There are three possible sources for the parent zone of a device:
@@ -533,36 +492,49 @@ class Device(DeviceInfo, DeviceBase):
         2. a message.payload["zone_idx"]
         3. the sensor-matching algorithm for zone sensors only
 
-        All three will set device.zone to this zone.
-
         Devices don't have parents, rather: Zones have children; a mis-configured
         system could have a device as a child of two domains.
         """
 
-        if not isinstance(zone, Entity):  # should be: zone, Zone)
-            raise TypeError(f"Not a zone: {zone}")
+        # these imports are here to prevent circular references
+        from .systems import System
+        from .zones import DhwZone, Zone
 
-        if self._zone is not None:
-            if self._zone is not zone:
-                raise CorruptStateError(
-                    f"Device {self} appears claimed by multiple parent zones: "
-                    f"old={self._zone}, new={zone}"
-                )
-            return
+        if self._parent is not None and self._parent is not parent:
+            raise CorruptStateError(
+                f"{self} changed parent: {self._parent} to {parent}, "
+            )
 
-        self._domain_id = zone.idx
-        self._zone = zone
-        if self._domain_id == "FA":
-            # if isinstance(self, DhwSensor):
-            #     self._sensor = self
-            # else:
-            #     self._dhw_valve = self
-            pass
+        if isinstance(parent, Zone):
+            if domain and domain != parent.idx:
+                raise TypeError(f"{self}: domain must be {parent.idx}, not {domain}")
+            domain = parent.idx
 
-        elif self not in self._zone.devices:
-            self._zone.devices.append(self)
-            self._zone.device_by_id[self.id] = self
-        _LOGGER.debug("Device %s: parent zone now set to %s", self.id, self._zone)
+        elif isinstance(parent, DhwZone):  # usu. FA
+            if domain not in ("F9", "FA"):  # may not be known if eavesdrop'd
+                raise TypeError(f"{self}: domain must be F9 or FA, not {domain}")
+
+        elif isinstance(parent, System):  # usu. FC
+            if domain != "FC":  # was: not in ("F9", "FA", "FC", "HW"):
+                raise TypeError(f"{self}: domain must be FC, not {domain}")
+
+        else:
+            raise TypeError(f"{self}: parent must be System, DHW or Zone, not {parent}")
+
+        self._set_ctl(parent._ctl)
+        self._parent = parent
+        self._domain_id = domain
+
+        if hasattr(parent, "devices") and self not in parent.devices:
+            parent.devices.append(self)
+            parent.device_by_id[self.id] = self
+        _LOGGER.debug("Device %s: parent now set to %s", self, parent)
+
+    @property
+    def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
+        """Return the device's parent zone, if known."""
+
+        return self._parent
 
     @property
     def has_battery(self) -> Optional[bool]:  # 1060
@@ -1250,8 +1222,8 @@ class BdrSwitch(Actuator, Device):  # BDR (13):
 
         if self._domain_id in DOMAIN_TYPE_MAP:
             return DOMAIN_TYPE_MAP[self._domain_id]
-        elif self._zone:
-            return self._zone.heating_type
+        elif self._parent:
+            return self._parent.heating_type  # TODO: only applies to zones
 
     @property
     def _role(self) -> Optional[str]:  # TODO: XXX

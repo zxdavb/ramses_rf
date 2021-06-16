@@ -226,7 +226,7 @@ class Gateway:
         if domain_id in ("F9", "FA", "FC", "FF"):
             dev._domain_id = domain_id
         elif domain_id is not None and ctl_addr and ctl:
-            dev._set_zone(ctl._evo._get_zone(domain_id))
+            dev._set_parent(ctl._evo._get_zone(domain_id))
 
         return dev
 

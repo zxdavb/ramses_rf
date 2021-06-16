@@ -570,12 +570,10 @@ def process_msg(msg: Message) -> None:
                         pass
 
                 elif this.payload["device_class"] == ATTR_ZONE_ACTUATORS:
-                    # TODO: is this better, or...
                     # evo._get_zone(this.payload["zone_idx"], actuators=devices)
-                    # TODO: is it this one?
+                    # TODO: whihc is better, above or below?
                     zone = evo._get_zone(this.payload["zone_idx"])
-                    for d in devices:
-                        d._set_zone(zone)
+                    [d._set_parent(zone) for d in devices]
 
                 elif this.payload["device_class"] == ATTR_HTG_CONTROL:
                     evo._set_htg_control(devices[0])

@@ -249,24 +249,29 @@ class DhwZone(ZoneBase):  # CS92A  # TODO: add Schedule
         elif msg.code == "1F41":
             self._dhw_mode = msg
 
+    def _set_dhw_device(self, new_dev, old_dev, attr_name, dev_class, domain_id):
+        if old_dev is new_dev:
+            return old_dev
+        if old_dev is not None:
+            raise CorruptStateError(
+                f"{self} changed {attr_name}: {old_dev} to {new_dev}"
+            )
+
+        if not isinstance(new_dev, dev_class):
+            raise TypeError(f"{attr_name} can't be: {dev_class}")
+
+        new_dev._set_parent(self, domain=domain_id)
+        return new_dev
+
     def _set_sensor(self, device: DhwSensor) -> None:
         """Set the temp sensor for this DHW system (07: only)."""
 
         # 07:38:39.124 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
         # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
 
-        if self._dhw_sensor is device:
-            return
-        elif self._dhw_sensor is not None:
-            raise CorruptStateError(
-                f"{ATTR_ZONE_SENSOR} shouldn't change: {self._dhw_sensor} to {device}"
-            )
-
-        if not isinstance(device, DhwSensor):
-            raise TypeError(f"{ATTR_ZONE_SENSOR} can't be: {device}")
-
-        self._dhw_sensor = device
-        device._set_parent(self, domain="FA")  # TODO: _set_domain()
+        self._dhw_sensor = self._set_dhw_device(
+            device, self._dhw_sensor, ATTR_ZONE_SENSOR, DhwSensor, "FA"
+        )
 
     @property
     def sensor(self) -> DhwSensor:  # self._dhw_sensor
@@ -284,18 +289,9 @@ class DhwZone(ZoneBase):  # CS92A  # TODO: add Schedule
         The I/1260 is not to/from a controller, so is not useful.
         """  # noqa: D402
 
-        if self._dhw_valve is device:
-            return
-        elif self._dhw_valve is not None:
-            raise CorruptStateError(
-                f"{ATTR_DHW_VALVE} shouldn't change: {self._dhw_valve} to {device}"
-            )
-
-        if not isinstance(device, BdrSwitch):
-            raise TypeError(f"{ATTR_DHW_VALVE} can't be: {device}")
-
-        self._dhw_valve = device
-        device._set_parent(self, domain="FA")  # TODO: _set_domain()
+        self._dhw_valve = self._set_dhw_device(
+            device, self._dhw_valve, ATTR_DHW_VALVE, BdrSwitch, "FA"
+        )
 
     @property
     def hotwater_valve(self) -> BdrSwitch:  # self._dhw_valve
@@ -304,18 +300,9 @@ class DhwZone(ZoneBase):  # CS92A  # TODO: add Schedule
     def _set_htg_valve(self, device: BdrSwitch) -> None:  # self._htg_valve
         """Set the heating valve relay for this DHW system (13: only)."""
 
-        if self._htg_valve is device:
-            return
-        elif self._htg_valve is not None:
-            raise CorruptStateError(
-                f"{ATTR_DHW_VALVE_HTG} shouldn't change: {self._htg_valve} to {device}"
-            )
-
-        if not isinstance(device, BdrSwitch):
-            raise TypeError(f"{ATTR_DHW_VALVE_HTG} can't be: {device}")
-
-        self._htg_valve = device
-        device._set_parent(self, domain="F9")  # TODO: _set_domain()
+        self._htg_valve = self._set_dhw_device(
+            device, self._htg_valve, ATTR_DHW_VALVE_HTG, BdrSwitch, "F9"
+        )
 
     @property
     def heating_valve(self) -> BdrSwitch:  # self._htg_valve
@@ -533,9 +520,9 @@ class Zone(ZoneSchedule, ZoneBase):
 
         if self._sensor is device:
             return
-        elif self._sensor is not None:
+        if self._sensor is not None:
             raise CorruptStateError(
-                f"{ATTR_ZONE_SENSOR} shouldn't change: {self._sensor} to {device}"
+                f"{self} changed {ATTR_ZONE_SENSOR}: {self._sensor} to {device}"
             )
 
         sensor_types = ("00", "01", "03", "04", "12", "22", "34")
@@ -544,7 +531,7 @@ class Zone(ZoneSchedule, ZoneBase):
             raise TypeError(f"{ATTR_ZONE_SENSOR} can't be: {device}")
 
         self._sensor = device
-        device._set_parent(self, domain=self.idx)  # TODO: _set_domain()
+        device._set_parent(self)  # , domain=self.idx)
 
     @property
     def heating_type(self) -> Optional[str]:

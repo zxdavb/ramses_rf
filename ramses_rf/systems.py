@@ -536,8 +536,6 @@ class MultiZone:  # 0005 (+/- 000C?)
 
         if kwargs.get("actuators"):  # TODO: check not an address before implementing
             for device in [d for d in kwargs["actuators"] if d not in zone.devices]:
-                zone.devices.append(device)
-                zone.device_by_id[device.id] = device
                 device._set_parent(zone)
 
         return zone
@@ -750,9 +748,9 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         if self._htg_control is device:
             return
-        elif self._htg_control is not None:
+        if self._htg_control is not None:
             raise CorruptStateError(
-                f"{ATTR_HTG_CONTROL} shouldn't change: {self._htg_control} to {device}"
+                f"{self} changed {ATTR_HTG_CONTROL}: {self._htg_control} to {device}"
             )
 
         if not isinstance(device, (BdrSwitch, OtbGateway)):
