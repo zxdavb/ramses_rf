@@ -6,7 +6,10 @@
 import logging
 from asyncio import Task
 from datetime import timedelta as td
+from inspect import getmembers, isclass
+from sys import modules
 from threading import Lock
+from types import SimpleNamespace
 from typing import List, Optional
 
 from .command import Command, FaultLog, Priority
@@ -23,7 +26,7 @@ from .const import (
     SystemType,
     __dev_mode__,
 )
-from .devices import Device, Entity
+from .devices import BdrSwitch, Device, Entity, OtbGateway
 from .exceptions import CorruptStateError, ExpiredCallbackError
 from .schema import (
     ATTR_CONTROLLER,
@@ -33,11 +36,8 @@ from .schema import (
     ATTR_ORPHANS,
     ATTR_UFH_SYSTEM,
     ATTR_ZONES,
-    DISABLE_DISCOVERY,
-    ENABLE_EAVESDROP,
-    MAX_ZONES,
 )
-from .zones import DhwZone, Zone
+from .zones import DhwZone, Zone, create_zone
 
 I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
 
@@ -46,6 +46,12 @@ DEV_MODE = __dev_mode__ and False
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
+
+
+SYSTEM_CLASS = SimpleNamespace(
+    EVO="evohome",  # Stored HW (not a zone)
+    PRG="programmer",  # Electric
+)
 
 
 class SysFaultLog:  # 0418
@@ -83,7 +89,7 @@ class SysDatetime:  # 313F
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
-            self._gwy.send_cmd(Command.get_system_time(self.id))
+            self._gwy.send_cmd(Command.get_system_time(self.id), period=td(hours=1))
 
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
@@ -166,7 +172,7 @@ class SysMode:  # 2E04
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
-            self._gwy.send_cmd(Command.get_system_mode(self.id))
+            self._gwy.send_cmd(Command.get_system_mode(self.id), period=td(hours=1))
 
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
@@ -241,12 +247,12 @@ class StoredHw:
                     this.dst.type == "07",
                 )
             ):
-                self._dhw = self._get_zone("HW", sensor=this.dst)
+                self._dhw = self._get_dhw(sensor=this.dst)
 
         super()._handle_msg(msg)
 
         if msg.code == "10A0":  # dhw_params
-            if msg._gwy.config[ENABLE_EAVESDROP]:
+            if msg._gwy.config.enable_eavesdrop:
                 find_dhw_sensor(msg)
 
         elif msg.code == "1260":  # dhw_temp
@@ -255,40 +261,22 @@ class StoredHw:
         elif msg.code == "1F41":  # dhw_mode
             pass
 
-    def _get_zone(self, zone_idx, sensor=None, **kwargs) -> DhwZone:
-        """Return a DHW zone (will create it if required).
+    def _get_dhw(self, **kwargs) -> DhwZone:
+        """Return the DHW zone (will create/update it if required)."""
 
-        Can also set a DHW zone's sensor & valves?.
-        """
+        # NOTE: kwargs not passed, so discovery is as eavesdropping
+        dhw = self.dhw or create_zone(self, zone_idx="HW")
 
-        def create_dhw(zone_idx) -> DhwZone:
-            if self.dhw:
-                raise LookupError(f"Duplicate stored HW: {zone_idx}")
-
-            dhw = self._dhw = DhwZone(self)
-
-            if not self._gwy.config[DISABLE_DISCOVERY]:
-                dhw._discover()  # discover_flag=DISCOVER_ALL)
-
-            return dhw
-
-        if zone_idx != "HW":
-            return
-
-        zone = self.dhw  # TODO: self.zone_by_idx.get("HW") too?
-        if zone is None:
-            zone = create_dhw(zone_idx)
+        if kwargs.get("sensor"):
+            dhw._set_sensor(kwargs["sensor"])
 
         if kwargs.get("dhw_valve"):
-            zone._set_dhw_valve(kwargs["dhw_valve"])
+            dhw._set_dhw_valve(kwargs["dhw_valve"])
 
         if kwargs.get("htg_valve"):
-            zone._set_dhw_valve(kwargs["htg_valve"])
+            dhw._set_htg_valve(kwargs["htg_valve"])
 
-        if sensor is not None:
-            zone._set_sensor(sensor)
-
-        return zone
+        return dhw
 
     @property
     def dhw(self) -> DhwZone:
@@ -345,7 +333,7 @@ class MultiZone:  # 0005 (+/- 000C?)
 
         self.zones = []
         self.zone_by_idx = {}
-        # self.zone_by_name = {}
+        self.max_zones = self._gwy.config.max_zones
 
         self.zone_lock = Lock()
         self.zone_lock_idx = None
@@ -371,15 +359,15 @@ class MultiZone:  # 0005 (+/- 000C?)
                 self._send_cmd("0005", payload=f"00{zone_type}")
                 for zone_type in (
                     _0005_ZONE.ALL,
-                    _0005_ZONE.ALL_SENSORS,
+                    _0005_ZONE.ALL_SENSOR,
                     "0C",  # ???
                     _0005_ZONE.HTG,
                     "10",  # ???
                 )
             ]
 
-        if discover_flag & DISCOVER_STATUS:
-            self._send_cmd("0006")
+        # if discover_flag & DISCOVER_STATUS:
+        #     self._send_cmd("0006")  # schedule delta
 
     def _handle_msg(self, msg, prev_msg=None):
         def find_zone_sensors(this_30c9, prev_30c9) -> None:
@@ -519,9 +507,10 @@ class MultiZone:  # 0005 (+/- 000C?)
         super()._handle_msg(msg)
 
         if msg.code == "000A" and isinstance(msg.payload, list):
-            for zone_idx in self.zone_by_idx:
-                cmd = Command.get_zone_mode(self.id, zone_idx, priority=Priority.LOW)
-                self._gwy.send_cmd(cmd)
+            pass
+            # for zone_idx in self.zone_by_idx:
+            #     cmd = Command.get_zone_mode(self.id, zone_idx, priority=Priority.LOW)
+            #     self._gwy.send_cmd(cmd)
             # for zone in self.zones:
             #     zone._discover(discover_flags=DISCOVER_PARAMS)
 
@@ -529,49 +518,25 @@ class MultiZone:  # 0005 (+/- 000C?)
         #     zone_added = bool(prev_30c9.code == "0004")  # else zone_deleted
 
         elif msg.code == "30C9" and isinstance(msg.payload, list):  # msg.is_array:
-            if self._gwy.config[ENABLE_EAVESDROP]:
+            if self._gwy.config.enable_eavesdrop:
                 find_zone_sensors(msg, self._prev_30c9)
                 self._prev_30c9 = msg
 
-    def _get_zone(self, zone_idx, sensor=None, **kwargs) -> Zone:
-        """Return a zone (will create it if required).
+    def _get_zone(self, zone_idx, **kwargs) -> Zone:
+        """Return a heating zone (will create/update it if required)."""
 
-        Can also set a zone's sensor, and zone_type, and actuators.
-        """
-
-        def create_zone(zone_idx) -> Zone:
-            if int(zone_idx, 16) >= self._gwy.config[MAX_ZONES]:
-                raise ValueError(f"Invalid zone idx: {zone_idx} (exceeds max_zones)")
-
-            if zone_idx in self.zone_by_idx:
-                raise LookupError(f"Duplicated zone: {zone_idx} for {self}")
-
-            zone = Zone(self, zone_idx)
-
-            if not self._gwy.config[DISABLE_DISCOVERY]:  # TODO: needs tidyup (ref #67)
-                zone._discover()  # discover_flag=DISCOVER_ALL)
-
-            return zone
-
-        if zone_idx == "HW":
-            return super()._get_zone(zone_idx, sensor=sensor, **kwargs)
-        if int(zone_idx, 16) >= self._gwy.config[MAX_ZONES]:
-            raise ValueError(f"Unknown zone_idx/domain_id: {zone_idx}")
-
-        zone = self.zone_by_idx.get(zone_idx)
-        if zone is None:
-            zone = create_zone(zone_idx)
+        # NOTE: kwargs not passed, so discovery is as eavesdropping
+        zone = self.zone_by_idx.get(zone_idx) or create_zone(self, zone_idx)
 
         if kwargs.get("zone_type"):
             zone._set_zone_type(kwargs["zone_type"])
 
-        if kwargs.get("actuators"):  # TODO: check not an address before implmenting
-            for device in [d for d in kwargs["actuators"] if d not in zone.devices]:
-                zone.devices.append(device)
-                zone.device_by_id[device.id] = device
+        if kwargs.get("sensor"):
+            zone._set_sensor(kwargs["sensor"])
 
-        if sensor is not None:
-            zone._set_sensor(sensor)
+        if kwargs.get("actuators"):  # TODO: check not an address before implementing
+            for device in [d for d in kwargs["actuators"] if d not in zone.devices]:
+                device._set_parent(zone)
 
         return zone
 
@@ -632,17 +597,22 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
     # 0008|0009|1030|1100|2309|3B00
 
-    def __init__(self, gwy, ctl, **kwargs) -> None:
-        # _LOGGER.debug("Creating a System: %s (%s)", dev_addr.id, self.__class__)
-        super().__init__(gwy, **kwargs)
+    def __init__(self, gwy, ctl) -> None:
+        _LOGGER.debug("Creating a System: %s (%s)", ctl.id, self.__class__)
+        super().__init__(gwy)
 
         self.id = ctl.id
-        gwy.systems.append(self)
+        if self.id in gwy.system_by_id:
+            raise LookupError(f"Duplicate controller: {self.id}")
+
         gwy.system_by_id[self.id] = self
+        gwy.systems.append(self)
+        if gwy.evo is None:
+            gwy.evo = self
 
         self._ctl = ctl
+        self._evo = self
         self._domain_id = "FF"
-        self._evo = None
 
         self._heat_demand = None
         self._htg_control = None
@@ -664,7 +634,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         if discover_flag & DISCOVER_PARAMS:
             # self._send_cmd("1100", payload="FC")  # TPI params
-            self._gwy.send_cmd(Command.get_tpi_params(self.id))
+            self._gwy.send_cmd(Command.get_tpi_params(self.id), period=td(hours=4))
 
         # # for code in ("3B00",):  # 3EF0, 3EF1
         # #     for payload in ("0000", "00", "F8", "F9", "FA", "FB", "FC", "FF"):
@@ -754,7 +724,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                 self._heat_demand = msg.payload
 
         if msg.code in ("3220", "3B00", "3EF0"):  # self.heating_control is None and
-            if self._gwy.config[ENABLE_EAVESDROP]:
+            if self._gwy.config.enable_eavesdrop:
                 find_htg_control(msg, prev=prev_msg)
 
     def _send_cmd(self, code, **kwargs) -> None:
@@ -776,22 +746,18 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     def _set_htg_control(self, device: Device) -> None:  # self._htg_control
         """Set the heating control relay for this system (10: or 13:)."""
 
-        if not isinstance(device, Device) or device.type not in ("10", "13"):
-            raise TypeError(f"{ATTR_HTG_CONTROL} can't be: {device}")
-
+        if self._htg_control is device:
+            return
         if self._htg_control is not None:
-            if self._htg_control is device:
-                return
             raise CorruptStateError(
-                f"{ATTR_HTG_CONTROL} shouldn't change: {self._htg_control} to {device}"
+                f"{self} changed {ATTR_HTG_CONTROL}: {self._htg_control} to {device}"
             )
 
-        # if device.evo is not None and device.evo is not self:
-        #     raise LookupError
+        if not isinstance(device, (BdrSwitch, OtbGateway)):
+            raise TypeError(f"{ATTR_HTG_CONTROL} can't be: {device}")
 
-        if self._htg_control is None:
-            self._htg_control = device
-            device._set_parent(self, domain="FC")
+        self._htg_control = device
+        device._set_parent(self, domain="FC")  # TODO: _set_domain()
 
     @property
     def tpi_params(self) -> Optional[float]:  # 1100
@@ -882,6 +848,8 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 class System(StoredHw, SysDatetime, SystemBase):  # , SysFaultLog
     """The Controller class."""
 
+    __sys_class__ = SYSTEM_CLASS.PRG
+
     def __init__(self, gwy, ctl, **kwargs) -> None:
         super().__init__(gwy, ctl, **kwargs)
 
@@ -938,8 +906,9 @@ class System(StoredHw, SysDatetime, SystemBase):  # , SysFaultLog
 
 
 class Evohome(SysLanguage, SysMode, MultiZone, UfhSystem, System):  # evohome
-    # class Evohome(System):  # evohome
     """The Evohome system - some controllers are evohome-compatible."""
+
+    __sys_class__ = SYSTEM_CLASS.EVO
 
     def __init__(self, gwy, ctl, **kwargs) -> None:
         super().__init__(gwy, ctl, **kwargs)
@@ -977,11 +946,17 @@ class Evohome(SysLanguage, SysMode, MultiZone, UfhSystem, System):  # evohome
 
 
 class Chronotherm(Evohome):
+
+    __sys_class__ = SYSTEM_CLASS.EVO
+
     def __repr__(self) -> str:
         return f"{self._ctl.id} (chronotherm)"
 
 
 class Hometronics(System):
+
+    __sys_class__ = SYSTEM_CLASS.EVO
+
     RQ_SUPPORTED = ("0004", "000C", "2E04", "313F")  # TODO: WIP
     RQ_UNSUPPORTED = ("xxxx",)  # 10E0?
 
@@ -999,16 +974,22 @@ class Hometronics(System):
 
 
 class Programmer(Evohome):
+
+    __sys_class__ = SYSTEM_CLASS.PRG
+
     def __repr__(self) -> str:
         return f"{self._ctl.id} (programmer)"
 
 
 class Sundial(Evohome):
+
+    __sys_class__ = SYSTEM_CLASS.PRG
+
     def __repr__(self) -> str:
         return f"{self._ctl.id} (sundial)"
 
 
-SYSTEM_CLASSES = {
+_SYS_CLASS = {
     SystemType.CHRONOTHERM: Chronotherm,
     SystemType.EVOHOME: Evohome,
     SystemType.HOMETRONICS: Hometronics,
@@ -1016,3 +997,31 @@ SYSTEM_CLASSES = {
     SystemType.SUNDIAL: Sundial,
     SystemType.GENERIC: System,
 }
+_SYS_CLASS_BY_TYPE = {
+    "01": Evohome,
+    "23": Programmer,
+    "12": Sundial,
+}
+
+
+CLASS_ATTR = "__sys_class__"
+SYSTEM_BY_PROFILE = {
+    getattr(c[1], CLASS_ATTR): c[1]
+    for c in getmembers(
+        modules[__name__],
+        lambda m: isclass(m) and m.__module__ == __name__ and hasattr(m, CLASS_ATTR),
+    )
+}  # e.g. "evohome": Evohome
+
+
+def create_system(gwy, ctl, profile=None, **kwargs) -> System:
+    """Create a system, and optionally perform discovery & start polling."""
+
+    if profile is None:
+        profile = SYSTEM_CLASS.PRG if ctl.type == "23" else SYSTEM_CLASS.EVO
+
+    system = _SYS_CLASS.get(profile, System)(gwy, ctl, **kwargs)
+
+    if not gwy.config.disable_discovery:  # TODO: remove False
+        system._discover()  # discover_flag=DISCOVER_ALL)
+    return system

@@ -38,16 +38,7 @@ from .const import DTM_LONG_REGEX, HGI_DEV_ADDR, __dev_mode__
 from .helpers import dt_now, dt_str
 from .packet import _PKT_LOGGER, Packet
 from .protocol import create_protocol_factory
-from .schema import (
-    ALLOW_LIST,
-    BLOCK_LIST,
-    DISABLE_SENDING,
-    ENFORCE_ALLOWLIST,
-    ENFORCE_BLOCKLIST,
-    EVOFW_FLAG,
-    SERIAL_CONFIG,
-    SERIAL_CONFIG_SCHEMA,
-)
+from .schema import ALLOW_LIST, BLOCK_LIST, EVOFW_FLAG, SERIAL_CONFIG_SCHEMA
 from .version import __version__
 
 DEV_MODE = __dev_mode__ and False
@@ -274,14 +265,14 @@ class PacketProtocolBase(asyncio.Protocol):
         self._recv_buffer = bytes()
 
         self._include = (
-            list(gwy._include.keys()) if gwy.config[ENFORCE_ALLOWLIST] else []
+            list(gwy._include.keys()) if gwy.config.enforce_allow_list else []
         )
         self._exclude = (
-            list(gwy._exclude.keys()) if gwy.config[ENFORCE_BLOCKLIST] else []
+            list(gwy._exclude.keys()) if gwy.config.enforce_block_list else []
         )
 
         self._has_initialized = None
-        if not self._gwy.config[DISABLE_SENDING]:
+        if not self._gwy.config.disable_sending:
             self._loop.create_task(self.send_data(INIT_CMD))  # HACK: port wakeup
 
     def connection_made(self, transport: asyncio.Transport) -> None:
@@ -400,9 +391,9 @@ class PacketProtocolBase(asyncio.Protocol):
             if (  # "# evofw3" in pkt_str
                 "# evofw3" in pkt_str
                 and self._gwy.config.get(EVOFW_FLAG)
-                and self._gwy.config[EVOFW_FLAG] != "!V"
+                and self._gwy.config.evofw_flag != "!V"
             ):
-                flag = self._gwy.config[EVOFW_FLAG]
+                flag = self._gwy.config.evofw_flag
                 data = bytes(f"{flag}\r\n".encode("ascii"))
                 self._loop.create_task(self._send_data(data, ignore_pause=True))
 
@@ -450,7 +441,7 @@ class PacketProtocolBase(asyncio.Protocol):
         """Called when some data is to be sent (not a callback)."""
         _LOGGER.debug("PktProtocol.send_data(%s)", cmd)
 
-        if self._gwy.config[DISABLE_SENDING]:
+        if self._gwy.config.disable_sending:
             raise RuntimeError("Sending is disabled")
 
         if not cmd.is_valid:
@@ -710,7 +701,7 @@ class PacketProtocolQos(PacketProtocolBase):
                 callback[FUNC](False, *callback.get(ARGS, tuple()))
                 callback["expired"] = not callback.get(DEAMON, False)
 
-        if self._gwy.config[DISABLE_SENDING]:
+        if self._gwy.config.disable_sending:
             raise RuntimeError("Sending is disabled")
 
         if not cmd.is_valid:
@@ -757,9 +748,9 @@ class PacketProtocolQos(PacketProtocolBase):
                 self._timeouts(dt.now())
                 await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
                 _logger_send(
-                    _LOGGER.debug,
+                    _LOGGER.warning,
                     f"RE-SENT ({self._tx_retries}/{self._tx_retry_limit})",
-                )  # TODO: should be info/debug
+                )  # TODO: should be debug
 
             else:
                 if self._qos_cmd.code != "7FFF":  # HACK: why expired when shouldn't
@@ -801,7 +792,7 @@ def create_pkt_stack(
     def _protocol_factory():
         if packet_dict or packet_log:
             return create_protocol_factory(PacketProtocolRead, gwy, msg_handler)()
-        elif gwy.config[DISABLE_SENDING]:
+        elif gwy.config.disable_sending:
             return create_protocol_factory(PacketProtocol, gwy, msg_handler)()
         else:
             return create_protocol_factory(PacketProtocolQos, gwy, msg_handler)()
@@ -818,7 +809,7 @@ def create_pkt_stack(
         return (pkt_protocol, pkt_transport)
 
     ser_config = DEFAULT_SERIAL_CONFIG
-    ser_config.update(gwy.config[SERIAL_CONFIG])
+    ser_config.update(gwy.config.serial_config)
 
     try:
         ser_instance = serial_for_url(ser_port, **ser_config)

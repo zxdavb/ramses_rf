@@ -5,7 +5,9 @@
 
 import asyncio
 import logging
-from abc import ABCMeta, abstractmethod
+from inspect import getmembers, isclass
+from sys import modules
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
 from .command import FUNC, TIMEOUT, Command, Priority
@@ -31,7 +33,6 @@ from .exceptions import CorruptStateError
 from .helpers import dev_id_to_hex
 from .opentherm import VALUE
 from .ramses import RAMSES_DEVICES
-from .schema import ENABLE_EAVESDROP
 
 MSG_ID = "msg_id"
 
@@ -47,6 +48,41 @@ DEV_MODE = __dev_mode__ and False
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
+
+
+DEVICE_CLASS = SimpleNamespace(
+    BDR="BDR",  # Electrical relay
+    CTL="CTL",  # Controller
+    DHW="DHW",  # DHW sensor
+    EXT="EXT",  # External weather sensor
+    GWY="GWY",  # Gateway interface (to USB)
+    OTB="OTB",  # OpenTherm bridge
+    PRG="PRG",  # Programmer
+    RFG="RFG",  # RF gateway (to ethernet)
+    STA="STA",  # Thermostat
+    TRV="TRV",  # Thermostatic radiator valve
+    UFC="UFC",  # UFH controller
+)
+_DEV_TYPE_TO_CLASS = {
+    "00": DEVICE_CLASS.TRV,
+    "01": DEVICE_CLASS.CTL,
+    "02": DEVICE_CLASS.UFC,
+    "03": DEVICE_CLASS.STA,
+    "04": DEVICE_CLASS.TRV,
+    "07": DEVICE_CLASS.DHW,
+    "10": DEVICE_CLASS.OTB,
+    "12": DEVICE_CLASS.STA,  # can act like a DEVICE_CLASS.PRG
+    "13": DEVICE_CLASS.BDR,
+    "17": DEVICE_CLASS.EXT,
+    "18": DEVICE_CLASS.GWY,
+    "20": "FAN",
+    "22": DEVICE_CLASS.STA,
+    "23": DEVICE_CLASS.PRG,
+    "30": DEVICE_CLASS.RFG,  # or: HVAC
+    "34": DEVICE_CLASS.STA,
+    "37": "FAN",
+    "39": "SWI",
+}
 
 
 def periodic(period):
@@ -154,7 +190,7 @@ class Entity:
         return self._ctl  # TODO: if the controller is not known, try to find it?
 
 
-class DeviceBase(Entity, metaclass=ABCMeta):
+class DeviceBase(Entity):
     """The Device base class."""
 
     def __init__(self, gwy, dev_addr, ctl=None, domain_id=None) -> None:
@@ -162,13 +198,16 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         super().__init__(gwy)
 
         self.id = dev_addr.id
-        gwy.devices.append(self)
-        gwy.device_by_id[self.id] = self
+        if self.id in gwy.device_by_id:
+            raise LookupError(f"Duplicate device: {self.id}")
 
-        self._ctl = None
-        if ctl:
-            self._set_ctl(ctl)
+        gwy.device_by_id[self.id] = self
+        gwy.devices.append(self)
+
+        self._ctl = self._set_ctl(ctl) if ctl else None
+
         self._domain_id = domain_id
+        self._parent = None
 
         self.addr = dev_addr
         self.hex_id = dev_id_to_hex(dev_addr.id)
@@ -183,9 +222,6 @@ class DeviceBase(Entity, metaclass=ABCMeta):
             self._is_actuator = None
             self._is_sensor = None
 
-        self._zone = None
-        # self._domain = {}  # TODO
-
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id})"
 
@@ -198,19 +234,17 @@ class DeviceBase(Entity, metaclass=ABCMeta):
         return self.id < other.id
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        # sometimes, battery-powered devices do respond to an RQ (e.g. bind mode)
+        # sometimes, battery-powered devices will respond to an RQ (e.g. bind mode)
         # super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_SCHEMA and self.type not in DEVICE_HAS_BATTERY:
-            # self._send_cmd("1FC9", retries=3)
-            if self.type not in ("13",):
-                self._send_cmd("10E0", retries=0)  # TODO: use device hints
+            self._send_cmd("1FC9", retries=3)  # rf_bind
 
         # if discover_flag & DISCOVER_PARAMS and self.type not in DEVICE_HAS_BATTERY:
         #     pass
 
-        # if discover_flag & DISCOVER_STATUS and self.type not in DEVICE_HAS_BATTERY:
-        #     self._send_cmd("0016", retries=3)
+        if discover_flag & DISCOVER_STATUS and self.type not in DEVICE_HAS_BATTERY:
+            self._send_cmd("0016", retries=3)  # rf_check
 
     def _send_cmd(self, code, **kwargs) -> None:
         dest = kwargs.pop("dest_addr", self.id)
@@ -220,21 +254,19 @@ class DeviceBase(Entity, metaclass=ABCMeta):
     def _set_ctl(self, ctl) -> None:  # self._ctl
         """Set the device's parent controller, after validating it."""
 
-        if self._ctl is None:
-            _LOGGER.debug("Setting controller for %s to %s", self, ctl)
+        if self._ctl is ctl:
+            return
+        if self._ctl is not None:
+            raise CorruptStateError(f"{self} changed controller: {self._ctl} to {ctl}")
 
-            #  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5  # has been seen
-            if not isinstance(ctl, Controller) and not ctl._is_controller:
-                raise TypeError(f"Device {ctl} is not a controller")
+        #  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5  # has been seen
+        if not isinstance(ctl, Controller) and not ctl._is_controller:
+            raise TypeError(f"Device {ctl} is not a controller")
 
-            self._ctl = ctl
-            self._ctl.devices.append(self)
-            self._ctl.device_by_id[self.id] = self
-
-        elif self._ctl is not ctl:
-            raise CorruptStateError(
-                f"{self} has changed controller: {self._ctl.id} to {ctl.id}"
-            )
+        self._ctl = ctl
+        ctl.device_by_id[self.id] = self
+        ctl.devices.append(self)
+        _LOGGER.debug("Entity %s: controller now set to %s", self, ctl)
 
     def _handle_msg(self, msg) -> None:
         """Check that devices only handle messages they have sent."""
@@ -244,39 +276,38 @@ class DeviceBase(Entity, metaclass=ABCMeta):
     @property
     def _is_present(self) -> bool:
         """Try to exclude ghost devices (as caused by corrupt packet addresses)."""
-        return any(m.src == self for m in self._msgs.values() if not m.is_expired)
+        return any(
+            m.src == self for m in self._msgs.values() if not m.is_expired
+        )  # TODO: needs addressing
 
     @property
-    def description(self) -> Optional[str]:
-        return DEVICE_TABLE[self.type]["name"] if self.type in DEVICE_TABLE else None
+    def _is_controller(self) -> Optional[bool]:  # 1F09
+        if self._ctl is not None:
+            return self._ctl is self
+
+        # if isinstance(device, Controller):
+        # if domain_id == "FF"
+        # if dev_addr.type in SYSTEM_CLASSES:
+        if self.type in ("01", "23"):
+            pass
+        # if "1F09" in self._msgs:  # TODO: needs to add msg as attr
+        #     return self._msgs["1F09"].verb == I_
+        # if "31D9" in self._msgs:  # TODO: needs to add msg as attr
+        #     return self._msgs["31D9"].verb == I_
+        return False
 
     @property
-    @abstractmethod
     def schema(self) -> dict:
         """Return the fixed attributes of the device (e.g. TODO)."""
         return self._codes if DEV_MODE else {}
 
     @property
-    @abstractmethod
-    def params(self) -> dict:
-        """Return the configuration of the device (e.g. TODO)."""
-        raise NotImplementedError
+    def params(self):
+        return {}
 
     @property
-    @abstractmethod
-    def status(self) -> dict:
-        """Return the current state of the device (e.g. TODO)."""
-        raise NotImplementedError
-
-    # @property
-    # @abstractmethod
-    # def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
-    #     """Return parent zone of the device, if known."""
-    #     raise NotImplementedError
-
-    # @abstractmethod
-    # def _set_zone(self, zone: Entity) -> None:  # should be: zone: Zone
-    #     """Set the parent zone of the device."""
+    def status(self):
+        return {}
 
 
 class Actuator:  # 3EF0, 3EF1
@@ -417,7 +448,14 @@ class Temperature:  # 30C9 (fakeable)
 
 class DeviceInfo:  # 10E0
 
+    RF_BIND = "rf_bind"
     DEVICE_INFO = "device_info"
+
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        if discover_flag & DISCOVER_SCHEMA and self.type not in DEVICE_HAS_BATTERY:
+            self._send_cmd("1FC9", retries=3)  # rf_bind
+            if self.type != "13":
+                self._send_cmd("10E0", retries=3)  # TODO: use device hints
 
     @property
     def device_info(self) -> Optional[dict]:  # 10E0
@@ -426,6 +464,7 @@ class DeviceInfo:  # 10E0
     @property
     def schema(self) -> dict:
         result = super().schema
+        # result.update({self.RF_BIND: self._msg_payload(self._msgs.get("1FC9"))})
         if "10E0" in self._msgs or "10E0" in RAMSES_DEVICES.get(self.type, []):
             result.update({self.DEVICE_INFO: self.device_info})
         return result
@@ -434,62 +473,18 @@ class DeviceInfo:  # 10E0
 class Device(DeviceInfo, DeviceBase):
     """The Device base class - also used for unknown device types."""
 
-    DEVICE_CLASS = "DEV"  # DEVICE_TYPES = ("??", )
+    __dev_class__ = "DEV"  # DEVICE_TYPES = ("??", )
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if not msg._gwy.config[ENABLE_EAVESDROP]:
+        if not msg._gwy.config.enable_eavesdrop:
             return
 
         if self._ctl is not None and "parent_idx" in msg.payload:
-            self._set_zone(self._ctl._evo._get_zone(msg.payload["parent_idx"]))
+            self._set_parent(self._ctl._evo._get_zone(msg.payload["parent_idx"]))
 
-    def _set_parent(self, parent, domain=None) -> None:
-        """Set the device's parent zone, after validating it."""
-
-        # NOTE: these imports are here to prevent circular references
-        from .systems import System
-        from .zones import DhwZone, Zone
-
-        if isinstance(parent, Zone):
-            if domain and domain != parent.idx:
-                raise TypeError(f"domain can't be: {domain} (must be {parent.idx})")
-
-            self._set_ctl(parent._ctl)
-            self._domain_id = parent.idx
-
-        elif isinstance(parent, DhwZone):
-            if domain and domain not in ("F9", "FA"):
-                raise TypeError(f"domain can't be: {domain}")
-
-            self._set_ctl(parent._ctl)
-            self._domain_id = domain
-
-        elif isinstance(parent, System):
-            if domain not in ("F9", "FA", "FC", "HW"):
-                raise TypeError(f"domain can't be: {domain}")
-
-            self._set_ctl(parent._ctl)
-            self._domain_id = domain
-
-        else:
-            raise TypeError(f"parent can't be: {parent}")
-
-        if self._zone is not None:
-            if self._zone is not parent:
-                raise CorruptStateError(
-                    f"{self} shouldn't change parent: {self._zone} to {parent}"
-                )
-            self._zone = parent
-
-    @property
-    def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
-        """Return the device's parent zone, if known."""
-
-        return self._zone
-
-    def _set_zone(self, zone: Entity) -> None:  # self._zone
+    def _set_parent(self, parent, domain=None) -> None:  # self._parent
         """Set the device's parent zone, after validating it.
 
         There are three possible sources for the parent zone of a device:
@@ -497,36 +492,49 @@ class Device(DeviceInfo, DeviceBase):
         2. a message.payload["zone_idx"]
         3. the sensor-matching algorithm for zone sensors only
 
-        All three will set device.zone to this zone.
-
         Devices don't have parents, rather: Zones have children; a mis-configured
         system could have a device as a child of two domains.
         """
 
-        if not isinstance(zone, Entity):  # should be: zone, Zone)
-            raise TypeError(f"Not a zone: {zone}")
+        # these imports are here to prevent circular references
+        from .systems import System
+        from .zones import DhwZone, Zone
 
-        if self._zone is not None:
-            if self._zone is not zone:
-                raise CorruptStateError(
-                    f"Device {self} appears claimed by multiple parent zones: "
-                    f"old={self._zone}, new={zone}"
-                )
-            return
+        if self._parent is not None and self._parent is not parent:
+            raise CorruptStateError(
+                f"{self} changed parent: {self._parent} to {parent}, "
+            )
 
-        self._domain_id = zone.idx
-        self._zone = zone
-        if self._domain_id == "FA":
-            # if isinstance(self, DhwSensor):
-            #     self._sensor = self
-            # else:
-            #     self._dhw_valve = self
-            pass
+        if isinstance(parent, Zone):
+            if domain and domain != parent.idx:
+                raise TypeError(f"{self}: domain must be {parent.idx}, not {domain}")
+            domain = parent.idx
 
-        elif self not in self._zone.devices:
-            self._zone.devices.append(self)
-            self._zone.device_by_id[self.id] = self
-        _LOGGER.debug("Device %s: parent zone now set to %s", self.id, self._zone)
+        elif isinstance(parent, DhwZone):  # usu. FA
+            if domain not in ("F9", "FA"):  # may not be known if eavesdrop'd
+                raise TypeError(f"{self}: domain must be F9 or FA, not {domain}")
+
+        elif isinstance(parent, System):  # usu. FC
+            if domain != "FC":  # was: not in ("F9", "FA", "FC", "HW"):
+                raise TypeError(f"{self}: domain must be FC, not {domain}")
+
+        else:
+            raise TypeError(f"{self}: parent must be System, DHW or Zone, not {parent}")
+
+        self._set_ctl(parent._ctl)
+        self._parent = parent
+        self._domain_id = domain
+
+        if hasattr(parent, "devices") and self not in parent.devices:
+            parent.devices.append(self)
+            parent.device_by_id[self.id] = self
+        _LOGGER.debug("Device %s: parent now set to %s", self, parent)
+
+    @property
+    def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
+        """Return the device's parent zone, if known."""
+
+        return self._parent
 
     @property
     def has_battery(self) -> Optional[bool]:  # 1060
@@ -540,37 +548,11 @@ class Device(DeviceInfo, DeviceBase):
 
         return self._has_battery
 
-    @property
-    def _is_controller(self) -> Optional[bool]:  # 1F09
-        if self._ctl is self:
-            return True
-        # if isinstance(self, Controller):
-        #     return True
-        # if self.type in ("01", "23"):
-        #     return True
-        # if "1F09" in self._msgs:  # TODO: needs to add msg to instaition
-        #     return self._msgs["1F09"].verb == I_
-        # if "31D9" in self._msgs:  # TODO: needs to add msg to instaition
-        #     return self._msgs["31D9"].verb == I_
-        return False
-
-    @property
-    def schema(self):
-        return super().schema
-
-    @property
-    def params(self):
-        return {}
-
-    @property
-    def status(self):
-        return {}
-
 
 class RfiGateway(DeviceBase):  # RFG: 18
     """The RFG100 base class."""
 
-    DEVICE_CLASS = "RFG"  # DEVICE_TYPES = ("18", )
+    __dev_class__ = DEVICE_CLASS.RFG  # DEVICE_TYPES = ("18", )
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -691,7 +673,7 @@ class RfiGateway(DeviceBase):  # RFG: 18
 class Controller(Device):  # CTL (01):
     """The Controller base class."""
 
-    DEVICE_CLASS = "CTL"  # DEVICE_TYPES = ("01", )
+    __dev_class__ = DEVICE_CLASS.CTL  # DEVICE_TYPES = ("01", )
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -703,26 +685,29 @@ class Controller(Device):  # CTL (01):
         self.devices = []  # [self]
         self.device_by_id = {}  # {self.id: self}
 
+        if not self._gwy.config.disable_discovery:
+            self._discover(discover_flag=DISCOVER_SCHEMA)
+
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_SCHEMA and self.type not in DEVICE_HAS_BATTERY:
-            self._send_cmd("1FC9", retries=3)  # rf_bind
+            pass  # self._send_cmd("1F09", retries=3)
 
-        if discover_flag & DISCOVER_STATUS and self.type not in DEVICE_HAS_BATTERY:
-            self._send_cmd("0016", retries=3)  # rf_check
+    #     if discover_flag & DISCOVER_STATUS and self.type not in DEVICE_HAS_BATTERY:
+    #         self._send_cmd("0016", retries=3)  # rf_check
 
 
 class Programmer(Controller):  # PRG (23):
     """The Controller base class."""
 
-    DEVICE_CLASS = "PRG"  # DEVICE_TYPES = ("23", )
+    __dev_class__ = DEVICE_CLASS.PRG  # DEVICE_TYPES = ("23", )
 
 
 class UfhController(Device):  # UFC (02):
     """The UFC class, the HCE80 that controls the UFH zones."""
 
-    DEVICE_CLASS = "UFC"  # DEVICE_TYPES = ("02", )
+    __dev_class__ = DEVICE_CLASS.UFC  # DEVICE_TYPES = ("02", )
 
     HEAT_DEMAND = ATTR_HEAT_DEMAND
 
@@ -868,7 +853,7 @@ class UfhController(Device):  # UFC (02):
 class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
     """The DHW class, such as a CS92."""
 
-    DEVICE_CLASS = "DHW"  # DEVICE_TYPES = ("07", )
+    __dev_class__ = DEVICE_CLASS.DHW  # DEVICE_TYPES = ("07", )
 
     DHW_PARAMS = "dhw_params"
     TEMPERATURE = ATTR_TEMP
@@ -909,7 +894,7 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
 class ExtSensor(Device):  # EXT: 17
     """The EXT class (external sensor), such as a HB85/HB95."""
 
-    DEVICE_CLASS = "EXT"  # DEVICE_TYPES = ("17", )
+    __dev_class__ = DEVICE_CLASS.EXT  # DEVICE_TYPES = ("17", )
 
     LUMINOSITY = "luminosity"  # lux
     TEMPERATURE = "temperature"  # Celsius
@@ -999,7 +984,7 @@ class ExtSensor(Device):  # EXT: 17
 class OtbGateway(Actuator, Device):  # OTB (10): 22D9, 3220
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
-    DEVICE_CLASS = "OTB"  # DEVICE_TYPES = ("10", )
+    __dev_class__ = DEVICE_CLASS.OTB  # DEVICE_TYPES = ("10", )
 
     BOILER_SETPOINT = "boiler_setpoint"
     OPENTHERM_STATUS = "opentherm_status"
@@ -1131,7 +1116,7 @@ class OtbGateway(Actuator, Device):  # OTB (10): 22D9, 3220
 class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
     """The THM/STA class, such as a TR87RF."""
 
-    DEVICE_CLASS = "STA"  # DEVICE_TYPES = ("03", "12", "22", "34")
+    __dev_class__ = DEVICE_CLASS.STA  # DEVICE_TYPES = ("03", "12", "22", "34")
 
     # _STATE = super().TEMPERATURE
 
@@ -1178,7 +1163,7 @@ class BdrSwitch(Actuator, Device):  # BDR (13):
     - x2 DHW thingys (F9/DHW, FA/DHW)
     """
 
-    DEVICE_CLASS = "BDR"  # DEVICE_TYPES = ("13", )
+    __dev_class__ = DEVICE_CLASS.BDR  # DEVICE_TYPES = ("13", )
 
     RELAY_DEMAND = "relay_demand"  # percentage
     TPI_PARAMS = "tpi_params"
@@ -1237,8 +1222,8 @@ class BdrSwitch(Actuator, Device):  # BDR (13):
 
         if self._domain_id in DOMAIN_TYPE_MAP:
             return DOMAIN_TYPE_MAP[self._domain_id]
-        elif self._zone:
-            return self._zone.heating_type
+        elif self._parent:
+            return self._parent.heating_type  # TODO: only applies to zones
 
     @property
     def _role(self) -> Optional[str]:  # TODO: XXX
@@ -1287,7 +1272,7 @@ class BdrSwitch(Actuator, Device):  # BDR (13):
 class TrvActuator(BatteryState, Setpoint, Temperature, Device):  # TRV (00/04):
     """The TRV class, such as a HR92."""
 
-    DEVICE_CLASS = "TRV"  # DEVICE_TYPES = ("00", "04")
+    __dev_class__ = DEVICE_CLASS.TRV  # DEVICE_TYPES = ("00", "04")
 
     HEAT_DEMAND = ATTR_HEAT_DEMAND  # percentage
     WINDOW_OPEN = ATTR_WINDOW_OPEN  # boolean
@@ -1318,7 +1303,7 @@ class TrvActuator(BatteryState, Setpoint, Temperature, Device):  # TRV (00/04):
 class FanSwitch(BatteryState, Device):  # SWI (39):
     """The FAN (switch) class, such as a 4-way switch."""
 
-    DEVICE_CLASS = "SWI"  # DEVICE_TYPES = ("39",)
+    __dev_class__ = "SWI"  # DEVICE_TYPES = ("39",)
 
     BOOST_TIMER = "boost_timer"  # minutes, e.g. 10, 20, 30 minutes
     HEATER_MODE = "heater_mode"  # e.g. auto, off
@@ -1356,7 +1341,7 @@ class FanSwitch(BatteryState, Device):  # SWI (39):
 class FanDevice(Device):  # FAN (20/37):
     """The Ventilation class."""
 
-    DEVICE_CLASS = "FAN"  # DEVICE_TYPES = ("20", "37")
+    __dev_class__ = "FAN"  # DEVICE_TYPES = ("20", "37")
 
     BOOST_TIMER = "boost_timer"  # minutes (remaining?)
     FAN_RATE = "fan_rate"  # percentage
@@ -1387,45 +1372,33 @@ class FanDevice(Device):  # FAN (20/37):
         }
 
 
-DEVICES_CLASSES = (
-    BdrSwitch,
-    Controller,
-    DhwSensor,
-    ExtSensor,
-    FanDevice,
-    FanSwitch,
-    OtbGateway,
-    Programmer,
-    Thermostat,
-    TrvActuator,
-    UfhController,
-)
+CLASS_ATTR = "__dev_class__"
+DEVICE_BY_CLASS_ID = {
+    getattr(c[1], CLASS_ATTR): c[1]
+    for c in getmembers(
+        modules[__name__],
+        lambda m: isclass(m) and m.__module__ == __name__ and hasattr(m, CLASS_ATTR),
+    )
+}  # e.g. "CTL": Controller
 
-DEVICE_KLASS_TO_CLASS = {k.DEVICE_CLASS: k for k in DEVICES_CLASSES}
-
-DEVICE_TYPE_TO_KLASS = {
-    "00": "TRV",
-    "01": "CTL",
-    "02": "UFC",
-    "03": "STA",
-    "04": "TRV",
-    "07": "DHW",
-    "10": "OTB",
-    "12": "STA",
-    "13": "BDR",
-    "17": "EXT",
-    "18": "GWY",
-    "20": "FAN",
-    "22": "STA",
-    "23": "PRG",
-    "30": "RFG",
-    "34": "STA",
-    "37": "FAN",
-    "39": "SWI",
-}
-DEVICE_CLASSES = {
+DEVICE_BY_ID_TYPE = {
     k1: v2
-    for k1, v1 in DEVICE_TYPE_TO_KLASS.items()
-    for k2, v2 in DEVICE_KLASS_TO_CLASS.items()
+    for k1, v1 in _DEV_TYPE_TO_CLASS.items()
+    for k2, v2 in DEVICE_BY_CLASS_ID.items()
     if v1 == k2
 }  # e.g. "01": Controller,
+
+
+def create_device(
+    gwy, dev_addr, profile=None, **kwargs
+) -> Device:  # TODO: Optional[Device]
+    """Create a device, and optioanlly perform discovery & start polling."""
+
+    # if profile is None:
+    #     dev_type = dev_addr.type
+
+    device = DEVICE_BY_ID_TYPE.get(dev_addr.type, Device)(gwy, dev_addr, **kwargs)
+
+    if not gwy.config.disable_discovery:  # TODO: remove False
+        device._discover()  # discover_flag=DISCOVER_ALL)
+    return device

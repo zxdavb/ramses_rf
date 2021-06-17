@@ -53,7 +53,6 @@ from .opentherm import (
     parity,
 )
 from .ramses import RAMSES_CODES, RAMSES_DEVICES, RQ_MAY_HAVE_PAYLOAD
-from .schema import MAX_ZONES
 
 IDX_NAMES = {
     "0002": "other_idx",  # non-evohome: hometronics
@@ -164,7 +163,7 @@ def _idx(seqx, msg) -> dict:
 
     if "zone_idx" in result or "parent_idx" in result:
         assert (
-            int(msg.raw_payload[:2], 16) < msg._gwy.config[MAX_ZONES]
+            int(msg.raw_payload[:2], 16) < msg._gwy.config.max_zones
         ), f"invalid zone_idx: '{seqx}'"
     elif "domain_id" in result:
         assert seqx in ("F9", "FA", "FC"), f"invalid domain_id: '{seqx}'"
@@ -176,7 +175,7 @@ def _idx(seqx, msg) -> dict:
         assert seqx in ("00", "01", "21"), f"invalid hvac_id: '{seqx}'"
     elif "other_idx" in result:
         assert (
-            int(msg.raw_payload[4:6], 16) < msg._gwy.config[MAX_ZONES]
+            int(msg.raw_payload[4:6], 16) < msg._gwy.config.max_zones
         ), f"unknown other_idx: '{seqx}'"
 
     elif result != {}:
@@ -421,7 +420,7 @@ def parser_0001(payload, msg) -> Optional[dict]:
     assert msg.verb in (I_, W_), msg.verb
     assert msg.len == 5, msg.len
     assert payload[:2] in ("FC", "FF") or (
-        int(payload[:2], 16) < msg._gwy.config[MAX_ZONES]
+        int(payload[:2], 16) < msg._gwy.config.max_zones
     ), payload[:2]
     assert payload[2:6] in ("0000", "FFFF"), payload[2:6]
     assert payload[6:8] in ("02", "05"), payload[6:8]
@@ -482,7 +481,7 @@ def parser_0005(payload, msg) -> Optional[dict]:
         assert seqx[:2] == "00"  # done in _idx
         # assert payload[2:4] in _0005_ZONE_TYPE, f"Unknown zone_type: {seqx[2:4]}"
 
-        max_zones = msg._gwy.config[MAX_ZONES]
+        max_zones = msg._gwy.config.max_zones
         return {
             "zone_mask": (_flag8(seqx[4:6]) + _flag8(seqx[6:8]))[:max_zones],
             "zone_type": _0005_ZONE_TYPE.get(seqx[2:4], seqx[2:4]),
@@ -541,7 +540,7 @@ def parser_0008(payload, msg) -> Optional[dict]:
         if msg.verb == I_ and msg.src.type in ("01", "02") and msg.src is msg.dst:
             if payload[:2] in ("F9", "FA", "FC"):
                 return {"domain_id": payload[:2]}
-            assert int(payload[:2], 16) < msg._gwy.config[MAX_ZONES]
+            assert int(payload[:2], 16) < msg._gwy.config.max_zones
             return {"zone_idx": payload[:2]}
         assert payload[:2] == "00"
         return {}
@@ -576,9 +575,7 @@ def parser_0009(payload, msg) -> Union[dict, list]:
     # 095  I --- 23:100224 --:------ 23:100224 0009 003 0100FF  # 2-zone ST9520C
 
     def _parser(seqx) -> dict:
-        assert (
-            seqx[:2] in ("F9", "FC") or int(seqx[:2], 16) < msg._gwy.config[MAX_ZONES]
-        )
+        assert seqx[:2] in ("F9", "FC") or int(seqx[:2], 16) < msg._gwy.config.max_zones
         assert seqx[2:4] in ("00", "01"), seqx[2:4]
         assert seqx[4:] in ("00", "FF"), seqx[4:]
 
@@ -672,7 +669,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
             return {"domain_id": "FC"}
 
         assert (
-            int(seqx, 16) < msg._gwy.config[MAX_ZONES]
+            int(seqx, 16) < msg._gwy.config.max_zones
         ), f"invalid zone_idx: '{seqx}' (0x03)"
         return {"zone_idx": seqx}
 
@@ -680,7 +677,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
         # assert len(seqx) == 12, len(seqx)  # not needed
         assert seqx[:2] == payload[:2], seqx[:2]
         # assert seqx[2:4] in _000C_DEVICE_TYPE, f"Unknown device_type: {seqx[2:4]}"
-        assert seqx[4:6] == "7F" or int(seqx[4:6], 16) < msg._gwy.config[MAX_ZONES]
+        assert seqx[4:6] == "7F" or int(seqx[4:6], 16) < msg._gwy.config.max_zones
         return {hex_id_to_dec(seqx[6:12]): seqx[4:6]}
 
     if msg.verb == RQ:
@@ -830,7 +827,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
     assert int(payload[4:6], 16) < 64, payload[4:6]
     assert payload[8:10] in CODE_0418_FAULT_TYPE, payload[8:10]
 
-    assert int(payload[10:12], 16) < msg._gwy.config[MAX_ZONES] or (
+    assert int(payload[10:12], 16) < msg._gwy.config.max_zones or (
         payload[10:12] in ("F9", "FA", "FC")  # "1C"?
     ), f"unexpected domain_id: {payload[10:12]}"
     assert payload[12:14] in CODE_0418_DEVICE_CLASS, payload[12:14]
@@ -850,7 +847,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
     if payload[12:14] != "00":  # Controller
         key_name = (
             "zone_id"
-            if int(payload[10:12], 16) < msg._gwy.config[MAX_ZONES]
+            if int(payload[10:12], 16) < msg._gwy.config.max_zones
             else "domain_id"
         )  # TODO: don't use zone_idx (for now)
         result.update({key_name: payload[10:12]})
@@ -1087,8 +1084,8 @@ def parser_10e0(payload, msg) -> Optional[dict]:
 
     return {  # TODO: add version?
         "unknown": payload[2:20],
-        "date_2": date_2 if date_2 else "0000-00-00",
-        "date_1": date_1 if date_1 else "0000-00-00",
+        "date_2": date_2 or "0000-00-00",
+        "date_1": date_1 or "0000-00-00",
         "description": description,
         "_unknown_2": payload[38 + len(description) * 2 :],
     }
@@ -1342,7 +1339,7 @@ def parser_1fc9(payload, msg) -> Optional[dict]:
             "FC",
             "FF",
         ):  # or: not in DOMAIN_TYPE_MAP: ??
-            assert int(seqx[:2], 16) < msg._gwy.config[MAX_ZONES]
+            assert int(seqx[:2], 16) < msg._gwy.config.max_zones
         return [seqx[:2], seqx[2:6], hex_id_to_dec(seqx[6:])]
 
     assert msg.len >= 6 and msg.len % 6 == 0, msg.len  # assuming not RQ
@@ -1437,7 +1434,7 @@ def parser_22f1(payload, msg) -> Optional[dict]:
 
     if bitmap in FanSwitch.FAN_MODES:
         _action = {FanSwitch.FAN_MODE: FanSwitch.FAN_MODES[bitmap]}
-    elif bitmap in (9, 10):
+    elif bitmap in {9, 10}:
         _action = {FanSwitch.HEATER_MODE: FanSwitch.HEATER_MODES[bitmap]}
     else:
         _action = {}
@@ -1535,7 +1532,7 @@ def parser_2349(payload, msg) -> Optional[dict]:
 @parser_decorator  # hometronics _state (of unknwon)
 def parser_2d49(payload, msg) -> dict:
     assert (
-        payload[:2] in ("88", "FD") or int(payload[:2], 16) < msg._gwy.config[MAX_ZONES]
+        payload[:2] in ("88", "FD") or int(payload[:2], 16) < msg._gwy.config.max_zones
     ), payload[:2]
     assert payload[2:] in ("0000", "C800"), payload[2:]  # would "FFFF" mean N/A?
     # assert msg.len == 3, msg.len  # implied
@@ -1919,7 +1916,7 @@ def parser_3b00(payload, msg) -> Optional[dict]:
         return {}
 
     assert msg.len == 2, msg.len
-    assert payload[:2] in {"01": "FC", "13": "00", "23": "FC"}.get(msg.src.type, "00")
+    assert payload[:2] == {"01": "FC", "13": "00", "23": "FC"}.get(msg.src.type, "00")
     assert payload[2:] == "C8", payload[2:]  # Could it be a percentage?
 
     return {
