@@ -296,7 +296,7 @@ class PacketProtocolBase(asyncio.Protocol):
         )
 
         self._loop.create_task(
-            self._send_data(bytes("!V\r\n".encode("ascii")), ignore_pause=False)
+            self._send_data("!V", ignore_pause=False)
         )  # Used to see if using a evofw3 rather than a HGI80
         self._pause_writing = False  # TODO: needs work
 
@@ -360,8 +360,8 @@ class PacketProtocolBase(asyncio.Protocol):
             pkt = Packet(pkt_dtm, dtm_str, pkt_str, raw_pkt_line=pkt_raw)
         except ValueError:  # not a valid packet
             return
-        if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
-            _LOGGER.info(pkt)
+        # if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
+        #     _LOGGER.info(pkt)
         self._has_initialized = True
 
         if self._callback and self.is_wanted(pkt.src_addr, pkt.dst_addr):
@@ -393,12 +393,14 @@ class PacketProtocolBase(asyncio.Protocol):
                 and self._gwy.config.get(EVOFW_FLAG)
                 and self._gwy.config.evofw_flag != "!V"
             ):
-                flag = self._gwy.config.evofw_flag
-                data = bytes(f"{flag}\r\n".encode("ascii"))
-                self._loop.create_task(self._send_data(data, ignore_pause=True))
+                self._loop.create_task(
+                    self._send_data(self._gwy.config.evofw_flag, ignore_pause=True)
+                )
 
-            if DEV_MODE:  # TODO: deleteme
-                _LOGGER.debug("Rx: %s", pkt_raw, extra=self._extra(dtm_str, pkt_raw))
+            if DEV_MODE:  # TODO: deleteme?
+                _LOGGER.debug("RF Rx: %s", pkt_raw, extra=self._extra(dtm_str, pkt_raw))
+            elif _LOGGER.getEffectiveLevel() == logging.INFO:
+                _LOGGER.info("RF Rx: %s", pkt_raw)
 
             return pkt_dtm, dtm_str, self._normalise(pkt_str), pkt_raw
 
@@ -412,7 +414,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 if pkt_str:
                     self._data_received(pkt_dtm, dtm_str, pkt_str, pkt_raw)
 
-    async def _send_data(self, data: ByteString, ignore_pause=False) -> None:
+    async def _send_data(self, data: str, ignore_pause=False) -> None:
         """Send a bytearray to the transport (serial) interface.
 
         The _pause_writing flag can be ignored, is useful for sending traceflags.
@@ -430,10 +432,15 @@ class PacketProtocolBase(asyncio.Protocol):
             )
         ):
             await asyncio.sleep(0.005)
-        if DEV_MODE:  # TODO: deleteme
-            _LOGGER.debug("Tx:     %s", data, extra=self._extra(dt_str(), data))
 
-        self._transport.write(data)
+        data = bytes(data.encode("ascii"))
+
+        if DEV_MODE:  # TODO: deleteme?
+            _LOGGER.debug("RF Tx:     %s", data, extra=self._extra(dt_str(), data))
+        elif _LOGGER.getEffectiveLevel() == logging.INFO:
+            _LOGGER.info("RF Tx:     %s", data)
+
+        self._transport.write(data + b"\r\n")
         # 0.2: can still exceed with back-to-back restarts
         # await asyncio.sleep(0.2)  # TODO: RF Duty cycle, make configurable?
 
@@ -452,13 +459,10 @@ class PacketProtocolBase(asyncio.Protocol):
 
         if cmd.from_addr.type != "18":
             _LOGGER.warning("PktProtocol.send_data(%s): IMPERSONATING!", cmd.tx_header)
-            kmd = Command._puzzle("02", cmd.tx_header)
-            await self._send_data(bytes(f"{kmd}\r\n".encode("ascii")))
+            await self._send_data(str(Command._puzzle("02", cmd.tx_header)))
 
-        # self._loop.create_task(
-        #     self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
-        # )
-        await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
+        # self._loop.create_task(self._send_data(str(cmd)))
+        await self._send_data(str(cmd))
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
@@ -621,8 +625,8 @@ class PacketProtocolQos(PacketProtocolBase):
             pkt = Packet(pkt_dtm, dtm_str, pkt_str, raw_pkt_line=pkt_raw)
         except ValueError:  # not a valid packet
             return
-        if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
-            _LOGGER.info(pkt)
+        # if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
+        #     _LOGGER.info(pkt)
         self._has_initialized = True
 
         if self._qos_cmd:
@@ -699,7 +703,7 @@ class PacketProtocolQos(PacketProtocolBase):
                 # see also: MsgTransport._pkt_receiver()
                 _LOGGER.error("PktProtocolQos.send_data(%s): Expired callback", hdr)
                 callback[FUNC](False, *callback.get(ARGS, tuple()))
-                callback["expired"] = not callback.get(DEAMON, False)
+                callback["expired"] = not callback.get(DEAMON, False)  # HACK:
 
         if self._gwy.config.disable_sending:
             raise RuntimeError("Sending is disabled")
@@ -726,16 +730,16 @@ class PacketProtocolQos(PacketProtocolBase):
                 "PacketProtocolQos.send_data(%s): IMPERSONATING!", cmd.tx_header
             )
             kmd = Command._puzzle("02", cmd.tx_header)
-            await self._send_data(bytes(f"{kmd}\r\n".encode("ascii")))
+            await self._send_data(str(kmd))
 
         self._timeouts(dt.now())
-        await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
+        await self._send_data(str(cmd))
 
         while self._qos_cmd is not None:  # until sent (may need re-transmit) or expired
             await asyncio.sleep(0.005)
             if self._timeout_full > dt.now():
                 await asyncio.sleep(0.02)
-                # await self._send_data(bytes("\r\n".encode("ascii")))
+                # await self._send_data("")
 
             elif self._qos_cmd is None:  # can be set to None by data_received
                 continue
@@ -746,7 +750,7 @@ class PacketProtocolQos(PacketProtocolBase):
                 if not self._qos_cmd.qos.get("disable_backoff", False):
                     self._backoff = min(self._backoff + 1, QOS_MAX_BACKOFF)
                 self._timeouts(dt.now())
-                await self._send_data(bytes(f"{cmd}\r\n".encode("ascii")))
+                await self._send_data(str(cmd))
                 _logger_send(
                     _LOGGER.warning,
                     f"RE-SENT ({self._tx_retries}/{self._tx_retry_limit})",
