@@ -39,6 +39,7 @@ from .const import (
 )
 from .devices import BdrSwitch, Device, DhwSensor, Entity
 from .exceptions import CorruptStateError
+from .helpers import schedule_task
 
 # from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
 
@@ -67,18 +68,11 @@ class ZoneBase(Entity):
     # __zon_class__ = None  # NOTE: this would cause problems
 
     def __init__(self, evo, zone_idx) -> None:
-        _LOGGER.debug("Creating a Zone: %s_%s (%s)", evo.id, zone_idx, self.__class__)
+        _LOGGER.debug("Creating a Zone: %s_%s (%s)", evo, zone_idx, self.__class__)
         super().__init__(evo._gwy)
 
         self.id, self.idx = f"{evo.id}_{zone_idx}", zone_idx
-        if self.idx in evo.zone_by_idx:
-            raise LookupError(f"Duplicate zone: {self.id}")
-
-        evo.zone_by_idx[self.idx] = self
-        evo.zones.append(self)
-
-        self._ctl = evo._ctl
-        self._evo = evo
+        self._evo, self._ctl = self._set_system(evo, zone_idx)
 
         self._name = None
         self._zone_type = None
@@ -90,6 +84,31 @@ class ZoneBase(Entity):
         if not hasattr(other, "idx"):
             return NotImplemented
         return self.idx < other.idx
+
+    def _set_system(self, parent, zone_idx):
+        """Set the zone's parent system, after validating it."""
+
+        # these imports are here to prevent circular references
+        from .systems import System
+
+        try:
+            if zone_idx != "HW" and int(zone_idx, 16) >= parent.max_zones:
+                raise ValueError(f"{self}: invalid zone_idx {zone_idx} (> max_zones")
+        except (TypeError, ValueError):
+            raise TypeError(f"{self}: invalid zone_idx {zone_idx}")
+
+        if not isinstance(parent, System):
+            raise TypeError(f"{self}: parent must be a System, not {parent}")
+
+        if zone_idx != "HW":
+            if self.idx in parent.zone_by_idx:
+                raise LookupError(f"{self}: duplicate zone_idx: {zone_idx}")
+            parent.zone_by_idx[zone_idx] = self
+            parent.zones.append(self)
+
+        self._ctl = parent._ctl
+
+        return parent, parent._ctl
 
     def _handle_msg(self, msg) -> None:
         """Validate packets by verb/code."""
@@ -204,13 +223,13 @@ class DhwZone(ZoneBase):  # CS92A  # TODO: add Schedule
         if htg_valve:
             self._set_htg_valve(htg_valve)
 
-    def _discover(self, discover_flags=DISCOVER_ALL) -> None:
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
 
         # if False and __dev_mode__ and self.idx == "FA":  # dev/test code
         #     self.async_set_override(state="On")
 
-        if discover_flags & DISCOVER_SCHEMA:
+        if discover_flag & DISCOVER_SCHEMA:
             [  # 000C: find the DHW relay(s), if any, see: _000C_DEVICE_TYPE
                 self._send_cmd("000C", payload=dev_type)
                 for dev_type in (
@@ -220,12 +239,12 @@ class DhwZone(ZoneBase):  # CS92A  # TODO: add Schedule
                 )
             ]
 
-        if discover_flags & DISCOVER_PARAMS:
+        if discover_flag & DISCOVER_PARAMS:
             self._gwy.send_cmd(
                 Command.get_dhw_params(self._ctl.id), period=td(hours=12)
             )
 
-        if discover_flags & DISCOVER_STATUS:
+        if discover_flag & DISCOVER_STATUS:
             self._gwy.send_cmd(Command.get_dhw_mode(self._ctl.id), period=td(hours=12))
             self._gwy.send_cmd(
                 Command.get_dhw_temp(self._ctl.id), period=td(minutes=30)
@@ -258,7 +277,7 @@ class DhwZone(ZoneBase):  # CS92A  # TODO: add Schedule
             )
 
         if not isinstance(new_dev, dev_class):
-            raise TypeError(f"{attr_name} can't be: {dev_class}")
+            raise TypeError(f"{self}: {attr_name} can't be {dev_class}")
 
         new_dev._set_parent(self, domain=domain_id)
         return new_dev
@@ -528,7 +547,7 @@ class Zone(ZoneSchedule, ZoneBase):
         sensor_types = ("00", "01", "03", "04", "12", "22", "34")
         if not isinstance(device, Device) or device.type not in sensor_types:
             # TODO: or not hasattr(device, "temperature")
-            raise TypeError(f"{ATTR_ZONE_SENSOR} can't be: {device}")
+            raise TypeError(f"{self}: {ATTR_ZONE_SENSOR} can't be: {device}")
 
         self._sensor = device
         device._set_parent(self)  # , domain=self.idx)
@@ -578,22 +597,19 @@ class Zone(ZoneSchedule, ZoneBase):
 
         _type = ZONE_TYPE_SLUGS.get(zone_type, zone_type)
         if _type not in ZONE_BY_CLASS_ID:
-            raise ValueError(f"Not a known zone type: {zone_type}")
+            raise ValueError(f"Not a known zone_type: {zone_type}")
 
-        if (
-            self._zone_type is not None
-            and self._zone_type != _type
-            and (self._zone_type != "ELE" and _type != "VAL")
+        if self._zone_type == _type:
+            return
+        if self._zone_type is not None and (
+            self._zone_type != "ELE" and _type != "VAL"
         ):
             raise CorruptStateError(
-                f"Zone {self} has a mismatched type: "
-                f"old={self._zone_type}, new={_type}"
+                f"{self} changed zone_type: {self._zone_type} to {_type}"
             )
 
         self._zone_type = _type
         self.__class__ = ZONE_BY_CLASS_ID[_type]
-        _LOGGER.debug("Zone %s: type now set to %s", self.id, self._zone_type)
-
         self._discover()  # TODO: needs tidyup (ref #67)
 
     @property
@@ -789,8 +805,9 @@ class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        # NOTE: we create, then promote, so shouldn't super()
         # super()._discover(discover_flag=discover_flag)
-        if discover_flag & DISCOVER_SCHEMA:
+        if False and discover_flag & DISCOVER_SCHEMA:
             self._send_cmd("000C", payload=f"{self.idx}{_000C_DEVICE.ELE}")
 
     def _handle_msg(self, msg) -> bool:
@@ -820,8 +837,9 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        # NOTE: we create, then promote, so shouldn't super()
         # super()._discover(discover_flag=discover_flag)
-        if discover_flag & DISCOVER_SCHEMA:
+        if False and discover_flag & DISCOVER_SCHEMA:
             self._send_cmd("000C", payload=f"{self.idx}{_000C_DEVICE.MIX}")
 
         if discover_flag & DISCOVER_PARAMS:
@@ -850,8 +868,9 @@ class RadZone(Zone):  # HR92/HR80
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        # NOTE: we create, then promote, so shouldn't super()
         # super()._discover(discover_flag=discover_flag)
-        if discover_flag & DISCOVER_SCHEMA:
+        if False and discover_flag & DISCOVER_SCHEMA:
             self._send_cmd("000C", payload=f"{self.idx}{_000C_DEVICE.RAD}")
 
 
@@ -863,8 +882,9 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        # NOTE: we create, then promote, so shouldn't super()
         # super()._discover(discover_flag=discover_flag)
-        if discover_flag & DISCOVER_SCHEMA:
+        if False and discover_flag & DISCOVER_SCHEMA:
             self._send_cmd("000C", payload=f"{self.idx}{_000C_DEVICE.UFH}")
 
     def _handle_msg(self, msg) -> bool:
@@ -890,8 +910,9 @@ class ValZone(EleZone):  # BDR91A/T
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        # NOTE: we create, then promote, so shouldn't super()
         # super()._discover(discover_flag=discover_flag)
-        if discover_flag & DISCOVER_SCHEMA:
+        if False and discover_flag & DISCOVER_SCHEMA:
             self._send_cmd("000C", payload=f"{self.idx}{_000C_DEVICE.VAL}")
 
     @property
@@ -918,6 +939,8 @@ def create_zone(evo, zone_idx, profile=None, **kwargs) -> Zone:
 
     zone = ZONE_BY_CLASS_ID.get(profile, Zone)(evo, zone_idx, **kwargs)
 
-    if not evo._gwy.config.disable_discovery:  # TODO: needs tidyup (ref #67)
-        zone._discover()  # discover_flag=DISCOVER_ALL)
+    if not evo._gwy.config.disable_discovery:
+        schedule_task(1, zone._discover, discover_flag=DISCOVER_SCHEMA)
+        schedule_task(4, zone._discover, discover_flag=DISCOVER_PARAMS)
+        schedule_task(7, zone._discover, discover_flag=DISCOVER_STATUS)
     return zone
