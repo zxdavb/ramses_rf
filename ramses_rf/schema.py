@@ -254,6 +254,9 @@ def load_config_schema(
 ) -> Tuple[SimpleNamespace, dict, list, list]:
     """Process the configuration, including any filter lists."""
 
+    schema = {
+        k: v for k, v in kwargs.items() if k not in (ALLOW_LIST, BLOCK_LIST, CONFIG)
+    }
     kwargs = GLOBAL_CONFIG_SCHEMA(kwargs)
 
     allow_list = kwargs.pop(ALLOW_LIST)
@@ -327,7 +330,6 @@ def load_config_schema(
     #     list(block_list.keys()) if config[ENFORCE_BLOCKLIST] else []
     # )
 
-    schema = {k: v for k, v in kwargs.items() if k not in config}
     config = SimpleNamespace(**config)
 
     return (config, schema, allow_list, block_list)
@@ -337,22 +339,22 @@ def _get_device(gwy, dev_addr, ctl_addr=None, **kwargs) -> Optional[Any]:
     """A wrapper to enforce device filters."""
     err_msg = None
 
-    if gwy.config[ENFORCE_ALLOWLIST]:
+    if gwy.config.enforce_allow_list:
         if ctl_addr and ctl_addr.id not in gwy._include:
-            err_msg = f"{ctl_addr.id} is in the schema, but is not in the allow list"
+            err_msg = f"{ctl_addr.id} is in the {SCHEMA}, but not in the {ALLOW_LIST}"
         elif dev_addr.id not in gwy._include:
-            err_msg = f"{dev_addr.id} is in the schema, but is not in the allow list"
+            err_msg = f"{dev_addr.id} is in the {SCHEMA}, but not in the {ALLOW_LIST}"
 
-    elif gwy.config[ENFORCE_BLOCKLIST]:
+    elif gwy.config.enforce_block_list:
         if ctl_addr and ctl_addr.id in gwy._exclude:
-            err_msg = f"{ctl_addr.id} is in the schema, but is also in the block list"
+            err_msg = f"{ctl_addr.id} is in the {SCHEMA}, but also in the {BLOCK_LIST}"
         elif dev_addr.id not in gwy._include:
-            err_msg = f"{dev_addr.id} is in the schema, but is also in the block list"
+            err_msg = f"{dev_addr.id} is in the {SCHEMA}, but also in the {BLOCK_LIST}"
 
     if not err_msg:
         return gwy._get_device(dev_addr, ctl_addr=None, **kwargs)
 
-    _LOGGER.warning("%s: check the lists and the (cached) schema", err_msg)
+    _LOGGER.warning("%s: check the lists and the (cached) {SCHEMA}", err_msg)
 
 
 def load_system_schema(gwy, **kwargs) -> dict:

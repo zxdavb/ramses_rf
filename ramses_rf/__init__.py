@@ -29,7 +29,6 @@ from .schema import (
     BLOCK_LIST,
     DEBUG_MODE,
     DONT_CREATE_MESSAGES,
-    GLOBAL_CONFIG_SCHEMA,
     INPUT_FILE,
     load_config_schema,
     load_system_schema,
@@ -69,7 +68,7 @@ class Gateway:
         self._input_file = kwargs.pop(INPUT_FILE, None)
 
         (self.config, schema, self._include, self._exclude) = load_config_schema(
-            serial_port, self._input_file, **GLOBAL_CONFIG_SCHEMA(kwargs)
+            self.serial_port, self._input_file, **kwargs
         )
 
         set_pkt_logging(
@@ -80,15 +79,8 @@ class Gateway:
         self.pkt_protocol, self.pkt_transport = None, None
         self.msg_protocol, self.msg_transport = None, None
 
-        # if self.config.reduce_processing >= DONT_CREATE_MESSAGES:
-        #     return
-
         if self.config.reduce_processing < DONT_CREATE_MESSAGES:
             self.msg_protocol, self.msg_transport = self.create_client(process_msg)
-
-        # self._buffer = deque()
-        # self._sched_zone = None
-        # self._sched_lock = Lock()
 
         self._state_lock = Lock()
         self._state_params = None
@@ -189,6 +181,11 @@ class Gateway:
         (heater_relay), HW (DHW sensor, relay), or None (unknown, TBA).
         """
 
+        assert dev_addr.type != "--", "invalid device type"
+
+        if dev_addr.type in ("18", "--") or dev_addr.id in (NUL_DEVICE_ID, "01:000001"):
+            return  # not valid device types/real devices
+
         if self._include and dev_addr.id not in self._include:
             _LOGGER.warning(
                 f"Creating a non-allowed device_id: {dev_addr.id}"
@@ -201,14 +198,10 @@ class Gateway:
                 f" (consider removing it from the {BLOCK_LIST})"
             )
 
-        # else:
         if ctl_addr is not None:
             ctl = self.device_by_id.get(ctl_addr.id)
             if ctl is None:
                 ctl = self._get_device(ctl_addr, domain_id="FF", **kwargs)
-
-        if dev_addr.type in ("18", "--") or dev_addr.id in (NUL_DEVICE_ID, "01:000001"):
-            return  # not valid device types/real devices
 
         dev = self.device_by_id.get(dev_addr.id)
         if dev is None:  # TODO: take into account device filter?
@@ -220,7 +213,7 @@ class Gateway:
         if not self.rfg and dev.type == "18":
             self.rfg = dev
 
-        # update the existing device with any metadata
+        # update the existing device with any metadata TODO: this is messy
         if ctl_addr and ctl:
             dev._set_ctl(ctl)
         if domain_id in ("F9", "FA", "FC", "FF"):
