@@ -3,12 +3,14 @@
 #
 """RAMSES RF - Helper functions."""
 
+import asyncio
 import ctypes
 import re
 import sys
 import time
 from datetime import datetime as dt
 from functools import lru_cache
+from inspect import iscoroutinefunction
 from typing import List, Optional, Tuple, Union
 
 from .const import (
@@ -136,7 +138,7 @@ def dtm_from_hex(value: str) -> str:  # from parsers
         hour=int(value[4:6], 16) & 0b11111,  # 1st 3 bits: DayOfWeek
         minute=int(value[2:4], 16),
         second=int(value[:2], 16) & 0b1111111,  # 1st bit: used for DST
-    ).strftime("%Y-%m-%d %H:%M:%S")
+    ).isoformat()  # was: ).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def temp_to_hex(value: int) -> str:
@@ -270,6 +272,19 @@ def extract_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
         raise CorruptAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
 
     return src_addr, dst_addr, addrs
+
+
+def schedule_task(delay, func, *args, **kwargs) -> asyncio.Task:
+    """Start a coro after delay seconds."""
+
+    async def scheduled_func(delay, func, *args, **kwargs):
+        await asyncio.sleep(delay)
+        if iscoroutinefunction(func):
+            await func(*args, **kwargs)
+        else:
+            func(*args, **kwargs)
+
+    return asyncio.create_task(scheduled_func(delay, func, *args, **kwargs))
 
 
 def slugify_string(key: str) -> str:

@@ -148,16 +148,6 @@ async def periodic(gwy, cmd, count=1, interval=None):
             await _periodic()
 
 
-async def schedule_task(delay, func, *args, **kwargs) -> Any:
-    """Start a coro after delay seconds."""
-
-    async def scheduled_func(delay, func, *args, **kwargs):
-        await asyncio.sleep(delay)
-        await func(*args, **kwargs)
-
-    return asyncio.create_task(scheduled_func(delay, func, *args, **kwargs))
-
-
 async def get_faults(gwy, ctl_id: str):
     ctl_addr = Address(id=ctl_id, type=ctl_id[:2])
     device = gwy._get_device(ctl_addr, ctl_addr=ctl_addr)
