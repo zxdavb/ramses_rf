@@ -363,28 +363,39 @@ class Message:
 
         if timeout is None:  # treat as never expiring
             self._is_expired = self.NOT_EXPIRED  # TODO: CANT_EXPIRE
-            # _logger_send(_LOGGER.debug, "msg is not expirable")
+            # _logger_send(
+            #    _LOGGER.debug,
+            #    "msg is not expirable",
+            # )
             return self._is_expired
 
-        if self._gwy.serial_port:
-            dtm_now = dt.now()
-        else:
-            dtm_now = self._gwy._prev_msg.dtm if self._gwy._prev_msg else self.dtm
+        dtm_now = (
+            dt.now()
+            if self._gwy.serial_port
+            else (self._gwy._prev_msg.dtm if self._gwy._prev_msg else self.dtm)
+        )
 
         if self.dtm < dtm_now - timeout * 2:
+            if self._is_expired != self.HAS_EXPIRED:
+                _logger_send(
+                    _LOGGER.error,
+                    f"msg has tombstoned ({dtm_now - self.dtm}, {timeout})",
+                )
             self._is_expired = self.HAS_EXPIRED
-            _logger_send(
-                _LOGGER.error, f"msg has tombstoned ({dtm_now - self.dtm}, {timeout})"
-            )
+
         elif self.dtm < dtm_now - timeout * 1:
+            if self._is_expired != self.IS_EXPIRING:
+                _logger_send(
+                    _LOGGER.info,
+                    f"msg has expired ({dtm_now - self.dtm}, {timeout})",
+                )
             self._is_expired = self.IS_EXPIRING
-            _logger_send(
-                _LOGGER.info, f"msg has expired ({dtm_now - self.dtm}, {timeout})"
-            )
+
         else:
             self._is_expired = self.NOT_EXPIRED
             # _logger_send(
-            #     _LOGGER.debug, f"msg has not expired ({dtm_now - self.dtm}, {timeout})"
+            #     _LOGGER.debug,
+            #     f"msg has not expired ({dtm_now - self.dtm}, {timeout})",
             # )
         return self._is_expired
 
@@ -643,15 +654,16 @@ def process_msg(msg: Message) -> None:
         # if not this.payload:
         #     return
 
+        # # TODO: what follows is a mess - needs sorting out
+        # evo = this._gwy.system_by_id.get(this.src.id)
+        # if evo:
+        #     evo._handle_msg(this)
+
         for evo in this._gwy.systems:
             # if this.src == evo:  # TODO: or this.src.id == evo.id?
             if this.code in ("10A0", "1260", "1F41") and evo._dhw is not None:
                 evo._dhw._handle_msg(this)
             break
-
-        #     if this.src.controller == evo:  # TODO: this.src.controller.id == evo.id?
-        #         evo._handle_msg(this, prev)  # TODO: WIP
-        #         break
 
         evo = this.src._evo if hasattr(this.src, "_evo") else None
         if evo is None:
