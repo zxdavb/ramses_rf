@@ -355,16 +355,16 @@ class MultiZone:  # 0005 (+/- 000C?)
                 )
             ]
 
-            [  # 0005: find any others - as per an RFG100
-                self._send_cmd("0005", payload=f"00{zone_type}")
-                for zone_type in (
-                    _0005_ZONE.ALL,
-                    _0005_ZONE.ALL_SENSOR,
-                    "0C",  # ???
-                    _0005_ZONE.HTG,
-                    "10",  # ???
-                )
-            ]
+            # [  # 0005: find any others - as per an RFG100
+            #     self._send_cmd("0005", payload=f"00{zone_type}")
+            #     for zone_type in (
+            #         _0005_ZONE.ALL,
+            #         _0005_ZONE.ALL_SENSOR,
+            #         "0C",  # ???
+            #         _0005_ZONE.HTG,
+            #         "10",  # ???
+            #     )
+            # ]
 
         # if discover_flag & DISCOVER_STATUS:
         #     self._send_cmd("0006")  # schedule delta
@@ -512,7 +512,7 @@ class MultiZone:  # 0005 (+/- 000C?)
             #     cmd = Command.get_zone_mode(self.id, zone_idx, priority=Priority.LOW)
             #     self._gwy.send_cmd(cmd)
             # for zone in self.zones:
-            #     zone._discover(discover_flags=DISCOVER_PARAMS)
+            #     zone._discover(discover_flag=DISCOVER_PARAMS)
 
         # elif msg.code == "0005" and prev_30c9 is not None:
         #     zone_added = bool(prev_30c9.code == "0004")  # else zone_deleted
@@ -627,7 +627,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         # super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_SCHEMA:
-            [  # 000C: find the HTG relay and DHW sensor, if any (DHW relays in DHW)
+            [  # 000C: find the HTG (relay) and DHW (sensor), if any (DHW relays in DHW)
                 self._send_cmd("000C", payload=f"00{dev_type}")
                 for dev_type in (_000C_DEVICE.HTG, _000C_DEVICE.DHW_SENSOR)
             ]
@@ -754,7 +754,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             )
 
         if not isinstance(device, (BdrSwitch, OtbGateway)):
-            raise TypeError(f"{ATTR_HTG_CONTROL} can't be: {device}")
+            raise TypeError(f"{self}: {ATTR_HTG_CONTROL} can't be {device}")
 
         self._htg_control = device
         device._set_parent(self, domain="FC")  # TODO: _set_domain()
@@ -1022,6 +1022,6 @@ def create_system(gwy, ctl, profile=None, **kwargs) -> System:
 
     system = _SYS_CLASS.get(profile, System)(gwy, ctl, **kwargs)
 
-    if not gwy.config.disable_discovery:  # TODO: remove False
-        system._discover()  # discover_flag=DISCOVER_ALL)
+    if not gwy.config.disable_discovery:
+        system._discover(discover_flag=DISCOVER_ALL)
     return system
