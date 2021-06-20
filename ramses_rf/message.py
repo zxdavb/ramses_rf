@@ -227,7 +227,7 @@ class Message:
             self._haz_simple_idx = False  # has no idx, even though some != "00"
         elif RAMSES_CODES.get(self.code):
             self._haz_simple_idx = (
-                not RAMSES_CODES[self.code].get(self.verb, "")[:3] == "^00"
+                RAMSES_CODES[self.code].get(self.verb, "")[:3] != "^00"
             )  # has no _idx
             assert (
                 self._haz_simple_idx or self.raw_payload[:2] == "00"
@@ -356,14 +356,14 @@ class Message:
 
             return timeout or td(minutes=60)
 
-        if self._is_expired == self.HAS_EXPIRED:
+        if self._is_expired == self.HAS_EXPIRED:  # TODO: or CANT_EXPIRE
             return self._is_expired
 
         timeout = _timeout()
 
         if timeout is None:  # treat as never expiring
-            self._is_expired = self.NOT_EXPIRED
-            _logger_send(_LOGGER.debug, "msg is not expirable ({dtm_now}, {timeout})")
+            self._is_expired = self.NOT_EXPIRED  # TODO: CANT_EXPIRE
+            # _logger_send(_LOGGER.debug, "msg is not expirable")
             return self._is_expired
 
         if self._gwy.serial_port:
@@ -383,9 +383,9 @@ class Message:
             )
         else:
             self._is_expired = self.NOT_EXPIRED
-            _logger_send(
-                _LOGGER.debug, f"msg has not expired ({dtm_now - self.dtm}, {timeout})"
-            )
+            # _logger_send(
+            #     _LOGGER.debug, f"msg has not expired ({dtm_now - self.dtm}, {timeout})"
+            # )
         return self._is_expired
 
     @property
@@ -559,7 +559,7 @@ def process_msg(msg: Message) -> None:
                 ]
 
         if this.code == "000C" and this.src.type == "01":
-            if this.payload["devices"]:
+            if this.payload["devices"]:  # i.e. if len(devices) > 0
                 devices = [this.src.device_by_id[d] for d in this.payload["devices"]]
 
                 if this.payload["device_class"] == ATTR_ZONE_SENSOR:
