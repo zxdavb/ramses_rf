@@ -309,7 +309,7 @@ class Gateway:
 
         while not self.msg_transport._que.empty():
             try:
-                print(self.msg_transport._que.get_nowait())
+                self.msg_transport._que.get_nowait()
             except Empty:
                 continue
             self.msg_transport._que.task_done()
