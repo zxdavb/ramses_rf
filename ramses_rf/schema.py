@@ -152,7 +152,11 @@ FILTER_SCHEMA = vol.Any([], vol.All(vol.Schema([DEVICE_ID]), vol.Length(min=0)))
 KNOWNS_SCHEMA = vol.Schema(
     {
         vol.Optional(DEVICE_ID): vol.Any(
-            None, {vol.Optional("name", default=None): vol.Any(None, str)}
+            None,
+            {
+                vol.Optional("name", default=None): vol.Any(None, str),
+                vol.Optional("type", default=None): vol.Any(None, str),
+            },  # TODO: override type-by-addr.id
         )
     },
     extra=vol.PREVENT_EXTRA,
@@ -354,7 +358,7 @@ def _get_device(gwy, dev_addr, ctl_addr=None, **kwargs) -> Optional[Any]:
     if not err_msg:
         return gwy._get_device(dev_addr, ctl_addr=None, **kwargs)
 
-    _LOGGER.warning("%s: check the lists and the (cached) {SCHEMA}", err_msg)
+    _LOGGER.warning(f"%s: check the lists and the (cached) {SCHEMA}", err_msg)
 
 
 def load_system_schema(gwy, **kwargs) -> dict:
