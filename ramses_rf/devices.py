@@ -30,7 +30,7 @@ from .const import (
     id_to_address,
 )
 from .exceptions import CorruptStateError
-from .helpers import dev_id_to_hex
+from .helpers import dev_id_to_hex, schedule_task
 from .opentherm import VALUE
 from .ramses import RAMSES_DEVICES
 
@@ -266,7 +266,7 @@ class DeviceBase(Entity):
         self._ctl = ctl
         ctl.device_by_id[self.id] = self
         ctl.devices.append(self)
-        _LOGGER.debug("Entity %s: controller now set to %s", self, ctl)
+        _LOGGER.debug("%s: controller now set to %s", self, ctl)
 
     def _handle_msg(self, msg) -> None:
         """Check that devices only handle messages they have sent."""
@@ -684,9 +684,6 @@ class Controller(Device):  # CTL (01):
 
         self.devices = []  # [self]
         self.device_by_id = {}  # {self.id: self}
-
-        if not self._gwy.config.disable_discovery:
-            self._discover(discover_flag=DISCOVER_SCHEMA)
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
@@ -1399,6 +1396,9 @@ def create_device(
 
     device = DEVICE_BY_ID_TYPE.get(dev_addr.type, Device)(gwy, dev_addr, **kwargs)
 
-    if not gwy.config.disable_discovery:  # TODO: remove False
-        device._discover()  # discover_flag=DISCOVER_ALL)
+    if not gwy.config.disable_discovery:
+        device._discover(discover_flag=DISCOVER_SCHEMA)
+        schedule_task(
+            15, device._discover, discover_flag=DISCOVER_PARAMS | DISCOVER_STATUS
+        )
     return device
