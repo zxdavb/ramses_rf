@@ -42,8 +42,7 @@ from .helpers import (
     temp_to_hex,
 )
 from .opentherm import parity
-
-# from .ramses import RAMSES_CODES
+from .ramses import RAMSES_CODES
 
 COMMAND_FORMAT = "{:<2} {} {} {} {} {} {:03d} {}"
 
@@ -106,15 +105,46 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
+def _pkt_header_idx(pkt: str, rx_header=None) -> Optional[str]:  # TODO:
+    """Return the QoS header of a packet."""
+
+    verb = pkt[4:6]
+    code = pkt[41:45]
+    payload = pkt[50:]
+
+    # if is_array:
+    #     return ""
+
+    if code in ("0005", "000C"):  # zone_idx, device_class
+        return payload[:4]
+
+    if code == "0404":  # zone_schedule: zone_idx, frag_idx
+        return payload[:2] + payload[10:12]
+
+    if code == "0418":  # fault_log: log_idx
+        return None if payload == CODE_SCHEMA["0418"]["null_rp"] else payload[4:6]
+
+    if code in ("3150",):  # 1FC9 can too
+        return payload[:2]
+
+    if code == "3220":  #
+        return payload[4:6]  # ot_msg_id (is ot_msg_type needed to?)
+
+    try:
+        if RAMSES_CODES[code][verb][:11] == r"^0[0-9A-F]":
+            return None if code in ("0016", "xx") else payload[:2]
+    except KeyError:
+        return
+
+
 def _pkt_header(pkt: str, rx_header=None) -> Optional[str]:
     """Return the QoS header of a packet."""
 
     verb = pkt[4:6]
     src, dst, _ = extract_addrs(pkt[11:40])
     code = pkt[41:45]
-    payload = pkt[50:]
 
-    if code == "1FC9":
+    if code == "1FC9":  # TODO: will need to do something similar for 3220?
         if src == dst:
             return "|".join((W_, dst.id, code) if rx_header else (I_, src.id, code))
         if verb == W_:
@@ -127,27 +157,17 @@ def _pkt_header(pkt: str, rx_header=None) -> Optional[str]:
             return
         verb = RP if verb == RQ else I_  # RQ/RP, or W/I
 
+    if code in ("0001", "7FFF") and rx_header:  # code has no RQ, no W
+        return
+
     addr = dst if src.type == "18" else src
     header = "|".join((verb, addr.id, code))
 
-    if code in ("0001", "7FFF") and rx_header:  # code has no no RQ, no W
-        return
+    header_idx = _pkt_header_idx(pkt)
+    if header_idx:
+        header += f"|{header_idx}"
 
-    if code in ("0005", "000C"):  # zone_idx, device_class
-        return "|".join((header, payload[:4]))
-
-    if code == "0404":  # zone_schedule: zone_idx, frag_idx
-        return "|".join((header, payload[:2] + payload[10:12]))
-
-    if code == "0418":  # fault_log: log_idx
-        if payload == CODE_SCHEMA["0418"]["null_rp"]:
-            return header
-        return "|".join((header, payload[4:6]))
-
-    if code in ("1F09", "1FC9", "2E04"):  # have no domain_id (1FC9 can)
-        return header
-
-    return "|".join((header, payload[:2]))  # assume has a domain_id
+    return header
 
 
 def validate_system_args(fcn):
