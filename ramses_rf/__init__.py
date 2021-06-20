@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import signal
+from queue import Empty
 from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -144,6 +145,7 @@ class Gateway:
             raise RuntimeError("Unsupported OS for this module: %s", os.name)
 
     async def start(self) -> None:
+        _LOGGER.debug("ENGINE: Starting...")
         if self.serial_port:  # source of packets is a serial port
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
                 self,
@@ -233,7 +235,7 @@ class Gateway:
         gwy.device_by_id = {}
         gwy.devices = []
 
-    def _pause_engine(self) -> Tuple[Callable, bool, bool]:
+    def _pause_engine(self) -> None:
         self._state_lock.acquire()
         if self._state_params is not None:
             self._state_lock.release()
@@ -293,7 +295,8 @@ class Gateway:
         return schema, pkts
 
     async def _set_state(self, schema: Dict, packets: Dict) -> None:
-        engine_state = self._pause_engine()
+        self._pause_engine()
+        _LOGGER.debug("ENGINE: Restoring state...")
 
         self.known_devices = load_system_schema(self, **schema)  # keep old known_devs?
 
@@ -304,7 +307,15 @@ class Gateway:
         )
         await tmp_transport.get_extra_info(POLLER_TASK)
 
-        self._resume_engine(*engine_state)
+        while not self.msg_transport._que.empty():
+            try:
+                print(self.msg_transport._que.get_nowait())
+            except Empty:
+                continue
+            self.msg_transport._que.task_done()
+
+        _LOGGER.debug("ENGINE: Restored state")
+        self._resume_engine()
 
     @property
     def schema(self) -> dict:
