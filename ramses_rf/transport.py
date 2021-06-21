@@ -387,7 +387,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 )
                 return pkt_dtm, None, pkt_raw
 
-            if "# evofw3" in pkt_str and self._gwy.config.evofw_flag != "!V":
+            if "# evofw" in pkt_str and self._gwy.config.evofw_flag not in (None, "!V"):
                 self._loop.create_task(
                     self._send_data(self._gwy.config.evofw_flag, ignore_pause=True)
                 )
@@ -428,12 +428,12 @@ class PacketProtocolBase(asyncio.Protocol):
         ):
             await asyncio.sleep(0.005)
 
-        data = bytes(data.encode("ascii"))
-
         if DEV_MODE:  # TODO: deleteme?
             _LOGGER.debug("RF Tx:     %s", data, extra=self._extra(dt_str(), data))
         elif _LOGGER.getEffectiveLevel() == logging.INFO:
             _LOGGER.info("RF Tx:     %s", data)
+
+        data = bytes(data.encode("ascii"))
 
         self._transport.write(data + b"\r\n")
         # 0.2: can still exceed with back-to-back restarts
