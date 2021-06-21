@@ -190,13 +190,13 @@ class Gateway:
 
         if self._include and dev_addr.id not in self._include:
             _LOGGER.warning(
-                f"Creating a non-allowed device_id: {dev_addr.id}"
+                f"Found a non-allowed device_id: {dev_addr.id}"
                 f" (consider addding it to the {ALLOW_LIST})"
             )
 
         elif dev_addr.id in self._exclude:
             _LOGGER.warning(
-                f"Creating a blocked device_id: {dev_addr.id}"
+                f"Found a blocked device_id: {dev_addr.id}"
                 f" (consider removing it from the {BLOCK_LIST})"
             )
 
