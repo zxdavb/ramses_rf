@@ -359,8 +359,6 @@ class PacketProtocolBase(asyncio.Protocol):
             pkt = Packet(pkt_dtm, dtm_str, pkt_str, raw_pkt_line=pkt_raw)
         except ValueError:  # not a valid packet
             return
-        # if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
-        #     _LOGGER.info(pkt)
         self._has_initialized = True
 
         if self._callback and self.is_wanted(pkt.src_addr, pkt.dst_addr):
@@ -428,12 +426,12 @@ class PacketProtocolBase(asyncio.Protocol):
         ):
             await asyncio.sleep(0.005)
 
+        data = bytes(data.encode("ascii"))
+
         if DEV_MODE:  # TODO: deleteme?
             _LOGGER.debug("RF Tx:     %s", data, extra=self._extra(dt_str(), data))
         elif _LOGGER.getEffectiveLevel() == logging.INFO:
             _LOGGER.info("RF Tx:     %s", data)
-
-        data = bytes(data.encode("ascii"))
 
         self._transport.write(data + b"\r\n")
         # 0.2: can still exceed with back-to-back restarts
@@ -616,8 +614,6 @@ class PacketProtocolQos(PacketProtocolBase):
             pkt = Packet(pkt_dtm, dtm_str, pkt_str, raw_pkt_line=pkt_raw)
         except ValueError:  # not a valid packet
             return
-        # if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
-        #     _LOGGER.info(pkt)
         self._has_initialized = True
 
         if self._qos_cmd:
