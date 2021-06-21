@@ -359,7 +359,7 @@ class Message:
         if self._is_expired == self.HAS_EXPIRED:  # TODO: or CANT_EXPIRE
             return self._is_expired
 
-        timeout = _timeout()
+        timeout = _timeout()  # TODO: needs fixing
 
         if timeout is None:  # treat as never expiring
             self._is_expired = self.NOT_EXPIRED  # TODO: CANT_EXPIRE

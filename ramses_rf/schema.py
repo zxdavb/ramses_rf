@@ -355,10 +355,10 @@ def _get_device(gwy, dev_addr, ctl_addr=None, **kwargs) -> Optional[Any]:
         elif dev_addr.id not in gwy._include:
             err_msg = f"{dev_addr.id} is in the {SCHEMA}, but also in the {BLOCK_LIST}"
 
-    if not err_msg:
-        return gwy._get_device(dev_addr, ctl_addr=None, **kwargs)
+    if err_msg:
+        _LOGGER.warning(f"%s: check the lists and the (cached) {SCHEMA}", err_msg)
 
-    _LOGGER.warning(f"%s: check the lists and the (cached) {SCHEMA}", err_msg)
+    return gwy._get_device(dev_addr, ctl_addr=None, **kwargs)
 
 
 def load_system_schema(gwy, **kwargs) -> dict:
