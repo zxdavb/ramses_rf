@@ -414,6 +414,7 @@ class Temperature:  # 30C9 (fakeable)
         self._30C9_faked = True
         if bind:
             self._bind()
+        _LOGGER.error("%s: Faking now enabled", self)  # TODO: shoudl be info/debug
 
     def _bind(self):
         if not self._30C9_faked:
