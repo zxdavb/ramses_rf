@@ -342,7 +342,7 @@ class MessageTransport(asyncio.Transport):
 
             self._que.put_nowait(cmd)  # was: self._que.put_nowait(cmd)
 
-        self.get_write_buffer_size()
+        # self.get_write_buffer_size()  # TODO: how to auto unpause?
 
     def writelines(self, list_of_cmds):
         """Write a list (or any iterable) of data bytes to the transport.

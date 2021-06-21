@@ -295,10 +295,9 @@ class PacketProtocolBase(asyncio.Protocol):
             "# ramses_rf %s", __version__, extra=self._extra(dt_str(), "")
         )
 
-        self._loop.create_task(
-            self._send_data("!V", ignore_pause=False)
-        )  # Used to see if using a evofw3 rather than a HGI80
-        self._pause_writing = False  # TODO: needs work
+        # Used to see if using a evofw3 rather than a HGI80  # TODO: needs work
+        self._loop.create_task(self._send_data("!V", ignore_pause=False))
+        self.resume_writing()
 
     @functools.lru_cache(maxsize=128)
     def is_wanted(self, src_addr, dst_addr) -> bool:
@@ -470,15 +469,11 @@ class PacketProtocolBase(asyncio.Protocol):
     def pause_writing(self) -> None:
         """Called when the transport's buffer goes over the high-water mark."""
         _LOGGER.debug("PktProtocol.pause_writing()")
-        # self._transport.get_write_buffer_size()
-
         self._pause_writing = True
 
     def resume_writing(self) -> None:
         """Called when the transport's buffer drains below the low-water mark."""
         _LOGGER.debug("PktProtocol.resume_writing()")
-        # self._transport.get_write_buffer_size()
-
         self._pause_writing = False
 
     @staticmethod
