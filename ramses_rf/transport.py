@@ -38,7 +38,7 @@ from .const import DTM_LONG_REGEX, HGI_DEV_ADDR, __dev_mode__
 from .helpers import dt_now, dt_str
 from .packet import _PKT_LOGGER, Packet
 from .protocol import create_protocol_factory
-from .schema import ALLOW_LIST, BLOCK_LIST, EVOFW_FLAG, SERIAL_CONFIG_SCHEMA
+from .schema import ALLOW_LIST, BLOCK_LIST, SERIAL_CONFIG_SCHEMA
 from .version import __version__
 
 DEV_MODE = __dev_mode__ and False
@@ -388,11 +388,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 )
                 return pkt_dtm, None, pkt_raw
 
-            if (  # "# evofw3" in pkt_str
-                "# evofw3" in pkt_str
-                and self._gwy.config.get(EVOFW_FLAG)
-                and self._gwy.config.evofw_flag != "!V"
-            ):
+            if "# evofw3" in pkt_str and self._gwy.config.evofw_flag != "!V":
                 self._loop.create_task(
                     self._send_data(self._gwy.config.evofw_flag, ignore_pause=True)
                 )
