@@ -183,8 +183,6 @@ class Gateway:
         (heater_relay), HW (DHW sensor, relay), or None (unknown, TBA).
         """
 
-        assert dev_addr.type != "--", "invalid device type"
-
         if dev_addr.type in ("18", "--") or dev_addr.id in (NUL_DEVICE_ID, "01:000001"):
             return  # not valid device types/real devices
 

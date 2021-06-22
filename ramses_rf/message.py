@@ -542,6 +542,7 @@ def process_msg(msg: Message) -> None:
             this._gwy._get_device(this.src, ctl_addr=this.dst)
 
         else:
+            # beware:  I --- --:------ --:------ 10:078099 1FD4 003 00F079
             [this._gwy._get_device(d) for d in (this.src, this.dst)]
 
         # where possible, swap each Address for its corresponding Device
