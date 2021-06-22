@@ -53,7 +53,7 @@ MSG_TIMEOUTS = {
     "000A": {I_: td(days=1), RP: td(days=1)},
     "0100": {I_: td(days=1), RP: td(days=1)},
     "1060": {I_: td(days=1)},
-    "10A0": {I_: td(hours=2), RP: td(hours=2)},
+    "10A0": {RP: td(hours=4)},
     "1100": {I_: td(days=1), RP: td(days=1)},
     "1260": {I_: td(hours=1), RP: td(hours=1)},
     "12B0": {I_: td(hours=1), RP: td(hours=1)},
