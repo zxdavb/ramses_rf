@@ -796,7 +796,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                 for d in self._ctl.devices
                 if not d._domain_id and d.type != "02" and d._is_present
             ]
-        )  # devices without a parent zone, NB: CTL can be a sensor for a zones
+        )  # devices without a parent zone, NB: CTL can be a sensor for a zone
 
         # TODO: where to put this?
         # assert "devices" not in schema  # TODO: removeme
