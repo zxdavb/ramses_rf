@@ -156,7 +156,7 @@ KNOWNS_SCHEMA = vol.Schema(
             {
                 vol.Optional("name", default=None): vol.Any(None, str),
                 vol.Optional("type", default=None): vol.Any(None, str),
-            },  # TODO: override type-by-addr.id
+            },  # TODO: override type-by-addr.id with dev_class
         )
     },
     extra=vol.PREVENT_EXTRA,
@@ -289,6 +289,12 @@ def load_config_schema(
 
     if config[DISABLE_SENDING]:
         config[DISABLE_DISCOVERY] = True
+
+    if config[ENABLE_EAVESDROP]:
+        _LOGGER.warning(
+            f"{ENABLE_EAVESDROP} was enabled: not doing so is strongly recommended"
+            " (there be dragons here)"
+        )
 
     if config[ENFORCE_ALLOWLIST] is None:
         config[ENFORCE_ALLOWLIST] = (
@@ -432,14 +438,13 @@ def _load_system_schema(gwy, schema) -> Tuple[dict, dict]:
         sensor_id = attr.get(ATTR_ZONE_SENSOR)
         is_faked = None
         if isinstance(sensor_id, dict):
-            is_faked = sensor_id.get("is_faked")
             sensor_id = sensor_id[ATTR_DEVICE_ID]
+            is_faked = sensor_id.get("is_faked")
 
         if sensor_id:
             zone._set_sensor(
                 _get_device(gwy, addr(sensor_id), ctl_addr=ctl, domain_id=zone_idx)
             )  # TODO: use domain_id=zone_idx or not
-
         if is_faked:
             zone.sensor._make_fake()
 
