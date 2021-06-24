@@ -15,6 +15,8 @@ import json
 import logging
 import os
 import signal
+from datetime import datetime as dt
+from datetime import timedelta as td
 from queue import Empty
 from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
@@ -192,7 +194,7 @@ class Gateway:
                 f" (consider addding it to the {ALLOW_LIST})"
             )
 
-        elif dev_addr.id in self._exclude:
+        if dev_addr.id in self._exclude:
             _LOGGER.warning(
                 f"Found a blocked device_id: {dev_addr.id}"
                 f" (consider removing it from the {BLOCK_LIST})"
@@ -275,6 +277,7 @@ class Gateway:
 
     def _get_state(self) -> Tuple[Dict, Dict]:
         self._pause_engine()
+        _LOGGER.info("ENGINE: Saving state...")
 
         msgs = {v.dtm: v for d in self.devices for v in d._msgs.values()}
         for system in self.systems:
@@ -284,17 +287,20 @@ class Gateway:
         pkts = {
             dtm.isoformat(sep="T", timespec="auto"): repr(msg)
             for dtm, msg in msgs.items()
-            if msg.verb in (I_, RP) and not msg.is_expired
+            if msg.verb in (I_, RP)
+            and not msg.is_expired
+            and msg.dtm >= dt.now() - td(days=7)  # HACK: ideally, wouldn't be any >7d
         }
 
         schema, pkts = self.schema, dict(sorted(pkts.items()))
 
+        _LOGGER.info("ENGINE: Saved state")
         self._resume_engine()
         return schema, pkts
 
     async def _set_state(self, schema: Dict, packets: Dict) -> None:
         self._pause_engine()
-        _LOGGER.debug("ENGINE: Restoring state...")
+        _LOGGER.info("ENGINE: Restoring state...")
 
         self.known_devices = load_system_schema(self, **schema)  # keep old known_devs?
 
@@ -312,7 +318,7 @@ class Gateway:
                 continue
             self.msg_transport._que.task_done()
 
-        _LOGGER.debug("ENGINE: Restored state")
+        _LOGGER.info("ENGINE: Restored state")
         self._resume_engine()
 
     @property
