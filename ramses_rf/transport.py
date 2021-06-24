@@ -300,7 +300,7 @@ class PacketProtocolBase(asyncio.Protocol):
         self.resume_writing()
 
     @functools.lru_cache(maxsize=128)
-    def is_wanted(self, src_addr, dst_addr) -> bool:
+    def _is_wanted(self, src_addr, dst_addr) -> bool:
         """Parse the packet, return True if the packet is not to be filtered out."""
         pkt_addrs = {src_addr, dst_addr}
         if any(d.type == "18" for d in pkt_addrs):  # TODO: use GWY's full addr
@@ -361,7 +361,7 @@ class PacketProtocolBase(asyncio.Protocol):
             return
         self._has_initialized = True
 
-        if self._callback and self.is_wanted(pkt.src_addr, pkt.dst_addr):
+        if self._callback and self._is_wanted(pkt.src_addr, pkt.dst_addr):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
     def data_received(self, data: ByteString) -> None:
@@ -667,7 +667,7 @@ class PacketProtocolQos(PacketProtocolBase):
             # self._timeouts(dt.now())
             _logger_rcvd(_LOGGER.debug, "XXXXXXX - ")
 
-        if self._callback and self.is_wanted(pkt.src_addr, pkt.dst_addr):
+        if self._callback and self._is_wanted(pkt.src_addr, pkt.dst_addr):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
     async def send_data(self, cmd: Command) -> None:
