@@ -53,17 +53,23 @@ if DEV_MODE:
 DEVICE_CLASS = SimpleNamespace(
     BDR="BDR",  # Electrical relay
     CTL="CTL",  # Controller
+    C02="C02",  # HVAC C02 sensor
+    DEV="DEV",  # Generic device
     DHW="DHW",  # DHW sensor
     EXT="EXT",  # External weather sensor
-    GWY="GWY",  # Gateway interface (to USB)
+    FAN="FAN",  # HVAC fan, 31D[9A]: 20|29|30|37 (some, e.g. 29: only 31D9)
+    GWY="GWY",  # Gateway interface (RF to USB), aka HGI
+    HUM="HUM",  # HVAC humidity sensor, 1260: 32
     OTB="OTB",  # OpenTherm bridge
     PRG="PRG",  # Programmer
-    RFG="RFG",  # RF gateway (to ethernet)
+    RFG="RFG",  # RF gateway (RF to ethernet)
     STA="STA",  # Thermostat
+    SWI="SWI",  # HVAC switch, 22F[13]: 02|06|20|32|39|42|49|59 (no 20: are both)
     TRV="TRV",  # Thermostatic radiator valve
     UFC="UFC",  # UFH controller
 )
 _DEV_TYPE_TO_CLASS = {
+    None: DEVICE_CLASS.DEV,  # a generic, promotable device
     "00": DEVICE_CLASS.TRV,
     "01": DEVICE_CLASS.CTL,
     "02": DEVICE_CLASS.UFC,
@@ -71,18 +77,23 @@ _DEV_TYPE_TO_CLASS = {
     "04": DEVICE_CLASS.TRV,
     "07": DEVICE_CLASS.DHW,
     "10": DEVICE_CLASS.OTB,
-    "12": DEVICE_CLASS.STA,  # can act like a DEVICE_CLASS.PRG
+    "12": DEVICE_CLASS.STA,  # 12: can act like a DEVICE_CLASS.PRG
     "13": DEVICE_CLASS.BDR,
     "17": DEVICE_CLASS.EXT,
     "18": DEVICE_CLASS.GWY,
-    "20": "FAN",
+    "20": DEVICE_CLASS.FAN,
     "22": DEVICE_CLASS.STA,
     "23": DEVICE_CLASS.PRG,
-    "30": DEVICE_CLASS.RFG,  # or: HVAC
+    "29": DEVICE_CLASS.FAN,
+    "30": DEVICE_CLASS.RFG,  # also: FAN
+    "32": DEVICE_CLASS.HUM,  # also: SWI
     "34": DEVICE_CLASS.STA,
-    "37": "FAN",
-    "39": "SWI",
-}
+    "37": DEVICE_CLASS.FAN,
+    "39": DEVICE_CLASS.SWI,
+    "42": DEVICE_CLASS.SWI,
+    "49": DEVICE_CLASS.SWI,
+    "59": DEVICE_CLASS.SWI,
+}  # these are the default device classes for common types
 
 
 def periodic(period):
@@ -299,6 +310,7 @@ class DeviceBase(Entity):
     @property
     def schema(self) -> dict:
         """Return the fixed attributes of the device (e.g. TODO)."""
+
         return self._codes if DEV_MODE else {}
 
     @property
@@ -474,7 +486,7 @@ class DeviceInfo:  # 10E0
 class Device(DeviceInfo, DeviceBase):
     """The Device base class - also used for unknown device types."""
 
-    __dev_class__ = "DEV"  # DEVICE_TYPES = ("??", )
+    __dev_class__ = DEVICE_CLASS.DEV  # DEVICE_TYPES = ("??", )
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -483,6 +495,7 @@ class Device(DeviceInfo, DeviceBase):
             return
 
         if self._ctl is not None and "parent_idx" in msg.payload:
+            # TODO: is buggy - remove? how?
             self._set_parent(self._ctl._evo._get_zone(msg.payload["parent_idx"]))
 
     def _set_parent(self, parent, domain=None) -> None:  # self._parent
@@ -548,6 +561,15 @@ class Device(DeviceInfo, DeviceBase):
             self._has_battery = True
 
         return self._has_battery
+
+    @property
+    def schema(self) -> dict:
+        """Return the fixed attributes of the device (e.g. TODO)."""
+
+        return {
+            **super().schema,
+            "dev_class": self.__dev_class__,
+        }
 
 
 class RfiGateway(DeviceBase):  # RFG: 18
@@ -717,7 +739,7 @@ class UfhController(Device):  # UFC (02):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.klass = "UFC"
+        self.klass = self.__dev_class__
 
         self._circuits = {}
         self._setpoints = None
@@ -1299,9 +1321,12 @@ class TrvActuator(BatteryState, Setpoint, Temperature, Device):  # TRV (00/04):
 
 
 class FanSwitch(BatteryState, Device):  # SWI (39):
-    """The FAN (switch) class, such as a 4-way switch."""
+    """The FAN (switch) class, such as a 4-way switch.
 
-    __dev_class__ = "SWI"  # DEVICE_TYPES = ("39",)
+    The cardinal codes are 22F1, 22F3.
+    """
+
+    __dev_class__ = DEVICE_CLASS.SWI  # DEVICE_TYPES = ("39",)
 
     BOOST_TIMER = "boost_timer"  # minutes, e.g. 10, 20, 30 minutes
     HEATER_MODE = "heater_mode"  # e.g. auto, off
@@ -1337,13 +1362,12 @@ class FanSwitch(BatteryState, Device):  # SWI (39):
 
 
 class FanDevice(Device):  # FAN (20/37):
-    """The Ventilation class."""
+    """The Ventilation class.
 
-    __dev_class__ = "FAN"  # DEVICE_TYPES = ("20", "37")
+    The cardinal code are 31D9, 31DA.
+    """
 
-    BOOST_TIMER = "boost_timer"  # minutes (remaining?)
-    FAN_RATE = "fan_rate"  # percentage
-    RELATIVE_HUMIDITY = "relative_humidity"  # percentage
+    __dev_class__ = DEVICE_CLASS.FAN  # DEVICE_TYPES = ("20", "37")
 
     @property
     def fan_rate(self) -> Optional[float]:
@@ -1364,9 +1388,62 @@ class FanDevice(Device):  # FAN (20/37):
     def status(self) -> dict:
         return {
             **super().status,
-            self.BOOST_TIMER: self.boost_timer,
-            self.FAN_RATE: self.fan_rate,
-            self.RELATIVE_HUMIDITY: self.relative_humidity,
+            "exhaust_fan_speed": self.fan_rate,
+            **(
+                {
+                    k: v
+                    for k, v in self._msgs["31D9"].payload.items()
+                    if k != "exhaust_fan_speed"
+                }
+                if "31D9" in self._msgs
+                else {}
+            ),
+            **(
+                {
+                    k: v
+                    for k, v in self._msgs["31DA"].payload.items()
+                    if k != "exhaust_fan_speed"
+                }
+                if "31DA" in self._msgs
+                else {}
+            ),
+        }
+
+
+class FanSensorHumidity(BatteryState, Device):  # HUM (32) Humidity sensor:
+    """The Sensor class for a humidity sensor.
+
+    The cardinal code is 12A0.
+    """
+
+    __dev_class__ = DEVICE_CLASS.HUM  # DEVICE_TYPES = ("32")
+
+    REL_HUMIDITY = "relative_humidity"  # percentage
+    TEMPERATURE = "temperature"  # celsius
+    DEWPOINT_TEMP = "dewpoint_temp"  # celsius
+
+    @property
+    def relative_humidity(self) -> Optional[float]:
+        if "12A0" in self._msgs:
+            return self._msgs["12A0"].payload[self.REL_HUMIDITY]
+
+    @property
+    def temperature(self) -> Optional[float]:
+        if "12A0" in self._msgs:
+            return self._msgs["12A0"].payload[self.TEMPERATURE]
+
+    @property
+    def dewpoint_temp(self) -> Optional[float]:
+        if "12A0" in self._msgs:
+            return self._msgs["12A0"].payload[self.DEWPOINT_TEMP]
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            self.REL_HUMIDITY: self.relative_humidity,
+            self.TEMPERATURE: self.temperature,
+            self.DEWPOINT_TEMP: self.dewpoint_temp,
         }
 
 
@@ -1387,15 +1464,13 @@ DEVICE_BY_ID_TYPE = {
 }  # e.g. "01": Controller,
 
 
-def create_device(
-    gwy, dev_addr, profile=None, **kwargs
-) -> Device:  # TODO: Optional[Device]
-    """Create a device, and optioanlly perform discovery & start polling."""
+def create_device(gwy, dev_addr, dev_class=None, **kwargs) -> Device:
+    """Create a device, and optionally perform discovery +/- start polling."""
 
-    # if profile is None:
-    #     dev_type = dev_addr.type
+    if dev_class is None:
+        dev_class = _DEV_TYPE_TO_CLASS.get(dev_addr.type, DEVICE_CLASS.DEV)
 
-    device = DEVICE_BY_ID_TYPE.get(dev_addr.type, Device)(gwy, dev_addr, **kwargs)
+    device = DEVICE_BY_CLASS_ID.get(dev_class, Device)(gwy, dev_addr, **kwargs)
 
     if not gwy.config.disable_discovery:
         device._discover(discover_flag=DISCOVER_SCHEMA)
