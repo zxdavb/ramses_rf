@@ -39,6 +39,7 @@ from .const import (
     __dev_mode__,
 )
 from .const import id_to_address as addr
+from .devices import DEVICE_BY_CLASS_ID
 
 # schema attrs
 ATTR_DEVICE_ID = "device_id"
@@ -155,7 +156,7 @@ KNOWNS_SCHEMA = vol.Schema(
             None,
             {
                 vol.Optional("name", default=None): vol.Any(None, str),
-                vol.Optional("type", default=None): vol.Any(None, str),
+                vol.Optional("dev_class"): vol.Any(*DEVICE_BY_CLASS_ID.keys()),
             },  # TODO: override type-by-addr.id with dev_class
         )
     },
