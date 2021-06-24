@@ -439,8 +439,8 @@ def _load_system_schema(gwy, schema) -> Tuple[dict, dict]:
         sensor_id = attr.get(ATTR_ZONE_SENSOR)
         is_faked = None
         if isinstance(sensor_id, dict):
-            sensor_id = sensor_id[ATTR_DEVICE_ID]
             is_faked = sensor_id.get("is_faked")
+            sensor_id = sensor_id[ATTR_DEVICE_ID]
 
         if sensor_id:
             zone._set_sensor(
