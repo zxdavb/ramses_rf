@@ -365,7 +365,7 @@ def _get_device(gwy, dev_addr, ctl_addr=None, **kwargs) -> Optional[Any]:
     if err_msg:
         _LOGGER.warning(f"%s: check the lists and the (cached) {SCHEMA}", err_msg)
 
-    return gwy._get_device(dev_addr, ctl_addr=None, **kwargs)
+    return gwy._get_device(dev_addr, ctl_addr=ctl_addr, **kwargs)
 
 
 def load_system_schema(gwy, **kwargs) -> dict:
