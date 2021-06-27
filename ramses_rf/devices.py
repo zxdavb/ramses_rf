@@ -82,7 +82,7 @@ _DEV_TYPE_TO_CLASS = {
     "17": DEVICE_CLASS.EXT,
     "18": DEVICE_CLASS.GWY,
     "20": DEVICE_CLASS.FAN,
-    "22": DEVICE_CLASS.STA,
+    "22": DEVICE_CLASS.STA,  # 22: can act like a DEVICE_CLASS.PRG
     "23": DEVICE_CLASS.PRG,
     "29": DEVICE_CLASS.FAN,
     "30": DEVICE_CLASS.RFG,  # also: FAN
@@ -572,10 +572,10 @@ class Device(DeviceInfo, DeviceBase):
         }
 
 
-class RfiGateway(DeviceBase):  # RFG: 18
-    """The RFG100 base class."""
+class RfiGateway(DeviceBase):  # GWY: 18
+    """The HGI80 base class."""
 
-    __dev_class__ = DEVICE_CLASS.RFG  # DEVICE_TYPES = ("18", )
+    __dev_class__ = DEVICE_CLASS.GWY  # DEVICE_TYPES = ("18", )
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -628,10 +628,10 @@ class RfiGateway(DeviceBase):  # RFG: 18
     def create_fake_bdr(self, device_id=DEFAULT_BDR_ID) -> Device:
         """Bind a faked relay (BDR91A) to a controller (i.e. to a domain/zone).
 
-        Will alias the RFG gateway (as "13:000730"), or create a fully-faked 13:.
+        Will alias the gateway (as "13:000730"), or create a fully-faked 13:.
 
-        HGI80s can only alias one device of a type (use_gateway), but evofw3-based RFGs
-        can also fully fake multiple devices of the same type.
+        HGI80s can only alias one device of a type (use_gateway), but evofw3-based
+        gateways can also fully fake multiple devices of the same type.
         """
         if device_id in (self.id, None):
             device_id = DEFAULT_BDR_ID
@@ -644,10 +644,10 @@ class RfiGateway(DeviceBase):  # RFG: 18
     def create_fake_ext(self, device_id=DEFAULT_EXT_ID) -> Device:
         """Bind a faked external sensor (???) to a controller.
 
-        Will alias the RFG gateway (as "17:000730"), or create a fully-faked 17:.
+        Will alias the gateway (as "17:000730"), or create a fully-faked 17:.
 
-        HGI80s can only alias one device of a type (use_gateway), but evofw3-based RFGs
-        can also fully fake multiple devices of the same type.
+        HGI80s can only alias one device of a type (use_gateway), but evofw3-based
+        gateways can also fully fake multiple devices of the same type.
         """
 
         if device_id in (self.id, None):
@@ -661,11 +661,11 @@ class RfiGateway(DeviceBase):  # RFG: 18
     def create_fake_thm(self, device_id=DEFAULT_THM_ID) -> Device:
         """Bind a faked zone sensor (TR87RF) to a controller (i.e. to a zone).
 
-        Will alias the RFG (as "03:000730"), or create a fully-faked 34:, albeit named
-        "03:xxxxxx".
+        Will alias the gateway (as "03:000730"), or create a fully-faked 34:, albeit
+        named "03:xxxxxx".
 
-        HGI80s can only alias one device of a type (use_gateway), but evofw3-based RFGs
-        can also fully fake multiple devices of the same type.
+        HGI80s can only alias one device of a type (use_gateway), but evofw3-based
+        gateways can also fully fake multiple devices of the same type.
         """
         if device_id in (self.id, None):
             device_id = DEFAULT_THM_ID
@@ -713,9 +713,6 @@ class Controller(Device):  # CTL (01):
 
         if discover_flag & DISCOVER_SCHEMA and self.type not in DEVICE_HAS_BATTERY:
             pass  # self._send_cmd("1F09", retries=3)
-
-    #     if discover_flag & DISCOVER_STATUS and self.type not in DEVICE_HAS_BATTERY:
-    #         self._send_cmd("0016", retries=3)  # rf_check
 
 
 class Programmer(Controller):  # PRG (23):
@@ -1206,7 +1203,7 @@ class BdrSwitch(Actuator, Device):  # BDR (13):
          - DHW hot water valve *or* DHW heating valve
          - Zones: Electric relay *or* Zone valve relay
 
-        They all seem to respond thus (TODO heat pump/zone valve relay):
+        They all seem to respond thus (TODO: heat pump/zone valve relay):
          - all BDR91As will (erractically) RP to these RQs
              0016, 1FC9 & 0008, 1100, 3EF1
          - all BDR91As will *not* RP to these RQs
