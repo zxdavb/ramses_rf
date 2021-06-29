@@ -106,7 +106,7 @@ if DEV_MODE:
 
 
 def _pkt_header_idx(pkt: str, rx_header=None) -> Optional[str]:  # TODO:
-    """Return the QoS header of a packet."""
+    """Return the index/ordinal of a packet."""
 
     verb = pkt[4:6]
     code = pkt[41:45]

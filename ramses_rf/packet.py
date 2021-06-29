@@ -12,7 +12,7 @@ import sys
 from datetime import datetime as dt
 from typing import Optional, Tuple
 
-from .command import _pkt_header
+from .command import _pkt_header, _pkt_header_idx
 from .const import MESSAGE_REGEX, __dev_mode__
 from .exceptions import CorruptAddrSetError
 from .helpers import extract_addrs
@@ -184,7 +184,8 @@ class Packet:
 
         self.addrs = [None] * 3
         self.src_addr = self.dst_addr = None
-        self._pkt_header = None
+        self._hdr = None
+        self._idx = None
 
         self._is_valid = None
         if not self.is_valid:
@@ -266,6 +267,14 @@ class Packet:
         """Return the QoS header of this packet."""
 
         # TODO: a mess: extract_addrs, an expensive function, is possibly called twice
-        if self._pkt_header is None and self.is_valid:
-            self._pkt_header = _pkt_header(self.packet)
-        return self._pkt_header
+        if self._hdr is None and self.is_valid:
+            self._hdr = _pkt_header(self.packet)
+        return self._hdr
+
+    @property
+    def _index(self) -> Optional[str]:
+        """Return the index/ordinal of this packet."""
+
+        if self._idx is None and self.is_valid:
+            self._idx = _pkt_header_idx(self.packet)
+        return self._idx

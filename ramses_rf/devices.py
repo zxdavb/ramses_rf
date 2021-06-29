@@ -139,16 +139,13 @@ class Entity:
             }
 
     def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess
-        self._msgz[msg.verb][msg.code] = msg
+        if msg.code in self._msgz[msg.verb]:
+            self._msgz[msg.verb][msg.code][msg._pkt._index] = msg
+        else:
+            self._msgz[msg.verb][msg.code] = {msg._pkt._index: msg}
 
-        if msg.verb == W_:
-            # if msg.code in self._msgs and self._msgs[msg.code].verb != msg.verb:
-            return
-        if msg.verb == RQ:  # and msg.payload:
-            # if msg.code in self._msgs and self._msgs[msg.code].verb != msg.verb:
-            return
-
-        self._msgs[msg.code] = msg
+        if msg.verb in (I_, RP):  # TODO: deprecate
+            self._msgs[msg.code] = msg
 
     @property
     def _dump_msgs(self) -> List:

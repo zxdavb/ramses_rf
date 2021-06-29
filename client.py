@@ -320,6 +320,29 @@ async def main(lib_kwargs, **kwargs):
         # else:
         #     print(gwy.device_by_id[kwargs["device_id"]])
 
+    def save_state(gwy):
+        schema, msgs = gwy._get_state()
+
+        with open("state_msgs.log", "w") as f:
+            [
+                f.write(f"{m.dtm.isoformat(sep='T')} {m._pkt}\r\n")
+                for m in msgs.values()
+                # if not m.is_expired
+            ]
+
+        with open("state_schema.json", "w") as f:
+            f.write(json.dumps(schema, indent=4))
+
+        # await gwy._set_state(schema, msgs)
+
+    def print_state(gwy):
+        (schema, packets) = gwy._get_state()
+
+        print(f"Schema  = {json.dumps(schema, indent=4)}\r\n")
+        print(f"Packets = {json.dumps(packets, indent=4)}\r\n")
+
+        [print(f"{dtm} {pkt}") for dtm, pkt in packets.items()]
+
     def print_summary(gwy):
         if gwy.evo is None:
             print(f"Schema[gateway] = {json.dumps(gwy.schema, indent=4)}\r\n")
@@ -380,15 +403,16 @@ async def main(lib_kwargs, **kwargs):
             def callback(msg):
                 print(msg or "Callback has expired")
 
-            await asyncio.sleep(3)
+            await asyncio.sleep(3)  # allow to quiesce
             cmd = Command.get_zone_name("01:145039", "00")
 
-            gwy.send_cmd(cmd, callback=callback)
-
-            # try:
-            #     print(await gwy.async_send_cmd(cmd, awaitable=False))
-            # except TimeoutError:
-            #     print("TimeoutError")
+            if True:
+                gwy.send_cmd(cmd, callback=callback)
+            else:
+                try:
+                    print(await gwy.async_send_cmd(cmd, awaitable=False))
+                except TimeoutError:
+                    print("TimeoutError")
 
         await task
 
@@ -407,22 +431,8 @@ async def main(lib_kwargs, **kwargs):
     if kwargs[COMMAND] == EXECUTE:
         print_results(**kwargs)
     else:
-        print_summary(gwy)
-
-    # schema, msgs = gwy._get_state()
-    # f = open("state_msgs.log", "w")
-    # [
-    #     f.write(f"{m.dtm.isoformat(sep='T')} {m._pkt}\r\n")
-    #     for m in msgs.values()
-    #     # if not m.is_expired
-    # ]
-    # f.close()
-
-    # f = open("state_schema.json", "w")
-    # f.write(json.dumps(schema, indent=4))
-    # f.close()
-
-    # # await gwy._set_state(schema, msgs)
+        print_state(gwy)  # TODO: make this choice a switch
+        # print_summary(gwy)
 
     print(f"\r\nclient.py: Finished ramses_rf.\r\n{msg}\r\n")
 
