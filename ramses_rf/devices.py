@@ -31,7 +31,7 @@ from .const import (
 )
 from .exceptions import CorruptStateError
 from .helpers import dev_id_to_hex, schedule_task
-from .opentherm import VALUE
+from .opentherm import VALUE  # R8810A_MSG_IDS
 from .ramses import RAMSES_DEVICES
 
 MSG_ID = "msg_id"
@@ -1011,90 +1011,115 @@ class OtbGateway(Actuator, Device):  # OTB (10): 22D9, 3220
         super().__init__(*args, **kwargs)
 
         self._domain_id = "FC"
-        self._opentherm_msg = {}
+
+        self._opentherm_msg = self._msgz[RP]["3220"] = {}
+        self._supported_msg = {}
 
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id}): {self.modulation_level}"  # 3EF0
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        # see: https://www.opentherm.eu/request-details/?post_ids=2944
         super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_SCHEMA:
-            for msg_id in range(0x7C, 0x80):  # From OT v2.2: version numbers
-                self._gwy.send_cmd(Command.get_opentherm_data(self.id, msg_id))
+        # From OT v2.2, these are mandatory: 00, 01, 03, 0E, 11, 19
+        # and, from evohome: 05, 11, 12, 13, 19, 1A
 
-        # if discover_flag & DISCOVER_PARAMS:
-        #     pass
+        if discover_flag & DISCOVER_SCHEMA:
+            # 7C - Master Opentherm version (is supported?)
+            # 7D - Slave Opentherm version (is supported?)
+            # 7E - Master Product Type/Version
+            # 7F - Slave Product Type/Version
+            [
+                self._gwy.send_cmd(Command.get_opentherm_data(self.id, msg_id))
+                for msg_id in range(0x7C, 0x80)  # From OT v2.2: version numbers
+                if self._supported_msg.get(msg_id) is not False
+            ]
+
+        if discover_flag & DISCOVER_PARAMS:
+            # 02 - Master configuration
+            # 03 - Slave configuration
+            # 0E - Max. relative modulation level (%)
+            [
+                self._gwy.send_cmd(Command.get_opentherm_data(self.id, msg_id))
+                for msg_id in (0x03, 0x0E)
+                if self._supported_msg.get(msg_id) is not False
+            ]
 
         if discover_flag & DISCOVER_STATUS:  # TODO: these need to be periodic
-            # From OT v2.2, these are mandatory: 00, 01, 03, 0E, 11, 19...
-            msg_ids = {0x00, 0x01, 0x03, 0x0E, 0x11, 0x19}
-
-            # and, From evohome: 05, 11, 12, 13, 19, 1A...
-            msg_ids |= {0x05, 0x11, 0x12, 0x13, 0x19, 0x1A}
-            # 05 - Fault flags & OEM fault code
-            # 11 - Relative modulation level
-            # 12 - Central heating water pressure
-            # 13 - DHW flow rate (litres/minute)
+            msg_ids = {0x00, 0x01, 0x11, 0x19}  # mandatory
+            # 00 - Master/Slave status flags
+            # 01 - CH water temperature setpoint
+            # 11 - Relative modulation level (%)
             # 19 - Boiler water temperature
+
+            msg_ids |= {0x05, 0x12, 0x13, 0x1A}  # evohome
+            # 05 - Fault flags & OEM fault code
+            # 12 - Central heating water pressure (bar)
+            # 13 - DHW flow rate (L/min)
             # 1A - DHW temperature
 
-            # and, others...
-            msg_ids |= {0x1B, 0x1C, 0x73}
+            msg_ids |= {0x1B, 0x1C, 0x73}  # other
             # 1B - Outside temperature
             # 1C - Return water temperature
-            # 73 - OEM diagnostic code
+            # 73 - OEM diagnostic code (is supported?)
 
-            for msg_id in msg_ids:
+            [
                 self._gwy.send_cmd(
                     Command.get_opentherm_data(self.id, msg_id, retries=0)
                 )
+                for msg_id in msg_ids
+                if self._supported_msg.get(msg_id) is not False
+            ]
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == "3220" and msg.verb == RP:  # TODO: what about I/W (or RQ)
-            self._opentherm_msg[msg.payload[MSG_ID]] = msg  # TODO: need to expire
+        if msg.code == "3220":  # all are RP
+            if msg.payload["msg_type"] == "Unknown-DataId":
+                self._supported_msg[msg.payload["msg_id"]] = False
+            # else:
+            #     self._supported_msg[msg.payload["msg_id"]] = True
 
     @property
     def boiler_water_temp(self) -> Optional[float]:  # 3220/0x19
         try:
-            return self._opentherm_msg["0x19"].payload[VALUE]
+            return self._opentherm_msg["19"].payload[VALUE]
         except KeyError:
             return
 
     @property
     def ch_water_pressure(self) -> Optional[float]:  # 3220/0x12
         try:
-            return self._opentherm_msg["0x12"].payload[VALUE]
+            return self._opentherm_msg["12"].payload[VALUE]
         except KeyError:
             return
 
     @property
     def dhw_flow_rate(self) -> Optional[float]:  # 3220/0x13
         try:
-            return self._opentherm_msg["0x13"].payload[VALUE]
+            return self._opentherm_msg["13"].payload[VALUE]
         except KeyError:
             return
 
     @property
     def dhw_temp(self) -> Optional[float]:  # 3220/0x1A
         try:
-            return self._opentherm_msg["0x1A"].payload[VALUE]
+            return self._opentherm_msg["1A"].payload[VALUE]
         except KeyError:
             return
 
     @property
     def rel_modulation_level(self) -> Optional[float]:  # 3220/0x11
         try:
-            return self._opentherm_msg["0x11"].payload[VALUE]
+            return self._opentherm_msg["11"].payload[VALUE]
         except KeyError:
             return
 
     @property
     def return_cv_temp(self) -> Optional[float]:  # 3220/0x1C
         try:
-            return self._opentherm_msg["0x1C"].payload[VALUE]
+            return self._opentherm_msg["1C"].payload[VALUE]
         except KeyError:
             return
 

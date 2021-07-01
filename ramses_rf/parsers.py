@@ -45,6 +45,7 @@ from .opentherm import (
     LB,
     OPENTHERM_MESSAGES,
     OPENTHERM_MSG_TYPE,
+    R8810A_MSG_IDS,
     S8,
     U8,
     VAL,
@@ -257,7 +258,12 @@ def parser_decorator(func):
                     f"Expecting payload to match regex: '{regex}'"
                 )
         except KeyError:
-            pass
+            pass  # TODO: raise
+
+        if msg.code == "3220" and int(msg.raw_payload[4:6], 16) not in R8810A_MSG_IDS:
+            raise CorruptPayloadError(
+                f"Unsupported OpenTherm msg_id: 0x{msg.raw_payload[4:6]}"
+            )
 
     def wrapper(*args, **kwargs) -> Optional[dict]:
         """Check the length of a payload."""
