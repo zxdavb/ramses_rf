@@ -20,6 +20,7 @@ from .const import (
     __dev_mode__,
 )
 from .exceptions import ExpiredCallbackError
+from .opentherm import R8810A_MSG_IDS
 from .ramses import RAMSES_CODES
 
 EXECUTE_CMD = "execute_cmd"
@@ -289,8 +290,8 @@ async def scan_hard(gwy, dev_id: str):
 
 
 async def scan_xxxx(gwy, dev_id: str):
-    _LOGGER.warning("scan_xxxx() invoked - expect a lot of nonsense")
-    await scan_004(gwy, dev_id)
+    # _LOGGER.warning("scan_xxxx() invoked - expect a lot of nonsense")
+    await scan_005(gwy, dev_id)
 
 
 async def scan_001(gwy, dev_id: str):
@@ -331,3 +332,21 @@ async def scan_004(gwy, dev_id: str):
     cmd = Command.get_dhw_mode(dev_id, **qos)
 
     return gwy._loop.create_task(periodic(gwy, cmd, count=0, interval=5))
+
+
+async def scan_005(gwy, dev_id: str):
+    _LOGGER.warning("scan_005(otb, full) invoked - expect a lot of nonsense")
+
+    qos = {"priority": Priority.LOW, "retries": 1}
+
+    for msg_id in R8810A_MSG_IDS:
+        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **qos))
+
+
+async def scan_006(gwy, dev_id: str):
+    _LOGGER.warning("scan_006(otb, hard) invoked - expect a lot of nonsense")
+
+    qos = {"priority": Priority.LOW, "retries": 0}
+
+    for msg_id in range(0x80):
+        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **qos))
