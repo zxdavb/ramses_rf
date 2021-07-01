@@ -111,15 +111,7 @@ def _convert_to_list(d: str) -> list:
 
 
 def _arg_split(ctx, param, value):  # callback=_arg_split
-    # split columns by ',' and remove whitespace
-    _items = [x.strip() for x in value.split(",")]
-
-    # validate each item
-    # for x in _items:
-    #     if not_valid(x):
-    #         raise click.BadOptionUsage(f"{x} is not valid.")
-
-    return _items
+    return [x.strip() for x in value.split(",")]
 
 
 class DeviceIdParamType(click.ParamType):
@@ -135,6 +127,7 @@ class DeviceIdParamType(click.ParamType):
 @click.option("-z", "--debug-mode", count=True, help="enable debugger")
 @click.option("-r", "--reduce-processing", count=True, help="-rrr will give packets")
 @click.option("-l/-nl", "--long-dates/--no-long-dates", default=None)
+@click.option("-s", "--show-state", is_flag=True, help="show state rather than summary")
 @click.option("-c", "--config-file", type=click.File("r"))
 @click.pass_context
 def cli(ctx, config_file=None, **kwargs):
@@ -293,75 +286,78 @@ def listen(obj, **kwargs):
     asyncio.run(main(lib_kwargs, command=LISTEN, **cli_kwargs))
 
 
+def _print_results(gwy, **kwargs):
+
+    if kwargs[GET_FAULTS]:
+        fault_log = gwy.system_by_id[kwargs[GET_FAULTS]]._fault_log.fault_log
+
+        if fault_log is None:
+            print("No fault log, or failed to get the fault log.")
+        else:
+            [print(f"{k:02X}", v) for k, v in fault_log.items()]
+
+    if kwargs[GET_SCHED][0]:
+        system_id, zone_idx = kwargs[GET_SCHED]
+        zone = gwy.system_by_id[system_id].zone_by_idx[zone_idx]
+        schedule = zone._schedule.schedule
+
+        if schedule is None:
+            print("Failed to get the schedule.")
+        else:
+            print("Schedule = \r\n", json.dumps(schedule))  # , indent=4))
+
+    if kwargs[SET_SCHED][0]:
+        system_id, _ = kwargs[GET_SCHED]
+
+    # else:
+    #     print(gwy.device_by_id[kwargs["device_id"]])
+
+
+def _save_state(gwy):
+    schema, msgs = gwy._get_state()
+
+    with open("state_msgs.log", "w") as f:
+        [
+            f.write(f"{m.dtm.isoformat(sep='T')} {m._pkt}\r\n")
+            for m in msgs.values()
+            # if not m.is_expired
+        ]
+
+    with open("state_schema.json", "w") as f:
+        f.write(json.dumps(schema, indent=4))
+
+    # await gwy._set_state(schema, msgs)
+
+
+def _print_state(gwy):
+    (schema, packets) = gwy._get_state()
+
+    print(f"Schema  = {json.dumps(schema, indent=4)}\r\n")
+    # print(f"Packets = {json.dumps(packets, indent=4)}\r\n")
+    [print(f"{dtm} {pkt}") for dtm, pkt in packets.items()]
+
+
+def _print_summary(gwy):
+    if gwy.evo is None:
+        print(f"Schema[gateway] = {json.dumps(gwy.schema, indent=4)}\r\n")
+        print(f"Params[gateway] = {json.dumps(gwy.params)}\r\n")
+        print(f"Status[gateway] = {json.dumps(gwy.status)}")
+        return
+
+    print(f"Schema[{repr(gwy.evo)}] = {json.dumps(gwy.evo.schema, indent=4)}\r\n")
+    print(f"Params[{repr(gwy.evo)}] = {json.dumps(gwy.evo.params, indent=4)}\r\n")
+    print(f"Status[{repr(gwy.evo)}] = {json.dumps(gwy.evo.status, indent=4)}\r\n")
+
+    orphans = [d for d in sorted(gwy.devices) if d not in gwy.evo.devices]
+    devices = {d.id: d.schema for d in orphans}
+    print(f"Schema[orphans] = {json.dumps({'schema': devices}, indent=4)}\r\n")
+    devices = {d.id: d.params for d in orphans}
+    print(f"Params[orphans] = {json.dumps({'params': devices}, indent=4)}\r\n")
+    devices = {d.id: d.status for d in orphans}
+    print(f"Status[orphans] = {json.dumps({'status': devices}, indent=4)}\r\n")
+
+
 async def main(lib_kwargs, **kwargs):
-    def print_results(**kwargs):
-
-        if kwargs[GET_FAULTS]:
-            fault_log = gwy.system_by_id[kwargs[GET_FAULTS]]._fault_log.fault_log
-
-            if fault_log is None:
-                print("No fault log, or failed to get the fault log.")
-            else:
-                [print(f"{k:02X}", v) for k, v in fault_log.items()]
-
-        if kwargs[GET_SCHED][0]:
-            system_id, zone_idx = kwargs[GET_SCHED]
-            zone = gwy.system_by_id[system_id].zone_by_idx[zone_idx]
-            schedule = zone._schedule.schedule
-
-            if schedule is None:
-                print("Failed to get the schedule.")
-            else:
-                print("Schedule = \r\n", json.dumps(schedule))  # , indent=4))
-
-        if kwargs[SET_SCHED][0]:
-            system_id, _ = kwargs[GET_SCHED]
-
-        # else:
-        #     print(gwy.device_by_id[kwargs["device_id"]])
-
-    def save_state(gwy):
-        schema, msgs = gwy._get_state()
-
-        with open("state_msgs.log", "w") as f:
-            [
-                f.write(f"{m.dtm.isoformat(sep='T')} {m._pkt}\r\n")
-                for m in msgs.values()
-                # if not m.is_expired
-            ]
-
-        with open("state_schema.json", "w") as f:
-            f.write(json.dumps(schema, indent=4))
-
-        # await gwy._set_state(schema, msgs)
-
-    def print_state(gwy):
-        (schema, packets) = gwy._get_state()
-
-        print(f"Schema  = {json.dumps(schema, indent=4)}\r\n")
-        print(f"Packets = {json.dumps(packets, indent=4)}\r\n")
-
-        [print(f"{dtm} {pkt}") for dtm, pkt in packets.items()]
-
-    def print_summary(gwy):
-        if gwy.evo is None:
-            print(f"Schema[gateway] = {json.dumps(gwy.schema, indent=4)}\r\n")
-            print(f"Params[gateway] = {json.dumps(gwy.params)}\r\n")
-            print(f"Status[gateway] = {json.dumps(gwy.status)}")
-            return
-
-        print(f"Schema[{repr(gwy.evo)}] = {json.dumps(gwy.evo.schema, indent=4)}\r\n")
-        print(f"Params[{repr(gwy.evo)}] = {json.dumps(gwy.evo.params, indent=4)}\r\n")
-        print(f"Status[{repr(gwy.evo)}] = {json.dumps(gwy.evo.status, indent=4)}\r\n")
-
-        orphans = [d for d in sorted(gwy.devices) if d not in gwy.evo.devices]
-        devices = {d.id: d.schema for d in orphans}
-        print(f"Schema[orphans] = {json.dumps({'schema': devices}, indent=4)}\r\n")
-        devices = {d.id: d.params for d in orphans}
-        print(f"Params[orphans] = {json.dumps({'params': devices}, indent=4)}\r\n")
-        devices = {d.id: d.status for d in orphans}
-        print(f"Status[orphans] = {json.dumps({'status': devices}, indent=4)}\r\n")
-
     def process_message(msg) -> None:
         # return
         dtm = msg.dtm if kwargs["long_dates"] else f"{msg.dtm:%H:%M:%S.%f}"[:-3]
@@ -429,10 +425,11 @@ async def main(lib_kwargs, **kwargs):
 
     print("\r\nclient.py: Finished ramses_rf, results:\r\n")
     if kwargs[COMMAND] == EXECUTE:
-        print_results(**kwargs)
+        _print_results(gwy, **kwargs)
+    elif kwargs["show_state"]:
+        _print_state(gwy)  # TODO: make this choice a switch
     else:
-        print_state(gwy)  # TODO: make this choice a switch
-        # print_summary(gwy)
+        _print_summary(gwy)
 
     print(f"\r\nclient.py: Finished ramses_rf.\r\n{msg}\r\n")
 
