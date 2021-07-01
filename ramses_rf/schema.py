@@ -169,12 +169,12 @@ SYSTEM_PROFILES = (SystemType.EVOHOME, SystemType.HOMETRONICS, SystemType.SUNDIA
 
 HTG_SCHEMA = vol.Schema(
     {
-        vol.Optional(ATTR_HTG_CONTROL, default=None): vol.Any(None, HTG_DEVICE_ID),
+        vol.Required(ATTR_HTG_CONTROL, default=None): vol.Any(None, HTG_DEVICE_ID),
         vol.Optional(ATTR_SYS_PROFILE, default=SystemType.EVOHOME): vol.Any(
             *SYSTEM_PROFILES
         ),
     },
-    extra=vol.ALLOW_EXTRA,  # TODO: remove me
+    # extra=vol.ALLOW_EXTRA,  # TODO: remove me
 )
 DHW_SCHEMA = vol.Schema(
     {
@@ -206,6 +206,7 @@ SENSOR_SCHEMA = vol.Schema(
         # vol.Optional("native_id"): DEVICE_ID,
     }
 )
+# SENSOR_SCHEMA = vol.Any(None, SENSOR_ID, SENSOR_SCHEMA)
 ZONE_SCHEMA = vol.Schema(
     {
         vol.Optional(ATTR_ZONE_TYPE, default=None): vol.Any(None, ZONE_TYPE_SLUGS),
@@ -226,7 +227,7 @@ SYSTEM_SCHEMA = vol.Schema(
         vol.Optional(ATTR_ORPHANS, default=[]): vol.Any([], [DEVICE_ID]),
         vol.Optional(ATTR_ZONES, default={}): vol.Any({}, ZONE_SCHEMA),
     },
-    extra=vol.ALLOW_EXTRA,  # TODO: remove me
+    extra=vol.ALLOW_EXTRA,  # TODO: remove me - But: Causes an issue?
 )
 SYSTEM_SCHEMA = vol.Schema(vol.Any({}, SYSTEM_SCHEMA))
 
@@ -247,7 +248,7 @@ GLOBAL_CONFIG_SCHEMA = vol.Schema(
 )
 
 
-DEV_MODE = __dev_mode__
+DEV_MODE = __dev_mode__  # or True
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -363,7 +364,7 @@ def _get_device(gwy, dev_addr, ctl_addr=None, **kwargs) -> Optional[Any]:
             err_msg = f"{dev_addr.id} is in the {SCHEMA}, but also in the {BLOCK_LIST}"
 
     if err_msg:
-        _LOGGER.warning(f"%s: check the lists and the (cached) {SCHEMA}", err_msg)
+        _LOGGER.error(f"%s: check the lists and the (cached) {SCHEMA}", err_msg)
 
     return gwy._get_device(dev_addr, ctl_addr=ctl_addr, **kwargs)
 
@@ -380,7 +381,8 @@ def load_system_schema(gwy, **kwargs) -> dict:
     [_get_device(gwy, addr(device_id)) for device_id in kwargs.pop(ATTR_ORPHANS, [])]
 
     if SCHEMA in kwargs:
-        _load_system_schema(gwy, kwargs[SCHEMA])
+        # ctl_id = kwargs.pop(ATTR_CONTROLLER)
+        _load_system_schema(gwy, schema=kwargs[SCHEMA])
         gwy.evo = gwy.system_by_id.get(kwargs[SCHEMA][ATTR_CONTROLLER])
 
     elif kwargs.get(MAIN_CONTROLLER):
@@ -397,15 +399,24 @@ def load_system_schema(gwy, **kwargs) -> dict:
     }
 
 
+def shrink_dict(_dict):
+    return {
+        k: shrink_dict(dict(v)) if isinstance(v, dict) else v
+        for k, v in _dict.items()
+        if bool(v)
+    }
+
+
 def _load_system_schema(gwy, schema) -> Tuple[dict, dict]:
+    # org_schema = schema
     schema = SYSTEM_SCHEMA(schema)
 
     ctl_id = schema[ATTR_CONTROLLER]
     profile = schema[ATTR_HTG_SYSTEM].get(ATTR_SYS_PROFILE)
     ctl = _get_device(gwy, addr(ctl_id), ctl_addr=addr(ctl_id), profile=profile)
 
-    if not ctl:
-        return
+    # if not ctl:
+    #     return
 
     htg_ctl_id = schema[ATTR_HTG_SYSTEM].get(ATTR_HTG_CONTROL)
     if htg_ctl_id:
@@ -462,6 +473,13 @@ def _load_system_schema(gwy, schema) -> Tuple[dict, dict]:
         for ufc_id, _ in ufh_ctl_ids.items():
             _ = _get_device(gwy, addr(ufc_id), ctl_addr=ctl)
 
-    # assert schema == gwy.system_by_id[ctl_id].schema
+    if DEV_MODE:
+        import json
 
-    # return ctl._evo
+        src = json.dumps(shrink_dict(schema), sort_keys=True)
+        dst = json.dumps(shrink_dict(gwy.system_by_id[ctl_id].schema), sort_keys=True)
+        # assert dst == src, "They don't match!"
+        print(src)
+        print(dst)
+
+    return ctl
