@@ -1763,7 +1763,8 @@ def parser_31da(payload, msg) -> Optional[dict]:
             raise ValueError(result)
         return result / 100 / precision
 
-    assert msg.len == 29, f"expected length 29, not {msg.len}"
+    # I --- 37:261128 --:------ 37:261128 31DA 029 00004007D045EF7FFF7FFF7FFF7FFFF808EF03C8000000EFEF7FFF7FFF
+    # I --- 37:053679 --:------ 37:053679 31DA 030 00EF007FFF41EF7FFF7FFF7FFF7FFFF800EF0134000000EFEF7FFF7FFF00
 
     assert payload[2:4] in ("00", "EF"), payload[2:4]
     assert payload[4:6] in ("00", "40"), payload[4:6]
@@ -1787,7 +1788,7 @@ def parser_31da(payload, msg) -> Optional[dict]:
     assert payload[46:48] in ("00", "EF"), payload[46:48]
     assert payload[48:50] == "EF", payload[48:50]
     assert payload[50:54] == "7FFF", payload[50:54]
-    assert payload[54:58] == "7FFF", payload[54:58]
+    assert payload[54:58] == "7FFF", payload[54:58]  # or: FFFF?
 
     return {
         "air_quality": _percent(payload[2:4]),

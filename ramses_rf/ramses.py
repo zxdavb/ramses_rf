@@ -281,7 +281,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     "31DA": {  # unknown
         NAME: "message_31da",
-        I_: r"^(00|01|21)[0-9A-F]{56}$",
+        I_: r"^(00|01|21)[0-9A-F]{56}(00)?$",
         RQ: r"^(00|01|21)$"
         # RQ --- 32:168090 30:082155 --:------ 31DA 001 21
     },
@@ -309,7 +309,7 @@ RAMSES_CODES = {  # rf_unknown
     "3EF1": {  # actuator_cycle
         NAME: "actuator_cycle",
         RQ: r"^(0[0-9A-F](00)?|00[0-9A-F]{22})$",  # NOTE: both seen in the wild
-        # RP: r"^(0[0-9A-F](00)?|00[0-9A-F]{22})$",  # NOTE: both seen in the wild
+        # RP: r"^(0[0-9A-F](00)?|00[0-9A-F]{22})$", # TODO
         RQ_MAY_HAVE_PAYLOAD: True,
     },
     "7FFF": {

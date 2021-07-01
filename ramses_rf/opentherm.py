@@ -839,108 +839,125 @@ def ot_msg_value(val_seqx, val_type) -> Any:
     return val_seqx
 
 
-# See: https://www.opentherm.eu/request-details/?post_ids=2944
-#
-# ID0:HB0: Master status: CH enable
-# ID0:HB1: Master status: DHW enable
-# ID0:HB2: Master status: Cooling enable
-# ID0:HB3: Master status: OTC active
-# ID0:HB5: Master status: Summer/winter mode
-# ID0:HB6: Master status: DHW blocking
+# R8810A 1018 v4: https://www.opentherm.eu/request-details/?post_ids=2944
+# as at: 2021/06/28
 
-# ID0:LB0: Slave Status: Fault indication
-# ID0:LB1: Slave Status: CH mode
-# ID0:LB2: Slave Status: DHW mode
-# ID0:LB3: Slave Status: Flame status
-
-# ID1: Control Setpoint i.e. CH water temperature Setpoint (°C)
-
-# ID2:HB0: Master configuration: Smart power
-# ID2:LB:  Master MemberID Code
-
-# ID3:HB0: Slave configuration: DHW present
-# ID3:HB1: Slave configuration: Control type
-# ID3:HB4: Slave configuration: Master low-off&pump control
-
-# ID5:HB0: Service request
-# ID5:HB1: Lockout-reset
-# ID5:HB2: Low water pressure
-# ID5:HB3: Gas/flame fault
-# ID5:HB4: Air pressure fault
-# ID5:HB5: Water over-temperature
-# ID5:LB:  OEM fault code
-
-# ID6:HB0: Remote boiler parameter transfer-enable: DHW setpoint
-# ID6:HB1: Remote boiler parameter transfer-enable: max. CH setpoint
-# ID6:LB0: Remote boiler parameter read/write: DHW setpoint
-# ID6:LB1: Remote boiler parameter read/write: max. CH setpoint
-
-# ID9:  Remote override room Setpoint
-# ID10: Number of Transparent-Slave-Parameters supported by slave
-# ID12: Size of Fault-History-Buffer supported by slave
-# ID14: Maximum relative modulation level setting (%)
-# ID16: Room Setpoint (°C)
-# ID17: Relative Modulation Level (%)
-# ID18: Water pressure in CH circuit (bar)
-# ID19: Water flow rate in DHW circuit. (litres/minute)
-# ID24: Room temperature (°C)
-# ID25: Boiler flow water temperature (°C)
-# ID26: DHW temperature (°C)
-# ID27: Outside temperature (°C)
-# ID28: Return water temperature (°C)
-# ID48: DHW Setpoint upper & lower bounds for adjustment (°C)
-# ID49: Max CH water Setpoint upper & lower bounds for adjustment (°C)
-# ID56: DHW Setpoint (°C) (Remote parameter 1)
-# ID57: Max CH water Setpoint (°C) (Remote parameters 2)
-
-# ID126: Master product version number and type
-# ID127: Slave product version number and type
-
+R8810A_MSG_IDS = {
+    0x00: "Master/Slave status flags",
+    # 000:HB0: Master status: CH enable
+    # 000:HB1: Master status: DHW enable
+    # 000:HB2: Master status: Cooling enable
+    # 000:HB3: Master status: OTC active
+    # 000:HB5: Master status: Summer/winter mode
+    # 000:HB6: Master status: DHW blocking
+    # 000:LB0: Slave Status: Fault indication
+    # 000:LB1: Slave Status: CH mode
+    # 000:LB2: Slave Status: DHW mode
+    # 000:LB3: Slave Status: Flame status
+    0x01: "CH water temperature Setpoint (°C)",
+    # 001: Control Setpoint i.e. CH water temperature Setpoint (°C)
+    0x02: "Master configuration",
+    # 002:HB0: Master configuration: Smart power
+    # 002:LB:  Master MemberID Code
+    0x03: "Slave configuration",
+    # 003:HB0: Slave configuration: DHW present
+    # 003:HB1: Slave configuration: Control type
+    # 003:HB4: Slave configuration: Master low-off&pump control
+    0x05: "Fault flags & OEM codes",
+    # 005:HB0: Service request
+    # 005:HB1: Lockout-reset
+    # 005:HB2: Low water pressure
+    # 005:HB3: Gas/flame fault
+    # 005:HB4: Air pressure fault
+    # 005:HB5: Water over-temperature
+    # 005:LB:  OEM fault code
+    0x06: "Remote boiler parameter flags",
+    # 006:HB0: Remote boiler parameter transfer-enable: DHW setpoint
+    # 006:HB1: Remote boiler parameter transfer-enable: max. CH setpoint
+    # 006:LB0: Remote boiler parameter read/write: DHW setpoint
+    # 006:LB1: Remote boiler parameter read/write: max. CH setpoint
+    0x09: "Remote override room Setpoint",  # 009:
+    0x0A: "Number of TSPs supported by slave",  # 010:
+    0x0C: "Size of FHB supported by slave",  # 012:
+    0x0E: "Maximum relative modulation level setting (%)",  # 014:
+    0x10: "Room Setpoint (°C)",  # 016:
+    0x11: "Relative Modulation Level (%)",  # 017:
+    0x12: "Water pressure in CH circuit (bar)",  # 018:
+    0x13: "Water flow rate in DHW circuit. (L/min)",  # 019:
+    0x18: "Room temperature (°C)",  # 024:
+    0x19: "Boiler flow water temperature (°C)",  # 025:
+    0x1A: "DHW temperature (°C)",  # 026:
+    0x1B: "Outside temperature (°C)",  # 027:
+    0x1C: "Return water temperature (°C)",  # 028:
+    0x30: "DHW Setpoint upper & lower bounds for adjustment (°C)",  # 048:
+    0x31: "Max CH water Setpoint upper & lower bounds for adjustment (°C)",  # 049:
+    0x38: "DHW Setpoint (°C) (Remote parameter 1)",  # 056:
+    0x39: "Max CH water Setpoint (°C) (Remote parameters 2)",  # 057:
+    0x7E: "Master product version number and type",  # 126:
+    0x7F: "Slave product version number and type",  # 127:
+    # These are not in the R8810A spec, but are RQ'd by 01:/30:!
+    0x0F: "xxx",  # 015:
+    0x71: "xxx",  # 113:
+    0x72: "xxx",  # 114:
+    0x73: "OEM diagnostic code",  # 115:
+    0x74: "xxx",  # 116:
+    0x75: "xxx",  # 117:
+    0x76: "xxx",  # 118:
+    0x77: "xxx",  # 119:
+    0x78: "xxx",  # 120:
+    0x79: "xxx",  # 121:
+    0x7A: "xxx",  # 122:
+    0x7B: "xxx",  # 123:
+    # These may be useful, or not?
+    0x7C: "Opentherm version Master",  # 124:
+    0x7D: "Opentherm version Slave",  # 125:
+}
 
 # https://github.com/rvdbreemen/OTGW-firmware/blob/main/Specification/New%20OT%20data-ids.txt  # noqa
+
 """
-New OT Data-ID's - Found two new ID's at this device description:
-http://www.opentherm.eu/product/view/18/feeling-d201-ot
-    ID 98: For a specific RF sensor the RF strength and battery level is written
-    ID 99: Operating Mode HC1, HC2/ Operating Mode DHW
+    New OT Data-ID's - Found two new ID's at this device description:
+    http://www.opentherm.eu/product/view/18/feeling-d201-ot
+        ID 98: For a specific RF sensor the RF strength and battery level is written
+        ID 99: Operating Mode HC1, HC2/ Operating Mode DHW
 
-Found new data-id's at this page:
-https://www.opentherm.eu/request-details/?post_ids=1833
-    ID 109: Electricity producer starts
-    ID 110: Electricity producer hours
-    ID 111: Electricity production
-    ID 112: Cumulative Electricity production
+    Found new data-id's at this page:
+    https://www.opentherm.eu/request-details/?post_ids=1833
+        ID 109: Electricity producer starts
+        ID 110: Electricity producer hours
+        ID 111: Electricity production
+        ID 112: Cumulative Electricity production
 
-Found new Data-ID's at this page:
-https://www.opentherm.eu/request-details/?post_ids=1833
-    ID 36:   {f8.8}   "Electrical current through burner flame" (µA)
-    ID 37:   {f8.8}   "Room temperature for 2nd CH circuit"
-    ID 38:   {u8 u8}  "Relative Humidity"
+    Found new Data-ID's at this page:
+    https://www.opentherm.eu/request-details/?post_ids=1833
+        ID 36:   {f8.8}   "Electrical current through burner flame" (µA)
+        ID 37:   {f8.8}   "Room temperature for 2nd CH circuit"
+        ID 38:   {u8 u8}  "Relative Humidity"
 
-For Data-ID's 37 and 38 I assumed their data types, for Data ID 36 I determined it by
-matching qSense value with the correct data-type.
+    For Data-ID's 37 and 38 I assumed their data types, for Data ID 36 I determined
+    it by matching qSense value with the correct data-type.
 
-I also analysed OT Remeha qSense <-> Remeha Tzerra communication.
-    ID 131:   {u8 u8}   "Remeha dF-/dU-codes"
-    ID 132:   {u8 u8}   "Remeha Service message"
-    ID 133:   {u8 u8}   "Remeha detection connected SCU’s"
+    I also analysed OT Remeha qSense <-> Remeha Tzerra communication.
+        ID 131:   {u8 u8}   "Remeha dF-/dU-codes"
+        ID 132:   {u8 u8}   "Remeha Service message"
+        ID 133:   {u8 u8}   "Remeha detection connected SCU’s"
 
-"Remeha dF-/dU-codes": Should match the dF-/dU-codes written on boiler nameplate.
-Read-Data Request (0 0) returns the data. Also accepts Write-Data Requests (dF dU),
-this returns the boiler to its factory defaults.
+    "Remeha dF-/dU-codes": Should match the dF-/dU-codes written on boiler nameplate.
+    Read-Data Request (0 0) returns the data. Also accepts Write-Data Requests (dF
+    dU),this returns the boiler to its factory defaults.
 
-"Remeha Service message" Read-Data Request (0 0), boiler returns (0 2) in case of no
-boiler service. Write-Data Request (1 255) clears the boiler service message.
-    boiler returns (1 1) = next service type is "A"
-    boiler returns (1 2) = next service type is "B"
-    boiler returns (1 3) = next service type is "C"
+    "Remeha Service message" Read-Data Request (0 0), boiler returns (0 2) in case of no
+    boiler service. Write-Data Request (1 255) clears the boiler service message.
+        boiler returns (1 1) = next service type is "A"
+        boiler returns (1 2) = next service type is "B"
+        boiler returns (1 3) = next service type is "C"
 
-"Remeha detection connected SCU’s": Write-Data Request (255 1) enables detection of
-connected SCU prints, correct response is (Write-Ack 255 1).
+    "Remeha detection connected SCU’s": Write-Data Request (255 1) enables detection of
+    connected SCU prints, correct response is (Write-Ack 255 1).
 
-Other Remeha info:
-    ID   5: correponds with the Remeha E:xx fault codes
-    ID  11: correponds with the Remeha Pxx parameter codes
-    ID  35: reported value is fan speed in rpm/60
-    ID 115: correponds with the Remeha Status and Sub-status numbers, {u8 u8} data-type
+    Other Remeha info:
+        ID   5: correponds with the Remeha E:xx fault codes
+        ID  11: correponds with the Remeha Pxx parameter codes
+        ID  35: reported value is fan speed in rpm/60
+        ID 115: correponds with Remeha Status & Sub-status numbers, {u8 u8} data-type
 """
