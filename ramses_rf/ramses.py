@@ -309,7 +309,7 @@ RAMSES_CODES = {  # rf_unknown
     "3EF1": {  # actuator_cycle
         NAME: "actuator_cycle",
         RQ: r"^(0[0-9A-F](00)?|00[0-9A-F]{22})$",  # NOTE: both seen in the wild
-        # RP: r"^(0[0-9A-F](00)?|00[0-9A-F]{22})$",  # NOTE: both seen in the wild
+        # RP: r"^(0[0-9A-F](00)?|00[0-9A-F]{22})$", # TODO
         RQ_MAY_HAVE_PAYLOAD: True,
     },
     "7FFF": {
