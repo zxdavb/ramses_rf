@@ -473,7 +473,7 @@ def _load_system_schema(gwy, schema) -> Tuple[dict, dict]:
         for ufc_id, _ in ufh_ctl_ids.items():
             _ = _get_device(gwy, addr(ufc_id), ctl_addr=ctl)
 
-    if DEV_MODE:
+    if False and DEV_MODE:
         import json
 
         src = json.dumps(shrink_dict(schema), sort_keys=True)
