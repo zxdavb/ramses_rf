@@ -1688,7 +1688,7 @@ def parser_3150(payload, msg) -> Optional[dict]:
     return _parser(payload)  # TODO: check UFC/FC is == CTL/FC
 
 
-@parser_decorator  # ???
+@parser_decorator  # ventilation status
 def parser_31d9(payload, msg) -> Optional[dict]:
     assert payload[:2] in ("00", "01", "21"), payload[2:4]
     assert payload[2:4] in ("00", "06", "80"), payload[2:4]
@@ -1768,7 +1768,7 @@ def parser_31da(payload, msg) -> Optional[dict]:
 
     assert payload[2:4] in ("00", "EF"), payload[2:4]
     assert payload[4:6] in ("00", "40"), payload[4:6]
-    assert payload[6:10] in ("07D0", "7FFF"), payload[6:10]
+    # assert payload[6:10] in ("07D0", "7FFF"), payload[6:10]
     assert payload[10:12] == "EF" or int(payload[10:12], 16) <= 100, payload[10:12]
     assert payload[12:14] == "EF", payload[12:14]
     assert payload[14:18] == "7FFF", payload[14:18]
@@ -1952,10 +1952,12 @@ def parser_3ef0(payload, msg) -> dict:
         if payload[2:4] != "FF":
             assert int(payload[2:4], 16) <= 100, f"byte 1: {payload[2:4]}"
         assert payload[4:6] in ("10", "11"), f"byte 2: {payload[4:6]}"
-        assert payload[8:10] in ("00", "01", "FF"), f"byte 4: {payload[8:10]}"
-        assert payload[10:12] in ("00", "FF"), f"byte 5: {payload[10:12]}"
+        assert int(payload[6:8], 16) & 0b11110000 == 0, f"byte 3: {payload[6:8]}"
+        assert payload[8:10] in ("00", "01", "0A", "FF"), f"byte 4: {payload[8:10]}"
+        assert payload[10:12] in ("00", "1C", "FF"), f"byte 5: {payload[10:12]}"
 
     if msg.len > 6:  # <= 9: # for some OTB
+        assert int(payload[12:14], 16) & 0b11111100 == 0, f"byte 6: {payload[12:14]}"
         assert payload[-2:] in ("00", "64"), f"byte x: {payload[-2:]}"
 
     result = {
@@ -1972,9 +1974,9 @@ def parser_3ef0(payload, msg) -> dict:
         result.update(
             {
                 "_unknown_3": _flag8(payload[6:8]),
-                "flame_active": bool(int(payload[6:8], 0x10) & 1 << 3),
-                "dhw_active": bool(int(payload[6:8], 0x10) & 1 << 2),
                 "ch_enabled": bool(int(payload[6:8], 0x10) & 1 << 1),
+                "dhw_active": bool(int(payload[6:8], 0x10) & 1 << 2),
+                "flame_active": bool(int(payload[6:8], 0x10) & 1 << 3),
                 "_unknown_4": payload[8:10],
                 "_unknown_5": payload[10:12],
             }
