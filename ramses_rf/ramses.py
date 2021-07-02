@@ -273,20 +273,20 @@ RAMSES_CODES = {  # rf_unknown
         NAME: "heat_demand",
         I_: r"^(FC[0-9A-F]{2}|(0[0-9A-F])[0-9A-F]{2})+$",
     },
-    "31D9": {  # unknown
-        NAME: "message_31d9",
+    "31D9": {  # ventilation_status
+        NAME: "vent_status",
         # I_: r"^(00|21)[0-9A-F]{32}$",
         I_: r"^(00|01|21)[0-9A-F]{4}([02]{28})?$",
         RQ: r"^00$",
     },
-    "31DA": {  # unknown
-        NAME: "message_31da",
+    "31DA": {  # ventilation_unknown
+        NAME: "vent_31da",
         I_: r"^(00|01|21)[0-9A-F]{56}(00)?$",
         RQ: r"^(00|01|21)$"
         # RQ --- 32:168090 30:082155 --:------ 31DA 001 21
     },
     "31E0": {  # ext_ventilation - External Ventilation?
-        NAME: "ext_ventilation",
+        NAME: "vent_31e0",
         I_: r"^0000(00|C8)00$",
     },
     "3220": {  # opentherm_msg
