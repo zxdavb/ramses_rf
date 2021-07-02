@@ -3,7 +3,6 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
-import asyncio
 import logging
 from inspect import getmembers, isclass
 from sys import modules
@@ -94,18 +93,6 @@ _DEV_TYPE_TO_CLASS = {
     "49": DEVICE_CLASS.SWI,
     "59": DEVICE_CLASS.SWI,
 }  # these are the default device classes for common types
-
-
-def periodic(period):
-    def scheduler(fcn):
-        async def wrapper(*args, **kwargs):
-            while True:
-                asyncio.create_task(fcn(*args, **kwargs))
-                await asyncio.sleep(period)
-
-        return wrapper
-
-    return scheduler
 
 
 class Entity:
@@ -1075,7 +1062,13 @@ class OtbGateway(Actuator, Device):  # OTB (10): 22D9, 3220
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == "3220":  # all are RP
+        if msg.code == "1FD4":
+            if msg.payload["ticker"] % 4 == 0:
+                self._discover(discover_flag=DISCOVER_STATUS)
+            if msg.payload["ticker"] % 120 < 2:
+                self._discover(discover_flag=DISCOVER_PARAMS)
+
+        elif msg.code == "3220":  # all are RP
             if msg.payload["msg_type"] == "Unknown-DataId":
                 self._supported_msg[msg.payload["msg_id"]] = False
             # else:
@@ -1487,7 +1480,7 @@ DEVICE_BY_ID_TYPE = {
 
 
 def create_device(gwy, dev_addr, dev_class=None, **kwargs) -> Device:
-    """Create a device, and optionally perform discovery +/- start polling."""
+    """Create a device, and optionally perform discovery & start polling."""
 
     if dev_class is None:
         dev_class = _DEV_TYPE_TO_CLASS.get(dev_addr.type, DEVICE_CLASS.DEV)
@@ -1495,8 +1488,8 @@ def create_device(gwy, dev_addr, dev_class=None, **kwargs) -> Device:
     device = DEVICE_BY_CLASS_ID.get(dev_class, Device)(gwy, dev_addr, **kwargs)
 
     if not gwy.config.disable_discovery:
-        device._discover(discover_flag=DISCOVER_SCHEMA)
-        schedule_task(
-            15, device._discover, discover_flag=DISCOVER_PARAMS | DISCOVER_STATUS
-        )
+        schedule_task(device._discover, discover_flag=DISCOVER_SCHEMA)
+        schedule_task(device._discover, discover_flag=DISCOVER_PARAMS, delay=14)
+        schedule_task(device._discover, discover_flag=DISCOVER_STATUS, delay=15)
+
     return device
