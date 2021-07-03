@@ -348,6 +348,14 @@ class Message:
             elif self.code in ("2309", "30C9") and self._is_array:
                 timeout = td(minutes=15)  # sends I /sync_cycle
 
+            elif self.code == "3220":
+                if self.payload["msg_id"] in ("0x7C", "0x7D", "0x7E", "0x7F"):
+                    timeout = None
+                if self.payload["msg_id"] in ("0x02", "0x03", "0x0E"):
+                    timeout = td(minutes=60)
+                else:
+                    timeout = td(minutes=5)
+
             elif self.code in MSG_TIMEOUTS and self.verb in MSG_TIMEOUTS[self.code]:
                 return MSG_TIMEOUTS[self.code][self.verb]
 

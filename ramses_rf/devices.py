@@ -1082,7 +1082,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
         super()._handle_msg(msg)
 
         if msg.code == "1FD4":  # every 30s
-            if msg.payload["ticker"] % 4 == 0:
+            if msg.payload["ticker"] % 10 == 0:
                 self._discover(discover_flag=DISCOVER_STATUS)
             if msg.payload["ticker"] % 120 in (1, 3):
                 self._discover(discover_flag=DISCOVER_PARAMS)
