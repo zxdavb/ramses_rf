@@ -1024,4 +1024,5 @@ def create_system(gwy, ctl, profile=None, **kwargs) -> System:
 
     if not gwy.config.disable_discovery:
         system._discover(discover_flag=DISCOVER_ALL)
+
     return system

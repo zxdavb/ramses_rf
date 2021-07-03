@@ -3,7 +3,6 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
-import asyncio
 import logging
 from inspect import getmembers, isclass
 from sys import modules
@@ -31,7 +30,7 @@ from .const import (
 )
 from .exceptions import CorruptStateError
 from .helpers import dev_id_to_hex, schedule_task
-from .opentherm import VALUE
+from .opentherm import VALUE  # R8810A_MSG_IDS
 from .ramses import RAMSES_DEVICES
 
 MSG_ID = "msg_id"
@@ -94,18 +93,6 @@ _DEV_TYPE_TO_CLASS = {
     "49": DEVICE_CLASS.SWI,
     "59": DEVICE_CLASS.SWI,
 }  # these are the default device classes for common types
-
-
-def periodic(period):
-    def scheduler(fcn):
-        async def wrapper(*args, **kwargs):
-            while True:
-                asyncio.create_task(fcn(*args, **kwargs))
-                await asyncio.sleep(period)
-
-        return wrapper
-
-    return scheduler
 
 
 class Entity:
@@ -387,6 +374,23 @@ class BatteryState:  # 1060
         return {
             **super().status,
             self.BATTERY_STATE: self.battery_state,
+        }
+
+
+class HeatDemand:  # 3150
+
+    HEAT_DEMAND = ATTR_HEAT_DEMAND  # percentage valve open
+
+    @property
+    def heat_demand(self) -> Optional[float]:  # 3150
+        if "3150" in self._msgs:
+            return self._msgs["3150"].payload[self.HEAT_DEMAND]
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            self.HEAT_DEMAND: self.heat_demand,
         }
 
 
@@ -705,11 +709,14 @@ class Controller(Device):  # CTL (01):
         self.devices = []  # [self]
         self.device_by_id = {}  # {self.id: self}
 
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        super()._discover(discover_flag=discover_flag)
+    # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    #     super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_SCHEMA and self.type not in DEVICE_HAS_BATTERY:
-            pass  # self._send_cmd("1F09", retries=3)
+    #     if discover_flag & DISCOVER_SCHEMA and self.type not in DEVICE_HAS_BATTERY:
+    #         pass  # self._send_cmd("1F09", retries=3)
+
+    # #     if discover_flag & DISCOVER_STATUS and self.type not in DEVICE_HAS_BATTERY:
+    # #         self._send_cmd("0016", retries=3)  # rf_check
 
 
 class Programmer(Controller):  # PRG (23):
@@ -995,7 +1002,7 @@ class ExtSensor(Device):  # EXT: 17
         }
 
 
-class OtbGateway(Actuator, Device):  # OTB (10): 22D9, 3220
+class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
     __dev_class__ = DEVICE_CLASS.OTB  # DEVICE_TYPES = ("10", )
@@ -1008,97 +1015,120 @@ class OtbGateway(Actuator, Device):  # OTB (10): 22D9, 3220
         super().__init__(*args, **kwargs)
 
         self._domain_id = "FC"
-        self._opentherm_msg = {}
+
+        self._opentherm_msg = self._msgz[RP]["3220"] = {}
+        self._supported_msg = {}
 
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id}): {self.modulation_level}"  # 3EF0
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        # see: https://www.opentherm.eu/request-details/?post_ids=2944
         super()._discover(discover_flag=discover_flag)
 
+        # From OT v2.2, these are mandatory: 00, 01, 03, 0E, 11, 19
+        # and, from evohome: 05, 11, 12, 13, 19, 1A
+
         if discover_flag & DISCOVER_SCHEMA:
-            for msg_id in range(0x7C, 0x80):  # From OT v2.2: version numbers
+            # 7C - Master Opentherm version (is supported?)
+            # 7D - Slave Opentherm version (is supported?)
+            # 7E - Master Product Type/Version
+            # 7F - Slave Product Type/Version
+            [
                 self._gwy.send_cmd(Command.get_opentherm_data(self.id, msg_id))
+                for msg_id in range(0x7C, 0x80)  # From OT v2.2: version numbers
+                if self._supported_msg.get(msg_id) is not False
+            ]
 
-        # if discover_flag & DISCOVER_PARAMS:
-        #     pass
+        if discover_flag & DISCOVER_PARAMS:
+            # 02 - Master configuration  # TODO: does OTB respond to this?
+            # 03 - Slave configuration
+            # 0E - Max. relative modulation level (%)
+            [
+                self._gwy.send_cmd(Command.get_opentherm_data(self.id, msg_id))
+                for msg_id in (0x02, 0x03, 0x0E)
+                if self._supported_msg.get(msg_id) is not False
+            ]
 
-        if discover_flag & DISCOVER_STATUS:  # TODO: these need to be periodic
-            # From OT v2.2, these are mandatory: 00, 01, 03, 0E, 11, 19...
-            msg_ids = {0x00, 0x01, 0x03, 0x0E, 0x11, 0x19}
+        if discover_flag & DISCOVER_STATUS:
+            self._gwy.send_cmd(Command(RQ, "22D9", "00", self.id))
 
-            # and, From evohome: 05, 11, 12, 13, 19, 1A...
-            msg_ids |= {0x05, 0x11, 0x12, 0x13, 0x19, 0x1A}
-            # 05 - Fault flags & OEM fault code
-            # 11 - Relative modulation level
-            # 12 - Central heating water pressure
-            # 13 - DHW flow rate (litres/minute)
+            msg_ids = {0x00, 0x01, 0x11, 0x19}  # mandatory
+            # 00 - Master/Slave status flags
+            # 01 - CH water temperature setpoint
+            # 11 - Relative modulation level (%)
             # 19 - Boiler water temperature
+
+            msg_ids |= {0x05, 0x12, 0x13, 0x1A}  # evohome
+            # 05 - Fault flags & OEM fault code
+            # 12 - Central heating water pressure (bar)
+            # 13 - DHW flow rate (L/min)
             # 1A - DHW temperature
 
-            # and, others...
-            msg_ids |= {0x1B, 0x1C, 0x73}
+            msg_ids |= {0x1B, 0x1C, 0x73}  # other
             # 1B - Outside temperature
             # 1C - Return water temperature
-            # 73 - OEM diagnostic code
+            # 73 - OEM diagnostic code (is supported?)
 
-            for msg_id in msg_ids:
+            [
                 self._gwy.send_cmd(
                     Command.get_opentherm_data(self.id, msg_id, retries=0)
                 )
+                for msg_id in msg_ids
+                if self._supported_msg.get(msg_id) is not False
+            ]
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == "3220" and msg.verb == RP:  # TODO: what about I/W (or RQ)
-            self._opentherm_msg[msg.payload[MSG_ID]] = msg  # TODO: need to expire
+        if msg.code == "1FD4":  # every 30s
+            if msg.payload["ticker"] % 10 == 0:
+                self._discover(discover_flag=DISCOVER_STATUS)
+            if msg.payload["ticker"] % 120 in (1, 3):
+                self._discover(discover_flag=DISCOVER_PARAMS)
+
+        elif msg.code == "3220":  # all are RP
+            if msg.payload["msg_type"] == "Unknown-DataId":
+                self._supported_msg[msg.payload["msg_id"]] = False
+            # else:
+            #     self._supported_msg[msg.payload["msg_id"]] = True
+
+    def _opentherm_msg_value(self, msg_id) -> Optional[float]:
+        try:
+            return self._opentherm_msg[msg_id].payload[VALUE]
+        except KeyError:
+            return
 
     @property
     def boiler_water_temp(self) -> Optional[float]:  # 3220/0x19
-        try:
-            return self._opentherm_msg["0x19"].payload[VALUE]
-        except KeyError:
-            return
+        return self._opentherm_msg_value("19")
 
     @property
     def ch_water_pressure(self) -> Optional[float]:  # 3220/0x12
-        try:
-            return self._opentherm_msg["0x12"].payload[VALUE]
-        except KeyError:
-            return
+        return self._opentherm_msg_value("12")
 
     @property
     def dhw_flow_rate(self) -> Optional[float]:  # 3220/0x13
-        try:
-            return self._opentherm_msg["0x13"].payload[VALUE]
-        except KeyError:
-            return
+        return self._opentherm_msg_value("13")
 
     @property
     def dhw_temp(self) -> Optional[float]:  # 3220/0x1A
-        try:
-            return self._opentherm_msg["0x1A"].payload[VALUE]
-        except KeyError:
-            return
+        return self._opentherm_msg_value("1A")
 
     @property
     def rel_modulation_level(self) -> Optional[float]:  # 3220/0x11
-        try:
-            return self._opentherm_msg["0x11"].payload[VALUE]
-        except KeyError:
-            return
+        return self._opentherm_msg_value("11")
 
     @property
     def return_cv_temp(self) -> Optional[float]:  # 3220/0x1C
-        try:
-            return self._opentherm_msg["0x1C"].payload[VALUE]
-        except KeyError:
-            return
+        return self._opentherm_msg_value("1C")
 
     @property
     def boiler_setpoint(self) -> Optional[float]:  # 22D9
-        if "22D9" in self._msgs:
+        try:
             return self._msgs["22D9"].payload[self.BOILER_SETPOINT]
+        except KeyError:
+            return
 
     @property
     def opentherm_status(self) -> dict:
@@ -1283,22 +1313,16 @@ class BdrSwitch(Actuator, Device):  # BDR (13):
         }
 
 
-class TrvActuator(BatteryState, Setpoint, Temperature, Device):  # TRV (00/04):
+class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature, Device):  # TRV (04):
     """The TRV class, such as a HR92."""
 
     __dev_class__ = DEVICE_CLASS.TRV  # DEVICE_TYPES = ("00", "04")
 
-    HEAT_DEMAND = ATTR_HEAT_DEMAND  # percentage
     WINDOW_OPEN = ATTR_WINDOW_OPEN  # boolean
     # _STATE = HEAT_DEMAND
 
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id}): {self.heat_demand}"
-
-    @property
-    def heat_demand(self) -> Optional[float]:  # 3150
-        if "3150" in self._msgs:
-            return self._msgs["3150"].payload[self.HEAT_DEMAND]
 
     @property
     def window_open(self) -> Optional[bool]:  # 12B0
@@ -1309,7 +1333,6 @@ class TrvActuator(BatteryState, Setpoint, Temperature, Device):  # TRV (00/04):
     def status(self) -> dict:
         return {
             **super().status,
-            self.HEAT_DEMAND: self.heat_demand,
             self.WINDOW_OPEN: self.window_open,
         }
 
@@ -1459,7 +1482,7 @@ DEVICE_BY_ID_TYPE = {
 
 
 def create_device(gwy, dev_addr, dev_class=None, **kwargs) -> Device:
-    """Create a device, and optionally perform discovery +/- start polling."""
+    """Create a device, and optionally perform discovery & start polling."""
 
     if dev_class is None:
         dev_class = _DEV_TYPE_TO_CLASS.get(dev_addr.type, DEVICE_CLASS.DEV)
@@ -1467,8 +1490,8 @@ def create_device(gwy, dev_addr, dev_class=None, **kwargs) -> Device:
     device = DEVICE_BY_CLASS_ID.get(dev_class, Device)(gwy, dev_addr, **kwargs)
 
     if not gwy.config.disable_discovery:
-        device._discover(discover_flag=DISCOVER_SCHEMA)
-        schedule_task(
-            15, device._discover, discover_flag=DISCOVER_PARAMS | DISCOVER_STATUS
-        )
+        schedule_task(device._discover, discover_flag=DISCOVER_SCHEMA)
+        schedule_task(device._discover, discover_flag=DISCOVER_PARAMS, delay=14)
+        schedule_task(device._discover, discover_flag=DISCOVER_STATUS, delay=15)
+
     return device

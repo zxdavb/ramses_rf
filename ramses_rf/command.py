@@ -90,13 +90,15 @@ QOS_RX_TIMEOUT = td(seconds=0.50)  # 0.20 seems OK, 0.10 too low sometimes
 QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many?
 
 QOS_TABLE = {
-    "RQ/0016": (Priority.HIGH, 5, None, None),
-    "RQ/1F09": (Priority.HIGH, 5, None, None),
-    " I/1FC9": (Priority.HIGH, 2, td(seconds=1), True),
-    " I/0404": (Priority.HIGH, 5, td(seconds=0.30), None),  # TODO: short Tx...
-    " W/0404": (Priority.HIGH, 5, td(seconds=0.30), None),  # TODO: but long Rx
-    "RQ/0418": (Priority.LOW, 3, None, None),
+    f"{RQ}/0016": (Priority.HIGH, 5, None, None),
+    f"{RQ}/1F09": (Priority.HIGH, 5, None, None),
+    f"{I_}/1FC9": (Priority.HIGH, 2, td(seconds=1), True),
+    f"{I_}/0404": (Priority.HIGH, 5, td(seconds=0.30), None),  # TODO: short Tx...
+    f"{W_}/0404": (Priority.HIGH, 5, td(seconds=0.30), None),  # TODO: but long Rx
+    f"{RQ}/0418": (Priority.LOW, 3, None, None),
+    f"{RQ}/3220": (Priority.DEFAULT, 1, td(seconds=1), True),  # TODO: keep this?
 }  # priority, retries, timeout, disable_backoff
+# The long timeeout for the OTB is for total RTT to slave (boiler)
 
 DEV_MODE = __dev_mode__ and False
 
@@ -1025,7 +1027,7 @@ class Schedule:  # 0404
             if msg.payload[FRAG_TOTAL] == 255:  # no schedule (i.e. no zone)
                 _LOGGER.warning(f"Schedule({self.id}): No schedule")
                 # TODO: remove any callbacks from msg._gwy.msg_transport._callbacks
-                pass  # self._rx_frags = [None]
+                # self._rx_frags = [None]
 
             elif msg.payload[FRAG_TOTAL] != len(self._rx_frags):  # e.g. 1st frag
                 self._rx_frags = [None] * msg.payload[FRAG_TOTAL]
