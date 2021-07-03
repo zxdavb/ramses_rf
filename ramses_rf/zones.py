@@ -940,7 +940,8 @@ def create_zone(evo, zone_idx, profile=None, **kwargs) -> Zone:
     zone = ZONE_BY_CLASS_ID.get(profile, Zone)(evo, zone_idx, **kwargs)
 
     if not evo._gwy.config.disable_discovery:
-        schedule_task(1, zone._discover, discover_flag=DISCOVER_SCHEMA)
-        schedule_task(4, zone._discover, discover_flag=DISCOVER_PARAMS)
-        schedule_task(7, zone._discover, discover_flag=DISCOVER_STATUS)
+        schedule_task(zone._discover, discover_flag=DISCOVER_SCHEMA, delay=1)
+        schedule_task(zone._discover, discover_flag=DISCOVER_PARAMS, delay=4)
+        schedule_task(zone._discover, discover_flag=DISCOVER_STATUS, delay=7)
+
     return zone

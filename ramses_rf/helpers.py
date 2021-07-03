@@ -274,17 +274,36 @@ def extract_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
     return src_addr, dst_addr, addrs
 
 
-def schedule_task(delay, func, *args, **kwargs) -> asyncio.Task:
+def periodic(period):
+    def scheduler(fcn):
+        async def wrapper(*args, **kwargs):
+            while True:
+                asyncio.create_task(fcn(*args, **kwargs))
+                await asyncio.sleep(period)
+
+        return wrapper
+
+    return scheduler
+
+
+def schedule_task(func, *args, delay=None, period=None, **kwargs) -> asyncio.Task:
     """Start a coro after delay seconds."""
 
-    async def scheduled_func(delay, func, *args, **kwargs):
-        await asyncio.sleep(delay)
+    async def execute_func(func, *args, **kwargs):
         if iscoroutinefunction(func):
-            await func(*args, **kwargs)
-        else:
-            func(*args, **kwargs)
+            return await func(*args, **kwargs)
+        return func(*args, **kwargs)
 
-    return asyncio.create_task(scheduled_func(delay, func, *args, **kwargs))
+    async def schedule_func(delay, period, func, *args, **kwargs):
+        if delay:
+            await asyncio.sleep(delay)
+        await execute_func(func, *args, **kwargs)
+
+        while period:
+            await execute_func(func, *args, **kwargs)
+            await asyncio.sleep(period)
+
+    return asyncio.create_task(schedule_func(delay, period, func, *args, **kwargs))
 
 
 def slugify_string(key: str) -> str:
