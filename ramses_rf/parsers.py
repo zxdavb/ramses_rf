@@ -1425,10 +1425,7 @@ def parser_22d0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # boiler_setpoint
 def parser_22d9(payload, msg) -> Optional[dict]:
-    assert msg.len == 3, msg.len
-    assert payload[:2] == "00", payload[:2]
-
-    return {"boiler_setpoint": _temp(payload[2:6])}
+    return {"boiler_setpoint": _temp(msg.raw_payload[2:6])}
 
 
 @parser_decorator  # switch_mode
@@ -1437,12 +1434,11 @@ def parser_22f1(payload, msg) -> Optional[dict]:
     # 11:42:49.587 071  I 052 --:------ --:------ 49:086353 22F1 003 000404
     # 11:42:49.685 072  I 052 --:------ --:------ 49:086353 22F1 003 000404
     # 11:42:49.784 072  I 052 --:------ --:------ 49:086353 22F1 003 000404
-    assert msg.len == 3, msg.len
-    assert payload[:2] == "00", payload[:2]  # has no domain
-    assert payload[4:] in ("04", "0A"), payload[4:]
+    # assert payload[:2] == "00", payload[:2]  # has no domain
+    assert int(payload[2:4], 16) <= int(payload[4:], 16), "step_idx not <= step_max"
+    # assert payload[4:] in ("04", "0A"), payload[4:]
 
     bitmap = int(payload[2:4], 16)
-    _bitmap = {"_bitmap": bitmap}
 
     if bitmap in FanSwitch.FAN_MODES:
         _action = {FanSwitch.FAN_MODE: FanSwitch.FAN_MODES[bitmap]}
@@ -1453,8 +1449,8 @@ def parser_22f1(payload, msg) -> Optional[dict]:
 
     return {
         **_action,
-        **_bitmap,
-        "unknown_0": payload[4:],
+        "step_idx": int(payload[2:4], 16),
+        "step_max": int(payload[4:6], 16),
     }
 
 
@@ -1668,7 +1664,7 @@ def parser_313f(payload, msg) -> Optional[dict]:
     return result
 
 
-@parser_decorator  # heat_demand (of device, FC domain)
+@parser_decorator  # heat_demand (of device, FC domain) - valve status (%open)
 def parser_3150(payload, msg) -> Optional[dict]:
     # event-driven, and periodically; FC domain is maximum of all zones
     # TODO: all have a valid domain will UFC/CTL respond to an RQ, for FC, for a zone?
