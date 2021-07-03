@@ -377,6 +377,23 @@ class BatteryState:  # 1060
         }
 
 
+class HeatDemand:  # 3150
+
+    HEAT_DEMAND = ATTR_HEAT_DEMAND  # percentage valve open
+
+    @property
+    def heat_demand(self) -> Optional[float]:  # 3150
+        if "3150" in self._msgs:
+            return self._msgs["3150"].payload[self.HEAT_DEMAND]
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            self.HEAT_DEMAND: self.heat_demand,
+        }
+
+
 class Setpoint:  # 2309
 
     SETPOINT = ATTR_SETPOINT  # degrees Celsius
@@ -692,14 +709,14 @@ class Controller(Device):  # CTL (01):
         self.devices = []  # [self]
         self.device_by_id = {}  # {self.id: self}
 
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        super()._discover(discover_flag=discover_flag)
+    # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    #     super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_SCHEMA and self.type not in DEVICE_HAS_BATTERY:
-            pass  # self._send_cmd("1F09", retries=3)
+    #     if discover_flag & DISCOVER_SCHEMA and self.type not in DEVICE_HAS_BATTERY:
+    #         pass  # self._send_cmd("1F09", retries=3)
 
-    #     if discover_flag & DISCOVER_STATUS and self.type not in DEVICE_HAS_BATTERY:
-    #         self._send_cmd("0016", retries=3)  # rf_check
+    # #     if discover_flag & DISCOVER_STATUS and self.type not in DEVICE_HAS_BATTERY:
+    # #         self._send_cmd("0016", retries=3)  # rf_check
 
 
 class Programmer(Controller):  # PRG (23):
@@ -985,7 +1002,7 @@ class ExtSensor(Device):  # EXT: 17
         }
 
 
-class OtbGateway(Actuator, Device):  # OTB (10): 22D9, 3220
+class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
     __dev_class__ = DEVICE_CLASS.OTB  # DEVICE_TYPES = ("10", )
@@ -1024,16 +1041,18 @@ class OtbGateway(Actuator, Device):  # OTB (10): 22D9, 3220
             ]
 
         if discover_flag & DISCOVER_PARAMS:
-            # 02 - Master configuration
+            # 02 - Master configuration  # TODO: does OTB respond to this?
             # 03 - Slave configuration
             # 0E - Max. relative modulation level (%)
             [
                 self._gwy.send_cmd(Command.get_opentherm_data(self.id, msg_id))
-                for msg_id in (0x03, 0x0E)
+                for msg_id in (0x02, 0x03, 0x0E)
                 if self._supported_msg.get(msg_id) is not False
             ]
 
-        if discover_flag & DISCOVER_STATUS:  # TODO: these need to be periodic
+        if discover_flag & DISCOVER_STATUS:
+            self._gwy.send_cmd(Command(RQ, "22D9", "00", self.id))
+
             msg_ids = {0x00, 0x01, 0x11, 0x19}  # mandatory
             # 00 - Master/Slave status flags
             # 01 - CH water temperature setpoint
@@ -1062,10 +1081,10 @@ class OtbGateway(Actuator, Device):  # OTB (10): 22D9, 3220
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == "1FD4":
+        if msg.code == "1FD4":  # every 30s
             if msg.payload["ticker"] % 4 == 0:
                 self._discover(discover_flag=DISCOVER_STATUS)
-            if msg.payload["ticker"] % 120 < 2:
+            if msg.payload["ticker"] % 120 in (1, 3):
                 self._discover(discover_flag=DISCOVER_PARAMS)
 
         elif msg.code == "3220":  # all are RP
@@ -1074,52 +1093,42 @@ class OtbGateway(Actuator, Device):  # OTB (10): 22D9, 3220
             # else:
             #     self._supported_msg[msg.payload["msg_id"]] = True
 
-    @property
-    def boiler_water_temp(self) -> Optional[float]:  # 3220/0x19
+    def _opentherm_msg_value(self, msg_id) -> Optional[float]:
         try:
-            return self._opentherm_msg["19"].payload[VALUE]
+            return self._opentherm_msg[msg_id].payload[VALUE]
         except KeyError:
             return
+
+    @property
+    def boiler_water_temp(self) -> Optional[float]:  # 3220/0x19
+        return self._opentherm_msg_value("19")
 
     @property
     def ch_water_pressure(self) -> Optional[float]:  # 3220/0x12
-        try:
-            return self._opentherm_msg["12"].payload[VALUE]
-        except KeyError:
-            return
+        return self._opentherm_msg_value("12")
 
     @property
     def dhw_flow_rate(self) -> Optional[float]:  # 3220/0x13
-        try:
-            return self._opentherm_msg["13"].payload[VALUE]
-        except KeyError:
-            return
+        return self._opentherm_msg_value("13")
 
     @property
     def dhw_temp(self) -> Optional[float]:  # 3220/0x1A
-        try:
-            return self._opentherm_msg["1A"].payload[VALUE]
-        except KeyError:
-            return
+        return self._opentherm_msg_value("1A")
 
     @property
     def rel_modulation_level(self) -> Optional[float]:  # 3220/0x11
-        try:
-            return self._opentherm_msg["11"].payload[VALUE]
-        except KeyError:
-            return
+        return self._opentherm_msg_value("11")
 
     @property
     def return_cv_temp(self) -> Optional[float]:  # 3220/0x1C
-        try:
-            return self._opentherm_msg["1C"].payload[VALUE]
-        except KeyError:
-            return
+        return self._opentherm_msg_value("1C")
 
     @property
     def boiler_setpoint(self) -> Optional[float]:  # 22D9
-        if "22D9" in self._msgs:
+        try:
             return self._msgs["22D9"].payload[self.BOILER_SETPOINT]
+        except KeyError:
+            return
 
     @property
     def opentherm_status(self) -> dict:
@@ -1304,22 +1313,16 @@ class BdrSwitch(Actuator, Device):  # BDR (13):
         }
 
 
-class TrvActuator(BatteryState, Setpoint, Temperature, Device):  # TRV (00/04):
+class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature, Device):  # TRV (04):
     """The TRV class, such as a HR92."""
 
     __dev_class__ = DEVICE_CLASS.TRV  # DEVICE_TYPES = ("00", "04")
 
-    HEAT_DEMAND = ATTR_HEAT_DEMAND  # percentage
     WINDOW_OPEN = ATTR_WINDOW_OPEN  # boolean
     # _STATE = HEAT_DEMAND
 
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id}): {self.heat_demand}"
-
-    @property
-    def heat_demand(self) -> Optional[float]:  # 3150
-        if "3150" in self._msgs:
-            return self._msgs["3150"].payload[self.HEAT_DEMAND]
 
     @property
     def window_open(self) -> Optional[bool]:  # 12B0
@@ -1330,7 +1333,6 @@ class TrvActuator(BatteryState, Setpoint, Temperature, Device):  # TRV (00/04):
     def status(self) -> dict:
         return {
             **super().status,
-            self.HEAT_DEMAND: self.heat_demand,
             self.WINDOW_OPEN: self.window_open,
         }
 
