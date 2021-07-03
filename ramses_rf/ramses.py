@@ -165,13 +165,13 @@ RAMSES_CODES = {  # rf_unknown
         NAME: "indoor_humidity",
         I_: r"^00[0-9A-F]{10}$",
     },
-    "12B0": {  # window_state
+    "12B0": {  # window_state  (HVAC % window open)
         NAME: "window_state",
         I_: r"^0[0-9A-F](0000|C800|FFFF)$",  # NOTE: RP is same
         RQ: r"^0[0-9A-F](00)?$",
         EXPIRY: 60 * 60,
     },
-    "12C0": {  # displayed_temp
+    "12C0": {  # displayed_temp (HVAC room temp)
         NAME: "displayed_temp",  # displayed room temp
         I_: r"^00[0-9A-F]{2}01$",
     },
@@ -211,7 +211,7 @@ RAMSES_CODES = {  # rf_unknown
     "22C9": {  # ufh_setpoint
         NAME: "ufh_setpoint",
     },
-    "22D0": {  # message_22d0
+    "22D0": {  # HVAC system switch
         NAME: "message_22d0",
         I_: r"^00000002$",  # TODO:
     },
@@ -262,7 +262,7 @@ RAMSES_CODES = {  # rf_unknown
         RQ: r"^00$",  # 20: will RP an RQ?
         # RP: r"^00[0-9A-F]{10}FF$",  # only ever: 20:/0070B000009CFF
     },
-    "313F": {  # datetime
+    "313F": {  # datetime (time report)
         NAME: "datetime",
         I_: r"^00[0-9A-F]{16}$",  # NOTE: RP is same
         RQ: r"^00$",
@@ -285,7 +285,7 @@ RAMSES_CODES = {  # rf_unknown
         RQ: r"^(00|01|21)$"
         # RQ --- 32:168090 30:082155 --:------ 31DA 001 21
     },
-    "31E0": {  # ext_ventilation - External Ventilation?
+    "31E0": {  # ext_ventilation - External Ventilation Status
         NAME: "ext_ventilation",
         I_: r"^0000(00|C8)00$",
     },
