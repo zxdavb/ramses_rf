@@ -291,7 +291,7 @@ async def scan_hard(gwy, dev_id: str):
 
 async def scan_xxxx(gwy, dev_id: str):
     # _LOGGER.warning("scan_xxxx() invoked - expect a lot of nonsense")
-    await scan_005(gwy, dev_id)
+    await scan_006(gwy, dev_id)
 
 
 async def scan_001(gwy, dev_id: str):
