@@ -39,19 +39,12 @@ from .helpers import dtm_from_hex as _dtm
 from .helpers import dts_from_hex, hex_id_to_dec
 from .opentherm import (
     EN,
-    FLAG8,
-    FLAGS,
-    HB,
-    LB,
-    OPENTHERM_MESSAGES,
-    OPENTHERM_MSG_TYPE,
+    MSG_DESC,
+    MSG_ID,
+    MSG_NAME,
+    MSG_TYPE,
     R8810A_MSG_IDS,
-    S8,
-    U8,
-    VAL,
-    VAR,
-    ot_msg_value,
-    parity,
+    decode_frame,
 )
 from .ramses import RAMSES_CODES, RAMSES_DEVICES, RQ_MAY_HAVE_PAYLOAD
 
@@ -260,10 +253,13 @@ def parser_decorator(func):
         except KeyError:
             pass  # TODO: raise
 
-        if msg.code == "3220" and int(msg.raw_payload[4:6], 16) not in R8810A_MSG_IDS:
-            raise CorruptPayloadError(
-                f"Unsupported OpenTherm msg_id: 0x{msg.raw_payload[4:6]}"
-            )
+        # TODO: put this back, or leave it to the parser?
+        # if msg.code == "3220":
+        #     msg_id = int(msg.raw_payload[4:6], 16)
+        #     if msg_id not in OPENTHERM_MESSAGES:  # parser uses R8810A_MSG_IDS
+        #         raise CorruptPayloadError(
+        #             f"OpenTherm: Unsupported data-id: 0x{msg_id:02X} ({msg_id})"
+        #         )
 
     def wrapper(*args, **kwargs) -> Optional[dict]:
         """Check the length of a payload."""
@@ -275,7 +271,13 @@ def parser_decorator(func):
 
         check_verb_code_payload(msg, payload)  # can't use msg.payload
 
-        if not msg._has_simple_idx:  # complex idx handled in each parser
+        if msg.code == "3220":
+            try:
+                return func(*args, **kwargs)
+            except (KeyError, TypeError, ValueError) as err:
+                raise CorruptPayloadError(f"OpenTherm: {err}")
+
+        if not msg._has_simple_idx:  # complex idx handled in the parser
             return func(*args, **kwargs) if msg._has_payload else {}
 
         if not msg._has_payload:
@@ -302,6 +304,7 @@ def parser_decorator(func):
             )
             raise CorruptPacketError(f"Code {msg.code} not known{hint1}{hint2}")
 
+        # TODO: put this back in (18a), or leave out?
         if msg.src.type != "18a" and not re.compile(regex).match(payload):
             hint2 = (
                 " (this is OK to ignore)"
@@ -319,7 +322,7 @@ def parser_decorator(func):
 
 def _bool(value: str) -> Optional[bool]:  # either 00 or C8
     """Return a boolean."""
-    assert value in ("00", "C8", "FF"), value
+    assert value in {"00", "C8", "FF"}, value
     return {"00": False, "C8": True}.get(value)
 
 
@@ -338,7 +341,7 @@ def _date(value: str) -> Optional[str]:  # YY-MM-DD
 def _percent(value: str) -> Optional[float]:  # a percentage 0-100% (0.0 to 1.0)
     """Return a percentage, 0-100% with resolution of 0.5%."""
     assert len(value) == 2, "len is not 2"
-    if value in ("EF", "FE", "FF"):  # TODO: diff b/w FE (seen with 3150) & FF
+    if value in {"EF", "FE", "FF"}:  # TODO: diff b/w FE (seen with 3150) & FF
         return
     assert int(value, 16) <= 200, "max value should be 0xC8, not 0x{value}"
     return int(value, 16) / 200
@@ -1832,67 +1835,55 @@ def parser_31e0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # opentherm_msg
 def parser_3220(payload, msg) -> Optional[dict]:
-    assert msg.len == 5 and payload[:2] == "00", "Invalid OpenTherm payload"
-
     # these are OpenTherm-specific assertions
-    if msg.src.type != "18":  # TODO: remove this workaround
-        assert int(payload[2:4], 16) // 0x80 == parity(
-            int(payload[2:], 16) & 0x7FFFFFFF
-        ), "Invalid OpenTherm check bit"
 
-    ot_msg_type = (int(payload[2:4], 16) & 0x70) >> 4
-    assert int(payload[2:4], 16) & 0x0F == 0
+    ot_type, ot_id, ot_value, ot_schema = decode_frame(payload[2:10])
 
-    ot_msg_id = int(payload[4:6], 16)
     assert (
-        ot_msg_id in OPENTHERM_MESSAGES["messages"]
-    ), f"Unknown OpenTherm msg id: {ot_msg_id} (0x{ot_msg_id:02X})"
+        ot_type == "Unknown-DataId" or ot_id in R8810A_MSG_IDS
+    ), f"OpenTherm: Unknown data-id: 0x{ot_id:02X} ({ot_id})"
 
-    message = OPENTHERM_MESSAGES["messages"].get(ot_msg_id)
-    msg_name = message.get(FLAGS, message.get(VAR))  # TODO: could still be a dict
-
+    msg_name = ot_value.pop(MSG_NAME)
     result = {
-        "msg_id": f"0x{payload[4:6]}",  # ot_msg_id,
-        "msg_name": msg_name,
-        "msg_type": OPENTHERM_MSG_TYPE[ot_msg_type],
+        MSG_ID: ot_id,
+        MSG_TYPE: ot_type,
+        MSG_NAME: msg_name,
     }
 
-    if not message:
-        return {**result, "value_raw": payload[6:]}
+    if msg.verb == RQ and ot_type == "Read-Data":
+        assert (
+            payload[6:10] == "0000"
+        ), f"OpenTherm: Invalid msg-type|data-value: {ot_type}|{payload[6:10]}"
+        result.update(ot_value)  # TODO: remove?
+        return result
 
     if msg.verb == RQ:
-        assert ot_msg_type < 0b011, f"Invalid OpenTherm msg type: 0b{ot_msg_type:03b}"
-        assert payload[6:] == "0000", payload[6:]
-        return {
-            **result,
-            "description": message[EN],
-        }
+        assert ot_type in (
+            "Write-Data",
+            "Invalid-Data",
+        ), f"OpenTherm: Invalid msg-type for RQ: {ot_type}"
 
-    # TODO: Should be > 0b011, but >= 0b011 seems required?
-    assert ot_msg_type >= 0b011, f"Invalid OpenTherm msg type: 0b{ot_msg_type:03b}"
+    if msg.verb == RP and ot_type in ("Data-Invalid", "Unknown-DataId"):
+        # assert payload[6:10] == "0000", (
+        #     f"OpenTherm: Invalid msg-type|data-value: {ot_type}|{payload[6:10]}"
+        # )
+        result.update(ot_value)  # TODO: remove?
+        return result
 
-    if ot_msg_type != 0b111 and isinstance(message.get(VAR), dict):
-        if isinstance(message[VAL], dict):
-            result["value_hb"] = ot_msg_value(
-                payload[6:8], message[VAL].get(HB, message[VAL])
-            )
-            result["value_lb"] = ot_msg_value(
-                payload[8:], message[VAL].get(LB, message[VAL])
-            )
-        else:
-            result["value_hb"] = ot_msg_value(payload[6:8], message[VAL])
-            result["value_lb"] = ot_msg_value(payload[8:], message[VAL])
+    if msg.verb == RP:
+        assert True or ot_type in (
+            "Read-Ack",
+            "Write-Ack",
+        ), f"OpenTherm: Invalid msg-type for RP: {ot_type}"
 
-    elif ot_msg_type != 0b111:
-        if message[VAL] in (FLAG8, U8, S8):
-            result["value"] = ot_msg_value(payload[6:8], message[VAL])
-        else:
-            result["value"] = ot_msg_value(payload[6:], message[VAL])
+    else:
+        assert False, f"OpenTherm: Invalid verb {msg.verb}"
 
-    return {
-        **result,
-        "description": message[EN],
-    }
+    result.update(ot_value)
+    if ot_schema[EN]:
+        result[MSG_DESC] = ot_schema[EN]
+
+    return result
 
 
 @parser_decorator  # actuator_sync (aka sync_tpi: TPI cycle sync)

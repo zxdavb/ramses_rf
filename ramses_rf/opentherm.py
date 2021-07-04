@@ -5,7 +5,7 @@
 
 import logging
 import struct
-from typing import Any
+from typing import Any, Tuple
 
 from .const import __dev_mode__
 
@@ -44,7 +44,14 @@ S16 = "s16"
 HB = "hb"
 LB = "lb"
 
+MESSAGES = "messages"
+MSG_DESC = "description"
+MSG_ID = "msg_id"
+MSG_NAME = "msg_name"
+MSG_TYPE = "msg_type"
 VALUE = "value"
+VALUE_HB = f"{VALUE}_{HB}"
+VALUE_LB = f"{VALUE}_{LB}"
 
 COUNTER = "counter"
 HUMIDITY = "humidity"
@@ -59,12 +66,12 @@ OPENTHERM_MSG_TYPE = {
     0b011: "-reserved-",
     0b100: "Read-Ack",
     0b101: "Write-Ack",
-    0b110: "Data-Invalid",
+    0b110: "Data-Invalid",  # e.g. sensor fault
     0b111: "Unknown-DataId",
 }
 
 # These must have either a FLAGS (preferred) or a VAR for their message name
-OPENTHERM_MESSAGES = {
+OPENTHERM_SCHEMA = {
     # OpenTherm status flags [ID 0: Master status (HB) & Slave status (LB)]
     "status_flags": {
         "0x0100": {
@@ -225,7 +232,7 @@ OPENTHERM_MESSAGES = {
         },
     },
     # OpenTherm messages
-    "messages": {
+    MESSAGES: {
         0x00: {  # 0, Status
             EN: "Status",
             DIR: READ_ONLY,
@@ -780,64 +787,7 @@ OPENTHERM_MESSAGES = {
         },
     },
 }
-
-
-def parity(x: int) -> int:
-    """Make this the docstring."""
-    shiftamount = 1
-    while x >> shiftamount:
-        x ^= x >> shiftamount
-        shiftamount <<= 1
-    return x & 1
-
-
-def ot_msg_value(val_seqx, val_type) -> Any:
-    """Make this the docstring."""
-
-    def _get_flag8(byte, *args) -> list:
-        """Split a byte (as a str) into a list of 8 bits (1/0)."""
-        ret = [0] * 8
-        byte = bytes.fromhex(byte)[0]
-        for i in range(8):
-            ret[i] = byte & 1
-            byte = byte >> 1
-        return ret
-
-    def _get_u8(byte, *args) -> int:
-        """Convert a byte (as a str) into an unsigned int."""
-        return struct.unpack(">B", bytes.fromhex(byte))[0]
-
-    def _get_s8(byte, *args) -> int:
-        """Convert a byte (as a str) into a signed int."""
-        return struct.unpack(">b", bytes.fromhex(byte))[0]
-
-    def _get_f8_8(msb, lsb) -> float:
-        """Convert 2 bytes (as strs) into an OpenTherm f8_8 (float) value."""
-        return float(_get_s16(msb, lsb) / 256)
-
-    def _get_u16(msb, lsb) -> int:
-        """Convert 2 bytes (as strs) into an unsigned int."""
-        buf = struct.pack(">BB", _get_u8(msb), _get_u8(lsb))
-        return int(struct.unpack(">H", buf)[0])
-
-    def _get_s16(msb, lsb) -> int:
-        """Convert 2 bytes (as strs) into a signed int."""
-        buf = struct.pack(">bB", _get_s8(msb), _get_u8(lsb))
-        return int(struct.unpack(">h", buf)[0])
-
-    DATA_TYPES = {
-        FLAG8: _get_flag8,
-        U8: _get_u8,
-        S8: _get_s8,
-        F8_8: _get_f8_8,
-        U16: _get_u16,
-        S16: _get_s16,
-    }
-
-    if val_type in DATA_TYPES:
-        return DATA_TYPES[val_type](val_seqx[:2], val_seqx[2:])
-    return val_seqx
-
+OPENTHERM_MESSAGES = OPENTHERM_SCHEMA[MESSAGES]
 
 # R8810A 1018 v4: https://www.opentherm.eu/request-details/?post_ids=2944
 # as at: 2021/06/28
@@ -912,6 +862,108 @@ R8810A_MSG_IDS = {
     0x7C: "Opentherm version Master",  # 124:
     0x7D: "Opentherm version Slave",  # 125:
 }
+
+
+def parity(x: int) -> int:
+    """Make this the docstring."""
+    shiftamount = 1
+    while x >> shiftamount:
+        x ^= x >> shiftamount
+        shiftamount <<= 1
+    return x & 1
+
+
+def msg_value(val_seqx, val_type) -> Any:
+    """Make this the docstring."""
+
+    def _get_flag8(byte, *args) -> list:
+        """Split a byte (as a str) into a list of 8 bits (1/0)."""
+        ret = [0] * 8
+        byte = bytes.fromhex(byte)[0]
+        for i in range(8):
+            ret[i] = byte & 1
+            byte = byte >> 1
+        return ret
+
+    def _get_u8(byte, *args) -> int:
+        """Convert a byte (as a str) into an unsigned int."""
+        return struct.unpack(">B", bytes.fromhex(byte))[0]
+
+    def _get_s8(byte, *args) -> int:
+        """Convert a byte (as a str) into a signed int."""
+        return struct.unpack(">b", bytes.fromhex(byte))[0]
+
+    def _get_f8_8(msb, lsb) -> float:
+        """Convert 2 bytes (as strs) into an OpenTherm f8_8 (float) value."""
+        return float(_get_s16(msb, lsb) / 256)
+
+    def _get_u16(msb, lsb) -> int:
+        """Convert 2 bytes (as strs) into an unsigned int."""
+        buf = struct.pack(">BB", _get_u8(msb), _get_u8(lsb))
+        return int(struct.unpack(">H", buf)[0])
+
+    def _get_s16(msb, lsb) -> int:
+        """Convert 2 bytes (as strs) into a signed int."""
+        buf = struct.pack(">bB", _get_s8(msb), _get_u8(lsb))
+        return int(struct.unpack(">h", buf)[0])
+
+    DATA_TYPES = {
+        FLAG8: _get_flag8,
+        U8: _get_u8,
+        S8: _get_s8,
+        F8_8: _get_f8_8,
+        U16: _get_u16,
+        S16: _get_s16,
+    }
+
+    if val_type in DATA_TYPES:
+        return DATA_TYPES[val_type](val_seqx[:2], val_seqx[2:])
+    return val_seqx
+
+
+def decode_frame(frame: str) -> Tuple[int, int, dict, str]:
+    if not isinstance(frame, str) or len(frame) != 8:
+        raise TypeError(f"Invalid frame (type or length): {frame}")
+
+    # if int(frame[:2], 16) // 0x80 != parity(int(frame, 16) & 0x7FFFFFFF):
+    #     raise ValueError(f"Invalid parity bit: 0b{int(frame[:2], 16) // 0x80}")
+
+    if int(frame[:2], 16) & 0x0F != 0x00:
+        raise ValueError(f"Invalid spare bits: 0b{int(frame[:2], 16) & 0x0F:04b}")
+
+    msg_type = (int(frame[:2], 16) & 0x70) >> 4
+    # if msg_type == 0b011:
+    #     raise ValueError(f"Reserved msg-type: 0b{msg_type:03b}")
+
+    data_id = int(frame[2:4], 16)
+    msg = OPENTHERM_MESSAGES.get(data_id)
+
+    if not msg:
+        raise KeyError(f"Unknown data-id: {data_id} (0x{data_id:02X})")
+
+    data_value = {MSG_NAME: msg.get(FLAGS, msg.get(VAR))}
+
+    if msg_type in (0b000, 0b110, 0b111):
+        # if frame[4:] != "0000":  # this is not a hard rule, even for 0b000
+        #     raise ValueError(f"Invalid data-value for msg-type: 0x{frame[4:]}")
+        return OPENTHERM_MSG_TYPE[msg_type], data_id, data_value, msg
+
+    if isinstance(msg.get(VAR), dict) and isinstance(msg[VAL], dict):
+        data_value[VALUE_HB] = msg_value(frame[4:6], msg[VAL].get(HB, msg[VAL]))
+        data_value[VALUE_LB] = msg_value(frame[6:8], msg[VAL].get(LB, msg[VAL]))
+
+    elif isinstance(msg.get(VAR), dict):
+        data_value[VALUE_HB] = msg_value(frame[4:6], msg[VAL])
+        data_value[VALUE_LB] = msg_value(frame[6:8], msg[VAL])
+
+    elif msg[VAL] in (FLAG8, U8, S8):
+        data_value[VALUE] = msg_value(frame[4:6], msg[VAL])
+
+    else:
+        data_value[VALUE] = msg_value(frame[4:8], msg[VAL])
+
+    return OPENTHERM_MSG_TYPE[msg_type], data_id, data_value, msg
+
 
 # https://github.com/rvdbreemen/OTGW-firmware/blob/main/Specification/New%20OT%20data-ids.txt  # noqa
 
