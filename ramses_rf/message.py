@@ -30,13 +30,14 @@ from .const import (
     Address,
     __dev_mode__,
 )
-from .devices import Device, FanDevice
+from .devices import Device, FanDevice, OtbGateway
 from .exceptions import (
     CorruptEvohomeError,
     CorruptPacketError,
     CorruptPayloadError,
     CorruptStateError,
 )
+from .opentherm import MSG_ID
 from .packet import _PKT_LOGGER  # TODO: bad packets are being logged twice!
 from .ramses import CODES_WITH_COMPLEX_IDX, CODES_WITHOUT_IDX, RAMSES_CODES
 from .schema import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES
@@ -349,11 +350,11 @@ class Message:
                 timeout = td(minutes=15)  # sends I /sync_cycle
 
             elif self.code == "3220":
-                if self.payload["msg_id"] in ("0x7C", "0x7D", "0x7E", "0x7F"):
+                if self.payload[MSG_ID] in OtbGateway.SCHEMA_MDG_IDS:
                     timeout = None
-                if self.payload["msg_id"] in ("0x02", "0x03", "0x0E"):
+                elif self.payload[MSG_ID] in OtbGateway.PARAMS_MDG_IDS:
                     timeout = td(minutes=60)
-                else:
+                else:  # incl. OtbGateway.STATUS_MDG_IDS
                     timeout = td(minutes=5)
 
             elif self.code in MSG_TIMEOUTS and self.verb in MSG_TIMEOUTS[self.code]:

@@ -1009,6 +1009,23 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
     OPENTHERM_STATUS = "opentherm_status"
     # _STATE = super().MODULATION_LEVEL
 
+    SCHEMA_MDG_IDS = (0x7C, 0x7D, 0x7E, 0x7F)
+    PARAMS_MDG_IDS = (0x02, 0x03, 0x0E)
+    STATUS_MDG_IDS = (
+        0x00,
+        0x01,
+        0x11,
+        0x19,
+        0x05,
+        0x12,
+        0x13,
+        0x1A,
+        0x1B,
+        0x1C,
+        0x73,
+        0x7C,
+    )  # TODO: remove 0x7C
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -1024,9 +1041,6 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
         # see: https://www.opentherm.eu/request-details/?post_ids=2944
         super()._discover(discover_flag=discover_flag)
 
-        # From OT v2.2, these are mandatory: 00, 01, 03, 0E, 11, 19
-        # and, from evohome: 05, 11, 12, 13, 19, 1A
-
         if discover_flag & DISCOVER_SCHEMA:
             # 7C - Master Opentherm version (is supported?)
             # 7D - Slave Opentherm version (is supported?)
@@ -1034,7 +1048,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
             # 7F - Slave Product Type/Version
             [
                 self._gwy.send_cmd(Command.get_opentherm_data(self.id, m))
-                for m in range(0x7C, 0x80)  # From OT v2.2: version numbers
+                for m in self.SCHEMA_MDG_IDS  # From OT v2.2: version numbers
                 if self._supported_msg.get(m) is not False
                 and (
                     not self._opentherm_msg.get(m) or self._opentherm_msg[m].is_expired
@@ -1047,7 +1061,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
             # 0E - Max. relative modulation level (%)
             [
                 self._gwy.send_cmd(Command.get_opentherm_data(self.id, m))
-                for m in (0x02, 0x03, 0x0E)
+                for m in self.PARAMS_MDG_IDS
                 if self._supported_msg.get(m) is not False
                 and (
                     not self._opentherm_msg.get(m) or self._opentherm_msg[m].is_expired
@@ -1057,26 +1071,26 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
         if discover_flag & DISCOVER_STATUS:
             self._gwy.send_cmd(Command(RQ, "22D9", "00", self.id))
 
-            msg_ids = {0x00, 0x01, 0x11, 0x19}  # mandatory
+            # mandatory: msg_ids = {0x00, 0x01, 0x11, 0x19}
             # 00 - Master/Slave status flags
             # 01 - CH water temperature setpoint
             # 11 - Relative modulation level (%)
             # 19 - Boiler water temperature
 
-            msg_ids |= {0x05, 0x12, 0x13, 0x1A}  # evohome
+            # evohome: msg_ids |= {0x05, 0x12, 0x13, 0x1A}
             # 05 - Fault flags & OEM fault code
             # 12 - Central heating water pressure (bar)
             # 13 - DHW flow rate (L/min)
             # 1A - DHW temperature
 
-            msg_ids |= {0x1B, 0x1C, 0x73, 0x7C}  # other
+            # other: msg_ids |= {0x1B, 0x1C, 0x73}
             # 1B - Outside temperature
             # 1C - Return water temperature
             # 73 - OEM diagnostic code (is supported?)
 
             [
                 self._gwy.send_cmd(Command.get_opentherm_data(self.id, m, retries=0))
-                for m in msg_ids
+                for m in self.STATUS_MDG_IDS
                 if self._supported_msg.get(m) is not False
                 and (
                     not self._opentherm_msg.get(m) or self._opentherm_msg[m].is_expired
