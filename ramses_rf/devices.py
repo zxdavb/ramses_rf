@@ -30,10 +30,8 @@ from .const import (
 )
 from .exceptions import CorruptStateError
 from .helpers import dev_id_to_hex, schedule_task
-from .opentherm import VALUE  # R8810A_MSG_IDS
+from .opentherm import MSG_ID, MSG_TYPE, VALUE  # R8810A_MSG_IDS
 from .ramses import RAMSES_DEVICES
-
-MSG_ID = "msg_id"
 
 I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
 
@@ -1035,9 +1033,12 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
             # 7E - Master Product Type/Version
             # 7F - Slave Product Type/Version
             [
-                self._gwy.send_cmd(Command.get_opentherm_data(self.id, msg_id))
-                for msg_id in range(0x7C, 0x80)  # From OT v2.2: version numbers
-                if self._supported_msg.get(msg_id) is not False
+                self._gwy.send_cmd(Command.get_opentherm_data(self.id, m))
+                for m in range(0x7C, 0x80)  # From OT v2.2: version numbers
+                if self._supported_msg.get(m) is not False
+                and (
+                    not self._opentherm_msg.get(m) or self._opentherm_msg[m].is_expired
+                )
             ]
 
         if discover_flag & DISCOVER_PARAMS:
@@ -1045,9 +1046,12 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
             # 03 - Slave configuration
             # 0E - Max. relative modulation level (%)
             [
-                self._gwy.send_cmd(Command.get_opentherm_data(self.id, msg_id))
-                for msg_id in (0x02, 0x03, 0x0E)
-                if self._supported_msg.get(msg_id) is not False
+                self._gwy.send_cmd(Command.get_opentherm_data(self.id, m))
+                for m in (0x02, 0x03, 0x0E)
+                if self._supported_msg.get(m) is not False
+                and (
+                    not self._opentherm_msg.get(m) or self._opentherm_msg[m].is_expired
+                )
             ]
 
         if discover_flag & DISCOVER_STATUS:
@@ -1065,33 +1069,34 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
             # 13 - DHW flow rate (L/min)
             # 1A - DHW temperature
 
-            msg_ids |= {0x1B, 0x1C, 0x73}  # other
+            msg_ids |= {0x1B, 0x1C, 0x73, 0x7C}  # other
             # 1B - Outside temperature
             # 1C - Return water temperature
             # 73 - OEM diagnostic code (is supported?)
 
             [
-                self._gwy.send_cmd(
-                    Command.get_opentherm_data(self.id, msg_id, retries=0)
+                self._gwy.send_cmd(Command.get_opentherm_data(self.id, m, retries=0))
+                for m in msg_ids
+                if self._supported_msg.get(m) is not False
+                and (
+                    not self._opentherm_msg.get(m) or self._opentherm_msg[m].is_expired
                 )
-                for msg_id in msg_ids
-                if self._supported_msg.get(msg_id) is not False
             ]
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
         if msg.code == "1FD4":  # every 30s
-            if msg.payload["ticker"] % 10 == 0:
-                self._discover(discover_flag=DISCOVER_STATUS)
-            if msg.payload["ticker"] % 120 in (1, 3):
+            if msg.payload["ticker"] % 60 in (1, 3):
                 self._discover(discover_flag=DISCOVER_PARAMS)
+            elif msg.payload["ticker"] % 6 in (0, 2):
+                self._discover(discover_flag=DISCOVER_STATUS)
 
         elif msg.code == "3220":  # all are RP
-            if msg.payload["msg_type"] == "Unknown-DataId":
-                self._supported_msg[msg.payload["msg_id"]] = False
+            if msg.payload[MSG_TYPE] == "Unknown-DataId":
+                self._supported_msg[msg.payload[MSG_ID]] = False
             # else:
-            #     self._supported_msg[msg.payload["msg_id"]] = True
+            #     self._supported_msg[msg.payload[MSG_ID]] = True
 
     def _opentherm_msg_value(self, msg_id) -> Optional[float]:
         try:
@@ -1101,27 +1106,27 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
 
     @property
     def boiler_water_temp(self) -> Optional[float]:  # 3220/0x19
-        return self._opentherm_msg_value("19")
+        return self._opentherm_msg_value(0x19)
 
     @property
     def ch_water_pressure(self) -> Optional[float]:  # 3220/0x12
-        return self._opentherm_msg_value("12")
+        return self._opentherm_msg_value(0x12)
 
     @property
     def dhw_flow_rate(self) -> Optional[float]:  # 3220/0x13
-        return self._opentherm_msg_value("13")
+        return self._opentherm_msg_value(0x13)
 
     @property
     def dhw_temp(self) -> Optional[float]:  # 3220/0x1A
-        return self._opentherm_msg_value("1A")
+        return self._opentherm_msg_value(0x1A)
 
     @property
     def rel_modulation_level(self) -> Optional[float]:  # 3220/0x11
-        return self._opentherm_msg_value("11")
+        return self._opentherm_msg_value(0x11)
 
     @property
     def return_cv_temp(self) -> Optional[float]:  # 3220/0x1C
-        return self._opentherm_msg_value("1C")
+        return self._opentherm_msg_value(0x1C)
 
     @property
     def boiler_setpoint(self) -> Optional[float]:  # 22D9
@@ -1141,10 +1146,10 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
             "return_cv_temp": self.return_cv_temp,
         }
         # return {
-        #     slugify(self._opentherm_msg[msg_id].payload["msg_name"]): (
+        #     slugify(self._opentherm_msg[msg_id].payload[MSG_NAME]): (
         #         self._opentherm_msg[msg_id].payload[VALUE]
         #     )
-        #     for msg_id in ("0x11", "0x12", "0x13", "0x19", "0x1A", "0x1C")
+        #     for msg_id in (0x11, 0x12, 0x13, 0x19, 0x1A, 0x1C)
         #     if msg_id in self._opentherm_msg
         # }
 
@@ -1235,13 +1240,13 @@ class BdrSwitch(Actuator, Device):  # BDR (13):
              0016, 1FC9 & 0008, 1100, 3EF1
          - all BDR91As will *not* RP to these RQs
              0009, 10E0, 3B00, 3EF0
-         - a BDR91A will *periodically* send an I/3B00/00CB if it is the heater relay
+         - a BDR91A will *periodically* send an I/3B00/00C8 if it is the heater relay
         """
 
         super()._discover(discover_flag=discover_flag)
 
         # if discover_flag & DISCOVER_SCHEMA:
-        #     pass
+        #     self._send_cmd("1FC9")  # will include a 3B00 if is a heater_relay
 
         if discover_flag & DISCOVER_PARAMS:
             self._send_cmd("1100")
@@ -1252,13 +1257,16 @@ class BdrSwitch(Actuator, Device):  # BDR (13):
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == "3B00" and msg.verb == I_:
-            pass  # only a heater_relay will I/3B00
-            # for code in ("0008", "3EF1"):
-            #     self._send_cmd(code, delay=1)
-
-        elif msg.code == "3EF0" and msg.verb == I_:  # NOT RP, TODO: why????
+        if msg.code == "3EF0" and msg.verb == I_:  # NOT RP, TODO: why????
             self._send_cmd("0008", priority=Priority.LOW, retries=1)
+
+        # elif msg.code == "1FC9" and msg.verb == RP:
+        #     pass  # only a heater_relay will have 3B00
+
+        # elif msg.code == "3B00" and msg.verb == I_:
+        #     pass  # only a heater_relay will I/3B00
+        #     # for code in ("0008", "3EF1"):
+        #     #     self._send_cmd(code, delay=1)
 
     @property
     def role(self) -> Optional[str]:
