@@ -89,16 +89,15 @@ QOS_TX_DEFAULT = (Priority.DEFAULT, QOS_TX_RETRIES, QOS_TX_TIMEOUT, False)
 QOS_RX_TIMEOUT = td(seconds=0.50)  # 0.20 seems OK, 0.10 too low sometimes
 QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many?
 
-QOS_TABLE = {
+QOS_TABLE = {  # priority, retries, timeout, disable_backoff, c.f. QOS_TX_DEFAULT
     f"{RQ}/0016": (Priority.HIGH, 5, None, None),
     f"{RQ}/1F09": (Priority.HIGH, 5, None, None),
     f"{I_}/1FC9": (Priority.HIGH, 2, td(seconds=1), True),
-    f"{I_}/0404": (Priority.HIGH, 5, td(seconds=0.30), None),  # TODO: short Tx...
-    f"{W_}/0404": (Priority.HIGH, 5, td(seconds=0.30), None),  # TODO: but long Rx
+    f"{I_}/0404": (Priority.HIGH, 5, td(seconds=0.30), None),  # TODO: both have short
+    f"{W_}/0404": (Priority.HIGH, 5, td(seconds=0.30), None),  # TODO: Tx, but long Rx
     f"{RQ}/0418": (Priority.LOW, 3, None, None),
-    f"{RQ}/3220": (Priority.DEFAULT, 1, td(seconds=1), True),  # TODO: keep this?
-}  # priority, retries, timeout, disable_backoff
-# The long timeeout for the OTB is for total RTT to slave (boiler)
+    f"{RQ}/3220": (Priority.DEFAULT, 1, td(seconds=1), True),
+}  # The long timeeout for the OTB is for total RTT to slave (boiler)
 
 DEV_MODE = __dev_mode__ and False
 
