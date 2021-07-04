@@ -1114,7 +1114,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
 
     def _opentherm_msg_value(self, msg_id) -> Optional[float]:
         try:
-            return self._opentherm_msg[msg_id].payload[VALUE]
+            return self._opentherm_msg[f"{msg_id:02X}"].payload[VALUE]
         except KeyError:
             return
 
