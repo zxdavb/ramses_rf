@@ -1009,22 +1009,54 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
     OPENTHERM_STATUS = "opentherm_status"
     # _STATE = super().MODULATION_LEVEL
 
-    SCHEMA_MDG_IDS = (0x7C, 0x7D, 0x7E, 0x7F)
-    PARAMS_MDG_IDS = (0x02, 0x03, 0x0E)
-    STATUS_MDG_IDS = (
-        0x00,
-        0x01,
-        0x11,
-        0x19,
-        0x05,
-        0x12,
-        0x13,
-        0x1A,
-        0x1B,
-        0x1C,
-        0x73,
-        0x7C,
-    )  # TODO: remove 0x7C
+    SCHEMA_MSG_IDS = (
+        0x03,  # ..3: "Slave configuration",
+        0x06,  # ..6: "Remote boiler parameter flags",                # see: 0x38, 0x39
+        0x0F,  # .15: "Max. boiler capacity (kW) and modulation level setting (%)",
+        0x30,  # .48: "DHW Setpoint upper & lower bounds for adjustment (°C)",
+        0x31,  # .49: "Max CH water Setpoint upper & lower bounds for adjustment (°C)",
+        0x7D,  # 125: "Opentherm version Slave",                            # not native
+        0x7F,  # 127: "Slave product version number and type",
+    )
+    PARAMS_MSG_IDS = (
+        0x38,  # .56: "DHW Setpoint (°C) (Remote parameter 1)",             # see: 0x06
+        0x39,  # .57: "Max CH water Setpoint (°C) (Remote parameters 2)",   # see: 0x06
+        # These are error codes...
+        0x05,  # ..5: "Fault flags & OEM codes",
+        0x73,  # 115: "OEM diagnostic code",
+        # These are STATUS seen RQ'd by 01:/30:, but here to retreive less frequently
+        0x71,  # 113: "Number of un-successful burner starts",
+        0x72,  # 114: "Number of times flame signal was too low",
+        0x74,  # 116: "Number of starts burner",
+        0x75,  # 117: "Number of starts central heating pump",
+        0x76,  # 118: "Number of starts DHW pump/valve",
+        0x77,  # 119: "Number of starts burner during DHW mode",
+        0x78,  # 120: "Number of hours burner is in operation (i.e. flame on)",
+        0x79,  # 121: "Number of hours central heating pump has been running",
+        0x7A,  # 122: "Number of hours DHW pump has been running/valve has been opened",
+        0x7B,  # 123: "Number of hours DHW burner is in operation during DHW mode",
+    )
+    STATUS_MSG_IDS = (
+        0x00,  # ..0: "Master/Slave status flags",                          # not native
+        0x11,  # .17: "Relative Modulation Level (%)",
+        0x12,  # .18: "Water pressure in CH circuit (bar)",
+        0x13,  # .19: "Water flow rate in DHW circuit. (L/min)",
+        0x19,  # .25: "Boiler flow water temperature (°C)",
+        0x1A,  # .26: "DHW temperature (°C)",
+        0x1B,  # .27: "Outside temperature (°C)",  # TODO: any value here?  # not native
+        0x1C,  # .28: "Return water temperature (°C)",
+    )
+    WRITE_MSG_IDS = (  # Write-Data, some may also Read-Data (will need to check)
+        0x01,  # ..1: "CH water temperature Setpoint (°C)",
+        0x02,  # ..2: "Master configuration",
+        0x0E,  # .14: "Maximum relative modulation level setting (%)",  # c.f. 0x11
+        0x10,  # .16: "Room Setpoint (°C)",     # tell slave the room setpoint?
+        0x18,  # .24: "Room temperature (°C)",  # tell slave the room temp?
+        0x38,  # .56:  -see above-
+        0x39,  # .57:  -see above-
+        0x7C,  # 124: "Opentherm version Master",
+        0x7E,  # 126: "Master product version number and type",
+    )
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -1042,13 +1074,9 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_SCHEMA:
-            # 7C - Master Opentherm version (is supported?)
-            # 7D - Slave Opentherm version (is supported?)
-            # 7E - Master Product Type/Version
-            # 7F - Slave Product Type/Version
             [
                 self._gwy.send_cmd(Command.get_opentherm_data(self.id, m))
-                for m in self.SCHEMA_MDG_IDS  # From OT v2.2: version numbers
+                for m in self.SCHEMA_MSG_IDS  # From OT v2.2: version numbers
                 if self._supported_msg.get(m) is not False
                 and (
                     not self._opentherm_msg.get(m) or self._opentherm_msg[m].is_expired
@@ -1056,12 +1084,9 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
             ]
 
         if discover_flag & DISCOVER_PARAMS:
-            # 02 - Master configuration  # TODO: does OTB respond to this?
-            # 03 - Slave configuration
-            # 0E - Max. relative modulation level (%)
             [
                 self._gwy.send_cmd(Command.get_opentherm_data(self.id, m))
-                for m in self.PARAMS_MDG_IDS
+                for m in self.PARAMS_MSG_IDS
                 if self._supported_msg.get(m) is not False
                 and (
                     not self._opentherm_msg.get(m) or self._opentherm_msg[m].is_expired
@@ -1070,27 +1095,9 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
 
         if discover_flag & DISCOVER_STATUS:
             self._gwy.send_cmd(Command(RQ, "22D9", "00", self.id))
-
-            # mandatory: msg_ids = {0x00, 0x01, 0x11, 0x19}
-            # 00 - Master/Slave status flags
-            # 01 - CH water temperature setpoint
-            # 11 - Relative modulation level (%)
-            # 19 - Boiler water temperature
-
-            # evohome: msg_ids |= {0x05, 0x12, 0x13, 0x1A}
-            # 05 - Fault flags & OEM fault code
-            # 12 - Central heating water pressure (bar)
-            # 13 - DHW flow rate (L/min)
-            # 1A - DHW temperature
-
-            # other: msg_ids |= {0x1B, 0x1C, 0x73}
-            # 1B - Outside temperature
-            # 1C - Return water temperature
-            # 73 - OEM diagnostic code (is supported?)
-
             [
                 self._gwy.send_cmd(Command.get_opentherm_data(self.id, m, retries=0))
-                for m in self.STATUS_MDG_IDS
+                for m in self.STATUS_MSG_IDS
                 if self._supported_msg.get(m) is not False
                 and (
                     not self._opentherm_msg.get(m) or self._opentherm_msg[m].is_expired
@@ -1109,40 +1116,40 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
         elif msg.code == "3220":  # all are RP
             if msg.payload[MSG_TYPE] == "Unknown-DataId":
                 self._supported_msg[msg.payload[MSG_ID]] = False
-            # else:
-            #     self._supported_msg[msg.payload[MSG_ID]] = True
+            else:
+                self._supported_msg[msg.payload[MSG_ID]] = True
 
-    def _opentherm_msg_value(self, msg_id) -> Optional[float]:
+    def _ot_msg_value(self, msg_id) -> Optional[float]:
         try:
             return self._opentherm_msg[f"{msg_id:02X}"].payload[VALUE]
         except KeyError:
             return
 
     @property
-    def boiler_water_temp(self) -> Optional[float]:  # 3220/0x19
-        return self._opentherm_msg_value(0x19)
+    def boiler_water_temperature(self) -> Optional[float]:  # 3220/0x19
+        return self._ot_msg_value(0x19)
 
     @property
     def ch_water_pressure(self) -> Optional[float]:  # 3220/0x12
-        return self._opentherm_msg_value(0x12)
+        return self._ot_msg_value(0x12)
 
     @property
     def dhw_flow_rate(self) -> Optional[float]:  # 3220/0x13
-        return self._opentherm_msg_value(0x13)
+        return self._ot_msg_value(0x13)
 
     @property
-    def dhw_temp(self) -> Optional[float]:  # 3220/0x1A
-        return self._opentherm_msg_value(0x1A)
+    def dhw_temperature(self) -> Optional[float]:  # 3220/0x1A
+        return self._ot_msg_value(0x1A)
+
+    @property  # HA
+    def relative_modulation_level(self) -> Optional[float]:  # 3220/0x11
+        return self._ot_msg_value(0x11)
 
     @property
-    def rel_modulation_level(self) -> Optional[float]:  # 3220/0x11
-        return self._opentherm_msg_value(0x11)
+    def return_water_temperature(self) -> Optional[float]:  # 3220/0x1C
+        return self._ot_msg_value(0x1C)
 
-    @property
-    def return_cv_temp(self) -> Optional[float]:  # 3220/0x1C
-        return self._opentherm_msg_value(0x1C)
-
-    @property
+    @property  # HA
     def boiler_setpoint(self) -> Optional[float]:  # 22D9
         try:
             return self._msgs["22D9"].payload[self.BOILER_SETPOINT]
@@ -1150,14 +1157,49 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
             return
 
     @property
-    def opentherm_status(self) -> dict:
+    def opentherm_schema(self) -> dict:
+        result = {
+            v.payload["msg_name"]: v.payload
+            for k, v in self._opentherm_msg.items()
+            if self._supported_msg.get(int(k, 16)) and int(k, 16) in self.SCHEMA_MSG_IDS
+        }
         return {
-            "boiler_temp": self.boiler_water_temp,
-            "ch_pressure": self.ch_water_pressure,
+            m: {k: v for k, v in p.items() if k.startswith(VALUE)}
+            for m, p in result.items()
+        }
+
+    @property
+    def opentherm_params(self) -> dict:
+        result = {
+            v.payload["msg_name"]: v.payload
+            for k, v in self._opentherm_msg.items()
+            if self._supported_msg.get(int(k, 16)) and int(k, 16) in self.PARAMS_MSG_IDS
+        }
+        return {
+            m: {k: v for k, v in p.items() if k.startswith(VALUE)}
+            for m, p in result.items()
+        }
+
+    @property
+    def opentherm_status(self) -> dict:
+        opentherm_status = {
+            "boiler_water_temperature": self.boiler_water_temperature,
+            "ch_water_pressure": self.ch_water_pressure,
             "dhw_flow_rate": self.dhw_flow_rate,
-            "dhw_temp": self.dhw_temp,
-            "rel_modulation_level": self.rel_modulation_level,
-            "return_cv_temp": self.return_cv_temp,
+            "dhw_temperature": self.dhw_temperature,
+            "relative_modulation_level": self.relative_modulation_level,
+            "return_water_temperature": self.return_water_temperature,
+        }
+        others = {
+            v.payload["msg_name"]: {
+                x: y for x, y in v.payload.items() if x.startswith(VALUE)
+            }
+            for k, v in self._opentherm_msg.items()
+            if self._supported_msg.get(int(k, 16)) and k in ("00", "1B")
+        }
+        return {
+            **opentherm_status,
+            "other_state_attrs": others,
         }
         # return {
         #     slugify(self._opentherm_msg[msg_id].payload[MSG_NAME]): (
@@ -1168,7 +1210,26 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
         # }
 
     @property
+    def schema(self) -> dict:
+        return {
+            **super().schema,
+            "opentherm_codes": [
+                f"0x{k:02X}" for k, v in self._supported_msg.items() if v
+            ],
+            "opentherm_schema": self.opentherm_schema,
+        }
+
+    @property
+    def params(self) -> dict:
+        return {
+            **super().params,
+            "opentherm_params": self.opentherm_params,
+        }
+
+    @property
     def status(self) -> dict:
+        # llevering: [0, 3, 5, 6, 12, 13, 17, 18, 25, 26, 28, 48, 49, 56, 125]
+        # bruce:     [0, 3, 5,    12, 13, 17, 18, 25, 27, 28, 48, 49, 56, 125]
         return {
             **super().status,
             self.BOILER_SETPOINT: self.boiler_setpoint,

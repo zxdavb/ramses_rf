@@ -350,11 +350,11 @@ class Message:
                 timeout = td(minutes=15)  # sends I /sync_cycle
 
             elif self.code == "3220":
-                if self.payload[MSG_ID] in OtbGateway.SCHEMA_MDG_IDS:
+                if self.payload[MSG_ID] in OtbGateway.SCHEMA_MSG_IDS:
                     timeout = None
-                elif self.payload[MSG_ID] in OtbGateway.PARAMS_MDG_IDS:
+                elif self.payload[MSG_ID] in OtbGateway.PARAMS_MSG_IDS:
                     timeout = td(minutes=60)
-                else:  # incl. OtbGateway.STATUS_MDG_IDS
+                else:  # incl. OtbGateway.STATUS_MSG_IDS
                     timeout = td(minutes=5)
 
             elif self.code in MSG_TIMEOUTS and self.verb in MSG_TIMEOUTS[self.code]:

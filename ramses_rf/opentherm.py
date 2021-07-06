@@ -74,159 +74,159 @@ OPENTHERM_MSG_TYPE = {
 OPENTHERM_SCHEMA = {
     # OpenTherm status flags [ID 0: Master status (HB) & Slave status (LB)]
     "status_flags": {
-        "0x0100": {
+        0x0100: {
             EN: "Central heating enable",
             NL: "Centrale verwarming aan",
             VAR: "StatusCHEnabled",
         },
-        "0x0200": {
+        0x0200: {
             EN: "DHW enable",
             NL: "Tapwater aan",
             VAR: "StatusDHWEnabled",
         },
-        "0x0400": {
+        0x0400: {
             EN: "Cooling enable",
             NL: "Koeling aan",
             VAR: "StatusCoolEnabled",
         },
-        "0x0800": {
+        0x0800: {
             EN: "Outside temp. comp. active",
             NL: "Compenseren buitentemp.",
             VAR: "StatusOTCActive",
         },
-        "0x1000": {
+        0x1000: {
             EN: "Central heating 2 enable",
             NL: "Centrale verwarming 2 aan",
             VAR: "StatusCH2Enabled",
         },
-        "0x2000": {
+        0x2000: {
             EN: "Summer/winter mode",
             NL: "Zomer/winter mode",
             VAR: "StatusSummerWinter",
         },
-        "0x4000": {
+        0x4000: {
             EN: "DHW blocking",
             NL: "Tapwater blokkade",
             VAR: "StatusDHWBlocked",
         },
-        "0x0001": {
+        0x0001: {
             EN: "Fault indication",
             NL: "Fout indicatie",
             VAR: "StatusFault",
         },  # no fault/fault
-        "0x0002": {
+        0x0002: {
             EN: "Central heating mode",
             NL: "Centrale verwarming mode",
             VAR: "StatusCHMode",
         },  # not active/active
-        "0x0004": {
+        0x0004: {
             EN: "DHW mode",
             NL: "Tapwater mode",
             VAR: "StatusDHWMode",
         },  # not active/active
-        "0x0008": {
+        0x0008: {
             EN: "Flame status",
             NL: "Vlam status",
             VAR: "StatusFlame",
         },  # flame off/on
-        "0x0010": {
+        0x0010: {
             EN: "Cooling status",
             NL: "Status koelen",
             VAR: "StatusCooling",
         },  # not active/active
-        "0x0020": {
+        0x0020: {
             EN: "Central heating 2 mode",
             NL: "Centrale verwarming 2 mode",
             VAR: "StatusCH2Mode",
         },  # not active/active
-        "0x0040": {
+        0x0040: {
             EN: "Diagnostic indication",
             NL: "Diagnose indicatie",
             VAR: "StatusDiagnostic",
         },  # no diagnostics/diagnostics event
     },
     # OpenTherm Master configuration flags [ID 2: master config flags (HB)]
-    "Master_config_flags": {
-        "0x0100": {
+    "master_config_flags": {
+        0x0100: {
             EN: "Smart Power",
             VAR: "ConfigSmartPower",
         },
     },
     # OpenTherm Slave configuration flags [ID 3: slave config flags (HB)]
-    "Slave_Config_flags": {
-        "0x0100": {
+    "slave_config_flags": {
+        0x0100: {
             EN: "DHW present",
             VAR: "ConfigDHWpresent",
         },
-        "0x0200": {
+        0x0200: {
             EN: "Control type (modulating on/off)",
             VAR: "ConfigControlType",
         },
-        "0x0400": {
+        0x0400: {
             EN: "Cooling supported",
             VAR: "ConfigCooling",
         },
-        "0x0800": {
+        0x0800: {
             EN: "DHW storage tank",
             VAR: "ConfigDHW",
         },
-        "0x1000": {
+        0x1000: {
             EN: "Master low-off & pump control allowed",
             VAR: "ConfigMasterPump",
         },
-        "0x2000": {
+        0x2000: {
             EN: "Central heating 2 present",
             VAR: "ConfigCH2",
         },
     },
     # OpenTherm fault flags [ID 5: Application-specific fault flags (HB)]
     "fault_flags": {
-        "0x0100": {
+        0x0100: {
             EN: "Service request",
             NL: "Onderhoudsvraag",
             VAR: "FaultServiceRequest",
         },
-        "0x0200": {
+        0x0200: {
             EN: "Lockout-reset",
             NL: "Geen reset op afstand",
             VAR: "FaultLockoutReset",
         },
-        "0x0400": {
+        0x0400: {
             EN: "Low water pressure",
             NL: "Waterdruk te laag",
             VAR: "FaultLowWaterPressure",
         },
-        "0x0800": {
+        0x0800: {
             EN: "Gas/flame fault",
             NL: "Gas/vlam fout",
             VAR: "FaultGasFlame",
         },
-        "0x1000": {
+        0x1000: {
             EN: "Air pressure fault",
             NL: "Luchtdruk fout",
             VAR: "FaultAirPressure",
         },
-        "0x2000": {
+        0x2000: {
             EN: "Water over-temperature",
             NL: "Water te heet",
             VAR: "FaultOverTemperature",
         },
     },
     # OpenTherm remote flags [ID 6: Remote parameter flags (HB)]
-    "Remote_flags": {
-        "0x0100": {
+    "remote_flags": {
+        0x0100: {
             EN: "DHW setpoint enable",
             VAR: "RemoteDHWEnabled",
         },
-        "0x0200": {
+        0x0200: {
             EN: "Max. CH setpoint enable",
             VAR: "RemoteMaxCHEnabled",
         },
-        "0x0001": {
+        0x0001: {
             EN: "DHW setpoint read/write",
             VAR: "RemoteDHWReadWrite",
         },
-        "0x0002": {
+        0x0002: {
             EN: "Max. CH setpoint read/write",
             VAR: "RemoteMaxCHReadWrite",
         },
@@ -237,7 +237,7 @@ OPENTHERM_SCHEMA = {
             EN: "Status",
             DIR: READ_ONLY,
             VAL: FLAG8,
-            FLAGS: "StatusFlags",
+            FLAGS: "status_flags",
         },
         0x01: {  # 1, Control Setpoint
             EN: "Control setpoint",
@@ -247,18 +247,18 @@ OPENTHERM_SCHEMA = {
             VAR: "ControlSetpoint",
             SENSOR: TEMPERATURE,
         },
-        0x02: {  # 2, Master Member ID
+        0x02: {  # 2, Master configuration (Member ID)
             EN: "Master configuration",
             DIR: WRITE_ONLY,
             VAL: {HB: FLAG8, LB: U8},
-            FLAGS: "MasterConfigFlags",
+            FLAGS: "master_config_flags",
             VAR: {LB: "MasterMemberId"},
         },
-        0x03: {  # 3, Slave Member ID
+        0x03: {  # 3, Slave configuration (Member ID)
             EN: "Slave configuration",
             DIR: READ_ONLY,
             VAL: {HB: FLAG8, LB: U8},
-            FLAGS: "SlaveConfigFlags",
+            FLAGS: "slave_config_flags",
             VAR: {LB: "SlaveMemberId"},
         },
         0x04: {  # 4, Remote Command
@@ -272,13 +272,13 @@ OPENTHERM_SCHEMA = {
             DIR: READ_ONLY,
             VAL: {HB: FLAG8, LB: U8},
             VAR: {LB: "OEMFaultCode"},
-            FLAGS: "FaultFlags",
+            FLAGS: "fault_flags",
         },
         0x06: {  # 6, Remote Flags
             EN: "Remote parameter flags",
             DIR: READ_ONLY,
             VAL: FLAG8,
-            FLAGS: "RemoteFlags",
+            FLAGS: "remote_flags",
         },
         0x07: {  # 7, Cooling Control Signal
             EN: "Cooling control signal",
@@ -474,21 +474,21 @@ OPENTHERM_SCHEMA = {
             EN: "DHW setpoint boundaries",
             DIR: READ_ONLY,
             VAL: S8,
-            VAR: "DHWBoundaries",
+            VAR: {HB: "DHWUpperBound", LB: "DHWLowerBound"},
             SENSOR: TEMPERATURE,
         },
         0x31: {  # 49, CH Boundaries
             EN: "Max. central heating setpoint boundaries",
             DIR: READ_ONLY,
             VAL: S8,
-            VAR: "CHBoundaries",
+            VAR: {HB: "CHUpperBound", LB: "CHLowerBound"},
             SENSOR: TEMPERATURE,
         },
         0x32: {  # 50, OTC Boundaries
             EN: "OTC heat curve ratio upper & lower bounds",
             DIR: READ_ONLY,
             VAL: S8,
-            VAR: "OTCBoundaries",
+            VAR: {HB: "OTCUpperBound", LB: "OTCLowerBound"},
         },
         0x38: {  # 56, DHW Setpoint
             EN: "DHW setpoint",
@@ -792,7 +792,16 @@ OPENTHERM_MESSAGES = OPENTHERM_SCHEMA[MESSAGES]
 # R8810A 1018 v4: https://www.opentherm.eu/request-details/?post_ids=2944
 # as at: 2021/06/28
 
+# see also: http://otgw.tclcode.com/matrix.cgi#boilers
+# 0,       1,    3,    5,    9,   14,   16-19,   24-28,   56-57,   63,  128,  255
+# 0x00, 0x01, 0x03, 0x05, 0x09, 0x0E, 0x10-13, 0x18-1C, 0x38-39, 0x3F, 0x80, 0xFF
+
+# personal testing:
+# 0,       1,    3,    5,    6,   12-14,   17-18,   25-26,   28,            56
+# 0x00,       0x03, 0x05, 0x06, 0x0C-0D, 0x11-12, 0x19-1A, 0x1C, 0x30-31, 0x38, 0x7D
+
 R8810A_MSG_IDS = {
+    # These are in the R8810A specification...
     0x00: "Master/Slave status flags",
     # 000:HB0: Master status: CH enable
     # 000:HB1: Master status: DHW enable
@@ -812,7 +821,7 @@ R8810A_MSG_IDS = {
     0x03: "Slave configuration",
     # 003:HB0: Slave configuration: DHW present
     # 003:HB1: Slave configuration: Control type
-    # 003:HB4: Slave configuration: Master low-off&pump control
+    # 003:HB4: Slave configuration: Master low-off & pump control
     0x05: "Fault flags & OEM codes",
     # 005:HB0: Service request
     # 005:HB1: Lockout-reset
@@ -826,9 +835,9 @@ R8810A_MSG_IDS = {
     # 006:HB1: Remote boiler parameter transfer-enable: max. CH setpoint
     # 006:LB0: Remote boiler parameter read/write: DHW setpoint
     # 006:LB1: Remote boiler parameter read/write: max. CH setpoint
-    0x09: "Remote override room Setpoint",  # 009:
-    0x0A: "Number of TSPs supported by slave",  # 010:
-    0x0C: "Size of FHB supported by slave",  # 012:
+    0x09: "Remote override room Setpoint",  # 009: # c.f. 0x64, 100               # TODO
+    0x0A: "Number of TSPs supported by slave",  # 010:                            # TODO
+    0x0C: "Size of FHB supported by slave",  # 012:                               # TODO
     0x0E: "Maximum relative modulation level setting (%)",  # 014:
     0x10: "Room Setpoint (°C)",  # 016:
     0x11: "Relative Modulation Level (%)",  # 017:
@@ -845,22 +854,26 @@ R8810A_MSG_IDS = {
     0x39: "Max CH water Setpoint (°C) (Remote parameters 2)",  # 057:
     0x7E: "Master product version number and type",  # 126:
     0x7F: "Slave product version number and type",  # 127:
-    # These are not in the R8810A spec, but are RQ'd by 01:/30:!
-    0x0F: "xxx",  # 015:
-    0x71: "xxx",  # 113:
-    0x72: "xxx",  # 114:
+    #
+    # These are not in the R8810A spec, but are natively RQ'd by 01:/30:...
+    # (0[35F]|1[1239AC]|3[89]|7[123456789ABF])
+    0x0D: "FHB Entry",  # 013:                                                    # TODO
     0x73: "OEM diagnostic code",  # 115:
-    0x74: "xxx",  # 116:
-    0x75: "xxx",  # 117:
-    0x76: "xxx",  # 118:
-    0x77: "xxx",  # 119:
-    0x78: "xxx",  # 120:
-    0x79: "xxx",  # 121:
-    0x7A: "xxx",  # 122:
-    0x7B: "xxx",  # 123:
-    # These may be useful, or not?
     0x7C: "Opentherm version Master",  # 124:
     0x7D: "Opentherm version Slave",  # 125:
+    #
+    # These also have been seen natively RQ'd by 01:/30...
+    0x0F: "Max. boiler capacity (kW) and modulation level setting (%)",  # 15
+    0x71: "Number of un-successful burner starts",  # 113
+    0x72: "Number of times flame signal was too low",  # 114
+    0x74: "Number of starts burner",  # 116
+    0x75: "Number of starts central heating pump",  # 117
+    0x76: "Number of starts DHW pump/valve",  # 118
+    0x77: "Number of starts burner during DHW mode",  # 119
+    0x78: "Number of hours burner is in operation (i.e. flame on)",  # 120
+    0x79: "Number of hours central heating pump has been running",  # 121
+    0x7A: "Number of hours DHW pump has been running/valve has been opened",  # 122
+    0x7B: "Number of hours DHW burner is in operation during DHW mode",  # 123
 }
 
 
@@ -895,15 +908,21 @@ def msg_value(val_seqx, val_type) -> Any:
 
     def _get_f8_8(msb, lsb) -> float:
         """Convert 2 bytes (as strs) into an OpenTherm f8_8 (float) value."""
+        if msb == lsb == "FF":  # TODO: move up to parser?
+            return None
         return float(_get_s16(msb, lsb) / 256)
 
     def _get_u16(msb, lsb) -> int:
         """Convert 2 bytes (as strs) into an unsigned int."""
+        if msb == lsb == "FF":  # TODO: move up to parser?
+            return None
         buf = struct.pack(">BB", _get_u8(msb), _get_u8(lsb))
         return int(struct.unpack(">H", buf)[0])
 
     def _get_s16(msb, lsb) -> int:
         """Convert 2 bytes (as strs) into a signed int."""
+        if msb == lsb == "FF":  # TODO: move up to parser?
+            return None
         buf = struct.pack(">bB", _get_s8(msb), _get_u8(lsb))
         return int(struct.unpack(">h", buf)[0])
 
@@ -921,30 +940,48 @@ def msg_value(val_seqx, val_type) -> Any:
     return val_seqx
 
 
+def _decode_flags(frame: str, data_id: int) -> dict:
+    try:
+        flag_schema = OPENTHERM_SCHEMA[OPENTHERM_MESSAGES[data_id][FLAGS]]
+    except KeyError:
+        raise KeyError(
+            f"Invalid data-id: 0x{data_id:02X} ({data_id}): data-id has no flags"
+        )
+
+    return flag_schema
+
+
 def decode_frame(frame: str) -> Tuple[int, int, dict, str]:
     if not isinstance(frame, str) or len(frame) != 8:
         raise TypeError(f"Invalid frame (type or length): {frame}")
 
-    # if int(frame[:2], 16) // 0x80 != parity(int(frame, 16) & 0x7FFFFFFF):
-    #     raise ValueError(f"Invalid parity bit: 0b{int(frame[:2], 16) // 0x80}")
+    if int(frame[:2], 16) // 0x80 != parity(int(frame, 16) & 0x7FFFFFFF):
+        raise ValueError(f"Invalid parity bit: 0b{int(frame[:2], 16) // 0x80}")
 
     if int(frame[:2], 16) & 0x0F != 0x00:
         raise ValueError(f"Invalid spare bits: 0b{int(frame[:2], 16) & 0x0F:04b}")
 
     msg_type = (int(frame[:2], 16) & 0x70) >> 4
-    # if msg_type == 0b011:
+    # if msg_type == 0b011:  # NOTE: this msg-type may no longer be reserved
     #     raise ValueError(f"Reserved msg-type: 0b{msg_type:03b}")
 
     data_id = int(frame[2:4], 16)
     msg = OPENTHERM_MESSAGES.get(data_id)
 
     if not msg:
-        raise KeyError(f"Unknown data-id: {data_id} (0x{data_id:02X})")
+        # TODO: not sure to leave this get-out clause in, or not
+        if msg_type != 0b111:  # Unknown-DataId
+            return OPENTHERM_MSG_TYPE[msg_type], data_id, {}, msg
+        raise KeyError(
+            f"Unknown data-id: 0x{data_id:02X} ({data_id})"
+            f", msg-type = {OPENTHERM_MSG_TYPE[msg_type]}"
+        )
 
-    data_value = {MSG_NAME: msg.get(FLAGS, msg.get(VAR))}
+    # There are five msg_id with FLAGS - the following is not 100% correct...
+    data_value = {MSG_NAME: msg.get(FLAGS, msg.get(VAR))}  # TODO: if msg else {}
 
     if msg_type in (0b000, 0b110, 0b111):
-        # if frame[4:] != "0000":  # this is not a hard rule, even for 0b000
+        # if frame[4:] != "0000":  # NOTE: this is not a hard rule, even for 0b000
         #     raise ValueError(f"Invalid data-value for msg-type: 0x{frame[4:]}")
         return OPENTHERM_MSG_TYPE[msg_type], data_id, data_value, msg
 

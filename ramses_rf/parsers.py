@@ -1835,53 +1835,51 @@ def parser_31e0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # opentherm_msg
 def parser_3220(payload, msg) -> Optional[dict]:
-    # these are OpenTherm-specific assertions
 
     ot_type, ot_id, ot_value, ot_schema = decode_frame(payload[2:10])
 
+    # NOTE: Unknown-DataId is useful to educate the OTB device
     assert (
-        ot_type == "Unknown-DataId" or ot_id in R8810A_MSG_IDS
-    ), f"OpenTherm: Unknown data-id: 0x{ot_id:02X} ({ot_id})"
+        ot_id in R8810A_MSG_IDS or ot_type == "Unknown-DataId"
+    ), f"OpenTherm: Invalid data-id: 0x{ot_id:02X} ({ot_id}), msg-type = {ot_type}"
 
-    msg_name = ot_value.pop(MSG_NAME)
     result = {
         MSG_ID: ot_id,
         MSG_TYPE: ot_type,
-        MSG_NAME: msg_name,
+        MSG_NAME: ot_value.pop(MSG_NAME, None),
     }
 
-    if msg.verb == RQ and ot_type == "Read-Data":
-        assert (
-            payload[6:10] == "0000"
-        ), f"OpenTherm: Invalid msg-type|data-value: {ot_type}|{payload[6:10]}"
-        result.update(ot_value)  # TODO: remove?
-        return result
-
     if msg.verb == RQ:
-        assert ot_type in (
-            "Write-Data",
-            "Invalid-Data",
-        ), f"OpenTherm: Invalid msg-type for RQ: {ot_type}"
+        if ot_type == "Read-Data":
+            assert (
+                payload[6:10] == "0000"  # This may be true for RAMSES
+            ), f"OpenTherm: Invalid msg-type|data-value: {ot_type}|{payload[6:10]}"
 
-    if msg.verb == RP and ot_type in ("Data-Invalid", "Unknown-DataId"):
-        # assert payload[6:10] == "0000", (
-        #     f"OpenTherm: Invalid msg-type|data-value: {ot_type}|{payload[6:10]}"
-        # )
-        result.update(ot_value)  # TODO: remove?
+        else:
+            assert ot_type in (
+                "Write-Data",
+                "Invalid-Data",
+            ), f"OpenTherm: Invalid msg-type for RQ: {ot_type}"
+
+            result.update(ot_value)  # TODO: remove?
+
         return result
 
-    if msg.verb == RP:
+    # assert msg.verb == RP, f"OpenTherm: Invalid verb {msg.verb}"  # not req'd
+    if ot_type in ("Data-Invalid", "Unknown-DataId"):
+        assert (
+            True or payload[6:10] == "0000"
+        ), f"OpenTherm: Invalid msg-type|data-value: {ot_type}|{payload[6:10]}"
+
+    else:
         assert True or ot_type in (
             "Read-Ack",
             "Write-Ack",
         ), f"OpenTherm: Invalid msg-type for RP: {ot_type}"
 
-    else:
-        assert False, f"OpenTherm: Invalid verb {msg.verb}"
-
-    result.update(ot_value)
-    if ot_schema[EN]:
-        result[MSG_DESC] = ot_schema[EN]
+        result.update(ot_value)
+        if ot_schema[EN]:
+            result[MSG_DESC] = ot_schema[EN]
 
     return result
 
