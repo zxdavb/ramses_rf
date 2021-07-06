@@ -279,14 +279,8 @@ class Gateway:
         self._pause_engine()
         _LOGGER.info("ENGINE: Saving state...")
 
-        # msgs = {v.dtm: v for d in self.devices for v in d._msgs.values()}
-        msgs = {
-            pkt.dtm: pkt
-            for device in self.devices
-            for verb in device._msgz.values()
-            for code in verb.values()
-            for pkt in code.values()
-        }
+        msgs = {m.dtm: m for device in self.devices for m in device._msg_db}
+
         for system in self.systems:
             msgs.update({v.dtm: v for v in system._msgs.values()})
             msgs.update({v.dtm: v for z in system.zones for v in z._msgs.values()})

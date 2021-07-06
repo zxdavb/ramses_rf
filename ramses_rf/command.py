@@ -114,7 +114,7 @@ def _pkt_header_idx(pkt: str, rx_header=None) -> Optional[str]:  # TODO:
     payload = pkt[50:]
 
     # if is_array:
-    #     return ""
+    #     return False
 
     if code in ("0005", "000C"):  # zone_idx, device_class
         return payload[:4]
@@ -135,7 +135,9 @@ def _pkt_header_idx(pkt: str, rx_header=None) -> Optional[str]:  # TODO:
         if RAMSES_CODES[code][verb][:11] == r"^0[0-9A-F]":
             return None if code in ("0016", "xx") else payload[:2]
     except KeyError:
-        return
+        return False
+
+    return False
 
 
 def _pkt_header(pkt: str, rx_header=None) -> Optional[str]:

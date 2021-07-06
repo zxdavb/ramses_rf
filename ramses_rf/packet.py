@@ -185,7 +185,7 @@ class Packet:
         self.addrs = [None] * 3
         self.src_addr = self.dst_addr = None
         self._hdr = None
-        self._idx = None
+        self.__idx = None
 
         self._is_valid = None
         if not self.is_valid:
@@ -272,9 +272,9 @@ class Packet:
         return self._hdr
 
     @property
-    def _index(self) -> Optional[str]:
+    def _idx(self) -> Optional[str]:
         """Return the index/ordinal of this packet."""
 
-        if self._idx is None and self.is_valid:
-            self._idx = _pkt_header_idx(self.packet)
-        return self._idx
+        if self.__idx is None and self.is_valid:
+            self.__idx = _pkt_header_idx(self.packet)
+        return self.__idx

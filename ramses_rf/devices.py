@@ -103,7 +103,7 @@ class Entity:
         self.id = None
 
         self._msgs = {}
-        self._msgz = {I_: {}, RQ: {}, RP: {}, W_: {}}
+        self._msgz = {}
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         pass
@@ -124,17 +124,38 @@ class Entity:
             }
 
     def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess
-        if msg.code in self._msgz[msg.verb]:
-            self._msgz[msg.verb][msg.code][msg._pkt._index] = msg
+        if msg.code not in self._msgz:
+            self._msgz[msg.code] = {msg.verb: {msg._pkt._idx: msg}}
+        elif msg.verb not in self._msgz[msg.code]:
+            self._msgz[msg.code][msg.verb] = {msg._pkt._idx: msg}
         else:
-            self._msgz[msg.verb][msg.code] = {msg._pkt._index: msg}
+            self._msgz[msg.code][msg.verb][msg._pkt._idx] = msg
+
+        # TODO:
+        # if msg.verb == RP and msg._pkt._idx in self._msgz[msg.code].get(I_, []):
+        #     assert msg.raw_payload == self._msgz[msg.code][I_][msg._pkt._idx].raw_payload, (
+        #         f"\r\n{msg._pkt} ({msg._pkt._idx}),"
+        #         f"\r\n{self._msgz[msg.code][I_][msg._pkt._idx]._pkt} ({msg._pkt._idx})"
+        #     )
+        #     del self._msgz[msg.code][I_][msg._pkt._idx]
+
+        # elif msg.verb == I_ and msg._pkt._idx in self._msgz[msg.code].get(RP, []):
+        #     assert msg.raw_payload == self._msgz[msg.code][RP][msg._pkt._idx].raw_payload, (
+        #         f"\r\n{msg._pkt} ({msg._pkt._idx}),"
+        #         f"\r\n{self._msgz[msg.code][RP][msg._pkt._idx]._pkt} ({msg._pkt._idx})"
+        #     )
+        #     del self._msgz[msg.code][RP][msg._pkt._idx]
 
         if msg.verb in (I_, RP):  # TODO: deprecate
             self._msgs[msg.code] = msg
 
     @property
-    def _dump_msgs(self) -> List:
-        return [msg for msg in self._msgs.values()]
+    def _msg_db(self) -> List:  # a flattened version of _msgz[code][verb][indx]
+        return [m for c in self._msgz.values() for v in c.values() for m in v.values()]
+
+    # @property
+    # def _pkts_db(self) -> Dict:
+    #     return {msg.dtm: msg._pkt for msg in self._msgs_db}
 
     def _send_cmd(self, code, dest_id, payload, verb=RQ, **kwargs) -> None:
         self._msgs.pop(code, None)  # remove the old one, so we can tell if RP'd rcvd
@@ -1063,7 +1084,8 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
 
         self._domain_id = "FC"
 
-        self._opentherm_msg = self._msgz[RP]["3220"] = {}
+        self._msgz["3220"] = {RP: {}}
+        self._opentherm_msg = self._msgz["3220"][RP]
         self._supported_msg = {}
 
     def __repr__(self) -> str:
