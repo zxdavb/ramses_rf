@@ -291,7 +291,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     "3220": {  # opentherm_msg
         NAME: "opentherm_msg",
-        RQ: r"^00[0-9A-F]{8}$",  # is usually: r"^00[0-9A-F]{4}0{4}$",
+        RQ: r"^00[0-9A-F]{4}0{4}$",  # is strictly: r"^00[0-9A-F]{8}$",
         RP: r"^00[0-9A-F]{8}$",
         RQ_MAY_HAVE_PAYLOAD: True,
     },
