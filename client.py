@@ -129,6 +129,7 @@ class DeviceIdParamType(click.ParamType):
 @click.option("-l/-nl", "--long-dates/--no-long-dates", default=None)
 @click.option("-s", "--show-state", is_flag=True, help="show state rather than summary")
 @click.option("-c", "--config-file", type=click.File("r"))
+@click.option("-k", "--client-state", type=click.File("r"))
 @click.pass_context
 def cli(ctx, config_file=None, **kwargs):
     """A CLI for the ramses_rf library."""
@@ -146,7 +147,7 @@ def cli(ctx, config_file=None, **kwargs):
 
     lib_kwargs, cli_kwargs = _proc_kwargs(({CONFIG: {}}, {}), kwargs)
 
-    if config_file is not None:
+    if config_file:
         lib_kwargs.update(json.load(config_file))
 
     lib_kwargs[DEBUG_MODE] = cli_kwargs[DEBUG_MODE] > 1
@@ -380,9 +381,15 @@ async def main(lib_kwargs, **kwargs):
         protocol, _ = gwy.create_client(process_message)
 
     try:  # main code here
-        task = asyncio.create_task(gwy.start())
+        if not kwargs["client_state"]:
+            task = asyncio.create_task(gwy.start())
 
-        if kwargs[COMMAND] == EXECUTE:
+        if kwargs["client_state"]:
+            print("Restoring client state...")
+            state = json.load(kwargs["client_state"])
+            await gwy._set_state(**state["data"]["client_state"])
+
+        elif kwargs[COMMAND] == EXECUTE:
             tasks = spawn_execute_scripts(gwy, **kwargs)
             await asyncio.gather(*tasks)
 
@@ -391,7 +398,7 @@ async def main(lib_kwargs, **kwargs):
                 # await gwy.stop()
                 task.cancel()
 
-        if kwargs[COMMAND] == MONITOR:
+        elif kwargs[COMMAND] == MONITOR:
             tasks = spawn_monitor_scripts(gwy, **kwargs)
 
         if False:  # TODO: temp test code
@@ -410,7 +417,8 @@ async def main(lib_kwargs, **kwargs):
                 except TimeoutError:
                     print("TimeoutError")
 
-        await task
+        if not kwargs["client_state"]:
+            await task
 
     except asyncio.CancelledError:
         msg = " - ended via: CancelledError (e.g. SIGINT)"
