@@ -275,7 +275,7 @@ def parser_decorator(func):
             return
 
         # HACK: these exceptions need sorting
-        if f"{msg.dst.type}/{msg.verb}/{msg.code}" in ("01/RQ/3EF1",):
+        if f"{msg.dst.type}/{msg.verb}/{msg.code}" in (f"01/{RQ}/{_3EF1}",):
             return
 
         if msg.code not in RAMSES_DEVICES[msg.dst.type]:  # NOTE: is not OK for Rx
@@ -286,11 +286,11 @@ def parser_decorator(func):
             raise CorruptPacketError(f"Invalid code for {msg.dst.id} to Rx: {msg.code}")
 
         # HACK: these exceptions need sorting
-        if f"{msg.verb}/{msg.code}" in (" W/0001",):
+        if f"{msg.verb}/{msg.code}" in (f"{W_}/{_0001}",):
             return
 
         # HACK: these exceptions need sorting
-        if f"{msg.dst.type}/{msg.verb}/{msg.code}" in ("13/RQ/3EF0",):
+        if f"{msg.dst.type}/{msg.verb}/{msg.code}" in (f"13/{RQ}/{_3EF0}",):
             return
 
         verb = {RQ: RP, RP: RQ, W_: I_}[msg.verb]
