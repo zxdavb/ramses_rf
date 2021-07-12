@@ -20,7 +20,6 @@ from types import SimpleNamespace
 from typing import Optional
 
 from .const import (
-    CODE_SCHEMA,
     COMMAND_REGEX,
     HGI_DEV_ADDR,
     NON_DEV_ADDR,
@@ -42,7 +41,70 @@ from .helpers import (
     temp_to_hex,
 )
 from .opentherm import parity
-from .ramses import RAMSES_CODES
+from .ramses import (  # noqa: F401
+    _000A,
+    _000C,
+    _000E,
+    _01D0,
+    _01E9,
+    _1F09,
+    _1F41,
+    _1FC9,
+    _1FD4,
+    _2D49,
+    _2E04,
+    _3B00,
+    _3EF0,
+    _3EF1,
+    _7FFF,
+    _10A0,
+    _10E0,
+    _12A0,
+    _12B0,
+    _12C0,
+    _12C8,
+    _22C9,
+    _22D0,
+    _22D9,
+    _22F1,
+    _22F3,
+    _30C9,
+    _31D9,
+    _31DA,
+    _31E0,
+    _042F,
+    _313F,
+    I_,
+    RP,
+    RQ,
+    W_,
+    _0001,
+    _0002,
+    _0004,
+    _0005,
+    _0006,
+    _0008,
+    _0009,
+    _0016,
+    _0100,
+    _0404,
+    _0418,
+    _1030,
+    _1060,
+    _1090,
+    _1100,
+    _1260,
+    _1280,
+    _1290,
+    _1298,
+    _2249,
+    _2309,
+    _2349,
+    _3120,
+    _3150,
+    _3220,
+    pkt_has_idx,
+)
 
 COMMAND_FORMAT = "{:<2} {} {} {} {} {} {:03d} {}"
 
@@ -77,8 +139,6 @@ FRAG_INDEX = "frag_index"
 FRAG_TOTAL = "frag_total"
 MSG = "msg"
 
-I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
-
 Priority = SimpleNamespace(LOWEST=8, LOW=6, DEFAULT=4, HIGH=2, HIGHEST=0)
 
 # tx (from sent to gwy, to get back from gwy) seems to takes approx. 0.025s
@@ -106,40 +166,6 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def _pkt_header_idx(pkt: str, rx_header=None) -> Optional[str]:  # TODO:
-    """Return the index/ordinal of a packet."""
-
-    verb = pkt[4:6]
-    code = pkt[41:45]
-    payload = pkt[50:]
-
-    # if is_array:
-    #     return False
-
-    if code in ("0005", "000C"):  # zone_idx, device_class
-        return payload[:4]
-
-    if code == "0404":  # zone_schedule: zone_idx, frag_idx
-        return payload[:2] + payload[10:12]
-
-    if code == "0418":  # fault_log: log_idx
-        return None if payload == CODE_SCHEMA["0418"]["null_rp"] else payload[4:6]
-
-    if code in ("3150",):  # 1FC9 can too
-        return payload[:2]
-
-    if code == "3220":  #
-        return payload[4:6]  # ot_msg_id (is ot_msg_type needed to?)
-
-    try:
-        if RAMSES_CODES[code][verb][:11] == r"^0[0-9A-F]":
-            return None if code in ("0016", "xx") else payload[:2]
-    except KeyError:
-        return False
-
-    return False
-
-
 def _pkt_header(pkt: str, rx_header=None) -> Optional[str]:
     """Return the QoS header of a packet."""
 
@@ -147,7 +173,7 @@ def _pkt_header(pkt: str, rx_header=None) -> Optional[str]:
     src, dst, _ = extract_addrs(pkt[11:40])
     code = pkt[41:45]
 
-    if code == "1FC9":  # TODO: will need to do something similar for 3220?
+    if code == _1FC9:  # TODO: will need to do something similar for 3220?
         if src == dst:
             return "|".join((W_, dst.id, code) if rx_header else (I_, src.id, code))
         if verb == W_:
@@ -160,13 +186,13 @@ def _pkt_header(pkt: str, rx_header=None) -> Optional[str]:
             return
         verb = RP if verb == RQ else I_  # RQ/RP, or W/I
 
-    if code in ("0001", "7FFF") and rx_header:  # code has no RQ, no W
+    if code in (_0001, _7FFF) and rx_header:  # code has no RQ, no W
         return
 
     addr = dst if src.type == "18" else src
     header = "|".join((verb, addr.id, code))
 
-    header_idx = _pkt_header_idx(pkt)
+    header_idx = pkt_has_idx(pkt)
     if header_idx:
         header += f"|{header_idx}"
 
@@ -213,7 +239,7 @@ class Command:
 
         self._is_valid = None
         if not self.is_valid:
-            raise ValueError(f"Invalid parameter values for command: {self}")
+            raise ValueError("not a valid command")
 
         # callback used by app layer (protocol.py)
         self.callback = kwargs.pop(CALLBACK, {})  # func, args, daemon, timeout
@@ -228,11 +254,6 @@ class Command:
         self._rx_header = None
         self._tx_header = None
 
-    def __str__(self) -> str:
-        """Return a brief readable string representation of this object."""
-
-        return repr(self)  # # TODO: switch to: return self.tx_header
-
     def __repr__(self) -> str:
         """Return a full string representation of this object."""
 
@@ -246,6 +267,11 @@ class Command:
             int(len(self.payload) / 2),
             self.payload,
         )
+
+    def __str__(self) -> str:
+        """Return a brief readable string representation of this object."""
+
+        return repr(self)  # # TODO: switch to: return self.tx_header
 
     def _qos(self, **kwargs) -> dict:
         """Return the default QoS params of this (request) packet."""
@@ -334,7 +360,7 @@ class Command:
     @validate_system_args
     def get_dhw_mode(cls, ctl_id: str, **kwargs):
         """Constructor to get the mode of the DHW (c.f. parser_1f41)."""
-        return cls(RQ, "1F41", "00", ctl_id, **kwargs)
+        return cls(RQ, _1F41, "00", ctl_id, **kwargs)
 
     @classmethod  # constructor for W_/1F41
     @validate_system_args
@@ -377,13 +403,13 @@ class Command:
             )
         )
 
-        return cls(W_, "1F41", payload, ctl_id, **kwargs)
+        return cls(W_, _1F41, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/10A0
     @validate_system_args
     def get_dhw_params(cls, ctl_id: str, **kwargs):
         """Constructor to get the params of the DHW (c.f. parser_10a0)."""
-        return cls(RQ, "10A0", "00", ctl_id, **kwargs)
+        return cls(RQ, _10A0, "00", ctl_id, **kwargs)
 
     @classmethod  # constructor for W_/10A0
     @validate_system_args
@@ -411,7 +437,7 @@ class Command:
 
         payload = f"00{temp_to_hex(setpoint)}{overrun:02X}{temp_to_hex(differential)}"
 
-        return cls(W_, "10A0", payload, ctl_id, **kwargs)
+        return cls(W_, _10A0, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/0404
     @validate_system_args
@@ -420,39 +446,39 @@ class Command:
     ):
         """Constructor to get a DHW schedule fragment (c.f. parser_0404)."""
         payload = f"0023000800{frag_idx + 1:02X}{frag_cnt:02X}"
-        return cls(RQ, "0404", payload, ctl_id, **kwargs)
+        return cls(RQ, _0404, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/1260
     @validate_system_args
     def get_dhw_temp(cls, ctl_id: str, **kwargs):
         """Constructor to get the temperature of the DHW sensor (c.f. parser_10a0)."""
-        return cls(RQ, "1260", "00", ctl_id, **kwargs)
+        return cls(RQ, _1260, "00", ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/3220
     def get_opentherm_data(cls, dev_id: str, msg_id: int, **kwargs):
         """Constructor to get (Read-Data) opentherm msg value (c.f. parser_3220)."""
         msg_id = msg_id if isinstance(msg_id, int) else int(msg_id, 16)
         payload = f"0080{msg_id:02X}0000" if parity(msg_id) else f"0000{msg_id:02X}0000"
-        return cls(RQ, "3220", payload, dev_id, **kwargs)
+        return cls(RQ, _3220, payload, dev_id, **kwargs)
 
     @classmethod  # constructor for RQ/0418
     @validate_system_args
     def get_system_log_entry(cls, ctl_id: str, log_idx: int, **kwargs):
         """Constructor to get a log entry from a system (c.f. parser_0418)."""
         log_idx = log_idx if isinstance(log_idx, int) else int(log_idx, 16)
-        return cls(RQ, "0418", f"{log_idx:06X}", ctl_id, **kwargs)
+        return cls(RQ, _0418, f"{log_idx:06X}", ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/0100
     @validate_system_args
     def get_system_language(cls, ctl_id: str, **kwargs):
         """Constructor to get the language of a system (c.f. parser_0100)."""
-        return cls(RQ, "0100", "00", ctl_id, **kwargs)
+        return cls(RQ, _0100, "00", ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/2E04
     @validate_system_args
     def get_system_mode(cls, ctl_id: str, **kwargs):
         """Constructor to get the mode of a system (c.f. parser_2e04)."""
-        return cls(RQ, "2E04", "FF", ctl_id, **kwargs)
+        return cls(RQ, _2E04, "FF", ctl_id, **kwargs)
 
     @classmethod  # constructor for W/2E04
     @validate_system_args
@@ -480,13 +506,13 @@ class Command:
         payload = SYSTEM_MODE_LOOKUP[system_mode]
         payload += dtm_to_hex(until) + ("00" if until is None else "01")
 
-        return cls(W_, "2E04", payload, ctl_id, **kwargs)
+        return cls(W_, _2E04, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/313F
     @validate_system_args
     def get_system_time(cls, ctl_id: str, **kwargs):
         """Constructor to get the datetime of a system (c.f. parser_313f)."""
-        return cls(RQ, "313F", "00", ctl_id, **kwargs)
+        return cls(RQ, _313F, "00", ctl_id, **kwargs)
 
     @classmethod  # constructor for W/313F
     @validate_system_args
@@ -494,13 +520,13 @@ class Command:
         """Constructor to set the datetime of a system (c.f. parser_313f)."""
         #  W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
 
-        return cls(W_, "313F", f"006000{dtm_to_hex(datetime)}", ctl_id, **kwargs)
+        return cls(W_, _313F, f"006000{dtm_to_hex(datetime)}", ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/1100
     @validate_system_args
     def get_tpi_params(cls, ctl_id: str, **kwargs):
         """Constructor to get the TPI params of a system (c.f. parser_1100)."""
-        return cls(RQ, "1100", "FC", ctl_id, **kwargs)
+        return cls(RQ, _1100, "FC", ctl_id, **kwargs)
 
     @classmethod  # constructor for W/1100
     @validate_system_args
@@ -533,13 +559,13 @@ class Command:
             )
         )
 
-        return cls(W_, "1100", payload, ctl_id, **kwargs)
+        return cls(W_, _1100, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/000A
     @validate_zone_args
     def get_zone_config(cls, ctl_id: str, zone_idx: int, **kwargs):
         """Constructor to get the config of a zone (c.f. parser_000a)."""
-        return cls(RQ, "000A", f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
+        return cls(RQ, _000A, f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
 
     @classmethod  # constructor for W/000A
     @validate_zone_args
@@ -575,13 +601,13 @@ class Command:
             )
         )
 
-        return cls(W_, "000A", payload, ctl_id, **kwargs)
+        return cls(W_, _000A, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/1030
     @validate_zone_args
     def get_mix_valve_params(cls, ctl_id: str, zone_idx: int, **kwargs):
         """Constructor to get the mix valve params of a zone (c.f. parser_1030)."""
-        return cls(RQ, "1030", f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
+        return cls(RQ, _1030, f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
 
     @classmethod  # constructor for W/1030
     @validate_zone_args
@@ -613,13 +639,13 @@ class Command:
             )
         )
 
-        return cls(W_, "1030", payload, ctl_id, **kwargs)
+        return cls(W_, _1030, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/2349
     @validate_zone_args
     def get_zone_mode(cls, ctl_id: str, zone_idx: int, **kwargs):
         """Constructor to get the mode of a zone (c.f. parser_2349)."""
-        return cls(RQ, "2349", f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
+        return cls(RQ, _2349, f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
 
     @classmethod  # constructor for W/2349
     @validate_zone_args
@@ -690,20 +716,20 @@ class Command:
             )
         )
 
-        return cls(W_, "2349", payload, ctl_id, **kwargs)
+        return cls(W_, _2349, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/0004
     @validate_zone_args
     def get_zone_name(cls, ctl_id: str, zone_idx: int, **kwargs):
         """Constructor to get the name of a zone (c.f. parser_0004)."""
-        return cls(RQ, "0004", f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
+        return cls(RQ, _0004, f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
 
     @classmethod  # constructor for W/0004
     @validate_zone_args
     def set_zone_name(cls, ctl_id: str, zone_idx: int, name: str, **kwargs):
         """Constructor to set the name of a zone (c.f. parser_0004)."""
         payload = f"{zone_idx:02X}00{str_to_hex(name)[:24]:0<40}"  # TODO: check 12/24?
-        return cls(W_, "0004", payload, ctl_id, **kwargs)
+        return cls(W_, _0004, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for 2309
     @validate_zone_args
@@ -711,7 +737,7 @@ class Command:
         """Constructor to set the setpoint of a zone (c.f. parser_2309)."""
         #  W --- 34:092243 01:145038 --:------ 2309 003 0107D0
         payload = f"{zone_idx:02X}{temp_to_hex(setpoint)}"
-        return cls(W_, "2309", payload, ctl_id, **kwargs)
+        return cls(W_, _2309, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/0404
     @validate_zone_args
@@ -720,19 +746,19 @@ class Command:
     ):
         """Constructor to get a zone schedule fragment (c.f. parser_0404)."""
         payload = f"{zone_idx:02X}20000800{frag_idx + 1:02X}{frag_cnt:02X}"
-        return cls(RQ, "0404", payload, ctl_id, **kwargs)
+        return cls(RQ, _0404, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/30C9
     @validate_zone_args
     def get_zone_temperature(cls, ctl_id: str, zone_idx: int, **kwargs):
         """Constructor to get the current temperature of a zone (c.f. parser_30c9)."""
-        return cls(RQ, "30C9", f"{zone_idx:02X}", ctl_id, **kwargs)
+        return cls(RQ, _30C9, f"{zone_idx:02X}", ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/12B0
     @validate_zone_args
     def get_zone_window_state(cls, ctl_id: str, zone_idx: int, **kwargs):
         """Constructor to get the openwindow state of a zone (c.f. parser_12b0)."""
-        return cls(RQ, "12B0", f"{zone_idx:02X}", ctl_id, **kwargs)
+        return cls(RQ, _12B0, f"{zone_idx:02X}", ctl_id, **kwargs)
 
     @classmethod
     def packet(
@@ -776,7 +802,7 @@ class Command:
         """Constructor to announce the temperature of an external sensor (0002)."""
 
         payload = f"00{temp_to_hex(temperature)}01"
-        return cls.packet(I_, "0002", payload, addr0=dev_id, addr2=dev_id, **kwargs)
+        return cls.packet(I_, _0002, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
     @classmethod  # constructor for 30C9
     def put_sensor_temp(cls, dev_id: str, temperature: float, **kwargs):
@@ -784,7 +810,7 @@ class Command:
         #  I --- 34:021943 --:------ 34:021943 30C9 003 000C0D
 
         payload = f"00{temp_to_hex(temperature)}"
-        return cls.packet(I_, "30C9", payload, addr0=dev_id, addr2=dev_id, **kwargs)
+        return cls.packet(I_, _30C9, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
     @classmethod
     def _puzzle(
@@ -805,7 +831,7 @@ class Command:
         if length:
             payload = payload.ljust(length * 2, "F")
 
-        return cls(I_, "7FFF", payload[:48], NUL_DEV_ADDR.id, **kwargs)
+        return cls(I_, _7FFF, payload[:48], NUL_DEV_ADDR.id, **kwargs)
 
 
 # A convenience dict
@@ -919,7 +945,7 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
                 self._fault_log_done = True
 
         # TODO: (make method) register callback for null response (no payload)
-        null_header = "|".join((RP, self.id, "0418"))
+        null_header = "|".join((RP, self.id, _0418))
         if null_header not in self._gwy.msg_transport._callbacks:
             self._gwy.msg_transport._callbacks[null_header] = {
                 FUNC: rq_callback,
@@ -1163,7 +1189,7 @@ class Schedule:  # 0404
         )
         tx_callback = {FUNC: tx_callback, TIMEOUT: 3}  # 1 sec too low
         self._gwy.send_cmd(
-            Command(W_, "0404", payload, self._ctl.id, callback=tx_callback)
+            Command(W_, _0404, payload, self._ctl.id, callback=tx_callback)
         )
 
     async def _obtain_lock(self) -> bool:  # Lock to prevent Rx/Tx at same time

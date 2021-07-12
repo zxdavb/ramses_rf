@@ -34,12 +34,14 @@ from .command import (
     Command,
     Priority,
 )
-from .const import DTM_LONG_REGEX, HGI_DEV_ADDR, __dev_mode__
-from .helpers import dt_now, dt_str
-from .packet import _PKT_LOGGER, Packet
+from .const import HGI_DEV_ADDR, __dev_mode__
+from .helpers import dt_now
+from .packet import Packet
 from .protocol import create_protocol_factory
 from .schema import ALLOW_LIST, BLOCK_LIST, SERIAL_CONFIG_SCHEMA
 from .version import __version__
+
+_7FFF = "7FFF"
 
 DEV_MODE = __dev_mode__ and False
 
@@ -291,9 +293,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 f"Not using a device filter (an {ALLOW_LIST} is strongly recommended)"
             )
 
-        _PKT_LOGGER.warning(
-            "# ramses_rf %s", __version__, extra=self._extra(dt_str(), "")
-        )
+        _LOGGER.info(f"Library is ramses_rf v{__version__} (serial)")
 
         # Used to see if using a evofw3 rather than a HGI80  # TODO: needs work
         self._loop.create_task(self._send_data("!V", ignore_pause=False))
@@ -345,45 +345,26 @@ class PacketProtocolBase(asyncio.Protocol):
 
         return pkt_line
 
-    def _data_received(  # sans QoS
-        self,
-        pkt_dtm: dt,
-        dtm_str: str,
-        pkt_str: str,
-        pkt_raw: Optional[ByteString] = None,
-    ) -> None:
-        """Called when some normalised data is received (no QoS)."""
-        # _LOGGER.debug("PktProtocol._data_rcvd(%s)", pkt_str)
-
-        try:
-            pkt = Packet(pkt_dtm, dtm_str, pkt_str, raw_pkt_line=pkt_raw)
-        except ValueError:  # not a valid packet
-            return
-        self._has_initialized = True
-
+    def _pkt_received(self, pkt: Packet) -> None:  # sans QoS
         if self._callback and self._is_wanted(pkt.src_addr, pkt.dst_addr):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
-    def data_received(self, data: ByteString) -> None:
-        """Called when some data (raw packet fragment) is received."""
-        if DEV_MODE and False:
-            _LOGGER.debug("PktProtocol.data_rcvd(%s)", data)
+    def _data_received(self, data: ByteString) -> None:
+        """Called when a packet line is received (from RF)."""
+        _LOGGER.debug("PacketProtocolBase._data_received(%s)", data)
 
-        def create_pkt(pkt_raw: ByteString) -> Tuple:
+        def create_pkt_line(xyz: ByteString) -> Tuple:
             pkt_dtm = dt_now()  # done here & now for most-accurate timestamp
-            dtm_str = pkt_dtm.isoformat(sep="T")
 
             try:
                 pkt_str = "".join(
                     c
-                    for c in pkt_raw.decode("ascii", errors="strict").strip()
+                    for c in xyz.decode("ascii", errors="strict").strip()
                     if c in VALID_CHARACTERS
                 )
             except UnicodeDecodeError:
-                _PKT_LOGGER.warning(
-                    "%s < Bad pkt", pkt_raw, extra=self._extra(dtm_str, pkt_raw)
-                )
-                return pkt_dtm, None, pkt_raw
+                _LOGGER.warning("%s << Cant decode bytestream (ignoring)", xyz)
+                return pkt_dtm, None
 
             if "# evofw" in pkt_str and self._gwy.config.evofw_flag not in (None, "!V"):
                 self._loop.create_task(
@@ -391,11 +372,30 @@ class PacketProtocolBase(asyncio.Protocol):
                 )
 
             if DEV_MODE:  # TODO: deleteme?
-                _LOGGER.debug("RF Rx: %s", pkt_raw, extra=self._extra(dtm_str, pkt_raw))
+                _LOGGER.debug("RF Rx: %s", xyz)
             elif _LOGGER.getEffectiveLevel() == logging.INFO:
-                _LOGGER.info("RF Rx: %s", pkt_raw)
+                _LOGGER.info("RF Rx: %s", xyz)
 
-            return pkt_dtm, dtm_str, self._normalise(pkt_str), pkt_raw
+            return pkt_dtm, pkt_str
+
+        pkt_dtm, pkt_line = create_pkt_line(data)
+        if not pkt_line:
+            return
+        pkt_line = self._normalise(pkt_line)
+
+        try:
+            pkt = Packet(pkt_dtm, pkt_line, frame_raw=data)
+        except ValueError:  # not a valid packet
+            # if data != "" and pkt_dtm.strip()[:1] not in "#*":
+            _LOGGER.error("%s << Cant create packet from RF (ignoring)", data)
+            return
+
+        self._pkt_received(pkt)
+
+    def data_received(self, data: ByteString) -> None:
+        """Called when some data (packet fragments) is received (from RF)."""
+        # _LOGGER.debug("PacketProtocolBase.data_received(%s)", data)
+        self._has_initialized = True
 
         self._recv_buffer += data
         if b"\r\n" in self._recv_buffer:
@@ -403,9 +403,7 @@ class PacketProtocolBase(asyncio.Protocol):
             self._recv_buffer = lines[-1]
 
             for line in lines[:-1]:
-                pkt_dtm, dtm_str, pkt_str, pkt_raw = create_pkt(line)
-                if pkt_str:
-                    self._data_received(pkt_dtm, dtm_str, pkt_str, pkt_raw)
+                self._data_received(line)
 
     async def _send_data(self, data: str, ignore_pause=False) -> None:
         """Send a bytearray to the transport (serial) interface.
@@ -429,7 +427,7 @@ class PacketProtocolBase(asyncio.Protocol):
         data = bytes(data.encode("ascii"))
 
         if DEV_MODE:  # TODO: deleteme?
-            _LOGGER.debug("RF Tx:     %s", data, extra=self._extra(dt_str(), data))
+            _LOGGER.debug("RF Tx:     %s", data)
         elif _LOGGER.getEffectiveLevel() == logging.INFO:
             _LOGGER.info("RF Tx:     %s", data)
 
@@ -474,18 +472,6 @@ class PacketProtocolBase(asyncio.Protocol):
         _LOGGER.debug("PktProtocol.resume_writing()")
         self._pause_writing = False
 
-    @staticmethod
-    def _extra(dtm, pkt=None) -> dict:  # HACK: untidy: needs sorting, eventually
-        """Create the dict required for logging"""
-        _date, _time = dtm[:26].split("T")
-        return {
-            "date": _date,
-            "time": _time,
-            "_packet": str(pkt) + " " if pkt else "",
-            "error_text": "",
-            "comment": "",
-        }
-
 
 class PacketProtocol(PacketProtocolBase):
     """Interface for a packet protocol (without QoS)."""
@@ -514,30 +500,27 @@ class PacketProtocolRead(PacketProtocolBase):
 
         self._transport = transport
 
-        _PKT_LOGGER.warning(
-            "# ramses_rf %s", __version__, extra=self._extra(dt_str(), "")
-        )
+        _LOGGER.info(f"Library is ramses_rf v{__version__} (packet log)")
 
     def data_received(self, data: str) -> None:
-        """Called when some data is received."""
-        # _LOGGER.debug("PktProtocolFile.data_rcvd(%s)", data)
+        """Called when a packet line is received (from a log file)."""
+        _LOGGER.debug("PacketProtocolRead.data_received(%s)", data)
+        self._has_initialized = True
 
-        dtm_str, pkt_str = data[:26], data[27:]
+        pkt_dtm, pkt_line = data[:26], data[27:]
+        if not pkt_line:
+            return
+        pkt_line = self._normalise(pkt_line)
 
-        try:
-            assert DTM_LONG_REGEX.match(dtm_str)
-            pkt_dtm = dt.fromisoformat(dtm_str)  # faster than: dt.strptime(
+        try:  # assert DTM_LONG_REGEX.match(dtm_str)
+            pkt = Packet.from_log_line(pkt_dtm, pkt_line)
+        except (TypeError, ValueError):  # not a valid packet
+            # if data != "" and pkt_dtm.strip()[:1] not in "#*":
+            _LOGGER.error("%s << Cant create packet from log (ignoring)", data)
+            return
 
-        except (AssertionError, TypeError, ValueError):
-            if data != "" and dtm_str.strip()[:1] != "#":
-                _PKT_LOGGER.debug(
-                    "%s < Packet line has an invalid timestamp (ignoring)",
-                    data,  # TODO: None?
-                    extra=self._extra(dt_str(), data),
-                )
-
-        else:
-            self._data_received(pkt_dtm, dtm_str, self._normalise(pkt_str), None)
+        if self._callback and self._is_wanted(pkt.src_addr, pkt.dst_addr):
+            self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
 
 class PacketProtocolQos(PacketProtocolBase):
@@ -583,16 +566,7 @@ class PacketProtocolQos(PacketProtocolBase):
         # if self._timeout_full >= dtm:
         #     self._backoff = min(self._backoff + 1, QOS_MAX_BACKOFF)
 
-    def _data_received(  # with Qos
-        self,
-        pkt_dtm: dt,
-        dtm_str: str,
-        pkt_str: str,
-        pkt_raw: Optional[ByteString] = None,
-    ) -> None:
-        """Called when some data is received. Adjust backoff as required."""
-        # _LOGGER.debug("PktProtocolQos.data_rcvd(%s)", pkt_str)
-
+    def _pkt_received(self, pkt: Packet) -> None:  # with Qos
         def _logger_rcvd(logger, message: str) -> None:
             if self._qos_cmd is None:
                 wanted = None
@@ -609,12 +583,6 @@ class PacketProtocolQos(PacketProtocolBase):
                 self._timeout_full,
                 message,
             )
-
-        try:
-            pkt = Packet(pkt_dtm, dtm_str, pkt_str, raw_pkt_line=pkt_raw)
-        except ValueError:  # not a valid packet
-            return
-        self._has_initialized = True
 
         if self._qos_cmd:
             _logger_rcvd(_LOGGER.debug, "CHECKING")
@@ -744,7 +712,7 @@ class PacketProtocolQos(PacketProtocolBase):
                 )  # TODO: should be debug
 
             else:
-                if self._qos_cmd.code != "7FFF":  # HACK: why expired when shouldn't
+                if self._qos_cmd.code != _7FFF:  # HACK: why expired when shouldn't
                     _logger_send(
                         _LOGGER.warning,
                         f"EXPIRED ({self._tx_retries}/{self._tx_retry_limit})",

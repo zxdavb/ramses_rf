@@ -25,6 +25,8 @@ from .const import (
 )
 from .exceptions import CorruptAddrSetError
 
+_7FFF = "7FFF"
+
 
 class FILETIME(ctypes.Structure):
     """Data structure for GetSystemTimePreciseAsFileTime()."""
@@ -144,7 +146,7 @@ def dtm_from_hex(value: str) -> str:  # from parsers
 def temp_to_hex(value: int) -> str:
     """Convert an int to a 2-byte hex string."""
     if value is None:
-        return "7FFF"  # or: "31FF"?
+        return _7FFF  # or: "31FF"?
     if value is False:
         return "7EFF"
     temp = int(value * 100)

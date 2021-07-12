@@ -31,9 +31,70 @@ from .const import (
 from .exceptions import CorruptStateError
 from .helpers import dev_id_to_hex, schedule_task
 from .opentherm import MSG_ID, MSG_TYPE, VALUE  # R8810A_MSG_IDS
-from .ramses import RAMSES_DEVICES
-
-I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
+from .ramses import (  # noqa: F401
+    _000A,
+    _000C,
+    _000E,
+    _01D0,
+    _01E9,
+    _1F09,
+    _1F41,
+    _1FC9,
+    _1FD4,
+    _2D49,
+    _2E04,
+    _3B00,
+    _3EF0,
+    _3EF1,
+    _7FFF,
+    _10A0,
+    _10E0,
+    _12A0,
+    _12B0,
+    _12C0,
+    _12C8,
+    _22C9,
+    _22D0,
+    _22D9,
+    _22F1,
+    _22F3,
+    _30C9,
+    _31D9,
+    _31DA,
+    _31E0,
+    _042F,
+    _313F,
+    I_,
+    RAMSES_DEVICES,
+    RP,
+    RQ,
+    W_,
+    _0001,
+    _0002,
+    _0004,
+    _0005,
+    _0006,
+    _0008,
+    _0009,
+    _0016,
+    _0100,
+    _0404,
+    _0418,
+    _1030,
+    _1060,
+    _1090,
+    _1100,
+    _1260,
+    _1280,
+    _1290,
+    _1298,
+    _2249,
+    _2309,
+    _2349,
+    _3120,
+    _3150,
+    _3220,
+)
 
 DEFAULT_BDR_ID = "13:000730"
 DEFAULT_EXT_ID = "17:000730"
@@ -252,13 +313,13 @@ class DeviceBase(Entity):
         # super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_SCHEMA and self.type not in DEVICE_HAS_BATTERY:
-            self._send_cmd("1FC9", retries=3)  # rf_bind
+            self._send_cmd(_1FC9, retries=3)  # rf_bind
 
         # if discover_flag & DISCOVER_PARAMS and self.type not in DEVICE_HAS_BATTERY:
         #     pass
 
         if discover_flag & DISCOVER_STATUS and self.type not in DEVICE_HAS_BATTERY:
-            self._send_cmd("0016", retries=3)  # rf_check
+            self._send_cmd(_0016, retries=3)  # rf_check
 
     def _send_cmd(self, code, **kwargs) -> None:
         dest = kwargs.pop("dest_addr", self.id)
@@ -304,10 +365,10 @@ class DeviceBase(Entity):
         # if dev_addr.type in SYSTEM_CLASSES:
         if self.type in ("01", "23"):
             pass
-        # if "1F09" in self._msgs:  # TODO: needs to add msg as attr
-        #     return self._msgs["1F09"].verb == I_
-        # if "31D9" in self._msgs:  # TODO: needs to add msg as attr
-        #     return self._msgs["31D9"].verb == I_
+        # if _1F09 in self._msgs:  # TODO: needs to add msg as attr
+        #     return self._msgs[_1F09].verb == I_
+        # if _31D9 in self._msgs:  # TODO: needs to add msg as attr
+        #     return self._msgs[_31D9].verb == I_
         return False
 
     @property
@@ -337,31 +398,31 @@ class Actuator:  # 3EF0, 3EF1
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
-            self._send_cmd("3EF1")  # No RPs to 3EF0
+            self._send_cmd(_3EF1)  # No RPs to 3EF0
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == "3EF0" and msg.verb == I_:  # NOT RP, TODO: why????
-            self._send_cmd("3EF1", priority=Priority.LOW, retries=1)
+        if msg.code == _3EF0 and msg.verb == I_:  # NOT RP, TODO: why????
+            self._send_cmd(_3EF1, priority=Priority.LOW, retries=1)
 
     @property
     def actuator_cycle(self) -> Optional[dict]:  # 3EF1
-        return self._msg_payload(self._msgs.get("3EF1"))
+        return self._msg_payload(self._msgs.get(_3EF1))
 
     @property
     def actuator_state(self) -> Optional[dict]:  # 3EF0 (mod_level, flame_active, etc.)
-        return self._msg_payload(self._msgs.get("3EF0"))
+        return self._msg_payload(self._msgs.get(_3EF0))
 
     @property
     def enabled(self) -> Optional[bool]:  # 3EF0, 3EF1
         """Return the actuator's current state."""
-        msgs = [m for m in self._msgs.values() if m.code in ("3EF0", "3EF1")]
+        msgs = [m for m in self._msgs.values() if m.code in (_3EF0, _3EF1)]
         return max(msgs).payload[self.ACTUATOR_ENABLED] if msgs else None
 
     @property
     def modulation_level(self) -> Optional[float]:  # 3EF0/3EF1
-        msgs = [m for m in self._msgs.values() if m.code in ("3EF0", "3EF1")]
+        msgs = [m for m in self._msgs.values() if m.code in (_3EF0, _3EF1)]
         return max(msgs).payload[self.MODULATION_LEVEL] if msgs else None
 
     @property
@@ -381,12 +442,12 @@ class BatteryState:  # 1060
 
     @property
     def battery_low(self) -> Optional[bool]:  # 1060
-        if "1060" in self._msgs:
-            return self._msgs["1060"].payload[self.BATTERY_LOW]
+        if _1060 in self._msgs:
+            return self._msgs[_1060].payload[self.BATTERY_LOW]
 
     @property
     def battery_state(self) -> Optional[dict]:  # 1060
-        return self._msg_payload(self._msgs.get("1060"))
+        return self._msg_payload(self._msgs.get(_1060))
 
     @property
     def status(self) -> dict:
@@ -402,8 +463,8 @@ class HeatDemand:  # 3150
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
-        if "3150" in self._msgs:
-            return self._msgs["3150"].payload[self.HEAT_DEMAND]
+        if _3150 in self._msgs:
+            return self._msgs[_3150].payload[self.HEAT_DEMAND]
 
     @property
     def status(self) -> dict:
@@ -420,8 +481,8 @@ class Setpoint:  # 2309
     @property
     def setpoint(self) -> Optional[float]:  # 2309
         try:
-            if "2309" in self._msgs:
-                return self._msgs["2309"].payload[self.SETPOINT]
+            if _2309 in self._msgs:
+                return self._msgs[_2309].payload[self.SETPOINT]
         except TypeError:  # FIXME: 12: as a controller = {[{}, ...]}, not {}
             pass
 
@@ -455,8 +516,8 @@ class Temperature:  # 30C9 (fakeable)
     @property
     def temperature(self) -> Optional[float]:  # 30C9
         try:
-            if "30C9" in self._msgs:
-                return self._msgs["30C9"].payload[self.TEMPERATURE]
+            if _30C9 in self._msgs:
+                return self._msgs[_30C9].payload[self.TEMPERATURE]
         except TypeError:  # FIXME: 12: as a controller = {[{}, ...]}, not {}
             pass
 
@@ -486,19 +547,19 @@ class DeviceInfo:  # 10E0
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         if discover_flag & DISCOVER_SCHEMA and self.type not in DEVICE_HAS_BATTERY:
-            self._send_cmd("1FC9", retries=3)  # rf_bind
+            self._send_cmd(_1FC9, retries=3)  # rf_bind
             if self.type != "13":
-                self._send_cmd("10E0", retries=3)  # TODO: use device hints
+                self._send_cmd(_10E0, retries=3)  # TODO: use device hints
 
     @property
     def device_info(self) -> Optional[dict]:  # 10E0
-        return self._msg_payload(self._msgs.get("10E0"))
+        return self._msg_payload(self._msgs.get(_10E0))
 
     @property
     def schema(self) -> dict:
         result = super().schema
-        # result.update({self.RF_BIND: self._msg_payload(self._msgs.get("1FC9"))})
-        if "10E0" in self._msgs or "10E0" in RAMSES_DEVICES.get(self.type, []):
+        # result.update({self.RF_BIND: self._msg_payload(self._msgs.get(_1FC9))})
+        if _10E0 in self._msgs or _10E0 in RAMSES_DEVICES.get(self.type, []):
             result.update({self.DEVICE_INFO: self.device_info})
         return result
 
@@ -577,7 +638,7 @@ class Device(DeviceInfo, DeviceBase):
         if self._has_battery is not None:
             return self._has_battery
 
-        if "1060" in self._msgs:
+        if _1060 in self._msgs:
             self._has_battery = True
 
         return self._has_battery
@@ -617,13 +678,13 @@ class RfiGateway(DeviceBase):  # GWY: 18
         super()._handle_msg(msg)
 
         # the following is for aliased devices (not fully-faked devices)
-        if msg.code in ("3EF0",) and self._faked_bdr:
+        if msg.code in (_3EF0,) and self._faked_bdr:
             self._faked_bdr._handle_msg(fake_addrs(msg, self._faked_bdr))
 
-        if msg.code in ("0002",) and self._faked_ext:
+        if msg.code in (_0002,) and self._faked_ext:
             self._faked_ext._handle_msg(fake_addrs(msg, self._faked_ext))
 
-        if msg.code in ("30C9",) and self._faked_thm:
+        if msg.code in (_30C9,) and self._faked_thm:
             self._faked_thm._handle_msg(fake_addrs(msg, self._faked_thm))
 
     def _create_fake_dev(self, dev_type, device_id) -> Device:
@@ -732,10 +793,10 @@ class Controller(Device):  # CTL (01):
     #     super()._discover(discover_flag=discover_flag)
 
     #     if discover_flag & DISCOVER_SCHEMA and self.type not in DEVICE_HAS_BATTERY:
-    #         pass  # self._send_cmd("1F09", retries=3)
+    #         pass  # self._send_cmd(_1F09, retries=3)
 
     # #     if discover_flag & DISCOVER_STATUS and self.type not in DEVICE_HAS_BATTERY:
-    # #         self._send_cmd("0016", retries=3)  # rf_check
+    # #         self._send_cmd(_0016, retries=3)  # rf_check
 
 
 class Programmer(Controller):  # PRG (23):
@@ -773,7 +834,7 @@ class UfhController(Device):  # UFC (02):
 
         if discover_flag & DISCOVER_SCHEMA:
             [  # 000C: used to find evo zone for each configured channel
-                self._send_cmd("000C", payload=f"{idx:02X}{_000C_DEVICE.UFH}")
+                self._send_cmd(_000C, payload=f"{idx:02X}{_000C_DEVICE.UFH}")
                 for idx in range(8)  # for each possible UFH channel/circuit
             ]
 
@@ -784,21 +845,21 @@ class UfhController(Device):  # UFC (02):
         #     pass
 
         # [  # 3150: no answer
-        #     self._send_cmd("3150", payload=f"{zone_idx:02X}")for zone_idx in range(8)
+        #     self._send_cmd(_3150, payload=f"{zone_idx:02X}")for zone_idx in range(8)
         # ]
 
         # [  # 22C9: no answer
-        #     self._send_cmd("22C9", payload=f"{payload}")
-        #     for payload in ("00", "0000", "01", "0100")
+        #     self._send_cmd(_22C9, payload=f"{payload}")
+        #     for payload in ("00", "0000", "01", _0100)
         # ]
 
         # [  # 22D0: dunno, always: {'unknown': '000002'}
-        #     self._send_cmd("22D0", payload=f"{payload}")
+        #     self._send_cmd(_22D0, payload=f"{payload}")
         #     for payload in ("00", "0000", "00000002")
         # ]
 
         [  # 0005: shows which channels are active - ?no use? (see above)
-            self._send_cmd("0005", payload=f"00{zone_type}")
+            self._send_cmd(_0005, payload=f"00{zone_type}")
             for zone_type in ("09",)  # _0005_ZONE_TYPE, also ("00", "04", "0F")
             # for zone_type in _0005_ZONE_TYPE
         ]
@@ -806,18 +867,18 @@ class UfhController(Device):  # UFC (02):
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == "000C":
+        if msg.code == _000C:
             assert "ufh_idx" in msg.payload, "wsdfh"
             if msg.payload["zone_id"] is not None:
                 self._circuits[msg.payload["ufh_idx"]] = msg
 
-        elif msg.code == "22C9":
+        elif msg.code == _22C9:
             if isinstance(msg.payload, list):
                 self._setpoints = msg
             # else:
             #     pass  # update the self._circuits[]
 
-        elif msg.code == "3150":
+        elif msg.code == _3150:
             if isinstance(msg.payload, list):
                 self._heat_demands = msg
             elif "domain_id" in msg.payload:
@@ -849,7 +910,7 @@ class UfhController(Device):  # UFC (02):
     @property
     def relay_demand(self) -> Optional[Dict]:  # 0008
         try:
-            return self._msgs["0008"].payload[ATTR_RELAY_DEMAND]
+            return self._msgs[_0008].payload[ATTR_RELAY_DEMAND]
         except KeyError:
             return
 
@@ -909,12 +970,12 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
 
     @property
     def dhw_params(self) -> Optional[dict]:  # 10A0
-        return self._msg_payload(self._msgs.get("10A0"))
+        return self._msg_payload(self._msgs.get(_10A0))
 
     @property
     def temperature(self) -> Optional[float]:  # 1260
-        if "1260" in self._msgs:
-            return self._msgs["1260"].payload[self.TEMPERATURE]
+        if _1260 in self._msgs:
+            return self._msgs[_1260].payload[self.TEMPERATURE]
 
     @property
     def params(self) -> dict:
@@ -962,7 +1023,7 @@ class ExtSensor(Device):  # EXT: 17
             self._ctl._evo._get_zone(msg.payload[0][0])._set_sensor(self)
 
             cmd = Command(
-                I_, "1FC9", f"002309{self.hex_id}", self._ctl.id, from_id=self.id
+                I_, _1FC9, f"002309{self.hex_id}", self._ctl.id, from_id=self.id
             )
             self._gwy.send_cmd(cmd)
 
@@ -972,7 +1033,7 @@ class ExtSensor(Device):  # EXT: 17
 
         cmd = Command.packet(
             I_,
-            "1FC9",
+            _1FC9,
             f"000002{self.hex_id}",
             addr0=self.id,
             addr2=self.id,
@@ -982,8 +1043,8 @@ class ExtSensor(Device):  # EXT: 17
 
     @property
     def temperature(self) -> Optional[float]:  # 0002
-        if "0002" in self._msgs:
-            return self._msgs["0002"].payload[self.TEMPERATURE]
+        if _0002 in self._msgs:
+            return self._msgs[_0002].payload[self.TEMPERATURE]
 
     @temperature.setter
     def temperature(self, value) -> None:  # 0002
@@ -1084,8 +1145,8 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
 
         self._domain_id = "FC"
 
-        self._msgz["3220"] = {RP: {}}
-        self._opentherm_msg = self._msgz["3220"][RP]
+        self._msgz[_3220] = {RP: {}}
+        self._opentherm_msg = self._msgz[_3220][RP]
         self._supported_msg = {}
 
     def __repr__(self) -> str:
@@ -1116,7 +1177,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
             ]
 
         if discover_flag & DISCOVER_STATUS:
-            self._gwy.send_cmd(Command(RQ, "22D9", "00", self.id))
+            self._gwy.send_cmd(Command(RQ, _22D9, "00", self.id))
             [
                 self._gwy.send_cmd(Command.get_opentherm_data(self.id, m, retries=0))
                 for m in self.STATUS_MSG_IDS
@@ -1129,13 +1190,13 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == "1FD4":  # every 30s
+        if msg.code == _1FD4:  # every 30s
             if msg.payload["ticker"] % 60 in (1, 3):
                 self._discover(discover_flag=DISCOVER_PARAMS)
             elif msg.payload["ticker"] % 6 in (0, 2):
                 self._discover(discover_flag=DISCOVER_STATUS)
 
-        elif msg.code == "3220":  # all are RP
+        elif msg.code == _3220:  # all are RP
             if msg.payload[MSG_TYPE] == "Unknown-DataId":
                 self._supported_msg[msg.payload[MSG_ID]] = False
             else:
@@ -1174,7 +1235,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
     @property  # HA
     def boiler_setpoint(self) -> Optional[float]:  # 22D9
         try:
-            return self._msgs["22D9"].payload[self.BOILER_SETPOINT]
+            return self._msgs[_22D9].payload[self.BOILER_SETPOINT]
         except KeyError:
             return
 
@@ -1282,7 +1343,7 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
             self._ctl._evo._get_zone(msg.payload[0][0])._set_sensor(self)
 
             cmd = Command(
-                I_, "1FC9", f"002309{self.hex_id}", self._ctl.id, from_id=self.id
+                I_, _1FC9, f"002309{self.hex_id}", self._ctl.id, from_id=self.id
             )
             self._gwy.send_cmd(cmd)
 
@@ -1290,11 +1351,9 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
         self._1fc9_state = "binding"
 
         callback = {FUNC: bind_callback, TIMEOUT: 3}
-        payload = "".join(
-            f"00{c}{self.hex_id}" for c in ("2309", "30C9", "0008", "1FC9")
-        )
+        payload = "".join(f"00{c}{self.hex_id}" for c in (_2309, _30C9, _0008, _1FC9))
         cmd = Command.packet(
-            I_, "1FC9", payload, addr0=self.id, addr2=self.id, callback=callback
+            I_, _1FC9, payload, addr0=self.id, addr2=self.id, callback=callback
         )
         self._gwy.send_cmd(cmd)
 
@@ -1343,26 +1402,26 @@ class BdrSwitch(Actuator, Device):  # BDR (13):
         super()._discover(discover_flag=discover_flag)
 
         # if discover_flag & DISCOVER_SCHEMA:
-        #     self._send_cmd("1FC9")  # will include a 3B00 if is a heater_relay
+        #     self._send_cmd(_1FC9)  # will include a 3B00 if is a heater_relay
 
         if discover_flag & DISCOVER_PARAMS:
-            self._send_cmd("1100")
+            self._send_cmd(_1100)
 
         if discover_flag & DISCOVER_STATUS:
-            self._send_cmd("0008")
+            self._send_cmd(_0008)
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == "3EF0" and msg.verb == I_:  # NOT RP, TODO: why????
-            self._send_cmd("0008", priority=Priority.LOW, retries=1)
+        if msg.code == _3EF0 and msg.verb == I_:  # NOT RP, TODO: why????
+            self._send_cmd(_0008, priority=Priority.LOW, retries=1)
 
-        # elif msg.code == "1FC9" and msg.verb == RP:
+        # elif msg.code == _1FC9 and msg.verb == RP:
         #     pass  # only a heater_relay will have 3B00
 
-        # elif msg.code == "3B00" and msg.verb == I_:
+        # elif msg.code == _3B00 and msg.verb == I_:
         #     pass  # only a heater_relay will I/3B00
-        #     # for code in ("0008", "3EF1"):
+        #     # for code in (_0008, _3EF1):
         #     #     self._send_cmd(code, delay=1)
 
     @property
@@ -1381,11 +1440,11 @@ class BdrSwitch(Actuator, Device):  # BDR (13):
         if self._is_tpi is not None:
             return self._is_tpi
 
-        elif "1FC9" in self._msgs and self._msgs["1FC9"].verb == RP:
-            if "3B00" in self._msgs["1FC9"].raw_payload:
+        elif _1FC9 in self._msgs and self._msgs[_1FC9].verb == RP:
+            if _3B00 in self._msgs[_1FC9].raw_payload:
                 self._is_tpi = True
 
-        elif "3B00" in self._msgs and self._msgs["3B00"].verb == I_:
+        elif _3B00 in self._msgs and self._msgs[_3B00].verb == I_:
             self._is_tpi = True
 
         if self._is_tpi:
@@ -1396,12 +1455,12 @@ class BdrSwitch(Actuator, Device):  # BDR (13):
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
-        if "0008" in self._msgs:
-            return self._msgs["0008"].payload[self.RELAY_DEMAND]
+        if _0008 in self._msgs:
+            return self._msgs[_0008].payload[self.RELAY_DEMAND]
 
     @property
     def tpi_params_wip(self) -> Optional[dict]:  # 1100
-        return self._msg_payload(self._msgs.get("1100"))
+        return self._msg_payload(self._msgs.get(_1100))
 
     @property
     def params(self) -> dict:
@@ -1431,8 +1490,8 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature, Device):  # T
 
     @property
     def window_open(self) -> Optional[bool]:  # 12B0
-        if "12B0" in self._msgs:
-            return self._msgs["12B0"].payload[self.WINDOW_OPEN]
+        if _12B0 in self._msgs:
+            return self._msgs[_12B0].payload[self.WINDOW_OPEN]
 
     @property
     def status(self) -> dict:
@@ -1466,13 +1525,13 @@ class FanSwitch(BatteryState, Device):  # SWI (39):
 
     @property
     def fan_mode(self) -> Optional[str]:
-        if "22F1" in self._msgs:
-            return self._msgs["22F1"].payload[self.FAN_MODE]
+        if _22F1 in self._msgs:
+            return self._msgs[_22F1].payload[self.FAN_MODE]
 
     @property
     def boost_timer(self) -> Optional[int]:
-        if "22F3" in self._msgs:
-            return self._msgs["22F3"].payload[self.BOOST_TIMER]
+        if _22F3 in self._msgs:
+            return self._msgs[_22F3].payload[self.BOOST_TIMER]
 
     @property
     def status(self) -> dict:
@@ -1493,18 +1552,18 @@ class FanDevice(Device):  # FAN (20/37):
 
     @property
     def fan_rate(self) -> Optional[float]:
-        msgs = [m for m in self._msgs.values() if m.code in ("31D9", "31DA")]
+        msgs = [m for m in self._msgs.values() if m.code in (_31D9, _31DA)]
         return max(msgs).payload["exhaust_fan_speed"] if msgs else None
 
     @property
     def boost_timer(self) -> Optional[int]:
-        if "31DA" in self._msgs:
-            return self._msgs["31DA"].payload["remaining_time"]
+        if _31DA in self._msgs:
+            return self._msgs[_31DA].payload["remaining_time"]
 
     @property
     def relative_humidity(self) -> Optional[float]:
-        if "31DA" in self._msgs:
-            return self._msgs["31DA"].payload["indoor_humidity"]
+        if _31DA in self._msgs:
+            return self._msgs[_31DA].payload["indoor_humidity"]
 
     @property
     def status(self) -> dict:
@@ -1514,19 +1573,19 @@ class FanDevice(Device):  # FAN (20/37):
             **(
                 {
                     k: v
-                    for k, v in self._msgs["31D9"].payload.items()
+                    for k, v in self._msgs[_31D9].payload.items()
                     if k != "exhaust_fan_speed"
                 }
-                if "31D9" in self._msgs
+                if _31D9 in self._msgs
                 else {}
             ),
             **(
                 {
                     k: v
-                    for k, v in self._msgs["31DA"].payload.items()
+                    for k, v in self._msgs[_31DA].payload.items()
                     if k != "exhaust_fan_speed"
                 }
-                if "31DA" in self._msgs
+                if _31DA in self._msgs
                 else {}
             ),
         }
@@ -1546,18 +1605,18 @@ class FanSensorHumidity(BatteryState, Device):  # HUM (32) Humidity sensor:
 
     @property
     def relative_humidity(self) -> Optional[float]:
-        if "12A0" in self._msgs:
-            return self._msgs["12A0"].payload[self.REL_HUMIDITY]
+        if _12A0 in self._msgs:
+            return self._msgs[_12A0].payload[self.REL_HUMIDITY]
 
     @property
     def temperature(self) -> Optional[float]:
-        if "12A0" in self._msgs:
-            return self._msgs["12A0"].payload[self.TEMPERATURE]
+        if _12A0 in self._msgs:
+            return self._msgs[_12A0].payload[self.TEMPERATURE]
 
     @property
     def dewpoint_temp(self) -> Optional[float]:
-        if "12A0" in self._msgs:
-            return self._msgs["12A0"].payload[self.DEWPOINT_TEMP]
+        if _12A0 in self._msgs:
+            return self._msgs[_12A0].payload[self.DEWPOINT_TEMP]
 
     @property
     def status(self) -> dict:

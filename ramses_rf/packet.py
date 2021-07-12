@@ -12,11 +12,13 @@ import sys
 from datetime import datetime as dt
 from typing import Optional, Tuple
 
-from .command import _pkt_header, _pkt_header_idx
+from .command import _pkt_header
 from .const import MESSAGE_REGEX, __dev_mode__
 from .exceptions import CorruptAddrSetError
-from .helpers import extract_addrs
+from .helpers import dt_str, extract_addrs
+from .ramses import pkt_has_idx
 from .schema import LOG_FILE_NAME, LOG_ROTATE_BYTES, LOG_ROTATE_COUNT
+from .version import __version__
 
 DEV_MODE = __dev_mode__  # or True
 
@@ -37,11 +39,11 @@ else:
 # TODO: make account for the non-printing characters
 CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
 # HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssss, shorter format for the console
-if DEV_MODE:  # Do this to have longer-format console messages
-    CONSOLE_FMT = "%(date)sT%(time)s " + f"%(message).{CONSOLE_COLS - 27}s"
+if False and DEV_MODE:  # Do this to have longer-format console messages
+    CONSOLE_FMT = "%(_date)sT%(_time)s " + f"%(message).{CONSOLE_COLS - 27}s"
 else:
-    CONSOLE_FMT = "%(time).12s " + f"%(message).{CONSOLE_COLS - 13}s"
-PKT_LOG_FMT = "%(date)sT%(time)s %(_packet)s"
+    CONSOLE_FMT = "%(_time).12s " + f"%(message).{CONSOLE_COLS - 13}s"
+PKT_LOG_FMT = "%(_date)sT%(_time)s %(packet)s"
 
 # How to strip ASCII colour from a text file:
 #   sed -r "s/\x1B\[(([0-9]{1,2})?(;)?([0-9]{1,2})?)?[m,K,H,f,J]//g" file_name
@@ -60,7 +62,7 @@ LOG_COLOURS = {
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)  # DEBUG may have too much detail
+    _LOGGER.setLevel(logging.DEBUG)
 
 _PKT_LOGGER = logging.getLogger(f"{__name__}_log")
 
@@ -73,7 +75,7 @@ class StdErrFilter(logging.Filter):  # record.levelno >= logging.WARNING
 
     def filter(self, record) -> bool:
         """Return True if the record is to be processed."""
-        return record.levelno >= logging.WARNING
+        return record.levelno >= logging.WARNING  # WARNING-30, ERROR-40
 
 
 class StdOutFilter(logging.Filter):  # record.levelno < logging.WARNING
@@ -81,30 +83,14 @@ class StdOutFilter(logging.Filter):  # record.levelno < logging.WARNING
 
     def filter(self, record) -> bool:
         """Return True if the record is to be processed."""
-        return record.levelno < logging.WARNING
+        return record.levelno < logging.WARNING  # INFO-20, DEBUG-10
 
 
 class FileFilter(logging.Filter):  # record.levelno in (logging.INFO, logging.WARNING)
-    """For packet logs file, process only wanted packets."""
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.prev_record = None
+    """For packet log files, process only wanted packets."""
 
     def filter(self, record) -> bool:
         """Return True if the record is to be processed."""
-        return record.levelno in (logging.INFO, logging.WARNING)
-
-        # HACK: to stop duplicate logging...
-        if not hasattr(record, "dtm"):
-            self.prev_record = None
-        elif self.prev_record:
-            if self.prev_record.dtm != record.dtm:
-                record, self.prev_record = self.prev_record, record
-        else:
-            self.prev_record = record
-            return False
-
         return record.levelno in (logging.INFO, logging.WARNING)
 
 
@@ -116,88 +102,117 @@ def set_pkt_logging(logger=_PKT_LOGGER, cc_stdout=False, **kwargs) -> None:
     - max_bytes: rotate log files when log > rotate_size
     """
 
-    logger.propagate = False  # this is a distinct log from any app/debug logging
-    logger.setLevel(logging.INFO)
+    logger.propagate = False  # log file is distinct from any app/debug logging
+    logger.setLevel(logging.DEBUG)  # must be at least .INFO
 
-    file_name = kwargs.get(LOG_FILE_NAME, 0)
-    backup_count = kwargs.get(LOG_ROTATE_COUNT, 0)
-    max_bytes = kwargs.get(LOG_ROTATE_BYTES, None)
+    if file_name := kwargs.get(LOG_FILE_NAME, 0):
+        max_bytes = kwargs.get(LOG_ROTATE_BYTES, None)
+        bkp_count = kwargs.get(LOG_ROTATE_COUNT, 0)
 
-    if _use_color_:
-        cons_fmt = colorlog.ColoredFormatter(
-            f"%(log_color)s{CONSOLE_FMT + COLOR_SUFFIX}",
-            reset=True,
-            log_colors=LOG_COLOURS,
-        )
-    else:
-        cons_fmt = logging.Formatter(fmt=CONSOLE_FMT + BANDW_SUFFIX)
+        if max_bytes:
+            bkp_count = bkp_count or 2
+            handler = logging.handlers.RotatingFileHandler(
+                file_name, maxBytes=max_bytes, backupCount=bkp_count
+            )
+        elif bkp_count:
+            handler = logging.handlers.TimedRotatingFileHandler(
+                file_name, when="midnight", backupCount=bkp_count
+            )
+        else:
+            handler = logging.FileHandler(file_name)
 
-    handler = logging.StreamHandler(stream=sys.stderr)
-    handler.setFormatter(cons_fmt)
-    handler.setLevel(logging.WARNING)
-    handler.addFilter(StdErrFilter())
-    logger.addHandler(handler)
-
-    if cc_stdout:
-        handler = logging.StreamHandler(stream=sys.stdout)
-        handler.setFormatter(cons_fmt)
-        handler.setLevel(logging.DEBUG)
-        handler.addFilter(StdOutFilter())
+        handler.setFormatter(logging.Formatter(fmt=PKT_LOG_FMT + BANDW_SUFFIX))
+        handler.setLevel(logging.INFO)  # .INFO (usually), or .DEBUG
+        handler.addFilter(FileFilter())  # record.levelno in (.INFO, .WARNING)
         logger.addHandler(handler)
 
-    if not file_name:
-        return
-
-    if max_bytes:
-        backup_count = backup_count or 2
-        handler = logging.handlers.RotatingFileHandler(
-            file_name, maxBytes=max_bytes, backupCount=backup_count
-        )
-    elif backup_count:
-        handler = logging.handlers.TimedRotatingFileHandler(
-            file_name, when="midnight", backupCount=backup_count
-        )
     else:
-        handler = logging.FileHandler(file_name)
+        handler = logging.NullHandler()
+        logger.addHandler(handler)
 
-    handler.setFormatter(logging.Formatter(fmt=PKT_LOG_FMT + BANDW_SUFFIX))
-    handler.setLevel(logging.INFO)  # INFO (usually), or DEBUG
-    handler.addFilter(FileFilter())
-    logger.addHandler(handler)
+    if cc_stdout:
+        if _use_color_:
+            cons_fmt = colorlog.ColoredFormatter(
+                fmt=f"%(log_color)s{CONSOLE_FMT + COLOR_SUFFIX}",
+                reset=True,
+                log_colors=LOG_COLOURS,
+            )
+        else:
+            cons_fmt = logging.Formatter(fmt=CONSOLE_FMT + BANDW_SUFFIX)
+
+        handler = logging.StreamHandler(stream=sys.stderr)
+        handler.setFormatter(cons_fmt)
+        handler.setLevel(logging.WARNING)  # musr be .WARNING or less
+        handler.addFilter(StdErrFilter())  # record.levelno >= .WARNING
+        logger.addHandler(handler)
+
+        handler = logging.StreamHandler(stream=sys.stdout)
+        handler.setFormatter(cons_fmt)
+        handler.setLevel(logging.DEBUG)  # must be .INFO or less
+        handler.addFilter(StdOutFilter())  # record.levelno < .WARNING
+        logger.addHandler(handler)
+
+    _date, _time = dt_str()[:26].split("T")
+    extras = {
+        "_date": _date,
+        "_time": _time,
+        "packet": "",
+        "error_text": "",
+        "comment": f"# ramses_rf {__version__}",
+    }
+    logger.warning("", extra=extras)
 
 
 class Packet:
     """The packet class."""
 
     def __init__(
-        self, pkt_dtm: dt, dtm_str: str, pkt_line: str, raw_pkt_line: str
+        self, dtm: dt, frame: str, dtm_str: str = None, frame_raw=None
     ) -> None:
-        """Create a packet."""
-        self._dtm = pkt_dtm
-        self.dtm = dtm_str
-        self.date, self.time = self.dtm.split("T")
+        """Create a packet.
 
-        self._pkt_str = pkt_line
-        self._raw_pkt_str = raw_pkt_line
-        self.packet, self.error_text, self.comment = self._split_pkt_line(pkt_line)
-        self._packet = self.packet + " " if self.packet else ""  # NOTE: hack 4 logging
+        if dtm_str:
+            assert dtm == dt.fromisoformat(dtm_str), "should be True"
+        """
 
+        self.dtm = dtm
+        self._date, self._time = (dtm_str or dtm.isoformat(sep="T")).split("T")
+
+        self._frame = frame
+        self._frame_raw = frame_raw
+        self.packet, self.error_text, self.comment = self._split_pkt_line(frame)
+
+        # addrs are populated in self.is_valid()
         self.addrs = [None] * 3
         self.src_addr = self.dst_addr = None
+        self._is_valid = None
+        if not self.is_valid:
+            raise ValueError(f"not a valid packet: {frame}")
+
+        # TODO: these are not presently used
+        self.rssi = self.packet[0:3]
+        self.verb = self.packet[4:6]
+        self.seqn = self.packet[7:10]
+        self.code = self.packet[41:45]
+        self.len = int(self.packet[46:49])
+        self.payload = self.packet[50:]
+
+        # these are calculated if/when required
         self._hdr = None
         self.__idx = None
 
-        self._is_valid = None
-        if not self.is_valid:
-            raise ValueError("not a valid packet")
+    @classmethod
+    def from_log_line(cls, dtm: str, frame: str):
+        """Constructor to create a packet from a log file line (a frame)."""
+        return cls(dt.fromisoformat(dtm), frame, dtm_str=dtm)
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
-        return str(self._raw_pkt_str or self._pkt_str)
+        return str(self._frame_raw or self._frame)
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
-        return self.packet or ""
+        return self.packet
 
     def __eq__(self, other) -> bool:
         if not hasattr(other, "packet"):
@@ -205,46 +220,48 @@ class Packet:
         return self.packet == other.packet
 
     @staticmethod
-    def _split_pkt_line(pkt_line: str) -> Tuple[str, str, str]:
-        # dtm_str pkt_str[ < parser-message:][ * evofw3-err_msg][ # evofw3-comment]
+    def _split_pkt_line(log_line: str) -> Tuple[str, str, str]:
+        """Split a packet log line (i.e. no dtm prefix) into its parts.
 
-        pkt_line, _, pkt_comment = pkt_line.partition("#")
-        pkt_line, _, pkt_err_msg = pkt_line.partition("*")
-        packet_str, _, _ = pkt_line.partition("<")
+        Format: packet[ < parser-hint: ...][ * evofw3-err_msg][ # evofw3-comment]
+        """
+
+        fragment, _, comment = log_line.partition("#")
+        fragment, _, err_msg = fragment.partition("*")
+        pkt_line, _, _ = fragment.partition("<")  # discard any parser hints
         return (
-            packet_str.strip(),
-            f" * {pkt_err_msg.strip()}" if pkt_err_msg else "",
-            f" # {pkt_comment.strip()}" if pkt_comment else "",
+            pkt_line.strip(),
+            f" * {err_msg.strip()}" if err_msg else " *" if "*" in log_line else "",
+            f" # {comment.strip()}" if comment else "",
         )
 
     @property
     def is_valid(self) -> Optional[bool]:
-        """Return True if a valid packets, otherwise return False/None & log it."""
-        # 'good' packets are not logged here, as they may be for silent discarding
+        """Return True if the packet is valid (will log all packets, regardless)."""
 
-        def invalid_addresses() -> bool:
+        def invalid_addresses(addr_set: str) -> Optional[bool]:
             """Return True if the address fields are invalid (create any addresses)."""
             try:
-                self.src_addr, self.dst_addr, self.addrs = extract_addrs(
-                    self.packet[11:40]
-                )
+                self.src_addr, self.dst_addr, self.addrs = extract_addrs(addr_set)
                 # print(extract_addrs.cache_info())
             except CorruptAddrSetError:
                 return True
 
-        if self._is_valid is not None or not self._pkt_str:
+        if self._is_valid is not None or not self._frame:
             return self._is_valid
 
         self._is_valid = False
         if self.error_text:  # log all packets with an error
             if self.packet:
-                _PKT_LOGGER.warning("%s < Bad packet: ", self, extra=self.__dict__)
+                _PKT_LOGGER.warning("%s < Bad packet:", self, extra=self.__dict__)
             else:
-                _PKT_LOGGER.warning("< Bad packet: ", extra=self.__dict__)
+                _PKT_LOGGER.warning("< Bad packet:", extra=self.__dict__)
             return False
 
         if not self.packet and self.comment:  # log null packets only if has a comment
-            _PKT_LOGGER.warning("", extra=self.__dict__)  # best as a debug?
+            _PKT_LOGGER.warning(
+                "< Null packet", extra=self.__dict__
+            )  # best as a debug?
             return False
 
         # TODO: these packets shouldn't go to the packet log, only STDERR?
@@ -252,14 +269,14 @@ class Packet:
             err_msg = "invalid packet structure"
         elif int(self.packet[46:49]) * 2 != len(self.packet[50:]):
             err_msg = "mismatched payload length"
-        elif invalid_addresses():
+        elif invalid_addresses(self.packet[11:40]):
             err_msg = "invalid packet addresses"
         else:
-            _PKT_LOGGER.info("%s ", self.packet, extra=self.__dict__)
+            _PKT_LOGGER.info("%s", self.packet, extra=self.__dict__)
             self._is_valid = True
             return True
 
-        _PKT_LOGGER.debug("%s < Bad packet: %s ", self, err_msg, extra=self.__dict__)
+        _PKT_LOGGER.warning("%s < Bad packet: %s", self, err_msg, extra=self.__dict__)
         return False
 
     @property
@@ -276,5 +293,5 @@ class Packet:
         """Return the index/ordinal of this packet."""
 
         if self.__idx is None and self.is_valid:
-            self.__idx = _pkt_header_idx(self.packet)
+            self.__idx = pkt_has_idx(self.packet)
         return self.__idx

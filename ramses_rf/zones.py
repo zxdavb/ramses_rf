@@ -42,8 +42,69 @@ from .exceptions import CorruptStateError
 from .helpers import schedule_task
 
 # from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
-
-I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
+from .ramses import (  # noqa: F401
+    _000A,
+    _000C,
+    _000E,
+    _01D0,
+    _01E9,
+    _1F09,
+    _1F41,
+    _1FC9,
+    _1FD4,
+    _2D49,
+    _2E04,
+    _3B00,
+    _3EF0,
+    _3EF1,
+    _7FFF,
+    _10A0,
+    _10E0,
+    _12A0,
+    _12B0,
+    _12C0,
+    _12C8,
+    _22C9,
+    _22D0,
+    _22D9,
+    _22F1,
+    _22F3,
+    _30C9,
+    _31D9,
+    _31DA,
+    _31E0,
+    _042F,
+    _313F,
+    I_,
+    RP,
+    RQ,
+    W_,
+    _0001,
+    _0002,
+    _0004,
+    _0005,
+    _0006,
+    _0008,
+    _0009,
+    _0016,
+    _0100,
+    _0404,
+    _0418,
+    _1030,
+    _1060,
+    _1090,
+    _1100,
+    _1260,
+    _1280,
+    _1290,
+    _1298,
+    _2249,
+    _2309,
+    _2349,
+    _3120,
+    _3150,
+    _3220,
+)
 
 DEV_MODE = __dev_mode__ and False
 
@@ -152,7 +213,7 @@ class ZoneSchedule:  # 0404  # TODO: add for DHW
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code == "0404" and msg.verb == RP:
+        if msg.code == _0404 and msg.verb == RP:
             _LOGGER.debug("Zone(%s): Received RP/0404 (schedule) pkt", self)
 
     async def get_schedule(self, force_refresh=None) -> Optional[dict]:
@@ -176,12 +237,12 @@ class RelayDemand:  # 0008
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
-            self._send_cmd("0008")  # , payload=self.idx
+            self._send_cmd(_0008)  # , payload=self.idx
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
-        if "0008" in self._msgs:
-            return self._msgs["0008"].payload[ATTR_RELAY_DEMAND]
+        if _0008 in self._msgs:
+            return self._msgs[_0008].payload[ATTR_RELAY_DEMAND]
 
     @property
     def status(self) -> dict:
@@ -231,7 +292,7 @@ class DhwZone(ZoneBase):  # CS92A  # TODO: add Schedule
 
         if discover_flag & DISCOVER_SCHEMA:
             [  # 000C: find the DHW relay(s), if any, see: _000C_DEVICE_TYPE
-                self._send_cmd("000C", payload=dev_type)
+                self._send_cmd(_000C, payload=dev_type)
                 for dev_type in (
                     f"00{_000C_DEVICE.DHW_SENSOR}",
                     f"00{_000C_DEVICE.DHW}",
@@ -253,19 +314,19 @@ class DhwZone(ZoneBase):  # CS92A  # TODO: add Schedule
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code == "0008":
+        if msg.code == _0008:
             self._relay_demand = msg
 
-        elif msg.code == "0009":
+        elif msg.code == _0009:
             self._relay_failsafe = msg
 
-        elif msg.code == "10A0":
+        elif msg.code == _10A0:
             self._dhw_params = msg
 
-        elif msg.code == "1260":
+        elif msg.code == _1260:
             self._dhw_temp = msg
 
-        elif msg.code == "1F41":
+        elif msg.code == _1F41:
             self._dhw_mode = msg
 
     def _set_dhw_device(self, new_dev, old_dev, attr_name, dev_class, domain_id):
@@ -464,8 +525,8 @@ class Zone(ZoneSchedule, ZoneBase):
 
         # TODO: add code to determine zone type if it doesn't have one, using 0005s
         if discover_flag & DISCOVER_SCHEMA:
-            self._send_cmd("000C", payload=f"{self.idx}{_000C_DEVICE.ALL}")
-            self._send_cmd("000C", payload=f"{self.idx}{_000C_DEVICE.ALL_SENSOR}")
+            self._send_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.ALL}")
+            self._send_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.ALL_SENSOR}")
 
         if discover_flag & DISCOVER_PARAMS:
             self._gwy.send_cmd(Command.get_zone_config(self._ctl.id, self.idx))
@@ -489,37 +550,37 @@ class Zone(ZoneSchedule, ZoneBase):
         if isinstance(msg.payload, list):
             assert self.idx in [d["zone_idx"] for d in msg.payload]
 
-        if msg.code == "0004":
+        if msg.code == _0004:
             self._name = msg
 
         # not UFH (it seems), but ELE or VAL; and possibly a MIX support 0008 too
-        elif msg.code in ("0008", "0009"):  # TODO: how to determine is/isn't MIX?
+        elif msg.code in (_0008, _0009):  # TODO: how to determine is/isn't MIX?
             assert msg.src.type in ("01", "13"), msg.src.type  # 01 as a stat
             assert self._zone_type in (None, "ELE", "VAL", "MIX"), self._zone_type
 
             if self._zone_type is None:
                 self._set_zone_type("ELE")  # might eventually be: "VAL"
 
-        elif msg.code == "000A":
+        elif msg.code == _000A:
             self._zone_config = msg
 
-        elif msg.code == "12B0":
+        elif msg.code == _12B0:
             self._window_open = msg
 
-        elif msg.code == "2309" and msg.verb in (I_, RP):  # setpoint
+        elif msg.code == _2309 and msg.verb in (I_, RP):  # setpoint
             assert msg.src.type == "01", "coding error zxw"
             self._setpoint = msg
 
-        elif msg.code == "2349" and msg.verb in (I_, RP):  # mode, setpoint
+        elif msg.code == _2349 and msg.verb in (I_, RP):  # mode, setpoint
             assert msg.src.type == "01", "coding error zxx"
             self._mode = msg
             self._setpoint = msg
 
-        elif msg.code == "30C9" and msg.verb in (I_, RP):  # used by sensor matching
+        elif msg.code == _30C9 and msg.verb in (I_, RP):  # used by sensor matching
             assert msg.src.type in DEVICE_HAS_ZONE_SENSOR + ("01",), "coding error"
             self._temperature = msg
 
-        elif msg.code == "3150":  # TODO: and msg.verb in (I_, RP)?
+        elif msg.code == _3150:  # TODO: and msg.verb in (I_, RP)?
             assert msg.src.type in ("00", "02", "04", "13")
             assert self._zone_type in (None, "RAD", "UFH", "VAL")  # MIX/ELE don't 3150
 
@@ -571,7 +632,7 @@ class Zone(ZoneSchedule, ZoneBase):
         if "02" in dev_types:
             zone_type = "UFH"
         elif "13" in dev_types:
-            zone_type = "VAL" if "3150" in self._msgs else "ELE"
+            zone_type = "VAL" if _3150 in self._msgs else "ELE"
         # elif "??" in dev_types:  # TODO:
         #     zone_type = "MIX"
         elif "04" in dev_types or "00" in dev_types:
@@ -628,7 +689,7 @@ class Zone(ZoneSchedule, ZoneBase):
         #         return self._msg_payload(self._name, "name")
 
         #     self._name = None
-        #     self._send_cmd("0004", payload=f"{self.idx}00")
+        #     self._send_cmd(_0004, payload=f"{self.idx}00")
         #     while self._name is None:
         #         await asyncio.sleep(0.05)
 
@@ -808,16 +869,16 @@ class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
         # NOTE: we create, then promote, so shouldn't super()
         # super()._discover(discover_flag=discover_flag)
         if False and discover_flag & DISCOVER_SCHEMA:
-            self._send_cmd("000C", payload=f"{self.idx}{_000C_DEVICE.ELE}")
+            self._send_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.ELE}")
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        # if msg.code == "0008":  # ZON zones are ELE zones that also call for heat
+        # if msg.code == _0008:  # ZON zones are ELE zones that also call for heat
         #     self._set_zone_type("VAL")
-        if msg.code == "3150":
+        if msg.code == _3150:
             raise TypeError("WHAT 1")
-        elif msg.code == "3EF0":
+        elif msg.code == _3EF0:
             raise TypeError("WHAT 2")
 
     @property
@@ -840,7 +901,7 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
         # NOTE: we create, then promote, so shouldn't super()
         # super()._discover(discover_flag=discover_flag)
         if False and discover_flag & DISCOVER_SCHEMA:
-            self._send_cmd("000C", payload=f"{self.idx}{_000C_DEVICE.MIX}")
+            self._send_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.MIX}")
 
         if discover_flag & DISCOVER_PARAMS:
             self._gwy.send_cmd(Command.get_mix_valve_params(self._ctl.id, self.idx))
@@ -848,7 +909,7 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code == "1030" and msg.verb == I_:
+        if msg.code == _1030 and msg.verb == I_:
             self._mix_config = msg
 
     @property
@@ -871,7 +932,7 @@ class RadZone(Zone):  # HR92/HR80
         # NOTE: we create, then promote, so shouldn't super()
         # super()._discover(discover_flag=discover_flag)
         if False and discover_flag & DISCOVER_SCHEMA:
-            self._send_cmd("000C", payload=f"{self.idx}{_000C_DEVICE.RAD}")
+            self._send_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.RAD}")
 
 
 class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
@@ -885,12 +946,12 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
         # NOTE: we create, then promote, so shouldn't super()
         # super()._discover(discover_flag=discover_flag)
         if False and discover_flag & DISCOVER_SCHEMA:
-            self._send_cmd("000C", payload=f"{self.idx}{_000C_DEVICE.UFH}")
+            self._send_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.UFH}")
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code == "22C9" and msg.verb == I_:
+        if msg.code == _22C9 and msg.verb == I_:
             self._ufh_setpoint = msg
 
     @property
@@ -913,7 +974,7 @@ class ValZone(EleZone):  # BDR91A/T
         # NOTE: we create, then promote, so shouldn't super()
         # super()._discover(discover_flag=discover_flag)
         if False and discover_flag & DISCOVER_SCHEMA:
-            self._send_cmd("000C", payload=f"{self.idx}{_000C_DEVICE.VAL}")
+            self._send_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.VAL}")
 
     @property
     def heat_demand(self) -> Optional[float]:  # 0008 (NOTE: not 3150)

@@ -22,8 +22,6 @@ from .const import (
     ATTR_ZONE_ACTUATORS,
     ATTR_ZONE_SENSOR,
     DEVICE_TYPES,
-    MSG_FORMAT_10,
-    MSG_FORMAT_18,
     NON_DEV_ADDR,
     NUL_DEV_ADDR,
     ZONE_TYPE_SLUGS,
@@ -38,42 +36,105 @@ from .exceptions import (
     CorruptStateError,
 )
 from .opentherm import MSG_ID
-from .packet import _PKT_LOGGER  # TODO: bad packets are being logged twice!
-from .ramses import CODES_WITH_COMPLEX_IDX, CODES_WITHOUT_IDX, RAMSES_CODES
+from .ramses import (  # noqa: F401
+    _000A,
+    _000C,
+    _000E,
+    _01D0,
+    _01E9,
+    _1F09,
+    _1F41,
+    _1FC9,
+    _1FD4,
+    _2D49,
+    _2E04,
+    _3B00,
+    _3EF0,
+    _3EF1,
+    _7FFF,
+    _10A0,
+    _10E0,
+    _12A0,
+    _12B0,
+    _12C0,
+    _12C8,
+    _22C9,
+    _22D0,
+    _22D9,
+    _22F1,
+    _22F3,
+    _30C9,
+    _31D9,
+    _31DA,
+    _31E0,
+    _042F,
+    _313F,
+    CODES_WITH_COMPLEX_IDX,
+    CODES_WITHOUT_IDX,
+    I_,
+    RAMSES_CODES,
+    RP,
+    RQ,
+    W_,
+    _0001,
+    _0002,
+    _0004,
+    _0005,
+    _0006,
+    _0008,
+    _0009,
+    _0016,
+    _0100,
+    _0404,
+    _0418,
+    _1030,
+    _1060,
+    _1090,
+    _1100,
+    _1260,
+    _1280,
+    _1290,
+    _1298,
+    _2249,
+    _2309,
+    _2349,
+    _3120,
+    _3150,
+    _3220,
+)
 from .schema import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES
 
 # from .systems import Evohome
 
 CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
 
-I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
-
 # TODO: WIP
 MSG_TIMEOUTS = {
-    "0004": {I_: td(days=1), RP: td(days=1)},
-    "000A": {I_: td(days=1), RP: td(days=1)},
-    "0100": {I_: td(days=1), RP: td(days=1)},
-    "1060": {I_: td(days=1)},
-    "10A0": {RP: td(hours=4)},
-    "1100": {I_: td(days=1), RP: td(days=1)},
-    "1260": {I_: td(hours=1), RP: td(hours=1)},
-    "12B0": {I_: td(hours=1), RP: td(hours=1)},
-    "1F41": {I_: td(hours=4), RP: td(hours=4)},
-    "2309": {I_: td(minutes=30), RP: td(minutes=30)},
-    "2349": {I_: td(hours=4), RP: td(hours=4)},
-    "2E04": {I_: td(hours=4), RP: td(hours=4)},
-    "313F": {I_: td(seconds=3), RP: td(seconds=3)},
-    "3150": {I_: td(minutes=20)},
-    "3C09": {I_: td(hours=4), RP: td(hours=4)},
-}  # not arrays
+    _0004: {I_: td(days=1), RP: td(days=1)},
+    _000A: {I_: td(days=1), RP: td(days=1)},
+    _0100: {I_: td(days=1), RP: td(days=1)},
+    _1060: {I_: td(days=1)},
+    _10A0: {RP: td(hours=4)},
+    _1100: {I_: td(days=1), RP: td(days=1)},
+    _1260: {I_: td(hours=1), RP: td(hours=1)},
+    _12B0: {I_: td(hours=1), RP: td(hours=1)},
+    _1F41: {I_: td(hours=4), RP: td(hours=4)},
+    _2309: {I_: td(minutes=30), RP: td(minutes=30)},
+    _2349: {I_: td(hours=4), RP: td(hours=4)},
+    _2E04: {I_: td(hours=4), RP: td(hours=4)},
+    _313F: {I_: td(seconds=3), RP: td(seconds=3)},
+    _3150: {I_: td(minutes=20)},
+    _30C9: {I_: td(hours=4), RP: td(hours=4)},
+}  # the above may not apply to arrays (000A, 2309, 30C9)
 
-DEV_MODE = True or __dev_mode__ and False
+MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:8s} | {:5s} || {}"
+MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:8s} | {:5s} || {}"
 
-_LOGGER = logging.getLogger(__name__)
+DEV_MODE = __dev_mode__ and False
+
+_LOGGER = _PKT_LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
-
-# _PKT_LOGGER = _LOGGER
 
 
 class Message:
@@ -91,21 +152,21 @@ class Message:
         self._gwy = gwy
         self._pkt = pkt
 
-        # prefer Devices but should use Addresses for now...
+        # prefer Devices but can use Addresses for now (as maybe -rr)...
         self.src = pkt.src_addr  # gwy.device_by_id.get(pkt.src_addr.id, pkt.src_addr)
         self.dst = pkt.dst_addr  # gwy.device_by_id.get(pkt.dst_addr.id, pkt.dst_addr)
+        self._devs = pkt.addrs
 
-        self.devs = pkt.addrs
-        self.date = pkt.date
-        self.time = pkt.time
-        self.dtm = pkt._dtm
+        self.dtm = pkt.dtm
+        self._date = pkt._date
+        self._time = pkt._time
 
-        self.rssi = pkt.packet[0:3]
-        self.verb = pkt.packet[4:6]
-        self.seqn = pkt.packet[7:10]
-        self.code = pkt.packet[41:45]
-        self.len = int(pkt.packet[46:49])
-        self.raw_payload = pkt.packet[50:]
+        # self.rssi = pkt.rssi
+        self.verb = pkt.verb
+        self.seqn = pkt.seqn
+        self.code = pkt.code
+        self.len = pkt.len
+        self.raw_payload = pkt.payload
 
         self.code_name = CODE_NAMES.get(self.code, f"unknown_{self.code}")
         self._payload = None
@@ -120,7 +181,7 @@ class Message:
 
         self._is_valid = None
         if not self.is_valid:
-            raise ValueError("not a valid message")
+            raise ValueError(f"not a valid message: {pkt}")
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -155,7 +216,7 @@ class Message:
         if not self.is_valid:
             return  # "Invalid"
 
-        if self.src.id == self.devs[0].id:
+        if self.src.id == self._devs[0].id:
             src = display_name(self.src)
             dst = display_name(self.dst) if self.dst is not self.src else ""
         else:
@@ -163,10 +224,16 @@ class Message:
             dst = display_name(self.src)
 
         payload = self.raw_payload if self.len < 4 else f"{self.raw_payload[:5]}..."[:9]
+        if self._pkt._idx is True:
+            index = "array"
+        elif self._pkt._idx is False:
+            index = ""
+        else:
+            index = str(self._pkt._idx)
 
         _format = MSG_FORMAT_18 if self._gwy.config.use_names else MSG_FORMAT_10
         self._str = _format.format(
-            src, dst, self.verb, self.code_name, payload, self._payload
+            src, dst, self.verb, self.code_name, payload, index, self.payload
         )
         return self._str
 
@@ -245,8 +312,6 @@ class Message:
             return self._payload
 
         if self.is_valid:
-            if self.code != "000C":  # TODO: assert here, or in is_valid()
-                assert self.is_array == isinstance(self._payload, list)
             return self._payload
 
     @property
@@ -265,7 +330,7 @@ class Message:
         if self.verb in (RQ, W_):
             self._is_array = False
 
-        elif self.code in ("000C", "1FC9"):  # also: 0005?
+        elif self.code in (_000C, _1FC9):  # also: 0005?
             # grep -E ' (I|RP).* 000C '  #  from 01:/30: (VMS) only
             # grep -E ' (I|RP).* 1FC9 '  #  from 01:/13:/other (not W)
             self._is_array = True
@@ -276,7 +341,7 @@ class Message:
         # 087  I 092 --:------ --:------ 12:126457 2309 006 0107D0-020708
         # 090  I 093 --:------ --:------ 12:126457 30C9 003 017FFF
         # 089  I 094 --:------ --:------ 12:126457 000A 012 010001F40BB8-020001F40BB8
-        elif self.code in ("000A", "2309", "30C9") and self.src.type == "12":
+        elif self.code in (_000A, _2309, _30C9) and self.src.type == "12":
             self._is_array = self.verb == I_ and self.dst.id == "--:------"
 
         elif self.verb not in (I_, RP) or self.src.id != self.dst.id:
@@ -284,11 +349,11 @@ class Message:
 
         # 045  I --- 01:158182 --:------ 01:158182 0009 003 0B00FF (or: FC00FF)
         # 045  I --- 01:145038 --:------ 01:145038 0009 006 FC00FFF900FF
-        elif self.code in ("0009",) and self.src.type == "01":
+        elif self.code in (_0009,) and self.src.type == "01":
             # grep -E ' I.* 01:.* 01:.* 0009 [0-9]{3} F' (and: grep -v ' 003 ')
             self._is_array = self.verb == I_ and self.raw_payload[:1] == "F"
 
-        elif self.code in ("000A", "2309", "30C9") and self.src.type == "01":
+        elif self.code in (_000A, _2309, _30C9) and self.src.type == "01":
             # grep ' I.* 01:.* 01:.* 000A '
             # grep ' I.* 01:.* 01:.* 2309 ' | grep -v ' 003 '  # TODO: some non-arrays
             # grep ' I.* 01:.* 01:.* 30C9 '
@@ -298,7 +363,7 @@ class Message:
         # 055  I --- 02:001107 --:------ 02:001107 22C9 006 0408340A2801
         # 055  I --- 02:001107 --:------ 02:001107 3150 010 00640164026403580458
         # 055  I --- 02:001107 --:------ 02:001107 3150 010 00000100020003000400
-        elif self.code in ("22C9", "3150") and self.src.type == "02":
+        elif self.code in (_22C9, _3150) and self.src.type == "02":
             # grep -E ' I.* 02:.* 02:.* 22C9 '
             # grep -E ' I.* 02:.* 02:.* 3150' | grep -v FC
             self._is_array = self.verb == I_ and self.src.id == self.dst.id
@@ -306,7 +371,7 @@ class Message:
 
         # 095  I --- 23:100224 --:------ 23:100224 2249 007 007EFF7EFFFFFF
         # 095  I --- 23:100224 --:------ 23:100224 2249 007 007EFF7EFFFFFF
-        elif self.code in ("2249",) and self.src.type == "23":
+        elif self.code in (_2249,) and self.src.type == "23":
             self._is_array = self.verb == I_ and self.src.id == self.dst.id
             # self._is_array = self._is_array if self.raw_payload[:1] != "F" else False
 
@@ -334,22 +399,22 @@ class Message:
             if self.verb in (RQ, W_):
                 timeout = td(seconds=3)
 
-            elif self.code in ("0005", "000C", "10E0"):
+            elif self.code in (_0005, _000C, _10E0):
                 return  # TODO: exclude/remove devices caused by corrupt ADDRs?
 
-            elif self.code == "1FC9" and self.verb == RP:
+            elif self.code == _1FC9 and self.verb == RP:
                 return  # TODO: check other verbs, they seem variable
 
-            elif self.code == "1F09":
+            elif self.code == _1F09:
                 timeout = td(seconds=self.payload["remaining_seconds"])
 
-            elif self.code == "000A" and self._is_array:
+            elif self.code == _000A and self._is_array:
                 timeout = td(minutes=60)  # sends I /1h
 
-            elif self.code in ("2309", "30C9") and self._is_array:
+            elif self.code in (_2309, _30C9) and self._is_array:
                 timeout = td(minutes=15)  # sends I /sync_cycle
 
-            elif self.code == "3220":
+            elif self.code == _3220:
                 if self.payload[MSG_ID] in OtbGateway.SCHEMA_MSG_IDS:
                     timeout = None
                 elif self.payload[MSG_ID] in OtbGateway.PARAMS_MSG_IDS:
@@ -360,7 +425,7 @@ class Message:
             elif self.code in MSG_TIMEOUTS and self.verb in MSG_TIMEOUTS[self.code]:
                 return MSG_TIMEOUTS[self.code][self.verb]
 
-            # elif self.code in ("3B00", "3EF0", ):  # TODO: 0008, 3EF0, 3EF1
+            # elif self.code in (_3B00, _3EF0, ):  # TODO: 0008, 3EF0, 3EF1
             #     timeout = td(minutes=6.7)  # TODO: WIP
 
             return timeout or td(minutes=60)
@@ -418,12 +483,12 @@ class Message:
             return self._is_fragment
 
         # packets have a maximum length of 48 (decimal)
-        # if self.code == "000A" and self.verb == I_:
+        # if self.code == _000A and self.verb == I_:
         #     self._is_fragment = True if len(???.zones) > 8 else None
         # el
-        if self.code == "0404" and self.verb == RP:
+        if self.code == _0404 and self.verb == RP:
             self._is_fragment = True
-        elif self.code == "22C9" and self.verb == I_:
+        elif self.code == _22C9 and self.verb == I_:
             self._is_fragment = None  # max length 24!
         else:
             self._is_fragment = False
@@ -452,31 +517,31 @@ class Message:
 
         try:  # parse the packet
             self._payload = payload_parser(self.raw_payload, self)
-            assert isinstance(self._payload, dict) or isinstance(
-                self._payload, list
-            ), "message payload is not dict nor list"
+            assert isinstance(
+                self._payload, (dict, list)
+            ), f"message payload is not dict nor list: {type(self._payload)}"
 
         except AssertionError as err:
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
             hint = f": {err}" if str(err) != "" else ""
             if not hint or DEV_MODE:
-                log_message(_PKT_LOGGER.exception, "%s < Validation error ")
+                log_message(_PKT_LOGGER.exception, "%s << Validation error")
             elif self.src.type != "18":
-                log_message(_PKT_LOGGER.exception, f"%s < Validation error{hint} ")
+                log_message(_PKT_LOGGER.warning, f"%s << Validation error{hint}")
             else:  # elif DEV_MODE:  # TODO: consider info/debug for the following
-                log_message(_PKT_LOGGER.exception, f"%s < Validation error{hint} ")
+                log_message(_PKT_LOGGER.warning, f"%s << Validation error{hint}")
 
         except (CorruptPacketError, CorruptPayloadError) as err:  # CorruptEvohomeError
-            if DEV_MODE:
-                log_message(_PKT_LOGGER.exception, f"%s < {err}")
+            if False and DEV_MODE:
+                log_message(_PKT_LOGGER.exception, f"%s << {err}")
             else:
-                log_message(_PKT_LOGGER.warning, f"%s < {err}")
+                log_message(_PKT_LOGGER.warning, f"%s << {err}")
 
         except (AttributeError, LookupError, TypeError, ValueError):  # TODO: dev only
-            log_message(_PKT_LOGGER.exception, "%s < Coding error ")
+            log_message(_PKT_LOGGER.exception, "%s << Coding error")
 
         except NotImplementedError:  # parser_unknown (unknown packet code)
-            log_message(_PKT_LOGGER.warning, "%s < Unknown packet code ")
+            log_message(_PKT_LOGGER.warning, "%s << Unknown packet code")
 
         else:
             self._is_valid = True
@@ -494,7 +559,7 @@ def process_msg(msg: Message) -> None:
     def create_devices(this) -> None:
         """Discover and create any new devices."""
 
-        if this.code == "000C" and this.verb == RP:
+        if this.code == _000C and this.verb == RP:
             if this.src.type == "01":  # TODO
                 this._gwy._get_device(this.dst, ctl_addr=this.src)
                 if this.is_valid:
@@ -515,7 +580,7 @@ def process_msg(msg: Message) -> None:
                         this.src, ctl_addr=Address(id=device_id, type=device_id[:2])
                     )
 
-        elif this.code in ("31D9", "31DA", "31E0") and this.verb in (I_, RP):
+        elif this.code in (_31D9, _31DA, _31E0) and this.verb in (I_, RP):
             device = this._gwy._get_device(this.src)
             if device.__class__ is Device:
                 device.__class__ = FanDevice  # HACK: because my HVAC is a 30:
@@ -533,7 +598,7 @@ def process_msg(msg: Message) -> None:
         # TODO: will need other changes before these two will work...
         # TODO: the issue is, if the 1st pkt is not a 1F09 (or a list 000A/2309/30C9)
         # TODO: also could do 22D9 (UFC), others?
-        # elif this.code == "1F09" and this.verb == I_:
+        # elif this.code == _1F09 and this.verb == I_:
         #     this._gwy._get_device(this.dst, ctl_addr=this.src)
 
         # TODO: ...such as means to promote a device to a controller
@@ -568,7 +633,7 @@ def process_msg(msg: Message) -> None:
         evo = this.src._evo
 
         # TODO: a I/0005: zones have changed & may need a restart (del) or not (add)
-        if this.code == "0005":  # RP, and also I
+        if this.code == _0005:  # RP, and also I
             if this._payload["zone_type"] in _0005_ZONE_TYPE.values():
                 [
                     evo._get_zone(
@@ -579,7 +644,7 @@ def process_msg(msg: Message) -> None:
                     if flag == 1
                 ]
 
-        if this.code == "000C" and this.src.type == "01":
+        if this.code == _000C and this.src.type == "01":
             if this.payload["devices"]:  # i.e. if len(devices) > 0
                 devices = [this.src.device_by_id[d] for d in this.payload["devices"]]
 
@@ -615,7 +680,7 @@ def process_msg(msg: Message) -> None:
 
         # # Eavesdropping (below) is used when discovery (above) is not an option
         # # TODO: needs work, e.g. RP/1F41 (excl. null_rp)
-        # elif this.code in ("10A0", "1F41"):
+        # elif this.code in (_10A0, _1F41):
         #     if isinstance(this.dst, Device) and this.dst._is_controller:
         #         this.dst._get_dhw()
         #     else:
@@ -631,9 +696,9 @@ def process_msg(msg: Message) -> None:
         #             this.dst._get_zone(this._payload["zone_idx"])
 
         elif isinstance(this._payload, list):
-            if this.code in ("000A", "2309", "30C9"):  # the sync_cycle pkts
+            if this.code in (_000A, _2309, _30C9):  # the sync_cycle pkts
                 [evo._get_zone(d["zone_idx"]) for d in this.payload]
-            # elif this.code in ("22C9", "3150"):  # TODO: UFH zone
+            # elif this.code in (_22C9, _3150):  # TODO: UFH zone
             #     pass
 
         # else:  # should never get here
@@ -671,7 +736,7 @@ def process_msg(msg: Message) -> None:
 
         for evo in this._gwy.systems:
             # if this.src == evo:  # TODO: or this.src.id == evo.id?
-            if this.code in ("10A0", "1260", "1F41") and evo._dhw is not None:
+            if this.code in (_10A0, _1260, _1F41) and evo._dhw is not None:
                 evo._dhw._handle_msg(this)
             break
 
@@ -722,28 +787,26 @@ def process_msg(msg: Message) -> None:
 
     except (AssertionError, NotImplementedError) as err:
         (_LOGGER.exception if DEV_MODE else _LOGGER.error)(
-            "%s < %s", msg._pkt, err.__class__.__name__
+            "%s << %s", msg._pkt, err.__class__.__name__
         )
         return  # NOTE: use raise only when debugging
 
     except (AttributeError, LookupError, TypeError, ValueError) as err:
         (_LOGGER.exception if DEV_MODE else _LOGGER.error)(
-            "%s < %s", msg._pkt, err.__class__.__name__
+            "%s << %s", msg._pkt, err.__class__.__name__
         )
         return  # NOTE: use raise only when debugging
 
     # except CorruptPacketError as err:
-    #     (_LOGGER.exception if DEV_MODE else _LOGGER.error)(
-    #         "%s < %s", msg._pkt, err
-    #     )
+    #     (_LOGGER.exception if DEV_MODE else _LOGGER.error)("%s << %s", msg._pkt, err)
     #     return  # NOTE: use raise only when debugging
 
     except CorruptStateError as err:
-        (_LOGGER.exception if DEV_MODE else _LOGGER.error)("%s < %s", msg._pkt, err)
+        (_LOGGER.exception if DEV_MODE else _LOGGER.error)("%s << %s", msg._pkt, err)
         return  # TODO: bad pkt, or Schema
 
     except CorruptEvohomeError as err:
-        (_LOGGER.exception if DEV_MODE else _LOGGER.error)("%s < %s", msg._pkt, err)
+        (_LOGGER.exception if DEV_MODE else _LOGGER.error)("%s << %s", msg._pkt, err)
         raise
 
     msg._gwy._prev_msg = msg if msg.is_valid else None

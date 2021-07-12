@@ -12,7 +12,6 @@ from typing import Any, List
 from .command import Command, Priority
 from .const import (
     ALL_DEVICE_ID,
-    CODE_SCHEMA,
     DEVICE_TABLE,
     HGI_DEV_ADDR,
     NON_DEV_ADDR,
@@ -21,7 +20,70 @@ from .const import (
 )
 from .exceptions import ExpiredCallbackError
 from .opentherm import R8810A_MSG_IDS
-from .ramses import RAMSES_CODES
+from .ramses import (  # noqa: F401
+    _000A,
+    _000C,
+    _000E,
+    _01D0,
+    _01E9,
+    _1F09,
+    _1F41,
+    _1FC9,
+    _1FD4,
+    _2D49,
+    _2E04,
+    _3B00,
+    _3EF0,
+    _3EF1,
+    _7FFF,
+    _10A0,
+    _10E0,
+    _12A0,
+    _12B0,
+    _12C0,
+    _12C8,
+    _22C9,
+    _22D0,
+    _22D9,
+    _22F1,
+    _22F3,
+    _30C9,
+    _31D9,
+    _31DA,
+    _31E0,
+    _042F,
+    _313F,
+    I_,
+    RAMSES_CODES,
+    RP,
+    RQ,
+    W_,
+    _0001,
+    _0002,
+    _0004,
+    _0005,
+    _0006,
+    _0008,
+    _0009,
+    _0016,
+    _0100,
+    _0404,
+    _0418,
+    _1030,
+    _1060,
+    _1090,
+    _1100,
+    _1260,
+    _1280,
+    _1290,
+    _1298,
+    _2249,
+    _2309,
+    _2349,
+    _3120,
+    _3150,
+    _3220,
+)
 
 EXECUTE_CMD = "execute_cmd"
 GET_FAULTS = "get_faults"
@@ -34,9 +96,6 @@ SCAN_HARD = "scan_hard"
 SCAN_XXXX = "scan_xxxx"
 
 DEVICE_ID_REGEX = re.compile(ALL_DEVICE_ID)
-
-I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
-
 
 DEV_MODE = __dev_mode__
 
@@ -101,7 +160,7 @@ def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
     if not kwargs.get(EXECUTE_CMD) and gwy._include:
         dev_id = next(iter(gwy._include))
         qos = {"priority": Priority.HIGH, "retries": 5}
-        gwy.send_cmd(Command(RQ, "0016", "00FF", dev_id, **qos))
+        gwy.send_cmd(Command(RQ, _0016, "00FF", dev_id, **qos))
 
     tasks = []
 
@@ -189,7 +248,7 @@ def poll_device(gwy, dev_id) -> List[Any]:
     if "poll_codes" in DEVICE_TABLE.get(dev_id[:2]):
         codes = DEVICE_TABLE[dev_id[:2]]["poll_codes"]
     else:
-        codes = ["0016", "1FC9"]
+        codes = [_0016, _1FC9]
 
     tasks = []
 
@@ -224,44 +283,47 @@ async def scan_full(gwy, dev_id: str):
     gwy.send_cmd(Command._puzzle("00", message="full scan: begins...", **qos))
 
     qos = {"priority": Priority.DEFAULT, "retries": 5}
-    gwy.send_cmd(Command(RQ, "0016", "0000", dev_id, **qos))
+    gwy.send_cmd(Command(RQ, _0016, "0000", dev_id, **qos))
 
     qos = {"priority": Priority.DEFAULT, "retries": 1}
     for code in sorted(RAMSES_CODES):
-        if code == "0005":
+        if code == _0005:
             for zone_type in range(20):  # known up to 18
                 gwy.send_cmd(Command(RQ, code, f"00{zone_type:02X}", dev_id, **qos))
 
-        elif code == "000C":
+        elif code == _000C:
             for zone_idx in range(16):  # also: FA-FF?
                 gwy.send_cmd(Command(RQ, code, f"{zone_idx:02X}00", dev_id, **qos))
 
-        elif code == "0016":
+        elif code == _0016:
             continue
 
-        elif code == "0404":
+        elif code == _0404:
             gwy.send_cmd(Command(RQ, code, "00200008000100", dev_id, **qos))
 
-        elif code == "0418":
+        elif code == _0418:
             for log_idx in range(2):
                 gwy.send_cmd(Command.get_system_log_entry(dev_id, log_idx, **qos))
 
-        elif code == "1100":
+        elif code == _1100:
             gwy.send_cmd(Command.get_tpi_params(dev_id, **qos))
 
-        elif code == "2E04":
+        elif code == _2E04:
             gwy.send_cmd(Command.get_system_mode(dev_id, **qos))
 
-        elif code == "3220":
+        elif code == _3220:
             for data_id in (0, 3):  # these are mandatory READ_DATA data_ids
                 gwy.send_cmd(Command.get_opentherm_data(dev_id, data_id, **qos))
 
-        elif code == "7FFF":
+        elif code == _7FFF:
             continue
 
-        elif code in CODE_SCHEMA and CODE_SCHEMA[code].get("rq_len"):
-            rq_len = CODE_SCHEMA[code].get("rq_len") * 2
-            gwy.send_cmd(Command(RQ, code, f"{0:0{rq_len}X}", dev_id, **qos))
+        elif (
+            code in RAMSES_CODES
+            and RQ in RAMSES_CODES[code]
+            and re.match(RAMSES_CODES[code][RQ], "00")
+        ):
+            gwy.send_cmd(Command(RQ, code, "00", dev_id, **qos))
 
         else:
             gwy.send_cmd(Command(RQ, code, "0000", dev_id, **qos))
@@ -299,8 +361,8 @@ async def scan_001(gwy, dev_id: str):
 
     qos = {"priority": Priority.LOW, "retries": 3}
     for idx in range(0x10):
-        gwy.send_cmd(Command(W_, "000E", f"{idx:02X}0050", dev_id, **qos))
-        gwy.send_cmd(Command(RQ, "000E", f"{idx:02X}00C8", dev_id, **qos))
+        gwy.send_cmd(Command(W_, _000E, f"{idx:02X}0050", dev_id, **qos))
+        gwy.send_cmd(Command(RQ, _000E, f"{idx:02X}00C8", dev_id, **qos))
 
 
 async def scan_002(gwy, dev_id: str):

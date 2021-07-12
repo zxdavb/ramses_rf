@@ -27,6 +27,7 @@ from .devices import Device, create_device
 from .message import Message, process_msg
 from .packet import set_pkt_logging
 from .protocol import create_msg_stack
+from .ramses import I_, RP, RQ, W_  # noqa: F401
 from .schema import (
     ALLOW_LIST,
     BLOCK_LIST,
@@ -39,8 +40,6 @@ from .schema import (
 from .systems import System, create_system
 from .transport import POLLER_TASK, create_pkt_stack
 from .version import __version__  # noqa: F401
-
-I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
 
 DEV_MODE = __dev_mode__ and False
 VERSION = __version__
@@ -291,7 +290,7 @@ class Gateway:
             for dtm, msg in msgs.items()
             if msg.verb in (I_, RP)
             and not msg.is_expired
-            and msg.dtm >= dt.now() - td(days=7)  # HACK: ideally, wouldn't be any >7d
+            and msg.dtm >= dt.now() - td(days=7)  # TODO: ideally, wouldn't be any >7d
         }
 
         schema, pkts = self.schema, dict(sorted(pkts.items()))

@@ -25,7 +25,6 @@ from .const import (
     CODE_0418_DEVICE_CLASS,
     CODE_0418_FAULT_STATE,
     CODE_0418_FAULT_TYPE,
-    CODE_SCHEMA,
     DOMAIN_TYPE_MAP,
     MAY_USE_DOMAIN_ID,
     MAY_USE_ZONE_IDX,
@@ -46,18 +45,81 @@ from .opentherm import (
     R8810A_MSG_IDS,
     decode_frame,
 )
-from .ramses import RAMSES_CODES, RAMSES_DEVICES, RQ_MAY_HAVE_PAYLOAD
+from .ramses import (  # noqa: F401
+    _000A,
+    _000C,
+    _000E,
+    _01D0,
+    _01E9,
+    _1F09,
+    _1F41,
+    _1FC9,
+    _1FD4,
+    _2D49,
+    _2E04,
+    _3B00,
+    _3EF0,
+    _3EF1,
+    _7FFF,
+    _10A0,
+    _10E0,
+    _12A0,
+    _12B0,
+    _12C0,
+    _12C8,
+    _22C9,
+    _22D0,
+    _22D9,
+    _22F1,
+    _22F3,
+    _30C9,
+    _31D9,
+    _31DA,
+    _31E0,
+    _042F,
+    _313F,
+    I_,
+    RAMSES_CODES,
+    RAMSES_DEVICES,
+    RP,
+    RQ,
+    RQ_MAY_HAVE_PAYLOAD,
+    W_,
+    _0001,
+    _0002,
+    _0004,
+    _0005,
+    _0006,
+    _0008,
+    _0009,
+    _0016,
+    _0100,
+    _0404,
+    _0418,
+    _1030,
+    _1060,
+    _1090,
+    _1100,
+    _1260,
+    _1280,
+    _1290,
+    _1298,
+    _2249,
+    _2309,
+    _2349,
+    _3120,
+    _3150,
+    _3220,
+)
 
 IDX_NAMES = {
-    "0002": "other_idx",  # non-evohome: hometronics
-    "10A0": "dhw_idx",  # can be 2 DHW zones per system
-    "22C9": "ufh_idx",  # UFH circuit
-    "2D49": "other_idx",  # non-evohome: hometronics
-    "31D9": "hvac_id",
-    "31DA": "hvac_id",
+    _0002: "other_idx",  # non-evohome: hometronics
+    _10A0: "dhw_idx",  # can be 2 DHW zones per system
+    _22C9: "ufh_idx",  # UFH circuit
+    _2D49: "other_idx",  # non-evohome: hometronics
+    _31D9: "hvac_id",
+    _31DA: "hvac_id",
 }
-
-I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
 
 DEV_MODE = __dev_mode__
 TEST_MODE = False  # enable to test constructors (usu. W)
@@ -78,7 +140,7 @@ def _idx_idx(seqx, code, src_type, dst_type) -> dict:
     if code in IDX_NAMES:  # these codes always have these idx_names
         return {IDX_NAMES[code]: seqx}
 
-    elif code == "0016":  # WIP, not normally {"uses_zone_idx": True}
+    elif code == _0016:  # WIP, not normally {"uses_zone_idx": True}
         if {"12", "22"} & {src_type, dst_type}:
             idx_name = "zone_idx" if src_type in ("01", "02", "18") else "parent_idx"
             return {idx_name: seqx}
@@ -223,7 +285,7 @@ def parser_decorator(func):
         if msg.code not in RAMSES_DEVICES[msg.dst.type]:  # NOTE: is not OK for Rx
             #  I --- 04:253797 --:------ 01:063844 1060 003 056401
             # HACK: these exceptions need sorting
-            # if msg.code in ("1060", ):
+            # if msg.code in (_1060, ):
             #     return
             raise CorruptPacketError(f"Invalid code for {msg.dst.id} to Rx: {msg.code}")
 
@@ -254,7 +316,7 @@ def parser_decorator(func):
             pass  # TODO: raise
 
         # TODO: put this back, or leave it to the parser?
-        # if msg.code == "3220":
+        # if msg.code == _3220:
         #     msg_id = int(msg.raw_payload[4:6], 16)
         #     if msg_id not in OPENTHERM_MESSAGES:  # parser uses R8810A_MSG_IDS
         #         raise CorruptPayloadError(
@@ -266,12 +328,15 @@ def parser_decorator(func):
         payload, msg = args[0], args[1]
 
         # STEP 0: Check verb/code pair against src/dst device type & payload
+        if msg.code not in RAMSES_CODES:
+            raise CorruptPacketError(f"Unknown code: {msg.code}")
+
         check_verb_code_src(msg)
         check_verb_code_dst(msg)
 
         check_verb_code_payload(msg, payload)  # can't use msg.payload
 
-        if msg.code == "3220":
+        if msg.code == _3220:
             try:
                 return func(*args, **kwargs)
             except (KeyError, TypeError, ValueError) as err:
@@ -363,7 +428,7 @@ def _temp(value: str) -> Union[float, bool, None]:
         return
     if value == "7EFF":  # possibly only for setpoints?
         return False
-    if value == "7FFF":  # also: FFFF?, means: N/A (== 327.67)
+    if value == _7FFF:  # also: FFFF?, means: N/A (== 327.67)
         return
     temp = int(value, 16)
     return (temp if temp < 2 ** 15 else temp - 2 ** 16) / 100
@@ -381,7 +446,7 @@ def _flag8(byte, *args) -> list:
 
 def _double(val, factor=1) -> Optional[float]:
     """Return a double, used by 31DA."""
-    if val == "7FFF":
+    if val == _7FFF:
         return
     result = int(val, 16)
     assert result < 32767
@@ -435,9 +500,7 @@ def parser_0001(payload, msg) -> Optional[dict]:
     assert payload[6:8] in ("02", "05"), payload[6:8]
     return {
         # **_idx(payload[:2], msg),  # not fully understood
-        "unknown_0": payload[2:6],
-        "unknown_1": payload[6:8],
-        "unknown_2": payload[8:],
+        "payload": "-".join((payload[:2], payload[2:6], payload[6:8], payload[8:])),
     }
 
 
@@ -551,7 +614,7 @@ def parser_0008(payload, msg) -> Optional[dict]:
                 return {"domain_id": payload[:2]}
             assert int(payload[:2], 16) < msg._gwy.config.max_zones
             return {"zone_idx": payload[:2]}
-        assert payload[:2] == "00"
+        assert payload[:2] == "00" or msg.verb == "RQ"
         return {}
 
     if msg.src.type == "31" and msg.len == 13:  # Honeywell Japser ?HVAC
@@ -667,7 +730,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
                 "zone_id": None if payload[4:6] == "7F" else payload[4:6],
             }
 
-        if payload[2:4] in ("0D", "0E"):  # ("000D", "000E", "010E")
+        if payload[2:4] in ("0D", "0E"):  # ("000D", _000E, "010E")
             assert (
                 int(seqx, 16) < 1 if payload[2:4] == "0D" else 2
             ), f"invalid _idx: '{seqx}' (0x01)"
@@ -791,7 +854,7 @@ def parser_0404(payload, msg) -> Optional[dict]:
 
     def _header(seqx) -> dict:
         assert seqx[2:4] in ("20", "23"), seqx[2:4]  # Zones, DHW
-        assert seqx[4:8] == "0008", seqx[4:8]
+        assert seqx[4:8] == _0008, seqx[4:8]
 
         return {
             # **_idx(payload[:2], msg),  # added by wrapper
@@ -826,7 +889,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
     if msg.verb == RQ:
         return {"log_idx": payload[4:6]}
 
-    if payload[2:] == CODE_SCHEMA["0418"]["null_rp"][2:]:
+    if payload[2:] == "000000B0000000000000000000007FFFFF7000000000":
         # a null log entry, or: is payload[38:] == "000000" sufficient?
         return {}
     #
@@ -1614,13 +1677,13 @@ def parser_3120(payload, msg) -> Optional[dict]:
     # RP --- 20:008749 18:142609 --:------ 3120 007 0070B000009CFF
     #  I --- 37:258565 --:------ 37:258565 3120 007 0080B0010003FF
 
-    assert payload[:2] == "00", payload[:2]
-    assert payload[2:4] in ("70", "80"), payload[2:4]
-    assert payload[4:6] == "B0", payload[4:6]
-    assert payload[6:8] in ("00", "01"), payload[6:8]
-    assert payload[8:10] == "00", payload[8:10]
-    assert payload[10:12] in ("00", "03", "9C"), payload[8:12]
-    assert payload[12:] == "FF", payload[12:]
+    assert payload[:2] == "00", f"byte 0: {payload[:2]}"
+    assert payload[2:4] in ("00", "70", "80"), f"byte 1: {payload[2:4]}"
+    assert payload[4:6] == "B0", f"byte 2: {payload[4:6]}"
+    assert payload[6:8] in ("00", "01"), f"byte 3: {payload[6:8]}"
+    assert payload[8:10] == "00", f"byte 4: {payload[8:10]}"
+    assert payload[10:12] in ("00", "03", "9C"), f"byte 5: {payload[10:12]}"
+    assert payload[12:] == "FF", f"byte 6: {payload[12:]}"
     return {
         "unknown_0": payload[2:10],
         "unknown_1": payload[10:12],
@@ -1773,14 +1836,14 @@ def parser_31da(payload, msg) -> Optional[dict]:
 
     assert payload[2:4] in ("00", "EF"), payload[2:4]
     assert payload[4:6] in ("00", "40"), payload[4:6]
-    # assert payload[6:10] in ("07D0", "7FFF"), payload[6:10]
+    # assert payload[6:10] in ("07D0", _7FFF), payload[6:10]
     assert payload[10:12] == "EF" or int(payload[10:12], 16) <= 100, payload[10:12]
     assert payload[12:14] == "EF", payload[12:14]
-    assert payload[14:18] == "7FFF", payload[14:18]
-    assert payload[18:22] == "7FFF", payload[18:22]
-    assert payload[22:26] == "7FFF", payload[22:26]
-    assert payload[26:30] == "7FFF", payload[26:30]
-    assert payload[30:34] in ("0002", "F000", "F800", "F808", "7FFF"), payload[30:34]
+    assert payload[14:18] == _7FFF, payload[14:18]
+    assert payload[18:22] == _7FFF, payload[18:22]
+    assert payload[22:26] == _7FFF, payload[22:26]
+    assert payload[26:30] == _7FFF, payload[26:30]
+    assert payload[30:34] in (_0002, "F000", "F800", "F808", _7FFF), payload[30:34]
     assert payload[34:36] == "EF", payload[34:36]
     assert payload[36:38] == "EF" or int(payload[36:38], 16) & 0x1F <= 0x18, payload[
         36:38
@@ -1792,8 +1855,8 @@ def parser_31da(payload, msg) -> Optional[dict]:
     # assert payload[42:46] == "0000", payload[42:46]
     assert payload[46:48] in ("00", "EF"), payload[46:48]
     assert payload[48:50] == "EF", payload[48:50]
-    assert payload[50:54] == "7FFF", payload[50:54]
-    assert payload[54:58] == "7FFF", payload[54:58]  # or: FFFF?
+    assert payload[50:54] == _7FFF, payload[50:54]
+    assert payload[54:58] == _7FFF, payload[54:58]  # or: FFFF?
 
     return {
         "air_quality": _percent(payload[2:4]),
@@ -1944,7 +2007,13 @@ def parser_3ef0(payload, msg) -> dict:
             assert int(payload[2:4], 16) <= 100, f"byte 1: {payload[2:4]}"
         assert payload[4:6] in ("10", "11"), f"byte 2: {payload[4:6]}"
         assert int(payload[6:8], 16) & 0b11110000 == 0, f"byte 3: {payload[6:8]}"
-        assert payload[8:10] in ("00", "01", "0A", "FF"), f"byte 4: {payload[8:10]}"
+        assert payload[8:10] in (
+            "00",
+            "01",
+            "0A",
+            "FA",
+            "FF",
+        ), f"byte 4: {payload[8:10]}"
         assert payload[10:12] in ("00", "1C", "FF"), f"byte 5: {payload[10:12]}"
 
     if msg.len > 6:  # <= 9: # for some OTB
@@ -2013,14 +2082,14 @@ def parser_3ef1(payload, msg) -> dict:
     assert _percent(payload[10:12]) <= 1, payload[10:12]
     # assert payload[12:] == "FF"
 
-    cycle_countdown = None if payload[2:6] == "7FFF" else int(payload[2:6], 16)
+    cycle_countdown = None if payload[2:6] == _7FFF else int(payload[2:6], 16)
 
     return {
         **_idx(payload[:2], msg),
         "actuator_enabled": bool(_percent(payload[10:12])),
         "modulation_level": _percent(payload[10:12]),
         "actuator_countdown": int(payload[6:10], 16),
-        "cycle_countdown": cycle_countdown,  # not for OTB, == "7FFF"
+        "cycle_countdown": cycle_countdown,  # not for OTB, == _7FFF
         "_unknown_0": payload[12:],  # for OTB != "FF"
     }
 

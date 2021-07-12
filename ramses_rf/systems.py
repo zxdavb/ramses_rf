@@ -28,6 +28,69 @@ from .const import (
 )
 from .devices import BdrSwitch, Device, Entity, OtbGateway
 from .exceptions import CorruptStateError, ExpiredCallbackError
+from .ramses import (  # noqa: F401
+    _000A,
+    _000C,
+    _000E,
+    _01D0,
+    _01E9,
+    _1F09,
+    _1F41,
+    _1FC9,
+    _1FD4,
+    _2D49,
+    _2E04,
+    _3B00,
+    _3EF0,
+    _3EF1,
+    _7FFF,
+    _10A0,
+    _10E0,
+    _12A0,
+    _12B0,
+    _12C0,
+    _12C8,
+    _22C9,
+    _22D0,
+    _22D9,
+    _22F1,
+    _22F3,
+    _30C9,
+    _31D9,
+    _31DA,
+    _31E0,
+    _042F,
+    _313F,
+    I_,
+    RP,
+    RQ,
+    W_,
+    _0001,
+    _0002,
+    _0004,
+    _0005,
+    _0006,
+    _0008,
+    _0009,
+    _0016,
+    _0100,
+    _0404,
+    _0418,
+    _1030,
+    _1060,
+    _1090,
+    _1100,
+    _1260,
+    _1280,
+    _1290,
+    _1298,
+    _2249,
+    _2309,
+    _2349,
+    _3120,
+    _3150,
+    _3220,
+)
 from .schema import (
     ATTR_CONTROLLER,
     ATTR_DHW_SYSTEM,
@@ -38,8 +101,6 @@ from .schema import (
     ATTR_ZONES,
 )
 from .zones import DhwZone, Zone, create_zone
-
-I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
 
 DEV_MODE = __dev_mode__ and False
 
@@ -76,7 +137,7 @@ class SysFaultLog:  # 0418
         status = super().status
         # assert "fault_log" not in status  # TODO: removeme
         status["fault_log"] = self._fault_log.fault_log
-        status["last_fault"] = self._msgz[I_].get("0418")
+        status["last_fault"] = self._msgz[I_].get(_0418)
         return status
 
 
@@ -94,7 +155,7 @@ class SysDatetime:  # 313F
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
 
-        if msg.code == "313F" and msg.verb in (I_, RP):  # TODO: W
+        if msg.code == _313F and msg.verb in (I_, RP):  # TODO: W
             self._datetime = msg
 
     @property
@@ -104,7 +165,7 @@ class SysDatetime:  # 313F
     # def wait_for(self, cmd, callback):
     # self._api_lock.acquire()
 
-    # self._send_cmd("313F", verb=RQ, callback=callback)
+    # self._send_cmd(_313F, verb=RQ, callback=callback)
 
     #     time_start = dt.now()
     # while not self._schedule_done:
@@ -116,11 +177,11 @@ class SysDatetime:  # 313F
     # self._api_lock.release()
 
     # async def get_datetime(self) -> str:  # wait for the RP/313F
-    # await self.wait_for(Command("313F", verb=RQ))
+    # await self.wait_for(Command(_313F, verb=RQ))
     # return self.datetime
 
     # async def set_datetime(self, dtm: dt) -> str:  # wait for the I/313F
-    # await self.wait_for(Command("313F", verb=W_, payload=f"00{dtm_to_hex(dtm)}"))
+    # await self.wait_for(Command(_313F, verb=W_, payload=f"00{dtm_to_hex(dtm)}"))
     # return self.datetime
 
     @property
@@ -141,13 +202,13 @@ class SysLanguage:  # 0100
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_PARAMS:
-            # self._send_cmd("0100")  # language
+            # self._send_cmd(_0100)  # language
             self._gwy.send_cmd(Command.get_system_language(self.id))
 
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
 
-        if msg.code == "0100" and msg.verb in (I_, RP):
+        if msg.code == _0100 and msg.verb in (I_, RP):
             self._language = msg
 
     @property
@@ -177,7 +238,7 @@ class SysMode:  # 2E04
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
 
-        if msg.code == "2E04" and msg.verb in (I_, RP):  # this is a special case
+        if msg.code == _2E04 and msg.verb in (I_, RP):  # this is a special case
             self._system_mode = msg
 
     @property
@@ -241,7 +302,7 @@ class StoredHw:
 
             if all(
                 (
-                    this.code == "10A0",
+                    this.code == _10A0,
                     this.verb == RP,
                     this.src is self._ctl,
                     this.dst.type == "07",
@@ -251,14 +312,14 @@ class StoredHw:
 
         super()._handle_msg(msg)
 
-        if msg.code == "10A0":  # dhw_params
+        if msg.code == _10A0:  # dhw_params
             if msg._gwy.config.enable_eavesdrop:
                 find_dhw_sensor(msg)
 
-        elif msg.code == "1260":  # dhw_temp
+        elif msg.code == _1260:  # dhw_temp
             pass
 
-        elif msg.code == "1F41":  # dhw_mode
+        elif msg.code == _1F41:  # dhw_mode
             pass
 
     def _get_dhw(self, **kwargs) -> DhwZone:
@@ -345,7 +406,7 @@ class MultiZone:  # 0005 (+/- 000C?)
 
         if discover_flag & DISCOVER_SCHEMA:
             [  # 0005: find any zones + their type (RAD, UFH, VAL, MIX, ELE)
-                self._send_cmd("0005", payload=f"00{zone_type}")
+                self._send_cmd(_0005, payload=f"00{zone_type}")
                 for zone_type in (
                     _0005_ZONE.RAD,
                     _0005_ZONE.UFH,
@@ -356,7 +417,7 @@ class MultiZone:  # 0005 (+/- 000C?)
             ]
 
             # [  # 0005: find any others - as per an RFG100
-            #     self._send_cmd("0005", payload=f"00{zone_type}")
+            #     self._send_cmd(_0005, payload=f"00{zone_type}")
             #     for zone_type in (
             #         _0005_ZONE.ALL,
             #         _0005_ZONE.ALL_SENSOR,
@@ -367,7 +428,7 @@ class MultiZone:  # 0005 (+/- 000C?)
             # ]
 
         # if discover_flag & DISCOVER_STATUS:
-        #     self._send_cmd("0006")  # schedule delta
+        #     self._send_cmd(_0006)  # schedule delta
 
     def _handle_msg(self, msg, prev_msg=None):
         def find_zone_sensors(this_30c9, prev_30c9) -> None:
@@ -408,7 +469,7 @@ class MultiZone:  # 0005 (+/- 000C?)
                 return  # (currently) no zone without a sensor
 
             # TODO: use msgz/I, not RP
-            secs = self._get_msg_value("1F09", "remaining_seconds")
+            secs = self._get_msg_value(_1F09, "remaining_seconds")
             if secs is None or this_30c9.dtm > prev_30c9.dtm + td(seconds=secs + 5):
                 return  # can only compare against 30C9 pkt from the last cycle
 
@@ -437,7 +498,7 @@ class MultiZone:  # 0005 (+/- 000C?)
                 if d._ctl in (self._ctl, None)
                 and d.addr.type in DEVICE_HAS_ZONE_SENSOR
                 and d.temperature is not None
-                and d._msgs["30C9"].dtm > prev_30c9.dtm  # changed during last cycle
+                and d._msgs[_30C9].dtm > prev_30c9.dtm  # changed during last cycle
             ]
 
             if _LOGGER.isEnabledFor(logging.DEBUG):
@@ -506,7 +567,13 @@ class MultiZone:  # 0005 (+/- 000C?)
 
         super()._handle_msg(msg)
 
-        if msg.code == "000A" and isinstance(msg.payload, list):
+        if msg.code in (_000A, _2309, _30C9):
+            if isinstance(msg.payload, list):
+                [self.zone_by_idx[z["zone_idx"]]._handle_msg(msg) for z in msg.payload]
+            else:  # isinstance(msg.payload, list)
+                self.zone_by_idx[msg.payload["zone_idx"]]._handle_msg(msg)
+
+        if msg.code == _000A and isinstance(msg.payload, list):
             pass
             # for zone_idx in self.zone_by_idx:
             #     cmd = Command.get_zone_mode(self.id, zone_idx, priority=Priority.LOW)
@@ -514,10 +581,10 @@ class MultiZone:  # 0005 (+/- 000C?)
             # for zone in self.zones:
             #     zone._discover(discover_flag=DISCOVER_PARAMS)
 
-        # elif msg.code == "0005" and prev_30c9 is not None:
-        #     zone_added = bool(prev_30c9.code == "0004")  # else zone_deleted
+        # elif msg.code == _0005 and prev_30c9 is not None:
+        #     zone_added = bool(prev_30c9.code == _0004)  # else zone_deleted
 
-        elif msg.code == "30C9" and isinstance(msg.payload, list):  # msg.is_array:
+        elif msg.code == _30C9 and isinstance(msg.payload, list):  # msg.is_array:
             if self._gwy.config.enable_eavesdrop:
                 find_zone_sensors(msg, self._prev_30c9)
                 self._prev_30c9 = msg
@@ -628,15 +695,15 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         if discover_flag & DISCOVER_SCHEMA:
             [  # 000C: find the HTG (relay) and DHW (sensor), if any (DHW relays in DHW)
-                self._send_cmd("000C", payload=f"00{dev_type}")
+                self._send_cmd(_000C, payload=f"00{dev_type}")
                 for dev_type in (_000C_DEVICE.HTG, _000C_DEVICE.DHW_SENSOR)
             ]
 
         if discover_flag & DISCOVER_PARAMS:
-            # self._send_cmd("1100", payload="FC")  # TPI params
+            # self._send_cmd(_1100, payload="FC")  # TPI params
             self._gwy.send_cmd(Command.get_tpi_params(self.id), period=td(hours=4))
 
-        # # for code in ("3B00",):  # 3EF0, 3EF1
+        # # for code in (_3B00,):  # 3EF0, 3EF1
         # #     for payload in ("0000", "00", "F8", "F9", "FA", "FB", "FC", "FF"):
         # #         self._send_cmd(code, payload=payload)
 
@@ -644,11 +711,11 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         # if discover_flag & DISCOVER_PARAMS:
         #     for domain_id in range(0xF8, 0x100):
-        #         self._send_cmd("0009", payload=f"{domain_id:02X}00")
+        #         self._send_cmd(_0009, payload=f"{domain_id:02X}00")
 
         if discover_flag & DISCOVER_STATUS:
             # for domain_id in range(0xF8, 0x100):
-            #     self._send_cmd("0008", payload=f"{domain_id:02X}00")
+            #     self._send_cmd(_0008, payload=f"{domain_id:02X}00")
             pass
 
     def _handle_msg(self, msg, prev_msg=None):
@@ -679,15 +746,15 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             # note the order: most to least reliable
             heater = None
 
-            if this.code == "3220" and this.verb == RQ:
+            if this.code == _3220 and this.verb == RQ:
                 if this.src is self._ctl and this.dst.type == "10":
                     heater = this.dst
 
-            elif this.code == "3EF0" and this.verb == RQ:
+            elif this.code == _3EF0 and this.verb == RQ:
                 if this.src is self._ctl and this.dst.type in ("10", "13"):
                     heater = this.dst
 
-            elif this.code == "3B00" and this.verb == I_ and prev is not None:
+            elif this.code == _3B00 and this.verb == I_ and prev is not None:
                 if this.src is self._ctl and prev.src.type == "13":
                     if prev.code == this.code and prev.verb == this.verb:
                         heater = prev.src
@@ -697,12 +764,12 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         super()._handle_msg(msg)
 
-        if msg.code in ("000A", "2309", "30C9") and not isinstance(msg.payload, list):
+        if msg.code in (_000A, _2309, _30C9) and not isinstance(msg.payload, list):
             pass
         else:
             super()._handle_msg(msg)
 
-        if msg.code == "0008" and msg.verb in (I_, RP):
+        if msg.code == _0008 and msg.verb in (I_, RP):
             if "domain_id" in msg.payload:
                 self._relay_demands[msg.payload["domain_id"]] = msg
                 if msg.payload["domain_id"] == "F9":
@@ -716,14 +783,14 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
                 if False and device is not None:  # TODO: FIXME
                     qos = {"priority": Priority.LOW, "retries": 2}
-                    for code in ("0008", "3EF1"):
+                    for code in (_0008, _3EF1):
                         device._send_cmd(code, qos)
 
-        if msg.code == "3150" and msg.verb in (I_, RP):
+        if msg.code == _3150 and msg.verb in (I_, RP):
             if "domain_id" in msg.payload and msg.payload["domain_id"] == "FC":
                 self._heat_demand = msg.payload
 
-        if msg.code in ("3220", "3B00", "3EF0"):  # self.heating_control is None and
+        if msg.code in (_3220, _3B00, _3EF0):  # self.heating_control is None and
             if self._gwy.config.enable_eavesdrop:
                 find_htg_control(msg, prev=prev_msg)
 
@@ -761,7 +828,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
     @property
     def tpi_params(self) -> Optional[float]:  # 1100
-        return self._get_msg_value("1100")
+        return self._get_msg_value(_1100)
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150/FC
@@ -819,9 +886,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         # assert "tpi_params" not in params[ATTR_HTG_SYSTEM]  # TODO: removeme
         params[ATTR_HTG_SYSTEM]["tpi_params"] = (
-            self.heating_control._get_msg_value("1100")
-            if self.heating_control
-            else None
+            self.heating_control._get_msg_value(_1100) if self.heating_control else None
         )
 
         return params
@@ -865,13 +930,13 @@ class System(StoredHw, SysDatetime, SystemBase):  # , SysFaultLog
 
         if "domain_id" in msg.payload:
             idx = msg.payload["domain_id"]
-            if msg.code == "0008":
+            if msg.code == _0008:
                 self._relay_demands[idx] = msg
-            elif msg.code == "0009":
+            elif msg.code == _0009:
                 self._relay_failsafes[idx] = msg
-            elif msg.code == "3150":
+            elif msg.code == _3150:
                 self._heat_demands[idx] = msg
-            elif msg.code not in ("0001", "000C", "0418", "1100", "3B00"):
+            elif msg.code not in (_0001, _000C, _0418, _1100, _3B00):
                 assert False, msg.code
 
     @property
@@ -920,28 +985,28 @@ class Evohome(SysLanguage, SysMode, MultiZone, UfhSystem, System):  # evohome
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
-            self._send_cmd("1F09")
+            self._send_cmd(_1F09)
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
         # def xxx(zone_dict):
         #     zone = self.zone_by_idx[zone_dict.pop("zone_idx")]
-        #     if msg.code == "000A":
+        #     if msg.code == _000A:
         #         zone._zone_config = zone_dict
-        #     elif msg.code == "2309":
+        #     elif msg.code == _2309:
         #         zone._temp = zone_dict
-        #     elif msg.code == "30C9":
+        #     elif msg.code == _30C9:
         #         zone._temp = zone_dict
 
-        # if msg.code in ("000A", "2309", "30C9"):
+        # if msg.code in (_000A, _2309, _30C9):
         #     if isinstance(msg.payload, list):
         #         super()._handle_msg(msg)
         #         [xxx(z) for z in msg.payload]
         #     else:
         #         xxx(msg.payload)
 
-        if msg.code in ("000A", "2309", "30C9") and isinstance(msg.payload, list):
+        if msg.code in (_000A, _2309, _30C9) and isinstance(msg.payload, list):
             pass
 
 
@@ -957,7 +1022,7 @@ class Hometronics(System):
 
     __sys_class__ = SYSTEM_CLASS.EVO
 
-    RQ_SUPPORTED = ("0004", "000C", "2E04", "313F")  # TODO: WIP
+    RQ_SUPPORTED = (_0004, _000C, _2E04, _313F)  # TODO: WIP
     RQ_UNSUPPORTED = ("xxxx",)  # 10E0?
 
     def __repr__(self) -> str:
@@ -970,7 +1035,7 @@ class Hometronics(System):
         # will RP to: 0004
 
         if discover_flag & DISCOVER_STATUS:
-            self._send_cmd("1F09")
+            self._send_cmd(_1F09)
 
 
 class Programmer(Evohome):

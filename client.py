@@ -162,6 +162,7 @@ class FileCommand(click.Command):
         self.params.insert(
             0, click.Argument(("input-file",), type=click.File("r"), default=sys.stdin)
         )
+        # NOTE: The following is useful for only for test/dev
         # self.params.insert(
         #     1,
         #     click.Option(
@@ -360,7 +361,8 @@ def _print_summary(gwy):
 
 async def main(lib_kwargs, **kwargs):
     def process_message(msg) -> None:
-        # return
+        # if msg._pkt._idx not in (None, "******"):
+        #     return
         dtm = msg.dtm if kwargs["long_dates"] else f"{msg.dtm:%H:%M:%S.%f}"[:-3]
         if msg.src.type == "18":
             print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
@@ -432,12 +434,12 @@ async def main(lib_kwargs, **kwargs):
         msg = " - ended without error (e.g. EOF)"
 
     print("\r\nclient.py: Finished ramses_rf, results:\r\n")
-    if kwargs[COMMAND] == EXECUTE:
-        _print_results(gwy, **kwargs)
-    elif kwargs["show_state"]:
-        _print_state(gwy)  # TODO: make this choice a switch
-    else:
-        _print_summary(gwy)
+    # if kwargs[COMMAND] == EXECUTE:
+    #     _print_results(gwy, **kwargs)
+    # elif kwargs["show_state"]:
+    #     _print_state(gwy)  # TODO: make this choice a switch
+    # else:
+    #     _print_summary(gwy)
 
     print(f"\r\nclient.py: Finished ramses_rf.\r\n{msg}\r\n")
 

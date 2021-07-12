@@ -8,6 +8,70 @@ import re
 from collections import namedtuple
 from types import SimpleNamespace
 
+from .ramses import (  # noqa: F401
+    _000A,
+    _000C,
+    _000E,
+    _01D0,
+    _01E9,
+    _1F09,
+    _1F41,
+    _1FC9,
+    _1FD4,
+    _2D49,
+    _2E04,
+    _3B00,
+    _3EF0,
+    _3EF1,
+    _7FFF,
+    _10A0,
+    _10E0,
+    _12A0,
+    _12B0,
+    _12C0,
+    _12C8,
+    _22C9,
+    _22D0,
+    _22D9,
+    _22F1,
+    _22F3,
+    _30C9,
+    _31D9,
+    _31DA,
+    _31E0,
+    _042F,
+    _313F,
+    I_,
+    RP,
+    RQ,
+    W_,
+    _0001,
+    _0002,
+    _0004,
+    _0005,
+    _0006,
+    _0008,
+    _0009,
+    _0016,
+    _0100,
+    _0404,
+    _0418,
+    _1030,
+    _1060,
+    _1090,
+    _1100,
+    _1260,
+    _1280,
+    _1290,
+    _1298,
+    _2249,
+    _2309,
+    _2349,
+    _3120,
+    _3150,
+    _3220,
+)
+
 DEV_MODE = __dev_mode__ = True
 
 # grep ' F[89ABxDE]' | grep -vE ' (0008|1F09/F8|1FC9|2D49/FD) '
@@ -58,42 +122,27 @@ RLY_DEVICE_ID = r"^13:[0-9]{6}$"
 
 # Packet codes (this dict is being deprecated) - check against ramses.py
 CODE_SCHEMA = {
-    "0001": {"uses_zone_idx": True},  # unknown
-    "0004": {"rq_len": 2, "uses_zone_idx": True},  # "null_resp": "7F" * 20,
-    "0005": {"rq_length": 2},
-    "0006": {"rq_len": 1},
-    "0008": {"uses_zone_idx": True},
-    "0009": {"uses_zone_idx": True},
-    "000A": {"rq_len": 3, "uses_zone_idx": True},  # "null_resp": "007FFF7FFF",
-    "000E": {"uses_zone_idx": False},
-    "0016": {"rq_length": 2},
-    "0100": {"rq_length": 5},
-    "01D0": {"uses_zone_idx": True},  # might yet be False
-    "01E9": {"uses_zone_idx": True},  # might yet be False
-    "0404": {"uses_zone_idx": True},
-    "0418": {"null_rp": "000000B0000000000000000000007FFFFF7000000000"},
-    "042F": {"uses_zone_idx": False},
-    "1030": {"uses_zone_idx": True},
-    "1060": {"uses_zone_idx": True},
-    "10A0": {"rq_length": len("0000") / 2},
-    "1298": {"uses_zone_idx": False},
-    "12B0": {"uses_zone_idx": True},
-    "12C8": {"uses_zone_idx": False},
-    "1F09": {"rq_len": 1},
-    "1FC9": {"uses_zone_idx": True, "rq_len": 1},  # was bind_device
-    "2249": {"uses_zone_idx": True},
-    "22D0": {"uses_zone_idx": None},
-    "2309": {"uses_zone_idx": True, "rq_len": 1},
-    "2349": {"uses_zone_idx": True},  # "null_resp": "7FFF00FFFFFF"
-    "2E04": {"uses_zone_idx": False},
-    "30C9": {"uses_zone_idx": True},
-    "3120": {"uses_zone_idx": False},
-    "3150": {"uses_zone_idx": True},
-    "3EF0": {"uses_zone_idx": False},
-    "3EF1": {"uses_zone_idx": True, "rq_length": 2},
+    _0001: {"uses_zone_idx": True},
+    _0004: {"uses_zone_idx": True},
+    _0008: {"uses_zone_idx": True},
+    _0009: {"uses_zone_idx": True},
+    _000A: {"uses_zone_idx": True},
+    _01D0: {"uses_zone_idx": True},
+    _01E9: {"uses_zone_idx": True},
+    _0404: {"uses_zone_idx": True},
+    _1030: {"uses_zone_idx": True},
+    _1060: {"uses_zone_idx": True},
+    _12B0: {"uses_zone_idx": True},
+    _1FC9: {"uses_zone_idx": True},
+    _2249: {"uses_zone_idx": True},
+    _2309: {"uses_zone_idx": True},
+    _2349: {"uses_zone_idx": True},
+    _30C9: {"uses_zone_idx": True},
+    _3150: {"uses_zone_idx": True},
+    _3EF1: {"uses_zone_idx": True},
 }
 
-MAY_USE_DOMAIN_ID = ["0001", "0008", "0009", "1100", "1FC9", "3150", "3B00"]
+MAY_USE_DOMAIN_ID = [_0001, _0008, _0009, _1100, _1FC9, _3150, _3B00]
 MAY_USE_ZONE_IDX = [k for k, v in CODE_SCHEMA.items() if v.get("uses_zone_idx")]
 
 DEVICE_TABLE = {
@@ -107,7 +156,7 @@ DEVICE_TABLE = {
         "is_controller": True,
         "is_sensor": True,
         "archetype": "ATC928",
-        "poll_codes": ["000C", "10E0", "1100", "313F"],
+        "poll_codes": [_000C, _10E0, _1100, _313F],
         "discover_schema": [],
     },  # rechargeable
     "02": {
@@ -157,16 +206,16 @@ DEVICE_TABLE = {
         "is_sensor": False,
         "archetype": "R8810",
         "poll_codes": [
-            "0008",
-            "10A0",
-            "1100",
-            "1260",
-            "1290",
-            "22D9",
-            "3150",
-            "3220",
-            "3EF0",
-            "3EF1",
+            _0008,
+            _10A0,
+            _1100,
+            _1260,
+            _1290,
+            _22D9,
+            _3150,
+            _3220,
+            _3EF0,
+            _3EF1,
         ],
         "discover_schema": [],
     },  #
@@ -177,7 +226,7 @@ DEVICE_TABLE = {
         "is_actuator": None,
         "is_sensor": False,
         "archetype": "BDR91",  # also: HC60NG?
-        "poll_codes": ["0008", "1100", "3EF1"],
+        "poll_codes": [_0008, _1100, _3EF1],
         "discover_schema": [],  # excl.: 10E0
     },
     "22": {
@@ -384,9 +433,6 @@ p = r"([0-9A-F]{2}){1,48}"  # Payload
 DEVICE_ID_REGEX = re.compile(f"^{d}$")
 COMMAND_REGEX = re.compile(f"^{v} {r} {d} {d} {d} {c} {l} {p}$")
 MESSAGE_REGEX = re.compile(f"^{r} {v} {r} {d} {d} {d} {c} {l} {p}$")
-
-MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:8s} || {}"
-MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:8s} || {}"
 
 ATTR_CONTROLLER = "controller"
 ATTR_DEVICES = "devices"

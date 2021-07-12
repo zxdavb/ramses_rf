@@ -478,7 +478,7 @@ def create_msg_stack(
 
     msg_protocol = protocol_factory() if protocol_factory else _protocol_factory()
 
-    if gwy.msg_transport:  # HACK: a little messy?
+    if gwy.msg_transport:  # TODO: a little messy?
         msg_transport = gwy.msg_transport
         msg_transport.add_protocol(msg_protocol)
     else:
