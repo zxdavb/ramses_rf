@@ -27,7 +27,6 @@ from .devices import Device, create_device
 from .message import Message, process_msg
 from .packet import set_pkt_logging
 from .protocol import create_msg_stack
-from .ramses import I_, RP, RQ, W_  # noqa: F401
 from .schema import (
     ALLOW_LIST,
     BLOCK_LIST,
@@ -40,6 +39,8 @@ from .schema import (
 from .systems import System, create_system
 from .transport import POLLER_TASK, create_pkt_stack
 from .version import __version__  # noqa: F401
+
+from .ramses import I_, RP, RQ, W_  # noqa: F401, isort: skip
 
 DEV_MODE = __dev_mode__ and False
 VERSION = __version__
