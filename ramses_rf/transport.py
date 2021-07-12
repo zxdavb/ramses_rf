@@ -386,8 +386,8 @@ class PacketProtocolBase(asyncio.Protocol):
         try:
             pkt = Packet(pkt_dtm, pkt_line, frame_raw=data)
         except ValueError:  # not a valid packet
-            # if data != "" and pkt_dtm.strip()[:1] not in "#*":
-            _LOGGER.error("%s << Cant create packet from RF (ignoring)", data)
+            if pkt_line.lstrip()[:1] != "#":
+                _LOGGER.error("%s << Cant create packet from RF (ignoring)", data)
             return
 
         self._pkt_received(pkt)
@@ -514,9 +514,9 @@ class PacketProtocolRead(PacketProtocolBase):
 
         try:  # assert DTM_LONG_REGEX.match(dtm_str)
             pkt = Packet.from_log_line(pkt_dtm, pkt_line)
-        except (TypeError, ValueError):  # not a valid packet
-            # if data != "" and pkt_dtm.strip()[:1] not in "#*":
-            _LOGGER.error("%s << Cant create packet from log (ignoring)", data)
+        except ValueError:  # not a valid packet
+            if pkt_line.lstrip()[:1] != "#" and data.lstrip()[:1] != "#":
+                _LOGGER.info("%s << Cant create packet from log (ignoring)", data)
             return
 
         if self._callback and self._is_wanted(pkt.src_addr, pkt.dst_addr):
