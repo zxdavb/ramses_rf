@@ -100,7 +100,7 @@ from .ramses import (  # noqa: F401, isort: skip
     _3B00,
     _3EF0,
     _3EF1,
-    _7FFF,
+    _PUZZ,
 )
 
 DEV_MODE = __dev_mode__ and False

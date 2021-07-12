@@ -105,7 +105,7 @@ from .ramses import (  # noqa: F401, isort: skip
     _3B00,
     _3EF0,
     _3EF1,
-    _7FFF,
+    _PUZZ,
 )
 
 IDX_NAMES = {
@@ -424,7 +424,7 @@ def _temp(value: str) -> Union[float, bool, None]:
         return
     if value == "7EFF":  # possibly only for setpoints?
         return False
-    if value == _7FFF:  # also: FFFF?, means: N/A (== 327.67)
+    if value == "7FFF":  # also: FFFF?, means: N/A (== 327.67)
         return
     temp = int(value, 16)
     return (temp if temp < 2 ** 15 else temp - 2 ** 16) / 100
@@ -442,7 +442,7 @@ def _flag8(byte, *args) -> list:
 
 def _double(val, factor=1) -> Optional[float]:
     """Return a double, used by 31DA."""
-    if val == _7FFF:
+    if val == "7FFF":
         return
     result = int(val, 16)
     assert result < 32767
@@ -1832,14 +1832,14 @@ def parser_31da(payload, msg) -> Optional[dict]:
 
     assert payload[2:4] in ("00", "EF"), payload[2:4]
     assert payload[4:6] in ("00", "40"), payload[4:6]
-    # assert payload[6:10] in ("07D0", _7FFF), payload[6:10]
+    # assert payload[6:10] in ("07D0", "7FFF"), payload[6:10]
     assert payload[10:12] == "EF" or int(payload[10:12], 16) <= 100, payload[10:12]
     assert payload[12:14] == "EF", payload[12:14]
-    assert payload[14:18] == _7FFF, payload[14:18]
-    assert payload[18:22] == _7FFF, payload[18:22]
-    assert payload[22:26] == _7FFF, payload[22:26]
-    assert payload[26:30] == _7FFF, payload[26:30]
-    assert payload[30:34] in (_0002, "F000", "F800", "F808", _7FFF), payload[30:34]
+    assert payload[14:18] == "7FFF", payload[14:18]
+    assert payload[18:22] == "7FFF", payload[18:22]
+    assert payload[22:26] == "7FFF", payload[22:26]
+    assert payload[26:30] == "7FFF", payload[26:30]
+    assert payload[30:34] in ("0002", "F000", "F800", "F808", "7FFF"), payload[30:34]
     assert payload[34:36] == "EF", payload[34:36]
     assert payload[36:38] == "EF" or int(payload[36:38], 16) & 0x1F <= 0x18, payload[
         36:38
@@ -1851,8 +1851,8 @@ def parser_31da(payload, msg) -> Optional[dict]:
     # assert payload[42:46] == "0000", payload[42:46]
     assert payload[46:48] in ("00", "EF"), payload[46:48]
     assert payload[48:50] == "EF", payload[48:50]
-    assert payload[50:54] == _7FFF, payload[50:54]
-    assert payload[54:58] == _7FFF, payload[54:58]  # or: FFFF?
+    assert payload[50:54] == "7FFF", payload[50:54]
+    assert payload[54:58] == "7FFF", payload[54:58]  # or: FFFF?
 
     return {
         "air_quality": _percent(payload[2:4]),
@@ -2078,14 +2078,14 @@ def parser_3ef1(payload, msg) -> dict:
     assert _percent(payload[10:12]) <= 1, payload[10:12]
     # assert payload[12:] == "FF"
 
-    cycle_countdown = None if payload[2:6] == _7FFF else int(payload[2:6], 16)
+    cycle_countdown = None if payload[2:6] == "7FFF" else int(payload[2:6], 16)
 
     return {
         **_idx(payload[:2], msg),
         "actuator_enabled": bool(_percent(payload[10:12])),
         "modulation_level": _percent(payload[10:12]),
         "actuator_countdown": int(payload[6:10], 16),
-        "cycle_countdown": cycle_countdown,  # not for OTB, == _7FFF
+        "cycle_countdown": cycle_countdown,  # not for OTB, == "7FFF"
         "_unknown_0": payload[12:],  # for OTB != "FF"
     }
 

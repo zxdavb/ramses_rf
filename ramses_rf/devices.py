@@ -91,7 +91,7 @@ from .ramses import (  # noqa: F401, isort: skip
     _3B00,
     _3EF0,
     _3EF1,
-    _7FFF,
+    _PUZZ,
 )
 
 DEFAULT_BDR_ID = "13:000730"
@@ -848,7 +848,7 @@ class UfhController(Device):  # UFC (02):
 
         # [  # 22C9: no answer
         #     self._send_cmd(_22C9, payload=f"{payload}")
-        #     for payload in ("00", "0000", "01", _0100)
+        #     for payload in ("00", "0000", "01", "0100")
         # ]
 
         # [  # 22D0: dunno, always: {'unknown': '000002'}

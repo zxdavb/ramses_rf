@@ -61,7 +61,7 @@ _3220 = "3220"
 _3B00 = "3B00"
 _3EF0 = "3EF0"
 _3EF1 = "3EF1"
-_7FFF = "7FFF"
+_PUZZ = "7FFF"
 
 RQ_NULL = "rq_null"
 RQ_MAY_HAVE_PAYLOAD = "rq_may_have_payload"
@@ -371,7 +371,7 @@ RAMSES_CODES = {  # rf_unknown
         # RP: r"^(0[0-9A-F](00)?|00[0-9A-F]{22})$", # TODO
         RQ_MAY_HAVE_PAYLOAD: True,
     },
-    _7FFF: {
+    _PUZZ: {
         NAME: "puzzle_packet",
         I_: r"^7F[0-9A-F]{12}7F[0-9A-F]{4}7F[0-9A-F]{4}(7F)+",
     },

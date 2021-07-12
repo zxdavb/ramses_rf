@@ -101,7 +101,7 @@ from .ramses import (  # noqa: F401, isort: skip
     _3B00,
     _3EF0,
     _3EF1,
-    _7FFF,
+    _PUZZ,
 )
 
 COMMAND_FORMAT = "{:<2} {} {} {} {} {} {:03d} {}"
@@ -184,7 +184,7 @@ def _pkt_header(pkt: str, rx_header=None) -> Optional[str]:
             return
         verb = RP if verb == RQ else I_  # RQ/RP, or W/I
 
-    if code in (_0001, _7FFF) and rx_header:  # code has no RQ, no W
+    if code in (_0001, _PUZZ) and rx_header:  # code has no RQ, no W
         return
 
     addr = dst if src.type == "18" else src
@@ -829,7 +829,7 @@ class Command:
         if length:
             payload = payload.ljust(length * 2, "F")
 
-        return cls(I_, _7FFF, payload[:48], NUL_DEV_ADDR.id, **kwargs)
+        return cls(I_, _PUZZ, payload[:48], NUL_DEV_ADDR.id, **kwargs)
 
 
 # A convenience dict

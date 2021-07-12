@@ -41,7 +41,7 @@ from .protocol import create_protocol_factory
 from .schema import ALLOW_LIST, BLOCK_LIST, SERIAL_CONFIG_SCHEMA
 from .version import __version__
 
-_7FFF = "7FFF"
+_PUZZ = "7FFF"
 
 DEV_MODE = __dev_mode__ and False
 
@@ -712,7 +712,7 @@ class PacketProtocolQos(PacketProtocolBase):
                 )  # TODO: should be debug
 
             else:
-                if self._qos_cmd.code != _7FFF:  # HACK: why expired when shouldn't
+                if self._qos_cmd.code != _PUZZ:  # HACK: why expired when shouldn't
                     _logger_send(
                         _LOGGER.warning,
                         f"EXPIRED ({self._tx_retries}/{self._tx_retry_limit})",

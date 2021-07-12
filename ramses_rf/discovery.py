@@ -80,7 +80,7 @@ from .ramses import (  # noqa: F401, isort: skip
     _3B00,
     _3EF0,
     _3EF1,
-    _7FFF,
+    _PUZZ,
 )
 
 EXECUTE_CMD = "execute_cmd"
@@ -313,7 +313,7 @@ async def scan_full(gwy, dev_id: str):
             for data_id in (0, 3):  # these are mandatory READ_DATA data_ids
                 gwy.send_cmd(Command.get_opentherm_data(dev_id, data_id, **qos))
 
-        elif code == _7FFF:
+        elif code == _PUZZ:
             continue
 
         elif (
