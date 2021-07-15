@@ -19,11 +19,9 @@ from functools import total_ordering
 from types import SimpleNamespace
 from typing import Optional
 
+from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .const import (
     COMMAND_REGEX,
-    HGI_DEV_ADDR,
-    NON_DEV_ADDR,
-    NUL_DEV_ADDR,
     SYSTEM_MODE_LOOKUP,
     SYSTEM_MODE_MAP,
     ZONE_MODE_LOOKUP,
@@ -32,19 +30,12 @@ from .const import (
     __dev_mode__,
 )
 from .exceptions import ExpiredCallbackError
-from .helpers import (
-    dt_now,
-    dtm_to_hex,
-    dts_to_hex,
-    extract_addrs,
-    str_to_hex,
-    temp_to_hex,
-)
+from .helpers import dt_now, dtm_to_hex, dts_to_hex, str_to_hex, temp_to_hex
 from .opentherm import parity
-from .ramses import pkt_has_idx
+from .ramses import pkt_addrs, pkt_header
 
-from .ramses import I_, RP, RQ, W_  # noqa: F401, isort: skip
-from .ramses import (  # noqa: F401, isort: skip
+from .const import I_, RP, RQ, W_  # noqa: F401, isort: skip
+from .const import (  # noqa: F401, isort: skip
     _0001,
     _0002,
     _0004,
@@ -164,39 +155,6 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def _pkt_header(pkt: str, rx_header=None) -> Optional[str]:
-    """Return the QoS header of a packet."""
-
-    verb = pkt[4:6]
-    src, dst, _ = extract_addrs(pkt[11:40])
-    code = pkt[41:45]
-
-    if code == _1FC9:  # TODO: will need to do something similar for 3220?
-        if src == dst:
-            return "|".join((W_, dst.id, code) if rx_header else (I_, src.id, code))
-        if verb == W_:
-            return "|".join((W_, dst.id, code)) if not rx_header else None
-        if rx_header:
-            return
-
-    if rx_header:
-        if src == dst:  # usually announcements, not requiring an Rx
-            return
-        verb = RP if verb == RQ else I_  # RQ/RP, or W/I
-
-    if code in (_0001, _PUZZ) and rx_header:  # code has no RQ, no W
-        return
-
-    addr = dst if src.type == "18" else src
-    header = "|".join((verb, addr.id, code))
-
-    header_idx = pkt_has_idx(pkt)
-    if header_idx:
-        header += f"|{header_idx}"
-
-    return header
-
-
 def validate_system_args(fcn):
     """Validate/normalise any args common to all systems calls (ctl_id)."""
 
@@ -229,7 +187,7 @@ class Command:
         assert self.verb in (I_, RQ, RP, W_), f"invalid verb: '{self.verb}'"
 
         self.seqn = "---"
-        self.from_addr, self.dest_addr, self.addrs = extract_addrs(
+        self.from_addr, self.dest_addr, self.addrs = pkt_addrs(
             f"{kwargs.get('from_id', HGI_DEV_ADDR.id)} {dest_id} {NON_DEV_ADDR.id}"
         )
         self.code = code
@@ -298,21 +256,21 @@ class Command:
     def tx_header(self) -> str:
         """Return the QoS header of this (request) packet."""
         if self._tx_header is None:
-            self._tx_header = _pkt_header(f"... {self}")
+            self._tx_header = pkt_header(f"... {self}")
         return self._tx_header
 
     @property
     def rx_header(self) -> Optional[str]:
         """Return the QoS header of a corresponding response packet (if any)."""
         if self.tx_header and self._rx_header is None:
-            self._rx_header = _pkt_header(f"... {self}", rx_header=True)
+            self._rx_header = pkt_header(f"... {self}", rx_header=True)
         return self._rx_header
 
     # @property
     # def null_header(self) -> Optional[str]:
     #     """Return the QoS header of a null response packet (if any)."""
     #     if self.tx_header and self._rx_header is None:
-    #         self._rx_header = _pkt_header(f"... {self}", null_header=True)
+    #         self._rx_header = pkt_header(f"... {self}", null_header=True)
     #     return self._rx_header
 
     @property
@@ -785,9 +743,7 @@ class Command:
         elif seqn is not None:
             cmd.seqn = f"{int(seqn):03d}"
 
-        cmd.from_addr, cmd.dest_addr, cmd.addrs = extract_addrs(
-            f"{addr0} {addr1} {addr2}"
-        )
+        cmd.from_addr, cmd.dest_addr, cmd.addrs = pkt_addrs(f"{addr0} {addr1} {addr2}")
 
         cmd._is_valid = None
         if not cmd.is_valid:

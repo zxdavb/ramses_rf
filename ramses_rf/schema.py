@@ -38,8 +38,8 @@ from .const import (
     SystemType,
     __dev_mode__,
 )
-from .const import id_to_address as addr
 from .devices import DEVICE_BY_CLASS_ID
+from .ramses import id_to_address as addr
 
 # schema attrs
 ATTR_DEVICE_ID = "device_id"

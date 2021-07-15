@@ -42,8 +42,8 @@ from .exceptions import CorruptStateError
 from .helpers import schedule_task
 
 # from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
-from .ramses import I_, RP, RQ, W_  # noqa: F401, isort: skip
-from .ramses import (  # noqa: F401, isort: skip
+from .const import I_, RP, RQ, W_  # noqa: F401, isort: skip
+from .const import (  # noqa: F401, isort: skip
     _0001,
     _0002,
     _0004,

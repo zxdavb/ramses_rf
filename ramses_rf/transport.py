@@ -23,6 +23,7 @@ from typing import ByteString, Callable, Optional, Tuple
 from serial import SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerialTransportAsync
 
+from .address import HGI_DEV_ADDR
 from .command import (
     ARGS,
     DEAMON,
@@ -34,7 +35,7 @@ from .command import (
     Command,
     Priority,
 )
-from .const import HGI_DEV_ADDR, __dev_mode__
+from .const import __dev_mode__
 from .helpers import dt_now
 from .packet import Packet
 from .protocol import create_protocol_factory
@@ -516,7 +517,7 @@ class PacketProtocolRead(PacketProtocolBase):
             pkt = Packet.from_log_line(pkt_dtm, pkt_line)
         except ValueError:  # not a valid packet
             if pkt_line.lstrip()[:1] != "#" and data.lstrip()[:1] != "#":
-                _LOGGER.info("%s << Cant create packet from log (ignoring)", data)
+                _LOGGER.debug("%s << Cant create packet from log (ignoring)", data)
             return
 
         if self._callback and self._is_wanted(pkt.src_addr, pkt.dst_addr):

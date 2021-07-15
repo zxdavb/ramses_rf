@@ -3,102 +3,81 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
-import functools
 import re
-from collections import namedtuple
 from types import SimpleNamespace
 
-from .ramses import I_, RP, RQ, W_  # noqa: F401, isort: skip
-from .ramses import (  # noqa: F401, isort: skip
-    _0001,
-    _0002,
-    _0004,
-    _0005,
-    _0006,
-    _0008,
-    _0009,
-    _000A,
-    _000C,
-    _000E,
-    _0016,
-    _0100,
-    _01D0,
-    _01E9,
-    _0404,
-    _0418,
-    _042F,
-    _1030,
-    _1060,
-    _1090,
-    _10A0,
-    _10E0,
-    _1100,
-    _1260,
-    _1280,
-    _1290,
-    _1298,
-    _12A0,
-    _12B0,
-    _12C0,
-    _12C8,
-    _1F09,
-    _1F41,
-    _1FC9,
-    _1FD4,
-    _2249,
-    _22C9,
-    _22D0,
-    _22D9,
-    _22F1,
-    _22F3,
-    _2309,
-    _2349,
-    _2D49,
-    _2E04,
-    _30C9,
-    _3120,
-    _313F,
-    _3150,
-    _31D9,
-    _31DA,
-    _31E0,
-    _3220,
-    _3B00,
-    _3EF0,
-    _3EF1,
-    _PUZZ,
-)
-
-
 DEV_MODE = __dev_mode__ = True
-
-# grep ' F[89ABxDE]' | grep -vE ' (0008|1F09/F8|1FC9|2D49/FD) '
-# grep ' F[89ABCDE]' | grep -vE ' (0008|1F09/xx|1FC9|0001|0009|1100|3150|3B00) '
-
-Address = namedtuple("DeviceAddress", "id, type")
-
-
-@functools.lru_cache(maxsize=128)
-def id_to_address(device_id) -> Address:
-    return Address(id=device_id, type=device_id[:2])
 
 
 def slug(string: str) -> str:
     return re.sub(r"[\W_]+", "_", string.lower())
 
 
+I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
+
+_0001 = "0001"
+_0002 = "0002"
+_0004 = "0004"
+_0005 = "0005"
+_0006 = "0006"
+_0008 = "0008"
+_0009 = "0009"
+_000A = "000A"
+_000C = "000C"
+_000E = "000E"
+_0016 = "0016"
+_0100 = "0100"
+_01D0 = "01D0"
+_01E9 = "01E9"
+_0404 = "0404"
+_0418 = "0418"
+_042F = "042F"
+_1030 = "1030"
+_1060 = "1060"
+_1090 = "1090"
+_10A0 = "10A0"
+_10E0 = "10E0"
+_1100 = "1100"
+_1260 = "1260"
+_1280 = "1280"
+_1290 = "1290"
+_1298 = "1298"
+_12A0 = "12A0"
+_12B0 = "12B0"
+_12C0 = "12C0"
+_12C8 = "12C8"
+_1F09 = "1F09"
+_1F41 = "1F41"
+_1FC9 = "1FC9"
+_1FD4 = "1FD4"
+_2249 = "2249"
+_22C9 = "22C9"
+_22D0 = "22D0"
+_22D9 = "22D9"
+_22F1 = "22F1"
+_22F3 = "22F3"
+_2309 = "2309"
+_2349 = "2349"
+_2D49 = "2D49"
+_2E04 = "2E04"
+_30C9 = "30C9"
+_3120 = "3120"
+_313F = "313F"
+_3150 = "3150"
+_31D9 = "31D9"
+_31DA = "31DA"
+_31E0 = "31E0"
+_3220 = "3220"
+_3B00 = "3B00"
+_3EF0 = "3EF0"
+_3EF1 = "3EF1"
+_PUZZ = "7FFF"
+
+
 DEFAULT_MAX_ZONES = 16 if DEV_MODE else 12
 # Evohome: 12 (0-11), older/initial version was 8
 # Hometronics: 16 (0-15), or more?
 # Sundial RF2: 2 (0-1), usually only one, but ST9520C can do two zones
-
-HGI_DEVICE_ID = "18:000730"  # default type and address of HGI, 18:013393
-NON_DEVICE_ID = "--:------"
-NUL_DEVICE_ID = "63:262142"  # 7FFFFF - send here if not bound?
-
-HGI_DEV_ADDR = id_to_address(HGI_DEVICE_ID)
-NON_DEV_ADDR = id_to_address(NON_DEVICE_ID)
-NUL_DEV_ADDR = id_to_address(NUL_DEVICE_ID)
 
 # ATTR_DEVICE_ID = "device_id"
 # ATTR_SENSOR_ID = "sensor_id"
@@ -121,13 +100,14 @@ RLY_DEVICE_ID = r"^13:[0-9]{6}$"
 # Packet codes (this dict is being deprecated) - check against ramses.py
 CODE_SCHEMA = {
     _0001: {"uses_zone_idx": True},
+    _01D0: {"uses_zone_idx": True},
+    _01E9: {"uses_zone_idx": True},
+    _0404: {"uses_zone_idx": True},
+    _3EF1: {"uses_zone_idx": True},
     _0004: {"uses_zone_idx": True},
     _0008: {"uses_zone_idx": True},
     _0009: {"uses_zone_idx": True},
     _000A: {"uses_zone_idx": True},
-    _01D0: {"uses_zone_idx": True},
-    _01E9: {"uses_zone_idx": True},
-    _0404: {"uses_zone_idx": True},
     _1030: {"uses_zone_idx": True},
     _1060: {"uses_zone_idx": True},
     _12B0: {"uses_zone_idx": True},
@@ -137,10 +117,8 @@ CODE_SCHEMA = {
     _2349: {"uses_zone_idx": True},
     _30C9: {"uses_zone_idx": True},
     _3150: {"uses_zone_idx": True},
-    _3EF1: {"uses_zone_idx": True},
 }
 
-MAY_USE_DOMAIN_ID = [_0001, _0008, _0009, _1100, _1FC9, _3150, _3B00]
 MAY_USE_ZONE_IDX = [k for k, v in CODE_SCHEMA.items() if v.get("uses_zone_idx")]
 
 DEVICE_TABLE = {

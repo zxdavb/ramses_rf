@@ -26,15 +26,14 @@ from .const import (
     DISCOVER_STATUS,
     DOMAIN_TYPE_MAP,
     __dev_mode__,
-    id_to_address,
 )
 from .exceptions import CorruptStateError
 from .helpers import dev_id_to_hex, schedule_task
 from .opentherm import MSG_ID, MSG_TYPE, VALUE  # R8810A_MSG_IDS
-from .ramses import RAMSES_DEVICES
+from .ramses import RAMSES_DEVICES, id_to_address
 
-from .ramses import I_, RP, RQ, W_  # noqa: F401, isort: skip
-from .ramses import (  # noqa: F401, isort: skip
+from .const import I_, RP, RQ, W_  # noqa: F401, isort: skip
+from .const import (  # noqa: F401, isort: skip
     _0001,
     _0002,
     _0004,
@@ -829,6 +828,8 @@ class UfhController(Device):  # UFC (02):
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
+
+        # TODO: UFC may RP to an RQ/0001
 
         if discover_flag & DISCOVER_SCHEMA:
             [  # 000C: used to find evo zone for each configured channel

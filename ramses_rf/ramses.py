@@ -3,65 +3,80 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
-I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
+import logging
+from functools import lru_cache
+from typing import List, Optional, Tuple
 
-_0001 = "0001"
-_0002 = "0002"
-_0004 = "0004"
-_0005 = "0005"
-_0006 = "0006"
-_0008 = "0008"
-_0009 = "0009"
-_000A = "000A"
-_000C = "000C"
-_000E = "000E"
-_0016 = "0016"
-_0100 = "0100"
-_01D0 = "01D0"
-_01E9 = "01E9"
-_0404 = "0404"
-_0418 = "0418"
-_042F = "042F"
-_1030 = "1030"
-_1060 = "1060"
-_1090 = "1090"
-_10A0 = "10A0"
-_10E0 = "10E0"
-_1100 = "1100"
-_1260 = "1260"
-_1280 = "1280"
-_1290 = "1290"
-_1298 = "1298"
-_12A0 = "12A0"
-_12B0 = "12B0"
-_12C0 = "12C0"
-_12C8 = "12C8"
-_1F09 = "1F09"
-_1F41 = "1F41"
-_1FC9 = "1FC9"
-_1FD4 = "1FD4"
-_2249 = "2249"
-_22C9 = "22C9"
-_22D0 = "22D0"
-_22D9 = "22D9"
-_22F1 = "22F1"
-_22F3 = "22F3"
-_2309 = "2309"
-_2349 = "2349"
-_2D49 = "2D49"
-_2E04 = "2E04"
-_30C9 = "30C9"
-_3120 = "3120"
-_313F = "313F"
-_3150 = "3150"
-_31D9 = "31D9"
-_31DA = "31DA"
-_31E0 = "31E0"
-_3220 = "3220"
-_3B00 = "3B00"
-_3EF0 = "3EF0"
-_3EF1 = "3EF1"
-_PUZZ = "7FFF"
+from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, Address, id_to_address
+from .const import __dev_mode__
+from .exceptions import CorruptAddrSetError
+
+from .const import I_, RP, RQ, W_  # noqa: F401, isort: skip
+from .const import (  # noqa: F401, isort: skip
+    _0001,
+    _0002,
+    _0004,
+    _0005,
+    _0006,
+    _0008,
+    _0009,
+    _000A,
+    _000C,
+    _000E,
+    _0016,
+    _0100,
+    _01D0,
+    _01E9,
+    _0404,
+    _0418,
+    _042F,
+    _1030,
+    _1060,
+    _1090,
+    _10A0,
+    _10E0,
+    _1100,
+    _1260,
+    _1280,
+    _1290,
+    _1298,
+    _12A0,
+    _12B0,
+    _12C0,
+    _12C8,
+    _1F09,
+    _1F41,
+    _1FC9,
+    _1FD4,
+    _2249,
+    _22C9,
+    _22D0,
+    _22D9,
+    _22F1,
+    _22F3,
+    _2309,
+    _2349,
+    _2D49,
+    _2E04,
+    _30C9,
+    _3120,
+    _313F,
+    _3150,
+    _31D9,
+    _31DA,
+    _31E0,
+    _3220,
+    _3B00,
+    _3EF0,
+    _3EF1,
+    _PUZZ,
+)
+
+DEV_MODE = True or __dev_mode__
+
+_LOGGER = logging.getLogger(__name__)
+if DEV_MODE:
+    _LOGGER.setLevel(logging.DEBUG)
 
 RQ_NULL = "rq_null"
 RQ_MAY_HAVE_PAYLOAD = "rq_may_have_payload"
@@ -75,7 +90,7 @@ EXPIRY = "expiry"
 RAMSES_CODES = {  # rf_unknown
     _0001: {
         NAME: "rf_unknown",
-        W_: r"^(0[0-9A-F]|F[ACF])0{4}05(05|01)$",
+        W_: r"^(0[0-9A-F]|F[ACF])000005(05|01)$",
     },  # TODO: there appears to be a RQ/RP for UFC
     _0002: {  # WIP: outdoor_sensor
         NAME: "outdoor_sensor",
@@ -186,7 +201,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     _10E0: {  # device_info
         NAME: "device_info",
-        I_: r"^00([0-9A-F]){30,}$",  # NOTE: RP is same
+        I_: r"^00[0-9A-F]{30,}$",  # NOTE: RP is same
         RQ: r"^00$",  # NOTE: will accept [0-9A-F]{2}
         # RP: r"^[0-9A-F]{2}([0-9A-F]){30,}$",  # NOTE: indx same as RQ
     },
@@ -330,7 +345,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     _3150: {  # heat_demand
         NAME: "heat_demand",
-        I_: r"^(FC[0-9A-F]{2}|(0[0-9A-F])[0-9A-F]{2})+$",
+        I_: r"^((0[0-9A-F])[0-9A-F]{2}|FC[0-9A-F]{2})+$",
     },
     _31D9: {  # ventilation_status
         NAME: "vent_status",
@@ -367,7 +382,8 @@ RAMSES_CODES = {  # rf_unknown
     },
     _3EF1: {  # actuator_cycle
         NAME: "actuator_cycle",
-        RQ: r"^(0[0-9A-F](00)?|00[0-9A-F]{22})$",  # NOTE: both seen in the wild
+        RQ: r"^00$",  # NOTE: both seen in the wild
+        # RQ: r"^(0[0-9A-F](00)?|00[0-9A-F]{22})$",  # NOTE: both seen in the wild
         # RP: r"^(0[0-9A-F](00)?|00[0-9A-F]{22})$", # TODO
         RQ_MAY_HAVE_PAYLOAD: True,
     },
@@ -390,28 +406,41 @@ CODE_IDX_SIMPLE = [
         or (I_ in v and v[I_].startswith(("^0[0-9A-F]", "^(0[0-9A-F]", "^((0[0-9A-F]")))
     )
 ]
-CODE_IDX_SIMPLE.extend([_10A0, _1100, _3150])
+CODE_IDX_SIMPLE.extend([_10A0, _1100])
+#
 CODE_IDX_NONE = [
     k
     for k, v in RAMSES_CODES.items()
     if k not in CODE_IDX_COMPLEX + CODE_IDX_SIMPLE
     and ((RQ in v and v[RQ][:3] == "^00") or (I_ in v and v[I_][:3] == "^00"))
 ]
-CODE_IDX_NONE.extend([_2E04, _3B00])  # treat 3B00 as no domain
+CODE_IDX_NONE.extend([_2E04, _31DA, _3B00, _PUZZ])  # treat 31DA/3B00 as no domain
+#
 _CODE_IDX_UNKNOWN = [
     k
     for k, v in RAMSES_CODES.items()
     if k not in CODE_IDX_COMPLEX + CODE_IDX_NONE + CODE_IDX_SIMPLE
-]  # TODO: remove
+]  # TODO: remove?
+#
+CODE_IDX_DOMAIN = {
+    _0001: "^F[ACF])",
+    _0008: "^F[9AC]",
+    _0009: "^F[9AC]",
+    _1100: "^FC",
+    _1FC9: "^F[9ABCF]",
+    _3150: "^FC",
+    _3B00: "^FC",
+}
+#
 CODE_IDX_COMPLEX.sort() or print(f"complex = {CODE_IDX_COMPLEX}")  # TODO: remove
-CODE_IDX_NONE.sort() or print(f"none    = {CODE_IDX_NONE}")  # TODO: remove
+# CODE_IDX_NONE.sort() or print(f"none    = {CODE_IDX_NONE}")  # TODO: remove
 CODE_IDX_SIMPLE.sort() or print(f"simple  = {CODE_IDX_SIMPLE}")  # TODO: remove
 _CODE_IDX_UNKNOWN.sort() or print(f"unknown = {_CODE_IDX_UNKNOWN}")  # TODO: remove
+print(f"domains = {list(CODE_IDX_DOMAIN)}")
 
-# TODO: deprecate these
-CODES_WITH_COMPLEX_IDX = (_0001, _0008, _000C, _0418, _1100, _1F41, _3B00)
-CODES_WITHOUT_IDX = (_1F09, _2E04)  # other than r"^00"
-
+#
+#
+#
 RAMSES_DEVICES = {
     "01": {  # e.g. ATC928: Evohome Colour Controller
         _0001: {W_: {}},
@@ -477,21 +506,21 @@ RAMSES_DEVICES = {
         _30C9: {I_: {}},
     },
     "04": {  # e.g. HR92/HR91: Radiator Controller
-        _0001: {W_: {}},
-        _0004: {RQ: {}},
+        _0001: {W_: {r"^0[0-9A-F]"}},
+        _0004: {RQ: {r"^0[0-9A-F]00$"}},
         _0016: {RQ: {}},
-        _0100: {RQ: {}},
+        _0100: {RQ: {r"^00"}},
         _01D0: {W_: {}},
         _01E9: {W_: {}},
-        _1060: {I_: {}},
-        _10E0: {I_: {}},
-        _1F09: {RQ: {}},
-        _12B0: {I_: {}},  # sends every 1h
+        _1060: {I_: {r"^0[0-9A-F]{3}0[01]$"}},
+        _10E0: {I_: {r"^00[0-9A-F]{30,}$"}},
+        _12B0: {I_: {r"^0[0-9A-F]{3}00$"}},  # sends every 1h
+        _1F09: {RQ: {r"^00$"}},
         _1FC9: {I_: {}, W_: {}},
-        _2309: {I_: {}},
-        _30C9: {I_: {}},
-        _313F: {RQ: {}},
-        _3150: {I_: {}},
+        _2309: {I_: {r"^0[0-9A-F]{5}$"}},
+        _30C9: {I_: {r"^0[0-9A-F]"}},
+        _313F: {RQ: {r"^00$"}},
+        _3150: {I_: {r"^0[0-9A-F]{3}$"}},
     },
     "07": {  # e.g. CS92: (DHW) Cylinder Thermostat
         _0016: {RQ: {}},
@@ -526,7 +555,7 @@ RAMSES_DEVICES = {
         _0009: {I_: {}},
         _000A: {I_: {}, RQ: {}, W_: {}},
         _0016: {RQ: {}},
-        "0B04": {I_: {}},
+        # "0B04": {I_: {}},
         _1030: {I_: {}},
         _1060: {I_: {}},
         _1090: {RQ: {}},
@@ -542,7 +571,7 @@ RAMSES_DEVICES = {
     },
     "13": {  # e.g. BDR91A/BDR91T: Wireless Relay Box
         _0008: {RP: {}},
-        "0009a": {RP: {}},  # TODO: needs confirming
+        # _0009: {RP: {}},  # TODO: needs confirming
         _0016: {RP: {}},
         # _10E0: {},  # 13: will not RP/10E0 # TODO: how to indicate that fact here
         _1100: {I_: {}, RP: {}},
@@ -662,11 +691,13 @@ RAMSES_DEVICES = {
         _22F3: {I_: {}},
     },  # https://www.ithodaalderop.nl/nl-NL/professional/product/536-0124
 }
-
 RAMSES_DEVICES["00"] = RAMSES_DEVICES["04"]  # HR80
 RAMSES_DEVICES["21"] = RAMSES_DEVICES["34"]  # T87RF1003
 RAMSES_DEVICES["22"] = RAMSES_DEVICES["12"]  # DTS92
 
+#
+#
+#
 RAMSES_ZONES = {
     "ALL": {
         _0004: {I_: {}, RP: {}},
@@ -707,128 +738,182 @@ RAMSES_ZONES_DHW = RAMSES_ZONES["DHW"]
 [RAMSES_ZONES[k].update(RAMSES_ZONES_ALL) for k in RAMSES_ZONES if k != "DHW"]
 
 
-def pkt_has_array(pkt: str):  # TODO:
-    """Return the True is the packet payload is an array.
+@lru_cache(maxsize=256)  # there is definite benefit in caching this
+def pkt_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
+    """Return the address fields from (e.g): '01:078710 --:------ 01:144246 '."""
 
-    Currently returns True if the payload *could be* an array.
+    addrs = [id_to_address(pkt_fragment[i : i + 9]) for i in range(0, 30, 10)]
+
+    # TODO: remove all .id: addrs[2] not in (NON_DEV_ADDR, NUL_DEV_ADDR)
+
+    # This check will invalidate these esoteric pkts (which are never transmitted)
+    # ---  I --- --:------ --:------ --:------ 0001 005 00FFFF02FF
+    # ---  I --- --:------ --:------ --:------ 0001 005 00FFFF0200
+    if not all(
+        (
+            addrs[0] not in (NON_DEV_ADDR.id, NUL_DEV_ADDR.id),
+            (addrs[1].id, addrs[2].id).count(NON_DEV_ADDR.id) == 1,
+        )
+    ) and not all(
+        (
+            addrs[2].id not in (NON_DEV_ADDR.id, NUL_DEV_ADDR.id),
+            addrs[0].id == addrs[1].id == NON_DEV_ADDR.id,
+        )
+    ):
+        raise CorruptAddrSetError(f"Invalid addr set: {pkt_fragment}")
+
+    device_addrs = list(filter(lambda x: x.type != "--", addrs))
+    if len(device_addrs) > 2:
+        raise CorruptAddrSetError(f"Invalid addr set (i.e. 3 addrs): {pkt_fragment}")
+
+    src_addr = device_addrs[0]
+    dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEV_ADDR
+
+    if src_addr.id == dst_addr.id:
+        src_addr = dst_addr
+    elif src_addr.type == "18" and dst_addr.id == HGI_DEV_ADDR.id:
+        # 000  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200 (valid, ex HGI80)
+        raise CorruptAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
+        # pass
+    elif dst_addr.type == "18" and src_addr.id == HGI_DEV_ADDR.id:
+        raise CorruptAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
+        # pass
+    elif {src_addr.type, dst_addr.type}.issubset({"01", "23"}):
+        raise CorruptAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
+    elif src_addr.type == dst_addr.type:
+        # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5 (invalid)
+        raise CorruptAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
+
+    return src_addr, dst_addr, addrs
+
+
+def pkt_has_array(pkt: str):  # TODO:
+    """Return the True is the packet payload is an array, False if not.
+
+    May return false negatives (e.g. array of length 1 with ), and None if undetermined.
+    An example of a false negative is evohome with only one zone (i.e. the periodic
+    2309/30C9/000A packets).
     """
+    # False -ves are an acceptable compromise to extensive checking
 
     verb = pkt[4:6]
     code = pkt[41:45]
     payload = pkt[50:]
 
+    # .I --- 01:102458 --:------ 01:102458 0009 006 FC01FF-F901FF
+    # .I --- 01:145038 --:------ 01:145038 0009 006 FC00FF-F900FF
+    # .I 034 --:------ --:------ 12:126457 2309 006 017EFF-027EFF
     if code in (_0009, _2309, _30C9) and verb == I_:
-        if len(payload) > 6:  # TODO: remove
-            assert (pkt[11:13] == pkt[31:33] == "01") or (
-                pkt[11:13] == "--" and pkt[31:33] in ("12", "22")
-            )
-        return pkt[11:13] == pkt[31:33] == "01"  # TODO: use CTL/PRG?
+        return len(payload) > 6
 
-    if code in (_000A,) and verb == I_:
-        if len(payload) > 12:  # TODO: remove
-            assert pkt[11:13] == pkt[31:33] == "01" or (
-                pkt[11:13] == "--" and pkt[31:33] in ("12", "22")
-            )
-        return pkt[11:13] == pkt[31:33] == "01" or (
-            pkt[11:13] == "--" and pkt[31:33] in ("12", "22")
-        )  # TODO: use CTL/PRG?
+    if code in (_000A, _22C9) and verb == I_:
+        return len(payload) > 12
 
-    if code in (_22C9,) and verb == I_:
-        if len(payload) > 12:  # TODO: remove
-            assert pkt[11:13] == pkt[31:33] == "02"
-        return pkt[11:13] == pkt[31:33] == "02"  # TODO: use UFC
+    # .W --- 01:145038 34:092243 --:------ 1FC9 006 07230906368E
+    # .I --- 01:145038 --:------ 01:145038 1FC9 018 07000806368E-FC3B0006368E-071FC906368E
+    # .I --- 01:145038 --:------ 01:145038 1FC9 018 FA000806368E-FC3B0006368E-FA1FC906368E
+    # .I --- 34:092243 --:------ 34:092243 1FC9 030 0030C9896853-002309896853-001060896853-0010E0896853-001FC9896853
+    if code in (_1FC9,) and verb != RQ:  # I_, RP and I_ are all arrays
+        return len(payload) > 12
 
-    # .I --- 34:092243 --:------ 34:092243 1FC9 030 0030C98968530023098968530010608968530010E0896853001FC9896853
-    if code in (_1FC9,):
-        return True  # I_, RP and I_ are all arrays
-
-    # .I --- 02:001107 --:------ 02:001107 3150 010 007A017A027A036A046A
+    # .I --- 02:001107 --:------ 02:001107 3150 010 007A-017A-027A-036A-046A
     if code in (_3150,) and verb == I_:
-        if len(payload) > 4:
-            assert pkt[11:13] == pkt[31:33] == "02"
-        return pkt[11:13] == pkt[31:33] == "02"  # TODO: use UFC?
+        return len(payload) > 4
 
-    return None
+    return None  # i.e. don't know
 
 
 def pkt_has_idx(pkt: str):  # TODO:
     """Return the index/domain of a packet, or False if there isn't one.
 
-    Payloads that are arrays return False. There will be false +ves, but no false -ves.
+    Payloads that are arrays (and so may have multiple indices) return True.
     """
 
     verb = pkt[4:6]
     code = pkt[41:45]
     payload = pkt[50:]
 
-    # TODO: check: 0008, 0009, 0100, 10A0, 2249, 3150, 31Dx, 3EFx,
-
-    # 1st: handle the arrays (first, because some are common)...
-
-    # .I --- 01:063844 --:------ 01:063844 0008 002 FA00
-    # .I --- 01:063844 --:------ 01:063844 0008 002 FC22
-    # .I --- 01:063844 --:------ 01:063844 0008 002 F9C8
-    # .I --- 02:000921 --:------ 02:000921 0008 002 FA00
-    # .I --- 02:001075 --:------ 02:001075 0008 002 FCC8
-
-    # .I --- 01:145038 --:------ 01:145038 0008 002 0B14
-    # .I --- 01:145038 --:------ 01:145038 0008 002 042A
-    # .I --- 01:145038 --:------ 01:145038 0008 002 0B14
-    # .I --- 01:145038 --:------ 01:145038 0008 002 0914
-    # .I --- 01:145038 --:------ 01:145038 0008 002 0332
-    if code in (_0008,):
-        if payload[:2] != "00":  # or verb != "RQ":  # TODO: remove
-            assert pkt[11:13] == pkt[31:33] and pkt[11:13] in ("01", "02")
-        return pkt[11:13] == pkt[31:33] and (
-            pkt[11:13] in ("01", "02")
-        )  # TODO: use CTL/UFC
-
-    if code in (_0009, _2309, _30C9):
-        return False if pkt_has_array(pkt) else payload[:2]
-
-    if code in (_000A, _22C9):
-        return False if pkt_has_array(pkt) else payload[:2]
-
-    # .W --- 01:145038 34:092243 --:------ 1FC9 006 07230906368E
-    # .I --- 01:145038 --:------ 01:145038 1FC9 018 07000806368EFC3B0006368E071FC906368E
-    # .I --- 01:145038 --:------ 01:145038 1FC9 018 FA000806368EFC3B0006368EFA1FC906368E
-    if code in (_1FC9,):
-        return False  # 1FC9: I_, RP, I_ are arrays
-
-    if code in (_3150,):
-        return False if pkt_has_array(pkt) else payload[:2]
-
-    # 2nd: handle the complex cases...
-    if code in (_0005, _000C):  # zone_idx, zone_type/device_class
-        return payload[:4]
-
-    if code == _0404:  # zone_schedule: zone_idx, frag_idx
-        return payload[:2] + payload[10:12]
-
-    if code == _0418:  # fault_log: log_idx
-        if payload == "000000B0000000000000000000007FFFFF7000000000":
-            return False
-        else:
-            return payload[4:6]
-
-    if code == _3220:  #
-        return payload[4:6]  # ot_msg_id (is ot_msg_type needed to?)
-
-    # These three lists should be mutex
     if code in CODE_IDX_COMPLEX:
-        raise NotImplementedError
+        if code in (_0005, _000C):
+            return payload[:4]  # zone_idx, zone_type/device_class
+        if code == _0404:
+            return payload[:2] + payload[10:12]  # zone_idx, frag_idx
+        if code == _0418 and payload != "000000B0000000000000000000007FFFFF7000000000":
+            return payload[4:6]  # fault_log: log_idx
+        if code == _3220:
+            return payload[4:6]  # ot_msg_id
+        raise NotImplementedError(pkt)
 
-    # 4th: generic cases - simple idx/domain
-    if code in CODE_IDX_NONE:
+    elif code in CODE_IDX_NONE:  # also check RAMSES_CODES schema against reality...
+        if RAMSES_CODES[code].get(verb, "")[:3] == "^00" and payload[:2] != "00":
+            raise ValueError(pkt)
         return False
 
-    if code in CODE_IDX_SIMPLE:  # TODO: lots of potential for false positives
-        return payload[:2] if verb == "RQ" else payload[:2]
+    elif code in CODE_IDX_SIMPLE:  # NOTE: potential+ for false positives
+        if code == _1FC9:
+            result = False if verb == RQ else pkt_has_array(pkt) or payload[:2]
 
-    # if code in CODE_IDX_UNKNOWN:
-    #     return NotImplementedError
+        elif pkt_has_array(pkt):
+            result = True
 
-    # if payload[:2] != "00":
-    #     raise ValueError()
+        # elif "01" in (pkt[11:13], pkt[21:23]):
+        #     result = payload[:2]
 
-    return "*****"  # TODO: None  # CODE_IDX_UNKNOWN
+        # elif "18" == pkt[11:13] if verb in (RQ, W_) else pkt[21:23]:
+        #     result = False
+
+        else:
+            # raise ValueError(pkt)
+            result = payload[:2]
+
+    else:
+        _LOGGER.warning(f"{pkt} << unknown code idx")  # CODE_IDX_UNKNOWN
+        result = None
+
+    return result
+
+    # # .I --- 01:063844 --:------ 01:063844 0008 002 F9C8
+    # # .I --- 01:063844 --:------ 01:063844 0008 002 FA00
+    # # .I --- 01:063844 --:------ 01:063844 0008 002 FC22
+    # # .I --- 02:000921 --:------ 02:000921 0008 002 FA00
+    # # .I --- 02:001075 --:------ 02:001075 0008 002 FCC8
+    # # .I --- 01:145038 --:------ 01:145038 0008 002 0332
+    # if code in (_0008,):
+    #     if payload[:2] != "00":  # or verb != "RQ":  # TODO: remove
+    #         assert pkt[11:13] == pkt[31:33] and pkt[11:13] in ("01", "02")
+    #     return pkt[11:13] == pkt[31:33] and (
+    #         pkt[11:13] in ("01", "02")
+    #     )  # TODO: use CTL/UFC
+
+
+def pkt_header(pkt: str, rx_header=None) -> Optional[str]:
+    """Return the QoS header of a packet."""
+
+    verb = pkt[4:6]
+    src, dst, _ = pkt_addrs(pkt[11:40])
+    code = pkt[41:45]
+
+    if code == _1FC9:  # TODO: will need to do something similar for 3220?
+        if src == dst:
+            return "|".join((W_, dst.id, code) if rx_header else (I_, src.id, code))
+        if verb == W_:
+            return "|".join((W_, dst.id, code)) if not rx_header else None
+        if rx_header:
+            return
+
+    if rx_header:
+        if src == dst:  # usually announcements, not requiring an Rx
+            return
+        verb = RP if verb == RQ else I_  # RQ/RP, or W/I
+
+    if code in (_0001, _PUZZ) and rx_header:  # code has no RQ, no W
+        return
+
+    addr = dst if src.type == "18" else src
+    header = "|".join((verb, addr.id, code))
+
+    header_idx = pkt_has_idx(pkt)
+    if header_idx:
+        header += f"|{header_idx}"
+
+    return header

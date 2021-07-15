@@ -434,12 +434,12 @@ async def main(lib_kwargs, **kwargs):
         msg = " - ended without error (e.g. EOF)"
 
     print("\r\nclient.py: Finished ramses_rf, results:\r\n")
-    # if kwargs[COMMAND] == EXECUTE:
-    #     _print_results(gwy, **kwargs)
-    # elif kwargs["show_state"]:
-    #     _print_state(gwy)  # TODO: make this choice a switch
-    # else:
-    #     _print_summary(gwy)
+    if kwargs[COMMAND] == EXECUTE:
+        _print_results(gwy, **kwargs)
+    elif kwargs["show_state"]:
+        _print_state(gwy)  # TODO: make this choice a switch
+    else:
+        _print_summary(gwy)
 
     print(f"\r\nclient.py: Finished ramses_rf.\r\n{msg}\r\n")
 

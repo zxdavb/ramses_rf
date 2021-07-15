@@ -123,12 +123,16 @@ class MessageTransport(asyncio.Transport):
                         continue
                 except AttributeError:  # when self._que == None, from abort()
                     break
-                else:
+
+                try:
                     if self._dispatcher:
                         await call_send_data(cmd)
-                    self._que.task_done()
-                    # if self._write_buffer_paused:
-                    self.get_write_buffer_size()
+                except NotImplementedError:
+                    pass
+
+                self._que.task_done()
+                # if self._write_buffer_paused:
+                self.get_write_buffer_size()
 
             _LOGGER.debug("MsgTransport.pkt_dispatcher(): connection_lost(None)")
             [p.connection_lost(None) for p in self._protocols]

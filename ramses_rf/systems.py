@@ -39,8 +39,8 @@ from .schema import (
 )
 from .zones import DhwZone, Zone, create_zone
 
-from .ramses import I_, RP, RQ, W_  # noqa: F401, isort: skip
-from .ramses import (  # noqa: F401, isort: skip
+from .const import I_, RP, RQ, W_  # noqa: F401, isort: skip
+from .const import (  # noqa: F401, isort: skip
     _0001,
     _0002,
     _0004,
@@ -563,13 +563,19 @@ class MultiZone:  # 0005 (+/- 000C?)
 
             _LOGGER.debug("System state (finally): %s", self.schema)
 
+        def update_zone(zone_idx):
+            try:
+                self.zone_by_idx[zone_idx]._handle_msg(msg)
+            except KeyError:
+                pass
+
         super()._handle_msg(msg)
 
-        if msg.code in (_000A, _2309, _30C9):
+        if msg.code in (_000A, _2309, _30C9):  # TODO: KeyError
             if isinstance(msg.payload, list):
-                [self.zone_by_idx[z["zone_idx"]]._handle_msg(msg) for z in msg.payload]
-            else:  # isinstance(msg.payload, list)
-                self.zone_by_idx[msg.payload["zone_idx"]]._handle_msg(msg)
+                [update_zone(z["zone_idx"]) for z in msg.payload]
+            else:
+                update_zone(msg.payload["zone_idx"])
 
         if msg.code == _000A and isinstance(msg.payload, list):
             pass
@@ -582,7 +588,7 @@ class MultiZone:  # 0005 (+/- 000C?)
         # elif msg.code == _0005 and prev_30c9 is not None:
         #     zone_added = bool(prev_30c9.code == _0004)  # else zone_deleted
 
-        elif msg.code == _30C9 and isinstance(msg.payload, list):  # msg.is_array:
+        elif msg.code == _30C9 and isinstance(msg.payload, list):  # msg.has_array:
             if self._gwy.config.enable_eavesdrop:
                 find_zone_sensors(msg, self._prev_30c9)
                 self._prev_30c9 = msg

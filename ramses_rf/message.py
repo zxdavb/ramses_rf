@@ -7,12 +7,10 @@ Decode/process a message (payload into JSON).
 """
 
 import logging
-import re
 from datetime import datetime as dt
 from datetime import timedelta as td
 from typing import Any, Optional, Tuple, Union
 
-from . import parsers
 from .const import (
     _0005_ZONE_TYPE,
     ATTR_DHW_SENSOR,
@@ -22,25 +20,25 @@ from .const import (
     ATTR_ZONE_ACTUATORS,
     ATTR_ZONE_SENSOR,
     DEVICE_TYPES,
-    NON_DEV_ADDR,
-    NUL_DEV_ADDR,
     ZONE_TYPE_SLUGS,
-    Address,
     __dev_mode__,
 )
 from .devices import Device, FanDevice, OtbGateway
-from .exceptions import (
-    CorruptEvohomeError,
-    CorruptPacketError,
-    CorruptPayloadError,
-    CorruptStateError,
-)
+from .exceptions import CorruptEvohomeError, CorruptStateError
 from .opentherm import MSG_ID
-from .ramses import CODES_WITH_COMPLEX_IDX, CODES_WITHOUT_IDX, RAMSES_CODES
+from .parsers import parse_payload
+from .ramses import (
+    CODE_IDX_COMPLEX,
+    CODE_IDX_NONE,
+    NON_DEV_ADDR,
+    NUL_DEV_ADDR,
+    RAMSES_CODES,
+    Address,
+)
 from .schema import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES
 
-from .ramses import I_, RP, RQ, W_  # noqa: F401, isort: skip
-from .ramses import (  # noqa: F401, isort: skip
+from .const import I_, RP, RQ, W_  # noqa: F401, isort: skip
+from .const import (  # noqa: F401, isort: skip
     _0001,
     _0002,
     _0004,
@@ -100,8 +98,6 @@ from .ramses import (  # noqa: F401, isort: skip
     _PUZZ,
 )
 
-# from .systems import Evohome
-
 CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
 
 # TODO: WIP
@@ -123,12 +119,12 @@ MSG_TIMEOUTS = {
     _30C9: {I_: td(hours=4), RP: td(hours=4)},
 }  # the above may not apply to arrays (000A, 2309, 30C9)
 
-MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:8s} | {:5s} || {}"
-MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:8s} | {:5s} || {}"
+MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:8s} {:5s} || {}"
+MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:8s} {:5s} || {}"
 
-DEV_MODE = __dev_mode__ and False
+DEV_MODE = __dev_mode__  # and False
 
-_LOGGER = _PKT_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
@@ -220,12 +216,9 @@ class Message:
             dst = display_name(self.src)
 
         payload = self.raw_payload if self.len < 4 else f"{self.raw_payload[:5]}..."[:9]
-        if self._pkt._idx is True:
-            index = "array"
-        elif self._pkt._idx is False:
-            index = ""
-        else:
-            index = str(self._pkt._idx)
+        index = {True: "array", False: "", None: "  ???"}.get(
+            self._pkt._idx, self._pkt._idx
+        )
 
         _format = MSG_FORMAT_18 if self._gwy.config.use_names else MSG_FORMAT_10
         self._str = _format.format(
@@ -277,27 +270,12 @@ class Message:
 
     @property
     def _has_simple_idx(self) -> bool:
-        """Return False if no index, or if it is complex.(may falsely Return True).
-
-        The message may still have a payload.
-        """
+        """Return False if no index, or if it is complex.(may falsely Return True)."""
 
         if self._haz_simple_idx is not None:
             return self._haz_simple_idx
 
-        if self.code in CODES_WITH_COMPLEX_IDX:
-            self._haz_simple_idx = False  # has (complex) _idx via their parser
-        elif self.code in CODES_WITHOUT_IDX:
-            self._haz_simple_idx = False  # has no idx, even though some != "00"
-        elif RAMSES_CODES.get(self.code):
-            self._haz_simple_idx = (
-                RAMSES_CODES[self.code].get(self.verb, "")[:3] != "^00"
-            )  # has no _idx
-            assert (
-                self._haz_simple_idx or self.raw_payload[:2] == "00"
-            ), "Message not expected to have a index! Is it corrupt?"
-        else:
-            self._haz_simple_idx = True
+        self._haz_simple_idx = self.code not in CODE_IDX_COMPLEX + CODE_IDX_NONE
 
         return self._haz_simple_idx
 
@@ -311,70 +289,13 @@ class Message:
             return self._payload
 
     @property
-    def is_array(self) -> bool:
+    def has_array(self) -> bool:
         """Return True if the message's raw payload is an array.
 
-        Note that the corresponding parsed payload may not match, e.g. the 000C payload
-        is not a list.
-
-        Does not require a valid payload.
+        Does not neccessarily require a valid payload.
         """
 
-        if self._is_array is not None:
-            return self._is_array
-
-        if self.verb in (RQ, W_):
-            self._is_array = False
-
-        elif self.code in (_000C, _1FC9):  # also: 0005?
-            # grep -E ' (I|RP).* 000C '  #  from 01:/30: (VMS) only
-            # grep -E ' (I|RP).* 1FC9 '  #  from 01:/13:/other (not W)
-            self._is_array = True
-
-        elif self.verb == RP:
-            self._is_array = False
-
-        # 087  I 092 --:------ --:------ 12:126457 2309 006 0107D0-020708
-        # 090  I 093 --:------ --:------ 12:126457 30C9 003 017FFF
-        # 089  I 094 --:------ --:------ 12:126457 000A 012 010001F40BB8-020001F40BB8
-        elif self.code in (_000A, _2309, _30C9) and self.src.type == "12":
-            self._is_array = self.verb == I_ and self.dst.id == "--:------"
-
-        elif self.verb not in (I_, RP) or self.src.id != self.dst.id:
-            self._is_array = False
-
-        # 045  I --- 01:158182 --:------ 01:158182 0009 003 0B00FF (or: FC00FF)
-        # 045  I --- 01:145038 --:------ 01:145038 0009 006 FC00FFF900FF
-        elif self.code in (_0009,) and self.src.type == "01":
-            # grep -E ' I.* 01:.* 01:.* 0009 [0-9]{3} F' (and: grep -v ' 003 ')
-            self._is_array = self.verb == I_ and self.raw_payload[:1] == "F"
-
-        elif self.code in (_000A, _2309, _30C9) and self.src.type == "01":
-            # grep ' I.* 01:.* 01:.* 000A '
-            # grep ' I.* 01:.* 01:.* 2309 ' | grep -v ' 003 '  # TODO: some non-arrays
-            # grep ' I.* 01:.* 01:.* 30C9 '
-            self._is_array = self.verb == I_ and self.src.id == self.dst.id
-
-        # 055  I --- 02:001107 --:------ 02:001107 22C9 024 0008340A28010108340A...
-        # 055  I --- 02:001107 --:------ 02:001107 22C9 006 0408340A2801
-        # 055  I --- 02:001107 --:------ 02:001107 3150 010 00640164026403580458
-        # 055  I --- 02:001107 --:------ 02:001107 3150 010 00000100020003000400
-        elif self.code in (_22C9, _3150) and self.src.type == "02":
-            # grep -E ' I.* 02:.* 02:.* 22C9 '
-            # grep -E ' I.* 02:.* 02:.* 3150' | grep -v FC
-            self._is_array = self.verb == I_ and self.src.id == self.dst.id
-            self._is_array = self._is_array if self.raw_payload[:1] != "F" else False
-
-        # 095  I --- 23:100224 --:------ 23:100224 2249 007 007EFF7EFFFFFF
-        # 095  I --- 23:100224 --:------ 23:100224 2249 007 007EFF7EFFFFFF
-        elif self.code in (_2249,) and self.src.type == "23":
-            self._is_array = self.verb == I_ and self.src.id == self.dst.id
-            # self._is_array = self._is_array if self.raw_payload[:1] != "F" else False
-
-        else:
-            self._is_array = False
-
-        return self._is_array
+        return self._pkt._has_array
 
     @property
     def is_expired(self) -> Tuple[bool, Optional[bool]]:
@@ -493,55 +414,11 @@ class Message:
 
     @property
     def is_valid(self) -> bool:  # Main code here
-        """Parse the payload, return True if the message payload is valid.
+        """Parse the payload, return True if the message payload is valid."""
 
-        All exceptions are trapped, and logged appropriately.
-        """
-
-        def log_message(log_level, log_msg):
-            log_level(log_msg, self._pkt, extra=self._pkt.__dict__)
-
-        if self._is_valid is not None:
-            return self._is_valid
-        self._is_valid = False  # Assume is invalid
-
-        try:  # determine which parser to use
-            payload_parser = getattr(parsers, f"parser_{self.code}".lower())
-
-        except AttributeError:  # there's no parser for this command code!
-            payload_parser = getattr(parsers, "parser_unknown")
-
-        try:  # parse the packet
-            self._payload = payload_parser(self.raw_payload, self)
-            assert isinstance(
-                self._payload, (dict, list)
-            ), f"message payload is not dict nor list: {type(self._payload)}"
-
-        except AssertionError as err:
-            # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
-            hint = f": {err}" if str(err) != "" else ""
-            if not hint or DEV_MODE:
-                log_message(_PKT_LOGGER.exception, "%s << Validation error")
-            elif self.src.type != "18":
-                log_message(_PKT_LOGGER.warning, f"%s << Validation error{hint}")
-            else:  # elif DEV_MODE:  # TODO: consider info/debug for the following
-                log_message(_PKT_LOGGER.warning, f"%s << Validation error{hint}")
-
-        except (CorruptPacketError, CorruptPayloadError) as err:  # CorruptEvohomeError
-            if False and DEV_MODE:
-                log_message(_PKT_LOGGER.exception, f"%s << {err}")
-            else:
-                log_message(_PKT_LOGGER.warning, f"%s << {err}")
-
-        except (AttributeError, LookupError, TypeError, ValueError):  # TODO: dev only
-            log_message(_PKT_LOGGER.exception, "%s << Coding error")
-
-        except NotImplementedError:  # parser_unknown (unknown packet code)
-            log_message(_PKT_LOGGER.warning, "%s << Unknown packet code")
-
-        else:
-            self._is_valid = True
-
+        if self._is_valid is None:
+            self._payload = parse_payload(self, logger=_LOGGER)
+            self._is_valid = True if self._payload is not None else False
         return self._is_valid
 
 
@@ -551,6 +428,15 @@ def process_msg(msg: Message) -> None:
     All methods require a valid message (payload), except create_devices, which requires
     a valid message only for 000C.
     """
+
+    # def hack_pkts(this, prev) -> None:  # TODO: needs work
+    # """Update the state of entities (devices, zones, ufh_zones)."""
+    # # HACK: merge 000A fragments
+    # # TODO: ?move to ctl._handle_msg() and/or system._handle_msg()?
+    # if re.search("I.* 01.* 000A ", str(this._pkt)):  # HACK: and dtm < 3 secs
+    #     # TODO: an edge case here: >2 000A packets in a row
+    #     if prev is not None and re.search("I.* 01.* 000A ", str(prev._pkt)):
+    #         this._payload = prev.payload + this.payload  # merge frags, and process
 
     def create_devices(this) -> None:
         """Discover and create any new devices."""
@@ -703,13 +589,6 @@ def process_msg(msg: Message) -> None:
     def update_entities(this, prev) -> None:  # TODO: needs work
         """Update the state of entities (devices, zones, ufh_zones)."""
 
-        # HACK: merge 000A fragments
-        # TODO: ?move to ctl._handle_msg() and/or system._handle_msg()?
-        if re.search("I.* 01.* 000A ", str(this._pkt)):  # HACK: and dtm < 3 secs
-            # TODO: an edge case here: >2 000A packets in a row
-            if prev is not None and re.search("I.* 01.* 000A ", str(prev._pkt)):
-                this._payload = prev.payload + this.payload  # merge frags, and process
-
         # some devices aren't created if they're filtered out (in create_devices?)
         if this.src not in this._gwy.devices:
             assert False, "what!!"
@@ -775,7 +654,6 @@ def process_msg(msg: Message) -> None:
 
     try:  # process the payload
         create_devices(msg)  # from pkt header & from msg payload (e.g. 000C)
-        # if msg._evo:  # TODO:
         create_zones(msg)  # create zones & (TBD) ufh_zones too?
 
         if msg._gwy.config.reduce_processing < DONT_UPDATE_ENTITIES:
@@ -783,13 +661,13 @@ def process_msg(msg: Message) -> None:
 
     except (AssertionError, NotImplementedError) as err:
         (_LOGGER.exception if DEV_MODE else _LOGGER.error)(
-            "%s << %s", msg._pkt, err.__class__.__name__
+            "%s << %s", msg._pkt, f"{err.__class__.__name__}({err})"
         )
         return  # NOTE: use raise only when debugging
 
     except (AttributeError, LookupError, TypeError, ValueError) as err:
         (_LOGGER.exception if DEV_MODE else _LOGGER.error)(
-            "%s << %s", msg._pkt, err.__class__.__name__
+            "%s << %s", msg._pkt, f"{err.__class__.__name__}({err})"
         )
         return  # NOTE: use raise only when debugging
 

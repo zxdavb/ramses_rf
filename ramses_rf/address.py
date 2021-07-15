@@ -3,10 +3,13 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
-import logging
 import re
+from collections import namedtuple
+from functools import lru_cache
 
 from .const import DEVICE_LOOKUP, DEVICE_TYPES, __dev_mode__
+
+DEV_MODE = __dev_mode__
 
 __device_id_regex__ = re.compile(r"^(-{2}:-{6}|\d{2}:\d{6})$")
 
@@ -14,14 +17,25 @@ __hgi_device_id__ = "18:000730"
 __non_device_id__ = "--:------"
 __nul_device_id__ = "63:262142"
 
-DEV_MODE = __dev_mode__
 
-_LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
-    _LOGGER.setLevel(logging.DEBUG)
+Address = namedtuple("DeviceAddress", "id, type")
 
 
-class Address:
+@lru_cache(maxsize=128)
+def id_to_address(device_id) -> Address:
+    return Address(id=device_id, type=device_id[:2])
+
+
+HGI_DEVICE_ID = __hgi_device_id__  # default type and address of HGI, 18:013393
+NON_DEVICE_ID = __non_device_id__
+NUL_DEVICE_ID = __nul_device_id__  # 7FFFFF - send here if not bound?
+
+HGI_DEV_ADDR = id_to_address(HGI_DEVICE_ID)
+NON_DEV_ADDR = id_to_address(NON_DEVICE_ID)
+NUL_DEV_ADDR = id_to_address(NUL_DEVICE_ID)
+
+
+class AddressNew:
     """The Device Address base class."""
 
     DEVICE_ID_REGEX = __device_id_regex__

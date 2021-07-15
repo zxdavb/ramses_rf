@@ -21,8 +21,9 @@ from queue import Empty
 from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
 
+from .address import NUL_DEV_ADDR
 from .command import Command
-from .const import ATTR_DEVICES, ATTR_ORPHANS, NUL_DEVICE_ID, __dev_mode__
+from .const import ATTR_DEVICES, ATTR_ORPHANS, __dev_mode__
 from .devices import Device, create_device
 from .message import Message, process_msg
 from .packet import set_pkt_logging
@@ -40,7 +41,7 @@ from .systems import System, create_system
 from .transport import POLLER_TASK, create_pkt_stack
 from .version import __version__  # noqa: F401
 
-from .ramses import I_, RP, RQ, W_  # noqa: F401, isort: skip
+from .const import I_, RP, RQ, W_  # noqa: F401, isort: skip
 
 DEV_MODE = __dev_mode__ and False
 VERSION = __version__
@@ -185,7 +186,10 @@ class Gateway:
         (heater_relay), HW (DHW sensor, relay), or None (unknown, TBA).
         """
 
-        if dev_addr.type in ("18", "--") or dev_addr.id in (NUL_DEVICE_ID, "01:000001"):
+        if dev_addr.type in ("18", "--") or dev_addr.id in (
+            NUL_DEV_ADDR.id,
+            "01:000001",
+        ):
             return  # not valid device types/real devices
 
         if self._include and dev_addr.id not in self._include:

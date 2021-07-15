@@ -11,19 +11,10 @@ import time
 from datetime import datetime as dt
 from functools import lru_cache
 from inspect import iscoroutinefunction
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 
-from .const import (
-    DEVICE_ID_REGEX,
-    DEVICE_LOOKUP,
-    DEVICE_TYPES,
-    HGI_DEV_ADDR,
-    NON_DEV_ADDR,
-    NUL_DEV_ADDR,
-    Address,
-    id_to_address,
-)
-from .exceptions import CorruptAddrSetError
+from .const import DEVICE_ID_REGEX, DEVICE_LOOKUP, DEVICE_TYPES
+from .ramses import NON_DEV_ADDR, NUL_DEV_ADDR
 
 
 class FILETIME(ctypes.Structure):
@@ -225,53 +216,6 @@ def is_valid_dev_id(value, dev_type=None) -> bool:
         raise TypeError(f"The device type does not match '{dev_type}'")
 
     return True
-
-
-@lru_cache(maxsize=256)  # there is definite benefit in caching this
-def extract_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
-    """Return the address fields from (e.g): '01:078710 --:------ 01:144246 '."""
-
-    addrs = [id_to_address(pkt_fragment[i : i + 9]) for i in range(0, 30, 10)]
-
-    # This check will invalidate these rare pkts (which are never transmitted)
-    # ---  I --- --:------ --:------ --:------ 0001 005 00FFFF02FF
-    # ---  I --- --:------ --:------ --:------ 0001 005 00FFFF0200
-    if not all(
-        (
-            addrs[0].id not in (NON_DEV_ADDR.id, NUL_DEV_ADDR.id),
-            (addrs[1].id, addrs[2].id).count(NON_DEV_ADDR.id) == 1,
-        )
-    ) and not all(
-        (
-            addrs[2].id not in (NON_DEV_ADDR.id, NUL_DEV_ADDR.id),
-            addrs[0].id == addrs[1].id == NON_DEV_ADDR.id,
-        )
-    ):
-        raise CorruptAddrSetError(f"Invalid addr set: {pkt_fragment}")
-
-    device_addrs = list(filter(lambda x: x.type != "--", addrs))
-    if len(device_addrs) > 2:
-        raise CorruptAddrSetError(f"Invalid addr set (i.e. 3 addrs): {pkt_fragment}")
-
-    src_addr = device_addrs[0]
-    dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEV_ADDR
-
-    if src_addr.id == dst_addr.id:
-        src_addr = dst_addr
-    elif src_addr.type == "18" and dst_addr.id == HGI_DEV_ADDR.id:
-        # 000  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200 (valid, ex HGI80)
-        raise CorruptAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
-        # pass
-    elif dst_addr.type == "18" and src_addr.id == HGI_DEV_ADDR.id:
-        raise CorruptAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
-        # pass
-    elif {src_addr.type, dst_addr.type}.issubset({"01", "23"}):
-        raise CorruptAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
-    elif src_addr.type == dst_addr.type:
-        # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5 (invalid)
-        raise CorruptAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
-
-    return src_addr, dst_addr, addrs
 
 
 def periodic(period):
