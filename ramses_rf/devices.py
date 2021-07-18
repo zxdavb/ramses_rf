@@ -9,7 +9,7 @@ from sys import modules
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
-from .address import id_to_address
+from .address import dev_id_to_hex, id_to_address
 from .command import FUNC, TIMEOUT, Command, Priority
 from .const import (
     _000C_DEVICE,
@@ -29,7 +29,7 @@ from .const import (
     __dev_mode__,
 )
 from .exceptions import CorruptStateError
-from .helpers import dev_id_to_hex, schedule_task
+from .helpers import schedule_task
 from .opentherm import MSG_ID, MSG_TYPE, VALUE  # R8810A_MSG_IDS
 from .ramses import RAMSES_DEVICES
 

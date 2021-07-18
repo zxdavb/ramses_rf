@@ -9,12 +9,8 @@ import re
 import sys
 import time
 from datetime import datetime as dt
-from functools import lru_cache
 from inspect import iscoroutinefunction
 from typing import Optional, Union
-
-from .address import NON_DEV_ADDR, NUL_DEV_ADDR
-from .const import DEVICE_ID_REGEX, DEVICE_LOOKUP, DEVICE_TYPES
 
 
 class FILETIME(ctypes.Structure):
@@ -148,74 +144,6 @@ def str_to_hex(value: str) -> str:
     """Convert a string to a variable-length ASCII hex string."""
     return "".join(f"{ord(x):02X}" for x in value)
     # return value.encode().hex()
-
-
-def create_dev_id(dev_type, known_devices=None) -> str:
-    """Create a unique device_id (i.e. one that is not already known)."""
-
-    from random import randint
-
-    # TODO: assert inputs
-
-    counter = 0
-    while counter < 128:
-        device_id = f"{dev_type}:{randint(256000, 256031):06d}"
-        if not known_devices or device_id not in known_devices:
-            return device_id
-        counter += 1
-    else:
-        raise IndexError("Unable to generate a unique device id of type '{dev_type}'")
-
-
-def dev_id_to_hex(device_id: str) -> str:
-    """Convert (say) '01:145038' (or 'CTL:145038') to '06368E'."""
-
-    if len(device_id) == 9:  # e.g. '01:123456'
-        dev_type = device_id[:2]
-
-    else:  # len(device_id) == 10, e.g. 'CTL:123456', or ' 63:262142'
-        dev_type = DEVICE_LOOKUP.get(device_id[:3], device_id[1:3])
-
-    return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # no preceding 0x
-
-
-def hex_id_to_dec(device_hex: str, friendly_id=False) -> str:
-    """Convert (say) '06368E' to '01:145038' (or 'CTL:145038')."""
-
-    if device_hex == "FFFFFE":  # aka '63:262142'
-        return ">null dev<" if friendly_id else NUL_DEV_ADDR.id
-
-    if not device_hex.strip():  # aka '--:------'
-        return f"{'':10}" if friendly_id else NON_DEV_ADDR.id
-
-    _tmp = int(device_hex, 16)
-    dev_type = f"{(_tmp & 0xFC0000) >> 18:02d}"
-    if friendly_id:
-        dev_type = DEVICE_TYPES.get(dev_type, f"{dev_type:<3}")
-
-    return f"{dev_type}:{_tmp & 0x03FFFF:06d}"
-
-
-@lru_cache(maxsize=128)
-def is_valid_dev_id(value, dev_type=None) -> bool:
-    """Return True if a device_id is valid."""
-
-    if not isinstance(value, str):
-        return False
-
-    elif not DEVICE_ID_REGEX.match(value):
-        return False
-
-    # elif value != hex_id_to_dec(dev_id_to_hex(value)):
-    #     return False
-
-    elif value.split(":", 1)[0] not in DEVICE_TYPES:
-        return False
-
-    elif dev_type is not None and dev_type != value.split(":", 1)[0]:
-        raise TypeError(f"The device type does not match '{dev_type}'")
-
-    return True
 
 
 def periodic(period):

@@ -15,6 +15,7 @@ from datetime import timedelta as td
 from functools import lru_cache
 from typing import Optional, Union
 
+from .address import hex_id_to_dec
 from .command import Command
 from .const import (
     _000C_DEVICE_TYPE,
@@ -34,7 +35,7 @@ from .const import (
 from .devices import FanSwitch
 from .exceptions import CorruptPacketError, CorruptPayloadError
 from .helpers import dtm_from_hex as _dtm
-from .helpers import dts_from_hex, hex_id_to_dec
+from .helpers import dts_from_hex
 from .opentherm import (
     EN,
     MSG_DESC,

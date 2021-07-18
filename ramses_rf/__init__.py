@@ -21,7 +21,7 @@ from queue import Empty
 from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
 
-from .address import NUL_DEV_ADDR
+from .address import NUL_DEV_ADDR, create_dev_id, id_to_address, is_valid_dev_id
 from .command import Command
 from .const import ATTR_DEVICES, ATTR_ORPHANS, __dev_mode__
 from .devices import Device, create_device
@@ -407,9 +407,6 @@ class Gateway:
 
         If required, will create a faked TR87RF.
         """
-
-        from .const import id_to_address
-        from .helpers import create_dev_id, is_valid_dev_id
 
         DEV_TYPE = "03"  # NOTE: named like a 03:, but behaves like a 34:
 
