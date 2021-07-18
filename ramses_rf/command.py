@@ -19,7 +19,7 @@ from functools import total_ordering
 from types import SimpleNamespace
 from typing import Optional
 
-from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
+from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, pkt_addrs
 from .const import (
     COMMAND_REGEX,
     SYSTEM_MODE_LOOKUP,
@@ -32,7 +32,7 @@ from .const import (
 from .exceptions import ExpiredCallbackError
 from .helpers import dt_now, dtm_to_hex, dts_to_hex, str_to_hex, temp_to_hex
 from .opentherm import parity
-from .ramses import pkt_addrs, pkt_header
+from .ramses import pkt_header
 
 from .const import I_, RP, RQ, W_  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
@@ -187,7 +187,7 @@ class Command:
         assert self.verb in (I_, RQ, RP, W_), f"invalid verb: '{self.verb}'"
 
         self.seqn = "---"
-        self.from_addr, self.dest_addr, self.addrs = pkt_addrs(
+        self.src, self.dst, self.addrs = pkt_addrs(
             f"{kwargs.get('from_id', HGI_DEV_ADDR.id)} {dest_id} {NON_DEV_ADDR.id}"
         )
         self.code = code
@@ -256,14 +256,14 @@ class Command:
     def tx_header(self) -> str:
         """Return the QoS header of this (request) packet."""
         if self._tx_header is None:
-            self._tx_header = pkt_header(f"... {self}")
+            self._tx_header = pkt_header(self)
         return self._tx_header
 
     @property
     def rx_header(self) -> Optional[str]:
         """Return the QoS header of a corresponding response packet (if any)."""
         if self.tx_header and self._rx_header is None:
-            self._rx_header = pkt_header(f"... {self}", rx_header=True)
+            self._rx_header = pkt_header(self, rx_header=True)
         return self._rx_header
 
     # @property
@@ -743,7 +743,7 @@ class Command:
         elif seqn is not None:
             cmd.seqn = f"{int(seqn):03d}"
 
-        cmd.from_addr, cmd.dest_addr, cmd.addrs = pkt_addrs(f"{addr0} {addr1} {addr2}")
+        cmd.src, cmd.dst, cmd.addrs = pkt_addrs(f"{addr0} {addr1} {addr2}")
 
         cmd._is_valid = None
         if not cmd.is_valid:

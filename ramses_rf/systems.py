@@ -588,7 +588,7 @@ class MultiZone:  # 0005 (+/- 000C?)
         # elif msg.code == _0005 and prev_30c9 is not None:
         #     zone_added = bool(prev_30c9.code == _0004)  # else zone_deleted
 
-        elif msg.code == _30C9 and isinstance(msg.payload, list):  # msg.has_array:
+        elif msg.code == _30C9 and isinstance(msg.payload, list):  # msg._has_array:
             if self._gwy.config.enable_eavesdrop:
                 find_zone_sensors(msg, self._prev_30c9)
                 self._prev_30c9 = msg

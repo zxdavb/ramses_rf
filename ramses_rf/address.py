@@ -6,8 +6,10 @@
 import re
 from collections import namedtuple
 from functools import lru_cache
+from typing import List, Tuple
 
 from .const import DEVICE_LOOKUP, DEVICE_TYPES, __dev_mode__
+from .exceptions import CorruptAddrSetError
 
 DEV_MODE = __dev_mode__
 
@@ -130,3 +132,52 @@ class AddressNew:
             dev_type = DEVICE_LOOKUP.get(device_id[:3], device_id[1:3])
 
         return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # no preceding 0x
+
+
+@lru_cache(maxsize=256)  # there is definite benefit in caching this
+def pkt_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
+    """Return the address fields from (e.g): '01:078710 --:------ 01:144246 '."""
+
+    addrs = [id_to_address(pkt_fragment[i : i + 9]) for i in range(0, 30, 10)]
+
+    # TODO: remove all .id: addrs[2] not in (NON_DEV_ADDR, NUL_DEV_ADDR)
+
+    # This check will invalidate these esoteric pkts (which are never transmitted)
+    # ---  I --- --:------ --:------ --:------ 0001 005 00FFFF02FF
+    # ---  I --- --:------ --:------ --:------ 0001 005 00FFFF0200
+    if not all(
+        (
+            addrs[0] not in (NON_DEV_ADDR.id, NUL_DEV_ADDR.id),
+            (addrs[1].id, addrs[2].id).count(NON_DEV_ADDR.id) == 1,
+        )
+    ) and not all(
+        (
+            addrs[2].id not in (NON_DEV_ADDR.id, NUL_DEV_ADDR.id),
+            addrs[0].id == addrs[1].id == NON_DEV_ADDR.id,
+        )
+    ):
+        raise CorruptAddrSetError(f"Invalid addr set: {pkt_fragment}")
+
+    device_addrs = list(filter(lambda x: x.type != "--", addrs))
+    if len(device_addrs) > 2:
+        raise CorruptAddrSetError(f"Invalid addr set (i.e. 3 addrs): {pkt_fragment}")
+
+    src_addr = device_addrs[0]
+    dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEV_ADDR
+
+    if src_addr.id == dst_addr.id:
+        src_addr = dst_addr
+    elif src_addr.type == "18" and dst_addr.id == HGI_DEV_ADDR.id:
+        # 000  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200 (valid, ex HGI80)
+        raise CorruptAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
+        # pass
+    elif dst_addr.type == "18" and src_addr.id == HGI_DEV_ADDR.id:
+        raise CorruptAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
+        # pass
+    elif {src_addr.type, dst_addr.type}.issubset({"01", "23"}):
+        raise CorruptAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
+    elif src_addr.type == dst_addr.type:
+        # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5 (invalid)
+        raise CorruptAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
+
+    return src_addr, dst_addr, addrs

@@ -347,7 +347,7 @@ class PacketProtocolBase(asyncio.Protocol):
         return pkt_line
 
     def _pkt_received(self, pkt: Packet) -> None:  # sans QoS
-        if self._callback and self._is_wanted(pkt.src_addr, pkt.dst_addr):
+        if self._callback and self._is_wanted(pkt.src, pkt.dst):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
     def _data_received(self, data: ByteString) -> None:
@@ -449,7 +449,7 @@ class PacketProtocolBase(asyncio.Protocol):
             )
             return
 
-        if cmd.from_addr.type != "18":
+        if cmd.src.type != "18":
             _LOGGER.warning("PktProtocol.send_data(%s): IMPERSONATING!", cmd.tx_header)
             await self._send_data(str(Command._puzzle("02", cmd.tx_header)))
 
@@ -520,7 +520,7 @@ class PacketProtocolRead(PacketProtocolBase):
                 _LOGGER.debug("%s << Cant create packet from log (ignoring)", data)
             return
 
-        if self._callback and self._is_wanted(pkt.src_addr, pkt.dst_addr):
+        if self._callback and self._is_wanted(pkt.src, pkt.dst):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
 
@@ -636,7 +636,7 @@ class PacketProtocolQos(PacketProtocolBase):
             # self._timeouts(dt.now())
             _logger_rcvd(_LOGGER.debug, "XXXXXXX - ")
 
-        if self._callback and self._is_wanted(pkt.src_addr, pkt.dst_addr):
+        if self._callback and self._is_wanted(pkt.src, pkt.dst):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
     async def send_data(self, cmd: Command) -> None:
@@ -681,7 +681,7 @@ class PacketProtocolQos(PacketProtocolBase):
         self._tx_retries = 0
         self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
 
-        if cmd.from_addr.type != "18":
+        if cmd.src.type != "18":
             _LOGGER.warning(
                 "PacketProtocolQos.send_data(%s): IMPERSONATING!", cmd.tx_header
             )

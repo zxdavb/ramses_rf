@@ -13,8 +13,8 @@ from functools import lru_cache
 from inspect import iscoroutinefunction
 from typing import Optional, Union
 
+from .address import NON_DEV_ADDR, NUL_DEV_ADDR
 from .const import DEVICE_ID_REGEX, DEVICE_LOOKUP, DEVICE_TYPES
-from .ramses import NON_DEV_ADDR, NUL_DEV_ADDR
 
 
 class FILETIME(ctypes.Structure):

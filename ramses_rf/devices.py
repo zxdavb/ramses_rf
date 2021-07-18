@@ -9,6 +9,7 @@ from sys import modules
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
+from .address import id_to_address
 from .command import FUNC, TIMEOUT, Command, Priority
 from .const import (
     _000C_DEVICE,
@@ -30,7 +31,7 @@ from .const import (
 from .exceptions import CorruptStateError
 from .helpers import dev_id_to_hex, schedule_task
 from .opentherm import MSG_ID, MSG_TYPE, VALUE  # R8810A_MSG_IDS
-from .ramses import RAMSES_DEVICES, id_to_address
+from .ramses import RAMSES_DEVICES
 
 from .const import I_, RP, RQ, W_  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip

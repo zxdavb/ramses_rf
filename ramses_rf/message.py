@@ -11,6 +11,7 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 from typing import Any, Optional, Tuple, Union
 
+from .address import NON_DEV_ADDR, NUL_DEV_ADDR, Address
 from .const import (
     _0005_ZONE_TYPE,
     ATTR_DHW_SENSOR,
@@ -27,14 +28,7 @@ from .devices import Device, FanDevice, OtbGateway
 from .exceptions import CorruptEvohomeError, CorruptStateError
 from .opentherm import MSG_ID
 from .parsers import parse_payload
-from .ramses import (
-    CODE_IDX_COMPLEX,
-    CODE_IDX_NONE,
-    NON_DEV_ADDR,
-    NUL_DEV_ADDR,
-    RAMSES_CODES,
-    Address,
-)
+from .ramses import CODE_IDX_COMPLEX, CODE_IDX_NONE, RAMSES_CODES
 from .schema import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES
 
 from .const import I_, RP, RQ, W_  # noqa: F401, isort: skip
@@ -100,25 +94,6 @@ from .const import (  # noqa: F401, isort: skip
 
 CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
 
-# TODO: WIP
-MSG_TIMEOUTS = {
-    _0004: {I_: td(days=1), RP: td(days=1)},
-    _000A: {I_: td(days=1), RP: td(days=1)},
-    _0100: {I_: td(days=1), RP: td(days=1)},
-    _1060: {I_: td(days=1)},
-    _10A0: {RP: td(hours=4)},
-    _1100: {I_: td(days=1), RP: td(days=1)},
-    _1260: {I_: td(hours=1), RP: td(hours=1)},
-    _12B0: {I_: td(hours=1), RP: td(hours=1)},
-    _1F41: {I_: td(hours=4), RP: td(hours=4)},
-    _2309: {I_: td(minutes=30), RP: td(minutes=30)},
-    _2349: {I_: td(hours=4), RP: td(hours=4)},
-    _2E04: {I_: td(hours=4), RP: td(hours=4)},
-    _313F: {I_: td(seconds=3), RP: td(seconds=3)},
-    _3150: {I_: td(minutes=20)},
-    _30C9: {I_: td(hours=4), RP: td(hours=4)},
-}  # the above may not apply to arrays (000A, 2309, 30C9)
-
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:8s} {:5s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:8s} {:5s} || {}"
 
@@ -144,16 +119,15 @@ class Message:
         self._gwy = gwy
         self._pkt = pkt
 
-        # prefer Devices but can use Addresses for now (as maybe -rr)...
-        self.src = pkt.src_addr  # gwy.device_by_id.get(pkt.src_addr.id, pkt.src_addr)
-        self.dst = pkt.dst_addr  # gwy.device_by_id.get(pkt.dst_addr.id, pkt.dst_addr)
-        self._devs = pkt.addrs
+        # prefer Devices but can use Addresses...
+        self.src = gwy.device_by_id.get(pkt.src.id, pkt.src)
+        self.dst = gwy.device_by_id.get(pkt.dst.id, pkt.dst)
+        self._addrs = pkt.addrs
 
         self.dtm = pkt.dtm
         self._date = pkt._date
         self._time = pkt._time
 
-        # self.rssi = pkt.rssi
         self.verb = pkt.verb
         self.seqn = pkt.seqn
         self.code = pkt.code
@@ -167,7 +141,6 @@ class Message:
         self._haz_payload = None
         self._haz_simple_idx = None
 
-        self._is_array = None
         self._is_expired = None
         self._is_fragment = None
 
@@ -208,7 +181,7 @@ class Message:
         if not self.is_valid:
             return  # "Invalid"
 
-        if self.src.id == self._devs[0].id:
+        if self.src.id == self._addrs[0].id:
             src = display_name(self.src)
             dst = display_name(self.dst) if self.dst is not self.src else ""
         else:
@@ -230,11 +203,13 @@ class Message:
         if not isinstance(other, Message):
             return NotImplemented
         return all(
-            self.verb == other.verb,
-            self.code == other.code,
-            self.src.id == other.src.id,
-            self.dst.id == other.dst.id,
-            self.raw_payload == other.raw_payload,
+            (
+                self.verb == other.verb,
+                self.code == other.code,
+                self.src == other.src,
+                self.dst == other.dst,
+                self.raw_payload == other.raw_payload,
+            )
         )
 
     def __lt__(self, other) -> bool:
@@ -289,7 +264,7 @@ class Message:
             return self._payload
 
     @property
-    def has_array(self) -> bool:
+    def _has_array(self) -> bool:
         """Return True if the message's raw payload is an array.
 
         Does not neccessarily require a valid payload.
@@ -301,13 +276,15 @@ class Message:
     def is_expired(self) -> Tuple[bool, Optional[bool]]:
         """Return True if the message is dated (does not require a valid payload)."""
 
-        def _logger_send(logger, message) -> None:
-            if True or DEV_MODE:  # TODO: remove 'True or'
+        def _logger_send(logger, message, timeout, age) -> None:
+            if False and DEV_MODE:
                 logger(
-                    "Message(%s), received at %s: %s",
+                    "Message(%s), received at %s: %s (%s of %s)",
                     self._pkt._header,
                     self.dtm,
-                    message,
+                    f"Has {message}",
+                    td(seconds=age.seconds),
+                    timeout,
                 )
 
         def _timeout() -> td:  # TODO: move this to RAMSES pkt schema
@@ -325,10 +302,10 @@ class Message:
             elif self.code == _1F09:
                 timeout = td(seconds=self.payload["remaining_seconds"])
 
-            elif self.code == _000A and self._is_array:
+            elif self.code == _000A and self._has_array:
                 timeout = td(minutes=60)  # sends I /1h
 
-            elif self.code in (_2309, _30C9) and self._is_array:
+            elif self.code in (_2309, _30C9) and self._has_array:
                 timeout = td(minutes=15)  # sends I /sync_cycle
 
             elif self.code == _3220:
@@ -339,11 +316,11 @@ class Message:
                 else:  # incl. OtbGateway.STATUS_MSG_IDS
                     timeout = td(minutes=5)
 
-            elif self.code in MSG_TIMEOUTS and self.verb in MSG_TIMEOUTS[self.code]:
-                return MSG_TIMEOUTS[self.code][self.verb]
-
             # elif self.code in (_3B00, _3EF0, ):  # TODO: 0008, 3EF0, 3EF1
             #     timeout = td(minutes=6.7)  # TODO: WIP
+
+            elif self.code in RAMSES_CODES:
+                timeout = RAMSES_CODES[self.code].get("timeout")
 
             return timeout or td(minutes=60)
 
@@ -368,26 +345,19 @@ class Message:
 
         if self.dtm < dtm_now - timeout * 2:
             if self._is_expired != self.HAS_EXPIRED:
-                _logger_send(
-                    _LOGGER.error,
-                    f"msg has tombstoned ({dtm_now - self.dtm}, {timeout})",
-                )
+                _logger_send(_LOGGER.error, "tombstoned.", timeout, dtm_now - self.dtm)
+                #     f"msg has tombstoned ({(dtm_now - self.dtm)//td(seconds=1)}, {timeout})",
+                # )
             self._is_expired = self.HAS_EXPIRED
 
         elif self.dtm < dtm_now - timeout * 1:
             if self._is_expired != self.IS_EXPIRING:
-                _logger_send(
-                    _LOGGER.info,
-                    f"msg has expired ({dtm_now - self.dtm}, {timeout})",
-                )
+                _logger_send(_LOGGER.info, "expired....", timeout, dtm_now - self.dtm)
             self._is_expired = self.IS_EXPIRING
 
         else:
             self._is_expired = self.NOT_EXPIRED
-            # _logger_send(
-            #     _LOGGER.debug,
-            #     f"msg has not expired ({dtm_now - self.dtm}, {timeout})",
-            # )
+            # _logger_send(_LOGGER.info, "not expired", timeout, dtm_now - self.dtm))
         return self._is_expired
 
     @property

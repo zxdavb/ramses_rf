@@ -183,6 +183,9 @@ def _idx_idx(seqx, code, src_type, dst_type) -> dict:
 
         return {}
 
+    elif code == _1100:
+        return {}
+
     # Consider RAMSES_CODES, or CODE_IDX_NONE
     raise TypeError(f"{src_type}:", code, seqx)
 
@@ -375,6 +378,7 @@ def parser_decorator(func):
 
         if RAMSES_CODES[msg.code].get(RQ_MAY_HAVE_PAYLOAD):
             return {**_idx(payload[:2], msg), **func(*args, **kwargs)}
+
         return _idx(payload[:2], msg)
 
     return wrapper
@@ -651,7 +655,7 @@ def parser_0009(payload, msg) -> Union[dict, list]:
             "failsafe_enabled": {"00": False, "01": True}.get(seqx[2:4]),
         }
 
-    if msg.has_array:
+    if msg._has_array:
         assert msg.len >= 3 and msg.len % 3 == 0, msg.len  # assuming not RQ
         return [_parser(payload[i : i + 6]) for i in range(0, len(payload), 6)]
 
@@ -683,7 +687,7 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:
     if msg.verb == RQ and msg.len <= 2:
         return _idx(payload[:2], msg)
 
-    if msg.has_array:  # or msg.len >= 6:  # TODO: these msgs can require 2 pkts!
+    if msg._has_array:  # or msg.len >= 6:  # TODO: these msgs can require 2 pkts!
         assert msg.len >= 6 and msg.len % 6 == 0, "expecting length mod 6"
         return [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
 
@@ -1374,13 +1378,13 @@ def parser_1f41(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # rf_bind
 def parser_1fc9(payload, msg) -> Optional[dict]:
-    # 17:02:31.964172 064  I --- 07:045960 --:------ 07:045960 1FC9 012 0012601CB388001FC91CB388    # noqa: E501
-    # 17:02:31.980015 065  W --- 01:145038 07:045960 --:------ 1FC9 006 0010A006368E                # noqa: E501
-    # 17:02:32.004055 064  I --- 07:045960 01:145038 --:------ 1FC9 006 0012601CB388                # noqa: E501
+    # .I --- 07:045960 --:------ 07:045960 1FC9 012 0012601CB388001FC91CB388
+    # .W --- 01:145038 07:045960 --:------ 1FC9 006 0010A006368E
+    # .I --- 07:045960 01:145038 --:------ 1FC9 006 0012601CB388
 
-    # 17:03:35.012706 053  I --- 01:145038 --:------ 01:145038 1FC9 018 FA000806368EFC3B0006368EFA1FC906368E  # noqa: E501
-    # 17:03:35.658983 045  W --- 13:081807 01:145038 --:------ 1FC9 006 003EF0353F8F                # noqa: E501
-    # 17:03:35.675856 053  I --- 01:145038 13:081807 --:------ 1FC9 006 00FFFF06368E                # noqa: E501
+    # .I --- 01:145038 --:------ 01:145038 1FC9 018 FA000806368EFC3B0006368EFA1FC906368E
+    # .W --- 13:081807 01:145038 --:------ 1FC9 006 003EF0353F8F
+    # .I --- 01:145038 13:081807 --:------ 1FC9 006 00FFFF06368E
 
     # this is an array of codes
     # 049  I --- 01:145038 --:------ 01:145038 1FC9 018 07-0008-06368E FC-3B00-06368E                07-1FC9-06368E  # noqa: E501
@@ -1452,7 +1456,7 @@ def parser_2249(payload, msg) -> Optional[dict]:
         }
 
     # the ST9520C can support two heating zones, so: msg.len in (7, 14)?
-    if msg.has_array:  # TODO: can these msgs require >1 pkts? - seems unlikely
+    if msg._has_array:  # TODO: can these msgs require >1 pkts? - seems unlikely
         assert msg.len >= 7 and msg.len % 7 == 0, msg.len
         return [_parser(payload[i : i + 14]) for i in range(0, len(payload), 14)]
 
@@ -1537,7 +1541,7 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:
     if msg.verb == RQ and msg.len <= 2:
         return _idx(payload[:2], msg)
 
-    if msg.has_array:  # or msg.len >= 6:
+    if msg._has_array:  # or msg.len >= 6:
         assert msg.len >= 3 and msg.len % 3 == 0, "expecting length mod 3"
         return [_parser(payload[i : i + 6]) for i in range(0, len(payload), 6)]
 
@@ -1658,7 +1662,7 @@ def parser_30c9(payload, msg) -> Optional[dict]:
             "temperature": _temp(seqx[2:]),
         }
 
-    if msg.has_array:
+    if msg._has_array:
         assert msg.len >= 3 and msg.len % 3 == 0, "length!"  # assuming not RQ
         return [_parser(payload[i : i + 6]) for i in range(0, len(payload), 6)]
 
@@ -1744,7 +1748,7 @@ def parser_3150(payload, msg) -> Optional[dict]:
         assert int(seqx[2:], 16) & 0xF0 == 0xF0 or int(seqx[2:], 16) <= 200
         return {**_idx(seqx[:2], msg), "heat_demand": _percent(seqx[2:])}
 
-    if msg.src.type == "02" and msg.has_array:  # TODO: hometronics only?
+    if msg.src.type == "02" and msg._has_array:  # TODO: hometronics only?
         return [_parser(payload[i : i + 4]) for i in range(0, len(payload), 4)]
 
     assert msg.len == 2, msg.len  # msg.src.type in ("01","02","10","04")
@@ -2071,7 +2075,7 @@ def parser_3ef1(payload, msg) -> dict:
         assert msg.len < 3, f"expecting len <3, got: {msg.len}"
         return {}
 
-    assert msg.verb == RP, msg.verb
+    assert msg.verb == RP, f"verb should be {RP}, not: {msg.verb}"
     assert msg.len == 7, msg.len
     assert payload[:2] == "00", payload[:2]
     assert _percent(payload[10:12]) <= 1, payload[10:12]
@@ -2121,13 +2125,15 @@ def parser_unknown(payload, msg) -> Optional[dict]:
 
 
 PAYLOAD_PARSERS = {
-    k: v for k, v in locals().items() if k.startswith("parser_") and callable(v)
+    k[7:].upper(): v
+    for k, v in locals().items()
+    if callable(v) and k.startswith("parser_") and k != "parser_unknown"
 }
 
 
 def parse_payload(msg, logger=_LOGGER) -> dict:
 
-    parser = PAYLOAD_PARSERS.get(f"parser_{msg.code.lower()}", parser_unknown)
+    parser = PAYLOAD_PARSERS.get(msg.code, parser_unknown)
     result = None
 
     try:  # parse the packet
@@ -2136,18 +2142,21 @@ def parse_payload(msg, logger=_LOGGER) -> dict:
 
     except AssertionError as err:
         # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
-        hint = f": {err}" if str(err) != "" else ""
         (logger.exception if DEV_MODE and msg.src.type != "18" else logger.warning)(
-            f"%s << Validation error{hint}", msg._pkt
+            "%s << %s", msg._pkt, f"{err.__class__.__name__}({err})"
         )
 
     except (CorruptPacketError, CorruptPayloadError) as err:  # CorruptEvohomeError
-        (logger.exception if DEV_MODE else logger.warning)(f"%s << {err}", msg._pkt)
+        (logger.exception if DEV_MODE else logger.warning)(
+            "%s << %s", msg._pkt, f"{err.__class__.__name__}({err})"
+        )
 
-    except (AttributeError, LookupError, TypeError, ValueError):  # TODO: dev only
-        logger.exception("%s << Coding error", msg._pkt)
+    except (AttributeError, LookupError, TypeError, ValueError) as err:  # TODO: dev
+        logger.exception(
+            "%s << Coding error: %s", msg._pkt, f"{err.__class__.__name__}({err})"
+        )
 
     except NotImplementedError:  # parser_unknown (unknown packet code)
-        logger.warning("%s << Unknown packet code", msg._pkt)
+        logger.warning("%s << Unknown packet code (cannot parse)", msg._pkt)
 
     return result

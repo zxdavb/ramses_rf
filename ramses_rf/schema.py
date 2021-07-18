@@ -10,6 +10,7 @@ from typing import Any, Optional, Tuple
 
 import voluptuous as vol
 
+from .address import id_to_address as addr
 from .const import ALL_DEVICE_ID as DEVICE_ID_REGEX
 from .const import (
     ATTR_CONTROLLER,
@@ -39,7 +40,6 @@ from .const import (
     __dev_mode__,
 )
 from .devices import DEVICE_BY_CLASS_ID
-from .ramses import id_to_address as addr
 
 # schema attrs
 ATTR_DEVICE_ID = "device_id"

@@ -12,11 +12,12 @@ import sys
 from datetime import datetime as dt
 from typing import Optional, Tuple
 
+from .address import pkt_addrs
 from .command import pkt_header
 from .const import MESSAGE_REGEX, __dev_mode__
 from .exceptions import CorruptAddrSetError
 from .helpers import dt_str
-from .ramses import pkt_addrs, pkt_has_array, pkt_has_idx
+from .ramses import pkt_has_array, pkt_has_idx
 from .schema import LOG_FILE_NAME, LOG_ROTATE_BYTES, LOG_ROTATE_COUNT
 from .version import __version__
 
@@ -184,7 +185,7 @@ class Packet:
 
         # addrs are populated in self.is_valid()
         self.addrs = [None] * 3
-        self.src_addr = self.dst_addr = None
+        self.src = self.dst = None
         self._is_valid = None
         if not self.is_valid:
             raise ValueError(f"not a valid packet: {frame}")
@@ -198,10 +199,10 @@ class Packet:
         self.payload = self.packet[50:]
 
         # these are calculated if/when required
-        self._hdr = None
-        self.__idx = None
+        self.__header = None
         self.__has_array = None
         self.__has_idx = None
+        self.__idx = None
 
     @classmethod
     def from_log_line(cls, dtm: str, frame: str):
@@ -244,7 +245,7 @@ class Packet:
         def invalid_addresses(addr_set: str) -> Optional[bool]:
             """Return True if the address fields are invalid (create any addresses)."""
             try:
-                self.src_addr, self.dst_addr, self.addrs = pkt_addrs(addr_set)
+                self.src, self.dst, self.addrs = pkt_addrs(addr_set)
                 # print(pkt_addrs.cache_info())
             except CorruptAddrSetError:
                 return True
@@ -285,30 +286,32 @@ class Packet:
     def _header(self) -> Optional[str]:
         """Return the QoS header of this packet."""
 
-        # TODO: a mess: pkt_addrs, an expensive function, is possibly called twice
-        if self._hdr is None and self.is_valid:
-            self._hdr = pkt_header(self.packet)
-        return self._hdr
+        if self.__header is None and self.is_valid:
+            self.__header = pkt_header(self)
+        return self.__header
 
     @property
     def _has_array(self) -> Optional[bool]:
-        """Return True if the packet payload is an array."""
+        """Return True if the packet payload is an array (NB: false -ves)."""
 
         if self.__has_array is None and self.is_valid:
-            self.__has_array = pkt_has_array(self.packet)
-        return bool(self.__has_array)
+            self.__has_array = bool(pkt_has_array(self))
+        return self.__has_array
 
     @property
     def _has_idx(self) -> Optional[bool]:
-        """Return True if the packet has a zone index/domain."""
+        """Return True if the packet has a zone index or a domain (WIP)."""
 
         if self.__has_idx is None and self.is_valid:
-            self.__has_idx = pkt_has_idx(self.packet)
-        return bool(self.__has_idx)
+            self.__idx = pkt_has_idx(self)
+            self.__has_idx = bool(self.__idx)
+        return self.__has_idx
 
     @property
     def _idx(self) -> Optional[str]:
         """Return the index/ordinal of this packet."""
 
-        if self._has_idx:
-            return self.__has_idx
+        if self.__has_idx is None and self.is_valid:
+            self.__idx = pkt_has_idx(self)
+            self.__has_idx = bool(self.__idx)
+        return self.__idx
