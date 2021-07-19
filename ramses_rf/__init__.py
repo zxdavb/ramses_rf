@@ -213,7 +213,7 @@ class Gateway:
         if dev is None:  # TODO: take into account device filter?
             dev = create_device(self, dev_addr)
 
-        if dev._is_controller and dev._evo is None:
+        if dev.type == "01" and dev._is_controller and dev._evo is None:
             dev._evo = create_system(self, dev, profile=kwargs.get("profile"))
 
         if not self.rfg and dev.type == "18":

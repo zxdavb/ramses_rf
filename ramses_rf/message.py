@@ -28,7 +28,7 @@ from .devices import Device, FanDevice, OtbGateway
 from .exceptions import CorruptEvohomeError, CorruptStateError
 from .opentherm import MSG_ID
 from .parsers import parse_payload
-from .ramses import CODE_IDX_COMPLEX, CODE_IDX_NONE, RAMSES_CODES
+from .ramses import CODE_IDX_COMPLEX, RAMSES_CODES
 from .schema import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES
 
 from .const import I_, RP, RQ, W_  # noqa: F401, isort: skip
@@ -139,7 +139,6 @@ class Message:
         self._str = None
 
         self._haz_payload = None
-        self._haz_simple_idx = None
 
         self._is_expired = None
         self._is_fragment = None
@@ -244,17 +243,6 @@ class Message:
         return self._haz_payload
 
     @property
-    def _has_simple_idx(self) -> bool:
-        """Return False if no index, or if it is complex.(may falsely Return True)."""
-
-        if self._haz_simple_idx is not None:
-            return self._haz_simple_idx
-
-        self._haz_simple_idx = self.code not in CODE_IDX_COMPLEX + CODE_IDX_NONE
-
-        return self._haz_simple_idx
-
-    @property
     def payload(self) -> Any:  # Any[dict, List[dict]]:
         """Return the payload."""
         if self._payload is not None:
@@ -271,6 +259,32 @@ class Message:
         """
 
         return self._pkt._has_array
+
+    @property
+    def _idx(self) -> Optional[dict]:
+        """Return the zone_idx/domain_id of a message payload, if any.
+
+        Used to identify the zone/domain that a message applies to. Returns an empty
+        dict if there is none such, or None if undetermined.
+        """
+
+        IDX_NAMES = {
+            _0002: "other_idx",  # non-evohome: hometronics
+            _10A0: "dhw_idx",  # can be 2 DHW zones per system
+            _22C9: "ufh_idx",  # UFH circuit
+            _2D49: "other_idx",  # non-evohome: hometronics
+            _31D9: "hvac_id",
+            _31DA: "hvac_id",
+        }  # ALSO: "domain_id", "zone_idx"
+
+        if self._pkt._idx in (True, False) or self.code in CODE_IDX_COMPLEX + [_3150]:
+            return {}
+
+        index_name = IDX_NAMES.get(
+            self.code, "domain_id" if self._pkt._idx[:1] == "F" else "zone_idx"
+        )
+
+        return {index_name: self._pkt._idx}
 
     @property
     def is_expired(self) -> Tuple[bool, Optional[bool]]:

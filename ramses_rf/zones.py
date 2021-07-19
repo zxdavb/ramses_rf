@@ -545,7 +545,9 @@ class Zone(ZoneSchedule, ZoneBase):
         super()._handle_msg(msg)
 
         if isinstance(msg.payload, list):
-            assert self.idx in [d["zone_idx"] for d in msg.payload]
+            assert self.idx in [d["zone_idx"] for d in msg.payload], "coding error zxa"
+        elif isinstance(msg.payload, dict):
+            assert msg.payload["zone_idx"] == self.idx, "coding error zxb"
 
         if msg.code == _0004:
             self._name = msg
@@ -565,11 +567,9 @@ class Zone(ZoneSchedule, ZoneBase):
             self._window_open = msg
 
         elif msg.code == _2309 and msg.verb in (I_, RP):  # setpoint
-            assert msg.src.type == "01", "coding error zxw"
             self._setpoint = msg
 
         elif msg.code == _2349 and msg.verb in (I_, RP):  # mode, setpoint
-            assert msg.src.type == "01", "coding error zxx"
             self._mode = msg
             self._setpoint = msg
 

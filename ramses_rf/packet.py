@@ -299,19 +299,14 @@ class Packet:
         return self.__has_array
 
     @property
-    def _has_idx(self) -> Optional[bool]:
-        """Return True if the packet has a zone index or a domain (WIP)."""
-
-        if self.__has_idx is None and self.is_valid:
-            self.__idx = pkt_has_idx(self)
-            self.__has_idx = bool(self.__idx)
-        return self.__has_idx
-
-    @property
     def _idx(self) -> Optional[str]:
-        """Return the index/ordinal of this packet."""
+        """Return the index/ordinal of a packet header, if any.
 
-        if self.__has_idx is None and self.is_valid:
-            self.__idx = pkt_has_idx(self)
-            self.__has_idx = bool(self.__idx)
+        Used to distinguish packets from a device that have the same code, but distinct
+        contexts (e.g. all sensors in a zone). Returns ??? if there is none such, or if
+        it is undetermined.
+        """
+
+        if self.__idx is None and self.is_valid:
+            self.__idx = pkt_has_idx(self) or False
         return self.__idx

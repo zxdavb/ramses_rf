@@ -9,7 +9,7 @@ from sys import modules
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
-from .address import dev_id_to_hex, id_to_address
+from .address import NON_DEV_ADDR, dev_id_to_hex, id_to_address
 from .command import FUNC, TIMEOUT, Command, Priority
 from .const import (
     _000C_DEVICE,
@@ -30,7 +30,7 @@ from .const import (
 )
 from .exceptions import CorruptStateError
 from .helpers import schedule_task
-from .opentherm import MSG_ID, MSG_TYPE, VALUE  # R8810A_MSG_IDS
+from .opentherm import MSG_ID, MSG_NAME, MSG_TYPE, OPENTHERM_MESSAGES, VALUE
 from .ramses import RAMSES_DEVICES
 
 from .const import I_, RP, RQ, W_  # noqa: F401, isort: skip
@@ -141,7 +141,7 @@ _DEV_TYPE_TO_CLASS = {
     "22": DEVICE_CLASS.STA,  # 22: can act like a DEVICE_CLASS.PRG
     "23": DEVICE_CLASS.PRG,
     "29": DEVICE_CLASS.FAN,
-    "30": DEVICE_CLASS.RFG,  # also: FAN
+    "30": DEVICE_CLASS.FAN,  # either: RFG/FAN
     "32": DEVICE_CLASS.HUM,  # also: SWI
     "34": DEVICE_CLASS.STA,
     "37": DEVICE_CLASS.FAN,
@@ -295,6 +295,8 @@ class DeviceBase(Entity):
             self._is_actuator = None
             self._is_sensor = None
 
+        self._iz_controller = None
+
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id})"
 
@@ -346,6 +348,20 @@ class DeviceBase(Entity):
         assert msg.src is self, "Devices should only keep msgs they sent"
         super()._handle_msg(msg)
 
+        # grep -vE ':(005283|007412|027384|034178|068807|079416|106131|125124|
+        #             138834|160474|179828|193204|195747|207082|207170|259810) '  # noqa
+        if not self._iz_controller and all(
+            (
+                msg.code in (_1030, _1F09, _313F, _3B00),
+                msg.verb == I_,
+            )
+        ):
+            if self._iz_controller is None:
+                _LOGGER.warning(f"{msg._pkt} # IS_CONTROLLER - TRUE")
+                self._iz_controller = msg
+            elif self._iz_controller is False:
+                _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (01) - FALSE, now True")
+
     @property
     def _is_present(self) -> bool:
         """Try to exclude ghost devices (as caused by corrupt packet addresses)."""
@@ -354,7 +370,11 @@ class DeviceBase(Entity):
         )  # TODO: needs addressing
 
     @property
-    def _is_controller(self) -> Optional[bool]:  # 1F09
+    def _is_controller(self) -> Optional[bool]:
+
+        if self._iz_controller is not None:
+            return True
+
         if self._ctl is not None:
             return self._ctl is self
 
@@ -786,6 +806,7 @@ class Controller(Device):  # CTL (01):
 
         self.devices = []  # [self]
         self.device_by_id = {}  # {self.id: self}
+        self._iz_controller = True
 
     # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
     #     super()._discover(discover_flag=discover_flag)
@@ -923,10 +944,6 @@ class UfhController(Device):  # UFC (02):
             c["ufh_idx"]: {"temp_high": c["temp_high"], "temp_low": c["temp_low"]}
             for c in self._setpoints.payload
         }
-        # return [
-        #     {k: v for k, v in d.items() if k in ("ufh_idx", "temp_high", "temp_low")}
-        #     for d in (self._setpoints.payload if self._setpoints else [])
-        # ]
 
     @property  # id, type
     def schema(self) -> dict:
@@ -1093,7 +1110,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
 
     SCHEMA_MSG_IDS = (
         0x03,  # ..3: "Slave configuration",
-        0x06,  # ..6: "Remote boiler parameter flags",                # see: 0x38, 0x39
+        0x06,  # ..6: "Remote boiler parameter flags",                      # 0x38, 0x39
         0x0F,  # .15: "Max. boiler capacity (kW) and modulation level setting (%)",
         0x30,  # .48: "DHW Setpoint upper & lower bounds for adjustment (°C)",
         0x31,  # .49: "Max CH water Setpoint upper & lower bounds for adjustment (°C)",
@@ -1239,10 +1256,18 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
         except KeyError:
             return
 
+    @staticmethod
+    def _msg_name(msg) -> str:
+        return (
+            msg.payload[MSG_NAME]
+            if isinstance(msg.payload[MSG_NAME], str)
+            else f"{msg.payload[MSG_ID]:02X}"
+        )
+
     @property
     def opentherm_schema(self) -> dict:
         result = {
-            v.payload["msg_name"]: v.payload
+            self._msg_name(v): v.payload
             for k, v in self._opentherm_msg.items()
             if self._supported_msg.get(int(k, 16)) and int(k, 16) in self.SCHEMA_MSG_IDS
         }
@@ -1254,7 +1279,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
     @property
     def opentherm_params(self) -> dict:
         result = {
-            v.payload["msg_name"]: v.payload
+            self._msg_name(v): v.payload
             for k, v in self._opentherm_msg.items()
             if self._supported_msg.get(int(k, 16)) and int(k, 16) in self.PARAMS_MSG_IDS
         }
@@ -1274,7 +1299,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
             "return_water_temperature": self.return_water_temperature,
         }
         others = {
-            v.payload["msg_name"]: {
+            self._msg_name(v): {
                 x: y for x, y in v.payload.items() if x.startswith(VALUE)
             }
             for k, v in self._opentherm_msg.items()
@@ -1296,9 +1321,13 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
     def schema(self) -> dict:
         return {
             **super().schema,
-            "opentherm_codes": [
-                f"0x{k:02X}" for k, v in self._supported_msg.items() if v
-            ],
+            "opentherm_msg_ids": {
+                f"{k:02X}": OPENTHERM_MESSAGES[k].get("var", f"{k:02X}")
+                if k in OPENTHERM_MESSAGES
+                else f"{k:02X}"
+                for k, v in self._supported_msg.items()
+                if v
+            },
             "opentherm_schema": self.opentherm_schema,
         }
 
@@ -1330,10 +1359,48 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
+        self.devices = []  # [self]
+        self.device_by_id = {}  # {self.id: self}
+
         self._1fc9_state = None
 
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id}): {self.temperature}"
+
+    def _handle_msg(self, msg) -> None:
+        super()._handle_msg(msg)
+
+        if msg.verb != I_:  # self._iz_controller is not None or
+            return
+
+        if all(
+            (
+                msg._addrs[0] is self.addr,
+                msg._addrs[1] is NON_DEV_ADDR,
+                msg._addrs[2] is self.addr,
+            )
+        ):
+            if self._iz_controller is None:
+                # _LOGGER.warning(f"{msg._pkt} # IS_CONTROLLER - FALSE!!!")
+                self._iz_controller = False
+            elif self._iz_controller:
+                _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (03) - TRUE, now False")
+
+            if msg.code in (_1030, _1F09, _313F, _3B00):
+                _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (13) - CORRUPT PKT")
+
+        elif all(
+            (
+                msg._addrs[0] is NON_DEV_ADDR,
+                msg._addrs[1] is NON_DEV_ADDR,
+                msg._addrs[2] is self.addr,
+            )
+        ):
+            if self._iz_controller is None:
+                # _LOGGER.warning(f"{msg._pkt} # IS_CONTROLLER - TRUE!!!")
+                self._iz_controller = msg
+            elif self._iz_controller is False:
+                _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (02) - FALSE, now True")
 
     def _bind(self):
         def bind_callback(msg) -> None:
@@ -1523,6 +1590,9 @@ class FanSwitch(BatteryState, Device):  # SWI (39):
     }
     FAN_RATE = "fan_rate"  # percentage, 0.0 - 1.0
 
+    def _set_ctl(self, ctl) -> None:
+        super()._set_ctl(ctl)
+
     @property
     def fan_mode(self) -> Optional[str]:
         if _22F1 in self._msgs:
@@ -1549,6 +1619,15 @@ class FanDevice(Device):  # FAN (20/37):
     """
 
     __dev_class__ = DEVICE_CLASS.FAN  # DEVICE_TYPES = ("20", "37")
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self.devices = []
+        self.device_by_id = {}
+
+    def _set_ctl(self, ctl) -> None:
+        super()._set_ctl(ctl)
 
     @property
     def fan_rate(self) -> Optional[float]:
@@ -1602,6 +1681,9 @@ class FanSensorHumidity(BatteryState, Device):  # HUM (32) Humidity sensor:
     REL_HUMIDITY = "relative_humidity"  # percentage
     TEMPERATURE = "temperature"  # celsius
     DEWPOINT_TEMP = "dewpoint_temp"  # celsius
+
+    def _set_ctl(self, ctl) -> None:
+        super()._set_ctl(ctl)
 
     @property
     def relative_humidity(self) -> Optional[float]:

@@ -20,6 +20,7 @@ from colorama import Fore, Style
 from colorama import init as colorama_init
 
 from ramses_rf import Gateway, GracefulExit
+from ramses_rf.address import is_valid_dev_id
 from ramses_rf.command import Command
 from ramses_rf.discovery import (
     EXECUTE_CMD,
@@ -34,7 +35,6 @@ from ramses_rf.discovery import (
     spawn_monitor_scripts,
 )
 from ramses_rf.exceptions import EvohomeError
-from ramses_rf.helpers import is_valid_dev_id
 from ramses_rf.packet import CONSOLE_COLS, DEFAULT_DATEFMT, DEFAULT_FMT
 from ramses_rf.schema import (
     ALLOW_LIST,
@@ -434,12 +434,12 @@ async def main(lib_kwargs, **kwargs):
         msg = " - ended without error (e.g. EOF)"
 
     print("\r\nclient.py: Finished ramses_rf, results:\r\n")
-    # if kwargs[COMMAND] == EXECUTE:
-    #     _print_results(gwy, **kwargs)
-    # elif kwargs["show_state"]:
-    #     _print_state(gwy)  # TODO: make this choice a switch
-    # else:
-    #     _print_summary(gwy)
+    if kwargs[COMMAND] == EXECUTE:
+        _print_results(gwy, **kwargs)
+    elif kwargs["show_state"]:
+        _print_state(gwy)  # TODO: make this choice a switch
+    else:
+        _print_summary(gwy)
 
     print(f"\r\nclient.py: Finished ramses_rf.\r\n{msg}\r\n")
 

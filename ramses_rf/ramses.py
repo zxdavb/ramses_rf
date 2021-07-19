@@ -501,7 +501,7 @@ RAMSES_DEVICES = {
         _1F09: {I_: {}, RP: {}, W_: {}},
         _1FC9: {I_: {}, RQ: {}, RP: {}, W_: {}},
         _1F41: {I_: {}, RP: {}},
-        _2249: {I_: {}},
+        _2249: {I_: {}},  # Hometronics, not Evohome
         _22D9: {RQ: {}},
         _2309: {I_: {}, RP: {}},
         _2349: {I_: {}, RP: {}},
@@ -780,60 +780,78 @@ def pkt_has_array(pkt):
     2309/30C9/000A packets).
     """
     # False -ves are an acceptable compromise/alternative to extensive checking
+    # TODO: 2249? - no evidence of array
 
-    # .I --- 01:102458 --:------ 01:102458 0009 006 FC01FF-F901FF
-    # .I --- 01:145038 --:------ 01:145038 0009 006 FC00FF-F900FF
-    # .I 034 --:------ --:------ 12:126457 2309 006 017EFF-027EFF
-    if pkt.code in (_0009, _2309, _30C9) and pkt.verb == I_:
-        if len(pkt.payload) > 6:
-            assert (pkt.src.type == "01" and pkt.src == pkt.dst) or (
-                pkt.src.type in ("12", "22") and pkt.dst == NON_DEV_ADDR
-            ), "Array #01"
-        return len(pkt.payload) > 6
-
-    #  I --- 01:223036 --:------ 01:223036 000A 012 081001F40DAC-091001F40DAC   # 2nd fragment
-    # .I 024 --:------ --:------ 12:126457 000A 012 010001F40BB8-020001F40BB8
-    # .I --- 02:044328 --:------ 02:044328 22C9 018 0001F40A2801-0101F40A2801-0201F40A2801
-    if pkt.code == _000A and pkt.verb == I_:
-        assert (
-            len(pkt.payload) <= 12 or pkt.src.type != "01" or pkt.src == pkt.dst
-        ), "Array #11"
-        assert (
-            len(pkt.payload) <= 12 or pkt.src.type != "12" or pkt.dst == NON_DEV_ADDR
-        ), "Array #12"
-        return len(pkt.payload) > 12
+    if pkt.verb == RQ:
+        return False
 
     # .W --- 01:145038 34:092243 --:------ 1FC9 006 07230906368E
     # .I --- 01:145038 --:------ 01:145038 1FC9 018 07000806368E-FC3B0006368E-071FC906368E
     # .I --- 01:145038 --:------ 01:145038 1FC9 018 FA000806368E-FC3B0006368E-FA1FC906368E
     # .I --- 34:092243 --:------ 34:092243 1FC9 030 0030C9896853-002309896853-001060896853-0010E0896853-001FC9896853
-    if pkt.code == _1FC9 and pkt.verb != RQ:  # I_, RP and I_ are all arrays
+    if pkt.code == _1FC9:  # I_, RP and W_ are all arrays
         return True  # treat as all array
 
+    if pkt.verb != I_:
+        return False
+
+    # .I --- 01:102458 --:------ 01:102458 0009 006 FC01FF-F901FF
+    # .I --- 01:145038 --:------ 01:145038 0009 006 FC00FF-F900FF
+    if pkt.code == _0009:
+        assert pkt.len % 3 == 0, f"invalid array length {pkt.len}"
+        # assert pkt.len <= 3 or pkt.src._is_controller, "NEW"
+        # if pkt.len > 3:
+        #     assert (pkt.src.type == "01" and pkt.src == pkt.dst) or (
+        #         pkt.src.type in ("12", "22") and pkt.dst == NON_DEV_ADDR
+        #     ), "Array #01"
+        return True
+
+    # .I 034 --:------ --:------ 12:126457 2309 006 017EFF-027EFF
+    if pkt.code in (_2309, _30C9):
+        assert pkt.len % 3 == 0, f"invalid array length {pkt.len}"
+        # assert pkt.len <= 6 or pkt.src._is_controller, "NEW"
+        if pkt.len > 3:
+            assert (pkt.src.type == "01" and pkt.src == pkt.dst) or (
+                pkt.src.type in ("12", "22") and pkt.dst == NON_DEV_ADDR
+            ), "Array #01"
+        return pkt.len > 3
+
+    #  I --- 01:223036 --:------ 01:223036 000A 012 081001F40DAC-091001F40DAC   # 2nd fragment
+    # .I 024 --:------ --:------ 12:126457 000A 012 010001F40BB8-020001F40BB8
     # .I --- 02:044328 --:------ 02:044328 22C9 018 0001F40A2801-0101F40A2801-0201F40A2801
-    if pkt.code == _22C9 and pkt.verb == I_:
+    if pkt.code == _000A:
+        assert pkt.len % 6 == 0, f"invalid array length {pkt.len}"
+        # assert pkt.len <= 6 or pkt.src._is_controller, "NEW"
+        assert pkt.len <= 6 or pkt.src.type != "01" or pkt.src == pkt.dst, "Array #11"
         assert (
-            len(pkt.payload) <= 12 or pkt.src.type != "02" or pkt.src == pkt.dst
-        ), "Array #31"
-        return len(pkt.payload) > 12
+            pkt.len <= 6 or pkt.src.type != "12" or pkt.dst == NON_DEV_ADDR
+        ), "Array #12"
+        return pkt.len > 6
+
+    # .I --- 02:044328 --:------ 02:044328 22C9 018 0001F40A2801-0101F40A2801-0201F40A2801
+    if pkt.code == _22C9:
+        assert pkt.len % 6 == 0, f"invalid array length {pkt.len}"
+        # assert pkt.len <= 6 or pkt.src._is_controller, "NEW"
+        assert pkt.len <= 6 or pkt.src.type != "02" or pkt.src == pkt.dst, "Array #31"
+        return pkt.len > 6
 
     # .I --- 02:001107 --:------ 02:001107 3150 010 007A-017A-027A-036A-046A
-    if pkt.code == _3150 and pkt.verb == I_:
-        assert (
-            len(pkt.payload) <= 4 or pkt.src.type != "02" or pkt.src == pkt.dst
-        ), "Array #41"
-        return len(pkt.payload) > 4
+    if pkt.code == _3150:
+        assert pkt.len % 2 == 0, f"invalid array length {pkt.len}"
+        # assert pkt.len <= 2 or pkt.src._is_controller, "NEW"
+        assert pkt.len <= 2 or pkt.src.type != "02" or pkt.src == pkt.dst, "Array #41"
+        return pkt.len > 2
 
     return None  # i.e. don't know (but there shouldn't be any others)
 
 
 def pkt_has_idx(pkt):
-    """Return the payload's index or True if the payload contains an array.
+    """Return the payload's context or True if the payload contains an array.
 
     Will return False if there is no index, or None if it is indeterminable."""
     # The three iterables are mutex, but its possible a code is in any of them.
 
-    if pkt.code in CODE_IDX_COMPLEX:
+    if pkt.code in CODE_IDX_COMPLEX:  # are not payload[:2]
         if pkt.code in (_0001, _1FC9):  # treat as no index
             return False
         if pkt.code == _0005:  # zone_idx, zone_type
@@ -846,7 +864,7 @@ def pkt_has_idx(pkt):
             return (
                 pkt.payload[4:6]
                 if pkt.payload != "000000B0000000000000000000007FFFFF7000000000"
-                else None
+                else False
             )
         if pkt.code == _3220:  # ot_msg_id
             return pkt.payload[4:6]
@@ -861,14 +879,14 @@ def pkt_has_idx(pkt):
             return
         return False
 
-    if pkt.code in CODE_IDX_SIMPLE:  # NOTE: potential+ for false positives
+    if pkt.code in CODE_IDX_SIMPLE:  # potential+ for false positives
         if pkt_has_array(pkt):
             return True  # excludes len==1 for 000A, 2309, 30C9
 
         # TODO: is this needed: exceptions to CODE_IDX_SIMPLE
         if pkt.payload[:2] in ("F8", "F9", "FA", "FC"):  # TODO: FB, FD
             if pkt.code not in CODE_IDX_DOMAIN:
-                _LOGGER.warning(f"{pkt} # CODE_IDX_DOMAIN")
+                _LOGGER.warning(f"{pkt} # CODE_IDX_DOMAIN (domain)")
             return pkt.payload[:2]
 
         if any(  # if to/from a controller
@@ -879,6 +897,8 @@ def pkt_has_idx(pkt):
                 pkt.addrs[2].type in ("12", "22"),
             )
         ):
+            # if int(pkt.payload[:2], 16) >= pkt._gwy.config.max_zones:
+            #     _LOGGER.warning(f"{pkt} # CODE_IDX_DOMAIN (max_zones)")
             return pkt.payload[:2]
             # 02:    22C9: would be picked up as an array, if len==1 counted
             # 03:    # .I 028 03:094242 --:------ 03:094242 30C9 003 010B22
@@ -889,7 +909,7 @@ def pkt_has_idx(pkt):
         #     result = pkt.payload[:2]
 
         if pkt.payload[:2] != "00":
-            _LOGGER.warning(f"{pkt} # CODE_IDX_SIMPLE")
+            _LOGGER.warning(f"{pkt} # CODE_IDX_SIMPLE (non-null)")
             return pkt.payload[:2]
 
         # if DEV_MODE:
