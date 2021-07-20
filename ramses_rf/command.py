@@ -11,8 +11,6 @@ import json
 import logging
 import struct
 import zlib
-
-# from collections import namedtuple
 from datetime import datetime as dt
 from datetime import timedelta as td
 from functools import total_ordering

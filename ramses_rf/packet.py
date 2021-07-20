@@ -17,7 +17,7 @@ from .command import pkt_header
 from .const import MESSAGE_REGEX, __dev_mode__
 from .exceptions import CorruptAddrSetError
 from .helpers import dt_str
-from .ramses import pkt_has_array, pkt_has_idx
+from .ramses import pkt_has_array, pkt_has_idx, pkt_timeout
 from .schema import LOG_FILE_NAME, LOG_ROTATE_BYTES, LOG_ROTATE_COUNT
 from .version import __version__
 
@@ -203,6 +203,7 @@ class Packet:
         self.__has_array = None
         self.__has_idx = None
         self.__idx = None
+        self.__timeout = None
 
     @classmethod
     def from_log_line(cls, dtm: str, frame: str):
@@ -310,3 +311,24 @@ class Packet:
         if self.__idx is None and self.is_valid:
             self.__idx = pkt_has_idx(self) or False
         return self.__idx
+
+    @property
+    def _expired(self) -> float:
+        """Return fraction used of the normal lifetime of packet.
+
+        A packet is 'expired' when >1.0, and should be tombstoned when >2.0. Returns
+        False if the packet does not expire.
+        """
+
+        if self.__timeout is None and self.is_valid:
+            self.__timeout = pkt_timeout(self) or False
+
+        if self.__timeout is False:
+            return False
+
+        dtm_now = (
+            dt.now()
+            if (True or self._gwy.serial_port)  # TODO
+            else (self._gwy._prev_msg.dtm if self._gwy._prev_msg else self.dtm)
+        )
+        return self.__timeout / (self.dtm - dtm_now)

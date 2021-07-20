@@ -221,7 +221,7 @@ class Entity:
         self._gwy.send_cmd(Command(verb, code, payload, dest_id, **kwargs))
 
     def _msg_payload(self, msg, key=None) -> Optional[Any]:
-        if msg and not msg.is_expired:
+        if msg and not msg._expired:
             if key:
                 return msg.payload.get(key)
             return {k: v for k, v in msg.payload.items() if k[:1] != "_"}
@@ -243,7 +243,7 @@ class Entity:
         #         msg_name,
         #     )
         #     assert False, msg.code
-        elif msg.is_expired:
+        elif msg._expired:
             _LOGGER.warning(
                 "%s: Message(%s) has expired (%s)", self, msg._pkt._header, attr
             )
@@ -366,7 +366,7 @@ class DeviceBase(Entity):
     def _is_present(self) -> bool:
         """Try to exclude ghost devices (as caused by corrupt packet addresses)."""
         return any(
-            m.src == self for m in self._msgs.values() if not m.is_expired
+            m.src == self for m in self._msgs.values() if not m._expired
         )  # TODO: needs addressing
 
     @property
@@ -1178,9 +1178,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
                 self._gwy.send_cmd(Command.get_opentherm_data(self.id, m))
                 for m in self.SCHEMA_MSG_IDS  # From OT v2.2: version numbers
                 if self._supported_msg.get(m) is not False
-                and (
-                    not self._opentherm_msg.get(m) or self._opentherm_msg[m].is_expired
-                )
+                and (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]
 
         if discover_flag & DISCOVER_PARAMS:
@@ -1188,9 +1186,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
                 self._gwy.send_cmd(Command.get_opentherm_data(self.id, m))
                 for m in self.PARAMS_MSG_IDS
                 if self._supported_msg.get(m) is not False
-                and (
-                    not self._opentherm_msg.get(m) or self._opentherm_msg[m].is_expired
-                )
+                and (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]
 
         if discover_flag & DISCOVER_STATUS:
@@ -1199,9 +1195,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
                 self._gwy.send_cmd(Command.get_opentherm_data(self.id, m, retries=0))
                 for m in self.STATUS_MSG_IDS
                 if self._supported_msg.get(m) is not False
-                and (
-                    not self._opentherm_msg.get(m) or self._opentherm_msg[m].is_expired
-                )
+                and (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]
 
     def _handle_msg(self, msg) -> None:

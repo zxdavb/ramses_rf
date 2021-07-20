@@ -294,7 +294,7 @@ class Gateway:
             dtm.isoformat(sep="T", timespec="auto"): repr(msg)
             for dtm, msg in msgs.items()
             if msg.verb in (I_, RP)
-            and not msg.is_expired
+            and not msg._expired
             and msg.dtm >= dt.now() - td(days=7)  # TODO: ideally, wouldn't be any >7d
         }
 

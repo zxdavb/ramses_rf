@@ -7,8 +7,6 @@ Decode/process a message (payload into JSON).
 """
 
 import logging
-from datetime import datetime as dt
-from datetime import timedelta as td
 from typing import Any, Optional, Tuple, Union
 
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR, Address
@@ -24,9 +22,8 @@ from .const import (
     ZONE_TYPE_SLUGS,
     __dev_mode__,
 )
-from .devices import Device, FanDevice, OtbGateway
+from .devices import Device, FanDevice
 from .exceptions import CorruptEvohomeError, CorruptStateError
-from .opentherm import MSG_ID
 from .parsers import parse_payload
 from .ramses import CODE_IDX_COMPLEX, RAMSES_CODES
 from .schema import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES
@@ -110,9 +107,9 @@ class Message:
     Will trap/log all invalid msgs appropriately.
     """
 
-    HAS_EXPIRED = 2
-    IS_EXPIRING = 1
-    NOT_EXPIRED = 0
+    CANT_EXPIRE = 0
+    HAS_EXPIRED = 1  # any value >= 1
+    IS_EXPIRING = 0.5
 
     def __init__(self, gwy, pkt) -> None:
         """Create a message, assumes a valid packet."""
@@ -140,7 +137,7 @@ class Message:
 
         self._haz_payload = None
 
-        self._is_expired = None
+        self.__expired = None
         self._is_fragment = None
 
         self._is_valid = None
@@ -287,92 +284,28 @@ class Message:
         return {index_name: self._pkt._idx}
 
     @property
-    def is_expired(self) -> Tuple[bool, Optional[bool]]:
+    def _expired(self) -> Tuple[bool, Optional[bool]]:
         """Return True if the message is dated (does not require a valid payload)."""
 
-        def _logger_send(logger, message, timeout, age) -> None:
-            if False and DEV_MODE:
-                logger(
-                    "Message(%s), received at %s: %s (%s of %s)",
-                    self._pkt._header,
-                    self.dtm,
-                    f"Has {message}",
-                    td(seconds=age.seconds),
-                    timeout,
-                )
+        if self.__expired is not None:
+            if self.__expired == self.CANT_EXPIRE:
+                return False
+            if self.__expired >= self.HAS_EXPIRED:
+                return True
 
-        def _timeout() -> td:  # TODO: move this to RAMSES pkt schema
-            timeout = None
+        self.__expired = self._pkt._expired
 
-            if self.verb in (RQ, W_):
-                timeout = td(seconds=3)
+        if self.__expired is False:  # treat as never expiring
+            _LOGGER.error("Message(%s) can't expire", self._pkt._header)
+            self.__expired = self.CANT_EXPIRE
+            return False
 
-            elif self.code in (_0005, _000C, _10E0):
-                return  # TODO: exclude/remove devices caused by corrupt ADDRs?
+        if self.__expired >= self.HAS_EXPIRED:
+            _LOGGER.error("Message(%s) has expired", self._pkt._header)
+            return True
 
-            elif self.code == _1FC9 and self.verb == RP:
-                return  # TODO: check other verbs, they seem variable
-
-            elif self.code == _1F09:
-                timeout = td(seconds=self.payload["remaining_seconds"])
-
-            elif self.code == _000A and self._has_array:
-                timeout = td(minutes=60)  # sends I /1h
-
-            elif self.code in (_2309, _30C9) and self._has_array:
-                timeout = td(minutes=15)  # sends I /sync_cycle
-
-            elif self.code == _3220:
-                if self.payload[MSG_ID] in OtbGateway.SCHEMA_MSG_IDS:
-                    timeout = None
-                elif self.payload[MSG_ID] in OtbGateway.PARAMS_MSG_IDS:
-                    timeout = td(minutes=60)
-                else:  # incl. OtbGateway.STATUS_MSG_IDS
-                    timeout = td(minutes=5)
-
-            # elif self.code in (_3B00, _3EF0, ):  # TODO: 0008, 3EF0, 3EF1
-            #     timeout = td(minutes=6.7)  # TODO: WIP
-
-            elif self.code in RAMSES_CODES:
-                timeout = RAMSES_CODES[self.code].get("timeout")
-
-            return timeout or td(minutes=60)
-
-        if self._is_expired == self.HAS_EXPIRED:  # TODO: or CANT_EXPIRE
-            return self._is_expired
-
-        timeout = _timeout()  # TODO: needs fixing
-
-        if timeout is None:  # treat as never expiring
-            self._is_expired = self.NOT_EXPIRED  # TODO: CANT_EXPIRE
-            # _logger_send(
-            #    _LOGGER.debug,
-            #    "msg is not expirable",
-            # )
-            return self._is_expired
-
-        dtm_now = (
-            dt.now()
-            if self._gwy.serial_port
-            else (self._gwy._prev_msg.dtm if self._gwy._prev_msg else self.dtm)
-        )
-
-        if self.dtm < dtm_now - timeout * 2:
-            if self._is_expired != self.HAS_EXPIRED:
-                _logger_send(_LOGGER.error, "tombstoned.", timeout, dtm_now - self.dtm)
-                #     f"msg has tombstoned ({(dtm_now - self.dtm)//td(seconds=1)}, {timeout})",
-                # )
-            self._is_expired = self.HAS_EXPIRED
-
-        elif self.dtm < dtm_now - timeout * 1:
-            if self._is_expired != self.IS_EXPIRING:
-                _logger_send(_LOGGER.info, "expired....", timeout, dtm_now - self.dtm)
-            self._is_expired = self.IS_EXPIRING
-
-        else:
-            self._is_expired = self.NOT_EXPIRED
-            # _logger_send(_LOGGER.info, "not expired", timeout, dtm_now - self.dtm))
-        return self._is_expired
+        # if self.__expired >= self.IS_EXPIRING:
+        #     _LOGGER.error("Message(%s) is expiring", self._pkt._header)
 
     @property
     def _is_fragment_WIP(self) -> bool:

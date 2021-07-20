@@ -9,6 +9,7 @@ from typing import Optional
 
 from .address import NON_DEV_ADDR
 from .const import __dev_mode__
+from .opentherm import MSG_ID
 
 from .const import I_, RP, RQ, W_  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
@@ -972,3 +973,47 @@ def pkt_header(pkt, rx_header=None) -> Optional[str]:
         header += f"|{header_idx}"
 
     return header
+
+
+def pkt_timeout(pkt) -> Optional[float]:
+    """Return the pkt lifetime.
+
+    Will return None if the packet does not expire (e.g. 10E0).
+    """
+    from .devices import OtbGateway  # avoids circular ref
+
+    timeout = None
+
+    if pkt.verb in (RQ, W_):
+        timeout = td(seconds=3)
+
+    elif pkt.code in (_0005, _000C, _10E0):
+        return  # TODO: exclude/remove devices caused by corrupt ADDRs?
+
+    elif pkt.code == _1FC9 and pkt.verb == RP:
+        return  # TODO: check other verbs, they seem variable
+
+    elif pkt.code == _1F09:
+        timeout = td(seconds=pkt.payload["remaining_seconds"])
+
+    elif pkt.code == _000A and pkt._has_array:
+        timeout = td(minutes=60)  # sends I /1h
+
+    elif pkt.code in (_2309, _30C9) and pkt._has_array:
+        timeout = td(minutes=15)  # sends I /sync_cycle
+
+    elif pkt.code == _3220:
+        if pkt.payload[MSG_ID] in OtbGateway.SCHEMA_MSG_IDS:
+            timeout = None
+        elif pkt.payload[MSG_ID] in OtbGateway.PARAMS_MSG_IDS:
+            timeout = td(minutes=60)
+        else:  # incl. STATUS_MSG_IDS
+            timeout = td(minutes=5)
+
+    # elif pkt.code in (_3B00, _3EF0, ):  # TODO: 0008, 3EF0, 3EF1
+    #     timeout = td(minutes=6.7)  # TODO: WIP
+
+    elif pkt.code in RAMSES_CODES:
+        timeout = RAMSES_CODES[pkt.code].get("timeout")
+
+    return timeout or td(minutes=60)

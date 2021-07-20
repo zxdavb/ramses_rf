@@ -322,7 +322,7 @@ def _save_state(gwy):
         [
             f.write(f"{m.dtm.isoformat(sep='T')} {m._pkt}\r\n")
             for m in msgs.values()
-            # if not m.is_expired
+            # if not m._expired
         ]
 
     with open("state_schema.json", "w") as f:

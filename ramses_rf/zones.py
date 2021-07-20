@@ -694,7 +694,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
     @property
     def config(self) -> Optional[dict]:  # 000A
-        if not self._zone_config or self._zone_config.is_expired:
+        if not self._zone_config or self._zone_config._expired:
             return
 
         elif isinstance(self._zone_config.payload, dict):
@@ -710,7 +710,7 @@ class Zone(ZoneSchedule, ZoneBase):
     @property
     def mode(self) -> Optional[dict]:  # 2349
         # setpoint, mode, until
-        if not self._mode or self._mode.is_expired:
+        if not self._mode or self._mode._expired:
             return
 
         result = self._msg_payload(self._mode)
@@ -719,7 +719,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309 (2349 is a superset of 2309)
-        if not self._setpoint or self._setpoint.is_expired:
+        if not self._setpoint or self._setpoint._expired:
             return
 
         elif isinstance(self._setpoint.payload, dict):
@@ -742,13 +742,13 @@ class Zone(ZoneSchedule, ZoneBase):
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        # if not self._temperature or self._temperature.is_expired:
+        # if not self._temperature or self._temperature._expired:
         #       # NOTE: CTL (as sensor) won't have this attr...
         #     if self.sensor and self.sensor.temperature:
         #         self._temperature = self.sensor._temp
 
         if not self._temperature or (
-            self._temperature.is_expired == self._temperature.HAS_EXPIRED
+            self._temperature._expired == self._temperature.HAS_EXPIRED
         ):
             return
 
