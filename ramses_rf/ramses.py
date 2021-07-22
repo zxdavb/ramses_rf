@@ -947,7 +947,7 @@ def pkt_header(pkt, rx_header=None) -> Optional[str]:
     #     if pkt.verb == I_:
     #         return "|".join((I_, pkt.src.id, pkt.code))
 
-    if code == _1FC9:  # TODO: will need to do something similar for 3220?
+    if pkt.code == _1FC9:  # TODO: will need to do something similar for 3220?
         if pkt.src == pkt.dst:
             if rx_header:
                 return "|".join((W_, pkt.dst.id, code))
@@ -959,7 +959,7 @@ def pkt_header(pkt, rx_header=None) -> Optional[str]:
 
     verb = pkt.verb
     if rx_header:
-        if pkt.src == pkt.dst:  # usually announcements, not requiring an Rx
+        if verb == I_ or pkt.src == pkt.dst:  # usu. announcements, not requiring an Rx
             return
         # if pkt.verb == RQ and RQ not in RAMSES_CODES.get(pkt.code, []):
         #     return
