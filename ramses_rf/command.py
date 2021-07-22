@@ -685,7 +685,7 @@ class Command:
         payload = f"{zone_idx:02X}00{str_to_hex(name)[:24]:0<40}"  # TODO: check 12/24?
         return cls(W_, _0004, payload, ctl_id, **kwargs)
 
-    @classmethod  # constructor for 2309
+    @classmethod  # constructor for W/2309
     @validate_zone_args
     def set_zone_setpoint(cls, ctl_id: str, zone_idx: int, setpoint: float, **kwargs):
         """Constructor to set the setpoint of a zone (c.f. parser_2309)."""
@@ -749,14 +749,14 @@ class Command:
 
         return cmd
 
-    @classmethod  # constructor for 0002
+    @classmethod  # constructor for I/0002
     def put_outdoor_temp(cls, dev_id: str, temperature: float, **kwargs):
         """Constructor to announce the temperature of an external sensor (0002)."""
 
         payload = f"00{temp_to_hex(temperature)}01"
         return cls.packet(I_, _0002, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
-    @classmethod  # constructor for 30C9
+    @classmethod  # constructor for I/30C9
     def put_sensor_temp(cls, dev_id: str, temperature: float, **kwargs):
         """Constructor to announce the temperature of a zone sensor (3C09)."""
         #  I --- 34:021943 --:------ 34:021943 30C9 003 000C0D
