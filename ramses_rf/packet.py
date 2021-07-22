@@ -331,4 +331,4 @@ class Packet:
             if (True or self._gwy.serial_port)  # TODO
             else (self._gwy._prev_msg.dtm if self._gwy._prev_msg else self.dtm)
         )
-        return self.__timeout / (self.dtm - dtm_now)
+        return self.__timeout / (dtm_now - self.dtm)
