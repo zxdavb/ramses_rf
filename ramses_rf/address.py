@@ -209,7 +209,7 @@ def pkt_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
 
     # TODO: remove all .id: addrs[2] not in (NON_DEV_ADDR, NUL_DEV_ADDR)
 
-    # This check will invalidate these esoteric pkts (which are never transmitted)
+    # This check will deem invalid these esoteric pkts (which are never transmitted)
     # ---  I --- --:------ --:------ --:------ 0001 005 00FFFF02FF
     # ---  I --- --:------ --:------ --:------ 0001 005 00FFFF0200
     if not all(
