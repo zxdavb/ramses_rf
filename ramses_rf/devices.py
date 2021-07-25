@@ -98,6 +98,7 @@ DEFAULT_BDR_ID = "13:000730"
 DEFAULT_EXT_ID = "17:000730"
 DEFAULT_THM_ID = "03:000730"
 
+CODE_ONLY_FROM_CONTROLLER = (_1030, _1F09, _313F, _3B00)  # I packets, TODO: 31Dx too?
 
 DEV_MODE = __dev_mode__ and False
 
@@ -295,7 +296,7 @@ class DeviceBase(Entity):
             self._is_actuator = None
             self._is_sensor = None
 
-        self._iz_controller = None
+        self.__is_controller = None
 
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id})"
@@ -348,19 +349,17 @@ class DeviceBase(Entity):
         assert msg.src is self, "Devices should only keep msgs they sent"
         super()._handle_msg(msg)
 
+        if msg.verb != I_:  # or: if self.__is_controller is not None or...
+            return
+
         # grep -vE ':(005283|007412|027384|034178|068807|079416|106131|125124|
         #             138834|160474|179828|193204|195747|207082|207170|259810) '  # noqa
-        if not self._iz_controller and all(
-            (
-                msg.code in (_1030, _1F09, _313F, _3B00),
-                msg.verb == I_,
-            )
-        ):
-            if self._iz_controller is None:
-                _LOGGER.warning(f"{msg._pkt} # IS_CONTROLLER - TRUE")
-                self._iz_controller = msg
-            elif self._iz_controller is False:
-                _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (01) - FALSE, now True")
+        if not self.__is_controller and msg.code in CODE_ONLY_FROM_CONTROLLER:
+            if self.__is_controller is None:
+                _LOGGER.info(f"{msg._pkt} # IS_CONTROLLER (00): is TRUE")
+                self.__is_controller = msg
+            elif self.__is_controller is False:  # TODO: raise CorruptStateError
+                _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (01): was FALSE, now True")
 
     @property
     def _is_present(self) -> bool:
@@ -372,21 +371,12 @@ class DeviceBase(Entity):
     @property
     def _is_controller(self) -> Optional[bool]:
 
-        if self._iz_controller is not None:
-            return True
+        if self.__is_controller is not None:
+            return bool(self.__is_controller)  # True, False, or msg
 
-        if self._ctl is not None:
+        if self._ctl is not None:  # TODO: messy
             return self._ctl is self
 
-        # if isinstance(device, Controller):
-        # if domain_id == "FF"
-        # if dev_addr.type in SYSTEM_CLASSES:
-        if self.type in ("01", "23"):
-            pass
-        # if _1F09 in self._msgs:  # TODO: needs to add msg as attr
-        #     return self._msgs[_1F09].verb == I_
-        # if _31D9 in self._msgs:  # TODO: needs to add msg as attr
-        #     return self._msgs[_31D9].verb == I_
         return False
 
     @property
@@ -806,7 +796,7 @@ class Controller(Device):  # CTL (01):
 
         self.devices = []  # [self]
         self.device_by_id = {}  # {self.id: self}
-        self._iz_controller = True
+        self.__is_controller = True
 
     # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
     #     super()._discover(discover_flag=discover_flag)
@@ -1315,11 +1305,12 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
     def schema(self) -> dict:
         return {
             **super().schema,
-            "opentherm_msg_ids": {
+            #  grep '47AB ' | grep -vE '(13|1A|1B)47AB'
+            "known_msg_ids": {
                 f"{k:02X}": OPENTHERM_MESSAGES[k].get("var", f"{k:02X}")
                 if k in OPENTHERM_MESSAGES
                 else f"{k:02X}"
-                for k, v in self._supported_msg.items()
+                for k, v in sorted(self._supported_msg.items())
                 if v
             },
             "opentherm_schema": self.opentherm_schema,
@@ -1364,9 +1355,10 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.verb != I_:  # self._iz_controller is not None or
+        if msg.verb != I_:  # or: if self.__is_controller is not None or...
             return
 
+        # NOTE: this has only been tested on a 12:, does it work for a 34: too?
         if all(
             (
                 msg._addrs[0] is self.addr,
@@ -1374,14 +1366,14 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
                 msg._addrs[2] is self.addr,
             )
         ):
-            if self._iz_controller is None:
-                # _LOGGER.warning(f"{msg._pkt} # IS_CONTROLLER - FALSE!!!")
-                self._iz_controller = False
-            elif self._iz_controller:
-                _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (03) - TRUE, now False")
+            if self.__is_controller is None:
+                # _LOGGER.info(f"{msg._pkt} # IS_CONTROLLER (10): is FALSE")
+                self.__is_controller = False
+            elif self.__is_controller:  # TODO: raise CorruptStateError
+                _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (11): was TRUE, now False")
 
-            if msg.code in (_1030, _1F09, _313F, _3B00):
-                _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (13) - CORRUPT PKT")
+            if msg.code in CODE_ONLY_FROM_CONTROLLER:  # TODO: raise CorruptPktError
+                _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (12); is CORRUPT PKT")
 
         elif all(
             (
@@ -1390,11 +1382,11 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
                 msg._addrs[2] is self.addr,
             )
         ):
-            if self._iz_controller is None:
-                # _LOGGER.warning(f"{msg._pkt} # IS_CONTROLLER - TRUE!!!")
-                self._iz_controller = msg
-            elif self._iz_controller is False:
-                _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (02) - FALSE, now True")
+            if self.__is_controller is None:
+                # _LOGGER.info(f"{msg._pkt} # IS_CONTROLLER (20): is TRUE")
+                self.__is_controller = msg
+            elif self.__is_controller is False:  # TODO: raise CorruptStateError
+                _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (21): was FALSE, now True")
 
     def _bind(self):
         def bind_callback(msg) -> None:
@@ -1606,7 +1598,7 @@ class FanSwitch(BatteryState, Device):  # SWI (39):
         }
 
 
-class FanDevice(Device):  # FAN (20/37):
+class FanDevice(Device):  # FAN (20/37): I/31D[9A]
     """The Ventilation class.
 
     The cardinal code are 31D9, 31DA.
