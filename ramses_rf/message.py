@@ -108,8 +108,8 @@ class Message:
     """
 
     CANT_EXPIRE = 0
-    HAS_EXPIRED = 1  # any value >= 1
-    IS_EXPIRING = 0.5
+    HAS_EXPIRED = 1.2  # i.e. any value >= HAS_EXPIRED
+    IS_EXPIRING = 0.8  # expected lifetime == 1.0
 
     def __init__(self, gwy, pkt) -> None:
         """Create a message, assumes a valid packet."""
@@ -135,7 +135,7 @@ class Message:
         self._payload = None
         self._str = None
 
-        self._haz_payload = None
+        self.__has_payload = None
 
         self.__expired = None
         self._is_fragment = None
@@ -166,10 +166,6 @@ class Message:
                 return "NUL:------"
 
             return f"{DEVICE_TYPES.get(dev.type, f'{dev.type:>3}')}:{dev.id[3:]}"
-            try:
-                return f"{DEVICE_TYPES.get(dev.type, f'{dev.type:>3}')}:{dev.id[3:]}"
-            except AttributeError:  # TODO: 'NoneType' object has no attribute 'type'
-                return "XXX:------"
 
         if self._str is not None:
             return self._str
@@ -220,24 +216,24 @@ class Message:
         The message (i.e. the raw payload) may still have an idx.
         """
 
-        if self._haz_payload is not None:
-            return self._haz_payload
+        if self.__has_payload is not None:
+            return self.__has_payload
 
         if self.len == 1:
-            self._haz_payload = False  # TODO: (WIP) has no payload
+            self.__has_payload = False  # TODO: (WIP) has no payload
         elif RAMSES_CODES.get(self.code):
-            self._haz_payload = RAMSES_CODES[self.code].get(self.verb) not in (
+            self.__has_payload = RAMSES_CODES[self.code].get(self.verb) not in (
                 r"^00$",
                 r"^00(00)?$",
                 r"^FF$",
             )
             assert (
-                self._haz_payload or self.len < 3
+                self.__has_payload or self.len < 3
             ), "Message not expected to have a payload! Is it corrupt?"
         else:
-            self._haz_payload = True
+            self.__has_payload = True
 
-        return self._haz_payload
+        return self.__has_payload
 
     @property
     def payload(self) -> Any:  # Any[dict, List[dict]]:
@@ -287,25 +283,27 @@ class Message:
     def _expired(self) -> Tuple[bool, Optional[bool]]:
         """Return True if the message is dated (does not require a valid payload)."""
 
-        if self.__expired is not None:
+        if self.__expired is not None:  # does not require self._is_valid
             if self.__expired == self.CANT_EXPIRE:
                 return False
-            if self.__expired >= self.HAS_EXPIRED:
+            if self.__expired >= self.HAS_EXPIRED * 2:  # TODO: should delete?
                 return True
 
         self.__expired = self._pkt._expired
 
         if self.__expired is False:  # treat as never expiring
-            _LOGGER.error("Message(%s) can't expire", self._pkt._header)
+            _LOGGER.info("%s # can't expire", self._pkt)
             self.__expired = self.CANT_EXPIRE
-            return False
 
-        if self.__expired >= self.HAS_EXPIRED:
-            _LOGGER.error("Message(%s) has expired", self._pkt._header)
-            return True
+        elif self.__expired >= self.HAS_EXPIRED:  # TODO: should renew?
+            _LOGGER.warning(
+                "%s # has expired %s", self._pkt, f"({self.__expired * 100:1.0f}%)"
+            )
 
-        # if self.__expired >= self.IS_EXPIRING:
-        #     _LOGGER.error("Message(%s) is expiring", self._pkt._header)
+        # elif self.__expired >= self.IS_EXPIRING:  # this could log multiple times
+        #     _LOGGER.error("%s # is expiring", self._pkt)
+
+        return self.__expired >= self.HAS_EXPIRED
 
     @property
     def _is_fragment_WIP(self) -> bool:
@@ -335,7 +333,7 @@ class Message:
 
         if self._is_valid is None:
             self._payload = parse_payload(self, logger=_LOGGER)
-            self._is_valid = True if self._payload is not None else False
+            self._is_valid = self._payload is not None
         return self._is_valid
 
 
