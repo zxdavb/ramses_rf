@@ -72,24 +72,20 @@ if DEV_MODE:  # or True:
 
 
 class SerTransportRead(asyncio.ReadTransport):
-    """Interface for a packet transport using a dict/file."""
+    """Interface for a packet transport via a dict (saved state) or a file (pkt log)."""
 
     def __init__(self, loop, protocol, packet_source, extra=None):
-        _LOGGER.debug("SerTransRead.__init__(%s) *** dict version ***")
-
         self._loop = loop
-
         self._protocol = protocol
-        self._protocol.pause_writing()
         self._packets = packet_source
         self._extra = {} if extra is None else extra
+
+        self._protocol.pause_writing()
 
         self._start()
 
     def _start(self):
         async def _polling_loop():
-            if DEV_MODE:
-                _LOGGER.debug("SerTransRead._polling_loop() BEGUN")
             self._protocol.connection_made(self)
 
             if isinstance(self._packets, dict):  # can assume dtm_str is OK
@@ -101,12 +97,8 @@ class SerTransportRead(asyncio.ReadTransport):
                     self._protocol.data_received(dtm_pkt_line.strip())  # .upper())
                     await asyncio.sleep(0)
 
-            if DEV_MODE:
-                _LOGGER.debug("SerTransRead._polling_loop() ENDED")
             self._protocol.connection_lost(exc=None)  # EOF
 
-        if DEV_MODE:
-            _LOGGER.debug("SerTransRead._start() STARTING loop")
         self._extra[POLLER_TASK] = self._loop.create_task(_polling_loop())
 
 
@@ -116,8 +108,6 @@ class SerTransportPoller(asyncio.Transport):
     MAX_BUFFER_SIZE = 500
 
     def __init__(self, loop, protocol, ser_instance, extra=None):
-        _LOGGER.debug("SerTransPoll.__init__(%s) *** Polling version ***", ser_instance)
-
         self._loop = loop
         self._protocol = protocol
         self.serial = ser_instance
@@ -130,8 +120,6 @@ class SerTransportPoller(asyncio.Transport):
 
     def _start(self):
         async def _polling_loop():
-            if DEV_MODE:
-                _LOGGER.debug("SerTransPoll._polling_loop() BEGUN")
             self._protocol.connection_made(self)
 
             while self.serial.is_open:
@@ -150,14 +138,9 @@ class SerTransportPoller(asyncio.Transport):
                     self.serial.write(self._write_queue.get())
                     self._write_queue.task_done()
 
-            if DEV_MODE:
-                _LOGGER.error("SerTransPoll._polling_loop() ENDED")
             self._protocol.connection_lost()
 
-        if DEV_MODE:
-            _LOGGER.debug("SerTransPoll._start() STARTING loop")
         self._write_queue = Queue(maxsize=self.MAX_BUFFER_SIZE)
-
         self._extra[POLLER_TASK] = self._loop.create_task(_polling_loop())
 
     def write(self, cmd):
@@ -166,7 +149,6 @@ class SerTransportPoller(asyncio.Transport):
         This does not block; it buffers the data and arranges for it to be sent out
         asynchronously.
         """
-        # _LOGGER.debug("SerTransPoll.write(%s)", cmd)
 
         self._write_queue.put_nowait(cmd)
 
@@ -175,15 +157,13 @@ class WIP_SerTransportProcess(Process):  # TODO: WIP
     """Interface for a packet transport using a process - WIP."""
 
     def __init__(self, loop, protocol, ser_port, extra=None):
-        _LOGGER.debug("SerTransProc.__init__() *** Process version ***", ser_port)
-
         self._loop = loop
-
         self._protocol = protocol
         self._ser_port = ser_port
         self._extra = {} if extra is None else extra
 
         self.serial = None
+
         self._is_closing = None
         self._poller = None
         self._write_queue = None
@@ -258,14 +238,16 @@ class PacketProtocolBase(asyncio.Protocol):
     """
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
-        self._loop = gwy._loop
-
         self._gwy = gwy
+        self._loop = gwy._loop
         self._callback = pkt_handler  # Could be None
 
         self._transport = None
         self._pause_writing = True
         self._recv_buffer = bytes()
+
+        self._prev_pkt = None
+        self._this_pkt = None
 
         self._include = (
             list(gwy._include.keys()) if gwy.config.enforce_allow_list else []
@@ -346,7 +328,10 @@ class PacketProtocolBase(asyncio.Protocol):
 
         return pkt_line
 
-    def _pkt_received(self, pkt: Packet) -> None:  # sans QoS
+    def _pkt_received(self, pkt: Packet) -> None:
+        """Pass any valid/wanted packets to the callback."""
+
+        self._this_pkt, self._prev_pkt = pkt, self._this_pkt
         if self._callback and self._is_wanted(pkt.src, pkt.dst):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
@@ -520,8 +505,7 @@ class PacketProtocolRead(PacketProtocolBase):
                 _LOGGER.debug("%s << Cant create packet from log (ignoring)", data)
             return
 
-        if self._callback and self._is_wanted(pkt.src, pkt.dst):
-            self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
+        self._pkt_received(pkt)
 
 
 class PacketProtocolQos(PacketProtocolBase):
@@ -567,7 +551,9 @@ class PacketProtocolQos(PacketProtocolBase):
         # if self._timeout_full >= dtm:
         #     self._backoff = min(self._backoff + 1, QOS_MAX_BACKOFF)
 
-    def _pkt_received(self, pkt: Packet) -> None:  # with Qos
+    def _pkt_received(self, pkt: Packet) -> None:
+        """Perform any QoS functions before processing valid/wanted packets."""
+
         def _logger_rcvd(logger, message: str) -> None:
             if self._qos_cmd is None:
                 wanted = None
@@ -636,8 +622,7 @@ class PacketProtocolQos(PacketProtocolBase):
             # self._timeouts(dt.now())
             _logger_rcvd(_LOGGER.debug, "XXXXXXX - ")
 
-        if self._callback and self._is_wanted(pkt.src, pkt.dst):
-            self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
+        super()._pkt_received(pkt)
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
