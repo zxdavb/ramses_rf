@@ -231,9 +231,7 @@ def parser_decorator(func):
         try:
             regex = RAMSES_CODES[msg.code][msg.verb]
             if not re_compile_re_match(regex, payload):
-                raise CorruptPayloadError(
-                    f"Expecting payload to match regex: '{regex}'"
-                )
+                raise CorruptPayloadError(f"Payload doesn't match '{regex}'")
         except KeyError:
             pass  # TODO: raise
 
@@ -248,9 +246,7 @@ def parser_decorator(func):
     def _handle_rq(msg, payload) -> dict:
         try:
             regex = RAMSES_CODES[msg.code][RQ]
-            assert re.compile(regex).match(
-                payload
-            ), f"Expecting payload to match regex: '{regex}'"
+            assert re.compile(regex).match(payload), f"Payload doesn't match '{regex}'"
 
         except KeyError:
             hint1 = " to support an RQ" if msg.code in RAMSES_CODES else ""
