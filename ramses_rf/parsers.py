@@ -1683,7 +1683,7 @@ def parser_3150(payload, msg) -> Union[list, dict, None]:
     return _parser(payload)  # TODO: check UFC/FC is == CTL/FC
 
 
-@parser_decorator  # ventilation status
+@parser_decorator  # ventilation state
 def parser_31d9(payload, msg) -> Optional[dict]:
     assert payload[:2] in ("00", "01", "21"), payload[2:4]
     assert payload[2:4] in ("00", "06", "80"), payload[2:4]
@@ -1693,11 +1693,11 @@ def parser_31d9(payload, msg) -> Optional[dict]:
 
     result = {
         "exhaust_fan_speed": _percent(payload[4:6]),  # NOTE: is 31DA/payload[38:40]
-        "_passive": bool(bitmap & 0x02),
-        "_damper_only": bool(bitmap & 0x04),
-        "_filter_dirty": bool(bitmap & 0x20),
-        "_frost_cycle": bool(bitmap & 0x40),
-        "_has_fault": bool(bitmap & 0x80),
+        "passive": bool(bitmap & 0x02),
+        "damper_only": bool(bitmap & 0x04),
+        "filter_dirty": bool(bitmap & 0x20),
+        "frost_cycle": bool(bitmap & 0x40),
+        "has_fault": bool(bitmap & 0x80),
         "_bitmap_0": payload[2:4],
     }
 
@@ -1717,7 +1717,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # UFC HCE80 (Nuaire humidity)
+@parser_decorator  # ventilation state extended
 def parser_31da(payload, msg) -> Optional[dict]:
 
     CODE_31DA_FAN_INFO = {
@@ -1808,13 +1808,9 @@ def parser_31da(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # external ventilation
-def parser_31e0(payload, msg) -> Optional[dict]:
+@parser_decorator  # external ventilation?
+def parser_31e0(payload, msg) -> dict:
     # seems active when humdity > 0.57-0.59
-
-    assert msg.len == 4, msg.len  # usu: I VNT->GWY
-    assert payload[:4] == "0000", payload[:4]  # domain?
-    assert payload[4:] in ("0000", "C800"), payload[4:]
 
     return {
         "active": _bool(payload[4:6]),
