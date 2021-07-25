@@ -113,6 +113,8 @@ from .const import (  # noqa: F401, isort: skip
     _PUZZ,
 )
 
+__all__ = ["parse_payload"]
+
 DEV_MODE = __dev_mode__
 TEST_MODE = False  # enable to test constructors (usu. W)
 
@@ -1815,7 +1817,7 @@ def parser_31e0(payload, msg) -> dict:
     return {
         "active": _bool(payload[4:6]),
         "_unknown_0": payload[:4],
-        "_unknown_1": payload[6:],
+        "_unknown_2": payload[6:],
     }
 
 
