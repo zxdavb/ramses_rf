@@ -95,7 +95,7 @@ class FileFilter(logging.Filter):  # record.levelno in (logging.INFO, logging.WA
         return record.levelno in (logging.INFO, logging.WARNING)
 
 
-def set_pkt_logging(logger=_PKT_LOGGER, cc_stdout=False, **kwargs) -> None:
+def set_pkt_logging(logger=_PKT_LOGGER, cc_console=False, **kwargs) -> None:
     """Create/configure handlers, formatters, etc.
 
     Parameters:
@@ -131,7 +131,7 @@ def set_pkt_logging(logger=_PKT_LOGGER, cc_stdout=False, **kwargs) -> None:
         handler = logging.NullHandler()
         logger.addHandler(handler)
 
-    if cc_stdout:
+    if cc_console:
         if _use_color_:
             cons_fmt = colorlog.ColoredFormatter(
                 fmt=f"%(log_color)s{CONSOLE_FMT + COLOR_SUFFIX}",

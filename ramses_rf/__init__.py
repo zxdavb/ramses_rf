@@ -76,9 +76,10 @@ class Gateway:
         )
 
         set_pkt_logging(
-            cc_stdout=self.config.reduce_processing >= DONT_CREATE_MESSAGES,
+            cc_console=self.config.reduce_processing >= DONT_CREATE_MESSAGES,
             **self.config.packet_log,
         )
+        # set_logging_fmt(self, name=__name__)  # _LOGGER.manager.loggerDict
 
         self.pkt_protocol, self.pkt_transport = None, None
         self.msg_protocol, self.msg_transport = None, None
