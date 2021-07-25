@@ -403,10 +403,15 @@ class MessageProtocol(asyncio.Protocol):
 
     def __init__(self, gwy, callback: Callable) -> None:
         _LOGGER.debug("MsgProtocol.__init__(%s)", callback)
-        self._loop = gwy._loop  # self._gwy = gwy is not used
+        self._gwy = gwy  # is not used
+        self._loop = gwy._loop
         self._callback = callback
+
         self._transport = None
         self._pause_writing = None
+
+        self._prev_msg = None
+        self._this_msg = None
 
     def connection_made(self, transport: MessageTransport) -> None:
         """Called when a connection is made."""
@@ -417,6 +422,8 @@ class MessageProtocol(asyncio.Protocol):
         """Called by the transport when some data is received."""
         # NOTE: will get double-logging if >1 subscribers to msg transport
         # _LOGGER.info("MsgProtocol.data_received(%s)", msg)  # or: use repr(msg)?
+
+        self._this_msg, self._prev_msg = msg, self._this_msg
         self._callback(msg)
 
     async def send_data(
