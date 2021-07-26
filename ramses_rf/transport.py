@@ -756,19 +756,17 @@ def create_pkt_stack(
     ser_config = DEFAULT_SERIAL_CONFIG
     ser_config.update(gwy.config.serial_config)
 
+    # python client.py monitor 'alt:///dev/ttyUSB0?class=PosixPollSerial'
     try:
         ser_instance = serial_for_url(ser_port, **ser_config)
     except SerialException as err:
-        _LOGGER.error(
-            "Failed to open port: %s (config: %s): %s", ser_port, ser_config, err
-        )
+        _LOGGER.error("Failed to open %s (config: %s): %s", ser_port, ser_config, err)
         raise
 
-    if os.name == "posix":  # or use: NotImplementedError
-        try:
-            ser_instance.set_low_latency_mode(True)  # only for FTDI?
-        except (AttributeError, ValueError):  # AttributeError shouldn't be needed
-            pass
+    try:  # FTDI on Posix/Linux would be a common environment for this library...
+        ser_instance.set_low_latency_mode(True)
+    except (AttributeError, NotImplementedError, ValueError):  # Wrong OS/Platform/FTDI
+        pass
 
     if any(
         (
