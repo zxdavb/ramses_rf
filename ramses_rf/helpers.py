@@ -20,28 +20,47 @@ class FILETIME(ctypes.Structure):
 
 
 def dt_now() -> dt:
-    """Return the time now as a UTC datetime object."""
-    return dt.fromtimestamp(time_time())
+    """Return the current datetime as a local/naive datetime object."""
+    return dt.fromtimestamp(timestamp(), tzinfo=None)
 
 
 def dt_str() -> str:
-    """Return the time now as a isoformat string."""
-    now = time_time()
-    mil = f"{now%1:.6f}".lstrip("0")
-    return time.strftime(f"%Y-%m-%dT%H:%M:%S{mil}", time.localtime(now))
+    """Return the current datetime as a isoformat string."""
+    return dt_now().isoformat(sep="T", timespec="microseconds")
 
 
-def time_time() -> float:
+def timestamp() -> float:
     """Return the number of seconds since the Unix epoch.
 
     Return an accurate value, even for Windows-based systems.
     """  # see: https://www.python.org/dev/peps/pep-0564/
     if sys.platform != "win32":
-        return time.time()  # since 1970-01-01T00:00:00Z, time.gmtime(0)
+        return time.time_ns() / 1e9  # since 1970-01-01T00:00:00Z, time.gmtime(0)
     file_time = FILETIME()
     ctypes.windll.kernel32.GetSystemTimePreciseAsFileTime(ctypes.byref(file_time))
     _time = (file_time.dwLowDateTime + (file_time.dwHighDateTime << 32)) / 1e7
     return _time - 134774 * 24 * 60 * 60  # otherwise, is since 1601-01-01T00:00:00Z
+
+
+def test_precision():
+    import math
+
+    LOOPS = 10 ** 6
+    #
+    print("time.time_ns(): %s" % time.time_ns())
+    print("time.time():    %s" % time.time())
+    #
+    min_dt = [abs(time.time_ns() - time.time_ns()) for _ in range(LOOPS)]
+    min_dt = min(filter(bool, min_dt))
+    print("min   time_ns() delta: %s ns" % min_dt)
+    #
+    min_dt = [abs(time.time() - time.time()) for _ in range(LOOPS)]
+    min_dt = min(filter(bool, min_dt))
+    print("min      time() delta: %s ns" % math.ceil(min_dt * 1e9))
+    #
+    min_dt = [abs(timestamp() - timestamp()) for _ in range(LOOPS)]
+    min_dt = min(filter(bool, min_dt))
+    print("min timestamp() delta: %s ns" % math.ceil(min_dt * 1e9))
 
 
 def dts_from_hex(value: str) -> Optional[str]:
