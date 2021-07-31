@@ -15,24 +15,23 @@ import json
 import logging
 import os
 import signal
-from datetime import datetime as dt
-from datetime import timedelta as td
 from queue import Empty
 from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .address import NUL_DEV_ADDR, create_dev_id, id_to_address, is_valid_dev_id
 from .command import Command
-from .const import ATTR_DEVICES, ATTR_ORPHANS, __dev_mode__
+from .const import ATTR_DEVICES, ATTR_ORPHANS, DONT_CREATE_MESSAGES
 from .devices import Device, create_device
+from .helpers import dt_now
+from .logger import set_pkt_logging
 from .message import Message, process_msg
-from .packet import set_pkt_logging
+from .packet import _PKT_LOGGER
 from .protocol import create_msg_stack
 from .schema import (
     ALLOW_LIST,
     BLOCK_LIST,
     DEBUG_MODE,
-    DONT_CREATE_MESSAGES,
     INPUT_FILE,
     load_config_schema,
     load_system_schema,
@@ -41,7 +40,7 @@ from .systems import System, create_system
 from .transport import POLLER_TASK, create_pkt_stack
 from .version import __version__  # noqa: F401
 
-from .const import I_, RP, RQ, W_  # noqa: F401, isort: skip
+from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 
 DEV_MODE = __dev_mode__ and False
 VERSION = __version__
@@ -57,6 +56,8 @@ class GracefulExit(SystemExit):
 
 class Gateway:
     """The gateway class."""
+
+    now = dt_now
 
     def __init__(self, serial_port, loop=None, **kwargs) -> None:
         """Initialise the class."""
@@ -75,14 +76,17 @@ class Gateway:
             self.serial_port, self._input_file, **kwargs
         )
 
+        self.pkt_protocol, self.pkt_transport = None, None
+        self.msg_protocol, self.msg_transport = None, None
+
         set_pkt_logging(
+            self,
+            _PKT_LOGGER,
             cc_console=self.config.reduce_processing >= DONT_CREATE_MESSAGES,
             **self.config.packet_log,
         )
-        # set_logging_fmt(self, name=__name__)  # _LOGGER.manager.loggerDict
-
-        self.pkt_protocol, self.pkt_transport = None, None
-        self.msg_protocol, self.msg_transport = None, None
+        # if self.serial_port is None:
+        #     set_logging_dtm(self, _LOGGER)
 
         if self.config.reduce_processing < DONT_CREATE_MESSAGES:
             self.msg_protocol, self.msg_transport = self.create_client(process_msg)
@@ -98,7 +102,7 @@ class Gateway:
         self.devices: List[Device] = []
         self.device_by_id: Dict = {}
 
-        self._prev_msg = None
+        self._prev_msg = None  # previous valid message seen, before current message
 
         self.known_devices = load_system_schema(self, **schema)
 
@@ -280,7 +284,7 @@ class Gateway:
         # ]
         self._state_lock.release()
 
-    def _get_state(self) -> Tuple[Dict, Dict]:
+    def _get_state(self, include_expired=None) -> Tuple[Dict, Dict]:
         self._pause_engine()
         _LOGGER.info("ENGINE: Saving state...")
 
@@ -294,9 +298,7 @@ class Gateway:
         pkts = {
             dtm.isoformat(sep="T", timespec="auto"): repr(msg)
             for dtm, msg in msgs.items()
-            if msg.verb in (I_, RP)
-            and not msg._expired
-            and msg.dtm >= dt.now() - td(days=7)  # TODO: ideally, wouldn't be any >7d
+            if msg.verb in (I_, RP) and include_expired or not msg._expired
         }
 
         schema, pkts = self.schema, dict(sorted(pkts.items()))

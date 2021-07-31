@@ -7,164 +7,156 @@ Decode/process a packet (packet that was received).
 """
 
 import logging
-import shutil
-import sys
 from datetime import datetime as dt
+from datetime import timedelta as td
 from typing import Optional, Tuple
 
-from .address import pkt_addrs
-from .command import pkt_header
-from .const import MESSAGE_REGEX, __dev_mode__
-from .exceptions import CorruptAddrSetError
-from .helpers import dt_str
-from .ramses import pkt_has_array, pkt_has_idx, pkt_timeout
-from .schema import LOG_FILE_NAME, LOG_ROTATE_BYTES, LOG_ROTATE_COUNT
-from .version import __version__
+from .address import NON_DEV_ADDR, pkt_addrs
+from .const import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES, MESSAGE_REGEX
+
+# from .devices import Device  # TODO: fix cyclic reference
+from .exceptions import CorruptAddrSetError, CorruptStateError
+from .logger import getLogger
+from .ramses import (
+    CODE_IDX_COMPLEX,
+    CODE_IDX_DOMAIN,
+    CODE_IDX_NONE,
+    CODE_IDX_SIMPLE,
+    RAMSES_CODES,
+)
+
+from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
+from .const import (  # noqa: F401, isort: skip
+    _0001,
+    _0002,
+    _0004,
+    _0005,
+    _0006,
+    _0008,
+    _0009,
+    _000A,
+    _000C,
+    _000E,
+    _0016,
+    _0100,
+    _01D0,
+    _01E9,
+    _0404,
+    _0418,
+    _042F,
+    _1030,
+    _1060,
+    _1090,
+    _10A0,
+    _10E0,
+    _1100,
+    _1260,
+    _1280,
+    _1290,
+    _1298,
+    _12A0,
+    _12B0,
+    _12C0,
+    _12C8,
+    _1F09,
+    _1F41,
+    _1FC9,
+    _1FD4,
+    _2249,
+    _22C9,
+    _22D0,
+    _22D9,
+    _22F1,
+    _22F3,
+    _2309,
+    _2349,
+    _2D49,
+    _2E04,
+    _30C9,
+    _3120,
+    _313F,
+    _3150,
+    _31D9,
+    _31DA,
+    _31E0,
+    _3220,
+    _3B00,
+    _3EF0,
+    _3EF1,
+    _PUZZ,
+)
 
 DEV_MODE = __dev_mode__  # or True
-
-DEFAULT_FMT = "%(asctime)s.%(msecs)03d %(message)s"
-DEFAULT_DATEFMT = "%H:%M:%S"
-
-try:
-    import colorlog
-except ModuleNotFoundError:
-    _use_color_ = False
-else:
-    _use_color_ = True
-    # basicConfig must be called after importing colorlog to ensure its handlers wrap
-    # the correct streams
-    # logging.basicConfig(format=DEFAULT_FMT, datefmt=DEFAULT_DATEFMT)
-    # logging.basicConfig()
-
-# TODO: make account for the non-printing characters
-CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
-# HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssss, shorter format for the console
-if False and DEV_MODE:  # Do this to have longer-format console messages
-    CONSOLE_FMT = "%(_date)sT%(_time)s " + f"%(message).{CONSOLE_COLS - 27}s"
-else:
-    CONSOLE_FMT = "%(_time).12s " + f"%(message).{CONSOLE_COLS - 13}s"
-PKT_LOG_FMT = "%(_date)sT%(_time)s %(packet)s"
-
-# How to strip ASCII colour from a text file:
-#   sed -r "s/\x1B\[(([0-9]{1,2})?(;)?([0-9]{1,2})?)?[m,K,H,f,J]//g" file_name
-
-# used with packet logging
-BANDW_SUFFIX = "%(error_text)s%(comment)s"
-COLOR_SUFFIX = "%(red)s%(error_text)s%(cyan)s%(comment)s"
-
-LOG_COLOURS = {
-    "DEBUG": "white",
-    "INFO": "green",
-    "WARNING": "yellow",
-    "ERROR": "bold_red",
-    "CRITICAL": "bold_red",
-}  # default_log_colors
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
-_PKT_LOGGER = logging.getLogger(f"{__name__}_log")
-
-if not _use_color_:
-    _LOGGER.warning("Consider installing the colorlog library for colored output")
+_PKT_LOGGER = getLogger(f"{__name__}_log", pkt_log=True)
 
 
-class StdErrFilter(logging.Filter):  # record.levelno >= logging.WARNING
-    """For sys.stderr, process only wanted packets."""
+class PacketBase:
+    """The packet class."""
 
-    def filter(self, record) -> bool:
-        """Return True if the record is to be processed."""
-        return record.levelno >= logging.WARNING  # WARNING-30, ERROR-40
+    def __init__(self) -> None:
 
+        self.__has_array = None
+        self.__header = None
+        self.__idx = None
+        self.__timeout = None
 
-class StdOutFilter(logging.Filter):  # record.levelno < logging.WARNING
-    """For sys.stdout, process only wanted packets."""
+    @property
+    def _expired(self) -> float:
+        """Return fraction used of the normal lifetime of packet.
 
-    def filter(self, record) -> bool:
-        """Return True if the record is to be processed."""
-        return record.levelno < logging.WARNING  # INFO-20, DEBUG-10
+        A packet is 'expired' when >1.0, and should be tombstoned when >2.0. Returns
+        False if the packet does not expire.
+        """
 
+        if self.__timeout is None and self.is_valid:
+            self.__timeout = pkt_timeout(self) or False
 
-class FileFilter(logging.Filter):  # record.levelno in (logging.INFO, logging.WARNING)
-    """For packet log files, process only wanted packets."""
+        if self.__timeout is False:
+            return False
 
-    def filter(self, record) -> bool:
-        """Return True if the record is to be processed."""
-        return record.levelno in (logging.INFO, logging.WARNING)
+        dtm_now = (
+            dt.now()
+            if (True or self._gwy.serial_port)  # TODO
+            else (self._gwy._prev_msg.dtm if self._gwy._prev_msg else self.dtm)
+        )  # FIXME: use global timer
+        return self.__timeout / (dtm_now - self.dtm)
 
+    @property
+    def _idx(self) -> Optional[str]:
+        """Return the index/ordinal of a packet header, if any.
 
-def set_pkt_logging(logger=_PKT_LOGGER, cc_console=False, **kwargs) -> None:
-    """Create/configure handlers, formatters, etc.
+        Used to distinguish packets from a device that have the same code, but distinct
+        contexts (e.g. all sensors in a zone). Returns ??? if there is none such, or if
+        it is undetermined.
+        """
 
-    Parameters:
-    - backup_count: keep this many copies, and rotate at midnight unless...
-    - max_bytes: rotate log files when log > rotate_size
-    """
+        if self.__idx is None and self.is_valid:
+            self.__idx = pkt_has_idx(self) or False
+        return self.__idx
 
-    logger.propagate = False  # log file is distinct from any app/debug logging
-    logger.setLevel(logging.DEBUG)  # must be at least .INFO
+    @property
+    def _has_array(self) -> Optional[bool]:
+        """Return True if the packet payload is an array (NB: false -ves)."""
 
-    if file_name := kwargs.get(LOG_FILE_NAME, 0):
-        max_bytes = kwargs.get(LOG_ROTATE_BYTES, None)
-        bkp_count = kwargs.get(LOG_ROTATE_COUNT, 0)
+        if self.__has_array is None and self.is_valid:
+            self.__has_array = bool(pkt_has_array(self))
+        return self.__has_array
 
-        if max_bytes:
-            bkp_count = bkp_count or 2
-            handler = logging.handlers.RotatingFileHandler(
-                file_name, maxBytes=max_bytes, backupCount=bkp_count
-            )
-        elif bkp_count:
-            handler = logging.handlers.TimedRotatingFileHandler(
-                file_name, when="midnight", backupCount=bkp_count
-            )
-        else:
-            handler = logging.FileHandler(file_name)
+    @property
+    def _header(self) -> Optional[str]:
+        """Return the QoS header of this packet."""
 
-        handler.setFormatter(logging.Formatter(fmt=PKT_LOG_FMT + BANDW_SUFFIX))
-        handler.setLevel(logging.INFO)  # .INFO (usually), or .DEBUG
-        handler.addFilter(FileFilter())  # record.levelno in (.INFO, .WARNING)
-        logger.addHandler(handler)
-
-    else:
-        handler = logging.NullHandler()
-        logger.addHandler(handler)
-
-    if cc_console:
-        if _use_color_:
-            cons_fmt = colorlog.ColoredFormatter(
-                fmt=f"%(log_color)s{CONSOLE_FMT + COLOR_SUFFIX}",
-                reset=True,
-                log_colors=LOG_COLOURS,
-            )
-        else:
-            cons_fmt = logging.Formatter(fmt=CONSOLE_FMT + BANDW_SUFFIX)
-
-        handler = logging.StreamHandler(stream=sys.stderr)
-        handler.setFormatter(cons_fmt)
-        handler.setLevel(logging.WARNING)  # musr be .WARNING or less
-        handler.addFilter(StdErrFilter())  # record.levelno >= .WARNING
-        logger.addHandler(handler)
-
-        handler = logging.StreamHandler(stream=sys.stdout)
-        handler.setFormatter(cons_fmt)
-        handler.setLevel(logging.DEBUG)  # must be .INFO or less
-        handler.addFilter(StdOutFilter())  # record.levelno < .WARNING
-        logger.addHandler(handler)
-
-    _date, _time = dt_str()[:26].split("T")
-    extras = {
-        "_date": _date,
-        "_time": _time,
-        "packet": "",
-        "error_text": "",
-        "comment": f"# ramses_rf {__version__}",
-    }
-    logger.warning("", extra=extras)
+        if self.__header is None and self.is_valid:
+            self.__header = pkt_header(self)
+        return self.__header
 
 
-class Packet:
+class Packet(PacketBase):
     """The packet class."""
 
     def __init__(
@@ -175,9 +167,12 @@ class Packet:
         if dtm_str:
             assert dtm == dt.fromisoformat(dtm_str), "should be True"
         """
+        super().__init__()
 
         self.dtm = dtm
         self._date, self._time = (dtm_str or dtm.isoformat(sep="T")).split("T")
+        # self.created = dtm.timestamp()  # HACK: used by logger
+        # self.msecs = (self.created - int(self.created)) * 1000
 
         self._frame = frame
         self._frame_raw = frame_raw
@@ -199,9 +194,8 @@ class Packet:
         self.payload = self.packet[50:]
 
         # these are calculated if/when required
-        self.__header = None
         self.__has_array = None
-        self.__has_idx = None
+        self.__header = None
         self.__idx = None
         self.__timeout = None
 
@@ -283,52 +277,323 @@ class Packet:
         _PKT_LOGGER.warning("%s < Bad packet: %s", self, err_msg, extra=self.__dict__)
         return False
 
-    @property
-    def _header(self) -> Optional[str]:
-        """Return the QoS header of this packet."""
 
-        if self.__header is None and self.is_valid:
-            self.__header = pkt_header(self)
-        return self.__header
+def pkt_has_array(pkt):  # TODO: used by pkt_has_idx
+    """Return the True if the packet payload is an array, False if not.
 
-    @property
-    def _has_array(self) -> Optional[bool]:
-        """Return True if the packet payload is an array (NB: false -ves)."""
+    May return false negatives (e.g. arrays of length 1), and None if undetermined.
 
-        if self.__has_array is None and self.is_valid:
-            self.__has_array = bool(pkt_has_array(self))
-        return self.__has_array
+    An example of a false negative is evohome with only one zone (i.e. the periodic
+    2309/30C9/000A packets).
+    """
+    # False -ves (array length is 1) are an acceptable compromise to extensive checking
+    # TODO: 2249? - no evidence of array
 
-    @property
-    def _idx(self) -> Optional[str]:
-        """Return the index/ordinal of a packet header, if any.
+    if pkt.verb == RQ:
+        return False
 
-        Used to distinguish packets from a device that have the same code, but distinct
-        contexts (e.g. all sensors in a zone). Returns ??? if there is none such, or if
-        it is undetermined.
-        """
+    # .W --- 01:145038 34:092243 --:------ 1FC9 006 07230906368E
+    # .I --- 01:145038 --:------ 01:145038 1FC9 018 07000806368E-FC3B0006368E-071FC906368E
+    # .I --- 01:145038 --:------ 01:145038 1FC9 018 FA000806368E-FC3B0006368E-FA1FC906368E
+    # .I --- 34:092243 --:------ 34:092243 1FC9 030 0030C9896853-002309896853-001060896853-0010E0896853-001FC9896853
+    if pkt.code == _1FC9:  # I_, RP and W_ are all arrays
+        return True  # treat as all array
 
-        if self.__idx is None and self.is_valid:
-            self.__idx = pkt_has_idx(self) or False
-        return self.__idx
+    if pkt.verb != I_:
+        return False
 
-    @property
-    def _expired(self) -> float:
-        """Return fraction used of the normal lifetime of packet.
+    # .I --- 01:102458 --:------ 01:102458 0009 006 FC01FF-F901FF
+    # .I --- 01:145038 --:------ 01:145038 0009 006 FC00FF-F900FF
+    if pkt.code == _0009:
+        assert pkt.len % 3 == 0, f"invalid array length {pkt.len}"
+        # assert pkt.len <= 3 or pkt.src._is_controller, "NEW"
+        # if pkt.len > 3:
+        #     assert (pkt.src.type == "01" and pkt.src == pkt.dst) or (
+        #         pkt.src.type in ("12", "22") and pkt.dst == NON_DEV_ADDR
+        #     ), "Array #01"
+        return True
 
-        A packet is 'expired' when >1.0, and should be tombstoned when >2.0. Returns
-        False if the packet does not expire.
-        """
+    # .I 034 --:------ --:------ 12:126457 2309 006 017EFF-027EFF
+    if pkt.code in (_2309, _30C9):
+        assert pkt.len % 3 == 0, f"invalid array length {pkt.len}"
+        # assert pkt.len <= 6 or pkt.src._is_controller, "NEW"
+        if pkt.len > 3:
+            assert (pkt.src.type == "01" and pkt.src == pkt.dst) or (
+                pkt.src.type in ("12", "22") and pkt.dst == NON_DEV_ADDR
+            ), "Array #01"
+        return pkt.len > 3
 
-        if self.__timeout is None and self.is_valid:
-            self.__timeout = pkt_timeout(self) or False
+    #  I --- 01:223036 --:------ 01:223036 000A 012 081001F40DAC-091001F40DAC   # 2nd fragment
+    # .I 024 --:------ --:------ 12:126457 000A 012 010001F40BB8-020001F40BB8
+    # .I --- 02:044328 --:------ 02:044328 22C9 018 0001F40A2801-0101F40A2801-0201F40A2801
+    if pkt.code == _000A:
+        assert pkt.len % 6 == 0, f"invalid array length {pkt.len}"
+        # assert pkt.len <= 6 or pkt.src._is_controller, "NEW"
+        assert pkt.len <= 6 or pkt.src.type != "01" or pkt.src == pkt.dst, "Array #11"
+        assert (
+            pkt.len <= 6 or pkt.src.type != "12" or pkt.dst == NON_DEV_ADDR
+        ), "Array #12"
+        return pkt.len > 6
 
-        if self.__timeout is False:
+    # .I --- 02:044328 --:------ 02:044328 22C9 018 0001F40A2801-0101F40A2801-0201F40A2801
+    if pkt.code == _22C9:
+        assert pkt.len % 6 == 0, f"invalid array length {pkt.len}"
+        # assert pkt.len <= 6 or pkt.src._is_controller, "NEW"
+        assert pkt.len <= 6 or pkt.src.type != "02" or pkt.src == pkt.dst, "Array #31"
+        return pkt.len > 6
+
+    # .I --- 02:001107 --:------ 02:001107 3150 010 007A-017A-027A-036A-046A
+    if pkt.code == _3150:
+        assert pkt.len % 2 == 0, f"invalid array length {pkt.len}"
+        # assert pkt.len <= 2 or pkt.src._is_controller, "NEW"
+        assert pkt.len <= 2 or pkt.src.type != "02" or pkt.src == pkt.dst, "Array #41"
+        return pkt.len > 2
+
+    return None  # i.e. don't know (but there shouldn't be any others)
+
+
+def pkt_has_idx(pkt):  # TODO: used by pkt_header
+    """Return the payload's context or True if the payload contains an array.
+
+    Will return False if there is no index, or None if it is indeterminable."""
+    # The three iterables are mutex, but its possible a code is in any of them.
+
+    if pkt.code in CODE_IDX_COMPLEX:  # are not payload[:2]
+        if pkt.code in (_0001, _1FC9):  # treat as no index
             return False
+        if pkt.code == _0005:  # zone_idx, zone_type
+            return pkt_has_array(pkt) or pkt.payload[:4]
+        if pkt.code == _000C:  # zone_idx, device_class (zone_type)
+            return pkt.payload[:4]
+        if pkt.code == _0404:  # zone_idx, frag_idx
+            return pkt.payload[:2] + pkt.payload[10:12]
+        if pkt.code == _0418:  # log_idx
+            return (
+                pkt.payload[4:6]
+                if pkt.payload != "000000B0000000000000000000007FFFFF7000000000"
+                else False
+            )
+        if pkt.code == _3220:  # ot_msg_id
+            return pkt.payload[4:6]
+        raise NotImplementedError(f"{pkt} # CODE_IDX_COMPLEX")  # a coding error
 
-        dtm_now = (
-            dt.now()
-            if (True or self._gwy.serial_port)  # TODO
-            else (self._gwy._prev_msg.dtm if self._gwy._prev_msg else self.dtm)
+    if pkt.code in CODE_IDX_NONE:  # should all return False
+        # check RAMSES_CODES schema against the reality of this pkt...
+        if pkt.payload[:2] != "00" and (
+            RAMSES_CODES[pkt.code].get(pkt.verb, "")[:3] == "^00"
+        ):
+            _LOGGER.warning(f"{pkt} # CODE_IDX_NONE")
+            return
+        return False
+
+    if pkt.code in CODE_IDX_SIMPLE:  # potential+ for false positives
+        if pkt_has_array(pkt):
+            return True  # excludes len==1 for 000A, 2309, 30C9
+
+        # TODO: is this needed: exceptions to CODE_IDX_SIMPLE
+        if pkt.payload[:2] in ("F8", "F9", "FA", "FC"):  # TODO: FB, FD
+            if pkt.code not in CODE_IDX_DOMAIN:
+                _LOGGER.warning(f"{pkt} # CODE_IDX_DOMAIN (domain)")
+            return pkt.payload[:2]
+
+        if any(  # if to/from a controller
+            (
+                "01" in (pkt.src.type, pkt.dst.type),
+                "02" in (pkt.src.type, pkt.dst.type),
+                "23" in (pkt.src.type, pkt.dst.type),
+            )  # TODO: can use .is_controller
+        ):
+            # if int(pkt.payload[:2], 16) >= pkt._gwy.config.max_zones:
+            #     _LOGGER.warning(f"{pkt} # CODE_IDX_DOMAIN (max_zones)")
+            return pkt.payload[:2]
+            # 02:    22C9: would be picked up as an array, if len==1 counted
+            # 23:    0009|10A0
+
+        if pkt.addrs[2].type in ("12", "22"):  # TODO: must use .is_controller
+            # if int(pkt.payload[:2], 16) >= pkt._gwy.config.max_zones:
+            #     _LOGGER.warning(f"{pkt} # CODE_IDX_DOMAIN (max_zones)")
+            return pkt.payload[:2]
+            # 03:    # .I 028 03:094242 --:------ 03:094242 30C9 003 010B22
+            # 12/22: 000A|1030|2309|30C9 from (addr0 --:), 1060|3150 (addr0 04:)
+
+        # elif "18" == pkt.src.type if pkt.verb in (RQ, W_) else pkt.dst.type:
+        #     result = pkt.payload[:2]
+
+        if pkt.payload[:2] != "00":
+            _LOGGER.warning(f"{pkt} # CODE_IDX_SIMPLE (non-null)")
+            return pkt.payload[:2]
+
+        # if DEV_MODE:
+        #     _LOGGER.debug(f"{pkt} # CODE_IDX_SIMPLE (unknown)")  # excessive logging
+        return  # use False (potentially false -ves), or None (less precise)?
+
+    _LOGGER.warning(f"{pkt} # CODE_IDX_UNKNOWN")  # and: return None
+
+
+def pkt_header(pkt, rx_header=None) -> Optional[str]:  # NOTE: used in command.py
+    """Return the QoS header of a packet."""
+
+    # offer, bid. accept
+    # .I --- 12:010740 --:------ 12:010740 1FC9 024 0023093029F40030C93029F40000083029F4001FC93029F4
+    # .W --- 01:145038 12:010740 --:------ 1FC9 006 07230906368E
+    # .I --- 12:010740 01:145038 --:------ 1FC9 006 0023093029F4
+
+    # .I --- 07:045960 --:------ 07:045960 1FC9 012 0012601CB388001FC91CB388
+    # .W --- 01:145038 07:045960 --:------ 1FC9 006 0010A006368E
+    # .I --- 07:045960 01:145038 --:------ 1FC9 006 0012601CB388
+
+    # .I --- 04:189076 63:262142 --:------ 1FC9 006 0030C912E294
+    # .I --- 01:145038 --:------ 01:145038 1FC9 018 07230906368E0730C906368E071FC906368E
+    # .W --- 04:189076 01:145038 --:------ 1FC9 006 0030C912E294
+    # .I --- 01:145038 04:189076 --:------ 1FC9 006 00FFFF06368E
+
+    # if pkt.code == _1FC9 and rx_header:  # offer, bid, accept
+    #     if pkt.verb == I_ and pkt.dst == NUL_DEV_ADDR:
+    #         return "|".join((I_, pkt.code))
+    #     if pkt.verb == I_ and pkt.src == pkt.dst:
+    #         return "|".join((W_, pkt.dst.id, pkt.code))
+    #     if pkt.verb == W_:
+    #         return "|".join((I_, pkt.src.id, pkt.code))
+    #     if pkt.verb == I_:
+    #         return "|".join((I_, pkt.src.id, pkt.code))
+
+    if pkt.code == _1FC9:  # TODO: will need to do something similar for 3220?
+        if pkt.src == pkt.dst:
+            if rx_header:
+                return "|".join((W_, pkt.dst.id, pkt.code))
+            return "|".join(I_, pkt.src.id, pkt.code)
+        if pkt.verb == W_:
+            return "|".join((W_, pkt.dst.id, pkt.code)) if not rx_header else None
+        if rx_header:
+            return
+
+    verb = pkt.verb
+    if rx_header:
+        if verb == I_ or pkt.src == pkt.dst:  # usu. announcements, not requiring an Rx
+            return
+        # if pkt.verb == RQ and RQ not in RAMSES_CODES.get(pkt.code, []):
+        #     return
+        verb = RP if pkt.verb == RQ else I_  # RQ/RP, or W/I
+
+    addr = pkt.dst if pkt.src.type == "18" else pkt.src
+    header = "|".join((verb, addr.id, pkt.code))
+
+    header_idx = pkt_has_idx(pkt)
+    if header_idx:
+        header += f"|{header_idx}"
+
+    return header
+
+
+def pkt_timeout(pkt) -> Optional[float]:  # NOTE: imports OtbGateway
+    """Return the pkt lifetime.
+
+    Will return None if the packet does not expire (e.g. 10E0).
+
+    Some codes require a valid payload: 1F09, 3220
+    """
+
+    timeout = None
+
+    if pkt.verb in (RQ, W_):
+        timeout = td(seconds=3)
+
+    elif pkt.code in (_0005, _000C, _10E0):
+        return  # TODO: exclude/remove devices caused by corrupt ADDRs?
+
+    elif pkt.code == _1FC9 and pkt.verb == RP:
+        return  # TODO: check other verbs, they seem variable
+
+    elif pkt.code == _1F09:
+        # if msg: td(seconds=pkt.payload["remaining_seconds"])
+        timeout = td(seconds=300)  # usu: 180-300
+
+    elif pkt.code == _000A and pkt._has_array:
+        timeout = td(minutes=60)  # sends I /1h
+
+    elif pkt.code in (_2309, _30C9) and pkt._has_array:
+        timeout = td(minutes=15)  # sends I /sync_cycle
+
+    elif pkt.code == _3220:
+        # if msg: complicated
+        return
+
+    # elif pkt.code in (_3B00, _3EF0, ):  # TODO: 0008, 3EF0, 3EF1
+    #     timeout = td(minutes=6.7)  # TODO: WIP
+
+    elif pkt.code in RAMSES_CODES:
+        timeout = RAMSES_CODES[pkt.code].get("timeout")
+
+    return timeout or td(minutes=60)
+
+
+def _create_devices(this: Packet) -> None:
+    """Discover and create any new devices."""
+    from .devices import Device  # TODO: remove this
+
+    if this.src.type in ("01", "23") and this.src is not this.dst:  # TODO: all CTLs
+        this.src = this._gwy._get_device(this.src, ctl_addr=this.src)
+        ctl_addr = this.src if this._gwy.config.enable_eavesdrop else None
+        this._gwy._get_device(this.dst, ctl_addr=ctl_addr)
+
+    elif this.dst.type in ("01", "23") and this.src is not this.dst:  # all CTLs
+        this.dst = this._gwy._get_device(this.dst, ctl_addr=this.dst)
+        ctl_addr = this.dst if this._gwy.config.enable_eavesdrop else None
+        this._gwy._get_device(this.src, ctl_addr=ctl_addr)
+
+    # this should catch all non-controller (and *some* controller) devices
+    elif this.src is this.dst:
+        this._gwy._get_device(this.src)
+
+    # otherwise one will be a controller, *unless* dst is in ("--", "63")
+    elif isinstance(this.src, Device) and this.src._is_controller:
+        this._gwy._get_device(this.dst, ctl_addr=this.src)
+
+    # TODO: may create a controller that doesn't exist
+    elif isinstance(this.dst, Device) and this.dst._is_controller:
+        this._gwy._get_device(this.src, ctl_addr=this.dst)
+
+    else:
+        # beware:  I --- --:------ --:------ 10:078099 1FD4 003 00F079
+        [this._gwy._get_device(d) for d in (this.src, this.dst)]
+
+    # where possible, swap each Address for its corresponding Device
+    this.src = this._gwy.device_by_id.get(this.src.id, this.src)
+    if this.dst is not None:
+        this.dst = this._gwy.device_by_id.get(this.dst.id, this.dst)
+
+
+def process_pkt(pkt: Packet) -> None:
+    """Process the (valid) packet's metadata (but dont process the payload)."""
+
+    if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
+        _LOGGER.info(pkt)
+
+    if not pkt.is_valid or pkt._gwy.config.reduce_processing >= DONT_CREATE_ENTITIES:
+        return
+
+    try:  # process the packet meta-data
+        # TODO: This will need to be removed for HGI80-impersonation
+        if pkt.src.type != "18":  # 18:/RQs are unreliable, but corresponding RPs?
+            _create_devices(pkt)  # from pkt header & from pkt payload (e.g. 000C)
+
+    except (AssertionError, NotImplementedError) as err:
+        (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
+            "%s << %s", pkt._pkt, f"{err.__class__.__name__}({err})"
         )
-        return self.__timeout / (dtm_now - self.dtm)
+        return  # NOTE: use raise only when debugging
+
+    except (AttributeError, LookupError, TypeError, ValueError) as err:
+        (_LOGGER.exception if DEV_MODE else _LOGGER.error)(
+            "%s << %s", pkt._pkt, f"{err.__class__.__name__}({err})"
+        )
+        return  # NOTE: use raise only when debugging
+
+    except CorruptStateError as err:  # TODO: add CorruptPacketError
+        (_LOGGER.exception if DEV_MODE else _LOGGER.error)("%s << %s", pkt._pkt, err)
+        return  # TODO: bad pkt, or Schema
+
+    pkt._gwy._prev_pkt = pkt
+
+    if pkt._gwy.config.reduce_processing >= DONT_UPDATE_ENTITIES:
+        return  # call protocol callback

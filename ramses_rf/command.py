@@ -25,14 +25,13 @@ from .const import (
     ZONE_MODE_LOOKUP,
     ZONE_MODE_MAP,
     ZoneMode,
-    __dev_mode__,
 )
 from .exceptions import ExpiredCallbackError
 from .helpers import dt_now, dtm_to_hex, dts_to_hex, str_to_hex, temp_to_hex
 from .opentherm import parity
-from .ramses import pkt_header
+from .packet import PacketBase, pkt_header
 
-from .const import I_, RP, RQ, W_  # noqa: F401, isort: skip
+from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
     _0001,
     _0002,
@@ -173,11 +172,12 @@ def validate_zone_args(fcn):
 
 
 @total_ordering
-class Command:
+class Command(PacketBase):
     """The command class."""
 
     def __init__(self, verb, code, payload, dest_id, **kwargs) -> None:
         """Initialise the class."""
+        super().__init__()
 
         assert QOS not in kwargs, "FIXME"
 
@@ -253,23 +253,19 @@ class Command:
     @property
     def tx_header(self) -> str:
         """Return the QoS header of this (request) packet."""
-        if self._tx_header is None:
-            self._tx_header = pkt_header(self)
-        return self._tx_header
+
+        return self._header
 
     @property
     def rx_header(self) -> Optional[str]:
         """Return the QoS header of a corresponding response packet (if any)."""
+
         if self.tx_header and self._rx_header is None:
             self._rx_header = pkt_header(self, rx_header=True)
         return self._rx_header
 
     # @property
     # def null_header(self) -> Optional[str]:
-    #     """Return the QoS header of a null response packet (if any)."""
-    #     if self.tx_header and self._rx_header is None:
-    #         self._rx_header = pkt_header(f"... {self}", null_header=True)
-    #     return self._rx_header
 
     @property
     def is_valid(self) -> Optional[bool]:

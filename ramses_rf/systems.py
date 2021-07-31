@@ -24,7 +24,6 @@ from .const import (
     DISCOVER_STATUS,
     SystemMode,
     SystemType,
-    __dev_mode__,
 )
 from .devices import BdrSwitch, Device, Entity, OtbGateway
 from .exceptions import CorruptStateError, ExpiredCallbackError
@@ -39,7 +38,7 @@ from .schema import (
 )
 from .zones import DhwZone, Zone, create_zone
 
-from .const import I_, RP, RQ, W_  # noqa: F401, isort: skip
+from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
     _0001,
     _0002,

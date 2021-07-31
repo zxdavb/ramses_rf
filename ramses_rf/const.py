@@ -73,6 +73,9 @@ _3EF0 = "3EF0"
 _3EF1 = "3EF1"
 _PUZZ = "7FFF"
 
+DONT_CREATE_MESSAGES = 3
+DONT_CREATE_ENTITIES = 2
+DONT_UPDATE_ENTITIES = 1
 
 DEFAULT_MAX_ZONES = 16 if DEV_MODE else 12
 # Evohome: 12 (0-11), older/initial version was 8

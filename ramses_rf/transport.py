@@ -336,7 +336,7 @@ class PacketProtocolBase(asyncio.Protocol):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
     def _data_received(self, data: ByteString) -> None:
-        """Called when a packet line is received (from RF)."""
+        """Called when a packet frame is received."""
         _LOGGER.debug("PacketProtocolBase._data_received(%s)", data)
 
         def create_pkt_line(xyz: ByteString) -> Tuple:
@@ -373,10 +373,10 @@ class PacketProtocolBase(asyncio.Protocol):
             pkt = Packet(pkt_dtm, pkt_line, frame_raw=data)
         except ValueError:  # not a valid packet
             if pkt_line.lstrip()[:1] != "#":
-                _LOGGER.error("%s << Cant create packet from RF (ignoring)", data)
+                _LOGGER.error("%s << Cant create packet (ignoring)", data)
             return
 
-        self._pkt_received(pkt)
+        self._pkt_received(pkt)  # NOTE: don't spawn this
 
     def data_received(self, data: ByteString) -> None:
         """Called when some data (packet fragments) is received (from RF)."""
@@ -444,6 +444,7 @@ class PacketProtocolBase(asyncio.Protocol):
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
         _LOGGER.debug("PktProtocol.connection_lost(%s)", exc)
+        # serial.serialutil.SerialException: device reports error (poll)
 
         if exc is not None:
             raise exc

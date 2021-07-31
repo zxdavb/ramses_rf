@@ -30,6 +30,7 @@ from .const import (
     CTL_DEVICE_ID,
     DEFAULT_MAX_ZONES,
     DHW_SENSOR_ID,
+    DONT_CREATE_MESSAGES,
     GWY_DEVICE_ID,
     HTG_DEVICE_ID,
     RLY_DEVICE_ID,
@@ -40,6 +41,7 @@ from .const import (
     __dev_mode__,
 )
 from .devices import DEVICE_BY_CLASS_ID
+from .logger import LOG_FILE_NAME, LOG_ROTATE_BYTES, LOG_ROTATE_COUNT
 
 # schema attrs
 ATTR_DEVICE_ID = "device_id"
@@ -85,18 +87,9 @@ SERIAL_CONFIG = "serial_config"
 USE_NAMES = "use_names"  # use friendly device names from allow_list
 USE_SCHEMA = "use_schema"
 
-LOG_FILE_NAME = "file_name"
-LOG_ROTATE_BYTES = "rotate_bytes"
-LOG_ROTATE_COUNT = "rotate_backups"
-PACKET_LOG = "packet_log"  # output
-
 # Schema parameters
 SCHEMA = "schema"
 MAIN_CONTROLLER = "main_controller"
-
-DONT_CREATE_MESSAGES = 3
-DONT_CREATE_ENTITIES = 2
-DONT_UPDATE_ENTITIES = 1
 
 # 1/3: Schemas for Configuration
 SERIAL_CONFIG_SCHEMA = vol.Schema(
@@ -120,6 +113,7 @@ SERIAL_PORT_SCHEMA = vol.Schema(
     }
 )
 
+PACKET_LOG = "packet_log"  # output
 PACKET_LOG_SCHEMA = vol.Schema(
     {
         vol.Required(LOG_FILE_NAME, default=None): vol.Any(None, str),

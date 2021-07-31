@@ -26,14 +26,13 @@ from .const import (
     DISCOVER_SCHEMA,
     DISCOVER_STATUS,
     DOMAIN_TYPE_MAP,
-    __dev_mode__,
 )
 from .exceptions import CorruptStateError
 from .helpers import schedule_task
 from .opentherm import MSG_ID, MSG_NAME, MSG_TYPE, OPENTHERM_MESSAGES, VALUE
 from .ramses import RAMSES_DEVICES
 
-from .const import I_, RP, RQ, W_  # noqa: F401, isort: skip
+from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
     _0001,
     _0002,
@@ -98,7 +97,7 @@ DEFAULT_BDR_ID = "13:000730"
 DEFAULT_EXT_ID = "17:000730"
 DEFAULT_THM_ID = "03:000730"
 
-CODE_ONLY_FROM_CONTROLLER = (_1030, _1F09, _313F, _3B00)  # I packets, TODO: 31Dx too?
+CODE_ONLY_FROM_CTL = (_1030, _1F09, _22D0, _313F, _3B00)  # I packets, TODO: 31Dx too?
 
 DEV_MODE = __dev_mode__ and False
 
@@ -211,10 +210,12 @@ class Entity:
 
     @property
     def _msg_db(self) -> List:  # a flattened version of _msgz[code][verb][indx]
+        """Return a flattened version of _msgz[code][verb][indx]."""
         return [m for c in self._msgz.values() for v in c.values() for m in v.values()]
 
     # @property
-    # def _pkts_db(self) -> Dict:
+    # def _pkt_db(self) -> Dict:
+    #     """Return a flattened version of ..."""
     #     return {msg.dtm: msg._pkt for msg in self._msgs_db}
 
     def _send_cmd(self, code, dest_id, payload, verb=RQ, **kwargs) -> None:
@@ -296,7 +297,7 @@ class DeviceBase(Entity):
             self._is_actuator = None
             self._is_sensor = None
 
-        self.__is_controller = None
+        self._iz_controller = None
 
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id})"
@@ -349,16 +350,17 @@ class DeviceBase(Entity):
         assert msg.src is self, "Devices should only keep msgs they sent"
         super()._handle_msg(msg)
 
-        if msg.verb != I_:  # or: if self.__is_controller is not None or...
+        if msg.verb != I_:  # or: if self._iz_controller is not None or...
             return
 
         # grep -vE ':(005283|007412|027384|034178|068807|079416|106131|125124|
         #             138834|160474|179828|193204|195747|207082|207170|259810) '  # noqa
-        if not self.__is_controller and msg.code in CODE_ONLY_FROM_CONTROLLER:
-            if self.__is_controller is None:
+        if not self._iz_controller and msg.code in CODE_ONLY_FROM_CTL:
+            if self._iz_controller is None:
                 _LOGGER.info(f"{msg._pkt} # IS_CONTROLLER (00): is TRUE")
-                self.__is_controller = msg
-            elif self.__is_controller is False:  # TODO: raise CorruptStateError
+                self._iz_controller = msg
+                self._make_tcs_controller(msg)
+            elif self._iz_controller is False:  # TODO: raise CorruptStateError
                 _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (01): was FALSE, now True")
 
     @property
@@ -368,11 +370,15 @@ class DeviceBase(Entity):
             m.src == self for m in self._msgs.values() if not m._expired
         )  # TODO: needs addressing
 
+    def _make_tcs_controller(self, msg=None):  # CH/DHW
+        """"Create a TCS, and attach it to this controller."""
+        self._iz_controller = msg or True
+
     @property
     def _is_controller(self) -> Optional[bool]:
 
-        if self.__is_controller is not None:
-            return bool(self.__is_controller)  # True, False, or msg
+        if self._iz_controller is not None:
+            return bool(self._iz_controller)  # True, False, or msg
 
         if self._ctl is not None:  # TODO: messy
             return self._ctl is self
@@ -579,6 +585,15 @@ class Device(DeviceInfo, DeviceBase):
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
+
+        if all(
+            (
+                msg.code in (_31D9, _31DA, _31E0),
+                msg.verb in (I_, RP),
+                self.__class__ is Device,
+            )
+        ):
+            self.__class__ = FanDevice  # HACK: because my HVAC is a 30:
 
         if not msg._gwy.config.enable_eavesdrop:
             return
@@ -796,7 +811,7 @@ class Controller(Device):  # CTL (01):
 
         self.devices = []  # [self]
         self.device_by_id = {}  # {self.id: self}
-        self.__is_controller = True
+        self._iz_controller = True
 
     # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
     #     super()._discover(discover_flag=discover_flag)
@@ -837,6 +852,7 @@ class UfhController(Device):  # UFC (02):
 
         self.devices = []  # [self]
         self.device_by_id = {}  # {self.id: self}
+        self._iz_controller = True
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
@@ -1355,8 +1371,11 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.verb != I_:  # or: if self.__is_controller is not None or...
+        if msg.verb != I_:  # or: if self._iz_controller is not None or...
             return
+
+        # if self._iz_controller is not None:  # TODO: put back in when confident
+        #     return
 
         # NOTE: this has only been tested on a 12:, does it work for a 34: too?
         if all(
@@ -1366,13 +1385,13 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
                 msg._addrs[2] is self.addr,
             )
         ):
-            if self.__is_controller is None:
+            if self._iz_controller is None:
                 # _LOGGER.info(f"{msg._pkt} # IS_CONTROLLER (10): is FALSE")
-                self.__is_controller = False
-            elif self.__is_controller:  # TODO: raise CorruptStateError
+                self._iz_controller = False
+            elif self._iz_controller:  # TODO: raise CorruptStateError
                 _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (11): was TRUE, now False")
 
-            if msg.code in CODE_ONLY_FROM_CONTROLLER:  # TODO: raise CorruptPktError
+            if msg.code in CODE_ONLY_FROM_CTL:  # TODO: raise CorruptPktError
                 _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (12); is CORRUPT PKT")
 
         elif all(
@@ -1382,10 +1401,11 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
                 msg._addrs[2] is self.addr,
             )
         ):
-            if self.__is_controller is None:
+            if self._iz_controller is None:
                 # _LOGGER.info(f"{msg._pkt} # IS_CONTROLLER (20): is TRUE")
-                self.__is_controller = msg
-            elif self.__is_controller is False:  # TODO: raise CorruptStateError
+                self._iz_controller = msg
+                self._make_tcs_controller(msg)
+            elif self._iz_controller is False:  # TODO: raise CorruptStateError
                 _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (21): was FALSE, now True")
 
     def _bind(self):

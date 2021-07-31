@@ -35,7 +35,7 @@ from ramses_rf.discovery import (
     spawn_monitor_scripts,
 )
 from ramses_rf.exceptions import EvohomeError
-from ramses_rf.packet import CONSOLE_COLS, DEFAULT_DATEFMT, DEFAULT_FMT
+from ramses_rf.logger import CONSOLE_COLS, DEFAULT_DATEFMT, DEFAULT_FMT, LOG_FILE_NAME
 from ramses_rf.schema import (
     ALLOW_LIST,
     CONFIG,
@@ -45,7 +45,6 @@ from ramses_rf.schema import (
     ENFORCE_ALLOWLIST,
     EVOFW_FLAG,
     INPUT_FILE,
-    LOG_FILE_NAME,
     PACKET_LOG,
     PACKET_LOG_SCHEMA,
     REDUCE_PROCESSING,
@@ -127,9 +126,13 @@ class DeviceIdParamType(click.ParamType):
 @click.option("-z", "--debug-mode", count=True, help="enable debugger")
 @click.option("-r", "--reduce-processing", count=True, help="-rrr will give packets")
 @click.option("-l/-nl", "--long-dates/--no-long-dates", default=None)
-@click.option("-s", "--show-state", is_flag=True, help="show state rather than summary")
 @click.option("-c", "--config-file", type=click.File("r"))
 @click.option("-k", "--client-state", type=click.File("r"))
+@click.option("-sd", "--show-device", help="show these devices")
+@click.option("-sc", "--show-schema", is_flag=True, help="show the system schema")
+@click.option("-sp", "--show-params", is_flag=True, help="show the system params")
+@click.option("-ss", "--show-status", is_flag=True, help="show the system status")
+@click.option("-st", "--show-state", is_flag=True, help="dump the state database")
 @click.pass_context
 def cli(ctx, config_file=None, **kwargs):
     """A CLI for the ramses_rf library."""
@@ -233,10 +236,10 @@ def monitor(obj, **kwargs):
 @click.option(  # "--execute-cmd"
     "-x", "--execute-cmd", type=click.STRING, help="e.g. 'RQ 01:123456 1F09 00'"
 )
-@click.option("-s0", "-sd", "--scan-disc", help="e.g. 'device_id, device_id, ...'")
-@click.option("-s1", "-sf", "--scan-full", help="e.g. 'device_id, device_id, ...'")
-@click.option("-s2", "-sh", "--scan-hard", help="e.g. 'device_id, device_id, ...'")
-@click.option("-s9", "-sx", "--scan-xxxx", help="e.g. 'device_id, device_id, ...'")
+@click.option("-S0", "-SD", "--scan-disc", help="e.g. 'device_id, device_id, ...'")
+@click.option("-S1", "-SF", "--scan-full", help="e.g. 'device_id, device_id, ...'")
+@click.option("-S2", "-SH", "--scan-hard", help="e.g. 'device_id, device_id, ...'")
+@click.option("-S9", "-SX", "--scan-xxxx", help="e.g. 'device_id, device_id, ...'")
 @click.option("--get-faults", type=DeviceIdParamType(), help="controller_id")
 @click.option(  # "--get-schedule"
     "--get-schedule",
@@ -331,15 +334,15 @@ def _save_state(gwy):
     # await gwy._set_state(schema, msgs)
 
 
-def _print_state(gwy):
-    (schema, packets) = gwy._get_state()
+def _print_state(gwy, **kwargs):
+    (schema, packets) = gwy._get_state(include_expired=True)
 
     print(f"Schema  = {json.dumps(schema, indent=4)}\r\n")
     # print(f"Packets = {json.dumps(packets, indent=4)}\r\n")
     [print(f"{dtm} {pkt}") for dtm, pkt in packets.items()]
 
 
-def _print_summary(gwy):
+def _print_summary(gwy, **kwargs):
     if gwy.evo is None:
         print(f"Schema[gateway] = {json.dumps(gwy.schema, indent=4)}\r\n")
         print(f"Params[gateway] = {json.dumps(gwy.params)}\r\n")
@@ -434,12 +437,30 @@ async def main(lib_kwargs, **kwargs):
         msg = " - ended without error (e.g. EOF)"
 
     print("\r\nclient.py: Finished ramses_rf, results:\r\n")
+
+    if kwargs["show_schema"] or kwargs["show_params"] or kwargs["show_status"]:
+        _print_summary(gwy, **kwargs)
+
+    if kwargs["show_state"]:
+        _print_state(gwy, **kwargs)
+
+    elif not any(
+        (
+            kwargs["show_schema"],
+            kwargs["show_params"],
+            kwargs["show_status"],
+            kwargs[COMMAND] == EXECUTE,
+            kwargs["show_device"],
+            kwargs["show_state"],
+        )
+    ):
+        _print_summary(gwy)
+
+    # if kwargs["show_device"]:
+    #     _print_state(gwy)
+
     if kwargs[COMMAND] == EXECUTE:
         _print_results(gwy, **kwargs)
-    elif kwargs["show_state"]:
-        _print_state(gwy)  # TODO: make this choice a switch
-    else:
-        _print_summary(gwy)
 
     print(f"\r\nclient.py: Finished ramses_rf.\r\n{msg}\r\n")
 

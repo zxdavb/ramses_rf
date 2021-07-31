@@ -11,12 +11,12 @@ from typing import Any, List
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, Address
 from .command import Command, Priority
-from .const import ALL_DEVICE_ID, DEVICE_TABLE, __dev_mode__
+from .const import ALL_DEVICE_ID, DEVICE_TABLE
 from .exceptions import ExpiredCallbackError
 from .opentherm import R8810A_MSG_IDS
 from .ramses import RAMSES_CODES
 
-from .const import I_, RP, RQ, W_  # noqa: F401, isort: skip
+from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
     _0001,
     _0002,

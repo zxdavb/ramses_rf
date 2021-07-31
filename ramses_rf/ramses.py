@@ -5,13 +5,8 @@
 
 import logging
 from datetime import timedelta as td
-from typing import Optional
 
-from .address import NON_DEV_ADDR
-from .const import __dev_mode__
-from .opentherm import MSG_ID
-
-from .const import I_, RP, RQ, W_  # noqa: F401, isort: skip
+from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
     _0001,
     _0002,
@@ -101,7 +96,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     _0004: {  # zone_name
         NAME: "zone_name",
-        I_: r"^0[0-9A-F]00([0-9A-F]){40}$",  # NOTE: RP is same
+        I_: r"^0[0-9A-F]00([0-9A-F]){40}$",  # RP is same, null_rp: xxxx,7F*20
         RQ: r"^0[0-9A-F]00$",
         TIMEOUT: td(days=1),
     },
@@ -134,7 +129,7 @@ RAMSES_CODES = {  # rf_unknown
         NAME: "zone_params",
         I_: r"^(0[0-9A-F][0-9A-F]{10}){1,8}$",
         RQ: r"^0[0-9A-F]((00)?|([0-9A-F]{10})+)$",  # is: r"^0[0-9A-F]([0-9A-F]{10})+$"
-        RP: r"^0[0-9A-F]([0-9A-F]{10})+$",  # TODO: null_rp: ..7FFF7FFF
+        RP: r"^0[0-9A-F]([0-9A-F]{10})+$",  # null_rp: xx,007FFF7FFF
         # 17:54:13.126 063 RQ --- 34:064023 01:145038 --:------ 000A 001 03
         # 17:54:13.141 045 RP --- 01:145038 34:064023 --:------ 000A 006 031002260B86
         # 19:20:49.460 062 RQ --- 12:010740 01:145038 --:------ 000A 006 080001F40DAC
@@ -304,8 +299,10 @@ RAMSES_CODES = {  # rf_unknown
         I_: r"^0[0-9A-F]{13}$",
     },  # setpoint_now
     _22C9: {  # ufh_setpoint
+        #  I --- 02:001107 --:------ 02:001107 22C9 024 0008340A2801-0108340A2801-0208340A2801-0308340A2801  # noqa
+        #  I --- 02:001107 --:------ 02:001107 22C9 006 04-0834-0A28-01
         NAME: "ufh_setpoint",
-        I_: r"^(0[0-9A-F][0-9A-F]{10}){1,4}$",  # like a 000A array, but shorter!
+        I_: r"^(0[0-9A-F][0-9A-F]{8}01){1,4}$",  # ~000A array, but max_len 24, not 48!
         # RQ: None?,
     },
     _22D0: {  # HVAC system switch
@@ -770,250 +767,3 @@ RAMSES_ZONES = {
 RAMSES_ZONES_ALL = RAMSES_ZONES.pop("ALL")
 RAMSES_ZONES_DHW = RAMSES_ZONES["DHW"]
 [RAMSES_ZONES[k].update(RAMSES_ZONES_ALL) for k in RAMSES_ZONES if k != "DHW"]
-
-
-def pkt_has_array(pkt):
-    """Return the True if the packet payload is an array, False if not.
-
-    May return false negatives (e.g. arrays of length 1), and None if undetermined.
-
-    An example of a false negative is evohome with only one zone (i.e. the periodic
-    2309/30C9/000A packets).
-    """
-    # False -ves are an acceptable compromise/alternative to extensive checking
-    # TODO: 2249? - no evidence of array
-
-    if pkt.verb == RQ:
-        return False
-
-    # .W --- 01:145038 34:092243 --:------ 1FC9 006 07230906368E
-    # .I --- 01:145038 --:------ 01:145038 1FC9 018 07000806368E-FC3B0006368E-071FC906368E
-    # .I --- 01:145038 --:------ 01:145038 1FC9 018 FA000806368E-FC3B0006368E-FA1FC906368E
-    # .I --- 34:092243 --:------ 34:092243 1FC9 030 0030C9896853-002309896853-001060896853-0010E0896853-001FC9896853
-    if pkt.code == _1FC9:  # I_, RP and W_ are all arrays
-        return True  # treat as all array
-
-    if pkt.verb != I_:
-        return False
-
-    # .I --- 01:102458 --:------ 01:102458 0009 006 FC01FF-F901FF
-    # .I --- 01:145038 --:------ 01:145038 0009 006 FC00FF-F900FF
-    if pkt.code == _0009:
-        assert pkt.len % 3 == 0, f"invalid array length {pkt.len}"
-        # assert pkt.len <= 3 or pkt.src._is_controller, "NEW"
-        # if pkt.len > 3:
-        #     assert (pkt.src.type == "01" and pkt.src == pkt.dst) or (
-        #         pkt.src.type in ("12", "22") and pkt.dst == NON_DEV_ADDR
-        #     ), "Array #01"
-        return True
-
-    # .I 034 --:------ --:------ 12:126457 2309 006 017EFF-027EFF
-    if pkt.code in (_2309, _30C9):
-        assert pkt.len % 3 == 0, f"invalid array length {pkt.len}"
-        # assert pkt.len <= 6 or pkt.src._is_controller, "NEW"
-        if pkt.len > 3:
-            assert (pkt.src.type == "01" and pkt.src == pkt.dst) or (
-                pkt.src.type in ("12", "22") and pkt.dst == NON_DEV_ADDR
-            ), "Array #01"
-        return pkt.len > 3
-
-    #  I --- 01:223036 --:------ 01:223036 000A 012 081001F40DAC-091001F40DAC   # 2nd fragment
-    # .I 024 --:------ --:------ 12:126457 000A 012 010001F40BB8-020001F40BB8
-    # .I --- 02:044328 --:------ 02:044328 22C9 018 0001F40A2801-0101F40A2801-0201F40A2801
-    if pkt.code == _000A:
-        assert pkt.len % 6 == 0, f"invalid array length {pkt.len}"
-        # assert pkt.len <= 6 or pkt.src._is_controller, "NEW"
-        assert pkt.len <= 6 or pkt.src.type != "01" or pkt.src == pkt.dst, "Array #11"
-        assert (
-            pkt.len <= 6 or pkt.src.type != "12" or pkt.dst == NON_DEV_ADDR
-        ), "Array #12"
-        return pkt.len > 6
-
-    # .I --- 02:044328 --:------ 02:044328 22C9 018 0001F40A2801-0101F40A2801-0201F40A2801
-    if pkt.code == _22C9:
-        assert pkt.len % 6 == 0, f"invalid array length {pkt.len}"
-        # assert pkt.len <= 6 or pkt.src._is_controller, "NEW"
-        assert pkt.len <= 6 or pkt.src.type != "02" or pkt.src == pkt.dst, "Array #31"
-        return pkt.len > 6
-
-    # .I --- 02:001107 --:------ 02:001107 3150 010 007A-017A-027A-036A-046A
-    if pkt.code == _3150:
-        assert pkt.len % 2 == 0, f"invalid array length {pkt.len}"
-        # assert pkt.len <= 2 or pkt.src._is_controller, "NEW"
-        assert pkt.len <= 2 or pkt.src.type != "02" or pkt.src == pkt.dst, "Array #41"
-        return pkt.len > 2
-
-    return None  # i.e. don't know (but there shouldn't be any others)
-
-
-def pkt_has_idx(pkt):
-    """Return the payload's context or True if the payload contains an array.
-
-    Will return False if there is no index, or None if it is indeterminable."""
-    # The three iterables are mutex, but its possible a code is in any of them.
-
-    if pkt.code in CODE_IDX_COMPLEX:  # are not payload[:2]
-        if pkt.code in (_0001, _1FC9):  # treat as no index
-            return False
-        if pkt.code == _0005:  # zone_idx, zone_type
-            return pkt_has_array(pkt) or pkt.payload[:4]
-        if pkt.code == _000C:  # zone_idx, device_class (zone_type)
-            return pkt.payload[:4]
-        if pkt.code == _0404:  # zone_idx, frag_idx
-            return pkt.payload[:2] + pkt.payload[10:12]
-        if pkt.code == _0418:  # log_idx
-            return (
-                pkt.payload[4:6]
-                if pkt.payload != "000000B0000000000000000000007FFFFF7000000000"
-                else False
-            )
-        if pkt.code == _3220:  # ot_msg_id
-            return pkt.payload[4:6]
-        raise NotImplementedError(f"{pkt} # CODE_IDX_COMPLEX")  # a coding error
-
-    if pkt.code in CODE_IDX_NONE:  # should all return False
-        # check RAMSES_CODES schema against the reality of this pkt...
-        if pkt.payload[:2] != "00" and (
-            RAMSES_CODES[pkt.code].get(pkt.verb, "")[:3] == "^00"
-        ):
-            _LOGGER.warning(f"{pkt} # CODE_IDX_NONE")
-            return
-        return False
-
-    if pkt.code in CODE_IDX_SIMPLE:  # potential+ for false positives
-        if pkt_has_array(pkt):
-            return True  # excludes len==1 for 000A, 2309, 30C9
-
-        # TODO: is this needed: exceptions to CODE_IDX_SIMPLE
-        if pkt.payload[:2] in ("F8", "F9", "FA", "FC"):  # TODO: FB, FD
-            if pkt.code not in CODE_IDX_DOMAIN:
-                _LOGGER.warning(f"{pkt} # CODE_IDX_DOMAIN (domain)")
-            return pkt.payload[:2]
-
-        if any(  # if to/from a controller
-            (
-                "01" in (pkt.src.type, pkt.dst.type),
-                "02" in (pkt.src.type, pkt.dst.type),
-                "23" in (pkt.src.type, pkt.dst.type),
-                pkt.addrs[2].type in ("12", "22"),
-            )
-        ):
-            # if int(pkt.payload[:2], 16) >= pkt._gwy.config.max_zones:
-            #     _LOGGER.warning(f"{pkt} # CODE_IDX_DOMAIN (max_zones)")
-            return pkt.payload[:2]
-            # 02:    22C9: would be picked up as an array, if len==1 counted
-            # 03:    # .I 028 03:094242 --:------ 03:094242 30C9 003 010B22
-            # 12/22: 000A|1030|2309|30C9 from (addr0 --:), 1060|3150 (addr0 04:)
-            # 23:    0009|10A0
-
-        # elif "18" == pkt.src.type if pkt.verb in (RQ, W_) else pkt.dst.type:
-        #     result = pkt.payload[:2]
-
-        if pkt.payload[:2] != "00":
-            _LOGGER.warning(f"{pkt} # CODE_IDX_SIMPLE (non-null)")
-            return pkt.payload[:2]
-
-        # if DEV_MODE:
-        #     _LOGGER.debug(f"{pkt} # CODE_IDX_SIMPLE (unknown)")  # excessive logging
-        return  # use False (potentially false -ves), or None (less precise)?
-
-    _LOGGER.warning(f"{pkt} # CODE_IDX_UNKNOWN")  # and: return None
-
-
-def pkt_header(pkt, rx_header=None) -> Optional[str]:
-    """Return the QoS header of a packet."""
-
-    # offer, bid. accept
-    # .I --- 12:010740 --:------ 12:010740 1FC9 024 0023093029F40030C93029F40000083029F4001FC93029F4
-    # .W --- 01:145038 12:010740 --:------ 1FC9 006 07230906368E
-    # .I --- 12:010740 01:145038 --:------ 1FC9 006 0023093029F4
-
-    # .I --- 07:045960 --:------ 07:045960 1FC9 012 0012601CB388001FC91CB388
-    # .W --- 01:145038 07:045960 --:------ 1FC9 006 0010A006368E
-    # .I --- 07:045960 01:145038 --:------ 1FC9 006 0012601CB388
-
-    # .I --- 04:189076 63:262142 --:------ 1FC9 006 0030C912E294
-    # .I --- 01:145038 --:------ 01:145038 1FC9 018 07230906368E0730C906368E071FC906368E
-    # .W --- 04:189076 01:145038 --:------ 1FC9 006 0030C912E294
-    # .I --- 01:145038 04:189076 --:------ 1FC9 006 00FFFF06368E
-
-    # if pkt.code == _1FC9 and rx_header:  # offer, bid, accept
-    #     if pkt.verb == I_ and pkt.dst == NUL_DEV_ADDR:
-    #         return "|".join((I_, pkt.code))
-    #     if pkt.verb == I_ and pkt.src == pkt.dst:
-    #         return "|".join((W_, pkt.dst.id, pkt.code))
-    #     if pkt.verb == W_:
-    #         return "|".join((I_, pkt.src.id, pkt.code))
-    #     if pkt.verb == I_:
-    #         return "|".join((I_, pkt.src.id, pkt.code))
-
-    if pkt.code == _1FC9:  # TODO: will need to do something similar for 3220?
-        if pkt.src == pkt.dst:
-            if rx_header:
-                return "|".join((W_, pkt.dst.id, code))
-            return "|".join(I_, pkt.src.id, code)
-        if pkt.verb == W_:
-            return "|".join((W_, pkt.dst.id, code)) if not rx_header else None
-        if rx_header:
-            return
-
-    verb = pkt.verb
-    if rx_header:
-        if verb == I_ or pkt.src == pkt.dst:  # usu. announcements, not requiring an Rx
-            return
-        # if pkt.verb == RQ and RQ not in RAMSES_CODES.get(pkt.code, []):
-        #     return
-        verb = RP if pkt.verb == RQ else I_  # RQ/RP, or W/I
-
-    addr = pkt.dst if pkt.src.type == "18" else pkt.src
-    header = "|".join((verb, addr.id, pkt.code))
-
-    header_idx = pkt_has_idx(pkt)
-    if header_idx:
-        header += f"|{header_idx}"
-
-    return header
-
-
-def pkt_timeout(pkt) -> Optional[float]:
-    """Return the pkt lifetime.
-
-    Will return None if the packet does not expire (e.g. 10E0).
-    """
-    from .devices import OtbGateway  # avoids circular ref
-
-    timeout = None
-
-    if pkt.verb in (RQ, W_):
-        timeout = td(seconds=3)
-
-    elif pkt.code in (_0005, _000C, _10E0):
-        return  # TODO: exclude/remove devices caused by corrupt ADDRs?
-
-    elif pkt.code == _1FC9 and pkt.verb == RP:
-        return  # TODO: check other verbs, they seem variable
-
-    elif pkt.code == _1F09:
-        timeout = td(seconds=pkt.payload["remaining_seconds"])
-
-    elif pkt.code == _000A and pkt._has_array:
-        timeout = td(minutes=60)  # sends I /1h
-
-    elif pkt.code in (_2309, _30C9) and pkt._has_array:
-        timeout = td(minutes=15)  # sends I /sync_cycle
-
-    elif pkt.code == _3220:
-        if pkt.payload[MSG_ID] in OtbGateway.SCHEMA_MSG_IDS:
-            timeout = None
-        elif pkt.payload[MSG_ID] in OtbGateway.PARAMS_MSG_IDS:
-            timeout = td(minutes=60)
-        else:  # incl. STATUS_MSG_IDS
-            timeout = td(minutes=5)
-
-    # elif pkt.code in (_3B00, _3EF0, ):  # TODO: 0008, 3EF0, 3EF1
-    #     timeout = td(minutes=6.7)  # TODO: WIP
-
-    elif pkt.code in RAMSES_CODES:
-        timeout = RAMSES_CODES[pkt.code].get("timeout")
-
-    return timeout or td(minutes=60)

@@ -14,9 +14,8 @@ from queue import Empty, PriorityQueue, SimpleQueue
 from typing import Callable, List, Optional, Tuple
 
 from .command import ARGS, DEAMON, EXPIRES, FUNC, TIMEOUT, Command
-from .const import __dev_mode__
+from .const import DONT_CREATE_MESSAGES, __dev_mode__
 from .message import Message
-from .schema import DONT_CREATE_MESSAGES
 
 DEV_MODE = __dev_mode__ and False
 
@@ -173,6 +172,7 @@ class MessageTransport(asyncio.Transport):
         try:
             msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
         except ValueError:  # not a valid message
+            _LOGGER.error("%s << Cant create message (ignoring)", pkt)
             return
 
         # _LOGGER.info("MsgTransport._pkt_receiver(pkt): %s", msg)
@@ -187,15 +187,9 @@ class MessageTransport(asyncio.Transport):
         # [p.data_received(msg) for p in self._protocols]
         for p in self._protocols:
             try:
-                p.data_received(msg)
+                p.data_received(msg)  # NOTE: don't spawn this
             except AttributeError:
                 pass
-
-        # NOTE: this doesn't work...
-        # [
-        #     self._gwy._loop.run_in_executor(None, p.data_received, msg)
-        #     for p in self._protocols
-        # ]
 
     def close(self):
         """Close the transport.
