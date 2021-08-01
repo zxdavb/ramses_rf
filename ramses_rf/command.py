@@ -829,7 +829,8 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         self._fault_log = None
         self._fault_log_done = None
 
-        self._limit = 11  # TODO: make configurable
+        self._START = 0x00  # max 0x3E
+        self._limit = 0x0F  # TODO: make configurable,
 
     def __repr_(self) -> str:
         return json.dumps(self._fault_log) if self._fault_log_done else None
@@ -857,7 +858,7 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         self._fault_log = {}  # TODO: = namedtuple("Fault", "timestamp fault_state ...")
         self._fault_log_done = None
 
-        self._rq_log_entry(log_idx=0)  # calls loop.create_task()
+        self._rq_log_entry(log_idx=self._START)  # calls loop.create_task()
 
         time_start = dt.now()
         while not self._fault_log_done:
@@ -880,7 +881,7 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
                 return
 
             log = dict(msg.payload)
-            log_idx = int(log.pop("log_idx"), 16)
+            log_idx = int(log.pop("log_idx", "00"), 16)
             if not log:  # null response (no payload)
                 # TODO: delete other callbacks rather than waiting for them to expire
                 self._fault_log_done = True
