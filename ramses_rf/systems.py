@@ -913,7 +913,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         return status
 
 
-class System(StoredHw, SysDatetime, SystemBase):  # , SysFaultLog
+class System(StoredHw, SysDatetime, SysFaultLog, SystemBase):
     """The Controller class."""
 
     __sys_class__ = SYSTEM_CLASS.PRG
