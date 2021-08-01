@@ -125,12 +125,13 @@ def spawn_execute_cmd(gwy, **kwargs):
 
     qos = {"priority": Priority.HIGH, "retries": 3}
     try:
-        cmd = Command.packet(verb, code, payload, *addrs, seqn=seqn, **qos)
+        kmd = Command.packet(verb, code, payload, *addrs, seqn=seqn, **qos)
     except ValueError as err:
         _LOGGER.warning(
             "Execute: Command is invalid: '%s' (%s)", kwargs[EXECUTE_CMD], err
         )
-    gwy.send_cmd(cmd)
+    else:
+        gwy.send_cmd(kmd)
 
 
 def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
