@@ -126,7 +126,7 @@ class MessageTransport(asyncio.Transport):
                 try:
                     if self._dispatcher:
                         await call_send_data(cmd)
-                except NotImplementedError:
+                except (AssertionError, NotImplementedError):  # TODO: needs checking
                     pass
 
                 self._que.task_done()
@@ -176,12 +176,12 @@ class MessageTransport(asyncio.Transport):
             return
 
         # _LOGGER.info("MsgTransport._pkt_receiver(pkt): %s", msg)
-        # NOTE: msg._pkt._header is expensive - don't call it unless there's callbacks
-        if self._callbacks and msg._pkt._header in self._callbacks:
-            callback = self._callbacks[msg._pkt._header]  # 3rd, invoke any callback
+        # NOTE: msg._pkt._hdr is expensive - don't call it unless there's callbacks
+        if self._callbacks and msg._pkt._hdr in self._callbacks:
+            callback = self._callbacks[msg._pkt._hdr]  # 3rd, invoke any callback
             callback[FUNC](msg, *callback.get(ARGS, tuple()))
             if not callback.get(DEAMON):
-                del self._callbacks[msg._pkt._header]
+                del self._callbacks[msg._pkt._hdr]
 
         # TODO: wrap in an exception handler because can't trust them...
         # [p.data_received(msg) for p in self._protocols]

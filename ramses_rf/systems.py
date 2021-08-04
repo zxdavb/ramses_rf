@@ -120,8 +120,9 @@ class SysFaultLog:  # 0418
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_STATUS:
-            self._gwy._tasks.append(self._loop.create_task(self.get_fault_log()))
+        # TODO: get working later
+        # if discover_flag & DISCOVER_STATUS:
+        #     self._gwy._tasks.append(self._loop.create_task(self.get_fault_log()))
 
     async def get_fault_log(self, force_refresh=None) -> Optional[dict]:  # 0418
         try:

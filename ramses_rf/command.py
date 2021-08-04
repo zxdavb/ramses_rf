@@ -29,7 +29,8 @@ from .const import (
 from .exceptions import ExpiredCallbackError
 from .helpers import dt_now, dtm_to_hex, dts_to_hex, str_to_hex, temp_to_hex
 from .opentherm import parity
-from .packet import PacketBase, pkt_header
+from .packet import PacketBase
+from .packet import _pkt_hdr as pkt_header
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
@@ -225,7 +226,7 @@ class Command(PacketBase):
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
 
-        return repr(self)  # # TODO: switch to: return self.tx_header
+        return repr(self)  # TODO: switch to: return self.tx_header
 
     def _qos(self, **kwargs) -> dict:
         """Return the default QoS params of this (request) packet."""
@@ -254,7 +255,7 @@ class Command(PacketBase):
     def tx_header(self) -> str:
         """Return the QoS header of this (request) packet."""
 
-        return self._header
+        return self._hdr
 
     @property
     def rx_header(self) -> Optional[str]:
@@ -830,7 +831,7 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         self._fault_log_done = None
 
         self._START = 0x00  # max 0x3E
-        self._limit = 0x0F  # TODO: make configurable,
+        self._limit = 0x01  # TODO: make configurable,
 
     def __repr_(self) -> str:
         return json.dumps(self._fault_log) if self._fault_log_done else None

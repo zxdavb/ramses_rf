@@ -293,13 +293,12 @@ async def scan_full(gwy, dev_id: str):
 
         elif code in (_01D0, _01E9):
             for zone_idx in ("00", "01", "99", "FC", "FF"):
-                gwy.send_cmd(Command(W_, code, f"{zone_idx:02X}00", dev_id, **qos))
+                gwy.send_cmd(Command(W_, code, f"{zone_idx}00", dev_id, **qos))
+                gwy.send_cmd(Command(W_, code, f"{zone_idx}03", dev_id, **qos))
 
         elif code == _0404:
-            gwy.send_cmd(Command.get_dhw_schedule_fragment(dev_id, "00", "00", **qos))
-            gwy.send_cmd(
-                Command.get_zone_schedule_fragment(dev_id, "00", "00", "00", **qos)
-            )
+            gwy.send_cmd(Command.get_dhw_schedule_fragment(dev_id, 0, 0, **qos))
+            gwy.send_cmd(Command.get_zone_schedule_fragment(dev_id, 0, 0, 0, **qos))
 
         elif code == _0418:
             for log_idx in range(2):

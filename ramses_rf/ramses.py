@@ -102,7 +102,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     _0005: {  # system_zones
         NAME: "system_zones",
-        # .I --- 34:092243 --:------ 34:092243 0005 012 000A0000-000F0000-00100000
+        #  I --- 34:092243 --:------ 34:092243 0005 012 000A0000-000F0000-00100000
         I_: r"^(00[01][0-9A-F]{5}){1,3}$",
         RQ: r"^00[01][0-9A-F]$",  # f"00{zone_type}"
         RP: r"^00[01][0-9A-F]{5}$",
@@ -123,7 +123,8 @@ RAMSES_CODES = {  # rf_unknown
     },
     _0009: {  # relay_failsafe
         NAME: "relay_failsafe",
-        I_: r"^((0[0-9A-F]|F[9AC])0[0-1]FF)+$",
+        #  I --- 10:040239 01:223036 --:------ 0009 003 000000
+        I_: r"^((0[0-9A-F]|F[9AC])0[0-1](00|FF))+$",
     },
     _000A: {  # zone_params
         NAME: "zone_params",
@@ -159,19 +160,19 @@ RAMSES_CODES = {  # rf_unknown
         RQ_MAY_HAVE_PAYLOAD: True,
         TIMEOUT: td(days=1),  # TODO: make longer?
     },  # NOTE: parser has been checked
-    _01D0: {  # unknown, but definitely real
+    _01D0: {  # TODO: not well understood, definitely a real code, zone_idx is a guess
         NAME: "message_01d0",
         I_: r"^0[0-9A-F][0-9A-F]{2}$",
         W_: r"^0[0-9A-F][0-9A-F]{2}$",
-        # .W --- 04:000722 01:158182 --:------ 01D0 002 0003  # is a guess, the
-        # .I --- 01:158182 04:000722 --:------ 01D0 002 0003  # TRV was in zone 00
+        #  W --- 04:000722 01:158182 --:------ 01D0 002 0003  # is a guess, the
+        #  I --- 01:158182 04:000722 --:------ 01D0 002 0003  # TRV was in zone 00
     },
-    _01E9: {  # unknown, but definitely real
+    _01E9: {  # TODO: not well understood, definitely a real code, zone_idx is a guess
         NAME: "message_01e9",
         I_: r"^0[0-9A-F][0-9A-F]{2}$",
         W_: r"^0[0-9A-F][0-9A-F]{2}$",
-        # .W --- 04:000722 01:158182 --:------ 01E9 002 0003  # is a guess, the
-        # .I --- 01:158182 04:000722 --:------ 01E9 002 0000  # TRV was in zone 00
+        #  W --- 04:000722 01:158182 --:------ 01E9 002 0003  # is a guess, the
+        #  I --- 01:158182 04:000722 --:------ 01E9 002 0000  # TRV was in zone 00
     },
     _0404: {  # zone_schedule
         NAME: "zone_schedule",
@@ -427,7 +428,14 @@ for code in RAMSES_CODES.values():
     if RQ in code and RP not in code and I_ in code:
         code[RP] = code[I_]
 
-CODE_IDX_COMPLEX = [_0001, _0005, _000C, _0404, _0418, _1FC9, _3220]  # also: 0008?
+CODE_ONLY_FROM_CTL = [_1030, _1F09, _22D0, _313F, _3B00]  # I packets, TODO: 31Dx too?
+
+# IDX_COMPLEX - *usually has* a context, but doesn't satisfy criteria for IDX_SIMPLE:
+# all known codes are in one of IDX_COMPLEX, IDX_NONE, IDX_SIMPLE
+CODE_IDX_COMPLEX = [_0005, _000C, _0418, _3220]  # also: 0008?
+
+# IDX_SIMPLE - *can have* a context, but sometimes not (usu. 00): only ever payload[:2],
+# either a zone_idx, domain_id or (UFC) circuit_idx (or array of such, i.e. seqx[:2])
 CODE_IDX_SIMPLE = [
     k
     for k, v in RAMSES_CODES.items()
@@ -438,14 +446,19 @@ CODE_IDX_SIMPLE = [
     )
 ]
 CODE_IDX_SIMPLE.extend((_10A0, _1100))
-#
+
+# IDX_NONE - *never has* a context: most payloads start 00, but no context even if the
+# payload starts with something else (e.g. 2E04)
 CODE_IDX_NONE = [
     k
     for k, v in RAMSES_CODES.items()
     if k not in CODE_IDX_COMPLEX + CODE_IDX_SIMPLE
     and ((RQ in v and v[RQ][:3] == "^00") or (I_ in v and v[I_][:3] == "^00"))
 ]
-CODE_IDX_NONE.extend((_2E04, _31DA, _3B00, _PUZZ))  # treat 31DA/3B00 as no domain
+CODE_IDX_NONE.extend(
+    (_0001, _1FC9, _2E04, _31DA, _3B00, _PUZZ)
+)  # treat 0001/1FC9 as no idx (1FC9 has a hdr); treat 31DA/3B00 as no idx?
+#
 #
 _CODE_IDX_UNKNOWN = [
     k
@@ -453,7 +466,7 @@ _CODE_IDX_UNKNOWN = [
     if k not in CODE_IDX_COMPLEX + CODE_IDX_NONE + CODE_IDX_SIMPLE
 ]  # TODO: remove as not needed?
 #
-CODE_IDX_DOMAIN = {
+CODE_IDX_DOMAIN = {  # not necc. mutex
     _0001: "^F[ACF])",
     _0008: "^F[9AC]",
     _0009: "^F[9AC]",
@@ -464,12 +477,11 @@ CODE_IDX_DOMAIN = {
 }
 #
 CODE_IDX_COMPLEX.sort() or print(f"complex = {CODE_IDX_COMPLEX}")  # TODO: remove
-# CODE_IDX_NONE.sort() or print(f"none    = {CODE_IDX_NONE}")  # TODO: remove
+CODE_IDX_NONE.sort() or print(f"none    = {CODE_IDX_NONE}")  # TODO: remove
 CODE_IDX_SIMPLE.sort() or print(f"simple  = {CODE_IDX_SIMPLE}")  # TODO: remove
 _CODE_IDX_UNKNOWN.sort() or print(f"unknown = {_CODE_IDX_UNKNOWN}")  # TODO: remove
 print(f"domains = {list(CODE_IDX_DOMAIN)}")
 
-#
 #
 #
 RAMSES_DEVICES = {
@@ -567,7 +579,8 @@ RAMSES_DEVICES = {
         _3EF0: {I_: {}},
         _3EF1: {RP: {}},
     },
-    "10": {  # e.g. R8810: OpenTherm Bridge
+    "10": {  # e.g. R8810/R8820: OpenTherm Bridge
+        _0009: {I_: {}},  # 1/24h for a R8820 (not an R8810)
         _10A0: {RP: {}},
         _10E0: {I_: {}, RP: {}},
         _1260: {RP: {}},
@@ -726,7 +739,6 @@ RAMSES_DEVICES["00"] = RAMSES_DEVICES["04"]  # HR80
 RAMSES_DEVICES["21"] = RAMSES_DEVICES["34"]  # T87RF1003
 RAMSES_DEVICES["22"] = RAMSES_DEVICES["12"]  # DTS92
 
-#
 #
 #
 RAMSES_ZONES = {

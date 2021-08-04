@@ -30,7 +30,7 @@ from .const import (
 from .exceptions import CorruptStateError
 from .helpers import schedule_task
 from .opentherm import MSG_ID, MSG_NAME, MSG_TYPE, OPENTHERM_MESSAGES, VALUE
-from .ramses import RAMSES_DEVICES
+from .ramses import CODE_ONLY_FROM_CTL, RAMSES_DEVICES
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
@@ -96,8 +96,6 @@ from .const import (  # noqa: F401, isort: skip
 DEFAULT_BDR_ID = "13:000730"
 DEFAULT_EXT_ID = "17:000730"
 DEFAULT_THM_ID = "03:000730"
-
-CODE_ONLY_FROM_CTL = (_1030, _1F09, _22D0, _313F, _3B00)  # I packets, TODO: 31Dx too?
 
 DEV_MODE = __dev_mode__ and False
 
@@ -241,13 +239,13 @@ class Entity:
         #     _LOGGER.warning(
         #         "%s: Message(%s) doesn't match name: %s",
         #         self,
-        #         msg._pkt._header,
+        #         msg._pkt._hdr,
         #         msg_name,
         #     )
         #     assert False, msg.code
         elif msg._expired:
             _LOGGER.warning(
-                "%s: Message(%s) has expired (%s)", self, msg._pkt._header, attr
+                "%s: Message(%s) has expired (%s)", self, msg._pkt._hdr, attr
             )
         else:
             return True

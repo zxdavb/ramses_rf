@@ -195,8 +195,8 @@ def dts_to_hex(dtm: Union[str, dt]) -> str:  # TODO: WIP
 
 def str_from_hex(value: str) -> Optional[str]:  # printable ASCII characters
     """Return a string of printable ASCII characters."""
-    result = bytearray.fromhex(value).split(b"\x00")[0]
-    # result = bytearray([x for x in bytearray.fromhex(value) if 31 < x < 127])
+    # result = bytearray.fromhex(value).split(b"\x7F")[0]  # TODO: needs checking
+    result = bytearray([x for x in bytearray.fromhex(value) if 31 < x < 127])
     return result.decode("ascii").strip() if result else None
 
 

@@ -161,6 +161,8 @@ def _index(seqx, msg) -> dict:
         assert seqx in ("00", "01"), f"invalid dhw_idx: '{seqx}'"
     elif "hvac_id" in result:
         assert seqx in ("00", "01", "21"), f"invalid hvac_id: '{seqx}'"
+    elif "log_idx" in result:
+        assert int(seqx, 16) < 0x100, f"invalid log_idx: '{seqx}'"
     elif "other_idx" in result:
         assert (
             int(msg.raw_payload[4:6], 16) < msg._gwy.config.max_zones
@@ -274,7 +276,7 @@ def _handle_rq(msg, payload) -> dict:
         )
         raise CorruptPayloadError(f"Payload doesn't match '{regex}'{hint2}")
 
-    return _index(payload[:2], msg)
+    return _index(msg._pkt._idx, msg)
 
 
 def parser_decorator(func):
@@ -473,7 +475,7 @@ def parser_0008(payload, msg) -> Optional[dict]:
 
 
 @parser_decorator  # relay_failsafe
-def parser_0009(payload, msg) -> list:
+def parser_0009(payload, msg) -> Union[dict, list]:
     """The relay failsafe mode.
 
     The failsafe mode defines the relay behaviour if the RF communication is lost (e.g.
@@ -483,21 +485,25 @@ def parser_0009(payload, msg) -> list:
 
     This setting may need to be enabled to ensure prost protect mode.
     """
-    # TODO: can only be max one relay per domain/zone
     # can get: 003 or 006, e.g.: FC01FF-F901FF or FC00FF-F900FF
-    # 095  I --- 23:100224 --:------ 23:100224 0009 003 0100FF  # 2-zone ST9520C
+    #  I --- 23:100224 --:------ 23:100224 0009 003 0100FF  # 2-zone ST9520C
+    #  I --- 10:040239 01:223036 --:------ 0009 003 000000
 
     def _parser(seqx) -> dict:
         assert seqx[:2] in ("F9", "FC") or int(seqx[:2], 16) < msg._gwy.config.max_zones
-        assert seqx[2:4] in ("00", "01"), seqx[2:4]
-        assert seqx[4:] in ("00", "FF"), seqx[4:]
-
         return {
             "domain_id" if seqx[:1] == "F" else "zone_idx": seqx[:2],
             "failsafe_enabled": {"00": False, "01": True}.get(seqx[2:4]),
+            "unknown_0": seqx[4:],
         }
 
-    return [_parser(payload[i : i + 6]) for i in range(0, len(payload), 6)]
+    if msg._has_array:
+        return [_parser(payload[i : i + 6]) for i in range(0, len(payload), 6)]
+
+    return {
+        "failsafe_enabled": {"00": False, "01": True}.get(payload[2:4]),
+        "unknown_0": payload[4:],
+    }
 
 
 @parser_decorator  # zone_config (zone/s)
@@ -652,8 +658,8 @@ def parser_01d0(payload, msg) -> Optional[dict]:
     # 23:57:31.643 045  I --- 01:158182 04:000722 --:------ 01E9 002 0000
     # 23:57:31.749 050  W --- 04:000722 01:158182 --:------ 01D0 002 0000
     # 23:57:31.811 045  I --- 01:158182 04:000722 --:------ 01D0 002 0000
-    assert msg.len == 2, msg.len
-    assert payload[2:] in ("00", "03"), payload[2:]
+    # assert msg.len == 2, msg.len
+    # assert payload[2:] in ("00", "03"), payload[2:]
     return {"unknown_0": payload[2:]}
 
 
@@ -715,11 +721,8 @@ def parser_0418(payload, msg) -> Optional[dict]:
     # 045 RP --- 01:145038 18:013393 --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000  # noqa
     # 000 RP --- 01:037519 18:140805 --:------ 0418 022 004024B0060006000000CB94A112FFFFFF70007AD47D  # noqa
 
-    def unused_index(seqx, msg) -> dict:
-        return {"log_idx": seqx}
-
     if msg.verb == RQ:
-        return {"log_idx": payload[4:6]}
+        return {}  # {"log_idx": payload[4:6]}
 
     if payload == "000000B0000000000000000000007FFFFF7000000000":
         # a null log entry, or: is payload[38:] == "000000" sufficient?
@@ -738,12 +741,12 @@ def parser_0418(payload, msg) -> Optional[dict]:
     assert payload[28:30] in ("7F", "FF"), payload[28:30]
 
     result = {
-        "log_idx": payload[4:6],
+        # "log_idx": payload[4:6],
         "timestamp": dts_from_hex(payload[18:30]),
         "fault_state": CODE_0418_FAULT_STATE.get(payload[2:4], payload[2:4]),
         "fault_type": CODE_0418_FAULT_TYPE.get(payload[8:10], payload[8:10]),
         "device_class": CODE_0418_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
-    }  # TODO: stop using __idx()?
+    }
 
     if payload[10:12] == "FC" and result["device_class"] == "actuator":
         result["device_class"] = ATTR_HTG_CONTROL  # aka Boiler relay
@@ -772,11 +775,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
         }
     )
 
-    # return {
-    #     "log_idx": result["log_idx"],
-    #     "log_entry": [v for k, v in result.items() if k != "log_idx"],
-    # }
-    return result
+    return {"log_entry": [v for k, v in result.items() if k != "log_idx"]}
 
 
 @parser_decorator  # unknown, from STA
@@ -1029,7 +1028,7 @@ def parser_1100(payload, msg) -> Optional[dict]:
 
     assert msg.len in (5, 8), msg.len
     assert payload[:2] in ("00", "FC"), payload[:2]
-    # .I --- 13:079800 --:------ 13:079800 1100 008 00170498007FFF01
+    #  I --- 13:079800 --:------ 13:079800 1100 008 00170498007FFF01
     assert int(payload[2:4], 16) / 4 in range(1, 13), payload[2:4]
     assert int(payload[4:6], 16) / 4 in range(1, 31), payload[4:6]
     assert int(payload[6:8], 16) / 4 in range(0, 16), payload[6:8]
@@ -1046,7 +1045,6 @@ def parser_1100(payload, msg) -> Optional[dict]:
 
     def _parser(seqx) -> dict:
         return {
-            # **unused_index(seqx[:2], msg),  # TODO: sort out
             "cycle_rate": int(int(payload[2:4], 16) / 4),  # cycles/hour
             "min_on_time": int(payload[4:6], 16) / 4,  # min
             "min_off_time": int(payload[6:8], 16) / 4,  # min
@@ -1221,13 +1219,13 @@ def parser_1f41(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # rf_bind
 def parser_1fc9(payload, msg) -> list:
-    # .I --- 07:045960 --:------ 07:045960 1FC9 012 0012601CB388001FC91CB388
-    # .W --- 01:145038 07:045960 --:------ 1FC9 006 0010A006368E
-    # .I --- 07:045960 01:145038 --:------ 1FC9 006 0012601CB388
+    #  I --- 07:045960 --:------ 07:045960 1FC9 012 0012601CB388001FC91CB388
+    #  W --- 01:145038 07:045960 --:------ 1FC9 006 0010A006368E
+    #  I --- 07:045960 01:145038 --:------ 1FC9 006 0012601CB388
 
-    # .I --- 01:145038 --:------ 01:145038 1FC9 018 FA000806368EFC3B0006368EFA1FC906368E
-    # .W --- 13:081807 01:145038 --:------ 1FC9 006 003EF0353F8F
-    # .I --- 01:145038 13:081807 --:------ 1FC9 006 00FFFF06368E
+    #  I --- 01:145038 --:------ 01:145038 1FC9 018 FA000806368EFC3B0006368EFA1FC906368E
+    #  W --- 13:081807 01:145038 --:------ 1FC9 006 003EF0353F8F
+    #  I --- 01:145038 13:081807 --:------ 1FC9 006 00FFFF06368E
 
     # this is an array of codes
     # 049  I --- 01:145038 --:------ 01:145038 1FC9 018 07-0008-06368E FC-3B00-06368E                07-1FC9-06368E  # noqa: E501

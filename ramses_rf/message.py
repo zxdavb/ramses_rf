@@ -172,6 +172,8 @@ class Message:
 
             return f"{DEVICE_TYPES.get(dev.type, f'{dev.type:>3}')}:{dev.id[3:]}"
 
+        # return repr(self)
+
         if self._str is not None:
             return self._str
 
@@ -186,7 +188,7 @@ class Message:
             dst = display_name(self.src)
 
         payload = self.raw_payload if self.len < 4 else f"{self.raw_payload[:5]}..."[:9]
-        index = {True: "array", False: "", None: "  ???"}.get(
+        index = {True: "[..]", False: "", None: "  ???"}.get(
             self._pkt._idx, self._pkt._idx
         )
 
@@ -268,34 +270,39 @@ class Message:
 
         IDX_NAMES = {
             _0002: "other_idx",  # non-evohome: hometronics
+            _0418: "log_idx",  # can be 2 DHW zones per system
             _10A0: "dhw_idx",  # can be 2 DHW zones per system
             _22C9: "ufh_idx",  # UFH circuit
             _2D49: "other_idx",  # non-evohome: hometronics
             _31D9: "hvac_id",
             _31DA: "hvac_id",
+            _3220: "msg_id",
         }  # ALSO: "domain_id", "zone_idx"
 
         if self._pkt._idx in (True, False) or self.code in CODE_IDX_COMPLEX:
             return {}  # above was: CODE_IDX_COMPLEX + [_3150]:
 
-        # .I --- 00:034798 --:------ 12:126457 2309 003 0201F4
+        if self.code in (_3220,):
+            return {}  # above was: CODE_IDX_COMPLEX + [_3150]:
+
+        #  I --- 00:034798 --:------ 12:126457 2309 003 0201F4
         if not {self.src.type, self.dst.type} & {"01", "02", "12", "18", "22", "23"}:
             assert self._pkt._idx == "00", "What!! (00)"
             return {}
 
-        # .I 035 --:------ --:------ 12:126457 30C9 003 017FFF
+        #  I 035 --:------ --:------ 12:126457 30C9 003 017FFF
         if self.src.type == self.dst.type and self.src.type not in ("01", "02", "18"):
             assert self._pkt._idx == "00", "What!! (01)"
             return {}
 
-        # # .I --- 04:029362 --:------ 12:126457 3150 002 0162
+        #  I --- 04:029362 --:------ 12:126457 3150 002 0162
         # if not getattr(self.src, "_is_controller", True) and not getattr(
         #     self.dst, "_is_controller", True
         # ):
         #     assert self._pkt._idx == "00", "What!! (10)"
         #     return {}
 
-        # # .I --- 04:029362 --:------ 12:126457 3150 002 0162
+        #  I --- 04:029362 --:------ 12:126457 3150 002 0162
         # if not (
         #     getattr(self.src, "_is_controller", True)
         #     or getattr(self.dst, "_is_controller", True)

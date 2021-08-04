@@ -565,7 +565,7 @@ class PacketProtocolQos(PacketProtocolBase):
 
             logger(
                 "PktProtocolQos.data_rcvd(rcvd=%s): boff=%s, want=%s, tout=%s: %s",
-                pkt._header or str(pkt),
+                pkt._hdr or str(pkt),
                 self._backoff,
                 wanted,
                 self._timeout_full,
@@ -576,33 +576,33 @@ class PacketProtocolQos(PacketProtocolBase):
             _logger_rcvd(_LOGGER.debug, "CHECKING")
 
             # NOTE: is the Tx pkt, and no response is expected
-            if pkt._header == self._tx_hdr and self._rx_hdr is None:
+            if pkt._hdr == self._tx_hdr and self._rx_hdr is None:
                 log_msg = "matched the Tx pkt (not wanting a Rx pkt) - now done"
                 self._qos_lock.acquire()
                 self._qos_cmd = None
                 self._qos_lock.release()
 
             # NOTE: is the Tx pkt, and a response *is* expected
-            elif pkt._header == self._tx_hdr:
+            elif pkt._hdr == self._tx_hdr:
                 # assert str(pkt)[4:] == str(self._qos_cmd), "Packets dont match"
                 log_msg = "matched the Tx pkt (now wanting a Rx pkt)"
                 self._tx_hdr = None
 
             # NOTE: is the Tx pkt, but is a *duplicate* - we've already seen it!
-            elif pkt._header == self._qos_cmd.tx_header:
+            elif pkt._hdr == self._qos_cmd.tx_header:
                 # assert str(pkt) == str(self._qos_cmd), "Packets dont match"
                 log_msg = "duplicated Tx pkt (still wanting the Rx pkt)"
                 self._timeouts(dt.now())  # TODO: increase backoff?
 
             # NOTE: is the Rx pkt, and is a non-Null (expected) response
-            elif pkt._header == self._rx_hdr:
+            elif pkt._hdr == self._rx_hdr:
                 log_msg = "matched the Rx pkt - now done"
                 self._qos_lock.acquire()
                 self._qos_cmd = None
                 self._qos_lock.release()
 
             # TODO: is the Rx pkt, but is a Null response
-            # elif pkt._header == self._qos_cmd.null_header:
+            # elif pkt._hdr == self._qos_cmd.null_header:
             #     log_msg = "matched a NULL Rx pkt - now done"
             #     self._qos_lock.acquire()
             #     self._qos_cmd = None
