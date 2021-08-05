@@ -25,6 +25,7 @@ from .const import (  # noqa: F401, isort: skip
     _0404,
     _0418,
     _042F,
+    _0B04,
     _1030,
     _1060,
     _1090,
@@ -74,7 +75,6 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 RQ_NULL = "rq_null"
-RQ_MAY_HAVE_PAYLOAD = "rq_may_have_payload"
 TIMEOUT = "timeout"
 
 NAME = "name"
@@ -104,9 +104,8 @@ RAMSES_CODES = {  # rf_unknown
         NAME: "system_zones",
         #  I --- 34:092243 --:------ 34:092243 0005 012 000A0000-000F0000-00100000
         I_: r"^(00[01][0-9A-F]{5}){1,3}$",
-        RQ: r"^00[01][0-9A-F]$",  # f"00{zone_type}"
+        RQ: r"^00[01][0-9A-F]$",  # f"00{zone_type}", evohome wont respond to 00
         RP: r"^00[01][0-9A-F]{5}$",
-        RQ_MAY_HAVE_PAYLOAD: True,
         TIMEOUT: False,
     },
     _0006: {  # schedule_sync  # TODO: what for DHW schedule?
@@ -135,13 +134,13 @@ RAMSES_CODES = {  # rf_unknown
         # 17:54:13.141 045 RP --- 01:145038 34:064023 --:------ 000A 006 031002260B86
         # 19:20:49.460 062 RQ --- 12:010740 01:145038 --:------ 000A 006 080001F40DAC
         # 19:20:49.476 045 RP --- 01:145038 12:010740 --:------ 000A 006 081001F40DAC
-        RQ_MAY_HAVE_PAYLOAD: True,
         TIMEOUT: td(days=1),
     },
     _000C: {  # zone_devices, TODO: needs I/RP
         NAME: "zone_devices",
+        # RP --- 01:145038 18:013393 --:------ 000C 012 0100-00-10DAF5,0100-00-10DAFB
+        I_: r"^(0[0-9A-F][01][0-9A-F](00|7F)[0-9A-F]{6}){1,3}$",
         RQ: r"^0[0-9A-F][01][0-9A-F]$",  # TODO: f"{zone_idx}{device_type}"
-        RQ_MAY_HAVE_PAYLOAD: True,
         TIMEOUT: False,
     },
     _000E: {  # unknown
@@ -157,9 +156,8 @@ RAMSES_CODES = {  # rf_unknown
         NAME: "language",
         RQ: r"^00([0-9A-F]{4}F{4})?$",  # NOTE: RQ/04/0100 has a payload
         RP: r"^00[0-9A-F]{4}F{4}$",
-        RQ_MAY_HAVE_PAYLOAD: True,
         TIMEOUT: td(days=1),  # TODO: make longer?
-    },  # NOTE: parser has been checked
+    },
     _01D0: {  # TODO: not well understood, definitely a real code, zone_idx is a guess
         NAME: "message_01d0",
         I_: r"^0[0-9A-F][0-9A-F]{2}$",
@@ -176,18 +174,23 @@ RAMSES_CODES = {  # rf_unknown
     },
     _0404: {  # zone_schedule
         NAME: "zone_schedule",
+        RP: r"^0[0-9A-F](20|23)0008[0-9A-F]{6}[0-9A-F]{2,82}$",
         RQ: r"^0[0-9A-F](20|23)000800[0-9A-F]{4}$",
-        RQ_MAY_HAVE_PAYLOAD: True,
     },
     _0418: {  # system_fault
         NAME: "system_fault",
+        I_: r"^00(00|40|C0)[0-3][0-9A-F]B0[0-9A-F]{6}0000[0-9A-F]{12}FFFF7000[0-9A-F]{6}$",
         RQ: r"^0000[0-3][0-9A-F]$",  # f"0000{log_idx}", no payload
-        RP: r"^00[0-9A-F]{42}",  # TODO: 004000B0061C040000008F14B0DB7FFFFF7000367F95
     },
     _042F: {  # unknown, # non-evohome are len==9, seen only once?
         # 16:48:11.813119 060  I --- 32:168090 --:------ 32:168090 042F 009 000000100F00105050  # noqa
         NAME: "message_042f",
         I_: r"^00([0-9A-F]{2}){7}$",
+    },
+    _0B04: {  # unknown
+        #  I --- --:------ --:------ 12:207082 0B04 002 00C8
+        NAME: "message_0b04",
+        I_: r"^00(00|C8)$",
     },
     _1030: {  # mixvalve_params
         NAME: "mixvalve_params",
@@ -210,7 +213,6 @@ RAMSES_CODES = {  # rf_unknown
         # 19:14:24.662 051 RQ --- 30:185469 01:037519 --:------ 10A0 001 00
         # 19:14:31.463 053 RQ --- 30:185469 01:037519 --:------ 10A0 001 01
         RQ: r"^0[01]([0-9A-F]{10})?$",  # NOTE: RQ/07/10A0 has a payload
-        RQ_MAY_HAVE_PAYLOAD: True,
         TIMEOUT: td(hours=4),
     },
     _10E0: {  # device_info
@@ -327,7 +329,6 @@ RAMSES_CODES = {  # rf_unknown
         NAME: "setpoint",
         RQ: r"^0[0-9A-F]([0-9A-F]{4})?$",  # NOTE: 12 uses: r"^0[0-9A-F]$"
         I_: r"^(0[0-9A-F]{5})+$",
-        RQ_MAY_HAVE_PAYLOAD: True,
         # RQ --- 12:010740 01:145038 --:------ 2309 003 03073A # No RPs
         TIMEOUT: td(minutes=30),
     },
@@ -371,7 +372,6 @@ RAMSES_CODES = {  # rf_unknown
         NAME: "datetime",
         I_: r"^00[0-9A-F]{16}$",  # NOTE: RP is same
         RQ: r"^00$",
-        # RP: r"^00[0-9A-F]{16}$",
         W_: r"^00[0-9A-F]{16}$",
         TIMEOUT: td(seconds=3),
     },
@@ -400,7 +400,6 @@ RAMSES_CODES = {  # rf_unknown
         NAME: "opentherm_msg",
         RQ: r"^00[0-9A-F]{4}0{4}$",  # is strictly: r"^00[0-9A-F]{8}$",
         RP: r"^00[0-9A-F]{8}$",
-        RQ_MAY_HAVE_PAYLOAD: True,
     },
     _3B00: {  # actuator_sync
         NAME: "actuator_sync",
@@ -417,7 +416,6 @@ RAMSES_CODES = {  # rf_unknown
         NAME: "actuator_cycle",
         RQ: r"^(0[0-9A-F](00)?|00[0-9A-F]{22})$",  # NOTE: both seen in the wild
         RP: r"^(0[0-9A-F]{13}|00[0-9A-F]{22})$",  # TODO
-        RQ_MAY_HAVE_PAYLOAD: True,
     },
     _PUZZ: {
         NAME: "puzzle_packet",
@@ -430,9 +428,47 @@ for code in RAMSES_CODES.values():
 
 CODE_ONLY_FROM_CTL = [_1030, _1F09, _22D0, _313F, _3B00]  # I packets, TODO: 31Dx too?
 
+CODE_RQ_COMPLEX = [
+    _0005,  # context: zone_type
+    _000A,  # optional payload
+    _000C,  # context: index, zone_type
+    _0016,  # optional payload
+    _0100,  # optional payload
+    _0404,  # context: index, fragment_idx (fragment_header)
+    _10A0,  # optional payload
+    _1100,  # optional payload
+    _2309,  # optional payload
+    _2349,  # optional payload
+    _3120,  # context: msg_id, and payload
+]
+# CODE_RQ_COMPLEX = []
+RQ_NO_PAYLOAD = [
+    k
+    for k, v in RAMSES_CODES.items()
+    if RQ in v and (v[RQ] in (r"^FF$", r"^00$", r"^00(00)?$"))
+]
+RQ_NO_PAYLOAD.extend((_2E04,))
+RQ_IDX_ONLY = [
+    k
+    for k, v in RAMSES_CODES.items()
+    if k not in RQ_NO_PAYLOAD
+    and RQ in v
+    and (v[RQ] in (r"^0[0-9A-F]00$", r"^0[0-9A-F](00)?$"))
+]
+RQ_IDX_ONLY.extend((_0418,))  # _31D9, _31DA, _3220, _3EF1))
+CODE_RQ_UNKNOWN = [
+    k
+    for k, v in RAMSES_CODES.items()
+    if k not in RQ_NO_PAYLOAD + RQ_IDX_ONLY and RQ in v
+]
+RQ_NO_PAYLOAD.sort() or print(f"no: idx, ctx, payload = {list(RQ_NO_PAYLOAD)}")
+RQ_IDX_ONLY.sort() or print(f"     no: ctx, payload = {list(RQ_IDX_ONLY)}")
+CODE_RQ_COMPLEX.sort() or print(f"          no: payload = {list(CODE_RQ_COMPLEX)}")
+CODE_RQ_UNKNOWN.sort() or print(f"unknown  = {list(CODE_RQ_UNKNOWN)}\r\n")
+
 # IDX_COMPLEX - *usually has* a context, but doesn't satisfy criteria for IDX_SIMPLE:
 # all known codes are in one of IDX_COMPLEX, IDX_NONE, IDX_SIMPLE
-CODE_IDX_COMPLEX = [_0005, _000C, _0418, _3220]  # also: 0008?
+CODE_IDX_COMPLEX = [_0005, _000C, _3220]  # TODO: move 0005 to ..._NONE?
 
 # IDX_SIMPLE - *can have* a context, but sometimes not (usu. 00): only ever payload[:2],
 # either a zone_idx, domain_id or (UFC) circuit_idx (or array of such, i.e. seqx[:2])

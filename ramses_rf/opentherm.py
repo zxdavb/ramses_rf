@@ -800,7 +800,7 @@ OPENTHERM_MESSAGES = OPENTHERM_SCHEMA[MESSAGES]
 # 0,       1,    3,    5,    6,   12-14,   17-18,   25-26,   28,            56
 # 0x00,       0x03, 0x05, 0x06, 0x0C-0D, 0x11-12, 0x19-1A, 0x1C, 0x30-31, 0x38, 0x7D
 
-R8810A_MSG_IDS = {
+OTB_MSG_IDS = {
     # These are in the R8810A specification...
     0x00: "Master/Slave status flags",
     # 000:HB0: Master status: CH enable

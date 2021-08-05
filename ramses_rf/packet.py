@@ -337,36 +337,34 @@ def pkt_has_array(pkt) -> Optional[bool]:
     #  I --- 01:145038 --:------ 01:145038 0009 006 FC00FF-F900FF
     #  I 034 --:------ --:------ 12:126457 2309 006 017EFF-027EFF
     if pkt.code in (_0009, _2309, _30C9):
-        assert pkt.len <= 3 or getattr(pkt.src, "_is_controller", True), f"{pkt} (01)"
+        # assert pkt.len <= 3 or getattr(pkt.src, "_is_controller", True), f"{pkt} (A0)"
         if pkt.len > 3:
             assert (pkt.src.type == "01" and pkt.src == pkt.dst) or (
                 pkt.src.type in ("12", "22") and pkt.dst == NON_DEV_ADDR
-            ), "Array #01"
+            ), f"{pkt} (A1)"
         return pkt.len > 3
 
     #  I --- 01:223036 --:------ 01:223036 000A 012 081001F40DAC-091001F40DAC   # 2nd fragment
     #  I 024 --:------ --:------ 12:126457 000A 012 010001F40BB8-020001F40BB8
     #  I --- 02:044328 --:------ 02:044328 22C9 018 0001F40A2801-0101F40A2801-0201F40A2801
     if pkt.code == _000A:
-        assert pkt.len <= 6 or getattr(pkt.src, "_is_controller", True), f"{pkt} (11)"
-        assert pkt.len <= 6 or pkt.src.type != "01" or pkt.src == pkt.dst, "Array #11"
+        # assert pkt.len <= 6 or getattr(pkt.src, "_is_controller", True), f"{pkt} (A2)"
+        assert pkt.len <= 6 or pkt.src.type != "01" or pkt.src == pkt.dst, f"{pkt} (A3)"
         assert (
             pkt.len <= 6 or pkt.src.type != "12" or pkt.dst == NON_DEV_ADDR
-        ), "Array #12"
+        ), f"{pkt} (A4)"
         return pkt.len > 6
 
     #  I --- 02:044328 --:------ 02:044328 22C9 018 0001F40A2801-0101F40A2801-0201F40A2801
     if pkt.code == _22C9:
-        assert pkt.len % 6 == 0, f"invalid array length {pkt.len}"
-        assert pkt.len <= 6 or getattr(pkt.src, "_is_controller", True), f"{pkt} (31)"
-        assert pkt.len <= 6 or pkt.src.type != "02" or pkt.src == pkt.dst, "Array #31"
+        # assert pkt.len <= 6 or getattr(pkt.src, "_is_controller", True), f"{pkt} (A5)"
+        assert pkt.len <= 6 or pkt.src.type != "02" or pkt.src == pkt.dst, f"{pkt} (A6)"
         return pkt.len > 6
 
     #  I --- 02:001107 --:------ 02:001107 3150 010 007A-017A-027A-036A-046A
     if pkt.code == _3150:
-        assert pkt.len % 2 == 0, f"invalid array length {pkt.len}"
-        assert pkt.len <= 2 or getattr(pkt.src, "_is_controller", True), f"{pkt} (42)"
-        assert pkt.len <= 2 or pkt.src.type != "02" or pkt.src == pkt.dst, "Array #41"
+        # assert pkt.len <= 2 or getattr(pkt.src, "_is_controller", True), f"{pkt} (A7)"
+        assert pkt.len <= 2 or pkt.src.type != "02" or pkt.src == pkt.dst, f"{pkt} (A8)"
         return pkt.len > 2
 
     return None  # i.e. don't know (but there shouldn't be any others)
@@ -400,13 +398,13 @@ def pkt_has_ctl(pkt) -> Optional[bool]:
     #  I 095 --:------ --:------ 12:126457 1F09 003 000BC2 # ctl
     #  I --- --:------ --:------ 20:001473 31D9 003 000001 # ctl?
     elif pkt.dst is NON_DEV_ADDR:
-        _LOGGER.error(f"{pkt} # HAS controller (21)")
+        # _LOGGER.error(f"{pkt} # HAS controller (21)")
         return pkt.src.type != "10"
 
     #  I --- 10:037879 --:------ 12:228610 3150 002 0000         # HAS controller (22)
     #  I --- 04:029390 --:------ 12:126457 1060 003 01FF01 # ctl
     elif pkt.dst.type in ("12", "22"):
-        _LOGGER.error(f"{pkt} # HAS controller (22)")
+        # _LOGGER.error(f"{pkt} # HAS controller (22)")
         return True
 
     # RQ --- 30:258720 10:050360 --:------ 3EF0 001 00           # UNKNOWN (99)
@@ -420,7 +418,8 @@ def pkt_has_ctl(pkt) -> Optional[bool]:
     # RP --- 10:050360 30:258720 --:------ 3220 005 0040120166
     # RQ --- 30:258720 10:050360 --:------ 3EF0 001 00
     # RP --- 10:050360 30:258720 --:------ 3EF0 006 000011010A1C
-    _LOGGER.error(f"{pkt} # UNKNOWN (99)")
+
+    # _LOGGER.error(f"{pkt} # UNKNOWN (99)")
 
 
 def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
@@ -433,17 +432,11 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
     """
     # The three iterables (none, simple, complex) are mutex
 
-    # mutex 1/4, CODE_IDX_NONE: always returns False
-    if pkt.code in CODE_IDX_NONE:  # returns False
-        assert (
-            RAMSES_CODES[pkt.code].get(pkt.verb, "")[:3] != "^00"
-            or pkt.payload[:2] == "00"
-        ), f"Payload index is {pkt.payload[:2]}, expecting 00"
-        return False
+    # FIXME: 0016 is broken
 
     # mutex 2/4, CODE_IDX_COMPLEX: are not payload[:2]
-    if pkt.code == _0005:  # zone_type (payload[2:4])
-        return pkt_has_array(pkt) or pkt.payload[2:4]
+    if pkt.code == _0005:
+        return pkt._has_array
 
     #  I --- 10:040239 01:223036 --:------ 0009 003 000000
     if pkt.code == _0009 and pkt.src.type == "10":
@@ -459,17 +452,21 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
     # if pkt.code == _0404:  # TODO: is entry needed here, esp. for DHW?
 
     if pkt.code == _0418:  # log_idx (payload[4:6])
-        return (
-            pkt.payload[4:6]
-            if pkt.payload != "000000B0000000000000000000007FFFFF7000000000"
-            else False
-        )
+        return pkt.payload[4:6]
 
-    if pkt.code == _3220:  # msg_id (payload[4:6])
+    if pkt.code == _3220:  # msg_id/data_id (payload[4:6])
         return pkt.payload[4:6]
 
     if pkt.code in CODE_IDX_COMPLEX:
         raise NotImplementedError(f"{pkt} # CODE_IDX_COMPLEX")  # a coding error
+
+    # mutex 1/4, CODE_IDX_NONE: always returns False
+    if pkt.code in CODE_IDX_NONE:  # returns False
+        assert (
+            RAMSES_CODES[pkt.code].get(pkt.verb, "")[:3] != "^00"
+            or pkt.payload[:2] == "00"
+        ), f"Payload index is {pkt.payload[:2]}, expecting 00"
+        return False
 
     # mutex 3/4, CODE_IDX_SIMPLE: potentially some false -ves?
     if pkt._has_array:

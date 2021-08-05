@@ -32,6 +32,7 @@ _01E9 = "01E9"
 _0404 = "0404"
 _0418 = "0418"
 _042F = "042F"
+_0B04 = "0B04"
 _1030 = "1030"
 _1060 = "1060"
 _1090 = "1090"
@@ -514,19 +515,19 @@ _000C_DEVICE_TYPE = {
 }
 
 # Used by 0418/system_fault parser
-CODE_0418_DEVICE_CLASS = {
+_0418_DEVICE_CLASS = {
     "00": "controller",
     "01": "sensor",
     "04": "actuator",  # if domain is FC, then "boiler_relay"
     "05": "dhw_sensor",  # not ATTR_DHW_SENSOR
     "06": "remote_gateway",  # 30:185469
 }
-CODE_0418_FAULT_STATE = {
+_0418_FAULT_STATE = {
     "00": "fault",
     "40": "restore",
     "C0": "unknown_c0",  # C0s do not appear in the evohome UI
 }
-CODE_0418_FAULT_TYPE = {
+_0418_FAULT_TYPE = {
     "01": "system_fault",
     "03": "mains_low",
     "04": "battery_low",

@@ -19,12 +19,12 @@ from .address import hex_id_to_dec
 from .const import (
     _000C_DEVICE_TYPE,
     _0005_ZONE_TYPE,
+    _0418_DEVICE_CLASS,
+    _0418_FAULT_STATE,
+    _0418_FAULT_TYPE,
     ATTR_DHW_VALVE,
     ATTR_DHW_VALVE_HTG,
     ATTR_HTG_CONTROL,
-    CODE_0418_DEVICE_CLASS,
-    CODE_0418_FAULT_STATE,
-    CODE_0418_FAULT_TYPE,
     SYSTEM_MODE_MAP,
     ZONE_MODE_MAP,
 )
@@ -47,16 +47,16 @@ from .opentherm import (
     MSG_ID,
     MSG_NAME,
     MSG_TYPE,
-    R8810A_MSG_IDS,
+    OTB_MSG_IDS,
     decode_frame,
 )
 from .ramses import (
     CODE_IDX_COMPLEX,
     CODE_IDX_NONE,
     CODE_IDX_SIMPLE,
+    CODE_RQ_COMPLEX,
     RAMSES_CODES,
     RAMSES_DEVICES,
-    RQ_MAY_HAVE_PAYLOAD,
 )
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
@@ -246,7 +246,7 @@ def _check_verb_code_payload(msg, payload) -> None:
     # TODO: put this back, or leave it to the parser?
     # if msg.code == _3220:
     #     msg_id = int(msg.raw_payload[4:6], 16)
-    #     if msg_id not in OPENTHERM_MESSAGES:  # parser uses R8810A_MSG_IDS
+    #     if msg_id not in OPENTHERM_MESSAGES:  # parser uses OTB_MSG_IDS
     #         raise CorruptPayloadError(
     #             f"OpenTherm: Unsupported data-id: 0x{msg_id:02X} ({msg_id})"
     #         )
@@ -295,7 +295,7 @@ def parser_decorator(func):
 
         _check_verb_code_payload(msg, payload)  # must use payload, not msg.payload
 
-        if RAMSES_CODES[msg.code].get(RQ_MAY_HAVE_PAYLOAD):
+        if msg.code in CODE_RQ_COMPLEX:
             result = {} if msg._has_payload is False else func(*args, **kwargs)
 
         elif msg.verb == RQ:
@@ -396,36 +396,28 @@ def parser_0004(payload, msg) -> Optional[dict]:
 
 
 @parser_decorator  # system_zone (add/del a zone?)
-def parser_0005(payload, msg) -> Optional[dict]:
-    # 047  I --- 34:064023 --:------ 34:064023 0005 012 000A0000 000F0000 00100000
-    # 045  I --- 01:145038 --:------ 01:145038 0005 004 00000100
+def parser_0005(payload, msg) -> Optional[dict]:  # TODO: needs a cleanup
+    #  I --- 01:145038 --:------ 01:145038 0005 004 00000100
+    # RP --- 02:017205 18:073736 --:------ 0005 004 0009001F
+    #  I --- 34:064023 --:------ 34:064023 0005 012 000A0000-000F0000-00100000
 
-    # RQ payload is xx00, controller wont respond to a xx
     def _parser(seqx) -> dict:
-
-        assert len(seqx) in (8, 12)  # 8 for evohome, 12 for Hometronics (16 zones)
-        assert seqx[:2] == payload[:2]
-        assert seqx[:2] == "00"  # done in _idx
-        # assert payload[2:4] in _0005_ZONE_TYPE, f"Unknown zone_type: {seqx[2:4]}"
-
-        max_zones = msg._gwy.config.max_zones
         return {
-            "zone_mask": (_flag8(seqx[4:6]) + _flag8(seqx[6:8]))[:max_zones],
-            "zone_type": _0005_ZONE_TYPE.get(seqx[2:4], seqx[2:4]),
+            "_zone_type": seqx[2:4],
+            "zone_mask": (_flag8(seqx[4:6]) + _flag8(seqx[6:8])),
+            "zone_type": _0005_ZONE_TYPE.get(seqx[2:4], f"unknown_{seqx[2:4]}"),
         }
 
-    if msg.verb == RQ:
-        assert payload[:2] == "00", payload[:2]
-        return {
-            "zone_type": _0005_ZONE_TYPE.get(payload[2:4], payload[2:4]),
-        }
-
-    assert msg.verb in (I_, RP)
-    if msg.src.type == "34":
-        assert msg.len == 12, msg.len  # or % 4?
+    if msg._has_array:
+        assert msg.verb == I_ and msg.src.type == "34", f"{msg._pkt} # expecting I/34:"
         return [_parser(payload[i : i + 8]) for i in range(0, len(payload), 8)]
 
-    assert msg.src.type in ("01", "02")  # and "23"?
+    if msg.verb == RQ:  # RQs have a context: zone_type
+        return {
+            "_zone_type": payload[2:4],
+            "zone_type": _0005_ZONE_TYPE.get(payload[2:4], f"unknown_{payload[2:4]}"),
+        }
+
     return _parser(payload)
 
 
@@ -438,14 +430,6 @@ def parser_0006(payload, msg) -> Optional[dict]:
     """
     # 16:10:34.288 053 RQ --- 30:071715 01:145038 --:------ 0006 001 00
     # 16:10:34.291 053 RP --- 01:145038 30:071715 --:------ 0006 004 00050008
-
-    if msg.verb == RQ:
-        assert payload == "00"  # implies msg.len == 1 byte
-        return {}
-
-    assert msg.verb == RP
-    assert msg.len == 4  # should bs: 0005-nnnn
-    assert payload[:2] == "00"  # otherwise: payload[2:] == "FFFFFF", invalid
 
     if payload[2:] == "FFFFFF":  # RP to an invalid RQ
         return {}
@@ -508,10 +492,10 @@ def parser_0009(payload, msg) -> Union[dict, list]:
 
 @parser_decorator  # zone_config (zone/s)
 def parser_000a(payload, msg) -> Union[dict, list, None]:
-    # 11:21:10.674 063 RQ --- 34:044203 01:158182 --:------ 000A 001 08
-    # 11:21:10.736 045 RP --- 01:158182 34:044203 --:------ 000A 006 081001F409C4
-    # 13:13:08.273 045 RQ --- 22:017139 01:140959 --:------ 000A 006 080001F40DAC
-    # 13:13:08.288 045 RP --- 01:140959 22:017139 --:------ 000A 006 081001F40DAC
+    # RQ --- 34:044203 01:158182 --:------ 000A 001 08
+    # RP --- 01:158182 34:044203 --:------ 000A 006 081001F409C4
+    # RQ --- 22:017139 01:140959 --:------ 000A 006 080001F40DAC
+    # RP --- 01:140959 22:017139 --:------ 000A 006 081001F40DAC
 
     def _parser(seqx) -> dict:  # null_rp: "007FFF7FFF"
         bitmap = int(seqx[2:4], 16)
@@ -524,10 +508,7 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:
             "_unknown_bitmap": f"0b{bitmap:08b}",  # TODO: try W with this
         }  # cannot determine zone_type from this information
 
-    if msg.verb == RQ and msg.len <= 2:
-        return {}  # _index(payload[:2], msg)
-
-    if msg._has_array:  # or msg.len >= 6:  # TODO: these msgs can require 2 pkts!
+    if msg._has_array:  # NOTE: these arrays can span 2 pkts!
         return [
             {
                 "zone_idx": payload[i : i + 2],
@@ -536,7 +517,10 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:
             for i in range(0, len(payload), 12)
         ]
 
-    assert msg.len == 6, f"length is {msg.len}, expecting 6"
+    if msg.verb == RQ and msg.len <= 2:  # some RQs have a payload (why?)
+        return {}
+
+    assert msg.len == 6, f"{msg._pkt} # expecting length 006"
     result = _parser(payload)
 
     # TODO: remove me...
@@ -584,16 +568,10 @@ def parser_000c(payload, msg) -> Optional[dict]:
         return {"zone_idx": seqx}
 
     def _parser(seqx) -> dict:
-        # assert len(seqx) == 12, len(seqx)  # not needed
-        assert seqx[:2] == payload[:2], seqx[:2]
-        # assert seqx[2:4] in _000C_DEVICE_TYPE, f"Unknown device_type: {seqx[2:4]}"
+        # TODO: this assumption that all domain_id/zones_idx are the same is wrong...
+        assert seqx[:2] == payload[:2], f"{msg._pkt} # {seqx[:2]} != idx"
         assert seqx[4:6] == "7F" or int(seqx[4:6], 16) < msg._gwy.config.max_zones
         return {hex_id_to_dec(seqx[6:12]): seqx[4:6]}
-
-    if msg.verb == RQ:
-        assert msg.len == 2, msg.len
-    else:
-        assert msg.len >= 6 and msg.len % 6 == 0, msg.len  # assuming not RQ
 
     device_class = _000C_DEVICE_TYPE.get(payload[2:4], f"unknown_{payload[2:4]}")
     if device_class == ATTR_DHW_VALVE and msg.raw_payload[:2] == "01":
@@ -602,15 +580,16 @@ def parser_000c(payload, msg) -> Optional[dict]:
     result = {
         **complex_index(payload[:2], msg),
         "device_class": device_class,
+        "_device_class": payload[2:4],
     }
-    if msg.verb == RQ:
+    if msg.verb == RQ:  # RQs have a context: index, zone_type
         return result
 
     devices = [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
     return {
         **result,
         "devices": [k for d in devices for k, v in d.items() if v != "7F"],
-    }  # TODO: the assumption that all domain_id/zones_idx are the same is wrong
+    }
 
 
 @parser_decorator  # unknown, from STA
@@ -621,15 +600,16 @@ def parser_000e(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # rf_check
 def parser_0016(payload, msg) -> Optional[dict]:
-    # TODO: does 0016 include parent_idx
-    # 09:05:33.178 046 RQ --- 22:060293 01:078710 --:------ 0016 002 0200
-    # 09:05:33.194 064 RP --- 01:078710 22:060293 --:------ 0016 002 021E
-    # 12:47:25.080 048 RQ --- 12:010740 01:145038 --:------ 0016 002 0800
-    # 12:47:25.094 045 RP --- 01:145038 12:010740 --:------ 0016 002 081E
+    # TODO: does 0016 include parent_idx?, but RQ/07:/0000?
+    # RQ --- 22:060293 01:078710 --:------ 0016 002 0200
+    # RP --- 01:078710 22:060293 --:------ 0016 002 021E
+    # RQ --- 12:010740 01:145038 --:------ 0016 002 0800
+    # RP --- 01:145038 12:010740 --:------ 0016 002 081E
+    # RQ --- 07:031785 01:063844 --:------ 0016 002 0000
+    # RP --- 01:063844 07:031785 --:------ 0016 002 002A
 
-    assert msg.verb in (RQ, RP), msg.verb
-    assert msg.len == 2, msg.len  # for both RQ/RP, but RQ/00 will work
-    # assert payload[:2] == "00"  # e.g. RQ/22:/0z00 (parent_zone), but RQ/07:/0000?
+    if msg.verb == RQ:  # and msg.len == 1:  # TODO: some RQs have a payload
+        return {}
 
     rf_value = int(payload[2:4], 16)
     return {
@@ -640,8 +620,8 @@ def parser_0016(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # language (of device/system)
 def parser_0100(payload, msg) -> Optional[dict]:
-    if msg.len == 1:
-        assert msg.verb == RQ
+
+    if msg.verb == RQ and msg.len == 1:  # some RQs have a payload
         return {}
 
     return {
@@ -675,37 +655,31 @@ def parser_01e9(payload, msg) -> Optional[dict]:
 @parser_decorator  # zone_schedule (fragment)
 def parser_0404(payload, msg) -> Optional[dict]:
     # Retreival of Zone schedule
-    # 18:02:53.700 057 RQ --- 30:185469 01:037519 --:------ 0404 007 00200008000100
-    # 18:02:53.764 052 RP --- 01:037519 30:185469 --:------ 0404 048 002000082901036...
-    # 18:02:55.606 054 RQ --- 30:185469 01:037519 --:------ 0404 007 00200008000203
-    # 18:02:55.652 053 RP --- 01:037519 30:185469 --:------ 0404 048 002000082902034D...
-    # 18:02:57.300 054 RQ --- 30:185469 01:037519 --:------ 0404 007 00200008000303
-    # 18:02:57.338 052 RP --- 01:037519 30:185469 --:------ 0404 038 002000081F0303C1...
+    # RQ --- 30:185469 01:037519 --:------ 0404 007 00200008000100
+    # RP --- 01:037519 30:185469 --:------ 0404 048 002000082901036...
+    # RQ --- 30:185469 01:037519 --:------ 0404 007 00200008000203
+    # RP --- 01:037519 30:185469 --:------ 0404 048 002000082902034D...
+    # RQ --- 30:185469 01:037519 --:------ 0404 007 00200008000303
+    # RP --- 01:037519 30:185469 --:------ 0404 038 002000081F0303C1...
 
     # Retreival of DHW schedule
-    # 18:04:26.097 055 RQ --- 30:185469 01:037519 --:------ 0404 007 00230008000100
-    # 18:04:26.170 049 RP --- 01:037519 30:185469 --:------ 0404 048 0023000829010368...
-    # 18:04:30.097 054 RQ --- 30:185469 01:037519 --:------ 0404 007 00230008000203
-    # 18:04:30.144 047 RP --- 01:037519 30:185469 --:------ 0404 048 00230008290203ED...
-    # 18:04:34.997 056 RQ --- 30:185469 01:037519 --:------ 0404 007 00230008000303
-    # 18:04:35.019 047 RP --- 01:037519 30:185469 --:------ 0404 014 002300080703031F...
+    # RQ --- 30:185469 01:037519 --:------ 0404 007 00230008000100
+    # RP --- 01:037519 30:185469 --:------ 0404 048 0023000829010368...
+    # RQ --- 30:185469 01:037519 --:------ 0404 007 00230008000203
+    # RP --- 01:037519 30:185469 --:------ 0404 048 00230008290203ED...
+    # RQ --- 30:185469 01:037519 --:------ 0404 007 00230008000303
+    # RP --- 01:037519 30:185469 --:------ 0404 014 002300080703031F...
 
     def _header(seqx) -> dict:
-        assert seqx[2:4] in ("20", "23"), seqx[2:4]  # Zones, DHW
-        assert seqx[4:8] == _0008, seqx[4:8]
-
         return {
-            # **_index(payload[:2], msg),  # added by wrapper
             "frag_index": int(seqx[10:12], 16),
             "frag_total": int(seqx[12:], 16),
             "frag_length": int(seqx[8:10], 16),
         }
 
-    if msg.verb == RQ:
-        assert msg.len == 7, msg.len
+    if msg.verb == RQ:  # RQs have a context: index, fragment_idx
         return _header(payload[:14])
 
-    assert msg.verb in (RP, I_, W_), msg.verb
     return {
         **_header(payload[:14]),
         "fragment": payload[14:],
@@ -714,44 +688,47 @@ def parser_0404(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # system_fault
 def parser_0418(payload, msg) -> Optional[dict]:
-    """In testing: 10 * 6 log entries in the UI, but 63 via RQs."""
+    # RP --- 01:145038 18:013393 --:------ 0418 022 000002B0061C040000008D9466277FFFFF7000367F95  # noqa
+    # RP --- 01:145038 18:013393 --:------ 0418 022 000036B0010000000000108000007FFFFF7000000000  # noqa
+    # RP --- 01:145038 18:013393 --:------ 0418 022 000000B00401010000008694A3CC7FFFFF70000ECC8A  # noqa
+    # RP --- 01:145038 18:013393 --:------ 0418 022 00C001B004010100000086949BCB7FFFFF70000ECC8A  # noqa
+    # RP --- 01:145038 18:013393 --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000  # noqa
+    # RP --- 01:037519 18:140805 --:------ 0418 022 004024B0060006000000CB94A112FFFFFF70007AD47D  # noqa
 
-    # 045 RP --- 01:145038 18:013393 --:------ 0418 022 000000B00401010000008694A3CC7FFFFF70000ECC8A  # noqa
-    # 045 RP --- 01:145038 18:013393 --:------ 0418 022 00C001B004010100000086949BCB7FFFFF70000ECC8A  # noqa
-    # 045 RP --- 01:145038 18:013393 --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000  # noqa
-    # 000 RP --- 01:037519 18:140805 --:------ 0418 022 004024B0060006000000CB94A112FFFFFF70007AD47D  # noqa
+    # 00-4000B0-061C04-0000-008F14B0DB7F-FFFF7000-367F95
+    # 00-0000B0-040101-0000-008694A3CC7F-FFFF7000-0ECC8A
+    # 00-C001B0-040101-0000-0086949BCB7F-FFFF7000-0ECC8A
+    # 00-0002B0-061C04-0000-008D9466277F-FFFF7000-367F95
+    # 00-4024B0-060006-0000-00CB94A112FF-FFFF7000-7AD47D
+    # 00-0036B0-010000-0000-00108000007F-FFFF7000-000000
+    # 00-0000B0-000000-0000-00000000007F-FFFF7000-000000
+    #    0      0      1    1            3        3
+    #    2      8      4    8            0        8
 
-    if msg.verb == RQ:
-        return {}  # {"log_idx": payload[4:6]}
+    # assert int(payload[4:6], 16) < 64, f"Unexpected log_idx: 0x{payload[4:6]}"
 
-    if payload == "000000B0000000000000000000007FFFFF7000000000":
-        # a null log entry, or: is payload[38:] == "000000" sufficient?
+    if dts_from_hex(payload[18:30]) is None:  # a null log entry
         return {}
-    #
-    assert msg.verb in (I_, RP), f"unexpected verb is: {msg.verb}"
-    assert payload[2:4] in CODE_0418_FAULT_STATE, payload[2:4]  # C0 don't appear in UI?
-    # TODO: a 'null' RP also has log_idx == 0; upper limit is: 60? 63?
-    assert int(payload[4:6], 16) < 64, payload[4:6]
-    assert payload[8:10] in CODE_0418_FAULT_TYPE, payload[8:10]
 
-    assert int(payload[10:12], 16) < msg._gwy.config.max_zones or (
-        payload[10:12] in ("F9", "FA", "FC")  # "1C"?
-    ), f"unexpected domain_id: {payload[10:12]}"
-    assert payload[12:14] in CODE_0418_DEVICE_CLASS, payload[12:14]
-    assert payload[28:30] in ("7F", "FF"), payload[28:30]
+    assert payload[2:4] in _0418_FAULT_STATE, payload[2:4]  # C0 don't appear in UI?
+    assert payload[8:10] in _0418_FAULT_TYPE, payload[8:10]
+    assert payload[12:14] in _0418_DEVICE_CLASS, payload[12:14]
 
     result = {
-        # "log_idx": payload[4:6],
         "timestamp": dts_from_hex(payload[18:30]),
-        "fault_state": CODE_0418_FAULT_STATE.get(payload[2:4], payload[2:4]),
-        "fault_type": CODE_0418_FAULT_TYPE.get(payload[8:10], payload[8:10]),
-        "device_class": CODE_0418_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
+        "fault_state": _0418_FAULT_STATE.get(payload[2:4], payload[2:4]),
+        "fault_type": _0418_FAULT_TYPE.get(payload[8:10], payload[8:10]),
+        "device_class": _0418_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
     }
 
     if payload[10:12] == "FC" and result["device_class"] == "actuator":
         result["device_class"] = ATTR_HTG_CONTROL  # aka Boiler relay
 
-    if payload[12:14] != "00":  # Controller
+    assert int(payload[10:12], 16) < msg._gwy.config.max_zones or (
+        payload[10:12] in ("F9", "FA", "FC")  # "1C"?
+    ), f"unexpected domain_id: {payload[10:12]}"
+
+    if payload[12:14] != "00":  # TODO: Controller
         key_name = (
             "zone_id"
             if int(payload[10:12], 16) < msg._gwy.config.max_zones
@@ -764,14 +741,11 @@ def parser_0418(payload, msg) -> Optional[dict]:
     elif payload[38:] not in ("000000", "000001"):  # "00:000001 for Controller?
         result.update({"device_id": hex_id_to_dec(payload[38:])})
 
-    assert payload[6:8] == "B0", payload[6:8]  # unknown_1, ?priority
-    assert payload[14:18] == "0000", payload[14:18]  # unknown_2
-    assert payload[30:38] == "FFFF7000", payload[30:38]  # unknown_3
     result.update(
         {
-            "_unknown_1": payload[6:8],
-            "_unknown_2": payload[14:18],
-            "_unknown_3": payload[30:38],
+            "_unknown_1": payload[6:8],  # B0 ?priority
+            "_unknown_2": payload[14:18],  # 0000
+            "_unknown_3": payload[30:38],  # FFFF7000
         }
     )
 
@@ -796,16 +770,9 @@ def parser_042f(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # unknown, from THM
+@parser_decorator  # TODO: unknown, from THM (only when its a CTL?)
 def parser_0b04(payload, msg) -> Optional[dict]:
-    # 12:04:57.244 063  I --- --:------ --:------ 12:207082 0B04 002 00C8
-    # 12:04:58.235 063  I --- --:------ --:------ 12:207082 0B04 002 00C8
-    # 12:04:58.252 064  I --- --:------ --:------ 12:207082 0B04 002 00C8
-    # above every 24h
-
-    assert msg.len == 2, msg.len
-    assert payload[:2] == "00", payload[:2]
-    assert payload[2:] == "C8", payload[2:]
+    #  I --- --:------ --:------ 12:207082 0B04 002 00C8  # batch of 3, every 24h
 
     return {"_unknown_0": payload[2:]}
 
@@ -888,32 +855,31 @@ def parser_1090(payload, msg) -> dict:
     }
 
 
-@parser_decorator  # dhw_params
+@parser_decorator  # dhw_params  # FIXME: a bit messy
 def parser_10a0(payload, msg) -> Optional[dict]:
-    # These pairs occur every 4h...
-    # RQ --- 07:045960 01:145038 --:------ 10A0 006 00-1087-00-03E4
+    # RQ --- 07:045960 01:145038 --:------ 10A0 006 00-1087-00-03E4  # RQ/RP, every 24h
     # RP --- 01:145038 07:045960 --:------ 10A0 006 00-109A-00-03E8
 
     # these may not be reliable...
     # RQ --- 01:136410 10:067219 --:------ 10A0 002 0000
     # RQ --- 07:017494 01:078710 --:------ 10A0 006 00-1566-00-03E4
 
-    # RQ --- 07:045960 01:145038 --:------ 10A0 006 00-31FF-00-31FF (null)
+    # RQ --- 07:045960 01:145038 --:------ 10A0 006 00-31FF-00-31FF  # null
     # RQ --- 07:045960 01:145038 --:------ 10A0 006 00-1770-00-03E8
     # RQ --- 07:045960 01:145038 --:------ 10A0 006 00-1374-00-03E4
     # RQ --- 07:030741 01:102458 --:------ 10A0 006 00-181F-00-03E4
-    # RQ --- 07:036831 23:100224 --:------ 10A0 006 01-1566-00-03E4 (non-evohome)
+    # RQ --- 07:036831 23:100224 --:------ 10A0 006 01-1566-00-03E4  # non-evohome
 
     # these from a RFG...
     # RQ --- 30:185469 01:037519 --:------ 0005 002 000E
     # RP --- 01:037519 30:185469 --:------ 0005 004 000E0300  # two DHW valves
     # RQ --- 30:185469 01:037519 --:------ 10A0 001 01 (01 )
 
-    if msg.verb == RQ and msg.len == 1:
+    if msg.verb == RQ and msg.len == 1:  # some RQs have a payload (why?)
         # 045 RQ --- 07:045960 01:145038 --:------ 10A0 006 0013740003E4
         # 037 RQ --- 18:013393 01:145038 --:------ 10A0 001 00
         # 054 RP --- 01:145038 18:013393 --:------ 10A0 006 0013880003E8
-        return _index(payload[:2], msg)
+        return {}  # _index(payload[:2], msg)
 
     assert msg.len in (1, 3, 6), msg.len  # OTB uses 3, evohome uses 6
     assert payload[:2] in ("00", "01"), payload[:2]  # can be two DHW valves/system
@@ -1004,17 +970,8 @@ def parser_10e0(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # tpi_params (domain/zone/device)
+@parser_decorator  # tpi_params (domain/zone/device)  # FIXME: a bit messy
 def parser_1100(payload, msg) -> Optional[dict]:
-    def unused_index(payload, msg) -> dict:  # has complex idx
-        if msg.verb == I_ and msg.src.type == "01" and msg.src is msg.dst:
-            assert payload[:2] == "FC"
-            return {"domain_id": "FC"}
-        if msg.verb == RP and msg.src.type == "01":
-            assert payload[:2] == "FC"
-            return {"domain_id": "FC"}
-        assert payload[:2] == "00"
-        return {}
 
     if msg.src.type == "08":  # Honeywell Japser ?HVAC
         assert msg.len == 19, msg.len
@@ -1023,8 +980,8 @@ def parser_1100(payload, msg) -> Optional[dict]:
             "blob": payload[8:],
         }
 
-    if msg.verb == RQ and msg.len == 2:
-        return {}  # No payload
+    if msg.verb == RQ and msg.len == 2:  # some RQs have a payload (why?)
+        return {}
 
     assert msg.len in (5, 8), msg.len
     assert payload[:2] in ("00", "FC"), payload[:2]
@@ -1080,12 +1037,6 @@ def parser_1100(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # dhw_temp
 def parser_1260(payload, msg) -> Optional[dict]:
-    if msg.verb == RQ and msg.len <= 2:
-        return _index(payload[:2], msg)
-
-    assert msg.len == 3, msg.len
-    assert payload[:2] == "00", payload[:2]  # all DHW pkts have no domain
-
     return {"temperature": temp_from_hex(payload[2:])}
 
 
@@ -1385,9 +1336,6 @@ def parser_22f3(payload, msg) -> Optional[dict]:
 @parser_decorator  # setpoint (of device/zones)
 def parser_2309(payload, msg) -> Union[dict, list, None]:
 
-    if msg.verb == RQ and msg.len <= 2:
-        return {}  # _index(payload[:2], msg)
-
     if msg._has_array:
         return [
             {
@@ -1397,7 +1345,10 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:
             for i in range(0, len(payload), 6)
         ]
 
-    assert msg.len == 3, f"length is {msg.len}, expecting 3"
+    # RQ --- 22:131874 01:063844 --:------ 2309 003 020708
+    if msg.verb == RQ and msg.len == 1:  # some RQs have a payload (why?)
+        return {}
+
     result = {"setpoint": temp_from_hex(payload[2:])}
 
     # TODO: remove me...
@@ -1411,19 +1362,17 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:
     return result
 
 
-@parser_decorator  # zone_mode
+@parser_decorator  # zone_mode  # TODO: messy
 def parser_2349(payload, msg) -> Optional[dict]:
     # RQ --- 34:225071 30:258557 --:------ 2349 001 00
     # RP --- 30:258557 34:225071 --:------ 2349 013 007FFF00FFFFFFFFFFFFFFFFFF
     # RP --- 30:253184 34:010943 --:------ 2349 013 00064000FFFFFF00110E0507E5
     #  I --- 10:067219 --:------ 10:067219 2349 004 00000001
-    if msg.verb == RQ:  # TODO: needs checking
-        assert msg.len in (1, 2, 7), f"expectedlen 1,2,7, got {msg.len}"
-        if msg.len in (1, 2):
-            return {}
 
-    else:
-        assert msg.len in (4, 7, 13), f"expected len 4,7,13, got {msg.len}"  # OTB has 4
+    if msg.verb == RQ and msg.len <= 2:  # some RQs have a payload (why?)
+        return {}
+
+    assert msg.len in (4, 7, 13), f"expected len 4,7,13, got {msg.len}"  # OTB has 4
 
     assert payload[6:8] in ZONE_MODE_MAP, f"unknown zone_mode: {payload[6:8]}"
     result = {
@@ -1477,7 +1426,6 @@ def parser_2d49(payload, msg) -> dict:
 @parser_decorator  # system_mode
 def parser_2e04(payload, msg) -> Optional[dict]:
     # if msg.verb == W_:
-    # RQ/2E04/FF
 
     #  I --— 01:020766 --:------ 01:020766 2E04 016 FFFFFFFFFFFFFF0007FFFFFFFFFFFF04  # Manual          # noqa: E501
     #  I --— 01:020766 --:------ 01:020766 2E04 016 FFFFFFFFFFFFFF0000FFFFFFFFFFFF04  # Automatic/times # noqa: E501
@@ -1517,9 +1465,6 @@ def parser_2e04(payload, msg) -> Optional[dict]:
 @parser_decorator  # temperature (of device, zone/s)
 def parser_30c9(payload, msg) -> Optional[dict]:
 
-    # if msg.verb == RQ and msg.len <= 2:
-    #     return {}  # _index(payload[:2], msg)
-
     if msg._has_array:
         return [
             {
@@ -1529,7 +1474,6 @@ def parser_30c9(payload, msg) -> Optional[dict]:
             for i in range(0, len(payload), 6)
         ]
 
-    assert msg.len == 3, f"length is {msg.len}, expecting 3"
     result = {"temperature": temp_from_hex(payload[2:])}
 
     # TODO: remove me...
@@ -1571,12 +1515,7 @@ def parser_313f(payload, msg) -> Optional[dict]:
 
     # https://www.automatedhome.co.uk/vbulletin/showthread.php?5085-My-HGI80-equivalent-Domoticz-setup-without-HGI80&p=36422&viewfull=1#post36422
     # every day at ~4am TRV/RQ->CTL/RP, approx 5-10secs apart (CTL respond at any time)
-    if msg.verb == RQ:
-        assert payload == "00", payload  # implies msg.len == 1 byte
-        return {}
 
-    assert msg.len == 9
-    assert payload[:2] == "00"  # evohome is always "00FC"? OTB is always 00xx
     if msg.src.type == "01":
         assert payload[2:4] in ("F0", "FC"), payload[2:4]
     elif msg.src.type in ("12", "22"):
@@ -1771,7 +1710,7 @@ def parser_3220(payload, msg) -> Optional[dict]:
 
     # NOTE: Unknown-DataId is useful to educate the OTB device
     assert (
-        ot_id in R8810A_MSG_IDS or ot_type == "Unknown-DataId"
+        ot_id in OTB_MSG_IDS or ot_type == "Unknown-DataId"
     ), f"OpenTherm: Invalid data-id: 0x{ot_id:02X} ({ot_id}), msg-type = {ot_type}"
 
     result = {
@@ -1780,7 +1719,7 @@ def parser_3220(payload, msg) -> Optional[dict]:
         MSG_NAME: ot_value.pop(MSG_NAME, None),
     }
 
-    if msg.verb == RQ:
+    if msg.verb == RQ:  # RQs have a context: msg_id (and a payload)
         if ot_type == "Read-Data":
             assert (
                 payload[6:10] == "0000"  # This may be true for RAMSES
@@ -1940,10 +1879,6 @@ def parser_3ef1(payload, msg) -> dict:
             "ordinal": f"0x{payload[2:8]}",
             "blob": payload[8:],
         }
-
-    if msg.verb == RQ:
-        assert msg.len < 3, f"expecting len <3, got: {msg.len}"
-        return {}
 
     assert msg.verb == RP, f"verb should be {RP}, not: {msg.verb}"
     assert msg.len == 7, msg.len

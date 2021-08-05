@@ -13,7 +13,7 @@ from .address import HGI_DEV_ADDR, NON_DEV_ADDR, Address
 from .command import Command, Priority
 from .const import ALL_DEVICE_ID, DEVICE_TABLE
 from .exceptions import ExpiredCallbackError
-from .opentherm import R8810A_MSG_IDS
+from .opentherm import OTB_MSG_IDS
 from .ramses import RAMSES_CODES
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
@@ -400,7 +400,7 @@ async def scan_005(gwy, dev_id: str):
 
     qos = {"priority": Priority.LOW, "retries": 1}
 
-    for msg_id in R8810A_MSG_IDS:
+    for msg_id in OTB_MSG_IDS:
         gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **qos))
 
 

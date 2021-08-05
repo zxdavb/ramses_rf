@@ -1023,6 +1023,11 @@ class Chronotherm(Evohome):
 
 
 class Hometronics(System):
+    # These are only ever seesn from a Hometronics controller
+    #  I --- 01:023389 --:------ 01:023389 2D49 003 00C800
+    #  I --- 01:023389 --:------ 01:023389 2D49 003 01C800
+    #  I --- 01:023389 --:------ 01:023389 2D49 003 880000
+    #  I --- 01:023389 --:------ 01:023389 2D49 003 FD0000
 
     __sys_class__ = SYSTEM_CLASS.EVO
 
