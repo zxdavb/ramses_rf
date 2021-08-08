@@ -361,7 +361,6 @@ def parser_0001(payload, msg) -> Optional[dict]:
     assert payload[2:6] in ("0000", "FFFF"), payload[2:6]
     assert payload[6:8] in ("02", "05"), payload[6:8]
     return {
-        # **_index(payload[:2], msg),  # not fully understood
         "payload": "-".join((payload[:2], payload[2:6], payload[6:8], payload[8:])),
     }
 
@@ -796,10 +795,7 @@ def parser_1030(payload, msg) -> Optional[dict]:
     assert payload[30:] in ("00", "01"), payload[30:]
 
     params = [_parser(payload[i : i + 6]) for i in range(2, len(payload), 6)]
-    result = {
-        **_index(payload[:2], msg),
-        **{k: v for x in params for k, v in x.items()},
-    }
+    result = {k: v for x in params for k, v in x.items()}
 
     # TODO: remove me...
     if TEST_MODE and msg.verb == W_:
@@ -879,7 +875,7 @@ def parser_10a0(payload, msg) -> Optional[dict]:
         # 045 RQ --- 07:045960 01:145038 --:------ 10A0 006 0013740003E4
         # 037 RQ --- 18:013393 01:145038 --:------ 10A0 001 00
         # 054 RP --- 01:145038 18:013393 --:------ 10A0 006 0013880003E8
-        return {}  # _index(payload[:2], msg)
+        return {}
 
     assert msg.len in (1, 3, 6), msg.len  # OTB uses 3, evohome uses 6
     assert payload[:2] in ("00", "01"), payload[:2]  # can be two DHW valves/system
@@ -1097,7 +1093,6 @@ def parser_12b0(payload, msg) -> Optional[dict]:
     # assert msg.len == 3, msg.len  # implied
 
     return {
-        **_index(payload[:2], msg),
         "window_open": bool_from_hex(payload[2:4]),
     }
 
@@ -1233,25 +1228,28 @@ def parser_1fd4(payload, msg) -> Optional[dict]:
 @parser_decorator  # now_next_setpoint - Programmer/Hometronics
 def parser_2249(payload, msg) -> Optional[dict]:
     # see: https://github.com/jrosser/honeymon/blob/master/decoder.cpp#L357-L370
-    # 095  I --- 23:100224 --:------ 23:100224 2249 007 00-7EFF-7EFF-FFFF
-    # 095  I --- 23:100224 --:------ 23:100224 2249 007 00-7EFF-7EFF-FFFF
+    #  I --- 23:100224 --:------ 23:100224 2249 007 00-7EFF-7EFF-FFFF
 
     def _parser(seqx) -> dict:
         minutes = int(seqx[10:], 16)
         next_setpoint = msg.dtm + td(minutes=minutes)
         return {
-            **_index(seqx[:2], msg),
             "setpoint_now": temp_from_hex(seqx[2:6]),
             "setpoint_next": temp_from_hex(seqx[6:10]),
             "minutes_remaining": minutes,
             "_next_setpoint": dt.strftime(next_setpoint, "%H:%M:%S"),
         }
 
-    # # the ST9520C can support two heating zones, so: msg.len in (7, 14)?
-    # if msg._has_array:
-    #     return [_parser(payload[i : i + 14]) for i in range(0, len(payload), 14)]
+    # the ST9520C can support two heating zones, so: msg.len in (7, 14)?
+    if msg._has_array:
+        return [
+            {
+                "zone_idx": payload[i : i + 2],
+                **_parser(payload[i + 2 : i + 14]),
+            }
+            for i in range(0, len(payload), 14)
+        ]
 
-    assert msg.len == 7, f"length is {msg.len}, expecting 7"
     return _parser(payload)
 
 
@@ -1275,7 +1273,6 @@ def parser_22c9(payload, msg) -> list:
             for i in range(0, len(payload), 12)
         ]
 
-    assert msg.len == 6, f"length is {msg.len}, expecting 6"
     return _parser(payload)
 
 
@@ -1411,14 +1408,9 @@ def parser_2349(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # hometronics _state (of unknwon)
 def parser_2d49(payload, msg) -> dict:
-    assert (
-        payload[:2] in ("88", "FD") or int(payload[:2], 16) < msg._gwy.config.max_zones
-    ), payload[:2]
     assert payload[2:] in ("0000", "C800"), payload[2:]  # would "FFFF" mean N/A?
-    # assert msg.len == 3, msg.len  # implied
 
     return {
-        **_index(payload[:2], msg),
         "_state": bool_from_hex(payload[2:4]),
     }
 
@@ -1889,7 +1881,6 @@ def parser_3ef1(payload, msg) -> dict:
     cycle_countdown = None if payload[2:6] == "7FFF" else int(payload[2:6], 16)
 
     return {
-        **_index(payload[:2], msg),
         "actuator_enabled": bool(_percent(payload[10:12])),
         "modulation_level": _percent(payload[10:12]),
         "actuator_countdown": int(payload[6:10], 16),

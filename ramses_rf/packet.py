@@ -354,7 +354,7 @@ def pkt_has_array(pkt) -> Optional[bool]:
             ), f"{pkt} (A1)"
         return pkt.len > 3
 
-    #  I --- 01:223036 --:------ 01:223036 000A 012 081001F40DAC-091001F40DAC   # 2nd fragment
+    #  I --- 01:223036 --:------ 01:223036 000A 012 081001F40DAC-091001F40DAC  # 2nd fragment
     #  I 024 --:------ --:------ 12:126457 000A 012 010001F40BB8-020001F40BB8
     #  I --- 02:044328 --:------ 02:044328 22C9 018 0001F40A2801-0101F40A2801-0201F40A2801
     if pkt.code == _000A:
@@ -364,6 +364,12 @@ def pkt_has_array(pkt) -> Optional[bool]:
             pkt.len <= 6 or pkt.src.type != "12" or pkt.dst == NON_DEV_ADDR
         ), f"{pkt} (A4)"
         return pkt.len > 6
+
+    #  I --- 23:100224 --:------ 23:100224 2249 007 007EFF7EFFFFFF  # can have 2 zones
+    if pkt.code == _2249:
+        # assert pkt.len <= 7 or getattr(pkt.src, "_is_controller", True), f"{pkt} (A9)"
+        assert pkt.len <= 7 or pkt.src.type != "23" or pkt.src == pkt.dst, f"{pkt} (AA)"
+        return pkt.len > 7
 
     #  I --- 02:044328 --:------ 02:044328 22C9 018 0001F40A2801-0101F40A2801-0201F40A2801
     if pkt.code == _22C9:

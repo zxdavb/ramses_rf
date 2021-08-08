@@ -298,9 +298,9 @@ RAMSES_CODES = {  # rf_unknown
         I_: r"^00([0-9A-F]{4})$",
     },
     _2249: {
-        NAME: "setpoint_now",
-        I_: r"^0[0-9A-F]{13}$",
-    },  # setpoint_now
+        NAME: "setpoint_now",  # setpt_now_next
+        I_: r"^(0[0-9A-F]{13}){1,2}$",
+    },  # TODO: This could be an array
     _22C9: {  # ufh_setpoint
         #  I --- 02:001107 --:------ 02:001107 22C9 024 0008340A2801-0108340A2801-0208340A2801-0308340A2801  # noqa
         #  I --- 02:001107 --:------ 02:001107 22C9 006 04-0834-0A28-01

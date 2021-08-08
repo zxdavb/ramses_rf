@@ -292,7 +292,12 @@ class Message:
             return {}
 
         #  I 035 --:------ --:------ 12:126457 30C9 003 017FFF
-        if self.src.type == self.dst.type and self.src.type not in ("01", "02", "18"):
+        if self.src.type == self.dst.type and self.src.type not in (
+            "01",
+            "02",
+            "18",
+            "23",
+        ):
             assert self._pkt._idx == "00", "What!! (01)"
             return {}
 
