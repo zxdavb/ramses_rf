@@ -9,10 +9,10 @@ Decode/process a packet (packet that was received).
 import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
-from typing import Optional, Tuple, Union
+from typing import ByteString, Optional, Tuple, Union
 
 from .address import NON_DEV_ADDR, pkt_addrs
-from .const import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES, MESSAGE_REGEX
+from .const import DONT_CREATE_ENTITIES, MESSAGE_REGEX
 
 # from .devices import Device  # TODO: fix cyclic reference
 from .exceptions import CorruptAddrSetError, CorruptStateError
@@ -163,26 +163,26 @@ class PacketBase:
 
 
 class Packet(PacketBase):
-    """The packet class."""
+    """The packet class; should trap/log all invalid PKTs appropriately."""
 
-    def __init__(
-        self, dtm: dt, frame: str, dtm_str: str = None, frame_raw=None
-    ) -> None:
-        """Create a packet.
-
-        if dtm_str:
-            assert dtm == dt.fromisoformat(dtm_str), "should be True"
-        """
+    def __init__(self, dtm: dt, frame: str, **kwargs) -> None:
+        """Create a packet from a valid frame."""
         super().__init__()
 
+        # if kwargs.get("dtm_str"):
+        #     assert kwargs.get("dtm_str") == dtm.isoformat(), "should be True"
+
         self.dtm = dtm
-        self._date, self._time = (dtm_str or dtm.isoformat(sep="T")).split("T")
+        self._date, self._time = (
+            kwargs.get("dtm_str") or dtm.isoformat(sep="T")
+        ).split("T")
         # self.created = dtm.timestamp()  # HACK: used by logger
         # self.msecs = (self.created - int(self.created)) * 1000
 
-        self._frame = frame
-        self._frame_raw = frame_raw
-        self.packet, self.error_text, self.comment = self._split_pkt_line(frame)
+        self.packet = frame
+        self.comment = kwargs.get("comment")
+        self.error_text = kwargs.get("err_msg")
+        self.raw_frame = kwargs.get("raw_frame")
 
         # addrs are populated in self.is_valid()
         self.addrs = [None] * 3
@@ -207,18 +207,27 @@ class Packet(PacketBase):
         _ = self._has_ctl  # # TODO: remove (is for testing only)
 
     @classmethod
-    def from_log_line(cls, dtm: str, frame: str):
-        """Constructor to create a packet from a log file line (a frame)."""
-        return cls(dt.fromisoformat(dtm), frame, dtm_str=dtm)
+    def from_dict(cls, dtm: str, pkt: str):
+        """Constructor to create a packet from a saved state (a curated dict)."""
+        return cls(dt.fromisoformat(dtm), pkt, dtm_str=dtm)
 
     @classmethod
-    def from_usb_port(cls, dtm: dt, frame: str, dtm_str: str, frame_raw):
-        """Constructor to create a packet from a usb port (evofw3)."""
-        return cls(dtm, frame, dtm_str=dtm_str, frame_raw=frame_raw)
+    def from_file(cls, dtm: str, pkt_line: str):
+        """Constructor to create a packet from a log file line."""
+        frame, err_msg, comment = cls._partition(pkt_line)
+        return cls(
+            dt.fromisoformat(dtm), frame, dtm_str=dtm, err_msg=err_msg, comment=comment
+        )
+
+    @classmethod
+    def from_port(cls, dtm: dt, pkt_line: str, raw_line: ByteString = None):
+        """Constructor to create a packet from a usb port (HGI80, evofw3)."""
+        frame, err_msg, comment = cls._partition(pkt_line)
+        return cls(dtm, frame, err_msg=err_msg, comment=comment, raw_frame=raw_line)
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
-        return str(self._frame_raw or self._frame)
+        return self.raw_frame or self.packet
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
@@ -230,18 +239,18 @@ class Packet(PacketBase):
         return self.packet == other.packet
 
     @staticmethod
-    def _split_pkt_line(log_line: str) -> Tuple[str, str, str]:
-        """Split a packet log line (i.e. no dtm prefix) into its parts.
+    def _partition(pkt_line: str) -> Tuple[str, str, str]:
+        """Partition a packet line into its three parts.
 
         Format: packet[ < parser-hint: ...][ * evofw3-err_msg][ # evofw3-comment]
         """
 
-        fragment, _, comment = log_line.partition("#")
+        fragment, _, comment = pkt_line.partition("#")
         fragment, _, err_msg = fragment.partition("*")
-        pkt_line, _, _ = fragment.partition("<")  # discard any parser hints
+        pkt_str, _, _ = fragment.partition("<")  # discard any parser hints
         return (
-            pkt_line.strip(),
-            f" * {err_msg.strip()}" if err_msg else " *" if "*" in log_line else "",
+            pkt_str.strip(),
+            f" * {err_msg.strip()}" if err_msg else " *" if "*" in pkt_line else "",
             f" # {comment.strip()}" if comment else "",
         )
 
@@ -278,7 +287,7 @@ class Packet(PacketBase):
             except CorruptAddrSetError:
                 return True
 
-        if self._is_valid is not None or not self._frame:
+        if self._is_valid is not None or not self.packet:
             return self._is_valid
 
         self._is_valid = False
@@ -392,7 +401,12 @@ def pkt_has_ctl(pkt) -> Optional[bool]:
         #     ("HAS" if pkt.code in CODE_ONLY_FROM_CTL + [_31D9, _31DA] else "no")
         #     + " controller (20)"
         # )
-        return pkt.code in CODE_ONLY_FROM_CTL + [_31D9, _31DA]
+        return any(
+            (
+                pkt.code == _3B00 and pkt.payload[:2] == "FC",
+                pkt.code in CODE_ONLY_FROM_CTL + [_31D9, _31DA],
+            )
+        )
 
     #  I --- --:------ --:------ 10:050360 1FD4 003 002ABE # no ctl
     #  I 095 --:------ --:------ 12:126457 1F09 003 000BC2 # ctl
@@ -465,7 +479,7 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
         assert (
             RAMSES_CODES[pkt.code].get(pkt.verb, "")[:3] != "^00"
             or pkt.payload[:2] == "00"
-        ), f"Payload index is {pkt.payload[:2]}, expecting 00"
+        ), f"{pkt} # index is {pkt.payload[:2]}, expecting 00"
         return False
 
     # mutex 3/4, CODE_IDX_SIMPLE: potentially some false -ves?
@@ -626,14 +640,14 @@ def _create_devices(this: Packet) -> None:
         this.dst = this._gwy.device_by_id.get(this.dst.id, this.dst)
 
 
-def process_pkt(pkt: Packet) -> None:
+def process_pkt(pkt: Packet) -> Optional[bool]:
     """Process the (valid) packet's metadata (but dont process the payload)."""
 
     if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
         _LOGGER.info(pkt)
 
     if not pkt.is_valid or pkt._gwy.config.reduce_processing >= DONT_CREATE_ENTITIES:
-        return
+        return False
 
     try:  # process the packet meta-data
         # TODO: This will need to be removed for HGI80-impersonation
@@ -644,19 +658,16 @@ def process_pkt(pkt: Packet) -> None:
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
             "%s << %s", pkt._pkt, f"{err.__class__.__name__}({err})"
         )
-        return  # NOTE: use raise only when debugging
+        return False  # NOTE: use raise only when debugging
 
     except (AttributeError, LookupError, TypeError, ValueError) as err:
         (_LOGGER.exception if DEV_MODE else _LOGGER.error)(
             "%s << %s", pkt._pkt, f"{err.__class__.__name__}({err})"
         )
-        return  # NOTE: use raise only when debugging
+        return False  # NOTE: use raise only when debugging
 
     except CorruptStateError as err:  # TODO: add CorruptPacketError
         (_LOGGER.exception if DEV_MODE else _LOGGER.error)("%s << %s", pkt._pkt, err)
-        return  # TODO: bad pkt, or Schema
+        return False  # TODO: bad pkt, or Schema
 
     pkt._gwy._prev_pkt = pkt
-
-    if pkt._gwy.config.reduce_processing >= DONT_UPDATE_ENTITIES:
-        return  # call protocol callback

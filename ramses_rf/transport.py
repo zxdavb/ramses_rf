@@ -113,8 +113,10 @@ def _normalise(pkt_line: str, log_file: bool = False) -> str:
     if not log_file:
         return pkt_line
 
+    pkt_line = pkt_line.strip()
+
     # HACK for v0.11.x and earlier - puzzle packets should have no index
-    if pkt_line[41:45] == _PUZZ and (pkt_line[:2] != "00" or pkt_line[2:4] != "00"):
+    if pkt_line[41:45] == _PUZZ and (pkt_line[:2] != "00" or pkt_line[:4] != "0000"):
         payload = f"00{pkt_line[50:]}"[:96]
         pkt_line = pkt_line[:46] + f"{int(len(payload)/2):03} " + payload
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
@@ -124,31 +126,20 @@ def _normalise(pkt_line: str, log_file: bool = False) -> str:
     return pkt_line
 
 
-def OUT_str(raw_line: ByteString) -> str:
+def _str(value: ByteString) -> str:
     try:
-        pkt_line = "".join(
+        result = "".join(
             c
-            for c in raw_line.decode("ascii", errors="strict").strip()
+            for c in value.decode("ascii", errors="strict").strip()
             if c in VALID_CHARACTERS
         )
     except UnicodeDecodeError:
-        _LOGGER.warning("%s << Cant decode bytestream (ignoring)", raw_line)
+        _LOGGER.warning("%s << Cant decode bytestream (ignoring)", value)
         return ""
-
-    return _normalise(pkt_line)
-
-
-def OUT_bytes_received(
-    self, data: ByteString
-) -> Generator[ByteString, ByteString, None]:
-    self._recv_buffer += data
-    if b"\r\n" in self._recv_buffer:
-        lines = self._recv_buffer.split(b"\r\n")
-        self._recv_buffer = lines[-1]
-        yield from lines[:-1]
+    return result
 
 
-class SerTransportFile(asyncio.ReadTransport):
+class SerTransportRead(asyncio.ReadTransport):
     """Interface for a packet transport via a dict (saved state) or a file (pkt log)."""
 
     def __init__(self, loop, protocol, packet_source, extra=None):
@@ -173,7 +164,7 @@ class SerTransportFile(asyncio.ReadTransport):
                 await asyncio.sleep(0)
         else:
             for dtm_pkt_line in self._packets:  # need to check dtm_str is OK
-                self._protocol.data_received(dtm_pkt_line.strip())  # .upper())
+                self._protocol.data_received(dtm_pkt_line)
                 await asyncio.sleep(0)
 
         self._protocol.connection_lost(exc=None)  # EOF
@@ -368,65 +359,46 @@ class PacketProtocolBase(asyncio.Protocol):
     def _pkt_received(self, pkt: Packet) -> None:
         """Pass any valid/wanted packets to the callback."""
 
+        # if process_pkt(pkt) is False:
+        #     return
+
         self._this_pkt, self._prev_pkt = pkt, self._this_pkt
         if self._callback and self._is_wanted(pkt.src, pkt.dst):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
-    def _data_received(self, data: ByteString) -> None:
-        """Called when a packet frame is received."""
-        _LOGGER.debug("PacketProtocolBase._data_received(%s)", data)
-
-        def create_pkt_line(xyz: ByteString) -> Tuple:
-            pkt_dtm = dt_now()  # done here & now for most-accurate timestamp
-
-            try:
-                pkt_str = "".join(
-                    c
-                    for c in xyz.decode("ascii", errors="strict").strip()
-                    if c in VALID_CHARACTERS
-                )
-            except UnicodeDecodeError:
-                _LOGGER.warning("%s << Cant decode bytestream (ignoring)", xyz)
-                return pkt_dtm, None
-
-            if "# evofw" in pkt_str and self._gwy.config.evofw_flag not in (None, "!V"):
+    def _line_received(self, dtm: dt, line: str, raw_line: ByteString) -> None:
+        if not self._has_initialized:
+            if "# evofw" in line and self._gwy.config.evofw_flag not in (None, "!V"):
                 self._loop.create_task(
                     self._send_data(self._gwy.config.evofw_flag, ignore_pause=True)
                 )
-
-            if DEV_MODE:  # TODO: deleteme?
-                _LOGGER.debug("RF Rx: %s", xyz)
-            elif _LOGGER.getEffectiveLevel() == logging.INFO:
-                _LOGGER.info("RF Rx: %s", xyz)
-
-            return pkt_dtm, pkt_str
-
-        pkt_dtm, pkt_line = create_pkt_line(data)
-        if not pkt_line:
-            return
-        pkt_line = _normalise(pkt_line)
+            self._has_initialized = True
 
         try:
-            pkt = Packet(pkt_dtm, pkt_line, frame_raw=data)
-        except ValueError:  # not a valid packet
-            if pkt_line.lstrip()[:1] != "#":
-                _LOGGER.error("%s << Cant create packet (ignoring)", data)
+            pkt = Packet.from_port(dtm, line, raw_line=raw_line)
+        except ValueError:
+            if line and line[:1] != "#" and "*" not in line:
+                _LOGGER.error("%s << Cant create packet (ignoring)", line)
             return
-
         self._pkt_received(pkt)  # NOTE: don't spawn this
 
     def data_received(self, data: ByteString) -> None:
         """Called when some data (packet fragments) is received (from RF)."""
-        # _LOGGER.debug("PacketProtocolBase.data_received(%s)", data)
-        self._has_initialized = True
+        _LOGGER.debug("PacketProtocolBase.data_received(%s)", data)
 
-        self._recv_buffer += data
-        if b"\r\n" in self._recv_buffer:
-            lines = self._recv_buffer.split(b"\r\n")
-            self._recv_buffer = lines[-1]
+        def _bytes_received(
+            data: ByteString,
+        ) -> Generator[ByteString, ByteString, None]:
+            self._recv_buffer += data
+            if b"\r\n" in self._recv_buffer:
+                lines = self._recv_buffer.split(b"\r\n")
+                self._recv_buffer = lines[-1]
+                for line in lines[:-1]:
+                    yield dt_now(), line
 
-            for line in lines[:-1]:
-                self._data_received(line)
+        for dtm, raw_line in _bytes_received(data):
+            _LOGGER.debug("RF Rx: %s", raw_line)
+            self._line_received(dtm, _normalise(_str(raw_line)), raw_line)
 
     async def _send_data(self, data: str, ignore_pause=False) -> None:
         """Send a bytearray to the transport (serial) interface.
@@ -446,12 +418,9 @@ class PacketProtocolBase(asyncio.Protocol):
 
         data = bytes(data.encode("ascii"))
 
-        if DEV_MODE:  # TODO: deleteme?
-            _LOGGER.debug("RF Tx:     %s", data)
-        elif _LOGGER.getEffectiveLevel() == logging.INFO:
-            _LOGGER.info("RF Tx:     %s", data)
-
+        _LOGGER.debug("RF Tx:     %s", data)
         self._transport.write(data + b"\r\n")
+
         # 0.2: can still exceed with back-to-back restarts
         # await asyncio.sleep(0.2)  # TODO: RF Duty cycle, make configurable?
 
@@ -523,24 +492,24 @@ class PacketProtocolRead(PacketProtocolBase):
 
         _LOGGER.info(f"Library is ramses_rf v{__version__} (packet log)")
 
+    def _line_received(self, dtm: str, line: str, raw_line: str) -> None:
+        if not self._has_initialized:
+            self._has_initialized = True
+
+        try:
+            pkt = Packet.from_file(dtm, line)
+        except ValueError:
+            if (dtm and dtm.lstrip()[:1] != "#") and (
+                line and line[:1] != "#" and "*" not in line
+            ):
+                _LOGGER.error("%s << Cant create packet (ignoring)", line)
+            return
+        self._pkt_received(pkt)
+
     def data_received(self, data: str) -> None:
         """Called when a packet line is received (from a log file)."""
         _LOGGER.debug("PacketProtocolRead.data_received(%s)", data)
-        self._has_initialized = True
-
-        pkt_dtm, pkt_line = data[:26], data[27:]
-        if not pkt_line:
-            return
-        pkt_line = _normalise(pkt_line)
-
-        try:  # assert DTM_LONG_REGEX.match(dtm_str)
-            pkt = Packet.from_log_line(pkt_dtm, pkt_line)
-        except ValueError:  # not a valid packet
-            if pkt_line.lstrip()[:1] != "#" and data.lstrip()[:1] != "#":
-                _LOGGER.debug("%s << Cant create packet from log (ignoring)", data)
-            return
-
-        self._pkt_received(pkt)
+        self._line_received(data[:26], _normalise(data[27:], log_file=True), data)
 
 
 class PacketProtocolQos(PacketProtocolBase):
@@ -782,7 +751,7 @@ def create_pkt_stack(
     pkt_protocol = (protocol_factory or _protocol_factory)()
 
     if packet_log or packet_dict is not None:  # {} is a processable packet_dict
-        pkt_transport = SerTransportFile(
+        pkt_transport = SerTransportRead(
             gwy._loop, pkt_protocol, packet_log or packet_dict
         )
         return (pkt_protocol, pkt_transport)
