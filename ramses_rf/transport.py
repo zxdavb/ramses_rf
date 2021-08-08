@@ -208,7 +208,9 @@ class SerTransportPoller(asyncio.Transport):
                     )  # NOTE: cant use readline(), as it blocks until a newline
                     continue
 
-                if hasattr(self.serial, "out_waiting") and self.serial.out_waiting:
+                # if hasattr(self.serial, "out_waiting") and self.serial.out_waiting:
+                # if getattr(self.serial, "out_waiting", False):
+                if self.serial and self.serial.out_waiting:
                     continue
 
                 if not self._write_queue.empty():
@@ -443,10 +445,7 @@ class PacketProtocolBase(asyncio.Protocol):
         while (
             self._transport is None
             or self._transport.serial is None  # Shouldn't be required, but is!
-            or (
-                hasattr(self._transport.serial, "out_waiting")
-                and self._transport.serial.out_waiting
-            )
+            or getattr(self._transport.serial, "out_waiting", False)
         ):
             await asyncio.sleep(0.005)
 
