@@ -21,7 +21,7 @@ from types import SimpleNamespace
 from typing import ByteString, Callable, Optional, Tuple
 
 from serial import SerialException, serial_for_url
-from serial_asyncio import SerialTransport as SerialTransportAsync
+from serial_asyncio import SerialTransport as SerTransportAsync
 
 from .address import HGI_DEV_ADDR
 from .command import (
@@ -778,6 +778,6 @@ def create_pkt_stack(
     ):
         pkt_transport = SerTransportPoller(gwy._loop, pkt_protocol, ser_instance)
     else:
-        pkt_transport = SerialTransportAsync(gwy._loop, pkt_protocol, ser_instance)
+        pkt_transport = SerTransportAsync(gwy._loop, pkt_protocol, ser_instance)
 
     return (pkt_protocol, pkt_transport)
