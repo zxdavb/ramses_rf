@@ -1902,24 +1902,24 @@ def parser_3ef1(payload, msg) -> dict:
 def parser_7fff(payload, msg) -> Optional[dict]:
     LOOKUP = {"01": "ramses_rf", "02": "impersonating", "03": "message"}
 
-    if payload[:2] == "00":
+    if payload[2:4] == "00":
         return {
-            "datetime": dts_from_hex(payload[2:14]),
-            "message": str_from_hex(payload[16:]),
+            "datetime": dts_from_hex(payload[4:16]),
+            "message": str_from_hex(payload[18:]),
         }
 
-    elif payload[:2] in LOOKUP:
-        return {LOOKUP[payload[:2]]: str_from_hex(payload[2:])}
+    elif payload[2:4] in LOOKUP:
+        return {LOOKUP[payload[2:4]]: str_from_hex(payload[4:])}
 
-    elif payload[:2] == "7F":
+    elif payload[2:4] == "7F":
         return {
-            "datetime": dts_from_hex(payload[2:14]),
-            "counter": int(payload[16:20], 16),
-            "interval": int(payload[22:26], 16) / 100,
+            "datetime": dts_from_hex(payload[4:16]),
+            "counter": int(payload[18:22], 16),
+            "interval": int(payload[24:28], 16) / 100,
         }
     return {
-        "header": payload[:2],
-        "payload": payload[2:],
+        "header": payload[2:4],
+        "payload": payload[4:],
     }
 
 
