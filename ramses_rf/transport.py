@@ -18,7 +18,7 @@ from queue import Queue
 from string import printable  # ascii_letters, digits
 from threading import Lock, Thread
 from types import SimpleNamespace
-from typing import ByteString, Callable, Optional, Tuple
+from typing import ByteString, Callable, Generator, Optional, Tuple
 
 from serial import SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerTransportAsync
@@ -69,6 +69,83 @@ _LOGGER = logging.getLogger(__name__)
 # _LOGGER.setLevel(logging.WARNING)  # INFO may have too much detail
 if DEV_MODE:  # or True:
     _LOGGER.setLevel(logging.DEBUG)  # should be INFO
+
+
+def _normalise(pkt_line: str, log_file: bool = False) -> str:
+    """Perform any packet line hacks, as required.
+
+    Goals:
+     - ensure an evofw3 provides the exact same output as a HGI80
+     - handle 'strange' packets (e.g. I/08:/0008)
+     - correct any historical design failures (e.g. puzzle packets with an index)
+    """
+
+    # bug fixed in evofw3 v0.6.x...
+    # 095  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200 # HGI80
+    # 000  I --- 18:140805 18:140805 --:------ 0001 005 00FFFF0200 # evofw3
+    if pkt_line[10:14] == " 18:" and pkt_line[11:20] == pkt_line[21:30]:
+        pkt_line = pkt_line[:21] + HGI_DEV_ADDR.id + pkt_line[30:]
+        (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
+            "evofw3 packet line has been normalised (0x00)"
+        )
+
+    # psuedo-RAMSES-II packets...
+    elif pkt_line[10:14] in (" 08:", " 31:") and pkt_line[-16:] == "* Checksum error":
+        pkt_line = pkt_line[:-17] + " # Checksum error (ignored)"
+        (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
+            "Packet line has been normalised (0x01)"
+        )
+
+    # bug fixed in evofw3 v0.6.x...
+    elif pkt_line[:2] == "!C":
+        pkt_line = "# " + pkt_line
+        (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
+            "Packet line has been normalised (0x02)"
+        )
+
+    # # TODO: very old evofw3 - taken out because expensive
+    # elif ERR_MSG_REGEX.match(pkt_line):
+    #     pkt_line = "# " + pkt_line
+    #     (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
+    #         "Packet line has been normalised (0x03)"
+    #     )
+
+    if not log_file:
+        return pkt_line
+
+    # HACK for v0.11.x and earlier - puzzle packets should have no index
+    if pkt_line[41:45] == _PUZZ and (pkt_line[:2] != "00" or pkt_line[2:4] != "00"):
+        payload = f"00{pkt_line[50:]}"[:96]
+        pkt_line = pkt_line[:46] + f"{int(len(payload)/2):03} " + payload
+        (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
+            "Packet line has been normalised (0x04)"
+        )
+
+    return pkt_line
+
+
+def OUT_str(raw_line: ByteString) -> str:
+    try:
+        pkt_line = "".join(
+            c
+            for c in raw_line.decode("ascii", errors="strict").strip()
+            if c in VALID_CHARACTERS
+        )
+    except UnicodeDecodeError:
+        _LOGGER.warning("%s << Cant decode bytestream (ignoring)", raw_line)
+        return ""
+
+    return _normalise(pkt_line)
+
+
+def OUT_bytes_received(
+    self, data: ByteString
+) -> Generator[ByteString, ByteString, None]:
+    self._recv_buffer += data
+    if b"\r\n" in self._recv_buffer:
+        lines = self._recv_buffer.split(b"\r\n")
+        self._recv_buffer = lines[-1]
+        yield from lines[:-1]
 
 
 class SerTransportRead(asyncio.ReadTransport):
@@ -291,43 +368,6 @@ class PacketProtocolBase(asyncio.Protocol):
         wanted = not self._include or any(d.id in self._include for d in pkt_addrs)
         return wanted or not all(d.id not in self._exclude for d in pkt_addrs)
 
-    @staticmethod
-    def _normalise(pkt_line: str) -> str:
-        """Perform any firmware-level hacks, as required.
-
-        Ensure an evofw3 provides the exact same output as a HGI80.
-        """
-
-        # bug fixed in evofw3 v0.6.x...
-        # 095  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200 # HGI80
-        # 000  I --- 18:140805 18:140805 --:------ 0001 005 00FFFF0200 # evofw3
-        if pkt_line[10:14] == " 18:" and pkt_line[11:20] == pkt_line[21:30]:
-            pkt_line = pkt_line[:21] + HGI_DEV_ADDR.id + pkt_line[30:]
-            if DEV_MODE:  # TODO: should be _LOGGER.debug
-                _LOGGER.warning("evofw3 packet line has been normalised (0x00)")
-
-        # non-RAMSES-II packets...
-        elif (
-            pkt_line[10:14] in (" 08:", " 31:") and pkt_line[-16:] == "* Checksum error"
-        ):
-            pkt_line = pkt_line[:-17] + " # Checksum error (ignored)"
-            if DEV_MODE:  # TODO: should be _LOGGER.debug
-                _LOGGER.warning("Packet line has been normalised (0x01)")
-
-        # bug fixed in evofw3 v0.6.x...
-        elif pkt_line[:2] == "!C":
-            pkt_line = "# " + pkt_line
-            if DEV_MODE:  # TODO: should be _LOGGER.debug
-                _LOGGER.warning("Packet line has been normalised (0x02)")
-
-        # TODO: old packet logs - taken out because expensive
-        # elif ERR_MSG_REGEX.match(pkt_line):
-        #     pkt_line = "# " + pkt_line
-        #     if DEV_MODE:  # TODO: should be _LOGGER.debug
-        #         _LOGGER.warning("Packet line has been normalised (0x03)")
-
-        return pkt_line
-
     def _pkt_received(self, pkt: Packet) -> None:
         """Pass any valid/wanted packets to the callback."""
 
@@ -367,7 +407,7 @@ class PacketProtocolBase(asyncio.Protocol):
         pkt_dtm, pkt_line = create_pkt_line(data)
         if not pkt_line:
             return
-        pkt_line = self._normalise(pkt_line)
+        pkt_line = _normalise(pkt_line)
 
         try:
             pkt = Packet(pkt_dtm, pkt_line, frame_raw=data)
@@ -497,7 +537,7 @@ class PacketProtocolRead(PacketProtocolBase):
         pkt_dtm, pkt_line = data[:26], data[27:]
         if not pkt_line:
             return
-        pkt_line = self._normalise(pkt_line)
+        pkt_line = _normalise(pkt_line)
 
         try:  # assert DTM_LONG_REGEX.match(dtm_str)
             pkt = Packet.from_log_line(pkt_dtm, pkt_line)
@@ -671,8 +711,7 @@ class PacketProtocolQos(PacketProtocolBase):
             _LOGGER.warning(
                 "PacketProtocolQos.send_data(%s): IMPERSONATING!", cmd.tx_header
             )
-            kmd = Command._puzzle("02", cmd.tx_header)
-            await self._send_data(str(kmd))
+            await self._send_data(str(Command._puzzle("02", cmd.tx_header)))
 
         self._timeouts(dt.now())
         await self._send_data(str(cmd))
