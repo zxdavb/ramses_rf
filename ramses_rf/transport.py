@@ -148,7 +148,7 @@ def OUT_bytes_received(
         yield from lines[:-1]
 
 
-class SerTransportRead(asyncio.ReadTransport):
+class SerTransportFile(asyncio.ReadTransport):
     """Interface for a packet transport via a dict (saved state) or a file (pkt log)."""
 
     def __init__(self, loop, protocol, packet_source, extra=None):
@@ -179,7 +179,7 @@ class SerTransportRead(asyncio.ReadTransport):
         self._protocol.connection_lost(exc=None)  # EOF
 
 
-class SerTransportPoller(asyncio.Transport):
+class SerTransportPoll(asyncio.Transport):
     """Interface for a packet transport using polling."""
 
     MAX_BUFFER_SIZE = 500
@@ -231,7 +231,7 @@ class SerTransportPoller(asyncio.Transport):
         self._write_queue.put_nowait(cmd)
 
 
-class WIP_SerTransportProcess(Process):  # TODO: WIP
+class _SerTransportProc(Process):  # TODO: WIP
     """Interface for a packet transport using a process - WIP."""
 
     def __init__(self, loop, protocol, ser_port, extra=None):
@@ -782,7 +782,7 @@ def create_pkt_stack(
     pkt_protocol = (protocol_factory or _protocol_factory)()
 
     if packet_log or packet_dict is not None:  # {} is a processable packet_dict
-        pkt_transport = SerTransportRead(
+        pkt_transport = SerTransportFile(
             gwy._loop, pkt_protocol, packet_log or packet_dict
         )
         return (pkt_protocol, pkt_transport)
@@ -809,7 +809,7 @@ def create_pkt_stack(
             os.name == "nt",
         )
     ):
-        pkt_transport = SerTransportPoller(gwy._loop, pkt_protocol, ser_instance)
+        pkt_transport = SerTransportPoll(gwy._loop, pkt_protocol, ser_instance)
     else:
         pkt_transport = SerTransportAsync(gwy._loop, pkt_protocol, ser_instance)
 
