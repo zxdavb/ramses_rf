@@ -369,7 +369,7 @@ class DeviceBase(Entity):
         )  # TODO: needs addressing
 
     def _make_tcs_controller(self, msg=None):  # CH/DHW
-        """"Create a TCS, and attach it to this controller."""
+        """Create a TCS, and attach it to this controller."""
         self._iz_controller = msg or True
 
     @property
