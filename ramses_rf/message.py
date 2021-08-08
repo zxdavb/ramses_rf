@@ -96,8 +96,8 @@ __all__ = ["Message", "process_msg"]
 
 CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
 
-MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:8s} {:5s} || {}"
-MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:8s} {:5s} || {}"
+MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:^4s} || {}"
+MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:^4s} || {}"
 
 DEV_MODE = __dev_mode__  # and False
 
@@ -107,17 +107,14 @@ if DEV_MODE:
 
 
 class Message:
-    """The message class.
-
-    Will trap/log all invalid msgs appropriately.
-    """
+    """The message class; will trap/log all invalid MSGs appropriately."""
 
     CANT_EXPIRE = 0
     HAS_EXPIRED = 1.2  # i.e. any value >= HAS_EXPIRED
     IS_EXPIRING = 0.8  # expected lifetime == 1.0
 
     def __init__(self, gwy, pkt) -> None:
-        """Create a message, assumes a valid packet."""
+        """Create a message from a valid packet."""
         self._gwy = gwy
         self._pkt = pkt
 
@@ -187,14 +184,16 @@ class Message:
             src = ""
             dst = display_name(self.src)
 
-        payload = self.raw_payload if self.len < 4 else f"{self.raw_payload[:5]}..."[:9]
-        index = {True: "[..]", False: "", None: "  ???"}.get(
-            self._pkt._idx, self._pkt._idx
+        context = {True: "[..]", False: "", None: " ?? "}.get(
+            self._pkt._ctx, self._pkt._ctx
         )
+
+        if not self._pkt._ctx and self.raw_payload[:2] not in ("00", "FF"):
+            context = f"({self.raw_payload[:2]})"
 
         _format = MSG_FORMAT_18 if self._gwy.config.use_names else MSG_FORMAT_10
         self._str = _format.format(
-            src, dst, self.verb, self.code_name, payload, index, self.payload
+            src, dst, self.verb, self.code_name, context, self.payload
         )
         return self._str
 
@@ -267,6 +266,8 @@ class Message:
         Used to identify the zone/domain that a message applies to. Returns an empty
         dict if there is none such, or None if undetermined.
         """
+
+        #  I --- 01:145038 --:------ 01:145038 3B00 002 FCC8
 
         IDX_NAMES = {
             _0002: "other_idx",  # non-evohome: hometronics
@@ -480,33 +481,35 @@ def _create_zones(this: Message) -> None:
             ]
 
     def proc_000c():
-        if this.payload["devices"]:  # i.e. if len(devices) > 0
-            devices = [this.src.device_by_id[d] for d in this.payload["devices"]]
+        if not this.payload["devices"]:
+            return
 
-            if this.payload["device_class"] == ATTR_ZONE_SENSOR:
-                zone = evo._get_zone(this.payload["zone_idx"])
-                try:
-                    zone._set_sensor(devices[0])
-                except TypeError:  # ignore invalid device types, e.g. 17:
-                    pass
+        devices = [this.src.device_by_id[d] for d in this.payload["devices"]]
 
-            elif this.payload["device_class"] == ATTR_ZONE_ACTUATORS:
-                # evo._get_zone(this.payload["zone_idx"], actuators=devices)
-                # TODO: whihc is better, above or below?
-                zone = evo._get_zone(this.payload["zone_idx"])
-                [d._set_parent(zone) for d in devices]
+        if this.payload["device_class"] == ATTR_ZONE_SENSOR:
+            zone = evo._get_zone(this.payload["zone_idx"])
+            try:
+                zone._set_sensor(devices[0])
+            except TypeError:  # ignore invalid device types, e.g. 17:
+                pass
 
-            elif this.payload["device_class"] == ATTR_HTG_CONTROL:
-                evo._set_htg_control(devices[0])
+        elif this.payload["device_class"] == ATTR_ZONE_ACTUATORS:
+            # evo._get_zone(this.payload["zone_idx"], actuators=devices)
+            # TODO: whihc is better, above or below?
+            zone = evo._get_zone(this.payload["zone_idx"])
+            [d._set_parent(zone) for d in devices]
 
-            elif this.payload["device_class"] == ATTR_DHW_SENSOR:
-                evo._get_dhw()._set_sensor(devices[0])
+        elif this.payload["device_class"] == ATTR_HTG_CONTROL:
+            evo._set_htg_control(devices[0])
 
-            elif this.payload["device_class"] == ATTR_DHW_VALVE:
-                evo._get_dhw()._set_dhw_valve(devices[0])
+        elif this.payload["device_class"] == ATTR_DHW_SENSOR:
+            evo._get_dhw()._set_sensor(devices[0])
 
-            elif this.payload["device_class"] == ATTR_DHW_VALVE_HTG:
-                evo._get_dhw()._set_htg_valve(devices[0])
+        elif this.payload["device_class"] == ATTR_DHW_VALVE:
+            evo._get_dhw()._set_dhw_valve(devices[0])
+
+        elif this.payload["device_class"] == ATTR_DHW_VALVE_HTG:
+            evo._get_dhw()._set_htg_valve(devices[0])
 
         elif this.payload["device_class"] == ATTR_HTG_CONTROL:
             # TODO: maybe the htg controller is an OTB? via eavesdropping
