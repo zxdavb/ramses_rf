@@ -720,7 +720,7 @@ class PacketProtocolQos(PacketProtocolBase):
 
 def create_pkt_stack(
     gwy,
-    msg_handler,
+    pkt_callback,
     protocol_factory=None,
     ser_port=None,
     packet_log=None,
@@ -731,17 +731,17 @@ def create_pkt_stack(
     The architecture is: app (client) -> msg -> pkt -> ser (HW interface).
 
     The msg/pkt interface is via:
-     - PktProtocol.data_received           to (msg_handler)  MsgTransport._pkt_receiver
+     - PktProtocol.data_received           to (pkt_callback) MsgTransport._pkt_receiver
      - MsgTransport.write (pkt_dispatcher) to (pkt_protocol) PktProtocol.send_data
     """
 
     def _protocol_factory():
         if packet_dict or packet_log:
-            return create_protocol_factory(PacketProtocolRead, gwy, msg_handler)()
+            return create_protocol_factory(PacketProtocolRead, gwy, pkt_callback)()
         elif gwy.config.disable_sending:
-            return create_protocol_factory(PacketProtocol, gwy, msg_handler)()
+            return create_protocol_factory(PacketProtocol, gwy, pkt_callback)()
         else:
-            return create_protocol_factory(PacketProtocolQos, gwy, msg_handler)()
+            return create_protocol_factory(PacketProtocolQos, gwy, pkt_callback)()
 
     if len([x for x in (packet_dict, packet_log, ser_port) if x is not None]) != 1:
         raise TypeError("port / file / dict should be mutually exclusive")

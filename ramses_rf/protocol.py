@@ -471,7 +471,7 @@ def create_protocol_factory(protocol: asyncio.Protocol, *args, **kwargs) -> Call
 
 
 def create_msg_stack(
-    gwy, msg_handler, protocol_factory=None
+    gwy, msg_callback, protocol_factory=None
 ) -> Tuple[asyncio.Protocol, asyncio.Transport]:
     """Utility function to provide a transport to a client protocol.
 
@@ -479,7 +479,7 @@ def create_msg_stack(
     """
 
     def _protocol_factory():
-        return create_protocol_factory(MessageProtocol, gwy, msg_handler)()
+        return create_protocol_factory(MessageProtocol, gwy, msg_callback)()
 
     msg_protocol = protocol_factory() if protocol_factory else _protocol_factory()
 
