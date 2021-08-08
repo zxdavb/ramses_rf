@@ -426,7 +426,7 @@ for code in RAMSES_CODES.values():
     if RQ in code and RP not in code and I_ in code:
         code[RP] = code[I_]
 
-CODE_ONLY_FROM_CTL = [_1030, _1F09, _22D0, _313F, _3B00]  # I packets, TODO: 31Dx too?
+CODE_ONLY_FROM_CTL = [_1030, _1F09, _22D0, _313F]  # I packets, TODO: 31Dx too?
 
 CODE_RQ_COMPLEX = [
     _0005,  # context: zone_type
@@ -481,7 +481,7 @@ CODE_IDX_SIMPLE = [
         or (I_ in v and v[I_].startswith(("^0[0-9A-F]", "^(0[0-9A-F]", "^((0[0-9A-F]")))
     )
 ]
-CODE_IDX_SIMPLE.extend((_10A0, _1100))
+CODE_IDX_SIMPLE.extend((_10A0, _1100, _3B00))
 
 # IDX_NONE - *never has* a context: most payloads start 00, but no context even if the
 # payload starts with something else (e.g. 2E04)
@@ -491,9 +491,7 @@ CODE_IDX_NONE = [
     if k not in CODE_IDX_COMPLEX + CODE_IDX_SIMPLE
     and ((RQ in v and v[RQ][:3] == "^00") or (I_ in v and v[I_][:3] == "^00"))
 ]
-CODE_IDX_NONE.extend(
-    (_0001, _1FC9, _2E04, _31DA, _3B00, _PUZZ)
-)  # treat 0001/1FC9 as no idx (1FC9 has a hdr); treat 31DA/3B00 as no idx?
+CODE_IDX_NONE.extend((_0001, _2E04, _31DA, _PUZZ))  # 31DA does appear to have an idx?
 #
 #
 _CODE_IDX_UNKNOWN = [
