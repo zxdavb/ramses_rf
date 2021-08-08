@@ -139,7 +139,7 @@ RAMSES_CODES = {  # rf_unknown
     _000C: {  # zone_devices, TODO: needs I/RP
         NAME: "zone_devices",
         # RP --- 01:145038 18:013393 --:------ 000C 012 0100-00-10DAF5,0100-00-10DAFB
-        I_: r"^(0[0-9A-F][01][0-9A-F](00|7F)[0-9A-F]{6}){1,3}$",
+        I_: r"^(0[0-9A-F][01][0-9A-F](00|7F)[0-9A-F]{6}){1,8}$",
         RQ: r"^0[0-9A-F][01][0-9A-F]$",  # TODO: f"{zone_idx}{device_type}"
         TIMEOUT: False,
     },
