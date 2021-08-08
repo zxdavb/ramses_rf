@@ -23,6 +23,7 @@ from .ramses import (
     CODE_IDX_NONE,
     CODE_IDX_SIMPLE,
     CODE_ONLY_FROM_CTL,
+    EXPIRES,
     RAMSES_CODES,
 )
 
@@ -599,7 +600,7 @@ def pkt_timeout(pkt) -> Optional[float]:  # NOTE: imports OtbGateway
     #     timeout = td(minutes=6.7)  # TODO: WIP
 
     elif pkt.code in RAMSES_CODES:
-        timeout = RAMSES_CODES[pkt.code].get("timeout")
+        timeout = RAMSES_CODES[pkt.code].get(EXPIRES)
 
     return timeout or td(minutes=60)
 

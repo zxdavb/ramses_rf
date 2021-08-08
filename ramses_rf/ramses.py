@@ -75,7 +75,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 RQ_NULL = "rq_null"
-TIMEOUT = "timeout"
+EXPIRES = "expires"
 
 NAME = "name"
 EXPIRY = "expiry"
@@ -98,7 +98,7 @@ RAMSES_CODES = {  # rf_unknown
         NAME: "zone_name",
         I_: r"^0[0-9A-F]00([0-9A-F]){40}$",  # RP is same, null_rp: xxxx,7F*20
         RQ: r"^0[0-9A-F]00$",
-        TIMEOUT: td(days=1),
+        EXPIRES: td(days=1),
     },
     _0005: {  # system_zones
         NAME: "system_zones",
@@ -106,7 +106,7 @@ RAMSES_CODES = {  # rf_unknown
         I_: r"^(00[01][0-9A-F]{5}){1,3}$",
         RQ: r"^00[01][0-9A-F]$",  # f"00{zone_type}", evohome wont respond to 00
         RP: r"^00[01][0-9A-F]{5}$",
-        TIMEOUT: False,
+        EXPIRES: False,
     },
     _0006: {  # schedule_sync  # TODO: what for DHW schedule?
         NAME: "schedule_sync",
@@ -134,14 +134,14 @@ RAMSES_CODES = {  # rf_unknown
         # 17:54:13.141 045 RP --- 01:145038 34:064023 --:------ 000A 006 031002260B86
         # 19:20:49.460 062 RQ --- 12:010740 01:145038 --:------ 000A 006 080001F40DAC
         # 19:20:49.476 045 RP --- 01:145038 12:010740 --:------ 000A 006 081001F40DAC
-        TIMEOUT: td(days=1),
+        EXPIRES: td(days=1),
     },
     _000C: {  # zone_devices, TODO: needs I/RP
         NAME: "zone_devices",
         # RP --- 01:145038 18:013393 --:------ 000C 012 0100-00-10DAF5,0100-00-10DAFB
         I_: r"^(0[0-9A-F][01][0-9A-F](00|7F)[0-9A-F]{6}){1,8}$",
         RQ: r"^0[0-9A-F][01][0-9A-F]$",  # TODO: f"{zone_idx}{device_type}"
-        TIMEOUT: False,
+        EXPIRES: False,
     },
     _000E: {  # unknown
         NAME: "message_000e",
@@ -156,7 +156,7 @@ RAMSES_CODES = {  # rf_unknown
         NAME: "language",
         RQ: r"^00([0-9A-F]{4}F{4})?$",  # NOTE: RQ/04/0100 has a payload
         RP: r"^00[0-9A-F]{4}F{4}$",
-        TIMEOUT: td(days=1),  # TODO: make longer?
+        EXPIRES: td(days=1),  # TODO: make longer?
     },
     _01D0: {  # TODO: not well understood, definitely a real code, zone_idx is a guess
         NAME: "message_01d0",
@@ -200,7 +200,7 @@ RAMSES_CODES = {  # rf_unknown
     _1060: {  # device_battery
         NAME: "device_battery",
         I_: r"^0[0-9A-F](FF|[0-9A-F]{2})0[01]$",
-        TIMEOUT: td(days=1),
+        EXPIRES: td(days=1),
     },
     _1090: {  # unknown
         NAME: "message_1090",
@@ -213,20 +213,20 @@ RAMSES_CODES = {  # rf_unknown
         # 19:14:24.662 051 RQ --- 30:185469 01:037519 --:------ 10A0 001 00
         # 19:14:31.463 053 RQ --- 30:185469 01:037519 --:------ 10A0 001 01
         RQ: r"^0[01]([0-9A-F]{10})?$",  # NOTE: RQ/07/10A0 has a payload
-        TIMEOUT: td(hours=4),
+        EXPIRES: td(hours=4),
     },
     _10E0: {  # device_info
         NAME: "device_info",
         I_: r"^00[0-9A-F]{30,}$",  # NOTE: RP is same
         RQ: r"^00$",  # NOTE: will accept [0-9A-F]{2}
         # RP: r"^[0-9A-F]{2}([0-9A-F]){30,}$",  # NOTE: indx same as RQ
-        TIMEOUT: False,
+        EXPIRES: False,
     },
     _1100: {  # tpi_params
         NAME: "tpi_params",
         RQ: r"^(00|FC)([0-9A-F]{12}01)?$",  # TODO: is there no RP?
         W_: r"^(00|FC)[0-9A-F]{12}01$",  # TODO: is there no I?
-        TIMEOUT: td(days=1),
+        EXPIRES: td(days=1),
     },
     _1260: {  # dhw_temp
         NAME: "dhw_temp",
@@ -237,7 +237,7 @@ RAMSES_CODES = {  # rf_unknown
         # 10:02:21.128654 049  I --- 07:045960 --:------ 07:045960 1260 003 0007A9
         I_: r"^00[0-9A-F]{4}$",  # NOTE: RP is same
         RQ: r"^00(00)?$",  # TODO: officially: r"^00$"
-        TIMEOUT: td(hours=1),
+        EXPIRES: td(hours=1),
     },
     _1280: {  # outdoor_humidity
         NAME: "outdoor_humidity",
@@ -254,13 +254,13 @@ RAMSES_CODES = {  # rf_unknown
     _12A0: {  # indoor_humidity
         NAME: "indoor_humidity",
         I_: r"^00[0-9A-F]{10}$",
-        TIMEOUT: td(hours=1),
+        EXPIRES: td(hours=1),
     },
     _12B0: {  # window_state  (HVAC % window open)
         NAME: "window_state",
         I_: r"^0[0-9A-F](0000|C800|FFFF)$",  # NOTE: RP is same
         RQ: r"^0[0-9A-F](00)?$",
-        TIMEOUT: td(hours=1),
+        EXPIRES: td(hours=1),
     },
     _12C0: {  # displayed_temp (HVAC room temp)
         NAME: "displayed_temp",  # displayed room temp
@@ -281,7 +281,7 @@ RAMSES_CODES = {  # rf_unknown
         NAME: "dhw_mode",
         RQ: r"^00(00)?$",  # officially: r"^00$"
         RP: r"^00(00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
-        TIMEOUT: td(hours=4),
+        EXPIRES: td(hours=4),
     },
     _1FC9: {  # rf_bind
         # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-3FF1-956ABD
@@ -330,14 +330,14 @@ RAMSES_CODES = {  # rf_unknown
         RQ: r"^0[0-9A-F]([0-9A-F]{4})?$",  # NOTE: 12 uses: r"^0[0-9A-F]$"
         I_: r"^(0[0-9A-F]{5})+$",
         # RQ --- 12:010740 01:145038 --:------ 2309 003 03073A # No RPs
-        TIMEOUT: td(minutes=30),
+        EXPIRES: td(minutes=30),
     },
     _2349: {  # zone_mode
         NAME: "zone_mode",
         # RQ: r"^0[0-9A-F](00)?$",  # is usually: r"^0[0-9A-F]$"
         RQ: r"^0[0-9A-F].*",  # r"^0[0-9A-F](00)?$",
         I_: r"^0[0-9A-F](([0-9A-F]){12}){1,2}$",
-        TIMEOUT: td(hours=4),
+        EXPIRES: td(hours=4),
     },
     _2D49: {  # unknown
         NAME: "message_2d49",
@@ -353,14 +353,14 @@ RAMSES_CODES = {  # rf_unknown
         I_: r"^0[0-7][0-9A-F]{12}0[01]$",  # evo: r"^0[0-7][0-9A-F]{12}0[01]$",
         RQ: r"^FF$",
         W_: r"^0[0-7][0-9A-F]{12}0[01]$",
-        TIMEOUT: td(hours=4),
+        EXPIRES: td(hours=4),
     },
     _30C9: {  # temperature
         NAME: "temperature",
         I_: r"^(0[0-9A-F][0-9A-F]{4})+$",
         RQ: r"^0[0-9A-F](00)?$",  # TODO: officially: r"^0[0-9A-F]$"
         RP: r"^0[0-9A-F][0-9A-F]{4}$",  # Null: r"^0[0-9A-F]7FFF$"
-        TIMEOUT: td(hours=1),
+        EXPIRES: td(hours=1),
     },
     _3120: {  # unknown - Error Report?
         NAME: "message_3120",
@@ -373,12 +373,12 @@ RAMSES_CODES = {  # rf_unknown
         I_: r"^00[0-9A-F]{16}$",  # NOTE: RP is same
         RQ: r"^00$",
         W_: r"^00[0-9A-F]{16}$",
-        TIMEOUT: td(seconds=3),
+        EXPIRES: td(seconds=3),
     },
     _3150: {  # heat_demand
         NAME: "heat_demand",
         I_: r"^((0[0-9A-F])[0-9A-F]{2}|FC[0-9A-F]{2})+$",
-        TIMEOUT: td(minutes=20),
+        EXPIRES: td(minutes=20),
     },
     _31D9: {  # ventilation_status
         NAME: "vent_status",
