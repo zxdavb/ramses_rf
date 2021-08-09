@@ -35,14 +35,12 @@ from .command import (
     Command,
     Priority,
 )
-from .const import __dev_mode__
+from .const import _PUZZ, __dev_mode__
 from .helpers import dt_now
 from .packet import Packet
 from .protocol import create_protocol_factory
 from .schema import ALLOW_LIST, BLOCK_LIST, SERIAL_CONFIG_SCHEMA
 from .version import __version__
-
-_PUZZ = "7FFF"
 
 DEV_MODE = __dev_mode__ and False
 
@@ -376,9 +374,9 @@ class PacketProtocolBase(asyncio.Protocol):
 
         try:
             pkt = Packet.from_port(dtm, line, raw_line=raw_line)
-        except ValueError:
-            if line and line[:1] != "#" and "*" not in line:
-                _LOGGER.error("%s << Cant create packet (ignoring)", line)
+        except ValueError as e:
+            if DEV_MODE and line and line[:1] != "#" and "*" not in line:
+                _LOGGER.error("%s << Cant create packet (ignoring): %s", line, e)
             return
         self._pkt_received(pkt)  # NOTE: don't spawn this
 

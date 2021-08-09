@@ -171,8 +171,9 @@ class MessageTransport(asyncio.Transport):
 
         try:
             msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
-        except ValueError:  # not a valid message
-            _LOGGER.error("%s << Cant create message (ignoring)", pkt)
+        except ValueError as e:
+            if DEV_MODE:
+                _LOGGER.error("%s << Cant create message (ignoring): %s", pkt, e)
             return
 
         # _LOGGER.info("MsgTransport._pkt_receiver(pkt): %s", msg)
