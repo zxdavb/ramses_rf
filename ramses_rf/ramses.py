@@ -139,7 +139,7 @@ RAMSES_CODES = {  # rf_unknown
     _000C: {  # zone_devices, TODO: needs I/RP
         NAME: "zone_devices",
         # RP --- 01:145038 18:013393 --:------ 000C 012 0100-00-10DAF5,0100-00-10DAFB
-        I_: r"^(0[0-9A-F][01][0-9A-F](00|7F)[0-9A-F]{6}){1,8}$",
+        I_: r"^(0[0-9A-F][01][0-9A-F](0[0-9A-F]|7F)[0-9A-F]{6}){1,8}$",
         RQ: r"^0[0-9A-F][01][0-9A-F]$",  # TODO: f"{zone_idx}{device_type}"
         EXPIRES: False,
     },
@@ -224,17 +224,22 @@ RAMSES_CODES = {  # rf_unknown
     },
     _1100: {  # tpi_params
         NAME: "tpi_params",
-        RQ: r"^(00|FC)([0-9A-F]{12}01)?$",  # TODO: is there no RP?
-        W_: r"^(00|FC)[0-9A-F]{12}01$",  # TODO: is there no I?
+        # RQ --- 01:145038 13:163733 --:------ 1100 008 00180400007FFF01  # boiler relay
+        # RP --- 13:163733 01:145038 --:------ 1100 008 00180400FF7FFF01
+        # RQ --- 01:145038 13:035462 --:------ 1100 008 FC240428007FFF01  # not bolier relay
+        # RP --- 13:035462 01:145038 --:------ 1100 008 00240428007FFF01
+        RQ: r"^(00|FC)([0-9A-F]{6}(00|FF)([0-9A-F]{4}01)+)?$",  # RQ/13:/00, or RQ/01:/FC:
+        RP: r"^(00|FC)[0-9A-F]{6}(00|FF)([0-9A-F]{4}01)+$",
+        W_: r"^(00|FC)[0-9A-F]{6}(00|FF)([0-9A-F]{4}01)+$",  # TODO: is there no I?
         EXPIRES: td(days=1),
     },
     _1260: {  # dhw_temp
         NAME: "dhw_temp",
-        # 18:51:49.158262 063 RQ --- 30:185469 01:037519 --:------ 1260 001 00
-        # 18:51:49.174182 051 RP --- 01:037519 30:185469 --:------ 1260 003 000837
-        # 16:48:51.536036 000 RQ --- 18:200202 10:067219 --:------ 1260 002 0000
-        # 16:49:51.644184 068 RP --- 10:067219 18:200202 --:------ 1260 003 007FFF
-        # 10:02:21.128654 049  I --- 07:045960 --:------ 07:045960 1260 003 0007A9
+        # RQ --- 30:185469 01:037519 --:------ 1260 001 00
+        # RP --- 01:037519 30:185469 --:------ 1260 003 000837
+        # RQ --- 18:200202 10:067219 --:------ 1260 002 0000
+        # RP --- 10:067219 18:200202 --:------ 1260 003 007FFF
+        #  I --- 07:045960 --:------ 07:045960 1260 003 0007A9
         I_: r"^00[0-9A-F]{4}$",  # NOTE: RP is same
         RQ: r"^00(00)?$",  # TODO: officially: r"^00$"
         EXPIRES: td(hours=1),
@@ -445,9 +450,9 @@ CODE_RQ_COMPLEX = [
 RQ_NO_PAYLOAD = [
     k
     for k, v in RAMSES_CODES.items()
-    if RQ in v and (v[RQ] in (r"^FF$", r"^00$", r"^00(00)?$"))
+    if RQ in v and (v[RQ] in (r"^FF$", r"^00$", r"^00(00)?$", r"^0[0-9A-F]00$"))
 ]
-RQ_NO_PAYLOAD.extend((_2E04,))
+RQ_NO_PAYLOAD.extend((_0418, _2E04))
 RQ_IDX_ONLY = [
     k
     for k, v in RAMSES_CODES.items()
@@ -468,7 +473,7 @@ CODE_RQ_UNKNOWN.sort() or print(f"unknown  = {list(CODE_RQ_UNKNOWN)}\r\n")
 
 # IDX_COMPLEX - *usually has* a context, but doesn't satisfy criteria for IDX_SIMPLE:
 # all known codes are in one of IDX_COMPLEX, IDX_NONE, IDX_SIMPLE
-CODE_IDX_COMPLEX = [_0005, _000C, _3220]  # TODO: move 0005 to ..._NONE?
+CODE_IDX_COMPLEX = [_0005, _000C, _1100, _3220]  # TODO: move 0005 to ..._NONE?
 
 # IDX_SIMPLE - *can have* a context, but sometimes not (usu. 00): only ever payload[:2],
 # either a zone_idx, domain_id or (UFC) circuit_idx (or array of such, i.e. seqx[:2])
