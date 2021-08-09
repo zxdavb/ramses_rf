@@ -923,7 +923,9 @@ def parser_1100(payload, msg) -> Optional[dict]:
     result = _parser(payload)
 
     if msg.len > 5:
-        assert 1.5 <= temp_from_hex(payload[10:14], 16) <= 3.0, payload[10:14]
+        assert (
+            payload[10:14] == "7FFF" or 1.5 <= temp_from_hex(payload[10:14]) <= 3.0
+        ), payload[10:14]
 
         result.update(
             {
