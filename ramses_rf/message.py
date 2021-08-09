@@ -29,7 +29,7 @@ from .devices import Device, OtbGateway
 from .exceptions import CorruptStateError
 from .opentherm import MSG_ID
 from .parsers import parse_payload
-from .ramses import CODE_IDX_COMPLEX, RAMSES_CODES
+from .ramses import CODE_IDX_COMPLEX, RAMSES_CODES, RQ_NO_PAYLOAD
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
@@ -225,19 +225,11 @@ class Message:
         if self.__has_payload is not None:
             return self.__has_payload
 
-        if self.len == 1:
-            self.__has_payload = False  # TODO: (WIP) has no payload
-        elif RAMSES_CODES.get(self.code):
-            self.__has_payload = RAMSES_CODES[self.code].get(self.verb) not in (
-                r"^00$",
-                r"^00(00)?$",
-                r"^FF$",
-            )
-            assert (
-                self.__has_payload or self.len < 3
-            ), "Message not expected to have a payload! Is it corrupt?"
-        else:
-            self.__has_payload = True
+        self.__has_payload = not bool(
+            self.len == 1
+            # or (self.len == 2 and self.verb == RQ)  # NOTE: see 0016
+            or (self.verb == RQ and self.code in RQ_NO_PAYLOAD)
+        )
 
         return self.__has_payload
 
@@ -283,8 +275,8 @@ class Message:
         if self._pkt._idx in (True, False) or self.code in CODE_IDX_COMPLEX:
             return {}  # above was: CODE_IDX_COMPLEX + [_3150]:
 
-        if self.code in (_3220,):
-            return {}  # above was: CODE_IDX_COMPLEX + [_3150]:
+        if self.code in (_3220,):  # FIXME: should be _SIMPLE
+            return {}
 
         #  I --- 00:034798 --:------ 12:126457 2309 003 0201F4
         if not {self.src.type, self.dst.type} & {"01", "02", "12", "18", "22", "23"}:
