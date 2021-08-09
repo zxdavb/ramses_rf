@@ -903,14 +903,10 @@ def parser_1100(payload, msg) -> Optional[dict]:
     assert int(payload[4:6], 16) / 4 in range(1, 31), payload[4:6]
     assert int(payload[6:8], 16) / 4 in range(0, 16), payload[6:8]
 
-    # for TPI
-    #  - cycle_rate: 6, (3, 6, 9, 12)
-    #  - min_on_time: 1 (1-5)
-    #  - min_off_time: 1 (1-?)
-    # for heatpump
-    #  - cycle_rate: 1-9
-    #  - min_on_time: 1, 5, 10,...30
-    #  - min_off_time: 0, 5, 10, 15
+    # for:             TPI              // heatpump
+    #  - cycle_rate:   6 (3, 6, 9, 12)  // ?? (1-9)
+    #  - min_on_time:  1 (1-5)          // ?? (1, 5, 10,...30)
+    #  - min_off_time: 1 (1-?)          // ?? (0, 5, 10, 15)
 
     def _parser(seqx) -> dict:
         return {
@@ -925,7 +921,7 @@ def parser_1100(payload, msg) -> Optional[dict]:
     if msg.len > 5:
         assert (
             payload[10:14] == "7FFF" or 1.5 <= temp_from_hex(payload[10:14]) <= 3.0
-        ), payload[10:14]
+        ), f"unexpected value for PBW: {payload[10:14]}"
 
         result.update(
             {
