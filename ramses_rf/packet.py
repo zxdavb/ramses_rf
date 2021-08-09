@@ -312,13 +312,15 @@ class Packet(PacketBase):
             err_msg = "mismatched payload length"
         elif invalid_addresses(self.packet[11:40]):
             err_msg = "invalid packet addresses"
+        # elif self.code not in RAMSES_CODES:
+        #     return False
         else:
             _PKT_LOGGER.info("%s", self.packet, extra=self.__dict__)
             self._is_valid = True
             return True
 
         _PKT_LOGGER.warning("%s < Bad packet: %s", self, err_msg, extra=self.__dict__)
-        return False
+        return False  # TODO: remove
 
 
 def pkt_has_array(pkt) -> Optional[bool]:
@@ -474,6 +476,9 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
 
     if pkt.code == _0418:  # log_idx (payload[4:6])
         return pkt.payload[4:6]
+
+    if pkt.code == _1100:  # TODO; can do in parser
+        return pkt.payload[:2] if pkt.payload[:1] == "F" else False  # only FC
 
     if pkt.code == _3220:  # msg_id/data_id (payload[4:6])
         return pkt.payload[4:6]
