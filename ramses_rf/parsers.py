@@ -50,14 +50,7 @@ from .opentherm import (
     OTB_MSG_IDS,
     decode_frame,
 )
-from .ramses import (
-    CODE_IDX_COMPLEX,
-    CODE_IDX_NONE,
-    CODE_IDX_SIMPLE,
-    CODE_RQ_COMPLEX,
-    RAMSES_CODES,
-    RAMSES_DEVICES,
-)
+from .ramses import CODE_RQ_COMPLEX, RAMSES_CODES, RAMSES_DEVICES
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
@@ -122,7 +115,7 @@ from .const import (  # noqa: F401, isort: skip
 
 __all__ = ("parse_payload",)
 
-DEV_MODE = __dev_mode__
+DEV_MODE = __dev_mode__ and False
 TEST_MODE = False  # enable to test constructors (usu. W)
 
 _LOGGER = _PKT_LOGGER = logging.getLogger(__name__)
@@ -133,44 +126,6 @@ if DEV_MODE:
 @lru_cache(maxsize=256)
 def re_compile_re_match(regex, string) -> bool:
     return re.compile(regex).match(string)
-
-
-def _index(seqx, msg) -> dict:
-    """DATED: Return the index of a payload (usually a domain id or a zone idx).
-
-    Determine if a payload has an entity id, and return: {"id_name": seqx} or {}.
-
-    The challenge is that payloads starting with (e.g.):
-    - "00" are *often not* a zone idx, and
-    - "01", "02", etc. *may not* be a zone idx
-
-    Anything in the range F0-FE appears to be a domain id (no false +ve/-ves).
-    """
-
-    result = msg._idx
-
-    if "zone_idx" in result or "parent_idx" in result:
-        assert (
-            int(msg.raw_payload[:2], 16) < msg._gwy.config.max_zones
-        ), f"invalid zone_idx: '{seqx}'"
-    elif "domain_id" in result:
-        assert seqx in ("F9", "FA", "FC"), f"invalid domain_id: '{seqx}'"
-    elif "ufh_idx" in result:
-        assert int(seqx, 16) < 0x08, f"invalid ufh_idx: '{seqx}'"
-    elif "dhw_idx" in result:
-        assert seqx in ("00", "01"), f"invalid dhw_idx: '{seqx}'"
-    elif "hvac_id" in result:
-        assert seqx in ("00", "01", "21"), f"invalid hvac_id: '{seqx}'"
-    elif "log_idx" in result:
-        assert int(seqx, 16) < 0x100, f"invalid log_idx: '{seqx}'"
-    elif "other_idx" in result:
-        assert (
-            int(msg.raw_payload[4:6], 16) < msg._gwy.config.max_zones
-        ), f"unknown other_idx: '{seqx}'"
-    elif result != {}:
-        raise TypeError(f"result={result}")
-
-    return result
 
 
 def _check_verb_code_src(msg) -> None:
@@ -252,33 +207,6 @@ def _check_verb_code_payload(msg, payload) -> None:
     #         )
 
 
-def _handle_rq(msg, payload) -> dict:
-    try:
-        regex = RAMSES_CODES[msg.code][RQ]
-        assert re.compile(regex).match(payload), f"Payload doesn't match '{regex}'"
-
-    except KeyError as err:
-        # TODO: if msg.src.type == "18":
-        hint1 = " to support an RQ" if msg.code in RAMSES_CODES else ""
-        hint2 = (
-            " (OK to ignore)"
-            if "18" in (msg.src.type, msg.dst.type)
-            else " - please report to the github repo as an issue"
-        )
-        raise CorruptPacketError(f"Code {msg.code} not known{hint1}{hint2}") from err
-
-    # TODO: put this back in (18a), or leave out?
-    if msg.src.type != "18a" and not re.compile(regex).match(payload):
-        hint2 = (
-            " (this is OK to ignore)"
-            if "18" in (msg.src.type, msg.dst.type)
-            else " - please report this as an issue"
-        )
-        raise CorruptPayloadError(f"Payload doesn't match '{regex}'{hint2}")
-
-    return _index(msg._pkt._idx, msg)
-
-
 def parser_decorator(func):
     """Validate message payload (or meta-data), e.g payload length)."""
 
@@ -295,20 +223,10 @@ def parser_decorator(func):
 
         _check_verb_code_payload(msg, payload)  # must use payload, not msg.payload
 
-        if msg.code in CODE_RQ_COMPLEX:
-            result = {} if msg._has_payload is False else func(*args, **kwargs)
-
-        elif msg.verb == RQ:
-            result = _handle_rq(msg, payload)
-
-        elif msg.code in CODE_IDX_COMPLEX + CODE_IDX_NONE or msg._has_array:
-            result = {} if msg._has_payload is False else func(*args, **kwargs)
-
-        elif msg.code in CODE_IDX_SIMPLE:
-            result = {} if msg._has_payload is False else func(*args, **kwargs)
-
+        if msg._has_payload or msg.verb == RQ and msg.code in CODE_RQ_COMPLEX:
+            result = func(*args, **kwargs)
         else:
-            result = {} if msg._has_payload is False else func(*args, **kwargs)
+            result = {}
 
         return result if isinstance(result, list) else {**msg._idx, **result}
 
@@ -968,6 +886,8 @@ def parser_10e0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # tpi_params (domain/zone/device)  # FIXME: a bit messy
 def parser_1100(payload, msg) -> Optional[dict]:
+    def complex_index(seqx) -> dict:
+        return {"domain_id": seqx} if seqx[:1] == "F" else {}  # only FC
 
     if msg.src.type == "08":  # Honeywell Japser ?HVAC
         assert msg.len == 19, msg.len
@@ -976,16 +896,12 @@ def parser_1100(payload, msg) -> Optional[dict]:
             "blob": payload[8:],
         }
 
-    if msg.verb == RQ and msg.len == 2:  # some RQs have a payload (why?)
-        return {}
+    if msg.verb == RQ and msg.len == 1:  # some RQs have a payload (why?)
+        return complex_index(payload[:2])
 
-    assert msg.len in (5, 8), msg.len
-    assert payload[:2] in ("00", "FC"), payload[:2]
-    #  I --- 13:079800 --:------ 13:079800 1100 008 00170498007FFF01
     assert int(payload[2:4], 16) / 4 in range(1, 13), payload[2:4]
     assert int(payload[4:6], 16) / 4 in range(1, 31), payload[4:6]
     assert int(payload[6:8], 16) / 4 in range(0, 16), payload[6:8]
-    assert payload[8:10] in ("00", "FF"), payload[8:10]
 
     # for TPI
     #  - cycle_rate: 6, (3, 6, 9, 12)
@@ -1007,12 +923,11 @@ def parser_1100(payload, msg) -> Optional[dict]:
     result = _parser(payload)
 
     if msg.len > 5:
-        assert payload[14:] == "01", payload[14:]
+        assert 1.5 <= temp_from_hex(payload[10:14], 16) <= 3.0, payload[10:14]
+
         result.update(
             {
-                "proportional_band_width": temp_from_hex(
-                    payload[10:14]
-                ),  # 1.5 (1.5-3.0) C
+                "proportional_band_width": temp_from_hex(payload[10:14]),
                 "_unknown_1": payload[14:],  # always 01?
             }
         )
@@ -1028,7 +943,7 @@ def parser_1100(payload, msg) -> Optional[dict]:
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
 
-    return result
+    return {**complex_index(payload[:2]), **result}
 
 
 @parser_decorator  # dhw_temp
