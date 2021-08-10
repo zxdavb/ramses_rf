@@ -1597,9 +1597,48 @@ def parser_31da(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # external ventilation?
+@parser_decorator  # ventilation heater?
 def parser_31e0(payload, msg) -> dict:
-    # seems active when humdity > 0.57-0.59
+
+    """
+    van means “of”.
+    - 0 = min. van min. potm would be:
+    - 0 = minimum of minimum potentiometer
+
+    See: https://www.industrialcontrolsonline.com/honeywell-t991a
+    - modulates air temperatures in ducts
+
+    case 0x31E0:  ' 12768:
+    {
+        string str4;
+        unchecked
+        {
+            result.Fan = Conversions.ToString((double)(int)data[checked(start + 1)] / 2.0);
+            str4 = "";
+        }
+        str4 = (data[start + 2] & 0xF) switch
+        {
+            0 => str4 + "0 = min. potm. ",
+            1 => str4 + "0 = min. van min. potm ",
+            2 => str4 + "0 = min. fan ",
+            _ => "",
+        };
+        switch (data[start + 2] & 0xF0)
+        {
+        case 16:
+            str4 += "100 = max. potm";
+            break;
+        case 32:
+            str4 += "100 = max. van max. potm ";
+            break;
+        case 48:
+            str4 += "100 = max. fan ";
+            break;
+        }
+        result.Data = str4;
+        break;
+    }
+    """
 
     return {
         "active": bool_from_hex(payload[4:6]),
