@@ -347,7 +347,7 @@ class Message:
                 if (True or self._gwy.serial_port)  # TODO
                 else (self._gwy._prev_msg.dtm if self._gwy._prev_msg else self.dtm)
             )  # FIXME: use global timer
-            self.__expired = timeout / (dtm_now - self.dtm) if timeout else False
+            self.__expired = ((dtm_now - self.dtm) / timeout) if timeout else False
 
         else:
             self.__expired = self._pkt._expired

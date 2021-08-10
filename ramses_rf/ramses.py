@@ -433,6 +433,18 @@ for code in RAMSES_CODES.values():
 
 CODE_ONLY_FROM_CTL = [_1030, _1F09, _22D0, _313F]  # I packets, TODO: 31Dx too?
 
+#
+CODES_WITH_ARRAYS = {
+    _0009: [3, ("01", "12", "22")],
+    _000A: [6, ("01", "12", "22")],
+    _2309: [3, ("01", "12", "22")],
+    _30C9: [3, ("01", "12", "22")],
+    _2249: [7, ("23",)],
+    _22C9: [6, ("02",)],
+    _3150: [2, ("02",)],
+}  # element_length, src.type(s) (and dst.type too)
+
+#
 CODE_RQ_COMPLEX = [
     _0005,  # context: zone_type
     _000A,  # optional payload
@@ -466,10 +478,10 @@ CODE_RQ_UNKNOWN = [
     for k, v in RAMSES_CODES.items()
     if k not in RQ_NO_PAYLOAD + RQ_IDX_ONLY and RQ in v
 ]
-RQ_NO_PAYLOAD.sort() or print(f"no: idx, ctx, payload = {list(RQ_NO_PAYLOAD)}")
-RQ_IDX_ONLY.sort() or print(f"     no: ctx, payload = {list(RQ_IDX_ONLY)}")
-CODE_RQ_COMPLEX.sort() or print(f"          no: payload = {list(CODE_RQ_COMPLEX)}")
-CODE_RQ_UNKNOWN.sort() or print(f"unknown  = {list(CODE_RQ_UNKNOWN)}\r\n")
+RQ_NO_PAYLOAD.sort()  # or print(f"no: idx, ctx, payload = {list(RQ_NO_PAYLOAD)}")
+RQ_IDX_ONLY.sort()  # or print(f"     no: ctx, payload = {list(RQ_IDX_ONLY)}")
+CODE_RQ_COMPLEX.sort()  # or print(f"          no: payload = {list(CODE_RQ_COMPLEX)}")
+CODE_RQ_UNKNOWN.sort()  # or print(f"unknown  = {list(CODE_RQ_UNKNOWN)}\r\n")
 
 # IDX_COMPLEX - *usually has* a context, but doesn't satisfy criteria for IDX_SIMPLE:
 # all known codes are in one of IDX_COMPLEX, IDX_NONE, IDX_SIMPLE
@@ -515,11 +527,11 @@ CODE_IDX_DOMAIN = {  # not necc. mutex
     _3B00: "^FC",
 }
 #
-CODE_IDX_COMPLEX.sort() or print(f"complex = {CODE_IDX_COMPLEX}")  # TODO: remove
-CODE_IDX_NONE.sort() or print(f"none    = {CODE_IDX_NONE}")  # TODO: remove
-CODE_IDX_SIMPLE.sort() or print(f"simple  = {CODE_IDX_SIMPLE}")  # TODO: remove
-_CODE_IDX_UNKNOWN.sort() or print(f"unknown = {_CODE_IDX_UNKNOWN}")  # TODO: remove
-print(f"domains = {list(CODE_IDX_DOMAIN)}")
+CODE_IDX_COMPLEX.sort()  # or print(f"complex = {CODE_IDX_COMPLEX}")  # TODO: remove
+CODE_IDX_NONE.sort()  # or print(f"none    = {CODE_IDX_NONE}")  # TODO: remove
+CODE_IDX_SIMPLE.sort()  # or print(f"simple  = {CODE_IDX_SIMPLE}")  # TODO: remove
+_CODE_IDX_UNKNOWN.sort()  # or print(f"unknown = {_CODE_IDX_UNKNOWN}")  # TODO: remove
+# print(f"domains = {list(CODE_IDX_DOMAIN)}")
 
 #
 #
