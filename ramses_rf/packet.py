@@ -89,7 +89,7 @@ from .const import (  # noqa: F401, isort: skip
     _PUZZ,
 )
 
-DEV_MODE = __dev_mode__  # or True
+DEV_MODE = __dev_mode__ and False  # or True
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -181,13 +181,14 @@ class PacketBase:
         #     return True
 
         if {self.src.type, self.dst.type} & {"01", "02", "23"}:
-            _LOGGER.warning(f"{self} # HAS controller (10)")
+            _LOGGER.debug(f"{self} # HAS controller (10)")
             self.__has_ctl = True
 
         #  I --- 12:010740 --:------ 12:010740 30C9 003 0008D9 # not ctl
         elif self.dst is self.src:  # (not needed?) & self.code == I_:
-            _LOGGER.error(
-                ("HAS" if self.code in CODE_ONLY_FROM_CTL + [_31D9, _31DA] else "no")
+            _LOGGER.debug(
+                f"{self} << "
+                + ("HAS" if self.code in CODE_ONLY_FROM_CTL + [_31D9, _31DA] else "no")
                 + " controller (20)"
             )
             self.__has_ctl = any(
@@ -201,13 +202,13 @@ class PacketBase:
         #  I 095 --:------ --:------ 12:126457 1F09 003 000BC2 # HAS ctl
         #  I --- --:------ --:------ 20:001473 31D9 003 000001 # ctl? (HVAC)
         elif self.dst is NON_DEV_ADDR:
-            _LOGGER.error(f"{self} # HAS controller (21)")
+            _LOGGER.debug(f"{self} # HAS controller (21)")
             self.__has_ctl = self.src.type != "10"
 
         #  I --- 10:037879 --:------ 12:228610 3150 002 0000   # HAS ctl
         #  I --- 04:029390 --:------ 12:126457 1060 003 01FF01 # HAS ctl
         elif self.dst.type in ("12", "22"):
-            _LOGGER.error(f"{self} # HAS controller (22)")
+            _LOGGER.debug(f"{self} # HAS controller (22)")
             self.__has_ctl = True
 
         # RQ --- 30:258720 10:050360 --:------ 3EF0 001 00           # UNKNOWN (99)
@@ -226,7 +227,7 @@ class PacketBase:
         #  I --- 32:168090 30:082155 --:------ 31E0 004 0000C800          # unknown
         if self.__has_ctl is None:
             if DEV_MODE and "18" not in (self.src.type, self.dst.type):
-                _LOGGER.error(f"{self} # has_ctl - undetermined (99)")
+                _LOGGER.warning(f"{self} # has_ctl - undetermined (99)")
             self.__has_ctl = False
 
         return self.__has_ctl
