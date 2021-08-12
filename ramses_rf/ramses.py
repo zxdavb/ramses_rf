@@ -712,7 +712,7 @@ RAMSES_DEVICES = {
         _31D9: {I_: {}},
     },  # e.g. https://www.orcon.nl/blueline-mvs-15rp-2/
     "30": {  # e.g. RFG100 (and others)
-        # GWY:185469 - Honeywell RFG100
+        # RFG:185469 - Honeywell RFG100
         _0002: {RQ: {}},
         _0004: {I_: {}, RQ: {}},
         _0005: {RQ: {}},
