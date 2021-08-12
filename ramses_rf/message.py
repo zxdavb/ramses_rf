@@ -356,10 +356,10 @@ class Message:
             _LOGGER.info("%s # can't expire", self._pkt)
             self.__expired = self.CANT_EXPIRE
 
-        elif self.__expired >= self.HAS_EXPIRED:  # TODO: should renew?
-            _LOGGER.warning(
-                "%s # has expired %s", self._pkt, f"({self.__expired * 100:1.0f}%)"
-            )
+        # elif self.__expired >= self.HAS_EXPIRED:  # TODO: should renew?
+        #     _LOGGER.warning(
+        #         "%s # has expired %s", self._pkt, f"({self.__expired * 100:1.0f}%)"
+        #     )
 
         # elif self.__expired >= self.IS_EXPIRING:  # this could log multiple times
         #     _LOGGER.error("%s # is expiring", self._pkt)
@@ -552,62 +552,6 @@ def _create_zones(this: Message) -> None:
     #     raise TypeError
 
 
-def _update_entities(this: Message, prev: Message) -> None:  # TODO: needs work
-    """Update the state of entities (devices, zones, ufh_zones)."""
-
-    # some devices aren't created if they're filtered out (in create_devices?)
-    if this.src not in this._gwy.devices:
-        assert False, "what!!"
-        return
-        # 0008: BDR/RP, ir CTL/I/domain_id = F9/FA
-        # 10A0: CTL/RP/dhw_idx
-        # 1260: RP from CTL, or eavesdrop sensor
-        # 1F41: eavesdrop
-
-    # some empty payloads may still be useful (e.g. Rx/3EF0/{}, RQ/3EF1/{})
-    this._gwy.device_by_id[this.src.id]._handle_msg(this)
-    # if payload is {} (empty dict; lists shouldn't ever be empty)
-    # if not this.payload:
-    #     return
-
-    # # TODO: what follows is a mess - needs sorting out
-    # evo = this._gwy.system_by_id.get(this.src.id)
-    # if evo:
-    #     evo._handle_msg(this)
-
-    for evo in this._gwy.systems:
-        # if this.src == evo:  # TODO: or this.src.id == evo.id?
-        if this.code in (_10A0, _1260, _1F41) and evo._dhw is not None:
-            evo._dhw._handle_msg(this)
-        break
-
-    evo = this.src._evo if hasattr(this.src, "_evo") else None
-    if evo is None:
-        evo = this.dst._evo if hasattr(this.dst, "_evo") else None
-    if evo is None:
-        return
-
-    if this.src is evo._ctl:
-        evo._handle_msg(this)
-
-    if not hasattr(evo, "zone_by_idx"):
-        return
-
-    if isinstance(this.payload, dict) and "zone_idx" in this.payload:
-        # 089  I --- 02:000921 --:------ 01:191718 3150 002 0300  # NOTE: is valid
-        if this.payload["zone_idx"] in evo.zone_by_idx:
-            evo.zone_by_idx[this.payload["zone_idx"]]._handle_msg(this)
-
-        # elif "ufh_idx" in this.payload:
-        #     # ufc = this.src._ufc if hasattr(this.src, "_ufc") else None
-        #     pass
-
-    elif isinstance(this.payload, list) and "zone_idx" in this.payload[0]:
-        for z in this.payload:
-            if z["zone_idx"] in evo.zone_by_idx:
-                evo.zone_by_idx[z["zone_idx"]]._handle_msg(this)
-
-
 def process_msg(msg: Message) -> None:
     """Process the valid packet by decoding its payload.
 
@@ -638,7 +582,8 @@ def process_msg(msg: Message) -> None:
         _create_zones(msg)  # create zones & (TBD) ufh_zones too?
 
         if msg._gwy.config.reduce_processing < DONT_UPDATE_ENTITIES:
-            _update_entities(msg, msg._gwy._prev_msg)  # update the state database
+            # _update_entities(msg, msg._gwy._prev_msg)  # update the state database
+            msg.src._handle_msg(msg)
 
     except (AssertionError, NotImplementedError) as err:
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)(

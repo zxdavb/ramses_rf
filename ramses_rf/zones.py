@@ -36,7 +36,8 @@ from .const import (
     ZONE_TYPE_SLUGS,
     ZoneMode,
 )
-from .devices import BdrSwitch, Device, DhwSensor, Entity
+from .devices import BdrSwitch, Device, DhwSensor
+from .entities import Entity
 from .exceptions import CorruptStateError
 from .helpers import schedule_task
 
@@ -138,7 +139,7 @@ class ZoneBase(Entity):
         return f"{self.id} ({self.heating_type})"
 
     def __lt__(self, other) -> bool:
-        if not hasattr(other, "idx"):
+        if not isinstance(other, ZoneBase):
             return NotImplemented
         return self.idx < other.idx
 
@@ -169,7 +170,7 @@ class ZoneBase(Entity):
 
     def _handle_msg(self, msg) -> None:
         """Validate packets by verb/code."""
-        # TODO: assert msg.src is self, "Devices should only keep msgs they sent"
+        assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
         super()._handle_msg(msg)
 
         # if not self._zone_type:
@@ -308,6 +309,7 @@ class DhwZone(ZoneBase):  # CS92A  # TODO: add Schedule
             )
 
     def _handle_msg(self, msg) -> bool:
+        # assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
         super()._handle_msg(msg)
 
         if msg.code == _0008:
@@ -541,12 +543,16 @@ class Zone(ZoneSchedule, ZoneBase):
         # self._schedule.req_schedule()  # , restart=True) start collecting schedule
 
     def _handle_msg(self, msg) -> bool:
-        super()._handle_msg(msg)
+        assert msg.src is self._ctl and (
+            isinstance(msg.payload, dict)
+            or [d for d in msg.payload if d["zone_idx"] == self.idx]
+        ), f"msg inappropriately routed to {self}"
 
-        if isinstance(msg.payload, list):
-            assert self.idx in [d["zone_idx"] for d in msg.payload], "coding error zxa"
-        elif isinstance(msg.payload, dict):
-            assert msg.payload["zone_idx"] == self.idx, "coding error zxb"
+        assert msg.src is self._ctl and (
+            isinstance(msg.payload, list) or msg.payload["zone_idx"] == self.idx
+        ), f"msg inappropriately routed to {self}"
+
+        super()._handle_msg(msg)
 
         if msg.code == _0004:
             self._name = msg

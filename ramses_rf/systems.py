@@ -25,7 +25,8 @@ from .const import (
     SystemMode,
     SystemType,
 )
-from .devices import BdrSwitch, Device, Entity, OtbGateway
+from .devices import BdrSwitch, Device, OtbGateway
+from .entities import Entity
 from .exceptions import CorruptStateError, ExpiredCallbackError
 from .schema import (
     ATTR_CONTROLLER,
@@ -275,50 +276,56 @@ class StoredHw:
         self._dhw = None
 
     def _handle_msg(self, msg, prev_msg=None):
-        def find_dhw_sensor(this) -> None:
-            """Eavesdrop packets, or pairs of packets, to maintain the system state.
-
-            There are only 2 ways to to find a controller's DHW sensor:
-            1. The 10A0 RQ/RP *from/to a 07:* (1x/4h) - reliable
-            2. Use sensor temp matching - non-deterministic
-
-            Data from the CTL is considered more authorative. The RQ is initiated by the
-            DHW, so is not authorative. The I/1260 is not to/from a controller, so is
-            not useful.
-            """
-
-            # 10A0: RQ/07/01, RP/01/07: can get both parent controller & DHW sensor
-            # 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
-            # 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
-
-            # 1260: I/07: can't get which parent controller - would need to match temps
-            # 045  I --- 07:045960 --:------ 07:045960 1260 003 000911
-
-            # 1F41: I/01: get parent controller, but not DHW sensor
-            # 045  I --- 01:145038 --:------ 01:145038 1F41 012 000004FFFFFF1E060E0507E4
-            # 045  I --- 01:145038 --:------ 01:145038 1F41 006 000002FFFFFF
-
-            if all(
-                (
-                    this.code == _10A0,
-                    this.verb == RP,
-                    this.src is self._ctl,
-                    this.dst.type == "07",
-                )
-            ):
-                self._dhw = self._get_dhw(sensor=this.dst)
-
         super()._handle_msg(msg)
 
-        if msg.code == _10A0:  # dhw_params
-            if msg._gwy.config.enable_eavesdrop:
-                find_dhw_sensor(msg)
+        if msg.code not in (_10A0, _1260, _1F41) or "dhw_id" not in msg.payload:
+            return
 
-        elif msg.code == _1260:  # dhw_temp
-            pass
+        # RQ --- 18:002563 01:078710 --:------ 10A0 001 00  # every 4h
+        # RP --- 01:078710 18:002563 --:------ 10A0 006 00157C0003E8
+        if not self.dhw:
+            self._get_dhw()
 
-        elif msg.code == _1F41:  # dhw_mode
-            pass
+        if msg._gwy.config.enable_eavesdrop and not self.dhw_sensor:
+            self._eavesdrop_dhw_sensor(msg)
+
+        # Route any messages to the DHW (dhw_params, dhw_temp, dhw_mode)
+        self.dhw._handle_msg(msg)
+
+    def _eavesdrop_dhw_sensor(self, this, prev=None) -> None:
+        """Eavesdrop packets, or pairs of packets, to maintain the system state.
+
+        There are only 2 ways to to find a controller's DHW sensor:
+        1. The 10A0 RQ/RP *from/to a 07:* (1x/4h) - reliable
+        2. Use sensor temp matching - non-deterministic
+
+        Data from the CTL is considered more authorative. The RQ is initiated by the
+        DHW, so is not authorative. The I/1260 is not to/from a controller, so is
+        not useful.
+        """
+
+        # 10A0: RQ/07/01, RP/01/07: can get both parent controller & DHW sensor
+        # 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
+        # 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
+
+        # 1260: I/07: can't get which parent controller - would need to match temps
+        # 045  I --- 07:045960 --:------ 07:045960 1260 003 000911
+
+        # 1F41: I/01: get parent controller, but not DHW sensor
+        # 045  I --- 01:145038 --:------ 01:145038 1F41 012 000004FFFFFF1E060E0507E4
+        # 045  I --- 01:145038 --:------ 01:145038 1F41 006 000002FFFFFF
+
+        assert self._gwy.config.enable_eavesdrop, "Coding error"
+
+        if all(
+            (
+                this.code == _10A0,
+                this.verb == RP,
+                this.src is self._ctl,
+                this.dst.type == "07",
+            )
+        ):
+            self._get_dhw(sensor=this.dst)
 
     def _get_dhw(self, **kwargs) -> DhwZone:
         """Return the DHW zone (will create/update it if required)."""
@@ -335,6 +342,7 @@ class StoredHw:
         if kwargs.get("htg_valve"):
             dhw._set_htg_valve(kwargs["htg_valve"])
 
+        self._dhw = dhw
         return dhw
 
     @property
@@ -372,18 +380,24 @@ class StoredHw:
 
     @property
     def schema(self) -> dict:
-        # assert ATTR_DHW_SYSTEM not in super().schema  # TODO: removeme
-        return {**super().schema, ATTR_DHW_SYSTEM: self.dhw.schema if self.dhw else {}}
+        return {
+            **super().schema,
+            ATTR_DHW_SYSTEM: self._dhw.schema if self._dhw else {},
+        }
 
     @property
     def params(self) -> dict:
-        # assert ATTR_DHW_SYSTEM not in super().params  # TODO: removeme
-        return {**super().params, ATTR_DHW_SYSTEM: self.dhw.params if self.dhw else {}}
+        return {
+            **super().params,
+            ATTR_DHW_SYSTEM: self._dhw.params if self._dhw else {},
+        }
 
     @property
     def status(self) -> dict:
-        # assert ATTR_DHW_SYSTEM not in super().status  # TODO: removeme
-        return {**super().status, ATTR_DHW_SYSTEM: self.dhw.status if self.dhw else {}}
+        return {
+            **super().status,
+            ATTR_DHW_SYSTEM: self._dhw.status if self._dhw else {},
+        }
 
 
 class MultiZone:  # 0005 (+/- 000C?)
@@ -428,170 +442,179 @@ class MultiZone:  # 0005 (+/- 000C?)
         # if discover_flag & DISCOVER_STATUS:
         #     self._send_cmd(_0006)  # schedule delta
 
-    def _handle_msg(self, msg, prev_msg=None):
-        def find_zone_sensors(this_30c9, prev_30c9) -> None:
-            """Determine each zone's sensor by matching zone/sensor temperatures.
+    def _eavesdrop_zone_sensors(self, this, prev=None) -> None:
+        """Determine each zone's sensor by matching zone/sensor temperatures.
 
-            The temperature of each zone is reliably known (30C9 array), but the sensor
-            for each zone is not. In particular, the controller may be a sensor for a
-            zone, but unfortunately it does not announce its sensor temperatures.
+        The temperature of each zone is reliably known (30C9 array), but the sensor
+        for each zone is not. In particular, the controller may be a sensor for a
+        zone, but unfortunately it does not announce its sensor temperatures.
 
-            In addition, there may be 'orphan' (e.g. from a neighbour) sensors
-            announcing temperatures with the same value.
+        In addition, there may be 'orphan' (e.g. from a neighbour) sensors
+        announcing temperatures with the same value.
 
-            This leaves only a process of exclusion as a means to determine which zone
-            uses the controller as a sensor.
-            """
+        This leaves only a process of exclusion as a means to determine which zone
+        uses the controller as a sensor.
+        """
 
-            def match_sensors(testable_sensors, zone_idx, zone_temp) -> list:
-                return [
-                    s
-                    for s in testable_sensors
-                    if s.temperature == zone_temp
-                    and (s.zone is None or s.zone.idx == zone_idx)
-                ]
-
-            def _testable_zones(changed_zones) -> dict:
-                return {
-                    z: t
-                    for z, t in changed_zones.items()
-                    if self.zone_by_idx[z].sensor is None
-                    # and t is not None  # done in changed_zones = {}
-                    and t not in [t2 for z2, t2 in changed_zones.items() if z2 != z]
-                }  # zones with unique (non-null) temps, and no sensor
-
-            if prev_30c9 is None:
-                return
-
-            if len([z for z in self.zones if z.sensor is None]) == 0:
-                return  # (currently) no zone without a sensor
-
-            # TODO: use msgz/I, not RP
-            secs = self._get_msg_value(_1F09, "remaining_seconds")
-            if secs is None or this_30c9.dtm > prev_30c9.dtm + td(seconds=secs + 5):
-                return  # can only compare against 30C9 pkt from the last cycle
-
-            _LOGGER.debug("System state (before): %s", self.schema)
-
-            changed_zones = {
-                z["zone_idx"]: z["temperature"]
-                for z in this_30c9.payload
-                if z not in prev_30c9.payload and z["temperature"] is not None
-            }  # zones with changed temps
-            _LOGGER.debug("Changed zones (from 30C9): %s", changed_zones)
-            if not changed_zones:
-                return  # ctl's 30C9 says no zones have changed temps during this cycle
-
-            testable_zones = _testable_zones(changed_zones)
-            _LOGGER.debug(
-                " - has unique/non-null temps (from 30C9) & no sensor (from state): %s",
-                testable_zones,
-            )
-            if not testable_zones:
-                return  # no testable zones
-
-            testable_sensors = [
-                d
-                for d in self._gwy.devices  # NOTE: *not* self._ctl.devices
-                if d._ctl in (self._ctl, None)
-                and d.addr.type in DEVICE_HAS_ZONE_SENSOR
-                and d.temperature is not None
-                and d._msgs[_30C9].dtm > prev_30c9.dtm  # changed during last cycle
+        def match_sensors(testable_sensors, zone_idx, zone_temp) -> list:
+            return [
+                s
+                for s in testable_sensors
+                if s.temperature == zone_temp
+                and (s.zone is None or s.zone.idx == zone_idx)
             ]
 
-            if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug(
-                    "Testable zones: %s (unique/non-null temps & sensorless)",
-                    testable_zones,
-                )
-                _LOGGER.debug(
-                    "Testable sensors: %s (non-null temps & orphans or zoneless)",
-                    {d.id: d.temperature for d in testable_sensors},
-                )
+        def _testable_zones(changed_zones) -> dict:
+            return {
+                z: t
+                for z, t in changed_zones.items()
+                if self.zone_by_idx[z].sensor is None
+                # and t is not None  # done in changed_zones = {}
+                and t not in [t2 for z2, t2 in changed_zones.items() if z2 != z]
+            }  # zones with unique (non-null) temps, and no sensor
 
-            if testable_sensors:  # the main matching algorithm...
-                for zone_idx, temp in testable_zones.items():
-                    # TODO: when sensors announce temp, ?also includes it's parent zone
-                    matching_sensors = match_sensors(testable_sensors, zone_idx, temp)
-                    _LOGGER.debug("Testing zone %s, temp: %s", zone_idx, temp)
-                    _LOGGER.debug(
-                        " - matching sensor(s): %s (same temp & not from another zone)",
-                        [s.id for s in matching_sensors],
-                    )
+        assert self._gwy.config.enable_eavesdrop, "Coding error"
 
-                    if len(matching_sensors) == 1:
-                        _LOGGER.debug("   - matched sensor: %s", matching_sensors[0].id)
-                        zone = self.zone_by_idx[zone_idx]
-                        zone._set_sensor(matching_sensors[0])
-                        zone.sensor._set_ctl(self._ctl)
-                    elif len(matching_sensors) == 0:
-                        _LOGGER.debug("   - no matching sensor (uses CTL?)")
-                    else:
-                        _LOGGER.debug("   - multiple sensors: %s", matching_sensors)
+        if this.code != _30C9 or not isinstance(this.payload, list):
+            return
 
-                _LOGGER.debug("System state (after): %s", self.schema)
+        if self._prev_30c9 is None:
+            self._prev_30c9 = this
+            return
 
-            # now see if we can allocate the controller as a sensor...
-            if any(z for z in self.zones if z.sensor is self._ctl):
-                return  # the controller is already a sensor
-            if len([z for z in self.zones if z.sensor is None]) != 1:
-                return  # no single zone without a sensor
+        self._prev_30c9, this, prev = this, this, self._prev_30c9
 
-            remaining_zones = _testable_zones(changed_zones)
-            if not remaining_zones:
-                return  # no testable zones
+        if len([z for z in self.zones if z.sensor is None]) == 0:
+            return  # (currently) no zone without a sensor
 
-            zone_idx, temp = list(remaining_zones.items())[0]
-            _LOGGER.debug("Testing (sole remaining) zone %s, temp: %s", zone_idx, temp)
-            # want to avoid complexity of z._temp
-            # zone = self.zone_by_idx[zone_idx]
-            # if zone._temp is None:
-            #     return  # TODO: should have a (not-None) temperature
+        # TODO: use msgz/I, not RP
+        secs = self._get_msg_value(_1F09, "remaining_seconds")
+        if secs is None or this.dtm > prev.dtm + td(seconds=secs + 5):
+            return  # can only compare against 30C9 pkt from the last cycle
 
-            matching_sensors = match_sensors(testable_sensors, zone_idx, temp)
+        _LOGGER.debug("System state (before): %s", self.schema)
+
+        changed_zones = {
+            z["zone_idx"]: z["temperature"]
+            for z in this.payload
+            if z not in prev.payload and z["temperature"] is not None
+        }  # zones with changed temps
+        _LOGGER.debug("Changed zones (from 30C9): %s", changed_zones)
+        if not changed_zones:
+            return  # ctl's 30C9 says no zones have changed temps during this cycle
+
+        testable_zones = _testable_zones(changed_zones)
+        _LOGGER.debug(
+            " - has unique/non-null temps (from 30C9) & no sensor (from state): %s",
+            testable_zones,
+        )
+        if not testable_zones:
+            return  # no testable zones
+
+        testable_sensors = [
+            d
+            for d in self._gwy.devices  # NOTE: *not* self._ctl.devices
+            if d._ctl in (self._ctl, None)
+            and d.addr.type in DEVICE_HAS_ZONE_SENSOR
+            and d.temperature is not None
+            and d._msgs[_30C9].dtm > prev.dtm  # changed during last cycle
+        ]
+
+        if _LOGGER.isEnabledFor(logging.DEBUG):
             _LOGGER.debug(
-                " - matching sensor(s): %s (excl. controller)",
-                [s.id for s in matching_sensors],
+                "Testable zones: %s (unique/non-null temps & sensorless)",
+                testable_zones,
+            )
+            _LOGGER.debug(
+                "Testable sensors: %s (non-null temps & orphans or zoneless)",
+                {d.id: d.temperature for d in testable_sensors},
             )
 
-            # can safely(?) assume this zone is using the CTL as a sensor...
-            if len(matching_sensors) == 0:
-                _LOGGER.debug("   - assumed sensor: %s (by exclusion)", self._ctl.id)
-                zone = self.zone_by_idx[zone_idx]
-                zone._set_sensor(self._ctl)
-                zone.sensor._set_ctl(self._ctl)
+        if testable_sensors:  # the main matching algorithm...
+            for zone_idx, temp in testable_zones.items():
+                # TODO: when sensors announce temp, ?also includes it's parent zone
+                matching_sensors = match_sensors(testable_sensors, zone_idx, temp)
+                _LOGGER.debug("Testing zone %s, temp: %s", zone_idx, temp)
+                _LOGGER.debug(
+                    " - matching sensor(s): %s (same temp & not from another zone)",
+                    [s.id for s in matching_sensors],
+                )
 
-            _LOGGER.debug("System state (finally): %s", self.schema)
+                if len(matching_sensors) == 1:
+                    _LOGGER.debug("   - matched sensor: %s", matching_sensors[0].id)
+                    zone = self.zone_by_idx[zone_idx]
+                    zone._set_sensor(matching_sensors[0])
+                    zone.sensor._set_ctl(self._ctl)
+                elif len(matching_sensors) == 0:
+                    _LOGGER.debug("   - no matching sensor (uses CTL?)")
+                else:
+                    _LOGGER.debug("   - multiple sensors: %s", matching_sensors)
 
-        def update_zone(zone_idx):
-            try:
-                self.zone_by_idx[zone_idx]._handle_msg(msg)
-            except KeyError:
-                pass
+            _LOGGER.debug("System state (after): %s", self.schema)
 
+        # now see if we can allocate the controller as a sensor...
+        if any(z for z in self.zones if z.sensor is self._ctl):
+            return  # the controller is already a sensor
+        if len([z for z in self.zones if z.sensor is None]) != 1:
+            return  # no single zone without a sensor
+
+        remaining_zones = _testable_zones(changed_zones)
+        if not remaining_zones:
+            return  # no testable zones
+
+        zone_idx, temp = list(remaining_zones.items())[0]
+        _LOGGER.debug("Testing (sole remaining) zone %s, temp: %s", zone_idx, temp)
+        # want to avoid complexity of z._temp
+        # zone = self.zone_by_idx[zone_idx]
+        # if zone._temp is None:
+        #     return  # TODO: should have a (not-None) temperature
+
+        matching_sensors = match_sensors(testable_sensors, zone_idx, temp)
+        _LOGGER.debug(
+            " - matching sensor(s): %s (excl. controller)",
+            [s.id for s in matching_sensors],
+        )
+
+        # can safely(?) assume this zone is using the CTL as a sensor...
+        if len(matching_sensors) == 0:
+            _LOGGER.debug("   - assumed sensor: %s (by exclusion)", self._ctl.id)
+            zone = self.zone_by_idx[zone_idx]
+            zone._set_sensor(self._ctl)
+            zone.sensor._set_ctl(self._ctl)
+
+        _LOGGER.debug("System state (finally): %s", self.schema)
+
+    def _handle_msg(self, msg, prev_msg=None) -> bool:
         super()._handle_msg(msg)
 
-        if msg.code in (_000A, _2309, _30C9):  # TODO: KeyError
-            if isinstance(msg.payload, list):
-                [update_zone(z["zone_idx"]) for z in msg.payload]
-            else:
-                update_zone(msg.payload["zone_idx"])
+        # Route any messages to their zones
+        try:
+            if isinstance(msg.payload, dict):
+                if "zone_idx" in msg.payload:
+                    self._evo.zone_by_idx[msg.payload["zone_idx"]]._handle_msg(msg)
+
+            elif isinstance(msg.payload, list):
+                [
+                    self._evo.zone_by_idx[z["zone_idx"]]._handle_msg(msg)
+                    for z in msg.payload
+                    if "zone_idx" in msg.payload[0]
+                ]
+        except KeyError:  # FIXME: this shouldn't happen
+            pass  # if self._gwy.config.enable_eavesdrop:
 
         if msg.code == _000A and isinstance(msg.payload, list):
-            pass
+            pass  # TODO
             # for zone_idx in self.zone_by_idx:
             #     cmd = Command.get_zone_mode(self.id, zone_idx, priority=Priority.LOW)
             #     self._gwy.send_cmd(cmd)
             # for zone in self.zones:
             #     zone._discover(discover_flag=DISCOVER_PARAMS)
 
-        # elif msg.code == _0005 and prev_30c9 is not None:
-        #     zone_added = bool(prev_30c9.code == _0004)  # else zone_deleted
+        # elif msg.code == _0005 and prev_msg is not None:
+        #     zone_added = bool(prev_msg.code == _0004)  # else zone_deleted
 
-        elif msg.code == _30C9 and isinstance(msg.payload, list):  # msg._has_array:
-            if self._gwy.config.enable_eavesdrop:
-                find_zone_sensors(msg, self._prev_30c9)
-                self._prev_30c9 = msg
+        if self._gwy.config.enable_eavesdrop and not all(z.sensor for z in self.zones):
+            self._eavesdrop_zone_sensors(msg)
 
     def _get_zone(self, zone_idx, **kwargs) -> Zone:
         """Return a heating zone (will create/update it if required)."""
@@ -612,23 +635,25 @@ class MultiZone:  # 0005 (+/- 000C?)
         return zone
 
     @property
-    def _zones(self) -> dict:
-        return sorted(self.zones, key=lambda x: x.idx)
-
-    @property
     def schema(self) -> dict:
-        # assert ATTR_ZONES not in super().schema  # TODO: removeme
-        return {**super().schema, ATTR_ZONES: {z.idx: z.schema for z in self._zones}}
+        return {
+            **super().schema,
+            ATTR_ZONES: {z.idx: z.schema for z in sorted(self.zones)},
+        }
 
     @property
     def params(self) -> dict:
-        # assert ATTR_ZONES not in super().params  # TODO: removeme
-        return {**super().params, ATTR_ZONES: {z.idx: z.params for z in self._zones}}
+        return {
+            **super().params,
+            ATTR_ZONES: {z.idx: z.params for z in sorted(self.zones)},
+        }
 
     @property
     def status(self) -> dict:
-        # assert ATTR_ZONES not in super().status  # TODO: removeme
-        return {**super().status, ATTR_ZONES: {z.idx: z.status for z in self._zones}}
+        return {
+            **super().status,
+            ATTR_ZONES: {z.idx: z.status for z in sorted(self.zones)},
+        }
 
 
 class UfhSystem:
@@ -664,7 +689,7 @@ class UfhSystem:
 
 
 class SystemBase(Entity):  # 3B00 (multi-relay)
-    """The most basic controllers - a generic controller (e.g. ST9420C)."""
+    """The Controllers base class (good for a generic controller)."""
 
     # 0008|0009|1030|1100|2309|3B00
 
@@ -722,56 +747,57 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             #     self._send_cmd(_0008, payload=f"{domain_id:02X}00")
             pass
 
+    def _eavesdrop_htg_control(self, this, prev=None) -> None:
+        """Discover the heat relay (10: or 13:) for this system.
+
+        There's' 3 ways to find a controller's heat relay (in order of reliability):
+        1.  The 3220 RQ/RP *to/from a 10:* (1x/5min)
+        2a. The 3EF0 RQ/RP *to/from a 10:* (1x/1min)
+        2b. The 3EF0 RQ (no RP) *to a 13:* (3x/60min)
+        3.  The 3B00 I/I exchange between a CTL & a 13: (TPI cycle rate, usu. 6x/hr)
+
+        Data from the CTL is considered 'authorative'. The 1FC9 RQ/RP exchange
+        to/from a CTL is too rare to be useful.
+        """
+
+        # 18:14:14.025 066 RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000
+        # 18:14:14.446 065 RP --- 10:067219 01:078710 --:------ 3220 005 00C00500FF
+        # 14:41:46.599 064 RQ --- 01:078710 10:067219 --:------ 3EF0 001 00
+        # 14:41:46.631 063 RP --- 10:067219 01:078710 --:------ 3EF0 006 0000100000FF  # noqa
+
+        # 06:49:03.465 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
+        # 06:49:05.467 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
+        # 06:49:07.468 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
+        # 09:03:59.693 051  I --- 13:237335 --:------ 13:237335 3B00 002 00C8
+        # 09:04:02.667 045  I --- 01:145038 --:------ 01:145038 3B00 002 FCC8
+
+        assert self._gwy.config.enable_eavesdrop, "Coding error"
+
+        if this.code not in (_3220, _3B00, _3EF0):
+            return
+
+        # note the order: most to least reliable
+        heater = None
+
+        if this.code == _3220 and this.verb == RQ:
+            if this.src is self._ctl and this.dst.type == "10":
+                heater = this.dst
+
+        elif this.code == _3EF0 and this.verb == RQ:
+            if this.src is self._ctl and this.dst.type in ("10", "13"):
+                heater = this.dst
+
+        elif this.code == _3B00 and this.verb == I_ and prev is not None:
+            if this.src is self._ctl and prev.src.type == "13":
+                if prev.code == this.code and prev.verb == this.verb:
+                    heater = prev.src
+
+        if heater is not None:
+            self._set_htg_control(heater)
+
     def _handle_msg(self, msg, prev_msg=None):
-        def find_htg_control(this, prev=None):
-            """Discover the heat relay (10: or 13:) for this system.
-
-            There's' 3 ways to find a controller's heat relay (in order of reliability):
-            1.  The 3220 RQ/RP *to/from a 10:* (1x/5min)
-            2a. The 3EF0 RQ/RP *to/from a 10:* (1x/1min)
-            2b. The 3EF0 RQ (no RP) *to a 13:* (3x/60min)
-            3.  The 3B00 I/I exchange between a CTL & a 13: (TPI cycle rate, usu. 6x/hr)
-
-            Data from the CTL is considered 'authorative'. The 1FC9 RQ/RP exchange
-            to/from a CTL is too rare to be useful.
-            """
-
-            # 18:14:14.025 066 RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000
-            # 18:14:14.446 065 RP --- 10:067219 01:078710 --:------ 3220 005 00C00500FF
-            # 14:41:46.599 064 RQ --- 01:078710 10:067219 --:------ 3EF0 001 00
-            # 14:41:46.631 063 RP --- 10:067219 01:078710 --:------ 3EF0 006 0000100000FF  # noqa
-
-            # 06:49:03.465 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
-            # 06:49:05.467 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
-            # 06:49:07.468 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
-            # 09:03:59.693 051  I --- 13:237335 --:------ 13:237335 3B00 002 00C8
-            # 09:04:02.667 045  I --- 01:145038 --:------ 01:145038 3B00 002 FCC8
-
-            # note the order: most to least reliable
-            heater = None
-
-            if this.code == _3220 and this.verb == RQ:
-                if this.src is self._ctl and this.dst.type == "10":
-                    heater = this.dst
-
-            elif this.code == _3EF0 and this.verb == RQ:
-                if this.src is self._ctl and this.dst.type in ("10", "13"):
-                    heater = this.dst
-
-            elif this.code == _3B00 and this.verb == I_ and prev is not None:
-                if this.src is self._ctl and prev.src.type == "13":
-                    if prev.code == this.code and prev.verb == this.verb:
-                        heater = prev.src
-
-            if heater is not None:
-                self._set_htg_control(heater)
-
+        assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
         super()._handle_msg(msg)
-
-        if msg.code in (_000A, _2309, _30C9) and not isinstance(msg.payload, list):
-            pass
-        else:
-            super()._handle_msg(msg)
 
         if msg.code == _0008 and msg.verb in (I_, RP):
             if "domain_id" in msg.payload:
@@ -794,9 +820,8 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             if "domain_id" in msg.payload and msg.payload["domain_id"] == "FC":
                 self._heat_demand = msg.payload
 
-        if msg.code in (_3220, _3B00, _3EF0):  # self.heating_control is None and
-            if self._gwy.config.enable_eavesdrop:
-                find_htg_control(msg, prev=prev_msg)
+        if self._gwy.config.enable_eavesdrop and not self.heating_control:
+            self._eavesdrop_htg_control(msg, prev=prev_msg)
 
     def _send_cmd(self, code, **kwargs) -> None:
         dest = kwargs.pop("dest_addr", self._ctl.id)

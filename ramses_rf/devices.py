@@ -7,7 +7,7 @@ import logging
 from inspect import getmembers, isclass
 from sys import modules
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional
+from typing import Dict, Optional
 
 from .address import NON_DEV_ADDR, dev_id_to_hex, id_to_address
 from .command import FUNC, TIMEOUT, Command, Priority
@@ -27,6 +27,7 @@ from .const import (
     DISCOVER_STATUS,
     DOMAIN_TYPE_MAP,
 )
+from .entities import Entity
 from .exceptions import CorruptStateError
 from .helpers import schedule_task
 from .opentherm import MSG_ID, MSG_NAME, MSG_TYPE, OPENTHERM_MESSAGES, VALUE
@@ -108,22 +109,22 @@ DEVICE_CLASS = SimpleNamespace(
     BDR="BDR",  # Electrical relay
     CTL="CTL",  # Controller
     C02="C02",  # HVAC C02 sensor
-    DEV="DEV",  # Generic device
+    GEN="DEV",  # Generic device
     DHW="DHW",  # DHW sensor
     EXT="EXT",  # External weather sensor
     FAN="FAN",  # HVAC fan, 31D[9A]: 20|29|30|37 (some, e.g. 29: only 31D9)
-    GWY="GWY",  # Gateway interface (RF to USB), aka HGI
+    HGI="HGI",  # Gateway interface (RF to USB), HGI80
     HUM="HUM",  # HVAC humidity sensor, 1260: 32
     OTB="OTB",  # OpenTherm bridge
     PRG="PRG",  # Programmer
-    RFG="RFG",  # RF gateway (RF to ethernet)
+    RFG="RFG",  # RF gateway (RF to ethernet), RFG100
     STA="STA",  # Thermostat
     SWI="SWI",  # HVAC switch, 22F[13]: 02|06|20|32|39|42|49|59 (no 20: are both)
     TRV="TRV",  # Thermostatic radiator valve
     UFC="UFC",  # UFH controller
 )
 _DEV_TYPE_TO_CLASS = {
-    None: DEVICE_CLASS.DEV,  # a generic, promotable device
+    None: DEVICE_CLASS.GEN,  # a generic, promotable device
     "00": DEVICE_CLASS.TRV,
     "01": DEVICE_CLASS.CTL,
     "02": DEVICE_CLASS.UFC,
@@ -134,12 +135,12 @@ _DEV_TYPE_TO_CLASS = {
     "12": DEVICE_CLASS.STA,  # 12: can act like a DEVICE_CLASS.PRG
     "13": DEVICE_CLASS.BDR,
     "17": DEVICE_CLASS.EXT,
-    "18": DEVICE_CLASS.GWY,
+    "18": DEVICE_CLASS.HGI,
     "20": DEVICE_CLASS.FAN,
     "22": DEVICE_CLASS.STA,  # 22: can act like a DEVICE_CLASS.PRG
     "23": DEVICE_CLASS.PRG,
     "29": DEVICE_CLASS.FAN,
-    "30": DEVICE_CLASS.FAN,  # either: RFG/FAN
+    "30": DEVICE_CLASS.GEN,  # either: RFG/FAN
     "32": DEVICE_CLASS.HUM,  # also: SWI
     "34": DEVICE_CLASS.STA,
     "37": DEVICE_CLASS.FAN,
@@ -150,121 +151,8 @@ _DEV_TYPE_TO_CLASS = {
 }  # these are the default device classes for common types
 
 
-class Entity:
-    """The Device/Zone base class."""
-
-    def __init__(self, gwy) -> None:
-        self._loop = gwy._loop
-
-        self._gwy = gwy
-        self.id = None
-
-        self._msgs = {}
-        self._msgz = {}
-
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        pass
-
-    def _get_msg_value(self, code, key=None) -> dict:
-        if self._msgs.get(code):
-            if isinstance(self._msgs[code].payload, list):
-                return self._msgs[code].payload
-
-            if key is not None:
-                return self._msgs[code].payload.get(key)
-
-            result = self._msgs[code].payload
-            return {
-                k: v
-                for k, v in result.items()
-                if k[:1] != "_" and k not in ("domain_id", "zone_idx")
-            }
-
-    def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess
-        if msg.code not in self._msgz:
-            self._msgz[msg.code] = {msg.verb: {msg._pkt._idx: msg}}
-        elif msg.verb not in self._msgz[msg.code]:
-            self._msgz[msg.code][msg.verb] = {msg._pkt._idx: msg}
-        else:
-            self._msgz[msg.code][msg.verb][msg._pkt._idx] = msg
-
-        # TODO:
-        # if msg.verb == RP and msg._pkt._idx in self._msgz[msg.code].get(I_, []):
-        #     assert msg.raw_payload == self._msgz[msg.code][I_][msg._pkt._idx].raw_payload, (
-        #         f"\r\n{msg._pkt} ({msg._pkt._idx}),"
-        #         f"\r\n{self._msgz[msg.code][I_][msg._pkt._idx]._pkt} ({msg._pkt._idx})"
-        #     )
-        #     del self._msgz[msg.code][I_][msg._pkt._idx]
-
-        # elif msg.verb == I_ and msg._pkt._idx in self._msgz[msg.code].get(RP, []):
-        #     assert msg.raw_payload == self._msgz[msg.code][RP][msg._pkt._idx].raw_payload, (
-        #         f"\r\n{msg._pkt} ({msg._pkt._idx}),"
-        #         f"\r\n{self._msgz[msg.code][RP][msg._pkt._idx]._pkt} ({msg._pkt._idx})"
-        #     )
-        #     del self._msgz[msg.code][RP][msg._pkt._idx]
-
-        if msg.verb in (I_, RP):  # TODO: deprecate
-            self._msgs[msg.code] = msg
-
-    @property
-    def _msg_db(self) -> List:  # a flattened version of _msgz[code][verb][indx]
-        """Return a flattened version of _msgz[code][verb][indx]."""
-        return [m for c in self._msgz.values() for v in c.values() for m in v.values()]
-
-    # @property
-    # def _pkt_db(self) -> Dict:
-    #     """Return a flattened version of ..."""
-    #     return {msg.dtm: msg._pkt for msg in self._msgs_db}
-
-    def _send_cmd(self, code, dest_id, payload, verb=RQ, **kwargs) -> None:
-        self._msgs.pop(code, None)  # remove the old one, so we can tell if RP'd rcvd
-        self._gwy.send_cmd(Command(verb, code, payload, dest_id, **kwargs))
-
-    def _msg_payload(self, msg, key=None) -> Optional[Any]:
-        if msg and not msg._expired:
-            if key:
-                return msg.payload.get(key)
-            return {k: v for k, v in msg.payload.items() if k[:1] != "_"}
-
-    def _msg_expired(self, msg_name: str) -> Optional[bool]:
-        attr = f"_{msg_name}"
-        if not hasattr(self, attr):
-            _LOGGER.error("%s: is not tracking %s msgs", self, msg_name)
-            return
-
-        msg = getattr(self, f"_{msg_name}")
-        if not msg:
-            _LOGGER.warning("%s: has no valid %s msg", self, msg_name)
-        # elif msg_name != RAMSES_CODES[msg.code][NAME]:
-        #     _LOGGER.warning(
-        #         "%s: Message(%s) doesn't match name: %s",
-        #         self,
-        #         msg._pkt._hdr,
-        #         msg_name,
-        #     )
-        #     assert False, msg.code
-        elif msg._expired:
-            _LOGGER.warning(
-                "%s: Message(%s) has expired (%s)", self, msg._pkt._hdr, attr
-            )
-        else:
-            return True
-
-    @property
-    def _codes(self) -> dict:
-        return {
-            "codes": sorted([k for k, v in self._msgs.items()]),
-        }
-
-    @property
-    def controller(self):  # -> Optional[Controller]:
-        """Return the entity's controller, if known."""
-
-        return self._ctl  # TODO: if the controller is not known, try to find it?
-
-
 class DeviceBase(Entity):
-    """The Device base class."""
+    """The Device base class (good for a generic device)."""
 
     def __init__(self, gwy, dev_addr, ctl=None, domain_id=None) -> None:
         _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)
@@ -295,6 +183,8 @@ class DeviceBase(Entity):
             self._is_actuator = None
             self._is_sensor = None
 
+        self.devices = []  # [self]
+        self.device_by_id = {}  # {self.id: self}
         self._iz_controller = None
 
     def __repr__(self) -> str:
@@ -345,7 +235,7 @@ class DeviceBase(Entity):
 
     def _handle_msg(self, msg) -> None:
         """Check that devices only handle messages they have sent."""
-        assert msg.src is self, "Devices should only keep msgs they sent"
+        assert msg.src is self, f"msg inappropriately routed to {self}"
         super()._handle_msg(msg)
 
         if msg.verb != I_:  # or: if self._iz_controller is not None or...
@@ -579,19 +469,19 @@ class DeviceInfo:  # 10E0
 class Device(DeviceInfo, DeviceBase):
     """The Device base class - also used for unknown device types."""
 
-    __dev_class__ = DEVICE_CLASS.DEV  # DEVICE_TYPES = ("??", )
+    __dev_class__ = DEVICE_CLASS.GEN  # DEVICE_TYPES = ("??", )
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if all(
-            (
-                msg.code in (_31D9, _31DA, _31E0),
-                msg.verb in (I_, RP),
-                self.__class__ is Device,
-            )
-        ):
-            self.__class__ = FanDevice  # HACK: because my HVAC is a 30:
+        if type(self) is Device and self.type == "30":  # self.__class__ is Device
+            # TODO: the RFG codes need checking
+            if msg.code in (_31D9, _31DA, _31E0) and msg.verb in (I_, RP):
+                self.__class__ = FanDevice
+            elif msg.code in (_0006, _0418, _3220) and msg.verb == RQ:
+                self.__class__ = RFGateway
+            elif msg.code in (_313F,) and msg.verb == W_:
+                self.__class__ = RFGateway
 
         if not msg._gwy.config.enable_eavesdrop:
             return
@@ -674,10 +564,16 @@ class Device(DeviceInfo, DeviceBase):
         }
 
 
-class RfiGateway(DeviceBase):  # GWY: 18
+class RFGateway(DeviceBase):  # RFG (30:)
+    """The RFG100 base class."""
+
+    __dev_class__ = DEVICE_CLASS.RFG  # DEVICE_TYPES = ("30", )
+
+
+class HGInterface(DeviceBase):  # HGI (18:), was GWY
     """The HGI80 base class."""
 
-    __dev_class__ = DEVICE_CLASS.GWY  # DEVICE_TYPES = ("18", )
+    __dev_class__ = DEVICE_CLASS.HGI  # DEVICE_TYPES = ("18", )
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -807,9 +703,14 @@ class Controller(Device):  # CTL (01):
         self._domain_id = "FF"
         self._evo = None
 
-        self.devices = []  # [self]
-        self.device_by_id = {}  # {self.id: self}
         self._iz_controller = True
+
+    def _handle_msg(self, msg) -> bool:
+        super()._handle_msg(msg)
+
+        # Route any messages to their heating systems
+        if self._evo:
+            self._evo._handle_msg(msg)
 
     # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
     #     super()._discover(discover_flag=discover_flag)
@@ -1735,7 +1636,10 @@ def create_device(gwy, dev_addr, dev_class=None, **kwargs) -> Device:
     """Create a device, and optionally perform discovery & start polling."""
 
     if dev_class is None:
-        dev_class = _DEV_TYPE_TO_CLASS.get(dev_addr.type, DEVICE_CLASS.DEV)
+        if dev_addr.type != "30":  # could be RFG or VNT
+            dev_class = _DEV_TYPE_TO_CLASS.get(dev_addr.type, DEVICE_CLASS.GEN)
+        else:
+            dev_class = DEVICE_CLASS.GEN  # generic
 
     device = DEVICE_BY_CLASS_ID.get(dev_class, Device)(gwy, dev_addr, **kwargs)
 
