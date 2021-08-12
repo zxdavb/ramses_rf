@@ -83,6 +83,9 @@ EXPIRY = "expiry"
 # The master list - all known codes are here, even if there's no corresponding parser
 # Anything with a zone-idx should start: ^0[0-9A-F], ^(0[0-9A-F], or ^((0[0-9A-F]
 #
+##############
+# RAMSES_CODES
+#
 RAMSES_CODES = {  # rf_unknown
     _0001: {
         NAME: "rf_unknown",
@@ -533,7 +536,8 @@ CODE_IDX_SIMPLE.sort()  # or print(f"simple  = {CODE_IDX_SIMPLE}")  # TODO: remo
 _CODE_IDX_UNKNOWN.sort()  # or print(f"unknown = {_CODE_IDX_UNKNOWN}")  # TODO: remove
 # print(f"domains = {list(CODE_IDX_DOMAIN)}")
 
-#
+################
+# RAMSES_DEVICES
 #
 RAMSES_DEVICES = {
     "01": {  # e.g. ATC928: Evohome Colour Controller
