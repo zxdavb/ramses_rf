@@ -128,6 +128,7 @@ class DeviceIdParamType(click.ParamType):
 @click.option("-l/-nl", "--long-dates/--no-long-dates", default=None)
 @click.option("-c", "--config-file", type=click.File("r"))
 @click.option("-k", "--client-state", type=click.File("r"))
+@click.option("-sx", "--show-nothing", is_flag=True, help="dont print any summary")
 @click.option("-sd", "--show-device", help="show these devices")
 @click.option("-sc", "--show-schema", is_flag=True, help="show the system schema")
 @click.option("-sp", "--show-params", is_flag=True, help="show the system params")
@@ -438,29 +439,17 @@ async def main(lib_kwargs, **kwargs):
 
     print("\r\nclient.py: Finished ramses_rf, results:\r\n")
 
-    if kwargs["show_schema"] or kwargs["show_params"] or kwargs["show_status"]:
-        _print_summary(gwy, **kwargs)
-
     if kwargs["show_state"]:
         _print_state(gwy, **kwargs)
 
-    elif not any(
-        (
-            kwargs["show_schema"],
-            kwargs["show_params"],
-            kwargs["show_status"],
-            kwargs[COMMAND] == EXECUTE,
-            kwargs["show_device"],
-            kwargs["show_state"],
-        )
-    ):
-        _print_summary(gwy)
+    elif kwargs[COMMAND] == EXECUTE:
+        _print_results(gwy, **kwargs)
+
+    elif not kwargs["show_nothing"]:
+        _print_summary(gwy, **kwargs)
 
     # if kwargs["show_device"]:
     #     _print_state(gwy)
-
-    if kwargs[COMMAND] == EXECUTE:
-        _print_results(gwy, **kwargs)
 
     print(f"\r\nclient.py: Finished ramses_rf.\r\n{msg}\r\n")
 
