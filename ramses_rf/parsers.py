@@ -941,7 +941,10 @@ def parser_1100(payload, msg) -> Optional[dict]:
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
 
-    return {**complex_index(payload[:2]), **result}
+    return {
+        **complex_index(payload[:2]),
+        **result,
+    }
 
 
 @parser_decorator  # dhw_temp
@@ -1455,7 +1458,7 @@ def parser_3150(payload, msg) -> Union[list, dict, None]:
 
     #  I --- 04:136513 --:------ 01:158182 3150 002 01CA < often seen CA, artefact?
 
-    def complex_index(seqx) -> dict:
+    def complex_index(seqx, msg) -> dict:
         # assert seqx[:2] == "FC" or (int(seqx[:2], 16) < MAX_ZONES)  # <5, 8 for UFC
         idx_name = "ufx_idx" if msg.src.type == "02" else "zone_idx"
         return {"domain_id" if seqx[:1] == "F" else idx_name: seqx[:2]}
@@ -1463,7 +1466,7 @@ def parser_3150(payload, msg) -> Union[list, dict, None]:
     if msg._has_array:
         return [
             {
-                **complex_index(payload[i : i + 2]),
+                **complex_index(payload[i : i + 2], msg),
                 **valve_demand(payload[i + 2 : i + 4]),
             }
             for i in range(0, len(payload), 4)
