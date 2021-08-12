@@ -220,7 +220,7 @@ DEVICE_TABLE = {
         "discover_schema": [],
     },
     "30": {
-        "type": "GWY",
+        "type": "RFG",
         "name": "Internet Gateway",
         "has_battery": False,
         "is_actuator": False,
