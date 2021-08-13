@@ -367,7 +367,11 @@ async def main(lib_kwargs, **kwargs):
     def process_message(msg) -> None:
         # if msg._pkt._idx not in (None, "******"):
         #     return
-        dtm = msg.dtm if kwargs["long_dates"] else f"{msg.dtm:%H:%M:%S.%f}"[:-3]
+        dtm = (
+            msg.dtm.isoformat()
+            if kwargs["long_dates"]
+            else f"{msg.dtm:%H:%M:%S.%f}"[:-3]
+        )
         if msg.src.type == "18":
             print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
         else:
