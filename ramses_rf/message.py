@@ -7,7 +7,6 @@ Decode/process a message (payload into JSON).
 """
 
 import logging
-from datetime import datetime as dt
 from datetime import timedelta as td
 from typing import Any, Optional, Tuple, Union
 
@@ -342,12 +341,9 @@ class Message:
             else:
                 timeout = td(minutes=5)
 
-            dtm_now = (
-                dt.now()
-                if (True or self._gwy.serial_port)  # TODO
-                else (self._gwy._prev_msg.dtm if self._gwy._prev_msg else self.dtm)
-            )  # FIXME: use global timer
-            self.__expired = ((dtm_now - self.dtm) / timeout) if timeout else False
+            self.__expired = (
+                ((self._gwy._dt_now() - self.dtm) / timeout) if timeout else False
+            )
 
         else:
             self.__expired = self._pkt._expired
@@ -356,10 +352,10 @@ class Message:
             _LOGGER.info("%s # can't expire", self._pkt)
             self.__expired = self.CANT_EXPIRE
 
-        # elif self.__expired >= self.HAS_EXPIRED:  # TODO: should renew?
-        #     _LOGGER.warning(
-        #         "%s # has expired %s", self._pkt, f"({self.__expired * 100:1.0f}%)"
-        #     )
+        elif self.__expired >= self.HAS_EXPIRED:  # TODO: should renew?
+            _LOGGER.warning(
+                "%s # has expired %s", self._pkt, f"({self.__expired * 100:1.0f}%)"
+            )
 
         # elif self.__expired >= self.IS_EXPIRING:  # this could log multiple times
         #     _LOGGER.error("%s # is expiring", self._pkt)

@@ -373,7 +373,7 @@ class PacketProtocolBase(asyncio.Protocol):
             self._has_initialized = True
 
         try:
-            pkt = Packet.from_port(dtm, line, raw_line=raw_line)
+            pkt = Packet.from_port(self._gwy, dtm, line, raw_line=raw_line)
         except ValueError as e:
             if DEV_MODE and line and line[:1] != "#" and "*" not in line:
                 _LOGGER.error("%s << Cant create packet (ignoring): %s", line, e)
@@ -495,7 +495,7 @@ class PacketProtocolRead(PacketProtocolBase):
             self._has_initialized = True
 
         try:
-            pkt = Packet.from_file(dtm, line)
+            pkt = Packet.from_file(self._gwy, dtm, line)
         except ValueError:
             if (dtm and dtm.lstrip()[:1] != "#") and (
                 line and line[:1] != "#" and "*" not in line

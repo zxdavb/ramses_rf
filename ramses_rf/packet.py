@@ -274,13 +274,15 @@ class PacketBase:
 class Packet(PacketBase):
     """The packet class; should trap/log all invalid PKTs appropriately."""
 
-    def __init__(self, dtm: dt, frame: str, **kwargs) -> None:
+    def __init__(self, gwy, dtm: dt, frame: str, **kwargs) -> None:
         """Create a packet from a valid frame."""
         super().__init__()
 
-        # if kwargs.get("dtm_str"):
-        #     assert kwargs.get("dtm_str") == dtm.isoformat(), "should be True"
+        assert (
+            kwargs.get("dtm_str") is None or kwargs.get("dtm_str") == dtm.isoformat()
+        ), "should be True"
 
+        self._gwy = gwy
         self.dtm = dtm
         self._date, self._time = (
             kwargs.get("dtm_str") or dtm.isoformat(sep="T")
@@ -316,23 +318,30 @@ class Packet(PacketBase):
         _ = self._has_ctl  # # TODO: remove (is for testing only)
 
     @classmethod
-    def from_dict(cls, dtm: str, pkt: str):
+    def from_dict(cls, gwy, dtm: str, pkt: str):
         """Constructor to create a packet from a saved state (a curated dict)."""
-        return cls(dt.fromisoformat(dtm), pkt, dtm_str=dtm)
+        return cls(gwy, dt.fromisoformat(dtm), pkt, dtm_str=dtm)
 
     @classmethod
-    def from_file(cls, dtm: str, pkt_line: str):
+    def from_file(cls, gwy, dtm: str, pkt_line: str):
         """Constructor to create a packet from a log file line."""
         frame, err_msg, comment = cls._partition(pkt_line)
         return cls(
-            dt.fromisoformat(dtm), frame, dtm_str=dtm, err_msg=err_msg, comment=comment
+            gwy,
+            dt.fromisoformat(dtm),
+            frame,
+            dtm_str=dtm,
+            err_msg=err_msg,
+            comment=comment,
         )
 
     @classmethod
-    def from_port(cls, dtm: dt, pkt_line: str, raw_line: ByteString = None):
+    def from_port(cls, gwy, dtm: dt, pkt_line: str, raw_line: ByteString = None):
         """Constructor to create a packet from a usb port (HGI80, evofw3)."""
         frame, err_msg, comment = cls._partition(pkt_line)
-        return cls(dtm, frame, err_msg=err_msg, comment=comment, raw_frame=raw_line)
+        return cls(
+            gwy, dtm, frame, err_msg=err_msg, comment=comment, raw_frame=raw_line
+        )
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -377,12 +386,7 @@ class Packet(PacketBase):
         if self.__timeout is False:
             return False
 
-        dtm_now = (
-            dt.now()
-            if (True or self._gwy.serial_port)  # TODO
-            else (self._gwy._prev_msg.dtm if self._gwy._prev_msg else self.dtm)
-        )  # FIXME: use global timer
-        return (dtm_now - self.dtm) / self.__timeout
+        return (self._gwy._dt_now() - self.dtm) / self.__timeout
 
     @property
     def is_valid(self) -> Optional[bool]:
