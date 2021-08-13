@@ -767,14 +767,14 @@ class Command(PacketBase):
     ):
 
         if msg_type == "00":
-            payload = f"0000{dts_to_hex(dt.now())}7F"
+            payload = f"0000{dts_to_hex(dt_now())}7F"
             payload += f"{str_to_hex(message)}7F"
 
         elif msg_type in ("01", "02", "03"):
             payload = f"00{msg_type}{str_to_hex(message)}7F"
 
         else:
-            payload = f"007F{dts_to_hex(dt.now())}7F"
+            payload = f"007F{dts_to_hex(dt_now())}7F"
             payload += f"{ordinal % 0x10000:04X}7F{int(interval * 100):04X}7F"
 
         if length:

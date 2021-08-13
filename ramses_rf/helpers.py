@@ -20,7 +20,11 @@ class FILETIME(ctypes.Structure):
 
 
 def dt_now() -> dt:
-    """Return the current datetime as a local/naive datetime object."""
+    """Return the current datetime as a local/naive datetime object.
+
+    This is slower, but potentially more accurate, than dt.now(), and is used mainly for
+    packet timestamps.
+    """
     return dt.fromtimestamp(timestamp())
 
 
@@ -42,25 +46,65 @@ def timestamp() -> float:
     return _time - 134774 * 24 * 60 * 60  # otherwise, is since 1601-01-01T00:00:00Z
 
 
-def test_precision():
+def _precision_v_cost():
     import math
 
+    #
     LOOPS = 10 ** 6
     #
     print("time.time_ns(): %s" % time.time_ns())
-    print("time.time():    %s" % time.time())
+    print("time.time():    %s\r\n" % time.time())
     #
+    starts = time.time_ns()
     min_dt = [abs(time.time_ns() - time.time_ns()) for _ in range(LOOPS)]
     min_dt = min(filter(bool, min_dt))
-    print("min   time_ns() delta: %s ns" % min_dt)
+    print("min delta   time_ns(): %s ns" % min_dt)
+    print("duration    time_ns(): %s ns\r\n" % (time.time_ns() - starts))
     #
+    starts = time.time_ns()
     min_dt = [abs(time.time() - time.time()) for _ in range(LOOPS)]
     min_dt = min(filter(bool, min_dt))
-    print("min      time() delta: %s ns" % math.ceil(min_dt * 1e9))
+    print("min delta      time(): %s ns" % math.ceil(min_dt * 1e9))
+    print("duration       time(): %s ns\r\n" % (time.time_ns() - starts))
     #
+    starts = time.time_ns()
     min_dt = [abs(timestamp() - timestamp()) for _ in range(LOOPS)]
     min_dt = min(filter(bool, min_dt))
-    print("min timestamp() delta: %s ns" % math.ceil(min_dt * 1e9))
+    print("min delta timestamp(): %s ns" % math.ceil(min_dt * 1e9))
+    print("duration  timestamp(): %s ns\r\n" % (time.time_ns() - starts))
+    #
+    LOOPS = 10 ** 4
+    #
+    starts = time.time_ns()
+    min_td = [abs(dt.now() - dt.now()) for _ in range(LOOPS)]
+    min_td = min(filter(bool, min_td))
+    print("min delta dt.now(): %s ns" % math.ceil(min_dt * 1e9))
+    print("duration  dt.now(): %s ns\r\n" % (time.time_ns() - starts))
+    #
+    starts = time.time_ns()
+    min_td = [abs(dt_now() - dt_now()) for _ in range(LOOPS)]
+    min_td = min(filter(bool, min_td))
+    print("min delta dt_now(): %s ns" % math.ceil(min_dt * 1e9))
+    print("duration  dt_now(): %s ns\r\n" % (time.time_ns() - starts))
+    #
+    starts = time.time_ns()
+    min_td = [
+        abs(
+            (dt_now if sys.platform == "win32" else dt.now)()
+            - (dt_now if sys.platform == "win32" else dt.now)()
+        )
+        for _ in range(LOOPS)
+    ]
+    min_td = min(filter(bool, min_td))
+    print("min delta dt_now(): %s ns" % math.ceil(min_dt * 1e9))
+    print("duration  dt_now(): %s ns\r\n" % (time.time_ns() - starts))
+    #
+    dt_nov = dt_now if sys.platform == "win32" else dt.now
+    starts = time.time_ns()
+    min_td = [abs(dt_nov() - dt_nov()) for _ in range(LOOPS)]
+    min_td = min(filter(bool, min_td))
+    print("min delta dt_now(): %s ns" % math.ceil(min_dt * 1e9))
+    print("duration  dt_now(): %s ns\r\n" % (time.time_ns() - starts))
 
 
 def _double(val, factor=1) -> Optional[float]:
@@ -147,7 +191,7 @@ def dtm_to_hex(dtm: Union[str, dt]) -> str:
     elif not isinstance(dtm, dt):
         raise TypeError("Invalid datetime object")
 
-    # if dtm < dt_now() + td(minutes=1):
+    # if dtm < dt.now() + td(minutes=1):
     #     raise ValueError("Invalid datetime")
 
     return _dtm_to_hex(*dtm.timetuple())

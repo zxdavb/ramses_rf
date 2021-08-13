@@ -11,6 +11,7 @@ import functools
 import logging
 import os
 import re
+import sys
 from datetime import datetime as dt
 from datetime import timedelta as td
 from multiprocessing import Process
@@ -300,6 +301,8 @@ class PacketProtocolBase(asyncio.Protocol):
     to transport: self.send_data(cmd)       -> self._transport.write(bytes)
     """
 
+    _dt_now = dt_now if sys.platform == "win32" else dt.now
+
     def __init__(self, gwy, pkt_handler: Callable) -> None:
         self._gwy = gwy
         self._loop = gwy._loop
@@ -392,7 +395,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 lines = self._recv_buffer.split(b"\r\n")
                 self._recv_buffer = lines[-1]
                 for line in lines[:-1]:
-                    yield dt_now(), line
+                    yield self._dt_now(), line
 
         for dtm, raw_line in _bytes_received(data):
             _LOGGER.debug("RF Rx: %s", raw_line)
@@ -508,6 +511,13 @@ class PacketProtocolRead(PacketProtocolBase):
         """Called when a packet line is received (from a log file)."""
         _LOGGER.debug("PacketProtocolRead.data_received(%s)", data)
         self._line_received(data[:26], _normalise(data[27:], log_file=True), data)
+
+    @property
+    def _dt_now(self) -> dt:
+        try:
+            return self._this_pkt.dtm
+        except AttributeError:
+            return dt.min()
 
 
 class PacketProtocolQos(PacketProtocolBase):
@@ -713,7 +723,7 @@ class PacketProtocolQos(PacketProtocolBase):
                 break
 
         else:
-            if self._timeout_half >= dt.now():
+            if self._timeout_half >= self._dt_now():
                 self._backoff = max(self._backoff - 1, 0)
             _logger_send(_LOGGER.debug, "SENT OK")
 

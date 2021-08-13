@@ -51,6 +51,7 @@ from .opentherm import (
     decode_frame,
 )
 from .ramses import CODE_RQ_COMPLEX, RAMSES_CODES, RAMSES_DEVICES
+from .version import __version__ as VERSION
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
@@ -1852,20 +1853,26 @@ def parser_7fff(payload, msg) -> Optional[dict]:
         return {
             "datetime": dts_from_hex(payload[4:16]),
             "message": str_from_hex(payload[18:]),
+            "_parser": f"v{VERSION}",
         }
 
     elif payload[2:4] in LOOKUP:
-        return {LOOKUP[payload[2:4]]: str_from_hex(payload[4:])}
+        return {
+            LOOKUP[payload[2:4]]: str_from_hex(payload[4:]),
+            "_parser": f"v{VERSION}",
+        }
 
     elif payload[2:4] == "7F":
         return {
             "datetime": dts_from_hex(payload[4:16]),
             "counter": int(payload[18:22], 16),
             "interval": int(payload[24:28], 16) / 100,
+            "_parser": f"v{VERSION}",
         }
     return {
         "header": payload[2:4],
         "payload": payload[4:],
+        "_parser": f"v{VERSION}",
     }
 
 

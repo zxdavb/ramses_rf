@@ -7,6 +7,7 @@ Decode/process a message (payload into JSON).
 """
 
 import logging
+from datetime import datetime as dt
 from datetime import timedelta as td
 from typing import Any, Optional, Tuple, Union
 
@@ -341,9 +342,7 @@ class Message:
             else:
                 timeout = td(minutes=5)
 
-            self.__expired = (
-                ((self._gwy._dt_now() - self.dtm) / timeout) if timeout else False
-            )
+            self.__expired = ((dt.now() - self.dtm) / timeout) if timeout else False
 
         else:
             self.__expired = self._pkt._expired

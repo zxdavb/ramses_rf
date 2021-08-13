@@ -15,7 +15,6 @@ import json
 import logging
 import os
 import signal
-from datetime import datetime as dt
 from queue import Empty
 from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
@@ -24,7 +23,6 @@ from .address import NUL_DEV_ADDR, create_dev_id, id_to_address, is_valid_dev_id
 from .command import Command
 from .const import ATTR_DEVICES, ATTR_ORPHANS, DONT_CREATE_MESSAGES
 from .devices import Device, create_device
-from .helpers import dt_now
 from .logger import set_pkt_logging
 from .message import Message, process_msg
 from .packet import _PKT_LOGGER
@@ -57,8 +55,6 @@ class GracefulExit(SystemExit):
 
 class Gateway:
     """The gateway class."""
-
-    now = dt_now
 
     def __init__(self, serial_port, loop=None, **kwargs) -> None:
         """Initialise the class."""
@@ -180,16 +176,6 @@ class Gateway:
             self._tasks.append(self.pkt_transport.get_extra_info(POLLER_TASK))
 
         await asyncio.gather(*self._tasks)
-
-    def _dt_now(self) -> dt:
-        """Return the current datetime."""
-
-        if self.serial_port:
-            return dt_now()
-        try:
-            return self.pkt_protocol._this_pkt.dtm
-        except AttributeError:
-            return dt.min()
 
     def _get_device(self, dev_addr, ctl_addr=None, domain_id=None, **kwargs) -> Device:
         """Return a device (will create it if required).
