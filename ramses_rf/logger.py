@@ -63,8 +63,6 @@ LOG_COLOURS = {
     "CRITICAL": "bold_red",
 }  # default_log_colors
 
-_PKT_LOGGER = None
-
 
 class _Logger(logging.Logger):  # use pkt.dtm for the log record timestamp
     """Logger instances represent a single logging channel."""
@@ -157,21 +155,19 @@ def getLogger(name=None, pkt_log=None):  # permit a bespoke Logger class
     if name is None or not pkt_log:
         return logging.getLogger(name)
 
-    global _PKT_LOGGER
-
     logging._acquireLock()  # HACK: So no-one else uses our Logger class
     klass = logging.getLoggerClass()
     logging.setLoggerClass(_Logger)
 
-    _PKT_LOGGER = logging.getLogger(name)
+    logger = logging.getLogger(name)
 
     logging.setLoggerClass(klass)
     logging._releaseLock()
 
-    return _PKT_LOGGER
+    return logger
 
 
-def set_pkt_logging(gwy, logger, cc_console=False, **kwargs) -> None:
+def set_pkt_logging(logger, dt_now=None, cc_console=False, **kwargs) -> None:
     """Create/configure handlers, formatters, etc.
 
     Parameters:
@@ -245,10 +241,10 @@ def set_pkt_logging(gwy, logger, cc_console=False, **kwargs) -> None:
     logger.warning("", extra=extras)
 
 
-def set_logging_dtm(gwy, logger) -> None:
-    """Set the datetime used by logger to be the packet.dtm, not dtm.now().
-
-    This is used when the source of packets is a log file, and not 'live' from RF.
-    """
-    [v for k, v in logger.manager.loggerDict.items() if k.startswith(logger.name)]
-    # [v for k, v in logger.manager.loggerDict.items() if v.parent is logger]
+# def set_logging_dtm(logger, dt_now) -> None:
+#     """Set the datetime used by logger.
+#
+#     This is used when the source of packets is a log file, and not 'live' from RF.
+#     """
+#     [v for k, v in logger.manager.loggerDict.items() if k.startswith(logger.name)]
+#     # [v for k, v in logger.manager.loggerDict.items() if v.parent is logger]
