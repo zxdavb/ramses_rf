@@ -11,69 +11,9 @@ import shutil
 import sys
 from datetime import datetime as dt
 
+from .const import __dev_mode__
 from .helpers import dt_str
 from .version import __version__
-
-from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
-from .const import (  # noqa: F401, isort: skip
-    _0001,
-    _0002,
-    _0004,
-    _0005,
-    _0006,
-    _0008,
-    _0009,
-    _000A,
-    _000C,
-    _000E,
-    _0016,
-    _0100,
-    _01D0,
-    _01E9,
-    _0404,
-    _0418,
-    _042F,
-    _1030,
-    _1060,
-    _1090,
-    _10A0,
-    _10E0,
-    _1100,
-    _1260,
-    _1280,
-    _1290,
-    _1298,
-    _12A0,
-    _12B0,
-    _12C0,
-    _12C8,
-    _1F09,
-    _1F41,
-    _1FC9,
-    _1FD4,
-    _2249,
-    _22C9,
-    _22D0,
-    _22D9,
-    _22F1,
-    _22F3,
-    _2309,
-    _2349,
-    _2D49,
-    _2E04,
-    _30C9,
-    _3120,
-    _313F,
-    _3150,
-    _31D9,
-    _31DA,
-    _31E0,
-    _3220,
-    _3B00,
-    _3EF0,
-    _3EF1,
-    _PUZZ,
-)
 
 DEV_MODE = __dev_mode__  # or True
 
@@ -166,7 +106,7 @@ class _Formatter:  # format asctime with configurable precision
     def formatTime(self, record, datefmt=None) -> str:
         """Return the creation time (asctime) of the LogRecord as formatted text.
 
-        Allows for sub-second precision, using datetime rather than time objects.
+        Allows for sub-millisecond precision, using datetime instead of time objects.
         """
         result = dt.fromtimestamp(record.created).strftime(
             datefmt or self.default_time_format
