@@ -1107,10 +1107,10 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
         super()._handle_msg(msg)
 
         if msg.code == _1FD4:  # every 30s
-            if msg.payload["ticker"] % 60 in (1, 3):
-                self._discover(discover_flag=DISCOVER_PARAMS)
-            elif msg.payload["ticker"] % 6 in (0, 2):
+            if msg.payload["ticker"] % 6 in (0, 2):  # twice every 3 mins
                 self._discover(discover_flag=DISCOVER_STATUS)
+            elif msg.payload["ticker"] % 60 in (1, 3):  # effectively once every 30 mins
+                self._discover(discover_flag=DISCOVER_PARAMS)
 
         elif msg.code == _3220:  # all are RP
             if msg.payload[MSG_TYPE] == "Unknown-DataId":

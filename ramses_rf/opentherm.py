@@ -21,6 +21,9 @@ if DEV_MODE:
 # Other code shamelessy copied, with thanks to @mvn23, from:
 # github.com/mvn23/pyotgw (pyotgw/protocol.py),
 
+# Also see:
+# github.com/rvdbreemen/OTGW-firmware
+
 READ_WRITE = "RW"
 READ_ONLY = "R-"
 WRITE_ONLY = "-W"
@@ -40,6 +43,7 @@ S8 = "s8"
 F8_8 = "f8.8"
 U16 = "u16"
 S16 = "s16"
+SPECIAL = U8  # used for ID 0x14 (20)
 
 HB = "hb"
 LB = "lb"
@@ -53,11 +57,15 @@ VALUE = "value"
 VALUE_HB = f"{VALUE}_{HB}"
 VALUE_LB = f"{VALUE}_{LB}"
 
-COUNTER = "counter"
-HUMIDITY = "humidity"
-PERCENTAGE = "percentage"
-PRESSURE = "pressure"
-TEMPERATURE = "temperature"
+SENSOR_COUNTER = "counter"
+SENSOR_RATIO = "ratio"
+SENSOR_HUMIDITY = "relative humidity (%)"
+SENSOR_PERCENTAGE = "percentage (%)"
+SENSOR_PRESSURE = "pressure (bar)"
+SENSOR_TEMPERATURE = "temperature (°C)"
+SENSOR_CURRENT = "current (µA)"
+SENSOR_FLOW_RATE = "flow rate (L/min)"
+SENSOR_CO2_LEVEL = "CO2 (ppm)"
 
 OPENTHERM_MSG_TYPE = {
     0b000: "Read-Data",
@@ -245,7 +253,7 @@ OPENTHERM_SCHEMA = {
             DIR: WRITE_ONLY,
             VAL: F8_8,
             VAR: "ControlSetpoint",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x02: {  # 2, Master configuration (Member ID)
             EN: "Master configuration",
@@ -285,14 +293,14 @@ OPENTHERM_SCHEMA = {
             DIR: WRITE_ONLY,
             VAL: F8_8,
             VAR: "CoolingControlSignal",
-            SENSOR: PERCENTAGE,
+            SENSOR: SENSOR_PERCENTAGE,
         },
         0x08: {  # 8, CH2 Control Setpoint
             EN: "Control setpoint for 2nd CH circuit",
             DIR: WRITE_ONLY,
             VAL: F8_8,
             VAR: "CH2ControlSetpoint",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x09: {  # 9, Remote Override Room Setpoint
             EN: "Remote override room setpoint",
@@ -300,7 +308,7 @@ OPENTHERM_SCHEMA = {
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "RemoteOverrideRoomSetpoint",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x0A: {  # 10, TSP Number
             EN: "Number of transparent slave parameters supported by slave",
@@ -332,7 +340,7 @@ OPENTHERM_SCHEMA = {
             DIR: WRITE_ONLY,
             VAL: F8_8,
             VAR: "MaxRelativeModulationLevel",
-            SENSOR: PERCENTAGE,
+            SENSOR: SENSOR_PERCENTAGE,
         },
         0x0F: {  # 15, Max Boiler Capacity & Min Modulation Level
             EN: "Max. boiler capacity (kW) and modulation level setting (%)",
@@ -346,7 +354,7 @@ OPENTHERM_SCHEMA = {
             DIR: WRITE_ONLY,
             VAL: F8_8,
             VAR: "CurrentSetpoint",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x11: {  # 17, Relative Modulation Level
             EN: "Relative modulation level",
@@ -354,38 +362,39 @@ OPENTHERM_SCHEMA = {
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "RelativeModulationLevel",
-            SENSOR: PERCENTAGE,
+            SENSOR: SENSOR_PERCENTAGE,
         },
         0x12: {  # 18, CH Water Pressure
-            EN: "Central heating water pressure",
+            EN: "Central heating water pressure (bar)",
             NL: "Keteldruk",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "CHWaterPressure",
-            SENSOR: PRESSURE,
+            SENSOR: SENSOR_PRESSURE,
         },
         0x13: {  # 19, DHW Flow Rate
             EN: "DHW flow rate (litres/minute)",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "DHWFlowRate",
-            SENSOR: "flow",
+            SENSOR: SENSOR_FLOW_RATE,
         },
         0x14: {  # 20, Day/Time
-            EN: "Day of week & time of day",
+            EN: "Day of week & Time of day",
             DIR: READ_WRITE,
-            VAR: "DayTime",
+            VAL: {HB: SPECIAL, LB: U8},  # 1..7/0..23, 0..59
+            VAR: {HB: "DayHour", LB: "Minutes"},  # HB7-5: Day, HB4-0: Hour
         },
         0x15: {  # 21, Date
             EN: "Date",
             DIR: READ_WRITE,
-            VAL: U8,
-            VAR: "Date",
+            VAL: U8,  # 1..12, 1..31
+            VAR: {HB: "Month", LB: "DayOfMonth"},
         },
         0x16: {  # 22, Year
             EN: "Year",
             DIR: READ_WRITE,
-            VAL: U16,
+            VAL: U16,  # 1999-2099
             VAR: "Year",
         },
         0x17: {  # 23, CH2 Current Setpoint
@@ -393,7 +402,7 @@ OPENTHERM_SCHEMA = {
             DIR: WRITE_ONLY,
             VAL: F8_8,
             VAR: "CH2CurrentSetpoint",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x18: {  # 24, Current Room Temperature
             EN: "Room temperature",
@@ -401,7 +410,7 @@ OPENTHERM_SCHEMA = {
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "CurrentTemperature",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x19: {  # 25, Boiler Water Temperature
             EN: "Boiler water temperature",
@@ -409,7 +418,7 @@ OPENTHERM_SCHEMA = {
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "BoilerWaterTemperature",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x1A: {  # 26, DHW Temperature
             EN: "DHW temperature",
@@ -417,7 +426,7 @@ OPENTHERM_SCHEMA = {
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "DHWTemperature",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x1B: {  # 27, Outside Temperature
             EN: "Outside temperature",
@@ -425,7 +434,7 @@ OPENTHERM_SCHEMA = {
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "OutsideTemperature",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x1C: {  # 28, Return Water Temperature
             EN: "Return water temperature",
@@ -433,56 +442,56 @@ OPENTHERM_SCHEMA = {
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "ReturnWaterTemperature",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x1D: {  # 29, Solar Storage Temperature
             EN: "Solar storage temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "SolarStorageTemperature",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x1E: {  # 30, Solar Collector Temperature
             EN: "Solar collector temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "SolarCollectorTemperature",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x1F: {  # 31, CH2 Flow Temperature
             EN: "Flow temperature for 2nd CH circuit",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "CH2FlowTemperature",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x20: {  # 32, DHW2 Temperature
             EN: "DHW 2 temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "DHW2Temperature",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x21: {  # 33, Boiler Exhaust Temperature
             EN: "Boiler exhaust temperature",
             DIR: READ_ONLY,
             VAL: S16,
             VAR: "BoilerExhaustTemperature",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x30: {  # 48, DHW Boundaries
             EN: "DHW setpoint boundaries",
             DIR: READ_ONLY,
             VAL: S8,
             VAR: {HB: "DHWUpperBound", LB: "DHWLowerBound"},
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x31: {  # 49, CH Boundaries
             EN: "Max. central heating setpoint boundaries",
             DIR: READ_ONLY,
             VAL: S8,
             VAR: {HB: "CHUpperBound", LB: "CHLowerBound"},
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x32: {  # 50, OTC Boundaries
             EN: "OTC heat curve ratio upper & lower bounds",
@@ -496,7 +505,7 @@ OPENTHERM_SCHEMA = {
             DIR: READ_WRITE,
             VAL: F8_8,
             VAR: "DHWSetpoint",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x39: {  # 57, Max CH Water Setpoint
             EN: "Max. central heating water setpoint",
@@ -504,14 +513,14 @@ OPENTHERM_SCHEMA = {
             DIR: READ_WRITE,
             VAL: F8_8,
             VAR: "MaxCHWaterSetpoint",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x3A: {  # 58, OTC Heat Curve Ratio
             EN: "OTC heat curve ratio",
             DIR: READ_WRITE,
             VAL: F8_8,
             VAR: "OTCHeatCurveRatio",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_RATIO,
         },
         # OpenTherm 2.3 IDs (70-91) for ventilation/heat-recovery applications
         0x46: {  # 70, VH Status
@@ -568,43 +577,43 @@ OPENTHERM_SCHEMA = {
             DIR: READ_WRITE,
             VAL: U8,
             VAR: {HB: "RelativeHumidity"},
-            SENSOR: HUMIDITY,
+            SENSOR: SENSOR_HUMIDITY,
         },
         0x4F: {  # 79, CO2 Level
             EN: "CO2 level",
             NL: "CO2 niveau",
             DIR: READ_WRITE,
-            VAL: U16,
+            VAL: U16,  # 0-2000 ppm
             VAR: "CO2Level",
-            SENSOR: "co2",
+            SENSOR: SENSOR_CO2_LEVEL,
         },
         0x50: {  # 80, Supply Inlet Temperature
             EN: "Supply inlet temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "SupplyInletTemperature",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x51: {  # 81, Supply Outlet Temperature
             EN: "Supply outlet temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "SupplyOutletTemperature",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x52: {  # 82, Exhaust Inlet Temperature
             EN: "Exhaust inlet temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "ExhaustInletTemperature",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x53: {  # 83, Exhaust Outlet Temperature
             EN: "Exhaust outlet temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "ExhaustOutletTemperature",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x54: {  # 84, Exhaust Fan Speed
             EN: "Actual exhaust fan speed",
@@ -672,56 +681,56 @@ OPENTHERM_SCHEMA = {
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "StartsBurner",
-            SENSOR: COUNTER,
+            SENSOR: SENSOR_COUNTER,
         },
         0x75: {  # 117, Starts CH Pump
             EN: "Number of starts central heating pump",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "StartsCHPump",
-            SENSOR: COUNTER,
+            SENSOR: SENSOR_COUNTER,
         },
         0x76: {  # 118, Starts DHW Pump
             EN: "Number of starts DHW pump/valve",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "StartsDHWPump",
-            SENSOR: COUNTER,
+            SENSOR: SENSOR_COUNTER,
         },
         0x77: {  # 119, Starts Burner DHW
             EN: "Number of starts burner during DHW mode",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "StartsBurnerDHW",
-            SENSOR: COUNTER,
+            SENSOR: SENSOR_COUNTER,
         },
         0x78: {  # 120, Hours Burner
             EN: "Number of hours burner is in operation (i.e. flame on)",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "HoursBurner",
-            SENSOR: COUNTER,
+            SENSOR: SENSOR_COUNTER,
         },
         0x79: {  # 121, Hours CH Pump
             EN: "Number of hours central heating pump has been running",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "HoursCHPump",
-            SENSOR: COUNTER,
+            SENSOR: SENSOR_COUNTER,
         },
         0x7A: {  # 122, Hours DHW Pump
             EN: "Number of hours DHW pump has been running/valve has been opened",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "HoursDHWPump",
-            SENSOR: COUNTER,
+            SENSOR: SENSOR_COUNTER,
         },
         0x7B: {  # 123, Hours DHW Burner
             EN: "Number of hours DHW burner is in operation during DHW mode",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "HoursDHWBurner",
-            SENSOR: COUNTER,
+            SENSOR: SENSOR_COUNTER,
         },
         0x7C: {  # 124, Master OpenTherm Version
             EN: "Opentherm version Master",
@@ -753,14 +762,14 @@ OPENTHERM_SCHEMA = {
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "BadStartsBurner?",
-            SENSOR: COUNTER,
+            SENSOR: SENSOR_COUNTER,
         },
         0x72: {  # 114, Low Signals Flame
             EN: "Number of times flame signal was too low",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "LowSignalsFlame?",
-            SENSOR: COUNTER,
+            SENSOR: SENSOR_COUNTER,
         },
         # https://www.domoticaforum.eu/viewtopic.php?f=70&t=10893
         # 0x23: {  # 35, Boiler Fan Speed (rpm/60?)?
@@ -770,20 +779,21 @@ OPENTHERM_SCHEMA = {
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "BurnerCurrent",
+            SENSOR: SENSOR_CURRENT,
         },
         0x25: {  # 37, CH2 Room Temperature
             EN: "Room temperature for 2nd CH circuit",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "CH2CurrentTemperature",
-            SENSOR: TEMPERATURE,
+            SENSOR: SENSOR_TEMPERATURE,
         },
         0x26: {  # 38, Relative Humidity, c.f. 0x4E
             EN: "Relative humidity",
             DIR: READ_ONLY,
             VAL: U8,
             VAR: {HB: "RelativeHumidity"},  # TODO: or LB?
-            SENSOR: HUMIDITY,
+            SENSOR: SENSOR_HUMIDITY,
         },
     },
 }
@@ -889,7 +899,9 @@ def parity(x: int) -> int:
 def msg_value(val_seqx, val_type) -> Any:
     """Make this the docstring."""
 
-    def _get_flag8(byte, *args) -> list:
+    # based upon: https://github.com/mvn23/pyotgw/blob/master/pyotgw/protocol.py
+
+    def flag8(byte, *args) -> list:
         """Split a byte (as a str) into a list of 8 bits (1/0)."""
         ret = [0] * 8
         byte = bytes.fromhex(byte)[0]
@@ -898,41 +910,41 @@ def msg_value(val_seqx, val_type) -> Any:
             byte = byte >> 1
         return ret
 
-    def _get_u8(byte, *args) -> int:
+    def u8(byte, *args) -> int:
         """Convert a byte (as a str) into an unsigned int."""
         return struct.unpack(">B", bytes.fromhex(byte))[0]
 
-    def _get_s8(byte, *args) -> int:
+    def s8(byte, *args) -> int:
         """Convert a byte (as a str) into a signed int."""
         return struct.unpack(">b", bytes.fromhex(byte))[0]
 
-    def _get_f8_8(msb, lsb) -> float:
+    def f8_8(msb, lsb) -> float:
         """Convert 2 bytes (as strs) into an OpenTherm f8_8 (float) value."""
         if msb == lsb == "FF":  # TODO: move up to parser?
             return None
-        return float(_get_s16(msb, lsb) / 256)
+        return float(s16(msb, lsb) / 256)
 
-    def _get_u16(msb, lsb) -> int:
+    def u16(msb, lsb) -> int:
         """Convert 2 bytes (as strs) into an unsigned int."""
         if msb == lsb == "FF":  # TODO: move up to parser?
             return None
-        buf = struct.pack(">BB", _get_u8(msb), _get_u8(lsb))
+        buf = struct.pack(">BB", u8(msb), u8(lsb))
         return int(struct.unpack(">H", buf)[0])
 
-    def _get_s16(msb, lsb) -> int:
+    def s16(msb, lsb) -> int:
         """Convert 2 bytes (as strs) into a signed int."""
         if msb == lsb == "FF":  # TODO: move up to parser?
             return None
-        buf = struct.pack(">bB", _get_s8(msb), _get_u8(lsb))
+        buf = struct.pack(">bB", s8(msb), u8(lsb))
         return int(struct.unpack(">h", buf)[0])
 
     DATA_TYPES = {
-        FLAG8: _get_flag8,
-        U8: _get_u8,
-        S8: _get_s8,
-        F8_8: _get_f8_8,
-        U16: _get_u16,
-        S16: _get_s16,
+        FLAG8: flag8,
+        U8: u8,
+        S8: s8,
+        F8_8: f8_8,
+        U16: u16,
+        S16: s16,
     }
 
     if val_type in DATA_TYPES:
@@ -952,8 +964,9 @@ def _decode_flags(frame: str, data_id: int) -> dict:
 
 
 def decode_frame(frame: str) -> Tuple[int, int, dict, str]:
-    if not isinstance(frame, str) or len(frame) != 8:
-        raise TypeError(f"Invalid frame (type or length): {frame}")
+    assert (
+        isinstance(frame, str) and len(frame) == 8
+    ), f"Invalid frame (type or length): {frame}"
 
     if int(frame[:2], 16) // 0x80 != parity(int(frame, 16) & 0x7FFFFFFF):
         raise ValueError(f"Invalid parity bit: 0b{int(frame[:2], 16) // 0x80}")
@@ -962,20 +975,16 @@ def decode_frame(frame: str) -> Tuple[int, int, dict, str]:
         raise ValueError(f"Invalid spare bits: 0b{int(frame[:2], 16) & 0x0F:04b}")
 
     msg_type = (int(frame[:2], 16) & 0x70) >> 4
-    # if msg_type == 0b011:  # NOTE: this msg-type may no longer be reserved
-    #     raise ValueError(f"Reserved msg-type: 0b{msg_type:03b}")
+
+    if msg_type == 0b011:  # NOTE: this msg-type may no longer be reserved (R8820?)
+        raise ValueError(f"Reserved msg-type (0b{msg_type:03b})")
 
     data_id = int(frame[2:4], 16)
     msg = OPENTHERM_MESSAGES.get(data_id)
 
-    if not msg:
-        # TODO: not sure to leave this get-out clause in, or not
-        if msg_type != 0b111:  # Unknown-DataId
-            return OPENTHERM_MSG_TYPE[msg_type], data_id, {}, msg
-        raise KeyError(
-            f"Unknown data-id: 0x{data_id:02X} ({data_id})"
-            f", msg-type = {OPENTHERM_MSG_TYPE[msg_type]}"
-        )
+    if not msg:  # may be a corrupt payload
+        result = {VALUE: msg_value(frame[4:8], U16)}
+        return OPENTHERM_MSG_TYPE[msg_type], data_id, result, msg
 
     # There are five msg_id with FLAGS - the following is not 100% correct...
     data_value = {MSG_NAME: msg.get(FLAGS, msg.get(VAR))}  # TODO: if msg else {}
@@ -985,7 +994,7 @@ def decode_frame(frame: str) -> Tuple[int, int, dict, str]:
         #     raise ValueError(f"Invalid data-value for msg-type: 0x{frame[4:]}")
         return OPENTHERM_MSG_TYPE[msg_type], data_id, data_value, msg
 
-    if isinstance(msg.get(VAR), dict) and isinstance(msg[VAL], dict):
+    if isinstance(msg[VAL], dict):
         data_value[VALUE_HB] = msg_value(frame[4:6], msg[VAL].get(HB, msg[VAL]))
         data_value[VALUE_LB] = msg_value(frame[6:8], msg[VAL].get(LB, msg[VAL]))
 
@@ -996,10 +1005,33 @@ def decode_frame(frame: str) -> Tuple[int, int, dict, str]:
     elif msg[VAL] in (FLAG8, U8, S8):
         data_value[VALUE] = msg_value(frame[4:6], msg[VAL])
 
-    else:
+    elif msg[VAL] == F8_8:
+        result = msg_value(frame[4:8], msg[VAL])
+        if result is None or msg.get(SENSOR) not in (
+            SENSOR_PERCENTAGE,
+            SENSOR_TEMPERATURE,
+        ):
+            data_value[VALUE] = result
+        elif msg.get(SENSOR) == SENSOR_PERCENTAGE:
+            data_value[VALUE] = int(result * 200) / 200
+        else:  # if msg.get(SENSOR) == SENSOR_TEMPERATURE:
+            data_value[VALUE] = int(result * 100) / 100
+        # else:  # SENSOR_PRESSURE:  SENSOR_HUMIDITY, "flow", "current"
+        #     data_value[VALUE] = result
+
+    else:  # if msg[VAL] in (S16, U16):
         data_value[VALUE] = msg_value(frame[4:8], msg[VAL])
 
     return OPENTHERM_MSG_TYPE[msg_type], data_id, data_value, msg
+
+
+# assert not [
+#     k
+#     for k, v in OPENTHERM_MESSAGES.items()
+#     if not isinstance(v[VAL], dict)
+#     and not isinstance(v.get(VAR), dict)
+#     and v[VAL] not in msg_value.DATA_TYPES
+# ], "Corrupt OPENTHERM_MESSAGES schema"
 
 
 # https://github.com/rvdbreemen/OTGW-firmware/blob/main/Specification/New%20OT%20data-ids.txt  # noqa

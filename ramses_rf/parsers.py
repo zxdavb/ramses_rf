@@ -41,15 +41,7 @@ from .helpers import (
     temp_from_hex,
     valve_demand,
 )
-from .opentherm import (
-    EN,
-    MSG_DESC,
-    MSG_ID,
-    MSG_NAME,
-    MSG_TYPE,
-    OTB_MSG_IDS,
-    decode_frame,
-)
+from .opentherm import EN, MSG_DESC, MSG_ID, MSG_NAME, MSG_TYPE, decode_frame
 from .ramses import CODE_RQ_COMPLEX, RAMSES_CODES, RAMSES_DEVICES
 from .version import __version__ as VERSION
 
@@ -1654,12 +1646,16 @@ def parser_31e0(payload, msg) -> dict:
 @parser_decorator  # opentherm_msg
 def parser_3220(payload, msg) -> Optional[dict]:
 
-    ot_type, ot_id, ot_value, ot_schema = decode_frame(payload[2:10])
+    try:
+        ot_type, ot_id, ot_value, ot_schema = decode_frame(payload[2:10])
+    except AssertionError as e:
+        raise AssertionError(f"OpenTherm: {e}")
+    except ValueError as e:
+        raise CorruptPayloadError(f"OpenTherm: {e}")
 
-    # NOTE: Unknown-DataId is useful to educate the OTB device
-    assert (
-        ot_id in OTB_MSG_IDS or ot_type == "Unknown-DataId"
-    ), f"OpenTherm: Invalid data-id: 0x{ot_id:02X} ({ot_id}), msg-type = {ot_type}"
+    # NOTE: Unknown-DataId isn't an invalid payload & is useful to train the OTB device
+    if ot_schema is None and ot_type != "Unknown-DataId":
+        raise CorruptPayloadError(f"OpenTherm: Unknown data-id: {ot_id}")
 
     result = {
         MSG_ID: ot_id,
@@ -1668,29 +1664,27 @@ def parser_3220(payload, msg) -> Optional[dict]:
     }
 
     if msg.verb == RQ:  # RQs have a context: msg_id (and a payload)
-        if ot_type == "Read-Data":
-            assert (
-                payload[6:10] == "0000"  # This may be true for RAMSES
-            ), f"OpenTherm: Invalid msg-type|data-value: {ot_type}|{payload[6:10]}"
+        # have only ever seen: RQ/00[08]0..0000
+        assert (
+            ot_type != "Read-Data" or payload[6:10] == "0000"  # likely true for RAMSES
+        ), f"OpenTherm: Invalid msg-type|data-value: {ot_type}|{payload[6:10]}"
 
-        else:
+        if ot_type != "Read-Data":
             assert ot_type in (
                 "Write-Data",
                 "Invalid-Data",
             ), f"OpenTherm: Invalid msg-type for RQ: {ot_type}"
 
-            result.update(ot_value)  # TODO: remove?
+            result.update(ot_value)  # TODO: find some of the packets to review
 
         return result
 
-    # assert msg.verb == RP, f"OpenTherm: Invalid verb {msg.verb}"  # not req'd
-    if ot_type in ("Data-Invalid", "Unknown-DataId"):
-        assert (
-            True or payload[6:10] == "0000"
-        ), f"OpenTherm: Invalid msg-type|data-value: {ot_type}|{payload[6:10]}"
+    assert (
+        ot_type not in ("Data-Invalid", "Unknown-DataId") or payload[6:10] == "0000"
+    ), f"OpenTherm: Invalid msg-type|data-value: {ot_type}|{payload[6:10]}"
 
-    else:
-        assert True or ot_type in (
+    if ot_type not in ("Data-Invalid", "Unknown-DataId"):
+        assert ot_type in (
             "Read-Ack",
             "Write-Ack",
         ), f"OpenTherm: Invalid msg-type for RP: {ot_type}"
@@ -1905,9 +1899,7 @@ def parse_payload(msg, logger=_LOGGER) -> dict:
         )
 
     except (CorruptPacketError, CorruptPayloadError) as err:  # CorruptEvohomeError
-        (logger.exception if DEV_MODE else logger.warning)(
-            "%s << %s", msg._pkt, f"{err.__class__.__name__}({err})"
-        )
+        (logger.exception if DEV_MODE else logger.warning)("%s << %s", msg._pkt, err)
 
     except (AttributeError, LookupError, TypeError, ValueError) as err:  # TODO: dev
         logger.exception(
