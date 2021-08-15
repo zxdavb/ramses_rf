@@ -99,7 +99,7 @@ CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:^4s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:^4s} || {}"
 
-DEV_MODE = __dev_mode__  # and False
+DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -332,7 +332,8 @@ class Message:
 
         if self.code in (_1F09, _3220):
             if self.code == _1F09:
-                timeout = td(seconds=self.payload["remaining_seconds"])
+                # RQs won't have a "remaining_seconds"...
+                timeout = td(seconds=self.payload.get("remaining_seconds", 3))
             elif self.payload[MSG_ID] in OtbGateway.SCHEMA_MSG_IDS:
                 timeout = None
             elif self.payload[MSG_ID] in OtbGateway.PARAMS_MSG_IDS:
