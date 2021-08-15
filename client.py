@@ -324,7 +324,7 @@ def _save_state(gwy):
 
     with open("state_msgs.log", "w") as f:
         [
-            f.write(f"{m.dtm.isoformat(sep='T')} {m._pkt}\r\n")
+            f.write(f"{m.dtm.isoformat(timespec='microseconds')} {m._pkt}\r\n")
             for m in msgs.values()
             # if not m._expired
         ]
@@ -368,7 +368,7 @@ async def main(lib_kwargs, **kwargs):
         # if msg._pkt._idx not in (None, "******"):
         #     return
         dtm = (
-            msg.dtm.isoformat()
+            msg.dtm.isoformat(timespec="microseconds")
             if kwargs["long_dates"]
             else f"{msg.dtm:%H:%M:%S.%f}"[:-3]
         )
