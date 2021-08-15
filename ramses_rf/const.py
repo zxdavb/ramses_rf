@@ -50,6 +50,7 @@ _12C8 = "12C8"
 _1F09 = "1F09"
 _1F41 = "1F41"
 _1FC9 = "1FC9"
+_1FCA = "1FCA"
 _1FD4 = "1FD4"
 _2249 = "2249"
 _22C9 = "22C9"
@@ -465,9 +466,20 @@ _0005_ZONE = SimpleNamespace(
     DHW_SENSOR="0D",  # DHW sensor domains
     DHW="0E",  # DHW valve domains
     HTG="0F",  # Heating control domains
-    UNKNOWN="10",
+    RFG="10",  # RFG gateway
     ELE="11",  # Electrical zones
 )
+# RP --- 01:054173 18:006402 --:------ 0005 004 00100000  # before adding RFG100
+#  I --- 01:054173 --:------ 01:054173 1FC9 012 0010E004D39D001FC904D39D
+#  W --- 30:248208 01:054173 --:------ 1FC9 012 0010E07BC9900012907BC990
+#  I --- 01:054173 30:248208 --:------ 1FC9 006 00FFFF04D39D
+
+# RP --- 01:054173 18:006402 --:------ 0005 004 00100100  # after adding RFG100
+# RP --- 01:054173 18:006402 --:------ 000C 006 0010007BC990  # 30:082155
+# RP --- 01:054173 18:006402 --:------ 0005 004 00100100  # before deleting RFG from CTL
+#  I --- 01:054173 --:------ 01:054173 0005 004 00100000  # when the RFG was deleted
+# RP --- 01:054173 18:006402 --:------ 0005 004 00100000  # after deleting the RFG
+
 _0005_ZONE_TYPE = {
     _0005_ZONE.ALL: "configured_zones",  # zones with actuators?
     # "01": None,
@@ -485,7 +497,7 @@ _0005_ZONE_TYPE = {
     _0005_ZONE.DHW_SENSOR: ATTR_DHW_SENSOR,
     _0005_ZONE.DHW: ATTR_DHW_VALVE,  # can be 0, 1 or 2 (i.e. 1,1,0,...) of them
     _0005_ZONE.HTG: ATTR_HTG_CONTROL,
-    # "10": None,
+    _0005_ZONE.RFG: "internet_gateway",
     _0005_ZONE.ELE: ATTR_ELEC_HEAT,
 }  # 03, 05, 06, 07: & >11 - no response from 01:
 
@@ -510,7 +522,7 @@ _000C_DEVICE_TYPE = {
     _000C_DEVICE.DHW_SENSOR: ATTR_DHW_SENSOR,  # FA, z_idx 0 only
     _000C_DEVICE.DHW: ATTR_DHW_VALVE,  # FA, could be F9, ATTR_DHW_VALVE_HTG
     _000C_DEVICE.HTG: ATTR_HTG_CONTROL,  # FC, z_idx 0 only
-    # _000C_DEVICE.UNKNOWN: "unknown",  # seen when binding a TR87RF, ?UFC, ?RFG
+    _000C_DEVICE.RFG: "rfg_gateway",
     _000C_DEVICE.ELE: "ele_actuators",
 }
 
