@@ -481,11 +481,11 @@ _0005_ZONE = SimpleNamespace(
 # RP --- 01:054173 18:006402 --:------ 0005 004 00100000  # after deleting the RFG
 
 _0005_ZONE_TYPE = {
-    _0005_ZONE.ALL: "configured_zones",  # zones with actuators?
+    _0005_ZONE.ALL: "zone_actuators",
     # "01": None,
     # "02": None,  # no response?
     # "03": None,
-    _0005_ZONE.ALL_SENSOR: "configured_zones_alt",  # zones with sensors?
+    _0005_ZONE.ALL_SENSOR: "zone_sensor",
     # "05": None,  # no response?
     # "06": None,  # no response
     # "07": None,  # no response
@@ -493,7 +493,7 @@ _0005_ZONE_TYPE = {
     _0005_ZONE.UFH: ATTR_UFH_HTG,
     _0005_ZONE.VAL: ATTR_ZON_VALVE,
     _0005_ZONE.MIX: ATTR_MIX_VALVE,
-    # "0C": None,
+    # "0C": None,  # RFG RQs this
     _0005_ZONE.DHW_SENSOR: ATTR_DHW_SENSOR,
     _0005_ZONE.DHW: ATTR_DHW_VALVE,  # can be 0, 1 or 2 (i.e. 1,1,0,...) of them
     _0005_ZONE.HTG: ATTR_HTG_CONTROL,
@@ -518,7 +518,7 @@ _000C_DEVICE_TYPE = {
     _000C_DEVICE.UFH: "ufh_actuators",
     _000C_DEVICE.VAL: "val_actuators",
     _000C_DEVICE.MIX: "mix_actuators",
-    # "0C": None,
+    # "0C": None,  # RFG RQs this
     _000C_DEVICE.DHW_SENSOR: ATTR_DHW_SENSOR,  # FA, z_idx 0 only
     _000C_DEVICE.DHW: ATTR_DHW_VALVE,  # FA, could be F9, ATTR_DHW_VALVE_HTG
     _000C_DEVICE.HTG: ATTR_HTG_CONTROL,  # FC, z_idx 0 only
