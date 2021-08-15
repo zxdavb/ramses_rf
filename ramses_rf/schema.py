@@ -255,7 +255,9 @@ def load_config_schema(
     """Process the configuration, including any filter lists."""
 
     schema = {
-        k: v for k, v in kwargs.items() if k not in (ALLOW_LIST, BLOCK_LIST, CONFIG)
+        k: v
+        for k, v in kwargs.items()
+        if k not in (ALLOW_LIST, BLOCK_LIST, CONFIG) and k[:1] != "_"
     }
     kwargs = GLOBAL_CONFIG_SCHEMA(kwargs)
 
