@@ -147,10 +147,10 @@ class StdOutFilter(logging.Filter):  # record.levelno < logging.WARNING
         return record.levelno < logging.WARNING  # INFO-20, DEBUG-10
 
 
-def getLogger(name=None, pkt_log=None):  # permit a bespoke Logger class
+def getLogger(name=None, pkt_log=None):  # permits a bespoke Logger class
     """Return a logger with the specified name, creating it if necessary.
 
-    If required, safely permits a bespoke Logger class.
+    Used to set record timestamps to its packet timestamp instead of the current time.
     """
     if name is None or not pkt_log:
         return logging.getLogger(name)
@@ -165,6 +165,26 @@ def getLogger(name=None, pkt_log=None):  # permit a bespoke Logger class
     logging._releaseLock()
 
     return logger
+
+
+def set_logger_timesource(dtm_now):
+    """Set a custom record factory, with a bespoke source of timestamps.
+
+    Used to have records with the same datetime as the most recent packet log record.
+    """
+
+    def record_factory(*args, **kwargs):
+        record = old_factory(*args, **kwargs)
+
+        ct = dtm_now().timestamp()
+        record.created = ct
+        record.msecs = (ct - int(ct)) * 1000
+
+        return record
+
+    old_factory = logging.getLogRecordFactory()
+
+    logging.setLogRecordFactory(record_factory)
 
 
 def set_pkt_logging(logger, dt_now=None, cc_console=False, **kwargs) -> None:
@@ -239,12 +259,3 @@ def set_pkt_logging(logger, dt_now=None, cc_console=False, **kwargs) -> None:
         "comment": f"# ramses_rf {__version__}",
     }
     logger.warning("", extra=extras)
-
-
-# def set_logging_dtm(logger, dt_now) -> None:
-#     """Set the datetime used by logger.
-#
-#     This is used when the source of packets is a log file, and not 'live' from RF.
-#     """
-#     [v for k, v in logger.manager.loggerDict.items() if k.startswith(logger.name)]
-#     # [v for k, v in logger.manager.loggerDict.items() if v.parent is logger]

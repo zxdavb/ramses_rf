@@ -512,12 +512,11 @@ class PacketProtocolRead(PacketProtocolBase):
         _LOGGER.debug("PacketProtocolRead.data_received(%s)", data)
         self._line_received(data[:26], _normalise(data[27:], log_file=True), data)
 
-    @property
     def _dt_now(self) -> dt:
         try:
             return self._this_pkt.dtm
         except AttributeError:
-            return dt.min()
+            return dt(1970, 1, 1, 1, 0)
 
 
 class PacketProtocolQos(PacketProtocolBase):

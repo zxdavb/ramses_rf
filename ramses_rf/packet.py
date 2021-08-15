@@ -278,14 +278,14 @@ class Packet(PacketBase):
         """Create a packet from a valid frame."""
         super().__init__()
 
-        assert (
-            kwargs.get("dtm_str") is None or kwargs.get("dtm_str") == dtm.isoformat()
-        ), "should be True"
+        assert kwargs.get("dtm_str") is None or (
+            kwargs.get("dtm_str") == dtm.isoformat(timespec="microseconds")
+        ), "dtm_str doesn't match dtm.isoformat"
 
         self._gwy = gwy
         self.dtm = dtm
         self._date, self._time = (
-            kwargs.get("dtm_str") or dtm.isoformat(sep="T")
+            kwargs.get("dtm_str") or dtm.isoformat(timespec="microseconds")
         ).split("T")
         # self.created = dtm.timestamp()  # HACK: used by logger
         # self.msecs = (self.created - int(self.created)) * 1000

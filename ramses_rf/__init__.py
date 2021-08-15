@@ -23,7 +23,7 @@ from .address import NUL_DEV_ADDR, create_dev_id, id_to_address, is_valid_dev_id
 from .command import Command
 from .const import ATTR_DEVICES, ATTR_ORPHANS, DONT_CREATE_MESSAGES
 from .devices import Device, create_device
-from .logger import set_pkt_logging
+from .logger import set_logger_timesource, set_pkt_logging
 from .message import Message, process_msg
 from .packet import _PKT_LOGGER
 from .protocol import create_msg_stack
@@ -78,12 +78,9 @@ class Gateway:
 
         set_pkt_logging(
             _PKT_LOGGER,
-            # dt_now=self.pkt_protocol._dt_now,
             cc_console=self.config.reduce_processing >= DONT_CREATE_MESSAGES,
             **self.config.packet_log,
         )
-        # if self.serial_port is None:
-        #     set_logging_dtm(self, _LOGGER)
 
         if self.config.reduce_processing < DONT_CREATE_MESSAGES:
             self.msg_protocol, self.msg_transport = self.create_client(process_msg)
@@ -170,6 +167,10 @@ class Gateway:
                 self,
                 self.msg_transport._pkt_receiver if self.msg_transport else None,
                 packet_log=self._input_file,
+            )
+            set_logger_timesource(self.pkt_protocol._dt_now)
+            _LOGGER.warning(
+                "Logger datetimes are now set to the most recent packet log timestamp"
             )
 
         if self.pkt_transport.get_extra_info(POLLER_TASK):
@@ -293,7 +294,7 @@ class Gateway:
             # msgs.update({v.dtm: v for z in system._dhw for v in z._msgs.values()})
 
         pkts = {
-            dtm.isoformat(sep="T", timespec="auto"): repr(msg)
+            dtm.isoformat(timespec="microseconds"): repr(msg)
             for dtm, msg in msgs.items()
             if msg.verb in (I_, RP) and include_expired or not msg._expired
         }

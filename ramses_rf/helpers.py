@@ -30,7 +30,7 @@ def dt_now() -> dt:
 
 def dt_str() -> str:
     """Return the current datetime as a isoformat string."""
-    return dt_now().isoformat(sep="T", timespec="microseconds")
+    return dt_now().isoformat(timespec="microseconds")
 
 
 def timestamp() -> float:
@@ -171,7 +171,7 @@ def dtm_from_hex(value: str) -> str:  # from parsers
         hour=int(value[4:6], 16) & 0b11111,  # 1st 3 bits: DayOfWeek
         minute=int(value[2:4], 16),
         second=int(value[:2], 16) & 0b1111111,  # 1st bit: used for DST
-    ).isoformat()  # was: ).strftime("%Y-%m-%d %H:%M:%S")
+    ).isoformat()
 
 
 def dtm_to_hex(dtm: Union[str, dt]) -> str:
