@@ -4,7 +4,7 @@
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
 import logging
-from typing import Any, List, Optional
+from typing import List
 
 from .command import Command
 from .const import DISCOVER_ALL
@@ -23,7 +23,10 @@ if DEV_MODE:
 
 
 class Entity:
-    """The Device/Zone base class."""
+    """The Device/Zone base class.
+
+    This class is mainly concerned with the entity's state database.
+    """
 
     def __init__(self, gwy) -> None:
         self._loop = gwy._loop
@@ -36,21 +39,6 @@ class Entity:
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         pass
-
-    def _get_msg_value(self, code, key=None) -> dict:
-        if self._msgs.get(code):
-            if isinstance(self._msgs[code].payload, list):
-                return self._msgs[code].payload
-
-            if key is not None:
-                return self._msgs[code].payload.get(key)
-
-            result = self._msgs[code].payload
-            return {
-                k: v
-                for k, v in result.items()
-                if k[:1] != "_" and k not in ("domain_id", "zone_idx")
-            }
 
     def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess
         if msg.code not in self._msgz:
@@ -92,35 +80,55 @@ class Entity:
         self._msgs.pop(code, None)  # remove the old one, so we can tell if RP'd rcvd
         self._gwy.send_cmd(Command(verb, code, payload, dest_id, **kwargs))
 
-    def _msg_payload(self, msg, key=None) -> Optional[Any]:
-        if msg and not msg._expired:
-            if key:
-                return msg.payload.get(key)
-            return {k: v for k, v in msg.payload.items() if k[:1] != "_"}
+    def _msg_value(
+        self, code, verb=None, key=None, zone_idx=None, domain_id=None
+    ) -> dict:
 
-    def _msg_expired(self, msg_name: str) -> Optional[bool]:
-        attr = f"_{msg_name}"
-        if not hasattr(self, attr):
-            _LOGGER.error("%s: is not tracking %s msgs", self, msg_name)
-            return
+        assert (
+            not isinstance(code, tuple) or verb is None
+        ), f"Unsupported: using a tuple ({code}) with a verb ({verb})"
 
-        msg = getattr(self, f"_{msg_name}")
-        if not msg:
-            _LOGGER.warning("%s: has no valid %s msg", self, msg_name)
-        # elif msg_name != RAMSES_CODES[msg.code][NAME]:
-        #     _LOGGER.warning(
-        #         "%s: Message(%s) doesn't match name: %s",
-        #         self,
-        #         msg._pkt._hdr,
-        #         msg_name,
-        #     )
-        #     assert False, msg.code
-        elif msg._expired:
-            _LOGGER.warning(
-                "%s: Message(%s) has expired (%s)", self, msg._pkt._hdr, attr
-            )
+        if verb:
+            try:
+                msgs = self._msgz[code][verb]
+            except KeyError:
+                msg = None
+            else:
+                msg = max(msgs.values()) if msgs else None
+        elif isinstance(code, tuple):
+            msgs = [m for m in self._msgs.values() if m.code in code]
+            msg = max(msgs) if msgs else None
         else:
-            return True
+            msg = self._msgs.get(code)
+
+        if msg is None:
+            return
+        elif msg._expired:
+            delete_msg(msg)
+
+        if domain_id:
+            idx, val = "domain_id", domain_id
+        elif zone_idx:
+            idx, val = "zone_idx", zone_idx
+
+        if isinstance(msg.payload, list):
+            msg_dict = {
+                k: v for d in msg.payload for k, v in d.items() if d[idx] == val
+            }
+        else:
+            msg_dict = msg.payload
+
+        assert (
+            not domain_id and not zone_idx or msg_dict.get(idx) == val
+        ), f"{msg_dict} << Coding error: key={idx}, val={val}"
+
+        if key:
+            return msg_dict.get(key)
+        return {
+            k: v
+            for k, v in msg_dict.items()
+            if k not in ("dhw_idx", "domain_id", "zone_idx") and k[:1] != "_"
+        }
 
     @property
     def _codes(self) -> dict:
@@ -135,32 +143,20 @@ class Entity:
         return self._ctl  # TODO: if the controller is not known, try to find it?
 
 
-def expired(msg) -> None:
-
-    has_expired = msg._has_expired
-
-    if has_expired < msg.HAS_EXPIRED:
-        return has_expired
-
+def delete_msg(msg) -> None:
+    """Remove the msg from all state databases."""
     entities = [msg.src]
-    if "domain_id" in msg.payload:
-        entities.append(msg._ctl)
-    if "dhw_id" in msg.payload:
-        entities.append(msg._ctl.get_zone_by_id["HW"])
-    if "zone_idx" in msg.payload:
-        entities.append(msg._ctl.get_zone_by_id[msg.payload["zone_idx"]])
+    if hasattr(msg.src, "_evo"):
+        entities.append(msg.src._evo)
+        if msg.src._evo._dhw:
+            entities.append(msg.src._evo._dhw)
+        entities.extend(msg.src._evo.zones)
 
+    # remove the msg from all the state DBs
     for obj in entities:
-        if msg.code in obj._msgs and msg.verb == obj._msgs[msg.code].verb:
+        if msg in obj._msgs.values():
             del obj._msgs[msg.code]
         try:
             del obj._msgz[msg.code][msg.verb][msg._pkt._ctx]
-            if obj._msgz[msg.code][msg.verb] == {}:
-                del obj._msgz[msg.code][msg.verb]
-            if obj._msgz[msg.code] == {}:
-                del obj._msgz[msg.code]
         except KeyError:
             pass
-
-        msg = None
-        return has_expired

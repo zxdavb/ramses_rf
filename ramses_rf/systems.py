@@ -16,7 +16,11 @@ from .command import Command, FaultLog, Priority
 from .const import (
     _000C_DEVICE,
     _0005_ZONE,
+    ATTR_DATETIME,
     ATTR_DEVICES,
+    ATTR_HEAT_DEMAND,
+    ATTR_LANGUAGE,
+    ATTR_SYSTEM_MODE,
     DEVICE_HAS_ZONE_SENSOR,
     DISCOVER_ALL,
     DISCOVER_PARAMS,
@@ -141,108 +145,59 @@ class SysFaultLog:  # 0418
 
 
 class SysDatetime:  # 313F
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._datetime = None
-
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
             self._gwy.send_cmd(Command.get_system_time(self.id), period=td(hours=1))
 
-    def _handle_msg(self, msg, prev_msg=None):
-        super()._handle_msg(msg)
-
-        if msg.code == _313F and msg.verb in (I_, RP):  # TODO: W
-            self._datetime = msg
-
     @property
-    def datetime(self) -> Optional[str]:
-        return self._msg_payload(self._datetime, "datetime")  # TODO: make a dt object
-
-    # def wait_for(self, cmd, callback):
-    # self._api_lock.acquire()
-
-    # self._send_cmd(_313F, verb=RQ, callback=callback)
-
-    #     time_start = dt.now()
-    # while not self._schedule_done:
-    #     await asyncio.sleep(TIMER_SHORT_SLEEP)
-    #     if dt.now() > time_start + TIMER_LONG_TIMEOUT:
-    #         self._api_lock.release()
-    #         raise ExpiredCallbackError("failed to set schedule")
-
-    # self._api_lock.release()
+    def datetime(self) -> Optional[str]:  # 313F  # TODO: return a dt object
+        return self._msg_value(_313F, key=ATTR_DATETIME)
 
     # async def get_datetime(self) -> str:  # wait for the RP/313F
-    # await self.wait_for(Command(_313F, verb=RQ))
-    # return self.datetime
+    #     await self.wait_for(Command(_313F, verb=RQ))
+    #     return self.datetime
 
     # async def set_datetime(self, dtm: dt) -> str:  # wait for the I/313F
-    # await self.wait_for(Command(_313F, verb=W_, payload=f"00{dtm_to_hex(dtm)}"))
-    # return self.datetime
+    #     await self.wait_for(Command(_313F, verb=W_, payload=f"00{dtm_to_hex(dtm)}"))
+    #     return self.datetime
 
     @property
     def status(self) -> dict:
         status = super().status
-        # assert ATTR_HTG_SYSTEM in status  # TODO: removeme
-        # assert "datetime" not in status[ATTR_HTG_SYSTEM]  # TODO: removeme
-        status[ATTR_HTG_SYSTEM]["datetime"] = self.datetime
+        status[ATTR_HTG_SYSTEM][ATTR_DATETIME] = self.datetime
         return status
 
 
 class SysLanguage:  # 0100
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._language = None
-
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_PARAMS:
-            # self._send_cmd(_0100)  # language
             self._gwy.send_cmd(Command.get_system_language(self.id))
-
-    def _handle_msg(self, msg, prev_msg=None):
-        super()._handle_msg(msg)
-
-        if msg.code == _0100 and msg.verb in (I_, RP):
-            self._language = msg
 
     @property
     def language(self) -> Optional[str]:  # 0100
-        return self._msg_payload(self._language, "language")
+        return self._msg_value(_0100, key=ATTR_LANGUAGE)
 
     @property
     def params(self) -> dict:
         params = super().params
-        # assert ATTR_HTG_SYSTEM in params  # TODO: removeme
-        # assert "language" not in params[ATTR_HTG_SYSTEM]  # TODO: removeme
-        params[ATTR_HTG_SYSTEM]["language"] = self.language
+        params[ATTR_HTG_SYSTEM][ATTR_LANGUAGE] = self.language
         return params
 
 
 class SysMode:  # 2E04
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._system_mode = None
-
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
             self._gwy.send_cmd(Command.get_system_mode(self.id), period=td(hours=1))
 
-    def _handle_msg(self, msg, prev_msg=None):
-        super()._handle_msg(msg)
-
-        if msg.code == _2E04 and msg.verb in (I_, RP):  # this is a special case
-            self._system_mode = msg
-
     @property
     def system_mode(self) -> Optional[dict]:  # 2E04
-        return self._msg_payload(self._system_mode)
+        return self._msg_value(_2E04)
 
     def set_mode(self, system_mode=None, until=None) -> Task:
         """Set a system mode for a specified duration, or indefinitely."""
@@ -260,9 +215,7 @@ class SysMode:  # 2E04
     @property
     def params(self) -> dict:
         params = super().params
-        # assert ATTR_HTG_SYSTEM in params  # TODO: removeme
-        # assert "system_mode" not in params[ATTR_HTG_SYSTEM]  # TODO: removeme
-        params[ATTR_HTG_SYSTEM]["system_mode"] = self.system_mode
+        params[ATTR_HTG_SYSTEM][ATTR_SYSTEM_MODE] = self.system_mode
         return params
 
 
@@ -488,7 +441,7 @@ class MultiZone:  # 0005 (+/- 000C?)
             return  # (currently) no zone without a sensor
 
         # TODO: use msgz/I, not RP
-        secs = self._get_msg_value(_1F09, "remaining_seconds")
+        secs = self._msg_value(_1F09, key="remaining_seconds")
         if secs is None or this.dtm > prev.dtm + td(seconds=secs + 5):
             return  # can only compare against 30C9 pkt from the last cycle
 
@@ -856,13 +809,12 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         device._set_parent(self, domain="FC")  # TODO: _set_domain()
 
     @property
-    def tpi_params(self) -> Optional[float]:  # 1100
-        return self._get_msg_value(_1100)
+    def tpi_params(self) -> Optional[dict]:  # 1100
+        return self._msg_value(_1100)
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150/FC
-        if self._heat_demand:
-            return self._heat_demand["heat_demand"]
+        return self._msg_value(_3150, domain_id="FC", key=ATTR_HEAT_DEMAND)
 
     @property
     def is_calling_for_heat(self) -> Optional[bool]:
@@ -905,19 +857,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         """Return the system's configuration."""
 
         params = {ATTR_HTG_SYSTEM: {}}
-        # assert ATTR_HTG_SYSTEM in params  # TODO: removeme
-
-        # devices don't have params
-        # assert ATTR_HTG_CONTROL not in params[ATTR_HTG_SYSTEM]  # TODO: removeme
-        # params[ATTR_HTG_SYSTEM][ATTR_HTG_CONTROL] = (
-        #     self.heating_control.params if self.heating_control else None
-        # )
-
-        # assert "tpi_params" not in params[ATTR_HTG_SYSTEM]  # TODO: removeme
-        params[ATTR_HTG_SYSTEM]["tpi_params"] = (
-            self.heating_control._get_msg_value(_1100) if self.heating_control else None
-        )
-
+        params[ATTR_HTG_SYSTEM]["tpi_params"] = self._msg_value(_1100)
         return params
 
     @property
@@ -925,13 +865,6 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         """Return the system's current state."""
 
         status = {ATTR_HTG_SYSTEM: {}}
-        # assert ATTR_HTG_SYSTEM in status  # TODO: removeme
-
-        # assert ATTR_HTG_CONTROL not in status[ATTR_HTG_SYSTEM]  # TODO: removeme
-        # status[ATTR_HTG_SYSTEM][ATTR_HTG_CONTROL] = (
-        #     self.heating_control.status if self.heating_control else None
-        # )
-
         status[ATTR_HTG_SYSTEM]["heat_demand"] = self.heat_demand
 
         status[ATTR_DEVICES] = {d.id: d.status for d in sorted(self._ctl.devices)}
@@ -1003,9 +936,6 @@ class Evohome(SysLanguage, SysMode, MultiZone, UfhSystem, System):  # evohome
     """The Evohome system - some controllers are evohome-compatible."""
 
     __sys_class__ = SYSTEM_CLASS.EVO
-
-    def __init__(self, gwy, ctl, **kwargs) -> None:
-        super().__init__(gwy, ctl, **kwargs)
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (evohome)"

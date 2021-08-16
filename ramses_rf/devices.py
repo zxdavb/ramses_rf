@@ -294,7 +294,7 @@ class Actuator:  # 3EF0, 3EF1
     ACTUATOR_ENABLED = "actuator_enabled"  # boolean
     ACTUATOR_STATE = "actuator_state"
     ENABLED = "enabled"
-    MODULATION_LEVEL = "modulation_level"
+    MODULATION_LEVEL = "modulation_level"  # percentge (0.0-1.0)
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
@@ -310,22 +310,20 @@ class Actuator:  # 3EF0, 3EF1
 
     @property
     def actuator_cycle(self) -> Optional[dict]:  # 3EF1
-        return self._msg_payload(self._msgs.get(_3EF1))
+        return self._msg_value(_3EF1)
 
     @property
-    def actuator_state(self) -> Optional[dict]:  # 3EF0 (mod_level, flame_active, etc.)
-        return self._msg_payload(self._msgs.get(_3EF0))
+    def actuator_state(self) -> Optional[dict]:  # 3EF0
+        return self._msg_value(_3EF0)
 
     @property
     def enabled(self) -> Optional[bool]:  # 3EF0, 3EF1
         """Return the actuator's current state."""
-        msgs = [m for m in self._msgs.values() if m.code in (_3EF0, _3EF1)]
-        return max(msgs).payload[self.ACTUATOR_ENABLED] if msgs else None
+        return self._msg_value((_3EF0, _3EF1), key=self.ACTUATOR_ENABLED)
 
     @property
     def modulation_level(self) -> Optional[float]:  # 3EF0/3EF1
-        msgs = [m for m in self._msgs.values() if m.code in (_3EF0, _3EF1)]
-        return max(msgs).payload[self.MODULATION_LEVEL] if msgs else None
+        return self._msg_value((_3EF0, _3EF1), key=self.MODULATION_LEVEL)
 
     @property
     def status(self) -> dict:
@@ -340,16 +338,15 @@ class Actuator:  # 3EF0, 3EF1
 class BatteryState:  # 1060
 
     BATTERY_LOW = "battery_low"  # boolean
-    BATTERY_STATE = "battery_state"  # percentage
+    BATTERY_STATE = "battery_state"  # percentage (0.0-1.0)
 
     @property
     def battery_low(self) -> Optional[bool]:  # 1060
-        if _1060 in self._msgs:
-            return self._msgs[_1060].payload[self.BATTERY_LOW]
+        return self._msg_value(_1060, key=self.BATTERY_LOW)
 
     @property
     def battery_state(self) -> Optional[dict]:  # 1060
-        return self._msg_payload(self._msgs.get(_1060))
+        return self._msg_value(_1060)
 
     @property
     def status(self) -> dict:
@@ -361,12 +358,11 @@ class BatteryState:  # 1060
 
 class HeatDemand:  # 3150
 
-    HEAT_DEMAND = ATTR_HEAT_DEMAND  # percentage valve open
+    HEAT_DEMAND = ATTR_HEAT_DEMAND  # percentage valve open (0.0-1.0)
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
-        if _3150 in self._msgs:
-            return self._msgs[_3150].payload[self.HEAT_DEMAND]
+        return self._msg_value(_3150, key=self.HEAT_DEMAND)
 
     @property
     def status(self) -> dict:
@@ -382,11 +378,7 @@ class Setpoint:  # 2309
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309
-        try:
-            if _2309 in self._msgs:
-                return self._msgs[_2309].payload[self.SETPOINT]
-        except TypeError:  # FIXME: 12: as a controller = {[{}, ...]}, not {}
-            pass
+        return self._msg_value(_2309, key=self.SETPOINT)
 
     @property
     def status(self) -> dict:
@@ -409,7 +401,7 @@ class Temperature:  # 30C9 (fakeable)
         self._30C9_faked = True
         if bind:
             self._bind()
-        _LOGGER.error("%s: Faking now enabled", self)  # TODO: shoudl be info/debug
+        _LOGGER.error("%s: Faking now enabled", self)  # TODO: should be info/debug
 
     def _bind(self):
         if not self._30C9_faked:
@@ -417,11 +409,7 @@ class Temperature:  # 30C9 (fakeable)
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        try:
-            if _30C9 in self._msgs:
-                return self._msgs[_30C9].payload[self.TEMPERATURE]
-        except TypeError:  # FIXME: 12: as a controller = {[{}, ...]}, not {}
-            pass
+        return self._msg_value(_2309, key=self.SETPOINT)
 
     @temperature.setter
     def temperature(self, value) -> None:  # 30C9
@@ -430,7 +418,7 @@ class Temperature:  # 30C9 (fakeable)
 
         cmd = Command.put_sensor_temp(self.id, value)
         # cmd = Command.put_sensor_temp(
-        #     self._gwy.rfg.id if self == self._gwy.rfg._faked_thm else self.id, value
+        #     self._gwy.hgi.id if self == self._gwy.hgi._faked_thm else self.id, value
         # )
         self._gwy.send_cmd(cmd)
 
@@ -455,12 +443,12 @@ class DeviceInfo:  # 10E0
 
     @property
     def device_info(self) -> Optional[dict]:  # 10E0
-        return self._msg_payload(self._msgs.get(_10E0))
+        return self._msg_value(_10E0)
 
     @property
     def schema(self) -> dict:
         result = super().schema
-        # result.update({self.RF_BIND: self._msg_payload(self._msgs.get(_1FC9))})
+        # result.update({self.RF_BIND: self._msg_value(_1FC9)})
         if _10E0 in self._msgs or _10E0 in RAMSES_DEVICES.get(self.type, []):
             result.update({self.DEVICE_INFO: self.device_info})
         return result
@@ -486,9 +474,9 @@ class Device(DeviceInfo, DeviceBase):
         if not msg._gwy.config.enable_eavesdrop:
             return
 
-        if self._ctl is not None and "parent_idx" in msg.payload:
+        if self._ctl is not None and "zone_idx" in msg.payload:
             # TODO: is buggy - remove? how?
-            self._set_parent(self._ctl._evo._get_zone(msg.payload["parent_idx"]))
+            self._set_parent(self._ctl._evo._get_zone(msg.payload["zone_idx"]))
 
     def _set_parent(self, parent, domain=None) -> None:  # self._parent
         """Set the device's parent zone, after validating it.
@@ -546,13 +534,7 @@ class Device(DeviceInfo, DeviceBase):
     def has_battery(self) -> Optional[bool]:  # 1060
         """Return True if a device is battery powered (excludes battery-backup)."""
 
-        if self._has_battery is not None:
-            return self._has_battery
-
-        if _1060 in self._msgs:
-            self._has_battery = True
-
-        return self._has_battery
+        return _1060 in self._msgz
 
     @property
     def schema(self) -> dict:
@@ -749,8 +731,6 @@ class UfhController(Device):  # UFC (02):
         self._setpoints = None
         self._heat_demand = None
 
-        self.devices = []  # [self]
-        self.device_by_id = {}  # {self.id: self}
         self._iz_controller = True
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
@@ -892,12 +872,11 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
 
     @property
     def dhw_params(self) -> Optional[dict]:  # 10A0
-        return self._msg_payload(self._msgs.get(_10A0))
+        return self._msg_value(_10A0)
 
     @property
     def temperature(self) -> Optional[float]:  # 1260
-        if _1260 in self._msgs:
-            return self._msgs[_1260].payload[self.TEMPERATURE]
+        return self._msg_value(_1260, key=self.TEMPERATURE)
 
     @property
     def params(self) -> dict:
@@ -965,8 +944,7 @@ class ExtSensor(Device):  # EXT: 17
 
     @property
     def temperature(self) -> Optional[float]:  # 0002
-        if _0002 in self._msgs:
-            return self._msgs[_0002].payload[self.TEMPERATURE]
+        return self._msg_value(_0002, key=self.TEMPERATURE)
 
     @temperature.setter
     def temperature(self, value) -> None:  # 0002
@@ -974,7 +952,7 @@ class ExtSensor(Device):  # EXT: 17
             raise AttributeError("Can't set attribute (Faking is not enabled)")
 
         cmd = Command.put_outdoor_temp(
-            self._gwy.rfg.id if self == self._gwy.rfg._faked_ext else self.id, value
+            self._gwy.hgi.id if self == self._gwy.hgi._faked_ext else self.id, value
         )
         self._gwy.send_cmd(cmd)
 
@@ -1113,10 +1091,9 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
                 self._discover(discover_flag=DISCOVER_PARAMS)
 
         elif msg.code == _3220:  # all are RP
-            if msg.payload[MSG_TYPE] == "Unknown-DataId":
-                self._supported_msg[msg.payload[MSG_ID]] = False
-            else:
-                self._supported_msg[msg.payload[MSG_ID]] = True
+            self._supported_msg[msg.payload[MSG_ID]] = (
+                msg.payload[MSG_TYPE] != "Unknown-DataId"
+            )
 
     def _ot_msg_value(self, msg_id) -> Optional[float]:
         try:
@@ -1150,10 +1127,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
 
     @property  # HA
     def boiler_setpoint(self) -> Optional[float]:  # 22D9
-        try:
-            return self._msgs[_22D9].payload[self.BOILER_SETPOINT]
-        except KeyError:
-            return
+        return self._msg_value(_22D9, key=self.BOILER_SETPOINT)
 
     @staticmethod
     def _msg_name(msg) -> str:
@@ -1259,9 +1233,6 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self.devices = []  # [self]
-        self.device_by_id = {}  # {self.id: self}
-
         self._1fc9_state = None
 
     def __repr__(self) -> str:
@@ -1315,7 +1286,7 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
             self._ctl._evo._get_zone(msg.payload[0][0])._set_sensor(self)
 
             cmd = Command(
-                I_, _1FC9, f"002309{self.hex_id}", self._ctl.id, from_id=self.id
+                I_, _1FC9, f"00{_2309}{self.hex_id}", self._ctl.id, from_id=self.id
             )
             self._gwy.send_cmd(cmd)
 
@@ -1342,7 +1313,7 @@ class BdrSwitch(Actuator, Device):  # BDR (13):
 
     __dev_class__ = DEVICE_CLASS.BDR  # DEVICE_TYPES = ("13", )
 
-    RELAY_DEMAND = "relay_demand"  # percentage
+    RELAY_DEMAND = "relay_demand"  # percentage (0.0-1.0)
     TPI_PARAMS = "tpi_params"
     # _STATE = super().ENABLED, or relay_demand
 
@@ -1427,18 +1398,17 @@ class BdrSwitch(Actuator, Device):  # BDR (13):
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
-        if _0008 in self._msgs:
-            return self._msgs[_0008].payload[self.RELAY_DEMAND]
+        return self._msg_value(_0008, key=self.RELAY_DEMAND)
 
     @property
-    def tpi_params_wip(self) -> Optional[dict]:  # 1100
-        return self._msg_payload(self._msgs.get(_1100))
+    def tpi_params(self) -> Optional[dict]:  # 1100
+        return self._msg_value(_1100)
 
     @property
     def params(self) -> dict:
         return {
             **super().params,
-            self.TPI_PARAMS: self.tpi_params_wip,
+            self.TPI_PARAMS: self.tpi_params,
         }
 
     @property
@@ -1462,8 +1432,7 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature, Device):  # T
 
     @property
     def window_open(self) -> Optional[bool]:  # 12B0
-        if _12B0 in self._msgs:
-            return self._msgs[_12B0].payload[self.WINDOW_OPEN]
+        return self._msg_value(_12B0, key=self.WINDOW_OPEN)
 
     @property
     def status(self) -> dict:
@@ -1495,18 +1464,13 @@ class FanSwitch(BatteryState, Device):  # SWI (39):
     }
     FAN_RATE = "fan_rate"  # percentage, 0.0 - 1.0
 
-    def _set_ctl(self, ctl) -> None:
-        super()._set_ctl(ctl)
-
     @property
     def fan_mode(self) -> Optional[str]:
-        if _22F1 in self._msgs:
-            return self._msgs[_22F1].payload[self.FAN_MODE]
+        return self._msg_value(_22F1, key=self.FAN_MODE)
 
     @property
     def boost_timer(self) -> Optional[int]:
-        if _22F3 in self._msgs:
-            return self._msgs[_22F3].payload[self.BOOST_TIMER]
+        return self._msg_value(_22F3, key=self.BOOST_TIMER)
 
     @property
     def status(self) -> dict:
@@ -1525,29 +1489,17 @@ class FanDevice(Device):  # FAN (20/37): I/31D[9A]
 
     __dev_class__ = DEVICE_CLASS.FAN  # DEVICE_TYPES = ("20", "37")
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-
-        self.devices = []
-        self.device_by_id = {}
-
-    def _set_ctl(self, ctl) -> None:
-        super()._set_ctl(ctl)
-
     @property
     def fan_rate(self) -> Optional[float]:
-        msgs = [m for m in self._msgs.values() if m.code in (_31D9, _31DA)]
-        return max(msgs).payload["exhaust_fan_speed"] if msgs else None
+        return self._msg_value((_31D9, _31DA), key="exhaust_fan_speed")
 
     @property
     def boost_timer(self) -> Optional[int]:
-        if _31DA in self._msgs:
-            return self._msgs[_31DA].payload["remaining_time"]
+        return self._msg_value(_31DA, key="remaining_time")
 
     @property
     def relative_humidity(self) -> Optional[float]:
-        if _31DA in self._msgs:
-            return self._msgs[_31DA].payload["indoor_humidity"]
+        return self._msg_value(_31DA, key="indoor_humidity")
 
     @property
     def status(self) -> dict:
@@ -1583,27 +1535,21 @@ class FanSensorHumidity(BatteryState, Device):  # HUM (32) Humidity sensor:
 
     __dev_class__ = DEVICE_CLASS.HUM  # DEVICE_TYPES = ("32")
 
-    REL_HUMIDITY = "relative_humidity"  # percentage
+    REL_HUMIDITY = "relative_humidity"  # percentage (0.0-1.0)
     TEMPERATURE = "temperature"  # celsius
     DEWPOINT_TEMP = "dewpoint_temp"  # celsius
 
-    def _set_ctl(self, ctl) -> None:
-        super()._set_ctl(ctl)
-
     @property
     def relative_humidity(self) -> Optional[float]:
-        if _12A0 in self._msgs:
-            return self._msgs[_12A0].payload[self.REL_HUMIDITY]
+        return self._msg_value(_12A0, key=self.REL_HUMIDITY)
 
     @property
     def temperature(self) -> Optional[float]:
-        if _12A0 in self._msgs:
-            return self._msgs[_12A0].payload[self.TEMPERATURE]
+        return self._msg_value(_12A0, key=self.TEMPERATURE)
 
     @property
     def dewpoint_temp(self) -> Optional[float]:
-        if _12A0 in self._msgs:
-            return self._msgs[_12A0].payload[self.DEWPOINT_TEMP]
+        return self._msg_value(_12A0, key=self.DEWPOINT_TEMP)
 
     @property
     def status(self) -> dict:

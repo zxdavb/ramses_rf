@@ -386,7 +386,7 @@ class Packet(PacketBase):
         if self.__timeout is False:
             return False
 
-        return (dt.now() - self.dtm) / self.__timeout
+        return (self._gwy._dt_now() - self.dtm) / self.__timeout
 
     @property
     def is_valid(self) -> Optional[bool]:

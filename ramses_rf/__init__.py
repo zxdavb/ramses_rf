@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import signal
+from datetime import datetime as dt
 from queue import Empty
 from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
@@ -89,7 +90,7 @@ class Gateway:
         self._state_params = None
 
         # if self.config.reduce_processing > 0:
-        self.rfg = None
+        self.hgi = None
         self.evo = None
         self.systems: List[System] = []
         self.system_by_id: Dict = {}
@@ -170,7 +171,7 @@ class Gateway:
             )
             set_logger_timesource(self.pkt_protocol._dt_now)
             _LOGGER.warning(
-                "Logger datetimes are now set to the most recent packet log timestamp"
+                "System datetimes are now set to the most recent packet log timestamp"
             )
 
         if self.pkt_transport.get_extra_info(POLLER_TASK):
@@ -219,8 +220,8 @@ class Gateway:
         if dev.type == "01" and dev._is_controller and dev._evo is None:
             dev._evo = create_system(self, dev, profile=kwargs.get("profile"))
 
-        if not self.rfg and dev.type == "18":
-            self.rfg = dev
+        if not self.hgi and dev.type == "18":
+            self.hgi = dev
 
         # update the existing device with any metadata TODO: this is messy
         if ctl_addr and ctl:
@@ -328,12 +329,16 @@ class Gateway:
         _LOGGER.info("ENGINE: Restored state")
         self._resume_engine()
 
+    def _dt_now(self):
+        # return dt.now()
+        return self.pkt_protocol._dt_now() if self.pkt_protocol else dt.now()
+
     @property
     def schema(self) -> dict:
         """Return the global schema."""
 
         schema = {
-            # "rf_gateway": self.rfg and self.rfg.schema,
+            # "rf_gateway": self.hgi and self.hgi.schema,
             "main_controller": self.evo._ctl.id
             if self.evo
             else None
@@ -437,18 +442,18 @@ class Gateway:
 
         If no device_id is provided, the RF gateway is used.
         """
-        return self._rfg.create_fake_ext(device_id=device_id)
+        return self.hgi.create_fake_ext(device_id=device_id)
 
     def create_fake_relay(self, device_id=None) -> Device:
         """Create/bind a faked relay to a controller (i.e. to a domain/zone).
 
         If no device_id is provided, the RF gateway is used.
         """
-        return self._rfg.create_fake_bdr(device_id=device_id)
+        return self.hgi.create_fake_bdr(device_id=device_id)
 
     def create_fake_zone_sensor(self, device_id=None) -> Device:
         """Create/bind a faked temperature sensor to a controller' zone.
 
         If no device_id is provided, the RF gateway is used.
         """
-        return self._rfg.create_fake_thm(device_id=device_id)
+        return self.hgi.create_fake_thm(device_id=device_id)
