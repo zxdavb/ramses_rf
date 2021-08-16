@@ -1125,6 +1125,18 @@ def parser_1fc9(payload, msg) -> list:
     ]
 
 
+@parser_decorator  # unknown
+def parser_1fca(payload, msg) -> list:
+    #  W --- 30:248208 34:021943 --:------ 1FCA 009 00-01FF-7BC990-FFFFFF  # sent x2
+
+    return {
+        "_unknown_0": payload[:2],
+        "_unknown_1": payload[2:6],
+        "device_id0": hex_id_to_dec(payload[6:12]),
+        "device_id1": hex_id_to_dec(payload[12:]),
+    }
+
+
 @parser_decorator  # opentherm_sync, otb_sync
 def parser_1fd4(payload, msg) -> Optional[dict]:
     assert msg.verb == I_, msg.verb
