@@ -17,7 +17,7 @@ from functools import total_ordering
 from types import SimpleNamespace
 from typing import Optional
 
-from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, pkt_addrs
+from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, dev_id_to_hex, pkt_addrs
 from .const import (
     COMMAND_REGEX,
     SYSTEM_MODE_LOOKUP,
@@ -717,9 +717,9 @@ class Command(PacketBase):
         verb,
         code,
         payload,
-        addr0=NON_DEV_ADDR.id,
-        addr1=NON_DEV_ADDR.id,
-        addr2=NON_DEV_ADDR.id,
+        addr0=None,
+        addr1=None,
+        addr2=None,
         seqn=None,
         **kwargs,
     ):
@@ -733,6 +733,9 @@ class Command(PacketBase):
 
         cmd = cls(verb, code, payload, NUL_DEV_ADDR.id, **kwargs)
 
+        for addr in (addr0, addr1, addr2):
+            addr = NON_DEV_ADDR.id if addr is None else addr
+
         if seqn in ("", "-", "--", "---"):
             cmd.seqn = "---"
         elif seqn is not None:
@@ -745,6 +748,31 @@ class Command(PacketBase):
             raise ValueError(f"Invalid parameter values for command: {cmd}")
 
         return cmd
+
+    @classmethod  # constructor for 1F09 (rf_bind) 3-way handshake
+    def put_bind(cls, verb, code, src_id, idx="00", dst_id=None, **kwargs):
+        """Constructor to announce the temperature of an external sensor (1FC9)."""
+
+        #  I --- 34:021943 --:------ 34:021943 1FC9 024 00-2309-8855B7 00-1FC9-8855B7
+        #  W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E
+        #  I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
+
+        hex_id = dev_id_to_hex(src_id)
+
+        if dst_id is None and verb == I_:
+            payload = "".join(f"{idx}{c}{hex_id}" for c in (code, _1FC9))
+            addr2 = src_id
+
+        elif dst_id and verb in (I_, W_):
+            payload = f"00{code}{hex_id}"
+            addr2 = NON_DEV_ADDR.id
+
+        else:
+            raise ValueError("Invalid parameters")
+
+        return cls.packet(
+            verb, _1FC9, payload, addr0=src_id, addr1=dst_id, addr2=addr2, **kwargs
+        )
 
     @classmethod  # constructor for I/0002
     def put_outdoor_temp(cls, dev_id: str, temperature: float, **kwargs):
