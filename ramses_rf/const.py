@@ -468,6 +468,7 @@ _0005_ZONE = SimpleNamespace(
     UFH="09",  # UFH zones
     VAL="0A",  # Zone valve zones
     MIX="0B",  # Mix valve zones
+    EXT="0C",  # Weather sensor
     DHW_SENSOR="0D",  # DHW sensor domains
     DHW="0E",  # DHW valve domains
     HTG="0F",  # Heating control domains
@@ -488,17 +489,13 @@ _0005_ZONE = SimpleNamespace(
 _0005_ZONE_TYPE = {
     _0005_ZONE.ALL: "zone_actuators",
     # "01": None,
-    # "02": None,  # no response?
-    # "03": None,
+    # "02": None,
     _0005_ZONE.ALL_SENSOR: "zone_sensor",
-    # "05": None,  # no response?
-    # "06": None,  # no response
-    # "07": None,  # no response
     _0005_ZONE.RAD: ATTR_RAD_VALVE,
     _0005_ZONE.UFH: ATTR_UFH_HTG,
     _0005_ZONE.VAL: ATTR_ZON_VALVE,
     _0005_ZONE.MIX: ATTR_MIX_VALVE,
-    # "0C": None,  # RFG RQs this
+    _0005_ZONE.EXT: "external_sensor",
     _0005_ZONE.DHW_SENSOR: ATTR_DHW_SENSOR,
     _0005_ZONE.DHW: ATTR_DHW_VALVE,  # can be 0, 1 or 2 (i.e. 1,1,0,...) of them
     _0005_ZONE.HTG: ATTR_HTG_CONTROL,
