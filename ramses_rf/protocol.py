@@ -100,12 +100,7 @@ class MessageTransport(asyncio.Transport):
         async def call_send_data(cmd):
             _LOGGER.debug("MsgTransport.pkt_dispatcher(%s): send_data", cmd)
             if cmd.callback:
-                cmd.callback[EXPIRES] = (
-                    dt.max
-                    if cmd.callback.get(DEAMON)
-                    else dt.now() + td(seconds=cmd.callback.get(TIMEOUT, 1))
-                )
-                self._callbacks[cmd.rx_header] = cmd.callback
+                self._add_callback(cmd.rx_header, cmd.callback)
 
             await self._dispatcher(cmd)  # send_data, *once* callback registered
 
@@ -140,6 +135,14 @@ class MessageTransport(asyncio.Transport):
         self._extra[self.WRITER_TASK] = self._loop.create_task(pkt_dispatcher())
 
         return self._extra[self.WRITER_TASK]
+
+    def _add_callback(self, header, callback):
+        callback[EXPIRES] = (
+            dt.max
+            if callback.get(DEAMON)
+            else dt.now() + td(seconds=callback.get(TIMEOUT, 1))
+        )
+        self._callbacks[header] = callback
 
     def _pkt_receiver(self, pkt):
         # _LOGGER.debug("MsgTransport._pkt_receiver(%s)", pkt)
@@ -432,11 +435,8 @@ class MessageProtocol(asyncio.Protocol):
 
         if awaitable:
             awaitable, callback = MakeCallbackAwaitable(self._loop).create_pair()
-        if callback:
-            cmd.callback = {
-                FUNC: callback,
-                TIMEOUT: 3,
-            }  # func, args, daemon, timeout (& expired)
+        if callback:  # func, args, daemon, timeout (& expired)
+            cmd.callback = {FUNC: callback, TIMEOUT: 3}
 
         while self._pause_writing:
             await asyncio.sleep(0.005)
