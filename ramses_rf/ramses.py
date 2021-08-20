@@ -690,6 +690,7 @@ RAMSES_DEVICES = {
     },
     "17": {
         _0002: {I_: {}},
+        _1FC9: {I_: {}},
     },  # i.e. HB85 (ext. temperature/luminosity(lux)), HB95 (+ wind speed)
     "18": {
         _3220: {RQ: {}},
