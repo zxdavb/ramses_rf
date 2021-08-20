@@ -109,6 +109,14 @@ class PacketBase:
         self.__idx = None
         self.__hdr = None
 
+    # def __repr__(self) -> str:
+    #     """Return an unambiguous string representation of this object."""
+    #     return self.raw_frame or self.packet
+
+    # def __str__(self) -> str:
+    #     """Return an string representation of this object."""
+    #     return self._hdr
+
     @property
     def _has_array(self) -> Optional[bool]:
         """Return the True if the packet payload is an array, False if not.
@@ -503,7 +511,7 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
         return pkt.payload[:2]  # pkt._gwy.config.max_zones checked elsewhere
 
     if pkt.payload[:2] != "00":
-        _LOGGER.warning(f"{pkt} # Expecting payload index to be 00")  # and: return None
+        _LOGGER.warning(f"{pkt} # Expecting payload index to be 00")  # return None?
         return pkt.payload[:2]
 
     if pkt.code in CODE_IDX_SIMPLE:
@@ -514,52 +522,32 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
 
 
 def _pkt_hdr(pkt, rx_header=None) -> Optional[str]:  # NOTE: used in command.py
-    """Return the QoS header of a packet."""
+    """Return the QoS header of a packet.
 
-    # offer, bid. accept
-    #  I --- 12:010740 --:------ 12:010740 1FC9 024 0023093029F40030C93029F40000083029F4001FC93029F4
-    #  W --- 01:145038 12:010740 --:------ 1FC9 006 07230906368E
-    #  I --- 12:010740 01:145038 --:------ 1FC9 006 0023093029F4
+    If rx_header, return the header of the response packet, if one is expected.
+    """
 
-    #  I --- 07:045960 --:------ 07:045960 1FC9 012 0012601CB388001FC91CB388
-    #  W --- 01:145038 07:045960 --:------ 1FC9 006 0010A006368E
-    #  I --- 07:045960 01:145038 --:------ 1FC9 006 0012601CB388
-
-    #  I --- 04:189076 63:262142 --:------ 1FC9 006 0030C912E294
-    #  I --- 01:145038 --:------ 01:145038 1FC9 018 07230906368E0730C906368E071FC906368E
-    #  W --- 04:189076 01:145038 --:------ 1FC9 006 0030C912E294
-    #  I --- 01:145038 04:189076 --:------ 1FC9 006 00FFFF06368E
-
-    # if pkt.code == _1FC9 and rx_header:  # offer, bid, accept
-    #     if pkt.verb == I_ and pkt.dst == NUL_DEV_ADDR:
-    #         return "|".join((I_, pkt.code))
-    #     if pkt.verb == I_ and pkt.src == pkt.dst:
-    #         return "|".join((W_, pkt.dst.id, pkt.code))
-    #     if pkt.verb == W_:
-    #         return "|".join((I_, pkt.src.id, pkt.code))
-    #     if pkt.verb == I_:
-    #         return "|".join((I_, pkt.src.id, pkt.code))
-
-    if pkt.code == _1FC9:  # NOTE: 1FC9 is treated as no idx, but needs a hdr
-        if pkt.src == pkt.dst:
-            if rx_header:
-                return "|".join((W_, pkt.dst.id, pkt.code))
-            return "|".join(I_, pkt.src.id, pkt.code)
-        if pkt.verb == W_:
-            return "|".join((W_, pkt.dst.id, pkt.code)) if not rx_header else None
-        if rx_header:
-            return
-
-    verb = pkt.verb
-    if rx_header:
-        if verb == I_ or pkt.src == pkt.dst:  # usu. announcements, not requiring an Rx
-            return
-        # if pkt.verb == RQ and RQ not in RAMSES_CODES.get(pkt.code, []):
-        #     return
-        verb = RP if pkt.verb == RQ else I_  # RQ/RP, or W/I
+    if pkt.code == _1FC9:
+        #  I --- 34:021943 --:------ 34:021943 1FC9 024 00-2309-8855B7 00-1FC9-8855B7
+        #  W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E  # wont know src until it arrives
+        #  I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
+        if not rx_header:
+            return "|".join((pkt.code, pkt.verb, pkt.dst.id))
+        if pkt.src == pkt.dst:  # and pkt.verb == I_:
+            return "|".join((pkt.code, W_, pkt.dst.id))
+        if pkt.verb == W_:  # and pkt.src != pkt.dst:
+            return "|".join((pkt.code, I_, pkt.dst.id))
+        return
 
     addr = pkt.dst if pkt.src.type == "18" else pkt.src
-    header = "|".join((verb, addr.id, pkt.code))
+    if not rx_header:
+        header = "|".join((pkt.code, pkt.verb, addr.id))
+
+    elif pkt.verb in (I_, RP) or pkt.src == pkt.dst:  # announcements, etc.: no response
+        return
+
+    else:  # RQ/RP, or W/I
+        header = "|".join((pkt.code, RP if pkt.verb == RQ else I_, addr.id))
 
     return f"{header}|{pkt._ctx}" if isinstance(pkt._ctx, str) else header
 
