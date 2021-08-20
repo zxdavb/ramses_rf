@@ -364,7 +364,6 @@ def parser_0008(payload, msg) -> Optional[dict]:
             "blob": payload[8:],
         }
 
-    assert msg.len == 2, "expecting length 2"
     return {"relay_demand": _percent(payload[2:4])}
 
 
