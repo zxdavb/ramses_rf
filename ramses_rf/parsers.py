@@ -1701,8 +1701,8 @@ def parser_3220(payload, msg) -> Optional[dict]:
         ), f"OpenTherm: Invalid msg-type for RP: {ot_type}"
 
         result.update(ot_value)
-        if ot_schema[EN]:
-            result[MSG_DESC] = ot_schema[EN]
+
+        result[MSG_DESC] = ot_schema[EN]
 
     return result
 
