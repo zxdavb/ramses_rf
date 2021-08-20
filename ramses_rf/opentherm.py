@@ -5,6 +5,7 @@
 
 import logging
 import struct
+from types import SimpleNamespace
 from typing import Any, Tuple
 
 from .const import __dev_mode__
@@ -57,15 +58,17 @@ VALUE = "value"
 VALUE_HB = f"{VALUE}_{HB}"
 VALUE_LB = f"{VALUE}_{LB}"
 
-SENSOR_COUNTER = "counter"
-SENSOR_RATIO = "ratio"
-SENSOR_HUMIDITY = "relative humidity (%)"
-SENSOR_PERCENTAGE = "percentage (%)"
-SENSOR_PRESSURE = "pressure (bar)"
-SENSOR_TEMPERATURE = "temperature (°C)"
-SENSOR_CURRENT = "current (µA)"
-SENSOR_FLOW_RATE = "flow rate (L/min)"
-SENSOR_CO2_LEVEL = "CO2 (ppm)"
+Sensor = SimpleNamespace(
+    COUNTER="counter",
+    RATIO="ratio",
+    HUMIDITY="relative humidity (%)",
+    PERCENTAGE="percentage (%)",
+    PRESSURE="pressure (bar)",
+    TEMPERATURE="temperature (°C)",
+    CURRENT="current (µA)",
+    FLOW_RATE="flow rate (L/min)",
+    CO2_LEVEL="CO2 (ppm)",
+)
 
 OPENTHERM_MSG_TYPE = {
     0b000: "Read-Data",
@@ -253,7 +256,7 @@ OPENTHERM_SCHEMA = {
             DIR: WRITE_ONLY,
             VAL: F8_8,
             VAR: "ControlSetpoint",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x02: {  # 2, Master configuration (Member ID)
             EN: "Master configuration",
@@ -293,14 +296,14 @@ OPENTHERM_SCHEMA = {
             DIR: WRITE_ONLY,
             VAL: F8_8,
             VAR: "CoolingControlSignal",
-            SENSOR: SENSOR_PERCENTAGE,
+            SENSOR: Sensor.PERCENTAGE,
         },
         0x08: {  # 8, CH2 Control Setpoint
             EN: "Control setpoint for 2nd CH circuit",
             DIR: WRITE_ONLY,
             VAL: F8_8,
             VAR: "CH2ControlSetpoint",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x09: {  # 9, Remote Override Room Setpoint
             EN: "Remote override room setpoint",
@@ -308,7 +311,7 @@ OPENTHERM_SCHEMA = {
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "RemoteOverrideRoomSetpoint",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x0A: {  # 10, TSP Number
             EN: "Number of transparent slave parameters supported by slave",
@@ -340,7 +343,7 @@ OPENTHERM_SCHEMA = {
             DIR: WRITE_ONLY,
             VAL: F8_8,
             VAR: "MaxRelativeModulationLevel",
-            SENSOR: SENSOR_PERCENTAGE,
+            SENSOR: Sensor.PERCENTAGE,
         },
         0x0F: {  # 15, Max Boiler Capacity & Min Modulation Level
             EN: "Max. boiler capacity (kW) and modulation level setting (%)",
@@ -354,7 +357,7 @@ OPENTHERM_SCHEMA = {
             DIR: WRITE_ONLY,
             VAL: F8_8,
             VAR: "CurrentSetpoint",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x11: {  # 17, Relative Modulation Level
             EN: "Relative modulation level",
@@ -362,7 +365,7 @@ OPENTHERM_SCHEMA = {
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "RelativeModulationLevel",
-            SENSOR: SENSOR_PERCENTAGE,
+            SENSOR: Sensor.PERCENTAGE,
         },
         0x12: {  # 18, CH Water Pressure
             EN: "Central heating water pressure (bar)",
@@ -370,14 +373,14 @@ OPENTHERM_SCHEMA = {
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "CHWaterPressure",
-            SENSOR: SENSOR_PRESSURE,
+            SENSOR: Sensor.PRESSURE,
         },
         0x13: {  # 19, DHW Flow Rate
             EN: "DHW flow rate (litres/minute)",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "DHWFlowRate",
-            SENSOR: SENSOR_FLOW_RATE,
+            SENSOR: Sensor.FLOW_RATE,
         },
         0x14: {  # 20, Day/Time
             EN: "Day of week & Time of day",
@@ -402,7 +405,7 @@ OPENTHERM_SCHEMA = {
             DIR: WRITE_ONLY,
             VAL: F8_8,
             VAR: "CH2CurrentSetpoint",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x18: {  # 24, Current Room Temperature
             EN: "Room temperature",
@@ -410,7 +413,7 @@ OPENTHERM_SCHEMA = {
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "CurrentTemperature",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x19: {  # 25, Boiler Water Temperature
             EN: "Boiler water temperature",
@@ -418,7 +421,7 @@ OPENTHERM_SCHEMA = {
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "BoilerWaterTemperature",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x1A: {  # 26, DHW Temperature
             EN: "DHW temperature",
@@ -426,7 +429,7 @@ OPENTHERM_SCHEMA = {
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "DHWTemperature",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x1B: {  # 27, Outside Temperature
             EN: "Outside temperature",
@@ -434,7 +437,7 @@ OPENTHERM_SCHEMA = {
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "OutsideTemperature",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x1C: {  # 28, Return Water Temperature
             EN: "Return water temperature",
@@ -442,56 +445,56 @@ OPENTHERM_SCHEMA = {
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "ReturnWaterTemperature",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x1D: {  # 29, Solar Storage Temperature
             EN: "Solar storage temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "SolarStorageTemperature",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x1E: {  # 30, Solar Collector Temperature
             EN: "Solar collector temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "SolarCollectorTemperature",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x1F: {  # 31, CH2 Flow Temperature
             EN: "Flow temperature for 2nd CH circuit",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "CH2FlowTemperature",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x20: {  # 32, DHW2 Temperature
             EN: "DHW 2 temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "DHW2Temperature",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x21: {  # 33, Boiler Exhaust Temperature
             EN: "Boiler exhaust temperature",
             DIR: READ_ONLY,
             VAL: S16,
             VAR: "BoilerExhaustTemperature",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x30: {  # 48, DHW Boundaries
             EN: "DHW setpoint boundaries",
             DIR: READ_ONLY,
             VAL: S8,
             VAR: {HB: "DHWUpperBound", LB: "DHWLowerBound"},
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x31: {  # 49, CH Boundaries
             EN: "Max. central heating setpoint boundaries",
             DIR: READ_ONLY,
             VAL: S8,
             VAR: {HB: "CHUpperBound", LB: "CHLowerBound"},
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x32: {  # 50, OTC Boundaries
             EN: "OTC heat curve ratio upper & lower bounds",
@@ -505,7 +508,7 @@ OPENTHERM_SCHEMA = {
             DIR: READ_WRITE,
             VAL: F8_8,
             VAR: "DHWSetpoint",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x39: {  # 57, Max CH Water Setpoint
             EN: "Max. central heating water setpoint",
@@ -513,14 +516,14 @@ OPENTHERM_SCHEMA = {
             DIR: READ_WRITE,
             VAL: F8_8,
             VAR: "MaxCHWaterSetpoint",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x3A: {  # 58, OTC Heat Curve Ratio
             EN: "OTC heat curve ratio",
             DIR: READ_WRITE,
             VAL: F8_8,
             VAR: "OTCHeatCurveRatio",
-            SENSOR: SENSOR_RATIO,
+            SENSOR: Sensor.RATIO,
         },
         # OpenTherm 2.3 IDs (70-91) for ventilation/heat-recovery applications
         0x46: {  # 70, VH Status
@@ -577,7 +580,7 @@ OPENTHERM_SCHEMA = {
             DIR: READ_WRITE,
             VAL: U8,
             VAR: {HB: "RelativeHumidity"},
-            SENSOR: SENSOR_HUMIDITY,
+            SENSOR: Sensor.HUMIDITY,
         },
         0x4F: {  # 79, CO2 Level
             EN: "CO2 level",
@@ -585,35 +588,35 @@ OPENTHERM_SCHEMA = {
             DIR: READ_WRITE,
             VAL: U16,  # 0-2000 ppm
             VAR: "CO2Level",
-            SENSOR: SENSOR_CO2_LEVEL,
+            SENSOR: Sensor.CO2_LEVEL,
         },
         0x50: {  # 80, Supply Inlet Temperature
             EN: "Supply inlet temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "SupplyInletTemperature",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x51: {  # 81, Supply Outlet Temperature
             EN: "Supply outlet temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "SupplyOutletTemperature",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x52: {  # 82, Exhaust Inlet Temperature
             EN: "Exhaust inlet temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "ExhaustInletTemperature",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x53: {  # 83, Exhaust Outlet Temperature
             EN: "Exhaust outlet temperature",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "ExhaustOutletTemperature",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x54: {  # 84, Exhaust Fan Speed
             EN: "Actual exhaust fan speed",
@@ -681,56 +684,56 @@ OPENTHERM_SCHEMA = {
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "StartsBurner",
-            SENSOR: SENSOR_COUNTER,
+            SENSOR: Sensor.COUNTER,
         },
         0x75: {  # 117, Starts CH Pump
             EN: "Number of starts central heating pump",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "StartsCHPump",
-            SENSOR: SENSOR_COUNTER,
+            SENSOR: Sensor.COUNTER,
         },
         0x76: {  # 118, Starts DHW Pump
             EN: "Number of starts DHW pump/valve",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "StartsDHWPump",
-            SENSOR: SENSOR_COUNTER,
+            SENSOR: Sensor.COUNTER,
         },
         0x77: {  # 119, Starts Burner DHW
             EN: "Number of starts burner during DHW mode",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "StartsBurnerDHW",
-            SENSOR: SENSOR_COUNTER,
+            SENSOR: Sensor.COUNTER,
         },
         0x78: {  # 120, Hours Burner
             EN: "Number of hours burner is in operation (i.e. flame on)",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "HoursBurner",
-            SENSOR: SENSOR_COUNTER,
+            SENSOR: Sensor.COUNTER,
         },
         0x79: {  # 121, Hours CH Pump
             EN: "Number of hours central heating pump has been running",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "HoursCHPump",
-            SENSOR: SENSOR_COUNTER,
+            SENSOR: Sensor.COUNTER,
         },
         0x7A: {  # 122, Hours DHW Pump
             EN: "Number of hours DHW pump has been running/valve has been opened",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "HoursDHWPump",
-            SENSOR: SENSOR_COUNTER,
+            SENSOR: Sensor.COUNTER,
         },
         0x7B: {  # 123, Hours DHW Burner
             EN: "Number of hours DHW burner is in operation during DHW mode",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "HoursDHWBurner",
-            SENSOR: SENSOR_COUNTER,
+            SENSOR: Sensor.COUNTER,
         },
         0x7C: {  # 124, Master OpenTherm Version
             EN: "Opentherm version Master",
@@ -762,14 +765,14 @@ OPENTHERM_SCHEMA = {
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "BadStartsBurner?",
-            SENSOR: SENSOR_COUNTER,
+            SENSOR: Sensor.COUNTER,
         },
         0x72: {  # 114, Low Signals Flame
             EN: "Number of times flame signal was too low",
             DIR: READ_WRITE,
             VAL: U16,
             VAR: "LowSignalsFlame?",
-            SENSOR: SENSOR_COUNTER,
+            SENSOR: Sensor.COUNTER,
         },
         # https://www.domoticaforum.eu/viewtopic.php?f=70&t=10893
         # 0x23: {  # 35, Boiler Fan Speed (rpm/60?)?
@@ -779,21 +782,21 @@ OPENTHERM_SCHEMA = {
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "BurnerCurrent",
-            SENSOR: SENSOR_CURRENT,
+            SENSOR: Sensor.CURRENT,
         },
         0x25: {  # 37, CH2 Room Temperature
             EN: "Room temperature for 2nd CH circuit",
             DIR: READ_ONLY,
             VAL: F8_8,
             VAR: "CH2CurrentTemperature",
-            SENSOR: SENSOR_TEMPERATURE,
+            SENSOR: Sensor.TEMPERATURE,
         },
         0x26: {  # 38, Relative Humidity, c.f. 0x4E
             EN: "Relative humidity",
             DIR: READ_ONLY,
             VAL: U8,
             VAR: {HB: "RelativeHumidity"},  # TODO: or LB?
-            SENSOR: SENSOR_HUMIDITY,
+            SENSOR: Sensor.HUMIDITY,
         },
     },
 }
@@ -1008,15 +1011,16 @@ def decode_frame(frame: str) -> Tuple[int, int, dict, str]:
     elif msg[VAL] == F8_8:
         result = msg_value(frame[4:8], msg[VAL])
         if result is None or msg.get(SENSOR) not in (
-            SENSOR_PERCENTAGE,
-            SENSOR_TEMPERATURE,
+            Sensor.PERCENTAGE,
+            Sensor.TEMPERATURE,
         ):
             data_value[VALUE] = result
-        elif msg.get(SENSOR) == SENSOR_PERCENTAGE:
-            data_value[VALUE] = int(result * 200) / 200
-        else:  # if msg.get(SENSOR) == SENSOR_TEMPERATURE:
+        elif msg.get(SENSOR) == Sensor.PERCENTAGE:
+            # NOTE: OT defines % as 0.0-100.0, but (this) ramses uses 0.0-1.0 elsewhere
+            data_value[VALUE] = int(result * 2) / 200  # seems precision of 1%
+        else:  # if msg.get(SENSOR) == Sensor.TEMPERATURE:
             data_value[VALUE] = int(result * 100) / 100
-        # else:  # SENSOR_PRESSURE:  SENSOR_HUMIDITY, "flow", "current"
+        # else:  # Sensor.PRESSURE:  Sensor.HUMIDITY, "flow", "current"
         #     data_value[VALUE] = result
 
     else:  # if msg[VAL] in (S16, U16):
