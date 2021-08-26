@@ -68,7 +68,7 @@ Sensor = SimpleNamespace(
     CURRENT="current (µA)",
     FLOW_RATE="flow rate (L/min)",
     CO2_LEVEL="CO2 (ppm)",
-)
+)  # all are F8_8, except COUNTER, CO2_LEVEL
 
 OPENTHERM_MSG_TYPE = {
     0b000: "Read-Data",
