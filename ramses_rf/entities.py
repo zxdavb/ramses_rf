@@ -77,7 +77,7 @@ class Entity:
     #     return {msg.dtm: msg._pkt for msg in self._msgs_db}
 
     def _send_cmd(self, code, dest_id, payload, verb=RQ, **kwargs) -> None:
-        self._msgs.pop(code, None)  # remove the old one, so we can tell if RP'd rcvd
+        self._msgs.pop(code, None)  # TODO: remove old one, so we can tell if RP'd rcvd
         self._gwy.send_cmd(Command(verb, code, payload, dest_id, **kwargs))
 
     def _msg_value(
