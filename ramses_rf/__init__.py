@@ -99,7 +99,7 @@ class Gateway:
 
         self._prev_msg = None  # previous valid message seen, before current message
 
-        self.known_devices = load_system_schema(self, **schema)
+        load_system_schema(self, **schema)
 
         self._setup_event_handlers()
 
@@ -315,7 +315,7 @@ class Gateway:
         self._pause_engine()
         _LOGGER.info("ENGINE: Restoring state...")
 
-        self.known_devices = load_system_schema(self, **schema)  # keep old known_devs?
+        load_system_schema(self, **schema)  # keep old known_devs?
 
         _, tmp_transport = create_pkt_stack(
             self,
