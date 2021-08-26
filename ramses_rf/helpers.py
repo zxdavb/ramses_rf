@@ -265,7 +265,7 @@ def temp_from_hex(value: str) -> Union[float, bool, None]:
 
 def temp_to_hex(value: float) -> str:
     """Convert a float to a 2's complement 4-byte hex string."""
-    assert -(2 ** 7) <= value < 2 ** 7, f"{value} is out of range"
+    assert not value or -(2 ** 7) <= value < 2 ** 7, f"{value} is out of range"
     if value is None:
         return "7FFF"  # or: "31FF"?
     if value is False:
