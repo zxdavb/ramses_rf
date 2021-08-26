@@ -385,7 +385,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
     def data_received(self, data: ByteString) -> None:
         """Called when some data (packet fragments) is received (from RF)."""
-        _LOGGER.debug("PacketProtocolBase.data_received(%s)", data)
+        # _LOGGER.debug("PacketProtocolBase.data_received(%s)", data)
 
         def _bytes_received(
             data: ByteString,
@@ -439,7 +439,7 @@ class PacketProtocolBase(asyncio.Protocol):
             return
 
         if cmd.src.type != "18":
-            _LOGGER.warning("PktProtocol.send_data(%s): IMPERSONATING!", cmd.tx_header)
+            _LOGGER.info("PktProtocol.send_data(%s): IMPERSONATING!", cmd.tx_header)
             await self._send_data(str(Command._puzzle("02", cmd.tx_header)))
 
         # self._loop.create_task(self._send_data(str(cmd)))
@@ -550,12 +550,12 @@ class PacketProtocolQos(PacketProtocolBase):
             self._timeout_full = dtm + timeout * 2 ** self._backoff
             self._timeout_half = dtm + timeout * 2 ** (self._backoff - 1)
 
-            _LOGGER.debug(
-                "backoff=%s, timeout=%s, timeout_full=%s",
-                self._backoff,
-                timeout,
-                self._timeout_full,
-            )
+            # _LOGGER.debug(
+            #     "backoff=%s, timeout=%s, timeout_full=%s",
+            #     self._backoff,
+            #     timeout,
+            #     self._timeout_full,
+            # )
 
         # if self._timeout_half >= dtm:
         #     self._backoff = max(self._backoff - 1, 0)
@@ -678,7 +678,7 @@ class PacketProtocolQos(PacketProtocolBase):
         self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
 
         if cmd.src.type != "18":
-            _LOGGER.warning(
+            _LOGGER.info(
                 "PacketProtocolQos.send_data(%s): IMPERSONATING!", cmd.tx_header
             )
             await self._send_data(str(Command._puzzle("02", cmd.tx_header)))
