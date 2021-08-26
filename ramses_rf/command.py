@@ -190,6 +190,7 @@ class Command(PacketBase):
             f"{kwargs.get('from_id', HGI_DEV_ADDR.id)} {dest_id} {NON_DEV_ADDR.id}"
         )
         self.code = code
+        self.len = int(len(payload) / 2)
         self.payload = payload
 
         self._is_valid = None
@@ -219,7 +220,7 @@ class Command(PacketBase):
             self.addrs[1].id,
             self.addrs[2].id,
             self.code,
-            int(len(self.payload) / 2),
+            self.len,
             self.payload,
         )
 
@@ -733,8 +734,9 @@ class Command(PacketBase):
 
         cmd = cls(verb, code, payload, NUL_DEV_ADDR.id, **kwargs)
 
-        for addr in (addr0, addr1, addr2):
-            addr = NON_DEV_ADDR.id if addr is None else addr
+        addr0 = NON_DEV_ADDR.id if addr0 is None else addr0
+        addr1 = NON_DEV_ADDR.id if addr1 is None else addr1
+        addr2 = NON_DEV_ADDR.id if addr2 is None else addr2
 
         if seqn in ("", "-", "--", "---"):
             cmd.seqn = "---"
@@ -750,44 +752,89 @@ class Command(PacketBase):
         return cmd
 
     @classmethod  # constructor for 1F09 (rf_bind) 3-way handshake
-    def put_bind(cls, verb, code, src_id, idx="00", dst_id=None, **kwargs):
-        """Constructor to announce the temperature of an external sensor (1FC9)."""
+    def put_bind(cls, verb, codes, src_id, idx="00", dst_id=None, **kwargs):
+        """Constructor for RF bind commands (1FC9), for use by faked devices."""
 
         #  I --- 34:021943 --:------ 34:021943 1FC9 024 00-2309-8855B7 00-1FC9-8855B7
         #  W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E
         #  I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
 
         hex_id = dev_id_to_hex(src_id)
+        codes = (list(codes) if isinstance(codes, tuple) else [codes]) + [_1FC9]
 
         if dst_id is None and verb == I_:
-            payload = "".join(f"{idx}{c}{hex_id}" for c in (code, _1FC9))
+            payload = "".join(f"{idx}{c}{hex_id}" for c in codes)
             addr2 = src_id
 
         elif dst_id and verb in (I_, W_):
-            payload = f"00{code}{hex_id}"
+            payload = f"00{codes[0]}{hex_id}"
             addr2 = NON_DEV_ADDR.id
 
         else:
             raise ValueError("Invalid parameters")
 
+        kwargs.update({"priority": Priority.HIGH, "retries": 3})
         return cls.packet(
             verb, _1FC9, payload, addr0=src_id, addr1=dst_id, addr2=addr2, **kwargs
         )
 
     @classmethod  # constructor for I/0002
     def put_outdoor_temp(cls, dev_id: str, temperature: float, **kwargs):
-        """Constructor to announce the temperature of an external sensor (0002)."""
+        """Constructor to announce the current temperature of an outdoor sensor (0002).
 
+        This is for use by a faked HB85 or similar.
+        """
+
+        # assert dev_id[:2] == "17"
         payload = f"00{temp_to_hex(temperature)}01"
         return cls.packet(I_, _0002, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
     @classmethod  # constructor for I/30C9
     def put_sensor_temp(cls, dev_id: str, temperature: float, **kwargs):
-        """Constructor to announce the temperature of a zone sensor (3C09)."""
+        """Constructor to announce the current temperature of a thermostat (3C09).
+
+        This is for use by a faked BDR91A or similar.
+        """
         #  I --- 34:021943 --:------ 34:021943 30C9 003 000C0D
 
+        # assert dev_id[:2] in ("03", "12", "22", "34")
         payload = f"00{temp_to_hex(temperature)}"
         return cls.packet(I_, _30C9, payload, addr0=dev_id, addr2=dev_id, **kwargs)
+
+    @classmethod  # constructor for I/3EF0
+    def put_actuator_state(cls, dev_id: str, mod_level: float, **kwargs):
+        """Constructor to announce the modulation level of an actuator (3EF0).
+
+        This is for use by a faked BDR91A or similar.
+        """
+        #  I --- 13:049798 --:------ 13:049798 3EF0 003 00C8FF
+        #  I --- 13:106039 --:------ 13:106039 3EF0 003 0000FF
+
+        # assert dev_id[:2] == "13"
+        payload = "007FFF" if mod_level is None else f"00{int(mod_level * 200):02X}FF"
+        return cls.packet(I_, _3EF0, payload, addr0=dev_id, addr2=dev_id, **kwargs)
+
+    @classmethod  # constructor for RP/3EF1 (TODO: & I/3EF1?)
+    def put_actuator_cycle(
+        cls,
+        src_id: str,
+        dst_id: str,
+        mod_level: float,
+        actuator_countdown: int,
+        cycle_countdown: int = None,
+        **kwargs,
+    ):
+        """Constructor to announce the internal state of an actuator (3EF1).
+
+        This is for use by a faked BDR91A or similar.
+        """
+        # RP --- 13:049798 18:006402 --:------ 3EF1 007 00-0126-0126-00-FF
+
+        # assert dev_id[:2] == "13"
+        payload = f"00{actuator_countdown:04X}"
+        payload += f"{cycle_countdown:04X}" if cycle_countdown is not None else "7FFF"
+        payload += f"{int(mod_level * 200):02X}FF"
+        return cls.packet(RP, _3EF1, payload, addr0=src_id, addr1=dst_id, **kwargs)
 
     @classmethod
     def _puzzle(
