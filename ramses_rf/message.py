@@ -583,7 +583,7 @@ def process_msg(msg: Message) -> None:
             [
                 d._handle_msg(msg)
                 for d in msg.src.devices
-                if getattr(d, "_is_faked", False)
+                if getattr(d, "_is_faked", False)  # and d.xxx = "BDR"
             ]
 
         # RQ --- 18:006402 13:123456 --:------ 3EF1 001 00
