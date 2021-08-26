@@ -151,12 +151,9 @@ class Message:
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
 
-        def friendly_name(dev: Union[Address, Device]) -> str:
-            if self._gwy.config.use_aliases:
-                alias = getattr(dev, "alias", None)
-            else:
-                alias = dev_id_to_str(dev.id)
-            return (dev.id if alias is None else alias)[:20]
+        def display_name(dev: Union[Address, Device]) -> str:
+            name = getattr(dev, "alias", None) if self._gwy.config.use_aliases else None
+            return name[:20] if name else dev_id_to_str(dev.id)
 
         if self._str is not None:
             return self._str
@@ -165,11 +162,11 @@ class Message:
             return  # "Invalid"
 
         if self.src.id == self._addrs[0].id:
-            src = friendly_name(self.src)
-            dst = friendly_name(self.dst) if self.dst is not self.src else ""
+            name_0 = display_name(self.src)
+            name_1 = display_name(self.dst) if self.dst is not self.src else ""
         else:
-            src = ""
-            dst = friendly_name(self.src)
+            name_0 = ""
+            name_1 = display_name(self.src)
 
         context = {True: "[..]", False: "", None: " ?? "}.get(
             self._pkt._ctx, self._pkt._ctx
@@ -180,7 +177,7 @@ class Message:
 
         _format = MSG_FORMAT_18 if self._gwy.config.use_aliases else MSG_FORMAT_10
         self._str = _format.format(
-            src, dst, self.verb, self.code_name, context, self.payload
+            name_0, name_1, self.verb, self.code_name, context, self.payload
         )
         return self._str
 

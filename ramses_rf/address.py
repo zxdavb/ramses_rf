@@ -165,10 +165,10 @@ def dev_id_to_hex(device_id: str) -> str:
 def dev_id_to_str(device_id: str) -> str:
     """Convert (say) '01:145038' to 'CTL:145038'."""
 
-    if device_id is NON_DEV_ADDR:
+    if device_id == NON_DEV_ADDR.id:
         return f"{'':<10}"
 
-    if device_id is NUL_DEV_ADDR:
+    if device_id == NUL_DEV_ADDR.id:
         return "NUL:------"
 
     dev_type, dev_number = device_id.split(":")
