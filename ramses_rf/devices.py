@@ -193,7 +193,7 @@ class DeviceBase(Entity):
             self._is_actuator = None
             self._is_sensor = None
 
-        if gwy._include.get(self.id) is not None:
+        if self.id in gwy._include:
             self.alias = gwy._include[self.id].get("alias", dev_id_to_str(self.id))
             self._is_faked = bool(gwy._include[self.id].get("faked"))
         else:
