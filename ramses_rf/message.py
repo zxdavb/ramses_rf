@@ -10,7 +10,7 @@ import logging
 from datetime import timedelta as td
 from typing import Any, Optional, Tuple, Union
 
-from .address import NON_DEV_ADDR, NUL_DEV_ADDR, Address
+from .address import Address, dev_id_to_str
 from .const import (
     _0005_ZONE_TYPE,
     ATTR_DHW_SENSOR,
@@ -19,7 +19,6 @@ from .const import (
     ATTR_HTG_CONTROL,
     ATTR_ZONE_ACTUATORS,
     ATTR_ZONE_SENSOR,
-    DEVICE_TYPES,
     DONT_CREATE_ENTITIES,
     DONT_UPDATE_ENTITIES,
     ZONE_TYPE_SLUGS,
@@ -152,23 +151,12 @@ class Message:
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
 
-        def display_name(dev: Union[Address, Device]) -> str:
-            """Return a formatted device name, uses a friendly name if there is one."""
-            if self._gwy.config.use_names:
-                try:
-                    return f"{self._gwy.known_devices[dev.id]['name']:<18}"
-                except (KeyError, TypeError):
-                    pass
-
-            if dev is NON_DEV_ADDR:
-                return f"{'':<10}"
-
-            if dev is NUL_DEV_ADDR:
-                return "NUL:------"
-
-            return f"{DEVICE_TYPES.get(dev.type, f'{dev.type:>3}')}:{dev.id[3:]}"
-
-        # return repr(self)
+        def friendly_name(dev: Union[Address, Device]) -> str:
+            if self._gwy.config.use_aliases:
+                alias = getattr(dev, "alias", None)
+            else:
+                alias = dev_id_to_str(dev.id)
+            return (dev.id if alias is None else alias)[:20]
 
         if self._str is not None:
             return self._str
@@ -177,11 +165,11 @@ class Message:
             return  # "Invalid"
 
         if self.src.id == self._addrs[0].id:
-            src = display_name(self.src)
-            dst = display_name(self.dst) if self.dst is not self.src else ""
+            src = friendly_name(self.src)
+            dst = friendly_name(self.dst) if self.dst is not self.src else ""
         else:
             src = ""
-            dst = display_name(self.src)
+            dst = friendly_name(self.src)
 
         context = {True: "[..]", False: "", None: " ?? "}.get(
             self._pkt._ctx, self._pkt._ctx
@@ -190,7 +178,7 @@ class Message:
         if not self._pkt._ctx and self.raw_payload[:2] not in ("00", "FF"):
             context = f"({self.raw_payload[:2]})"
 
-        _format = MSG_FORMAT_18 if self._gwy.config.use_names else MSG_FORMAT_10
+        _format = MSG_FORMAT_18 if self._gwy.config.use_aliases else MSG_FORMAT_10
         self._str = _format.format(
             src, dst, self.verb, self.code_name, context, self.payload
         )
@@ -392,6 +380,7 @@ class Message:
 
         if self._is_valid is None:
             self._payload = parse_payload(self, logger=_LOGGER)
+            # self._payload = {k: v for k, v in self._raw_payload.items() if k[:1] != "_"}
             self._is_valid = self._payload is not None
         return self._is_valid
 
@@ -569,18 +558,40 @@ def process_msg(msg: Message) -> None:
     if not msg.is_valid or msg._gwy.config.reduce_processing >= DONT_CREATE_ENTITIES:
         return
 
-    # TODO: This will need to be removed for HGI80-impersonation
-    # 18:/RQs are unreliable, although any corresponding RPs are often required
-    if msg.src.type == "18":
-        return
+    # # TODO: This will need to be removed for HGI80-impersonation
+    # # 18:/RQs are unreliable, although any corresponding RPs are often required
+    # if msg.src.type == "18":
+    #     return
 
     try:  # process the packet payload
         _create_devices(msg)  # from pkt header & from msg payload (e.g. 000C)
         _create_zones(msg)  # create zones & (TBD) ufh_zones too?
 
-        if msg._gwy.config.reduce_processing < DONT_UPDATE_ENTITIES:
-            # _update_entities(msg, msg._gwy._prev_msg)  # update the state database
+        if msg._gwy.config.reduce_processing >= DONT_UPDATE_ENTITIES:
+            msg._gwy._prev_msg = msg
+            return
+
+        # _update_entities(msg, msg._gwy._prev_msg)  # update the state database
+        if isinstance(msg.src, Device):
             msg.src._handle_msg(msg)
+
+        if msg.code not in (_0008, _0009, _3B00, _3EF1):
+            msg._gwy._prev_msg = msg
+            return
+
+        #  I --- 01:054173 --:------ 01:054173 0008 002 03AA
+        if msg.dst == msg.src:
+            # this is needed for faked relays...
+            # each device will have to decide if this packet is useful
+            [
+                d._handle_msg(msg)
+                for d in msg.src.devices
+                if getattr(d, "_is_faked", False)
+            ]
+
+        # RQ --- 18:006402 13:123456 --:------ 3EF1 001 00
+        elif getattr(msg.dst, "_is_faked", False):
+            msg.dst._handle_msg(msg)
 
     except (AssertionError, NotImplementedError) as err:
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)(

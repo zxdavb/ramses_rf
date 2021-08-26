@@ -21,19 +21,7 @@ from colorama import init as colorama_init
 
 from ramses_rf import Gateway, GracefulExit
 from ramses_rf.address import is_valid_dev_id
-from ramses_rf.command import Command
-from ramses_rf.discovery import (
-    EXECUTE_CMD,
-    GET_FAULTS,
-    GET_SCHED,
-    SCAN_DISC,
-    SCAN_FULL,
-    SCAN_HARD,
-    SCAN_XXXX,
-    SET_SCHED,
-    spawn_execute_scripts,
-    spawn_monitor_scripts,
-)
+from ramses_rf.discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
 from ramses_rf.exceptions import EvohomeError
 from ramses_rf.logger import CONSOLE_COLS, DEFAULT_DATEFMT, DEFAULT_FMT, LOG_FILE_NAME
 from ramses_rf.schema import (
@@ -57,7 +45,6 @@ DEBUG_MODE = "debug_mode"
 logging.basicConfig(level=logging.WARNING, format=DEFAULT_FMT, datefmt=DEFAULT_DATEFMT)
 
 
-COMMAND = "command"
 EXECUTE = "execute"
 LISTEN = "listen"
 MONITOR = "monitor"
@@ -71,11 +58,10 @@ COLORS = {" I": Fore.GREEN, "RP": Fore.CYAN, "RQ": Fore.CYAN, " W": Fore.MAGENTA
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 LIB_KEYS = (
-    INPUT_FILE,
     SERIAL_PORT,
+    INPUT_FILE,
     EVOFW_FLAG,
     PACKET_LOG,
-    # "process_level",  # TODO
     REDUCE_PROCESSING,
 )
 
@@ -122,21 +108,19 @@ class DeviceIdParamType(click.ParamType):
         self.fail(f"{value!r} is not a valid device_id", param, ctx)
 
 
-@click.group(context_settings=CONTEXT_SETTINGS)
+@click.group(context_settings=CONTEXT_SETTINGS)  # , invoke_without_command=True)
 @click.option("-z", "--debug-mode", count=True, help="enable debugger")
 @click.option("-r", "--reduce-processing", count=True, help="-rrr will give packets")
 @click.option("-l/-nl", "--long-dates/--no-long-dates", default=None)
 @click.option("-c", "--config-file", type=click.File("r"))
 @click.option("-k", "--client-state", type=click.File("r"))
-@click.option("-sx", "--show-nothing", is_flag=True, help="dont print any summary")
-@click.option("-sd", "--show-device", help="show these devices")
-@click.option("-sc", "--show-schema", is_flag=True, help="show the system schema")
-@click.option("-sp", "--show-params", is_flag=True, help="show the system params")
-@click.option("-ss", "--show-status", is_flag=True, help="show the system status")
-@click.option("-st", "--show-state", is_flag=True, help="dump the state database")
+@click.option("-s", "--show-summary", help="show these portions of schema/params/state")
 @click.pass_context
 def cli(ctx, config_file=None, **kwargs):
     """A CLI for the ramses_rf library."""
+
+    # if ctx.invoked_subcommand is None:
+    #     pass
 
     if 0 < kwargs[DEBUG_MODE] < 3:
         import debugpy
@@ -160,14 +144,14 @@ def cli(ctx, config_file=None, **kwargs):
     ctx.obj = lib_kwargs, kwargs
 
 
-class FileCommand(click.Command):
+class FileCommand(click.Command):  # input-file file
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.params.insert(
             0, click.Argument(("input-file",), type=click.File("r"), default=sys.stdin)
         )
         # NOTE: The following is useful for only for test/dev
-        # self.params.insert(
+        # self.params.insert(  # --packet-log
         #     1,
         #     click.Option(
         #         ("-o", "--packet-log"),
@@ -177,11 +161,11 @@ class FileCommand(click.Command):
         # )
 
 
-class PortCommand(click.Command):
+class PortCommand(click.Command):  # serial-port port --packet-log xxx --evofw3-flag xxx
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.params.insert(0, click.Argument(("serial-port",)))
-        self.params.insert(
+        self.params.insert(  # --packet-log
             1,
             click.Option(
                 ("-o", "--packet-log"),
@@ -189,7 +173,7 @@ class PortCommand(click.Command):
                 help="Log all packets to this file",
             ),
         )
-        self.params.insert(
+        self.params.insert(  # --evofw-flag
             2,
             click.Option(
                 ("-T", "--evofw-flag"),
@@ -199,7 +183,7 @@ class PortCommand(click.Command):
         )
 
 
-@click.command(cls=FileCommand)
+@click.command(cls=FileCommand)  # parse a packet log, then stop
 @click.pass_obj
 def parse(obj, **kwargs):
     """Parse a log file for messages/packets."""
@@ -208,15 +192,21 @@ def parse(obj, **kwargs):
 
     lib_kwargs[INPUT_FILE] = lib_kwargs[CONFIG].pop(INPUT_FILE)
 
-    asyncio.run(main(lib_kwargs, command=PARSE, **cli_kwargs))
+    asyncio.run(main(PARSE, lib_kwargs, **cli_kwargs))
 
 
-@click.command(cls=PortCommand)
-@click.option("-d/-nd", "--discover/--no-discover", default=None)
-@click.option(  # "--execute-cmd"
-    "-x", "--execute-cmd", type=click.STRING, help="e.g. 'RQ 01:123456 1F09 00'"
+@click.command(cls=PortCommand)  # (optionally) execute a command/script, then monitor
+@click.option("-d/-nd", "--discover/--no-discover", default=None)  # --no-discover
+@click.option(  # --execute-cmd 'RQ 01:123456 1F09 00'
+    "-x", "--exec-cmd", type=click.STRING, help="e.g. 'RQ 01:123456 1F09 00'"
 )
-@click.option(
+@click.option(  # --execute-scr script device_id
+    "-X",
+    "--exec-scr",
+    type=(str, DeviceIdParamType()),
+    help="scan_disc|scan-full|scan-hard|bind device_id",
+)
+@click.option(  # --poll-devices device_id, device_id,...
     "--poll-devices", type=click.STRING, help="e.g. 'device_id, device_id, ...'"
 )
 @click.pass_obj
@@ -225,30 +215,35 @@ def monitor(obj, **kwargs):
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
     if cli_kwargs["discover"] is not None:
-        lib_kwargs[CONFIG][DISABLE_DISCOVERY] = not cli_kwargs["discover"]
-    lib_kwargs[CONFIG]["poll_devices"] = _convert_to_list(
-        cli_kwargs.pop("poll_devices")
-    )
+        lib_kwargs[CONFIG][DISABLE_DISCOVERY] = not cli_kwargs.pop("discover")
 
-    asyncio.run(main(lib_kwargs, command=MONITOR, **cli_kwargs))
+    # allowed = lib_kwargs[ALLOW_LIST] = lib_kwargs.get(ALLOW_LIST, {})
+
+    # for k in (SCAN_DISC, SCAN_FULL, SCAN_HARD, SCAN_XXXX):
+    #     cli_kwargs[k] = _convert_to_list(cli_kwargs.pop(k))
+    #     allowed.update({d: None for d in cli_kwargs[k] if d not in allowed})
+
+    # lib_kwargs[CONFIG]["poll_devices"] = _convert_to_list(
+    #     cli_kwargs.pop("poll_devices")
+    # )
+
+    # if lib_kwargs[ALLOW_LIST]:
+    #     lib_kwargs[CONFIG][ENFORCE_ALLOWLIST] = True
+
+    asyncio.run(main(MONITOR, lib_kwargs, **cli_kwargs))
 
 
-@click.command(cls=PortCommand)
-@click.option(  # "--execute-cmd"
-    "-x", "--execute-cmd", type=click.STRING, help="e.g. 'RQ 01:123456 1F09 00'"
+@click.command(cls=PortCommand)  # execute a (complex) script, then stop
+@click.option(  # --get-faults ctl_id
+    "--get-faults", type=DeviceIdParamType(), help="controller_id"
 )
-@click.option("-S0", "-SD", "--scan-disc", help="e.g. 'device_id, device_id, ...'")
-@click.option("-S1", "-SF", "--scan-full", help="e.g. 'device_id, device_id, ...'")
-@click.option("-S2", "-SH", "--scan-hard", help="e.g. 'device_id, device_id, ...'")
-@click.option("-S9", "-SX", "--scan-xxxx", help="e.g. 'device_id, device_id, ...'")
-@click.option("--get-faults", type=DeviceIdParamType(), help="controller_id")
-@click.option(  # "--get-schedule"
+@click.option(  # --get-schedule ctl_id zone_idx|HW
     "--get-schedule",
     default=[None, None],
     type=(DeviceIdParamType(), str),
     help="controller_id, zone_idx (e.g. '0A')",
 )
-@click.option(  # "--set-schedule"
+@click.option(  # --set-schedule ctl_id zone_idx|HW
     "--set-schedule",
     default=[None, None],
     type=(DeviceIdParamType(), click.File("r")),
@@ -256,32 +251,33 @@ def monitor(obj, **kwargs):
 )
 @click.pass_obj
 def execute(obj, **kwargs):
-    """Execute any specified scripts, return the results, then quit."""
+    """Execute any specified scripts, return the results, then quit.
+
+    Disables discovery, and enforces a strict allow_list.
+    """
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
     lib_kwargs[CONFIG][DISABLE_DISCOVERY] = True
 
-    allowed = lib_kwargs[ALLOW_LIST] = lib_kwargs.get(ALLOW_LIST, {})
-    for k in (SCAN_DISC, SCAN_FULL, SCAN_HARD, SCAN_XXXX):
-        cli_kwargs[k] = _convert_to_list(cli_kwargs.pop(k))
-        allowed.update({d: None for d in cli_kwargs[k] if d not in allowed})
+    if cli_kwargs.get(GET_FAULTS):
+        lib_kwargs[ALLOW_LIST] = {cli_kwargs[GET_FAULTS]: None}
 
-    if cli_kwargs.get(GET_FAULTS) and cli_kwargs[GET_FAULTS] not in allowed:
-        allowed[cli_kwargs[GET_FAULTS]] = None
+    elif cli_kwargs[GET_SCHED][0]:
+        lib_kwargs[ALLOW_LIST] = {cli_kwargs[GET_SCHED][0]: None}
 
-    if cli_kwargs[GET_SCHED][0] and cli_kwargs[GET_SCHED][0] not in allowed:
-        allowed[cli_kwargs[GET_SCHED][0]] = None
-
-    if cli_kwargs[SET_SCHED][0] and cli_kwargs[SET_SCHED][0] not in allowed:
-        allowed[cli_kwargs[SET_SCHED][0]] = None
+    elif cli_kwargs[SET_SCHED][0]:
+        lib_kwargs[ALLOW_LIST] = {cli_kwargs[SET_SCHED][0]: None}
 
     if lib_kwargs[ALLOW_LIST]:
         lib_kwargs[CONFIG][ENFORCE_ALLOWLIST] = True
 
-    asyncio.run(main(lib_kwargs, command=EXECUTE, **cli_kwargs))
+    asyncio.run(main(EXECUTE, lib_kwargs, **cli_kwargs))
 
 
-@click.command(cls=PortCommand)
+@click.command(cls=PortCommand)  # (optionally) execute a command, then listen
+@click.option(  # --execute-cmd 'RQ 01:123456 1F09 00'
+    "-x", "--execute-cmd", type=click.STRING, help="e.g. 'RQ 01:123456 1F09 00'"
+)
 @click.pass_obj
 def listen(obj, **kwargs):
     """Listen to (eavesdrop only) a serial port for messages/packets."""
@@ -289,7 +285,7 @@ def listen(obj, **kwargs):
 
     lib_kwargs[CONFIG][DISABLE_SENDING] = True
 
-    asyncio.run(main(lib_kwargs, command=LISTEN, **cli_kwargs))
+    asyncio.run(main(LISTEN, lib_kwargs, **cli_kwargs))
 
 
 def _print_results(gwy, **kwargs):
@@ -323,16 +319,10 @@ def _save_state(gwy):
     schema, msgs = gwy._get_state()
 
     with open("state_msgs.log", "w") as f:
-        [
-            f.write(f"{m.dtm.isoformat(timespec='microseconds')} {m._pkt}\r\n")
-            for m in msgs.values()
-            # if not m._expired
-        ]
+        [f.write(f"{dtm} {pkt}\r\n") for dtm, pkt in msgs.items()]  # if not m._expired
 
     with open("state_schema.json", "w") as f:
         f.write(json.dumps(schema, indent=4))
-
-    # await gwy._set_state(schema, msgs)
 
 
 def _print_state(gwy, **kwargs):
@@ -344,29 +334,31 @@ def _print_state(gwy, **kwargs):
 
 
 def _print_summary(gwy, **kwargs):
-    if gwy.evo is None:
-        print(f"Schema[gateway] = {json.dumps(gwy.schema, indent=4)}\r\n")
-        print(f"Params[gateway] = {json.dumps(gwy.params)}\r\n")
-        print(f"Status[gateway] = {json.dumps(gwy.status)}")
-        return
+    entity = gwy.evo or gwy
 
-    print(f"Schema[{repr(gwy.evo)}] = {json.dumps(gwy.evo.schema, indent=4)}\r\n")
-    print(f"Params[{repr(gwy.evo)}] = {json.dumps(gwy.evo.params, indent=4)}\r\n")
-    print(f"Status[{repr(gwy.evo)}] = {json.dumps(gwy.evo.status, indent=4)}\r\n")
+    if not kwargs.get("hide_schema"):
+        print(f"Schema[{repr(entity)}] = {json.dumps(entity.schema, indent=4)}\r\n")
 
-    orphans = [d for d in sorted(gwy.devices) if d not in gwy.evo.devices]
-    devices = {d.id: d.schema for d in orphans}
-    print(f"Schema[orphans] = {json.dumps({'schema': devices}, indent=4)}\r\n")
-    devices = {d.id: d.params for d in orphans}
-    print(f"Params[orphans] = {json.dumps({'params': devices}, indent=4)}\r\n")
-    devices = {d.id: d.status for d in orphans}
-    print(f"Status[orphans] = {json.dumps({'status': devices}, indent=4)}\r\n")
+    if not kwargs.get("hide_params"):
+        print(f"Params[{repr(entity)}] = {json.dumps(entity.params, indent=4)}\r\n")
+
+    if not kwargs.get("hide_status"):
+        print(f"Status[{repr(entity)}] = {json.dumps(entity.status, indent=4)}\r\n")
+
+    if True or kwargs.get("show_device"):
+        devices = sorted(gwy.devices)
+        # devices = [d for d in sorted(gwy.devices) if d not in gwy.evo.devices]
+
+        schema = {d.id: d.schema for d in devices}
+        print(f"Schema[devices] = {json.dumps({'schema': schema}, indent=4)}\r\n")
+        params = {d.id: d.params for d in devices}
+        print(f"Params[devices] = {json.dumps({'params': params}, indent=4)}\r\n")
+        status = {d.id: d.status for d in devices}
+        print(f"Status[devices] = {json.dumps({'status': status}, indent=4)}\r\n")
 
 
-async def main(lib_kwargs, **kwargs):
+async def main(command, lib_kwargs, **kwargs):
     def process_message(msg) -> None:
-        # if msg._pkt._idx not in (None, "******"):
-        #     return
         dtm = (
             msg.dtm.isoformat(timespec="microseconds")
             if kwargs["long_dates"]
@@ -374,6 +366,8 @@ async def main(lib_kwargs, **kwargs):
         )
         if msg.src.type == "18":
             print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
+        # elif msg.code == "3B00":  # TODO: temp
+        #     print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
         else:
             print(f"{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
 
@@ -391,44 +385,29 @@ async def main(lib_kwargs, **kwargs):
         protocol, _ = gwy.create_client(process_message)
 
     try:  # main code here
-        if not kwargs["client_state"]:
-            task = asyncio.create_task(gwy.start())
-
         if kwargs["client_state"]:
             print("Restoring client state...")
             state = json.load(kwargs["client_state"])
             await gwy._set_state(**state["data"]["client_state"])
 
-        elif kwargs[COMMAND] == EXECUTE:
-            tasks = spawn_execute_scripts(gwy, **kwargs)
+        gwy_task = asyncio.create_task(gwy.start())
+
+        if command == EXECUTE:
+            tasks = spawn_scripts(gwy, **kwargs)
             await asyncio.gather(*tasks)
 
-            cmds = (EXECUTE_CMD, SCAN_DISC, SCAN_FULL, SCAN_HARD, SCAN_XXXX)
-            if not any(kwargs[k] for k in cmds):
-                # await gwy.stop()
-                task.cancel()
+        # elif command == LISTEN:
+        #     await gwy_task
 
-        elif kwargs[COMMAND] == MONITOR:
-            tasks = spawn_monitor_scripts(gwy, **kwargs)
+        elif command == MONITOR:
+            tasks = spawn_scripts(gwy, **kwargs)
+            # await asyncio.sleep(5)
+            # gwy.device_by_id["17:145039"].temperature = 19
+            # gwy.device_by_id["34:145039"].temperature = 21.3
+            await gwy_task
 
-        if False:  # TODO: temp test code
-
-            def callback(msg):
-                print(msg or "Callback has expired")
-
-            await asyncio.sleep(3)  # allow to quiesce
-            cmd = Command.get_zone_name("01:145039", "00")
-
-            if True:
-                gwy.send_cmd(cmd, callback=callback)
-            else:
-                try:
-                    print(await gwy.async_send_cmd(cmd, awaitable=False))
-                except TimeoutError:
-                    print("TimeoutError")
-
-        if not kwargs["client_state"]:
-            await task
+        else:
+            await gwy_task
 
     except asyncio.CancelledError:
         msg = " - ended via: CancelledError (e.g. SIGINT)"
@@ -443,17 +422,17 @@ async def main(lib_kwargs, **kwargs):
 
     print("\r\nclient.py: Finished ramses_rf, results:\r\n")
 
-    if kwargs["show_state"]:
+    if False:  # or kwargs["show_state"]:
         _print_state(gwy, **kwargs)
 
-    elif kwargs[COMMAND] == EXECUTE:
+    elif command == EXECUTE:
         _print_results(gwy, **kwargs)
 
-    elif not kwargs["show_nothing"]:
+    else:  # if not kwargs["hide_summary"]:
         _print_summary(gwy, **kwargs)
 
-    # if kwargs["show_device"]:
-    #     _print_state(gwy)
+    # if kwargs["save_state"]:
+    #    _save_state(gwy)
 
     print(f"\r\nclient.py: Finished ramses_rf.\r\n{msg}\r\n")
 

@@ -9,7 +9,13 @@ from sys import modules
 from types import SimpleNamespace
 from typing import Dict, Optional
 
-from .address import NON_DEV_ADDR, dev_id_to_hex, id_to_address
+from .address import (
+    NON_DEV_ADDR,
+    NUL_DEV_ADDR,
+    dev_id_to_hex,
+    dev_id_to_str,
+    id_to_address,
+)
 from .command import FUNC, TIMEOUT, Command, Priority
 from .const import (
     _000C_DEVICE,
@@ -174,6 +180,10 @@ class DeviceBase(Entity):
         self.hex_id = dev_id_to_hex(dev_addr.id)
         self.type = dev_addr.type
 
+        self.devices = []  # [self]
+        self.device_by_id = {}  # {self.id: self}
+        self._iz_controller = None
+
         if self.type in DEVICE_TABLE:
             self._has_battery = DEVICE_TABLE[self.addr.type].get("has_battery")
             self._is_actuator = DEVICE_TABLE[self.addr.type].get("is_actuator")
@@ -183,9 +193,12 @@ class DeviceBase(Entity):
             self._is_actuator = None
             self._is_sensor = None
 
-        self.devices = []  # [self]
-        self.device_by_id = {}  # {self.id: self}
-        self._iz_controller = None
+        if gwy._include.get(self.id) is not None:
+            self.alias = gwy._include[self.id].get("alias", dev_id_to_str(self.id))
+            self._is_faked = bool(gwy._include[self.id].get("faked"))
+        else:
+            self.alias = None
+            self._is_faked = None
 
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id})"
@@ -251,6 +264,92 @@ class DeviceBase(Entity):
             elif self._iz_controller is False:  # TODO: raise CorruptStateError
                 _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (01): was FALSE, now True")
 
+    def _make_fake(self, *args, **kwargs) -> None:
+        _LOGGER.error("Device %s: This device type does not support faking", self)
+
+    def _bind(self, *args, **kwargs):
+        _LOGGER.error("Device %s: This device type does not support binding", self)
+
+    # Bind process: BDR relay set to listen, CTL initiates handshake
+    # 19:30:44.749 051  I --- 01:054173 --:------ 01:054173 1FC9 024 FC-0008-04D39D FC-3150-04D39D FB-3150-04D39D FC-1FC9-04D39D
+    # 19:30:45.342 053  W --- 13:049798 01:054173 --:------ 1FC9 012 00-3EF0-34C286 00-3B00-34C286
+    # 19:30:45.504 049  I --- 01:054173 13:049798 --:------ 1FC9 006 00-FFFF-04D39D
+
+    def _bind_waiting(self, code, idx="00", callback=None):
+        """Wait for (listen for) a bind handshake."""
+
+        # SUPPORTED_CODES = (_0008,)
+
+        def bind_confirm(msg, *args) -> None:
+            """Process the 3rd/final packet of the handshake."""
+            if not msg or msg.code != code:
+                return
+            self._1fc9_state == "confirm"
+
+            # self._gwy._get_device(self, ctl_addr=id_to_address(msg.payload[0][2]))
+            # self._ctl._evo._get_zone(msg.payload[0][0])._set_sensor(self)
+            if callback:
+                callback()
+
+        def bind_respond(msg, *args) -> None:
+            """Process the 1st, and send the 2nd, packet of the handshake."""
+            if not msg:
+                return
+            self._1fc9_state == "respond"
+
+            # W should be retransmitted until receiving an I; idx is domain_id/zone_idx
+            cmd = Command.put_bind(
+                W_,
+                code,
+                self.id,
+                idx=idx,
+                dst_id=msg.src.id,
+                callback={FUNC: bind_confirm, TIMEOUT: 3},
+            )
+            self._gwy.send_cmd(cmd)
+
+        # assert code in SUPPORTED_CODES, f"Binding: {code} is not supported"
+        self._1fc9_state = "waiting"
+
+        self._gwy.msg_transport._add_callback(
+            f"{_1FC9}|{I_}|{NUL_DEV_ADDR.id}", {FUNC: bind_respond, TIMEOUT: 300}
+        )
+
+    # Bind process: CTL set to listen, STA initiates handshake (note 3C09/2309)
+    # 22:13:52.527 070  I --- 34:021943 --:------ 34:021943 1FC9 024 00-3C09-8855B7 00-30C9-8855B7 00-0008-8855B7 00-1FC9-8855B7
+    # 22:13:52.540 052  W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E
+    # 22:13:52.572 071  I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
+
+    # Bind process: CTL set to listen, DHW sensor initiates handshake
+    # 19:45:16.733 045  I --- 07:045960 --:------ 07:045960 1FC9 012 00-1260-1CB388 00-1FC9-1CB388
+    # 19:45:16.896 045  W --- 01:054173 07:045960 --:------ 1FC9 006 00-10A0-04D39D
+    # 19:45:16.919 045  I --- 07:045960 01:054173 --:------ 1FC9 006 00-1260-1CB388
+
+    def _bind_request(self, code, callback=None):
+        """Initate a bind handshake: send the 1st packet of the handshake."""
+
+        SUPPORTED_CODES = (_0002, _1260, _1290, _30C9)
+
+        def bind_confirm(msg, *args) -> None:
+            """Process the 2nd, and send the 3rd/final, packet of the handshake."""
+            if not msg or msg.dst is not self:
+                return
+            self._1fc9_state == "confirm"
+
+            cmd = Command.put_bind(I_, code, self.id, dst_id=msg.src.id)
+            self._gwy.send_cmd(cmd)
+
+            if callback:
+                callback()
+
+        assert code in SUPPORTED_CODES, f"Binding: {code} is not supported"
+        self._1fc9_state = "request"
+
+        cmd = Command.put_bind(
+            I_, code, self.id, callback={FUNC: bind_confirm, TIMEOUT: 3}
+        )
+        self._gwy.send_cmd(cmd)
+
     @property
     def _is_present(self) -> bool:
         """Try to exclude ghost devices (as caused by corrupt packet addresses)."""
@@ -277,7 +376,7 @@ class DeviceBase(Entity):
     def schema(self) -> dict:
         """Return the fixed attributes of the device (e.g. TODO)."""
 
-        return self._codes if DEV_MODE else {}
+        return {**self._codes, "faked": self._is_faked}
 
     @property
     def params(self):
@@ -299,13 +398,13 @@ class Actuator:  # 3EF0, 3EF1
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_STATUS:
+        if discover_flag & DISCOVER_STATUS and not self._is_faked:
             self._send_cmd(_3EF1)  # No RPs to 3EF0
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == _3EF0 and msg.verb == I_:  # NOT RP, TODO: why????
+        if msg.code == _3EF0 and msg.verb == I_ and not self._is_faked:
             self._send_cmd(_3EF1, priority=Priority.LOW, retries=1)
 
     @property
@@ -388,6 +487,54 @@ class Setpoint:  # 2309
         }
 
 
+class Weather:  # 0002 (fakeable)
+
+    TEMPERATURE = ATTR_TEMP  # degrees Celsius
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self._is_faked = kwargs.get("fake_0002") or self.id == "17:123456"
+
+    def _make_fake(self, bind=None):
+        self._is_faked = True
+        if bind:
+            self._bind()
+        _LOGGER.error("%s: Faking now enabled", self)  # TODO: should be info/debug
+
+    def _bind(self):
+        # A contrived (but proven viable) packet log
+        #  I --- 17:145039 --:------ 17:145039 1FC9 012 00-0002-46368F 00-1FC9-46368F
+        #  W --- 01:054173 17:145039 --:------ 1FC9 006 03-2309-04D39D  # real CTL
+        #  I --- 17:145039 01:054173 --:------ 1FC9 006 00-0002-46368F
+
+        if not self._is_faked:
+            raise TypeError("Can't bind sensor (Faking is not enabled)")
+        self._bind_request(_0002)
+
+    @property
+    def temperature(self) -> Optional[float]:  # 0002
+        return self._msg_value(_0002, key=self.TEMPERATURE)
+
+    @temperature.setter
+    def temperature(self, value) -> None:  # 0002
+        if not self._is_faked:
+            raise AttributeError("Can't set attribute (Faking is not enabled)")
+
+        cmd = Command.put_outdoor_temp(self.id, value)
+        # cmd = Command.put_zone_temp(
+        #     self._gwy.hgi.id if self == self._gwy.hgi._faked_thm else self.id, value
+        # )
+        self._gwy.send_cmd(cmd)
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            self.TEMPERATURE: self.temperature,
+        }
+
+
 class Temperature:  # 30C9 (fakeable)
 
     TEMPERATURE = ATTR_TEMP  # degrees Celsius
@@ -395,29 +542,32 @@ class Temperature:  # 30C9 (fakeable)
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._30C9_faked = None
+        self._is_faked = None
+        if kwargs.get("fake_30C9") or self.id[3:] == "123456":
+            self._make_fake()
 
     def _make_fake(self, bind=None):
-        self._30C9_faked = True
-        if bind:
-            self._bind()
-        _LOGGER.error("%s: Faking now enabled", self)  # TODO: should be info/debug
+        # A contrived (but proven viable) packet log ? offer should include 2309?
+        #  I --- 34:145039 --:------ 34:145039 1FC9 012 00-30C9-8A368F 00-1FC9-8A368F
+        #  W --- 01:054173 34:145039 --:------ 1FC9 006 03-2309-04D39D  # real CTL
+        #  I --- 34:145039 01:054173 --:------ 1FC9 006 00-30C9-8A368F
 
-    def _bind(self):
-        if not self._30C9_faked:
-            raise TypeError("Can't bind sensor (Faking is not enabled)")
+        self._is_faked = True
+        _LOGGER.error("%s: Faking now enabled", self)  # TODO: should be info/debug
+        if bind:
+            self._bind_request(_30C9)
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        return self._msg_value(_2309, key=self.SETPOINT)
+        return self._msg_value(_30C9, key=self.SETPOINT)
 
     @temperature.setter
     def temperature(self, value) -> None:  # 30C9
-        if not self._30C9_faked:
+        if not self._is_faked:
             raise AttributeError("Can't set attribute (Faking is not enabled)")
 
-        cmd = Command.put_sensor_temp(self.id, value)
-        # cmd = Command.put_sensor_temp(
+        cmd = Command.put_zone_temp(self.id, value)
+        # cmd = Command.put_zone_temp(
         #     self._gwy.hgi.id if self == self._gwy.hgi._faked_thm else self.id, value
         # )
         self._gwy.send_cmd(cmd)
@@ -452,6 +602,93 @@ class DeviceInfo:  # 10E0
         if _10E0 in self._msgs or _10E0 in RAMSES_DEVICES.get(self.type, []):
             result.update({self.DEVICE_INFO: self.device_info})
         return result
+
+
+class RelayDemand:  # 0008 (fakeable)
+
+    RELAY_DEMAND = ATTR_RELAY_DEMAND  # percentage (0.0-1.0)
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self._is_faked = kwargs.get("fake_0008") or self.id == "13:123456"
+
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        super()._discover(discover_flag=discover_flag)
+
+        if discover_flag & DISCOVER_STATUS and not self._is_faked:
+            self._send_cmd(_0008)
+
+    def _handle_msg(self, msg) -> None:
+        if msg.src.id == self.id:
+            super()._handle_msg(msg)
+            return
+
+        if (
+            not self._is_faked
+            or self._domain_id is None
+            or self._domain_id
+            not in (v for k, v in msg.payload.items() if k in ("domain_id", "zone_idx"))
+        ):
+            return
+
+        # TODO: handle relay_failsafe, replay to RQs
+        if msg.code == _0008 and msg.verb == I_:
+            mod_level = msg.payload[
+                self.RELAY_DEMAND
+            ]  # 076  I --- 01:054173 --:------ 01:054173 0008 002 037C
+            if mod_level is not None:
+                mod_level = 1.0 if mod_level > 0 else 0
+
+            cmd = Command.put_actuator_state(self.id, mod_level)
+            qos = {"priority": Priority.HIGH, "retries": 3}
+            [self._gwy.send_cmd(cmd, **qos) for _ in range(1)]
+
+        elif msg.code == _0009 and msg.verb == I_:
+            pass
+
+        elif msg.code == _3B00 and msg.verb == I_:
+            pass
+
+        # elif msg.code == _3EF0 and msg.verb == I_:  # NOT RP, TODO: why????
+        #     self._send_cmd(_0008, priority=Priority.LOW, retries=1)
+
+        elif msg.code == _3EF1 and msg.verb == RQ:  # NOTE: WIP
+            mod_level = 1.0
+
+            cmd = Command.put_actuator_cycle(self.id, msg.src.id, mod_level, 600, 600)
+            qos = {"priority": Priority.HIGH, "retries": 3}
+            [self._gwy.send_cmd(cmd, **qos) for _ in range(1)]
+
+        else:
+            raise
+
+    def _make_fake(self, bind=None):
+        self._is_faked = True
+        if bind:
+            self._bind()
+        _LOGGER.error("%s: Faking now enabled", self)  # TODO: should be info/debug
+
+    def _bind(self):
+        # A contrived (but proven viable) packet log
+        #  I --- 01:054173 --:------ 01:054173 1FC9 018 03-0008-04D39D FC-3B00-04D39D 03-1FC9-04D39D
+        #  W --- 13:123456 01:054173 --:------ 1FC9 006 00-3EF0-35E240
+        #  I --- 01:054173 13:123456 --:------ 1FC9 006 00-FFFF-04D39D
+
+        if not self._is_faked:
+            raise TypeError("Can't bind sensor (Faking is not enabled)")
+        self._bind_waiting(_3EF0)
+
+    @property
+    def relay_demand(self) -> Optional[float]:  # 0008
+        return self._msg_value(_0008, key=self.RELAY_DEMAND)
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            self.RELAY_DEMAND: self.relay_demand,
+        }
 
 
 class Device(DeviceInfo, DeviceBase):
@@ -663,14 +900,6 @@ class HGInterface(DeviceBase):  # HGI (18:), was GWY
             "faked_ext": self._faked_ext and self._faked_ext.id,
             "faked_thm": self._faked_thm and self._faked_thm.id,
         }
-
-    @property
-    def params(self):
-        return {}
-
-    @property
-    def status(self):
-        return {}
 
 
 class Controller(Device):  # CTL (01):
@@ -893,93 +1122,19 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
         }
 
 
-class ExtSensor(Device):  # EXT: 17
+class ExtSensor(Weather, Device):  # EXT: 17
     """The EXT class (external sensor), such as a HB85/HB95."""
 
     __dev_class__ = DEVICE_CLASS.EXT  # DEVICE_TYPES = ("17", )
 
-    LUMINOSITY = "luminosity"  # lux
-    TEMPERATURE = "temperature"  # Celsius
-    WINDSPEED = "windspeed"  # km/h
+    # LUMINOSITY = "luminosity"  # lux
+    # WINDSPEED = "windspeed"  # km/h
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._0002_faked = None
-        self._1fc9_state = None
-
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id}): {self.temperature}"
-
-    def _make_fake(self, bind=None):
-        self._0002_faked = True
-        if bind:
-            self._bind()
-
-    def _bind(self):
-        def bind_callback(msg) -> None:
-            self._1fc9_state == "bound"
-
-            self._gwy._get_device(self, ctl_addr=id_to_address(msg.payload[0][2]))
-            self._ctl._evo._get_zone(msg.payload[0][0])._set_sensor(self)
-
-            cmd = Command(
-                I_, _1FC9, f"002309{self.hex_id}", self._ctl.id, from_id=self.id
-            )
-            self._gwy.send_cmd(cmd)
-
-        if not self._0002_faked:
-            raise TypeError("Can't bind sensor (Faking is not enabled)")
-        self._1fc9_state = "binding"
-
-        cmd = Command.packet(
-            I_,
-            _1FC9,
-            f"000002{self.hex_id}",
-            addr0=self.id,
-            addr2=self.id,
-            callback={FUNC: bind_callback, TIMEOUT: 3},
-        )
-        self._gwy.send_cmd(cmd)
-
-    @property
-    def temperature(self) -> Optional[float]:  # 0002
-        return self._msg_value(_0002, key=self.TEMPERATURE)
-
-    @temperature.setter
-    def temperature(self, value) -> None:  # 0002
-        if not self._0002_faked:
-            raise AttributeError("Can't set attribute (Faking is not enabled)")
-
-        cmd = Command.put_outdoor_temp(
-            self._gwy.hgi.id if self == self._gwy.hgi._faked_ext else self.id, value
-        )
-        self._gwy.send_cmd(cmd)
-
-    @property
-    def luminosity(self) -> Optional[float]:  # 0002
-        raise NotImplementedError
-
-    @luminosity.setter
-    def luminosity(self, value) -> None:  # 0002
-        raise NotImplementedError
-
-    @property
-    def windspeed(self) -> Optional[float]:  # 0002
-        raise NotImplementedError
-
-    @windspeed.setter
-    def windspeed(self, value) -> None:  # 0002
-        raise NotImplementedError
-
-    @property
-    def status(self) -> dict:
-        return {
-            **super().status,
-            self.LUMINOSITY: self.luminosity,
-            self.TEMPERATURE: self.temperature,
-            self.WINDSPEED: self.windspeed,
-        }
 
 
 class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
@@ -1233,8 +1388,6 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._1fc9_state = None
-
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id}): {self.temperature}"
 
@@ -1278,30 +1431,8 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
             elif self._iz_controller is False:  # TODO: raise CorruptStateError
                 _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (21): was FALSE, now True")
 
-    def _bind(self):
-        def bind_callback(msg) -> None:
-            self._1fc9_state == "bound"
 
-            self._gwy._get_device(self, ctl_addr=id_to_address(msg.payload[0][2]))
-            self._ctl._evo._get_zone(msg.payload[0][0])._set_sensor(self)
-
-            cmd = Command(
-                I_, _1FC9, f"00{_2309}{self.hex_id}", self._ctl.id, from_id=self.id
-            )
-            self._gwy.send_cmd(cmd)
-
-        super()._bind()
-        self._1fc9_state = "binding"
-
-        callback = {FUNC: bind_callback, TIMEOUT: 3}
-        payload = "".join(f"00{c}{self.hex_id}" for c in (_2309, _30C9, _0008, _1FC9))
-        cmd = Command.packet(
-            I_, _1FC9, payload, addr0=self.id, addr2=self.id, callback=callback
-        )
-        self._gwy.send_cmd(cmd)
-
-
-class BdrSwitch(Actuator, Device):  # BDR (13):
+class BdrSwitch(Actuator, RelayDemand, Device):  # BDR (13):
     """The BDR class, such as a BDR91.
 
     BDR91s can be used in six disctinct modes, including:
@@ -1313,14 +1444,11 @@ class BdrSwitch(Actuator, Device):  # BDR (13):
 
     __dev_class__ = DEVICE_CLASS.BDR  # DEVICE_TYPES = ("13", )
 
-    RELAY_DEMAND = "relay_demand"  # percentage (0.0-1.0)
     TPI_PARAMS = "tpi_params"
     # _STATE = super().ENABLED, or relay_demand
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-
-        self._is_tpi = None
 
         # if kwargs.get("domain_id") == "FC":  # TODO: F9/FA/FC, zone_idx
         #     self._ctl._set_htg_control(self)
@@ -1347,19 +1475,13 @@ class BdrSwitch(Actuator, Device):  # BDR (13):
         # if discover_flag & DISCOVER_SCHEMA:
         #     self._send_cmd(_1FC9)  # will include a 3B00 if is a heater_relay
 
-        if discover_flag & DISCOVER_PARAMS:
+        if discover_flag & DISCOVER_PARAMS and not self._is_faked:
             self._send_cmd(_1100)
-
-        if discover_flag & DISCOVER_STATUS:
-            self._send_cmd(_0008)
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == _3EF0 and msg.verb == I_:  # NOT RP, TODO: why????
-            self._send_cmd(_0008, priority=Priority.LOW, retries=1)
-
-        # elif msg.code == _1FC9 and msg.verb == RP:
+        # if msg.code == _1FC9 and msg.verb == RP:
         #     pass  # only a heater_relay will have 3B00
 
         # elif msg.code == _3B00 and msg.verb == I_:
@@ -1376,46 +1498,28 @@ class BdrSwitch(Actuator, Device):  # BDR (13):
         elif self._parent:
             return self._parent.heating_type  # TODO: only applies to zones
 
-    @property
-    def _role(self) -> Optional[str]:  # TODO: XXX
-        """Return the role of the BDR91A (there are six possibilities)."""
-
-        if self._is_tpi is not None:
-            return self._is_tpi
-
-        elif _1FC9 in self._msgs and self._msgs[_1FC9].verb == RP:
-            if _3B00 in self._msgs[_1FC9].raw_payload:
-                self._is_tpi = True
-
-        elif _3B00 in self._msgs and self._msgs[_3B00].verb == I_:
-            self._is_tpi = True
-
-        if self._is_tpi:
-            self._domain_id = "FC"  # TODO: check is None first
-            self._ctl._set_htg_control(self)
-
-        return self._is_tpi
-
-    @property
-    def relay_demand(self) -> Optional[float]:  # 0008
-        return self._msg_value(_0008, key=self.RELAY_DEMAND)
+        # if _3B00 in self._msgs and self._msgs[_3B00].verb == I_:
+        #     self._is_tpi = True
+        # if _1FC9 in self._msgs and self._msgs[_1FC9].verb == RP:
+        #     if _3B00 in self._msgs[_1FC9].raw_payload:
+        #         self._is_tpi = True
 
     @property
     def tpi_params(self) -> Optional[dict]:  # 1100
         return self._msg_value(_1100)
 
     @property
+    def schema(self) -> dict:
+        return {
+            **super().schema,
+            "role": self.role,
+        }
+
+    @property
     def params(self) -> dict:
         return {
             **super().params,
             self.TPI_PARAMS: self.tpi_params,
-        }
-
-    @property
-    def status(self) -> dict:
-        return {
-            **super().status,
-            self.RELAY_DEMAND: self.relay_demand,
         }
 
 
@@ -1578,7 +1682,7 @@ DEVICE_BY_ID_TYPE = {
 }  # e.g. "01": Controller,
 
 
-def create_device(gwy, dev_addr, dev_class=None, **kwargs) -> Device:
+def _create_device(gwy, dev_addr, dev_class=None, **kwargs) -> Device:
     """Create a device, and optionally perform discovery & start polling."""
 
     if dev_class is None:
@@ -1594,4 +1698,46 @@ def create_device(gwy, dev_addr, dev_class=None, **kwargs) -> Device:
         schedule_task(device._discover, discover_flag=DISCOVER_PARAMS, delay=14)
         schedule_task(device._discover, discover_flag=DISCOVER_STATUS, delay=15)
 
+    return device
+
+
+def OUT_create_device(gwy, dev_addr, ctl_addr=None, domain_id=None, **kwargs) -> Device:
+
+    if dev_addr.type in ("18", "--") or dev_addr.id in (
+        NUL_DEV_ADDR.id,
+        "01:000001",
+    ):
+        return  # not valid device types/real devices
+
+    if ctl_addr is not None:
+        ctl = gwy.device_by_id.get(ctl_addr.id)
+        # if ctl is None:
+        #     ctl = create_device(ctl_addr, domain_id="FF", **kwargs)
+
+    dev = gwy.device_by_id.get(dev_addr.id)
+    if dev is None:  # TODO: take into account device filter?
+        dev = _create_device(gwy, dev_addr)
+
+    # if dev.type == "01" and dev._is_controller and dev._evo is None:
+    #     dev._evo = create_system(gwy, dev, profile=kwargs.get("profile"))
+
+    # update the existing device with any metadata TODO: this is messy
+    if ctl_addr and ctl:
+        dev._set_ctl(ctl)
+    if domain_id in ("F9", "FA", "FC", "FF"):
+        dev._domain_id = domain_id
+    elif domain_id is not None and ctl_addr and ctl:
+        dev._set_parent(ctl._evo._get_zone(domain_id))
+
+    return dev
+
+
+def create_fake_device(gwy, device_id, device_type=None, bind=None) -> Device:
+    """Create, a faked device and optionally bind it to a controller."""
+    dev_type = device_type or _DEV_TYPE_TO_CLASS[device_id[:2]]
+    if dev_type not in (DEVICE_CLASS.BDR, DEVICE_CLASS.EXT, DEVICE_CLASS.STA):
+        raise TypeError
+    dev_addr = id_to_address(device_id)
+    device = _create_device(dev_addr, dev_type=dev_type)
+    device._make_fake(bind=bind)
     return device

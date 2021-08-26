@@ -702,7 +702,7 @@ class Command(PacketBase):
 
     @classmethod  # constructor for RQ/30C9
     @validate_zone_args
-    def get_zone_temperature(cls, ctl_id: str, zone_idx: int, **kwargs):
+    def get_zone_temp(cls, ctl_id: str, zone_idx: int, **kwargs):
         """Constructor to get the current temperature of a zone (c.f. parser_30c9)."""
         return cls(RQ, _30C9, f"{zone_idx:02X}", ctl_id, **kwargs)
 
@@ -882,7 +882,7 @@ _COMMANDS = {
     f"{RQ}/{_2E04}": Command.get_system_mode,
     f"{W_}/{_2E04}": Command.set_system_mode,
     f"{I_}/{_30C9}": Command.put_sensor_temp,
-    f"{RQ}/{_30C9}": Command.get_zone_temperature,
+    f"{RQ}/{_30C9}": Command.get_zone_temp,
     f"{RQ}/{_313F}": Command.get_system_time,
     f"{W_}/{_313F}": Command.set_system_time,
     f"{RQ}/{_3220}": Command.get_opentherm_data,

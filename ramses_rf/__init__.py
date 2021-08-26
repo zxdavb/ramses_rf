@@ -23,7 +23,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 from .address import NUL_DEV_ADDR, create_dev_id, id_to_address, is_valid_dev_id
 from .command import Command
 from .const import ATTR_DEVICES, ATTR_ORPHANS, DONT_CREATE_MESSAGES
-from .devices import Device, create_device
+from .devices import Device, _create_device
 from .logger import set_logger_timesource, set_pkt_logging
 from .message import Message, process_msg
 from .packet import _PKT_LOGGER
@@ -215,7 +215,7 @@ class Gateway:
 
         dev = self.device_by_id.get(dev_addr.id)
         if dev is None:  # TODO: take into account device filter?
-            dev = create_device(self, dev_addr)
+            dev = _create_device(self, dev_addr)
 
         if dev.type == "01" and dev._is_controller and dev._evo is None:
             dev._evo = create_system(self, dev, profile=kwargs.get("profile"))
@@ -372,29 +372,17 @@ class Gateway:
         """Make a command addressed to device_id."""
         return Command(verb, code, payload, device_id)
 
-    def send_cmd(
-        self, cmd: Command, callback: Callable = None, **kwargs
-    ) -> asyncio.Task:
+    def send_cmd(self, cmd: Command, callback: Callable = None, **kwargs) -> None:
         """Send a command with the option to return any response via callback.
 
         Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
+        This routine is thread safe.
         """
         if not self.msg_protocol:
             raise RuntimeError("there is no message protocol")
 
-        async def scheduler(period, *args, **kwargs):
-            while True:
-                await self.msg_protocol.send_data(*args, **kwargs)
-                await asyncio.sleep(period)  # drift is OK
-
-        periodic = kwargs.pop("period", None)  # a timedelta object
-        if periodic:
-            return self._loop.create_task(
-                scheduler(periodic.total_seconds(), cmd, **kwargs)
-            )
-
-        return self._loop.create_task(
-            self.msg_protocol.send_data(cmd, callback=callback, **kwargs)
+        asyncio.run_coroutine_threadsafe(
+            self.msg_protocol.send_data(cmd, callback=callback, **kwargs), self._loop
         )
 
     async def async_send_cmd(
@@ -403,10 +391,26 @@ class Gateway:
         """Send a command with the option to not wait for a response (awaitable=False).
 
         Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
+        This routine is thread safe.
         """
         if not self.msg_protocol:
             raise RuntimeError("there is no message protocol")
-        return await self.msg_protocol.send_data(cmd, awaitable=awaitable, **kwargs)
+
+        future = asyncio.run_coroutine_threadsafe(
+            self.msg_protocol.send_data(cmd, awaitable=awaitable, **kwargs), self._loop
+        )
+
+        asyncio.sleep(5)
+        try:
+            result = future.result()
+        except asyncio.TimeoutError:
+            print("The coroutine took too long, cancelling the task...")
+            future.cancel()
+        except Exception as exc:
+            print(f"The coroutine raised an exception: {exc!r}")
+        else:
+            print(f"The coroutine returned: {result!r}")
+            return result
 
     def _bind_fake_sensor(self, sensor_id=None) -> Device:
         """Bind a faked temperature sensor to a controller (i.e. a controller's zone).
@@ -438,7 +442,7 @@ class Gateway:
     #     """
 
     def create_fake_outdoor_sensor(self, device_id=None) -> Device:
-        """Create/bind a faked outdoor temperature sensor to a controller.
+        """Create/bind a faked weather sensor to a controller.
 
         If no device_id is provided, the RF gateway is used.
         """
@@ -452,8 +456,14 @@ class Gateway:
         return self.hgi.create_fake_bdr(device_id=device_id)
 
     def create_fake_zone_sensor(self, device_id=None) -> Device:
-        """Create/bind a faked temperature sensor to a controller' zone.
+        """Create/bind a faked thermostat to a controller's zone.
 
         If no device_id is provided, the RF gateway is used.
         """
         return self.hgi.create_fake_thm(device_id=device_id)
+
+    # def create_fake_device(self, device_id, device_type=None, bind=None) -> Device:
+    #     """Create, a faked device and optionally bind it to a controller."""
+    #     return create_fake_device(
+    #         self, device_id, device_type=device_type, bind=bind
+    #     )

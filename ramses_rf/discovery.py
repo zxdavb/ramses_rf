@@ -77,11 +77,12 @@ from .const import (  # noqa: F401, isort: skip
     _PUZZ,
 )
 
-EXECUTE_CMD = "execute_cmd"
+EXEC_CMD = "exec_cmd"
 GET_FAULTS = "get_faults"
 GET_SCHED = "get_schedule"
 SET_SCHED = "set_schedule"
 
+EXEC_SCR = "exec_scr"
 SCAN_DISC = "scan_disc"
 SCAN_FULL = "scan_full"
 SCAN_HARD = "scan_hard"
@@ -96,14 +97,55 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def spawn_execute_cmd(gwy, **kwargs):
-    if not kwargs.get(EXECUTE_CMD):  # e.g. "RQ 01:145038 1F09 00"
-        _LOGGER.warning("Execute: Command is invalid: '%s'", kwargs[EXECUTE_CMD])
+def spawn_scripts(gwy, **kwargs) -> List[asyncio.Task]:
+
+    # this is to ensure the gateway interface has fully woken
+    if not kwargs.get(EXEC_CMD) and gwy._include:
+        dev_id = next(iter(gwy._include))
+        qos = {"priority": Priority.HIGH, "retries": 5}
+        gwy.send_cmd(Command(RQ, _0016, "00FF", dev_id, **qos))
+
+    tasks = []
+
+    if kwargs.get(EXEC_CMD):
+        spawn_exec_cmd(gwy, **kwargs)  # TODO: wrap in a try?
+
+    if kwargs.get(GET_FAULTS):
+        tasks += [gwy._loop.create_task(get_faults(gwy, kwargs[GET_FAULTS]))]
+
+    elif kwargs.get(GET_SCHED) and kwargs[GET_SCHED][0]:
+        tasks += [gwy._loop.create_task(get_schedule(gwy, *kwargs[GET_SCHED]))]
+
+    elif kwargs.get(SET_SCHED) and kwargs[SET_SCHED][0]:
+        tasks += [gwy._loop.create_task(set_schedule(gwy, *kwargs[SET_SCHED]))]
+
+    elif kwargs[EXEC_SCR]:
+        # qos = {"priority": Priority.HIGH, "retries": 3}
+        # gwy.send_cmd(Command._puzzle("00", message="Script: starts...", **qos))
+
+        script = SCRIPTS.get(f"{kwargs[EXEC_SCR][0]}")
+        if script is None:
+            _LOGGER.warning(f"Script: {kwargs[EXEC_SCR][0]}() - unknown script")
+        else:
+            _LOGGER.info(f"Script: {kwargs[EXEC_SCR][0]}().- starts...")
+            tasks += [gwy._loop.create_task(script(gwy, kwargs[EXEC_SCR][1]))]
+
+        qos = {"priority": Priority.LOW, "retries": 3}
+        gwy.send_cmd(Command._puzzle("00", message="Script: ended.", **qos))
+
+    gwy._tasks.extend(tasks)
+    return tasks
+
+
+def spawn_exec_cmd(gwy, **kwargs):
+
+    if not kwargs.get(EXEC_CMD):  # e.g. "RQ 01:145038 1F09 00"
+        _LOGGER.warning("Execute: Command is invalid: '%s'", kwargs)
         return
 
-    cmd = kwargs[EXECUTE_CMD].upper().split()
+    cmd = kwargs[EXEC_CMD].upper().split()
     if len(cmd) < 4:
-        _LOGGER.warning("Execute: Command is invalid: '%s'", kwargs[EXECUTE_CMD])
+        _LOGGER.warning("Execute: Command is invalid: '%s'", kwargs)
         return
 
     verb = cmd.pop(0)
@@ -112,7 +154,7 @@ def spawn_execute_cmd(gwy, **kwargs):
     code = cmd.pop()
 
     if not 0 < len(cmd) < 4:
-        _LOGGER.warning("Execute: Command is invalid: '%s'", kwargs[EXECUTE_CMD])
+        _LOGGER.warning("Execute: Command is invalid: '%s'", kwargs)
         return
     elif len(cmd) == 1:
         addrs = (HGI_DEV_ADDR.id, cmd[0], NON_DEV_ADDR.id)
@@ -127,62 +169,9 @@ def spawn_execute_cmd(gwy, **kwargs):
     try:
         kmd = Command.packet(verb, code, payload, *addrs, seqn=seqn, **qos)
     except ValueError as err:
-        _LOGGER.warning(
-            "Execute: Command is invalid: '%s' (%s)", kwargs[EXECUTE_CMD], err
-        )
+        _LOGGER.warning("Execute: Command is invalid: '%s' (%s)", kwargs[EXEC_CMD], err)
     else:
         gwy.send_cmd(kmd)
-
-
-def spawn_monitor_scripts(gwy, **kwargs) -> List[Any]:
-    tasks = []
-
-    if kwargs.get(EXECUTE_CMD):
-        spawn_execute_cmd(gwy, **kwargs)  # TODO: wrap in a try?
-
-    if kwargs.get("poll_devices"):
-        tasks += [poll_device(gwy, d) for d in kwargs["poll_devices"]]
-
-    gwy._tasks.extend(tasks)
-    return tasks
-
-
-def spawn_execute_scripts(gwy, **kwargs) -> List[Any]:
-
-    # this is to ensure the gateway interface has fully woken
-    if not kwargs.get(EXECUTE_CMD) and gwy._include:
-        dev_id = next(iter(gwy._include))
-        qos = {"priority": Priority.HIGH, "retries": 5}
-        gwy.send_cmd(Command(RQ, _0016, "00FF", dev_id, **qos))
-
-    tasks = []
-
-    if kwargs.get(EXECUTE_CMD):  # TODO: wrap in a try?
-        spawn_execute_cmd(gwy, **kwargs)
-
-    if kwargs.get(GET_FAULTS):
-        tasks += [gwy._loop.create_task(get_faults(gwy, kwargs[GET_FAULTS]))]
-
-    if kwargs.get(GET_SCHED) and kwargs[GET_SCHED][0]:
-        tasks += [gwy._loop.create_task(get_schedule(gwy, *kwargs[GET_SCHED]))]
-
-    if kwargs.get(SET_SCHED) and kwargs[SET_SCHED][0]:
-        tasks += [gwy._loop.create_task(set_schedule(gwy, *kwargs[SET_SCHED]))]
-
-    if kwargs.get(SCAN_DISC):
-        tasks += [gwy._loop.create_task(scan_disc(gwy, d)) for d in kwargs[SCAN_DISC]]
-
-    if kwargs.get(SCAN_FULL):
-        tasks += [gwy._loop.create_task(scan_full(gwy, d)) for d in kwargs[SCAN_FULL]]
-
-    if kwargs.get(SCAN_HARD):
-        tasks += [gwy._loop.create_task(scan_hard(gwy, d)) for d in kwargs[SCAN_HARD]]
-
-    if kwargs.get(SCAN_XXXX):
-        tasks += [gwy._loop.create_task(scan_xxxx(gwy, d)) for d in kwargs[SCAN_XXXX]]
-
-    gwy._tasks.extend(tasks)
-    return tasks
 
 
 async def periodic(gwy, cmd, count=1, interval=None):
@@ -234,7 +223,23 @@ async def set_schedule(gwy, ctl_id, schedule) -> None:
         _LOGGER.error("set_schedule(): Function timed out: %s", exc)
 
 
-def poll_device(gwy, dev_id) -> List[Any]:
+async def script_bind_req(gwy, dev_id: str):
+    try:
+        device = gwy._get_device(Address(id=dev_id, type=dev_id[:2]))
+        device._make_fake(bind=True)
+    except EOFError:
+        pass
+
+
+async def script_bind_wait(gwy, dev_id: str, code=_2309, idx="00"):
+    try:
+        device = gwy._get_device(Address(id=dev_id, type=dev_id[:2]))
+        device._make_fake(bind=True)
+    except EOFError:
+        pass
+
+
+def script_poll_device(gwy, dev_id) -> List[Any]:
     _LOGGER.warning("poll_device() invoked...")
 
     qos = {"priority": Priority.LOW, "retries": 0}
@@ -256,7 +261,7 @@ def poll_device(gwy, dev_id) -> List[Any]:
     return tasks
 
 
-async def scan_disc(gwy, dev_id: str):
+async def script_scan_disc(gwy, dev_id: str):
     _LOGGER.warning("scan_quick() invoked...")
 
     qos = {"priority": Priority.HIGH, "retries": 3}
@@ -265,11 +270,8 @@ async def scan_disc(gwy, dev_id: str):
     device = gwy._get_device(Address(id=dev_id, type=dev_id[:2]))  # not always a CTL
     device._discover()  # discover_flag=DISCOVER_ALL)
 
-    qos = {"priority": Priority.LOW, "retries": 3}
-    gwy.send_cmd(Command._puzzle("00", message="disc scan: ended.", **qos))
 
-
-async def scan_full(gwy, dev_id: str):
+async def script_scan_full(gwy, dev_id: str):
     _LOGGER.warning("scan_full() invoked - expect a lot of Warnings")
 
     qos = {"priority": Priority.HIGH, "retries": 3}
@@ -291,10 +293,10 @@ async def scan_full(gwy, dev_id: str):
         elif code == _0016:
             continue
 
-        elif code in (_01D0, _01E9):
-            for zone_idx in ("00", "01", "99", "FC", "FF"):
-                gwy.send_cmd(Command(W_, code, f"{zone_idx}00", dev_id, **qos))
-                gwy.send_cmd(Command(W_, code, f"{zone_idx}03", dev_id, **qos))
+        # elif code in (_01D0, _01E9):
+        #     for zone_idx in ("00", "01", "99", "FC", "FF"):
+        #         gwy.send_cmd(Command(W_, code, f"{zone_idx}00", dev_id, **qos))
+        #         gwy.send_cmd(Command(W_, code, f"{zone_idx}03", dev_id, **qos))
 
         elif code == _0404:
             gwy.send_cmd(Command.get_dhw_schedule_fragment(dev_id, 0, 0, **qos))
@@ -332,11 +334,8 @@ async def scan_full(gwy, dev_id: str):
     for code in ("0150", "2389"):
         gwy.send_cmd(Command(RQ, code, "0000", dev_id, **qos))
 
-    qos = {"priority": Priority.LOW, "retries": 3}
-    gwy.send_cmd(Command._puzzle("00", message="full scan: ended.", **qos))
 
-
-async def scan_hard(gwy, dev_id: str):
+async def script_scan_hard(gwy, dev_id: str):
     _LOGGER.warning("scan_hard() invoked - expect some Warnings")
 
     qos = {"priority": Priority.HIGH, "retries": 3}
@@ -345,17 +344,10 @@ async def scan_hard(gwy, dev_id: str):
     qos = {"priority": Priority.LOW, "retries": 0}
     for code in range(0x4000):
         gwy.send_cmd(Command(RQ, f"{code:04X}", "0000", dev_id, **qos))
-
-    qos = {"priority": Priority.LOW, "retries": 3}
-    gwy.send_cmd(Command._puzzle("00", message="hard scan: ended.", **qos))
+        await asyncio.sleep(1)
 
 
-async def scan_xxxx(gwy, dev_id: str):
-    # _LOGGER.warning("scan_xxxx() invoked - expect a lot of nonsense")
-    await scan_006(gwy, dev_id)
-
-
-async def scan_001(gwy, dev_id: str):
+async def script_scan_001(gwy, dev_id: str):
     _LOGGER.warning("scan_001() invoked - expect a lot of nonsense")
 
     qos = {"priority": Priority.LOW, "retries": 3}
@@ -364,7 +356,7 @@ async def scan_001(gwy, dev_id: str):
         gwy.send_cmd(Command(RQ, _000E, f"{idx:02X}00C8", dev_id, **qos))
 
 
-async def scan_002(gwy, dev_id: str):
+async def script_scan_002(gwy, dev_id: str):
     _LOGGER.warning("scan_002() invoked - expect a lot of nonsense")
 
     # Two modes, I and W & Two headers zz00 and zz
@@ -377,7 +369,7 @@ async def scan_002(gwy, dev_id: str):
     ]
 
 
-async def scan_003(gwy, dev_id: str):
+async def script_scan_003(gwy, dev_id: str):
     _LOGGER.warning("scan_003() invoked - expect a lot of nonsense")
 
     qos = {"priority": Priority.LOW, "retries": 0}
@@ -385,7 +377,7 @@ async def scan_003(gwy, dev_id: str):
         gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **qos))
 
 
-async def scan_004(gwy, dev_id: str):
+async def script_scan_004(gwy, dev_id: str):
     _LOGGER.warning("scan_004() invoked - expect a lot of nonsense")
 
     qos = {"priority": Priority.LOW, "retries": 0}
@@ -395,7 +387,7 @@ async def scan_004(gwy, dev_id: str):
     return gwy._loop.create_task(periodic(gwy, cmd, count=0, interval=5))
 
 
-async def scan_005(gwy, dev_id: str):
+async def script_scan_005(gwy, dev_id: str):
     _LOGGER.warning("scan_005(otb, full) invoked - expect a lot of nonsense")
 
     qos = {"priority": Priority.LOW, "retries": 1}
@@ -404,10 +396,15 @@ async def scan_005(gwy, dev_id: str):
         gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **qos))
 
 
-async def scan_006(gwy, dev_id: str):
+async def script_scan_006(gwy, dev_id: str):
     _LOGGER.warning("scan_006(otb, hard) invoked - expect a lot of nonsense")
 
     qos = {"priority": Priority.LOW, "retries": 0}
 
     for msg_id in range(0x80):
         gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **qos))
+
+
+SCRIPTS = {
+    k[7:]: v for k, v in locals().items() if callable(v) and k.startswith("script_")
+}

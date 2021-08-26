@@ -492,7 +492,7 @@ class Zone(ZoneSchedule, ZoneBase):
             self._gwy.send_cmd(
                 Command.get_zone_mode(self._ctl.id, self.idx), period=td(minutes=30)
             )
-            self._gwy.send_cmd(Command.get_zone_temperature(self._ctl.id, self.idx))
+            self._gwy.send_cmd(Command.get_zone_temp(self._ctl.id, self.idx))
             self._gwy.send_cmd(Command.get_zone_window_state(self._ctl.id, self.idx))
 
         # start collecting the schedule
@@ -731,13 +731,13 @@ class Zone(ZoneSchedule, ZoneBase):
         """Return the zone's schema (type, devices)."""
         if not self._sensor:
             sensor_schema = None
-        elif getattr(self._sensor, "_30C9_faked", None) is None:
+        elif getattr(self._sensor, "_fake_30C9", None) is None:
             # NOTE: CTL (as sensor) won't have this attr...
             sensor_schema = self._sensor.id
         else:
             sensor_schema = {
                 "device_id": self._sensor.id,
-                "is_faked": self._sensor._30C9_faked,
+                "is_faked": self._sensor._fake_30C9,
             }
 
         return {

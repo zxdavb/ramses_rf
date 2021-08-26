@@ -84,7 +84,7 @@ EVOFW_FLAG = "evofw_flag"
 MAX_ZONES = "max_zones"
 REDUCE_PROCESSING = "reduce_processing"
 SERIAL_CONFIG = "serial_config"
-USE_NAMES = "use_names"  # use friendly device names from allow_list
+USE_ALIASES = "use_aliases"  # use friendly device names from allow_list
 USE_SCHEMA = "use_schema"
 
 # Schema parameters
@@ -137,7 +137,7 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Optional(USE_SCHEMA, default=True): vol.Any(None, bool),
         vol.Optional(ENFORCE_ALLOWLIST, default=None): vol.Any(None, bool),
         vol.Optional(ENFORCE_BLOCKLIST, default=None): vol.Any(None, bool),
-        vol.Optional(USE_NAMES, default=None): vol.Any(None, bool),
+        vol.Optional(USE_ALIASES, default=None): vol.Any(None, bool),
         vol.Optional(EVOFW_FLAG, default=None): vol.Any(None, str),
     },
     extra=vol.ALLOW_EXTRA,  # TODO: remove for production
@@ -149,8 +149,9 @@ KNOWNS_SCHEMA = vol.Schema(
         vol.Optional(DEVICE_ID): vol.Any(
             None,
             {
-                vol.Optional("name", default=None): vol.Any(None, str),
-                vol.Optional("dev_class"): vol.Any(*DEVICE_BY_CLASS_ID.keys()),
+                vol.Optional("alias", default=None): vol.Any(None, str),
+                vol.Optional("class"): vol.Any(*DEVICE_BY_CLASS_ID.keys()),
+                vol.Optional("faked", default=None): vol.Any(None, bool, list),
             },  # TODO: override type-by-addr.id with dev_class
         )
     },
@@ -269,8 +270,8 @@ def load_config_schema(
     )(kwargs[CONFIG])
 
     known_devices = {**allow_list, **block_list}
-    if config[USE_NAMES] is None:
-        config[USE_NAMES] = known_devices and any(
+    if config[USE_ALIASES] is None:
+        config[USE_ALIASES] = known_devices and any(
             v.get("name")
             for v in known_devices.values()
             if v is not None  # if isinstance(v, dict)
@@ -446,7 +447,7 @@ def _load_system_schema(gwy, schema) -> Tuple[dict, dict]:
         sensor_id = attr.get(ATTR_ZONE_SENSOR)
         is_faked = None
         if isinstance(sensor_id, dict):
-            is_faked = sensor_id.get("is_faked")
+            is_faked = sensor_id.get("faked")
             sensor_id = sensor_id[ATTR_DEVICE_ID]
 
         if sensor_id:

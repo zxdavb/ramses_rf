@@ -1392,7 +1392,7 @@ def parser_30c9(payload, msg) -> Optional[dict]:
     if TEST_MODE and msg.verb == RQ:
         from .command import Command
 
-        cmd = Command.get_zone_temperature(msg.dst.id, payload[:2])
+        cmd = Command.get_zone_temp(msg.dst.id, payload[:2])
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
 

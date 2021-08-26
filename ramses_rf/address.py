@@ -162,6 +162,19 @@ def dev_id_to_hex(device_id: str) -> str:
     return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # no preceding 0x
 
 
+def dev_id_to_str(device_id: str) -> str:
+    """Convert (say) '01:145038' to 'CTL:145038'."""
+
+    if device_id is NON_DEV_ADDR:
+        return f"{'':<10}"
+
+    if device_id is NUL_DEV_ADDR:
+        return "NUL:------"
+
+    dev_type, dev_number = device_id.split(":")
+    return f"{DEVICE_TYPES.get(dev_type, f'{dev_type:>3}')}:{dev_number}"
+
+
 def hex_id_to_dec(device_hex: str, friendly_id=False) -> str:
     """Convert (say) '06368E' to '01:145038' (or 'CTL:145038')."""
 
