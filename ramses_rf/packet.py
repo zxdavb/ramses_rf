@@ -11,7 +11,7 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 from typing import ByteString, Optional, Tuple, Union
 
-from .address import NON_DEV_ADDR, pkt_addrs
+from .address import NON_DEV_ADDR, NUL_DEV_ADDR, pkt_addrs
 from .const import DONT_CREATE_ENTITIES, MESSAGE_REGEX
 
 # from .devices import Device  # TODO: fix cyclic reference
@@ -353,7 +353,7 @@ class Packet(PacketBase):
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
-        return self.raw_frame or self.packet
+        return self._hdr
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
@@ -532,11 +532,12 @@ def _pkt_hdr(pkt, rx_header=None) -> Optional[str]:  # NOTE: used in command.py
         #  W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E  # wont know src until it arrives
         #  I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
         if not rx_header:
-            return "|".join((pkt.code, pkt.verb, pkt.dst.id))
+            addr = NUL_DEV_ADDR if pkt.src == pkt.dst else pkt.dst
+            return "|".join((pkt.code, pkt.verb, addr.id))
         if pkt.src == pkt.dst:  # and pkt.verb == I_:
-            return "|".join((pkt.code, W_, pkt.dst.id))
+            return "|".join((pkt.code, W_, pkt.src.id))
         if pkt.verb == W_:  # and pkt.src != pkt.dst:
-            return "|".join((pkt.code, I_, pkt.dst.id))
+            return "|".join((pkt.code, I_, pkt.src.id))
         return
 
     addr = pkt.dst if pkt.src.type == "18" else pkt.src
