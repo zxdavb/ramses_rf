@@ -438,6 +438,10 @@ class PacketProtocolBase(asyncio.Protocol):
             )
             return
 
+        # if not self._is_wanted(cmd.src, cmd.dst):
+        #     # _LOGGER.warning(
+        #     return
+
         if cmd.src.type != "18":
             _LOGGER.info("PktProtocol.send_data(%s): IMPERSONATING!", cmd.tx_header)
             await self._send_data(str(Command._puzzle("02", cmd.tx_header)))
@@ -665,6 +669,10 @@ class PacketProtocolQos(PacketProtocolBase):
                 "PktProtocolQos.send_data(%s): invalid command: %s", cmd.tx_header, cmd
             )
             return
+
+        # if not self._is_wanted(cmd.src, cmd.dst):
+        #     # _LOGGER.warning(
+        #     return
 
         while self._qos_cmd is not None:
             await asyncio.sleep(0.005)

@@ -190,23 +190,28 @@ class Gateway:
         (heater_relay), HW (DHW sensor, relay), or None (unknown, TBA).
         """
 
+        # TODO: only create controller if it is confirmed by an RP
+
         if dev_addr.type in ("18", "--") or dev_addr.id in (
             NUL_DEV_ADDR.id,
             "01:000001",
         ):
             return  # not valid device types/real devices
 
+        # These two are because Pkt.Transport.is_wanted() will still let some through
         if self._include and dev_addr.id not in self._include:
             _LOGGER.warning(
-                f"Found a non-allowed device_id: {dev_addr.id}"
-                f" (consider addding it to the {ALLOW_LIST})"
+                f"Ignoring a non-allowed device_id: {dev_addr.id}"
+                f" (if required, add it to the {ALLOW_LIST})"
             )
+            return
 
         if dev_addr.id in self._exclude:
             _LOGGER.warning(
-                f"Found a blocked device_id: {dev_addr.id}"
-                f" (consider removing it from the {BLOCK_LIST})"
+                f"Ignoring a blocked device_id: {dev_addr.id}"
+                f" (if required, remove it from the {BLOCK_LIST})"
             )
+            return
 
         if ctl_addr is not None:
             ctl = self.device_by_id.get(ctl_addr.id)
