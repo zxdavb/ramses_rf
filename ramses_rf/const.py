@@ -314,13 +314,18 @@ DEVICE_HAS_ZONE_SENSOR = tuple(
 #     k for k, v in DEVICE_TABLE.items() if v.get("is_actuator") is True
 # )  # c.f. 000C packet
 
+ATTR_DHW_SENSOR = "hotwater_sensor"
+ATTR_DHW_VALVE = "hotwater_valve"
+ATTR_DHW_VALVE_HTG = "heating_valve"
+ATTR_HTG_CONTROL = "heating_control"  # aka boiler relay, heating appliance
+
 # Domains
 DOMAIN_TYPE_MAP = {
     "F8": None,
-    "F9": "heating_valve",  # DHW Heating Valve
-    "FA": "hotwater_valve",  # DHW HW Valve (or UFH loop if src.type == "02"?)
+    "F9": ATTR_DHW_VALVE_HTG,  # DHW Heating Valve
+    "FA": ATTR_DHW_VALVE,  # DHW HW Valve (or UFH loop if src.type == "02"?)
     "FB": None,
-    "FC": "heating_control",  # "heat_relay": BDR (Boiler, District heating), or OTB
+    "FC": ATTR_HTG_CONTROL,  # "heat_relay": BDR (Boiler, District heating), or OTB
     "FD": "unknown",  # seen with hometronics
     # "FF": "system",  # TODO: remove this, is not a domain
 }  # "21": "Ventilation",
@@ -418,11 +423,7 @@ MESSAGE_REGEX = re.compile(f"^{r} {v} {r} {d} {d} {d} {c} {l} {p}$")
 ATTR_CONTROLLER = "controller"
 ATTR_DATETIME = "datetime"
 ATTR_DEVICES = "devices"
-ATTR_DHW_SENSOR = "hotwater_sensor"
-ATTR_DHW_VALVE = "hotwater_valve"
-ATTR_DHW_VALVE_HTG = "heating_valve"
 ATTR_HEAT_DEMAND = "heat_demand"
-ATTR_HTG_CONTROL = "heating_control"  # aka boiler relay, heating appliance
 ATTR_HTG_PUMP = "heat_pump_control"  # same as ATTR_HTG_CONTROL, but parameters differ
 ATTR_LANGUAGE = "language"
 ATTR_NAME = "name"
