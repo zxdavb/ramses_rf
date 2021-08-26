@@ -142,9 +142,7 @@ CONFIG_SCHEMA = vol.Schema(
     },
     extra=vol.ALLOW_EXTRA,  # TODO: remove for production
 )
-
-FILTER_SCHEMA = vol.Any([], vol.All(vol.Schema([DEVICE_ID]), vol.Length(min=0)))
-KNOWNS_SCHEMA = vol.Schema(
+DEVICE_DICT = vol.Schema(
     {
         vol.Optional(DEVICE_ID): vol.Any(
             None,
@@ -157,6 +155,8 @@ KNOWNS_SCHEMA = vol.Schema(
     },
     extra=vol.PREVENT_EXTRA,
 )
+# DEVICE_SCHEMA = vol.Any(DEVICE_DICT, DEVICE_ID)
+# DEVICE_LIST = vol.All(DEVICE_DICT), vol.Length(min=0)
 
 # 2/3: Schemas for Heating systems
 ATTR_SYS_PROFILE = "_profile"
@@ -236,8 +236,8 @@ GLOBAL_CONFIG_SCHEMA = vol.Schema(
                 vol.Optional(PACKET_LOG, default={}): vol.Any({}, PACKET_LOG_SCHEMA),
             }
         ),
-        vol.Optional(ALLOW_LIST, default={}): vol.All(KNOWNS_SCHEMA, vol.Length(min=0)),
-        vol.Optional(BLOCK_LIST, default={}): vol.All(KNOWNS_SCHEMA, vol.Length(min=0)),
+        vol.Optional(ALLOW_LIST, default={}): vol.All(DEVICE_DICT, vol.Length(min=0)),
+        vol.Optional(BLOCK_LIST, default={}): vol.All(DEVICE_DICT, vol.Length(min=0)),
     },
     extra=vol.REMOVE_EXTRA,
 )
@@ -255,27 +255,15 @@ def load_config_schema(
 ) -> Tuple[SimpleNamespace, dict, list, list]:
     """Process the configuration, including any filter lists."""
 
-    schema = {
-        k: v
-        for k, v in kwargs.items()
-        if k not in (ALLOW_LIST, BLOCK_LIST, CONFIG) and k[:1] != "_"
-    }
-    kwargs = GLOBAL_CONFIG_SCHEMA(kwargs)
+    config = GLOBAL_CONFIG_SCHEMA(kwargs)
+    schema = {k: v for k, v in kwargs.items() if k not in config and k[:1] != "_"}
 
-    allow_list = kwargs.pop(ALLOW_LIST)
-    block_list = kwargs.pop(BLOCK_LIST)
+    allow_list = config.pop(ALLOW_LIST)
+    block_list = config.pop(BLOCK_LIST)
 
     config = CONFIG_SCHEMA.extend(
         {vol.Optional(SERIAL_CONFIG, default={}): SERIAL_CONFIG_SCHEMA}
-    )(kwargs[CONFIG])
-
-    known_devices = {**allow_list, **block_list}
-    if config[USE_ALIASES] is None:
-        config[USE_ALIASES] = known_devices and any(
-            v.get("name")
-            for v in known_devices.values()
-            if v is not None  # if isinstance(v, dict)
-        )
+    )(config[CONFIG])
 
     if serial_port and input_file:
         _LOGGER.warning(
@@ -291,9 +279,18 @@ def load_config_schema(
 
     if config[ENABLE_EAVESDROP]:
         _LOGGER.warning(
-            f"{ENABLE_EAVESDROP} was enabled: not doing so is strongly recommended"
+            f"{ENABLE_EAVESDROP} enabled: this is discouraged for routine use"
             " (there be dragons here)"
         )
+
+    update_config(config, allow_list, block_list)
+    config = SimpleNamespace(**config)
+
+    return (config, schema, allow_list, block_list)
+
+
+def update_config(config, allow_list, block_list) -> dict:
+    """Determine which device filer to use, if any: allow_list or block_list."""
 
     if config[ENFORCE_ALLOWLIST] is None:
         config[ENFORCE_ALLOWLIST] = (
@@ -331,18 +328,6 @@ def load_config_schema(
     elif config[ENFORCE_BLOCKLIST]:
         _LOGGER.debug(f"A {BLOCK_LIST} has been created, length = {len(block_list)}")
 
-    # TODO: use dict or list? - will need to add 18? when we see it?
-    # allow_list = (
-    #     list(allow_list.keys()) if config[ENFORCE_ALLOWLIST] else []
-    # )
-    # block_list = (
-    #     list(block_list.keys()) if config[ENFORCE_BLOCKLIST] else []
-    # )
-
-    config = SimpleNamespace(**config)
-
-    return (config, schema, allow_list, block_list)
-
 
 def _get_device(gwy, dev_addr, ctl_addr=None, **kwargs) -> Optional[Any]:
     """A wrapper to enforce device filters."""
@@ -372,9 +357,6 @@ def load_system_schema(gwy, **kwargs) -> dict:
 
     gwy._clear_state()  # TODO: consider need for this (here, or at all)
 
-    known_devices = kwargs.pop(ALLOW_LIST, {})
-    known_devices.update(kwargs.pop(BLOCK_LIST, {}))
-
     [_get_device(gwy, addr(device_id)) for device_id in kwargs.pop(ATTR_ORPHANS, [])]
 
     if SCHEMA in kwargs:
@@ -389,11 +371,6 @@ def load_system_schema(gwy, **kwargs) -> dict:
             if re.match(DEVICE_ID_REGEX, k)
         ]
         gwy.evo = gwy.system_by_id.get(kwargs[MAIN_CONTROLLER])
-
-    return {
-        **known_devices,
-        **{d: None for d in gwy.device_by_id if d not in known_devices},
-    }
 
 
 def shrink_dict(_dict):
