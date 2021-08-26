@@ -155,8 +155,6 @@ DEVICE_DICT = vol.Schema(
     },
     extra=vol.PREVENT_EXTRA,
 )
-# DEVICE_SCHEMA = vol.Any(DEVICE_DICT, DEVICE_ID)
-# DEVICE_LIST = vol.All(DEVICE_DICT), vol.Length(min=0)
 
 # 2/3: Schemas for Heating systems
 ATTR_SYS_PROFILE = "_profile"
