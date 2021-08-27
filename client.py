@@ -114,6 +114,7 @@ class DeviceIdParamType(click.ParamType):
 @click.option("-l/-nl", "--long-dates/--no-long-dates", default=None)
 @click.option("-c", "--config-file", type=click.File("r"))
 @click.option("-k", "--client-state", type=click.File("r"))
+@click.option("-ns", "--hide-summary", is_flag=True, help="dont print any summarys")
 @click.option("-s", "--show-summary", help="show these portions of schema/params/state")
 @click.pass_context
 def cli(ctx, config_file=None, **kwargs):
@@ -127,9 +128,9 @@ def cli(ctx, config_file=None, **kwargs):
 
         debugpy.listen(address=(DEBUG_ADDR, DEBUG_PORT))
         print(f"Debugging is enabled, listening on: {DEBUG_ADDR}:{DEBUG_PORT}.")
-        print(" - execution paused, waiting for debugger to attach...")
 
         if kwargs[DEBUG_MODE] == 1:
+            print(" - execution paused, waiting for debugger to attach...")
             debugpy.wait_for_client()
             print(" - debugger is now attached, continuing execution.")
 
@@ -428,7 +429,7 @@ async def main(command, lib_kwargs, **kwargs):
     elif command == EXECUTE:
         _print_results(gwy, **kwargs)
 
-    else:  # if not kwargs["hide_summary"]:
+    elif not kwargs["hide_summary"]:
         _print_summary(gwy, **kwargs)
 
     # if kwargs["save_state"]:
