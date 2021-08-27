@@ -29,8 +29,7 @@ from .const import (
 from .exceptions import ExpiredCallbackError
 from .helpers import dt_now, dtm_to_hex, dts_to_hex, str_to_hex, temp_to_hex
 from .opentherm import parity
-from .packet import PacketBase
-from .packet import _pkt_hdr as pkt_header
+from .packet import PacketBase, _pkt_hdr
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
@@ -180,11 +179,7 @@ class Command(PacketBase):
         """Initialise the class."""
         super().__init__()
 
-        assert QOS not in kwargs, "FIXME"
-
         self.verb = f"{verb:>2}"[:2]
-        assert self.verb in (I_, RQ, RP, W_), f"invalid verb: '{self.verb}'"
-
         self.seqn = "---"
         self.src, self.dst, self.addrs = pkt_addrs(
             f"{kwargs.get('from_id', HGI_DEV_ADDR.id)} {dest_id} {NON_DEV_ADDR.id}"
@@ -195,7 +190,7 @@ class Command(PacketBase):
 
         self._is_valid = None
         if not self.is_valid:
-            raise ValueError("not a valid command")
+            raise ValueError(f"not a valid command: {self}")
 
         # callback used by app layer (protocol.py)
         self.callback = kwargs.pop(CALLBACK, {})  # func, args, daemon, timeout
@@ -205,13 +200,19 @@ class Command(PacketBase):
 
         # priority used by msg layer for next cmd to send (protocol.py)
         self._priority = self.qos.pop(PRIORITY, Priority.DEFAULT)
-        self._priority_dtm = dt_now()
+        self._dtm = dt_now()
 
         self._rx_header = None
         self._tx_header = None
 
     def __repr__(self) -> str:
-        """Return a full string representation of this object."""
+        """Return an unambiguous string representation of this object."""
+
+        hdr = f" # {self._hdr}" if self._hdr else ""
+        return f"{self._dtm.isoformat(timespec='microseconds')} ... {self}{hdr}"
+
+    def __str__(self) -> str:
+        """Return a brief readable string representation of this object."""
 
         return COMMAND_FORMAT.format(
             self.verb,
@@ -223,11 +224,6 @@ class Command(PacketBase):
             self.len,
             self.payload,
         )
-
-    def __str__(self) -> str:
-        """Return a brief readable string representation of this object."""
-
-        return repr(self)  # TODO: switch to: return self.tx_header
 
     def _qos(self, **kwargs) -> dict:
         """Return the default QoS params of this (request) packet."""
@@ -263,11 +259,8 @@ class Command(PacketBase):
         """Return the QoS header of a corresponding response packet (if any)."""
 
         if self.tx_header and self._rx_header is None:
-            self._rx_header = pkt_header(self, rx_header=True)
+            self._rx_header = _pkt_hdr(self, rx_header=True)
         return self._rx_header
-
-    # @property
-    # def null_header(self) -> Optional[str]:
 
     @property
     def is_valid(self) -> Optional[bool]:
@@ -278,35 +271,23 @@ class Command(PacketBase):
 
         # assert self.code in [k for k, v in RAMSES_CODES.items() if v.get(self.verb)]
 
-        if not COMMAND_REGEX.match(str(self)) or 2 > len(self.payload) > 96:
-            self._is_valid = False
-        else:
-            self._is_valid = True
-
-        if not self._is_valid:
-            _LOGGER.debug("Command has an invalid structure: %s", self)
+        self._is_valid = COMMAND_REGEX.match(str(self)) and 2 <= len(self.payload) <= 96
 
         return self._is_valid
 
     @staticmethod
     def _is_valid_operand(other) -> bool:
-        return hasattr(other, "_priority") and hasattr(other, "_priority_dtm")
+        return hasattr(other, "_priority") and hasattr(other, "_dtm")
 
     def __eq__(self, other) -> bool:
         if not self._is_valid_operand(other):
             return NotImplemented
-        return (self._priority, self._priority_dtm) == (
-            other._priority,
-            other._priority_dtm,
-        )
+        return (self._priority, self._dtm) == (other._priority, other._dtm)
 
     def __lt__(self, other) -> bool:
         if not self._is_valid_operand(other):
             return NotImplemented
-        return (self._priority, self._priority_dtm) < (
-            other._priority,
-            other._priority_dtm,
-        )
+        return (self._priority, self._dtm) < (other._priority, other._dtm)
 
     @classmethod  # constructor for RQ/1F41
     @validate_system_args

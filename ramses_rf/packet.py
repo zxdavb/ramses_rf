@@ -247,7 +247,7 @@ class PacketBase:
         Used to route a packet to the correct entity's (i.e. zone/domain) msg handler.
         """
 
-        if self.__idx is None and self.is_valid:
+        if self.__idx is None:
             self.__idx = _pkt_idx(self) or False
         return self.__idx
 
@@ -255,10 +255,10 @@ class PacketBase:
     def _ctx(self) -> Union[str, bool]:
         """Return the payload's full context, if any (e.g. for 0404: zone_idx/frag_idx).
 
-        Used to store packets in the entity's message DB.
+        Used to store packets in the entity's message DB. It is a superset of _idx.
         """
 
-        if self.__ctx is None and self.is_valid:
+        if self.__ctx is None:
             if self.code in (_0005, _000C):  # zone_idx, zone_type (device_class)
                 self.__ctx = self.payload[:4]
             elif self.code == _0404:  # zone_idx, frag_idx
@@ -274,7 +274,7 @@ class PacketBase:
         Used for QoS (timeouts, retries), callbacks, etc.
         """
 
-        if self.__hdr is None and self.is_valid:
+        if self.__hdr is None:
             self.__hdr = _pkt_hdr(self)
         return self.__hdr
 
@@ -298,7 +298,8 @@ class Packet(PacketBase):
         # self.created = dtm.timestamp()  # HACK: used by logger
         # self.msecs = (self.created - int(self.created)) * 1000
 
-        self.packet = frame
+        self.rssi = frame[0:3]
+        self.packet = frame[4:]
         self.comment = kwargs.get("comment")
         self.error_text = kwargs.get("err_msg")
         self.raw_frame = kwargs.get("raw_frame")
@@ -312,23 +313,23 @@ class Packet(PacketBase):
             raise ValueError(f"not a valid packet: {frame}")
 
         # TODO: these are not presently used
-        self.rssi = self.packet[0:3]
-        self.verb = self.packet[4:6]
-        self.seqn = self.packet[7:10]
-        self.code = self.packet[41:45]
-        self.len = int(self.packet[46:49])
-        self.payload = self.packet[50:]
+        self.verb = frame[4:6]
+        self.seqn = frame[7:10]
+        self.code = frame[41:45]
+        self.len = int(frame[46:49])
+        self.payload = frame[50:]
 
         # these are calculated if/when required
         self.__timeout = None
 
-        _ = self._has_array  # TODO: remove (is for testing only)
-        _ = self._has_ctl  # # TODO: remove (is for testing only)
+        # _ = self._has_array  # TODO: remove (is for testing only)
+        # _ = self._has_ctl  # # TODO: remove (is for testing only)
 
     @classmethod
-    def from_dict(cls, gwy, dtm: str, pkt: str):
+    def from_dict(cls, gwy, dtm: str, pkt_line: str):
         """Constructor to create a packet from a saved state (a curated dict)."""
-        return cls(gwy, dt.fromisoformat(dtm), pkt, dtm_str=dtm)
+        frame, _, comment = cls._partition(pkt_line)
+        return cls(gwy, dt.fromisoformat(dtm), frame, comment=comment, dtm_str=dtm)
 
     @classmethod
     def from_file(cls, gwy, dtm: str, pkt_line: str):
@@ -353,10 +354,13 @@ class Packet(PacketBase):
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
-        return self._hdr
+
+        hdr = f" # {self._hdr}" if self._hdr else ""
+        return f"{self.dtm.isoformat(timespec='microseconds')} {self.rssi} {self}{hdr}"
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
+
         return self.packet
 
     def __eq__(self, other) -> bool:
@@ -388,7 +392,7 @@ class Packet(PacketBase):
         False if the packet does not expire.
         """
 
-        if self.__timeout is None and self.is_valid:
+        if self.__timeout is None:
             self.__timeout = pkt_timeout(self) or False
 
         if self.__timeout is False:
@@ -426,11 +430,11 @@ class Packet(PacketBase):
             return False
 
         # TODO: these packets shouldn't go to the packet log, only STDERR?
-        if not MESSAGE_REGEX.match(self.packet):
+        if not MESSAGE_REGEX.match(f"{self.rssi} {self.packet}"):
             err_msg = "invalid packet structure"
-        elif int(self.packet[46:49]) * 2 != len(self.packet[50:]):
+        elif int(self.packet[42:45]) * 2 != len(self.packet[46:]):
             err_msg = "mismatched payload length"
-        elif invalid_addresses(self.packet[11:40]):
+        elif invalid_addresses(self.packet[7:36]):
             err_msg = "invalid packet addresses"
         # elif self.code not in RAMSES_CODES:
         #     return False
@@ -524,7 +528,7 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
 def _pkt_hdr(pkt, rx_header=None) -> Optional[str]:  # NOTE: used in command.py
     """Return the QoS header of a packet.
 
-    If rx_header, return the header of the response packet, if one is expected.
+    For rx_header=True, return the header of the response packet, if one is expected.
     """
 
     if pkt.code == _1FC9:
@@ -550,7 +554,10 @@ def _pkt_hdr(pkt, rx_header=None) -> Optional[str]:  # NOTE: used in command.py
     else:  # RQ/RP, or W/I
         header = "|".join((pkt.code, RP if pkt.verb == RQ else I_, addr.id))
 
-    return f"{header}|{pkt._ctx}" if isinstance(pkt._ctx, str) else header
+    try:
+        return f"{header}|{pkt._ctx}" if isinstance(pkt._ctx, str) else header
+    except AssertionError:
+        return header
 
 
 def pkt_timeout(pkt) -> Optional[float]:  # NOTE: imports OtbGateway

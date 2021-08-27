@@ -300,9 +300,9 @@ class Gateway:
             # msgs.update({v.dtm: v for z in system._dhw for v in z._msgs.values()})
 
         pkts = {
-            dtm.isoformat(timespec="microseconds"): repr(msg)
-            for dtm, msg in msgs.items()
-            if msg.verb in (I_, RP) and include_expired or not msg._expired
+            f"{repr(msg._pkt)[:26]}": f"{repr(msg._pkt)[27:]}"
+            for msg in msgs.values()
+            if msg.verb in (I_, RP) and (include_expired or not msg._expired)
         }
 
         schema, pkts = self.schema, dict(sorted(pkts.items()))

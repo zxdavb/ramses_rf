@@ -146,10 +146,16 @@ class Message:
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
-        return self._pkt.packet
+        return repr(self._pkt)  # or str?
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
+
+        def ctx(pkt) -> str:
+            ctx = {True: "[..]", False: "", None: "??"}.get(pkt._ctx, pkt._ctx)
+            if not ctx and pkt.payload[:2] not in ("00", "FF"):
+                return f"({pkt.payload[:2]})"
+            return ctx
 
         def display_name(dev: Union[Address, Device]) -> str:
             name = getattr(dev, "alias", None) if self._gwy.config.use_aliases else None
@@ -158,9 +164,6 @@ class Message:
         if self._str is not None:
             return self._str
 
-        if not self.is_valid:
-            return  # "Invalid"
-
         if self.src.id == self._addrs[0].id:
             name_0 = display_name(self.src)
             name_1 = display_name(self.dst) if self.dst is not self.src else ""
@@ -168,16 +171,9 @@ class Message:
             name_0 = ""
             name_1 = display_name(self.src)
 
-        context = {True: "[..]", False: "", None: " ?? "}.get(
-            self._pkt._ctx, self._pkt._ctx
-        )
-
-        if not self._pkt._ctx and self.raw_payload[:2] not in ("00", "FF"):
-            context = f"({self.raw_payload[:2]})"
-
         _format = MSG_FORMAT_18 if self._gwy.config.use_aliases else MSG_FORMAT_10
         self._str = _format.format(
-            name_0, name_1, self.verb, self.code_name, context, self.payload
+            name_0, name_1, self.verb, self.code_name, ctx(self._pkt), self.payload
         )
         return self._str
 
@@ -220,11 +216,7 @@ class Message:
     @property
     def payload(self) -> Any:  # Any[dict, List[dict]]:
         """Return the payload."""
-        if self._payload is not None:
-            return self._payload
-
-        if self.is_valid:
-            return self._payload
+        return self._payload
 
     @property
     def _has_array(self) -> bool:
@@ -308,7 +300,7 @@ class Message:
     def _expired(self) -> Tuple[bool, Optional[bool]]:
         """Return True if the message is dated (does not require a valid payload)."""
 
-        if self.__expired is not None:  # does not require self._is_valid
+        if self.__expired is not None:
             if self.__expired == self.CANT_EXPIRE:
                 return False
             if self.__expired >= self.HAS_EXPIRED * 2:  # TODO: should delete?
@@ -353,8 +345,6 @@ class Message:
     def _is_fragment_WIP(self) -> bool:
         """Return True if the raw payload is a fragment of a message."""
 
-        # if not self._is_valid:
-        #     return
         if self._is_fragment is not None:
             return self._is_fragment
 
