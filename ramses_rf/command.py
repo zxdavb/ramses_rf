@@ -153,9 +153,10 @@ if DEV_MODE:
 
 
 def validate_system_args(fcn):
-    """Validate/normalise any args common to all systems calls (ctl_id)."""
+    """Validate/normalise any args common to all systems calls (e.g. ctl_id)."""
 
     def wrapper(cls, ctl_id, *args, **kwargs):
+        # check ctl_id & others
         return fcn(cls, ctl_id, *args, **kwargs)
 
     return wrapper
@@ -303,7 +304,7 @@ class Command(PacketBase):
         """Constructor to set/reset the mode of the DHW (c.f. parser_1f41)."""
 
         if mode is None and active is None:
-            raise ValueError("Invalid args: Both mode and active cant be None")
+            raise ValueError("Invalid args: mode and active cant both be None")
 
         if mode is None:  # and active is not None: TODO: use: advanced_override?
             mode = ZoneMode.TEMPORARY if until else ZoneMode.PERMANENT
@@ -323,8 +324,6 @@ class Command(PacketBase):
             mode = ZoneMode.ADVANCED  # until = dt.now() + td(hour=1)
         elif until is not None and mode in (ZoneMode.SCHEDULE, ZoneMode.PERMANENT):
             raise ValueError(f"Invalid args: For {mode}, until should be None")
-
-        assert mode in ZONE_MODE_LOOKUP, mode
 
         payload = "".join(
             (
