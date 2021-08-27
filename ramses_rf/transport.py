@@ -158,12 +158,12 @@ class SerTransportRead(asyncio.ReadTransport):
         self._protocol.connection_made(self)
 
         if isinstance(self._packets, dict):  # can assume dtm_str is OK
-            for dtm_str, pkt_str in self._packets.items():
-                self._protocol.data_received(f"{dtm_str} {pkt_str}")
+            for dtm_str, pkt_line in self._packets.items():
+                self._protocol.data_received(f"{dtm_str} {pkt_line}")
                 await asyncio.sleep(0)
         else:
             for dtm_pkt_line in self._packets:  # need to check dtm_str is OK
-                self._protocol.data_received(dtm_pkt_line)
+                self._protocol.data_received(dtm_pkt_line)  # .rstrip())
                 await asyncio.sleep(0)
 
         self._protocol.connection_lost(exc=None)  # EOF
@@ -385,7 +385,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
     def data_received(self, data: ByteString) -> None:
         """Called when some data (packet fragments) is received (from RF)."""
-        # _LOGGER.debug("PacketProtocolBase.data_received(%s)", data)
+        # _LOGGER.debug("PacketProtocolBase.data_received(%s)", data.rstrip())
 
         def _bytes_received(
             data: ByteString,
@@ -513,7 +513,7 @@ class PacketProtocolRead(PacketProtocolBase):
 
     def data_received(self, data: str) -> None:
         """Called when a packet line is received (from a log file)."""
-        _LOGGER.debug("PacketProtocolRead.data_received(%s)", data)
+        # _LOGGER.debug("PacketProtocolRead.data_received(%s)", data.rstrip())
         self._line_received(data[:26], _normalise(data[27:], log_file=True), data)
 
     def _dt_now(self) -> dt:
@@ -558,7 +558,7 @@ class PacketProtocolQos(PacketProtocolBase):
             #     "backoff=%s, timeout=%s, timeout_full=%s",
             #     self._backoff,
             #     timeout,
-            #     self._timeout_full,
+            #     self._timeout_full.isoformat(timespec="milliseconds"),
             # )
 
         # if self._timeout_half >= dtm:
@@ -582,7 +582,7 @@ class PacketProtocolQos(PacketProtocolBase):
                 pkt._hdr or str(pkt),
                 self._backoff,
                 wanted,
-                self._timeout_full,
+                self._timeout_full.isoformat(timespec="milliseconds"),
                 message,
             )
 
@@ -649,7 +649,7 @@ class PacketProtocolQos(PacketProtocolBase):
                 cmd.tx_header,
                 self._backoff,
                 self._tx_hdr or self._rx_hdr,
-                self._timeout_full,
+                self._timeout_full.isoformat(timespec="milliseconds"),
                 message,
             )
 
