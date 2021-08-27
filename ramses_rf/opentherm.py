@@ -979,8 +979,8 @@ def decode_frame(frame: str) -> Tuple[int, int, dict, str]:
 
     msg_type = (int(frame[:2], 16) & 0x70) >> 4
 
-    if msg_type == 0b011:  # NOTE: this msg-type may no longer be reserved (R8820?)
-        raise ValueError(f"Reserved msg-type (0b{msg_type:03b})")
+    # if msg_type == 0b011:  # NOTE: this msg-type may no longer be reserved (R8820?)
+    #     raise ValueError(f"Reserved msg-type (0b{msg_type:03b})")
 
     data_id = int(frame[2:4], 16)
     msg = OPENTHERM_MESSAGES.get(data_id)
