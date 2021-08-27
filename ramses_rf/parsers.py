@@ -1041,14 +1041,13 @@ def parser_1f09(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # dhw_mode
 def parser_1f41(payload, msg) -> Optional[dict]:
-    assert msg.len in (6, 12), "expected length: 6 or 12"
-
     # 053 RP --- 01:145038 18:013393 --:------ 1F41 006 00FF00FFFFFF  # no stored DHW
-    assert payload[2:4] in ("00", "01", "FF"), f"{payload[2:4]} (0xji)"
     assert payload[4:6] in ZONE_MODE_MAP, f"{payload[4:6]} (0xjj)"
-    assert payload[6:12] == "FFFFFF", f"expected FFFFFF instead of '{payload[6:12]}'"
-    if payload[4:6] == "04":
-        assert msg.len == 12, "expected length 12"
+    assert payload[4:6] == "04" or msg.len == 6, f"{msg._pkt}: expected length 6"
+    assert payload[4:6] != "04" or msg.len == 12, f"{msg._pkt}: expected length 12"
+    assert (
+        payload[6:12] == "FFFFFF"
+    ), f"{msg._pkt}: expected FFFFFF instead of '{payload[6:12]}'"
 
     result = {
         "active": {"00": False, "01": True, "FF": None}[payload[2:4]],

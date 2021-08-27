@@ -288,8 +288,9 @@ RAMSES_CODES = {  # rf_unknown
     },
     _1F41: {  # dhw_mode
         NAME: "dhw_mode",
-        RQ: r"^00(00)?$",  # officially: r"^00$"
-        RP: r"^00(00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
+        I_: r"^00(00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
+        RQ: r"^00$",  # will accept: r"^00(00)$"
+        W_: r"^00(00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
         EXPIRES: td(hours=4),
     },
     _1FC9: {  # rf_bind
