@@ -10,7 +10,7 @@ from typing import Any, Tuple
 
 from .const import __dev_mode__
 
-DEV_MODE = __dev_mode__
+DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -74,7 +74,7 @@ OPENTHERM_MSG_TYPE = {
     0b000: "Read-Data",
     0b001: "Write-Data",
     0b010: "Invalid-Data",
-    0b011: "-reserved-",
+    0b011: "-reserved-",  # as per Unknown-DataId?
     0b100: "Read-Ack",
     0b101: "Write-Ack",
     0b110: "Data-Invalid",  # e.g. sensor fault
@@ -983,50 +983,56 @@ def decode_frame(frame: str) -> Tuple[int, int, dict, str]:
     #     raise ValueError(f"Reserved msg-type (0b{msg_type:03b})")
 
     data_id = int(frame[2:4], 16)
-    msg = OPENTHERM_MESSAGES.get(data_id)
-
-    if not msg:  # may be a corrupt payload
-        result = {VALUE: msg_value(frame[4:8], U16)}
-        return OPENTHERM_MSG_TYPE[msg_type], data_id, result, msg
+    msg_schema = OPENTHERM_MESSAGES.get(data_id, {})
 
     # There are five msg_id with FLAGS - the following is not 100% correct...
-    data_value = {MSG_NAME: msg.get(FLAGS, msg.get(VAR))}  # TODO: if msg else {}
+    data_value = {MSG_NAME: msg_schema.get(FLAGS, msg_schema.get(VAR))}
 
-    if msg_type in (0b000, 0b110, 0b111):
+    if msg_type in (0b000, 0b010, 0b011, 0b110, 0b111):
         # if frame[4:] != "0000":  # NOTE: this is not a hard rule, even for 0b000
         #     raise ValueError(f"Invalid data-value for msg-type: 0x{frame[4:]}")
-        return OPENTHERM_MSG_TYPE[msg_type], data_id, data_value, msg
+        return OPENTHERM_MSG_TYPE[msg_type], data_id, data_value, msg_schema
 
-    if isinstance(msg[VAL], dict):
-        data_value[VALUE_HB] = msg_value(frame[4:6], msg[VAL].get(HB, msg[VAL]))
-        data_value[VALUE_LB] = msg_value(frame[6:8], msg[VAL].get(LB, msg[VAL]))
+    if not msg_schema:  # may be a corrupt payload
+        data_value[VALUE] = msg_value(frame[4:8], U16)
 
-    elif isinstance(msg.get(VAR), dict):
-        data_value[VALUE_HB] = msg_value(frame[4:6], msg[VAL])
-        data_value[VALUE_LB] = msg_value(frame[6:8], msg[VAL])
+    elif isinstance(msg_schema[VAL], dict):
+        data_value[VALUE_HB] = msg_value(
+            frame[4:6], msg_schema[VAL].get(HB, msg_schema[VAL])
+        )
+        data_value[VALUE_LB] = msg_value(
+            frame[6:8], msg_schema[VAL].get(LB, msg_schema[VAL])
+        )
 
-    elif msg[VAL] in (FLAG8, U8, S8):
-        data_value[VALUE] = msg_value(frame[4:6], msg[VAL])
+    elif isinstance(msg_schema.get(VAR), dict):
+        data_value[VALUE_HB] = msg_value(frame[4:6], msg_schema[VAL])
+        data_value[VALUE_LB] = msg_value(frame[6:8], msg_schema[VAL])
 
-    elif msg[VAL] == F8_8:
-        result = msg_value(frame[4:8], msg[VAL])
-        if result is None or msg.get(SENSOR) not in (
+    elif msg_schema[VAL] in (FLAG8, U8, S8):
+        data_value[VALUE] = msg_value(frame[4:6], msg_schema[VAL])
+
+    elif msg_schema[VAL] == F8_8:
+        result = msg_value(frame[4:8], msg_schema[VAL])
+        if result is None or msg_schema.get(SENSOR) not in (
             Sensor.PERCENTAGE,
             Sensor.TEMPERATURE,
         ):
             data_value[VALUE] = result
-        elif msg.get(SENSOR) == Sensor.PERCENTAGE:
+        elif msg_schema.get(SENSOR) == Sensor.PERCENTAGE:
             # NOTE: OT defines % as 0.0-100.0, but (this) ramses uses 0.0-1.0 elsewhere
             data_value[VALUE] = int(result * 2) / 200  # seems precision of 1%
-        else:  # if msg.get(SENSOR) == Sensor.TEMPERATURE:
+        else:  # if msg_schema.get(SENSOR) == Sensor.TEMPERATURE:
             data_value[VALUE] = int(result * 100) / 100
         # else:  # Sensor.PRESSURE:  Sensor.HUMIDITY, "flow", "current"
         #     data_value[VALUE] = result
 
-    else:  # if msg[VAL] in (S16, U16):
-        data_value[VALUE] = msg_value(frame[4:8], msg[VAL])
+    elif msg_schema[VAL] in (S16, U16):
+        data_value[VALUE] = msg_value(frame[4:8], msg_schema[VAL])
 
-    return OPENTHERM_MSG_TYPE[msg_type], data_id, data_value, msg
+    else:  # shouldn't reach here
+        data_value[VALUE] = msg_value(frame[4:8], U16)
+
+    return OPENTHERM_MSG_TYPE[msg_type], data_id, data_value, msg_schema
 
 
 # assert not [
