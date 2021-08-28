@@ -15,7 +15,7 @@ from .const import __dev_mode__
 from .helpers import dt_str
 from .version import __version__
 
-DEV_MODE = __dev_mode__  # or True
+DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:

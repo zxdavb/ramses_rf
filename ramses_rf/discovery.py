@@ -90,7 +90,7 @@ SCAN_XXXX = "scan_xxxx"
 
 DEVICE_ID_REGEX = re.compile(ALL_DEVICE_ID)
 
-DEV_MODE = __dev_mode__
+DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:

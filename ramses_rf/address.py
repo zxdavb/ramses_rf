@@ -12,7 +12,7 @@ from typing import List, Tuple
 from .const import DEVICE_ID_REGEX, DEVICE_LOOKUP, DEVICE_TYPES, __dev_mode__
 from .exceptions import CorruptAddrSetError
 
-DEV_MODE = __dev_mode__
+DEV_MODE = __dev_mode__ and False
 
 __device_id_regex__ = re.compile(r"^(-{2}:-{6}|\d{2}:\d{6})$")
 
