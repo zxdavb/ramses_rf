@@ -711,7 +711,7 @@ class PacketProtocolQos(PacketProtocolBase):
                 self._timeouts(dt.now())
                 await self._send_data(str(cmd))
                 _logger_send(
-                    _LOGGER.warning,
+                    (_LOGGER.warning if DEV_MODE else _LOGGER.info),
                     f"RE-SENT ({self._tx_retries}/{self._tx_retry_limit})",
                 )  # TODO: should be debug
 
