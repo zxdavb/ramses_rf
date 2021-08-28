@@ -158,15 +158,15 @@ class Message:
             return ctx
 
         def display_name(dev: Union[Address, Device]) -> str:
-            name = getattr(dev, "alias", None) if self._gwy.config.use_aliases else None
-            return name[:20] if name else dev_id_to_str(dev.id)
+            name = dev.alias[:20] if self._gwy.config.use_aliases else None
+            return name or dev_id_to_str(dev.id)
 
         if self._str is not None:
             return self._str
 
         if self.src.id == self._addrs[0].id:
             name_0 = display_name(self.src)
-            name_1 = display_name(self.dst) if self.dst is not self.src else ""
+            name_1 = "" if self.dst is self.src else display_name(self.dst)
         else:
             name_0 = ""
             name_1 = display_name(self.src)
