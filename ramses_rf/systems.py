@@ -111,7 +111,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-SYSTEM_CLASS = SimpleNamespace(
+SYSTEM_PROFILE = SimpleNamespace(
     EVO="evohome",  # Stored HW (not a zone)
     PRG="programmer",  # Electric
 )
@@ -875,7 +875,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 class System(StoredHw, SysDatetime, SysFaultLog, SystemBase):
     """The Controller class."""
 
-    __sys_class__ = SYSTEM_CLASS.PRG
+    _PROFILE = SYSTEM_PROFILE.PRG
 
     def __init__(self, gwy, ctl, **kwargs) -> None:
         super().__init__(gwy, ctl, **kwargs)
@@ -935,7 +935,7 @@ class System(StoredHw, SysDatetime, SysFaultLog, SystemBase):
 class Evohome(SysLanguage, SysMode, MultiZone, UfhSystem, System):  # evohome
     """The Evohome system - some controllers are evohome-compatible."""
 
-    __sys_class__ = SYSTEM_CLASS.EVO
+    _PROFILE = SYSTEM_PROFILE.EVO
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (evohome)"
@@ -971,7 +971,7 @@ class Evohome(SysLanguage, SysMode, MultiZone, UfhSystem, System):  # evohome
 
 class Chronotherm(Evohome):
 
-    __sys_class__ = SYSTEM_CLASS.EVO
+    _PROFILE = SYSTEM_PROFILE.EVO
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (chronotherm)"
@@ -984,7 +984,7 @@ class Hometronics(System):
     #  I --- 01:023389 --:------ 01:023389 2D49 003 880000
     #  I --- 01:023389 --:------ 01:023389 2D49 003 FD0000
 
-    __sys_class__ = SYSTEM_CLASS.EVO
+    _PROFILE = SYSTEM_PROFILE.EVO
 
     RQ_SUPPORTED = (_0004, _000C, _2E04, _313F)  # TODO: WIP
     RQ_UNSUPPORTED = ("xxxx",)  # 10E0?
@@ -1004,7 +1004,7 @@ class Hometronics(System):
 
 class Programmer(Evohome):
 
-    __sys_class__ = SYSTEM_CLASS.PRG
+    _PROFILE = SYSTEM_PROFILE.PRG
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (programmer)"
@@ -1012,7 +1012,7 @@ class Programmer(Evohome):
 
 class Sundial(Evohome):
 
-    __sys_class__ = SYSTEM_CLASS.PRG
+    _PROFILE = SYSTEM_PROFILE.PRG
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (sundial)"
@@ -1033,12 +1033,12 @@ _SYS_CLASS_BY_TYPE = {
 }
 
 
-CLASS_ATTR = "__sys_class__"
+_PROFILE = "_PROFILE"
 SYSTEM_BY_PROFILE = {
-    getattr(c[1], CLASS_ATTR): c[1]
+    getattr(c[1], _PROFILE): c[1]
     for c in getmembers(
         modules[__name__],
-        lambda m: isclass(m) and m.__module__ == __name__ and hasattr(m, CLASS_ATTR),
+        lambda m: isclass(m) and m.__module__ == __name__ and hasattr(m, _PROFILE),
     )
 }  # e.g. "evohome": Evohome
 
@@ -1047,7 +1047,7 @@ def create_system(gwy, ctl, profile=None, **kwargs) -> System:
     """Create a system, and optionally perform discovery & start polling."""
 
     if profile is None:
-        profile = SYSTEM_CLASS.PRG if ctl.type == "23" else SYSTEM_CLASS.EVO
+        profile = SYSTEM_PROFILE.PRG if ctl.type == "23" else SYSTEM_PROFILE.EVO
 
     system = _SYS_CLASS.get(profile, System)(gwy, ctl, **kwargs)
 
