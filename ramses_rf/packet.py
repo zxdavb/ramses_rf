@@ -248,7 +248,7 @@ class PacketBase:
         """
 
         if self.__idx is None:
-            self.__idx = _pkt_idx(self) or False
+            self.__idx = pkt_index(self) or False
         return self.__idx
 
     @property
@@ -275,7 +275,7 @@ class PacketBase:
         """
 
         if self.__hdr is None:
-            self.__hdr = _pkt_hdr(self)
+            self.__hdr = pkt_header(self)
         return self.__hdr
 
 
@@ -355,7 +355,7 @@ class Packet(PacketBase):
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
 
-        hdr = f" # {self._hdr}" if self._hdr else ""
+        hdr = f' # {self._hdr}{f" ({self._ctx})" if self._ctx else ""}'
         return f"{self.dtm.isoformat(timespec='microseconds')} {self.rssi} {self}{hdr}"
 
     def __str__(self) -> str:
@@ -447,7 +447,7 @@ class Packet(PacketBase):
         return False  # TODO: remove
 
 
-def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
+def pkt_index(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
     """Return the payload's 2-byte context (e.g. zone_idx, log_idx, domain_id).
 
     May return a 2-byte string (usu. pkt.payload[:2]), or:
@@ -525,8 +525,8 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
     _LOGGER.warning(f"{pkt} # Unable to determine payload index")  # and: return None
 
 
-def _pkt_hdr(pkt, rx_header=None) -> Optional[str]:  # NOTE: used in command.py
-    """Return the QoS header of a packet.
+def pkt_header(pkt, rx_header=None) -> Optional[str]:  # NOTE: used in command.py
+    """Return the QoS header of a packet (all packets have a header).
 
     For rx_header=True, return the header of the response packet, if one is expected.
     """

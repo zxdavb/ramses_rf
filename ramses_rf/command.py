@@ -29,7 +29,7 @@ from .const import (
 from .exceptions import ExpiredCallbackError
 from .helpers import dt_now, dtm_to_hex, dts_to_hex, str_to_hex, temp_to_hex
 from .opentherm import parity
-from .packet import PacketBase, _pkt_hdr
+from .packet import PacketBase, pkt_header
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
@@ -209,7 +209,7 @@ class Command(PacketBase):
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
 
-        hdr = f" # {self._hdr}" if self._hdr else ""
+        hdr = f' # {self._hdr}{f" ({self._ctx})" if self._ctx else ""}'
         return f"{self._dtm.isoformat(timespec='microseconds')} ... {self}{hdr}"
 
     def __str__(self) -> str:
@@ -260,7 +260,7 @@ class Command(PacketBase):
         """Return the QoS header of a corresponding response packet (if any)."""
 
         if self.tx_header and self._rx_header is None:
-            self._rx_header = _pkt_hdr(self, rx_header=True)
+            self._rx_header = pkt_header(self, rx_header=True)
         return self._rx_header
 
     @property
