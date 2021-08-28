@@ -1674,7 +1674,6 @@ def parser_3220(payload, msg) -> Optional[dict]:
     }
 
     if msg.verb == RQ:  # RQs have a context: msg_id (and a payload)
-        # have only ever seen: RQ/00[08]0..0000
         assert (
             ot_type != "Read-Data" or payload[6:10] == "0000"  # likely true for RAMSES
         ), f"OpenTherm: Invalid msg-type|data-value: {ot_type}|{payload[6:10]}"
@@ -1685,24 +1684,22 @@ def parser_3220(payload, msg) -> Optional[dict]:
                 "Invalid-Data",
             ), f"OpenTherm: Invalid msg-type for RQ: {ot_type}"
 
-            result.update(ot_value)  # TODO: find some of the packets to review
+            result.update(ot_value)  # TODO: find some of these packets to review
 
-        return result
+    else:  # if msg.verb == RP:
+        assert (
+            ot_type not in ("Data-Invalid", "Unknown-DataId") or payload[6:10] == "0000"
+        ), f"OpenTherm: Invalid msg-type|data-value: {ot_type}|{payload[6:10]}"
 
-    assert (
-        ot_type not in ("Data-Invalid", "Unknown-DataId") or payload[6:10] == "0000"
-    ), f"OpenTherm: Invalid msg-type|data-value: {ot_type}|{payload[6:10]}"
+        if ot_type not in ("Data-Invalid", "Unknown-DataId"):
+            assert ot_type in (
+                "Read-Ack",
+                "Write-Ack",
+            ), f"OpenTherm: Invalid msg-type for RP: {ot_type}"
 
-    if ot_type not in ("Data-Invalid", "Unknown-DataId"):
-        assert ot_type in (
-            "Read-Ack",
-            "Write-Ack",
-        ), f"OpenTherm: Invalid msg-type for RP: {ot_type}"
+            result.update(ot_value)
 
-        result.update(ot_value)
-
-        result[MSG_DESC] = ot_schema[EN]
-
+    result[MSG_DESC] = ot_schema.get(EN)
     return result
 
 
