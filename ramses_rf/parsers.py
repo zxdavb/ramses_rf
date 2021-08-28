@@ -1687,11 +1687,12 @@ def parser_3220(payload, msg) -> Optional[dict]:
             result.update(ot_value)  # TODO: find some of these packets to review
 
     else:  # if msg.verb == RP:
+        _LIST = ("Data-Invalid", "Unknown-DataId", "-reserved-")
         assert (
-            ot_type not in ("Data-Invalid", "Unknown-DataId") or payload[6:10] == "0000"
+            ot_type not in _LIST or payload[6:10] == "0000"
         ), f"OpenTherm: Invalid msg-type|data-value: {ot_type}|{payload[6:10]}"
 
-        if ot_type not in ("Data-Invalid", "Unknown-DataId"):
+        if ot_type not in _LIST:
             assert ot_type in (
                 "Read-Ack",
                 "Write-Ack",
