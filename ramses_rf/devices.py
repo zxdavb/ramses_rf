@@ -1246,8 +1246,9 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
                 self._discover(discover_flag=DISCOVER_PARAMS)
 
         elif msg.code == _3220:  # all are RP
-            self._supported_msg[msg.payload[MSG_ID]] = (
-                msg.payload[MSG_TYPE] != "Unknown-DataId"
+            self._supported_msg[msg.payload[MSG_ID]] = msg.payload[MSG_TYPE] not in (
+                "Unknown-DataId",
+                "-reserved-",
             )
 
     def _ot_msg_value(self, msg_id) -> Optional[float]:
