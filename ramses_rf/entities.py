@@ -110,11 +110,17 @@ class Entity:
             idx, val = "domain_id", domain_id
         elif zone_idx:
             idx, val = "zone_idx", zone_idx
+        else:
+            idx = val = None
 
-        if isinstance(msg.payload, list):
+        if isinstance(msg.payload, list) and idx:
             msg_dict = {
                 k: v for d in msg.payload for k, v in d.items() if d[idx] == val
             }
+        elif isinstance(msg.payload, list):
+            # TODO: this isn't ideal: e.g. a controller is being treated like a 'stat
+            #  I 101 --:------ --:------ 12:126457 2309 006 0107D0-0207D0  # is a CTL
+            msg_dict = msg.payload[0]
         else:
             msg_dict = msg.payload
 
