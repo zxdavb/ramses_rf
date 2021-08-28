@@ -6,12 +6,16 @@
 import re
 from types import SimpleNamespace
 
-DEV_MODE = __dev_mode__ = True
+DEV_MODE = __dev_mode__ = False  # True
 
 
 def slug(string: str) -> str:
     return re.sub(r"[\W_]+", "_", string.lower())
 
+
+ATTR_ALIAS = "alias"
+ATTR_CLASS = "class"
+ATTR_FAKED = "faked"
 
 I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
 
@@ -124,7 +128,7 @@ CODE_SCHEMA = {
     _3150: {"uses_zone_idx": True},
 }
 
-MAY_USE_ZONE_IDX = [k for k, v in CODE_SCHEMA.items() if v.get("uses_zone_idx")]
+_MAY_USE_ZONE_IDX = [k for k, v in CODE_SCHEMA.items() if v.get("uses_zone_idx")]
 
 DEVICE_TABLE = {
     # Honeywell evohome
