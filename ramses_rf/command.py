@@ -137,7 +137,7 @@ if DEV_MODE:
 
 
 def validate_command(has_zone=None):
-    """Protect the engine from any invalid command constructors.
+    """Decorator to pProtect the engine from any invalid command constructors.
 
     Additionally, validate/normalise some command arguments.
     """
