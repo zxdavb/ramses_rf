@@ -13,7 +13,7 @@ import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
 from types import SimpleNamespace
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, dev_id_to_hex, pkt_addrs
 from .const import (
@@ -142,25 +142,29 @@ def validate_command(has_zone=None):
     Additionally, validate/normalise some command arguments.
     """
 
+    def _wrapper(fcn, *args, **kwargs) -> Any:
+        try:
+            return fcn(*args, **kwargs)
+        except (
+            AssertionError,
+            AttributeError,
+            LookupError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            _LOGGER.warning(f"validate_command(): {exc}")
+
     def device_decorator(fcn):
         @functools.wraps(fcn)
-        def wrapper(cls, dst_id, *args, **kwargs):
-            try:
-                return fcn(cls, dst_id, *args, **kwargs)
-            except (
-                AssertionError,
-                AttributeError,
-                LookupError,
-                TypeError,
-                ValueError,
-            ) as exc:
-                _LOGGER.warning(f"validate_command(): {exc}")
+        def wrapper(cls, dst_id, *args, **kwargs) -> Any:
+
+            return _wrapper(fcn, cls, dst_id, *args, **kwargs)
 
         return wrapper
 
     def zone_decorator(fcn):
         @functools.wraps(fcn)
-        def wrapper(cls, ctl_id, zone_idx, *args, **kwargs):
+        def wrapper(cls, ctl_id, zone_idx, *args, **kwargs) -> Any:
 
             if isinstance(zone_idx, str):
                 zone_idx = "FA" if zone_idx == "HW" else zone_idx
@@ -168,16 +172,7 @@ def validate_command(has_zone=None):
             if 0 > zone_idx > 15 and zone_idx != 0xFA:
                 raise ValueError("Invalid value for zone_idx")
 
-            try:
-                return fcn(cls, ctl_id, zone_idx, *args, **kwargs)
-            except (
-                AssertionError,
-                AttributeError,
-                LookupError,
-                TypeError,
-                ValueError,
-            ) as exc:
-                _LOGGER.warning(f"validate_command(): {exc}")
+            return _wrapper(fcn, cls, ctl_id, zone_idx, *args, **kwargs)
 
         return wrapper
 
