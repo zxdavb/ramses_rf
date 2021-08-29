@@ -6,7 +6,6 @@
 import logging
 from typing import List
 
-from .command import Command
 from .const import DISCOVER_ALL
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
@@ -78,7 +77,7 @@ class Entity:
 
     def _send_cmd(self, code, dest_id, payload, verb=RQ, **kwargs) -> None:
         self._msgs.pop(code, None)  # TODO: remove old one, so we can tell if RP'd rcvd
-        self._gwy.send_cmd(Command(verb, code, payload, dest_id, **kwargs))
+        self._gwy.send_cmd(self._gwy.make_cmd(verb, dest_id, code, payload, **kwargs))
 
     def _msg_value(
         self, code, verb=None, key=None, zone_idx=None, domain_id=None
