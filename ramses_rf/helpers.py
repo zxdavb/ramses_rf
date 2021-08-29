@@ -10,7 +10,20 @@ import sys
 import time
 from datetime import datetime as dt
 from inspect import iscoroutinefunction
-from typing import Optional, Union
+from typing import Any, Optional, Union
+
+from .const import DEVICE_TYPES, NON_DEVICE_ID, NUL_DEVICE_ID
+
+
+def _get_device(gwy, dev_id, ctl_id=None, **kwargs) -> Optional[Any]:  # -> Device:
+    """A TEMPORARY wrapper to permit deprecating using addresses rather than IDs."""
+    from .address import id_to_address  # TODO: remove need for this
+
+    if "dev_addr" in kwargs or "ctl_addr" in kwargs:
+        raise RuntimeError
+
+    ctl_id = ctl_id if ctl_id is None else id_to_address(ctl_id)
+    return gwy._get_device(id_to_address(dev_id), ctl_addr=ctl_id, **kwargs)
 
 
 class FILETIME(ctypes.Structure):
@@ -330,3 +343,20 @@ def slugify_string(key: str) -> str:
     return (string[0]).lower() + re.sub(
         r"[A-Z]", lambda matched: f"_{matched.group(0).lower()}", string[1:]
     )
+
+
+def hex_id_to_dec(device_hex: str, friendly_id=False) -> str:
+    """Convert (say) '06368E' to '01:145038' (or 'CTL:145038')."""
+
+    if device_hex == "FFFFFE":  # aka '63:262142'
+        return "NUL:262142" if friendly_id else NUL_DEVICE_ID
+
+    if not device_hex.strip():  # aka '--:------'
+        return f"{'':10}" if friendly_id else NON_DEVICE_ID
+
+    _tmp = int(device_hex, 16)
+    dev_type = f"{(_tmp & 0xFC0000) >> 18:02d}"
+    if friendly_id:
+        dev_type = DEVICE_TYPES.get(dev_type, f"{dev_type:<3}")
+
+    return f"{dev_type}:{_tmp & 0x03FFFF:06d}"

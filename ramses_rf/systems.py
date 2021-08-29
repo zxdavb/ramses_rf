@@ -129,9 +129,13 @@ class SysFaultLog:  # 0418
         # if discover_flag & DISCOVER_STATUS:
         #     self._gwy._tasks.append(self._loop.create_task(self.get_fault_log()))
 
-    async def get_fault_log(self, force_refresh=None) -> Optional[dict]:  # 0418
+    async def get_fault_log(
+        self, start=None, limit=None, force_refresh=None
+    ) -> Optional[dict]:  # 0418
         try:
-            return await self._fault_log.get_fault_log(force_refresh=force_refresh)
+            return await self._fault_log.get_fault_log(
+                start=start, limit=limit, force_refresh=force_refresh
+            )
         except ExpiredCallbackError:
             return
 

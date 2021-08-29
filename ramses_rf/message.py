@@ -13,6 +13,7 @@ from typing import Any, Optional, Tuple, Union
 from .address import Address, dev_id_to_str
 from .const import (
     _0005_ZONE_TYPE,
+    ATTR_ALIAS,
     ATTR_DHW_SENSOR,
     ATTR_DHW_VALVE,
     ATTR_DHW_VALVE_HTG,
@@ -23,9 +24,9 @@ from .const import (
     DONT_UPDATE_ENTITIES,
     ZONE_TYPE_SLUGS,
 )
-from .devices import Device, OtbGateway
+from .devices import Device
 from .exceptions import CorruptStateError
-from .opentherm import MSG_ID
+from .helpers import _get_device  # TODO: remove need for  this
 from .parsers import parse_payload
 from .ramses import CODE_IDX_COMPLEX, RAMSES_CODES, RQ_NO_PAYLOAD
 
@@ -97,7 +98,7 @@ CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:^4s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:^4s} || {}"
 
-DEV_MODE = __dev_mode__ and False
+DEV_MODE = True  # __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -142,7 +143,7 @@ class Message:
 
         self._is_valid = None
         if not self.is_valid:
-            raise ValueError(f"not a valid message: {pkt}")
+            raise ValueError(f"Invalid message: {pkt}")
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -158,8 +159,8 @@ class Message:
             return ctx
 
         def display_name(dev: Union[Address, Device]) -> str:
-            name = dev.alias[:20] if self._gwy.config.use_aliases else None
-            return name or dev_id_to_str(dev.id)
+            name = dev.schema.get(ATTR_ALIAS) if self._gwy.config.use_aliases else None
+            return name[:20] if name else dev_id_to_str(dev.id)
 
         if self._str is not None:
             return self._str
@@ -306,23 +307,9 @@ class Message:
             if self.__expired >= self.HAS_EXPIRED * 2:  # TODO: should delete?
                 return True
 
-        if self.code in (_1F09, _3220):
-            if self.code == _1F09:
-                # RQs won't have a "remaining_seconds"...
-                timeout = td(seconds=self.payload.get("remaining_seconds", 3))
-            elif self.payload[MSG_ID] in OtbGateway.SCHEMA_MSG_IDS:
-                timeout = None
-            elif self.payload[MSG_ID] in OtbGateway.PARAMS_MSG_IDS:
-                timeout = td(minutes=60)
-            # elif self.payload[MSG_ID] in OtbGateway.STATUS_MSG_IDS:
-            #     timeout = td(minutes=5)
-            else:
-                timeout = td(minutes=5)
-
-            self.__expired = (
-                ((self._gwy._dt_now() - self.dtm) / timeout) if timeout else False
-            )
-
+        if self.code == _1F09 and self.verb != RQ:  # RQs won't have remaining_seconds
+            timeout = td(seconds=self.payload["remaining_seconds"])
+            self.__expired = (self._gwy._dt_now() - self.dtm) / timeout
         else:
             self.__expired = self._pkt._expired
 
@@ -377,58 +364,60 @@ def _create_devices(this: Message) -> None:
 
     def proc_000c():
         if this.src.type == "01":  # TODO
-            this._gwy._get_device(this.dst, ctl_addr=this.src)
+            _get_device(this._gwy, this.dst.id, ctl_id=this.src.id)
             # if this.is_valid:
             key = "zone_idx" if "zone_idx" in this.payload else "domain_id"
             [
-                this._gwy._get_device(
-                    Address(id=d, type=d[:2]),
-                    ctl_addr=this.src,
+                _get_device(
+                    this._gwy,
+                    d,
+                    ctl_id=this.src.id,
                     domain_id=this.payload[key],
                 )
                 for d in this.payload["devices"]
             ]
         elif this.src.type == "02":  # TODO
-            # this._gwy._get_device(this.dst)
+            # _get_device(this._gwy, this.dst.id)
             if this.payload["devices"]:
                 device_id = this.payload["devices"][0]
-                this._gwy._get_device(
-                    this.src, ctl_addr=Address(id=device_id, type=device_id[:2])
-                )
+                _get_device(this._gwy, this.src, ctl_id=device_id)
 
         elif this.payload["device_class"] == ATTR_HTG_CONTROL:
             # TODO: maybe the htg controller is an OTB? via eavesdropping
             # evo._set_htg_control(devices[0])
             pass
 
+    if this.src.type == "18":
+        return
+
     if this.code == _000C and this.verb == RP:
         proc_000c()
 
     if this.src.type in ("01", "23") and this.src is not this.dst:  # TODO: all CTLs
-        this.src = this._gwy._get_device(this.src, ctl_addr=this.src)
-        ctl_addr = this.src if this._gwy.config.enable_eavesdrop else None
-        this._gwy._get_device(this.dst, ctl_addr=ctl_addr)
+        this.src = _get_device(this._gwy, this.src.id, ctl_id=this.src.id)
+        ctl_addr = this.src.id if this._gwy.config.enable_eavesdrop else None
+        _get_device(this._gwy, this.dst.id, ctl_id=ctl_addr)
 
     elif this.dst.type in ("01", "23") and this.src is not this.dst:  # all CTLs
-        this.dst = this._gwy._get_device(this.dst, ctl_addr=this.dst)
-        ctl_addr = this.dst if this._gwy.config.enable_eavesdrop else None
-        this._gwy._get_device(this.src, ctl_addr=ctl_addr)
+        this.dst = _get_device(this._gwy, this.dst.id, ctl_id=this.dst.id)
+        ctl_addr = this.dst.id if this._gwy.config.enable_eavesdrop else None
+        _get_device(this._gwy, this.src.id, ctl_id=ctl_addr)
 
     # this should catch all non-controller (and *some* controller) devices
     elif this.src is this.dst:
-        this._gwy._get_device(this.src)
+        _get_device(this._gwy, this.src.id)
 
     # otherwise one will be a controller, *unless* dst is in ("--", "63")
     elif isinstance(this.src, Device) and this.src._is_controller:
-        this._gwy._get_device(this.dst, ctl_addr=this.src)
+        _get_device(this._gwy, this.dst.id, ctl_id=this.src.id)
 
     # TODO: may create a controller that doesn't exist
     elif isinstance(this.dst, Device) and this.dst._is_controller:
-        this._gwy._get_device(this.src, ctl_addr=this.dst)
+        _get_device(this._gwy, this.src.id, ctl_id=this.dst.id)
 
     else:
         # beware:  I --- --:------ --:------ 10:078099 1FD4 003 00F079
-        [this._gwy._get_device(d) for d in (this.src, this.dst)]
+        [_get_device(this._gwy, d) for d in (this.src.id, this.dst.id)]
 
     # where possible, swap each Address for its corresponding Device
     this.src = this._gwy.device_by_id.get(this.src.id, this.src)

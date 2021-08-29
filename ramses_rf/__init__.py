@@ -198,7 +198,7 @@ class Gateway:
         ):
             return  # not valid device types/real devices
 
-        # These two are because Pkt.Transport.is_wanted() will still let some through
+        # These two are because Pkt.Transport.is_wanted() may still let some through
         if self._include and dev_addr.id not in self._include:
             _LOGGER.warning(
                 f"Ignoring a non-allowed device_id: {dev_addr.id}"
@@ -375,7 +375,16 @@ class Gateway:
 
     def make_cmd(self, verb, device_id, code, payload, **kwargs) -> Command:
         """Make a command addressed to device_id."""
-        return Command(verb, code, payload, device_id)
+        try:
+            return Command(verb, code, payload, device_id)
+        except (
+            AssertionError,
+            AttributeError,
+            LookupError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            _LOGGER.warning(f"make_cmd(): {exc}")
 
     def send_cmd(self, cmd: Command, callback: Callable = None, **kwargs) -> None:
         """Send a command with the option to return any response via callback.
@@ -383,6 +392,10 @@ class Gateway:
         Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
         This routine is thread safe.
         """
+
+        if not cmd:
+            return
+
         if not self.msg_protocol:
             raise RuntimeError("there is no message protocol")
 

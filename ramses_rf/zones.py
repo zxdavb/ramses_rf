@@ -12,7 +12,7 @@ from sys import modules
 from types import SimpleNamespace
 from typing import Optional
 
-from .command import Command, Schedule
+from .command import Command
 from .const import (
     _000C_DEVICE,
     ATTR_DEVICES,
@@ -42,6 +42,7 @@ from .devices import BdrSwitch, Device, DhwSensor
 from .entities import Entity
 from .exceptions import CorruptStateError
 from .helpers import schedule_task
+from .schedule import Schedule
 
 # from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
@@ -112,7 +113,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-ZONE_CLASS = SimpleNamespace(
+ZONE_TYPE = SimpleNamespace(
     DHW="DHW",  # Stored HW (not a zone)
     ELE="ELE",  # Electric
     MIX="MIX",  # Mix valve
@@ -125,7 +126,7 @@ ZONE_CLASS = SimpleNamespace(
 class ZoneBase(Entity):
     """The Zone/DHW base class."""
 
-    # __zon_class__ = None  # NOTE: this would cause problems
+    # _TYPE = None  # NOTE: this would cause problems
 
     def __init__(self, evo, zone_idx) -> None:
         _LOGGER.debug("Creating a Zone: %s_%s (%s)", evo, zone_idx, self.__class__)
@@ -148,8 +149,7 @@ class ZoneBase(Entity):
     def _set_system(self, parent, zone_idx):
         """Set the zone's parent system, after validating it."""
 
-        # these imports are here to prevent circular references
-        from .systems import System
+        from .systems import System  # to prevent circular references
 
         try:
             if zone_idx != "HW" and int(zone_idx, 16) >= parent.max_zones:
@@ -160,7 +160,7 @@ class ZoneBase(Entity):
         if not isinstance(parent, System):
             raise TypeError(f"{self}: parent must be a System, not {parent}")
 
-        if zone_idx != "HW":
+        if zone_idx != "HW":  # or: FA?
             if self.idx in parent.zone_by_idx:
                 raise LookupError(f"{self}: duplicate zone_idx: {zone_idx}")
             parent.zone_by_idx[zone_idx] = self
@@ -182,7 +182,7 @@ class ZoneBase(Entity):
     @property
     def heating_type(self) -> Optional[str]:
         """Return the type of the zone/DHW (e.g. electric_zone, stored_dhw)."""
-        return self.__zon_class__
+        return self._TYPE
 
 
 class ZoneSchedule:  # 0404  # TODO: add for DHW
@@ -204,10 +204,14 @@ class ZoneSchedule:  # 0404  # TODO: add for DHW
     #     if msg.code == _0404 and msg.verb != RQ:
     #         _LOGGER.debug("Zone(%s): Received RP/0404 (schedule) pkt", self)
 
+    @property
+    def schedule(self) -> dict:
+        if self._schedule:
+            return self._schedule.schedule.get("schedule")
+
     async def get_schedule(self, force_refresh=None) -> Optional[dict]:
-        schedule = await self._schedule.get_schedule(force_refresh=force_refresh)
-        if schedule:
-            return schedule["schedule"]
+        await self._schedule.get_schedule(force_refresh=force_refresh)
+        return self.schedule
 
     async def set_schedule(self, schedule) -> None:
         schedule = {"zone_idx": self.idx, "schedule": schedule}
@@ -215,7 +219,10 @@ class ZoneSchedule:  # 0404  # TODO: add for DHW
 
     @property
     def status(self) -> dict:
-        return {**super().status, "schedule": self._schedule.schedule.get("schedule")}
+        return {
+            **super().status,
+            "schedule": self.schedule,
+        }
 
 
 class RelayDemand:  # 0008
@@ -241,10 +248,10 @@ class RelayDemand:  # 0008
         }
 
 
-class DhwZone(ZoneBase):  # CS92A  # TODO: add Schedule
+class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
     """The DHW class."""
 
-    __zon_class__ = ZONE_CLASS.DHW
+    _TYPE = ZONE_TYPE.DHW
 
     def __init__(
         self, ctl, zone_idx="HW", sensor=None, dhw_valve=None, htg_valve=None
@@ -252,14 +259,14 @@ class DhwZone(ZoneBase):  # CS92A  # TODO: add Schedule
         super().__init__(ctl, zone_idx)
 
         ctl._set_dhw(self)
-        # if profile == ZONE_CLASS.DHW and evo.dhw is None:
+        # if profile == ZONE_TYPE.DHW and evo.dhw is None:
         #     evo.dhw = zone
 
         self._dhw_sensor = None
         self._dhw_valve = None
         self._htg_valve = None
 
-        self._zone_type = ZONE_CLASS.DHW
+        self._zone_type = ZONE_TYPE.DHW
 
         if sensor:
             self._set_sensor(sensor)
@@ -449,7 +456,7 @@ class DhwZone(ZoneBase):  # CS92A  # TODO: add Schedule
 class Zone(ZoneSchedule, ZoneBase):
     """The Zone base class."""
 
-    __zon_class__ = None  # Unknown
+    _TYPE = None  # Unknown
 
     def __init__(self, evo, zone_idx, sensor=None, actuators=None) -> None:
         """Create a zone.
@@ -598,7 +605,7 @@ class Zone(ZoneSchedule, ZoneBase):
         """
 
         _type = ZONE_TYPE_SLUGS.get(zone_type, zone_type)
-        if _type not in ZONE_BY_CLASS_ID:
+        if _type not in ZONE_BY_TYPE:
             raise ValueError(f"Not a known zone_type: {zone_type}")
 
         if self._zone_type == _type:
@@ -611,7 +618,7 @@ class Zone(ZoneSchedule, ZoneBase):
             )
 
         self._zone_type = _type
-        self.__class__ = ZONE_BY_CLASS_ID[_type]
+        self.__class__ = ZONE_BY_TYPE[_type]
         self._discover()  # TODO: needs tidyup (ref #67)
 
     @property
@@ -762,7 +769,7 @@ class Zone(ZoneSchedule, ZoneBase):
 class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
     """For a small electric load controlled by a relay (never calls for heat)."""
 
-    __zon_class__ = ZONE_CLASS.ELE
+    _TYPE = ZONE_TYPE.ELE
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -794,7 +801,7 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
     Note that HM80s are listen-only devices.
     """
 
-    __zon_class__ = ZONE_CLASS.MIX
+    _TYPE = ZONE_TYPE.MIX
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -822,7 +829,7 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
 class RadZone(Zone):  # HR92/HR80
     """For radiators controlled by HR92s or HR80s (will also call for heat)."""
 
-    __zon_class__ = ZONE_CLASS.RAD
+    _TYPE = ZONE_TYPE.RAD
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -836,7 +843,7 @@ class RadZone(Zone):  # HR92/HR80
 class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
     """For underfloor heating controlled by an HCE80/HCC80 (will also call for heat)."""
 
-    __zon_class__ = ZONE_CLASS.UFH
+    _TYPE = ZONE_TYPE.UFH
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -861,7 +868,7 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
 class ValZone(EleZone):  # BDR91A/T
     """For a motorised valve controlled by a BDR91 (will also call for heat)."""
 
-    __zon_class__ = ZONE_CLASS.VAL
+    _TYPE = ZONE_TYPE.VAL
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -877,12 +884,12 @@ class ValZone(EleZone):  # BDR91A/T
         return self.relay_demand
 
 
-CLASS_ATTR = "__zon_class__"
-ZONE_BY_CLASS_ID = {
-    getattr(c[1], CLASS_ATTR): c[1]
+_TYPE = "_TYPE"
+ZONE_BY_TYPE = {
+    getattr(c[1], _TYPE): c[1]
     for c in getmembers(
         modules[__name__],
-        lambda m: isclass(m) and m.__module__ == __name__ and hasattr(m, CLASS_ATTR),
+        lambda m: isclass(m) and m.__module__ == __name__ and hasattr(m, _TYPE),
     )
 }  # e.g. "RAD": RadZone
 
@@ -891,9 +898,9 @@ def create_zone(evo, zone_idx, profile=None, **kwargs) -> Zone:
     """Create a zone, and optionally perform discovery & start polling."""
 
     if profile is None:
-        profile = ZONE_CLASS.DHW if zone_idx == "HW" else None
+        profile = ZONE_TYPE.DHW if zone_idx == "HW" else None
 
-    zone = ZONE_BY_CLASS_ID.get(profile, Zone)(evo, zone_idx, **kwargs)
+    zone = ZONE_BY_TYPE.get(profile, Zone)(evo, zone_idx, **kwargs)
 
     if not evo._gwy.config.disable_discovery:
         schedule_task(zone._discover, discover_flag=DISCOVER_SCHEMA, delay=1)

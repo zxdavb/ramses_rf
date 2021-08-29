@@ -9,10 +9,10 @@ import logging
 import re
 from typing import Any, List
 
-from .address import HGI_DEV_ADDR, NON_DEV_ADDR, Address
 from .command import Command, Priority
-from .const import ALL_DEVICE_ID, DEVICE_TABLE
+from .const import ALL_DEVICE_ID, DEVICE_TABLE, HGI_DEVICE_ID, NON_DEVICE_ID
 from .exceptions import ExpiredCallbackError
+from .helpers import _get_device  # TODO: remove need for  this
 from .opentherm import OTB_MSG_IDS
 from .ramses import RAMSES_CODES
 
@@ -157,13 +157,13 @@ def spawn_exec_cmd(gwy, **kwargs):
         _LOGGER.warning("Execute: Command is invalid: '%s'", kwargs)
         return
     elif len(cmd) == 1:
-        addrs = (HGI_DEV_ADDR.id, cmd[0], NON_DEV_ADDR.id)
+        addrs = (HGI_DEVICE_ID, cmd[0], NON_DEVICE_ID)
     elif len(cmd) == 3:
         addrs = (cmd[0], cmd[1], cmd[2])
     elif cmd[0] == cmd[1]:
-        addrs = (cmd[0], NON_DEV_ADDR.id, cmd[1])
+        addrs = (cmd[0], NON_DEVICE_ID, cmd[1])
     else:
-        addrs = (cmd[0], cmd[1], NON_DEV_ADDR.id)
+        addrs = (cmd[0], cmd[1], NON_DEVICE_ID)
 
     qos = {"priority": Priority.HIGH, "retries": 3}
     try:
@@ -190,19 +190,17 @@ async def periodic(gwy, cmd, count=1, interval=None):
             await _periodic()
 
 
-async def get_faults(gwy, ctl_id: str):
-    ctl_addr = Address(id=ctl_id, type=ctl_id[:2])
-    device = gwy._get_device(ctl_addr, ctl_addr=ctl_addr)
+async def get_faults(gwy, ctl_id: str, start=0, limit=0x3F):
+    device = _get_device(gwy, ctl_id, ctl_id=ctl_id)
 
     try:
-        await device._evo.get_fault_log()  # 0418
+        await device._evo.get_fault_log(start=start, limit=limit)  # 0418
     except ExpiredCallbackError as exc:
         _LOGGER.error("get_faults(): Function timed out: %s", exc)
 
 
 async def get_schedule(gwy, ctl_id: str, zone_idx: str) -> None:
-    ctl_addr = Address(id=ctl_id, type=ctl_id[:2])
-    zone = gwy._get_device(ctl_addr, ctl_addr=ctl_addr)._evo._get_zone(zone_idx)
+    zone = _get_device(gwy, ctl_id, ctl_id=ctl_id)._evo._get_zone(zone_idx)
 
     try:
         await zone.get_schedule()
@@ -214,8 +212,7 @@ async def set_schedule(gwy, ctl_id, schedule) -> None:
     schedule = json.load(schedule)
     zone_idx = schedule["zone_idx"]
 
-    ctl_addr = Address(id=ctl_id, type=ctl_id[:2])
-    zone = gwy._get_device(ctl_addr, ctl_addr=ctl_addr)._evo._get_zone(zone_idx)
+    zone = _get_device(gwy, ctl_id, ctl_id=ctl_id)._evo._get_zone(zone_idx)
 
     try:
         await zone.set_schedule(schedule["schedule"])  # 0404
@@ -224,19 +221,11 @@ async def set_schedule(gwy, ctl_id, schedule) -> None:
 
 
 async def script_bind_req(gwy, dev_id: str):
-    try:
-        device = gwy._get_device(Address(id=dev_id, type=dev_id[:2]))
-        device._make_fake(bind=True)
-    except EOFError:
-        pass
+    _get_device(gwy, dev_id)._make_fake(bind=True)
 
 
 async def script_bind_wait(gwy, dev_id: str, code=_2309, idx="00"):
-    try:
-        device = gwy._get_device(Address(id=dev_id, type=dev_id[:2]))
-        device._make_fake(bind=True)
-    except EOFError:
-        pass
+    _get_device(gwy, dev_id)._make_fake(bind=True, code=code, idx=idx)
 
 
 def script_poll_device(gwy, dev_id) -> List[Any]:
@@ -267,8 +256,7 @@ async def script_scan_disc(gwy, dev_id: str):
     qos = {"priority": Priority.HIGH, "retries": 3}
     gwy.send_cmd(Command._puzzle("00", message="disc scan: begins...", **qos))
 
-    device = gwy._get_device(Address(id=dev_id, type=dev_id[:2]))  # not always a CTL
-    device._discover()  # discover_flag=DISCOVER_ALL)
+    _get_device(gwy, dev_id)._discover()  # discover_flag=DISCOVER_ALL)
 
 
 async def script_scan_full(gwy, dev_id: str):
@@ -299,8 +287,8 @@ async def script_scan_full(gwy, dev_id: str):
         #         gwy.send_cmd(Command(W_, code, f"{zone_idx}03", dev_id, **qos))
 
         elif code == _0404:
-            gwy.send_cmd(Command.get_dhw_schedule_fragment(dev_id, 0, 0, **qos))
-            gwy.send_cmd(Command.get_zone_schedule_fragment(dev_id, 0, 0, 0, **qos))
+            gwy.send_cmd(Command.get_schedule_fragment(dev_id, "HW", 0, **qos))
+            gwy.send_cmd(Command.get_schedule_fragment(dev_id, "00", 0, 0, **qos))
 
         elif code == _0418:
             for log_idx in range(2):

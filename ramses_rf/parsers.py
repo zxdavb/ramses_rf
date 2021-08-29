@@ -15,7 +15,6 @@ from datetime import timedelta as td
 from functools import lru_cache
 from typing import Optional, Union
 
-from .address import hex_id_to_dec
 from .const import (
     _000C_DEVICE_TYPE,
     _0005_ZONE_TYPE,
@@ -37,6 +36,7 @@ from .helpers import (
     date_from_hex,
     dtm_from_hex,
     dts_from_hex,
+    hex_id_to_dec,
     str_from_hex,
     temp_from_hex,
     valve_demand,

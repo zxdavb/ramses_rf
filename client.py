@@ -261,13 +261,13 @@ def execute(obj, **kwargs):
     lib_kwargs[CONFIG][DISABLE_DISCOVERY] = True
 
     if cli_kwargs.get(GET_FAULTS):
-        lib_kwargs[ALLOW_LIST] = {cli_kwargs[GET_FAULTS]: None}
+        lib_kwargs[ALLOW_LIST] = {cli_kwargs[GET_FAULTS]: {}}
 
     elif cli_kwargs[GET_SCHED][0]:
-        lib_kwargs[ALLOW_LIST] = {cli_kwargs[GET_SCHED][0]: None}
+        lib_kwargs[ALLOW_LIST] = {cli_kwargs[GET_SCHED][0]: {}}
 
     elif cli_kwargs[SET_SCHED][0]:
-        lib_kwargs[ALLOW_LIST] = {cli_kwargs[SET_SCHED][0]: None}
+        lib_kwargs[ALLOW_LIST] = {cli_kwargs[SET_SCHED][0]: {}}
 
     if lib_kwargs[ALLOW_LIST]:
         lib_kwargs[CONFIG][ENFORCE_ALLOWLIST] = True
@@ -301,13 +301,16 @@ def _print_results(gwy, **kwargs):
 
     if kwargs[GET_SCHED][0]:
         system_id, zone_idx = kwargs[GET_SCHED]
-        zone = gwy.system_by_id[system_id].zone_by_idx[zone_idx]
-        schedule = zone._schedule.schedule
+        if zone_idx == "HW":
+            zone = gwy.system_by_id[system_id].dhw
+        else:
+            zone = gwy.system_by_id[system_id].zone_by_idx[zone_idx]
+        schedule = zone.schedule
 
         if schedule is None:
             print("Failed to get the schedule.")
         else:
-            print("Schedule = \r\n", json.dumps(schedule))  # , indent=4))
+            print(f"Schedule[{zone_idx}]= \r\n", json.dumps(schedule, indent=4))
 
     if kwargs[SET_SCHED][0]:
         system_id, _ = kwargs[GET_SCHED]
@@ -365,7 +368,7 @@ async def main(command, lib_kwargs, **kwargs):
             if kwargs["long_dates"]
             else f"{msg.dtm:%H:%M:%S.%f}"[:-3]
         )
-        if msg.src.type == "18":
+        if msg.src and msg.src.type == "18":
             print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
         # elif msg.code == "3B00":  # TODO: temp
         #     print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])

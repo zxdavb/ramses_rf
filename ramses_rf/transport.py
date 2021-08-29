@@ -24,7 +24,6 @@ from typing import ByteString, Callable, Generator, Optional, Tuple
 from serial import SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerTransportAsync
 
-from .address import HGI_DEV_ADDR
 from .command import (
     ARGS,
     DEAMON,
@@ -36,7 +35,7 @@ from .command import (
     Command,
     Priority,
 )
-from .const import _PUZZ, __dev_mode__
+from .const import _PUZZ, HGI_DEVICE_ID, __dev_mode__
 from .helpers import dt_now
 from .packet import Packet
 from .protocol import create_protocol_factory
@@ -83,7 +82,7 @@ def _normalise(pkt_line: str, log_file: bool = False) -> str:
     # 095  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200 # HGI80
     # 000  I --- 18:140805 18:140805 --:------ 0001 005 00FFFF0200 # evofw3
     if pkt_line[10:14] == " 18:" and pkt_line[11:20] == pkt_line[21:30]:
-        pkt_line = pkt_line[:21] + HGI_DEV_ADDR.id + pkt_line[30:]
+        pkt_line = pkt_line[:21] + HGI_DEVICE_ID + pkt_line[30:]
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
             "evofw3 packet line has been normalised (0x00)"
         )
@@ -349,13 +348,13 @@ class PacketProtocolBase(asyncio.Protocol):
         self.resume_writing()
 
     @functools.lru_cache(maxsize=128)
-    def _is_wanted(self, src_addr, dst_addr) -> bool:
+    def _is_wanted(self, src_id, dst_id) -> bool:
         """Parse the packet, return True if the packet is not to be filtered out."""
-        pkt_addrs = {src_addr, dst_addr}
-        if any(d.type == "18" for d in pkt_addrs):  # TODO: use HGI's full addr
-            return True
-        wanted = not self._include or any(d.id in self._include for d in pkt_addrs)
-        return wanted or not all(d.id not in self._exclude for d in pkt_addrs)
+        pkt_addrs = {src_id, dst_id}
+        # if any(d[:2] == "18" for d in pkt_addrs):  # TODO: use HGI's full addr
+        #     return True
+        wanted = not self._include or any(d in self._include for d in pkt_addrs)
+        return wanted or not all(d not in self._exclude for d in pkt_addrs)
 
     def _pkt_received(self, pkt: Packet) -> None:
         """Pass any valid/wanted packets to the callback."""
@@ -364,7 +363,7 @@ class PacketProtocolBase(asyncio.Protocol):
         #     return
 
         self._this_pkt, self._prev_pkt = pkt, self._this_pkt
-        if self._callback and self._is_wanted(pkt.src, pkt.dst):
+        if self._callback and self._is_wanted(pkt.src.id, pkt.dst.id):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
     def _line_received(self, dtm: dt, line: str, raw_line: ByteString) -> None:
@@ -377,9 +376,9 @@ class PacketProtocolBase(asyncio.Protocol):
 
         try:
             pkt = Packet.from_port(self._gwy, dtm, line, raw_line=raw_line)
-        except ValueError as e:
+        except (AssertionError, ValueError) as exc:
             if DEV_MODE and line and line[:1] != "#" and "*" not in line:
-                _LOGGER.error("%s << Cant create packet (ignoring): %s", line, e)
+                _LOGGER.error("%s < Cant create packet (ignoring): %s", line, exc)
             return
         self._pkt_received(pkt)  # NOTE: don't spawn this
 
@@ -503,11 +502,11 @@ class PacketProtocolRead(PacketProtocolBase):
 
         try:
             pkt = Packet.from_file(self._gwy, dtm, line)
-        except ValueError:
+        except (AssertionError, ValueError) as exc:
             if (dtm and dtm.lstrip()[:1] != "#") and (
                 line and line[:1] != "#" and "*" not in line
             ):
-                _LOGGER.error("%s << Cant create packet (ignoring)", line)
+                _LOGGER.error("%s < Cant create packet (ignoring): %s", line, exc)
             return
         self._pkt_received(pkt)
 

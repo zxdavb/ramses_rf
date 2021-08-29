@@ -174,9 +174,9 @@ class MessageTransport(asyncio.Transport):
 
         try:
             msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
-        except ValueError as e:
+        except (AssertionError, ValueError) as exc:
             if DEV_MODE:
-                _LOGGER.error("%s << Cant create message (ignoring): %s", pkt, e)
+                _LOGGER.error("%s < Cant create message (ignoring): %s", pkt, exc)
             return
 
         # _LOGGER.info("MsgTransport._pkt_receiver(pkt): %s", msg)
@@ -187,12 +187,10 @@ class MessageTransport(asyncio.Transport):
             if not callback.get(DEAMON):
                 del self._callbacks[msg._pkt._hdr]
 
-        # TODO: wrap in an exception handler because can't trust them...
-        # [p.data_received(msg) for p in self._protocols]
         for p in self._protocols:
             try:
-                p.data_received(msg)  # NOTE: don't spawn this
-            except AttributeError:
+                p.data_received(msg)
+            except:  # noqa: E722
                 pass
 
     def close(self):
@@ -333,14 +331,11 @@ class MessageTransport(asyncio.Transport):
 
         if self._gwy.config.disable_sending:
             message = "MsgTransport.write(%s): sending disabled: discarded"
-            if DEV_MODE:
-                _LOGGER.warning(message, cmd)
-            else:
-                _LOGGER.debug(message, cmd)
+            (_LOGGER.info if DEV_MODE else _LOGGER.debug)(message, cmd)
 
         else:
             if not self._dispatcher:  # TODO: do better?
-                _LOGGER.debug("MsgTransport.write(%s): no dispatcher", cmd)
+                _LOGGER.warning("MsgTransport.write(%s): no dispatcher", cmd)
 
             self._que.put_nowait(cmd)  # was: self._que.put_nowait(cmd)
 

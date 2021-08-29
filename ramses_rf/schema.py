@@ -10,14 +10,16 @@ from typing import Any, Optional, Tuple
 
 import voluptuous as vol
 
-from .address import id_to_address as addr
 from .const import ALL_DEVICE_ID as DEVICE_ID_REGEX
 from .const import (
+    ATTR_ALIAS,
+    ATTR_CLASS,
     ATTR_CONTROLLER,
     ATTR_DEVICES,
     ATTR_DHW_SENSOR,
     ATTR_DHW_VALVE,
     ATTR_DHW_VALVE_HTG,
+    ATTR_FAKED,
     ATTR_HTG_CONTROL,
 )
 from .const import ATTR_STORED_HW as ATTR_DHW_SYSTEM
@@ -29,6 +31,7 @@ from .const import (
     ATTR_ZONES,
     CTL_DEVICE_ID,
     DEFAULT_MAX_ZONES,
+    DEVICE_CLASS,
     DHW_SENSOR_ID,
     DONT_CREATE_MESSAGES,
     GWY_DEVICE_ID,
@@ -40,7 +43,6 @@ from .const import (
     SystemType,
     __dev_mode__,
 )
-from .devices import DEVICE_BY_CLASS_ID
 from .logger import LOG_FILE_NAME, LOG_ROTATE_BYTES, LOG_ROTATE_COUNT
 
 # schema attrs
@@ -142,15 +144,18 @@ CONFIG_SCHEMA = vol.Schema(
     },
     extra=vol.ALLOW_EXTRA,  # TODO: remove for production
 )
+
 DEVICE_DICT = vol.Schema(
     {
         vol.Optional(DEVICE_ID): vol.Any(
             None,
             {
-                vol.Optional("alias", default=None): vol.Any(None, str),
-                vol.Optional("class"): vol.Any(*DEVICE_BY_CLASS_ID.keys()),
-                vol.Optional("faked", default=None): vol.Any(None, bool, list),
-            },  # TODO: override type-by-addr.id with dev_class
+                vol.Optional(ATTR_ALIAS, default=None): vol.Any(None, str),
+                vol.Optional(ATTR_CLASS, default=None): vol.Any(
+                    None, *vars(DEVICE_CLASS).keys()
+                ),
+                vol.Optional(ATTR_FAKED, default=None): vol.Any(None, bool, list),
+            },
         )
     },
     extra=vol.PREVENT_EXTRA,
@@ -241,7 +246,7 @@ GLOBAL_CONFIG_SCHEMA = vol.Schema(
 )
 
 
-DEV_MODE = __dev_mode__  # or True
+DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -327,26 +332,23 @@ def update_config(config, allow_list, block_list) -> dict:
         _LOGGER.debug(f"A {BLOCK_LIST} has been created, length = {len(block_list)}")
 
 
-def _get_device(gwy, dev_addr, ctl_addr=None, **kwargs) -> Optional[Any]:
+def _get_device(gwy, dev_id, ctl_id=None, **kwargs) -> Optional[Any]:  # -> Device:
     """A wrapper to enforce device filters."""
-    err_msg = None
+    from .address import id_to_address  # TODO: remove need for this
 
-    if gwy.config.enforce_allow_list:
-        if ctl_addr and ctl_addr.id not in gwy._include:
-            err_msg = f"{ctl_addr.id} is in the {SCHEMA}, but not in the {ALLOW_LIST}"
-        elif dev_addr.id not in gwy._include:
-            err_msg = f"{dev_addr.id} is in the {SCHEMA}, but not in the {ALLOW_LIST}"
-
-    elif gwy.config.enforce_block_list:
-        if ctl_addr and ctl_addr.id in gwy._exclude:
-            err_msg = f"{ctl_addr.id} is in the {SCHEMA}, but also in the {BLOCK_LIST}"
-        elif dev_addr.id not in gwy._include:
-            err_msg = f"{dev_addr.id} is in the {SCHEMA}, but also in the {BLOCK_LIST}"
+    if gwy.config.enforce_allow_list and dev_id not in gwy._include:
+        err_msg = f"{dev_id} is in the {SCHEMA}, but not in the {ALLOW_LIST}"
+    elif gwy.config.enforce_block_list and dev_id not in gwy._include:
+        err_msg = f"{dev_id} is in the {SCHEMA}, but also in the {BLOCK_LIST}"
+    else:
+        err_msg = None
 
     if err_msg:
-        _LOGGER.error(f"%s: check the lists and the (cached) {SCHEMA}", err_msg)
+        _LOGGER.error(f"{err_msg}: check the lists and the {SCHEMA} (device created)")
+        # return
 
-    return gwy._get_device(dev_addr, ctl_addr=ctl_addr, **kwargs)
+    ctl_id = ctl_id if ctl_id is None else id_to_address(ctl_id)
+    return gwy._get_device(id_to_address(dev_id), ctl_id=ctl_id, **kwargs)
 
 
 def load_system_schema(gwy, **kwargs) -> dict:
@@ -355,7 +357,7 @@ def load_system_schema(gwy, **kwargs) -> dict:
 
     gwy._clear_state()  # TODO: consider need for this (here, or at all)
 
-    [_get_device(gwy, addr(device_id)) for device_id in kwargs.pop(ATTR_ORPHANS, [])]
+    [_get_device(gwy, device_id) for device_id in kwargs.pop(ATTR_ORPHANS, [])]
 
     if SCHEMA in kwargs:
         # ctl_id = kwargs.pop(ATTR_CONTROLLER)
@@ -385,14 +387,14 @@ def _load_system_schema(gwy, schema) -> Tuple[dict, dict]:
 
     ctl_id = schema[ATTR_CONTROLLER]
     profile = schema[ATTR_HTG_SYSTEM].get(ATTR_SYS_PROFILE)
-    ctl = _get_device(gwy, addr(ctl_id), ctl_addr=addr(ctl_id), profile=profile)
+    ctl = _get_device(gwy, ctl_id, ctl_id=ctl_id, profile=profile)  # TODO: checkme
 
     # if not ctl:
     #     return
 
     htg_ctl_id = schema[ATTR_HTG_SYSTEM].get(ATTR_HTG_CONTROL)
     if htg_ctl_id:
-        ctl._evo._set_htg_control(_get_device(gwy, addr(htg_ctl_id), ctl_addr=ctl))
+        ctl._evo._set_htg_control(_get_device(gwy, htg_ctl_id, ctl_id=ctl.id))
 
     dhw = schema.get(ATTR_DHW_SYSTEM, {})
     if dhw:
@@ -400,21 +402,15 @@ def _load_system_schema(gwy, schema) -> Tuple[dict, dict]:
 
         dhw_sensor_id = dhw.get(ATTR_DHW_SENSOR)
         if dhw_sensor_id:
-            ctl._evo.dhw._set_sensor(
-                _get_device(gwy, addr(dhw_sensor_id), ctl_addr=ctl)
-            )
+            ctl._evo.dhw._set_sensor(_get_device(gwy, dhw_sensor_id, ctl_id=ctl.id))
 
         dhw_valve_id = dhw.get(ATTR_DHW_VALVE)
         if dhw_valve_id:
-            ctl._evo.dhw._set_dhw_valve(
-                _get_device(gwy, addr(dhw_valve_id), ctl_addr=ctl)
-            )
+            ctl._evo.dhw._set_dhw_valve(_get_device(gwy, dhw_valve_id, ctl_id=ctl.id))
 
         htg_valve_id = dhw.get(ATTR_DHW_VALVE_HTG)
         if htg_valve_id:
-            ctl._evo.dhw._set_htg_valve(
-                _get_device(gwy, addr(htg_valve_id), ctl_addr=ctl)
-            )
+            ctl._evo.dhw._set_htg_valve(_get_device(gwy, htg_valve_id, ctl_id=ctl.id))
 
     for zone_idx, attr in schema[ATTR_ZONES].items():
         zone = ctl._evo._get_zone(zone_idx, zone_type=attr.get(ATTR_ZONE_TYPE))
@@ -422,28 +418,28 @@ def _load_system_schema(gwy, schema) -> Tuple[dict, dict]:
         sensor_id = attr.get(ATTR_ZONE_SENSOR)
         is_faked = None
         if isinstance(sensor_id, dict):
-            is_faked = sensor_id.get("faked")
+            is_faked = sensor_id.get(ATTR_FAKED)
             sensor_id = sensor_id[ATTR_DEVICE_ID]
 
         if sensor_id:
             zone._set_sensor(
-                _get_device(gwy, addr(sensor_id), ctl_addr=ctl, domain_id=zone_idx)
+                _get_device(gwy, sensor_id, ctl_id=ctl.id, domain_id=zone_idx)
             )  # TODO: use domain_id=zone_idx or not
         if is_faked:
             zone.sensor._make_fake()
 
         for device_id in attr.get(ATTR_DEVICES, []):
-            _get_device(gwy, addr(device_id), ctl_addr=ctl, domain_id=zone_idx)
+            _get_device(gwy, device_id, ctl_id=ctl.id, domain_id=zone_idx)
 
     # TODO: not create orphans by default?
     orphan_ids = schema.get(ATTR_ORPHANS, [])
     if orphan_ids:
-        [_get_device(gwy, addr(device_id), ctl_addr=ctl) for device_id in orphan_ids]
+        [_get_device(gwy, device_id, ctl_id=ctl.id) for device_id in orphan_ids]
 
-    ufh_ctl_ids = schema.get(ATTR_UFH_SYSTEM, {})
-    if ufh_ctl_ids:
-        for ufc_id, _ in ufh_ctl_ids.items():
-            _ = _get_device(gwy, addr(ufc_id), ctl_addr=ctl)
+    [
+        _get_device(gwy, ufc_id, ctl_id=ctl.id)  # , **_schema)
+        for ufc_id in schema.get(ATTR_UFH_SYSTEM, {}).keys()
+    ]
 
     if False and DEV_MODE:
         import json

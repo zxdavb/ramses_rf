@@ -13,6 +13,30 @@ def slug(string: str) -> str:
     return re.sub(r"[\W_]+", "_", string.lower())
 
 
+DEVICE_CLASS = SimpleNamespace(
+    BDR="BDR",  # Electrical relay
+    CTL="CTL",  # Controller
+    C02="C02",  # HVAC C02 sensor
+    GEN="DEV",  # Generic device
+    DHW="DHW",  # DHW sensor
+    EXT="EXT",  # External weather sensor
+    FAN="FAN",  # HVAC fan, 31D[9A]: 20|29|30|37 (some, e.g. 29: only 31D9)
+    HGI="HGI",  # Gateway interface (RF to USB), HGI80
+    HUM="HUM",  # HVAC humidity sensor, 1260: 32
+    OTB="OTB",  # OpenTherm bridge
+    PRG="PRG",  # Programmer
+    RFG="RFG",  # RF gateway (RF to ethernet), RFG100
+    STA="STA",  # Thermostat
+    SWI="SWI",  # HVAC switch, 22F[13]: 02|06|20|32|39|42|49|59 (no 20: are both)
+    TRV="TRV",  # Thermostatic radiator valve
+    UFC="UFC",  # UFH controller
+)
+
+HGI_DEVICE_ID = "18:000730"  # default type and address of HGI, 18:013393
+NON_DEVICE_ID = "--:------"
+NUL_DEVICE_ID = "63:262142"  # FFFFFE - send here if not bound?
+
+
 ATTR_ALIAS = "alias"
 ATTR_CLASS = "class"
 ATTR_FAKED = "faked"

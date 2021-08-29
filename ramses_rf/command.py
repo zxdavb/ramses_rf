@@ -7,15 +7,13 @@ Construct a command (packet that is to be sent).
 """
 
 import asyncio
+import functools
 import json
 import logging
-import struct
-import zlib
 from datetime import datetime as dt
 from datetime import timedelta as td
-from functools import total_ordering
 from types import SimpleNamespace
-from typing import Optional
+from typing import Optional, Union
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, dev_id_to_hex, pkt_addrs
 from .const import (
@@ -27,9 +25,9 @@ from .const import (
     ZoneMode,
 )
 from .exceptions import ExpiredCallbackError
+from .frame import PacketBase, pkt_header
 from .helpers import dt_now, dtm_to_hex, dts_to_hex, str_to_hex, temp_to_hex
 from .opentherm import parity
-from .packet import PacketBase, pkt_header
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
@@ -94,18 +92,9 @@ from .const import (  # noqa: F401, isort: skip
 
 COMMAND_FORMAT = "{:<2} {} {} {} {} {} {:03d} {}"
 
-DAY_OF_WEEK = "day_of_week"
-HEAT_SETPOINT = "heat_setpoint"
-SWITCHPOINTS = "switchpoints"
-TIME_OF_DAY = "time_of_day"
-
-SCHEDULE = "schedule"
-ZONE_IDX = "zone_idx"
 
 TIMER_SHORT_SLEEP = 0.05
 TIMER_LONG_TIMEOUT = td(seconds=60)
-
-FIVE_MINS = td(minutes=5)
 
 CALLBACK = "callback"
 DEAMON = "daemon"
@@ -119,11 +108,6 @@ PRIORITY = "priority"
 RETRIES = "retries"
 TIMEOUT = "timeout"
 QOS_KEYS = (DISABLE_BACKOFF, PRIORITY, RETRIES, TIMEOUT)
-
-FRAGMENT = "fragment"
-FRAG_INDEX = "frag_index"
-FRAG_TOTAL = "frag_total"
-MSG = "msg"
 
 Priority = SimpleNamespace(LOWEST=8, LOW=6, DEFAULT=4, HIGH=2, HIGHEST=0)
 
@@ -152,27 +136,55 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def validate_system_args(fcn):
-    """Validate/normalise any args common to all systems calls (e.g. ctl_id)."""
+def validate_command(has_zone=None):
+    """Protect the engine from any invalid command constructors.
 
-    def wrapper(cls, ctl_id, *args, **kwargs):
-        # check ctl_id & others
-        return fcn(cls, ctl_id, *args, **kwargs)
+    Additionally, validate/normalise some command arguments.
+    """
 
-    return wrapper
+    def device_decorator(fcn):
+        @functools.wraps(fcn)
+        def wrapper(cls, dst_id, *args, **kwargs):
+            try:
+                return fcn(cls, dst_id, *args, **kwargs)
+            except (
+                AssertionError,
+                AttributeError,
+                LookupError,
+                TypeError,
+                ValueError,
+            ) as exc:
+                _LOGGER.warning(f"validate_command(): {exc}")
+
+        return wrapper
+
+    def zone_decorator(fcn):
+        @functools.wraps(fcn)
+        def wrapper(cls, ctl_id, zone_idx, *args, **kwargs):
+
+            if isinstance(zone_idx, str):
+                zone_idx = "FA" if zone_idx == "HW" else zone_idx
+            zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
+            if 0 > zone_idx > 15 and zone_idx != 0xFA:
+                raise ValueError("Invalid value for zone_idx")
+
+            try:
+                return fcn(cls, ctl_id, zone_idx, *args, **kwargs)
+            except (
+                AssertionError,
+                AttributeError,
+                LookupError,
+                TypeError,
+                ValueError,
+            ) as exc:
+                _LOGGER.warning(f"validate_command(): {exc}")
+
+        return wrapper
+
+    return zone_decorator if has_zone else device_decorator
 
 
-def validate_zone_args(fcn):
-    """Validate/normalise any args common to all zone calls (ctl_id, zone_idx)."""
-
-    def wrapper(cls, ctl_id, zone_idx, *args, **kwargs):
-        zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
-        return fcn(cls, ctl_id, zone_idx, *args, **kwargs)
-
-    return wrapper
-
-
-@total_ordering
+@functools.total_ordering
 class Command(PacketBase):
     """The command class."""
 
@@ -191,7 +203,7 @@ class Command(PacketBase):
 
         self._is_valid = None
         if not self.is_valid:
-            raise ValueError(f"not a valid command: {self}")
+            raise ValueError(f"Invalid command: {self}")
 
         # callback used by app layer (protocol.py)
         self.callback = kwargs.pop(CALLBACK, {})  # func, args, daemon, timeout
@@ -291,13 +303,13 @@ class Command(PacketBase):
         return (self._priority, self._dtm) < (other._priority, other._dtm)
 
     @classmethod  # constructor for RQ/1F41
-    @validate_system_args
+    @validate_command()
     def get_dhw_mode(cls, ctl_id: str, **kwargs):
         """Constructor to get the mode of the DHW (c.f. parser_1f41)."""
         return cls(RQ, _1F41, "00", ctl_id, **kwargs)
 
     @classmethod  # constructor for W_/1F41
-    @validate_system_args
+    @validate_command()
     def set_dhw_mode(
         cls, ctl_id: str, mode=None, active: bool = None, until=None, **kwargs
     ):
@@ -338,13 +350,13 @@ class Command(PacketBase):
         return cls(W_, _1F41, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/10A0
-    @validate_system_args
+    @validate_command()
     def get_dhw_params(cls, ctl_id: str, **kwargs):
         """Constructor to get the params of the DHW (c.f. parser_10a0)."""
         return cls(RQ, _10A0, "00", ctl_id, **kwargs)
 
     @classmethod  # constructor for W_/10A0
-    @validate_system_args
+    @validate_command()
     def set_dhw_params(
         cls,
         ctl_id: str,
@@ -371,49 +383,98 @@ class Command(PacketBase):
 
         return cls(W_, _10A0, payload, ctl_id, **kwargs)
 
-    @classmethod  # constructor for RQ/0404
-    @validate_system_args
-    def get_dhw_schedule_fragment(
-        cls, ctl_id: str, frag_idx: int, frag_cnt: int, **kwargs
-    ):
-        """Constructor to get a DHW schedule fragment (c.f. parser_0404)."""
-        payload = f"0023000800{frag_idx + 1:02X}{frag_cnt:02X}"
-        return cls(RQ, _0404, payload, ctl_id, **kwargs)
-
     @classmethod  # constructor for RQ/1260
-    @validate_system_args
+    @validate_command()
     def get_dhw_temp(cls, ctl_id: str, **kwargs):
         """Constructor to get the temperature of the DHW sensor (c.f. parser_10a0)."""
         return cls(RQ, _1260, "00", ctl_id, **kwargs)
 
+    @classmethod  # constructor for RQ/1030
+    @validate_command(has_zone=True)
+    def get_mix_valve_params(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
+        """Constructor to get the mix valve params of a zone (c.f. parser_1030)."""
+        return cls(RQ, _1030, f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
+
+    @classmethod  # constructor for W/1030
+    @validate_command(has_zone=True)
+    def set_mix_valve_params(
+        cls,
+        ctl_id: str,
+        zone_idx: Union[int, str],
+        max_flow_setpoint=55,
+        min_flow_setpoint=15,
+        valve_run_time=150,
+        pump_run_time=15,
+        **kwargs,
+    ):
+        """Constructor to set the mix valve params of a zone (c.f. parser_1030)."""
+
+        assert 0 <= max_flow_setpoint <= 99, max_flow_setpoint
+        assert 0 <= min_flow_setpoint <= 50, min_flow_setpoint
+        assert 0 <= valve_run_time <= 240, valve_run_time
+        assert 0 <= pump_run_time <= 99, pump_run_time
+
+        payload = "".join(
+            (
+                f"{zone_idx:02X}",
+                f"C801{max_flow_setpoint:02X}",
+                f"C901{min_flow_setpoint:02X}",
+                f"CA01{valve_run_time:02X}",
+                f"CB01{pump_run_time:02X}",
+                f"CC01{1:02X}",
+            )
+        )
+
+        return cls(W_, _1030, payload, ctl_id, **kwargs)
+
     @classmethod  # constructor for RQ/3220
+    @validate_command()
     def get_opentherm_data(cls, dev_id: str, msg_id: int, **kwargs):
         """Constructor to get (Read-Data) opentherm msg value (c.f. parser_3220)."""
         msg_id = msg_id if isinstance(msg_id, int) else int(msg_id, 16)
         payload = f"0080{msg_id:02X}0000" if parity(msg_id) else f"0000{msg_id:02X}0000"
         return cls(RQ, _3220, payload, dev_id, **kwargs)
 
+    @classmethod  # constructor for RQ/0404
+    @validate_command(has_zone=True)
+    def get_schedule_fragment(
+        cls,
+        ctl_id: str,
+        zone_idx: Union[int, str],
+        frag_idx: int,
+        frag_cnt: int,
+        **kwargs,
+    ):
+        """Constructor to get a schedule fragment (c.f. parser_0404).
+
+        Usually a zone, but will be the DHW schedule if zone_idx == 0xFA, 'FA', or 'HW'.
+        """
+
+        header = "0023000800" if zone_idx == 0xFA else f"{zone_idx:02X}20000800"
+        payload = f"{header}{frag_idx + 1:02X}{frag_cnt:02X}"
+        return cls(RQ, _0404, payload, ctl_id, **kwargs)
+
+    @classmethod  # constructor for RQ/0100
+    @validate_command()
+    def get_system_language(cls, ctl_id: str, **kwargs):
+        """Constructor to get the language of a system (c.f. parser_0100)."""
+        return cls(RQ, _0100, "00", ctl_id, **kwargs)
+
     @classmethod  # constructor for RQ/0418
-    @validate_system_args
+    @validate_command()
     def get_system_log_entry(cls, ctl_id: str, log_idx: int, **kwargs):
         """Constructor to get a log entry from a system (c.f. parser_0418)."""
         log_idx = log_idx if isinstance(log_idx, int) else int(log_idx, 16)
         return cls(RQ, _0418, f"{log_idx:06X}", ctl_id, **kwargs)
 
-    @classmethod  # constructor for RQ/0100
-    @validate_system_args
-    def get_system_language(cls, ctl_id: str, **kwargs):
-        """Constructor to get the language of a system (c.f. parser_0100)."""
-        return cls(RQ, _0100, "00", ctl_id, **kwargs)
-
     @classmethod  # constructor for RQ/2E04
-    @validate_system_args
+    @validate_command()
     def get_system_mode(cls, ctl_id: str, **kwargs):
         """Constructor to get the mode of a system (c.f. parser_2e04)."""
         return cls(RQ, _2E04, "FF", ctl_id, **kwargs)
 
     @classmethod  # constructor for W/2E04
-    @validate_system_args
+    @validate_command()
     def set_system_mode(cls, ctl_id: str, system_mode, until=None, **kwargs):
         """Constructor to set/reset the mode of a system (c.f. parser_2e04)."""
 
@@ -441,13 +502,13 @@ class Command(PacketBase):
         return cls(W_, _2E04, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/313F
-    @validate_system_args
+    @validate_command()
     def get_system_time(cls, ctl_id: str, **kwargs):
         """Constructor to get the datetime of a system (c.f. parser_313f)."""
         return cls(RQ, _313F, "00", ctl_id, **kwargs)
 
     @classmethod  # constructor for W/313F
-    @validate_system_args
+    @validate_command()
     def set_system_time(cls, ctl_id: str, datetime, **kwargs):
         """Constructor to set the datetime of a system (c.f. parser_313f)."""
         #  W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
@@ -455,13 +516,13 @@ class Command(PacketBase):
         return cls(W_, _313F, f"006000{dtm_to_hex(datetime)}", ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/1100
-    @validate_system_args
+    @validate_command()
     def get_tpi_params(cls, ctl_id: str, **kwargs):
         """Constructor to get the TPI params of a system (c.f. parser_1100)."""
         return cls(RQ, _1100, "FC", ctl_id, **kwargs)
 
     @classmethod  # constructor for W/1100
-    @validate_system_args
+    @validate_command()
     def set_tpi_params(
         cls,
         ctl_id: str,
@@ -494,17 +555,17 @@ class Command(PacketBase):
         return cls(W_, _1100, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/000A
-    @validate_zone_args
-    def get_zone_config(cls, ctl_id: str, zone_idx: int, **kwargs):
+    @validate_command(has_zone=True)
+    def get_zone_config(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the config of a zone (c.f. parser_000a)."""
         return cls(RQ, _000A, f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
 
     @classmethod  # constructor for W/000A
-    @validate_zone_args
+    @validate_command(has_zone=True)
     def set_zone_config(
         cls,
         ctl_id: str,
-        zone_idx: int,
+        zone_idx: Union[int, str],
         min_temp=5,
         max_temp=35,
         local_override: bool = False,
@@ -535,56 +596,18 @@ class Command(PacketBase):
 
         return cls(W_, _000A, payload, ctl_id, **kwargs)
 
-    @classmethod  # constructor for RQ/1030
-    @validate_zone_args
-    def get_mix_valve_params(cls, ctl_id: str, zone_idx: int, **kwargs):
-        """Constructor to get the mix valve params of a zone (c.f. parser_1030)."""
-        return cls(RQ, _1030, f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
-
-    @classmethod  # constructor for W/1030
-    @validate_zone_args
-    def set_mix_valve_params(
-        cls,
-        ctl_id: str,
-        zone_idx: int,
-        max_flow_setpoint=55,
-        min_flow_setpoint=15,
-        valve_run_time=150,
-        pump_run_time=15,
-        **kwargs,
-    ):
-        """Constructor to set the mix valve params of a zone (c.f. parser_1030)."""
-
-        assert 0 <= max_flow_setpoint <= 99, max_flow_setpoint
-        assert 0 <= min_flow_setpoint <= 50, min_flow_setpoint
-        assert 0 <= valve_run_time <= 240, valve_run_time
-        assert 0 <= pump_run_time <= 99, pump_run_time
-
-        payload = "".join(
-            (
-                f"{zone_idx:02X}",
-                f"C801{max_flow_setpoint:02X}",
-                f"C901{min_flow_setpoint:02X}",
-                f"CA01{valve_run_time:02X}",
-                f"CB01{pump_run_time:02X}",
-                f"CC01{1:02X}",
-            )
-        )
-
-        return cls(W_, _1030, payload, ctl_id, **kwargs)
-
     @classmethod  # constructor for RQ/2349
-    @validate_zone_args
-    def get_zone_mode(cls, ctl_id: str, zone_idx: int, **kwargs):
+    @validate_command(has_zone=True)
+    def get_zone_mode(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the mode of a zone (c.f. parser_2349)."""
         return cls(RQ, _2349, f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
 
     @classmethod  # constructor for W/2349
-    @validate_zone_args
+    @validate_command(has_zone=True)
     def set_zone_mode(
         cls,
         ctl_id: str,
-        zone_idx: int,
+        zone_idx: Union[int, str],
         mode: str = None,
         setpoint: float = None,
         until: dt = None,
@@ -651,48 +674,41 @@ class Command(PacketBase):
         return cls(W_, _2349, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/0004
-    @validate_zone_args
-    def get_zone_name(cls, ctl_id: str, zone_idx: int, **kwargs):
+    @validate_command(has_zone=True)
+    def get_zone_name(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the name of a zone (c.f. parser_0004)."""
         return cls(RQ, _0004, f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
 
     @classmethod  # constructor for W/0004
-    @validate_zone_args
-    def set_zone_name(cls, ctl_id: str, zone_idx: int, name: str, **kwargs):
+    @validate_command(has_zone=True)
+    def set_zone_name(cls, ctl_id: str, zone_idx: Union[int, str], name: str, **kwargs):
         """Constructor to set the name of a zone (c.f. parser_0004)."""
         payload = f"{zone_idx:02X}00{str_to_hex(name)[:24]:0<40}"  # TODO: check 12/24?
         return cls(W_, _0004, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for W/2309
-    @validate_zone_args
-    def set_zone_setpoint(cls, ctl_id: str, zone_idx: int, setpoint: float, **kwargs):
+    @validate_command(has_zone=True)
+    def set_zone_setpoint(
+        cls, ctl_id: str, zone_idx: Union[int, str], setpoint: float, **kwargs
+    ):
         """Constructor to set the setpoint of a zone (c.f. parser_2309)."""
         #  W --- 34:092243 01:145038 --:------ 2309 003 0107D0
         payload = f"{zone_idx:02X}{temp_to_hex(setpoint)}"
         return cls(W_, _2309, payload, ctl_id, **kwargs)
 
-    @classmethod  # constructor for RQ/0404
-    @validate_zone_args
-    def get_zone_schedule_fragment(
-        cls, ctl_id: str, zone_idx: int, frag_idx: int, frag_cnt: int, **kwargs
-    ):
-        """Constructor to get a zone schedule fragment (c.f. parser_0404)."""
-        payload = f"{zone_idx:02X}20000800{frag_idx + 1:02X}{frag_cnt:02X}"
-        return cls(RQ, _0404, payload, ctl_id, **kwargs)
-
     @classmethod  # constructor for RQ/30C9
-    @validate_zone_args
-    def get_zone_temp(cls, ctl_id: str, zone_idx: int, **kwargs):
+    @validate_command(has_zone=True)
+    def get_zone_temp(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the current temperature of a zone (c.f. parser_30c9)."""
         return cls(RQ, _30C9, f"{zone_idx:02X}", ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/12B0
-    @validate_zone_args
-    def get_zone_window_state(cls, ctl_id: str, zone_idx: int, **kwargs):
+    @validate_command(has_zone=True)
+    def get_zone_window_state(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the openwindow state of a zone (c.f. parser_12b0)."""
         return cls(RQ, _12B0, f"{zone_idx:02X}", ctl_id, **kwargs)
 
-    @classmethod
+    @classmethod  # generic constructor
     def packet(
         cls,
         verb,
@@ -731,6 +747,43 @@ class Command(PacketBase):
 
         return cmd
 
+    @classmethod  # constructor for RP/3EF1 (TODO: & I/3EF1?)
+    @validate_command()
+    def put_actuator_cycle(
+        cls,
+        src_id: str,
+        dst_id: str,
+        mod_level: float,
+        actuator_countdown: int,
+        cycle_countdown: int = None,
+        **kwargs,
+    ):
+        """Constructor to announce the internal state of an actuator (3EF1).
+
+        This is for use by a faked BDR91A or similar.
+        """
+        # RP --- 13:049798 18:006402 --:------ 3EF1 007 00-0126-0126-00-FF
+
+        # assert dev_id[:2] == "13"
+        payload = f"00{actuator_countdown:04X}"
+        payload += f"{cycle_countdown:04X}" if cycle_countdown is not None else "7FFF"
+        payload += f"{int(mod_level * 200):02X}FF"
+        return cls.packet(RP, _3EF1, payload, addr0=src_id, addr1=dst_id, **kwargs)
+
+    @classmethod  # constructor for I/3EF0
+    @validate_command()
+    def put_actuator_state(cls, dev_id: str, mod_level: float, **kwargs):
+        """Constructor to announce the modulation level of an actuator (3EF0).
+
+        This is for use by a faked BDR91A or similar.
+        """
+        #  I --- 13:049798 --:------ 13:049798 3EF0 003 00C8FF
+        #  I --- 13:106039 --:------ 13:106039 3EF0 003 0000FF
+
+        # assert dev_id[:2] == "13"
+        payload = "007FFF" if mod_level is None else f"00{int(mod_level * 200):02X}FF"
+        return cls.packet(I_, _3EF0, payload, addr0=dev_id, addr2=dev_id, **kwargs)
+
     @classmethod  # constructor for 1F09 (rf_bind) 3-way handshake
     def put_bind(cls, verb, codes, src_id, idx="00", dst_id=None, **kwargs):
         """Constructor for RF bind commands (1FC9), for use by faked devices."""
@@ -759,6 +812,7 @@ class Command(PacketBase):
         )
 
     @classmethod  # constructor for I/0002
+    @validate_command()
     def put_outdoor_temp(cls, dev_id: str, temperature: float, **kwargs):
         """Constructor to announce the current temperature of an outdoor sensor (0002).
 
@@ -770,6 +824,7 @@ class Command(PacketBase):
         return cls.packet(I_, _0002, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
     @classmethod  # constructor for I/30C9
+    @validate_command()
     def put_sensor_temp(cls, dev_id: str, temperature: float, **kwargs):
         """Constructor to announce the current temperature of a thermostat (3C09).
 
@@ -781,42 +836,29 @@ class Command(PacketBase):
         payload = f"00{temp_to_hex(temperature)}"
         return cls.packet(I_, _30C9, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
-    @classmethod  # constructor for I/3EF0
-    def put_actuator_state(cls, dev_id: str, mod_level: float, **kwargs):
-        """Constructor to announce the modulation level of an actuator (3EF0).
-
-        This is for use by a faked BDR91A or similar.
-        """
-        #  I --- 13:049798 --:------ 13:049798 3EF0 003 00C8FF
-        #  I --- 13:106039 --:------ 13:106039 3EF0 003 0000FF
-
-        # assert dev_id[:2] == "13"
-        payload = "007FFF" if mod_level is None else f"00{int(mod_level * 200):02X}FF"
-        return cls.packet(I_, _3EF0, payload, addr0=dev_id, addr2=dev_id, **kwargs)
-
-    @classmethod  # constructor for RP/3EF1 (TODO: & I/3EF1?)
-    def put_actuator_cycle(
+    @classmethod  # constructor for W/0404
+    @validate_command(has_zone=True)
+    def put_schedule_fragment(
         cls,
-        src_id: str,
-        dst_id: str,
-        mod_level: float,
-        actuator_countdown: int,
-        cycle_countdown: int = None,
+        ctl_id: str,
+        zone_idx: Union[int, str],
+        frag_idx: int,
+        frag_cnt: int,
+        fragment: str,
         **kwargs,
     ):
-        """Constructor to announce the internal state of an actuator (3EF1).
+        """Constructor to put a zone schedule fragment (c.f. parser_0404).
 
-        This is for use by a faked BDR91A or similar.
+        Usually a zone, but will be the DHW schedule if zone_idx == 0xFA, 'FA', or 'HW'..
         """
-        # RP --- 13:049798 18:006402 --:------ 3EF1 007 00-0126-0126-00-FF
 
-        # assert dev_id[:2] == "13"
-        payload = f"00{actuator_countdown:04X}"
-        payload += f"{cycle_countdown:04X}" if cycle_countdown is not None else "7FFF"
-        payload += f"{int(mod_level * 200):02X}FF"
-        return cls.packet(RP, _3EF1, payload, addr0=src_id, addr1=dst_id, **kwargs)
+        header = "0023000800" if zone_idx == 0xFA else f"{zone_idx:02X}20000800"
+        frag_length = int(len(fragment) / 2)
 
-    @classmethod
+        payload = f"{header}{frag_length}{frag_idx + 1:02X}{frag_cnt:02X}"
+        return cls(W_, _0404, payload, ctl_id, **kwargs)
+
+    @classmethod  # constructor for internal use only
     def _puzzle(
         cls, msg_type="01", message=None, ordinal=0, interval=0, length=None, **kwargs
     ):
@@ -846,6 +888,8 @@ _COMMANDS = {
     f"{RQ}/{_000A}": Command.get_zone_config,
     f"{W_}/{_000A}": Command.set_zone_config,
     f"{RQ}/{_0100}": Command.get_system_language,
+    f"{RQ}/{_0404}": Command.get_schedule_fragment,
+    f"{W_}/{_0404}": Command.put_schedule_fragment,
     f"{RQ}/{_0418}": Command.get_system_log_entry,
     f"{RQ}/{_1030}": Command.get_mix_valve_params,
     f"{W_}/{_1030}": Command.set_mix_valve_params,
@@ -886,7 +930,7 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         self._fault_log_done = None
 
         self._START = 0x00  # max 0x3E
-        self._limit = 0x01  # TODO: make configurable,
+        self._limit = 0x06
 
     def __repr_(self) -> str:
         return json.dumps(self._fault_log) if self._fault_log_done else None
@@ -907,9 +951,14 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
 
         return {k: [x for x in v.values()] for k, v in result.items()}
 
-    async def get_fault_log(self, force_refresh=None) -> Optional[dict]:
+    async def get_fault_log(
+        self, start=0, limit=6, force_refresh=None
+    ) -> Optional[dict]:
         """Get the fault log of a system."""
         _LOGGER.debug("FaultLog(%s).get_fault_log()", self)
+
+        self._START = 0 if start is None else start
+        self._limit = 6 if limit is None else limit
 
         self._fault_log = {}  # TODO: = namedtuple("Fault", "timestamp fault_state ...")
         self._fault_log_done = None
@@ -961,258 +1010,3 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         self._gwy.send_cmd(
             Command.get_system_log_entry(self._ctl.id, log_idx, callback=rq_callback)
         )
-
-
-class Schedule:  # 0404
-    """The schedule of a zone."""
-
-    def __init__(self, zone, **kwargs) -> None:
-        _LOGGER.debug("Schedule(zone=%s).__init__()", zone.id)  # TODO: str(zone) breaks
-
-        self._loop = zone._gwy._loop
-
-        self.id = zone.id
-        self._zone = zone
-        self.idx = zone.idx
-
-        self._ctl = zone._ctl
-        self._evo = zone._evo
-        self._gwy = zone._gwy
-
-        self._schedule = None
-        self._schedule_done = None
-
-        # initialse the fragment array()
-        self._num_frags = None
-        self._rx_frags = None
-        self._tx_frags = None
-
-    def __repr_(self) -> str:
-        return json.dumps(self.schedule) if self._schedule_done else None
-
-    def __str_(self) -> str:
-        return f"{self._zone} (schedule)"
-
-    @property
-    def schedule(self) -> Optional[dict]:
-        """Return the schedule of a zone."""
-        if not self._schedule_done or None in self._rx_frags:
-            return
-        if self._schedule:
-            return self._schedule
-
-        if self._rx_frags[0][MSG].payload[FRAG_TOTAL] == 255:
-            return {}
-
-        frags = [v for d in self._rx_frags for k, v in d.items() if k == FRAGMENT]
-
-        try:
-            self._schedule = self._frags_to_sched(frags)
-        except zlib.error:
-            self._schedule = None
-            _LOGGER.exception("Invalid schedule fragments: %s", frags)
-            return
-
-        return self._schedule
-
-    async def get_schedule(self, force_refresh=None) -> Optional[dict]:
-        """Get the schedule of a zone."""
-        _LOGGER.debug(f"Schedule({self.id}).get_schedule()")
-
-        if not await self._obtain_lock():  # TODO: should raise a TimeOut
-            return
-
-        if force_refresh:
-            self._schedule_done = None
-
-        if not self._schedule_done:
-            self._rq_fragment(frag_cnt=0)  # calls loop.create_task()
-
-            time_start = dt.now()
-            while not self._schedule_done:
-                await asyncio.sleep(TIMER_SHORT_SLEEP)
-                if dt.now() > time_start + TIMER_LONG_TIMEOUT:
-                    self._release_lock()
-                    raise ExpiredCallbackError("failed to get schedule")
-
-        self._release_lock()
-
-        return self.schedule
-
-    def _rq_fragment(self, frag_cnt=0) -> None:
-        """Request the next missing fragment (index starts at 1, not 0)."""
-        _LOGGER.debug("Schedule(%s)._rq_fragment(%s)", self.id, frag_cnt)
-
-        def rq_callback(msg) -> None:
-            if not msg:  # _LOGGER.debug()... TODO: needs fleshing out
-                # TODO: remove any callbacks from msg._gwy.msg_transport._callbacks
-                _LOGGER.warning(f"Schedule({self.id}): Callback timed out")
-                self._schedule_done = True
-                return
-
-            _LOGGER.debug(
-                f"Schedule({self.id})._proc_fragment(msg), frag_idx=%s, frag_cnt=%s",
-                msg.payload.get(FRAG_INDEX),
-                msg.payload.get(FRAG_TOTAL),
-            )
-
-            if msg.payload[FRAG_TOTAL] == 255:  # no schedule (i.e. no zone)
-                _LOGGER.warning(f"Schedule({self.id}): No schedule")
-                # TODO: remove any callbacks from msg._gwy.msg_transport._callbacks
-                # self._rx_frags = [None]
-
-            elif msg.payload[FRAG_TOTAL] != len(self._rx_frags):  # e.g. 1st frag
-                self._rx_frags = [None] * msg.payload[FRAG_TOTAL]
-
-            self._rx_frags[msg.payload[FRAG_INDEX] - 1] = {
-                FRAGMENT: msg.payload[FRAGMENT],
-                MSG: msg,
-            }
-
-            # discard any fragments significantly older that this most recent fragment
-            for frag in [f for f in self._rx_frags if f is not None]:
-                frag = None if frag[MSG].dtm < msg.dtm - FIVE_MINS else frag
-
-            if None in self._rx_frags:  # there are still frags to get
-                self._rq_fragment(frag_cnt=msg.payload[FRAG_TOTAL])
-            else:
-                self._schedule_done = True
-
-        if frag_cnt == 0:
-            self._rx_frags = [None]  # and: frag_idx = 0
-
-        frag_idx = next((i for i, f in enumerate(self._rx_frags) if f is None), -1)
-
-        # 053 RQ --- 30:185469 01:037519 --:------ 0006 001 00
-        # 045 RP --- 01:037519 30:185469 --:------ 0006 004 000500E6
-
-        # 059 RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0100
-        # 045 RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0104 688...
-        # 059 RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0204
-        # 045 RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0204 4AE...
-        # 059 RQ --- 30:185469 01:037519 --:------ 0404 007 00-23000800 0304
-        # 046 RP --- 01:037519 30:185469 --:------ 0404 048 00-23000829 0304 6BE...
-
-        rq_callback = {FUNC: rq_callback, TIMEOUT: 1}
-        cmd = Command.get_zone_schedule_fragment(
-            self._ctl.id, self.idx, frag_idx, frag_cnt, callback=rq_callback
-        )
-        self._gwy.send_cmd(cmd)
-
-    @staticmethod
-    def _frags_to_sched(frags: list) -> dict:
-        # _LOGGER.debug(f"Sched({self})._frags_to_sched: array is: %s", frags)
-        raw_schedule = zlib.decompress(bytearray.fromhex("".join(frags)))
-
-        zone_idx, schedule = None, []
-        old_day, switchpoints = 0, []
-
-        for i in range(0, len(raw_schedule), 20):
-            zone_idx, day, time, temp, _ = struct.unpack(
-                "<xxxxBxxxBxxxHxxHH", raw_schedule[i : i + 20]
-            )
-            if day > old_day:
-                schedule.append({DAY_OF_WEEK: old_day, SWITCHPOINTS: switchpoints})
-                old_day, switchpoints = day, []
-            switchpoints.append(
-                {
-                    TIME_OF_DAY: "{0:02d}:{1:02d}".format(*divmod(time, 60)),
-                    HEAT_SETPOINT: temp / 100,
-                }
-            )
-
-        schedule.append({DAY_OF_WEEK: old_day, SWITCHPOINTS: switchpoints})
-
-        return {ZONE_IDX: f"{zone_idx:02X}", SCHEDULE: schedule}
-
-    @staticmethod
-    def _sched_to_frags(schedule: dict) -> list:
-        # _LOGGER.debug(f"Sched({self})._sched_to_frags: array is: %s", schedule)
-        frags = [
-            (
-                int(schedule[ZONE_IDX], 16),
-                int(week_day[DAY_OF_WEEK]),
-                int(setpoint[TIME_OF_DAY][:2]) * 60 + int(setpoint[TIME_OF_DAY][3:]),
-                int(setpoint[HEAT_SETPOINT] * 100),
-            )
-            for week_day in schedule[SCHEDULE]
-            for setpoint in week_day[SWITCHPOINTS]
-        ]
-        frags = [struct.pack("<xxxxBxxxBxxxHxxHxx", *s) for s in frags]
-
-        cobj = zlib.compressobj(level=9, wbits=14)
-        blob = b"".join(cobj.compress(s) for s in frags) + cobj.flush()
-        blob = blob.hex().upper()
-
-        return [blob[i : i + 82] for i in range(0, len(blob), 82)]
-
-    async def set_schedule(self, schedule) -> None:
-        """Set the schedule of a zone."""
-        _LOGGER.debug(f"Schedule({self.id}).set_schedule(schedule)")
-
-        if not await self._obtain_lock():  # TODO: should raise a TimeOut
-            return
-
-        self._schedule_done = None
-
-        self._tx_frags = self._sched_to_frags(schedule)
-        self._tx_fragment(frag_idx=0)
-
-        time_start = dt.now()
-        while not self._schedule_done:
-            await asyncio.sleep(TIMER_SHORT_SLEEP)
-            if dt.now() > time_start + TIMER_LONG_TIMEOUT:
-                self._release_lock()
-                raise ExpiredCallbackError("failed to set schedule")
-
-        self._release_lock()
-
-    def _tx_fragment(self, frag_idx=0) -> None:
-        """Send the next fragment (index starts at 0)."""
-        _LOGGER.debug(
-            "Schedule(%s)._tx_fragment(%s/%s)", self.id, frag_idx, len(self._tx_frags)
-        )
-
-        def tx_callback(msg) -> None:
-            _LOGGER.debug(
-                f"Schedule({self.id})._proc_fragment(msg), frag_idx=%s, frag_cnt=%s",
-                msg.payload.get(FRAG_INDEX),
-                msg.payload.get(FRAG_TOTAL),
-            )
-
-            if msg.payload[FRAG_INDEX] < msg.payload[FRAG_TOTAL]:
-                self._tx_fragment(frag_idx=msg.payload.get(FRAG_INDEX))
-            else:
-                self._schedule_done = True
-
-        payload = "{0}200008{1:02X}{2:02d}{3:02d}{4:s}".format(
-            self.idx,
-            int(len(self._tx_frags[frag_idx]) / 2),
-            frag_idx + 1,
-            len(self._tx_frags),
-            self._tx_frags[frag_idx],
-        )
-        tx_callback = {FUNC: tx_callback, TIMEOUT: 3}  # 1 sec too low
-        self._gwy.send_cmd(
-            Command(W_, _0404, payload, self._ctl.id, callback=tx_callback)
-        )
-
-    async def _obtain_lock(self) -> bool:  # Lock to prevent Rx/Tx at same time
-        while True:
-
-            self._evo.zone_lock.acquire()
-            if self._evo.zone_lock_idx is None:
-                self._evo.zone_lock_idx = self.idx
-            self._evo.zone_lock.release()
-
-            if self._evo.zone_lock_idx == self.idx:
-                break
-
-            await asyncio.sleep(0.1)  # gives the other zone enough time
-
-        return True
-
-    def _release_lock(self) -> None:
-        self._evo.zone_lock.acquire()
-        self._evo.zone_lock_idx = None
-        self._evo.zone_lock.release()
