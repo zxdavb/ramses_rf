@@ -12,10 +12,8 @@ from datetime import timedelta as td
 from typing import ByteString, Optional, Tuple
 
 from .address import pkt_addrs
-from .const import DONT_CREATE_ENTITIES, MESSAGE_REGEX
-
-# from .devices import Device  # TODO: fix cyclic reference
-from .exceptions import CorruptAddrSetError, CorruptPacketError, CorruptStateError
+from .const import MESSAGE_REGEX
+from .exceptions import CorruptAddrSetError, CorruptPacketError
 from .frame import PacketBase
 from .logger import getLogger
 from .ramses import EXPIRES, RAMSES_CODES
@@ -303,72 +301,3 @@ def pkt_timeout(pkt) -> Optional[float]:  # NOTE: import OtbGateway ??
         timeout = RAMSES_CODES[pkt.code].get(EXPIRES)
 
     return timeout or td(minutes=60)
-
-
-def OUT_create_devices(this: Packet) -> None:
-    """Discover and create any new devices."""
-    from .devices import Device  # TODO: remove this
-
-    if this.src.type in ("01", "23") and this.src is not this.dst:  # TODO: all CTLs
-        this.src = this._gwy._get_device(this.src, ctl_addr=this.src)
-        ctl_addr = this.src if this._gwy.config.enable_eavesdrop else None
-        this._gwy._get_device(this.dst, ctl_addr=ctl_addr)
-
-    elif this.dst.type in ("01", "23") and this.src is not this.dst:  # all CTLs
-        this.dst = this._gwy._get_device(this.dst, ctl_addr=this.dst)
-        ctl_addr = this.dst if this._gwy.config.enable_eavesdrop else None
-        this._gwy._get_device(this.src, ctl_addr=ctl_addr)
-
-    # this should catch all non-controller (and *some* controller) devices
-    elif this.src is this.dst:
-        this._gwy._get_device(this.src)
-
-    # otherwise one will be a controller, *unless* dst is in ("--", "63")
-    elif isinstance(this.src, Device) and this.src._is_controller:
-        this._gwy._get_device(this.dst, ctl_addr=this.src)
-
-    # TODO: may create a controller that doesn't exist
-    elif isinstance(this.dst, Device) and this.dst._is_controller:
-        this._gwy._get_device(this.src, ctl_addr=this.dst)
-
-    else:
-        # beware:  I --- --:------ --:------ 10:078099 1FD4 003 00F079
-        [this._gwy._get_device(d) for d in (this.src, this.dst)]
-
-    # where possible, swap each Address for its corresponding Device
-    this.src = this._gwy.device_by_id.get(this.src.id, this.src)
-    if this.dst is not None:
-        this.dst = this._gwy.device_by_id.get(this.dst.id, this.dst)
-
-
-def OUT_process_pkt(pkt: Packet) -> Optional[bool]:
-    """Process the (valid) packet's metadata (but dont process the payload)."""
-
-    if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
-        _LOGGER.info(pkt)
-
-    if not pkt.is_valid or pkt._gwy.config.reduce_processing >= DONT_CREATE_ENTITIES:
-        return False
-
-    try:  # process the packet meta-data
-        # TODO: This will need to be removed for HGI80-impersonation
-        if pkt.src.type != "18":  # 18:/RQs are unreliable, but corresponding RPs?
-            OUT_create_devices(pkt)  # from pkt header & from pkt payload (e.g. 000C)
-
-    except (AssertionError, NotImplementedError) as err:
-        (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
-            "%s << %s", pkt._pkt, f"{err.__class__.__name__}({err})"
-        )
-        return False  # NOTE: use raise only when debugging
-
-    except (AttributeError, LookupError, TypeError, ValueError) as err:
-        (_LOGGER.exception if DEV_MODE else _LOGGER.error)(
-            "%s << %s", pkt._pkt, f"{err.__class__.__name__}({err})"
-        )
-        return False  # NOTE: use raise only when debugging
-
-    except CorruptStateError as err:  # TODO: add CorruptPacketError
-        (_LOGGER.exception if DEV_MODE else _LOGGER.error)("%s << %s", pkt._pkt, err)
-        return False  # TODO: bad pkt, or Schema
-
-    pkt._gwy._prev_pkt = pkt

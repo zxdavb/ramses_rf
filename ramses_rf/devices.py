@@ -246,13 +246,7 @@ class DeviceBase(Entity):
             elif self._iz_controller is False:  # TODO: raise CorruptStateError
                 _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (01): was FALSE, now True")
 
-    def _make_fake(self, *args, **kwargs) -> None:
-        _LOGGER.error("Device %s: This device type does not support faking", self)
-
-    def _bind(self, *args, **kwargs):
-        _LOGGER.error("Device %s: This device type does not support binding", self)
-
-    # Bind process: BDR relay set to listen, CTL initiates handshake
+    # Bind waiting process: BDR relay set to listen, CTL initiates handshake
     # 19:30:44.749 051  I --- 01:054173 --:------ 01:054173 1FC9 024 FC-0008-04D39D FC-3150-04D39D FB-3150-04D39D FC-1FC9-04D39D
     # 19:30:45.342 053  W --- 13:049798 01:054173 --:------ 1FC9 012 00-3EF0-34C286 00-3B00-34C286
     # 19:30:45.504 049  I --- 01:054173 13:049798 --:------ 1FC9 006 00-FFFF-04D39D
@@ -268,7 +262,7 @@ class DeviceBase(Entity):
                 return
             self._1fc9_state == "confirm"
 
-            # self._gwy._get_device(self, ctl_addr=id_to_address(msg.payload[0][2]))
+            # self._gwy._get_device(self, ctl_id=msg.payload[0][2])
             # self._ctl._evo._get_zone(msg.payload[0][0])._set_sensor(self)
             if callback:
                 callback()
@@ -297,12 +291,12 @@ class DeviceBase(Entity):
             f"{_1FC9}|{I_}|{NUL_DEVICE_ID}", {FUNC: bind_respond, TIMEOUT: 300}
         )
 
-    # Bind process: CTL set to listen, STA initiates handshake (note 3C09/2309)
+    # Bind request process: CTL set to listen, STA initiates handshake (note 3C09/2309)
     # 22:13:52.527 070  I --- 34:021943 --:------ 34:021943 1FC9 024 00-3C09-8855B7 00-30C9-8855B7 00-0008-8855B7 00-1FC9-8855B7
     # 22:13:52.540 052  W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E
     # 22:13:52.572 071  I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
 
-    # Bind process: CTL set to listen, DHW sensor initiates handshake
+    # Bind request process: CTL set to listen, DHW sensor initiates handshake
     # 19:45:16.733 045  I --- 07:045960 --:------ 07:045960 1FC9 012 00-1260-1CB388 00-1FC9-1CB388
     # 19:45:16.896 045  W --- 01:054173 07:045960 --:------ 1FC9 006 00-10A0-04D39D
     # 19:45:16.919 045  I --- 07:045960 01:054173 --:------ 1FC9 006 00-1260-1CB388
@@ -361,7 +355,7 @@ class DeviceBase(Entity):
         return {
             **(self._codes if DEV_MODE else {}),
             ATTR_ALIAS: self._alias,
-            ATTR_FAKED: self._faked,
+            # ATTR_FAKED: self._faked,
             ATTR_CLASS: self._class,
         }
 
@@ -372,6 +366,122 @@ class DeviceBase(Entity):
     @property
     def status(self):
         return {}
+
+
+class DeviceInfo:  # 10E0
+
+    RF_BIND = "rf_bind"
+    DEVICE_INFO = "device_info"
+
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        if discover_flag & DISCOVER_SCHEMA and self.type not in DEVICE_HAS_BATTERY:
+            self._send_cmd(_1FC9, retries=3)  # rf_bind
+            if self.type != "13":
+                self._send_cmd(_10E0, retries=3)  # TODO: use device hints
+
+    @property
+    def device_info(self) -> Optional[dict]:  # 10E0
+        return self._msg_value(_10E0)
+
+    @property
+    def schema(self) -> dict:
+        result = super().schema
+        # result.update({self.RF_BIND: self._msg_value(_1FC9)})
+        if _10E0 in self._msgs or _10E0 in RAMSES_DEVICES.get(self.type, []):
+            result.update({self.DEVICE_INFO: self.device_info})
+        return result
+
+
+class Device(DeviceInfo, DeviceBase):
+    """The Device base class - also used for unknown device types."""
+
+    _class = DEVICE_CLASS.GEN
+    DEVICE_TYPES = tuple()
+
+    def _handle_msg(self, msg) -> None:
+        super()._handle_msg(msg)
+
+        if type(self) is Device and self.type == "30":  # self.__class__ is Device
+            # TODO: the RFG codes need checking
+            if msg.code in (_31D9, _31DA, _31E0) and msg.verb in (I_, RP):
+                self.__class__ = FanDevice
+            elif msg.code in (_0006, _0418, _3220) and msg.verb == RQ:
+                self.__class__ = RFGateway
+            elif msg.code in (_313F,) and msg.verb == W_:
+                self.__class__ = RFGateway
+
+        if not msg._gwy.config.enable_eavesdrop:
+            return
+
+        if self._ctl is not None and "zone_idx" in msg.payload:
+            # TODO: is buggy - remove? how?
+            self._set_parent(self._ctl._evo._get_zone(msg.payload["zone_idx"]))
+
+    def _set_parent(self, parent, domain=None) -> None:  # self._parent
+        """Set the device's parent zone, after validating it.
+
+        There are three possible sources for the parent zone of a device:
+        1. a 000C packet (from their controller) for actuators only
+        2. a message.payload["zone_idx"]
+        3. the sensor-matching algorithm for zone sensors only
+
+        Devices don't have parents, rather: Zones have children; a mis-configured
+        system could have a device as a child of two domains.
+        """
+
+        # NOTE: these imports are here to prevent circular references
+        from .systems import System
+        from .zones import DhwZone, Zone
+
+        if self._parent is not None and self._parent is not parent:
+            raise CorruptStateError(
+                f"{self} changed parent: {self._parent} to {parent}, "
+            )
+
+        if isinstance(parent, Zone):
+            if domain and domain != parent.idx:
+                raise TypeError(f"{self}: domain must be {parent.idx}, not {domain}")
+            domain = parent.idx
+
+        elif isinstance(parent, DhwZone):  # usu. FA
+            if domain not in ("F9", "FA"):  # may not be known if eavesdrop'd
+                raise TypeError(f"{self}: domain must be F9 or FA, not {domain}")
+
+        elif isinstance(parent, System):  # usu. FC
+            if domain != "FC":  # was: not in ("F9", "FA", "FC", "HW"):
+                raise TypeError(f"{self}: domain must be FC, not {domain}")
+
+        else:
+            raise TypeError(f"{self}: parent must be System, DHW or Zone, not {parent}")
+
+        self._set_ctl(parent._ctl)
+        self._parent = parent
+        self._domain_id = domain
+
+        if hasattr(parent, "devices") and self not in parent.devices:
+            parent.devices.append(self)
+            parent.device_by_id[self.id] = self
+        _LOGGER.debug("Device %s: parent now set to %s", self, parent)
+
+    @property
+    def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
+        """Return the device's parent zone, if known."""
+
+        return self._parent
+
+    @property
+    def has_battery(self) -> Optional[bool]:  # 1060
+        """Return True if a device is battery powered (excludes battery-backup)."""
+
+        return _1060 in self._msgz
+
+    @property
+    def schema(self) -> dict:
+        """Return the fixed attributes of the device (e.g. TODO)."""
+
+        return {
+            **super().schema,
+        }
 
 
 class Actuator:  # 3EF0, 3EF1
@@ -474,7 +584,33 @@ class Setpoint:  # 2309
         }
 
 
-class Weather:  # 0002 (fakeable)
+class Fakeable:
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self._faked = None
+
+    def _bind(self):
+        if not self._faked:
+            raise RuntimeError(f"Can't bind {self} (Faking is not enabled)")
+
+    def _make_fake(self, bind=None) -> Device:
+        # self._gwy._include[self.id] = {ATTR_FAKED: True}
+        self._faked = True
+        if bind:
+            self._bind()
+        _LOGGER.warning(f"Faking now enabled for {self}")  # TODO: should be info/debug
+        return self
+
+    @property
+    def schema(self) -> dict:
+        return {
+            **super().schema,
+            ATTR_FAKED: self._faked,
+        }
+
+
+class Weather(Fakeable):  # 0002 (fakeable)
 
     TEMPERATURE = ATTR_TEMP  # degrees Celsius
 
@@ -483,20 +619,13 @@ class Weather:  # 0002 (fakeable)
 
         self._faked = kwargs.get("fake_0002") or self.id == "17:123456"
 
-    def _make_fake(self, bind=None):
-        self._faked = True
-        if bind:
-            self._bind()
-        _LOGGER.error("%s: Faking now enabled", self)  # TODO: should be info/debug
-
     def _bind(self):
-        # A contrived (but proven viable) packet log
+        # A contrived (but proven viable) packet log...
         #  I --- 17:145039 --:------ 17:145039 1FC9 012 00-0002-46368F 00-1FC9-46368F
         #  W --- 01:054173 17:145039 --:------ 1FC9 006 03-2309-04D39D  # real CTL
         #  I --- 17:145039 01:054173 --:------ 1FC9 006 00-0002-46368F
 
-        if not self._faked:
-            raise TypeError("Can't bind sensor (Faking is not enabled)")
+        super()._bind()
         self._bind_request(_0002)
 
     @property
@@ -506,7 +635,7 @@ class Weather:  # 0002 (fakeable)
     @temperature.setter
     def temperature(self, value) -> None:  # 0002
         if not self._faked:
-            raise AttributeError("Can't set attribute (Faking is not enabled)")
+            raise RuntimeError(f"Can't set value for {self} (Faking is not enabled)")
 
         cmd = Command.put_outdoor_temp(self.id, value)
         # cmd = Command.put_zone_temp(
@@ -522,7 +651,7 @@ class Weather:  # 0002 (fakeable)
         }
 
 
-class Temperature:  # 30C9 (fakeable)
+class Temperature(Fakeable):  # 30C9 (fakeable)
 
     TEMPERATURE = ATTR_TEMP  # degrees Celsius
 
@@ -533,16 +662,14 @@ class Temperature:  # 30C9 (fakeable)
         if kwargs.get("fake_30C9") or self.id[3:] == "123456":
             self._make_fake()
 
-    def _make_fake(self, bind=None):
-        # A contrived (but proven viable) packet log ? offer should include 2309?
+    def _bind(self):
+        # A contrived (but proven viable) packet log... offer should include 2309?
         #  I --- 34:145039 --:------ 34:145039 1FC9 012 00-30C9-8A368F 00-1FC9-8A368F
         #  W --- 01:054173 34:145039 --:------ 1FC9 006 03-2309-04D39D  # real CTL
         #  I --- 34:145039 01:054173 --:------ 1FC9 006 00-30C9-8A368F
 
-        self._faked = True
-        _LOGGER.error("%s: Faking now enabled", self)  # TODO: should be info/debug
-        if bind:
-            self._bind_request(_30C9)
+        super()._bind()
+        self._bind_request(_30C9)
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
@@ -551,7 +678,7 @@ class Temperature:  # 30C9 (fakeable)
     @temperature.setter
     def temperature(self, value) -> None:  # 30C9
         if not self._faked:
-            raise AttributeError("Can't set attribute (Faking is not enabled)")
+            raise RuntimeError(f"Can't set value for {self} (Faking is not enabled)")
 
         cmd = Command.put_zone_temp(self.id, value)
         # cmd = Command.put_zone_temp(
@@ -567,31 +694,7 @@ class Temperature:  # 30C9 (fakeable)
         }
 
 
-class DeviceInfo:  # 10E0
-
-    RF_BIND = "rf_bind"
-    DEVICE_INFO = "device_info"
-
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        if discover_flag & DISCOVER_SCHEMA and self.type not in DEVICE_HAS_BATTERY:
-            self._send_cmd(_1FC9, retries=3)  # rf_bind
-            if self.type != "13":
-                self._send_cmd(_10E0, retries=3)  # TODO: use device hints
-
-    @property
-    def device_info(self) -> Optional[dict]:  # 10E0
-        return self._msg_value(_10E0)
-
-    @property
-    def schema(self) -> dict:
-        result = super().schema
-        # result.update({self.RF_BIND: self._msg_value(_1FC9)})
-        if _10E0 in self._msgs or _10E0 in RAMSES_DEVICES.get(self.type, []):
-            result.update({self.DEVICE_INFO: self.device_info})
-        return result
-
-
-class RelayDemand:  # 0008 (fakeable)
+class RelayDemand(Fakeable):  # 0008 (fakeable)
 
     RELAY_DEMAND = ATTR_RELAY_DEMAND  # percentage (0.0-1.0)
 
@@ -650,20 +753,13 @@ class RelayDemand:  # 0008 (fakeable)
         else:
             raise
 
-    def _make_fake(self, bind=None):
-        self._faked = True
-        if bind:
-            self._bind()
-        _LOGGER.error("%s: Faking now enabled", self)  # TODO: should be info/debug
-
     def _bind(self):
-        # A contrived (but proven viable) packet log
+        # A contrived (but proven viable) packet log...
         #  I --- 01:054173 --:------ 01:054173 1FC9 018 03-0008-04D39D FC-3B00-04D39D 03-1FC9-04D39D
         #  W --- 13:123456 01:054173 --:------ 1FC9 006 00-3EF0-35E240
         #  I --- 01:054173 13:123456 --:------ 1FC9 006 00-FFFF-04D39D
 
-        if not self._faked:
-            raise TypeError("Can't bind sensor (Faking is not enabled)")
+        super()._bind()
         self._bind_waiting(_3EF0)
 
     @property
@@ -675,98 +771,6 @@ class RelayDemand:  # 0008 (fakeable)
         return {
             **super().status,
             self.RELAY_DEMAND: self.relay_demand,
-        }
-
-
-class Device(DeviceInfo, DeviceBase):
-    """The Device base class - also used for unknown device types."""
-
-    _class = DEVICE_CLASS.GEN
-    DEVICE_TYPES = tuple()
-
-    def _handle_msg(self, msg) -> None:
-        super()._handle_msg(msg)
-
-        if type(self) is Device and self.type == "30":  # self.__class__ is Device
-            # TODO: the RFG codes need checking
-            if msg.code in (_31D9, _31DA, _31E0) and msg.verb in (I_, RP):
-                self.__class__ = FanDevice
-            elif msg.code in (_0006, _0418, _3220) and msg.verb == RQ:
-                self.__class__ = RFGateway
-            elif msg.code in (_313F,) and msg.verb == W_:
-                self.__class__ = RFGateway
-
-        if not msg._gwy.config.enable_eavesdrop:
-            return
-
-        if self._ctl is not None and "zone_idx" in msg.payload:
-            # TODO: is buggy - remove? how?
-            self._set_parent(self._ctl._evo._get_zone(msg.payload["zone_idx"]))
-
-    def _set_parent(self, parent, domain=None) -> None:  # self._parent
-        """Set the device's parent zone, after validating it.
-
-        There are three possible sources for the parent zone of a device:
-        1. a 000C packet (from their controller) for actuators only
-        2. a message.payload["zone_idx"]
-        3. the sensor-matching algorithm for zone sensors only
-
-        Devices don't have parents, rather: Zones have children; a mis-configured
-        system could have a device as a child of two domains.
-        """
-
-        # NOTE: these imports are here to prevent circular references
-        from .systems import System
-        from .zones import DhwZone, Zone
-
-        if self._parent is not None and self._parent is not parent:
-            raise CorruptStateError(
-                f"{self} changed parent: {self._parent} to {parent}, "
-            )
-
-        if isinstance(parent, Zone):
-            if domain and domain != parent.idx:
-                raise TypeError(f"{self}: domain must be {parent.idx}, not {domain}")
-            domain = parent.idx
-
-        elif isinstance(parent, DhwZone):  # usu. FA
-            if domain not in ("F9", "FA"):  # may not be known if eavesdrop'd
-                raise TypeError(f"{self}: domain must be F9 or FA, not {domain}")
-
-        elif isinstance(parent, System):  # usu. FC
-            if domain != "FC":  # was: not in ("F9", "FA", "FC", "HW"):
-                raise TypeError(f"{self}: domain must be FC, not {domain}")
-
-        else:
-            raise TypeError(f"{self}: parent must be System, DHW or Zone, not {parent}")
-
-        self._set_ctl(parent._ctl)
-        self._parent = parent
-        self._domain_id = domain
-
-        if hasattr(parent, "devices") and self not in parent.devices:
-            parent.devices.append(self)
-            parent.device_by_id[self.id] = self
-        _LOGGER.debug("Device %s: parent now set to %s", self, parent)
-
-    @property
-    def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
-        """Return the device's parent zone, if known."""
-
-        return self._parent
-
-    @property
-    def has_battery(self) -> Optional[bool]:  # 1060
-        """Return True if a device is battery powered (excludes battery-backup)."""
-
-        return _1060 in self._msgz
-
-    @property
-    def schema(self) -> dict:
-        """Return the fixed attributes of the device (e.g. TODO)."""
-
-        return {
-            **super().schema,
         }
 
 
@@ -827,7 +831,7 @@ class HGInterface(DeviceBase):  # HGI (18:), was GWY
             self.devices.remove(dev)
             dev = None
 
-        dev = self._get_device(id_to_address(device_id))
+        dev = self._get_device(device_id)
         dev._make_fake(bind=True)
         return dev
 
@@ -1683,8 +1687,10 @@ DEVICE_BY_ID_TYPE = {
 }  # e.g. "01": Controller,
 
 
-def _create_device(gwy, dev_addr, dev_class=None, **kwargs) -> Device:
+def _create_device(gwy, dev_id, dev_class=None, **kwargs) -> Device:
     """Create a device, and optionally perform discovery & start polling."""
+
+    dev_addr = id_to_address(dev_id)
 
     if dev_class is None:
         if dev_addr.type != "30":  # could be RFG or VNT
@@ -1699,46 +1705,4 @@ def _create_device(gwy, dev_addr, dev_class=None, **kwargs) -> Device:
         schedule_task(device._discover, discover_flag=DISCOVER_PARAMS, delay=14)
         schedule_task(device._discover, discover_flag=DISCOVER_STATUS, delay=15)
 
-    return device
-
-
-def OUT_create_device(gwy, dev_addr, ctl_addr=None, domain_id=None, **kwargs) -> Device:
-
-    if dev_addr.type in ("18", "--") or dev_addr.id in (
-        NUL_DEVICE_ID,
-        "01:000001",
-    ):
-        return  # not valid device types/real devices
-
-    if ctl_addr is not None:
-        ctl = gwy.device_by_id.get(ctl_addr.id)
-        # if ctl is None:
-        #     ctl = create_device(ctl_addr, domain_id="FF", **kwargs)
-
-    dev = gwy.device_by_id.get(dev_addr.id)
-    if dev is None:  # TODO: take into account device filter?
-        dev = _create_device(gwy, dev_addr)
-
-    # if dev.type == "01" and dev._is_controller and dev._evo is None:
-    #     dev._evo = create_system(gwy, dev, profile=kwargs.get("profile"))
-
-    # update the existing device with any metadata TODO: this is messy
-    if ctl_addr and ctl:
-        dev._set_ctl(ctl)
-    if domain_id in ("F9", "FA", "FC", "FF"):
-        dev._domain_id = domain_id
-    elif domain_id is not None and ctl_addr and ctl:
-        dev._set_parent(ctl._evo._get_zone(domain_id))
-
-    return dev
-
-
-def create_fake_device(gwy, device_id, device_type=None, bind=None) -> Device:
-    """Create, a faked device and optionally bind it to a controller."""
-    dev_type = device_type or _DEV_TYPE_TO_CLASS[device_id[:2]]
-    if dev_type not in (DEVICE_CLASS.BDR, DEVICE_CLASS.EXT, DEVICE_CLASS.STA):
-        raise TypeError
-    dev_addr = id_to_address(device_id)
-    device = _create_device(dev_addr, dev_type=dev_type)
-    device._make_fake(bind=bind)
     return device

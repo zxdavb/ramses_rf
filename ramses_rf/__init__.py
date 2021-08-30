@@ -20,9 +20,9 @@ from queue import Empty
 from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
 
-from .address import NUL_DEV_ADDR, create_dev_id, id_to_address, is_valid_dev_id
+from .address import is_valid_dev_id
 from .command import Command
-from .const import ATTR_DEVICES, ATTR_ORPHANS, DONT_CREATE_MESSAGES
+from .const import ATTR_DEVICES, ATTR_ORPHANS, DONT_CREATE_MESSAGES, NUL_DEVICE_ID
 from .devices import Device, _create_device
 from .logger import set_logger_timesource, set_pkt_logging
 from .message import Message, process_msg
@@ -179,7 +179,7 @@ class Gateway:
 
         await asyncio.gather(*self._tasks)
 
-    def _get_device(self, dev_addr, ctl_addr=None, domain_id=None, **kwargs) -> Device:
+    def _get_device(self, dev_id, ctl_id=None, domain_id=None, **kwargs) -> Device:
         """Return a device (will create it if required).
 
         NB: a device can be safely considered bound to a controller only if the
@@ -192,35 +192,32 @@ class Gateway:
 
         # TODO: only create controller if it is confirmed by an RP
 
-        if dev_addr.type in ("18", "--") or dev_addr.id in (
-            NUL_DEV_ADDR.id,
-            "01:000001",
-        ):
+        if dev_id[:2] in ("18", "--") or dev_id in (NUL_DEVICE_ID, "01:000001"):
             return  # not valid device types/real devices
 
         # These two are because Pkt.Transport.is_wanted() may still let some through
-        if self._include and dev_addr.id not in self._include:
+        if self._include and dev_id not in self._include:
             _LOGGER.warning(
-                f"Ignoring a non-allowed device_id: {dev_addr.id}"
+                f"Ignoring a non-allowed device_id: {dev_id}"
                 f" (if required, add it to the {ALLOW_LIST})"
             )
             return
 
-        if dev_addr.id in self._exclude:
+        if dev_id in self._exclude:
             _LOGGER.warning(
-                f"Ignoring a blocked device_id: {dev_addr.id}"
+                f"Ignoring a blocked device_id: {dev_id}"
                 f" (if required, remove it from the {BLOCK_LIST})"
             )
             return
 
-        if ctl_addr is not None:
-            ctl = self.device_by_id.get(ctl_addr.id)
+        if ctl_id is not None:
+            ctl = self.device_by_id.get(ctl_id)
             if ctl is None:
-                ctl = self._get_device(ctl_addr, domain_id="FF", **kwargs)
+                ctl = self._get_device(ctl_id, domain_id="FF", **kwargs)
 
-        dev = self.device_by_id.get(dev_addr.id)
+        dev = self.device_by_id.get(dev_id)
         if dev is None:  # TODO: take into account device filter?
-            dev = _create_device(self, dev_addr)
+            dev = _create_device(self, dev_id)
 
         if dev.type == "01" and dev._is_controller and dev._evo is None:
             dev._evo = create_system(self, dev, profile=kwargs.get("profile"))
@@ -229,11 +226,11 @@ class Gateway:
             self.hgi = dev
 
         # update the existing device with any metadata TODO: this is messy
-        if ctl_addr and ctl:
+        if ctl_id and ctl:
             dev._set_ctl(ctl)
         if domain_id in ("F9", "FA", "FC", "FF"):
             dev._domain_id = domain_id
-        elif domain_id is not None and ctl_addr and ctl:
+        elif domain_id is not None and ctl_id and ctl:
             dev._set_parent(ctl._evo._get_zone(domain_id))
 
         return dev
@@ -373,7 +370,7 @@ class Gateway:
         """Create a client protocol for the RAMSES-II message transport."""
         return create_msg_stack(self, msg_handler)
 
-    def make_cmd(self, verb, device_id, code, payload, **kwargs) -> Command:
+    def create_cmd(self, verb, device_id, code, payload, **kwargs) -> Command:
         """Make a command addressed to device_id."""
         try:
             return Command(verb, code, payload, device_id)
@@ -384,7 +381,7 @@ class Gateway:
             TypeError,
             ValueError,
         ) as exc:
-            _LOGGER.warning(f"make_cmd(): {exc}")
+            _LOGGER.warning(f"create_cmd(): {exc}")
 
     def send_cmd(self, cmd: Command, callback: Callable = None, **kwargs) -> None:
         """Send a command with the option to return any response via callback.
@@ -430,58 +427,29 @@ class Gateway:
             print(f"The coroutine returned: {result!r}")
             return result
 
-    def _bind_fake_sensor(self, sensor_id=None) -> Device:
-        """Bind a faked temperature sensor to a controller (i.e. a controller's zone).
+    def create_faked_device(self, device_id, bind=False) -> Device:
+        """Create a faked device, and optionally set it to binding mode.
 
-        If required, will create a faked TR87RF.
+        Will make any neccesary changed to the device lists.
         """
 
-        DEV_TYPE = "03"  # NOTE: named like a 03:, but behaves like a 34:
+        if not is_valid_dev_id(device_id):
+            raise TypeError(f"The device id is not valid: {device_id}")
 
-        if sensor_id is None:
-            sensor_id = create_dev_id(
-                DEV_TYPE, [d.id for d in self.devices if d.type == DEV_TYPE]
-            )
-        elif not is_valid_dev_id(sensor_id, dev_type=DEV_TYPE):
-            raise TypeError("The sensor id is not valid")
+        if device_id in self.device_by_id:  # TODO: what about using the HGI
+            raise TypeError(f"The device already exists: {device_id}")
 
-        # if sensor_id in self.device_by_id:  # TODO: what about using the HGI
-        #     ???
+        if self.config.enforce_allow_list and device_id not in self._include:
+            self._include[device_id] = {}
+        elif self.config.enforce_block_list and device_id not in self._exclude:
+            del self._exclude[device_id]
 
-        sensor = self._get_device(id_to_address(sensor_id))
-        sensor._make_fake()  # promote to a fake device, ?or in init (if dev_type)
-        sensor._bind()
-        # sensor.temperature = 19.5  # XXX: for testing
+        return self._get_device(device_id)._make_fake(bind=bind)  # .temperature = 19.5
 
-    # TODO: def _bind_fake_relay(self, relay_id=None) -> Device:
-    #     """Bind a faked relay to a controller.
+    def bind_faked_device(self, device_id) -> Device:
+        """Set a faked device to binding mode."""
 
-    #     If required, will create a faked BDR91A.
-    #     """
+        if device_id not in self.device_by_id:  # TODO: what about using the HGI
+            raise TypeError(f"The device does not exist: {device_id}")
 
-    def create_fake_outdoor_sensor(self, device_id=None) -> Device:
-        """Create/bind a faked weather sensor to a controller.
-
-        If no device_id is provided, the RF gateway is used.
-        """
-        return self.hgi.create_fake_ext(device_id=device_id)
-
-    def create_fake_relay(self, device_id=None) -> Device:
-        """Create/bind a faked relay to a controller (i.e. to a domain/zone).
-
-        If no device_id is provided, the RF gateway is used.
-        """
-        return self.hgi.create_fake_bdr(device_id=device_id)
-
-    def create_fake_zone_sensor(self, device_id=None) -> Device:
-        """Create/bind a faked thermostat to a controller's zone.
-
-        If no device_id is provided, the RF gateway is used.
-        """
-        return self.hgi.create_fake_thm(device_id=device_id)
-
-    # def create_fake_device(self, device_id, device_type=None, bind=None) -> Device:
-    #     """Create, a faked device and optionally bind it to a controller."""
-    #     return create_fake_device(
-    #         self, device_id, device_type=device_type, bind=bind
-    #     )
+        return self.device_by_id[device_id]._bind()

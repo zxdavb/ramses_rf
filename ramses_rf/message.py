@@ -395,13 +395,13 @@ def _create_devices(this: Message) -> None:
 
     if this.src.type in ("01", "23") and this.src is not this.dst:  # TODO: all CTLs
         this.src = _get_device(this._gwy, this.src.id, ctl_id=this.src.id)
-        ctl_addr = this.src.id if this._gwy.config.enable_eavesdrop else None
-        _get_device(this._gwy, this.dst.id, ctl_id=ctl_addr)
+        ctl_id = this.src.id if this._gwy.config.enable_eavesdrop else None
+        _get_device(this._gwy, this.dst.id, ctl_id=ctl_id)
 
     elif this.dst.type in ("01", "23") and this.src is not this.dst:  # all CTLs
         this.dst = _get_device(this._gwy, this.dst.id, ctl_id=this.dst.id)
-        ctl_addr = this.dst.id if this._gwy.config.enable_eavesdrop else None
-        _get_device(this._gwy, this.src.id, ctl_id=ctl_addr)
+        ctl_id = this.dst.id if this._gwy.config.enable_eavesdrop else None
+        _get_device(this._gwy, this.src.id, ctl_id=ctl_id)
 
     # this should catch all non-controller (and *some* controller) devices
     elif this.src is this.dst:

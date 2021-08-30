@@ -17,13 +17,11 @@ from .const import DEVICE_TYPES, NON_DEVICE_ID, NUL_DEVICE_ID
 
 def _get_device(gwy, dev_id, ctl_id=None, **kwargs) -> Optional[Any]:  # -> Device:
     """A TEMPORARY wrapper to permit deprecating using addresses rather than IDs."""
-    from .address import id_to_address  # TODO: remove need for this
 
     if "dev_addr" in kwargs or "ctl_addr" in kwargs:
         raise RuntimeError
 
-    ctl_id = ctl_id if ctl_id is None else id_to_address(ctl_id)
-    return gwy._get_device(id_to_address(dev_id), ctl_addr=ctl_id, **kwargs)
+    return gwy._get_device(dev_id, ctl_id=ctl_id, **kwargs)
 
 
 class FILETIME(ctypes.Structure):

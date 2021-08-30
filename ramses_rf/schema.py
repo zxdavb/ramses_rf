@@ -334,7 +334,9 @@ def update_config(config, allow_list, block_list) -> dict:
 
 def _get_device(gwy, dev_id, ctl_id=None, **kwargs) -> Optional[Any]:  # -> Device:
     """A wrapper to enforce device filters."""
-    from .address import id_to_address  # TODO: remove need for this
+
+    if "dev_addr" in kwargs or "ctl_addr" in kwargs:
+        raise RuntimeError
 
     if gwy.config.enforce_allow_list and dev_id not in gwy._include:
         err_msg = f"{dev_id} is in the {SCHEMA}, but not in the {ALLOW_LIST}"
@@ -347,8 +349,7 @@ def _get_device(gwy, dev_id, ctl_id=None, **kwargs) -> Optional[Any]:  # -> Devi
         _LOGGER.error(f"{err_msg}: check the lists and the {SCHEMA} (device created)")
         # return
 
-    ctl_id = ctl_id if ctl_id is None else id_to_address(ctl_id)
-    return gwy._get_device(id_to_address(dev_id), ctl_id=ctl_id, **kwargs)
+    return gwy._get_device(dev_id, ctl_id=ctl_id, **kwargs)
 
 
 def load_system_schema(gwy, **kwargs) -> dict:
