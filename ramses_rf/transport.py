@@ -83,28 +83,28 @@ def _normalise(pkt_line: str, log_file: bool = False) -> str:
     # 000  I --- 18:140805 18:140805 --:------ 0001 005 00FFFF0200 # evofw3
     if pkt_line[10:14] == " 18:" and pkt_line[11:20] == pkt_line[21:30]:
         pkt_line = pkt_line[:21] + HGI_DEVICE_ID + pkt_line[30:]
-        (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
+        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)(
             "evofw3 packet line has been normalised (0x00)"
         )
 
     # psuedo-RAMSES-II packets...
     elif pkt_line[10:14] in (" 08:", " 31:") and pkt_line[-16:] == "* Checksum error":
         pkt_line = pkt_line[:-17] + " # Checksum error (ignored)"
-        (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
+        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)(
             "Packet line has been normalised (0x01)"
         )
 
     # bug fixed in evofw3 v0.6.x...
     elif pkt_line[:2] == "!C":
         pkt_line = "# " + pkt_line
-        (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
+        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)(
             "Packet line has been normalised (0x02)"
         )
 
     # # TODO: very old evofw3 - taken out because expensive
     # elif ERR_MSG_REGEX.match(pkt_line):
     #     pkt_line = "# " + pkt_line
-    #     (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
+    #     (_LOGGER.warning if DEV_MODE else _LOGGER.debug)(
     #         "Packet line has been normalised (0x03)"
     #     )
 
@@ -117,7 +117,7 @@ def _normalise(pkt_line: str, log_file: bool = False) -> str:
     if pkt_line[41:45] == _PUZZ and (pkt_line[:2] != "00" or pkt_line[:4] != "0000"):
         payload = f"00{pkt_line[50:]}"[:96]
         pkt_line = pkt_line[:46] + f"{int(len(payload)/2):03} " + payload
-        (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
+        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)(
             "Packet line has been normalised (0x04)"
         )
 
@@ -367,6 +367,9 @@ class PacketProtocolBase(asyncio.Protocol):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
     def _line_received(self, dtm: dt, line: str, raw_line: ByteString) -> None:
+        if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
+            _LOGGER.info("RF Rx: %s", raw_line)
+
         if not self._has_initialized:
             if "# evofw" in line and self._gwy.config.evofw_flag not in (None, "!V"):
                 self._loop.create_task(
@@ -397,7 +400,6 @@ class PacketProtocolBase(asyncio.Protocol):
                     yield self._dt_now(), line
 
         for dtm, raw_line in _bytes_received(data):
-            _LOGGER.debug("RF Rx: %s", raw_line)
             self._line_received(dtm, _normalise(_str(raw_line)), raw_line)
 
     async def _send_data(self, data: str, ignore_pause=False) -> None:
@@ -418,7 +420,8 @@ class PacketProtocolBase(asyncio.Protocol):
 
         data = bytes(data.encode("ascii"))
 
-        _LOGGER.debug("RF Tx:     %s", data)
+        if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
+            _LOGGER.info("RF Tx:     %s", data)
         self._transport.write(data + b"\r\n")
 
         # 0.2: can still exceed with back-to-back restarts
@@ -710,7 +713,7 @@ class PacketProtocolQos(PacketProtocolBase):
                 self._timeouts(dt.now())
                 await self._send_data(str(cmd))
                 _logger_send(
-                    (_LOGGER.warning if DEV_MODE else _LOGGER.info),
+                    (_LOGGER.warning if DEV_MODE else _LOGGER.debug),
                     f"RE-SENT ({self._tx_retries}/{self._tx_retry_limit})",
                 )  # TODO: should be debug
 
