@@ -105,7 +105,7 @@ class MessageTransport(asyncio.Transport):
             await self._dispatcher(cmd)  # send_data, *once* callback registered
 
             if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
-                _LOGGER.info("sent:     %s", cmd)
+                _LOGGER.info("sent: %s", cmd)
 
         async def pkt_dispatcher():
             while True:
