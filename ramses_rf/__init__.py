@@ -74,7 +74,7 @@ class Gateway:
         self.serial_port = serial_port
         self._input_file = kwargs.pop(INPUT_FILE, None)
 
-        (self.config, schema, self._include, self._exclude) = load_config(
+        (self.config, self.__schema, self._include, self._exclude) = load_config(
             self.serial_port, self._input_file, **kwargs
         )
 
@@ -94,16 +94,15 @@ class Gateway:
         self._state_params = None
 
         # if self.config.reduce_processing > 0:
+        self._prev_msg = None  # see: _clear_state()
+
         self.hgi = None
         self.evo = None
+
         self.systems: List[System] = []
         self.system_by_id: Dict = {}
         self.devices: List[Device] = []
         self.device_by_id: Dict = {}
-
-        self._prev_msg = None  # previous valid message seen, before current message
-
-        load_schema(self, **schema)
 
         self._setup_event_handlers()
 
@@ -152,7 +151,10 @@ class Gateway:
             raise RuntimeError("Unsupported OS for this module: %s", os.name)
 
     async def start(self) -> None:
-        _LOGGER.debug("ENGINE: Starting...")
+        _LOGGER.info("ENGINE: Starting poller...")
+
+        load_schema(self, **self.__schema)
+
         if self.serial_port:  # source of packets is a serial port
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
                 self,
@@ -243,13 +245,17 @@ class Gateway:
         gwy = self
         gwy._prev_msg = None
 
+        gwy.hgi = None
         gwy.evo = None
+
         gwy.systems = []
         gwy.system_by_id = {}
-        gwy.device_by_id = {}
         gwy.devices = []
+        gwy.device_by_id = {}
 
     def _pause_engine(self) -> None:
+        _LOGGER.info("ENGINE: Pausing engine...")
+
         self._state_lock.acquire()
         if self._state_params is not None:
             self._state_lock.release()
@@ -268,6 +274,8 @@ class Gateway:
         self._state_lock.release()
 
     def _resume_engine(self) -> None:
+        _LOGGER.info("ENGINE: Resumed engine.")
+
         self._state_lock.acquire()
         if self._state_params is None:
             self._state_lock.release()
@@ -291,7 +299,6 @@ class Gateway:
 
     def _get_state(self, include_expired=None) -> Tuple[Dict, Dict]:
         self._pause_engine()
-        _LOGGER.info("ENGINE: Saving state...")
 
         msgs = {m.dtm: m for device in self.devices for m in device._msg_db}
 
@@ -308,16 +315,18 @@ class Gateway:
 
         schema, pkts = self.schema, dict(sorted(pkts.items()))
 
-        _LOGGER.info("ENGINE: Saved state")
+        _LOGGER.info("ENGINE: Saved state.")
         self._resume_engine()
         return schema, pkts
 
     async def _set_state(self, schema: Dict, packets: Dict) -> None:
         self._pause_engine()
-        _LOGGER.info("ENGINE: Restoring state...")
+        _LOGGER.info("ENGINE: Restoring schema...")
 
+        self._clear_state()  # TODO: consider need for this (here, or at all)
         load_schema(self, **schema)  # keep old known_devs?
 
+        _LOGGER.info("ENGINE: Restoring state...")
         _, tmp_transport = create_pkt_stack(
             self,
             self.msg_transport._pkt_receiver if self.msg_transport else None,
@@ -332,7 +341,7 @@ class Gateway:
                 continue
             self.msg_transport._que.task_done()
 
-        _LOGGER.info("ENGINE: Restored state")
+        _LOGGER.info("ENGINE: Restored schema/state.")
         self._resume_engine()
 
     def _dt_now(self):
@@ -393,7 +402,7 @@ class Gateway:
             TypeError,
             ValueError,
         ) as exc:
-            _LOGGER.warning(f"create_cmd(): {exc}")
+            _LOGGER.exception(f"create_cmd(): {exc}")
 
     def send_cmd(self, cmd: Command, callback: Callable = None, **kwargs) -> None:
         """Send a command with the option to return any response via callback.

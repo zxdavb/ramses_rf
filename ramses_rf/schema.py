@@ -308,8 +308,6 @@ def load_schema(gwy, **kwargs) -> dict:
     """Process the schema, and the configuration and return True if it is valid."""
     # TODO: check a sensor is not a device in another zone
 
-    gwy._clear_state()  # TODO: consider need for this (here, or at all)
-
     [_get_device(gwy, device_id) for device_id in kwargs.pop(ATTR_ORPHANS, [])]
 
     if SCHEMA in kwargs:
@@ -337,16 +335,16 @@ def load_system(gwy, schema) -> Tuple[dict, dict]:
         ctl._evo._set_htg_control(_get_device(gwy, dev_id, ctl_id=ctl.id))
 
     if dhw_schema := schema.get(ATTR_DHW_SYSTEM, {}):
-        ctl._evo._get_dhw(dhw_schema)
+        dhw = ctl._evo._get_dhw()  # **dhw_schema)
         if dev_id := dhw_schema.get(ATTR_DHW_SENSOR):
-            ctl._evo.dhw._set_sensor(_get_device(gwy, dev_id, ctl_id=ctl.id))
+            dhw._set_sensor(_get_device(gwy, dev_id, ctl_id=ctl.id))
         if dev_id := dhw_schema.get(ATTR_DHW_VALVE):
-            ctl._evo.dhw._set_dhw_valve(_get_device(gwy, dev_id, ctl_id=ctl.id))
+            dhw._set_dhw_valve(_get_device(gwy, dev_id, ctl_id=ctl.id))
         if dev_id := dhw_schema.get(ATTR_DHW_VALVE_HTG):
-            ctl._evo.dhw._set_htg_valve(_get_device(gwy, dev_id, ctl_id=ctl.id))
+            dhw._set_htg_valve(_get_device(gwy, dev_id, ctl_id=ctl.id))
 
     for zone_idx, attrs in schema[ATTR_ZONES].items():
-        zone = ctl._evo._get_zone(zone_idx, **attrs)
+        zone = ctl._evo._get_zone(zone_idx)  # , **attrs)
 
         if dev_id := attrs.get(ATTR_ZONE_SENSOR):
             zone._set_sensor(

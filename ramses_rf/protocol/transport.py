@@ -349,10 +349,6 @@ class PacketProtocolBase(asyncio.Protocol):
             DEVICE_ID: None,
         }
 
-        # this needs to be here, and not in connection_made, so that it is 1st
-        if not self._disable_sending:
-            self._loop.create_task(self.send_data(INIT_CMD))  # HACK: port wakeup
-
     def connection_made(self, transport: asyncio.Transport) -> None:
         """Called when a connection is made."""
         # _LOGGER.debug("PktProtocol.connection_made(%s)", transport)
@@ -535,6 +531,13 @@ class PacketProtocolBase(asyncio.Protocol):
 class PacketProtocolPort(PacketProtocolBase):
     """Interface for a packet protocol (without QoS)."""
 
+    def __init__(self, gwy, pkt_handler: Callable) -> None:
+        super().__init__(gwy, pkt_handler)
+
+        # this needs to be here, and not in connection_made, so that it is 1st
+        if not self._disable_sending:
+            self._loop.create_task(self.send_data(INIT_CMD))  # HACK: port wakeup
+
     def connection_made(self, transport: asyncio.Transport) -> None:
         """Called when a connection is made."""
         _LOGGER.info(f"RAMSES_RF protocol library v{VERSION} (serial port)")
@@ -575,8 +578,8 @@ class PacketProtocolRead(PacketProtocolBase):
         super().connection_made(transport)  # self._transport = transport
 
     def _line_received(self, dtm: str, line: str, raw_line: str) -> None:
-        if not self._hgi80["initialized"]:
-            self._hgi80["initialized"] = True
+        if not self._hgi80[IS_INITIALIZED]:
+            self._hgi80[IS_INITIALIZED] = True
 
         try:
             pkt = Packet.from_file(self._gwy, dtm, line)
