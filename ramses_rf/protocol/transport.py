@@ -364,7 +364,7 @@ class PacketProtocolBase(asyncio.Protocol):
             _LOGGER.warning(f"Using an {BLOCK_LIST}: %s", self._exclude)
         else:
             _LOGGER.error(
-                f"Not using a device filter (an {ALLOW_LIST} is strongly recommended)"
+                f"Not using any device filter (an {ALLOW_LIST} is strongly recommended)"
             )
 
         _LOGGER.info(f"Library is ramses_rf v{VERSION} (serial)")

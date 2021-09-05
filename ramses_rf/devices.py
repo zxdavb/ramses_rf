@@ -182,12 +182,10 @@ class DeviceBase(Entity):
             self._is_actuator = None
             self._is_sensor = None
 
+        self._alias = None
+        self._faked = None
         if self.id in gwy._include:
             self._alias = gwy._include[self.id].get(ATTR_ALIAS)
-            self._faked = bool(gwy._include[self.id].get(ATTR_FAKED))
-        else:
-            self._alias = None
-            self._faked = None
 
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id})"
@@ -504,10 +502,11 @@ class Setpoint:  # 2309
 
 
 class Fakeable:
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, gwy, *args, **kwargs) -> None:
+        super().__init__(gwy, *args, **kwargs)
 
-        self._faked = None
+        if self.id in gwy._include and gwy._include[self.id].get(ATTR_FAKED):
+            self._make_fake()
 
     def _bind(self):
         if not self._faked:

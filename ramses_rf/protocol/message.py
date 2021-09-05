@@ -84,7 +84,7 @@ CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:^4s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:^4s} || {}"
 
-DEV_MODE = True  # __dev_mode__ and False
+DEV_MODE = __dev_mode__  # and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -300,7 +300,7 @@ class Message:
             self.__expired = self._pkt._expired
 
         if self.__expired is False:  # treat as never expiring
-            _LOGGER.info("%s # can't expire", self._pkt)
+            _LOGGER.info("%s # cant expire", self._pkt)
             self.__expired = self.CANT_EXPIRE
 
         elif self.__expired >= self.HAS_EXPIRED:  # TODO: should renew?

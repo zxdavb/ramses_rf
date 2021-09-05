@@ -253,25 +253,34 @@ def load_config(
 
 
 def update_config(config, known_list, block_list) -> dict:
-    """Determine which device filer to use, if any: allow_list or block_list."""
+    """Determine which device filter to use, if any: known_list or block_list."""
 
     if config[ENFORCE_KNOWNLIST] and not known_list:
         _LOGGER.warning(
-            f"An empty {KNOWN_LIST} was provided, so it cant be used as an allow list"
+            f"An empty {KNOWN_LIST} was provided, so it cant be used "
+            f"as a whitelist (device_id filter)"
         )
         config[ENFORCE_KNOWNLIST] = False
 
     if config[ENFORCE_KNOWNLIST]:
         _LOGGER.debug(
-            f"The {KNOWN_LIST} will be used as an allow list, length = {len(known_list)}"
+            f"The {KNOWN_LIST} will be used "
+            f"as a whitelist (device_id filter), length = {len(known_list)}"
         )
     elif block_list:
         _LOGGER.debug(
-            f"The {BLOCK_LIST} will be used as a block list, length = {len(block_list)}"
+            f"The {BLOCK_LIST} will be used "
+            f"as a blacklist (device_id filter), length = {len(block_list)}"
+        )
+    elif known_list:
+        _LOGGER.warning(
+            f"It is strongly recommended to use the {KNOWN_LIST} "
+            f"as a whitelist (device_id filter), configure: {ENFORCE_KNOWNLIST} = True"
         )
     else:
         _LOGGER.warning(
-            f"It is strongly recommended to configure a {KNOWN_LIST} as an allow list"
+            f"It is strongly recommended to provide a {KNOWN_LIST}, and use it "
+            f"as a whitelist (device_id filter), configure: {ENFORCE_KNOWNLIST} = True"
         )
 
 
