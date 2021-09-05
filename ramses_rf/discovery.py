@@ -9,15 +9,13 @@ import logging
 import re
 from typing import Any, List
 
-from .command import Command, Priority
-from .const import ALL_DEVICE_ID, DEVICE_TABLE, HGI_DEVICE_ID, NON_DEVICE_ID
-from .exceptions import ExpiredCallbackError
-from .helpers import _get_device  # TODO: remove need for  this
-from .opentherm import OTB_MSG_IDS
-from .ramses import RAMSES_CODES
+from .protocol import RAMSES_CODES, Command, Priority
+from .protocol.const import DEV_REGEX_ANY, DEVICE_TABLE, HGI_DEVICE_ID, NON_DEVICE_ID
+from .protocol.exceptions import ExpiredCallbackError
+from .protocol.opentherm import OTB_MSG_IDS
 
-from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
-from .const import (  # noqa: F401, isort: skip
+from .protocol import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
+from .protocol import (  # noqa: F401, isort: skip
     _0001,
     _0002,
     _0004,
@@ -88,7 +86,7 @@ SCAN_FULL = "scan_full"
 SCAN_HARD = "scan_hard"
 SCAN_XXXX = "scan_xxxx"
 
-DEVICE_ID_REGEX = re.compile(ALL_DEVICE_ID)
+DEVICE_ID_REGEX = re.compile(DEV_REGEX_ANY)
 
 DEV_MODE = __dev_mode__ and False
 
@@ -191,7 +189,7 @@ async def periodic(gwy, cmd, count=1, interval=None):
 
 
 async def get_faults(gwy, ctl_id: str, start=0, limit=0x3F):
-    device = _get_device(gwy, ctl_id, ctl_id=ctl_id)
+    device = gwy._get_device(ctl_id, ctl_id=ctl_id)
 
     try:
         await device._evo.get_fault_log(start=start, limit=limit)  # 0418
@@ -200,7 +198,7 @@ async def get_faults(gwy, ctl_id: str, start=0, limit=0x3F):
 
 
 async def get_schedule(gwy, ctl_id: str, zone_idx: str) -> None:
-    zone = _get_device(gwy, ctl_id, ctl_id=ctl_id)._evo._get_zone(zone_idx)
+    zone = gwy._get_device(ctl_id, ctl_id=ctl_id)._evo._get_zone(zone_idx)
 
     try:
         await zone.get_schedule()
@@ -212,7 +210,7 @@ async def set_schedule(gwy, ctl_id, schedule) -> None:
     schedule = json.load(schedule)
     zone_idx = schedule["zone_idx"]
 
-    zone = _get_device(gwy, ctl_id, ctl_id=ctl_id)._evo._get_zone(zone_idx)
+    zone = gwy._get_device(ctl_id, ctl_id=ctl_id)._evo._get_zone(zone_idx)
 
     try:
         await zone.set_schedule(schedule["schedule"])  # 0404
@@ -221,11 +219,11 @@ async def set_schedule(gwy, ctl_id, schedule) -> None:
 
 
 async def script_bind_req(gwy, dev_id: str):
-    _get_device(gwy, dev_id)._make_fake(bind=True)
+    gwy._get_device(dev_id)._make_fake(bind=True)
 
 
 async def script_bind_wait(gwy, dev_id: str, code=_2309, idx="00"):
-    _get_device(gwy, dev_id)._make_fake(bind=True, code=code, idx=idx)
+    gwy._get_device(dev_id)._make_fake(bind=True, code=code, idx=idx)
 
 
 def script_poll_device(gwy, dev_id) -> List[Any]:
@@ -256,7 +254,7 @@ async def script_scan_disc(gwy, dev_id: str):
     qos = {"priority": Priority.HIGH, "retries": 3}
     gwy.send_cmd(Command._puzzle("00", message="disc scan: begins...", **qos))
 
-    _get_device(gwy, dev_id)._discover()  # discover_flag=DISCOVER_ALL)
+    gwy._get_device(dev_id)._discover()  # discover_flag=DISCOVER_ALL)
 
 
 async def script_scan_full(gwy, dev_id: str):

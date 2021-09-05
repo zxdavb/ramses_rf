@@ -20,30 +20,34 @@ from queue import Empty
 from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
 
-from .address import is_valid_dev_id
-from .command import Command
-from .const import ATTR_DEVICES, ATTR_ORPHANS, DONT_CREATE_MESSAGES, NUL_DEVICE_ID
+from .const import ATTR_FAKED, ATTR_ORPHANS, DONT_CREATE_MESSAGES
 from .devices import Device, _create_device
-from .logger import set_logger_timesource, set_pkt_logging
 from .message import Message, process_msg
-from .packet import _PKT_LOGGER
-from .protocol import create_msg_stack
+from .protocol import (
+    _PKT_LOGGER,
+    POLLER_TASK,
+    Command,
+    create_msg_stack,
+    create_pkt_stack,
+    is_valid_dev_id,
+    set_logger_timesource,
+    set_pkt_logging,
+)
+from .protocol.const import ATTR_DEVICES, NUL_DEVICE_ID
 from .schema import (
-    ALLOW_LIST,
     BLOCK_LIST,
     DEBUG_MODE,
     INPUT_FILE,
-    load_config_schema,
-    load_system_schema,
+    KNOWN_LIST,
+    load_config,
+    load_schema,
 )
 from .systems import System, create_system
-from .transport import POLLER_TASK, create_pkt_stack
-from .version import __version__  # noqa: F401
+from .version import VERSION  # noqa: F401
 
-from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
+from .protocol import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 
 DEV_MODE = __dev_mode__ and False
-VERSION = __version__
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -70,7 +74,7 @@ class Gateway:
         self.serial_port = serial_port
         self._input_file = kwargs.pop(INPUT_FILE, None)
 
-        (self.config, schema, self._include, self._exclude) = load_config_schema(
+        (self.config, schema, self._include, self._exclude) = load_config(
             self.serial_port, self._input_file, **kwargs
         )
 
@@ -99,7 +103,7 @@ class Gateway:
 
         self._prev_msg = None  # previous valid message seen, before current message
 
-        load_system_schema(self, **schema)
+        load_schema(self, **schema)
 
         self._setup_event_handlers()
 
@@ -195,11 +199,16 @@ class Gateway:
         if dev_id[:2] in ("18", "--") or dev_id in (NUL_DEVICE_ID, "01:000001"):
             return  # not valid device types/real devices
 
+        if ctl_id is not None:
+            ctl = self.device_by_id.get(ctl_id)
+            if ctl is None:
+                ctl = self._get_device(ctl_id, domain_id="FF", **kwargs)
+
         # These two are because Pkt.Transport.is_wanted() may still let some through
-        if self._include and dev_id not in self._include:
+        if self.config.enforce_known_list and dev_id not in self._include:
             _LOGGER.warning(
                 f"Ignoring a non-allowed device_id: {dev_id}"
-                f" (if required, add it to the {ALLOW_LIST})"
+                f" (if required, add it to the {KNOWN_LIST})"
             )
             return
 
@@ -209,11 +218,6 @@ class Gateway:
                 f" (if required, remove it from the {BLOCK_LIST})"
             )
             return
-
-        if ctl_id is not None:
-            ctl = self.device_by_id.get(ctl_id)
-            if ctl is None:
-                ctl = self._get_device(ctl_id, domain_id="FF", **kwargs)
 
         dev = self.device_by_id.get(dev_id)
         if dev is None:  # TODO: take into account device filter?
@@ -312,7 +316,7 @@ class Gateway:
         self._pause_engine()
         _LOGGER.info("ENGINE: Restoring state...")
 
-        load_system_schema(self, **schema)  # keep old known_devs?
+        load_schema(self, **schema)  # keep old known_devs?
 
         _, tmp_transport = create_pkt_stack(
             self,
@@ -355,6 +359,14 @@ class Gateway:
         schema[ATTR_ORPHANS] = [
             d.id for d in self.devices if d._ctl is None and d._is_present
         ]
+
+        schema["device_hints"] = {}
+        for d in sorted(self.devices):
+            device_schema = {}
+            if d.schema.get(ATTR_FAKED):
+                device_schema.update({ATTR_FAKED: d.schema[ATTR_FAKED]})
+            if device_schema:
+                schema["device_hints"][d.id] = device_schema
 
         return schema
 
@@ -427,29 +439,24 @@ class Gateway:
             print(f"The coroutine returned: {result!r}")
             return result
 
-    def create_faked_device(self, device_id, bind=False) -> Device:
+    def fake_device(self, device_id, create_device=None, start_binding=False) -> Device:
         """Create a faked device, and optionally set it to binding mode.
 
         Will make any neccesary changed to the device lists.
         """
+        # TODO: what about using the HGI
 
         if not is_valid_dev_id(device_id):
             raise TypeError(f"The device id is not valid: {device_id}")
 
-        if device_id in self.device_by_id:  # TODO: what about using the HGI
-            raise TypeError(f"The device already exists: {device_id}")
+        if create_device and device_id in self.device_by_id:
+            raise ValueError(f"The device id already exists: {device_id}")
+        elif not create_device and device_id not in self.device_by_id:
+            raise ValueError(f"The device id does not exist: {device_id}")
 
-        if self.config.enforce_allow_list and device_id not in self._include:
+        if self.config.enforce_known_list and device_id not in self._include:
             self._include[device_id] = {}
-        elif self.config.enforce_block_list and device_id not in self._exclude:
+        elif device_id in self._exclude:
             del self._exclude[device_id]
 
-        return self._get_device(device_id)._make_fake(bind=bind)  # .temperature = 19.5
-
-    def bind_faked_device(self, device_id) -> Device:
-        """Set a faked device to binding mode."""
-
-        if device_id not in self.device_by_id:  # TODO: what about using the HGI
-            raise TypeError(f"The device does not exist: {device_id}")
-
-        return self.device_by_id[device_id]._bind()
+        return self._get_device(device_id)._make_fake(bind=start_binding)

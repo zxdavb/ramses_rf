@@ -9,7 +9,6 @@ from random import randint
 from typing import List, Tuple
 
 from .const import (
-    DEVICE_ID_REGEX,
     DEVICE_LOOKUP,
     DEVICE_TYPES,
     HGI_DEVICE_ID,
@@ -33,11 +32,11 @@ class Address:
     # NON_DEVICE_ID = __non_device_id__
     # NUL_DEVICE_ID = __nul_device_id__
 
-    def __init__(self, id, type=None, **kwargs) -> None:
+    def __init__(self, id, **kwargs) -> None:
         """Create an address from a valid device id."""
 
         self.id = id
-        self.type = type
+        self.type = kwargs.get("type")
         self._hex_id = None
 
         if not self.is_valid(id):
@@ -181,7 +180,7 @@ def is_valid_dev_id(value, dev_type=None) -> bool:
     if not isinstance(value, str):
         return False
 
-    elif not DEVICE_ID_REGEX.match(value):
+    elif not __device_id_regex__.match(value):
         return False
 
     # elif value != hex_id_to_dec(dev_id_to_hex(value)):

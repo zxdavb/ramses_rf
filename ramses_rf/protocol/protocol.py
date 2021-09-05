@@ -14,8 +14,10 @@ from queue import Empty, PriorityQueue, SimpleQueue
 from typing import Callable, List, Optional, Tuple
 
 from .command import ARGS, DEAMON, EXPIRES, FUNC, TIMEOUT, Command
-from .const import DONT_CREATE_MESSAGES, __dev_mode__
+from .const import __dev_mode__
 from .message import Message
+
+DONT_CREATE_MESSAGES = 2  # duplicate
 
 DEV_MODE = __dev_mode__ and False
 

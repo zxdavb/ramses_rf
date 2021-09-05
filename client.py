@@ -19,20 +19,24 @@ import click
 from colorama import Fore, Style
 from colorama import init as colorama_init
 
-from ramses_rf import Gateway, GracefulExit
-from ramses_rf.address import is_valid_dev_id
+from ramses_rf import Gateway, GracefulExit, is_valid_dev_id
 from ramses_rf.discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
-from ramses_rf.exceptions import EvohomeError
-from ramses_rf.logger import CONSOLE_COLS, DEFAULT_DATEFMT, DEFAULT_FMT, LOG_FILE_NAME
+from ramses_rf.protocol.exceptions import EvohomeError
+from ramses_rf.protocol.logger import (
+    CONSOLE_COLS,
+    DEFAULT_DATEFMT,
+    DEFAULT_FMT,
+    LOG_FILE_NAME,
+)
 from ramses_rf.schema import (
-    ALLOW_LIST,
     CONFIG,
     DISABLE_DISCOVERY,
     DISABLE_SENDING,
     DONT_CREATE_MESSAGES,
-    ENFORCE_ALLOWLIST,
+    ENFORCE_KNOWNLIST,
     EVOFW_FLAG,
     INPUT_FILE,
+    KNOWN_LIST,
     PACKET_LOG,
     PACKET_LOG_SCHEMA,
     REDUCE_PROCESSING,
@@ -218,7 +222,7 @@ def monitor(obj, **kwargs):
     if cli_kwargs["discover"] is not None:
         lib_kwargs[CONFIG][DISABLE_DISCOVERY] = not cli_kwargs.pop("discover")
 
-    # allowed = lib_kwargs[ALLOW_LIST] = lib_kwargs.get(ALLOW_LIST, {})
+    # allowed = lib_kwargs[KNOWN_LIST] = lib_kwargs.get(KNOWN_LIST, {})
 
     # for k in (SCAN_DISC, SCAN_FULL, SCAN_HARD, SCAN_XXXX):
     #     cli_kwargs[k] = _convert_to_list(cli_kwargs.pop(k))
@@ -228,8 +232,8 @@ def monitor(obj, **kwargs):
     #     cli_kwargs.pop("poll_devices")
     # )
 
-    # if lib_kwargs[ALLOW_LIST]:
-    #     lib_kwargs[CONFIG][ENFORCE_ALLOWLIST] = True
+    # if lib_kwargs[KNOWN_LIST]:
+    #     lib_kwargs[CONFIG][ENFORCE_KNOWNLIST] = True
 
     asyncio.run(main(MONITOR, lib_kwargs, **cli_kwargs))
 
@@ -261,16 +265,16 @@ def execute(obj, **kwargs):
     lib_kwargs[CONFIG][DISABLE_DISCOVERY] = True
 
     if cli_kwargs.get(GET_FAULTS):
-        lib_kwargs[ALLOW_LIST] = {cli_kwargs[GET_FAULTS]: {}}
+        lib_kwargs[KNOWN_LIST] = {cli_kwargs[GET_FAULTS]: {}}
 
     elif cli_kwargs[GET_SCHED][0]:
-        lib_kwargs[ALLOW_LIST] = {cli_kwargs[GET_SCHED][0]: {}}
+        lib_kwargs[KNOWN_LIST] = {cli_kwargs[GET_SCHED][0]: {}}
 
     elif cli_kwargs[SET_SCHED][0]:
-        lib_kwargs[ALLOW_LIST] = {cli_kwargs[SET_SCHED][0]: {}}
+        lib_kwargs[KNOWN_LIST] = {cli_kwargs[SET_SCHED][0]: {}}
 
-    if lib_kwargs[ALLOW_LIST]:
-        lib_kwargs[CONFIG][ENFORCE_ALLOWLIST] = True
+    if lib_kwargs[KNOWN_LIST]:
+        lib_kwargs[CONFIG][ENFORCE_KNOWNLIST] = True
 
     asyncio.run(main(EXECUTE, lib_kwargs, **cli_kwargs))
 
@@ -342,14 +346,15 @@ def _print_summary(gwy, **kwargs):
 
     if not kwargs.get("hide_schema"):
         print(f"Schema[{repr(entity)}] = {json.dumps(entity.schema, indent=4)}\r\n")
+        print(f"allow_list (hints) = {json.dumps(gwy._include, indent=4)}\r\n")
 
-    if not kwargs.get("hide_params"):
+    if False and not kwargs.get("hide_params"):
         print(f"Params[{repr(entity)}] = {json.dumps(entity.params, indent=4)}\r\n")
 
-    if not kwargs.get("hide_status"):
+    if False and not kwargs.get("hide_status"):
         print(f"Status[{repr(entity)}] = {json.dumps(entity.status, indent=4)}\r\n")
 
-    if True or kwargs.get("show_device"):
+    if False and kwargs.get("show_device"):
         devices = sorted(gwy.devices)
         # devices = [d for d in sorted(gwy.devices) if d not in gwy.evo.devices]
 

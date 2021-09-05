@@ -12,26 +12,28 @@ from threading import Lock
 from types import SimpleNamespace
 from typing import List, Optional
 
-from .command import Command, FaultLog, Priority
-from .const import (
+from .const import DISCOVER_ALL, DISCOVER_PARAMS, DISCOVER_SCHEMA, DISCOVER_STATUS
+from .devices import BdrSwitch, Device, OtbGateway
+from .entities import Entity
+from .protocol import Command, FaultLog, Priority
+from .protocol.const import (
     _000C_DEVICE,
     _0005_ZONE,
     ATTR_DATETIME,
     ATTR_DEVICES,
+    ATTR_DHW_SENSOR,
+    ATTR_DHW_VALVE,
+    ATTR_DHW_VALVE_HTG,
     ATTR_HEAT_DEMAND,
     ATTR_LANGUAGE,
+    ATTR_SYSTEM,
     ATTR_SYSTEM_MODE,
+    ATTR_ZONE_SENSOR,
     DEVICE_HAS_ZONE_SENSOR,
-    DISCOVER_ALL,
-    DISCOVER_PARAMS,
-    DISCOVER_SCHEMA,
-    DISCOVER_STATUS,
     SystemMode,
     SystemType,
 )
-from .devices import BdrSwitch, Device, OtbGateway
-from .entities import Entity
-from .exceptions import CorruptStateError, ExpiredCallbackError
+from .protocol.exceptions import CorruptStateError, ExpiredCallbackError
 from .schema import (
     ATTR_CONTROLLER,
     ATTR_DHW_SYSTEM,
@@ -43,8 +45,8 @@ from .schema import (
 )
 from .zones import DhwZone, Zone, create_zone
 
-from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
-from .const import (  # noqa: F401, isort: skip
+from .protocol import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
+from .protocol import (  # noqa: F401, isort: skip
     _0001,
     _0002,
     _0004,
@@ -287,17 +289,16 @@ class StoredHw:
     def _get_dhw(self, **kwargs) -> DhwZone:
         """Return the DHW zone (will create/update it if required)."""
 
-        # NOTE: kwargs not passed, so discovery is as eavesdropping
         dhw = self.dhw or create_zone(self, zone_idx="HW")
 
-        if kwargs.get("sensor"):
-            dhw._set_sensor(kwargs["sensor"])
+        if kwargs.get(ATTR_DHW_SENSOR):
+            dhw._set_sensor(kwargs[ATTR_DHW_SENSOR])
 
-        if kwargs.get("dhw_valve"):
-            dhw._set_dhw_valve(kwargs["dhw_valve"])
+        if kwargs.get(ATTR_DHW_VALVE):
+            dhw._set_dhw_valve(kwargs[ATTR_DHW_VALVE])
 
-        if kwargs.get("htg_valve"):
-            dhw._set_htg_valve(kwargs["htg_valve"])
+        if kwargs.get(ATTR_DHW_VALVE_HTG):
+            dhw._set_htg_valve(kwargs[ATTR_DHW_VALVE_HTG])
 
         self._dhw = dhw
         return dhw
@@ -850,11 +851,36 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             ]
         )  # devices without a parent zone, NB: CTL can be a sensor for a zone
 
-        # TODO: where to put this?
-        # assert "devices" not in schema  # TODO: removeme
-        # schema["devices"] = {d.id: d.device_info for d in sorted(self._ctl.devices)}
-
         return schema
+
+    @property
+    def schema_min(self) -> dict:
+        """Return the global schema."""
+
+        schema = self.schema
+        result = {ATTR_CONTROLLER: schema[ATTR_CONTROLLER]}
+
+        try:
+            if schema[ATTR_SYSTEM][ATTR_HTG_CONTROL][:2] == "10":
+                result[ATTR_SYSTEM] = {
+                    ATTR_HTG_CONTROL: schema[ATTR_SYSTEM][ATTR_HTG_CONTROL]
+                }
+        except (IndexError, TypeError):
+            result[ATTR_SYSTEM] = {ATTR_HTG_CONTROL: None}
+
+        zones = {}
+        for idx, zone in schema[ATTR_ZONES].items():
+            _zone = {}
+            if zone[ATTR_ZONE_SENSOR] and zone[ATTR_ZONE_SENSOR][:2] == "01":
+                _zone = {ATTR_ZONE_SENSOR: zone[ATTR_ZONE_SENSOR]}
+            if devices := [d for d in zone[ATTR_DEVICES] if d[:2] == "00"]:
+                _zone.update({ATTR_DEVICES: devices})
+            if _zone:
+                zones[idx] = _zone
+        if zones:
+            result[ATTR_ZONES] = zones
+
+        return result
 
     @property
     def params(self) -> dict:

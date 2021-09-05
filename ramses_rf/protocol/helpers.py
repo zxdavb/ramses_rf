@@ -15,7 +15,7 @@ from typing import Any, Optional, Union
 from .const import DEVICE_TYPES, NON_DEVICE_ID, NUL_DEVICE_ID
 
 
-def _get_device(gwy, dev_id, ctl_id=None, **kwargs) -> Optional[Any]:  # -> Device:
+def OUT_get_device(gwy, dev_id, ctl_id=None, **kwargs) -> Optional[Any]:  # -> Device:
     """A TEMPORARY wrapper to permit deprecating using addresses rather than IDs."""
 
     if "dev_addr" in kwargs or "ctl_addr" in kwargs:

@@ -12,14 +12,21 @@ from datetime import timedelta as td
 from typing import ByteString, Optional, Tuple
 
 from .address import pkt_addrs
-from .const import MESSAGE_REGEX
 from .exceptions import CorruptAddrSetError, CorruptPacketError
 from .frame import PacketBase
 from .logger import getLogger
 from .ramses import EXPIRES, RAMSES_CODES
 
-from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
-from .const import (  # noqa: F401, isort: skip
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    MESSAGE_REGEX,
+    RP,
+    RQ,
+    W_,
+    __dev_mode__,
+)
+
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _0001,
     _0002,
     _0004,
@@ -37,6 +44,7 @@ from .const import (  # noqa: F401, isort: skip
     _0404,
     _0418,
     _042F,
+    _0B04,
     _1030,
     _1060,
     _1090,
@@ -283,7 +291,7 @@ def pkt_timeout(pkt) -> Optional[float]:  # NOTE: import OtbGateway ??
         timeout = td(minutes=15)  # sends I /sync_cycle
 
     elif pkt.code == _3220:
-        from .devices import OtbGateway  # to prevent circular references
+        from ..devices import OtbGateway  # to prevent circular references
 
         if pkt.payload[4:6] in OtbGateway.SCHEMA_MSG_IDS:
             timeout = None

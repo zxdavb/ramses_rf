@@ -13,7 +13,8 @@ from datetime import datetime as dt
 
 from .const import __dev_mode__
 from .helpers import dt_str
-from .version import __version__
+from .schema import LOG_FILE_NAME, LOG_ROTATE_BYTES, LOG_ROTATE_COUNT
+from .version import VERSION
 
 DEV_MODE = __dev_mode__ and False
 
@@ -29,11 +30,6 @@ except ModuleNotFoundError:
 else:
     _use_color_ = True
     # logging.basicConfig(format=DEFAULT_FMT, datefmt=DEFAULT_DATEFMT)  # Causes issues
-
-LOG_FILE_NAME = "file_name"
-LOG_ROTATE_BYTES = "rotate_bytes"
-LOG_ROTATE_COUNT = "rotate_backups"
-
 
 DEFAULT_FMT = "%(asctime)s.%(msecs)03d %(message)s"
 DEFAULT_DATEFMT = "%H:%M:%S"
@@ -256,6 +252,6 @@ def set_pkt_logging(logger, dt_now=None, cc_console=False, **kwargs) -> None:
         "_time": _time,
         "packet": "",
         "error_text": "",
-        "comment": f"# ramses_rf {__version__}",
+        "comment": f"# ramses_rf {VERSION}",
     }
     logger.warning("", extra=extras)

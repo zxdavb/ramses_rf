@@ -12,8 +12,11 @@ from sys import modules
 from types import SimpleNamespace
 from typing import Optional
 
-from .command import Command
-from .const import (
+from .const import DISCOVER_ALL, DISCOVER_PARAMS, DISCOVER_SCHEMA, DISCOVER_STATUS
+from .devices import BdrSwitch, Device, DhwSensor
+from .entities import Entity
+from .protocol import Command, Schedule
+from .protocol.const import (
     _000C_DEVICE,
     ATTR_DEVICES,
     ATTR_DHW_SENSOR,
@@ -29,24 +32,17 @@ from .const import (
     ATTR_ZONE_SENSOR,
     ATTR_ZONE_TYPE,
     DEVICE_HAS_ZONE_SENSOR,
-    DISCOVER_ALL,
-    DISCOVER_PARAMS,
-    DISCOVER_SCHEMA,
-    DISCOVER_STATUS,
     ZONE_CLASS_MAP,
     ZONE_TYPE_MAP,
     ZONE_TYPE_SLUGS,
     ZoneMode,
 )
-from .devices import BdrSwitch, Device, DhwSensor
-from .entities import Entity
-from .exceptions import CorruptStateError
-from .helpers import schedule_task
-from .schedule import Schedule
+from .protocol.exceptions import CorruptStateError
+from .protocol.helpers import schedule_task
 
 # from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
-from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
-from .const import (  # noqa: F401, isort: skip
+from .protocol import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
+from .protocol import (  # noqa: F401, isort: skip
     _0001,
     _0002,
     _0004,
@@ -748,6 +744,7 @@ class Zone(ZoneSchedule, ZoneBase):
             }
 
         return {
+            "_name": self.name,
             ATTR_ZONE_TYPE: self.heating_type,
             ATTR_ZONE_SENSOR: sensor_schema,
             ATTR_DEVICES: [d.id for d in self.devices],

@@ -36,19 +36,33 @@ from .command import (
     Priority,
 )
 from .const import _PUZZ, HGI_DEVICE_ID, __dev_mode__
+from .exceptions import CorruptPacketError
 from .helpers import dt_now
 from .packet import Packet
 from .protocol import create_protocol_factory
-from .schema import ALLOW_LIST, BLOCK_LIST, SERIAL_CONFIG_SCHEMA
-from .version import __version__
+from .schema import SERIAL_CONFIG_SCHEMA
+from .version import VERSION
 
 DEV_MODE = __dev_mode__ and False
+
+_LOGGER = logging.getLogger(__name__)
+# _LOGGER.setLevel(logging.WARNING)  # INFO may have too much detail
+if DEV_MODE:  # or True:
+    _LOGGER.setLevel(logging.DEBUG)  # should be INFO
+
+ALLOW_LIST = "allow_list"
+BLOCK_LIST = "block_list"
+KNOWN_LIST = "known_list"
+
+IS_INITIALIZED = "IS_INITIALIZED"
+IS_EVOFW3 = "is_evofw3"
+DEVICE_ID = "device_id"
+
+DEFAULT_SERIAL_CONFIG = SERIAL_CONFIG_SCHEMA({})
 
 ERR_MSG_REGEX = re.compile(r"^([0-9A-F]{2}\.)+$")
 
 POLLER_TASK = "poller_task"
-
-DEFAULT_SERIAL_CONFIG = SERIAL_CONFIG_SCHEMA({})
 
 Pause = SimpleNamespace(
     NONE=td(seconds=0),
@@ -61,12 +75,15 @@ Pause = SimpleNamespace(
 VALID_CHARACTERS = printable  # "".join((ascii_letters, digits, ":-<*# "))
 
 INIT_QOS = {"priority": Priority.HIGHEST, "retries": 24, "disable_backoff": True}
-INIT_CMD = Command._puzzle(message=f"v{__version__}", **INIT_QOS)
+INIT_CMD = Command._puzzle(message=f"v{VERSION}", **INIT_QOS)
 
-_LOGGER = logging.getLogger(__name__)
-# _LOGGER.setLevel(logging.WARNING)  # INFO may have too much detail
-if DEV_MODE:  # or True:
-    _LOGGER.setLevel(logging.DEBUG)  # should be INFO
+# evofw3 commands (as of 0.7.0) include (from cmd.c):
+# case 'V':  validCmd = cmd_version( cmd );       break;
+# case 'T':  validCmd = cmd_trace( cmd );         break;
+# case 'B':  validCmd = cmd_boot( cmd );          break;
+# case 'C':  validCmd = cmd_cc1101( cmd );        break;
+# case 'F':  validCmd = cmd_cc_tune( cmd );       break;
+# case 'E':  validCmd = cmd_eeprom( cmd );        break;
 
 
 def _normalise(pkt_line: str, log_file: bool = False) -> str:
@@ -314,15 +331,24 @@ class PacketProtocolBase(asyncio.Protocol):
         self._prev_pkt = None
         self._this_pkt = None
 
-        self._include = (
-            list(gwy._include.keys()) if gwy.config.enforce_allow_list else []
-        )
-        self._exclude = (
-            list(gwy._exclude.keys()) if gwy.config.enforce_block_list else []
-        )
+        self._disable_sending = gwy.config.disable_sending
+        self._evofw_flag = gwy.config.evofw_flag
 
-        self._has_initialized = None
-        if not self._gwy.config.disable_sending:
+        if gwy.config.enforce_known_list:
+            self._exclude = []
+            self._include = list(gwy._include.keys())
+        else:
+            self._exclude = list(gwy._exclude.keys())
+            self._include = []
+
+        self._hgi80 = {
+            IS_INITIALIZED: False,
+            IS_EVOFW3: None,
+            DEVICE_ID: None,
+        }
+
+        # this needs to be here, and not in connection_made, so that it is 1st
+        if not self._disable_sending:
             self._loop.create_task(self.send_data(INIT_CMD))  # HACK: port wakeup
 
     def connection_made(self, transport: asyncio.Transport) -> None:
@@ -341,10 +367,10 @@ class PacketProtocolBase(asyncio.Protocol):
                 f"Not using a device filter (an {ALLOW_LIST} is strongly recommended)"
             )
 
-        _LOGGER.info(f"Library is ramses_rf v{__version__} (serial)")
+        _LOGGER.info(f"Library is ramses_rf v{VERSION} (serial)")
 
-        # Used to see if using a evofw3 rather than a HGI80  # TODO: needs work
-        self._loop.create_task(self._send_data("!V", ignore_pause=False))
+        # Used to see if using a evofw3 rather than a HGI80
+        self._transport.write(bytes("!V\r\n".encode("ascii")))
         self.resume_writing()
 
     @functools.lru_cache(maxsize=128)
@@ -370,20 +396,40 @@ class PacketProtocolBase(asyncio.Protocol):
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
             _LOGGER.info("RF Rx: %s", raw_line)
 
-        if not self._has_initialized:
-            if "# evofw" in line and self._gwy.config.evofw_flag not in (None, "!V"):
-                self._loop.create_task(
-                    self._send_data(self._gwy.config.evofw_flag, ignore_pause=True)
-                )
-            self._has_initialized = True
+        was_initialized, self._hgi80[IS_INITIALIZED] = self._hgi80[IS_INITIALIZED], True
 
         try:
             pkt = Packet.from_port(self._gwy, dtm, line, raw_line=raw_line)
+
         except (AssertionError, ValueError) as exc:
+            if self._hgi80[IS_EVOFW3] is None and "# evofw" in line:
+                self._hgi80[IS_EVOFW3] = True
+                if self._evofw_flag not in (None, "!V"):
+                    self._transport.write(
+                        bytes(f"{self._evofw_flag}\r\n".encode("ascii"))
+                    )
             if DEV_MODE and line and line[:1] != "#" and "*" not in line:
-                _LOGGER.error("%s < Cant create packet (ignoring): %s", line, exc)
+                _LOGGER.exception("%s < Cant create packet (ignoring): %s", line, exc)
             return
-        self._pkt_received(pkt)  # NOTE: don't spawn this
+
+        except CorruptPacketError as exc:
+            if was_initialized:
+                raise exc
+            pkt = None
+
+        if not pkt:
+            return
+
+        if pkt.src.type == "18":
+            if not self._hgi80[DEVICE_ID]:
+                self._hgi80[DEVICE_ID] = pkt.src.id
+            elif self._hgi80[DEVICE_ID] != pkt.src.id:
+                _LOGGER.error(
+                    f"{pkt} < seems to be more than one HGI80-compatible device"
+                    f" (another is: {self._hgi80[DEVICE_ID]}), this is unsupported"
+                )
+
+        self._pkt_received(pkt)
 
     def data_received(self, data: ByteString) -> None:
         """Called when some data (packet fragments) is received (from RF)."""
@@ -431,7 +477,7 @@ class PacketProtocolBase(asyncio.Protocol):
         """Called when some data is to be sent (not a callback)."""
         _LOGGER.debug("PktProtocol.send_data(%s)", cmd)
 
-        if self._gwy.config.disable_sending:
+        if self._disable_sending:
             raise RuntimeError("Sending is disabled")
 
         if not cmd.is_valid:
@@ -497,11 +543,11 @@ class PacketProtocolRead(PacketProtocolBase):
 
         self._transport = transport
 
-        _LOGGER.info(f"Library is ramses_rf v{__version__} (packet log)")
+        _LOGGER.info(f"Library is ramses_rf v{VERSION} (packet log)")
 
     def _line_received(self, dtm: str, line: str, raw_line: str) -> None:
-        if not self._has_initialized:
-            self._has_initialized = True
+        if not self._hgi80["initialized"]:
+            self._hgi80["initialized"] = True
 
         try:
             pkt = Packet.from_file(self._gwy, dtm, line)
@@ -511,6 +557,7 @@ class PacketProtocolRead(PacketProtocolBase):
             ):
                 _LOGGER.error("%s < Cant create packet (ignoring): %s", line, exc)
             return
+
         self._pkt_received(pkt)
 
     def data_received(self, data: str) -> None:
@@ -663,7 +710,7 @@ class PacketProtocolQos(PacketProtocolBase):
                 callback[FUNC](False, *callback.get(ARGS, tuple()))
                 callback["expired"] = not callback.get(DEAMON, False)  # HACK:
 
-        if self._gwy.config.disable_sending:
+        if self._disable_sending:
             raise RuntimeError("Sending is disabled")
 
         if not cmd.is_valid:

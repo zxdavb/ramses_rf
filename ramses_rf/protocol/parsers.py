@@ -43,7 +43,7 @@ from .helpers import (
 )
 from .opentherm import EN, MSG_DESC, MSG_ID, MSG_NAME, MSG_TYPE, decode_frame
 from .ramses import CODE_RQ_COMPLEX, RAMSES_CODES, RAMSES_DEVICES
-from .version import __version__ as VERSION
+from .version import VERSION
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
