@@ -7,7 +7,6 @@ Operates at the pkt layer of: app - msg - pkt - h/w
 """
 
 import asyncio
-import functools
 import logging
 import os
 import re
@@ -35,7 +34,7 @@ from .command import (
     Command,
     Priority,
 )
-from .const import _PUZZ, HGI_DEVICE_ID, __dev_mode__
+from .const import _PUZZ, HGI_DEVICE_ID, NUL_DEVICE_ID, __dev_mode__
 from .exceptions import CorruptPacketError
 from .helpers import dt_now
 from .packet import Packet
@@ -50,7 +49,6 @@ _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:  # or True:
     _LOGGER.setLevel(logging.DEBUG)  # should be INFO
 
-ALLOW_LIST = "allow_list"
 BLOCK_LIST = "block_list"
 KNOWN_LIST = "known_list"
 
@@ -84,6 +82,9 @@ INIT_CMD = Command._puzzle(message=f"v{VERSION}", **INIT_QOS)
 # case 'C':  validCmd = cmd_cc1101( cmd );        break;
 # case 'F':  validCmd = cmd_cc_tune( cmd );       break;
 # case 'E':  validCmd = cmd_eeprom( cmd );        break;
+# !F  - indicate autotune status
+# !FT - start autotune
+# !FS - save autotune
 
 
 def _normalise(pkt_line: str, log_file: bool = False) -> str:
@@ -340,9 +341,10 @@ class PacketProtocolBase(asyncio.Protocol):
         else:
             self._exclude = list(gwy._exclude.keys())
             self._include = []
+        self._unwanted = []
 
         self._hgi80 = {
-            IS_INITIALIZED: False,
+            IS_INITIALIZED: None,
             IS_EVOFW3: None,
             DEVICE_ID: None,
         }
@@ -353,34 +355,48 @@ class PacketProtocolBase(asyncio.Protocol):
 
     def connection_made(self, transport: asyncio.Transport) -> None:
         """Called when a connection is made."""
-        _LOGGER.debug("PktProtocol.connection_made(%s)", transport)
+        # _LOGGER.debug("PktProtocol.connection_made(%s)", transport)
 
         self._transport = transport
-        # self._transport.serial.rts = False
 
         if self._include:  # TODO: here, or in init?
-            _LOGGER.warning(f"Using an {ALLOW_LIST}: %s", self._include)
+            _LOGGER.info(f"Enforcing the {KNOWN_LIST} (a whitelist): %s", self._include)
         elif self._exclude:
-            _LOGGER.warning(f"Using an {BLOCK_LIST}: %s", self._exclude)
+            _LOGGER.info(f"Enforcing the {BLOCK_LIST} (a blacklist): %s", self._exclude)
         else:
-            _LOGGER.error(
-                f"Not using any device filter (an {ALLOW_LIST} is strongly recommended)"
+            _LOGGER.warning(
+                f"Not using any device filter: using a {KNOWN_LIST} (a as whitelist) "
+                "is strongly recommended)"
             )
 
-        _LOGGER.info(f"Library is ramses_rf v{VERSION} (serial)")
-
-        # Used to see if using a evofw3 rather than a HGI80
-        self._transport.write(bytes("!V\r\n".encode("ascii")))
-        self.resume_writing()
-
-    @functools.lru_cache(maxsize=128)
+    # @functools.lru_cache(maxsize=128)
     def _is_wanted(self, src_id, dst_id) -> bool:
         """Parse the packet, return True if the packet is not to be filtered out."""
-        pkt_addrs = {src_id, dst_id}
+        # pkt_addrs = {src_id, dst_id}
         # if any(d[:2] == "18" for d in pkt_addrs):  # TODO: use HGI's full addr
         #     return True
-        wanted = not self._include or any(d in self._include for d in pkt_addrs)
-        return wanted or not all(d not in self._exclude for d in pkt_addrs)
+        # wanted = not self._include or any(d in self._include for d in pkt_addrs)
+        # return wanted and all(d not in self._exclude for d in pkt_addrs)
+
+        result = True
+        for dev_id in [d for d in {src_id, dst_id} if d != NUL_DEVICE_ID]:
+            if dev_id in self._unwanted:
+                result = False
+            elif dev_id[:2] != "18" and self._include and dev_id not in self._include:
+                _LOGGER.warning(
+                    f"Ignoring a non-allowed device_id: {dev_id}, "
+                    f"if required, add it to the {KNOWN_LIST}"
+                )
+                self._unwanted.append(dev_id)
+                result = False
+            elif dev_id in self._exclude:
+                _LOGGER.warning(
+                    f"Ignoring a blocked device_id: {dev_id}, "
+                    f"if required, remove it from the {BLOCK_LIST})"
+                )
+                self._unwanted.append(dev_id)
+                result = False
+        return result
 
     def _pkt_received(self, pkt: Packet) -> None:
         """Pass any valid/wanted packets to the callback."""
@@ -516,7 +532,22 @@ class PacketProtocolBase(asyncio.Protocol):
         self._pause_writing = False
 
 
-class PacketProtocol(PacketProtocolBase):
+class PacketProtocolPort(PacketProtocolBase):
+    """Interface for a packet protocol (without QoS)."""
+
+    def connection_made(self, transport: asyncio.Transport) -> None:
+        """Called when a connection is made."""
+        _LOGGER.info(f"RAMSES_RF protocol library v{VERSION} (serial port)")
+
+        super().connection_made(transport)  # self._transport = transport
+        # self._transport.serial.rts = False
+
+        # Used to see if using a evofw3 rather than a HGI80
+        self._transport.write(bytes("!V\r\n".encode("ascii")))
+        self.resume_writing()
+
+
+class PacketProtocol(PacketProtocolPort):
     """Interface for a packet protocol (without QoS)."""
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
@@ -539,11 +570,9 @@ class PacketProtocolRead(PacketProtocolBase):
 
     def connection_made(self, transport: asyncio.Transport) -> None:
         """Called when a connection is made."""
-        _LOGGER.debug("PacketProtocolRead.connection_made(%s)", transport)
+        _LOGGER.info(f"RAMSES_RF protocol library v{VERSION} (packet log)")
 
-        self._transport = transport
-
-        _LOGGER.info(f"Library is ramses_rf v{VERSION} (packet log)")
+        super().connection_made(transport)  # self._transport = transport
 
     def _line_received(self, dtm: str, line: str, raw_line: str) -> None:
         if not self._hgi80["initialized"]:
@@ -572,7 +601,7 @@ class PacketProtocolRead(PacketProtocolBase):
             return dt(1970, 1, 1, 1, 0)
 
 
-class PacketProtocolQos(PacketProtocolBase):
+class PacketProtocolQos(PacketProtocolPort):
     """Interface for a packet protocol (includes QoS)."""
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
