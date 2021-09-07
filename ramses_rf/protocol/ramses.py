@@ -473,9 +473,10 @@ CODE_RQ_COMPLEX = [
 RQ_NO_PAYLOAD = [
     k
     for k, v in RAMSES_CODES.items()
-    if RQ in v and (v[RQ] in (r"^FF$", r"^00$", r"^00(00)?$", r"^0[0-9A-F]00$"))
+    if v.get(RQ)
+    in (r"^FF$", r"^00$", r"^00(00)?$", r"^0[0-9A-F](00)?$", r"^0[0-9A-F]00$")
 ]
-RQ_NO_PAYLOAD.extend((_0418, _2E04))
+RQ_NO_PAYLOAD.extend((_0418,))
 RQ_IDX_ONLY = [
     k
     for k, v in RAMSES_CODES.items()
