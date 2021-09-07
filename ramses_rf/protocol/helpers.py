@@ -130,7 +130,7 @@ def flag8(byte, *args) -> list:
 
 def percent(value: str) -> Optional[float]:  # a percentage 0-100% (0.0 to 1.0)
     """Return a percentage, 0-100% with resolution of 0.5%."""
-    assert len(value) == 2, "len is not 2"
+    assert len(value) == 2, f"percent({value}): len is not 2"
     if value in {"EF", "FE", "FF"}:  # TODO: diff b/w FE (seen with 3150) & FF
         return
     assert int(value, 16) <= 200, "max value should be 0xC8, not 0x{value}"
@@ -254,7 +254,7 @@ def str_to_hex(value: str) -> str:
 
 def temp_from_hex(value: str) -> Union[float, bool, None]:
     """Convert a 2's complement 4-byte hex string to an float."""
-    assert len(value) == 4, f"{value} should be 4 bytes long"
+    assert len(value) == 4, f"temp_from_hex({value}): should be 4 bytes long"
     if value == "31FF":  # means: N/A (== 127.99, 2s complement), signed?
         return
     if value == "7EFF":  # possibly only for setpoints? unsigned?
@@ -267,7 +267,9 @@ def temp_from_hex(value: str) -> Union[float, bool, None]:
 
 def temp_to_hex(value: float) -> str:
     """Convert a float to a 2's complement 4-byte hex string."""
-    assert not value or -(2 ** 7) <= value < 2 ** 7, f"{value} is out of range"
+    assert (
+        not value or -(2 ** 7) <= value < 2 ** 7
+    ), f"temp_to_hex({value}): is out of 2's complement range"
     if value is None:
         return "7FFF"  # or: "31FF"?
     if value is False:
