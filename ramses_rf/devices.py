@@ -40,7 +40,6 @@ from .protocol.const import (
     NUL_DEVICE_ID,
 )
 from .protocol.exceptions import CorruptStateError
-from .protocol.helpers import schedule_task
 from .protocol.opentherm import MSG_ID, MSG_NAME, MSG_TYPE, OPENTHERM_MESSAGES, VALUE
 from .protocol.ramses import CODE_ONLY_FROM_CTL, RAMSES_DEVICES
 
@@ -199,16 +198,12 @@ class DeviceBase(Entity):
         return self.id < other.id
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        # sometimes, battery-powered devices will respond to an RQ (e.g. bind mode)
-        # super()._discover(discover_flag=discover_flag)
+        # sometimes, battery-powered devices would respond to an RQ (e.g. bind mode)
 
-        if discover_flag & DISCOVER_SCHEMA and self.type not in DEVICE_HAS_BATTERY:
+        if discover_flag & DISCOVER_SCHEMA and not self.has_battery:
             self._send_cmd(_1FC9, retries=3)  # rf_bind
 
-        # if discover_flag & DISCOVER_PARAMS and self.type not in DEVICE_HAS_BATTERY:
-        #     pass
-
-        if discover_flag & DISCOVER_STATUS and self.type not in DEVICE_HAS_BATTERY:
+        if discover_flag & DISCOVER_STATUS and not self.has_battery:
             self._send_cmd(_0016, retries=3)  # rf_check
 
     def _send_cmd(self, code, **kwargs) -> None:
@@ -252,15 +247,10 @@ class DeviceBase(Entity):
                 _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (01): was FALSE, now True")
 
     @property
-    def _is_present(self) -> bool:
-        """Try to exclude ghost devices (as caused by corrupt packet addresses)."""
-        return any(
-            m.src == self for m in self._msgs.values() if not m._expired
-        )  # TODO: needs addressing
+    def has_battery(self) -> Optional[bool]:  # 1060
+        """Return True if a device is battery powered (excludes battery-backup)."""
 
-    def _make_tcs_controller(self, msg=None):  # CH/DHW
-        """Create a TCS, and attach it to this controller."""
-        self._iz_controller = msg or True
+        return self.type not in DEVICE_HAS_BATTERY or _1060 in self._msgz
 
     @property
     def _is_controller(self) -> Optional[bool]:
@@ -272,6 +262,17 @@ class DeviceBase(Entity):
             return self._ctl is self
 
         return False
+
+    @property
+    def _is_present(self) -> bool:
+        """Try to exclude ghost devices (as caused by corrupt packet addresses)."""
+        return any(
+            m.src == self for m in self._msgs.values() if not m._expired
+        )  # TODO: needs addressing
+
+    def _make_tcs_controller(self, msg=None):  # CH/DHW
+        """Create a TCS, and attach it to this controller."""
+        self._iz_controller = msg or True
 
     @property
     def schema(self) -> dict:
@@ -299,7 +300,7 @@ class DeviceInfo:  # 10E0
     DEVICE_INFO = "device_info"
 
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        if discover_flag & DISCOVER_SCHEMA and self.type not in DEVICE_HAS_BATTERY:
+        if discover_flag & DISCOVER_SCHEMA and not self.has_battery:
             self._send_cmd(_1FC9, retries=3)  # rf_bind
             if self.type != "13":
                 self._send_cmd(_10E0, retries=3)  # TODO: use device hints
@@ -393,12 +394,6 @@ class Device(DeviceInfo, DeviceBase):
         """Return the device's parent zone, if known."""
 
         return self._parent
-
-    @property
-    def has_battery(self) -> Optional[bool]:  # 1060
-        """Return True if a device is battery powered (excludes battery-backup)."""
-
-        return _1060 in self._msgz
 
 
 class Actuator:  # 3EF0, 3EF1
@@ -930,10 +925,10 @@ class Controller(Device):  # CTL (01):
     # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
     #     super()._discover(discover_flag=discover_flag)
 
-    #     if discover_flag & DISCOVER_SCHEMA and self.type not in DEVICE_HAS_BATTERY:
+    #     if discover_flag & DISCOVER_SCHEMA and not self.has_battery:
     #         pass  # self._send_cmd(_1F09, retries=3)
 
-    # #     if discover_flag & DISCOVER_STATUS and self.type not in DEVICE_HAS_BATTERY:
+    # #     if discover_flag & DISCOVER_STATUS and not self.has_battery:
     # #         self._send_cmd(_0016, retries=3)  # rf_check
 
 
@@ -1697,7 +1692,7 @@ DEVICE_BY_ID_TYPE = {
 }  # e.g. "01": Controller,
 
 
-def _create_device(gwy, dev_id, dev_class=None, **kwargs) -> Device:
+def create_device(gwy, dev_id, dev_class=None, **kwargs) -> Device:
     """Create a device, and optionally perform discovery & start polling."""
 
     dev_addr = id_to_address(dev_id)
@@ -1711,8 +1706,6 @@ def _create_device(gwy, dev_id, dev_class=None, **kwargs) -> Device:
     device = DEVICE_BY_CLASS.get(dev_class, Device)(gwy, dev_addr, **kwargs)
 
     if not gwy.config.disable_discovery:
-        schedule_task(device._discover, discover_flag=DISCOVER_SCHEMA)
-        schedule_task(device._discover, discover_flag=DISCOVER_PARAMS, delay=14)
-        schedule_task(device._discover, discover_flag=DISCOVER_STATUS, delay=15)
+        gwy._add_task(device._send_cmd, _0016, retries=3, delay=1800, period=3600)
 
     return device

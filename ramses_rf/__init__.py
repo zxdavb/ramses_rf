@@ -21,7 +21,8 @@ from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .const import ATTR_FAKED, ATTR_ORPHANS, DONT_CREATE_MESSAGES
-from .devices import Device, _create_device
+from .devices import Device, create_device
+from .helpers import schedule_task
 from .message import Message, process_msg
 from .protocol import (
     _PKT_LOGGER,
@@ -223,7 +224,7 @@ class Gateway:
 
         dev = self.device_by_id.get(dev_id)
         if dev is None:  # TODO: take into account device filter?
-            dev = _create_device(self, dev_id)
+            dev = create_device(self, dev_id)
 
         if dev.type == "01" and dev._is_controller and dev._evo is None:
             dev._evo = create_system(self, dev, profile=kwargs.get("profile"))
@@ -469,3 +470,6 @@ class Gateway:
             del self._exclude[device_id]
 
         return self._get_device(device_id)._make_fake(bind=start_binding)
+
+    def _add_task(self, *args, **kwargs) -> None:
+        self._tasks.append(schedule_task(*args, **kwargs))

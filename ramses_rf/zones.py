@@ -38,7 +38,6 @@ from .protocol.const import (
     ZoneMode,
 )
 from .protocol.exceptions import CorruptStateError
-from .protocol.helpers import schedule_task
 
 # from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
 from .protocol import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
@@ -288,15 +287,11 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             ]
 
         if discover_flag & DISCOVER_PARAMS:
-            self._gwy.send_cmd(
-                Command.get_dhw_params(self._ctl.id), period=td(hours=12)
-            )
+            self._gwy.send_cmd(Command.get_dhw_params(self._ctl.id))
 
         if discover_flag & DISCOVER_STATUS:
-            self._gwy.send_cmd(Command.get_dhw_mode(self._ctl.id), period=td(hours=12))
-            self._gwy.send_cmd(
-                Command.get_dhw_temp(self._ctl.id), period=td(minutes=30)
-            )
+            self._gwy.send_cmd(Command.get_dhw_mode(self._ctl.id))
+            self._gwy.send_cmd(Command.get_dhw_temp(self._ctl.id))
 
     def _handle_msg(self, msg) -> bool:
         # assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
@@ -487,14 +482,10 @@ class Zone(ZoneSchedule, ZoneBase):
 
         if discover_flag & DISCOVER_PARAMS:
             self._gwy.send_cmd(Command.get_zone_config(self._ctl.id, self.idx))
-            self._gwy.send_cmd(
-                Command.get_zone_name(self._ctl.id, self.idx), period=td(hours=4)
-            )
+            self._gwy.send_cmd(Command.get_zone_name(self._ctl.id, self.idx))
 
         if discover_flag & DISCOVER_STATUS:  # every 1h, CTL will not respond to a 3150
-            self._gwy.send_cmd(
-                Command.get_zone_mode(self._ctl.id, self.idx), period=td(minutes=30)
-            )
+            self._gwy.send_cmd(Command.get_zone_mode(self._ctl.id, self.idx))
             self._gwy.send_cmd(Command.get_zone_temp(self._ctl.id, self.idx))
             self._gwy.send_cmd(Command.get_zone_window_state(self._ctl.id, self.idx))
 
@@ -900,8 +891,14 @@ def create_zone(evo, zone_idx, profile=None, **kwargs) -> Zone:
     zone = ZONE_BY_TYPE.get(profile, Zone)(evo, zone_idx, **kwargs)
 
     if not evo._gwy.config.disable_discovery:
-        schedule_task(zone._discover, discover_flag=DISCOVER_SCHEMA, delay=1)
-        schedule_task(zone._discover, discover_flag=DISCOVER_PARAMS, delay=4)
-        schedule_task(zone._discover, discover_flag=DISCOVER_STATUS, delay=7)
+        evo._gwy._add_task(
+            zone._discover, discover_flag=DISCOVER_SCHEMA, delay=2, period=86400
+        )
+        evo._gwy._add_task(
+            zone._discover, discover_flag=DISCOVER_PARAMS, delay=5, period=21600
+        )
+        evo._gwy._add_task(
+            zone._discover, discover_flag=DISCOVER_STATUS, delay=8, period=900
+        )
 
     return zone

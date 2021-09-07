@@ -34,8 +34,8 @@ from .command import (
     Command,
     Priority,
 )
-from .const import _PUZZ, HGI_DEVICE_ID, NUL_DEVICE_ID, __dev_mode__
-from .exceptions import CorruptPacketError
+from .const import _PUZZ, HGI_DEVICE_ID, NON_DEVICE_ID, NUL_DEVICE_ID, __dev_mode__
+from .exceptions import InvalidPacketError
 from .helpers import dt_now
 from .packet import Packet
 from .protocol import create_protocol_factory
@@ -356,12 +356,16 @@ class PacketProtocolBase(asyncio.Protocol):
         self._transport = transport
 
         if self._include:  # TODO: here, or in init?
-            _LOGGER.info(f"Enforcing the {KNOWN_LIST} (a whitelist): %s", self._include)
+            _LOGGER.info(
+                f"Enforcing the {KNOWN_LIST} (as a whitelist): %s", self._include
+            )
         elif self._exclude:
-            _LOGGER.info(f"Enforcing the {BLOCK_LIST} (a blacklist): %s", self._exclude)
+            _LOGGER.info(
+                f"Enforcing the {BLOCK_LIST} (as a blacklist): %s", self._exclude
+            )
         else:
             _LOGGER.warning(
-                f"Not using any device filter: using a {KNOWN_LIST} (a as whitelist) "
+                f"Not using any device filter: using a {KNOWN_LIST} (as a whitelist) "
                 "is strongly recommended)"
             )
 
@@ -375,7 +379,9 @@ class PacketProtocolBase(asyncio.Protocol):
         # return wanted and all(d not in self._exclude for d in pkt_addrs)
 
         result = True
-        for dev_id in [d for d in {src_id, dst_id} if d != NUL_DEVICE_ID]:
+        for dev_id in [
+            d for d in {src_id, dst_id} if d not in (NON_DEVICE_ID, NUL_DEVICE_ID)
+        ]:
             if dev_id in self._unwanted:
                 result = False
             elif dev_id[:2] != "18" and self._include and dev_id not in self._include:
@@ -408,28 +414,25 @@ class PacketProtocolBase(asyncio.Protocol):
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
             _LOGGER.info("RF Rx: %s", raw_line)
 
-        was_initialized, self._hgi80[IS_INITIALIZED] = self._hgi80[IS_INITIALIZED], True
+        self._hgi80[IS_INITIALIZED], was_initialized = True, self._hgi80[IS_INITIALIZED]
 
         try:
             pkt = Packet.from_port(self._gwy, dtm, line, raw_line=raw_line)
 
-        except (AssertionError, ValueError) as exc:
-            if self._hgi80[IS_EVOFW3] is None and "# evofw" in line:
+        except (AssertionError, LookupError, TypeError, ValueError) as exc:
+            if DEV_MODE and line and line[:1] != "#" and "*" not in line:
+                _LOGGER.exception("%s < Cant create packet (ignoring 1): %s", line, exc)
+            return
+
+        except InvalidPacketError as exc:
+            if "# evofw" in line and self._hgi80[IS_EVOFW3] is None:
                 self._hgi80[IS_EVOFW3] = True
                 if self._evofw_flag not in (None, "!V"):
                     self._transport.write(
                         bytes(f"{self._evofw_flag}\r\n".encode("ascii"))
                     )
-            if DEV_MODE and line and line[:1] != "#" and "*" not in line:
-                _LOGGER.exception("%s < Cant create packet (ignoring): %s", line, exc)
-            return
-
-        except CorruptPacketError as exc:
-            if was_initialized:
-                raise exc
-            pkt = None
-
-        if not pkt:
+            elif was_initialized:
+                _LOGGER.exception("%s < Cant create packet (ignoring 2): %s", line, exc)
             return
 
         if pkt.src.type == "18":
@@ -441,7 +444,10 @@ class PacketProtocolBase(asyncio.Protocol):
                     f" (another is: {self._hgi80[DEVICE_ID]}), this is unsupported"
                 )
 
-        self._pkt_received(pkt)
+        try:
+            self._pkt_received(pkt)
+        except:  # noqa: E722  # TODO: remove broad-except
+            pass
 
     def data_received(self, data: ByteString) -> None:
         """Called when some data (packet fragments) is received (from RF)."""
@@ -578,19 +584,29 @@ class PacketProtocolRead(PacketProtocolBase):
         super().connection_made(transport)  # self._transport = transport
 
     def _line_received(self, dtm: str, line: str, raw_line: str) -> None:
-        if not self._hgi80[IS_INITIALIZED]:
-            self._hgi80[IS_INITIALIZED] = True
+
+        self._hgi80[IS_INITIALIZED] = True
 
         try:
             pkt = Packet.from_file(self._gwy, dtm, line)
-        except (AssertionError, ValueError) as exc:
-            if (dtm and dtm.lstrip()[:1] != "#") and (
-                line and line[:1] != "#" and "*" not in line
+
+        except (AssertionError, LookupError, TypeError, ValueError) as exc:
+            if (
+                line
+                and line[:1] != "#"
+                and "*" not in line
+                and (dtm and dtm.lstrip()[:1] != "#")
             ):
                 _LOGGER.error("%s < Cant create packet (ignoring): %s", line, exc)
             return
 
-        self._pkt_received(pkt)
+        except InvalidPacketError:
+            return
+
+        try:
+            self._pkt_received(pkt)
+        except:  # noqa: E722  # TODO: remove broad-except
+            pass
 
     def data_received(self, data: str) -> None:
         """Called when a packet line is received (from a log file)."""

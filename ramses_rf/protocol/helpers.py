@@ -1,27 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - Helper functions."""
+"""RAMSES RF - Protocol/Transport layer.
 
-import asyncio
+Helper functions.
+"""
+
 import ctypes
-import re
 import sys
 import time
 from datetime import datetime as dt
-from inspect import iscoroutinefunction
-from typing import Any, Optional, Union
+from typing import Optional, Union
 
 from .const import DEVICE_TYPES, NON_DEVICE_ID, NUL_DEVICE_ID
-
-
-def OUT_get_device(gwy, dev_id, ctl_id=None, **kwargs) -> Optional[Any]:  # -> Device:
-    """A TEMPORARY wrapper to permit deprecating using addresses rather than IDs."""
-
-    if "dev_addr" in kwargs or "ctl_addr" in kwargs:
-        raise RuntimeError
-
-    return gwy._get_device(dev_id, ctl_id=ctl_id, **kwargs)
 
 
 class FILETIME(ctypes.Structure):
@@ -118,7 +109,7 @@ def _precision_v_cost():
     print("duration  dt_now(): %s ns\r\n" % (time.time_ns() - starts))
 
 
-def _double(val, factor=1) -> Optional[float]:
+def double(val, factor=1) -> Optional[float]:
     """Return a double, used by 31DA."""
     if val == "7FFF":
         return
@@ -127,7 +118,7 @@ def _double(val, factor=1) -> Optional[float]:
     return result if factor == 1 else result / factor
 
 
-def _flag8(byte, *args) -> list:
+def flag8(byte, *args) -> list:
     """Split a byte (as a str) into a list of 8 bits (1/0)."""
     ret = [0] * 8
     byte = bytes.fromhex(byte)[0]
@@ -137,7 +128,7 @@ def _flag8(byte, *args) -> list:
     return ret
 
 
-def _percent(value: str) -> Optional[float]:  # a percentage 0-100% (0.0 to 1.0)
+def percent(value: str) -> Optional[float]:  # a percentage 0-100% (0.0 to 1.0)
     """Return a percentage, 0-100% with resolution of 0.5%."""
     assert len(value) == 2, "len is not 2"
     if value in {"EF", "FE", "FF"}:  # TODO: diff b/w FE (seen with 3150) & FF
@@ -301,46 +292,6 @@ def valve_demand(value: str) -> dict:
         }
     assert demand <= 200
     return {"heat_demand": demand / 200}
-
-
-def periodic(period):
-    def scheduler(fcn):
-        async def wrapper(*args, **kwargs):
-            while True:
-                asyncio.create_task(fcn(*args, **kwargs))
-                await asyncio.sleep(period)
-
-        return wrapper
-
-    return scheduler
-
-
-def schedule_task(func, *args, delay=None, period=None, **kwargs) -> asyncio.Task:
-    """Start a coro after delay seconds."""
-
-    async def execute_func(func, *args, **kwargs):
-        if iscoroutinefunction(func):
-            return await func(*args, **kwargs)
-        return func(*args, **kwargs)
-
-    async def schedule_func(delay, period, func, *args, **kwargs):
-        if delay:
-            await asyncio.sleep(delay)
-        await execute_func(func, *args, **kwargs)
-
-        while period:
-            await execute_func(func, *args, **kwargs)
-            await asyncio.sleep(period)
-
-    return asyncio.create_task(schedule_func(delay, period, func, *args, **kwargs))
-
-
-def slugify_string(key: str) -> str:
-    """Convert a string to snake_case."""
-    string = re.sub(r"[\-\.\s]", "_", str(key))
-    return (string[0]).lower() + re.sub(
-        r"[A-Z]", lambda matched: f"_{matched.group(0).lower()}", string[1:]
-    )
 
 
 def hex_id_to_dec(device_hex: str, friendly_id=False) -> str:

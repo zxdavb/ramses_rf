@@ -27,16 +27,16 @@ from .const import (
     SYSTEM_MODE_MAP,
     ZONE_MODE_MAP,
 )
-from .exceptions import CorruptPacketError, CorruptPayloadError
+from .exceptions import InvalidPacketError, InvalidPayloadError
 from .helpers import (
-    _double,
-    _flag8,
-    _percent,
     bool_from_hex,
     date_from_hex,
+    double,
     dtm_from_hex,
     dts_from_hex,
+    flag8,
     hex_id_to_dec,
+    percent,
     str_from_hex,
     temp_from_hex,
     valve_demand,
@@ -124,19 +124,19 @@ def re_compile_re_match(regex, string) -> bool:
 def _check_verb_code_src(msg) -> None:
     """Check the packet's source device type against its verb/code pair."""
     if msg.src.type not in RAMSES_DEVICES:
-        raise CorruptPacketError(f"Unknown src device type: {msg.src.id}")
+        raise InvalidPacketError(f"Unknown src device type: {msg.src.id}")
 
     if msg.src.type == "18":  # TODO: make a dynamic list if sensor/relay faking
         if msg.code not in RAMSES_CODES:  # NOTE: HGI can send whatever it likes
             # currently, there isn't complete detail in RAMSES_DEVICES for HGI
-            raise CorruptPacketError(f"Unknown code for {msg.src.id} to Tx: {msg.code}")
+            raise InvalidPacketError(f"Unknown code for {msg.src.id} to Tx: {msg.code}")
         return
 
     if msg.code not in RAMSES_DEVICES[msg.src.type]:
-        raise CorruptPacketError(f"Invalid code for {msg.src.id} to Tx: {msg.code}")
+        raise InvalidPacketError(f"Invalid code for {msg.src.id} to Tx: {msg.code}")
 
     if msg.verb not in RAMSES_DEVICES[msg.src.type][msg.code]:
-        raise CorruptPacketError(
+        raise InvalidPacketError(
             f"Invalid verb/code for {msg.src.id} to Tx: {msg.verb}/{msg.code}"
         )
 
@@ -150,7 +150,7 @@ def _check_verb_code_dst(msg) -> None:
         return
 
     if msg.dst.type not in RAMSES_DEVICES:
-        raise CorruptPacketError(f"Unknown dst device type: {msg.dst.id}")
+        raise InvalidPacketError(f"Unknown dst device type: {msg.dst.id}")
 
     if msg.verb == I_:
         return
@@ -164,7 +164,7 @@ def _check_verb_code_dst(msg) -> None:
         # HACK: these exceptions need sorting
         # if msg.code in (_1060, ):
         #     return
-        raise CorruptPacketError(f"Invalid code for {msg.dst.id} to Rx: {msg.code}")
+        raise InvalidPacketError(f"Invalid code for {msg.dst.id} to Rx: {msg.code}")
 
     # HACK: these exceptions need sorting
     if f"{msg.verb}/{msg.code}" in (f"{W_}/{_0001}",):
@@ -176,7 +176,7 @@ def _check_verb_code_dst(msg) -> None:
 
     verb = {RQ: RP, RP: RQ, W_: I_}[msg.verb]
     if verb not in RAMSES_DEVICES[msg.dst.type][msg.code]:
-        raise CorruptPacketError(
+        raise InvalidPacketError(
             f"Invalid verb/code for {msg.dst.id} to Rx: {msg.verb}/{msg.code}"
         )
 
@@ -187,7 +187,7 @@ def _check_verb_code_payload(msg, payload) -> None:
     try:
         regex = RAMSES_CODES[msg.code][msg.verb]
         if not re_compile_re_match(regex, payload):
-            raise CorruptPayloadError(f"Payload doesn't match '{regex}'")
+            raise InvalidPayloadError(f"Payload doesn't match '{regex}'")
     except KeyError:
         pass  # TODO: raise
 
@@ -195,7 +195,7 @@ def _check_verb_code_payload(msg, payload) -> None:
     # if msg.code == _3220:
     #     msg_id = int(msg.raw_payload[4:6], 16)
     #     if msg_id not in OPENTHERM_MESSAGES:  # parser uses OTB_MSG_IDS
-    #         raise CorruptPayloadError(
+    #         raise InvalidPayloadError(
     #             f"OpenTherm: Unsupported data-id: 0x{msg_id:02X} ({msg_id})"
     #         )
 
@@ -209,7 +209,7 @@ def parser_decorator(func):
 
         # STEP 0: Check verb/code pair against src/dst device type & payload
         if msg.code not in RAMSES_CODES:
-            raise CorruptPacketError(f"Unknown code: {msg.code}")
+            raise InvalidPacketError(f"Unknown code: {msg.code}")
 
         _check_verb_code_src(msg)
         _check_verb_code_dst(msg)
@@ -314,7 +314,7 @@ def parser_0005(payload, msg) -> Optional[dict]:  # TODO: needs a cleanup
     def _parser(seqx) -> dict:
         return {
             "_zone_type": seqx[2:4],
-            "zone_mask": (_flag8(seqx[4:6]) + _flag8(seqx[6:8])),
+            "zone_mask": (flag8(seqx[4:6]) + flag8(seqx[6:8])),
             "zone_type": _0005_ZONE_TYPE.get(seqx[2:4], f"unknown_{seqx[2:4]}"),
         }
 
@@ -364,7 +364,7 @@ def parser_0008(payload, msg) -> Optional[dict]:
             "blob": payload[8:],
         }
 
-    return {"relay_demand": _percent(payload[2:4])}
+    return {"relay_demand": percent(payload[2:4])}
 
 
 @parser_decorator  # relay_failsafe
@@ -742,7 +742,7 @@ def parser_1060(payload, msg) -> Optional[dict]:
 
     return {
         "battery_low": payload[4:] == "00",
-        "battery_level": _percent(payload[2:4]),
+        "battery_level": percent(payload[2:4]),
     }
 
 
@@ -953,7 +953,7 @@ def parser_1290(payload, msg) -> Optional[dict]:
 @parser_decorator  # hvac_1298
 def parser_1298(payload, msg) -> Optional[dict]:
     #  I --- 37:258565 --:------ 37:258565 1298 003 0007D0
-    return {"unknown": _double(payload[2:])}
+    return {"unknown": double(payload[2:])}
 
 
 @parser_decorator  # indoor_humidity (Nuaire RH sensor)
@@ -1018,7 +1018,7 @@ def parser_12c0(payload, msg) -> Optional[dict]:
 def parser_12c8(payload, msg) -> Optional[dict]:
     #  I --- 37:261128 --:------ 37:261128 12C8 003 000040
     assert payload[2:4] == "00"
-    return {"unknown": _percent(payload[4:])}
+    return {"unknown": percent(payload[4:])}
 
 
 @parser_decorator  # system_sync
@@ -1487,7 +1487,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
     bitmap = int(payload[2:4], 16)
 
     result = {
-        "exhaust_fan_speed": _percent(payload[4:6]),  # NOTE: is 31DA/payload[38:40]
+        "exhaust_fan_speed": percent(payload[4:6]),  # NOTE: is 31DA/payload[38:40]
         "passive": bool(bitmap & 0x02),
         "damper_only": bool(bitmap & 0x04),
         "filter_dirty": bool(bitmap & 0x20),
@@ -1543,7 +1543,7 @@ def parser_31da(payload, msg) -> Optional[dict]:
         0x18: "auto",
     }
 
-    def _percent(val, precision=0.5) -> Optional[float]:
+    def percent(val, precision=0.5) -> Optional[float]:
         if val in ("EF", "FF"):
             return
         if len(val) != 2:
@@ -1581,25 +1581,25 @@ def parser_31da(payload, msg) -> Optional[dict]:
     assert payload[54:58] == "7FFF", payload[54:58]  # or: FFFF?
 
     return {
-        "air_quality": _percent(payload[2:4]),
+        "air_quality": percent(payload[2:4]),
         "air_quality_base": int(payload[4:6], 16),  # NOTE: 12C8/payload[4:6]
-        "co2_level": _double(payload[6:10]),  # ppm NOTE: 1298/payload[2:6]
-        "indoor_humidity": _percent(payload[10:12], precision=1),  # TODO: 12A0?
-        "outdoor_humidity": _percent(payload[12:14], precision=1),
-        "exhaust_temperature": _double(payload[14:18], factor=100),
-        "supply_temperature": _double(payload[18:22], factor=100),
-        "indoor_temperature": _double(payload[22:26], factor=100),
-        "outdoor_temperature": _double(payload[26:30], factor=100),  # TODO: 1290?
+        "co2_level": double(payload[6:10]),  # ppm NOTE: 1298/payload[2:6]
+        "indoor_humidity": percent(payload[10:12], precision=1),  # TODO: 12A0?
+        "outdoor_humidity": percent(payload[12:14], precision=1),
+        "exhaust_temperature": double(payload[14:18], factor=100),
+        "supply_temperature": double(payload[18:22], factor=100),
+        "indoor_temperature": double(payload[22:26], factor=100),
+        "outdoor_temperature": double(payload[26:30], factor=100),  # TODO: 1290?
         "speed_cap": int(payload[30:34], 16),
-        "bypass_pos": _percent(payload[34:36]),
+        "bypass_pos": percent(payload[34:36]),
         "fan_info": CODE_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],
-        "exhaust_fan_speed": _percent(payload[38:40]),  # NOTE: 31D9/payload[4:6]
-        "supply_fan_speed": _percent(payload[40:42]),
-        "remaining_time": _double(payload[42:46]),  # mins NOTE: 22F3/payload[2:6]
-        "post_heat": _percent(payload[46:48]),
-        "pre_heat": _percent(payload[48:50]),
-        "supply_flow": _double(payload[50:54], factor=100),  # L/sec
-        "exhaust_flow": _double(payload[54:58], factor=100),  # L/sec
+        "exhaust_fan_speed": percent(payload[38:40]),  # NOTE: 31D9/payload[4:6]
+        "supply_fan_speed": percent(payload[40:42]),
+        "remaining_time": double(payload[42:46]),  # mins NOTE: 22F3/payload[2:6]
+        "post_heat": percent(payload[46:48]),
+        "pre_heat": percent(payload[48:50]),
+        "supply_flow": double(payload[50:54], factor=100),  # L/sec
+        "exhaust_flow": double(payload[54:58], factor=100),  # L/sec
     }
 
 
@@ -1661,11 +1661,11 @@ def parser_3220(payload, msg) -> Optional[dict]:
     except AssertionError as e:
         raise AssertionError(f"OpenTherm: {e}")
     except ValueError as e:
-        raise CorruptPayloadError(f"OpenTherm: {e}")
+        raise InvalidPayloadError(f"OpenTherm: {e}")
 
     # NOTE: Unknown-DataId isn't an invalid payload & is useful to train the OTB device
     if ot_schema is None and ot_type != "Unknown-DataId":
-        raise CorruptPayloadError(f"OpenTherm: Unknown data-id: {ot_id}")
+        raise InvalidPayloadError(f"OpenTherm: Unknown data-id: {ot_id}")
 
     result = {
         MSG_ID: ot_id,
@@ -1779,9 +1779,9 @@ def parser_3ef0(payload, msg) -> dict:
         assert payload[-2:] in ("00", "64"), f"byte x: {payload[-2:]}"
 
     result = {
-        "actuator_enabled": bool(_percent(payload[2:4])),
-        "modulation_level": _percent(payload[2:4]),  # TODO: rel_modulation_level
-        "_unknown_2": _flag8(payload[4:6]),
+        "actuator_enabled": bool(percent(payload[2:4])),
+        "modulation_level": percent(payload[2:4]),  # TODO: rel_modulation_level
+        "_unknown_2": flag8(payload[4:6]),
     }
 
     if msg.len > 3:  # for OTB (there's no reliable) modulation_level <-> flame_state)
@@ -1791,7 +1791,7 @@ def parser_3ef0(payload, msg) -> dict:
 
         result.update(
             {
-                "_unknown_3": _flag8(payload[6:8]),
+                "_unknown_3": flag8(payload[6:8]),
                 "ch_enabled": bool(int(payload[6:8], 0x10) & 1 << 1),
                 "dhw_active": bool(int(payload[6:8], 0x10) & 1 << 2),
                 "flame_active": bool(int(payload[6:8], 0x10) & 1 << 3),
@@ -1803,7 +1803,7 @@ def parser_3ef0(payload, msg) -> dict:
     if msg.len > 6:
         result.update(
             {
-                "_unknown_6": _flag8(payload[12:14]),
+                "_unknown_6": flag8(payload[12:14]),
                 "ch_active": bool(int(payload[12:14], 0x10) & 1 << 0),
                 "ch_setpoint": int(payload[14:16], 0x10),
                 "max_rel_modulation": int(payload[16:18], 0x10),
@@ -1833,14 +1833,14 @@ def parser_3ef1(payload, msg) -> dict:
     assert msg.verb == RP, f"verb should be {RP}, not: {msg.verb}"
     assert msg.len == 7, msg.len
     assert payload[:2] == "00", payload[:2]
-    assert _percent(payload[10:12]) <= 1, payload[10:12]
+    assert percent(payload[10:12]) <= 1, payload[10:12]
     # assert payload[12:] == "FF"
 
     cycle_countdown = None if payload[2:6] == "7FFF" else int(payload[2:6], 16)
 
     return {
-        "actuator_enabled": bool(_percent(payload[10:12])),
-        "modulation_level": _percent(payload[10:12]),
+        "actuator_enabled": bool(percent(payload[10:12])),
+        "modulation_level": percent(payload[10:12]),
         "actuator_countdown": int(payload[6:10], 16),
         "cycle_countdown": cycle_countdown,  # not for OTB, == "7FFF"
         "_unknown_0": payload[12:],  # for OTB != "FF"
@@ -1906,7 +1906,7 @@ def parse_payload(msg, logger=_LOGGER) -> dict:
             "%s << %s", msg._pkt, f"{err.__class__.__name__}({err})"
         )
 
-    except (CorruptPacketError, CorruptPayloadError) as err:  # CorruptEvohomeError
+    except (InvalidPacketError, InvalidPayloadError) as err:  # CorruptEvohomeError
         (logger.exception if DEV_MODE else logger.warning)("%s << %s", msg._pkt, err)
 
     except (AttributeError, LookupError, TypeError, ValueError) as err:  # TODO: dev

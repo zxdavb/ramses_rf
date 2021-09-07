@@ -176,6 +176,7 @@ class MessageTransport(asyncio.Transport):
 
         try:
             msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
+
         except (AssertionError, ValueError) as exc:
             if DEV_MODE:
                 _LOGGER.error("%s < Cant create message (ignoring): %s", pkt, exc)
@@ -192,7 +193,7 @@ class MessageTransport(asyncio.Transport):
         for p in self._protocols:
             try:
                 p.data_received(msg)
-            except:  # noqa: E722
+            except:  # noqa: E722  # TODO: remove broad-except
                 pass
 
     def close(self):

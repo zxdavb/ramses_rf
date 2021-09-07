@@ -31,8 +31,8 @@ class CorruptEvohomeError(EvohomeError):
     pass
 
 
-class CorruptPacketError(CorruptEvohomeError):
-    """Raised when the payload is inconsistent."""
+class InvalidPacketError(CorruptEvohomeError):
+    """Raised when the packet is inconsistent."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(self, *args, **kwargs)
@@ -46,8 +46,8 @@ class CorruptPacketError(CorruptEvohomeError):
         return f"{err_msg} {err_tip}"
 
 
-class CorruptAddrSetError(CorruptPacketError):
-    """Raised when the payload is inconsistent."""
+class InvalidAddrSetError(InvalidPacketError):
+    """Raised when the packet's address set is inconsistent."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(self, *args, **kwargs)
@@ -61,8 +61,8 @@ class CorruptAddrSetError(CorruptPacketError):
         return f"{err_msg} {err_tip}"
 
 
-class CorruptPayloadError(CorruptPacketError):
-    """Raised when the payload is inconsistent."""
+class InvalidPayloadError(InvalidPacketError):
+    """Raised when the packet's payload is inconsistent."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(self, *args, **kwargs)

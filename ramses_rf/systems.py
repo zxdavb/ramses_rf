@@ -1082,6 +1082,14 @@ def create_system(gwy, ctl, profile=None, **kwargs) -> System:
     system = _SYS_CLASS.get(profile, System)(gwy, ctl, **kwargs)
 
     if not gwy.config.disable_discovery:
-        system._discover(discover_flag=DISCOVER_ALL)
+        gwy._add_task(
+            system._discover, discover_flag=DISCOVER_SCHEMA, delay=1, period=86400
+        )
+        gwy._add_task(
+            system._discover, discover_flag=DISCOVER_PARAMS, delay=4, period=21600
+        )
+        gwy._add_task(
+            system._discover, discover_flag=DISCOVER_STATUS, delay=7, period=900
+        )
 
     return system
