@@ -998,7 +998,6 @@ def parser_12a0(payload, msg) -> Optional[dict]:
 @parser_decorator  # window_state (of a device/zone)
 def parser_12b0(payload, msg) -> Optional[dict]:
     assert payload[2:] in ("0000", "C800", "FFFF"), payload[2:]  # "FFFF" means N/A
-    # assert msg.len == 3, msg.len  # implied
 
     return {
         "window_open": bool_from_hex(payload[2:4]),
@@ -1385,8 +1384,6 @@ def parser_30c9(payload, msg) -> Optional[dict]:
             for i in range(0, len(payload), 6)
         ]
 
-    result = {"temperature": temp_from_hex(payload[2:])}
-
     # TODO: remove me...
     if TEST_MODE and msg.verb == RQ:
         from .command import Command
@@ -1395,7 +1392,7 @@ def parser_30c9(payload, msg) -> Optional[dict]:
         assert cmd.payload == payload, cmd.payload
     # TODO: remove me...
 
-    return result
+    return {"temperature": temp_from_hex(payload[2:])}
 
 
 @parser_decorator  # unknown, from STA, VCE
