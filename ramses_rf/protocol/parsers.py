@@ -1209,7 +1209,7 @@ def parser_22d9(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # switch_mode
 def parser_22f1(payload, msg) -> Optional[dict]:
-    from .devices import FanSwitch  # FIXME: remove cyclic reference
+    from ..devices import FanSwitch  # FIXME: remove cyclic reference
 
     # 11:42:43.149 081  I 051 --:------ --:------ 49:086353 22F1 003 000304
     # 11:42:49.587 071  I 052 --:------ --:------ 49:086353 22F1 003 000404
@@ -1237,7 +1237,7 @@ def parser_22f1(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # switch_boost
 def parser_22f3(payload, msg) -> Optional[dict]:
-    from .devices import FanSwitch  # FIXME: remove cyclic reference
+    from ..devices import FanSwitch  # FIXME: remove cyclic reference
 
     # NOTE: for boost timer for high
     assert msg.len == 3, msg.len
