@@ -14,7 +14,7 @@ from typing import Optional
 
 from .const import DISCOVER_ALL, DISCOVER_PARAMS, DISCOVER_SCHEMA, DISCOVER_STATUS
 from .devices import BdrSwitch, Device, DhwSensor
-from .entities import Entity
+from .entities import Entity, discover_decorator
 from .protocol import Command, Schedule
 from .protocol.const import (
     _000C_DEVICE,
@@ -188,12 +188,12 @@ class ZoneSchedule:  # 0404  # TODO: add for DHW
 
         self._schedule = Schedule(self)
 
+    # @discover_decorator
     # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-
     #     if discover_flag & DISCOVER_STATUS:  # TODO: add back in
     #         self._loop.create_task(self.get_schedule())  # 0404
 
-    # def _handle_msg(self, msg) -> bool:
+    #     def _handle_msg(self, msg) -> bool:
     #     super()._handle_msg(msg)
 
     #     if msg.code == _0404 and msg.verb != RQ:
@@ -223,6 +223,7 @@ class ZoneSchedule:  # 0404  # TODO: add for DHW
 class RelayDemand:  # 0008
     """Not all zones call for heat."""
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -270,6 +271,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         if htg_valve:
             self._set_htg_valve(htg_valve)
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
 
@@ -472,6 +474,7 @@ class Zone(ZoneSchedule, ZoneBase):
         if sensor:
             self._set_sensor(sensor)
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -761,8 +764,9 @@ class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        # NOTE: we create, then promote, so shouldn't super()
+        # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)
         if False and discover_flag & DISCOVER_SCHEMA:
             self._send_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.ELE}")
@@ -793,9 +797,11 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        # NOTE: we create, then promote, so shouldn't super()
+        # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)
+
         if False and discover_flag & DISCOVER_SCHEMA:
             self._send_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.MIX}")
 
@@ -821,9 +827,11 @@ class RadZone(Zone):  # HR92/HR80
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        # NOTE: we create, then promote, so shouldn't super()
+        # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)
+
         if False and discover_flag & DISCOVER_SCHEMA:
             self._send_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.RAD}")
 
@@ -835,9 +843,11 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        # NOTE: we create, then promote, so shouldn't super()
+        # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)
+
         if False and discover_flag & DISCOVER_SCHEMA:
             self._send_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.UFH}")
 
@@ -860,9 +870,11 @@ class ValZone(EleZone):  # BDR91A/T
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        # NOTE: we create, then promote, so shouldn't super()
+        # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)
+
         if False and discover_flag & DISCOVER_SCHEMA:
             self._send_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.VAL}")
 
@@ -890,15 +902,15 @@ def create_zone(evo, zone_idx, profile=None, **kwargs) -> Zone:
 
     zone = ZONE_BY_TYPE.get(profile, Zone)(evo, zone_idx, **kwargs)
 
-    if not evo._gwy.config.disable_discovery:
-        evo._gwy._add_task(
-            zone._discover, discover_flag=DISCOVER_SCHEMA, delay=2, period=86400
-        )
-        evo._gwy._add_task(
-            zone._discover, discover_flag=DISCOVER_PARAMS, delay=5, period=21600
-        )
-        evo._gwy._add_task(
-            zone._discover, discover_flag=DISCOVER_STATUS, delay=8, period=900
-        )
+    # if True or not evo._gwy.config.disable_discovery:
+    evo._gwy._add_task(
+        zone._discover, discover_flag=DISCOVER_SCHEMA, delay=2, period=86400
+    )
+    evo._gwy._add_task(
+        zone._discover, discover_flag=DISCOVER_PARAMS, delay=5, period=21600
+    )
+    evo._gwy._add_task(
+        zone._discover, discover_flag=DISCOVER_STATUS, delay=8, period=900
+    )
 
     return zone

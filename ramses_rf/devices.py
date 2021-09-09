@@ -17,7 +17,7 @@ from .const import (
     DISCOVER_SCHEMA,
     DISCOVER_STATUS,
 )
-from .entities import Entity
+from .entities import Entity, discover_decorator
 from .protocol import Command, Priority  # TODO: constants to const.py
 from .protocol.address import (  # TODO: all required?
     NON_DEV_ADDR,
@@ -197,6 +197,7 @@ class DeviceBase(Entity):
             return NotImplemented
         return self.id < other.id
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # sometimes, battery-powered devices would respond to an RQ (e.g. bind mode)
 
@@ -299,6 +300,7 @@ class DeviceInfo:  # 10E0
     RF_BIND = "rf_bind"
     DEVICE_INFO = "device_info"
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         if discover_flag & DISCOVER_SCHEMA and not self.has_battery:
             self._send_cmd(_1FC9, retries=3)  # rf_bind
@@ -404,6 +406,7 @@ class Actuator:  # 3EF0, 3EF1
     ENABLED = "enabled"
     MODULATION_LEVEL = "modulation_level"  # percentge (0.0-1.0)
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -676,7 +679,7 @@ class Temperature(Fakeable):  # 30C9 (fakeable)
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
-        return self._msg_value(_30C9, key=self.SETPOINT)
+        return self._msg_value(_30C9, key=self.TEMPERATURE)
 
     @temperature.setter
     def temperature(self, value) -> None:  # 30C9
@@ -708,6 +711,7 @@ class RelayDemand(Fakeable):  # 0008 (fakeable)
         if kwargs.get(ATTR_FAKED) is True or _3EF0 in kwargs.get(ATTR_FAKED, []):
             self._make_fake()
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -727,11 +731,10 @@ class RelayDemand(Fakeable):  # 0008 (fakeable)
         ):
             return
 
-        # TODO: handle relay_failsafe, replay to RQs
-        if msg.code == _0008 and msg.verb == I_:
-            mod_level = msg.payload[
-                self.RELAY_DEMAND
-            ]  # 076  I --- 01:054173 --:------ 01:054173 0008 002 037C
+        # TODO: handle relay_failsafe, reply to RQs
+        if msg.code == _0008 and msg.verb == RQ:
+            # 076  I --- 01:054173 --:------ 01:054173 0008 002 037C
+            mod_level = msg.payload[self.RELAY_DEMAND]
             if mod_level is not None:
                 mod_level = 1.0 if mod_level > 0 else 0
 
@@ -745,8 +748,8 @@ class RelayDemand(Fakeable):  # 0008 (fakeable)
         elif msg.code == _3B00 and msg.verb == I_:
             pass
 
-        # elif msg.code == _3EF0 and msg.verb == I_:  # NOT RP, TODO: why????
-        #     self._send_cmd(_0008, priority=Priority.LOW, retries=1)
+        elif msg.code == _3EF0 and msg.verb == I_:  # NOT RP, TODO: why????
+            self._send_cmd(_0008, priority=Priority.LOW, retries=1)
 
         elif msg.code == _3EF1 and msg.verb == RQ:  # NOTE: WIP
             mod_level = 1.0
@@ -922,14 +925,15 @@ class Controller(Device):  # CTL (01):
         if self._evo:
             self._evo._handle_msg(msg)
 
+    # @discover_decorator
     # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
     #     super()._discover(discover_flag=discover_flag)
 
     #     if discover_flag & DISCOVER_SCHEMA and not self.has_battery:
     #         pass  # self._send_cmd(_1F09, retries=3)
 
-    # #     if discover_flag & DISCOVER_STATUS and not self.has_battery:
-    # #         self._send_cmd(_0016, retries=3)  # rf_check
+    #     # if discover_flag & DISCOVER_STATUS and not self.has_battery:
+    #     #     self._send_cmd(_0016, retries=3)  # rf_check
 
 
 class Programmer(Controller):  # PRG (23):
@@ -962,6 +966,7 @@ class UfhController(Device):  # UFC (02):
 
         self._iz_controller = True
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -1210,8 +1215,10 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id}): {self.modulation_level}"  # 3EF0
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # see: https://www.opentherm.eu/request-details/?post_ids=2944
+
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_SCHEMA:
@@ -1462,6 +1469,7 @@ class BdrSwitch(Actuator, RelayDemand, Device):  # BDR (13):
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id}): {self.enabled}"  # or: relay_demand?
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         """The BDRs have one of six roles:
          - heater relay *or* a heat pump relay (alternative to an OTB)
@@ -1705,7 +1713,7 @@ def create_device(gwy, dev_id, dev_class=None, **kwargs) -> Device:
 
     device = DEVICE_BY_CLASS.get(dev_class, Device)(gwy, dev_addr, **kwargs)
 
-    if not gwy.config.disable_discovery:
-        gwy._add_task(device._send_cmd, _0016, retries=3, delay=1800, period=3600)
+    # if True or not gwy.config.disable_discovery:
+    gwy._add_task(device._send_cmd, _0016, retries=3, delay=1800, period=3600)
 
     return device

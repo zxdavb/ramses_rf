@@ -14,7 +14,7 @@ from typing import List, Optional
 
 from .const import DISCOVER_ALL, DISCOVER_PARAMS, DISCOVER_SCHEMA, DISCOVER_STATUS
 from .devices import BdrSwitch, Device, OtbGateway
-from .entities import Entity
+from .entities import Entity, discover_decorator
 from .protocol import Command, FaultLog, Priority
 from .protocol.const import (
     _000C_DEVICE,
@@ -124,6 +124,7 @@ class SysFaultLog:  # 0418
         super().__init__(*args, **kwargs)
         self._fault_log = FaultLog(self._ctl)
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -151,6 +152,7 @@ class SysFaultLog:  # 0418
 
 
 class SysDatetime:  # 313F
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -177,6 +179,7 @@ class SysDatetime:  # 313F
 
 
 class SysLanguage:  # 0100
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -195,6 +198,7 @@ class SysLanguage:  # 0100
 
 
 class SysMode:  # 2E04
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -371,6 +375,7 @@ class MultiZone:  # 0005 (+/- 000C?)
 
         self._prev_30c9 = None  # used to eavesdrop zone sensors
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -677,6 +682,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     # def __str__(self) -> str:  # TODO: WIP
     #     return json.dumps({self._ctl.id: self.schema})
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
 
@@ -970,6 +976,7 @@ class Evohome(SysLanguage, SysMode, MultiZone, UfhSystem, System):  # evohome
     def __repr__(self) -> str:
         return f"{self._ctl.id} (evohome)"
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -1022,6 +1029,7 @@ class Hometronics(System):
     def __repr__(self) -> str:
         return f"{self._ctl.id} (hometronics)"
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
 
@@ -1081,15 +1089,13 @@ def create_system(gwy, ctl, profile=None, **kwargs) -> System:
 
     system = _SYS_CLASS.get(profile, System)(gwy, ctl, **kwargs)
 
-    if not gwy.config.disable_discovery:
-        gwy._add_task(
-            system._discover, discover_flag=DISCOVER_SCHEMA, delay=1, period=86400
-        )
-        gwy._add_task(
-            system._discover, discover_flag=DISCOVER_PARAMS, delay=4, period=21600
-        )
-        gwy._add_task(
-            system._discover, discover_flag=DISCOVER_STATUS, delay=7, period=900
-        )
+    # if True or not gwy.config.disable_discovery:
+    gwy._add_task(
+        system._discover, discover_flag=DISCOVER_SCHEMA, delay=1, period=86400
+    )
+    gwy._add_task(
+        system._discover, discover_flag=DISCOVER_PARAMS, delay=4, period=21600
+    )
+    gwy._add_task(system._discover, discover_flag=DISCOVER_STATUS, delay=7, period=900)
 
     return system

@@ -21,6 +21,15 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
+def discover_decorator(func):
+    def wrapper(self, *args, **kwargs) -> None:
+        if self._gwy.config.disable_sending or self._gwy.config.disable_discovery:
+            return
+        return func(self, *args, **kwargs)
+
+    return wrapper
+
+
 class Entity:
     """The Device/Zone base class.
 
