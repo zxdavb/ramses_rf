@@ -361,59 +361,6 @@ DOMAIN_TYPE_MAP = {
 }  # "21": "Ventilation",
 DOMAIN_TYPE_LOOKUP = {v: k for k, v in DOMAIN_TYPE_MAP.items() if k != "FF"}
 
-SYS_MODE_AUTO = "00"
-SYS_MODE_HEAT_OFF = "01"
-SYS_MODE_ECO_BOOST = "02"  # Eco, or Boost
-SYS_MODE_AWAY = "03"
-SYS_MODE_DAY_OFF = "04"
-SYS_MODE_DAY_OFF_ECO = "05"  # set to Eco when DayOff ends
-SYS_MODE_AUTO_WITH_RESET = "06"
-SYS_MODE_CUSTOM = "07"
-
-SystemMode = SimpleNamespace(
-    AUTO="auto",
-    AWAY="away",
-    CUSTOM="custom",
-    DAY_OFF="day_off",
-    DAY_OFF_ECO="day_off_eco",
-    ECO_BOOST="eco_boost",
-    HEAT_OFF="heat_off",
-    RESET="auto_with_reset",
-)
-SYSTEM_MODE_MAP = {
-    SYS_MODE_AUTO: SystemMode.AUTO,
-    SYS_MODE_HEAT_OFF: SystemMode.HEAT_OFF,
-    SYS_MODE_ECO_BOOST: SystemMode.ECO_BOOST,
-    SYS_MODE_AWAY: SystemMode.AWAY,
-    SYS_MODE_DAY_OFF: SystemMode.DAY_OFF,
-    SYS_MODE_DAY_OFF_ECO: SystemMode.DAY_OFF_ECO,
-    SYS_MODE_AUTO_WITH_RESET: SystemMode.RESET,
-    SYS_MODE_CUSTOM: SystemMode.CUSTOM,
-}
-SYSTEM_MODE_LOOKUP = {v: k for k, v in SYSTEM_MODE_MAP.items()}
-
-ZONE_MODE_FOLLOW_SCHEDULE = "00"
-ZONE_MODE_ADVANCED_OVERRIDE = "01"  # until the next scheduled setpoint
-ZONE_MODE_PERMANENT_OVERRIDE = "02"  # indefinitely
-ZONE_MODE_COUNTDOWN_OVERRIDE = "03"  # for a number of minutes (duration, max 1,215)
-ZONE_MODE_TEMPORARY_OVERRIDE = "04"  # until a given date/time (until)
-
-ZoneMode = SimpleNamespace(
-    SCHEDULE="follow_schedule",
-    ADVANCED="advanced_override",  # until the next setpoint
-    PERMANENT="permanent_override",  # indefinitely
-    COUNTDOWN="countdown_override",  # for a number of minutes (max 1,215)
-    TEMPORARY="temporary_override",  # until a given date/time
-)
-ZONE_MODE_MAP = {
-    ZONE_MODE_FOLLOW_SCHEDULE: ZoneMode.SCHEDULE,
-    ZONE_MODE_ADVANCED_OVERRIDE: ZoneMode.ADVANCED,
-    ZONE_MODE_PERMANENT_OVERRIDE: ZoneMode.PERMANENT,
-    ZONE_MODE_COUNTDOWN_OVERRIDE: ZoneMode.COUNTDOWN,
-    ZONE_MODE_TEMPORARY_OVERRIDE: ZoneMode.TEMPORARY,
-}
-ZONE_MODE_LOOKUP = {v: k for k, v in ZONE_MODE_MAP.items()}
-
 DHW_STATE_MAP = {"00": "off", "01": "on"}
 DHW_STATE_LOOKUP = {v: k for k, v in DHW_STATE_MAP.items()}
 
@@ -590,3 +537,86 @@ SystemType = SimpleNamespace(
     SUNDIAL="sundial",
     GENERIC="generic",
 )
+
+
+class AttrDict(dict):
+    # NOTE: 'advanced_override' in ZONE_MODE == False
+
+    def __readonly__(self, *args, **kwargs):
+        raise RuntimeError("Cannot modify ReadOnlyDict")
+
+    __delitem__ = __readonly__
+    __setitem__ = __readonly__
+    clear = __readonly__
+    pop = __readonly__
+    popitem = __readonly__
+    setdefault = __readonly__
+    update = __readonly__
+
+    del __readonly__
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._reverse = {v: k for k, v in args[0].items()}
+
+    def __getitem__(self, key):
+        if key in self._reverse:
+            return self._reverse.__getitem__(key)
+        return super().__getitem__(key)
+
+    def __getattr__(self, name):
+        if name in self.__slots__:
+            if name in self._reverse:
+                return self._reverse[name]
+            return self[name[1:]]
+        return self.__getattribute__(name)
+
+    def _hex(self, key) -> str:
+        """Return the key (2-byte hex string) of the two-way dict."""
+        if key in self:
+            return key
+        if key in self._reverse:
+            return self._reverse[key]
+        raise KeyError(key)
+
+    def _str(self, key) -> str:
+        """Return the value (string) of the two-way dict."""
+        if key in self:
+            return self[key]
+        if key in self._reverse:
+            return key
+        raise KeyError(key)
+
+
+_ZONE_MODES = {
+    "00": "follow_schedule",
+    "01": "advanced_override",  # until the next scheduled setpoint
+    "02": "permanent_override",  # indefinitely
+    "03": "countdown_override",  # for a number of minutes (duration, max 1,215?)
+    "04": "temporary_override",  # until a given date/time (until)
+}
+
+
+class ZoneModes((AttrDict)):
+    __slots__ = [f"_{k}" for k in _ZONE_MODES] + list(_ZONE_MODES.values())
+
+
+ZONE_MODE = ZoneModes(_ZONE_MODES)
+
+_SYSTEM_MODES = {
+    "00": "auto",  # .          indef only
+    "01": "heat_off",  # .      indef only
+    "02": "eco_boost",  # .     indef, or 24h: is either Eco, or Boost
+    "03": "away",  # .          indef, or 99d (0d = end of today, 00:00)
+    "04": "day_off",  # .       indef, or 99d (rounded down to 00:00 bt CTL)
+    "05": "day_off_eco",  # .   indef, or 99d: set to Eco when DayOff ends
+    "06": "auto_with_reset",  # indef only
+    "07": "custom",  # .        indef, or 99d
+}
+
+
+class SystemModes((AttrDict)):
+    __slots__ = [f"_{k}" for k in _SYSTEM_MODES] + list(_SYSTEM_MODES.values())
+
+
+SYSTEM_MODE = SystemModes(_SYSTEM_MODES)

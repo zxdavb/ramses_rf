@@ -24,8 +24,8 @@ from .const import (
     ATTR_DHW_VALVE,
     ATTR_DHW_VALVE_HTG,
     ATTR_HTG_CONTROL,
-    SYSTEM_MODE_MAP,
-    ZONE_MODE_MAP,
+    SYSTEM_MODE,
+    ZONE_MODE,
 )
 from .exceptions import InvalidPacketError, InvalidPayloadError
 from .helpers import (
@@ -1041,7 +1041,7 @@ def parser_1f09(payload, msg) -> Optional[dict]:
 @parser_decorator  # dhw_mode
 def parser_1f41(payload, msg) -> Optional[dict]:
     # 053 RP --- 01:145038 18:013393 --:------ 1F41 006 00FF00FFFFFF  # no stored DHW
-    assert payload[4:6] in ZONE_MODE_MAP, f"{payload[4:6]} (0xjj)"
+    assert payload[4:6] in ZONE_MODE, f"{payload[4:6]} (0xjj)"
     assert payload[4:6] == "04" or msg.len == 6, f"{msg._pkt}: expected length 6"
     assert payload[4:6] != "04" or msg.len == 12, f"{msg._pkt}: expected length 12"
     assert (
@@ -1050,7 +1050,7 @@ def parser_1f41(payload, msg) -> Optional[dict]:
 
     result = {
         "active": {"00": False, "01": True, "FF": None}[payload[2:4]],
-        "mode": ZONE_MODE_MAP.get(payload[4:6]),
+        "mode": ZONE_MODE.get(payload[4:6]),
     }
     if payload[4:6] == "04":  # temporary_override
         result["until"] = dtm_from_hex(payload[12:24])
@@ -1289,9 +1289,9 @@ def parser_2349(payload, msg) -> Optional[dict]:
 
     assert msg.len in (4, 7, 13), f"expected len 4,7,13, got {msg.len}"  # OTB has 4
 
-    assert payload[6:8] in ZONE_MODE_MAP, f"unknown zone_mode: {payload[6:8]}"
+    assert payload[6:8] in ZONE_MODE, f"unknown zone_mode: {payload[6:8]}"
     result = {
-        "mode": ZONE_MODE_MAP.get(payload[6:8]),
+        "mode": ZONE_MODE.get(payload[6:8]),
         "setpoint": temp_from_hex(payload[2:6]),
     }
 
@@ -1341,7 +1341,7 @@ def parser_2e04(payload, msg) -> Optional[dict]:
     #  I --— 01:020766 --:------ 01:020766 2E04 016 FFFFFFFFFFFFFF0000FFFFFFFFFFFF04  # Automatic/times # noqa: E501
 
     if msg.len == 8:  # evohome
-        assert payload[:2] in SYSTEM_MODE_MAP, payload[:2]  # TODO: check AutoWithReset
+        assert payload[:2] in SYSTEM_MODE, payload[:2]  # TODO: check AutoWithReset
 
     elif msg.len == 16:  # hometronics, lifestyle ID:
         assert 0 <= int(payload[:2], 16) <= 15 or payload[:2] == "FF", payload[:2]
@@ -1354,7 +1354,7 @@ def parser_2e04(payload, msg) -> Optional[dict]:
         assert False, f"Packet length is {msg.len} (expecting 8, 16)"
 
     result = {
-        "system_mode": SYSTEM_MODE_MAP.get(payload[:2], payload[:2]),
+        "system_mode": SYSTEM_MODE.get(payload[:2], payload[:2]),
         "until": dtm_from_hex(payload[2:14]) if payload[14:16] != "00" else None,
     }  # TODO: double-check the final "00"
 

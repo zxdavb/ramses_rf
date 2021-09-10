@@ -13,17 +13,10 @@ import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
 from types import SimpleNamespace
-from typing import Any, Optional, Union
+from typing import Any, Optional, Tuple, Union
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, dev_id_to_hex, pkt_addrs
-from .const import (
-    COMMAND_REGEX,
-    SYSTEM_MODE_LOOKUP,
-    SYSTEM_MODE_MAP,
-    ZONE_MODE_LOOKUP,
-    ZONE_MODE_MAP,
-    ZoneMode,
-)
+from .const import COMMAND_REGEX, SYSTEM_MODE, ZONE_MODE
 from .exceptions import ExpiredCallbackError
 from .frame import PacketBase, pkt_header
 from .helpers import dt_now, dtm_to_hex, dts_to_hex, str_to_hex, temp_to_hex
@@ -137,7 +130,7 @@ if DEV_MODE:
 
 
 def validate_command(has_zone=None):
-    """Decorator to pProtect the engine from any invalid command constructors.
+    """Decorator to protect the engine from any invalid command constructors.
 
     Additionally, validate/normalise some command arguments.
     """
@@ -177,6 +170,71 @@ def validate_command(has_zone=None):
         return wrapper
 
     return zone_decorator if has_zone else device_decorator
+
+
+def normalise_zone_mode(mode, target, until, duration) -> str:
+    """Validate the mode, and return a it as a normalised 2-byte code.
+
+    Used by set_dhw_mode, target=active, and set_zone_mode, target=setpoint. May raise
+    KeyError or ValueError.
+    """
+
+    if mode is None and target is None:
+        raise ValueError("Invalid args: One of mode or setpoint/active cant be None")
+    if until and duration:
+        raise ValueError("Invalid args: At least one of until or duration must be None")
+
+    if mode is None:
+        if until:
+            mode = ZONE_MODE.temporary_override
+        elif duration:
+            mode = ZONE_MODE.countdown_override
+        else:
+            mode = ZONE_MODE.permanent_override  # TODO: advanced_override?
+    else:  # may raise KeyError
+        mode = ZONE_MODE._hex(f"{mode:02X}" if isinstance(mode, int) else mode)
+
+    if mode != ZONE_MODE.follow_schedule and target is None:
+        raise ValueError(
+            f"Invalid args: For {ZONE_MODE._str(mode)}, setpoint/active cant be None"
+        )
+
+    return mode
+
+
+def normalise_duration(mode, _, until, duration) -> Tuple[Any, Any]:
+    """Validate until and duration, and return them a normalised xxx.
+
+    Used by set_dhw_mode and set_zone_mode. May raise KeyError or ValueError.
+    """
+    # if until and duration:
+    #     raise ValueError("Invalid args: Only one of until or duration can be set")
+
+    if mode == ZONE_MODE.temporary_override:
+        if duration is not None:
+            raise ValueError(
+                f"Invalid args: For {ZONE_MODE._str(mode)}, duration must be None"
+            )
+        if until is None:
+            mode = ZONE_MODE.advanced_override  # or: until = dt.now() + td(hour=1)
+
+    elif mode in ZONE_MODE.countdown_override:
+        if duration is None:
+            raise ValueError(
+                f"Invalid args: For {ZONE_MODE._str(mode)}, duration cant be None"
+            )
+        if until is not None:
+            raise ValueError(
+                f"Invalid args: For {ZONE_MODE._str(mode)}, until must be None"
+            )
+
+    elif until is not None or duration is not None:
+        raise ValueError(
+            f"Invalid args: For {ZONE_MODE._str(mode)},"
+            " until and duration must both be None"
+        )
+
+    return until, duration
 
 
 @functools.total_ordering
@@ -306,38 +364,31 @@ class Command(PacketBase):
     @classmethod  # constructor for W_/1F41
     @validate_command()
     def set_dhw_mode(
-        cls, ctl_id: str, mode=None, active: bool = None, until=None, **kwargs
+        cls,
+        ctl_id: str,
+        mode=None,
+        active: bool = None,
+        until=None,
+        duration: int = None,
+        **kwargs,
     ):
         """Constructor to set/reset the mode of the DHW (c.f. parser_1f41)."""
 
-        if mode is None and active is None:
-            raise ValueError("Invalid args: mode and active cant both be None")
+        mode = normalise_zone_mode(
+            int(mode) if isinstance(mode, bool) else mode, active, until, duration
+        )
 
-        if mode is None:  # and active is not None: TODO: use: advanced_override?
-            mode = ZoneMode.TEMPORARY if until else ZoneMode.PERMANENT
-        elif isinstance(mode, int):
-            mode = f"{mode:02X}"
-        if mode in ZONE_MODE_MAP:
-            mode = ZONE_MODE_MAP[mode]
-        elif mode not in ZONE_MODE_LOOKUP:
-            raise TypeError(f"Invalid args: Unknown mode: {mode}")
+        if active is not None and not isinstance(active, (bool, int)):
+            raise TypeError(f"Invalid args: active={active}, but must be an bool")
 
-        if active is None and mode != ZoneMode.SCHEDULE:
-            raise ValueError(f"Invalid args: For {mode}, active cant be None")
-        elif active is not None and not isinstance(active, (bool, int)):
-            raise ValueError(f"Invalid args: active={active}, should be bool")
-
-        if until is None and mode == ZoneMode.TEMPORARY:
-            mode = ZoneMode.ADVANCED  # until = dt.now() + td(hour=1)
-        elif until is not None and mode in (ZoneMode.SCHEDULE, ZoneMode.PERMANENT):
-            raise ValueError(f"Invalid args: For {mode}, until should be None")
+        until, duration = normalise_duration(mode, active, until, duration)
 
         payload = "".join(
             (
                 "00",
                 "01" if bool(active) else "00",
-                ZONE_MODE_LOOKUP[mode],
-                "FFFFFF",  # duration?
+                mode,
+                "FFFFFF" if duration is None else f"{duration:06X}",
                 "" if until is None else dtm_to_hex(until),
             )
         )
@@ -476,23 +527,33 @@ class Command(PacketBase):
         if system_mode is None:
             raise ValueError("Invalid args: system_mode cant be None")
 
-        if isinstance(system_mode, int):
-            system_mode = f"{system_mode:02X}"
-        if system_mode in SYSTEM_MODE_MAP:
-            system_mode = SYSTEM_MODE_MAP[system_mode]
-        elif system_mode not in SYSTEM_MODE_LOOKUP:
-            raise TypeError(f"Invalid args: Unknown system_mode: {system_mode}")
+        system_mode = SYSTEM_MODE._hex(
+            f"{system_mode:02X}" if isinstance(system_mode, int) else system_mode
+        )  # may raise KeyError
 
-        # TODO: these need fixing
-        # if until is None and system_mode == "xxx":
-        #     system_mode = ZoneMode.ADVANCED  # until = dt.now() + td(hour=1)
-        # elif until is not None and system_mode in (SystemMode.AUTO, SystemMode.RESET):
-        #     raise ValueError(f"Invalid args: For {system_mode}, until should be None")
+        if system_mode in (
+            ZONE_MODE.auto,
+            ZONE_MODE.auto_with_reset,
+            ZONE_MODE.heat_off,
+        ):
+            if until is not None:
+                raise ValueError(
+                    f"Invalid args: For system_mode={SYSTEM_MODE._hex(system_mode)},"
+                    " until must be None"
+                )
+        elif until is None:
+            raise ValueError(
+                f"Invalid args: For system_mode={SYSTEM_MODE._hex(system_mode)},"
+                " until cant be None"
+            )
 
-        assert system_mode in SYSTEM_MODE_LOOKUP, system_mode
-
-        payload = SYSTEM_MODE_LOOKUP[system_mode]
-        payload += dtm_to_hex(until) + ("00" if until is None else "01")
+        payload = "".join(
+            (
+                system_mode,
+                dtm_to_hex(until),
+                "00" if until is None else "01",
+            )
+        )
 
         return cls(W_, _2E04, payload, ctl_id, **kwargs)
 
@@ -624,43 +685,18 @@ class Command(PacketBase):
         #  W --- 18:013393 01:145038 --:------ 2349 013 0004E201FFFFFF330B1A0607E4
         #  W --- 22:017139 01:140959 --:------ 2349 007 0801F400FFFFFF
 
-        if mode is None:
-            if setpoint is None:
-                raise ValueError("Invalid args: Both mode and setpoint are None")
-            elif until:
-                mode = ZoneMode.TEMPORARY
-            elif duration:
-                mode = ZoneMode.COUNTDOWN
-            else:
-                mode = ZoneMode.PERMANENT  # or: ZoneMode.ADVANCED
-        elif isinstance(mode, int):
-            mode = f"{mode:02X}"
+        mode = normalise_zone_mode(mode, setpoint, until, duration)
 
-        if mode in ZONE_MODE_MAP:
-            mode = ZONE_MODE_MAP[mode]
-        elif mode not in ZONE_MODE_LOOKUP:
-            raise TypeError(f"Invalid args: Unknown mode: {mode}")
+        if setpoint is not None and not isinstance(setpoint, (float, int)):
+            raise TypeError(f"Invalid args: setpoint={setpoint}, but must be a float")
 
-        if setpoint is None:
-            if mode != ZoneMode.SCHEDULE:
-                raise ValueError(f"Invalid args: For {mode}, setpoint cant be None")
-        elif not isinstance(setpoint, (int, float)):
-            raise ValueError(f"Invalid args: setpoint={setpoint}, should be float")
-
-        if mode == ZoneMode.TEMPORARY and until is None:
-            mode = ZoneMode.ADVANCED  # until = dt.now() + td(hour=1)
-        elif mode in (ZoneMode.SCHEDULE, ZoneMode.PERMANENT) and (
-            until is not None or duration is not None
-        ):
-            raise ValueError(f"Invalid args: For {mode}, until should be None")
-
-        assert mode in ZONE_MODE_LOOKUP, mode
+        until, duration = normalise_duration(mode, setpoint, until, duration)
 
         payload = "".join(
             (
                 f"{zone_idx:02X}",
                 temp_to_hex(setpoint),  # None means max, if a temp is required
-                ZONE_MODE_LOOKUP[mode],
+                mode,
                 "FFFFFF" if duration is None else f"{duration:06X}",
                 "" if until is None else dtm_to_hex(until),
             )

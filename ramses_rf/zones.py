@@ -33,9 +33,9 @@ from .protocol.const import (
     ATTR_ZONE_TYPE,
     DEVICE_HAS_ZONE_SENSOR,
     ZONE_CLASS_MAP,
+    ZONE_MODE,
     ZONE_TYPE_MAP,
     ZONE_TYPE_SLUGS,
-    ZoneMode,
 )
 from .protocol.exceptions import CorruptStateError
 
@@ -165,10 +165,6 @@ class ZoneBase(Entity):
 
         return parent, parent._ctl
 
-    def _handle_msg(self, msg) -> None:
-        assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
-        super()._handle_msg(msg)
-
     def _send_cmd(self, code, **kwargs) -> None:
         dest = kwargs.pop("dest_addr", self._ctl.id)
         payload = kwargs.pop("payload", f"{self.idx}00")
@@ -296,7 +292,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             self._gwy.send_cmd(Command.get_dhw_temp(self._ctl.id))
 
     def _handle_msg(self, msg) -> bool:
-        # assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
+        assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
         super()._handle_msg(msg)
 
     def _set_dhw_device(self, new_dev, old_dev, attr_name, dev_class, domain_id):
@@ -402,12 +398,12 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
     def set_boost_mode(self) -> Task:
         """Enable DHW for an hour, despite any schedule."""
         return self.set_mode(
-            mode=ZoneMode.TEMPORARY, active=True, until=dt.now() + td(hours=1)
+            mode=ZONE_MODE.temporary_override, active=True, until=dt.now() + td(hours=1)
         )
 
     def reset_mode(self) -> Task:  # 1F41
         """Revert the DHW to following its schedule."""
-        return self.set_mode(mode=ZoneMode.SCHEDULE)
+        return self.set_mode(mode=ZONE_MODE.follow_schedule)
 
     def set_config(self, setpoint=None, overrun=None, differential=None) -> Task:
         """Set the DHW parameters (setpoint, overrun, differential)."""
@@ -447,7 +443,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
 
 class Zone(ZoneSchedule, ZoneBase):
-    """The Zone base class."""
+    """The Zone class for all zone types (but not DHW)."""
 
     _TYPE = None  # Unknown
 
@@ -654,7 +650,7 @@ class Zone(ZoneSchedule, ZoneBase):
             cmd = Command.set_zone_setpoint(self._ctl.id, self.idx, value)
             self._gwy.send_cmd(cmd)
             # NOTE: the following doesn't wotk for e.g. Hometronics
-            # self.set_mode(mode=ZoneMode.ADVANCED, setpoint=value)
+            # self.set_mode(mode=ZONE_MODE.advanced_override, setpoint=value)
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
@@ -707,11 +703,11 @@ class Zone(ZoneSchedule, ZoneBase):
 
     def reset_mode(self) -> Task:  # 2349
         """Revert the zone to following its schedule."""
-        return self.set_mode(mode=ZoneMode.SCHEDULE)
+        return self.set_mode(mode=ZONE_MODE.follow_schedule)
 
     def set_frost_mode(self) -> Task:  # 2349
         """Set the zone to the lowest possible setpoint, indefinitely."""
-        return self.set_mode(mode=ZoneMode.PERMANENT, setpoint=5)  # TODO
+        return self.set_mode(mode=ZONE_MODE.permanent_override, setpoint=5)  # TODO
 
     def set_mode(self, mode=None, setpoint=None, until=None) -> Task:
         """Override the zone's setpoint for a specified duration, or indefinitely."""

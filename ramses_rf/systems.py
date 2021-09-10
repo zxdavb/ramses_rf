@@ -30,7 +30,7 @@ from .protocol.const import (
     ATTR_SYSTEM_MODE,
     ATTR_ZONE_SENSOR,
     DEVICE_HAS_ZONE_SENSOR,
-    SystemMode,
+    SYSTEM_MODE,
     SystemType,
 )
 from .protocol.exceptions import CorruptStateError, ExpiredCallbackError
@@ -216,11 +216,11 @@ class SysMode:  # 2E04
 
     def set_auto(self) -> Task:
         """Revert system to Auto, set non-PermanentOverride zones to FollowSchedule."""
-        return self.set_mode(SystemMode.AUTO)
+        return self.set_mode(SYSTEM_MODE.auto)
 
     def reset_mode(self) -> Task:
         """Revert system to Auto, force *all* zones to FollowSchedule."""
-        return self.set_mode(SystemMode.RESET)
+        return self.set_mode(SYSTEM_MODE.auto_with_reset)
 
     @property
     def params(self) -> dict:
@@ -241,7 +241,7 @@ class StoredHw:
     def _handle_msg(self, msg, prev_msg=None):
         super()._handle_msg(msg)
 
-        if msg.code not in (_10A0, _1260, _1F41) or "dhw_id" not in msg.payload:
+        if msg.code not in (_10A0, _1260, _1F41):  # or "dhw_id" not in msg.payload:
             return
 
         # RQ --- 18:002563 01:078710 --:------ 10A0 001 00  # every 4h
@@ -253,7 +253,7 @@ class StoredHw:
             self._eavesdrop_dhw_sensor(msg)
 
         # Route any messages to the DHW (dhw_params, dhw_temp, dhw_mode)
-        self.dhw._handle_msg(msg)
+        self._dhw._handle_msg(msg)
 
     def _eavesdrop_dhw_sensor(self, this, prev=None) -> None:
         """Eavesdrop packets, or pairs of packets, to maintain the system state.
