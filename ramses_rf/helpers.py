@@ -32,7 +32,10 @@ def schedule_task(func, *args, delay=None, period=None, **kwargs) -> asyncio.Tas
     async def schedule_func(delay, period, func, *args, **kwargs):
         if delay:
             await asyncio.sleep(delay)
-        asyncio.create_task(execute_func(func, *args, **kwargs))
+
+        if not period:
+            asyncio.create_task(execute_func(func, *args, **kwargs))
+            return
 
         while period:
             asyncio.create_task(execute_func(func, *args, **kwargs))
