@@ -230,15 +230,12 @@ class DeviceBase(Entity):
         _LOGGER.debug("%s: controller now set to %s", self, ctl)
 
     def _handle_msg(self, msg) -> None:
-        """Check that devices only handle messages they have sent."""
         assert msg.src is self, f"msg inappropriately routed to {self}"
         super()._handle_msg(msg)
 
         if msg.verb != I_:  # or: if self._iz_controller is not None or...
             return
 
-        # grep -vE ':(005283|007412|027384|034178|068807|079416|106131|125124|
-        #             138834|160474|179828|193204|195747|207082|207170|259810) '  # noqa
         if not self._iz_controller and msg.code in CODE_ONLY_FROM_CTL:
             if self._iz_controller is None:
                 _LOGGER.info(f"{msg._pkt} # IS_CONTROLLER (00): is TRUE")
