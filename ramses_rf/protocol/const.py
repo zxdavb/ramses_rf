@@ -453,7 +453,7 @@ _0005_ZONE = SimpleNamespace(
     DHW="0E",  # DHW valve domains
     HTG="0F",  # Heating control domains
     RFG="10",  # RFG gateway
-    ELE="11",  # Electrical zones
+    ELE="11",  # Electrical zones  # TODO: no RP from older evohome
 )
 # RP --- 01:054173 18:006402 --:------ 0005 004 00100000  # before adding RFG100
 #  I --- 01:054173 --:------ 01:054173 1FC9 012 0010E004D39D001FC904D39D
