@@ -898,7 +898,6 @@ def create_zone(evo, zone_idx, profile=None, **kwargs) -> Zone:
 
     zone = ZONE_BY_TYPE.get(profile, Zone)(evo, zone_idx, **kwargs)
 
-    # if True or not evo._gwy.config.disable_discovery:
     evo._gwy._add_task(
         zone._discover, discover_flag=DISCOVER_SCHEMA, delay=2, period=86400
     )
