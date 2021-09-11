@@ -304,7 +304,7 @@ class Message:
             self.__expired = self.CANT_EXPIRE
 
         elif self.__expired >= self.HAS_EXPIRED:  # TODO: should renew?
-            _LOGGER.warning(
+            (_LOGGER.warning if self.code != _313F else _LOGGER.info)(
                 "%s # has expired %s", self._pkt, f"({self.__expired * 100:1.0f}%)"
             )
 

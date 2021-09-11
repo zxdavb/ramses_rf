@@ -145,7 +145,7 @@ def validate_command(has_zone=None):
             TypeError,
             ValueError,
         ) as exc:
-            _LOGGER.warning(f"validate_command(): {exc}")
+            _LOGGER.exception(f"validate_command(): {exc}")
 
     def device_decorator(fcn):
         @functools.wraps(fcn)
@@ -532,9 +532,9 @@ class Command(PacketBase):
         )  # may raise KeyError
 
         if system_mode in (
-            ZONE_MODE.auto,
-            ZONE_MODE.auto_with_reset,
-            ZONE_MODE.heat_off,
+            SYSTEM_MODE.auto,
+            SYSTEM_MODE.auto_with_reset,
+            SYSTEM_MODE.heat_off,
         ):
             if until is not None:
                 raise ValueError(
