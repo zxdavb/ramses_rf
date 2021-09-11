@@ -172,10 +172,10 @@ def validate_command(has_zone=None):
     return zone_decorator if has_zone else device_decorator
 
 
-def normalise_zone_mode(mode, target, until, duration) -> str:
-    """Validate the mode, and return a it as a normalised 2-byte code.
+def _normalise_mode(mode, target, until, duration) -> str:
+    """Validate the zone_mode, and return a it as a normalised 2-byte code.
 
-    Used by set_dhw_mode, target=active, and set_zone_mode, target=setpoint. May raise
+    Used by set_dhw_mode (target=active) and set_zone_mode (target=setpoint). May raise
     KeyError or ValueError.
     """
 
@@ -202,8 +202,8 @@ def normalise_zone_mode(mode, target, until, duration) -> str:
     return mode
 
 
-def normalise_duration(mode, _, until, duration) -> Tuple[Any, Any]:
-    """Validate until and duration, and return them a normalised xxx.
+def _normalise_until(mode, _, until, duration) -> Tuple[Any, Any]:
+    """Validate until and duration, and return a normalised xxx.
 
     Used by set_dhw_mode and set_zone_mode. May raise KeyError or ValueError.
     """
@@ -374,14 +374,14 @@ class Command(PacketBase):
     ):
         """Constructor to set/reset the mode of the DHW (c.f. parser_1f41)."""
 
-        mode = normalise_zone_mode(
+        mode = _normalise_mode(
             int(mode) if isinstance(mode, bool) else mode, active, until, duration
         )
 
         if active is not None and not isinstance(active, (bool, int)):
             raise TypeError(f"Invalid args: active={active}, but must be an bool")
 
-        until, duration = normalise_duration(mode, active, until, duration)
+        until, duration = _normalise_until(mode, active, until, duration)
 
         payload = "".join(
             (
@@ -531,20 +531,14 @@ class Command(PacketBase):
             f"{system_mode:02X}" if isinstance(system_mode, int) else system_mode
         )  # may raise KeyError
 
-        if system_mode in (
+        if until is not None and system_mode in (
             SYSTEM_MODE.auto,
             SYSTEM_MODE.auto_with_reset,
             SYSTEM_MODE.heat_off,
         ):
-            if until is not None:
-                raise ValueError(
-                    f"Invalid args: For system_mode={SYSTEM_MODE._hex(system_mode)},"
-                    " until must be None"
-                )
-        elif until is None:
             raise ValueError(
-                f"Invalid args: For system_mode={SYSTEM_MODE._hex(system_mode)},"
-                " until cant be None"
+                f"Invalid args: For system_mode={SYSTEM_MODE._str(system_mode)},"
+                " until must be None"
             )
 
         payload = "".join(
@@ -685,12 +679,12 @@ class Command(PacketBase):
         #  W --- 18:013393 01:145038 --:------ 2349 013 0004E201FFFFFF330B1A0607E4
         #  W --- 22:017139 01:140959 --:------ 2349 007 0801F400FFFFFF
 
-        mode = normalise_zone_mode(mode, setpoint, until, duration)
+        mode = _normalise_mode(mode, setpoint, until, duration)
 
         if setpoint is not None and not isinstance(setpoint, (float, int)):
             raise TypeError(f"Invalid args: setpoint={setpoint}, but must be a float")
 
-        until, duration = normalise_duration(mode, setpoint, until, duration)
+        until, duration = _normalise_until(mode, setpoint, until, duration)
 
         payload = "".join(
             (
