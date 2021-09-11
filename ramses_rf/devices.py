@@ -511,7 +511,7 @@ class Fakeable:
         if not self._faked:
             self._gwy._include[self.id] = {ATTR_FAKED: True}
             self._faked = True
-            _LOGGER.error(f"Faking now enabled for {self}")  # TODO: be info/debug
+            _LOGGER.warning(f"Faking now enabled for {self}")  # TODO: be info/debug
         if bind:
             self._bind()
         return self
@@ -524,7 +524,7 @@ class Fakeable:
         # 19:30:45.342 053  W --- 13:049798 01:054173 --:------ 1FC9 012 00-3EF0-34C286 00-3B00-34C286
         # 19:30:45.504 049  I --- 01:054173 13:049798 --:------ 1FC9 006 00-FFFF-04D39D
 
-        _LOGGER.error(f"Binding {self}: waiting for {code}")  # TODO: info/debug
+        _LOGGER.warning(f"Binding {self}: waiting for {code}")  # TODO: info/debug
         # SUPPORTED_CODES = (_0008,)
 
         def bind_confirm(msg, *args) -> None:
@@ -575,7 +575,7 @@ class Fakeable:
         # 19:45:16.896 045  W --- 01:054173 07:045960 --:------ 1FC9 006 00-10A0-04D39D
         # 19:45:16.919 045  I --- 07:045960 01:054173 --:------ 1FC9 006 00-1260-1CB388
 
-        _LOGGER.error(f"Binding {self}: requesting {code}")  # TODO: info/debug
+        _LOGGER.warning(f"Binding {self}: requesting {code}")  # TODO: info/debug
         SUPPORTED_CODES = (_0002, _1260, _1290, _30C9)
 
         def bind_confirm(msg, *args) -> None:
@@ -1710,7 +1710,8 @@ def create_device(gwy, dev_id, dev_class=None, **kwargs) -> Device:
 
     device = DEVICE_BY_CLASS.get(dev_class, Device)(gwy, dev_addr, **kwargs)
 
-    # if True or not gwy.config.disable_discovery:
+    # gwy._add_task(device._send_cmd, _1FC9, retries=3, delay=0)
+
     gwy._add_task(device._send_cmd, _0016, retries=3, delay=1800, period=3600)
 
     return device
