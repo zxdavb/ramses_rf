@@ -293,7 +293,9 @@ class Message:
             if self.__expired >= self.HAS_EXPIRED * 2:  # TODO: should delete?
                 return True
 
-        if self.code == _1F09 and self.verb != RQ:  # RQs won't have remaining_seconds
+        if self.code == _1F09 and self.verb == I_:
+            # RQs won't have remaining_seconds
+            # RP/Ws will have only partial cycle times
             timeout = td(seconds=self.payload["remaining_seconds"])
             self.__expired = (self._gwy._dt_now() - self.dtm) / timeout
         else:
@@ -304,9 +306,11 @@ class Message:
             self.__expired = self.CANT_EXPIRE
 
         elif self.__expired >= self.HAS_EXPIRED:  # TODO: should renew?
-            (_LOGGER.warning if self.code != _313F else _LOGGER.info)(
-                "%s # has expired %s", self._pkt, f"({self.__expired * 100:1.0f}%)"
-            )
+            if any((self.code == _1F09 and self.verb != I_, self.code == _313F)):
+                _logger = _LOGGER.info
+            else:
+                _logger = _LOGGER.warning
+            _logger("%s # has expired %s", self._pkt, f"({self.__expired * 100:1.0f}%)")
 
         # elif self.__expired >= self.IS_EXPIRING:  # this could log multiple times
         #     _LOGGER.error("%s # is expiring", self._pkt)

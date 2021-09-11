@@ -251,12 +251,10 @@ class Packet(PacketBase):
         )
 
 
-def pkt_timeout(pkt) -> Optional[float]:  # NOTE: import OtbGateway ??
-    """Return the pkt lifetime.
+def pkt_timeout(pkt) -> Optional[td]:  # NOTE: import OtbGateway ??
+    """Return the pkt lifetime, or None if the packet does not expire (e.g. 10E0).
 
-    Will return None if the packet does not expire (e.g. 10E0).
-
-    Some codes best require a valid payload, e.g.: 1F09
+    Some codes require a valid payload to best determine lifetime (e.g. 1F09).
     """
 
     timeout = None
@@ -271,7 +269,7 @@ def pkt_timeout(pkt) -> Optional[float]:  # NOTE: import OtbGateway ??
         return  # TODO: check other verbs, they seem variable
 
     elif pkt.code == _1F09:
-        timeout = td(seconds=300)  # usu: 180-300
+        timeout = td(seconds=300) if pkt.verb == I_ else td(seconds=3)
 
     elif pkt.code == _000A and pkt._has_array:
         timeout = td(minutes=60)  # sends I /1h
