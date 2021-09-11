@@ -403,6 +403,7 @@ class MultiZone:  # 0005 (+/- 000C?)
             # ]
 
         # if discover_flag & DISCOVER_STATUS:
+        #     self._send_cmd(_1F09)  # NOTE: RP/1F09 may cause issues, I/1F09 is better
         #     self._send_cmd(_0006)  # schedule delta
 
     def _eavesdrop_zone_sensors(self, this, prev=None) -> None:
@@ -971,17 +972,19 @@ class System(StoredHw, SysDatetime, SysFaultLog, SystemBase):
 class Evohome(SysLanguage, SysMode, MultiZone, UfhSystem, System):  # evohome
     """The Evohome system - some controllers are evohome-compatible."""
 
+    # older evohome don't have zone_type=ELE
+
     _PROFILE = SYSTEM_PROFILE.EVO
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (evohome)"
 
-    @discover_decorator
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        super()._discover(discover_flag=discover_flag)
+    # @discover_decorator  # HACK: remove me
+    # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    #     super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_STATUS:
-            self._send_cmd(_1F09)
+    #     if discover_flag & DISCOVER_STATUS:
+    #         self._send_cmd(_1F09)
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -1015,7 +1018,7 @@ class Chronotherm(Evohome):
 
 
 class Hometronics(System):
-    # These are only ever seesn from a Hometronics controller
+    # These are only ever been seen from a Hometronics controller
     #  I --- 01:023389 --:------ 01:023389 2D49 003 00C800
     #  I --- 01:023389 --:------ 01:023389 2D49 003 01C800
     #  I --- 01:023389 --:------ 01:023389 2D49 003 880000
@@ -1029,15 +1032,15 @@ class Hometronics(System):
     def __repr__(self) -> str:
         return f"{self._ctl.id} (hometronics)"
 
-    @discover_decorator
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        # super()._discover(discover_flag=discover_flag)
+    # @discover_decorator
+    # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    #     # super()._discover(discover_flag=discover_flag)
 
-        # will RP to: 0005/configured_zones_alt, but not: configured_zones
-        # will RP to: 0004
+    #     # will RP to: 0005/configured_zones_alt, but not: configured_zones
+    #     # will RP to: 0004
 
-        if discover_flag & DISCOVER_STATUS:
-            self._send_cmd(_1F09)
+    #     if discover_flag & DISCOVER_STATUS:
+    #         self._send_cmd(_1F09)
 
 
 class Programmer(Evohome):
@@ -1089,7 +1092,6 @@ def create_system(gwy, ctl, profile=None, **kwargs) -> System:
 
     system = _SYS_CLASS.get(profile, System)(gwy, ctl, **kwargs)
 
-    # if True or not gwy.config.disable_discovery:
     gwy._add_task(
         system._discover, discover_flag=DISCOVER_SCHEMA, delay=1, period=86400
     )
