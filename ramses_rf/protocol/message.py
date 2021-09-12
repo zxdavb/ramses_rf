@@ -309,7 +309,7 @@ class Message:
             if any(
                 (
                     self.code == _1F09 and self.verb != I_,
-                    self.code in (_3120, _313F),
+                    self.code in (_0016, _3120, _313F),
                 )
             ):
                 _logger = _LOGGER.info
