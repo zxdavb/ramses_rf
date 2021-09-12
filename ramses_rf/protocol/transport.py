@@ -370,35 +370,33 @@ class PacketProtocolBase(asyncio.Protocol):
             )
 
     # @functools.lru_cache(maxsize=128)
-    def _is_wanted(self, src_id, dst_id) -> bool:
+    def _is_wanted(self, src_id, dst_id) -> Optional[bool]:
         """Parse the packet, return True if the packet is not to be filtered out."""
-        # pkt_addrs = {src_id, dst_id}
-        # if any(d[:2] == "18" for d in pkt_addrs):  # TODO: use HGI's full addr
-        #     return True
-        # wanted = not self._include or any(d in self._include for d in pkt_addrs)
-        # return wanted and all(d not in self._exclude for d in pkt_addrs)
 
-        result = True
         for dev_id in [
             d for d in {src_id, dst_id} if d not in (NON_DEVICE_ID, NUL_DEVICE_ID)
         ]:
             if dev_id in self._unwanted:
-                result = False
+                break
+
             elif dev_id[:2] != "18" and self._include and dev_id not in self._include:
                 _LOGGER.warning(
                     f"Ignoring a non-allowed device_id: {dev_id}, "
                     f"if required, add it to the {KNOWN_LIST}"
                 )
                 self._unwanted.append(dev_id)
-                result = False
+                break
+
             elif dev_id in self._exclude:
                 _LOGGER.warning(
                     f"Ignoring a blocked device_id: {dev_id}, "
                     f"if required, remove it from the {BLOCK_LIST})"
                 )
                 self._unwanted.append(dev_id)
-                result = False
-        return result
+                break
+
+        else:
+            return True
 
     def _pkt_received(self, pkt: Packet) -> None:
         """Pass any valid/wanted packets to the callback."""
