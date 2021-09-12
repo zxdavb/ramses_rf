@@ -450,10 +450,14 @@ class BatteryState:  # 1060
 
     @property
     def battery_low(self) -> Optional[bool]:  # 1060
+        if self._faked:
+            return False
         return self._msg_value(_1060, key=self.BATTERY_LOW)
 
     @property
     def battery_state(self) -> Optional[dict]:  # 1060
+        if self._faked:
+            return
         return self._msg_value(_1060)
 
     @property
