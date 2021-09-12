@@ -306,7 +306,12 @@ class Message:
             self.__expired = self.CANT_EXPIRE
 
         elif self.__expired >= self.HAS_EXPIRED:  # TODO: should renew?
-            if any((self.code == _1F09 and self.verb != I_, self.code == _313F)):
+            if any(
+                (
+                    self.code == _1F09 and self.verb != I_,
+                    self.code in (_3120, _313F),
+                )
+            ):
                 _logger = _LOGGER.info
             else:
                 _logger = _LOGGER.warning
