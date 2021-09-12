@@ -21,9 +21,17 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def discover_decorator(func):
+def discovery_filter(func):
+    """Bypass discovery if not configured to do so, or if unlikely to get an RP."""
+
     def wrapper(self, *args, **kwargs) -> None:
-        if self._gwy.config.disable_sending or self._gwy.config.disable_discovery:
+        if any(
+            (
+                self._gwy.config.disable_sending,
+                self._gwy.config.disable_discovery,
+                getattr(self, "has_battery", None),
+            )
+        ):
             return
         return func(self, *args, **kwargs)
 
