@@ -1713,9 +1713,6 @@ def create_device(gwy, dev_id, dev_class=None, **kwargs) -> Device:
         device._discover, discover_flag=DISCOVER_PARAMS, delay=0, period=21600
     )
 
-    if dev_class == DEVICE_CLASS.BDR:
-        return device
-
     gwy._add_task(device._discover, discover_flag=DISCOVER_STATUS, delay=0, period=900)
 
     return device
