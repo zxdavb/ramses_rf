@@ -301,7 +301,7 @@ class DeviceInfo:  # 10E0
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         if discover_flag & DISCOVER_SCHEMA:
             try:
-                if RP in RAMSES_DEVICES[self._type][_10E0]:
+                if RP in RAMSES_DEVICES[self.type][_10E0]:
                     self._send_cmd(_10E0, retries=3)
             except KeyError:
                 pass
