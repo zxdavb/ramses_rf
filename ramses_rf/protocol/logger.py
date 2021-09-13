@@ -42,7 +42,7 @@ if DEV_MODE:  # Do this to have longer-format console messages
     CONSOLE_FMT = f"%(asctime)s %(message).{CONSOLE_COLS - 27}s"
 else:
     CONSOLE_FMT = f"%(asctime)s %(message).{CONSOLE_COLS - 13}s"
-PKT_LOG_FMT = "%(asctime)s %(packet)s"
+PKT_LOG_FMT = "%(asctime)s %(message)s"  # "%(asctime)s %(packet)s"
 
 # How to strip ASCII colour from a text file:
 #   sed -r "s/\x1B\[(([0-9]{1,2})?(;)?([0-9]{1,2})?)?[m,K,H,f,J]//g" file_name
