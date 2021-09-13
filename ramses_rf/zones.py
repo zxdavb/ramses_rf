@@ -367,11 +367,11 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         return self._msg_value(_1F41)
 
     @property
-    def setpoint(self) -> Optional[float]:  # 1F41
-        return self._msg_value(_1F41, key=ATTR_SETPOINT)
+    def setpoint(self) -> Optional[float]:  # 10A0
+        return self._msg_value(_10A0, key=ATTR_SETPOINT)
 
     @setpoint.setter
-    def setpoint(self, value) -> None:  # 1F41
+    def setpoint(self, value) -> None:  # 10A0
         return self.set_config(setpoint=value)
 
     @property
