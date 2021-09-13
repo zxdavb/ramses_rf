@@ -1778,7 +1778,7 @@ def parser_3ef0(payload, msg) -> dict:
     result = {
         "actuator_enabled": bool(percent(payload[2:4])),
         "modulation_level": percent(payload[2:4]),  # TODO: rel_modulation_level
-        "_unknown_2": flag8(payload[4:6]),
+        "_unknown_0": payload[4:6],
     }
 
     if msg.len > 3:  # for OTB (there's no reliable) modulation_level <-> flame_state)
