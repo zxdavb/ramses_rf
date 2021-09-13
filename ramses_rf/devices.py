@@ -248,7 +248,7 @@ class DeviceBase(Entity):
     def has_battery(self) -> Optional[bool]:  # 1060
         """Return True if a device is battery powered (excludes battery-backup)."""
 
-        return self.type not in DEVICE_HAS_BATTERY or _1060 in self._msgz
+        return self.type in DEVICE_HAS_BATTERY or _1060 in self._msgz
 
     @property
     def _is_controller(self) -> Optional[bool]:
