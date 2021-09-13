@@ -620,7 +620,6 @@ class Weather(Fakeable):  # 0002 (fakeable)
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._faked = None
         if kwargs.get(ATTR_FAKED) is True or _0002 in kwargs.get(ATTR_FAKED, []):
             self._make_fake()
 
@@ -663,7 +662,6 @@ class Temperature(Fakeable):  # 30C9 (fakeable)
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._faked = None
         if kwargs.get(ATTR_FAKED) is True or _30C9 in kwargs.get(ATTR_FAKED, []):
             self._make_fake()
 
@@ -710,7 +708,6 @@ class RelayDemand(Fakeable):  # 0008 (fakeable)
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._faked = None
         if kwargs.get(ATTR_FAKED) is True or _3EF0 in kwargs.get(ATTR_FAKED, []):
             self._make_fake()
 
@@ -1719,6 +1716,6 @@ def create_device(gwy, dev_id, dev_class=None, **kwargs) -> Device:
     if dev_class == DEVICE_CLASS.BDR:
         return device
 
-    gwy._add_task(device._discover, discover_flag=DISCOVER_STATUS, delay=0, period=10)
+    gwy._add_task(device._discover, discover_flag=DISCOVER_STATUS, delay=0, period=900)
 
     return device
