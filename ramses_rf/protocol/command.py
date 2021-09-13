@@ -412,6 +412,9 @@ class Command(PacketBase):
         **kwargs,
     ):
         """Constructor to set the params of the DHW (c.f. parser_10a0)."""
+        # Defaults for newer evohome colour:
+        # Defaults for older evohome colour: ?? (30-85) C, ? (0-10) min, ? (1-10) C
+        # Defaults for evohome monochrome:
 
         # 14:34:26.734 022  W --- 18:013393 01:145038 --:------ 10A0 006 000F6E050064
         # 14:34:26.751 073  I --- 01:145038 --:------ 01:145038 10A0 006 000F6E0003E8
