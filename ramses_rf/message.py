@@ -126,7 +126,8 @@ def _create_devices(this: Message) -> None:
             # evo._set_htg_control(devices[0])
             pass
 
-    if this.src.type == "18":
+    if this.src.type == "18" and not this._gwy.hgi:
+        this._gwy.hgi = this._gwy._get_device(this.src.id)
         return
 
     if this.code == _000C and this.verb == RP:
@@ -137,18 +138,18 @@ def _create_devices(this: Message) -> None:
         ctl_id = this.src.id if this._gwy.config.enable_eavesdrop else None
         this._gwy._get_device(this.dst.id, ctl_id=ctl_id)
 
-    elif this.dst.type in ("01", "23") and this.src is not this.dst:  # all CTLs
-        this.dst = this._gwy._get_device(this.dst.id, ctl_id=this.dst.id)
-        ctl_id = this.dst.id if this._gwy.config.enable_eavesdrop else None
-        this._gwy._get_device(this.src.id, ctl_id=ctl_id)
+    # elif this.dst.type in ("01", "23") and this.src is not this.dst:  # all CTLs
+    #     this.dst = this._gwy._get_device(this.dst.id, ctl_id=this.dst.id)
+    #     ctl_id = this.dst.id if this._gwy.config.enable_eavesdrop else None
+    #     this._gwy._get_device(this.src.id, ctl_id=ctl_id)
 
     # this should catch all non-controller (and *some* controller) devices
     elif this.src is this.dst:
         this._gwy._get_device(this.src.id)
 
-    # otherwise one will be a controller, *unless* dst is in ("--", "63")
-    elif isinstance(this.src, Device) and this.src._is_controller:
-        this._gwy._get_device(this.dst.id, ctl_id=this.src.id)
+    # # otherwise one will be a controller, *unless* dst is in ("--", "63")
+    # elif isinstance(this.src, Device) and this.src._is_controller:
+    #     this._gwy._get_device(this.dst.id, ctl_id=this.src.id)
 
     # TODO: may create a controller that doesn't exist
     elif isinstance(this.dst, Device) and this.dst._is_controller:
@@ -156,7 +157,7 @@ def _create_devices(this: Message) -> None:
 
     else:
         # beware:  I --- --:------ --:------ 10:078099 1FD4 003 00F079
-        [this._gwy._get_device(d) for d in (this.src.id, this.dst.id)]
+        [this._gwy._get_device(d) for d in (this.src.id,)]  # this.dst.id)]
 
     # where possible, swap each Address for its corresponding Device
     this.src = this._gwy.device_by_id.get(this.src.id, this.src)
