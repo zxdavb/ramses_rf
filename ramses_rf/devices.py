@@ -515,8 +515,8 @@ class Fakeable:
 
     def _make_fake(self, bind=None) -> Device:
         if not self._faked:
-            self._gwy._include[self.id] = {ATTR_FAKED: True}
             self._faked = True
+            self._gwy._include[self.id] = {ATTR_FAKED: True}
             _LOGGER.warning(f"Faking now enabled for {self}")  # TODO: be info/debug
         if bind:
             self._bind()
