@@ -1455,7 +1455,7 @@ class BdrSwitch(Actuator, RelayDemand, Device):  # BDR (13):
         #     self._ctl._set_htg_control(self)
 
     def __repr__(self) -> str:
-        return f"{self.id} ({self._domain_id}): {self.enabled}"  # or: relay_demand?
+        return f"{self.id} ({self._domain_id}): {self.relay_demand}"
 
     @discovery_filter
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
