@@ -371,40 +371,45 @@ class PacketProtocolBase(asyncio.Protocol):
 
     # @functools.lru_cache(maxsize=128)
     def _is_wanted(self, src_id, dst_id) -> Optional[bool]:
-        """Parse the packet, return True if the packet is not to be filtered out."""
+        """Parse the packet, return True if the packet is not to be filtered out.
+
+        An unwanted device_id will 'trump' a whitelited device_id in the same packet.
+        """
 
         for dev_id in [
-            d for d in {src_id, dst_id} if d not in (NON_DEVICE_ID, NUL_DEVICE_ID)
+            d
+            for d in dict.fromkeys((src_id, dst_id))
+            if d not in (NON_DEVICE_ID, NUL_DEVICE_ID)
         ]:
-            if dev_id in self._unwanted:
-                break
+            if dev_id in self._unwanted:  # used to avoid duplicate logging
+                return
 
-            elif dev_id[:2] != "18" and self._include and dev_id not in self._include:
+            if self._include and dev_id not in self._include:
                 _LOGGER.warning(
                     f"Ignoring a non-allowed device_id: {dev_id}, "
                     f"if required, add it to the {KNOWN_LIST}"
                 )
                 self._unwanted.append(dev_id)
-                break
+                return
 
-            elif dev_id in self._exclude:
+            if dev_id in self._exclude:
                 _LOGGER.warning(
                     f"Ignoring a blocked device_id: {dev_id}, "
                     f"if required, remove it from the {BLOCK_LIST})"
                 )
                 self._unwanted.append(dev_id)
-                break
+                return
 
-        else:
-            return True
+        return True
 
     def _pkt_received(self, pkt: Packet) -> None:
         """Pass any valid/wanted packets to the callback."""
 
+        self._this_pkt, self._prev_pkt = pkt, self._this_pkt
+
         # if process_pkt(pkt) is False:
         #     return
 
-        self._this_pkt, self._prev_pkt = pkt, self._this_pkt
         if self._callback and self._is_wanted(pkt.src.id, pkt.dst.id):
             self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
 
@@ -434,13 +439,24 @@ class PacketProtocolBase(asyncio.Protocol):
             return
 
         if pkt.src.type == "18":
-            if not self._hgi80[DEVICE_ID]:
+            if self._hgi80[DEVICE_ID] is None:
                 self._hgi80[DEVICE_ID] = pkt.src.id
-            elif self._hgi80[DEVICE_ID] != pkt.src.id:
+                if self._include and pkt.src.id not in self._include:
+                    self._include.append(pkt.src.id)  # add to whitelist
+
+            elif (
+                self._hgi80[DEVICE_ID] != pkt.src.id
+                and pkt.src.id not in self._unwanted
+            ):
                 _LOGGER.error(
                     f"{pkt} < seems to be more than one HGI80-compatible device"
                     f" (another is: {self._hgi80[DEVICE_ID]}), this is unsupported"
                 )
+                _LOGGER.warning(
+                    f"Ignoring a secondary gateway: {pkt.src.id}, "
+                    f"configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
+                )
+                self._unwanted.append(pkt.src.id)
 
         try:
             self._pkt_received(pkt)
@@ -486,7 +502,7 @@ class PacketProtocolBase(asyncio.Protocol):
             _LOGGER.info("RF Tx:     %s", data)
         self._transport.write(data + b"\r\n")
 
-        # 0.2: can still exceed with back-to-back restarts
+        # 0.2: can still exceed RF duty cycle limit with back-to-back restarts
         # await asyncio.sleep(0.2)  # TODO: RF Duty cycle, make configurable?
 
     async def send_data(self, cmd: Command) -> None:
@@ -496,21 +512,14 @@ class PacketProtocolBase(asyncio.Protocol):
         if self._disable_sending:
             raise RuntimeError("Sending is disabled")
 
-        if not cmd.is_valid:
-            _LOGGER.warning(
-                "PktProtocol.send_data(%s): invalid command: %s", cmd.tx_header, cmd
-            )
-            return
-
         # if not self._is_wanted(cmd.src, cmd.dst):
-        #     # _LOGGER.warning(
+        #     _LOGGER.warning(
         #     return
 
         if cmd.src.type != "18":
             _LOGGER.info("PktProtocol.send_data(%s): IMPERSONATING!", cmd.tx_header)
             await self._send_data(str(Command._puzzle("02", cmd.tx_header)))
 
-        # self._loop.create_task(self._send_data(str(cmd)))
         await self._send_data(str(cmd))
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
@@ -756,19 +765,6 @@ class PacketProtocolQos(PacketProtocolPort):
                 callback[FUNC](False, *callback.get(ARGS, tuple()))
                 callback["expired"] = not callback.get(DEAMON, False)  # HACK:
 
-        if self._disable_sending:
-            raise RuntimeError("Sending is disabled")
-
-        if not cmd.is_valid:
-            _LOGGER.warning(
-                "PktProtocolQos.send_data(%s): invalid command: %s", cmd.tx_header, cmd
-            )
-            return
-
-        # if not self._is_wanted(cmd.src, cmd.dst):
-        #     # _LOGGER.warning(
-        #     return
-
         while self._qos_cmd is not None:
             await asyncio.sleep(0.005)
 
@@ -780,17 +776,12 @@ class PacketProtocolQos(PacketProtocolPort):
         self._tx_retries = 0
         self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
 
-        if cmd.src.type != "18":
-            _LOGGER.info(
-                "PacketProtocolQos.send_data(%s): IMPERSONATING!", cmd.tx_header
-            )
-            await self._send_data(str(Command._puzzle("02", cmd.tx_header)))
-
+        await super().send_data(cmd)
         self._timeouts(dt.now())
-        await self._send_data(str(cmd))
 
         while self._qos_cmd is not None:  # until sent (may need re-transmit) or expired
             await asyncio.sleep(0.005)
+
             if self._timeout_full > dt.now():
                 await asyncio.sleep(0.02)
                 # await self._send_data("")
