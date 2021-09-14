@@ -34,7 +34,7 @@ from .protocol import (
     set_logger_timesource,
     set_pkt_logging,
 )
-from .protocol.const import ATTR_DEVICES, NUL_DEVICE_ID
+from .protocol.const import ATTR_DEVICES, NON_DEVICE_ID, NUL_DEVICE_ID
 from .schema import (
     BLOCK_LIST,
     DEBUG_MODE,
@@ -199,8 +199,10 @@ class Gateway:
 
         # TODO: only create controller if it is confirmed by an RP
 
-        if dev_id[:2] in ("18", "--") or dev_id in (NUL_DEVICE_ID, "01:000001"):
+        if dev_id in (NON_DEVICE_ID, NUL_DEVICE_ID, "01:000001"):
             return  # not valid device types/real devices
+
+        # if dev_id
 
         if ctl_id is not None:
             ctl = self.device_by_id.get(ctl_id)
@@ -208,6 +210,7 @@ class Gateway:
                 ctl = self._get_device(ctl_id, domain_id="FF", **kwargs)
 
         # These two are because Pkt.Transport.is_wanted() may still let some through
+        # or called via schema... TODO: remove?
         if self.config.enforce_known_list and dev_id not in self._include:
             _LOGGER.warning(
                 f"Ignoring a non-allowed device_id: {dev_id}"
@@ -224,12 +227,11 @@ class Gateway:
 
         dev = self.device_by_id.get(dev_id)
         if dev is None:  # TODO: take into account device filter?
-            dev = create_device(self, dev_id)
+            dev = create_device(self, dev_id)  # , **kwargs)
 
-        if dev.type == "01" and dev._is_controller and dev._evo is None:
+        if dev.type == "01" and dev._evo is None and dev._is_controller:
             dev._evo = create_system(self, dev, profile=kwargs.get("profile"))
-
-        if not self.hgi and dev.type == "18":
+        elif dev.type == "18" and self.hgi is None:
             self.hgi = dev
 
         # update the existing device with any metadata TODO: this is messy
@@ -350,15 +352,26 @@ class Gateway:
         return self.pkt_protocol._dt_now() if self.pkt_protocol else dt.now()
 
     @property
+    def _config(self) -> dict:
+        """Return the working configuration."""
+
+        if self.hgi is None:
+            self.hgi = self.pkt_protocol._hgi80["device_id"]
+
+        return {
+            "gateway_id": self.hgi.id,
+            "schema": self.evo.schema_min if self.evo else None,
+            "config": {"enforce_known_list": self.config.enforce_known_list},
+            "known_list": [{k: v} for k, v in self._include.items()],
+            "block_list": [{k: v} for k, v in self._exclude.items()],
+            "other_list": sorted(self.pkt_protocol._unwanted),
+        }
+
+    @property
     def schema(self) -> dict:
         """Return the global schema."""
 
-        schema = {
-            # "rf_gateway": self.hgi and self.hgi.schema,
-            "main_controller": self.evo._ctl.id
-            if self.evo
-            else None
-        }
+        schema = {"main_controller": self.evo._ctl.id if self.evo else None}
 
         if self.evo:
             schema[self.evo._ctl.id] = self.evo.schema

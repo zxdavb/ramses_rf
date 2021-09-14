@@ -302,6 +302,9 @@ def _get_device(gwy, dev_id, ctl_id=None, **kwargs) -> Optional[Any]:  # -> Devi
         # return
 
     return gwy._get_device(dev_id, ctl_id=ctl_id, **kwargs)
+    # **gwy._include keys may have: alias, faked, faked_thm, faked_bdr, faked_ext
+    # **kwargs keys may have: profile(systems, e.g. evohome), class(devices, e.g. BDR)
+    # return gwy._get_device(dev_id, ctl_id=ctl_id, **gwy._include.get(dev_id), **kwargs)
 
 
 def load_schema(gwy, **kwargs) -> dict:

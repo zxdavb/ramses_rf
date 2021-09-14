@@ -806,6 +806,23 @@ class HGInterface(DeviceBase):  # HGI (18:), was GWY
         self._faked_ext = None
         self._faked_thm = None
 
+        # self. _proc_schema(**kwargs)
+
+    def _proc_schema(self, schema) -> None:
+        if schema.get("fake_bdr"):
+            self._faked_bdr = self._gwy._get_device(self.id, class_="BDR", faked=True)
+
+        if schema.get("fake_ext"):
+            self._fake_ext = self._gwy._get_device(self.id, class_="BDR", faked=True)
+
+        if schema.get("fake_thm"):
+            self._fake_thm = self._gwy._get_device(self.id, class_="BDR", faked=True)
+
+    @discovery_filter
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        # of no value for a HGI80-compatible device
+        return
+
     def _handle_msg(self, msg) -> None:
         def fake_addrs(msg, faked_dev):
             msg.src == faked_dev if msg.src is self else self
