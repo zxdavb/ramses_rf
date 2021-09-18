@@ -124,9 +124,12 @@ RAMSES_CODES = {  # rf_unknown
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{2}$",  # seems only 13: RP (TODO: what about 10:, 08/31:)
     },
-    _0009: {  # relay_failsafe
+    _0009: {  # relay_failsafe (only is_controller, OTB send an 0009?)
         NAME: "relay_failsafe",
+        #  I --- 01:145038 --:------ 01:145038 0009 006 FC01FFF901FF
+        #  I --- 01:145038 --:------ 01:145038 0009 003 0700FF
         #  I --- 10:040239 01:223036 --:------ 0009 003 000000
+        #  I --- --:------ --:------ 12:227486 0009 003 0000FF
         I_: r"^((0[0-9A-F]|F[9AC])0[0-1](00|FF))+$",
     },
     _000A: {  # zone_params
@@ -679,8 +682,7 @@ RAMSES_DEVICES = {
         _3EF1: {RQ: {}},
     },
     "13": {  # e.g. BDR91A/BDR91T: Wireless Relay Box
-        _0008: {RP: {}},
-        # _0009: {RP: {}},  # TODO: needs confirming
+        _0008: {RP: {}},  # doesn't RP/0009
         _0016: {RP: {}},
         # _10E0: {},  # 13: will not RP/10E0 # TODO: how to indicate that fact here
         _1100: {I_: {}, RP: {}},
