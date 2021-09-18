@@ -825,9 +825,9 @@ def create_pkt_stack(
     """
 
     def _protocol_factory():
-        if packet_dict or packet_log:
+        if packet_log or packet_dict is not None:
             return create_protocol_factory(PacketProtocolRead, gwy, pkt_callback)()
-        elif gwy.config.disable_sending:
+        elif gwy.config.disable_sending:  # TODO: assumes we wont change our mind
             return create_protocol_factory(PacketProtocol, gwy, pkt_callback)()
         else:
             return create_protocol_factory(PacketProtocolQos, gwy, pkt_callback)()
