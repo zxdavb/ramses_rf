@@ -1776,7 +1776,6 @@ def parser_3ef0(payload, msg) -> dict:
         assert payload[-2:] in ("00", "64"), f"byte x: {payload[-2:]}"
 
     result = {
-        "actuator_enabled": bool(percent(payload[2:4])),
         "modulation_level": percent(payload[2:4]),  # TODO: rel_modulation_level
         "_unknown_0": payload[4:6],
     }
@@ -1836,7 +1835,6 @@ def parser_3ef1(payload, msg) -> dict:
     cycle_countdown = None if payload[2:6] == "7FFF" else int(payload[2:6], 16)
 
     return {
-        "actuator_enabled": bool(percent(payload[10:12])),
         "modulation_level": percent(payload[10:12]),
         "actuator_countdown": int(payload[6:10], 16),
         "cycle_countdown": cycle_countdown,  # not for OTB, == "7FFF"

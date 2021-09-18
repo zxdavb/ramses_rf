@@ -402,8 +402,7 @@ class Actuator:  # 3EF0, 3EF1
     ACTUATOR_CYCLE = "actuator_cycle"
     ACTUATOR_ENABLED = "actuator_enabled"  # boolean
     ACTUATOR_STATE = "actuator_state"
-    ENABLED = "enabled"
-    MODULATION_LEVEL = "modulation_level"  # percentge (0.0-1.0)
+    MODULATION_LEVEL = "modulation_level"  # percentage (0.0-1.0)
 
     @discovery_filter
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
@@ -427,21 +426,11 @@ class Actuator:  # 3EF0, 3EF1
         return self._msg_value(_3EF0)
 
     @property
-    def enabled(self) -> Optional[bool]:  # 3EF0, 3EF1
-        """Return the actuator's current state."""
-        return self._msg_value((_3EF0, _3EF1), key=self.ACTUATOR_ENABLED)
-
-    @property
-    def modulation_level(self) -> Optional[float]:  # 3EF0/3EF1
-        return self._msg_value((_3EF0, _3EF1), key=self.MODULATION_LEVEL)
-
-    @property
     def status(self) -> dict:
         return {
             **super().status,
             self.ACTUATOR_CYCLE: self.actuator_cycle,
             self.ACTUATOR_STATE: self.actuator_state,
-            self.MODULATION_LEVEL: self.modulation_level,  # TODO: keep? (is duplicate)
         }
 
 
@@ -1277,6 +1266,10 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
             return
 
     @property
+    def modulation_level(self) -> Optional[float]:  # 3EF0/3EF1
+        return self._msg_value((_3EF0, _3EF1), key=self.MODULATION_LEVEL)
+
+    @property
     def boiler_water_temperature(self) -> Optional[float]:  # 3220/0x19
         return self._ot_msg_value(0x19)
 
@@ -1395,6 +1388,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
             **super().status,
             self.BOILER_SETPOINT: self.boiler_setpoint,
             self.OPENTHERM_STATUS: self.opentherm_status,
+            self.MODULATION_LEVEL: self.modulation_level,
         }
 
 
@@ -1466,6 +1460,7 @@ class BdrSwitch(Actuator, RelayDemand, Device):  # BDR (13):
     _class = DEVICE_CLASS.BDR
     _types = ("13",)
 
+    ACTIVE = "active"
     TPI_PARAMS = "tpi_params"
     # _STATE = super().ENABLED, or relay_demand
 
@@ -1510,6 +1505,12 @@ class BdrSwitch(Actuator, RelayDemand, Device):  # BDR (13):
         #     #     self._send_cmd(code, delay=1)
 
     @property
+    def active(self) -> Optional[bool]:  # 3EF0, 3EF1
+        """Return the actuator's current state."""
+        result = self._msg_value((_3EF0, _3EF1), key=self.MODULATION_LEVEL)
+        return None if result is None else bool(result)
+
+    @property
     def role(self) -> Optional[str]:
         """Return the role of the BDR91A (there are six possibilities)."""
 
@@ -1540,6 +1541,13 @@ class BdrSwitch(Actuator, RelayDemand, Device):  # BDR (13):
         return {
             **super().params,
             self.TPI_PARAMS: self.tpi_params,
+        }
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            self.ACTIVE: self.active,
         }
 
 
