@@ -1491,9 +1491,6 @@ class BdrSwitch(Actuator, RelayDemand, Device):  # BDR (13):
 
         super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_SCHEMA:
-            self._send_cmd(_3B00)  # TODO: will RP a RQ/3B00 if is a heater_relay?
-
         if discover_flag & DISCOVER_PARAMS and not self._faked:
             self._send_cmd(_0009)
             self._send_cmd(_1100)
