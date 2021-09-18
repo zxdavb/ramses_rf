@@ -1492,7 +1492,6 @@ class BdrSwitch(Actuator, RelayDemand, Device):  # BDR (13):
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_PARAMS and not self._faked:
-            self._send_cmd(_0009)
             self._send_cmd(_1100)
 
     def _handle_msg(self, msg) -> None:
