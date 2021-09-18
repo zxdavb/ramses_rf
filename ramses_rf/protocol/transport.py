@@ -556,7 +556,7 @@ class PacketProtocolPort(PacketProtocolBase):
         super().connection_made(transport)  # self._transport = transport
         # self._transport.serial.rts = False
 
-        # Used to see if using a evofw3 rather than a HGI80
+        # determine if using a evofw3 rather than a HGI80
         self._transport.write(bytes("!V\r\n".encode("ascii")))
         self.resume_writing()
 
@@ -589,8 +589,6 @@ class PacketProtocolRead(PacketProtocolBase):
         super().connection_made(transport)  # self._transport = transport
 
     def _line_received(self, dtm: str, line: str, raw_line: str) -> None:
-
-        self._hgi80[IS_INITIALIZED] = True
 
         try:
             pkt = Packet.from_file(self._gwy, dtm, line)
