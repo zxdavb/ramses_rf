@@ -480,18 +480,15 @@ class PacketProtocolBase(asyncio.Protocol):
         for dtm, raw_line in _bytes_received(data):
             self._line_received(dtm, _normalise(_str(raw_line)), raw_line)
 
-    async def _send_data(self, data: str, ignore_pause=False) -> None:
-        """Send a bytearray to the transport (serial) interface.
+    async def _send_data(self, data: str) -> None:
+        """Send a bytearray to the transport (serial) interface."""
 
-        The _pause_writing flag can be ignored, is useful for sending traceflags.
-        """
+        while self._pause_writing:
+            await asyncio.sleep(0.005)
 
-        if not ignore_pause:
-            while self._pause_writing:
-                await asyncio.sleep(0.005)
         while (
             self._transport is None
-            or self._transport.serial is None  # Shouldn't be required, but is!
+            # or self._transport.serial is None  # Shouldn't be required, but is!
             or getattr(self._transport.serial, "out_waiting", False)
         ):
             await asyncio.sleep(0.005)
