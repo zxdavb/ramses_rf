@@ -422,11 +422,6 @@ class PacketProtocolBase(asyncio.Protocol):
         try:
             pkt = Packet.from_port(self._gwy, dtm, line, raw_line=raw_line)
 
-        except (AssertionError, LookupError, TypeError, ValueError) as exc:
-            if DEV_MODE and line and line[:1] != "#" and "*" not in line:
-                _LOGGER.exception("%s < Cant create packet (ignoring 1): %s", line, exc)
-            return
-
         except InvalidPacketError as exc:
             if "# evofw" in line and self._hgi80[IS_EVOFW3] is None:
                 self._hgi80[IS_EVOFW3] = True
@@ -461,7 +456,7 @@ class PacketProtocolBase(asyncio.Protocol):
         try:
             self._pkt_received(pkt)
         except:  # noqa: E722  # TODO: remove broad-except
-            pass
+            _LOGGER.exception("Exception in callback to message layer")
 
     def data_received(self, data: ByteString) -> None:
         """Called when some data (packet fragments) is received (from RF)."""
@@ -596,24 +591,13 @@ class PacketProtocolRead(PacketProtocolBase):
 
         try:
             pkt = Packet.from_file(self._gwy, dtm, line)
-
-        except (AssertionError, LookupError, TypeError, ValueError) as exc:
-            if (
-                line
-                and line[:1] != "#"
-                and "*" not in line
-                and (dtm and dtm.lstrip()[:1] != "#")
-            ):
-                _LOGGER.error("%s < Cant create packet (ignoring): %s", line, exc)
-            return
-
         except InvalidPacketError:
             return
 
         try:
             self._pkt_received(pkt)
         except:  # noqa: E722  # TODO: remove broad-except
-            pass
+            _LOGGER.exception("Exception in callback to message layer")
 
     def data_received(self, data: str) -> None:
         """Called when a packet line is received (from a log file)."""

@@ -174,15 +174,8 @@ class MessageTransport(asyncio.Transport):
         if self._gwy.config.reduce_processing >= DONT_CREATE_MESSAGES:
             return
 
-        try:
-            msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
+        msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
 
-        except (AssertionError, ValueError) as exc:
-            if DEV_MODE:
-                _LOGGER.error("%s < Cant create message (ignoring): %s", pkt, exc)
-            return
-
-        # _LOGGER.info("MsgTransport._pkt_receiver(pkt): %s", msg)
         # NOTE: msg._pkt._hdr is expensive - don't call it unless there's callbacks
         if self._callbacks and msg._pkt._hdr in self._callbacks:
             callback = self._callbacks[msg._pkt._hdr]  # 3rd, invoke any callback
@@ -194,7 +187,7 @@ class MessageTransport(asyncio.Transport):
             try:
                 p.data_received(msg)
             except:  # noqa: E722  # TODO: remove broad-except
-                pass
+                _LOGGER.exception("Exception in callback to application layer")
 
     def close(self):
         """Close the transport.
