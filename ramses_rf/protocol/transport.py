@@ -341,7 +341,7 @@ class PacketProtocolBase(asyncio.Protocol):
         else:
             self._exclude = list(gwy._exclude.keys())
             self._include = []
-        self._unwanted = []
+        self._unwanted = [NON_DEVICE_ID, NUL_DEVICE_ID]
 
         self._hgi80 = {
             IS_INITIALIZED: None,
@@ -377,28 +377,33 @@ class PacketProtocolBase(asyncio.Protocol):
         """
 
         for dev_id in [
-            d
-            for d in dict.fromkeys((src_id, dst_id))
-            if d not in (NON_DEVICE_ID, NUL_DEVICE_ID)
+            d for d in dict.fromkeys((src_id, dst_id)) if d not in self._unwanted
         ]:
-            if dev_id in self._unwanted:  # used to avoid duplicate logging
-                return
-
-            if self._include and dev_id not in self._include:
-                _LOGGER.warning(
-                    f"Ignoring a non-allowed device_id: {dev_id}, "
-                    f"if required, add it to the {KNOWN_LIST}"
-                )
-                self._unwanted.append(dev_id)
-                return
-
             if dev_id in self._exclude:
-                _LOGGER.warning(
-                    f"Ignoring a blocked device_id: {dev_id}, "
+                _LOGGER.info(
+                    f"Blocking packets with device_id: {dev_id}, "
                     f"if required, remove it from the {BLOCK_LIST})"
                 )
                 self._unwanted.append(dev_id)
                 return
+
+            if not self._include or dev_id in self._include:
+                break
+
+            if dev_id == self._hgi80[DEVICE_ID]:
+                _LOGGER.warning(
+                    f"Allowing packets with device_id: {dev_id} (is active gateway?), "
+                    f"configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
+                )
+                self._include.append(dev_id)  # the only time include list is modified
+                break
+
+            _LOGGER.warning(
+                f"Blocking packets with device_id: {dev_id} (is non-allowed), "
+                f"if required, add it to the {KNOWN_LIST}"
+            )
+            self._unwanted.append(dev_id)
+            return
 
         return True
 
