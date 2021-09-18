@@ -376,12 +376,13 @@ class PacketProtocolBase(asyncio.Protocol):
         An unwanted device_id will 'trump' a whitelited device_id in the same packet.
         """
 
-        for dev_id in [
-            d for d in dict.fromkeys((src_id, dst_id)) if d not in self._unwanted
-        ]:
+        for dev_id in [d for d in dict.fromkeys((src_id, dst_id))]:
+            if dev_id in self._unwanted:
+                return
+
             if dev_id in self._exclude:
                 _LOGGER.info(
-                    f"Blocking packets with device_id: {dev_id}, "
+                    f"Blocking packets with device_id: {dev_id} (is blacklisted), "
                     f"if required, remove it from the {BLOCK_LIST})"
                 )
                 self._unwanted.append(dev_id)
@@ -399,7 +400,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 break
 
             _LOGGER.warning(
-                f"Blocking packets with device_id: {dev_id} (is non-allowed), "
+                f"Blocking packets with device_id: {dev_id} (is not whitelisted), "
                 f"if required, add it to the {KNOWN_LIST}"
             )
             self._unwanted.append(dev_id)
