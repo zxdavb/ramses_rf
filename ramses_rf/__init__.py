@@ -78,6 +78,7 @@ class Gateway:
         (self.config, self.__schema, self._include, self._exclude) = load_config(
             self.serial_port, self._input_file, **kwargs
         )
+        self._unwanted = [NON_DEVICE_ID, NUL_DEVICE_ID, "01:000001"]
 
         self.pkt_protocol, self.pkt_transport = None, None
         self.msg_protocol, self.msg_transport = None, None
@@ -88,7 +89,8 @@ class Gateway:
             **self.config.packet_log,
         )
 
-        if self.config.reduce_processing < DONT_CREATE_MESSAGES:
+        # HACK: needed for -rrr
+        if True or self.config.reduce_processing < DONT_CREATE_MESSAGES:
             self.msg_protocol, self.msg_transport = self.create_client(process_msg)
 
         self._state_lock = Lock()
@@ -199,8 +201,8 @@ class Gateway:
 
         # TODO: only create controller if it is confirmed by an RP
 
-        if dev_id in (NON_DEVICE_ID, NUL_DEVICE_ID, "01:000001"):
-            return  # not valid device types/real devices
+        if dev_id in self._unwanted:
+            return
 
         # if dev_id
 
@@ -213,16 +215,18 @@ class Gateway:
         # or called via schema... TODO: remove?
         if self.config.enforce_known_list and dev_id not in self._include:
             _LOGGER.warning(
-                f"Ignoring a non-allowed device_id: {dev_id}"
+                f"Won't create a non-allowed device_id: {dev_id}"
                 f" (if required, add it to the {KNOWN_LIST})"
             )
+            self._unwanted.append(dev_id)
             return
 
         if dev_id in self._exclude:
             _LOGGER.warning(
-                f"Ignoring a blocked device_id: {dev_id}"
+                f"Won't create a blocked device_id: {dev_id}"
                 f" (if required, remove it from the {BLOCK_LIST})"
             )
+            self._unwanted.append(dev_id)
             return
 
         dev = self.device_by_id.get(dev_id)
