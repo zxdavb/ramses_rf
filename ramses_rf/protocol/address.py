@@ -199,6 +199,7 @@ def pkt_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
     Will raise ValueError is the address fields are not valid.
     """
     # assert isinstance(pkt_fragment, str), "Is not a string"
+    # print(pkt_addrs.cache_info())
 
     try:
         addrs = [id_to_address(pkt_fragment[i : i + 9]) for i in range(0, 30, 10)]
