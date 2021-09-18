@@ -642,14 +642,14 @@ class Zone(ZoneSchedule, ZoneBase):
         return self._msg_value((_2309, _2349), key=ATTR_SETPOINT)
 
     @setpoint.setter
-    def setpoint(self, value) -> None:
+    def setpoint(self, value) -> None:  # 000A/2309
         """Set the target temperature, until the next scheduled setpoint."""
         if value is None:
             self.reset_mode()
         else:
             cmd = Command.set_zone_setpoint(self._ctl.id, self.idx, value)
             self._gwy.send_cmd(cmd)
-            # NOTE: the following doesn't wotk for e.g. Hometronics
+            # NOTE: the following doesn't work for e.g. Hometronics
             # self.set_mode(mode=ZONE_MODE.advanced_override, setpoint=value)
 
     @property
@@ -677,7 +677,7 @@ class Zone(ZoneSchedule, ZoneBase):
         ]
         return any(windows) if windows else None
 
-    def reset_config(self) -> Task:
+    def reset_config(self) -> Task:  # 000A
         """Reset the zone's parameters to their default values."""
         return self.set_config()
 
@@ -709,9 +709,12 @@ class Zone(ZoneSchedule, ZoneBase):
         """Set the zone to the lowest possible setpoint, indefinitely."""
         return self.set_mode(mode=ZONE_MODE.permanent_override, setpoint=5)  # TODO
 
-    def set_mode(self, mode=None, setpoint=None, until=None) -> Task:
+    def set_mode(self, mode=None, setpoint=None, until=None) -> Task:  # 2309/2349
         """Override the zone's setpoint for a specified duration, or indefinitely."""
-        cmd = Command.set_zone_mode(self._ctl.id, self.idx, mode, setpoint, until)
+        if mode is None and until is None:  # Hometronics doesn't support 2349
+            cmd = Command.set_zone_setpoint(self._ctl.id, self.idx, setpoint)
+        else:
+            cmd = Command.set_zone_mode(self._ctl.id, self.idx, mode, setpoint, until)
         return self._gwy.send_cmd(cmd)
 
     def set_name(self, name) -> Task:
