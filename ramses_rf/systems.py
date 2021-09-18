@@ -940,11 +940,13 @@ class System(StoredHw, SysDatetime, SysFaultLog, SystemBase):
 
     @property
     def heat_demands(self) -> Optional[dict]:  # 3150
+        # FC: 00-C8 (no F9, FA), TODO: deprecate as FC only?
         if self._heat_demands:
             return {k: v.payload["heat_demand"] for k, v in self._heat_demands.items()}
 
     @property
     def relay_demands(self) -> Optional[dict]:  # 0008
+        # FC: 00-C8, F9: 00-C8, FA: 00 or C8 only (01: all 3, 02: FC/FA only)
         if self._relay_demands:
             return {
                 k: v.payload["relay_demand"] for k, v in self._relay_demands.items()
@@ -953,7 +955,7 @@ class System(StoredHw, SysDatetime, SysFaultLog, SystemBase):
     @property
     def relay_failsafes(self) -> Optional[dict]:  # 0009
         if self._relay_failsafes:
-            return {}  # failsafe_enabled
+            return {}  # TODO: failsafe_enabled
 
     @property
     def status(self) -> dict:
@@ -1023,6 +1025,8 @@ class Hometronics(System):
     #  I --- 01:023389 --:------ 01:023389 2D49 003 01C800
     #  I --- 01:023389 --:------ 01:023389 2D49 003 880000
     #  I --- 01:023389 --:------ 01:023389 2D49 003 FD0000
+
+    # Hometronic does not react to W/2349 but rather requies W/2309
 
     _PROFILE = SYSTEM_PROFILE.EVO
 
