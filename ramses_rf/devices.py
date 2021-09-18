@@ -808,6 +808,10 @@ class HGInterface(DeviceBase):  # HGI (18:), was GWY
 
         # self. _proc_schema(**kwargs)
 
+    def _set_ctl(self, ctl) -> None:  # self._ctl
+        """Set the device's parent controller, after validating it."""
+        _LOGGER.debug("%s: can't (really) have a controller %s", self)
+
     def _proc_schema(self, schema) -> None:
         if schema.get("fake_bdr"):
             self._faked_bdr = self._gwy._get_device(self.id, class_="BDR", faked=True)
