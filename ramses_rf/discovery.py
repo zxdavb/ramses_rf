@@ -97,12 +97,6 @@ if DEV_MODE:
 
 def spawn_scripts(gwy, **kwargs) -> List[asyncio.Task]:
 
-    # this is to ensure the gateway interface has fully woken
-    if not kwargs.get(EXEC_CMD) and gwy._include:
-        dev_id = next(iter(gwy._include))
-        qos = {"priority": Priority.HIGH, "retries": 5}
-        gwy.send_cmd(Command(RQ, _0016, "00FF", dev_id, **qos))
-
     tasks = []
 
     if kwargs.get(EXEC_CMD):
