@@ -742,7 +742,7 @@ class RelayDemand(Fakeable):  # 0008 (fakeable)
             qos = {"priority": Priority.HIGH, "retries": 3}
             [self._gwy.send_cmd(cmd, **qos) for _ in range(1)]
 
-        elif msg.code == _0009 and msg.verb == I_:
+        elif msg.code == _0009:  # can only be I, from a controller
             pass
 
         elif msg.code == _3B00 and msg.verb == I_:
