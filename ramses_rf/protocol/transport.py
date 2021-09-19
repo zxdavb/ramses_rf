@@ -435,23 +435,18 @@ class PacketProtocolBase(asyncio.Protocol):
                     self._transport.write(
                         bytes(f"{self._evofw_flag}\r\n".encode("ascii"))
                     )
-            elif was_initialized:
-                _LOGGER.exception("%s < Cant create packet (ignoring 2): %s", line, exc)
+            elif was_initialized and line and line[:1] != "#" and "*" not in line:
+                _LOGGER.error("%s < Cant create packet (ignoring): %s", line, exc)
             return
 
         if pkt.src.type == "18":
             if self._hgi80[DEVICE_ID] is None:
                 self._hgi80[DEVICE_ID] = pkt.src.id
-                if self._include and pkt.src.id not in self._include:
-                    self._include.append(pkt.src.id)  # add to whitelist
 
-            elif (
-                self._hgi80[DEVICE_ID] != pkt.src.id
-                and pkt.src.id not in self._unwanted
-            ):
-                _LOGGER.error(
-                    f"{pkt} < seems to be more than one HGI80-compatible device"
-                    f" (another is: {self._hgi80[DEVICE_ID]}), this is unsupported"
+            elif self._hgi80[DEVICE_ID] != pkt.src.id:
+                (_LOGGER.debug if pkt.src.id in self._unwanted else _LOGGER.error)(
+                    f"{pkt} < There appears to be more than one HGI80-compatible device"
+                    f" (active gateway: {self._hgi80[DEVICE_ID]}), this is unsupported"
                 )
 
         try:
