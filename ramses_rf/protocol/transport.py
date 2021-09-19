@@ -453,11 +453,6 @@ class PacketProtocolBase(asyncio.Protocol):
                     f"{pkt} < seems to be more than one HGI80-compatible device"
                     f" (another is: {self._hgi80[DEVICE_ID]}), this is unsupported"
                 )
-                _LOGGER.warning(
-                    f"Ignoring a secondary gateway: {pkt.src.id}, "
-                    f"configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
-                )
-                self._unwanted.append(pkt.src.id)
 
         try:
             self._pkt_received(pkt)
