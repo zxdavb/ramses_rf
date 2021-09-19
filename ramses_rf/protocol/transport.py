@@ -506,7 +506,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
         if cmd.src.type != "18":
             _LOGGER.info("PktProtocol.send_data(%s): IMPERSONATING!", cmd.tx_header)
-            await self._send_data(str(Command._puzzle("02", cmd.tx_header)))
+            await self.send_data(str(Command._puzzle("02", cmd.tx_header)))
 
         await self._send_data(str(cmd))
 
@@ -532,13 +532,6 @@ class PacketProtocolBase(asyncio.Protocol):
 class PacketProtocolPort(PacketProtocolBase):
     """Interface for a packet protocol (without QoS)."""
 
-    def __init__(self, gwy, pkt_handler: Callable) -> None:
-        super().__init__(gwy, pkt_handler)
-
-        # this needs to be here, and not in connection_made, so that it is 1st
-        if not self._disable_sending:
-            self._loop.create_task(self.send_data(INIT_CMD))  # HACK: port wakeup
-
     def connection_made(self, transport: asyncio.Transport) -> None:
         """Called when a connection is made."""
         _LOGGER.info(f"RAMSES_RF protocol library v{VERSION} (serial port)")
@@ -548,6 +541,11 @@ class PacketProtocolPort(PacketProtocolBase):
 
         # determine if using a evofw3 rather than a HGI80
         self._transport.write(bytes("!V\r\n".encode("ascii")))
+
+        # add this to start of the pkt log, if any
+        if not self._disable_sending:
+            self._loop.create_task(self.send_data(INIT_CMD))
+
         self.resume_writing()
 
 
@@ -743,6 +741,8 @@ class PacketProtocolQos(PacketProtocolPort):
         while self._qos_cmd is not None:
             await asyncio.sleep(0.005)
 
+        await super().send_data(cmd)
+
         self._qos_lock.acquire()
         self._qos_cmd = cmd
         self._qos_lock.release()
@@ -751,7 +751,6 @@ class PacketProtocolQos(PacketProtocolPort):
         self._tx_retries = 0
         self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
 
-        await super().send_data(cmd)
         self._timeouts(dt.now())
 
         while self._qos_cmd is not None:  # until sent (may need re-transmit) or expired
