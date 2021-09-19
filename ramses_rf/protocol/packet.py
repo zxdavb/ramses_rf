@@ -100,38 +100,27 @@ class Packet(PacketBase):
     """The packet class; should trap/log all invalid PKTs appropriately."""
 
     def __init__(self, gwy, dtm: dt, frame: str, **kwargs) -> None:
-        """Create a packet from a valid frame."""
+        """Create a packet.
+
+        Will raise InvalidPacketError (or InvalidAddrSetError) if it is invalid.
+        """
         super().__init__()
 
         self._gwy = gwy
-        self.dtm = dtm
+        self._dtm = dtm
+        self._frame = frame
 
-        # assert kwargs.get("dtm_str") is None or (
-        #     kwargs.get("dtm_str") == dtm.isoformat(timespec="microseconds")
-        # ), "dtm_str doesn't match dtm.isoformat"
-
-        self._date = None
-        self._time = None
-
-        # self.created = dtm.timestamp()  # HACK: used by logger
-        # self.msecs = (self.created - int(self.created)) * 1000
-
-        self.rssi = frame[0:3]
-        self.packet = frame[4:]
         self.comment = kwargs.get("comment")
         self.error_text = kwargs.get("err_msg")
         self.raw_frame = kwargs.get("raw_frame")
 
-        # addrs are populated in self.validate()
-        self.addrs = [None] * 3
-        self.src = self.dst = None
-        self._validate(**kwargs)  # may raise InvalidPacketError
+        self._validate(self._frame[11:40])  # self._src, _dst, _addrs, _len
 
-        self.verb = frame[4:6]
-        self.seqn = frame[7:10]
-        self.code = frame[41:45]
-        self.len = int(frame[46:49])
-        self.payload = frame[50:]
+        self._rssi = frame[0:3]
+        self._verb = frame[4:6]
+        self._seqn = frame[7:10]
+        self._code = frame[41:45]
+        self._payload = frame[50:]
 
         self.__timeout = None
 
@@ -141,19 +130,20 @@ class Packet(PacketBase):
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
-
         hdr = f' # {self._hdr}{f" ({self._ctx})" if self._ctx else ""}'
-        return f"{self.dtm.isoformat(timespec='microseconds')} {self.rssi} {self}{hdr}"
+        try:
+            return f"{self.dtm.isoformat(timespec='microseconds')} ... {self}{hdr}"
+        except AttributeError:
+            print()
 
-    def __str__(self) -> str:
-        """Return a brief readable string representation of this object."""
-
-        return self.packet
+    @property
+    def dtm(self) -> dt:
+        return self._dtm
 
     def __eq__(self, other) -> bool:
-        if not hasattr(other, "packet"):
+        if not hasattr(other, "_frame"):
             return NotImplemented
-        return self.packet == other.packet
+        return self._frame[4:] == other._frame[4:]
 
     @staticmethod
     def _partition(pkt_line: str) -> Tuple[str, str, str]:
@@ -165,11 +155,7 @@ class Packet(PacketBase):
         fragment, _, comment = pkt_line.partition("#")
         fragment, _, err_msg = fragment.partition("*")
         pkt_str, _, _ = fragment.partition("<")  # discard any parser hints
-        return (
-            pkt_str.strip(),
-            f" * {err_msg.strip()}" if err_msg else " *" if "*" in pkt_line else "",
-            f" # {comment.strip()}" if comment else "",
-        )
+        return map(str.strip, (pkt_str, err_msg, comment))
 
     @property
     def _expired(self) -> float:
@@ -187,60 +173,46 @@ class Packet(PacketBase):
 
         return (self._gwy._dt_now() - self.dtm) / self.__timeout
 
-    def _validate(self, **kwargs) -> None:
-        """Raise an exception if the packet is not valid (will log all packets)."""
+    def _validate(self, addr_frag) -> None:
+        """Validate the packet, and parse the addresses if so (will log all packets).
 
-        def pkt_date_time(dtm_str) -> Tuple[str, str]:
-            # assumes kwargs.get("dtm_str") == dtm.isoformat(...)
-            try:
-                return (
-                    dtm_str or self.dtm.isoformat(sep="T", timespec="microseconds")
-                ).split("T")
-            except (AttributeError, ValueError) as exc:
-                raise InvalidPacketError(f"Bad timestamp: {exc}")
+        Raise an exception (InvalidPacketError, InvalidAddrSetError) if it is not valid.
+        """
 
         try:
             if self.error_text:
                 raise InvalidPacketError(self.error_text)
 
-            if not self.packet and self.comment:  # log null pkts only if has a comment
-                raise InvalidPacketError(self.comment)
+            if not self._frame and self.comment:  # log null pkts only if has a comment
+                raise InvalidPacketError("Null packet")
 
-            if not MESSAGE_REGEX.match(f"{self.rssi} {self.packet}"):
-                raise InvalidPacketError("Invalid structure")
+            if not MESSAGE_REGEX.match(self._frame):
+                raise InvalidPacketError("Invalid packet structure")
 
-            if int(self.packet[42:45]) * 2 != len(self.packet[46:]):
-                raise InvalidPacketError("Mismatched payload length")
+            self._len = int(self._frame[46:49])
+            if len(self._frame[50:]) != self._len * 2:
+                raise InvalidPacketError("Invalid payload length")
 
-            self.src, self.dst, self.addrs = pkt_addrs(self.packet[7:36])
-            # print(pkt_addrs.cache_info())
-
-            self._date, self._time = pkt_date_time(kwargs.get("dtm_str"))
+            self._src, self._dst, self._addrs = pkt_addrs(addr_frag)
 
         except InvalidPacketError as exc:  # incl. InvalidAddrSetError
-            _PKT_LOGGER.warning("%s < Bad packet: %s", self, exc, extra=self.__dict__)
+            if self._frame or self.error_text:
+                _PKT_LOGGER.warning("%s", exc, extra=self.__dict__)
             raise
 
-        _PKT_LOGGER.info("%s", f"{self.rssi} {self.packet}", extra=self.__dict__)
+        _PKT_LOGGER.info("", extra=self.__dict__)
 
     @classmethod
     def from_dict(cls, gwy, dtm: str, pkt_line: str):
         """Constructor to create a packet from a saved state (a curated dict)."""
         frame, _, comment = cls._partition(pkt_line)
-        return cls(gwy, dt.fromisoformat(dtm), frame, comment=comment, dtm_str=dtm)
+        return cls(gwy, dt.fromisoformat(dtm), frame, comment=comment)
 
     @classmethod
     def from_file(cls, gwy, dtm: str, pkt_line: str):
         """Constructor to create a packet from a log file line."""
         frame, err_msg, comment = cls._partition(pkt_line)
-        return cls(
-            gwy,
-            dt.fromisoformat(dtm),
-            frame,
-            dtm_str=dtm,
-            err_msg=err_msg,
-            comment=comment,
-        )
+        return cls(gwy, dt.fromisoformat(dtm), frame, err_msg=err_msg, comment=comment)
 
     @classmethod
     def from_port(cls, gwy, dtm: dt, pkt_line: str, raw_line: ByteString = None):

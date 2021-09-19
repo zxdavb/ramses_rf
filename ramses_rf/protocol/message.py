@@ -109,8 +109,6 @@ class Message:
         self._addrs = pkt.addrs
 
         self.dtm = pkt.dtm
-        self._date = pkt._date
-        self._time = pkt._time
 
         self.verb = pkt.verb
         self.seqn = pkt.seqn

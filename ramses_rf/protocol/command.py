@@ -17,7 +17,7 @@ from typing import Any, Optional, Tuple, Union
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, dev_id_to_hex, pkt_addrs
 from .const import COMMAND_REGEX, SYSTEM_MODE, ZONE_MODE
-from .exceptions import ExpiredCallbackError
+from .exceptions import ExpiredCallbackError, InvalidPacketError
 from .frame import PacketBase, pkt_header
 from .helpers import dt_now, dtm_to_hex, dts_to_hex, str_to_hex, temp_to_hex
 from .opentherm import parity
@@ -242,21 +242,21 @@ class Command(PacketBase):
     """The command class."""
 
     def __init__(self, verb, code, payload, dest_id, **kwargs) -> None:
-        """Initialise the class."""
+        """Create a command.
+
+        Will raise InvalidPacketError (or InvalidAddrSetError) if it is invalid.
+        """
         super().__init__()
 
-        self.verb = f"{verb:>2}"[:2]
-        self.seqn = "---"
-        self.src, self.dst, self.addrs = pkt_addrs(
-            f"{kwargs.get('from_id', HGI_DEV_ADDR.id)} {dest_id} {NON_DEV_ADDR.id}"
-        )
-        self.code = code
-        self.len = int(len(payload) / 2)
-        self.payload = payload
+        self._rssi = "..."
+        self._verb = f"{verb:>2}"[:2]
+        self._seqn = "---"
+        self._code = code
+        self._payload = payload
 
-        self._is_valid = None
-        if not self.is_valid:
-            raise ValueError(f"Invalid command: {self}")
+        self._validate(
+            f"{kwargs.get('from_id', HGI_DEV_ADDR.id)} {dest_id} {NON_DEV_ADDR.id}"
+        )  # self._frame, _src, _dst, _addrs, _len
 
         # callback used by app layer (protocol.py)
         self.callback = kwargs.pop(CALLBACK, {})  # func, args, daemon, timeout
@@ -273,23 +273,8 @@ class Command(PacketBase):
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
-
         hdr = f' # {self._hdr}{f" ({self._ctx})" if self._ctx else ""}'
-        return f"{self._dtm.isoformat(timespec='microseconds')} ... {self}{hdr}"
-
-    def __str__(self) -> str:
-        """Return a brief readable string representation of this object."""
-
-        return COMMAND_FORMAT.format(
-            self.verb,
-            self.seqn,
-            self.addrs[0].id,
-            self.addrs[1].id,
-            self.addrs[2].id,
-            self.code,
-            self.len,
-            self.payload,
-        )
+        return f"... {self}{hdr}"
 
     def _qos(self, **kwargs) -> dict:
         """Return the default QoS params of this (request) packet."""
@@ -328,18 +313,35 @@ class Command(PacketBase):
             self._rx_header = pkt_header(self, rx_header=True)
         return self._rx_header
 
-    @property
-    def is_valid(self) -> Optional[bool]:
-        """Return True if a valid command, otherwise return False/None."""
+    def _validate(self, addr_frag) -> None:
+        """Validate the command, and construct the frame if so.
 
-        if self._is_valid is not None:
-            return self._is_valid
+        Raise an exception (InvalidPacketError, InvalidAddrSetError) if it is not valid.
+        """
 
-        # assert self.code in [k for k, v in RAMSES_CODES.items() if v.get(self.verb)]
+        self._src, self._dst, self._addrs = pkt_addrs(addr_frag)
 
-        self._is_valid = COMMAND_REGEX.match(str(self)) and 2 <= len(self.payload) <= 96
+        self._len = int(len(self.payload) / 2)
+        if len(self.payload) != self._len * 2 or 1 > self._len > 48:
+            raise InvalidPacketError("Invalid payload length")
 
-        return self._is_valid
+        self._frame = (
+            self._rssi
+            + " "
+            + COMMAND_FORMAT.format(
+                self.verb,
+                self.seqn,
+                self.addrs[0].id,
+                self.addrs[1].id,
+                self.addrs[2].id,
+                self.code,
+                self.len,
+                self.payload,
+            )
+        )
+
+        if not COMMAND_REGEX.match(self._frame[4:]):
+            raise InvalidPacketError("Invalid packet structure")
 
     @staticmethod
     def _is_valid_operand(other) -> bool:
@@ -763,15 +765,11 @@ class Command(PacketBase):
         addr2 = NON_DEV_ADDR.id if addr2 is None else addr2
 
         if seqn in ("", "-", "--", "---"):
-            cmd.seqn = "---"
+            cmd._seqn = "---"
         elif seqn is not None:
-            cmd.seqn = f"{int(seqn):03d}"
+            cmd._seqn = f"{int(seqn):03d}"
 
-        cmd.src, cmd.dst, cmd.addrs = pkt_addrs(f"{addr0} {addr1} {addr2}")
-
-        cmd._is_valid = None
-        if not cmd.is_valid:
-            raise ValueError(f"Invalid parameter values for command: {cmd}")
+        cmd._validate(f"{addr0} {addr1} {addr2}")
 
         return cmd
 

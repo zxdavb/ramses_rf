@@ -12,7 +12,6 @@ import sys
 from datetime import datetime as dt
 
 from .const import __dev_mode__
-from .helpers import dt_str
 from .schema import LOG_FILE_NAME, LOG_ROTATE_BYTES, LOG_ROTATE_COUNT
 from .version import VERSION
 
@@ -39,17 +38,17 @@ CONSOLE_COLS = int(shutil.get_terminal_size(fallback=(2e3, 24)).columns - 1)
 
 if DEV_MODE:  # Do this to have longer-format console messages
     # HH:MM:SS.sss vs YYYY-MM-DDTHH:MM:SS.ssssss, shorter format for the console
-    CONSOLE_FMT = f"%(asctime)s %(message).{CONSOLE_COLS - 27}s"
+    CONSOLE_FMT = f"%(asctime)s%(frame).{CONSOLE_COLS - 27}s"
 else:
-    CONSOLE_FMT = f"%(asctime)s %(message).{CONSOLE_COLS - 13}s"
-PKT_LOG_FMT = "%(asctime)s %(message)s"  # "%(asctime)s %(packet)s"
+    CONSOLE_FMT = f"%(asctime)s%(frame).{CONSOLE_COLS - 13}s"
+
+PKT_LOG_FMT = "%(asctime)s%(frame)s"
+
+BANDW_SUFFIX = "%(message)s%(error_text)s%(comment)s"
+COLOR_SUFFIX = "%(yellow)s%(message)s%(red)s%(error_text)s%(cyan)s%(comment)s"
 
 # How to strip ASCII colour from a text file:
 #   sed -r "s/\x1B\[(([0-9]{1,2})?(;)?([0-9]{1,2})?)?[m,K,H,f,J]//g" file_name
-
-# used with packet logging
-BANDW_SUFFIX = "%(error_text)s%(comment)s"
-COLOR_SUFFIX = "%(red)s%(error_text)s%(cyan)s%(comment)s"
 
 LOG_COLOURS = {
     "DEBUG": "white",
@@ -80,13 +79,30 @@ class _Logger(logging.Logger):  # use pkt.dtm for the log record timestamp
 
         Will overwrite created and msecs (and thus asctime), but not relativeCreated.
         """
+
+        extra = dict(extra)
+        extra["frame"] = extra.pop("_frame", "")
+        if extra["frame"]:
+            extra["frame"] = f" {extra['frame']}"
+
         rv = super().makeRecord(
             name, level, fn, lno, msg, args, exc_info, func, extra, sinfo
         )
-        if dtm := extra.get("dtm"):
-            ct = dtm.timestamp()
-            rv.__dict__["created"] = ct
-            rv.__dict__["msecs"] = (ct - int(ct)) * 1000
+
+        if hasattr(rv, "dtm"):  # if dtm := extra.get("dtm"):
+            ct = rv.dtm.timestamp()
+            rv.created = ct
+            rv.msecs = (ct - int(ct)) * 1000
+
+        if rv.msg:
+            rv.msg = f" < {rv.msg}"
+
+        if getattr(rv, "error_text", None):
+            rv.error_text = f" * {rv.error_text}"
+
+        if getattr(rv, "comment", None):
+            rv.comment = f" # {rv.comment}"
+
         return rv
 
 
@@ -124,6 +140,7 @@ class PktLogFilter(logging.Filter):  # record.levelno in (logging.INFO, logging.
 
     def filter(self, record) -> bool:
         """Return True if the record is to be processed."""
+        # if record._frame[4:] or record.comment or record.error_text:
         return record.levelno in (logging.INFO, logging.WARNING)
 
 
@@ -246,12 +263,9 @@ def set_pkt_logging(logger, dt_now=None, cc_console=False, **kwargs) -> None:
         handler.addFilter(StdOutFilter())  # record.levelno < .WARNING
         logger.addHandler(handler)
 
-    _date, _time = dt_str()[:26].split("T")
     extras = {
-        "_date": _date,
-        "_time": _time,
-        "packet": "",
+        "_frame": "",
         "error_text": "",
-        "comment": f"# ramses_rf {VERSION}",
+        "comment": f"ramses_rf {VERSION}",
     }
     logger.warning("", extra=extras)

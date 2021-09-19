@@ -7,8 +7,9 @@ Provide the base class for commands (constructed/sent packets) and packets.
 """
 
 import logging
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
 
+from .address import Address
 from .const import NON_DEVICE_ID, NUL_DEVICE_ID
 from .ramses import (
     CODE_IDX_COMPLEX,
@@ -92,6 +93,19 @@ class PacketBase:
     """The packet base - used by Command and Packet classes."""
 
     def __init__(self) -> None:
+        """Create a frame."""
+        self._dtm = None
+        self._frame = None
+
+        self._rssi = None
+        self._verb = None
+        self._seqn = None
+        self._src = None
+        self._dst = None
+        self._addrs = [None] * 3
+        self._code = None
+        self._len = None
+        self._payload = None
 
         self.__has_array = None
         self.__has_ctl = None
@@ -99,13 +113,45 @@ class PacketBase:
         self._idx_ = None
         self._hdr_ = None
 
-    # def __repr__(self) -> str:
-    #     """Return an unambiguous string representation of this object."""
-    #     return self.raw_frame or self.packet
+    def __str__(self) -> str:
+        """Return a brief readable string representation of this object."""
+        return str() if self._frame is None else self._frame[4:]
 
-    # def __str__(self) -> str:
-    #     """Return an string representation of this object."""
-    #     return self._hdr
+    @property
+    def rssi(self) -> str:
+        return self._rssi
+
+    @property
+    def verb(self) -> str:
+        return self._verb
+
+    @property
+    def seqn(self) -> str:
+        return self._seqn
+
+    @property
+    def src(self) -> Address:
+        return self._src
+
+    @property
+    def dst(self) -> Address:
+        return self._dst
+
+    @property
+    def addrs(self) -> Tuple[Address, Address, Address]:
+        return self._addrs
+
+    @property
+    def code(self) -> str:
+        return self._code
+
+    @property
+    def len(self) -> int:  # payload length in 2-char bytes
+        return self._len
+
+    @property
+    def payload(self) -> str:
+        return self._payload
 
     @property
     def _has_array(self) -> Optional[bool]:
@@ -242,7 +288,7 @@ class PacketBase:
         return self._idx_
 
     @property
-    def _ctx(self) -> Union[str, bool]:
+    def _ctx(self) -> Union[str, bool]:  # incl. self._idx
         """Return the payload's full context, if any (e.g. for 0404: zone_idx/frag_idx).
 
         Used to store packets in the entity's message DB. It is a superset of _idx.
@@ -258,7 +304,7 @@ class PacketBase:
         return self._ctx_
 
     @property
-    def _hdr(self) -> str:
+    def _hdr(self) -> str:  # incl. self._ctx
         """Return the QoS header (fingerprint) of this packet (i.e. device_id/code/hdr).
 
         Used for QoS (timeouts, retries), callbacks, etc.
