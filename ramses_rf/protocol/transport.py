@@ -506,7 +506,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
         if cmd.src.type != "18":
             _LOGGER.info("PktProtocol.send_data(%s): IMPERSONATING!", cmd.tx_header)
-            await self.send_data(str(Command._puzzle("02", cmd.tx_header)))
+            await self.send_data(Command._puzzle("02", cmd.tx_header))
 
         await self._send_data(str(cmd))
 
