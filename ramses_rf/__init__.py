@@ -477,9 +477,9 @@ class Gateway:
             raise TypeError(f"The device id is not valid: {device_id}")
 
         if create_device and device_id in self.device_by_id:
-            raise ValueError(f"The device id already exists: {device_id}")
+            raise LookupError(f"The device id already exists: {device_id}")
         elif not create_device and device_id not in self.device_by_id:
-            raise ValueError(f"The device id does not exist: {device_id}")
+            raise LookupError(f"The device id does not exist: {device_id}")
 
         if self.config.enforce_known_list and device_id not in self._include:
             self._include[device_id] = {}
