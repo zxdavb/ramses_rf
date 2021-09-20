@@ -504,8 +504,18 @@ class PacketProtocolBase(asyncio.Protocol):
         #     _LOGGER.warning(
         #     return
 
-        if cmd.src.type != "18":
-            _LOGGER.info("PktProtocol.send_data(%s): IMPERSONATING!", cmd.tx_header)
+        if cmd.src.id != HGI_DEVICE_ID:
+            if self._hgi80[IS_EVOFW3]:
+                _LOGGER.info(
+                    "Impersonating device: %s, for pkt: %s", cmd.src.id, cmd.tx_header
+                )
+            else:
+                _LOGGER.warning(
+                    "Impersonating device: %s, for pkt: %s"
+                    ", NB: standard HGI80s dont support this feature, it needs evofw3!",
+                    cmd.src.id,
+                    cmd.tx_header,
+                )
             await self.send_data(Command._puzzle("02", cmd.tx_header))
 
         await self._send_data(str(cmd))
