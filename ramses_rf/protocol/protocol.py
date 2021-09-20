@@ -10,7 +10,7 @@ import asyncio
 import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
-from queue import Empty, PriorityQueue, SimpleQueue
+from queue import Empty, Full, PriorityQueue, SimpleQueue
 from typing import Callable, List, Optional, Tuple
 
 from .command import ARGS, DEAMON, EXPIRES, FUNC, TIMEOUT, Command
@@ -125,12 +125,15 @@ class MessageTransport(asyncio.Transport):
                         await call_send_data(cmd)
                 except (AssertionError, NotImplementedError):  # TODO: needs checking
                     pass
+                # except:
+                #     _LOGGER.exception("")
+                #     continue
 
                 self._que.task_done()
                 # if self._write_buffer_paused:
                 self.get_write_buffer_size()
 
-            _LOGGER.debug("MsgTransport.pkt_dispatcher(): connection_lost(None)")
+            _LOGGER.error("MsgTransport.pkt_dispatcher(): connection_lost(None)")
             [p.connection_lost(None) for p in self._protocols]
 
         self._dispatcher = dispatcher
@@ -333,7 +336,10 @@ class MessageTransport(asyncio.Transport):
             if not self._dispatcher:  # TODO: do better?
                 _LOGGER.warning("MsgTransport.write(%s): no dispatcher", cmd)
 
-            self._que.put_nowait(cmd)  # was: self._que.put_nowait(cmd)
+            try:
+                self._que.put_nowait(cmd)
+            except Full:
+                pass  # TODO: why? - consider restarting the dispatcher
 
         # self.get_write_buffer_size()  # TODO: how to auto unpause?
 
