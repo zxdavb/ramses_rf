@@ -677,7 +677,7 @@ class Temperature(Fakeable):  # 30C9 (fakeable)
             raise RuntimeError(f"Can't set value for {self} (Faking is not enabled)")
 
         self._gwy.send_cmd(Command.put_sensor_temp(self.id, value))
-        self._gwy.send_cmd(Command.get_zone_temp(self._ctl.id, self.zone.idx))
+        # lf._gwy.send_cmd(Command.get_zone_temp(self._ctl.id, self.zone.idx))
 
     @property
     def status(self) -> dict:

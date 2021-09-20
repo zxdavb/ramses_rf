@@ -392,8 +392,9 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
     def set_mode(self, mode=None, active=None, until=None) -> Task:
         """Set the DHW mode (mode, active, until)."""
-        cmd = Command.set_dhw_mode(self._ctl.id, mode=mode, active=active, until=until)
-        return self._gwy.send_cmd(cmd)
+        return self._gwy.send_cmd(
+            Command.set_dhw_mode(self._ctl.id, mode=mode, active=active, until=until)
+        )
 
     def set_boost_mode(self) -> Task:
         """Enable DHW for an hour, despite any schedule."""
@@ -415,8 +416,9 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         # if differential is None:
         #     setpoint = dhw_params["differential"]
 
-        cmd = Command.set_dhw_params(self._ctl.id, setpoint, overrun, differential)
-        return self._gwy.send_cmd(cmd)
+        return self._gwy.send_cmd(
+            Command.set_dhw_params(self._ctl.id, setpoint, overrun, differential)
+        )
 
     def reset_config(self) -> Task:  # 10A0
         """Reset the DHW parameters to their default values."""
@@ -647,10 +649,7 @@ class Zone(ZoneSchedule, ZoneBase):
         if value is None:
             self.reset_mode()
         else:
-            cmd = Command.set_zone_setpoint(self._ctl.id, self.idx, value)
-            self._gwy.send_cmd(cmd)
-            # NOTE: the following doesn't work for e.g. Hometronics
-            # self.set_mode(mode=ZONE_MODE.advanced_override, setpoint=value)
+            self._gwy.send_cmd(Command.set_zone_setpoint(self._ctl.id, self.idx, value))
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
@@ -676,6 +675,10 @@ class Zone(ZoneSchedule, ZoneBase):
             if hasattr(d, ATTR_WINDOW_OPEN) and d.window_open is not None
         ]
         return any(windows) if windows else None
+
+    def _get_temp(self) -> Task:  # TODO: messy - needs tidy up
+        """Get the zone's latest temp from the Controller."""
+        return self._gwy.send_cmd(Command.get_zone_temp(self._ctl.id, self.idx))
 
     def reset_config(self) -> Task:  # 000A
         """Reset the zone's parameters to their default values."""
@@ -719,8 +722,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
     def set_name(self, name) -> Task:
         """Set the zone's name."""
-        cmd = Command.set_zone_name(self._ctl.id, self.idx, name)
-        return self._gwy.send_cmd(cmd)
+        return self._gwy.send_cmd(Command.set_zone_name(self._ctl.id, self.idx, name))
 
     @property
     def schema(self) -> dict:
