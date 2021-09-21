@@ -409,7 +409,8 @@ class Actuator:  # 3EF0, 3EF1
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS and not self._faked:
-            self._send_cmd(_3EF1)  # No RPs to 3EF0
+            # NOTE: No need to send periodic RQ/3EF1s to an OTB, use RQ/3220/11s
+            self._send_cmd(_3EF1)  # NOTE: No RPs to RQ/3EF0
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -702,7 +703,7 @@ class RelayDemand(Fakeable):  # 0008 (fakeable)
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS and not self._faked:
-            self._send_cmd(_0008)
+            self._send_cmd(_0008)  # NOTE: No RPs to RQ/0009
 
     def _handle_msg(self, msg) -> None:
         if msg.src.id == self.id:
@@ -1264,33 +1265,34 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
 
     @property
     def modulation_level(self) -> Optional[float]:  # 3EF0/3EF1
+        # TODO: for OTB, deprecate in favour of RP/3220/11
         return self._msg_value((_3EF0, _3EF1), key=self.MODULATION_LEVEL)
 
     @property
-    def boiler_water_temperature(self) -> Optional[float]:  # 3220/0x19
+    def boiler_water_temperature(self) -> Optional[float]:  # 3220/19
         return self._ot_msg_value(0x19)
 
     @property
-    def ch_water_pressure(self) -> Optional[float]:  # 3220/0x12
+    def ch_water_pressure(self) -> Optional[float]:  # 3220/12
         return self._ot_msg_value(0x12)
 
     @property
-    def dhw_flow_rate(self) -> Optional[float]:  # 3220/0x13
+    def dhw_flow_rate(self) -> Optional[float]:  # 3220/13
         return self._ot_msg_value(0x13)
 
     @property
-    def dhw_temperature(self) -> Optional[float]:  # 3220/0x1A
+    def dhw_temperature(self) -> Optional[float]:  # 3220/1A
         return self._ot_msg_value(0x1A)
 
-    @property  # HA
-    def relative_modulation_level(self) -> Optional[float]:  # 3220/0x11
+    @property
+    def relative_modulation_level(self) -> Optional[float]:  # 3220/11
         return self._ot_msg_value(0x11)
 
     @property
-    def return_water_temperature(self) -> Optional[float]:  # 3220/0x1C
+    def return_water_temperature(self) -> Optional[float]:  # 3220/1C
         return self._ot_msg_value(0x1C)
 
-    @property  # HA
+    @property
     def boiler_setpoint(self) -> Optional[float]:  # 22D9
         return self._msg_value(_22D9, key=self.BOILER_SETPOINT)
 
