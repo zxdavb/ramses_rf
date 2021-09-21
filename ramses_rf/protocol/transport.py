@@ -430,7 +430,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
         except InvalidPacketError as exc:
             if "# evofw" in line and self._hgi80[IS_EVOFW3] is None:
-                self._hgi80[IS_EVOFW3] = True
+                self._hgi80[IS_EVOFW3] = line
                 if self._evofw_flag not in (None, "!V"):
                     self._transport.write(
                         bytes(f"{self._evofw_flag}\r\n".encode("ascii"))
@@ -590,7 +590,7 @@ class PacketProtocolRead(PacketProtocolBase):
 
         try:
             pkt = Packet.from_file(self._gwy, dtm, line)
-        except InvalidPacketError:
+        except (InvalidPacketError, ValueError):  # VE due to dt.fromisoformat()
             return
 
         try:
