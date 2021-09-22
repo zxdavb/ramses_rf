@@ -114,7 +114,9 @@ class Packet(PacketBase):
         self.error_text = kwargs.get("err_msg")
         self.raw_frame = kwargs.get("raw_frame")
 
-        self._validate(self._frame[11:40])  # self._src, _dst, _addrs, _len
+        self._src, self._dst, self._addrs, self._len = self._validate(
+            self._frame[11:40]
+        )  # may raise InvalidPacketError
 
         self._rssi = frame[0:3]
         self._verb = frame[4:6]
@@ -189,11 +191,11 @@ class Packet(PacketBase):
             if not MESSAGE_REGEX.match(self._frame):
                 raise InvalidPacketError("Invalid packet structure")
 
-            self._len = int(self._frame[46:49])
+            len = int(self._frame[46:49])
             if len(self._frame[50:]) != self._len * 2:
                 raise InvalidPacketError("Invalid payload length")
 
-            self._src, self._dst, self._addrs = pkt_addrs(addr_frag)
+            src, dst, addrs = pkt_addrs(addr_frag)  # self._frame[11:40]
 
         except InvalidPacketError as exc:  # incl. InvalidAddrSetError
             if self._frame or self.error_text:
@@ -201,6 +203,7 @@ class Packet(PacketBase):
             raise
 
         _PKT_LOGGER.info("", extra=self.__dict__)
+        return src, dst, addrs, len
 
     @classmethod
     def from_dict(cls, gwy, dtm: str, pkt_line: str):
