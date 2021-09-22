@@ -906,12 +906,7 @@ def msg_value(val_seqx, val_type) -> Any:
 
     def flag8(byte, *args) -> list:
         """Split a byte (as a str) into a list of 8 bits (1/0)."""
-        ret = [0] * 8
-        byte = bytes.fromhex(byte)[0]
-        for i in range(8):
-            ret[i] = byte & 1
-            byte = byte >> 1
-        return ret
+        return [(bytes.fromhex(byte)[0] & (1 << x)) >> x for x in reversed(range(8))]
 
     def u8(byte, *args) -> int:
         """Convert a byte (as a str) into an unsigned int."""

@@ -119,13 +119,8 @@ def double(val, factor=1) -> Optional[float]:
 
 
 def flag8(byte, *args) -> list:
-    """Split a byte (as a str) into a list of 8 bits (1/0)."""
-    ret = [0] * 8
-    byte = bytes.fromhex(byte)[0]
-    for i in range(8):
-        ret[i] = byte & 1
-        byte = byte >> 1
-    return ret
+    """Split a byte (as a str) into a list of 8 bits, MSB first."""
+    return [(bytes.fromhex(byte)[0] & (1 << x)) >> x for x in reversed(range(8))]
 
 
 def percent(value: str) -> Optional[float]:  # a percentage 0-100% (0.0 to 1.0)
