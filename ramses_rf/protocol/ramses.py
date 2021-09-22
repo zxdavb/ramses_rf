@@ -433,7 +433,12 @@ RAMSES_CODES = {  # rf_unknown
     },
     _3EF1: {  # actuator_cycle
         NAME: "actuator_cycle",
-        RQ: r"^(0[0-9A-F](00)?|00[0-9A-F]{22})$",  # NOTE: both seen in the wild
+        # RQ --- 31:004811 13:077615 --:------ 3EF1 001 00
+        # RP --- 13:077615 31:004811 --:------ 3EF1 007 00024D001300FF
+        # RQ --- 22:068154 13:031208 --:------ 3EF1 002 0000
+        # RP --- 13:031208 22:068154 --:------ 3EF1 007 00024E00E000FF
+        RQ: r"^00(00)?$",
+        "_RQ": r"^(0[0-9A-F](00)?|00[0-9A-F]{22})$",  # NOTE: both seen in the wild
         RP: r"^(0[0-9A-F]{13}|00[0-9A-F]{22})$",  # TODO
     },
     _PUZZ: {

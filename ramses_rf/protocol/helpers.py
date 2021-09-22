@@ -118,8 +118,10 @@ def double(val, factor=1) -> Optional[float]:
     return result if factor == 1 else result / factor
 
 
-def flag8(byte, *args) -> list:
-    """Split a byte (as a str) into a list of 8 bits, MSB first."""
+def flag8(byte, lsb=False) -> list:
+    """Split a byte (as a str) into a list of 8 bits, MSB first by default."""
+    if lsb is True:
+        return [(bytes.fromhex(byte)[0] & (1 << x)) >> x for x in range(8)]
     return [(bytes.fromhex(byte)[0] & (1 << x)) >> x for x in reversed(range(8))]
 
 
