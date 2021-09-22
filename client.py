@@ -20,6 +20,7 @@ from colorama import Fore, Style
 from colorama import init as colorama_init
 
 from ramses_rf import Gateway, GracefulExit, is_valid_dev_id
+from ramses_rf.const import DONT_CREATE_MESSAGES
 from ramses_rf.discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
 from ramses_rf.protocol.exceptions import EvohomeError
 from ramses_rf.protocol.logger import (
@@ -32,7 +33,6 @@ from ramses_rf.schema import (
     CONFIG,
     DISABLE_DISCOVERY,
     DISABLE_SENDING,
-    DONT_CREATE_MESSAGES,
     ENFORCE_KNOWNLIST,
     EVOFW_FLAG,
     INPUT_FILE,
