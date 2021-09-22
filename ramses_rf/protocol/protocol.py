@@ -17,7 +17,7 @@ from .command import ARGS, DEAMON, EXPIRES, FUNC, TIMEOUT, Command
 from .const import __dev_mode__
 from .message import Message
 
-DONT_CREATE_MESSAGES = 2  # duplicate
+DONT_CREATE_MESSAGES = 3  # duplicate
 
 DEV_MODE = __dev_mode__ and False
 
