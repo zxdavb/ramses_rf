@@ -1750,17 +1750,40 @@ def parser_3ef0(payload, msg) -> dict:
             "blob": payload[8:],
         }
 
+    assert msg.len in (3, 6, 9)
     assert payload[:2] == "00", f"byte 1: {payload[:2]}"
 
-    if 1 < msg.len <= 3:
-        assert payload[2:4] in ("00", "C8", "FF"), f"byte 1: {payload[2:4]}"
+    if msg.len == 3:  # I|BDR|003
+        # .I --- 13:042805 --:------ 13:042805 3EF0 003 0000FF
+        # .I --- 13:023770 --:------ 13:023770 3EF0 003 00C8FF
+        assert payload[2:4] in ("00", "C8"), f"byte 1: {payload[2:4]}"
         assert payload[4:6] == "FF", f"byte 2: {payload[4:6]}"
 
-    if msg.len > 3:  # for all OTB
-        if payload[2:4] != "FF":
-            assert int(payload[2:4], 16) <= 100, f"byte 1: {payload[2:4]}"
+    if msg.len >= 6:  # RP|OTB|006 (to RQ|CTL/HGI/RFG)
+        # RP --- 10:105624 01:133689 --:------ 3EF0 006 0000100000FF
+        # RP --- 10:105624 01:133689 --:------ 3EF0 006 003B100C00FF
+        assert int(payload[2:4], 16) <= 100, f"byte 1: {payload[2:4]}"
         assert payload[4:6] in ("10", "11"), f"byte 2: {payload[4:6]}"
+
+    result = {
+        "modulation_level": percent(payload[2:4]),  # TODO: rel_modulation_level
+        "_flags_0": payload[4:6],
+    }
+
+    if msg.len >= 6:  # RP|OTB|006 (to RQ|CTL/HGI/RFG)
         # RP --- 10:138822 01:187666 --:------ 3EF0 006 000110FA00FF  # ?corrupt
+
+        # for OTB (there's no reliable) modulation_level <-> flame_state)
+        assert payload[6:8] in (
+            "00",
+            "01",
+            "02",
+            "04",
+            "08",
+            "0A",
+            "0C",
+            "42",
+        ), f"byte 3: {payload[6:8]}"
         assert int(payload[6:8], 16) & 0b11110000 == 0, f"byte 3: {payload[6:8]}"
         assert payload[8:10] in (
             "00",
@@ -1771,23 +1794,9 @@ def parser_3ef0(payload, msg) -> dict:
         ), f"byte 4: {payload[8:10]}"
         assert payload[10:12] in ("00", "1C", "FF"), f"byte 5: {payload[10:12]}"
 
-    if msg.len > 6:  # <= 9: # for some OTB
-        assert int(payload[12:14], 16) & 0b11111100 == 0, f"byte 6: {payload[12:14]}"
-        assert payload[-2:] in ("00", "64"), f"byte x: {payload[-2:]}"
-
-    result = {
-        "modulation_level": percent(payload[2:4]),  # TODO: rel_modulation_level
-        "_unknown_0": payload[4:6],
-    }
-
-    if msg.len > 3:  # for OTB (there's no reliable) modulation_level <-> flame_state)
-        # assert payload[6:8] in (
-        #     "00", "01", "02", "04", "08", "0A", "0C", "42",
-        # ), payload[6:8]
-
         result.update(
             {
-                "_unknown_3": flag8(payload[6:8]),
+                "_flags_3": flag8(payload[6:8]),
                 "ch_enabled": bool(int(payload[6:8], 0x10) & 1 << 1),
                 "dhw_active": bool(int(payload[6:8], 0x10) & 1 << 2),
                 "flame_active": bool(int(payload[6:8], 0x10) & 1 << 3),
@@ -1796,10 +1805,15 @@ def parser_3ef0(payload, msg) -> dict:
             }
         )
 
-    if msg.len > 6:
+    if msg.len >= 9:  # I/RP|OTB|009
+        assert int(payload[12:14], 16) & 0b11111100 == 0, f"byte 6: {payload[12:14]}"
+        assert int(payload[12:14], 16) & 0b00000010 == 2, f"byte 6: {payload[12:14]}"
+        assert 10 <= int(payload[14:16], 16) <= 80, f"byte 7: {payload[14:16]}"
+        assert int(payload[16:18], 16) in (0, 100), f"byte 8: {payload[18:]}"
+
         result.update(
             {
-                "_unknown_6": flag8(payload[12:14]),
+                "_flags_6": flag8(payload[12:14]),
                 "ch_active": bool(int(payload[12:14], 0x10) & 1 << 0),
                 "ch_setpoint": int(payload[14:16], 0x10),
                 "max_rel_modulation": int(payload[16:18], 0x10),
@@ -1826,19 +1840,31 @@ def parser_3ef1(payload, msg) -> dict:
             "blob": payload[8:],
         }
 
-    assert msg.verb == RP, f"verb should be {RP}, not: {msg.verb}"
-    assert msg.len == 7, msg.len
-    assert payload[:2] == "00", payload[:2]
-    assert percent(payload[10:12]) <= 1, payload[10:12]
-    # assert payload[12:] == "FF"
+    if payload[12:] == "FF":  # is BDR
+        # assert (
+        #     re.compile(r"^00[0-9A-F]{10}FF").match(payload)
+        # ), "doesn't match: " + r"^00[0-9A-F]{10}FF"
+        assert int(payload[2:6], 16) <= 7200, int(payload[2:6], 16)
+        assert payload[6:10] in ("87B3", "9DFA", "DCE1", "E638", "F8F7") or (
+            int(payload[6:10], 16) <= 7200
+        ), int(payload[6:10], 16)
+        assert percent(payload[10:12]) in (0, 1), percent(payload[10:12])
+
+    else:  # is OTB?
+        # assert (
+        #     re.compile(r"^00[0-9A-F]{10}10").match(payload)
+        # ), "doesn't match: " + r"^00[0-9A-F]{10}10"
+        assert payload[2:6] == "7FFF", payload[2:6]
+        assert payload[6:10] == "003C", payload[6:10]  # 1 minute
+        assert percent(payload[10:12]) <= 1, payload[10:12]
 
     cycle_countdown = None if payload[2:6] == "7FFF" else int(payload[2:6], 16)
 
     return {
         "modulation_level": percent(payload[10:12]),
         "actuator_countdown": int(payload[6:10], 16),
-        "cycle_countdown": cycle_countdown,  # not for OTB, == "7FFF"
-        "_unknown_0": payload[12:],  # for OTB != "FF"
+        "cycle_countdown": cycle_countdown,
+        "_unknown_0": payload[12:],
     }
 
 
@@ -1897,7 +1923,7 @@ def parse_payload(msg, logger=_LOGGER) -> dict:
 
     except AssertionError as err:
         # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
-        (logger.exception if DEV_MODE and msg.src.type != "18" else logger.warning)(
+        (logger.exception if DEV_MODE and msg.src.type != "18" else logger.exception)(
             "%s << %s", msg._pkt, f"{err.__class__.__name__}({err})"
         )
 
@@ -1911,5 +1937,7 @@ def parse_payload(msg, logger=_LOGGER) -> dict:
 
     except NotImplementedError:  # parser_unknown (unknown packet code)
         logger.warning("%s << Unknown packet code (cannot parse)", msg._pkt)
+
+    # logger.error("%s", msg)
 
     return result
