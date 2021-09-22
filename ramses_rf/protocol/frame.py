@@ -390,7 +390,7 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
         return  # False  # TODO: return None (less precise) or risk false -ves?
 
     # mutex 4/4, CODE_IDX_UNKNOWN: an unknown code
-    _LOGGER.warning(f"{pkt} # Unable to determine payload index")  # and: return None
+    _LOGGER.info(f"{pkt} # Unable to determine payload index (is probably OK)")
 
 
 def pkt_header(pkt, rx_header=None) -> Optional[str]:  # NOTE: used in command.py
