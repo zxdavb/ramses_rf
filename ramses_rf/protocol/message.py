@@ -190,10 +190,15 @@ class Message:
         if self.__has_payload is not None:
             return self.__has_payload
 
-        self.__has_payload = not bool(
-            self.len == 1
-            # or (self.len == 2 and self.verb == RQ)  # NOTE: see 0016
-            or (self.verb == RQ and self.code in RQ_NO_PAYLOAD)
+        self.__has_payload = not any(
+            (
+                self.len == 1,
+                self.verb == RQ and self.code in RQ_NO_PAYLOAD,
+                self.verb == RQ and self.len == 2 and self.code != _0016
+                # self.verb == RQ and self.len == 2 and self.code in (
+                #   _2309, _2349, _3EF1
+                # )
+            )
         )
 
         return self.__has_payload
