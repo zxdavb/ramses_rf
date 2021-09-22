@@ -314,7 +314,7 @@ def parser_0005(payload, msg) -> Optional[dict]:  # TODO: needs a cleanup
     def _parser(seqx) -> dict:
         return {
             "_zone_type": seqx[2:4],
-            "zone_mask": (flag8(seqx[4:6]) + flag8(seqx[6:8])),
+            "zone_mask": (flag8(seqx[4:6], lsb=True) + flag8(seqx[6:8], lsb=True)),
             "zone_type": _0005_ZONE_TYPE.get(seqx[2:4], f"unknown_{seqx[2:4]}"),
         }
 
