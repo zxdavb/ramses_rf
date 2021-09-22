@@ -191,8 +191,8 @@ class Packet(PacketBase):
             if not MESSAGE_REGEX.match(self._frame):
                 raise InvalidPacketError("Invalid packet structure")
 
-            len = int(self._frame[46:49])
-            if len(self._frame[50:]) != self._len * 2:
+            length = int(self._frame[46:49])
+            if len(self._frame[50:]) != length * 2:
                 raise InvalidPacketError("Invalid payload length")
 
             src, dst, addrs = pkt_addrs(addr_frag)  # self._frame[11:40]
@@ -203,7 +203,7 @@ class Packet(PacketBase):
             raise
 
         _PKT_LOGGER.info("", extra=self.__dict__)
-        return src, dst, addrs, len
+        return src, dst, addrs, length
 
     @classmethod
     def from_dict(cls, gwy, dtm: str, pkt_line: str):
