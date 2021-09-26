@@ -75,7 +75,7 @@ class Gateway:
         self.serial_port = serial_port
         self._input_file = kwargs.pop(INPUT_FILE, None)
 
-        (self.config, self.__schema, self._include, self._exclude) = load_config(
+        (self.config, self._schema, self._include, self._exclude) = load_config(
             self.serial_port, self._input_file, **kwargs
         )
         self._unwanted = [NON_DEVICE_ID, NUL_DEVICE_ID, "01:000001"]
@@ -156,7 +156,7 @@ class Gateway:
     async def start(self) -> None:
         _LOGGER.info("ENGINE: Starting poller...")
 
-        load_schema(self, **self.__schema)
+        load_schema(self, **self._schema)
 
         if self.serial_port:  # source of packets is a serial port
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
