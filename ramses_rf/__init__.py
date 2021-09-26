@@ -89,8 +89,7 @@ class Gateway:
             **self.config.packet_log,
         )
 
-        # HACK: needed for -rrr
-        if True or self.config.reduce_processing < DONT_CREATE_MESSAGES:
+        if self.config.reduce_processing < DONT_CREATE_MESSAGES:
             self.msg_protocol, self.msg_transport = self.create_client(process_msg)
 
         self._state_lock = Lock()
