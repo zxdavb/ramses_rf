@@ -105,7 +105,6 @@ def _create_devices(this: Message) -> None:
     def proc_000c():
         if this.src.type == "01":  # TODO
             this._gwy._get_device(this.dst.id, ctl_id=this.src.id)
-            # if this.is_valid:
             key = "zone_idx" if "zone_idx" in this.payload else "domain_id"
             [
                 this._gwy._get_device(
@@ -271,7 +270,7 @@ def process_msg(msg: Message) -> None:
     if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
         _LOGGER.info(msg)
 
-    if not msg.is_valid or msg._gwy.config.reduce_processing >= DONT_CREATE_ENTITIES:
+    if msg._gwy.config.reduce_processing >= DONT_CREATE_ENTITIES:
         return
 
     # # TODO: This will need to be removed for HGI80-impersonation
