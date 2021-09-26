@@ -1101,6 +1101,12 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id}): {self.temperature}"
 
+    def _handle_msg(self, msg) -> None:
+        super()._handle_msg(msg)
+
+        if msg.code == _1260:
+            self._gwy.send_cmd(Command.get_dhw_temp(self._ctl.id))
+
     @property
     def dhw_params(self) -> Optional[dict]:  # 10A0
         return self._msg_value(_10A0)
