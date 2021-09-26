@@ -100,7 +100,7 @@ class Packet(PacketBase):
     """The packet class; should trap/log all invalid PKTs appropriately."""
 
     def __init__(self, gwy, dtm: dt, frame: str, **kwargs) -> None:
-        """Create a packet.
+        """Create a packet from a valid frame.
 
         Will raise InvalidPacketError (or InvalidAddrSetError) if it is invalid.
         """
@@ -116,7 +116,7 @@ class Packet(PacketBase):
 
         self._src, self._dst, self._addrs, self._len = self._validate(
             self._frame[11:40]
-        )  # may raise InvalidPacketError
+        )  # ? raise InvalidPacketError
 
         self._rssi = frame[0:3]
         self._verb = frame[4:6]
