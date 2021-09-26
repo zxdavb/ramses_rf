@@ -19,6 +19,7 @@ from .ramses import (
     CODE_ONLY_FROM_CTL,
     CODES_WITH_ARRAYS,
     RAMSES_CODES,
+    RQ_NO_PAYLOAD,
 )
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
@@ -109,6 +110,7 @@ class PacketBase:
 
         self.__has_array = None
         self.__has_ctl = None
+        self.__has_payload = None
         self._ctx_ = None
         self._idx_ = None
         self._hdr_ = None
@@ -275,6 +277,29 @@ class PacketBase:
             self.__has_ctl = False
 
         return self.__has_ctl
+
+    @property
+    def _has_payload(self) -> bool:
+        """Return True if the packet has a non-null payload, and False otherwise.
+
+        May return false positives. The payload may still have an idx.
+        """
+
+        if self.__has_payload is not None:
+            return self.__has_payload
+
+        self.__has_payload = not any(
+            (
+                self.len == 1,
+                self.verb == RQ and self.code in RQ_NO_PAYLOAD,
+                self.verb == RQ and self.len == 2 and self.code != _0016,
+                # self.verb == RQ and self.len == 2 and self.code in (
+                #   _2309, _2349, _3EF1
+                # ),
+            )
+        )
+
+        return self.__has_payload
 
     @property
     def _idx(self) -> Union[str, bool]:
