@@ -108,12 +108,12 @@ class PacketBase:
         self._len = None
         self._payload = None
 
-        self.__has_array = None
-        self.__has_ctl = None
-        self.__has_payload = None
+        self._has_array_ = None
+        self._has_ctl_ = None
+        self._has_payload_ = None
         self._ctx_ = None
-        self._idx_ = None
         self._hdr_ = None
+        self._idx_ = None
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
@@ -165,8 +165,8 @@ class PacketBase:
         2309/30C9/000A packets).
         """
 
-        if self.__has_array is not None:
-            return self.__has_array
+        if self._has_array_ is not None:
+            return self._has_array_
 
         # False -ves (array length is 1) are an acceptable compromise to extensive checking
 
@@ -175,13 +175,13 @@ class PacketBase:
         #  I --- 01:145038 --:------ 01:145038 1FC9 018 FA000806368E-FC3B0006368E-FA1FC906368E
         #  I --- 34:092243 --:------ 34:092243 1FC9 030 0030C9896853-002309896853-001060896853-0010E0896853-001FC9896853
         if self.code == _1FC9:
-            self.__has_array = self.verb != RQ  # safe to treat all as array, even len=1
+            self._has_array_ = self.verb != RQ  # safe to treat all as array, even len=1
 
         elif self.verb != I_ or self.code not in CODES_WITH_ARRAYS:
-            self.__has_array = False
+            self._has_array_ = False
 
         elif self.len == CODES_WITH_ARRAYS[self.code][0]:  # NOTE: can be false -ves
-            self.__has_array = False
+            self._has_array_ = False
 
         else:
             _len = CODES_WITH_ARRAYS[self.code][0]
@@ -194,7 +194,7 @@ class PacketBase:
             assert (
                 self.src.type not in ("12", "22") or self.dst.id == NON_DEVICE_ID
             ), f"{self} << array is from a non-controller (02)"
-            self.__has_array = True
+            self._has_array_ = True
 
         #  I --- 10:040239 01:223036 --:------ 0009 003 000000        # not array
         #  I --- 01:102458 --:------ 01:102458 0009 006 FC01FF-F901FF
@@ -207,14 +207,14 @@ class PacketBase:
         #  I --- 02:044328 --:------ 02:044328 22C9 018 0001F40A2801-0101F40A2801-0201F40A2801
         #  I --- 02:001107 --:------ 02:001107 3150 010 007A-017A-027A-036A-046A
 
-        return self.__has_array
+        return self._has_array_
 
     @property
     def _has_ctl(self) -> Optional[bool]:
         """Return True if the packet is to/from a controller."""
 
-        if self.__has_ctl is not None:
-            return self.__has_ctl
+        if self._has_ctl_ is not None:
+            return self._has_ctl_
 
         # TODO: handle RQ/RP to/from HGI/RFG, handle HVAC
 
@@ -228,7 +228,7 @@ class PacketBase:
 
         if {self.src.type, self.dst.type} & {"01", "02", "23"}:
             _LOGGER.debug(f"{self} # HAS controller (10)")
-            self.__has_ctl = True
+            self._has_ctl_ = True
 
         #  I --- 12:010740 --:------ 12:010740 30C9 003 0008D9 # not ctl
         elif self.dst is self.src:  # (not needed?) & self.code == I_:
@@ -237,7 +237,7 @@ class PacketBase:
                 + ("HAS" if self.code in CODE_ONLY_FROM_CTL + [_31D9, _31DA] else "no")
                 + " controller (20)"
             )
-            self.__has_ctl = any(
+            self._has_ctl_ = any(
                 (
                     self.code == _3B00 and self.payload[:2] == "FC",
                     self.code in CODE_ONLY_FROM_CTL + [_31D9, _31DA],
@@ -249,13 +249,13 @@ class PacketBase:
         #  I --- --:------ --:------ 20:001473 31D9 003 000001 # ctl? (HVAC)
         elif self.dst.id == NON_DEVICE_ID:
             _LOGGER.debug(f"{self} # HAS controller (21)")
-            self.__has_ctl = self.src.type != "10"
+            self._has_ctl_ = self.src.type != "10"
 
         #  I --- 10:037879 --:------ 12:228610 3150 002 0000   # HAS ctl
         #  I --- 04:029390 --:------ 12:126457 1060 003 01FF01 # HAS ctl
         elif self.dst.type in ("12", "22"):
             _LOGGER.debug(f"{self} # HAS controller (22)")
-            self.__has_ctl = True
+            self._has_ctl_ = True
 
         # RQ --- 30:258720 10:050360 --:------ 3EF0 001 00           # UNKNOWN (99)
         # RP --- 10:050360 30:258720 --:------ 3EF0 006 000011010A1C # UNKNOWN (99)
@@ -271,12 +271,12 @@ class PacketBase:
 
         #  I --- 34:021943 63:262142 --:------ 10E0 038 000001C8380A01... # unknown
         #  I --- 32:168090 30:082155 --:------ 31E0 004 0000C800          # unknown
-        if self.__has_ctl is None:
+        if self._has_ctl_ is None:
             if DEV_MODE and "18" not in (self.src.type, self.dst.type):
                 _LOGGER.warning(f"{self} # has_ctl - undetermined (99)")
-            self.__has_ctl = False
+            self._has_ctl_ = False
 
-        return self.__has_ctl
+        return self._has_ctl_
 
     @property
     def _has_payload(self) -> bool:
@@ -285,10 +285,10 @@ class PacketBase:
         May return false positives. The payload may still have an idx.
         """
 
-        if self.__has_payload is not None:
-            return self.__has_payload
+        if self._has_payload_ is not None:
+            return self._has_payload_
 
-        self.__has_payload = not any(
+        self._has_payload_ = not any(
             (
                 self.len == 1,
                 self.verb == RQ and self.code in RQ_NO_PAYLOAD,
@@ -299,18 +299,7 @@ class PacketBase:
             )
         )
 
-        return self.__has_payload
-
-    @property
-    def _idx(self) -> Union[str, bool]:
-        """Return the payload's index, if any (e.g. zone_idx, domain_id, or log_idx).
-
-        Used to route a packet to the correct entity's (i.e. zone/domain) msg handler.
-        """
-
-        if self._idx_ is None:
-            self._idx_ = _pkt_idx(self) or False
-        return self._idx_
+        return self._has_payload_
 
     @property
     def _ctx(self) -> Union[str, bool]:  # incl. self._idx
@@ -338,6 +327,17 @@ class PacketBase:
         if self._hdr_ is None:
             self._hdr_ = pkt_header(self)
         return self._hdr_
+
+    @property
+    def _idx(self) -> Union[str, bool]:
+        """Return the payload's index, if any (e.g. zone_idx, domain_id, or log_idx).
+
+        Used to route a packet to the correct entity's (i.e. zone/domain) msg handler.
+        """
+
+        if self._idx_ is None:
+            self._idx_ = _pkt_idx(self) or False
+        return self._idx_
 
 
 def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
