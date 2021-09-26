@@ -15,13 +15,7 @@ from typing import Any, Optional, Tuple, Union
 from .address import Address, dev_id_to_str
 from .exceptions import InvalidPacketError, InvalidPayloadError
 from .parsers import PAYLOAD_PARSERS, parser_unknown
-from .ramses import (
-    CODE_IDX_COMPLEX,
-    CODE_RQ_COMPLEX,
-    RAMSES_CODES,
-    RAMSES_DEVICES,
-    RQ_NO_PAYLOAD,
-)
+from .ramses import CODE_IDX_COMPLEX, CODE_RQ_COMPLEX, RAMSES_CODES, RAMSES_DEVICES
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
@@ -130,10 +124,9 @@ class Message:
         self._payload = self._validate(
             self.raw_payload
         )  # may raise InvalidPacketError TODO: remove self._is_valid
-        self._is_valid = self._payload is not None
 
         self._str = None
-        self.__expired = None
+        self._expired_ = None
         self._is_fragment = None
 
     def __repr__(self) -> str:
@@ -280,25 +273,25 @@ class Message:
     def _expired(self) -> Tuple[bool, Optional[bool]]:
         """Return True if the message is dated (does not require a valid payload)."""
 
-        if self.__expired is not None:
-            if self.__expired == self.CANT_EXPIRE:
+        if self._expired_ is not None:
+            if self._expired_ == self.CANT_EXPIRE:
                 return False
-            if self.__expired >= self.HAS_EXPIRED * 2:  # TODO: should delete?
+            if self._expired_ >= self.HAS_EXPIRED * 2:  # TODO: should delete?
                 return True
 
         if self.code == _1F09 and self.verb == I_:
             # RQs won't have remaining_seconds
             # RP/Ws will have only partial cycle times
             timeout = td(seconds=self.payload["remaining_seconds"])
-            self.__expired = (self._gwy._dt_now() - self.dtm) / timeout
+            self._expired_ = (self._gwy._dt_now() - self.dtm) / timeout
         else:
-            self.__expired = self._pkt._expired
+            self._expired_ = self._pkt._expired
 
-        if self.__expired is False:  # treat as never expiring
+        if self._expired_ is False:  # treat as never expiring
             _LOGGER.info("%s # cant expire", self._pkt)
-            self.__expired = self.CANT_EXPIRE
+            self._expired_ = self.CANT_EXPIRE
 
-        elif self.__expired >= self.HAS_EXPIRED:  # TODO: should renew?
+        elif self._expired_ >= self.HAS_EXPIRED:  # TODO: should renew?
             if any(
                 (
                     self.code == _1F09 and self.verb != I_,
@@ -308,13 +301,13 @@ class Message:
                 _logger = _LOGGER.info
             else:
                 _logger = _LOGGER.warning
-            _logger("%s # has expired %s", self._pkt, f"({self.__expired * 100:1.0f}%)")
+            _logger("%s # has expired %s", self._pkt, f"({self._expired_ * 100:1.0f}%)")
 
-        # elif self.__expired >= self.IS_EXPIRING:  # this could log multiple times
+        # elif self._expired_ >= self.IS_EXPIRING:  # this could log multiple times
         #     _LOGGER.error("%s # is expiring", self._pkt)
 
         # and self.dtm >= self._gwy._dt_now() - td(days=7)  # TODO: should be none >7d?
-        return self.__expired >= self.HAS_EXPIRED
+        return self._expired_ >= self.HAS_EXPIRED
 
     @property
     def _is_fragment_WIP(self) -> bool:
@@ -335,10 +328,6 @@ class Message:
             self._is_fragment = False
 
         return self._is_fragment
-
-    @property
-    def is_valid(self) -> bool:  # Main code here  # TODO: remove
-        return self._is_valid
 
     def _validate(self, raw_payload) -> dict:
         """Validate the message, and parse the payload if so.
@@ -483,21 +472,3 @@ def _check_verb_code_payload(msg, payload) -> None:
     #         raise InvalidPayloadError(
     #             f"OpenTherm: Unsupported data-id: 0x{msg_id:02X} ({msg_id})"
     #         )
-
-
-def _has_payload(msg) -> bool:
-    """Return False if no payload (may falsely Return True).
-
-    The message (i.e. the raw payload) may still have an idx.
-    """
-
-    return not any(
-        (
-            msg.len == 1,
-            msg.verb == RQ and msg.code in RQ_NO_PAYLOAD,
-            msg.verb == RQ and msg.len == 2 and msg.code != _0016,
-            # msg.verb == RQ and msg.len == 2 and msg.code in (
-            #   _2309, _2349, _3EF1
-            # ),
-        )
-    )
