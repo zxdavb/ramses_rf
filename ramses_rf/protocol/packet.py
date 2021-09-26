@@ -124,7 +124,7 @@ class Packet(PacketBase):
         self._code = frame[41:45]
         self._payload = frame[50:]
 
-        self.__timeout = None
+        self._timeout = None
 
         # if DEV_MODE:  # TODO: remove (is for testing only)
         #     _ = self._has_array
@@ -167,13 +167,13 @@ class Packet(PacketBase):
         False if the packet does not expire.
         """
 
-        if self.__timeout is None:
-            self.__timeout = pkt_timeout(self) or False
+        if self._timeout is None:
+            self._timeout = pkt_timeout(self) or False
 
-        if self.__timeout is False:
+        if self._timeout is False:
             return False
 
-        return (self._gwy._dt_now() - self.dtm) / self.__timeout
+        return (self._gwy._dt_now() - self.dtm) / self._timeout
 
     def _validate(self, addr_frag) -> None:
         """Validate the packet, and parse the addresses if so (will log all packets).
