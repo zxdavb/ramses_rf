@@ -102,7 +102,10 @@ class Message:
     IS_EXPIRING = 0.8  # expected lifetime == 1.0
 
     def __init__(self, gwy, pkt) -> None:
-        """Create a message from a valid packet."""
+        """Create a message from a valid packet.
+
+        Will raise InvalidPacketError if it is invalid.
+        """
         self._gwy = gwy
         self._pkt = pkt
 
@@ -121,9 +124,7 @@ class Message:
 
         self.code_name = CODE_NAMES.get(self.code, f"unknown_{self.code}")
 
-        self._payload = self._validate(
-            self.raw_payload
-        )  # may raise InvalidPacketError TODO: remove self._is_valid
+        self._payload = self._validate(self.raw_payload)  # ? raise InvalidPacketError
 
         self._str = None
         self._expired_ = None
@@ -390,7 +391,7 @@ def re_compile_re_match(regex, string) -> bool:
 def _check_verb_code_src(msg) -> None:
     """Validate the packet's verb/code pair against its source device type.
 
-    Raise an exception if the meta data is invalid, otherwise simply return None.
+    Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
     """
     if msg.src.type not in RAMSES_DEVICES:
         raise InvalidPacketError(f"Unknown src device type: {msg.src.id}")
@@ -412,7 +413,7 @@ def _check_verb_code_src(msg) -> None:
 def _check_verb_code_dst(msg) -> None:
     """Validate the packet's verb/code pair against its destination device type.
 
-    Raise an exception if the meta data is invalid, otherwise simply return None.
+    Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
     """
 
     # check that the destination would normally respond...
@@ -422,7 +423,7 @@ def _check_verb_code_dst(msg) -> None:
     if msg.dst.type not in RAMSES_DEVICES:
         raise InvalidPacketError(f"Unknown dst device type: {msg.dst.id}")
 
-    if msg.verb == I_:
+    if msg.verb == I_:  # receiving an I is not in the schema, so cant be tested
         return
 
     # HACK: these exceptions need sorting
@@ -454,8 +455,8 @@ def _check_verb_code_dst(msg) -> None:
 def _check_verb_code_payload(msg, payload) -> None:
     """Validate the packet's verb/code pair against its payload.
 
-    Raise an InvalidPayloadError if the payload is invalid, otherwise simply return
-    None. Some parsers may also raise InvalidPayloadError (e.g. 3220).
+    Raise an InvalidPayloadError if the payload is invalid, otherwise simply return.
+    Some parsers may also raise InvalidPayloadError (e.g. 3220).
     """
 
     try:
