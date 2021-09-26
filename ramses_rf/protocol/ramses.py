@@ -446,7 +446,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     _PUZZ: {
         NAME: "puzzle_packet",
-        I_: r"^00[0-9A-F]{12}7F[0-9A-F]{4}7F[0-9A-F]{4}(7F)+",
+        I_: r"^00([0-9A-F]+7F)+",
     },
 }
 for code in RAMSES_CODES.values():
