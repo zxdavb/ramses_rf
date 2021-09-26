@@ -9,11 +9,9 @@
 # - ReneKlootwijk: 3EF0
 
 import logging
-import re
 from datetime import datetime as dt
 from datetime import timedelta as td
-from functools import lru_cache
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 from .const import (
     _000C_DEVICE_TYPE,
@@ -27,7 +25,7 @@ from .const import (
     SYSTEM_MODE,
     ZONE_MODE,
 )
-from .exceptions import InvalidPacketError, InvalidPayloadError
+from .exceptions import InvalidPayloadError
 from .helpers import (
     bool_from_hex,
     date_from_hex,
@@ -42,7 +40,6 @@ from .helpers import (
     valve_demand,
 )
 from .opentherm import EN, MSG_DESC, MSG_ID, MSG_NAME, MSG_TYPE, decode_frame
-from .ramses import CODE_RQ_COMPLEX, RAMSES_CODES, RAMSES_DEVICES
 from .version import VERSION
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
@@ -106,8 +103,6 @@ from .const import (  # noqa: F401, isort: skip
     _PUZZ,
 )
 
-__all__ = ("parse_payload",)
-
 DEV_MODE = __dev_mode__ and False
 TEST_MODE = False  # enable to test constructors (usu. W)
 
@@ -116,112 +111,9 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-@lru_cache(maxsize=256)
-def re_compile_re_match(regex, string) -> bool:
-    return re.compile(regex).match(string)
-
-
-def _check_verb_code_src(msg) -> None:
-    """Check the packet's source device type against its verb/code pair."""
-    if msg.src.type not in RAMSES_DEVICES:
-        raise InvalidPacketError(f"Unknown src device type: {msg.src.id}")
-
-    if msg.src.type == "18":  # TODO: make a dynamic list if sensor/relay faking
-        if msg.code not in RAMSES_CODES:  # NOTE: HGI can send whatever it likes
-            # currently, there isn't complete detail in RAMSES_DEVICES for HGI
-            raise InvalidPacketError(f"Unknown code for {msg.src.id} to Tx: {msg.code}")
-        return
-
-    if msg.code not in RAMSES_DEVICES[msg.src.type]:
-        raise InvalidPacketError(f"Invalid code for {msg.src.id} to Tx: {msg.code}")
-
-    if msg.verb not in RAMSES_DEVICES[msg.src.type][msg.code]:
-        raise InvalidPacketError(
-            f"Invalid verb/code for {msg.src.id} to Tx: {msg.verb}/{msg.code}"
-        )
-
-
-def _check_verb_code_dst(msg) -> None:
-    """Check the packet's destination device type against its verb/code pair."""
-
-    # check that the destination would normally respond...
-    if "18" in (msg.src.type, msg.dst.type) or msg.dst.type in ("--", "63"):
-        # could leave this out to enforce strict checking
-        return
-
-    if msg.dst.type not in RAMSES_DEVICES:
-        raise InvalidPacketError(f"Unknown dst device type: {msg.dst.id}")
-
-    if msg.verb == I_:
-        return
-
-    # HACK: these exceptions need sorting
-    if f"{msg.dst.type}/{msg.verb}/{msg.code}" in (f"01/{RQ}/{_3EF1}",):
-        return
-
-    if msg.code not in RAMSES_DEVICES[msg.dst.type]:  # NOTE: is not OK for Rx
-        #  I --- 04:253797 --:------ 01:063844 1060 003 056401
-        # HACK: these exceptions need sorting
-        # if msg.code in (_1060, ):
-        #     return
-        raise InvalidPacketError(f"Invalid code for {msg.dst.id} to Rx: {msg.code}")
-
-    # HACK: these exceptions need sorting
-    if f"{msg.verb}/{msg.code}" in (f"{W_}/{_0001}",):
-        return
-
-    # HACK: these exceptions need sorting
-    if f"{msg.dst.type}/{msg.verb}/{msg.code}" in (f"13/{RQ}/{_3EF0}",):
-        return
-
-    verb = {RQ: RP, RP: RQ, W_: I_}[msg.verb]
-    if verb not in RAMSES_DEVICES[msg.dst.type][msg.code]:
-        raise InvalidPacketError(
-            f"Invalid verb/code for {msg.dst.id} to Rx: {msg.verb}/{msg.code}"
-        )
-
-
-def _check_verb_code_payload(msg, payload) -> None:
-    """Check the packet's payload against its verb/code pair."""
-
-    try:
-        regex = RAMSES_CODES[msg.code][msg.verb]
-        if not re_compile_re_match(regex, payload):
-            raise InvalidPayloadError(f"Payload doesn't match '{regex}'")
-    except KeyError:
-        pass  # TODO: raise
-
-    # TODO: put this back, or leave it to the parser?
-    # if msg.code == _3220:
-    #     msg_id = int(msg.raw_payload[4:6], 16)
-    #     if msg_id not in OPENTHERM_MESSAGES:  # parser uses OTB_MSG_IDS
-    #         raise InvalidPayloadError(
-    #             f"OpenTherm: Unsupported data-id: 0x{msg_id:02X} ({msg_id})"
-    #         )
-
-
 def parser_decorator(func):
-    """Validate message payload (or meta-data), e.g payload length)."""
-
-    def wrapper(*args, **kwargs) -> Optional[dict]:
-        """Check the length of a payload."""
-        payload, msg = args[0], args[1]
-
-        # STEP 0: Check verb/code pair against src/dst device type & payload
-        if msg.code not in RAMSES_CODES:
-            raise InvalidPacketError(f"Unknown code: {msg.code}")
-
-        _check_verb_code_src(msg)
-        _check_verb_code_dst(msg)
-
-        _check_verb_code_payload(msg, payload)  # must use payload, not msg.payload
-
-        if msg._has_payload or msg.verb == RQ and msg.code in CODE_RQ_COMPLEX:
-            result = func(*args, **kwargs)
-        else:
-            result = {}
-
-        return result if isinstance(result, list) else {**msg._idx, **result}
+    def wrapper(*args, **kwargs) -> Optional[Any]:
+        return func(*args, **kwargs)
 
     return wrapper
 
@@ -1910,34 +1802,3 @@ PAYLOAD_PARSERS = {
     for k, v in locals().items()
     if callable(v) and k.startswith("parser_") and k != "parser_unknown"
 }
-
-
-def parse_payload(msg, logger=_LOGGER) -> dict:
-
-    parser = PAYLOAD_PARSERS.get(msg.code, parser_unknown)
-    result = None
-
-    try:  # parse the packet
-        result = parser(msg.raw_payload, msg)
-        assert isinstance(result, (dict, list)), f"invalid payload type: {type(result)}"
-
-    except AssertionError as err:
-        # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
-        (logger.exception if DEV_MODE and msg.src.type != "18" else logger.exception)(
-            "%s << %s", msg._pkt, f"{err.__class__.__name__}({err})"
-        )
-
-    except (InvalidPacketError, InvalidPayloadError) as err:  # CorruptEvohomeError
-        (logger.exception if DEV_MODE else logger.warning)("%s << %s", msg._pkt, err)
-
-    except (AttributeError, LookupError, TypeError, ValueError) as err:  # TODO: dev
-        logger.exception(
-            "%s << Coding error: %s", msg._pkt, f"{err.__class__.__name__}({err})"
-        )
-
-    except NotImplementedError:  # parser_unknown (unknown packet code)
-        logger.warning("%s << Unknown packet code (cannot parse)", msg._pkt)
-
-    # logger.error("%s", msg)
-
-    return result

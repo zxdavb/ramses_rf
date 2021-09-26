@@ -7,12 +7,21 @@ Decode/process a message (payload into JSON).
 """
 
 import logging
+import re
 from datetime import timedelta as td
+from functools import lru_cache
 from typing import Any, Optional, Tuple, Union
 
 from .address import Address, dev_id_to_str
-from .parsers import parse_payload
-from .ramses import CODE_IDX_COMPLEX, RAMSES_CODES, RQ_NO_PAYLOAD
+from .exceptions import InvalidPacketError, InvalidPayloadError
+from .parsers import PAYLOAD_PARSERS, parser_unknown
+from .ramses import (
+    CODE_IDX_COMPLEX,
+    CODE_RQ_COMPLEX,
+    RAMSES_CODES,
+    RAMSES_DEVICES,
+    RQ_NO_PAYLOAD,
+)
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
@@ -117,17 +126,15 @@ class Message:
         self.raw_payload = pkt.payload
 
         self.code_name = CODE_NAMES.get(self.code, f"unknown_{self.code}")
-        self._payload = None
+
+        self._payload = self._validate(
+            self.raw_payload
+        )  # may raise InvalidPacketError TODO: remove self._is_valid
+        self._is_valid = self._payload is not None
+
         self._str = None
-
-        self.__has_payload = None
-
         self.__expired = None
         self._is_fragment = None
-
-        self._is_valid = None
-        if not self.is_valid:
-            raise ValueError(f"Invalid message: {pkt}")
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -181,39 +188,22 @@ class Message:
         return self.dtm < other.dtm
 
     @property
-    def _has_payload(self) -> bool:
-        """Return False if no payload (may falsely Return True).
-
-        The message (i.e. the raw payload) may still have an idx.
-        """
-
-        if self.__has_payload is not None:
-            return self.__has_payload
-
-        self.__has_payload = not any(
-            (
-                self.len == 1,
-                self.verb == RQ and self.code in RQ_NO_PAYLOAD,
-                self.verb == RQ and self.len == 2 and self.code != _0016
-                # self.verb == RQ and self.len == 2 and self.code in (
-                #   _2309, _2349, _3EF1
-                # )
-            )
-        )
-
-        return self.__has_payload
-
-    @property
     def payload(self) -> Any:  # Any[dict, List[dict]]:
         """Return the payload."""
         return self._payload
 
     @property
-    def _has_array(self) -> bool:
-        """Return True if the message's raw payload is an array.
+    def _has_payload(self) -> bool:
+        """Return False if there is no payload (may falsely Return True).
 
-        Does not neccessarily require a valid payload.
+        The message (i.e. the raw payload) may still have an idx.
         """
+
+        return self._pkt._has_payload
+
+    @property
+    def _has_array(self) -> bool:
+        """Return True if the message's raw payload is an array."""
 
         return self._pkt._has_array
 
@@ -347,11 +337,167 @@ class Message:
         return self._is_fragment
 
     @property
-    def is_valid(self) -> bool:  # Main code here
-        """Parse the payload, return True if the message payload is valid."""
-
-        if self._is_valid is None:
-            self._payload = parse_payload(self, logger=_LOGGER)
-            # self._payload = {k: v for k, v in self._raw_payload.items() if k[:1] != "_"}
-            self._is_valid = self._payload is not None
+    def is_valid(self) -> bool:  # Main code here  # TODO: remove
         return self._is_valid
+
+    def _validate(self, raw_payload) -> dict:
+        """Validate the message, and parse the payload if so.
+
+        Raise an exception if it is not valid.
+        """
+
+        # # STEP 0: Check verb/code pair against src/dst device type & payload
+        # if self.code not in RAMSES_CODES:
+        #     raise InvalidPacketError(f"Unknown code: {self.code}")
+
+        _check_verb_code_src(self)  # ? raise InvalidPacketError
+        _check_verb_code_dst(self)  # ? raise InvalidPacketError
+        _check_verb_code_payload(self, self.raw_payload)  # ? raise InvalidPayloadError
+
+        if not self._has_payload or (
+            self.verb == RQ and self.code not in CODE_RQ_COMPLEX
+        ):
+            # _LOGGER.error("%s", msg)
+            return {}
+
+        try:  # parse the payload
+            result = PAYLOAD_PARSERS.get(self.code, parser_unknown)(
+                self.raw_payload, self
+            )
+            assert isinstance(
+                result, (dict, list)
+            ), f"invalid payload type: {type(result)}"
+
+        except AssertionError as err:
+            # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
+            (
+                _LOGGER.exception
+                if DEV_MODE and self.src.type != "18"
+                else _LOGGER.exception
+            )("%s << %s", self._pkt, f"{err.__class__.__name__}({err})")
+
+        except (InvalidPacketError, InvalidPayloadError) as err:  # CorruptEvohomeError
+            (_LOGGER.exception if DEV_MODE else _LOGGER.warning)(
+                "%s << %s", self._pkt, err
+            )
+
+        except (AttributeError, LookupError, TypeError, ValueError) as err:  # TODO: dev
+            _LOGGER.exception(
+                "%s << Coding error: %s", self._pkt, f"{err.__class__.__name__}({err})"
+            )
+
+        except NotImplementedError:  # parser_unknown (unknown packet code)
+            _LOGGER.warning("%s << Unknown packet code (cannot parse)", self._pkt)
+
+        # _LOGGER.error("%s", msg)
+        return result if isinstance(result, list) else {**self._idx, **result}
+
+
+@lru_cache(maxsize=256)
+def re_compile_re_match(regex, string) -> bool:
+    return re.compile(regex).match(string)
+
+
+def _check_verb_code_src(msg) -> None:
+    """Validate the packet's verb/code pair against its source device type.
+
+    Raise an exception if the meta data is invalid, otherwise simply return None.
+    """
+    if msg.src.type not in RAMSES_DEVICES:
+        raise InvalidPacketError(f"Unknown src device type: {msg.src.id}")
+
+    if msg.src.type == "18":  # TODO: make a dynamic list if sensor/relay faking
+        if msg.code not in RAMSES_CODES:  # NOTE: HGI can send whatever it likes
+            raise InvalidPacketError(f"Unknown code for {msg.src.id} to Tx: {msg.code}")
+        return
+
+    if msg.code not in RAMSES_DEVICES[msg.src.type]:
+        raise InvalidPacketError(f"Invalid code for {msg.src.id} to Tx: {msg.code}")
+
+    if msg.verb not in RAMSES_DEVICES[msg.src.type][msg.code]:
+        raise InvalidPacketError(
+            f"Invalid verb/code for {msg.src.id} to Tx: {msg.verb}/{msg.code}"
+        )
+
+
+def _check_verb_code_dst(msg) -> None:
+    """Validate the packet's verb/code pair against its destination device type.
+
+    Raise an exception if the meta data is invalid, otherwise simply return None.
+    """
+
+    # check that the destination would normally respond...
+    if "18" in (msg.src.type, msg.dst.type) or msg.dst.type in ("--", "63"):
+        return  # could omit this check to enforce strict checking
+
+    if msg.dst.type not in RAMSES_DEVICES:
+        raise InvalidPacketError(f"Unknown dst device type: {msg.dst.id}")
+
+    if msg.verb == I_:
+        return
+
+    # HACK: these exceptions need sorting
+    if f"{msg.dst.type}/{msg.verb}/{msg.code}" in (f"01/{RQ}/{_3EF1}",):
+        return
+
+    if msg.code not in RAMSES_DEVICES[msg.dst.type]:  # NOTE: is not OK for Rx
+        #  I --- 04:253797 --:------ 01:063844 1060 003 056401
+        # HACK: these exceptions need sorting
+        # if msg.code in (_1060, ):
+        #     return
+        raise InvalidPacketError(f"Invalid code for {msg.dst.id} to Rx: {msg.code}")
+
+    # HACK: these exceptions need sorting
+    if f"{msg.verb}/{msg.code}" in (f"{W_}/{_0001}",):
+        return
+
+    # HACK: these exceptions need sorting
+    if f"{msg.dst.type}/{msg.verb}/{msg.code}" in (f"13/{RQ}/{_3EF0}",):
+        return
+
+    verb = {RQ: RP, RP: RQ, W_: I_}[msg.verb]
+    if verb not in RAMSES_DEVICES[msg.dst.type][msg.code]:
+        raise InvalidPacketError(
+            f"Invalid verb/code for {msg.dst.id} to Rx: {msg.verb}/{msg.code}"
+        )
+
+
+def _check_verb_code_payload(msg, payload) -> None:
+    """Validate the packet's verb/code pair against its payload.
+
+    Raise an InvalidPayloadError if the payload is invalid, otherwise simply return
+    None. Some parsers may also raise InvalidPayloadError (e.g. 3220).
+    """
+
+    try:
+        regex = RAMSES_CODES[msg.code][msg.verb]
+        if not re_compile_re_match(regex, payload):
+            raise InvalidPayloadError(f"{msg._pkt} < Payload doesn't match '{regex}'")
+    except KeyError:
+        pass  # TODO: raise - missing entry in RAMSES schema
+
+    # TODO: put this back, or leave it to the parser?
+    # if msg.code == _3220:
+    #     msg_id = int(msg.raw_payload[4:6], 16)
+    #     if msg_id not in OPENTHERM_MESSAGES:  # parser uses OTB_MSG_IDS
+    #         raise InvalidPayloadError(
+    #             f"OpenTherm: Unsupported data-id: 0x{msg_id:02X} ({msg_id})"
+    #         )
+
+
+def _has_payload(msg) -> bool:
+    """Return False if no payload (may falsely Return True).
+
+    The message (i.e. the raw payload) may still have an idx.
+    """
+
+    return not any(
+        (
+            msg.len == 1,
+            msg.verb == RQ and msg.code in RQ_NO_PAYLOAD,
+            msg.verb == RQ and msg.len == 2 and msg.code != _0016,
+            # msg.verb == RQ and msg.len == 2 and msg.code in (
+            #   _2309, _2349, _3EF1
+            # ),
+        )
+    )
