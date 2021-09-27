@@ -359,22 +359,22 @@ class Message:
                 result, (dict, list)
             ), f"invalid payload type: {type(result)}"
 
-        except AssertionError as err:
+        except AssertionError as exc:
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
             (
                 _LOGGER.exception
                 if DEV_MODE and self.src.type != "18"
                 else _LOGGER.exception
-            )("%s << %s", self._pkt, f"{err.__class__.__name__}({err})")
+            )("%s << %s", self._pkt, f"{exc.__class__.__name__}({exc})")
 
-        except (InvalidPacketError, InvalidPayloadError) as err:  # CorruptEvohomeError
+        except (InvalidPacketError, InvalidPayloadError) as exc:  # CorruptEvohomeError
             (_LOGGER.exception if DEV_MODE else _LOGGER.warning)(
-                "%s << %s", self._pkt, err
+                "%s << %s", self._pkt, exc
             )
 
-        except (AttributeError, LookupError, TypeError, ValueError) as err:  # TODO: dev
+        except (AttributeError, LookupError, TypeError, ValueError) as exc:  # TODO: dev
             _LOGGER.exception(
-                "%s << Coding error: %s", self._pkt, f"{err.__class__.__name__}({err})"
+                "%s << Coding error: %s", self._pkt, f"{exc.__class__.__name__}({exc})"
             )
 
         except NotImplementedError:  # parser_unknown (unknown packet code)

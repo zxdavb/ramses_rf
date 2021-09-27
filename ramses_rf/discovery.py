@@ -161,8 +161,8 @@ def spawn_exec_cmd(gwy, **kwargs):
     qos = {"priority": Priority.HIGH, "retries": 3}
     try:
         kmd = Command.packet(verb, code, payload, *addrs, seqn=seqn, **qos)
-    except ValueError as err:
-        _LOGGER.warning("Execute: Command is invalid: '%s' (%s)", kwargs[EXEC_CMD], err)
+    except ValueError as exc:
+        _LOGGER.warning("Execute: Command is invalid: '%s' (%s)", kwargs[EXEC_CMD], exc)
     else:
         gwy.send_cmd(kmd)
 

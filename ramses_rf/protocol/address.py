@@ -202,8 +202,8 @@ def pkt_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
 
     try:
         addrs = [id_to_address(pkt_fragment[i : i + 9]) for i in range(0, 30, 10)]
-    except ValueError as err:
-        raise InvalidAddrSetError(f"Invalid addr set: {pkt_fragment}: {err}")
+    except ValueError as exc:
+        raise InvalidAddrSetError(f"Invalid addr set: {pkt_fragment}: {exc}")
 
     if (
         not (

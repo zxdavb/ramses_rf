@@ -852,8 +852,8 @@ def create_pkt_stack(
     # python client.py monitor 'alt:///dev/ttyUSB0?class=PosixPollSerial'
     try:
         ser_instance = serial_for_url(ser_port, **ser_config)
-    except SerialException as err:
-        _LOGGER.error("Failed to open %s (config: %s): %s", ser_port, ser_config, err)
+    except SerialException as exc:
+        _LOGGER.error("Failed to open %s (config: %s): %s", ser_port, ser_config, exc)
         raise
 
     try:  # FTDI on Posix/Linux would be a common environment for this library...

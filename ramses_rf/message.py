@@ -309,20 +309,20 @@ def process_msg(msg: Message) -> None:
         elif getattr(msg.dst, "_is_faked", False):
             msg.dst._handle_msg(msg)
 
-    except (AssertionError, NotImplementedError) as err:
+    except (AssertionError, NotImplementedError) as exc:
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
-            "%s << %s", msg._pkt, f"{err.__class__.__name__}({err})"
+            "%s << %s", msg._pkt, f"{exc.__class__.__name__}({exc})"
         )
         return  # NOTE: use raise only when debugging
 
-    except (AttributeError, LookupError, TypeError, ValueError) as err:
+    except (AttributeError, LookupError, TypeError, ValueError) as exc:
         (_LOGGER.exception if DEV_MODE else _LOGGER.error)(
-            "%s << %s", msg._pkt, f"{err.__class__.__name__}({err})"
+            "%s << %s", msg._pkt, f"{exc.__class__.__name__}({exc})"
         )
         return  # NOTE: use raise only when debugging
 
-    except CorruptStateError as err:  # TODO: add CorruptEvohomeError
-        (_LOGGER.exception if DEV_MODE else _LOGGER.error)("%s << %s", msg._pkt, err)
+    except CorruptStateError as exc:  # TODO: add CorruptEvohomeError
+        (_LOGGER.exception if DEV_MODE else _LOGGER.error)("%s << %s", msg._pkt, exc)
         return  # TODO: bad pkt, or Schema
 
     msg._gwy._prev_msg = msg
