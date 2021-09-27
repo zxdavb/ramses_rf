@@ -7,6 +7,8 @@ import logging
 from datetime import timedelta as td
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
+
+
 from .const import (  # noqa: F401, isort: skip
     _0001,
     _0002,
@@ -43,7 +45,6 @@ from .const import (  # noqa: F401, isort: skip
     _1F09,
     _1F41,
     _1FC9,
-    _1FCA,
     _1FD4,
     _2249,
     _22C9,
@@ -90,8 +91,9 @@ EXPIRY = "expiry"
 RAMSES_CODES = {  # rf_unknown
     _0001: {
         NAME: "rf_unknown",
-        W_: r"^(0[0-9A-F]|F[ACF])000005(05|01)$",
-    },  # TODO: there appears to be a RQ/RP for UFC
+        I_: r"^00FFFF02(00|FF)$",  # loopback
+        W_: r"^(0[0-9A-F]|F[CF])000005(01|05)$",
+    },  # TODO: there appears to be a dodgy? RQ/RP for UFC
     _0002: {  # WIP: outdoor_sensor
         NAME: "outdoor_sensor",
         I_: r"^0[0-4][0-9A-F]{4}(00|01|02|05)$",  # Domoticz sends ^02!!
@@ -305,12 +307,6 @@ RAMSES_CODES = {  # rf_unknown
         RP: r"^((0[0-9A-F]|F[9ABCF]|90)([0-9A-F]{10}))+$",  # xx-code-dev_id
         I_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
         W_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
-    },
-    _1FCA: {  # unknown
-        #  W --- 30:248208 34:021943 --:------ 1FCA 009 00-01FF-7BC990-FFFFFF  # sent x2
-        # RP --- 30:248208 18:006402 --:------ 1FCA 009 00-xxxx-302E31-322E30  # 2 STAs
-        NAME: "message_1fca",
-        W_: r"^00[0-9A-F]{4}[0-9A-F]{12}$",
     },
     _1FD4: {  # opentherm_sync
         NAME: "opentherm_sync",
@@ -585,7 +581,6 @@ RAMSES_DEVICES = {
         _12B0: {I_: {}, RP: {}},
         _1F09: {I_: {}, RP: {}, W_: {}},
         _1FC9: {I_: {}, RQ: {}, RP: {}, W_: {}},
-        _1FCA: {W_: {}},
         _1F41: {I_: {}, RP: {}},
         _2249: {I_: {}},  # Hometronics, not Evohome
         _22D9: {RQ: {}},
@@ -750,7 +745,6 @@ RAMSES_DEVICES = {
         _1290: {I_: {}},
         _1F41: {RQ: {}},
         _1FC9: {RP: {}, W_: {}},
-        _1FCA: {W_: {}},
         _22D9: {RQ: {}},
         _2309: {I_: {}},
         _2349: {RQ: {}, RP: {}, W_: {}},
@@ -789,14 +783,11 @@ RAMSES_DEVICES = {
         _10E0: {I_: {}},
         _12C0: {I_: {}},
         _1FC9: {I_: {}},
-        _1FCA: {I_: {}},
         _2309: {I_: {}, RQ: {}, W_: {}},
         _2349: {RQ: {}},
         _30C9: {I_: {}},
         _3120: {I_: {}},
-        _313F: {
-            I_: {}
-        },  # W --- 30:253184 34:010943 --:------ 313F 009 006000070E0E0507E5
+        _313F: {I_: {}},  # W --- 30:253184 34:010943 --:------ 313F 009 006000070E0...
         _3EF0: {RQ: {}},  # when bound direct to a 13:
         _3EF1: {RQ: {}},  # when bound direct to a 13:
     },

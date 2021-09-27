@@ -157,13 +157,6 @@ def parser_0001(payload, msg) -> Optional[dict]:
     # W/--:/--:/12:/00-0000-0501 = Test transmit
     # W/--:/--:/12:/00-0000-0505 = Field strength
 
-    assert msg.verb in (I_, W_), msg.verb
-    assert msg.len == 5, msg.len
-    assert payload[:2] in ("FC", "FF") or (
-        int(payload[:2], 16) < msg._gwy.config.max_zones
-    ), payload[:2]
-    assert payload[2:6] in ("0000", "FFFF"), payload[2:6]
-    assert payload[6:8] in ("02", "05"), payload[6:8]
     return {
         "payload": "-".join((payload[:2], payload[2:6], payload[6:8], payload[8:])),
     }
