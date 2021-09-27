@@ -1104,7 +1104,7 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == _1260:
+        if msg.code == _1260 and self._ctl:  # device can be instatiated with a CTL
             self._gwy.send_cmd(Command.get_dhw_temp(self._ctl.id))
 
     @property
