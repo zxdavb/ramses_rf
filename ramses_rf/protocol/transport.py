@@ -451,6 +451,8 @@ class PacketProtocolBase(asyncio.Protocol):
 
         try:
             self._pkt_received(pkt)
+        except InvalidPacketError as exc:
+            _LOGGER.error("Exception in callback to message layer: %s", exc)
         except:  # noqa: E722  # TODO: remove broad-except
             _LOGGER.exception("Exception in callback to message layer")
 
@@ -590,11 +592,14 @@ class PacketProtocolRead(PacketProtocolBase):
 
         try:
             pkt = Packet.from_file(self._gwy, dtm, line)
+
         except (InvalidPacketError, ValueError):  # VE due to dt.fromisoformat()
             return
 
         try:
             self._pkt_received(pkt)
+        except InvalidPacketError as exc:
+            _LOGGER.error("Exception in callback to message layer: %s", exc)
         except:  # noqa: E722  # TODO: remove broad-except
             _LOGGER.exception("Exception in callback to message layer")
 

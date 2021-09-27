@@ -91,7 +91,7 @@ class CorruptStateError(CorruptEvohomeError):
         return f"{err_msg} {err_tip}"
 
 
-class MultipleControllerError(CorruptEvohomeError):
+class MultipleControllerError(CorruptStateError):
     """Raised when there is more than one controller."""
 
     def __init__(self, *args, **kwargs):
@@ -100,7 +100,7 @@ class MultipleControllerError(CorruptEvohomeError):
 
     def __str__(self) -> str:
         err_msg = "There is more than one Evohome controller"
-        err_tip = " (consider using an allow_list)"
+        err_tip = " (consider enforcing a known_list)"
         if self.message:
             return f"{err_msg}: {self.message}{err_tip}"
         return f"{err_msg} {err_tip}"
