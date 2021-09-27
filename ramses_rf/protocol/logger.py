@@ -168,7 +168,7 @@ def getLogger(name=None, pkt_log=None):  # permits a bespoke Logger class
     if name is None or not pkt_log:
         return logging.getLogger(name)
 
-    logging._acquireLock()  # HACK: So no-one else uses our Logger class
+    logging._acquireLock()  # So no-one else uses our Logger class
     klass = logging.getLoggerClass()
     logging.setLoggerClass(_Logger)
 

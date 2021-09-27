@@ -43,6 +43,7 @@ from .protocol import (  # noqa: F401, isort: skip
     _0404,
     _0418,
     _042F,
+    _0B04,
     _1030,
     _1060,
     _1090,

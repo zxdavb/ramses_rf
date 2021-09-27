@@ -36,6 +36,7 @@ from .const import (  # noqa: F401, isort: skip
     _0404,
     _0418,
     _042F,
+    _0B04,
     _1030,
     _1060,
     _1090,
@@ -423,25 +424,25 @@ def _check_verb_code_dst(msg) -> None:
     if msg.dst.type not in RAMSES_DEVICES:
         raise InvalidPacketError(f"Unknown dst device type: {msg.dst.id}")
 
-    if msg.verb == I_:  # receiving an I is not in the schema, so cant be tested
+    if msg.verb == I_:  # receiving an I isnt currently in the schema, so cant be tested
         return
 
-    # HACK: these exceptions need sorting
+    # HACK: these exceptions-to-the-rule need sorting
     if f"{msg.dst.type}/{msg.verb}/{msg.code}" in (f"01/{RQ}/{_3EF1}",):
         return
 
     if msg.code not in RAMSES_DEVICES[msg.dst.type]:  # NOTE: is not OK for Rx
         #  I --- 04:253797 --:------ 01:063844 1060 003 056401
-        # HACK: these exceptions need sorting
+        # HACK: these exceptions-to-the-rule need sorting
         # if msg.code in (_1060, ):
         #     return
         raise InvalidPacketError(f"Invalid code for {msg.dst.id} to Rx: {msg.code}")
 
-    # HACK: these exceptions need sorting
+    # HACK: these exceptions-to-the-rule need sorting
     if f"{msg.verb}/{msg.code}" in (f"{W_}/{_0001}",):
         return
 
-    # HACK: these exceptions need sorting
+    # HACK: these exceptions-to-the-rule need sorting
     if f"{msg.dst.type}/{msg.verb}/{msg.code}" in (f"13/{RQ}/{_3EF0}",):
         return
 
