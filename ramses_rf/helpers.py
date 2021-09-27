@@ -6,19 +6,6 @@
 import asyncio
 import re
 from inspect import iscoroutinefunction
-from typing import Callable
-
-
-def OUT_periodic(period) -> Callable:
-    def scheduler(fcn):
-        async def wrapper(*args, **kwargs):
-            while True:
-                asyncio.create_task(fcn(*args, **kwargs))
-                await asyncio.sleep(period)
-
-        return wrapper
-
-    return scheduler
 
 
 def schedule_task(func, *args, delay=None, period=None, **kwargs) -> asyncio.Task:
@@ -44,7 +31,7 @@ def schedule_task(func, *args, delay=None, period=None, **kwargs) -> asyncio.Tas
     return asyncio.create_task(schedule_func(delay, period, func, *args, **kwargs))
 
 
-def OUT_slugify_string(key: str) -> str:
+def _out_slugify_string(key: str) -> str:
     """Convert a string to snake_case."""
     string = re.sub(r"[\-\.\s]", "_", str(key))
     return (string[0]).lower() + re.sub(
