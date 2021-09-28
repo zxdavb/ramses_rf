@@ -1733,6 +1733,9 @@ def create_device(gwy, dev_id, dev_class=None, **kwargs) -> Device:
 
     device = DEVICE_BY_CLASS.get(dev_class, Device)(gwy, dev_addr, **kwargs)
 
+    if not gwy.serial_port:
+        return device
+
     gwy._add_task(
         device._discover, discover_flag=DISCOVER_SCHEMA, delay=0, period=86400
     )

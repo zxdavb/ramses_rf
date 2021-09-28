@@ -904,6 +904,9 @@ def create_zone(evo, zone_idx, profile=None, **kwargs) -> Zone:
 
     zone = ZONE_BY_TYPE.get(profile, Zone)(evo, zone_idx, **kwargs)
 
+    if not evo._gwy.serial_port:
+        return zone
+
     evo._gwy._add_task(
         zone._discover, discover_flag=DISCOVER_SCHEMA, delay=2, period=86400
     )

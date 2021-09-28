@@ -1097,6 +1097,9 @@ def create_system(gwy, ctl, profile=None, **kwargs) -> System:
 
     system = _SYS_CLASS.get(profile, System)(gwy, ctl, **kwargs)
 
+    if not gwy.serial_port:
+        return system
+
     gwy._add_task(
         system._discover, discover_flag=DISCOVER_SCHEMA, delay=1, period=86400
     )
