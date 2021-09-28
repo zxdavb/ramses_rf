@@ -398,7 +398,7 @@ class PacketProtocolBase(asyncio.Protocol):
                     f"configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
                 )
                 self._include.append(dev_id)  # the only time include list is modified
-                break
+                continue
 
             _LOGGER.warning(
                 f"Blocking packets with device_id: {dev_id} (is not whitelisted), "
