@@ -34,7 +34,7 @@ from .command import (
     Command,
     Priority,
 )
-from .const import _PUZZ, HGI_DEVICE_ID, NON_DEVICE_ID, NUL_DEVICE_ID, __dev_mode__
+from .const import _PUZZ, HGI_DEVICE_ID, __dev_mode__
 from .exceptions import InvalidPacketError
 from .helpers import dt_now
 from .packet import Packet
@@ -341,7 +341,7 @@ class PacketProtocolBase(asyncio.Protocol):
         else:
             self._exclude = list(gwy._exclude.keys())
             self._include = []
-        self._unwanted = [NON_DEVICE_ID, NUL_DEVICE_ID]
+        self._unwanted = []  # not: [NON_DEVICE_ID, NUL_DEVICE_ID]
 
         self._hgi80 = {
             IS_INITIALIZED: None,
@@ -373,7 +373,8 @@ class PacketProtocolBase(asyncio.Protocol):
     def _is_wanted(self, src_id, dst_id) -> Optional[bool]:
         """Parse the packet, return True if the packet is not to be filtered out.
 
-        An unwanted device_id will 'trump' a whitelited device_id in the same packet.
+        An unwanted device_id will 'trump' a whitelited device_id in the same packet
+        because there is a significant chance the packet is simply corrupt.
         """
 
         for dev_id in [d for d in dict.fromkeys((src_id, dst_id))]:
@@ -389,7 +390,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 return
 
             if not self._include or dev_id in self._include:
-                break
+                continue  # check the other device_id, if any
 
             if dev_id == self._hgi80[DEVICE_ID]:
                 _LOGGER.warning(
@@ -413,11 +414,13 @@ class PacketProtocolBase(asyncio.Protocol):
 
         self._this_pkt, self._prev_pkt = pkt, self._this_pkt
 
-        # if process_pkt(pkt) is False:
-        #     return
-
         if self._callback and self._is_wanted(pkt.src.id, pkt.dst.id):
-            self._callback(pkt)  # only wanted PKTs up to the MSG transport's handler
+            try:
+                self._callback(pkt)  # only wanted PKTs to the MSG transport's handler
+            except InvalidPacketError as exc:
+                _LOGGER.error("%s < %s", pkt, exc)
+            except:  # noqa: E722  # TODO: remove broad-except
+                _LOGGER.exception("Exception in callback to message layer")
 
     def _line_received(self, dtm: dt, line: str, raw_line: ByteString) -> None:
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
@@ -444,17 +447,12 @@ class PacketProtocolBase(asyncio.Protocol):
                 self._hgi80[DEVICE_ID] = pkt.src.id
 
             elif self._hgi80[DEVICE_ID] != pkt.src.id:
-                (_LOGGER.debug if pkt.src.id in self._unwanted else _LOGGER.error)(
+                (_LOGGER.warning if pkt.src.id in self._unwanted else _LOGGER.error)(
                     f"{pkt} < There appears to be more than one HGI80-compatible device"
                     f" (active gateway: {self._hgi80[DEVICE_ID]}), this is unsupported"
                 )
 
-        try:
-            self._pkt_received(pkt)
-        except InvalidPacketError as exc:
-            _LOGGER.error("Exception in callback to message layer: %s", exc)
-        except:  # noqa: E722  # TODO: remove broad-except
-            _LOGGER.exception("Exception in callback to message layer")
+        self._pkt_received(pkt)
 
     def data_received(self, data: ByteString) -> None:
         """Called when some data (packet fragments) is received (from RF)."""
@@ -593,15 +591,10 @@ class PacketProtocolRead(PacketProtocolBase):
         try:
             pkt = Packet.from_file(self._gwy, dtm, line)
 
-        except (InvalidPacketError, ValueError):  # VE due to dt.fromisoformat()
+        except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
             return
 
-        try:
-            self._pkt_received(pkt)
-        except InvalidPacketError as exc:
-            _LOGGER.error("Exception in callback to message layer: %s", exc)
-        except:  # noqa: E722  # TODO: remove broad-except
-            _LOGGER.exception("Exception in callback to message layer")
+        self._pkt_received(pkt)
 
     def data_received(self, data: str) -> None:
         """Called when a packet line is received (from a log file)."""
