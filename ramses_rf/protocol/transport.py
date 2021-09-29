@@ -34,7 +34,7 @@ from .command import (
     Command,
     Priority,
 )
-from .const import _PUZZ, HGI_DEVICE_ID, __dev_mode__
+from .const import _PUZZ, HGI_DEVICE_ID, NON_DEVICE_ID, NUL_DEVICE_ID, __dev_mode__
 from .exceptions import InvalidPacketError
 from .helpers import dt_now
 from .packet import Packet
@@ -388,6 +388,9 @@ class PacketProtocolBase(asyncio.Protocol):
                 )
                 self._unwanted.append(dev_id)
                 return
+
+            if dev_id in (NON_DEVICE_ID, NUL_DEVICE_ID):
+                continue
 
             if not self._include or dev_id in self._include:
                 continue  # check the other device_id, if any
