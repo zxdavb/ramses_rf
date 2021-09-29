@@ -447,7 +447,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 self._hgi80[DEVICE_ID] = pkt.src.id
 
             elif self._hgi80[DEVICE_ID] != pkt.src.id:
-                (_LOGGER.warning if pkt.src.id in self._unwanted else _LOGGER.error)(
+                (_LOGGER.debug if pkt.src.id in self._unwanted else _LOGGER.warning)(
                     f"{pkt} < There appears to be more than one HGI80-compatible device"
                     f" (active gateway: {self._hgi80[DEVICE_ID]}), this is unsupported"
                 )
