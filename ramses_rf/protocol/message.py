@@ -331,19 +331,15 @@ class Message:
 
         return self._is_fragment
 
-    def _validate(self, raw_payload) -> dict:
+    def _validate(self, raw_payload) -> Optional[dict]:  # TODO: needs work
         """Validate the message, and parse the payload if so.
 
         Raise an exception if it is not valid.
         """
 
-        # # STEP 0: Check verb/code pair against src/dst device type & payload
-        # if self.code not in RAMSES_CODES:
-        #     raise InvalidPacketError(f"Unknown code: {self.code}")
-
+        _check_verb_code_payload(self, self.raw_payload)  # ? raise InvalidPayloadError
         _check_verb_code_src(self)  # ? raise InvalidPacketError
         _check_verb_code_dst(self)  # ? raise InvalidPacketError
-        _check_verb_code_payload(self, self.raw_payload)  # ? raise InvalidPayloadError
 
         if not self._has_payload or (
             self.verb == RQ and self.code not in CODE_RQ_COMPLEX
@@ -367,7 +363,7 @@ class Message:
                 else _LOGGER.exception
             )("%s << %s", self._pkt, f"{exc.__class__.__name__}({exc})")
 
-        except (InvalidPacketError, InvalidPayloadError) as exc:  # CorruptEvohomeError
+        except InvalidPacketError as exc:
             (_LOGGER.exception if DEV_MODE else _LOGGER.warning)(
                 "%s << %s", self._pkt, exc
             )
@@ -380,8 +376,9 @@ class Message:
         except NotImplementedError:  # parser_unknown (unknown packet code)
             _LOGGER.warning("%s << Unknown packet code (cannot parse)", self._pkt)
 
-        # _LOGGER.error("%s", msg)
-        return result if isinstance(result, list) else {**self._idx, **result}
+        else:
+            # _LOGGER.error("%s", msg)
+            return result if isinstance(result, list) else {**self._idx, **result}
 
 
 @lru_cache(maxsize=256)
@@ -460,12 +457,16 @@ def _check_verb_code_payload(msg, payload) -> None:
     Some parsers may also raise InvalidPayloadError (e.g. 3220).
     """
 
+    # if self.code not in RAMSES_CODES:
+    #     raise InvalidPacketError(f"Unknown code: {msg.code}")
+
     try:
         regex = RAMSES_CODES[msg.code][msg.verb]
-        if not re_compile_re_match(regex, payload):
-            raise InvalidPayloadError(f"{msg._pkt} < Payload doesn't match '{regex}'")
+        if not re_compile_re_match(regex, payload) and msg.src.type != "18":
+            raise InvalidPayloadError(f"Payload doesn't match '{regex}': {payload}")
     except KeyError:
-        pass  # TODO: raise - missing entry in RAMSES schema
+        if msg.src.type != "18":
+            raise InvalidPacketError(f"Unknown verb/code pair: {msg.verb}/{msg.code}")
 
     # TODO: put this back, or leave it to the parser?
     # if msg.code == _3220:
