@@ -15,7 +15,7 @@ from typing import Callable, List, Optional, Tuple
 
 from .command import ARGS, DEAMON, EXPIRES, FUNC, TIMEOUT, Command
 from .const import __dev_mode__
-from .exceptions import CorruptStateError
+from .exceptions import CorruptStateError, InvalidPacketError
 from .message import Message
 
 DONT_CREATE_MESSAGES = 3  # duplicate
@@ -178,7 +178,10 @@ class MessageTransport(asyncio.Transport):
         if self._gwy.config.reduce_processing >= DONT_CREATE_MESSAGES:
             return
 
-        msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
+        try:
+            msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
+        except InvalidPacketError:
+            return
 
         # NOTE: msg._pkt._hdr is expensive - don't call it unless there's callbacks
         if self._callbacks and msg._pkt._hdr in self._callbacks:

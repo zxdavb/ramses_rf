@@ -380,6 +380,8 @@ class Message:
             # _LOGGER.error("%s", msg)
             return result if isinstance(result, list) else {**self._idx, **result}
 
+        raise InvalidPacketError  # HACK: should be as PKT
+
 
 @lru_cache(maxsize=256)
 def re_compile_re_match(regex, string) -> bool:
