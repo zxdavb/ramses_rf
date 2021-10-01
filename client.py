@@ -354,7 +354,7 @@ def _print_summary(gwy, **kwargs):
     if False and not kwargs.get("hide_status"):
         print(f"Status[{repr(entity)}] = {json.dumps(entity.status, indent=4)}\r\n")
 
-    if False and kwargs.get("show_device"):
+    if True or kwargs.get("show_device"):
         devices = sorted(gwy.devices)
         # devices = [d for d in sorted(gwy.devices) if d not in gwy.evo.devices]
 
