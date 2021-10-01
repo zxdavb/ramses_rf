@@ -1730,11 +1730,11 @@ def parser_3ef1(payload, msg) -> dict:
         # assert (
         #     re.compile(r"^00[0-9A-F]{10}FF").match(payload)
         # ), "doesn't match: " + r"^00[0-9A-F]{10}FF"
-        assert int(payload[2:6], 16) <= 7200, int(payload[2:6], 16)
-        assert payload[6:10] in ("87B3", "9DFA", "DCE1", "E638", "F8F7") or (
-            int(payload[6:10], 16) <= 7200
-        ), int(payload[6:10], 16)
-        assert percent(payload[10:12]) in (0, 1), percent(payload[10:12])
+        assert int(payload[2:6], 16) <= 7200, payload[2:6]
+        # assert payload[6:10] in ("87B3", "9DFA", "DCE1", "E638", "F8F7") or (
+        #     int(payload[6:10], 16) <= 7200
+        # ), payload[6:10]
+        assert percent(payload[10:12]) in (0, 1), payload[10:12]
 
     else:  # is OTB?
         # assert (
