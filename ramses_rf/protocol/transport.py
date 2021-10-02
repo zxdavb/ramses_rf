@@ -217,16 +217,15 @@ class SerTransportPoll(asyncio.Transport):
                 self._protocol.data_received(self.serial.read(self.serial.in_waiting))
                 continue
 
-            # if hasattr(self.serial, "out_waiting") and self.serial.out_waiting:
-            # if getattr(self.serial, "out_waiting", False):
-            if self.serial and self.serial.out_waiting:
+            if getattr(self.serial, "out_waiting", False):
+                # NOTE: rfc2217 ports have no out_waiting attr!
                 continue
 
             if not self._write_queue.empty():
                 self.serial.write(self._write_queue.get())
                 self._write_queue.task_done()
 
-        self._protocol.connection_lost()
+        self._protocol.connection_lost(exc=None)
 
     def write(self, cmd):
         """Write some data bytes to the transport.
@@ -271,32 +270,25 @@ class _SerTransportProc(Process):  # TODO: WIP
 
     def _polling_loop(self):
         # asyncio.set_event_loop(self._loop)
-        asyncio.get_running_loop()  # TODO: this fails
+        # asyncio.get_running_loop()  # TODO: this fails
 
         self._protocol.connection_made(self)
 
         while self.serial.is_open:
+            # time.sleep(0.001)
+
             if self.serial.in_waiting:
-                self._protocol.data_received(
-                    # self.serial.readline()
-                    self.serial.read()
-                    # self.serial.read(self.serial.in_waiting)
-                )
-                # time.sleep(0.005)
+                # NOTE: cant use readline(), as it blocks until a newline is received
+                self._protocol.data_received(self.serial.read(self.serial.in_waiting))
                 continue
 
-            if self.serial.out_waiting:
-                # time.sleep(0.005)
+            if self.serial and getattr(self.serial, "out_waiting", False):
+                # NOTE: rfc2217 ports have no out_waiting attr!
                 continue
 
             if not self._write_queue.empty():
-                cmd = self._write_queue.get()
-                self.serial.write(bytearray(f"{cmd}\r\n".encode("ascii")))
+                self.serial.write(self._write_queue.get())
                 self._write_queue.task_done()
-                # time.sleep(0.005)
-                continue
-
-            # time.sleep(0.005)
 
         self._protocol.connection_lost(exc=None)
 
@@ -480,12 +472,12 @@ class PacketProtocolBase(asyncio.Protocol):
         while self._pause_writing:
             await asyncio.sleep(0.005)
 
-        while (
-            self._transport is None
-            # or self._transport.serial is None  # Shouldn't be required, but is!
-            or getattr(self._transport.serial, "out_waiting", False)
-        ):
-            await asyncio.sleep(0.005)
+        # while (
+        #     self._transport is None
+        #     # or self._transport.serial is None  # Shouldn't be required, but is!
+        #     or getattr(self._transport.serial, "out_waiting", False)
+        # ):
+        #     await asyncio.sleep(0.005)
 
         data = bytes(data.encode("ascii"))
 
