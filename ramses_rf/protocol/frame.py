@@ -190,10 +190,10 @@ class PacketBase:
                 self.len % _len == 0
             ), f"{self} << array has length ({self.len}) that is not multiple of {_len}"
             assert (
-                self.src.type in ("12", "22") or self.src == self.dst
+                self.src.type in ("12", "22") or self.src == self.dst  # DEX
             ), f"{self} << array is from a non-controller (01)"
             assert (
-                self.src.type not in ("12", "22") or self.dst.id == NON_DEVICE_ID
+                self.src.type not in ("12", "22") or self.dst.id == NON_DEVICE_ID  # DEX
             ), f"{self} << array is from a non-controller (02)"
             self._has_array_ = True
 
@@ -227,7 +227,7 @@ class PacketBase:
         #     # _LOGGER.info("HAS controller (01)")
         #     return True
 
-        if {self.src.type, self.dst.type} & {"01", "02", "23"}:
+        if {self.src.type, self.dst.type} & {"01", "02", "23"}:  # DEX
             _LOGGER.debug(f"{self} # HAS controller (10)")
             self._has_ctl_ = True
 
@@ -250,11 +250,11 @@ class PacketBase:
         #  I --- --:------ --:------ 20:001473 31D9 003 000001 # ctl? (HVAC)
         elif self.dst.id == NON_DEVICE_ID:
             _LOGGER.debug(f"{self} # HAS controller (21)")
-            self._has_ctl_ = self.src.type != "10"
+            self._has_ctl_ = self.src.type != "10"  # DEX
 
         #  I --- 10:037879 --:------ 12:228610 3150 002 0000   # HAS ctl
         #  I --- 04:029390 --:------ 12:126457 1060 003 01FF01 # HAS ctl
-        elif self.dst.type in ("12", "22"):
+        elif self.dst.type in ("12", "22"):  # DEX
             _LOGGER.debug(f"{self} # HAS controller (22)")
             self._has_ctl_ = True
 
@@ -273,7 +273,7 @@ class PacketBase:
         #  I --- 34:021943 63:262142 --:------ 10E0 038 000001C8380A01... # unknown
         #  I --- 32:168090 30:082155 --:------ 31E0 004 0000C800          # unknown
         if self._has_ctl_ is None:
-            if DEV_MODE and "18" not in (self.src.type, self.dst.type):
+            if DEV_MODE and "18" not in (self.src.type, self.dst.type):  # DEX
                 _LOGGER.warning(f"{self} # has_ctl - undetermined (99)")
             self._has_ctl_ = False
 
@@ -358,7 +358,7 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
         return pkt._has_array
 
     #  I --- 10:040239 01:223036 --:------ 0009 003 000000
-    if pkt.code == _0009 and pkt.src.type == "10":
+    if pkt.code == _0009 and pkt.src.type == "10":  # DEX
         return False
 
     if pkt.code == _000C:  # zone_idx/domain_id (complex, payload[0:4])
@@ -401,7 +401,7 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
         ), f"Payload index is {pkt.payload[:2]}, not expecting a domain_id"
         return pkt.payload[:2]
 
-    if pkt._has_ctl:  # risk of false -ves, TODO: pkt.src.type == "18" too?
+    if pkt._has_ctl:  # risk of false -ves, TODO: pkt.src.type == "18" too?  # DEX
         # 02:    22C9: would be picked up as an array, if len==1 counted
         # 03:    #  I 028 03:094242 --:------ 03:094242 30C9 003 010B22  # ctl
         # 12/22: 000A|1030|2309|30C9 from (addr0 --:), 1060|3150 (addr0 04:)
@@ -438,7 +438,7 @@ def pkt_header(pkt, rx_header=None) -> Optional[str]:  # NOTE: used in command.p
             return "|".join((pkt.code, I_, pkt.src.id))
         return
 
-    addr = pkt.dst if pkt.src.type == "18" else pkt.src
+    addr = pkt.dst if pkt.src.type == "18" else pkt.src  # DEX
     if not rx_header:
         header = "|".join((pkt.code, pkt.verb, addr.id))
 

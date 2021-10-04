@@ -286,7 +286,7 @@ class StoredHw:
                 this.code == _10A0,
                 this.verb == RP,
                 this.src is self._ctl,
-                this.dst.type == "07",
+                this.dst.type == "07",  # DEX
             )
         ):
             self._get_dhw(sensor=this.dst)
@@ -628,7 +628,9 @@ class UfhSystem:
         return {
             **super().schema,
             ATTR_UFH_SYSTEM: {
-                d.id: d.schema for d in sorted(self._ctl.devices) if d.type == "02"
+                d.id: d.schema
+                for d in sorted(self._ctl.devices)
+                if d.type == "02"  # DEX
             },
         }
 
@@ -638,7 +640,9 @@ class UfhSystem:
         return {
             **super().params,
             ATTR_UFH_SYSTEM: {
-                d.id: d.params for d in sorted(self._ctl.devices) if d.type == "02"
+                d.id: d.params
+                for d in sorted(self._ctl.devices)
+                if d.type == "02"  # DEX
             },
         }
 
@@ -648,7 +652,9 @@ class UfhSystem:
         return {
             **super().status,
             ATTR_UFH_SYSTEM: {
-                d.id: d.status for d in sorted(self._ctl.devices) if d.type == "02"
+                d.id: d.status
+                for d in sorted(self._ctl.devices)
+                if d.type == "02"  # DEX
             },
         }
 
@@ -746,15 +752,15 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         heater = None
 
         if this.code == _3220 and this.verb == RQ:
-            if this.src is self._ctl and this.dst.type == "10":
+            if this.src is self._ctl and this.dst.type == "10":  # DEX
                 heater = this.dst
 
         elif this.code == _3EF0 and this.verb == RQ:
-            if this.src is self._ctl and this.dst.type in ("10", "13"):
+            if this.src is self._ctl and this.dst.type in ("10", "13"):  # DEX
                 heater = this.dst
 
         elif this.code == _3B00 and this.verb == I_ and prev is not None:
-            if this.src is self._ctl and prev.src.type == "13":
+            if this.src is self._ctl and prev.src.type == "13":  # DEX
                 if prev.code == this.code and prev.verb == this.verb:
                     heater = prev.src
 
@@ -855,7 +861,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             [
                 d.id
                 for d in self._ctl.devices
-                if not d._domain_id and d.type != "02" and d._is_present
+                if not d._domain_id and d.type != "02" and d._is_present  # DEX
             ]
         )  # devices without a parent zone, NB: CTL can be a sensor for a zone
 
@@ -869,7 +875,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         result = {ATTR_CONTROLLER: schema[ATTR_CONTROLLER]}
 
         try:
-            if schema[ATTR_SYSTEM][ATTR_HTG_CONTROL][:2] == "10":
+            if schema[ATTR_SYSTEM][ATTR_HTG_CONTROL][:2] == "10":  # DEX
                 result[ATTR_SYSTEM] = {
                     ATTR_HTG_CONTROL: schema[ATTR_SYSTEM][ATTR_HTG_CONTROL]
                 }
@@ -879,9 +885,9 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         zones = {}
         for idx, zone in schema[ATTR_ZONES].items():
             _zone = {}
-            if zone[ATTR_ZONE_SENSOR] and zone[ATTR_ZONE_SENSOR][:2] == "01":
+            if zone[ATTR_ZONE_SENSOR] and zone[ATTR_ZONE_SENSOR][:2] == "01":  # DEX
                 _zone = {ATTR_ZONE_SENSOR: zone[ATTR_ZONE_SENSOR]}
-            if devices := [d for d in zone[ATTR_DEVICES] if d[:2] == "00"]:
+            if devices := [d for d in zone[ATTR_DEVICES] if d[:2] == "00"]:  # DEX
                 _zone.update({ATTR_DEVICES: devices})
             if _zone:
                 zones[idx] = _zone
@@ -1093,7 +1099,7 @@ def create_system(gwy, ctl, profile=None, **kwargs) -> System:
     """Create a system, and optionally perform discovery & start polling."""
 
     if profile is None:
-        profile = SYSTEM_PROFILE.PRG if ctl.type == "23" else SYSTEM_PROFILE.EVO
+        profile = SYSTEM_PROFILE.PRG if ctl.type == "23" else SYSTEM_PROFILE.EVO  # DEX
 
     system = _SYS_CLASS.get(profile, System)(gwy, ctl, **kwargs)
 

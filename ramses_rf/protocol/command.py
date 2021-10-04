@@ -791,7 +791,7 @@ class Command(PacketBase):
         """
         # RP --- 13:049798 18:006402 --:------ 3EF1 007 00-0126-0126-00-FF
 
-        # assert dev_id[:2] == "13"
+        # assert dev_id[:2] == "13"  # DEX
         payload = f"00{actuator_countdown:04X}"
         payload += f"{cycle_countdown:04X}" if cycle_countdown is not None else "7FFF"
         payload += f"{int(mod_level * 200):02X}FF"
@@ -807,7 +807,7 @@ class Command(PacketBase):
         #  I --- 13:049798 --:------ 13:049798 3EF0 003 00C8FF
         #  I --- 13:106039 --:------ 13:106039 3EF0 003 0000FF
 
-        # assert dev_id[:2] == "13"
+        # assert dev_id[:2] == "13"  # DEX
         payload = "007FFF" if mod_level is None else f"00{int(mod_level * 200):02X}FF"
         return cls.packet(I_, _3EF0, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
@@ -846,7 +846,7 @@ class Command(PacketBase):
         This is for use by a faked HB85 or similar.
         """
 
-        # assert dev_id[:2] == "17"
+        # assert dev_id[:2] == "17"  # DEX
         payload = f"00{temp_to_hex(temperature)}01"
         return cls.packet(I_, _0002, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
@@ -859,7 +859,7 @@ class Command(PacketBase):
         """
         #  I --- 34:021943 --:------ 34:021943 30C9 003 000C0D
 
-        # assert dev_id[:2] in ("03", "12", "22", "34")
+        # assert dev_id[:2] in ("03", "12", "22", "34")  # DEX
         payload = f"00{temp_to_hex(temperature)}"
         return cls.packet(I_, _30C9, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 

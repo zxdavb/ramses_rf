@@ -437,7 +437,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 _LOGGER.error("%s < Cant create packet (ignoring): %s", line, exc)
             return
 
-        if pkt.src.type == "18":
+        if pkt.src.type == "18":  # DEX
             if self._hgi80[DEVICE_ID] is None:
                 self._hgi80[DEVICE_ID] = pkt.src.id
 

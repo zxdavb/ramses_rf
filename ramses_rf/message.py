@@ -104,7 +104,7 @@ def _create_devices(this: Message) -> None:
     """Discover and create any new devices."""
 
     def proc_000c():
-        if this.src.type == "01":  # TODO
+        if this.src.type == "01":  # TODO  # DEX
             this._gwy._get_device(this.dst.id, ctl_id=this.src.id)
             key = "zone_idx" if "zone_idx" in this.payload else "domain_id"
             [
@@ -115,7 +115,7 @@ def _create_devices(this: Message) -> None:
                 )
                 for d in this.payload["devices"]
             ]
-        elif this.src.type == "02":  # TODO
+        elif this.src.type == "02":  # TODO  # DEX
             # this._gwy._get_device(this.dst.id)
             if this.payload["devices"]:
                 device_id = this.payload["devices"][0]
@@ -126,19 +126,15 @@ def _create_devices(this: Message) -> None:
             # evo._set_htg_control(devices[0])
             pass
 
-    if this.src.type == "18" and not this._gwy.hgi:
-        this._gwy.hgi = this._gwy._get_device(this.src.id)
-        return
-
     if this.code == _000C and this.verb == RP:
         proc_000c()
 
-    if this.src.type in ("01", "23") and this.src is not this.dst:  # TODO: all CTLs
+    if this.src.type in ("01", "23") and this.src is not this.dst:  # TODO: all CTLs/DEX
         this.src = this._gwy._get_device(this.src.id, ctl_id=this.src.id)
         ctl_id = this.src.id if this._gwy.config.enable_eavesdrop else None
         this._gwy._get_device(this.dst.id, ctl_id=ctl_id)
 
-    # elif this.dst.type in ("01", "23") and this.src is not this.dst:  # all CTLs
+    # elif this.dst.type in ("01", "23") and this.src is not this.dst:  # all CTLs/DEX
     #     this.dst = this._gwy._get_device(this.dst.id, ctl_id=this.dst.id)
     #     ctl_id = this.dst.id if this._gwy.config.enable_eavesdrop else None
     #     this._gwy._get_device(this.src.id, ctl_id=ctl_id)
@@ -215,7 +211,7 @@ def _create_zones(this: Message) -> None:
             # evo._set_htg_control(devices[0])
             pass
 
-    if this.src.type not in ("01", "23"):  # TODO: this is too restrictive!
+    if this.src.type not in ("01", "23"):  # TODO: this is too restrictive!  # DEX
         return
 
     evo = this.src._evo
@@ -224,7 +220,7 @@ def _create_zones(this: Message) -> None:
     if this.code == _0005:  # RP, and also I
         proc_0005()
 
-    if this.code == _000C and this.src.type == "01":
+    if this.code == _000C and this.src.type == "01":  # DEX
         proc_000c()
 
     # # Eavesdropping (below) is used when discovery (above) is not an option
@@ -276,7 +272,7 @@ def process_msg(msg: Message) -> None:
 
     # # TODO: This will need to be removed for HGI80-impersonation
     # # 18:/RQs are unreliable, although any corresponding RPs are often required
-    # if msg.src.type == "18":
+    # if msg.src.type == "18":  # DEX
     #     return
 
     try:  # process the packet payload

@@ -98,7 +98,6 @@ class Gateway:
         # if self.config.reduce_processing > 0:
         self._prev_msg = None  # see: _clear_state()
 
-        self.hgi = None
         self.evo = None
 
         self.systems: List[System] = []
@@ -232,10 +231,8 @@ class Gateway:
         if dev is None:  # TODO: take into account device filter?
             dev = create_device(self, dev_id)  # , **kwargs)
 
-        if dev.type == "01" and dev._evo is None and dev._is_controller:
+        if dev.type == "01" and dev._evo is None and dev._is_controller:  # DEX
             dev._evo = create_system(self, dev, profile=kwargs.get("profile"))
-        elif dev.type == "18" and self.hgi is None:
-            self.hgi = dev
 
         # update the existing device with any metadata TODO: this is messy
         if ctl_id and ctl:
@@ -251,7 +248,6 @@ class Gateway:
         gwy = self
         gwy._prev_msg = None
 
-        gwy.hgi = None
         gwy.evo = None
 
         gwy.systems = []
@@ -355,19 +351,22 @@ class Gateway:
         return self.pkt_protocol._dt_now() if self.pkt_protocol else dt.now()
 
     @property
+    def hgi(self) -> Optional[str]:
+        if self.pkt_protocol:
+            return self.pkt_protocol._hgi80["device_id"]  # TODO: DEVICE_ID
+
+    @property
     def _config(self) -> dict:
         """Return the working configuration."""
 
-        if self.hgi is None:
-            self.hgi = self.pkt_protocol._hgi80["device_id"]
-
         return {
-            "gateway_id": self.hgi.id,
+            "gateway_id": self.hgi.id if self.hgi else None,
             "schema": self.evo.schema_min if self.evo else None,
             "config": {"enforce_known_list": self.config.enforce_known_list},
             "known_list": [{k: v} for k, v in self._include.items()],
             "block_list": [{k: v} for k, v in self._exclude.items()],
             "other_list": sorted(self.pkt_protocol._unwanted),
+            "other_list_alt": sorted(self._unwanted),
         }
 
     @property

@@ -205,7 +205,9 @@ def parser_0005(payload, msg) -> Optional[dict]:  # TODO: needs a cleanup
         }
 
     if msg._has_array:
-        assert msg.verb == I_ and msg.src.type == "34", f"{msg._pkt} # expecting I/34:"
+        assert (
+            msg.verb == I_ and msg.src.type == "34"
+        ), f"{msg._pkt} # expecting I/34:"  # DEX
         return [_parser(payload[i : i + 8]) for i in range(0, len(payload), 8)]
 
     if msg.verb == RQ:  # RQs have a context: zone_type
@@ -243,7 +245,7 @@ def parser_0008(payload, msg) -> Optional[dict]:
     # https://www.domoticaforum.eu/viewtopic.php?f=7&t=5806&start=105#p73681
     # e.g. Electric Heat Zone
 
-    if msg.src.type == "31" and msg.len == 13:  # Honeywell Japser ?HVAC
+    if msg.src.type == "31" and msg.len == 13:  # Honeywell Japser ?HVAC, DEX
         assert msg.len == 13, "expecting length 13"
         return {
             "ordinal": f"0x{payload[2:8]}",
@@ -340,7 +342,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
 
     def complex_index(seqx, msg) -> dict:  # complex index
         # TODO: 000C to a UFC should be ufh_ifx, not zone_idx
-        if msg.src.type == "02":
+        if msg.src.type == "02":  # DEX
             assert int(seqx, 16) < 8, f"invalid ufh_idx: '{seqx}' (0x00)"
             return {
                 "ufh_idx": seqx,
@@ -706,26 +708,26 @@ def parser_10e0(payload, msg) -> Optional[dict]:
     DEV_MODE = False
     if not DEV_MODE:
         pass
-    elif msg.src.type == "01":
+    elif msg.src.type == "01":  # DEX
         assert payload[2:20] in (
             "0002FF0119FFFFFFFF",
             "0002FF0163FFFFFFFF",
         ), payload[2:20]
-    elif msg.src.type == "02":
+    elif msg.src.type == "02":  # DEX
         assert payload[2:20] in ("0003FF0203FFFF0001",), payload[2:20]
-    elif msg.src.type == "04":
+    elif msg.src.type == "04":  # DEX
         assert payload[2:20] in (
             "0002FF0412FFFFFFFF",
             "0002FF050BFFFFFFFF",
         ), payload[2:20]
-    elif msg.src.type == "08":
+    elif msg.src.type == "08":  # DEX
         assert payload[2:20] in ("0002FF0802FFFFFFFE",), payload[2:20]
-    elif msg.src.type == "10":
+    elif msg.src.type == "10":  # DEX
         assert payload[2:20] in (
             "0001C8810B0700FEFF",
             "0002FF0A0CFFFFFFFF",
         ), payload[2:20]
-    elif msg.src.type == "20":
+    elif msg.src.type == "20":  # DEX
         assert payload[2:20] in (
             "000100140C06010000",
             "0001001B190B010000",
@@ -733,17 +735,17 @@ def parser_10e0(payload, msg) -> Optional[dict]:
             "0001001B271501FEFF",
             "0001001B281501FEFF",
         ), payload[2:20]
-    elif msg.src.type == "30":
+    elif msg.src.type == "30":  # DEX
         assert payload[2:20] in (
             "0001C90011006CFEFF",
             "0002FF1E01FFFFFFFF",
             "0002FF1E03FFFFFFFF",
         ), payload[2:20]
-    elif msg.src.type == "31":
+    elif msg.src.type == "31":  # DEX
         assert payload[2:20] in ("0002FF1F02FFFFFFFF",), payload[2:20]
-    elif msg.src.type == "32":
+    elif msg.src.type == "32":  # DEX
         assert payload[2:20] in ("0001C85802016CFFFF",), payload[2:20]
-    elif msg.src.type == "34":
+    elif msg.src.type == "34":  # DEX
         assert payload[2:20] in (
             "0001C8380A0100F1FF",
             "0001C8380F0100F1FF",
@@ -767,7 +769,7 @@ def parser_1100(payload, msg) -> Optional[dict]:
     def complex_index(seqx) -> dict:
         return {"domain_id": seqx} if seqx[:1] == "F" else {}  # only FC
 
-    if msg.src.type == "08":  # Honeywell Japser ?HVAC
+    if msg.src.type == "08":  # Honeywell Japser ?HVAC, DEX
         assert msg.len == 19, msg.len
         return {
             "ordinal": f"0x{payload[2:8]}",
@@ -1310,11 +1312,11 @@ def parser_313f(payload, msg) -> Optional[dict]:
     # https://www.automatedhome.co.uk/vbulletin/showthread.php?5085-My-HGI80-equivalent-Domoticz-setup-without-HGI80&p=36422&viewfull=1#post36422
     # every day at ~4am TRV/RQ->CTL/RP, approx 5-10secs apart (CTL respond at any time)
 
-    if msg.src.type == "01":
+    if msg.src.type == "01":  # DEX
         assert payload[2:4] in ("F0", "FC"), payload[2:4]
-    elif msg.src.type in ("12", "22"):
+    elif msg.src.type in ("12", "22"):  # DEX
         assert payload[2:4] == "38", payload[2:4]
-    elif msg.src.type == "30":
+    elif msg.src.type == "30":  # DEX
         assert payload[2:4] == "60", payload[2:4]
     else:
         assert False, payload[2:4]
@@ -1346,7 +1348,7 @@ def parser_3150(payload, msg) -> Union[list, dict, None]:
 
     def complex_index(seqx, msg) -> dict:
         # assert seqx[:2] == "FC" or (int(seqx[:2], 16) < MAX_ZONES)  # <5, 8 for UFC
-        idx_name = "ufx_idx" if msg.src.type == "02" else "zone_idx"
+        idx_name = "ufx_idx" if msg.src.type == "02" else "zone_idx"  # DEX
         return {"domain_id" if seqx[:1] == "F" else idx_name: seqx[:2]}
 
     if msg._has_array:
@@ -1610,14 +1612,18 @@ def parser_3b00(payload, msg) -> Optional[dict]:
     # 064  I --- 01:078710 --:------ 01:078710 3B00 002 FCC8
 
     def complex_index(payload, msg) -> dict:  # has complex idx
-        if msg.verb == I_ and msg.src.type in ("01", "23") and msg.src is msg.dst:
+        if (
+            msg.verb == I_ and msg.src.type in ("01", "23") and msg.src is msg.dst
+        ):  # DEX
             assert payload[:2] == "FC"
             return {"domain_id": "FC"}
         assert payload[:2] == "00"
         return {}
 
     assert msg.len == 2, msg.len
-    assert payload[:2] == {"01": "FC", "13": "00", "23": "FC"}.get(msg.src.type, "00")
+    assert payload[:2] == {"01": "FC", "13": "00", "23": "FC"}.get(
+        msg.src.type, "00"
+    )  # DEX
     assert payload[2:] == "C8", payload[2:]  # Could it be a percentage?
 
     return {
@@ -1629,7 +1635,7 @@ def parser_3b00(payload, msg) -> Optional[dict]:
 @parser_decorator  # actuator_state
 def parser_3ef0(payload, msg) -> dict:
 
-    if msg.src.type in "08":  # Honeywell Jasper ?HVAC
+    if msg.src.type in "08":  # Honeywell Jasper ?HVAC, DEX
         assert msg.len == 20, f"expecting len 20, got: {msg.len}"
         return {
             "ordinal": f"0x{payload[2:8]}",
@@ -1712,14 +1718,14 @@ def parser_3ef0(payload, msg) -> dict:
 @parser_decorator  # actuator_cycle
 def parser_3ef1(payload, msg) -> dict:
 
-    if msg.src.type == "08":  # Honeywell Jasper ?HVAC
+    if msg.src.type == "08":  # Honeywell Jasper ?HVAC, DEX
         assert msg.len == 18, f"expecting len 18, got: {msg.len}"
         return {
             "ordinal": f"0x{payload[2:8]}",
             "blob": payload[8:],
         }
 
-    if msg.src.type == "31":  # and msg.len == 12:  # or (12, 20) Honeywell Japser ?HVAC
+    if msg.src.type == "31":  # and msg.len == 12:  # or (12, 20) Japser ?HVAC, DEX
         assert msg.len == 12, f"expecting len 12, got: {msg.len}"
         return {
             "ordinal": f"0x{payload[2:8]}",

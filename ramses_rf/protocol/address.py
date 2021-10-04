@@ -36,7 +36,7 @@ class Address:
         """Create an address from a valid device id."""
 
         self.id = id
-        self.type = kwargs.get("type")
+        self.type = kwargs.get("type")  # DEX
         self._hex_id = None
 
         if not self.is_valid(id):
@@ -228,23 +228,23 @@ def pkt_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
     ):
         raise InvalidAddrSetError(f"Invalid addr set: {pkt_fragment} (XXX)")
 
-    device_addrs = list(filter(lambda a: a.type != "--", addrs))
+    device_addrs = list(filter(lambda a: a.type != "--", addrs))  # DEX
     src_addr = device_addrs[0]
     dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEV_ADDR
 
     if src_addr.id == dst_addr.id:
         src_addr = dst_addr
-    elif src_addr.type == dst_addr.type:
+    elif src_addr.type == dst_addr.type:  # DEX
         # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5 (invalid)
         raise InvalidAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
 
-    elif src_addr.type == "18" and dst_addr.id == HGI_DEV_ADDR.id:
+    elif src_addr.type == "18" and dst_addr.id == HGI_DEV_ADDR.id:  # DEX
         # 000  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200
         raise InvalidAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
-    elif dst_addr.type == "18" and src_addr.id == HGI_DEV_ADDR.id:
+    elif dst_addr.type == "18" and src_addr.id == HGI_DEV_ADDR.id:  # DEX
         raise InvalidAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
 
-    elif {src_addr.type, dst_addr.type}.issubset({"01", "23"}):
+    elif {src_addr.type, dst_addr.type}.issubset({"01", "23"}):  # DEX
         raise InvalidAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
 
     return src_addr, dst_addr, addrs

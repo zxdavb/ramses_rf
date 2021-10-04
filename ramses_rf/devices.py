@@ -167,16 +167,16 @@ class DeviceBase(Entity):
 
         self.addr = dev_addr
         self.hex_id = dev_id_to_hex(dev_addr.id)
-        self.type = dev_addr.type
+        self.type = dev_addr.type  # DEX
 
         self.devices = []  # [self]
         self.device_by_id = {}  # {self.id: self}
         self._iz_controller = None
 
-        if self.type in DEVICE_TABLE:
-            self._has_battery = DEVICE_TABLE[self.addr.type].get("has_battery")
-            self._is_actuator = DEVICE_TABLE[self.addr.type].get("is_actuator")
-            self._is_sensor = DEVICE_TABLE[self.addr.type].get("is_sensor")
+        if self.type in DEVICE_TABLE:  # DEX
+            self._has_battery = DEVICE_TABLE[self.addr.type].get("has_battery")  # DEX
+            self._is_actuator = DEVICE_TABLE[self.addr.type].get("is_actuator")  # DEX
+            self._is_sensor = DEVICE_TABLE[self.addr.type].get("is_sensor")  # DEX
         else:
             self._has_battery = None
             self._is_actuator = None
@@ -249,7 +249,7 @@ class DeviceBase(Entity):
     def has_battery(self) -> Optional[bool]:  # 1060
         """Return True if a device is battery powered (excludes battery-backup)."""
 
-        return self.type in DEVICE_HAS_BATTERY or _1060 in self._msgz
+        return self.type in DEVICE_HAS_BATTERY or _1060 in self._msgz  # DEX
 
     @property
     def _is_controller(self) -> Optional[bool]:
@@ -302,7 +302,7 @@ class DeviceInfo:  # 10E0
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         if discover_flag & DISCOVER_SCHEMA:
             try:
-                if RP in RAMSES_DEVICES[self.type][_10E0]:
+                if RP in RAMSES_DEVICES[self.type][_10E0]:  # DEX
                     self._send_cmd(_10E0, retries=3)
             except KeyError:
                 pass
@@ -315,7 +315,7 @@ class DeviceInfo:  # 10E0
     def schema(self) -> dict:
         result = super().schema
         # result.update({self.RF_BIND: self._msg_value(_1FC9)})
-        if _10E0 in self._msgs or _10E0 in RAMSES_DEVICES.get(self.type, []):
+        if _10E0 in self._msgs or _10E0 in RAMSES_DEVICES.get(self.type, []):  # DEX
             result.update({self.DEVICE_INFO: self.device_info})
         return result
 
@@ -329,7 +329,7 @@ class Device(DeviceInfo, DeviceBase):
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if type(self) is Device and self.type == "30":  # self.__class__ is Device
+        if type(self) is Device and self.type == "30":  # self.__class__ is Device, DEX
             # TODO: the RFG codes need checking
             if msg.code in (_31D9, _31DA, _31E0) and msg.verb in (I_, RP):
                 self.__class__ = FanDevice
@@ -1726,8 +1726,8 @@ def create_device(gwy, dev_id, dev_class=None, **kwargs) -> Device:
     dev_addr = id_to_address(dev_id)
 
     if dev_class is None:
-        if dev_addr.type != "30":  # could be RFG or VNT
-            dev_class = _DEV_TYPE_TO_CLASS.get(dev_addr.type, DEVICE_CLASS.GEN)
+        if dev_addr.type != "30":  # could be RFG or VNT  # DEX
+            dev_class = _DEV_TYPE_TO_CLASS.get(dev_addr.type, DEVICE_CLASS.GEN)  # DEX
         else:
             dev_class = DEVICE_CLASS.GEN  # generic
 

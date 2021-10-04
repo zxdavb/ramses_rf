@@ -230,7 +230,14 @@ class Message:
             return {}
 
         #  I --- 00:034798 --:------ 12:126457 2309 003 0201F4
-        if not {self.src.type, self.dst.type} & {"01", "02", "12", "18", "22", "23"}:
+        if not {self.src.type, self.dst.type} & {
+            "01",
+            "02",
+            "12",
+            "18",
+            "22",
+            "23",
+        }:  # DEX
             assert self._pkt._idx == "00", "What!! (00)"
             return {}
 
@@ -240,7 +247,7 @@ class Message:
             "02",
             "18",
             "23",
-        ):
+        ):  # DEX
             assert self._pkt._idx == "00", "What!! (01)"
             return {}
 
@@ -261,7 +268,7 @@ class Message:
 
         if self.src.type == self.dst.type and not getattr(
             self.src, "_is_controller", True
-        ):
+        ):  # DEX
             assert self._pkt._idx == "00", "What!! (12)"
             return {}
 
@@ -359,7 +366,7 @@ class Message:
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
             (
                 _LOGGER.exception
-                if DEV_MODE and self.src.type != "18"
+                if DEV_MODE and self.src.type != "18"  # DEX
                 else _LOGGER.exception
             )("%s << %s", self._pkt, f"{exc.__class__.__name__}({exc})")
 
@@ -393,18 +400,18 @@ def _check_verb_code_src(msg) -> None:
 
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
     """
-    if msg.src.type not in RAMSES_DEVICES:
+    if msg.src.type not in RAMSES_DEVICES:  # DEX
         raise InvalidPacketError(f"Unknown src device type: {msg.src.id}")
 
-    if msg.src.type == "18":  # TODO: make a dynamic list if sensor/relay faking
+    if msg.src.type == "18":  # TODO: make a dynamic list if sensor/relay faking, DEX
         if msg.code not in RAMSES_CODES:  # NOTE: HGI can send whatever it likes
             raise InvalidPacketError(f"Unknown code for {msg.src.id} to Tx: {msg.code}")
         return
 
-    if msg.code not in RAMSES_DEVICES[msg.src.type]:
+    if msg.code not in RAMSES_DEVICES[msg.src.type]:  # DEX
         raise InvalidPacketError(f"Invalid code for {msg.src.id} to Tx: {msg.code}")
 
-    if msg.verb not in RAMSES_DEVICES[msg.src.type][msg.code]:
+    if msg.verb not in RAMSES_DEVICES[msg.src.type][msg.code]:  # DEX
         raise InvalidPacketError(
             f"Invalid verb/code for {msg.src.id} to Tx: {msg.verb}/{msg.code}"
         )
@@ -417,20 +424,20 @@ def _check_verb_code_dst(msg) -> None:
     """
 
     # check that the destination would normally respond...
-    if "18" in (msg.src.type, msg.dst.type) or msg.dst.type in ("--", "63"):
+    if "18" in (msg.src.type, msg.dst.type) or msg.dst.type in ("--", "63"):  # DEX
         return  # could omit this check to enforce strict checking
 
-    if msg.dst.type not in RAMSES_DEVICES:
+    if msg.dst.type not in RAMSES_DEVICES:  # DEX
         raise InvalidPacketError(f"Unknown dst device type: {msg.dst.id}")
 
     if msg.verb == I_:  # receiving an I isnt currently in the schema, so cant be tested
         return
 
     # HACK: these exceptions-to-the-rule need sorting
-    if f"{msg.dst.type}/{msg.verb}/{msg.code}" in (f"01/{RQ}/{_3EF1}",):
+    if f"{msg.dst.type}/{msg.verb}/{msg.code}" in (f"01/{RQ}/{_3EF1}",):  # DEX
         return
 
-    if msg.code not in RAMSES_DEVICES[msg.dst.type]:  # NOTE: is not OK for Rx
+    if msg.code not in RAMSES_DEVICES[msg.dst.type]:  # NOTE: is not OK for Rx, DEX
         #  I --- 04:253797 --:------ 01:063844 1060 003 056401
         # HACK: these exceptions-to-the-rule need sorting
         # if msg.code in (_1060, ):
@@ -442,11 +449,11 @@ def _check_verb_code_dst(msg) -> None:
         return
 
     # HACK: these exceptions-to-the-rule need sorting
-    if f"{msg.dst.type}/{msg.verb}/{msg.code}" in (f"13/{RQ}/{_3EF0}",):
+    if f"{msg.dst.type}/{msg.verb}/{msg.code}" in (f"13/{RQ}/{_3EF0}",):  # DEX
         return
 
     verb = {RQ: RP, RP: RQ, W_: I_}[msg.verb]
-    if verb not in RAMSES_DEVICES[msg.dst.type][msg.code]:
+    if verb not in RAMSES_DEVICES[msg.dst.type][msg.code]:  # DEX
         raise InvalidPacketError(
             f"Invalid verb/code for {msg.dst.id} to Rx: {msg.verb}/{msg.code}"
         )
@@ -464,10 +471,10 @@ def _check_verb_code_payload(msg, payload) -> None:
 
     try:
         regex = RAMSES_CODES[msg.code][msg.verb]
-        if not re_compile_re_match(regex, payload) and msg.src.type != "18":
+        if not re_compile_re_match(regex, payload) and msg.src.type != "18":  # DEX
             raise InvalidPayloadError(f"Payload doesn't match '{regex}': {payload}")
     except KeyError:
-        if msg.src.type != "18":
+        if msg.src.type != "18":  # DEX
             raise InvalidPacketError(f"Unknown verb/code pair: {msg.verb}/{msg.code}")
 
     # TODO: put this back, or leave it to the parser?

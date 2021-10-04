@@ -465,7 +465,7 @@ CODES_WITH_ARRAYS = {
     _2249: [7, ("23",)],
     _22C9: [6, ("02",)],
     _3150: [2, ("02",)],
-}  # element_length, src.type(s) (and dst.type too)
+}  # element_length, src.type(s) (and dst.type too)  # DEX
 
 #
 CODE_RQ_COMPLEX = [
