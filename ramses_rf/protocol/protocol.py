@@ -131,7 +131,6 @@ class MessageTransport(asyncio.Transport):
                 #     continue
 
                 self._que.task_done()
-                # if self._write_buffer_paused:
                 self.get_write_buffer_size()
 
             _LOGGER.error("MsgTransport.pkt_dispatcher(): connection_lost(None)")
@@ -256,7 +255,7 @@ class MessageTransport(asyncio.Transport):
         return self._protocols
 
     def is_reading(self) -> Optional[bool]:
-        """Return True if the transport is receiving."""
+        """Return True if the transport is receiving new data."""
         _LOGGER.debug("MsgTransport.is_reading()")
 
         raise NotImplementedError
@@ -281,6 +280,40 @@ class MessageTransport(asyncio.Transport):
 
         raise NotImplementedError
 
+    def _clear_write_buffer(self):
+        """Empty the dispatch queue."""
+
+        self._pause_protocols()
+        while not self._que.empty():
+            try:
+                self._que.get_nowait()
+            except Empty:
+                continue
+            self._que.task_done()
+        self.get_write_buffer_size()
+
+    def _pause_protocols(self, force=None):
+        """Pause the other end."""
+
+        if not self._write_buffer_paused or force:
+            self._write_buffer_paused = True
+            [p.pause_writing() for p in self._protocols]
+
+    def _resume_protocols(self, force=None):
+        """Resume the other end."""
+
+        if self._write_buffer_paused or force:
+            self._write_buffer_paused = False
+            [p.resume_writing() for p in self._protocols]
+
+    def get_write_buffer_limits(self) -> Tuple[int, int]:
+        """Get the high and low watermarks for write flow control.
+
+        Return a tuple (low, high) where low and high are positive number of bytes.
+        """
+
+        return self._write_buffer_limit_low, self._write_buffer_limit_high
+
     def set_write_buffer_limits(self, high=None, low=None):
         """Set the high- and low-water limits for write flow control.
 
@@ -297,29 +330,30 @@ class MessageTransport(asyncio.Transport):
         """
         _LOGGER.debug("MsgTransport.set_write_buffer_limits()")
 
-        self._write_buffer_limit_high = 10 if high is None else high
-        self._write_buffer_limit_low = (
-            int(self._write_buffer_limit_high * 0.8) if low is None else low
+        self._write_buffer_limit_high = int(
+            self.MAX_BUFFER_SIZE
+            if high is None
+            else max((min((high, self.MAX_BUFFER_SIZE)), 0))
         )
-
-        assert 0 <= self._write_buffer_limit_low <= self._write_buffer_limit_high
+        self._write_buffer_limit_low = int(
+            self._write_buffer_limit_high * 0.8
+            if low is None
+            else min((max((low, 0)), high))
+        )
 
         self.get_write_buffer_size()
 
-    def get_write_buffer_size(self):
+    def get_write_buffer_size(self) -> int:
         """Return the current size of the write buffer."""
         _LOGGER.debug("MsgTransport.get_write_buffer_size()")
 
         qsize = self._que.qsize()
 
-        if not self._write_buffer_paused:
-            if qsize >= self._write_buffer_limit_high:
-                self._write_buffer_paused = True
-                [p.pause_writing() for p in self._protocols]
+        if qsize >= self._write_buffer_limit_high:
+            self._pause_protocols()
 
-        elif qsize <= self._write_buffer_limit_high:
-            self._write_buffer_paused = False
-            [p.resume_writing() for p in self._protocols]
+        elif qsize <= self._write_buffer_limit_low:
+            self._resume_protocols()
 
         return qsize
 
@@ -334,6 +368,9 @@ class MessageTransport(asyncio.Transport):
         if self._is_closing:
             raise RuntimeError("MsgTransport is closing or has closed")
 
+        if self._write_buffer_paused:
+            raise RuntimeError("MsgTransport write buffer is paused")
+
         if self._gwy.config.disable_sending:
             message = "MsgTransport.write(%s): sending disabled: discarded"
             (_LOGGER.info if DEV_MODE else _LOGGER.debug)(message, cmd)
@@ -347,7 +384,7 @@ class MessageTransport(asyncio.Transport):
             except Full:
                 pass  # TODO: why? - consider restarting the dispatcher
 
-        # self.get_write_buffer_size()  # TODO: how to auto unpause?
+        self.get_write_buffer_size()
 
     def writelines(self, list_of_cmds):
         """Write a list (or any iterable) of data bytes to the transport.
