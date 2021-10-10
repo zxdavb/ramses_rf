@@ -16,7 +16,6 @@ import logging
 import os
 import signal
 from datetime import datetime as dt
-from queue import Empty
 from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -92,14 +91,12 @@ class Gateway:
         if self.config.reduce_processing < DONT_CREATE_MESSAGES:
             self.msg_protocol, self.msg_transport = self.create_client(process_msg)
 
-        self._state_lock = Lock()
-        self._state_params = None
+        self._engine_lock = Lock()
+        self._engine_state = None
 
         # if self.config.reduce_processing > 0:
         self._prev_msg = None  # see: _clear_state()
-
-        self.evo = None
-
+        self.evo: System = None
         self.systems: List[System] = []
         self.system_by_id: Dict = {}
         self.devices: List[Device] = []
@@ -246,25 +243,26 @@ class Gateway:
 
     def _clear_state(self) -> None:
         gwy = self
+
         gwy._prev_msg = None
-
         gwy.evo = None
-
         gwy.systems = []
         gwy.system_by_id = {}
         gwy.devices = []
         gwy.device_by_id = {}
 
     def _pause_engine(self) -> None:
-        _LOGGER.info("ENGINE: Pausing engine...")
+        (_LOGGER.error if DEV_MODE else _LOGGER.info)("ENGINE: Pausing engine...")
 
-        self._state_lock.acquire()
-        if self._state_params is not None:
-            self._state_lock.release()
+        if not self.serial_port:
+            raise RuntimeError("Unable to pause, no serial port configured")
+
+        self._engine_lock.acquire()
+        if self._engine_state is not None:
+            self._engine_lock.release()
             raise RuntimeError("Unable to pause, the engine is already paused")
 
         callback = None
-
         if self.pkt_protocol:
             self.pkt_protocol.pause_writing()
             self.pkt_protocol._callback, callback = None, self.pkt_protocol._callback
@@ -272,18 +270,18 @@ class Gateway:
         self.config.disable_discovery, discovery = True, self.config.disable_discovery
         self.config.disable_sending, sending = True, self.config.disable_sending
 
-        self._state_params = (callback, discovery, sending)
-        self._state_lock.release()
+        self._engine_state = (callback, discovery, sending)
+        self._engine_lock.release()
 
     def _resume_engine(self) -> None:
-        _LOGGER.info("ENGINE: Resumed engine.")
+        (_LOGGER.error if DEV_MODE else _LOGGER.info)("ENGINE: Resuming engine...")
 
-        self._state_lock.acquire()
-        if self._state_params is None:
-            self._state_lock.release()
+        self._engine_lock.acquire()
+        if self._engine_state is None:
+            self._engine_lock.release()
             raise RuntimeError("Unable to resume, the engine is not paused")
 
-        self._state_params, (callback, discovery, sending) = None, self._state_params
+        self._engine_state, (callback, discovery, sending) = None, self._engine_state
 
         if self.pkt_protocol:
             self.pkt_protocol._callback = callback  # self.msg_transport._pkt_receiver
@@ -297,9 +295,12 @@ class Gateway:
         #     for evo in self.systems
         #     for zone in evo.zones
         # ]
-        self._state_lock.release()
+        self._engine_lock.release()
 
     def _get_state(self, include_expired=None) -> Tuple[Dict, Dict]:
+        (_LOGGER.error if DEV_MODE else _LOGGER.info)(
+            "ENGINE: Saving schema and state..."
+        )
         self._pause_engine()
 
         msgs = {m.dtm: m for device in self.devices for m in device._msg_db}
@@ -317,34 +318,40 @@ class Gateway:
 
         schema, pkts = self.schema, dict(sorted(pkts.items()))
 
-        _LOGGER.info("ENGINE: Saved state.")
         self._resume_engine()
+        (_LOGGER.error if DEV_MODE else _LOGGER.info)("ENGINE: Saved schema and state.")
         return schema, pkts
 
     async def _set_state(self, schema: Dict, packets: Dict) -> None:
-        self._pause_engine()
-        _LOGGER.info("ENGINE: Restoring schema...")
-
-        self._clear_state()  # TODO: consider need for this (here, or at all)
-        load_schema(self, **schema)  # keep old known_devs?
-
-        _LOGGER.info("ENGINE: Restoring state...")
-        _, tmp_transport = create_pkt_stack(
-            self,
-            self.msg_transport._pkt_receiver if self.msg_transport else None,
-            packet_dict=packets,
+        (_LOGGER.error if DEV_MODE else _LOGGER.info)(
+            "ENGINE: Restoring schema and/or state..."
         )
-        await tmp_transport.get_extra_info(POLLER_TASK)
+        self._pause_engine()
 
-        while not self.msg_transport._que.empty():
-            try:
-                self.msg_transport._que.get_nowait()
-            except Empty:
-                continue
-            self.msg_transport._que.task_done()
+        (_LOGGER.error if DEV_MODE else _LOGGER.info)(
+            "ENGINE: Clearing schema/state..."
+        )
+        self._clear_state()  # TODO: consider need for this (here, or at all)
 
-        _LOGGER.info("ENGINE: Restored schema/state.")
+        if schema:
+            (_LOGGER.error if DEV_MODE else _LOGGER.info)("ENGINE: Restoring schema...")
+            load_schema(self, **schema)  # keep old known_devs?
+
+        if packets:
+            (_LOGGER.error if DEV_MODE else _LOGGER.info)("ENGINE: Restoring state...")
+            _, tmp_transport = create_pkt_stack(
+                self,
+                self.msg_transport._pkt_receiver if self.msg_transport else None,
+                packet_dict=packets,
+            )
+            await tmp_transport.get_extra_info(POLLER_TASK)
+
+        self.msg_transport._clear_write_buffer()
+
         self._resume_engine()
+        (_LOGGER.error if DEV_MODE else _LOGGER.info)(
+            "ENGINE: Restored schema and/or state."
+        )
 
     def _dt_now(self):
         # return dt.now()
@@ -352,15 +359,15 @@ class Gateway:
 
     @property
     def hgi(self) -> Optional[str]:
-        if self.pkt_protocol:
-            return self.pkt_protocol._hgi80["device_id"]  # TODO: DEVICE_ID
+        if self.pkt_protocol and self.pkt_protocol._hgi80["device_id"]:
+            return self.device_by_id.get(self.pkt_protocol._hgi80["device_id"])
 
     @property
     def _config(self) -> dict:
         """Return the working configuration."""
 
         return {
-            "gateway_id": self.hgi.id if self.hgi else None,
+            "gateway_id": self.pkt_protocol._hgi80["device_id"],  # TODO: DEVICE_ID
             "schema": self.evo.schema_min if self.evo else None,
             "config": {"enforce_known_list": self.config.enforce_known_list},
             "known_list": [{k: v} for k, v in self._include.items()],
