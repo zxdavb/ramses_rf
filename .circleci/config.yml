@@ -6,7 +6,7 @@ version: 2.1
 jobs:
   build:
     docker:  # see: at: https://hub.docker.com/r/circleci/python/
-      - image: circleci/python:3.8.9
+      - image: circleci/python:3.9.5
     working_directory: ~/working_directory
     steps: # steps that comprise the `build` job
       - checkout # check out source code to working directory
@@ -17,7 +17,7 @@ jobs:
 
   check_lint:
     docker:
-      - image: circleci/python:3.8.9
+      - image: circleci/python:3.9.5
     steps:
       - checkout
       - run:
@@ -42,7 +42,7 @@ jobs:
 
   deploy:
     docker:
-      - image: circleci/python:3.8.9
+      - image: circleci/python:3.9.5
     steps:
       - checkout
       # - run: sudo chown -R circleci:circleci /usr/local/bin
