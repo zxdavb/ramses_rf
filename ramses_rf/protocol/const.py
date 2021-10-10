@@ -6,7 +6,8 @@
 import re
 from types import SimpleNamespace
 
-DEV_MODE = __dev_mode__ = False  # True
+__dev_mode__ = False
+DEV_MODE = __dev_mode__
 
 
 def slug(string: str) -> str:
