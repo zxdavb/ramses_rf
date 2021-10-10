@@ -358,7 +358,7 @@ class Gateway:
         return self.pkt_protocol._dt_now() if self.pkt_protocol else dt.now()
 
     @property
-    def hgi(self) -> Optional[str]:
+    def hgi(self) -> Optional[Device]:
         if self.pkt_protocol and self.pkt_protocol._hgi80["device_id"]:
             return self.device_by_id.get(self.pkt_protocol._hgi80["device_id"])
 
