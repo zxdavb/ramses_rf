@@ -164,7 +164,11 @@ class Packet(PacketBase):
         """Return fraction used of the normal lifetime of packet.
 
         A packet is 'expired' when >1.0, and should be tombstoned when >2.0. Returns
-        False if the packet does not expire.
+        False if the packet does not expire (or None is N/A?).
+
+        NB: this is only the fact if the packet has expired, or not. Any opinion to
+        whether it *matters* that the packet has expired, is up to higher layers of the
+        stack.
         """
 
         if self._timeout is None:
