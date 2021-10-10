@@ -267,6 +267,9 @@ def process_msg(msg: Message) -> None:
     if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
         _LOGGER.info(msg)
 
+    # NOTE: this is used for debugging only
+    # [m._expired for d in msg._gwy.devices for m in d._msg_db]
+
     if msg._gwy.config.reduce_processing >= DONT_CREATE_ENTITIES:
         return
 
