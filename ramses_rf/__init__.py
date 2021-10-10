@@ -358,7 +358,7 @@ class Gateway:
         return self.pkt_protocol._dt_now() if self.pkt_protocol else dt.now()
 
     @property
-    def hgi(self) -> Optional[Device]:
+    def hgi(self) -> Optional[Device]:  # TODO: DEVICE_ID
         if self.pkt_protocol and self.pkt_protocol._hgi80["device_id"]:
             return self.device_by_id.get(self.pkt_protocol._hgi80["device_id"])
 
@@ -367,7 +367,7 @@ class Gateway:
         """Return the working configuration."""
 
         return {
-            "gateway_id": self.pkt_protocol._hgi80["device_id"],  # TODO: DEVICE_ID
+            "gateway_id": self.hgi.id if self.hgi else None,
             "schema": self.evo.schema_min if self.evo else None,
             "config": {"enforce_known_list": self.config.enforce_known_list},
             "known_list": [{k: v} for k, v in self._include.items()],
