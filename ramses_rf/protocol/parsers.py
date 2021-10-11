@@ -1697,7 +1697,7 @@ def parser_3ef0(payload, msg) -> dict:
                 "dhw_active": bool(int(payload[6:8], 0x10) & 1 << 2),
                 "flame_active": bool(int(payload[6:8], 0x10) & 1 << 3),
                 "_unknown_4": payload[8:10],
-                "_unknown_5": payload[10:12],
+                "_unknown_5": payload[10:12],  # rel_modulation?
             }
         )
 
