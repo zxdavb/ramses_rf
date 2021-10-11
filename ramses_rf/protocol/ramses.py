@@ -194,7 +194,7 @@ RAMSES_CODES = {  # rf_unknown
     _042F: {  # unknown, # non-evohome are len==9, seen only once?
         # .I --- 32:168090 --:------ 32:168090 042F 009 000000100F00105050
         NAME: "message_042f",
-        I_: r"^00([0-9A-F]{2}){7}$",
+        I_: r"^00([0-9A-F]{2}){7,8}$",
     },
     _0B04: {  # unknown
         #  I --- --:------ --:------ 12:207082 0B04 002 00C8
@@ -414,7 +414,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     _31E0: {  # ext_ventilation - External Ventilation Status
         NAME: "ext_ventilation",
-        I_: r"^0000(00|C8)00$",
+        I_: r"^0000(00|C8)(00|FF)$",
     },
     _3220: {  # opentherm_msg
         NAME: "opentherm_msg",
@@ -770,8 +770,10 @@ RAMSES_DEVICES = {
         _3EF1: {RQ: {}, RP: {}},
     },
     "32": {  # HVAC: switch/sensor?
+        _042F: {I_: {}},
         _1060: {I_: {}},
         _10E0: {I_: {}, RP: {}},
+        _1298: {I_: {}},
         _12A0: {I_: {}},
         _22F1: {I_: {}},
         _31DA: {RQ: {}},
