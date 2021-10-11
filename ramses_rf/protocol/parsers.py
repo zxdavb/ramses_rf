@@ -561,14 +561,15 @@ def parser_042f(payload, msg) -> Optional[dict]:
     #  I --- 32:168090 --:------ 32:168090 042F 009 00-0000100F00105050
     #  I --- 32:166025 --:------ 32:166025 042F 009 00-050E0B0C00111470
 
-    # return {
-    #     "counter_1": int(payload[2:6], 16),
-    #     "counter_2": int(payload[6:10], 16),
-    #     "counter_total": int(payload[10:14], 16),
-    #     "unknown_0": payload[14:],
-    # }
+    if msg.len != 8:
+        return {"unknown": payload[2:]}
 
-    return {"unknown": payload[2:]}
+    return {
+        "counter_1": int(payload[2:6], 16),
+        "counter_2": int(payload[6:10], 16),
+        "counter_total": int(payload[10:14], 16),
+        "unknown_0": payload[14:],
+    }
 
 
 @parser_decorator  # TODO: unknown, from THM (only when its a CTL?)
