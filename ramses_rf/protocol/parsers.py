@@ -549,22 +549,26 @@ def parser_0418(payload, msg) -> Optional[dict]:
     return {"log_entry": [v for k, v in result.items() if k != "log_idx"]}
 
 
-@parser_decorator  # unknown, from STA
+@parser_decorator  # unknown, from STA, VMS
 def parser_042f(payload, msg) -> Optional[dict]:
-    # 055  I --- 34:064023 --:------ 34:064023 042F 008 00000000230023F5
-    # 063  I --- 34:064023 --:------ 34:064023 042F 008 00000000240024F5
-    # 049  I --- 34:064023 --:------ 34:064023 042F 008 00000000250025F5
-    # 045  I --- 34:064023 --:------ 34:064023 042F 008 00000000260026F5
-    # 045  I --- 34:092243 --:------ 34:092243 042F 008 0000010021002201
-    # 000  I     34:011469 --:------ 34:011469 042F 008 00000100030004BC
-    # 000  I --- 32:168090 --:------ 32:168090 042F 009 000000100F00105050 - ???
+    #  I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0023-0023-F5
+    #  I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0024-0024-F5
+    #  I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0025-0025-F5
+    #  I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0026-0026-F5
+    #  I --- 34:092243 --:------ 34:092243 042F 008 00-0001-0021-0022-01
+    #  I     34:011469 --:------ 34:011469 042F 008 00-0001-0003-0004-BC
 
-    return {
-        "counter_1": int(payload[2:6], 16),
-        "counter_2": int(payload[6:10], 16),
-        "counter_total": int(payload[10:14], 16),
-        "unknown_0": payload[14:],
-    }
+    #  I --- 32:168090 --:------ 32:168090 042F 009 00-0000100F00105050
+    #  I --- 32:166025 --:------ 32:166025 042F 009 00-050E0B0C00111470
+
+    # return {
+    #     "counter_1": int(payload[2:6], 16),
+    #     "counter_2": int(payload[6:10], 16),
+    #     "counter_total": int(payload[10:14], 16),
+    #     "unknown_0": payload[14:],
+    # }
+
+    return {"unknown": payload[2:]}
 
 
 @parser_decorator  # TODO: unknown, from THM (only when its a CTL?)
@@ -838,10 +842,10 @@ def parser_1290(payload, msg) -> Optional[dict]:
     return {"temperature": temp_from_hex(payload[2:])}
 
 
-@parser_decorator  # hvac_1298
+@parser_decorator  # co2_level
 def parser_1298(payload, msg) -> Optional[dict]:
     #  I --- 37:258565 --:------ 37:258565 1298 003 0007D0
-    return {"unknown": double(payload[2:])}
+    return {"co2_level": double(payload[2:])}
 
 
 @parser_decorator  # indoor_humidity (Nuaire RH sensor)
@@ -1490,7 +1494,6 @@ def parser_31da(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # ventilation heater?
 def parser_31e0(payload, msg) -> dict:
-
     """
     van means “of”.
     - 0 = min. van min. potm would be:
