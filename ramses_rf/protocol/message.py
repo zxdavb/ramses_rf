@@ -344,17 +344,17 @@ class Message:
         Raise an exception if it is not valid.
         """
 
-        _check_verb_code_payload(self, self.raw_payload)  # ? raise InvalidPayloadError
-        _check_verb_code_src(self)  # ? raise InvalidPacketError
-        _check_verb_code_dst(self)  # ? raise InvalidPacketError
-
-        if not self._has_payload or (
-            self.verb == RQ and self.code not in CODE_RQ_COMPLEX
-        ):
-            # _LOGGER.error("%s", msg)
-            return {}
-
         try:  # parse the payload
+            _check_verb_code_payload(self, self.raw_payload)  # ? InvalidPayloadError
+            _check_verb_code_src(self)  # ? InvalidPacketError
+            _check_verb_code_dst(self)  # ? InvalidPacketError
+
+            if not self._has_payload or (
+                self.verb == RQ and self.code not in CODE_RQ_COMPLEX
+            ):
+                # _LOGGER.error("%s", msg)
+                return {}
+
             result = PAYLOAD_PARSERS.get(self.code, parser_unknown)(
                 self.raw_payload, self
             )
