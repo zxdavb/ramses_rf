@@ -502,8 +502,10 @@ class Command(PacketBase):
         Usually a zone, but will be the DHW schedule if zone_idx == 0xFA, 'FA', or 'HW'.
         """
 
-        header = "0023000800" if zone_idx == 0xFA else f"{zone_idx:02X}20000800"
-        payload = f"{header}{frag_idx + 1:02X}{frag_cnt:02X}"
+        header = "00230008" if zone_idx == 0xFA else f"{zone_idx:02X}200008"
+        frag_length = 0
+
+        payload = f"{header}{frag_length:02X}{frag_idx + 1:02X}{frag_cnt:02X}"
         return cls(RQ, _0404, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/0100
@@ -879,10 +881,10 @@ class Command(PacketBase):
         Usually a zone, but will be the DHW schedule if zone_idx == 0xFA, 'FA', or 'HW'..
         """
 
-        header = "0023000800" if zone_idx == 0xFA else f"{zone_idx:02X}20000800"
+        header = "00230008" if zone_idx == 0xFA else f"{zone_idx:02X}200008"
         frag_length = int(len(fragment) / 2)
 
-        payload = f"{header}{frag_length}{frag_idx + 1:02X}{frag_cnt:02X}"
+        payload = f"{header}{frag_length:02X}{frag_idx + 1:02X}{frag_cnt:02X}{fragment}"
         return cls(W_, _0404, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for internal use only
