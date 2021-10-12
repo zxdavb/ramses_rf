@@ -183,8 +183,10 @@ RAMSES_CODES = {  # rf_unknown
     },
     _0404: {  # zone_schedule
         NAME: "zone_schedule",
-        RP: r"^0[0-9A-F](20|23)0008[0-9A-F]{6}[0-9A-F]{2,82}$",
+        I_: r"^0[0-9A-F](20|23)0008[0-9A-F]{6}$",
         RQ: r"^0[0-9A-F](20|23)000800[0-9A-F]{4}$",
+        RP: r"^0[0-9A-F](20|23)0008[0-9A-F]{6}[0-9A-F]{2,82}$",
+        W_: r"^0[0-9A-F](20|23)0008[0-9A-F]{6}[0-9A-F]{2,82}$",  # as per RP
     },
     _0418: {  # system_fault
         NAME: "system_fault",
