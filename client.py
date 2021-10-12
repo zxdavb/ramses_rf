@@ -246,7 +246,7 @@ def monitor(obj, **kwargs):
     "--get-schedule",
     default=[None, None],
     type=(DeviceIdParamType(), str),
-    help="controller_id, zone_idx (e.g. '0A')",
+    help="controller_id, zone_idx (e.g. '0A', 'HW')",
 )
 @click.option(  # --set-schedule ctl_id zone_idx|HW
     "--set-schedule",
@@ -314,7 +314,10 @@ def _print_results(gwy, **kwargs):
         if schedule is None:
             print("Failed to get the schedule.")
         else:
-            print(f"Schedule[{zone_idx}]= \r\n", json.dumps(schedule, indent=4))
+            result = {"zone_idx": zone_idx, "schedule": schedule}
+            print(">>> Schedule JSON begins <<<")
+            print(json.dumps(result, indent=4))
+            print(">>> Schedule JSON ended <<<")
 
     if kwargs[SET_SCHED][0]:
         system_id, _ = kwargs[GET_SCHED]
