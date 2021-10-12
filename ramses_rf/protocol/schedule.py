@@ -327,7 +327,10 @@ class Schedule:  # 0404
     def _tx_fragment(self, frag_idx=0) -> None:
         """Send the next fragment (index starts at 0)."""
         _LOGGER.debug(
-            "Schedule(%s)._tx_fragment(%s/%s)", self.id, frag_idx, len(self._tx_frags)
+            "Schedule(%s)._tx_fragment(%s/%s)",
+            self.id,
+            frag_idx + 1,
+            len(self._tx_frags),
         )
 
         def tx_callback(msg) -> None:
