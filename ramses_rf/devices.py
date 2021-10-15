@@ -147,7 +147,7 @@ class DeviceBase(Entity):
     """The Device base class (good for a generic device)."""
 
     _class = None
-    _types = tuple()
+    _types = tuple()  # TODO: needed?
 
     def __init__(self, gwy, dev_addr, ctl=None, domain_id=None) -> None:
         _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)
@@ -167,7 +167,7 @@ class DeviceBase(Entity):
 
         self.addr = dev_addr
         self.hex_id = dev_id_to_hex(dev_addr.id)
-        self.type = dev_addr.type  # DEX
+        self.type = dev_addr.type  # DEX  # TODO: remove this attr
 
         self.devices = []  # [self]
         self.device_by_id = {}  # {self.id: self}
@@ -286,10 +286,12 @@ class DeviceBase(Entity):
 
     @property
     def params(self):
+        """Return the configurable attributes of the device."""
         return {}
 
     @property
     def status(self):
+        """Return the state attributes of the device."""
         return {}
 
 
@@ -1581,11 +1583,15 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature, Device):  # T
         }
 
 
-class FanSwitch(BatteryState, Device):  # SWI (39):
+class FanSwitch(BatteryState, Device):  # SWI (39): I/22F[13]
     """The FAN (switch) class, such as a 4-way switch.
 
     The cardinal codes are 22F1, 22F3.
     """
+
+    # every /15
+    # RQ --- 32:166025 30:079129 --:------ 31DA 001 21
+    # RP --- 30:079129 32:166025 --:------ 31DA 029 21EF00026036EF7FFF7FFF7FFF7FFF0002EF18FFFF000000EF7FFF7FFF
 
     _class = DEVICE_CLASS.SWI
     _types = ("39",)
@@ -1621,11 +1627,18 @@ class FanSwitch(BatteryState, Device):  # SWI (39):
         }
 
 
-class FanDevice(Device):  # FAN (20/37): I/31D[9A]
+class FanDevice(Device):  # FAN (20/37): RP/31DA, I/31D[9A]
     """The Ventilation class.
 
-    The cardinal code are 31D9, 31DA.
+    The cardinal code are 31D9, 31DA.  Signature is RP/31DA.
     """
+
+    # Itho Daalderop (NL)
+    # Heatrae Sadia (UK)
+    # Nuaire (UK), e.g. DRI-ECO-PIV
+
+    # every /30
+    # 30:079129 --:------ 30:079129 31D9 017 2100FF0000000000000000000000000000
 
     _class = DEVICE_CLASS.FAN
     _types = ("20", "37")
@@ -1668,7 +1681,7 @@ class FanDevice(Device):  # FAN (20/37): I/31D[9A]
         }
 
 
-class FanSensorHumidity(BatteryState, Device):  # HUM (32) Humidity sensor:
+class FanSensorHumidity(BatteryState, Device):  # HUM (32) I/12(98|A0)
     """The Sensor class for a humidity sensor.
 
     The cardinal code is 12A0.
@@ -1718,6 +1731,14 @@ DEVICE_BY_ID_TYPE = {
     for k2, v2 in DEVICE_BY_CLASS.items()
     if v1 == k2
 }  # e.g. "01": Controller,
+
+
+DEVICE_KLASS_BY_SIGNATURE = {
+    "FAN": ((RP, _31DA), (I_, _31D9), (I_, _31DA)),
+    "SWI": ((I_, _22F1), (I_, _22F3)),
+    "HUM": ((I_, _12A0)),
+    "C02": ((I_, _1298)),
+}
 
 
 def create_device(gwy, dev_id, dev_class=None, **kwargs) -> Device:
