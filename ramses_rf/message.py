@@ -129,6 +129,10 @@ def _create_devices(this: Message) -> None:
     if this.code == _000C and this.verb == RP:
         proc_000c()
 
+    # prefer Devices but can use Addresses...
+    this.src = this._gwy.device_by_id.get(this.src.id, this.src)
+    this.dst = this._gwy.device_by_id.get(this.dst.id, this.dst)
+
     if this.src.type in ("01", "23") and this.src is not this.dst:  # TODO: all CTLs/DEX
         this.src = this._gwy._get_device(this.src.id, ctl_id=this.src.id)
         ctl_id = this.src.id if this._gwy.config.enable_eavesdrop else None

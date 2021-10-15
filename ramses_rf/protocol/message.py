@@ -110,9 +110,8 @@ class Message:
         self._gwy = gwy
         self._pkt = pkt
 
-        # prefer Devices but can use Addresses...
-        self.src = gwy.device_by_id.get(pkt.src.id, pkt.src)
-        self.dst = gwy.device_by_id.get(pkt.dst.id, pkt.dst)
+        self.src = pkt.src
+        self.dst = pkt.dst
         self._addrs = pkt.addrs
 
         self.dtm = pkt.dtm
@@ -121,11 +120,10 @@ class Message:
         self.seqn = pkt.seqn
         self.code = pkt.code
         self.len = pkt.len
-        self.raw_payload = pkt.payload
 
         self.code_name = CODE_NAMES.get(self.code, f"unknown_{self.code}")
 
-        self._payload = self._validate(self.raw_payload)  # ? raise InvalidPacketError
+        self._payload = self._validate(self.pkt.payload)  # ? raise InvalidPacketError
 
         self._str = None
         self._expired_ = None
@@ -173,7 +171,7 @@ class Message:
                 self.code == other.code,
                 self.src == other.src,
                 self.dst == other.dst,
-                self.raw_payload == other.raw_payload,
+                self.pkt.payload == other.pkt.payload,
             )
         )
 
@@ -345,7 +343,7 @@ class Message:
         """
 
         try:  # parse the payload
-            _check_verb_code_payload(self, self.raw_payload)  # ? InvalidPayloadError
+            _check_verb_code_payload(self, self.pkt.payload)  # ? InvalidPayloadError
             _check_verb_code_src(self)  # ? InvalidPacketError
             _check_verb_code_dst(self)  # ? InvalidPacketError
 
@@ -356,7 +354,7 @@ class Message:
                 return {}
 
             result = PAYLOAD_PARSERS.get(self.code, parser_unknown)(
-                self.raw_payload, self
+                self.pkt.payload, self
             )
             assert isinstance(
                 result, (dict, list)
@@ -479,7 +477,7 @@ def _check_verb_code_payload(msg, payload) -> None:
 
     # TODO: put this back, or leave it to the parser?
     # if msg.code == _3220:
-    #     msg_id = int(msg.raw_payload[4:6], 16)
+    #     msg_id = int(payload[4:6], 16)
     #     if msg_id not in OPENTHERM_MESSAGES:  # parser uses OTB_MSG_IDS
     #         raise InvalidPayloadError(
     #             f"OpenTherm: Unsupported data-id: 0x{msg_id:02X} ({msg_id})"

@@ -355,7 +355,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
             ), f"invalid _idx: '{seqx}' (0x01)"
             return {"domain_id": "FA"}
 
-        if msg.raw_payload[2:4] == "0F":
+        if payload[2:4] == "0F":
             assert int(seqx, 16) < 1, f"invalid _idx: '{seqx}' (0x02)"
             return {"domain_id": "FC"}
 
@@ -371,7 +371,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
         return {hex_id_to_dec(seqx[6:12]): seqx[4:6]}
 
     device_class = _000C_DEVICE_TYPE.get(payload[2:4], f"unknown_{payload[2:4]}")
-    if device_class == ATTR_DHW_VALVE and msg.raw_payload[:2] == "01":
+    if device_class == ATTR_DHW_VALVE and payload[:2] == "01":
         device_class = ATTR_DHW_VALVE_HTG
 
     result = {
@@ -1097,7 +1097,7 @@ def parser_22d0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # boiler_setpoint
 def parser_22d9(payload, msg) -> Optional[dict]:
-    return {"boiler_setpoint": temp_from_hex(msg.raw_payload[2:6])}
+    return {"boiler_setpoint": temp_from_hex(payload[2:6])}
 
 
 @parser_decorator  # switch_mode
