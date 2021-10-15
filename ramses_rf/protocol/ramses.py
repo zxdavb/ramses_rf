@@ -481,7 +481,7 @@ CODE_RQ_COMPLEX = [
     _1100,  # optional payload
     _2309,  # optional payload
     _2349,  # optional payload
-    _3120,  # context: msg_id, and payload
+    _3220,  # context: msg_id, and payload
 ]
 # CODE_RQ_COMPLEX = []
 RQ_NO_PAYLOAD = [
