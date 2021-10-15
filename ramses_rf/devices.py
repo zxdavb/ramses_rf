@@ -1259,7 +1259,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
 
         elif msg.code == _3220:  # all are RP
             self._supported_msg[msg.payload[MSG_ID]] = msg.payload[MSG_TYPE] not in (
-                # "Data-Invalid",  # TODO
+                "Data-Invalid",
                 "Unknown-DataId",
                 "-reserved-",
             )
