@@ -123,7 +123,7 @@ class Message:
 
         self.code_name = CODE_NAMES.get(self.code, f"unknown_{self.code}")
 
-        self._payload = self._validate(self.pkt.payload)  # ? raise InvalidPacketError
+        self._payload = self._validate(self._pkt.payload)  # ? raise InvalidPacketError
 
         self._str = None
         self._expired_ = None
@@ -171,7 +171,7 @@ class Message:
                 self.code == other.code,
                 self.src == other.src,
                 self.dst == other.dst,
-                self.pkt.payload == other.pkt.payload,
+                self._pkt.payload == other._pkt.payload,
             )
         )
 
@@ -343,7 +343,7 @@ class Message:
         """
 
         try:  # parse the payload
-            _check_verb_code_payload(self, self.pkt.payload)  # ? InvalidPayloadError
+            _check_verb_code_payload(self, self._pkt.payload)  # ? InvalidPayloadError
             _check_verb_code_src(self)  # ? InvalidPacketError
             _check_verb_code_dst(self)  # ? InvalidPacketError
 
@@ -354,7 +354,7 @@ class Message:
                 return {}
 
             result = PAYLOAD_PARSERS.get(self.code, parser_unknown)(
-                self.pkt.payload, self
+                self._pkt.payload, self
             )
             assert isinstance(
                 result, (dict, list)
