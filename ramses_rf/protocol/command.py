@@ -15,7 +15,7 @@ from datetime import timedelta as td
 from types import SimpleNamespace
 from typing import Any, Optional, Tuple, Union
 
-from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, dev_id_to_hex, pkt_addrs
+from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
 from .const import COMMAND_REGEX, SYSTEM_MODE, ZONE_MODE
 from .exceptions import ExpiredCallbackError, InvalidPacketError
 from .frame import PacketBase, pkt_header
@@ -821,7 +821,7 @@ class Command(PacketBase):
         #  W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E
         #  I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
 
-        hex_id = dev_id_to_hex(src_id)
+        hex_id = Address.convert_to_hex(src_id)
         codes = (list(codes) if isinstance(codes, tuple) else [codes]) + [_1FC9]
 
         if dst_id is None and verb == I_:

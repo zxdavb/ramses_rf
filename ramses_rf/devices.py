@@ -19,11 +19,7 @@ from .const import (
 )
 from .entities import Entity, discovery_filter
 from .protocol import Command, Priority  # TODO: constants to const.py
-from .protocol.address import (  # TODO: all required?
-    NON_DEV_ADDR,
-    dev_id_to_hex,
-    id_to_address,
-)
+from .protocol.address import NON_DEV_ADDR, id_to_address
 from .protocol.command import FUNC, TIMEOUT
 from .protocol.const import (
     _000C_DEVICE,
@@ -166,7 +162,6 @@ class DeviceBase(Entity):
         self._parent = None
 
         self.addr = dev_addr
-        self.hex_id = dev_id_to_hex(dev_addr.id)
         self.type = dev_addr.type  # DEX  # TODO: remove this attr
 
         self.devices = []  # [self]

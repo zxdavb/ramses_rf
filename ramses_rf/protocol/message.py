@@ -12,7 +12,7 @@ from datetime import timedelta as td
 from functools import lru_cache
 from typing import Any, Optional, Tuple, Union
 
-from .address import Address, dev_id_to_str
+from .address import Address
 from .exceptions import InvalidPacketError, InvalidPayloadError
 from .parsers import PAYLOAD_PARSERS, parser_unknown
 from .ramses import CODE_IDX_COMPLEX, CODE_RQ_COMPLEX, RAMSES_CODES, RAMSES_DEVICES
@@ -144,7 +144,7 @@ class Message:
 
         def display_name(dev: Union[Address, Any]) -> str:
             name = dev.schema.get(ATTR_ALIAS) if self._gwy.config.use_aliases else None
-            return name[:20] if name else dev_id_to_str(dev.id)
+            return name[:20] if name else Address._friendly(dev.id)
 
         if self._str is not None:
             return self._str

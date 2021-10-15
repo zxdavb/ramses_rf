@@ -5,7 +5,6 @@
 
 import re
 from functools import lru_cache
-from random import randint
 from typing import List, Tuple
 
 from .const import (
@@ -32,11 +31,11 @@ class Address:
     # NON_DEVICE_ID = __non_device_id__
     # NUL_DEVICE_ID = __nul_device_id__
 
-    def __init__(self, id, **kwargs) -> None:
+    def __init__(self, id) -> None:
         """Create an address from a valid device id."""
 
         self.id = id
-        self.type = kwargs.get("type")  # DEX
+        self.type = id[:2]  # dex
         self._hex_id = None
 
         if not self.is_valid(id):
@@ -55,15 +54,18 @@ class Address:
 
     @property
     def hex_id(self) -> str:
+        if self._hex_id is not None:
+            return self._hex_id
+        self._hex_id = self.convert_to_hex(self.id)
         return self._hex_id
 
-    @property
-    def description(self) -> str:
-        raise NotImplementedError
+    # @property
+    # def description(self) -> str:
+    #     raise NotImplementedError
 
-    @property
-    def schema(self) -> dict:
-        return {}
+    # @property
+    # def schema(self) -> dict:
+    #     return {}
 
     @staticmethod
     def is_valid(value: str) -> bool:
@@ -114,15 +116,16 @@ class Address:
 
         return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # no preceding 0x
 
-    @classmethod
-    def from_hex(cls, hex_id: str):
-        """Call as: d = Address.from_hex('06368E')"""
-        return cls(cls.convert_from_hex(hex_id))
+    # @classmethod
+    # def from_hex(cls, hex_id: str):
+    #     """Call as: d = Address.from_hex('06368E')."""
+
+    #     return cls(cls.convert_from_hex(hex_id))
 
 
 @lru_cache(maxsize=256)
 def id_to_address(device_id) -> Address:
-    return Address(id=device_id, type=device_id[:2])
+    return Address(id=device_id)
 
 
 HGI_DEV_ADDR = id_to_address(HGI_DEVICE_ID)
@@ -130,44 +133,44 @@ NON_DEV_ADDR = id_to_address(NON_DEVICE_ID)
 NUL_DEV_ADDR = id_to_address(NUL_DEVICE_ID)
 
 
-def create_dev_id(dev_type, known_devices=None) -> str:
-    """Create a unique device_id (i.e. one that is not already known)."""
+# def create_dev_id(dev_type, known_devices=None) -> str:
+#     """Create a unique device_id (i.e. one that is not already known)."""
 
-    # TODO: assert inputs
+#     # TODO: assert inputs
 
-    counter = 0
-    while counter < 128:
-        device_id = f"{dev_type}:{randint(256000, 256031):06d}"
-        if not known_devices or device_id not in known_devices:
-            return device_id
-        counter += 1
-    else:
-        raise IndexError("Unable to generate a unique device id of type '{dev_type}'")
-
-
-def dev_id_to_hex(device_id: str) -> str:
-    """Convert (say) '01:145038' (or 'CTL:145038') to '06368E'."""
-
-    if len(device_id) == 9:  # e.g. '01:123456'
-        dev_type = device_id[:2]
-
-    else:  # len(device_id) == 10, e.g. 'CTL:123456', or ' 63:262142'
-        dev_type = DEVICE_LOOKUP.get(device_id[:3], device_id[1:3])
-
-    return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # no preceding 0x
+#     counter = 0
+#     while counter < 128:
+#         device_id = f"{dev_type}:{randint(256000, 256031):06d}"
+#         if not known_devices or device_id not in known_devices:
+#             return device_id
+#         counter += 1
+#     else:
+#         raise IndexError("Unable to generate a unique device id of type '{dev_type}'")
 
 
-def dev_id_to_str(device_id: str) -> str:
-    """Convert (say) '01:145038' to 'CTL:145038'."""
+# def dev_id_to_hex(device_id: str) -> str:
+#     """Convert (say) '01:145038' (or 'CTL:145038') to '06368E'."""
 
-    if device_id == NON_DEV_ADDR.id:
-        return f"{'':<10}"
+#     if len(device_id) == 9:  # e.g. '01:123456'
+#         dev_type = device_id[:2]
 
-    if device_id == NUL_DEV_ADDR.id:
-        return "NUL:------"
+#     else:  # len(device_id) == 10, e.g. 'CTL:123456', or ' 63:262142'
+#         dev_type = DEVICE_LOOKUP.get(device_id[:3], device_id[1:3])
 
-    dev_type, dev_number = device_id.split(":")
-    return f"{DEVICE_TYPES.get(dev_type, f'{dev_type:>3}')}:{dev_number}"
+#     return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # no preceding 0x
+
+
+# def dev_id_to_str(device_id: str) -> str:
+#     """Convert (say) '01:145038' to 'CTL:145038'."""
+
+#     if device_id == NON_DEV_ADDR.id:
+#         return f"{'':<10}"
+
+#     if device_id == NUL_DEV_ADDR.id:
+#         return "NUL:------"
+
+#     dev_type, dev_number = device_id.split(":")
+#     return f"{DEVICE_TYPES.get(dev_type, f'{dev_type:>3}')}:{dev_number}"
 
 
 @lru_cache(maxsize=128)
