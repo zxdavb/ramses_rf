@@ -173,14 +173,11 @@ class DeviceBase(Entity):
         self.device_by_id = {}  # {self.id: self}
         self._iz_controller = None
 
-        if self.type in DEVICE_TABLE:  # DEX
-            self._has_battery = DEVICE_TABLE[self.addr.type].get("has_battery")  # DEX
-            self._is_actuator = DEVICE_TABLE[self.addr.type].get("is_actuator")  # DEX
-            self._is_sensor = DEVICE_TABLE[self.addr.type].get("is_sensor")  # DEX
-        else:
-            self._has_battery = None
-            self._is_actuator = None
-            self._is_sensor = None
+        self._has_battery = (
+            DEVICE_TABLE[self.addr.type].get("has_battery")
+            if DEVICE_TABLE.get(self.addr.type)
+            else None
+        )
 
         self._alias = None
         self._faked = None
@@ -562,7 +559,7 @@ class Fakeable:
         )
 
     def _bind_request(self, code, callback=None):
-        """Initate a bind handshake: send the 1st packet of the handshake."""
+        """Initiate a bind handshake: send the 1st packet of the handshake."""
 
         # Bind request: CTL set to listen, STA initiates handshake (note 3C09/2309)
         # 22:13:52.527 070  I --- 34:021943 --:------ 34:021943 1FC9 024 00-3C09-8855B7 00-30C9-8855B7 00-0008-8855B7 00-1FC9-8855B7
@@ -1262,6 +1259,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
 
         elif msg.code == _3220:  # all are RP
             self._supported_msg[msg.payload[MSG_ID]] = msg.payload[MSG_TYPE] not in (
+                # "Data-Invalid",  # TODO
                 "Unknown-DataId",
                 "-reserved-",
             )
@@ -1379,6 +1377,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
                 if v
             },
             "opentherm_schema": self.opentherm_schema,
+            # "supported_msg": self._supported_msg,
         }
 
     @property
@@ -1483,7 +1482,9 @@ class BdrSwitch(Actuator, RelayDemand, Device):  # BDR (13):
 
     @discovery_filter
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        """The BDRs have one of six roles:
+        """Discover BDRs.
+
+        The BDRs have one of six roles:
          - heater relay *or* a heat pump relay (alternative to an OTB)
          - DHW hot water valve *or* DHW heating valve
          - Zones: Electric relay *or* Zone valve relay
