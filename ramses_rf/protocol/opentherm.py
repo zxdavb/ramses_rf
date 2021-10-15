@@ -917,7 +917,7 @@ def msg_value(val_seqx, val_type) -> Any:
         return struct.unpack(">b", bytes.fromhex(byte))[0]
 
     def f8_8(msb, lsb) -> float:
-        """Convert 2 bytes (as strs) into an OpenTherm f8_8 (float) value."""
+        """Convert 2 bytes (as strs) into an OpenTherm f8_8 value."""
         if msb == lsb == "FF":  # TODO: move up to parser?
             return None
         return float(s16(msb, lsb) / 256)

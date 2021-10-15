@@ -285,7 +285,7 @@ def update_config(config, known_list, block_list) -> dict:
 
 
 def _get_device(gwy, dev_id, ctl_id=None, **kwargs) -> Optional[Any]:  # -> Device:
-    """A wrapper to enforce device filters."""
+    """Get (optionally create) a device only if not filtered out."""
 
     if "dev_addr" in kwargs or "ctl_addr" in kwargs:
         raise RuntimeError
