@@ -441,7 +441,7 @@ class MessageProtocol(asyncio.Protocol):
 
     def __init__(self, gwy, callback: Callable) -> None:
         _LOGGER.debug("MsgProtocol.__init__(%s)", callback)
-        self._gwy = gwy  # is not used
+        # self._gwy = gwy  # is not used
         self._loop = gwy._loop
         self._callback = callback
 
