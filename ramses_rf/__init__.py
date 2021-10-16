@@ -42,7 +42,7 @@ from .schema import (
     load_config,
     load_schema,
 )
-from .systems import System, create_system
+from .systems import System
 from .version import VERSION  # noqa: F401
 
 from .protocol import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
@@ -174,9 +174,7 @@ class Gateway:
                 packet_log=self._input_file,
             )
             set_logger_timesource(self.pkt_protocol._dt_now)
-            _LOGGER.warning(
-                "System datetimes are now set to the most recent packet log timestamp"
-            )
+            _LOGGER.warning("Datetimes now set to the most recent packet log timestamp")
 
         if self.pkt_transport.get_extra_info(POLLER_TASK):
             self._tasks.append(self.pkt_transport.get_extra_info(POLLER_TASK))
@@ -228,8 +226,10 @@ class Gateway:
         if dev is None:  # TODO: take into account device filter?
             dev = create_device(self, dev_id)  # , **kwargs)
 
-        if dev.type == "01" and dev._evo is None and dev._is_controller:  # DEX
-            dev._evo = create_system(self, dev, profile=kwargs.get("profile"))
+        # NOTE: moved to device base
+        # TODO: create_heating_system() or create_ventilation_system()
+        # if dev.type == "01" and dev._evo is None and dev._is_controller:  # DEX
+        #     dev._evo = create_system(self, dev, profile=kwargs.get("profile"))
 
         # update the existing device with any metadata TODO: this is messy
         if ctl_id and ctl:

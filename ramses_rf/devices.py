@@ -232,7 +232,6 @@ class DeviceBase(Entity):
         if not self._iz_controller and msg.code in CODE_ONLY_FROM_CTL:
             if self._iz_controller is None:
                 _LOGGER.info(f"{msg._pkt} # IS_CONTROLLER (00): is TRUE")
-                self._iz_controller = msg
                 self._make_tcs_controller(msg)
             elif self._iz_controller is False:  # TODO: raise CorruptStateError
                 _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (01): was FALSE, now True")
@@ -261,9 +260,13 @@ class DeviceBase(Entity):
             m.src == self for m in self._msgs.values() if not m._expired
         )  # TODO: needs addressing
 
-    def _make_tcs_controller(self, msg=None):  # CH/DHW
+    def _make_tcs_controller(self, msg=None, **kwargs):  # CH/DHW
         """Create a TCS, and attach it to this controller."""
+        from .systems import create_system  # HACK: needs sorting
+
         self._iz_controller = msg or True
+        if self.type in ("01", "12", "22", "23") and self._evo is None:  # DEX
+            self._evo = create_system(self._gwy, self, **kwargs)
 
     @property
     def schema(self) -> dict:
@@ -919,7 +922,7 @@ class Controller(Device):  # CTL (01):
         self._domain_id = "FF"
         self._evo = None
 
-        self._iz_controller = True
+        self._make_tcs_controller()
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
