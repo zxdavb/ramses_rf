@@ -1377,7 +1377,9 @@ def parser_31d9(payload, msg) -> Optional[dict]:
     bitmap = int(payload[2:4], 16)
 
     result = {
-        "exhaust_fan_speed": percent(payload[4:6]),  # NOTE: is 31DA/payload[38:40]
+        "exhaust_fan_speed": percent(
+            payload[4:6], high_res=False
+        ),  # NOTE: is 31DA/payload[38:40]
         "passive": bool(bitmap & 0x02),
         "damper_only": bool(bitmap & 0x04),
         "filter_dirty": bool(bitmap & 0x20),
@@ -1433,16 +1435,6 @@ def parser_31da(payload, msg) -> Optional[dict]:
         0x18: "auto",
     }
 
-    def percent(val, precision=0.5) -> Optional[float]:
-        if val in ("EF", "FF"):
-            return
-        if len(val) != 2:
-            raise TypeError(val)
-        result = int(val, 16)
-        if result > 100 / precision:
-            raise ValueError(result)
-        return result / 100 / precision
-
     # I --- 37:261128 --:------ 37:261128 31DA 029 00004007D045EF7FFF7FFF7FFF7FFFF808EF03C8000000EFEF7FFF7FFF
     # I --- 37:053679 --:------ 37:053679 31DA 030 00EF007FFF41EF7FFF7FFF7FFF7FFFF800EF0134000000EFEF7FFF7FFF00
 
@@ -1474,8 +1466,8 @@ def parser_31da(payload, msg) -> Optional[dict]:
         "air_quality": percent(payload[2:4]),
         "air_quality_base": int(payload[4:6], 16),  # NOTE: 12C8/payload[4:6]
         "co2_level": double(payload[6:10]),  # ppm NOTE: 1298/payload[2:6]
-        "indoor_humidity": percent(payload[10:12], precision=1),  # TODO: 12A0?
-        "outdoor_humidity": percent(payload[12:14], precision=1),
+        "indoor_humidity": percent(payload[10:12], high_res=False),  # TODO: 12A0?
+        "outdoor_humidity": percent(payload[12:14], high_res=False),
         "exhaust_temperature": double(payload[14:18], factor=100),
         "supply_temperature": double(payload[18:22], factor=100),
         "indoor_temperature": double(payload[22:26], factor=100),
@@ -1483,11 +1475,13 @@ def parser_31da(payload, msg) -> Optional[dict]:
         "speed_cap": int(payload[30:34], 16),
         "bypass_pos": percent(payload[34:36]),
         "fan_info": CODE_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],
-        "exhaust_fan_speed": percent(payload[38:40]),  # NOTE: 31D9/payload[4:6]
-        "supply_fan_speed": percent(payload[40:42]),
+        "exhaust_fan_speed": percent(
+            payload[38:40], high_res=False
+        ),  # NOTE: 31D9/payload[4:6]
+        "supply_fan_speed": percent(payload[40:42], high_res=False),
         "remaining_time": double(payload[42:46]),  # mins NOTE: 22F3/payload[2:6]
-        "post_heat": percent(payload[46:48]),
-        "pre_heat": percent(payload[48:50]),
+        "post_heat": percent(payload[46:48], high_res=False),
+        "pre_heat": percent(payload[48:50], high_res=False),
         "supply_flow": double(payload[50:54], factor=100),  # L/sec
         "exhaust_flow": double(payload[54:58], factor=100),  # L/sec
     }
@@ -1495,7 +1489,8 @@ def parser_31da(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # ventilation heater?
 def parser_31e0(payload, msg) -> dict:
-    """
+    """Notes are.
+
     van means “of”.
     - 0 = min. van min. potm would be:
     - 0 = minimum of minimum potentiometer
@@ -1658,15 +1653,16 @@ def parser_3ef0(payload, msg) -> dict:
         # .I --- 13:023770 --:------ 13:023770 3EF0 003 00C8FF
         assert payload[2:4] in ("00", "C8"), f"byte 1: {payload[2:4]}"
         assert payload[4:6] == "FF", f"byte 2: {payload[4:6]}"
+        mod_level = percent(payload[2:4])
 
     if msg.len >= 6:  # RP|OTB|006 (to RQ|CTL/HGI/RFG)
         # RP --- 10:105624 01:133689 --:------ 3EF0 006 0000100000FF
         # RP --- 10:105624 01:133689 --:------ 3EF0 006 003B100C00FF
-        assert int(payload[2:4], 16) <= 100, f"byte 1: {payload[2:4]}"
         assert payload[4:6] in ("10", "11"), f"byte 2: {payload[4:6]}"
+        mod_level = percent(payload[2:4], resolution=1.0)
 
     result = {
-        "modulation_level": percent(payload[2:4]),  # TODO: rel_modulation_level
+        "modulation_level": mod_level,
         "_flags_0": payload[4:6],
     }
 
@@ -1716,7 +1712,7 @@ def parser_3ef0(payload, msg) -> dict:
                 "_flags_6": flag8(payload[12:14]),
                 "ch_active": bool(int(payload[12:14], 0x10) & 1 << 0),
                 "ch_setpoint": int(payload[14:16], 0x10),
-                "max_rel_modulation": int(payload[16:18], 0x10),
+                "max_rel_modulation": percent(payload[16:18], resolution=1.0),
             }
         )
 

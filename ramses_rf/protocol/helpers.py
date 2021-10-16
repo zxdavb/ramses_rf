@@ -125,13 +125,14 @@ def flag8(byte, lsb=False) -> list:
     return [(bytes.fromhex(byte)[0] & (1 << x)) >> x for x in reversed(range(8))]
 
 
-def percent(value: str) -> Optional[float]:  # a percentage 0-100% (0.0 to 1.0)
-    """Return a percentage, 0-100% with resolution of 0.5%."""
+def percent(value: str, high_res=True) -> Optional[float]:
+    """Return a percentage, 0-100% with default resolution of 0.5%."""
     assert len(value) == 2, f"percent({value}): len is not 2"
     if value in {"EF", "FE", "FF"}:  # TODO: diff b/w FE (seen with 3150) & FF
         return
-    assert int(value, 16) <= 200, "max value should be 0xC8, not 0x{value}"
-    return int(value, 16) / 200
+    max_value = 200 if high_res else 100
+    assert int(value, 16) <= max_value, f"0x{value} > max value (0x{max_value:02X})"
+    return int(value, 16) / max_value
 
 
 def bool_from_hex(value: str) -> Optional[bool]:  # either 00 or C8
