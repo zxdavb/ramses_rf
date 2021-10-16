@@ -381,26 +381,33 @@ class PacketProtocolBase(asyncio.Protocol):
                 self._unwanted.append(dev_id)
                 return
 
-            if dev_id in (NON_DEVICE_ID, NUL_DEVICE_ID):
+            if dev_id in self._include or dev_id in (NON_DEVICE_ID, NUL_DEVICE_ID):
                 continue
-
-            if not self._include or dev_id in self._include:
-                continue  # check the other device_id, if any
 
             if dev_id == self._hgi80[DEVICE_ID]:
-                _LOGGER.warning(
-                    f"Allowing packets with device_id: {dev_id} (is active gateway?), "
-                    f"configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
-                )
-                self._include.append(dev_id)  # the only time include list is modified
+                if self._include:
+                    _LOGGER.warning(
+                        f"Allowing packets with device_id: {dev_id} (is gateway), "
+                        f"configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
+                    )
+                    self._include.append(dev_id)  # only time include list is modified
                 continue
 
-            _LOGGER.warning(
-                f"Blocking packets with device_id: {dev_id} (is not whitelisted), "
-                f"if required, add it to the {KNOWN_LIST}"
-            )
-            self._unwanted.append(dev_id)
-            return
+            if dev_id[:2] == "18":  # dex
+                _LOGGER.warning(
+                    f"Blocking packets with device_id: {dev_id} (is foreign gateway), "
+                    f"configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
+                )
+                self._unwanted.append(dev_id)
+                return
+
+            if self._include:
+                _LOGGER.warning(
+                    f"Blocking packets with device_id: {dev_id} (is not whitelisted), "
+                    f"if required, add it to the {KNOWN_LIST}"
+                )
+                self._unwanted.append(dev_id)
+                return
 
         return True
 
@@ -437,7 +444,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 _LOGGER.error("%s < Cant create packet (ignoring): %s", line, exc)
             return
 
-        if pkt.src.type == "18":  # DEX
+        if pkt.src.type == "18":  # dex: should use HGI, but how?
             if self._hgi80[DEVICE_ID] is None:
                 self._hgi80[DEVICE_ID] = pkt.src.id
 
@@ -625,7 +632,8 @@ class PacketProtocolQos(PacketProtocolPort):
         self._timeout_half = None
 
     def _timeouts(self, dtm: dt) -> Tuple[dt, dt]:
-        """Update self._timeout_full, self._timeout_half"""
+        """Update self._timeout_full, self._timeout_half attrs."""
+
         if self._qos_cmd:
             if self._tx_hdr:
                 timeout = QOS_TX_TIMEOUT
