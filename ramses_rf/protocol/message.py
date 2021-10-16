@@ -10,7 +10,7 @@ import logging
 import re
 from datetime import timedelta as td
 from functools import lru_cache
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Optional, Tuple
 
 from .address import Address
 from .exceptions import InvalidPacketError, InvalidPayloadError
@@ -142,9 +142,10 @@ class Message:
                 return f"({pkt.payload[:2]})"
             return ctx
 
-        def display_name(dev: Union[Address, Any]) -> str:
-            name = dev.schema.get(ATTR_ALIAS) if self._gwy.config.use_aliases else None
-            return name[:20] if name else Address._friendly(dev.id)
+        def display_name(addr: Address) -> str:  # TODO: is broken
+            # name = d.schema.get(ATTR_ALIAS) if self._gwy.config.use_aliases else None
+            name = None
+            return name[:20] if name else Address._friendly(addr.id)
 
         if self._str is not None:
             return self._str
