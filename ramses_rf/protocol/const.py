@@ -353,7 +353,7 @@ ATTR_HTG_CONTROL = "heating_control"  # aka boiler relay, heating appliance
 DOMAIN_TYPE_MAP = {
     "F8": None,
     "F9": ATTR_DHW_VALVE_HTG,  # DHW Heating Valve
-    "FA": ATTR_DHW_VALVE,  # DHW HW Valve (or UFH loop if src.type == "02"?)  # DEX
+    "FA": ATTR_DHW_VALVE,  # DHW HW Valve (or UFH loop if src.type == "02"?)  # dex
     "FB": None,
     "FC": ATTR_HTG_CONTROL,  # "heat_relay": BDR (Boiler, District heating), or OTB
     "FD": "unknown",  # seen with hometronics
@@ -454,7 +454,8 @@ _0005_ZONE = SimpleNamespace(
     HTG="0F",  # Heating control domains
     RFG="10",  # RFG gateway
     ELE="11",  # Electrical zones  # TODO: no RP from older evohome
-)
+)  # 03, 05, 06, 07: & >11 - no response from an 01:
+
 # RP --- 01:054173 18:006402 --:------ 0005 004 00100000  # before adding RFG100
 #  I --- 01:054173 --:------ 01:054173 1FC9 012 0010E004D39D001FC904D39D
 #  W --- 30:248208 01:054173 --:------ 1FC9 012 0010E07BC9900012907BC990
@@ -468,8 +469,6 @@ _0005_ZONE = SimpleNamespace(
 
 _0005_ZONE_TYPE = {
     _0005_ZONE.ALL: "zone_actuators",
-    # "01": None,
-    # "02": None,
     _0005_ZONE.ALL_SENSOR: "zone_sensor",
     _0005_ZONE.RAD: ATTR_RAD_VALVE,
     _0005_ZONE.UFH: ATTR_UFH_HTG,
@@ -481,7 +480,7 @@ _0005_ZONE_TYPE = {
     _0005_ZONE.HTG: ATTR_HTG_CONTROL,
     _0005_ZONE.RFG: "internet_gateway",
     _0005_ZONE.ELE: ATTR_ELEC_HEAT,
-}  # 03, 05, 06, 07: & >11 - no response from 01:
+}
 
 # RP|zone_devices | 000E0... || {'domain_id': 'FA', 'device_class': 'dhw_actuator', 'devices': ['13:081807']}  # noqa
 # RP|zone_devices | 010E0... || {'domain_id': 'FA', 'device_class': 'dhw_actuator', 'devices': ['13:106039']}  # noqa
@@ -491,11 +490,7 @@ _000C_DEVICE_TYPE = {
     _000C_DEVICE.ALL: "zone_actuators",
     # "01": None,
     # "02": None,
-    # "03": None,  # no response
     _000C_DEVICE.ALL_SENSOR: ATTR_ZONE_SENSOR,  # 03:, 04:, 34: (if is 01:, will == [], as if no sensor)
-    # "05": None,  # no response
-    # "06": None,  # no response
-    # "07": None,  # no response
     _000C_DEVICE.RAD: "rad_actuators",
     _000C_DEVICE.UFH: "ufh_actuators",
     _000C_DEVICE.VAL: "val_actuators",
