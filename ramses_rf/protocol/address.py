@@ -48,7 +48,7 @@ class Address:
         return str(self.id)
 
     def __eq__(self, other) -> bool:
-        if not hasattr(other, "id"):
+        if not hasattr(other, "id"):  # can compare Address with Device
             return NotImplemented
         return self.id == other.id
 
@@ -229,25 +229,22 @@ def pkt_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
             and addrs[1] == NON_DEV_ADDR
         )
     ):
-        raise InvalidAddrSetError(f"Invalid addr set: {pkt_fragment} (XXX)")
+        raise InvalidAddrSetError(f"Invalid addr set: {pkt_fragment}")
 
-    device_addrs = list(filter(lambda a: a.type != "--", addrs))  # DEX
+    device_addrs = list(filter(lambda a: a.type != "--", addrs))  # dex
     src_addr = device_addrs[0]
     dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEV_ADDR
 
-    if src_addr.id == dst_addr.id:
+    if src_addr == dst_addr:  # incl. HGI_DEV_ADDR == HGI_DEV_ADDR
         src_addr = dst_addr
-    elif src_addr.type == dst_addr.type:  # DEX
+
+    elif src_addr.type == dst_addr.type:  # dex
+        # 000  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200 (invalid)
         # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5 (invalid)
         raise InvalidAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
 
-    elif src_addr.type == "18" and dst_addr.id == HGI_DEV_ADDR.id:  # DEX
-        # 000  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200
-        raise InvalidAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
-    elif dst_addr.type == "18" and src_addr.id == HGI_DEV_ADDR.id:  # DEX
-        raise InvalidAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
-
-    elif {src_addr.type, dst_addr.type}.issubset({"01", "23"}):  # DEX
-        raise InvalidAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
+    # TODO: this may be too specialised a edge-case, there would be many others
+    # elif {src_addr.type, dst_addr.type}.issubset({"01", "23"}):  # DEX
+    #     raise InvalidAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
 
     return src_addr, dst_addr, addrs
