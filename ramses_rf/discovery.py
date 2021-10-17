@@ -3,6 +3,9 @@
 #
 """RAMSES RF - discovery scripts."""
 
+# Beware, none of this is reliable - it is all subject to random change
+# However, these serve as examples how to us eteh other modules
+
 import asyncio
 import json
 import logging
