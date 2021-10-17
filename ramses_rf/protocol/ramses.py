@@ -459,6 +459,7 @@ for code in RAMSES_CODES.values():
 CODE_ONLY_FROM_CTL = [_1030, _1F09, _22D0, _313F]  # I packets, TODO: 31Dx too?
 
 #
+# I --- 01:210309 --:------ 01:210309 0009 006 FC00FFF900FF
 CODES_WITH_ARRAYS = {
     _0009: [3, ("01", "12", "22")],
     _000A: [6, ("01", "12", "22")],
@@ -467,7 +468,7 @@ CODES_WITH_ARRAYS = {
     _2249: [7, ("23",)],
     _22C9: [6, ("02",)],
     _3150: [2, ("02",)],
-}  # element_length, src.type(s) (and dst.type too)  # DEX
+}  # TODO dex: element_length, src.type(s) (and dst.type too)
 
 #
 CODE_RQ_COMPLEX = [
@@ -816,6 +817,14 @@ RAMSES_DEVICES = {
 RAMSES_DEVICES["00"] = RAMSES_DEVICES["04"]  # HR80
 RAMSES_DEVICES["21"] = RAMSES_DEVICES["34"]  # T87RF1003
 RAMSES_DEVICES["22"] = RAMSES_DEVICES["12"]  # DTS92
+
+# DEVICE_TYPE_KLASS_HINTS = {
+#     "01": "CTL",
+#     "02": "UFC",
+#     "03": "UFC",
+#     "30": "RFG",  # also "VNT"
+#     # "30": "VNT",
+# }
 
 ##############
 # RAMSES_ZONES (WIP)
