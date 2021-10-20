@@ -964,6 +964,10 @@ def parser_1f41(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # rf_bind
 def parser_1fc9(payload, msg) -> list:
+    #  I is missing?
+    #  W --- 10:048122 01:145038 --:------ 1FC9 006 003EF028BBFA
+    #  I --- 01:145038 10:048122 --:------ 1FC9 006 00FFFF06368E
+
     #  I --- 07:045960 --:------ 07:045960 1FC9 012 0012601CB388001FC91CB388
     #  W --- 01:145038 07:045960 --:------ 1FC9 006 0010A006368E
     #  I --- 07:045960 01:145038 --:------ 1FC9 006 0012601CB388
@@ -1370,6 +1374,7 @@ def parser_3150(payload, msg) -> Union[list, dict, None]:
 
 @parser_decorator  # ventilation state
 def parser_31d9(payload, msg) -> Optional[dict]:
+    # NOTE: I have a suspicion that Itho use 0x00-C8 for %, whilst Nuaire use 0x00-64
     assert payload[:2] in ("00", "01", "21"), payload[2:4]
     assert payload[2:4] in ("00", "06", "80"), payload[2:4]
     assert payload[4:6] == "FF" or int(payload[4:6], 16) <= 200, payload[4:6]
@@ -1378,7 +1383,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
 
     result = {
         "exhaust_fan_speed": percent(
-            payload[4:6], high_res=False
+            payload[4:6], high_res=True
         ),  # NOTE: is 31DA/payload[38:40]
         "passive": bool(bitmap & 0x02),
         "damper_only": bool(bitmap & 0x04),
@@ -1476,9 +1481,9 @@ def parser_31da(payload, msg) -> Optional[dict]:
         "bypass_pos": percent(payload[34:36]),
         "fan_info": CODE_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],
         "exhaust_fan_speed": percent(
-            payload[38:40], high_res=False
+            payload[38:40], high_res=True
         ),  # NOTE: 31D9/payload[4:6]
-        "supply_fan_speed": percent(payload[40:42], high_res=False),
+        "supply_fan_speed": percent(payload[40:42], high_res=True),
         "remaining_time": double(payload[42:46]),  # mins NOTE: 22F3/payload[2:6]
         "post_heat": percent(payload[46:48], high_res=False),
         "pre_heat": percent(payload[48:50], high_res=False),
@@ -1659,7 +1664,7 @@ def parser_3ef0(payload, msg) -> dict:
         # RP --- 10:105624 01:133689 --:------ 3EF0 006 0000100000FF
         # RP --- 10:105624 01:133689 --:------ 3EF0 006 003B100C00FF
         assert payload[4:6] in ("10", "11"), f"byte 2: {payload[4:6]}"
-        mod_level = percent(payload[2:4], resolution=1.0)
+        mod_level = percent(payload[2:4], high_res=False)
 
     result = {
         "modulation_level": mod_level,
@@ -1670,24 +1675,8 @@ def parser_3ef0(payload, msg) -> dict:
         # RP --- 10:138822 01:187666 --:------ 3EF0 006 000110FA00FF  # ?corrupt
 
         # for OTB (there's no reliable) modulation_level <-> flame_state)
-        assert payload[6:8] in (
-            "00",
-            "01",
-            "02",
-            "04",
-            "08",
-            "0A",
-            "0C",
-            "42",
-        ), f"byte 3: {payload[6:8]}"
         assert int(payload[6:8], 16) & 0b11110000 == 0, f"byte 3: {payload[6:8]}"
-        assert payload[8:10] in (
-            "00",
-            "01",
-            "0A",
-            "FA",
-            "FF",
-        ), f"byte 4: {payload[8:10]}"
+        assert int(payload[8:10], 16) & 0b11110000 == 0, f"byte 4: {payload[8:10]}"
         assert payload[10:12] in ("00", "1C", "FF"), f"byte 5: {payload[10:12]}"
 
         result.update(
@@ -1712,7 +1701,7 @@ def parser_3ef0(payload, msg) -> dict:
                 "_flags_6": flag8(payload[12:14]),
                 "ch_active": bool(int(payload[12:14], 0x10) & 1 << 0),
                 "ch_setpoint": int(payload[14:16], 0x10),
-                "max_rel_modulation": percent(payload[16:18], resolution=1.0),
+                "max_rel_modulation": percent(payload[16:18], high_res=False),
             }
         )
 
