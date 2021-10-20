@@ -310,7 +310,9 @@ class PacketProtocolBase(asyncio.Protocol):
     to transport: self.send_data(cmd)       -> self._transport.write(bytes)
     """
 
-    _dt_now = dt_now if sys.platform == "win32" else dt.now
+    @staticmethod
+    def _dt_now():
+        return dt_now() if sys.platform == "win32" else dt.now()
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
         self._gwy = gwy
@@ -393,7 +395,7 @@ class PacketProtocolBase(asyncio.Protocol):
                     self._include.append(dev_id)  # only time include list is modified
                 continue
 
-            if dev_id[:2] == "18":  # dex
+            if dev_id[:2] == "18" and self._gwy.serial_port:  # dex
                 _LOGGER.warning(
                     f"Blocking packets with device_id: {dev_id} (is foreign gateway), "
                     f"configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
