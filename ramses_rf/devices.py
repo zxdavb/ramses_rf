@@ -547,7 +547,7 @@ class Fakeable:
                 dst_id=msg.src.id,
                 callback={FUNC: bind_confirm, TIMEOUT: 3},
             )
-            self._gwy.send_cmd(cmd)
+            self._send_cmd(cmd)
 
         # assert code in SUPPORTED_CODES, f"Binding: {code} is not supported"
         self._1fc9_state = "waiting"
@@ -580,7 +580,7 @@ class Fakeable:
             self._1fc9_state == "confirm"
 
             cmd = Command.put_bind(I_, code, self.id, dst_id=msg.src.id)
-            self._gwy.send_cmd(cmd)
+            self._send_cmd(cmd)
 
             if callback:
                 callback(msg)
@@ -591,7 +591,7 @@ class Fakeable:
         cmd = Command.put_bind(
             I_, code, self.id, callback={FUNC: bind_confirm, TIMEOUT: 3}
         )
-        self._gwy.send_cmd(cmd)
+        self._send_cmd(cmd)
 
     @property
     def schema(self) -> dict:
@@ -633,7 +633,7 @@ class Weather(Fakeable):  # 0002 (fakeable)
         # cmd = Command.put_zone_temp(
         #     self._gwy.hgi.id if self == self._gwy.hgi._faked_thm else self.id, value
         # )
-        self._gwy.send_cmd(cmd)
+        self._send_cmd(cmd)
 
     @property
     def status(self) -> dict:
@@ -675,8 +675,8 @@ class Temperature(Fakeable):  # 30C9 (fakeable)
         if not self._faked:
             raise RuntimeError(f"Can't set value for {self} (Faking is not enabled)")
 
-        self._gwy.send_cmd(Command.put_sensor_temp(self.id, value))
-        # lf._gwy.send_cmd(Command.get_zone_temp(self._ctl.id, self.zone.idx))
+        self._send_cmd(Command.put_sensor_temp(self.id, value))
+        # lf._send_cmd(Command.get_zone_temp(self._ctl.id, self.zone.idx))
 
     @property
     def status(self) -> dict:
@@ -725,7 +725,7 @@ class RelayDemand(Fakeable):  # 0008 (fakeable)
 
             cmd = Command.put_actuator_state(self.id, mod_level)
             qos = {"priority": Priority.HIGH, "retries": 3}
-            [self._gwy.send_cmd(cmd, **qos) for _ in range(1)]
+            [self._send_cmd(cmd, **qos) for _ in range(1)]
 
         elif msg.code == _0009:  # can only be I, from a controller
             pass
@@ -741,7 +741,7 @@ class RelayDemand(Fakeable):  # 0008 (fakeable)
 
             cmd = Command.put_actuator_cycle(self.id, msg.src.id, mod_level, 600, 600)
             qos = {"priority": Priority.HIGH, "retries": 3}
-            [self._gwy.send_cmd(cmd, **qos) for _ in range(1)]
+            [self._send_cmd(cmd, **qos) for _ in range(1)]
 
         else:
             raise
@@ -1103,7 +1103,7 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
         super()._handle_msg(msg)
 
         if msg.code == _1260 and self._ctl:  # device can be instatiated with a CTL
-            self._gwy.send_cmd(Command.get_dhw_temp(self._ctl.id))
+            self._send_cmd(Command.get_dhw_temp(self._ctl.id))
 
     @property
     def dhw_params(self) -> Optional[dict]:  # 10A0
@@ -1223,7 +1223,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
 
         if discover_flag & DISCOVER_SCHEMA:
             [
-                self._gwy.send_cmd(Command.get_opentherm_data(self.id, m))
+                self._send_cmd(Command.get_opentherm_data(self.id, m))
                 for m in self.SCHEMA_MSG_IDS  # From OT v2.2: version numbers
                 if self._supported_msg.get(m) is not False
                 and (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
@@ -1231,16 +1231,16 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 22D9, 3220
 
         if discover_flag & DISCOVER_PARAMS:
             [
-                self._gwy.send_cmd(Command.get_opentherm_data(self.id, m))
+                self._send_cmd(Command.get_opentherm_data(self.id, m))
                 for m in self.PARAMS_MSG_IDS
                 if self._supported_msg.get(m) is not False
                 and (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]
 
         if discover_flag & DISCOVER_STATUS:
-            self._gwy.send_cmd(Command(RQ, _22D9, "00", self.id))
+            self._send_cmd(Command(RQ, _22D9, "00", self.id))
             [
-                self._gwy.send_cmd(Command.get_opentherm_data(self.id, m, retries=0))
+                self._send_cmd(Command.get_opentherm_data(self.id, m, retries=0))
                 for m in self.STATUS_MSG_IDS
                 if self._supported_msg.get(m) is not False
                 and (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)

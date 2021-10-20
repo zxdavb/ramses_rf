@@ -158,7 +158,7 @@ class SysDatetime:  # 313F
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
-            self._gwy.send_cmd(Command.get_system_time(self.id), period=td(hours=1))
+            self._send_cmd(Command.get_system_time(self.id), period=td(hours=1))
 
     @property
     def datetime(self) -> Optional[str]:  # 313F  # TODO: return a dt object
@@ -185,7 +185,7 @@ class SysLanguage:  # 0100
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_PARAMS:
-            self._gwy.send_cmd(Command.get_system_language(self.id))
+            self._send_cmd(Command.get_system_language(self.id))
 
     @property
     def language(self) -> Optional[str]:  # 0100
@@ -204,7 +204,7 @@ class SysMode:  # 2E04
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS:
-            self._gwy.send_cmd(Command.get_system_mode(self.id), period=td(hours=1))
+            self._send_cmd(Command.get_system_mode(self.id), period=td(hours=1))
 
     @property
     def system_mode(self) -> Optional[dict]:  # 2E04
@@ -213,7 +213,7 @@ class SysMode:  # 2E04
     def set_mode(self, system_mode=None, until=None) -> Task:
         """Set a system mode for a specified duration, or indefinitely."""
         cmd = Command.set_system_mode(self.id, system_mode=system_mode, until=until)
-        return self._gwy.send_cmd(cmd)
+        return self._send_cmd(cmd)
 
     def set_auto(self) -> Task:
         """Revert system to Auto, set non-PermanentOverride zones to FollowSchedule."""
@@ -571,7 +571,7 @@ class MultiZone:  # 0005 (+/- 000C?)
             pass  # TODO
             # for zone_idx in self.zone_by_idx:
             #     cmd = Command.get_zone_mode(self.id, zone_idx, priority=Priority.LOW)
-            #     self._gwy.send_cmd(cmd)
+            #     self._send_cmd(cmd)
             # for zone in self.zones:
             #     zone._discover(discover_flag=DISCOVER_PARAMS)
 
@@ -702,7 +702,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         if discover_flag & DISCOVER_PARAMS:
             # self._send_cmd(_1100, payload="FC")  # TPI params
-            self._gwy.send_cmd(Command.get_tpi_params(self.id), period=td(hours=4))
+            self._send_cmd(Command.get_tpi_params(self.id), period=td(hours=4))
 
         # # for code in (_3B00,):  # 3EF0, 3EF1
         # #     for payload in ("0000", "00", "F8", "F9", "FA", "FB", "FC", "FF"):

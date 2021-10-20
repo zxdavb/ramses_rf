@@ -286,11 +286,11 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             ]
 
         if discover_flag & DISCOVER_PARAMS:
-            self._gwy.send_cmd(Command.get_dhw_params(self._ctl.id))
+            self._send_cmd(Command.get_dhw_params(self._ctl.id))
 
         if discover_flag & DISCOVER_STATUS:
-            self._gwy.send_cmd(Command.get_dhw_mode(self._ctl.id))
-            self._gwy.send_cmd(Command.get_dhw_temp(self._ctl.id))
+            self._send_cmd(Command.get_dhw_mode(self._ctl.id))
+            self._send_cmd(Command.get_dhw_temp(self._ctl.id))
 
     def _handle_msg(self, msg) -> bool:
         assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
@@ -393,7 +393,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
     def set_mode(self, mode=None, active=None, until=None) -> Task:
         """Set the DHW mode (mode, active, until)."""
-        return self._gwy.send_cmd(
+        return self._send_cmd(
             Command.set_dhw_mode(self._ctl.id, mode=mode, active=active, until=until)
         )
 
@@ -417,7 +417,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         # if differential is None:
         #     setpoint = dhw_params["differential"]
 
-        return self._gwy.send_cmd(
+        return self._send_cmd(
             Command.set_dhw_params(self._ctl.id, setpoint, overrun, differential)
         )
 
@@ -483,13 +483,13 @@ class Zone(ZoneSchedule, ZoneBase):
             self._send_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.ALL_SENSOR}")
 
         if discover_flag & DISCOVER_PARAMS:
-            self._gwy.send_cmd(Command.get_zone_config(self._ctl.id, self.idx))
-            self._gwy.send_cmd(Command.get_zone_name(self._ctl.id, self.idx))
+            self._send_cmd(Command.get_zone_config(self._ctl.id, self.idx))
+            self._send_cmd(Command.get_zone_name(self._ctl.id, self.idx))
 
         if discover_flag & DISCOVER_STATUS:  # every 1h, CTL will not respond to a 3150
-            self._gwy.send_cmd(Command.get_zone_mode(self._ctl.id, self.idx))
-            self._gwy.send_cmd(Command.get_zone_temp(self._ctl.id, self.idx))
-            self._gwy.send_cmd(Command.get_zone_window_state(self._ctl.id, self.idx))
+            self._send_cmd(Command.get_zone_mode(self._ctl.id, self.idx))
+            self._send_cmd(Command.get_zone_temp(self._ctl.id, self.idx))
+            self._send_cmd(Command.get_zone_window_state(self._ctl.id, self.idx))
 
         # start collecting the schedule
         # self._schedule.req_schedule()  # , restart=True) start collecting schedule
@@ -622,7 +622,7 @@ class Zone(ZoneSchedule, ZoneBase):
     @name.setter
     def name(self, value) -> Optional[str]:
         """Set the name of the zone."""
-        self._gwy.send_cmd(Command.set_zone_name(self._ctl.id, self.idx, value))
+        self._send_cmd(Command.set_zone_name(self._ctl.id, self.idx, value))
 
         # async def get_name(self, force_refresh=None) -> Optional[str]:
         #     """Return the name of the zone."""
@@ -654,7 +654,7 @@ class Zone(ZoneSchedule, ZoneBase):
         if value is None:
             self.reset_mode()
         else:
-            self._gwy.send_cmd(Command.set_zone_setpoint(self._ctl.id, self.idx, value))
+            self._send_cmd(Command.set_zone_setpoint(self._ctl.id, self.idx, value))
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
@@ -683,7 +683,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
     def _get_temp(self) -> Task:  # TODO: messy - needs tidy up
         """Get the zone's latest temp from the Controller."""
-        return self._gwy.send_cmd(Command.get_zone_temp(self._ctl.id, self.idx))
+        return self._send_cmd(Command.get_zone_temp(self._ctl.id, self.idx))
 
     def reset_config(self) -> Task:  # 000A
         """Reset the zone's parameters to their default values."""
@@ -707,7 +707,7 @@ class Zone(ZoneSchedule, ZoneBase):
             openwindow_function=openwindow_function,
             multiroom_mode=multiroom_mode,
         )
-        return self._gwy.send_cmd(cmd)
+        return self._send_cmd(cmd)
 
     def reset_mode(self) -> Task:  # 2349
         """Revert the zone to following its schedule."""
@@ -723,11 +723,11 @@ class Zone(ZoneSchedule, ZoneBase):
             cmd = Command.set_zone_setpoint(self._ctl.id, self.idx, setpoint)
         else:
             cmd = Command.set_zone_mode(self._ctl.id, self.idx, mode, setpoint, until)
-        return self._gwy.send_cmd(cmd)
+        return self._send_cmd(cmd)
 
     def set_name(self, name) -> Task:
         """Set the zone's name."""
-        return self._gwy.send_cmd(Command.set_zone_name(self._ctl.id, self.idx, name))
+        return self._send_cmd(Command.set_zone_name(self._ctl.id, self.idx, name))
 
     @property
     def schema(self) -> dict:
@@ -812,7 +812,7 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
             self._send_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.MIX}")
 
         if discover_flag & DISCOVER_PARAMS:
-            self._gwy.send_cmd(Command.get_mix_valve_params(self._ctl.id, self.idx))
+            self._send_cmd(Command.get_mix_valve_params(self._ctl.id, self.idx))
 
     @property
     def mix_config(self) -> dict:  # 1030
