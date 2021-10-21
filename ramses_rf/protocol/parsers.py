@@ -14,6 +14,7 @@ from datetime import timedelta as td
 from typing import Any, Optional, Union
 
 from .const import (
+    _000C_DEVICE,
     _000C_DEVICE_TYPE,
     _0005_ZONE_TYPE,
     _0418_DEVICE_CLASS,
@@ -198,9 +199,13 @@ def parser_0005(payload, msg) -> Optional[dict]:  # TODO: needs a cleanup
     #  I --- 34:064023 --:------ 34:064023 0005 012 000A0000-000F0000-00100000
 
     def _parser(seqx) -> dict:
+        if msg.src.type == "02":  # seqx[2:4] == _0005_ZONE.UFH:
+            zone_mask = flag8(seqx[6:8], lsb=True)
+        else:
+            zone_mask = flag8(seqx[4:6], lsb=True) + flag8(seqx[6:8], lsb=True)
         return {
-            "_zone_type": seqx[2:4],
-            "zone_mask": (flag8(seqx[4:6], lsb=True) + flag8(seqx[6:8], lsb=True)),
+            "_device_class": seqx[2:4],
+            "zone_mask": zone_mask,
             "zone_type": _0005_ZONE_TYPE.get(seqx[2:4], f"unknown_{seqx[2:4]}"),
         }
 
@@ -212,7 +217,7 @@ def parser_0005(payload, msg) -> Optional[dict]:  # TODO: needs a cleanup
 
     if msg.verb == RQ:  # RQs have a context: zone_type
         return {
-            "_zone_type": payload[2:4],
+            "_device_class": payload[2:4],
             "zone_type": _0005_ZONE_TYPE.get(payload[2:4], f"unknown_{payload[2:4]}"),
         }
 
@@ -349,13 +354,13 @@ def parser_000c(payload, msg) -> Optional[dict]:
                 "zone_id": None if payload[4:6] == "7F" else payload[4:6],
             }
 
-        if payload[2:4] in ("0D", "0E"):  # ("000D", _000E, "010E")
+        if payload[2:4] in (_000C_DEVICE.DHW_SENSOR, _000C_DEVICE.DHW):
             assert (
                 int(seqx, 16) < 1 if payload[2:4] == "0D" else 2
             ), f"invalid _idx: '{seqx}' (0x01)"
             return {"domain_id": "FA"}
 
-        if payload[2:4] == "0F":
+        if payload[2:4] == _000C_DEVICE.HTG:
             assert int(seqx, 16) < 1, f"invalid _idx: '{seqx}' (0x02)"
             return {"domain_id": "FC"}
 
@@ -376,8 +381,8 @@ def parser_000c(payload, msg) -> Optional[dict]:
 
     result = {
         **complex_index(payload[:2], msg),
-        "device_class": device_class,
         "_device_class": payload[2:4],
+        "device_class": device_class,
     }
     if msg.verb == RQ:  # RQs have a context: index, zone_type
         return result
