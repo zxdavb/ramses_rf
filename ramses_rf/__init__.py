@@ -322,7 +322,7 @@ class Gateway:
         (_LOGGER.error if DEV_MODE else _LOGGER.info)("ENGINE: Saved schema and state.")
         return schema, pkts
 
-    async def _set_state(self, schema: Dict, packets: Dict) -> None:
+    async def _set_state(self, schema: Dict = None, packets: Dict = None) -> None:
         (_LOGGER.error if DEV_MODE else _LOGGER.info)(
             "ENGINE: Restoring schema and/or state..."
         )
@@ -331,7 +331,8 @@ class Gateway:
         (_LOGGER.error if DEV_MODE else _LOGGER.info)(
             "ENGINE: Clearing schema/state..."
         )
-        self._clear_state()  # TODO: consider need for this (here, or at all)
+        if schema:
+            self._clear_state()  # TODO: consider need for this (here, or at all)
 
         if schema:
             (_LOGGER.error if DEV_MODE else _LOGGER.info)("ENGINE: Restoring schema...")
