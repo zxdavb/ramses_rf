@@ -441,6 +441,9 @@ class Gateway:
         if not self.msg_protocol:
             raise RuntimeError("there is no message protocol")
 
+        if self.config.disable_sending:
+            raise RuntimeError("sending is disabled")
+
         asyncio.run_coroutine_threadsafe(
             self.msg_protocol.send_data(cmd, callback=callback, **kwargs), self._loop
         )
