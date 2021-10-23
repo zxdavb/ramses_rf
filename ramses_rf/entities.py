@@ -21,23 +21,6 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def discovery_filter(func):
-    """Bypass discovery if not configured to do so, or if unlikely to get an RP."""
-
-    def wrapper(self, *args, **kwargs) -> None:
-        if any(
-            (
-                self._gwy.config.disable_sending,
-                self._gwy.config.disable_discovery,
-                getattr(self, "has_battery", None),
-            )
-        ):
-            return
-        return func(self, *args, **kwargs)
-
-    return wrapper
-
-
 class Entity:
     """The Device/Zone base class.
 
@@ -93,7 +76,13 @@ class Entity:
     #     return {msg.dtm: msg._pkt for msg in self._msgs_db}
 
     def _send_cmd(self, code, dest_id, payload, verb=RQ, **kwargs) -> None:
-        if self._gwy.config.disable_sending:
+        if any(
+            (
+                self._gwy.config.disable_sending,
+                self._gwy.config.disable_discovery,
+                getattr(self, "has_battery", None),
+            )
+        ):
             return
 
         cmd = self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs)

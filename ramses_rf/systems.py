@@ -14,7 +14,7 @@ from typing import List, Optional
 
 from .const import DISCOVER_ALL, DISCOVER_PARAMS, DISCOVER_SCHEMA, DISCOVER_STATUS
 from .devices import BdrSwitch, Device, OtbGateway
-from .entities import Entity, discovery_filter
+from .entities import Entity
 from .protocol import Command, FaultLog, Priority
 from .protocol.const import (
     _000C_DEVICE,
@@ -125,7 +125,6 @@ class SysFaultLog:  # 0418
         super().__init__(*args, **kwargs)
         self._fault_log = FaultLog(self._ctl)
 
-    @discovery_filter
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -153,7 +152,6 @@ class SysFaultLog:  # 0418
 
 
 class SysDatetime:  # 313F
-    @discovery_filter
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -180,7 +178,6 @@ class SysDatetime:  # 313F
 
 
 class SysLanguage:  # 0100
-    @discovery_filter
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -199,7 +196,6 @@ class SysLanguage:  # 0100
 
 
 class SysMode:  # 2E04
-    @discovery_filter
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -376,7 +372,6 @@ class MultiZone:  # 0005 (+/- 000C?)
 
         self._prev_30c9 = None  # used to eavesdrop zone sensors
 
-    @discovery_filter
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -690,7 +685,6 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     # def __str__(self) -> str:  # TODO: WIP
     #     return json.dumps({self._ctl.id: self.schema})
 
-    @discovery_filter
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
 
@@ -988,7 +982,6 @@ class Evohome(SysLanguage, SysMode, MultiZone, UfhSystem, System):  # evohome
     def __repr__(self) -> str:
         return f"{self._ctl.id} (evohome)"
 
-    # @discovery_filter  # HACK: remove me
     # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
     #     super()._discover(discover_flag=discover_flag)
 
@@ -1043,7 +1036,6 @@ class Hometronics(System):
     def __repr__(self) -> str:
         return f"{self._ctl.id} (hometronics)"
 
-    # @discovery_filter
     # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
     #     # super()._discover(discover_flag=discover_flag)
 

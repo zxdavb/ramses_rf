@@ -14,7 +14,7 @@ from typing import Optional
 
 from .const import DISCOVER_ALL, DISCOVER_PARAMS, DISCOVER_SCHEMA, DISCOVER_STATUS
 from .devices import BdrSwitch, Device, DhwSensor
-from .entities import Entity, discovery_filter
+from .entities import Entity
 from .protocol import Command, Schedule
 from .protocol.const import (
     _000C_DEVICE,
@@ -185,7 +185,7 @@ class ZoneSchedule:  # 0404  # TODO: add for DHW
 
         self._schedule = Schedule(self)
 
-    # @discovery_filter
+    #
     # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
     #     if discover_flag & DISCOVER_STATUS:  # TODO: add back in
     #         self._loop.create_task(self.get_schedule())  # 0404
@@ -220,7 +220,6 @@ class ZoneSchedule:  # 0404  # TODO: add for DHW
 class RelayDemand:  # 0008
     """Not all zones call for heat."""
 
-    @discovery_filter
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -268,7 +267,6 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         if htg_valve:
             self._set_htg_valve(htg_valve)
 
-    @discovery_filter
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
 
@@ -473,7 +471,6 @@ class Zone(ZoneSchedule, ZoneBase):
         if sensor:
             self._set_sensor(sensor)
 
-    @discovery_filter
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -770,7 +767,6 @@ class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
-    @discovery_filter
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)
@@ -803,7 +799,6 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
-    @discovery_filter
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)
@@ -833,7 +828,6 @@ class RadZone(Zone):  # HR92/HR80
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
-    @discovery_filter
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)
@@ -849,7 +843,6 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
-    @discovery_filter
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)
@@ -876,7 +869,6 @@ class ValZone(EleZone):  # BDR91A/T
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
-    @discovery_filter
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)
