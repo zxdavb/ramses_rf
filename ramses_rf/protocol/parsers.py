@@ -644,7 +644,7 @@ def parser_1060(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # max_ch_setpoint
+@parser_decorator  # max_ch_setpoint (supply high limit)
 def parser_1081(payload, msg) -> Optional[dict]:
     return {"temperature": temp_from_hex(payload[2:])}
 
@@ -664,7 +664,7 @@ def parser_1090(payload, msg) -> dict:
     }
 
 
-@parser_decorator  # dhw_params  # FIXME: a bit messy
+@parser_decorator  # dhw (cylinder) params  # FIXME: a bit messy
 def parser_10a0(payload, msg) -> Optional[dict]:
     # RQ --- 07:045960 01:145038 --:------ 10A0 006 00-1087-00-03E4  # RQ/RP, every 24h
     # RP --- 01:145038 07:045960 --:------ 10A0 006 00-109A-00-03E8
@@ -848,12 +848,30 @@ def parser_1100(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # dhw_temp
+@parser_decorator  # dhw cylinder temperature
 def parser_1260(payload, msg) -> Optional[dict]:
     return {"temperature": temp_from_hex(payload[2:])}
 
 
-@parser_decorator  # outdoor_temp
+@parser_decorator  # outdoor humidity
+def parser_1280(payload, msg) -> Optional[dict]:
+    # this packet never seen in the wild
+    # assert msg.len == 6 if type == ?? else 2, msg.len
+    assert payload[:2] == "00", payload[:2]  # domain?
+
+    rh = int(payload[2:4], 16) / 100 if payload[2:4] != "EF" else None
+    if msg.len == 2:
+        return {"relative_humidity": rh}
+
+    assert msg.len == 6, f"pkt length is {msg.len}, expected 6"
+    return {
+        "relative_humidity": rh,
+        "temperature": temp_from_hex(payload[4:8]),
+        "dewpoint_temp": temp_from_hex(payload[8:12]),
+    }
+
+
+@parser_decorator  # outdoor temperature
 def parser_1290(payload, msg) -> Optional[dict]:
     # evohome responds to an RQ
     return {"temperature": temp_from_hex(payload[2:])}
@@ -913,7 +931,7 @@ def parser_12b0(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # displayed_temp (on a TR87RF bound to a RFG100)
+@parser_decorator  # displayed temperature (on a TR87RF bound to a RFG100)
 def parser_12c0(payload, msg) -> Optional[dict]:
     assert payload[:2] == "00", f"expecting 00, not {payload[:2]}"
     assert payload[4:] == "01", f"expecting 01, not {payload[4:]}"
@@ -1116,7 +1134,7 @@ def parser_22d0(payload, msg) -> Optional[dict]:
     return {"unknown": payload[2:]}
 
 
-@parser_decorator  # boiler_setpoint
+@parser_decorator  # desired boiler setpoint
 def parser_22d9(payload, msg) -> Optional[dict]:
     return {"boiler_setpoint": temp_from_hex(payload[2:6])}
 
@@ -1563,12 +1581,12 @@ def parser_31e0(payload, msg) -> dict:
     }
 
 
-@parser_decorator  # boiler water temp
+@parser_decorator  # supplied boiler water temp
 def parser_3200(payload, msg) -> Optional[dict]:
     return {"temperature": temp_from_hex(payload[2:])}
 
 
-@parser_decorator  # return water temp
+@parser_decorator  # return (boiler) water temp
 def parser_3210(payload, msg) -> Optional[dict]:
     return {"temperature": temp_from_hex(payload[2:])}
 
@@ -1815,11 +1833,15 @@ def parser_7fff(payload, msg) -> Optional[dict]:
 def parser_unknown(payload, msg) -> Optional[dict]:
     # TODO: it may be useful to generically search payloads for hex_ids, commands, etc.
 
-    # if msg.len == 3 and payload[:2] == "00" and payload[2:] not in ("0000", "7FFF", "FFFF"):
-    #     return {
-    #         "_unknown_int": int(payload[2:], 16),
-    #         "_unknown_cent": int(payload[2:], 16) / 200,
-    #     }
+    if msg.len == 2 and payload[:2] == "00":
+        return {
+            "_value": {"00": False, "C8": True}.get(payload[2:], int(payload[2:], 16))
+        }
+
+    if msg.len == 3 and payload[:2] == "00":
+        return {
+            "_value": temp_from_hex(payload[2:]),
+        }
 
     raise NotImplementedError
 

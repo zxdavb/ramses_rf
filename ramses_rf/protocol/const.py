@@ -528,6 +528,7 @@ _0418_FAULT_TYPE = {
     "04": "battery_low",
     "06": "comms_fault",
     "0A": "sensor_error",
+    "??": "bad_value",
 }
 
 SystemType = SimpleNamespace(

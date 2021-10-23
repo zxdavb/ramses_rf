@@ -279,6 +279,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     _1280: {  # outdoor_humidity
         NAME: "outdoor_humidity",
+        I_: r"^00[0-9A-F]{10}$",
     },
     _1290: {  # outdoor_temp
         NAME: "outdoor_temp",
