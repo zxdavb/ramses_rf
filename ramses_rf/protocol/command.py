@@ -342,7 +342,7 @@ class Command(PacketBase):
         )
 
         if not COMMAND_REGEX.match(self._frame[4:]):
-            raise InvalidPacketError("Invalid packet structure")
+            raise InvalidPacketError(f"{self._frame[4:]} < Invalid packet structure")
 
     @staticmethod
     def _is_valid_operand(other) -> bool:
@@ -487,6 +487,12 @@ class Command(PacketBase):
         payload = f"0080{msg_id:02X}0000" if parity(msg_id) else f"0000{msg_id:02X}0000"
         return cls(RQ, _3220, payload, dev_id, **kwargs)
 
+    @classmethod  # constructor for RQ/0008
+    @validate_command()
+    def get_relay_demand(cls, dev_id: str, **kwargs):
+        """Constructor to get the demand of a relay (c.f. parser_0008)."""
+        return cls(RQ, _0008, "00", dev_id, **kwargs)
+
     @classmethod  # constructor for RQ/0404
     @validate_command(has_zone=True)
     def get_schedule_fragment(
@@ -575,9 +581,11 @@ class Command(PacketBase):
 
     @classmethod  # constructor for RQ/1100
     @validate_command()
-    def get_tpi_params(cls, ctl_id: str, **kwargs):
+    def get_tpi_params(cls, dev_id: str, domain_id=None, **kwargs):
         """Constructor to get the TPI params of a system (c.f. parser_1100)."""
-        return cls(RQ, _1100, "FC", ctl_id, **kwargs)
+        if domain_id is None:
+            domain_id = "00" if dev_id[:2] == "13" else "FC"
+        return cls(RQ, _1100, domain_id, dev_id, **kwargs)
 
     @classmethod  # constructor for W/1100
     @validate_command()
@@ -918,6 +926,7 @@ _COMMANDS = {
     f"{I_}/{_0002}": Command.put_outdoor_temp,
     f"{RQ}/{_0004}": Command.get_zone_name,
     f"{W_}/{_0004}": Command.set_zone_name,
+    f"{RQ}/{_0008}": Command.get_relay_demand,
     f"{RQ}/{_000A}": Command.get_zone_config,
     f"{W_}/{_000A}": Command.set_zone_config,
     f"{RQ}/{_0100}": Command.get_system_language,
