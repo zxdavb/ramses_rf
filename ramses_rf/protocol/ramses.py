@@ -325,7 +325,7 @@ RAMSES_CODES = {  # rf_unknown
         #  I --- 02:001107 --:------ 02:001107 22C9 006 04-0834-0A28-01
         NAME: "ufh_setpoint",
         I_: r"^(0[0-9A-F][0-9A-F]{8}01){1,4}$",  # ~000A array, but max_len 24, not 48!
-        # RQ: None?,
+        # RP: Appear wont get any?,
     },
     _22D0: {  # HVAC system switch
         NAME: "message_22d0",
