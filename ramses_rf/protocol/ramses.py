@@ -30,9 +30,11 @@ from .const import (  # noqa: F401, isort: skip
     _0B04,
     _1030,
     _1060,
+    _1081,
     _1090,
     _10A0,
     _10E0,
+    _10E1,
     _1100,
     _1260,
     _1280,
@@ -42,6 +44,7 @@ from .const import (  # noqa: F401, isort: skip
     _12B0,
     _12C0,
     _12C8,
+    _1300,
     _1F09,
     _1F41,
     _1FC9,
@@ -63,6 +66,8 @@ from .const import (  # noqa: F401, isort: skip
     _31D9,
     _31DA,
     _31E0,
+    _3200,
+    _3210,
     _3220,
     _3B00,
     _3EF0,
@@ -196,8 +201,11 @@ RAMSES_CODES = {  # rf_unknown
     },
     _042F: {  # unknown, # non-evohome are len==9, seen only once?
         # .I --- 32:168090 --:------ 32:168090 042F 009 000000100F00105050
+        # RP --- 10:048122 18:006402 --:------ 042F 009 000200001400163010
         NAME: "message_042f",
         I_: r"^00([0-9A-F]{2}){7,8}$",
+        RQ: r"^00$",
+        RP: r"^00([0-9A-F]{2}){7,8}$",
     },
     _0B04: {  # unknown
         #  I --- --:------ --:------ 12:207082 0B04 002 00C8
@@ -214,6 +222,11 @@ RAMSES_CODES = {  # rf_unknown
         I_: r"^0[0-9A-F](FF|[0-9A-F]{2})0[01]$",
         EXPIRES: td(days=1),
     },
+    _1081: {  # max_ch_setpoint
+        NAME: "max_ch_setpoint",
+        RQ: r"^00$",
+        RP: r"^00[0-9A-F]{4}$",
+    },
     _1090: {  # unknown
         NAME: "message_1090",
         # RQ: r"^00$",  # TODO:
@@ -221,10 +234,11 @@ RAMSES_CODES = {  # rf_unknown
     _10A0: {  # dhw_params
         NAME: "dhw_params",
         # RQ --- 07:045960 01:145038 --:------ 10A0 006 0013740003E4
+        # RP --- 10:048122 18:006402 --:------ 10A0 003 001B58
         # NOTE: RFG100 uses a domain id! (00|01)
         # 19:14:24.662 051 RQ --- 30:185469 01:037519 --:------ 10A0 001 00
         # 19:14:31.463 053 RQ --- 30:185469 01:037519 --:------ 10A0 001 01
-        I_: r"^0[01]([0-9A-F]{10})?$",  # NOTE: RQ/07/10A0 has a payload
+        I_: r"^0[01][0-9A-F]{4}([0-9A-F]{6})?$",  # NOTE: RQ/07/10A0 has a payload
         RQ: r"^0[01]([0-9A-F]{10})?$",  # NOTE: RQ/07/10A0 has a payload
         EXPIRES: td(hours=4),
     },
@@ -233,6 +247,12 @@ RAMSES_CODES = {  # rf_unknown
         I_: r"^00[0-9A-F]{30,}$",  # NOTE: RP is same
         RQ: r"^00$",  # NOTE: will accept [0-9A-F]{2}
         # RP: r"^[0-9A-F]{2}([0-9A-F]){30,}$",  # NOTE: indx same as RQ
+        EXPIRES: False,
+    },
+    _10E1: {  # device_id
+        NAME: "device_id",
+        RP: r"^00[0-9A-F]{6}$",
+        RQ: r"^00$",
         EXPIRES: False,
     },
     _1100: {  # tpi_params
@@ -287,6 +307,11 @@ RAMSES_CODES = {  # rf_unknown
     _12C8: {  # hvac_12C8 - %?
         NAME: "hvac_12C8",
         I_: r"^0000[0-9A-F]{2}$",
+    },
+    _1300: {  # ch_pressure
+        NAME: "ch_pressure",
+        RQ: r"^00$",
+        RP: r"^00[0-9A-F]{4}$",
     },
     _1F09: {  # system_sync - "FF" (I), "00" (RP), "F8" (W, after 1FC9)
         NAME: "system_sync",
@@ -418,6 +443,16 @@ RAMSES_CODES = {  # rf_unknown
     _31E0: {  # ext_ventilation - External Ventilation Status
         NAME: "ext_ventilation",
         I_: r"^0000(00|C8)(00|FF)$",
+    },
+    _3200: {  # boiler_temp
+        NAME: "temperature",
+        RQ: r"^00$",
+        RP: r"^00[0-9A-F]{4}$",
+    },
+    _3210: {  # return_temp
+        NAME: "temperature",
+        RQ: r"^00$",
+        RP: r"^00[0-9A-F]{4}$",
     },
     _3220: {  # opentherm_msg
         NAME: "opentherm_msg",
@@ -661,15 +696,20 @@ RAMSES_DEVICES = {
     },
     "10": {  # e.g. R8810/R8820: OpenTherm Bridge
         _0009: {I_: {}},  # 1/24h for a R8820 (not an R8810)
-        _042F: {I_: {}},
+        _042F: {I_: {}, RP: {}},
+        _1081: {RP: {}},  # R8820A only?
         _10A0: {RP: {}},
         _10E0: {I_: {}, RP: {}},
+        _10E1: {RP: {}},  # R8820A only?
         _1260: {RP: {}},
         _1290: {RP: {}},
+        _1300: {RP: {}},  # R8820A only?
         _1FC9: {I_: {}, W_: {}},
         _1FD4: {I_: {}},
         _22D9: {RP: {}},
         _3150: {I_: {}},
+        _3200: {RP: {}},  # R8820A only?
+        _3210: {RP: {}},  # R8820A only?
         _3220: {RP: {}},
         _3EF0: {I_: {}, RP: {}},
         _3EF1: {RP: {}},

@@ -644,6 +644,11 @@ def parser_1060(payload, msg) -> Optional[dict]:
     }
 
 
+@parser_decorator  # max_ch_setpoint
+def parser_1081(payload, msg) -> Optional[dict]:
+    return {"temperature": temp_from_hex(payload[2:])}
+
+
 @parser_decorator  # unknown (non-Evohome, e.g. ST9520C)
 def parser_1090(payload, msg) -> dict:
     # 14:08:05.176 095 RP --- 23:100224 22:219457 --:------ 1090 005 007FFF01F4
@@ -663,6 +668,7 @@ def parser_1090(payload, msg) -> dict:
 def parser_10a0(payload, msg) -> Optional[dict]:
     # RQ --- 07:045960 01:145038 --:------ 10A0 006 00-1087-00-03E4  # RQ/RP, every 24h
     # RP --- 01:145038 07:045960 --:------ 10A0 006 00-109A-00-03E8
+    # RP --- 10:048122 18:006402 --:------ 10A0 003 00-1B58
 
     # these may not be reliable...
     # RQ --- 01:136410 10:067219 --:------ 10A0 002 0000
@@ -772,6 +778,11 @@ def parser_10e0(payload, msg) -> Optional[dict]:
         "description": description,
         "_unknown_1": payload[38 + len(description) * 2 :],
     }
+
+
+@parser_decorator  # device_id
+def parser_10e1(payload, msg) -> Optional[dict]:
+    return {"device_id": hex_id_to_dec(payload[2:])}
 
 
 @parser_decorator  # tpi_params (domain/zone/device)  # FIXME: a bit messy
@@ -918,6 +929,11 @@ def parser_12c8(payload, msg) -> Optional[dict]:
     return {"unknown": percent(payload[4:])}
 
 
+@parser_decorator  # ch_pressure
+def parser_1300(payload, msg) -> Optional[dict]:
+    return {"pressure": temp_from_hex(payload[2:])}  # is 2's complement still
+
+
 @parser_decorator  # system_sync
 def parser_1f09(payload, msg) -> Optional[dict]:
     # 22:51:19.287 067  I --- --:------ --:------ 12:193204 1F09 003 010A69
@@ -1038,10 +1054,6 @@ def parser_1fca(payload, msg) -> list:
 
 @parser_decorator  # opentherm_sync, otb_sync
 def parser_1fd4(payload, msg) -> Optional[dict]:
-    assert msg.verb == I_, msg.verb
-    assert msg.len == 3, msg.len
-    assert payload[:2] == "00", payload[:2]
-
     return {"ticker": int(payload[2:], 16)}
 
 
@@ -1274,7 +1286,7 @@ def parser_2e04(payload, msg) -> Optional[dict]:
     return result
 
 
-@parser_decorator  # temperature (of device, zone/s)
+@parser_decorator  # current temperature (of device, zone/s)
 def parser_30c9(payload, msg) -> Optional[dict]:
 
     if msg._has_array:
@@ -1551,6 +1563,16 @@ def parser_31e0(payload, msg) -> dict:
     }
 
 
+@parser_decorator  # boiler water temp
+def parser_3200(payload, msg) -> Optional[dict]:
+    return {"temperature": temp_from_hex(payload[2:])}
+
+
+@parser_decorator  # return water temp
+def parser_3210(payload, msg) -> Optional[dict]:
+    return {"temperature": temp_from_hex(payload[2:])}
+
+
 @parser_decorator  # opentherm_msg
 def parser_3220(payload, msg) -> Optional[dict]:
 
@@ -1792,6 +1814,13 @@ def parser_7fff(payload, msg) -> Optional[dict]:
 @parser_decorator
 def parser_unknown(payload, msg) -> Optional[dict]:
     # TODO: it may be useful to generically search payloads for hex_ids, commands, etc.
+
+    # if msg.len == 3 and payload[:2] == "00" and payload[2:] not in ("0000", "7FFF", "FFFF"):
+    #     return {
+    #         "_unknown_int": int(payload[2:], 16),
+    #         "_unknown_cent": int(payload[2:], 16) / 200,
+    #     }
+
     raise NotImplementedError
 
 
