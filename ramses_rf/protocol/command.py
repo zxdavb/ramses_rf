@@ -148,9 +148,20 @@ def validate_command(has_zone=None):
         ) as exc:
             _LOGGER.exception(f"validate_command(): {exc}")
 
+    def validate_zone_idx(zone_idx) -> int:
+        if isinstance(zone_idx, str):
+            zone_idx = "FA" if zone_idx == "HW" else zone_idx
+        zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
+        if 0 > zone_idx > 15 and zone_idx != 0xFA:
+            raise ValueError("Invalid value for zone_idx")
+        return zone_idx
+
     def device_decorator(fcn):
         @functools.wraps(fcn)
         def wrapper(cls, dst_id, *args, **kwargs) -> Any:
+
+            if "zone_idx" in kwargs:
+                kwargs["zone_idx"] = validate_zone_idx(kwargs["zone_idx"])
 
             return _wrapper(fcn, cls, dst_id, *args, **kwargs)
 
@@ -160,11 +171,7 @@ def validate_command(has_zone=None):
         @functools.wraps(fcn)
         def wrapper(cls, ctl_id, zone_idx, *args, **kwargs) -> Any:
 
-            if isinstance(zone_idx, str):
-                zone_idx = "FA" if zone_idx == "HW" else zone_idx
-            zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
-            if 0 > zone_idx > 15 and zone_idx != 0xFA:
-                raise ValueError("Invalid value for zone_idx")
+            zone_idx = validate_zone_idx(zone_idx)
 
             return _wrapper(fcn, cls, ctl_id, zone_idx, *args, **kwargs)
 
@@ -488,10 +495,10 @@ class Command(PacketBase):
         return cls(RQ, _3220, payload, dev_id, **kwargs)
 
     @classmethod  # constructor for RQ/0008
-    @validate_command()
-    def get_relay_demand(cls, dev_id: str, **kwargs):
-        """Constructor to get the demand of a relay (c.f. parser_0008)."""
-        return cls(RQ, _0008, "00", dev_id, **kwargs)
+    @validate_command()  # has_zone=Optional
+    def get_relay_demand(cls, dev_id: str, zone_idx: Union[int, str] = "00", **kwargs):
+        """Constructor to get the demand of a relay/zone (c.f. parser_0008)."""
+        return cls(RQ, _0008, zone_idx, dev_id, **kwargs)
 
     @classmethod  # constructor for RQ/0404
     @validate_command(has_zone=True)
