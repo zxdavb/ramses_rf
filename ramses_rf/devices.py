@@ -186,15 +186,13 @@ class DeviceBase(Entity):
         # sometimes, battery-powered devices would respond to an RQ (e.g. bind mode)
 
         if discover_flag & DISCOVER_SCHEMA:
-            self._send_cmd(_1FC9, retries=3)  # rf_bind
+            self._make_cmd(_1FC9, retries=3)  # rf_bind
 
         if discover_flag & DISCOVER_STATUS:
-            self._send_cmd(_0016, retries=3)  # rf_check
+            self._make_cmd(_0016, retries=3)  # rf_check
 
-    def _send_cmd(self, code, **kwargs) -> None:
-        dest = kwargs.pop("dest_addr", self.id)
-        payload = kwargs.pop("payload", "00")
-        super()._send_cmd(code, dest, payload, **kwargs)
+    def _make_cmd(self, code, payload="00", **kwargs) -> None:
+        super()._make_cmd(code, self.id, payload, **kwargs)
 
     def _set_ctl(self, ctl) -> None:  # self._ctl
         """Set the device's parent controller, after validating it."""
@@ -397,7 +395,7 @@ class Actuator:  # 3EF0, 3EF1
 
         if discover_flag & DISCOVER_STATUS and not self._faked:
             # NOTE: No need to send periodic RQ/3EF1s to an OTB, use RQ/3220/11s
-            self._send_cmd(_3EF1)  # NOTE: No RPs to RQ/3EF0
+            self._make_cmd(_3EF1)  # NOTE: No RPs to RQ/3EF0
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -406,7 +404,7 @@ class Actuator:  # 3EF0, 3EF1
             return
 
         if msg.code == _3EF0 and msg.verb == I_ and not self._faked:
-            self._send_cmd(_3EF1, priority=Priority.LOW, retries=1)
+            self._make_cmd(_3EF1, priority=Priority.LOW, retries=1)
 
     @property
     def actuator_cycle(self) -> Optional[dict]:  # 3EF1
@@ -692,7 +690,9 @@ class RelayDemand(Fakeable):  # 0008 (fakeable)
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_STATUS and not self._faked:
-            self._send_cmd(_0008)  # NOTE: No RPs to RQ/0009
+            self._send_cmd(
+                Command.get_relay_demand(self.id), priority=Priority.LOW, retries=1
+            )
 
     def _handle_msg(self, msg) -> None:
         if msg.src.id == self.id:
@@ -725,7 +725,8 @@ class RelayDemand(Fakeable):  # 0008 (fakeable)
             pass
 
         elif msg.code == _3EF0 and msg.verb == I_:  # NOT RP, TODO: why????
-            self._send_cmd(_0008, priority=Priority.LOW, retries=1)
+            cmd = Command.get_relay_demand(self.id)
+            self._send_cmd(cmd, priority=Priority.LOW, retries=1)
 
         elif msg.code == _3EF1 and msg.verb == RQ:  # NOTE: WIP
             mod_level = 1.0
@@ -921,12 +922,11 @@ class Controller(Device):  # CTL (01):
         if self._evo:
             self._evo._handle_msg(msg)
 
-    #
     # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
     #     super()._discover(discover_flag=discover_flag)
 
     #     if discover_flag & DISCOVER_SCHEMA:
-    #         pass  # self._send_cmd(_0000, retries=3)
+    #         pass  # self._make_cmd(_0000, retries=3)
 
 
 class Programmer(Controller):  # PRG (23):
@@ -966,24 +966,24 @@ class UfhController(Device):  # UFC (02):
 
         if discover_flag & DISCOVER_SCHEMA:
             [  # 0005: shows which channels are active - ?no use? (see above)
-                self._send_cmd(_0005, payload=f"00{zone_type}")
+                self._make_cmd(_0005, payload=f"00{zone_type}")
                 for zone_type in ("09",)  # _0005_ZONE_TYPE, also ("00", "04", "0F")
                 # for zone_type in _0005_ZONE_TYPE
             ]
 
             [  # 000C: used to find evo zone for each configured channel
-                self._send_cmd(_000C, payload=f"{idx:02X}{_000C_DEVICE.UFH}")
+                self._make_cmd(_000C, payload=f"{idx:02X}{_000C_DEVICE.UFH}")
                 for idx in range(8)  # for each possible UFH channel/circuit
             ]
 
         # if discover_flag & DISCOVER_STATUS:
         #     [  # 22C9: no answer
-        #         self._send_cmd(_22C9, payload=f"{payload}")
+        #         self._make_cmd(_22C9, payload=f"{payload}")
         #         for payload in ("00", "0000", "01", "0100")
         #     ]
 
         #     [  # 3150: no answer
-        #         self._send_cmd(_3150, payload=f"{zone_idx:02X}")
+        #         self._make_cmd(_3150, payload=f"{zone_idx:02X}")
         #         for zone_idx in range(8)
         #     ]
 
@@ -1493,7 +1493,7 @@ class BdrSwitch(Actuator, RelayDemand, Device):  # BDR (13):
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_PARAMS and not self._faked:
-            self._send_cmd(_1100)
+            self._send_cmd(Command.get_tpi_params(self.id))  # or: self._ctl.id
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -1504,7 +1504,7 @@ class BdrSwitch(Actuator, RelayDemand, Device):  # BDR (13):
         # elif msg.code == _3B00 and msg.verb == I_:
         #     pass  # only a heater_relay will I/3B00
         #     # for code in (_0008, _3EF1):
-        #     #     self._send_cmd(code, delay=1)
+        #     #     self._make_cmd(code, delay=1)
 
     @property
     def active(self) -> Optional[bool]:  # 3EF0, 3EF1

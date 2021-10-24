@@ -241,7 +241,7 @@ class StoredHw:
         super().__init__(*args, **kwargs)
         self._dhw = None
 
-    def _handle_msg(self, msg, prev_msg=None):
+    def _handle_msg(self, msg, prev_msg=None) -> None:
         super()._handle_msg(msg)
 
         if msg.code not in (_10A0, _1260, _1F41):  # or "dhw_id" not in msg.payload:
@@ -383,7 +383,7 @@ class MultiZone:  # 0005 (+/- 000C?)
 
         if discover_flag & DISCOVER_SCHEMA:
             [  # 0005: find any zones + their type (RAD, UFH, VAL, MIX, ELE)
-                self._send_cmd(_0005, payload=f"00{zone_type}")
+                self._make_cmd(_0005, payload=f"00{zone_type}")
                 for zone_type in (
                     _0005_ZONE.RAD,
                     _0005_ZONE.UFH,
@@ -393,20 +393,37 @@ class MultiZone:  # 0005 (+/- 000C?)
                 )
             ]
 
-            # [  # 0005: find any others - as per an RFG100
-            #     self._send_cmd(_0005, payload=f"00{zone_type}")
-            #     for zone_type in (
-            #         _0005_ZONE.ALL,
-            #         _0005_ZONE.ALL_SENSOR,
-            #         "0C",  # ???
-            #         _0005_ZONE.HTG,
-            #         "10",  # ???
-            #     )
-            # ]
+    def _handle_msg(self, msg, prev_msg=None) -> bool:
+        super()._handle_msg(msg)
 
-        # if discover_flag & DISCOVER_STATUS:
-        #     self._send_cmd(_1F09)  # NOTE: RP/1F09 may cause issues, I/1F09 is better
-        #     self._send_cmd(_0006)  # schedule delta
+        # Route any messages to their zones
+        try:
+            if isinstance(msg.payload, dict):
+                if "zone_idx" in msg.payload:
+                    self._evo.zone_by_idx[msg.payload["zone_idx"]]._handle_msg(msg)
+
+            elif isinstance(msg.payload, list):
+                [
+                    self._evo.zone_by_idx[z["zone_idx"]]._handle_msg(msg)
+                    for z in msg.payload
+                    if "zone_idx" in msg.payload[0]
+                ]
+        except KeyError:  # FIXME: this shouldn't happen
+            pass  # if self._gwy.config.enable_eavesdrop:
+
+        if msg.code == _000A and isinstance(msg.payload, list):
+            pass  # TODO
+            # for zone_idx in self.zone_by_idx:
+            #     cmd = Command.get_zone_mode(self.id, zone_idx, priority=Priority.LOW)
+            #     self._send_cmd(cmd)
+            # for zone in self.zones:
+            #     zone._discover(discover_flag=DISCOVER_PARAMS)
+
+        # elif msg.code == _0005 and prev_msg is not None:
+        #     zone_added = bool(prev_msg.code == _0004)  # else zone_deleted
+
+        if self._gwy.config.enable_eavesdrop and not all(z.sensor for z in self.zones):
+            self._eavesdrop_zone_sensors(msg)
 
     def _eavesdrop_zone_sensors(self, this, prev=None) -> None:
         """Determine each zone's sensor by matching zone/sensor temperatures.
@@ -550,42 +567,10 @@ class MultiZone:  # 0005 (+/- 000C?)
 
         _LOGGER.debug("System state (finally): %s", self.schema)
 
-    def _handle_msg(self, msg, prev_msg=None) -> bool:
-        super()._handle_msg(msg)
-
-        # Route any messages to their zones
-        try:
-            if isinstance(msg.payload, dict):
-                if "zone_idx" in msg.payload:
-                    self._evo.zone_by_idx[msg.payload["zone_idx"]]._handle_msg(msg)
-
-            elif isinstance(msg.payload, list):
-                [
-                    self._evo.zone_by_idx[z["zone_idx"]]._handle_msg(msg)
-                    for z in msg.payload
-                    if "zone_idx" in msg.payload[0]
-                ]
-        except KeyError:  # FIXME: this shouldn't happen
-            pass  # if self._gwy.config.enable_eavesdrop:
-
-        if msg.code == _000A and isinstance(msg.payload, list):
-            pass  # TODO
-            # for zone_idx in self.zone_by_idx:
-            #     cmd = Command.get_zone_mode(self.id, zone_idx, priority=Priority.LOW)
-            #     self._send_cmd(cmd)
-            # for zone in self.zones:
-            #     zone._discover(discover_flag=DISCOVER_PARAMS)
-
-        # elif msg.code == _0005 and prev_msg is not None:
-        #     zone_added = bool(prev_msg.code == _0004)  # else zone_deleted
-
-        if self._gwy.config.enable_eavesdrop and not all(z.sensor for z in self.zones):
-            self._eavesdrop_zone_sensors(msg)
-
     def _get_zone(self, zone_idx, **kwargs) -> Zone:
         """Return a heating zone (will create/update it if required)."""
 
-        # NOTE: kwargs not passed, so discovery is as eavesdropping
+        # NOTE: kwargs not passed, only so discovery is as eavesdropping
         zone = self.zone_by_idx.get(zone_idx) or create_zone(self, zone_idx)
 
         if kwargs.get("zone_type"):
@@ -687,12 +672,12 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         if discover_flag & DISCOVER_SCHEMA:
             [  # 000C: find the HTG (relay) and DHW (sensor), if any (DHW relays in DHW)
-                self._send_cmd(_000C, payload=f"00{dev_type}")
+                self._make_cmd(_000C, payload=f"00{dev_type}")
                 for dev_type in (_000C_DEVICE.HTG, _000C_DEVICE.DHW_SENSOR)
             ]
 
         if discover_flag & DISCOVER_PARAMS:
-            # self._send_cmd(_1100, payload="FC")  # TPI params
+            # self._make_cmd(_1100, payload="FC")  # TPI params
             self._send_cmd(Command.get_tpi_params(self.id), period=td(hours=4))
 
         # # for code in (_3B00,):  # 3EF0, 3EF1
@@ -703,12 +688,39 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         # if discover_flag & DISCOVER_PARAMS:
         #     for domain_id in range(0xF8, 0x100):
-        #         self._send_cmd(_0009, payload=f"{domain_id:02X}00")
+        #         self._make_cmd(_0009, payload=f"{domain_id:02X}00")
 
-        if discover_flag & DISCOVER_STATUS:
-            # for domain_id in range(0xF8, 0x100):
-            #     self._send_cmd(_0008, payload=f"{domain_id:02X}00")
-            pass
+        # if discover_flag & DISCOVER_STATUS:
+        #     for domain_id in range(0xF8, 0x100):
+        #         self._make_cmd(_0008, payload=f"{domain_id:02X}00")
+
+    def _handle_msg(self, msg, prev_msg=None):
+        assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
+        super()._handle_msg(msg)
+
+        if msg.code == _0008 and msg.verb in (I_, RP):
+            if "domain_id" in msg.payload:
+                self._relay_demands[msg.payload["domain_id"]] = msg
+                if msg.payload["domain_id"] == "F9":
+                    device = self.dhw.heating_valve if self.dhw else None
+                elif msg.payload["domain_id"] == "FA":
+                    device = self.dhw.hotwater_valve if self.dhw else None
+                elif msg.payload["domain_id"] == "FC":
+                    device = self.heating_control
+                else:
+                    device = None
+
+                if False and device is not None:  # TODO: FIXME
+                    qos = {"priority": Priority.LOW, "retries": 2}
+                    for code in (_0008, _3EF1):
+                        device._make_cmd(code, qos)
+
+        if msg.code == _3150 and msg.verb in (I_, RP):
+            if "domain_id" in msg.payload and msg.payload["domain_id"] == "FC":
+                self._heat_demand = msg.payload
+
+        if self._gwy.config.enable_eavesdrop and not self.heating_control:
+            self._eavesdrop_htg_control(msg, prev=prev_msg)
 
     def _eavesdrop_htg_control(self, this, prev=None) -> None:
         """Discover the heat relay (10: or 13:) for this system.
@@ -758,38 +770,8 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         if heater is not None:
             self._set_htg_control(heater)
 
-    def _handle_msg(self, msg, prev_msg=None):
-        assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
-        super()._handle_msg(msg)
-
-        if msg.code == _0008 and msg.verb in (I_, RP):
-            if "domain_id" in msg.payload:
-                self._relay_demands[msg.payload["domain_id"]] = msg
-                if msg.payload["domain_id"] == "F9":
-                    device = self.dhw.heating_valve if self.dhw else None
-                elif msg.payload["domain_id"] == "FA":
-                    device = self.dhw.hotwater_valve if self.dhw else None
-                elif msg.payload["domain_id"] == "FC":
-                    device = self.heating_control
-                else:
-                    device = None
-
-                if False and device is not None:  # TODO: FIXME
-                    qos = {"priority": Priority.LOW, "retries": 2}
-                    for code in (_0008, _3EF1):
-                        device._send_cmd(code, qos)
-
-        if msg.code == _3150 and msg.verb in (I_, RP):
-            if "domain_id" in msg.payload and msg.payload["domain_id"] == "FC":
-                self._heat_demand = msg.payload
-
-        if self._gwy.config.enable_eavesdrop and not self.heating_control:
-            self._eavesdrop_htg_control(msg, prev=prev_msg)
-
-    def _send_cmd(self, code, **kwargs) -> None:
-        dest = kwargs.pop("dest_addr", self._ctl.id)
-        payload = kwargs.pop("payload", "00")
-        super()._send_cmd(code, dest, payload, **kwargs)
+    def _make_cmd(self, code, payload="00", **kwargs) -> None:
+        super()._make_cmd(code, self._ctl.id, payload, **kwargs)
 
     @property
     def devices(self) -> List[Device]:
@@ -983,7 +965,7 @@ class Evohome(SysLanguage, SysMode, MultiZone, UfhSystem, System):  # evohome
     #     super()._discover(discover_flag=discover_flag)
 
     #     if discover_flag & DISCOVER_STATUS:
-    #         self._send_cmd(_1F09)
+    #         self._make_cmd(_1F09)
 
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
@@ -1033,6 +1015,7 @@ class Hometronics(System):
     def __repr__(self) -> str:
         return f"{self._ctl.id} (hometronics)"
 
+    #
     # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
     #     # super()._discover(discover_flag=discover_flag)
 
@@ -1040,7 +1023,7 @@ class Hometronics(System):
     #     # will RP to: 0004
 
     #     if discover_flag & DISCOVER_STATUS:
-    #         self._send_cmd(_1F09)
+    #         self._make_cmd(_1F09)
 
 
 class Programmer(Evohome):

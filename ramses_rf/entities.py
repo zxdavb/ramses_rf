@@ -75,7 +75,10 @@ class Entity:
     #     """Return a flattened version of ..."""
     #     return {msg.dtm: msg._pkt for msg in self._msgs_db}
 
-    def _send_cmd(self, code, dest_id, payload, verb=RQ, **kwargs) -> None:
+    def _make_cmd(self, code, dest_id, payload, verb=RQ, **kwargs) -> None:
+        self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
+
+    def _send_cmd(self, cmd, **kwargs) -> None:
         if any(
             (
                 self._gwy.config.disable_sending,
@@ -85,10 +88,7 @@ class Entity:
         ):
             return
 
-        cmd = self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs)
-        # _LOGGER.warning(f"using old API for: {cmd}")
-
-        self._msgs.pop(code, None)  # TODO: remove old one, so we can tell if RP'd rcvd
+        self._msgs.pop(cmd.code, None)  # TODO: remove, so we can tell if RP'd rcvd
         self._gwy.send_cmd(cmd)
 
     def _msg_value(
