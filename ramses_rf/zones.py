@@ -13,7 +13,16 @@ from types import SimpleNamespace
 from typing import Optional
 
 from .const import DISCOVER_ALL, DISCOVER_PARAMS, DISCOVER_SCHEMA, DISCOVER_STATUS
-from .devices import BdrSwitch, Device, DhwSensor
+from .devices import (
+    BdrSwitch,
+    Controller,
+    Device,
+    DhwSensor,
+    HeatDemand,
+    Temperature,
+    TrvActuator,
+    UfhController,
+)
 from .entities import Entity
 from .protocol import Command, Schedule
 from .protocol.const import (
@@ -31,8 +40,6 @@ from .protocol.const import (
     ATTR_WINDOW_OPEN,
     ATTR_ZONE_SENSOR,
     ATTR_ZONE_TYPE,
-    DEVICE_HAS_ZONE_SENSOR,
-    ZONE_CLASS_MAP,
     ZONE_MODE,
     ZONE_TYPE_MAP,
     ZONE_TYPE_SLUGS,
@@ -503,26 +510,27 @@ class Zone(ZoneSchedule, ZoneBase):
 
         super()._handle_msg(msg)
 
-        # not UFH (it seems), but ELE or VAL; and possibly a MIX support 0008 too
-        if msg.code in (_0008, _0009):  # TODO: how to determine is/isn't MIX?
-            assert msg.src.type in ("01", "13"), msg.src.type  # 01 as a stat  # DEX
+        if msg._gwy.config.enable_eavesdrop and self._zone_type in (None, "ELE"):
+            self._eavesdrop_dhw_sensor(msg)
+
+    def _eavesdrop_zone_type(self, msg, prev=None) -> None:
+        # ELE/VAL, but not UFH (it seems)
+        if msg.code in (_0008, _0009):
             assert self._zone_type in (None, "ELE", "VAL", "MIX"), self._zone_type
 
             if self._zone_type is None:
                 self._set_zone_type("ELE")  # might eventually be: "VAL"
 
-        elif msg.code == _30C9 and msg.verb in (I_, RP):  # used by sensor matching
-            assert msg.src.type in DEVICE_HAS_ZONE_SENSOR + (
-                "01",
-            ), "coding error"  # DEX
-
         elif msg.code == _3150:  # TODO: and msg.verb in (I_, RP)?
-            assert msg.src.type in ("00", "02", "04", "13")  # DEX
-            assert self._zone_type in (None, "RAD", "UFH", "VAL")  # MIX/ELE don't 3150
+            # MIX/ELE don't 3150
+            assert self._zone_type in (None, "RAD", "UFH", "VAL"), self._zone_type
 
-            if msg.src.type in ("00", "02", "04", "13"):  # DEX
-                zone_type = ZONE_CLASS_MAP[msg.src.type]  # DEX
-                self._set_zone_type("VAL" if zone_type == "ELE" else zone_type)
+            if isinstance(msg.src, TrvActuator):
+                self._set_zone_type("RAD")
+            elif isinstance(msg.src, BdrSwitch):
+                self._set_zone_type("VAL")
+            elif isinstance(msg.src, UfhController):
+                self._set_zone_type("UFH")
 
     def _msg_value(self, *args, **kwargs):
         return super()._msg_value(*args, **kwargs, zone_idx=self.idx)
@@ -541,8 +549,7 @@ class Zone(ZoneSchedule, ZoneBase):
                 f"{self} changed {ATTR_ZONE_SENSOR}: {self._sensor} to {device}"
             )
 
-        sensor_types = ("00", "01", "03", "04", "12", "22", "34")  # DEX
-        if not isinstance(device, Device) or device.type not in sensor_types:  # DEX
+        if not isinstance(device, (Controller, Temperature)):
             # TODO: or not hasattr(device, "temperature")
             raise TypeError(f"{self}: {ATTR_ZONE_SENSOR} can't be: {device}")
 
@@ -564,8 +571,8 @@ class Zone(ZoneSchedule, ZoneBase):
 
         # TODO: actuators
         dev_types = [
-            d.type for d in self.devices if d.type in ("00", "02", "04", "13")
-        ]  # DEX
+            d.type for d in self.devices if isinstance(d, HeatDemand)
+        ]  # not 10:
 
         if "02" in dev_types:
             zone_type = "UFH"
