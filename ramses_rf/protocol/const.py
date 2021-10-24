@@ -286,7 +286,7 @@ ATTR_HTG_CONTROL = "heating_control"  # aka boiler relay, heating appliance
 DOMAIN_TYPE_MAP = {
     "F8": None,
     "F9": ATTR_DHW_VALVE_HTG,  # DHW Heating Valve
-    "FA": ATTR_DHW_VALVE,  # DHW HW Valve (or UFH loop if src.type == "02"?)  # dex
+    "FA": ATTR_DHW_VALVE,  # DHW HW Valve (or UFH loop if src.type == "02"?)
     "FB": None,
     "FC": ATTR_HTG_CONTROL,  # "heat_relay": BDR (Boiler, District heating), or OTB
     "FD": "unknown",  # seen with hometronics
