@@ -646,7 +646,7 @@ def parser_1060(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # max_ch_setpoint (supply high limit)
 def parser_1081(payload, msg) -> Optional[dict]:
-    return {"temperature": temp_from_hex(payload[2:])}
+    return {"setpoint": temp_from_hex(payload[2:])}
 
 
 @parser_decorator  # unknown (non-Evohome, e.g. ST9520C)
@@ -786,7 +786,10 @@ def parser_10e0(payload, msg) -> Optional[dict]:
                 ), payload[2:20]
 
         except AssertionError:
-            _LOGGER.warning(f"{msg._pkt} < Support development by reporting this pkt")
+            _LOGGER.warning(
+                f"{msg._pkt} < Support development by reporting this pkt, "
+                "include a description of the make/model of this device"
+            )
 
     date_2 = date_from_hex(payload[20:28])  # could be 'FFFFFFFF'
     date_1 = date_from_hex(payload[28:36])  # could be 'FFFFFFFF'
@@ -954,11 +957,18 @@ def parser_12b0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # displayed temperature (on a TR87RF bound to a RFG100)
 def parser_12c0(payload, msg) -> Optional[dict]:
-    assert payload[:2] == "00", f"expecting 00, not {payload[:2]}"
-    assert payload[4:] == "01", f"expecting 01, not {payload[4:]}"
 
-    temp = None if payload[2:4] == "80" else int(payload[2:4], 16) / 2
-    return {"temperature": temp}
+    if payload[2:4] == "80":
+        temp = None
+    elif payload[4:] == "00":  # units are 1.0 F
+        temp = int(payload[2:4], 16)
+    else:  # if payload[4:] == "01":  # units are 0.5 C
+        temp = int(payload[2:4], 16) / 2
+
+    return {
+        "temperature": temp,
+        "units": {"00": "Fahrenheit", "01": "Celsius"}[payload[4:]],
+    }
 
 
 @parser_decorator  # hvac_12C8
@@ -1157,7 +1167,7 @@ def parser_22d0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # desired boiler setpoint
 def parser_22d9(payload, msg) -> Optional[dict]:
-    return {"boiler_setpoint": temp_from_hex(payload[2:6])}
+    return {"setpoint": temp_from_hex(payload[2:6])}
 
 
 @parser_decorator  # switch_mode
@@ -1602,7 +1612,7 @@ def parser_31e0(payload, msg) -> dict:
     }
 
 
-@parser_decorator  # supplied boiler water temp
+@parser_decorator  # supplied boiler water (flow) temp
 def parser_3200(payload, msg) -> Optional[dict]:
     return {"temperature": temp_from_hex(payload[2:])}
 

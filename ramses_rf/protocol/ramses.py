@@ -303,13 +303,13 @@ RAMSES_CODES = {  # rf_unknown
     },
     _12C0: {  # displayed_temp (HVAC room temp)
         NAME: "displayed_temp",  # displayed room temp
-        I_: r"^00[0-9A-F]{2}01$",
+        I_: r"^00[0-9A-F]{2}0[01]$",
     },
     _12C8: {  # hvac_12C8 - %?
         NAME: "hvac_12C8",
         I_: r"^0000[0-9A-F]{2}$",
     },
-    _1300: {  # ch_pressure
+    _1300: {  # cv water pressure (usu. for ch)
         NAME: "ch_pressure",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
@@ -445,13 +445,13 @@ RAMSES_CODES = {  # rf_unknown
         NAME: "ext_ventilation",
         I_: r"^0000(00|C8)(00|FF)$",
     },
-    _3200: {  # boiler_temp
-        NAME: "temperature",
+    _3200: {  # boiler output temp
+        NAME: "boiler_output",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
-    _3210: {  # return_temp
-        NAME: "temperature",
+    _3210: {  # boiler return temp
+        NAME: "boiler_return",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },

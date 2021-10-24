@@ -39,9 +39,11 @@ from .protocol import (  # noqa: F401, isort: skip
     _0B04,
     _1030,
     _1060,
+    _1081,
     _1090,
     _10A0,
     _10E0,
+    _10E1,
     _1100,
     _1260,
     _1280,
@@ -51,6 +53,7 @@ from .protocol import (  # noqa: F401, isort: skip
     _12B0,
     _12C0,
     _12C8,
+    _1300,
     _1F09,
     _1F41,
     _1FC9,
@@ -72,6 +75,8 @@ from .protocol import (  # noqa: F401, isort: skip
     _31D9,
     _31DA,
     _31E0,
+    _3200,
+    _3210,
     _3220,
     _3B00,
     _3EF0,
@@ -126,7 +131,7 @@ def spawn_scripts(gwy, **kwargs) -> List[asyncio.Task]:
             _LOGGER.info(f"Script: {kwargs[EXEC_SCR][0]}().- starts...")
             tasks += [gwy._loop.create_task(script(gwy, kwargs[EXEC_SCR][1]))]
 
-        qos = {"priority": Priority.LOW, "retries": 3}
+        qos = {"priority": Priority.LOWEST, "retries": 3}
         gwy.send_cmd(Command._puzzle("00", message="Script: ended.", **qos))
 
     gwy._tasks.extend(tasks)
@@ -353,14 +358,6 @@ async def script_scan_002(gwy, dev_id: str):
     ]
 
 
-async def script_scan_003(gwy, dev_id: str):
-    _LOGGER.warning("scan_003() invoked - expect a lot of nonsense")
-
-    qos = {"priority": Priority.LOW, "retries": 0}
-    for msg_id in range(0x100):
-        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **qos))
-
-
 async def script_scan_004(gwy, dev_id: str):
     _LOGGER.warning("scan_004() invoked - expect a lot of nonsense")
 
@@ -371,8 +368,8 @@ async def script_scan_004(gwy, dev_id: str):
     return gwy._loop.create_task(periodic(gwy, cmd, count=0, interval=5))
 
 
-async def script_scan_005(gwy, dev_id: str):
-    _LOGGER.warning("scan_005(otb, full) invoked - expect a lot of nonsense")
+async def script_scan_otb_full(gwy, dev_id: str):
+    _LOGGER.warning("script_scan_otb_full invoked - expect a lot of nonsense")
 
     qos = {"priority": Priority.LOW, "retries": 1}
 
@@ -380,13 +377,71 @@ async def script_scan_005(gwy, dev_id: str):
         gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **qos))
 
 
-async def script_scan_006(gwy, dev_id: str):
-    _LOGGER.warning("scan_006(otb, hard) invoked - expect a lot of nonsense")
+async def script_scan_otb_hard(gwy, dev_id: str):
+    _LOGGER.warning("script_scan_otb_hard invoked - expect a lot of nonsense")
 
     qos = {"priority": Priority.LOW, "retries": 0}
 
     for msg_id in range(0x80):
         gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **qos))
+
+
+async def script_scan_otb_map(gwy, dev_id: str):
+    # Tested upon a R8820A
+    _LOGGER.warning("script_scan_otb_map invoked - expect a lot of nonsense")
+
+    qos = {"priority": Priority.LOW, "retries": 0}
+
+    RAMSES_TO_OPENTHERM = {
+        _1300: "12",  # ch pressure            / CHWaterPressure
+        _1081: "39",  # max ch setpoint        / MaxCHWaterSetpoint
+        _10A0: "38",  # dhw params["setpoint"] / DHWSetpoint
+        _22D9: "01",  # boiler setpoint        / ControlSetpoint
+        _1260: "1A",  # dhw temp               / DHWTemperature
+        _1290: "1B",  # outdoor temp           / OutsideTemperature
+        _3200: "19",  # boiler output temp     / BoilerWaterTemperature
+        _3210: "1C",  # boiler return temp     / ReturnWaterTemperature
+    }
+
+    for code, msg_id in RAMSES_TO_OPENTHERM.items():
+        gwy.send_cmd(Command(RQ, code, "00", dev_id, **qos))
+        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **qos))
+
+
+async def script_scan_otb_ramses(gwy, dev_id: str):
+    # Tested upon a R8820A
+    _LOGGER.warning("script_scan_otb_ramses invoked - expect a lot of nonsense")
+
+    CODES = (
+        _042F,
+        _10E0,
+        _10E1,  # device_id
+        "1FD0",
+        "1FD6",
+        "2400",
+        "2401",
+        "2410",
+        "2420",
+        _1300,  # cv water pressure      / CHWaterPressure
+        _1081,  # max ch setpoint        / MaxCHWaterSetpoint
+        _10A0,  # dhw params["setpoint"] / DHWSetpoint
+        _22D9,  # boiler setpoint        / ControlSetpoint
+        _1260,  # dhw temp               / DHWTemperature
+        _1290,  # outdoor temp           / OutsideTemperature
+        _3200,  # boiler output temp     / BoilerWaterTemperature
+        _3210,  # boiler return temp     / ReturnWaterTemperature
+        "0150",
+        "12F0",
+        "1098",
+        "10B0",
+        "3221",
+        "3223",
+        _3EF0,
+        _3EF1,
+    )  # excl. 3220
+
+    qos = {"priority": Priority.LOW, "retries": 0}
+    [gwy.send_cmd(Command(RQ, c, "00", dev_id, **qos)) for c in CODES]
 
 
 SCRIPTS = {
