@@ -722,50 +722,71 @@ def parser_10e0(payload, msg) -> Optional[dict]:
     assert msg.len >= 19, msg.len  # in (19, 28, 30, 36, 38), msg.len
 
     DEV_MODE = False
-    if not DEV_MODE:
-        pass
-    elif msg.src.type == "01":  # DEX
-        assert payload[2:20] in (
-            "0002FF0119FFFFFFFF",
-            "0002FF0163FFFFFFFF",
-        ), payload[2:20]
-    elif msg.src.type == "02":  # DEX
-        assert payload[2:20] in ("0003FF0203FFFF0001",), payload[2:20]
-    elif msg.src.type == "04":  # DEX
-        assert payload[2:20] in (
-            "0002FF0412FFFFFFFF",
-            "0002FF050BFFFFFFFF",
-        ), payload[2:20]
-    elif msg.src.type == "08":  # DEX
-        assert payload[2:20] in ("0002FF0802FFFFFFFE",), payload[2:20]
-    elif msg.src.type == "10":  # DEX
-        assert payload[2:20] in (
-            "0001C8810B0700FEFF",
-            "0002FF0A0CFFFFFFFF",
-        ), payload[2:20]
-    elif msg.src.type == "20":  # DEX
-        assert payload[2:20] in (
-            "000100140C06010000",
-            "0001001B190B010000",
-            "0001001B221201FEFF",
-            "0001001B271501FEFF",
-            "0001001B281501FEFF",
-        ), payload[2:20]
-    elif msg.src.type == "30":  # DEX
-        assert payload[2:20] in (
-            "0001C90011006CFEFF",
-            "0002FF1E01FFFFFFFF",
-            "0002FF1E03FFFFFFFF",
-        ), payload[2:20]
-    elif msg.src.type == "31":  # DEX
-        assert payload[2:20] in ("0002FF1F02FFFFFFFF",), payload[2:20]
-    elif msg.src.type == "32":  # DEX
-        assert payload[2:20] in ("0001C85802016CFFFF",), payload[2:20]
-    elif msg.src.type == "34":  # DEX
-        assert payload[2:20] in (
-            "0001C8380A0100F1FF",
-            "0001C8380F0100F1FF",
-        ), payload[2:20]
+    if DEV_MODE:
+        try:
+            if msg.src.type == "01":  # DEX
+                assert payload[2:20] in (
+                    "0002FF0119FFFFFFFF",  # EvoTouch Colour
+                    "0002FF0163FFFFFFFF",  # Evo Color
+                ), payload[2:20]
+            elif msg.src.type == "02":  # DEX
+                assert payload[2:20] in (
+                    "0003FF0203FFFF0001",  # HCE80 V3.10 061117
+                ), payload[2:20]
+            elif msg.src.type == "04":  # DEX
+                assert payload[2:20] in (
+                    "0002FF0412FFFFFFFF",  # HR92 Radiator Ctrl.
+                    "0002FF050BFFFFFFFF",  # HR91 Radiator Ctrl.
+                ), payload[2:20]
+            elif msg.src.type == "08":  # DEX
+                assert payload[2:20] in (
+                    "0002FF0802FFFFFFFE",  # Jasper EIM (non-evohome)
+                ), payload[2:20]
+            elif msg.src.type == "10":  # DEX
+                assert payload[2:20] in (
+                    "0001C8810B0700FEFF",  # R8820A
+                    "0002FF0A0CFFFFFFFF",  # R8810A
+                ), payload[2:20]
+            elif msg.src.type == "20":  # DEX
+                assert payload[2:20] in (
+                    "000100140C06010000",  # n/a
+                    "0001001B190B010000",  # n/a
+                    "0001001B221201FEFF",  # CVE-RF
+                    "0001001B271501FEFF",  # CVE-RF
+                    "0001001B281501FEFF",  # CVE-RF
+                ), payload[2:20]
+            elif msg.src.type == "30":  # DEX
+                assert payload[2:20] in (
+                    "0001C90011006CFEFF",  # BRDG-02JAS01
+                    "0002FF1E01FFFFFFFF",  # Internet Gateway
+                    "0002FF1E03FFFFFFFF",  # Internet Gateway
+                ), payload[2:20]
+            elif msg.src.type == "31":  # DEX
+                assert payload[2:20] in (
+                    "0002FF1F02FFFFFFFF",  # Jasper Stat TXXX
+                ), payload[2:20]
+            elif msg.src.type == "32":  # DEX
+                assert payload[2:20] in (
+                    "0001C85701016CFFFF",  # VMS-23C33
+                    "0001C85802016CFFFF",  # VMS-23HB33
+                    "0001C85803016CFFFF",  # VMS-23HB33
+                ), payload[2:20]
+            elif msg.src.type == "34":  # DEX
+                assert payload[2:20] in (
+                    "0001C8380A0100F1FF",  # T87RF2025
+                    "0001C8380F0100F1FF",  # T87RF2025
+                ), payload[2:20]
+            elif msg.src.type == "37":  # DEX
+                assert payload[2:20] in (
+                    "0001001B2E1901FEFF",  # CVE-RF
+                    "0001001B311901FEFF",  # CVE-RF
+                    "0001001B361B01FEFF",  # CVE-RF
+                    "0001001B381B01FEFF",  # CVE-RF
+                    "00010028080101FEFF",  # VMS-12C39
+                ), payload[2:20]
+
+        except AssertionError:
+            _LOGGER.warning(f"{msg._pkt} < Support development by reporting this pkt")
 
     date_2 = date_from_hex(payload[20:28])  # could be 'FFFFFFFF'
     date_1 = date_from_hex(payload[28:36])  # could be 'FFFFFFFF'
