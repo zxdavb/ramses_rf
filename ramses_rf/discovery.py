@@ -10,7 +10,7 @@ import asyncio
 import json
 import logging
 import re
-from typing import Any, List
+from typing import Any, List, Optional
 
 from .protocol import RAMSES_CODES, Command, Priority
 from .protocol.const import DEV_REGEX_ANY, HGI_DEVICE_ID, NON_DEVICE_ID
@@ -104,6 +104,22 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
+def script_decorator(func):
+    def wrapper(gwy, *args, **kwargs) -> Optional[Any]:
+
+        qos = {"priority": Priority.HIGH, "retries": 3}
+        gwy.send_cmd(Command._puzzle("00", message="Script: begins...", **qos))
+
+        result = func(gwy, *args, **kwargs)
+
+        qos = {"priority": Priority.LOWEST, "retries": 3}
+        gwy.send_cmd(Command._puzzle("00", message="Script: ended.", **qos))
+
+        return result
+
+    return wrapper
+
+
 def spawn_scripts(gwy, **kwargs) -> List[asyncio.Task]:
 
     tasks = []
@@ -121,18 +137,12 @@ def spawn_scripts(gwy, **kwargs) -> List[asyncio.Task]:
         tasks += [gwy._loop.create_task(set_schedule(gwy, *kwargs[SET_SCHED]))]
 
     elif kwargs[EXEC_SCR]:
-        # qos = {"priority": Priority.HIGH, "retries": 3}
-        # gwy.send_cmd(Command._puzzle("00", message="Script: starts...", **qos))
-
         script = SCRIPTS.get(f"{kwargs[EXEC_SCR][0]}")
         if script is None:
             _LOGGER.warning(f"Script: {kwargs[EXEC_SCR][0]}() - unknown script")
         else:
             _LOGGER.info(f"Script: {kwargs[EXEC_SCR][0]}().- starts...")
             tasks += [gwy._loop.create_task(script(gwy, kwargs[EXEC_SCR][1]))]
-
-        qos = {"priority": Priority.LOWEST, "retries": 3}
-        gwy.send_cmd(Command._puzzle("00", message="Script: ended.", **qos))
 
     gwy._tasks.extend(tasks)
     return tasks
@@ -244,20 +254,16 @@ def script_poll_device(gwy, dev_id) -> List[Any]:
     return tasks
 
 
+@script_decorator
 async def script_scan_disc(gwy, dev_id: str):
     _LOGGER.warning("scan_quick() invoked...")
-
-    qos = {"priority": Priority.HIGH, "retries": 3}
-    gwy.send_cmd(Command._puzzle("00", message="disc scan: begins...", **qos))
 
     gwy._get_device(dev_id)._discover()  # discover_flag=DISCOVER_ALL)
 
 
+@script_decorator
 async def script_scan_full(gwy, dev_id: str):
     _LOGGER.warning("scan_full() invoked - expect a lot of Warnings")
-
-    qos = {"priority": Priority.HIGH, "retries": 3}
-    gwy.send_cmd(Command._puzzle("00", message="full scan: begins...", **qos))
 
     qos = {"priority": Priority.DEFAULT, "retries": 5}
     gwy.send_cmd(Command(RQ, _0016, "0000", dev_id, **qos))
@@ -317,11 +323,9 @@ async def script_scan_full(gwy, dev_id: str):
         gwy.send_cmd(Command(RQ, code, "0000", dev_id, **qos))
 
 
+@script_decorator
 async def script_scan_hard(gwy, dev_id: str):
     _LOGGER.warning("scan_hard() invoked - expect some Warnings")
-
-    qos = {"priority": Priority.HIGH, "retries": 3}
-    gwy.send_cmd(Command._puzzle("00", message="hard scan: begins...", **qos))
 
     qos = {"priority": Priority.LOW, "retries": 0}
     for code in range(0x4000):
@@ -329,6 +333,7 @@ async def script_scan_hard(gwy, dev_id: str):
         await asyncio.sleep(1)
 
 
+@script_decorator
 async def script_scan_001(gwy, dev_id: str):
     _LOGGER.warning("scan_001() invoked - expect a lot of nonsense")
 
@@ -338,11 +343,13 @@ async def script_scan_001(gwy, dev_id: str):
         gwy.send_cmd(Command(RQ, _000E, f"{idx:02X}00C8", dev_id, **qos))
 
 
+@script_decorator
 async def script_scan_002(gwy, dev_id: str):
     _LOGGER.warning("scan_002() invoked - expect a lot of nonsense")
 
     # Two modes, I and W & Two headers zz00 and zz
     message = "0000" + "".join(f"{ord(x):02X}" for x in "Hello there.") + "00"
+
     qos = {"priority": Priority.LOW, "retries": 0}
     [
         gwy.send_cmd(Command(W_, f"{c:04X}", message, dev_id, **qos))
@@ -355,59 +362,58 @@ async def script_scan_004(gwy, dev_id: str):
     _LOGGER.warning("scan_004() invoked - expect a lot of nonsense")
 
     qos = {"priority": Priority.LOW, "retries": 0}
-
     cmd = Command.get_dhw_mode(dev_id, **qos)
 
     return gwy._loop.create_task(periodic(gwy, cmd, count=0, interval=5))
 
 
-async def script_scan_otb_full(gwy, dev_id: str):
+@script_decorator
+async def script_scan_otb(gwy, dev_id: str):
     _LOGGER.warning("script_scan_otb_full invoked - expect a lot of nonsense")
 
     qos = {"priority": Priority.LOW, "retries": 1}
-
     for msg_id in OTB_MSG_IDS:
         gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **qos))
 
 
+@script_decorator
 async def script_scan_otb_hard(gwy, dev_id: str):
     _LOGGER.warning("script_scan_otb_hard invoked - expect a lot of nonsense")
 
     qos = {"priority": Priority.LOW, "retries": 0}
-
     for msg_id in range(0x80):
         gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **qos))
 
 
-async def script_scan_otb_map(gwy, dev_id: str):
-    # Tested upon a R8820A
+@script_decorator
+async def script_scan_otb_map(gwy, dev_id: str):  # Tested only upon a R8820A
     _LOGGER.warning("script_scan_otb_map invoked - expect a lot of nonsense")
 
-    qos = {"priority": Priority.LOW, "retries": 0}
-
     RAMSES_TO_OPENTHERM = {
-        _1300: "12",  # ch pressure            / CHWaterPressure
-        _1081: "39",  # max ch setpoint        / MaxCHWaterSetpoint
-        _10A0: "38",  # dhw params["setpoint"] / DHWSetpoint
         _22D9: "01",  # boiler setpoint        / ControlSetpoint
+        _3EF1: "11",  # rel. modulation level  / RelativeModulationLevel
+        _1300: "12",  # cv water pressure      / CHWaterPressure
+        _3200: "19",  # boiler output temp     / BoilerWaterTemperature
         _1260: "1A",  # dhw temp               / DHWTemperature
         _1290: "1B",  # outdoor temp           / OutsideTemperature
-        _3200: "19",  # boiler output temp     / BoilerWaterTemperature
         _3210: "1C",  # boiler return temp     / ReturnWaterTemperature
+        _10A0: "38",  # dhw params["setpoint"] / DHWSetpoint
+        _1081: "39",  # max ch setpoint        / MaxCHWaterSetpoint
     }
 
+    qos = {"priority": Priority.LOW, "retries": 0}
     for code, msg_id in RAMSES_TO_OPENTHERM.items():
         gwy.send_cmd(Command(RQ, code, "00", dev_id, **qos))
         gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **qos))
 
 
-async def script_scan_otb_ramses(gwy, dev_id: str):
-    # Tested upon a R8820A
+@script_decorator
+async def script_scan_otb_ramses(gwy, dev_id: str):  # Tested only upon a R8820A
     _LOGGER.warning("script_scan_otb_ramses invoked - expect a lot of nonsense")
 
     CODES = (
         _042F,
-        _10E0,
+        _10E0,  # device_info
         _10E1,  # device_id
         "1FD0",
         "1FD6",
@@ -424,14 +430,19 @@ async def script_scan_otb_ramses(gwy, dev_id: str):
         _3200,  # boiler output temp     / BoilerWaterTemperature
         _3210,  # boiler return temp     / ReturnWaterTemperature
         "0150",
-        "12F0",
+        "12F0",  # FHW flow rate?
         "1098",
         "10B0",
         "3221",
         "3223",
-        _3EF0,
-        _3EF1,
+        _3EF0,  # rel. modulation level  / RelativeModulationLevel (also, below)
+        _3EF1,  # rel. modulation level  / RelativeModulationLevel
     )  # excl. 3220
+
+    # 3EF0 also includes:
+    #  - boiler status        /
+    #  - ch setpoint          /
+    #  - max. rel. modulation /
 
     qos = {"priority": Priority.LOW, "retries": 0}
     [gwy.send_cmd(Command(RQ, c, "00", dev_id, **qos)) for c in CODES]
