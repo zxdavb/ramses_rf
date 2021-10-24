@@ -288,7 +288,7 @@ class DeviceInfo:  # 10E0
         if discover_flag & DISCOVER_SCHEMA:
             try:
                 if RP in RAMSES_DEVICES[self.type][_10E0]:  # DEX (convert to e.g. BDR)
-                    self._send_cmd(_10E0, retries=3)
+                    self._make_cmd(_10E0, retries=3)
             except KeyError:
                 pass
 
