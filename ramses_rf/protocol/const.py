@@ -138,174 +138,101 @@ DEVICE_ID_REGEX = SimpleNamespace(
     SEN=DEV_REGEX_SEN,
 )
 
-# Packet codes (this dict is being deprecated) - check against ramses.py
-CODE_SCHEMA = {
-    _0001: {"uses_zone_idx": True},
-    _01D0: {"uses_zone_idx": True},
-    _01E9: {"uses_zone_idx": True},
-    _0404: {"uses_zone_idx": True},
-    _3EF1: {"uses_zone_idx": True},
-    _0004: {"uses_zone_idx": True},
-    _0008: {"uses_zone_idx": True},
-    _0009: {"uses_zone_idx": True},
-    _000A: {"uses_zone_idx": True},
-    _1030: {"uses_zone_idx": True},
-    _1060: {"uses_zone_idx": True},
-    _12B0: {"uses_zone_idx": True},
-    _1FC9: {"uses_zone_idx": True},
-    _2249: {"uses_zone_idx": True},
-    _2309: {"uses_zone_idx": True},
-    _2349: {"uses_zone_idx": True},
-    _30C9: {"uses_zone_idx": True},
-    _3150: {"uses_zone_idx": True},
-}
+# # Packet codes (this dict is being deprecated) - check against ramses.py
+# CODE_SCHEMA = {
+#     _0001: {"uses_zone_idx": True},
+#     _01D0: {"uses_zone_idx": True},
+#     _01E9: {"uses_zone_idx": True},
+#     _0404: {"uses_zone_idx": True},
+#     _3EF1: {"uses_zone_idx": True},
+#     _0004: {"uses_zone_idx": True},
+#     _0008: {"uses_zone_idx": True},
+#     _0009: {"uses_zone_idx": True},
+#     _000A: {"uses_zone_idx": True},
+#     _1030: {"uses_zone_idx": True},
+#     _1060: {"uses_zone_idx": True},
+#     _12B0: {"uses_zone_idx": True},
+#     _1FC9: {"uses_zone_idx": True},
+#     _2249: {"uses_zone_idx": True},
+#     _2309: {"uses_zone_idx": True},
+#     _2349: {"uses_zone_idx": True},
+#     _30C9: {"uses_zone_idx": True},
+#     _3150: {"uses_zone_idx": True},
+# }
 
-_MAY_USE_ZONE_IDX = [k for k, v in CODE_SCHEMA.items() if v.get("uses_zone_idx")]
+# _MAY_USE_ZONE_IDX = [k for k, v in CODE_SCHEMA.items() if v.get("uses_zone_idx")]
 
 DEVICE_TABLE = {
     # Honeywell evohome
     "01": {
         "type": "CTL",
         "name": "Controller",
-        "has_battery": False,
-        "has_zone_sensor": False,  # a special case
-        "is_actuator": False,
-        "is_controller": True,
-        "is_sensor": True,
         "archetype": "ATC928",
-        "poll_codes": [_000C, _10E0, _1100, _313F],
-        "discover_schema": [],
     },  # rechargeable
     "02": {
         "type": "UFC",
         "name": "UFH Controller",
-        "has_battery": False,
-        "is_actuator": None,
-        "is_controller": None,
-        "is_sensor": None,
         "archetype": "HCE80(R)",
-        "discover_schema": [],
     },
     "03": {
         "type": "STa",
         "name": "Room Sensor/Stat",
-        "has_battery": True,
-        "has_zone_sensor": True,
-        "is_actuator": False,
-        "is_sensor": True,
         "archetype": "HCW82",  # also: HCF82
-        "discover_schema": [],
     },
     "04": {
         "type": "TRV",
         "name": "Radiator Valve",
-        "has_battery": True,
-        "has_zone_sensor": True,
-        "is_actuator": True,
-        "is_sensor": True,
         "archetype": "HR92",  # also: HR80
-        "discover_schema": [],
     },  #
     "07": {
         "type": "DHW",
         "name": "DHW Sensor",
-        "has_battery": True,
-        "is_actuator": False,
-        "is_sensor": True,
         "archetype": "CS92A",
-        "discover_schema": [],
     },
     "10": {
         "type": "OTB",
         "name": "OpenTherm Bridge",
-        "has_battery": False,
-        "is_actuator": None,
-        "is_sensor": False,
         "archetype": "R8810",
-        "poll_codes": [
-            _0008,
-            _10A0,
-            _1100,
-            _1260,
-            _1290,
-            _22D9,
-            _3150,
-            _3220,
-            _3EF0,
-            _3EF1,
-        ],
-        "discover_schema": [],
     },  #
     "13": {
         "type": "BDR",
         "name": "Wireless Relay",
-        "has_battery": False,
-        "is_actuator": None,
-        "is_sensor": False,
         "archetype": "BDR91",  # also: HC60NG?
-        "poll_codes": [_0008, _1100, _3EF1],
-        "discover_schema": [],  # excl.: 10E0
     },
     "22": {
         "type": "THM",
         "name": "Room Thermostat",
-        "has_battery": True,
-        "has_zone_sensor": True,
-        "is_actuator": False,
-        "is_sensor": True,
         "archetype": "DTS92(E)",
-        "discover_schema": [],
     },
     "30": {
         "type": "RFG",
         "name": "Internet Gateway",
-        "has_battery": False,
-        "is_actuator": False,
-        "is_sensor": False,
         "archetype": "-unclear-",  # RFG100, VMS?
-        "discover_schema": [],
     },
     "34": {
         "type": "STA",
         "name": "Round Thermostat",
-        "has_battery": True,
-        "has_zone_sensor": True,
-        "is_actuator": False,
-        "is_sensor": True,
         "archetype": "T87RF",
-        "discover_schema": [],
     },
     # Honeywell evohome TBD
     "x1": {
         "type": "HM8",
         "name": "Mixing Valve",
-        "has_battery": False,
-        "is_actuator": None,
-        "is_sensor": None,
         "archetype": "HM80",
     },  # TODO: ???
     # Honeywell, non-evohome
     "17": {
-        "type": " 17",
+        "type": "EXT",
         "name": "Outdoor Sensor?",
-        "has_battery": None,
-        "is_actuator": False,
-        "is_sensor": False,
     },  # TODO: HB85?
     "18": {
         "type": "HGI",
         "name": "Honeywell Gateway",
-        "has_battery": False,
-        "is_actuator": False,
-        "is_sensor": False,
         "archetype": "HGI80",
     },
     "23": {
         "type": "PRG",
         "name": "Programmer (wired)",
-        "has_battery": False,
-        "is_actuator": False,
-        "is_sensor": True,
         "archetype": "ST9420C",
     },
     # Honeywell Jasper, HVAC?
@@ -340,12 +267,12 @@ DEVICE_TYPES = {k: v["type"] for k, v in DEVICE_TABLE.items()}
 DEVICE_LOOKUP = {v: k for k, v in DEVICE_TYPES.items()}
 # DEVICE_CLASSES = {v["type"]: v["name"] for _, v in DEVICE_TABLE.items()}
 
-DEVICE_HAS_BATTERY = tuple(
-    k for k, v in DEVICE_TABLE.items() if v.get("has_battery") is True
-)  # more correctly: is battery-powered (and so won't respond to RQs)
-DEVICE_HAS_ZONE_SENSOR = tuple(
-    k for k, v in DEVICE_TABLE.items() if v.get("has_zone_sensor") is True
-)  # other sensors (e.g. 07:) can't be used as a zone sensor
+# DEVICE_HAS_BATTERY = tuple(
+#     k for k, v in DEVICE_TABLE.items() if v.get("has_battery") is True
+# )  # more correctly: is battery-powered (and so won't respond to RQs)
+# DEVICE_HAS_ZONE_SENSOR = tuple(
+#     k for k, v in DEVICE_TABLE.items() if v.get("has_zone_sensor") is True
+# )  # other sensors (e.g. 07:) can't be used as a zone sensor
 # DEVICE_IS_ACTUATOR = tuple(
 #     k for k, v in DEVICE_TABLE.items() if v.get("is_actuator") is True
 # )  # c.f. 000C packet

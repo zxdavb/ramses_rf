@@ -29,8 +29,6 @@ from .protocol.const import (
     ATTR_TEMP,
     ATTR_WINDOW_OPEN,
     DEVICE_CLASS,
-    DEVICE_HAS_BATTERY,
-    DEVICE_TABLE,
     DEVICE_TYPES,
     DOMAIN_TYPE_MAP,
     NUL_DEVICE_ID,
@@ -168,12 +166,6 @@ class DeviceBase(Entity):
         self.device_by_id = {}  # {self.id: self}
         self._iz_controller = None
 
-        self._has_battery = (
-            DEVICE_TABLE[self.addr.type].get("has_battery")
-            if DEVICE_TABLE.get(self.addr.type)
-            else None
-        )
-
         self._alias = None
         self._faked = None
         if self.id in gwy._include:
@@ -239,7 +231,7 @@ class DeviceBase(Entity):
     def has_battery(self) -> Optional[bool]:  # 1060
         """Return True if a device is battery powered (excludes battery-backup)."""
 
-        return self.type in DEVICE_HAS_BATTERY or _1060 in self._msgz  # DEX
+        return isinstance(self, BatteryState) or _1060 in self._msgz
 
     @property
     def _is_controller(self) -> Optional[bool]:
@@ -264,7 +256,7 @@ class DeviceBase(Entity):
         from .systems import create_system  # HACK: needs sorting
 
         self._iz_controller = msg or True
-        if self.type in ("01", "12", "22", "23") and self._evo is None:  # DEX
+        if self.type in ("01", "12", "22", "23", "34") and self._evo is None:  # DEX
             self._evo = create_system(self._gwy, self, **kwargs)
 
     @property
@@ -297,7 +289,7 @@ class DeviceInfo:  # 10E0
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         if discover_flag & DISCOVER_SCHEMA:
             try:
-                if RP in RAMSES_DEVICES[self.type][_10E0]:  # DEX
+                if RP in RAMSES_DEVICES[self.type][_10E0]:  # DEX (convert to e.g. BDR)
                     self._send_cmd(_10E0, retries=3)
             except KeyError:
                 pass

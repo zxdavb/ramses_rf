@@ -13,7 +13,7 @@ import re
 from typing import Any, List
 
 from .protocol import RAMSES_CODES, Command, Priority
-from .protocol.const import DEV_REGEX_ANY, DEVICE_TABLE, HGI_DEVICE_ID, NON_DEVICE_ID
+from .protocol.const import DEV_REGEX_ANY, HGI_DEVICE_ID, NON_DEVICE_ID
 from .protocol.exceptions import ExpiredCallbackError
 from .protocol.opentherm import OTB_MSG_IDS
 
@@ -233,18 +233,11 @@ def script_poll_device(gwy, dev_id) -> List[Any]:
     _LOGGER.warning("poll_device() invoked...")
 
     qos = {"priority": Priority.LOW, "retries": 0}
-    if "poll_codes" in DEVICE_TABLE.get(dev_id[:2]):
-        codes = DEVICE_TABLE[dev_id[:2]]["poll_codes"]
-    else:
-        codes = [_0016, _1FC9]
 
     tasks = []
 
-    for code in codes:
+    for code in (_0016, _1FC9):
         cmd = Command(RQ, code, "00", dev_id, **qos)
-        tasks.append(gwy._loop.create_task(periodic(gwy, cmd, count=0)))
-
-        cmd = Command(RQ, code, "0000", dev_id, **qos)
         tasks.append(gwy._loop.create_task(periodic(gwy, cmd, count=0)))
 
     gwy._tasks.extend(tasks)
