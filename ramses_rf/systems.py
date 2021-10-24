@@ -13,7 +13,14 @@ from types import SimpleNamespace
 from typing import List, Optional
 
 from .const import DISCOVER_ALL, DISCOVER_PARAMS, DISCOVER_SCHEMA, DISCOVER_STATUS
-from .devices import BdrSwitch, Device, OtbGateway
+from .devices import (
+    BdrSwitch,
+    Device,
+    DhwSensor,
+    OtbGateway,
+    Temperature,
+    UfhController,
+)
 from .entities import Entity
 from .protocol import Command, FaultLog, Priority
 from .protocol.const import (
@@ -29,7 +36,6 @@ from .protocol.const import (
     ATTR_SYSTEM,
     ATTR_SYSTEM_MODE,
     ATTR_ZONE_SENSOR,
-    DEVICE_HAS_ZONE_SENSOR,
     SYSTEM_MODE,
     SystemType,
 )
@@ -282,7 +288,7 @@ class StoredHw:
                 this.code == _10A0,
                 this.verb == RP,
                 this.src is self._ctl,
-                this.dst.type == "07",  # DEX
+                isinstance(this.dst, DhwSensor),
             )
         ):
             self._get_dhw(sensor=this.dst)
@@ -475,7 +481,7 @@ class MultiZone:  # 0005 (+/- 000C?)
             d
             for d in self._gwy.devices  # NOTE: *not* self._ctl.devices
             if d._ctl in (self._ctl, None)
-            and d.addr.type in DEVICE_HAS_ZONE_SENSOR
+            and isinstance(d, Temperature)  # d.addr.type in DEVICE_HAS_ZONE_SENSOR
             and d.temperature is not None
             and d._msgs[_30C9].dtm > prev.dtm  # changed during last cycle
         ]
@@ -617,16 +623,15 @@ class MultiZone:  # 0005 (+/- 000C?)
 
 
 class UfhSystem:
+    def _ufh_ctls(self):
+        sorted([d for d in self._ctl.devices if isinstance(d, UfhController)])
+
     @property
     def schema(self) -> dict:
         # assert ATTR_UFH_SYSTEM not in super().schema  # TODO: removeme
         return {
             **super().schema,
-            ATTR_UFH_SYSTEM: {
-                d.id: d.schema
-                for d in sorted(self._ctl.devices)
-                if d.type == "02"  # DEX
-            },
+            ATTR_UFH_SYSTEM: {d.id: d.schema for d in self._ufh_ctls()},
         }
 
     @property
@@ -634,11 +639,7 @@ class UfhSystem:
         # assert ATTR_UFH_SYSTEM not in super().params  # TODO: removeme
         return {
             **super().params,
-            ATTR_UFH_SYSTEM: {
-                d.id: d.params
-                for d in sorted(self._ctl.devices)
-                if d.type == "02"  # DEX
-            },
+            ATTR_UFH_SYSTEM: {d.id: d.params for d in self._ufh_ctls()},
         }
 
     @property
@@ -646,11 +647,7 @@ class UfhSystem:
         # assert ATTR_UFH_SYSTEM not in super().status  # TODO: removeme
         return {
             **super().status,
-            ATTR_UFH_SYSTEM: {
-                d.id: d.status
-                for d in sorted(self._ctl.devices)
-                if d.type == "02"  # DEX
-            },
+            ATTR_UFH_SYSTEM: {d.id: d.status for d in self._ufh_ctls()},
         }
 
 
@@ -746,15 +743,15 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         heater = None
 
         if this.code == _3220 and this.verb == RQ:
-            if this.src is self._ctl and this.dst.type == "10":  # DEX
+            if this.src is self._ctl and isinstance(this.dst, OtbGateway):
                 heater = this.dst
 
         elif this.code == _3EF0 and this.verb == RQ:
-            if this.src is self._ctl and this.dst.type in ("10", "13"):  # DEX
+            if this.src is self._ctl and isinstance(this.dst, (BdrSwitch, OtbGateway)):
                 heater = this.dst
 
         elif this.code == _3B00 and this.verb == I_ and prev is not None:
-            if this.src is self._ctl and prev.src.type == "13":  # DEX
+            if this.src is self._ctl and isinstance(prev.src, BdrSwitch):
                 if prev.code == this.code and prev.verb == this.verb:
                     heater = prev.src
 
@@ -855,7 +852,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             [
                 d.id
                 for d in self._ctl.devices
-                if not d._domain_id and d.type != "02" and d._is_present  # DEX
+                if not d._domain_id and isinstance(d, UfhController) and d._is_present
             ]
         )  # devices without a parent zone, NB: CTL can be a sensor for a zone
 
@@ -1090,8 +1087,10 @@ SYSTEM_BY_PROFILE = {
 def create_system(gwy, ctl, profile=None, **kwargs) -> System:
     """Create a system, and optionally perform discovery & start polling."""
 
-    if profile is None:
-        profile = SYSTEM_PROFILE.PRG if ctl.type == "23" else SYSTEM_PROFILE.EVO  # DEX
+    if profile is None:  # TODO: messy
+        profile = (
+            SYSTEM_PROFILE.PRG if isinstance(ctl, Programmer) else SYSTEM_PROFILE.EVO
+        )
 
     system = _SYS_CLASS.get(profile, System)(gwy, ctl, **kwargs)
 
