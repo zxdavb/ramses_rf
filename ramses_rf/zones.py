@@ -18,7 +18,6 @@ from .devices import (
     Controller,
     Device,
     DhwSensor,
-    HeatDemand,
     Temperature,
     TrvActuator,
     UfhController,
@@ -514,6 +513,13 @@ class Zone(ZoneSchedule, ZoneBase):
             self._eavesdrop_dhw_sensor(msg)
 
     def _eavesdrop_zone_type(self, msg, prev=None) -> None:
+        """TODO.
+
+        There are three ways to determine the type of a zone:
+        1. Use a 0005 packet (deterministic)
+        2. Eavesdrop (non-deterministic, slow to converge)
+        3. via a config file (a schema)
+        """
         # ELE/VAL, but not UFH (it seems)
         if msg.code in (_0008, _0009):
             assert self._zone_type in (None, "ELE", "VAL", "MIX"), self._zone_type
@@ -558,38 +564,9 @@ class Zone(ZoneSchedule, ZoneBase):
 
     @property
     def heating_type(self) -> Optional[str]:
-        """TODO.
-
-        There are three ways to determine the type of a zone:
-        1. Use a 0005 packet (deterministic)
-        2. Eavesdrop (non-deterministic, slow to converge)
-        3. via a config file (a schema)
-        """
 
         if self._zone_type is not None:  # isinstance(self, ???)
             return ZONE_TYPE_MAP.get(self._zone_type)
-
-        # TODO: actuators
-        dev_types = [
-            d.type for d in self.devices if isinstance(d, HeatDemand)
-        ]  # not 10:
-
-        if "02" in dev_types:
-            zone_type = "UFH"
-        elif "13" in dev_types:
-            zone_type = "VAL" if _3150 in self._msgs else "ELE"
-        # elif "??" in dev_types:  # TODO:
-        #     zone_type = "MIX"
-        elif "04" in dev_types or "00" in dev_types:
-            # beware edge case: TRV as sensor for a non-RAD zone
-            zone_type = "RAD"
-        else:
-            zone_type = None
-
-        if zone_type is not None:
-            self._set_zone_type(zone_type)
-
-        return ZONE_TYPE_MAP.get(self._zone_type)
 
     def _set_zone_type(self, zone_type: str):  # self._zone_type
         """Set the zone's type, after validating it.
