@@ -1236,23 +1236,26 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             ]
 
     def _handle_msg(self, msg) -> None:
+        if msg.code == _3220 and (
+            self._supported_msg.get(msg.payload[MSG_ID]) is not False
+        ):
+            prev_msg = self._opentherm_msg.get(msg.payload[MSG_ID])
+        else:
+            prev_msg = None
+
         super()._handle_msg(msg)
 
-        # if msg.code == _1FD4:  # every 30s for R8810?
-        #     # if msg.payload["ticker"] % 6 in (0, 2):  # twice every 3 mins
-        #     self._discover(discover_flag=DISCOVER_STATUS)
-        #     # elif msg.payload["ticker"] % 60 in (1, 3):  # effectively once every 30 mins
-        #     self._discover(discover_flag=DISCOVER_PARAMS)
-
         if msg.code == _3220:  # all are RP
-            # HACK: work-arounds - seen in some systems - code maybe not viable
-            if self._supported_msg.get(msg.payload[MSG_ID]) is not False:
-                if msg._pkt.payload[6:] in ("1980", "47AB"):
-                    _LOGGER.warning(
-                        f"{msg._pkt} << OpenTherm: demoting msg_id "
-                        f"0x{msg._pkt.payload[4:6]}: it appears unsupported",
-                    )
-                    self._supported_msg[msg.payload[MSG_ID]] = False
+            # HACK: work-arounds - seen in some systems - msg_ids maybe not viable
+            if (
+                msg._pkt.payload[6:] in ("121980", "1347AB", "1847AB")
+                and prev_msg._pkt.payload == msg._pkt.payload
+            ):  # CHWaterPressure, DHWFlowRate, CurrentTemperature
+                _LOGGER.warning(
+                    f"{msg._pkt} << OpenTherm: demoting msg_id "
+                    f"0x{msg._pkt.payload[4:6]}: it appears unsupported",
+                )
+                self._supported_msg[msg.payload[MSG_ID]] = False
 
             elif self._supported_msg.get(msg.payload[MSG_ID]) is None:
                 self._supported_msg[msg.payload[MSG_ID]] = msg.payload[
