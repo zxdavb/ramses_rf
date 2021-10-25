@@ -97,6 +97,8 @@ SCAN_XXXX = "scan_xxxx"
 
 DEVICE_ID_REGEX = re.compile(DEV_REGEX_ANY)
 
+DEFAULT_QOS = {"priority": Priority.LOW, "retries": 0}
+
 DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
@@ -242,12 +244,10 @@ async def script_bind_wait(gwy, dev_id: str, code=_2309, idx="00"):
 def script_poll_device(gwy, dev_id) -> List[Any]:
     _LOGGER.warning("poll_device() invoked...")
 
-    qos = {"priority": Priority.LOW, "retries": 0}
-
     tasks = []
 
     for code in (_0016, _1FC9):
-        cmd = Command(RQ, code, "00", dev_id, **qos)
+        cmd = Command(RQ, code, "00", dev_id, **DEFAULT_QOS)
         tasks.append(gwy._loop.create_task(periodic(gwy, cmd, count=0)))
 
     gwy._tasks.extend(tasks)
@@ -327,9 +327,8 @@ async def script_scan_full(gwy, dev_id: str):
 async def script_scan_hard(gwy, dev_id: str):
     _LOGGER.warning("scan_hard() invoked - expect some Warnings")
 
-    qos = {"priority": Priority.LOW, "retries": 0}
     for code in range(0x4000):
-        gwy.send_cmd(Command(RQ, f"{code:04X}", "0000", dev_id, **qos))
+        gwy.send_cmd(Command(RQ, f"{code:04X}", "0000", dev_id, **DEFAULT_QOS))
         await asyncio.sleep(1)
 
 
@@ -350,9 +349,8 @@ async def script_scan_002(gwy, dev_id: str):
     # Two modes, I and W & Two headers zz00 and zz
     message = "0000" + "".join(f"{ord(x):02X}" for x in "Hello there.") + "00"
 
-    qos = {"priority": Priority.LOW, "retries": 0}
     [
-        gwy.send_cmd(Command(W_, f"{c:04X}", message, dev_id, **qos))
+        gwy.send_cmd(Command(W_, f"{c:04X}", message, dev_id, **DEFAULT_QOS))
         for c in range(0x4000)
         if c not in RAMSES_CODES
     ]
@@ -361,8 +359,7 @@ async def script_scan_002(gwy, dev_id: str):
 async def script_scan_004(gwy, dev_id: str):
     _LOGGER.warning("scan_004() invoked - expect a lot of nonsense")
 
-    qos = {"priority": Priority.LOW, "retries": 0}
-    cmd = Command.get_dhw_mode(dev_id, **qos)
+    cmd = Command.get_dhw_mode(dev_id, **DEFAULT_QOS)
 
     return gwy._loop.create_task(periodic(gwy, cmd, count=0, interval=5))
 
@@ -380,9 +377,8 @@ async def script_scan_otb(gwy, dev_id: str):
 async def script_scan_otb_hard(gwy, dev_id: str):
     _LOGGER.warning("script_scan_otb_hard invoked - expect a lot of nonsense")
 
-    qos = {"priority": Priority.LOW, "retries": 0}
     for msg_id in range(0x80):
-        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **qos))
+        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **DEFAULT_QOS))
 
 
 @script_decorator
@@ -401,10 +397,9 @@ async def script_scan_otb_map(gwy, dev_id: str):  # Tested only upon a R8820A
         _1081: "39",  # max ch setpoint        / MaxCHWaterSetpoint
     }
 
-    qos = {"priority": Priority.LOW, "retries": 0}
     for code, msg_id in RAMSES_TO_OPENTHERM.items():
-        gwy.send_cmd(Command(RQ, code, "00", dev_id, **qos))
-        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **qos))
+        gwy.send_cmd(Command(RQ, code, "00", dev_id, **DEFAULT_QOS))
+        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **DEFAULT_QOS))
 
 
 @script_decorator
@@ -430,7 +425,7 @@ async def script_scan_otb_ramses(gwy, dev_id: str):  # Tested only upon a R8820A
         _3200,  # boiler output temp     / BoilerWaterTemperature
         _3210,  # boiler return temp     / ReturnWaterTemperature
         "0150",
-        "12F0",  # FHW flow rate?
+        "12F0",  # DHW flow rate?
         "1098",
         "10B0",
         "3221",
@@ -444,8 +439,7 @@ async def script_scan_otb_ramses(gwy, dev_id: str):  # Tested only upon a R8820A
     #  - ch setpoint          /
     #  - max. rel. modulation /
 
-    qos = {"priority": Priority.LOW, "retries": 0}
-    [gwy.send_cmd(Command(RQ, c, "00", dev_id, **qos)) for c in CODES]
+    [gwy.send_cmd(Command(RQ, c, "00", dev_id, **DEFAULT_QOS)) for c in CODES]
 
 
 SCRIPTS = {
