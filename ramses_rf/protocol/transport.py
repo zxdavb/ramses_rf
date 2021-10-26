@@ -92,42 +92,14 @@ def _normalise(pkt_line: str, log_file: bool = False) -> str:
      - correct any historical design failures (e.g. puzzle packets with an index)
     """
 
-    # bug fixed in evofw3 v0.6.x...
-    # 095  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200 # HGI80
-    # 000  I --- 18:140805 18:140805 --:------ 0001 005 00FFFF0200 # evofw3
-    if pkt_line[10:14] == " 18:" and pkt_line[11:20] == pkt_line[21:30]:
-        pkt_line = pkt_line[:21] + HGI_DEVICE_ID + pkt_line[30:]
-        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)(
-            "evofw3 packet line has been normalised (0x00)"
-        )
-
     # psuedo-RAMSES-II packets...
-    elif pkt_line[10:14] in (" 08:", " 31:") and pkt_line[-16:] == "* Checksum error":
+    if pkt_line[10:14] in (" 08:", " 31:") and pkt_line[-16:] == "* Checksum error":
         pkt_line = pkt_line[:-17] + " # Checksum error (ignored)"
-        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)(
+        (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
             "Packet line has been normalised (0x01)"
         )
 
-    # bug fixed in evofw3 v0.6.x...
-    elif pkt_line[:2] == "!C":
-        pkt_line = "# " + pkt_line
-        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)(
-            "Packet line has been normalised (0x02)"
-        )
-
-    # # TODO: very old evofw3 - taken out because expensive
-    # elif ERR_MSG_REGEX.match(pkt_line):
-    #     pkt_line = "# " + pkt_line
-    #     (_LOGGER.warning if DEV_MODE else _LOGGER.debug)(
-    #         "Packet line has been normalised (0x03)"
-    #     )
-
-    if not log_file:
-        return pkt_line
-
-    pkt_line = pkt_line.strip()
-
-    return pkt_line
+    return pkt_line.strip()
 
 
 def _str(value: ByteString) -> str:
