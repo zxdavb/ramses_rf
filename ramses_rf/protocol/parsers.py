@@ -105,6 +105,13 @@ from .const import (  # noqa: F401, isort: skip
     _PUZZ,
 )
 
+LOOKUP_7FFF = {
+    "10": "engine",  # .    # version str, e.g. v0.14.0
+    "11": "impersonating",  # pkt header, e.g. 30C9| I|03:123001 (15 characters, packed)
+    "12": "message",  # .   # message only, max len is 16 ascii characters
+    "13": "message",  # .   # message only, but without a timestamp, max len 22 chars
+}  # "00" is reserved
+
 DEV_MODE = __dev_mode__ and False
 TEST_MODE = False  # enable to test constructors (usu. W)
 
@@ -1831,33 +1838,28 @@ def parser_3ef1(payload, msg) -> dict:
 
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated
 def parser_7fff(payload, msg) -> Optional[dict]:
-    LOOKUP = {"01": "ramses_rf", "02": "impersonating", "03": "message"}
 
-    if payload[2:4] == "00":
-        return {
-            "datetime": dts_from_hex(payload[4:16]),
-            "message": str_from_hex(payload[18:]),
-            "_parser": f"v{VERSION}",
-        }
+    assert (
+        payload[:2] == "00" and payload[2:4] in LOOKUP_7FFF
+    ), "Invalid/deprecated Puzzle packet"
 
-    elif payload[2:4] in LOOKUP:
-        return {
-            LOOKUP[payload[2:4]]: str_from_hex(payload[4:]),
-            "_parser": f"v{VERSION}",
-        }
+    msg_type = LOOKUP_7FFF.get(payload[2:4], "message")
 
-    elif payload[2:4] == "7F":
-        return {
-            "datetime": dts_from_hex(payload[4:16]),
-            "counter": int(payload[18:22], 16),
-            "interval": int(payload[24:28], 16) / 100,
-            "_parser": f"v{VERSION}",
-        }
-    return {
-        "header": payload[2:4],
-        "payload": payload[4:],
-        "_parser": f"v{VERSION}",
-    }
+    if payload[2:4] == "11":
+        msg = str_from_hex(payload[16:])
+        result = {msg_type: f"{msg[:4]}|{msg[4:6]}|{msg[6:]}"}
+
+    elif payload[2:4] == "13":
+        result = {msg_type: str_from_hex(payload[4:])}
+
+    else:
+        result = {msg_type: str_from_hex(payload[16:])}
+
+    if payload[2:4] != "13":
+        dtm = dt.fromtimestamp(int(payload[4:16], 16) / 1000)
+        result["datetime"] = dtm.isoformat(timespec="milliseconds")
+
+    return {**result, "parser": f"v{VERSION}"}
 
 
 @parser_decorator

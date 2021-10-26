@@ -32,7 +32,6 @@ from .command import (
     QOS_TX_RETRIES,
     QOS_TX_TIMEOUT,
     Command,
-    Priority,
 )
 from .const import _PUZZ, HGI_DEVICE_ID, NON_DEVICE_ID, NUL_DEVICE_ID, __dev_mode__
 from .exceptions import InvalidPacketError
@@ -71,9 +70,6 @@ Pause = SimpleNamespace(
 )
 
 VALID_CHARACTERS = printable  # "".join((ascii_letters, digits, ":-<*# "))
-
-INIT_QOS = {"priority": Priority.HIGHEST, "retries": 24, "disable_backoff": True}
-INIT_CMD = Command._puzzle(message=f"v{VERSION}", **INIT_QOS)
 
 # evofw3 commands (as of 0.7.0) include (from cmd.c):
 # case 'V':  validCmd = cmd_version( cmd );       break;
@@ -130,14 +126,6 @@ def _normalise(pkt_line: str, log_file: bool = False) -> str:
         return pkt_line
 
     pkt_line = pkt_line.strip()
-
-    # HACK for v0.11.x and earlier - puzzle packets should have no index
-    if pkt_line[41:45] == _PUZZ and (pkt_line[:2] != "00" or pkt_line[:4] != "0000"):
-        payload = f"00{pkt_line[50:]}"[:96]
-        pkt_line = pkt_line[:46] + f"{int(len(payload)/2):03} " + payload
-        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)(
-            "Packet line has been normalised (0x04)"
-        )
 
     return pkt_line
 
@@ -520,7 +508,7 @@ class PacketProtocolBase(asyncio.Protocol):
                     cmd.src.id,
                     cmd.tx_header,
                 )
-            await self.send_data(Command._puzzle("02", cmd.tx_header))
+            await self.send_data(Command._puzzle(msg_type="11", message=cmd.tx_header))
 
         await self._send_data(str(cmd))
 
@@ -558,7 +546,7 @@ class PacketProtocolPort(PacketProtocolBase):
 
         # add this to start of the pkt log, if any
         if not self._disable_sending:
-            self._loop.create_task(self.send_data(INIT_CMD))
+            self._loop.create_task(self.send_data(Command._puzzle()))
 
         self.resume_writing()
 
@@ -791,7 +779,7 @@ class PacketProtocolQos(PacketProtocolPort):
             else:
                 if self._qos_cmd.code != _PUZZ:  # HACK: why expired when shouldn't
                     _logger_send(
-                        _LOGGER.warning,
+                        (_LOGGER.warning if DEV_MODE else _LOGGER.debug),
                         f"EXPIRED ({self._tx_retries}/{self._tx_retry_limit})",
                     )
                     _expired_cmd(self._qos_cmd)

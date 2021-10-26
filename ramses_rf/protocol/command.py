@@ -19,8 +19,10 @@ from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addr
 from .const import COMMAND_REGEX, SYSTEM_MODE, ZONE_MODE
 from .exceptions import ExpiredCallbackError, InvalidPacketError
 from .frame import PacketBase, pkt_header
-from .helpers import dt_now, dtm_to_hex, dts_to_hex, str_to_hex, temp_to_hex
+from .helpers import dt_now, dtm_to_hex, str_to_hex, temp_to_hex, timestamp
 from .opentherm import parity
+from .parsers import LOOKUP_7FFF
+from .version import VERSION
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
@@ -907,23 +909,29 @@ class Command(PacketBase):
         return cls(W_, _0404, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for internal use only
-    def _puzzle(
-        cls, msg_type="01", message=None, ordinal=0, interval=0, length=None, **kwargs
-    ):
+    def _puzzle(cls, msg_type=None, message="", **kwargs):
 
-        if msg_type == "00":
-            payload = f"0000{dts_to_hex(dt_now())}7F"
-            payload += f"{str_to_hex(message)}7F"
+        if msg_type is None:
+            msg_type = "12" if message else "10"
 
-        elif msg_type in ("01", "02", "03"):
-            payload = f"00{msg_type}{str_to_hex(message)}7F"
+        assert msg_type in LOOKUP_7FFF, "Invalid/deprecated Puzzle type"
 
+        kwargs["priority"] = kwargs.pop("priority", Priority.HIGHEST)
+        if msg_type == "10":
+            kwargs["disable_backoff"] = kwargs.pop("disable_backoff", True)
+            kwargs["retries"] = kwargs.pop("retries", 24)
+
+        payload = f"00{msg_type}"
+
+        if msg_type != "13":
+            payload += f"{int(timestamp() * 1000):012X}"
+
+        if msg_type == "10":
+            payload += str_to_hex(f"v{VERSION}")
+        elif msg_type == "11":
+            payload += str_to_hex(message[:4] + message[5:7] + message[8:])
         else:
-            payload = f"007F{dts_to_hex(dt_now())}7F"
-            payload += f"{ordinal % 0x10000:04X}7F{int(interval * 100):04X}7F"
-
-        if length:
-            payload = payload.ljust(length * 2, "F")
+            payload += str_to_hex(message)
 
         return cls(I_, _PUZZ, payload[:48], NUL_DEV_ADDR.id, **kwargs)
 
