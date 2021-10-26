@@ -109,13 +109,11 @@ if DEV_MODE:
 def script_decorator(func):
     def wrapper(gwy, *args, **kwargs) -> Optional[Any]:
 
-        qos = {"priority": Priority.HIGH, "retries": 3}
-        gwy.send_cmd(Command._puzzle("00", message="Script: begins...", **qos))
+        gwy.send_cmd(Command._puzzle(message="Script begins:"))
 
         result = func(gwy, *args, **kwargs)
 
-        qos = {"priority": Priority.LOWEST, "retries": 3}
-        gwy.send_cmd(Command._puzzle("00", message="Script: ended.", **qos))
+        gwy.send_cmd(Command._puzzle(message="Script ended."))
 
         return result
 
