@@ -409,7 +409,6 @@ async def script_scan_otb_ramses(gwy, dev_id: str):  # Tested only upon a R8820A
         _10E0,  # device_info
         _10E1,  # device_id
         "1FD0",
-        "1FD6",
         "2400",
         "2401",
         "2410",
