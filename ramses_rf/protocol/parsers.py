@@ -105,7 +105,7 @@ from .const import (  # noqa: F401, isort: skip
     _PUZZ,
 )
 
-LOOKUP_7FFF = {
+LOOKUP_PUZZ = {
     "10": "engine",  # .    # version str, e.g. v0.14.0
     "11": "impersonating",  # pkt header, e.g. 30C9| I|03:123001 (15 characters, packed)
     "12": "message",  # .   # message only, max len is 16 ascii characters
@@ -728,75 +728,76 @@ def parser_10a0(payload, msg) -> Optional[dict]:
 def parser_10e0(payload, msg) -> Optional[dict]:
     assert msg.len >= 19, msg.len  # in (19, 28, 30, 36, 38), msg.len
 
-    DEV_MODE = False
-    if DEV_MODE:
-        try:
-            if msg.src.type == "01":  # DEX
-                assert payload[2:20] in (
-                    "0002FF0119FFFFFFFF",  # EvoTouch Colour
-                    "0002FF0163FFFFFFFF",  # Evo Color
-                ), payload[2:20]
-            elif msg.src.type == "02":  # DEX
-                assert payload[2:20] in (
-                    "0003FF0203FFFF0001",  # HCE80 V3.10 061117
-                ), payload[2:20]
-            elif msg.src.type == "04":  # DEX
-                assert payload[2:20] in (
-                    "0002FF0412FFFFFFFF",  # HR92 Radiator Ctrl.
-                    "0002FF050BFFFFFFFF",  # HR91 Radiator Ctrl.
-                ), payload[2:20]
-            elif msg.src.type == "08":  # DEX
-                assert payload[2:20] in (
-                    "0002FF0802FFFFFFFE",  # Jasper EIM (non-evohome)
-                ), payload[2:20]
-            elif msg.src.type == "10":  # DEX
-                assert payload[2:20] in (
-                    "0001C8810B0700FEFF",  # R8820A
-                    "0002FF0A0CFFFFFFFF",  # R8810A
-                ), payload[2:20]
-            elif msg.src.type == "20":  # DEX
-                assert payload[2:20] in (
-                    "000100140C06010000",  # n/a
-                    "0001001B190B010000",  # n/a
-                    "0001001B221201FEFF",  # CVE-RF
-                    "0001001B271501FEFF",  # CVE-RF
-                    "0001001B281501FEFF",  # CVE-RF
-                ), payload[2:20]
-            elif msg.src.type == "30":  # DEX
-                assert payload[2:20] in (
-                    "0001C90011006CFEFF",  # BRDG-02JAS01
-                    "0002FF1E01FFFFFFFF",  # Internet Gateway
-                    "0002FF1E03FFFFFFFF",  # Internet Gateway
-                ), payload[2:20]
-            elif msg.src.type == "31":  # DEX
-                assert payload[2:20] in (
-                    "0002FF1F02FFFFFFFF",  # Jasper Stat TXXX
-                ), payload[2:20]
-            elif msg.src.type == "32":  # DEX
-                assert payload[2:20] in (
-                    "0001C85701016CFFFF",  # VMS-23C33
-                    "0001C85802016CFFFF",  # VMS-23HB33
-                    "0001C85803016CFFFF",  # VMS-23HB33
-                ), payload[2:20]
-            elif msg.src.type == "34":  # DEX
-                assert payload[2:20] in (
-                    "0001C8380A0100F1FF",  # T87RF2025
-                    "0001C8380F0100F1FF",  # T87RF2025
-                ), payload[2:20]
-            elif msg.src.type == "37":  # DEX
-                assert payload[2:20] in (
-                    "0001001B2E1901FEFF",  # CVE-RF
-                    "0001001B311901FEFF",  # CVE-RF
-                    "0001001B361B01FEFF",  # CVE-RF
-                    "0001001B381B01FEFF",  # CVE-RF
-                    "00010028080101FEFF",  # VMS-12C39
-                ), payload[2:20]
+    # if DEV_MODE:
+    try:
+        if msg.src.type == "01":  # DEX
+            assert payload[2:20] in (
+                "0002FF0119FFFFFFFF",  # EvoTouch Colour
+                "0002FF0163FFFFFFFF",  # Evo Color
+            ), payload[2:20]
+        elif msg.src.type == "02":  # DEX
+            assert payload[2:20] in (
+                "0003FF0203FFFF0001",  # HCE80 V3.10 061117
+            ), payload[2:20]
+        elif msg.src.type == "04":  # DEX
+            assert payload[2:20] in (
+                "0002FF0412FFFFFFFF",  # HR92 Radiator Ctrl.
+                "0002FF050BFFFFFFFF",  # HR91 Radiator Ctrl.
+            ), payload[2:20]
+        elif msg.src.type == "08":  # DEX
+            assert payload[2:20] in (
+                "0002FF0802FFFFFFFE",  # Jasper EIM (non-evohome)
+            ), payload[2:20]
+        elif msg.src.type == "10":  # DEX
+            assert payload[2:20] in (
+                "0001C8810B0700FEFF",  # R8820A
+                "0002FF0A0CFFFFFFFF",  # R8810A
+            ), payload[2:20]
+        elif msg.src.type == "20":  # DEX
+            assert payload[2:20] in (
+                "000100140C06010000",  # n/a
+                "0001001B190B010000",  # n/a
+                "0001001B221201FEFF",  # CVE-RF
+                "0001001B271501FEFF",  # CVE-RF
+                "0001001B281501FEFF",  # CVE-RF
+            ), payload[2:20]
+        elif msg.src.type == "30":  # DEX
+            assert payload[2:20] in (
+                "0001C90011006CFEFF",  # BRDG-02JAS01 (fan, PIV)
+                "0002FF1E01FFFFFFFF",  # Internet Gateway
+                "0002FF1E03FFFFFFFF",  # Internet Gateway
+            ), payload[2:20]
+        elif msg.src.type == "31":  # DEX
+            assert payload[2:20] in (
+                "0002FF1F02FFFFFFFF",  # Jasper Stat TXXX
+            ), payload[2:20]
+        elif msg.src.type == "32":  # DEX
+            # VMN-23LMH23 (switch, 4-button)
+            assert payload[2:20] in (
+                "0001C85701016CFFFF",  # VMS-23C33   (sensor, CO2)
+                "0001C85802016CFFFF",  # VMS-23HB33  (sensor, RH/temp)
+                "0001C85803016CFFFF",  # VMS-23HB33  (sensor, RH/temp)
+                "0001C8950B0A67FEFF",  # VMD-15RMS86 (fan, Orcon HRC 500)
+            ), payload[2:20]
+        elif msg.src.type == "34":  # DEX
+            assert payload[2:20] in (
+                "0001C8380A0100F1FF",  # T87RF2025
+                "0001C8380F0100F1FF",  # T87RF2025
+            ), payload[2:20]
+        elif msg.src.type == "37":  # DEX
+            assert payload[2:20] in (
+                "0001001B2E1901FEFF",  # CVE-RF
+                "0001001B311901FEFF",  # CVE-RF
+                "0001001B361B01FEFF",  # CVE-RF
+                "0001001B381B01FEFF",  # CVE-RF
+                "00010028080101FEFF",  # VMS-12C39
+            ), payload[2:20]
 
-        except AssertionError:
-            _LOGGER.warning(
-                f"{msg._pkt} < Support development by reporting this pkt, "
-                "include a description of the make/model of this device"
-            )
+    except AssertionError:
+        _LOGGER.warning(
+            f"{msg._pkt} < Support development by reporting this pkt, "
+            "please include a description/the make & model of this device"
+        )
 
     date_2 = date_from_hex(payload[20:28])  # could be 'FFFFFFFF'
     date_1 = date_from_hex(payload[28:36])  # could be 'FFFFFFFF'
@@ -911,6 +912,16 @@ def parser_1290(payload, msg) -> Optional[dict]:
 @parser_decorator  # co2_level
 def parser_1298(payload, msg) -> Optional[dict]:
     #  I --- 37:258565 --:------ 37:258565 1298 003 0007D0
+    FAULT_CODES = {
+        "80": "sensor short circuit",
+        "81": "sensor open",
+        "83": "sensor value too high",
+        "84": "sensor value too low",
+        "85": "sensor unreliable",
+    }
+    if (fault := FAULT_CODES.get(payload[:2])) :
+        return {"sensor_fault": fault}
+
     return {"co2_level": double(payload[2:])}
 
 
@@ -919,27 +930,32 @@ def parser_12a0(payload, msg) -> Optional[dict]:
     # assert msg.len == 6 if type == ?? else 2, msg.len
     assert payload[:2] == "00", payload[:2]  # domain?
 
-    RHUM_STATE = {
-        "EF": "not available",
-        "F0": "sensor short circuit",
-        "F1": "sensor open",
-        "F2": "not available",
-        "F3": "sensor value too high",
-        "F4": "sensor value too low",
-        "F5": "sensor unreliable",
-    }  # EFFF = N/A
-    assert payload[2:4] in RHUM_STATE or int(payload[2:4], 16) <= 100
+    FAULT_CODES_RHUM = {
+        "EF": "RH sensor not available ",
+        "F0": "RH sensor short circuit ",
+        "F1": "RH sensor open ",
+        "F2": "RH sensor not available",
+        "F3": "RH sensor value too high ",
+        "F4": "RH sensor value too low ",
+        "F5": "RH sensor unreliable ",
+    }  # relative humidity sensor
 
-    # TEMP_STATE = {
-    #     "7F": "not available",
+    assert payload[2:4] in FAULT_CODES_RHUM or int(payload[2:4], 16) <= 100
+    if (fault := FAULT_CODES_RHUM.get(payload[2:4])) :
+        return {"sensor_fault": fault}
+
+    # FAULT_CODES_TEMP = {
+    #     "7F": "sensor not available",
     #     "80": "sensor short circuit",
     #     "81": "sensor open",
-    #     "82": "not available",
+    #     "82": "sensor not available",
     #     "83": "sensor value too high",
     #     "84": "sensor value too low",
     #     "85": "sensor unreliable",
-    # }  # 7F = N/A, same for 1298
-    # assert payload[4:6] in TEMP_STATE or ...
+    # }
+    # assert payload[4:6] in FAULT_CODES_TEMP or ...
+    # if (fault := FAULT_CODES_TEMP.get(payload[2:4])):
+    #     return {"sensor_fault": fault}
 
     rh = int(payload[2:4], 16) / 100 if payload[2:4] != "EF" else None
     if msg.len == 2:
@@ -1193,7 +1209,7 @@ def parser_22f1(payload, msg) -> Optional[dict]:
 
     if bitmap in FanSwitch.FAN_MODES:
         _action = {FanSwitch.FAN_MODE: FanSwitch.FAN_MODES[bitmap]}
-    elif bitmap in {9, 10}:
+    elif bitmap in {9, 10}:  # 00010001, 00010010
         _action = {FanSwitch.HEATER_MODE: FanSwitch.HEATER_MODES[bitmap]}
     else:
         _action = {}
@@ -1207,15 +1223,24 @@ def parser_22f1(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # switch_boost
 def parser_22f3(payload, msg) -> Optional[dict]:
-    from ..devices import FanSwitch  # FIXME: remove cyclic reference
-
     # NOTE: for boost timer for high
-    assert msg.len == 3, msg.len
     assert payload[:2] == "00", payload[:2]  # has no domain
     assert payload[2:4] == "00", payload[2:4]
-    assert payload[4:6] in ("0A", "14", "1E"), payload[4:6]
+    assert payload[4:6] in ("0A", "14", "1E"), payload[4:6]  # 10, 20, 30
 
-    return {FanSwitch.BOOST_TIMER: int(payload[4:6], 16)}
+    if msg.len >= 3:
+        result = {
+            "mode": "boost_timer",  # payload[2:4]
+            "minutes": int(payload[4:6], 16),
+        }
+
+    if msg.len >= 5:
+        result.update(parser_22f1(f"00{payload[6:10]}"))  # NOTE: a guess
+
+    if msg.len >= 7:
+        result.update({"_unknown": payload[10:]})
+
+    return result
 
 
 @parser_decorator  # setpoint (of device/zones)
@@ -1773,7 +1798,7 @@ def parser_3ef0(payload, msg) -> dict:
             }
         )
 
-    if msg.len >= 9:  # I/RP|OTB|009
+    if msg.len >= 9:  # I/RP|OTB|009 (R8820A only?)
         assert int(payload[12:14], 16) & 0b11111100 == 0, f"byte 6: {payload[12:14]}"
         assert int(payload[12:14], 16) & 0b00000010 == 2, f"byte 6: {payload[12:14]}"
         assert 10 <= int(payload[14:16], 16) <= 80, f"byte 7: {payload[14:16]}"
@@ -1839,11 +1864,10 @@ def parser_3ef1(payload, msg) -> dict:
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated
 def parser_7fff(payload, msg) -> Optional[dict]:
 
-    assert (
-        payload[:2] == "00" and payload[2:4] in LOOKUP_7FFF
-    ), "Invalid/deprecated Puzzle packet"
+    if payload[:2] != "00" or payload[2:4] not in LOOKUP_PUZZ:
+        _LOGGER.debug("Invalid/deprecated Puzzle packet")
 
-    msg_type = LOOKUP_7FFF.get(payload[2:4], "message")
+    msg_type = LOOKUP_PUZZ.get(payload[2:4], "message")
 
     if payload[2:4] == "11":
         msg = str_from_hex(payload[16:])
