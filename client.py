@@ -219,6 +219,13 @@ def monitor(obj, **kwargs):
     """Monitor (eavesdrop and/or probe) a serial port for messages/packets."""
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
+    # if cli_kwargs["discover"] is None:
+    #     cli_kwargs["discover"] = (
+    #         cli_kwargs["exec_cmd"] is None
+    #         and cli_kwargs["exec_scr"] is None
+    #         and cli_kwargs["poll_devices"] is None
+    #     )
+
     if cli_kwargs["discover"] is not None:
         lib_kwargs[CONFIG][DISABLE_DISCOVERY] = not cli_kwargs.pop("discover")
 
@@ -262,7 +269,8 @@ def execute(obj, **kwargs):
     """
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
-    lib_kwargs[CONFIG][DISABLE_DISCOVERY] = True
+    if lib_kwargs[CONFIG][DISABLE_DISCOVERY] is None:
+        lib_kwargs[CONFIG][DISABLE_DISCOVERY] = False
 
     if cli_kwargs.get(GET_FAULTS):
         lib_kwargs[KNOWN_LIST] = {cli_kwargs[GET_FAULTS]: {}}
@@ -351,13 +359,13 @@ def _print_summary(gwy, **kwargs):
         print(f"Schema[{repr(entity)}] = {json.dumps(entity.schema, indent=4)}\r\n")
         print(f"allow_list (hints) = {json.dumps(gwy._include, indent=4)}\r\n")
 
-    if False and not kwargs.get("hide_params"):
+    if not kwargs.get("hide_params"):
         print(f"Params[{repr(entity)}] = {json.dumps(entity.params, indent=4)}\r\n")
 
-    if False and not kwargs.get("hide_status"):
+    if not kwargs.get("hide_status"):
         print(f"Status[{repr(entity)}] = {json.dumps(entity.status, indent=4)}\r\n")
 
-    if True or kwargs.get("show_device"):
+    if kwargs.get("show_device"):
         devices = sorted(gwy.devices)
         # devices = [d for d in sorted(gwy.devices) if d not in gwy.evo.devices]
 
