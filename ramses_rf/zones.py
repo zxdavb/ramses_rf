@@ -22,7 +22,7 @@ from .devices import (
     TrvActuator,
     UfhController,
 )
-from .entities import Entity
+from .entities import Entity, discover_decorator
 from .protocol import Command, Schedule
 from .protocol.const import (
     _000C_DEVICE,
@@ -271,6 +271,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         if htg_valve:
             self._set_htg_valve(htg_valve)
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
 
@@ -734,6 +735,7 @@ class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)
@@ -766,6 +768,7 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)
@@ -795,6 +798,7 @@ class RadZone(Zone):  # HR92/HR80
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)
@@ -810,6 +814,7 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)
@@ -836,6 +841,7 @@ class ValZone(EleZone):  # BDR91A/T
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)

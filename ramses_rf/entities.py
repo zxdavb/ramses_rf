@@ -21,6 +21,16 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
+def discover_decorator(func):
+    def wrapper(self, discover_flag=None) -> None:
+
+        if self._gwy.config.disable_discovery:
+            return
+        return func(self, discover_flag=discover_flag)
+
+    return wrapper
+
+
 class Entity:
     """The Device/Zone base class.
 
@@ -79,14 +89,11 @@ class Entity:
         self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
 
     def _send_cmd(self, cmd, **kwargs) -> None:
-        if any(
-            (
-                self._gwy.config.disable_sending,
-                self._gwy.config.disable_discovery,
-                getattr(self, "has_battery", None),
-            )
-        ):
+        if self._gwy.config.disable_sending:
             return
+
+        # if getattr(self, "has_battery", None):
+        #     return
 
         self._msgs.pop(cmd.code, None)  # TODO: remove, so we can tell if RP'd rcvd
         self._gwy.send_cmd(cmd)

@@ -21,7 +21,7 @@ from .devices import (
     Temperature,
     UfhController,
 )
-from .entities import Entity
+from .entities import Entity, discover_decorator
 from .protocol import Command, FaultLog, Priority
 from .protocol.const import (
     _000C_DEVICE,
@@ -613,7 +613,6 @@ class UfhSystem:
 
     @property
     def schema(self) -> dict:
-        # assert ATTR_UFH_SYSTEM not in super().schema  # TODO: removeme
         return {
             **super().schema,
             ATTR_UFH_SYSTEM: {d.id: d.schema for d in self._ufh_ctls()},
@@ -621,7 +620,6 @@ class UfhSystem:
 
     @property
     def params(self) -> dict:
-        # assert ATTR_UFH_SYSTEM not in super().params  # TODO: removeme
         return {
             **super().params,
             ATTR_UFH_SYSTEM: {d.id: d.params for d in self._ufh_ctls()},
@@ -629,7 +627,6 @@ class UfhSystem:
 
     @property
     def status(self) -> dict:
-        # assert ATTR_UFH_SYSTEM not in super().status  # TODO: removeme
         return {
             **super().status,
             ATTR_UFH_SYSTEM: {d.id: d.status for d in self._ufh_ctls()},
@@ -667,6 +664,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     # def __str__(self) -> str:  # TODO: WIP
     #     return json.dumps({self._ctl.id: self.schema})
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
 

@@ -17,7 +17,7 @@ from .const import (
     DISCOVER_SCHEMA,
     DISCOVER_STATUS,
 )
-from .entities import Entity
+from .entities import Entity, discover_decorator
 from .protocol import Command, Priority  # TODO: constants to const.py
 from .protocol.address import NON_DEV_ADDR, id_to_address
 from .protocol.command import FUNC, TIMEOUT
@@ -182,8 +182,9 @@ class DeviceBase(Entity):
             return NotImplemented
         return self.id < other.id
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        # sometimes, battery-powered devices would respond to an RQ (e.g. bind mode)
+        # sometimes, battery-powered devices will respond to an RQ (e.g. bind mode)
 
         if discover_flag & DISCOVER_SCHEMA:
             self._make_cmd(_1FC9, retries=3)  # rf_bind
@@ -686,6 +687,7 @@ class RelayDemand(Fakeable):  # 0008 (fakeable)
         if kwargs.get(ATTR_FAKED) is True or _3EF0 in kwargs.get(ATTR_FAKED, []):
             self._make_fake()
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -799,6 +801,7 @@ class HGInterface(DeviceBase):  # HGI (18:), was GWY
         if schema.get("fake_thm"):
             self._fake_thm = self._gwy._get_device(self.id, class_="BDR", faked=True)
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # of no value for a HGI80-compatible device
         return
@@ -922,6 +925,7 @@ class Controller(Device):  # CTL (01):
         if self._evo:
             self._evo._handle_msg(msg)
 
+    # @discover_decorator
     # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
     #     super()._discover(discover_flag=discover_flag)
 
@@ -959,6 +963,7 @@ class UfhController(Device):  # UFC (02):
 
         self._iz_controller = True
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -1205,6 +1210,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id}): {self.modulation_level}"  # 3EF0
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         # see: https://www.opentherm.eu/request-details/?post_ids=2944
 
@@ -1477,6 +1483,7 @@ class BdrSwitch(Actuator, RelayDemand, Device):  # BDR (13):
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id}): {self.relay_demand}"
 
+    @discover_decorator
     def _discover(self, discover_flag=DISCOVER_ALL) -> None:
         """Discover BDRs.
 
