@@ -10,3 +10,6 @@ python client.py execute /dev/ttyACM0 --get-schedule 01:054173 00
 
 python client.py -c .secrets/zxdavb/config.json execute /dev/ttyACM0 --get-schedule 01:054173 00
 
+python ./client.py execute --set-schedule "01:139901" /tmp/sched.jsn /dev/evoqinheng
+
+# test with windows
