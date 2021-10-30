@@ -33,6 +33,28 @@ DEVICE_CLASS = SimpleNamespace(
     UFC="UFC",  # UFH controller
 )
 
+DEVICE_CLASS_BY_TYPE = {
+    "01": DEVICE_CLASS.CTL,
+    "02": DEVICE_CLASS.UFC,
+    "04": DEVICE_CLASS.TRV,
+    "07": DEVICE_CLASS.DHW,
+    "10": DEVICE_CLASS.OTB,
+    "13": DEVICE_CLASS.BDR,
+    "17": DEVICE_CLASS.EXT,
+    "18": DEVICE_CLASS.HGI,
+    "23": DEVICE_CLASS.PRG,
+    "34": DEVICE_CLASS.STA,
+}
+DEVICE_TYPE_BY_CLASS = {v: k for k, v in DEVICE_CLASS_BY_TYPE.items()}
+DEVICE_CLASS_BY_TYPE.update(
+    {
+        "00": DEVICE_CLASS.TRV,
+        "03": DEVICE_CLASS.STA,
+        "12": DEVICE_CLASS.STA,
+        "22": DEVICE_CLASS.STA,
+    }
+)
+
 HGI_DEVICE_ID = "18:000730"  # default type and address of HGI, 18:013393
 NON_DEVICE_ID = "--:------"
 NUL_DEVICE_ID = "63:262142"  # FFFFFE - send here if not bound?
@@ -52,6 +74,7 @@ _000C = "000C"
 _000E = "000E"
 _0016 = "0016"
 _0100 = "0100"
+_0150 = "0150"
 _01D0 = "01D0"
 _01E9 = "01E9"
 _0404 = "0404"
@@ -62,7 +85,9 @@ _1030 = "1030"
 _1060 = "1060"
 _1081 = "1081"
 _1090 = "1090"
+_1098 = "1098"
 _10A0 = "10A0"
+_10B0 = "10B0"
 _10E0 = "10E0"
 _10E1 = "10E1"
 _1100 = "1100"
@@ -74,11 +99,12 @@ _12A0 = "12A0"
 _12B0 = "12B0"
 _12C0 = "12C0"
 _12C8 = "12C8"
-_12C8 = "12C8"
+_12F0 = "12F0"
 _1300 = "1300"
 _1F09 = "1F09"
 _1F41 = "1F41"
 _1FC9 = "1FC9"
+_1FD0 = "1FD0"
 _1FD4 = "1FD4"
 _2249 = "2249"
 _22C9 = "22C9"
@@ -88,6 +114,10 @@ _22F1 = "22F1"
 _22F3 = "22F3"
 _2309 = "2309"
 _2349 = "2349"
+_2400 = "2400"
+_2401 = "2401"
+_2410 = "2410"
+_2420 = "2420"
 _2D49 = "2D49"
 _2E04 = "2E04"
 _30C9 = "30C9"
@@ -100,6 +130,8 @@ _31E0 = "31E0"
 _3200 = "3200"
 _3210 = "3210"
 _3220 = "3220"
+_3221 = "3221"
+_3223 = "3223"
 _3B00 = "3B00"
 _3EF0 = "3EF0"
 _3EF1 = "3EF1"

@@ -6,8 +6,9 @@
 import logging
 from datetime import timedelta as td
 
-from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
+from .const import DEVICE_CLASS, DEVICE_TYPE_BY_CLASS
 
+from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 
 from .const import (  # noqa: F401, isort: skip
     _0001,
@@ -22,6 +23,7 @@ from .const import (  # noqa: F401, isort: skip
     _000E,
     _0016,
     _0100,
+    _0150,
     _01D0,
     _01E9,
     _0404,
@@ -32,7 +34,9 @@ from .const import (  # noqa: F401, isort: skip
     _1060,
     _1081,
     _1090,
+    _1098,
     _10A0,
+    _10B0,
     _10E0,
     _10E1,
     _1100,
@@ -44,10 +48,12 @@ from .const import (  # noqa: F401, isort: skip
     _12B0,
     _12C0,
     _12C8,
+    _12F0,
     _1300,
     _1F09,
     _1F41,
     _1FC9,
+    _1FD0,
     _1FD4,
     _2249,
     _22C9,
@@ -57,6 +63,10 @@ from .const import (  # noqa: F401, isort: skip
     _22F3,
     _2309,
     _2349,
+    _2400,
+    _2401,
+    _2410,
+    _2420,
     _2D49,
     _2E04,
     _30C9,
@@ -69,6 +79,8 @@ from .const import (  # noqa: F401, isort: skip
     _3200,
     _3210,
     _3220,
+    _3221,
+    _3223,
     _3B00,
     _3EF0,
     _3EF1,
@@ -173,6 +185,11 @@ RAMSES_CODES = {  # rf_unknown
         RP: r"^00[0-9A-F]{4}F{4}$",
         EXPIRES: td(days=1),  # TODO: make longer?
     },
+    _0150: {  # unknown
+        NAME: "message_0150",
+        RQ: r"^00$",
+        RP: r"^00",
+    },
     _01D0: {  # TODO: not well understood, definitely a real code, zone_idx is a guess
         NAME: "message_01d0",
         I_: r"^0[0-9A-F][0-9A-F]{2}$",
@@ -230,6 +247,16 @@ RAMSES_CODES = {  # rf_unknown
     _1090: {  # unknown
         NAME: "message_1090",
         # RQ: r"^00$",  # TODO:
+    },
+    _1098: {  # unknown
+        NAME: "message_1098",
+        RQ: r"^00$",
+        RP: r"^00",
+    },
+    _10B0: {  # unknown
+        NAME: "message_10b0",
+        RQ: r"^00$",
+        RP: r"^00",
     },
     _10A0: {  # dhw_params
         NAME: "dhw_params",
@@ -309,6 +336,11 @@ RAMSES_CODES = {  # rf_unknown
         NAME: "hvac_12C8",
         I_: r"^0000[0-9A-F]{2}$",
     },
+    _12F0: {  # unknown
+        NAME: "message_12f0",
+        RQ: r"^00$",
+        RP: r"^00",
+    },
     _1300: {  # cv water pressure (usu. for ch)
         NAME: "ch_pressure",
         RQ: r"^00$",
@@ -337,6 +369,11 @@ RAMSES_CODES = {  # rf_unknown
         RP: r"^((0[0-9A-F]|F[9ABCF]|90)([0-9A-F]{10}))+$",  # xx-code-dev_id
         I_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
         W_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
+    },
+    _1FD0: {  # unknown
+        NAME: "message_1fd0",
+        RQ: r"^00$",
+        RP: r"^00",
     },
     _1FD4: {  # opentherm_sync
         NAME: "opentherm_sync",
@@ -368,7 +405,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     _22F3: {  # switch_duration
         NAME: "switch_duration",
-        I_: r"^0000[0-9A-F]{2}$",
+        I_: r"^0000[0-9A-F]{2}([0-9A-F]{8})?$",
     },  # minutes
     _2309: {  # setpoint
         NAME: "setpoint",
@@ -387,6 +424,26 @@ RAMSES_CODES = {  # rf_unknown
         RQ: r"^0[0-9A-F](00|[0-9A-F]{12})?$",
         # RQ --- 22:070483 01:063844 --:------ 2349 007 06-0708-03-000027
         EXPIRES: td(hours=4),
+    },
+    _2400: {  # unknown
+        NAME: "message_2400",
+        RQ: r"^00$",
+        RP: r"^00",
+    },
+    _2401: {  # unknown
+        NAME: "message_2401",
+        RQ: r"^00$",
+        RP: r"^00",
+    },
+    _2410: {  # unknown
+        NAME: "message_2410",
+        RQ: r"^00$",
+        RP: r"^00",
+    },
+    _2420: {  # unknown
+        NAME: "message_2420",
+        RQ: r"^00$",
+        RP: r"^00",
     },
     _2D49: {  # unknown
         NAME: "message_2d49",
@@ -460,6 +517,16 @@ RAMSES_CODES = {  # rf_unknown
         RQ: r"^00[0-9A-F]{4}0{4}$",  # is strictly: r"^00[0-9A-F]{8}$",
         RP: r"^00[0-9A-F]{8}$",
     },
+    _3221: {  # unknown
+        NAME: "message_3221",
+        RQ: r"^00$",
+        RP: r"^00",
+    },
+    _3223: {  # unknown
+        NAME: "message_3223",
+        RQ: r"^00$",
+        RP: r"^00",
+    },
     _3B00: {  # actuator_sync, NOTE: no RQ
         NAME: "actuator_sync",
         I_: r"^(00|FC)(00|C8)$",
@@ -486,7 +553,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     _PUZZ: {
         NAME: "puzzle_packet",
-        I_: r"^00[0-9A-F]*$",
+        I_: r"^00(([0-9A-F]){2})+$",
     },
 }
 for code in RAMSES_CODES.values():
@@ -601,8 +668,8 @@ _CODE_IDX_UNKNOWN.sort()  # or print(f"unknown = {_CODE_IDX_UNKNOWN}")  # TODO: 
 ################
 # RAMSES_DEVICES
 #
-RAMSES_DEVICES = {
-    "01": {  # e.g. ATC928: Evohome Colour Controller
+RAMSES_DEVICES_CLASS = {
+    DEVICE_CLASS.CTL: {  # e.g. ATC928: Evohome Colour Controller
         _0001: {W_: {}},
         _0002: {I_: {}, RP: {}},
         _0004: {I_: {}, RP: {}},
@@ -641,7 +708,7 @@ RAMSES_DEVICES = {
         _3B00: {I_: {}},
         _3EF0: {RQ: {}},
     },
-    "02": {  # e.g. HCE80/HCC80: Underfloor Heating Controller
+    DEVICE_CLASS.UFC: {  # e.g. HCE80/HCC80: Underfloor Heating Controller
         _0001: {RP: {}, W_: {}},  # TODO: Ix RP
         _0005: {RP: {}},
         _0008: {I_: {}},
@@ -654,18 +721,7 @@ RAMSES_DEVICES = {
         _2309: {RP: {}},
         _3150: {I_: {}},
     },
-    "03": {  # e.g. HCF82/HCW82: Room Temperature Sensor
-        _0001: {W_: {}},
-        _0008: {I_: {}},
-        _0009: {I_: {}},
-        _1060: {I_: {}},
-        _1100: {I_: {}},
-        _1F09: {I_: {}},
-        _1FC9: {I_: {}},
-        _2309: {I_: {}},
-        _30C9: {I_: {}},
-    },
-    "04": {  # e.g. HR92/HR91: Radiator Controller
+    DEVICE_CLASS.TRV: {  # e.g. HR92/HR91: Radiator Controller
         _0001: {W_: {r"^0[0-9A-F]"}},
         _0004: {RQ: {r"^0[0-9A-F]00$"}},
         _0016: {RQ: {}, RP: {}},
@@ -682,12 +738,71 @@ RAMSES_DEVICES = {
         _313F: {RQ: {r"^00$"}},
         _3150: {I_: {r"^0[0-9A-F]{3}$"}},
     },
-    "07": {  # e.g. CS92: (DHW) Cylinder Thermostat
+    DEVICE_CLASS.DHW: {  # e.g. CS92: (DHW) Cylinder Thermostat
         _0016: {RQ: {}},
         _1060: {I_: {}},
         _10A0: {RQ: {}},  # This RQ/07/10A0 includes a payload
         _1260: {I_: {}},
         _1FC9: {I_: {}},
+    },
+    DEVICE_CLASS.OTB: {  # e.g. R8810/R8820: OpenTherm Bridge
+        _0009: {I_: {}},  # 1/24h for a R8820 (not an R8810)
+        _0150: {RP: {}},  # R8820A only?
+        _042F: {I_: {}, RP: {}},
+        _1081: {RP: {}},  # R8820A only?
+        _1098: {RP: {}},  # R8820A only?
+        _10A0: {RP: {}},
+        _10B0: {RP: {}},  # R8820A only?
+        _10E0: {I_: {}, RP: {}},
+        _10E1: {RP: {}},  # R8820A only?
+        _1260: {RP: {}},
+        _1290: {RP: {}},
+        _12F0: {RP: {}},  # R8820A only?
+        _1300: {RP: {}},  # R8820A only?
+        _1FC9: {I_: {}, W_: {}},
+        _1FD0: {RP: {}},  # R8820A only?
+        _1FD4: {I_: {}},  # 2/min fro R8810, every ~210 sec for R8820
+        _22D9: {RP: {}},
+        _2400: {RP: {}},  # R8820A only?
+        _2401: {RP: {}},  # R8820A only?
+        _2410: {RP: {}},  # R8820A only?
+        _2420: {RP: {}},  # R8820A only?
+        _3150: {I_: {}},
+        _3200: {RP: {}},  # R8820A only?
+        _3210: {RP: {}},  # R8820A only?
+        _3220: {RP: {}},
+        _3221: {RP: {}},  # R8820A only?
+        _3223: {RP: {}},  # R8820A only?
+        _3EF0: {I_: {}, RP: {}},
+        _3EF1: {RP: {}},
+    },  # see: https://www.opentherm.eu/request-details/?post_ids=2944
+    DEVICE_CLASS.BDR: {  # e.g. BDR91A/BDR91T: Wireless Relay Box
+        _0008: {RP: {}},  # doesn't RP/0009
+        _0016: {RP: {}},
+        # _10E0: {},  # 13: will not RP/10E0 # TODO: how to indicate that fact here
+        _1100: {I_: {}, RP: {}},
+        _1FC9: {RP: {}, W_: {}},
+        _3B00: {I_: {}},
+        _3EF0: {I_: {}},
+        # RP: {},  # RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
+        _3EF1: {RP: {}},
+    },
+    DEVICE_CLASS.EXT: {
+        _0002: {I_: {}},
+        _1FC9: {I_: {}},
+    },  # i.e. HB85 (ext. temperature/luminosity(lux)), HB95 (+ wind speed)
+}
+RAMSES_DEVICES = {
+    "03": {  # e.g. HCF82/HCW82: Room Temperature Sensor
+        _0001: {W_: {}},
+        _0008: {I_: {}},
+        _0009: {I_: {}},
+        _1060: {I_: {}},
+        _1100: {I_: {}},
+        _1F09: {I_: {}},
+        _1FC9: {I_: {}},
+        _2309: {I_: {}},
+        _30C9: {I_: {}},
     },
     "08": {
         _0008: {RQ: {}},
@@ -696,26 +811,6 @@ RAMSES_DEVICES = {
         _3EF0: {I_: {}},
         _3EF1: {RP: {}},
     },
-    "10": {  # e.g. R8810/R8820: OpenTherm Bridge
-        _0009: {I_: {}},  # 1/24h for a R8820 (not an R8810)
-        _042F: {I_: {}, RP: {}},
-        _1081: {RP: {}},  # R8820A only?
-        _10A0: {RP: {}},
-        _10E0: {I_: {}, RP: {}},
-        _10E1: {RP: {}},  # R8820A only?
-        _1260: {RP: {}},
-        _1290: {RP: {}},
-        _1300: {RP: {}},  # R8820A only?
-        _1FC9: {I_: {}, W_: {}},
-        _1FD4: {I_: {}},
-        _22D9: {RP: {}},
-        _3150: {I_: {}},
-        _3200: {RP: {}},  # R8820A only?
-        _3210: {RP: {}},  # R8820A only?
-        _3220: {RP: {}},
-        _3EF0: {I_: {}, RP: {}},
-        _3EF1: {RP: {}},
-    },  # see: https://www.opentherm.eu/request-details/?post_ids=2944
     "12": {  # e.g. DTS92(E): Digital Room Thermostat
         _0001: {W_: {}},
         _0008: {I_: {}},
@@ -736,21 +831,6 @@ RAMSES_DEVICES = {
         _3B00: {I_: {}},
         _3EF1: {RQ: {}},
     },
-    "13": {  # e.g. BDR91A/BDR91T: Wireless Relay Box
-        _0008: {RP: {}},  # doesn't RP/0009
-        _0016: {RP: {}},
-        # _10E0: {},  # 13: will not RP/10E0 # TODO: how to indicate that fact here
-        _1100: {I_: {}, RP: {}},
-        _1FC9: {RP: {}, W_: {}},
-        _3B00: {I_: {}},
-        _3EF0: {I_: {}},
-        # RP: {},  # RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
-        _3EF1: {RP: {}},
-    },
-    "17": {
-        _0002: {I_: {}},
-        _1FC9: {I_: {}},
-    },  # i.e. HB85 (ext. temperature/luminosity(lux)), HB95 (+ wind speed)
     "18": {
         _3220: {RQ: {}},
     },
@@ -858,17 +938,13 @@ RAMSES_DEVICES = {
         _22F3: {I_: {}},
     },  # https://www.ithodaalderop.nl/nl-NL/professional/product/536-0124
 }
+for k, v in DEVICE_TYPE_BY_CLASS.items():
+    if k in RAMSES_DEVICES_CLASS:
+        RAMSES_DEVICES[v] = RAMSES_DEVICES_CLASS[k]
+
 RAMSES_DEVICES["00"] = RAMSES_DEVICES["04"]  # HR80
 RAMSES_DEVICES["21"] = RAMSES_DEVICES["34"]  # T87RF1003
 RAMSES_DEVICES["22"] = RAMSES_DEVICES["12"]  # DTS92
-
-# DEVICE_TYPE_KLASS_HINTS = {
-#     "01": "CTL",
-#     "02": "UFC",
-#     "03": "UFC",
-#     "30": "RFG",  # also "VNT"
-#     # "30": "VNT",
-# }
 
 ##############
 # RAMSES_ZONES (WIP)
@@ -911,3 +987,24 @@ RAMSES_ZONES = {
 RAMSES_ZONES_ALL = RAMSES_ZONES.pop("ALL")
 RAMSES_ZONES_DHW = RAMSES_ZONES["DHW"]
 [RAMSES_ZONES[k].update(RAMSES_ZONES_ALL) for k in RAMSES_ZONES if k != "DHW"]
+
+
+# _DEVICE_SIGNATURES = {
+#     "CTL": ((_0100, I_), (_0100, RP), (_0404, I_), (_0404, RP), (_0418, I_), (_0418, RP), ),
+#     "UFC": (),
+#     "DHW": ((_1260, I_)),
+#     "BDR": (),
+#     "OTB": ((_3220, RP)),
+#     "EXT": (),  # OUT?
+#     "RFG": (),
+#     "VNS": (),
+#     "VNT": ((_31D9, I_), (_31D9, RP), (_31DA, I_), (_31DA, RP)),
+# }
+
+# DEVICE_SIGNATURES = {}
+# for device, signatures in _DEVICE_SIGNATURES.items():
+#     for pair in signatures:
+#         if (code := pair[1]) in DEVICE_SIGNATURES:
+#             raise RuntimeError
+#         else:
+#             DEVICE_SIGNATURES[device] = {code: pair[0]}
