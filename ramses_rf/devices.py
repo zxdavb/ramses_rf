@@ -110,7 +110,7 @@ _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
-_DEV_TYPE_TO_CLASS = {  # TODO: removw
+_DEV_TYPE_TO_CLASS = {  # TODO: *remove*
     None: DEVICE_CLASS.GEN,  # a generic, promotable device
     "00": DEVICE_CLASS.TRV,
     "01": DEVICE_CLASS.CTL,
@@ -144,7 +144,7 @@ class DeviceBase(Entity):
     _class = None
     _types = tuple()  # TODO: needed?
 
-    def __init__(self, gwy, dev_addr, ctl=None, domain_id=None) -> None:
+    def __init__(self, gwy, dev_addr, ctl=None, domain_id=None, **kwargs) -> None:
         _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)
         super().__init__(gwy)
 
@@ -213,7 +213,9 @@ class DeviceBase(Entity):
         self._ctl = ctl
         ctl.device_by_id[self.id] = self
         ctl.devices.append(self)
+
         _LOGGER.debug("%s: controller now set to %s", self, ctl)
+        return ctl
 
     def _handle_msg(self, msg) -> None:
         assert msg.src is self, f"msg inappropriately routed to {self}"
@@ -378,7 +380,9 @@ class Device(DeviceInfo, DeviceBase):
         if hasattr(parent, "devices") and self not in parent.devices:
             parent.devices.append(self)
             parent.device_by_id[self.id] = self
+
         _LOGGER.debug("Device %s: parent now set to %s", self, parent)
+        return parent
 
     @property
     def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
@@ -924,7 +928,13 @@ class Controller(Device):  # CTL (01):
     def _handle_msg(self, msg) -> bool:
         super()._handle_msg(msg)
 
-        # Route any messages to their heating systems
+        if msg.code == _000C:
+            [
+                self._gwy._get_device(d, ctl_id=self._ctl.id)
+                for d in msg.payload["devices"]
+            ]
+
+        # Route any messages to their heating systems, TODO: create dev first?
         if self._evo:
             self._evo._handle_msg(msg)
 
@@ -1003,6 +1013,13 @@ class UfhController(Device):  # UFC (02):
             if msg.payload["zone_id"] is not None:
                 self._circuits[msg.payload["ufh_idx"]] = msg
 
+            # if dev_ids := msg.payload["devices"]:
+            #     if ctl := self._set_ctl(self._gwy._get_device(dev_ids[0])):
+            #         if zone := ctl._evo.zone_by_idx.get(msg.payload["zone_id"]):
+            #             zone.devices.append(self)
+            #             zone.device_by_id[self.id] = self
+            #             _LOGGER.debug("Device %s: added to Zone: %s", self, zone)
+
         elif msg.code == _22C9:
             if isinstance(msg.payload, list):
                 self._setpoints = msg
@@ -1014,6 +1031,13 @@ class UfhController(Device):  # UFC (02):
                 self._heat_demands = msg
             elif "domain_id" in msg.payload:
                 self._heat_demand = msg
+            elif zone_idx := msg.payload.get("zone_idx"):
+                if (
+                    self._ctl
+                    and self._ctl._evo
+                    and (zone := self._ctl._evo.zone_by_idx.get(zone_idx))
+                ):
+                    zone._handle_msg(msg)
             # else:
             #     pass  # update the self._circuits[]
 
@@ -1024,6 +1048,10 @@ class UfhController(Device):  # UFC (02):
         return {
             k: {"zone_idx": m.payload["zone_id"]} for k, m in self._circuits.items()
         }
+
+    @property
+    def zones(self) -> Optional[Dict]:  # 000C
+        return {m.payload["zone_id"]: {"ufh_idx": k} for k, m in self._circuits.items()}
 
         # def fix(k):
         #     return "zone_idx" if k == "zone_id" else k

@@ -184,59 +184,46 @@ class Gateway:
     def _get_device(self, dev_id, ctl_id=None, domain_id=None, **kwargs) -> Device:
         """Return a device (will create it if required).
 
-        NB: a device can be safely considered bound to a controller only if the
-        controller says it is.
-
-        Can also set a controller/system (will create as required). If a controller is
-        provided, can also set the domain_id as one of: zone_idx, FF (controllers), FC
-        (heater_relay), HW (DHW sensor, relay), or None (unknown, TBA).
+        NB: devices are bound to a controller only when the controller says so.
         """
 
-        # TODO: only create controller if it is confirmed by an RP
+        def check_filter_lists(dev_id) -> None:
+            """Raise an error if a device_id is filtered."""
+            if dev_id in self._unwanted:
+                raise LookupError
 
-        if dev_id in self._unwanted:
-            return
+            if self.config.enforce_known_list and (
+                dev_id not in self._include
+                and dev_id != self.pkt_protocol._hgi80["device_id"]
+            ):
+                _LOGGER.warning(
+                    f"Won't create a non-allowed device_id: {dev_id}"
+                    f" (if required, add it to the {KNOWN_LIST})"
+                )
+                self._unwanted.append(dev_id)
+                raise LookupError
 
-        # if dev_id
-
-        if ctl_id is not None:
-            ctl = self.device_by_id.get(ctl_id)
-            if ctl is None:
-                ctl = self._get_device(ctl_id, domain_id="FF", **kwargs)
-
-        # These two are because Pkt.Transport.is_wanted() may still let some through
-        # or called via schema... TODO: remove?
-        if self.config.enforce_known_list and dev_id not in self._include:
-            _LOGGER.warning(
-                f"Won't create a non-allowed device_id: {dev_id}"
-                f" (if required, add it to the {KNOWN_LIST})"
-            )
-            self._unwanted.append(dev_id)
-            return
-
-        if dev_id in self._exclude:
-            _LOGGER.warning(
-                f"Won't create a blocked device_id: {dev_id}"
-                f" (if required, remove it from the {BLOCK_LIST})"
-            )
-            self._unwanted.append(dev_id)
-            return
+            if dev_id in self._exclude:
+                _LOGGER.warning(
+                    f"Won't create a blocked device_id: {dev_id}"
+                    f" (if required, remove it from the {BLOCK_LIST})"
+                )
+                self._unwanted.append(dev_id)
+                raise LookupError
 
         dev = self.device_by_id.get(dev_id)
-        if dev is None:  # TODO: take into account device filter?
-            dev = create_device(self, dev_id)  # , **kwargs)
+        if dev is None:
+            check_filter_lists(dev_id)
+            dev = create_device(self, dev_id, **kwargs)
 
-        # NOTE: moved to device base
-        # TODO: create_heating_system() or create_ventilation_system()
-        # if dev.type == "01" and dev._evo is None and dev._is_controller:  # DEX
-        #     dev._evo = create_system(self, dev, profile=kwargs.get("profile"))
-
-        # update the existing device with any metadata TODO: this is messy
-        if ctl_id and ctl:
+        # update the existing device with any metadata  # TODO: messy?
+        ctl = self.device_by_id.get(ctl_id)
+        if ctl:
             dev._set_ctl(ctl)
+
         if domain_id in ("F9", "FA", "FC", "FF"):
             dev._domain_id = domain_id
-        elif domain_id is not None and ctl_id and ctl:
+        elif domain_id is not None and ctl:
             dev._set_parent(ctl._evo._get_zone(domain_id))
 
         return dev
@@ -434,9 +421,6 @@ class Gateway:
         Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
         This routine is thread safe.
         """
-
-        if not cmd:
-            return
 
         if not self.msg_protocol:
             raise RuntimeError("there is no message protocol")

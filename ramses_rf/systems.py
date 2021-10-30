@@ -37,6 +37,7 @@ from .protocol.const import (
     ATTR_SYSTEM_MODE,
     ATTR_ZONE_SENSOR,
     SYSTEM_MODE,
+    ZONE_TYPE_SLUGS,
     SystemType,
 )
 from .protocol.exceptions import CorruptStateError, ExpiredCallbackError
@@ -241,8 +242,23 @@ class StoredHw:
         super().__init__(*args, **kwargs)
         self._dhw = None
 
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        super()._discover(discover_flag=discover_flag)
+
+        if discover_flag & DISCOVER_SCHEMA:
+            self._make_cmd(_000C, payload=f"00{_000C_DEVICE.DHW_SENSOR}")
+
     def _handle_msg(self, msg, prev_msg=None) -> None:
         super()._handle_msg(msg)
+
+        if msg.code == _000C:
+            if (
+                msg.payload["device_class"]
+                in (ATTR_DHW_SENSOR, ATTR_DHW_VALVE, ATTR_DHW_VALVE_HTG)
+                and msg.payload["devices"]
+            ):
+                self._get_dhw()._handle_msg(msg)
+            return
 
         if msg.code not in (_10A0, _1260, _1F41):  # or "dhw_id" not in msg.payload:
             return
@@ -366,6 +382,14 @@ class StoredHw:
 
 
 class MultiZone:  # 0005 (+/- 000C?)
+    ZONE_TYPES = (
+        _0005_ZONE.RAD,
+        _0005_ZONE.UFH,
+        _0005_ZONE.VAL,
+        _0005_ZONE.MIX,
+        _0005_ZONE.ELE,
+    )
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -384,23 +408,30 @@ class MultiZone:  # 0005 (+/- 000C?)
         if discover_flag & DISCOVER_SCHEMA:
             [  # 0005: find any zones + their type (RAD, UFH, VAL, MIX, ELE)
                 self._make_cmd(_0005, payload=f"00{zone_type}")
-                for zone_type in (
-                    _0005_ZONE.RAD,
-                    _0005_ZONE.UFH,
-                    _0005_ZONE.VAL,
-                    _0005_ZONE.MIX,
-                    _0005_ZONE.ELE,
-                )
+                for zone_type in self.ZONE_TYPES
+                # self._make_cmd(_0005, payload=f"00{zone_type:02X}")
+                # for zone_type in range(0x12)
             ]
 
     def _handle_msg(self, msg, prev_msg=None) -> bool:
         super()._handle_msg(msg)
 
-        # Route any messages to their zones
+        # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
+        if msg.code == _0005:  # RP, and also I
+            if msg.payload.get("_device_class") in self.ZONE_TYPES:
+                [
+                    self._get_zone(f"{idx:02X}", **msg.payload)
+                    for idx, flag in enumerate(msg.payload["zone_mask"])
+                    if flag == 1
+                ]
+            return
+
+        # Route any other messages to their zones, incl. 000C
         try:
-            if isinstance(msg.payload, dict):
+            if isinstance(msg.payload, dict):  # incl. 000C
                 if "zone_idx" in msg.payload:
                     self._evo.zone_by_idx[msg.payload["zone_idx"]]._handle_msg(msg)
+                # elif msg.payload.get("domain_id") == "FA":  # DHW
 
             elif isinstance(msg.payload, list):
                 [
@@ -418,9 +449,6 @@ class MultiZone:  # 0005 (+/- 000C?)
             #     self._send_cmd(cmd)
             # for zone in self.zones:
             #     zone._discover(discover_flag=DISCOVER_PARAMS)
-
-        # elif msg.code == _0005 and prev_msg is not None:
-        #     zone_added = bool(prev_msg.code == _0004)  # else zone_deleted
 
         if self._gwy.config.enable_eavesdrop and not all(z.sensor for z in self.zones):
             self._eavesdrop_zone_sensors(msg)
@@ -573,8 +601,8 @@ class MultiZone:  # 0005 (+/- 000C?)
         # NOTE: kwargs not passed, only so discovery is as eavesdropping
         zone = self.zone_by_idx.get(zone_idx) or create_zone(self, zone_idx)
 
-        if kwargs.get("zone_type"):
-            zone._set_zone_type(kwargs["zone_type"])
+        if kwargs.get("_device_class"):
+            zone._set_zone_type(ZONE_TYPE_SLUGS.get(kwargs["zone_type"]))
 
         if kwargs.get("sensor"):
             zone._set_sensor(kwargs["sensor"])
@@ -609,7 +637,7 @@ class MultiZone:  # 0005 (+/- 000C?)
 
 class UfhSystem:
     def _ufh_ctls(self):
-        sorted([d for d in self._ctl.devices if isinstance(d, UfhController)])
+        return sorted([d for d in self._ctl.devices if isinstance(d, UfhController)])
 
     @property
     def schema(self) -> dict:
@@ -669,18 +697,10 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         # super()._discover(discover_flag=discover_flag)
 
         if discover_flag & DISCOVER_SCHEMA:
-            [  # 000C: find the HTG (relay) and DHW (sensor), if any (DHW relays in DHW)
-                self._make_cmd(_000C, payload=f"00{dev_type}")
-                for dev_type in (_000C_DEVICE.HTG, _000C_DEVICE.DHW_SENSOR)
-            ]
+            self._make_cmd(_000C, payload=f"00{_000C_DEVICE.HTG}")
 
         if discover_flag & DISCOVER_PARAMS:
-            # self._make_cmd(_1100, payload="FC")  # TPI params
             self._send_cmd(Command.get_tpi_params(self.id), period=td(hours=4))
-
-        # # for code in (_3B00,):  # 3EF0, 3EF1
-        # #     for payload in ("0000", "00", "F8", "F9", "FA", "FB", "FC", "FF"):
-        # #         self._send_cmd(code, payload=payload)
 
         # # TODO: opentherm: 1FD4, 22D9, 3220
 

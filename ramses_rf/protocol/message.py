@@ -399,13 +399,16 @@ def _check_verb_code_src(msg) -> None:
 
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
     """
-    if msg.src.type not in RAMSES_DEVICES:  # DEX
+    if msg.src.type not in RAMSES_DEVICES:  # DEX  # TODO: fingerprint dev class
         raise InvalidPacketError(f"Unknown src device type: {msg.src.id}")
 
     if msg.src.type == "18":  # TODO: make a dynamic list if sensor/relay faking, DEX
         if msg.code not in RAMSES_CODES:  # NOTE: HGI can send whatever it likes
             raise InvalidPacketError(f"Unknown code for {msg.src.id} to Tx: {msg.code}")
         return
+
+    # if msg.dst.type == "18":  # TODO: make a dynamic list if sensor/relay faking, DEX
+    #     return
 
     if msg.code not in RAMSES_DEVICES[msg.src.type]:  # DEX
         raise InvalidPacketError(f"Invalid code for {msg.src.id} to Tx: {msg.code}")
@@ -473,7 +476,7 @@ def _check_verb_code_payload(msg, payload) -> None:
         if not re_compile_re_match(regex, payload) and msg.src.type != "18":  # DEX
             raise InvalidPayloadError(f"Payload doesn't match '{regex}': {payload}")
     except KeyError:
-        if msg.src.type != "18":  # DEX
+        if "18" not in (msg.src.type, msg.dst.type):  # DEX
             raise InvalidPacketError(f"Unknown verb/code pair: {msg.verb}/{msg.code}")
 
     # TODO: put this back, or leave it to the parser?

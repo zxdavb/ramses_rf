@@ -11,16 +11,6 @@ import logging
 from .const import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES
 from .devices import Device
 from .protocol import Message
-from .protocol.const import (
-    _0005_ZONE_TYPE,
-    ATTR_DHW_SENSOR,
-    ATTR_DHW_VALVE,
-    ATTR_DHW_VALVE_HTG,
-    ATTR_HTG_CONTROL,
-    ATTR_ZONE_ACTUATORS,
-    ATTR_ZONE_SENSOR,
-    ZONE_TYPE_SLUGS,
-)
 from .protocol.exceptions import CorruptStateError
 from .protocol.ramses import RAMSES_CODES
 
@@ -100,158 +90,44 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def _create_devices(this: Message) -> None:
-    """Discover and create any new devices."""
+def _create_devices_from_addrs(this: Message) -> None:
+    """Discover and create any new devices using the packet address set."""
 
-    def proc_000c():
-        if this.src.type == "01":  # TODO  # DEX
-            this._gwy._get_device(this.dst.id, ctl_id=this.src.id)
-            key = "zone_idx" if "zone_idx" in this.payload else "domain_id"
-            [
-                this._gwy._get_device(
-                    d,
-                    ctl_id=this.src.id,
-                    domain_id=this.payload[key],
-                )
-                for d in this.payload["devices"]
-            ]
-        elif this.src.type == "02":  # TODO  # DEX
-            # this._gwy._get_device(this.dst.id)
-            if this.payload["devices"]:
-                device_id = this.payload["devices"][0]
-                this._gwy._get_device(this.src.id, ctl_id=device_id)
-
-        elif this.payload["device_class"] == ATTR_HTG_CONTROL:
-            # TODO: maybe the htg controller is an OTB? via eavesdropping
-            # evo._set_htg_control(devices[0])
-            pass
-
-    if this.code == _000C and this.verb == RP:
-        proc_000c()
-
-    # prefer Devices but can use Addresses...
+    # prefer Devices but can still use Addresses if required...
     this.src = this._gwy.device_by_id.get(this.src.id, this.src)
     this.dst = this._gwy.device_by_id.get(this.dst.id, this.dst)
 
-    if this.src.type in ("01", "23") and this.src is not this.dst:  # TODO: all CTLs/DEX
-        this.src = this._gwy._get_device(this.src.id, ctl_id=this.src.id)
-        ctl_id = this.src.id if this._gwy.config.enable_eavesdrop else None
-        this._gwy._get_device(this.dst.id, ctl_id=ctl_id)
+    # Devices need to know their controller, ?and their location ('parent' domain)
+    # NB: only addrs prcoessed here, packet metadata is processed elsewhere
 
-    # elif this.dst.type in ("01", "23") and this.src is not this.dst:  # all CTLs/DEX
-    #     this.dst = this._gwy._get_device(this.dst.id, ctl_id=this.dst.id)
-    #     ctl_id = this.dst.id if this._gwy.config.enable_eavesdrop else None
-    #     this._gwy._get_device(this.src.id, ctl_id=ctl_id)
+    # Determinging bindings to a controller:
+    #  - configury; As per any schema
+    #  - discovery: If in 000C pkt, or pkt *to* device where src is a controller
+    #  - eavesdrop: If pkt *from* device where dst is a controller
 
-    # this should catch all non-controller (and *some* controller) devices
-    elif this.src is this.dst:
-        this._gwy._get_device(this.src.id)
+    # Determinging location in a schema (domain/DHW/zone):
+    #  - configury; As per any schema
+    #  - discovery: If in 000C pkt - unable for 10: & 00: (TRVs)
+    #  - discovery: from packet fingerprint, excl. payloads (only for 10:)
+    #  - eavesdrop: from packet fingerprint, incl. payloads
 
-    # # otherwise one will be a controller, *unless* dst is in ("--", "63")
-    # elif isinstance(this.src, Device) and this.src._is_controller:
-    #     this._gwy._get_device(this.dst.id, ctl_id=this.src.id)
+    if not isinstance(this.src, Device):
+        this.src = this._gwy._get_device(this.src.id, msg=this)
+        if this.src == this.dst and this.src is not this.dst:
+            this.dst = this.src
 
-    # TODO: may create a controller that doesn't exist
-    elif isinstance(this.dst, Device) and this.dst._is_controller:
-        this._gwy._get_device(this.src.id, ctl_id=this.dst.id)
+    if this._gwy.config.enable_eavesdrop and not isinstance(this.dst, Device):
+        this.dst = this._gwy._get_device(this.dst.id, msg=this)
 
-    else:
-        # beware:  I --- --:------ --:------ 10:078099 1FD4 003 00F079
-        [this._gwy._get_device(d) for d in (this.src.id,)]  # this.dst.id)]
+    if isinstance(this.dst, Device) and getattr(this.src, "_is_controller", False):
+        this._gwy._get_device(this.dst.id, ctl_id=this.src.id, msg=this)  # or _set_ctl?
 
-    # where possible, swap each Address for its corresponding Device
-    this.src = this._gwy.device_by_id.get(this.src.id, this.src)
-    if this.dst is not None:
-        this.dst = this._gwy.device_by_id.get(this.dst.id, this.dst)
+    if this._gwy.config.enable_eavesdrop and getattr(this.dst, "_is_controller", False):
+        this._gwy._get_device(this.src.id, ctl_id=this.dst.id, msg=this)  # or _set_ctl?
 
 
-def _create_zones(this: Message) -> None:
-    """Discover and create any new zones (except HW)."""
-
-    def proc_0005():
-        if this._payload["zone_type"] in _0005_ZONE_TYPE.values():
-            [
-                evo._get_zone(
-                    f"{idx:02X}",
-                    zone_type=ZONE_TYPE_SLUGS.get(this._payload["zone_type"]),
-                )
-                for idx, flag in enumerate(this._payload["zone_mask"])
-                if flag == 1
-            ]
-
-    def proc_000c():
-        if not this.payload["devices"]:
-            return
-
-        devices = [this.src.device_by_id[d] for d in this.payload["devices"]]
-
-        if this.payload["device_class"] == ATTR_ZONE_SENSOR:
-            zone = evo._get_zone(this.payload["zone_idx"])
-            try:
-                zone._set_sensor(devices[0])
-            except TypeError:  # ignore invalid device types, e.g. 17:
-                pass
-
-        elif this.payload["device_class"] == ATTR_ZONE_ACTUATORS:
-            # evo._get_zone(this.payload["zone_idx"], actuators=devices)
-            # TODO: which is better, above or below?
-            zone = evo._get_zone(this.payload["zone_idx"])
-            [d._set_parent(zone) for d in devices]
-
-        elif this.payload["device_class"] == ATTR_HTG_CONTROL:
-            evo._set_htg_control(devices[0])
-
-        elif this.payload["device_class"] == ATTR_DHW_SENSOR:
-            evo._get_dhw()._set_sensor(devices[0])
-
-        elif this.payload["device_class"] == ATTR_DHW_VALVE:
-            evo._get_dhw()._set_dhw_valve(devices[0])
-
-        elif this.payload["device_class"] == ATTR_DHW_VALVE_HTG:
-            evo._get_dhw()._set_htg_valve(devices[0])
-
-        elif this.payload["device_class"] == ATTR_HTG_CONTROL:
-            # TODO: maybe the htg controller is an OTB? via eavesdropping
-            # evo._set_htg_control(devices[0])
-            pass
-
-    if this.src.type not in ("01", "23"):  # TODO: this is too restrictive!  # DEX
-        return
-
-    evo = this.src._evo
-
-    # TODO: a I/0005: zones have changed & may need a restart (del) or not (add)
-    if this.code == _0005:  # RP, and also I
-        proc_0005()
-
-    if this.code == _000C and this.src.type == "01":  # DEX
-        proc_000c()
-
-    # # Eavesdropping (below) is used when discovery (above) is not an option
-    # # TODO: needs work, e.g. RP/1F41 (excl. null_rp)
-    # elif this.code in (_10A0, _1F41):
-    #     if isinstance(this.dst, Device) and this.dst._is_controller:
-    #         this.dst._get_dhw()
-    #     else:
-    #         evo._get_dhw()
-
-    # # TODO: also process ufh_idx (but never domain_id)
-    # elif isinstance(this._payload, dict):
-    #     # TODO: only creating zones from arrays, presently, but could do so here
-    #     if this._payload.get("zone_idx"):  # TODO: parent_zone too?
-    #         if this.src._is_controller:
-    #             evo._get_zone(this._payload["zone_idx"])
-    #         else:
-    #             this.dst._get_zone(this._payload["zone_idx"])
-
-    elif isinstance(this._payload, list):
-        if this.code in (_000A, _2309, _30C9):  # the sync_cycle pkts
-            [evo._get_zone(d["zone_idx"]) for d in this.payload]
-        # elif this.code in (_22C9, _3150):  # TODO: UFH zone
-        #     pass
-
-    # else:  # should never get here
-    #     raise TypeError
+def _create_devices_from_payload(this: Message) -> None:
+    """Discover and create any new devices using the message payload (1FC9/000C)."""
 
 
 def process_msg(msg: Message) -> None:
@@ -269,9 +145,13 @@ def process_msg(msg: Message) -> None:
     #         this._payload = prev.payload + this.payload  # merge frags, and process
 
     if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
-        _LOGGER.info(msg)
+        (
+            _LOGGER.debug
+            if msg.verb == RQ and msg.src.type == "18"  # DEX
+            else _LOGGER.info
+        )(msg)
 
-    # NOTE: this is used for debugging only
+    # NOTE: this is used to expose message timeouts (esp. when parsing)
     # [m._expired for d in msg._gwy.devices for m in d._msg_db]
 
     if msg._gwy.config.reduce_processing >= DONT_CREATE_ENTITIES:
@@ -283,8 +163,8 @@ def process_msg(msg: Message) -> None:
     #     return
 
     try:  # process the packet payload
-        _create_devices(msg)  # from pkt header & from msg payload (e.g. 000C)
-        _create_zones(msg)  # create zones & (TBD) ufh_zones too?
+        _create_devices_from_addrs(msg)  # from pkt header
+        # _create_devices_from_payload(msg)  # from msg payload (e.g. 000C)
 
         if msg._gwy.config.reduce_processing >= DONT_UPDATE_ENTITIES:
             msg._gwy._prev_msg = msg
@@ -294,7 +174,7 @@ def process_msg(msg: Message) -> None:
         if isinstance(msg.src, Device):
             msg.src._handle_msg(msg)
 
-        if msg.code not in (_0008, _0009, _3B00, _3EF1):
+        if msg.code not in (_0008, _0009, _3B00, _3EF1):  # special case: are fakeable
             msg._gwy._prev_msg = msg
             return
 
