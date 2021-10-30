@@ -127,260 +127,6 @@ SYSTEM_PROFILE = SimpleNamespace(
 )
 
 
-class SysFaultLog:  # 0418
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._fault_log = FaultLog(self._ctl)
-
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        super()._discover(discover_flag=discover_flag)
-
-        # TODO: get working later
-        # if discover_flag & DISCOVER_STATUS:
-        #     self._gwy._tasks.append(self._loop.create_task(self.get_fault_log()))
-
-    async def get_fault_log(
-        self, start=None, limit=None, force_refresh=None
-    ) -> Optional[dict]:  # 0418
-        try:
-            return await self._fault_log.get_fault_log(
-                start=start, limit=limit, force_refresh=force_refresh
-            )
-        except ExpiredCallbackError:
-            return
-
-    @property
-    def status(self) -> dict:
-        status = super().status
-        # assert "fault_log" not in status  # TODO: removeme
-        status["fault_log"] = self._fault_log.fault_log
-        # status["last_fault"] = self._msgz[I_].get(_0418)  # FIXME
-        return status
-
-
-class SysDatetime:  # 313F
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        super()._discover(discover_flag=discover_flag)
-
-        if discover_flag & DISCOVER_STATUS:
-            self._send_cmd(Command.get_system_time(self.id), period=td(hours=1))
-
-    @property
-    def datetime(self) -> Optional[str]:  # 313F  # TODO: return a dt object
-        return self._msg_value(_313F, key=ATTR_DATETIME)
-
-    # async def get_datetime(self) -> str:  # wait for the RP/313F
-    #     await self.wait_for(Command(_313F, verb=RQ))
-    #     return self.datetime
-
-    # async def set_datetime(self, dtm: dt) -> str:  # wait for the I/313F
-    #     await self.wait_for(Command(_313F, verb=W_, payload=f"00{dtm_to_hex(dtm)}"))
-    #     return self.datetime
-
-    @property
-    def status(self) -> dict:
-        status = super().status
-        status[ATTR_HTG_SYSTEM][ATTR_DATETIME] = self.datetime
-        return status
-
-
-class SysLanguage:  # 0100
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        super()._discover(discover_flag=discover_flag)
-
-        if discover_flag & DISCOVER_PARAMS:
-            self._send_cmd(Command.get_system_language(self.id))
-
-    @property
-    def language(self) -> Optional[str]:  # 0100
-        return self._msg_value(_0100, key=ATTR_LANGUAGE)
-
-    @property
-    def params(self) -> dict:
-        params = super().params
-        params[ATTR_HTG_SYSTEM][ATTR_LANGUAGE] = self.language
-        return params
-
-
-class SysMode:  # 2E04
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        super()._discover(discover_flag=discover_flag)
-
-        if discover_flag & DISCOVER_STATUS:
-            self._send_cmd(Command.get_system_mode(self.id), period=td(hours=1))
-
-    @property
-    def system_mode(self) -> Optional[dict]:  # 2E04
-        return self._msg_value(_2E04)
-
-    def set_mode(self, system_mode=None, until=None) -> Task:
-        """Set a system mode for a specified duration, or indefinitely."""
-        cmd = Command.set_system_mode(self.id, system_mode=system_mode, until=until)
-        return self._send_cmd(cmd)
-
-    def set_auto(self) -> Task:
-        """Revert system to Auto, set non-PermanentOverride zones to FollowSchedule."""
-        return self.set_mode(SYSTEM_MODE.auto)
-
-    def reset_mode(self) -> Task:
-        """Revert system to Auto, force *all* zones to FollowSchedule."""
-        return self.set_mode(SYSTEM_MODE.auto_with_reset)
-
-    @property
-    def params(self) -> dict:
-        params = super().params
-        params[ATTR_HTG_SYSTEM][ATTR_SYSTEM_MODE] = self.system_mode
-        return params
-
-
-class StoredHw:
-    MIN_SETPOINT = 30.0  # NOTE: these may be removed
-    MAX_SETPOINT = 85.0
-    DEFAULT_SETPOINT = 50.0
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._dhw = None
-
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-        super()._discover(discover_flag=discover_flag)
-
-        if discover_flag & DISCOVER_SCHEMA:
-            self._make_cmd(_000C, payload=f"00{_000C_DEVICE.DHW_SENSOR}")
-
-    def _handle_msg(self, msg, prev_msg=None) -> None:
-        super()._handle_msg(msg)
-
-        if msg.code == _000C:
-            if (
-                msg.payload["device_class"]
-                in (ATTR_DHW_SENSOR, ATTR_DHW_VALVE, ATTR_DHW_VALVE_HTG)
-                and msg.payload["devices"]
-            ):
-                self._get_dhw()._handle_msg(msg)
-            return
-
-        if msg.code not in (_10A0, _1260, _1F41):  # or "dhw_id" not in msg.payload:
-            return
-
-        # RQ --- 18:002563 01:078710 --:------ 10A0 001 00  # every 4h
-        # RP --- 01:078710 18:002563 --:------ 10A0 006 00157C0003E8
-        if not self.dhw:
-            self._get_dhw()
-
-        if msg._gwy.config.enable_eavesdrop and not self.dhw_sensor:
-            self._eavesdrop_dhw_sensor(msg)
-
-        # Route any messages to the DHW (dhw_params, dhw_temp, dhw_mode)
-        self._dhw._handle_msg(msg)
-
-    def _eavesdrop_dhw_sensor(self, this, prev=None) -> None:
-        """Eavesdrop packets, or pairs of packets, to maintain the system state.
-
-        There are only 2 ways to to find a controller's DHW sensor:
-        1. The 10A0 RQ/RP *from/to a 07:* (1x/4h) - reliable
-        2. Use sensor temp matching - non-deterministic
-
-        Data from the CTL is considered more authorative. The RQ is initiated by the
-        DHW, so is not authorative. The I/1260 is not to/from a controller, so is
-        not useful.
-        """
-
-        # 10A0: RQ/07/01, RP/01/07: can get both parent controller & DHW sensor
-        # 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
-        # 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
-
-        # 1260: I/07: can't get which parent controller - would need to match temps
-        # 045  I --- 07:045960 --:------ 07:045960 1260 003 000911
-
-        # 1F41: I/01: get parent controller, but not DHW sensor
-        # 045  I --- 01:145038 --:------ 01:145038 1F41 012 000004FFFFFF1E060E0507E4
-        # 045  I --- 01:145038 --:------ 01:145038 1F41 006 000002FFFFFF
-
-        assert self._gwy.config.enable_eavesdrop, "Coding error"
-
-        if all(
-            (
-                this.code == _10A0,
-                this.verb == RP,
-                this.src is self._ctl,
-                isinstance(this.dst, DhwSensor),
-            )
-        ):
-            self._get_dhw(sensor=this.dst)
-
-    def _get_dhw(self, **kwargs) -> DhwZone:
-        """Return the DHW zone (will create/update it if required)."""
-
-        dhw = self.dhw or create_zone(self, zone_idx="HW")
-
-        if kwargs.get(ATTR_DHW_SENSOR):
-            dhw._set_sensor(kwargs[ATTR_DHW_SENSOR])
-
-        if kwargs.get(ATTR_DHW_VALVE):
-            dhw._set_dhw_valve(kwargs[ATTR_DHW_VALVE])
-
-        if kwargs.get(ATTR_DHW_VALVE_HTG):
-            dhw._set_htg_valve(kwargs[ATTR_DHW_VALVE_HTG])
-
-        self._dhw = dhw
-        return dhw
-
-    @property
-    def dhw(self) -> DhwZone:
-        return self._dhw
-
-    def _set_dhw(self, dhw: DhwZone) -> None:  # self._dhw
-        """Set the DHW zone system."""
-
-        if not isinstance(dhw, DhwZone):
-            raise TypeError(f"stored_hw can't be: {dhw}")
-
-        if self._dhw is not None:
-            if self._dhw is dhw:
-                return
-            raise CorruptStateError("DHW shouldn't change: {self._dhw} to {dhw}")
-
-        if self._dhw is None:
-            # self._gwy._get_device(xxx)
-            # self.add_device(dhw.sensor)
-            # self.add_device(dhw.relay)
-            self._dhw = dhw
-
-    @property
-    def dhw_sensor(self) -> Device:
-        return self._dhw._dhw_sensor if self._dhw else None
-
-    @property
-    def hotwater_valve(self) -> Device:
-        return self._dhw._dhw_valve if self._dhw else None
-
-    @property
-    def heating_valve(self) -> Device:
-        return self._dhw._htg_valve if self._dhw else None
-
-    @property
-    def schema(self) -> dict:
-        return {
-            **super().schema,
-            ATTR_DHW_SYSTEM: self._dhw.schema if self._dhw else {},
-        }
-
-    @property
-    def params(self) -> dict:
-        return {
-            **super().params,
-            ATTR_DHW_SYSTEM: self._dhw.params if self._dhw else {},
-        }
-
-    @property
-    def status(self) -> dict:
-        return {
-            **super().status,
-            ATTR_DHW_SYSTEM: self._dhw.status if self._dhw else {},
-        }
-
-
 class MultiZone:  # 0005 (+/- 000C?)
     ZONE_TYPES = (
         _0005_ZONE.RAD,
@@ -633,6 +379,300 @@ class MultiZone:  # 0005 (+/- 000C?)
             **super().status,
             ATTR_ZONES: {z.idx: z.status for z in sorted(self.zones)},
         }
+
+
+class ScheduleSync:  # 0006
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self._prev_0006 = None
+
+    # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    #     super()._discover(discover_flag=discover_flag)
+
+    #     if discover_flag & DISCOVER_STATUS:
+    #         # if self._prev_0006 is None:
+    #         self._make_cmd(_0006)  # schedule delta
+
+    def _handle_msg(self, msg, prev_msg=None) -> bool:
+        super()._handle_msg(msg)
+
+        if msg.code == _0006:
+            self._prev_0006, prev_0006 = msg, self._prev_0006
+
+            if not prev_0006 or (
+                msg._payload["change_counter"] != (prev_0006._payload["change_counter"])
+            ):
+                self._update_schedules()
+
+    def _update_schedules(self) -> None:
+        if self._gwy.config.disable_sending:
+            return
+
+        for zone in getattr(self, "zones", []):
+            self._gwy._loop.create_task(zone.get_schedule(force_refresh=True))
+        if dhw := getattr(self, "dhw", None):
+            self._gwy._loop.create_task(dhw.get_schedule(force_refresh=True))
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+        }
+
+
+class SysLanguage:  # 0100
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        super()._discover(discover_flag=discover_flag)
+
+        if discover_flag & DISCOVER_PARAMS:
+            self._send_cmd(Command.get_system_language(self.id))
+
+    @property
+    def language(self) -> Optional[str]:  # 0100
+        return self._msg_value(_0100, key=ATTR_LANGUAGE)
+
+    @property
+    def params(self) -> dict:
+        params = super().params
+        params[ATTR_HTG_SYSTEM][ATTR_LANGUAGE] = self.language
+        return params
+
+
+class SysFaultLog:  # 0418
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._fault_log = FaultLog(self._ctl)
+
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        super()._discover(discover_flag=discover_flag)
+
+        # TODO: get working later
+        # if discover_flag & DISCOVER_STATUS:
+        #     self._gwy._tasks.append(self._loop.create_task(self.get_fault_log()))
+
+    async def get_fault_log(
+        self, start=None, limit=None, force_refresh=None
+    ) -> Optional[dict]:  # 0418
+        try:
+            return await self._fault_log.get_fault_log(
+                start=start, limit=limit, force_refresh=force_refresh
+            )
+        except ExpiredCallbackError:
+            return
+
+    @property
+    def status(self) -> dict:
+        status = super().status
+        # assert "fault_log" not in status  # TODO: removeme
+        status["fault_log"] = self._fault_log.fault_log
+        # status["last_fault"] = self._msgz[I_].get(_0418)  # FIXME
+        return status
+
+
+class StoredHw:  # 10A0, 1260, 1F41
+    MIN_SETPOINT = 30.0  # NOTE: these may be removed
+    MAX_SETPOINT = 85.0
+    DEFAULT_SETPOINT = 50.0
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._dhw = None
+
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        super()._discover(discover_flag=discover_flag)
+
+        if discover_flag & DISCOVER_SCHEMA:
+            self._make_cmd(_000C, payload=f"00{_000C_DEVICE.DHW_SENSOR}")
+
+    def _handle_msg(self, msg, prev_msg=None) -> None:
+        super()._handle_msg(msg)
+
+        if msg.code == _000C:
+            if (
+                msg.payload["device_class"]
+                in (ATTR_DHW_SENSOR, ATTR_DHW_VALVE, ATTR_DHW_VALVE_HTG)
+                and msg.payload["devices"]
+            ):
+                self._get_dhw()._handle_msg(msg)
+            return
+
+        if msg.code not in (_10A0, _1260, _1F41):  # or "dhw_id" not in msg.payload:
+            return
+
+        # RQ --- 18:002563 01:078710 --:------ 10A0 001 00  # every 4h
+        # RP --- 01:078710 18:002563 --:------ 10A0 006 00157C0003E8
+        if not self.dhw:
+            self._get_dhw()
+
+        if msg._gwy.config.enable_eavesdrop and not self.dhw_sensor:
+            self._eavesdrop_dhw_sensor(msg)
+
+        # Route any messages to the DHW (dhw_params, dhw_temp, dhw_mode)
+        self._dhw._handle_msg(msg)
+
+    def _eavesdrop_dhw_sensor(self, this, prev=None) -> None:
+        """Eavesdrop packets, or pairs of packets, to maintain the system state.
+
+        There are only 2 ways to to find a controller's DHW sensor:
+        1. The 10A0 RQ/RP *from/to a 07:* (1x/4h) - reliable
+        2. Use sensor temp matching - non-deterministic
+
+        Data from the CTL is considered more authorative. The RQ is initiated by the
+        DHW, so is not authorative. The I/1260 is not to/from a controller, so is
+        not useful.
+        """
+
+        # 10A0: RQ/07/01, RP/01/07: can get both parent controller & DHW sensor
+        # 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
+        # 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
+
+        # 1260: I/07: can't get which parent controller - would need to match temps
+        # 045  I --- 07:045960 --:------ 07:045960 1260 003 000911
+
+        # 1F41: I/01: get parent controller, but not DHW sensor
+        # 045  I --- 01:145038 --:------ 01:145038 1F41 012 000004FFFFFF1E060E0507E4
+        # 045  I --- 01:145038 --:------ 01:145038 1F41 006 000002FFFFFF
+
+        assert self._gwy.config.enable_eavesdrop, "Coding error"
+
+        if all(
+            (
+                this.code == _10A0,
+                this.verb == RP,
+                this.src is self._ctl,
+                isinstance(this.dst, DhwSensor),
+            )
+        ):
+            self._get_dhw(sensor=this.dst)
+
+    def _get_dhw(self, **kwargs) -> DhwZone:
+        """Return the DHW zone (will create/update it if required)."""
+
+        dhw = self.dhw or create_zone(self, zone_idx="HW")
+
+        if kwargs.get(ATTR_DHW_SENSOR):
+            dhw._set_sensor(kwargs[ATTR_DHW_SENSOR])
+
+        if kwargs.get(ATTR_DHW_VALVE):
+            dhw._set_dhw_valve(kwargs[ATTR_DHW_VALVE])
+
+        if kwargs.get(ATTR_DHW_VALVE_HTG):
+            dhw._set_htg_valve(kwargs[ATTR_DHW_VALVE_HTG])
+
+        self._dhw = dhw
+        return dhw
+
+    @property
+    def dhw(self) -> DhwZone:
+        return self._dhw
+
+    def _set_dhw(self, dhw: DhwZone) -> None:  # self._dhw
+        """Set the DHW zone system."""
+
+        if not isinstance(dhw, DhwZone):
+            raise TypeError(f"stored_hw can't be: {dhw}")
+
+        if self._dhw is not None:
+            if self._dhw is dhw:
+                return
+            raise CorruptStateError("DHW shouldn't change: {self._dhw} to {dhw}")
+
+        if self._dhw is None:
+            # self._gwy._get_device(xxx)
+            # self.add_device(dhw.sensor)
+            # self.add_device(dhw.relay)
+            self._dhw = dhw
+
+    @property
+    def dhw_sensor(self) -> Device:
+        return self._dhw._dhw_sensor if self._dhw else None
+
+    @property
+    def hotwater_valve(self) -> Device:
+        return self._dhw._dhw_valve if self._dhw else None
+
+    @property
+    def heating_valve(self) -> Device:
+        return self._dhw._htg_valve if self._dhw else None
+
+    @property
+    def schema(self) -> dict:
+        return {
+            **super().schema,
+            ATTR_DHW_SYSTEM: self._dhw.schema if self._dhw else {},
+        }
+
+    @property
+    def params(self) -> dict:
+        return {
+            **super().params,
+            ATTR_DHW_SYSTEM: self._dhw.params if self._dhw else {},
+        }
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            ATTR_DHW_SYSTEM: self._dhw.status if self._dhw else {},
+        }
+
+
+class SysMode:  # 2E04
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        super()._discover(discover_flag=discover_flag)
+
+        if discover_flag & DISCOVER_STATUS:
+            self._send_cmd(Command.get_system_mode(self.id), period=td(hours=1))
+
+    @property
+    def system_mode(self) -> Optional[dict]:  # 2E04
+        return self._msg_value(_2E04)
+
+    def set_mode(self, system_mode=None, until=None) -> Task:
+        """Set a system mode for a specified duration, or indefinitely."""
+        cmd = Command.set_system_mode(self.id, system_mode=system_mode, until=until)
+        return self._send_cmd(cmd)
+
+    def set_auto(self) -> Task:
+        """Revert system to Auto, set non-PermanentOverride zones to FollowSchedule."""
+        return self.set_mode(SYSTEM_MODE.auto)
+
+    def reset_mode(self) -> Task:
+        """Revert system to Auto, force *all* zones to FollowSchedule."""
+        return self.set_mode(SYSTEM_MODE.auto_with_reset)
+
+    @property
+    def params(self) -> dict:
+        params = super().params
+        params[ATTR_HTG_SYSTEM][ATTR_SYSTEM_MODE] = self.system_mode
+        return params
+
+
+class SysDatetime:  # 313F
+    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+        super()._discover(discover_flag=discover_flag)
+
+        if discover_flag & DISCOVER_STATUS:
+            self._send_cmd(Command.get_system_time(self.id), period=td(hours=1))
+
+    @property
+    def datetime(self) -> Optional[str]:  # 313F  # TODO: return a dt object
+        return self._msg_value(_313F, key=ATTR_DATETIME)
+
+    # async def get_datetime(self) -> str:  # wait for the RP/313F
+    #     await self.wait_for(Command(_313F, verb=RQ))
+    #     return self.datetime
+
+    # async def set_datetime(self, dtm: dt) -> str:  # wait for the I/313F
+    #     await self.wait_for(Command(_313F, verb=W_, payload=f"00{dtm_to_hex(dtm)}"))
+    #     return self.datetime
+
+    @property
+    def status(self) -> dict:
+        status = super().status
+        status[ATTR_HTG_SYSTEM][ATTR_DATETIME] = self.datetime
+        return status
 
 
 class UfhSystem:
@@ -969,7 +1009,7 @@ class System(StoredHw, SysDatetime, SysFaultLog, SystemBase):
         return status
 
 
-class Evohome(SysLanguage, SysMode, MultiZone, UfhSystem, System):  # evohome
+class Evohome(ScheduleSync, SysLanguage, SysMode, MultiZone, UfhSystem, System):
     """The Evohome system - some controllers are evohome-compatible."""
 
     # older evohome don't have zone_type=ELE
