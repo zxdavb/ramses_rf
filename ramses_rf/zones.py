@@ -296,6 +296,20 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
         super()._handle_msg(msg)
 
+        if msg.code == _000C and msg.payload["devices"]:
+            LOOKUP = {
+                ATTR_DHW_SENSOR: self._set_sensor,
+                ATTR_DHW_VALVE: self._set_dhw_valve,
+                ATTR_DHW_VALVE_HTG: self._set_htg_valve,
+            }
+            devices = [
+                # self._gwy._get_device(d, ctl_id=msg.src.id, domain_id=...)
+                self._gwy._get_device(d)  # ctl_id=self._ctl.id, domain_id=self.idx)
+                for d in msg.payload["devices"]
+            ]
+
+            LOOKUP[msg.payload["device_class"]](devices[0])
+
     def _set_dhw_device(self, new_dev, old_dev, attr_name, dev_class, domain_id):
         if old_dev is new_dev:
             return old_dev
@@ -494,16 +508,40 @@ class Zone(ZoneSchedule, ZoneBase):
         # self._schedule.req_schedule()  # , restart=True) start collecting schedule
 
     def _handle_msg(self, msg) -> bool:
-        assert msg.src is self._ctl and (
+        # if msg.code in _000C and msg.src.type == "02":  # DEX
+        #     if self._ufc is None
+        #         self._ufc = msg.src
+        #     else:
+        #         raise()
+
+        assert (msg.src is self._ctl or msg.src.type == "02") and (  # DEX
             isinstance(msg.payload, dict)
             or [d for d in msg.payload if d["zone_idx"] == self.idx]
         ), f"msg inappropriately routed to {self}"
 
-        assert msg.src is self._ctl and (
+        assert (msg.src is self._ctl or msg.src.type == "02") and (  # DEX
             isinstance(msg.payload, list) or msg.payload["zone_idx"] == self.idx
         ), f"msg inappropriately routed to {self}"
 
         super()._handle_msg(msg)
+
+        if msg.code == _000C and msg.payload["devices"]:
+
+            # TODO: testing this concept, hoping to learn device_id of UFC
+            if msg.payload["_device_class"] == _000C_DEVICE.UFH:
+                self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.UFH}")
+
+            devices = [
+                # self._gwy._get_device(d, ctl_id=msg.src.id, domain_id=...)
+                self._gwy._get_device(d)  # ctl_id=self._ctl.id, domain_id=self.idx)
+                for d in msg.payload["devices"]
+            ]
+
+            if msg.payload["_device_class"] == _000C_DEVICE.ALL_SENSOR:
+                self._set_sensor(devices[0])  # incl. devices[0]._set_parent(self)
+
+            elif msg.payload["_device_class"] == _000C_DEVICE.ALL:
+                [d._set_parent(self) for d in devices]  # if d is not None]
 
         if msg._gwy.config.enable_eavesdrop and self._zone_type in (None, "ELE"):
             self._eavesdrop_dhw_sensor(msg)
@@ -821,6 +859,11 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
 
         if False and discover_flag & DISCOVER_SCHEMA:
             self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.UFH}")
+
+    @property
+    def heat_demand(self) -> Optional[float]:  # 3150
+        """Return the zone's heat demand, estimated from its devices' heat demand."""
+        return self._msg_value(_3150, key=ATTR_HEAT_DEMAND)
 
     @property
     def ufh_setpoint(self) -> Optional[float]:  # 22C9
