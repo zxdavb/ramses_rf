@@ -256,7 +256,7 @@ def script_poll_device(gwy, dev_id) -> List[Any]:
 async def script_scan_disc(gwy, dev_id: str):
     _LOGGER.warning("scan_quick() invoked...")
 
-    gwy._get_device(dev_id)._discover()  # discover_flag=DISCOVER_ALL)
+    gwy._get_device(dev_id)._discover()  # discover_flag=Discover.ALL)
 
 
 @script_decorator

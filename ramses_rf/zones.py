@@ -12,7 +12,7 @@ from sys import modules
 from types import SimpleNamespace
 from typing import Optional
 
-from .const import DISCOVER_ALL, DISCOVER_PARAMS, DISCOVER_SCHEMA, DISCOVER_STATUS
+from .const import Discover
 from .devices import (
     BdrSwitch,
     Controller,
@@ -190,8 +190,8 @@ class ZoneSchedule:  # 0404  # TODO: add for DHW
 
         self._schedule = Schedule(self)
 
-    # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
-    #     if discover_flag & DISCOVER_STATUS:  # TODO: add back in
+    # def _discover(self, discover_flag=Discover.ALL) -> None:
+    #     if discover_flag & Discover.STATUS:  # TODO: add back in
     #         self._loop.create_task(self.get_schedule())  # 0404
 
     #     def _handle_msg(self, msg) -> bool:
@@ -224,10 +224,10 @@ class ZoneSchedule:  # 0404  # TODO: add for DHW
 class RelayDemand:  # 0008
     """Not all zones call for heat."""
 
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    def _discover(self, discover_flag=Discover.ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_STATUS:
+        if discover_flag & Discover.STATUS:
             self._send_cmd(Command.get_relay_demand(self._ctl.id, zone_idx=self.idx))
 
     @property
@@ -272,10 +272,10 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             self._set_htg_valve(htg_valve)
 
     @discover_decorator
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    def _discover(self, discover_flag=Discover.ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_SCHEMA:
+        if discover_flag & Discover.SCHEMA:
             [  # 000C: find the DHW relay(s), if any, see: _000C_DEVICE_TYPE
                 self._make_cmd(_000C, payload=dev_type)
                 for dev_type in (
@@ -285,10 +285,10 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
                 )
             ]
 
-        if discover_flag & DISCOVER_PARAMS:
+        if discover_flag & Discover.PARAMS:
             self._send_cmd(Command.get_dhw_params(self._ctl.id))
 
-        if discover_flag & DISCOVER_STATUS:
+        if discover_flag & Discover.STATUS:
             self._send_cmd(Command.get_dhw_mode(self._ctl.id))
             self._send_cmd(Command.get_dhw_temp(self._ctl.id))
 
@@ -487,19 +487,19 @@ class Zone(ZoneSchedule, ZoneBase):
         if sensor:
             self._set_sensor(sensor)
 
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    def _discover(self, discover_flag=Discover.ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
         # TODO: add code to determine zone type if it doesn't have one, using 0005s
-        if discover_flag & DISCOVER_SCHEMA:
+        if discover_flag & Discover.SCHEMA:
             self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.ALL}")
             self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.ALL_SENSOR}")
 
-        if discover_flag & DISCOVER_PARAMS:
+        if discover_flag & Discover.PARAMS:
             self._send_cmd(Command.get_zone_config(self._ctl.id, self.idx))
             self._send_cmd(Command.get_zone_name(self._ctl.id, self.idx))
 
-        if discover_flag & DISCOVER_STATUS:  # every 1h, CTL will not respond to a 3150
+        if discover_flag & Discover.STATUS:  # every 1h, CTL will not respond to a 3150
             self._send_cmd(Command.get_zone_mode(self._ctl.id, self.idx))
             self._send_cmd(Command.get_zone_temp(self._ctl.id, self.idx))
             self._send_cmd(Command.get_zone_window_state(self._ctl.id, self.idx))
@@ -774,10 +774,10 @@ class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     @discover_decorator
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    def _discover(self, discover_flag=Discover.ALL) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)
-        if False and discover_flag & DISCOVER_SCHEMA:
+        if False and discover_flag & Discover.SCHEMA:
             self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.ELE}")
 
     def _handle_msg(self, msg) -> bool:
@@ -807,14 +807,14 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     @discover_decorator
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    def _discover(self, discover_flag=Discover.ALL) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)
 
-        if False and discover_flag & DISCOVER_SCHEMA:
+        if False and discover_flag & Discover.SCHEMA:
             self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.MIX}")
 
-        if discover_flag & DISCOVER_PARAMS:
+        if discover_flag & Discover.PARAMS:
             self._send_cmd(Command.get_mix_valve_params(self._ctl.id, self.idx))
 
     @property
@@ -837,11 +837,11 @@ class RadZone(Zone):  # HR92/HR80
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     @discover_decorator
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    def _discover(self, discover_flag=Discover.ALL) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)
 
-        if False and discover_flag & DISCOVER_SCHEMA:
+        if False and discover_flag & Discover.SCHEMA:
             self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.RAD}")
 
 
@@ -853,11 +853,11 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     @discover_decorator
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    def _discover(self, discover_flag=Discover.ALL) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)
 
-        if False and discover_flag & DISCOVER_SCHEMA:
+        if False and discover_flag & Discover.SCHEMA:
             self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.UFH}")
 
     @property
@@ -885,11 +885,11 @@ class ValZone(EleZone):  # BDR91A/T
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     @discover_decorator
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    def _discover(self, discover_flag=Discover.ALL) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super()
         # super()._discover(discover_flag=discover_flag)
 
-        if False and discover_flag & DISCOVER_SCHEMA:
+        if False and discover_flag & Discover.SCHEMA:
             self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.VAL}")
 
     @property
@@ -920,13 +920,13 @@ def create_zone(evo, zone_idx, profile=None, **kwargs) -> Zone:
         return zone
 
     evo._gwy._add_task(
-        zone._discover, discover_flag=DISCOVER_SCHEMA, delay=2, period=86400
+        zone._discover, discover_flag=Discover.SCHEMA, delay=2, period=86400
     )
     evo._gwy._add_task(
-        zone._discover, discover_flag=DISCOVER_PARAMS, delay=5, period=21600
+        zone._discover, discover_flag=Discover.PARAMS, delay=5, period=21600
     )
     evo._gwy._add_task(
-        zone._discover, discover_flag=DISCOVER_STATUS, delay=8, period=900
+        zone._discover, discover_flag=Discover.STATUS, delay=8, period=900
     )
 
     return zone

@@ -3,17 +3,17 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
+from types import SimpleNamespace
+
 ATTR_ALIAS = "alias"
 ATTR_CLASS = "class"
 ATTR_FAKED = "faked"
 
 ATTR_ORPHANS = "orphans"
 
-DISCOVER_NOTHING = 0
-DISCOVER_SCHEMA = 1
-DISCOVER_PARAMS = 2
-DISCOVER_STATUS = 4
-DISCOVER_ALL = DISCOVER_SCHEMA | DISCOVER_PARAMS | DISCOVER_STATUS
+Discover = SimpleNamespace(
+    NOTHING=0, SCHEMA=1, PARAMS=2, STATUS=4, FAULTS=8, SCHEDS=16, ALL=(1 + 2 + 4)
+)
 
 DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2

@@ -6,7 +6,7 @@
 import logging
 from typing import List
 
-from .const import DISCOVER_ALL
+from .const import Discover
 
 from .protocol import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 
@@ -46,7 +46,7 @@ class Entity:
         self._msgs = {}
         self._msgz = {}
 
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    def _discover(self, discover_flag=Discover.ALL) -> None:
         pass
 
     def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess

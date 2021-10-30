@@ -12,7 +12,7 @@ from threading import Lock
 from types import SimpleNamespace
 from typing import List, Optional
 
-from .const import DISCOVER_ALL, DISCOVER_PARAMS, DISCOVER_SCHEMA, DISCOVER_STATUS
+from .const import Discover
 from .devices import (
     BdrSwitch,
     Device,
@@ -148,10 +148,10 @@ class MultiZone:  # 0005 (+/- 000C?)
 
         self._prev_30c9 = None  # used to eavesdrop zone sensors
 
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    def _discover(self, discover_flag=Discover.ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_SCHEMA:
+        if discover_flag & Discover.SCHEMA:
             [  # 0005: find any zones + their type (RAD, UFH, VAL, MIX, ELE)
                 self._make_cmd(_0005, payload=f"00{zone_type}")
                 for zone_type in self.ZONE_TYPES
@@ -194,7 +194,7 @@ class MultiZone:  # 0005 (+/- 000C?)
             #     cmd = Command.get_zone_mode(self.id, zone_idx, priority=Priority.LOW)
             #     self._send_cmd(cmd)
             # for zone in self.zones:
-            #     zone._discover(discover_flag=DISCOVER_PARAMS)
+            #     zone._discover(discover_flag=Discover.PARAMS)
 
         if self._gwy.config.enable_eavesdrop and not all(z.sensor for z in self.zones):
             self._eavesdrop_zone_sensors(msg)
@@ -387,10 +387,10 @@ class ScheduleSync:  # 0006
 
         self._prev_0006 = None
 
-    # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    # def _discover(self, discover_flag=Discover.ALL) -> None:
     #     super()._discover(discover_flag=discover_flag)
 
-    #     if discover_flag & DISCOVER_STATUS:
+    #     if discover_flag & Discover.STATUS:
     #         # if self._prev_0006 is None:
     #         self._make_cmd(_0006)  # schedule delta
 
@@ -422,10 +422,10 @@ class ScheduleSync:  # 0006
 
 
 class SysLanguage:  # 0100
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    def _discover(self, discover_flag=Discover.ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_PARAMS:
+        if discover_flag & Discover.PARAMS:
             self._send_cmd(Command.get_system_language(self.id))
 
     @property
@@ -444,11 +444,11 @@ class SysFaultLog:  # 0418
         super().__init__(*args, **kwargs)
         self._fault_log = FaultLog(self._ctl)
 
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    def _discover(self, discover_flag=Discover.ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
         # TODO: get working later
-        # if discover_flag & DISCOVER_STATUS:
+        # if discover_flag & Discover.STATUS:
         #     self._gwy._tasks.append(self._loop.create_task(self.get_fault_log()))
 
     async def get_fault_log(
@@ -479,10 +479,10 @@ class StoredHw:  # 10A0, 1260, 1F41
         super().__init__(*args, **kwargs)
         self._dhw = None
 
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    def _discover(self, discover_flag=Discover.ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_SCHEMA:
+        if discover_flag & Discover.SCHEMA:
             self._make_cmd(_000C, payload=f"00{_000C_DEVICE.DHW_SENSOR}")
 
     def _handle_msg(self, msg, prev_msg=None) -> None:
@@ -619,10 +619,10 @@ class StoredHw:  # 10A0, 1260, 1F41
 
 
 class SysMode:  # 2E04
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    def _discover(self, discover_flag=Discover.ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_STATUS:
+        if discover_flag & Discover.STATUS:
             self._send_cmd(Command.get_system_mode(self.id), period=td(hours=1))
 
     @property
@@ -650,10 +650,10 @@ class SysMode:  # 2E04
 
 
 class SysDatetime:  # 313F
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    def _discover(self, discover_flag=Discover.ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_STATUS:
+        if discover_flag & Discover.STATUS:
             self._send_cmd(Command.get_system_time(self.id), period=td(hours=1))
 
     @property
@@ -733,22 +733,22 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     #     return json.dumps({self._ctl.id: self.schema})
 
     @discover_decorator
-    def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    def _discover(self, discover_flag=Discover.ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & DISCOVER_SCHEMA:
+        if discover_flag & Discover.SCHEMA:
             self._make_cmd(_000C, payload=f"00{_000C_DEVICE.HTG}")
 
-        if discover_flag & DISCOVER_PARAMS:
+        if discover_flag & Discover.PARAMS:
             self._send_cmd(Command.get_tpi_params(self.id), period=td(hours=4))
 
         # # TODO: opentherm: 1FD4, 22D9, 3220
 
-        # if discover_flag & DISCOVER_PARAMS:
+        # if discover_flag & Discover.PARAMS:
         #     for domain_id in range(0xF8, 0x100):
         #         self._make_cmd(_0009, payload=f"{domain_id:02X}00")
 
-        # if discover_flag & DISCOVER_STATUS:
+        # if discover_flag & Discover.STATUS:
         #     for domain_id in range(0xF8, 0x100):
         #         self._make_cmd(_0008, payload=f"{domain_id:02X}00")
 
@@ -1019,10 +1019,10 @@ class Evohome(ScheduleSync, SysLanguage, SysMode, MultiZone, UfhSystem, System):
     def __repr__(self) -> str:
         return f"{self._ctl.id} (evohome)"
 
-    # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    # def _discover(self, discover_flag=Discover.ALL) -> None:
     #     super()._discover(discover_flag=discover_flag)
 
-    #     if discover_flag & DISCOVER_STATUS:
+    #     if discover_flag & Discover.STATUS:
     #         self._make_cmd(_1F09)
 
     def _handle_msg(self, msg) -> bool:
@@ -1074,13 +1074,13 @@ class Hometronics(System):
         return f"{self._ctl.id} (hometronics)"
 
     #
-    # def _discover(self, discover_flag=DISCOVER_ALL) -> None:
+    # def _discover(self, discover_flag=Discover.ALL) -> None:
     #     # super()._discover(discover_flag=discover_flag)
 
     #     # will RP to: 0005/configured_zones_alt, but not: configured_zones
     #     # will RP to: 0004
 
-    #     if discover_flag & DISCOVER_STATUS:
+    #     if discover_flag & Discover.STATUS:
     #         self._make_cmd(_1F09)
 
 
@@ -1139,11 +1139,11 @@ def create_system(gwy, ctl, profile=None, **kwargs) -> System:
         return system
 
     gwy._add_task(
-        system._discover, discover_flag=DISCOVER_SCHEMA, delay=1, period=86400
+        system._discover, discover_flag=Discover.SCHEMA, delay=1, period=86400
     )
     gwy._add_task(
-        system._discover, discover_flag=DISCOVER_PARAMS, delay=4, period=21600
+        system._discover, discover_flag=Discover.PARAMS, delay=4, period=21600
     )
-    gwy._add_task(system._discover, discover_flag=DISCOVER_STATUS, delay=7, period=900)
+    gwy._add_task(system._discover, discover_flag=Discover.STATUS, delay=7, period=900)
 
     return system
