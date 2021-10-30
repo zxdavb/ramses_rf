@@ -5,6 +5,7 @@
 
 import logging
 from inspect import getmembers, isclass
+from random import randint
 from sys import modules
 from typing import Dict, Optional
 
@@ -1765,13 +1766,12 @@ def create_device(gwy, dev_id, dev_class=None, **kwargs) -> Device:
         device._discover, discover_flag=DISCOVER_SCHEMA, delay=0, period=86400
     )
 
-    if dev_class == DEVICE_CLASS.OTB:
-        return device
-
+    delay = randint(10, 20)
     gwy._add_task(
-        device._discover, discover_flag=DISCOVER_PARAMS, delay=0, period=21600
+        device._discover, discover_flag=DISCOVER_PARAMS, delay=delay, period=21600
+    )  # 21600 = 60*60*6
+    gwy._add_task(
+        device._discover, discover_flag=DISCOVER_STATUS, delay=delay + 3, period=60
     )
-
-    gwy._add_task(device._discover, discover_flag=DISCOVER_STATUS, delay=0, period=900)
 
     return device
