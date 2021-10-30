@@ -481,5 +481,8 @@ class Gateway:
 
         return self._get_device(device_id)._make_fake(bind=start_binding)
 
-    def _add_task(self, *args, **kwargs) -> None:
-        self._tasks.append(schedule_task(*args, **kwargs))
+    def _add_task(self, func, *args, delay=None, period=None, **kwargs) -> None:
+        """Start a task after delay seconds and then repeat it every period seconds."""
+        self._tasks.append(
+            schedule_task(func, *args, delay=None, period=None, **kwargs)
+        )
