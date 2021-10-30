@@ -387,12 +387,11 @@ class ScheduleSync:  # 0006
 
         self._prev_0006 = None
 
-    # def _discover(self, discover_flag=Discover.ALL) -> None:
-    #     super()._discover(discover_flag=discover_flag)
+    def _discover(self, discover_flag=Discover.ALL) -> None:
+        super()._discover(discover_flag=discover_flag)
 
-    #     if discover_flag & Discover.STATUS:
-    #         # if self._prev_0006 is None:
-    #         self._make_cmd(_0006)  # schedule delta
+        if discover_flag & Discover.SCHEDS:
+            self._make_cmd(_0006)  # schedule delta
 
     def _handle_msg(self, msg, prev_msg=None) -> bool:
         super()._handle_msg(msg)
@@ -1145,5 +1144,11 @@ def create_system(gwy, ctl, profile=None, **kwargs) -> System:
         system._discover, discover_flag=Discover.PARAMS, delay=4, period=21600
     )
     gwy._add_task(system._discover, discover_flag=Discover.STATUS, delay=7, period=900)
+    # gwy._add_task(
+    #     system._discover, discover_flag=Discover.FAULTS, delay=180, period=900
+    # )
+    gwy._add_task(
+        system._discover, discover_flag=Discover.SCHEDS, delay=300, period=900
+    )
 
     return system
