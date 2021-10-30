@@ -21,7 +21,7 @@ from .exceptions import ExpiredCallbackError, InvalidPacketError
 from .frame import PacketBase, pkt_header
 from .helpers import dt_now, dtm_to_hex, str_to_hex, temp_to_hex, timestamp
 from .opentherm import parity
-from .parsers import LOOKUP_7FFF
+from .parsers import LOOKUP_PUZZ
 from .version import VERSION
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
@@ -914,7 +914,7 @@ class Command(PacketBase):
         if msg_type is None:
             msg_type = "12" if message else "10"
 
-        assert msg_type in LOOKUP_7FFF, "Invalid/deprecated Puzzle type"
+        assert msg_type in LOOKUP_PUZZ, "Invalid/deprecated Puzzle type"
 
         kwargs["priority"] = kwargs.pop("priority", Priority.HIGHEST)
         if msg_type == "10":
