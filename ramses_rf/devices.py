@@ -1235,8 +1235,22 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 and (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]
 
+            for code in (
+                # "1FD0",
+                # "2400",
+                # "2401",
+                # "2410",
+                # "2420"
+                "0150",
+                "1098",
+                "10B0",
+                "3221",
+                "3223",
+            ):
+                self._send_cmd(Command(RQ, code, "00", self.id))
+
         if discover_flag & DISCOVER_STATUS:
-            # self._send_cmd(Command(RQ, _22D9, "00", self.id))
+            self._send_cmd(Command(RQ, "12F0", "00", self.id))
             [
                 self._send_cmd(Command.get_opentherm_data(self.id, m, retries=0))
                 for m in self.STATUS_MSG_IDS
