@@ -487,5 +487,5 @@ class Gateway:
     def _add_task(self, func, *args, delay=None, period=None, **kwargs) -> None:
         """Start a task after delay seconds and then repeat it every period seconds."""
         self._tasks.append(
-            schedule_task(func, *args, delay=None, period=None, **kwargs)
+            schedule_task(func, *args, delay=delay, period=period, **kwargs)
         )
