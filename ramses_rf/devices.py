@@ -917,7 +917,7 @@ class Controller(Device):  # CTL (01):
 
         self._make_tcs_controller()
 
-    def _handle_msg(self, msg) -> bool:
+    def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
         if msg.code == _000C:
