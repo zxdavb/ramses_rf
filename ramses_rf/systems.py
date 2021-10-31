@@ -188,14 +188,6 @@ class MultiZone:  # 0005 (+/- 000C?)
         except KeyError:  # FIXME: this shouldn't happen
             pass  # if self._gwy.config.enable_eavesdrop:
 
-        if msg.code == _000A and isinstance(msg.payload, list):
-            pass  # TODO
-            # for zone_idx in self.zone_by_idx:
-            #     cmd = Command.get_zone_mode(self.id, zone_idx, priority=Priority.LOW)
-            #     self._send_cmd(cmd)
-            # for zone in self.zones:
-            #     zone._discover(discover_flag=Discover.PARAMS)
-
         if self._gwy.config.enable_eavesdrop and not all(z.sensor for z in self.zones):
             self._eavesdrop_zone_sensors(msg)
 
@@ -428,7 +420,7 @@ class SysLanguage:  # 0100
             self._send_cmd(Command.get_system_language(self.id))
 
     @property
-    def language(self) -> Optional[str]:  # 0100
+    def language(self) -> Optional[str]:
         return self._msg_value(_0100, key=ATTR_LANGUAGE)
 
     @property
@@ -622,7 +614,7 @@ class SysMode:  # 2E04
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.STATUS:
-            self._send_cmd(Command.get_system_mode(self.id), period=td(hours=1))
+            self._send_cmd(Command.get_system_mode(self.id))
 
     @property
     def system_mode(self) -> Optional[dict]:  # 2E04
@@ -630,8 +622,9 @@ class SysMode:  # 2E04
 
     def set_mode(self, system_mode=None, until=None) -> Task:
         """Set a system mode for a specified duration, or indefinitely."""
-        cmd = Command.set_system_mode(self.id, system_mode=system_mode, until=until)
-        return self._send_cmd(cmd)
+        return self._send_cmd(
+            Command.set_system_mode(self.id, system_mode=system_mode, until=until)
+        )
 
     def set_auto(self) -> Task:
         """Revert system to Auto, set non-PermanentOverride zones to FollowSchedule."""
@@ -703,8 +696,6 @@ class UfhSystem:
 class SystemBase(Entity):  # 3B00 (multi-relay)
     """The Controllers base class (good for a generic controller)."""
 
-    # 0008|0009|1030|1100|2309|3B00
-
     def __init__(self, gwy, ctl) -> None:
         _LOGGER.debug("Creating a System: %s (%s)", ctl.id, self.__class__)
         super().__init__(gwy)
@@ -739,9 +730,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             self._make_cmd(_000C, payload=f"00{_000C_DEVICE.HTG}")
 
         if discover_flag & Discover.PARAMS:
-            self._send_cmd(Command.get_tpi_params(self.id), period=td(hours=4))
-
-        # # TODO: opentherm: 1FD4, 22D9, 3220
+            self._send_cmd(Command.get_tpi_params(self.id))
 
         # if discover_flag & Discover.PARAMS:
         #     for domain_id in range(0xF8, 0x100):
@@ -1138,10 +1127,10 @@ def create_system(gwy, ctl, profile=None, **kwargs) -> System:
         return system
 
     gwy._add_task(
-        system._discover, discover_flag=Discover.SCHEMA, delay=1, period=86400
+        system._discover, discover_flag=Discover.SCHEMA, delay=1, period=60 * 60 * 24
     )
     gwy._add_task(
-        system._discover, discover_flag=Discover.PARAMS, delay=4, period=21600
+        system._discover, discover_flag=Discover.PARAMS, delay=4, period=60 * 60 * 6
     )
     gwy._add_task(system._discover, discover_flag=Discover.STATUS, delay=7, period=900)
     # gwy._add_task(
