@@ -98,9 +98,13 @@ class Entity:
         self._msgs.pop(cmd.code, None)  # TODO: remove, so we can tell if RP'd rcvd
         self._gwy.send_cmd(cmd)
 
-    def _msg_value(
-        self, code, verb=None, key=None, zone_idx=None, domain_id=None
-    ) -> dict:
+    def _msg_value(self, code, *args, **kwargs) -> dict:
+
+        if isinstance(code, (str, tuple)):  # a code or a tuple of codes
+            return self._msg_value_code(code, *args, **kwargs)
+        return self._msg_value_msg(code, *args, **kwargs)  # assume is a Message
+
+    def _msg_value_code(self, code, verb=None, key=None, **kwargs) -> dict:
 
         assert (
             not isinstance(code, tuple) or verb is None
@@ -118,6 +122,10 @@ class Entity:
             msg = max(msgs) if msgs else None
         else:
             msg = self._msgs.get(code)
+
+        return self._msg_value_msg(msg, key=key, **kwargs)
+
+    def _msg_value_msg(self, msg, key=None, zone_idx=None, domain_id=None) -> dict:
 
         if msg is None:
             return
