@@ -1850,24 +1850,36 @@ def parser_3ef1(payload, msg) -> dict:
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated
 def parser_7fff(payload, msg) -> Optional[dict]:
 
-    if payload[:2] != "00" or payload[2:4] not in LOOKUP_PUZZ:
+    if payload[:2] != "00":
         _LOGGER.debug("Invalid/deprecated Puzzle packet")
+        return {
+            "msg_type": payload[:2],
+            "payload": str_from_hex(payload[2:]),
+        }
+
+    if payload[2:4] not in LOOKUP_PUZZ:
+        _LOGGER.debug("Invalid/deprecated Puzzle packet")
+        return {
+            "msg_type": payload[2:4],
+            "message": str_from_hex(payload[4:]),
+        }
+
+    result = {}
+    if payload[2:4] != "13":
+        dtm = dt.fromtimestamp(int(payload[4:16], 16) / 1000)
+        result["datetime"] = dtm.isoformat(timespec="milliseconds")
 
     msg_type = LOOKUP_PUZZ.get(payload[2:4], "message")
 
     if payload[2:4] == "11":
         msg = str_from_hex(payload[16:])
-        result = {msg_type: f"{msg[:4]}|{msg[4:6]}|{msg[6:]}"}
+        result[msg_type] = f"{msg[:4]}|{msg[4:6]}|{msg[6:]}"
 
     elif payload[2:4] == "13":
-        result = {msg_type: str_from_hex(payload[4:])}
+        result[msg_type] = str_from_hex(payload[4:])
 
     else:
-        result = {msg_type: str_from_hex(payload[16:])}
-
-    if payload[2:4] != "13":
-        dtm = dt.fromtimestamp(int(payload[4:16], 16) / 1000)
-        result["datetime"] = dtm.isoformat(timespec="milliseconds")
+        result[msg_type] = str_from_hex(payload[16:])
 
     return {**result, "parser": f"v{VERSION}"}
 
