@@ -497,22 +497,13 @@ def parser_0404(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # system_fault
 def parser_0418(payload, msg) -> Optional[dict]:
-    # RP --- 01:145038 18:013393 --:------ 0418 022 000002B0061C040000008D9466277FFFFF7000367F95  # noqa
+    # RP --- 01:145038 18:013393 --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000  # noqa
     # RP --- 01:145038 18:013393 --:------ 0418 022 000036B0010000000000108000007FFFFF7000000000  # noqa
     # RP --- 01:145038 18:013393 --:------ 0418 022 000000B00401010000008694A3CC7FFFFF70000ECC8A  # noqa
-    # RP --- 01:145038 18:013393 --:------ 0418 022 00C001B004010100000086949BCB7FFFFF70000ECC8A  # noqa
-    # RP --- 01:145038 18:013393 --:------ 0418 022 000000B0000000000000000000007FFFFF7000000000  # noqa
+    #  I --- 01:037519 --:------ 01:037519 0418 022 000000B0050000000000239581877FFFFF7000000001  # Evotouch Battery Error  # noqa
     # RP --- 01:037519 18:140805 --:------ 0418 022 004024B0060006000000CB94A112FFFFFF70007AD47D  # noqa
-
-    # 00-4000B0-061C04-0000-008F14B0DB7F-FFFF7000-367F95
-    # 00-0000B0-040101-0000-008694A3CC7F-FFFF7000-0ECC8A
-    # 00-C001B0-040101-0000-0086949BCB7F-FFFF7000-0ECC8A
-    # 00-0002B0-061C04-0000-008D9466277F-FFFF7000-367F95
-    # 00-4024B0-060006-0000-00CB94A112FF-FFFF7000-7AD47D
-    # 00-0036B0-010000-0000-00108000007F-FFFF7000-000000
-    # 00-0000B0-000000-0000-00000000007F-FFFF7000-000000
-    #    0      0      1    1            3        3
-    #    2      8      4    8            0        8
+    #                                                 0     0   1     1            3        3
+    #                                                 2     8   2     8            0        8
 
     # assert int(payload[4:6], 16) < 64, f"Unexpected log_idx: 0x{payload[4:6]}"
 
@@ -1419,14 +1410,9 @@ def parser_313f(payload, msg) -> Optional[dict]:
     # https://www.automatedhome.co.uk/vbulletin/showthread.php?5085-My-HGI80-equivalent-Domoticz-setup-without-HGI80&p=36422&viewfull=1#post36422
     # every day at ~4am TRV/RQ->CTL/RP, approx 5-10secs apart (CTL respond at any time)
 
-    if msg.src.type == "01":  # DEX
-        assert payload[2:4] in ("F0", "FC"), payload[2:4]
-    elif msg.src.type in ("12", "22"):  # DEX
-        assert payload[2:4] == "38", payload[2:4]
-    elif msg.src.type == "30":  # DEX
-        assert payload[2:4] == "60", payload[2:4]
-    else:
-        assert False, payload[2:4]
+    assert msg.src.type != "01" or payload[2:4] in ("F0", "FC"), payload[2:4]  # DEX
+    assert msg.src.type not in ("12", "22") or payload[2:4] == "38", payload[2:4]  # DEX
+    assert msg.src.type != "30" or payload[2:4] == "60", payload[2:4]  # DEX
 
     result = {
         "datetime": dtm_from_hex(payload[4:18]),
