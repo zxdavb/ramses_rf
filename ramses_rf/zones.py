@@ -183,14 +183,14 @@ class ZoneBase(Entity):
 
 
 class ZoneSchedule:  # 0404  # TODO: add for DHW
-    """Evohome zones have a schedule."""
-
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
         self._schedule = Schedule(self)
 
     # def _discover(self, discover_flag=Discover.ALL) -> None:
+    #    super()._discover(discover_flag=discover_flag)
+
     #     if discover_flag & Discover.STATUS:  # TODO: add back in
     #         self._loop.create_task(self.get_schedule())  # 0404
 
@@ -200,11 +200,6 @@ class ZoneSchedule:  # 0404  # TODO: add for DHW
     #     if msg.code == _0404 and msg.verb != RQ:
     #         _LOGGER.debug("Zone(%s): Received RP/0404 (schedule) pkt", self)
 
-    @property
-    def schedule(self) -> dict:
-        if self._schedule:
-            return self._schedule.schedule.get("schedule")
-
     async def get_schedule(self, force_refresh=None) -> Optional[dict]:
         await self._schedule.get_schedule(force_refresh=force_refresh)
         return self.schedule
@@ -212,6 +207,11 @@ class ZoneSchedule:  # 0404  # TODO: add for DHW
     async def set_schedule(self, schedule) -> None:
         schedule = {"zone_idx": self.idx, "schedule": schedule}
         await self._schedule.set_schedule(schedule)
+
+    @property
+    def schedule(self) -> dict:
+        if self._schedule and self._schedule.schedule:
+            return self._schedule.schedule.get("schedule")
 
     @property
     def status(self) -> dict:
