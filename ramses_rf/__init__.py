@@ -433,7 +433,7 @@ class Gateway:
         )
 
     async def async_send_cmd(
-        self, cmd: Command, awaitable: bool = True, **kwargs
+        self, cmd: Command, awaitable: bool = None, **kwargs
     ) -> Optional[Message]:
         """Send a command with the option to not wait for a response (awaitable=False).
 
@@ -443,20 +443,23 @@ class Gateway:
         if not self.msg_protocol:
             raise RuntimeError("there is no message protocol")
 
+        if awaitable is None:
+            awaitable = True
+
         future = asyncio.run_coroutine_threadsafe(
             self.msg_protocol.send_data(cmd, awaitable=awaitable, **kwargs), self._loop
         )
 
-        asyncio.sleep(5)
+        await asyncio.sleep(5)
         try:
             result = future.result()
         except asyncio.TimeoutError:
-            print("The coroutine took too long, cancelling the task...")
+            _LOGGER.warning("The command took too long, cancelling the task...")
             future.cancel()
         except Exception as exc:
-            print(f"The coroutine raised an exception: {exc!r}")
+            _LOGGER.warning(f"The command raised an exception: {exc!r}")
         else:
-            print(f"The coroutine returned: {result!r}")
+            _LOGGER.debug(f"The command returned: {result!r}")
             return result
 
     def fake_device(self, device_id, create_device=None, start_binding=False) -> Device:
