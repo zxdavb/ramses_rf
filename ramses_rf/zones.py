@@ -194,7 +194,7 @@ class ZoneSchedule:  # 0404  # TODO: add for DHW
     #     if discover_flag & Discover.STATUS:  # TODO: add back in
     #         self._loop.create_task(self.get_schedule())  # 0404
 
-    #     def _handle_msg(self, msg) -> bool:
+    #     def _handle_msg(self, msg) -> None:
     #     super()._handle_msg(msg)
 
     #     if msg.code == _0404 and msg.verb != RQ:
@@ -507,7 +507,7 @@ class Zone(ZoneSchedule, ZoneBase):
         # start collecting the schedule
         # self._schedule.req_schedule()  # , restart=True) start collecting schedule
 
-    def _handle_msg(self, msg) -> bool:
+    def _handle_msg(self, msg) -> None:
         # if msg.code in _000C and msg.src.type == "02":  # DEX
         #     if self._ufc is None
         #         self._ufc = msg.src
@@ -780,7 +780,7 @@ class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
         if False and discover_flag & Discover.SCHEMA:
             self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.ELE}")
 
-    def _handle_msg(self, msg) -> bool:
+    def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
         # if msg.code == _0008:  # ZON zones are ELE zones that also call for heat
