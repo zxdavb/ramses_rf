@@ -5,6 +5,7 @@
 
 import logging
 from asyncio import Task
+from datetime import datetime as dt
 from datetime import timedelta as td
 from inspect import getmembers, isclass
 from sys import modules
@@ -377,38 +378,46 @@ class ScheduleSync:  # 0006
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._prev_0006 = None
+        self._active_0006 = None
 
     def _discover(self, discover_flag=Discover.ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & Discover.SCHEDS:
-            self._make_cmd(_0006)  # schedule delta
+        if discover_flag & Discover.SCHEDS:  # check the latest schedule delta
+            self._make_cmd(_0006)
 
-    def _handle_msg(self, msg, prev_msg=None) -> bool:
+    def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
         if msg.code == _0006:
-            self._prev_0006, prev_0006 = msg, self._prev_0006
-
-            if not prev_0006 or (
-                msg._payload["change_counter"] != (prev_0006._payload["change_counter"])
+            # change counter checked every 60s, but updated only every 180s
+            if self.schedule_outdated and (
+                not self._active_0006
+                or dt.now() - self._active_0006.dtm > td(minutes=3)
             ):
-                self._update_schedules()
+                self._active_0006 = msg  # TODO: what happens if the following fails?
+                if not self._gwy.config.disable_sending:
+                    self._get_schedules()
 
-    def _update_schedules(self) -> None:
-        if self._gwy.config.disable_sending:
-            return
-
+    def _get_schedules(self) -> None:
+        # schedules based upon 'active' (not most recent) 0006 pkt
         for zone in getattr(self, "zones", []):
             self._gwy._loop.create_task(zone.get_schedule(force_refresh=True))
         if dhw := getattr(self, "dhw", None):
             self._gwy._loop.create_task(dhw.get_schedule(force_refresh=True))
 
     @property
+    def schedule_outdated(self) -> bool:
+        return not self._active_0006 or (
+            self._msg_value(self._active_0006, key="change_counter")
+            != self._msg_value(_0006, key="change_counter")
+        )  # TODO: also check if any zone/dhw has no schedule?
+
+    @property
     def status(self) -> dict:
         return {
             **super().status,
+            "schedule_outdated": self.schedule_outdated,
         }
 
 
