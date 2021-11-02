@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import signal
+from asyncio.futures import Future
 from datetime import datetime as dt
 from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
@@ -34,6 +35,7 @@ from .protocol import (
     set_pkt_logging,
 )
 from .protocol.const import ATTR_DEVICES, NON_DEVICE_ID, NUL_DEVICE_ID
+from .protocol.exceptions import ExpiredCallbackError
 from .schema import (
     BLOCK_LIST,
     DEBUG_MODE,
@@ -415,7 +417,7 @@ class Gateway:
         ) as exc:
             _LOGGER.exception(f"create_cmd(): {exc}")
 
-    def send_cmd(self, cmd: Command, callback: Callable = None, **kwargs) -> None:
+    def send_cmd(self, cmd: Command, callback: Callable = None, **kwargs) -> Future:
         """Send a command with the option to return any response via callback.
 
         Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
@@ -424,40 +426,39 @@ class Gateway:
 
         if not self.msg_protocol:
             raise RuntimeError("there is no message protocol")
-
         if self.config.disable_sending:
             raise RuntimeError("sending is disabled")
 
-        asyncio.run_coroutine_threadsafe(
+        return asyncio.run_coroutine_threadsafe(
             self.msg_protocol.send_data(cmd, callback=callback, **kwargs), self._loop
         )
 
     async def async_send_cmd(
-        self, cmd: Command, awaitable: bool = None, **kwargs
+        self, cmd: Command, awaitable: bool = True, **kwargs
     ) -> Optional[Message]:
         """Send a command with the option to not wait for a response (awaitable=False).
 
         Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
         This routine is thread safe.
         """
-        if not self.msg_protocol:
-            raise RuntimeError("there is no message protocol")
-
         if awaitable is None:
             awaitable = True
 
-        future = asyncio.run_coroutine_threadsafe(
-            self.msg_protocol.send_data(cmd, awaitable=awaitable, **kwargs), self._loop
-        )
+        future = self.send_cmd(cmd, awaitable=awaitable, **kwargs)
 
         await asyncio.sleep(5)
         try:
             result = future.result()
-        except asyncio.TimeoutError:
+
+        except asyncio.TimeoutError as exc:
             _LOGGER.warning("The command took too long, cancelling the task...")
             future.cancel()
+            raise ExpiredCallbackError(exc)
+
         except Exception as exc:
             _LOGGER.warning(f"The command raised an exception: {exc!r}")
+            raise ExpiredCallbackError(exc)
+
         else:
             _LOGGER.debug(f"The command returned: {result!r}")
             return result
