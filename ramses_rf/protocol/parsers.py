@@ -1787,7 +1787,7 @@ def parser_3ef0(payload, msg) -> dict:
     if msg.len >= 9:  # I/RP|OTB|009 (R8820A only?)
         assert int(payload[12:14], 16) & 0b11111100 == 0, f"byte 6: {payload[12:14]}"
         assert int(payload[12:14], 16) & 0b00000010 == 2, f"byte 6: {payload[12:14]}"
-        assert 10 <= int(payload[14:16], 16) <= 80, f"byte 7: {payload[14:16]}"
+        assert 10 <= int(payload[14:16], 16) <= 90, f"byte 7: {payload[14:16]}"
         assert int(payload[16:18], 16) in (0, 100), f"byte 8: {payload[18:]}"
 
         result.update(
