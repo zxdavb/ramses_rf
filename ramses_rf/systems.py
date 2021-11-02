@@ -400,6 +400,9 @@ class ScheduleSync:  # 0006
                     self._get_schedules()
 
     def _get_schedules(self) -> None:
+        if self._gwy.config.disable_sending:
+            raise RuntimeError("Sending is disabled")
+
         # schedules based upon 'active' (not most recent) 0006 pkt
         for zone in getattr(self, "zones", []):
             self._gwy._loop.create_task(zone.get_schedule(force_refresh=True))
@@ -465,6 +468,9 @@ class Logbook:  # 0418
                     self._loop.create_task(self.get_faultlog(force_refresh=True))
 
     async def get_faultlog(self, start=None, limit=None, force_refresh=None) -> dict:
+        if self._gwy.config.disable_sending:
+            raise RuntimeError("Sending is disabled")
+
         try:
             return await self._faultlog.get_faultlog(
                 start=start, limit=limit, force_refresh=force_refresh
