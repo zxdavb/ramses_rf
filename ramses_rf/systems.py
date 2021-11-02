@@ -160,7 +160,7 @@ class MultiZone:  # 0005 (+/- 000C?)
                 # for zone_type in range(0x12)
             ]
 
-    def _handle_msg(self, msg, prev_msg=None) -> bool:
+    def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
         # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
@@ -421,7 +421,7 @@ class ScheduleSync:  # 0006
         }
 
 
-class SysLanguage:  # 0100
+class Language:  # 0100
     def _discover(self, discover_flag=Discover.ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -507,7 +507,7 @@ class StoredHw:  # 10A0, 1260, 1F41
         if discover_flag & Discover.SCHEMA:
             self._make_cmd(_000C, payload=f"00{_000C_DEVICE.DHW_SENSOR}")
 
-    def _handle_msg(self, msg, prev_msg=None) -> None:
+    def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
         if msg.code == _000C:
@@ -707,7 +707,7 @@ class Datetime:  # 313F
         await self._gwy.async_send_cmd(Command.set_system_time(self.id, dtm))
 
 
-class UfhSystem:
+class UfHeating:
     def _ufh_ctls(self):
         return sorted([d for d in self._ctl.devices if isinstance(d, UfhController)])
 
@@ -780,7 +780,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         #     for domain_id in range(0xF8, 0x100):
         #         self._make_cmd(_0008, payload=f"{domain_id:02X}00")
 
-    def _handle_msg(self, msg, prev_msg=None):
+    def _handle_msg(self, msg) -> None:
         assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
         super()._handle_msg(msg)
 
@@ -806,7 +806,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                 self._heat_demand = msg.payload
 
         if self._gwy.config.enable_eavesdrop and not self.heating_control:
-            self._eavesdrop_htg_control(msg, prev=prev_msg)
+            self._eavesdrop_htg_control(msg)
 
     def _eavesdrop_htg_control(self, this, prev=None) -> None:
         """Discover the heat relay (10: or 13:) for this system.
@@ -990,7 +990,7 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
     def __repr__(self) -> str:
         return f"{self._ctl.id} (system)"
 
-    def _handle_msg(self, msg) -> bool:
+    def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
         if "domain_id" in msg.payload:
@@ -1037,7 +1037,7 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
         return status
 
 
-class Evohome(ScheduleSync, SysLanguage, SysMode, MultiZone, UfhSystem, System):
+class Evohome(ScheduleSync, Language, SysMode, MultiZone, UfHeating, System):
     """The Evohome system - some controllers are evohome-compatible."""
 
     # older evohome don't have zone_type=ELE
@@ -1053,7 +1053,7 @@ class Evohome(ScheduleSync, SysLanguage, SysMode, MultiZone, UfhSystem, System):
     #     if discover_flag & Discover.STATUS:
     #         self._make_cmd(_1F09)
 
-    def _handle_msg(self, msg) -> bool:
+    def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
         # def xxx(zone_dict):
@@ -1172,10 +1172,8 @@ def create_system(gwy, ctl, profile=None, **kwargs) -> System:
     gwy._add_task(
         system._discover, discover_flag=Discover.PARAMS, delay=4, period=60 * 60 * 6
     )
-    gwy._add_task(system._discover, discover_flag=Discover.STATUS, delay=7, period=900)
-    gwy._add_task(system._discover, discover_flag=Discover.FAULTS, delay=180, period=60)
-    gwy._add_task(
-        system._discover, discover_flag=Discover.SCHEDS, delay=300, period=900
-    )
+    gwy._add_task(system._discover, discover_flag=Discover.STATUS, delay=7, period=60)
+    gwy._add_task(system._discover, discover_flag=Discover.FAULTS, delay=120, period=60)
+    gwy._add_task(system._discover, discover_flag=Discover.SCHEDS, delay=300, period=60)
 
     return system
