@@ -910,7 +910,7 @@ def parser_1298(payload, msg) -> Optional[dict]:
         "84": "sensor value too low",
         "85": "sensor unreliable",
     }
-    if (fault := FAULT_CODES.get(payload[:2])) :
+    if fault := FAULT_CODES.get(payload[:2]):
         return {"sensor_fault": fault}
 
     return {"co2_level": double(payload[2:])}
@@ -932,7 +932,7 @@ def parser_12a0(payload, msg) -> Optional[dict]:
     }  # relative humidity sensor
 
     assert payload[2:4] in FAULT_CODES_RHUM or int(payload[2:4], 16) <= 100
-    if (fault := FAULT_CODES_RHUM.get(payload[2:4])) :
+    if fault := FAULT_CODES_RHUM.get(payload[2:4]):
         return {"sensor_fault": fault}
 
     # FAULT_CODES_TEMP = {
