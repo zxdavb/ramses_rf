@@ -983,52 +983,48 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         # self._evo = ctl._evo
         self._gwy = ctl._gwy
 
-        self._fault_log = None
-        self._fault_log_done = None
+        self._faultlog = None
+        self._faultlog_done = None
 
         self._START = 0x00  # max 0x3E
         self._limit = 0x06
 
     def __repr_(self) -> str:
-        return json.dumps(self._fault_log) if self._fault_log_done else None
+        return json.dumps(self._faultlog) if self._faultlog_done else None
 
     def __str_(self) -> str:
         return f"{self._ctl} (fault log)"
 
-    @property
-    def fault_log(self) -> Optional[dict]:
-        """Return the fault log of a system."""
-        if not self._fault_log_done:
-            return
+    @staticmethod
+    def _is_valid_operand(other) -> bool:
+        return hasattr(other, "verb") and hasattr(other, "_pkt")
 
-        result = {
-            x: {k: v for k, v in y.items() if k[:1] != "_"}
-            for x, y in self._fault_log.items()
-        }
+    def __eq__(self, other) -> bool:
+        if not self._is_valid_operand(other):
+            return NotImplemented
+        return (self.verb, self._pkt.payload) == (other.verb, other.self._pkt.payload)
 
-        return {k: [x for x in v.values()] for k, v in result.items()}
-
-    async def get_fault_log(
+    async def get_faultlog(
         self, start=0, limit=6, force_refresh=None
     ) -> Optional[dict]:
         """Get the fault log of a system."""
-        _LOGGER.debug("FaultLog(%s).get_fault_log()", self)
+        _LOGGER.debug("FaultLog(%s).get_faultlog()", self)
 
         self._START = 0 if start is None else start
         self._limit = 6 if limit is None else limit
 
-        self._fault_log = {}  # TODO: = namedtuple("Fault", "timestamp fault_state ...")
-        self._fault_log_done = None
+        self._faultlog = {}  # TODO: = namedtuple("Fault", "timestamp fault_state ...")
+        self._faultlog_done = None
 
         self._rq_log_entry(log_idx=self._START)  # calls loop.create_task()
 
         time_start = dt.now()
-        while not self._fault_log_done:
+        while not self._faultlog_done:
             await asyncio.sleep(TIMER_SHORT_SLEEP)
             if dt.now() > time_start + TIMER_LONG_TIMEOUT * 2:
                 raise ExpiredCallbackError("failed to obtain log entry (long)")
 
-        return self.fault_log
+        return self.faultlog
 
     def _rq_log_entry(self, log_idx=0):
         """Request the next log entry."""
@@ -1038,7 +1034,7 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
             _LOGGER.debug("FaultLog(%s)._proc_log_entry(%s)", self.id, msg)
 
             if not msg:
-                self._fault_log_done = True
+                self._faultlog_done = True
                 # raise ExpiredCallbackError("failed to obtain log entry (short)")
                 return
 
@@ -1046,14 +1042,14 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
             log_idx = int(log.pop("log_idx", "00"), 16)
             if not log:  # null response (no payload)
                 # TODO: delete other callbacks rather than waiting for them to expire
-                self._fault_log_done = True
+                self._faultlog_done = True
                 return
 
-            self._fault_log[log_idx] = log  # TODO: make a named tuple
+            self._faultlog[log_idx] = log  # TODO: make a named tuple
             if log_idx < self._limit:
                 self._rq_log_entry(log_idx + 1)
             else:
-                self._fault_log_done = True
+                self._faultlog_done = True
 
         # TODO: (make method) register callback for null response (no payload)
         null_header = "|".join((RP, self.id, _0418))
@@ -1067,3 +1063,20 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         self._gwy.send_cmd(
             Command.get_system_log_entry(self._ctl.id, log_idx, callback=rq_callback)
         )
+
+    @property
+    def faultlog(self) -> Optional[dict]:
+        """Return the fault log of a system."""
+        if not self._faultlog_done:
+            return
+
+        result = {
+            x: {k: v for k, v in y.items() if k[:1] != "_"}
+            for x, y in self._faultlog.items()
+        }
+
+        return {k: [x for x in v.values()] for k, v in result.items()}
+
+    @property
+    def _faultlog_outdated(self) -> bool:
+        return self._faultlog_done and len(self._faultlog_done) and self._faultlog_done

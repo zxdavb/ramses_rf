@@ -430,35 +430,57 @@ class SysLanguage:  # 0100
         return params
 
 
-class SysFaultLog:  # 0418
+class Logbook:  # 0418
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._fault_log = FaultLog(self._ctl)
+
+        self._prev_0418 = None
+        self._this_0418 = None
+        self._faultlog = FaultLog(self._ctl)
 
     def _discover(self, discover_flag=Discover.ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
-        # TODO: get working later
-        # if discover_flag & Discover.STATUS:
-        #     self._gwy._tasks.append(self._loop.create_task(self.get_fault_log()))
+        if discover_flag & Discover.FAULTS:  # check the latest log entry
+            self._send_cmd(Command.get_system_log_entry(self._ctl.id, 0))
+            # self._gwy._tasks.append(self._loop.create_task(self.get_faultlog()))
 
-    async def get_fault_log(
-        self, start=None, limit=None, force_refresh=None
-    ) -> Optional[dict]:  # 0418
+    def _handle_msg(self, msg) -> None:
+        super()._handle_msg(msg)
+
+        if msg.code == _0418 and msg.payload["log_idx"] == "00":
+            self._this_0418 = msg
+            if self._faultlog_outdated:
+                self._prev_0418 = msg
+                if not self._gwy.config.disable_sending:
+                    self._loop.create_task(self.get_faultlog(force_refresh=True))
+
+    async def get_faultlog(self, start=None, limit=None, force_refresh=None) -> dict:
         try:
-            return await self._fault_log.get_fault_log(
+            return await self._faultlog.get_faultlog(
                 start=start, limit=limit, force_refresh=force_refresh
             )
-        except ExpiredCallbackError:
+        except (ExpiredCallbackError, RuntimeError):
             return
 
     @property
+    def _faultlog_outdated(self) -> bool:
+        return (
+            not self._prev_0418
+            or not self._this_0418
+            or (self._prev_0418._pkt.payload != self._this_0418._pkt.payload)
+        )
+
+    @property
+    def faultlog(self) -> dict:
+        return self._faultlog.faultlog
+
+    @property
     def status(self) -> dict:
-        status = super().status
-        # assert "fault_log" not in status  # TODO: removeme
-        status["fault_log"] = self._fault_log.fault_log
-        # status["last_fault"] = self._msgz[I_].get(_0418)  # FIXME
-        return status
+        return {
+            **super().status,
+            "faultlog": self.faultlog,
+        }
 
 
 class StoredHw:  # 10A0, 1260, 1F41
@@ -935,7 +957,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         return status
 
 
-class System(StoredHw, SysDatetime, SysFaultLog, SystemBase):
+class System(StoredHw, SysDatetime, Logbook, SystemBase):
     """The Controller class."""
 
     _PROFILE = SYSTEM_PROFILE.PRG
@@ -1133,9 +1155,7 @@ def create_system(gwy, ctl, profile=None, **kwargs) -> System:
         system._discover, discover_flag=Discover.PARAMS, delay=4, period=60 * 60 * 6
     )
     gwy._add_task(system._discover, discover_flag=Discover.STATUS, delay=7, period=900)
-    # gwy._add_task(
-    #     system._discover, discover_flag=Discover.FAULTS, delay=180, period=900
-    # )
+    gwy._add_task(system._discover, discover_flag=Discover.FAULTS, delay=180, period=60)
     gwy._add_task(
         system._discover, discover_flag=Discover.SCHEDS, delay=300, period=900
     )

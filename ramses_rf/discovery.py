@@ -205,7 +205,7 @@ async def get_faults(gwy, ctl_id: str, start=0, limit=0x3F):
     device = gwy._get_device(ctl_id, ctl_id=ctl_id)
 
     try:
-        await device._evo.get_fault_log(start=start, limit=limit)  # 0418
+        await device._evo.get_faultlog(start=start, limit=limit)  # 0418
     except ExpiredCallbackError as exc:
         _LOGGER.error("get_faults(): Function timed out: %s", exc)
 
