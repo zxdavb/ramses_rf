@@ -672,30 +672,39 @@ class SysMode:  # 2E04
         return params
 
 
-class SysDatetime:  # 313F
+class Datetime:  # 313F
     def _discover(self, discover_flag=Discover.ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
-        if discover_flag & Discover.STATUS:
-            self._send_cmd(Command.get_system_time(self.id), period=td(hours=1))
+        if discover_flag & Discover.PARAMS:  # really .STATUS, but to decrease frequency
+            self._send_cmd(Command.get_system_time(self.id))
+
+        # NOTE: used for testing
+        # run_coroutine_threadsafe(self.get_datetime(), self._gwy._loop)
+
+    def _handle_msg(self, msg) -> None:
+        super()._handle_msg(msg)
+
+        if msg.code == _313F and msg.verb in (I_, RP):  # NOTE: beware I/W/I loop, below
+            if self._gwy.serial_port and (diff := abs(self._datetime - dt.now())) > td(
+                minutes=5
+            ):
+                _LOGGER.warning(f"{msg._pkt} < excessive datetime difference: {diff}")
+                # if the above is corrected thus, you can get a I/W/I loop
+                # self._gwy.send_cmd(Command.set_system_time(self.id, dt.now()))
 
     @property
-    def datetime(self) -> Optional[str]:  # 313F  # TODO: return a dt object
-        return self._msg_value(_313F, key=ATTR_DATETIME)
+    def _datetime(self) -> Optional[dt]:  # 313F
+        """Return the last seen datetime (NB: the packet could be from hours ago)."""
+        if dtm_str := self._msg_value(_313F, key=ATTR_DATETIME):
+            return dt.fromisoformat(dtm_str)
 
-    # async def get_datetime(self) -> str:  # wait for the RP/313F
-    #     await self.wait_for(Command(_313F, verb=RQ))
-    #     return self.datetime
+    async def get_datetime(self) -> Optional[dt]:
+        msg = await self._gwy.async_send_cmd(Command.get_system_time(self.id))
+        return dt.fromisoformat(msg.payload["datetime"])
 
-    # async def set_datetime(self, dtm: dt) -> str:  # wait for the I/313F
-    #     await self.wait_for(Command(_313F, verb=W_, payload=f"00{dtm_to_hex(dtm)}"))
-    #     return self.datetime
-
-    @property
-    def status(self) -> dict:
-        status = super().status
-        status[ATTR_HTG_SYSTEM][ATTR_DATETIME] = self.datetime
-        return status
+    async def set_datetime(self, dtm: dt) -> None:
+        await self._gwy.async_send_cmd(Command.set_system_time(self.id, dtm))
 
 
 class UfhSystem:
@@ -966,7 +975,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         return status
 
 
-class System(StoredHw, SysDatetime, Logbook, SystemBase):
+class System(StoredHw, Datetime, Logbook, SystemBase):
     """The Controller class."""
 
     _PROFILE = SYSTEM_PROFILE.PRG
