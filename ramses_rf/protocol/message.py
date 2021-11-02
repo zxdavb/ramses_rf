@@ -166,14 +166,12 @@ class Message:
     def __eq__(self, other) -> bool:
         if not isinstance(other, Message):
             return NotImplemented
-        return all(
-            (
-                self.verb == other.verb,
-                self.code == other.code,
-                self.src == other.src,
-                self.dst == other.dst,
-                self._pkt.payload == other._pkt.payload,
-            )
+        return (self.src, self.dst, self.verb, self.code, self._pkt.payload) == (
+            other.src,
+            other.dst,
+            other.verb,
+            other.code,
+            other._pkt.payload,
         )
 
     def __lt__(self, other) -> bool:
