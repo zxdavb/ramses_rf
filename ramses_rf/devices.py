@@ -1279,31 +1279,28 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             ]
 
     def _handle_msg(self, msg) -> None:
-        if msg.code == _3220 and (
-            self._supported_msg.get(msg.payload[MSG_ID]) is not False
-        ):
-            prev_msg = self._opentherm_msg.get(msg.payload[MSG_ID])
-        else:
-            prev_msg = None
+        if msg.code == _3220 and msg._pkt.payload[4:] in ("121980", "1347AB", "1B47AB"):
+            if msg.payload[MSG_ID] not in self._supported_msg:
+                self._supported_msg[msg.payload[MSG_ID]] = None
+
+            elif self._supported_msg[msg.payload[MSG_ID]] is None:
+                self._supported_msg[msg.payload[MSG_ID]] = False
+                _LOGGER.warning(
+                    f"{msg._pkt} << OpenTherm: deprecating msg_id "
+                    f"{msg.payload[MSG_ID]}: it appears unsupported",
+                )
+
+        if msg.code == _3220 and not self._supported_msg.get(msg.payload[MSG_ID]):
+            return
 
         super()._handle_msg(msg)
 
-        if msg.code == _3220:  # all are RP
-            # HACK: work-arounds - seen in some systems - msg_ids maybe not viable
-            if (
-                msg._pkt.payload[6:] in ("121980", "1347AB", "1847AB")
-                and prev_msg._pkt.payload == msg._pkt.payload
-            ):  # CHWaterPressure, DHWFlowRate, CurrentTemperature
-                _LOGGER.warning(
-                    f"{msg._pkt} << OpenTherm: demoting msg_id "
-                    f"0x{msg._pkt.payload[4:6]}: it appears unsupported",
-                )
-                self._supported_msg[msg.payload[MSG_ID]] = False
-
-            elif self._supported_msg.get(msg.payload[MSG_ID]) is None:
-                self._supported_msg[msg.payload[MSG_ID]] = msg.payload[
-                    MSG_TYPE
-                ] not in ("Data-Invalid", "Unknown-DataId", "-reserved-")
+        if msg.code == _3220:
+            self._supported_msg[msg.payload[MSG_ID]] = msg.payload[MSG_TYPE] not in (
+                "Data-Invalid",
+                "Unknown-DataId",
+                "-reserved-",
+            )
 
     def _ot_msg_value(self, msg_id) -> Optional[float]:
         try:
