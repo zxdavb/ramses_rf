@@ -1261,11 +1261,11 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 # "2401",
                 # "2410",
                 # "2420"
-                "0150",
-                "1098",
-                "10B0",
-                "3221",
-                "3223",
+                "0150",  # R8820A only?
+                "1098",  # R8820A only?
+                "10B0",  # R8820A only?
+                "3221",  # R8810A/20A
+                "3223",  # R8810A/20A
             ):
                 self._send_cmd(Command(RQ, code, "00", self.id))
 
@@ -1279,34 +1279,38 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             ]
 
     def _handle_msg(self, msg) -> None:
-        if msg.code == _3220 and msg._pkt.payload[4:] in ("121980", "1347AB", "1B47AB"):
-            if msg.payload[MSG_ID] not in self._supported_msg:
-                self._supported_msg[msg.payload[MSG_ID]] = None
-
-            elif self._supported_msg[msg.payload[MSG_ID]] is None:
-                self._supported_msg[msg.payload[MSG_ID]] = False
-                _LOGGER.warning(
-                    f"{msg._pkt} << OpenTherm: deprecating msg_id "
-                    f"{msg.payload[MSG_ID]}: it appears unsupported",
-                )
-
-        if msg.code == _3220 and not self._supported_msg.get(msg.payload[MSG_ID]):
-            return
-
         super()._handle_msg(msg)
 
-        if msg.code == _3220:
-            self._supported_msg[msg.payload[MSG_ID]] = msg.payload[MSG_TYPE] not in (
+        if msg.code != _3220:
+            return
+
+        msg_id = msg.payload[MSG_ID]
+
+        if msg._pkt.payload[4:] in ("121980", "1347AB", "1B47AB"):
+            if msg_id not in self._supported_msg:
+                self._supported_msg[msg_id] = None
+
+            elif self._supported_msg[msg_id] is None:
+                self._supported_msg[msg_id] = False
+                _LOGGER.warning(
+                    f"{msg._pkt} << OpenTherm: deprecating msg_id "
+                    f"{msg_id}: it appears unsupported",
+                )
+
+        else:
+            self._supported_msg[msg_id] = msg.payload[MSG_TYPE] not in (
                 "Data-Invalid",
                 "Unknown-DataId",
                 "-reserved-",
             )
 
-    def _ot_msg_value(self, msg_id) -> Optional[float]:
-        try:
-            return self._opentherm_msg[f"{msg_id:02X}"].payload[VALUE]
-        except KeyError:
-            return
+    def _ot_msg_value(self, msg_id: int) -> Optional[float]:
+        if (
+            (msg := self._opentherm_msg.get(f"{msg_id:02X}"))
+            and self._supported_msg[msg_id]
+            and not msg._expired
+        ):
+            return msg.payload.get(VALUE)
 
     @property
     def boiler_output_temp(self) -> Optional[float]:  # 3220/19
