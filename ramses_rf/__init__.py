@@ -241,21 +241,23 @@ class Gateway:
         gwy.device_by_id = {}
 
     def _pause_engine(self) -> None:
-        (_LOGGER.error if DEV_MODE else _LOGGER.info)("ENGINE: Pausing engine...")
+        (_LOGGER.error if DEV_MODE else _LOGGER.warning)("Pausing engine...")
 
         if not self.serial_port:
-            raise RuntimeError("Unable to pause, no serial port configured")
+            raise RuntimeError("Unable to pause engine, no serial port configured")
 
         self._engine_lock.acquire()
         if self._engine_state is not None:
             self._engine_lock.release()
-            raise RuntimeError("Unable to pause, the engine is already paused")
+            _LOGGER.warning("The engine is already paused (ignoring request)")
+            return
 
         callback = None
         if self.pkt_protocol:
             self.pkt_protocol.pause_writing()
             self.pkt_protocol._callback, callback = None, self.pkt_protocol._callback
 
+        # TODO: is disable_discovery necessary?
         self.config.disable_discovery, discovery = True, self.config.disable_discovery
         self.config.disable_sending, sending = True, self.config.disable_sending
 
@@ -263,12 +265,16 @@ class Gateway:
         self._engine_lock.release()
 
     def _resume_engine(self) -> None:
-        (_LOGGER.error if DEV_MODE else _LOGGER.info)("ENGINE: Resuming engine...")
+        (_LOGGER.error if DEV_MODE else _LOGGER.warning)("Resuming engine...")
+
+        # if not self.serial_port:
+        #     raise RuntimeError("Unable to resume engine, no serial port configured")
 
         self._engine_lock.acquire()
         if self._engine_state is None:
             self._engine_lock.release()
-            raise RuntimeError("Unable to resume, the engine is not paused")
+            _LOGGER.warning("The engine was not paused (ignoring request")
+            return
 
         self._engine_state, (callback, discovery, sending) = None, self._engine_state
 
@@ -279,11 +285,6 @@ class Gateway:
         self.config.disable_discovery = discovery
         self.config.disable_sending = sending
 
-        # [
-        #     zone._discover(discover_flag=6)
-        #     for evo in self.systems
-        #     for zone in evo.zones
-        # ]
         self._engine_lock.release()
 
     def _get_state(self, include_expired=None) -> Tuple[Dict, Dict]:
