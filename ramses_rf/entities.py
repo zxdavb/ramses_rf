@@ -90,7 +90,8 @@ class Entity:
 
     def _send_cmd(self, cmd, **kwargs) -> None:
         if self._gwy.config.disable_sending:
-            raise RuntimeError("Sending is disabled")
+            _LOGGER.warning(f"{cmd} < Sending is disabled")
+            return
 
         # if getattr(self, "has_battery", None):
         #     return
