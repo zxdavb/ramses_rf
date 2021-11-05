@@ -230,18 +230,8 @@ class Gateway:
 
         return dev
 
-    def _clear_state(self) -> None:
-        gwy = self
-
-        gwy._prev_msg = None
-        gwy.evo = None
-        gwy.systems = []
-        gwy.system_by_id = {}
-        gwy.devices = []
-        gwy.device_by_id = {}
-
     def _pause_engine(self) -> None:
-        (_LOGGER.error if DEV_MODE else _LOGGER.warning)("Pausing engine...")
+        (_LOGGER.error if DEV_MODE else _LOGGER.warning)("ENGINE: Pausing engine...")
 
         if not self.serial_port:
             raise RuntimeError("Unable to pause engine, no serial port configured")
@@ -265,7 +255,7 @@ class Gateway:
         self._engine_lock.release()
 
     def _resume_engine(self) -> None:
-        (_LOGGER.error if DEV_MODE else _LOGGER.warning)("Resuming engine...")
+        (_LOGGER.error if DEV_MODE else _LOGGER.warning)("ENGINE: Resuming engine...")
 
         # if not self.serial_port:
         #     raise RuntimeError("Unable to resume engine, no serial port configured")
@@ -289,7 +279,7 @@ class Gateway:
         self._engine_lock.release()
 
     def _get_state(self, include_expired=None) -> Tuple[Dict, Dict]:
-        (_LOGGER.error if DEV_MODE else _LOGGER.info)(
+        (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
             "ENGINE: Saving schema and state..."
         )
         self._pause_engine()
@@ -314,19 +304,26 @@ class Gateway:
         return schema, pkts
 
     async def _set_state(self, schema: Dict = None, packets: Dict = None) -> None:
-        (_LOGGER.error if DEV_MODE else _LOGGER.info)(
+        def clear_state() -> None:
+            (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
+                "ENGINE: Clearing exisiting schema/state..."
+            )
+
+            self._prev_msg = None  # TODO: move to pause/resume?
+            self.evo = None
+            self.systems = []
+            self.system_by_id = {}
+            self.devices = []
+            self.device_by_id = {}
+
+        (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
             "ENGINE: Restoring schema and/or state..."
         )
         self._pause_engine()
 
-        (_LOGGER.error if DEV_MODE else _LOGGER.info)(
-            "ENGINE: Clearing schema/state..."
-        )
-        if schema:
-            self._clear_state()  # TODO: consider need for this (here, or at all)
-
         if schema:
             (_LOGGER.error if DEV_MODE else _LOGGER.info)("ENGINE: Restoring schema...")
+            clear_state()  # TODO: consider need for this (here, or at all)
             load_schema(self, **schema)  # keep old known_devs?
 
         if packets:
@@ -341,7 +338,7 @@ class Gateway:
         self.msg_transport._clear_write_buffer()
 
         self._resume_engine()
-        (_LOGGER.error if DEV_MODE else _LOGGER.info)(
+        (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
             "ENGINE: Restored schema and/or state."
         )
 
