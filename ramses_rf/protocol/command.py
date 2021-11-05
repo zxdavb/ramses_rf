@@ -881,7 +881,8 @@ class Command(PacketBase):
         """
         #  I --- 34:021943 --:------ 34:021943 30C9 003 000C0D
 
-        assert dev_id[:2] in ("03", "12", "22", "34")  # dex
+        if dev_id[:2] not in ("03", "12", "22", "34"):  # dex
+            raise TypeError(f"Wrong device type: {dev_id[:2]}, try 03, 12, 22, 34")
 
         payload = f"00{temp_to_hex(temperature)}"
         return cls.packet(I_, _30C9, payload, addr0=dev_id, addr2=dev_id, **kwargs)
