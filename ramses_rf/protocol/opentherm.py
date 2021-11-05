@@ -1006,26 +1006,25 @@ def decode_frame(frame: str) -> Tuple[int, int, dict, str]:
     elif msg_schema[VAL] in (FLAG8, U8, S8):
         data_value[VALUE] = msg_value(frame[4:6], msg_schema[VAL])
 
-    elif msg_schema[VAL] == F8_8:
+    elif msg_schema[VAL] in (S16, U16):
+        data_value[VALUE] = msg_value(frame[4:8], msg_schema[VAL])
+
+    elif msg_schema[VAL] != F8_8:  # shouldn't reach here
+        data_value[VALUE] = msg_value(frame[4:8], U16)
+
+    elif msg_schema[VAL] == F8_8:  # TODO
         result = msg_value(frame[4:8], msg_schema[VAL])
-        if result is None or msg_schema.get(SENSOR) not in (
-            Sensor.PERCENTAGE,
-            Sensor.TEMPERATURE,
-        ):
+        if result is None:
             data_value[VALUE] = result
         elif msg_schema.get(SENSOR) == Sensor.PERCENTAGE:
             # NOTE: OT defines % as 0.0-100.0, but (this) ramses uses 0.0-1.0 elsewhere
             data_value[VALUE] = int(result * 2) / 200  # seems precision of 1%
-        else:  # if msg_schema.get(SENSOR) == Sensor.TEMPERATURE:
+        elif msg_schema.get(SENSOR) == Sensor.FLOW_RATE:
             data_value[VALUE] = int(result * 100) / 100
-        # else:  # Sensor.PRESSURE:  Sensor.HUMIDITY, "flow", "current"
-        #     data_value[VALUE] = result
-
-    elif msg_schema[VAL] in (S16, U16):
-        data_value[VALUE] = msg_value(frame[4:8], msg_schema[VAL])
-
-    else:  # shouldn't reach here
-        data_value[VALUE] = msg_value(frame[4:8], U16)
+        elif msg_schema.get(SENSOR) == Sensor.PRESSURE:
+            data_value[VALUE] = int(result * 10) / 10
+        else:  # if msg_schema.get(SENSOR) == (Sensor.TEMPERATURE, Sensor.HUMIDITY):
+            data_value[VALUE] = int(result * 100) / 100
 
     return OPENTHERM_MSG_TYPE[msg_type], data_id, data_value, msg_schema
 
