@@ -1173,7 +1173,7 @@ def create_system(gwy, ctl, profile=None, **kwargs) -> System:
         return system
 
     gwy._add_task(
-        system._discover, discover_flag=Discover.SCHEMA, delay=1, period=60 * 60 * 24
+        system._discover, discover_flag=Discover.SCHEMA, delay=2, period=60 * 60 * 24
     )
     gwy._add_task(
         system._discover, discover_flag=Discover.PARAMS, delay=4, period=60 * 60 * 6

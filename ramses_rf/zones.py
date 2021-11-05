@@ -920,7 +920,7 @@ def create_zone(evo, zone_idx, profile=None, **kwargs) -> Zone:
         return zone
 
     evo._gwy._add_task(
-        zone._discover, discover_flag=Discover.SCHEMA, delay=2, period=86400
+        zone._discover, discover_flag=Discover.SCHEMA, delay=4, period=86400
     )
     evo._gwy._add_task(
         zone._discover, discover_flag=Discover.PARAMS, delay=5, period=21600

@@ -1807,7 +1807,7 @@ def create_device(gwy, dev_id, dev_class=None, **kwargs) -> Device:
         return device
 
     gwy._add_task(
-        device._discover, discover_flag=Discover.SCHEMA, delay=0, period=86400
+        device._discover, discover_flag=Discover.SCHEMA, delay=2, period=86400
     )
 
     delay = randint(10, 20)
