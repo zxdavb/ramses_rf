@@ -236,13 +236,17 @@ class Gateway:
         if not self.serial_port:
             raise RuntimeError("Unable to pause engine, no serial port configured")
 
-        self._engine_lock.acquire()
+        if not self._engine_lock.acquire(timeout=0.1):
+            raise RuntimeError("Unable to pause engine, failed to acquire lock")
+
         if self._engine_state is not None:
             self._engine_lock.release()
             _LOGGER.warning("The engine is already paused (ignoring request)")
             return
 
-        callback = None
+        self._engine_state, callback = (None, None, None), None
+        self._engine_lock.release()
+
         if self.pkt_protocol:
             self.pkt_protocol.pause_writing()
             self.pkt_protocol._callback, callback = None, self.pkt_protocol._callback
@@ -252,7 +256,6 @@ class Gateway:
         self.config.disable_sending, sending = True, self.config.disable_sending
 
         self._engine_state = (callback, discovery, sending)
-        self._engine_lock.release()
 
     def _resume_engine(self) -> None:
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)("ENGINE: Resuming engine...")
@@ -260,13 +263,16 @@ class Gateway:
         # if not self.serial_port:
         #     raise RuntimeError("Unable to resume engine, no serial port configured")
 
-        self._engine_lock.acquire()
+        if not self._engine_lock.acquire(timeout=0.5):
+            raise RuntimeError("Unable to resume engine, failed to acquire lock")
+
         if self._engine_state is None:
             self._engine_lock.release()
             _LOGGER.warning("The engine was not paused (ignoring request")
             return
 
-        self._engine_state, (callback, discovery, sending) = None, self._engine_state
+        callback, discovery, sending = self._engine_state
+        self._engine_lock.release()
 
         if self.pkt_protocol:
             self.pkt_protocol._callback = callback  # self.msg_transport._pkt_receiver
@@ -276,7 +282,7 @@ class Gateway:
         self.config.disable_discovery = discovery
         self.config.disable_sending = sending
 
-        self._engine_lock.release()
+        self._engine_state = None
 
     def _get_state(self, include_expired=None) -> Tuple[Dict, Dict]:
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
