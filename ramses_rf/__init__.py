@@ -236,7 +236,7 @@ class Gateway:
         if not self.serial_port:
             raise RuntimeError("Unable to pause engine, no serial port configured")
 
-        if not self._engine_lock.acquire(timeout=0.1):
+        if not self._engine_lock.acquire(blocking=False):
             raise RuntimeError("Unable to pause engine, failed to acquire lock")
 
         if self._engine_state is not None:
@@ -263,7 +263,7 @@ class Gateway:
         # if not self.serial_port:
         #     raise RuntimeError("Unable to resume engine, no serial port configured")
 
-        if not self._engine_lock.acquire(timeout=0.5):
+        if not self._engine_lock.acquire(timeout=0.1):
             raise RuntimeError("Unable to resume engine, failed to acquire lock")
 
         if self._engine_state is None:
