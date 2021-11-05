@@ -231,7 +231,7 @@ class Gateway:
         return dev
 
     def _pause_engine(self) -> None:
-        """Pause the engine, do nothing if already paused, or raise a RuntimeError."""
+        """Pause the (unpaused) engine or raise a RuntimeError."""
 
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)("ENGINE: Pausing engine...")
 
@@ -243,8 +243,7 @@ class Gateway:
 
         if self._engine_state is not None:
             self._engine_lock.release()
-            _LOGGER.warning("The engine is already paused (ignoring request)")
-            return
+            raise RuntimeError("Unable to pause engine, it is already paused")
 
         self._engine_state, callback = (None, None, None), None
         self._engine_lock.release()
@@ -260,7 +259,7 @@ class Gateway:
         self._engine_state = (callback, discovery, sending)
 
     def _resume_engine(self) -> None:
-        """Pause the engine, do nothing if not paused, or raise a RuntimeError."""
+        """Resume the (paused) engine or raise a RuntimeError."""
 
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)("ENGINE: Resuming engine...")
 
@@ -272,8 +271,7 @@ class Gateway:
 
         if self._engine_state is None:
             self._engine_lock.release()
-            _LOGGER.warning("The engine was not paused (ignoring request")
-            return
+            raise RuntimeError("Unable to resume engine, it was not paused")
 
         callback, discovery, sending = self._engine_state
         self._engine_lock.release()
@@ -289,6 +287,8 @@ class Gateway:
         self._engine_state = None
 
     def _get_state(self, include_expired=None) -> Tuple[Dict, Dict]:
+        #
+
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
             "ENGINE: Saving schema and state..."
         )
