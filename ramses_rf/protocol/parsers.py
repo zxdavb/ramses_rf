@@ -1691,6 +1691,13 @@ def parser_3220(payload, msg) -> Optional[dict]:
     return result
 
 
+# @parser_decorator  # R8810A/20A
+# def parser_3221(payload, msg) -> Optional[dict]:
+
+#     # 2021-11-03T09:55:43.112792 071 RP --- 10:052644 18:198151 --:------ 3221 002 000F
+#     # 2021-11-02T05:15:55.767108 046 RP --- 10:048122 18:006402 --:------ 3221 002 0000
+
+
 @parser_decorator  # actuator_sync (aka sync_tpi: TPI cycle sync)
 def parser_3b00(payload, msg) -> Optional[dict]:
     # system timing master: the device that sends I/FCC8 pkt controls the heater relay
