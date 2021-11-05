@@ -257,7 +257,7 @@ class Gateway:
             self.pkt_protocol.pause_writing()
             self.pkt_protocol._callback, callback = None, self.pkt_protocol._callback
 
-        # TODO: is disable_discovery necessary?
+        # TODO: is disable_discovery = True necessary?
         self.config.disable_discovery, discovery = True, self.config.disable_discovery
         self.config.disable_sending, sending = True, self.config.disable_sending
 
@@ -282,6 +282,7 @@ class Gateway:
             self.pkt_protocol._callback = callback  # self.msg_transport._pkt_receiver
             self.pkt_protocol.resume_writing()
 
+        # TODO: is disable_discovery = True necessary?
         self.config.disable_discovery = discovery
         self.config.disable_sending = sending
 
