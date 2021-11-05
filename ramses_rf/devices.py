@@ -1291,9 +1291,9 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         if msg.code != _3220:
             return
 
-        msg_id = msg.payload[MSG_ID]
+        msg_id = f"{msg.payload[MSG_ID]:02X}"
 
-        if msg._pkt.payload[4:] in ("121980", "1347AB", "1B47AB"):
+        if msg._pkt.payload[4:] == "121980" or msg._pkt.payload[6:] == "47AB":
             if msg_id not in self._supported_msg:
                 self._supported_msg[msg_id] = None
 
@@ -1301,7 +1301,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 self._supported_msg[msg_id] = False
                 _LOGGER.warning(
                     f"{msg._pkt} << OpenTherm: deprecating msg_id "
-                    f"{msg_id}: it appears unsupported",
+                    f"0x{msg_id}: it appears unsupported",
                 )
 
         else:
@@ -1311,9 +1311,9 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 "-reserved-",
             )
 
-    def _ot_msg_value(self, msg_id: int) -> Optional[float]:
+    def _ot_msg_value(self, msg_id) -> Optional[float]:
         if (
-            (msg := self._opentherm_msg.get(f"{msg_id:02X}"))
+            (msg := self._opentherm_msg.get(msg_id))
             and self._supported_msg[msg_id]
             and not msg._expired
         ):
@@ -1321,45 +1321,45 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
     @property
     def boiler_output_temp(self) -> Optional[float]:  # 3220/19
-        return self._ot_msg_value(0x19)
+        return self._ot_msg_value("19")
 
     @property
     def boiler_return_temp(self) -> Optional[float]:  # 3220/1C
-        return self._ot_msg_value(0x1C)
+        return self._ot_msg_value("1C")
 
     @property
     def boiler_setpoint(self) -> Optional[float]:  # 3220/01 (22D9)
         # return self._msg_value(_22D9, key=self.BOILER_SETPOINT)
-        return self._ot_msg_value(0x01)
+        return self._ot_msg_value("01")
 
     @property
     def ch_max_setpoint(self) -> Optional[float]:  # 3220/39 (1081)
-        return self._ot_msg_value(0x39)
+        return self._ot_msg_value("39")
 
     @property
     def ch_water_pressure(self) -> Optional[float]:  # 3220/12 (1300)
-        return self._ot_msg_value(0x12)
+        return self._ot_msg_value("12")
 
     @property
     def dhw_flow_rate(self) -> Optional[float]:  # 3220/13
-        return self._ot_msg_value(0x13)
+        return self._ot_msg_value("13")
 
     @property
     def dhw_setpoint(self) -> Optional[float]:  # 3220/38 (10A0)
-        return self._ot_msg_value(0x38)
+        return self._ot_msg_value("38")
 
     @property
     def dhw_temp(self) -> Optional[float]:  # 3220/1A (1260)
-        return self._ot_msg_value(0x1A)
+        return self._ot_msg_value("1A")
 
     @property
     def outside_temp(self) -> Optional[float]:  # 3220/1B (1290)
-        return self._ot_msg_value(0x1B)
+        return self._ot_msg_value("1B")
 
     @property
     def rel_modulation_level(self) -> Optional[float]:  # 3220/11 (3EFx)
         # return self._msg_value((_3EF0, _3EF1), key=self.MODULATION_LEVEL)
-        return self._ot_msg_value(0x11)
+        return self._ot_msg_value("11")
 
     @staticmethod
     def _msg_name(msg) -> str:
@@ -1420,9 +1420,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         return {
             **super().schema,
             "known_msg_ids": {
-                f"{k:02X}": OPENTHERM_MESSAGES[k].get("var", f"{k:02X}")
-                if k in OPENTHERM_MESSAGES
-                else f"{k:02X}"
+                k: OPENTHERM_MESSAGES[int(k, 16)].get("var", k)
                 for k, v in sorted(self._supported_msg.items())
                 if v
             },
