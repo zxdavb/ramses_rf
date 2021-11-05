@@ -1346,7 +1346,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
     @property
     def dhw_setpoint(self) -> Optional[float]:  # 3220/38 (10A0)
-        return self._ot_msg_value(0x89)
+        return self._ot_msg_value(0x38)
 
     @property
     def dhw_temp(self) -> Optional[float]:  # 3220/1A (1260)
