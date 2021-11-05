@@ -397,13 +397,18 @@ class Actuator:  # 3EF0, 3EF1
             # NOTE: No need to send periodic RQ/3EF1s to an OTB, use RQ/3220/11s
             self._make_cmd(_3EF1)  # NOTE: No RPs to RQ/3EF0
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg) -> None:  # NOTE: active
         super()._handle_msg(msg)
 
         if isinstance(self, OtbGateway):
             return
 
-        if msg.code == _3EF0 and msg.verb == I_ and not self._faked:
+        if (
+            msg.code == _3EF0
+            and msg.verb == I_
+            and not self._faked
+            and not self._gwy.config.disable_sending
+        ):
             self._make_cmd(_3EF1, priority=Priority.LOW, retries=1)
 
     @property
@@ -695,13 +700,14 @@ class RelayDemand(Fakeable):  # 0008 (fakeable)
                 Command.get_relay_demand(self.id), priority=Priority.LOW, retries=1
             )
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg) -> None:  # NOTE: active
         if msg.src.id == self.id:
             super()._handle_msg(msg)
             return
 
         if (
-            not self._faked
+            self._gwy.config.disable_sending
+            or not self._faked
             or self._domain_id is None
             or self._domain_id
             not in (v for k, v in msg.payload.items() if k in ("domain_id", "zone_idx"))
@@ -1116,10 +1122,11 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id}): {self.temperature}"
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg) -> None:  # NOTE: active
         super()._handle_msg(msg)
 
-        if msg.code == _1260 and self._ctl:  # device can be instatiated with a CTL
+        if msg.code == _1260 and self._ctl and not self._gwy.config.disable_sending:
+            # device can be instatiated with a CTL
             self._send_cmd(Command.get_dhw_temp(self._ctl.id))
 
     @property

@@ -386,7 +386,7 @@ class ScheduleSync:  # 0006
         if discover_flag & Discover.SCHEDS:  # check the latest schedule delta
             self._make_cmd(_0006)
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg) -> None:  # NOTE: active
         super()._handle_msg(msg)
 
         if msg.code == _0006:
@@ -457,7 +457,7 @@ class Logbook:  # 0418
             self._send_cmd(Command.get_system_log_entry(self._ctl.id, 0))
             # self._gwy._tasks.append(self._loop.create_task(self.get_faultlog()))
 
-    def _handle_msg(self, msg) -> None:
+    def _handle_msg(self, msg) -> None:  # NOTE: active
         super()._handle_msg(msg)
 
         if msg.code == _0418 and msg.payload["log_idx"] == "00":
