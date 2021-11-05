@@ -231,6 +231,8 @@ class Gateway:
         return dev
 
     def _pause_engine(self) -> None:
+        """Pause the engine, do nothing if already paused, or raise a RuntimeError."""
+
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)("ENGINE: Pausing engine...")
 
         if not self.serial_port:
@@ -258,6 +260,8 @@ class Gateway:
         self._engine_state = (callback, discovery, sending)
 
     def _resume_engine(self) -> None:
+        """Pause the engine, do nothing if not paused, or raise a RuntimeError."""
+
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)("ENGINE: Resuming engine...")
 
         # if not self.serial_port:
