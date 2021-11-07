@@ -346,6 +346,9 @@ class PacketProtocolBase(asyncio.Protocol):
             if dev_id in self._include or dev_id in (NON_DEVICE_ID, NUL_DEVICE_ID):
                 continue
 
+            if dev_id[:2] == "18" and self._hgi80[DEVICE_ID] is None:
+                continue
+
             if dev_id == self._hgi80[DEVICE_ID]:
                 if self._include:
                     _LOGGER.warning(
