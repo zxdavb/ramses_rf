@@ -306,7 +306,7 @@ class Message:
             ):
                 _logger = _LOGGER.info
             else:
-                _logger = _LOGGER.warning
+                _logger = _LOGGER.warning if DEV_MODE else _LOGGER.info
             _logger("%s # has expired %s", self._pkt, f"({self._expired_ * 100:1.0f}%)")
 
         # elif self._expired_ >= self.IS_EXPIRING:  # this could log multiple times
