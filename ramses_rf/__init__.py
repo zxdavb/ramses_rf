@@ -106,6 +106,8 @@ class Gateway:
 
         self._setup_event_handlers()
 
+        load_schema(self, **self._schema)
+
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
         return json.dumps(self.schema)
@@ -151,9 +153,22 @@ class Gateway:
             raise RuntimeError("Unsupported OS for this module: %s", os.name)
 
     async def start(self) -> None:
-        _LOGGER.info("ENGINE: Starting poller...")
+        def start_discovery(devices, systems) -> None:
+            _LOGGER.warning("ENGINE: Initiating/enabling discovery...")
 
-        load_schema(self, **self._schema)
+            # [d._start_discovery() for d in devices]
+            for d in devices:
+                d._start_discovery()
+
+            for system in systems:
+                system._start_discovery()
+                [z._start_discovery() for z in system.zones]
+                if system._dhw:
+                    system._dhw._start_discovery()
+
+        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Starting poller...")
+
+        # load_schema(self, **self._schema)
 
         if self.serial_port:  # source of packets is a serial port
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
@@ -165,6 +180,8 @@ class Gateway:
                 self._tasks.append(
                     self.msg_transport._set_dispatcher(self.pkt_protocol.send_data)
                 )
+
+            start_discovery(self.devices, self.systems)
 
             while not self._tasks:
                 await asyncio.sleep(60)
@@ -233,7 +250,7 @@ class Gateway:
     def _pause_engine(self) -> None:
         """Pause the (unpaused) engine or raise a RuntimeError."""
 
-        (_LOGGER.error if DEV_MODE else _LOGGER.warning)("ENGINE: Pausing engine...")
+        (_LOGGER.info if DEV_MODE else _LOGGER.debug)("ENGINE: Pausing engine...")
 
         if not self.serial_port:
             raise RuntimeError("Unable to pause engine, no serial port configured")
@@ -261,7 +278,7 @@ class Gateway:
     def _resume_engine(self) -> None:
         """Resume the (paused) engine or raise a RuntimeError."""
 
-        (_LOGGER.error if DEV_MODE else _LOGGER.warning)("ENGINE: Resuming engine...")
+        (_LOGGER.info if DEV_MODE else _LOGGER.debug)("ENGINE: Resuming engine...")
 
         # if not self.serial_port:
         #     raise RuntimeError("Unable to resume engine, no serial port configured")
@@ -289,8 +306,8 @@ class Gateway:
     def _get_state(self, include_expired=None) -> Tuple[Dict, Dict]:
         #
 
-        (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
-            "ENGINE: Saving schema and state..."
+        (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
+            "ENGINE: Saving schema/state..."
         )
         self._pause_engine()
 
@@ -307,17 +324,14 @@ class Gateway:
             if msg.verb in (I_, RP) and (include_expired or not msg._expired)
         }
 
-        schema, pkts = self.schema, dict(sorted(pkts.items()))
-
         self._resume_engine()
-        (_LOGGER.error if DEV_MODE else _LOGGER.info)("ENGINE: Saved schema and state.")
-        return schema, pkts
+        (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Saved schema/state.")
 
-    async def _set_state(self, schema: Dict = None, packets: Dict = None) -> None:
+        return self.schema, dict(sorted(pkts.items()))
+
+    async def _set_state(self, packets) -> None:
         def clear_state() -> None:
-            (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
-                "ENGINE: Clearing exisiting schema/state..."
-            )
+            _LOGGER.warning("ENGINE: Clearing exisiting schema/state...")
 
             self._prev_msg = None  # TODO: move to pause/resume?
             self.evo = None
@@ -326,31 +340,22 @@ class Gateway:
             self.devices = []
             self.device_by_id = {}
 
-        (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
-            "ENGINE: Restoring schema and/or state..."
-        )
+        (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Restoring state...")
         self._pause_engine()
 
-        if schema:
-            (_LOGGER.error if DEV_MODE else _LOGGER.info)("ENGINE: Restoring schema...")
-            clear_state()  # TODO: consider need for this (here, or at all)
-            load_schema(self, **schema)  # keep old known_devs?
+        # clear_state()  # TODO: consider need for this (here, or at all)
 
-        if packets:
-            (_LOGGER.error if DEV_MODE else _LOGGER.info)("ENGINE: Restoring state...")
-            _, tmp_transport = create_pkt_stack(
-                self,
-                self.msg_transport._pkt_receiver if self.msg_transport else None,
-                packet_dict=packets,
-            )
-            await tmp_transport.get_extra_info(POLLER_TASK)
+        _, tmp_transport = create_pkt_stack(
+            self,
+            self.msg_transport._pkt_receiver if self.msg_transport else None,
+            packet_dict=packets,
+        )
+        await tmp_transport.get_extra_info(POLLER_TASK)
 
-        self.msg_transport._clear_write_buffer()
+        # self.msg_transport._clear_write_buffer()  # TODO: shouldn't be needed
 
         self._resume_engine()
-        (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
-            "ENGINE: Restored schema and/or state."
-        )
+        (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Restored state.")
 
     def _dt_now(self):
         # return dt.now()
@@ -367,7 +372,7 @@ class Gateway:
 
         return {
             "gateway_id": self.hgi.id if self.hgi else None,
-            "schema": self.evo.schema_min if self.evo else None,
+            "schema": self.evo._schema_min if self.evo else None,
             "config": {"enforce_known_list": self.config.enforce_known_list},
             "known_list": [{k: v} for k, v in self._include.items()],
             "block_list": [{k: v} for k, v in self._exclude.items()],
@@ -381,11 +386,8 @@ class Gateway:
 
         schema = {"main_controller": self.evo._ctl.id if self.evo else None}
 
-        if self.evo:
-            schema[self.evo._ctl.id] = self.evo.schema
         for evo in self.systems:
-            if evo is not self.evo:
-                schema[evo._ctl.id] = evo.schema
+            schema[evo._ctl.id] = evo.schema
 
         schema[ATTR_ORPHANS] = [
             d.id for d in self.devices if d._ctl is None and d._is_present

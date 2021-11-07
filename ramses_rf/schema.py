@@ -24,7 +24,6 @@ from .const import (
 )
 from .protocol import PACKET_LOG, PACKET_LOG_SCHEMA
 from .protocol.const import (
-    ATTR_CONTROLLER,
     ATTR_DEVICES,
     ATTR_DHW_SENSOR,
     ATTR_DHW_VALVE,
@@ -185,7 +184,7 @@ ZONES_SCHEMA = vol.All(
 )
 SYSTEM_SCHEMA = vol.Schema(
     {
-        vol.Required(ATTR_CONTROLLER): DEV_REGEX_CTL,
+        # vol.Required(ATTR_CONTROLLER): DEV_REGEX_CTL,
         vol.Optional(ATTR_HTG_SYSTEM, default={}): vol.Any({}, HTG_SCHEMA),
         vol.Optional(ATTR_DHW_SYSTEM, default={}): vol.Any({}, DHW_SCHEMA),
         vol.Optional(ATTR_UFH_SYSTEM, default={}): vol.Any({}, UFH_SCHEMA),
@@ -309,30 +308,22 @@ def _get_device(gwy, dev_id, ctl_id=None, **kwargs) -> Optional[Any]:  # -> Devi
 
 def load_schema(gwy, **kwargs) -> dict:
     """Process the schema, and the configuration and return True if it is valid."""
-    # TODO: check a sensor is not a device in another zone
+
+    [
+        load_system(gwy, ctl_id, schema)
+        for ctl_id, schema in kwargs.items()
+        if re.match(DEVICE_ID_REGEX.ANY, ctl_id)
+    ]
+    if kwargs.get(MAIN_CONTROLLER):
+        gwy.evo = gwy.system_by_id.get(kwargs[MAIN_CONTROLLER])
 
     [_get_device(gwy, device_id) for device_id in kwargs.pop(ATTR_ORPHANS, [])]
 
-    if SCHEMA in kwargs:
-        # ctl_id = kwargs.pop(ATTR_CONTROLLER)
-        load_system(gwy, schema=kwargs[SCHEMA])
-        gwy.evo = gwy.system_by_id.get(kwargs[SCHEMA][ATTR_CONTROLLER])
 
-    elif kwargs.get(MAIN_CONTROLLER):
-        [
-            load_system(gwy, schema)
-            for k, schema in kwargs.items()
-            if re.match(DEVICE_ID_REGEX.ANY, k)
-        ]
-        gwy.evo = gwy.system_by_id.get(kwargs[MAIN_CONTROLLER])
-
-
-def load_system(gwy, schema) -> Tuple[dict, dict]:
+def load_system(gwy, ctl_id, schema) -> Tuple[dict, dict]:
     schema = SYSTEM_SCHEMA(schema)
 
-    dev_id = schema[ATTR_CONTROLLER]
-    profile = schema[ATTR_HTG_SYSTEM].get(ATTR_SYS_PROFILE)
-    ctl = _get_device(gwy, dev_id, ctl_id=dev_id, profile=profile)
+    ctl = _get_device(gwy, ctl_id, ctl_id=ctl_id, profile=None)
 
     if dev_id := schema[ATTR_HTG_SYSTEM].get(ATTR_HTG_CONTROL):
         ctl._evo._set_htg_control(_get_device(gwy, dev_id, ctl_id=ctl.id))
@@ -354,7 +345,7 @@ def load_system(gwy, schema) -> Tuple[dict, dict]:
                 _get_device(gwy, dev_id, ctl_id=ctl.id, domain_id=zone_idx)
             )
             if attrs.get("faked_sensor"):
-                zone.sensor._make_fake()
+                zone.sensor._make_fake()  # TODO: check device type here?
 
         for dev_id in attrs.get(ATTR_DEVICES, []):
             _get_device(gwy, dev_id, ctl_id=ctl.id, domain_id=zone_idx)
