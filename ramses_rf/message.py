@@ -144,12 +144,10 @@ def process_msg(msg: Message) -> None:
     #     if prev is not None and re.search("I.* 01.* 000A ", str(prev._pkt)):
     #         this._payload = prev.payload + this.payload  # merge frags, and process
 
-    if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
-        (
-            _LOGGER.debug
-            if msg.verb == RQ and msg.src.type == "18"  # DEX
-            else _LOGGER.info
-        )(msg)
+    if _LOGGER.getEffectiveLevel() < logging.INFO:
+        _LOGGER.info(msg)
+    elif not (msg.verb == RQ and msg.src.type == "18"):
+        _LOGGER.info(msg)
 
     # NOTE: this is used to expose message timeouts (esp. when parsing)
     # [m._expired for d in msg._gwy.devices for m in d._msg_db]
