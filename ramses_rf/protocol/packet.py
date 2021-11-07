@@ -263,8 +263,10 @@ def pkt_timeout(pkt) -> Optional[td]:  # NOTE: import OtbGateway ??
             return
         elif pkt.payload[4:6] in OtbGateway.PARAMS_MSG_IDS:
             timeout = td(minutes=60)
-        else:  # elif pkt.payload[4:6] in OtbGateway.STATUS_MSG_IDS
+        elif pkt.payload[4:6] in OtbGateway.STATUS_MSG_IDS:
             timeout = td(minutes=3)
+        else:  # elif pkt.payload[4:6] in OtbGateway.WRITE_MSG_IDS
+            timeout = td(minutes=1)
 
     # elif pkt.code in (_3B00, _3EF0, ):  # TODO: 0008, 3EF0, 3EF1
     #     timeout = td(minutes=6.7)  # TODO: WIP
