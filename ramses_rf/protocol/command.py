@@ -490,7 +490,7 @@ class Command(PacketBase):
 
     @classmethod  # constructor for RQ/3220
     @validate_command()
-    def get_opentherm_data(cls, dev_id: str, msg_id: int, **kwargs):
+    def get_opentherm_data(cls, dev_id: str, msg_id: Union[int, str], **kwargs):
         """Constructor to get (Read-Data) opentherm msg value (c.f. parser_3220)."""
         msg_id = msg_id if isinstance(msg_id, int) else int(msg_id, 16)
         payload = f"0080{msg_id:02X}0000" if parity(msg_id) else f"0000{msg_id:02X}0000"

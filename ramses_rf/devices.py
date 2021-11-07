@@ -1194,53 +1194,53 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
     # _STATE = super().MODULATION_LEVEL
 
     SCHEMA_MSG_IDS = (
-        0x03,  # ..3: "Slave configuration",
-        0x06,  # ..6: "Remote boiler parameter flags",                      # 0x38, 0x39
-        0x0F,  # .15: "Max. boiler capacity (kW) and modulation level setting (%)",
-        0x30,  # .48: "DHW Setpoint upper & lower bounds for adjustment (°C)",
-        0x31,  # .49: "Max CH water Setpoint upper & lower bounds for adjustment (°C)",
-        0x7D,  # 125: "Opentherm version Slave",                            # not native
-        0x7F,  # 127: "Slave product version number and type",
+        "03",  # ..3: "Slave configuration",
+        "06",  # ..6: "Remote boiler parameter flags",                      # 0x38, 0x39
+        "0F",  # .15: "Max. boiler capacity (kW) and modulation level setting (%)",
+        "30",  # .48: "DHW Setpoint upper & lower bounds for adjustment (°C)",
+        "31",  # .49: "Max CH water Setpoint upper & lower bounds for adjustment (°C)",
+        "7D",  # 125: "Opentherm version Slave",                            # not native
+        "7F",  # 127: "Slave product version number and type",
     )
     PARAMS_MSG_IDS = (
-        0x38,  # .56: "DHW Setpoint (°C) (Remote parameter 1)",             # see: 0x06
-        0x39,  # .57: "Max CH water Setpoint (°C) (Remote parameter 2)",    # see: 0x06
+        "38",  # .56: "DHW Setpoint (°C) (Remote parameter 1)",             # see: 0x06
+        "39",  # .57: "Max CH water Setpoint (°C) (Remote parameter 2)",    # see: 0x06
         # These are error codes...
-        0x05,  # ..5: "Fault flags & OEM codes",
-        0x73,  # 115: "OEM diagnostic code",
+        "05",  # ..5: "Fault flags & OEM codes",
+        "73",  # 115: "OEM diagnostic code",
         # These are STATUS seen RQ'd by 01:/30:, but here to retreive less frequently
-        0x71,  # 113: "Number of un-successful burner starts",
-        0x72,  # 114: "Number of times flame signal was too low",
-        0x74,  # 116: "Number of starts burner",
-        0x75,  # 117: "Number of starts central heating pump",
-        0x76,  # 118: "Number of starts DHW pump/valve",
-        0x77,  # 119: "Number of starts burner during DHW mode",
-        0x78,  # 120: "Number of hours burner is in operation (i.e. flame on)",
-        0x79,  # 121: "Number of hours central heating pump has been running",
-        0x7A,  # 122: "Number of hours DHW pump has been running/valve has been opened",
-        0x7B,  # 123: "Number of hours DHW burner is in operation during DHW mode",
+        "71",  # 113: "Number of un-successful burner starts",
+        "72",  # 114: "Number of times flame signal was too low",
+        "74",  # 116: "Number of starts burner",
+        "75",  # 117: "Number of starts central heating pump",
+        "76",  # 118: "Number of starts DHW pump/valve",
+        "77",  # 119: "Number of starts burner during DHW mode",
+        "78",  # 120: "Number of hours burner is in operation (i.e. flame on)",
+        "79",  # 121: "Number of hours central heating pump has been running",
+        "7A",  # 122: "Number of hours DHW pump has been running/valve has been opened",
+        "7B",  # 123: "Number of hours DHW burner is in operation during DHW mode",
     )
     STATUS_MSG_IDS = (
-        0x00,  # ..0: "Master/Slave status flags",                          # not native
-        0x01,  # ..1: "CH water temperature Setpoint (°C)",                 # also R/W
-        0x11,  # .17: "Relative Modulation Level (%)",
-        0x12,  # .18: "Water pressure in CH circuit (bar)",
-        0x13,  # .19: "Water flow rate in DHW circuit. (L/min)",
-        0x19,  # .25: "Boiler flow water temperature (°C)",
-        0x1A,  # .26: "DHW temperature (°C)",
-        0x1B,  # .27: "Outside temperature (°C)",  # TODO: any value here?  # not native
-        0x1C,  # .28: "Return water temperature (°C)",
+        "00",  # ..0: "Master/Slave status flags",                          # not native
+        "01",  # ..1: "CH water temperature Setpoint (°C)",                 # also R/W
+        "11",  # .17: "Relative Modulation Level (%)",
+        "12",  # .18: "Water pressure in CH circuit (bar)",
+        "13",  # .19: "Water flow rate in DHW circuit. (L/min)",
+        "19",  # .25: "Boiler flow water temperature (°C)",
+        "1A",  # .26: "DHW temperature (°C)",
+        "1B",  # .27: "Outside temperature (°C)",  # TODO: any value here?  # not native
+        "1C",  # .28: "Return water temperature (°C)",
     )
     WRITE_MSG_IDS = (  # Write-Data, some may also Read-Data (will need to check)
-        0x01,  # ..1:  -see above-
-        0x02,  # ..2: "Master configuration",
-        0x0E,  # .14: "Maximum relative modulation level setting (%)",  # c.f. 0x11
-        0x10,  # .16: "Room Setpoint (°C)",     # tell slave the room setpoint?
-        0x18,  # .24: "Room temperature (°C)",  # tell slave the room temp?
-        0x38,  # .56:  -see above-
-        0x39,  # .57:  -see above-
-        0x7C,  # 124: "Opentherm version Master",
-        0x7E,  # 126: "Master product version number and type",
+        "01",  # ..1:  -see above-
+        "02",  # ..2: "Master configuration",
+        "0E",  # .14: "Maximum relative modulation level setting (%)",  # c.f. 0x11
+        "10",  # .16: "Room Setpoint (°C)",     # tell slave the room setpoint?
+        "18",  # .24: "Room temperature (°C)",  # tell slave the room temp?
+        "38",  # .56:  -see above-
+        "39",  # .57:  -see above-
+        "7C",  # 124: "Opentherm version Master",
+        "7E",  # 126: "Master product version number and type",
     )
 
     def __init__(self, *args, **kwargs) -> None:
