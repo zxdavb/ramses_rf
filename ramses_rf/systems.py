@@ -27,6 +27,7 @@ from .protocol import Command, FaultLog, Priority
 from .protocol.const import (
     _000C_DEVICE,
     _0005_ZONE,
+    ATTR_CONTROLLER,
     ATTR_DATETIME,
     ATTR_DEVICES,
     ATTR_DHW_SENSOR,
@@ -42,8 +43,8 @@ from .protocol.const import (
     SystemType,
 )
 from .protocol.exceptions import CorruptStateError, ExpiredCallbackError
+from .protocol.transport import PacketProtocolPort
 from .schema import (
-    ATTR_CONTROLLER,
     ATTR_DHW_SYSTEM,
     ATTR_HTG_CONTROL,
     ATTR_HTG_SYSTEM,
@@ -153,12 +154,11 @@ class MultiZone:  # 0005 (+/- 000C?)
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
-            [  # 0005: find any zones + their type (RAD, UFH, VAL, MIX, ELE)
-                self._make_cmd(_0005, payload=f"00{zone_type}")
-                for zone_type in self.ZONE_TYPES
-                # self._make_cmd(_0005, payload=f"00{zone_type:02X}")
-                # for zone_type in range(0x12)
-            ]
+            for zone_type in self.ZONE_TYPES:
+                try:
+                    _ = self._msgz[_0005][RP][f"00{zone_type}"]
+                except KeyError:
+                    self._make_cmd(_0005, payload=f"00{zone_type}")
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -511,7 +511,10 @@ class StoredHw:  # 10A0, 1260, 1F41
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
-            self._make_cmd(_000C, payload=f"00{_000C_DEVICE.DHW_SENSOR}")
+            try:
+                _ = self._msgz[_000C][RP][f"00{_000C_DEVICE.DHW_SENSOR}"]
+            except KeyError:
+                self._make_cmd(_000C, payload=f"00{_000C_DEVICE.DHW_SENSOR}")
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -768,12 +771,34 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     # def __str__(self) -> str:  # TODO: WIP
     #     return json.dumps({self._ctl.id: self.schema})
 
+    def _start_discovery(self) -> None:
+
+        self._gwy._add_task(
+            self._discover, discover_flag=Discover.SCHEMA, delay=1, period=3600 * 24
+        )  # 0005/000C pkts
+
+        self._gwy._add_task(
+            self._discover, discover_flag=Discover.PARAMS, delay=4, period=3600 * 6
+        )
+        self._gwy._add_task(
+            self._discover, discover_flag=Discover.STATUS, delay=7, period=60
+        )
+        self._gwy._add_task(
+            self._discover, discover_flag=Discover.FAULTS, delay=120, period=60
+        )
+        self._gwy._add_task(
+            self._discover, discover_flag=Discover.SCHEDS, delay=300, period=60
+        )
+
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:
         # super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
-            self._make_cmd(_000C, payload=f"00{_000C_DEVICE.HTG}")
+            try:
+                _ = self._msgz[_000C][RP][f"00{_000C_DEVICE.HTG}"]
+            except KeyError:
+                self._make_cmd(_000C, payload=f"00{_000C_DEVICE.HTG}")
 
         if discover_flag & Discover.PARAMS:
             self._send_cmd(Command.get_tpi_params(self.id))
@@ -913,15 +938,13 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     def schema(self) -> dict:
         """Return the system's schema."""
 
-        schema = {ATTR_CONTROLLER: self._ctl.id, ATTR_HTG_SYSTEM: {}}
-        # assert ATTR_HTG_SYSTEM in schema  # TODO: removeme
+        schema = {ATTR_HTG_SYSTEM: {}}
+        # hema = {ATTR_CONTROLLER: self._ctl.id, ATTR_HTG_SYSTEM: {}}
 
-        # assert ATTR_HTG_CONTROL not in schema[ATTR_HTG_SYSTEM]  # TODO: removeme
         schema[ATTR_HTG_SYSTEM][ATTR_HTG_CONTROL] = (
             self.heating_control.id if self.heating_control else None
         )
 
-        # assert ATTR_ORPHANS not in schema[ATTR_HTG_SYSTEM]  # TODO: removeme
         schema[ATTR_ORPHANS] = sorted(
             [
                 d.id
@@ -933,11 +956,11 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         return schema
 
     @property
-    def schema_min(self) -> dict:
+    def _schema_min(self) -> dict:
         """Return the global schema."""
 
         schema = self.schema
-        result = {ATTR_CONTROLLER: schema[ATTR_CONTROLLER]}
+        result = {ATTR_CONTROLLER: self.id}
 
         try:
             if schema[ATTR_SYSTEM][ATTR_HTG_CONTROL][:2] == "10":  # DEX
@@ -1169,17 +1192,7 @@ def create_system(gwy, ctl, profile=None, **kwargs) -> System:
 
     system = _SYS_CLASS.get(profile, System)(gwy, ctl, **kwargs)
 
-    if not gwy.serial_port:
-        return system
-
-    gwy._add_task(
-        system._discover, discover_flag=Discover.SCHEMA, delay=2, period=60 * 60 * 24
-    )
-    gwy._add_task(
-        system._discover, discover_flag=Discover.PARAMS, delay=4, period=60 * 60 * 6
-    )
-    gwy._add_task(system._discover, discover_flag=Discover.STATUS, delay=7, period=60)
-    gwy._add_task(system._discover, discover_flag=Discover.FAULTS, delay=120, period=60)
-    gwy._add_task(system._discover, discover_flag=Discover.SCHEDS, delay=300, period=60)
+    if isinstance(gwy.pkt_protocol, PacketProtocolPort):
+        system._start_discovery()
 
     return system

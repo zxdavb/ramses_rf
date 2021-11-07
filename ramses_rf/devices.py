@@ -29,6 +29,7 @@ from .protocol.const import (
 from .protocol.exceptions import CorruptStateError
 from .protocol.opentherm import MSG_ID, MSG_NAME, MSG_TYPE, OPENTHERM_MESSAGES, VALUE
 from .protocol.ramses import CODE_ONLY_FROM_CTL, RAMSES_DEVICES
+from .protocol.transport import PacketProtocolPort
 
 from .protocol import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 from .protocol import (  # noqa: F401, isort: skip
@@ -175,6 +176,20 @@ class DeviceBase(Entity):
             return NotImplemented
         return self.id < other.id
 
+    def _start_discovery(self) -> None:
+
+        self._gwy._add_task(  # 10E0/1FC9, 3220 pkts
+            self._discover, discover_flag=Discover.SCHEMA, delay=2, period=86400
+        )  # 86400 = 60*60*24
+
+        delay = randint(10, 20)
+        self._gwy._add_task(
+            self._discover, discover_flag=Discover.PARAMS, delay=delay, period=21600
+        )  # 21600 = 60*60*6
+        self._gwy._add_task(
+            self._discover, discover_flag=Discover.STATUS, delay=delay + 3, period=60
+        )
+
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:
         # sometimes, battery-powered devices will respond to an RQ (e.g. bind mode)
@@ -284,11 +299,11 @@ class DeviceInfo:  # 10E0
 
     def _discover(self, discover_flag=Discover.ALL) -> None:
         if discover_flag & Discover.SCHEMA:
-            try:
-                if RP in RAMSES_DEVICES[self.type][_10E0]:  # DEX (convert to e.g. BDR)
-                    self._make_cmd(_10E0, retries=3)
-            except KeyError:
-                pass
+            if not self._msgs.get(_10E0) and (
+                self.type not in RAMSES_DEVICES
+                or RP in RAMSES_DEVICES[self.type].get(_10E0, {})
+            ):  # DEX (convert to e.g. BDR)
+                self._make_cmd(_10E0, retries=3)
 
     @property
     def device_info(self) -> Optional[dict]:  # 10E0
@@ -921,7 +936,7 @@ class Controller(Device):  # CTL (01):
         self._domain_id = "FF"
         self._evo = None
 
-        self._make_tcs_controller()
+        self._make_tcs_controller(**kwargs)
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -1238,7 +1253,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         self._supported_msg = {}
 
     def __repr__(self) -> str:
-        return f"{self.id} ({self._domain_id}): {self.modulation_level}"  # 3EF0
+        return f"{self.id} ({self._domain_id}): {self.rel_modulation_level}"  # 3EF0
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:
@@ -1801,19 +1816,7 @@ def create_device(gwy, dev_id, dev_class=None, **kwargs) -> Device:
 
     device = DEVICE_BY_CLASS.get(dev_class, Device)(gwy, dev_addr, **kwargs)
 
-    if not gwy.serial_port:
-        return device
-
-    gwy._add_task(
-        device._discover, discover_flag=Discover.SCHEMA, delay=2, period=86400
-    )
-
-    delay = randint(10, 20)
-    gwy._add_task(
-        device._discover, discover_flag=Discover.PARAMS, delay=delay, period=21600
-    )  # 21600 = 60*60*6
-    gwy._add_task(
-        device._discover, discover_flag=Discover.STATUS, delay=delay + 3, period=60
-    )
+    if isinstance(gwy.pkt_protocol, PacketProtocolPort):
+        device._start_discovery()
 
     return device

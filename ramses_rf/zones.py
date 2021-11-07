@@ -44,6 +44,7 @@ from .protocol.const import (
     ZONE_TYPE_SLUGS,
 )
 from .protocol.exceptions import CorruptStateError
+from .protocol.transport import PacketProtocolPort
 
 # from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
 from .protocol import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
@@ -147,6 +148,19 @@ class ZoneBase(Entity):
         if not isinstance(other, ZoneBase):
             return NotImplemented
         return self.idx < other.idx
+
+    def _start_discovery(self) -> None:
+
+        self._gwy._add_task(
+            self._discover, discover_flag=Discover.SCHEMA, delay=4, period=86400
+        )  # 0005/000C pkts
+
+        self._gwy._add_task(
+            self._discover, discover_flag=Discover.PARAMS, delay=5, period=21600
+        )
+        self._gwy._add_task(
+            self._discover, discover_flag=Discover.STATUS, delay=8, period=900
+        )
 
     def _set_system(self, parent, zone_idx):
         """Set the zone's parent system, after validating it."""
@@ -276,14 +290,15 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         # super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
-            [  # 000C: find the DHW relay(s), if any, see: _000C_DEVICE_TYPE
-                self._make_cmd(_000C, payload=dev_type)
-                for dev_type in (
-                    f"00{_000C_DEVICE.DHW_SENSOR}",
-                    f"00{_000C_DEVICE.DHW}",
-                    f"01{_000C_DEVICE.DHW}",
-                )
-            ]
+            for dev_type in (
+                f"00{_000C_DEVICE.DHW_SENSOR}",
+                f"00{_000C_DEVICE.DHW}",
+                f"01{_000C_DEVICE.DHW}",
+            ):
+                try:
+                    _ = self._msgz[_000C][RP][dev_type]
+                except KeyError:
+                    self._make_cmd(_000C, payload=dev_type)
 
         if discover_flag & Discover.PARAMS:
             self._send_cmd(Command.get_dhw_params(self._ctl.id))
@@ -492,8 +507,11 @@ class Zone(ZoneSchedule, ZoneBase):
 
         # TODO: add code to determine zone type if it doesn't have one, using 0005s
         if discover_flag & Discover.SCHEMA:
-            self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.ALL}")
-            self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.ALL_SENSOR}")
+            for dev_type in (_000C_DEVICE.ALL, _000C_DEVICE.ALL_SENSOR):
+                try:
+                    _ = self._msgz[_000C][RP][f"{self.idx}{dev_type}"]
+                except KeyError:
+                    self._make_cmd(_000C, payload=f"{self.idx}{dev_type}")
 
         if discover_flag & Discover.PARAMS:
             self._send_cmd(Command.get_zone_config(self._ctl.id, self.idx))
@@ -916,17 +934,7 @@ def create_zone(evo, zone_idx, profile=None, **kwargs) -> Zone:
 
     zone = ZONE_BY_TYPE.get(profile, Zone)(evo, zone_idx, **kwargs)
 
-    if not evo._gwy.serial_port:
-        return zone
-
-    evo._gwy._add_task(
-        zone._discover, discover_flag=Discover.SCHEMA, delay=4, period=86400
-    )
-    evo._gwy._add_task(
-        zone._discover, discover_flag=Discover.PARAMS, delay=5, period=21600
-    )
-    evo._gwy._add_task(
-        zone._discover, discover_flag=Discover.STATUS, delay=8, period=900
-    )
+    if isinstance(evo._gwy.pkt_protocol, PacketProtocolPort):
+        zone._start_discovery()
 
     return zone
