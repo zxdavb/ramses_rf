@@ -151,15 +151,14 @@ class ZoneBase(Entity):
 
     def _start_discovery(self) -> None:
 
-        self._gwy._add_task(
-            self._discover, discover_flag=Discover.SCHEMA, delay=4, period=86400
-        )  # 0005/000C pkts
-
-        self._gwy._add_task(
-            self._discover, discover_flag=Discover.PARAMS, delay=5, period=21600
+        self._gwy._add_task(  # 0005/000C pkts
+            self._discover, discover_flag=Discover.SCHEMA, delay=1, period=3600 * 24
         )
         self._gwy._add_task(
-            self._discover, discover_flag=Discover.STATUS, delay=8, period=900
+            self._discover, discover_flag=Discover.PARAMS, delay=3, period=3600 * 6
+        )
+        self._gwy._add_task(
+            self._discover, discover_flag=Discover.STATUS, delay=5, period=60 * 15
         )
 
     def _set_system(self, parent, zone_idx):

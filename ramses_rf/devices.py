@@ -178,16 +178,16 @@ class DeviceBase(Entity):
 
     def _start_discovery(self) -> None:
 
-        self._gwy._add_task(  # 10E0/1FC9, 3220 pkts
-            self._discover, discover_flag=Discover.SCHEMA, delay=2, period=86400
-        )  # 86400 = 60*60*24
-
         delay = randint(10, 20)
+
+        self._gwy._add_task(  # 10E0/1FC9, 3220 pkts
+            self._discover, discover_flag=Discover.SCHEMA, delay=0, period=3600 * 24
+        )
         self._gwy._add_task(
-            self._discover, discover_flag=Discover.PARAMS, delay=delay, period=21600
-        )  # 21600 = 60*60*6
+            self._discover, discover_flag=Discover.PARAMS, delay=delay, period=3600 * 6
+        )
         self._gwy._add_task(
-            self._discover, discover_flag=Discover.STATUS, delay=delay + 3, period=60
+            self._discover, discover_flag=Discover.STATUS, delay=delay + 1, period=60
         )
 
     @discover_decorator

@@ -129,6 +129,267 @@ SYSTEM_PROFILE = SimpleNamespace(
 )
 
 
+class SystemBase(Entity):  # 3B00 (multi-relay)
+    """The Controllers base class (good for a generic controller)."""
+
+    def __init__(self, gwy, ctl) -> None:
+        _LOGGER.debug("Creating a System: %s (%s)", ctl.id, self.__class__)
+        super().__init__(gwy)
+
+        self.id = ctl.id
+        if self.id in gwy.system_by_id:
+            raise LookupError(f"Duplicate controller: {self.id}")
+
+        gwy.system_by_id[self.id] = self
+        gwy.systems.append(self)
+        if gwy.evo is None:
+            gwy.evo = self
+
+        self._ctl = ctl
+        self._evo = self
+        self._domain_id = "FF"
+
+        self._heat_demand = None
+        self._htg_control = None
+
+    def __repr__(self) -> str:
+        return f"{self._ctl.id} (sys_base)"
+
+    # def __str__(self) -> str:  # TODO: WIP
+    #     return json.dumps({self._ctl.id: self.schema})
+
+    def _start_discovery(self) -> None:
+
+        self._gwy._add_task(  # 0005/000C pkts
+            self._discover, discover_flag=Discover.SCHEMA, delay=0, period=3600 * 24
+        )
+        self._gwy._add_task(
+            self._discover, discover_flag=Discover.PARAMS, delay=2, period=3600 * 6
+        )
+        self._gwy._add_task(  # 2E04
+            self._discover, discover_flag=Discover.STATUS, delay=2, period=60
+        )
+        self._gwy._add_task(
+            self._discover, discover_flag=Discover.FAULTS, delay=120, period=60
+        )
+        self._gwy._add_task(
+            self._discover, discover_flag=Discover.SCHEDS, delay=300, period=60
+        )
+
+    @discover_decorator
+    def _discover(self, discover_flag=Discover.ALL) -> None:
+        # super()._discover(discover_flag=discover_flag)
+
+        if discover_flag & Discover.SCHEMA:
+            try:
+                _ = self._msgz[_000C][RP][f"00{_000C_DEVICE.HTG}"]
+            except KeyError:
+                self._make_cmd(_000C, payload=f"00{_000C_DEVICE.HTG}")
+
+        if discover_flag & Discover.PARAMS:
+            self._send_cmd(Command.get_tpi_params(self.id))
+
+        # if discover_flag & Discover.PARAMS:
+        #     for domain_id in range(0xF8, 0x100):
+        #         self._make_cmd(_0009, payload=f"{domain_id:02X}00")
+
+        # if discover_flag & Discover.STATUS:
+        #     for domain_id in range(0xF8, 0x100):
+        #         self._make_cmd(_0008, payload=f"{domain_id:02X}00")
+
+    def _handle_msg(self, msg) -> None:
+        assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
+        super()._handle_msg(msg)
+
+        if msg.code == _0008 and msg.verb in (I_, RP):
+            if "domain_id" in msg.payload:
+                self._relay_demands[msg.payload["domain_id"]] = msg
+                if msg.payload["domain_id"] == "F9":
+                    device = self.dhw.heating_valve if self.dhw else None
+                elif msg.payload["domain_id"] == "FA":
+                    device = self.dhw.hotwater_valve if self.dhw else None
+                elif msg.payload["domain_id"] == "FC":
+                    device = self.heating_control
+                else:
+                    device = None
+
+                if False and device is not None:  # TODO: FIXME
+                    qos = {"priority": Priority.LOW, "retries": 2}
+                    for code in (_0008, _3EF1):
+                        device._make_cmd(code, qos)
+
+        if msg.code == _3150 and msg.verb in (I_, RP):
+            if "domain_id" in msg.payload and msg.payload["domain_id"] == "FC":
+                self._heat_demand = msg.payload
+
+        if self._gwy.config.enable_eavesdrop and not self.heating_control:
+            self._eavesdrop_htg_control(msg)
+
+    def _eavesdrop_htg_control(self, this, prev=None) -> None:
+        """Discover the heat relay (10: or 13:) for this system.
+
+        There's' 3 ways to find a controller's heat relay (in order of reliability):
+        1.  The 3220 RQ/RP *to/from a 10:* (1x/5min)
+        2a. The 3EF0 RQ/RP *to/from a 10:* (1x/1min)
+        2b. The 3EF0 RQ (no RP) *to a 13:* (3x/60min)
+        3.  The 3B00 I/I exchange between a CTL & a 13: (TPI cycle rate, usu. 6x/hr)
+
+        Data from the CTL is considered 'authorative'. The 1FC9 RQ/RP exchange
+        to/from a CTL is too rare to be useful.
+        """
+
+        # 18:14:14.025 066 RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000
+        # 18:14:14.446 065 RP --- 10:067219 01:078710 --:------ 3220 005 00C00500FF
+        # 14:41:46.599 064 RQ --- 01:078710 10:067219 --:------ 3EF0 001 00
+        # 14:41:46.631 063 RP --- 10:067219 01:078710 --:------ 3EF0 006 0000100000FF  # noqa
+
+        # 06:49:03.465 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
+        # 06:49:05.467 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
+        # 06:49:07.468 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
+        # 09:03:59.693 051  I --- 13:237335 --:------ 13:237335 3B00 002 00C8
+        # 09:04:02.667 045  I --- 01:145038 --:------ 01:145038 3B00 002 FCC8
+
+        assert self._gwy.config.enable_eavesdrop, "Coding error"
+
+        if this.code not in (_3220, _3B00, _3EF0):
+            return
+
+        # note the order: most to least reliable
+        heater = None
+
+        if this.code == _3220 and this.verb == RQ:
+            if this.src is self._ctl and isinstance(this.dst, OtbGateway):
+                heater = this.dst
+
+        elif this.code == _3EF0 and this.verb == RQ:
+            if this.src is self._ctl and isinstance(this.dst, (BdrSwitch, OtbGateway)):
+                heater = this.dst
+
+        elif this.code == _3B00 and this.verb == I_ and prev is not None:
+            if this.src is self._ctl and isinstance(prev.src, BdrSwitch):
+                if prev.code == this.code and prev.verb == this.verb:
+                    heater = prev.src
+
+        if heater is not None:
+            self._set_htg_control(heater)
+
+    def _make_cmd(self, code, payload="00", **kwargs) -> None:
+        super()._make_cmd(code, self._ctl.id, payload, **kwargs)
+
+    @property
+    def devices(self) -> List[Device]:
+        return self._ctl.devices + [self._ctl]  # TODO: to sort out
+
+    @property
+    def heating_control(self) -> Device:
+        if self._htg_control:
+            return self._htg_control
+        htg_control = [d for d in self._ctl.devices if d._domain_id == "FC"]
+        return htg_control[0] if len(htg_control) == 1 else None  # HACK for 10:
+
+    def _set_htg_control(self, device: Device) -> None:  # self._htg_control
+        """Set the heating control relay for this system (10: or 13:)."""
+
+        if self._htg_control is device:
+            return
+        if self._htg_control is not None:
+            raise CorruptStateError(
+                f"{self} changed {ATTR_HTG_CONTROL}: {self._htg_control} to {device}"
+            )
+
+        if not isinstance(device, (BdrSwitch, OtbGateway)):
+            raise TypeError(f"{self}: {ATTR_HTG_CONTROL} can't be {device}")
+
+        self._htg_control = device
+        device._set_parent(self, domain="FC")  # TODO: _set_domain()
+
+    @property
+    def tpi_params(self) -> Optional[dict]:  # 1100
+        return self._msg_value(_1100)
+
+    @property
+    def heat_demand(self) -> Optional[float]:  # 3150/FC
+        return self._msg_value(_3150, domain_id="FC", key=ATTR_HEAT_DEMAND)
+
+    @property
+    def is_calling_for_heat(self) -> Optional[bool]:
+        """Return True is the system is currently calling for heat."""
+        if not self._htg_control:
+            return
+
+        if self._htg_control.actuator_state:
+            return True
+
+    @property
+    def schema(self) -> dict:
+        """Return the system's schema."""
+
+        schema = {ATTR_HTG_SYSTEM: {}}
+        # hema = {ATTR_CONTROLLER: self._ctl.id, ATTR_HTG_SYSTEM: {}}
+
+        schema[ATTR_HTG_SYSTEM][ATTR_HTG_CONTROL] = (
+            self.heating_control.id if self.heating_control else None
+        )
+
+        schema[ATTR_ORPHANS] = sorted(
+            [
+                d.id
+                for d in self._ctl.devices
+                if not d._domain_id and isinstance(d, UfhController) and d._is_present
+            ]
+        )  # devices without a parent zone, NB: CTL can be a sensor for a zone
+
+        return schema
+
+    @property
+    def _schema_min(self) -> dict:
+        """Return the global schema."""
+
+        schema = self.schema
+        result = {ATTR_CONTROLLER: self.id}
+
+        try:
+            if schema[ATTR_SYSTEM][ATTR_HTG_CONTROL][:2] == "10":  # DEX
+                result[ATTR_SYSTEM] = {
+                    ATTR_HTG_CONTROL: schema[ATTR_SYSTEM][ATTR_HTG_CONTROL]
+                }
+        except (IndexError, TypeError):
+            result[ATTR_SYSTEM] = {ATTR_HTG_CONTROL: None}
+
+        zones = {}
+        for idx, zone in schema[ATTR_ZONES].items():
+            _zone = {}
+            if zone[ATTR_ZONE_SENSOR] and zone[ATTR_ZONE_SENSOR][:2] == "01":  # DEX
+                _zone = {ATTR_ZONE_SENSOR: zone[ATTR_ZONE_SENSOR]}
+            if devices := [d for d in zone[ATTR_DEVICES] if d[:2] == "00"]:  # DEX
+                _zone.update({ATTR_DEVICES: devices})
+            if _zone:
+                zones[idx] = _zone
+        if zones:
+            result[ATTR_ZONES] = zones
+
+        return result
+
+    @property
+    def params(self) -> dict:
+        """Return the system's configuration."""
+
+        params = {ATTR_HTG_SYSTEM: {}}
+        params[ATTR_HTG_SYSTEM]["tpi_params"] = self._msg_value(_1100)
+        return params
+
+    @property
+    def status(self) -> dict:
+        """Return the system's current state."""
+
+        status = {ATTR_HTG_SYSTEM: {}}
+        status[ATTR_HTG_SYSTEM]["heat_demand"] = self.heat_demand
+
+        status[ATTR_DEVICES] = {d.id: d.status for d in sorted(self._ctl.devices)}
+
+        return status
+
+
 class MultiZone:  # 0005 (+/- 000C?)
     ZONE_TYPES = (
         _0005_ZONE.RAD,
@@ -740,268 +1001,6 @@ class UfHeating:
             **super().status,
             ATTR_UFH_SYSTEM: {d.id: d.status for d in self._ufh_ctls()},
         }
-
-
-class SystemBase(Entity):  # 3B00 (multi-relay)
-    """The Controllers base class (good for a generic controller)."""
-
-    def __init__(self, gwy, ctl) -> None:
-        _LOGGER.debug("Creating a System: %s (%s)", ctl.id, self.__class__)
-        super().__init__(gwy)
-
-        self.id = ctl.id
-        if self.id in gwy.system_by_id:
-            raise LookupError(f"Duplicate controller: {self.id}")
-
-        gwy.system_by_id[self.id] = self
-        gwy.systems.append(self)
-        if gwy.evo is None:
-            gwy.evo = self
-
-        self._ctl = ctl
-        self._evo = self
-        self._domain_id = "FF"
-
-        self._heat_demand = None
-        self._htg_control = None
-
-    def __repr__(self) -> str:
-        return f"{self._ctl.id} (sys_base)"
-
-    # def __str__(self) -> str:  # TODO: WIP
-    #     return json.dumps({self._ctl.id: self.schema})
-
-    def _start_discovery(self) -> None:
-
-        self._gwy._add_task(
-            self._discover, discover_flag=Discover.SCHEMA, delay=1, period=3600 * 24
-        )  # 0005/000C pkts
-
-        self._gwy._add_task(
-            self._discover, discover_flag=Discover.PARAMS, delay=4, period=3600 * 6
-        )
-        self._gwy._add_task(
-            self._discover, discover_flag=Discover.STATUS, delay=7, period=60
-        )
-        self._gwy._add_task(
-            self._discover, discover_flag=Discover.FAULTS, delay=120, period=60
-        )
-        self._gwy._add_task(
-            self._discover, discover_flag=Discover.SCHEDS, delay=300, period=60
-        )
-
-    @discover_decorator
-    def _discover(self, discover_flag=Discover.ALL) -> None:
-        # super()._discover(discover_flag=discover_flag)
-
-        if discover_flag & Discover.SCHEMA:
-            try:
-                _ = self._msgz[_000C][RP][f"00{_000C_DEVICE.HTG}"]
-            except KeyError:
-                self._make_cmd(_000C, payload=f"00{_000C_DEVICE.HTG}")
-
-        if discover_flag & Discover.PARAMS:
-            self._send_cmd(Command.get_tpi_params(self.id))
-
-        # if discover_flag & Discover.PARAMS:
-        #     for domain_id in range(0xF8, 0x100):
-        #         self._make_cmd(_0009, payload=f"{domain_id:02X}00")
-
-        # if discover_flag & Discover.STATUS:
-        #     for domain_id in range(0xF8, 0x100):
-        #         self._make_cmd(_0008, payload=f"{domain_id:02X}00")
-
-    def _handle_msg(self, msg) -> None:
-        assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
-        super()._handle_msg(msg)
-
-        if msg.code == _0008 and msg.verb in (I_, RP):
-            if "domain_id" in msg.payload:
-                self._relay_demands[msg.payload["domain_id"]] = msg
-                if msg.payload["domain_id"] == "F9":
-                    device = self.dhw.heating_valve if self.dhw else None
-                elif msg.payload["domain_id"] == "FA":
-                    device = self.dhw.hotwater_valve if self.dhw else None
-                elif msg.payload["domain_id"] == "FC":
-                    device = self.heating_control
-                else:
-                    device = None
-
-                if False and device is not None:  # TODO: FIXME
-                    qos = {"priority": Priority.LOW, "retries": 2}
-                    for code in (_0008, _3EF1):
-                        device._make_cmd(code, qos)
-
-        if msg.code == _3150 and msg.verb in (I_, RP):
-            if "domain_id" in msg.payload and msg.payload["domain_id"] == "FC":
-                self._heat_demand = msg.payload
-
-        if self._gwy.config.enable_eavesdrop and not self.heating_control:
-            self._eavesdrop_htg_control(msg)
-
-    def _eavesdrop_htg_control(self, this, prev=None) -> None:
-        """Discover the heat relay (10: or 13:) for this system.
-
-        There's' 3 ways to find a controller's heat relay (in order of reliability):
-        1.  The 3220 RQ/RP *to/from a 10:* (1x/5min)
-        2a. The 3EF0 RQ/RP *to/from a 10:* (1x/1min)
-        2b. The 3EF0 RQ (no RP) *to a 13:* (3x/60min)
-        3.  The 3B00 I/I exchange between a CTL & a 13: (TPI cycle rate, usu. 6x/hr)
-
-        Data from the CTL is considered 'authorative'. The 1FC9 RQ/RP exchange
-        to/from a CTL is too rare to be useful.
-        """
-
-        # 18:14:14.025 066 RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000
-        # 18:14:14.446 065 RP --- 10:067219 01:078710 --:------ 3220 005 00C00500FF
-        # 14:41:46.599 064 RQ --- 01:078710 10:067219 --:------ 3EF0 001 00
-        # 14:41:46.631 063 RP --- 10:067219 01:078710 --:------ 3EF0 006 0000100000FF  # noqa
-
-        # 06:49:03.465 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
-        # 06:49:05.467 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
-        # 06:49:07.468 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
-        # 09:03:59.693 051  I --- 13:237335 --:------ 13:237335 3B00 002 00C8
-        # 09:04:02.667 045  I --- 01:145038 --:------ 01:145038 3B00 002 FCC8
-
-        assert self._gwy.config.enable_eavesdrop, "Coding error"
-
-        if this.code not in (_3220, _3B00, _3EF0):
-            return
-
-        # note the order: most to least reliable
-        heater = None
-
-        if this.code == _3220 and this.verb == RQ:
-            if this.src is self._ctl and isinstance(this.dst, OtbGateway):
-                heater = this.dst
-
-        elif this.code == _3EF0 and this.verb == RQ:
-            if this.src is self._ctl and isinstance(this.dst, (BdrSwitch, OtbGateway)):
-                heater = this.dst
-
-        elif this.code == _3B00 and this.verb == I_ and prev is not None:
-            if this.src is self._ctl and isinstance(prev.src, BdrSwitch):
-                if prev.code == this.code and prev.verb == this.verb:
-                    heater = prev.src
-
-        if heater is not None:
-            self._set_htg_control(heater)
-
-    def _make_cmd(self, code, payload="00", **kwargs) -> None:
-        super()._make_cmd(code, self._ctl.id, payload, **kwargs)
-
-    @property
-    def devices(self) -> List[Device]:
-        return self._ctl.devices + [self._ctl]  # TODO: to sort out
-
-    @property
-    def heating_control(self) -> Device:
-        if self._htg_control:
-            return self._htg_control
-        htg_control = [d for d in self._ctl.devices if d._domain_id == "FC"]
-        return htg_control[0] if len(htg_control) == 1 else None  # HACK for 10:
-
-    def _set_htg_control(self, device: Device) -> None:  # self._htg_control
-        """Set the heating control relay for this system (10: or 13:)."""
-
-        if self._htg_control is device:
-            return
-        if self._htg_control is not None:
-            raise CorruptStateError(
-                f"{self} changed {ATTR_HTG_CONTROL}: {self._htg_control} to {device}"
-            )
-
-        if not isinstance(device, (BdrSwitch, OtbGateway)):
-            raise TypeError(f"{self}: {ATTR_HTG_CONTROL} can't be {device}")
-
-        self._htg_control = device
-        device._set_parent(self, domain="FC")  # TODO: _set_domain()
-
-    @property
-    def tpi_params(self) -> Optional[dict]:  # 1100
-        return self._msg_value(_1100)
-
-    @property
-    def heat_demand(self) -> Optional[float]:  # 3150/FC
-        return self._msg_value(_3150, domain_id="FC", key=ATTR_HEAT_DEMAND)
-
-    @property
-    def is_calling_for_heat(self) -> Optional[bool]:
-        """Return True is the system is currently calling for heat."""
-        if not self._htg_control:
-            return
-
-        if self._htg_control.actuator_state:
-            return True
-
-    @property
-    def schema(self) -> dict:
-        """Return the system's schema."""
-
-        schema = {ATTR_HTG_SYSTEM: {}}
-        # hema = {ATTR_CONTROLLER: self._ctl.id, ATTR_HTG_SYSTEM: {}}
-
-        schema[ATTR_HTG_SYSTEM][ATTR_HTG_CONTROL] = (
-            self.heating_control.id if self.heating_control else None
-        )
-
-        schema[ATTR_ORPHANS] = sorted(
-            [
-                d.id
-                for d in self._ctl.devices
-                if not d._domain_id and isinstance(d, UfhController) and d._is_present
-            ]
-        )  # devices without a parent zone, NB: CTL can be a sensor for a zone
-
-        return schema
-
-    @property
-    def _schema_min(self) -> dict:
-        """Return the global schema."""
-
-        schema = self.schema
-        result = {ATTR_CONTROLLER: self.id}
-
-        try:
-            if schema[ATTR_SYSTEM][ATTR_HTG_CONTROL][:2] == "10":  # DEX
-                result[ATTR_SYSTEM] = {
-                    ATTR_HTG_CONTROL: schema[ATTR_SYSTEM][ATTR_HTG_CONTROL]
-                }
-        except (IndexError, TypeError):
-            result[ATTR_SYSTEM] = {ATTR_HTG_CONTROL: None}
-
-        zones = {}
-        for idx, zone in schema[ATTR_ZONES].items():
-            _zone = {}
-            if zone[ATTR_ZONE_SENSOR] and zone[ATTR_ZONE_SENSOR][:2] == "01":  # DEX
-                _zone = {ATTR_ZONE_SENSOR: zone[ATTR_ZONE_SENSOR]}
-            if devices := [d for d in zone[ATTR_DEVICES] if d[:2] == "00"]:  # DEX
-                _zone.update({ATTR_DEVICES: devices})
-            if _zone:
-                zones[idx] = _zone
-        if zones:
-            result[ATTR_ZONES] = zones
-
-        return result
-
-    @property
-    def params(self) -> dict:
-        """Return the system's configuration."""
-
-        params = {ATTR_HTG_SYSTEM: {}}
-        params[ATTR_HTG_SYSTEM]["tpi_params"] = self._msg_value(_1100)
-        return params
-
-    @property
-    def status(self) -> dict:
-        """Return the system's current state."""
-
-        status = {ATTR_HTG_SYSTEM: {}}
-        status[ATTR_HTG_SYSTEM]["heat_demand"] = self.heat_demand
-
-        status[ATTR_DEVICES] = {d.id: d.status for d in sorted(self._ctl.devices)}
-
-        return status
 
 
 class System(StoredHw, Datetime, Logbook, SystemBase):

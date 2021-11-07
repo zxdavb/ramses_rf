@@ -298,7 +298,7 @@ def _get_device(gwy, dev_id, ctl_id=None, **kwargs) -> Optional[Any]:  # -> Devi
 
     if err_msg:
         _LOGGER.error(f"{err_msg}: check the lists and the {SCHEMA} (device ignored)")
-        # return
+        return
 
     return gwy._get_device(dev_id, ctl_id=ctl_id, **kwargs)
     # **gwy._include keys may have: alias, faked, faked_thm, faked_bdr, faked_ext
@@ -323,7 +323,8 @@ def load_schema(gwy, **kwargs) -> dict:
 def load_system(gwy, ctl_id, schema) -> Tuple[dict, dict]:
     schema = SYSTEM_SCHEMA(schema)
 
-    ctl = _get_device(gwy, ctl_id, ctl_id=ctl_id, profile=None)
+    if (ctl := _get_device(gwy, ctl_id, ctl_id=ctl_id, profile=None)) is None:
+        return
 
     if dev_id := schema[ATTR_HTG_SYSTEM].get(ATTR_HTG_CONTROL):
         ctl._evo._set_htg_control(_get_device(gwy, dev_id, ctl_id=ctl.id))
