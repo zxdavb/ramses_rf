@@ -7,6 +7,7 @@
 # - Evsdd: 0404
 # - Ierlandfan: 3150, 31D9, 31DA, others
 # - ReneKlootwijk: 3EF0
+# - brucemiranda: 3EF0, others
 
 import logging
 from datetime import datetime as dt
