@@ -57,6 +57,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _12B0,
     _12C0,
     _12C8,
+    _12F0,
     _1300,
     _1F09,
     _1F41,

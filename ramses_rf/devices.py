@@ -53,6 +53,7 @@ from .protocol import (  # noqa: F401, isort: skip
     _0B04,
     _1030,
     _1060,
+    _1081,
     _1090,
     _10A0,
     _10E0,
@@ -65,6 +66,8 @@ from .protocol import (  # noqa: F401, isort: skip
     _12B0,
     _12C0,
     _12C8,
+    _12F0,
+    _1300,
     _1F09,
     _1F41,
     _1FC9,
@@ -97,7 +100,7 @@ DEFAULT_BDR_ID = "13:000730"
 DEFAULT_EXT_ID = "17:000730"
 DEFAULT_THM_ID = "03:000730"
 
-DEV_MODE = __dev_mode__ and False
+DEV_MODE = __dev_mode__
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -1292,13 +1295,17 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 self._send_cmd(Command(RQ, code, "00", self.id))
 
         if discover_flag & Discover.STATUS:
-            self._send_cmd(Command(RQ, "12F0", "00", self.id))
+            self._send_cmd(Command(RQ, _12F0, "00", self.id))
             [
                 self._send_cmd(Command.get_opentherm_data(self.id, m, retries=0))
                 for m in self.STATUS_MSG_IDS
                 if self._supported_msg.get(m) is not False
                 # nd (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]  # TODO: add expired
+
+        if discover_flag & Discover.STATUS and DEV_MODE:
+            for code in (_1081, _1300, _10A0, _1260, _1290, _22D9):
+                self._send_cmd(Command(RQ, code, "00", self.id))
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
