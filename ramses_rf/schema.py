@@ -193,7 +193,6 @@ SYSTEM_SCHEMA = vol.Schema(
     },
     extra=vol.ALLOW_EXTRA,  # TODO: remove me - But: Causes an issue?
 )
-SYSTEM_SCHEMA = vol.Schema(vol.Any({}, SYSTEM_SCHEMA))
 
 
 # 3/3: Global Schemas
