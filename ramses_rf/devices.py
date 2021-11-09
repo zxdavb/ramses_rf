@@ -1231,7 +1231,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         "1B",  # .27: "Outside temperature (°C)",  # TODO: any value here?  # not native
         "1C",  # .28: "Return water temperature (°C)",
     )
-    WRITE_MSG_IDS = (  # Write-Data, some may also Read-Data (will need to check)
+    WRITE_MSG_IDS = (  # Write-Data, NB: some are also Read-Data
         "01",  # ..1:  -see above-
         "02",  # ..2: "Master configuration",
         "0E",  # .14: "Maximum relative modulation level setting (%)",  # c.f. 0x11
@@ -1297,8 +1297,8 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 self._send_cmd(Command.get_opentherm_data(self.id, m, retries=0))
                 for m in self.STATUS_MSG_IDS
                 if self._supported_msg.get(m) is not False
-                and (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
-            ]
+                # nd (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
+            ]  # TODO: add expired
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
