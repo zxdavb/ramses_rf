@@ -745,6 +745,10 @@ def parser_10e0(payload, msg) -> Optional[dict]:
                 "0001C8810B0700FEFF",  # R8820A
                 "0002FF0A0CFFFFFFFF",  # R8810A
             ), payload[2:20]
+        elif msg.src.type == "18":  # DEX
+            assert payload[2:20] in (
+                "0001C8820C006AFEFF",  # HRA82 (Orcon MVHR?)
+            ), payload[2:20]
         elif msg.src.type == "20":  # DEX
             assert payload[2:20] in (
                 "000100140C06010000",  # n/a
@@ -752,6 +756,12 @@ def parser_10e0(payload, msg) -> Optional[dict]:
                 "0001001B221201FEFF",  # CVE-RF
                 "0001001B271501FEFF",  # CVE-RF
                 "0001001B281501FEFF",  # CVE-RF
+            ), payload[2:20]
+        elif msg.src.type == "29":  # DEX
+            assert payload[2:20] in (
+                "0001C825050266FFFF",  # VMS-17HB01
+                "0001C8260D0467FFFF",  # VMC-15RP01
+                "0001C827070167FFFF",  # VMN-15LF01
             ), payload[2:20]
         elif msg.src.type == "30":  # DEX
             assert payload[2:20] in (
@@ -766,6 +776,7 @@ def parser_10e0(payload, msg) -> Optional[dict]:
         elif msg.src.type == "32":  # DEX
             # VMN-23LMH23 (switch, 4-button)
             assert payload[2:20] in (
+                "0001C83A0F0866FFFF",  # VMD-17RPS01
                 "0001C85701016CFFFF",  # VMS-23C33   (sensor, CO2)
                 "0001C85802016CFFFF",  # VMS-23HB33  (sensor, RH/temp)
                 "0001C85803016CFFFF",  # VMS-23HB33  (sensor, RH/temp)
@@ -784,6 +795,8 @@ def parser_10e0(payload, msg) -> Optional[dict]:
                 "0001001B381B01FEFF",  # CVE-RF
                 "00010028080101FEFF",  # VMS-12C39
             ), payload[2:20]
+        else:
+            assert False, payload[2:20]
 
     except AssertionError:
         _LOGGER.warning(
@@ -1676,8 +1689,9 @@ def parser_3220(payload, msg) -> Optional[dict]:
 
     else:  # if msg.verb == RP:
         _LIST = ("Data-Invalid", "Unknown-DataId", "-reserved-")
-        assert (
-            ot_type not in _LIST or payload[6:10] == "0000"
+        assert ot_type not in _LIST or payload[6:10] in (
+            "0000",
+            "FFFF",
         ), f"OpenTherm: Invalid msg-type|data-value: {ot_type}|{payload[6:10]}"
 
         if ot_type not in _LIST:
