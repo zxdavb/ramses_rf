@@ -209,7 +209,7 @@ def parse(obj, **kwargs):
     "-X",
     "--exec-scr",
     type=(str, DeviceIdParamType()),
-    help="scan_disc|scan-full|scan-hard|bind device_id",
+    help="scan_disc|scan_full|scan_hard|bind device_id",
 )
 @click.option(  # --poll-devices device_id, device_id,...
     "--poll-devices", type=click.STRING, help="e.g. 'device_id, device_id, ...'"
@@ -219,19 +219,19 @@ def monitor(obj, **kwargs):
     """Monitor (eavesdrop and/or probe) a serial port for messages/packets."""
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
-    # if cli_kwargs["discover"] is None:
-    #     cli_kwargs["discover"] = (
-    #         cli_kwargs["exec_cmd"] is None
-    #         and cli_kwargs["exec_scr"] is None
-    #         and cli_kwargs["poll_devices"] is None
-    #     )
+    if cli_kwargs["discover"] is None:
+        cli_kwargs["discover"] = (
+            cli_kwargs["exec_cmd"] is None
+            and cli_kwargs["exec_scr"] is None
+            and cli_kwargs["poll_devices"] is None
+        )
 
     if cli_kwargs["discover"] is not None:
         lib_kwargs[CONFIG][DISABLE_DISCOVERY] = not cli_kwargs.pop("discover")
 
-    # allowed = lib_kwargs[KNOWN_LIST] = lib_kwargs.get(KNOWN_LIST, {})
+    allowed = lib_kwargs[KNOWN_LIST] = lib_kwargs.get(KNOWN_LIST, {})
 
-    # for k in (SCAN_DISC, SCAN_FULL, SCAN_HARD, SCAN_XXXX):
+    # for k in ("scan_disc", "scan_full", "scan_hard", "scan_xxxx"):
     #     cli_kwargs[k] = _convert_to_list(cli_kwargs.pop(k))
     #     allowed.update({d: None for d in cli_kwargs[k] if d not in allowed})
 
