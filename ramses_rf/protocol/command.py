@@ -135,7 +135,7 @@ if DEV_MODE:
 def validate_command(has_zone=None):
     """Decorator to protect the engine from any invalid command constructors.
 
-    Additionally, validate/normalise some command arguments.
+    Additionally, validate/normalise some command arguments (e.g. 'HW' becomes 'FA').
     """
 
     def _wrapper(fcn, *args, **kwargs) -> Any:
