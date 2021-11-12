@@ -15,8 +15,9 @@
 *.txt
 *.yaml
 
+ramses_rf/.tests/*
+.secrets*/*
 .vscode/*
-.secrets/*
 
 !.flake8
 !.gitignore
