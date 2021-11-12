@@ -285,7 +285,7 @@ async def script_scan_full(gwy, dev_id: str):
         #         gwy.send_cmd(Command(W_, code, f"{zone_idx}03", dev_id, **qos))
 
         elif code == _0404:
-            gwy.send_cmd(Command.get_schedule_fragment(dev_id, "HW", 0, **qos))
+            gwy.send_cmd(Command.get_schedule_fragment(dev_id, "HW", 0, 0, **qos))
             gwy.send_cmd(Command.get_schedule_fragment(dev_id, "00", 0, 0, **qos))
 
         elif code == _0418:
