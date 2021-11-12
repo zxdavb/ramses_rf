@@ -792,9 +792,10 @@ class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:
-        # NOTE: we create, then promote, so shouldn't (can't) super()
-        # super()._discover(discover_flag=discover_flag)
-        if False and discover_flag & Discover.SCHEMA:
+        # NOTE: we create, then promote, so shouldn't (can't) super() initially
+        super()._discover(discover_flag=discover_flag)
+
+        if discover_flag & Discover.SCHEMA:
             self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.ELE}")
 
     def _handle_msg(self, msg) -> None:
@@ -825,10 +826,10 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:
-        # NOTE: we create, then promote, so shouldn't (can't) super()
-        # super()._discover(discover_flag=discover_flag)
+        # NOTE: we create, then promote, so shouldn't (can't) super() initially
+        super()._discover(discover_flag=discover_flag)
 
-        if False and discover_flag & Discover.SCHEMA:
+        if discover_flag & Discover.SCHEMA:
             self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.MIX}")
 
         if discover_flag & Discover.PARAMS:
@@ -855,10 +856,10 @@ class RadZone(Zone):  # HR92/HR80
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:
-        # NOTE: we create, then promote, so shouldn't (can't) super()
-        # super()._discover(discover_flag=discover_flag)
+        # NOTE: we create, then promote, so shouldn't (can't) super() initially
+        super()._discover(discover_flag=discover_flag)
 
-        if False and discover_flag & Discover.SCHEMA:
+        if discover_flag & Discover.SCHEMA:
             self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.RAD}")
 
 
@@ -871,10 +872,10 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:
-        # NOTE: we create, then promote, so shouldn't (can't) super()
-        # super()._discover(discover_flag=discover_flag)
+        # NOTE: we create, then promote, so shouldn't (can't) super() initially
+        super()._discover(discover_flag=discover_flag)
 
-        if False and discover_flag & Discover.SCHEMA:
+        if discover_flag & Discover.SCHEMA:
             self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.UFH}")
 
     @property
@@ -903,10 +904,10 @@ class ValZone(EleZone):  # BDR91A/T
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:
-        # NOTE: we create, then promote, so shouldn't (can't) super()
-        # super()._discover(discover_flag=discover_flag)
+        # NOTE: we create, then promote, so shouldn't (can't) super() initially
+        super()._discover(discover_flag=discover_flag)
 
-        if False and discover_flag & Discover.SCHEMA:
+        if discover_flag & Discover.SCHEMA:
             self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.VAL}")
 
     @property
