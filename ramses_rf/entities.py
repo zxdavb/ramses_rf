@@ -22,9 +22,12 @@ if DEV_MODE:
 
 
 def discover_decorator(func):
-    def wrapper(self, discover_flag=None) -> None:
+    # NOTE: only need to Wrap top-level entities
+    def wrapper(self, discover_flag=Discover.ALL) -> None:
 
         if self._gwy.config.disable_discovery:
+            return
+        if not discover_flag:
             return
         return func(self, discover_flag=discover_flag)
 

@@ -501,6 +501,7 @@ class Zone(ZoneSchedule, ZoneBase):
         if sensor:
             self._set_sensor(sensor)
 
+    @discover_decorator  # NOTE: can mean is double-decorated
     def _discover(self, discover_flag=Discover.ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -644,7 +645,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
         self._zone_type = _type
         self.__class__ = ZONE_BY_TYPE[_type]
-        self._discover()  # TODO: needs tidyup (ref #67)
+        self._discover(discover_flag=Discover.ALL)  # TODO: needs tidyup (ref #67)
 
     @property
     def name(self) -> Optional[str]:  # 0004
