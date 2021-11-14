@@ -154,7 +154,7 @@ class Gateway:
 
     async def start(self) -> None:
         def start_discovery(devices, systems) -> None:
-            _LOGGER.warning("ENGINE: Initiating/enabling discovery...")
+            _LOGGER.debug("ENGINE: Initiating/enabling discovery...")
 
             # [d._start_discovery() for d in devices]
             for d in devices:
@@ -193,7 +193,7 @@ class Gateway:
                 packet_log=self._input_file,
             )
             set_logger_timesource(self.pkt_protocol._dt_now)
-            _LOGGER.warning("Datetimes now set to the most recent packet log timestamp")
+            _LOGGER.warning("Datetimes maintained as most recent packet log timestamp")
 
         if self.pkt_transport.get_extra_info(POLLER_TASK):
             self._tasks.append(self.pkt_transport.get_extra_info(POLLER_TASK))
@@ -325,7 +325,7 @@ class Gateway:
         }
 
         self._resume_engine()
-        (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Saved schema/state.")
+        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Saved schema/state.")
 
         return self.schema, dict(sorted(pkts.items()))
 
@@ -340,7 +340,7 @@ class Gateway:
             self.devices = []
             self.device_by_id = {}
 
-        (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Restoring state...")
+        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Restoring state...")
         self._pause_engine()
 
         # clear_state()  # TODO: consider need for this (here, or at all)
@@ -355,7 +355,7 @@ class Gateway:
         # self.msg_transport._clear_write_buffer()  # TODO: shouldn't be needed
 
         self._resume_engine()
-        (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Restored state.")
+        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Restored state.")
 
     def _dt_now(self):
         # return dt.now()
