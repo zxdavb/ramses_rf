@@ -83,7 +83,7 @@ CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:^4s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:^4s} || {}"
 
-DEV_MODE = True  # __dev_mode__ and False
+DEV_MODE = __dev_mode__  # and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -144,9 +144,9 @@ def process_msg(msg: Message) -> None:
     #     if prev is not None and re.search("I.* 01.* 000A ", str(prev._pkt)):
     #         this._payload = prev.payload + this.payload  # merge frags, and process
 
-    if _LOGGER.getEffectiveLevel() < logging.INFO:
+    if (log_level := _LOGGER.getEffectiveLevel()) < logging.INFO:
         _LOGGER.info(msg)
-    elif not (msg.verb == RQ and msg.src.type == "18"):
+    elif log_level <= logging.INFO and not (msg.verb == RQ and msg.src.type == "18"):
         _LOGGER.info(msg)
 
     # NOTE: this is used to expose message timeouts (esp. when parsing)
