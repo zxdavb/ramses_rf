@@ -46,13 +46,16 @@ class Entity:
         self._msgs = {}
         self._msgz = {}
 
-        self._tx_count = 0  # essentially, the number of pkts Tx'd with no Rx
+        # self._tx_count = 0  # essentially, the number of pkts Tx'd with no Rx
 
     def _discover(self, discover_flag=Discover.ALL) -> None:
         pass
 
     def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess
-        self._tx_count = 0
+        # if self._gwy.pkt_protocol is None:
+        #     self._tx_count = 0
+        # elif msg.src.id != self._gwy.pkt_protocol._hgi80.get("device_id"):
+        #     self._tx_count = 0
 
         if msg.code not in self._msgz:
             self._msgz[msg.code] = {msg.verb: {msg._pkt._ctx: msg}}
@@ -97,10 +100,10 @@ class Entity:
             _LOGGER.warning(f"{cmd} < Sending is disabled")
             return
 
-        if self._tx_count > 12:
-            _LOGGER.warning(f"{cmd} < Sending is deprecated: non-responsive entity")
-            return
-        self._tx_count += 1
+        # if self._tx_count > 12:
+        #     _LOGGER.warning(f"{cmd} < Sending is deprecated: non-responsive entity")
+        #     return
+        # self._tx_count += 1
 
         # if getattr(self, "has_battery", None):
         #     return
