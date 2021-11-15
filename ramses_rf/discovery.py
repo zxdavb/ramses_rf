@@ -109,11 +109,15 @@ if DEV_MODE:
 def script_decorator(func):
     def wrapper(gwy, *args, **kwargs) -> Optional[Any]:
 
-        gwy.send_cmd(Command._puzzle(message="Script begins:"))
+        gwy.send_cmd(
+            Command._puzzle(message="Script begins:", priority=Priority.HIGH, retries=3)
+        )
 
         result = func(gwy, *args, **kwargs)
 
-        gwy.send_cmd(Command._puzzle(message="Script ended."))
+        gwy.send_cmd(
+            Command._puzzle(message="Script done.", priority=Priority.LOWEST, retries=3)
+        )
 
         return result
 
