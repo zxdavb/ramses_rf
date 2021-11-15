@@ -23,6 +23,9 @@ URL = "https://github.com/zxdavb/ramses_rf"
 with open("README.md", "r") as fh:
     LONG_DESCRIPTION = fh.read()
 
+DESCRIPTION = "An interface for the RAMSES RF protocol, "
+DESCRIPTION += "as used by Honeywell-compatible HVAC & CH/DHW systems."
+
 
 class VerifyVersionCommand(install):
     """Custom command to verify that the git tag matches our VERSION."""
@@ -36,9 +39,7 @@ class VerifyVersionCommand(install):
 
 setup(
     name="ramses-rf",
-    description="""An interface for the RAMSES RF protocol,
-        as used by Honeywell-compatible HVAC & CH/DHW systems.
-    """,
+    description=DESCRIPTION,
     keywords=["ramses", "evohome", "sundial", "chronotherm", "hometronics"],
     author="David Bonnes",
     author_email="zxdavb@gmail.com",
