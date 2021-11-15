@@ -97,7 +97,8 @@ SCAN_XXXX = "scan_xxxx"
 
 DEVICE_ID_REGEX = re.compile(DEV_REGEX_ANY)
 
-DEFAULT_QOS = {"priority": Priority.LOW, "retries": 0}
+QOS_DEFAULT = {"priority": Priority.LOW, "retries": 0}
+QOS_DEFAULT_SCAN = {"priority": Priority.LOW, "retries": 0, "disable_backoff": True}
 
 DEV_MODE = __dev_mode__ and False
 
@@ -249,7 +250,7 @@ def script_poll_device(gwy, dev_id) -> List[Any]:
     tasks = []
 
     for code in (_0016, _1FC9):
-        cmd = Command(RQ, code, "00", dev_id, **DEFAULT_QOS)
+        cmd = Command(RQ, code, "00", dev_id, **QOS_DEFAULT)
         tasks.append(gwy._loop.create_task(periodic(gwy, cmd, count=0)))
 
     gwy._tasks.extend(tasks)
@@ -330,7 +331,7 @@ async def script_scan_hard(gwy, dev_id: str):
     _LOGGER.warning("scan_hard() invoked - expect some Warnings")
 
     for code in range(0x4000):
-        gwy.send_cmd(Command(RQ, f"{code:04X}", "0000", dev_id, **DEFAULT_QOS))
+        gwy.send_cmd(Command(RQ, f"{code:04X}", "0000", dev_id, **QOS_DEFAULT_SCAN))
         await asyncio.sleep(1)
 
 
@@ -352,7 +353,7 @@ async def script_scan_002(gwy, dev_id: str):
     message = "0000" + "".join(f"{ord(x):02X}" for x in "Hello there.") + "00"
 
     [
-        gwy.send_cmd(Command(W_, f"{c:04X}", message, dev_id, **DEFAULT_QOS))
+        gwy.send_cmd(Command(W_, f"{c:04X}", message, dev_id, **QOS_DEFAULT))
         for c in range(0x4000)
         if c not in RAMSES_CODES
     ]
@@ -361,7 +362,7 @@ async def script_scan_002(gwy, dev_id: str):
 async def script_scan_004(gwy, dev_id: str):
     _LOGGER.warning("scan_004() invoked - expect a lot of nonsense")
 
-    cmd = Command.get_dhw_mode(dev_id, **DEFAULT_QOS)
+    cmd = Command.get_dhw_mode(dev_id, **QOS_DEFAULT)
 
     return gwy._loop.create_task(periodic(gwy, cmd, count=0, interval=5))
 
@@ -380,7 +381,7 @@ async def script_scan_otb_hard(gwy, dev_id: str):
     _LOGGER.warning("script_scan_otb_hard invoked - expect a lot of nonsense")
 
     for msg_id in range(0x80):
-        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **DEFAULT_QOS))
+        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **QOS_DEFAULT_SCAN))
 
 
 @script_decorator
@@ -400,8 +401,8 @@ async def script_scan_otb_map(gwy, dev_id: str):  # Tested only upon a R8820A
     }
 
     for code, msg_id in RAMSES_TO_OPENTHERM.items():
-        gwy.send_cmd(Command(RQ, code, "00", dev_id, **DEFAULT_QOS))
-        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **DEFAULT_QOS))
+        gwy.send_cmd(Command(RQ, code, "00", dev_id, **QOS_DEFAULT))
+        gwy.send_cmd(Command.get_opentherm_data(dev_id, msg_id, **QOS_DEFAULT))
 
 
 @script_decorator
@@ -440,7 +441,7 @@ async def script_scan_otb_ramses(gwy, dev_id: str):  # Tested only upon a R8820A
     #  - ch setpoint          /
     #  - max. rel. modulation /
 
-    [gwy.send_cmd(Command(RQ, c, "00", dev_id, **DEFAULT_QOS)) for c in CODES]
+    [gwy.send_cmd(Command(RQ, c, "00", dev_id, **QOS_DEFAULT)) for c in CODES]
 
 
 SCRIPTS = {
