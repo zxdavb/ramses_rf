@@ -27,7 +27,6 @@ from .command import (
     ARGS,
     DEAMON,
     FUNC,
-    QOS_MAX_BACKOFF,
     QOS_RX_TIMEOUT,
     QOS_TX_RETRIES,
     QOS_TX_TIMEOUT,
@@ -41,7 +40,7 @@ from .protocol import create_protocol_factory
 from .schema import SERIAL_CONFIG_SCHEMA
 from .version import VERSION
 
-DEV_MODE = __dev_mode__ and False
+DEV_MODE = __dev_mode__  # and False
 
 _LOGGER = logging.getLogger(__name__)
 # _LOGGER.setLevel(logging.WARNING)  # INFO may have too much detail
@@ -60,6 +59,9 @@ DEFAULT_SERIAL_CONFIG = SERIAL_CONFIG_SCHEMA({})
 ERR_MSG_REGEX = re.compile(r"^([0-9A-F]{2}\.)+$")
 
 POLLER_TASK = "poller_task"
+
+_QOS_POLL_INTERVAL = 0.005
+_QOS_MAX_BACKOFF = 3
 
 Pause = SimpleNamespace(
     NONE=td(seconds=0),
@@ -462,7 +464,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
-        _LOGGER.debug("PktProtocol.send_data(%s)", cmd)
+        # _LOGGER.debug("PktProtocol.send_data(%s)", cmd)
 
         if self._disable_sending:
             raise RuntimeError("Sending is disabled")
@@ -596,31 +598,61 @@ class PacketProtocolQos(PacketProtocolPort):
         self._timeout_full = None
         self._timeout_half = None
 
-    def _timeouts(self, dtm: dt) -> Tuple[dt, dt]:
-        """Update self._timeout_full, self._timeout_half attrs."""
+    def _qos_set_cmd(self, cmd) -> None:
+        """Set the QoS command for sending, or clear it when sent OK/timed out."""
 
-        if self._qos_cmd:
-            if self._tx_hdr:
-                timeout = QOS_TX_TIMEOUT
-            else:
-                timeout = self._qos_cmd.qos.get("timeout", QOS_RX_TIMEOUT)
-            self._timeout_full = dtm + timeout * 2 ** self._backoff
-            self._timeout_half = dtm + timeout * 2 ** (self._backoff - 1)
+        self._qos_lock.acquire()
+        if cmd and self._qos_cmd:
+            raise RuntimeError
+        self._qos_cmd = cmd
+        self._qos_lock.release()
 
-            # _LOGGER.debug(
-            #     "backoff=%s, timeout=%s, timeout_full=%s",
-            #     self._backoff,
-            #     timeout,
-            #     self._timeout_full.isoformat(timespec="milliseconds"),
-            # )
+        self._tx_hdr = cmd.tx_header if cmd else None
+        self._rx_hdr = cmd.rx_header if cmd else None  # Could be None, even if cmd
 
-        # if self._timeout_half >= dtm:
-        #     self._backoff = max(self._backoff - 1, 0)
-        # if self._timeout_full >= dtm:
-        #     self._backoff = min(self._backoff + 1, QOS_MAX_BACKOFF)
+        if cmd:
+            self._tx_retries = 0
+            self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
+
+    def _qos_expire_cmd(self, cmd) -> None:
+        """Handle an expired cmd, such as invoking its callbacks."""
+
+        hdr, callback = cmd.tx_header, cmd.callback
+        if callback and not callback.get("expired"):
+            # see also: MsgTransport._pkt_receiver()
+            _LOGGER.error("PktProtocolQos.send_data(%s): Expired callback", hdr)
+            callback[FUNC](False, *callback.get(ARGS, tuple()))
+            callback["expired"] = not callback.get(DEAMON, False)  # HACK:
+
+    def _qos_update_timeouts(self) -> None:
+        """Update QoS self._timeout_full, self._timeout_half attrs."""
+
+        if not self._qos_cmd:
+            raise RuntimeError
+
+        dtm = self._dt_now()
+
+        if self._tx_hdr:
+            timeout = QOS_TX_TIMEOUT
+        else:
+            timeout = self._qos_cmd.qos.get("timeout", QOS_RX_TIMEOUT)
+        timeout = min(timeout * 4 ** self._backoff, td(seconds=1))
+
+        self._timeout_full = dtm + timeout * 2
+        self._timeout_half = dtm + timeout
 
     def _pkt_received(self, pkt: Packet) -> None:
-        """Perform any QoS functions before processing valid/wanted packets."""
+        """Called when packets are received (a callback).
+
+        Wraps the relevant function with QoS code.
+        """
+
+        self._qos_received_v2(pkt)
+
+        super()._pkt_received(pkt)
+
+    def _qos_received_v1(self, pkt: Packet) -> None:
+        """Perform any QoS functions on packets received from the transport."""
 
         def _logger_rcvd(logger, message: str) -> None:
             if self._qos_cmd is None:
@@ -640,14 +672,11 @@ class PacketProtocolQos(PacketProtocolPort):
             )
 
         if self._qos_cmd:
-            _logger_rcvd(_LOGGER.debug, "CHECKING")
 
             # NOTE: is the Tx pkt, and no response is expected
             if pkt._hdr == self._tx_hdr and self._rx_hdr is None:
                 log_msg = "matched the Tx pkt (not wanting a Rx pkt) - now done"
-                self._qos_lock.acquire()
-                self._qos_cmd = None
-                self._qos_lock.release()
+                self._qos_set_cmd(None)
 
             # NOTE: is the Tx pkt, and a response *is* expected
             elif pkt._hdr == self._tx_hdr:
@@ -659,21 +688,12 @@ class PacketProtocolQos(PacketProtocolPort):
             elif pkt._hdr == self._qos_cmd.tx_header:
                 # assert str(pkt) == str(self._qos_cmd), "Packets dont match"
                 log_msg = "duplicated Tx pkt (still wanting the Rx pkt)"
-                self._timeouts(dt.now())  # TODO: increase backoff?
+                self._qos_update_timeouts()  # TODO: increase backoff?
 
             # NOTE: is the Rx pkt, and is a non-Null (expected) response
             elif pkt._hdr == self._rx_hdr:
                 log_msg = "matched the Rx pkt - now done"
-                self._qos_lock.acquire()
-                self._qos_cmd = None
-                self._qos_lock.release()
-
-            # TODO: is the Rx pkt, but is a Null response
-            # elif pkt._hdr == self._qos_cmd.null_header:
-            #     log_msg = "matched a NULL Rx pkt - now done"
-            #     self._qos_lock.acquire()
-            #     self._qos_cmd = None
-            #     self._qos_lock.release()
+                self._qos_set_cmd(None)
 
             # NOTE: is not the expected pkt, but another pkt
             else:
@@ -683,22 +703,88 @@ class PacketProtocolQos(PacketProtocolPort):
                     + " pkt)"
                 )
 
-            self._timeouts(dt.now())
+            self._qos_update_timeouts()
             _logger_rcvd(_LOGGER.debug, f"CHECKED - {log_msg}")
 
         else:  # TODO: no outstanding cmd - ?throttle down the backoff
-            # self._timeouts(dt.now())
+            # self._qos_update_timeouts()
             _logger_rcvd(_LOGGER.debug, "XXXXXXX - ")
 
-        super()._pkt_received(pkt)
+    def _qos_received_v2(self, pkt: Packet) -> None:
+        """Perform any QoS functions on packets received from the transport."""
+
+        def logger_rcvd(message: str, wanted: Packet = None) -> None:
+            if wanted:
+                logger = _LOGGER.warning if DEV_MODE else _LOGGER.info
+            elif message:
+                logger = _LOGGER.error if DEV_MODE else _LOGGER.warning
+            else:
+                logger = _LOGGER.info if DEV_MODE else _LOGGER.debug
+                message = "not wanting any pkt"
+
+            logger(
+                "PktProtocolQos.data_rcvd(rcvd=%s): boff=%s, want=%s, tout=%s: %s",
+                pkt._hdr or str(pkt),
+                self._backoff,
+                wanted,
+                self._timeout_full.isoformat(timespec="milliseconds"),
+                f"QoS: {message}",
+            )
+
+        if self._qos_cmd is None:
+            wanted, msg = None, None  # = None, "not looking for any pkt"
+
+        elif self._tx_hdr:  # expected an echo of the Tx'd pkt
+            wanted, msg = self._tx_hdr, "wanting Tx (RQ) pkt: "
+
+            if pkt._hdr != self._tx_hdr:
+                msg += "NOT MATCHED (still waiting for the Tx (RQ) pkt)"
+            elif self._rx_hdr:  # is the Tx pkt, and a response *is* expected
+                msg += "was MATCHED (now waiting for the corresponding Rx (RP) pkt)"
+                self._tx_hdr = None
+            else:  # is the Tx pkt, and a response *is not* expected
+                msg += "was MATCHED (not wanting a corresponding Rx (RP) pkt): now done"
+                self._qos_set_cmd(None)
+
+        elif self._rx_hdr:  # expecting a Rx to the Tx'd pkt
+            wanted, msg = self._rx_hdr, "wanting Rx (RP) pkt: "
+
+            if pkt._hdr == self._rx_hdr:  # is the Rx pkt, is (expected) response
+                msg += "was MATCHED - now done"
+                if (entity := self._qos_cmd._source_entity) :
+                    entity._qos_function(self._qos_cmd, reset=True)
+                self._qos_set_cmd(None)
+            elif pkt._hdr == self._tx_hdr:  # is the Tx pkt, so increase backoff?
+                msg += "was MATCHED duplicate Tx (RQ) pkt: backing off"
+            else:
+                msg += "NOT MATCHED (still waiting for the Rx (RP) pkt)"
+
+        else:  # we shouldn't ever reach here!
+            wanted, msg = None, f"Woops! cmd = {self._qos_cmd}"
+            raise RuntimeError(f"QoS: {msg}")
+
+        logger_rcvd(msg, wanted=wanted)
 
     async def send_data(self, cmd: Command) -> None:
-        """Called when some data is to be sent (not a callback)."""
-        _LOGGER.debug("PktProtocolQos.send_data(%s)", cmd)
+        """Called when packets are to be sent (not a callback).
+
+        Wraps the relevant function with QoS code.
+        """
+        # _LOGGER.debug("PktProtocolQos.send_data(%s)", cmd)
+
+        while self._qos_cmd is not None:
+            await asyncio.sleep(_QOS_POLL_INTERVAL)
+
+        await super().send_data(cmd)
+
+        return await self._qos_send_data_v2(cmd)
+
+    async def _qos_send_data_v1(self, cmd: Command) -> None:
+        """Perform any QoS functions on packets sent to the transport."""
 
         def _logger_send(logger, message: str) -> None:
             logger(
-                "PktProtocolQos.send_data(%s): boff=%s, want=%s, tout=%s: %s",
+                "PktProtocolQos.send_data(sent=%s): boff=%s, want=%s, tout=%s: %s",
                 cmd.tx_header,
                 self._backoff,
                 self._tx_hdr or self._rx_hdr,
@@ -714,37 +800,27 @@ class PacketProtocolQos(PacketProtocolPort):
                 callback[FUNC](False, *callback.get(ARGS, tuple()))
                 callback["expired"] = not callback.get(DEAMON, False)  # HACK:
 
-        while self._qos_cmd is not None:
-            await asyncio.sleep(0.005)
-
-        await super().send_data(cmd)
-
-        self._qos_lock.acquire()
-        self._qos_cmd = cmd
-        self._qos_lock.release()
-        self._tx_hdr = cmd.tx_header
-        self._rx_hdr = cmd.rx_header  # Could be None
-        self._tx_retries = 0
-        self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
-
-        self._timeouts(dt.now())
+        self._qos_set_cmd(cmd)
+        # self._tx_retries = 0
+        # self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
+        self._qos_update_timeouts()
 
         while self._qos_cmd is not None:  # until sent (may need re-transmit) or expired
-            await asyncio.sleep(0.005)
+            await asyncio.sleep(_QOS_POLL_INTERVAL)
 
-            if self._timeout_full > dt.now():
+            if self._timeout_full > self._dt_now():
                 await asyncio.sleep(0.02)
-                # await self._send_data("")
+                # await self._send_data("")  # NOTE: untested - remove
 
             elif self._qos_cmd is None:  # can be set to None by data_received
                 continue
 
             elif self._tx_retries < self._tx_retry_limit:
-                self._tx_hdr = cmd.tx_header
+                # self._tx_hdr = cmd.tx_header
                 self._tx_retries += 1
                 if not self._qos_cmd.qos.get("disable_backoff", False):
-                    self._backoff = min(self._backoff + 1, QOS_MAX_BACKOFF)
-                self._timeouts(dt.now())
+                    self._backoff = min(self._backoff + 1, _QOS_MAX_BACKOFF)
+                self._qos_update_timeouts()
                 await self._send_data(str(cmd))
                 _logger_send(
                     (_LOGGER.warning if DEV_MODE else _LOGGER.debug),
@@ -759,9 +835,7 @@ class PacketProtocolQos(PacketProtocolPort):
                     )
                     _expired_cmd(self._qos_cmd)
 
-                self._qos_lock.acquire()
-                self._qos_cmd = None
-                self._qos_lock.release()
+                self._qos_set_cmd(None)
                 self._backoff = 0  # TODO: need a better system
                 break
 
@@ -769,6 +843,52 @@ class PacketProtocolQos(PacketProtocolPort):
             if self._timeout_half >= self._dt_now():
                 self._backoff = max(self._backoff - 1, 0)
             _logger_send(_LOGGER.debug, "SENT OK")
+
+    async def _qos_send_data_v2(self, cmd: Command) -> None:
+        """Perform any QoS functions on packets sent to the transport."""
+
+        def logger_send(message: str, wanted: Packet = None) -> None:
+            logger = _LOGGER.warning if DEV_MODE else _LOGGER.debug
+
+            logger(
+                "PktProtocolQos.send_data(sent=%s): boff=%s, want=%s, tout=%s: %s",
+                cmd.tx_header,
+                self._backoff,
+                self._tx_hdr or self._rx_hdr,
+                self._timeout_full.isoformat(timespec="milliseconds"),
+                f"QoS: {message} ({self._tx_retries}/{self._tx_retry_limit})",
+            )
+
+        self._qos_set_cmd(cmd)
+        self._qos_update_timeouts()
+
+        while self._qos_cmd is not None:  # until sent (may need re-transmit) or expired
+            if self._timeout_full > self._dt_now():
+                await asyncio.sleep(_QOS_POLL_INTERVAL)
+                continue
+            elif not self._qos_cmd.qos.get("disable_backoff", False):
+                self._backoff = min(self._backoff + 1, _QOS_MAX_BACKOFF)
+
+            if self._tx_retries < self._tx_retry_limit:
+                logger_send("TIMED_OUT_ (will retry)")
+
+                self._tx_retries += 1
+                self._qos_update_timeouts()
+
+                await self._send_data(str(cmd))
+
+            else:  # if self._tx_retries >= self._tx_retry_limit:
+                logger_send("IS_EXPIRED (giving up)")
+
+                self._qos_expire_cmd(cmd)
+                self._qos_set_cmd(None)
+                break
+
+        else:
+            # logger_send("IS_SENT_OK (done)")
+
+            if self._timeout_half >= self._dt_now():
+                self._backoff = max(self._backoff - 1, 0)
 
 
 def create_pkt_stack(
