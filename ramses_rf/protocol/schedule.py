@@ -190,7 +190,7 @@ class Schedule:  # 0404
                 await asyncio.sleep(TIMER_SHORT_SLEEP)
                 if dt.now() > time_start + TIMER_LONG_TIMEOUT:
                     self._release_lock()
-                    raise ExpiredCallbackError("failed to get schedule")
+                    raise ExpiredCallbackError(f"{self}: failed to get schedule")
 
         self._release_lock()
 
@@ -320,7 +320,7 @@ class Schedule:  # 0404
             await asyncio.sleep(TIMER_SHORT_SLEEP)
             if dt.now() > time_start + TIMER_LONG_TIMEOUT:
                 self._release_lock()
-                raise ExpiredCallbackError("failed to set schedule")
+                raise ExpiredCallbackError(f"{self}: failed to set schedule")
 
         self._release_lock()
 
