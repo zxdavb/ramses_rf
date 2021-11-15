@@ -617,6 +617,9 @@ class PacketProtocolQos(PacketProtocolPort):
     def _qos_expire_cmd(self, cmd) -> None:
         """Handle an expired cmd, such as invoking its callbacks."""
 
+        if cmd._source_entity:  # HACK - should be using a callback
+            cmd._source_entity._qos_function(cmd)
+
         hdr, callback = cmd.tx_header, cmd.callback
         if callback and not callback.get("expired"):
             # see also: MsgTransport._pkt_receiver()

@@ -14,6 +14,8 @@ DEFAULT_BDR_ID = "13:000730"
 DEFAULT_EXT_ID = "17:000730"
 DEFAULT_THM_ID = "03:000730"
 
+_QOS_TX_LIMIT = 12
+
 DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,16 +51,29 @@ class Entity:
         self._msgs = {}
         self._msgz = {}
 
-        # self._tx_count = 0  # essentially, the number of pkts Tx'd with no Rx
+        self._qos_tx_count = 0  # the number of pkts Tx'd with no matching Rx
+
+    def _qos_function(self, pkt, reset=False) -> None:
+        if reset:
+            self._qos_tx_count = 0
+            return
+
+        self._qos_tx_count += 1
+        if self._qos_tx_count > _QOS_TX_LIMIT:
+            _LOGGER.warning(
+                f"{pkt} < Sending now deprecated for {self} "
+                "(consider adjusting device_id filters)"
+            )  # TODO: take whitelist into account
 
     def _discover(self, discover_flag=Discover.ALL) -> None:
         pass
 
     def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess
-        # if self._gwy.pkt_protocol is None:
-        #     self._tx_count = 0
-        # elif msg.src.id != self._gwy.pkt_protocol._hgi80.get("device_id"):
-        #     self._tx_count = 0
+        if (
+            self._gwy.pkt_protocol is None
+            or msg.src.id != self._gwy.pkt_protocol._hgi80.get("device_id")
+        ):
+            self._qos_tx_count = 0
 
         if msg.code not in self._msgz:
             self._msgz[msg.code] = {msg.verb: {msg._pkt._ctx: msg}}
@@ -100,17 +115,17 @@ class Entity:
 
     def _send_cmd(self, cmd, **kwargs) -> None:
         if self._gwy.config.disable_sending:
-            _LOGGER.warning(f"{cmd} < Sending is disabled")
+            _LOGGER.info(f"{cmd} < Sending is disabled")
             return
 
-        # if self._tx_count > 12:
-        #     _LOGGER.warning(f"{cmd} < Sending is deprecated: non-responsive entity")
-        #     return
-        # self._tx_count += 1
+        if self._qos_tx_count > _QOS_TX_LIMIT:
+            _LOGGER.info(f"{cmd} < Sending is deprecated for {self}")
+            return
 
         # if getattr(self, "has_battery", None):
         #     return
 
+        cmd._source_entity = self
         self._msgs.pop(cmd.code, None)  # TODO: remove, so we can tell if RP'd rcvd
         self._gwy.send_cmd(cmd)
 

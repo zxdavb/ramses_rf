@@ -281,6 +281,8 @@ class Command(PacketBase):
         self._rx_header = None
         self._tx_header = None
 
+        self._source_entity = None
+
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
         hdr = f' # {self._hdr}{f" ({self._ctx})" if self._ctx else ""}'
