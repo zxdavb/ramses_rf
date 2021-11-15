@@ -89,72 +89,72 @@ OPENTHERM_SCHEMA = {
             EN: "Central heating enable",
             NL: "Centrale verwarming aan",
             VAR: "StatusCHEnabled",
-        },
+        },  # CH enabled
         0x0200: {
             EN: "DHW enable",
             NL: "Tapwater aan",
             VAR: "StatusDHWEnabled",
-        },
+        },  # DHW enabled
         0x0400: {
             EN: "Cooling enable",
             NL: "Koeling aan",
             VAR: "StatusCoolEnabled",
-        },
+        },  # cooling enabled
         0x0800: {
             EN: "Outside temp. comp. active",
             NL: "Compenseren buitentemp.",
             VAR: "StatusOTCActive",
-        },
+        },  # OTC active
         0x1000: {
             EN: "Central heating 2 enable",
             NL: "Centrale verwarming 2 aan",
             VAR: "StatusCH2Enabled",
-        },
+        },  # CH2 enabled
         0x2000: {
             EN: "Summer/winter mode",
             NL: "Zomer/winter mode",
             VAR: "StatusSummerWinter",
-        },
+        },  # summer mode active
         0x4000: {
             EN: "DHW blocking",
             NL: "Tapwater blokkade",
             VAR: "StatusDHWBlocked",
-        },
+        },  # DHW is blocking
         0x0001: {
             EN: "Fault indication",
             NL: "Fout indicatie",
             VAR: "StatusFault",
-        },  # no fault/fault
+        },  # fault state
         0x0002: {
             EN: "Central heating mode",
             NL: "Centrale verwarming mode",
             VAR: "StatusCHMode",
-        },  # not active/active
+        },  # CH active
         0x0004: {
             EN: "DHW mode",
             NL: "Tapwater mode",
             VAR: "StatusDHWMode",
-        },  # not active/active
+        },  # DHW active
         0x0008: {
             EN: "Flame status",
             NL: "Vlam status",
             VAR: "StatusFlame",
-        },  # flame off/on
+        },  # flame on
         0x0010: {
             EN: "Cooling status",
             NL: "Status koelen",
             VAR: "StatusCooling",
-        },  # not active/active
+        },  # cooling active
         0x0020: {
             EN: "Central heating 2 mode",
             NL: "Centrale verwarming 2 mode",
             VAR: "StatusCH2Mode",
-        },  # not active/active
+        },  # CH2 active
         0x0040: {
             EN: "Diagnostic indication",
             NL: "Diagnose indicatie",
             VAR: "StatusDiagnostic",
-        },  # no diagnostics/diagnostics event
+        },  # diagnostics mode
     },
     # OpenTherm Master configuration flags [ID 2: master config flags (HB)]
     "master_config_flags": {
@@ -1012,7 +1012,7 @@ def decode_frame(frame: str) -> Tuple[int, int, dict, str]:
     elif msg_schema[VAL] != F8_8:  # shouldn't reach here
         data_value[VALUE] = msg_value(frame[4:8], U16)
 
-    elif msg_schema[VAL] == F8_8:  # TODO
+    elif msg_schema[VAL] == F8_8:  # TODO: needs finishing
         result = msg_value(frame[4:8], msg_schema[VAL])
         if result is None:
             data_value[VALUE] = result
