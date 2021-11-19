@@ -116,6 +116,9 @@ def _create_devices_from_addrs(this: Message) -> None:
         if this.src == this.dst and this.src is not this.dst:
             this.dst = this.src
 
+    if this.dst.id in this._gwy._unwanted:
+        return
+
     if this._gwy.config.enable_eavesdrop and not isinstance(this.dst, Device):
         this.dst = this._gwy._get_device(this.dst.id, msg=this)
 
