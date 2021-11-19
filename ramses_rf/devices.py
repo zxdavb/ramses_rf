@@ -342,7 +342,11 @@ class Device(DeviceInfo, DeviceBase):
         if not msg._gwy.config.enable_eavesdrop:
             return
 
-        if self._ctl is not None and "zone_idx" in msg.payload:
+        if (
+            self._ctl is not None
+            and "zone_idx" in msg.payload
+            and msg.src.type != "01"  # TODO: should be: if controller
+        ):
             # TODO: is buggy - remove? how?
             self._set_parent(self._ctl._evo._get_zone(msg.payload["zone_idx"]))
 
