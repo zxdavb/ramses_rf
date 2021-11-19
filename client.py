@@ -33,6 +33,7 @@ from ramses_rf.schema import (
     CONFIG,
     DISABLE_DISCOVERY,
     DISABLE_SENDING,
+    ENABLE_EAVESDROP,
     ENFORCE_KNOWNLIST,
     EVOFW_FLAG,
     INPUT_FILE,
@@ -117,6 +118,7 @@ class DeviceIdParamType(click.ParamType):
 @click.option("-r", "--reduce-processing", count=True, help="-rrr will give packets")
 @click.option("-l/-nl", "--long-dates/--no-long-dates", default=None)
 @click.option("-c", "--config-file", type=click.File("r"))
+@click.option("-e/-ne", "--eavesdrop/--no-eavesdrop", default=None)
 @click.option("-k", "--client-state", type=click.File("r"))
 @click.option("-ns", "--hide-summary", is_flag=True, help="dont print any summarys")
 @click.option("-s", "--show-summary", help="show these portions of schema/params/state")
@@ -145,6 +147,7 @@ def cli(ctx, config_file=None, **kwargs):
 
     lib_kwargs[DEBUG_MODE] = cli_kwargs[DEBUG_MODE] > 1
     lib_kwargs[CONFIG][REDUCE_PROCESSING] = kwargs[REDUCE_PROCESSING]
+    lib_kwargs[CONFIG][ENABLE_EAVESDROP] = bool(cli_kwargs.pop("eavesdrop"))
 
     ctx.obj = lib_kwargs, kwargs
 
@@ -359,22 +362,22 @@ def _print_summary(gwy, **kwargs):
         print(f"Schema[{repr(entity)}] = {json.dumps(entity.schema, indent=4)}\r\n")
         print(f"allow_list (hints) = {json.dumps(gwy._include, indent=4)}\r\n")
 
-    if not kwargs.get("hide_params"):
-        print(f"Params[{repr(entity)}] = {json.dumps(entity.params, indent=4)}\r\n")
+    # if not kwargs.get("hide_params"):
+    #     print(f"Params[{repr(entity)}] = {json.dumps(entity.params, indent=4)}\r\n")
 
-    if not kwargs.get("hide_status"):
-        print(f"Status[{repr(entity)}] = {json.dumps(entity.status, indent=4)}\r\n")
+    # if not kwargs.get("hide_status"):
+    #     print(f"Status[{repr(entity)}] = {json.dumps(entity.status, indent=4)}\r\n")
 
-    if kwargs.get("show_device"):
-        devices = sorted(gwy.devices)
-        # devices = [d for d in sorted(gwy.devices) if d not in gwy.evo.devices]
+    # if kwargs.get("show_device"):
+    #     devices = sorted(gwy.devices)
+    #     # devices = [d for d in sorted(gwy.devices) if d not in gwy.evo.devices]
 
-        schema = {d.id: d.schema for d in devices}
-        print(f"Schema[devices] = {json.dumps({'schema': schema}, indent=4)}\r\n")
-        params = {d.id: d.params for d in devices}
-        print(f"Params[devices] = {json.dumps({'params': params}, indent=4)}\r\n")
-        status = {d.id: d.status for d in devices}
-        print(f"Status[devices] = {json.dumps({'status': status}, indent=4)}\r\n")
+    #     schema = {d.id: d.schema for d in devices}
+    #     print(f"Schema[devices] = {json.dumps({'schema': schema}, indent=4)}\r\n")
+    #     params = {d.id: d.params for d in devices}
+    #     print(f"Params[devices] = {json.dumps({'params': params}, indent=4)}\r\n")
+    #     status = {d.id: d.status for d in devices}
+    #     print(f"Status[devices] = {json.dumps({'status': status}, indent=4)}\r\n")
 
 
 async def main(command, lib_kwargs, **kwargs):
