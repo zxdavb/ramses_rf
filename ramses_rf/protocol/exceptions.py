@@ -77,14 +77,14 @@ class InvalidPayloadError(InvalidPacketError):
 
 
 class CorruptStateError(CorruptEvohomeError):
-    """Raised when the system state is inconsistent."""
+    """Raised when the system state (usu. schema) is inconsistent."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(self, *args, **kwargs)
         self.message = args[0] if args else None
 
     def __str__(self) -> str:
-        err_msg = "Inconsistent state"
+        err_msg = "Inconsistent schema"
         err_tip = " (try restarting the client library)"
         if self.message:
             return f"{err_msg}: {self.message}{err_tip}"
