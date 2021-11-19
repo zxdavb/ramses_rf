@@ -209,7 +209,7 @@ class Gateway:
         def check_filter_lists(dev_id) -> None:
             """Raise an error if a device_id is filtered."""
             if dev_id in self._unwanted:
-                raise LookupError
+                raise LookupError(f"Unwanted/Invalid device_id: {dev_id}")
 
             if self.config.enforce_known_list and (
                 dev_id not in self._include
