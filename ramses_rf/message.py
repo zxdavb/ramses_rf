@@ -144,7 +144,9 @@ def process_msg(msg: Message) -> None:
     #     if prev is not None and re.search("I.* 01.* 000A ", str(prev._pkt)):
     #         this._payload = prev.payload + this.payload  # merge frags, and process
 
-    if (log_level := _LOGGER.getEffectiveLevel()) < logging.INFO:
+    if DEV_MODE:  # HACK for HA - needs sorting
+        pass
+    elif (log_level := _LOGGER.getEffectiveLevel()) < logging.INFO:
         _LOGGER.info(msg)
     elif log_level <= logging.INFO and not (msg.verb == RQ and msg.src.type == "18"):
         _LOGGER.info(msg)
