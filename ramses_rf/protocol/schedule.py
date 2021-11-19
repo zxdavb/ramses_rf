@@ -375,3 +375,19 @@ class Schedule:  # 0404
         self._evo.zone_lock.acquire()
         self._evo.zone_lock_idx = None
         self._evo.zone_lock.release()
+
+    @classmethod  # constructor using RP/0404 tuple
+    def create_from_pkts(cls, zone, packets, **kwargs):
+        """Constructor to initiate with a tuple of schedule fragments."""
+        self = cls(zone, **kwargs)
+
+        self._rx_frags = [None] * len(packets)
+        for msg in packets:
+            self._rx_frags[msg.payload[FRAG_INDEX] - 1] = {
+                FRAGMENT: msg.payload[FRAGMENT],
+                MSG: msg,
+            }
+
+        self._schedule_done = True
+
+        return self if self.schedule else cls(zone, **kwargs)
