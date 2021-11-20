@@ -593,9 +593,21 @@ class Zone(ZoneSchedule, ZoneBase):
     def _msg_value(self, *args, **kwargs):
         return super()._msg_value(*args, **kwargs, zone_idx=self.idx)
 
+    @property  # TODO:
+    def actuators(self) -> Device:
+        try:
+            return self._msgz["000C"]["RP"][f"{self.idx}00"].payload["devices"]
+        except LookupError:
+            pass
+
     @property
     def sensor(self) -> Device:
-        return self._sensor
+        try:
+            return self._gwy.device_by_id[
+                self._msgz["000C"]["RP"][f"{self.idx}04"].payload["devices"][0]
+            ]
+        except LookupError:
+            return self._sensor
 
     def _set_sensor(self, device: Device) -> None:  # self._sensor
         """Set the temp sensor for this zone (one of: 01:, 03:, 04:, 12:, 22:, 34:)."""
@@ -769,6 +781,8 @@ class Zone(ZoneSchedule, ZoneBase):
             ATTR_ZONE_TYPE: self.heating_type,
             ATTR_ZONE_SENSOR: sensor_schema,
             ATTR_DEVICES: [d.id for d in self.devices],
+            "_sensor": self.sensor.id if self.sensor else None,
+            "_actuators": self.actuators,
         }
 
     @property  # TODO: setpoint
