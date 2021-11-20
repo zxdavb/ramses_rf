@@ -562,7 +562,7 @@ class Zone(ZoneSchedule, ZoneBase):
                 [d._set_parent(self) for d in devices]  # if d is not None]
 
         if msg._gwy.config.enable_eavesdrop and self._zone_type in (None, "ELE"):
-            self._eavesdrop_dhw_sensor(msg)
+            self._eavesdrop_zone_type(msg)
 
     def _eavesdrop_zone_type(self, msg, prev=None) -> None:
         """TODO.
