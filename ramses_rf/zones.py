@@ -797,7 +797,10 @@ class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
-            self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.ELE}")
+            try:
+                _ = self._msgz[_000C][RP][f"{self.idx}{_000C_DEVICE.ELE}"]
+            except KeyError:
+                self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.ELE}")
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -831,7 +834,10 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
-            self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.MIX}")
+            try:
+                _ = self._msgz[_000C][RP][f"{self.idx}{_000C_DEVICE.MIX}"]
+            except KeyError:
+                self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.MIX}")
 
         if discover_flag & Discover.PARAMS:
             self._send_cmd(Command.get_mix_valve_params(self._ctl.id, self.idx))
@@ -861,7 +867,10 @@ class RadZone(Zone):  # HR92/HR80
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
-            self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.RAD}")
+            try:
+                _ = self._msgz[_000C][RP][f"{self.idx}{_000C_DEVICE.RAD}"]
+            except KeyError:
+                self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.RAD}")
 
 
 class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
@@ -877,7 +886,10 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
-            self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.UFH}")
+            try:
+                _ = self._msgz[_000C][RP][f"{self.idx}{_000C_DEVICE.UFH}"]
+            except KeyError:
+                self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.UFH}")
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
@@ -909,7 +921,10 @@ class ValZone(EleZone):  # BDR91A/T
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
-            self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.VAL}")
+            try:
+                _ = self._msgz[_000C][RP][f"{self.idx}{_000C_DEVICE.VAL}"]
+            except KeyError:
+                self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.VAL}")
 
     @property
     def heat_demand(self) -> Optional[float]:  # 0008 (NOTE: not 3150)
