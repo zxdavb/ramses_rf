@@ -13,7 +13,7 @@ from threading import Lock
 from types import SimpleNamespace
 from typing import List, Optional
 
-from .const import Discover
+from .const import Discover, __dev_mode__
 from .devices import (
     BdrSwitch,
     Device,
@@ -54,7 +54,7 @@ from .schema import (
 )
 from .zones import DhwZone, Zone, create_zone
 
-from .protocol import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
+from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip
 from .protocol import (  # noqa: F401, isort: skip
     _0001,
     _0002,

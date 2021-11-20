@@ -6,9 +6,9 @@
 import logging
 from typing import List
 
-from .const import Discover
+from .const import Discover, __dev_mode__
 
-from .protocol import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
+from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip
 
 DEFAULT_BDR_ID = "13:000730"
 DEFAULT_EXT_ID = "17:000730"

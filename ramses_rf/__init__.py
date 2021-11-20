@@ -20,7 +20,7 @@ from datetime import datetime as dt
 from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
 
-from .const import ATTR_FAKED, ATTR_ORPHANS, DONT_CREATE_MESSAGES
+from .const import ATTR_FAKED, ATTR_ORPHANS, DONT_CREATE_MESSAGES, __dev_mode__
 from .devices import Device, create_device
 from .helpers import schedule_task
 from .message import Message, process_msg
@@ -47,7 +47,7 @@ from .schema import (
 from .systems import System
 from .version import VERSION  # noqa: F401
 
-from .protocol import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
+from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip
 
 DEV_MODE = __dev_mode__ and False
 

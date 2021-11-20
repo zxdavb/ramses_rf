@@ -9,7 +9,7 @@ from random import randint
 from sys import modules
 from typing import Dict, Optional
 
-from .const import ATTR_ALIAS, ATTR_CLASS, ATTR_FAKED, Discover
+from .const import ATTR_ALIAS, ATTR_CLASS, ATTR_FAKED, Discover, __dev_mode__
 from .entities import Entity, discover_decorator
 from .protocol import Command, Priority  # TODO: constants to const.py
 from .protocol.address import NON_DEV_ADDR, id_to_address
@@ -31,7 +31,7 @@ from .protocol.opentherm import MSG_ID, MSG_NAME, MSG_TYPE, OPENTHERM_MESSAGES, 
 from .protocol.ramses import CODE_ONLY_FROM_CTL, RAMSES_DEVICES
 from .protocol.transport import PacketProtocolPort
 
-from .protocol import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
+from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip
 from .protocol import (  # noqa: F401, isort: skip
     _0001,
     _0002,

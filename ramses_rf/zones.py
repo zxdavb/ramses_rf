@@ -12,7 +12,7 @@ from sys import modules
 from types import SimpleNamespace
 from typing import Optional
 
-from .const import Discover
+from .const import Discover, __dev_mode__
 from .devices import (
     BdrSwitch,
     Controller,
@@ -47,7 +47,7 @@ from .protocol.exceptions import CorruptStateError
 from .protocol.transport import PacketProtocolPort
 
 # from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
-from .protocol import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
+from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip
 from .protocol import (  # noqa: F401, isort: skip
     _0001,
     _0002,

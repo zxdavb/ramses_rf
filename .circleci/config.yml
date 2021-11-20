@@ -57,6 +57,7 @@ jobs:
           command: python setup.py verify  # NOTE: $CIRCLE_TAG is not available to su
       - run:
           name: Clear the DEV_MODE flag, if set
+          command: sed -i -e '/__dev_mode__ =/ s/= .*/= False/' ramses_rf/const.py
           command: sed -i -e '/__dev_mode__ =/ s/= .*/= False/' ramses_rf/protocol/const.py
       - run:
           name: Build the package
