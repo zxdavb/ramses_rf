@@ -136,6 +136,11 @@ class SerTransportRead(asyncio.ReadTransport):
     async def _polling_loop(self):
         self._protocol.connection_made(self)
 
+        # hint = "777" if isinstance(self._packets, dict) else "888"
+        # dtm_str = dt.fromtimestamp(0).isoformat(sep="T", timespec="microseconds")
+        # pkt_line = Command._puzzle(message="loading packets")
+        # self._protocol.data_received(f"{dtm_str} {hint} {pkt_line}")  # HACK: 01, below
+
         if isinstance(self._packets, dict):  # can assume dtm_str is OK
             for dtm_str, pkt_line in self._packets.items():
                 self._protocol.data_received(f"{dtm_str} {pkt_line}")
@@ -563,7 +568,7 @@ class PacketProtocolRead(PacketProtocolBase):
         except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
             return
 
-        if pkt.src.type == "18":  # dex: should use HGI, but how?
+        if pkt.src.type == "18" and pkt.src.id != HGI_DEVICE_ID:  # HACK 01: dex
             if self._hgi80[DEVICE_ID] is None:
                 self._hgi80[DEVICE_ID] = pkt.src.id
 
