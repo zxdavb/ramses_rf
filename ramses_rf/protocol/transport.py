@@ -133,7 +133,7 @@ class SerTransportRead(asyncio.ReadTransport):
     def _start(self):
         self._extra[POLLER_TASK] = self._loop.create_task(self._polling_loop())
 
-    async def _polling_loop(self):
+    async def _polling_loop(self):  # TODO: harden with try
         self._protocol.connection_made(self)
 
         # hint = "777" if isinstance(self._packets, dict) else "888"
