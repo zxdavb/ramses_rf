@@ -113,24 +113,29 @@ def _create_devices_from_addrs(this: Message) -> None:
 
     if not isinstance(this.src, Device):
         this.src = this._gwy._get_device(this.src.id, msg=this)
-        if this.src == this.dst and this.src is not this.dst:
+        if this.dst.id == this.src.id:
             this.dst = this.src
 
-    if this.dst.id in this._gwy._unwanted:
+    if (
+        not this._gwy.config.enable_eavesdrop
+        or this.dst.id in this._gwy._unwanted
+        or this.src == this._gwy.hgi
+    ):  # the above can't / shouldn't be eavesdropped for dst device
         return
 
-    if this._gwy.config.enable_eavesdrop and not isinstance(this.dst, Device):
+    if not isinstance(this.dst, Device):
         this.dst = this._gwy._get_device(this.dst.id, msg=this)
 
-    if isinstance(this.dst, Device) and getattr(this.src, "_is_controller", False):
-        this._gwy._get_device(this.dst.id, ctl_id=this.src.id, msg=this)  # or _set_ctl?
-
-    if this._gwy.config.enable_eavesdrop and getattr(this.dst, "_is_controller", False):
+    if getattr(this.dst, "_is_controller", False):
         this._gwy._get_device(this.src.id, ctl_id=this.dst.id, msg=this)  # or _set_ctl?
+
+    elif isinstance(this.dst, Device) and getattr(this.src, "_is_controller", False):
+        this._gwy._get_device(this.dst.id, ctl_id=this.src.id, msg=this)  # or _set_ctl?
 
 
 def _create_devices_from_payload(this: Message) -> None:
     """Discover and create any new devices using the message payload (1FC9/000C)."""
+    pass
 
 
 def process_msg(msg: Message) -> None:
@@ -147,9 +152,10 @@ def process_msg(msg: Message) -> None:
     #     if prev is not None and re.search("I.* 01.* 000A ", str(prev._pkt)):
     #         this._payload = prev.payload + this.payload  # merge frags, and process
 
-    if DEV_MODE:  # HACK for HA - needs sorting
-        pass
-    elif (log_level := _LOGGER.getEffectiveLevel()) < logging.INFO:
+    # if DEV_MODE:  # HACK for HA - needs sorting
+    #     pass
+    # el
+    if (log_level := _LOGGER.getEffectiveLevel()) < logging.INFO:
         _LOGGER.info(msg)
     elif log_level <= logging.INFO and not (msg.verb == RQ and msg.src.type == "18"):
         _LOGGER.info(msg)
