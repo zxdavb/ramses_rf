@@ -200,6 +200,10 @@ class Schedule:  # 0404
         """Request the next missing fragment (index starts at 1, not 0)."""
         _LOGGER.debug("Schedule(%s)._rq_fragment(%s)", self.id, frag_cnt)
 
+        def oth_callback(msg) -> None:
+            _LOGGER.warning(f"Schedule({self.id}): Received {msg._pkt}")
+            self._0006 = msg
+
         def rq_callback(msg) -> None:
             if not msg:  # _LOGGER.debug()... TODO: needs fleshing out
                 # TODO: remove any callbacks from msg._gwy.msg_transport._callbacks
@@ -254,6 +258,9 @@ class Schedule:  # 0404
         cmd = Command.get_schedule_fragment(
             self._ctl.id, self.idx, frag_idx, frag_cnt, callback=rq_callback
         )
+        self._gwy.send_cmd(cmd)
+        # NOTE: have a signature of the schedule to check against future 0006 pkts
+        cmd = Command(RQ, _0006, "00", self._ctl.id, callback=oth_callback)
         self._gwy.send_cmd(cmd)
 
     @staticmethod
