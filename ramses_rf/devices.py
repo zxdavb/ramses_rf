@@ -345,7 +345,8 @@ class Device(DeviceInfo, DeviceBase):
         if (
             self._ctl is not None
             and "zone_idx" in msg.payload
-            and msg.src.type != "01"  # TODO: should be: if controller
+            and msg.src.type != "01"  # TODO: DEX, should be: if controller
+            # and msg.dst.type != "18"
         ):
             # TODO: is buggy - remove? how?
             self._set_parent(self._ctl._evo._get_zone(msg.payload["zone_idx"]))
@@ -1451,7 +1452,6 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 if v
             },
             "opentherm_schema": self.opentherm_schema,
-            # "supported_msg": self._supported_msg,
         }
 
     @property
@@ -1459,12 +1459,11 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         return {
             **super().params,
             "opentherm_params": self.opentherm_params,
+            "supported_msgs": dict(sorted(self._supported_msg.items())),
         }
 
     @property
     def status(self) -> dict:
-        # llevering: [0, 3, 5, 6, 12, 13, 17, 18, 25, 26, 28, 48, 49, 56, 125]
-        # bruce:     [0, 3, 5,    12, 13, 17, 18, 25, 27, 28, 48, 49, 56, 125]
         return {
             **super().status,
             "opentherm_status": self.opentherm_status,
