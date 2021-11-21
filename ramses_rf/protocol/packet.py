@@ -241,7 +241,7 @@ def pkt_timeout(pkt) -> Optional[td]:  # NOTE: import OtbGateway ??
     if pkt.verb in (RQ, W_):
         timeout = td(seconds=3)
 
-    elif pkt.code in (_0005, _000C, _10E0):
+    elif pkt.code in (_0005, _000C, _0404, _10E0):  # 0404 expired by 0006
         return  # TODO: exclude/remove devices caused by corrupt ADDRs?
 
     elif pkt.code == _1FC9 and pkt.verb == RP:
@@ -257,7 +257,7 @@ def pkt_timeout(pkt) -> Optional[td]:  # NOTE: import OtbGateway ??
         timeout = td(minutes=15)  # sends I /sync_cycle
 
     elif pkt.code == _3220:
-        from ..devices import OtbGateway  # to prevent circular references
+        from ..devices import OtbGateway  # HACK: to prevent circular references
 
         if pkt.payload[4:6] in OtbGateway.SCHEMA_MSG_IDS:
             return
