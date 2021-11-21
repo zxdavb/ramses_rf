@@ -657,8 +657,8 @@ class ScheduleSync:  # 0006
                 or dt.now() - self._active_0006.dtm > td(minutes=3)
             ):
                 self._active_0006 = msg  # TODO: what happens if the following fails?
-                if not self._gwy.config.disable_sending:
-                    self._get_schedules()
+                # if not self._gwy.config.disable_sending:  # TODO
+                #     self._get_schedules()
 
     def _get_schedules(self) -> None:
         if self._gwy.config.disable_sending:
