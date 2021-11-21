@@ -761,19 +761,19 @@ class PacketProtocolQos(PacketProtocolPort):
                 msg += "was MATCHED (now waiting for the corresponding Rx (RP) pkt)"
                 self._tx_hdr = None
             else:  # is the Tx pkt, and a response *is not* expected
-                msg += "was MATCHED (not wanting a corresponding Rx (RP) pkt): now done"
+                msg += "was MATCHED (not wanting a corresponding Rx (RP) pkt, now done)"
                 self._qos_set_cmd(None)
 
         elif self._rx_hdr:  # expecting a Rx to the Tx'd pkt
             wanted, msg = self._rx_hdr, "wanting Rx (RP) pkt: "
 
             if pkt._hdr == self._rx_hdr:  # is the Rx pkt, is (expected) response
-                msg += "was MATCHED - now done"
+                msg += "was MATCHED (now done)"
                 if entity := self._qos_cmd._source_entity:
                     entity._qos_function(self._qos_cmd, reset=True)
                 self._qos_set_cmd(None)
             elif pkt._hdr == self._tx_hdr:  # is the Tx pkt, so increase backoff?
-                msg += "was MATCHED duplicate Tx (RQ) pkt: backing off"
+                msg += "was MATCHED duplicate Tx (RQ) pkt (now backing off)"
             else:
                 msg += "NOT MATCHED (still waiting for the Rx (RP) pkt)"
 
@@ -865,9 +865,7 @@ class PacketProtocolQos(PacketProtocolPort):
     async def _qos_send_data_v2(self, cmd: Command) -> None:
         """Perform any QoS functions on packets sent to the transport."""
 
-        def logger_send(message: str, wanted: Packet = None) -> None:
-            logger = _LOGGER.warning if DEV_MODE else _LOGGER.debug
-
+        def logger_send(logger, message: str, wanted: Packet = None) -> None:
             logger(
                 "PktProtocolQos.send_data(sent=%s): boff=%s, want=%s, tout=%s: %s",
                 cmd.tx_header,
@@ -888,7 +886,7 @@ class PacketProtocolQos(PacketProtocolPort):
                 self._backoff = min(self._backoff + 1, _QOS_MAX_BACKOFF)
 
             if self._tx_retries < self._tx_retry_limit:
-                logger_send("TIMED_OUT_ (will retry)")
+                logger_send(_LOGGER.info, "TIMED_OUT_ (will retry)")
 
                 self._tx_retries += 1
                 self._qos_update_timeouts()
@@ -896,14 +894,14 @@ class PacketProtocolQos(PacketProtocolPort):
                 await self._send_data(str(cmd))
 
             else:  # if self._tx_retries >= self._tx_retry_limit:
-                logger_send("IS_EXPIRED (giving up)")
+                logger_send(_LOGGER.warning, "IS_EXPIRED (giving up)")
 
                 self._qos_expire_cmd(cmd)
                 self._qos_set_cmd(None)
                 break
 
         else:
-            # logger_send("IS_SENT_OK (done)")
+            logger_send(_LOGGER.debug, "IS_SENT_OK (done)")
 
             if self._timeout_half >= self._dt_now():
                 self._backoff = max(self._backoff - 1, 0)
