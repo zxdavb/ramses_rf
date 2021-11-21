@@ -563,6 +563,16 @@ class PacketProtocolRead(PacketProtocolBase):
         except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
             return
 
+        if pkt.src.type == "18":  # dex: should use HGI, but how?
+            if self._hgi80[DEVICE_ID] is None:
+                self._hgi80[DEVICE_ID] = pkt.src.id
+
+            elif self._hgi80[DEVICE_ID] != pkt.src.id:
+                (_LOGGER.debug if pkt.src.id in self._unwanted else _LOGGER.warning)(
+                    f"{pkt} < There appears to be more than one HGI80-compatible device"
+                    f" (active gateway: {self._hgi80[DEVICE_ID]}), this is unsupported"
+                )
+
         self._pkt_received(pkt)
 
     def data_received(self, data: str) -> None:
