@@ -769,7 +769,7 @@ class PacketProtocolQos(PacketProtocolPort):
 
             if pkt._hdr == self._rx_hdr:  # is the Rx pkt, is (expected) response
                 msg += "was MATCHED - now done"
-                if (entity := self._qos_cmd._source_entity) :
+                if entity := self._qos_cmd._source_entity:
                     entity._qos_function(self._qos_cmd, reset=True)
                 self._qos_set_cmd(None)
             elif pkt._hdr == self._tx_hdr:  # is the Tx pkt, so increase backoff?
