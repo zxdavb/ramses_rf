@@ -83,10 +83,10 @@ CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:^4s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:^4s} || {}"
 
-DEV_MODE = __dev_mode__  # and False
+DEV_MODE = __dev_mode__ and True
 
 _LOGGER = logging.getLogger(__name__)
-if DEV_MODE:
+if False and DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
@@ -152,9 +152,7 @@ def process_msg(msg: Message) -> None:
     #     if prev is not None and re.search("I.* 01.* 000A ", str(prev._pkt)):
     #         this._payload = prev.payload + this.payload  # merge frags, and process
 
-    # if DEV_MODE:  # HACK for HA - needs sorting
-    #     pass
-    # el
+    # HACK:  if CLI, double-logging with client.py proc_msg() & setLevel(DEBUG)
     if (log_level := _LOGGER.getEffectiveLevel()) < logging.INFO:
         _LOGGER.info(msg)
     elif log_level <= logging.INFO and not (msg.verb == RQ and msg.src.type == "18"):
