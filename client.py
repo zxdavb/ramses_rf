@@ -362,22 +362,22 @@ def _print_summary(gwy, **kwargs):
         print(f"Schema[{repr(entity)}] = {json.dumps(entity.schema, indent=4)}\r\n")
         print(f"allow_list (hints) = {json.dumps(gwy._include, indent=4)}\r\n")
 
-    # if not kwargs.get("hide_params"):
-    #     print(f"Params[{repr(entity)}] = {json.dumps(entity.params, indent=4)}\r\n")
+    if not kwargs.get("hide_params"):
+        print(f"Params[{repr(entity)}] = {json.dumps(entity.params, indent=4)}\r\n")
 
-    # if not kwargs.get("hide_status"):
-    #     print(f"Status[{repr(entity)}] = {json.dumps(entity.status, indent=4)}\r\n")
+    if not kwargs.get("hide_status"):
+        print(f"Status[{repr(entity)}] = {json.dumps(entity.status, indent=4)}\r\n")
 
-    # if kwargs.get("show_device"):
-    #     devices = sorted(gwy.devices)
-    #     # devices = [d for d in sorted(gwy.devices) if d not in gwy.evo.devices]
+    if kwargs.get("show_device"):
+        devices = sorted(gwy.devices)
+        # devices = [d for d in sorted(gwy.devices) if d not in gwy.evo.devices]
 
-    #     schema = {d.id: d.schema for d in devices}
-    #     print(f"Schema[devices] = {json.dumps({'schema': schema}, indent=4)}\r\n")
-    #     params = {d.id: d.params for d in devices}
-    #     print(f"Params[devices] = {json.dumps({'params': params}, indent=4)}\r\n")
-    #     status = {d.id: d.status for d in devices}
-    #     print(f"Status[devices] = {json.dumps({'status': status}, indent=4)}\r\n")
+        schema = {d.id: d.schema for d in devices}
+        print(f"Schema[devices] = {json.dumps({'schema': schema}, indent=4)}\r\n")
+        params = {d.id: d.params for d in devices}
+        print(f"Params[devices] = {json.dumps({'params': params}, indent=4)}\r\n")
+        status = {d.id: d.status for d in devices}
+        print(f"Status[devices] = {json.dumps({'status': status}, indent=4)}\r\n")
 
 
 async def main(command, lib_kwargs, **kwargs):
