@@ -199,7 +199,7 @@ class ZoneSchedule:  # 0404  # TODO: add for DHW
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._schedule = Schedule(self)
+        self._schedule = None
 
     # def _discover(self, discover_flag=Discover.ALL) -> None:
     #    super()._discover(discover_flag=discover_flag)
@@ -223,7 +223,14 @@ class ZoneSchedule:  # 0404  # TODO: add for DHW
 
     @property
     def schedule(self) -> dict:
-        if self._schedule and self._schedule.schedule:
+        if self._schedule is None:
+            try:
+                if packets := self._msgz[_0404][RP]:
+                    self._schedule = Schedule.create_from_pkts(self, packets.values())
+            except KeyError:
+                self._schedule = Schedule(self)
+
+        if self._schedule.schedule:
             return self._schedule.schedule.get("schedule")
 
     @property
