@@ -59,7 +59,7 @@ class Entity:
             return
 
         self._qos_tx_count += 1
-        if self._qos_tx_count > _QOS_TX_LIMIT:
+        if self._qos_tx_count == _QOS_TX_LIMIT:
             _LOGGER.warning(
                 f"{pkt} < Sending now deprecated for {self} "
                 "(consider adjusting device_id filters)"
@@ -73,7 +73,7 @@ class Entity:
             self._gwy.pkt_protocol is None
             or msg.src.id != self._gwy.pkt_protocol._hgi80.get("device_id")
         ):
-            self._qos_tx_count = 0
+            self._qos_function(msg._pkt, reset=True)
 
         if msg.code not in self._msgz:
             self._msgz[msg.code] = {msg.verb: {msg._pkt._ctx: msg}}
