@@ -15,6 +15,7 @@ from .address import pkt_addrs
 from .exceptions import InvalidPacketError
 from .frame import PacketBase
 from .logger import getLogger
+from .opentherm import PARAMS_MSG_IDS, SCHEMA_MSG_IDS
 from .ramses import EXPIRES, RAMSES_CODES
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -256,17 +257,15 @@ def pkt_timeout(pkt) -> Optional[td]:  # NOTE: import OtbGateway ??
     elif pkt.code in (_2309, _30C9) and pkt._has_array:
         timeout = td(minutes=15)  # sends I /sync_cycle
 
-    elif pkt.code == _3220:
-        from ..devices import OtbGateway  # HACK: to prevent circular references
-
-        if pkt.payload[4:6] in OtbGateway.SCHEMA_MSG_IDS:
+    elif pkt.code == _3220:  # FIXME
+        if pkt.payload[4:6] in SCHEMA_MSG_IDS:
             return
-        # elif pkt.payload[4:6] in OtbGateway.WRITE_MSG_IDS and Write-Date:
+        # elif pkt.payload[4:6] in WRITE_MSG_IDS and Write-Date:
         #     timeout = td(seconds=3)
-        elif pkt.payload[4:6] in OtbGateway.PARAMS_MSG_IDS:
+        elif pkt.payload[4:6] in PARAMS_MSG_IDS:
             # NB: includes "Number of starts burner" and similars
             timeout = td(minutes=60)
-        else:  # elif pkt.payload[4:6] in OtbGateway.STATUS_MSG_IDS:
+        else:  # elif pkt.payload[4:6] in STATUS_MSG_IDS:
             timeout = td(minutes=3)
 
     # elif pkt.code in (_3B00, _3EF0, ):  # TODO: 0008, 3EF0, 3EF1

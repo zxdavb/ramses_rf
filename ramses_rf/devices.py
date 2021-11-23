@@ -29,7 +29,16 @@ from .protocol.const import (
     NUL_DEVICE_ID,
 )
 from .protocol.exceptions import CorruptStateError
-from .protocol.opentherm import MSG_ID, MSG_NAME, MSG_TYPE, OPENTHERM_MESSAGES, VALUE
+from .protocol.opentherm import (
+    MSG_ID,
+    MSG_NAME,
+    MSG_TYPE,
+    OPENTHERM_MESSAGES,
+    PARAMS_MSG_IDS,
+    SCHEMA_MSG_IDS,
+    STATUS_MSG_IDS,
+    VALUE,
+)
 from .protocol.ramses import CODE_ONLY_FROM_CTL, RAMSES_DEVICES
 from .protocol.transport import PacketProtocolPort
 
@@ -1203,56 +1212,6 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
     # OPENTHERM_STATUS = "opentherm_status"
     # _STATE = super().MODULATION_LEVEL
 
-    SCHEMA_MSG_IDS = (
-        "03",  # ..3: "Slave configuration",
-        "06",  # ..6: "Remote boiler parameter flags",                      # 0x38, 0x39
-        "0F",  # .15: "Max. boiler capacity (kW) and modulation level setting (%)",
-        "30",  # .48: "DHW Setpoint upper & lower bounds for adjustment (°C)",
-        "31",  # .49: "Max CH water Setpoint upper & lower bounds for adjustment (°C)",
-        "7D",  # 125: "Opentherm version Slave",                            # not native
-        "7F",  # 127: "Slave product version number and type",
-    )
-    PARAMS_MSG_IDS = (
-        "38",  # .56: "DHW Setpoint (°C) (Remote parameter 1)",             # see: 0x06
-        "39",  # .57: "Max CH water Setpoint (°C) (Remote parameter 2)",    # see: 0x06
-        # These are error codes...
-        "05",  # ..5: "Fault flags & OEM codes",
-        "73",  # 115: "OEM diagnostic code",
-        # These are STATUS seen RQ'd by 01:/30:, but here to retreive less frequently
-        "71",  # 113: "Number of un-successful burner starts",
-        "72",  # 114: "Number of times flame signal was too low",
-        "74",  # 116: "Number of starts burner",
-        "75",  # 117: "Number of starts central heating pump",
-        "76",  # 118: "Number of starts DHW pump/valve",
-        "77",  # 119: "Number of starts burner during DHW mode",
-        "78",  # 120: "Number of hours burner is in operation (i.e. flame on)",
-        "79",  # 121: "Number of hours central heating pump has been running",
-        "7A",  # 122: "Number of hours DHW pump has been running/valve has been opened",
-        "7B",  # 123: "Number of hours DHW burner is in operation during DHW mode",
-    )
-    STATUS_MSG_IDS = (
-        "00",  # ..0: "Master/Slave status flags",                          # not native
-        "01",  # ..1: "CH water temperature Setpoint (°C)",                 # also R/W
-        "11",  # .17: "Relative Modulation Level (%)",
-        "12",  # .18: "Water pressure in CH circuit (bar)",
-        "13",  # .19: "Water flow rate in DHW circuit. (L/min)",
-        "19",  # .25: "Boiler flow water temperature (°C)",
-        "1A",  # .26: "DHW temperature (°C)",
-        "1B",  # .27: "Outside temperature (°C)",  # TODO: any value here?  # not native
-        "1C",  # .28: "Return water temperature (°C)",
-    )
-    WRITE_MSG_IDS = (  # Write-Data, NB: some are also Read-Data
-        "01",  # ..1:  -see above-
-        "02",  # ..2: "Master configuration",
-        "0E",  # .14: "Maximum relative modulation level setting (%)",  # c.f. 0x11
-        "10",  # .16: "Room Setpoint (°C)",     # tell slave the room setpoint?
-        "18",  # .24: "Room temperature (°C)",  # tell slave the room temp?
-        "38",  # .56:  -see above-
-        "39",  # .57:  -see above-
-        "7C",  # 124: "Opentherm version Master",
-        "7E",  # 126: "Master product version number and type",
-    )
-
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -1274,7 +1233,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         if discover_flag & Discover.SCHEMA:
             [
                 self._send_cmd(Command.get_opentherm_data(self.id, m))
-                for m in self.SCHEMA_MSG_IDS  # From OT v2.2: version numbers
+                for m in SCHEMA_MSG_IDS  # From OT v2.2: version numbers
                 if self._supported_msg.get(m) is not False
                 and (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]
@@ -1282,7 +1241,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         if discover_flag & Discover.PARAMS:
             [
                 self._send_cmd(Command.get_opentherm_data(self.id, m))
-                for m in self.PARAMS_MSG_IDS
+                for m in PARAMS_MSG_IDS
                 if self._supported_msg.get(m) is not False
                 and (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]
@@ -1305,7 +1264,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             self._send_cmd(Command(RQ, _12F0, "00", self.id))
             [
                 self._send_cmd(Command.get_opentherm_data(self.id, m, retries=0))
-                for m in self.STATUS_MSG_IDS
+                for m in STATUS_MSG_IDS
                 if self._supported_msg.get(m) is not False
                 # nd (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]  # TODO: add expired
@@ -1403,7 +1362,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         result = {
             self._msg_name(v): v.payload
             for k, v in self._opentherm_msg.items()
-            if self._supported_msg.get(int(k, 16)) and int(k, 16) in self.SCHEMA_MSG_IDS
+            if self._supported_msg.get(int(k, 16)) and int(k, 16) in SCHEMA_MSG_IDS
         }
         return {
             m: {k: v for k, v in p.items() if k.startswith(VALUE)}
@@ -1415,7 +1374,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         result = {
             self._msg_name(v): v.payload
             for k, v in self._opentherm_msg.items()
-            if self._supported_msg.get(int(k, 16)) and int(k, 16) in self.PARAMS_MSG_IDS
+            if self._supported_msg.get(int(k, 16)) and int(k, 16) in PARAMS_MSG_IDS
         }
         return {
             m: {k: v for k, v in p.items() if k.startswith(VALUE)}

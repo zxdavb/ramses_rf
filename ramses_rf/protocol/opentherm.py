@@ -16,6 +16,58 @@ _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
+# R8810A/R8820A-specific msg_ids, as used by Packet (pkt_timeout) & OtbGateway classes
+SCHEMA_MSG_IDS = (
+    "03",  # ..3: "Slave configuration",
+    "06",  # ..6: "Remote boiler parameter flags",                      # 0x38, 0x39
+    "0F",  # .15: "Max. boiler capacity (kW) and modulation level setting (%)",
+    "30",  # .48: "DHW Setpoint upper & lower bounds for adjustment (°C)",
+    "31",  # .49: "Max CH water Setpoint upper & lower bounds for adjustment (°C)",
+    "7D",  # 125: "Opentherm version Slave",                            # not native
+    "7F",  # 127: "Slave product version number and type",
+)
+PARAMS_MSG_IDS = (
+    "38",  # .56: "DHW Setpoint (°C) (Remote parameter 1)",             # see: 0x06
+    "39",  # .57: "Max CH water Setpoint (°C) (Remote parameter 2)",    # see: 0x06
+    # These are error codes...
+    "05",  # ..5: "Fault flags & OEM codes",
+    "73",  # 115: "OEM diagnostic code",
+    # These are STATUS seen RQ'd by 01:/30:, but here to retreive less frequently
+    "71",  # 113: "Number of un-successful burner starts",
+    "72",  # 114: "Number of times flame signal was too low",
+    "74",  # 116: "Number of starts burner",
+    "75",  # 117: "Number of starts central heating pump",
+    "76",  # 118: "Number of starts DHW pump/valve",
+    "77",  # 119: "Number of starts burner during DHW mode",
+    "78",  # 120: "Number of hours burner is in operation (i.e. flame on)",
+    "79",  # 121: "Number of hours central heating pump has been running",
+    "7A",  # 122: "Number of hours DHW pump has been running/valve has been opened",
+    "7B",  # 123: "Number of hours DHW burner is in operation during DHW mode",
+)
+STATUS_MSG_IDS = (
+    "00",  # ..0: "Master/Slave status flags",                          # not native
+    "01",  # ..1: "CH water temperature Setpoint (°C)",                 # also R/W
+    "11",  # .17: "Relative Modulation Level (%)",
+    "12",  # .18: "Water pressure in CH circuit (bar)",
+    "13",  # .19: "Water flow rate in DHW circuit. (L/min)",
+    "19",  # .25: "Boiler flow water temperature (°C)",
+    "1A",  # .26: "DHW temperature (°C)",
+    "1B",  # .27: "Outside temperature (°C)",  # TODO: any value here?  # not native
+    "1C",  # .28: "Return water temperature (°C)",
+)
+WRITE_MSG_IDS = (  # Write-Data, NB: some are also Read-Data
+    "01",  # ..1:  -see above-
+    "02",  # ..2: "Master configuration",
+    "0E",  # .14: "Maximum relative modulation level setting (%)",  # c.f. 0x11
+    "10",  # .16: "Room Setpoint (°C)",     # tell slave the room setpoint?
+    "18",  # .24: "Room temperature (°C)",  # tell slave the room temp?
+    "38",  # .56:  -see above-
+    "39",  # .57:  -see above-
+    "7C",  # 124: "Opentherm version Master",
+    "7E",  # 126: "Master product version number and type",
+)
+
+
 # Data structure shamelessy copied, with thanks to @nlrb, from:
 # github.com/nlrb/com.tclcode.otgw (node_modules/otg-api/lib/ot_msg.js),
 
