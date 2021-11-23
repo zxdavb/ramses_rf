@@ -342,9 +342,10 @@ class Message:
         """
 
         try:  # parse the payload
-            _check_verb_code_payload(self, self._pkt.payload)  # ? InvalidPayloadError
-            _check_verb_code_src(self)  # ? InvalidPacketError
-            _check_verb_code_dst(self)  # ? InvalidPacketError
+            # TODO: only accept invalid packets to/from HGI when flag raised
+            _check_msg_payload(self, self._pkt.payload)  # ? InvalidPayloadError
+            _check_msg_src(self)  # ? InvalidPacketError
+            _check_msg_dst(self)  # ? InvalidPacketError
 
             if not self._has_payload or (
                 self.verb == RQ and self.code not in CODE_RQ_COMPLEX
@@ -389,68 +390,86 @@ class Message:
 
 @lru_cache(maxsize=256)
 def re_compile_re_match(regex, string) -> bool:
+    # TODO: confirm this does speed things up
+    # Python has it's own caching of re.complile, _MAXCACHE = 512
+    # https://github.com/python/cpython/blob/3.10/Lib/re.py
     return re.compile(regex).match(string)
 
 
-def _check_verb_code_src(msg) -> None:
-    """Validate the packet's verb/code pair against its source device type.
+def _check_msg_src(msg: Message) -> None:
+    """Validate the packet's source device type against its verb/code pair.
 
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
     """
-    if msg.src.type not in RAMSES_DEVICES:  # DEX  # TODO: fingerprint dev class
-        raise InvalidPacketError(f"Unknown src device type: {msg.src.id}")
 
-    if msg.src.type == "18":  # TODO: make a dynamic list if sensor/relay faking, DEX
-        if msg.code not in RAMSES_CODES:  # NOTE: HGI can send whatever it likes
-            raise InvalidPacketError(f"Unknown code for {msg.src.id} to Tx: {msg.code}")
+    #
+    #
+
+    if msg.src.type not in RAMSES_DEVICES:  # DEX, TODO: fingerprint dev class
+        if msg.code not in (_22F1, _22F3, _31D9, _31DA, _31E0):  # HVAC codes
+            raise InvalidPacketError(f"Unknown src device type: {msg.src.id}")
+        _LOGGER.warning(f"{msg._pkt} < Unknown src device type: {msg.src.id} (HVAC?)")
         return
 
-    # if msg.dst.type == "18":  # TODO: make a dynamic list if sensor/relay faking, DEX
-    #     return
+    #
+    #
+
+    #
+    #
 
     if msg.code not in RAMSES_DEVICES[msg.src.type]:  # DEX
-        raise InvalidPacketError(f"Invalid code for {msg.src.id} to Tx: {msg.code}")
+        if msg.src.type != "18":  # DEX
+            raise InvalidPacketError(f"Invalid code for {msg.src.id} to Tx: {msg.code}")
+        if msg.verb in (RQ, W_):  # DEX
+            return
+        _LOGGER.warning(f"{msg._pkt} < Invalid code for {msg.src.id} to Tx: {msg.code}")
+        return
 
+    #
+    #
+    #
+    #
+
+    #
     if msg.verb not in RAMSES_DEVICES[msg.src.type][msg.code]:  # DEX
         raise InvalidPacketError(
             f"Invalid verb/code for {msg.src.id} to Tx: {msg.verb}/{msg.code}"
         )
 
 
-def _check_verb_code_dst(msg) -> None:
-    """Validate the packet's verb/code pair against its destination device type.
+def _check_msg_dst(msg: Message) -> None:
+    """Validate the packet's destination device type against its verb/code pair.
 
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
     """
 
-    # check that the destination would normally respond...
-    if "18" in (msg.src.type, msg.dst.type) or msg.dst.type in ("--", "63"):  # DEX
-        return  # could omit this check to enforce strict checking
+    if msg.dst.type in ("--", "63"):  # or "18" in (msg.src.type, msg.dst.type):  # DEX
+        return  # TODO: HGI80s
 
-    if msg.dst.type not in RAMSES_DEVICES:  # DEX
-        raise InvalidPacketError(f"Unknown dst device type: {msg.dst.id}")
-
-    if msg.verb == I_:  # receiving an I isnt currently in the schema, so cant be tested
+    if msg.dst.type not in RAMSES_DEVICES:  # DEX, TODO: fingerprint dev class
+        if msg.code not in (_22F1, _22F3, _31D9, _31DA, _31E0):  # HVAC codes
+            raise InvalidPacketError(f"Unknown dst device type: {msg.dst.id}")
+        _LOGGER.warning(f"{msg._pkt} < Unknown dst device type: {msg.dst.id} (HVAC?)")
         return
 
-    # HACK: these exceptions-to-the-rule need sorting
+    if msg.verb == I_:  # TODO: not common, unless src=dst
+        return  # receiving an I isn't currently in the schema & cant yet be tested
+
     if f"{msg.dst.type}/{msg.verb}/{msg.code}" in (f"01/{RQ}/{_3EF1}",):  # DEX
-        return
+        return  # HACK: an exception-to-the-rule that need sorting
 
     if msg.code not in RAMSES_DEVICES[msg.dst.type]:  # NOTE: is not OK for Rx, DEX
-        #  I --- 04:253797 --:------ 01:063844 1060 003 056401
-        # HACK: these exceptions-to-the-rule need sorting
-        # if msg.code in (_1060, ):
-        #     return
-        raise InvalidPacketError(f"Invalid code for {msg.dst.id} to Rx: {msg.code}")
+        if msg.dst.type != "18":  # NOTE: not (yet) needed because of 1st if, DEX
+            raise InvalidPacketError(f"Invalid code for {msg.dst.id} to Rx: {msg.code}")
+        if msg.verb == RP:  # DEX
+            return
+        _LOGGER.warning(f"{msg._pkt} < Invalid code for {msg.dst.id} to Tx: {msg.code}")
+        return
 
-    # HACK: these exceptions-to-the-rule need sorting
     if f"{msg.verb}/{msg.code}" in (f"{W_}/{_0001}",):
-        return
-
-    # HACK: these exceptions-to-the-rule need sorting
+        return  # HACK: an exception-to-the-rule that need sorting
     if f"{msg.dst.type}/{msg.verb}/{msg.code}" in (f"13/{RQ}/{_3EF0}",):  # DEX
-        return
+        return  # HACK: an exception-to-the-rule that need sorting
 
     verb = {RQ: RP, RP: RQ, W_: I_}[msg.verb]
     if verb not in RAMSES_DEVICES[msg.dst.type][msg.code]:  # DEX
@@ -459,23 +478,31 @@ def _check_verb_code_dst(msg) -> None:
         )
 
 
-def _check_verb_code_payload(msg, payload) -> None:
-    """Validate the packet's verb/code pair against its payload.
+def _check_msg_payload(msg: Message, payload) -> None:
+    """Validate the packet's payload against its verb/code pair.
 
     Raise an InvalidPayloadError if the payload is invalid, otherwise simply return.
-    Some parsers may also raise InvalidPayloadError (e.g. 3220).
+
+    The HGI80-compatable devices can do what they like, but a warning is logged.
+    Some parsers may also raise InvalidPayloadError (e.g. 3220), albeit later on.
     """
 
-    # if self.code not in RAMSES_CODES:
-    #     raise InvalidPacketError(f"Unknown code: {msg.code}")
-
     try:
-        regex = RAMSES_CODES[msg.code][msg.verb]
-        if not re_compile_re_match(regex, payload) and msg.src.type != "18":  # DEX
-            raise InvalidPayloadError(f"Payload doesn't match '{regex}': {payload}")
-    except KeyError:
-        if "18" not in (msg.src.type, msg.dst.type):  # DEX
+        if msg.code not in RAMSES_CODES:
+            raise InvalidPacketError(f"Unknown code: {msg.code}")
+
+        try:
+            regex = RAMSES_CODES[msg.code][msg.verb]
+        except KeyError:
             raise InvalidPacketError(f"Unknown verb/code pair: {msg.verb}/{msg.code}")
+
+        if not re_compile_re_match(regex, payload):
+            raise InvalidPayloadError(f"Payload doesn't match '{regex}': {payload}")
+
+    except InvalidPacketError as exc:  # incl. InvalidPayloadError
+        if "18" not in (msg.src.type, msg.dst.type):  # DEX, HGI80 can do what it likes
+            raise exc
+        _LOGGER.warning(f"{msg._pkt} < {exc}")
 
     # TODO: put this back, or leave it to the parser?
     # if msg.code == _3220:

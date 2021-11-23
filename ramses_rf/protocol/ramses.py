@@ -832,8 +832,8 @@ RAMSES_DEVICES = {
         _3EF1: {RQ: {}},
     },
     "18": {
-        _3220: {RQ: {}},
-    },
+        _PUZZ: {I_: {}},
+    },  # HGI80s can do what they like
     "20": {  # HVAC: ventilation unit, or switch/sensor?
         _10E0: {I_: {}, RP: {}},
         _12A0: {RP: {}},
