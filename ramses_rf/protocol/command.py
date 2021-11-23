@@ -902,7 +902,7 @@ class Command(PacketBase):
     ):
         """Constructor to put a zone schedule fragment (c.f. parser_0404).
 
-        Usually a zone, but will be the DHW schedule if zone_idx == 0xFA, 'FA', or 'HW'..
+        Usually a zone, but will be the DHW schedule if zone_idx == 0xFA, 'FA', or 'HW'.
         """
 
         header = "00230008" if zone_idx == 0xFA else f"{zone_idx:02X}200008"
