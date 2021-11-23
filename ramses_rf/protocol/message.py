@@ -81,6 +81,8 @@ from .const import (  # noqa: F401, isort: skip
 
 __all__ = ["Message"]
 
+HVAC_ONLY_CODES = (_1298, _12A0, _12C8, _22F1, _22F3, _31D9, _31DA, _31E0)
+
 ATTR_ALIAS = "alias"  # duplicate
 
 CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
@@ -396,6 +398,10 @@ def re_compile_re_match(regex, string) -> bool:
     return re.compile(regex).match(string)
 
 
+# cat *.log | grep -E ' (16:|20:|29:|32:|37:|39:|44:)'         | grep -vE ' (\*|RQ|042F|1060|10E0|22F1|3120|313F) ' | grep -vE ' (1298|12A0|12C8|22F3|31D9|31DA|31E0) '^C
+# cat *.log | grep -E ' (1298|12A0|12C8|22F3|31D9|31DA|31E0) ' | grep -vE ' (RQ|30:|16:|20:|29:|32:|37:|39:|44:)'
+
+
 def _check_msg_src(msg: Message) -> None:
     """Validate the packet's source device type against its verb/code pair.
 
@@ -406,7 +412,7 @@ def _check_msg_src(msg: Message) -> None:
     #
 
     if msg.src.type not in RAMSES_DEVICES:  # DEX, TODO: fingerprint dev class
-        if msg.code not in (_22F1, _22F3, _31D9, _31DA, _31E0):  # HVAC codes
+        if msg.code not in HVAC_ONLY_CODES:
             raise InvalidPacketError(f"Unknown src device type: {msg.src.id}")
         _LOGGER.warning(f"{msg._pkt} < Unknown src device type: {msg.src.id} (HVAC?)")
         return
@@ -447,7 +453,7 @@ def _check_msg_dst(msg: Message) -> None:
         return  # TODO: HGI80s
 
     if msg.dst.type not in RAMSES_DEVICES:  # DEX, TODO: fingerprint dev class
-        if msg.code not in (_22F1, _22F3, _31D9, _31DA, _31E0):  # HVAC codes
+        if msg.code not in HVAC_ONLY_CODES:
             raise InvalidPacketError(f"Unknown dst device type: {msg.dst.id}")
         _LOGGER.warning(f"{msg._pkt} < Unknown dst device type: {msg.dst.id} (HVAC?)")
         return
