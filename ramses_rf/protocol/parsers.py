@@ -24,6 +24,11 @@ from .const import (
     ATTR_DHW_VALVE,
     ATTR_DHW_VALVE_HTG,
     ATTR_HTG_CONTROL,
+    BOOST_TIMER,
+    FAN_MODE,
+    FAN_MODES,
+    HEATER_MODE,
+    HEATER_MODES,
     SYSTEM_MODE,
     ZONE_MODE,
 )
@@ -1199,23 +1204,22 @@ def parser_22d9(payload, msg) -> Optional[dict]:
 
 
 @parser_decorator  # switch_mode
-def parser_22f1(payload, msg) -> Optional[dict]:
-    from ..devices import FanSwitch  # FIXME: remove cyclic reference
-
+def parser_22f1(payload, msg) -> Optional[dict]:  # FIXME
     # 11:42:43.149 081  I 051 --:------ --:------ 49:086353 22F1 003 000304
     # 11:42:49.587 071  I 052 --:------ --:------ 49:086353 22F1 003 000404
     # 11:42:49.685 072  I 052 --:------ --:------ 49:086353 22F1 003 000404
     # 11:42:49.784 072  I 052 --:------ --:------ 49:086353 22F1 003 000404
+
     # assert payload[:2] == "00", payload[:2]  # has no domain
     assert int(payload[2:4], 16) <= int(payload[4:], 16), "step_idx not <= step_max"
     # assert payload[4:] in ("04", "0A"), payload[4:]
 
     bitmap = int(payload[2:4], 16)
 
-    if bitmap in FanSwitch.FAN_MODES:
-        _action = {FanSwitch.FAN_MODE: FanSwitch.FAN_MODES[bitmap]}
+    if bitmap in FAN_MODES:
+        _action = {FAN_MODE: FAN_MODES[bitmap]}
     elif bitmap in {9, 10}:  # 00010001, 00010010
-        _action = {FanSwitch.HEATER_MODE: FanSwitch.HEATER_MODES[bitmap]}
+        _action = {HEATER_MODE: HEATER_MODES[bitmap]}
     else:
         _action = {}
 
@@ -1235,7 +1239,7 @@ def parser_22f3(payload, msg) -> Optional[dict]:
 
     if msg.len >= 3:
         result = {
-            "mode": "boost_timer",  # payload[2:4]
+            "mode": BOOST_TIMER,  # payload[2:4]
             "minutes": int(payload[4:6], 16),
         }
 

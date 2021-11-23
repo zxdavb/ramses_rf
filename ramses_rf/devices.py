@@ -21,9 +21,11 @@ from .protocol.const import (
     ATTR_SETPOINT,
     ATTR_TEMP,
     ATTR_WINDOW_OPEN,
+    BOOST_TIMER,
     DEVICE_CLASS,
     DEVICE_TYPES,
     DOMAIN_TYPE_MAP,
+    FAN_MODE,
     NUL_DEVICE_ID,
 )
 from .protocol.exceptions import CorruptStateError
@@ -1668,34 +1670,20 @@ class FanSwitch(BatteryState, Device):  # SWI (39): I/22F[13]
     _class = DEVICE_CLASS.SWI
     _types = ("39",)
 
-    BOOST_TIMER = "boost_timer"  # minutes, e.g. 10, 20, 30 minutes
-    HEATER_MODE = "heater_mode"  # e.g. auto, off
-    HEATER_MODES = {9: "off", 10: "auto"}  # TODO:
-
-    FAN_MODE = "fan_mode"  # e.g. low. high
-    FAN_MODES = {
-        0: "standby",
-        1: "auto",
-        2: "low",
-        3: "medium",
-        4: "high",  # a.k.a. boost if timer on
-    }
-    FAN_RATE = "fan_rate"  # percentage, 0.0 - 1.0
-
     @property
     def fan_mode(self) -> Optional[str]:
-        return self._msg_value(_22F1, key=self.FAN_MODE)
+        return self._msg_value(_22F1, key=FAN_MODE)
 
     @property
     def boost_timer(self) -> Optional[int]:
-        return self._msg_value(_22F3, key=self.BOOST_TIMER)
+        return self._msg_value(_22F3, key=BOOST_TIMER)
 
     @property
     def status(self) -> dict:
         return {
             **super().status,
-            self.FAN_MODE: self.fan_mode,
-            self.BOOST_TIMER: self.boost_timer,
+            FAN_MODE: self.fan_mode,
+            BOOST_TIMER: self.boost_timer,
         }
 
 

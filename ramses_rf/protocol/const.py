@@ -582,3 +582,18 @@ class SystemModes((AttrDict)):
 
 
 SYSTEM_MODE = SystemModes(_SYSTEM_MODES)
+
+# used by 22Fx parser, and FanSwitch devices
+BOOST_TIMER = "boost_timer"  # minutes, e.g. 10, 20, 30 minutes
+HEATER_MODE = "heater_mode"  # e.g. auto, off
+HEATER_MODES = {9: "off", 10: "auto"}  # TODO:
+
+FAN_MODE = "fan_mode"  # e.g. low. high
+FAN_MODES = {
+    0: "standby",
+    1: "auto",
+    2: "low",
+    3: "medium",
+    4: "high",  # a.k.a. boost if timer on
+}
+FAN_RATE = "fan_rate"  # percentage, 0.0 - 1.0
