@@ -1169,7 +1169,27 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
 
     @property
     def temperature(self) -> Optional[float]:  # 1260
-        return self._msg_value(_1260, key=self.TEMPERATURE)
+        result = None
+        try:
+            result = self._msg_value(_1260, key=self.TEMPERATURE)
+        except (
+            ArithmeticError,  # incl. ZeroDivisionError,
+            AssertionError,
+            AttributeError,
+            IndexError,
+            LookupError,  # incl. IndexError, KeyError
+            NameError,  # incl. UnboundLocalError
+            RuntimeError,  # incl. RecursionError
+            TypeError,
+            ValueError,
+        ) as exc:
+            _LOGGER.exception(exc)
+
+        if result is None:
+            msg = self._msgs.get(_1260)
+            _LOGGER.info(f"DHW msg = {msg!r}")
+            result = msg.payload.get(self.TEMPERATURE)
+        return result
 
     @property
     def params(self) -> dict:
