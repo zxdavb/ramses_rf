@@ -1159,6 +1159,8 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
     def _handle_msg(self, msg) -> None:  # NOTE: active
         super()._handle_msg(msg)
 
+        _LOGGER.debug(f"{msg._pkt} < handling (00)")  # HACK: lloyda
+
         if msg.code == _1260 and self._ctl and not self._gwy.config.disable_sending:
             # device can be instatiated with a CTL
             self._send_cmd(Command.get_dhw_temp(self._ctl.id))
