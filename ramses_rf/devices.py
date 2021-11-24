@@ -1188,7 +1188,8 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
         if result is None:
             msg = self._msgs.get(_1260)
             _LOGGER.info(f"DHW msg = {msg!r}")
-            result = msg.payload.get(self.TEMPERATURE)
+            if msg:
+                result = msg.payload.get(self.TEMPERATURE)
         return result
 
     @property
