@@ -212,8 +212,10 @@ def parser_0005(payload, msg) -> Optional[dict]:  # TODO: needs a cleanup
     #  I --- 34:064023 --:------ 34:064023 0005 012 000A0000-000F0000-00100000
 
     def _parser(seqx) -> dict:
-        if msg.src.type == "02":  # seqx[2:4] == _0005_ZONE.UFH:
+        if msg.src.type == "02":  # DEX, or use: seqx[2:4] == _0005_ZONE.UFH:
             zone_mask = flag8(seqx[6:8], lsb=True)
+        elif msg.len == 3:  # ATC928G1000 - 1st gen monochrome model, max 8 zones
+            zone_mask = flag8(seqx[4:6], lsb=True)
         else:
             zone_mask = flag8(seqx[4:6], lsb=True) + flag8(seqx[6:8], lsb=True)
         return {
