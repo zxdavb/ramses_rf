@@ -178,10 +178,18 @@ def parser_0001(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # sensor_weather
 def parser_0002(payload, msg) -> Optional[dict]:
-    # I --- 03:125829 --:------ 03:125829 0002 004 03020105  # seems to be faked
+    # seen with: 03:125829, 03:196221, 03:196196, 03:052382, 03:201498, 03:201565:
+    #  I 000 03:201565 --:------ 03:201565 0002 004 03020105  # no zone_idx, domain_id
 
-    assert msg.len == 4
+    # is it CODE_IDX_COMPLEX:
+    #  - 02...... for outside temp?
+    #  - 03...... for other stuff?
 
+    if msg.src.type == "03":  # payload[2:] == "03", DEX
+        assert payload == "03020105"
+        return {"_unknown": payload}
+
+    # if payload[6:] == "02":  # msg.src.type == "17":
     return {
         "temperature": temp_from_hex(payload[2:6]),
         "_unknown": payload[6:],
@@ -733,6 +741,7 @@ def parser_10e0(payload, msg) -> Optional[dict]:
             assert payload[2:20] in (
                 "0002FF0119FFFFFFFF",  # EvoTouch Colour
                 "0002FF0163FFFFFFFF",  # Evo Color
+                "0002FFFF17FFFFFFFF",  # Evo Monochrone (?prototype)
             ), payload[2:20]
         elif msg.src.type == "02":  # DEX
             assert payload[2:20] in (
@@ -1328,6 +1337,11 @@ def parser_2349(payload, msg) -> Optional[dict]:
     # TODO: remove me...
 
     return result
+
+
+@parser_decorator  # unknown
+def parser_2389(payload, msg) -> Optional[dict]:
+    return {"_unknown": temp_from_hex(payload[2:6])}
 
 
 @parser_decorator  # hometronics _state (of unknwon)

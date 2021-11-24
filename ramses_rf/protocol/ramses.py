@@ -63,6 +63,7 @@ from .const import (  # noqa: F401, isort: skip
     _22F3,
     _2309,
     _2349,
+    _2389,
     _2400,
     _2401,
     _2410,
@@ -111,11 +112,10 @@ RAMSES_CODES = {  # rf_unknown
         I_: r"^00FFFF02(00|FF)$",  # loopback
         W_: r"^(0[0-9A-F]|F[CF])000005(01|05)$",
     },  # TODO: there appears to be a dodgy? RQ/RP for UFC
-    _0002: {  # WIP: outdoor_sensor
+    _0002: {  # WIP: outdoor_sensor - CODE_IDX_COMPLEX?
         NAME: "outdoor_sensor",
         I_: r"^0[0-4][0-9A-F]{4}(00|01|02|05)$",  # Domoticz sends ^02!!
         RQ: r"^00$",  # NOTE: sent by an RFG100
-        RP: r"^00[0-9A-F]{4}(00|01)$",  # 007FFF00 is null resp?
     },
     _0004: {  # zone_name
         NAME: "zone_name",
@@ -425,6 +425,11 @@ RAMSES_CODES = {  # rf_unknown
         # RQ --- 22:070483 01:063844 --:------ 2349 007 06-0708-03-000027
         EXPIRES: td(hours=4),
     },
+    _2389: {  # unknown - CODE_IDX_COMPLEX?
+        #  I 024 03:052382 --:------ 03:052382 2389 003 02001B
+        NAME: "unknown_2389",
+        I_: r"^0[0-4][0-9A-F]{4}$",
+    },
     _2400: {  # unknown
         NAME: "message_2400",
         RQ: r"^00$",
@@ -617,7 +622,7 @@ CODE_RQ_UNKNOWN.sort()  # or print(f"unknown  = {list(CODE_RQ_UNKNOWN)}\r\n")
 
 # IDX_COMPLEX - *usually has* a context, but doesn't satisfy criteria for IDX_SIMPLE:
 # all known codes are in one of IDX_COMPLEX, IDX_NONE, IDX_SIMPLE
-CODE_IDX_COMPLEX = [_0005, _000C, _1100, _3220]  # TODO: move 0005 to ..._NONE?
+CODE_IDX_COMPLEX = [_0005, _000C, _1100, _3220]  # TODO: 0005 to ..._NONE?
 
 # IDX_SIMPLE - *can have* a context, but sometimes not (usu. 00): only ever payload[:2],
 # either a zone_idx, domain_id or (UFC) circuit_idx (or array of such, i.e. seqx[:2])
@@ -640,7 +645,7 @@ CODE_IDX_NONE = [
     if k not in CODE_IDX_COMPLEX + CODE_IDX_SIMPLE
     and ((RQ in v and v[RQ][:3] == "^00") or (I_ in v and v[I_][:3] == "^00"))
 ]
-CODE_IDX_NONE.extend((_0001, _2E04, _31DA, _PUZZ))  # 31DA does appear to have an idx?
+CODE_IDX_NONE.extend((_0002, _2389, _2E04, _31DA))  # 31DA does appear to have an idx?
 #
 #
 _CODE_IDX_UNKNOWN = [
@@ -795,6 +800,7 @@ RAMSES_DEVICES_CLASS = {
 RAMSES_DEVICES = {
     "03": {  # e.g. HCF82/HCW82: Room Temperature Sensor
         _0001: {W_: {}},
+        _0002: {I_: {}},
         _0008: {I_: {}},
         _0009: {I_: {}},
         _1060: {I_: {}},
@@ -802,6 +808,7 @@ RAMSES_DEVICES = {
         _1F09: {I_: {}},
         _1FC9: {I_: {}},
         _2309: {I_: {}},
+        _2389: {I_: {}},
         _30C9: {I_: {}},
     },
     "08": {

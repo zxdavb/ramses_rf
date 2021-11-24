@@ -63,6 +63,7 @@ from .const import (  # noqa: F401, isort: skip
     _22F3,
     _2309,
     _2349,
+    _2389,
     _2D49,
     _2E04,
     _30C9,
@@ -216,6 +217,7 @@ class Message:
             _0418: "log_idx",  # can be 2 DHW zones per system
             _10A0: "dhw_idx",  # can be 2 DHW zones per system
             _22C9: "ufh_idx",  # UFH circuit
+            _2389: "other_idx",  # anachronistic
             _2D49: "other_idx",  # non-evohome: hometronics
             _31D9: "hvac_id",
             _31DA: "hvac_id",
@@ -228,10 +230,13 @@ class Message:
         if self.code in (_3220,):  # FIXME: should be _SIMPLE
             return {}
 
+        #  I 068 03:201498 --:------ 03:201498 30C9 003 0106D6 # rare
+
         #  I --- 00:034798 --:------ 12:126457 2309 003 0201F4
         if not {self.src.type, self.dst.type} & {
             "01",
             "02",
+            "03",  # ?remove (see above, rare)
             "12",
             "18",
             "22",
@@ -244,6 +249,7 @@ class Message:
         if self.src.type == self.dst.type and self.src.type not in (
             "01",
             "02",
+            "03",  # ?remove (see above, rare)
             "18",
             "23",
         ):  # DEX
