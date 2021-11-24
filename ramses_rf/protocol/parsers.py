@@ -739,9 +739,9 @@ def parser_10e0(payload, msg) -> Optional[dict]:
     try:
         if msg.src.type == "01":  # DEX
             assert payload[2:20] in (
-                "0002FF0119FFFFFFFF",  # EvoTouch Colour
-                "0002FF0163FFFFFFFF",  # Evo Color
-                "0002FFFF17FFFFFFFF",  # Evo Monochrone (?prototype)
+                "0002FF0119FFFFFFFF",  # ATC928-G3-0xx Evo Mk3 - EvoTouch Colour (WiFi, 12 zones)
+                "0002FF0163FFFFFFFF",  # ATP928-G2-080 Evo Mk2 - Color (no WiFi)
+                "0002FFFF17FFFFFFFF",  # ATC928-G1-000 Evo Mk1 - Monochrone (?prototype, 8 zones)
             ), payload[2:20]
         elif msg.src.type == "02":  # DEX
             assert payload[2:20] in (
