@@ -279,6 +279,7 @@ def update_config(config, known_list, block_list) -> dict:
             f"It is strongly recommended to use the {KNOWN_LIST} "
             f"as a whitelist (device_id filter), configure: {ENFORCE_KNOWNLIST} = True"
         )
+        _LOGGER.debug(f"known_list = {known_list}")
 
     else:
         _LOGGER.warning(
