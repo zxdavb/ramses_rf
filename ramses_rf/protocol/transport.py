@@ -112,7 +112,7 @@ def _str(value: ByteString) -> str:
             if c in VALID_CHARACTERS
         )
     except UnicodeDecodeError:
-        _LOGGER.warning("%s << Cant decode bytestream (ignoring)", value)
+        _LOGGER.warning("%s < Cant decode bytestream (ignoring)", value)
         return ""
     return result
 

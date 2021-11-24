@@ -188,13 +188,13 @@ class PacketBase:
             _len = CODES_WITH_ARRAYS[self.code][0]
             assert (
                 self.len % _len == 0
-            ), f"{self} << array has length ({self.len}) that is not multiple of {_len}"
+            ), f"{self} < array has length ({self.len}) that is not multiple of {_len}"
             assert (
                 self.src.type in ("12", "22") or self.src == self.dst  # DEX
-            ), f"{self} << array is from a non-controller (01)"
+            ), f"{self} < array is from a non-controller (01)"
             assert (
                 self.src.type not in ("12", "22") or self.dst.id == NON_DEVICE_ID  # DEX
-            ), f"{self} << array is from a non-controller (02)"
+            ), f"{self} < array is from a non-controller (02)"
             self._has_array_ = True
 
         #  I --- 10:040239 01:223036 --:------ 0009 003 000000        # not array
@@ -234,7 +234,7 @@ class PacketBase:
         #  I --- 12:010740 --:------ 12:010740 30C9 003 0008D9 # not ctl
         elif self.dst is self.src:  # (not needed?) & self.code == I_:
             _LOGGER.debug(
-                f"{self} << "
+                f"{self} < "
                 + ("HAS" if self.code in CODE_ONLY_FROM_CTL + [_31D9, _31DA] else "no")
                 + " controller (20)"
             )

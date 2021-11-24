@@ -368,20 +368,20 @@ class Message:
                 _LOGGER.exception
                 if DEV_MODE and self.src.type != "18"  # DEX
                 else _LOGGER.exception
-            )("%s << %s", self._pkt, f"{exc.__class__.__name__}({exc})")
+            )("%s < %s", self._pkt, f"{exc.__class__.__name__}({exc})")
 
         except InvalidPacketError as exc:
             (_LOGGER.exception if DEV_MODE else _LOGGER.warning)(
-                "%s << %s", self._pkt, exc
+                "%s < %s", self._pkt, exc
             )
 
         except (AttributeError, LookupError, TypeError, ValueError) as exc:  # TODO: dev
             _LOGGER.exception(
-                "%s << Coding error: %s", self._pkt, f"{exc.__class__.__name__}({exc})"
+                "%s < Coding error: %s", self._pkt, f"{exc.__class__.__name__}({exc})"
             )
 
         except NotImplementedError:  # parser_unknown (unknown packet code)
-            _LOGGER.warning("%s << Unknown packet code (cannot parse)", self._pkt)
+            _LOGGER.warning("%s < Unknown packet code (cannot parse)", self._pkt)
 
         else:
             # _LOGGER.error("%s", msg)

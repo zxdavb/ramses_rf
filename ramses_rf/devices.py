@@ -1309,7 +1309,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             elif self._supported_msg[msg_id] is None:
                 self._supported_msg[msg_id] = False
                 _LOGGER.warning(
-                    f"{msg._pkt} << OpenTherm: deprecating msg_id "
+                    f"{msg._pkt} < OpenTherm: deprecating msg_id "
                     f"0x{msg_id}: it appears unsupported",
                 )
 

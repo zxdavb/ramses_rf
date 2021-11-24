@@ -201,18 +201,18 @@ def process_msg(msg: Message) -> None:
 
     except (AssertionError, NotImplementedError) as exc:
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
-            "%s << %s", msg._pkt, f"{exc.__class__.__name__}({exc})"
+            "%s < %s", msg._pkt, f"{exc.__class__.__name__}({exc})"
         )
         return  # NOTE: use raise only when debugging
 
     except (AttributeError, LookupError, TypeError, ValueError) as exc:
         (_LOGGER.exception if DEV_MODE else _LOGGER.error)(
-            "%s << %s", msg._pkt, f"{exc.__class__.__name__}({exc})"
+            "%s < %s", msg._pkt, f"{exc.__class__.__name__}({exc})"
         )
         return  # NOTE: use raise only when debugging
 
     except CorruptStateError as exc:  # TODO: add CorruptEvohomeError
-        (_LOGGER.exception if DEV_MODE else _LOGGER.error)("%s << %s", msg._pkt, exc)
+        (_LOGGER.exception if DEV_MODE else _LOGGER.error)("%s < %s", msg._pkt, exc)
         return  # TODO: bad pkt, or Schema
 
     msg._gwy._prev_msg = msg

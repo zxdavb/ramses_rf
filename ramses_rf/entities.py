@@ -183,7 +183,7 @@ class Entity:
 
         assert (
             not domain_id and not zone_idx or msg_dict.get(idx) == val
-        ), f"{msg_dict} << Coding error: key={idx}, val={val}"
+        ), f"{msg_dict} < Coding error: key={idx}, val={val}"
 
         if key:
             return msg_dict.get(key)
