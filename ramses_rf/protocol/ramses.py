@@ -128,7 +128,7 @@ RAMSES_CODES = {  # rf_unknown
         #  I --- 34:092243 --:------ 34:092243 0005 012 000A0000-000F0000-00100000
         I_: r"^(00[01][0-9A-F]{5}){1,3}$",
         RQ: r"^00[01][0-9A-F]$",  # f"00{zone_type}", evohome wont respond to 00
-        RP: r"^00[01][0-9A-F]{3,5}$",
+        RP: r"^x00[01][0-9A-F]{3,5}$",
         EXPIRES: False,
     },
     _0006: {  # schedule_sync  # TODO: what for DHW schedule?
