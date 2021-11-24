@@ -261,20 +261,25 @@ def update_config(config, known_list, block_list) -> dict:
         config[ENFORCE_KNOWNLIST] = False
 
     if config[ENFORCE_KNOWNLIST]:
-        _LOGGER.debug(
+        _LOGGER.info(
             f"The {KNOWN_LIST} will be used "
             f"as a whitelist (device_id filter), length = {len(known_list)}"
         )
+        _LOGGER.debug(f"known_list = {known_list}")
+
     elif block_list:
-        _LOGGER.debug(
+        _LOGGER.info(
             f"The {BLOCK_LIST} will be used "
             f"as a blacklist (device_id filter), length = {len(block_list)}"
         )
+        _LOGGER.debug(f"block_list = {block_list}")
+
     elif known_list:
         _LOGGER.warning(
             f"It is strongly recommended to use the {KNOWN_LIST} "
             f"as a whitelist (device_id filter), configure: {ENFORCE_KNOWNLIST} = True"
         )
+
     else:
         _LOGGER.warning(
             f"It is strongly recommended to provide a {KNOWN_LIST}, and use it "
