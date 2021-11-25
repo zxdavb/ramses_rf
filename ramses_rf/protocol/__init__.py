@@ -4,7 +4,7 @@
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
 from .address import is_valid_dev_id
-from .command import Command, FaultLog, Priority
+from .command import CODE_API_MAP, Command, FaultLog, Priority
 from .logger import set_logger_timesource, set_pkt_logging
 from .message import Message
 from .packet import _PKT_LOGGER, Packet

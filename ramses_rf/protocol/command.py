@@ -940,7 +940,7 @@ class Command(PacketBase):
 
 
 # A convenience dict
-_COMMANDS = {
+CODE_API_MAP = {
     f"{I_}/{_0002}": Command.put_outdoor_temp,
     f"{RQ}/{_0004}": Command.get_zone_name,
     f"{W_}/{_0004}": Command.set_zone_name,

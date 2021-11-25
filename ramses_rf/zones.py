@@ -23,7 +23,7 @@ from .devices import (
     UfhController,
 )
 from .entities import Entity, discover_decorator
-from .protocol import Command, Schedule
+from .protocol import CODE_API_MAP, Command, Schedule
 from .protocol.const import (
     _000C_DEVICE,
     ATTR_DEVICES,
@@ -293,7 +293,17 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:
-        # super()._discover(discover_flag=discover_flag)
+        def send_code(code, minutes=2) -> None:
+            """Don't send an api if there is a recent msg in the database.
+
+            Primarily for HA startup (restore_cache) to avoid exceeding RF duty cycles.
+            """
+
+            if (
+                not (msg := self._msgs.get(code))
+                or msg._pkt.dtm + td(minutes=minutes) < dt.now()
+            ):
+                self._send_cmd(CODE_API_MAP[f"{RQ}/{code}"](self._ctl.id, self.idx))
 
         if discover_flag & Discover.SCHEMA:
             for dev_type in (
@@ -307,11 +317,16 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
                     self._make_cmd(_000C, payload=dev_type)
 
         if discover_flag & Discover.PARAMS:
-            self._send_cmd(Command.get_dhw_params(self._ctl.id))
+            # self._send_cmd(Command.get_dhw_params(self._ctl.id))
+            [send_code(code, 15) for code in (_10A0,)]
 
         if discover_flag & Discover.STATUS:
-            self._send_cmd(Command.get_dhw_mode(self._ctl.id))
-            self._send_cmd(Command.get_dhw_temp(self._ctl.id))
+            # self._send_cmd(Command.get_dhw_mode(self._ctl.id))
+            # self._send_cmd(Command.get_dhw_temp(self._ctl.id))
+            [send_code(code) for code in (_1260, _1F41)]
+
+        # start collecting the schedule
+        # self._schedule.req_schedule()  # , restart=True) start collecting schedule
 
     def _handle_msg(self, msg) -> None:
         assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
@@ -510,7 +525,17 @@ class Zone(ZoneSchedule, ZoneBase):
 
     @discover_decorator  # NOTE: can mean is double-decorated
     def _discover(self, discover_flag=Discover.ALL) -> None:
-        super()._discover(discover_flag=discover_flag)
+        def send_code(code, minutes=2) -> None:
+            """Don't send an api if there is a recent msg in the database.
+
+            Primarily for HA startup (restore_cache) to avoid exceeding RF duty cycles.
+            """
+
+            if (
+                not (msg := self._msgs.get(code))
+                or msg._pkt.dtm + td(minutes=minutes) < dt.now()
+            ):
+                self._send_cmd(CODE_API_MAP[f"{RQ}/{code}"](self._ctl.id, self.idx))
 
         # TODO: add code to determine zone type if it doesn't have one, using 0005s
         if discover_flag & Discover.SCHEMA:
@@ -521,13 +546,15 @@ class Zone(ZoneSchedule, ZoneBase):
                     self._make_cmd(_000C, payload=f"{self.idx}{dev_type}")
 
         if discover_flag & Discover.PARAMS:
-            self._send_cmd(Command.get_zone_config(self._ctl.id, self.idx))
-            self._send_cmd(Command.get_zone_name(self._ctl.id, self.idx))
+            # self._send_cmd(Command.get_zone_config(self._ctl.id, self.idx))
+            # self._send_cmd(Command.get_zone_name(self._ctl.id, self.idx))
+            [send_code(code, 15) for code in (_0004, _000A)]
 
         if discover_flag & Discover.STATUS:  # every 1h, CTL will not respond to a 3150
-            self._send_cmd(Command.get_zone_mode(self._ctl.id, self.idx))
-            self._send_cmd(Command.get_zone_temp(self._ctl.id, self.idx))
-            self._send_cmd(Command.get_zone_window_state(self._ctl.id, self.idx))
+            # self._send_cmd(Command.get_zone_mode(self._ctl.id, self.idx))
+            # self._send_cmd(Command.get_zone_temp(self._ctl.id, self.idx))
+            # self._send_cmd(Command.get_zone_window_state(self._ctl.id, self.idx))
+            [send_code(code) for code in (_12B0, _2349, _30C9)]
 
         # start collecting the schedule
         # self._schedule.req_schedule()  # , restart=True) start collecting schedule
