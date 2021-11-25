@@ -75,6 +75,9 @@ class Entity:
         ):
             self._qos_function(msg._pkt, reset=True)
 
+        if msg.verb in (I_, RP):
+            self._msgs[msg.code] = msg
+
         if msg.code not in self._msgz:
             self._msgz[msg.code] = {msg.verb: {msg._pkt._ctx: msg}}
         elif msg.verb not in self._msgz[msg.code]:
@@ -96,9 +99,6 @@ class Entity:
         #         f"\r\n{self._msgz[msg.code][RP][msg._pkt._idx]._pkt} ({msg._pkt._idx})"
         #     )
         #     del self._msgz[msg.code][RP][msg._pkt._idx]
-
-        if msg.verb in (I_, RP):  # TODO: deprecate
-            self._msgs[msg.code] = msg
 
     @property
     def _msg_db(self) -> List:  # a flattened version of _msgz[code][verb][indx]
