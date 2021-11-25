@@ -527,7 +527,7 @@ class PacketProtocolPort(PacketProtocolBase):
         self._transport.write(bytes("!V\r\n".encode("ascii")))
 
         # add this to start of the pkt log, if any
-        if not self._disable_sending:
+        if not self._disable_sending:  # TODO: use a callback
             self._loop.create_task(self.send_data(Command._puzzle()))
 
         self.resume_writing()
