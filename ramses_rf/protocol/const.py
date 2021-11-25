@@ -475,9 +475,10 @@ _000C_DEVICE_TYPE = {
 _0418_DEVICE_CLASS = {
     "00": "controller",
     "01": "sensor",
+    # "02": "_unknown",
     "04": "actuator",  # if domain is FC, then "boiler_relay"
     "05": "dhw_sensor",  # not ATTR_DHW_SENSOR
-    "06": "remote_gateway",  # 30:185469
+    "06": "remote_gateway",
 }
 _0418_FAULT_STATE = {
     "00": "fault",
