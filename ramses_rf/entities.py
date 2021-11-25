@@ -6,9 +6,73 @@
 import logging
 from typing import List
 
-from .const import Discover, __dev_mode__
+from .const import DHW_HACK, Discover, __dev_mode__
 
 from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip
+from .protocol import (  # noqa: F401, isort: skip
+    _0001,
+    _0002,
+    _0004,
+    _0005,
+    _0006,
+    _0008,
+    _0009,
+    _000A,
+    _000C,
+    _000E,
+    _0016,
+    _0100,
+    _01D0,
+    _01E9,
+    _0404,
+    _0418,
+    _042F,
+    _0B04,
+    _1030,
+    _1060,
+    _1081,
+    _1090,
+    _10A0,
+    _10E0,
+    _1100,
+    _1260,
+    _1280,
+    _1290,
+    _1298,
+    _12A0,
+    _12B0,
+    _12C0,
+    _12C8,
+    _12F0,
+    _1300,
+    _1F09,
+    _1F41,
+    _1FC9,
+    _1FD4,
+    _2249,
+    _22C9,
+    _22D0,
+    _22D9,
+    _22F1,
+    _22F3,
+    _2309,
+    _2349,
+    _2389,
+    _2D49,
+    _2E04,
+    _30C9,
+    _3120,
+    _313F,
+    _3150,
+    _31D9,
+    _31DA,
+    _31E0,
+    _3220,
+    _3B00,
+    _3EF0,
+    _3EF1,
+    _PUZZ,
+)
 
 DEFAULT_BDR_ID = "13:000730"
 DEFAULT_EXT_ID = "17:000730"
@@ -69,6 +133,9 @@ class Entity:
         pass
 
     def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess
+        if DHW_HACK and msg.code == _1260:
+            _LOGGER.debug(f"{msg._pkt} < handling (12)")  # HACK: lloyda
+
         if (
             self._gwy.pkt_protocol is None
             or msg.src.id != self._gwy.pkt_protocol._hgi80.get("device_id")
@@ -130,6 +197,8 @@ class Entity:
         self._gwy.send_cmd(cmd)
 
     def _msg_value(self, code, *args, **kwargs) -> dict:
+        if DHW_HACK and code == _1260:
+            _LOGGER.debug(f"{self._msgs.get(code)} < handling (20)")  # HACK: lloyda
 
         if isinstance(code, (str, tuple)):  # a code or a tuple of codes
             return self._msg_value_code(code, *args, **kwargs)

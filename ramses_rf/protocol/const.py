@@ -9,6 +9,8 @@ from types import SimpleNamespace
 __dev_mode__ = False
 DEV_MODE = __dev_mode__
 
+DHW_HACK = True
+
 
 def slug(string: str) -> str:
     return re.sub(r"[\W_]+", "_", string.lower())

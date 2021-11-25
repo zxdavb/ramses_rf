@@ -9,7 +9,7 @@ from random import randint
 from sys import modules
 from typing import Dict, Optional
 
-from .const import ATTR_ALIAS, ATTR_CLASS, ATTR_FAKED, Discover, __dev_mode__
+from .const import ATTR_ALIAS, ATTR_CLASS, ATTR_FAKED, DHW_HACK, Discover, __dev_mode__
 from .entities import Entity, discover_decorator
 from .protocol import Command, Priority  # TODO: constants to const.py
 from .protocol.address import NON_DEV_ADDR, id_to_address
@@ -91,6 +91,7 @@ from .protocol import (  # noqa: F401, isort: skip
     _22F3,
     _2309,
     _2349,
+    _2389,
     _2D49,
     _2E04,
     _30C9,
@@ -239,6 +240,8 @@ class DeviceBase(Entity):
         return ctl
 
     def _handle_msg(self, msg) -> None:
+        if DHW_HACK and msg.code == _1260:
+            _LOGGER.debug(f"{msg._pkt} < handling (11)")  # HACK: lloyda
         assert msg.src is self, f"msg inappropriately routed to {self}"
         super()._handle_msg(msg)
 
@@ -339,16 +342,18 @@ class Device(DeviceInfo, DeviceBase):
     DEVICE_TYPES = tuple()
 
     def _handle_msg(self, msg) -> None:
+        if DHW_HACK and msg.code == _1260:
+            _LOGGER.debug(f"{msg._pkt} < handling (10)")  # HACK: lloyda
         super()._handle_msg(msg)
 
         if type(self) is Device and self.type == "30":  # self.__class__ is Device, DEX
             # TODO: the RFG codes need checking
             if msg.code in (_31D9, _31DA, _31E0) and msg.verb in (I_, RP):
-                self.__class__ = FanDevice
+                self.__class__ = HvacVentilator
             elif msg.code in (_0006, _0418, _3220) and msg.verb == RQ:
-                self.__class__ = RFGateway
+                self.__class__ = RfgGateway
             elif msg.code in (_313F,) and msg.verb == W_:
-                self.__class__ = RFGateway
+                self.__class__ = RfgGateway
 
         if not msg._gwy.config.enable_eavesdrop:
             return
@@ -800,14 +805,14 @@ class RelayDemand(Fakeable):  # 0008 (fakeable)
         }
 
 
-class RFGateway(DeviceInfo, DeviceBase):  # RFG (30:)
+class RfgGateway(DeviceInfo, DeviceBase):  # RFG (30:)
     """The RFG100 base class."""
 
     _class = DEVICE_CLASS.RFG
     _types = ("30",)
 
 
-class HGInterface(DeviceBase):  # HGI (18:), was GWY
+class HgiGateway(DeviceBase):  # HGI (18:), was GWY
     """The HGI80 base class."""
 
     _class = DEVICE_CLASS.HGI
@@ -1157,12 +1162,18 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
         return f"{self.id} ({self._domain_id}): {self.temperature}"
 
     def _handle_msg(self, msg) -> None:  # NOTE: active
+        if DHW_HACK:
+            _LOGGER.debug(f"{msg._pkt} < handling (00)")  # HACK: lloyda
+            _LOGGER.debug(f"msgs = {self._msgs}")
+
         super()._handle_msg(msg)
 
-        _LOGGER.debug(f"{msg._pkt} < handling (00)")  # HACK: lloyda
+        if DHW_HACK:
+            _LOGGER.debug(f"{msg._pkt} < handled. (00)")  # HACK: lloyda
+            _LOGGER.debug(f"msgs = {self._msgs}")
 
         if msg.code == _1260 and self._ctl and not self._gwy.config.disable_sending:
-            # device can be instatiated with a CTL
+            # device can be instantiated with a CTL
             self._send_cmd(Command.get_dhw_temp(self._ctl.id))
 
     @property
@@ -1172,7 +1183,7 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
     @property
     def temperature(self) -> Optional[float]:  # 1260
         result = None
-        try:
+        try:  # HACK: lloyda
             result = self._msg_value(_1260, key=self.TEMPERATURE)
         except (
             ArithmeticError,  # incl. ZeroDivisionError,
@@ -1187,11 +1198,15 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
         ) as exc:
             _LOGGER.exception(exc)
 
-        if result is None:
+        if DHW_HACK and result is None:  # HACK: lloyda
             msg = self._msgs.get(_1260)
-            _LOGGER.info(f"DHW msg = {msg!r}")
+            _LOGGER.info(f"DHW msg 1 = {msg!r}")
             if msg:
                 result = msg.payload.get(self.TEMPERATURE)
+            else:
+                _LOGGER.info(f"DHW msg 2 = {msg!r}")
+                _LOGGER.debug(f"msgs = {self._msgs}")
+                _LOGGER.debug(f"msgz = {self._msgz}")
         return result
 
     @property
@@ -1619,7 +1634,7 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature, Device):  # T
     """The TRV class, such as a HR92."""
 
     _class = DEVICE_CLASS.TRV
-    _types = ("00", "04")
+    _types = ("00", "04")  # TODO: keep 00?
 
     WINDOW_OPEN = ATTR_WINDOW_OPEN  # boolean
     # _STATE = HEAT_DEMAND
@@ -1639,7 +1654,42 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature, Device):  # T
         }
 
 
-class FanSwitch(BatteryState, Device):  # SWI (39): I/22F[13]
+class HvacHumidity(BatteryState, Device):  # HUM (32) I/12(98|A0)
+    """The Sensor class for a humidity sensor.
+
+    The cardinal code is 12A0.
+    """
+
+    _class = DEVICE_CLASS.HUM
+    _types = tuple()  # ("32",)
+
+    REL_HUMIDITY = "relative_humidity"  # percentage (0.0-1.0)
+    TEMPERATURE = "temperature"  # celsius
+    DEWPOINT_TEMP = "dewpoint_temp"  # celsius
+
+    @property
+    def relative_humidity(self) -> Optional[float]:
+        return self._msg_value(_12A0, key=self.REL_HUMIDITY)
+
+    @property
+    def temperature(self) -> Optional[float]:
+        return self._msg_value(_12A0, key=self.TEMPERATURE)
+
+    @property
+    def dewpoint_temp(self) -> Optional[float]:
+        return self._msg_value(_12A0, key=self.DEWPOINT_TEMP)
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            self.REL_HUMIDITY: self.relative_humidity,
+            self.TEMPERATURE: self.temperature,
+            self.DEWPOINT_TEMP: self.dewpoint_temp,
+        }
+
+
+class HvacSwitch(BatteryState, Device):  # SWI (39): I/22F[13]
     """The FAN (switch) class, such as a 4-way switch.
 
     The cardinal codes are 22F1, 22F3.
@@ -1650,7 +1700,7 @@ class FanSwitch(BatteryState, Device):  # SWI (39): I/22F[13]
     # RP --- 30:079129 32:166025 --:------ 31DA 029 21EF00026036EF7FFF7FFF7FFF7FFF0002EF18FFFF000000EF7FFF7FFF
 
     _class = DEVICE_CLASS.SWI
-    _types = ("39",)
+    _types = tuple()  # ("39",)
 
     @property
     def fan_mode(self) -> Optional[str]:
@@ -1669,7 +1719,7 @@ class FanSwitch(BatteryState, Device):  # SWI (39): I/22F[13]
         }
 
 
-class FanDevice(Device):  # FAN (20/37): RP/31DA, I/31D[9A]
+class HvacVentilator(Device):  # FAN (20/37): RP/31DA, I/31D[9A]
     """The Ventilation class.
 
     The cardinal code are 31D9, 31DA.  Signature is RP/31DA.
@@ -1683,7 +1733,7 @@ class FanDevice(Device):  # FAN (20/37): RP/31DA, I/31D[9A]
     # 30:079129 --:------ 30:079129 31D9 017 2100FF0000000000000000000000000000
 
     _class = DEVICE_CLASS.FAN
-    _types = ("20", "37")
+    _types = tuple()  # ("20", "37")
 
     @property
     def fan_rate(self) -> Optional[float]:
@@ -1723,41 +1773,6 @@ class FanDevice(Device):  # FAN (20/37): RP/31DA, I/31D[9A]
         }
 
 
-class FanSensorHumidity(BatteryState, Device):  # HUM (32) I/12(98|A0)
-    """The Sensor class for a humidity sensor.
-
-    The cardinal code is 12A0.
-    """
-
-    _class = DEVICE_CLASS.HUM
-    _types = ("32",)
-
-    REL_HUMIDITY = "relative_humidity"  # percentage (0.0-1.0)
-    TEMPERATURE = "temperature"  # celsius
-    DEWPOINT_TEMP = "dewpoint_temp"  # celsius
-
-    @property
-    def relative_humidity(self) -> Optional[float]:
-        return self._msg_value(_12A0, key=self.REL_HUMIDITY)
-
-    @property
-    def temperature(self) -> Optional[float]:
-        return self._msg_value(_12A0, key=self.TEMPERATURE)
-
-    @property
-    def dewpoint_temp(self) -> Optional[float]:
-        return self._msg_value(_12A0, key=self.DEWPOINT_TEMP)
-
-    @property
-    def status(self) -> dict:
-        return {
-            **super().status,
-            self.REL_HUMIDITY: self.relative_humidity,
-            self.TEMPERATURE: self.temperature,
-            self.DEWPOINT_TEMP: self.dewpoint_temp,
-        }
-
-
 _CLASS = "_class"
 DEVICE_BY_CLASS = {
     getattr(c[1], _CLASS): c[1]
@@ -1765,7 +1780,7 @@ DEVICE_BY_CLASS = {
         modules[__name__],
         lambda m: isclass(m) and m.__module__ == __name__ and hasattr(m, _CLASS),
     )
-}  # e.g. "CTL": Controller
+}  # Every device class has a {klass: class}, e.g.: "CTL": Controller
 
 DEVICE_BY_ID_TYPE = {
     k1: v2
