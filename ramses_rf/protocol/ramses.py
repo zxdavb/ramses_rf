@@ -236,7 +236,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     _1060: {  # device_battery
         NAME: "device_battery",
-        I_: r"^0[0-9A-F](FF|[0-9A-F]{2})0[01]$",
+        I_: r"^0[0-9A-F](FF|[0-9A-F]{2})0[01]$",  # HCW: r"^(FF|0[0-9A-F]...
         EXPIRES: td(days=1),
     },
     _1081: {  # max_ch_setpoint
@@ -664,10 +664,10 @@ CODE_IDX_DOMAIN = {  # not necc. mutex
     _3B00: "^FC",
 }
 #
-CODE_IDX_COMPLEX.sort()  # or print(f"complex = {CODE_IDX_COMPLEX}")  # TODO: remove
-CODE_IDX_NONE.sort()  # or print(f"none    = {CODE_IDX_NONE}")  # TODO: remove
-CODE_IDX_SIMPLE.sort()  # or print(f"simple  = {CODE_IDX_SIMPLE}")  # TODO: remove
-_CODE_IDX_UNKNOWN.sort()  # or print(f"unknown = {_CODE_IDX_UNKNOWN}")  # TODO: remove
+CODE_IDX_COMPLEX.sort()  # or print(f"complex = {CODE_IDX_COMPLEX}")
+CODE_IDX_NONE.sort()  # or print(f"none    = {CODE_IDX_NONE}")
+CODE_IDX_SIMPLE.sort()  # or print(f"simple  = {CODE_IDX_SIMPLE}")
+_CODE_IDX_UNKNOWN.sort()  # or print(f"unknown = {_CODE_IDX_UNKNOWN}")
 # print(f"domains = {list(CODE_IDX_DOMAIN)}")
 
 ################
