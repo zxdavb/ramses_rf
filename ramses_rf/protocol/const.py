@@ -475,7 +475,7 @@ _000C_DEVICE_TYPE = {
 _0418_DEVICE_CLASS = {
     "00": "controller",
     "01": "sensor",
-    # "02": "_unknown",
+    "02": "setpoint",
     "04": "actuator",  # if domain is FC, then "boiler_relay"
     "05": "dhw_sensor",  # not ATTR_DHW_SENSOR
     "06": "remote_gateway",
