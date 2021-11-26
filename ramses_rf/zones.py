@@ -303,7 +303,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
                 not (msg := self._msgs.get(code))
                 or msg._pkt.dtm + td(minutes=minutes) < dt.now()
             ):
-                self._send_cmd(CODE_API_MAP[f"{RQ}/{code}"](self._ctl.id, self.idx))
+                self._send_cmd(CODE_API_MAP[f"{RQ}/{code}"](self._ctl.id))
 
         if discover_flag & Discover.SCHEMA:
             for dev_type in (
