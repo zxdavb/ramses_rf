@@ -117,6 +117,7 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Optional(ENFORCE_KNOWNLIST, default=None): vol.Any(None, bool),
         vol.Optional(USE_ALIASES, default=None): vol.Any(None, bool),
         vol.Optional(EVOFW_FLAG, default=None): vol.Any(None, str),
+        vol.Optional("use_regex", default={}): dict(),
     },
     extra=vol.ALLOW_EXTRA,  # TODO: remove for production
 )
@@ -246,6 +247,13 @@ def load_config(
 
     update_config(config, known_list, block_list)
     config = SimpleNamespace(**config)
+
+    # # TODO: remove
+    # config.use_regex.update(
+    #     {
+    #         "( 03:.* 03:.* (1060|2389|30C9) 003) ..": "\\1 00",
+    #     }
+    # )
 
     return (config, schema, known_list, block_list)
 
