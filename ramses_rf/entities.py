@@ -189,11 +189,11 @@ class Entity:
             _LOGGER.info(f"{cmd} < Sending is deprecated for {self}")
             return
 
-        # if getattr(self, "has_battery", None):
-        #     return
+        if getattr(self, "has_battery", None):
+            _LOGGER.warning(f"{cmd} < Sending inadvisable for {self} (has a battery)")
 
         cmd._source_entity = self
-        self._msgs.pop(cmd.code, None)  # TODO: remove, so we can tell if RP'd rcvd
+        # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
         self._gwy.send_cmd(cmd)
 
     def _msg_value(self, code, *args, **kwargs) -> dict:
