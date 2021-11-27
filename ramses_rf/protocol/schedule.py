@@ -15,7 +15,7 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 from typing import Optional
 
-from .command import Command
+from .command import FUNC, TIMEOUT, TIMER_LONG_TIMEOUT, TIMER_SHORT_SLEEP, Command
 from .exceptions import ExpiredCallbackError
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
@@ -80,7 +80,9 @@ from .const import (  # noqa: F401, isort: skip
     _PUZZ,
 )
 
-COMMAND_FORMAT = "{:<2} {} {} {} {} {} {:03d} {}"
+
+ZONE_IDX = "zone_idx"
+MSG = "msg"
 
 DAY_OF_WEEK = "day_of_week"
 HEAT_SETPOINT = "heat_setpoint"
@@ -88,30 +90,13 @@ SWITCHPOINTS = "switchpoints"
 TIME_OF_DAY = "time_of_day"
 
 SCHEDULE = "schedule"
-ZONE_IDX = "zone_idx"
-
-TIMER_SHORT_SLEEP = 0.05
-TIMER_LONG_TIMEOUT = td(seconds=60)
 
 FIVE_MINS = td(minutes=5)
-
-CALLBACK = "callback"
-DEAMON = "daemon"
-EXPIRES = "expires"
-FUNC = "func"
-ARGS = "args"
-
-QOS = "qos"
-DISABLE_BACKOFF = "disable_backoff"
-PRIORITY = "priority"
-RETRIES = "retries"
-TIMEOUT = "timeout"
-QOS_KEYS = (DISABLE_BACKOFF, PRIORITY, RETRIES, TIMEOUT)
 
 FRAGMENT = "fragment"
 FRAG_INDEX = "frag_index"
 FRAG_TOTAL = "frag_total"
-MSG = "msg"
+
 
 DEV_MODE = __dev_mode__ and False
 
