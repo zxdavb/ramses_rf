@@ -193,9 +193,20 @@ class MessageTransport(asyncio.Transport):
             try:
                 p.data_received(msg)
             except CorruptStateError as exc:
-                _LOGGER.error("Exception in callback to application layer: %s", exc)
-            except:  # noqa: E722  # TODO: remove broad-except
-                _LOGGER.exception("Exception in callback to application layer")
+                _LOGGER.error("%s < %s", pkt, exc)
+            # except Exception as exc:  # noqa: E722, broad-except
+            except (
+                ArithmeticError,  # incl. ZeroDivisionError,
+                AssertionError,
+                AttributeError,
+                IndexError,
+                LookupError,  # incl. IndexError, KeyError
+                NameError,  # incl. UnboundLocalError
+                RuntimeError,  # incl. RecursionError
+                TypeError,
+                ValueError,
+            ) as exc:
+                _LOGGER.exception("%s < exception from app layer: %s", pkt, exc)
 
     def close(self):
         """Close the transport.

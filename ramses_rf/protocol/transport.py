@@ -398,8 +398,19 @@ class PacketProtocolBase(asyncio.Protocol):
                 self._callback(pkt)  # only wanted PKTs to the MSG transport's handler
             except InvalidPacketError as exc:
                 _LOGGER.error("%s < %s", pkt, exc)
-            except:  # noqa: E722  # TODO: remove broad-except
-                _LOGGER.exception("Exception in callback to message layer")
+            # except Exception as exc:  # noqa: E722, broad-except
+            except (
+                ArithmeticError,  # incl. ZeroDivisionError,
+                AssertionError,
+                AttributeError,
+                IndexError,
+                LookupError,  # incl. IndexError, KeyError
+                NameError,  # incl. UnboundLocalError
+                RuntimeError,  # incl. RecursionError
+                TypeError,
+                ValueError,
+            ) as exc:
+                _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
 
     def _line_received(self, dtm: dt, line: str, raw_line: ByteString) -> None:
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
