@@ -141,10 +141,10 @@ def validate_api_params(has_zone=None):
     such as f"{zone_idx}:02X".
     """
 
-    def _wrapper(fcn, *args, **kwargs) -> Any:
+    def _wrapper(fcn, cls, *args, **kwargs) -> Any:
         _LOGGER.debug(f"Calling: {fcn.__name__}({args}, {kwargs})")
         try:
-            return fcn(*args, **kwargs)
+            return fcn(cls, *args, **kwargs)
         except (
             ArithmeticError,  # incl. ZeroDivisionError,
             AssertionError,
@@ -156,7 +156,7 @@ def validate_api_params(has_zone=None):
             TypeError,
             ValueError,
         ) as exc:
-            _LOGGER.exception(f"{fcn.__name__}({args}, {kwargs}): {exc}")
+            _LOGGER.exception(f"{fcn.__name__}{tuple(list(args) + [kwargs])}: {exc}")
 
     def validate_zone_idx(zone_idx) -> int:
         if isinstance(zone_idx, str):
@@ -517,10 +517,11 @@ class Command(PacketBase):
 
     @classmethod  # constructor for RQ/0008
     @validate_api_params()  # has_zone=Optional
-    def get_relay_demand(cls, dev_id: str, zone_idx: Union[int, str] = "00", **kwargs):
+    def get_relay_demand(cls, dev_id: str, zone_idx: Union[int, str] = None, **kwargs):
         """Constructor to get the demand of a relay/zone (c.f. parser_0008)."""
 
-        return cls(RQ, _0008, f"{zone_idx:02X}", dev_id, **kwargs)
+        payload = "00" if zone_idx is None else f"{zone_idx:02X}"
+        return cls(RQ, _0008, payload, dev_id, **kwargs)
 
     @classmethod  # constructor for RQ/0404
     @validate_api_params(has_zone=True)
