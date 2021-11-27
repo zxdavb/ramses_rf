@@ -108,14 +108,14 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def script_decorator(func):
+def script_decorator(fnc):
     def wrapper(gwy, *args, **kwargs) -> Optional[Any]:
 
         gwy.send_cmd(
             Command._puzzle(message="Script begins:", priority=Priority.HIGH, retries=3)
         )
 
-        result = func(gwy, *args, **kwargs)
+        result = fnc(gwy, *args, **kwargs)
 
         gwy.send_cmd(
             Command._puzzle(message="Script done.", priority=Priority.LOWEST, retries=3)

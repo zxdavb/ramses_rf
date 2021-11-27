@@ -87,7 +87,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def discover_decorator(func):
+def discover_decorator(fnc):
     # NOTE: only need to Wrap top-level entities
     def wrapper(self, discover_flag=Discover.ALL) -> None:
 
@@ -95,7 +95,7 @@ def discover_decorator(func):
             return
         if not discover_flag:
             return
-        return func(self, discover_flag=discover_flag)
+        return fnc(self, discover_flag=discover_flag)
 
     return wrapper
 

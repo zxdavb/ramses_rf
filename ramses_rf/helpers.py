@@ -8,27 +8,27 @@ import re
 from inspect import iscoroutinefunction
 
 
-def schedule_task(func, *args, delay=None, period=None, **kwargs) -> asyncio.Task:
+def schedule_task(fnc, *args, delay=None, period=None, **kwargs) -> asyncio.Task:
     """Start a coro after delay seconds."""
 
-    async def execute_func(func, *args, **kwargs):
-        if iscoroutinefunction(func):
-            return await func(*args, **kwargs)
-        return func(*args, **kwargs)
+    async def execute_func(fnc, *args, **kwargs):
+        if iscoroutinefunction(fnc):
+            return await fnc(*args, **kwargs)
+        return fnc(*args, **kwargs)
 
-    async def schedule_func(delay, period, func, *args, **kwargs):
+    async def schedule_func(delay, period, fnc, *args, **kwargs):
         if delay:
             await asyncio.sleep(delay)
 
         if not period:
-            asyncio.create_task(execute_func(func, *args, **kwargs))
+            asyncio.create_task(execute_func(fnc, *args, **kwargs))
             return
 
         while period:
-            asyncio.create_task(execute_func(func, *args, **kwargs))
+            asyncio.create_task(execute_func(fnc, *args, **kwargs))
             await asyncio.sleep(period)
 
-    return asyncio.create_task(schedule_func(delay, period, func, *args, **kwargs))
+    return asyncio.create_task(schedule_func(delay, period, fnc, *args, **kwargs))
 
 
 def _out_slugify_string(key: str) -> str:

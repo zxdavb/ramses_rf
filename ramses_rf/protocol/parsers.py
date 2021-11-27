@@ -126,9 +126,9 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def parser_decorator(func):
+def parser_decorator(fnc):  # TODO: remove
     def wrapper(*args, **kwargs) -> Optional[Any]:
-        return func(*args, **kwargs)
+        return fnc(*args, **kwargs)
 
     return wrapper
 
