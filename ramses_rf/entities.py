@@ -189,8 +189,8 @@ class Entity:
             _LOGGER.info(f"{cmd} < Sending is deprecated for {self}")
             return
 
-        if getattr(self, "has_battery", None):
-            _LOGGER.warning(f"{cmd} < Sending inadvisable for {self} (has a battery)")
+        if getattr(self, "has_battery", None) and cmd.dst.id == self.id:
+            _LOGGER.info(f"{cmd} < Sending inadvisable for {self} (has a battery)")
 
         cmd._source_entity = self
         # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
