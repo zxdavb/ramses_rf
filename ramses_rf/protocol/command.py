@@ -136,7 +136,9 @@ if DEV_MODE:
 def validate_api_params(has_zone=None):
     """Decorator to protect the engine from any invalid command constructors.
 
-    Additionally, validate/normalise some command arguments (e.g. 'HW' becomes 'FA').
+    Additionally, validate/normalise some command arguments (e.g. 'HW' becomes 0xFA).
+    NB: The zone_idx (domain_id) is converted to an integer, but payloads use strings
+    such as f"{zone_idx}:02X".
     """
 
     def _wrapper(fcn, *args, **kwargs) -> Any:
@@ -168,8 +170,10 @@ def validate_api_params(has_zone=None):
         @functools.wraps(fcn)
         def wrapper(cls, dst_id, *args, **kwargs) -> Any:
 
-            if "zone_idx" in kwargs:
+            if "zone_idx" in kwargs:  # Cmd.get_relay_demand()
                 kwargs["zone_idx"] = validate_zone_idx(kwargs["zone_idx"])
+            if "domain_id" in kwargs:
+                kwargs["domain_id"] = validate_zone_idx(kwargs["domain_id"])
 
             return _wrapper(fcn, cls, dst_id, *args, **kwargs)
 
@@ -180,6 +184,8 @@ def validate_api_params(has_zone=None):
         def wrapper(cls, ctl_id, zone_idx, *args, **kwargs) -> Any:
 
             zone_idx = validate_zone_idx(zone_idx)
+            if "domain_id" in kwargs:
+                kwargs["domain_id"] = validate_zone_idx(kwargs["domain_id"])
 
             return _wrapper(fcn, cls, ctl_id, zone_idx, *args, **kwargs)
 
@@ -379,6 +385,7 @@ class Command(PacketBase):
     @validate_api_params()
     def get_dhw_mode(cls, ctl_id: str, **kwargs):
         """Constructor to get the mode of the DHW (c.f. parser_1f41)."""
+
         return cls(RQ, _1F41, "00", ctl_id, **kwargs)
 
     @classmethod  # constructor for W_/1F41
@@ -419,6 +426,7 @@ class Command(PacketBase):
     @validate_api_params()
     def get_dhw_params(cls, ctl_id: str, **kwargs):
         """Constructor to get the params of the DHW (c.f. parser_10a0)."""
+
         return cls(RQ, _10A0, "00", ctl_id, **kwargs)
 
     @classmethod  # constructor for W_/10A0
@@ -456,12 +464,14 @@ class Command(PacketBase):
     @validate_api_params()
     def get_dhw_temp(cls, ctl_id: str, **kwargs):
         """Constructor to get the temperature of the DHW sensor (c.f. parser_10a0)."""
+
         return cls(RQ, _1260, "00", ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/1030
     @validate_api_params(has_zone=True)
     def get_mix_valve_params(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the mix valve params of a zone (c.f. parser_1030)."""
+
         return cls(RQ, _1030, f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
 
     @classmethod  # constructor for W/1030
@@ -500,6 +510,7 @@ class Command(PacketBase):
     @validate_api_params()
     def get_opentherm_data(cls, dev_id: str, msg_id: Union[int, str], **kwargs):
         """Constructor to get (Read-Data) opentherm msg value (c.f. parser_3220)."""
+
         msg_id = msg_id if isinstance(msg_id, int) else int(msg_id, 16)
         payload = f"0080{msg_id:02X}0000" if parity(msg_id) else f"0000{msg_id:02X}0000"
         return cls(RQ, _3220, payload, dev_id, **kwargs)
@@ -508,7 +519,8 @@ class Command(PacketBase):
     @validate_api_params()  # has_zone=Optional
     def get_relay_demand(cls, dev_id: str, zone_idx: Union[int, str] = "00", **kwargs):
         """Constructor to get the demand of a relay/zone (c.f. parser_0008)."""
-        return cls(RQ, _0008, zone_idx, dev_id, **kwargs)
+
+        return cls(RQ, _0008, f"{zone_idx:02X}", dev_id, **kwargs)
 
     @classmethod  # constructor for RQ/0404
     @validate_api_params(has_zone=True)
@@ -535,12 +547,14 @@ class Command(PacketBase):
     @validate_api_params()
     def get_system_language(cls, ctl_id: str, **kwargs):
         """Constructor to get the language of a system (c.f. parser_0100)."""
+
         return cls(RQ, _0100, "00", ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/0418
     @validate_api_params()
     def get_system_log_entry(cls, ctl_id: str, log_idx: int, **kwargs):
         """Constructor to get a log entry from a system (c.f. parser_0418)."""
+
         log_idx = log_idx if isinstance(log_idx, int) else int(log_idx, 16)
         return cls(RQ, _0418, f"{log_idx:06X}", ctl_id, **kwargs)
 
@@ -548,6 +562,7 @@ class Command(PacketBase):
     @validate_api_params()
     def get_system_mode(cls, ctl_id: str, **kwargs):
         """Constructor to get the mode of a system (c.f. parser_2e04)."""
+
         return cls(RQ, _2E04, "FF", ctl_id, **kwargs)
 
     @classmethod  # constructor for W/2E04
@@ -586,6 +601,7 @@ class Command(PacketBase):
     @validate_api_params()
     def get_system_time(cls, ctl_id: str, **kwargs):
         """Constructor to get the datetime of a system (c.f. parser_313f)."""
+
         return cls(RQ, _313F, "00", ctl_id, **kwargs)
 
     @classmethod  # constructor for W/313F
@@ -600,6 +616,7 @@ class Command(PacketBase):
     @validate_api_params()
     def get_tpi_params(cls, dev_id: str, domain_id=None, **kwargs):
         """Constructor to get the TPI params of a system (c.f. parser_1100)."""
+
         if domain_id is None:
             domain_id = "00" if dev_id[:2] == "13" else "FC"
         return cls(RQ, _1100, domain_id, dev_id, **kwargs)
@@ -641,6 +658,7 @@ class Command(PacketBase):
     @validate_api_params(has_zone=True)
     def get_zone_config(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the config of a zone (c.f. parser_000a)."""
+
         return cls(RQ, _000A, f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
 
     @classmethod  # constructor for W/000A
@@ -683,6 +701,7 @@ class Command(PacketBase):
     @validate_api_params(has_zone=True)
     def get_zone_mode(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the mode of a zone (c.f. parser_2349)."""
+
         return cls(RQ, _2349, f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
 
     @classmethod  # constructor for W/2349
@@ -735,12 +754,14 @@ class Command(PacketBase):
     @validate_api_params(has_zone=True)
     def get_zone_name(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the name of a zone (c.f. parser_0004)."""
+
         return cls(RQ, _0004, f"{zone_idx:02X}00", ctl_id, **kwargs)  # TODO: needs 00?
 
     @classmethod  # constructor for W/0004
     @validate_api_params(has_zone=True)
     def set_zone_name(cls, ctl_id: str, zone_idx: Union[int, str], name: str, **kwargs):
         """Constructor to set the name of a zone (c.f. parser_0004)."""
+
         payload = f"{zone_idx:02X}00{str_to_hex(name)[:24]:0<40}"  # TODO: check 12/24?
         return cls(W_, _0004, payload, ctl_id, **kwargs)
 
@@ -751,6 +772,7 @@ class Command(PacketBase):
     ):
         """Constructor to set the setpoint of a zone (c.f. parser_2309)."""
         #  W --- 34:092243 01:145038 --:------ 2309 003 0107D0
+
         payload = f"{zone_idx:02X}{temp_to_hex(setpoint)}"
         return cls(W_, _2309, payload, ctl_id, **kwargs)
 
@@ -758,12 +780,14 @@ class Command(PacketBase):
     @validate_api_params(has_zone=True)
     def get_zone_temp(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the current temperature of a zone (c.f. parser_30c9)."""
+
         return cls(RQ, _30C9, f"{zone_idx:02X}", ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/12B0
     @validate_api_params(has_zone=True)
     def get_zone_window_state(cls, ctl_id: str, zone_idx: Union[int, str], **kwargs):
         """Constructor to get the openwindow state of a zone (c.f. parser_12b0)."""
+
         return cls(RQ, _12B0, f"{zone_idx:02X}", ctl_id, **kwargs)
 
     @classmethod  # generic constructor
