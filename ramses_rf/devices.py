@@ -223,7 +223,8 @@ class DeviceBase(Entity):
 
         if self._ctl is ctl:
             return
-        if self._is_controller:  # HACK
+        if self._is_controller and self.type != "02":  # DEX
+            # HACK: UFC is/binds to a contlr
             return
         if self._ctl is not None:
             raise CorruptStateError(f"{self} changed controller: {self._ctl} to {ctl}")
