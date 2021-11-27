@@ -364,6 +364,9 @@ def load_system(gwy, ctl_id, schema) -> Tuple[dict, dict]:
         for dev_id in attrs.get(ATTR_DEVICES, []):
             _get_device(gwy, dev_id, ctl_id=ctl.id, domain_id=zone_idx)
 
+        if zone_type := attrs.get(ATTR_ZONE_TYPE):
+            zone._set_zone_type(zone_type)
+
     for dev_id in schema.get(ATTR_UFH_SYSTEM, {}).keys():  # UFH controllers
         _get_device(gwy, dev_id, ctl_id=ctl.id)  # , **_schema)
 
