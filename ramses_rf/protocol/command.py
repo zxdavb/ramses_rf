@@ -140,6 +140,7 @@ def validate_api_params(has_zone=None):
     """
 
     def _wrapper(fcn, *args, **kwargs) -> Any:
+        _LOGGER.debug(f"Calling: {fcn.__name__}({args}, {kwargs})")
         try:
             return fcn(*args, **kwargs)
         except (
