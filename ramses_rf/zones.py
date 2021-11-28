@@ -814,8 +814,8 @@ class Zone(ZoneSchedule, ZoneBase):
             "_name": self.name,
             ATTR_ZONE_TYPE: self.heating_type,
             ATTR_ZONE_SENSOR: sensor_schema,
-            ATTR_DEVICES: [d.id for d in self.devices],
             "sensor_alt": self.sensor.id if self.sensor else None,
+            ATTR_DEVICES: [d.id for d in self.devices],
             "actuators": self.actuators,
         }
 
