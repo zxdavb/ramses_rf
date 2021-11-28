@@ -40,7 +40,7 @@ from .protocol import create_protocol_factory
 from .schema import SERIAL_CONFIG_SCHEMA
 from .version import VERSION
 
-DEV_MODE = __dev_mode__  # and False
+DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
 # _LOGGER.setLevel(logging.WARNING)  # INFO may have too much detail
@@ -96,6 +96,22 @@ def _str(value: ByteString) -> str:
         _LOGGER.warning("%s < Cant decode bytestream (ignoring)", value)
         return ""
     return result
+
+
+def _normalise(pkt_line: str) -> str:
+    """Perform any (transparent) frame-level hacks, as required at (near-)RF layer.
+
+    Goals:
+    - ensure an evofw3 provides the exact same output as a HGI80
+    - handle 'strange' packets (e.g. I/08:/0008)
+    """
+
+    # psuedo-RAMSES-II packets...
+    if pkt_line[10:14] in (" 08:", " 31:") and pkt_line[-16:] == "* Checksum error":
+        pkt_line = pkt_line[:-17] + " # Checksum error (ignored)"
+        _LOGGER.warning("Packet line has been normalised (0x01)")
+
+    return pkt_line.strip()
 
 
 class SerTransportRead(asyncio.ReadTransport):
@@ -311,30 +327,6 @@ class PacketProtocolBase(asyncio.Protocol):
                 "is strongly recommended)"
             )
 
-    def _normalise(self, pkt_line: str) -> str:
-        """Perform any packet line hacks, as required.
-
-        Goals:
-        - ensure an evofw3 provides the exact same output as a HGI80
-        - handle 'strange' packets (e.g. I/08:/0008)
-        - correct any historical design failures (e.g. puzzle packets with an index)
-        """
-
-        # psuedo-RAMSES-II packets...
-        if pkt_line[10:14] in (" 08:", " 31:") and pkt_line[-16:] == "* Checksum error":
-            pkt_line = pkt_line[:-17] + " # Checksum error (ignored)"
-            (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
-                "Packet line has been normalised (0x01)"
-            )
-
-        for k, v in self._gwy.config.use_regex.items():
-            try:
-                pkt_line = re.sub(k, v, pkt_line)
-            except re.error as exc:
-                _LOGGER.warning(f"{pkt_line} < issue with regex ({k}, {v}): {exc}")
-
-        return pkt_line.strip()
-
     # @functools.lru_cache(maxsize=128)
     def _is_wanted(self, src_id, dst_id) -> Optional[bool]:
         """Parse the packet, return True if the packet is not to be filtered out.
@@ -459,7 +451,7 @@ class PacketProtocolBase(asyncio.Protocol):
                     yield self._dt_now(), line
 
         for dtm, raw_line in _bytes_received(data):
-            self._line_received(dtm, self._normalise(_str(raw_line)), raw_line)
+            self._line_received(dtm, _normalise(_str(raw_line)), raw_line)
 
     async def _send_data(self, data: str) -> None:
         """Send a bytearray to the transport (serial) interface."""
@@ -599,7 +591,7 @@ class PacketProtocolRead(PacketProtocolBase):
     def data_received(self, data: str) -> None:
         """Called when a packet line is received (from a log file)."""
         # _LOGGER.debug("PacketProtocolRead.data_received(%s)", data.rstrip())
-        self._line_received(data[:26], self._normalise(data[27:]), data)
+        self._line_received(data[:26], data[27:].strip(), data)
 
     def _dt_now(self) -> dt:
         try:
