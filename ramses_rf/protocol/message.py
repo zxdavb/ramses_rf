@@ -495,7 +495,7 @@ def _check_msg_payload(msg: Message, payload) -> None:
 
     Raise an InvalidPayloadError if the payload is invalid, otherwise simply return.
 
-    The HGI80-compatable devices can do what they like, but a warning is logged.
+    The HGI80-compatible devices can do what they like, but a warning is logged.
     Some parsers may also raise InvalidPayloadError (e.g. 3220), albeit later on.
     """
 
@@ -514,7 +514,7 @@ def _check_msg_payload(msg: Message, payload) -> None:
     except InvalidPacketError as exc:  # incl. InvalidPayloadError
         if "18" not in (msg.src.type, msg.dst.type):  # DEX, HGI80 can do what it likes
             raise exc
-        _LOGGER.warning(f"{msg._pkt} < {exc}")
+            _LOGGER.warning(f"{msg._pkt} < {exc}")
 
     # TODO: put this back, or leave it to the parser?
     # if msg.code == _3220:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - RAMSES-II compatble Message processor.
+"""RAMSES RF - RAMSES-II compatible Message processor.
 
 Operates at the msg layer of: app - msg - pkt - h/w
 """

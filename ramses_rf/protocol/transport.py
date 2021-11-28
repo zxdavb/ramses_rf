@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - RAMSES-II compatble Packet processor.
+"""RAMSES RF - RAMSES-II compatible Packet processor.
 
 Operates at the pkt layer of: app - msg - pkt - h/w
 """
@@ -607,8 +607,8 @@ class PacketProtocolRead(PacketProtocolBase):
                 self._hgi80[DEVICE_ID] = pkt.src.id
 
             elif self._hgi80[DEVICE_ID] != pkt.src.id:
-                (_LOGGER.debug if pkt.src.id in self._unwanted else _LOGGER.warning)(
-                    f"{pkt} < There appears to be more than one HGI80-compatible device"
+                _LOGGER.debug(
+                    f"{pkt} < THERE appears to be more than one HGI80-compatible device"
                     f" (active gateway: {self._hgi80[DEVICE_ID]}), this is unsupported"
                 )
 
