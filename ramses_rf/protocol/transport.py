@@ -681,12 +681,13 @@ class PacketProtocolQos(PacketProtocolPort):
         """Perform any QoS functions on packets received from the transport."""
 
         def logger_rcvd(message: str, wanted: Packet = None) -> None:
+            # Reserve the use of _LOGGER.info() for RF Tx/Rx logging
             if wanted:
-                logger = _LOGGER.warning if DEV_MODE else _LOGGER.info
+                logger = _LOGGER.warning if DEV_MODE else _LOGGER.debug
             elif message:
                 logger = _LOGGER.error if DEV_MODE else _LOGGER.warning
             else:
-                logger = _LOGGER.info if DEV_MODE else _LOGGER.debug
+                logger = _LOGGER.debug if DEV_MODE else _LOGGER.debug
                 message = "not wanting any pkt"
 
             logger(
@@ -750,6 +751,7 @@ class PacketProtocolQos(PacketProtocolPort):
         """Perform any QoS functions on packets sent to the transport."""
 
         def logger_send(logger, message: str, wanted: Packet = None) -> None:
+            # Reserve the use of _LOGGER.info() for RF Tx/Rx logging
             logger(
                 "PktProtocolQos.send_data(sent=%s): boff=%s, want=%s, tout=%s: %s",
                 cmd.tx_header,
@@ -770,7 +772,7 @@ class PacketProtocolQos(PacketProtocolPort):
                 self._backoff = min(self._backoff + 1, _QOS_MAX_BACKOFF)
 
             if self._tx_retries < self._tx_retry_limit:
-                logger_send(_LOGGER.info, "TIMED_OUT_ (will retry)")
+                logger_send(_LOGGER.debug, "TIMED_OUT_ (will retry)")
 
                 self._tx_retries += 1
                 self._qos_update_timeouts()
