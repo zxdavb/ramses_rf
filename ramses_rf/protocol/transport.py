@@ -114,6 +114,18 @@ def _normalise(pkt_line: str) -> str:
     return pkt_line.strip()
 
 
+def _regex_hack(pkt_line: str, regex_filters) -> str:
+    """Perform any packet hacks, as configured."""
+
+    for k, v in regex_filters.items():
+        try:
+            pkt_line = re.sub(k, v, pkt_line)
+        except re.error as exc:
+            _LOGGER.warning(f"{pkt_line} < issue with regex ({k}, {v}): {exc}")
+
+    return pkt_line
+
+
 class SerTransportRead(asyncio.ReadTransport):
     """Interface for a packet transport via a dict (saved state) or a file (pkt log)."""
 
@@ -327,7 +339,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 "is strongly recommended)"
             )
 
-    # @functools.lru_cache(maxsize=128)
+    # @functools.lru_cache(maxsize=128)  # this will no longer work
     def _is_wanted(self, src_id, dst_id) -> Optional[bool]:
         """Parse the packet, return True if the packet is not to be filtered out.
 
@@ -411,7 +423,12 @@ class PacketProtocolBase(asyncio.Protocol):
         self._hgi80[IS_INITIALIZED], was_initialized = True, self._hgi80[IS_INITIALIZED]
 
         try:
-            pkt = Packet.from_port(self._gwy, dtm, line, raw_line=raw_line)
+            pkt = Packet.from_port(
+                self._gwy,
+                dtm,
+                _regex_hack(line, self._gwy.config.use_regex.get("inbound", {})),
+                raw_line=raw_line,
+            )
 
         except InvalidPacketError as exc:
             if "# evofw" in line and self._hgi80[IS_EVOFW3] is None:
@@ -466,7 +483,12 @@ class PacketProtocolBase(asyncio.Protocol):
         # ):
         #     await asyncio.sleep(0.005)
 
-        data = bytes(data.encode("ascii"))
+        data = bytes(
+            _regex_hack(
+                data,
+                self._gwy.config.use_regex.get("outbound", {}),
+            ).encode("ascii")
+        )
 
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
             _LOGGER.info("RF Tx:     %s", data)
@@ -571,7 +593,11 @@ class PacketProtocolRead(PacketProtocolBase):
     def _line_received(self, dtm: str, line: str, raw_line: str) -> None:
 
         try:
-            pkt = Packet.from_file(self._gwy, dtm, line)
+            pkt = Packet.from_file(
+                self._gwy,
+                dtm,
+                _regex_hack(line, self._gwy.config.use_regex.get("inbound", {})),
+            )
 
         except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
             return
