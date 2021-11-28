@@ -815,8 +815,8 @@ class Zone(ZoneSchedule, ZoneBase):
             ATTR_ZONE_TYPE: self.heating_type,
             ATTR_ZONE_SENSOR: sensor_schema,
             ATTR_DEVICES: [d.id for d in self.devices],
-            "_sensor": self.sensor.id if self.sensor else None,
-            "_actuators": self.actuators,
+            "sensor_alt": self.sensor.id if self.sensor else None,
+            "actuators": self.actuators,
         }
 
     @property  # TODO: setpoint

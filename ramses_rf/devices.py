@@ -1023,14 +1023,14 @@ class UfhController(Device):  # UFC (02):
         if discover_flag & Discover.SCHEMA:
             [  # 0005: shows which channels are active - ?no use? (see above)
                 self._make_cmd(_0005, payload=f"00{zone_type}")
-                for zone_type in ("09",)  # _0005_ZONE_TYPE, also ("00", "04", "0F")
+                for zone_type in ("00", "04", "09", "0F")  # TODO: are all req'd
                 # for zone_type in _0005_ZONE_TYPE
             ]
 
             [  # 000C: used to find evo zone for each configured channel
-                self._make_cmd(_000C, payload=f"{idx:02X}{_000C_DEVICE.UFH}")
+                self._make_cmd(_000C, payload=f"{idx:02X}{_000C_DEVICE.ALL}")
                 for idx in range(8)  # for each possible UFH channel/circuit
-            ]
+            ]  # _000C_DEVICE.UFH doesn't seem to work with all UFCs
 
         # if discover_flag & Discover.STATUS:
         #     [  # 22C9: no answer
