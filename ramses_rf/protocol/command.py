@@ -122,7 +122,8 @@ QOS_TABLE = {  # priority, retries, timeout, disable_backoff, c.f. QOS_TX_DEFAUL
     f"{I_}/{_0404}": (Priority.HIGH, 5, td(seconds=0.30), None),  # TODO: both short Tx,
     f"{W_}/{_0404}": (Priority.HIGH, 5, td(seconds=0.30), None),  # TODO: but long Rx
     f"{RQ}/{_0418}": (Priority.LOW, 3, None, None),
-    f"{RQ}/{_3220}": (Priority.DEFAULT, 1, td(seconds=1), True),
+    f"{RQ}/{_3220}": (Priority.DEFAULT, 1, td(seconds=1.2), True),
+    f"{W_}/{_3220}": (Priority.HIGH, 3, td(seconds=1.2), True),
 }  # The long timeeout for the OTB is for total RTT to slave (boiler)
 
 
