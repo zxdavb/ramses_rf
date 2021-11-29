@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - """
+"""RAMSES RF - exceptions."""
 
 
 class EvohomeError(Exception):
@@ -40,7 +40,7 @@ class InvalidPacketError(CorruptEvohomeError):
 
     def __str__(self) -> str:
         err_msg = "Corrupt packet"
-        err_tip = " (will be ignored)"
+        err_tip = ""
         if self.message:
             return f"{err_msg}: {self.message}{err_tip}"
         return f"{err_msg} {err_tip}"
@@ -55,7 +55,7 @@ class InvalidAddrSetError(InvalidPacketError):
 
     def __str__(self) -> str:
         err_msg = "Corrupt addresses"
-        err_tip = " (will be ignored)"
+        err_tip = ""
         if self.message:
             return f"{err_msg}: {self.message}{err_tip}"
         return f"{err_msg} {err_tip}"
@@ -70,7 +70,7 @@ class InvalidPayloadError(InvalidPacketError):
 
     def __str__(self) -> str:
         err_msg = "Corrupt payload"
-        err_tip = " (will be ignored)"
+        err_tip = ""
         if self.message:
             return f"{err_msg}: {self.message}{err_tip}"
         return f"{err_msg} {err_tip}"
