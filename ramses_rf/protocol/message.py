@@ -513,7 +513,7 @@ def _check_msg_payload(msg: Message, payload) -> None:
 
     except InvalidPacketError as exc:  # incl. InvalidPayloadError
         if "18" not in (msg.src.type, msg.dst.type):  # DEX, HGI80 can do what it likes
-            raise exc
+            raise exc  # TODO: messy - these msgs not ignore
             _LOGGER.warning(f"{msg._pkt} < {exc}")
 
     # TODO: put this back, or leave it to the parser?
