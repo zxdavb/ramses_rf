@@ -810,6 +810,7 @@ def parser_10e0(payload, msg) -> Optional[dict]:
                 "0001001B361B01FEFF",  # CVE-RF
                 "0001001B381B01FEFF",  # CVE-RF
                 "00010028080101FEFF",  # VMS-12C39
+                "0001C822060166FEFF",  # VMS-17C01
             ), payload[2:20]
         else:
             assert False, payload[2:20]
