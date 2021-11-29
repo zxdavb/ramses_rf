@@ -16,6 +16,7 @@ from .protocol.address import NON_DEV_ADDR, id_to_address
 from .protocol.command import FUNC, TIMEOUT
 from .protocol.const import (
     _000C_DEVICE,
+    _0005_ZONE,
     ATTR_HEAT_DEMAND,
     ATTR_RELAY_DEMAND,
     ATTR_SETPOINT,
@@ -453,6 +454,7 @@ class Actuator:  # 3EF0, 3EF1
 
     @property
     def actuator_cycle(self) -> Optional[dict]:  # 3EF1
+        # OTBs have this information, but it is of little value?
         return self._msg_value(_3EF1)
 
     @property
@@ -1018,19 +1020,19 @@ class UfhController(Device):  # UFC (02):
     def _discover(self, discover_flag=Discover.ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
-        # TODO: UFC may RP to an RQ/0001
-
         if discover_flag & Discover.SCHEMA:
-            [  # 0005: shows which channels are active - ?no use? (see above)
-                self._make_cmd(_0005, payload=f"00{zone_type}")
-                for zone_type in ("00", "04", "09", "0F")  # TODO: are all req'd
-                # for zone_type in _0005_ZONE_TYPE
-            ]
+            for zone_type in (_0005_ZONE.ALL, _0005_ZONE.ALL_SENSOR, _0005_ZONE.UFH):
+                # TODO: are all three needed?
+                try:  # 0005: shows which channels are active - ?no use? (see above)
+                    _ = self._msgz[_0005][RP][f"00{zone_type}"]
+                except KeyError:
+                    self._make_cmd(_0005, payload=f"00{zone_type}")
 
-            [  # 000C: used to find evo zone for each configured channel
-                self._make_cmd(_000C, payload=f"{idx:02X}{_000C_DEVICE.ALL}")
-                for idx in range(8)  # for each possible UFH channel/circuit
-            ]  # _000C_DEVICE.UFH doesn't seem to work with all UFCs
+            for idx in range(8):
+                try:  # _000C_DEVICE.UFH doesn't seem to work with all UFCs??
+                    _ = self._msgz[_000C][RP][f"{idx:02X}{_000C_DEVICE.ALL}"]
+                except KeyError:
+                    self._make_cmd(_000C, payload=f"{idx:02X}{_000C_DEVICE.ALL}")
 
         # if discover_flag & Discover.STATUS:
         #     [  # 22C9: no answer
@@ -1434,13 +1436,6 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             "outside_temp": self.outside_temp,
             "rel_modulation_level": self.rel_modulation_level,
         }
-        # return {
-        #     slugify(self._opentherm_msg[msg_id].payload[MSG_NAME]): (
-        #         self._opentherm_msg[msg_id].payload[VALUE]
-        #     )
-        #     for msg_id in (0x11, 0x12, 0x13, 0x19, 0x1A, 0x1C)
-        #     if msg_id in self._opentherm_msg
-        # }
 
     @property
     def schema(self) -> dict:
@@ -1465,7 +1460,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
     @property
     def status(self) -> dict:
         return {
-            **super().status,
+            **super().status,  # incl. actuator_cycle, actuator_state
             "opentherm_status": self.opentherm_status,
         }
 
