@@ -8,7 +8,7 @@ from types import SimpleNamespace
 __dev_mode__ = False
 DEV_MODE = __dev_mode__
 
-DHW_HACK = True
+DHW_HACK = False  # TODO: remove
 
 ATTR_ALIAS = "alias"
 ATTR_CLASS = "class"
