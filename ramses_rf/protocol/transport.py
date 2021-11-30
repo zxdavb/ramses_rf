@@ -608,7 +608,7 @@ class PacketProtocolRead(PacketProtocolBase):
 
             elif self._hgi80[DEVICE_ID] != pkt.src.id:
                 _LOGGER.debug(
-                    f"{pkt} < THERE appears to be more than one HGI80-compatible device"
+                    f"{pkt} < There appears to be more than one HGI80-compatible device"
                     f" (active gateway: {self._hgi80[DEVICE_ID]}), this is unsupported"
                 )
 
