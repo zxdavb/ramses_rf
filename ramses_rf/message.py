@@ -11,6 +11,7 @@ import logging
 from .const import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES, __dev_mode__
 from .devices import Device
 from .protocol import Message
+from .protocol.const import DHW_HACK
 from .protocol.exceptions import CorruptStateError
 from .protocol.ramses import RAMSES_CODES
 
@@ -177,13 +178,13 @@ def process_msg(msg: Message) -> None:
             msg._gwy._prev_msg = msg
             return
 
-        if msg.src.type == "07":
+        if DHW_HACK and msg.src.type == "07":
             _LOGGER.debug(f"{msg._pkt} < handling (01)")  # HACK: lloyda
 
         # _update_entities(msg, msg._gwy._prev_msg)  # update the state database
         if isinstance(msg.src, Device):
             msg.src._handle_msg(msg)
-        else:
+        elif DHW_HACK:
             _LOGGER.debug(f"{msg._pkt} < handling (02)")  # HACK: lloyda
 
         if msg.code not in (_0008, _0009, _3B00, _3EF1):  # special case: are fakeable
