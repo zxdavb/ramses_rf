@@ -9,7 +9,7 @@ from types import SimpleNamespace
 __dev_mode__ = False
 DEV_MODE = __dev_mode__
 
-DHW_HACK = True
+DHW_HACK = False
 
 
 def slug(string: str) -> str:
