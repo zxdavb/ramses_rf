@@ -454,7 +454,6 @@ class Actuator:  # 3EF0, 3EF1
 
     @property
     def actuator_cycle(self) -> Optional[dict]:  # 3EF1
-        # OTBs have this information, but it is of little value?
         return self._msg_value(_3EF1)
 
     @property
@@ -1264,6 +1263,20 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id}): {self.rel_modulation_level}"  # 3EF0
+
+    def _start_discovery(self) -> None:
+
+        delay = randint(10, 20)
+
+        self._gwy._add_task(  # 10E0/1FC9, 3220 pkts
+            self._discover, discover_flag=Discover.SCHEMA, delay=0, period=3600 * 24
+        )
+        self._gwy._add_task(
+            self._discover, discover_flag=Discover.PARAMS, delay=delay, period=3600
+        )
+        self._gwy._add_task(
+            self._discover, discover_flag=Discover.STATUS, delay=delay + 1, period=60
+        )
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:
