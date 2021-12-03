@@ -114,16 +114,21 @@ def _normalise(pkt_line: str) -> str:
     return pkt_line.strip()
 
 
-def _regex_hack(pkt_line: str, regex_filters) -> str:
+def _regex_hack(pkt_line: str, regex_filters: dict) -> str:
     """Perform any packet hacks, as configured."""
+
+    result = pkt_line
 
     for k, v in regex_filters.items():
         try:
-            pkt_line = re.sub(k, v, pkt_line)
+            result = re.sub(k, v, result)
         except re.error as exc:
             _LOGGER.warning(f"{pkt_line} < issue with regex ({k}, {v}): {exc}")
 
-    return pkt_line
+    if result != pkt_line:
+        _LOGGER.warning(f"{pkt_line} < Changed by use_regex to: {result}")
+
+    return result
 
 
 class SerTransportRead(asyncio.ReadTransport):
