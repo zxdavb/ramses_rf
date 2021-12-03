@@ -116,6 +116,7 @@ LOOKUP_PUZZ = {
     "11": "impersonating",  # pkt header, e.g. 30C9| I|03:123001 (15 characters, packed)
     "12": "message",  # .   # message only, max len is 16 ascii characters
     "13": "message",  # .   # message only, but without a timestamp, max len 22 chars
+    "7F": "null",  # .      # packet is null / was nullified: payload to be ignored
 }  # "00" is reserved
 
 DEV_MODE = __dev_mode__ and False
@@ -1912,7 +1913,7 @@ def parser_7fff(payload, msg) -> Optional[dict]:
         dtm = dt.fromtimestamp(int(payload[4:16], 16) / 1000)
         result["datetime"] = dtm.isoformat(timespec="milliseconds")
 
-    msg_type = LOOKUP_PUZZ.get(payload[2:4], "message")
+    msg_type = LOOKUP_PUZZ.get(payload[2:4], "unknown")
 
     if payload[2:4] == "11":
         msg = str_from_hex(payload[16:])
@@ -1920,6 +1921,9 @@ def parser_7fff(payload, msg) -> Optional[dict]:
 
     elif payload[2:4] == "13":
         result[msg_type] = str_from_hex(payload[4:])
+
+    elif payload[2:4] == "7F":
+        result[msg_type] = payload[4:]
 
     else:
         result[msg_type] = str_from_hex(payload[16:])
