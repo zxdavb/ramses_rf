@@ -15,7 +15,7 @@ from .address import pkt_addrs
 from .exceptions import InvalidPacketError
 from .frame import PacketBase
 from .logger import getLogger
-from .opentherm import PARAMS_MSG_IDS, SCHEMA_MSG_IDS
+from .opentherm import PARAMS_MSG_IDS, SCHEMA_MSG_IDS, STATUS_MSG_IDS
 from .ramses import EXPIRES, RAMSES_CODES
 
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -237,41 +237,39 @@ def pkt_timeout(pkt) -> Optional[td]:  # NOTE: import OtbGateway ??
     Some codes require a valid payload to best determine lifetime (e.g. 1F09).
     """
 
-    timeout = None
-
     if pkt.verb in (RQ, W_):
-        timeout = td(seconds=3)
+        return td(seconds=3)
 
-    elif pkt.code in (_0005, _000C, _0404, _10E0):  # 0404 expired by 0006
+    if pkt.code in (_0005, _000C, _0404, _10E0):  # 0404 expired by 0006
         return  # TODO: exclude/remove devices caused by corrupt ADDRs?
 
-    elif pkt.code == _1FC9 and pkt.verb == RP:
+    if pkt.code == _1FC9 and pkt.verb == RP:
         return  # TODO: check other verbs, they seem variable
 
-    elif pkt.code == _1F09:
-        timeout = td(seconds=300) if pkt.verb == I_ else td(seconds=3)
+    if pkt.code == _1F09:
+        return td(seconds=300) if pkt.verb == I_ else td(seconds=3)
 
-    elif pkt.code == _000A and pkt._has_array:
-        timeout = td(minutes=60)  # sends I /1h
+    if pkt.code == _000A and pkt._has_array:
+        return td(minutes=60)  # sends I /1h
 
-    elif pkt.code in (_2309, _30C9) and pkt._has_array:
-        timeout = td(minutes=15)  # sends I /sync_cycle
+    if pkt.code in (_2309, _30C9) and pkt._has_array:
+        return td(minutes=15)  # sends I /sync_cycle
 
-    elif pkt.code == _3220:  # FIXME
+    if pkt.code == _3220:  # FIXME
+        # if pkt.payload[4:6] in WRITE_MSG_IDS and Write-Date:
+        #     return td(seconds=3)
         if pkt.payload[4:6] in SCHEMA_MSG_IDS:
-            return
-        # elif pkt.payload[4:6] in WRITE_MSG_IDS and Write-Date:
-        #     timeout = td(seconds=3)
-        elif pkt.payload[4:6] in PARAMS_MSG_IDS:
-            # NB: includes "Number of starts burner" and similars
-            timeout = td(minutes=60)
-        else:  # elif pkt.payload[4:6] in STATUS_MSG_IDS:
-            timeout = td(minutes=3)
+            return  # SCHEMA_MSG_IDS[pkt.payload[4:6]]
+        if pkt.payload[4:6] in PARAMS_MSG_IDS:
+            return PARAMS_MSG_IDS[pkt.payload[4:6]]
+        if pkt.payload[4:6] in STATUS_MSG_IDS:
+            return STATUS_MSG_IDS[pkt.payload[4:6]]
+        return td(minutes=3)
 
-    # elif pkt.code in (_3B00, _3EF0, ):  # TODO: 0008, 3EF0, 3EF1
-    #     timeout = td(minutes=6.7)  # TODO: WIP
+    # if pkt.code in (_3B00, _3EF0, ):  # TODO: 0008, 3EF0, 3EF1
+    #     return td(minutes=6.7)  # TODO: WIP
 
-    elif pkt.code in RAMSES_CODES:
-        timeout = RAMSES_CODES[pkt.code].get(EXPIRES)
+    if (code := RAMSES_CODES.get(pkt.code)) and EXPIRES in code:
+        return RAMSES_CODES[pkt.code][EXPIRES]
 
-    return timeout or td(minutes=60)
+    return td(minutes=60)

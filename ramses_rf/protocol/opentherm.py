@@ -5,6 +5,7 @@
 
 import logging
 import struct
+from datetime import timedelta as td
 from types import SimpleNamespace
 from typing import Any, Tuple
 
@@ -26,6 +27,7 @@ SCHEMA_MSG_IDS = (
     "7D",  # 125: "Opentherm version Slave",                            # not native
     "7F",  # 127: "Slave product version number and type",
 )
+SCHEMA_MSG_IDS = {k: False for k in SCHEMA_MSG_IDS}
 PARAMS_MSG_IDS = (
     "38",  # .56: "DHW Setpoint (°C) (Remote parameter 1)",             # see: 0x06
     "39",  # .57: "Max CH water Setpoint (°C) (Remote parameter 2)",    # see: 0x06
@@ -44,6 +46,7 @@ PARAMS_MSG_IDS = (
     "7A",  # 122: "Number of hours DHW pump has been running/valve has been opened",
     "7B",  # 123: "Number of hours DHW burner is in operation during DHW mode",
 )
+PARAMS_MSG_IDS = {k: td(hours=6) for k in PARAMS_MSG_IDS}
 STATUS_MSG_IDS = (
     "00",  # ..0: "Master/Slave status flags",                          # not native
     "01",  # ..1: "CH water temperature Setpoint (°C)",                 # also R/W
@@ -55,6 +58,7 @@ STATUS_MSG_IDS = (
     "1B",  # .27: "Outside temperature (°C)",  # TODO: any value here?  # not native
     "1C",  # .28: "Return water temperature (°C)",
 )
+STATUS_MSG_IDS = {k: td(hours=1) for k in STATUS_MSG_IDS}
 WRITE_MSG_IDS = (  # Write-Data, NB: some are also Read-Data
     "01",  # ..1:  -see above-
     "02",  # ..2: "Master configuration",
@@ -66,7 +70,7 @@ WRITE_MSG_IDS = (  # Write-Data, NB: some are also Read-Data
     "7C",  # 124: "Opentherm version Master",
     "7E",  # 126: "Master product version number and type",
 )
-
+WRITE_MSG_IDS = {k: td(seconds=3) for k in WRITE_MSG_IDS}
 
 # Data structure shamelessy copied, with thanks to @nlrb, from:
 # github.com/nlrb/com.tclcode.otgw (node_modules/otg-api/lib/ot_msg.js),
