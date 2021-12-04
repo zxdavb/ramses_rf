@@ -1353,6 +1353,14 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 "-reserved-",
             )
 
+    @staticmethod
+    def _ot_msg_name(msg) -> str:
+        return (
+            msg.payload[MSG_NAME]
+            if isinstance(msg.payload[MSG_NAME], str)
+            else f"{msg.payload[MSG_ID]:02X}"
+        )
+
     def _ot_msg_value(self, msg_id) -> Optional[float]:
         if (
             (msg := self._opentherm_msg.get(msg_id))
@@ -1403,18 +1411,10 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         # return self._msg_value((_3EF0, _3EF1), key=self.MODULATION_LEVEL)
         return self._ot_msg_value("11")
 
-    @staticmethod
-    def _msg_name(msg) -> str:
-        return (
-            msg.payload[MSG_NAME]
-            if isinstance(msg.payload[MSG_NAME], str)
-            else f"{msg.payload[MSG_ID]:02X}"
-        )
-
     @property
     def opentherm_schema(self) -> dict:
         result = {
-            self._msg_name(v): v.payload
+            self._ot_msg_name(v): v.payload
             for k, v in self._opentherm_msg.items()
             if self._supported_msg.get(int(k, 16)) and int(k, 16) in SCHEMA_MSG_IDS
         }
@@ -1426,7 +1426,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
     @property
     def opentherm_params(self) -> dict:
         result = {
-            self._msg_name(v): v.payload
+            self._ot_msg_name(v): v.payload
             for k, v in self._opentherm_msg.items()
             if self._supported_msg.get(int(k, 16)) and int(k, 16) in PARAMS_MSG_IDS
         }
