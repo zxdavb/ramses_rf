@@ -109,7 +109,7 @@ from .protocol import (  # noqa: F401, isort: skip
     _PUZZ,
 )
 
-DEV_MODE = __dev_mode__ and False
+DEV_MODE = __dev_mode__
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
