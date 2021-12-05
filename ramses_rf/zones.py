@@ -719,7 +719,7 @@ class Zone(ZoneSchedule, ZoneBase):
         self._zone_type = _type
         self.__class__ = ZONE_BY_TYPE[_type]
         self._discover(discover_flag=Discover.ALL)  # TODO: needs tidyup (ref #67)
-        _LOGGER.error("Promoted a Zone: %s(%s)", self.id, self.__class__)
+        _LOGGER.debug("Promoted a Zone: %s(%s)", self.id, self.__class__)
 
     @property
     def name(self) -> Optional[str]:  # 0004
