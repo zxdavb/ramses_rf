@@ -424,7 +424,7 @@ class MultiZone:  # 0005 (+/- 000C?)
         def handle_msg_by_zone_idx(zone_idx: str, msg):
             if zone_idx is None:
                 pass
-            elif (zone := self.zone_by_idx.get(zone_idx)) :
+            elif zone := self.zone_by_idx.get(zone_idx):
                 zone._handle_msg(msg)
             # elif self._gwy.config.enable_eavesdrop:
             #     self._get_zone(zone_idx)._handle_msg(msg)
