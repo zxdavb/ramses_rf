@@ -332,6 +332,19 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
         super()._handle_msg(msg)
 
+        # if msg.code == _000C:
+        #     if kwargs.get(ATTR_DHW_SENSOR):
+        #         dhw._set_sensor(kwargs[ATTR_DHW_SENSOR])
+
+        #     if kwargs.get(ATTR_DHW_VALVE):
+        #         dhw._set_dhw_valve(kwargs[ATTR_DHW_VALVE])
+
+        #     if kwargs.get(ATTR_DHW_VALVE_HTG):
+        #         dhw._set_htg_valve(kwargs[ATTR_DHW_VALVE_HTG])
+
+        #     self._dhw = dhw
+        #     return dhw
+
         if msg.code == _000C and msg.payload["devices"]:
             LOOKUP = {
                 ATTR_DHW_SENSOR: self._set_sensor,
@@ -577,6 +590,20 @@ class Zone(ZoneSchedule, ZoneBase):
 
         super()._handle_msg(msg)
 
+        if msg.code == _000C:
+            # self._set_zone_type(msg.payload["zone_type"])
+
+            if msg.payload.get("sensor"):
+                self._set_sensor(msg.payload["sensor"])
+
+            if msg.payload.get("actuators"):
+                # TODO: confirm is/isn't an address before implementing
+                [
+                    d._set_parent(self)
+                    for d in msg.payload["actuators"]
+                    if d not in self.devices
+                ]
+
         if msg.code == _000C and msg.payload["devices"]:
 
             # TODO: testing this concept, hoping to learn device_id of UFC
@@ -692,6 +719,7 @@ class Zone(ZoneSchedule, ZoneBase):
         self._zone_type = _type
         self.__class__ = ZONE_BY_TYPE[_type]
         self._discover(discover_flag=Discover.ALL)  # TODO: needs tidyup (ref #67)
+        _LOGGER.error("Promoted a Zone: %s(%s)", self.id, self.__class__)
 
     @property
     def name(self) -> Optional[str]:  # 0004

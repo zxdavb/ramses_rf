@@ -39,7 +39,6 @@ from .protocol.const import (
     ATTR_SYSTEM_MODE,
     ATTR_ZONE_SENSOR,
     SYSTEM_MODE,
-    ZONE_TYPE_SLUGS,
     SystemType,
 )
 from .protocol.exceptions import CorruptStateError, ExpiredCallbackError
@@ -422,33 +421,36 @@ class MultiZone:  # 0005 (+/- 000C?)
                     self._make_cmd(_0005, payload=f"00{zone_type}")
 
     def _handle_msg(self, msg) -> None:
+        def handle_msg_by_zone_idx(zone_idx: str, msg):
+            if zone_idx is None:
+                pass
+            elif (zone := self.zone_by_idx.get(zone_idx)) :
+                zone._handle_msg(msg)
+            # elif self._gwy.config.enable_eavesdrop:
+            #     self._get_zone(zone_idx)._handle_msg(msg)
+
         super()._handle_msg(msg)
 
         # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
         if msg.code == _0005:  # RP, and also I
             if msg.payload.get("_device_class") in self.ZONE_TYPES:
                 [
-                    self._get_zone(f"{idx:02X}", **msg.payload)
+                    self._get_zone(f"{idx:02X}", msg=msg)
                     for idx, flag in enumerate(msg.payload["zone_mask"])
                     if flag == 1
                 ]
             return
 
-        # Route any other messages to their zones, incl. 000C
-        try:
-            if isinstance(msg.payload, dict):  # incl. 000C
-                if "zone_idx" in msg.payload:
-                    self._evo.zone_by_idx[msg.payload["zone_idx"]]._handle_msg(msg)
-                # elif msg.payload.get("domain_id") == "FA":  # DHW
+        # NOTE: Route all messages to their zones, incl. 000C, others
+        if isinstance(msg.payload, dict):
+            if zone_idx := msg.payload.get("zone_idx"):
+                handle_msg_by_zone_idx(zone_idx, msg)
+            # TODO: elif msg.payload.get("domain_id") == "FA":  # DHW
 
-            elif isinstance(msg.payload, list):
-                [
-                    self._evo.zone_by_idx[z["zone_idx"]]._handle_msg(msg)
-                    for z in msg.payload
-                    if "zone_idx" in msg.payload[0]
-                ]
-        except KeyError:  # FIXME: this shouldn't happen
-            pass  # if self._gwy.config.enable_eavesdrop:
+        elif isinstance(msg.payload, list):
+            if msg.payload[0].get("zone_idx"):
+                [handle_msg_by_zone_idx(z.get("zone_idx"), msg) for z in msg.payload]
+            # TODO: elif msg.payload.get("domain_id") == "FA":  # DHW
 
         if self._gwy.config.enable_eavesdrop and not all(z.sensor for z in self.zones):
             self._eavesdrop_zone_sensors(msg)
@@ -595,21 +597,13 @@ class MultiZone:  # 0005 (+/- 000C?)
 
         _LOGGER.debug("System state (finally): %s", self.schema)
 
-    def _get_zone(self, zone_idx, **kwargs) -> Zone:
-        """Return a heating zone (will create/update it if required)."""
+    def _get_zone(self, zone_idx, msg=None, **kwargs) -> Zone:
+        """Return a heating zone (will create it if required)."""
 
-        # NOTE: kwargs not passed, only so discovery is as eavesdropping
-        zone = self.zone_by_idx.get(zone_idx) or create_zone(self, zone_idx)
+        zone = self.zone_by_idx.get(zone_idx) or create_zone(self, zone_idx, **kwargs)
 
-        if kwargs.get("_device_class"):
-            zone._set_zone_type(ZONE_TYPE_SLUGS.get(kwargs["zone_type"]))
-
-        if kwargs.get("sensor"):
-            zone._set_sensor(kwargs["sensor"])
-
-        if kwargs.get("actuators"):  # TODO: check not an address before implementing
-            for device in [d for d in kwargs["actuators"] if d not in zone.devices]:
-                device._set_parent(zone)
+        if msg and (zone_type := msg.payload.get("zone_type")):
+            zone._set_zone_type(zone_type)
 
         return zone
 
@@ -780,6 +774,7 @@ class StoredHw:  # 10A0, 1260, 1F41
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
+        # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
         if msg.code == _000C:
             if (
                 msg.payload["device_class"]
@@ -840,6 +835,8 @@ class StoredHw:  # 10A0, 1260, 1F41
 
     def _get_dhw(self, **kwargs) -> DhwZone:
         """Return the DHW zone (will create/update it if required)."""
+
+        # return self.dhw or create_zone(self, zone_idx="HW")
 
         dhw = self.dhw or create_zone(self, zone_idx="HW")
 
