@@ -1408,8 +1408,14 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
     @property
     def rel_modulation_level(self) -> Optional[float]:  # 3220/11 (3EFx)
+        """Return the relative modulation level from OpenTherm."""
         # return self._msg_value((_3EF0, _3EF1), key=self.MODULATION_LEVEL)
         return self._ot_msg_value("11")
+
+    @property  # TODO: temporary thing - to remove
+    def _rel_modulation_level(self) -> Optional[float]:  # 3EF0/3EF1
+        """Return the relative modulation level from RAMSES_II."""
+        return self._msg_value((_3EF0, _3EF1), key=self.MODULATION_LEVEL)
 
     @property
     def opentherm_schema(self) -> dict:
