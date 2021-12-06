@@ -443,6 +443,7 @@ def _check_msg_src(msg: Message) -> None:
     #
 
     #
+    # (code := RAMSES_DEVICES[msg.src.type][msg.code]) and msg.verb not in code:
     if msg.verb not in RAMSES_DEVICES[msg.src.type][msg.code]:  # DEX
         raise InvalidPacketError(
             f"Invalid verb/code for {msg.src.id} to Tx: {msg.verb}/{msg.code}"
@@ -484,6 +485,7 @@ def _check_msg_dst(msg: Message) -> None:
         return  # HACK: an exception-to-the-rule that need sorting
 
     verb = {RQ: RP, RP: RQ, W_: I_}[msg.verb]
+    # (code := RAMSES_DEVICES[msg.dst.type][msg.code]) and verb not in code:
     if verb not in RAMSES_DEVICES[msg.dst.type][msg.code]:  # DEX
         raise InvalidPacketError(
             f"Invalid verb/code for {msg.dst.id} to Rx: {msg.verb}/{msg.code}"
