@@ -9,7 +9,7 @@ from random import randint
 from sys import modules
 from typing import Dict, Optional
 
-from .const import ATTR_ALIAS, ATTR_CLASS, ATTR_FAKED, DHW_HACK, Discover, __dev_mode__
+from .const import ATTR_ALIAS, ATTR_CLASS, ATTR_FAKED, Discover, __dev_mode__
 from .entities import Entity, discover_decorator
 from .protocol import Command, Priority
 from .protocol.address import NON_DEV_ADDR, id_to_address
@@ -242,8 +242,6 @@ class DeviceBase(Entity):
         return ctl
 
     def _handle_msg(self, msg) -> None:
-        if DHW_HACK and msg.code == _1260:
-            _LOGGER.debug(f"{msg._pkt} < handling (11)")  # HACK: lloyda
         assert msg.src is self, f"msg inappropriately routed to {self}"
         super()._handle_msg(msg)
 
@@ -344,8 +342,6 @@ class Device(DeviceInfo, DeviceBase):
     DEVICE_TYPES = tuple()
 
     def _handle_msg(self, msg) -> None:
-        if DHW_HACK and msg.code == _1260:
-            _LOGGER.debug(f"{msg._pkt} < handling (10)")  # HACK: lloyda
         super()._handle_msg(msg)
 
         if type(self) is Device and self.type == "30":  # self.__class__ is Device, DEX
@@ -1164,15 +1160,7 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
         return f"{self.id} ({self._domain_id}): {self.temperature}"
 
     def _handle_msg(self, msg) -> None:  # NOTE: active
-        if DHW_HACK:
-            _LOGGER.debug(f"{msg._pkt} < handling (00)")  # HACK: lloyda
-            _LOGGER.debug(f"msgs = {self._msgs}")
-
         super()._handle_msg(msg)
-
-        if DHW_HACK:
-            _LOGGER.debug(f"{msg._pkt} < handled. (00)")  # HACK: lloyda
-            _LOGGER.debug(f"msgs = {self._msgs}")
 
         if msg.code == _1260 and self._ctl and not self._gwy.config.disable_sending:
             # device can be instantiated with a CTL
@@ -1200,15 +1188,6 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
         ) as exc:
             _LOGGER.exception(exc)
 
-        if DHW_HACK and result is None:  # HACK: lloyda
-            msg = self._msgs.get(_1260)
-            _LOGGER.info(f"DHW msg 1 = {msg!r}")
-            if msg:
-                result = msg.payload.get(self.TEMPERATURE)
-            else:
-                _LOGGER.info(f"DHW msg 2 = {msg!r}")
-                _LOGGER.debug(f"msgs = {self._msgs}")
-                _LOGGER.debug(f"msgz = {self._msgz}")
         return result
 
     @property

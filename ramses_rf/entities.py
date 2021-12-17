@@ -6,7 +6,7 @@
 import logging
 from typing import List
 
-from .const import DHW_HACK, Discover, __dev_mode__
+from .const import Discover, __dev_mode__
 
 from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip
 from .protocol import (  # noqa: F401, isort: skip
@@ -133,9 +133,6 @@ class Entity:
         pass
 
     def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess
-        if DHW_HACK and msg.code == _1260:
-            _LOGGER.debug(f"{msg._pkt} < handling (12)")  # HACK: lloyda
-
         if (
             self._gwy.pkt_protocol is None
             or msg.src.id != self._gwy.pkt_protocol._hgi80.get("device_id")
@@ -197,9 +194,6 @@ class Entity:
         self._gwy.send_cmd(cmd)
 
     def _msg_value(self, code, *args, **kwargs) -> dict:
-        if DHW_HACK and code == _1260:
-            _LOGGER.debug(f"{self._msgs.get(code)} < handling (20)")  # HACK: lloyda
-
         if isinstance(code, (str, tuple)):  # a code or a tuple of codes
             return self._msg_value_code(code, *args, **kwargs)
         return self._msg_value_msg(code, *args, **kwargs)  # assume is a Message
