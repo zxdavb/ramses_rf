@@ -11,7 +11,7 @@ from typing import Dict, Optional
 
 from .const import ATTR_ALIAS, ATTR_CLASS, ATTR_FAKED, DHW_HACK, Discover, __dev_mode__
 from .entities import Entity, discover_decorator
-from .protocol import Command, Priority  # TODO: constants to const.py
+from .protocol import Command, Priority
 from .protocol.address import NON_DEV_ADDR, id_to_address
 from .protocol.command import FUNC, TIMEOUT
 from .protocol.const import (
