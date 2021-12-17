@@ -541,8 +541,9 @@ def parser_0418(payload, msg) -> Optional[dict]:
     if payload[10:12] == "FC" and result["device_class"] == "actuator":
         result["device_class"] = ATTR_HTG_CONTROL  # aka Boiler relay
 
+    # 1C: 'Comms fault, Actuator': seen with boiler relays
     assert int(payload[10:12], 16) < msg._gwy.config.max_zones or (
-        payload[10:12] in ("F9", "FA", "FC")  # "1C"?
+        payload[10:12] in ("1C", "F9", "FA", "FC")
     ), f"unexpected domain_id: {payload[10:12]}"
 
     if payload[12:14] != "00":  # TODO: Controller
@@ -562,7 +563,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
         {
             "_unknown_1": payload[6:8],  # B0 ?priority
             "_unknown_2": payload[14:18],  # 0000
-            "_unknown_3": payload[30:38],  # FFFF7000
+            "_unknown_3": payload[30:38],  # FFFF7000/1/2
         }
     )
 
