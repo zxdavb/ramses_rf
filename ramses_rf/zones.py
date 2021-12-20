@@ -12,7 +12,22 @@ from sys import modules
 from types import SimpleNamespace
 from typing import Optional
 
-from .const import Discover, __dev_mode__
+from .const import (
+    _000C_DEVICE,
+    ATTR_DEVICES,
+    ATTR_HEAT_DEMAND,
+    ATTR_NAME,
+    ATTR_RELAY_DEMAND,
+    ATTR_RELAY_FAILSAFE,
+    ATTR_SETPOINT,
+    ATTR_TEMP,
+    ATTR_WINDOW_OPEN,
+    ZONE_MODE,
+    ZONE_TYPE_MAP,
+    ZONE_TYPE_SLUGS,
+    Discover,
+    __dev_mode__,
+)
 from .devices import (
     BdrSwitch,
     Controller,
@@ -23,28 +38,16 @@ from .devices import (
     UfhController,
 )
 from .entities import Entity, discover_decorator
-from .protocol import CODE_API_MAP, Command, Schedule
-from .protocol.const import (
-    _000C_DEVICE,
-    ATTR_DEVICES,
-    ATTR_DHW_SENSOR,
-    ATTR_DHW_VALVE,
-    ATTR_DHW_VALVE_HTG,
-    ATTR_HEAT_DEMAND,
-    ATTR_NAME,
-    ATTR_RELAY_DEMAND,
-    ATTR_RELAY_FAILSAFE,
-    ATTR_SETPOINT,
-    ATTR_TEMP,
-    ATTR_WINDOW_OPEN,
-    ATTR_ZONE_SENSOR,
-    ATTR_ZONE_TYPE,
-    ZONE_MODE,
-    ZONE_TYPE_MAP,
-    ZONE_TYPE_SLUGS,
-)
-from .protocol.exceptions import CorruptStateError
+from .protocol import CODE_API_MAP, Command, CorruptStateError, Schedule
 from .protocol.transport import PacketProtocolPort
+from .schema import (
+    SZ_DEVICE_ID,
+    SZ_DHW_SENSOR,
+    SZ_DHW_VALVE,
+    SZ_DHW_VALVE_HTG,
+    SZ_ZONE_SENSOR,
+    SZ_ZONE_TYPE,
+)
 
 # from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
 from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip
@@ -336,20 +339,20 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         #     if kwargs.get(ATTR_DHW_SENSOR):
         #         dhw._set_sensor(kwargs[ATTR_DHW_SENSOR])
 
-        #     if kwargs.get(ATTR_DHW_VALVE):
-        #         dhw._set_dhw_valve(kwargs[ATTR_DHW_VALVE])
+        #     if kwargs.get(SZ_DHW_VALVE):
+        #         dhw._set_dhw_valve(kwargs[SZ_DHW_VALVE])
 
-        #     if kwargs.get(ATTR_DHW_VALVE_HTG):
-        #         dhw._set_htg_valve(kwargs[ATTR_DHW_VALVE_HTG])
+        #     if kwargs.get(SZ_DHW_VALVE_HTG):
+        #         dhw._set_htg_valve(kwargs[SZ_DHW_VALVE_HTG])
 
         #     self._dhw = dhw
         #     return dhw
 
         if msg.code == _000C and msg.payload["devices"]:
             LOOKUP = {
-                ATTR_DHW_SENSOR: self._set_sensor,
-                ATTR_DHW_VALVE: self._set_dhw_valve,
-                ATTR_DHW_VALVE_HTG: self._set_htg_valve,
+                SZ_DHW_SENSOR: self._set_sensor,
+                SZ_DHW_VALVE: self._set_dhw_valve,
+                SZ_DHW_VALVE_HTG: self._set_htg_valve,
             }
             devices = [
                 # self._gwy._get_device(d, ctl_id=msg.src.id, domain_id=...)
@@ -380,7 +383,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
 
         self._dhw_sensor = self._set_dhw_device(
-            device, self._dhw_sensor, ATTR_ZONE_SENSOR, DhwSensor, "FA"
+            device, self._dhw_sensor, SZ_ZONE_SENSOR, DhwSensor, "FA"
         )
 
     @property
@@ -400,7 +403,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         """  # noqa: D402
 
         self._dhw_valve = self._set_dhw_device(
-            device, self._dhw_valve, ATTR_DHW_VALVE, BdrSwitch, "FA"
+            device, self._dhw_valve, SZ_DHW_VALVE, BdrSwitch, "FA"
         )
 
     @property
@@ -411,7 +414,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         """Set the heating valve relay for this DHW system (13: only)."""
 
         self._htg_valve = self._set_dhw_device(
-            device, self._htg_valve, ATTR_DHW_VALVE_HTG, BdrSwitch, "F9"
+            device, self._htg_valve, SZ_DHW_VALVE_HTG, BdrSwitch, "F9"
         )
 
     @property
@@ -492,9 +495,9 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
     def schema(self) -> dict:
         """Return the DHW's schema (devices)."""
         return {
-            ATTR_DHW_SENSOR: self.sensor.id if self.sensor else None,
-            ATTR_DHW_VALVE: self.hotwater_valve.id if self.hotwater_valve else None,
-            ATTR_DHW_VALVE_HTG: self.heating_valve.id if self.heating_valve else None,
+            SZ_DHW_SENSOR: self.sensor.id if self.sensor else None,
+            SZ_DHW_VALVE: self.hotwater_valve.id if self.hotwater_valve else None,
+            SZ_DHW_VALVE_HTG: self.heating_valve.id if self.heating_valve else None,
         }
 
     @property
@@ -677,12 +680,12 @@ class Zone(ZoneSchedule, ZoneBase):
             return
         if self._sensor is not None:
             raise CorruptStateError(
-                f"{self} changed {ATTR_ZONE_SENSOR}: {self._sensor} to {device}"
+                f"{self} changed {SZ_ZONE_SENSOR}: {self._sensor} to {device}"
             )
 
         if not isinstance(device, (Controller, Temperature)):
             # TODO: or not hasattr(device, "temperature")
-            raise TypeError(f"{self}: {ATTR_ZONE_SENSOR} can't be: {device}")
+            raise TypeError(f"{self}: {SZ_ZONE_SENSOR} can't be: {device}")
 
         self._sensor = device
         device._set_parent(self)  # , domain=self.idx)
@@ -834,14 +837,14 @@ class Zone(ZoneSchedule, ZoneBase):
             sensor_schema = self._sensor.id
         else:
             sensor_schema = {
-                "device_id": self._sensor.id,
+                SZ_DEVICE_ID: self._sensor.id,
                 "is_faked": self._sensor._fake_30C9,
             }
 
         return {
             "_name": self.name,
-            ATTR_ZONE_TYPE: self.heating_type,
-            ATTR_ZONE_SENSOR: sensor_schema,
+            SZ_ZONE_TYPE: self.heating_type,
+            SZ_ZONE_SENSOR: sensor_schema,
             "sensor_alt": self.sensor.id if self.sensor else None,
             ATTR_DEVICES: [d.id for d in self.devices],
             "actuators": self.actuators,
@@ -1021,8 +1024,13 @@ ZONE_BY_TYPE = {
 def create_zone(evo, zone_idx, profile=None, **kwargs) -> Zone:
     """Create a zone, and optionally perform discovery & start polling."""
 
+    #
+
     if profile is None:
         profile = ZONE_TYPE.DHW if zone_idx == "HW" else None
+        #
+        #
+        #
 
     zone = ZONE_BY_TYPE.get(profile, Zone)(evo, zone_idx, **kwargs)
 

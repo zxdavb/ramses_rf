@@ -13,7 +13,19 @@ from threading import Lock
 from types import SimpleNamespace
 from typing import List, Optional
 
-from .const import Discover, __dev_mode__
+from .const import (
+    _000C_DEVICE,
+    _0005_ZONE,
+    ATTR_DATETIME,
+    ATTR_DEVICES,
+    ATTR_HEAT_DEMAND,
+    ATTR_LANGUAGE,
+    ATTR_SYSTEM_MODE,
+    SYSTEM_MODE,
+    Discover,
+    SystemType,
+    __dev_mode__,
+)
 from .devices import (
     BdrSwitch,
     Device,
@@ -23,33 +35,26 @@ from .devices import (
     UfhController,
 )
 from .entities import Entity, discover_decorator
-from .protocol import Command, FaultLog, Priority
-from .protocol.const import (
-    _000C_DEVICE,
-    _0005_ZONE,
-    ATTR_CONTROLLER,
-    ATTR_DATETIME,
-    ATTR_DEVICES,
-    ATTR_DHW_SENSOR,
-    ATTR_DHW_VALVE,
-    ATTR_DHW_VALVE_HTG,
-    ATTR_HEAT_DEMAND,
-    ATTR_LANGUAGE,
-    ATTR_SYSTEM,
-    ATTR_SYSTEM_MODE,
-    ATTR_ZONE_SENSOR,
-    SYSTEM_MODE,
-    SystemType,
+from .protocol import (
+    Command,
+    CorruptStateError,
+    ExpiredCallbackError,
+    FaultLog,
+    Priority,
 )
-from .protocol.exceptions import CorruptStateError, ExpiredCallbackError
 from .protocol.transport import PacketProtocolPort
 from .schema import (
-    ATTR_DHW_SYSTEM,
-    ATTR_HTG_CONTROL,
-    ATTR_HTG_SYSTEM,
-    ATTR_ORPHANS,
-    ATTR_UFH_SYSTEM,
-    ATTR_ZONES,
+    SZ_CONTROLLER,
+    SZ_DHW_SENSOR,
+    SZ_DHW_SYSTEM,
+    SZ_DHW_VALVE,
+    SZ_DHW_VALVE_HTG,
+    SZ_HTG_CONTROL,
+    SZ_HTG_SYSTEM,
+    SZ_ORPHANS,
+    SZ_UFH_SYSTEM,
+    SZ_ZONE_SENSOR,
+    SZ_ZONES,
 )
 from .zones import DhwZone, Zone, create_zone
 
@@ -293,11 +298,11 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             return
         if self._htg_control is not None:
             raise CorruptStateError(
-                f"{self} changed {ATTR_HTG_CONTROL}: {self._htg_control} to {device}"
+                f"{self} changed {SZ_HTG_CONTROL}: {self._htg_control} to {device}"
             )
 
         if not isinstance(device, (BdrSwitch, OtbGateway)):
-            raise TypeError(f"{self}: {ATTR_HTG_CONTROL} can't be {device}")
+            raise TypeError(f"{self}: {SZ_HTG_CONTROL} can't be {device}")
 
         self._htg_control = device
         device._set_parent(self, domain="FC")  # TODO: _set_domain()
@@ -323,14 +328,14 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     def schema(self) -> dict:
         """Return the system's schema."""
 
-        schema = {ATTR_HTG_SYSTEM: {}}
-        # hema = {ATTR_CONTROLLER: self._ctl.id, ATTR_HTG_SYSTEM: {}}
+        schema = {SZ_HTG_SYSTEM: {}}
+        # hema = {SZ_CONTROLLER: self._ctl.id, SZ_HTG_SYSTEM: {}}
 
-        schema[ATTR_HTG_SYSTEM][ATTR_HTG_CONTROL] = (
+        schema[SZ_HTG_SYSTEM][SZ_HTG_CONTROL] = (
             self.heating_control.id if self.heating_control else None
         )
 
-        schema[ATTR_ORPHANS] = sorted(
+        schema[SZ_ORPHANS] = sorted(
             [
                 d.id
                 for d in self._ctl.devices
@@ -345,27 +350,27 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         """Return the global schema."""
 
         schema = self.schema
-        result = {ATTR_CONTROLLER: self.id}
+        result = {SZ_CONTROLLER: self.id}
 
         try:
-            if schema[ATTR_SYSTEM][ATTR_HTG_CONTROL][:2] == "10":  # DEX
-                result[ATTR_SYSTEM] = {
-                    ATTR_HTG_CONTROL: schema[ATTR_SYSTEM][ATTR_HTG_CONTROL]
+            if schema[SZ_HTG_SYSTEM][SZ_HTG_CONTROL][:2] == "10":  # DEX
+                result[SZ_HTG_SYSTEM] = {
+                    SZ_HTG_CONTROL: schema[SZ_HTG_SYSTEM][SZ_HTG_CONTROL]
                 }
         except (IndexError, TypeError):
-            result[ATTR_SYSTEM] = {ATTR_HTG_CONTROL: None}
+            result[SZ_HTG_SYSTEM] = {SZ_HTG_CONTROL: None}
 
         zones = {}
-        for idx, zone in schema[ATTR_ZONES].items():
+        for idx, zone in schema[SZ_ZONES].items():
             _zone = {}
-            if zone[ATTR_ZONE_SENSOR] and zone[ATTR_ZONE_SENSOR][:2] == "01":  # DEX
-                _zone = {ATTR_ZONE_SENSOR: zone[ATTR_ZONE_SENSOR]}
+            if zone[SZ_ZONE_SENSOR] and zone[SZ_ZONE_SENSOR][:2] == "01":  # DEX
+                _zone = {SZ_ZONE_SENSOR: zone[SZ_ZONE_SENSOR]}
             if devices := [d for d in zone[ATTR_DEVICES] if d[:2] == "00"]:  # DEX
                 _zone.update({ATTR_DEVICES: devices})
             if _zone:
                 zones[idx] = _zone
         if zones:
-            result[ATTR_ZONES] = zones
+            result[SZ_ZONES] = zones
 
         return result
 
@@ -373,16 +378,16 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     def params(self) -> dict:
         """Return the system's configuration."""
 
-        params = {ATTR_HTG_SYSTEM: {}}
-        params[ATTR_HTG_SYSTEM]["tpi_params"] = self._msg_value(_1100)
+        params = {SZ_HTG_SYSTEM: {}}
+        params[SZ_HTG_SYSTEM]["tpi_params"] = self._msg_value(_1100)
         return params
 
     @property
     def status(self) -> dict:
         """Return the system's current state."""
 
-        status = {ATTR_HTG_SYSTEM: {}}
-        status[ATTR_HTG_SYSTEM]["heat_demand"] = self.heat_demand
+        status = {SZ_HTG_SYSTEM: {}}
+        status[SZ_HTG_SYSTEM]["heat_demand"] = self.heat_demand
 
         status[ATTR_DEVICES] = {d.id: d.status for d in sorted(self._ctl.devices)}
 
@@ -611,21 +616,21 @@ class MultiZone:  # 0005 (+/- 000C?)
     def schema(self) -> dict:
         return {
             **super().schema,
-            ATTR_ZONES: {z.idx: z.schema for z in sorted(self.zones)},
+            SZ_ZONES: {z.idx: z.schema for z in sorted(self.zones)},
         }
 
     @property
     def params(self) -> dict:
         return {
             **super().params,
-            ATTR_ZONES: {z.idx: z.params for z in sorted(self.zones)},
+            SZ_ZONES: {z.idx: z.params for z in sorted(self.zones)},
         }
 
     @property
     def status(self) -> dict:
         return {
             **super().status,
-            ATTR_ZONES: {z.idx: z.status for z in sorted(self.zones)},
+            SZ_ZONES: {z.idx: z.status for z in sorted(self.zones)},
         }
 
 
@@ -693,7 +698,7 @@ class Language:  # 0100
     @property
     def params(self) -> dict:
         params = super().params
-        params[ATTR_HTG_SYSTEM][ATTR_LANGUAGE] = self.language
+        params[SZ_HTG_SYSTEM][ATTR_LANGUAGE] = self.language
         return params
 
 
@@ -778,7 +783,7 @@ class StoredHw:  # 10A0, 1260, 1F41
         if msg.code == _000C:
             if (
                 msg.payload["device_class"]
-                in (ATTR_DHW_SENSOR, ATTR_DHW_VALVE, ATTR_DHW_VALVE_HTG)
+                in (SZ_DHW_SENSOR, SZ_DHW_VALVE, SZ_DHW_VALVE_HTG)
                 and msg.payload["devices"]
             ):
                 self._get_dhw()._handle_msg(msg)
@@ -840,14 +845,14 @@ class StoredHw:  # 10A0, 1260, 1F41
 
         dhw = self.dhw or create_zone(self, zone_idx="HW")
 
-        if kwargs.get(ATTR_DHW_SENSOR):
-            dhw._set_sensor(kwargs[ATTR_DHW_SENSOR])
+        if kwargs.get(SZ_DHW_SENSOR):
+            dhw._set_sensor(kwargs[SZ_DHW_SENSOR])
 
-        if kwargs.get(ATTR_DHW_VALVE):
-            dhw._set_dhw_valve(kwargs[ATTR_DHW_VALVE])
+        if kwargs.get(SZ_DHW_VALVE):
+            dhw._set_dhw_valve(kwargs[SZ_DHW_VALVE])
 
-        if kwargs.get(ATTR_DHW_VALVE_HTG):
-            dhw._set_htg_valve(kwargs[ATTR_DHW_VALVE_HTG])
+        if kwargs.get(SZ_DHW_VALVE_HTG):
+            dhw._set_htg_valve(kwargs[SZ_DHW_VALVE_HTG])
 
         self._dhw = dhw
         return dhw
@@ -889,21 +894,21 @@ class StoredHw:  # 10A0, 1260, 1F41
     def schema(self) -> dict:
         return {
             **super().schema,
-            ATTR_DHW_SYSTEM: self._dhw.schema if self._dhw else {},
+            SZ_DHW_SYSTEM: self._dhw.schema if self._dhw else {},
         }
 
     @property
     def params(self) -> dict:
         return {
             **super().params,
-            ATTR_DHW_SYSTEM: self._dhw.params if self._dhw else {},
+            SZ_DHW_SYSTEM: self._dhw.params if self._dhw else {},
         }
 
     @property
     def status(self) -> dict:
         return {
             **super().status,
-            ATTR_DHW_SYSTEM: self._dhw.status if self._dhw else {},
+            SZ_DHW_SYSTEM: self._dhw.status if self._dhw else {},
         }
 
 
@@ -935,7 +940,7 @@ class SysMode:  # 2E04
     @property
     def params(self) -> dict:
         params = super().params
-        params[ATTR_HTG_SYSTEM][ATTR_SYSTEM_MODE] = self.system_mode
+        params[SZ_HTG_SYSTEM][ATTR_SYSTEM_MODE] = self.system_mode
         return params
 
 
@@ -982,21 +987,21 @@ class UfHeating:
     def schema(self) -> dict:
         return {
             **super().schema,
-            ATTR_UFH_SYSTEM: {d.id: d.schema for d in self._ufh_ctls()},
+            SZ_UFH_SYSTEM: {d.id: d.schema for d in self._ufh_ctls()},
         }
 
     @property
     def params(self) -> dict:
         return {
             **super().params,
-            ATTR_UFH_SYSTEM: {d.id: d.params for d in self._ufh_ctls()},
+            SZ_UFH_SYSTEM: {d.id: d.params for d in self._ufh_ctls()},
         }
 
     @property
     def status(self) -> dict:
         return {
             **super().status,
-            ATTR_UFH_SYSTEM: {d.id: d.status for d in self._ufh_ctls()},
+            SZ_UFH_SYSTEM: {d.id: d.status for d in self._ufh_ctls()},
         }
 
 
@@ -1053,11 +1058,11 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
         """Return the system's current state."""
 
         status = super().status
-        # assert ATTR_HTG_SYSTEM in status  # TODO: removeme
+        # assert SZ_HTG_SYSTEM in status  # TODO: removeme
 
-        status[ATTR_HTG_SYSTEM]["heat_demands"] = self.heat_demands
-        status[ATTR_HTG_SYSTEM]["relay_demands"] = self.relay_demands
-        status[ATTR_HTG_SYSTEM]["relay_failsafes"] = self.relay_failsafes
+        status[SZ_HTG_SYSTEM]["heat_demands"] = self.heat_demands
+        status[SZ_HTG_SYSTEM]["relay_demands"] = self.relay_demands
+        status[SZ_HTG_SYSTEM]["relay_failsafes"] = self.relay_failsafes
 
         return status
 
@@ -1181,10 +1186,13 @@ SYSTEM_BY_PROFILE = {
 def create_system(gwy, ctl, profile=None, **kwargs) -> System:
     """Create a system, and optionally perform discovery & start polling."""
 
+    #
+
     if profile is None:  # TODO: messy
         profile = (
             SYSTEM_PROFILE.PRG if isinstance(ctl, Programmer) else SYSTEM_PROFILE.EVO
         )
+        #
 
     system = _SYS_CLASS.get(profile, System)(gwy, ctl, **kwargs)
 

@@ -9,12 +9,7 @@ from random import randint
 from sys import modules
 from typing import Dict, Optional
 
-from .const import ATTR_ALIAS, ATTR_CLASS, ATTR_FAKED, Discover, __dev_mode__
-from .entities import Entity, discover_decorator
-from .protocol import Command, Priority
-from .protocol.address import NON_DEV_ADDR, id_to_address
-from .protocol.command import FUNC, TIMEOUT
-from .protocol.const import (
+from .const import (
     _000C_DEVICE,
     _0005_ZONE,
     ATTR_HEAT_DEMAND,
@@ -23,13 +18,18 @@ from .protocol.const import (
     ATTR_TEMP,
     ATTR_WINDOW_OPEN,
     BOOST_TIMER,
-    DEVICE_CLASS,
+    DEV_KLASS,
     DEVICE_TYPES,
     DOMAIN_TYPE_MAP,
     FAN_MODE,
     NUL_DEVICE_ID,
+    Discover,
+    __dev_mode__,
 )
-from .protocol.exceptions import CorruptStateError
+from .entities import Entity, discover_decorator
+from .protocol import Command, CorruptStateError, Priority
+from .protocol.address import NON_DEV_ADDR, id_to_address
+from .protocol.command import FUNC, TIMEOUT
 from .protocol.opentherm import (
     MSG_ID,
     MSG_NAME,
@@ -42,6 +42,7 @@ from .protocol.opentherm import (
 )
 from .protocol.ramses import CODE_ONLY_FROM_CTL, RAMSES_DEVICES
 from .protocol.transport import PacketProtocolPort
+from .schema import SZ_ALIAS, SZ_CLASS, SZ_DEVICE_ID, SZ_FAKED
 
 from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip
 from .protocol import (  # noqa: F401, isort: skip
@@ -119,38 +120,38 @@ _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
-_DEV_TYPE_TO_CLASS = {  # TODO: *remove*
-    None: DEVICE_CLASS.GEN,  # a generic, promotable device
-    "00": DEVICE_CLASS.TRV,
-    "01": DEVICE_CLASS.CTL,
-    "02": DEVICE_CLASS.UFC,
-    "03": DEVICE_CLASS.STA,
-    "04": DEVICE_CLASS.TRV,
-    "07": DEVICE_CLASS.DHW,
-    "10": DEVICE_CLASS.OTB,
-    "12": DEVICE_CLASS.STA,  # 12: can act like a DEVICE_CLASS.PRG
-    "13": DEVICE_CLASS.BDR,
-    "17": DEVICE_CLASS.EXT,
-    "18": DEVICE_CLASS.HGI,
-    "20": DEVICE_CLASS.FAN,
-    "22": DEVICE_CLASS.STA,  # 22: can act like a DEVICE_CLASS.PRG
-    "23": DEVICE_CLASS.PRG,
-    "29": DEVICE_CLASS.FAN,
-    "30": DEVICE_CLASS.GEN,  # either: RFG/FAN
-    "32": DEVICE_CLASS.HUM,  # also: SWI
-    "34": DEVICE_CLASS.STA,
-    "37": DEVICE_CLASS.FAN,
-    "39": DEVICE_CLASS.SWI,
-    "42": DEVICE_CLASS.SWI,
-    "49": DEVICE_CLASS.SWI,
-    "59": DEVICE_CLASS.SWI,
+_DEV_TYPE_TO_KLASS = {  # TODO: *remove*
+    None: DEV_KLASS.GEN,  # a generic, promotable device
+    "00": DEV_KLASS.TRV,
+    "01": DEV_KLASS.CTL,
+    "02": DEV_KLASS.UFC,
+    "03": DEV_KLASS.STA,
+    "04": DEV_KLASS.TRV,
+    "07": DEV_KLASS.DHW,
+    "10": DEV_KLASS.OTB,
+    "12": DEV_KLASS.STA,  # 12: can act like a DEV_KLASS.PRG
+    "13": DEV_KLASS.BDR,
+    "17": DEV_KLASS.EXT,
+    "18": DEV_KLASS.HGI,
+    "20": DEV_KLASS.FAN,
+    "22": DEV_KLASS.STA,  # 22: can act like a DEV_KLASS.PRG
+    "23": DEV_KLASS.PRG,
+    "29": DEV_KLASS.FAN,
+    "30": DEV_KLASS.GEN,  # either: RFG/FAN
+    "32": DEV_KLASS.HUM,  # also: SWI
+    "34": DEV_KLASS.STA,
+    "37": DEV_KLASS.FAN,
+    "39": DEV_KLASS.SWI,
+    "42": DEV_KLASS.SWI,
+    "49": DEV_KLASS.SWI,
+    "59": DEV_KLASS.SWI,
 }  # these are the default device classes for common types
 
 
 class DeviceBase(Entity):
     """The Device base class (good for a generic device)."""
 
-    _class = None
+    _klass = None
     _types = tuple()  # TODO: needed?
 
     def __init__(self, gwy, dev_addr, ctl=None, domain_id=None, **kwargs) -> None:
@@ -179,7 +180,7 @@ class DeviceBase(Entity):
         self._alias = None
         self._faked = None
         if self.id in gwy._include:
-            self._alias = gwy._include[self.id].get(ATTR_ALIAS)
+            self._alias = gwy._include[self.id].get(SZ_ALIAS)
 
     def __repr__(self) -> str:
         return f"{self.id} ({self._domain_id})"
@@ -272,6 +273,11 @@ class DeviceBase(Entity):
 
         return False
 
+    # @property
+    # def _is_parent(self) -> bool:
+    #     """Return True if other devices can bind to this device."""
+    #     return self._klass in (DEV_KLASS.CTL, DEV_KLASS.PRG, DEV_KLASS.UFC)
+
     @property
     def _is_present(self) -> bool:
         """Try to exclude ghost devices (as caused by corrupt packet addresses)."""
@@ -293,9 +299,9 @@ class DeviceBase(Entity):
 
         return {
             **(self._codes if DEV_MODE else {}),
-            ATTR_ALIAS: self._alias,
-            # ATTR_FAKED: self._faked,
-            ATTR_CLASS: self._class,
+            SZ_ALIAS: self._alias,
+            # SZ_FAKED: self._faked,
+            SZ_CLASS: self._klass,
         }
 
     @property
@@ -338,7 +344,7 @@ class DeviceInfo:  # 10E0
 class Device(DeviceInfo, DeviceBase):
     """The Device base class - also used for unknown device types."""
 
-    _class = DEVICE_CLASS.GEN
+    _klass = DEV_KLASS.GEN
     DEVICE_TYPES = tuple()
 
     def _handle_msg(self, msg) -> None:
@@ -553,7 +559,7 @@ class Fakeable:
     def __init__(self, gwy, *args, **kwargs) -> None:
         super().__init__(gwy, *args, **kwargs)
 
-        if self.id in gwy._include and gwy._include[self.id].get(ATTR_FAKED):
+        if self.id in gwy._include and gwy._include[self.id].get(SZ_FAKED):
             self._make_fake()
 
     def _bind(self):
@@ -563,7 +569,7 @@ class Fakeable:
     def _make_fake(self, bind=None) -> Device:
         if not self._faked:
             self._faked = True
-            self._gwy._include[self.id] = {ATTR_FAKED: True}
+            self._gwy._include[self.id] = {SZ_FAKED: True}
             _LOGGER.warning(f"Faking now enabled for {self}")  # TODO: be info/debug
         if bind:
             self._bind()
@@ -656,7 +662,7 @@ class Fakeable:
     def schema(self) -> dict:
         return {
             **super().schema,
-            ATTR_FAKED: self._faked,
+            SZ_FAKED: self._faked,
         }
 
 
@@ -667,7 +673,7 @@ class Weather(Fakeable):  # 0002 (fakeable)
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        if kwargs.get(ATTR_FAKED) is True or _0002 in kwargs.get(ATTR_FAKED, []):
+        if kwargs.get(SZ_FAKED) is True or _0002 in kwargs.get(SZ_FAKED, []):
             self._make_fake()
 
     def _bind(self):
@@ -709,7 +715,7 @@ class Temperature(Fakeable):  # 30C9 (fakeable)
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        if kwargs.get(ATTR_FAKED) is True or _30C9 in kwargs.get(ATTR_FAKED, []):
+        if kwargs.get(SZ_FAKED) is True or _30C9 in kwargs.get(SZ_FAKED, []):
             self._make_fake()
 
     def _bind(self):
@@ -752,7 +758,7 @@ class RelayDemand(Fakeable):  # 0008 (fakeable)
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        if kwargs.get(ATTR_FAKED) is True or _3EF0 in kwargs.get(ATTR_FAKED, []):
+        if kwargs.get(SZ_FAKED) is True or _3EF0 in kwargs.get(SZ_FAKED, []):
             self._make_fake()
 
     @discover_decorator
@@ -833,14 +839,14 @@ class RelayDemand(Fakeable):  # 0008 (fakeable)
 class RfgGateway(DeviceInfo, DeviceBase):  # RFG (30:)
     """The RFG100 base class."""
 
-    _class = DEVICE_CLASS.RFG
+    _klass = DEV_KLASS.RFG
     _types = ("30",)
 
 
 class HgiGateway(DeviceBase):  # HGI (18:), was GWY
     """The HGI80 base class."""
 
-    _class = DEVICE_CLASS.HGI
+    _klass = DEV_KLASS.HGI
     _types = ("18",)
 
     def __init__(self, *args, **kwargs) -> None:
@@ -965,7 +971,7 @@ class HgiGateway(DeviceBase):  # HGI (18:), was GWY
     @property
     def schema(self):
         return {
-            "device_id": self.id,
+            SZ_DEVICE_ID: self.id,
             "faked_bdr": self._faked_bdr and self._faked_bdr.id,
             "faked_ext": self._faked_ext and self._faked_ext.id,
             "faked_thm": self._faked_thm and self._faked_thm.id,
@@ -975,7 +981,7 @@ class HgiGateway(DeviceBase):  # HGI (18:), was GWY
 class Controller(Device):  # CTL (01):
     """The Controller base class."""
 
-    _class = DEVICE_CLASS.CTL
+    _klass = DEV_KLASS.CTL
     _types = ("01",)
 
     def __init__(self, *args, **kwargs) -> None:
@@ -1011,14 +1017,14 @@ class Controller(Device):  # CTL (01):
 class Programmer(Controller):  # PRG (23):
     """The Controller base class."""
 
-    _class = DEVICE_CLASS.PRG
+    _klass = DEV_KLASS.PRG
     _types = ("23",)
 
 
 class UfhController(Device):  # UFC (02):
     """The UFC class, the HCE80 that controls the UFH zones."""
 
-    _class = DEVICE_CLASS.UFC
+    _klass = DEV_KLASS.UFC
     _types = ("02",)
 
     HEAT_DEMAND = ATTR_HEAT_DEMAND
@@ -1171,7 +1177,7 @@ class UfhController(Device):  # UFC (02):
 class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
     """The DHW class, such as a CS92."""
 
-    _class = DEVICE_CLASS.DHW
+    _klass = DEV_KLASS.DHW
     _types = ("07",)
 
     DHW_PARAMS = "dhw_params"
@@ -1235,7 +1241,7 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
 class ExtSensor(Weather, Device):  # EXT: 17
     """The EXT class (external sensor), such as a HB85/HB95."""
 
-    _class = DEVICE_CLASS.EXT
+    _klass = DEV_KLASS.EXT
     _types = ("17",)
 
     # LUMINOSITY = "luminosity"  # lux
@@ -1251,7 +1257,7 @@ class ExtSensor(Weather, Device):  # EXT: 17
 class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
-    _class = DEVICE_CLASS.OTB
+    _klass = DEV_KLASS.OTB
     _types = ("10",)
 
     # BOILER_SETPOINT = "boiler_setpoint"
@@ -1586,7 +1592,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
     """The THM/STA class, such as a TR87RF."""
 
-    _class = DEVICE_CLASS.STA
+    _klass = DEV_KLASS.STA
     _types = ("03", "12", "22", "34")
 
     # _STATE = super().TEMPERATURE
@@ -1648,7 +1654,7 @@ class BdrSwitch(Actuator, RelayDemand, Device):  # BDR (13):
     - x2 DHW thingys (F9/DHW, FA/DHW)
     """
 
-    _class = DEVICE_CLASS.BDR
+    _klass = DEV_KLASS.BDR
     _types = ("13",)
 
     ACTIVE = "active"
@@ -1747,7 +1753,7 @@ class BdrSwitch(Actuator, RelayDemand, Device):  # BDR (13):
 class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature, Device):  # TRV (04):
     """The TRV class, such as a HR92."""
 
-    _class = DEVICE_CLASS.TRV
+    _klass = DEV_KLASS.TRV
     _types = ("00", "04")  # TODO: keep 00?
 
     WINDOW_OPEN = ATTR_WINDOW_OPEN  # boolean
@@ -1774,7 +1780,7 @@ class HvacHumidity(BatteryState, Device):  # HUM (32) I/12(98|A0)
     The cardinal code is 12A0.
     """
 
-    _class = DEVICE_CLASS.HUM
+    _klass = DEV_KLASS.HUM
     _types = tuple()  # ("32",)
 
     REL_HUMIDITY = "relative_humidity"  # percentage (0.0-1.0)
@@ -1813,7 +1819,7 @@ class HvacSwitch(BatteryState, Device):  # SWI (39): I/22F[13]
     # RQ --- 32:166025 30:079129 --:------ 31DA 001 21
     # RP --- 30:079129 32:166025 --:------ 31DA 029 21EF00026036EF7FFF7FFF7FFF7FFF0002EF18FFFF000000EF7FFF7FFF
 
-    _class = DEVICE_CLASS.SWI
+    _klass = DEV_KLASS.SWI
     _types = tuple()  # ("39",)
 
     @property
@@ -1846,7 +1852,7 @@ class HvacVentilator(Device):  # FAN (20/37): RP/31DA, I/31D[9A]
     # every /30
     # 30:079129 --:------ 30:079129 31D9 017 2100FF0000000000000000000000000000
 
-    _class = DEVICE_CLASS.FAN
+    _klass = DEV_KLASS.FAN
     _types = tuple()  # ("20", "37")
 
     @property
@@ -1887,24 +1893,24 @@ class HvacVentilator(Device):  # FAN (20/37): RP/31DA, I/31D[9A]
         }
 
 
-_CLASS = "_class"
-DEVICE_BY_CLASS = {
-    getattr(c[1], _CLASS): c[1]
+_ATTR_KLASS = "_klass"
+DEVICE_BY_KLASS = {
+    getattr(c[1], _ATTR_KLASS): c[1]
     for c in getmembers(
         modules[__name__],
-        lambda m: isclass(m) and m.__module__ == __name__ and hasattr(m, _CLASS),
+        lambda m: isclass(m) and m.__module__ == __name__ and hasattr(m, _ATTR_KLASS),
     )
 }  # Every device class has a {klass: class}, e.g.: "CTL": Controller
 
 DEVICE_BY_ID_TYPE = {
     k1: v2
-    for k1, v1 in _DEV_TYPE_TO_CLASS.items()
-    for k2, v2 in DEVICE_BY_CLASS.items()
+    for k1, v1 in _DEV_TYPE_TO_KLASS.items()
+    for k2, v2 in DEVICE_BY_KLASS.items()
     if v1 == k2
 }  # e.g. "01": Controller,
 
 
-DEVICE_KLASS_BY_SIGNATURE = {
+OUT_DEV_KLASS_BY_SIGNATURE = {
     "FAN": ((RP, _31DA), (I_, _31D9), (I_, _31DA)),
     "SWI": ((I_, _22F1), (I_, _22F3)),
     "HUM": ((I_, _12A0)),
@@ -1912,18 +1918,18 @@ DEVICE_KLASS_BY_SIGNATURE = {
 }
 
 
-def create_device(gwy, dev_id, dev_class=None, **kwargs) -> Device:
+def create_device(gwy, dev_id, dev_klass=None, **kwargs) -> Device:
     """Create a device, and optionally perform discovery & start polling."""
 
     dev_addr = id_to_address(dev_id)
 
-    if dev_class is None:
+    if dev_klass is None:
         if dev_addr.type != "30":  # could be RFG or VNT  # DEX
-            dev_class = _DEV_TYPE_TO_CLASS.get(dev_addr.type, DEVICE_CLASS.GEN)  # DEX
+            dev_klass = _DEV_TYPE_TO_KLASS.get(dev_addr.type, DEV_KLASS.GEN)  # DEX
         else:
-            dev_class = DEVICE_CLASS.GEN  # generic
+            dev_klass = DEV_KLASS.GEN  # generic
 
-    device = DEVICE_BY_CLASS.get(dev_class, Device)(gwy, dev_addr, **kwargs)
+    device = DEVICE_BY_KLASS.get(dev_klass, Device)(gwy, dev_addr, **kwargs)
 
     if isinstance(gwy.pkt_protocol, PacketProtocolPort):
         device._start_discovery()

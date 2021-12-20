@@ -12,10 +12,8 @@ import logging
 import re
 from typing import Any, List, Optional
 
-from .const import __dev_mode__
-from .protocol import RAMSES_CODES, Command, Priority
-from .protocol.const import DEV_REGEX_ANY, HGI_DEVICE_ID, NON_DEVICE_ID
-from .protocol.exceptions import ExpiredCallbackError
+from .const import DEV_REGEX_ANY, HGI_DEVICE_ID, NON_DEVICE_ID, __dev_mode__
+from .protocol import RAMSES_CODES, Command, ExpiredCallbackError, Priority
 from .protocol.opentherm import OTB_MSG_IDS
 
 from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip

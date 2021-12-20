@@ -16,34 +16,17 @@ from typing import Any, Optional, Tuple
 import voluptuous as vol
 
 from .const import (
-    ATTR_ALIAS,
-    ATTR_CLASS,
-    ATTR_FAKED,
-    ATTR_ORPHANS,
-    DONT_CREATE_MESSAGES,
-)
-from .protocol import PACKET_LOG, PACKET_LOG_SCHEMA
-from .protocol.const import (
     ATTR_DEVICES,
-    ATTR_DHW_SENSOR,
-    ATTR_DHW_VALVE,
-    ATTR_DHW_VALVE_HTG,
-    ATTR_HTG_CONTROL,
-)
-from .protocol.const import ATTR_STORED_HW as ATTR_DHW_SYSTEM
-from .protocol.const import ATTR_UFH_HTG as ATTR_UFH_SYSTEM
-from .protocol.const import (
     ATTR_ZONE_IDX,
-    ATTR_ZONE_SENSOR,
-    ATTR_ZONE_TYPE,
-    ATTR_ZONES,
     DEFAULT_MAX_ZONES,
-    DEVICE_CLASS,
+    DEV_KLASS,
     DEVICE_ID_REGEX,
+    DONT_CREATE_MESSAGES,
     ZONE_TYPE_SLUGS,
     SystemType,
     __dev_mode__,
 )
+from .protocol import PACKET_LOG, PACKET_LOG_SCHEMA
 from .protocol.transport import SERIAL_CONFIG_SCHEMA
 
 DEV_MODE = __dev_mode__ and False
@@ -53,10 +36,32 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-# schema attrs
-ATTR_DEVICE_ID = "device_id"
-ATTR_HTG_SYSTEM = "system"
-ATTR_UFH_CTL = "ufh_controller"
+# schema strings
+SCHEMA = "schema"
+SZ_MAIN_CONTROLLER = "main_controller"
+
+SZ_CONTROLLER = "controller"
+SZ_HTG_SYSTEM = "system"
+SZ_HTG_CONTROL = "heating_control"
+SZ_ORPHANS = "orphans"
+
+SZ_DHW_SYSTEM = "stored_hotwater"
+SZ_DHW_SENSOR = "hotwater_sensor"
+SZ_DHW_VALVE = "hotwater_valve"
+SZ_DHW_VALVE_HTG = "heating_valve"
+
+SZ_ZONES = "zones"
+SZ_ZONE_TYPE = "zone_type"
+SZ_ZONE_SENSOR = "zone_sensor"
+SZ_ACTUATORS = "actuators"
+
+SZ_UFH_SYSTEM = "underfloor_heating"
+SZ_UFH_CTL = "ufh_controller"
+
+SZ_DEVICE_ID = "device_id"
+SZ_ALIAS = "alias"
+SZ_CLASS = "class"
+SZ_FAKED = "faked"
 
 DEVICE_ID = vol.Match(DEVICE_ID_REGEX.ANY)
 SENSOR_ID = vol.Match(DEVICE_ID_REGEX.SEN)
@@ -96,10 +101,6 @@ SERIAL_CONFIG = "serial_config"
 USE_ALIASES = "use_aliases"  # use friendly device names from known_list
 USE_SCHEMA = "use_schema"
 
-# Schema parameters
-SCHEMA = "schema"
-MAIN_CONTROLLER = "main_controller"
-
 # 1/3: Schemas for Configuration
 
 CONFIG_SCHEMA = vol.Schema(
@@ -126,9 +127,9 @@ DEVICE_DICT = vol.Schema(
     {
         vol.Optional(DEVICE_ID): vol.Any(
             {
-                vol.Optional(ATTR_ALIAS): vol.Any(None, str),
-                vol.Optional(ATTR_CLASS): vol.Any(None, *vars(DEVICE_CLASS).keys()),
-                vol.Optional(ATTR_FAKED): vol.Any(None, bool, list),
+                vol.Optional(SZ_ALIAS): vol.Any(None, str),
+                vol.Optional(SZ_CLASS): vol.Any(None, *vars(DEV_KLASS).keys()),
+                vol.Optional(SZ_FAKED): vol.Any(None, bool, list),
             },
         )
     },
@@ -136,13 +137,13 @@ DEVICE_DICT = vol.Schema(
 )
 
 # 2/3: Schemas for Heating systems
-ATTR_SYS_PROFILE = "_profile"
+SZ_SYS_PROFILE = "_profile"
 SYSTEM_PROFILES = (SystemType.EVOHOME, SystemType.HOMETRONICS, SystemType.SUNDIAL)
 
 HTG_SCHEMA = vol.Schema(
     {
-        vol.Required(ATTR_HTG_CONTROL, default=None): vol.Any(None, DEV_REGEX_HTG),
-        vol.Optional(ATTR_SYS_PROFILE, default=SystemType.EVOHOME): vol.Any(
+        vol.Required(SZ_HTG_CONTROL, default=None): vol.Any(None, DEV_REGEX_HTG),
+        vol.Optional(SZ_SYS_PROFILE, default=SystemType.EVOHOME): vol.Any(
             *SYSTEM_PROFILES
         ),
     },
@@ -150,9 +151,9 @@ HTG_SCHEMA = vol.Schema(
 )
 DHW_SCHEMA = vol.Schema(
     {
-        vol.Optional(ATTR_DHW_SENSOR, default=None): vol.Any(None, DEV_REGEX_DHW),
-        vol.Optional(ATTR_DHW_VALVE, default=None): vol.Any(None, DEV_REGEX_BDR),
-        vol.Optional(ATTR_DHW_VALVE_HTG, default=None): vol.Any(None, DEV_REGEX_BDR),
+        vol.Optional(SZ_DHW_SENSOR, default=None): vol.Any(None, DEV_REGEX_DHW),
+        vol.Optional(SZ_DHW_VALVE, default=None): vol.Any(None, DEV_REGEX_BDR),
+        vol.Optional(SZ_DHW_VALVE_HTG, default=None): vol.Any(None, DEV_REGEX_BDR),
     }
 )
 UFC_CIRCUIT = vol.Schema(
@@ -173,8 +174,8 @@ UFH_SCHEMA = vol.All(UFH_SCHEMA, vol.Length(min=1, max=3))
 
 ZONE_SCHEMA = vol.Schema(
     {
-        vol.Optional(ATTR_ZONE_TYPE, default=None): vol.Any(None, ZONE_TYPE_SLUGS),
-        vol.Optional(ATTR_ZONE_SENSOR, default=None): vol.Any(None, SENSOR_ID),
+        vol.Optional(SZ_ZONE_TYPE, default=None): vol.Any(None, ZONE_TYPE_SLUGS),
+        vol.Optional(SZ_ZONE_SENSOR, default=None): vol.Any(None, SENSOR_ID),
         vol.Optional(ATTR_DEVICES, default=[]): vol.Any([], [DEVICE_ID]),
         # vol.Optional("faked_sensor", default=None): vol.Any(None, bool),
     }
@@ -185,12 +186,12 @@ ZONES_SCHEMA = vol.All(
 )
 SYSTEM_SCHEMA = vol.Schema(
     {
-        # vol.Required(ATTR_CONTROLLER): DEV_REGEX_CTL,
-        vol.Optional(ATTR_HTG_SYSTEM, default={}): vol.Any({}, HTG_SCHEMA),
-        vol.Optional(ATTR_DHW_SYSTEM, default={}): vol.Any({}, DHW_SCHEMA),
-        vol.Optional(ATTR_UFH_SYSTEM, default={}): vol.Any({}, UFH_SCHEMA),
-        vol.Optional(ATTR_ORPHANS, default=[]): vol.Any([], [DEVICE_ID]),
-        vol.Optional(ATTR_ZONES, default={}): vol.Any({}, ZONES_SCHEMA),
+        # vol.Required(SZ_CONTROLLER): DEV_REGEX_CTL,
+        vol.Optional(SZ_HTG_SYSTEM, default={}): vol.Any({}, HTG_SCHEMA),
+        vol.Optional(SZ_DHW_SYSTEM, default={}): vol.Any({}, DHW_SCHEMA),
+        vol.Optional(SZ_UFH_SYSTEM, default={}): vol.Any({}, UFH_SCHEMA),
+        vol.Optional(SZ_ORPHANS, default=[]): vol.Any([], [DEVICE_ID]),
+        vol.Optional(SZ_ZONES, default={}): vol.Any({}, ZONES_SCHEMA),
     },
     extra=vol.ALLOW_EXTRA,  # TODO: remove me - But: Causes an issue?
 )
@@ -327,10 +328,10 @@ def load_schema(gwy, **kwargs) -> dict:
         for ctl_id, schema in kwargs.items()
         if re.match(DEVICE_ID_REGEX.ANY, ctl_id)
     ]
-    if kwargs.get(MAIN_CONTROLLER):
-        gwy.evo = gwy.system_by_id.get(kwargs[MAIN_CONTROLLER])
+    if kwargs.get(SZ_MAIN_CONTROLLER):
+        gwy.evo = gwy.system_by_id.get(kwargs[SZ_MAIN_CONTROLLER])
 
-    [_get_device(gwy, device_id) for device_id in kwargs.pop(ATTR_ORPHANS, [])]
+    [_get_device(gwy, device_id) for device_id in kwargs.pop(SZ_ORPHANS, [])]
 
 
 def load_system(gwy, ctl_id, schema) -> Tuple[dict, dict]:
@@ -339,22 +340,22 @@ def load_system(gwy, ctl_id, schema) -> Tuple[dict, dict]:
     if (ctl := _get_device(gwy, ctl_id, ctl_id=ctl_id, profile=None)) is None:
         return
 
-    if dev_id := schema[ATTR_HTG_SYSTEM].get(ATTR_HTG_CONTROL):
+    if dev_id := schema[SZ_HTG_SYSTEM].get(SZ_HTG_CONTROL):
         ctl._evo._set_htg_control(_get_device(gwy, dev_id, ctl_id=ctl.id))
 
-    if dhw_schema := schema.get(ATTR_DHW_SYSTEM, {}):
+    if dhw_schema := schema.get(SZ_DHW_SYSTEM, {}):
         dhw = ctl._evo._get_dhw()  # **dhw_schema)
-        if dev_id := dhw_schema.get(ATTR_DHW_SENSOR):
+        if dev_id := dhw_schema.get(SZ_DHW_SENSOR):
             dhw._set_sensor(_get_device(gwy, dev_id, ctl_id=ctl.id))
-        if dev_id := dhw_schema.get(ATTR_DHW_VALVE):
+        if dev_id := dhw_schema.get(SZ_DHW_VALVE):
             dhw._set_dhw_valve(_get_device(gwy, dev_id, ctl_id=ctl.id))
-        if dev_id := dhw_schema.get(ATTR_DHW_VALVE_HTG):
+        if dev_id := dhw_schema.get(SZ_DHW_VALVE_HTG):
             dhw._set_htg_valve(_get_device(gwy, dev_id, ctl_id=ctl.id))
 
-    for zone_idx, attrs in schema[ATTR_ZONES].items():
+    for zone_idx, attrs in schema[SZ_ZONES].items():
         zone = ctl._evo._get_zone(zone_idx)  # , **attrs)
 
-        if dev_id := attrs.get(ATTR_ZONE_SENSOR):
+        if dev_id := attrs.get(SZ_ZONE_SENSOR):
             zone._set_sensor(
                 _get_device(gwy, dev_id, ctl_id=ctl.id, domain_id=zone_idx)
             )
@@ -364,13 +365,13 @@ def load_system(gwy, ctl_id, schema) -> Tuple[dict, dict]:
         for dev_id in attrs.get(ATTR_DEVICES, []):
             _get_device(gwy, dev_id, ctl_id=ctl.id, domain_id=zone_idx)
 
-        if zone_type := attrs.get(ATTR_ZONE_TYPE):
+        if zone_type := attrs.get(SZ_ZONE_TYPE):
             zone._set_zone_type(zone_type)
 
-    for dev_id in schema.get(ATTR_UFH_SYSTEM, {}).keys():  # UFH controllers
+    for dev_id in schema.get(SZ_UFH_SYSTEM, {}).keys():  # UFH controllers
         _get_device(gwy, dev_id, ctl_id=ctl.id)  # , **_schema)
 
-    for dev_id in schema.get(ATTR_ORPHANS, []):
+    for dev_id in schema.get(SZ_ORPHANS, []):
         _get_device(gwy, dev_id, ctl_id=ctl.id)
 
     if False and DEV_MODE:

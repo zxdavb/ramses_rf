@@ -10,9 +10,7 @@ import logging
 
 from .const import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES, __dev_mode__
 from .devices import Device
-from .protocol import Message
-from .protocol.exceptions import CorruptStateError
-from .protocol.ramses import RAMSES_CODES
+from .protocol import RAMSES_CODES, CorruptStateError, Message
 
 from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip
 from .protocol import (  # noqa: F401, isort: skip

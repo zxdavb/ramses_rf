@@ -20,26 +20,35 @@ from datetime import datetime as dt
 from threading import Lock
 from typing import Callable, Dict, List, Optional, Tuple
 
-from .const import ATTR_FAKED, ATTR_ORPHANS, DONT_CREATE_MESSAGES, __dev_mode__
+from .const import (
+    ATTR_DEVICES,
+    DONT_CREATE_MESSAGES,
+    NON_DEVICE_ID,
+    NUL_DEVICE_ID,
+    __dev_mode__,
+)
 from .devices import Device, create_device
 from .helpers import schedule_task
 from .message import Message, process_msg
 from .protocol import (
     POLLER_TASK,
     Command,
+    ExpiredCallbackError,
     create_msg_stack,
     create_pkt_stack,
     is_valid_dev_id,
     set_logger_timesource,
     set_pkt_logging_config,
 )
-from .protocol.const import ATTR_DEVICES, NON_DEVICE_ID, NUL_DEVICE_ID
-from .protocol.exceptions import ExpiredCallbackError
 from .schema import (
     BLOCK_LIST,
     DEBUG_MODE,
     INPUT_FILE,
     KNOWN_LIST,
+    SZ_DEVICE_ID,
+    SZ_FAKED,
+    SZ_MAIN_CONTROLLER,
+    SZ_ORPHANS,
     load_config,
     load_schema,
 )
@@ -211,7 +220,7 @@ class Gateway:
 
             if self.config.enforce_known_list and (
                 dev_id not in self._include
-                and dev_id != self.pkt_protocol._hgi80["device_id"]
+                and dev_id != self.pkt_protocol._hgi80[SZ_DEVICE_ID]
             ):
                 _LOGGER.warning(
                     f"Won't create a non-allowed device_id: {dev_id}"
@@ -361,8 +370,8 @@ class Gateway:
 
     @property
     def hgi(self) -> Optional[Device]:  # TODO: DEVICE_ID
-        if self.pkt_protocol and self.pkt_protocol._hgi80["device_id"]:
-            return self.device_by_id.get(self.pkt_protocol._hgi80["device_id"])
+        if self.pkt_protocol and self.pkt_protocol._hgi80[SZ_DEVICE_ID]:
+            return self.device_by_id.get(self.pkt_protocol._hgi80[SZ_DEVICE_ID])
 
     @property
     def _config(self) -> dict:
@@ -382,20 +391,20 @@ class Gateway:
     def schema(self) -> dict:
         """Return the global schema."""
 
-        schema = {"main_controller": self.evo._ctl.id if self.evo else None}
+        schema = {SZ_MAIN_CONTROLLER: self.evo._ctl.id if self.evo else None}
 
         for evo in self.systems:
             schema[evo._ctl.id] = evo.schema
 
-        schema[ATTR_ORPHANS] = [
+        schema[SZ_ORPHANS] = [
             d.id for d in self.devices if d._ctl is None and d._is_present
         ]
 
         schema["device_hints"] = {}
         for d in sorted(self.devices):
             device_schema = {}
-            if d.schema.get(ATTR_FAKED):
-                device_schema.update({ATTR_FAKED: d.schema[ATTR_FAKED]})
+            if d.schema.get(SZ_FAKED):
+                device_schema.update({SZ_FAKED: d.schema[SZ_FAKED]})
             if device_schema:
                 schema["device_hints"][d.id] = device_schema
 
