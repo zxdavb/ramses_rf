@@ -84,8 +84,6 @@ __all__ = ["Message"]
 
 HVAC_ONLY_CODES = (_1298, _12A0, _12C8, _22F1, _22F3, _31D9, _31DA, _31E0)
 
-ATTR_ALIAS = "alias"  # duplicate
-
 CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
 
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:^4s} || {}"
@@ -146,8 +144,8 @@ class Message:
             return ctx
 
         def display_name(addr: Address) -> str:  # TODO: is broken
-            # name = d.schema.get(ATTR_ALIAS) if self._gwy.config.use_aliases else None
-            name = None
+            # name = d.schema.get("alias") if self._gwy.config.use_aliases else None
+            name = None  # FIXME
             return name[:20] if name else Address._friendly(addr.id)
 
         if self._str is not None:
