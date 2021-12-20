@@ -1725,19 +1725,19 @@ def parser_3220(payload, msg) -> Optional[dict]:
 
             result.update(ot_value)
 
-    try:
-        assert ot_id != 0 or (
-            [result["value"][i] for i in (2, 3, 4, 5, 6, 7)] == [0] * 6
-        ), result["value"]
+        try:
+            assert ot_id != 0 or (
+                [result["value"][i] for i in (2, 3, 4, 5, 6, 7)] == [0] * 6
+            ), result["value"]
 
-        assert ot_id != 0 or (
-            [result["value"][8 + i] for i in (0, 4, 5, 6, 7)] == [0] * 5
-        ), result["value"]
-    except AssertionError:
-        _LOGGER.warning(
-            f"{msg._pkt} < Support development by reporting this pkt, "
-            "please include a description of your system"
-        )
+            assert ot_id != 0 or (
+                [result["value"][8 + i] for i in (0, 4, 5, 6, 7)] == [0] * 5
+            ), result["value"]
+        except AssertionError:
+            _LOGGER.warning(
+                f"{msg._pkt} < Support development by reporting this pkt, "
+                "please include a description of your system"
+            )
 
     result[MSG_DESC] = ot_schema.get(EN)
     return result
