@@ -3,6 +3,10 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
+# noqa: F401, pylint: disable=unused-import
+
+from logging import Logger
+
 from .address import is_valid_dev_id
 from .command import CODE_API_MAP, Command, FaultLog, Priority
 from .logger import set_logger_timesource, set_pkt_logging
@@ -89,3 +93,8 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _3EF1,
     _PUZZ,
 )
+
+
+def set_pkt_logging_config(**config) -> Logger:
+    set_pkt_logging(_PKT_LOGGER, **config)
+    return _PKT_LOGGER

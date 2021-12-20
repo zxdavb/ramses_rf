@@ -25,14 +25,13 @@ from .devices import Device, create_device
 from .helpers import schedule_task
 from .message import Message, process_msg
 from .protocol import (
-    _PKT_LOGGER,
     POLLER_TASK,
     Command,
     create_msg_stack,
     create_pkt_stack,
     is_valid_dev_id,
     set_logger_timesource,
-    set_pkt_logging,
+    set_pkt_logging_config,
 )
 from .protocol.const import ATTR_DEVICES, NON_DEVICE_ID, NUL_DEVICE_ID
 from .protocol.exceptions import ExpiredCallbackError
@@ -84,8 +83,7 @@ class Gateway:
         self.pkt_protocol, self.pkt_transport = None, None
         self.msg_protocol, self.msg_transport = None, None
 
-        set_pkt_logging(
-            _PKT_LOGGER,
+        set_pkt_logging_config(
             cc_console=self.config.reduce_processing >= DONT_CREATE_MESSAGES,
             **self.config.packet_log,
         )
