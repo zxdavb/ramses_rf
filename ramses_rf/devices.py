@@ -432,7 +432,8 @@ class Actuator:  # 3EF0, 3EF1
 
         if discover_flag & Discover.STATUS and not self._faked:
             # NOTE: No need to send periodic RQ/3EF1s to an OTB, use RQ/3220/11s
-            self._make_cmd(_3EF1)  # NOTE: No RPs to RQ/3EF0
+            self._send_cmd(Command(RQ, _3EF0, "00", self.id))  # CTLs dont RP to RQ/3EF0
+            self._make_cmd(_3EF1)
 
     def _handle_msg(self, msg) -> None:  # NOTE: active
         super()._handle_msg(msg)
@@ -447,6 +448,32 @@ class Actuator:  # 3EF0, 3EF1
             and not self._gwy.config.disable_sending
         ):
             self._make_cmd(_3EF1, priority=Priority.LOW, retries=1)
+
+    @property
+    def _ch_active(self) -> Optional[bool]:  # 3EF0
+        return self._msg_value(_3EF0, key="ch_active")
+
+    @property
+    def _ch_enabled(self) -> Optional[bool]:  # 3EF0
+        return self._msg_value(_3EF0, key="ch_enabled")
+
+    @property
+    def _dhw_active(self) -> Optional[bool]:  # 3EF0
+        return self._msg_value(_3EF0, key="dhw_active")
+
+    @property
+    def _flame_active(self) -> Optional[bool]:  # 3EF0
+        return self._msg_value(_3EF0, key="flame_active")
+
+    @property
+    def _bit_3_7(self) -> Optional[bool]:  # 3EF0
+        if flags := self._msg_value(_3EF0, key="_flags_3"):
+            return flags[7]
+
+    @property
+    def _bit_6_6(self) -> Optional[bool]:  # 3EF0 ?dhw_enabled
+        if flags := self._msg_value(_3EF0, key="_flags_6"):
+            return flags[6]
 
     @property
     def actuator_cycle(self) -> Optional[dict]:  # 3EF1
@@ -1358,16 +1385,31 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
     @property
     def boiler_setpoint(self) -> Optional[float]:  # 3220/01 (22D9)
-        # return self._msg_value(_22D9, key=self.BOILER_SETPOINT)
         return self._ot_msg_value("01")
+
+    @property
+    def _boiler_setpoint(self) -> Optional[float]:  # 3220/01 (22D9)
+        return self._msg_value(_22D9, key="setpoint")
 
     @property
     def ch_max_setpoint(self) -> Optional[float]:  # 3220/39 (1081)
         return self._ot_msg_value("39")
 
     @property
+    def _ch_max_setpoint(self) -> Optional[float]:  # 3220/39 (1081)
+        return self._msg_value(_1081, key="setpoint")
+
+    @property
     def ch_water_pressure(self) -> Optional[float]:  # 3220/12 (1300)
         return self._ot_msg_value("12")
+
+    @property
+    def _ch_water_pressure(self) -> Optional[float]:  # 3220/12 (1300)
+        return self._msg_value(_1300, key="pressure")
+
+    @property
+    def _ch_setpoint(self) -> Optional[bool]:  # 3EF0
+        return self._msg_value(_3EF0, key="ch_setpoint")
 
     @property
     def dhw_flow_rate(self) -> Optional[float]:  # 3220/13
@@ -1378,25 +1420,79 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         return self._ot_msg_value("38")
 
     @property
+    def _dhw_setpoint(self) -> Optional[float]:  # 3220/38 (10A0)
+        return self._msg_value(_1300, key="setpoint")
+
+    @property
     def dhw_temp(self) -> Optional[float]:  # 3220/1A (1260)
         return self._ot_msg_value("1A")
+
+    @property
+    def _dhw_temp(self) -> Optional[float]:  # 3220/1A (1260)
+        return self._msg_value(_1260, key="temperature")
 
     @property
     def outside_temp(self) -> Optional[float]:  # 3220/1B (1290)
         return self._ot_msg_value("1B")
 
     @property
+    def _outside_temp(self) -> Optional[float]:  # 3220/1B (1290)
+        return self._msg_value(_1290, key="temperature")
+
+    @property
     def rel_modulation_level(self) -> Optional[float]:  # 3220/11 (3EFx)
         """Return the relative modulation level from OpenTherm."""
-        # return self._msg_value((_3EF0, _3EF1), key=self.MODULATION_LEVEL)
         return self._ot_msg_value("11")
 
-    @property  # TODO: temporary thing - to remove
+    @property
     def _rel_modulation_level(self) -> Optional[float]:  # 3EF0/3EF1
         """Return the relative modulation level from RAMSES_II."""
         return self._msg_value((_3EF0, _3EF1), key=self.MODULATION_LEVEL)
 
     @property
+    def _max_rel_modulation(self) -> Optional[float]:  # 3EF0
+        return self._msg_value(_3EF0, key="max_rel_modulation")
+
+    @property
+    def ch_active(self) -> Optional[bool]:  # 3220/00
+        if flags := self._ot_msg_value("00"):
+            return flags[8 + 1]
+
+    @property
+    def ch_enabled(self) -> Optional[bool]:  # 3220/00
+        if flags := self._ot_msg_value("00"):
+            return flags[0]
+
+    @property
+    def dhw_active(self) -> Optional[bool]:  # 3220/00
+        if flags := self._ot_msg_value("00"):
+            return flags[8 + 2]
+
+    @property
+    def dhw_enabled(self) -> Optional[bool]:  # 3220/00
+        if flags := self._ot_msg_value("00"):
+            return flags[1]
+
+    @property
+    def flame_active(self) -> Optional[bool]:  # 3220/00 (flame_on)
+        if flags := self._ot_msg_value("00"):
+            return flags[8 + 3]
+
+    @property
+    def cooling_active(self) -> Optional[bool]:  # 3220/00
+        if flags := self._ot_msg_value("00"):
+            return flags[8 + 4]
+
+    @property
+    def cooling_enabled(self) -> Optional[bool]:  # 3220/00
+        if flags := self._ot_msg_value("00"):
+            return flags[2]
+
+    @property
+    def fault_present(self) -> Optional[bool]:  # 3220/00
+        if flags := self._ot_msg_value("00"):
+            return flags[8]
+
     def opentherm_schema(self) -> dict:
         result = {
             self._ot_msg_name(v): v.payload
@@ -1436,6 +1532,29 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         }
 
     @property
+    def ramses_params(self) -> dict:
+        return {
+            "ch_max_setpoint": self._ch_max_setpoint,
+            "dhw_setpoint": self._dhw_setpoint,
+            "max_rel_modulation": self._max_rel_modulation,
+        }
+
+    @property
+    def ramses_status(self) -> dict:
+        return {
+            "boiler_setpoint": self._boiler_setpoint,
+            "ch_setpoint": self._ch_setpoint,
+            "ch_water_pressure": self._ch_water_pressure,
+            "dhw_temp": self._dhw_temp,
+            "outside_temp": self._outside_temp,
+            "rel_modulation_level": self._rel_modulation_level,
+            "ch_active": self._ch_active,
+            "ch_enabled": self._ch_enabled,
+            "dhw_active": self._dhw_active,
+            "flame_active": self._flame_active,
+        }
+
+    @property
     def schema(self) -> dict:
         return {
             **super().schema,
@@ -1460,6 +1579,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         return {
             **super().status,  # incl. actuator_cycle, actuator_state
             "opentherm_status": self.opentherm_status,
+            "ramses_status": self.ramses_status,
         }
 
 
