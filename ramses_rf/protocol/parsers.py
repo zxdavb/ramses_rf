@@ -1725,6 +1725,20 @@ def parser_3220(payload, msg) -> Optional[dict]:
 
             result.update(ot_value)
 
+    try:
+        assert ot_id != 0 or (
+            [result["value"][i] for i in (2, 3, 4, 5, 6, 7)] == [0] * 6
+        ), result["value"]
+
+        assert ot_id != 0 or (
+            [result["value"][8 + i] for i in (0, 4, 5, 6, 7)] == [0] * 5
+        ), result["value"]
+    except AssertionError:
+        _LOGGER.warning(
+            f"{msg._pkt} < Support development by reporting this pkt, "
+            "please include a description of your system"
+        )
+
     result[MSG_DESC] = ot_schema.get(EN)
     return result
 
@@ -1842,6 +1856,19 @@ def parser_3ef0(payload, msg) -> dict:
                 "ch_setpoint": int(payload[14:16], 0x10),
                 "max_rel_modulation": percent(payload[16:18], high_res=False),
             }
+        )
+
+    try:
+        assert "_flags_3" not in result or (
+            [result["_flags_3"][i] for i in (0, 1, 2, 3)] == [0] * 4
+        ), result["_flags_3"]
+        assert "_flags_6" not in result or (
+            [result["_flags_6"][i] for i in (0, 1, 2, 3, 4, 5)] == [0] * 6
+        ), result["_flags_6"]
+    except AssertionError:
+        _LOGGER.warning(
+            f"{msg._pkt} < Support development by reporting this pkt, "
+            "please include a description of your system"
         )
 
     return result
