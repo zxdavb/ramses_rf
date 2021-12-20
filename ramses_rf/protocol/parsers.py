@@ -1821,9 +1821,9 @@ def parser_3ef0(payload, msg) -> dict:
         result.update(
             {
                 "_flags_3": flag8(payload[6:8]),
-                "ch_enabled": bool(int(payload[6:8], 0x10) & 1 << 1),
+                "ch_active": bool(int(payload[6:8], 0x10) & 1 << 1),
                 "dhw_active": bool(int(payload[6:8], 0x10) & 1 << 2),
-                "flame_active": bool(int(payload[6:8], 0x10) & 1 << 3),
+                "flame_active": bool(int(payload[6:8], 0x10) & 1 << 3),  # flame_on
                 "_unknown_4": payload[8:10],
                 "_unknown_5": payload[10:12],  # rel_modulation?
             }
@@ -1838,7 +1838,7 @@ def parser_3ef0(payload, msg) -> dict:
         result.update(
             {
                 "_flags_6": flag8(payload[12:14]),
-                "ch_active": bool(int(payload[12:14], 0x10) & 1 << 0),
+                "ch_enabled": bool(int(payload[12:14], 0x10) & 1 << 0),
                 "ch_setpoint": int(payload[14:16], 0x10),
                 "max_rel_modulation": percent(payload[16:18], high_res=False),
             }
