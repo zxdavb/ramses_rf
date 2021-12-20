@@ -9,14 +9,14 @@ from types import SimpleNamespace
 __dev_mode__ = False
 DEV_MODE = __dev_mode__
 
-DHW_HACK = False
+USE_DEX = True
 
 
 def slug(string: str) -> str:
     return re.sub(r"[\W_]+", "_", string.lower())
 
 
-DEVICE_CLASS = SimpleNamespace(
+DEV_KLASS = SimpleNamespace(
     BDR="BDR",  # Electrical relay
     CTL="CTL",  # Controller
     C02="C02",  # HVAC C02 sensor
@@ -33,27 +33,31 @@ DEVICE_CLASS = SimpleNamespace(
     SWI="SWI",  # HVAC switch, 22F[13]: 02|06|20|32|39|42|49|59 (no 20: are both)
     TRV="TRV",  # Thermostatic radiator valve
     UFC="UFC",  # UFH controller
+    JIM="JIM",  # Jasper Interface Module (EIM?)
+    JST="JST",  # Jasper Stat
 )
 
 DEVICE_CLASS_BY_TYPE = {
-    "01": DEVICE_CLASS.CTL,
-    "02": DEVICE_CLASS.UFC,
-    "04": DEVICE_CLASS.TRV,
-    "07": DEVICE_CLASS.DHW,
-    "10": DEVICE_CLASS.OTB,
-    "13": DEVICE_CLASS.BDR,
-    "17": DEVICE_CLASS.EXT,
-    "18": DEVICE_CLASS.HGI,
-    "23": DEVICE_CLASS.PRG,
-    "34": DEVICE_CLASS.STA,
-}
+    "01": DEV_KLASS.CTL,
+    "02": DEV_KLASS.UFC,
+    "04": DEV_KLASS.TRV,
+    "07": DEV_KLASS.DHW,
+    "08": DEV_KLASS.JIM,
+    "10": DEV_KLASS.OTB,
+    "13": DEV_KLASS.BDR,
+    "17": DEV_KLASS.EXT,
+    "18": DEV_KLASS.HGI,
+    "23": DEV_KLASS.PRG,
+    "31": DEV_KLASS.JST,
+    "34": DEV_KLASS.STA,
+}  # these are the 'reliable' (i.e. CH/DHW, not HVAC) type:klass pairs
 DEVICE_TYPE_BY_CLASS = {v: k for k, v in DEVICE_CLASS_BY_TYPE.items()}
 DEVICE_CLASS_BY_TYPE.update(
     {
-        "00": DEVICE_CLASS.TRV,
-        "03": DEVICE_CLASS.STA,
-        "12": DEVICE_CLASS.STA,
-        "22": DEVICE_CLASS.STA,
+        "00": DEV_KLASS.TRV,
+        "03": DEV_KLASS.STA,
+        "12": DEV_KLASS.STA,
+        "22": DEV_KLASS.STA,
     }
 )
 
@@ -349,7 +353,6 @@ p = r"([0-9A-F]{2}){1,48}"  # Payload
 COMMAND_REGEX = re.compile(f"^{v} {r} {d} {d} {d} {c} {l} {p}$")
 MESSAGE_REGEX = re.compile(f"^{r} {v} {r} {d} {d} {d} {c} {l} {p}$")
 
-ATTR_CONTROLLER = "controller"
 ATTR_DATETIME = "datetime"
 ATTR_DEVICES = "devices"
 ATTR_HEAT_DEMAND = "heat_demand"
@@ -400,7 +403,7 @@ ZONE_TYPE_MAP = {k: slug(v["name"]) for k, v in ZONE_TABLE.items()}
 ZONE_TYPE_SLUGS = {slug(v["name"]): k for k, v in ZONE_TABLE.items()}
 
 
-BDR_ROLES = {
+_OUT_BDR_ROLES = {
     0: ATTR_HTG_CONTROL,
     1: ATTR_HTG_PUMP,
     2: ATTR_DHW_VALVE,
@@ -446,7 +449,7 @@ _0005_ZONE_TYPE = {
     _0005_ZONE.DHW_SENSOR: ATTR_DHW_SENSOR,
     _0005_ZONE.DHW: ATTR_DHW_VALVE,  # can be 0, 1 or 2 (i.e. 1,1,0,...) of them
     _0005_ZONE.HTG: ATTR_HTG_CONTROL,
-    _0005_ZONE.RFG: "internet_gateway",
+    _0005_ZONE.RFG: "remote_gateway",
     _0005_ZONE.ELE: ATTR_ELEC_HEAT,
 }
 
