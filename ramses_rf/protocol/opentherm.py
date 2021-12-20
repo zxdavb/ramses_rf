@@ -7,7 +7,7 @@ import logging
 import struct
 from datetime import timedelta as td
 from types import SimpleNamespace
-from typing import Any, Tuple
+from typing import Any, Optional, Tuple
 
 from .const import __dev_mode__
 
@@ -303,7 +303,7 @@ OPENTHERM_SCHEMA = {
         0x00: {  # 0, Status
             EN: "Status",
             DIR: READ_ONLY,
-            VAL: FLAG8,
+            VAL: {HB: FLAG8, LB: FLAG8},
             FLAGS: "status_flags",
         },
         0x01: {  # 1, Control Setpoint
@@ -961,8 +961,13 @@ def msg_value(val_seqx, val_type) -> Any:
     # based upon: https://github.com/mvn23/pyotgw/blob/master/pyotgw/protocol.py
 
     def flag8(byte, *args) -> list:
-        """Split a byte (as a str) into a list of 8 bits (1/0)."""
-        return [(bytes.fromhex(byte)[0] & (1 << x)) >> x for x in reversed(range(8))]
+        """Split a byte (as a str) into a list of 8 bits.
+
+        In the original payload (the OT specification), the lsb is bit 0 (the last bit),
+        so the order of bits is reversed here, giving flags[0] (the 1st bit in the
+        array) as the lsb.
+        """
+        return [(bytes.fromhex(byte)[0] & (1 << x)) >> x for x in range(8)]
 
     def u8(byte, *args) -> int:
         """Convert a byte (as a str) into an unsigned int."""
@@ -972,24 +977,24 @@ def msg_value(val_seqx, val_type) -> Any:
         """Convert a byte (as a str) into a signed int."""
         return struct.unpack(">b", bytes.fromhex(byte))[0]
 
-    def f8_8(msb, lsb) -> float:
+    def f8_8(high_byte, low_byte) -> Optional[float]:
         """Convert 2 bytes (as strs) into an OpenTherm f8_8 value."""
-        if msb == lsb == "FF":  # TODO: move up to parser?
+        if high_byte == low_byte == "FF":  # TODO: move up to parser?
             return None
-        return float(s16(msb, lsb) / 256)
+        return float(s16(high_byte, low_byte) / 256)
 
-    def u16(msb, lsb) -> int:
+    def u16(high_byte, low_byte) -> Optional[int]:
         """Convert 2 bytes (as strs) into an unsigned int."""
-        if msb == lsb == "FF":  # TODO: move up to parser?
+        if high_byte == low_byte == "FF":  # TODO: move up to parser?
             return None
-        buf = struct.pack(">BB", u8(msb), u8(lsb))
+        buf = struct.pack(">BB", u8(high_byte), u8(low_byte))
         return int(struct.unpack(">H", buf)[0])
 
-    def s16(msb, lsb) -> int:
+    def s16(high_byte, low_byte) -> Optional[int]:
         """Convert 2 bytes (as strs) into a signed int."""
-        if msb == lsb == "FF":  # TODO: move up to parser?
+        if high_byte == low_byte == "FF":  # TODO: move up to parser?
             return None
-        buf = struct.pack(">bB", s8(msb), u8(lsb))
+        buf = struct.pack(">bB", s8(high_byte), u8(low_byte))
         return int(struct.unpack(">h", buf)[0])
 
     DATA_TYPES = {
@@ -1054,6 +1059,9 @@ def decode_frame(frame: str) -> Tuple[int, int, dict, str]:
         data_value[VALUE_LB] = msg_value(
             frame[6:8], msg_schema[VAL].get(LB, msg_schema[VAL])
         )
+
+        if msg_schema[VAL].get(HB) == msg_schema[VAL].get(LB) == FLAG8:  # msg_id 0 only
+            data_value = {VALUE: data_value[VALUE_HB] + data_value[VALUE_LB]}
 
     elif isinstance(msg_schema.get(VAR), dict):
         data_value[VALUE_HB] = msg_value(frame[4:6], msg_schema[VAL])
@@ -1121,7 +1129,7 @@ def decode_frame(frame: str) -> Tuple[int, int, dict, str]:
     I also analysed OT Remeha qSense <-> Remeha Tzerra communication.
         ID 131:   {u8 u8}   "Remeha dF-/dU-codes"
         ID 132:   {u8 u8}   "Remeha Service message"
-        ID 133:   {u8 u8}   "Remeha detection connected SCU’s"
+        ID 133:   {u8 u8}   "Remeha detection connected SCUs"
 
     "Remeha dF-/dU-codes": Should match the dF-/dU-codes written on boiler nameplate.
     Read-Data Request (0 0) returns the data. Also accepts Write-Data Requests (dF
@@ -1133,7 +1141,7 @@ def decode_frame(frame: str) -> Tuple[int, int, dict, str]:
         boiler returns (1 2) = next service type is "B"
         boiler returns (1 3) = next service type is "C"
 
-    "Remeha detection connected SCU’s": Write-Data Request (255 1) enables detection of
+    "Remeha detection connected SCUs": Write-Data Request (255 1) enables detection of
     connected SCU prints, correct response is (Write-Ack 255 1).
 
     Other Remeha info:
