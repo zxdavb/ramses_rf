@@ -433,14 +433,6 @@ class Actuator:  # 3EF0, 3EF1
     ACTUATOR_STATE = "actuator_state"
     MODULATION_LEVEL = "modulation_level"  # percentage (0.0-1.0)
 
-    def _discover(self, discover_flag=Discover.ALL) -> None:
-        super()._discover(discover_flag=discover_flag)
-
-        if discover_flag & Discover.STATUS and not self._faked:
-            # NOTE: No need to send periodic RQ/3EF1s to an OTB, use RQ/3220/11s
-            self._send_cmd(Command(RQ, _3EF0, "00", self.id))  # CTLs dont RP to RQ/3EF0
-            self._make_cmd(_3EF1)
-
     def _handle_msg(self, msg) -> None:  # NOTE: active
         super()._handle_msg(msg)
 
@@ -1327,6 +1319,8 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 self._send_cmd(Command(RQ, code, "00", self.id))
 
         if discover_flag & Discover.STATUS:
+            # NOTE: No need to send periodic RQ/3EF1s to an OTB, use RQ/3220/11s
+            self._send_cmd(Command(RQ, _3EF0, "00", self.id))  # CTLs dont RP to RQ/3EF0
             self._send_cmd(Command(RQ, _12F0, "00", self.id))
             [
                 self._send_cmd(Command.get_opentherm_data(self.id, m, retries=0))
@@ -1691,6 +1685,10 @@ class BdrSwitch(Actuator, RelayDemand, Device):  # BDR (13):
 
         if discover_flag & Discover.PARAMS and not self._faked:
             self._send_cmd(Command.get_tpi_params(self.id))  # or: self._ctl.id
+
+        if discover_flag & Discover.STATUS and not self._faked:
+            # NOTE: 13: wont RP to an RQ/3EF0
+            self._make_cmd(_3EF1)
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
