@@ -841,6 +841,17 @@ def create_pkt_stack(
      - MsgTransport.write (pkt_dispatcher) to (pkt_protocol) PktProtocol.send_data
     """
 
+    def issue_warning():
+        _LOGGER.warning(
+            "Windows "
+            if os.name == "nt"
+            else "This type of serial interface "
+            "is not fully supported by this library: "
+            "please don't report any Transport/Protocol errors/warnings, "
+            "unless they are reproducable with a standard configuration "
+            "(e.g. linux with a local serial port)"
+        )
+
     def _protocol_factory():
         if packet_log or packet_dict is not None:
             return create_protocol_factory(PacketProtocolRead, gwy, pkt_callback)()
@@ -882,6 +893,7 @@ def create_pkt_stack(
             os.name == "nt",
         )
     ):
+        issue_warning()
         pkt_transport = SerTransportPoll(gwy._loop, pkt_protocol, ser_instance)
     else:
         pkt_transport = SerTransportAsync(gwy._loop, pkt_protocol, ser_instance)
