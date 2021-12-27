@@ -1761,6 +1761,13 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature, Device):  # T
         return f"{self.id} ({self._domain_id}): {self.heat_demand}"
 
     @property
+    def heat_demand(self) -> Optional[float]:  # 3150
+        if (heat_demand := super().heat_demand) is None:
+            if self._msg_value(_3150) is None and self.setpoint is False:
+                return 0  # instead of None (no 3150s sent when setpoint is False)
+        return heat_demand
+
+    @property
     def window_open(self) -> Optional[bool]:  # 12B0
         return self._msg_value(_12B0, key=self.WINDOW_OPEN)
 
