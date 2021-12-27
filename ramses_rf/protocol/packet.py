@@ -88,6 +88,14 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _PUZZ,
 )
 
+# these trade memory for speed
+_TD_SECONDS_000 = td(seconds=0)
+_TD_SECONDS_003 = td(seconds=3)
+_TD_SECONDS_360 = td(seconds=360)
+_TD_MINUTES_003 = td(minutes=3)
+_TD_MINUTES_060 = td(minutes=60)
+
+
 DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
@@ -95,6 +103,11 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 _PKT_LOGGER = getLogger(f"{__name__}_log", pkt_log=True)
+
+
+def fraction_expired(age, age_limit) -> float:
+    """Return the packet's age as fraction of its 'normal' lifetime."""
+    return (age - _TD_SECONDS_003) / age_limit
 
 
 class Packet(PacketBase):
@@ -162,23 +175,22 @@ class Packet(PacketBase):
 
     @property
     def _expired(self) -> float:
-        """Return fraction used of the normal lifetime of packet.
+        """Return the used fraction of the packet's 'normal' lifetime.
 
-        A packet is 'expired' when >1.0, and should be tombstoned when >2.0. Returns
-        False if the packet does not expire (or None is N/A?).
+        A packet is 'expired' when >1.0 (should it be tombstoned when >2.0?). Returns
+        False if the packet does not expire (e.g. a 10E0).
 
-        NB: this is only the fact if the packet has expired, or not. Any opinion to
-        whether it *matters* that the packet has expired, is up to higher layers of the
-        stack.
+        NB: this is only the fact if the packet has expired, or not. Any opinion to if
+        it *matters* that the packet has expired, is up to higher layers of the stack.
         """
 
-        if self._timeout is None:
+        if self._timeout is None:  # add 3s to account for timing drift
             self._timeout = pkt_timeout(self) or False
 
         if self._timeout is False:
             return False
 
-        return (self._gwy._dt_now() - self.dtm) / self._timeout
+        return fraction_expired(self._gwy._dt_now() - self.dtm, self._timeout)
 
     def _validate(self, addr_frag) -> None:
         """Validate the packet, and parse the addresses if so (will log all packets).
@@ -238,7 +250,7 @@ def pkt_timeout(pkt) -> Optional[td]:  # NOTE: import OtbGateway ??
     """
 
     if pkt.verb in (RQ, W_):
-        return td(seconds=3)
+        return _TD_SECONDS_000
 
     if pkt.code in (_0005, _000C, _0404, _10E0):  # 0404 expired by 0006
         return  # TODO: exclude/remove devices caused by corrupt ADDRs?
@@ -246,25 +258,26 @@ def pkt_timeout(pkt) -> Optional[td]:  # NOTE: import OtbGateway ??
     if pkt.code == _1FC9 and pkt.verb == RP:
         return  # TODO: check other verbs, they seem variable
 
-    if pkt.code == _1F09:
-        return td(seconds=300) if pkt.verb == I_ else td(seconds=3)
+    if pkt.code == _1F09:  # sends I /sync_cycle
+        # can't do better than 300s with reading the payload
+        return _TD_SECONDS_360 if pkt.verb == I_ else _TD_SECONDS_000
 
     if pkt.code == _000A and pkt._has_array:
-        return td(minutes=60)  # sends I /1h
+        return _TD_MINUTES_060  # sends I /1h
 
-    if pkt.code in (_2309, _30C9) and pkt._has_array:
-        return td(minutes=15)  # sends I /sync_cycle
+    if pkt.code in (_2309, _30C9) and pkt._has_array:  # sends I /sync_cycle
+        return _TD_SECONDS_360
 
     if pkt.code == _3220:  # FIXME
-        # if pkt.payload[4:6] in WRITE_MSG_IDS and Write-Date:
-        #     return td(seconds=3)
+        # if pkt.payload[4:6] in WRITE_MSG_IDS and Write-Data:  # TODO
+        #     return _TD_SECONDS_003
         if pkt.payload[4:6] in SCHEMA_MSG_IDS:
             return  # SCHEMA_MSG_IDS[pkt.payload[4:6]]
         if pkt.payload[4:6] in PARAMS_MSG_IDS:
             return PARAMS_MSG_IDS[pkt.payload[4:6]]
         if pkt.payload[4:6] in STATUS_MSG_IDS:
             return STATUS_MSG_IDS[pkt.payload[4:6]]
-        return td(minutes=3)
+        return _TD_MINUTES_003
 
     # if pkt.code in (_3B00, _3EF0, ):  # TODO: 0008, 3EF0, 3EF1
     #     return td(minutes=6.7)  # TODO: WIP
@@ -272,4 +285,4 @@ def pkt_timeout(pkt) -> Optional[td]:  # NOTE: import OtbGateway ??
     if (code := RAMSES_CODES.get(pkt.code)) and EXPIRES in code:
         return RAMSES_CODES[pkt.code][EXPIRES]
 
-    return td(minutes=60)
+    return _TD_MINUTES_060

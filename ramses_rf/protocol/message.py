@@ -14,6 +14,7 @@ from typing import Any, Optional, Tuple
 
 from .address import Address
 from .exceptions import InvalidPacketError, InvalidPayloadError
+from .packet import fraction_expired
 from .parsers import PAYLOAD_PARSERS, parser_unknown
 from .ramses import CODE_IDX_COMPLEX, CODE_RQ_COMPLEX, RAMSES_CODES, RAMSES_DEVICES
 
@@ -99,9 +100,9 @@ if DEV_MODE:
 class Message:
     """The message class; will trap/log all invalid MSGs appropriately."""
 
-    CANT_EXPIRE = 0
-    HAS_EXPIRED = 1.2  # i.e. any value >= HAS_EXPIRED
+    CANT_EXPIRE = -1
     IS_EXPIRING = 0.8  # expected lifetime == 1.0
+    HAS_EXPIRED = 2.0  # incl. any value >= HAS_EXPIRED
 
     def __init__(self, gwy, pkt) -> None:
         """Create a message from a valid packet.
@@ -127,7 +128,7 @@ class Message:
         self._payload = self._validate(self._pkt.payload)  # ? raise InvalidPacketError
 
         self._str = None
-        self._expired_ = None
+        self._fraction_expired = None
         self._is_fragment = None
 
     def __repr__(self) -> str:
@@ -285,25 +286,26 @@ class Message:
     def _expired(self) -> Tuple[bool, Optional[bool]]:
         """Return True if the message is dated (does not require a valid payload)."""
 
-        if self._expired_ is not None:
-            if self._expired_ == self.CANT_EXPIRE:
+        if self._fraction_expired is not None:
+            if self._fraction_expired == self.CANT_EXPIRE:
                 return False
-            if self._expired_ >= self.HAS_EXPIRED * 2:  # TODO: should delete?
+            if self._fraction_expired > self.HAS_EXPIRED * 2:  # TODO: should delete?
                 return True
 
-        if self.code == _1F09 and self.verb == I_:
-            # RQs won't have remaining_seconds
-            # RP/Ws will have only partial cycle times
-            timeout = td(seconds=self.payload["remaining_seconds"])
-            self._expired_ = (self._gwy._dt_now() - self.dtm) / timeout
+        if self.code == _1F09 and self.verb != RQ:
+            # RQs won't have remaining_seconds, RP/Ws have only partial cycle times
+            self._fraction_expired = fraction_expired(
+                self._gwy._dt_now() - self.dtm,
+                td(seconds=self.payload["remaining_seconds"]),
+            )
         else:
-            self._expired_ = self._pkt._expired
+            self._fraction_expired = self._pkt._expired
 
-        if self._expired_ is False:  # treat as never expiring
-            _LOGGER.info("%s # cant expire", self._pkt)
-            self._expired_ = self.CANT_EXPIRE
+        if self._fraction_expired is False:  # treat as never expiring
+            _LOGGER.info(f"{self._pkt} # cant expire")
+            self._fraction_expired = self.CANT_EXPIRE
 
-        elif self._expired_ >= self.HAS_EXPIRED:  # TODO: should renew?
+        elif self._fraction_expired > self.HAS_EXPIRED:  # TODO: should renew?
             if any(
                 (
                     self.code == _1F09 and self.verb != I_,
@@ -312,14 +314,14 @@ class Message:
             ):
                 _logger = _LOGGER.info
             else:
-                _logger = _LOGGER.warning if DEV_MODE else _LOGGER.info
-            _logger("%s # has expired %s", self._pkt, f"({self._expired_ * 100:1.0f}%)")
+                _logger = _LOGGER.warning  # if DEV_MODE else _LOGGER.info  # TODO
+            _logger(f"{self._pkt} # has expired ({self._fraction_expired * 100:1.0f}%)")
 
-        # elif self._expired_ >= self.IS_EXPIRING:  # this could log multiple times
+        # elif self._fraction_expired >= self.IS_EXPIRING:  # this could log multiple times
         #     _LOGGER.error("%s # is expiring", self._pkt)
 
         # and self.dtm >= self._gwy._dt_now() - td(days=7)  # TODO: should be none >7d?
-        return self._expired_ >= self.HAS_EXPIRED
+        return self._fraction_expired > self.HAS_EXPIRED
 
     @property
     def _is_fragment_WIP(self) -> bool:
