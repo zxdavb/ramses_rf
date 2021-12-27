@@ -4,9 +4,7 @@
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
 import logging
-from inspect import getmembers, isclass
 from random import randint
-from sys import modules
 from typing import Dict, Optional
 
 from .const import (
@@ -26,7 +24,7 @@ from .const import (
     Discover,
     __dev_mode__,
 )
-from .entities import Entity, discover_decorator
+from .entities import Entity, class_by_attr, discover_decorator
 from .protocol import Command, CorruptStateError, Priority
 from .protocol.address import NON_DEV_ADDR, id_to_address
 from .protocol.command import FUNC, TIMEOUT
@@ -1898,23 +1896,6 @@ class HvacVentilator(Device):  # FAN (20/37): RP/31DA, I/31D[9A]
         }
 
 
-_ATTR_KLASS = "_klass"
-DEVICE_BY_KLASS = {
-    getattr(c[1], _ATTR_KLASS): c[1]
-    for c in getmembers(
-        modules[__name__],
-        lambda m: isclass(m) and m.__module__ == __name__ and hasattr(m, _ATTR_KLASS),
-    )
-}  # Every device class has a {klass: class}, e.g.: "CTL": Controller
-
-DEVICE_BY_ID_TYPE = {
-    k1: v2
-    for k1, v1 in _DEV_TYPE_TO_KLASS.items()
-    for k2, v2 in DEVICE_BY_KLASS.items()
-    if v1 == k2
-}  # e.g. "01": Controller,
-
-
 OUT_DEV_KLASS_BY_SIGNATURE = {
     "FAN": ((RP, _31DA), (I_, _31D9), (I_, _31DA)),
     "SWI": ((I_, _22F1), (I_, _22F3)),
@@ -1922,8 +1903,17 @@ OUT_DEV_KLASS_BY_SIGNATURE = {
     "C02": ((I_, _1298)),
 }
 
+_DEV_CLASS_BY_KLASS = class_by_attr(__name__, "_klass")  # e.g. "CTL": Controller
 
-def create_device(gwy, dev_id, dev_klass=None, **kwargs) -> Device:
+_DEV_CLASS_BY_ID_TYPE = {
+    k1: v2
+    for k1, v1 in _DEV_TYPE_TO_KLASS.items()
+    for k2, v2 in _DEV_CLASS_BY_KLASS.items()
+    if v1 == k2
+}  # e.g. "01": Controller,
+
+
+def create_device(gwy, dev_id: str, dev_klass=None, **kwargs) -> Device:
     """Create a device, and optionally perform discovery & start polling."""
 
     dev_addr = id_to_address(dev_id)
@@ -1934,7 +1924,7 @@ def create_device(gwy, dev_id, dev_klass=None, **kwargs) -> Device:
         else:
             dev_klass = DEV_KLASS.GEN  # generic
 
-    device = DEVICE_BY_KLASS.get(dev_klass, Device)(gwy, dev_addr, **kwargs)
+    device = _DEV_CLASS_BY_KLASS.get(dev_klass, Device)(gwy, dev_addr, **kwargs)
 
     if isinstance(gwy.pkt_protocol, PacketProtocolPort):
         device._start_discovery()

@@ -4,6 +4,8 @@
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
 import logging
+from inspect import getmembers, isclass
+from sys import modules
 from typing import List
 
 from .const import Discover, __dev_mode__
@@ -85,6 +87,24 @@ DEV_MODE = __dev_mode__ and False
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
+
+
+def class_by_attr(name: str, attr: str) -> dict:
+    """Return a mapping of a (unique) attr of classes in a module to that class.
+
+    For example:
+      {"OTB": OtbGateway, "CTL": Controller}
+      {"RAD": RadZone, "UFH": UfhZone}
+      {"evohome": Evohome}
+    """
+
+    return {
+        getattr(c[1], attr): c[1]
+        for c in getmembers(
+            modules[name],
+            lambda m: isclass(m) and m.__module__ == name and hasattr(m, attr),
+        )
+    }
 
 
 def discover_decorator(fnc):

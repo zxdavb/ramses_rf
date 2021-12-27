@@ -7,8 +7,6 @@ import logging
 from asyncio import Task
 from datetime import datetime as dt
 from datetime import timedelta as td
-from inspect import getmembers, isclass
-from sys import modules
 from threading import Lock
 from types import SimpleNamespace
 from typing import List, Optional
@@ -34,7 +32,7 @@ from .devices import (
     Temperature,
     UfhController,
 )
-from .entities import Entity, discover_decorator
+from .entities import Entity, class_by_attr, discover_decorator
 from .protocol import (
     Command,
     CorruptStateError,
@@ -1173,14 +1171,7 @@ _SYS_CLASS_BY_TYPE = {
 }
 
 
-_PROFILE = "_PROFILE"
-SYSTEM_BY_PROFILE = {
-    getattr(c[1], _PROFILE): c[1]
-    for c in getmembers(
-        modules[__name__],
-        lambda m: isclass(m) and m.__module__ == __name__ and hasattr(m, _PROFILE),
-    )
-}  # e.g. "evohome": Evohome
+_SYS_CLASS_BY_PROFILE = class_by_attr(__name__, "_PROFILE")  # e.g. "evohome": Evohome
 
 
 def create_system(gwy, ctl, profile=None, **kwargs) -> System:

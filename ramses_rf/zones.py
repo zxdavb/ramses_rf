@@ -7,8 +7,6 @@ import logging
 from asyncio import Task
 from datetime import datetime as dt
 from datetime import timedelta as td
-from inspect import getmembers, isclass
-from sys import modules
 from types import SimpleNamespace
 from typing import Optional
 
@@ -37,7 +35,7 @@ from .devices import (
     TrvActuator,
     UfhController,
 )
-from .entities import Entity, discover_decorator
+from .entities import Entity, class_by_attr, discover_decorator
 from .protocol import CODE_API_MAP, Command, CorruptStateError, Schedule
 from .protocol.transport import PacketProtocolPort
 from .schema import (
@@ -50,6 +48,7 @@ from .schema import (
 )
 
 # from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
+
 from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip
 from .protocol import (  # noqa: F401, isort: skip
     _0001,
@@ -119,7 +118,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-ZONE_TYPE = SimpleNamespace(
+ZON_KLASS = SimpleNamespace(
     DHW="DHW",  # Stored HW (not a zone)
     ELE="ELE",  # Electric
     MIX="MIX",  # Mix valve
@@ -132,7 +131,7 @@ ZONE_TYPE = SimpleNamespace(
 class ZoneBase(Entity):
     """The Zone/DHW base class."""
 
-    # _TYPE = None  # NOTE: this would cause problems
+    # _klass = None  # NOTE: this would cause problems
 
     def __init__(self, evo, zone_idx) -> None:
         _LOGGER.debug("Creating a Zone: %s_%s (%s)", evo, zone_idx, self.__class__)
@@ -195,7 +194,7 @@ class ZoneBase(Entity):
     @property
     def heating_type(self) -> Optional[str]:
         """Return the type of the zone/DHW (e.g. electric_zone, stored_dhw)."""
-        return self._TYPE
+        return self._klass
 
 
 class ZoneSchedule:  # 0404  # TODO: add for DHW
@@ -270,7 +269,7 @@ class RelayDemand:  # 0008
 class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
     """The DHW class."""
 
-    _TYPE = ZONE_TYPE.DHW
+    _klass = ZON_KLASS.DHW
 
     def __init__(
         self, ctl, zone_idx="HW", sensor=None, dhw_valve=None, htg_valve=None
@@ -278,14 +277,14 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         super().__init__(ctl, zone_idx)
 
         ctl._set_dhw(self)
-        # if profile == ZONE_TYPE.DHW and evo.dhw is None:
+        # if profile == ZON_KLASS.DHW and evo.dhw is None:
         #     evo.dhw = zone
 
         self._dhw_sensor = None
         self._dhw_valve = None
         self._htg_valve = None
 
-        self._zone_type = ZONE_TYPE.DHW
+        self._zone_type = ZON_KLASS.DHW
 
         if sensor:
             self._set_sensor(sensor)
@@ -514,7 +513,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 class Zone(ZoneSchedule, ZoneBase):
     """The Zone class for all zone types (but not DHW)."""
 
-    _TYPE = None  # Unknown
+    _klass = None  # Unknown
 
     def __init__(self, evo, zone_idx, sensor=None, actuators=None) -> None:
         """Create a zone.
@@ -707,7 +706,7 @@ class Zone(ZoneSchedule, ZoneBase):
         """
 
         _type = ZONE_TYPE_SLUGS.get(zone_type, zone_type)
-        if _type not in ZONE_BY_TYPE:
+        if _type not in _ZON_CLASS_BY_KLASS:
             raise ValueError(f"Not a known zone_type: {zone_type}")
 
         if self._zone_type == _type:
@@ -720,7 +719,7 @@ class Zone(ZoneSchedule, ZoneBase):
             )
 
         self._zone_type = _type
-        self.__class__ = ZONE_BY_TYPE[_type]
+        self.__class__ = _ZON_CLASS_BY_KLASS[_type]
         self._discover(discover_flag=Discover.ALL)  # TODO: needs tidyup (ref #67)
         _LOGGER.debug("Promoted a Zone: %s(%s)", self.id, self.__class__)
 
@@ -866,7 +865,7 @@ class Zone(ZoneSchedule, ZoneBase):
 class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
     """For a small electric load controlled by a relay (never calls for heat)."""
 
-    _TYPE = ZONE_TYPE.ELE
+    _klass = ZON_KLASS.ELE
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -903,7 +902,7 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
     Note that HM80s are listen-only devices.
     """
 
-    _TYPE = ZONE_TYPE.MIX
+    _klass = ZON_KLASS.MIX
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -936,7 +935,7 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
 class RadZone(Zone):  # HR92/HR80
     """For radiators controlled by HR92s or HR80s (will also call for heat)."""
 
-    _TYPE = ZONE_TYPE.RAD
+    _klass = ZON_KLASS.RAD
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -955,7 +954,7 @@ class RadZone(Zone):  # HR92/HR80
 class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
     """For underfloor heating controlled by an HCE80/HCC80 (will also call for heat)."""
 
-    _TYPE = ZONE_TYPE.UFH
+    _klass = ZON_KLASS.UFH
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -990,7 +989,7 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
 class ValZone(EleZone):  # BDR91A/T
     """For a motorised valve controlled by a BDR91 (will also call for heat)."""
 
-    _TYPE = ZONE_TYPE.VAL
+    _klass = ZON_KLASS.VAL
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -1011,28 +1010,21 @@ class ValZone(EleZone):  # BDR91A/T
         return self.relay_demand
 
 
-_TYPE = "_TYPE"
-ZONE_BY_TYPE = {
-    getattr(c[1], _TYPE): c[1]
-    for c in getmembers(
-        modules[__name__],
-        lambda m: isclass(m) and m.__module__ == __name__ and hasattr(m, _TYPE),
-    )
-}  # e.g. "RAD": RadZone
+_ZON_CLASS_BY_KLASS = class_by_attr(__name__, "_klass")  # e.g. "RAD": RadZone
 
 
-def create_zone(evo, zone_idx, profile=None, **kwargs) -> Zone:
+def create_zone(evo, zone_idx: str, profile=None, **kwargs) -> Zone:
     """Create a zone, and optionally perform discovery & start polling."""
 
     #
 
     if profile is None:
-        profile = ZONE_TYPE.DHW if zone_idx == "HW" else None
+        profile = ZON_KLASS.DHW if zone_idx == "HW" else None
         #
         #
         #
 
-    zone = ZONE_BY_TYPE.get(profile, Zone)(evo, zone_idx, **kwargs)
+    zone = _ZON_CLASS_BY_KLASS.get(profile, Zone)(evo, zone_idx, **kwargs)
 
     if isinstance(evo._gwy.pkt_protocol, PacketProtocolPort):
         zone._start_discovery()
