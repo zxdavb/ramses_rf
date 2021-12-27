@@ -1821,7 +1821,7 @@ def parser_3ef0(payload, msg) -> dict:
 
     result = {
         "modulation_level": mod_level,
-        "_flags_0": payload[4:6],
+        "_flags_2": payload[4:6],
     }
 
     if msg.len >= 6:  # RP|OTB|006 (to RQ|CTL/HGI/RFG)
