@@ -35,7 +35,7 @@ class Address:
         """Create an address from a valid device id."""
 
         self.id = id
-        self.type = id[:2]  # dex
+        self.type = id[:2]  # dex, NOTE: remove last
         self._hex_id = None
 
         if not self.is_valid(id):
