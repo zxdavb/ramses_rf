@@ -223,7 +223,7 @@ class DeviceBase(Entity):
 
         if self._ctl is ctl:
             return
-        if self._is_controller and self.type != "02":  # DEX
+        if self._is_controller and not isinstance(self, UfhController):
             # HACK: UFC is/binds to a contlr
             return
         if self._ctl is not None:
@@ -323,7 +323,7 @@ class DeviceInfo:  # 10E0
             if not self._msgs.get(_10E0) and (
                 self.type not in RAMSES_DEVICES
                 or RP in RAMSES_DEVICES[self.type].get(_10E0, {})
-            ):  # DEX (convert to e.g. BDR)
+            ):  # DEX (convert self.type to e.g. BDR)
                 self._make_cmd(_10E0, retries=3)
 
     @property
