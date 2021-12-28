@@ -3,7 +3,7 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
-    The RAMSES-II system (controllers, zones, devices).
+The RAMSES-II system (controllers, zones, devices).
 """
 
 __version__ = "0.17.1"
