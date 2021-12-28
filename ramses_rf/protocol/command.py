@@ -844,7 +844,10 @@ class Command(PacketBase):
         """
         # RP --- 13:049798 18:006402 --:------ 3EF1 007 00-0126-0126-00-FF
 
-        assert src_id[:2] == "13"  # dex
+        try:  # dex
+            assert src_id[:2] == "13", "device_id should be like 13:xxxxxx"
+        except AssertionError as exc:
+            raise TypeError(f"Faked device {src_id} has unsupported device type: {exc}")
 
         payload = f"00{actuator_countdown:04X}"
         payload += f"{cycle_countdown:04X}" if cycle_countdown is not None else "7FFF"
@@ -861,7 +864,10 @@ class Command(PacketBase):
         #  I --- 13:049798 --:------ 13:049798 3EF0 003 00C8FF
         #  I --- 13:106039 --:------ 13:106039 3EF0 003 0000FF
 
-        assert dev_id[:2] == "13"  # dex
+        try:  # dex
+            assert dev_id[:2] == "13", "device_id should be like 13:xxxxxx"
+        except AssertionError as exc:
+            raise TypeError(f"Faked device {dev_id} has unsupported device type: {exc}")
 
         payload = "007FFF" if mod_level is None else f"00{int(mod_level * 200):02X}FF"
         return cls.packet(I_, _3EF0, payload, addr0=dev_id, addr2=dev_id, **kwargs)
@@ -901,7 +907,10 @@ class Command(PacketBase):
         This is for use by a faked HB85 or similar.
         """
 
-        assert dev_id[:2] == "17"  # dex
+        try:  # dex
+            assert dev_id[:2] == "17", "device_id should be like 17:xxxxxx"
+        except AssertionError as exc:
+            raise TypeError(f"Faked device {dev_id} has unsupported device type: {exc}")
 
         payload = f"00{temp_to_hex(temperature)}01"
         return cls.packet(I_, _0002, payload, addr0=dev_id, addr2=dev_id, **kwargs)
@@ -915,8 +924,10 @@ class Command(PacketBase):
         """
         #  I --- 34:021943 --:------ 34:021943 30C9 003 000C0D
 
-        if dev_id[:2] not in ("03", "12", "22", "34"):  # dex
-            raise TypeError(f"Wrong device type: {dev_id[:2]}, try 03, 12, 22, 34")
+        try:  # dex
+            assert dev_id[:2] == "03", "device_id should be like 03:xxxxxx"
+        except AssertionError as exc:
+            raise TypeError(f"Faked device {dev_id} has unsupported device type: {exc}")
 
         payload = f"00{temp_to_hex(temperature)}"
         return cls.packet(I_, _30C9, payload, addr0=dev_id, addr2=dev_id, **kwargs)
