@@ -3,7 +3,11 @@
 #
 """RAMSES RF - The evohome-compatible zones."""
 
+# Kudos & many thanks to:
+# - dbmandrake: valve poaition -> heat demand transform
+
 import logging
+import math
 from asyncio import Task
 from datetime import datetime as dt
 from datetime import timedelta as td
@@ -782,8 +786,7 @@ class Zone(ZoneSchedule, ZoneBase):
             for d in self.devices
             if hasattr(d, ATTR_HEAT_DEMAND) and d.heat_demand is not None
         ]
-        # return round(sum(demands) / len(demands), 1) if demands else None
-        return max(demands + [0]) if demands else None
+        return _transform(max(demands + [0])) if demands else None
 
     @property
     def window_open(self) -> Optional[bool]:  # 12B0  # TODO: don't work >1 TRV?
@@ -1025,6 +1028,26 @@ class ValZone(EleZone):  # BDR91A/T
     def heat_demand(self) -> Optional[float]:  # 0008 (NOTE: not 3150)
         """Return the zone's heat demand, using relay demand as a proxy."""
         return self.relay_demand
+
+
+def _transform(valve_pos: float) -> float:
+    """Transform a valve position into a heat demand, as displayed in the evohome UI."""
+    # import math
+    valve_pos = valve_pos * 100
+    if valve_pos <= 30:
+        return 0
+    t0, t1, t2 = (0, 30, 70) if valve_pos <= 70 else (30, 70, 100)
+    return math.floor((valve_pos - t1) * t1 / (t2 - t1) + t0 + 0.5) / 100
+
+
+def test_transform() -> None:
+    valve_pos_list = [0, 0.26, 0.30, 0.34, 0.43, 0.45, 0.48, 0.53, 0.69, 0.70, 1]
+    heat_demand_list = [0, 0, 0, 0.03, 0.10, 0.11, 0.14, 0.17, 0.29, 0.30, 1]
+    print("v_pos\tevohome\tdemand\tmatch")
+    for valve_pos, heat_demand in zip(valve_pos_list, heat_demand_list):
+        result = _transform(valve_pos)
+        status = "OK" if result == heat_demand else "Failed!"
+        print(valve_pos, "\t", heat_demand, "\t", result, "\t", status)
 
 
 _ZON_CLASS_BY_KLASS = class_by_attr(__name__, "_klass")  # e.g. "RAD": RadZone
