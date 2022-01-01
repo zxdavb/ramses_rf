@@ -30,6 +30,7 @@ from .protocol import (  # noqa: F401, isort: skip
     _000E,
     _0016,
     _0100,
+    _0150,
     _01D0,
     _01E9,
     _0404,
@@ -40,7 +41,9 @@ from .protocol import (  # noqa: F401, isort: skip
     _1060,
     _1081,
     _1090,
+    _1098,
     _10A0,
+    _10B0,
     _10E0,
     _10E1,
     _1100,
@@ -52,10 +55,12 @@ from .protocol import (  # noqa: F401, isort: skip
     _12B0,
     _12C0,
     _12C8,
+    _12F0,
     _1300,
     _1F09,
     _1F41,
     _1FC9,
+    _1FD0,
     _1FD4,
     _2249,
     _22C9,
@@ -65,6 +70,11 @@ from .protocol import (  # noqa: F401, isort: skip
     _22F3,
     _2309,
     _2349,
+    _2389,
+    _2400,
+    _2401,
+    _2410,
+    _2420,
     _2D49,
     _2E04,
     _30C9,
@@ -77,6 +87,8 @@ from .protocol import (  # noqa: F401, isort: skip
     _3200,
     _3210,
     _3220,
+    _3221,
+    _3223,
     _3B00,
     _3EF0,
     _3EF1,
@@ -321,7 +333,7 @@ async def script_scan_full(gwy, dev_id: str):
 
     # these are possible/difficult codes
     qos = {"priority": Priority.DEFAULT, "retries": 2}
-    for code in ("0150", "2389"):
+    for code in (_0150, _2389):
         gwy.send_cmd(Command(RQ, code, "0000", dev_id, **qos))
 
 
@@ -412,11 +424,11 @@ async def script_scan_otb_ramses(gwy, dev_id: str):  # Tested only upon a R8820A
         _042F,
         _10E0,  # device_info
         _10E1,  # device_id
-        "1FD0",
-        "2400",
-        "2401",
-        "2410",
-        "2420",
+        _1FD0,
+        _2400,
+        _2401,
+        _2410,
+        _2420,
         _1300,  # cv water pressure      / CHWaterPressure
         _1081,  # max ch setpoint        / MaxCHWaterSetpoint
         _10A0,  # dhw params["setpoint"] / DHWSetpoint
@@ -425,12 +437,12 @@ async def script_scan_otb_ramses(gwy, dev_id: str):  # Tested only upon a R8820A
         _1290,  # outdoor temp           / OutsideTemperature
         _3200,  # boiler output temp     / BoilerWaterTemperature
         _3210,  # boiler return temp     / ReturnWaterTemperature
-        "0150",
-        "12F0",  # DHW flow rate?
-        "1098",
-        "10B0",
-        "3221",
-        "3223",
+        _0150,
+        _12F0,  # DHW flow rate?
+        _1098,
+        _10B0,
+        _3221,
+        _3223,
         _3EF0,  # rel. modulation level  / RelativeModulationLevel (also, below)
         _3EF1,  # rel. modulation level  / RelativeModulationLevel
     )  # excl. 3220
