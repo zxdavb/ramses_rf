@@ -1307,6 +1307,10 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 and (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]
 
+        if discover_flag & Discover.PARAMS:  # and DEV_MODE:
+            for code in (_10A0,):  # dhw_setpoint
+                self._send_cmd(Command(RQ, code, "00", self.id))
+
         if discover_flag & Discover.PARAMS:
             [
                 self._send_cmd(Command.get_opentherm_data(self.id, m))
@@ -1315,24 +1319,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 and (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]
 
-            for code in (
-                # "1FD0",
-                # "2400",
-                # "2401",
-                # "2410",
-                # "2420"
-                "0150",  # R8820A only?
-                "1098",  # R8820A only?
-                "10B0",  # R8820A only?
-                "3221",  # R8810A/20A
-                "3223",  # R8810A/20A
-            ):
-                self._send_cmd(Command(RQ, code, "00", self.id))
-
         if discover_flag & Discover.STATUS:
-            # NOTE: No need to send periodic RQ/3EF1s to an OTB, use RQ/3220/11s
-            self._send_cmd(Command(RQ, _3EF0, "00", self.id))  # CTLs dont RP to RQ/3EF0
-            self._send_cmd(Command(RQ, _12F0, "00", self.id))
             [
                 self._send_cmd(Command.get_opentherm_data(self.id, m, retries=0))
                 for m in STATUS_MSG_IDS
@@ -1340,9 +1327,41 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 # nd (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]  # TODO: add expired
 
-        if discover_flag & Discover.STATUS and DEV_MODE:
-            for code in (_1081, _1300, _10A0, _1260, _1290, _22D9):
+            # NOTE: No need to send periodic RQ/3EF1s to an OTB, can use RQ/3220/11s?
+            self._send_cmd(Command(RQ, _3EF0, "00", self.id))  # CTLs dont RP to RQ/3EF0
+
+        if discover_flag & Discover.STATUS:  # and DEV_MODE:
+            # these are known
+            for code in (
+                _1081,  # ch_max_setpoint
+                _1260,  # dhw_temp
+                _1290,  # outside_temp
+                _1300,  # ch_water_pressure
+                _22D9,  # boiler_setpoint
+            ):
                 self._send_cmd(Command(RQ, code, "00", self.id))
+
+            # these are WIP
+            for code in (
+                _12F0,  # WIP, or not?
+                _2401,  # WIP - modulation_level + flags?
+                _3221,  # R8810A/20A
+                _3223,  # R8810A/20A
+            ):
+                self._send_cmd(Command(RQ, code, "00", self.id))
+
+            # TODO: these appear fixed in value - to test against BDR91T
+            if DEV_MODE:
+                for code in (
+                    _0150,  # payload always "000000", R8820A only?
+                    _1098,  # payload always "00C8",   R8820A only?
+                    _10B0,  # payload always "0000",   R8820A only?
+                    _1FD0,  # payload always "0000000000000000"
+                    _2400,  # payload always "0000000F"
+                    _2410,  # payload always "000000000000000000000000010000000100000C"
+                    _2420,  # payload always "0000001000000...
+                ):
+                    self._send_cmd(Command(RQ, code, "00", self.id))
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -1387,6 +1406,30 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             return msg.payload.get(VALUE)
 
     @property
+    def _bit_2_4(self) -> Optional[bool]:  # 2401
+        if flags := self._msg_value(_2401, key="_flags_2"):
+            return flags[4]
+
+    @property
+    def _bit_2_5(self) -> Optional[bool]:  # 2401
+        if flags := self._msg_value(_2401, key="_flags_2"):
+            return flags[5]
+
+    @property
+    def _bit_2_6(self) -> Optional[bool]:  # 2401
+        if flags := self._msg_value(_2401, key="_flags_2"):
+            return flags[6]
+
+    @property
+    def _bit_2_7(self) -> Optional[bool]:  # 2401
+        if flags := self._msg_value(_2401, key="_flags_2"):
+            return flags[7]
+
+    @property
+    def percent(self) -> Optional[float]:  # 2401
+        return self._msg_value(_2401, key="_percent_3")
+
+    @property
     def boiler_output_temp(self) -> Optional[float]:  # 3220/19
         return self._ot_msg_value("19")
 
@@ -1399,7 +1442,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         return self._ot_msg_value("01")
 
     @property
-    def _boiler_setpoint(self) -> Optional[float]:  # 3220/01 (22D9)
+    def _boiler_setpoint(self) -> Optional[float]:  # 22D9
         return self._msg_value(_22D9, key="setpoint")
 
     @property
@@ -1407,7 +1450,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         return self._ot_msg_value("39")
 
     @property
-    def _ch_max_setpoint(self) -> Optional[float]:  # 3220/39 (1081)
+    def _ch_max_setpoint(self) -> Optional[float]:  # 1081
         return self._msg_value(_1081, key="setpoint")
 
     @property
@@ -1415,7 +1458,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         return self._ot_msg_value("12")
 
     @property
-    def _ch_water_pressure(self) -> Optional[float]:  # 3220/12 (1300)
+    def _ch_water_pressure(self) -> Optional[float]:  # 1300
         return self._msg_value(_1300, key="pressure")
 
     @property
@@ -1427,7 +1470,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         return self._ot_msg_value("13")
 
     @property
-    def dhw_setpoint(self) -> Optional[float]:  # 3220/38 (10A0)
+    def dhw_setpoint(self) -> Optional[float]:  # 10A0
         return self._ot_msg_value("38")
 
     @property
@@ -1439,7 +1482,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         return self._ot_msg_value("1A")
 
     @property
-    def _dhw_temp(self) -> Optional[float]:  # 3220/1A (1260)
+    def _dhw_temp(self) -> Optional[float]:  # 1260
         return self._msg_value(_1260, key="temperature")
 
     @property
@@ -1447,7 +1490,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         return self._ot_msg_value("1B")
 
     @property
-    def _outside_temp(self) -> Optional[float]:  # 3220/1B (1290)
+    def _outside_temp(self) -> Optional[float]:  # 1290
         return self._msg_value(_1290, key="temperature")
 
     @property
