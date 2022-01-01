@@ -386,7 +386,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
 
     # RQ payload is zz00, NOTE: aggregation of parsing taken here
 
-    def complex_index(seqx, msg) -> dict:  # complex index
+    def complex_idx(seqx, msg) -> dict:  # complex index
         # TODO: 000C to a UFC should be ufh_ifx, not zone_idx
         if msg.src.type == "02":  # DEX
             assert int(seqx, 16) < 8, f"invalid ufh_idx: '{seqx}' (0x00)"
@@ -412,8 +412,9 @@ def parser_000c(payload, msg) -> Optional[dict]:
 
     def _parser(seqx) -> dict:
         # TODO: this assumption that all domain_id/zones_idx are the same is wrong...
-        assert seqx[:2] == payload[:2], f"{msg._pkt} # {seqx[:2]} != idx"
-        assert seqx[4:6] == "7F" or int(seqx[4:6], 16) < msg._gwy.config.max_zones
+        assert seqx[:2] == payload[:2], f"{msg._pkt} < {seqx[:2]} != idx"
+        assert int(seqx[:2], 16) < msg._gwy.config.max_zones
+        assert seqx[4:6] == "7F" or seqx[6:] != "F" * 6
         return {hex_id_to_dec(seqx[6:12]): seqx[4:6]}
 
     device_class = _000C_DEVICE_TYPE.get(payload[2:4], f"unknown_{payload[2:4]}")
@@ -421,14 +422,36 @@ def parser_000c(payload, msg) -> Optional[dict]:
         device_class = ATTR_DHW_VALVE_HTG
 
     result = {
-        **complex_index(payload[:2], msg),
+        **complex_idx(payload[:2], msg),
         "_device_class": payload[2:4],
         "device_class": device_class,
     }
     if msg.verb == RQ:  # RQs have a context: index, zone_type
         return result
 
-    devices = [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
+    # Both these appear valid! So collision when len = 036!
+    # RP --- 01:239474 18:198929 --:------ 000C 012 06-00-00119A99 06-00-00119B21
+    # RP --- 01:069616 18:205592 --:------ 000C 011 01-00-00121B54    00-00121B52
+
+    # RP --- 01:239700 18:009874 --:------ 000C 018 07-08-001099C3 07-08-001099C5 07-08-001099BF
+    # RP --- 01:059885 18:010642 --:------ 000C 016 00-00-0011EDAA    00-0011ED92    00-0011EDA0
+
+    _type = 6
+    if msg.len != 36:
+        if msg.len % 6 != 0 and msg.len % 5 == 1:  # max 46 = 9 devices
+            _type = 5
+    elif any(payload[i : i + 4] != payload[:4] for i in range(0, msg.len, 12)) and all(
+        payload[i : i + 2] == payload[2:4] for i in range(2, msg.len, 10)
+    ):
+        _type = 5
+
+    if _type == 6:
+        devices = [_parser(payload[i : i + 12]) for i in range(0, msg.len, 12)]
+    else:  # _type == 5:
+        devices = [
+            _parser(payload[:2] + payload[i : i + 10]) for i in range(2, msg.len, 10)
+        ]
+
     return {
         **result,
         "devices": [k for d in devices for k, v in d.items() if v != "7F"],
