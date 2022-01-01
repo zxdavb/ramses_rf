@@ -3,7 +3,7 @@
 #
 """RAMSES RF - payload processors."""
 
-# Many thanks to:
+# Kudos & many thanks to:
 # - Evsdd: 0404
 # - Ierlandfan: 3150, 31D9, 31DA, others
 # - ReneKlootwijk: 3EF0
@@ -496,6 +496,16 @@ def parser_0100(payload, msg) -> Optional[dict]:
     }
 
 
+@parser_decorator  # unknown_WIP
+def parser_0150(payload, msg) -> Optional[dict]:
+
+    assert payload == "000000"
+
+    return {
+        "_payload": payload,
+    }
+
+
 @parser_decorator  # unknown, from a HR91 (when its buttons are pushed)
 def parser_01d0(payload, msg) -> Optional[dict]:
     # 23:57:28.869 045  W --- 04:000722 01:158182 --:------ 01D0 002 0003
@@ -720,6 +730,17 @@ def parser_1090(payload, msg) -> dict:
     }
 
 
+@parser_decorator  # unknown_WIP
+def parser_1098(payload, msg) -> Optional[dict]:
+
+    assert payload == "00C8"
+
+    return {
+        "_payload": payload,
+        "_value": {"00": False, "C8": True}.get(payload[2:], int(payload[2:], 16)),
+    }
+
+
 @parser_decorator  # dhw (cylinder) params  # FIXME: a bit messy
 def parser_10a0(payload, msg) -> Optional[dict]:
     # RQ --- 07:045960 01:145038 --:------ 10A0 006 00-1087-00-03E4  # RQ/RP, every 24h
@@ -771,6 +792,17 @@ def parser_10a0(payload, msg) -> Optional[dict]:
     # TODO: remove me...
 
     return result
+
+
+@parser_decorator  # unknown_WIP
+def parser_10b0(payload, msg) -> Optional[dict]:
+
+    assert payload == "0000"
+
+    return {
+        "_payload": payload,
+        "_value": {"00": False, "C8": True}.get(payload[2:], int(payload[2:], 16)),
+    }
 
 
 @parser_decorator  # device_info
@@ -883,7 +915,7 @@ def parser_10e1(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # tpi_params (domain/zone/device)  # FIXME: a bit messy
 def parser_1100(payload, msg) -> Optional[dict]:
-    def complex_index(seqx) -> dict:
+    def complex_idx(seqx) -> dict:
         return {"domain_id": seqx} if seqx[:1] == "F" else {}  # only FC
 
     if msg.src.type == "08":  # Honeywell Japser ?HVAC, DEX
@@ -894,7 +926,7 @@ def parser_1100(payload, msg) -> Optional[dict]:
         }
 
     if msg.verb == RQ and msg.len == 1:  # some RQs have a payload (why?)
-        return complex_index(payload[:2])
+        return complex_idx(payload[:2])
 
     assert int(payload[2:4], 16) / 4 in range(1, 13), payload[2:4]
     assert int(payload[4:6], 16) / 4 in range(1, 31), payload[4:6]
@@ -939,7 +971,7 @@ def parser_1100(payload, msg) -> Optional[dict]:
     # TODO: remove me...
 
     return {
-        **complex_index(payload[:2]),
+        **complex_idx(payload[:2]),
         **result,
     }
 
@@ -1065,6 +1097,17 @@ def parser_12c8(payload, msg) -> Optional[dict]:
     return {"unknown": percent(payload[4:])}
 
 
+@parser_decorator  # unknown_WIP
+def parser_12f0(payload, msg) -> Optional[dict]:
+
+    assert payload == "007FFF"
+
+    return {
+        "_payload": payload,
+        "_value": int(payload[2:], 16),
+    }
+
+
 @parser_decorator  # ch_pressure
 def parser_1300(payload, msg) -> Optional[dict]:
     return {"pressure": temp_from_hex(payload[2:])}  # is 2's complement still
@@ -1185,6 +1228,16 @@ def parser_1fca(payload, msg) -> list:
         "_unknown_1": payload[2:6],
         "device_id0": hex_id_to_dec(payload[6:12]),
         "device_id1": hex_id_to_dec(payload[12:]),
+    }
+
+
+@parser_decorator  # unknown_WIP
+def parser_1fd0(payload, msg) -> Optional[dict]:
+
+    assert payload == "0000000000000000"
+
+    return {
+        "_payload": payload,
     }
 
 
@@ -1387,6 +1440,49 @@ def parser_2389(payload, msg) -> Optional[dict]:
     return {"_unknown": temp_from_hex(payload[2:6])}
 
 
+@parser_decorator  # unknown_WIP
+def parser_2400(payload, msg) -> Optional[dict]:
+
+    assert payload == "0000000F"
+
+    return {
+        "_payload": payload,
+    }
+
+
+@parser_decorator  # unknown_WIP
+def parser_2401(payload, msg) -> Optional[dict]:
+
+    assert payload[:5] == "00000"
+    assert int(payload[4:6], 16) & 0b11110000 == 0, f"byte 2: {flag8(payload[4:6])}"
+
+    return {
+        "_payload": payload,
+        "_flags_2": flag8(payload[4:6]),
+        "_percent_3": percent(payload[6:]),
+    }
+
+
+@parser_decorator  # unknown_WIP
+def parser_2410(payload, msg) -> Optional[dict]:
+
+    assert payload == "000000000000000000000000010000000100000C"
+
+    return {
+        "_payload": payload,
+    }
+
+
+@parser_decorator  # unknown_WIP
+def parser_2420(payload, msg) -> Optional[dict]:
+
+    assert payload == "00000010" + "00" * 34
+
+    return {
+        "_payload": payload,
+    }
+
+
 @parser_decorator  # hometronics _state (of unknwon)
 def parser_2d49(payload, msg) -> dict:
     assert payload[2:] in ("0000", "C800"), payload[2:]  # would "FFFF" mean N/A?
@@ -1516,7 +1612,7 @@ def parser_3150(payload, msg) -> Union[list, dict, None]:
 
     #  I --- 04:136513 --:------ 01:158182 3150 002 01CA < often seen CA, artefact?
 
-    def complex_index(seqx, msg) -> dict:
+    def complex_idx(seqx, msg) -> dict:
         # assert seqx[:2] == "FC" or (int(seqx[:2], 16) < MAX_ZONES)  # <5, 8 for UFC
         idx_name = "ufx_idx" if msg.src.type == "02" else "zone_idx"  # DEX
         return {"domain_id" if seqx[:1] == "F" else idx_name: seqx[:2]}
@@ -1524,7 +1620,7 @@ def parser_3150(payload, msg) -> Union[list, dict, None]:
     if msg._has_array:
         return [
             {
-                **complex_index(payload[i : i + 2], msg),
+                **complex_idx(payload[i : i + 2], msg),
                 **valve_demand(payload[i + 2 : i + 4]),
             }
             for i in range(0, len(payload), 4)
@@ -1783,11 +1879,29 @@ def parser_3220(payload, msg) -> Optional[dict]:
     return result
 
 
-# @parser_decorator  # R8810A/20A
-# def parser_3221(payload, msg) -> Optional[dict]:
+@parser_decorator  # unknown_WIP
+def parser_3221(payload, msg) -> Optional[dict]:
 
-#     # 2021-11-03T09:55:43.112792 071 RP --- 10:052644 18:198151 --:------ 3221 002 000F
-#     # 2021-11-02T05:15:55.767108 046 RP --- 10:048122 18:006402 --:------ 3221 002 0000
+    # 2021-11-03T09:55:43.112792 071 RP --- 10:052644 18:198151 --:------ 3221 002 000F
+    # 2021-11-02T05:15:55.767108 046 RP --- 10:048122 18:006402 --:------ 3221 002 0000
+
+    assert int(payload[2:], 16) <= 0xC8
+
+    return {
+        "_payload": payload,
+        "_value": int(payload[2:], 16),
+    }
+
+
+@parser_decorator  # unknown_WIP
+def parser_3223(payload, msg) -> Optional[dict]:
+
+    assert int(payload[2:], 16) <= 0xC8
+
+    return {
+        "_payload": payload,
+        "_value": int(payload[2:], 16),
+    }
 
 
 @parser_decorator  # actuator_sync (aka sync_tpi: TPI cycle sync)
@@ -1812,7 +1926,7 @@ def parser_3b00(payload, msg) -> Optional[dict]:
     # 063  I --- 01:078710 --:------ 01:078710 3B00 002 FCC8
     # 064  I --- 01:078710 --:------ 01:078710 3B00 002 FCC8
 
-    def complex_index(payload, msg) -> dict:  # has complex idx
+    def complex_idx(payload, msg) -> dict:  # has complex idx
         if (
             msg.verb == I_ and msg.src.type in ("01", "23") and msg.src is msg.dst
         ):  # DEX
@@ -1828,7 +1942,7 @@ def parser_3b00(payload, msg) -> Optional[dict]:
     assert payload[2:] == "C8", payload[2:]  # Could it be a percentage?
 
     return {
-        **complex_index(payload[:2], msg),
+        **complex_idx(payload[:2], msg),
         "actuator_sync": bool_from_hex(payload[2:]),
     }
 
@@ -2003,13 +2117,16 @@ def parser_7fff(payload, msg) -> Optional[dict]:
 def parser_unknown(payload, msg) -> Optional[dict]:
     # TODO: it may be useful to generically search payloads for hex_ids, commands, etc.
 
+    # These are generic parsers
     if msg.len == 2 and payload[:2] == "00":
         return {
-            "_value": {"00": False, "C8": True}.get(payload[2:], int(payload[2:], 16))
+            "_payload": payload,
+            "_value": {"00": False, "C8": True}.get(payload[2:], int(payload[2:], 16)),
         }
 
     if msg.len == 3 and payload[:2] == "00":
         return {
+            "_payload": payload,
             "_value": temp_from_hex(payload[2:]),
         }
 
