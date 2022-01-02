@@ -240,7 +240,8 @@ class Gateway:
         dev = self.device_by_id.get(dev_id)
         if dev is None:
             check_filter_lists(dev_id)
-            dev = create_device(self, dev_id, **kwargs)
+            device_hints = self._include.get(dev_id, {})
+            dev = create_device(self, dev_id, klass=device_hints.get("class"), **kwargs)
 
         # update the existing device with any metadata  # TODO: messy?
         ctl = self.device_by_id.get(ctl_id)

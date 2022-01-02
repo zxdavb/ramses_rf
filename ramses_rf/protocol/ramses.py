@@ -6,7 +6,7 @@
 import logging
 from datetime import timedelta as td
 
-from .const import DEV_KLASS, DEVICE_TYPE_BY_CLASS
+from .const import DEV_KLASS
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 
@@ -314,7 +314,7 @@ RAMSES_CODES = {  # rf_unknown
         I_: r"^00[0-9A-F]{4}$",  # NOTE: RP is same
         RQ: r"^00$",
     },
-    _1298: {  # hvac_1298 - temperature/C?
+    _1298: {  # co2_level
         NAME: "hvac_1298",
         I_: r"^00[0-9A-F]{4}$",
     },
@@ -675,6 +675,35 @@ _CODE_IDX_UNKNOWN.sort()  # or print(f"unknown = {_CODE_IDX_UNKNOWN}")
 # RAMSES_DEVICES
 #
 RAMSES_DEVICES_CLASS = {
+    DEV_KLASS.HGI: {  # HGI80: RF to (USB) serial gateway interface
+        _PUZZ: {I_: {}, RQ: {}, W_: {}},
+    },  # HGI80s can do what they like
+    DEV_KLASS.RFG: {  # RFG100: RF to Internet gateway (and others)
+        _0002: {RQ: {}},
+        _0004: {I_: {}, RQ: {}},
+        _0005: {RQ: {}},
+        _0006: {RQ: {}},
+        _000A: {RQ: {}},
+        _000C: {RQ: {}},
+        _000E: {W_: {}},
+        _0016: {RP: {}},
+        _0404: {RQ: {}, W_: {}},
+        _0418: {RQ: {}},
+        _10A0: {RQ: {}},
+        _10E0: {I_: {}, RQ: {}, RP: {}},
+        _1260: {RQ: {}},
+        _1290: {I_: {}},
+        _1F41: {RQ: {}},
+        _1FC9: {RP: {}, W_: {}},
+        _22D9: {RQ: {}},
+        _2309: {I_: {}},
+        _2349: {RQ: {}, RP: {}, W_: {}},
+        _2E04: {RQ: {}, I_: {}, W_: {}},
+        _30C9: {RQ: {}},
+        _313F: {RQ: {}, RP: {}, W_: {}},
+        _3220: {RQ: {}},
+        _3EF0: {RQ: {}},
+    },
     DEV_KLASS.CTL: {  # e.g. ATC928: Evohome Colour Controller
         _0001: {W_: {}},
         _0002: {I_: {}, RP: {}},
@@ -714,6 +743,97 @@ RAMSES_DEVICES_CLASS = {
         _3B00: {I_: {}},
         _3EF0: {RQ: {}},
     },
+    DEV_KLASS.PRG: {  # e.g. HCF82/HCW82: Room Temperature Sensor
+        _0009: {I_: {}},
+        _1090: {RP: {}},
+        _10A0: {RP: {}},
+        _1100: {I_: {}},
+        _1F09: {I_: {}},
+        _2249: {I_: {}},
+        _2309: {I_: {}},
+        _30C9: {I_: {}},
+        _3B00: {I_: {}},
+        _3EF1: {RP: {}},
+    },
+    DEV_KLASS.THM: {  # e.g. Generic Thermostat
+        _0001: {W_: {}},
+        _0005: {I_: {}},
+        _0008: {I_: {}},
+        _0009: {I_: {}},
+        _000A: {I_: {}, RQ: {}, W_: {}},
+        _000C: {I_: {}},
+        _000E: {I_: {}},
+        _0016: {RQ: {}},
+        _042F: {I_: {}},
+        _1030: {I_: {}},
+        _1060: {I_: {}},
+        _1090: {RQ: {}},
+        _10E0: {I_: {}},
+        _1100: {I_: {}},
+        _12C0: {I_: {}},
+        _1F09: {I_: {}},
+        _1FC9: {I_: {}},
+        _2309: {I_: {}, RQ: {}, W_: {}},
+        _2349: {RQ: {}, W_: {}},
+        _30C9: {I_: {}},
+        _3120: {I_: {}},
+        _313F: {I_: {}},  # W --- 30:253184 34:010943 --:------ 313F 009 006000070E0...
+        _3B00: {I_: {}},
+        _3EF0: {RQ: {}},  # when bound direct to a 13:
+        _3EF1: {RQ: {}},  # when bound direct to a 13:
+    },
+    # DEV_KLASS.RND: {  # e.g. TR87RF: Single (round) Zone Thermostat
+    #     _0005: {I_: {}},
+    #     _0008: {I_: {}},
+    #     _000A: {I_: {}, RQ: {}},
+    #     _000C: {I_: {}},
+    #     _000E: {I_: {}},
+    #     _042F: {I_: {}},
+    #     _1060: {I_: {}},
+    #     _10E0: {I_: {}},
+    #     _12C0: {I_: {}},
+    #     _1FC9: {I_: {}},
+    #     _2309: {I_: {}, RQ: {}, W_: {}},
+    #     _2349: {RQ: {}},
+    #     _30C9: {I_: {}},
+    #     _3120: {I_: {}},
+    #     _313F: {I_: {}},  # W --- 30:253184 34:010943 --:------ 313F 009 006000070E0...
+    #     _3EF0: {RQ: {}},  # when bound direct to a 13:
+    #     _3EF1: {RQ: {}},  # when bound direct to a 13:
+    # },
+    # DEV_KLASS.DTS: {  # e.g. DTS92(E)
+    #     _0001: {W_: {}},
+    #     _0008: {I_: {}},
+    #     _0009: {I_: {}},
+    #     _000A: {I_: {}, RQ: {}, W_: {}},
+    #     _0016: {RQ: {}},
+    #     # "0B04": {I_: {}},
+    #     _1030: {I_: {}},
+    #     _1060: {I_: {}},
+    #     _1090: {RQ: {}},
+    #     _1100: {I_: {}},
+    #     _1F09: {I_: {}},
+    #     _1FC9: {I_: {}},
+    #     _2309: {I_: {}, RQ: {}, W_: {}},
+    #     _2349: {RQ: {}, W_: {}},
+    #     _30C9: {I_: {}},
+    #     _313F: {I_: {}},
+    #     _3B00: {I_: {}},
+    #     _3EF1: {RQ: {}},
+    # },
+    # DEV_KLASS.HCW: {  # e.g. HCF82/HCW82: Room Temperature Sensor
+    #     _0001: {W_: {}},
+    #     _0002: {I_: {}},
+    #     _0008: {I_: {}},
+    #     _0009: {I_: {}},
+    #     _1060: {I_: {}},
+    #     _1100: {I_: {}},
+    #     _1F09: {I_: {}},
+    #     _1FC9: {I_: {}},
+    #     _2309: {I_: {}},
+    #     _2389: {I_: {}},
+    #     _30C9: {I_: {}},
+    # },
     DEV_KLASS.UFC: {  # e.g. HCE80/HCC80: Underfloor Heating Controller
         _0001: {RP: {}, W_: {}},  # TODO: Ix RP
         _0005: {RP: {}},
@@ -810,153 +930,74 @@ RAMSES_DEVICES_CLASS = {
         _3EF1: {RQ: {}, RP: {}},
     },
 }
-RAMSES_DEVICES = {
-    "03": {  # e.g. HCF82/HCW82: Room Temperature Sensor
-        _0001: {W_: {}},
-        _0002: {I_: {}},
-        _0008: {I_: {}},
-        _0009: {I_: {}},
-        _1060: {I_: {}},
-        _1100: {I_: {}},
-        _1F09: {I_: {}},
-        _1FC9: {I_: {}},
-        _2309: {I_: {}},
-        _2389: {I_: {}},
-        _30C9: {I_: {}},
-    },
-    "12": {  # DTS92(E): Digital Room Thermostat
-        _0001: {W_: {}},
-        _0008: {I_: {}},
-        _0009: {I_: {}},
-        _000A: {I_: {}, RQ: {}, W_: {}},
-        _0016: {RQ: {}},
-        # "0B04": {I_: {}},
-        _1030: {I_: {}},
-        _1060: {I_: {}},
-        _1090: {RQ: {}},
-        _1100: {I_: {}},
-        _1F09: {I_: {}},
-        _1FC9: {I_: {}},
-        _2309: {I_: {}, RQ: {}, W_: {}},
-        _2349: {RQ: {}, W_: {}},
-        _30C9: {I_: {}},
-        _313F: {I_: {}},
-        _3B00: {I_: {}},
-        _3EF1: {RQ: {}},
-    },
-    "18": {  # HGI80: RF to (USB) serial gateway interface
-        _PUZZ: {I_: {}, RQ: {}, W_: {}},
-    },  # HGI80s can do what they like
-    "23": {
-        _0009: {I_: {}},
-        _1090: {RP: {}},
-        _10A0: {RP: {}},
-        _1100: {I_: {}},
-        _1F09: {I_: {}},
-        _2249: {I_: {}},
-        _2309: {I_: {}},
-        _30C9: {I_: {}},
-        _3B00: {I_: {}},
-        _3EF1: {RP: {}},
-    },
-    "30": {  # RFG100: RF to Internet gateway (and others)
-        # RFG:185469 - Honeywell RFG100
-        _0002: {RQ: {}},
-        _0004: {I_: {}, RQ: {}},
-        _0005: {RQ: {}},
-        _0006: {RQ: {}},
-        _000A: {RQ: {}},
-        _000C: {RQ: {}},
-        _000E: {W_: {}},
-        _0016: {RP: {}},
-        _0404: {RQ: {}, W_: {}},
-        _0418: {RQ: {}},
-        _10A0: {RQ: {}},
-        _10E0: {I_: {}, RQ: {}, RP: {}},
-        _1260: {RQ: {}},
-        _1290: {I_: {}},
-        _1F41: {RQ: {}},
-        _1FC9: {RP: {}, W_: {}},
-        _22D9: {RQ: {}},
-        _2309: {I_: {}},
-        _2349: {RQ: {}, RP: {}, W_: {}},
-        _2E04: {RQ: {}, I_: {}, W_: {}},
-        _30C9: {RQ: {}},
-        _313F: {RQ: {}, RP: {}, W_: {}},
-        _3220: {RQ: {}},
-        _3EF0: {RQ: {}},
-        # VMS:082155 - HVAC: Nuaire Ventilation
-        # _10E0: {I_: {}, RP: {},},
-        _1F09: {I_: {}, RP: {}},
-        _31D9: {I_: {}},
-        _31DA: {I_: {}, RP: {}},
-    },
-    "34": {  # e.g. TR87RF: Single (round) Zone Thermostat
-        _0005: {I_: {}},
-        _0008: {I_: {}},
-        _000A: {I_: {}, RQ: {}},
-        _000C: {I_: {}},
-        _000E: {I_: {}},
-        _042F: {I_: {}},
-        _1060: {I_: {}},
-        _10E0: {I_: {}},
-        _12C0: {I_: {}},
-        _1FC9: {I_: {}},
-        _2309: {I_: {}, RQ: {}, W_: {}},
-        _2349: {RQ: {}},
-        _30C9: {I_: {}},
-        _3120: {I_: {}},
-        _313F: {I_: {}},  # W --- 30:253184 34:010943 --:------ 313F 009 006000070E0...
-        _3EF0: {RQ: {}},  # when bound direct to a 13:
-        _3EF1: {RQ: {}},  # when bound direct to a 13:
-    },
-}
-RAMSES_DEVICES["00"] = RAMSES_DEVICES_CLASS["TRV"]  # HR80
-RAMSES_DEVICES["21"] = RAMSES_DEVICES["34"]  # T87RF1003
-RAMSES_DEVICES["22"] = RAMSES_DEVICES["12"]  # DTS92
 
-HVAC_DEVICES = {
-    "20": {  # HVAC: ventilation unit, or switch/sensor?
-        _10E0: {I_: {}, RP: {}},
-        _12A0: {RP: {}},
-        _22F1: {I_: {}},
-        _22F3: {I_: {}},
-        _3120: {RP: {}},
-        _31D9: {I_: {}, RP: {}},
-        _31DA: {I_: {}},
-    },  # e.g. https://www.ithodaalderop.nl/nl-NL/professional/product/545-5036
-    "29": {  # HVAC: Orcon MVS-15RP / MVS-15LF (vent mech. control)
-        _10E0: {I_: {}},  # VMC-15RP01 / VMN-15LF01
-        _31D9: {I_: {}},
-    },  # e.g. https://www.orcon.nl/blueline-mvs-15rp-2/
-    "32": {  # HVAC: switch/sensor?
-        _042F: {I_: {}},
-        _1060: {I_: {}},
+HVAC_DEVICES_CLASS = {
+    DEV_KLASS.FAN: {
         _10E0: {I_: {}, RP: {}},
         _1298: {I_: {}},
         _12A0: {I_: {}},
-        _22F1: {I_: {}},
+        _12C8: {I_: {}},
+        _1F09: {I_: {}, RP: {}},
+        _3120: {I_: {}},
+        _31D9: {I_: {}},
+        _31DA: {I_: {}, RP: {}},
+        # _31E0: {I_: {}},
+    },
+    DEV_KLASS.CO2: {
+        _1060: {I_: {}},
+        _1298: {I_: {}},
+    },
+    DEV_KLASS.HUM: {
+        _1060: {I_: {}},
+        _12A0: {I_: {}},
         _31DA: {RQ: {}},
         _31E0: {I_: {}},
     },
-    "37": {  # HVAC: ventilation unit
-        _10E0: {I_: {}, RP: {}},
-        _1298: {I_: {}},
-        _12C8: {I_: {}},
-        _3120: {I_: {}},
-        _31D9: {I_: {}},
-        _31DA: {I_: {}},
-    },
-    "39": {  # HVAC: two-way switch; also an "06/22F1"?
+    DEV_KLASS.SWI: {  # HVAC: two-way switch; also an "06/22F1"?
+        _1060: {I_: {}},
         _22F1: {I_: {}},
         _22F3: {I_: {}},
+        # _31E0: {I_: {}},
     },  # https://www.ithodaalderop.nl/nl-NL/professional/product/536-0124
+    # "20": {  # HVAC: ventilation unit, or switch/sensor?
+    #     _10E0: {I_: {}, RP: {}},
+    #     _12A0: {RP: {}},
+    #     _22F1: {I_: {}},
+    #     _22F3: {I_: {}},
+    #     _3120: {RP: {}},
+    #     _31D9: {I_: {}, RP: {}},
+    #     _31DA: {I_: {}},
+    # },  # e.g. https://www.ithodaalderop.nl/nl-NL/professional/product/545-5036
+    # "29": {  # HVAC: Orcon MVS-15RP / MVS-15LF (vent mech. control)
+    #     _10E0: {I_: {}},  # VMC-15RP01 / VMN-15LF01
+    #     _31D9: {I_: {}},
+    # },  # e.g. https://www.orcon.nl/blueline-mvs-15rp-2/
+    # "32": {  # HVAC: switch/sensor?
+    #     _042F: {I_: {}},
+    #     _1060: {I_: {}},
+    #     _10E0: {I_: {}, RP: {}},
+    #     _1298: {I_: {}},
+    #     _12A0: {I_: {}},
+    #     _22F1: {I_: {}},
+    #     _31DA: {RQ: {}},
+    #     _31E0: {I_: {}},
+    # },
+    # "37": {  # HVAC: ventilation unit
+    #     _10E0: {I_: {}, RP: {}},
+    #     _1298: {I_: {}},
+    #     _12C8: {I_: {}},
+    #     _3120: {I_: {}},
+    #     _31D9: {I_: {}},
+    #     _31DA: {I_: {}},
+    # },
 }
 
-RAMSES_DEVICES = {**HVAC_DEVICES, **RAMSES_DEVICES}
-for k, v in DEVICE_TYPE_BY_CLASS.items():
-    if k in RAMSES_DEVICES_CLASS:
-        RAMSES_DEVICES[v] = RAMSES_DEVICES_CLASS[k]
+# RAMSES_DEVICES = {**HVAC_DEVICES, **RAMSES_DEVICES}
+# for k, v in DEVICE_TYPE_BY_CLASS.items():
+#     if k in RAMSES_DEVICES_CLASS:
+#         RAMSES_DEVICES[v] = RAMSES_DEVICES_CLASS[k]
+
+RAMSES_DEVICES = {**HVAC_DEVICES_CLASS, **RAMSES_DEVICES_CLASS}
 
 
 ##############
@@ -1000,24 +1041,3 @@ RAMSES_ZONES = {
 RAMSES_ZONES_ALL = RAMSES_ZONES.pop("ALL")
 RAMSES_ZONES_DHW = RAMSES_ZONES["DHW"]
 [RAMSES_ZONES[k].update(RAMSES_ZONES_ALL) for k in RAMSES_ZONES if k != "DHW"]
-
-
-# _DEVICE_SIGNATURES = {
-#     "CTL": ((_0100, I_), (_0100, RP), (_0404, I_), (_0404, RP), (_0418, I_), (_0418, RP), ),
-#     "UFC": (),
-#     "DHW": ((_1260, I_)),
-#     "BDR": (),
-#     "OTB": ((_3220, RP)),
-#     "EXT": (),  # OUT?
-#     "RFG": (),
-#     "VNS": (),
-#     "VNT": ((_31D9, I_), (_31D9, RP), (_31DA, I_), (_31DA, RP)),
-# }
-
-# DEVICE_SIGNATURES = {}
-# for device, signatures in _DEVICE_SIGNATURES.items():
-#     for pair in signatures:
-#         if (code := pair[1]) in DEVICE_SIGNATURES:
-#             raise RuntimeError
-#         else:
-#             DEVICE_SIGNATURES[device] = {code: pair[0]}

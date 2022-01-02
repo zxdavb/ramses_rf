@@ -9,57 +9,39 @@ from types import SimpleNamespace
 __dev_mode__ = False
 DEV_MODE = __dev_mode__
 
-USE_DEX = True
-
 
 def slug(string: str) -> str:
     return re.sub(r"[\W_]+", "_", string.lower())
 
 
 DEV_KLASS = SimpleNamespace(
+    DEV="DEV",  # Generic (promotable) device
+    #
+    HGI="HGI",  # Gateway interface (RF to USB), HGI80
+    RFG="RFG",  # RF gateway (RF to ethernet), RFG100
+    #
     BDR="BDR",  # Electrical relay
     CTL="CTL",  # Controller
-    C02="C02",  # HVAC C02 sensor
-    GEN="DEV",  # Generic device
     DHW="DHW",  # DHW sensor
     EXT="EXT",  # External weather sensor
-    FAN="FAN",  # HVAC fan, 31D[9A]: 20|29|30|37 (some, e.g. 29: only 31D9)
-    HGI="HGI",  # Gateway interface (RF to USB), HGI80
-    HUM="HUM",  # HVAC humidity sensor, 1260: 32
     OTB="OTB",  # OpenTherm bridge
     PRG="PRG",  # Programmer
-    RFG="RFG",  # RF gateway (RF to ethernet), RFG100
-    STA="STA",  # Thermostat
-    SWI="SWI",  # HVAC switch, 22F[13]: 02|06|20|32|39|42|49|59 (no 20: are both)
+    THM="THM",  # Thermostat - don't use STA
+    # DTS="DTS",  # Thermostat, DTS92(E)
+    # HCW="HCW",  # Thermostat, HCW80/82
+    # RND="RND",  # Thermostat, TR87RF
     TRV="TRV",  # Thermostatic radiator valve
     UFC="UFC",  # UFH controller
+    #
+    CO2="CO2",  # HVAC CO2 sensor
+    FAN="FAN",  # HVAC fan, 31D[9A]: 20|29|30|37 (some, e.g. 29: only 31D9)
+    HUM="HUM",  # HVAC humidity sensor, 1260: 32
+    SWI="SWI",  # HVAC switch, 22F[13]: 02|06|20|32|39|42|49|59 (no 20: are both)
+    #
     JIM="JIM",  # Jasper Interface Module (EIM?)
     JST="JST",  # Jasper Stat
 )
 
-DEVICE_CLASS_BY_TYPE = {
-    "01": DEV_KLASS.CTL,
-    "02": DEV_KLASS.UFC,
-    "04": DEV_KLASS.TRV,
-    "07": DEV_KLASS.DHW,
-    "08": DEV_KLASS.JIM,
-    "10": DEV_KLASS.OTB,
-    "13": DEV_KLASS.BDR,
-    "17": DEV_KLASS.EXT,
-    "18": DEV_KLASS.HGI,
-    "23": DEV_KLASS.PRG,
-    "31": DEV_KLASS.JST,
-    "34": DEV_KLASS.STA,
-}  # these are the 'reliable' (i.e. CH/DHW, not HVAC) type:klass pairs
-DEVICE_TYPE_BY_CLASS = {v: k for k, v in DEVICE_CLASS_BY_TYPE.items()}
-DEVICE_CLASS_BY_TYPE.update(
-    {
-        "00": DEV_KLASS.TRV,
-        "03": DEV_KLASS.STA,
-        "12": DEV_KLASS.STA,
-        "22": DEV_KLASS.STA,
-    }
-)
 
 HGI_DEVICE_ID = "18:000730"  # default type and address of HGI, 18:013393
 NON_DEVICE_ID = "--:------"
@@ -177,31 +159,7 @@ DEVICE_ID_REGEX = SimpleNamespace(
     SEN=DEV_REGEX_SEN,
 )
 
-# # Packet codes (this dict is being deprecated) - check against ramses.py
-# CODE_SCHEMA = {
-#     _0001: {"uses_zone_idx": True},
-#     _01D0: {"uses_zone_idx": True},
-#     _01E9: {"uses_zone_idx": True},
-#     _0404: {"uses_zone_idx": True},
-#     _3EF1: {"uses_zone_idx": True},
-#     _0004: {"uses_zone_idx": True},
-#     _0008: {"uses_zone_idx": True},
-#     _0009: {"uses_zone_idx": True},
-#     _000A: {"uses_zone_idx": True},
-#     _1030: {"uses_zone_idx": True},
-#     _1060: {"uses_zone_idx": True},
-#     _12B0: {"uses_zone_idx": True},
-#     _1FC9: {"uses_zone_idx": True},
-#     _2249: {"uses_zone_idx": True},
-#     _2309: {"uses_zone_idx": True},
-#     _2349: {"uses_zone_idx": True},
-#     _30C9: {"uses_zone_idx": True},
-#     _3150: {"uses_zone_idx": True},
-# }
-
-# _MAY_USE_ZONE_IDX = [k for k, v in CODE_SCHEMA.items() if v.get("uses_zone_idx")]
-
-DEVICE_TABLE = {
+_OUT_DEVICE_TABLE = {
     # Honeywell evohome
     "01": {
         "type": "CTL",
@@ -279,9 +237,9 @@ DEVICE_TABLE = {
     "31": {"type": "JST", "name": "HVAC?"},  # Jasper Stat TXXX
     # non-Honeywell, HVAC? (also, 30: is a Nuaire PIV)
     "20": {"type": "VCE", "name": "HVAC?"},  # VCE-RF unit
-    "32": {"type": "VMS", "name": "HVAC?"},  # sensor/switch
+    "32": {"type": "vMs", "name": "HVAC?"},  # sensor/switch
     "37": {"type": " 37", "name": "HVAC?"},  # VCE
-    "39": {"type": "VMS", "name": "HVAC?"},  # sensor/switch
+    "39": {"type": "VmS", "name": "HVAC?"},  # sensor/switch
     "49": {"type": " 49", "name": "HVAC?"},  # VCE switch
     # specials
     "63": {"type": "NUL", "name": "Null Device"},
@@ -290,11 +248,11 @@ DEVICE_TABLE = {
 # VMS includes Nuaire VMS-23HB33, VMS-23LMH23
 # What about Honeywell MT4 actuator?
 
-DEVICE_TABLE["00"] = dict(DEVICE_TABLE["04"])
-DEVICE_TABLE["00"]["type"] = "TRv"
+_OUT_DEVICE_TABLE["00"] = dict(_OUT_DEVICE_TABLE["04"])
+_OUT_DEVICE_TABLE["00"]["type"] = "TRv"
 
-DEVICE_TABLE["12"] = dict(DEVICE_TABLE["22"])
-DEVICE_TABLE["12"]["type"] = "THm"
+_OUT_DEVICE_TABLE["12"] = dict(_OUT_DEVICE_TABLE["22"])
+_OUT_DEVICE_TABLE["12"]["type"] = "THm"
 
 # Example of:
 #  - Sundial RF2 Pack 3: 23:(ST9420C), 07:(CS92), and 22:(DTS92(E))
@@ -302,7 +260,7 @@ DEVICE_TABLE["12"]["type"] = "THm"
 # HCW80 has option of being wired (normally wireless)
 # ST9420C has battery back-up (as does evohome)
 
-DEVICE_TYPES = {k: v["type"] for k, v in DEVICE_TABLE.items()}
+DEVICE_TYPES = {k: v["type"] for k, v in _OUT_DEVICE_TABLE.items()}
 DEVICE_LOOKUP = {v: k for k, v in DEVICE_TYPES.items()}
 # DEVICE_CLASSES = {v["type"]: v["name"] for _, v in DEVICE_TABLE.items()}
 

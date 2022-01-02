@@ -137,15 +137,13 @@ DEVICE_DICT = vol.Schema(
 )
 
 # 2/3: Schemas for Heating systems
-SZ_SYS_PROFILE = "_profile"
-SYSTEM_PROFILES = (SystemType.EVOHOME, SystemType.HOMETRONICS, SystemType.SUNDIAL)
+SZ_SYS_KLASS = "class"
+SYSTEM_KLASS = (SystemType.EVOHOME, SystemType.HOMETRONICS, SystemType.SUNDIAL)
 
 HTG_SCHEMA = vol.Schema(
     {
         vol.Required(SZ_HTG_CONTROL, default=None): vol.Any(None, DEV_REGEX_HTG),
-        vol.Optional(SZ_SYS_PROFILE, default=SystemType.EVOHOME): vol.Any(
-            *SYSTEM_PROFILES
-        ),
+        vol.Optional(SZ_SYS_KLASS, default=SystemType.EVOHOME): vol.Any(*SYSTEM_KLASS),
     },
     # extra=vol.ALLOW_EXTRA,  # TODO: remove me
 )
@@ -337,7 +335,7 @@ def load_schema(gwy, **kwargs) -> dict:
 def load_system(gwy, ctl_id, schema) -> Tuple[dict, dict]:
     schema = SYSTEM_SCHEMA(schema)
 
-    if (ctl := _get_device(gwy, ctl_id, ctl_id=ctl_id, profile=None)) is None:
+    if (ctl := _get_device(gwy, ctl_id, ctl_id=ctl_id)) is None:
         return
 
     if dev_id := schema[SZ_HTG_SYSTEM].get(SZ_HTG_CONTROL):

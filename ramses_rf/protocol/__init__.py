@@ -9,12 +9,12 @@ from logging import Logger
 
 from .address import is_valid_dev_id
 from .command import CODE_API_MAP, Command, FaultLog, Priority
-from .exceptions import CorruptStateError, ExpiredCallbackError
+from .exceptions import CorruptStateError, ExpiredCallbackError, InvalidPacketError
 from .logger import set_logger_timesource, set_pkt_logging
 from .message import Message
 from .packet import _PKT_LOGGER, Packet
 from .protocol import create_msg_stack
-from .ramses import RAMSES_CODES
+from .ramses import RAMSES_CODES, RAMSES_DEVICES
 from .schedule import Schedule
 from .schema import PACKET_LOG, PACKET_LOG_SCHEMA, SERIAL_PORT, SERIAL_PORT_SCHEMA
 from .transport import POLLER_TASK, create_pkt_stack

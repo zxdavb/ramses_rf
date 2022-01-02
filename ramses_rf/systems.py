@@ -21,7 +21,6 @@ from .const import (
     ATTR_SYSTEM_MODE,
     SYSTEM_MODE,
     Discover,
-    SystemType,
     __dev_mode__,
 )
 from .devices import (
@@ -142,9 +141,10 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-SYSTEM_PROFILE = SimpleNamespace(
-    EVO="evohome",  # Stored HW (not a zone)
-    PRG="programmer",  # Electric
+SYS_KLASS = SimpleNamespace(
+    SYS="system",  # Generic (promotable?) system
+    EVO="evohome",
+    PRG="programmer",
 )
 
 
@@ -220,14 +220,14 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
         super()._handle_msg(msg)
 
-        if msg.code == _0008 and msg.verb in (I_, RP):
-            if "domain_id" in msg.payload:
-                self._relay_demands[msg.payload["domain_id"]] = msg
-                if msg.payload["domain_id"] == "F9":
+        if msg.code == _0008:
+            if (domain_id := msg.payload.get("domain_id")) and msg.verb in (I_, RP):
+                self._relay_demands[domain_id] = msg
+                if domain_id == "F9":
                     device = self.dhw.heating_valve if self.dhw else None
-                elif msg.payload["domain_id"] == "FA":
+                elif domain_id == "FA":
                     device = self.dhw.hotwater_valve if self.dhw else None
-                elif msg.payload["domain_id"] == "FC":
+                elif domain_id == "FC":
                     device = self.heating_control
                 else:
                     device = None
@@ -237,8 +237,13 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                     for code in (_0008, _3EF1):
                         device._make_cmd(code, qos)
 
-        if msg.code == _3150 and msg.verb in (I_, RP):
-            if "domain_id" in msg.payload and msg.payload["domain_id"] == "FC":
+        elif msg.code == _000C:
+            if msg.payload["device_class"] == SZ_HTG_CONTROL and msg.payload["devices"]:
+                self._set_htg_control(self._ctl.device_by_id[msg.payload["devices"][0]])
+            return
+
+        elif msg.code == _3150:
+            if msg.payload.get("domain_id") == "FC" and msg.verb in (I_, RP):
                 self._heat_demand = msg.payload
 
         if self._gwy.config.enable_eavesdrop and not self.heating_control:
@@ -1023,7 +1028,7 @@ class UfHeating:
 class System(StoredHw, Datetime, Logbook, SystemBase):
     """The Controller class."""
 
-    _PROFILE = SYSTEM_PROFILE.PRG
+    _SYS_KLASS = SYS_KLASS.PRG
 
     def __init__(self, gwy, ctl, **kwargs) -> None:
         super().__init__(gwy, ctl, **kwargs)
@@ -1087,7 +1092,7 @@ class Evohome(ScheduleSync, Language, SysMode, MultiZone, UfHeating, System):
 
     # older evohome don't have zone_type=ELE
 
-    _PROFILE = SYSTEM_PROFILE.EVO
+    _SYS_KLASS = SYS_KLASS.EVO
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (evohome)"
@@ -1123,7 +1128,7 @@ class Evohome(ScheduleSync, Language, SysMode, MultiZone, UfHeating, System):
 
 class Chronotherm(Evohome):
 
-    _PROFILE = SYSTEM_PROFILE.EVO
+    _SYS_KLASS = SYS_KLASS.SYS
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (chronotherm)"
@@ -1138,7 +1143,7 @@ class Hometronics(System):
 
     # Hometronic does not react to W/2349 but rather requies W/2309
 
-    _PROFILE = SYSTEM_PROFILE.EVO
+    _SYS_KLASS = SYS_KLASS.SYS
 
     RQ_SUPPORTED = (_0004, _000C, _2E04, _313F)  # TODO: WIP
     RQ_UNSUPPORTED = ("xxxx",)  # 10E0?
@@ -1159,7 +1164,7 @@ class Hometronics(System):
 
 class Programmer(Evohome):
 
-    _PROFILE = SYSTEM_PROFILE.PRG
+    _SYS_KLASS = SYS_KLASS.PRG
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (programmer)"
@@ -1167,42 +1172,22 @@ class Programmer(Evohome):
 
 class Sundial(Evohome):
 
-    _PROFILE = SYSTEM_PROFILE.PRG
+    _SYS_KLASS = SYS_KLASS.SYS
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (sundial)"
 
 
-_SYS_CLASS = {
-    SystemType.CHRONOTHERM: Chronotherm,
-    SystemType.EVOHOME: Evohome,
-    SystemType.HOMETRONICS: Hometronics,
-    SystemType.PROGRAMMER: Programmer,
-    SystemType.SUNDIAL: Sundial,
-    SystemType.GENERIC: System,
-}
-_SYS_CLASS_BY_TYPE = {
-    "01": Evohome,
-    "23": Programmer,
-    "12": Sundial,
-}
+_SYS_BY_KLASS = class_by_attr(__name__, "_SYS_KLASS")  # e.g. "evohome": Evohome
 
 
-_SYS_CLASS_BY_PROFILE = class_by_attr(__name__, "_PROFILE")  # e.g. "evohome": Evohome
-
-
-def create_system(gwy, ctl, profile=None, **kwargs) -> System:
+def create_system(gwy, ctl, klass=None, **kwargs) -> System:
     """Create a system, and optionally perform discovery & start polling."""
 
-    #
+    if klass is None:
+        klass = SYS_KLASS.PRG if isinstance(ctl, Programmer) else SYS_KLASS.EVO
 
-    if profile is None:  # TODO: messy
-        profile = (
-            SYSTEM_PROFILE.PRG if isinstance(ctl, Programmer) else SYSTEM_PROFILE.EVO
-        )
-        #
-
-    system = _SYS_CLASS.get(profile, System)(gwy, ctl, **kwargs)
+    system = _SYS_BY_KLASS.get(klass, System)(gwy, ctl, **kwargs)
 
     if isinstance(gwy.pkt_protocol, PacketProtocolPort):
         system._start_discovery()

@@ -16,7 +16,7 @@ from .address import Address
 from .exceptions import InvalidPacketError, InvalidPayloadError
 from .packet import fraction_expired
 from .parsers import PAYLOAD_PARSERS, parser_unknown
-from .ramses import CODE_IDX_COMPLEX, CODE_RQ_COMPLEX, RAMSES_CODES, RAMSES_DEVICES
+from .ramses import CODE_IDX_COMPLEX, CODE_RQ_COMPLEX, RAMSES_CODES
 
 from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
 from .const import (  # noqa: F401, isort: skip
@@ -368,8 +368,6 @@ class Message:
         try:  # parse the payload
             # TODO: only accept invalid packets to/from HGI when flag raised
             _check_msg_payload(self, self._pkt.payload)  # ? InvalidPayloadError
-            _check_msg_src(self)  # ? InvalidPacketError
-            _check_msg_dst(self)  # ? InvalidPacketError
 
             if not self._has_payload or (
                 self.verb == RQ and self.code not in CODE_RQ_COMPLEX
@@ -418,94 +416,6 @@ def re_compile_re_match(regex, string) -> bool:
     # Python has it's own caching of re.complile, _MAXCACHE = 512
     # https://github.com/python/cpython/blob/3.10/Lib/re.py
     return re.compile(regex).match(string)
-
-
-# cat *.log | grep -E ' (16:|20:|29:|32:|37:|39:|44:)'         | grep -vE ' (\*|RQ|042F|1060|10E0|22F1|3120|313F) ' | grep -vE ' (1298|12A0|12C8|22F3|31D9|31DA|31E0) '^C
-# cat *.log | grep -E ' (1298|12A0|12C8|22F3|31D9|31DA|31E0) ' | grep -vE ' (RQ|30:|16:|20:|29:|32:|37:|39:|44:)'
-
-
-def _check_msg_src(msg: Message) -> None:
-    """Validate the packet's source device type against its verb/code pair.
-
-    Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
-    """
-
-    #
-    #
-
-    if msg.src.type not in RAMSES_DEVICES:  # DEX, TODO: fingerprint dev class
-        if msg.code not in HVAC_ONLY_CODES:
-            raise InvalidPacketError(f"Unknown src device type: {msg.src.id}")
-        _LOGGER.warning(f"{msg._pkt} < Unknown src device type: {msg.src.id} (HVAC?)")
-        return
-
-    #
-    #
-
-    #
-    #
-
-    if msg.code not in RAMSES_DEVICES[msg.src.type]:  # DEX
-        if msg.src.type != "18":  # DEX
-            raise InvalidPacketError(f"Invalid code for {msg.src.id} to Tx: {msg.code}")
-        if msg.verb in (RQ, W_):  # DEX
-            return
-        _LOGGER.warning(f"{msg._pkt} < Invalid code for {msg.src.id} to Tx: {msg.code}")
-        return
-
-    #
-    #
-    #
-    #
-
-    #
-    # (code := RAMSES_DEVICES[msg.src.type][msg.code]) and msg.verb not in code:
-    if msg.verb not in RAMSES_DEVICES[msg.src.type][msg.code]:  # DEX
-        raise InvalidPacketError(
-            f"Invalid verb/code for {msg.src.id} to Tx: {msg.verb}/{msg.code}"
-        )
-
-
-def _check_msg_dst(msg: Message) -> None:
-    """Validate the packet's destination device type against its verb/code pair.
-
-    Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
-    """
-
-    if msg.dst.type in ("--", "63"):  # or "18" in (msg.src.type, msg.dst.type):  # DEX
-        return  # TODO: HGI80s
-
-    if msg.dst.type not in RAMSES_DEVICES:  # DEX, TODO: fingerprint dev class
-        if msg.code not in HVAC_ONLY_CODES:
-            raise InvalidPacketError(f"Unknown dst device type: {msg.dst.id}")
-        _LOGGER.warning(f"{msg._pkt} < Unknown dst device type: {msg.dst.id} (HVAC?)")
-        return
-
-    if msg.verb == I_:  # TODO: not common, unless src=dst
-        return  # receiving an I isn't currently in the schema & cant yet be tested
-
-    if f"{msg.dst.type}/{msg.verb}/{msg.code}" in (f"01/{RQ}/{_3EF1}",):  # DEX
-        return  # HACK: an exception-to-the-rule that need sorting
-
-    if msg.code not in RAMSES_DEVICES[msg.dst.type]:  # NOTE: is not OK for Rx, DEX
-        if msg.dst.type != "18":  # NOTE: not (yet) needed because of 1st if, DEX
-            raise InvalidPacketError(f"Invalid code for {msg.dst.id} to Rx: {msg.code}")
-        if msg.verb == RP:  # DEX
-            return
-        _LOGGER.warning(f"{msg._pkt} < Invalid code for {msg.dst.id} to Tx: {msg.code}")
-        return
-
-    if f"{msg.verb}/{msg.code}" in (f"{W_}/{_0001}",):
-        return  # HACK: an exception-to-the-rule that need sorting
-    if f"{msg.dst.type}/{msg.verb}/{msg.code}" in (f"13/{RQ}/{_3EF0}",):  # DEX
-        return  # HACK: an exception-to-the-rule that need sorting
-
-    verb = {RQ: RP, RP: RQ, W_: I_}[msg.verb]
-    # (code := RAMSES_DEVICES[msg.dst.type][msg.code]) and verb not in code:
-    if verb not in RAMSES_DEVICES[msg.dst.type][msg.code]:  # DEX
-        raise InvalidPacketError(
-            f"Invalid verb/code for {msg.dst.id} to Rx: {msg.verb}/{msg.code}"
-        )
 
 
 def _check_msg_payload(msg: Message, payload) -> None:
