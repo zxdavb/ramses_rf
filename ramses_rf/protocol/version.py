@@ -3,8 +3,8 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
-    The RAMSES-II protocol (messages, packets/commands).
+The RAMSES-II protocol (messages, packets/commands).
 """
 
-__version__ = "0.17.2"
+__version__ = "0.17.3"
 VERSION = __version__
