@@ -34,7 +34,7 @@ class Address:
     def __init__(self, id) -> None:
         """Create an address from a valid device id."""
 
-        self.id = id
+        self.id = id  # TODO: check is a valid id...
         self.type = id[:2]  # dex, NOTE: remove last
         self._hex_id = None
 
