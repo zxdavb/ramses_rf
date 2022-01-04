@@ -472,8 +472,12 @@ class MultiZone:  # 0005 (+/- 000C?)
                 handle_msg_by_zone_idx(zone_idx, msg)
             # TODO: elif msg.payload.get("domain_id") == "FA":  # DHW
 
-        elif isinstance(msg.payload, list):
-            if msg.payload[0].get("zone_idx"):
+        elif (
+            isinstance(msg.payload, list)
+            and len(msg.payload)
+            and isinstance(msg.payload[0], dict)
+        ):
+            if msg.payload[0].get("zone_idx"):  # e.g. 1FC9 is a list of lists
                 [handle_msg_by_zone_idx(z.get("zone_idx"), msg) for z in msg.payload]
             # TODO: elif msg.payload.get("domain_id") == "FA":  # DHW
 
@@ -1096,34 +1100,6 @@ class Evohome(ScheduleSync, Language, SysMode, MultiZone, UfHeating, System):
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (evohome)"
-
-    # def _discover(self, discover_flag=Discover.ALL) -> None:
-    #     super()._discover(discover_flag=discover_flag)
-
-    #     if discover_flag & Discover.STATUS:
-    #         self._make_cmd(_1F09)
-
-    def _handle_msg(self, msg) -> None:
-        super()._handle_msg(msg)
-
-        # def xxx(zone_dict):
-        #     zone = self.zone_by_idx[zone_dict.pop("zone_idx")]
-        #     if msg.code == _000A:
-        #         zone._zone_config = zone_dict
-        #     elif msg.code == _2309:
-        #         zone._temp = zone_dict
-        #     elif msg.code == _30C9:
-        #         zone._temp = zone_dict
-
-        # if msg.code in (_000A, _2309, _30C9):
-        #     if isinstance(msg.payload, list):
-        #         super()._handle_msg(msg)
-        #         [xxx(z) for z in msg.payload]
-        #     else:
-        #         xxx(msg.payload)
-
-        if msg.code in (_000A, _2309, _30C9) and isinstance(msg.payload, list):
-            pass
 
 
 class Chronotherm(Evohome):
