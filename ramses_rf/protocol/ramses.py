@@ -40,6 +40,7 @@ from .const import (  # noqa: F401, isort: skip
     _10E0,
     _10E1,
     _1100,
+    _11F0,
     _1260,
     _1280,
     _1290,
@@ -293,6 +294,10 @@ RAMSES_CODES = {  # rf_unknown
         W_: r"^(00|FC)[0-9A-F]{6}(00|FF)([0-9A-F]{4}01)?$",  # TODO: is there no I?
         RQ: r"^(00|FC)([0-9A-F]{6}(00|FF)([0-9A-F]{4}01)?)?$",  # RQ/13:/00, or RQ/01:/FC:
         EXPIRES: td(days=1),
+    },
+    _11F0: {  # from heatpump relay
+        NAME: "unknown_11f0",
+        I_: r"^00",
     },
     _1260: {  # dhw_temp
         NAME: "dhw_temp",
@@ -907,6 +912,7 @@ RAMSES_DEVICES_CLASS = {
         _0016: {RP: {}},
         # _10E0: {},  # 13: will not RP/10E0 # TODO: how to indicate that fact here
         _1100: {I_: {}, RP: {}},
+        _11F0: {I_: {}},  # BDR91T in heatpump mode
         _1FC9: {RP: {}, W_: {}},
         _3B00: {I_: {}},
         _3EF0: {I_: {}},

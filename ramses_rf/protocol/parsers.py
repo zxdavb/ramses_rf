@@ -80,6 +80,7 @@ from .const import (  # noqa: F401, isort: skip
     _10E0,
     _10E1,
     _1100,
+    _11F0,
     _1260,
     _1280,
     _1290,
@@ -973,6 +974,16 @@ def parser_1100(payload, msg) -> Optional[dict]:
     return {
         **complex_idx(payload[:2]),
         **result,
+    }
+
+
+@parser_decorator  # unknown_WIP
+def parser_11f0(payload, msg) -> Optional[dict]:
+
+    assert payload == "000009000000000000"
+
+    return {
+        "_payload": payload,
     }
 
 
