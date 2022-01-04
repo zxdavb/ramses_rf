@@ -341,6 +341,17 @@ async def script_scan_full(gwy, dev_id: str):
 async def script_scan_hard(gwy, dev_id: str):
     _LOGGER.warning("scan_hard() invoked - expect some Warnings")
 
+    # def callback(msg) -> None:
+    #     nonlocal code
+
+    #     if (code := code + 1) < 0x4000:
+    #         cmd = Command(RQ, f"{code:04X}", "0000", dev_id, **QOS_DEFAULT_SCAN)
+    #         # gwy.msg_protocol.send_data(cmd, callback=callback)
+    #         gwy.send_cmd(cmd, callback=callback)
+
+    # code = 0x0000
+    # callback(None)
+
     for code in range(0x4000):
         gwy.send_cmd(Command(RQ, f"{code:04X}", "0000", dev_id, **QOS_DEFAULT_SCAN))
         await asyncio.sleep(1)
