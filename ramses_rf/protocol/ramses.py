@@ -342,10 +342,16 @@ RAMSES_CODES = {  # rf_unknown
         NAME: "hvac_12C8",
         I_: r"^0000[0-9A-F]{2}$",
     },
-    _12F0: {  # unknown
-        NAME: "message_12f0",
+    _12F0: {  # dhw_flow_rate
+        # 2021-11-05T06:25:20.399400 065 RP --- 10:023327 18:131597 --:------ 12F0 003 000307
+        # 2021-11-05T06:25:20.669382 066 RP --- 10:023327 18:131597 --:------ 3220 005 00C01307C0
+        # 2021-11-05T06:35:20.450201 065 RP --- 10:023327 18:131597 --:------ 12F0 003 000023
+        # 2021-11-05T06:35:20.721228 066 RP --- 10:023327 18:131597 --:------ 3220 005 0040130059
+        # 2021-12-06T06:35:54.575298 073 RP --- 10:051349 18:135447 --:------ 12F0 003 00059F
+        # 2021-12-06T06:35:55.949502 071 RP --- 10:051349 18:135447 --:------ 3220 005 00C0130ECC
+        NAME: "dhw_flow_rate",
         RQ: r"^00$",
-        RP: r"^00",
+        RP: r"^00[0-9A-F](4)$",
     },
     _1300: {  # cv water pressure (usu. for ch)
         NAME: "ch_pressure",
@@ -950,11 +956,15 @@ HVAC_DEVICES_CLASS = {
         # _31E0: {I_: {}},
     },
     DEV_KLASS.CO2: {
-        _1060: {I_: {}},
+        _042F: {I_: {}},
+        _10E0: {I_: {}, RP: {}},
         _1298: {I_: {}},
+        _31DA: {RQ: {}},
+        _31E0: {I_: {}},
     },
     DEV_KLASS.HUM: {
         _1060: {I_: {}},
+        _10E0: {I_: {}},
         _12A0: {I_: {}},
         _31DA: {RQ: {}},
         _31E0: {I_: {}},
@@ -965,37 +975,6 @@ HVAC_DEVICES_CLASS = {
         _22F3: {I_: {}},
         # _31E0: {I_: {}},
     },  # https://www.ithodaalderop.nl/nl-NL/professional/product/536-0124
-    # "20": {  # HVAC: ventilation unit, or switch/sensor?
-    #     _10E0: {I_: {}, RP: {}},
-    #     _12A0: {RP: {}},
-    #     _22F1: {I_: {}},
-    #     _22F3: {I_: {}},
-    #     _3120: {RP: {}},
-    #     _31D9: {I_: {}, RP: {}},
-    #     _31DA: {I_: {}},
-    # },  # e.g. https://www.ithodaalderop.nl/nl-NL/professional/product/545-5036
-    # "29": {  # HVAC: Orcon MVS-15RP / MVS-15LF (vent mech. control)
-    #     _10E0: {I_: {}},  # VMC-15RP01 / VMN-15LF01
-    #     _31D9: {I_: {}},
-    # },  # e.g. https://www.orcon.nl/blueline-mvs-15rp-2/
-    # "32": {  # HVAC: switch/sensor?
-    #     _042F: {I_: {}},
-    #     _1060: {I_: {}},
-    #     _10E0: {I_: {}, RP: {}},
-    #     _1298: {I_: {}},
-    #     _12A0: {I_: {}},
-    #     _22F1: {I_: {}},
-    #     _31DA: {RQ: {}},
-    #     _31E0: {I_: {}},
-    # },
-    # "37": {  # HVAC: ventilation unit
-    #     _10E0: {I_: {}, RP: {}},
-    #     _1298: {I_: {}},
-    #     _12C8: {I_: {}},
-    #     _3120: {I_: {}},
-    #     _31D9: {I_: {}},
-    #     _31DA: {I_: {}},
-    # },
 }
 
 # RAMSES_DEVICES = {**HVAC_DEVICES, **RAMSES_DEVICES}
@@ -1006,44 +985,44 @@ HVAC_DEVICES_CLASS = {
 RAMSES_DEVICES = {**HVAC_DEVICES_CLASS, **RAMSES_DEVICES_CLASS}
 
 
-##############
+####################
 # RAMSES_ZONES (WIP)
 #
-RAMSES_ZONES = {
-    "ALL": {
-        _0004: {I_: {}, RP: {}},
-        _000C: {RP: {}},
-        _000A: {I_: {}, RP: {}},
-        _2309: {I_: {}, RP: {}},
-        _2349: {I_: {}, RP: {}},
-        _30C9: {I_: {}, RP: {}},
-    },
-    "RAD": {
-        _12B0: {I_: {}, RP: {}},
-        "3150a": {},
-    },
-    "ELE": {
-        _0008: {I_: {}},
-        _0009: {I_: {}},
-    },
-    "VAL": {
-        _0008: {I_: {}},
-        _0009: {I_: {}},
-        "3150a": {},
-    },
-    "UFH": {
-        _3150: {I_: {}},
-    },
-    "MIX": {
-        _0008: {I_: {}},
-        "3150a": {},
-    },
-    "DHW": {
-        _10A0: {RQ: {}, RP: {}},
-        _1260: {I_: {}},
-        _1F41: {I_: {}},
-    },
-}
-RAMSES_ZONES_ALL = RAMSES_ZONES.pop("ALL")
-RAMSES_ZONES_DHW = RAMSES_ZONES["DHW"]
-[RAMSES_ZONES[k].update(RAMSES_ZONES_ALL) for k in RAMSES_ZONES if k != "DHW"]
+# RAMSES_ZONES = {
+#     "ALL": {
+#         _0004: {I_: {}, RP: {}},
+#         _000C: {RP: {}},
+#         _000A: {I_: {}, RP: {}},
+#         _2309: {I_: {}, RP: {}},
+#         _2349: {I_: {}, RP: {}},
+#         _30C9: {I_: {}, RP: {}},
+#     },
+#     "RAD": {
+#         _12B0: {I_: {}, RP: {}},
+#         "3150a": {},
+#     },
+#     "ELE": {
+#         _0008: {I_: {}},
+#         _0009: {I_: {}},
+#     },
+#     "VAL": {
+#         _0008: {I_: {}},
+#         _0009: {I_: {}},
+#         "3150a": {},
+#     },
+#     "UFH": {
+#         _3150: {I_: {}},
+#     },
+#     "MIX": {
+#         _0008: {I_: {}},
+#         "3150a": {},
+#     },
+#     "DHW": {
+#         _10A0: {RQ: {}, RP: {}},
+#         _1260: {I_: {}},
+#         _1F41: {I_: {}},
+#     },
+# }
+# RAMSES_ZONES_ALL = RAMSES_ZONES.pop("ALL")
+# RAMSES_ZONES_DHW = RAMSES_ZONES["DHW"]
+# [RAMSES_ZONES[k].update(RAMSES_ZONES_ALL) for k in RAMSES_ZONES if k != "DHW"]

@@ -1104,19 +1104,12 @@ def parser_12c0(payload, msg) -> Optional[dict]:
 @parser_decorator  # hvac_12C8
 def parser_12c8(payload, msg) -> Optional[dict]:
     #  I --- 37:261128 --:------ 37:261128 12C8 003 000040
-    assert payload[2:4] == "00"
     return {"unknown": percent(payload[4:])}
 
 
-@parser_decorator  # unknown_WIP
+@parser_decorator  # dhw_flow_rate
 def parser_12f0(payload, msg) -> Optional[dict]:
-
-    assert payload == "007FFF"
-
-    return {
-        "_payload": payload,
-        "_value": int(payload[2:], 16),
-    }
+    return {"dhw_flow_rate": temp_from_hex(payload[2:])}
 
 
 @parser_decorator  # ch_pressure
