@@ -916,6 +916,22 @@ class Command(PacketBase):
             verb, _1FC9, payload, addr0=src_id, addr1=dst_id, addr2=addr2, **kwargs
         )
 
+    @classmethod  # constructor for I/1260
+    @validate_api_params()
+    def put_dhw_temp(cls, dev_id: str, temperature: float, **kwargs):
+        """Constructor to announce the current temperature of an DHW sensor (1260).
+
+        This is for use by a faked CS92A or similar.
+        """
+
+        try:  # dex
+            assert dev_id[:2] == "07", "device_id should be like 07:xxxxxx"
+        except AssertionError as exc:
+            raise TypeError(f"Faked device {dev_id} has unsupported device type: {exc}")
+
+        payload = f"00{temp_to_hex(temperature)}"
+        return cls.packet(I_, _1260, payload, addr0=dev_id, addr2=dev_id, **kwargs)
+
     @classmethod  # constructor for I/0002
     @validate_api_params()
     def put_outdoor_temp(cls, dev_id: str, temperature: float, **kwargs):
@@ -937,11 +953,11 @@ class Command(PacketBase):
     def put_sensor_temp(cls, dev_id: str, temperature: float, **kwargs):
         """Constructor to announce the current temperature of a thermostat (3C09).
 
-        This is for use by a faked BDR91A or similar.
+        This is for use by a faked DTS92(E) or similar.
         """
         #  I --- 34:021943 --:------ 34:021943 30C9 003 000C0D
 
-        try:  # dex
+        try:  # dex - use 03 to avoid device_id collisions
             assert dev_id[:2] == "03", "device_id should be like 03:xxxxxx"
         except AssertionError as exc:
             raise TypeError(f"Faked device {dev_id} has unsupported device type: {exc}")
@@ -1018,6 +1034,7 @@ CODE_API_MAP = {
     f"{RQ}/{_1100}": Command.get_tpi_params,
     f"{W_}/{_1100}": Command.set_tpi_params,
     f"{RQ}/{_1260}": Command.get_dhw_temp,
+    f"{I_}/{_1260}": Command.put_dhw_temp,
     f"{RQ}/{_12B0}": Command.get_zone_window_state,
     f"{RQ}/{_1F41}": Command.get_dhw_mode,
     f"{W_}/{_1F41}": Command.set_dhw_mode,
