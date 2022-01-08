@@ -127,9 +127,11 @@ DEVICE_DICT = vol.Schema(
     {
         vol.Optional(DEVICE_ID): vol.Any(
             {
-                vol.Optional(SZ_ALIAS): vol.Any(None, str),
-                vol.Optional(SZ_CLASS): vol.Any(None, *vars(DEV_KLASS).keys()),
-                vol.Optional(SZ_FAKED): vol.Any(None, bool, list),
+                vol.Optional(SZ_ALIAS, default=None): vol.Any(None, str),
+                vol.Optional(SZ_CLASS, default=None): vol.Any(
+                    None, *vars(DEV_KLASS).keys()
+                ),
+                vol.Optional(SZ_FAKED, default=None): vol.Any(None, bool),
             },
         )
     },
@@ -247,12 +249,9 @@ def load_config(
     update_config(config, known_list, block_list)
     config = SimpleNamespace(**config)
 
-    # # TODO: remove
     # config.use_regex.update(
-    #     {
-    #         "( 03:.* 03:.* (1060|2389|30C9) 003) ..": "\\1 00",
-    #     }
-    # )
+    #     {"( 03:.* 03:.* (1060|2389|30C9) 003) ..": "\\1 00"}
+    # )  # TODO: remove - for testing only
 
     return (config, schema, known_list, block_list)
 
