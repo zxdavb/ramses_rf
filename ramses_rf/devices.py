@@ -4,7 +4,7 @@
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
 import logging
-from random import randint
+from random import randint, randrange
 from typing import Dict, Optional
 
 from .const import (
@@ -1188,23 +1188,7 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
 
     @property
     def temperature(self) -> Optional[float]:  # 1260
-        result = None
-        try:  # HACK: lloyda
-            result = self._msg_value(_1260, key=self.TEMPERATURE)
-        except (
-            ArithmeticError,  # incl. ZeroDivisionError,
-            AssertionError,
-            AttributeError,
-            IndexError,
-            LookupError,  # incl. IndexError, KeyError
-            NameError,  # incl. UnboundLocalError
-            RuntimeError,  # incl. RecursionError
-            TypeError,
-            ValueError,
-        ) as exc:
-            _LOGGER.exception(exc)
-
-        return result
+        return self._msg_value(_1260, key=self.TEMPERATURE)
 
     @property
     def params(self) -> dict:
@@ -1281,7 +1265,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 and (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]
 
-        if discover_flag & Discover.PARAMS:  # and DEV_MODE:
+        if discover_flag & Discover.PARAMS:  # and not DEV_MODE:
             for code in (_10A0,):  # dhw_setpoint
                 self._send_cmd(Command(RQ, code, "00", self.id))
 
@@ -1304,22 +1288,9 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             # NOTE: No need to send periodic RQ/3EF1s to an OTB, can use RQ/3220/11s?
             self._send_cmd(Command(RQ, _3EF0, "00", self.id))  # CTLs dont RP to RQ/3EF0
 
-        if discover_flag & Discover.STATUS:  # and DEV_MODE:
-            # these are known
-            for code in (
-                _1081,  # ch_max_setpoint
-                _1260,  # dhw_temp
-                _1290,  # outside_temp
-                _1300,  # ch_water_pressure
-                _22D9,  # boiler_setpoint
-                _3200,  # boiler_output_temp
-                _3210,  # boiler_return_temp
-            ):
-                self._send_cmd(Command(RQ, code, "00", self.id))
-
+        if discover_flag & Discover.STATUS:
             # these are WIP
             for code in (
-                _12F0,  # WIP, or not?
                 _2401,  # WIP - modulation_level + flags?
                 _3221,  # R8810A/20A
                 _3223,  # R8810A/20A
@@ -1364,6 +1335,35 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 "Unknown-DataId",
                 "-reserved-",
             )
+
+        # TODO: this is development code - will be rationalised, eventually
+        if DEV_MODE:
+            code = {
+                "01": _22D9,  # boiler_setpoint
+                "11": _3EF1,  # rel_modulation_level
+                "12": _1300,  # ch_water_pressure
+                "13": _12F0,  # dhw_flow_rate
+                "19": _3200,  # boiler_output_temp (checked)
+                "1A": _1260,  # dhw_temp (checked)
+                "1B": _1290,  # outside_temp
+                "1C": _3210,  # boiler_return_temp (checked)
+                "38": _10A0,  # dhw_setpoint
+                "39": _1081,  # ch_max_setpoint
+            }.get(msg_id)
+        elif randrange(6):
+            code = {
+                "01": _22D9,  # boiler_setpoint
+                "11": _3EF1,  # rel_modulation_level
+                "12": _1300,  # ch_water_pressure
+                "13": _12F0,  # dhw_flow_rate
+                "1B": _1290,  # outside_temp
+                "38": _10A0,  # dhw_setpoint
+                "39": _1081,  # ch_max_setpoint
+            }.get(msg_id)
+        else:
+            code = None
+        if code:
+            self._send_cmd(Command(RQ, code, "00", self.id))
 
     @staticmethod
     def _ot_msg_name(msg) -> str:
@@ -1443,11 +1443,16 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
     @property
     def _ch_water_pressure(self) -> Optional[float]:  # 1300
-        return self._msg_value(_1300, key="pressure")
+        result = self._msg_value(_1300, key="pressure")
+        return None if result == 25.5 else result  # HACK: to make more rigourous
 
     @property
-    def dhw_flow_rate(self) -> Optional[float]:  # 3220/13
+    def dhw_flow_rate(self) -> Optional[float]:  # 3220/13 (12F0)
         return self._ot_msg_value("13")
+
+    @property
+    def _dhw_flow_rate(self) -> Optional[float]:  # 12F0
+        return self._msg_value(_12F0, key="dhw_flow_rate")
 
     @property
     def dhw_setpoint(self) -> Optional[float]:  # 10A0
