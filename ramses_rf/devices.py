@@ -137,6 +137,8 @@ class DeviceBase(Entity):
     _DEV_KLASS = None
     _DEV_TYPES = tuple()  # TODO: needed?
 
+    _STATE_ATTR = None
+
     def __init__(self, gwy, dev_addr, ctl=None, domain_id=None, **kwargs) -> None:
         _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)
         super().__init__(gwy)
@@ -166,6 +168,8 @@ class DeviceBase(Entity):
             self._alias = gwy._include[self.id].get(SZ_ALIAS)
 
     def __repr__(self) -> str:
+        if self._STATE_ATTR:
+            return f"{self.id} ({self._domain_id}): {getattr(self, self._STATE_ATTR)}"
         return f"{self.id} ({self._domain_id})"
 
     def __str__(self) -> str:
@@ -1008,6 +1012,8 @@ class UfhController(Device):  # UFC (02):
 
     HEAT_DEMAND = ATTR_HEAT_DEMAND
 
+    _STATE_ATTR = "heat_demand"
+
     # 12:27:24.398 067  I --- 02:000921 --:------ 01:191718 3150 002 0360
     # 12:27:24.546 068  I --- 02:000921 --:------ 01:191718 3150 002 065A
     # 12:27:24.693 067  I --- 02:000921 --:------ 01:191718 3150 002 045C
@@ -1161,15 +1167,13 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
 
     DHW_PARAMS = "dhw_params"
     TEMPERATURE = ATTR_TEMP
-    # _STATE = TEMPERATURE
+
+    _STATE_ATTR = "temperature"
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
         self._domain_id = "FA"
-
-    def __repr__(self) -> str:
-        return f"{self.id} ({self._domain_id}): {self.temperature}"
 
     def _handle_msg(self, msg) -> None:  # NOTE: active
         super()._handle_msg(msg)
@@ -1226,11 +1230,7 @@ class ExtSensor(Weather, Device):  # EXT: 17
     # LUMINOSITY = "luminosity"  # lux
     # WINDSPEED = "windspeed"  # km/h
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-
-    def __repr__(self) -> str:
-        return f"{self.id} ({self._domain_id}): {self.temperature}"
+    _STATE_ATTR = "temperature"
 
 
 class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
@@ -1241,7 +1241,8 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
     # BOILER_SETPOINT = "boiler_setpoint"
     # OPENTHERM_STATUS = "opentherm_status"
-    # _STATE = super().MODULATION_LEVEL
+
+    _STATE_ATTR = "rel_modulation_level"
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -1251,9 +1252,6 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         self._msgz[_3220] = {RP: {}}
         self._opentherm_msg = self._msgz[_3220][RP]
         self._supported_msg = {}
-
-    def __repr__(self) -> str:
-        return f"{self.id} ({self._domain_id}): {self.rel_modulation_level}"  # 3EF0
 
     def _start_discovery(self) -> None:
 
@@ -1629,13 +1627,7 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
     _DEV_KLASS = DEV_KLASS.THM
     _DEV_TYPES = ("03", "12", "22", "34")
 
-    # _STATE = super().TEMPERATURE
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-
-    def __repr__(self) -> str:
-        return f"{self.id} ({self._domain_id}): {self.temperature}"
+    _STATE_ATTR = "temperature"
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -1693,16 +1685,14 @@ class BdrSwitch(Actuator, RelayDemand, Device):  # BDR (13):
 
     ACTIVE = "active"
     TPI_PARAMS = "tpi_params"
-    # _STATE = super().ENABLED, or relay_demand
+
+    _STATE_ATTR = "active"
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
         # if kwargs.get("domain_id") == "FC":  # TODO: F9/FA/FC, zone_idx
         #     self._ctl._set_htg_control(self)
-
-    def __repr__(self) -> str:
-        return f"{self.id} ({self._domain_id}): {self.relay_demand}"
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:
@@ -1795,10 +1785,8 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature, Device):  # T
     _DEV_TYPES = ("00", "04")  # TODO: keep 00?
 
     WINDOW_OPEN = ATTR_WINDOW_OPEN  # boolean
-    # _STATE = HEAT_DEMAND
 
-    def __repr__(self) -> str:
-        return f"{self.id} ({self._domain_id}): {self.heat_demand}"
+    _STATE_ATTR = "heat_demand"
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
@@ -1980,3 +1968,11 @@ _OUT_DEV_KLASS_BY_SIGNATURE = {
     "HUM": ((I_, _12A0)),
     "CO2": ((I_, _1298)),
 }
+
+if DEV_MODE:
+    # check that each entity with a non-null _STATE_ATTR has that attr
+    [
+        d
+        for d in class_by_attr(__name__, "_STATE_ATTR").values()
+        if d._STATE_ATTR and getattr(d, d._STATE_ATTR)
+    ]
