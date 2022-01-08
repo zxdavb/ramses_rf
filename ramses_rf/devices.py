@@ -804,6 +804,41 @@ class RelayDemand(Fakeable):  # 0008
         }
 
 
+class DhwTemperature(Fakeable):  # 1260
+
+    TEMPERATURE = ATTR_TEMP  # degrees Celsius
+
+    def _bind(self):
+        #
+        #
+        #
+
+        def callback(msg):
+            msg.src._evo.dhw._set_sensor(self)
+
+        super()._bind()
+        self._bind_request(_1260, callback=callback)
+
+    @property
+    def temperature(self) -> Optional[float]:  # 1260
+        return self._msg_value(_1260, key=self.TEMPERATURE)
+
+    @temperature.setter
+    def temperature(self, value) -> None:  # 1260
+        if not self._faked:
+            raise RuntimeError(f"Can't set value for {self} (Faking is not enabled)")
+
+        self._send_cmd(Command.put_dhw_temp(value))
+        # lf._send_cmd(Command.get_dhw_temp(self._ctl.id, self.zone.idx))
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            self.TEMPERATURE: self.temperature,
+        }
+
+
 class Temperature(Fakeable):  # 30C9
 
     TEMPERATURE = ATTR_TEMP  # degrees Celsius
@@ -1179,7 +1214,7 @@ class UfhController(Device):  # UFC (02):
         }
 
 
-class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
+class DhwSensor(DhwTemperature, BatteryState, Device):  # DHW (07): 10A0, 1260
     """The DHW class, such as a CS92."""
 
     _DEV_KLASS = DEV_KLASS.DHW
@@ -1198,8 +1233,9 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
     def _handle_msg(self, msg) -> None:  # NOTE: active
         super()._handle_msg(msg)
 
+        # The following is required, as CTLs don't send such every sync_cycle
         if msg.code == _1260 and self._ctl and not self._gwy.config.disable_sending:
-            # device can be instantiated with a CTL
+            # update the controller DHW temp
             self._send_cmd(Command.get_dhw_temp(self._ctl.id))
 
     @property
@@ -1207,21 +1243,10 @@ class DhwSensor(BatteryState, Device):  # DHW (07): 10A0, 1260
         return self._msg_value(_10A0)
 
     @property
-    def temperature(self) -> Optional[float]:  # 1260
-        return self._msg_value(_1260, key=self.TEMPERATURE)
-
-    @property
     def params(self) -> dict:
         return {
             **super().params,
             self.DHW_PARAMS: self.dhw_params,
-        }
-
-    @property
-    def status(self) -> dict:
-        return {
-            **super().status,
-            self.TEMPERATURE: self.temperature,
         }
 
 
