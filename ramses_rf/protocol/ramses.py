@@ -906,7 +906,7 @@ RAMSES_DEVICES_CLASS = {
         _1300: {RP: {}},  # R8820A only?
         _1FC9: {I_: {}, W_: {}},
         _1FD0: {RP: {}},  # R8820A only?
-        _1FD4: {I_: {}},  # 2/min fro R8810, every ~210 sec for R8820
+        _1FD4: {I_: {}},  # 2/min for R8810, every ~210 sec for R8820
         _22D9: {RP: {}},
         _2400: {RP: {}},  # R8820A only?
         _2401: {RP: {}},  # R8820A only?

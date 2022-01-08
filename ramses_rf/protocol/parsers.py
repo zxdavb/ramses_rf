@@ -1416,7 +1416,7 @@ def parser_2349(payload, msg) -> Optional[dict]:
     if msg.verb == RQ and msg.len <= 2:  # some RQs have a payload (why?)
         return {}
 
-    assert msg.len in (4, 7, 13), f"expected len 4,7,13, got {msg.len}"  # OTB has 4
+    assert msg.len in (7, 13), f"expected len 7,13, got {msg.len}"
 
     assert payload[6:8] in ZONE_MODE, f"unknown zone_mode: {payload[6:8]}"
     result = {
