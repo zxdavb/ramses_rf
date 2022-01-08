@@ -657,7 +657,7 @@ def parser_0b04(payload, msg) -> Optional[dict]:
     #  I --- --:------ --:------ 12:207082 0B04 002 00C8  # batch of 3, every 24h
 
     return {
-        "unknown_0": payload[2:],
+        "unknown_1": payload[2:],
     }
 
 
@@ -748,7 +748,7 @@ def parser_1098(payload, msg) -> Optional[dict]:
 
     return {
         "_payload": payload,
-        "_value": {"00": False, "C8": True}.get(payload[2:], int(payload[2:], 16)),
+        "_value": {"00": False, "C8": True}.get(payload[2:], percent(payload[2:])),
     }
 
 
@@ -812,7 +812,7 @@ def parser_10b0(payload, msg) -> Optional[dict]:
 
     return {
         "_payload": payload,
-        "value": {"00": False, "C8": True}.get(payload[2:], int(payload[2:], 16)),
+        "_value": {"00": False, "C8": True}.get(payload[2:], percent(payload[2:])),
     }
 
 
@@ -1475,11 +1475,17 @@ def parser_2400(payload, msg) -> Optional[dict]:
 @parser_decorator  # unknown_2401, from OTB
 def parser_2401(payload, msg) -> Optional[dict]:
 
-    assert payload == "00000100", f"{msg._pkt} < {_INFORM_DEV_MSG}"
-    assert int(payload[4:6], 16) & 0b11110000 == 0, f"byte 2: {flag8(payload[4:6])}"
+    try:
+        assert payload[:2] == "00", f"byte 0: {payload[:2]}"
+        assert payload[2:4] == "00", f"byte 1: {payload[2:4]}"
+        assert int(payload[4:6], 16) & 0b11110000 == 0, f"byte 2: {flag8(payload[4:6])}"
+        assert payload[6:] in ("00", "C8"), f"byte 3: {payload[6:]}"
+    except AssertionError:
+        assert False, f"{msg._pkt} < {_INFORM_DEV_MSG}"
 
     return {
         "payload": payload,
+        "_value_2": int(payload[4:6], 0x10),
         "_flags_2": flag8(payload[4:6]),
         "_percent_3": percent(payload[6:]),
     }
@@ -1583,13 +1589,16 @@ def parser_3120(payload, msg) -> Optional[dict]:
     # RP --- 20:008749 18:142609 --:------ 3120 007 0070B000009CFF
     #  I --- 37:258565 --:------ 37:258565 3120 007 0080B0010003FF
 
-    assert payload[:2] == "00", f"byte 0: {payload[:2]}"
-    assert payload[2:4] in ("00", "70", "80"), f"byte 1: {payload[2:4]}"
-    assert payload[4:6] == "B0", f"byte 2: {payload[4:6]}"
-    assert payload[6:8] in ("00", "01"), f"byte 3: {payload[6:8]}"
-    assert payload[8:10] == "00", f"byte 4: {payload[8:10]}"
-    assert payload[10:12] in ("00", "03", "9C"), f"byte 5: {payload[10:12]}"
-    assert payload[12:] == "FF", f"byte 6: {payload[12:]}"
+    try:
+        assert payload[:2] == "00", f"byte 0: {payload[:2]}"
+        assert payload[2:4] in ("00", "70", "80"), f"byte 1: {payload[2:4]}"
+        assert payload[4:6] == "B0", f"byte 2: {payload[4:6]}"
+        assert payload[6:8] in ("00", "01"), f"byte 3: {payload[6:8]}"
+        assert payload[8:10] == "00", f"byte 4: {payload[8:10]}"
+        assert payload[10:12] in ("00", "03", "9C"), f"byte 5: {payload[10:12]}"
+        assert payload[12:] == "FF", f"byte 6: {payload[12:]}"
+    except AssertionError:
+        assert False, f"{msg._pkt} < {_INFORM_DEV_MSG}"
 
     return {
         "unknown_0": payload[2:10],

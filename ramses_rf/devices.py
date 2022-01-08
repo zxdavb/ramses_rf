@@ -1447,6 +1447,14 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             return flags[7]
 
     @property
+    def _percent(self) -> Optional[float]:  # 2401 - WIP
+        return self._msg_value(_2401, key="_percent_3")
+
+    @property
+    def _value(self) -> Optional[int]:  # 2401 - WIP
+        return self._msg_value(_2401, key="_value_2")
+
+    @property
     def boiler_output_temp(self) -> Optional[float]:  # 3220/19 (3200)
         return self._ot_msg_value("19")
 
@@ -1522,10 +1530,6 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
     @property
     def _outside_temp(self) -> Optional[float]:  # 1290
         return self._msg_value(_1290, key="temperature")
-
-    @property
-    def _percent(self) -> Optional[float]:  # 2401
-        return self._msg_value(_2401, key="_percent_3")
 
     @property
     def rel_modulation_level(self) -> Optional[float]:  # 3220/11 (3EFx)
