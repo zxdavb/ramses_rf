@@ -9,7 +9,7 @@ Decode/process a message (payload into JSON).
 import logging
 
 from .const import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES, __dev_mode__
-from .devices import Device
+from .devices import Device  # , HgiGateway
 from .protocol import (
     RAMSES_CODES,
     RAMSES_DEVICES,
@@ -155,13 +155,11 @@ def _create_devices_from_addrs(this: Message) -> None:
         this._gwy._get_device(this.dst.id, ctl_id=this.src.id, msg=this)  # or _set_ctl?
 
 
-def _check_msg_src(msg: Message) -> None:
-    """Validate the packet's source device type against its verb/code pair.
+def _check_msg_src(msg: Message, klass: str) -> None:
+    """Validate the packet's source device class (type) against its verb/code pair.
 
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
     """
-
-    klass = msg.src._klass
 
     if klass not in RAMSES_DEVICES:  # DEX_done, TODO: fingerprint dev class
         if msg.code not in HVAC_ONLY_CODES:
@@ -196,13 +194,11 @@ def _check_msg_src(msg: Message) -> None:
         )
 
 
-def _check_msg_dst(msg: Message) -> None:
-    """Validate the packet's destination device type against its verb/code pair.
+def _check_msg_dst(msg: Message, klass: str) -> None:
+    """Validate the packet's destination device class (type) against its verb/code pair.
 
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
     """
-
-    klass = msg.dst._klass
 
     if klass not in RAMSES_DEVICES:  # DEX_done, TODO: fingerprint dev class
         if msg.code not in HVAC_ONLY_CODES:
@@ -271,10 +267,21 @@ def process_msg(msg: Message) -> None:
     try:  # process the packet payload
         _create_devices_from_addrs(msg)  # from pkt header
 
-        _check_msg_src(msg)  # ? InvalidPacketError
-        # if msg.dst is not msg.src:
-        if isinstance(msg.dst, Device):  # Device doesn't usu. include HgiGateway
-            _check_msg_dst(msg)  # ? InvalidPacketError
+        if isinstance(msg.src, Device):
+            _check_msg_src(msg, msg.src._klass)  # ? InvalidPacketError
+        # elif DEV_MODE and not isinstance(msg.src, HgiGateway):
+        #     print(msg)
+        #     print(type(msg.src), msg.src)
+        #     print(type(msg.dst), msg.dst)
+
+        if isinstance(msg.dst, Device):
+            if msg.dst is not msg.src:
+                # Device class doesn't usu. include HgiGateway
+                _check_msg_dst(msg, msg.dst._klass)  # ? InvalidPacketError
+        # elif DEV_MODE and msg.dst.type not in ("18", "63", "--"):
+        #     print(msg)
+        #     print(type(msg.src), msg.src)
+        #     print(type(msg.dst), msg.dst)
 
         if msg._gwy.config.reduce_processing >= DONT_UPDATE_ENTITIES:
             msg._gwy._prev_msg = msg
