@@ -509,10 +509,6 @@ class PacketProtocolBase(asyncio.Protocol):
         if self._disable_sending:
             raise RuntimeError("Sending is disabled")
 
-        # if not self._is_wanted(cmd.src, cmd.dst):
-        #     _LOGGER.warning(
-        #     return
-
         if cmd.src.id != HGI_DEVICE_ID:
             if self._hgi80[IS_EVOFW3]:
                 _LOGGER.info(
