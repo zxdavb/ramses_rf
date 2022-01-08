@@ -5,6 +5,7 @@
 
 import logging
 from random import randint, randrange
+from types import SimpleNamespace
 from typing import Dict, Optional
 
 from .const import (
@@ -123,6 +124,28 @@ from .protocol import (  # noqa: F401, isort: skip
 DEFAULT_BDR_ID = "13:000730"
 DEFAULT_EXT_ID = "17:000730"
 DEFAULT_THM_ID = "03:000730"
+
+BindState = SimpleNamespace(
+    UNKNOWN=None,
+    UNBOUND="unb",  # unbound
+    LISTENING="l",  # waiting for offer
+    OFFERING="of",  # waiting for accept:              -> sent offer
+    ACCEPTING="a",  # waiting for confirm: rcvd offer  -> sent accept
+    # NFIRMED="c",  # bound:               rcvd accept -> sent confirm
+    BOUND="bound",  # bound:               rcvd confirm
+)
+
+#       DHW/THM, TRV -> CTL     (temp, valve_position), or:
+#                CTL -> BDR/OTB (heat_demand)
+
+#            REQUEST -> WAITING
+#            unbound -- unbound
+#            unbound -- listening
+#           offering -> listening
+#           offering <- accepting
+# (confirming) bound -> accepting
+#              bound -- bound
+
 
 DEV_MODE = __dev_mode__
 
@@ -542,12 +565,19 @@ class Fakeable:
     def __init__(self, gwy, *args, **kwargs) -> None:
         super().__init__(gwy, *args, **kwargs)
 
+        self._1fc9_state = {"state": BindState.UNKNOWN}
+
         if self.id in gwy._include and gwy._include[self.id].get(SZ_FAKED):
+            self._make_fake()
+
+        if kwargs.get(SZ_FAKED):
             self._make_fake()
 
     def _bind(self):
         if not self._faked:
             raise RuntimeError(f"Can't bind {self} (Faking is not enabled)")
+
+        self._1fc9_state["state"] = BindState.UNBOUND
 
     def _make_fake(self, bind=None) -> Device:
         if not self._faked:
@@ -566,49 +596,52 @@ class Fakeable:
         # 19:30:45.342 053  W --- 13:049798 01:054173 --:------ 1FC9 012 00-3EF0-34C286 00-3B00-34C286
         # 19:30:45.504 049  I --- 01:054173 13:049798 --:------ 1FC9 006 00-FFFF-04D39D
 
-        _LOGGER.warning(f"Binding {self}: waiting for {code}")  # TODO: info/debug
+        # Bind waiting: OTB set to listen, CTL initiates handshake
+        # 00:25:02.779 045  I --- 01:145038 --:------ 01:145038 1FC9 024 FC-0008-06368E FC-3150-06368E FB-3150-06368E  FC-1FC9-06368E  # opentherm bridge
+        # 00:25:02.792 045  W --- 10:048122 01:145038 --:------ 1FC9 006 00-3EF0-28BBFA
+        # 00:25:02.944 045  I --- 01:145038 10:048122 --:------ 1FC9 006 00-FFFF-06368E
+
+        _LOGGER.warning(f"Binding {self}: waiting for {code} for 300 secs")  # info
         # SUPPORTED_CODES = (_0008,)
 
-        def bind_confirm(msg, *args) -> None:
+        def proc_confirm(msg, *args) -> None:
             """Process the 3rd/final packet of the handshake."""
             if not msg or msg.code != code:
                 return
-            self._1fc9_state == "confirm"
 
-            # self._gwy._get_device(self, ctl_id=msg.payload[0][2])
-            # self._ctl._evo._get_zone(msg.payload[0][0])._set_sensor(self)
+            self._1fc9_state["state"] = BindState.BOUND
             if callback:
                 callback(msg)
 
-        def bind_respond(msg, *args) -> None:
+        def proc_offer(msg, *args) -> None:
             """Process the 1st, and send the 2nd, packet of the handshake."""
             if not msg:
                 return
-            self._1fc9_state == "respond"
+            # assert code in SUPPORTED_CODES, f"Binding {self}: {code} is not supported"
+            self._1fc9_state["msg"] = msg  # the offer
 
-            # W should be retransmitted until receiving an I; idx is domain_id/zone_idx
+            self._1fc9_state["state"] = BindState.ACCEPTING
             cmd = Command.put_bind(
                 W_,
                 code,
                 self.id,
-                idx=idx,
+                idx=idx,  # zone_idx or domain_id
                 dst_id=msg.src.id,
-                callback={FUNC: bind_confirm, TIMEOUT: 3},
+                callback={FUNC: proc_confirm, TIMEOUT: 3},  # re-Tx W until Rx an I
             )
             self._send_cmd(cmd)
 
-        # assert code in SUPPORTED_CODES, f"Binding: {code} is not supported"
-        self._1fc9_state = "waiting"
-
+        self._1fc9_state["code"] = code
+        self._1fc9_state["state"] = BindState.LISTENING
         self._gwy.msg_transport._add_callback(
-            f"{_1FC9}|{I_}|{NUL_DEVICE_ID}", {FUNC: bind_respond, TIMEOUT: 300}
+            f"{_1FC9}|{I_}|{NUL_DEVICE_ID}", {FUNC: proc_offer, TIMEOUT: 300}
         )
 
     def _bind_request(self, code, callback=None):
         """Initiate a bind handshake: send the 1st packet of the handshake."""
 
         # Bind request: CTL set to listen, STA initiates handshake (note 3C09/2309)
-        # 22:13:52.527 070  I --- 34:021943 --:------ 34:021943 1FC9 024 00-3C09-8855B7 00-30C9-8855B7 00-0008-8855B7 00-1FC9-8855B7
+        # 22:13:52.527 070  I --- 34:021943 --:------ 34:021943 1FC9 024 00-2309-8855B7 00-30C9-8855B7 00-0008-8855B7 00-1FC9-8855B7
         # 22:13:52.540 052  W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E
         # 22:13:52.572 071  I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
 
@@ -617,27 +650,30 @@ class Fakeable:
         # 19:45:16.896 045  W --- 01:054173 07:045960 --:------ 1FC9 006 00-10A0-04D39D
         # 19:45:16.919 045  I --- 07:045960 01:054173 --:------ 1FC9 006 00-1260-1CB388
 
-        _LOGGER.warning(f"Binding {self}: requesting {code}")  # TODO: info/debug
+        _LOGGER.warning(f"Binding {self}: requesting {code}")  # TODO: info
         SUPPORTED_CODES = (_0002, _1260, _1290, _30C9)
 
-        def bind_confirm(msg, *args) -> None:
+        def proc_accept(msg, *args) -> None:
             """Process the 2nd, and send the 3rd/final, packet of the handshake."""
             if not msg or msg.dst is not self:
                 return
 
-            self._1fc9_state == "confirm"
+            self._1fc9_state["msg"] = msg  # the accept
 
+            self._1fc9_state["state"] = BindState.CONFIRMING
             cmd = Command.put_bind(I_, code, self.id, dst_id=msg.src.id)
             self._send_cmd(cmd)
 
+            self._1fc9_state["state"] = BindState.BOUND
             if callback:
                 callback(msg)
 
-        assert code in SUPPORTED_CODES, f"Binding: {code} is not supported"
-        self._1fc9_state = "request"
+        assert code in SUPPORTED_CODES, f"Binding {self}: {code} is not supported"
 
+        self._1fc9_state["code"] = code
+        self._1fc9_state["state"] = BindState.OFFERING
         cmd = Command.put_bind(
-            I_, code, self.id, callback={FUNC: bind_confirm, TIMEOUT: 3}
+            I_, code, self.id, callback={FUNC: proc_accept, TIMEOUT: 3}
         )
         self._send_cmd(cmd)
 
@@ -649,24 +685,20 @@ class Fakeable:
         }
 
 
-class Weather(Fakeable):  # 0002 (fakeable)
+class Weather(Fakeable):  # 0002
 
     TEMPERATURE = ATTR_TEMP  # degrees Celsius
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-
-        if kwargs.get(SZ_FAKED) is True or _0002 in kwargs.get(SZ_FAKED, []):
-            self._make_fake()
-
     def _bind(self):
-        # A contrived (but proven viable) packet log...
-        #  I --- 17:145039 --:------ 17:145039 1FC9 012 00-0002-46368F 00-1FC9-46368F
-        #  W --- 01:054173 17:145039 --:------ 1FC9 006 03-2309-04D39D  # real CTL
-        #  I --- 17:145039 01:054173 --:------ 1FC9 006 00-0002-46368F
+        #
+        #
+        #
+
+        def callback(msg):
+            pass
 
         super()._bind()
-        self._bind_request(_0002)
+        self._bind_request(_0002, callback=callback)
 
     @property
     def temperature(self) -> Optional[float]:  # 0002
@@ -691,25 +723,17 @@ class Weather(Fakeable):  # 0002 (fakeable)
         }
 
 
-class Temperature(Fakeable):  # 30C9 (fakeable)
+class Temperature(Fakeable):  # 30C9
 
     TEMPERATURE = ATTR_TEMP  # degrees Celsius
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-
-        if kwargs.get(SZ_FAKED) is True or _30C9 in kwargs.get(SZ_FAKED, []):
-            self._make_fake()
-
     def _bind(self):
-        # A contrived (but proven viable) packet log... offer should include 2309?
-        #  I --- 34:145039 --:------ 34:145039 1FC9 012 00-30C9-8A368F 00-1FC9-8A368F
-        #  W --- 01:054173 34:145039 --:------ 1FC9 006 03-2309-04D39D  # real CTL
-        #  I --- 34:145039 01:054173 --:------ 1FC9 006 00-30C9-8A368F
+        # I --- 34:145039 --:------ 34:145039 1FC9 012 00-30C9-8A368F 00-1FC9-8A368F
+        # W --- 01:054173 34:145039 --:------ 1FC9 006 03-2309-04D39D  # real CTL
+        # I --- 34:145039 01:054173 --:------ 1FC9 006 00-30C9-8A368F
 
         def callback(msg):
             msg.src._evo.zone_by_idx[msg.payload[0][0]]._set_sensor(self)
-            self._1fc9_state == "bound"
 
         super()._bind()
         self._bind_request(_30C9, callback=callback)
@@ -734,15 +758,9 @@ class Temperature(Fakeable):  # 30C9 (fakeable)
         }
 
 
-class RelayDemand(Fakeable):  # 0008 (fakeable)
+class RelayDemand(Fakeable):  # 0008
 
     RELAY_DEMAND = ATTR_RELAY_DEMAND  # percentage (0.0-1.0)
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-
-        if kwargs.get(SZ_FAKED) is True or _3EF0 in kwargs.get(SZ_FAKED, []):
-            self._make_fake()
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:
@@ -799,13 +817,15 @@ class RelayDemand(Fakeable):  # 0008 (fakeable)
             raise
 
     def _bind(self):
-        # A contrived (but proven viable) packet log...
-        #  I --- 01:054173 --:------ 01:054173 1FC9 018 03-0008-04D39D FC-3B00-04D39D 03-1FC9-04D39D
-        #  W --- 13:123456 01:054173 --:------ 1FC9 006 00-3EF0-35E240
-        #  I --- 01:054173 13:123456 --:------ 1FC9 006 00-FFFF-04D39D
+        # I --- 01:054173 --:------ 01:054173 1FC9 018 03-0008-04D39D FC-3B00-04D39D 03-1FC9-04D39D
+        # W --- 13:123456 01:054173 --:------ 1FC9 006 00-3EF0-35E240
+        # I --- 01:054173 13:123456 --:------ 1FC9 006 00-FFFF-04D39D
+
+        def callback(msg):
+            pass
 
         super()._bind()
-        self._bind_waiting(_3EF0)
+        self._bind_waiting(_3EF0, callback=callback)
 
     @property
     def relay_demand(self) -> Optional[float]:  # 0008
@@ -1995,7 +2015,12 @@ def create_device(gwy, dev_id: str, klass=None, **kwargs) -> Device:
 
     device = _DEV_BY_KLASS.get(klass, Device)(gwy, id_to_address(dev_id), **kwargs)
 
-    if isinstance(gwy.pkt_protocol, PacketProtocolPort):
+    # if device is created when restoring a cache:
+    #  1. is discovery needed?
+    #  2. how can discovery be deferred until after switch from restore to port
+    if not gwy.config.disable_discovery and isinstance(
+        gwy.pkt_protocol, PacketProtocolPort
+    ):
         device._start_discovery()
 
     return device
