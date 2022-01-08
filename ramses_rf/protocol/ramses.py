@@ -54,6 +54,7 @@ from .const import (  # noqa: F401, isort: skip
     _1F09,
     _1F41,
     _1FC9,
+    _1FCA,
     _1FD0,
     _1FD4,
     _2249,
@@ -89,7 +90,7 @@ from .const import (  # noqa: F401, isort: skip
     _PUZZ,
 )
 
-DEV_MODE = True or __dev_mode__
+DEV_MODE = __dev_mode__
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -171,7 +172,7 @@ RAMSES_CODES = {  # rf_unknown
         RQ: r"^0[0-9A-F][01][0-9A-F]$",  # TODO: f"{zone_idx}{device_type}"
         EXPIRES: False,
     },
-    _000E: {  # unknown
+    _000E: {  # unknown_000e
         NAME: "message_000e",
         I_: r"^000014$",
     },
@@ -186,19 +187,19 @@ RAMSES_CODES = {  # rf_unknown
         RP: r"^00[0-9A-F]{4}F{4}$",
         EXPIRES: td(days=1),  # TODO: make longer?
     },
-    _0150: {  # unknown
+    _0150: {  # unknown_0150
         NAME: "message_0150",
         RQ: r"^00$",
-        RP: r"^00",
+        RP: r"^000000$",
     },
-    _01D0: {  # TODO: not well understood, definitely a real code, zone_idx is a guess
+    _01D0: {  # unknown_01d0, TODO: definitely a real code, zone_idx is a guess
         NAME: "message_01d0",
         I_: r"^0[0-9A-F][0-9A-F]{2}$",
         W_: r"^0[0-9A-F][0-9A-F]{2}$",
         #  W --- 04:000722 01:158182 --:------ 01D0 002 0003  # is a guess, the
         #  I --- 01:158182 04:000722 --:------ 01D0 002 0003  # TRV was in zone 00
     },
-    _01E9: {  # TODO: not well understood, definitely a real code, zone_idx is a guess
+    _01E9: {  # unknown_01e9, TODO: definitely a real code, zone_idx is a guess
         NAME: "message_01e9",
         I_: r"^0[0-9A-F][0-9A-F]{2}$",
         W_: r"^0[0-9A-F][0-9A-F]{2}$",
@@ -218,7 +219,7 @@ RAMSES_CODES = {  # rf_unknown
         I_: r"^00(00|40|C0)[0-3][0-9A-F]B0[0-9A-F]{6}0000[0-9A-F]{12}FFFF700[012][0-9A-F]{6}$",
         RQ: r"^0000[0-3][0-9A-F]$",  # f"0000{log_idx}", no payload
     },
-    _042F: {  # unknown, # non-evohome are len==9, seen only once?
+    _042F: {  # unknown_042f, # non-evohome are len==9, seen only once?
         # .I --- 32:168090 --:------ 32:168090 042F 009 000000100F00105050
         # RP --- 10:048122 18:006402 --:------ 042F 009 000200001400163010
         NAME: "message_042f",
@@ -226,7 +227,7 @@ RAMSES_CODES = {  # rf_unknown
         RQ: r"^00$",
         RP: r"^00([0-9A-F]{2}){7,8}$",
     },
-    _0B04: {  # unknown
+    _0B04: {  # unknown_0b04
         #  I --- --:------ --:------ 12:207082 0B04 002 00C8
         NAME: "message_0b04",
         I_: r"^00(00|C8)$",
@@ -246,17 +247,12 @@ RAMSES_CODES = {  # rf_unknown
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
-    _1090: {  # unknown
+    _1090: {  # unknown_1090
         NAME: "message_1090",
         # RQ: r"^00$",  # TODO:
     },
-    _1098: {  # unknown
+    _1098: {  # unknown_1098
         NAME: "message_1098",
-        RQ: r"^00$",
-        RP: r"^00",
-    },
-    _10B0: {  # unknown
-        NAME: "message_10b0",
         RQ: r"^00$",
         RP: r"^00",
     },
@@ -270,6 +266,11 @@ RAMSES_CODES = {  # rf_unknown
         I_: r"^0[01][0-9A-F]{4}([0-9A-F]{6})?$",  # NOTE: RQ/07/10A0 has a payload
         RQ: r"^0[01]([0-9A-F]{10})?$",  # NOTE: RQ/07/10A0 has a payload
         EXPIRES: td(hours=4),
+    },
+    _10B0: {  # unknown_10b0
+        NAME: "message_10b0",
+        RQ: r"^00$",
+        RP: r"^00[0-9A-F]{8}$",
     },
     _10E0: {  # device_info
         NAME: "device_info",
@@ -295,8 +296,8 @@ RAMSES_CODES = {  # rf_unknown
         RQ: r"^(00|FC)([0-9A-F]{6}(00|FF)([0-9A-F]{4}01)?)?$",  # RQ/13:/00, or RQ/01:/FC:
         EXPIRES: td(days=1),
     },
-    _11F0: {  # from heatpump relay
-        NAME: "unknown_11f0",
+    _11F0: {  # unknown_11f0, from heatpump relay
+        NAME: "message_11f0",
         I_: r"^00",
     },
     _1260: {  # dhw_temp
@@ -338,8 +339,8 @@ RAMSES_CODES = {  # rf_unknown
         NAME: "displayed_temp",  # displayed room temp
         I_: r"^00[0-9A-F]{2}0[01]$",
     },
-    _12C8: {  # hvac_12C8 - %?
-        NAME: "hvac_12C8",
+    _12C8: {  # unknown_12c8, HVAC
+        NAME: "hvac_12c8",
         I_: r"^0000[0-9A-F]{2}$",
     },
     _12F0: {  # dhw_flow_rate
@@ -382,7 +383,14 @@ RAMSES_CODES = {  # rf_unknown
         I_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
         W_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
     },
-    _1FD0: {  # unknown
+    _1FCA: {  # unknown_1fca
+        NAME: "message_1fca",
+        RQ: r"^00$",
+        RP: r"^((0[0-9A-F]|F[9ABCF]|90)([0-9A-F]{10}))+$",  # xx-code-dev_id
+        I_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
+        W_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
+    },
+    _1FD0: {  # unknown_1fd0
         NAME: "message_1fd0",
         RQ: r"^00$",
         RP: r"^00",
@@ -402,9 +410,9 @@ RAMSES_CODES = {  # rf_unknown
         I_: r"^(0[0-9A-F][0-9A-F]{8}01){1,4}$",  # ~000A array, but max_len 24, not 48!
         # RP: Appear wont get any?,
     },
-    _22D0: {  # HVAC system switch
+    _22D0: {  # unknown_22d0, HVAC system switch?
         NAME: "message_22d0",
-        I_: r"^00000002$",  # TODO:
+        I_: r"^00",
     },
     _22D9: {  # boiler_setpoint
         NAME: "boiler_setpoint",
@@ -437,32 +445,32 @@ RAMSES_CODES = {  # rf_unknown
         # RQ --- 22:070483 01:063844 --:------ 2349 007 06-0708-03-000027
         EXPIRES: td(hours=4),
     },
-    _2389: {  # unknown - CODE_IDX_COMPLEX?
+    _2389: {  # unknown_2389 - CODE_IDX_COMPLEX?
         #  I 024 03:052382 --:------ 03:052382 2389 003 02001B
         NAME: "unknown_2389",
         I_: r"^0[0-4][0-9A-F]{4}$",
     },
-    _2400: {  # unknown
+    _2400: {  # unknown_2400, from OTB
         NAME: "message_2400",
         RQ: r"^00$",
         RP: r"^00",
     },
-    _2401: {  # unknown
+    _2401: {  # unknown_2401, from OTB
         NAME: "message_2401",
         RQ: r"^00$",
         RP: r"^00",
     },
-    _2410: {  # unknown
+    _2410: {  # unknown_2410, from OTB
         NAME: "message_2410",
         RQ: r"^00$",
         RP: r"^00",
     },
-    _2420: {  # unknown
+    _2420: {  # unknown_2420, from OTB
         NAME: "message_2420",
         RQ: r"^00$",
         RP: r"^00",
     },
-    _2D49: {  # unknown
+    _2D49: {  # unknown_2d49
         NAME: "message_2d49",
         # 10:14:08.526 045  I --- 01:023389 --:------ 01:023389 2D49 003 010000
         # 10:14:12.253 047  I --- 01:023389 --:------ 01:023389 2D49 003 00C800
@@ -485,7 +493,7 @@ RAMSES_CODES = {  # rf_unknown
         RP: r"^0[0-9A-F][0-9A-F]{4}$",  # Null: r"^0[0-9A-F]7FFF$"
         EXPIRES: td(hours=1),
     },
-    _3120: {  # unknown - Error Report?
+    _3120: {  # unknown_3120 - Error Report?
         NAME: "message_3120",
         I_: r"^00[0-9A-F]{10}FF$",  # only ever: 34:/0070B0000000FF
         RQ: r"^00$",  # 20: will RP an RQ?
@@ -534,12 +542,12 @@ RAMSES_CODES = {  # rf_unknown
         RQ: r"^00[0-9A-F]{4}0{4}$",  # is strictly: r"^00[0-9A-F]{8}$",
         RP: r"^00[0-9A-F]{8}$",
     },
-    _3221: {  # unknown
+    _3221: {  # unknown_3221, from OTB
         NAME: "message_3221",
         RQ: r"^00$",
         RP: r"^00",
     },
-    _3223: {  # unknown
+    _3223: {  # unknown_3223, from OTB
         NAME: "message_3223",
         RQ: r"^00$",
         RP: r"^00",

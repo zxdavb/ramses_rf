@@ -129,6 +129,8 @@ from .const import (  # noqa: F401, isort: skip
     _PUZZ,
 )
 
+_INFORM_DEV_MSG = "Please support the development of ramses_rf by reporting this packet"
+
 LOOKUP_PUZZ = {
     "10": "engine",  # .    # version str, e.g. v0.14.0
     "11": "impersonating",  # pkt header, e.g. 30C9| I|03:123001 (15 characters, packed)
@@ -195,7 +197,7 @@ def parser_0001(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # sensor_weather
+@parser_decorator  # outdoor_sensor (outdoor_weather / outdoor_temperature)
 def parser_0002(payload, msg) -> Optional[dict]:
     # seen with: 03:125829, 03:196221, 03:196196, 03:052382, 03:201498, 03:201565:
     #  I 000 03:201565 --:------ 03:201565 0002 004 03020105  # no zone_idx, domain_id
@@ -232,7 +234,7 @@ def parser_0004(payload, msg) -> Optional[dict]:
     return result
 
 
-@parser_decorator  # system_zone (add/del a zone?)
+@parser_decorator  # system_zones (add/del a zone?)
 def parser_0005(payload, msg) -> Optional[dict]:  # TODO: needs a cleanup
     #  I --- 01:145038 --:------ 01:145038 0005 004 00000100
     # RP --- 02:017205 18:073736 --:------ 0005 004 0009001F
@@ -334,7 +336,7 @@ def parser_0009(payload, msg) -> Union[dict, list]:
     }
 
 
-@parser_decorator  # zone_config (zone/s)
+@parser_decorator  # zone_params (zone_config)
 def parser_000a(payload, msg) -> Union[dict, list, None]:
     # RQ --- 34:044203 01:158182 --:------ 000A 001 08
     # RP --- 01:158182 34:044203 --:------ 000A 006 081001F409C4
@@ -459,10 +461,14 @@ def parser_000c(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # unknown, from STA
+@parser_decorator  # unknown_000e, from STA
 def parser_000e(payload, msg) -> Optional[dict]:
-    assert payload in ("000000", "000014")  # rarely, from STA:xxxxxx
-    return {"unknown_0": payload}
+
+    assert payload in ("000000", "000014"), f"{msg._pkt} < {_INFORM_DEV_MSG}"
+
+    return {
+        "payload": payload,
+    }
 
 
 @parser_decorator  # rf_check
@@ -497,17 +503,17 @@ def parser_0100(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # unknown_WIP
+@parser_decorator  # unknown_0150, from OTB
 def parser_0150(payload, msg) -> Optional[dict]:
 
-    assert payload == "000000"
+    assert payload == "000000", f"{msg._pkt} < {_INFORM_DEV_MSG}"
 
     return {
-        "_payload": payload,
+        "payload": payload,
     }
 
 
-@parser_decorator  # unknown, from a HR91 (when its buttons are pushed)
+@parser_decorator  # unknown_01d0, from a HR91 (when its buttons are pushed)
 def parser_01d0(payload, msg) -> Optional[dict]:
     # 23:57:28.869 045  W --- 04:000722 01:158182 --:------ 01D0 002 0003
     # 23:57:28.931 045  I --- 01:158182 04:000722 --:------ 01D0 002 0003
@@ -515,18 +521,22 @@ def parser_01d0(payload, msg) -> Optional[dict]:
     # 23:57:31.643 045  I --- 01:158182 04:000722 --:------ 01E9 002 0000
     # 23:57:31.749 050  W --- 04:000722 01:158182 --:------ 01D0 002 0000
     # 23:57:31.811 045  I --- 01:158182 04:000722 --:------ 01D0 002 0000
-    # assert msg.len == 2, msg.len
-    # assert payload[2:] in ("00", "03"), payload[2:]
-    return {"unknown_0": payload[2:]}
+
+    assert payload[2:] in ("00", "03"), f"{msg._pkt} < {_INFORM_DEV_MSG}"
+    return {
+        "unknown_0": payload[2:],
+    }
 
 
-@parser_decorator  # unknown, from a HR91 (when its buttons are pushed)
+@parser_decorator  # unknown_01e9, from a HR91 (when its buttons are pushed)
 def parser_01e9(payload, msg) -> Optional[dict]:
     # 23:57:31.581348 048  W --- 04:000722 01:158182 --:------ 01E9 002 0003
     # 23:57:31.643188 045  I --- 01:158182 04:000722 --:------ 01E9 002 0000
-    assert msg.len == 2, msg.len
-    assert payload[2:] in ("00", "03"), payload[2:]
-    return {"unknown_0": payload[2:]}
+
+    assert payload[2:] in ("00", "03"), f"{msg._pkt} < {_INFORM_DEV_MSG}"
+    return {
+        "unknown_0": payload[2:],
+    }
 
 
 @parser_decorator  # zone_schedule (fragment)
@@ -621,7 +631,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
     return {"log_entry": [v for k, v in result.items() if k != "log_idx"]}
 
 
-@parser_decorator  # unknown, from STA, VMS
+@parser_decorator  # unknown_042f, from STA, VMS
 def parser_042f(payload, msg) -> Optional[dict]:
     #  I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0023-0023-F5
     #  I --- 34:064023 --:------ 34:064023 042F 008 00-0000-0024-0024-F5
@@ -633,22 +643,21 @@ def parser_042f(payload, msg) -> Optional[dict]:
     #  I --- 32:168090 --:------ 32:168090 042F 009 00-0000100F00105050
     #  I --- 32:166025 --:------ 32:166025 042F 009 00-050E0B0C00111470
 
-    if msg.len != 8:
-        return {"unknown": payload[2:]}
-
     return {
         "counter_1": int(payload[2:6], 16),
         "counter_2": int(payload[6:10], 16),
         "counter_total": int(payload[10:14], 16),
-        "unknown_0": payload[14:],
+        "unknown_7": payload[14:],
     }
 
 
-@parser_decorator  # TODO: unknown, from THM (only when its a CTL?)
+@parser_decorator  # TODO: unknown_0b04, from THM (only when its a CTL?)
 def parser_0b04(payload, msg) -> Optional[dict]:
     #  I --- --:------ --:------ 12:207082 0B04 002 00C8  # batch of 3, every 24h
 
-    return {"_unknown_0": payload[2:]}
+    return {
+        "unknown_0": payload[2:],
+    }
 
 
 @parser_decorator  # mixvalve_config (zone), NB: mixvalves are listen-only
@@ -716,14 +725,14 @@ def parser_1081(payload, msg) -> Optional[dict]:
     return {"setpoint": temp_from_hex(payload[2:])}
 
 
-@parser_decorator  # unknown (non-Evohome, e.g. ST9520C)
+@parser_decorator  # unknown_1090 (non-Evohome, e.g. ST9520C)
 def parser_1090(payload, msg) -> dict:
     # 14:08:05.176 095 RP --- 23:100224 22:219457 --:------ 1090 005 007FFF01F4
     # 18:08:05.809 095 RP --- 23:100224 22:219457 --:------ 1090 005 007FFF01F4
 
     # this is an educated guess
-    assert msg.len == 5, msg.len
-    assert int(payload[:2], 16) < 2, payload[:2]
+    assert msg.len == 5, f"{msg._pkt} < {_INFORM_DEV_MSG}"
+    assert int(payload[:2], 16) < 2, f"{msg._pkt} < {_INFORM_DEV_MSG}"
 
     return {
         "temp_0": temp_from_hex(payload[2:6]),
@@ -731,10 +740,10 @@ def parser_1090(payload, msg) -> dict:
     }
 
 
-@parser_decorator  # unknown_WIP
+@parser_decorator  # unknown_1098, from OTB
 def parser_1098(payload, msg) -> Optional[dict]:
 
-    assert payload == "00C8"
+    assert payload == "00C8", f"{msg._pkt} < {_INFORM_DEV_MSG}"
 
     return {
         "_payload": payload,
@@ -795,14 +804,14 @@ def parser_10a0(payload, msg) -> Optional[dict]:
     return result
 
 
-@parser_decorator  # unknown_WIP
+@parser_decorator  # unknown_10b0, from OTB
 def parser_10b0(payload, msg) -> Optional[dict]:
 
-    assert payload == "0000"
+    assert payload == "0000", f"{msg._pkt} < {_INFORM_DEV_MSG}"
 
     return {
         "_payload": payload,
-        "_value": {"00": False, "C8": True}.get(payload[2:], int(payload[2:], 16)),
+        "value": {"00": False, "C8": True}.get(payload[2:], int(payload[2:], 16)),
     }
 
 
@@ -977,13 +986,13 @@ def parser_1100(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # unknown_WIP
+@parser_decorator  # unknown_11f0, from heatpump relay
 def parser_11f0(payload, msg) -> Optional[dict]:
 
-    assert payload == "000009000000000000"
+    assert payload == "000009000000000000", f"{msg._pkt} < {_INFORM_DEV_MSG}"
 
     return {
-        "_payload": payload,
+        "payload": payload,
     }
 
 
@@ -1101,10 +1110,13 @@ def parser_12c0(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # hvac_12C8
+@parser_decorator  # unknown_12c8, HVAC
 def parser_12c8(payload, msg) -> Optional[dict]:
     #  I --- 37:261128 --:------ 37:261128 12C8 003 000040
-    return {"unknown": percent(payload[4:])}
+
+    return {
+        "unknown": percent(payload[4:]),
+    }
 
 
 @parser_decorator  # dhw_flow_rate
@@ -1223,25 +1235,25 @@ def parser_1fc9(payload, msg) -> list:
     ]
 
 
-@parser_decorator  # unknown
+@parser_decorator  # unknown_1fca, HVAC?
 def parser_1fca(payload, msg) -> list:
     #  W --- 30:248208 34:021943 --:------ 1FCA 009 00-01FF-7BC990-FFFFFF  # sent x2
 
     return {
         "_unknown_0": payload[:2],
         "_unknown_1": payload[2:6],
-        "device_id0": hex_id_to_dec(payload[6:12]),
-        "device_id1": hex_id_to_dec(payload[12:]),
+        "device_id_0": hex_id_to_dec(payload[6:12]),
+        "device_id_1": hex_id_to_dec(payload[12:]),
     }
 
 
-@parser_decorator  # unknown_WIP
+@parser_decorator  # unknown_1fd0, from OTB
 def parser_1fd0(payload, msg) -> Optional[dict]:
 
-    assert payload == "0000000000000000"
+    assert payload == "0000000000000000", f"{msg._pkt} < {_INFORM_DEV_MSG}"
 
     return {
-        "_payload": payload,
+        "payload": payload,
     }
 
 
@@ -1301,12 +1313,14 @@ def parser_22c9(payload, msg) -> list:
     return _parser(payload)
 
 
-@parser_decorator  # message_22d0 - system switch?
+@parser_decorator  # unknown_22d0, HVAC system switch?
 def parser_22d0(payload, msg) -> Optional[dict]:
-    assert payload[:2] == "00", payload[:2]  # has no domain?
-    assert payload[2:] == "000002", payload[2:]
 
-    return {"unknown": payload[2:]}
+    assert payload == "00000002", f"{msg._pkt} < {_INFORM_DEV_MSG}"
+
+    return {
+        "unknown": payload[2:],
+    }
 
 
 @parser_decorator  # desired boiler setpoint
@@ -1314,7 +1328,7 @@ def parser_22d9(payload, msg) -> Optional[dict]:
     return {"setpoint": temp_from_hex(payload[2:6])}
 
 
-@parser_decorator  # switch_mode
+@parser_decorator  # switch_mode, HVAC
 def parser_22f1(payload, msg) -> Optional[dict]:  # FIXME
     # 11:42:43.149 081  I 051 --:------ --:------ 49:086353 22F1 003 000304
     # 11:42:49.587 071  I 052 --:------ --:------ 49:086353 22F1 003 000404
@@ -1341,7 +1355,7 @@ def parser_22f1(payload, msg) -> Optional[dict]:  # FIXME
     }
 
 
-@parser_decorator  # switch_boost
+@parser_decorator  # switch_boost, HVAC
 def parser_22f3(payload, msg) -> Optional[dict]:
     # NOTE: for boost timer for high
     assert payload[:2] == "00", payload[:2]  # has no domain
@@ -1439,57 +1453,61 @@ def parser_2349(payload, msg) -> Optional[dict]:
     return result
 
 
-@parser_decorator  # unknown
+@parser_decorator  # unknown_2389, from 03:
 def parser_2389(payload, msg) -> Optional[dict]:
-    return {"_unknown": temp_from_hex(payload[2:6])}
-
-
-@parser_decorator  # unknown_WIP
-def parser_2400(payload, msg) -> Optional[dict]:
-
-    assert payload == "0000000F"
 
     return {
-        "_payload": payload,
+        "_unknown": temp_from_hex(payload[2:6]),
     }
 
 
-@parser_decorator  # unknown_WIP
+@parser_decorator  # unknown_2400, from OTB
+def parser_2400(payload, msg) -> Optional[dict]:
+
+    assert payload == "0000000F", f"{msg._pkt} < {_INFORM_DEV_MSG}"
+
+    return {
+        "payload": payload,
+    }
+
+
+@parser_decorator  # unknown_2401, from OTB
 def parser_2401(payload, msg) -> Optional[dict]:
 
-    assert payload[:5] == "00000"
+    assert payload == "00000100", f"{msg._pkt} < {_INFORM_DEV_MSG}"
     assert int(payload[4:6], 16) & 0b11110000 == 0, f"byte 2: {flag8(payload[4:6])}"
 
     return {
-        "_payload": payload,
+        "payload": payload,
         "_flags_2": flag8(payload[4:6]),
         "_percent_3": percent(payload[6:]),
     }
 
 
-@parser_decorator  # unknown_WIP
+@parser_decorator  # unknown_2410, from OTB
 def parser_2410(payload, msg) -> Optional[dict]:
 
-    assert payload == "000000000000000000000000010000000100000C"
+    assert payload == "00" * 12 + "010000000100000C", f"{msg._pkt} < {_INFORM_DEV_MSG}"
 
     return {
-        "_payload": payload,
+        "payload": payload,
     }
 
 
-@parser_decorator  # unknown_WIP
+@parser_decorator  # unknown_2420, from OTB
 def parser_2420(payload, msg) -> Optional[dict]:
 
-    assert payload == "00000010" + "00" * 34
+    assert payload == "00000010" + "00" * 34, f"{msg._pkt} < {_INFORM_DEV_MSG}"
 
     return {
-        "_payload": payload,
+        "payload": payload,
     }
 
 
 @parser_decorator  # hometronics _state (of unknwon)
 def parser_2d49(payload, msg) -> dict:
-    assert payload[2:] in ("0000", "C800"), payload[2:]  # would "FFFF" mean N/A?
+
+    assert payload[2:] in ("0000", "C800"), f"{msg._pkt} < {_INFORM_DEV_MSG}"
 
     return {
         "_state": bool_from_hex(payload[2:4]),
@@ -1558,7 +1576,7 @@ def parser_30c9(payload, msg) -> Optional[dict]:
     return {"temperature": temp_from_hex(payload[2:])}
 
 
-@parser_decorator  # unknown, from STA, VCE
+@parser_decorator  # unknown_3120, from STA, FAN
 def parser_3120(payload, msg) -> Optional[dict]:
     #  I --- 34:136285 --:------ 34:136285 3120 007 0070B0000000FF  # every ~3:45:00!
     # RP --- 20:008749 18:142609 --:------ 3120 007 0070B000009CFF
@@ -1571,6 +1589,7 @@ def parser_3120(payload, msg) -> Optional[dict]:
     assert payload[8:10] == "00", f"byte 4: {payload[8:10]}"
     assert payload[10:12] in ("00", "03", "9C"), f"byte 5: {payload[10:12]}"
     assert payload[12:] == "FF", f"byte 6: {payload[12:]}"
+
     return {
         "unknown_0": payload[2:10],
         "unknown_1": payload[10:12],
@@ -1633,7 +1652,7 @@ def parser_3150(payload, msg) -> Union[list, dict, None]:
     return valve_demand(payload[2:])  # TODO: check UFC/FC is == CTL/FC
 
 
-@parser_decorator  # ventilation state
+@parser_decorator  # ventilation state, HVAC
 def parser_31d9(payload, msg) -> Optional[dict]:
     # NOTE: I have a suspicion that Itho use 0x00-C8 for %, whilst Nuaire use 0x00-64
     assert payload[:2] in ("00", "01", "21"), payload[2:4]
@@ -1670,7 +1689,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # ventilation state extended
+@parser_decorator  # ventilation state extended, HVAC
 def parser_31da(payload, msg) -> Optional[dict]:
 
     CODE_31DA_FAN_INFO = {
@@ -1753,7 +1772,7 @@ def parser_31da(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # ventilation heater?
+@parser_decorator  # ventilation heater?, HVAC
 def parser_31e0(payload, msg) -> dict:
     """Notes are.
 
@@ -1817,7 +1836,7 @@ def parser_3210(payload, msg) -> Optional[dict]:
     return {"temperature": temp_from_hex(payload[2:])}
 
 
-@parser_decorator  # opentherm_msg
+@parser_decorator  # opentherm_msg, from OTB
 def parser_3220(payload, msg) -> Optional[dict]:
 
     try:
@@ -1883,28 +1902,28 @@ def parser_3220(payload, msg) -> Optional[dict]:
     return result
 
 
-@parser_decorator  # unknown_WIP
+@parser_decorator  # unknown_3221, from OTB
 def parser_3221(payload, msg) -> Optional[dict]:
 
     # 2021-11-03T09:55:43.112792 071 RP --- 10:052644 18:198151 --:------ 3221 002 000F
     # 2021-11-02T05:15:55.767108 046 RP --- 10:048122 18:006402 --:------ 3221 002 0000
 
-    assert int(payload[2:], 16) <= 0xC8
+    assert int(payload[2:], 16) <= 0xC8, f"{msg._pkt} < {_INFORM_DEV_MSG}"
 
     return {
         "_payload": payload,
-        "_value": int(payload[2:], 16),
+        "value": int(payload[2:], 16),
     }
 
 
-@parser_decorator  # unknown_WIP
+@parser_decorator  # unknown_3223, from OTB
 def parser_3223(payload, msg) -> Optional[dict]:
 
-    assert int(payload[2:], 16) <= 0xC8
+    assert int(payload[2:], 16) <= 0xC8, f"{msg._pkt} < {_INFORM_DEV_MSG}"
 
     return {
         "_payload": payload,
-        "_value": int(payload[2:], 16),
+        "value": int(payload[2:], 16),
     }
 
 
