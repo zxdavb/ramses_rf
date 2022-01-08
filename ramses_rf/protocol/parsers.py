@@ -449,10 +449,11 @@ def parser_000c(payload, msg) -> Optional[dict]:
         _type = 5
 
     if _type == 6:
-        devices = [_parser(payload[i : i + 12]) for i in range(0, msg.len, 12)]
+        devices = [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
     else:  # _type == 5:
         devices = [
-            _parser(payload[:2] + payload[i : i + 10]) for i in range(2, msg.len, 10)
+            _parser(payload[:2] + payload[i : i + 10])
+            for i in range(2, len(payload), 10)
         ]
 
     return {
