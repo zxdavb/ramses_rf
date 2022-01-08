@@ -1812,7 +1812,7 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature, Device):  # T
         }
 
 
-class HvacHumidity(BatteryState, Device):  # HUM (32) I/12(98|A0)
+class HvacHumidity(BatteryState, Device):  # HUM (32) I/12A0
     """The Sensor class for a humidity sensor.
 
     The cardinal code is 12A0.
@@ -1821,12 +1821,12 @@ class HvacHumidity(BatteryState, Device):  # HUM (32) I/12(98|A0)
     _DEV_KLASS = DEV_KLASS.HUM
     _DEV_TYPES = tuple()  # ("32",)
 
-    REL_HUMIDITY = "relative_humidity"  # percentage (0.0-1.0)
+    REL_HUMIDITY = "indoor_humidity"  # percentage (0.0-1.0)
     TEMPERATURE = "temperature"  # celsius
     DEWPOINT_TEMP = "dewpoint_temp"  # celsius
 
     @property
-    def relative_humidity(self) -> Optional[float]:
+    def indoor_humidity(self) -> Optional[float]:
         return self._msg_value(_12A0, key=self.REL_HUMIDITY)
 
     @property
@@ -1844,6 +1844,27 @@ class HvacHumidity(BatteryState, Device):  # HUM (32) I/12(98|A0)
             self.REL_HUMIDITY: self.relative_humidity,
             self.TEMPERATURE: self.temperature,
             self.DEWPOINT_TEMP: self.dewpoint_temp,
+        }
+
+
+class HvacCarbonDioxide(Device):  # HUM (32) I/1298
+    """The Sensor class for a CO2 sensor.
+
+    The cardinal code is 1298.
+    """
+
+    _DEV_KLASS = DEV_KLASS.CO2
+    _DEV_TYPES = tuple()  # ("32",)
+
+    @property
+    def co2_level(self) -> Optional[float]:
+        return self._msg_value(_1298, key="co2_level")
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            "co2_level": self.co2_level,
         }
 
 
@@ -1894,15 +1915,19 @@ class HvacVentilator(Device):  # FAN (20/37): RP/31DA, I/31D[9A]
     _DEV_TYPES = tuple()  # ("20", "37")
 
     @property
-    def fan_rate(self) -> Optional[float]:
-        return self._msg_value((_31D9, _31DA), key="exhaust_fan_speed")
-
-    @property
     def boost_timer(self) -> Optional[int]:
         return self._msg_value(_31DA, key="remaining_time")
 
     @property
-    def relative_humidity(self) -> Optional[float]:
+    def co2_level(self) -> Optional[int]:
+        return self._msg_value(_31DA, key="co2_level")
+
+    @property
+    def fan_rate(self) -> Optional[float]:
+        return self._msg_value((_31D9, _31DA), key="exhaust_fan_speed")
+
+    @property
+    def indoor_humidity(self) -> Optional[float]:
         return self._msg_value(_31DA, key="indoor_humidity")
 
     @property
