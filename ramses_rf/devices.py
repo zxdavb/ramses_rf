@@ -1310,9 +1310,9 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 and (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]
 
-        if discover_flag & Discover.PARAMS:  # and not DEV_MODE:
-            for code in (_10A0,):  # dhw_setpoint
-                self._send_cmd(Command(RQ, code, "00", self.id))
+        # if discover_flag & Discover.PARAMS:  # and not DEV_MODE:
+        #     for code in (_10A0,):  # dhw_setpoint
+        #         self._send_cmd(Command(RQ, code, "00", self.id))
 
         if discover_flag & Discover.PARAMS:
             [
@@ -1334,7 +1334,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             self._send_cmd(Command(RQ, _3EF0, "00", self.id))  # CTLs dont RP to RQ/3EF0
 
         if discover_flag & Discover.STATUS:
-            # these are WIP
+            # TODO: these are WIP, and do vary in payload
             for code in (
                 _2401,  # WIP - modulation_level + flags?
                 _3221,  # R8810A/20A
@@ -1342,7 +1342,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             ):
                 self._send_cmd(Command(RQ, code, "00", self.id))
 
-            # TODO: these appear fixed in value - to test against BDR91T
+            # TODO: these are WIP, and appear fixed in payload - to test against BDR91T
             if DEV_MODE:
                 for code in (
                     _0150,  # payload always "000000", R8820A only?
@@ -2040,7 +2040,12 @@ def create_device(gwy, dev_id: str, klass=None, **kwargs) -> Device:
 
     device = _DEV_BY_KLASS.get(klass, Device)(gwy, id_to_address(dev_id), **kwargs)
 
-    if isinstance(gwy.pkt_protocol, PacketProtocolPort):
+    # if device is created when restoring a cache:
+    #  1. is discovery needed?
+    #  2. how can discovery be deferred until after switch from restore to port
+    if not gwy.config.disable_discovery and isinstance(
+        gwy.pkt_protocol, PacketProtocolPort
+    ):
         device._start_discovery()
 
     return device
