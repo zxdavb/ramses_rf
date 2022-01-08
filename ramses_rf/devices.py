@@ -723,41 +723,6 @@ class Weather(Fakeable):  # 0002
         }
 
 
-class Temperature(Fakeable):  # 30C9
-
-    TEMPERATURE = ATTR_TEMP  # degrees Celsius
-
-    def _bind(self):
-        # I --- 34:145039 --:------ 34:145039 1FC9 012 00-30C9-8A368F 00-1FC9-8A368F
-        # W --- 01:054173 34:145039 --:------ 1FC9 006 03-2309-04D39D  # real CTL
-        # I --- 34:145039 01:054173 --:------ 1FC9 006 00-30C9-8A368F
-
-        def callback(msg):
-            msg.src._evo.zone_by_idx[msg.payload[0][0]]._set_sensor(self)
-
-        super()._bind()
-        self._bind_request(_30C9, callback=callback)
-
-    @property
-    def temperature(self) -> Optional[float]:  # 30C9
-        return self._msg_value(_30C9, key=self.TEMPERATURE)
-
-    @temperature.setter
-    def temperature(self, value) -> None:  # 30C9
-        if not self._faked:
-            raise RuntimeError(f"Can't set value for {self} (Faking is not enabled)")
-
-        self._send_cmd(Command.put_sensor_temp(self.id, value))
-        # lf._send_cmd(Command.get_zone_temp(self._ctl.id, self.zone.idx))
-
-    @property
-    def status(self) -> dict:
-        return {
-            **super().status,
-            self.TEMPERATURE: self.temperature,
-        }
-
-
 class RelayDemand(Fakeable):  # 0008
 
     RELAY_DEMAND = ATTR_RELAY_DEMAND  # percentage (0.0-1.0)
@@ -836,6 +801,41 @@ class RelayDemand(Fakeable):  # 0008
         return {
             **super().status,
             self.RELAY_DEMAND: self.relay_demand,
+        }
+
+
+class Temperature(Fakeable):  # 30C9
+
+    TEMPERATURE = ATTR_TEMP  # degrees Celsius
+
+    def _bind(self):
+        # I --- 34:145039 --:------ 34:145039 1FC9 012 00-30C9-8A368F 00-1FC9-8A368F
+        # W --- 01:054173 34:145039 --:------ 1FC9 006 03-2309-04D39D  # real CTL
+        # I --- 34:145039 01:054173 --:------ 1FC9 006 00-30C9-8A368F
+
+        def callback(msg):
+            msg.src._evo.zone_by_idx[msg.payload[0][0]]._set_sensor(self)
+
+        super()._bind()
+        self._bind_request(_30C9, callback=callback)
+
+    @property
+    def temperature(self) -> Optional[float]:  # 30C9
+        return self._msg_value(_30C9, key=self.TEMPERATURE)
+
+    @temperature.setter
+    def temperature(self, value) -> None:  # 30C9
+        if not self._faked:
+            raise RuntimeError(f"Can't set value for {self} (Faking is not enabled)")
+
+        self._send_cmd(Command.put_sensor_temp(self.id, value))
+        # lf._send_cmd(Command.get_zone_temp(self._ctl.id, self.zone.idx))
+
+    @property
+    def status(self) -> dict:
+        return {
+            **super().status,
+            self.TEMPERATURE: self.temperature,
         }
 
 
