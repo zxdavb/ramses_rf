@@ -2040,12 +2040,7 @@ def create_device(gwy, dev_id: str, klass=None, **kwargs) -> Device:
 
     device = _DEV_BY_KLASS.get(klass, Device)(gwy, id_to_address(dev_id), **kwargs)
 
-    # if device is created when restoring a cache:
-    #  1. is discovery needed?
-    #  2. how can discovery be deferred until after switch from restore to port
-    if not gwy.config.disable_discovery and isinstance(
-        gwy.pkt_protocol, PacketProtocolPort
-    ):
+    if isinstance(gwy.pkt_protocol, PacketProtocolPort):
         device._start_discovery()
 
     return device
