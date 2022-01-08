@@ -140,24 +140,24 @@ DEFAULT_MAX_ZONES = 16 if DEV_MODE else 12
 # ATTR_DEV_REGEX_UFC = "ufh_controller_id"
 # ATTR_RELAY_DEVICE_ID = "relay_id"
 
-DEV_REGEX_ANY = r"^[0-9]{2}:[0-9]{6}$"
-DEV_REGEX_BDR = r"^13:[0-9]{6}$"
-DEV_REGEX_CTL = r"^(01|23):[0-9]{6}$"
-DEV_REGEX_DHW = r"^07:[0-9]{6}$"
-DEV_REGEX_HGI = r"^18:[0-9]{6}$"
-DEV_REGEX_HTG = r"^(10|13):[0-9]{6}$"
-DEV_REGEX_UFC = r"^02:[0-9]{6}$"
-DEV_REGEX_SEN = r"^('01'|'03'|'04'|'12'|'22'|'34'):[0-9]{6}$"
+_DEV_REGEX_ANY = r"^[0-9]{2}:[0-9]{6}$"
+_DEV_REGEX_BDR = r"^13:[0-9]{6}$"
+_DEV_REGEX_CTL = r"^(01|23):[0-9]{6}$"
+_DEV_REGEX_DHW = r"^07:[0-9]{6}$"
+_DEV_REGEX_HGI = r"^18:[0-9]{6}$"
+_DEV_REGEX_HTG = r"^(10|13):[0-9]{6}$"
+_DEV_REGEX_UFC = r"^02:[0-9]{6}$"
+_DEV_REGEX_SEN = r"^('01'|'03'|'04'|'12'|'22'|'34'):[0-9]{6}$"
 
 DEVICE_ID_REGEX = SimpleNamespace(
-    ANY=DEV_REGEX_ANY,
-    BDR=DEV_REGEX_BDR,
-    CTL=DEV_REGEX_CTL,
-    DHW=DEV_REGEX_DHW,
-    HGI=DEV_REGEX_HGI,
-    HTG=DEV_REGEX_HTG,
-    UFC=DEV_REGEX_UFC,
-    SEN=DEV_REGEX_SEN,
+    ANY=_DEV_REGEX_ANY,
+    BDR=_DEV_REGEX_BDR,
+    CTL=_DEV_REGEX_CTL,
+    DHW=_DEV_REGEX_DHW,
+    HGI=_DEV_REGEX_HGI,
+    HTG=_DEV_REGEX_HTG,
+    UFC=_DEV_REGEX_UFC,
+    SEN=_DEV_REGEX_SEN,
 )
 
 _OUT_DEVICE_TABLE = {

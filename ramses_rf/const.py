@@ -23,7 +23,6 @@ from .protocol.const import (  # noqa: F401
     BOOST_TIMER,
     DEFAULT_MAX_ZONES,
     DEV_KLASS,
-    DEV_REGEX_ANY,
     DEVICE_ID_REGEX,
     DEVICE_TYPES,
     DOMAIN_TYPE_MAP,

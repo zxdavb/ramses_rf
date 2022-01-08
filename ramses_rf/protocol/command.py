@@ -10,13 +10,21 @@ import asyncio
 import functools
 import json
 import logging
+import re
 from datetime import datetime as dt
 from datetime import timedelta as td
 from types import SimpleNamespace
 from typing import Any, Optional, Tuple, Union
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
-from .const import COMMAND_REGEX, SYSTEM_MODE, ZONE_MODE
+from .const import (
+    COMMAND_REGEX,
+    DEVICE_ID_REGEX,
+    HGI_DEVICE_ID,
+    NON_DEVICE_ID,
+    SYSTEM_MODE,
+    ZONE_MODE,
+)
 from .exceptions import ExpiredCallbackError, InvalidPacketError
 from .frame import PacketBase, pkt_header
 from .helpers import dt_now, dtm_to_hex, str_to_hex, temp_to_hex, timestamp
@@ -105,6 +113,7 @@ from .const import (  # noqa: F401, isort: skip
 
 COMMAND_FORMAT = "{:<2} {} {} {} {} {} {:03d} {}"
 
+DEVICE_ID_REGEX = re.compile(DEVICE_ID_REGEX.ANY)
 
 TIMER_SHORT_SLEEP = 0.05
 TIMER_LONG_TIMEOUT = td(seconds=60)
@@ -1013,6 +1022,39 @@ class Command(PacketBase):
             payload += str_to_hex(message)
 
         return cls(I_, _PUZZ, payload[:48], NUL_DEV_ADDR.id, **kwargs)
+
+    @classmethod  # constructor for internal use only
+    def from_str(cls, cmd_str: str, **kwargs):
+        """Create a command from a string.
+
+        Examples include (whitespace for readability):
+            'RQ     01:123456               1F09 00'
+            'RQ     01:123456     13:123456 3EF0 00'
+            'RQ     07:045960     01:054173 10A0 00137400031C'
+            ' W 123 30:045960 -:- 32:054173 22F1 001374'
+        """
+
+        cmd = cmd_str.upper().split()
+        if len(cmd) < 4:
+            raise ValueError("Command is invalid: '%s'", cmd_str)
+
+        verb = cmd.pop(0)
+        seqn = "---" if DEVICE_ID_REGEX.match(cmd[0]) else cmd.pop(0)
+        payload = cmd.pop()[:48]
+        code = cmd.pop()
+
+        if not 0 < len(cmd) < 4:
+            raise ValueError("Command is invalid: '%s'", cmd_str)
+        elif len(cmd) == 1:
+            addrs = (HGI_DEVICE_ID, cmd[0], NON_DEVICE_ID)
+        elif len(cmd) == 3:
+            addrs = (cmd[0], cmd[1], cmd[2])
+        elif cmd[0] == cmd[1]:
+            addrs = (cmd[0], NON_DEVICE_ID, cmd[1])
+        else:
+            addrs = (cmd[0], cmd[1], NON_DEVICE_ID)
+
+        return cls.packet(verb, code, payload, *addrs, seqn=seqn, **kwargs)
 
 
 # A convenience dict

@@ -168,7 +168,7 @@ async def exec_cmd(gwy, **kwargs):
     #     _LOGGER.warning("Execute: Command is invalid: '%s'", kwargs)
     #     return
 
-    cmd = Command._from_str(kwargs[EXEC_CMD], **QOS_DEFAULT_HIGH)
+    cmd = Command.from_str(kwargs[EXEC_CMD], **QOS_DEFAULT_HIGH)
 
     await gwy.async_send_cmd(cmd)
 
