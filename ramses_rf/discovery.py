@@ -12,7 +12,7 @@ import logging
 import re
 from typing import Any, List, Optional
 
-from .const import DEV_REGEX_ANY, HGI_DEVICE_ID, NON_DEVICE_ID, __dev_mode__
+from .const import __dev_mode__  # DEVICE_ID_REGEX,
 from .protocol import RAMSES_CODES, Command, ExpiredCallbackError, Priority
 from .protocol.opentherm import OTB_MSG_IDS
 
@@ -106,9 +106,11 @@ SCAN_FULL = "scan_full"
 SCAN_HARD = "scan_hard"
 SCAN_XXXX = "scan_xxxx"
 
-DEVICE_ID_REGEX = re.compile(DEV_REGEX_ANY)
+# DEVICE_ID_REGEX = re.compile(DEVICE_ID_REGEX.ANY)
 
 QOS_DEFAULT = {"priority": Priority.LOW, "retries": 0}
+QOS_DEFAULT_HIGH = {"priority": Priority.HIGH, "retries": 3}
+QOS_DEFAULT_LOW = {"priority": Priority.LOW, "retries": 3}
 QOS_DEFAULT_SCAN = {"priority": Priority.LOW, "retries": 0, "disable_backoff": True}
 
 DEV_MODE = __dev_mode__ and False
@@ -121,15 +123,11 @@ if DEV_MODE:
 def script_decorator(fnc):
     def wrapper(gwy, *args, **kwargs) -> Optional[Any]:
 
-        gwy.send_cmd(
-            Command._puzzle(message="Script begins:", priority=Priority.HIGH, retries=3)
-        )
+        gwy.send_cmd(Command._puzzle(message="Script begins:", **QOS_DEFAULT_HIGH))
 
         result = fnc(gwy, *args, **kwargs)
 
-        gwy.send_cmd(
-            Command._puzzle(message="Script done.", priority=Priority.LOWEST, retries=3)
-        )
+        gwy.send_cmd(Command._puzzle(message="Script done.", **QOS_DEFAULT_LOW))
 
         return result
 
@@ -141,7 +139,7 @@ def spawn_scripts(gwy, **kwargs) -> List[asyncio.Task]:
     tasks = []
 
     if kwargs.get(EXEC_CMD):
-        spawn_exec_cmd(gwy, **kwargs)  # TODO: wrap in a try?
+        tasks += [gwy._loop.create_task(exec_cmd(gwy, **kwargs))]
 
     if kwargs.get(GET_FAULTS):
         tasks += [gwy._loop.create_task(get_faults(gwy, kwargs[GET_FAULTS]))]
@@ -152,7 +150,7 @@ def spawn_scripts(gwy, **kwargs) -> List[asyncio.Task]:
     elif kwargs.get(SET_SCHED) and kwargs[SET_SCHED][0]:
         tasks += [gwy._loop.create_task(set_schedule(gwy, *kwargs[SET_SCHED]))]
 
-    elif kwargs[EXEC_SCR]:
+    elif kwargs.get(EXEC_SCR):
         script = SCRIPTS.get(f"{kwargs[EXEC_SCR][0]}")
         if script is None:
             _LOGGER.warning(f"Script: {kwargs[EXEC_SCR][0]}() - unknown script")
@@ -164,41 +162,15 @@ def spawn_scripts(gwy, **kwargs) -> List[asyncio.Task]:
     return tasks
 
 
-def spawn_exec_cmd(gwy, **kwargs):
+async def exec_cmd(gwy, **kwargs):
 
-    if not kwargs.get(EXEC_CMD):  # e.g. "RQ 01:145038 1F09 00"
-        _LOGGER.warning("Execute: Command is invalid: '%s'", kwargs)
-        return
+    # if not kwargs.get(EXEC_CMD):  # e.g. "RQ 01:145038 1F09 00"
+    #     _LOGGER.warning("Execute: Command is invalid: '%s'", kwargs)
+    #     return
 
-    cmd = kwargs[EXEC_CMD].upper().split()
-    if len(cmd) < 4:
-        _LOGGER.warning("Execute: Command is invalid: '%s'", kwargs)
-        return
+    cmd = Command._from_str(kwargs[EXEC_CMD], **QOS_DEFAULT_HIGH)
 
-    verb = cmd.pop(0)
-    seqn = "---" if DEVICE_ID_REGEX.match(cmd[0]) else cmd.pop(0)
-    payload = cmd.pop()[:48]
-    code = cmd.pop()
-
-    if not 0 < len(cmd) < 4:
-        _LOGGER.warning("Execute: Command is invalid: '%s'", kwargs)
-        return
-    elif len(cmd) == 1:
-        addrs = (HGI_DEVICE_ID, cmd[0], NON_DEVICE_ID)
-    elif len(cmd) == 3:
-        addrs = (cmd[0], cmd[1], cmd[2])
-    elif cmd[0] == cmd[1]:
-        addrs = (cmd[0], NON_DEVICE_ID, cmd[1])
-    else:
-        addrs = (cmd[0], cmd[1], NON_DEVICE_ID)
-
-    qos = {"priority": Priority.HIGH, "retries": 3}
-    try:
-        kmd = Command.packet(verb, code, payload, *addrs, seqn=seqn, **qos)
-    except ValueError as exc:
-        _LOGGER.warning("Execute: Command is invalid: '%s' (%s)", kwargs[EXEC_CMD], exc)
-    else:
-        gwy.send_cmd(kmd)
+    await gwy.async_send_cmd(cmd)
 
 
 async def periodic(gwy, cmd, count=1, interval=None):
