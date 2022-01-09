@@ -1519,7 +1519,7 @@ def parser_2401(payload, msg) -> Optional[dict]:
         assert payload[:2] == "00", f"byte 0: {payload[:2]}"
         assert payload[2:4] == "00", f"byte 1: {payload[2:4]}"
         assert int(payload[4:6], 16) & 0b11110000 == 0, f"byte 2: {flag8(payload[4:6])}"
-        assert payload[6:] in ("00", "C8"), f"byte 3: {payload[6:]}"
+        assert int(payload[6:], 0x10) <= 200, f"byte 3: {payload[6:]}"
     except AssertionError:
         assert False, _INFORM_DEV_MSG
 
