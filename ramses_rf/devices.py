@@ -1880,7 +1880,28 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature, Device):  # T
         }
 
 
-class HvacHumidity(BatteryState, Device):  # HUM (32) I/12A0
+class HvacDevice(Device):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self._domain_id = "HVAC"
+
+    def _hvac_trick(self):  # a HACK
+        if not isinstance(self, HvacVentilator) and not randrange(3):
+            [
+                self._send_cmd(Command(RQ, _31DA, "00", d.id, retries=0))
+                for d in self._gwy.devices
+                if isinstance(d, HvacVentilator) and d is not self
+            ]
+
+    def _handle_msg(self, msg) -> None:
+        super()._handle_msg(msg)
+
+        if msg.code in (_1298, _12A0, _22F1, _22F3):
+            self._hvac_trick()
+
+
+class HvacHumidity(BatteryState, HvacDevice):  # HUM (32) I/12A0
     """The Sensor class for a humidity sensor.
 
     The cardinal code is 12A0.
@@ -1915,7 +1936,7 @@ class HvacHumidity(BatteryState, Device):  # HUM (32) I/12A0
         }
 
 
-class HvacCarbonDioxide(Device):  # HUM (32) I/1298
+class HvacCarbonDioxide(HvacDevice):  # HUM (32) I/1298
     """The Sensor class for a CO2 sensor.
 
     The cardinal code is 1298.
@@ -1936,7 +1957,7 @@ class HvacCarbonDioxide(Device):  # HUM (32) I/1298
         }
 
 
-class HvacSwitch(BatteryState, Device):  # SWI (39): I/22F[13]
+class HvacSwitch(BatteryState, HvacDevice):  # SWI (39): I/22F[13]
     """The FAN (switch) class, such as a 4-way switch.
 
     The cardinal codes are 22F1, 22F3.
@@ -1949,16 +1970,9 @@ class HvacSwitch(BatteryState, Device):  # SWI (39): I/22F[13]
     _DEV_KLASS = DEV_KLASS.SWI
     _DEV_TYPES = tuple()  # ("39",)
 
-    def _handle_msg(self, msg) -> None:
-        super()._handle_msg(msg)
-
-        if msg.code not in (_22F1, _22F3):
-            [
-                self._send_cmd(Command(RQ, code, "00", d.id))
-                for d in self._gwy.devices
-                for code in (_31D9, _31DA)
-                if isinstance(d, HvacVentilator)
-            ]
+    @property
+    def fan_rate(self) -> Optional[str]:
+        return self._msg_value(_22F1, key="rate")
 
     @property
     def fan_mode(self) -> Optional[str]:
@@ -1977,7 +1991,7 @@ class HvacSwitch(BatteryState, Device):  # SWI (39): I/22F[13]
         }
 
 
-class HvacVentilator(Device):  # FAN (20/37): RP/31DA, I/31D[9A]
+class HvacVentilator(HvacDevice):  # FAN (20/37): RP/31DA, I/31D[9A]
     """The Ventilation class.
 
     The cardinal code are 31D9, 31DA.  Signature is RP/31DA.
