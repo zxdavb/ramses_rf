@@ -467,7 +467,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
 @parser_decorator  # unknown_000e, from STA
 def parser_000e(payload, msg) -> Optional[dict]:
 
-    assert payload in ("000000", "000014"), f"{msg._pkt} < {_INFORM_DEV_MSG}"
+    assert payload in ("000000", "000014"), _INFORM_DEV_MSG
 
     return {
         "payload": payload,
@@ -509,7 +509,7 @@ def parser_0100(payload, msg) -> Optional[dict]:
 @parser_decorator  # unknown_0150, from OTB
 def parser_0150(payload, msg) -> Optional[dict]:
 
-    assert payload == "000000", f"{msg._pkt} < {_INFORM_DEV_MSG}"
+    assert payload == "000000", _INFORM_DEV_MSG
 
     return {
         "payload": payload,
@@ -525,7 +525,7 @@ def parser_01d0(payload, msg) -> Optional[dict]:
     # 23:57:31.749 050  W --- 04:000722 01:158182 --:------ 01D0 002 0000
     # 23:57:31.811 045  I --- 01:158182 04:000722 --:------ 01D0 002 0000
 
-    assert payload[2:] in ("00", "03"), f"{msg._pkt} < {_INFORM_DEV_MSG}"
+    assert payload[2:] in ("00", "03"), _INFORM_DEV_MSG
     return {
         "unknown_0": payload[2:],
     }
@@ -536,7 +536,7 @@ def parser_01e9(payload, msg) -> Optional[dict]:
     # 23:57:31.581348 048  W --- 04:000722 01:158182 --:------ 01E9 002 0003
     # 23:57:31.643188 045  I --- 01:158182 04:000722 --:------ 01E9 002 0000
 
-    assert payload[2:] in ("00", "03"), f"{msg._pkt} < {_INFORM_DEV_MSG}"
+    assert payload[2:] in ("00", "03"), _INFORM_DEV_MSG
     return {
         "unknown_0": payload[2:],
     }
@@ -734,8 +734,8 @@ def parser_1090(payload, msg) -> dict:
     # 18:08:05.809 095 RP --- 23:100224 22:219457 --:------ 1090 005 007FFF01F4
 
     # this is an educated guess
-    assert msg.len == 5, f"{msg._pkt} < {_INFORM_DEV_MSG}"
-    assert int(payload[:2], 16) < 2, f"{msg._pkt} < {_INFORM_DEV_MSG}"
+    assert msg.len == 5, _INFORM_DEV_MSG
+    assert int(payload[:2], 16) < 2, _INFORM_DEV_MSG
 
     return {
         "temp_0": temp_from_hex(payload[2:6]),
@@ -746,7 +746,7 @@ def parser_1090(payload, msg) -> dict:
 @parser_decorator  # unknown_1098, from OTB
 def parser_1098(payload, msg) -> Optional[dict]:
 
-    assert payload == "00C8", f"{msg._pkt} < {_INFORM_DEV_MSG}"
+    assert payload == "00C8", _INFORM_DEV_MSG
 
     return {
         "_payload": payload,
@@ -810,7 +810,7 @@ def parser_10a0(payload, msg) -> Optional[dict]:
 @parser_decorator  # unknown_10b0, from OTB
 def parser_10b0(payload, msg) -> Optional[dict]:
 
-    assert payload == "0000", f"{msg._pkt} < {_INFORM_DEV_MSG}"
+    assert payload == "0000", _INFORM_DEV_MSG
 
     return {
         "_payload": payload,
@@ -904,7 +904,7 @@ def parser_10e0(payload, msg) -> Optional[dict]:
 
     except AssertionError:
         _LOGGER.warning(
-            f"{msg._pkt} < {_INFORM_DEV_MSG}, include the make & model of this device"
+            f"{_INFORM_DEV_MSG}, include the make & model of this device: {msg.src}"
         )
 
     date_2 = date_from_hex(payload[20:28])  # could be 'FFFFFFFF'
@@ -991,7 +991,7 @@ def parser_1100(payload, msg) -> Optional[dict]:
 @parser_decorator  # unknown_11f0, from heatpump relay
 def parser_11f0(payload, msg) -> Optional[dict]:
 
-    assert payload == "000009000000000000", f"{msg._pkt} < {_INFORM_DEV_MSG}"
+    assert payload == "000009000000000000", _INFORM_DEV_MSG
 
     return {
         "payload": payload,
@@ -1252,7 +1252,7 @@ def parser_1fca(payload, msg) -> list:
 @parser_decorator  # unknown_1fd0, from OTB
 def parser_1fd0(payload, msg) -> Optional[dict]:
 
-    assert payload == "0000000000000000", f"{msg._pkt} < {_INFORM_DEV_MSG}"
+    assert payload == "0000000000000000", _INFORM_DEV_MSG
 
     return {
         "payload": payload,
@@ -1318,7 +1318,7 @@ def parser_22c9(payload, msg) -> list:
 @parser_decorator  # unknown_22d0, HVAC system switch?
 def parser_22d0(payload, msg) -> Optional[dict]:
 
-    assert payload == "00000002", f"{msg._pkt} < {_INFORM_DEV_MSG}"
+    assert payload == "00000002", _INFORM_DEV_MSG
 
     return {
         "unknown": payload[2:],
@@ -1341,7 +1341,7 @@ def parser_22f1(payload, msg) -> Optional[dict]:  # FIXME
         assert int(payload[2:4], 16) <= int(payload[4:], 16), "byte 1: idx > max"
         assert payload[4:] in ("04", "0A"), f"byte 2: {payload[4:]}"
     except AssertionError:
-        assert False, f"{msg._pkt} < {_INFORM_DEV_MSG}"
+        assert False, _INFORM_DEV_MSG
 
     bitmap = int(payload[2:4], 16)  # & 0b11110000
 
@@ -1379,7 +1379,7 @@ def parser_22f3(payload, msg) -> Optional[dict]:
         # assert payload[4:6] in ("0A", "14", "1E"), payload[4:6]  # 10, 20, 30
         assert msg != 7 or payload[14:] == "0000", payload[14:]
     except AssertionError:
-        assert False, f"{msg._pkt} < {_INFORM_DEV_MSG}"
+        assert False, _INFORM_DEV_MSG
 
     new_speed = {  # from now, until timer expiry
         0x00: "fan_boost",  # #    set fan off, or 'boost' mode?
@@ -1505,7 +1505,7 @@ def parser_2389(payload, msg) -> Optional[dict]:
 @parser_decorator  # unknown_2400, from OTB
 def parser_2400(payload, msg) -> Optional[dict]:
 
-    assert payload == "0000000F", f"{msg._pkt} < {_INFORM_DEV_MSG}"
+    assert payload == "0000000F", _INFORM_DEV_MSG
 
     return {
         "payload": payload,
@@ -1521,7 +1521,7 @@ def parser_2401(payload, msg) -> Optional[dict]:
         assert int(payload[4:6], 16) & 0b11110000 == 0, f"byte 2: {flag8(payload[4:6])}"
         assert payload[6:] in ("00", "C8"), f"byte 3: {payload[6:]}"
     except AssertionError:
-        assert False, f"{msg._pkt} < {_INFORM_DEV_MSG}"
+        assert False, _INFORM_DEV_MSG
 
     return {
         "payload": payload,
@@ -1534,7 +1534,7 @@ def parser_2401(payload, msg) -> Optional[dict]:
 @parser_decorator  # unknown_2410, from OTB
 def parser_2410(payload, msg) -> Optional[dict]:
 
-    assert payload == "00" * 12 + "010000000100000C", f"{msg._pkt} < {_INFORM_DEV_MSG}"
+    assert payload == "00" * 12 + "010000000100000C", _INFORM_DEV_MSG
 
     return {
         "payload": payload,
@@ -1544,7 +1544,7 @@ def parser_2410(payload, msg) -> Optional[dict]:
 @parser_decorator  # unknown_2420, from OTB
 def parser_2420(payload, msg) -> Optional[dict]:
 
-    assert payload == "00000010" + "00" * 34, f"{msg._pkt} < {_INFORM_DEV_MSG}"
+    assert payload == "00000010" + "00" * 34, _INFORM_DEV_MSG
 
     return {
         "payload": payload,
@@ -1554,7 +1554,7 @@ def parser_2420(payload, msg) -> Optional[dict]:
 @parser_decorator  # hometronics _state (of unknwon)
 def parser_2d49(payload, msg) -> dict:
 
-    assert payload[2:] in ("0000", "C800"), f"{msg._pkt} < {_INFORM_DEV_MSG}"
+    assert payload[2:] in ("0000", "C800"), _INFORM_DEV_MSG
 
     return {
         "_state": bool_from_hex(payload[2:4]),
@@ -1638,7 +1638,7 @@ def parser_3120(payload, msg) -> Optional[dict]:
         assert payload[10:12] in ("00", "03", "9C"), f"byte 5: {payload[10:12]}"
         assert payload[12:] == "FF", f"byte 6: {payload[12:]}"
     except AssertionError:
-        assert False, f"{msg._pkt} < {_INFORM_DEV_MSG}"
+        assert False, _INFORM_DEV_MSG
 
     return {
         "unknown_0": payload[2:10],
@@ -1958,7 +1958,7 @@ def parser_3221(payload, msg) -> Optional[dict]:
     # 2021-11-03T09:55:43.112792 071 RP --- 10:052644 18:198151 --:------ 3221 002 000F
     # 2021-11-02T05:15:55.767108 046 RP --- 10:048122 18:006402 --:------ 3221 002 0000
 
-    assert int(payload[2:], 16) <= 0xC8, f"{msg._pkt} < {_INFORM_DEV_MSG}"
+    assert int(payload[2:], 16) <= 0xC8, _INFORM_DEV_MSG
 
     return {
         "_payload": payload,
@@ -1969,7 +1969,7 @@ def parser_3221(payload, msg) -> Optional[dict]:
 @parser_decorator  # unknown_3223, from OTB
 def parser_3223(payload, msg) -> Optional[dict]:
 
-    assert int(payload[2:], 16) <= 0xC8, f"{msg._pkt} < {_INFORM_DEV_MSG}"
+    assert int(payload[2:], 16) <= 0xC8, _INFORM_DEV_MSG
 
     return {
         "_payload": payload,
