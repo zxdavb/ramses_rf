@@ -294,7 +294,9 @@ def update_config(config, known_list, block_list) -> dict:
         )
 
 
-def _get_device(gwy, dev_id, ctl_id=None, **kwargs) -> Optional[Any]:  # -> Device:
+def _get_device(
+    gwy, dev_id, ctl_id=None, disable_warning=None, **kwargs
+) -> Optional[Any]:  # -> Device:
     """Get (optionally create) a device only if not filtered out."""
 
     if "dev_addr" in kwargs or "ctl_addr" in kwargs:
@@ -308,7 +310,9 @@ def _get_device(gwy, dev_id, ctl_id=None, **kwargs) -> Optional[Any]:  # -> Devi
         err_msg = None
 
     if err_msg:
-        _LOGGER.error(f"{err_msg}: check the lists and the {SCHEMA} (device ignored)")
+        (_LOGGER.info if disable_warning else _LOGGER.error)(
+            f"{err_msg}: check the lists and the {SCHEMA} (device not created)"
+        )
         return
 
     return gwy._get_device(dev_id, ctl_id=ctl_id, **kwargs)
@@ -328,7 +332,10 @@ def load_schema(gwy, **kwargs) -> dict:
     if kwargs.get(SZ_MAIN_CONTROLLER):
         gwy.evo = gwy.system_by_id.get(kwargs[SZ_MAIN_CONTROLLER])
 
-    [_get_device(gwy, device_id) for device_id in kwargs.pop(SZ_ORPHANS, [])]
+    [
+        _get_device(gwy, device_id, disable_warning=True)
+        for device_id in kwargs.pop(SZ_ORPHANS, [])
+    ]
 
 
 def load_system(gwy, ctl_id, schema) -> Tuple[dict, dict]:
@@ -369,7 +376,7 @@ def load_system(gwy, ctl_id, schema) -> Tuple[dict, dict]:
         _get_device(gwy, dev_id, ctl_id=ctl.id)  # , **_schema)
 
     for dev_id in schema.get(SZ_ORPHANS, []):
-        _get_device(gwy, dev_id, ctl_id=ctl.id)
+        _get_device(gwy, dev_id, ctl_id=ctl.id, disable_warning=True)
 
     if False and DEV_MODE:
         import json
