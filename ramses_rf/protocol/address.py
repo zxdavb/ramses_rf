@@ -218,6 +218,7 @@ def pkt_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
         )
         and not (
             # .I --- 32:206250 30:082155 --:------ 22F1 003 00020A # valid
+            # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C03040000 # valid?
             addrs[0] not in (NON_DEV_ADDR, NUL_DEV_ADDR)
             and addrs[1] not in (NON_DEV_ADDR, addrs[0])
             and addrs[2] == NON_DEV_ADDR
@@ -239,8 +240,9 @@ def pkt_addrs(pkt_fragment: str) -> Tuple[Address, Address, List[Address]]:
         src_addr = dst_addr
 
     elif src_addr.type == dst_addr.type:  # dex
-        # 000  I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200 (invalid)
-        # 064  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5 (invalid)
+        # .I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200     # invalid
+        # .I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5         # invalid
+        # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C03040000 # valid? HVAC
         raise InvalidAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
 
     # TODO: this may be too specialised a edge-case, there would be many others
