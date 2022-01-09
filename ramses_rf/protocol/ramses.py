@@ -425,7 +425,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     _22F3: {  # switch_duration
         NAME: "switch_duration",
-        I_: r"^0000[0-9A-F]{2}([0-9A-F]{8})?$",
+        I_: r"^00[0-9A-F]{4}([0-9A-F]{8})?$",
     },  # minutes
     _2309: {  # setpoint
         NAME: "setpoint",

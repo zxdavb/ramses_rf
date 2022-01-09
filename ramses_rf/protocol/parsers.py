@@ -24,7 +24,6 @@ from .const import (
     ATTR_DHW_VALVE,
     ATTR_DHW_VALVE_HTG,
     ATTR_HTG_CONTROL,
-    BOOST_TIMER,
     FAN_MODE,
     FAN_MODES,
     HEATER_MODE,
@@ -129,7 +128,7 @@ from .const import (  # noqa: F401, isort: skip
     _PUZZ,
 )
 
-_INFORM_DEV_MSG = "Please support the development of ramses_rf by reporting this packet"
+_INFORM_DEV_MSG = "Support the development of ramses_rf by reporting this packet"
 
 LOOKUP_PUZZ = {
     "10": "engine",  # .    # version str, e.g. v0.14.0
@@ -147,9 +146,12 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def parser_decorator(fnc):  # TODO: remove
-    def wrapper(*args, **kwargs) -> Optional[Any]:
-        return fnc(*args, **kwargs)
+def parser_decorator(fnc):  # TODO: remove?
+    def wrapper(payload, msg, **kwargs) -> Optional[Any]:
+        result = fnc(payload, msg, **kwargs)
+        if msg.seqn != "---":  # 22F1/3
+            result["_seqn"] = msg.seqn
+        return result
 
     return wrapper
 
@@ -902,8 +904,7 @@ def parser_10e0(payload, msg) -> Optional[dict]:
 
     except AssertionError:
         _LOGGER.warning(
-            f"{msg._pkt} < Support development by reporting this pkt, "
-            "please include a description/the make & model of this device"
+            f"{msg._pkt} < {_INFORM_DEV_MSG}, include the make & model of this device"
         )
 
     date_2 = date_from_hex(payload[20:28])  # could be 'FFFFFFFF'
@@ -1329,51 +1330,90 @@ def parser_22d9(payload, msg) -> Optional[dict]:
     return {"setpoint": temp_from_hex(payload[2:6])}
 
 
-@parser_decorator  # switch_mode, HVAC
+@parser_decorator  # fan_speed (switch_mode), HVAC
 def parser_22f1(payload, msg) -> Optional[dict]:  # FIXME
-    # 11:42:43.149 081  I 051 --:------ --:------ 49:086353 22F1 003 000304
-    # 11:42:49.587 071  I 052 --:------ --:------ 49:086353 22F1 003 000404
-    # 11:42:49.685 072  I 052 --:------ --:------ 49:086353 22F1 003 000404
-    # 11:42:49.784 072  I 052 --:------ --:------ 49:086353 22F1 003 000404
+    #  I 016 --:------ --:------ 39:159057 22F1 003 000304 # medium
+    #  I 017 --:------ --:------ 39:159057 22F1 003 000404 # high
+    #  I 018 --:------ --:------ 39:159057 22F1 003 000204 # low
 
-    # assert payload[:2] == "00", payload[:2]  # has no domain
-    assert int(payload[2:4], 16) <= int(payload[4:], 16), "step_idx not <= step_max"
-    # assert payload[4:] in ("04", "0A"), payload[4:]
+    try:
+        assert payload[:2] == "00", f"byte 0: {payload[:2]}"  # no domain
+        assert int(payload[2:4], 16) <= int(payload[4:], 16), "byte 1: idx > max"
+        assert payload[4:] in ("04", "0A"), f"byte 2: {payload[4:]}"
+    except AssertionError:
+        assert False, f"{msg._pkt} < {_INFORM_DEV_MSG}"
 
-    bitmap = int(payload[2:4], 16)
+    bitmap = int(payload[2:4], 16)  # & 0b11110000
 
     if bitmap in FAN_MODES:
         _action = {FAN_MODE: FAN_MODES[bitmap]}
-    elif bitmap in {9, 10}:  # 00010001, 00010010
+    elif bitmap in {9, 10}:  # 0b00010001, 0b00010010
         _action = {HEATER_MODE: HEATER_MODES[bitmap]}
     else:
         _action = {}
 
+    step_idx = int(payload[2:4], 16)  # & 0x07
+    step_max = int(payload[4:6], 16)  # & 0x07
+
     return {
+        "rate": step_idx / step_max,
+        "_step_idx": step_idx,
+        "_step_max": step_max,
         **_action,
-        "step_idx": int(payload[2:4], 16),
-        "step_max": int(payload[4:6], 16),
     }
 
 
 @parser_decorator  # switch_boost, HVAC
 def parser_22f3(payload, msg) -> Optional[dict]:
+    #  I 019 --:------ --:------ 39:159057 22F3 003 00000A  # 10 mins
+    #  I 022 --:------ --:------ 39:159057 22F3 003 000014  # 20 mins
+    #  I 026 --:------ --:------ 39:159057 22F3 003 00001E  # 30 mins
+    #  I --- 29:151550 29:237552 --:------ 22F3 007 00023C-0304-0000  # 60 mins
+    #  I --- 29:162374 29:237552 --:------ 22F3 007 00020F-0304-0000  # 15 mins
+    #  I --- 29:162374 29:237552 --:------ 22F3 007 00020F-0304-0000  # 15 mins
+
     # NOTE: for boost timer for high
-    assert payload[:2] == "00", payload[:2]  # has no domain
-    assert payload[2:4] == "00", payload[2:4]
-    assert payload[4:6] in ("0A", "14", "1E"), payload[4:6]  # 10, 20, 30
+    try:
+        assert payload[:2] == "00", f"byte 0: {payload[:2]}"  # no domain
+        assert payload[2:4] in ("00", "02"), f"byte 1: {flag8(payload[2:4])}"
+        # assert payload[4:6] in ("0A", "14", "1E"), payload[4:6]  # 10, 20, 30
+        assert msg != 7 or payload[14:] == "0000", payload[14:]
+    except AssertionError:
+        assert False, f"{msg._pkt} < {_INFORM_DEV_MSG}"
+
+    new_speed = {  # from now, until timer expiry
+        0x00: "fan_boost",  # #    set fan off, or 'boost' mode?
+        0x01: "per_request",  # #  set fan as per payload[6:10]?
+        0x02: "per_vent_speed",  # set fan as per current fan mode/speed?
+    }.get(int(payload[2:4], 0x10) & 0x07)
+
+    fallback_speed = {  # after timer expiry
+        0x08: "fan_off",  # #      set fan off?
+        0x10: "per_request",  # #  set fan as per payload[6:10], or payload[10:]?
+        0x18: "per_vent_speed",  # set fan as per current fan mode/speed?
+    }.get(int(payload[2:4], 0x10) & 0x38)
+
+    units = {
+        0x00: "minutes",
+        0x40: "hours",
+        0x80: "index",  # TODO: days, day-of-week, day-of-month?
+    }.get(int(payload[2:4], 0x10) & 0xC8)
+
+    duration = int(payload[4:6], 16) * 60 if units == "hours" else int(payload[4:6], 16)
 
     if msg.len >= 3:
         result = {
-            "mode": BOOST_TIMER,  # payload[2:4]
-            "minutes": int(payload[4:6], 16),
+            "flags": flag8(payload[2:4]),
+            "minutes" if units != "index" else "index": duration,
+            "_new_speed_mode": new_speed,
+            "_fallback_speed_mode": fallback_speed,
         }
 
-    if msg.len >= 5:
-        result.update(parser_22f1(f"00{payload[6:10]}"))  # NOTE: a guess
+    if msg.len >= 5:  # new speed?
+        result["rate"] = parser_22f1(f"00{payload[6:10]}", msg).get("rate")
 
-    if msg.len >= 7:
-        result.update({"_unknown": payload[10:]})
+    if msg.len >= 7:  # fallback speed?
+        result.update({"_unknown_5": payload[10:]})
 
     return result
 
@@ -1758,6 +1798,10 @@ def parser_31da(payload, msg) -> Optional[dict]:
     assert payload[54:58] == "7FFF", payload[54:58]  # or: FFFF?
 
     return {
+        "exhaust_fan_speed": percent(
+            payload[38:40], high_res=True
+        ),  # NOTE: 31D9/payload[4:6]
+        "remaining_time": double(payload[42:46]),  # mins NOTE: 22F3/payload[2:6]
         "air_quality": percent(payload[2:4]),
         "air_quality_base": int(payload[4:6], 16),  # NOTE: 12C8/payload[4:6]
         "co2_level": double(payload[6:10]),  # ppm NOTE: 1298/payload[2:6]
@@ -1770,11 +1814,7 @@ def parser_31da(payload, msg) -> Optional[dict]:
         "speed_cap": int(payload[30:34], 16),
         "bypass_pos": percent(payload[34:36]),
         "fan_info": CODE_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],
-        "exhaust_fan_speed": percent(
-            payload[38:40], high_res=True
-        ),  # NOTE: 31D9/payload[4:6]
         "supply_fan_speed": percent(payload[40:42], high_res=True),
-        "remaining_time": double(payload[42:46]),  # mins NOTE: 22F3/payload[2:6]
         "post_heat": percent(payload[46:48], high_res=False),
         "pre_heat": percent(payload[48:50], high_res=False),
         "supply_flow": double(payload[50:54], factor=100),  # L/sec
