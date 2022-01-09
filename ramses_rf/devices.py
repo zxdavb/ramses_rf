@@ -1084,6 +1084,20 @@ class UfhController(Device):  # UFC (02):
 
         self._iz_controller = True
 
+    def _start_discovery(self) -> None:
+
+        delay = randint(10, 20)
+
+        self._gwy._add_task(
+            self._discover, discover_flag=Discover.SCHEMA, delay=0, period=3600 * 24
+        )
+        self._gwy._add_task(
+            self._discover, discover_flag=Discover.PARAMS, delay=delay, period=3600
+        )
+        self._gwy._add_task(
+            self._discover, discover_flag=Discover.STATUS, delay=delay + 1, period=60
+        )
+
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:
         super()._discover(discover_flag=discover_flag)
@@ -1102,16 +1116,11 @@ class UfhController(Device):  # UFC (02):
                 except KeyError:
                     self._make_cmd(_000C, payload=f"{idx:02X}{_000C_DEVICE.ALL}")
 
-        # if discover_flag & Discover.STATUS:
-        #     [  # 22C9: no answer
-        #         self._make_cmd(_22C9, payload=f"{payload}")
-        #         for payload in ("00", "0000", "01", "0100")
-        #     ]
-
-        #     [  # 3150: no answer
-        #         self._make_cmd(_3150, payload=f"{zone_idx:02X}")
-        #         for zone_idx in range(8)
-        #     ]
+        if discover_flag & Discover.PARAMS:
+            [  # only 2309 has any potential?
+                self._make_cmd(_2309, payload=f"{zone_idx:02X}")
+                for zone_idx in range(8)
+            ]
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -1152,6 +1161,10 @@ class UfhController(Device):  # UFC (02):
         # "0008|FA/FC", "22C9|array", "22D0|none", "3150|ZZ/array(/FC?)"
 
     @property
+    def _rate(self) -> Optional[Dict]:  # 22F1
+        return self._msg_value(_22F1, key="rate")
+
+    @property
     def circuits(self) -> Optional[Dict]:  # 000C
         return {
             k: {"zone_idx": m.payload["zone_id"]} for k, m in self._circuits.items()
@@ -1176,10 +1189,7 @@ class UfhController(Device):  # UFC (02):
 
     @property
     def relay_demand(self) -> Optional[Dict]:  # 0008
-        try:
-            return self._msgs[_0008].payload[ATTR_RELAY_DEMAND]
-        except KeyError:
-            return
+        return self._msg_value(_0008, key=ATTR_RELAY_DEMAND)
 
     @property
     def setpoints(self) -> Optional[Dict]:  # 22C9
@@ -1938,6 +1948,17 @@ class HvacSwitch(BatteryState, Device):  # SWI (39): I/22F[13]
 
     _DEV_KLASS = DEV_KLASS.SWI
     _DEV_TYPES = tuple()  # ("39",)
+
+    def _handle_msg(self, msg) -> None:
+        super()._handle_msg(msg)
+
+        if msg.code not in (_22F1, _22F3):
+            [
+                self._send_cmd(Command(RQ, code, "00", d.id))
+                for d in self._gwy.devices
+                for code in (_31D9, _31DA)
+                if isinstance(d, HvacVentilator)
+            ]
 
     @property
     def fan_mode(self) -> Optional[str]:
