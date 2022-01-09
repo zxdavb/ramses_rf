@@ -9,7 +9,7 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 from threading import Lock
 from types import SimpleNamespace
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from .const import (
     _000C_DEVICE,
@@ -32,13 +32,7 @@ from .devices import (
     UfhController,
 )
 from .entities import Entity, class_by_attr, discover_decorator
-from .protocol import (
-    Command,
-    CorruptStateError,
-    ExpiredCallbackError,
-    FaultLog,
-    Priority,
-)
+from .protocol import Command, CorruptStateError, ExpiredCallbackError, Priority
 from .protocol.transport import PacketProtocolPort
 from .schema import (
     SZ_CONTROLLER,
@@ -189,7 +183,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             self._discover, discover_flag=Discover.STATUS, delay=2, period=60
         )
         self._gwy._add_task(
-            self._discover, discover_flag=Discover.FAULTS, delay=120, period=60
+            self._discover, discover_flag=Discover.FAULTS, delay=60, period=60
         )
         self._gwy._add_task(
             self._discover, discover_flag=Discover.SCHEDS, delay=300, period=60
@@ -730,9 +724,14 @@ class Logbook:  # 0418
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._prev_0418 = None
-        self._this_0418 = None
-        self._faultlog = FaultLog(self._ctl)
+        self._prev_event = None
+        self._this_event = None
+
+        self._prev_fault = None
+        self._this_fault = None
+
+        self._faultlog = None  # FaultLog(self._ctl)
+        self._faultlog_outdated = None  # should be True
 
     def _discover(self, discover_flag=Discover.ALL) -> None:
         super()._discover(discover_flag=discover_flag)
@@ -744,12 +743,30 @@ class Logbook:  # 0418
     def _handle_msg(self, msg) -> None:  # NOTE: active
         super()._handle_msg(msg)
 
-        if msg.code == _0418 and msg.payload["log_idx"] == "00":
-            self._this_0418 = msg
-            if self._faultlog_outdated:
-                self._prev_0418 = msg
-                if not self._gwy.config.disable_sending:
-                    self._loop.create_task(self.get_faultlog(force_refresh=True))
+        if msg.code != _0418:
+            return
+
+        if msg.payload["log_idx"] == "00":
+            if not self._this_event or (
+                msg.payload["log_entry"] != self._this_event.payload["log_entry"]
+            ):
+                self._this_event, self._prev_event = msg, self._this_event
+            # TODO: self._faultlog_outdated = msg.verb == I_ or self._prev_event and (
+            #     msg.payload["log_entry"] != self._prev_event.payload["log_entry"]
+            # )
+
+        if msg.payload["log_entry"][1] == "fault":
+            if not self._this_fault or (
+                msg.payload["log_entry"] != self._this_fault.payload["log_entry"]
+            ):
+                self._this_fault, self._prev_fault = msg, self._this_fault
+
+        # if msg.payload["log_entry"][1] == "restore" and not self._this_fault:
+        #     self._send_cmd(Command.get_system_log_entry(self._ctl.id, 1))
+
+        # TODO: if self._faultlog_outdated:
+        #     if not self._gwy.config.disable_sending:
+        #         self._loop.create_task(self.get_faultlog(force_refresh=True))
 
     async def get_faultlog(self, start=None, limit=None, force_refresh=None) -> dict:
         if self._gwy.config.disable_sending:
@@ -762,23 +779,39 @@ class Logbook:  # 0418
         except (ExpiredCallbackError, RuntimeError):
             return
 
-    @property
-    def _faultlog_outdated(self) -> bool:
-        return (
-            not self._prev_0418
-            or not self._this_0418
-            or (self._prev_0418._pkt.payload != self._this_0418._pkt.payload)
-        )
+    # @property
+    # def faultlog_outdated(self) -> bool:
+    #     return self._this_event.verb == I_ or self._prev_event and (
+    #         self._this_event.payload != self._prev_event.payload
+    #     )
+
+    # @property
+    # def faultlog(self) -> dict:
+    #     return self._faultlog.faultlog
 
     @property
-    def faultlog(self) -> dict:
-        return self._faultlog.faultlog
+    def latest_event(self) -> Optional[Tuple]:
+        """Return the most recently logged event (fault or restore), if any."""
+        return self._this_event and self._this_event.payload["log_entry"]
+
+    @property
+    def latest_fault(self) -> Optional[Tuple]:
+        """Return the most recently logged fault, if any."""
+        return self._this_fault and self._this_fault.payload["log_entry"]
+
+    @property
+    def active_fault(self) -> Optional[Tuple]:
+        """Return the most recently logged event, but only if it is a fault."""
+        if self._this_event and self._this_event.payload["log_entry"][1] == "fault":
+            return self._this_event.payload["log_entry"]
 
     @property
     def status(self) -> dict:
         return {
             **super().status,
-            "faultlog": self.faultlog,
+            "latest_event": self.latest_event,
+            "active_fault": self.active_fault,
+            # "faultlog": self.faultlog,
         }
 
 
