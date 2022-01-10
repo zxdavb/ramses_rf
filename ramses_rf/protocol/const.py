@@ -213,13 +213,6 @@ _OUT_DEVICE_TABLE = {
         "name": "Round Thermostat",
         "archetype": "T87RF",
     },
-    # Honeywell evohome TBD
-    "x1": {
-        "type": "HM8",
-        "name": "Mixing Valve",
-        "archetype": "HM80",
-    },  # TODO: ???
-    # Honeywell, non-evohome
     "17": {
         "type": "EXT",
         "name": "Outdoor Sensor?",
@@ -237,12 +230,6 @@ _OUT_DEVICE_TABLE = {
     # Honeywell Jasper, HVAC?
     "08": {"type": "JIM", "name": "HVAC?"},  # Jasper equipment interface module
     "31": {"type": "JST", "name": "HVAC?"},  # Jasper Stat TXXX
-    # non-Honeywell, HVAC? (also, 30: is a Nuaire PIV)
-    "20": {"type": "VCE", "name": "HVAC?"},  # VCE-RF unit
-    "32": {"type": "vMs", "name": "HVAC?"},  # sensor/switch
-    "37": {"type": " 37", "name": "HVAC?"},  # VCE
-    "39": {"type": "VmS", "name": "HVAC?"},  # sensor/switch
-    "49": {"type": " 49", "name": "HVAC?"},  # VCE switch
     # specials
     "63": {"type": "NUL", "name": "Null Device"},
     "--": {"type": "---", "name": "No Device"},

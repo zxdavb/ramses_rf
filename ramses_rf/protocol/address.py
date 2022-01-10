@@ -84,7 +84,7 @@ class Address:
 
         _type, _tmp = device_id.split(":")
 
-        return f"{DEVICE_TYPES.get(_type, f'{_type:<3}')}:{_tmp}"
+        return f"{DEVICE_TYPES.get(_type, f'{_type:>3}')}:{_tmp}"
 
     @classmethod
     def convert_from_hex(cls, device_hex: str, friendly_id=False) -> str:

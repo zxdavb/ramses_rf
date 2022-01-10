@@ -160,10 +160,14 @@ class Message:
                 return f"({pkt.payload[:2]})"
             return ctx
 
-        def display_name(addr: Address) -> str:  # TODO: is broken
-            # name = d.schema.get("alias") if self._gwy.config.use_aliases else None
-            name = None  # FIXME
-            return name[:20] if name else Address._friendly(addr.id)
+        def display_name(addr: Address) -> str:  # TODO: needs caching
+            name = None
+            if self._gwy._include.get(addr.id):
+                if self._gwy.config.use_aliases:
+                    name = self._gwy._include[addr.id].get("alias")
+                if not name and (klass := self._gwy._include[addr.id].get("class")):
+                    name = f"{klass}:{addr.id[3:]}"
+            return (name or Address._friendly(addr.id))[:18]  # HACK
 
         if self._str is not None:
             return self._str
