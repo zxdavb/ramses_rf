@@ -313,7 +313,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     _1280: {  # outdoor_humidity
         NAME: "outdoor_humidity",
-        I_: r"^00[0-9A-F]{10}$",
+        I_: r"^00[0-9A-F]{2}[0-9A-F]{8}?$",
     },
     _1290: {  # outdoor_temp
         NAME: "outdoor_temp",
@@ -326,7 +326,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     _12A0: {  # indoor_humidity
         NAME: "indoor_humidity",
-        I_: r"^00[0-9A-F]{10}$",
+        I_: r"^00[0-9A-F]{2}[0-9A-F]{8}?$",
         EXPIRES: td(hours=1),
     },
     _12B0: {  # window_state  (HVAC % window open)
@@ -862,7 +862,6 @@ RAMSES_DEVICES_CLASS = {
         _10E0: {I_: {}, RP: {}},
         _22C9: {I_: {}},  # NOTE: No RP
         _22D0: {I_: {}, RP: {}},
-        _22F1: {I_: {}},
         _2309: {RP: {}},
         _3150: {I_: {}},
     },

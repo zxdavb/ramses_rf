@@ -150,7 +150,7 @@ def parser_decorator(fnc):  # TODO: remove?
     def wrapper(payload, msg, **kwargs) -> Optional[Any]:
         result = fnc(payload, msg, **kwargs)
         if msg.seqn != "---":  # 22F1/3
-            result["_seqn"] = msg.seqn
+            result["seqx_num"] = msg.seqn
         return result
 
     return wrapper
@@ -1006,16 +1006,13 @@ def parser_1260(payload, msg) -> Optional[dict]:
 @parser_decorator  # outdoor humidity
 def parser_1280(payload, msg) -> Optional[dict]:
     # this packet never seen in the wild
-    # assert msg.len == 6 if type == ?? else 2, msg.len
-    assert payload[:2] == "00", payload[:2]  # domain?
 
     rh = int(payload[2:4], 16) / 100 if payload[2:4] != "EF" else None
     if msg.len == 2:
-        return {"relative_humidity": rh}
+        return {"outdoor_humidity": rh}
 
-    assert msg.len == 6, f"pkt length is {msg.len}, expected 6"
     return {
-        "relative_humidity": rh,
+        "outdoor_humidity": rh,
         "temperature": temp_from_hex(payload[4:8]),
         "dewpoint_temp": temp_from_hex(payload[8:12]),
     }
@@ -1045,8 +1042,6 @@ def parser_1298(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # indoor_humidity (Nuaire RH sensor)
 def parser_12a0(payload, msg) -> Optional[dict]:
-    # assert msg.len == 6 if type == ?? else 2, msg.len
-    assert payload[:2] == "00", payload[:2]  # domain?
 
     FAULT_CODES_RHUM = {
         "EF": "RH sensor not available ",
@@ -1077,11 +1072,10 @@ def parser_12a0(payload, msg) -> Optional[dict]:
 
     rh = int(payload[2:4], 16) / 100 if payload[2:4] != "EF" else None
     if msg.len == 2:
-        return {"relative_humidity": rh}
+        return {"indoor_humidity": rh}
 
-    assert msg.len == 6, f"pkt length is {msg.len}, expected 6"
     return {
-        "relative_humidity": rh,
+        "indoor_humidity": rh,
         "temperature": temp_from_hex(payload[4:8]),
         "dewpoint_temp": temp_from_hex(payload[8:12]),
     }
@@ -1709,18 +1703,18 @@ def parser_31d9(payload, msg) -> Optional[dict]:
     assert payload[2:4] in ("00", "06", "80"), payload[2:4]
     assert payload[4:6] == "FF" or int(payload[4:6], 16) <= 200, payload[4:6]
 
-    bitmap = int(payload[2:4], 16)
+    # bitmap = int(payload[2:4], 16)
 
     result = {
         "exhaust_fan_speed": percent(
             payload[4:6], high_res=True
         ),  # NOTE: is 31DA/payload[38:40]
-        "passive": bool(bitmap & 0x02),
-        "damper_only": bool(bitmap & 0x04),
-        "filter_dirty": bool(bitmap & 0x20),
-        "frost_cycle": bool(bitmap & 0x40),
-        "has_fault": bool(bitmap & 0x80),
-        "_bitmap_0": payload[2:4],
+        # "passive": bool(bitmap & 0x02),
+        # "damper_only": bool(bitmap & 0x04),
+        # "filter_dirty": bool(bitmap & 0x20),
+        # "frost_cycle": bool(bitmap & 0x40),
+        # "has_fault": bool(bitmap & 0x80),
+        "_bitmap_1": flag8(payload[2:4]),
     }
 
     if msg.len == 3:  # usu: I -->20: (no seq#)
@@ -1733,9 +1727,9 @@ def parser_31d9(payload, msg) -> Optional[dict]:
 
     return {
         **result,
-        "_unknown_2": payload[6:8],
-        "_unknown_3": payload[8:32],
-        "_unknown_4": payload[32:],
+        # "_unknown_2": payload[6:8],
+        # "_unknown_3": payload[8:32],
+        # "_unknown_4": payload[32:],
     }
 
 
@@ -1802,23 +1796,23 @@ def parser_31da(payload, msg) -> Optional[dict]:
             payload[38:40], high_res=True
         ),  # NOTE: 31D9/payload[4:6]
         "remaining_time": double(payload[42:46]),  # mins NOTE: 22F3/payload[2:6]
-        "air_quality": percent(payload[2:4]),
-        "air_quality_base": int(payload[4:6], 16),  # NOTE: 12C8/payload[4:6]
         "co2_level": double(payload[6:10]),  # ppm NOTE: 1298/payload[2:6]
         "indoor_humidity": percent(payload[10:12], high_res=False),  # TODO: 12A0?
-        "outdoor_humidity": percent(payload[12:14], high_res=False),
-        "exhaust_temperature": double(payload[14:18], factor=100),
-        "supply_temperature": double(payload[18:22], factor=100),
-        "indoor_temperature": double(payload[22:26], factor=100),
-        "outdoor_temperature": double(payload[26:30], factor=100),  # TODO: 1290?
-        "speed_cap": int(payload[30:34], 16),
-        "bypass_pos": percent(payload[34:36]),
+        # "speed_cap": int(payload[30:34], 16),
+        # "air_quality": percent(payload[2:4]),
+        # "air_quality_base": int(payload[4:6], 16),  # NOTE: 12C8/payload[4:6]
+        # "outdoor_humidity": percent(payload[12:14], high_res=False),
+        # "exhaust_temperature": double(payload[14:18], factor=100),
+        # "supply_temperature": double(payload[18:22], factor=100),
+        # "indoor_temperature": double(payload[22:26], factor=100),
+        # "outdoor_temperature": double(payload[26:30], factor=100),  # TODO: 1290?
+        # "bypass_pos": percent(payload[34:36]),
         "fan_info": CODE_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],
-        "supply_fan_speed": percent(payload[40:42], high_res=True),
-        "post_heat": percent(payload[46:48], high_res=False),
-        "pre_heat": percent(payload[48:50], high_res=False),
-        "supply_flow": double(payload[50:54], factor=100),  # L/sec
-        "exhaust_flow": double(payload[54:58], factor=100),  # L/sec
+        # "supply_fan_speed": percent(payload[40:42], high_res=True),
+        # "post_heat": percent(payload[46:48], high_res=False),
+        # "pre_heat": percent(payload[48:50], high_res=False),
+        # "supply_flow": double(payload[50:54], factor=100),  # L/sec
+        # "exhaust_flow": double(payload[54:58], factor=100),  # L/sec
     }
 
 
