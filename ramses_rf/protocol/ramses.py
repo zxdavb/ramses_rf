@@ -514,7 +514,7 @@ RAMSES_CODES = {  # rf_unknown
     _31D9: {  # ventilation_status
         NAME: "vent_status",
         # I_: r"^(00|21)[0-9A-F]{32}$",
-        I_: r"^(00|01|21)[0-9A-F]{4}([02]{28})?$",
+        I_: r"^(00|01|21)[0-9A-F]{4}(00(00|20){12}(00|08))?$",
         RQ: r"^00$",
     },
     _31DA: {  # ventilation_unknown
@@ -958,6 +958,7 @@ HVAC_DEVICES_CLASS = {
         _12C8: {I_: {}},
         _1F09: {I_: {}, RP: {}},
         _3120: {I_: {}},
+        _313F: {I_: {}},
         _31D9: {I_: {}},
         _31DA: {I_: {}, RP: {}},
         # _31E0: {I_: {}},

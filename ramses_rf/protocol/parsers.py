@@ -829,29 +829,29 @@ def parser_10e0(payload, msg) -> Optional[dict]:
                 "0002FF0119FFFFFFFF",  # ATC928-G3-0xx Evo Mk3 - EvoTouch Colour (WiFi, 12 zones)
                 "0002FF0163FFFFFFFF",  # ATP928-G2-080 Evo Mk2 - Color (no WiFi)
                 "0002FFFF17FFFFFFFF",  # ATC928-G1-000 Evo Mk1 - Monochrone (?prototype, 8 zones)
-            ), payload[2:20]
+            ), f"01: {payload[2:20]}"
         elif msg.src.type == "02":
             assert payload[2:20] in (
                 "0003FF0203FFFF0001",  # HCE80 V3.10 061117
-            ), payload[2:20]
+            ), f"02: {payload[2:20]}"
         elif msg.src.type == "04":
             assert payload[2:20] in (
                 "0002FF0412FFFFFFFF",  # HR92 Radiator Ctrl.
                 "0002FF050BFFFFFFFF",  # HR91 Radiator Ctrl.
-            ), payload[2:20]
+            ), f"04: {payload[2:20]}"
         elif msg.src.type == "08":
             assert payload[2:20] in (
                 "0002FF0802FFFFFFFE",  # Jasper EIM (non-evohome)
-            ), payload[2:20]
+            ), f"08: {payload[2:20]}"
         elif msg.src.type == "10":
             assert payload[2:20] in (
                 "0001C8810B0700FEFF",  # R8820A
                 "0002FF0A0CFFFFFFFF",  # R8810A
-            ), payload[2:20]
+            ), f"10: {payload[2:20]}"
         elif msg.src.type == "18":
             assert payload[2:20] in (
                 "0001C8820C006AFEFF",  # HRA82 (Orcon MVHR?)
-            ), payload[2:20]
+            ), f"18: {payload[2:20]}"
         elif msg.src.type == "20":
             assert payload[2:20] in (
                 "000100140C06010000",  # n/a
@@ -859,23 +859,23 @@ def parser_10e0(payload, msg) -> Optional[dict]:
                 "0001001B221201FEFF",  # CVE-RF
                 "0001001B271501FEFF",  # CVE-RF
                 "0001001B281501FEFF",  # CVE-RF
-            ), payload[2:20]
+            ), f"20: {payload[2:20]}"
         elif msg.src.type == "29":
             assert payload[2:20] in (
                 "0001C825050266FFFF",  # VMS-17HB01
                 "0001C8260D0467FFFF",  # VMC-15RP01
                 "0001C827070167FFFF",  # VMN-15LF01
-            ), payload[2:20]
+            ), f"29: {payload[2:20]}"
         elif msg.src.type == "30":
             assert payload[2:20] in (
                 "0001C90011006CFEFF",  # BRDG-02JAS01 (fan, PIV)
                 "0002FF1E01FFFFFFFF",  # Internet Gateway
                 "0002FF1E03FFFFFFFF",  # Internet Gateway
-            ), payload[2:20]
+            ), f"30: {payload[2:20]}"
         elif msg.src.type == "31":
             assert payload[2:20] in (
                 "0002FF1F02FFFFFFFF",  # Jasper Stat TXXX
-            ), payload[2:20]
+            ), f"31: {payload[2:20]}"
         elif msg.src.type == "32":
             # VMN-23LMH23 (switch, 4-button)
             assert payload[2:20] in (
@@ -884,12 +884,12 @@ def parser_10e0(payload, msg) -> Optional[dict]:
                 "0001C85802016CFFFF",  # VMS-23HB33  (sensor, RH/temp)
                 "0001C85803016CFFFF",  # VMS-23HB33  (sensor, RH/temp)
                 "0001C8950B0A67FEFF",  # VMD-15RMS86 (fan, Orcon HRC 500)
-            ), payload[2:20]
+            ), f"32: {payload[2:20]}"
         elif msg.src.type == "34":
             assert payload[2:20] in (
                 "0001C8380A0100F1FF",  # T87RF2025
                 "0001C8380F0100F1FF",  # T87RF2025
-            ), payload[2:20]
+            ), f"34: {payload[2:20]}"
         elif msg.src.type == "37":
             assert payload[2:20] in (
                 "0001001B2E1901FEFF",  # CVE-RF
@@ -898,13 +898,13 @@ def parser_10e0(payload, msg) -> Optional[dict]:
                 "0001001B381B01FEFF",  # CVE-RF
                 "00010028080101FEFF",  # VMS-12C39
                 "0001C822060166FEFF",  # VMS-17C01
-            ), payload[2:20]
+            ), f"37: {payload[2:20]}"
         else:
-            assert False, payload[2:20]
+            assert False, f"xx: {payload[2:20]}"
 
     except AssertionError:
         _LOGGER.warning(
-            f"{_INFORM_DEV_MSG}, include the make & model of this device: {msg.src}"
+            f"{msg._pkt} < {_INFORM_DEV_MSG}, with the make/model of device: {msg.src}"
         )
 
     date_2 = date_from_hex(payload[20:28])  # could be 'FFFFFFFF'
@@ -1331,11 +1331,10 @@ def parser_22f1(payload, msg) -> Optional[dict]:  # FIXME
     #  I 018 --:------ --:------ 39:159057 22F1 003 000204 # low
 
     try:
-        assert payload[:2] == "00", f"byte 0: {payload[:2]}"  # no domain
         assert int(payload[2:4], 16) <= int(payload[4:], 16), "byte 1: idx > max"
         assert payload[4:] in ("04", "0A"), f"byte 2: {payload[4:]}"
-    except AssertionError:
-        assert False, _INFORM_DEV_MSG
+    except AssertionError as exc:
+        _LOGGER.warning(f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc})")
 
     bitmap = int(payload[2:4], 16)  # & 0b11110000
 
@@ -1370,10 +1369,9 @@ def parser_22f3(payload, msg) -> Optional[dict]:
     try:
         assert payload[:2] == "00", f"byte 0: {payload[:2]}"  # no domain
         assert payload[2:4] in ("00", "02"), f"byte 1: {flag8(payload[2:4])}"
-        # assert payload[4:6] in ("0A", "14", "1E"), payload[4:6]  # 10, 20, 30
-        assert msg != 7 or payload[14:] == "0000", payload[14:]
-    except AssertionError:
-        assert False, _INFORM_DEV_MSG
+        assert msg.len < 7 or payload[14:] == "0000", f"byte 7: {payload[14:]}"
+    except AssertionError as exc:
+        _LOGGER.warning(f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc})")
 
     new_speed = {  # from now, until timer expiry
         0x00: "fan_boost",  # #    set fan off, or 'boost' mode?
@@ -1510,12 +1508,11 @@ def parser_2400(payload, msg) -> Optional[dict]:
 def parser_2401(payload, msg) -> Optional[dict]:
 
     try:
-        assert payload[:2] == "00", f"byte 0: {payload[:2]}"
         assert payload[2:4] == "00", f"byte 1: {payload[2:4]}"
         assert int(payload[4:6], 16) & 0b11110000 == 0, f"byte 2: {flag8(payload[4:6])}"
         assert int(payload[6:], 0x10) <= 200, f"byte 3: {payload[6:]}"
-    except AssertionError:
-        assert False, _INFORM_DEV_MSG
+    except AssertionError as exc:
+        _LOGGER.warning(f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc})")
 
     return {
         "payload": payload,
@@ -1631,12 +1628,12 @@ def parser_3120(payload, msg) -> Optional[dict]:
         assert payload[8:10] == "00", f"byte 4: {payload[8:10]}"
         assert payload[10:12] in ("00", "03", "9C"), f"byte 5: {payload[10:12]}"
         assert payload[12:] == "FF", f"byte 6: {payload[12:]}"
-    except AssertionError:
-        assert False, _INFORM_DEV_MSG
+    except AssertionError as exc:
+        _LOGGER.warning(f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc})")
 
     return {
         "unknown_0": payload[2:10],
-        "unknown_1": payload[10:12],
+        "unknown_5": payload[10:12],
         "unknown_2": payload[12:],
     }
 
@@ -1699,37 +1696,42 @@ def parser_3150(payload, msg) -> Union[list, dict, None]:
 @parser_decorator  # ventilation state, HVAC
 def parser_31d9(payload, msg) -> Optional[dict]:
     # NOTE: I have a suspicion that Itho use 0x00-C8 for %, whilst Nuaire use 0x00-64
-    assert payload[:2] in ("00", "01", "21"), payload[2:4]
-    assert payload[2:4] in ("00", "06", "80"), payload[2:4]
-    assert payload[4:6] == "FF" or int(payload[4:6], 16) <= 200, payload[4:6]
+    try:
+        assert (
+            payload[4:6] == "FF" or int(payload[4:6], 16) <= 200
+        ), f"byte 2: {payload[4:6]}"
+    except AssertionError as exc:
+        _LOGGER.warning(f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc})")
 
-    # bitmap = int(payload[2:4], 16)
+    bitmap = int(payload[2:4], 16)
 
     result = {
+        "flags": flag8(payload[2:4]),
         "exhaust_fan_speed": percent(
             payload[4:6], high_res=True
         ),  # NOTE: is 31DA/payload[38:40]
-        # "passive": bool(bitmap & 0x02),
-        # "damper_only": bool(bitmap & 0x04),
-        # "filter_dirty": bool(bitmap & 0x20),
-        # "frost_cycle": bool(bitmap & 0x40),
-        # "has_fault": bool(bitmap & 0x80),
-        "_bitmap_1": flag8(payload[2:4]),
+        "passive": bool(bitmap & 0x02),
+        "damper_only": bool(bitmap & 0x04),
+        "filter_dirty": bool(bitmap & 0x20),
+        "frost_cycle": bool(bitmap & 0x40),
+        "has_fault": bool(bitmap & 0x80),
     }
 
     if msg.len == 3:  # usu: I -->20: (no seq#)
         return result
 
-    assert msg.len == 17, msg.len  # usu: I 30:-->30:, (or 20:) with a seq#!
-    assert payload[6:8] == "00", payload[6:8]
-    assert payload[8:32] in ("00" * 12, "20" * 12), payload[8:32]
-    assert payload[32:] == "00", payload[32:]
+    try:
+        assert payload[6:8] == "00", f"byte 3: {payload[6:8]}"
+        assert payload[8:32] in ("00" * 12, "20" * 12), f"byte 4: {payload[8:32]}"
+        assert payload[32:] in ("00", "08"), f"byte 16: {payload[32:]}"
+    except AssertionError as exc:
+        _LOGGER.warning(f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc})")
 
     return {
         **result,
-        # "_unknown_2": payload[6:8],
-        # "_unknown_3": payload[8:32],
-        # "_unknown_4": payload[32:],
+        # "_unknown_3": payload[6:8],
+        # "_unknown_4": payload[8:32],
+        "unknown_16": payload[32:],
     }
 
 
@@ -1767,52 +1769,61 @@ def parser_31da(payload, msg) -> Optional[dict]:
     # I --- 37:261128 --:------ 37:261128 31DA 029 00004007D045EF7FFF7FFF7FFF7FFFF808EF03C8000000EFEF7FFF7FFF
     # I --- 37:053679 --:------ 37:053679 31DA 030 00EF007FFF41EF7FFF7FFF7FFF7FFFF800EF0134000000EFEF7FFF7FFF00
 
-    assert payload[2:4] in ("00", "EF"), payload[2:4]
-    assert payload[4:6] in ("00", "40"), payload[4:6]
-    # assert payload[6:10] in ("07D0", "7FFF"), payload[6:10]
-    assert payload[10:12] == "EF" or int(payload[10:12], 16) <= 100, payload[10:12]
-    assert payload[12:14] == "EF", payload[12:14]
-    assert payload[14:18] == "7FFF", payload[14:18]
-    assert payload[18:22] == "7FFF", payload[18:22]
-    assert payload[22:26] == "7FFF", payload[22:26]
-    assert payload[26:30] == "7FFF", payload[26:30]
-    assert payload[30:34] in ("0002", "F000", "F800", "F808", "7FFF"), payload[30:34]
-    assert payload[34:36] == "EF", payload[34:36]
-    assert payload[36:38] == "EF" or int(payload[36:38], 16) & 0x1F <= 0x18, payload[
-        36:38
-    ]
-    assert payload[38:40] in ("EF", "FF") or int(payload[38:40], 16) <= 200, payload[
-        38:40
-    ]
-    assert payload[40:42] in ("00", "EF", "FF"), payload[40:42]
-    # assert payload[42:46] == "0000", payload[42:46]
-    assert payload[46:48] in ("00", "EF"), payload[46:48]
-    assert payload[48:50] == "EF", payload[48:50]
-    assert payload[50:54] == "7FFF", payload[50:54]
-    assert payload[54:58] == "7FFF", payload[54:58]  # or: FFFF?
+    try:
+        assert payload[2:4] in ("00", "C8", "EF"), payload[2:4]
+        assert payload[4:6] in ("00", "40"), payload[4:6]
+        # assert payload[6:10] in ("07D0", "7FFF"), payload[6:10]
+        assert payload[10:12] == "EF" or int(payload[10:12], 16) <= 100, payload[10:12]
+        assert payload[12:14] == "EF" or int(payload[10:12], 16) <= 100, payload[10:12]
+        # assert payload[14:18] == "7FFF", payload[14:18]
+        # assert payload[18:22] == "7FFF", payload[18:22]
+        # assert payload[22:26] == "7FFF", payload[22:26]
+        # assert payload[26:30] == "7FFF", payload[26:30]
+        # assert payload[30:34] in ("0002", "F000", "F800", "F808", "7FFF"), payload[30:34]
+        # assert payload[34:36] == "EF", payload[34:36]
+        assert (
+            payload[36:38] == "EF" or int(payload[36:38], 16) & 0x1F <= 0x18
+        ), payload[36:38]
+        assert (
+            payload[38:40] in ("EF", "FF") or int(payload[38:40], 16) <= 200
+        ), payload[38:40]
+        # assert payload[40:42] in ("00", "EF", "FF"), payload[40:42]
+        # assert payload[42:46] == "0000", payload[42:46]
+        assert payload[46:48] in ("00", "EF"), payload[46:48]
+        # assert payload[48:50] == "EF", payload[48:50]
+        # assert payload[50:54] == "7FFF", payload[50:54]
+        # assert payload[54:58] == "7FFF", payload[54:58]  # or: FFFF?
+    except AssertionError as exc:
+        _LOGGER.warning(f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc})")
 
     return {
         "exhaust_fan_speed": percent(
             payload[38:40], high_res=True
-        ),  # NOTE: 31D9/payload[4:6]
-        "remaining_time": double(payload[42:46]),  # mins NOTE: 22F3/payload[2:6]
-        "co2_level": double(payload[6:10]),  # ppm NOTE: 1298/payload[2:6]
-        "indoor_humidity": percent(payload[10:12], high_res=False),  # TODO: 12A0?
-        # "speed_cap": int(payload[30:34], 16),
-        # "air_quality": percent(payload[2:4]),
-        # "air_quality_base": int(payload[4:6], 16),  # NOTE: 12C8/payload[4:6]
-        # "outdoor_humidity": percent(payload[12:14], high_res=False),
-        # "exhaust_temperature": double(payload[14:18], factor=100),
-        # "supply_temperature": double(payload[18:22], factor=100),
-        # "indoor_temperature": double(payload[22:26], factor=100),
-        # "outdoor_temperature": double(payload[26:30], factor=100),  # TODO: 1290?
-        # "bypass_pos": percent(payload[34:36]),
+        ),  # 31D9/payload[4:6]
+        "remaining_time": double(
+            payload[42:46]
+        ),  # mins               22F3/payload[2:6]
+        "co2_level": double(
+            payload[6:10]
+        ),  # ppm                      1298/payload[2:6]
+        "indoor_humidity": percent(payload[10:12], high_res=False),  # .12A0?
+        "air_quality": percent(payload[2:4]),
+        "air_quality_base": int(
+            payload[4:6], 16
+        ),  # .                 12C8/payload[4:6]
+        "outdoor_humidity": percent(payload[12:14], high_res=False),
+        "exhaust_temperature": double(payload[14:18], factor=100),
+        "supply_temperature": double(payload[18:22], factor=100),
+        "indoor_temperature": double(payload[22:26], factor=100),
+        "outdoor_temperature": double(payload[26:30], factor=100),  # . 1290?
+        "speed_cap": int(payload[30:34], 16),
+        "bypass_pos": percent(payload[34:36]),
         "fan_info": CODE_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],
-        # "supply_fan_speed": percent(payload[40:42], high_res=True),
-        # "post_heat": percent(payload[46:48], high_res=False),
-        # "pre_heat": percent(payload[48:50], high_res=False),
-        # "supply_flow": double(payload[50:54], factor=100),  # L/sec
-        # "exhaust_flow": double(payload[54:58], factor=100),  # L/sec
+        "supply_fan_speed": percent(payload[40:42], high_res=True),
+        "post_heat": percent(payload[46:48], high_res=False),
+        "pre_heat": percent(payload[48:50], high_res=False),
+        "supply_flow": double(payload[50:54], factor=100),  # L/sec
+        "exhaust_flow": double(payload[54:58], factor=100),  # L/sec
     }
 
 
@@ -1885,10 +1896,10 @@ def parser_3220(payload, msg) -> Optional[dict]:
 
     try:
         ot_type, ot_id, ot_value, ot_schema = decode_frame(payload[2:10])
-    except AssertionError as e:
-        raise AssertionError(f"OpenTherm: {e}")
-    except ValueError as e:
-        raise InvalidPayloadError(f"OpenTherm: {e}")
+    except AssertionError as exc:
+        raise AssertionError(f"OpenTherm: {exc}") from exc
+    except ValueError as exc:
+        raise InvalidPayloadError(f"OpenTherm: {exc}") from exc
 
     # NOTE: Unknown-DataId isn't an invalid payload & is useful to train the OTB device
     if ot_schema is None and ot_type != "Unknown-DataId":
@@ -1938,8 +1949,7 @@ def parser_3220(payload, msg) -> Optional[dict]:
             ), result["value"]
         except AssertionError:
             _LOGGER.warning(
-                f"{msg._pkt} < Support development by reporting this pkt, "
-                "please include a description of your system"
+                f"{msg._pkt} < {_INFORM_DEV_MSG}, with a description of your system"
             )
 
     result[MSG_DESC] = ot_schema.get(EN)
@@ -2088,8 +2098,7 @@ def parser_3ef0(payload, msg) -> dict:
         ), result["_flags_6"]
     except AssertionError:
         _LOGGER.warning(
-            f"{msg._pkt} < Support development by reporting this pkt, "
-            "please include a description of your system"
+            f"{msg._pkt} < {_INFORM_DEV_MSG}, with a description of your system"
         )
 
     return result
@@ -2116,19 +2125,19 @@ def parser_3ef1(payload, msg) -> dict:
         # assert (
         #     re.compile(r"^00[0-9A-F]{10}FF").match(payload)
         # ), "doesn't match: " + r"^00[0-9A-F]{10}FF"
-        assert int(payload[2:6], 16) <= 7200, payload[2:6]
+        assert int(payload[2:6], 16) <= 7200, f"byte 1: {payload[2:6]}"
         # assert payload[6:10] in ("87B3", "9DFA", "DCE1", "E638", "F8F7") or (
         #     int(payload[6:10], 16) <= 7200
-        # ), payload[6:10]
-        assert percent(payload[10:12]) in (0, 1), payload[10:12]
+        # ), f"byte 3: {payload[6:10]}"
+        assert percent(payload[10:12]) in (0, 1), f"byte 5: {payload[10:12]}"
 
     else:  # is OTB?
         # assert (
         #     re.compile(r"^00[0-9A-F]{10}10").match(payload)
         # ), "doesn't match: " + r"^00[0-9A-F]{10}10"
-        assert payload[2:6] == "7FFF", payload[2:6]
-        assert payload[6:10] == "003C", payload[6:10]  # 1 minute
-        assert percent(payload[10:12]) <= 1, payload[10:12]
+        assert payload[2:6] == "7FFF", f"byte 1: {payload[2:6]}"
+        assert payload[6:10] == "003C", f"byte 3: {payload[6:10]}"  # 1 minute
+        assert percent(payload[10:12]) <= 1, f"byte 5: {payload[10:12]}"
 
     cycle_countdown = None if payload[2:6] == "7FFF" else int(payload[2:6], 16)
 
