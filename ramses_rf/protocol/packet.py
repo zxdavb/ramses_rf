@@ -109,7 +109,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 _TD_SECONDS_000 = td(seconds=0)
 _TD_SECONDS_003 = td(seconds=3)
 _TD_SECONDS_360 = td(seconds=360)
-_TD_MINUTES_003 = td(minutes=3)
+_TD_MINUTES_005 = td(minutes=5)
 _TD_MINUTES_060 = td(minutes=60)
 
 
@@ -294,7 +294,7 @@ def pkt_timeout(pkt) -> Optional[td]:  # NOTE: import OtbGateway ??
             return PARAMS_MSG_IDS[pkt.payload[4:6]]
         if pkt.payload[4:6] in STATUS_MSG_IDS:
             return STATUS_MSG_IDS[pkt.payload[4:6]]
-        return _TD_MINUTES_003
+        return _TD_MINUTES_005
 
     # if pkt.code in (_3B00, _3EF0, ):  # TODO: 0008, 3EF0, 3EF1
     #     return td(minutes=6.7)  # TODO: WIP

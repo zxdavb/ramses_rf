@@ -58,7 +58,7 @@ STATUS_MSG_IDS = (
     "1B",  # .27: "Outside temperature (°C)",  # TODO: any value here?  # not native
     "1C",  # .28: "Return water temperature (°C)",
 )
-STATUS_MSG_IDS = {k: td(hours=1) for k in STATUS_MSG_IDS}
+STATUS_MSG_IDS = {k: td(minutes=5) for k in STATUS_MSG_IDS}
 WRITE_MSG_IDS = (  # Write-Data, NB: some are also Read-Data
     "01",  # ..1:  -see above-
     "02",  # ..2: "Master configuration",
