@@ -209,7 +209,7 @@ def dts_from_hex(value: str) -> Optional[str]:
         hour=(_seqx & 0b11111 << 19) >> 19,
         minute=(_seqx & 0b111111 << 13) >> 13,
         second=(_seqx & 0b111111 << 7) >> 7,
-    ).strftime("%Y-%m-%dT%H:%M:%S")
+    ).strftime("%y-%m-%dT%H:%M:%S")
 
 
 def dts_to_hex(dtm: Union[str, dt]) -> str:  # TODO: WIP
