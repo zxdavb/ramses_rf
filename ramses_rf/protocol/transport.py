@@ -310,8 +310,9 @@ class PacketProtocolBase(asyncio.Protocol):
         self._disable_sending = gwy.config.disable_sending
         self._evofw_flag = gwy.config.evofw_flag
 
-        if gwy.config.enforce_known_list:
-            self._exclude = []
+        self.enforce_include = gwy.config.enforce_known_list
+        if self.enforce_include:
+            self._exclude = list(gwy._exclude.keys())
             self._include = list(gwy._include.keys())
         else:
             self._exclude = list(gwy._exclude.keys())
@@ -352,8 +353,8 @@ class PacketProtocolBase(asyncio.Protocol):
         because there is a significant chance the packet is simply corrupt.
         """
 
-        for dev_id in [d for d in dict.fromkeys((src_id, dst_id))]:
-            if dev_id in self._unwanted:
+        for dev_id in dict.fromkeys((src_id, dst_id)):
+            if dev_id in self._unwanted:  # TODO: remove entries older than (say) 1w/1d
                 return
 
             if dev_id in self._exclude:
@@ -376,19 +377,19 @@ class PacketProtocolBase(asyncio.Protocol):
                         f"Allowing packets with device_id: {dev_id} (is gateway), "
                         f"configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
                     )
-                    self._include.append(dev_id)  # only time include list is modified
+                self._include.append(dev_id)  # NOTE: only time include list is modified
                 continue
 
             if dev_id[:2] == "18" and self._gwy.serial_port:  # dex
-                _LOGGER.warning(
+                (_LOGGER.info if dev_id in self._exclude else _LOGGER.warning)(
                     f"Blocking packets with device_id: {dev_id} (is foreign gateway), "
                     f"configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
                 )
                 self._unwanted.append(dev_id)
                 return
 
-            if self._include:
-                _LOGGER.warning(
+            if self.enforce_include:  # self._include:
+                (_LOGGER.info if dev_id in self._exclude else _LOGGER.warning)(
                     f"Blocking packets with device_id: {dev_id} (is not whitelisted), "
                     f"if required, add it to the {KNOWN_LIST}"
                 )
