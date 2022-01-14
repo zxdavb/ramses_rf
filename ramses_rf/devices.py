@@ -430,7 +430,8 @@ class Device(DeviceInfo, DeviceBase):
             parent.devices.append(self)
             parent.device_by_id[self.id] = self
 
-        _LOGGER.debug("Device %s: parent now set to %s", self, parent)
+        if DEV_MODE:
+            _LOGGER.debug("Device %s: parent now set to %s", self, parent)
         return parent
 
     @property
