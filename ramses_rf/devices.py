@@ -1884,9 +1884,9 @@ class HvacDevice(Device):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._domain_id = "HVAC"
+        self._domain_id = "HV"
 
-    def _hvac_trick(self):  # a HACK
+    def _hvac_trick(self):  # a HACK - remove
         if not isinstance(self, HvacVentilator) and not randrange(3):
             [
                 self._send_cmd(Command(RQ, _31DA, "00", d.id, retries=0))
