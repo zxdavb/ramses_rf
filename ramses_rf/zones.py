@@ -912,9 +912,9 @@ class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
             raise TypeError("WHAT 2")
 
     @property
-    def heat_demand(self) -> None:  # Electric zones (do *not* call for heat)
-        """Return None as the zone's heat demand, electric zones don't call for heat."""
-        return
+    def heat_demand(self) -> Optional[float]:
+        """Return 0 as the zone's heat demand, as electric zones don't call for heat."""
+        return 0
 
 
 class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
