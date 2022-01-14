@@ -11,6 +11,7 @@ from typing import Optional, Tuple, Union
 
 from .address import Address
 from .const import NON_DEVICE_ID, NUL_DEVICE_ID
+from .exceptions import InvalidPayloadError
 from .ramses import (
     CODE_IDX_COMPLEX,
     CODE_IDX_DOMAIN,
@@ -401,10 +402,12 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
 
     # mutex 1/4, CODE_IDX_NONE: always returns False
     if pkt.code in CODE_IDX_NONE:  # returns False
-        assert (
-            RAMSES_CODES[pkt.code].get(pkt.verb, "")[:3] != "^00"
-            or pkt.payload[:2] == "00"
-        ), f"{pkt} # index is {pkt.payload[:2]}, expecting 00"
+        if RAMSES_CODES[pkt.code].get(pkt.verb, "")[:3] == "^00" and (
+            pkt.payload[:2] != "00"
+        ):
+            raise InvalidPayloadError(
+                f"Packet idx is {pkt.payload[:2]}, but expecting no idx (00)"
+            )
         return False
 
     # mutex 3/4, CODE_IDX_SIMPLE: potentially some false -ves?
@@ -413,9 +416,10 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
 
     # TODO: is this needed?: exceptions to CODE_IDX_SIMPLE
     if pkt.payload[:2] in ("F8", "F9", "FA", "FC"):  # TODO: FB, FD
-        assert (
-            pkt.code in CODE_IDX_DOMAIN
-        ), f"Payload index is {pkt.payload[:2]}, not expecting a domain_id"
+        if pkt.code not in CODE_IDX_DOMAIN:
+            raise InvalidPayloadError(
+                f"Packet idx is {pkt.payload[:2]}, but not expecting a domain id"
+            )
         return pkt.payload[:2]
 
     if pkt._has_ctl:  # risk of false -ves, TODO: pkt.src.type == "18" too?  # DEX
@@ -426,8 +430,9 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
         return pkt.payload[:2]  # pkt._gwy.config.max_zones checked elsewhere
 
     if pkt.payload[:2] != "00":
-        _LOGGER.warning(f"{pkt} # Expecting payload index to be 00")  # return None?
-        return pkt.payload[:2]
+        raise InvalidPayloadError(
+            f"Packet idx is {pkt.payload[:2]}, but expecting no idx (00)"
+        )
 
     if pkt.code in CODE_IDX_SIMPLE:
         return  # False  # TODO: return None (less precise) or risk false -ves?
