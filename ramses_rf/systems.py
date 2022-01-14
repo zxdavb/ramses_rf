@@ -790,6 +790,12 @@ class Logbook:  # 0418
     #     return self._faultlog.faultlog
 
     @property
+    def active_fault(self) -> Optional[Tuple]:
+        """Return the most recently logged event, but only if it is a fault."""
+        if self._this_event and self._this_event.payload["log_entry"][1] == "fault":
+            return self._this_event.payload["log_entry"]
+
+    @property
     def latest_event(self) -> Optional[Tuple]:
         """Return the most recently logged event (fault or restore), if any."""
         return self._this_event and self._this_event.payload["log_entry"]
@@ -798,12 +804,6 @@ class Logbook:  # 0418
     def latest_fault(self) -> Optional[Tuple]:
         """Return the most recently logged fault, if any."""
         return self._this_fault and self._this_fault.payload["log_entry"]
-
-    @property
-    def active_fault(self) -> Optional[Tuple]:
-        """Return the most recently logged event, but only if it is a fault."""
-        if self._this_event and self._this_event.payload["log_entry"][1] == "fault":
-            return self._this_event.payload["log_entry"]
 
     @property
     def status(self) -> dict:
