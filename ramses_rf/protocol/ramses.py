@@ -326,7 +326,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     _12A0: {  # indoor_humidity
         NAME: "indoor_humidity",
-        I_: r"^00[0-9A-F]{2}[0-9A-F]{8}?$",
+        I_: r"^00[0-9A-F]{2}[0-9A-F]{8}?$",  # TODO: (00)? at end - needs confirming
         EXPIRES: td(hours=1),
     },
     _12B0: {  # window_state  (HVAC % window open)
@@ -525,7 +525,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     _31E0: {  # ext_ventilation - External Ventilation Status
         NAME: "ext_ventilation",
-        I_: r"^0000(00|C8)(00|FF)$",
+        I_: r"^0000(00|C8)(00|FF)$",  # TODO: final group is ? - needs confirming
     },
     _3200: {  # boiler output temp
         NAME: "boiler_output",
@@ -979,6 +979,7 @@ HVAC_DEVICES_CLASS = {
     },
     DEV_KLASS.SWI: {  # HVAC: two-way switch; also an "06/22F1"?
         _1060: {I_: {}},
+        _10E0: {I_: {}},
         _22F1: {I_: {}},
         _22F3: {I_: {}},
         # _31E0: {I_: {}},
