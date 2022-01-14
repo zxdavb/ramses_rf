@@ -1198,7 +1198,9 @@ def create_system(gwy, ctl, klass=None, **kwargs) -> System:
 
     system = _SYS_BY_KLASS.get(klass, System)(gwy, ctl, **kwargs)
 
-    if isinstance(gwy.pkt_protocol, PacketProtocolPort):
+    if not gwy.config.disable_discovery and isinstance(
+        gwy.pkt_protocol, PacketProtocolPort
+    ):
         system._start_discovery()
 
     return system

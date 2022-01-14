@@ -1062,7 +1062,9 @@ def create_zone(evo, zone_idx: str, klass=None, **kwargs) -> Zone:
 
     zone = _ZON_BY_KLASS.get(klass, Zone)(evo, zone_idx, **kwargs)
 
-    if isinstance(evo._gwy.pkt_protocol, PacketProtocolPort):
+    if not evo._gwy.config.disable_discovery and isinstance(
+        evo._gwy.pkt_protocol, PacketProtocolPort
+    ):
         zone._start_discovery()
 
     return zone
