@@ -1032,6 +1032,12 @@ class Controller(Device):  # CTL (01):
 
         self._make_tcs_controller(**kwargs)
 
+    # def __repr__(self) -> str:  # TODO:
+    #     if self._evo:
+    #         mode = self._evo._msg_value(_2E04, key="system_mode")
+    #         return f"{self.id} ({self._domain_id}): {mode}"
+    #     return f"{self.id} ({self._domain_id})"
+
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
@@ -1044,13 +1050,6 @@ class Controller(Device):  # CTL (01):
         # Route any messages to their heating systems, TODO: create dev first?
         if self._evo:
             self._evo._handle_msg(msg)
-
-    # @discover_decorator
-    # def _discover(self, discover_flag=Discover.ALL) -> None:
-    #     super()._discover(discover_flag=discover_flag)
-
-    #     if discover_flag & Discover.SCHEMA:
-    #         pass  # self._make_cmd(_0000, retries=3)
 
 
 class Programmer(Controller):  # PRG (23):
@@ -1292,6 +1291,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         self._msgz[_3220] = {RP: {}}
         self._opentherm_msg = self._msgz[_3220][RP]
         self._supported_msg = {}
+        # self._ctl_polled_msg = {}
 
     def _start_discovery(self) -> None:
 
@@ -1341,20 +1341,19 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 # nd (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]  # TODO: add expired
 
-            # NOTE: No need to send periodic RQ/3EF1s to an OTB, can use RQ/3220/11s?
             self._send_cmd(Command(RQ, _3EF0, "00", self.id))  # CTLs dont RP to RQ/3EF0
 
         if discover_flag & Discover.STATUS:
-            # TODO: these are WIP, and do vary in payload
-            for code in (
-                _2401,  # WIP - modulation_level + flags?
-                _3221,  # R8810A/20A
-                _3223,  # R8810A/20A
-            ):
-                self._send_cmd(Command(RQ, code, "00", self.id))
 
-            # TODO: these are WIP, and appear fixed in payload - to test against BDR91T
-            if DEV_MODE:
+            if False and DEV_MODE:
+                # TODO: these are WIP, and do vary in payload
+                for code in (
+                    _2401,  # WIP - modulation_level + flags?
+                    _3221,  # R8810A/20A
+                    _3223,  # R8810A/20A
+                ):
+                    self._send_cmd(Command(RQ, code, "00", self.id))
+                # TODO: these are WIP, appear fixed in payload, to test against BDR91T
                 for code in (
                     _0150,  # payload always "000000", R8820A only?
                     _1098,  # payload always "00C8",   R8820A only?
@@ -1373,6 +1372,17 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             return
 
         msg_id = f"{msg.payload[MSG_ID]:02X}"
+
+        # if msg.dst is self._ctl:
+        #     if msg_id not in self._ctl_polled_msg:
+        #         self._ctl_polled_msg[msg_id] = None
+
+        #     elif self._ctl_polled_msg[msg_id] is None:
+        #         self._ctl_polled_msg[msg_id] = True
+        #         _LOGGER.warning(
+        #             f"{msg._pkt} < OpenTherm: deprecating msg_id "
+        #             f"0x{msg_id}: it appears polled by the controller",
+        #         )
 
         if msg._pkt.payload[4:] == "121980" or msg._pkt.payload[6:] == "47AB":
             if msg_id not in self._supported_msg:
@@ -1393,31 +1403,18 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             )
 
         # TODO: this is development code - will be rationalised, eventually
-        if DEV_MODE:
-            code = {
-                "01": _22D9,  # boiler_setpoint
-                "11": _3EF1,  # rel_modulation_level
-                "12": _1300,  # ch_water_pressure
-                "13": _12F0,  # dhw_flow_rate
-                "19": _3200,  # boiler_output_temp (checked)
-                "1A": _1260,  # dhw_temp (checked)
-                "1B": _1290,  # outside_temp
-                "1C": _3210,  # boiler_return_temp (checked)
-                "38": _10A0,  # dhw_setpoint
-                "39": _1081,  # ch_max_setpoint
-            }.get(msg_id)
-        elif randrange(6):
-            code = {
-                "01": _22D9,  # boiler_setpoint
-                "11": _3EF1,  # rel_modulation_level
-                "12": _1300,  # ch_water_pressure
-                "13": _12F0,  # dhw_flow_rate
-                "1B": _1290,  # outside_temp
-                "38": _10A0,  # dhw_setpoint
-                "39": _1081,  # ch_max_setpoint
-            }.get(msg_id)
-        else:
-            code = None
+        code = {
+            "01": _22D9,  # boiler_setpoint
+            "11": _3EF1,  # rel_modulation_level
+            "12": _1300,  # ch_water_pressure
+            "13": _12F0,  # dhw_flow_rate
+            "19": _3200,  # boiler_output_temp (checked)
+            "1A": _1260,  # dhw_temp (checked)
+            "1B": _1290,  # outside_temp
+            "1C": _3210,  # boiler_return_temp (checked)
+            "38": _10A0,  # dhw_setpoint
+            "39": _1081,  # ch_max_setpoint
+        }.get(msg_id)
         if code:
             self._send_cmd(Command(RQ, code, "00", self.id))
 
