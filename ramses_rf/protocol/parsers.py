@@ -864,7 +864,8 @@ def parser_10e0(payload, msg) -> Optional[dict]:
             assert payload[2:20] in (
                 "0001C825050266FFFF",  # VMS-17HB01
                 "0001C8260D0467FFFF",  # VMC-15RP01
-                "0001C827070167FFFF",  # VMN-15LF01
+                "0001C827050167FFFF",  # VMN-15LF01  # TODO: a corrupt packet?
+                "0001C827070167FFFF",  # VMN-15LF01  # TODO: a corrupt packet?
             ), f"29: {payload[2:20]}"
         elif msg.src.type == "30":
             assert payload[2:20] in (
