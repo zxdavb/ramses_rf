@@ -32,6 +32,7 @@ from .const import (
     ZONE_MODE,
 )
 from .exceptions import InvalidPayloadError
+from .fingerprint import check_signature
 from .helpers import (
     bool_from_hex,
     date_from_hex,
@@ -824,85 +825,7 @@ def parser_10e0(payload, msg) -> Optional[dict]:
 
     # if DEV_MODE:  # TODO
     try:  # DEX
-        if msg.src.type == "01":
-            assert payload[2:20] in (
-                "0002FF0119FFFFFFFF",  # ATC928-G3-0xx Evo Mk3 - EvoTouch Colour (WiFi, 12 zones)
-                "0002FF0163FFFFFFFF",  # ATP928-G2-080 Evo Mk2 - Color (no WiFi)
-                "0002FFFF17FFFFFFFF",  # ATC928-G1-000 Evo Mk1 - Monochrone (?prototype, 8 zones)
-            ), f"01: {payload[2:20]}"
-        elif msg.src.type == "02":
-            assert payload[2:20] in (
-                "0003FF0203FFFF0001",  # HCE80 V3.10 061117
-            ), f"02: {payload[2:20]}"
-        elif msg.src.type == "04":
-            assert payload[2:20] in (
-                "0002FF0412FFFFFFFF",  # HR92 Radiator Ctrl.
-                "0002FF050BFFFFFFFF",  # HR91 Radiator Ctrl.
-            ), f"04: {payload[2:20]}"
-        elif msg.src.type == "08":
-            assert payload[2:20] in (
-                "0002FF0802FFFFFFFE",  # Jasper EIM (non-evohome)
-            ), f"08: {payload[2:20]}"
-        elif msg.src.type == "10":
-            assert payload[2:20] in (
-                "0001C8810B0700FEFF",  # R8820A
-                "0002FF0A0CFFFFFFFF",  # R8810A
-            ), f"10: {payload[2:20]}"
-        elif msg.src.type == "18":
-            assert payload[2:20] in (
-                "0001C8820C006AFEFF",  # HRA82 (Orcon MVHR?)
-            ), f"18: {payload[2:20]}"
-        elif msg.src.type == "20":
-            assert payload[2:20] in (
-                "000100140C06010000",  # n/a
-                "0001001B190B010000",  # n/a
-                "0001001B221201FEFF",  # CVE-RF
-                "0001001B271501FEFF",  # CVE-RF
-                "0001001B281501FEFF",  # CVE-RF
-            ), f"20: {payload[2:20]}"
-        elif msg.src.type == "29":
-            assert payload[2:20] in (
-                "0001C825050266FFFF",  # VMS-17HB01
-                "0001C8260D0467FFFF",  # VMC-15RP01
-                "0001C827050167FFFF",  # VMN-15LF01  # TODO: a corrupt packet?
-                "0001C827070167FFFF",  # VMN-15LF01  # TODO: a corrupt packet?
-            ), f"29: {payload[2:20]}"
-        elif msg.src.type == "30":
-            assert payload[2:20] in (
-                "0001C90011006CFEFF",  # BRDG-02JAS01 (fan, PIV)
-                "0002FF1E01FFFFFFFF",  # Internet Gateway
-                "0002FF1E03FFFFFFFF",  # Internet Gateway
-            ), f"30: {payload[2:20]}"
-        elif msg.src.type == "31":
-            assert payload[2:20] in (
-                "0002FF1F02FFFFFFFF",  # Jasper Stat TXXX
-            ), f"31: {payload[2:20]}"
-        elif msg.src.type == "32":
-            # VMN-23LMH23 (switch, 4-button)
-            assert payload[2:20] in (
-                "0001C83A0F0866FFFF",  # VMD-17RPS01
-                "0001C85701016CFFFF",  # VMS-23C33   (sensor, CO2)
-                "0001C85802016CFFFF",  # VMS-23HB33  (sensor, RH/temp)
-                "0001C85803016CFFFF",  # VMS-23HB33  (sensor, RH/temp)
-                "0001C8950B0A67FEFF",  # VMD-15RMS86 (fan, Orcon HRC 500)
-            ), f"32: {payload[2:20]}"
-        elif msg.src.type == "34":
-            assert payload[2:20] in (
-                "0001C8380A0100F1FF",  # T87RF2025
-                "0001C8380F0100F1FF",  # T87RF2025
-            ), f"34: {payload[2:20]}"
-        elif msg.src.type == "37":
-            assert payload[2:20] in (
-                "0001001B2E1901FEFF",  # CVE-RF
-                "0001001B311901FEFF",  # CVE-RF
-                "0001001B361B01FEFF",  # CVE-RF
-                "0001001B381B01FEFF",  # CVE-RF
-                "00010028080101FEFF",  # VMS-12C39
-                "0001C822060166FEFF",  # VMS-17C01
-            ), f"37: {payload[2:20]}"
-        else:
-            assert False, f"xx: {payload[2:20]}"
-
+        check_signature(msg.src.type, payload[2:20])
     except AssertionError:
         _LOGGER.warning(
             f"{msg._pkt} < {_INFORM_DEV_MSG}, with the make/model of device: {msg.src}"
