@@ -562,7 +562,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
     @discover_decorator  # NOTE: can mean is double-decorated
     def _discover(self, discover_flag=Discover.ALL) -> None:
-        def send_code(code, minutes=2) -> None:
+        def throttle_send(code, minutes=2) -> None:
             """Don't send an api if there is a recent msg in the database.
 
             Primarily for HA startup (restore_cache) to avoid exceeding RF duty cycles.
@@ -585,13 +585,14 @@ class Zone(ZoneSchedule, ZoneBase):
         if discover_flag & Discover.PARAMS:
             # self._send_cmd(Command.get_zone_config(self._ctl.id, self.idx))
             # self._send_cmd(Command.get_zone_name(self._ctl.id, self.idx))
-            [send_code(code, 15) for code in (_0004, _000A)]
+            [throttle_send(code, 15) for code in (_0004, _000A)]
 
         if discover_flag & Discover.STATUS:  # every 1h, CTL will not respond to a 3150
             # self._send_cmd(Command.get_zone_mode(self._ctl.id, self.idx))
             # self._send_cmd(Command.get_zone_temp(self._ctl.id, self.idx))
             # self._send_cmd(Command.get_zone_window_state(self._ctl.id, self.idx))
-            [send_code(code) for code in (_12B0, _2349, _30C9)]
+            [throttle_send(code, 15) for code in (_12B0,)]
+            [throttle_send(code) for code in (_2349, _30C9)]
 
         # start collecting the schedule
         # self._schedule.req_schedule()  # , restart=True) start collecting schedule
@@ -742,7 +743,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
         self._zone_type = _type
         self.__class__ = _ZON_BY_KLASS[_type]
-        self._discover(discover_flag=Discover.ALL)  # TODO: needs tidyup (ref #67)
+        self._discover(discover_flag=Discover.SCHEMA)  # TODO: needs tidyup (ref #67)
         _LOGGER.debug("Promoted a Zone: %s(%s)", self.id, self.__class__)
 
     @property
