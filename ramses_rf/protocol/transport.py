@@ -34,7 +34,7 @@ from .command import (
 )
 from .const import HGI_DEVICE_ID, NON_DEVICE_ID, NUL_DEVICE_ID, __dev_mode__
 from .exceptions import InvalidPacketError
-from .helpers import dt_now
+from .helpers import dt_now  # noqa, type: ignore
 from .packet import Packet
 from .protocol import create_protocol_factory
 from .schema import SERIAL_CONFIG_SCHEMA
