@@ -1298,13 +1298,13 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         delay = randint(10, 20)
 
         self._gwy._add_task(  # 10E0/1FC9, 3220 pkts
-            self._discover, discover_flag=Discover.SCHEMA, delay=0, period=3600 * 24
+            self._discover, discover_flag=Discover.SCHEMA, delay=240, period=3600 * 24
         )
         self._gwy._add_task(
-            self._discover, discover_flag=Discover.PARAMS, delay=delay, period=3600
+            self._discover, discover_flag=Discover.PARAMS, delay=delay + 90, period=3600
         )
         self._gwy._add_task(
-            self._discover, discover_flag=Discover.STATUS, delay=delay + 1, period=60
+            self._discover, discover_flag=Discover.STATUS, delay=delay + 30, period=180
         )
 
     @discover_decorator
@@ -1320,10 +1320,6 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 if self._supported_msg.get(m) is not False
                 and (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]
-
-        # if discover_flag & Discover.PARAMS:  # and not DEV_MODE:
-        #     for code in (_10A0,):  # dhw_setpoint
-        #         self._send_cmd(Command(RQ, code, "00", self.id))
 
         if discover_flag & Discover.PARAMS:
             [
@@ -1341,29 +1337,28 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 # nd (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]  # TODO: add expired
 
+            self._send_cmd(Command(RQ, _2401, "00", self.id))
             self._send_cmd(Command(RQ, _3EF0, "00", self.id))  # CTLs dont RP to RQ/3EF0
 
-        if discover_flag & Discover.STATUS:
-
-            if False and DEV_MODE:
-                # TODO: these are WIP, and do vary in payload
-                for code in (
-                    _2401,  # WIP - modulation_level + flags?
-                    _3221,  # R8810A/20A
-                    _3223,  # R8810A/20A
-                ):
-                    self._send_cmd(Command(RQ, code, "00", self.id))
-                # TODO: these are WIP, appear fixed in payload, to test against BDR91T
-                for code in (
-                    _0150,  # payload always "000000", R8820A only?
-                    _1098,  # payload always "00C8",   R8820A only?
-                    _10B0,  # payload always "0000",   R8820A only?
-                    _1FD0,  # payload always "0000000000000000"
-                    _2400,  # payload always "0000000F"
-                    _2410,  # payload always "000000000000000000000000010000000100000C"
-                    _2420,  # payload always "0000001000000...
-                ):
-                    self._send_cmd(Command(RQ, code, "00", self.id))
+        if False and DEV_MODE and discover_flag & Discover.STATUS:
+            # TODO: these are WIP, and do vary in payload
+            for code in (
+                # _2401,  # WIP - modulation_level + flags?
+                _3221,  # R8810A/20A
+                _3223,  # R8810A/20A
+            ):
+                self._send_cmd(Command(RQ, code, "00", self.id))
+            # TODO: these are WIP, appear fixed in payload, to test against BDR91T
+            for code in (
+                _0150,  # payload always "000000", R8820A only?
+                _1098,  # payload always "00C8",   R8820A only?
+                _10B0,  # payload always "0000",   R8820A only?
+                _1FD0,  # payload always "0000000000000000"
+                _2400,  # payload always "0000000F"
+                _2410,  # payload always "000000000000000000000000010000000100000C"
+                _2420,  # payload always "0000001000000...
+            ):
+                self._send_cmd(Command(RQ, code, "00", self.id))
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -1404,16 +1399,17 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
         # TODO: this is development code - will be rationalised, eventually
         code = {
+            # "00": _3EF0,  # master/slave status
             "01": _22D9,  # boiler_setpoint
-            "11": _3EF1,  # rel_modulation_level
+            "11": _3EF1,  # rel_modulation_level (also _3EF0)
             "12": _1300,  # ch_water_pressure
             "13": _12F0,  # dhw_flow_rate
-            "19": _3200,  # boiler_output_temp (checked)
-            "1A": _1260,  # dhw_temp (checked)
+            "19": _3200,  # boiler_output_temp - checked
+            "1A": _1260,  # dhw_temp - checked
             "1B": _1290,  # outside_temp
-            "1C": _3210,  # boiler_return_temp (checked)
-            "38": _10A0,  # dhw_setpoint
-            "39": _1081,  # ch_max_setpoint
+            "1C": _3210,  # boiler_return_temp - checked
+            "38": _10A0,  # dhw_setpoint (is a PARAM)
+            "39": _1081,  # ch_max_setpoint (is a PARAM)
         }.get(msg_id)
         if code:
             self._send_cmd(Command(RQ, code, "00", self.id))
@@ -1438,6 +1434,10 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
     def _bit_2_4(self) -> Optional[bool]:  # 2401
         if flags := self._msg_value(_2401, key="_flags_2"):
             return flags[4]
+
+    # @property
+    # def num_starts_burner(self) -> Optional[int]:  # 3220/74
+    #     self._ot_msg_value("74")
 
     @property
     def _bit_2_5(self) -> Optional[bool]:  # 2401
