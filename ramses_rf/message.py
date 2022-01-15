@@ -288,7 +288,7 @@ def process_msg(msg: Message) -> None:
             return
 
         # _update_entities(msg, msg._gwy._prev_msg)  # update the state database
-        if isinstance(msg.src, Device):
+        if isinstance(msg.src, Device):  # , HgiGateway)):  # could use DeviceBase
             msg.src._handle_msg(msg)
 
         if msg.code not in (_0008, _0009, _3B00, _3EF1):  # special case: are fakeable
