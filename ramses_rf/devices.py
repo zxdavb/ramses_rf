@@ -1304,7 +1304,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             self._discover, discover_flag=Discover.PARAMS, delay=delay + 90, period=3600
         )
         self._gwy._add_task(
-            self._discover, discover_flag=Discover.STATUS, delay=delay + 30, period=180
+            self._discover, discover_flag=Discover.STATUS, delay=delay, period=180
         )
 
     @discover_decorator
