@@ -50,7 +50,7 @@ if DEV_MODE:  # or True:
 BLOCK_LIST = "block_list"
 KNOWN_LIST = "known_list"
 
-IS_INITIALIZED = "IS_INITIALIZED"
+IS_INITIALIZED = "is_initialized"
 IS_EVOFW3 = "is_evofw3"
 DEVICE_ID = "device_id"
 
