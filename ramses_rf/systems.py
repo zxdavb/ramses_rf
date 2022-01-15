@@ -755,7 +755,7 @@ class Logbook:  # 0418
             #     msg.payload["log_entry"] != self._prev_event.payload["log_entry"]
             # )
 
-        if msg.payload["log_entry"][1] == "fault":
+        if msg.payload["log_entry"] and msg.payload["log_entry"][1] == "fault":
             if not self._this_fault or (
                 msg.payload["log_entry"] != self._this_fault.payload["log_entry"]
             ):
@@ -792,8 +792,8 @@ class Logbook:  # 0418
     @property
     def active_fault(self) -> Optional[Tuple]:
         """Return the most recently logged event, but only if it is a fault."""
-        if self._this_event and self._this_event.payload["log_entry"][1] == "fault":
-            return self._this_event.payload["log_entry"]
+        if self.latest_fault == self.latest_event:
+            return self.latest_fault
 
     @property
     def latest_event(self) -> Optional[Tuple]:

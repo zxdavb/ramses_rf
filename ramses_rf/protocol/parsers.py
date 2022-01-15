@@ -590,7 +590,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
     # assert int(payload[4:6], 16) < 64, f"Unexpected log_idx: 0x{payload[4:6]}"
 
     if dts_from_hex(payload[18:30]) is None:  # a null log entry
-        return {}
+        return {"log_entry": None}
 
     assert payload[2:4] in _0418_FAULT_STATE, payload[2:4]  # C0 don't appear in UI?
     assert payload[8:10] in _0418_FAULT_TYPE, payload[8:10]
