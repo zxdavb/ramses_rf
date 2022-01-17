@@ -472,7 +472,7 @@ class MessageProtocol(asyncio.Protocol):
         # _LOGGER.info("MsgProtocol.data_received(%s)", msg)  # or: use repr(msg)?
 
         self._this_msg, self._prev_msg = msg, self._this_msg
-        self._callback(msg)
+        self._callback(self._this_msg, prev_msg=self._prev_msg)
 
     async def send_data(
         self, cmd: Command, awaitable=None, callback=None, **kwargs

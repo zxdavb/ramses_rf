@@ -284,15 +284,12 @@ def process_msg(msg: Message) -> None:
         #     print(type(msg.dst), msg.dst)
 
         if msg._gwy.config.reduce_processing >= DONT_UPDATE_ENTITIES:
-            msg._gwy._prev_msg = msg
             return
 
-        # _update_entities(msg, msg._gwy._prev_msg)  # update the state database
         if isinstance(msg.src, Device):  # , HgiGateway)):  # could use DeviceBase
             msg.src._handle_msg(msg)
 
         if msg.code not in (_0008, _0009, _3B00, _3EF1):  # special case: are fakeable
-            msg._gwy._prev_msg = msg
             return
 
         #  I --- 01:054173 --:------ 01:054173 0008 002 03AA
@@ -324,5 +321,3 @@ def process_msg(msg: Message) -> None:
     except (CorruptStateError, InvalidPacketError) as exc:  # TODO: CorruptEvohomeError
         (_LOGGER.exception if DEV_MODE else _LOGGER.error)("%s < %s", msg._pkt, exc)
         return  # TODO: bad pkt, or Schema
-
-    msg._gwy._prev_msg = msg
