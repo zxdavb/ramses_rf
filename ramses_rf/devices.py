@@ -1605,6 +1605,21 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         }
 
     @property
+    def opentherm_counters(self) -> dict:
+        return {
+            "starts_failed": self._ot_msg_value("71"),
+            "flame_signal_low": self._ot_msg_value("72"),
+            "starts_burner": self._ot_msg_value("74"),
+            "starts_ch_pump": self._ot_msg_value("75"),
+            "dhw_actuator": self._ot_msg_value("76"),
+            "starts_dhw": self._ot_msg_value("77"),
+            "operating_hours": self._ot_msg_value("78"),
+            "ch_pump_hours": self._ot_msg_value("79"),
+            "dhw_pump_hours": self._ot_msg_value("7A"),
+            "hdw_burner_hours": self._ot_msg_value("7B"),
+        }
+
+    @property
     def opentherm_params(self) -> dict:
         result = {
             self._ot_msg_name(v): v.payload
