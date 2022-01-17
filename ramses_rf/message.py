@@ -7,6 +7,7 @@ Decode/process a message (payload into JSON).
 """
 
 import logging
+from datetime import timedelta as td
 
 from .const import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES, __dev_mode__
 from .devices import Device  # , HgiGateway
@@ -233,19 +234,31 @@ def _check_msg_dst(msg: Message, klass: str) -> None:
         )
 
 
-def process_msg(msg: Message) -> None:
-    """Process the valid packet by decoding its payload.
+def process_msg(msg: Message, prev_msg: Message = None) -> None:
+    """Process the valid packet by decoding its payload."""
 
-    All methods require a valid message (payload), except create_devices, which requires
-    a valid message only for 000C.
-    """
+    # All methods require a valid message (payload), except create_devices(), which
+    # requires a valid message only for 000C.
 
-    # def hack_pkts(this, prev) -> None:  # TODO: needs work, e.g. merge 000A fragments
-    # # TODO: ?move to ctl._handle_msg() and/or system._handle_msg()?
-    # if re.search("I.* 01.* 000A ", str(this._pkt)):  # HACK: and dtm < 3 secs
-    #     # TODO: an edge case here: >2 000A packets in a row
-    #     if prev is not None and re.search("I.* 01.* 000A ", str(prev._pkt)):
-    #         this._payload = prev.payload + this.payload  # merge frags, and process
+    def detect_array(this, prev) -> dict:
+        """Return complete array if this pkt is the latter half of an array."""
+        # This will work, even if the 2nd pkt._is_array == False as 1st == True
+        #  I --- 01:158182 --:------ 01:158182 000A 048 001201F409C4011101F409C40...
+        #  I --- 01:158182 --:------ 01:158182 000A 006 081001F409C4
+        if (
+            not prev
+            or not prev._has_array
+            or this.code not in (_000A, _22C9)
+            or this.code != prev.code
+            or this.verb != prev.verb != I_
+            or this.src != prev.src
+            or this.dtm >= prev.dtm + td(seconds=3)
+        ):
+            return this.payload
+
+        msg._pkt._force_has_array()
+        payload = this.payload if isinstance(this.payload, list) else [this.payload]
+        return prev.payload + payload
 
     # HACK:  if CLI, double-logging with client.py proc_msg() & setLevel(DEBUG)
     if (log_level := _LOGGER.getEffectiveLevel()) < logging.INFO:
@@ -255,6 +268,8 @@ def process_msg(msg: Message) -> None:
 
     # NOTE: this is used to expose message timeouts (esp. when parsing)
     # [m._expired for d in msg._gwy.devices for m in d._msg_db]
+
+    msg._payload = detect_array(msg, prev_msg)  # HACK - needs rethinking?
 
     if msg._gwy.config.reduce_processing >= DONT_CREATE_ENTITIES:
         return

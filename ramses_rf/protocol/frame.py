@@ -184,7 +184,7 @@ class PacketBase:
         2309/30C9/000A packets).
         """
 
-        if self._has_array_ is not None:
+        if self._has_array_ is not None:  # HACK: overriden by detect_array(msg, prev)
             return self._has_array_
 
         # False -ves (array length is 1) are an acceptable compromise to extensive checking
@@ -200,7 +200,7 @@ class PacketBase:
             self._has_array_ = False
 
         elif self.len == CODES_WITH_ARRAYS[self.code][0]:  # NOTE: can be false -ves
-            self._has_array_ = False
+            self._has_array_ = self.code == _22C9  # 22C9 is a reliable exception
 
         else:
             _len = CODES_WITH_ARRAYS[self.code][0]
@@ -319,6 +319,12 @@ class PacketBase:
         )
 
         return self._has_payload_
+
+    def _force_has_array(self) -> None:
+        self._has_array_ = True
+        self._ctx_ = None
+        self._hdr_ = None
+        self._idx_ = None
 
     @property
     def _ctx(self) -> Union[str, bool]:  # incl. self._idx
