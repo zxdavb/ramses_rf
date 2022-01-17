@@ -991,17 +991,6 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
         """Return the zone's heat demand, estimated from its devices' heat demand."""
         return self._msg_value(_3150, key=ATTR_HEAT_DEMAND)
 
-    @property
-    def ufh_setpoint(self) -> Optional[float]:  # 22C9
-        return self._msg_value(_22C9, key=ATTR_SETPOINT)
-
-    @property
-    def status(self) -> dict:
-        return {
-            **super().status,
-            "ufh_setpoint": self.ufh_setpoint,
-        }
-
 
 class ValZone(EleZone):  # BDR91A/T
     """For a motorised valve controlled by a BDR91 (will also call for heat)."""
