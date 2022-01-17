@@ -592,11 +592,11 @@ CODE_ONLY_FROM_CTL = [_1030, _1F09, _22D0, _313F]  # I packets, TODO: 31Dx too?
 CODES_WITH_ARRAYS = {
     _0005: [4, ("34",)],
     _0009: [3, ("01", "12", "22")],
-    _000A: [6, ("01", "12", "22")],
+    _000A: [6, ("01", "12", "22")],  # single element I after a W
     _2309: [3, ("01", "12", "22")],
     _30C9: [3, ("01", "12", "22")],
     _2249: [7, ("23",)],
-    _22C9: [6, ("02",)],
+    _22C9: [6, ("02",)],  # *all* 22C9s are arrays (every 15min?)
     _3150: [2, ("02",)],
 }  # TODO dex: element_length, src.type(s) (and dst.type too)
 
