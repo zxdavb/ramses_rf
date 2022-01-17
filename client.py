@@ -173,8 +173,17 @@ class PortCommand(click.Command):  # serial-port port --packet-log xxx --evofw3-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.params.insert(0, click.Argument(("serial-port",)))
+        # self.params.insert(  # --no-discover
+        #     1,
+        #     click.Option(
+        #         ("-d/-nd", "--discover/--no-discover"),
+        #         is_flag=True,
+        #         default=False,
+        #         help="Log all packets to this file",
+        #     ),
+        # )
         self.params.insert(  # --packet-log
-            1,
+            2,
             click.Option(
                 ("-o", "--packet-log"),
                 type=click.Path(),
@@ -182,7 +191,7 @@ class PortCommand(click.Command):  # serial-port port --packet-log xxx --evofw3-
             ),
         )
         self.params.insert(  # --evofw-flag
-            2,
+            3,
             click.Option(
                 ("-T", "--evofw-flag"),
                 type=click.STRING,
@@ -205,7 +214,7 @@ def parse(obj, **kwargs):
 
 @click.command(cls=PortCommand)  # (optionally) execute a command/script, then monitor
 @click.option("-d/-nd", "--discover/--no-discover", default=None)  # --no-discover
-@click.option(  # --execute-cmd 'RQ 01:123456 1F09 00'
+@click.option(  # --exec-cmd 'RQ 01:123456 1F09 00'
     "-x", "--exec-cmd", type=click.STRING, help="e.g. 'RQ 01:123456 1F09 00'"
 )
 @click.option(  # --execute-scr script device_id
@@ -249,6 +258,10 @@ def monitor(obj, **kwargs):
 
 
 @click.command(cls=PortCommand)  # execute a (complex) script, then stop
+@click.option("-d/-nd", "--discover/--no-discover", default=None)  # --no-discover
+@click.option(  # --exec-cmd 'RQ 01:123456 1F09 00'
+    "-x", "--exec-cmd", type=click.STRING, help="e.g. 'RQ 01:123456 1F09 00'"
+)
 @click.option(  # --get-faults ctl_id
     "--get-faults", type=DeviceIdParamType(), help="controller_id"
 )
@@ -272,8 +285,8 @@ def execute(obj, **kwargs):
     """
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
-    if lib_kwargs[CONFIG][DISABLE_DISCOVERY] is None:
-        lib_kwargs[CONFIG][DISABLE_DISCOVERY] = False
+    if lib_kwargs[CONFIG].get(DISABLE_DISCOVERY) is None:
+        lib_kwargs[CONFIG][DISABLE_DISCOVERY] = True
 
     if cli_kwargs.get(GET_FAULTS):
         lib_kwargs[KNOWN_LIST] = {cli_kwargs[GET_FAULTS]: {}}
@@ -291,9 +304,6 @@ def execute(obj, **kwargs):
 
 
 @click.command(cls=PortCommand)  # (optionally) execute a command, then listen
-@click.option(  # --execute-cmd 'RQ 01:123456 1F09 00'
-    "-x", "--execute-cmd", type=click.STRING, help="e.g. 'RQ 01:123456 1F09 00'"
-)
 @click.pass_obj
 def listen(obj, **kwargs):
     """Listen to (eavesdrop only) a serial port for messages/packets."""
@@ -379,9 +389,11 @@ def _print_summary(gwy, **kwargs):
         status = {d.id: d.status for d in devices}
         print(f"Status[devices] = {json.dumps({'status': status}, indent=4)}\r\n")
 
+    print(sorted([d.id for d in gwy.devices]))
+
 
 async def main(command, lib_kwargs, **kwargs):
-    def process_message(msg, prev_msg=None) -> None:
+    def process_msg(msg, prev_msg=None) -> None:
         dtm = (
             msg.dtm.isoformat(timespec="microseconds")
             if kwargs["long_dates"]
@@ -405,7 +417,7 @@ async def main(command, lib_kwargs, **kwargs):
     if kwargs[REDUCE_PROCESSING] < DONT_CREATE_MESSAGES:
         # no MSGs will be sent to STDOUT, so send PKTs instead
         colorama_init(autoreset=True)  # TODO: remove strip=True
-        protocol, _ = gwy.create_client(process_message)
+        protocol, _ = gwy.create_client(process_msg)
 
     try:  # main code here
         if kwargs["client_state"]:
@@ -419,17 +431,14 @@ async def main(command, lib_kwargs, **kwargs):
             tasks = spawn_scripts(gwy, **kwargs)
             await asyncio.gather(*tasks)
 
-        # elif command == LISTEN:
-        #     await gwy_task
-
-        elif command == MONITOR:
+        elif command in MONITOR:
             tasks = spawn_scripts(gwy, **kwargs)
             # await asyncio.sleep(5)
             # gwy.device_by_id["17:145039"].temperature = 19
             # gwy.device_by_id["34:145039"].temperature = 21.3
             await gwy_task
 
-        else:
+        else:  # elif command in (LISTEN, PARSE):
             await gwy_task
 
     except asyncio.CancelledError:
