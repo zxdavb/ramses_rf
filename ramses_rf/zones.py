@@ -791,14 +791,9 @@ class Zone(ZoneSchedule, ZoneBase):
         return _transform(max(demands + [0])) if demands else None
 
     @property
-    def window_open(self) -> Optional[bool]:  # 12B0  # TODO: don't work >1 TRV?
+    def window_open(self) -> Optional[bool]:  # 12B0
         """Return an estimate of the zone's current window_open state."""
-        windows = [
-            d.window_open
-            for d in self.devices
-            if hasattr(d, ATTR_WINDOW_OPEN) and d.window_open is not None
-        ]
-        return any(windows) if windows else None
+        return self._msg_value(_12B0, key=ATTR_WINDOW_OPEN)
 
     def _get_temp(self) -> Task:  # TODO: messy - needs tidy up
         """Get the zone's latest temp from the Controller."""
