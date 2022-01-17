@@ -1368,6 +1368,9 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
         msg_id = f"{msg.payload[MSG_ID]:02X}"
 
+        if DEV_MODE and msg_id != "73":
+            self._send_cmd(Command.get_opentherm_data(self.id, "73"))
+
         # if msg.dst is self._ctl:
         #     if msg_id not in self._ctl_polled_msg:
         #         self._ctl_polled_msg[msg_id] = None
@@ -1453,6 +1456,10 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
     def _bit_2_7(self) -> Optional[bool]:  # 2401
         if flags := self._msg_value(_2401, key="_flags_2"):
             return flags[7]
+
+    @property
+    def _oem_code(self) -> Optional[float]:  # 3220/73
+        return self._ot_msg_value("73")
 
     @property
     def _percent(self) -> Optional[float]:  # 2401 - WIP
