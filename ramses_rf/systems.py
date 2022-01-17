@@ -466,12 +466,8 @@ class MultiZone:  # 0005 (+/- 000C?)
                 handle_msg_by_zone_idx(zone_idx, msg)
             # TODO: elif msg.payload.get("domain_id") == "FA":  # DHW
 
-        elif (
-            isinstance(msg.payload, list)
-            and len(msg.payload)
-            and isinstance(msg.payload[0], dict)
-        ):
-            if msg.payload[0].get("zone_idx"):  # e.g. 1FC9 is a list of lists
+        elif isinstance(msg.payload, list) and len(msg.payload):
+            if isinstance(msg.payload[0], dict):  # e.g. 1FC9 is a list of lists:
                 [handle_msg_by_zone_idx(z.get("zone_idx"), msg) for z in msg.payload]
             # TODO: elif msg.payload.get("domain_id") == "FA":  # DHW
 
