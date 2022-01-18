@@ -1412,7 +1412,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             "39": _1081,  # ch_max_setpoint (is a PARAM)
         }.get(msg_id)
         if code:
-            self._send_cmd(Command(RQ, code, "00", self.id))
+            self._send_cmd(Command(RQ, code, "00", self.id, retries=0))
 
     @staticmethod
     def _ot_msg_name(msg) -> str:
