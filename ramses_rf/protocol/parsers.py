@@ -1515,6 +1515,16 @@ def parser_2e04(payload, msg) -> Optional[dict]:
     return result
 
 
+@parser_decorator  # unknown_2e10, from HVAC sensor
+def parser_2e10(payload, msg) -> Optional[dict]:
+
+    assert payload == "000100", _INFORM_DEV_MSG
+
+    return {
+        "payload": payload,
+    }
+
+
 @parser_decorator  # current temperature (of device, zone/s)
 def parser_30c9(payload, msg) -> Optional[dict]:
 
@@ -1799,9 +1809,9 @@ def parser_31e0(payload, msg) -> dict:
     #  I --- 32:168090 30:082155 --:------ 31E0 004 00-00-C8-00
 
     return {
-        "active": bool_from_hex(payload[4:6]),
-        "_unknown_0": payload[:4],
-        "unknown_2": payload[6:],
+        "percent_2": percent(payload[4:6]),
+        "unknown_0": payload[:4],
+        "unknown_3": payload[6:],
     }
 
 

@@ -72,6 +72,7 @@ from .const import (  # noqa: F401, isort: skip
     _2420,
     _2D49,
     _2E04,
+    _2E10,
     _30C9,
     _3120,
     _313F,
@@ -321,7 +322,7 @@ RAMSES_CODES = {  # rf_unknown
         RQ: r"^00$",
     },
     _1298: {  # co2_level
-        NAME: "hvac_1298",
+        NAME: "co2_level",
         I_: r"^00[0-9A-F]{4}$",
     },
     _12A0: {  # indoor_humidity
@@ -486,6 +487,10 @@ RAMSES_CODES = {  # rf_unknown
         W_: r"^0[0-7][0-9A-F]{12}0[01]$",
         EXPIRES: td(hours=4),
     },
+    _2E10: {  # unknown_2e10 - HVAC
+        NAME: "message_2e10",
+        I_: r"^000100$",
+    },
     _30C9: {  # temperature
         NAME: "temperature",
         I_: r"^(0[0-9A-F][0-9A-F]{4})+$",
@@ -525,7 +530,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     _31E0: {  # ext_ventilation - External Ventilation Status
         NAME: "ext_ventilation",
-        I_: r"^0000(00|C8)(00|FF)$",  # TODO: final group is ? - needs confirming
+        I_: r"^0000[0-9A-F]{2}(00|FF)$",  # TODO: final group is ? - needs confirming
     },
     _3200: {  # boiler output temp
         NAME: "boiler_output",
@@ -967,6 +972,8 @@ HVAC_DEVICES_CLASS = {
         _042F: {I_: {}},
         _10E0: {I_: {}, RP: {}},
         _1298: {I_: {}},
+        _2E10: {I_: {}},
+        _3120: {I_: {}},
         _31DA: {RQ: {}},
         _31E0: {I_: {}},
     },
