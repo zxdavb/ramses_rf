@@ -104,7 +104,6 @@ class Gateway:
         self._engine_state = None
 
         # if self.config.reduce_processing > 0:
-        self._prev_msg = None  # see: _clear_state()
         self.evo: System = None
         self.systems: List[System] = []
         self.system_by_id: Dict = {}
@@ -341,7 +340,7 @@ class Gateway:
         def clear_state() -> None:
             _LOGGER.warning("ENGINE: Clearing exisiting schema/state...")
 
-            self._prev_msg = None  # TODO: move to pause/resume?
+            # self.msg_protocol._prev_msg = None  # TODO: move to pause/resume?
             self.evo = None
             self.systems = []
             self.system_by_id = {}

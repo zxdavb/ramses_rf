@@ -145,8 +145,8 @@ class Entity:
         self._gwy = gwy
         self.id = None
 
-        self._msgs = {}
-        self._msgz = {}
+        self._msgs = {}  # code, should be code/ctx? ?deprecate
+        self._msgz = {}  # code/verb/ctx, should be code/ctx/verb?
 
         self._qos_tx_count = 0  # the number of pkts Tx'd with no matching Rx
 

@@ -562,7 +562,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
     @discover_decorator  # NOTE: can mean is double-decorated
     def _discover(self, discover_flag=Discover.ALL) -> None:
-        def send_code(code, minutes=2) -> None:
+        def throttle_send(code, minutes=2) -> None:
             """Don't send an api if there is a recent msg in the database.
 
             Primarily for HA startup (restore_cache) to avoid exceeding RF duty cycles.
@@ -585,13 +585,14 @@ class Zone(ZoneSchedule, ZoneBase):
         if discover_flag & Discover.PARAMS:
             # self._send_cmd(Command.get_zone_config(self._ctl.id, self.idx))
             # self._send_cmd(Command.get_zone_name(self._ctl.id, self.idx))
-            [send_code(code, 15) for code in (_0004, _000A)]
+            [throttle_send(code, 15) for code in (_0004, _000A)]
 
         if discover_flag & Discover.STATUS:  # every 1h, CTL will not respond to a 3150
             # self._send_cmd(Command.get_zone_mode(self._ctl.id, self.idx))
             # self._send_cmd(Command.get_zone_temp(self._ctl.id, self.idx))
             # self._send_cmd(Command.get_zone_window_state(self._ctl.id, self.idx))
-            [send_code(code) for code in (_12B0, _2349, _30C9)]
+            [throttle_send(code, 15) for code in (_12B0,)]
+            [throttle_send(code) for code in (_2349, _30C9)]
 
         # start collecting the schedule
         # self._schedule.req_schedule()  # , restart=True) start collecting schedule
@@ -742,7 +743,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
         self._zone_type = _type
         self.__class__ = _ZON_BY_KLASS[_type]
-        self._discover(discover_flag=Discover.ALL)  # TODO: needs tidyup (ref #67)
+        self._discover(discover_flag=Discover.SCHEMA)  # TODO: needs tidyup (ref #67)
         _LOGGER.debug("Promoted a Zone: %s(%s)", self.id, self.__class__)
 
     @property
@@ -790,14 +791,9 @@ class Zone(ZoneSchedule, ZoneBase):
         return _transform(max(demands + [0])) if demands else None
 
     @property
-    def window_open(self) -> Optional[bool]:  # 12B0  # TODO: don't work >1 TRV?
+    def window_open(self) -> Optional[bool]:  # 12B0
         """Return an estimate of the zone's current window_open state."""
-        windows = [
-            d.window_open
-            for d in self.devices
-            if hasattr(d, ATTR_WINDOW_OPEN) and d.window_open is not None
-        ]
-        return any(windows) if windows else None
+        return self._msg_value(_12B0, key=ATTR_WINDOW_OPEN)
 
     def _get_temp(self) -> Task:  # TODO: messy - needs tidy up
         """Get the zone's latest temp from the Controller."""
@@ -994,17 +990,6 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
     def heat_demand(self) -> Optional[float]:  # 3150
         """Return the zone's heat demand, estimated from its devices' heat demand."""
         return self._msg_value(_3150, key=ATTR_HEAT_DEMAND)
-
-    @property
-    def ufh_setpoint(self) -> Optional[float]:  # 22C9
-        return self._msg_value(_22C9, key=ATTR_SETPOINT)
-
-    @property
-    def status(self) -> dict:
-        return {
-            **super().status,
-            "ufh_setpoint": self.ufh_setpoint,
-        }
 
 
 class ValZone(EleZone):  # BDR91A/T

@@ -1078,7 +1078,9 @@ class UfhController(Device):  # UFC (02):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._circuits = {}
+        self._circuits = dict.fromkeys(
+            (f"{i:02X}" for i in range(8)), {"enabled": True}
+        )
         self._setpoints = None
         self._heat_demand = None
 
@@ -1103,30 +1105,31 @@ class UfhController(Device):  # UFC (02):
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
-            for zone_type in (_0005_ZONE.ALL, _0005_ZONE.ALL_SENSOR, _0005_ZONE.UFH):
-                # TODO: are all three needed?
-                try:  # 0005: shows which channels are active - ?no use? (see above)
-                    _ = self._msgz[_0005][RP][f"00{zone_type}"]
-                except KeyError:
-                    self._make_cmd(_0005, payload=f"00{zone_type}")
-
-            for idx in range(8):
-                try:  # _000C_DEVICE.UFH doesn't seem to work with all UFCs??
-                    _ = self._msgz[_000C][RP][f"{idx:02X}{_000C_DEVICE.ALL}"]
-                except KeyError:
-                    self._make_cmd(_000C, payload=f"{idx:02X}{_000C_DEVICE.ALL}")
+            self._make_cmd(_0005, payload=f"00{_0005_ZONE.UFH}")
 
         if discover_flag & Discover.PARAMS:
             [  # only 2309 has any potential?
-                self._make_cmd(_2309, payload=f"{zone_idx:02X}")
-                for zone_idx in range(8)
+                self._make_cmd(_2309, payload=f"{ufh_idx:02X}")
+                for ufh_idx in self._circuits
+                if ufh_idx["enabled"]
             ]
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == _000C:
-            assert "ufh_idx" in msg.payload, "wsdfh"
+        if msg.code == _0005:
+            # _000C_DEVICE.UFH doesn't seem to work with all UFCs??
+            for ufh_idx, flag in enumerate(msg.payload["zone_mask"]):
+                self._circuits[ufh_idx]["enabled"] = bool(flag)
+
+            # This is done in the zone's discover
+            [
+                self._make_cmd(_000C, payload=f"{ufh_idx:02X}{_000C_DEVICE.UFH}")
+                for ufh_idx in self._circuits
+                if ufh_idx["enabled"]
+            ]
+
+        elif msg.code == _000C:
             if msg.payload["zone_id"] is not None:
                 self._circuits[msg.payload["ufh_idx"]] = msg
 
@@ -1138,31 +1141,23 @@ class UfhController(Device):  # UFC (02):
             #             _LOGGER.debug("Device %s: added to Zone: %s", self, zone)
 
         elif msg.code == _22C9:
-            if isinstance(msg.payload, list):
-                self._setpoints = msg
-            # else:
-            #     pass  # update the self._circuits[]
+            #  I --- 02:017205 --:------ 02:017205 22C9 024 00076C0A280101076C0A28010...
+            #  I --- 02:017205 --:------ 02:017205 22C9 006 04076C0A2801
+            self._setpoints = msg
 
         elif msg.code == _3150:
             if isinstance(msg.payload, list):
                 self._heat_demands = msg
-            elif "domain_id" in msg.payload:
+            elif msg.payload.get("domain_id") == "FC":
                 self._heat_demand = msg
-            elif zone_idx := msg.payload.get("zone_idx"):
-                if (
-                    self._ctl
-                    and self._ctl._evo
-                    and (zone := self._ctl._evo.zone_by_idx.get(zone_idx))
-                ):
-                    zone._handle_msg(msg)
-            # else:
-            #     pass  # update the self._circuits[]
+            elif (
+                (zone_idx := msg.payload.get("zone_idx"))
+                and (evo := msg.dst._evo)
+                and (zone := evo.zone_by_idx.get(zone_idx))
+            ):
+                zone._handle_msg(msg)
 
         # "0008|FA/FC", "22C9|array", "22D0|none", "3150|ZZ/array(/FC?)"
-
-    @property
-    def _rate(self) -> Optional[Dict]:  # 22F1
-        return self._msg_value(_22F1, key="rate")
 
     @property
     def circuits(self) -> Optional[Dict]:  # 000C
@@ -1368,6 +1363,9 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
         msg_id = f"{msg.payload[MSG_ID]:02X}"
 
+        if DEV_MODE and msg_id != "73":
+            self._send_cmd(Command.get_opentherm_data(self.id, "73"))
+
         # if msg.dst is self._ctl:
         #     if msg_id not in self._ctl_polled_msg:
         #         self._ctl_polled_msg[msg_id] = None
@@ -1453,6 +1451,10 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
     def _bit_2_7(self) -> Optional[bool]:  # 2401
         if flags := self._msg_value(_2401, key="_flags_2"):
             return flags[7]
+
+    @property
+    def _oem_code(self) -> Optional[float]:  # 3220/73
+        return self._ot_msg_value("73")
 
     @property
     def _percent(self) -> Optional[float]:  # 2401 - WIP
@@ -1602,6 +1604,21 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         return {
             m: {k: v for k, v in p.items() if k.startswith(VALUE)}
             for m, p in result.items()
+        }
+
+    @property
+    def opentherm_counters(self) -> dict:
+        return {
+            "starts_failed": self._ot_msg_value("71"),
+            "flame_signal_low": self._ot_msg_value("72"),
+            "starts_burner": self._ot_msg_value("74"),
+            "starts_ch_pump": self._ot_msg_value("75"),
+            "dhw_actuator": self._ot_msg_value("76"),
+            "starts_dhw": self._ot_msg_value("77"),
+            "operating_hours": self._ot_msg_value("78"),
+            "ch_pump_hours": self._ot_msg_value("79"),
+            "dhw_pump_hours": self._ot_msg_value("7A"),
+            "hdw_burner_hours": self._ot_msg_value("7B"),
         }
 
     @property
