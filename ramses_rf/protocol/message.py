@@ -10,7 +10,7 @@ import logging
 import re
 from datetime import timedelta as td
 from functools import lru_cache
-from typing import Any, Optional, Tuple
+from typing import Any, Optional
 
 from .address import Address
 from .exceptions import InvalidPacketError, InvalidPayloadError
@@ -303,14 +303,16 @@ class Message:
         return {index_name: self._pkt._idx}
 
     @property
-    def _expired(self) -> Tuple[bool, Optional[bool]]:
-        """Return True if the message is dated (does not require a valid payload)."""
+    def _expired(self) -> bool:
+        """Return True if the message is dated (or False otherwise)."""
 
         if self._fraction_expired is not None:
             if self._fraction_expired == self.CANT_EXPIRE:
                 return False
-            if self._fraction_expired > self.HAS_EXPIRED * 2:  # TODO: should delete?
+            if self._fraction_expired > self.HAS_EXPIRED * 2:
                 return True
+
+        prev_fraction = self._fraction_expired
 
         if self.code == _1F09 and self.verb != RQ:
             # RQs won't have remaining_seconds, RP/Ws have only partial cycle times
@@ -318,19 +320,21 @@ class Message:
                 self._gwy._dt_now() - self.dtm,
                 td(seconds=self.payload["remaining_seconds"]),
             )
-        else:
-            self._fraction_expired = self._pkt._expired
+        else:  # self._pkt._expired can be False (doesn't expire), wont be 0
+            self._fraction_expired = self._pkt._expired or self.CANT_EXPIRE
 
-        if self._fraction_expired is False:  # treat as never expiring
-            _LOGGER.info(f"{self._pkt} # cant expire")
-            self._fraction_expired = self.CANT_EXPIRE
+        if self._fraction_expired < self.HAS_EXPIRED:
+            return False
 
-        elif self._fraction_expired > self.HAS_EXPIRED:  # TODO: should renew?
-            if any(
-                (
-                    self.code == _1F09 and self.verb != I_,
-                    self.code in (_0016, _3120, _313F),
-                )
+        # TODO: should renew?
+
+        # only log expired packets once
+        if prev_fraction is None or prev_fraction < self.HAS_EXPIRED:
+            if (
+                self.code == _1F09
+                and self.verb != I_
+                or self.code in (_0016, _3120, _313F)
+                or self._gwy._engine_state is not None  # restoring from pkt log
             ):
                 _logger = _LOGGER.info
             else:
