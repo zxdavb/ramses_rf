@@ -15,9 +15,9 @@ LOG_ROTATE_COUNT = "rotate_backups"
 PACKET_LOG = "packet_log"  # output
 PACKET_LOG_SCHEMA = vol.Schema(
     {
-        vol.Required(LOG_FILE_NAME, default=None): vol.Any(None, str),
+        vol.Required(LOG_FILE_NAME): str,
         vol.Optional(LOG_ROTATE_BYTES, default=None): vol.Any(None, int),
-        vol.Optional(LOG_ROTATE_COUNT, default=None): vol.Any(None, int),
+        vol.Optional(LOG_ROTATE_COUNT, default=0): vol.Any(None, int),
     },
     extra=vol.PREVENT_EXTRA,
 )

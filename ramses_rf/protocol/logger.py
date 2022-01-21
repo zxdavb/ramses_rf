@@ -7,9 +7,12 @@ This module wraps logger to provide bespoke functionality, especially for timest
 """
 
 import logging
+import os
+import re
 import shutil
 import sys
 from datetime import datetime as dt
+from logging.handlers import TimedRotatingFileHandler as _TimedRotatingFileHandler
 
 from .const import __dev_mode__
 from .schema import LOG_FILE_NAME, LOG_ROTATE_BYTES, LOG_ROTATE_COUNT
@@ -160,6 +163,41 @@ class StdOutFilter(logging.Filter):  # record.levelno < logging.WARNING
         return record.levelno < logging.WARNING  # INFO-20, DEBUG-10
 
 
+class TimedRotatingFileHandler(_TimedRotatingFileHandler):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        assert self.when == "MIDNIGHT"
+        self.extMatch = re.compile(r"^\d{4}-\d{2}-\d{2}$", re.ASCII)
+
+    # def emit(self, record):  # used only for debugging
+    #     if True or self.shouldRollover(record):
+    #         self.doRollover()
+    #     return super().emit(record)
+
+    def getFilesToDelete(self):  # zxdavb: my version
+        """Determine the files to delete when rolling over.
+
+        Overriden as old log files not being deleted.
+        """
+        # See bpo-44753 (this code is as was before that commit), bpo45628, bpo-46063
+        dirName, baseName = os.path.split(self.baseFilename)
+        fileNames = os.listdir(dirName)
+        result = []
+        prefix = baseName + "."
+        plen = len(prefix)
+        for fileName in fileNames:
+            if fileName[:plen] == prefix:
+                suffix = fileName[plen:]
+                if self.extMatch.match(suffix):
+                    result.append(os.path.join(dirName, fileName))
+        if len(result) < self.backupCount:
+            result = []
+        else:
+            result.sort()
+            result = result[: len(result) - self.backupCount]
+        return result
+
+
 def getLogger(name=None, pkt_log=None):  # permits a bespoke Logger class
     """Return a logger with the specified name, creating it if necessary.
 
@@ -205,13 +243,13 @@ def set_pkt_logging(logger, dt_now=None, cc_console=False, **kwargs) -> None:
 
     Parameters:
     - backup_count: keep this many copies, and rotate at midnight unless:
-    - max_bytes: rotate log files when log > rotate_size
+    - max_bytes:    rotate log files when log > rotate_size
     """
 
     logger.propagate = False  # log file is distinct from any app/debug logging
     logger.setLevel(logging.DEBUG)  # must be at least .INFO
 
-    if file_name := kwargs.get(LOG_FILE_NAME, 0):
+    if file_name := kwargs.get(LOG_FILE_NAME):
         max_bytes = kwargs.get(LOG_ROTATE_BYTES, None)
         bkp_count = kwargs.get(LOG_ROTATE_COUNT, 0)
 
@@ -221,7 +259,7 @@ def set_pkt_logging(logger, dt_now=None, cc_console=False, **kwargs) -> None:
                 file_name, maxBytes=max_bytes, backupCount=bkp_count
             )
         elif bkp_count:
-            handler = logging.handlers.TimedRotatingFileHandler(
+            handler = TimedRotatingFileHandler(
                 file_name, when="midnight", backupCount=bkp_count
             )
         else:
