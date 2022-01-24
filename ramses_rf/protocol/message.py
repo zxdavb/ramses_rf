@@ -391,16 +391,8 @@ class Message:
                 return result
             if isinstance(result, dict):
                 return {**self._idx, **result}
-            assert False, f"invalid payload type: {type(result)}"
 
-        except AssertionError as exc:
-            # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
-            (
-                _LOGGER.exception
-                if DEV_MODE and self.src.type != "18"  # DEX
-                else _LOGGER.exception
-            )("%s < %s", self._pkt, f"{exc.__class__.__name__}({exc})")
-            raise exc
+            raise TypeError(f"Invalid payload type: {type(result)}")
 
         except InvalidPacketError as exc:
             (_LOGGER.exception if DEV_MODE else _LOGGER.warning)(
@@ -408,15 +400,24 @@ class Message:
             )
             raise exc
 
+        except AssertionError as exc:
+            # beware: HGI80 can send 'odd' but parseable packets +/- get invalid reply
+            (
+                _LOGGER.exception
+                if DEV_MODE and self.src.type != "18"  # DEX
+                else _LOGGER.exception
+            )("%s < %s", self._pkt, f"{exc.__class__.__name__}({exc})")
+            raise InvalidPacketError(exc)
+
         except (AttributeError, LookupError, TypeError, ValueError) as exc:  # TODO: dev
             _LOGGER.exception(
                 "%s < Coding error: %s", self._pkt, f"{exc.__class__.__name__}({exc})"
             )
-            raise exc
+            raise InvalidPacketError from exc
 
         except NotImplementedError as exc:  # parser_unknown (unknown packet code)
             _LOGGER.warning("%s < Unknown packet code (cannot parse)", self._pkt)
-            raise exc
+            raise InvalidPacketError from exc
 
 
 @lru_cache(maxsize=256)
