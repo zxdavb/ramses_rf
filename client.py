@@ -129,7 +129,7 @@ class DeviceIdParamType(click.ParamType):
 @click.option("-ld", "--long-dates", is_flag=True, default=None)
 @click.option("-e/-ne", "--eavesdrop/--no-eavesdrop", default=None)
 @click.option(
-    "-k/-nk",
+    "-s/-ns",
     "--show-schema/--no-show-schema",
     default=SHOW_SCHEMA,
     help="display system schema",
@@ -141,7 +141,7 @@ class DeviceIdParamType(click.ParamType):
     help="display system params",
 )
 @click.option(
-    "-s/-ns",
+    "-t/-nt",
     "--show-status/--no-show-status",
     default=SHOW_STATUS,
     help="display system state",
@@ -153,7 +153,7 @@ class DeviceIdParamType(click.ParamType):
     help="display known_list (of devices)",
 )
 @click.option(
-    "-t/-nt",
+    "-d/-nd",
     "--show-traits/--no-show-traits",
     default=SHOW_TRAITS,
     help="display device traits",
