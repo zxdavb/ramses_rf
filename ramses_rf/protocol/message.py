@@ -370,7 +370,7 @@ class Message:
     def _validate(self, raw_payload) -> Optional[dict]:  # TODO: needs work
         """Validate the message, and parse the payload if so.
 
-        Raise an exception if it is not valid.
+        Raise an exception (InvalidPacketError) if it is not valid.
         """
 
         try:  # parse the payload
@@ -386,9 +386,12 @@ class Message:
             result = PAYLOAD_PARSERS.get(self.code, parser_unknown)(
                 self._pkt.payload, self
             )
-            assert isinstance(
-                result, (dict, list)
-            ), f"invalid payload type: {type(result)}"
+
+            if isinstance(result, list):
+                return result
+            if isinstance(result, dict):
+                return {**self._idx, **result}
+            assert False, f"invalid payload type: {type(result)}"
 
         except AssertionError as exc:
             # beware: HGI80 can send parseable but 'odd' packets +/- get invalid reply
@@ -397,25 +400,23 @@ class Message:
                 if DEV_MODE and self.src.type != "18"  # DEX
                 else _LOGGER.exception
             )("%s < %s", self._pkt, f"{exc.__class__.__name__}({exc})")
+            raise exc
 
         except InvalidPacketError as exc:
             (_LOGGER.exception if DEV_MODE else _LOGGER.warning)(
                 "%s < %s", self._pkt, exc
             )
+            raise exc
 
         except (AttributeError, LookupError, TypeError, ValueError) as exc:  # TODO: dev
             _LOGGER.exception(
                 "%s < Coding error: %s", self._pkt, f"{exc.__class__.__name__}({exc})"
             )
+            raise exc
 
-        except NotImplementedError:  # parser_unknown (unknown packet code)
+        except NotImplementedError as exc:  # parser_unknown (unknown packet code)
             _LOGGER.warning("%s < Unknown packet code (cannot parse)", self._pkt)
-
-        else:
-            # _LOGGER.error("%s", msg)
-            return result if isinstance(result, list) else {**self._idx, **result}
-
-        raise InvalidPacketError  # HACK: should be as PKT
+            raise exc
 
 
 @lru_cache(maxsize=256)

@@ -212,7 +212,7 @@ class Packet(PacketBase):
     def _validate(self, addr_frag) -> None:
         """Validate the packet, and parse the addresses if so (will log all packets).
 
-        Raise an exception (InvalidPacketError, InvalidAddrSetError) if it is not valid.
+        Raise an exception InvalidPacketError (InvalidAddrSetError) if it is not valid.
         """
 
         try:
@@ -231,13 +231,13 @@ class Packet(PacketBase):
 
             src, dst, addrs = pkt_addrs(addr_frag)  # self._frame[11:40]
 
+            _PKT_LOGGER.info("", extra=self.__dict__)
+            return src, dst, addrs, length
+
         except InvalidPacketError as exc:  # incl. InvalidAddrSetError
             if self._frame or self.error_text:
                 _PKT_LOGGER.warning("%s", exc, extra=self.__dict__)
-            raise
-
-        _PKT_LOGGER.info("", extra=self.__dict__)
-        return src, dst, addrs, length
+            raise exc
 
     @classmethod
     def from_dict(cls, gwy, dtm: str, pkt_line: str):

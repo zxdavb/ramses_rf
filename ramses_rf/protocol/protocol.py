@@ -178,7 +178,7 @@ class MessageTransport(asyncio.Transport):
             return
 
         try:
-            msg = Message(self._gwy, pkt)  # trap/logs all invalid msgs appropriately
+            msg = Message(self._gwy, pkt)  # should log all invalid msgs appropriately
         except InvalidPacketError:
             return
 
