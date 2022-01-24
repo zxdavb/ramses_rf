@@ -1593,6 +1593,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         if flags := self._ot_msg_value("00"):
             return flags[8]
 
+    @property
     def opentherm_schema(self) -> dict:
         result = {
             self._ot_msg_name(v): v.payload
