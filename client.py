@@ -46,6 +46,14 @@ from ramses_rf.schema import (
 
 DEBUG_MODE = "debug_mode"
 
+# DEFAULT_SUMMARY can be: True, False, or None
+SHOW_SCHEMA = False
+SHOW_PARAMS = False
+SHOW_STATUS = False
+SHOW_KNOWNS = False
+SHOW_TRAITS = False
+SHOW_CRAZYS = False
+
 # this is called after import colorlog to ensure its handlers wrap the correct streams
 logging.basicConfig(level=logging.WARNING, format=DEFAULT_FMT, datefmt=DEFAULT_DATEFMT)
 
@@ -115,13 +123,47 @@ class DeviceIdParamType(click.ParamType):
 
 @click.group(context_settings=CONTEXT_SETTINGS)  # , invoke_without_command=True)
 @click.option("-z", "--debug-mode", count=True, help="enable debugger")
-@click.option("-r", "--reduce-processing", count=True, help="-rrr will give packets")
-@click.option("-l/-nl", "--long-dates/--no-long-dates", default=None)
 @click.option("-c", "--config-file", type=click.File("r"))
+@click.option("-r", "--restore-cache", type=click.File("r"))
+@click.option("-r", "--reduce-processing", count=True, help="-rrr will give packets")
+@click.option("-ld", "--long-dates", is_flag=True, default=None)
 @click.option("-e/-ne", "--eavesdrop/--no-eavesdrop", default=None)
-@click.option("-k", "--client-state", type=click.File("r"))
-@click.option("-ns", "--hide-summary", is_flag=True, help="dont print any summarys")
-@click.option("-s", "--show-summary", help="show these portions of schema/params/state")
+@click.option(
+    "-s/-ns",
+    "--show-schema/--no-show-schema",
+    default=SHOW_SCHEMA,
+    help="display system schema",
+)
+@click.option(
+    "-p/-np",
+    "--show-params/--no-show-params",
+    default=SHOW_PARAMS,
+    help="display system params",
+)
+@click.option(
+    "-t/-nt",
+    "--show-status/--no-show-status",
+    default=SHOW_STATUS,
+    help="display system state",
+)
+@click.option(
+    "-k/-nk",
+    "--show-knowns/--no-show-knowns",
+    default=SHOW_KNOWNS,
+    help="display known_list (of devices)",
+)
+@click.option(
+    "-d/-nd",
+    "--show-traits/--no-show-traits",
+    default=SHOW_TRAITS,
+    help="display device traits",
+)
+@click.option(
+    "-x/-nx",
+    "--show-crazys/--no-show-crazys",
+    default=SHOW_CRAZYS,
+    help="display crazy things",
+)
 @click.pass_context
 def cli(ctx, config_file=None, **kwargs):
     """A CLI for the ramses_rf library."""
@@ -233,9 +275,7 @@ def monitor(obj, **kwargs):
 
     if cli_kwargs["discover"] is None:
         cli_kwargs["discover"] = (
-            cli_kwargs["exec_cmd"] is None
-            and cli_kwargs["exec_scr"] is None
-            and cli_kwargs["poll_devices"] is None
+            cli_kwargs["exec_scr"] is None and cli_kwargs["poll_devices"] is None
         )
 
     if cli_kwargs["discover"] is not None:
@@ -314,7 +354,7 @@ def listen(obj, **kwargs):
     asyncio.run(main(LISTEN, lib_kwargs, **cli_kwargs))
 
 
-def _print_results(gwy, **kwargs):
+def print_results(gwy, **kwargs):
 
     if kwargs[GET_FAULTS]:
         fault_log = gwy.system_by_id[kwargs[GET_FAULTS]]._fault_log.fault_log
@@ -365,31 +405,47 @@ def _print_state(gwy, **kwargs):
     [print(f"{dtm} {pkt}") for dtm, pkt in packets.items()]
 
 
-def _print_summary(gwy, **kwargs):
+def print_summary(gwy, **kwargs):
     entity = gwy.evo or gwy
 
-    if not kwargs.get("hide_schema"):
+    if kwargs.get("show_schema"):
         print(f"Schema[{repr(entity)}] = {json.dumps(entity.schema, indent=4)}\r\n")
-        print(f"allow_list (hints) = {json.dumps(gwy._include, indent=4)}\r\n")
 
-    if not kwargs.get("hide_params"):
+        schema = {d.id: d.schema for d in sorted(gwy.devices)}
+        print(f"Schema[devices] = {json.dumps({'schema': schema}, indent=4)}\r\n")
+
+    if kwargs.get("show_params"):
         print(f"Params[{repr(entity)}] = {json.dumps(entity.params, indent=4)}\r\n")
 
-    if not kwargs.get("hide_status"):
+        params = {d.id: d.params for d in sorted(gwy.devices)}
+        print(f"Params[devices] = {json.dumps({'params': params}, indent=4)}\r\n")
+
+    if kwargs.get("show_status"):
         print(f"Status[{repr(entity)}] = {json.dumps(entity.status, indent=4)}\r\n")
 
-    if kwargs.get("show_device"):
-        devices = sorted(gwy.devices)
-        # devices = [d for d in sorted(gwy.devices) if d not in gwy.evo.devices]
-
-        schema = {d.id: d.schema for d in devices}
-        print(f"Schema[devices] = {json.dumps({'schema': schema}, indent=4)}\r\n")
-        params = {d.id: d.params for d in devices}
-        print(f"Params[devices] = {json.dumps({'params': params}, indent=4)}\r\n")
-        status = {d.id: d.status for d in devices}
+        status = {d.id: d.status for d in sorted(gwy.devices)}
         print(f"Status[devices] = {json.dumps({'status': status}, indent=4)}\r\n")
 
-    print(sorted([d.id for d in gwy.devices]))
+    if kwargs.get("show_knowns"):  # show device hints (show-knowns)
+        print(f"allow_list (hints) = {json.dumps(gwy._include, indent=4)}\r\n")
+
+    if kwargs.get("show_traits"):  # show device traits
+        print(sorted({d.id: d.traits for d in gwy.devices}), "\r\n")
+
+    if kwargs.get("show_crazys"):
+        for device in [d for d in gwy.devices if d.type == "01"]:
+            for code, verbs in device._msgz.items():
+                if code in ("0005", "000C"):
+                    for verb in verbs.values():
+                        for pkt in verb.values():
+                            print(f"{pkt}")
+            print()
+        for device in [d for d in gwy.devices if d.type == "02"]:
+            for code in device._msgz.values():
+                for verb in code.values():
+                    for pkt in verb.values():
+                        print(f"{pkt}")
+            print()
 
 
 async def main(command, lib_kwargs, **kwargs):
@@ -420,10 +476,10 @@ async def main(command, lib_kwargs, **kwargs):
         protocol, _ = gwy.create_client(process_msg)
 
     try:  # main code here
-        if kwargs["client_state"]:
-            print("Restoring client state...")
-            state = json.load(kwargs["client_state"])
-            await gwy._set_state(**state["data"]["client_state"])
+        if kwargs["restore_cache"]:
+            print("Restoring client schema/state cache...")
+            state = json.load(kwargs["restore_cache"])
+            await gwy._set_state(**state["data"]["restore_cache"])
 
         gwy_task = asyncio.create_task(gwy.start())
 
@@ -458,10 +514,9 @@ async def main(command, lib_kwargs, **kwargs):
         _print_state(gwy, **kwargs)
 
     elif command == EXECUTE:
-        _print_results(gwy, **kwargs)
+        print_results(gwy, **kwargs)
 
-    elif not kwargs["hide_summary"]:
-        _print_summary(gwy, **kwargs)
+    print_summary(gwy, **kwargs)
 
     # if kwargs["save_state"]:
     #    _save_state(gwy)
