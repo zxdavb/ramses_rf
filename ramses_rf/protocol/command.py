@@ -853,7 +853,7 @@ class Command(PacketBase):
 
         return cmd
 
-    @classmethod  # constructor for RP/3EF1 (TODO: & I/3EF1?)
+    @classmethod  # constructor for RP/3EF1 (I/3EF1?)  # TODO: trap corrupt values?
     @validate_api_params()
     def put_actuator_cycle(
         cls,
@@ -880,7 +880,7 @@ class Command(PacketBase):
         payload += f"{int(mod_level * 200):02X}FF"
         return cls.packet(RP, _3EF1, payload, addr0=src_id, addr1=dst_id, **kwargs)
 
-    @classmethod  # constructor for I/3EF0
+    @classmethod  # constructor for I/3EF0  # TODO: trap corrupt states?
     @validate_api_params()
     def put_actuator_state(cls, dev_id: str, mod_level: float, **kwargs):
         """Constructor to announce the modulation level of an actuator (3EF0).
@@ -925,7 +925,7 @@ class Command(PacketBase):
             verb, _1FC9, payload, addr0=src_id, addr1=dst_id, addr2=addr2, **kwargs
         )
 
-    @classmethod  # constructor for I/1260
+    @classmethod  # constructor for I/1260  # TODO: trap corrupt temps?
     @validate_api_params()
     def put_dhw_temp(cls, dev_id: str, temperature: float, **kwargs):
         """Constructor to announce the current temperature of an DHW sensor (1260).
@@ -941,7 +941,7 @@ class Command(PacketBase):
         payload = f"00{temp_to_hex(temperature)}"
         return cls.packet(I_, _1260, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
-    @classmethod  # constructor for I/0002
+    @classmethod  # constructor for I/0002  # TODO: trap corrupt temps?
     @validate_api_params()
     def put_outdoor_temp(cls, dev_id: str, temperature: float, **kwargs):
         """Constructor to announce the current temperature of an outdoor sensor (0002).
@@ -957,7 +957,7 @@ class Command(PacketBase):
         payload = f"00{temp_to_hex(temperature)}01"
         return cls.packet(I_, _0002, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
-    @classmethod  # constructor for I/30C9
+    @classmethod  # constructor for I/30C9  # TODO: trap corrupt temps?
     @validate_api_params()
     def put_sensor_temp(cls, dev_id: str, temperature: float, **kwargs):
         """Constructor to announce the current temperature of a thermostat (3C09).
