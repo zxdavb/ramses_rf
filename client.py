@@ -431,11 +431,7 @@ def print_summary(gwy, **kwargs):
 
     if kwargs.get("show_traits"):  # show device traits
         result = {
-            d.id: {
-                k: v
-                for k, v in d.traits.items()
-                if k not in ("alias", "class", "faked")
-            }
+            d.id: {k: v for k, v in d.traits.items() if k[:1] == "_"}
             for d in sorted(gwy.devices)
         }
         print(json.dumps(result, indent=4), "\r\n")

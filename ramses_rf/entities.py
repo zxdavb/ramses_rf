@@ -292,7 +292,7 @@ class Entity:
     @property
     def _codes(self) -> dict:
         return {
-            "codes": sorted([k for k, v in self._msgs.items()]),
+            "_codes": sorted([k for k, v in self._msgs.items()]),
         }
 
     @property

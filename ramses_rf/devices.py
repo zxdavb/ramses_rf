@@ -308,8 +308,8 @@ class DeviceBase(Entity):
             self._evo = create_system(self._gwy, self, **kwargs)
 
     @property
-    def schema(self) -> dict:
-        """Return the fixed attributes of the device (e.g. TODO)."""
+    def traits(self) -> dict:
+        """Return the traits of the (known) device."""
 
         return {
             **(self._codes if DEV_MODE else {}),
@@ -317,6 +317,11 @@ class DeviceBase(Entity):
             # SZ_FAKED: self._faked,
             SZ_CLASS: self._klass,
         }
+
+    @property
+    def schema(self):
+        """Return the fixed attributes of the device."""
+        return {}
 
     @property
     def params(self):
@@ -347,11 +352,11 @@ class DeviceInfo:  # 10E0
         return self._msg_value(_10E0)
 
     @property
-    def schema(self) -> dict:
-        result = super().schema
-        result.update({self.RF_BIND: self._msg_value(_1FC9)})
+    def traits(self) -> dict:
+        result = super().traits
+        result.update({f"_{self.RF_BIND}": self._msg_value(_1FC9)})
         if _10E0 in self._msgs or _10E0 in RAMSES_DEVICES.get(self._klass, []):
-            result.update({self.DEVICE_INFO: self.device_info})
+            result.update({f"_{self.DEVICE_INFO}": self.device_info})
         return result
 
 
@@ -679,9 +684,9 @@ class Fakeable:
         self._send_cmd(cmd)
 
     @property
-    def schema(self) -> dict:
+    def traits(self) -> dict:
         return {
-            **super().schema,
+            **super().traits,
             SZ_FAKED: self._faked,
         }
 
