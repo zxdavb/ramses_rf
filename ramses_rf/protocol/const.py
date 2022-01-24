@@ -440,8 +440,9 @@ _0418_FAULT_TYPE = {
     "01": "system_fault",
     "03": "mains_low",
     "04": "battery_low",
-    "05": "battery_error",  # evotouch_battery_error
+    "05": "battery_error",  # actually: 'evotouch_battery_error'
     "06": "comms_fault",
+    "07": "sensor_fault",  # seen with zone sensor
     "0A": "sensor_error",
     "??": "bad_value",
 }
