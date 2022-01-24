@@ -592,9 +592,18 @@ def parser_0418(payload, msg) -> Optional[dict]:
     if dts_from_hex(payload[18:30]) is None:  # a null log entry
         return {"log_entry": None}
 
-    assert payload[2:4] in _0418_FAULT_STATE, payload[2:4]  # C0 don't appear in UI?
-    assert payload[8:10] in _0418_FAULT_TYPE, payload[8:10]
-    assert payload[12:14] in _0418_DEVICE_CLASS, payload[12:14]
+    try:
+        assert payload[2:4] in _0418_FAULT_STATE, f"fault_state: {payload[2:4]}"
+        assert payload[8:10] in _0418_FAULT_TYPE, f"fault_type: {payload[8:10]}"
+        assert payload[12:14] in _0418_DEVICE_CLASS, f"device class: {payload[12:14]}"
+        # 1C: 'Comms fault, Actuator': seen with boiler relays
+        assert int(payload[10:12], 16) < msg._gwy.config.max_zones or (
+            payload[10:12] in ("1C", "F9", "FA", "FC")
+        ), f"domain_id: {payload[10:12]}"
+    except AssertionError as exc:
+        _LOGGER.warning(
+            f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc}), with a photo of your fault log"
+        )
 
     result = {
         "timestamp": dts_from_hex(payload[18:30]),
@@ -606,17 +615,12 @@ def parser_0418(payload, msg) -> Optional[dict]:
     if payload[10:12] == "FC" and result["device_class"] == "actuator":
         result["device_class"] = ATTR_HTG_CONTROL  # aka Boiler relay
 
-    # 1C: 'Comms fault, Actuator': seen with boiler relays
-    assert int(payload[10:12], 16) < msg._gwy.config.max_zones or (
-        payload[10:12] in ("1C", "F9", "FA", "FC")
-    ), f"unexpected domain_id: {payload[10:12]}"
-
     if payload[12:14] != "00":  # TODO: Controller
         key_name = (
-            "zone_id"
+            "zone_id"  # NOTE: don't use zone_idx (for now)
             if int(payload[10:12], 16) < msg._gwy.config.max_zones
             else "domain_id"
-        )  # TODO: don't use zone_idx (for now)
+        )
         result.update({key_name: payload[10:12]})
 
     if payload[38:] == "000002":  # "00:000002 for Unknown?
@@ -2030,9 +2034,9 @@ def parser_3ef0(payload, msg) -> dict:
         assert "_flags_6" not in result or (
             [result["_flags_6"][i] for i in (0, 1, 2, 3, 4, 5)] == [0] * 6
         ), result["_flags_6"]
-    except AssertionError:
+    except AssertionError as exc:
         _LOGGER.warning(
-            f"{msg._pkt} < {_INFORM_DEV_MSG}, with a description of your system"
+            f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc}), with a description of your system"
         )
 
     return result
