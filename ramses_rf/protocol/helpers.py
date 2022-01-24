@@ -114,7 +114,7 @@ def double(val, factor=1) -> Optional[float]:
     if val == "7FFF":
         return
     result = int(val, 16)
-    assert result < 32767
+    # assert result < 32767  # # 8400 seen with a 1298!
     return result if factor == 1 else result / factor
 
 
