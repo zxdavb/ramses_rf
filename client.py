@@ -129,7 +129,7 @@ class DeviceIdParamType(click.ParamType):
 @click.option("-ld", "--long-dates", is_flag=True, default=None)
 @click.option("-e/-ne", "--eavesdrop/--no-eavesdrop", default=None)
 @click.option(
-    "-s/-ns",
+    "-k/-nk",
     "--show-schema/--no-show-schema",
     default=SHOW_SCHEMA,
     help="display system schema",
@@ -141,7 +141,7 @@ class DeviceIdParamType(click.ParamType):
     help="display system params",
 )
 @click.option(
-    "-t/-nt",
+    "-s/-ns",
     "--show-status/--no-show-status",
     default=SHOW_STATUS,
     help="display system state",
@@ -153,7 +153,7 @@ class DeviceIdParamType(click.ParamType):
     help="display known_list (of devices)",
 )
 @click.option(
-    "-d/-nd",
+    "-t/-nt",
     "--show-traits/--no-show-traits",
     default=SHOW_TRAITS,
     help="display device traits",
@@ -430,7 +430,15 @@ def print_summary(gwy, **kwargs):
         print(f"allow_list (hints) = {json.dumps(gwy._include, indent=4)}\r\n")
 
     if kwargs.get("show_traits"):  # show device traits
-        print(sorted({d.id: d.traits for d in gwy.devices}), "\r\n")
+        result = {
+            d.id: {
+                k: v
+                for k, v in d.traits.items()
+                if k not in ("alias", "class", "faked")
+            }
+            for d in sorted(gwy.devices)
+        }
+        print(json.dumps(result, indent=4), "\r\n")
 
     if kwargs.get("show_crazys"):
         for device in [d for d in gwy.devices if d.type == "01"]:
