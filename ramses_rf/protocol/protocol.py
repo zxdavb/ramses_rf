@@ -194,18 +194,17 @@ class MessageTransport(asyncio.Transport):
                 p.data_received(msg)
             except CorruptStateError as exc:
                 _LOGGER.error("%s < %s", pkt, exc)
-            # except Exception as exc:  # noqa: E722, broad-except
-            except (
+
+            except (  # protect this code from the upper-layer callback
                 ArithmeticError,  # incl. ZeroDivisionError,
                 AssertionError,
                 AttributeError,
-                IndexError,
                 LookupError,  # incl. IndexError, KeyError
                 NameError,  # incl. UnboundLocalError
                 RuntimeError,  # incl. RecursionError
                 TypeError,
                 ValueError,
-            ) as exc:
+            ) as exc:  # noqa: E722, broad-except
                 _LOGGER.exception("%s < exception from app layer: %s", pkt, exc)
 
     def close(self):
@@ -467,9 +466,7 @@ class MessageProtocol(asyncio.Protocol):
         self._transport = transport
 
     def data_received(self, msg: Message) -> None:
-        """Called by the transport when some data is received."""
-        # NOTE: will get double-logging if >1 subscribers to msg transport
-        # _LOGGER.info("MsgProtocol.data_received(%s)", msg)  # or: use repr(msg)?
+        """Called by the transport when a message is received."""
 
         self._this_msg, self._prev_msg = msg, self._this_msg
         self._callback(self._this_msg, prev_msg=self._prev_msg)

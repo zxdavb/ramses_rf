@@ -1470,7 +1470,7 @@ def parser_2420(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # hometronics _state (of unknwon)
+@parser_decorator  # hometronics _state (of unknown)
 def parser_2d49(payload, msg) -> dict:
 
     assert payload[2:] in ("0000", "C800"), _INFORM_DEV_MSG
