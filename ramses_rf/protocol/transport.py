@@ -18,7 +18,7 @@ from queue import Queue
 from string import printable  # ascii_letters, digits
 from threading import Lock, Thread
 from types import SimpleNamespace
-from typing import ByteString, Callable, Generator, Optional, Tuple
+from typing import ByteString, Callable, Iterable, Optional, Tuple
 
 from serial import SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerTransportAsync
@@ -346,7 +346,7 @@ class PacketProtocolBase(asyncio.Protocol):
             )
 
     # @functools.lru_cache(maxsize=128)  # this will no longer work
-    def _is_wanted(self, src_id, dst_id) -> Optional[bool]:
+    def _is_wanted(self, src_id: str, dst_id: str) -> Optional[bool]:
         """Parse the packet, return True if the packet is not to be filtered out.
 
         An unwanted device_id will 'trump' a whitelited device_id in the same packet
@@ -406,20 +406,17 @@ class PacketProtocolBase(asyncio.Protocol):
         if self._callback and self._is_wanted(pkt.src.id, pkt.dst.id):
             try:
                 self._callback(pkt)  # only wanted PKTs to the MSG transport's handler
-            except InvalidPacketError as exc:
-                _LOGGER.error("%s < %s", pkt, exc)
-            # except Exception as exc:  # noqa: E722, broad-except
-            except (
+
+            except (  # protect this code from the upper-layer callback
                 ArithmeticError,  # incl. ZeroDivisionError,
                 AssertionError,
                 AttributeError,
-                IndexError,
                 LookupError,  # incl. IndexError, KeyError
                 NameError,  # incl. UnboundLocalError
                 RuntimeError,  # incl. RecursionError
                 TypeError,
                 ValueError,
-            ) as exc:
+            ) as exc:  # noqa: E722, broad-except
                 _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
 
     def _line_received(self, dtm: dt, line: str, raw_line: ByteString) -> None:
@@ -434,7 +431,21 @@ class PacketProtocolBase(asyncio.Protocol):
                 dtm,
                 _regex_hack(line, self._gwy.config.use_regex.get("inbound", {})),
                 raw_line=raw_line,
-            )
+            )  # should log all? invalid pkts appropriately
+
+            if pkt.src.type == "18":  # dex: ideally should use HGI, but how?
+                if self._hgi80[DEVICE_ID] is None:
+                    self._hgi80[DEVICE_ID] = pkt.src.id
+
+                elif self._hgi80[DEVICE_ID] != pkt.src.id:
+                    (
+                        _LOGGER.debug
+                        if pkt.src.id in self._unwanted
+                        else _LOGGER.warning
+                    )(
+                        f"{pkt} < There appears to be more than one HGI80-compatible device"
+                        f" (active gateway: {self._hgi80[DEVICE_ID]}), this is unsupported"
+                    )
 
         except InvalidPacketError as exc:
             if "# evofw" in line and self._hgi80[IS_EVOFW3] is None:
@@ -447,25 +458,25 @@ class PacketProtocolBase(asyncio.Protocol):
                 _LOGGER.error("%s < Cant create packet (ignoring): %s", line, exc)
             return
 
-        if pkt.src.type == "18":  # dex: ideally should use HGI, but how?
-            if self._hgi80[DEVICE_ID] is None:
-                self._hgi80[DEVICE_ID] = pkt.src.id
+        try:
+            self._pkt_received(pkt)
 
-            elif self._hgi80[DEVICE_ID] != pkt.src.id:
-                (_LOGGER.debug if pkt.src.id in self._unwanted else _LOGGER.warning)(
-                    f"{pkt} < There appears to be more than one HGI80-compatible device"
-                    f" (active gateway: {self._hgi80[DEVICE_ID]}), this is unsupported"
-                )
-
-        self._pkt_received(pkt)
+        except (  # protect the code that invoked the callback from this layer
+            ArithmeticError,  # incl. ZeroDivisionError,
+            AssertionError,
+            AttributeError,
+            LookupError,  # incl. IndexError, KeyError
+            NameError,  # incl. UnboundLocalError
+            RuntimeError,  # incl. RecursionError
+            TypeError,
+            ValueError,
+        ) as exc:  # noqa: E722, broad-except
+            _LOGGER.exception("%s < exception from pkt layer: %s", pkt, exc)
 
     def data_received(self, data: ByteString) -> None:
-        """Called when some data (packet fragments) is received (from RF)."""
-        # _LOGGER.debug("PacketProtocolBase.data_received(%s)", data.rstrip())
+        """Called by the transport when some data (packet fragments) is received."""
 
-        def _bytes_received(
-            data: ByteString,
-        ) -> Generator[ByteString, ByteString, None]:
+        def bytes_received(data: ByteString) -> Iterable[ByteString]:
             self._recv_buffer += data
             if b"\r\n" in self._recv_buffer:
                 lines = self._recv_buffer.split(b"\r\n")
@@ -473,7 +484,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 for line in lines[:-1]:
                     yield self._dt_now(), line
 
-        for dtm, raw_line in _bytes_received(data):
+        for dtm, raw_line in bytes_received(data):
             self._line_received(dtm, _normalise(_str(raw_line)), raw_line)
 
     async def _send_data(self, data: str) -> None:
@@ -599,7 +610,7 @@ class PacketProtocolRead(PacketProtocolBase):
                 self._gwy,
                 dtm,
                 _regex_hack(line, self._gwy.config.use_regex.get("inbound", {})),
-            )
+            )  # should log all invalid pkts appropriately
 
         except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
             return
