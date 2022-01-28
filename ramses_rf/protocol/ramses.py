@@ -885,7 +885,7 @@ RAMSES_DEVICES_CLASS = {
         # RP: {},  # RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
         _3EF1: {RP: {}},
     },
-    DEV_KLASS.EXT: {
+    DEV_KLASS.OUT: {
         _0002: {I_: {}},
         _1FC9: {I_: {}},
     },  # i.e. HB85 (ext. temperature/luminosity(lux)), HB95 (+ wind speed)

@@ -1290,10 +1290,10 @@ class DhwSensor(DhwTemperature, BatteryState, Device):  # DHW (07): 10A0, 1260
         }
 
 
-class ExtSensor(Weather, Device):  # EXT: 17
-    """The EXT class (external sensor), such as a HB85/HB95."""
+class OutSensor(Weather, Device):  # OUT: 17
+    """The OUT class (external sensor), such as a HB85/HB95."""
 
-    _DEV_KLASS = DEV_KLASS.EXT
+    _DEV_KLASS = DEV_KLASS.OUT
     _DEV_TYPES = ("17",)
 
     # LUMINOSITY = "luminosity"  # lux
@@ -2113,7 +2113,7 @@ _DEV_TYPE_TO_KLASS = {  # TODO: *remove*
     "10": DEV_KLASS.OTB,
     "12": DEV_KLASS.THM,  # 12: can act like a DEV_KLASS.PRG
     "13": DEV_KLASS.BDR,
-    "17": DEV_KLASS.EXT,
+    "17": DEV_KLASS.OUT,
     "18": DEV_KLASS.HGI,
     "22": DEV_KLASS.THM,  # 22: can act like a DEV_KLASS.PRG
     "23": DEV_KLASS.PRG,

@@ -23,7 +23,7 @@ DEV_KLASS = SimpleNamespace(
     BDR="BDR",  # Electrical relay
     CTL="CTL",  # Controller
     DHW="DHW",  # DHW sensor
-    EXT="EXT",  # External weather sensor
+    OUT="OUT",  # External weather sensor
     OTB="OTB",  # OpenTherm bridge
     PRG="PRG",  # Programmer
     THM="THM",  # Thermostat - don't use STA
@@ -215,8 +215,8 @@ _OUT_DEVICE_TABLE = {
         "archetype": "T87RF",
     },
     "17": {
-        "type": "EXT",
-        "name": "Outdoor Sensor?",
+        "type": "OUT",
+        "name": "Outdoor Sensor",
     },  # TODO: HB85?
     "18": {
         "type": "HGI",
@@ -367,7 +367,7 @@ _0005_ZONE = SimpleNamespace(
     UFH="09",  # UFH zones
     VAL="0A",  # Zone valve zones
     MIX="0B",  # Mix valve zones
-    EXT="0C",  # Weather sensor
+    OUT="0C",  # Outdoor weather sensor
     DHW_SENSOR="0D",  # DHW sensor domains
     DHW="0E",  # DHW valve domains
     HTG="0F",  # Heating control domains
@@ -393,7 +393,7 @@ _0005_ZONE_TYPE = {
     _0005_ZONE.UFH: ATTR_UFH_HTG,
     _0005_ZONE.VAL: ATTR_ZON_VALVE,
     _0005_ZONE.MIX: ATTR_MIX_VALVE,
-    _0005_ZONE.EXT: "external_sensor",
+    _0005_ZONE.OUT: "outside_sensor",
     _0005_ZONE.DHW_SENSOR: ATTR_DHW_SENSOR,
     _0005_ZONE.DHW: ATTR_DHW_VALVE,  # can be 0, 1 or 2 (i.e. 1,1,0,...) of them
     _0005_ZONE.HTG: ATTR_HTG_CONTROL,
