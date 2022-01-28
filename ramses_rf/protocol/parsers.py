@@ -652,10 +652,10 @@ def parser_042f(payload, msg) -> Optional[dict]:
     #  I --- 32:166025 --:------ 32:166025 042F 009 00-050E0B0C00111470
 
     return {
-        "counter_1": int(payload[2:6], 16),
-        "counter_2": int(payload[6:10], 16),
-        "counter_total": int(payload[10:14], 16),
-        "unknown_7": payload[14:],
+        "counter_1": f"0x{payload[2:6]}",
+        "counter_2": f"0x{payload[6:10]}",
+        "counter_3": f"0x{payload[10:14]}",
+        "unknown_7": f"0x{payload[14:]}",
     }
 
 
