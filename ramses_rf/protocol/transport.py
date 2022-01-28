@@ -293,6 +293,8 @@ class PacketProtocolBase(asyncio.Protocol):
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
 
+        _LOGGER.info(f"RAMSES_RF protocol library v{VERSION}, using {self}")
+
         self._gwy = gwy
         self._loop = gwy._loop
         self._callback = pkt_handler  # Could be None
@@ -324,8 +326,11 @@ class PacketProtocolBase(asyncio.Protocol):
             DEVICE_ID: None,
         }
 
-    def __str__(self):
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}(enforce_include={self.enforce_include})"
+
+    def __str__(self) -> str:
+        return self.__class__.__name__
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
@@ -333,9 +338,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
     def connection_made(self, transport: asyncio.Transport) -> None:
         """Called when a connection is made."""
-        _LOGGER.debug("PacketProtocolBase.connection_made(%s)", transport)
-
-        _LOGGER.info(f"RAMSES_RF protocol library v{VERSION}, {self}")
+        _LOGGER.debug(f"{self}.connection_made({transport})")
 
         self._transport = transport
 
@@ -353,78 +356,40 @@ class PacketProtocolBase(asyncio.Protocol):
                 "is strongly recommended)"
             )
 
-    def _is_wanted(self, src_id: str, dst_id: str) -> Optional[bool]:
-        """Parse the packet, return True if the packet is not to be filtered out.
+    def connection_lost(self, exc: Optional[Exception]) -> None:
+        """Called when the connection is lost or closed."""
+        _LOGGER.debug(f"{self}.connection_lost(exc)")
+        # serial.serialutil.SerialException: device reports error (poll)
 
-        An unwanted device_id will 'trump' a whitelited device_id in the same packet
-        because there is a significant chance the packet is simply corrupt.
-        """
+        if exc is not None:
+            raise exc
 
-        for dev_id in dict.fromkeys((src_id, dst_id)):
-            if dev_id in self._unwanted:  # TODO: remove entries older than (say) 1w/1d
-                return
+    def pause_writing(self) -> None:
+        """Called when the transport's buffer goes over the high-water mark."""
+        _LOGGER.debug(f"{self}.pause_writing()")
 
-            if dev_id in self._exclude:
-                _LOGGER.info(
-                    f"Blocking packets with device_id: {dev_id} (is blacklisted), "
-                    f"if required, remove it from the {BLOCK_LIST})"
-                )
-                self._unwanted.append(dev_id)
-                return
+        self._pause_writing = True
 
-            if dev_id in self._include or dev_id in (NON_DEVICE_ID, NUL_DEVICE_ID):
-                continue
+    def resume_writing(self) -> None:
+        """Called when the transport's buffer drains below the low-water mark."""
+        _LOGGER.debug(f"{self}.resume_writing()")
 
-            if dev_id[:2] == "18" and self._hgi80[DEVICE_ID] is None:
-                continue
+        self._pause_writing = False
 
-            if dev_id == self._hgi80[DEVICE_ID]:
-                if self._include:
-                    _LOGGER.warning(
-                        f"Allowing packets with device_id: {dev_id} (is gateway), "
-                        f"configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
-                    )
-                self._include.append(dev_id)  # NOTE: only time include list is modified
-                continue
+    def data_received(self, data: ByteString) -> None:
+        """Called by the transport when some data (packet fragments) is received."""
+        # _LOGGER.debug(f"{self}.data_received({%s})", data)
 
-            if dev_id[:2] == "18" and self._gwy.serial_port:  # dex
-                (_LOGGER.info if dev_id in self._exclude else _LOGGER.warning)(
-                    f"Blocking packets with device_id: {dev_id} (is foreign gateway), "
-                    f"configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
-                )
-                self._unwanted.append(dev_id)
-                return
+        def bytes_received(data: ByteString) -> Iterable[ByteString]:
+            self._recv_buffer += data
+            if b"\r\n" in self._recv_buffer:
+                lines = self._recv_buffer.split(b"\r\n")
+                self._recv_buffer = lines[-1]
+                for line in lines[:-1]:
+                    yield self._dt_now(), line
 
-            if self.enforce_include:  # self._include:
-                (_LOGGER.info if dev_id in self._exclude else _LOGGER.warning)(
-                    f"Blocking packets with device_id: {dev_id} (is not whitelisted), "
-                    f"if required, add it to the {KNOWN_LIST}"
-                )
-                self._unwanted.append(dev_id)
-                return
-
-        return True
-
-    def _pkt_received(self, pkt: Packet) -> None:
-        """Pass any valid/wanted packets to the callback."""
-
-        self._this_pkt, self._prev_pkt = pkt, self._this_pkt
-
-        if self._callback and self._is_wanted(pkt.src.id, pkt.dst.id):
-            try:
-                self._callback(pkt)  # only wanted PKTs to the MSG transport's handler
-
-            except (  # protect this code from the upper-layer callback
-                ArithmeticError,  # incl. ZeroDivisionError,
-                AssertionError,
-                AttributeError,
-                LookupError,  # incl. IndexError, KeyError
-                NameError,  # incl. UnboundLocalError
-                RuntimeError,  # incl. RecursionError
-                TypeError,
-                ValueError,
-            ) as exc:  # noqa: E722, broad-except
-                _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
+        for dtm, raw_line in bytes_received(data):
+            self._line_received(dtm, _normalise(_str(raw_line)), raw_line)
 
     def _line_received(self, dtm: dt, line: str, raw_line: ByteString) -> None:
 
@@ -481,20 +446,177 @@ class PacketProtocolBase(asyncio.Protocol):
         ) as exc:  # noqa: E722, broad-except
             _LOGGER.exception("%s < exception from pkt layer: %s", pkt, exc)
 
-    def data_received(self, data: ByteString) -> None:
-        """Called by the transport when some data (packet fragments) is received."""
-        # _LOGGER.debug("PacketProtocolBase.data_received(%s)", data)
+    def _pkt_received(self, pkt: Packet) -> None:
+        """Pass any valid/wanted packets to the callback."""
 
-        def bytes_received(data: ByteString) -> Iterable[ByteString]:
-            self._recv_buffer += data
-            if b"\r\n" in self._recv_buffer:
-                lines = self._recv_buffer.split(b"\r\n")
-                self._recv_buffer = lines[-1]
-                for line in lines[:-1]:
-                    yield self._dt_now(), line
+        self._this_pkt, self._prev_pkt = pkt, self._this_pkt
 
-        for dtm, raw_line in bytes_received(data):
-            self._line_received(dtm, _normalise(_str(raw_line)), raw_line)
+        if self._callback and self._is_wanted(pkt.src.id, pkt.dst.id):
+            try:
+                self._callback(pkt)  # only wanted PKTs to the MSG transport's handler
+
+            except (  # protect this code from the upper-layer callback
+                ArithmeticError,  # incl. ZeroDivisionError,
+                AssertionError,
+                AttributeError,
+                LookupError,  # incl. IndexError, KeyError
+                NameError,  # incl. UnboundLocalError
+                RuntimeError,  # incl. RecursionError
+                TypeError,
+                ValueError,
+            ) as exc:  # noqa: E722, broad-except
+                _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
+
+    def _is_wanted(self, src_id: str, dst_id: str) -> Optional[bool]:
+        """Parse the packet, return True if the packet is not to be filtered out.
+
+        An unwanted device_id will 'trump' a whitelited device_id in the same packet
+        because there is a significant chance the packet is simply corrupt.
+        """
+
+        for dev_id in dict.fromkeys((src_id, dst_id)):
+            if dev_id in self._unwanted:  # TODO: remove entries older than (say) 1w/1d
+                return
+
+            if dev_id in self._exclude:
+                _LOGGER.info(
+                    f"Blocking packets with device_id: {dev_id} (is blacklisted), "
+                    f"if required, remove it from the {BLOCK_LIST})"
+                )
+                self._unwanted.append(dev_id)
+                return
+
+            if dev_id in self._include or dev_id in (NON_DEVICE_ID, NUL_DEVICE_ID):
+                continue
+
+            if dev_id[:2] == "18" and self._hgi80[DEVICE_ID] is None:
+                continue
+
+            if dev_id == self._hgi80[DEVICE_ID]:
+                if self._include:
+                    _LOGGER.warning(
+                        f"Allowing packets with device_id: {dev_id} (is gateway), "
+                        f"configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
+                    )
+                self._include.append(dev_id)  # NOTE: only time include list is modified
+                continue
+
+            if dev_id[:2] == "18" and self._gwy.serial_port:  # dex
+                (_LOGGER.info if dev_id in self._exclude else _LOGGER.warning)(
+                    f"Blocking packets with device_id: {dev_id} (is foreign gateway), "
+                    f"configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
+                )
+                self._unwanted.append(dev_id)
+                return
+
+            if self.enforce_include:  # self._include:
+                (_LOGGER.info if dev_id in self._exclude else _LOGGER.warning)(
+                    f"Blocking packets with device_id: {dev_id} (is not whitelisted), "
+                    f"if required, add it to the {KNOWN_LIST}"
+                )
+                self._unwanted.append(dev_id)
+                return
+
+        return True
+
+    async def send_data(self, cmd: Command) -> None:
+        raise NotImplementedError
+
+
+class PacketProtocolFile(PacketProtocolBase):
+    """Interface for a packet protocol (for packet log)."""
+
+    def __init__(self, gwy, pkt_handler: Callable) -> None:
+        super().__init__(gwy, pkt_handler)
+
+        self._dt_str_ = None
+
+    def _dt_now(self) -> dt:
+        """Return a precise datetime, using a packet's dtm field."""
+
+        try:
+            return dt.fromisoformat(self._dt_str_)  # always current pkt's dtm
+        except (TypeError, ValueError):
+            pass
+
+        try:
+            return self._this_pkt.dtm  # if above fails, will be previous pkt's dtm
+        except AttributeError:
+            return dt(1970, 1, 1, 1, 0)
+
+    def data_received(self, data: str) -> None:
+        """Called when a packet line is received (from a log file)."""
+        # _LOGGER.debug(f"{self}.data_received(%s)", data.rstrip())
+
+        self._dt_str_ = data[:26]  # used for self._dt_now
+
+        self._line_received(data[:26], data[27:].strip(), data)
+
+    def _line_received(self, dtm: str, line: str, raw_line: str) -> None:
+
+        try:
+            pkt = Packet.from_file(
+                self._gwy,
+                dtm,
+                _regex_hack(line, self._gwy.config.use_regex.get("inbound", {})),
+            )  # should log all invalid pkts appropriately
+
+        except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
+            return
+
+        if pkt.src.type == "18" and pkt.src.id != HGI_DEVICE_ID:  # HACK 01: dex
+            if self._hgi80[DEVICE_ID] is None:
+                self._hgi80[DEVICE_ID] = pkt.src.id
+
+            elif self._hgi80[DEVICE_ID] != pkt.src.id:
+                _LOGGER.debug(
+                    f"{pkt} < There appears to be more than one HGI80-compatible device"
+                    f" (active gateway: {self._hgi80[DEVICE_ID]}), this is unsupported"
+                )
+
+        self._pkt_received(pkt)
+
+
+class PacketProtocolPort(PacketProtocolBase):
+    """Interface for a packet protocol (without QoS)."""
+
+    def connection_made(self, transport: asyncio.Transport) -> None:
+        """Called when a connection is made."""
+
+        super().connection_made(transport)  # self._transport = transport
+        # self._transport.serial.rts = False
+
+        # determine if using a evofw3 rather than a HGI80
+        self._transport.write(bytes("!V\r\n".encode("ascii")))
+
+        # add this to start of the pkt log, if any
+        if not self._disable_sending:  # TODO: use a callback
+            self._loop.create_task(self.send_data(Command._puzzle()))
+
+        self.resume_writing()
+
+    async def send_data(self, cmd: Command) -> None:
+        """Called when some data is to be sent (not a callback)."""
+        # _LOGGER.debug(f"{self}.send_data(%s)", cmd)
+
+        if self._disable_sending or self._pause_writing:
+            raise RuntimeError("Sending is disabled or writing is paused")
+
+        if cmd.src.id != HGI_DEVICE_ID:
+            if self._hgi80[IS_EVOFW3]:
+                _LOGGER.info(
+                    "Impersonating device: %s, for pkt: %s", cmd.src.id, cmd.tx_header
+                )
+            else:
+                _LOGGER.warning(
+                    "Impersonating device: %s, for pkt: %s"
+                    ", NB: standard HGI80s dont support this feature, it needs evofw3!",
+                    cmd.src.id,
+                    cmd.tx_header,
+                )
+            await self.send_data(Command._puzzle(msg_type="11", message=cmd.tx_header))
+
+        await self._send_data(str(cmd))
 
     async def _send_data(self, data: str) -> None:
         """Send a bytearray to the transport (serial) interface."""
@@ -523,122 +645,6 @@ class PacketProtocolBase(asyncio.Protocol):
         # 0.2: can still exceed RF duty cycle limit with back-to-back restarts
         # await asyncio.sleep(0.2)  # TODO: RF Duty cycle, make configurable?
 
-    async def send_data(self, cmd: Command) -> None:
-        """Called when some data is to be sent (not a callback)."""
-        # _LOGGER.debug("PacketProtocolBase.send_data(%s)", cmd)
-
-        if self._disable_sending or self._pause_writing:
-            raise RuntimeError("Sending is disabled or writing is paused")
-
-        if cmd.src.id != HGI_DEVICE_ID:
-            if self._hgi80[IS_EVOFW3]:
-                _LOGGER.info(
-                    "Impersonating device: %s, for pkt: %s", cmd.src.id, cmd.tx_header
-                )
-            else:
-                _LOGGER.warning(
-                    "Impersonating device: %s, for pkt: %s"
-                    ", NB: standard HGI80s dont support this feature, it needs evofw3!",
-                    cmd.src.id,
-                    cmd.tx_header,
-                )
-            await self.send_data(Command._puzzle(msg_type="11", message=cmd.tx_header))
-
-        await self._send_data(str(cmd))
-
-    def connection_lost(self, exc: Optional[Exception]) -> None:
-        """Called when the connection is lost or closed."""
-        _LOGGER.debug("PacketProtocolBase.connection_lost(%s)", exc)
-        # serial.serialutil.SerialException: device reports error (poll)
-
-        if exc is not None:
-            raise exc
-
-    def pause_writing(self) -> None:
-        """Called when the transport's buffer goes over the high-water mark."""
-        _LOGGER.debug("PacketProtocolBase.pause_writing()")
-
-        self._pause_writing = True
-
-    def resume_writing(self) -> None:
-        """Called when the transport's buffer drains below the low-water mark."""
-        _LOGGER.debug("PacketProtocolBase.resume_writing()")
-
-        self._pause_writing = False
-
-
-class PacketProtocolFile(PacketProtocolBase):
-    """Interface for a packet protocol (for packet log)."""
-
-    def __init__(self, gwy, pkt_handler: Callable) -> None:
-        super().__init__(gwy, pkt_handler)
-
-        self._dt_str_ = None
-
-    def _dt_now(self) -> dt:
-        """Return a precise datetime, using a packet's dtm field."""
-
-        try:
-            return dt.fromisoformat(self._dt_str_)  # always current pkt's dtm
-        except (TypeError, ValueError):
-            pass
-
-        try:
-            return self._this_pkt.dtm  # if above fails, will be previous pkt's dtm
-        except AttributeError:
-            return dt(1970, 1, 1, 1, 0)
-
-    def _line_received(self, dtm: str, line: str, raw_line: str) -> None:
-
-        try:
-            pkt = Packet.from_file(
-                self._gwy,
-                dtm,
-                _regex_hack(line, self._gwy.config.use_regex.get("inbound", {})),
-            )  # should log all invalid pkts appropriately
-
-        except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
-            return
-
-        if pkt.src.type == "18" and pkt.src.id != HGI_DEVICE_ID:  # HACK 01: dex
-            if self._hgi80[DEVICE_ID] is None:
-                self._hgi80[DEVICE_ID] = pkt.src.id
-
-            elif self._hgi80[DEVICE_ID] != pkt.src.id:
-                _LOGGER.debug(
-                    f"{pkt} < There appears to be more than one HGI80-compatible device"
-                    f" (active gateway: {self._hgi80[DEVICE_ID]}), this is unsupported"
-                )
-
-        self._pkt_received(pkt)
-
-    def data_received(self, data: str) -> None:
-        """Called when a packet line is received (from a log file)."""
-        # _LOGGER.debug("PacketProtocolFile.data_received(%s)", data.rstrip())
-
-        self._dt_str_ = data[:26]  # used for self._dt_now
-
-        self._line_received(data[:26], data[27:].strip(), data)
-
-
-class PacketProtocolPort(PacketProtocolBase):
-    """Interface for a packet protocol (without QoS)."""
-
-    def connection_made(self, transport: asyncio.Transport) -> None:
-        """Called when a connection is made."""
-
-        super().connection_made(transport)  # self._transport = transport
-        # self._transport.serial.rts = False
-
-        # determine if using a evofw3 rather than a HGI80
-        self._transport.write(bytes("!V\r\n".encode("ascii")))
-
-        # add this to start of the pkt log, if any
-        if not self._disable_sending:  # TODO: use a callback
-            self._loop.create_task(self.send_data(Command._puzzle()))
-
-        self.resume_writing()
-
 
 class PacketProtocolQos(PacketProtocolPort):
     """Interface for a packet protocol (includes QoS)."""
@@ -656,52 +662,6 @@ class PacketProtocolQos(PacketProtocolPort):
         self._backoff = 0
         self._timeout_full = None
         self._timeout_half = None
-
-    def _qos_set_cmd(self, cmd) -> None:
-        """Set the QoS command for sending, or clear it when sent OK/timed out."""
-
-        self._qos_lock.acquire()
-        if cmd and self._qos_cmd:
-            raise RuntimeError
-        self._qos_cmd = cmd
-        self._qos_lock.release()
-
-        self._tx_hdr = cmd.tx_header if cmd else None
-        self._rx_hdr = cmd.rx_header if cmd else None  # Could be None, even if cmd
-
-        if cmd:
-            self._tx_retries = 0
-            self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
-
-    def _qos_expire_cmd(self, cmd) -> None:
-        """Handle an expired cmd, such as invoking its callbacks."""
-
-        if cmd._source_entity:  # HACK - should be using a callback
-            cmd._source_entity._qos_function(cmd)
-
-        hdr, callback = cmd.tx_header, cmd.callback
-        if callback and not callback.get("expired"):
-            # see also: MsgTransport._pkt_receiver()
-            _LOGGER.error("PktProtocolQos.send_data(%s): Expired callback", hdr)
-            callback[FUNC](False, *callback.get(ARGS, tuple()))
-            callback["expired"] = not callback.get(DEAMON, False)  # HACK:
-
-    def _qos_update_timeouts(self) -> None:
-        """Update QoS self._timeout_full, self._timeout_half attrs."""
-
-        if not self._qos_cmd:
-            raise RuntimeError
-
-        dtm = self._dt_now()
-
-        if self._tx_hdr:
-            timeout = QOS_TX_TIMEOUT
-        else:
-            timeout = self._qos_cmd.qos.get("timeout", QOS_RX_TIMEOUT)
-        timeout = min(timeout * 4 ** self._backoff, td(seconds=1))
-
-        self._timeout_full = dtm + timeout * 2
-        self._timeout_half = dtm + timeout
 
     def _pkt_received(self, pkt: Packet) -> None:
         """Called when packets are received (a callback).
@@ -774,7 +734,7 @@ class PacketProtocolQos(PacketProtocolPort):
 
         Wraps the relevant function with QoS code.
         """
-        # _LOGGER.debug("PktProtocolQos.send_data(%s)", cmd)
+        # _LOGGER.debug(f"{self}.send_data(%s)", cmd)
 
         while self._qos_cmd is not None:
             await asyncio.sleep(_QOS_POLL_INTERVAL)
@@ -827,6 +787,52 @@ class PacketProtocolQos(PacketProtocolPort):
 
             if self._timeout_half >= self._dt_now():
                 self._backoff = max(self._backoff - 1, 0)
+
+    def _qos_set_cmd(self, cmd) -> None:
+        """Set the QoS command for sending, or clear it when sent OK/timed out."""
+
+        self._qos_lock.acquire()
+        if cmd and self._qos_cmd:
+            raise RuntimeError
+        self._qos_cmd = cmd
+        self._qos_lock.release()
+
+        self._tx_hdr = cmd.tx_header if cmd else None
+        self._rx_hdr = cmd.rx_header if cmd else None  # Could be None, even if cmd
+
+        if cmd:
+            self._tx_retries = 0
+            self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
+
+    def _qos_update_timeouts(self) -> None:
+        """Update QoS self._timeout_full, self._timeout_half attrs."""
+
+        if not self._qos_cmd:
+            raise RuntimeError
+
+        dtm = self._dt_now()
+
+        if self._tx_hdr:
+            timeout = QOS_TX_TIMEOUT
+        else:
+            timeout = self._qos_cmd.qos.get("timeout", QOS_RX_TIMEOUT)
+        timeout = min(timeout * 4 ** self._backoff, td(seconds=1))
+
+        self._timeout_full = dtm + timeout * 2
+        self._timeout_half = dtm + timeout
+
+    def _qos_expire_cmd(self, cmd) -> None:
+        """Handle an expired cmd, such as invoking its callbacks."""
+
+        if cmd._source_entity:  # HACK - should be using a callback
+            cmd._source_entity._qos_function(cmd)
+
+        hdr, callback = cmd.tx_header, cmd.callback
+        if callback and not callback.get("expired"):
+            # see also: MsgTransport._pkt_receiver()
+            _LOGGER.error("PktProtocolQos.send_data(%s): Expired callback", hdr)
+            callback[FUNC](False, *callback.get(ARGS, tuple()))
+            callback["expired"] = not callback.get(DEAMON, False)  # HACK:
 
 
 def create_pkt_stack(
