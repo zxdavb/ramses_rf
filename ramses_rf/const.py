@@ -37,7 +37,7 @@ from .protocol.const import (  # noqa: F401
     SystemType,
 )
 
-__dev_mode__ = True
+__dev_mode__ = False
 DEV_MODE = __dev_mode__
 
 Discover = SimpleNamespace(
