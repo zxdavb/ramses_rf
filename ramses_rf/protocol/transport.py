@@ -63,6 +63,9 @@ POLLER_TASK = "poller_task"
 _QOS_POLL_INTERVAL = 0.005
 _QOS_MAX_BACKOFF = 3
 
+_MIN_GAP_BETWEEN_WRITES = 0.2  # seconds
+_MIN_GAP_BETWEEN_RETRYS = 2.0  # seconds
+
 Pause = SimpleNamespace(
     NONE=td(seconds=0),
     MINIMUM=td(seconds=0.01),
@@ -580,6 +583,21 @@ class PacketProtocolFile(PacketProtocolBase):
 class PacketProtocolPort(PacketProtocolBase):
     """Interface for a packet protocol (without QoS)."""
 
+    def __init__(self, gwy, pkt_handler: Callable) -> None:
+        super().__init__(gwy, pkt_handler)
+
+        self._sem = asyncio.BoundedSemaphore(1)
+        self._loop.create_task(self._leak_sem())
+
+    async def _leak_sem(self):
+        """Used to enforce a minimum time between calls to self._transport.write()."""
+        while True:
+            await asyncio.sleep(_MIN_GAP_BETWEEN_WRITES)
+            try:
+                self._sem.release()
+            except ValueError:
+                pass
+
     def connection_made(self, transport: asyncio.Transport) -> None:
         """Called when a connection is made."""
 
@@ -638,12 +656,11 @@ class PacketProtocolPort(PacketProtocolBase):
             ).encode("ascii")
         )
 
+        await self._sem.acquire()  # try not to exceed a (reasonable) RF duty cycle
+
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
             _LOGGER.info("RF Tx:     %s", data)
         self._transport.write(data + b"\r\n")
-
-        # 0.2: can still exceed RF duty cycle limit with back-to-back restarts
-        # await asyncio.sleep(0.2)  # TODO: RF Duty cycle, make configurable?
 
 
 class PacketProtocolQos(PacketProtocolPort):
