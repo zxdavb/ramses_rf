@@ -291,11 +291,8 @@ class PacketProtocolBase(asyncio.Protocol):
     to transport: self.send_data(cmd)       -> self._transport.write(bytes)
     """
 
-    @staticmethod
-    def _dt_now():
-        return dt_now() if sys.platform == "win32" else dt.now()
-
     def __init__(self, gwy, pkt_handler: Callable) -> None:
+
         self._gwy = gwy
         self._loop = gwy._loop
         self._callback = pkt_handler  # Could be None
@@ -319,15 +316,26 @@ class PacketProtocolBase(asyncio.Protocol):
             self._include = []
         self._unwanted = []  # not: [NON_DEVICE_ID, NUL_DEVICE_ID]
 
+        self._dt_now_ = dt_now if sys.platform == "win32" else dt.now
+
         self._hgi80 = {
             IS_INITIALIZED: None,
             IS_EVOFW3: None,
             DEVICE_ID: None,
         }
 
+    def __str__(self):
+        return f"{self.__class__.__name__}(enforce_include={self.enforce_include})"
+
+    def _dt_now(self) -> dt:
+        """Return a precise datetime, using the curent dtm."""
+        return self._dt_now_()  # or, simply: return dt_now()
+
     def connection_made(self, transport: asyncio.Transport) -> None:
         """Called when a connection is made."""
-        # _LOGGER.debug("PktProtocol.connection_made(%s)", transport)
+        _LOGGER.debug("PacketProtocolBase.connection_made(%s)", transport)
+
+        _LOGGER.info(f"RAMSES_RF protocol library v{VERSION}, {self}")
 
         self._transport = transport
 
@@ -345,7 +353,6 @@ class PacketProtocolBase(asyncio.Protocol):
                 "is strongly recommended)"
             )
 
-    # @functools.lru_cache(maxsize=128)  # this will no longer work
     def _is_wanted(self, src_id: str, dst_id: str) -> Optional[bool]:
         """Parse the packet, return True if the packet is not to be filtered out.
 
@@ -420,6 +427,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
 
     def _line_received(self, dtm: dt, line: str, raw_line: ByteString) -> None:
+
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
             _LOGGER.info("RF Rx: %s", raw_line)
 
@@ -475,6 +483,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
     def data_received(self, data: ByteString) -> None:
         """Called by the transport when some data (packet fragments) is received."""
+        # _LOGGER.debug("PacketProtocolBase.data_received(%s)", data)
 
         def bytes_received(data: ByteString) -> Iterable[ByteString]:
             self._recv_buffer += data
@@ -516,10 +525,10 @@ class PacketProtocolBase(asyncio.Protocol):
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
-        # _LOGGER.debug("PktProtocol.send_data(%s)", cmd)
+        # _LOGGER.debug("PacketProtocolBase.send_data(%s)", cmd)
 
-        if self._disable_sending:
-            raise RuntimeError("Sending is disabled")
+        if self._disable_sending or self._pause_writing:
+            raise RuntimeError("Sending is disabled or writing is paused")
 
         if cmd.src.id != HGI_DEVICE_ID:
             if self._hgi80[IS_EVOFW3]:
@@ -539,7 +548,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         """Called when the connection is lost or closed."""
-        _LOGGER.debug("PktProtocol.connection_lost(%s)", exc)
+        _LOGGER.debug("PacketProtocolBase.connection_lost(%s)", exc)
         # serial.serialutil.SerialException: device reports error (poll)
 
         if exc is not None:
@@ -547,61 +556,37 @@ class PacketProtocolBase(asyncio.Protocol):
 
     def pause_writing(self) -> None:
         """Called when the transport's buffer goes over the high-water mark."""
-        _LOGGER.debug("PktProtocol.pause_writing()")
+        _LOGGER.debug("PacketProtocolBase.pause_writing()")
+
         self._pause_writing = True
 
     def resume_writing(self) -> None:
         """Called when the transport's buffer drains below the low-water mark."""
-        _LOGGER.debug("PktProtocol.resume_writing()")
+        _LOGGER.debug("PacketProtocolBase.resume_writing()")
+
         self._pause_writing = False
 
 
-class PacketProtocolPort(PacketProtocolBase):
-    """Interface for a packet protocol (without QoS)."""
-
-    def connection_made(self, transport: asyncio.Transport) -> None:
-        """Called when a connection is made."""
-        _LOGGER.info(f"RAMSES_RF protocol library v{VERSION} (serial port)")
-
-        super().connection_made(transport)  # self._transport = transport
-        # self._transport.serial.rts = False
-
-        # determine if using a evofw3 rather than a HGI80
-        self._transport.write(bytes("!V\r\n".encode("ascii")))
-
-        # add this to start of the pkt log, if any
-        if not self._disable_sending:  # TODO: use a callback
-            self._loop.create_task(self.send_data(Command._puzzle()))
-
-        self.resume_writing()
-
-
-class PacketProtocol(PacketProtocolPort):
-    """Interface for a packet protocol (without QoS)."""
-
-    def __init__(self, gwy, pkt_handler: Callable) -> None:
-        _LOGGER.debug(
-            "PktProtocol.__init__(gwy, %s) *** Std version ***",
-            pkt_handler.__name__ if pkt_handler else None,
-        )
-        super().__init__(gwy, pkt_handler)
-
-
-class PacketProtocolRead(PacketProtocolBase):
+class PacketProtocolFile(PacketProtocolBase):
     """Interface for a packet protocol (for packet log)."""
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
-        _LOGGER.debug(
-            "PacketProtocolRead.__init__(gwy, %s) *** R/O version ***",
-            pkt_handler.__name__ if pkt_handler else None,
-        )
         super().__init__(gwy, pkt_handler)
 
-    def connection_made(self, transport: asyncio.Transport) -> None:
-        """Called when a connection is made."""
-        _LOGGER.info(f"RAMSES_RF protocol library v{VERSION} (packet log)")
+        self._dt_str_ = None
 
-        super().connection_made(transport)  # self._transport = transport
+    def _dt_now(self) -> dt:
+        """Return a precise datetime, using a packet's dtm field."""
+
+        try:
+            return dt.fromisoformat(self._dt_str_)  # always current pkt's dtm
+        except (TypeError, ValueError):
+            pass
+
+        try:
+            return self._this_pkt.dtm  # if above fails, will be previous pkt's dtm
+        except AttributeError:
+            return dt(1970, 1, 1, 1, 0)
 
     def _line_received(self, dtm: str, line: str, raw_line: str) -> None:
 
@@ -629,24 +614,36 @@ class PacketProtocolRead(PacketProtocolBase):
 
     def data_received(self, data: str) -> None:
         """Called when a packet line is received (from a log file)."""
-        # _LOGGER.debug("PacketProtocolRead.data_received(%s)", data.rstrip())
+        # _LOGGER.debug("PacketProtocolFile.data_received(%s)", data.rstrip())
+
+        self._dt_str_ = data[:26]  # used for self._dt_now
+
         self._line_received(data[:26], data[27:].strip(), data)
 
-    def _dt_now(self) -> dt:
-        try:
-            return self._this_pkt.dtm
-        except AttributeError:
-            return dt(1970, 1, 1, 1, 0)
+
+class PacketProtocolPort(PacketProtocolBase):
+    """Interface for a packet protocol (without QoS)."""
+
+    def connection_made(self, transport: asyncio.Transport) -> None:
+        """Called when a connection is made."""
+
+        super().connection_made(transport)  # self._transport = transport
+        # self._transport.serial.rts = False
+
+        # determine if using a evofw3 rather than a HGI80
+        self._transport.write(bytes("!V\r\n".encode("ascii")))
+
+        # add this to start of the pkt log, if any
+        if not self._disable_sending:  # TODO: use a callback
+            self._loop.create_task(self.send_data(Command._puzzle()))
+
+        self.resume_writing()
 
 
 class PacketProtocolQos(PacketProtocolPort):
     """Interface for a packet protocol (includes QoS)."""
 
     def __init__(self, gwy, pkt_handler: Callable) -> None:
-        _LOGGER.debug(
-            "PktProtocol.__init__(gwy, %s) *** Qos version ***",
-            pkt_handler.__name__ if pkt_handler else None,
-        )
         super().__init__(gwy, pkt_handler)
 
         self._qos_lock = Lock()
@@ -835,6 +832,8 @@ class PacketProtocolQos(PacketProtocolPort):
 def create_pkt_stack(
     gwy,
     pkt_callback,
+    /,
+    *,
     protocol_factory=None,
     ser_port=None,
     packet_log=None,
@@ -842,7 +841,7 @@ def create_pkt_stack(
 ) -> Tuple[asyncio.Protocol, asyncio.Transport]:
     """Utility function to provide a transport to the internal protocol.
 
-    The architecture is: app (client) -> msg -> pkt -> ser (HW interface).
+    The architecture is: app (client) -> msg -> pkt -> ser (HW interface) / log (file).
 
     The msg/pkt interface is via:
      - PktProtocol.data_received           to (pkt_callback) MsgTransport._pkt_receiver
@@ -860,27 +859,24 @@ def create_pkt_stack(
             "(e.g. linux with a local serial port)"
         )
 
-    def _protocol_factory():
+    def protocol_factory_():
         if packet_log or packet_dict is not None:
-            return create_protocol_factory(PacketProtocolRead, gwy, pkt_callback)()
-        elif gwy.config.disable_sending:  # TODO: assumes we wont change our mind
-            return create_protocol_factory(PacketProtocol, gwy, pkt_callback)()
+            return create_protocol_factory(PacketProtocolFile, gwy, pkt_callback)()
+        elif gwy.config.disable_sending:  # NOTE: assumes we wont change our mind
+            return create_protocol_factory(PacketProtocolPort, gwy, pkt_callback)()
         else:
             return create_protocol_factory(PacketProtocolQos, gwy, pkt_callback)()
 
     if len([x for x in (packet_dict, packet_log, ser_port) if x is not None]) != 1:
-        raise TypeError("port / file / dict should be mutually exclusive")
+        raise TypeError("serial port, log file & dict should be mutually exclusive")
 
-    pkt_protocol = (protocol_factory or _protocol_factory)()
+    pkt_protocol = (protocol_factory or protocol_factory_)()
 
-    if packet_log or packet_dict is not None:  # {} is a processable packet_dict
-        pkt_transport = SerTransportRead(
-            gwy._loop, pkt_protocol, packet_log or packet_dict
-        )
+    if (log_file := packet_log or packet_dict) is not None:  # {} is a processable log
+        pkt_transport = SerTransportRead(gwy._loop, pkt_protocol, log_file)
         return (pkt_protocol, pkt_transport)
 
-    ser_config = DEFAULT_SERIAL_CONFIG
-    ser_config.update(gwy.config.serial_config)
+    ser_config = {**DEFAULT_SERIAL_CONFIG, **gwy.config.serial_config}
 
     # python client.py monitor 'alt:///dev/ttyUSB0?class=PosixPollSerial'
     try:
@@ -894,16 +890,11 @@ def create_pkt_stack(
     except (AttributeError, NotImplementedError, ValueError):  # Wrong OS/Platform/FTDI
         pass
 
-    if any(
-        (
-            ser_port.startswith("rfc2217:"),
-            ser_port.startswith("socket:"),
-            os.name == "nt",
-        )
-    ):
+    # TODO: remove SerTransportPoll hack
+    if os.name == "nt" or ser_port[:8] == "rfc2217:" or ser_port[:7] == "socket:":
         issue_warning()
         pkt_transport = SerTransportPoll(gwy._loop, pkt_protocol, ser_instance)
-    else:
+    else:  # use the standard serial_asyncio library
         pkt_transport = SerTransportAsync(gwy._loop, pkt_protocol, ser_instance)
 
     return (pkt_protocol, pkt_transport)
