@@ -6,7 +6,7 @@
 import logging
 from inspect import getmembers, isclass
 from sys import modules
-from typing import List
+from typing import Any, List, Optional
 
 from .const import Discover, __dev_mode__
 
@@ -226,12 +226,16 @@ class Entity:
         # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
         self._gwy.send_cmd(cmd)
 
-    def _msg_value(self, code, *args, **kwargs) -> dict:
+    def _msg_flag(self, code, key, idx) -> Optional[bool]:
+        if flags := self._msg_value(code, key=key):
+            return bool(flags[idx])
+
+    def _msg_value(self, code, *args, **kwargs) -> Optional[Any]:
         if isinstance(code, (str, tuple)):  # a code or a tuple of codes
             return self._msg_value_code(code, *args, **kwargs)
         return self._msg_value_msg(code, *args, **kwargs)  # assume is a Message
 
-    def _msg_value_code(self, code, verb=None, key=None, **kwargs) -> dict:
+    def _msg_value_code(self, code, verb=None, key=None, **kwargs) -> Optional[dict]:
 
         assert (
             not isinstance(code, tuple) or verb is None
@@ -252,7 +256,9 @@ class Entity:
 
         return self._msg_value_msg(msg, key=key, **kwargs)
 
-    def _msg_value_msg(self, msg, key=None, zone_idx=None, domain_id=None) -> dict:
+    def _msg_value_msg(
+        self, msg, key=None, zone_idx=None, domain_id=None
+    ) -> Optional[dict]:
 
         if msg is None:
             return
