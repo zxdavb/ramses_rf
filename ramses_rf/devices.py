@@ -471,13 +471,11 @@ class Actuator:  # 3EF0, 3EF1
 
     @property
     def bit_3_7(self) -> Optional[bool]:  # 3EF0 (byte 3)
-        if flags := self._msg_value(_3EF0, key="_flags_3"):
-            return flags[7]
+        return self._msg_flag(_3EF0, "_flags_3", 7)
 
     @property
     def bit_6_6(self) -> Optional[bool]:  # 3EF0 ?dhw_enabled (byte 6)
-        if flags := self._msg_value(_3EF0, key="_flags_6"):
-            return flags[6]
+        return self._msg_flag(_3EF0, "_flags_3", 6)
 
     @property
     def ch_active(self) -> Optional[bool]:  # 3EF0 (byte 6)
@@ -1468,6 +1466,10 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         if code:
             self._send_cmd(Command(RQ, code, "00", self.id, retries=0))
 
+    def _ot_msg_flag(self, msg_id, flag_idx) -> Optional[bool]:
+        if flags := self._ot_msg_value(msg_id):
+            return bool(flags[flag_idx])
+
     @staticmethod
     def _ot_msg_name(msg) -> str:
         return (
@@ -1486,23 +1488,19 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
     @property
     def bit_2_4(self) -> Optional[bool]:  # 2401 - WIP
-        if flags := self._msg_value(_2401, key="_flags_2"):
-            return flags[4]
+        return self._msg_flag(_2401, "_flags_2", 4)
 
     @property
     def bit_2_5(self) -> Optional[bool]:  # 2401 - WIP
-        if flags := self._msg_value(_2401, key="_flags_2"):
-            return flags[5]
+        return self._msg_flag(_2401, "_flags_2", 5)
 
     @property
     def bit_2_6(self) -> Optional[bool]:  # 2401 - WIP
-        if flags := self._msg_value(_2401, key="_flags_2"):
-            return flags[6]
+        return self._msg_flag(_2401, "_flags_2", 6)
 
     @property
     def bit_2_7(self) -> Optional[bool]:  # 2401 - WIP
-        if flags := self._msg_value(_2401, key="_flags_2"):
-            return flags[7]
+        return self._msg_flag(_2401, "_flags_2", 7)
 
     @property
     def oem_code(self) -> Optional[float]:  # 3220/73
@@ -1587,53 +1585,35 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
     @property
     def ch_active(self) -> Optional[bool]:  # 3220/00
-        if OTB_MODE:
-            if flags := self._ot_msg_value("00"):
-                return flags[8 + 1]
-        return super().ch_active
+        return self._ot_msg_flag("00", 8 + 1) if OTB_MODE else super().ch_active
 
     @property
     def ch_enabled(self) -> Optional[bool]:  # 3220/00
-        if OTB_MODE:
-            if flags := self._ot_msg_value("00"):
-                return flags[0]
-        return super().ch_enabled
+        return self._ot_msg_flag("00", 0) if OTB_MODE else super().ch_enabled
 
     @property
     def dhw_active(self) -> Optional[bool]:  # 3220/00
-        if OTB_MODE:
-            if flags := self._ot_msg_value("00"):
-                return flags[8 + 2]
-        return super().dhw_active
+        return self._ot_msg_flag("00", 8 + 2) if OTB_MODE else super().dhw_active
 
     @property
     def dhw_enabled(self) -> Optional[bool]:  # 3220/00
-        if OTB_MODE:
-            if flags := self._ot_msg_value("00"):
-                return flags[1]
-        # return super().dhw_active  # TODO:
+        return self._ot_msg_flag("00", 1) if OTB_MODE else None  # TODO: super().xxx
 
     @property
     def flame_active(self) -> Optional[bool]:  # 3220/00 (flame_on)
-        if OTB_MODE:
-            if flags := self._ot_msg_value("00"):
-                return flags[8 + 3]
-        return super().flame_active
+        return self._ot_msg_flag("00", 8 + 3) if OTB_MODE else super().flame_active
 
     @property
     def cooling_active(self) -> Optional[bool]:  # 3220/00
-        if flags := self._ot_msg_value("00"):
-            return flags[8 + 4]
+        return self._ot_msg_flag("00", 8 + 4) if OTB_MODE else None  # TODO: super().xxx
 
     @property
     def cooling_enabled(self) -> Optional[bool]:  # 3220/00
-        if flags := self._ot_msg_value("00"):
-            return flags[2]
+        return self._ot_msg_flag("00", 2) if OTB_MODE else None  # TODO: super().xxx
 
     @property
     def fault_present(self) -> Optional[bool]:  # 3220/00
-        if flags := self._ot_msg_value("00"):
-            return flags[8]
+        return self._ot_msg_flag("00", 8) if OTB_MODE else None  # TODO: super().xxx
 
     @property
     def opentherm_schema(self) -> dict:
@@ -1677,10 +1657,6 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
     @property
     def opentherm_status(self) -> dict:
-        def get_msg_flag(msg_id, flag_idx) -> Optional[bool]:
-            if flags := self._ot_msg_value(msg_id):
-                return flags[flag_idx]
-
         return {
             "boiler_output_temp": self._ot_msg_value("19"),
             "boiler_return_temp": self._ot_msg_value("1C"),
@@ -1695,11 +1671,14 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             #
             "oem_code": self._ot_msg_value("73"),
             #
-            "ch_active": get_msg_flag("00", 8 + 1),
-            "ch_enabled": get_msg_flag("00", 0),
-            "dhw_active": get_msg_flag("00", 8 + 2),
-            "dhw_enabled": get_msg_flag("00", 1),
-            "flame_active": get_msg_flag("00", 8 + 3),
+            "ch_active": self._ot_msg_flag("00", 8 + 1),
+            "ch_enabled": self._ot_msg_flag("00", 0),
+            "cooling_active": self._ot_msg_flag("00", 8 + 4),
+            "cooling_enabled": self._ot_msg_flag("00", 2),
+            "dhw_active": self._ot_msg_flag("00", 8 + 2),
+            "dhw_enabled": self._ot_msg_flag("00", 1),
+            "fault_present": self._ot_msg_flag("00", 8),
+            "flame_active": self._ot_msg_flag("00", 8 + 3),
         }
 
     @property
