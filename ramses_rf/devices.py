@@ -1087,7 +1087,7 @@ class UfhController(Device):  # UFC (02):
         self._setpoints = None
         self._heat_demand = None
         self._relay_demand = None
-        self._relay_demand_oth = None
+        self._relay_demand_fa = None
 
         for i in range(8):
             self._circuits[f"{i:02X}"] = {"enabled": True}
@@ -1143,7 +1143,7 @@ class UfhController(Device):  # UFC (02):
             if msg.payload.get("domain_id") == "FC":
                 self._relay_demand = msg
             else:  # FA
-                self._relay_demand_oth = msg
+                self._relay_demand_fa = msg
 
         elif msg.code == _000C:
             if msg.payload["_device_class"] not in ("00", "04", "09"):
@@ -1232,8 +1232,8 @@ class UfhController(Device):  # UFC (02):
 
     @property
     def relay_demand_oth(self) -> Optional[Dict]:  # 0008|FA
-        if self._relay_demand_oth:
-            return self._relay_demand_oth.payload[ATTR_RELAY_DEMAND]
+        if self._relay_demand_fa:
+            return self._relay_demand_fa.payload[ATTR_RELAY_DEMAND]
 
     @property
     def setpoints(self) -> Optional[Dict]:  # 22C9|ufh_idx array
