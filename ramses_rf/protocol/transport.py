@@ -907,6 +907,7 @@ def create_pkt_stack(
 
     ser_config = {**DEFAULT_SERIAL_CONFIG, **gwy.config.serial_config}
 
+    # python client.py monitor 'rfc2217://localhost:5001'
     # python client.py monitor 'alt:///dev/ttyUSB0?class=PosixPollSerial'
     try:
         ser_instance = serial_for_url(ser_port, **ser_config)
