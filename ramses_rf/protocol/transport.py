@@ -32,11 +32,10 @@ from typing import ByteString, Callable, Iterable, Optional, Tuple
 from serial import SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerTransportAsync
 
-from .command import (
+from .command import (  # QOS_RX_TIMEOUT,
     ARGS,
     DEAMON,
     FUNC,
-    QOS_RX_TIMEOUT,
     QOS_TX_RETRIES,
     QOS_TX_TIMEOUT,
     Command,
@@ -842,13 +841,19 @@ class PacketProtocolQos(PacketProtocolPort):
         dtm = self._dt_now()
 
         if self._tx_hdr:
-            timeout = QOS_TX_TIMEOUT
+            timeout = QOS_TX_TIMEOUT  # td(seconds=0.05)
         else:
-            timeout = self._qos_cmd.qos.get("timeout", QOS_RX_TIMEOUT)
-        timeout = min(timeout * 4 ** self._backoff, td(seconds=1))
+            # timeout = self._qos_cmd.qos.get("timeout", QOS_RX_TIMEOUT)
+            timeout = _MIN_GAP_BETWEEN_RETRYS  # td(seconds=2.0)
 
-        self._timeout_full = dtm + _MIN_GAP_BETWEEN_RETRYS  # was: + timeout * 2
-        self._timeout_half = dtm + _MIN_GAP_BETWEEN_RETRYS  # was: + timeout
+        # timeout = min(timeout * 4 ** self._backoff, td(seconds=1))
+        timeout = min(timeout * 4 ** self._backoff, _MIN_GAP_BETWEEN_RETRYS)
+
+        self._timeout_full = dtm + timeout
+        self._timeout_half = dtm + timeout / 2
+
+        # self._timeout_full = dtm + _MIN_GAP_BETWEEN_RETRYS  # was: + timeout * 2
+        # self._timeout_half = dtm + _MIN_GAP_BETWEEN_RETRYS  # was: + timeout
 
     def _qos_expire_cmd(self, cmd) -> None:
         """Handle an expired cmd, such as invoking its callbacks."""
