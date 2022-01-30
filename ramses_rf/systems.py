@@ -20,6 +20,7 @@ from .const import (
     ATTR_LANGUAGE,
     ATTR_SYSTEM_MODE,
     SYSTEM_MODE,
+    ZONE_TYPE_SLUGS,
     Discover,
     __dev_mode__,
 )
@@ -409,13 +410,13 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
 
 class MultiZone:  # 0005 (+/- 000C?)
-    ZONE_TYPES = (
+    ZONE_TYPES = [
         _0005_ZONE.RAD,
         _0005_ZONE.UFH,
         _0005_ZONE.VAL,
         _0005_ZONE.MIX,
         _0005_ZONE.ELE,
-    )
+    ]
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -452,7 +453,10 @@ class MultiZone:  # 0005 (+/- 000C?)
 
         # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
         if msg.code == _0005:  # RP, and also I
-            if msg.payload.get("_device_class") in self.ZONE_TYPES:
+            if msg.payload.get("_device_class") in self.ZONE_TYPES + [
+                _0005_ZONE.ALL,
+                _0005_ZONE.ALL_SENSOR,
+            ]:
                 [
                     self._get_zone(f"{idx:02X}", msg=msg)
                     for idx, flag in enumerate(msg.payload["zone_mask"])
@@ -621,7 +625,7 @@ class MultiZone:  # 0005 (+/- 000C?)
 
         zone = self.zone_by_idx.get(zone_idx) or create_zone(self, zone_idx, **kwargs)
 
-        if msg and (zone_type := msg.payload.get("zone_type")):
+        if msg and (zone_type := msg.payload.get("zone_type")) in ZONE_TYPE_SLUGS:
             zone._set_zone_type(zone_type)
 
         return zone
