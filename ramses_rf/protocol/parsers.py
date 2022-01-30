@@ -1973,7 +1973,6 @@ def parser_3ef0(payload, msg) -> dict:
         }
 
     assert msg.len in (3, 6, 9)
-    assert payload[:2] == "00", f"byte 1: {payload[:2]}"
 
     if msg.len == 3:  # I|BDR|003
         # .I --- 13:042805 --:------ 13:042805 3EF0 003 0000FF
