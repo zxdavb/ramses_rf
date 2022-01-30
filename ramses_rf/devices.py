@@ -230,14 +230,14 @@ class DeviceBase(Entity):
     def _make_cmd(self, code, payload="00", **kwargs) -> None:
         super()._make_cmd(code, self.id, payload, **kwargs)
 
-    def _set_ctl(self, ctl) -> None:  # self._ctl
+    def _set_ctl(self, ctl):  # self._ctl
         """Set the device's parent controller, after validating it."""
 
         if self._ctl is ctl:
-            return
+            return self._ctl
         if self._is_controller and not isinstance(self, UfhController):
             # HACK: UFC is/binds to a contlr
-            return
+            return  # TODO
         if self._ctl is not None:
             raise CorruptStateError(f"{self} changed controller: {self._ctl} to {ctl}")
 
@@ -249,8 +249,8 @@ class DeviceBase(Entity):
         ctl.device_by_id[self.id] = self
         ctl.devices.append(self)
 
-        _LOGGER.debug("%s: controller now set to %s", self, ctl)
-        return ctl
+        _LOGGER.debug("%s: controller now set to %s", self, self._ctl)
+        return self._ctl
 
     def _handle_msg(self, msg) -> None:
         assert msg.src is self, f"msg inappropriately routed to {self}"
@@ -390,7 +390,7 @@ class Device(DeviceInfo, DeviceBase):
             # TODO: is buggy - remove? how?
             self._set_parent(self._ctl._evo._get_zone(msg.payload["zone_idx"]))
 
-    def _set_parent(self, parent, domain=None) -> None:  # self._parent
+    def _set_parent(self, parent, domain=None):
         """Set the device's parent zone, after validating it.
 
         There are three possible sources for the parent zone of a device:
@@ -431,13 +431,13 @@ class Device(DeviceInfo, DeviceBase):
         self._parent = parent
         self._domain_id = domain
 
-        if hasattr(parent, "devices") and self not in parent.devices:
+        if hasattr(self._parent, "devices") and self not in self._parent.devices:
             parent.devices.append(self)
             parent.device_by_id[self.id] = self
 
         if DEV_MODE:
-            _LOGGER.debug("Device %s: parent now set to %s", self, parent)
-        return parent
+            _LOGGER.debug("Device %s: parent now set to %s", self, self._parent)
+        return self._parent
 
     @property
     def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
@@ -1146,6 +1146,9 @@ class UfhController(Device):  # UFC (02):
                 self._relay_demand_oth = msg
 
         elif msg.code == _000C:
+            if msg.payload["_device_class"] not in ("00", "04", "09"):
+                return  # ALL, SENsor, UFH
+
             self._circuits[msg.payload["ufh_idx"]][_000C] = msg
 
             if dev_ids := msg.payload["devices"]:
@@ -1169,7 +1172,19 @@ class UfhController(Device):  # UFC (02):
             ):
                 zone._handle_msg(msg)
 
+        # elif msg.code not in (_10E0, _22D0):
+        #     print("AAA")
+
         # "0008|FA/FC", "22C9|array", "22D0|none", "3150|ZZ/array(/FC?)"
+
+    def _set_parent(self, parent, domain=None) -> None:
+        self._set_ctl(parent._ctl)
+
+        if self not in parent.devices:
+            parent.devices.append(self)
+            parent.device_by_id[self.id] = self
+
+        return parent
 
     @property
     def _circuits_alt(self) -> list:  # e.g. ["00", "01", "02"]
