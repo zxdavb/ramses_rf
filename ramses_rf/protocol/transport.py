@@ -4,6 +4,15 @@
 """RAMSES RF - RAMSES-II compatible Packet processor.
 
 Operates at the pkt layer of: app - msg - pkt - h/w
+
+For ser2net, use the following YAML file with: ser2net -c hgi80.yaml
+
+connection: &con00
+  accepter: telnet(rfc2217),tcp,5001
+  timeout: 0
+  connector: serialdev,/dev/ttyUSB0,115200n81,local
+  options:
+    max-connections: 3
 """
 
 import asyncio
@@ -64,7 +73,7 @@ _QOS_POLL_INTERVAL = 0.005
 _QOS_MAX_BACKOFF = 3
 
 _MIN_GAP_BETWEEN_WRITES = 0.2  # seconds
-_MIN_GAP_BETWEEN_RETRYS = 2.0  # seconds
+_MIN_GAP_BETWEEN_RETRYS = td(seconds=2.0)  # seconds
 
 Pause = SimpleNamespace(
     NONE=td(seconds=0),
@@ -592,7 +601,7 @@ class PacketProtocolPort(PacketProtocolBase):
     def __init__(self, gwy, pkt_handler: Callable) -> None:
         super().__init__(gwy, pkt_handler)
 
-        self._sem = asyncio.BoundedSemaphore(1)
+        self._sem = asyncio.BoundedSemaphore()
         self._loop.create_task(self._leak_sem())
 
     async def _leak_sem(self):
@@ -642,7 +651,7 @@ class PacketProtocolPort(PacketProtocolBase):
 
         await self._send_data(str(cmd))
 
-    async def _send_data(self, data: str) -> None:
+    async def _send_data(self, data: str) -> None:  # throtled
         """Send a bytearray to the transport (serial) interface."""
 
         while self._pause_writing:
@@ -753,10 +762,7 @@ class PacketProtocolQos(PacketProtocolPort):
         logger_rcvd(msg, wanted=wanted)
 
     async def send_data(self, cmd: Command) -> None:
-        """Called when packets are to be sent (not a callback).
-
-        Wraps the relevant function with QoS code.
-        """
+        """Called when packets are to be sent (not a callback)."""
         # _LOGGER.debug(f"{self}.send_data(%s)", cmd)
 
         while self._qos_cmd is not None:
@@ -841,8 +847,8 @@ class PacketProtocolQos(PacketProtocolPort):
             timeout = self._qos_cmd.qos.get("timeout", QOS_RX_TIMEOUT)
         timeout = min(timeout * 4 ** self._backoff, td(seconds=1))
 
-        self._timeout_full = dtm + timeout * 2
-        self._timeout_half = dtm + timeout
+        self._timeout_full = dtm + _MIN_GAP_BETWEEN_RETRYS  # was: + timeout * 2
+        self._timeout_half = dtm + _MIN_GAP_BETWEEN_RETRYS  # was: + timeout
 
     def _qos_expire_cmd(self, cmd) -> None:
         """Handle an expired cmd, such as invoking its callbacks."""
