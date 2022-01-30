@@ -512,11 +512,17 @@ class PacketProtocolBase(asyncio.Protocol):
                 self._unwanted.append(dev_id)
                 return
 
-            if self.enforce_include:  # self._include:
-                (_LOGGER.info if dev_id in self._exclude else _LOGGER.warning)(
-                    f"Blocking packets with device_id: {dev_id} (is not whitelisted), "
-                    f"if required, add it to the {KNOWN_LIST}"
-                )
+            if self.enforce_include:
+                if self._exclude:
+                    _LOGGER.info(
+                        f"Blocking packets with device_id: {dev_id} (not blacklisted), "
+                        f"if required, add it to the {KNOWN_LIST}"
+                    )
+                else:  # and not self._exclude:
+                    _LOGGER.warning(
+                        f"Blocking packets with device_id: {dev_id} (no blacklist), "
+                        f"configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
+                    )
                 self._unwanted.append(dev_id)
                 return
 
