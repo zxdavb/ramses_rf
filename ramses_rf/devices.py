@@ -1392,7 +1392,12 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 and (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]
 
+        if discover_flag & Discover.STATUS:
+            self._send_cmd(Command(RQ, _2401, "00", self.id))
+
         if discover_flag & Discover.STATUS and OTB_MODE:
+            self._send_cmd(Command(RQ, _3EF0, "00", self.id))
+
             for msg_id in STATUS_MSG_IDS:
                 if self._supported_msg.get(msg_id) is not False:
                     self._send_cmd(
@@ -1400,12 +1405,12 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                     )
 
         if discover_flag & Discover.STATUS and not OTB_MODE:
+            self._send_cmd(Command.get_opentherm_data(self.id, "00"))
+            self._send_cmd(Command.get_opentherm_data(self.id, "73"))
+
             for code in [v for k, v in self._CODE_MAP.items() if k in STATUS_MSG_IDS]:
                 if self._supported_msg.get(code) is not False:
                     self._send_cmd(Command(RQ, code, "00", self.id, retries=0))
-
-        if discover_flag & Discover.STATUS:
-            self._send_cmd(Command(RQ, _2401, "00", self.id))
 
         if False and DEV_MODE and discover_flag & Discover.STATUS:
             # TODO: these are WIP, and do vary in payload
