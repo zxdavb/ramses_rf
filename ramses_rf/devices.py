@@ -1352,7 +1352,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
         self._msgz[_3220] = {RP: {}}
         self._opentherm_msg = self._msgz[_3220][RP]
-        self._supported_msg = {}
+        self._supported_msgs = {}
         self._supported_codes = {}
         # self._ctl_polled_msg = {}
 
@@ -1380,36 +1380,40 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             [
                 self._send_cmd(Command.get_opentherm_data(self.id, m))
                 for m in SCHEMA_MSG_IDS  # From OT v2.2: version numbers
-                if self._supported_msg.get(m) is not False
+                if self._supported_msgs.get(m) is not False
                 and (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]
 
         if discover_flag & Discover.PARAMS:
-            [
-                self._send_cmd(Command.get_opentherm_data(self.id, m))
-                for m in PARAMS_MSG_IDS
-                if self._supported_msg.get(m) is not False
-                and (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
-            ]
+            if OTB_MODE:
+                [
+                    self._send_cmd(Command.get_opentherm_data(self.id, m))
+                    for m in PARAMS_MSG_IDS
+                    if self._supported_msgs.get(m) is not False
+                ]
+                return
+
+            for code in [v for k, v in self._CODE_MAP.items() if k in PARAMS_MSG_IDS]:
+                if self._supported_codes.get(code) is not False:
+                    self._send_cmd(Command(RQ, code, "00", self.id, retries=0))
 
         if discover_flag & Discover.STATUS:
-            self._send_cmd(Command(RQ, _2401, "00", self.id))
-
-        if discover_flag & Discover.STATUS and OTB_MODE:
+            self._send_cmd(Command(RQ, _2401, "00", self.id))  # WIP
             self._send_cmd(Command(RQ, _3EF0, "00", self.id))
 
-            for msg_id in STATUS_MSG_IDS:
-                if self._supported_msg.get(msg_id) is not False:
-                    self._send_cmd(
-                        Command.get_opentherm_data(self.id, msg_id, retries=0)
-                    )
+            if OTB_MODE:
+                for msg_id in STATUS_MSG_IDS:
+                    if self._supported_msgs.get(msg_id) is not False:
+                        self._send_cmd(
+                            Command.get_opentherm_data(self.id, msg_id, retries=0)
+                        )
+                return
 
-        if discover_flag & Discover.STATUS and not OTB_MODE:
             self._send_cmd(Command.get_opentherm_data(self.id, "00"))
             self._send_cmd(Command.get_opentherm_data(self.id, "73"))
 
             for code in [v for k, v in self._CODE_MAP.items() if k in STATUS_MSG_IDS]:
-                if self._supported_msg.get(code) is not False:
+                if self._supported_codes.get(code) is not False:
                     self._send_cmd(Command(RQ, code, "00", self.id, retries=0))
 
         if False and DEV_MODE and discover_flag & Discover.STATUS:
@@ -1432,6 +1436,14 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             ):
                 self._send_cmd(Command(RQ, code, "00", self.id))
 
+    def _handle_msg(self, msg) -> None:
+        super()._handle_msg(msg)
+
+        if msg.code == _3220:
+            self._handle_3220(msg)
+        if msg.code in self._CODE_MAP.values():
+            self._handle_code(msg)
+
     def _handle_3220(self, msg) -> None:
         msg_id = f"{msg.payload[MSG_ID]:02X}"
 
@@ -1443,18 +1455,18 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             self._send_cmd(Command(RQ, code, "00", self.id, retries=0))
 
         if msg._pkt.payload[6:] == "47AB" or msg._pkt.payload[4:] == "121980":
-            if msg_id not in self._supported_msg:
-                self._supported_msg[msg_id] = None
+            if msg_id not in self._supported_msgs:
+                self._supported_msgs[msg_id] = None
 
-            elif self._supported_msg[msg_id] is None:
-                self._supported_msg[msg_id] = False
+            elif self._supported_msgs[msg_id] is None:
+                self._supported_msgs[msg_id] = False
                 _LOGGER.warning(
                     f"{msg._pkt} < OTB: deprecating msg_id "
                     f"0x{msg_id}: it appears unsupported",
                 )
 
         else:
-            self._supported_msg[msg_id] = msg.payload[MSG_TYPE] not in (
+            self._supported_msgs[msg_id] = msg.payload[MSG_TYPE] not in (
                 "Data-Invalid",
                 "Unknown-DataId",
                 "-reserved-",
@@ -1464,7 +1476,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         if DEV_MODE and msg.code != _2401:  # unknown, here to follow state changes
             self._send_cmd(Command(RQ, _2401, "00", self.id))
 
-        if msg.code in (_3EF0, _3EF1):  # or:  msg.len != 3
+        if msg.code in (_10A0, _3EF0, _3EF1) or msg.len != 3:
             return
 
         if msg._pkt.payload[2:] == "7FFF" or (
@@ -1483,14 +1495,6 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         else:
             self._supported_codes.pop(msg.code, None)
 
-    def _handle_msg(self, msg) -> None:
-        super()._handle_msg(msg)
-
-        if msg.code == _3220:
-            self._handle_3220(msg)
-        if msg.code in self._CODE_MAP.values():
-            self._handle_code(msg)
-
     def _ot_msg_flag(self, msg_id, flag_idx) -> Optional[bool]:
         if flags := self._ot_msg_value(msg_id):
             return bool(flags[flag_idx])
@@ -1506,7 +1510,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
     def _ot_msg_value(self, msg_id) -> Optional[float]:
         if (
             (msg := self._opentherm_msg.get(msg_id))
-            and self._supported_msg[msg_id]
+            and self._supported_msgs[msg_id]
             and not msg._expired
         ):
             return msg.payload.get(VALUE)
@@ -1580,7 +1584,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
     def dhw_setpoint(self) -> Optional[float]:  # 10A0 (3220/38)
         if OTB_MODE:
             return self._ot_msg_value("38")
-        return self._msg_value(_1300, key="setpoint")
+        return self._msg_value(_10A0, key="setpoint")
 
     @property
     def dhw_temp(self) -> Optional[float]:  # 1260 (3220/1A)
@@ -1641,7 +1645,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         result = {
             self._ot_msg_name(v): v.payload
             for k, v in self._opentherm_msg.items()
-            if self._supported_msg.get(int(k, 16)) and int(k, 16) in SCHEMA_MSG_IDS
+            if self._supported_msgs.get(int(k, 16)) and int(k, 16) in SCHEMA_MSG_IDS
         }
         return {
             m: {k: v for k, v in p.items() if k.startswith(VALUE)}
@@ -1669,7 +1673,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         result = {
             self._ot_msg_name(v): v.payload
             for k, v in self._opentherm_msg.items()
-            if self._supported_msg.get(int(k, 16)) and int(k, 16) in PARAMS_MSG_IDS
+            if self._supported_msgs.get(int(k, 16)) and int(k, 16) in PARAMS_MSG_IDS
         }
         return {
             m: {k: v for k, v in p.items() if k.startswith(VALUE)}
@@ -1735,7 +1739,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             **super().schema,
             "known_msg_ids": {
                 k: OPENTHERM_MESSAGES[int(k, 16)].get("var", k)
-                for k, v in sorted(self._supported_msg.items())
+                for k, v in sorted(self._supported_msgs.items())
                 if v
             },
             "opentherm_schema": self.opentherm_schema,
@@ -1746,7 +1750,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         return {
             **super().params,
             "opentherm_params": self.opentherm_params,
-            "supported_msgs": dict(sorted(self._supported_msg.items())),
+            "supported_msgs": dict(sorted(self._supported_msgs.items())),
         }
 
     @property
