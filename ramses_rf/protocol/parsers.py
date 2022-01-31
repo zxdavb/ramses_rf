@@ -2068,12 +2068,12 @@ def parser_3ef1(payload, msg) -> dict:
         # ), f"byte 3: {payload[6:10]}"
         assert percent(payload[10:12]) in (0, 1), f"byte 5: {payload[10:12]}"
 
-    else:  # is OTB?
+    else:  # is OTB
         # assert (
         #     re.compile(r"^00[0-9A-F]{10}10").match(payload)
         # ), "doesn't match: " + r"^00[0-9A-F]{10}10"
         assert payload[2:6] == "7FFF", f"byte 1: {payload[2:6]}"
-        assert payload[6:10] == "003C", f"byte 3: {payload[6:10]}"  # 1 minute
+        assert payload[6:10] == "003C", f"byte 3: {payload[6:10]}"  # 60 seconds
         assert percent(payload[10:12]) <= 1, f"byte 5: {payload[10:12]}"
 
     cycle_countdown = None if payload[2:6] == "7FFF" else int(payload[2:6], 16)
