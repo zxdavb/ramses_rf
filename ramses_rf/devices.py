@@ -1097,9 +1097,6 @@ class UfhController(Device):  # UFC (02):
         self._relay_demand = None
         self._relay_demand_fa = None
 
-        for i in range(8):
-            self._circuits[f"{i:02X}"] = {"enabled": True}
-
         self._iz_controller = True
 
     def _start_discovery(self) -> None:
@@ -1129,8 +1126,8 @@ class UfhController(Device):  # UFC (02):
             ]
 
         if discover_flag & Discover.PARAMS:  # only 2309 has any potential?
-            [self._make_cmd(_000A, payload=ufh_idx) for ufh_idx in self._circuits_alt]
-            [self._make_cmd(_2309, payload=ufh_idx) for ufh_idx in self._circuits_alt]
+            [self._make_cmd(_000A, payload=ufh_idx) for ufh_idx in self.circuits]
+            [self._make_cmd(_2309, payload=ufh_idx) for ufh_idx in self.circuits]
 
         # if discover_flag & Discover.STATUS:  # only 2309 has any potential?
         #     [self._make_cmd(_2309, payload=ufh_idx)for ufh_idx in self._circuits_alt]
@@ -1138,37 +1135,50 @@ class UfhController(Device):  # UFC (02):
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == _0005:
-            for ufh_idx, flag in enumerate(msg.payload["zone_mask"]):
-                self._circuits[f"{ufh_idx:02X}"]["enabled"] = bool(flag)
-            [
-                self._make_cmd(_000C, payload=f"{idx:02X}{_000C_DEVICE.UFH}")
-                for idx, flag in enumerate(msg.payload["zone_mask"])
-                if flag
-            ]
+        if msg.code == _0005:  # system_zones
+            if msg.payload["_device_class"] not in ("00", "04", "09"):
+                return  # ALL, SENsor, UFH
 
-        elif msg.code == _0008:  # TODO: use msg DB
+            for idx, flag in enumerate(msg.payload["zone_mask"]):
+                ufh_idx = f"{idx:02X}"
+                if not flag:
+                    self._circuits.pop(ufh_idx, None)
+                elif "zone_idx" not in self._circuits.get(ufh_idx, {}):
+                    self._circuits[ufh_idx] = {"zone_idx": None}
+                    self._make_cmd(_000C, payload=f"{ufh_idx}{_000C_DEVICE.UFH}")
+
+        elif msg.code == _0008:  # relay_demand, TODO: use msg DB?
             if msg.payload.get("domain_id") == "FC":
                 self._relay_demand = msg
             else:  # FA
                 self._relay_demand_fa = msg
 
-        elif msg.code == _000C:
+        elif msg.code == _000C:  # zone_devices
             if msg.payload["_device_class"] not in ("00", "04", "09"):
                 return  # ALL, SENsor, UFH
 
-            self._circuits[msg.payload["ufh_idx"]][_000C] = msg
+            ufh_idx = msg.payload["ufh_idx"]
+
+            if not msg.payload["zone_id"]:
+                self._circuits.pop(ufh_idx, None)
+                return
+            self._circuits[ufh_idx] = {"zone_idx": msg.payload["zone_id"]}
 
             if dev_ids := msg.payload["devices"]:
+                # self._circuits[ufh_idx]["devices"] = dev_ids[0]  # or:
                 if ctl := self._set_ctl(self._gwy._get_device(dev_ids[0])):
-                    self._set_parent(ctl._evo.zone_by_idx.get(msg.payload["zone_id"]))
+                    # self._circuits[ufh_idx]["devices"] = ctl.id  # better
+                    self._set_parent(ctl._evo._get_zone(msg.payload["zone_id"]), msg)
 
-        elif msg.code == _22C9:
+        elif msg.code == _22C9:  # ufh_setpoints
             #  I --- 02:017205 --:------ 02:017205 22C9 024 00076C0A280101076C0A28010...
             #  I --- 02:017205 --:------ 02:017205 22C9 006 04076C0A2801
             self._setpoints = msg
 
-        elif msg.code == _3150:
+            if self._gwy.config.enable_eavesdrop:  # and...:
+                self._eavesdrop_ufc_circuits(msg)
+
+        elif msg.code == _3150:  # heat_demands
             if isinstance(msg.payload, list):  # the circuit demands
                 self._heat_demands = msg
             elif msg.payload.get("domain_id") == "FC":
@@ -1185,6 +1195,16 @@ class UfhController(Device):  # UFC (02):
 
         # "0008|FA/FC", "22C9|array", "22D0|none", "3150|ZZ/array(/FC?)"
 
+    def _eavesdrop_ufc_circuits(self, msg):
+        # assert msg.code == _22C9
+        circuits = [c["ufh_idx"] for c in msg.payload]
+
+        for ufh_idx in [f"{x:02X}" for x in range(8)]:
+            if ufh_idx not in self._circuits and ufh_idx in circuits:
+                self._circuits[ufh_idx] = {"zone_idx": None}
+            elif ufh_idx in self._circuits and ufh_idx not in circuits:
+                pass  # TODO: ?.pop()
+
     def _set_parent(self, parent, domain=None) -> None:
         self._set_ctl(parent._ctl)
 
@@ -1195,33 +1215,8 @@ class UfhController(Device):  # UFC (02):
         return parent
 
     @property
-    def _circuits_alt(self) -> list:  # e.g. ["00", "01", "02"]
-        if msg := self._msgz[_0005][RP]["0009"]:  # also 0000, 0004
-            # self._msgs[_0005].payload["zone_mask"]  # has issues
-            return [
-                f"{idx:02X}"
-                for idx, flag in enumerate(msg.payload["zone_mask"])
-                if bool(flag)
-            ]
-        return []
-
-    # @property
-    # def y_circuits(self) -> dict:
-
-    #     for ufx_idx in x_circuits:
-    #         if msg := self._msgz[_0005][RP]["0009"]:
-    #             result[ufx_idx] = msg.payload["zone_id"]
-    #     {
-    #         self._msgz[_0005][RP]["0009"]: False
-    #         for ufx_idx in x_circuits
-    #         if self._msgz[_0005][RP][f"{ufh_idx}09"]
-    #     }
-
-    @property
     def circuits(self) -> Optional[Dict]:  # 000C
-        return {}
-        #     k: {"zone_idx": m.payload["zone_id"]} for k, m in self._circuits.items()
-        # }
+        return self._circuits
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150|FC (there is also 3150|FA)
@@ -1239,7 +1234,7 @@ class UfhController(Device):  # UFC (02):
             return self._relay_demand.payload[ATTR_RELAY_DEMAND]
 
     @property
-    def relay_demand_oth(self) -> Optional[Dict]:  # 0008|FA
+    def relay_demand_fa(self) -> Optional[Dict]:  # 0008|FA
         if self._relay_demand_fa:
             return self._relay_demand_fa.payload[ATTR_RELAY_DEMAND]
 
@@ -1249,7 +1244,7 @@ class UfhController(Device):  # UFC (02):
             return
 
         return {
-            c["ufh_idx"]: {"temp_high": c["temp_high"], "temp_low": c["temp_low"]}
+            c["ufh_idx"]: {k: v for k, v in c.items() if k in ("temp_low", "temp_high")}
             for c in self._setpoints.payload
         }
 
@@ -1273,7 +1268,7 @@ class UfhController(Device):  # UFC (02):
             **super().status,
             ATTR_HEAT_DEMAND: self.heat_demand,
             ATTR_RELAY_DEMAND: self.relay_demand,
-            "relay_demand_oth": self.relay_demand_oth,
+            "relay_demand_fa": self.relay_demand_fa,
         }
 
 
