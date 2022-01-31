@@ -470,32 +470,36 @@ class Actuator:  # 3EF0, 3EF1
             self._make_cmd(_3EF1, priority=Priority.LOW, retries=1)
 
     @property
-    def bit_3_7(self) -> Optional[bool]:  # 3EF0 (byte 3)
+    def bit_3_7(self) -> Optional[bool]:  # 3EF0 (byte 3, only OTB)
         return self._msg_flag(_3EF0, "_flags_3", 7)
 
     @property
-    def bit_6_6(self) -> Optional[bool]:  # 3EF0 ?dhw_enabled (byte 6)
+    def bit_6_6(self) -> Optional[bool]:  # 3EF0 ?dhw_enabled (byte 3, only R8820A?)
         return self._msg_flag(_3EF0, "_flags_3", 6)
 
     @property
-    def ch_active(self) -> Optional[bool]:  # 3EF0 (byte 6)
+    def ch_active(self) -> Optional[bool]:  # 3EF0 (byte 3, only R8820A?)
         return self._msg_value(_3EF0, key="ch_active")
 
     @property
-    def ch_enabled(self) -> Optional[bool]:  # 3EF0 (byte 7)
+    def ch_enabled(self) -> Optional[bool]:  # 3EF0 (byte 6, only R8820A?)
         return self._msg_value(_3EF0, key="ch_enabled")
 
     @property
-    def dhw_active(self) -> Optional[bool]:  # 3EF0 (byte 3)
+    def dhw_active(self) -> Optional[bool]:  # 3EF0 (byte 3, only OTB)
         return self._msg_value(_3EF0, key="dhw_active")
 
     @property
-    def flame_active(self) -> Optional[bool]:  # 3EF0 (byte 3)
+    def flame_active(self) -> Optional[bool]:  # 3EF0 (byte 3, only OTB)
         return self._msg_value(_3EF0, key="flame_active")
 
     @property
-    def ch_setpoint(self) -> Optional[float]:  # 3EF0
+    def ch_setpoint(self) -> Optional[float]:  # 3EF0 (byte 7, only R8820A?)
         return self._msg_value(_3EF0, key="ch_setpoint")
+
+    @property
+    def max_rel_modulation(self) -> Optional[float]:  # 3EF0 (byte 8, only R8820A?)
+        return self._msg_value(_3EF0, key="max_rel_modulation")
 
     @property
     def actuator_cycle(self) -> Optional[dict]:  # 3EF1
@@ -1578,10 +1582,6 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
     def rel_modulation_level_ot(self) -> Optional[float]:  # 3220/11
         """Return the relative modulation level from OpenTherm."""
         return self._ot_msg_value("11")
-
-    @property
-    def max_rel_modulation(self) -> Optional[float]:  # 3EF0
-        return self._msg_value(_3EF0, key="max_rel_modulation")
 
     @property
     def ch_active(self) -> Optional[bool]:  # 3220/00
