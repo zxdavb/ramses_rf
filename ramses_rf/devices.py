@@ -1336,6 +1336,20 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
     _STATE_ATTR = "rel_modulation_level"
 
+    _CODE_MAP = {
+        # "00": _3EF0,  # master/slave status (actuator_state)
+        "01": _22D9,  # boiler_setpoint
+        "11": _3EF0,  # rel_modulation_level (actuator_state, also _3EF1)
+        "12": _1300,  # ch_water_pressure
+        "13": _12F0,  # dhw_flow_rate
+        "19": _3200,  # boiler_output_temp
+        "1A": _1260,  # dhw_temp
+        "1B": _1290,  # outside_temp
+        "1C": _3210,  # boiler_return_temp
+        "38": _10A0,  # dhw_setpoint (is a PARAM)
+        "39": _1081,  # ch_max_setpoint (is a PARAM)
+    }
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -1344,6 +1358,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         self._msgz[_3220] = {RP: {}}
         self._opentherm_msg = self._msgz[_3220][RP]
         self._supported_msg = {}
+        self._supported_codes = {}
         # self._ctl_polled_msg = {}
 
     def _start_discovery(self) -> None:
@@ -1382,16 +1397,20 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 and (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
             ]
 
-        if discover_flag & Discover.STATUS:
-            [
-                self._send_cmd(Command.get_opentherm_data(self.id, m, retries=0))
-                for m in STATUS_MSG_IDS
-                if self._supported_msg.get(m) is not False
-                # nd (not self._opentherm_msg.get(m) or self._opentherm_msg[m]._expired)
-            ]  # TODO: add expired
+        if discover_flag & Discover.STATUS and OTB_MODE:
+            for msg_id in STATUS_MSG_IDS:
+                if self._supported_msg.get(msg_id) is not False:
+                    self._send_cmd(
+                        Command.get_opentherm_data(self.id, msg_id, retries=0)
+                    )
 
+        if discover_flag & Discover.STATUS and not OTB_MODE:
+            for code in [v for k, v in self._CODE_MAP.items() if k in STATUS_MSG_IDS]:
+                if self._supported_msg.get(code) is not False:
+                    self._send_cmd(Command(RQ, code, "00", self.id, retries=0))
+
+        if discover_flag & Discover.STATUS:
             self._send_cmd(Command(RQ, _2401, "00", self.id))
-            self._send_cmd(Command(RQ, _3EF0, "00", self.id))  # CTLs dont RP to RQ/3EF0
 
         if False and DEV_MODE and discover_flag & Discover.STATUS:
             # TODO: these are WIP, and do vary in payload
@@ -1413,36 +1432,24 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             ):
                 self._send_cmd(Command(RQ, code, "00", self.id))
 
-    def _handle_msg(self, msg) -> None:
-        super()._handle_msg(msg)
-
-        if msg.code != _3220:
-            return
-
+    def _handle_3220(self, msg) -> None:
         msg_id = f"{msg.payload[MSG_ID]:02X}"
 
-        if DEV_MODE and msg_id != "73":
+        if DEV_MODE and msg_id != "73":  # oem code, here to follow state changes
             self._send_cmd(Command.get_opentherm_data(self.id, "73"))
 
-        # if msg.dst is self._ctl:
-        #     if msg_id not in self._ctl_polled_msg:
-        #         self._ctl_polled_msg[msg_id] = None
+        # TODO: this is development code - will be rationalised, eventually
+        if OTB_MODE and (code := self._CODE_MAP.get(msg_id)):
+            self._send_cmd(Command(RQ, code, "00", self.id, retries=0))
 
-        #     elif self._ctl_polled_msg[msg_id] is None:
-        #         self._ctl_polled_msg[msg_id] = True
-        #         _LOGGER.warning(
-        #             f"{msg._pkt} < OpenTherm: deprecating msg_id "
-        #             f"0x{msg_id}: it appears polled by the controller",
-        #         )
-
-        if msg._pkt.payload[4:] == "121980" or msg._pkt.payload[6:] == "47AB":
+        if msg._pkt.payload[6:] == "47AB" or msg._pkt.payload[4:] == "121980":
             if msg_id not in self._supported_msg:
                 self._supported_msg[msg_id] = None
 
             elif self._supported_msg[msg_id] is None:
                 self._supported_msg[msg_id] = False
                 _LOGGER.warning(
-                    f"{msg._pkt} < OpenTherm: deprecating msg_id "
+                    f"{msg._pkt} < OTB: deprecating msg_id "
                     f"0x{msg_id}: it appears unsupported",
                 )
 
@@ -1453,22 +1460,36 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
                 "-reserved-",
             )
 
-        # TODO: this is development code - will be rationalised, eventually
-        code = {
-            # "00": _3EF0,  # master/slave status
-            "01": _22D9,  # boiler_setpoint
-            "11": _3EF1,  # rel_modulation_level (also _3EF0)
-            "12": _1300,  # ch_water_pressure
-            "13": _12F0,  # dhw_flow_rate
-            "19": _3200,  # boiler_output_temp - checked
-            "1A": _1260,  # dhw_temp - checked
-            "1B": _1290,  # outside_temp
-            "1C": _3210,  # boiler_return_temp - checked
-            "38": _10A0,  # dhw_setpoint (is a PARAM)
-            "39": _1081,  # ch_max_setpoint (is a PARAM)
-        }.get(msg_id)
-        if code:
-            self._send_cmd(Command(RQ, code, "00", self.id, retries=0))
+    def _handle_code(self, msg) -> None:
+        if DEV_MODE and msg.code != _2401:  # unknown, here to follow state changes
+            self._send_cmd(Command(RQ, _2401, "00", self.id))
+
+        if msg.code in (_3EF0, _3EF1):  # or:  msg.len != 3
+            return
+
+        if msg._pkt.payload[2:] == "7FFF" or (
+            msg.code == _1300 and msg._pkt.payload[2:] == "09F6"
+        ):
+            if msg.code not in self._supported_codes:
+                self._supported_codes[msg.code] = None
+
+            elif self._supported_codes[msg.code] is None:
+                self._supported_codes[msg.code] = False
+                _LOGGER.warning(
+                    f"{msg._pkt} < OTB: deprecating code "
+                    f"0x{msg.code}: it appears unsupported",
+                )
+
+        else:
+            self._supported_codes.pop(msg.code, None)
+
+    def _handle_msg(self, msg) -> None:
+        super()._handle_msg(msg)
+
+        if msg.code == _3220:
+            self._handle_3220(msg)
+        if msg.code in self._CODE_MAP.values():
+            self._handle_code(msg)
 
     def _ot_msg_flag(self, msg_id, flag_idx) -> Optional[bool]:
         if flags := self._ot_msg_value(msg_id):
@@ -1597,7 +1618,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
     @property
     def dhw_enabled(self) -> Optional[bool]:  # 3220/00
-        return self._ot_msg_flag("00", 1) if OTB_MODE else None  # TODO: super().xxx
+        return self._ot_msg_flag("00", 1)  # if OTB_MODE else None  # TODO: super().xxx
 
     @property
     def flame_active(self) -> Optional[bool]:  # 3220/00 (flame_on)
@@ -1605,15 +1626,15 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
     @property
     def cooling_active(self) -> Optional[bool]:  # 3220/00
-        return self._ot_msg_flag("00", 8 + 4) if OTB_MODE else None  # TODO: super().xxx
+        return self._ot_msg_flag("00", 8 + 4)  # if OTB_MODE else None  # TODO: super...
 
     @property
     def cooling_enabled(self) -> Optional[bool]:  # 3220/00
-        return self._ot_msg_flag("00", 2) if OTB_MODE else None  # TODO: super().xxx
+        return self._ot_msg_flag("00", 2)  # if OTB_MODE else None  # TODO: super().xxx
 
     @property
     def fault_present(self) -> Optional[bool]:  # 3220/00
-        return self._ot_msg_flag("00", 8) if OTB_MODE else None  # TODO: super().xxx
+        return self._ot_msg_flag("00", 8)  # if OTB_MODE else None  # TODO: super().xxx
 
     @property
     def opentherm_schema(self) -> dict:
