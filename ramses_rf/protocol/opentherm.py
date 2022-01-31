@@ -31,9 +31,6 @@ SCHEMA_MSG_IDS = {k: False for k in SCHEMA_MSG_IDS}
 PARAMS_MSG_IDS = (
     "38",  # .56: "DHW Setpoint (°C) (Remote parameter 1)",             # see: 0x06
     "39",  # .57: "Max CH water Setpoint (°C) (Remote parameter 2)",    # see: 0x06
-    # These are error codes...
-    "05",  # ..5: "Fault flags & OEM codes",
-    "73",  # 115: "OEM diagnostic code",
     # These are STATUS seen RQ'd by 01:/30:, but here to retreive less frequently
     "71",  # 113: "Number of un-successful burner starts",
     "72",  # 114: "Number of times flame signal was too low",
@@ -48,15 +45,18 @@ PARAMS_MSG_IDS = (
 )
 PARAMS_MSG_IDS = {k: td(hours=6) for k in PARAMS_MSG_IDS}
 STATUS_MSG_IDS = (
-    "00",  # ..0: "Master/Slave status flags",                          # not native
+    "00",  # ..0: "Master/Slave status flags",                          # not RAMSES
     "01",  # ..1: "CH water temperature Setpoint (°C)",                 # also R/W
     "11",  # .17: "Relative Modulation Level (%)",
     "12",  # .18: "Water pressure in CH circuit (bar)",
     "13",  # .19: "Water flow rate in DHW circuit. (L/min)",
     "19",  # .25: "Boiler flow water temperature (°C)",
     "1A",  # .26: "DHW temperature (°C)",
-    "1B",  # .27: "Outside temperature (°C)",  # TODO: any value here?  # not native
+    "1B",  # .27: "Outside temperature (°C)",  # TODO: any value here?
     "1C",  # .28: "Return water temperature (°C)",
+    # These are error/state codes...
+    "05",  # ..5: "Fault flags & OEM codes",                            # not RAMSES
+    "73",  # 115: "OEM diagnostic code",                                # not RAMSES
 )
 STATUS_MSG_IDS = {k: td(minutes=5) for k in STATUS_MSG_IDS}
 WRITE_MSG_IDS = (  # Write-Data, NB: some are also Read-Data
