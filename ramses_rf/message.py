@@ -256,7 +256,7 @@ def process_msg(msg: Message, prev_msg: Message = None) -> None:
         ):
             return this.payload
 
-        msg._pkt._force_has_array()
+        this._pkt._force_has_array()
         payload = this.payload if isinstance(this.payload, list) else [this.payload]
         return prev.payload + payload
 
@@ -269,7 +269,7 @@ def process_msg(msg: Message, prev_msg: Message = None) -> None:
     # NOTE: this is used to expose message timeouts (esp. when parsing)
     # [m._expired for d in msg._gwy.devices for m in d._msg_db]
 
-    msg._payload = detect_array(msg, prev_msg)  # HACK - needs rethinking?
+    msg._payload = detect_array(msg, prev_msg)  # HACK: messy, needs rethinking?
 
     if msg._gwy.config.reduce_processing >= DONT_CREATE_ENTITIES:
         return
