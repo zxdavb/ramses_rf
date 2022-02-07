@@ -148,7 +148,6 @@ BindState = SimpleNamespace(
 
 
 DEV_MODE = __dev_mode__
-
 OTB_MODE = False
 
 _LOGGER = logging.getLogger(__name__)
@@ -1350,8 +1349,10 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
         self._domain_id = "FC"
 
-        self._msgz[_3220] = {RP: {}}
-        self._opentherm_msg = self._msgz[_3220][RP]
+        self._msgz[_3220] = {}  # so later, we can: self._msgz[_3220][msg_id]
+        self._msgz[_3220] = {RP: {}}  # so later, we can: self._msgz[_3220][RP][msg_id]
+
+        self._opentherm_msg = {}
         self._supported_msgs = {}
         self._supported_codes = {}
         # self._ctl_polled_msg = {}
@@ -1439,16 +1440,19 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == _3220:
+        if msg.code == _3220 and msg.payload[MSG_TYPE] != "-reserved-":
             self._handle_3220(msg)
-        if msg.code in self._CODE_MAP.values():
+        elif msg.code in self._CODE_MAP.values():
             self._handle_code(msg)
 
     def _handle_3220(self, msg) -> None:
         msg_id = f"{msg.payload[MSG_ID]:02X}"
+        self._opentherm_msg[msg_id] = msg
 
-        if DEV_MODE and msg_id != "73":  # oem code, here to follow state changes
-            self._send_cmd(Command.get_opentherm_data(self.id, "73"))
+        if DEV_MODE:  # here to follow state changes
+            self._send_cmd(Command(RQ, _2401, "00", self.id))  # oem code
+            if msg_id != "73":
+                self._send_cmd(Command.get_opentherm_data(self.id, "73"))  # oem code
 
         # TODO: this is development code - will be rationalised, eventually
         if OTB_MODE and (code := self._CODE_MAP.get(msg_id)):
@@ -1469,12 +1473,14 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             self._supported_msgs[msg_id] = msg.payload[MSG_TYPE] not in (
                 "Data-Invalid",
                 "Unknown-DataId",
-                "-reserved-",
+                "OUT-reserved-",  # TODO: remove
             )
 
     def _handle_code(self, msg) -> None:
-        if DEV_MODE and msg.code != _2401:  # unknown, here to follow state changes
-            self._send_cmd(Command(RQ, _2401, "00", self.id))
+        if DEV_MODE:  # here to follow state changes
+            self._send_cmd(Command.get_opentherm_data(self.id, "73"))  # unknown
+            if msg.code != _2401:
+                self._send_cmd(Command(RQ, _2401, "00", self.id))  # oem code
 
         if msg.code in (_10A0, _3EF0, _3EF1) or msg.len != 3:
             return
