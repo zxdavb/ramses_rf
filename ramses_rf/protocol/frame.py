@@ -412,7 +412,7 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
             pkt.payload[:2] != "00"
         ):
             raise InvalidPayloadError(
-                f"Packet idx is {pkt.payload[:2]}, but expecting no idx (00)"
+                f"Packet idx is {pkt.payload[:2]}, but expecting no idx (00) (0xAA)"
             )
         return False
 
@@ -437,7 +437,7 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
 
     if pkt.payload[:2] != "00":
         raise InvalidPayloadError(
-            f"Packet idx is {pkt.payload[:2]}, but expecting no idx (00)"
+            f"Packet idx is {pkt.payload[:2]}, but expecting no idx (00) (0xAB)"
         )
 
     if pkt.code in CODE_IDX_SIMPLE:
