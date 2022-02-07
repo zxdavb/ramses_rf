@@ -690,7 +690,7 @@ class PacketProtocolQos(PacketProtocolPort):
             timeout = QOS_TX_TIMEOUT
         else:
             timeout = self._qos_cmd.qos.get("timeout", QOS_RX_TIMEOUT)
-        timeout = min(timeout * 4 ** self._backoff, td(seconds=1))
+        timeout = min(timeout * 4**self._backoff, td(seconds=1))
 
         self._timeout_full = dtm + timeout * 2
         self._timeout_half = dtm + timeout

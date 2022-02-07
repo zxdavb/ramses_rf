@@ -52,7 +52,7 @@ def _precision_v_cost():
     import math
 
     #
-    LOOPS = 10 ** 6
+    LOOPS = 10**6
     #
     print("time.time_ns(): %s" % time.time_ns())
     print("time.time():    %s\r\n" % time.time())
@@ -75,7 +75,7 @@ def _precision_v_cost():
     print("min delta timestamp(): %s ns" % math.ceil(min_dt * 1e9))
     print("duration  timestamp(): %s ns\r\n" % (time.time_ns() - starts))
     #
-    LOOPS = 10 ** 4
+    LOOPS = 10**4
     #
     starts = time.time_ns()
     min_td = [abs(dt.now() - dt.now()) for _ in range(LOOPS)]
@@ -260,13 +260,13 @@ def temp_from_hex(value: str) -> Union[float, bool, None]:
     if value == "7FFF":  # also: FFFF?, means: N/A (== 327.67)
         return
     temp = int(value, 16)
-    return (temp if temp < 2 ** 15 else temp - 2 ** 16) / 100
+    return (temp if temp < 2**15 else temp - 2**16) / 100
 
 
 def temp_to_hex(value: float) -> str:
     """Convert a float to a 2's complement 4-byte hex string."""
     assert (
-        not value or -(2 ** 7) <= value < 2 ** 7
+        not value or -(2**7) <= value < 2**7
     ), f"temp_to_hex({value}): is out of 2's complement range"
     if value is None:
         return "7FFF"  # or: "31FF"?
