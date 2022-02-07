@@ -192,7 +192,7 @@ class MessageTransport(asyncio.Transport):
         for p in self._protocols:
             try:
                 p.data_received(msg)
-            except CorruptStateError as exc:
+            except (CorruptStateError, InvalidPacketError) as exc:
                 _LOGGER.error("%s < %s", pkt, exc)
 
             except (  # protect this code from the upper-layer callback
