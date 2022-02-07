@@ -481,56 +481,48 @@ class PacketProtocolBase(asyncio.Protocol):
     def _is_wanted(self, src_id: str, dst_id: str) -> Optional[bool]:
         """Parse the packet, return True if the packet is not to be filtered out.
 
-        An unwanted device_id will 'trump' a whitelited device_id in the same packet
-        because there is a significant chance the packet is simply corrupt.
+        An unwanted device_id will 'trump' a whitelisted device_id in the same packet
+        because there is a significant chance that the packet is simply corrupt.
         """
+
+        TIP = f", configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
 
         for dev_id in dict.fromkeys((src_id, dst_id)):
             if dev_id in self._unwanted:  # TODO: remove entries older than (say) 1w/1d
+                _LOGGER.debug(f"Blocked {dev_id} (is unwanted){TIP}")
                 return
 
             if dev_id in self._exclude:
-                _LOGGER.info(
-                    f"Blocking packets with device_id: {dev_id} (is blacklisted), "
-                    f"if required, remove it from the {BLOCK_LIST})"
-                )
+                _LOGGER.info(f"Blocking {dev_id} (in {BLOCK_LIST})")
                 self._unwanted.append(dev_id)
                 return
 
             if dev_id in self._include or dev_id in (NON_DEVICE_ID, NUL_DEVICE_ID):
-                continue
-
-            if dev_id[:2] == "18" and self._hgi80[DEVICE_ID] is None:
+                # _LOGGER.debug(f"Allowed {dev_id} (in {BLOCK_LIST}, or is the gateway")
                 continue
 
             if dev_id == self._hgi80[DEVICE_ID]:
                 if self._include:
-                    _LOGGER.warning(
-                        f"Allowing packets with device_id: {dev_id} (is gateway), "
-                        f"configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
-                    )
+                    _LOGGER.warning(f"Allowing {dev_id} (is the gateway){TIP}")
                 self._include.append(dev_id)  # NOTE: only time include list is modified
                 continue
 
+            if dev_id[:2] == "18" and self._hgi80[DEVICE_ID] is None:
+                _LOGGER.debug(f"Allowed {dev_id} (is a gateway?){TIP}")
+                continue
+
             if dev_id[:2] == "18" and self._gwy.serial_port:  # dex
-                (_LOGGER.info if dev_id in self._exclude else _LOGGER.warning)(
-                    f"Blocking packets with device_id: {dev_id} (is foreign gateway), "
-                    f"configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
+                (_LOGGER.debug if dev_id in self._exclude else _LOGGER.warning)(
+                    f"Blocking {dev_id} (is a foreign gateway){TIP}"
                 )
                 self._unwanted.append(dev_id)
                 return
 
             if self.enforce_include:
                 if self._exclude:
-                    _LOGGER.info(
-                        f"Blocking packets with device_id: {dev_id} (not blacklisted), "
-                        f"if required, add it to the {KNOWN_LIST}"
-                    )
-                else:  # and not self._exclude:
-                    _LOGGER.warning(
-                        f"Blocking packets with device_id: {dev_id} (no blacklist), "
-                        f"configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
-                    )
+                    _LOGGER.warning(f"Blocking {dev_id} (not in {BLOCK_LIST}){TIP}")
+                else:
+                    _LOGGER.debug(f"Blocking {dev_id} (no {BLOCK_LIST}){TIP}")
                 self._unwanted.append(dev_id)
                 return
 
