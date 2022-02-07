@@ -402,6 +402,19 @@ class PacketProtocolBase(asyncio.Protocol):
         for dtm, raw_line in bytes_received(data):
             self._line_received(dtm, _normalise(_str(raw_line)), raw_line)
 
+    def _check_set_hgi80(self, pkt):
+        """Check/set HGI; log if it is a foreign HGI."""
+        assert pkt.src.type == "18" and pkt.src.id != HGI_DEVICE_ID
+
+        if self._hgi80[DEVICE_ID] is None:
+            self._hgi80[DEVICE_ID] = pkt.src.id
+
+        elif self._hgi80[DEVICE_ID] != pkt.src.id:
+            (_LOGGER.debug if pkt.src.id in self._unwanted else _LOGGER.warning)(
+                f"{pkt} < There appears to be more than one HGI80-compatible device"
+                f" (active gateway: {self._hgi80[DEVICE_ID]}), this is unsupported"
+            )
+
     def _line_received(self, dtm: dt, line: str, raw_line: ByteString) -> None:
 
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
@@ -418,19 +431,7 @@ class PacketProtocolBase(asyncio.Protocol):
             )  # should log all? invalid pkts appropriately
 
             if pkt.src.type == "18":  # dex: ideally should use HGI, but how?
-                if self._hgi80[DEVICE_ID] is None:
-                    self._hgi80[DEVICE_ID] = pkt.src.id
-
-                elif self._hgi80[DEVICE_ID] != pkt.src.id:
-                    (
-                        _LOGGER.debug
-                        if pkt.src.id in self._unwanted
-                        else _LOGGER.warning
-                    )(
-                        f"{pkt} < There appears to be more than one HGI80-compatible device"
-                        f" (active gateway: {self._hgi80[DEVICE_ID]}), this is unsupported"
-                    )
-
+                self._check_set_hgi80(pkt)
         except InvalidPacketError as exc:
             if "# evofw" in line and self._hgi80[IS_EVOFW3] is None:
                 self._hgi80[IS_EVOFW3] = line
@@ -574,15 +575,7 @@ class PacketProtocolFile(PacketProtocolBase):
             return
 
         if pkt.src.type == "18" and pkt.src.id != HGI_DEVICE_ID:  # HACK 01: dex
-            if self._hgi80[DEVICE_ID] is None:
-                self._hgi80[DEVICE_ID] = pkt.src.id
-
-            elif self._hgi80[DEVICE_ID] != pkt.src.id:
-                _LOGGER.debug(
-                    f"{pkt} < There appears to be more than one HGI80-compatible device"
-                    f" (active gateway: {self._hgi80[DEVICE_ID]}), this is unsupported"
-                )
-
+            self._check_set_hgi80(pkt)
         self._pkt_received(pkt)
 
 
