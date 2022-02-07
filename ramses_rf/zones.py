@@ -989,7 +989,8 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
         """Return the zone's heat demand, estimated from its devices' heat demand."""
-        return self._msg_value(_3150, key=ATTR_HEAT_DEMAND)
+        if demand := self._msg_value(_3150, key=ATTR_HEAT_DEMAND):
+            return _transform(demand)
 
 
 class ValZone(EleZone):  # BDR91A/T
