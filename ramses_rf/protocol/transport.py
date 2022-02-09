@@ -48,7 +48,7 @@ from .protocol import create_protocol_factory
 from .schema import SERIAL_CONFIG_SCHEMA
 from .version import VERSION
 
-DEV_MODE = __dev_mode__ and False
+DEV_MODE = __dev_mode__ and False  # debug is_wanted, or qos_fx
 
 _LOGGER = logging.getLogger(__name__)
 # _LOGGER.setLevel(logging.WARNING)  # INFO may have too much detail
@@ -521,7 +521,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
             if self.enforce_include:
                 if self._exclude:
-                    _LOGGER.warning(f"Blocking {dev_id} (not in {BLOCK_LIST}){TIP}")
+                    _LOGGER.debug(f"Blocking {dev_id} (not in {BLOCK_LIST}){TIP}")
                 else:
                     _LOGGER.debug(f"Blocking {dev_id} (no {BLOCK_LIST}){TIP}")
                 self._unwanted.append(dev_id)
