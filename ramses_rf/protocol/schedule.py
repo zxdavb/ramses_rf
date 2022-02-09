@@ -146,6 +146,8 @@ class Schedule:  # 0404
         self._rx_frags = None
         self._tx_frags = None
 
+        self._0006 = None
+
     def __repr_(self) -> str:
         return json.dumps(self.schedule) if self._schedule_done else None
 
