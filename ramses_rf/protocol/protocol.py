@@ -161,7 +161,7 @@ class MessageTransport(asyncio.Transport):
             if callback.get(EXPIRES, dt.max) < pkt.dtm and not callback.get("expired"):
                 # see  also: PktProtocolQos.send_data()
                 _LOGGER.error("MsgTransport._pkt_receiver(%s): Expired callback", hdr)
-                callback[FUNC](False, *callback.get(ARGS, tuple()))
+                callback[FUNC](False, *callback.get(ARGS, ()))
                 callback["expired"] = not callback.get(DEAMON, False)  # HACK:
 
         self._callbacks = {  # 2nd, discard any expired callbacks
@@ -185,7 +185,7 @@ class MessageTransport(asyncio.Transport):
         # NOTE: msg._pkt._hdr is expensive - don't call it unless there's callbacks
         if self._callbacks and msg._pkt._hdr in self._callbacks:
             callback = self._callbacks[msg._pkt._hdr]  # 3rd, invoke any callback
-            callback[FUNC](msg, *callback.get(ARGS, tuple()))
+            callback[FUNC](msg, *callback.get(ARGS, ()))
             if not callback.get(DEAMON):
                 del self._callbacks[msg._pkt._hdr]
 

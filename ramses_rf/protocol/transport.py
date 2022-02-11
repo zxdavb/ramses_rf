@@ -851,7 +851,7 @@ class PacketProtocolQos(PacketProtocolPort):
         if callback and not callback.get("expired"):
             # see also: MsgTransport._pkt_receiver()
             _LOGGER.error("PktProtocolQos.send_data(%s): Expired callback", hdr)
-            callback[FUNC](False, *callback.get(ARGS, tuple()))
+            callback[FUNC](False, *callback.get(ARGS, ()))
             callback["expired"] = not callback.get(DEAMON, False)  # HACK:
 
 
