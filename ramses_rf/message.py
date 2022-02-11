@@ -10,7 +10,7 @@ import logging
 from datetime import timedelta as td
 
 from .const import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES, __dev_mode__
-from .devices import Device  # , HgiGateway
+from .devices import Device, UfhController  # , HgiGateway
 from .protocol import (
     RAMSES_CODES,
     RAMSES_DEVICES,
@@ -149,7 +149,9 @@ def _create_devices_from_addrs(this: Message) -> None:
     if not isinstance(this.dst, Device):
         this.dst = this._gwy._get_device(this.dst.id, msg=this)
 
-    if getattr(this.dst, "_is_controller", False):
+    if getattr(this.dst, "_is_controller", False) and not isinstance(
+        this.dst, UfhController
+    ):  # HACK
         this._gwy._get_device(this.src.id, ctl_id=this.dst.id, msg=this)  # or _set_ctl?
 
     elif isinstance(this.dst, Device) and getattr(this.src, "_is_controller", False):
