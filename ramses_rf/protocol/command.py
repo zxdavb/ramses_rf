@@ -1209,7 +1209,7 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
             for x, y in self._faultlog.items()
         }
 
-        return {k: [x for x in v.values()] for k, v in result.items()}
+        return {k: list(v.values()) for k, v in result.items()}
 
     @property
     def _faultlog_outdated(self) -> bool:
