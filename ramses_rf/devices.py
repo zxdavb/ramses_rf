@@ -922,10 +922,10 @@ class HgiGateway(DeviceBase):  # HGI (18:), was GWY
             self._faked_bdr = self._gwy._get_device(self.id, class_="BDR", faked=True)
 
         if schema.get("fake_ext"):
-            self._fake_ext = self._gwy._get_device(self.id, class_="BDR", faked=True)
+            self._faked_ext = self._gwy._get_device(self.id, class_="BDR", faked=True)
 
         if schema.get("fake_thm"):
-            self._fake_thm = self._gwy._get_device(self.id, class_="BDR", faked=True)
+            self._faked_thm = self._gwy._get_device(self.id, class_="BDR", faked=True)
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:
