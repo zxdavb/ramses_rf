@@ -779,7 +779,7 @@ class Zone(ZoneSchedule, ZoneBase):
         """Return the zone's heat demand, estimated from its devices' heat demand."""
         demands = [
             d.heat_demand
-            for d in self.devices
+            for d in self.devices  # TODO: actuators
             if hasattr(d, ATTR_HEAT_DEMAND) and d.heat_demand is not None
         ]
         return _transform(max(demands + [0])) if demands else None
@@ -983,7 +983,7 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
         """Return the zone's heat demand, estimated from its devices' heat demand."""
-        if demand := self._msg_value(_3150, key=ATTR_HEAT_DEMAND):
+        if (demand := self._msg_value(_3150, key=ATTR_HEAT_DEMAND)) is not None:
             return _transform(demand)
 
 
