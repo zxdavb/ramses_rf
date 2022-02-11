@@ -472,7 +472,7 @@ class AttrDict(dict):
     setdefault = __readonly__
     update = __readonly__
 
-    del __readonly__
+    del __readonly__  # skipcq: PTC-W0043
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
