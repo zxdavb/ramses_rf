@@ -51,13 +51,16 @@ from .schema import (
     SZ_ZONE_TYPE,
 )
 
-# from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
+# skipcq: PY-W2000
+from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+)
 
 # skipcq: PY-W2000
-from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip, skipcq: PY-W2000
-
-# skipcq: PY-W2000
-from .protocol import (  # noqa: F401, isort: skip, skipcq: PY-W2000
+from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _0001,
     _0002,
     _0004,

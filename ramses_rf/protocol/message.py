@@ -18,8 +18,17 @@ from .packet import fraction_expired
 from .parsers import PAYLOAD_PARSERS, parser_unknown
 from .ramses import CODE_IDX_COMPLEX, CODE_RQ_COMPLEX, RAMSES_CODES
 
-from .const import I_, RP, RQ, W_, __dev_mode__  # noqa: F401, isort: skip
-from .const import (  # noqa: F401, isort: skip
+# skipcq: PY-W2000
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+    __dev_mode__,
+)
+
+# skipcq: PY-W2000
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _0001,
     _0002,
     _0004,

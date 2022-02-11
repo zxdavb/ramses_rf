@@ -16,8 +16,16 @@ from .const import __dev_mode__  # DEVICE_ID_REGEX,
 from .protocol import RAMSES_CODES, Command, ExpiredCallbackError, Priority
 from .protocol.opentherm import OTB_MSG_IDS
 
-from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip
-from .protocol import (  # noqa: F401, isort: skip
+# skipcq: PY-W2000
+from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+)
+
+# skipcq: PY-W2000
+from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _0001,
     _0002,
     _0004,

@@ -12,21 +12,23 @@ from datetime import timedelta as td
 from typing import ByteString, Optional, Tuple
 
 from .address import pkt_addrs
+from .const import MESSAGE_REGEX
 from .exceptions import InvalidPacketError
 from .frame import PacketBase
 from .logger import getLogger
 from .opentherm import PARAMS_MSG_IDS, SCHEMA_MSG_IDS, STATUS_MSG_IDS
 from .ramses import EXPIRES, RAMSES_CODES
 
+# skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
-    MESSAGE_REGEX,
     RP,
     RQ,
     W_,
     __dev_mode__,
 )
 
+# skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _0001,
     _0002,

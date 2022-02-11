@@ -42,8 +42,16 @@ from .protocol.ramses import CODE_ONLY_FROM_CTL, NAME, RAMSES_CODES, RAMSES_DEVI
 from .protocol.transport import PacketProtocolPort
 from .schema import SZ_ALIAS, SZ_CLASS, SZ_DEVICE_ID, SZ_FAKED
 
-from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip
-from .protocol import (  # noqa: F401, isort: skip
+# skipcq: PY-W2000
+from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+)
+
+# skipcq: PY-W2000
+from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _0001,
     _0002,
     _0004,

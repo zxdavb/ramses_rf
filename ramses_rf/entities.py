@@ -11,8 +11,16 @@ from typing import Any, List, Optional
 from .const import Discover, __dev_mode__
 from .protocol.ramses import NAME, RAMSES_CODES
 
-from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip
-from .protocol import (  # noqa: F401, isort: skip
+# skipcq: PY-W2000
+from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+)
+
+# skipcq: PY-W2000
+from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _0001,
     _0002,
     _0004,

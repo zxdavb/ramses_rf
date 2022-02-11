@@ -19,6 +19,7 @@ from .schedule import Schedule
 from .schema import PACKET_LOG, PACKET_LOG_SCHEMA, SERIAL_PORT, SERIAL_PORT_SCHEMA
 from .transport import POLLER_TASK, create_pkt_stack
 
+# skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
@@ -27,6 +28,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     __dev_mode__,
 )
 
+# skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _0001,
     _0002,

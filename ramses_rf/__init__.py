@@ -55,8 +55,15 @@ from .schema import (
 from .systems import System
 from .version import VERSION  # noqa: F401
 
-from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip
+# skipcq: PY-W2000
+from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+)
 
+# skipcq: PY-W2000
 DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
