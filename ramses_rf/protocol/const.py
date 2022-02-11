@@ -460,7 +460,8 @@ SystemType = SimpleNamespace(
 class AttrDict(dict):
     # NOTE: 'advanced_override' in ZONE_MODE == False
 
-    def __readonly__(self, *args, **kwargs):
+    @staticmethod
+    def __readonly__(*args, **kwargs):
         raise RuntimeError("Cannot modify ReadOnlyDict")
 
     __delitem__ = __readonly__
