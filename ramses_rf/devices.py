@@ -38,7 +38,7 @@ from .protocol.opentherm import (
     STATUS_MSG_IDS,
     VALUE,
 )
-from .protocol.ramses import CODE_ONLY_FROM_CTL, RAMSES_DEVICES
+from .protocol.ramses import CODE_ONLY_FROM_CTL, NAME, RAMSES_CODES, RAMSES_DEVICES
 from .protocol.transport import PacketProtocolPort
 from .schema import SZ_ALIAS, SZ_CLASS, SZ_DEVICE_ID, SZ_FAKED
 
@@ -317,6 +317,10 @@ class DeviceBase(Entity):
             SZ_ALIAS: self._alias,
             # SZ_FAKED: self._faked,
             SZ_CLASS: self._klass,
+            "supported_msgs": {
+                k: (RAMSES_CODES[k][NAME] if k in RAMSES_CODES else None)
+                for k in sorted(self._msgs)
+            },
         }
 
     @property
@@ -335,10 +339,14 @@ class DeviceBase(Entity):
         return {}
 
 
-class DeviceInfo:  # 10E0
+class Device(DeviceBase):  # 10E0
+    """The Device base class - also used for unknown device types."""
 
     RF_BIND = "rf_bind"
     DEVICE_INFO = "device_info"
+
+    _DEV_KLASS = DEV_KLASS.DEV
+    _DEV_TYPES = tuple()
 
     def _discover(self, discover_flag=Discover.ALL) -> None:
         if discover_flag & Discover.SCHEMA:
@@ -347,25 +355,6 @@ class DeviceInfo:  # 10E0
                 or RP in RAMSES_DEVICES[self._klass].get(_10E0, {})
             ):
                 self._make_cmd(_10E0, retries=3)
-
-    @property
-    def device_info(self) -> Optional[dict]:  # 10E0
-        return self._msg_value(_10E0)
-
-    @property
-    def traits(self) -> dict:
-        result = super().traits
-        result.update({f"_{self.RF_BIND}": self._msg_value(_1FC9)})
-        if _10E0 in self._msgs or _10E0 in RAMSES_DEVICES.get(self._klass, []):
-            result.update({f"_{self.DEVICE_INFO}": self.device_info})
-        return result
-
-
-class Device(DeviceInfo, DeviceBase):
-    """The Device base class - also used for unknown device types."""
-
-    _DEV_KLASS = DEV_KLASS.DEV
-    _DEV_TYPES = tuple()
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -439,6 +428,18 @@ class Device(DeviceInfo, DeviceBase):
         if DEV_MODE:
             _LOGGER.debug("Device %s: parent now set to %s", self, self._parent)
         return self._parent
+
+    @property
+    def device_info(self) -> Optional[dict]:  # 10E0
+        return self._msg_value(_10E0)
+
+    @property
+    def traits(self) -> dict:
+        result = super().traits
+        result.update({f"_{self.RF_BIND}": self._msg_value(_1FC9)})
+        if _10E0 in self._msgs or _10E0 in RAMSES_DEVICES.get(self._klass, []):
+            result.update({f"_{self.DEVICE_INFO}": self.device_info})
+        return result
 
     @property
     def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
@@ -887,7 +888,7 @@ class Temperature(Fakeable):  # 30C9
         }
 
 
-class RfgGateway(DeviceInfo, DeviceBase):  # RFG (30:)
+class RfgGateway(Device):  # RFG (30:)
     """The RFG100 base class."""
 
     _DEV_KLASS = DEV_KLASS.RFG
@@ -1715,6 +1716,10 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         }
 
     @property
+    def ramses_schema(self) -> dict:
+        return {}
+
+    @property
     def ramses_params(self) -> dict:
         return {
             "max_rel_modulation": self.max_rel_modulation,
@@ -1742,15 +1747,35 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         }
 
     @property
+    def _supported_msgs(self) -> dict:
+        return {
+            k: (RAMSES_CODES[k][NAME] if k in RAMSES_CODES else None)
+            for k in sorted(self._msgs)
+            if self._msgs_supported.get(k) is not False
+        }
+
+    @property
+    def _supported_ot_msgs(self) -> dict:
+        return {
+            k: OPENTHERM_MESSAGES[int(k, 16)].get("var", k)
+            for k, v in sorted(self._msgs_ot_supported.items())
+            if v is not False
+        }
+
+    @property
+    def traits(self) -> dict:
+        return {
+            **super().traits,
+            "opentherm_traits": self._supported_ot_msgs,
+            "ramses_ii_traits": self._supported_msgs,
+        }
+
+    @property
     def schema(self) -> dict:
         return {
             **super().schema,
-            "known_msg_ids": {
-                k: OPENTHERM_MESSAGES[int(k, 16)].get("var", k)
-                for k, v in sorted(self._msgs_ot_supported.items())
-                if v
-            },
             "opentherm_schema": self.opentherm_schema,
+            "ramses_ii_schema": self.ramses_schema,
         }
 
     @property
@@ -1758,7 +1783,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         return {
             **super().params,
             "opentherm_params": self.opentherm_params,
-            "supported_msgs": dict(sorted(self._msgs_ot_supported.items())),
+            "ramses_ii_params": self.ramses_params,
         }
 
     @property
@@ -1766,7 +1791,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
         return {
             **super().status,  # incl. actuator_cycle, actuator_state
             "opentherm_status": self.opentherm_status,
-            "ramses_status": self.ramses_status,
+            "ramses_ii_status": self.ramses_status,
         }
 
 
