@@ -130,7 +130,7 @@ from .protocol import (  # noqa: F401, isort: skip, skipcq: PY-W2000
     _3EF0,
     _3EF1,
     _PUZZ,
-)
+)  # skipcq: PY-W2000
 
 DEV_MODE = __dev_mode__
 
