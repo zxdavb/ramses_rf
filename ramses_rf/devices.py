@@ -167,7 +167,7 @@ class DeviceBase(Entity):
     """The Device base class (good for a generic device)."""
 
     _DEV_KLASS = None
-    _DEV_TYPES = tuple()  # TODO: needed?
+    _DEV_TYPES = ()  # TODO: needed?
 
     _STATE_ATTR = None
 
@@ -354,7 +354,7 @@ class Device(DeviceBase):  # 10E0
     DEVICE_INFO = "device_info"
 
     _DEV_KLASS = DEV_KLASS.DEV
-    _DEV_TYPES = tuple()
+    _DEV_TYPES = ()
 
     def _discover(self, discover_flag=Discover.ALL) -> None:
         if discover_flag & Discover.SCHEMA:
@@ -2026,7 +2026,7 @@ class HvacHumidity(BatteryState, HvacDevice):  # HUM (32) I/12A0
     """
 
     _DEV_KLASS = DEV_KLASS.HUM
-    _DEV_TYPES = tuple()  # ("32",)
+    _DEV_TYPES = ()  # ("32",)
 
     REL_HUMIDITY = "indoor_humidity"  # percentage (0.0-1.0)
     TEMPERATURE = "temperature"  # celsius
@@ -2061,7 +2061,7 @@ class HvacCarbonDioxide(HvacDevice):  # HUM (32) I/1298
     """
 
     _DEV_KLASS = DEV_KLASS.CO2
-    _DEV_TYPES = tuple()  # ("32",)
+    _DEV_TYPES = ()  # ("32",)
 
     @property
     def co2_level(self) -> Optional[float]:
@@ -2086,7 +2086,7 @@ class HvacSwitch(BatteryState, HvacDevice):  # SWI (39): I/22F[13]
     # RP --- 30:079129 32:166025 --:------ 31DA 029 21EF00026036EF7FFF7FFF7FFF7FFF0002EF18FFFF000000EF7FFF7FFF
 
     _DEV_KLASS = DEV_KLASS.SWI
-    _DEV_TYPES = tuple()  # ("39",)
+    _DEV_TYPES = ()  # ("39",)
 
     @property
     def fan_rate(self) -> Optional[str]:
@@ -2123,7 +2123,7 @@ class HvacVentilator(HvacDevice):  # FAN (20/37): RP/31DA, I/31D[9A]
     # 30:079129 --:------ 30:079129 31D9 017 2100FF0000000000000000000000000000
 
     _DEV_KLASS = DEV_KLASS.FAN
-    _DEV_TYPES = tuple()  # ("20", "37")
+    _DEV_TYPES = ()  # ("20", "37")
 
     @property
     def boost_timer(self) -> Optional[int]:
