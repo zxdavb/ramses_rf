@@ -118,7 +118,7 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Optional(ENFORCE_KNOWNLIST, default=None): vol.Any(None, bool),
         vol.Optional(USE_ALIASES, default=None): vol.Any(None, bool),
         vol.Optional(EVOFW_FLAG, default=None): vol.Any(None, str),
-        vol.Optional("use_regex", default={}): dict(),
+        vol.Optional("use_regex", default={}): dict,
     },
     extra=vol.ALLOW_EXTRA,  # TODO: remove for production
 )
@@ -177,6 +177,7 @@ ZONE_SCHEMA = vol.Schema(
         vol.Optional(SZ_ZONE_TYPE, default=None): vol.Any(None, ZONE_TYPE_SLUGS),
         vol.Optional(SZ_ZONE_SENSOR, default=None): vol.Any(None, SENSOR_ID),
         vol.Optional(ATTR_DEVICES, default=[]): vol.Any([], [DEVICE_ID]),
+        # TODO: above accepts "01:123456", should be ["01:123456"]
         # vol.Optional("faked_sensor", default=None): vol.Any(None, bool),
     }
 )
@@ -356,6 +357,9 @@ def load_system(gwy, ctl_id, schema) -> Tuple[dict, dict]:
         if dev_id := dhw_schema.get(SZ_DHW_VALVE_HTG):
             dhw._set_htg_valve(_get_device(gwy, dev_id, ctl_id=ctl.id))
 
+    for dev_id in schema.get(SZ_UFH_SYSTEM, {}).keys():  # UFH controllers
+        _get_device(gwy, dev_id, ctl_id=ctl.id)  # , **_schema)
+
     for zone_idx, attrs in schema[SZ_ZONES].items():
         zone = ctl._evo._get_zone(zone_idx)  # , **attrs)
 
@@ -371,9 +375,6 @@ def load_system(gwy, ctl_id, schema) -> Tuple[dict, dict]:
 
         if zone_type := attrs.get(SZ_ZONE_TYPE):
             zone._set_zone_type(zone_type)
-
-    for dev_id in schema.get(SZ_UFH_SYSTEM, {}).keys():  # UFH controllers
-        _get_device(gwy, dev_id, ctl_id=ctl.id)  # , **_schema)
 
     for dev_id in schema.get(SZ_ORPHANS, []):
         _get_device(gwy, dev_id, ctl_id=ctl.id, disable_warning=True)
