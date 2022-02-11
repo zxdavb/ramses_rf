@@ -257,9 +257,8 @@ class Entity:
 
         return self._msg_value_msg(msg, key=key, **kwargs)
 
-    def _msg_value_msg(
-        self, msg, key=None, zone_idx=None, domain_id=None
-    ) -> Optional[dict]:
+    @staticmethod
+    def _msg_value_msg(msg, key=None, zone_idx=None, domain_id=None) -> Optional[dict]:
 
         if msg is None:
             return
