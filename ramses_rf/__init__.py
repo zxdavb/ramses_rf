@@ -422,7 +422,8 @@ class Gateway:
         """Create a client protocol for the RAMSES-II message transport."""
         return create_msg_stack(self, msg_handler)
 
-    def create_cmd(self, verb, device_id, code, payload, **kwargs) -> Command:
+    @staticmethod
+    def create_cmd(verb, device_id, code, payload, **kwargs) -> Command:
         """Make a command addressed to device_id."""
         try:
             return Command(verb, code, payload, device_id)
