@@ -53,8 +53,8 @@ from .schema import (
 
 # from .ramses import RAMSES_ZONES, RAMSES_ZONES_ALL
 
-from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip
-from .protocol import (  # noqa: F401, isort: skip
+from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip, skipcq: PY-W2000
+from .protocol import (  # noqa: F401, isort: skip, skipcq: PY-W2000
     _0001,
     _0002,
     _0004,
