@@ -840,7 +840,8 @@ class PacketProtocolQos(PacketProtocolPort):
         # self._timeout_full = dtm + _MIN_GAP_BETWEEN_RETRYS  # was: + timeout * 2
         # self._timeout_half = dtm + _MIN_GAP_BETWEEN_RETRYS  # was: + timeout
 
-    def _qos_expire_cmd(self, cmd) -> None:
+    @staticmethod
+    def _qos_expire_cmd(cmd) -> None:
         """Handle an expired cmd, such as invoking its callbacks."""
 
         if cmd._source_entity:  # HACK - should be using a callback
