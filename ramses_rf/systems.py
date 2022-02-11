@@ -353,9 +353,9 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         schema[SZ_ORPHANS] = sorted(
             [
                 d.id
-                for d in self._ctl.devices
-                if not d._domain_id and isinstance(d, UfhController) and d._is_present
-            ]
+                for d in self._ctl.devices  # HACK: UFC
+                if not d._domain_id and d._is_present
+            ]  # and not isinstance(d, UfhController)
         )  # devices without a parent zone, NB: CTL can be a sensor for a zone
 
         return schema

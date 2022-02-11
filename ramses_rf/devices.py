@@ -236,10 +236,10 @@ class DeviceBase(Entity):
 
         if self._ctl is ctl:
             return self._ctl
-        if self._is_controller and not isinstance(self, UfhController):
+        if self._is_controller and not isinstance(self, UfhController):  # HACK: UFC
             # HACK: UFC is/binds to a contlr
             return  # TODO
-        if self._ctl is not None:
+        if self._ctl is not None and not isinstance(self, UfhController):  # HACK: UFC
             raise CorruptStateError(f"{self} changed controller: {self._ctl} to {ctl}")
 
         #  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5  # has been seen
@@ -1089,6 +1089,8 @@ class UfhController(Device):  # UFC (02):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+
+        self._domain_id = "FA"  # HACK: UFC
 
         self._circuits = {}
         self._setpoints = None
