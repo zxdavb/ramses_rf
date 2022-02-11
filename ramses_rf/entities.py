@@ -9,6 +9,7 @@ from sys import modules
 from typing import Any, List, Optional
 
 from .const import Discover, __dev_mode__
+from .protocol.ramses import NAME, RAMSES_CODES
 
 from .protocol import I_, RP, RQ, W_  # noqa: F401, isort: skip
 from .protocol import (  # noqa: F401, isort: skip
@@ -298,7 +299,8 @@ class Entity:
     @property
     def _codes(self) -> dict:
         return {
-            "_codes": sorted([k for k, v in self._msgs.items()]),
+            k: (RAMSES_CODES[k][NAME] if k in RAMSES_CODES else None)
+            for k in sorted(self._msgs)
         }
 
     @property
