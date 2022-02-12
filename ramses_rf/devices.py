@@ -1360,7 +1360,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
         self._domain_id = "FC"
 
-        self._msgz[_3220] = {}  # so later, we can: self._msgz[_3220][msg_id]
+        self._msgs[_3220] = {}  # so later, we can: self._msgz[_3220][msg_id]
         self._msgz[_3220] = {RP: {}}  # so later, we can: self._msgz[_3220][RP][msg_id]
 
         self._msgs_ot = {}
