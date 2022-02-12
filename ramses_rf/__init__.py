@@ -163,7 +163,7 @@ class Gateway:
         elif os.name == "nt":  # supported, but YMMV
             _LOGGER.warning("Be aware, YMMV with Windows...")
         else:  # unsupported
-            raise RuntimeError("Unsupported OS for this module: %s", os.name)
+            raise RuntimeError(f"Unsupported OS for this module: {os.name}")
 
     async def start(self) -> None:
         def start_discovery(devices, systems) -> None:

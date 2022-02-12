@@ -146,10 +146,11 @@ class SerTransportRead(asyncio.ReadTransport):
     """Interface for a packet transport via a dict (saved state) or a file (pkt log)."""
 
     def __init__(self, loop, protocol, packet_source, extra=None):
+        super().__init__(self, extra=extra)
+
         self._loop = loop
         self._protocol = protocol
         self._packets = packet_source
-        self._extra = {} if extra is None else extra
 
         self._protocol.pause_writing()
 
@@ -184,10 +185,11 @@ class SerTransportPoll(asyncio.Transport):
     MAX_BUFFER_SIZE = 500
 
     def __init__(self, loop, protocol, ser_instance, extra=None):
+        super().__init__(self, extra=extra)
+
         self._loop = loop
         self._protocol = protocol
         self.serial = ser_instance
-        self._extra = {} if extra is None else extra
 
         self._is_closing = None
         self._write_queue = None
@@ -233,10 +235,11 @@ class _SerTransportProc(Process):  # TODO: WIP
     """Interface for a packet transport using a process - WIP."""
 
     def __init__(self, loop, protocol, ser_port, extra=None):
+        super().__init__(self, extra=extra)
+
         self._loop = loop
         self._protocol = protocol
         self._ser_port = ser_port
-        self._extra = {} if extra is None else extra
 
         self.serial = None
 

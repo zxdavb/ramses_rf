@@ -76,7 +76,7 @@ class MessageTransport(asyncio.Transport):
     WRITER_TASK = "writer_task"
 
     def __init__(self, gwy, protocol, extra=None):
-        _LOGGER.debug("MsgTransport.__init__()")
+        super().__init__(self, extra=extra)
 
         self._loop = gwy._loop
 
@@ -449,7 +449,7 @@ class MessageProtocol(asyncio.Protocol):
     """
 
     def __init__(self, gwy, callback: Callable) -> None:
-        _LOGGER.debug("MsgProtocol.__init__(%s)", callback)
+
         # self._gwy = gwy  # is not used
         self._loop = gwy._loop
         self._callback = callback

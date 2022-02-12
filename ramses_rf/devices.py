@@ -943,8 +943,8 @@ class HgiGateway(DeviceBase):  # HGI (18:), was GWY
 
     def _handle_msg(self, msg) -> None:
         def fake_addrs(msg, faked_dev):
-            msg.src == faked_dev if msg.src is self else self
-            msg.dst == faked_dev if msg.dst is self else self
+            msg.src = faked_dev if msg.src is self else self
+            msg.dst = faked_dev if msg.dst is self else self
             return msg
 
         super()._handle_msg(msg)
@@ -1104,6 +1104,7 @@ class UfhController(Device):  # UFC (02):
         self._circuits = {}
         self._setpoints = None
         self._heat_demand = None
+        self._heat_demands = None
         self._relay_demand = None
         self._relay_demand_fa = None
 

@@ -1045,7 +1045,7 @@ class Command(PacketBase):
 
         cmd = cmd_str.upper().split()
         if len(cmd) < 4:
-            raise ValueError("Command is invalid: '%s'", cmd_str)
+            raise ValueError(f"Command is invalid: '{cmd_str}'")
 
         verb = cmd.pop(0)
         seqn = "---" if DEVICE_ID_REGEX.match(cmd[0]) else cmd.pop(0)
@@ -1053,7 +1053,7 @@ class Command(PacketBase):
         code = cmd.pop()
 
         if not 0 < len(cmd) < 4:
-            raise ValueError("Command is invalid: '%s'", cmd_str)
+            raise ValueError(f"Command is invalid: '{cmd_str}'")
         elif len(cmd) == 1:
             addrs = (HGI_DEVICE_ID, cmd[0], NON_DEVICE_ID)
         elif len(cmd) == 3:
