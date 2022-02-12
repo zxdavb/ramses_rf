@@ -177,7 +177,7 @@ def dtm_from_hex(value: str) -> str:  # from parsers
 def dtm_to_hex(dtm: Union[str, dt]) -> str:
     """Convert a datetime (isoformat string, or datetime obj) to a hex string."""
 
-    def _dtm_to_hex(tm_year, tm_mon, tm_mday, tm_hour, tm_min, tm_sec, *args):
+    def _dtm_to_hex(tm_year, tm_mon, tm_mday, tm_hour, tm_min, tm_sec, *_):
         return f"{tm_min:02X}{tm_hour:02X}{tm_mday:02X}{tm_mon:02X}{tm_year:04X}"
 
     if dtm is None:
