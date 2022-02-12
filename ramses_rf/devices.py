@@ -1880,11 +1880,11 @@ class BdrSwitch(Actuator, RelayDemand, Device):  # BDR (13):
 
     _STATE_ATTR = "active"
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    # def __init__(self, *args, **kwargs) -> None:
+    #     super().__init__(*args, **kwargs)
 
-        # if kwargs.get("domain_id") == "FC":  # TODO: F9/FA/FC, zone_idx
-        #     self._ctl._set_htg_control(self)
+    #     if kwargs.get("domain_id") == "FC":  # TODO: F9/FA/FC, zone_idx
+    #         self._ctl._set_htg_control(self)
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:
@@ -1912,16 +1912,16 @@ class BdrSwitch(Actuator, RelayDemand, Device):  # BDR (13):
             # NOTE: 13: wont RP to an RQ/3EF0
             self._make_cmd(_3EF1)
 
-    def _handle_msg(self, msg) -> None:
-        super()._handle_msg(msg)
+    # def _handle_msg(self, msg) -> None:
+    #     super()._handle_msg(msg)
 
-        # if msg.code == _1FC9 and msg.verb == RP:
-        #     pass  # only a heater_relay will have 3B00
+    #     if msg.code == _1FC9 and msg.verb == RP:
+    #         pass  # only a heater_relay will have 3B00
 
-        # elif msg.code == _3B00 and msg.verb == I_:
-        #     pass  # only a heater_relay will I/3B00
-        #     # for code in (_0008, _3EF1):
-        #     #     self._make_cmd(code, delay=1)
+    #     elif msg.code == _3B00 and msg.verb == I_:
+    #         pass  # only a heater_relay will I/3B00
+    #         # for code in (_0008, _3EF1):
+    #         #     self._make_cmd(code, delay=1)
 
     @property
     def active(self) -> Optional[bool]:  # 3EF0, 3EF1
