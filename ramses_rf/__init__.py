@@ -489,7 +489,9 @@ class Gateway:
             _LOGGER.debug(f"The command returned: {result!r}")
             return result
 
-    def fake_device(self, device_id, create_device=None, start_binding=False) -> Device:
+    def fake_device(
+        self, device_id, create_device=False, start_binding=False
+    ) -> Device:
         """Create a faked device, and optionally set it to binding mode.
 
         Will make any neccesary changed to the device lists.
