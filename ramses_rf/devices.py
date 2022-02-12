@@ -800,9 +800,6 @@ class RelayDemand(Fakeable):  # 0008
             qos = {"priority": Priority.HIGH, "retries": 3}
             [self._send_cmd(cmd, **qos) for _ in range(1)]
 
-        else:
-            raise
-
     def _bind(self):
         # I --- 01:054173 --:------ 01:054173 1FC9 018 03-0008-04D39D FC-3B00-04D39D 03-1FC9-04D39D
         # W --- 13:123456 01:054173 --:------ 1FC9 006 00-3EF0-35E240
