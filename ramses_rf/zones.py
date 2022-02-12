@@ -215,9 +215,9 @@ class ZoneBase(Entity):
 
         return parent, parent._ctl
 
-    def _make_cmd(self, code, **kwargs) -> None:
+    def _make_cmd(self, code, **kwargs) -> None:  # skipcq: PYL-W0221
         payload = kwargs.pop("payload", f"{self.idx}00")
-        super()._make_cmd(code, self._ctl.id, payload, **kwargs)
+        super()._make_cmd(code, self._ctl.id, payload=payload, **kwargs)
 
     @property
     def heating_type(self) -> Optional[str]:

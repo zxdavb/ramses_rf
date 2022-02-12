@@ -300,8 +300,8 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         if heater is not None:
             self._set_htg_control(heater)
 
-    def _make_cmd(self, code, payload="00", **kwargs) -> None:
-        super()._make_cmd(code, self._ctl.id, payload, **kwargs)
+    def _make_cmd(self, code, payload="00", **kwargs) -> None:  # skipcq: PYL-W0221
+        super()._make_cmd(code, self._ctl.id, payload=payload, **kwargs)
 
     @property
     def devices(self) -> List[Device]:

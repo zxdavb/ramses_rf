@@ -216,7 +216,7 @@ class Entity:
     #     """Return a flattened version of ..."""
     #     return {msg.dtm: msg._pkt for msg in self._msgs_db}
 
-    def _make_cmd(self, code, dest_id, payload, verb=RQ, **kwargs) -> None:
+    def _make_cmd(self, code, dest_id, payload="00", verb=RQ, **kwargs) -> None:
         self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
 
     def _send_cmd(self, cmd, **kwargs) -> None:

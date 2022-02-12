@@ -236,8 +236,8 @@ class DeviceBase(Entity):
         if discover_flag & Discover.STATUS:
             self._make_cmd(_0016, retries=3)  # rf_check
 
-    def _make_cmd(self, code, payload="00", **kwargs) -> None:
-        super()._make_cmd(code, self.id, payload, **kwargs)
+    def _make_cmd(self, code, payload="00", **kwargs) -> None:  # skipcq: PYL-W0221
+        super()._make_cmd(code, self.id, payload=payload, **kwargs)
 
     def _set_ctl(self, ctl):  # self._ctl
         """Set the device's parent controller, after validating it."""
