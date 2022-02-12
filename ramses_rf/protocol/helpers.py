@@ -177,7 +177,7 @@ def dtm_from_hex(value: str) -> str:  # from parsers
 def dtm_to_hex(dtm: Union[str, dt]) -> str:
     """Convert a datetime (isoformat string, or datetime obj) to a hex string."""
 
-    def _dtm_to_hex(tm_year, tm_mon, tm_mday, tm_hour, tm_min, tm_sec, *_):
+    def _dtm_to_hex(tm_year, tm_mon, tm_mday, tm_hour, tm_min, *args):
         return f"{tm_min:02X}{tm_hour:02X}{tm_mday:02X}{tm_mon:02X}{tm_year:04X}"
 
     if dtm is None:
@@ -223,7 +223,7 @@ def dts_to_hex(dtm: Union[str, dt]) -> str:  # TODO: WIP
             raise ValueError("Invalid datetime isoformat string")
     elif not isinstance(dtm, dt):
         raise TypeError("Invalid datetime object")
-    (tm_year, tm_mon, tm_mday, tm_hour, tm_min, tm_sec, *args) = dtm.timetuple()
+    (tm_year, tm_mon, tm_mday, tm_hour, tm_min, tm_sec, *_) = dtm.timetuple()
     val = sum(
         (
             tm_year % 100 << 24,
