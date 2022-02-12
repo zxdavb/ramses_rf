@@ -14,7 +14,7 @@ class ExpiredCallbackError(EvohomeError):
     """Raised when the callback has expired."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.message = args[0] if args else None
 
     def __str__(self) -> str:
@@ -35,7 +35,7 @@ class InvalidPacketError(CorruptEvohomeError):
     """Raised when the packet is inconsistent."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.message = args[0] if args else None
 
     def __str__(self) -> str:
@@ -50,7 +50,7 @@ class InvalidAddrSetError(InvalidPacketError):
     """Raised when the packet's address set is inconsistent."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.message = args[0] if args else None
 
     def __str__(self) -> str:
@@ -65,7 +65,7 @@ class InvalidPayloadError(InvalidPacketError):
     """Raised when the packet's payload is inconsistent."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.message = args[0] if args else None
 
     def __str__(self) -> str:
@@ -80,7 +80,7 @@ class CorruptStateError(CorruptEvohomeError):
     """Raised when the system state (usu. schema) is inconsistent."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.message = args[0] if args else None
 
     def __str__(self) -> str:
@@ -95,7 +95,7 @@ class MultipleControllerError(CorruptStateError):
     """Raised when there is more than one controller."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.message = args[0] if args else None
 
     def __str__(self) -> str:

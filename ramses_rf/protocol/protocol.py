@@ -76,7 +76,7 @@ class MessageTransport(asyncio.Transport):
     WRITER_TASK = "writer_task"
 
     def __init__(self, gwy, protocol, extra=None):
-        super().__init__(self, extra=extra)
+        super().__init__(extra=extra)
 
         self._loop = gwy._loop
 
