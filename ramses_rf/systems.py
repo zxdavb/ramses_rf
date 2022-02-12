@@ -526,7 +526,7 @@ class MultiZone:  # 0005 (+/- 000C?)
             self._prev_30c9 = this
             return
 
-        self._prev_30c9, this, prev = this, this, self._prev_30c9
+        self._prev_30c9, prev = this, self._prev_30c9
 
         if len([z for z in self.zones if z.sensor is None]) == 0:
             return  # (currently) no zone without a sensor

@@ -250,7 +250,7 @@ def set_pkt_logging(logger, dt_now=None, cc_console=False, **kwargs) -> None:
     logger.setLevel(logging.DEBUG)  # must be at least .INFO
 
     if file_name := kwargs.get(LOG_FILE_NAME):
-        max_bytes = kwargs.get(LOG_ROTATE_BYTES, None)
+        max_bytes = kwargs.get(LOG_ROTATE_BYTES)
         bkp_count = kwargs.get(LOG_ROTATE_COUNT, 0)
 
         if max_bytes:

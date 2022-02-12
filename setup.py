@@ -5,6 +5,7 @@
 
 import os
 import sys
+from ast import literal_eval
 
 from setuptools import find_packages, setup
 from setuptools.command.install import install
@@ -15,7 +16,7 @@ from setuptools.command.install import install
 with open("ramses_rf/version.py") as fh:
     for line in fh:
         if line.strip().startswith("__version__"):
-            VERSION = eval(line.split("=")[-1])
+            VERSION = literal_eval(line.split("=")[-1].strip())
             break
 
 URL = "https://github.com/zxdavb/ramses_rf"

@@ -1,6 +1,6 @@
 version = 1
 
-exclude_patterns = ["utils/**"]
+exclude_patterns = ["utils/**", "examples/**"]
 
 [[analyzers]]
 name = "python"
