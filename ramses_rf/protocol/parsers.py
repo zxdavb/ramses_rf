@@ -942,9 +942,9 @@ def parser_1260(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # outdoor humidity
 def parser_1280(payload, msg) -> Optional[dict]:
-    # this packet never seen in the wild
+    # educated guess - this packet never seen in the wild
 
-    rh = int(payload[2:4], 16) / 100 if payload[2:4] != "EF" else None
+    rh = percent(payload[2:4], high_res=False)
     if msg.len == 2:
         return {"outdoor_humidity": rh}
 
@@ -964,14 +964,14 @@ def parser_1290(payload, msg) -> Optional[dict]:
 @parser_decorator  # co2_level
 def parser_1298(payload, msg) -> Optional[dict]:
     #  I --- 37:258565 --:------ 37:258565 1298 003 0007D0
-    FAULT_CODES = {
+    FAULT_CODES_CO2 = {
         "80": "sensor short circuit",
         "81": "sensor open",
         "83": "sensor value too high",
         "84": "sensor value too low",
         "85": "sensor unreliable",
     }
-    if fault := FAULT_CODES.get(payload[:2]):
+    if fault := FAULT_CODES_CO2.get(payload[:2]):
         return {"sensor_fault": fault}
 
     return {"co2_level": double(payload[2:])}
@@ -981,13 +981,13 @@ def parser_1298(payload, msg) -> Optional[dict]:
 def parser_12a0(payload, msg) -> Optional[dict]:
 
     FAULT_CODES_RHUM = {
-        "EF": "RH sensor not available ",
-        "F0": "RH sensor short circuit ",
-        "F1": "RH sensor open ",
-        "F2": "RH sensor not available",
-        "F3": "RH sensor value too high ",
-        "F4": "RH sensor value too low ",
-        "F5": "RH sensor unreliable ",
+        "EF": "sensor not available",
+        "F0": "sensor short circuit",
+        "F1": "sensor open",
+        "F2": "sensor not available",
+        "F3": "sensor value too high",
+        "F4": "sensor value too low",
+        "F5": "sensor unreliable",
     }  # relative humidity sensor
 
     assert payload[2:4] in FAULT_CODES_RHUM or int(payload[2:4], 16) <= 100
@@ -1007,7 +1007,7 @@ def parser_12a0(payload, msg) -> Optional[dict]:
     # if (fault := FAULT_CODES_TEMP.get(payload[2:4])):
     #     return {"sensor_fault": fault}
 
-    rh = int(payload[2:4], 16) / 100 if payload[2:4] != "EF" else None
+    rh = percent(payload[2:4], high_res=False)
     if msg.len == 2:
         return {"indoor_humidity": rh}
 
