@@ -12,7 +12,7 @@
 import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
-from typing import Any, Optional, Union
+from typing import Optional, Union
 
 from .const import (
     _000C_DEVICE,
@@ -156,8 +156,8 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def parser_decorator(fnc):  # TODO: remove?
-    def wrapper(payload, msg, **kwargs) -> Optional[Any]:
+def parser_decorator(fnc):
+    def wrapper(payload, msg, **kwargs):
         result = fnc(payload, msg, **kwargs)
         if msg.seqn != "---":  # 22F1/3
             result["seqx_num"] = msg.seqn

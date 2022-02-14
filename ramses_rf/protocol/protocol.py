@@ -11,7 +11,7 @@ import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
 from queue import Empty, Full, PriorityQueue, SimpleQueue
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Optional
 
 from .command import ARGS, DEAMON, EXPIRES, FUNC, TIMEOUT, Command
 from .const import __dev_mode__
@@ -35,13 +35,13 @@ class MakeCallbackAwaitable:
         self._loop = loop or asyncio.get_event_loop()
         self._queue = None
 
-    def create_pair(self) -> Tuple[Callable, Callable]:
+    def create_pair(self) -> tuple[Callable, Callable]:
         self._queue = SimpleQueue()  # maxsize=1)
 
         def putter(*args):  # callback
             self._loop.call_soon_threadsafe(self._queue.put_nowait, args)
 
-        async def getter(timeout=self.DEFAULT_TIMEOUT) -> Tuple:
+        async def getter(timeout=self.DEFAULT_TIMEOUT) -> tuple:
             timeout = self.DEFAULT_TIMEOUT if timeout is None else timeout
             dt_expired = dt.now() + td(seconds=timeout)
             while dt.now() < dt_expired:
@@ -255,7 +255,7 @@ class MessageTransport(asyncio.Transport):
             self._protocols.append(protocol)
             protocol.connection_made(self)
 
-    def get_protocol(self) -> Optional[List]:
+    def get_protocol(self) -> Optional[list]:
         """Return the list of active protocols.
 
         There can be multiple protocols per transport.
@@ -316,7 +316,7 @@ class MessageTransport(asyncio.Transport):
             self._write_buffer_paused = False
             [p.resume_writing() for p in self._protocols]
 
-    def get_write_buffer_limits(self) -> Tuple[int, int]:
+    def get_write_buffer_limits(self) -> tuple[int, int]:
         """Get the high and low watermarks for write flow control.
 
         Return a tuple (low, high) where low and high are positive number of bytes.
@@ -520,7 +520,7 @@ def create_protocol_factory(protocol: asyncio.Protocol, *args, **kwargs) -> Call
 
 def create_msg_stack(
     gwy, msg_callback, protocol_factory=None
-) -> Tuple[asyncio.Protocol, asyncio.Transport]:
+) -> tuple[asyncio.Protocol, asyncio.Transport]:
     """Utility function to provide a transport to a client protocol.
 
     The architecture is: app (client) -> msg -> pkt -> ser (HW interface).

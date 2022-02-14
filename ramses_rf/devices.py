@@ -6,7 +6,7 @@
 import logging
 from random import randint, randrange
 from types import SimpleNamespace
-from typing import Dict, Optional
+from typing import Optional
 
 from .const import (
     _000C_DEVICE,
@@ -1223,7 +1223,7 @@ class UfhController(Device):  # UFC (02):
         return parent
 
     @property
-    def circuits(self) -> Optional[Dict]:  # 000C
+    def circuits(self) -> Optional[dict]:  # 000C
         return self._circuits
 
     @property
@@ -1237,17 +1237,17 @@ class UfhController(Device):  # UFC (02):
             return self._heat_demands.payload
 
     @property
-    def relay_demand(self) -> Optional[Dict]:  # 0008|FC
+    def relay_demand(self) -> Optional[dict]:  # 0008|FC
         if self._relay_demand:
             return self._relay_demand.payload[ATTR_RELAY_DEMAND]
 
     @property
-    def relay_demand_fa(self) -> Optional[Dict]:  # 0008|FA
+    def relay_demand_fa(self) -> Optional[dict]:  # 0008|FA
         if self._relay_demand_fa:
             return self._relay_demand_fa.payload[ATTR_RELAY_DEMAND]
 
     @property
-    def setpoints(self) -> Optional[Dict]:  # 22C9|ufh_idx array
+    def setpoints(self) -> Optional[dict]:  # 22C9|ufh_idx array
         if self._setpoints is None:
             return
 

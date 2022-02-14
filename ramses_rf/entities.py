@@ -6,7 +6,7 @@
 import logging
 from inspect import getmembers, isclass
 from sys import modules
-from typing import Any, List, Optional
+from typing import Optional
 
 from .const import Discover, __dev_mode__
 from .protocol.ramses import NAME, RAMSES_CODES
@@ -207,12 +207,12 @@ class Entity:
         #     del self._msgz[msg.code][RP][msg._pkt._idx]
 
     @property
-    def _msg_db(self) -> List:  # a flattened version of _msgz[code][verb][indx]
+    def _msg_db(self) -> list:  # a flattened version of _msgz[code][verb][indx]
         """Return a flattened version of _msgz[code][verb][indx]."""
         return [m for c in self._msgz.values() for v in c.values() for m in v.values()]
 
     # @property
-    # def _pkt_db(self) -> Dict:
+    # def _pkt_db(self) -> dict:
     #     """Return a flattened version of ..."""
     #     return {msg.dtm: msg._pkt for msg in self._msgs_db}
 
@@ -239,7 +239,7 @@ class Entity:
         if flags := self._msg_value(code, key=key):
             return bool(flags[idx])
 
-    def _msg_value(self, code, *args, **kwargs) -> Optional[Any]:
+    def _msg_value(self, code, *args, **kwargs):
         if isinstance(code, (str, tuple)):  # a code or a tuple of codes
             return self._msg_value_code(code, *args, **kwargs)
         return self._msg_value_msg(code, *args, **kwargs)  # assume is a Message

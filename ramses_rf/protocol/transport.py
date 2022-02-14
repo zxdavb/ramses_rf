@@ -27,7 +27,7 @@ from queue import Queue
 from string import printable  # ascii_letters, digits
 from threading import Lock, Thread
 from types import SimpleNamespace
-from typing import ByteString, Callable, Iterable, Optional, Tuple
+from typing import ByteString, Callable, Iterable, Optional
 
 from serial import SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerTransportAsync
@@ -866,7 +866,7 @@ def create_pkt_stack(
     ser_port=None,
     packet_log=None,
     packet_dict=None,
-) -> Tuple[asyncio.Protocol, asyncio.Transport]:
+) -> tuple[asyncio.Protocol, asyncio.Transport]:
     """Utility function to provide a transport to the internal protocol.
 
     The architecture is: app (client) -> msg -> pkt -> ser (HW interface) / log (file).

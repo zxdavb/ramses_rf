@@ -10,7 +10,6 @@ import asyncio
 import json
 import logging
 import re
-from typing import Any, List, Optional
 
 from .const import __dev_mode__  # DEVICE_ID_REGEX,
 from .protocol import RAMSES_CODES, Command, ExpiredCallbackError, Priority
@@ -129,7 +128,7 @@ if DEV_MODE:
 
 
 def script_decorator(fnc):
-    def wrapper(gwy, *args, **kwargs) -> Optional[Any]:
+    def wrapper(gwy, *args, **kwargs):
 
         gwy.send_cmd(Command._puzzle(message="Script begins:", **QOS_DEFAULT_HIGH))
 
@@ -142,7 +141,7 @@ def script_decorator(fnc):
     return wrapper
 
 
-def spawn_scripts(gwy, **kwargs) -> List[asyncio.Task]:
+def spawn_scripts(gwy, **kwargs) -> list[asyncio.Task]:
 
     tasks = []
 
@@ -235,7 +234,7 @@ async def script_bind_wait(gwy, dev_id: str, code=_2309, idx="00"):
     gwy._get_device(dev_id)._make_fake(bind=True, code=code, idx=idx)
 
 
-def script_poll_device(gwy, dev_id) -> List[Any]:
+def script_poll_device(gwy, dev_id) -> list:
     _LOGGER.warning("poll_device() invoked...")
 
     tasks = []

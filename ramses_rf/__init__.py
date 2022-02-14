@@ -18,7 +18,7 @@ import signal
 from asyncio.futures import Future
 from datetime import datetime as dt
 from threading import Lock
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Optional
 
 from .const import (
     ATTR_DEVICES,
@@ -112,10 +112,10 @@ class Gateway:
 
         # if self.config.reduce_processing > 0:
         self.evo: System = None
-        self.systems: List[System] = []
-        self.system_by_id: Dict = {}
-        self.devices: List[Device] = []
-        self.device_by_id: Dict = {}
+        self.systems: list[System] = []
+        self.system_by_id: dict = {}
+        self.devices: list[Device] = []
+        self.device_by_id: dict = {}
 
         self._setup_event_handlers()
 
@@ -317,7 +317,7 @@ class Gateway:
 
         self._engine_state = None
 
-    def _get_state(self, include_expired=None) -> Tuple[Dict, Dict]:
+    def _get_state(self, include_expired=None) -> tuple[dict, dict]:
         #
 
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)(
@@ -425,7 +425,7 @@ class Gateway:
     def status(self) -> dict:
         return {ATTR_DEVICES: {d.id: d.status for d in sorted(self.devices)}}
 
-    def create_client(self, msg_handler) -> Tuple[Callable, Callable]:
+    def create_client(self, msg_handler) -> tuple[Callable, Callable]:
         """Create a client protocol for the RAMSES-II message transport."""
         return create_msg_stack(self, msg_handler)
 

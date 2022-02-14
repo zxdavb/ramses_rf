@@ -10,7 +10,7 @@ import logging
 import re
 from datetime import timedelta as td
 from functools import lru_cache
-from typing import Any, Optional
+from typing import Optional
 
 from .address import Address
 from .exceptions import InvalidPacketError, InvalidPayloadError
@@ -211,7 +211,7 @@ class Message:
         return self.dtm < other.dtm
 
     @property
-    def payload(self) -> Any:  # Any[dict, List[dict]]:
+    def payload(self):  # Any[dict, list[dict]]:
         """Return the payload."""
         return self._payload
 

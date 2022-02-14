@@ -9,7 +9,7 @@ Decode/process a packet (packet that was received).
 import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
-from typing import ByteString, Optional, Tuple
+from typing import ByteString, Optional
 
 from .address import pkt_addrs
 from .const import MESSAGE_REGEX
@@ -181,7 +181,7 @@ class Packet(PacketBase):
         return self._frame[4:] == other._frame[4:]
 
     @staticmethod
-    def _partition(pkt_line: str) -> Tuple[str, str, str]:
+    def _partition(pkt_line: str) -> tuple[str, str, str]:
         """Partition a packet line into its three parts.
 
         Format: packet[ < parser-hint: ...][ * evofw3-err_msg][ # evofw3-comment]

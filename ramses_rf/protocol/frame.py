@@ -7,7 +7,7 @@ Provide the base class for commands (constructed/sent packets) and packets.
 """
 
 import logging
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
 
 from .address import Address
 from .const import NON_DEVICE_ID, NUL_DEVICE_ID
@@ -168,7 +168,7 @@ class PacketBase:
         return self._dst
 
     @property
-    def addrs(self) -> Tuple[Address, Address, Address]:
+    def addrs(self) -> tuple[Address, Address, Address]:
         return self._addrs
 
     @property

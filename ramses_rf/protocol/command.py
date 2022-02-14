@@ -14,7 +14,7 @@ import re
 from datetime import datetime as dt
 from datetime import timedelta as td
 from types import SimpleNamespace
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
 from .const import (
@@ -177,7 +177,7 @@ def validate_api_params(has_zone=None):
     such as f"{zone_idx}:02X".
     """
 
-    def _wrapper(fcn, cls, *args, **kwargs) -> Any:
+    def _wrapper(fcn, cls, *args, **kwargs):
         _LOGGER.debug(f"Calling: {fcn.__name__}({args}, {kwargs})")
         try:
             return fcn(cls, *args, **kwargs)
@@ -204,7 +204,7 @@ def validate_api_params(has_zone=None):
 
     def device_decorator(fcn):
         @functools.wraps(fcn)
-        def wrapper(cls, dst_id, *args, **kwargs) -> Any:
+        def wrapper(cls, dst_id, *args, **kwargs):
 
             if "zone_idx" in kwargs:  # Cmd.get_relay_demand()
                 kwargs["zone_idx"] = validate_zone_idx(kwargs["zone_idx"])
@@ -217,7 +217,7 @@ def validate_api_params(has_zone=None):
 
     def zone_decorator(fcn):
         @functools.wraps(fcn)
-        def wrapper(cls, ctl_id, zone_idx, *args, **kwargs) -> Any:
+        def wrapper(cls, ctl_id, zone_idx, *args, **kwargs):
 
             zone_idx = validate_zone_idx(zone_idx)
             if "domain_id" in kwargs:
@@ -260,7 +260,7 @@ def _normalise_mode(mode, target, until, duration) -> str:
     return mode
 
 
-def _normalise_until(mode, _, until, duration) -> Tuple[Any, Any]:
+def _normalise_until(mode, _, until, duration) -> tuple[Any, Any]:
     """Validate until and duration, and return a normalised xxx.
 
     Used by set_dhw_mode and set_zone_mode. May raise KeyError or ValueError.

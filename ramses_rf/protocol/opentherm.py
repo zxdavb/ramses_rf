@@ -7,7 +7,7 @@ import logging
 import struct
 from datetime import timedelta as td
 from types import SimpleNamespace
-from typing import Any, Optional, Tuple
+from typing import Optional
 
 from .const import __dev_mode__
 
@@ -955,7 +955,7 @@ def parity(x: int) -> int:
     return x & 1
 
 
-def msg_value(val_seqx, val_type) -> Any:
+def msg_value(val_seqx, val_type):
     """Make this the docstring."""
 
     # based upon: https://github.com/mvn23/pyotgw/blob/master/pyotgw/protocol.py
@@ -1022,7 +1022,7 @@ def _decode_flags(frame: str, data_id: int) -> dict:
     return flag_schema
 
 
-def decode_frame(frame: str) -> Tuple[int, int, dict, str]:
+def decode_frame(frame: str) -> tuple[int, int, dict, str]:
     assert (
         isinstance(frame, str) and len(frame) == 8
     ), f"Invalid frame (type or length): {frame}"

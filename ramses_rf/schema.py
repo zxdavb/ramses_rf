@@ -11,7 +11,6 @@ Schema processor.
 import logging
 import re
 from types import SimpleNamespace
-from typing import Any, Optional, Tuple
 
 import voluptuous as vol
 
@@ -216,7 +215,7 @@ GLOBAL_CONFIG_SCHEMA = vol.Schema(
 
 def load_config(
     serial_port, input_file, **kwargs
-) -> Tuple[SimpleNamespace, dict, list, list]:
+) -> tuple[SimpleNamespace, dict, list, list]:
     """Process the configuration, including any filter lists."""
 
     config = GLOBAL_CONFIG_SCHEMA(kwargs)
@@ -297,7 +296,7 @@ def update_config(config, known_list, block_list) -> dict:
 
 def _get_device(
     gwy, dev_id, ctl_id=None, disable_warning=None, **kwargs
-) -> Optional[Any]:  # -> Device:
+):  # -> Optional[Device]:
     """Get (optionally create) a device only if not filtered out."""
 
     if "dev_addr" in kwargs or "ctl_addr" in kwargs:
@@ -339,7 +338,7 @@ def load_schema(gwy, **kwargs) -> dict:
     ]
 
 
-def load_system(gwy, ctl_id, schema) -> Tuple[dict, dict]:
+def load_system(gwy, ctl_id, schema) -> tuple[dict, dict]:
     schema = SYSTEM_SCHEMA(schema)
 
     if (ctl := _get_device(gwy, ctl_id, ctl_id=ctl_id)) is None:
