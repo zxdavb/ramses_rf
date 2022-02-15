@@ -125,12 +125,12 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def _create_devices_from_addrs(this: Message) -> None:
+def _create_devices_from_addrs(gwy, this: Message) -> None:
     """Discover and create any new devices using the packet address set."""
 
     # prefer Devices but can still use Addresses if required...
-    this.src = this._gwy.device_by_id.get(this.src.id, this.src)
-    this.dst = this._gwy.device_by_id.get(this.dst.id, this.dst)
+    this.src = gwy.device_by_id.get(this.src.id, this.src)
+    this.dst = gwy.device_by_id.get(this.dst.id, this.dst)
 
     # Devices need to know their controller, ?and their location ('parent' domain)
     # NB: only addrs prcoessed here, packet metadata is processed elsewhere
@@ -147,27 +147,27 @@ def _create_devices_from_addrs(this: Message) -> None:
     #  - eavesdrop: from packet fingerprint, incl. payloads
 
     if not isinstance(this.src, Device):
-        this.src = this._gwy._get_device(this.src.id, msg=this)
+        this.src = gwy._get_device(this.src.id, msg=this)
         if this.dst.id == this.src.id:
             this.dst = this.src
 
     if (
-        not this._gwy.config.enable_eavesdrop
-        or this.dst.id in this._gwy._unwanted
-        or this.src == this._gwy.hgi
+        not gwy.config.enable_eavesdrop
+        or this.dst.id in gwy._unwanted
+        or this.src == gwy.hgi
     ):  # the above can't / shouldn't be eavesdropped for dst device
         return
 
     if not isinstance(this.dst, Device):
-        this.dst = this._gwy._get_device(this.dst.id, msg=this)
+        this.dst = gwy._get_device(this.dst.id, msg=this)
 
     if getattr(this.dst, "_is_controller", False) and not isinstance(
         this.dst, UfhController
     ):  # HACK
-        this._gwy._get_device(this.src.id, ctl_id=this.dst.id, msg=this)  # or _set_ctl?
+        gwy._get_device(this.src.id, ctl_id=this.dst.id, msg=this)  # or _set_ctl?
 
     elif isinstance(this.dst, Device) and getattr(this.src, "_is_controller", False):
-        this._gwy._get_device(this.dst.id, ctl_id=this.src.id, msg=this)  # or _set_ctl?
+        gwy._get_device(this.dst.id, ctl_id=this.src.id, msg=this)  # or _set_ctl?
 
 
 def _check_msg_src(msg: Message, klass: str) -> None:
@@ -274,6 +274,8 @@ def process_msg(msg: Message, prev_msg: Message = None) -> None:
         payload = this.payload if isinstance(this.payload, list) else [this.payload]
         return prev.payload + payload
 
+    gwy = msg._gwy  # noqa, pylint: disable=protected-access, skipcq: PYL-W0212
+
     # HACK:  if CLI, double-logging with client.py proc_msg() & setLevel(DEBUG)
     if (log_level := _LOGGER.getEffectiveLevel()) < logging.INFO:
         _LOGGER.info(msg)
@@ -281,11 +283,11 @@ def process_msg(msg: Message, prev_msg: Message = None) -> None:
         _LOGGER.info(msg)
 
     # NOTE: this is used to expose message timeouts (esp. when parsing)
-    # [m._expired for d in msg._gwy.devices for m in d._msg_db]
+    # [m._expired for d in gwy.devices for m in d._msg_db]
 
     msg._payload = detect_array(msg, prev_msg)  # HACK: messy, needs rethinking?
 
-    if msg._gwy.config.reduce_processing >= DONT_CREATE_ENTITIES:
+    if gwy.config.reduce_processing >= DONT_CREATE_ENTITIES:
         return
 
     # # TODO: This will need to be removed for HGI80-impersonation
@@ -294,7 +296,7 @@ def process_msg(msg: Message, prev_msg: Message = None) -> None:
     #     return
 
     try:  # process the packet payload
-        _create_devices_from_addrs(msg)  # from pkt header
+        _create_devices_from_addrs(gwy, msg)  # from pkt header
 
         if isinstance(msg.src, Device):
             _check_msg_src(msg, msg.src._klass)  # ? InvalidPacketError
@@ -312,7 +314,7 @@ def process_msg(msg: Message, prev_msg: Message = None) -> None:
         #     print(type(msg.src), msg.src)
         #     print(type(msg.dst), msg.dst)
 
-        if msg._gwy.config.reduce_processing >= DONT_UPDATE_ENTITIES:
+        if gwy.config.reduce_processing >= DONT_UPDATE_ENTITIES:
             return
 
         if isinstance(msg.src, Device):  # , HgiGateway)):  # could use DeviceBase
