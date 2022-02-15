@@ -866,7 +866,7 @@ class StoredHw:  # 10A0, 1260, 1F41
         if not self.dhw:
             self._get_dhw()
 
-        if msg._gwy.config.enable_eavesdrop and not self.dhw_sensor:
+        if self._gwy.config.enable_eavesdrop and not self.dhw_sensor:
             self._eavesdrop_dhw_sensor(msg)
 
         # Route any messages to the DHW (dhw_params, dhw_temp, dhw_mode)

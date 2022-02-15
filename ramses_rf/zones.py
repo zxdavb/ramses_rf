@@ -657,7 +657,7 @@ class Zone(ZoneSchedule, ZoneBase):
             elif msg.payload["_device_class"] == _000C_DEVICE.ALL:
                 [d._set_parent(self) for d in devices]  # if d is not None]
 
-        if msg._gwy.config.enable_eavesdrop and self._zone_type in (None, "ELE"):
+        if self._gwy.config.enable_eavesdrop and self._zone_type in (None, "ELE"):
             self._eavesdrop_zone_type(msg)
 
     def _eavesdrop_zone_type(self, msg, prev=None) -> None:

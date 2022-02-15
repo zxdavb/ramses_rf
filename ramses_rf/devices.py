@@ -380,7 +380,7 @@ class Device(DeviceBase):  # 10E0
             elif msg.code in (_313F,) and msg.verb == W_:
                 self.__class__ = RfgGateway
 
-        if not msg._gwy.config.enable_eavesdrop:
+        if not self._gwy.config.enable_eavesdrop:
             return
 
         if (

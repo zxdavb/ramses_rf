@@ -223,7 +223,7 @@ class Schedule:  # 0404
 
         def rq_callback(msg) -> None:
             if not msg:  # _LOGGER.debug()... TODO: needs fleshing out
-                # TODO: remove any callbacks from msg._gwy.msg_transport._callbacks
+                # TODO: remove any callbacks from self._gwy.msg_transport._callbacks
                 _LOGGER.warning(f"Schedule({self.id}): Callback timed out")
                 self._schedule_done = True
                 return
@@ -236,7 +236,7 @@ class Schedule:  # 0404
 
             if msg.payload[FRAG_TOTAL] == 255:  # no schedule (i.e. no zone)
                 _LOGGER.warning(f"Schedule({self.id}): No schedule")
-                # TODO: remove any callbacks from msg._gwy.msg_transport._callbacks
+                # TODO: remove any callbacks from self._gwy.msg_transport._callbacks
                 # self._rx_frags = [None]
 
             elif msg.payload[FRAG_TOTAL] != len(self._rx_frags):  # e.g. 1st frag
