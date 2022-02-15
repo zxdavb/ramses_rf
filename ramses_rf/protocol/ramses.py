@@ -346,7 +346,7 @@ RAMSES_CODES = {  # rf_unknown
     },
     _12C0: {  # displayed_temp (HVAC room temp)
         NAME: "displayed_temp",  # displayed room temp
-        I_: r"^00[0-9A-F]{2}0[01]$",
+        I_: r"^00[0-9A-F]{2}0[01](FF)?$",
     },
     _12C8: {  # unknown_12c8, HVAC
         NAME: "hvac_12c8",
@@ -430,11 +430,11 @@ RAMSES_CODES = {  # rf_unknown
     },
     _22F1: {  # switch_speed - TODO - change name - Sent by an UFC
         NAME: "switch_speed",
-        I_: r"^00(0[0-9A-F]){2}$",
+        I_: r"^(00|63)(0[0-9A-F]){2}$",
     },
     _22F3: {  # switch_duration
         NAME: "switch_duration",
-        I_: r"^00[0-9A-F]{4}([0-9A-F]{8})?$",
+        I_: r"^(00|63)[0-9A-F]{4}([0-9A-F]{8})?$",
     },  # minutes
     _2309: {  # setpoint
         NAME: "setpoint",
@@ -495,9 +495,9 @@ RAMSES_CODES = {  # rf_unknown
         W_: r"^0[0-7][0-9A-F]{12}0[01]$",
         EXPIRES: td(hours=4),
     },
-    _2E10: {  # unknown_2e10 - HVAC
-        NAME: "message_2e10",
-        I_: r"^000100$",
+    _2E10: {  # presence_detect - HVAC
+        NAME: "presence_detect",
+        I_: r"^00(00|01)(00)?$",
     },
     _30C9: {  # temperature
         NAME: "temperature",
@@ -571,10 +571,11 @@ RAMSES_CODES = {  # rf_unknown
     },
     _3EF0: {  # actuator_state
         NAME: "actuator_state",
-        # .I --- 13:106039 --:------ 13:106039 3EF0 003 00C8FF
-        # .I --- 10:030051 --:------ 10:030051 3EF0 009 000010000000020A64
-        # .I --- 08:031043 31:077159 --:------ 3EF0 020 001191A72044399D2A50DE43F920478AF7185F3F  # Jasper
-        I_: r"^00((00|C8)FF|[0-9A-F]{16}|[0-9A-F]{38})$",  # NOTE: latter is Japser
+        # .I --- 13:106039 --:------ 13:106039 3EF0 003 00-C8FF
+        # .I --- 21:038634 --:------ 21:038634 3EF0 006 00-0000-0A0200  #                            # Itho spIDer
+        # .I --- 10:030051 --:------ 10:030051 3EF0 009 00-0010-000000-020A64
+        # .I --- 08:031043 31:077159 --:------ 3EF0 020 00-1191A72044399D2A50DE43F920478AF7185F3F  # # Jasper BLOB
+        I_: r"^00((00|C8)FF|[0-9A-F]{10}|[0-9A-F]{16}|[0-9A-F]{38})$",
         RQ: r"^00(00)?$",
         RP: r"^00((00|C8)FF|[0-9A-F]{10}|[0-9A-F]{16})$",
     },
@@ -678,7 +679,9 @@ CODE_IDX_NONE = [
     if k not in CODE_IDX_COMPLEX + CODE_IDX_SIMPLE
     and ((RQ in v and v[RQ][:3] == "^00") or (I_ in v and v[I_][:3] == "^00"))
 ]
-CODE_IDX_NONE.extend((_0002, _2389, _2E04, _31DA))  # 31DA does appear to have an idx?
+CODE_IDX_NONE.extend(
+    (_0002, _22F1, _22F3, _2389, _2E04, _31DA)
+)  # 31DA does appear to have an idx?
 #
 #
 _CODE_IDX_UNKNOWN = [
@@ -988,7 +991,7 @@ HVAC_DEVICES_CLASS = {
         _1F09: {I_: {}, RP: {}},
         _3120: {I_: {}},
         _313F: {I_: {}},
-        _31D9: {I_: {}},
+        _31D9: {I_: {}, RP: {}},
         _31DA: {I_: {}, RP: {}},
         # _31E0: {I_: {}},
     },

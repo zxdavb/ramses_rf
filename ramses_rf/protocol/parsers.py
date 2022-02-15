@@ -844,14 +844,21 @@ def parser_10e0(payload, msg) -> Optional[dict]:
             f"{msg._pkt} < {_INFORM_DEV_MSG}, with the make/model of device: {msg.src}"
         )
 
-    date_2 = date_from_hex(payload[20:28])  # could be 'FFFFFFFF'
-    date_1 = date_from_hex(payload[28:36])  # could be 'FFFFFFFF'
+    date_2 = date_from_hex(payload[20:28])  # could be 'FFFFFFFF', date_manufactured?
+    date_1 = date_from_hex(payload[28:36])  # could be 'FFFFFFFF', date_software_ver?
     description = bytearray.fromhex(payload[36:]).split(b"\x00")[0].decode()
 
     return {  # TODO: add version?
-        "unknown_0": payload[2:20],
         "date_2": date_2 or "0000-00-00",
         "date_1": date_1 or "0000-00-00",
+        # "manufacturer_group": payload[2:6],  # default is: 0001
+        # "manufacturer_sub_id": payload[6:8],
+        # "product_id": payload[8:10],
+        # "software_ver_id": payload[10:12],
+        # "list_ver_id": payload[12:14],
+        # "oem_code": payload[14:16],
+        # "additional_ver_a": payload[16:18],
+        # "additional_ver_b": payload[18:20],
         "description": description,
         "_unknown_1": payload[38 + len(description) * 2 :],
     }
@@ -1039,7 +1046,8 @@ def parser_12c0(payload, msg) -> Optional[dict]:
 
     return {
         "temperature": temp,
-        "units": {"00": "Fahrenheit", "01": "Celsius"}[payload[4:]],
+        "units": {"00": "Fahrenheit", "01": "Celsius"}[payload[4:6]],
+        "_unknown_6": payload[6:],
     }
 
 
@@ -1269,7 +1277,7 @@ def parser_22f1(payload, msg) -> Optional[dict]:  # FIXME
 
     try:
         assert int(payload[2:4], 16) <= int(payload[4:], 16), "byte 1: idx > max"
-        assert payload[4:] in ("04", "0A"), f"byte 2: {payload[4:]}"
+        assert payload[4:] in ("04", "07", "0A"), f"byte 2: {payload[4:]}"
     except AssertionError as exc:
         _LOGGER.warning(f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc})")
 
@@ -1304,9 +1312,8 @@ def parser_22f3(payload, msg) -> Optional[dict]:
 
     # NOTE: for boost timer for high
     try:
-        assert payload[:2] == "00", f"byte 0: {payload[:2]}"  # no domain
         assert payload[2:4] in ("00", "02"), f"byte 1: {flag8(payload[2:4])}"
-        assert msg.len < 7 or payload[14:] == "0000", f"byte 7: {payload[14:]}"
+        assert msg.len <= 7 or payload[14:] == "0000", f"byte 7: {payload[14:]}"
     except AssertionError as exc:
         _LOGGER.warning(f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc})")
 
@@ -1338,7 +1345,7 @@ def parser_22f3(payload, msg) -> Optional[dict]:
             "_fallback_speed_mode": fallback_speed,
         }
 
-    if msg.len >= 5:  # new speed?
+    if msg.len >= 5 and payload[6:10] != "0000":  # new speed?
         result["rate"] = parser_22f1(f"00{payload[6:10]}", msg).get("rate")
 
     if msg.len >= 7:  # fallback speed?
@@ -1528,13 +1535,14 @@ def parser_2e04(payload, msg) -> Optional[dict]:
     return result
 
 
-@parser_decorator  # unknown_2e10, from HVAC sensor
+@parser_decorator  # presence_detect, from HVAC sensor
 def parser_2e10(payload, msg) -> Optional[dict]:
 
-    assert payload == "000100", _INFORM_DEV_MSG
+    assert payload in ("0001", "000100"), _INFORM_DEV_MSG
 
     return {
-        "payload": payload,
+        "presence_detected": bool(payload[2:4]),
+        "_unknown_4": payload[4:],
     }
 
 
@@ -1981,7 +1989,7 @@ def parser_3ef0(payload, msg) -> dict:
             "blob": payload[8:],
         }
 
-    assert msg.len in (3, 6, 9)
+    assert msg.len in (3, 6, 9)  # [2 + (4, 10, 16)]/2
 
     if msg.len == 3:  # I|BDR|003
         # .I --- 13:042805 --:------ 13:042805 3EF0 003 0000FF
@@ -1993,7 +2001,7 @@ def parser_3ef0(payload, msg) -> dict:
     if msg.len >= 6:  # RP|OTB|006 (to RQ|CTL/HGI/RFG)
         # RP --- 10:105624 01:133689 --:------ 3EF0 006 0000100000FF
         # RP --- 10:105624 01:133689 --:------ 3EF0 006 003B100C00FF
-        assert payload[4:6] in ("10", "11"), f"byte 2: {payload[4:6]}"
+        assert payload[4:6] in ("00", "10", "11"), f"byte 2: {payload[4:6]}"
         mod_level = percent(payload[2:4], high_res=False)
 
     result = {
