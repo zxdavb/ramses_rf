@@ -33,6 +33,7 @@ DEV_KLASS = SimpleNamespace(
     TRV="TRV",  # Thermostatic radiator valve
     UFC="UFC",  # UFH controller
     #
+    RFS="RFS",  # HVAC spIDer gateway
     CO2="CO2",  # HVAC CO2 sensor
     FAN="FAN",  # HVAC fan, 31D[9A]: 20|29|30|37 (some, e.g. 29: only 31D9)
     HUM="HUM",  # HVAC humidity sensor, 1260: 32

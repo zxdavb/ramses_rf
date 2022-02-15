@@ -966,6 +966,20 @@ RAMSES_DEVICES_CLASS = {
 }
 
 HVAC_DEVICES_CLASS = {
+    DEV_KLASS.RFS: {  # Itho spIDer: RF to Internet gateway (like a RFG100)
+        _1060: {I_: {}},
+        _10E0: {I_: {}, RP: {}},
+        _12C0: {I_: {}},
+        _22C9: {I_: {}},
+        _22F1: {I_: {}},
+        _22F3: {I_: {}},
+        _2E10: {I_: {}},
+        _30C9: {I_: {}},
+        _3120: {I_: {}},
+        _31D9: {RQ: {}},
+        _31DA: {RQ: {}},
+        _3EF0: {I_: {}},
+    },
     DEV_KLASS.FAN: {
         _10E0: {I_: {}, RP: {}},
         _1298: {I_: {}},

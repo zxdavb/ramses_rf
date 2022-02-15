@@ -2017,6 +2017,24 @@ class HvacDevice(Device):
             self._hvac_trick()
 
 
+class RfsGateway(Device):  # RFS (spIDer gateway)
+    """The HGI80 base class."""
+
+    _DEV_KLASS = DEV_KLASS.RFS
+    _DEV_TYPES = ()
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        self._ctl = None
+        self._domain_id = "HV"
+        self._evo = None
+
+    def _set_ctl(self, ctl) -> None:  # self._ctl
+        """Set the device's parent controller, after validating it."""
+        _LOGGER.debug("%s: can't (really) have a controller %s", self, ctl)
+
+
 class HvacHumidity(BatteryState, HvacDevice):  # HUM (32) I/12A0
     """The Sensor class for a humidity sensor.
 
