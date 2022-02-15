@@ -33,7 +33,9 @@ _DEVICE_INFO = {
     "0001001B311901FEFF": ("FAN", "37", "2018-05-14", "CVE-RF"),
     "0001001B361B01FEFF": ("FAN", "37", "2019-04-11", "CVE-RF"),
     "0001001B381B01FEFF": ("FAN", "37", "2020-02-14", "CVE-RF"),
+    "00010022340001FEFF": ("RFS", "21", "2020-08-05", "CCU-12T20"),  # NOTE: spIDer g/w
     "00010028080101FEFF": ("CO2", "37", "2019-04-29", "VMS-12C39"),  # 1298
+    "00010028090101FEFF": ("CO2", "37", "2021-01-20", "VMS-12C39"),  # 1298, 2E10, 31E0
     "0001C822060166FEFF": ("CO2", "37", "2016-12-22", "VMS-17C01"),  # 1298, 31E0
     "0001C825050266FFFF": ("HUM", "29", "2017-04-19", "VMS-17HB01"),  # 12A0, 31E0
     "0001C8260D0467FFFF": ("FAN", "29", "0000-00-00", "VMC-15RP01"),  # 31D9 only?
@@ -147,3 +149,9 @@ def check_signature(dev_type, signature) -> None:
 #     ), f"37: {payload[2:20]}"
 # else:
 #     assert False, f"xx: {payload[2:20]}"
+
+#
+########################################################################################
+# CVE coupled ventilation system (equipment)
+# HRU heat recovery unit (MVHR)
+# WTW ???
