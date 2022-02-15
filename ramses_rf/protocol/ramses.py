@@ -8,8 +8,7 @@ from datetime import timedelta as td
 
 from .const import DEV_KLASS
 
-# skipcq: PY-W2000
-from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from .const import (  # isort: skip
     I_,
     RP,
     RQ,
@@ -17,8 +16,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     __dev_mode__,
 )
 
-# skipcq: PY-W2000
-from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from .const import (  # isort: skip
     _0001,
     _0002,
     _0004,

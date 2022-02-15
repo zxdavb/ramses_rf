@@ -90,6 +90,7 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     _10E0,
     _10E1,
     _1100,
+    _11F0,
     _1260,
     _1280,
     _1290,
@@ -103,6 +104,7 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     _1F09,
     _1F41,
     _1FC9,
+    _1FCA,
     _1FD0,
     _1FD4,
     _2249,
@@ -120,7 +122,9 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     _2420,
     _2D49,
     _2E04,
+    _2E10,
     _30C9,
+    _3110,
     _3120,
     _313F,
     _3150,
@@ -136,7 +140,7 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     _3EF0,
     _3EF1,
     _PUZZ,
-)  # skipcq: PY-W2000
+)
 
 DEV_MODE = __dev_mode__
 
