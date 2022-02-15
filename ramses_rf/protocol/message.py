@@ -89,6 +89,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _2D49,
     _2E04,
     _30C9,
+    _3110,
     _3120,
     _313F,
     _3150,
@@ -108,7 +109,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 
 __all__ = ["Message"]
 
-HVAC_ONLY_CODES = (_1298, _12A0, _12C8, _22F1, _22F3, _31D9, _31DA, _31E0)
+HVAC_ONLY_CODES = (_1298, _12A0, _12C8, _22F1, _22F3, _3110, _31D9, _31DA, _31E0)
 
 CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
 

@@ -1569,6 +1569,23 @@ def parser_30c9(payload, msg) -> Optional[dict]:
     return {"temperature": temp_from_hex(payload[2:])}
 
 
+@parser_decorator  # unknown_3110 - HVAC
+def parser_3110(payload, msg) -> Optional[dict]:
+
+    try:
+        assert payload[2:4] == "00", f"byte 1: {payload[2:4]}"
+        assert int(payload[4:6], 16) <= 200, f"byte 2: {payload[4:6]}"
+        assert payload[6:] == "10", f"byte 3: {payload[6:]}"
+    except AssertionError as exc:
+        _LOGGER.warning(f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc})")
+
+    return {
+        "_unknown_1": payload[2:4],
+        "_percent_2": percent(payload[4:6]),
+        "_value_3": payload[6:],
+    }
+
+
 @parser_decorator  # unknown_3120, from STA, FAN
 def parser_3120(payload, msg) -> Optional[dict]:
     #  I --- 34:136285 --:------ 34:136285 3120 007 0070B0000000FF  # every ~3:45:00!

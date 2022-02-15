@@ -82,6 +82,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _2E04,
     _2E10,
     _30C9,
+    _3110,
     _3120,
     _313F,
     _3150,
@@ -505,6 +506,10 @@ RAMSES_CODES = {  # rf_unknown
         RQ: r"^0[0-9A-F](00)?$",  # TODO: officially: r"^0[0-9A-F]$"
         RP: r"^0[0-9A-F][0-9A-F]{4}$",  # Null: r"^0[0-9A-F]7FFF$"
         EXPIRES: td(hours=1),
+    },
+    _3110: {  # unknown_3110 - HVAC
+        NAME: "message_3110",
+        I_: r"^00",
     },
     _3120: {  # unknown_3120 - Error Report?
         NAME: "message_3120",
@@ -978,6 +983,7 @@ HVAC_DEVICES_CLASS = {
         _22F3: {I_: {}},
         _2E10: {I_: {}},
         _30C9: {I_: {}},
+        _3110: {I_: {}},
         _3120: {I_: {}},
         _31D9: {RQ: {}},
         _31DA: {RQ: {}},
