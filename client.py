@@ -13,7 +13,6 @@ import asyncio
 import json
 import logging
 import sys
-from typing import Tuple
 
 import click
 from colorama import Fore, Style
@@ -79,7 +78,7 @@ LIB_KEYS = (
 )
 
 
-def normalise_config_schema(config) -> Tuple[str, dict]:
+def normalise_config_schema(config) -> tuple[str, dict]:
     """Convert a HA config dict into the client library's own format."""
 
     serial_port = config[CONFIG].pop(SERIAL_PORT, None)
@@ -95,7 +94,7 @@ def normalise_config_schema(config) -> Tuple[str, dict]:
     return serial_port, config
 
 
-def _proc_kwargs(obj, kwargs) -> Tuple[dict, dict]:
+def _proc_kwargs(obj, kwargs) -> tuple[dict, dict]:
     lib_kwargs, cli_kwargs = obj
     lib_kwargs[CONFIG].update({k: v for k, v in kwargs.items() if k in LIB_KEYS})
     cli_kwargs.update({k: v for k, v in kwargs.items() if k not in LIB_KEYS})
@@ -124,41 +123,41 @@ class DeviceIdParamType(click.ParamType):
 @click.group(context_settings=CONTEXT_SETTINGS)  # , invoke_without_command=True)
 @click.option("-z", "--debug-mode", count=True, help="enable debugger")
 @click.option("-c", "--config-file", type=click.File("r"))
-@click.option("-r", "--restore-cache", type=click.File("r"))
-@click.option("-r", "--reduce-processing", count=True, help="-rrr will give packets")
+@click.option("-rc", "--restore-cache", type=click.File("r"))
+@click.option("-rr", "--reduce-processing", count=True, help="-rrr will give packets")
 @click.option("-ld", "--long-dates", is_flag=True, default=None)
 @click.option("-e/-ne", "--eavesdrop/--no-eavesdrop", default=None)
-@click.option(
-    "-s/-ns",
+@click.option(  # show_schema
+    "-k/-nk",
     "--show-schema/--no-show-schema",
     default=SHOW_SCHEMA,
     help="display system schema",
 )
-@click.option(
+@click.option(  # show_params
     "-p/-np",
     "--show-params/--no-show-params",
     default=SHOW_PARAMS,
     help="display system params",
 )
-@click.option(
-    "-t/-nt",
+@click.option(  # show_status
+    "-s/-ns",
     "--show-status/--no-show-status",
     default=SHOW_STATUS,
     help="display system state",
 )
-@click.option(
-    "-k/-nk",
+@click.option(  # show_knowns
+    "-n/-nn",
     "--show-knowns/--no-show-knowns",
     default=SHOW_KNOWNS,
     help="display known_list (of devices)",
 )
-@click.option(
-    "-d/-nd",
+@click.option(  # show_traits
+    "-t/-nt",
     "--show-traits/--no-show-traits",
     default=SHOW_TRAITS,
     help="display device traits",
 )
-@click.option(
+@click.option(  # show_crazys
     "-x/-nx",
     "--show-crazys/--no-show-crazys",
     default=SHOW_CRAZYS,
@@ -281,7 +280,8 @@ def monitor(obj, **kwargs):
     if cli_kwargs["discover"] is not None:
         lib_kwargs[CONFIG][DISABLE_DISCOVERY] = not cli_kwargs.pop("discover")
 
-    allowed = lib_kwargs[KNOWN_LIST] = lib_kwargs.get(KNOWN_LIST, {})
+    lib_kwargs[KNOWN_LIST] = lib_kwargs.get(KNOWN_LIST, {})
+    # allowed = lib_kwargs[KNOWN_LIST] = lib_kwargs.get(KNOWN_LIST, {})
 
     # for k in ("scan_disc", "scan_full", "scan_hard", "scan_xxxx"):
     #     cli_kwargs[k] = _convert_to_list(cli_kwargs.pop(k))
@@ -431,7 +431,7 @@ def print_summary(gwy, **kwargs):
 
     if kwargs.get("show_traits"):  # show device traits
         result = {
-            d.id: {k: v for k, v in d.traits.items() if k[:1] == "_"}
+            d.id: d.traits  # {k: v for k, v in d.traits.items() if k[:1] == "_"}
             for d in sorted(gwy.devices)
         }
         print(json.dumps(result, indent=4), "\r\n")
@@ -477,7 +477,7 @@ async def main(command, lib_kwargs, **kwargs):
     if kwargs[REDUCE_PROCESSING] < DONT_CREATE_MESSAGES:
         # no MSGs will be sent to STDOUT, so send PKTs instead
         colorama_init(autoreset=True)  # TODO: remove strip=True
-        protocol, _ = gwy.create_client(process_msg)
+        gwy.create_client(process_msg)
 
     try:  # main code here
         if kwargs["restore_cache"]:
