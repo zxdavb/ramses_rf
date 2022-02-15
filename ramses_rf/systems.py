@@ -1030,7 +1030,7 @@ class Datetime:  # 313F
             if self._gwy.serial_port and (diff := abs(self._datetime - dt.now())) > td(
                 minutes=5
             ):
-                _LOGGER.warning(f"{msg._pkt} < excessive datetime difference: {diff}")
+                _LOGGER.warning(f"{msg!r} < excessive datetime difference: {diff}")
                 # if the above is corrected thus, you can get a I/W/I loop
                 # self._gwy.send_cmd(Command.set_system_time(self.id, dt.now()))
 

@@ -188,7 +188,7 @@ def parser_0005(payload, msg) -> Optional[dict]:  # TODO: needs a cleanup
     if msg._has_array:
         assert (
             msg.verb == I_ and msg.src.type == "34"
-        ), f"{msg._pkt} # expecting I/34:"  # DEX
+        ), f"{msg!r} # expecting I/34:"  # DEX
         return [_parser(payload[i : i + 8]) for i in range(0, len(payload), 8)]
 
     if msg.verb == RQ:  # RQs have a context: zone_type
@@ -298,7 +298,7 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:
     if msg.verb == RQ and msg.len <= 2:  # some RQs have a payload (why?)
         return {}
 
-    assert msg.len == 6, f"{msg._pkt} # expecting length 006"
+    assert msg.len == 6, f"{msg!r} # expecting length 006"
     result = _parser(payload)
 
     # TODO: remove me...
@@ -347,7 +347,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
 
     def _parser(seqx) -> dict:
         # TODO: this assumption that all domain_id/zones_idx are the same is wrong...
-        assert seqx[:2] == payload[:2], f"{msg._pkt} < {seqx[:2]} != idx"
+        assert seqx[:2] == payload[:2], f"{msg!r} < {seqx[:2]} != idx"
         assert int(seqx[:2], 16) < msg._gwy.config.max_zones
         assert seqx[4:6] == "7F" or seqx[6:] != "F" * 6
         return {hex_id_to_dec(seqx[6:12]): seqx[4:6]}
@@ -531,7 +531,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
         ), f"domain_id: {payload[10:12]}"
     except AssertionError as exc:
         _LOGGER.warning(
-            f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc}), with a photo of your fault log"
+            f"{msg!r} < {_INFORM_DEV_MSG} ({exc}), with a photo of your fault log"
         )
 
     result = {
@@ -761,7 +761,7 @@ def parser_10e0(payload, msg) -> Optional[dict]:
         check_signature(msg.src.type, payload[2:20])
     except AssertionError:
         _LOGGER.warning(
-            f"{msg._pkt} < {_INFORM_DEV_MSG}, with the make/model of device: {msg.src}"
+            f"{msg!r} < {_INFORM_DEV_MSG}, with the make/model of device: {msg.src}"
         )
 
     date_2 = date_from_hex(payload[20:28])  # could be 'FFFFFFFF', date_manufactured?
@@ -1012,11 +1012,11 @@ def parser_1f09(payload, msg) -> Optional[dict]:
 def parser_1f41(payload, msg) -> Optional[dict]:
     # 053 RP --- 01:145038 18:013393 --:------ 1F41 006 00FF00FFFFFF  # no stored DHW
     assert payload[4:6] in ZONE_MODE, f"{payload[4:6]} (0xjj)"
-    assert payload[4:6] == "04" or msg.len == 6, f"{msg._pkt}: expected length 6"
-    assert payload[4:6] != "04" or msg.len == 12, f"{msg._pkt}: expected length 12"
+    assert payload[4:6] == "04" or msg.len == 6, f"{msg!r}: expected length 6"
+    assert payload[4:6] != "04" or msg.len == 12, f"{msg!r}: expected length 12"
     assert (
         payload[6:12] == "FFFFFF"
-    ), f"{msg._pkt}: expected FFFFFF instead of '{payload[6:12]}'"
+    ), f"{msg!r}: expected FFFFFF instead of '{payload[6:12]}'"
 
     result = {
         "active": {"00": False, "01": True, "FF": None}[payload[2:4]],
@@ -1199,7 +1199,7 @@ def parser_22f1(payload, msg) -> Optional[dict]:  # FIXME
         assert int(payload[2:4], 16) <= int(payload[4:], 16), "byte 1: idx > max"
         assert payload[4:] in ("04", "07", "0A"), f"byte 2: {payload[4:]}"
     except AssertionError as exc:
-        _LOGGER.warning(f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc})")
+        _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
     bitmap = int(payload[2:4], 16)  # & 0b11110000
 
@@ -1235,7 +1235,7 @@ def parser_22f3(payload, msg) -> Optional[dict]:
         assert payload[2:4] in ("00", "02"), f"byte 1: {flag8(payload[2:4])}"
         assert msg.len <= 7 or payload[14:] == "0000", f"byte 7: {payload[14:]}"
     except AssertionError as exc:
-        _LOGGER.warning(f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc})")
+        _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
     new_speed = {  # from now, until timer expiry
         0x00: "fan_boost",  # #    set fan off, or 'boost' mode?
@@ -1376,7 +1376,7 @@ def parser_2401(payload, msg) -> Optional[dict]:
         assert int(payload[4:6], 16) & 0b11110000 == 0, f"byte 2: {flag8(payload[4:6])}"
         assert int(payload[6:], 0x10) <= 200, f"byte 3: {payload[6:]}"
     except AssertionError as exc:
-        _LOGGER.warning(f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc})")
+        _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
     return {
         "payload": payload,
@@ -1497,7 +1497,7 @@ def parser_3110(payload, msg) -> Optional[dict]:
         assert int(payload[4:6], 16) <= 200, f"byte 2: {payload[4:6]}"
         assert payload[6:] == "10", f"byte 3: {payload[6:]}"
     except AssertionError as exc:
-        _LOGGER.warning(f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc})")
+        _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
     return {
         "_unknown_1": payload[2:4],
@@ -1521,7 +1521,7 @@ def parser_3120(payload, msg) -> Optional[dict]:
         assert payload[10:12] in ("00", "03", "9C"), f"byte 5: {payload[10:12]}"
         assert payload[12:] == "FF", f"byte 6: {payload[12:]}"
     except AssertionError as exc:
-        _LOGGER.warning(f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc})")
+        _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
     return {
         "unknown_0": payload[2:10],
@@ -1593,7 +1593,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
             payload[4:6] == "FF" or int(payload[4:6], 16) <= 200
         ), f"byte 2: {payload[4:6]}"
     except AssertionError as exc:
-        _LOGGER.warning(f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc})")
+        _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
     bitmap = int(payload[2:4], 16)
 
@@ -1617,7 +1617,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
         assert payload[8:32] in ("00" * 12, "20" * 12), f"byte 4: {payload[8:32]}"
         assert payload[32:] in ("00", "08"), f"byte 16: {payload[32:]}"
     except AssertionError as exc:
-        _LOGGER.warning(f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc})")
+        _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
     return {
         **result,
@@ -1686,7 +1686,7 @@ def parser_31da(payload, msg) -> Optional[dict]:
         # assert payload[50:54] == "7FFF", payload[50:54]
         # assert payload[54:58] == "7FFF", payload[54:58]  # or: FFFF?
     except AssertionError as exc:
-        _LOGGER.warning(f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc})")
+        _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
     return {
         "exhaust_fan_speed": percent(
@@ -1841,7 +1841,7 @@ def parser_3220(payload, msg) -> Optional[dict]:
             ), result["value"]
         except AssertionError:
             _LOGGER.warning(
-                f"{msg._pkt} < {_INFORM_DEV_MSG}, with a description of your system"
+                f"{msg!r} < {_INFORM_DEV_MSG}, with a description of your system"
             )
 
     result[MSG_DESC] = ot_schema.get(EN)
@@ -1989,7 +1989,7 @@ def parser_3ef0(payload, msg) -> dict:
         ), result["_flags_6"]
     except AssertionError as exc:
         _LOGGER.warning(
-            f"{msg._pkt} < {_INFORM_DEV_MSG} ({exc}), with a description of your system"
+            f"{msg!r} < {_INFORM_DEV_MSG} ({exc}), with a description of your system"
         )
 
     return result

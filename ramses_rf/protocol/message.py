@@ -162,7 +162,7 @@ class Message:
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
-        return repr(self._pkt)  # or str?
+        return str(self._pkt)  # repr or str?
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
@@ -352,7 +352,7 @@ class Message:
                 _logger = _LOGGER.info
             else:
                 _logger = _LOGGER.warning  # if DEV_MODE else _LOGGER.info  # TODO
-            _logger(f"{self._pkt} # has expired ({self._fraction_expired * 100:1.0f}%)")
+            _logger(f"{self!r} # has expired ({self._fraction_expired * 100:1.0f}%)")
 
         # elif self._fraction_expired >= self.IS_EXPIRING:  # this could log multiple times
         #     _LOGGER.error("%s # is expiring", self._pkt)
@@ -465,7 +465,7 @@ def _check_msg_payload(msg: Message, payload) -> None:
     except InvalidPacketError as exc:  # incl. InvalidPayloadError
         if "18" not in (msg.src.type, msg.dst.type):  # DEX, HGI80 can do what it likes
             raise exc  # TODO: messy - these msgs not ignore
-            _LOGGER.warning(f"{msg._pkt} < {exc}")
+            _LOGGER.warning(f"{msg!r} < {exc}")
 
     # TODO: put this back, or leave it to the parser?
     # if msg.code == _3220:

@@ -149,7 +149,7 @@ class PacketBase:
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
-        return str() if self._frame is None else self._frame[4:]
+        return "" if self._frame is None else self._frame[4:]
 
     @property
     def rssi(self) -> str:

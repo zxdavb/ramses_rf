@@ -218,7 +218,7 @@ class Schedule:  # 0404
         _LOGGER.debug("Schedule(%s)._rq_fragment(%s)", self.id, frag_cnt)
 
         def oth_callback(msg) -> None:
-            _LOGGER.warning(f"Schedule({self.id}): Received {msg._pkt}")
+            _LOGGER.warning(f"Schedule({self.id}): Received {msg!r}")
             self._0006 = msg
 
         def rq_callback(msg) -> None:

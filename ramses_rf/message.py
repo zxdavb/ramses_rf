@@ -179,7 +179,7 @@ def _check_msg_src(msg: Message, klass: str) -> None:
     if klass not in RAMSES_DEVICES:  # DEX_done, TODO: fingerprint dev class
         if msg.code not in HVAC_ONLY_CODES:
             raise InvalidPacketError(f"Unknown src type: {msg.src}")
-        _LOGGER.warning(f"{msg._pkt} < Unknown src type: {msg.src}, is it HVAC?")
+        _LOGGER.warning(f"{msg!r} < Unknown src type: {msg.src}, is it HVAC?")
         return
 
     #
@@ -193,7 +193,7 @@ def _check_msg_src(msg: Message, klass: str) -> None:
             raise InvalidPacketError(f"Invalid code for {msg.src} to Tx: {msg.code}")
         if msg.verb in (RQ, W_):
             return
-        _LOGGER.warning(f"{msg._pkt} < Invalid code for {msg.src} to Tx: {msg.code}")
+        _LOGGER.warning(f"{msg!r} < Invalid code for {msg.src} to Tx: {msg.code}")
         return
 
     #
@@ -218,7 +218,7 @@ def _check_msg_dst(msg: Message, klass: str) -> None:
     if klass not in RAMSES_DEVICES:  # DEX_done, TODO: fingerprint dev class
         if msg.code not in HVAC_ONLY_CODES:
             raise InvalidPacketError(f"Unknown dst type: {msg.dst}")
-        _LOGGER.warning(f"{msg._pkt} < Unknown dst type: {msg.dst}, is it HVAC?")
+        _LOGGER.warning(f"{msg!r} < Unknown dst type: {msg.dst}, is it HVAC?")
         return
 
     if msg.verb == I_:  # TODO: not common, unless src=dst
@@ -232,7 +232,7 @@ def _check_msg_dst(msg: Message, klass: str) -> None:
             raise InvalidPacketError(f"Invalid code for {msg.dst} to Rx: {msg.code}")
         if msg.verb == RP:
             return
-        _LOGGER.warning(f"{msg._pkt} < Invalid code for {msg.dst} to Tx: {msg.code}")
+        _LOGGER.warning(f"{msg!r} < Invalid code for {msg.dst} to Tx: {msg.code}")
         return
 
     if f"{msg.verb}/{msg.code}" in (f"{W_}/{_0001}",):

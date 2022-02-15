@@ -274,10 +274,10 @@ class DeviceBase(Entity):
 
         if not self._iz_controller and msg.code in CODE_ONLY_FROM_CTL:
             if self._iz_controller is None:
-                _LOGGER.info(f"{msg._pkt} # IS_CONTROLLER (00): is TRUE")
+                _LOGGER.info(f"{msg!r} # IS_CONTROLLER (00): is TRUE")
                 self._make_tcs_controller(msg)
             elif self._iz_controller is False:  # TODO: raise CorruptStateError
-                _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (01): was FALSE, now True")
+                _LOGGER.error(f"{msg!r} # IS_CONTROLLER (01): was FALSE, now True")
 
     @property
     def has_battery(self) -> Optional[bool]:  # 1060
@@ -1478,7 +1478,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             elif self._msgs_ot_supported[msg_id] is None:
                 self._msgs_ot_supported[msg_id] = False
                 _LOGGER.warning(
-                    f"{msg._pkt} < OTB: deprecating msg_id "
+                    f"{msg!r} < OTB: deprecating msg_id "
                     f"0x{msg_id}: it appears unsupported",
                 )
 
@@ -1507,7 +1507,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
             elif self._msgs_supported[msg.code] is None:
                 self._msgs_supported[msg.code] = False
                 _LOGGER.warning(
-                    f"{msg._pkt} < OTB: deprecating code "
+                    f"{msg!r} < OTB: deprecating code "
                     f"0x{msg.code}: it appears unsupported",
                 )
 
@@ -1840,13 +1840,13 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
             )
         ):
             if self._iz_controller is None:
-                # _LOGGER.info(f"{msg._pkt} # IS_CONTROLLER (10): is FALSE")
+                # _LOGGER.info(f"{msg!r} # IS_CONTROLLER (10): is FALSE")
                 self._iz_controller = False
             elif self._iz_controller:  # TODO: raise CorruptStateError
-                _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (11): was TRUE, now False")
+                _LOGGER.error(f"{msg!r} # IS_CONTROLLER (11): was TRUE, now False")
 
             if msg.code in CODE_ONLY_FROM_CTL:  # TODO: raise CorruptPktError
-                _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (12); is CORRUPT PKT")
+                _LOGGER.error(f"{msg!r} # IS_CONTROLLER (12); is CORRUPT PKT")
 
         elif all(
             (
@@ -1856,11 +1856,11 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
             )
         ):
             if self._iz_controller is None:
-                # _LOGGER.info(f"{msg._pkt} # IS_CONTROLLER (20): is TRUE")
+                # _LOGGER.info(f"{msg!r} # IS_CONTROLLER (20): is TRUE")
                 self._iz_controller = msg
                 self._make_tcs_controller(msg)
             elif self._iz_controller is False:  # TODO: raise CorruptStateError
-                _LOGGER.error(f"{msg._pkt} # IS_CONTROLLER (21): was FALSE, now True")
+                _LOGGER.error(f"{msg!r} # IS_CONTROLLER (21): was FALSE, now True")
 
 
 class BdrSwitch(Actuator, RelayDemand, Device):  # BDR (13):

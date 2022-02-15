@@ -115,15 +115,15 @@ class Entity:
         # TODO:
         # if msg.verb == RP and msg._pkt._idx in self._msgz[msg.code].get(I_, []):
         #     assert msg.raw_payload == self._msgz[msg.code][I_][msg._pkt._idx].raw_payload, (
-        #         f"\r\n{msg._pkt} ({msg._pkt._idx}),"
-        #         f"\r\n{self._msgz[msg.code][I_][msg._pkt._idx]._pkt} ({msg._pkt._idx})"
+        #         f"\r\n{msg!r} ({msg._pkt._idx}),"
+        #         f"\r\n{self._msgz[msg.code][I_][msg._pkt._idx]!r} ({msg._pkt._idx})"
         #     )
         #     del self._msgz[msg.code][I_][msg._pkt._idx]
 
         # elif msg.verb == I_ and msg._pkt._idx in self._msgz[msg.code].get(RP, []):
         #     assert msg.raw_payload == self._msgz[msg.code][RP][msg._pkt._idx].raw_payload, (
-        #         f"\r\n{msg._pkt} ({msg._pkt._idx}),"
-        #         f"\r\n{self._msgz[msg.code][RP][msg._pkt._idx]._pkt} ({msg._pkt._idx})"
+        #         f"\r\n{msg!r} ({msg._pkt._idx}),"
+        #         f"\r\n{self._msgz[msg.code][RP][msg._pkt._idx]!r} ({msg._pkt._idx})"
         #     )
         #     del self._msgz[msg.code][RP][msg._pkt._idx]
 
