@@ -124,7 +124,7 @@ class DeviceIdParamType(click.ParamType):
 @click.option("-z", "--debug-mode", count=True, help="enable debugger")
 @click.option("-c", "--config-file", type=click.File("r"))
 @click.option("-rc", "--restore-cache", type=click.File("r"))
-@click.option("-rr", "--reduce-processing", count=True, help="-rrr will give packets")
+@click.option("-r", "--reduce-processing", count=True, help="-rrr will give packets")
 @click.option("-ld", "--long-dates", is_flag=True, default=None)
 @click.option("-e/-ne", "--eavesdrop/--no-eavesdrop", default=None)
 @click.option(  # show_schema
