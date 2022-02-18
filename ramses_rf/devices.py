@@ -220,13 +220,13 @@ class DeviceBase(Entity):
 
         delay = randint(10, 20)
 
-        self._gwy._add_task(  # 10E0/1FC9, 3220 pkts
+        self._gwy.add_task(  # 10E0/1FC9, 3220 pkts
             self._discover, discover_flag=Discover.SCHEMA, delay=0, period=3600 * 24
         )
-        self._gwy._add_task(
+        self._gwy.add_task(
             self._discover, discover_flag=Discover.PARAMS, delay=delay, period=3600 * 6
         )
-        self._gwy._add_task(
+        self._gwy.add_task(
             self._discover, discover_flag=Discover.STATUS, delay=delay + 1, period=60
         )
 
@@ -1115,13 +1115,13 @@ class UfhController(Device):  # UFC (02):
 
         delay = randint(10, 20)
 
-        self._gwy._add_task(
+        self._gwy.add_task(
             self._discover, discover_flag=Discover.SCHEMA, delay=0, period=3600 * 24
         )
-        self._gwy._add_task(
+        self._gwy.add_task(
             self._discover, discover_flag=Discover.PARAMS, delay=delay, period=600
         )
-        self._gwy._add_task(
+        self._gwy.add_task(
             self._discover, discover_flag=Discover.STATUS, delay=delay + 1, period=60
         )
 
@@ -1374,13 +1374,13 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
 
         delay = randint(10, 20)
 
-        self._gwy._add_task(  # 10E0/1FC9, 3220 pkts
+        self._gwy.add_task(  # 10E0/1FC9, 3220 pkts
             self._discover, discover_flag=Discover.SCHEMA, delay=240, period=3600 * 24
         )
-        self._gwy._add_task(
+        self._gwy.add_task(
             self._discover, discover_flag=Discover.PARAMS, delay=delay + 90, period=3600
         )
-        self._gwy._add_task(
+        self._gwy.add_task(
             self._discover, discover_flag=Discover.STATUS, delay=delay, period=180
         )
 

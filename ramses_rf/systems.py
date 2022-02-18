@@ -186,19 +186,19 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
     def _start_discovery(self) -> None:
 
-        self._gwy._add_task(  # 0005/000C pkts
+        self._gwy.add_task(  # 0005/000C pkts
             self._discover, discover_flag=Discover.SCHEMA, delay=0, period=3600 * 24
         )
-        self._gwy._add_task(
+        self._gwy.add_task(
             self._discover, discover_flag=Discover.PARAMS, delay=2, period=3600 * 6
         )
-        self._gwy._add_task(  # 2E04
+        self._gwy.add_task(  # 2E04
             self._discover, discover_flag=Discover.STATUS, delay=2, period=60
         )
-        self._gwy._add_task(
+        self._gwy.add_task(
             self._discover, discover_flag=Discover.FAULTS, delay=60, period=60
         )
-        self._gwy._add_task(
+        self._gwy.add_task(
             self._discover, discover_flag=Discover.SCHEDS, delay=300, period=60
         )
 
