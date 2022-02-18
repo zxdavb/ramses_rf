@@ -329,7 +329,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
             if (
                 not (msg := self._msgs.get(code))
-                or msg._pkt.dtm + td(minutes=minutes) < dt.now()
+                or msg.dtm + td(minutes=minutes) < dt.now()
             ):
                 self._send_cmd(CODE_API_MAP[f"{RQ}/{code}"](self._ctl.id))
 
@@ -574,7 +574,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
             if (
                 not (msg := self._msgs.get(code))
-                or msg._pkt.dtm + td(minutes=minutes) < dt.now()
+                or msg.dtm + td(minutes=minutes) < dt.now()
             ):
                 self._send_cmd(CODE_API_MAP[f"{RQ}/{code}"](self._ctl.id, self.idx))
 
