@@ -45,6 +45,7 @@ from .const import (  # isort: skip
     _10B0,
     _10E0,
     _10E1,
+    _10E2,
     _1100,
     _11F0,
     _1260,
@@ -95,6 +96,7 @@ from .const import (  # isort: skip
     _3B00,
     _3EF0,
     _3EF1,
+    _4401,
     _PUZZ,
 )
 
@@ -292,6 +294,10 @@ RAMSES_CODES = {  # rf_unknown
         RP: r"^00[0-9A-F]{6}$",
         RQ: r"^00$",
         EXPIRES: False,
+    },
+    _10E2: {  # unknown_10e2 - HVAC
+        NAME: "unknown_10e2",
+        I_: r"^00[0-9A-F]{4}$",
     },
     _1100: {  # tpi_params
         NAME: "tpi_params",
@@ -596,6 +602,11 @@ RAMSES_CODES = {  # rf_unknown
         RQ: r"^00((00)?|[0-9A-F]{22})$",  # NOTE: latter is Japser
         RP: r"^00([0-9A-F]{12}|[0-9A-F]{34})$",  # NOTE: latter is Japser
     },
+    _4401: {
+        NAME: "actuator_sync",
+        I_: r"^[0-9A-F]{40}$",
+        RQ: r"^[0-9A-F]{40}$",  # NOTE: no RP!
+    },
     _PUZZ: {
         NAME: "puzzle_packet",
         I_: r"^00(([0-9A-F]){2})+$",
@@ -686,7 +697,7 @@ CODE_IDX_NONE = [
     and ((RQ in v and v[RQ][:3] == "^00") or (I_ in v and v[I_][:3] == "^00"))
 ]
 CODE_IDX_NONE.extend(
-    (_0002, _22F1, _22F3, _2389, _2E04, _31DA)
+    (_0002, _22F1, _22F3, _2389, _2E04, _31DA, _4401)
 )  # 31DA does appear to have an idx?
 #
 #

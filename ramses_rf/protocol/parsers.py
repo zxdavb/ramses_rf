@@ -789,6 +789,18 @@ def parser_10e1(payload, msg) -> Optional[dict]:
     return {"device_id": hex_id_to_dec(payload[2:])}
 
 
+@parser_decorator  # unknown_10e2 - HVAC
+def parser_10e2(payload, msg) -> Optional[dict]:
+    # .I --- --:------ --:------ 20:231151 10E2 003 00AD74  # every 2 minutes
+
+    assert payload[:2] == "00", _INFORM_DEV_MSG
+    assert len(payload) == 6, _INFORM_DEV_MSG
+
+    return {
+        "counter": int(payload[2:], 16),
+    }
+
+
 @parser_decorator  # tpi_params (domain/zone/device)  # FIXME: a bit messy
 def parser_1100(payload, msg) -> Optional[dict]:
     def complex_idx(seqx) -> dict:
@@ -1495,7 +1507,7 @@ def parser_3110(payload, msg) -> Optional[dict]:
     try:
         assert payload[2:4] == "00", f"byte 1: {payload[2:4]}"
         assert int(payload[4:6], 16) <= 200, f"byte 2: {payload[4:6]}"
-        assert payload[6:] == "10", f"byte 3: {payload[6:]}"
+        assert payload[6:] in ("10", "20"), f"byte 3: {payload[6:]}"
     except AssertionError as exc:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
@@ -2038,6 +2050,20 @@ def parser_3ef1(payload, msg) -> dict:
         "cycle_countdown": cycle_countdown,
         "_unknown_0": payload[12:],
     }
+
+
+@parser_decorator  # timestamp - HVAC
+def parser_4401(payload, msg) -> Optional[dict]:
+
+    assert payload[:4] == "1000", _INFORM_DEV_MSG
+    # assert payload[24:] == "0000000000000063", _INFORM_DEV_MSG
+
+    return {
+        "epoch_02": f"0x{payload[4:12]}",
+        "epoch_07": f"0x{payload[14:22]}",
+        "xxxxx_13": f"0x{payload[22:24]}",
+        "epoch_13": f"0x{payload[26:34]}",
+    }  # epoch are in seconds
 
 
 # @parser_decorator  # faked puzzle pkt shouldn't be decorated
