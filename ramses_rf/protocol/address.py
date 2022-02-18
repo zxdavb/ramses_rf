@@ -15,8 +15,10 @@ from .const import (
     __dev_mode__,
 )
 from .exceptions import InvalidAddrSetError
+from .helpers import typechecked
 
 DEV_MODE = __dev_mode__ and False
+DEV_HVAC = True
 
 __device_id_regex__ = re.compile(r"^(-{2}:-{6}|\d{2}:\d{6})$")
 
@@ -132,75 +134,67 @@ NON_DEV_ADDR = id_to_address(NON_DEVICE_ID)
 NUL_DEV_ADDR = id_to_address(NUL_DEVICE_ID)
 
 
-# def create_dev_id(dev_type, known_devices=None) -> str:
-#     """Create a unique device_id (i.e. one that is not already known)."""
+@typechecked
+def dev_id_to_hex_id(device_id: str) -> str:
+    """Convert (say) '01:145038' (or 'CTL:145038') to '06368E'."""
 
-#     # TODO: assert inputs
+    if len(device_id) == 9:  # e.g. '01:123456'
+        dev_type = device_id[:2]
 
-#     counter = 0
-#     while counter < 128:
-#         device_id = f"{dev_type}:{randint(256000, 256031):06d}"
-#         if not known_devices or device_id not in known_devices:
-#             return device_id
-#         counter += 1
-#     else:
-#         raise IndexError("Unable to generate a unique device id of type '{dev_type}'")
+    elif len(device_id) == 10:  # e.g. '01:123456'
+        dev_type = DEVICE_LOOKUP.get(device_id[:3], device_id[1:3])
 
+    else:  # len(device_id) == 10, e.g. 'CTL:123456', or ' 63:262142'
+        raise ValueError(f"Invalid value: {device_id}, is not 9-10 characters long")
 
-# def dev_id_to_hex(device_id: str) -> str:
-#     """Convert (say) '01:145038' (or 'CTL:145038') to '06368E'."""
-
-#     if len(device_id) == 9:  # e.g. '01:123456'
-#         dev_type = device_id[:2]
-
-#     else:  # len(device_id) == 10, e.g. 'CTL:123456', or ' 63:262142'
-#         dev_type = DEVICE_LOOKUP.get(device_id[:3], device_id[1:3])
-
-#     return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"  # no preceding 0x
+    return f"{(int(dev_type) << 18) + int(device_id[-6:]):0>6X}"
 
 
-# def dev_id_to_str(device_id: str) -> str:
-#     """Convert (say) '01:145038' to 'CTL:145038'."""
+@typechecked
+def hex_id_to_dev_id(device_hex: str, friendly_id: bool = False) -> str:
+    """Convert (say) '06368E' to '01:145038' (or 'CTL:145038')."""
+    if device_hex == "FFFFFE":  # aka '63:262142'
+        return "NUL:262142" if friendly_id else NUL_DEVICE_ID
 
-#     if device_id == NON_DEV_ADDR.id:
-#         return f"{'':<10}"
+    if not device_hex.strip():  # aka '--:------'
+        return f"{'':10}" if friendly_id else NON_DEVICE_ID
 
-#     if device_id == NUL_DEV_ADDR.id:
-#         return "NUL:------"
+    _tmp = int(device_hex, 16)
+    dev_type = f"{(_tmp & 0xFC0000) >> 18:02d}"
 
-#     dev_type, dev_number = device_id.split(":")
-#     return f"{DEVICE_TYPES.get(dev_type, f'{dev_type:>3}')}:{dev_number}"
+    if friendly_id:
+        dev_type = DEVICE_TYPES.get(dev_type, f"{dev_type:<3}")
+
+    return f"{dev_type}:{_tmp & 0x03FFFF:06d}"
 
 
 @lru_cache(maxsize=128)
-def is_valid_dev_id(value, dev_type=None) -> bool:
+@typechecked
+def is_valid_dev_id(value: str, dev_class: str = None) -> bool:
     """Return True if a device_id is valid."""
 
-    if not isinstance(value, str):
+    if not isinstance(value, str) or not __device_id_regex__.match(value):
         return False
 
-    elif not __device_id_regex__.match(value):
+    if not DEV_HVAC and value.split(":", 1)[0] not in DEVICE_TYPES:
         return False
 
-    # elif value != hex_id_to_dec(dev_id_to_hex(value)):
-    #     return False
+    # TODO: specify device klass (for HVAC)
+    # elif dev_class is not None and dev_class != value.split(":", 1)[0]:
+    #     raise TypeError(f"The device type does not match '{dev_class}'")
 
-    elif value.split(":", 1)[0] not in DEVICE_TYPES:
-        return False
-
-    elif dev_type is not None and dev_type != value.split(":", 1)[0]:
-        raise TypeError(f"The device type does not match '{dev_type}'")
-
+    # assert value == hex_id_to_dev_id(dev_id_to_hex_id(value))
     return True
 
 
 @lru_cache(maxsize=256)  # there is definite benefit in caching this
+@typechecked
 def pkt_addrs(pkt_fragment: str) -> tuple[Address, Address, list[Address]]:
     """Return the address fields from (e.g): '01:078710 --:------ 01:144246'.
 
     Will raise an InvalidAddrSetError is the address fields are not valid.
     """
-    # print(pkt_addrs.cache_info())
+    # for debug: print(pkt_addrs.cache_info())
 
     try:
         addrs = [id_to_address(pkt_fragment[i : i + 9]) for i in range(0, 30, 10)]
@@ -235,17 +229,13 @@ def pkt_addrs(pkt_fragment: str) -> tuple[Address, Address, list[Address]]:
     src_addr = device_addrs[0]
     dst_addr = device_addrs[1] if len(device_addrs) > 1 else NON_DEV_ADDR
 
-    if src_addr == dst_addr:  # incl. HGI_DEV_ADDR == HGI_DEV_ADDR
+    if src_addr.id == dst_addr.id:  # incl. HGI_DEV_ADDR == HGI_DEV_ADDR
         src_addr = dst_addr
 
-    elif src_addr.type == dst_addr.type:  # dex
+    elif not DEV_HVAC and src_addr.type == dst_addr.type:  # not a useful test if HVAC
         # .I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200     # invalid
         # .I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5         # invalid
         # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C03040000 # valid? HVAC
         raise InvalidAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
-
-    # TODO: this may be too specialised a edge-case, there would be many others
-    # elif {src_addr.type, dst_addr.type}.issubset({"01", "23"}):  # DEX
-    #     raise InvalidAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
 
     return src_addr, dst_addr, addrs

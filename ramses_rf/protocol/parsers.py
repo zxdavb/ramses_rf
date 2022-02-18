@@ -14,6 +14,7 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 from typing import Optional, Union
 
+from .address import hex_id_to_dev_id
 from .const import (
     _000C_DEVICE,
     _000C_DEVICE_TYPE,
@@ -40,7 +41,6 @@ from .helpers import (
     dtm_from_hex,
     dts_from_hex,
     flag8,
-    hex_id_to_dec,
     percent,
     str_from_hex,
     temp_from_hex,
@@ -350,7 +350,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
         assert seqx[:2] == payload[:2], f"{msg!r} < {seqx[:2]} != idx"
         assert int(seqx[:2], 16) < msg._gwy.config.max_zones
         assert seqx[4:6] == "7F" or seqx[6:] != "F" * 6
-        return {hex_id_to_dec(seqx[6:12]): seqx[4:6]}
+        return {hex_id_to_dev_id(seqx[6:12]): seqx[4:6]}
 
     device_class = _000C_DEVICE_TYPE.get(payload[2:4], f"unknown_{payload[2:4]}")
     if device_class == ATTR_DHW_VALVE and payload[:2] == "01":
@@ -555,7 +555,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
     if payload[38:] == "000002":  # "00:000002 for Unknown?
         result.update({"device_id": None})
     elif payload[38:] not in ("000000", "000001"):  # "00:000001 for Controller?
-        result.update({"device_id": hex_id_to_dec(payload[38:])})
+        result.update({"device_id": hex_id_to_dev_id(payload[38:])})
 
     result.update(
         {
@@ -786,7 +786,7 @@ def parser_10e0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # device_id
 def parser_10e1(payload, msg) -> Optional[dict]:
-    return {"device_id": hex_id_to_dec(payload[2:])}
+    return {"device_id": hex_id_to_dev_id(payload[2:])}
 
 
 @parser_decorator  # unknown_10e2 - HVAC
@@ -1096,11 +1096,11 @@ def parser_1fc9(payload, msg) -> list:
             "FF",
         ):  # or: not in DOMAIN_TYPE_MAP: ??
             assert int(seqx[:2], 16) < msg._gwy.config.max_zones
-        return [seqx[:2], seqx[2:6], hex_id_to_dec(seqx[6:])]
+        return [seqx[:2], seqx[2:6], hex_id_to_dev_id(seqx[6:])]
 
     assert msg.len >= 6 and msg.len % 6 == 0, msg.len  # assuming not RQ
     assert msg.verb in (I_, W_, RP), msg.verb  # devices will respond to a RQ!
-    assert msg.src.id == hex_id_to_dec(payload[6:12]), payload[6:12]
+    assert msg.src.id == hex_id_to_dev_id(payload[6:12]), payload[6:12]
     return [
         _parser(payload[i : i + 12])
         for i in range(0, len(payload), 12)
@@ -1115,8 +1115,8 @@ def parser_1fca(payload, msg) -> list:
     return {
         "_unknown_0": payload[:2],
         "_unknown_1": payload[2:6],
-        "device_id_0": hex_id_to_dec(payload[6:12]),
-        "device_id_1": hex_id_to_dec(payload[12:]),
+        "device_id_0": hex_id_to_dev_id(payload[6:12]),
+        "device_id_1": hex_id_to_dev_id(payload[12:]),
     }
 
 

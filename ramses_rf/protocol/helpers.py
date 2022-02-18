@@ -12,10 +12,8 @@ import time
 from datetime import datetime as dt
 from typing import Optional, Union
 
-from .const import DEVICE_TYPES, NON_DEVICE_ID, NUL_DEVICE_ID
-
 try:
-    from typeguard import typechecked
+    from typeguard import typechecked  # type: ignore
 except ModuleNotFoundError:
 
     def typechecked(fnc):
@@ -26,10 +24,26 @@ except ModuleNotFoundError:
         return wrapper
 
 
-class FILETIME(ctypes.Structure):
+class _FILE_TIME(ctypes.Structure):
     """Data structure for GetSystemTimePreciseAsFileTime()."""
 
     _fields_ = [("dwLowDateTime", ctypes.c_uint), ("dwHighDateTime", ctypes.c_uint)]
+
+
+file_time = _FILE_TIME()
+
+
+@typechecked
+def timestamp() -> float:
+    """Return the number of seconds since the Unix epoch.
+
+    Return an accurate value, even for Windows-based systems.
+    """  # see: https://www.python.org/dev/peps/pep-0564/
+    if sys.platform != "win32":
+        return time.time_ns() / 1e9  # since 1970-01-01T00:00:00Z, time.gmtime(0)
+    ctypes.windll.kernel32.GetSystemTimePreciseAsFileTime(ctypes.byref(file_time))
+    _time = (file_time.dwLowDateTime + (file_time.dwHighDateTime << 32)) / 1e7
+    return _time - 134774 * 24 * 60 * 60  # otherwise, is since 1601-01-01T00:00:00Z
 
 
 @typechecked
@@ -49,81 +63,6 @@ def dt_str() -> str:
 
 
 @typechecked
-def timestamp() -> float:
-    """Return the number of seconds since the Unix epoch.
-
-    Return an accurate value, even for Windows-based systems.
-    """  # see: https://www.python.org/dev/peps/pep-0564/
-    if sys.platform != "win32":
-        return time.time_ns() / 1e9  # since 1970-01-01T00:00:00Z, time.gmtime(0)
-    file_time = FILETIME()
-    ctypes.windll.kernel32.GetSystemTimePreciseAsFileTime(ctypes.byref(file_time))
-    _time = (file_time.dwLowDateTime + (file_time.dwHighDateTime << 32)) / 1e7
-    return _time - 134774 * 24 * 60 * 60  # otherwise, is since 1601-01-01T00:00:00Z
-
-
-def _precision_v_cost():
-    import math
-
-    #
-    LOOPS = 10**6
-    #
-    print("time.time_ns(): %s" % time.time_ns())
-    print("time.time():    %s\r\n" % time.time())
-    #
-    starts = time.time_ns()
-    min_dt = [abs(time.time_ns() - time.time_ns()) for _ in range(LOOPS)]
-    min_dt = min(filter(bool, min_dt))
-    print("min delta   time_ns(): %s ns" % min_dt)
-    print("duration    time_ns(): %s ns\r\n" % (time.time_ns() - starts))
-    #
-    starts = time.time_ns()
-    min_dt = [abs(time.time() - time.time()) for _ in range(LOOPS)]
-    min_dt = min(filter(bool, min_dt))
-    print("min delta      time(): %s ns" % math.ceil(min_dt * 1e9))
-    print("duration       time(): %s ns\r\n" % (time.time_ns() - starts))
-    #
-    starts = time.time_ns()
-    min_dt = [abs(timestamp() - timestamp()) for _ in range(LOOPS)]
-    min_dt = min(filter(bool, min_dt))
-    print("min delta timestamp(): %s ns" % math.ceil(min_dt * 1e9))
-    print("duration  timestamp(): %s ns\r\n" % (time.time_ns() - starts))
-    #
-    LOOPS = 10**4
-    #
-    starts = time.time_ns()
-    min_td = [abs(dt.now() - dt.now()) for _ in range(LOOPS)]
-    min_td = min(filter(bool, min_td))
-    print("min delta dt.now(): %s ns" % math.ceil(min_dt * 1e9))
-    print("duration  dt.now(): %s ns\r\n" % (time.time_ns() - starts))
-    #
-    starts = time.time_ns()
-    min_td = [abs(dt_now() - dt_now()) for _ in range(LOOPS)]
-    min_td = min(filter(bool, min_td))
-    print("min delta dt_now(): %s ns" % math.ceil(min_dt * 1e9))
-    print("duration  dt_now(): %s ns\r\n" % (time.time_ns() - starts))
-    #
-    starts = time.time_ns()
-    min_td = [
-        abs(
-            (dt_now if sys.platform == "win32" else dt.now)()
-            - (dt_now if sys.platform == "win32" else dt.now)()
-        )
-        for _ in range(LOOPS)
-    ]
-    min_td = min(filter(bool, min_td))
-    print("min delta dt_now(): %s ns" % math.ceil(min_dt * 1e9))
-    print("duration  dt_now(): %s ns\r\n" % (time.time_ns() - starts))
-    #
-    dt_nov = dt_now if sys.platform == "win32" else dt.now
-    starts = time.time_ns()
-    min_td = [abs(dt_nov() - dt_nov()) for _ in range(LOOPS)]
-    min_td = min(filter(bool, min_td))
-    print("min delta dt_now(): %s ns" % math.ceil(min_dt * 1e9))
-    print("duration  dt_now(): %s ns\r\n" % (time.time_ns() - starts))
-
-
-@typechecked
 def double(value: str, factor: int = 1) -> Optional[float]:
     """Convert a 4-char hex string into a double."""
     if not isinstance(value, str) or len(value) != 4:
@@ -131,59 +70,6 @@ def double(value: str, factor: int = 1) -> Optional[float]:
     if value == "7FFF":
         return None
     return int(value, 16) / factor
-
-
-@typechecked
-def flag8(byte: str, lsb: bool = False) -> list:
-    """Split a byte (as a hex str) into a list of 8 bits, MSB first by default."""
-    if not isinstance(byte, str) or len(byte) != 2:
-        raise ValueError(f"Invalid value: {byte}, is not a 2-char hex string")
-    if lsb:
-        return [(bytes.fromhex(byte)[0] & (1 << x)) >> x for x in range(8)]
-    return [(bytes.fromhex(byte)[0] & (1 << x)) >> x for x in reversed(range(8))]
-
-
-@typechecked
-def percent(value: str, high_res: bool = True) -> Optional[float]:  # c.f. valve_demand
-    """Convert a 2-char hex string into a percentage.
-
-    The range is 0-100%, with resolution of 0.5% (high_res) or 1%.
-    """
-    if not isinstance(value, str) or len(value) != 2:
-        raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
-    if value == "EF":  # TODO: when EF, when 7F?
-        return None
-    result = int(value, 16)
-    if result & 0xF0 == 0xF0:
-        return None
-    result = result / (200 if high_res else 100)
-    if result > 1:
-        raise ValueError(f"Invalid result: {result} (0x{value}) is > 1")
-    return result
-
-
-@typechecked
-def bool_from_hex(value: str) -> Optional[bool]:  # either 00 or C8
-    """Convert a 2-char hex string into a boolean."""
-    if not isinstance(value, str) or len(value) != 2:
-        raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
-    if value == "FF":
-        return None
-    return {"00": False, "C8": True}[value]
-
-
-@typechecked
-def date_from_hex(value: str) -> Optional[str]:  # YY-MM-DD
-    """Convert am 8-char hex string into a date, format YY-MM-DD."""
-    if not isinstance(value, str) or len(value) != 8:
-        raise ValueError(f"Invalid value: {value}, is not an 8-char hex string")
-    if value == "FFFFFFFF":
-        return None
-    return dt(
-        year=int(value[4:8], 16),
-        month=int(value[2:4], 16),
-        day=int(value[:2], 16) & 0b11111,  # 1st 3 bits: DayOfWeek
-    ).strftime("%Y-%m-%d")
 
 
 @typechecked
@@ -262,6 +148,35 @@ def dts_to_hex(dtm: Union[str, dt]) -> str:  # TODO: WIP
 
 
 @typechecked
+def flag8(byte: str, lsb: bool = False) -> list:
+    """Split a byte (as a hex str) into a list of 8 bits, MSB first by default."""
+    if not isinstance(byte, str) or len(byte) != 2:
+        raise ValueError(f"Invalid value: {byte}, is not a 2-char hex string")
+    if lsb:
+        return [(bytes.fromhex(byte)[0] & (1 << x)) >> x for x in range(8)]
+    return [(bytes.fromhex(byte)[0] & (1 << x)) >> x for x in reversed(range(8))]
+
+
+@typechecked
+def percent(value: str, high_res: bool = True) -> Optional[float]:  # c.f. valve_demand
+    """Convert a 2-char hex string into a percentage.
+
+    The range is 0-100%, with resolution of 0.5% (high_res) or 1%.
+    """
+    if not isinstance(value, str) or len(value) != 2:
+        raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
+    if value == "EF":  # TODO: when EF, when 7F?
+        return None
+    result = int(value, 16)
+    if result & 0xF0 == 0xF0:
+        return None
+    result = result / (200 if high_res else 100)
+    if result > 1:
+        raise ValueError(f"Invalid result: {result} (0x{value}) is > 1")
+    return result
+
+
+@typechecked
 def str_from_hex(value: str) -> Optional[str]:  # printable ASCII characters
     """Return a string of printable ASCII characters."""
     # result = bytearray.fromhex(value).split(b"\x7F")[0]  # TODO: needs checking
@@ -337,15 +252,62 @@ def valve_demand(value: str) -> dict:  # c.f. percent()
     return {"heat_demand": result}
 
 
-@typechecked
-def hex_id_to_dec(device_hex: str, friendly_id: bool = False) -> str:
-    """Convert (say) '06368E' to '01:145038' (or 'CTL:145038')."""
-    if device_hex == "FFFFFE":  # aka '63:262142'
-        return "NUL:262142" if friendly_id else NUL_DEVICE_ID
-    if not device_hex.strip():  # aka '--:------'
-        return f"{'':10}" if friendly_id else NON_DEVICE_ID
-    _tmp = int(device_hex, 16)
-    dev_type = f"{(_tmp & 0xFC0000) >> 18:02d}"
-    if friendly_id:
-        dev_type = DEVICE_TYPES.get(dev_type, f"{dev_type:<3}")
-    return f"{dev_type}:{_tmp & 0x03FFFF:06d}"
+def _precision_v_cost():
+    import math
+
+    #
+    LOOPS = 10**6
+    #
+    print("time.time_ns(): %s" % time.time_ns())
+    print("time.time():    %s\r\n" % time.time())
+    #
+    starts = time.time_ns()
+    min_dt = [abs(time.time_ns() - time.time_ns()) for _ in range(LOOPS)]
+    min_dt = min(filter(bool, min_dt))
+    print("min delta   time_ns(): %s ns" % min_dt)
+    print("duration    time_ns(): %s ns\r\n" % (time.time_ns() - starts))
+    #
+    starts = time.time_ns()
+    min_dt = [abs(time.time() - time.time()) for _ in range(LOOPS)]
+    min_dt = min(filter(bool, min_dt))
+    print("min delta      time(): %s ns" % math.ceil(min_dt * 1e9))
+    print("duration       time(): %s ns\r\n" % (time.time_ns() - starts))
+    #
+    starts = time.time_ns()
+    min_dt = [abs(timestamp() - timestamp()) for _ in range(LOOPS)]
+    min_dt = min(filter(bool, min_dt))
+    print("min delta timestamp(): %s ns" % math.ceil(min_dt * 1e9))
+    print("duration  timestamp(): %s ns\r\n" % (time.time_ns() - starts))
+    #
+    LOOPS = 10**4
+    #
+    starts = time.time_ns()
+    min_td = [abs(dt.now() - dt.now()) for _ in range(LOOPS)]
+    min_td = min(filter(bool, min_td))
+    print("min delta dt.now(): %s ns" % math.ceil(min_dt * 1e9))
+    print("duration  dt.now(): %s ns\r\n" % (time.time_ns() - starts))
+    #
+    starts = time.time_ns()
+    min_td = [abs(dt_now() - dt_now()) for _ in range(LOOPS)]
+    min_td = min(filter(bool, min_td))
+    print("min delta dt_now(): %s ns" % math.ceil(min_dt * 1e9))
+    print("duration  dt_now(): %s ns\r\n" % (time.time_ns() - starts))
+    #
+    starts = time.time_ns()
+    min_td = [
+        abs(
+            (dt_now if sys.platform == "win32" else dt.now)()
+            - (dt_now if sys.platform == "win32" else dt.now)()
+        )
+        for _ in range(LOOPS)
+    ]
+    min_td = min(filter(bool, min_td))
+    print("min delta dt_now(): %s ns" % math.ceil(min_dt * 1e9))
+    print("duration  dt_now(): %s ns\r\n" % (time.time_ns() - starts))
+    #
+    dt_nov = dt_now if sys.platform == "win32" else dt.now
+    starts = time.time_ns()
+    min_td = [abs(dt_nov() - dt_nov()) for _ in range(LOOPS)]
+    min_td = min(filter(bool, min_td))
+    print("min delta dt_now(): %s ns" % math.ceil(min_dt * 1e9))
+    print("duration  dt_now(): %s ns\r\n" % (time.time_ns() - starts))
