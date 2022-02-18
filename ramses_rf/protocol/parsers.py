@@ -153,17 +153,7 @@ def parser_0002(payload, msg) -> Optional[dict]:
 def parser_0004(payload, msg) -> Optional[dict]:
     # RQ payload is zz00; limited to 12 chars in evohome UI? if "7F"*20: not a zone
 
-    result = {} if payload[4:] == "7F" * 20 else {"name": str_from_hex(payload[4:])}
-
-    # TODO: remove me...
-    if TEST_MODE and msg.verb == W_:
-        from .command import Command
-
-        cmd = Command.set_zone_name(msg.dst.id, payload[:2], result["name"])
-        assert cmd.payload == payload, str_from_hex(payload)
-    # TODO: remove me...
-
-    return result
+    return {} if payload[4:] == "7F" * 20 else {"name": str_from_hex(payload[4:])}
 
 
 @parser_decorator  # system_zones (add/del a zone?)
@@ -299,18 +289,7 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:
         return {}
 
     assert msg.len == 6, f"{msg!r} # expecting length 006"
-    result = _parser(payload)
-
-    # TODO: remove me...
-    if TEST_MODE and msg.verb == W_:
-        from .command import Command
-
-        kwargs = {k: v for k, v in result.items() if k[:1] != "_"}
-        cmd = Command.set_zone_config(msg.dst.id, payload[:2], **kwargs)
-        assert cmd.payload == payload, cmd.payload
-    # TODO: remove me...
-
-    return result
+    return _parser(payload)
 
 
 @parser_decorator  # zone_devices
@@ -616,25 +595,7 @@ def parser_1030(payload, msg) -> Optional[dict]:
     assert payload[30:] in ("00", "01"), payload[30:]
 
     params = [_parser(payload[i : i + 6]) for i in range(2, len(payload), 6)]
-    result = {k: v for x in params for k, v in x.items()}
-
-    # TODO: remove me...
-    if TEST_MODE and msg.verb == W_:
-        from .command import Command
-
-        KEYS = (
-            "max_flow_setpoint",
-            "min_flow_setpoint",
-            "valve_run_time",
-            "pump_run_time",
-        )
-        cmd = Command.get_mix_valve_params(
-            msg.dst.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
-        )
-        assert cmd.payload == payload, cmd.payload
-    # TODO: remove me...
-
-    return result
+    return {k: v for x in params for k, v in x.items()}
 
 
 @parser_decorator  # device_battery (battery_state)
@@ -726,17 +687,6 @@ def parser_10a0(payload, msg) -> Optional[dict]:
         result["overrun"] = int(payload[6:8], 16)  # 0-10 minutes
     if msg.len >= 6:
         result["differential"] = temp_from_hex(payload[8:12])  # 1.0-10.0 C
-
-    # TODO: remove me...
-    if TEST_MODE and msg.verb == W_:
-        from .command import Command
-
-        KEYS = ("setpoint", "overrun", "differential")
-        cmd = Command.set_dhw_params(
-            msg.dst.id, **{k: v for k, v in result.items() if k in KEYS}
-        )
-        assert cmd.payload == payload, cmd.payload
-    # TODO: remove me...
 
     return result
 
@@ -846,17 +796,6 @@ def parser_1100(payload, msg) -> Optional[dict]:
                 "_unknown_1": payload[14:],  # always 01?
             }
         )
-
-    # TODO: remove me...
-    if TEST_MODE and msg.verb == W_:
-        from .command import Command
-
-        KEYS = ("cycle_rate", "min_on_time", "min_off_time", "proportional_band_width")
-        cmd = Command.set_tpi_params(
-            msg.dst.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
-        )
-        assert cmd.payload == payload, cmd.payload
-    # TODO: remove me...
 
     return {
         **complex_idx(payload[:2]),
@@ -1036,17 +975,6 @@ def parser_1f41(payload, msg) -> Optional[dict]:
     }
     if payload[4:6] == "04":  # temporary_override
         result["until"] = dtm_from_hex(payload[12:24])
-
-    # TODO: remove me...
-    if TEST_MODE and msg.verb == W_:
-        from .command import Command
-
-        KEYS = ("active", "mode", "until")
-        cmd = Command.set_dhw_mode(
-            msg.dst.id, **{k: v for k, v in result.items() if k in KEYS}
-        )
-        assert cmd.payload == payload, cmd.payload
-    # TODO: remove me...
 
     return result
 
@@ -1302,17 +1230,7 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:
     if msg.verb == RQ and msg.len == 1:  # some RQs have a payload (why?)
         return {}
 
-    result = {"setpoint": temp_from_hex(payload[2:])}
-
-    # TODO: remove me...
-    if TEST_MODE and msg.verb == W_:
-        from .command import Command
-
-        cmd = Command.set_zone_setpoint(msg.dst.id, payload[:2], result["setpoint"])
-        assert cmd.payload == payload, cmd.payload
-    # TODO: remove me...
-
-    return result
+    return {"setpoint": temp_from_hex(payload[2:])}
 
 
 @parser_decorator  # zone_mode  # TODO: messy
@@ -1347,17 +1265,6 @@ def parser_2349(payload, msg) -> Optional[dict]:
         else:
             assert payload[6:8] != "02", f"{payload[6:8]} (0x03)"
             result["until"] = dtm_from_hex(payload[14:26])
-
-    # TODO: remove me...
-    if TEST_MODE and msg.verb == W_:
-        from .command import Command
-
-        KEYS = ("mode", "setpoint", "until", "duration")
-        cmd = Command.set_zone_mode(
-            msg.dst.id, payload[:2], **{k: v for k, v in result.items() if k in KEYS}
-        )
-        assert cmd.payload == payload, f"{cmd.payload}, not {payload}"
-    # TODO: remove me...
 
     return result
 
@@ -1448,23 +1355,10 @@ def parser_2e04(payload, msg) -> Optional[dict]:
         # msg.len in (8, 16)  # evohome 8, hometronics 16
         assert False, f"Packet length is {msg.len} (expecting 8, 16)"
 
-    result = {
+    return {
         "system_mode": SYSTEM_MODE.get(payload[:2], payload[:2]),
         "until": dtm_from_hex(payload[2:14]) if payload[14:16] != "00" else None,
     }  # TODO: double-check the final "00"
-
-    # TODO: remove me...
-    if TEST_MODE and msg.verb == W_:
-        from .command import Command
-
-        KEYS = ("system_mode", "until")
-        cmd = Command.set_system_mode(
-            msg.dst.id, **{k: v for k, v in result.items() if k in KEYS}
-        )
-        assert cmd.payload == payload, cmd.payload
-    # TODO: remove me...
-
-    return result
 
 
 @parser_decorator  # presence_detect, from HVAC sensor
@@ -1489,14 +1383,6 @@ def parser_30c9(payload, msg) -> Optional[dict]:
             }
             for i in range(0, len(payload), 6)
         ]
-
-    # TODO: remove me...
-    if TEST_MODE and msg.verb == RQ:
-        from .command import Command
-
-        cmd = Command.get_zone_temp(msg.dst.id, payload[:2])
-        assert cmd.payload == payload, cmd.payload
-    # TODO: remove me...
 
     return {"temperature": temp_from_hex(payload[2:])}
 
@@ -1543,7 +1429,7 @@ def parser_3120(payload, msg) -> Optional[dict]:
 
 
 @parser_decorator  # datetime
-def parser_313f(payload, msg) -> Optional[dict]:
+def parser_313f(payload, msg) -> Optional[dict]:  # TODO: look for TZ
     # 2020-03-28T03:59:21.315178 045 RP --- 01:158182 04:136513 --:------ 313F 009 00FC3500A41C0307E4  # noqa: E501
     # 2020-03-29T04:58:30.486343 045 RP --- 01:158182 04:136485 --:------ 313F 009 00FC8400C51D0307E4  # noqa: E501
     # 2020-05-31T11:37:50.351511 056  I --- --:------ --:------ 12:207082 313F 009 0038021ECB1F0507E4  # noqa: E501
@@ -1555,22 +1441,11 @@ def parser_313f(payload, msg) -> Optional[dict]:
     assert msg.src.type not in ("12", "22") or payload[2:4] == "38", payload[2:4]  # DEX
     assert msg.src.type != "30" or payload[2:4] == "60", payload[2:4]  # DEX
 
-    result = {
+    return {
         "datetime": dtm_from_hex(payload[4:18]),
         "is_dst": True if bool(int(payload[4:6], 16) & 0x80) else None,
         "_unknown_0": payload[2:4],
     }
-
-    # TODO: remove me...
-    if TEST_MODE and msg.verb == W_:
-        from .command import Command
-
-        cmd = Command.set_system_time(msg.dst.id, result["datetime"])
-        payload = payload[:4] + "00" + payload[6:]  # 00, 01, 02, 03?
-        assert cmd.payload == payload, cmd.payload
-    # TODO: remove me...
-
-    return result
 
 
 @parser_decorator  # heat_demand (of device, FC domain) - valve status (%open)
