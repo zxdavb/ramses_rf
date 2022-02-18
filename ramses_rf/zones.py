@@ -278,14 +278,8 @@ class ZoneSchedule:  # 0404  # TODO: add for DHW
 class RelayDemand:  # 0008
     """Not all zones call for heat."""
 
-    def _discover(self, discover_flag=Discover.ALL) -> None:
-        super()._discover(discover_flag=discover_flag)
-
-        if discover_flag & Discover.STATUS:
-            self._send_cmd(Command.get_relay_demand(self._ctl.id, zone_idx=self.idx))
-
     @property
-    def relay_demand(self) -> Optional[float]:  # 0008
+    def relay_demand(self) -> Optional[float]:  # 0008 (NOTE: CTLs wont RP|0008)
         # if _0008 in self._msgs:
         #     return self._msgs[_0008].payload[ATTR_RELAY_DEMAND]
         return self._msg_value(_0008, key=ATTR_RELAY_DEMAND)
