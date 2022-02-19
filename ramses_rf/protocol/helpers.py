@@ -63,6 +63,30 @@ def dt_str() -> str:
 
 
 @typechecked
+def bool_from_hex(value: str) -> Optional[bool]:  # either 00 or C8
+    """Convert a 2-char hex string into a boolean."""
+    if not isinstance(value, str) or len(value) != 2:
+        raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
+    if value == "FF":
+        return None
+    return {"00": False, "C8": True}[value]
+
+
+@typechecked
+def date_from_hex(value: str) -> Optional[str]:  # YY-MM-DD
+    """Convert am 8-char hex string into a date, format YY-MM-DD."""
+    if not isinstance(value, str) or len(value) != 8:
+        raise ValueError(f"Invalid value: {value}, is not an 8-char hex string")
+    if value == "FFFFFFFF":
+        return None
+    return dt(
+        year=int(value[4:8], 16),
+        month=int(value[2:4], 16),
+        day=int(value[:2], 16) & 0b11111,  # 1st 3 bits: DayOfWeek
+    ).strftime("%Y-%m-%d")
+
+
+@typechecked
 def double(value: str, factor: int = 1) -> Optional[float]:
     """Convert a 4-char hex string into a double."""
     if not isinstance(value, str) or len(value) != 4:
@@ -95,7 +119,7 @@ def dtm_from_hex(value: str) -> Optional[str]:  # from parsers
 
 
 @typechecked
-def dtm_to_hex(dtm: Union[str, dt]) -> str:
+def dtm_to_hex(dtm: Union[str, dt, None]) -> str:
     """Convert a datetime (isoformat string, or object) to a 12-char hex string."""
 
     def _dtm_to_hex(tm_year, tm_mon, tm_mday, tm_hour, tm_min, *args):
@@ -127,7 +151,7 @@ def dts_from_hex(value: str) -> Optional[str]:
 
 
 @typechecked
-def dts_to_hex(dtm: Union[str, dt]) -> str:  # TODO: WIP
+def dts_to_hex(dtm: Union[str, dt, None]) -> str:  # TODO: WIP
     """YY-MM-DD HH:MM:SS."""
     if dtm is None:
         return "00000000007F"
@@ -210,7 +234,7 @@ def temp_from_hex(value: str) -> Union[float, bool, None]:
 
 
 @typechecked
-def temp_to_hex(value: float) -> str:
+def temp_to_hex(value: Union[float, None]) -> str:
     """Convert a float to a 2's complement 4-byte hex string."""
     if value is None:
         return "7FFF"  # or: "31FF"?
