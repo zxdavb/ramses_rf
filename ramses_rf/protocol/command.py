@@ -647,7 +647,7 @@ class Command(PacketBase):
 
     @classmethod  # constructor for W/313F
     @validate_api_params()
-    def set_system_time(cls, ctl_id: str, datetime, **kwargs):
+    def set_system_time(cls, ctl_id: str, datetime, **kwargs):  # TODO: add is_dst
         """Constructor to set the datetime of a system (c.f. parser_313f)."""
         #  W --- 30:185469 01:037519 --:------ 313F 009 0060003A0C1B0107E5
 
@@ -676,19 +676,19 @@ class Command(PacketBase):
     ):
         """Constructor to set the TPI params of a system (c.f. parser_1100)."""
 
-        assert cycle_rate is None or cycle_rate in (3, 6, 9, 12), cycle_rate
-        assert min_on_time is None or 1 <= min_on_time <= 5, min_on_time
-        assert min_off_time is None or 1 <= min_off_time <= 5, min_off_time
-        assert (
-            proportional_band_width is None or 1.5 <= proportional_band_width <= 3.0
-        ), proportional_band_width
+        # assert cycle_rate is None or cycle_rate in (3, 6, 9, 12), cycle_rate
+        # assert min_on_time is None or 1 <= min_on_time <= 5, min_on_time
+        # assert min_off_time is None or 1 <= min_off_time <= 5, min_off_time
+        # assert (
+        #     proportional_band_width is None or 1.5 <= proportional_band_width <= 3.0
+        # ), proportional_band_width
 
         payload = "".join(
             (
                 f"{domain_id:02X}" if isinstance(domain_id, int) else domain_id,
                 f"{cycle_rate * 4:02X}",
                 f"{int(min_on_time * 4):02X}",
-                f"{int(min_off_time * 4):02X}FF",
+                f"{int(min_off_time * 4):02X}00",  # or: ...FF",
                 f"{temp_to_hex(proportional_band_width)}01",
             )
         )
@@ -803,7 +803,7 @@ class Command(PacketBase):
     def set_zone_name(cls, ctl_id: str, zone_idx: Union[int, str], name: str, **kwargs):
         """Constructor to set the name of a zone (c.f. parser_0004)."""
 
-        payload = f"{zone_idx:02X}00{str_to_hex(name)[:24]:0<40}"  # TODO: check 12/24?
+        payload = f"{zone_idx:02X}00{str_to_hex(name)[:40]:0<40}"
         return cls(W_, _0004, payload, ctl_id, **kwargs)
 
     @classmethod  # constructor for W/2309
