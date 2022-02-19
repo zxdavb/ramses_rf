@@ -269,7 +269,7 @@ class DeviceBase(Entity):
         assert msg.src is self, f"msg inappropriately routed to {self}"
         super()._handle_msg(msg)
 
-        if msg.verb != I_:  # or: if self._iz_controller is not None or...
+        if msg.verb != I_ or self._iz_controller is not None:
             return
 
         if not self._iz_controller and msg.code in CODE_ONLY_FROM_CTL:
@@ -1816,20 +1816,8 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.verb != I_:  # or: if self._iz_controller is not None or...
+        if msg.verb != I_ or self._iz_controller is not None:
             return
-
-        # The following is not required, as CTLs send such every sync_cycle
-        # if msg.code == _2309 and self._ctl and not self._gwy.config.disable_sending:
-        #     # update the controller's setpoint for this zone
-        #     self._send_cmd(Command.get_zone_mode(self._ctl.id, self.idx))
-        #
-        # elif msg.code == _30C9 and self._ctl and not self._gwy.config.disable_sending:
-        #     # update the controller's temp for this zone, *if* it is the zone sensor
-        #     self._send_cmd(Command.get_zone_temp(self._ctl.id, self.idx))
-
-        # if self._iz_controller is not None:  # TODO: put back in when confident
-        #     return
 
         # NOTE: this has only been tested on a 12:, does it work for a 34: too?
         if all(
