@@ -667,14 +667,17 @@ class Command(PacketBase):
     def set_tpi_params(
         cls,
         ctl_id: str,
-        domain_id: str,
-        cycle_rate=3,  # TODO: check
-        min_on_time=5,  # TODO: check
-        min_off_time=5,  # TODO: check
-        proportional_band_width=None,  # TODO: check
+        domain_id: Union[str, None],
+        cycle_rate: int = 3,  # TODO: check
+        min_on_time: int = 5,  # TODO: check
+        min_off_time: int = 5,  # TODO: check
+        proportional_band_width: Union[float, None] = None,  # TODO: check
         **kwargs,
     ):
         """Constructor to set the TPI params of a system (c.f. parser_1100)."""
+
+        if domain_id is None:
+            domain_id = "00"
 
         # assert cycle_rate is None or cycle_rate in (3, 6, 9, 12), cycle_rate
         # assert min_on_time is None or 1 <= min_on_time <= 5, min_on_time
@@ -872,7 +875,7 @@ class Command(PacketBase):
         cls,
         src_id: str,
         dst_id: str,
-        mod_level: float,
+        modulation_level: float,
         actuator_countdown: int,
         cycle_countdown: int = None,
         **kwargs,
@@ -888,14 +891,15 @@ class Command(PacketBase):
         except AssertionError as exc:
             raise TypeError(f"Faked device {src_id} has unsupported device type: {exc}")
 
-        payload = f"00{actuator_countdown:04X}"
+        payload = "00"
         payload += f"{cycle_countdown:04X}" if cycle_countdown is not None else "7FFF"
-        payload += f"{int(mod_level * 200):02X}FF"
+        payload += f"{actuator_countdown:04X}"
+        payload += f"{int(modulation_level * 200):02X}FF"
         return cls.packet(RP, _3EF1, payload, addr0=src_id, addr1=dst_id, **kwargs)
 
     @classmethod  # constructor for I/3EF0  # TODO: trap corrupt states?
     @validate_api_params()
-    def put_actuator_state(cls, dev_id: str, mod_level: float, **kwargs):
+    def put_actuator_state(cls, dev_id: str, modulation_level: float, **kwargs):
         """Constructor to announce the modulation level of an actuator (3EF0).
 
         This is for use by a faked BDR91A or similar.
@@ -908,7 +912,11 @@ class Command(PacketBase):
         except AssertionError as exc:
             raise TypeError(f"Faked device {dev_id} has unsupported device type: {exc}")
 
-        payload = "007FFF" if mod_level is None else f"00{int(mod_level * 200):02X}FF"
+        payload = (
+            "007FFF"
+            if modulation_level is None
+            else f"00{int(modulation_level * 200):02X}FF"
+        )
         return cls.packet(I_, _3EF0, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
     @classmethod  # constructor for 1F09 (rf_bind) 3-way handshake
