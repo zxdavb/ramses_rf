@@ -112,21 +112,6 @@ class Entity:
         else:
             self._msgz[msg.code][msg.verb][msg._pkt._ctx] = msg
 
-        # TODO:
-        # if msg.verb == RP and msg._pkt._idx in self._msgz[msg.code].get(I_, []):
-        #     assert msg.raw_payload == self._msgz[msg.code][I_][msg._pkt._idx].raw_payload, (
-        #         f"\r\n{msg!r} ({msg._pkt._idx}),"
-        #         f"\r\n{self._msgz[msg.code][I_][msg._pkt._idx]!r} ({msg._pkt._idx})"
-        #     )
-        #     del self._msgz[msg.code][I_][msg._pkt._idx]
-
-        # elif msg.verb == I_ and msg._pkt._idx in self._msgz[msg.code].get(RP, []):
-        #     assert msg.raw_payload == self._msgz[msg.code][RP][msg._pkt._idx].raw_payload, (
-        #         f"\r\n{msg!r} ({msg._pkt._idx}),"
-        #         f"\r\n{self._msgz[msg.code][RP][msg._pkt._idx]!r} ({msg._pkt._idx})"
-        #     )
-        #     del self._msgz[msg.code][RP][msg._pkt._idx]
-
     @property
     def _msg_db(self) -> list:  # a flattened version of _msgz[code][verb][indx]
         """Return a flattened version of _msgz[code][verb][indx]."""
