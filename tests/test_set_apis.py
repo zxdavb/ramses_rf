@@ -23,6 +23,17 @@ class TestSetApis(unittest.IsolatedAsyncioTestCase):
 
     _gwy = Gateway(None, loop=asyncio.get_event_loop(), config=GWY_CONFIG)
 
+    # def __init__(self, *args, **kwargs):
+    #     super().__init__(*args, **kwargs)
+
+    #     self._setupAsyncioLoop()
+    #     self._gwy = Gateway(None, config=GWY_CONFIG, loop=self._asyncioTestLoop)
+
+    # def _setupAsyncioLoop(self):
+    #     if self._asyncioTestLoop:
+    #         return
+    #     super()._setupAsyncioLoop()
+
     def _test_api_line(self, api, pkt_line):
         pkt = Packet.from_port(self._gwy, dt.now(), pkt_line)
 

@@ -1,0 +1,104 @@
+{
+    "main_controller": "01:145038",
+    "01:145038": {
+        "system": {
+            "heating_control": null
+        },
+        "orphans": [],
+        "stored_hotwater": {},
+        "underfloor_heating": {},
+        "zones": {
+            "01": {
+                "_name": "Main room",
+                "zone_type": "radiator_valve",
+                "zone_sensor": null,
+                "sensor_alt": null,
+                "devices": [
+                    "04:189078"
+                ],
+                "actuators": [
+                    "04:189078"
+                ]
+            },
+            "02": {
+                "_name": "Front room",
+                "zone_type": "radiator_valve",
+                "zone_sensor": "34:092243",
+                "sensor_alt": "34:092243",
+                "devices": [
+                    "04:056057",
+                    "34:092243"
+                ],
+                "actuators": [
+                    "04:056057"
+                ]
+            },
+            "03": {
+                "_name": "Kitchen",
+                "zone_type": "radiator_valve",
+                "zone_sensor": "12:010740",
+                "sensor_alt": "12:010740",
+                "devices": [
+                    "04:056059",
+                    "12:010740"
+                ],
+                "actuators": [
+                    "04:056059"
+                ]
+            },
+            "04": {
+                "_name": "Bathroom",
+                "zone_type": "radiator_valve",
+                "zone_sensor": "04:056053",
+                "sensor_alt": "04:056053",
+                "devices": [
+                    "04:056053"
+                ],
+                "actuators": [
+                    "04:056053"
+                ]
+            },
+            "05": {
+                "_name": "Bedroom",
+                "zone_type": "radiator_valve",
+                "zone_sensor": "34:136285",
+                "sensor_alt": "34:136285",
+                "devices": [
+                    "04:189082",
+                    "34:136285"
+                ],
+                "actuators": [
+                    "04:189082"
+                ]
+            },
+            "06": {
+                "_name": "Kids room",
+                "zone_type": "radiator_valve",
+                "zone_sensor": "34:064023",
+                "sensor_alt": "34:064023",
+                "devices": [
+                    "04:189080",
+                    "34:064023"
+                ],
+                "actuators": [
+                    "04:189080"
+                ]
+            },
+            "07": {
+                "_name": "Back room",
+                "zone_type": "radiator_valve",
+                "zone_sensor": "34:205645",
+                "sensor_alt": "34:205645",
+                "devices": [
+                    "04:056061",
+                    "34:205645"
+                ],
+                "actuators": [
+                    "04:056061"
+                ]
+            }
+        }
+    },
+    "orphans": [],
+    "device_hints": {}
+}
