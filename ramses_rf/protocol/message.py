@@ -451,7 +451,7 @@ def _check_msg_payload(msg: Message, payload) -> None:
     """
 
     try:
-        _ = repr(msg._pkt)  # ? raise InvalidPayloadError
+        _ = repr(msg._pkt)  # HACK: ? raise InvalidPayloadError
 
         if msg.code not in RAMSES_CODES:
             raise InvalidPacketError(f"Unknown code: {msg.code}")
