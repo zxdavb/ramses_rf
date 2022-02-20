@@ -1,0 +1,3 @@
+# 22-01-01T00:02:00.000000 021 RQ --- 18:123456 01:123456 --:------ 2349 002 0400  # Valid packet
+2022-01-01T00:02:01.000000 021 RQ --- 18:123456 10:123456 --:------ 2349 002 0000  # Corrupt packet: Invalid code for 10:123456 to Rx: 2349
+2022-01-01T00:02:02.000000 021 RQ --- 18:123456 10:123456 --:------ 2349 002 0400  # Corrupt packet: should be: Corrupt payload: Packet idx is 04, but expecting no idx (00)
