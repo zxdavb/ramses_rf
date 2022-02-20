@@ -147,9 +147,13 @@ class PacketBase:
         self._hdr_ = None
         self._idx_ = None
 
+    def __repr__(self) -> str:
+        """Return a unambiguous string representation of this object."""
+        return "" if self._frame is None else str(self._frame)
+
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
-        return "" if self._frame is None else str(self._frame[4:])
+        return repr(self)[4:]
 
     @property
     def rssi(self) -> str:
