@@ -411,7 +411,7 @@ class PacketProtocolBase(asyncio.Protocol):
         if self._hgi80[DEVICE_ID] is None:
             self._hgi80[DEVICE_ID] = pkt.src.id
 
-        elif self._hgi80[DEVICE_ID] != pkt.src.id:  # useless for some HVAC
+        elif self._hgi80[DEVICE_ID] != pkt.src.id:  # NOTE: useless for some HVAC
             (_LOGGER.debug if pkt.src.id in self._unwanted else _LOGGER.warning)(
                 f"{pkt} < There appears to be more than one HGI80-compatible device"
                 f" (active gateway: {self._hgi80[DEVICE_ID]}), this is unsupported{TIP}"
