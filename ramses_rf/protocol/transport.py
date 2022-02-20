@@ -58,6 +58,7 @@ if DEV_MODE:  # or True:
 
 BLOCK_LIST = "block_list"
 KNOWN_LIST = "known_list"
+TIP = f", configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
 
 IS_INITIALIZED = "is_initialized"
 IS_EVOFW3 = "is_evofw3"
@@ -172,14 +173,16 @@ class SerTransportRead(asyncio.ReadTransport):
             for dtm_str, pkt_line in self._packets.items():
                 self._protocol.data_received(f"{dtm_str} {pkt_line}")
                 await asyncio.sleep(0)
+
         elif isinstance(self._packets, TextIOWrapper):
-            for dtm_pkt_line in self._packets:  # need to check dtm_str is OK
+            for dtm_pkt_line in self._packets:  # should check dtm_str is OK
                 self._protocol.data_received(dtm_pkt_line)  # .rstrip())
                 await asyncio.sleep(0)
+
         else:
             raise TypeError(f"Wrong type of packet source: {type(self._packets)}")
 
-        self._protocol.connection_lost(exc=None)  # EOF
+        self._protocol.connection_lost(exc=None)
 
 
 class SerTransportPoll(asyncio.Transport):
@@ -266,7 +269,6 @@ class _SerTransportProc(Process):  # TODO: WIP
         self._protocol.connection_made(self)
 
     def _polling_loop(self):
-
         self._protocol.connection_made(self)
 
         while self.serial.is_open:
@@ -412,10 +414,10 @@ class PacketProtocolBase(asyncio.Protocol):
         if self._hgi80[DEVICE_ID] is None:
             self._hgi80[DEVICE_ID] = pkt.src.id
 
-        elif self._hgi80[DEVICE_ID] != pkt.src.id:
+        elif self._hgi80[DEVICE_ID] != pkt.src.id:  # useless for some HVAC
             (_LOGGER.debug if pkt.src.id in self._unwanted else _LOGGER.warning)(
                 f"{pkt} < There appears to be more than one HGI80-compatible device"
-                f" (active gateway: {self._hgi80[DEVICE_ID]}), this is unsupported"
+                f" (active gateway: {self._hgi80[DEVICE_ID]}), this is unsupported{TIP}"
             )
 
     def _line_received(self, dtm: dt, line: str, raw_line: ByteString) -> None:
@@ -488,8 +490,6 @@ class PacketProtocolBase(asyncio.Protocol):
         An unwanted device_id will 'trump' a whitelisted device_id in the same packet
         because there is a significant chance that the packet is simply corrupt.
         """
-
-        TIP = f", configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
 
         for dev_id in dict.fromkeys((src_id, dst_id)):
             if dev_id in self._unwanted:  # TODO: remove entries older than (say) 1w/1d
