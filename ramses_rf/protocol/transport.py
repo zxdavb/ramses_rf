@@ -52,7 +52,6 @@ from .version import VERSION
 DEV_MODE = __dev_mode__ and False  # debug is_wanted, or qos_fx
 
 _LOGGER = logging.getLogger(__name__)
-# _LOGGER.setLevel(logging.WARNING)  # INFO may have too much detail
 if DEV_MODE:  # or True:
     _LOGGER.setLevel(logging.DEBUG)  # should be INFO
 
@@ -295,7 +294,6 @@ class _SerTransportProc(Process):  # TODO: WIP
         This does not block; it buffers the data and arranges for it to be sent out
         asynchronously.
         """
-        # _LOGGER.debug("SerTransProc.write(%s)", cmd)
 
         self._write_queue.put_nowait(cmd)
 
@@ -350,7 +348,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
-        return self._dt_now_()  # or, simply: return dt_now()
+        return self._dt_now_()
 
     def connection_made(self, transport: asyncio.Transport) -> None:
         """Called when a connection is made."""
@@ -394,7 +392,6 @@ class PacketProtocolBase(asyncio.Protocol):
 
     def data_received(self, data: ByteString) -> None:
         """Called by the transport when some data (packet fragments) is received."""
-        # _LOGGER.debug(f"{self}.data_received({%s})", data)
 
         def bytes_received(data: ByteString) -> Iterable[ByteString]:
             self._recv_buffer += data
@@ -559,7 +556,6 @@ class PacketProtocolFile(PacketProtocolBase):
 
     def data_received(self, data: str) -> None:
         """Called when a packet line is received (from a log file)."""
-        # _LOGGER.debug(f"{self}.data_received(%s)", data.rstrip())
 
         self._dt_str_ = data[:26]  # used for self._dt_now
 
@@ -617,7 +613,6 @@ class PacketProtocolPort(PacketProtocolBase):
 
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
-        # _LOGGER.debug(f"{self}.send_data(%s)", cmd)
 
         if self._disable_sending or self._pause_writing:
             raise RuntimeError("Sending is disabled or writing is paused")
@@ -750,7 +745,6 @@ class PacketProtocolQos(PacketProtocolPort):
 
     async def send_data(self, cmd: Command) -> None:
         """Called when packets are to be sent (not a callback)."""
-        # _LOGGER.debug(f"{self}.send_data(%s)", cmd)
 
         while self._qos_cmd is not None:
             await asyncio.sleep(_QOS_POLL_INTERVAL)
@@ -907,8 +901,9 @@ def create_pkt_stack(
 
     ser_config = {**DEFAULT_SERIAL_CONFIG, **gwy.config.serial_config}
 
-    # python client.py monitor 'rfc2217://localhost:5001'
-    # python client.py monitor 'alt:///dev/ttyUSB0?class=PosixPollSerial'
+    # For example:
+    # - python client.py monitor 'rfc2217://localhost:5001'
+    # - python client.py monitor 'alt:///dev/ttyUSB0?class=PosixPollSerial'
     try:
         ser_instance = serial_for_url(ser_port, **ser_config)
     except SerialException as exc:
