@@ -22,6 +22,7 @@ import re
 import sys
 from datetime import datetime as dt
 from datetime import timedelta as td
+from io import TextIOWrapper
 from multiprocessing import Process
 from queue import Queue
 from string import printable  # ascii_letters, digits
@@ -167,19 +168,16 @@ class SerTransportRead(asyncio.ReadTransport):
     async def _polling_loop(self):  # TODO: harden with try
         self._protocol.connection_made(self)
 
-        # hint = "777" if isinstance(self._packets, dict) else "888"
-        # dtm_str = dt.fromtimestamp(0).isoformat(sep="T", timespec="microseconds")
-        # pkt_line = Command._puzzle(message="loading packets")
-        # self._protocol.data_received(f"{dtm_str} {hint} {pkt_line}")  # HACK: 01, below
-
         if isinstance(self._packets, dict):  # can assume dtm_str is OK
             for dtm_str, pkt_line in self._packets.items():
                 self._protocol.data_received(f"{dtm_str} {pkt_line}")
                 await asyncio.sleep(0)
-        else:
+        elif isinstance(self._packets, TextIOWrapper):
             for dtm_pkt_line in self._packets:  # need to check dtm_str is OK
                 self._protocol.data_received(dtm_pkt_line)  # .rstrip())
                 await asyncio.sleep(0)
+        else:
+            raise TypeError(f"Wrong type of packet source: {type(self._packets)}")
 
         self._protocol.connection_lost(exc=None)  # EOF
 
@@ -268,8 +266,6 @@ class _SerTransportProc(Process):  # TODO: WIP
         self._protocol.connection_made(self)
 
     def _polling_loop(self):
-        # asyncio.set_event_loop(self._loop)
-        # asyncio.get_running_loop()  # TODO: this fails
 
         self._protocol.connection_made(self)
 
