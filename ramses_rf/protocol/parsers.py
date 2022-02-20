@@ -1549,7 +1549,7 @@ def parser_31da(payload, msg) -> Optional[dict]:
     # I --- 37:053679 --:------ 37:053679 31DA 030 00EF007FFF41EF7FFF7FFF7FFF7FFFF800EF0134000000EFEF7FFF7FFF00
 
     try:
-        assert payload[2:4] in ("00", "C8", "EF"), payload[2:4]
+        assert payload[2:4] in ("00", "C8", "EF", "F0"), payload[2:4]
         assert payload[4:6] in ("00", "40"), payload[4:6]
         # assert payload[6:10] in ("07D0", "7FFF"), payload[6:10]
         assert payload[10:12] == "EF" or int(payload[10:12], 16) <= 100, payload[10:12]
@@ -1655,7 +1655,7 @@ def parser_31e0(payload, msg) -> dict:
 
     return {
         "percent_2": percent(payload[4:6]),
-        "unknown_0": payload[:4],
+        "unknown_1": payload[2:4],
         "unknown_3": payload[6:],
     }
 

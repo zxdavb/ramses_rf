@@ -550,8 +550,11 @@ RAMSES_CODES = {  # rf_unknown
         # RQ --- 32:168090 30:082155 --:------ 31DA 001 21
     },
     _31E0: {  # ext_ventilation - External Ventilation Status
+        # 10:15:42.712 077  I --- 29:146052 32:023459 --:------ 31E0 003 0000C8
+        # 10:21:18.549 078  I --- 29:146052 32:023459 --:------ 31E0 003 000000
+        # 07:56:50.522 095  I --- --:------ --:------ 07:044315 31E0 004 00006E00
         NAME: "ext_ventilation",
-        I_: r"^0000[0-9A-F]{2}(00|FF)$",  # TODO: final group is ? - needs confirming
+        I_: r"^00[0-9A-F]{4}(00|FF)?$",
     },
     _3200: {  # boiler output temp
         NAME: "boiler_output",
