@@ -128,6 +128,9 @@ def _normalise(pkt_line: str) -> str:
 def _regex_hack(pkt_line: str, regex_filters: dict) -> str:
     """Perform any packet hacks, as configured."""
 
+    if not regex_filters:
+        return pkt_line
+
     result = pkt_line
 
     for k, v in regex_filters.items():
@@ -137,7 +140,9 @@ def _regex_hack(pkt_line: str, regex_filters: dict) -> str:
             _LOGGER.warning(f"{pkt_line} < issue with regex ({k}, {v}): {exc}")
 
     if result != pkt_line:
-        _LOGGER.warning(f"{pkt_line} < Changed by use_regex to: {result}")
+        (_LOGGER.debug if DEV_MODE else _LOGGER.warning)(
+            f"{pkt_line} < Changed by use_regex to: {result}"
+        )
 
     return result
 
