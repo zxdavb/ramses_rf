@@ -151,17 +151,21 @@ class Packet(PacketBase):
         self.error_text = kwargs.get("err_msg")
         self.raw_frame = kwargs.get("raw_frame")
 
-        self._src, self._dst, self._addrs, self._len = self._validate(
-            self._frame[11:40]
-        )  # ? raise InvalidPacketError
-
         self._rssi = frame[0:3]
         self._verb = frame[4:6]
         self._seqn = frame[7:10]
+        self._src = None
+        self._dst = None
+        self._addrs = None
         self._code = frame[41:45]
+        self._len = None
         self._payload = frame[50:]
 
         self._timeout = None
+
+        self._src, self._dst, self._addrs, self._len = self._validate(
+            self._frame[11:40]
+        )  # ? raise InvalidPacketError
 
         # if DEV_MODE:  # TODO: remove (is for testing only)
         #     _ = self._has_array
