@@ -169,11 +169,15 @@ class Packet(PacketBase):
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
-        hdr = f' # {self._hdr}{f" ({self._ctx})" if self._ctx else ""}'
         try:
-            return f"{self.dtm.isoformat(timespec='microseconds')} ... {self}{hdr}"
+            hdr = f' # {self._hdr}{f" ({self._ctx})" if self._ctx else ""}'
+        except (InvalidPacketError, NotImplementedError):
+            hdr = ""
+        try:
+            dtm = self.dtm.isoformat(timespec="microseconds")
         except AttributeError:
-            print()
+            dtm = dt.min.isoformat(timespec="microseconds")
+        return f"{dtm} ... {self}{hdr}"
 
     @property
     def dtm(self) -> dt:
