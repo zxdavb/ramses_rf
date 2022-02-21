@@ -9,7 +9,12 @@ from logging import Logger
 
 from .address import is_valid_dev_id
 from .command import CODE_API_MAP, Command, FaultLog, Priority
-from .exceptions import CorruptStateError, ExpiredCallbackError, InvalidPacketError
+from .exceptions import (
+    CorruptStateError,
+    ExpiredCallbackError,
+    InvalidAddrSetError,
+    InvalidPacketError,
+)
 from .logger import set_logger_timesource, set_pkt_logging
 from .message import Message
 from .packet import _PKT_LOGGER, Packet
