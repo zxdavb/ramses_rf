@@ -1050,6 +1050,9 @@ HVAC_DEVICES_CLASS = {
 
 RAMSES_DEVICES = {**HVAC_DEVICES_CLASS, **RAMSES_DEVICES_CLASS}
 
+_CODES_CH_DHW = dict.fromkeys(c for k in RAMSES_DEVICES_CLASS.values() for c in k)
+_CODES_HVAC = dict.fromkeys(c for k in HVAC_DEVICES_CLASS.values() for c in k)
+CODES_HVAC_ONLY = tuple(c for c in _CODES_HVAC if c not in _CODES_CH_DHW)
 
 ####################
 # RAMSES_ZONES (WIP)
