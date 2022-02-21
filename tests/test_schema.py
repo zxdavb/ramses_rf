@@ -6,15 +6,11 @@
 Test the Schema processor.
 """
 
-import asyncio
 import json
 import os
 import unittest
-from datetime import datetime as dt
 
 from ramses_rf import Gateway
-from ramses_rf.const import HGI_DEVICE_ID
-from ramses_rf.schema import CONFIG, INPUT_FILE, PACKET_LOG
 
 GWY_CONFIG = {}
 

@@ -8,14 +8,13 @@ Test the Command.put_*, Command.set_* APIs.
 
 import unittest
 
-from ramses_rf import I_, RP, RQ, W_
+from ramses_rf import RQ
 from ramses_rf.protocol.const import _0418
 from ramses_rf.protocol.ramses import (
     CODE_IDX_COMPLEX,
     CODE_IDX_NONE,
     CODE_IDX_SIMPLE,
     CODES_SCHEMA,
-    RQ_IDX_COMPLEX,
     RQ_NO_PAYLOAD,
 )
 
@@ -46,9 +45,9 @@ class TestCodeIdxMutex(TestIdxMutexBase):
         self._test_codes_idx_mutex(CODE_IDX_SIMPLE, CODE_IDX_NONE + CODE_IDX_COMPLEX)
 
 
-# class TestRqIdxMutex(TestIdxMutexBase):
-#     def test_codes_mutex(self):
-#         self._test_codes_idx_mutex(RQ_IDX_ONLY, CODE_IDX_NONE)
+class TestRqIdxMutex(TestIdxMutexBase):
+    def _test_codes_mutex(self):
+        self._test_codes_idx_mutex(RQ_IDX_ONLY, CODE_IDX_NONE)
 
 
 RQ_IDX_NONE = [k for k, v in CODES_SCHEMA.items() if v.get(RQ, "")[:3] == "^00"]
