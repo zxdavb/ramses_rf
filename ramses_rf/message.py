@@ -12,13 +12,13 @@ from datetime import timedelta as td
 from .const import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES, __dev_mode__
 from .devices import Device, UfhController  # , HgiGateway
 from .protocol import (
-    RAMSES_CODES,
-    RAMSES_DEVICES,
+    CODES_BY_DEV_KLASS,
+    CODES_SCHEMA,
     CorruptStateError,
     InvalidPacketError,
     Message,
 )
-from .protocol.message import HVAC_ONLY_CODES
+from .protocol.message import CODES_HVAC_ONLY
 
 # skipcq: PY-W2000
 from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -113,7 +113,7 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
 
 __all__ = ["process_msg"]
 
-CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
+CODE_NAMES = {k: v["name"] for k, v in CODES_SCHEMA.items()}
 
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:^4s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:^4s} || {}"
@@ -176,8 +176,8 @@ def _check_msg_src(msg: Message, klass: str) -> None:
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
     """
 
-    if klass not in RAMSES_DEVICES:  # DEX_done, TODO: fingerprint dev class
-        if msg.code not in HVAC_ONLY_CODES:
+    if klass not in CODES_BY_DEV_KLASS:  # DEX_done, TODO: fingerprint dev class
+        if msg.code not in CODES_HVAC_ONLY:
             raise InvalidPacketError(f"Unknown src type: {msg.src}")
         _LOGGER.warning(f"{msg!r} < Unknown src type: {msg.src}, is it HVAC?")
         return
@@ -188,7 +188,7 @@ def _check_msg_src(msg: Message, klass: str) -> None:
     #
     #
 
-    if msg.code not in RAMSES_DEVICES[klass]:  # DEX_done
+    if msg.code not in CODES_BY_DEV_KLASS[klass]:  # DEX_done
         if klass != "HGI":  # DEX_done
             raise InvalidPacketError(f"Invalid code for {msg.src} to Tx: {msg.code}")
         if msg.verb in (RQ, W_):
@@ -202,8 +202,8 @@ def _check_msg_src(msg: Message, klass: str) -> None:
     #
 
     #
-    # (code := RAMSES_DEVICES[klass][msg.code]) and msg.verb not in code:
-    if msg.verb not in RAMSES_DEVICES[klass][msg.code]:  # DEX_done
+    # (code := CODES_BY_DEV_KLASS[klass][msg.code]) and msg.verb not in code:
+    if msg.verb not in CODES_BY_DEV_KLASS[klass][msg.code]:  # DEX_done
         raise InvalidPacketError(
             f"Invalid verb/code for {msg.src} to Tx: {msg.verb}/{msg.code}"
         )
@@ -215,8 +215,8 @@ def _check_msg_dst(msg: Message, klass: str) -> None:
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
     """
 
-    if klass not in RAMSES_DEVICES:  # DEX_done, TODO: fingerprint dev class
-        if msg.code not in HVAC_ONLY_CODES:
+    if klass not in CODES_BY_DEV_KLASS:  # DEX_done, TODO: fingerprint dev class
+        if msg.code not in CODES_HVAC_ONLY:
             raise InvalidPacketError(f"Unknown dst type: {msg.dst}")
         _LOGGER.warning(f"{msg!r} < Unknown dst type: {msg.dst}, is it HVAC?")
         return
@@ -227,7 +227,7 @@ def _check_msg_dst(msg: Message, klass: str) -> None:
     if f"{klass}/{msg.verb}/{msg.code}" in (f"CTL/{RQ}/{_3EF1}",):  # DEX_done
         return  # HACK: an exception-to-the-rule that need sorting
 
-    if msg.code not in RAMSES_DEVICES[klass]:  # NOTE: not OK for Rx, DEX_done
+    if msg.code not in CODES_BY_DEV_KLASS[klass]:  # NOTE: not OK for Rx, DEX_done
         if klass != "HGI":  # NOTE: not yet needed because of 1st if, DEX_done
             raise InvalidPacketError(f"Invalid code for {msg.dst} to Rx: {msg.code}")
         if msg.verb == RP:
@@ -241,8 +241,8 @@ def _check_msg_dst(msg: Message, klass: str) -> None:
         return  # HACK: an exception-to-the-rule that need sorting
 
     verb = {RQ: RP, RP: RQ, W_: I_}[msg.verb]
-    # (code := RAMSES_DEVICES[klass][msg.code]) and verb not in code:
-    if verb not in RAMSES_DEVICES[klass][msg.code]:  # DEX_done
+    # (code := CODES_BY_DEV_KLASS[klass][msg.code]) and verb not in code:
+    if verb not in CODES_BY_DEV_KLASS[klass][msg.code]:  # DEX_done
         raise InvalidPacketError(
             f"Invalid verb/code for {msg.dst} to Rx: {msg.verb}/{msg.code}"
         )

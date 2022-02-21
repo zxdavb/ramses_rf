@@ -17,7 +17,7 @@ from .exceptions import InvalidPacketError
 from .frame import PacketBase
 from .logger import getLogger
 from .opentherm import PARAMS_MSG_IDS, SCHEMA_MSG_IDS, STATUS_MSG_IDS
-from .ramses import EXPIRES, RAMSES_CODES
+from .ramses import CODES_SCHEMA, EXPIRES
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -313,7 +313,7 @@ def pkt_timeout(pkt) -> Optional[td]:  # NOTE: import OtbGateway ??
     # if pkt.code in (_3B00, _3EF0, ):  # TODO: 0008, 3EF0, 3EF1
     #     return td(minutes=6.7)  # TODO: WIP
 
-    if (code := RAMSES_CODES.get(pkt.code)) and EXPIRES in code:
-        return RAMSES_CODES[pkt.code][EXPIRES]
+    if (code := CODES_SCHEMA.get(pkt.code)) and EXPIRES in code:
+        return CODES_SCHEMA[pkt.code][EXPIRES]
 
     return _TD_MINUTES_060

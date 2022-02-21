@@ -12,16 +12,14 @@ from typing import Optional, Union
 from .address import Address
 from .const import NON_DEVICE_ID, NUL_DEVICE_ID
 from .exceptions import InvalidPayloadError
-from .ramses import (
-    CODE_IDX_COMPLEX,
-    CODE_IDX_DOMAIN,
-    CODE_IDX_NONE,
-    CODE_IDX_SIMPLE,
-    CODE_ONLY_FROM_CTL,
-    CODES_WITH_ARRAYS,
-    RAMSES_CODES,
-    RQ_NO_PAYLOAD,
-)
+from .ramses import CODE_IDX_COMPLEX  # used here, parsers, message(lower)
+from .ramses import CODE_IDX_DOMAIN  # only used here
+from .ramses import CODE_IDX_NONE  # only used here
+from .ramses import CODE_IDX_SIMPLE  # only used here
+from .ramses import CODES_ONLY_FROM_CTL  # used here, devices.py
+from .ramses import CODES_WITH_ARRAYS  # only used here
+from .ramses import RQ_NO_PAYLOAD  # only used here
+from .ramses import CODES_SCHEMA
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -270,13 +268,13 @@ class PacketBase:
         elif self.dst is self.src:  # (not needed?) & self.code == I_:
             _LOGGER.debug(
                 f"{self} < "
-                + ("HAS" if self.code in CODE_ONLY_FROM_CTL + [_31D9, _31DA] else "no")
+                + ("HAS" if self.code in CODES_ONLY_FROM_CTL + [_31D9, _31DA] else "no")
                 + " controller (20)"
             )
             self._has_ctl_ = any(
                 (
                     self.code == _3B00 and self.payload[:2] == "FC",
-                    self.code in CODE_ONLY_FROM_CTL + [_31D9, _31DA],
+                    self.code in CODES_ONLY_FROM_CTL + [_31D9, _31DA],
                 )
             )
 
@@ -425,7 +423,7 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
 
     # mutex 1/4, CODE_IDX_NONE: always returns False
     if pkt.code in CODE_IDX_NONE:  # returns False
-        if RAMSES_CODES[pkt.code].get(pkt.verb, "")[:3] == "^00" and (
+        if CODES_SCHEMA[pkt.code].get(pkt.verb, "")[:3] == "^00" and (
             pkt.payload[:2] != "00"
         ):
             raise InvalidPayloadError(

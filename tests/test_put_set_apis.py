@@ -19,7 +19,7 @@ from ramses_rf.protocol.packet import Packet
 GWY_CONFIG = {}
 
 
-class TestSetApis(unittest.IsolatedAsyncioTestCase):
+class TestApisBase(unittest.IsolatedAsyncioTestCase):
 
     _gwy = Gateway(None, loop=asyncio.get_event_loop(), config=GWY_CONFIG)
 
@@ -53,37 +53,8 @@ class TestSetApis(unittest.IsolatedAsyncioTestCase):
             if msg.src.id == HGI_DEVICE_ID:
                 self.assertEqual(cmd, pkt)  # must have exact same addr set
 
-    def test_put_30c9(self):
-        self._test_api(Command.put_sensor_temp, PUT_30C9_GOOD)
 
-    def test_put_3ef0(self):
-        self._test_api(Command.put_actuator_state, PUT_3EF0_GOOD)
-
-    def test_put_3ef1(self):  # NOTE: bespoke
-        # self._test_api(Command.put_actuator_cycle, PUT_3EF1_GOOD)
-        for pkt_line in PUT_3EF1_GOOD:
-            pkt = Packet.from_port(self._gwy, dt.now(), pkt_line)
-
-            self.assertEqual(str(pkt), pkt_line[4:])
-
-            msg = Message(self._gwy, pkt)
-
-            kwargs = msg.payload
-            modulation_level = kwargs.pop("modulation_level")
-            actuator_countdown = kwargs.pop("actuator_countdown")
-            cmd = Command.put_actuator_cycle(
-                msg.src.id,
-                msg.dst.id,
-                modulation_level,
-                actuator_countdown,
-                **{k: v for k, v in kwargs.items() if k[:1] != "_"}
-            )
-
-            self.assertEqual(cmd.payload[:-2], pkt.payload[:-2])
-
-            if msg.src.id == "18:000730":
-                self.assertEqual(cmd, pkt)  # must have exact same addr set
-
+class TestSetApis(TestApisBase):
     def test_set_0004(self):
         self._test_api(Command.set_zone_name, SET_0004_GOOD)
         # self.assertEqual(str_from_hex(cmd.payload[4:]), msg.payload["name"])
@@ -108,7 +79,9 @@ class TestSetApis(unittest.IsolatedAsyncioTestCase):
 
             domain_id = msg.payload.pop("domain_id", None)
             cmd = Command.set_tpi_params(
-                msg.dst.id, domain_id, **{k: v for k, v in msg.payload.items() if k[:1] != "_"}
+                msg.dst.id,
+                domain_id,
+                **{k: v for k, v in msg.payload.items() if k[:1] != "_"}
             )
 
             self.assertEqual(cmd.payload, pkt.payload)
@@ -145,13 +118,44 @@ class TestSetApis(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(cmd.payload[6:], pkt.payload[6:])
 
 
+class TestPutApis(TestApisBase):
+    def test_put_30c9(self):
+        self._test_api(Command.put_sensor_temp, PUT_30C9_GOOD)
+
+    def test_put_3ef0(self):
+        self._test_api(Command.put_actuator_state, PUT_3EF0_GOOD)
+
+    def test_put_3ef1(self):  # NOTE: bespoke
+        # self._test_api(Command.put_actuator_cycle, PUT_3EF1_GOOD)
+        for pkt_line in PUT_3EF1_GOOD:
+            pkt = Packet.from_port(self._gwy, dt.now(), pkt_line)
+
+            self.assertEqual(str(pkt), pkt_line[4:])
+
+            msg = Message(self._gwy, pkt)
+
+            kwargs = msg.payload
+            modulation_level = kwargs.pop("modulation_level")
+            actuator_countdown = kwargs.pop("actuator_countdown")
+            cmd = Command.put_actuator_cycle(
+                msg.src.id,
+                msg.dst.id,
+                modulation_level,
+                actuator_countdown,
+                **{k: v for k, v in kwargs.items() if k[:1] != "_"}
+            )
+
+            self.assertEqual(cmd.payload[:-2], pkt.payload[:-2])
+
+            if msg.src.id == "18:000730":
+                self.assertEqual(cmd, pkt)  # must have exact same addr set
+
+
 PUT_30C9_GOOD = (
     "...  I --- 03:123456 --:------ 03:123456 30C9 003 0007C1",
     "...  I --- 03:123456 --:------ 03:123456 30C9 003 007FFF",
 )
-PUT_3EF0_FAIL = (
-    "...  I --- 13:123456 --:------ 13:123456 3EF0 003 00AAFF",
-)
+PUT_3EF0_FAIL = ("...  I --- 13:123456 --:------ 13:123456 3EF0 003 00AAFF",)
 PUT_3EF0_GOOD = (
     "...  I --- 13:123456 --:------ 13:123456 3EF0 003 0000FF",
     "...  I --- 13:123456 --:------ 13:123456 3EF0 003 00C8FF",
@@ -220,7 +224,6 @@ SET_2E04_GOOD = (
     # "...  W --- 30:258720 01:073976 --:------ 2E04 008 0000000000000000",
     "...  W --- 30:258720 01:073976 --:------ 2E04 008 00FFFFFFFFFFFF00",
     "...  W --- 30:258720 01:073976 --:------ 2E04 008 01FFFFFFFFFFFF00",
-
     "...  W --- 30:258720 01:073976 --:------ 2E04 008 020B011A0607E401",
     "...  W --- 30:258720 01:073976 --:------ 2E04 008 0521011A0607E401",
 )
@@ -229,7 +232,7 @@ SET_313F_GOOD = (
     "...  W --- 30:258720 01:073976 --:------ 313F 009 0060011E09010707E6",
     "...  W --- 30:258720 01:073976 --:------ 313F 009 006002210D080C07E5",
     "...  W --- 30:042165 01:076010 --:------ 313F 009 006003090A0D0207E6",
-    "...  W --- 30:042165 01:076010 --:------ 313F 009 0060041210040207E6"
+    "...  W --- 30:042165 01:076010 --:------ 313F 009 0060041210040207E6",
 )
 
 

@@ -38,7 +38,7 @@ from .protocol.opentherm import (
     STATUS_MSG_IDS,
     VALUE,
 )
-from .protocol.ramses import CODE_ONLY_FROM_CTL, NAME, RAMSES_CODES, RAMSES_DEVICES
+from .protocol.ramses import CODES_BY_DEV_KLASS, CODES_ONLY_FROM_CTL, CODES_SCHEMA, NAME
 from .protocol.transport import PacketProtocolPort
 from .schema import SZ_ALIAS, SZ_CLASS, SZ_DEVICE_ID, SZ_FAKED
 
@@ -272,7 +272,7 @@ class DeviceBase(Entity):
         if msg.verb != I_ or self._iz_controller is not None:
             return
 
-        if not self._iz_controller and msg.code in CODE_ONLY_FROM_CTL:
+        if not self._iz_controller and msg.code in CODES_ONLY_FROM_CTL:
             if self._iz_controller is None:
                 _LOGGER.info(f"{msg!r} # IS_CONTROLLER (00): is TRUE")
                 self._make_tcs_controller(msg)
@@ -330,7 +330,7 @@ class DeviceBase(Entity):
             # SZ_FAKED: self._faked,
             SZ_CLASS: self._klass,
             "supported_msgs": {
-                k: (RAMSES_CODES[k][NAME] if k in RAMSES_CODES else None)
+                k: (CODES_SCHEMA[k][NAME] if k in CODES_SCHEMA else None)
                 for k in sorted(self._msgs)
             },
         }
@@ -363,8 +363,8 @@ class Device(DeviceBase):  # 10E0
     def _discover(self, discover_flag=Discover.ALL) -> None:
         if discover_flag & Discover.SCHEMA:
             if not self._msgs.get(_10E0) and (
-                self._klass not in RAMSES_DEVICES
-                or RP in RAMSES_DEVICES[self._klass].get(_10E0, {})
+                self._klass not in CODES_BY_DEV_KLASS
+                or RP in CODES_BY_DEV_KLASS[self._klass].get(_10E0, {})
             ):
                 self._make_cmd(_10E0, retries=3)
 
@@ -449,7 +449,7 @@ class Device(DeviceBase):  # 10E0
     def traits(self) -> dict:
         result = super().traits
         result.update({f"_{self.RF_BIND}": self._msg_value(_1FC9)})
-        if _10E0 in self._msgs or _10E0 in RAMSES_DEVICES.get(self._klass, []):
+        if _10E0 in self._msgs or _10E0 in CODES_BY_DEV_KLASS.get(self._klass, []):
             result.update({f"_{self.DEVICE_INFO}": self.device_info})
         return result
 
@@ -1759,7 +1759,7 @@ class OtbGateway(Actuator, HeatDemand, Device):  # OTB (10): 3220 (22D9, others)
     @property
     def _supported_msgs(self) -> dict:
         return {
-            k: (RAMSES_CODES[k][NAME] if k in RAMSES_CODES else None)
+            k: (CODES_SCHEMA[k][NAME] if k in CODES_SCHEMA else None)
             for k in sorted(self._msgs)
             if self._msgs_supported.get(k) is not False
         }
@@ -1833,7 +1833,7 @@ class Thermostat(BatteryState, Setpoint, Temperature, Device):  # THM (..):
             elif self._iz_controller:  # TODO: raise CorruptStateError
                 _LOGGER.error(f"{msg!r} # IS_CONTROLLER (11): was TRUE, now False")
 
-            if msg.code in CODE_ONLY_FROM_CTL:  # TODO: raise CorruptPktError
+            if msg.code in CODES_ONLY_FROM_CTL:  # TODO: raise CorruptPktError
                 _LOGGER.error(f"{msg!r} # IS_CONTROLLER (12); is CORRUPT PKT")
 
         elif all(

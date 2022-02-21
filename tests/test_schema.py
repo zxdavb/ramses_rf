@@ -22,7 +22,6 @@ LOG_DIR = f"{os.path.dirname(__file__)}/logs"
 
 
 class TestSetApis(unittest.IsolatedAsyncioTestCase):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -43,6 +42,7 @@ class TestSetApis(unittest.IsolatedAsyncioTestCase):
         # print(json.dumps(schema, indent=4))
 
         self.assertEqual(self.gwy.schema, schema)
+
 
 if __name__ == "__main__":
     unittest.main()

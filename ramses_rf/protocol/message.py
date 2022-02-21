@@ -16,7 +16,7 @@ from .address import Address
 from .exceptions import InvalidPacketError, InvalidPayloadError
 from .packet import fraction_expired
 from .parsers import PAYLOAD_PARSERS, parser_unknown
-from .ramses import CODE_IDX_COMPLEX, CODE_RQ_COMPLEX, RAMSES_CODES
+from .ramses import CODE_IDX_COMPLEX, CODES_SCHEMA, RQ_IDX_COMPLEX
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -112,9 +112,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 
 __all__ = ["Message"]
 
-HVAC_ONLY_CODES = (_1298, _12A0, _12C8, _22F1, _22F3, _3110, _31D9, _31DA, _31E0)
-
-CODE_NAMES = {k: v["name"] for k, v in RAMSES_CODES.items()}
+CODE_NAMES = {k: v["name"] for k, v in CODES_SCHEMA.items()}
 
 MSG_FORMAT_10 = "|| {:10s} | {:10s} | {:2s} | {:16s} | {:^4s} || {}"
 MSG_FORMAT_18 = "|| {:18s} | {:18s} | {:2s} | {:16s} | {:^4s} || {}"
@@ -391,7 +389,7 @@ class Message:
             _check_msg_payload(self, self._pkt.payload)  # ? InvalidPayloadError
 
             if not self._has_payload or (
-                self.verb == RQ and self.code not in CODE_RQ_COMPLEX
+                self.verb == RQ and self.code not in RQ_IDX_COMPLEX
             ):
                 # _LOGGER.error("%s", msg)
                 return {}
@@ -453,11 +451,11 @@ def _check_msg_payload(msg: Message, payload) -> None:
     try:
         _ = repr(msg._pkt)  # HACK: ? raise InvalidPayloadError
 
-        if msg.code not in RAMSES_CODES:
+        if msg.code not in CODES_SCHEMA:
             raise InvalidPacketError(f"Unknown code: {msg.code}")
 
         try:
-            regex = RAMSES_CODES[msg.code][msg.verb]
+            regex = CODES_SCHEMA[msg.code][msg.verb]
         except KeyError:
             raise InvalidPacketError(f"Unknown verb/code pair: {msg.verb}/{msg.code}")
 

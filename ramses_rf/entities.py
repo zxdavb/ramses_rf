@@ -9,7 +9,7 @@ from sys import modules
 from typing import Optional
 
 from .const import Discover, __dev_mode__
-from .protocol.ramses import NAME, RAMSES_CODES
+from .protocol.ramses import CODES_SCHEMA, NAME
 
 # skipcq: PY-W2000
 from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -212,7 +212,7 @@ class Entity:
     @property
     def _codes(self) -> dict:
         return {
-            k: (RAMSES_CODES[k][NAME] if k in RAMSES_CODES else None)
+            k: (CODES_SCHEMA[k][NAME] if k in CODES_SCHEMA else None)
             for k in sorted(self._msgs)
         }
 

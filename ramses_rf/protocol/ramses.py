@@ -100,7 +100,7 @@ from .const import (  # isort: skip
     _PUZZ,
 )
 
-DEV_MODE = __dev_mode__
+DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -114,11 +114,12 @@ EXPIRY = "expiry"
 
 # The master list - all known codes are here, even if there's no corresponding parser
 # Anything with a zone-idx should start: ^0[0-9A-F], ^(0[0-9A-F], or ^((0[0-9A-F]
+
 #
-##############
-# RAMSES_CODES
+########################################################################################
+# CODES_SCHEMA
 #
-RAMSES_CODES = {  # rf_unknown
+CODES_SCHEMA = {  # rf_unknown
     _0001: {
         NAME: "rf_unknown",
         I_: r"^00FFFF02(00|FF)$",  # loopback
@@ -258,8 +259,10 @@ RAMSES_CODES = {  # rf_unknown
         RP: r"^00[0-9A-F]{4}$",
     },
     _1090: {  # unknown_1090
+        # 095 RP --- 23:100224 22:219457 --:------ 1090 005 00-7FFF-01F4
         NAME: "message_1090",
-        # RQ: r"^00$",  # TODO:
+        RQ: r"^00$",
+        RP: r"^00",
     },
     _1098: {  # unknown_1098
         NAME: "message_1098",
@@ -616,12 +619,9 @@ RAMSES_CODES = {  # rf_unknown
         I_: r"^00(([0-9A-F]){2})+$",
     },
 }
-for code in RAMSES_CODES.values():
+for code in CODES_SCHEMA.values():  # map any RPs to (missing) I_s
     if RQ in code and RP not in code and I_ in code:
         code[RP] = code[I_]
-
-CODE_ONLY_FROM_CTL = [_1030, _1F09, _22D0, _313F]  # I packets, TODO: 31Dx too?
-
 #
 # I --- 01:210309 --:------ 01:210309 0009 006 FC00FFF900FF
 CODES_WITH_ARRAYS = {
@@ -634,9 +634,8 @@ CODES_WITH_ARRAYS = {
     _22C9: [6, ("02",)],  # *all* 22C9s are arrays (every 15min?)
     _3150: [2, ("02",)],
 }  # TODO dex: element_length, src.type(s) (and dst.type too)
-
 #
-CODE_RQ_COMPLEX = [
+RQ_IDX_COMPLEX = [
     _0005,  # context: zone_type
     _000A,  # optional payload
     _000C,  # context: index, zone_type
@@ -649,69 +648,48 @@ CODE_RQ_COMPLEX = [
     _2349,  # optional payload
     _3220,  # context: msg_id, and payload
 ]
-# CODE_RQ_COMPLEX = []
 RQ_NO_PAYLOAD = [
     k
-    for k, v in RAMSES_CODES.items()
+    for k, v in CODES_SCHEMA.items()
     if v.get(RQ)
     in (r"^FF$", r"^00$", r"^00(00)?$", r"^0[0-9A-F](00)?$", r"^0[0-9A-F]00$")
 ]
 RQ_NO_PAYLOAD.extend((_0418,))
-RQ_IDX_ONLY = [
-    k
-    for k, v in RAMSES_CODES.items()
-    if k not in RQ_NO_PAYLOAD
-    and RQ in v
-    and (v[RQ] in (r"^0[0-9A-F]00$", r"^0[0-9A-F](00)?$"))
-]
-RQ_IDX_ONLY.extend((_0418,))  # _31D9, _31DA, _3220, _3EF1))
-CODE_RQ_UNKNOWN = [
-    k
-    for k, v in RAMSES_CODES.items()
-    if k not in RQ_NO_PAYLOAD + RQ_IDX_ONLY and RQ in v
-]
-RQ_NO_PAYLOAD.sort()  # or print(f"no: idx, ctx, payload = {list(RQ_NO_PAYLOAD)}")
-RQ_IDX_ONLY.sort()  # or print(f"     no: ctx, payload = {list(RQ_IDX_ONLY)}")
-CODE_RQ_COMPLEX.sort()  # or print(f"          no: payload = {list(CODE_RQ_COMPLEX)}")
-CODE_RQ_UNKNOWN.sort()  # or print(f"unknown  = {list(CODE_RQ_UNKNOWN)}\r\n")
 
 # IDX_COMPLEX - *usually has* a context, but doesn't satisfy criteria for IDX_SIMPLE:
-# all known codes are in one of IDX_COMPLEX, IDX_NONE, IDX_SIMPLE
+# all known codes should be in only one of IDX_COMPLEX, IDX_NONE, IDX_SIMPLE
 CODE_IDX_COMPLEX = [_0005, _000C, _1100, _3220]  # TODO: 0005 to ..._NONE?
+CODE_IDX_COMPLEX.sort()
 
 # IDX_SIMPLE - *can have* a context, but sometimes not (usu. 00): only ever payload[:2],
 # either a zone_idx, domain_id or (UFC) circuit_idx (or array of such, i.e. seqx[:2])
 CODE_IDX_SIMPLE = [
     k
-    for k, v in RAMSES_CODES.items()
+    for k, v in CODES_SCHEMA.items()
     if k not in CODE_IDX_COMPLEX
     and (
         (RQ in v and v[RQ].startswith(("^0[0-9A-F]", "^(0[0-9A-F]")))
         or (I_ in v and v[I_].startswith(("^0[0-9A-F]", "^(0[0-9A-F]", "^((0[0-9A-F]")))
     )
 ]
-CODE_IDX_SIMPLE.extend((_10A0, _1100, _3B00))
+CODE_IDX_SIMPLE.extend((_10A0, _3B00))
+CODE_IDX_SIMPLE.sort()
 
 # IDX_NONE - *never has* a context: most payloads start 00, but no context even if the
 # payload starts with something else (e.g. 2E04)
 CODE_IDX_NONE = [
     k
-    for k, v in RAMSES_CODES.items()
+    for k, v in CODES_SCHEMA.items()
     if k not in CODE_IDX_COMPLEX + CODE_IDX_SIMPLE
     and ((RQ in v and v[RQ][:3] == "^00") or (I_ in v and v[I_][:3] == "^00"))
 ]
 CODE_IDX_NONE.extend(
     (_0002, _22F1, _22F3, _2389, _2E04, _31DA, _4401)
 )  # 31DA does appear to have an idx?
-#
-#
-_CODE_IDX_UNKNOWN = [
-    k
-    for k, v in RAMSES_CODES.items()
-    if k not in CODE_IDX_COMPLEX + CODE_IDX_NONE + CODE_IDX_SIMPLE
-]  # TODO: remove as not needed?
-#
-CODE_IDX_DOMAIN = {  # not necc. mutex
+CODE_IDX_NONE.sort()
+
+# CODE_IDX_DOMAIN - NOTE: not necc. mutex with other 3
+CODE_IDX_DOMAIN = {
     _0001: "^F[ACF])",
     _0008: "^F[9AC]",
     _0009: "^F[9AC]",
@@ -720,17 +698,12 @@ CODE_IDX_DOMAIN = {  # not necc. mutex
     _3150: "^FC",
     _3B00: "^FC",
 }
-#
-CODE_IDX_COMPLEX.sort()  # or print(f"complex = {CODE_IDX_COMPLEX}")
-CODE_IDX_NONE.sort()  # or print(f"none    = {CODE_IDX_NONE}")
-CODE_IDX_SIMPLE.sort()  # or print(f"simple  = {CODE_IDX_SIMPLE}")
-_CODE_IDX_UNKNOWN.sort()  # or print(f"unknown = {_CODE_IDX_UNKNOWN}")
-# print(f"domains = {list(CODE_IDX_DOMAIN)}")
 
-################
-# RAMSES_DEVICES
 #
-RAMSES_DEVICES_CLASS = {
+########################################################################################
+# CODES_BY_DEV_KLASS
+#
+_DEV_KLASSES_CH_DHW = {
     DEV_KLASS.HGI: {  # HGI80: RF to (USB) serial gateway interface
         _PUZZ: {I_: {}, RQ: {}, W_: {}},
     },  # HGI80s can do what they like
@@ -989,7 +962,7 @@ RAMSES_DEVICES_CLASS = {
     # },
 }
 
-HVAC_DEVICES_CLASS = {
+_DEV_KLASSES_HVAC = {
     DEV_KLASS.RFS: {  # Itho spIDer: RF to Internet gateway (like a RFG100)
         _1060: {I_: {}},
         _10E0: {I_: {}, RP: {}},
@@ -1043,19 +1016,26 @@ HVAC_DEVICES_CLASS = {
     },  # https://www.ithodaalderop.nl/nl-NL/professional/product/536-0124
 }
 
-# RAMSES_DEVICES = {**HVAC_DEVICES, **RAMSES_DEVICES}
-# for k, v in DEVICE_TYPE_BY_CLASS.items():
-#     if k in RAMSES_DEVICES_CLASS:
-#         RAMSES_DEVICES[v] = RAMSES_DEVICES_CLASS[k]
+CODES_BY_DEV_KLASS = {**_DEV_KLASSES_HVAC, **_DEV_KLASSES_CH_DHW}
 
-RAMSES_DEVICES = {**HVAC_DEVICES_CLASS, **RAMSES_DEVICES_CLASS}
-
-_CODES_CH_DHW = dict.fromkeys(c for k in RAMSES_DEVICES_CLASS.values() for c in k)
-_CODES_HVAC = dict.fromkeys(c for k in HVAC_DEVICES_CLASS.values() for c in k)
+_CODES_CH_DHW = dict.fromkeys(c for k in _DEV_KLASSES_CH_DHW.values() for c in k)
+_CODES_HVAC = dict.fromkeys(c for k in _DEV_KLASSES_HVAC.values() for c in k)
 CODES_HVAC_ONLY = tuple(c for c in _CODES_HVAC if c not in _CODES_CH_DHW)
 
-####################
-# RAMSES_ZONES (WIP)
+_CODE_FROM_NON_CTL = dict.fromkeys(
+    c
+    for k, v1 in CODES_BY_DEV_KLASS.items()
+    for c, v2 in v1.items()
+    if k != DEV_KLASS.CTL and (I_ in v2 or RP in v2)
+)
+_CODE_FROM_CTL = _DEV_KLASSES_CH_DHW[DEV_KLASS.CTL].keys()
+
+_CODE_ONLY_FROM_CTL = tuple(c for c in _CODE_FROM_CTL if c not in _CODE_FROM_NON_CTL)
+CODES_ONLY_FROM_CTL = [_1030, _1F09, _22D0, _313F]  # I packets, TODO: 31Dx too?
+
+#
+########################################################################################
+# CODES_BY_ZONE_TYPE
 #
 # RAMSES_ZONES = {
 #     "ALL": {

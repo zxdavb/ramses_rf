@@ -12,7 +12,7 @@ import logging
 import re
 
 from .const import __dev_mode__  # DEVICE_ID_REGEX,
-from .protocol import RAMSES_CODES, Command, ExpiredCallbackError, Priority
+from .protocol import CODES_SCHEMA, Command, ExpiredCallbackError, Priority
 from .protocol.opentherm import OTB_MSG_IDS
 
 # skipcq: PY-W2000
@@ -266,7 +266,7 @@ async def script_scan_full(gwy, dev_id: str):
     gwy.send_cmd(Command(RQ, _0016, "0000", dev_id, **qos))
 
     qos = {"priority": Priority.DEFAULT, "retries": 1}
-    for code in sorted(RAMSES_CODES):
+    for code in sorted(CODES_SCHEMA):
         if code == _0005:
             for zone_type in range(20):  # known up to 18
                 gwy.send_cmd(Command(RQ, code, f"00{zone_type:02X}", dev_id, **qos))
@@ -305,9 +305,9 @@ async def script_scan_full(gwy, dev_id: str):
             continue
 
         elif (
-            code in RAMSES_CODES
-            and RQ in RAMSES_CODES[code]
-            and re.match(RAMSES_CODES[code][RQ], "00")
+            code in CODES_SCHEMA
+            and RQ in CODES_SCHEMA[code]
+            and re.match(CODES_SCHEMA[code][RQ], "00")
         ):
             gwy.send_cmd(Command(RQ, code, "00", dev_id, **qos))
 
@@ -360,7 +360,7 @@ async def script_scan_002(gwy, dev_id: str):
     [
         gwy.send_cmd(Command(W_, f"{c:04X}", message, dev_id, **QOS_DEFAULT))
         for c in range(0x4000)
-        if c not in RAMSES_CODES
+        if c not in CODES_SCHEMA
     ]
 
 
