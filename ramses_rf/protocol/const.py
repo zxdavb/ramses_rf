@@ -42,6 +42,27 @@ DEV_KLASS = SimpleNamespace(
     JIM="JIM",  # Jasper Interface Module (EIM?)
     JST="JST",  # Jasper Stat
 )
+DEV_KLASS_BY_TYPE = {  # only CH/DHW defaults, not HVAC
+    "00": DEV_KLASS.TRV,
+    "01": DEV_KLASS.CTL,
+    "02": DEV_KLASS.UFC,
+    "03": DEV_KLASS.THM,
+    "04": DEV_KLASS.TRV,
+    "07": DEV_KLASS.DHW,
+    "08": DEV_KLASS.JIM,
+    "10": DEV_KLASS.OTB,
+    "12": DEV_KLASS.THM,
+    "13": DEV_KLASS.BDR,
+    "17": DEV_KLASS.OUT,
+    "18": DEV_KLASS.HGI,
+    "22": DEV_KLASS.THM,
+    "23": DEV_KLASS.PRG,
+    "30": DEV_KLASS.RFG,
+    "31": DEV_KLASS.JST,
+    "34": DEV_KLASS.THM,
+    "63": None,
+    "--": None,
+}
 
 
 HGI_DEVICE_ID = "18:000730"  # default type and address of HGI, 18:013393
