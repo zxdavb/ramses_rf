@@ -232,10 +232,4 @@ def pkt_addrs(pkt_fragment: str) -> tuple[Address, Address, list[Address]]:
     if src_addr.id == dst_addr.id:  # incl. HGI_DEV_ADDR == HGI_DEV_ADDR
         src_addr = dst_addr
 
-    elif not DEV_HVAC and src_addr.type == dst_addr.type:  # not a useful test if HVAC
-        # .I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200     # invalid
-        # .I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5         # invalid
-        # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C03040000 # valid? HVAC
-        raise InvalidAddrSetError(f"Invalid src/dst addr pair: {pkt_fragment}")
-
     return src_addr, dst_addr, addrs
