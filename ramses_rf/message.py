@@ -15,10 +15,12 @@ from .protocol import (
     CODES_BY_DEV_KLASS,
     CODES_SCHEMA,
     CorruptStateError,
+    InvalidAddrSetError,
     InvalidPacketError,
     Message,
 )
-from .protocol.message import CODES_HVAC_ONLY
+from .protocol.const import DEV_KLASS_BY_TYPE
+from .protocol.ramses import CODES_HVAC_ONLY
 
 # skipcq: PY-W2000
 from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -126,7 +128,7 @@ if DEV_MODE:
 
 
 def _create_devices_from_addrs(gwy, this: Message) -> None:
-    """Discover and create any new devices using the packet address set."""
+    """Discover and create any new devices using the packet addresses (not payload)."""
 
     # prefer Devices but can still use Addresses if required...
     this.src = gwy.device_by_id.get(this.src.id, this.src)
@@ -170,11 +172,33 @@ def _create_devices_from_addrs(gwy, this: Message) -> None:
         gwy._get_device(this.dst.id, ctl_id=this.src.id, msg=this)  # or _set_ctl?
 
 
-def _check_msg_src(msg: Message, klass: str) -> None:
+def _check_msg_addrs(msg: Message) -> None:
+    """Validate the packet's address set.
+
+    Raise InvalidAddrSetError if the meta data is invalid, otherwise simply return.
+    """
+
+    if msg.src.id != msg.dst.id and msg.src.type == msg.dst.type:
+        # .I --- 18:013393 18:000730 --:------ 0001 005 00FFFF0200     # invalid
+        # .I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5         # invalid
+        # .I --- 29:151550 29:237552 --:------ 22F3 007 00023C03040000 # valid? HVAC
+        if msg.code not in CODES_HVAC_ONLY:
+            raise InvalidAddrSetError(f"Invalid src/dst addr pair: {msg.src}/{msg.dst}")
+        _LOGGER.warning(
+            f"{msg!r} < Invalid src/dst addr pair: {msg.src}/{msg.dst}, is it HVAC?"
+        )
+
+
+def _check_msg_src(msg: Message, klass: str = None) -> None:
     """Validate the packet's source device class (type) against its verb/code pair.
 
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
     """
+
+    if klass is None:
+        klass = getattr(msg.src, "_klass", None) or DEV_KLASS_BY_TYPE.get(msg.src.type)
+    if klass in ("HGI", "DEV"):
+        return
 
     if klass not in CODES_BY_DEV_KLASS:  # DEX_done, TODO: fingerprint dev class
         if msg.code not in CODES_HVAC_ONLY:
@@ -209,11 +233,16 @@ def _check_msg_src(msg: Message, klass: str) -> None:
         )
 
 
-def _check_msg_dst(msg: Message, klass: str) -> None:
+def _check_msg_dst(msg: Message, klass: str = None) -> None:
     """Validate the packet's destination device class (type) against its verb/code pair.
 
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
     """
+
+    if klass is None:
+        klass = getattr(msg.dst, "_klass", None) or DEV_KLASS_BY_TYPE.get(msg.dst.type)
+    if klass in (None, "HGI", "DEV") or (msg.dst is msg.src and msg.verb == I_):
+        return
 
     if klass not in CODES_BY_DEV_KLASS:  # DEX_done, TODO: fingerprint dev class
         if msg.code not in CODES_HVAC_ONLY:
@@ -282,37 +311,18 @@ def process_msg(msg: Message, prev_msg: Message = None) -> None:
     elif log_level <= logging.INFO and not (msg.verb == RQ and msg.src.type == "18"):
         _LOGGER.info(msg)
 
-    # NOTE: this is used to expose message timeouts (esp. when parsing)
-    # [m._expired for d in gwy.devices for m in d._msg_db]
-
     msg._payload = detect_array(msg, prev_msg)  # HACK: messy, needs rethinking?
 
-    if gwy.config.reduce_processing >= DONT_CREATE_ENTITIES:
-        return
-
-    # # TODO: This will need to be removed for HGI80-impersonation
-    # # 18:/RQs are unreliable, although any corresponding RPs are often required
-    # if msg.src.type == "18":  # DEX
-    #     return
-
     try:  # process the packet payload
-        _create_devices_from_addrs(gwy, msg)  # from pkt header
 
-        if isinstance(msg.src, Device):
-            _check_msg_src(msg, msg.src._klass)  # ? InvalidPacketError
-        # elif DEV_MODE and not isinstance(msg.src, HgiGateway):
-        #     print(msg)
-        #     print(type(msg.src), msg.src)
-        #     print(type(msg.dst), msg.dst)
+        _check_msg_addrs(msg)  # ? InvalidAddrSetError
 
-        if isinstance(msg.dst, Device):
-            if msg.dst is not msg.src:
-                # Device class doesn't usu. include HgiGateway
-                _check_msg_dst(msg, msg.dst._klass)  # ? InvalidPacketError
-        # elif DEV_MODE and msg.dst.type not in ("18", "63", "--"):
-        #     print(msg)
-        #     print(type(msg.src), msg.src)
-        #     print(type(msg.dst), msg.dst)
+        # TODO: any value in not creating a device unless the message is valid?
+        if gwy.config.reduce_processing < DONT_CREATE_ENTITIES:
+            _create_devices_from_addrs(gwy, msg)
+
+        _check_msg_src(msg)  # ? InvalidPacketError
+        _check_msg_dst(msg)  # ? InvalidPacketError
 
         if gwy.config.reduce_processing >= DONT_UPDATE_ENTITIES:
             return
@@ -341,14 +351,14 @@ def process_msg(msg: Message, prev_msg: Message = None) -> None:
         (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
             "%s < %s", msg._pkt, f"{exc.__class__.__name__}({exc})"
         )
-        return  # NOTE: use raise only when debugging
+        raise
 
     except (AttributeError, LookupError, TypeError, ValueError) as exc:
         (_LOGGER.exception if DEV_MODE else _LOGGER.error)(
             "%s < %s", msg._pkt, f"{exc.__class__.__name__}({exc})"
         )
-        return  # NOTE: use raise only when debugging
+        raise
 
     except (CorruptStateError, InvalidPacketError) as exc:  # TODO: CorruptEvohomeError
         (_LOGGER.exception if DEV_MODE else _LOGGER.error)("%s < %s", msg._pkt, exc)
-        return  # TODO: bad pkt, or Schema
+        raise  # TODO: bad pkt, or Schema

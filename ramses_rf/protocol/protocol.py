@@ -177,6 +177,7 @@ class MessageTransport(asyncio.Transport):
         if self._gwy.config.reduce_processing >= DONT_CREATE_MESSAGES:
             return
 
+        # BUG: all InvalidPacketErrors are not being caught below
         try:
             msg = Message(self._gwy, pkt)  # should log all invalid msgs appropriately
         except InvalidPacketError:
@@ -189,10 +190,16 @@ class MessageTransport(asyncio.Transport):
             if not callback.get(DEAMON):
                 del self._callbacks[msg._pkt._hdr]
 
+        # BUG: the InvalidPacketErrors here should have been caught above
+        # BUG: should only need to catch CorruptStateError
         for p in self._protocols:
             try:
                 p.data_received(msg)
-            except (CorruptStateError, InvalidPacketError) as exc:
+
+            except InvalidPacketError:
+                return
+
+            except CorruptStateError as exc:
                 _LOGGER.error("%s < %s", pkt, exc)
 
             except (  # protect this code from the upper-layer callback
