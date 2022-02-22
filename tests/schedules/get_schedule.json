@@ -1,0 +1,62 @@
+{
+    "zone_idx": "01",
+    "schedule": [
+        {
+            "day_of_week": 0,
+            "switchpoints": [
+                {"time_of_day": "06:30", "heat_setpoint": 21.0},
+                {"time_of_day": "08:00", "heat_setpoint": 18.0},
+                {"time_of_day": "15:30", "heat_setpoint": 21.0},
+                {"time_of_day": "22:30", "heat_setpoint": 16.0}
+            ]
+        }, {
+            "day_of_week": 1,
+            "switchpoints": [
+                {"time_of_day": "06:30", "heat_setpoint": 21.0},
+                {"time_of_day": "08:00", "heat_setpoint": 18.0},
+                {"time_of_day": "15:30", "heat_setpoint": 21.0},
+                {"time_of_day": "22:30", "heat_setpoint": 16.0}
+            ]
+        }, {
+            "day_of_week": 2,
+            "switchpoints": [
+                {"time_of_day": "06:30", "heat_setpoint": 21.0},
+                {"time_of_day": "08:00", "heat_setpoint": 18.0},
+                {"time_of_day": "15:30", "heat_setpoint": 21.0},
+                {"time_of_day": "22:30", "heat_setpoint": 16.0}
+            ]
+        }, {
+            "day_of_week": 3,
+            "switchpoints": [
+                {"time_of_day": "06:30", "heat_setpoint": 21.0},
+                {"time_of_day": "08:00", "heat_setpoint": 18.0},
+                {"time_of_day": "15:30", "heat_setpoint": 21.0},
+                {"time_of_day": "22:30", "heat_setpoint": 16.0}
+            ]
+        }, {
+            "day_of_week": 4,
+            "switchpoints": [
+                {"time_of_day": "06:30", "heat_setpoint": 21.0},
+                {"time_of_day": "08:00", "heat_setpoint": 18.0},
+                {"time_of_day": "15:30", "heat_setpoint": 21.0},
+                {"time_of_day": "22:30", "heat_setpoint": 16.0}
+            ]
+        }, {
+            "day_of_week": 5,
+            "switchpoints": [
+                {"time_of_day": "08:00", "heat_setpoint": 21.0},
+                {"time_of_day": "10:00", "heat_setpoint": 21.0},
+                {"time_of_day": "18:00", "heat_setpoint": 21.0},
+                {"time_of_day": "23:00", "heat_setpoint": 16.0}
+            ]
+        }, {
+            "day_of_week": 6,
+            "switchpoints": [
+                {"time_of_day": "08:00", "heat_setpoint": 21.0},
+                {"time_of_day": "10:00", "heat_setpoint": 21.0},
+                {"time_of_day": "18:00", "heat_setpoint": 21.0},
+                {"time_of_day": "23:00", "heat_setpoint": 16.0}
+            ]
+        }
+    ]
+}

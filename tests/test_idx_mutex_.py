@@ -31,17 +31,26 @@ class TestIdxMutexBase(unittest.IsolatedAsyncioTestCase):
 
 class TestCodeIdxMutex(TestIdxMutexBase):
     def test_codes_idx_mutex(self):
-        codes_all = CODE_IDX_COMPLEX + CODE_IDX_NONE + CODE_IDX_SIMPLE
-        codes_oth = list(c for c in CODES_SCHEMA if c not in codes_all)
-        self._test_codes_idx_mutex(codes_oth, CODES_SCHEMA)
+        """Every code should be in one of the three CODE_IDX_* constants."""
+
+        codes_idx_all = CODE_IDX_COMPLEX + CODE_IDX_NONE + CODE_IDX_SIMPLE
+        self._test_codes_idx_mutex(
+            [c for c in CODES_SCHEMA if c not in codes_idx_all], CODES_SCHEMA
+        )
 
     def test_codes_idx_complex_mutex(self):
+        """The three CODE_IDX_* constants should be mutally exclusive."""
+
         self._test_codes_idx_mutex(CODE_IDX_COMPLEX, CODE_IDX_NONE + CODE_IDX_SIMPLE)
 
     def test_codes_idx_none_mutex(self):
+        """The three CODE_IDX_* constants should be mutally exclusive."""
+
         self._test_codes_idx_mutex(CODE_IDX_NONE, CODE_IDX_SIMPLE + CODE_IDX_COMPLEX)
 
     def test_codes_idx_simple_mutex(self):
+        """The three CODE_IDX_* constants should be mutally exclusive."""
+
         self._test_codes_idx_mutex(CODE_IDX_SIMPLE, CODE_IDX_NONE + CODE_IDX_COMPLEX)
 
 
