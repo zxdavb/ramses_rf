@@ -17,7 +17,7 @@ GWY_CONFIG = {}
 TEST_DIR = f"{os.path.dirname(__file__)}"
 
 
-class TestSetApis(unittest.IsolatedAsyncioTestCase):
+class TestSchema(unittest.IsolatedAsyncioTestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -34,7 +34,7 @@ class TestSetApis(unittest.IsolatedAsyncioTestCase):
         with open(f"{TEST_DIR}/schemas/schema_000.json") as f:
             schema = json.load(f)
 
-        # print(json.dumps(self._gwy.schema, indent=4))
+        # print(json.dumps(self.gwy.schema, indent=4))
         # print(json.dumps(schema, indent=4))
 
         self.assertEqual(self.gwy.schema, schema)
