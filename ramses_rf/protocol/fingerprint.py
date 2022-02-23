@@ -55,7 +55,7 @@ _DEVICE_INFO = {
     "0001C827050167FFFF": (DEV_KLASS.SWI, "29", "0000-00-00", "VMN-15LF01"),  # .                   22F1, 22F3
     "0001C827070167FFFF": (DEV_KLASS.SWI, "29", "0000-00-00", "VMN-15LF01"),  # .                   22F1, 22F3
     "0001C827090167FFFF": (DEV_KLASS.SWI, "29", "2019-02-13", "VMN-15LF01"),  # .                   22F1, 22F3 (and I|042F)
-    # 001C85A01016CFFFF": (DEV_KLASS.SWI, "32", "2016-06-01", "VMN-23LMH23"),  # .                  22F1, 1060, 4-way?
+    "0001C85A01016CFFFF": (DEV_KLASS.SWI, "32", "2016-06-01", "VMN-23LMH23"),  # .        zxdavb    22F1, 1060, 4-way?
     # RFS...
     "000100222B0001FEFF": (DEV_KLASS.RFS, "21", "2019-07-10", "CCU-12T20"),  # .           spIDer   1060, 12C0, 22C9,             2E10, 30C9, 3110, 3120, 3EF0
     "00010022340001FEFF": (DEV_KLASS.RFS, "21", "2020-08-05", "CCU-12T20"),  # .           spIDer   1060, 12C0, 22C9, 22F1, 22F3, 2E10, 30C9, 3110, 3120, 3EF0
@@ -65,7 +65,6 @@ _DEVICE_INFO = {
     "0001C8820C006AFEFF": (DEV_KLASS.FAN, "18", "2019-08-20", "HRA82"),  # .             NOTE: 18:  (only I|042F, I|10E0)
 }
 # fmt: on
-
 
 _DEVICE_INFO = {
     t: [k for k, v in _DEVICE_INFO.items() if v[1] == t]
