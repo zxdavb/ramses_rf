@@ -559,7 +559,7 @@ class Zone(ZoneSchedule, ZoneBase):
         self.device_by_id = {}
         self._sensor = None
 
-        # self._schedule = Schedule(self)  # TODO:
+        self._schedule = Schedule(self)  # TODO:
 
         if sensor:
             self._set_sensor(sensor)

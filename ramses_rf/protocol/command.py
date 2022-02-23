@@ -159,6 +159,7 @@ QOS_TABLE = {  # priority, retries, timeout, disable_backoff, c.f. QOS_TX_DEFAUL
     f"{RQ}/{_1F09}": (Priority.HIGH, 5, None, None),
     f"{I_}/{_1FC9}": (Priority.HIGH, 2, td(seconds=1), True),
     f"{I_}/{_0404}": (Priority.HIGH, 5, td(seconds=0.30), None),  # TODO: both short Tx,
+    f"{RQ}/{_0404}": (Priority.HIGH, 5, td(seconds=1.00), None),
     f"{W_}/{_0404}": (Priority.HIGH, 5, td(seconds=0.30), None),  # TODO: but long Rx
     f"{RQ}/{_0418}": (Priority.LOW, 3, None, None),
     f"{RQ}/{_3220}": (Priority.DEFAULT, 1, td(seconds=1.2), True),
