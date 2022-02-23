@@ -1199,7 +1199,7 @@ class Sundial(Evohome):
         return f"{self._ctl.id} (sundial)"
 
 
-_SYS_BY_KLASS = class_by_attr(__name__, "_SYS_KLASS")  # e.g. "evohome": Evohome
+_CLASS_BY_KLASS = class_by_attr(__name__, "_SYS_KLASS")  # e.g. "evohome": Evohome
 
 
 def create_system(gwy, ctl, klass=None, **kwargs) -> System:
@@ -1208,7 +1208,7 @@ def create_system(gwy, ctl, klass=None, **kwargs) -> System:
     if klass is None:
         klass = SYS_KLASS.PRG if isinstance(ctl, Programmer) else SYS_KLASS.EVO
 
-    system = _SYS_BY_KLASS.get(klass, System)(gwy, ctl, **kwargs)
+    system = _CLASS_BY_KLASS.get(klass, System)(gwy, ctl, **kwargs)
 
     if not gwy.config.disable_discovery and isinstance(
         gwy.pkt_protocol, PacketProtocolPort
