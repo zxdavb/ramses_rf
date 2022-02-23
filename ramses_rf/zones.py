@@ -733,7 +733,7 @@ class Zone(ZoneSchedule, ZoneBase):
         """
 
         _type = ZONE_TYPE_SLUGS.get(zone_type, zone_type)
-        if _type not in _ZON_BY_KLASS:
+        if _type not in _CLASS_BY_KLASS:
             raise ValueError(f"Not a known zone_type: {zone_type}")
 
         if self._zone_type == _type:
@@ -746,7 +746,7 @@ class Zone(ZoneSchedule, ZoneBase):
             )
 
         self._zone_type = _type
-        self.__class__ = _ZON_BY_KLASS[_type]
+        self.__class__ = _CLASS_BY_KLASS[_type]
         self._discover(discover_flag=Discover.SCHEMA)  # TODO: needs tidyup (ref #67)
         _LOGGER.debug("Promoted a Zone: %s(%s)", self.id, self.__class__)
 
@@ -1041,7 +1041,7 @@ def test_transform() -> None:
         print(valve_pos, "\t", heat_demand, "\t", result, "\t", status)
 
 
-_ZON_BY_KLASS = class_by_attr(__name__, "_ZON_KLASS")  # e.g. "RAD": RadZone
+_CLASS_BY_KLASS = class_by_attr(__name__, "_ZON_KLASS")  # e.g. "RAD": RadZone
 
 
 def create_zone(evo, zone_idx: str, klass=None, **kwargs) -> Zone:
@@ -1050,7 +1050,7 @@ def create_zone(evo, zone_idx: str, klass=None, **kwargs) -> Zone:
     if klass is None:
         klass = ZON_KLASS.DHW if zone_idx == "HW" else None
 
-    zone = _ZON_BY_KLASS.get(klass, Zone)(evo, zone_idx, **kwargs)
+    zone = _CLASS_BY_KLASS.get(klass, Zone)(evo, zone_idx, **kwargs)
 
     if not evo._gwy.config.disable_discovery and isinstance(
         evo._gwy.pkt_protocol, PacketProtocolPort
