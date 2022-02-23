@@ -541,7 +541,7 @@ _ZONE_MODES = {
 }
 
 
-class ZoneModes((AttrDict)):
+class ZoneModes(AttrDict):
     __slots__ = [f"_{k}" for k in _ZONE_MODES] + list(_ZONE_MODES.values())
 
 
@@ -559,7 +559,7 @@ _SYSTEM_MODES = {
 }
 
 
-class SystemModes((AttrDict)):
+class SystemModes(AttrDict):
     __slots__ = [f"_{k}" for k in _SYSTEM_MODES] + list(_SYSTEM_MODES.values())
 
 
