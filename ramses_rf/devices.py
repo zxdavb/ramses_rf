@@ -25,7 +25,7 @@ from .const import (
     __dev_mode__,
 )
 from .entities import Entity, class_by_attr, discover_decorator
-from .protocol import Command, CorruptStateError, Priority
+from .protocol import Command, CorruptStateError, Message, Priority
 from .protocol.address import NON_DEV_ADDR, id_to_address
 from .protocol.command import FUNC, TIMEOUT
 from .protocol.opentherm import (
@@ -38,7 +38,13 @@ from .protocol.opentherm import (
     STATUS_MSG_IDS,
     VALUE,
 )
-from .protocol.ramses import CODES_BY_DEV_KLASS, CODES_ONLY_FROM_CTL, CODES_SCHEMA, NAME
+from .protocol.ramses import (
+    CODES_BY_DEV_KLASS,
+    CODES_HVAC_ONLY,
+    CODES_ONLY_FROM_CTL,
+    CODES_SCHEMA,
+    NAME,
+)
 from .protocol.transport import PacketProtocolPort
 from .schema import SZ_ALIAS, SZ_CLASS, SZ_DEVICE_ID, SZ_FAKED
 
@@ -159,7 +165,7 @@ BindState = SimpleNamespace(
 #              bound -- bound
 
 
-DEV_MODE = __dev_mode__
+DEV_MODE = __dev_mode__  # and False
 OTB_MODE = False
 
 _LOGGER = logging.getLogger(__name__)
@@ -202,6 +208,9 @@ class DeviceBase(Entity):
         self._faked = None
         if self.id in gwy._include:
             self._alias = gwy._include[self.id].get(SZ_ALIAS)
+
+        if msg := kwargs.get("msg"):
+            self._loop.call_soon_threadsafe(self._handle_msg, msg)
 
     def __repr__(self) -> str:
         if self._STATE_ATTR:
@@ -371,14 +380,19 @@ class Device(DeviceBase):  # 10E0
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if type(self) is Device and self.type == "30":  # self.__class__ is Device, DEX
-            # TODO: the RFG codes need checking
-            if msg.code in (_31D9, _31DA, _31E0) and msg.verb in (I_, RP):
-                self.__class__ = HvacVentilator
-            elif msg.code in (_0006, _0418, _3220) and msg.verb == RQ:
-                self.__class__ = RfgGateway
-            elif msg.code in (_313F,) and msg.verb == W_:
-                self.__class__ = RfgGateway
+        if type(self) is Device:
+            if (klass := _best_device_klass(self.type, msg)) in _HVAC_VC_PAIR_BY_CLASS:
+                self.__class__ = _CLASS_BY_KLASS[klass]
+
+            elif self.type == "30":  # self.__class__ is Device, DEX
+                # TODO: the RFG codes need checking
+                if msg.code in (_0006, _0418, _3220) and msg.verb == RQ:
+                    self.__class__ = RfgGateway
+                elif msg.code in (_313F,) and msg.verb == W_:
+                    self.__class__ = RfgGateway
+
+            if type(self) is not Device:
+                _LOGGER.warning(f"Promoted the device class of: {self}")
 
         if not self._gwy.config.enable_eavesdrop:
             return
@@ -1989,6 +2003,8 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature, Device):  # T
 
 
 class HvacDevice(Device):
+    _DEV_KLASS = None
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -2005,11 +2021,23 @@ class HvacDevice(Device):
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
+        # if type(self) is HvacDevice:
+        #     if self.type == "30":  # self.__class__ is Device, DEX
+        #         # TODO: the RFG codes need checking
+        #         if msg.code in (_31D9, _31DA) and msg.verb in (I_, RP):
+        #             self.__class__ = HvacVentilator
+        #         elif msg.code in (_0006, _0418, _3220) and msg.verb == RQ:
+        #             self.__class__ = RfgGateway
+        #         elif msg.code in (_313F,) and msg.verb == W_:
+        #             self.__class__ = RfgGateway
+        #     if type(self) is not Device:
+        #         _LOGGER.warning(f"Promoted a device type for: {self}")
+
         if msg.code in (_1298, _12A0, _22F1, _22F3):
             self._hvac_trick()
 
 
-class RfsGateway(Device):  # RFS (spIDer gateway)
+class RfsGateway(Device):  # RFS: (spIDer gateway)
     """The HGI80 base class."""
 
     _DEV_KLASS = DEV_KLASS.RFS
@@ -2027,7 +2055,7 @@ class RfsGateway(Device):  # RFS (spIDer gateway)
         _LOGGER.debug("%s: can't (really) have a controller %s", self, ctl)
 
 
-class HvacHumidity(BatteryState, HvacDevice):  # HUM (32) I/12A0
+class HvacHumidity(BatteryState, HvacDevice):  # HUM: I/12A0
     """The Sensor class for a humidity sensor.
 
     The cardinal code is 12A0.
@@ -2062,7 +2090,7 @@ class HvacHumidity(BatteryState, HvacDevice):  # HUM (32) I/12A0
         }
 
 
-class HvacCarbonDioxide(HvacDevice):  # HUM (32) I/1298
+class HvacCarbonDioxide(HvacDevice):  # CO2: I/1298
     """The Sensor class for a CO2 sensor.
 
     The cardinal code is 1298.
@@ -2083,7 +2111,7 @@ class HvacCarbonDioxide(HvacDevice):  # HUM (32) I/1298
         }
 
 
-class HvacSwitch(BatteryState, HvacDevice):  # SWI (39): I/22F[13]
+class HvacSwitch(BatteryState, HvacDevice):  # SWI: I/22F[13]
     """The FAN (switch) class, such as a 4-way switch.
 
     The cardinal codes are 22F1, 22F3.
@@ -2117,7 +2145,7 @@ class HvacSwitch(BatteryState, HvacDevice):  # SWI (39): I/22F[13]
         }
 
 
-class HvacVentilator(HvacDevice):  # FAN (20/37): RP/31DA, I/31D[9A]
+class HvacVentilator(HvacDevice):  # FAN: RP/31DA, I/31D[9A]
     """The Ventilation class.
 
     The cardinal code are 31D9, 31DA.  Signature is RP/31DA.
@@ -2175,35 +2203,67 @@ class HvacVentilator(HvacDevice):  # FAN (20/37): RP/31DA, I/31D[9A]
         }
 
 
-_DEV_BY_KLASS = class_by_attr(__name__, "_DEV_KLASS")  # e.g. "CTL": Controller
+_CLASS_BY_KLASS = class_by_attr(__name__, "_DEV_KLASS")  # e.g. "CTL": Controller
 
-_DEV_TYPE_TO_KLASS = {  # TODO: *remove*
+_DEV_TYPE_TO_KLASS = {
     None: DEV_KLASS.DEV,  # a generic, promotable device
-    # "00": DEV_KLASS.TRV,
+    "00": DEV_KLASS.TRV,
     "01": DEV_KLASS.CTL,
-    "02": DEV_KLASS.UFC,
+    "02": DEV_KLASS.UFC,  # could be HVAC(SWI)
     "03": DEV_KLASS.THM,
     "04": DEV_KLASS.TRV,
-    "07": DEV_KLASS.DHW,
+    "07": DEV_KLASS.DHW,  # could be HVAC
     "10": DEV_KLASS.OTB,
-    "12": DEV_KLASS.THM,  # 12: can act like a DEV_KLASS.PRG
+    "12": DEV_KLASS.THM,  # can act like a DEV_KLASS.PRG
     "13": DEV_KLASS.BDR,
     "17": DEV_KLASS.OUT,
-    "18": DEV_KLASS.HGI,
-    "22": DEV_KLASS.THM,  # 22: can act like a DEV_KLASS.PRG
+    "18": DEV_KLASS.HGI,  # could be HVAC
+    "22": DEV_KLASS.THM,  # can act like a DEV_KLASS.PRG
     "23": DEV_KLASS.PRG,
-    "30": DEV_KLASS.RFG,  # either: RFG/FAN
+    "30": DEV_KLASS.RFG,  # could be HVAC
     "34": DEV_KLASS.THM,
 }  # these are the default device classes for Honeywell (non-HVAC) types
 
 
-def create_device(gwy, dev_id: str, klass=None, **kwargs) -> Device:
+def _best_device_klass(dev_id: str, msg: Message, eavesdrop: bool = None) -> str:
+    """Return the most approprite device class."""
+
+    def best_hvac_klass(dev_type: str, msg: Message) -> Optional[str]:
+        """Return an approprite device klass, if the device could be from the HVAC group."""
+
+        # if msg is None and dev_type in ("02", "07", "18", "30"):
+        #     return DEV_KLASS.DEV  # work out later, despite a well-known device type
+
+        if msg is None:
+            return
+
+        if klass := _HVAC_KLASS_BY_VC_PAIR.get((msg.verb, msg.code)):
+            return klass
+
+        if msg.code in CODES_HVAC_ONLY:
+            return DEV_KLASS.DEV  # work out later (use DEV_KLASS.HVC instead?)
+
+    if klass := best_hvac_klass(dev_id[:2], msg):
+        (_LOGGER.error if DEV_MODE else _LOGGER.warning)(
+            f"Using an eavesdropped class for: {dev_id} ({klass}): is/could be HVAC"
+        )
+
+    if klass is None:
+        klass = _DEV_TYPE_TO_KLASS.get(dev_id[:2], DEV_KLASS.DEV)
+        _LOGGER.debug(f"Using the default device class for: {dev_id} ({klass})")
+
+    return klass
+
+
+def create_device(
+    gwy, dev_id: str, klass: str = None, msg: Message = None, **kwargs
+) -> Device:
     """Create a device, and optionally perform discovery & start polling."""
 
     if klass is None:
-        klass = _DEV_TYPE_TO_KLASS.get(dev_id[:2], DEV_KLASS.DEV)  # DEX
+        klass = _best_device_klass(dev_id, msg, eavesdrop=gwy.config.enable_eavesdrop)
 
-    device = _DEV_BY_KLASS.get(klass, Device)(gwy, id_to_address(dev_id), **kwargs)
+    device = _CLASS_BY_KLASS[klass](gwy, id_to_address(dev_id), msg=msg, **kwargs)
 
     if not gwy.config.disable_discovery and isinstance(
         gwy.pkt_protocol, PacketProtocolPort
@@ -2213,12 +2273,21 @@ def create_device(gwy, dev_id: str, klass=None, **kwargs) -> Device:
     return device
 
 
-_OUT_DEV_KLASS_BY_SIGNATURE = {
-    "FAN": ((RP, _31DA), (I_, _31D9), (I_, _31DA)),
-    "SWI": ((I_, _22F1), (I_, _22F3)),
-    "HUM": ((I_, _12A0)),
-    "CO2": ((I_, _1298)),
+_HEAT_VC_PAIR_BY_CLASS = {
+    DEV_KLASS.DHW: ((I_, _1260),),
+    DEV_KLASS.OTB: ((I_, _3220), (RP, _3220)),
 }
+_HVAC_VC_PAIR_BY_CLASS = {
+    DEV_KLASS.CO2: ((I_, _1298),),
+    DEV_KLASS.FAN: ((I_, _31D9), (I_, _31DA), (RP, _31DA)),
+    DEV_KLASS.HUM: ((I_, _12A0),),
+    DEV_KLASS.SWI: ((I_, _22F1), (I_, _22F3)),
+}
+_HVAC_KLASS_BY_VC_PAIR = {t: k for k, v in _HVAC_VC_PAIR_BY_CLASS.items() for t in v}
+if DEV_MODE:
+    assert len(_HVAC_KLASS_BY_VC_PAIR) == (
+        sum(len(v) for v in _HVAC_VC_PAIR_BY_CLASS.values())
+    ), "Coding error: There is a duplicate verb/code pair"
 
 if DEV_MODE:
     # check that each entity with a non-null _STATE_ATTR has that attr

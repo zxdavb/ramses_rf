@@ -328,7 +328,7 @@ def execute(obj, **kwargs):
     if lib_kwargs[CONFIG].get(DISABLE_DISCOVERY) is None:
         lib_kwargs[CONFIG][DISABLE_DISCOVERY] = True
 
-    if cli_kwargs.get(GET_FAULTS):
+    if cli_kwargs[GET_FAULTS]:
         lib_kwargs[KNOWN_LIST] = {cli_kwargs[GET_FAULTS]: {}}
 
     elif cli_kwargs[GET_SCHED][0]:
@@ -337,7 +337,7 @@ def execute(obj, **kwargs):
     elif cli_kwargs[SET_SCHED][0]:
         lib_kwargs[KNOWN_LIST] = {cli_kwargs[SET_SCHED][0]: {}}
 
-    if lib_kwargs[KNOWN_LIST]:
+    if lib_kwargs.get(KNOWN_LIST):
         lib_kwargs[CONFIG][ENFORCE_KNOWNLIST] = True
 
     asyncio.run(main(EXECUTE, lib_kwargs, **cli_kwargs))

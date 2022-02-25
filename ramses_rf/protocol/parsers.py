@@ -922,12 +922,18 @@ def parser_12c0(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # unknown_12c8, HVAC
+@parser_decorator  # air_quality, HVAC
 def parser_12c8(payload, msg) -> Optional[dict]:
-    #  I --- 37:261128 --:------ 37:261128 12C8 003 000040
+    # 04:50:01.616 080  I --- 37:261128 --:------ 37:261128 31DA 029 00A740-05133AEF7FFF7FFF7FFF7FFFF808EF1805000000EFEF7FFF7FFF
+    # 04:50:01.717 078  I --- 37:261128 --:------ 37:261128 12C8 003 00A740
+    # 04:50:31.443 078  I --- 37:261128 --:------ 37:261128 31DA 029 007A40-05993AEF7FFF7FFF7FFF7FFFF808EF1807000000EFEF7FFF7FFF
+    # 04:50:31.544 078  I --- 37:261128 --:------ 37:261128 12C8 003 007A40
+    # 04:51:40.262 079  I --- 37:261128 --:------ 37:261128 31DA 029 009540-054B3AEF7FFF7FFF7FFF7FFFF808EF180E000000EFEF7FFF7FFF
+    # 04:51:41.192 078  I --- 37:261128 --:------ 37:261128 12C8 003 009540
 
     return {
-        "unknown": percent(payload[4:]),
+        "air_quality": percent(payload[2:4]),  # 31DA[2:4]
+        "air_quality_base": int(payload[4:6], 16),  # 31DA[4:6]
     }
 
 
@@ -1547,13 +1553,18 @@ def parser_31da(payload, msg) -> Optional[dict]:
 
     # I --- 37:261128 --:------ 37:261128 31DA 029 00004007D045EF7FFF7FFF7FFF7FFFF808EF03C8000000EFEF7FFF7FFF
     # I --- 37:053679 --:------ 37:053679 31DA 030 00EF007FFF41EF7FFF7FFF7FFF7FFFF800EF0134000000EFEF7FFF7FFF00
-
     try:
-        assert payload[2:4] in ("00", "C8", "EF", "F0"), payload[2:4]
+        # assert (
+        #     int(payload[2:4], 16) <= 200
+        #     or int(payload[2:4], 16) & 0xF0 == 0xF0
+        #     or payload[2:4] == "EF"
+        # ), f"[2:4] {payload[2:4]}"
         assert payload[4:6] in ("00", "40"), payload[4:6]
         # assert payload[6:10] in ("07D0", "7FFF"), payload[6:10]
         assert payload[10:12] == "EF" or int(payload[10:12], 16) <= 100, payload[10:12]
-        assert payload[12:14] == "EF" or int(payload[10:12], 16) <= 100, payload[10:12]
+        assert (
+            payload[12:14] == "EF" or int(payload[12:14], 16) <= 100
+        ), f"[12:14] {payload[10:12]}"
         # assert payload[14:18] == "7FFF", payload[14:18]
         # assert payload[18:22] == "7FFF", payload[18:22]
         # assert payload[22:26] == "7FFF", payload[22:26]
@@ -1563,12 +1574,13 @@ def parser_31da(payload, msg) -> Optional[dict]:
         assert (
             payload[36:38] == "EF" or int(payload[36:38], 16) & 0x1F <= 0x18
         ), payload[36:38]
-        assert (
-            payload[38:40] in ("EF", "FF") or int(payload[38:40], 16) <= 200
+        assert int(payload[38:40], 16) <= 200 or payload[38:40] in (
+            "EF",
+            "FF",
         ), payload[38:40]
         # assert payload[40:42] in ("00", "EF", "FF"), payload[40:42]
         # assert payload[42:46] == "0000", payload[42:46]
-        assert payload[46:48] in ("00", "EF"), payload[46:48]
+        assert payload[46:48] in ("00", "EF"), f"[46:48] {payload[46:48]}"
         # assert payload[48:50] == "EF", payload[48:50]
         # assert payload[50:54] == "7FFF", payload[50:54]
         # assert payload[54:58] == "7FFF", payload[54:58]  # or: FFFF?
@@ -1576,29 +1588,21 @@ def parser_31da(payload, msg) -> Optional[dict]:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
     return {
-        "exhaust_fan_speed": percent(
-            payload[38:40], high_res=True
-        ),  # 31D9/payload[4:6]
-        "remaining_time": double(
-            payload[42:46]
-        ),  # mins               22F3/payload[2:6]
-        "co2_level": double(
-            payload[6:10]
-        ),  # ppm                      1298/payload[2:6]
-        "indoor_humidity": percent(payload[10:12], high_res=False),  # .12A0?
+        "exhaust_fan_speed": percent(payload[38:40]),  # 31D9[4:6]
+        "remaining_time": double(payload[42:46]),  # mins, 22F3[2:6]
+        "co2_level": double(payload[6:10]),  # ppm, 1298[2:6]
+        "indoor_humidity": percent(payload[10:12], high_res=False),  # 12A0?
         "air_quality": percent(payload[2:4]),
-        "air_quality_base": int(
-            payload[4:6], 16
-        ),  # .                 12C8/payload[4:6]
+        "air_quality_base": int(payload[4:6], 16),  # 12C8[4:6]
         "outdoor_humidity": percent(payload[12:14], high_res=False),
         "exhaust_temperature": double(payload[14:18], factor=100),
         "supply_temperature": double(payload[18:22], factor=100),
         "indoor_temperature": double(payload[22:26], factor=100),
-        "outdoor_temperature": double(payload[26:30], factor=100),  # . 1290?
+        "outdoor_temperature": double(payload[26:30], factor=100),  # 1290?
         "speed_cap": int(payload[30:34], 16),
         "bypass_pos": percent(payload[34:36]),
         "fan_info": CODE_31DA_FAN_INFO[int(payload[36:38], 16) & 0x1F],
-        "supply_fan_speed": percent(payload[40:42], high_res=True),
+        "supply_fan_speed": percent(payload[40:42]),
         "post_heat": percent(payload[46:48], high_res=False),
         "pre_heat": percent(payload[48:50], high_res=False),
         "supply_flow": double(payload[50:54], factor=100),  # L/sec
@@ -1606,7 +1610,7 @@ def parser_31da(payload, msg) -> Optional[dict]:
     }
 
 
-@parser_decorator  # ventilation heater?, HVAC
+@parser_decorator  # vent_demand, HVAC
 def parser_31e0(payload, msg) -> dict:
     """Notes are.
 
@@ -1648,15 +1652,20 @@ def parser_31e0(payload, msg) -> dict:
         break;
     }
     """
+    #  I --- 29:146052 32:023459 --:------ 31E0 003 00-00-00
+    #  I --- 29:146052 32:023459 --:------ 31E0 003 00-00-C8
+
+    #  I --- 32:168240 30:079129 --:------ 31E0 004 00-00-00-FF
     #  I --- 32:168240 30:079129 --:------ 31E0 004 00-00-00-FF
     #  I --- 32:166025 --:------ 30:079129 31E0 004 00-00-00-00
-    #  I --- 32:168240 30:079129 --:------ 31E0 004 00-00-00-FF
+
     #  I --- 32:168090 30:082155 --:------ 31E0 004 00-00-C8-00
+    #  I --- 37:258565 37:261128 --:------ 31E0 004 00-00-01-00
 
     return {
-        "percent_2": percent(payload[4:6]),
-        "unknown_1": payload[2:4],
-        "unknown_3": payload[6:],
+        "vent_demand": percent(payload[4:6]),
+        "flags_1": payload[2:4],
+        "_unknown_3": payload[6:],
     }
 
 

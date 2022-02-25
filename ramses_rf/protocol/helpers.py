@@ -181,6 +181,7 @@ def flag8(byte: str, lsb: bool = False) -> list:
     return [(bytes.fromhex(byte)[0] & (1 << x)) >> x for x in reversed(range(8))]
 
 
+# TODO: add a wrapper for EF, & 0xF0
 @typechecked
 def percent(value: str, high_res: bool = True) -> Optional[float]:  # c.f. valve_demand
     """Convert a 2-char hex string into a percentage.

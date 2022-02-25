@@ -117,7 +117,7 @@ EXPIRY = "expiry"
 
 #
 ########################################################################################
-# CODES_SCHEMA
+# CODES_SCHEMA - HEAT (CH/DHW, Honeywell/Resideo) vs HVAC (ventilation, Itho/Orcon/etc.)
 #
 CODES_SCHEMA = {  # rf_unknown
     _0001: {
@@ -360,9 +360,9 @@ CODES_SCHEMA = {  # rf_unknown
         NAME: "displayed_temp",  # displayed room temp
         I_: r"^00[0-9A-F]{2}0[01](FF)?$",
     },
-    _12C8: {  # unknown_12c8, HVAC
-        NAME: "hvac_12c8",
-        I_: r"^0000[0-9A-F]{2}$",
+    _12C8: {  # air_quality, HVAC
+        NAME: "air_quality",
+        I_: r"^00[0-9A-F]{4}$",
     },
     _12F0: {  # dhw_flow_rate
         # 2021-11-05T06:25:20.399400 065 RP --- 10:023327 18:131597 --:------ 12F0 003 000307
@@ -552,11 +552,11 @@ CODES_SCHEMA = {  # rf_unknown
         RQ: r"^(00|01|21)$"
         # RQ --- 32:168090 30:082155 --:------ 31DA 001 21
     },
-    _31E0: {  # ext_ventilation - External Ventilation Status
+    _31E0: {  # ventilation demand
         # 10:15:42.712 077  I --- 29:146052 32:023459 --:------ 31E0 003 0000C8
         # 10:21:18.549 078  I --- 29:146052 32:023459 --:------ 31E0 003 000000
         # 07:56:50.522 095  I --- --:------ --:------ 07:044315 31E0 004 00006E00
-        NAME: "ext_ventilation",
+        NAME: "vent_demand",
         I_: r"^00[0-9A-F]{4}(00|FF)?$",
     },
     _3200: {  # boiler output temp
@@ -701,12 +701,9 @@ CODE_IDX_DOMAIN = {
 
 #
 ########################################################################################
-# CODES_BY_DEV_KLASS
+# CODES_BY_DEV_KLASS - HEAT (CH/DHW) vs HVAC (ventilation)
 #
-_DEV_KLASSES_CH_DHW = {
-    DEV_KLASS.HGI: {  # HGI80: RF to (USB) serial gateway interface
-        _PUZZ: {I_: {}, RQ: {}, W_: {}},
-    },  # HGI80s can do what they like
+_DEV_KLASSES_HEAT = {
     DEV_KLASS.RFG: {  # RFG100: RF to Internet gateway (and others)
         _0002: {RQ: {}},
         _0004: {I_: {}, RQ: {}},
@@ -1016,11 +1013,34 @@ _DEV_KLASSES_HVAC = {
     },  # https://www.ithodaalderop.nl/nl-NL/professional/product/536-0124
 }
 
-CODES_BY_DEV_KLASS = {**_DEV_KLASSES_HVAC, **_DEV_KLASSES_CH_DHW}
+CODES_BY_DEV_KLASS = {
+    DEV_KLASS.HGI: {  # HGI80: RF to (USB) serial gateway interface
+        _PUZZ: {I_: {}, RQ: {}, W_: {}},
+    },  # HGI80s can do what they like
+    **_DEV_KLASSES_HVAC,
+    **_DEV_KLASSES_HEAT,
+}
 
-_CODES_CH_DHW = dict.fromkeys(c for k in _DEV_KLASSES_CH_DHW.values() for c in k)
-_CODES_HVAC = dict.fromkeys(c for k in _DEV_KLASSES_HVAC.values() for c in k)
-CODES_HVAC_ONLY = tuple(c for c in _CODES_HVAC if c not in _CODES_CH_DHW)
+_CODES_EXCLDED = (
+    _0001,
+    _0002,
+    _000E,
+    _0016,
+    _0100,
+    _0150,
+    _01D0,
+    _01E9,
+    _0B04,
+    _1FC9,
+)
+_CODES_HEAT = dict.fromkeys(
+    c for k in _DEV_KLASSES_HEAT.values() for c in k if c not in _CODES_EXCLDED
+)
+_CODES_HVAC = dict.fromkeys(
+    c for k in _DEV_KLASSES_HVAC.values() for c in k if c not in _CODES_EXCLDED
+)
+CODES_HEAT_ONLY = tuple(c for c in sorted(list(_CODES_HEAT)) if c not in _CODES_HVAC)
+CODES_HVAC_ONLY = tuple(c for c in sorted(list(_CODES_HVAC)) if c not in _CODES_HEAT)
 
 _CODE_FROM_NON_CTL = dict.fromkeys(
     c
@@ -1028,7 +1048,7 @@ _CODE_FROM_NON_CTL = dict.fromkeys(
     for c, v2 in v1.items()
     if k != DEV_KLASS.CTL and (I_ in v2 or RP in v2)
 )
-_CODE_FROM_CTL = _DEV_KLASSES_CH_DHW[DEV_KLASS.CTL].keys()
+_CODE_FROM_CTL = _DEV_KLASSES_HEAT[DEV_KLASS.CTL].keys()
 
 _CODE_ONLY_FROM_CTL = tuple(c for c in _CODE_FROM_CTL if c not in _CODE_FROM_NON_CTL)
 CODES_ONLY_FROM_CTL = [_1030, _1F09, _22D0, _313F]  # I packets, TODO: 31Dx too?
