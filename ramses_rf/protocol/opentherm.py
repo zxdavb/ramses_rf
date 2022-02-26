@@ -1102,7 +1102,7 @@ def decode_frame(frame: str) -> tuple[int, int, dict, str]:
 # ], "Corrupt OPENTHERM_MESSAGES schema"
 
 
-# https://github.com/rvdbreemen/OTGW-firmware/blob/main/Specification/New%20OT%20data-ids.txt  # noqa
+# https://github.com/rvdbreemen/OTGW-firmware/blob/main/Specification/New%20OT%20data-ids.txt  # noqa: E501
 
 """
     New OT Data-ID's - Found two new ID's at this device description:

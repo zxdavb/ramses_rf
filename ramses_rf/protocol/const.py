@@ -426,15 +426,15 @@ _0005_ZONE_TYPE = {
     _0005_ZONE.ELE: ATTR_ELEC_HEAT,
 }
 
-# RP|zone_devices | 000E0... || {'domain_id': 'FA', 'device_class': 'dhw_actuator', 'devices': ['13:081807']}  # noqa
-# RP|zone_devices | 010E0... || {'domain_id': 'FA', 'device_class': 'dhw_actuator', 'devices': ['13:106039']}  # noqa
+# RP|zone_devices | 000E0... || {'domain_id': 'FA', 'device_class': 'dhw_actuator', 'devices': ['13:081807']}  # noqa: E501
+# RP|zone_devices | 010E0... || {'domain_id': 'FA', 'device_class': 'dhw_actuator', 'devices': ['13:106039']}  # noqa: E501
 
 _000C_DEVICE = _0005_ZONE
 _000C_DEVICE_TYPE = {
     _000C_DEVICE.ALL: "zone_actuators",
     # "01": None,
     # "02": None,
-    _000C_DEVICE.ALL_SENSOR: ATTR_ZONE_SENSOR,  # 03:, 04:, 34: (if is 01:, will == [], as if no sensor)
+    _000C_DEVICE.ALL_SENSOR: ATTR_ZONE_SENSOR,  # 03:, 04:, 34: (if is 01:, will == [], as if no sensor)  # noqa: E501
     _000C_DEVICE.RAD: "rad_actuators",
     _000C_DEVICE.UFH: "ufh_actuators",
     _000C_DEVICE.VAL: "val_actuators",

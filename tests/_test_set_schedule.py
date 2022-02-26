@@ -12,7 +12,7 @@ import os
 import unittest
 
 from ramses_rf import Gateway
-from ramses_rf.discovery import GET_SCHED, SET_SCHED, spawn_scripts
+from ramses_rf.discovery import SET_SCHED, spawn_scripts
 
 GWY_CONFIG = {}
 
@@ -40,7 +40,7 @@ class TestSchedule(unittest.IsolatedAsyncioTestCase):
 
         with open(f"{TEST_DIR}/schedules/schedule.json") as f:
             await asyncio.gather(
-                *spawn_scripts(self.gwy, **{SET_SCHED : ("01:123456", f)})
+                *spawn_scripts(self.gwy, **{SET_SCHED: ("01:123456", f)})
             )
 
         zone = self.gwy.system_by_id["01:145038"].zone_by_idx["01"]

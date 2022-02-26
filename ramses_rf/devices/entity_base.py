@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-"""RAMSES RF - a RAMSES-II protocol decoder & analyser."""
+"""RAMSES RF - a RAMSES-II protocol decoder & analyser.
+
+Entity is the base of all RAMSES-II objects: devices and also system/zone constructs.
+"""
 
 import logging
 from inspect import getmembers, isclass
@@ -9,21 +12,16 @@ from sys import modules
 from typing import Optional
 
 from .const import Discover, __dev_mode__
-from .protocol.ramses import CODES_SCHEMA, NAME
 
 # skipcq: PY-W2000
-from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
     W_,
 )
 
-DEFAULT_BDR_ID = "13:000730"
-DEFAULT_EXT_ID = "17:000730"
-DEFAULT_THM_ID = "03:000730"
-
-_QOS_TX_LIMIT = 12
+_QOS_TX_LIMIT = 12  # TODO: needs work
 
 DEV_MODE = __dev_mode__ and False
 
@@ -64,9 +62,11 @@ def discover_decorator(fnc):
 
 
 class Entity:
-    """The Device/Zone base class.
+    """The ultimate base class for Devices/Zones/Systems.
 
-    This class is mainly concerned with the entity's state database.
+    This class is mainly concerned with:
+     - if the entity can Rx packets (e.g. can the HGI send it an RQ)
+     - maintaining/utilizing the entity's state database
     """
 
     def __init__(self, gwy) -> None:
@@ -92,8 +92,9 @@ class Entity:
                 "(consider adjusting device_id filters)"
             )  # TODO: take whitelist into account
 
-    def _discover(self, discover_flag=Discover.ALL) -> None:
-        pass
+    # @discover_decorator
+    # def _discover(self, discover_flag=Discover.ALL) -> None:
+    #     pass
 
     def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess
         if (
@@ -117,11 +118,6 @@ class Entity:
         """Return a flattened version of _msgz[code][verb][indx]."""
         return [m for c in self._msgz.values() for v in c.values() for m in v.values()]
 
-    # @property
-    # def _pkt_db(self) -> dict:
-    #     """Return a flattened version of ..."""
-    #     return {msg.dtm: msg._pkt for msg in self._msgs_db}
-
     def _make_cmd(self, code, dest_id, payload="00", verb=RQ, **kwargs) -> None:
         self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
 
@@ -133,9 +129,6 @@ class Entity:
         if self._qos_tx_count > _QOS_TX_LIMIT:
             _LOGGER.info(f"{cmd} < Sending is deprecated for {self}")
             return
-
-        if getattr(self, "has_battery", None) and cmd.dst.id == self.id:
-            _LOGGER.info(f"{cmd} < Sending inadvisable for {self} (has a battery)")
 
         cmd._source_entity = self
         # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
@@ -171,13 +164,13 @@ class Entity:
 
         return self._msg_value_msg(msg, key=key, **kwargs)
 
-    @staticmethod
+    @staticmethod  # FIXME: messy (uses msg, others use code - move to Message?)
     def _msg_value_msg(msg, key=None, zone_idx=None, domain_id=None) -> Optional[dict]:
 
         if msg is None:
             return
         elif msg._expired:
-            delete_msg(msg)
+            _delete_msg(msg)
 
         if domain_id:
             idx, val = "domain_id", domain_id
@@ -211,20 +204,17 @@ class Entity:
 
     @property
     def _codes(self) -> dict:
+        from ..protocol.ramses import CODES_SCHEMA, NAME  # HACK: FIXME
+
         return {
             k: (CODES_SCHEMA[k][NAME] if k in CODES_SCHEMA else None)
             for k in sorted(self._msgs)
         }
 
-    @property
-    def controller(self):  # -> Optional[Controller]:
-        """Return the entity's controller, if known."""
 
-        return self._ctl  # TODO: if the controller is not known, try to find it?
-
-
-def delete_msg(msg) -> None:
+def _delete_msg(msg) -> None:
     """Remove the msg from all state databases."""
+
     entities = [msg.src]
     if hasattr(msg.src, "_evo"):
         entities.append(msg.src._evo)

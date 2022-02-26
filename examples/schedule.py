@@ -58,7 +58,7 @@ def cli(*args, **kwargs):
     config_dict = {
         "config": {"enforce_allowlist": True, "disable_discovery": True},
         "schema": {ATTR_CONTROLLER: device_id},
-        "allowlist": {device_id: {"name": "Controller"}}
+        "allowlist": {device_id: {"name": "Controller"}},
     }
 
     if kwargs.get("get_schedule") is not None:

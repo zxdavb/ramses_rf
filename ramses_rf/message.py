@@ -10,7 +10,7 @@ import logging
 from datetime import timedelta as td
 
 from .const import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES, __dev_mode__
-from .devices import Device, UfhController  # , HgiGateway
+from .devices import Device, UfhController  # TODO: split: use HeatDevice
 from .protocol import (
     CODES_BY_DEV_KLASS,
     CODES_SCHEMA,
@@ -303,7 +303,7 @@ def process_msg(msg: Message, prev_msg: Message = None) -> None:
         payload = this.payload if isinstance(this.payload, list) else [this.payload]
         return prev.payload + payload
 
-    gwy = msg._gwy  # noqa, pylint: disable=protected-access, skipcq: PYL-W0212
+    gwy = msg._gwy  # pylint: disable=protected-access, skipcq: PYL-W0212
 
     # HACK:  if CLI, double-logging with client.py proc_msg() & setLevel(DEBUG)
     if (log_level := _LOGGER.getEffectiveLevel()) < logging.INFO:

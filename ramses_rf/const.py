@@ -3,7 +3,6 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
-from types import SimpleNamespace
 
 from .protocol.const import (  # noqa: F401
     _000C_DEVICE,
@@ -38,11 +37,7 @@ from .protocol.const import (  # noqa: F401
 )
 
 __dev_mode__ = False
-DEV_MODE = __dev_mode__
-
-Discover = SimpleNamespace(
-    NOTHING=0, SCHEMA=1, PARAMS=2, STATUS=4, FAULTS=8, SCHEDS=16, ALL=(1 + 2 + 4)
-)
+# DEV_MODE = __dev_mode__
 
 DONT_CREATE_MESSAGES = 3
 DONT_CREATE_ENTITIES = 2
@@ -53,7 +48,7 @@ WB_STATUS_CODES = {
     "200": "CH system is being heated.",
     "201": "DHW system is being heated.",
     "202": "Anti rapid cycle mode. The boiler has commenced anti-cycle period for CH.",
-    "203": "System stand by",
+    "203": "System standby mode.",
     "204": "System waiting, appliance waiting for heating system to cool.",
     "208": "Appliance in service Test mode (Min/Max)",
     "265": "EMS controller has forced stand-by-mode due to low heating load (power required is less than the minimum output)",

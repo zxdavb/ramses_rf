@@ -5,7 +5,13 @@
   max-line-length = 88
   select = C, E, F, W, B, B950
   ignore = E203, E501, W503
+  # E203 whitespace before ':'
+  # E501 line too long (?? > 88 characters)
+  # W503 line break before binary operator
   # ignore = D101,D102,D103,D105,D107,D207,D202,D401,E203,E231,W503
 
+  # F401 '.xxxx' imported but unused
   per-file-ignores =
+    ramses_rf/devices/__init__.py:F401
+    ramses_rf/devices/const.py:F401
     ramses_rf/protocol/__init__.py:F401

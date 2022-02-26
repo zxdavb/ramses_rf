@@ -2,13 +2,13 @@ version = 1
 
 exclude_patterns = ["utils/**", "examples/**"]
 
-[[analyzers]]
-name = "python"
-enabled = true
+[analyzers]
+  name = "python"
+  enabled = true
 
-  [analyzers.meta]
+[analyzers.meta]
   runtime_version = "3.x.x"
 
-[[analyzers]]
-name = "shell"
-enabled = true
+[analyzers]
+  name = "shell"
+  enabled = true

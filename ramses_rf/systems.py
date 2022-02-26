@@ -21,18 +21,20 @@ from .const import (
     ATTR_SYSTEM_MODE,
     SYSTEM_MODE,
     ZONE_TYPE_SLUGS,
-    Discover,
     __dev_mode__,
 )
-from .devices import (
+from .devices import (  # TODO: split: use HeatDevice
     BdrSwitch,
     Device,
     DhwSensor,
+    Discover,
+    Entity,
     OtbGateway,
-    Temperature,
     UfhController,
+    class_by_attr,
+    discover_decorator,
 )
-from .entities import Entity, class_by_attr, discover_decorator
+from .devices.heat import Temperature  # TODO: split: stop using?
 from .protocol import Command, CorruptStateError, ExpiredCallbackError, Priority
 from .protocol.transport import PacketProtocolPort
 from .schema import (
@@ -272,7 +274,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         # 18:14:14.025 066 RQ --- 01:078710 10:067219 --:------ 3220 005 0000050000
         # 18:14:14.446 065 RP --- 10:067219 01:078710 --:------ 3220 005 00C00500FF
         # 14:41:46.599 064 RQ --- 01:078710 10:067219 --:------ 3EF0 001 00
-        # 14:41:46.631 063 RP --- 10:067219 01:078710 --:------ 3EF0 006 0000100000FF  # noqa
+        # 14:41:46.631 063 RP --- 10:067219 01:078710 --:------ 3EF0 006 0000100000FF
 
         # 06:49:03.465 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
         # 06:49:05.467 045 RQ --- 01:145038 13:237335 --:------ 3EF0 001 00

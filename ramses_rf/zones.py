@@ -27,19 +27,21 @@ from .const import (
     ZONE_MODE,
     ZONE_TYPE_MAP,
     ZONE_TYPE_SLUGS,
-    Discover,
     __dev_mode__,
 )
-from .devices import (
+from .devices import (  # TODO: split: use HeatDevice
     BdrSwitch,
     Controller,
     Device,
     DhwSensor,
-    Temperature,
+    Discover,
+    Entity,
     TrvActuator,
     UfhController,
+    class_by_attr,
+    discover_decorator,
 )
-from .entities import Entity, class_by_attr, discover_decorator
+from .devices.heat import Temperature  # TODO: split: stop using
 from .protocol import CODE_API_MAP, Command, CorruptStateError, Schedule
 from .protocol.transport import PacketProtocolPort
 from .schema import (
@@ -518,7 +520,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
     @property
     def schema(self) -> dict:
-        """Return the DHW's schema (devices)."""
+        """Return the schema of the DHW's."""
         return {
             SZ_DHW_SENSOR: self.sensor.id if self.sensor else None,
             SZ_DHW_VALVE: self.hotwater_valve.id if self.hotwater_valve else None,
@@ -849,7 +851,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
     @property
     def schema(self) -> dict:
-        """Return the zone's schema (type, devices)."""
+        """Return the schema of the zone (type, devices)."""
         if not self._sensor:
             sensor_schema = None
         elif getattr(self._sensor, "_fake_30C9", None) is None:

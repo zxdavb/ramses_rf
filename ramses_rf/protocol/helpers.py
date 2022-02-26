@@ -13,7 +13,7 @@ from datetime import datetime as dt
 from typing import Optional, Union
 
 try:
-    from typeguard import typechecked  # type: ignore
+    from typeguard import typechecked  # type: ignore[reportMissingImports]
 except ModuleNotFoundError:
 
     def typechecked(fnc):

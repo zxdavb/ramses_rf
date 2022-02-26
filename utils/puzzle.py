@@ -275,7 +275,9 @@ async def puzzle_cast(gwy, pkt_protocol, interval=None, count=0, length=48, **kw
         ordinal = ordinal % 0x10000
         qos = {"priority": Priority.HIGHEST, "retries": 0}
         await msg_protocol.send_data(
-            Command._puzzle("7F", ordinal=ordinal, interval=int_hex, length=length**qos)
+            Command._puzzle(
+                "7F", ordinal=ordinal, interval=int_hex, length=length**qos
+            )
         )
 
     msg_protocol, _ = gwy.create_client(print_message)

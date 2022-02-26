@@ -43,7 +43,7 @@ from .command import (  # QOS_RX_TIMEOUT,
 )
 from .const import HGI_DEVICE_ID, NON_DEVICE_ID, NUL_DEVICE_ID, __dev_mode__
 from .exceptions import InvalidPacketError
-from .helpers import dt_now  # noqa, type: ignore
+from .helpers import dt_now
 from .packet import Packet
 from .protocol import create_protocol_factory
 from .schema import SERIAL_CONFIG_SCHEMA
