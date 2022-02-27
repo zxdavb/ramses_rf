@@ -17,14 +17,9 @@ from types import SimpleNamespace
 from typing import Any, Optional, Union
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
-from .const import (
-    COMMAND_REGEX,
-    DEVICE_ID_REGEX,
-    HGI_DEVICE_ID,
-    NON_DEVICE_ID,
-    SYSTEM_MODE,
-    ZONE_MODE,
-)
+from .const import COMMAND_REGEX
+from .const import DEVICE_ID_REGEX as _DEVICE_ID_REGEX
+from .const import HGI_DEVICE_ID, NON_DEVICE_ID, SYSTEM_MODE, ZONE_MODE
 from .exceptions import ExpiredCallbackError, InvalidPacketError
 from .frame import PacketBase, pkt_header
 from .helpers import dt_now, dtm_to_hex, str_to_hex, temp_to_hex, timestamp
@@ -126,7 +121,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 
 COMMAND_FORMAT = "{:<2} {} {} {} {} {} {:03d} {}"
 
-DEVICE_ID_REGEX = re.compile(DEVICE_ID_REGEX.ANY)
+DEVICE_ID_REGEX = re.compile(_DEVICE_ID_REGEX.ANY)
 
 TIMER_SHORT_SLEEP = 0.05
 TIMER_LONG_TIMEOUT = td(seconds=60)
@@ -304,7 +299,9 @@ def _normalise_until(mode, _, until, duration) -> tuple[Any, Any]:
 class Command(PacketBase):
     """The command class."""
 
-    def __init__(self, verb, code, payload, dest_id, **kwargs) -> None:
+    def __init__(
+        self, verb: str, code: str, payload: str, dest_id: str, **kwargs
+    ) -> None:
         """Create a command.
 
         Will raise InvalidPacketError (or InvalidAddrSetError) if it is invalid.
@@ -331,8 +328,8 @@ class Command(PacketBase):
         self._priority = self.qos.pop(PRIORITY, Priority.DEFAULT)
         self._dtm = dt_now()
 
-        self._rx_header = None
-        self._tx_header = None
+        self._rx_header: Optional[str] = None
+        # self._tx_header: str  # unused?
 
         self._source_entity = None
 
@@ -594,7 +591,7 @@ class Command(PacketBase):
 
     @classmethod  # constructor for RQ/0418
     @validate_api_params()
-    def get_system_log_entry(cls, ctl_id: str, log_idx: int, **kwargs):
+    def get_system_log_entry(cls, ctl_id: str, log_idx: Union[int, str], **kwargs):
         """Constructor to get a log entry from a system (c.f. parser_0418)."""
 
         log_idx = log_idx if isinstance(log_idx, int) else int(log_idx, 16)
@@ -1134,19 +1131,19 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         self._limit = 0x06
 
     def __repr_(self) -> str:
-        return json.dumps(self._faultlog) if self._faultlog_done else None
+        return json.dumps(self._faultlog) if self._faultlog_done else "{}"  # TODO:
 
     def __str_(self) -> str:
         return f"{self._ctl} (fault log)"
 
-    @staticmethod
-    def _is_valid_operand(other) -> bool:
-        return hasattr(other, "verb") and hasattr(other, "_pkt")
+    # @staticmethod
+    # def _is_valid_operand(other) -> bool:
+    #     return hasattr(other, "verb") and hasattr(other, "_pkt")
 
-    def __eq__(self, other) -> bool:
-        if not self._is_valid_operand(other):
-            return NotImplemented
-        return (self.verb, self._pkt.payload) == (other.verb, other.self._pkt.payload)
+    # def __eq__(self, other) -> bool:
+    #     if not self._is_valid_operand(other):
+    #         return NotImplemented
+    #     return (self.verb, self._pkt.payload) == (other.verb, self._pkt.payload)
 
     async def get_faultlog(
         self, start=0, limit=6, force_refresh=None

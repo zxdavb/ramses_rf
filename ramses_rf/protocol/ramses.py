@@ -5,6 +5,8 @@
 
 import logging
 from datetime import timedelta as td
+from types import SimpleNamespace
+from typing import Dict
 
 from .const import DEV_KLASS
 
@@ -119,7 +121,7 @@ EXPIRY = "expiry"
 ########################################################################################
 # CODES_SCHEMA - HEAT (CH/DHW, Honeywell/Resideo) vs HVAC (ventilation, Itho/Orcon/etc.)
 #
-CODES_SCHEMA = {  # rf_unknown
+CODES_SCHEMA: dict = {  # rf_unknown
     _0001: {
         NAME: "rf_unknown",
         I_: r"^00FFFF02(00|FF)$",  # loopback
@@ -703,7 +705,7 @@ CODE_IDX_DOMAIN = {
 ########################################################################################
 # CODES_BY_DEV_KLASS - HEAT (CH/DHW) vs HVAC (ventilation)
 #
-_DEV_KLASSES_HEAT = {
+_DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
     DEV_KLASS.RFG: {  # RFG100: RF to Internet gateway (and others)
         _0002: {RQ: {}},
         _0004: {I_: {}, RQ: {}},
@@ -959,7 +961,7 @@ _DEV_KLASSES_HEAT = {
     # },
 }
 
-_DEV_KLASSES_HVAC = {
+_DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
     DEV_KLASS.RFS: {  # Itho spIDer: RF to Internet gateway (like a RFG100)
         _1060: {I_: {}},
         _10E0: {I_: {}, RP: {}},
@@ -1013,7 +1015,7 @@ _DEV_KLASSES_HVAC = {
     },  # https://www.ithodaalderop.nl/nl-NL/professional/product/536-0124
 }
 
-CODES_BY_DEV_KLASS = {
+CODES_BY_DEV_KLASS: Dict[SimpleNamespace, Dict] = {
     DEV_KLASS.HGI: {  # HGI80: RF to (USB) serial gateway interface
         _PUZZ: {I_: {}, RQ: {}, W_: {}},
     },  # HGI80s can do what they like

@@ -7,7 +7,7 @@ import logging
 import struct
 from datetime import timedelta as td
 from types import SimpleNamespace
-from typing import Optional
+from typing import Callable, Dict, Union
 
 from .const import __dev_mode__
 
@@ -27,8 +27,8 @@ SCHEMA_MSG_IDS = (
     "7D",  # 125: "Opentherm version Slave",                            # not native
     "7F",  # 127: "Slave product version number and type",
 )
-SCHEMA_MSG_IDS = {k: False for k in SCHEMA_MSG_IDS}
-PARAMS_MSG_IDS = (
+# SCHEMA_MSG_IDS = {k: False for k in SCHEMA_MSG_IDS}
+_PARAMS_MSG_IDS = (
     "38",  # .56: "DHW Setpoint (°C) (Remote parameter 1)",             # see: 0x06
     "39",  # .57: "Max CH water Setpoint (°C) (Remote parameter 2)",    # see: 0x06
     # These are STATUS seen RQ'd by 01:/30:, but here to retreive less frequently
@@ -43,8 +43,8 @@ PARAMS_MSG_IDS = (
     "7A",  # 122: "Number of hours DHW pump has been running/valve has been opened",
     "7B",  # 123: "Number of hours DHW burner is in operation during DHW mode",
 )
-PARAMS_MSG_IDS = {k: td(hours=6) for k in PARAMS_MSG_IDS}
-STATUS_MSG_IDS = (
+PARAMS_MSG_IDS = {k: td(hours=6) for k in _PARAMS_MSG_IDS}
+_STATUS_MSG_IDS = (
     "00",  # ..0: "Master/Slave status flags",                          # not RAMSES
     "01",  # ..1: "CH water temperature Setpoint (°C)",                 # also R/W
     "11",  # .17: "Relative Modulation Level (%)",
@@ -58,8 +58,8 @@ STATUS_MSG_IDS = (
     "05",  # ..5: "Fault flags & OEM codes",                            # not RAMSES
     "73",  # 115: "OEM diagnostic code",                                # not RAMSES
 )
-STATUS_MSG_IDS = {k: td(minutes=5) for k in STATUS_MSG_IDS}
-WRITE_MSG_IDS = (  # Write-Data, NB: some are also Read-Data
+STATUS_MSG_IDS = {k: td(minutes=5) for k in _STATUS_MSG_IDS}
+_WRITE_MSG_IDS = (  # Write-Data, NB: some are also Read-Data
     "01",  # ..1:  -see above-
     "02",  # ..2: "Master configuration",
     "0E",  # .14: "Maximum relative modulation level setting (%)",  # c.f. 0x11
@@ -70,7 +70,7 @@ WRITE_MSG_IDS = (  # Write-Data, NB: some are also Read-Data
     "7C",  # 124: "Opentherm version Master",
     "7E",  # 126: "Master product version number and type",
 )
-WRITE_MSG_IDS = {k: td(seconds=3) for k in WRITE_MSG_IDS}
+WRITE_MSG_IDS = {k: td(seconds=3) for k in _WRITE_MSG_IDS}
 
 # Data structure shamelessy copied, with thanks to @nlrb, from:
 # github.com/nlrb/com.tclcode.otgw (node_modules/otg-api/lib/ot_msg.js),
@@ -955,12 +955,12 @@ def parity(x: int) -> int:
     return x & 1
 
 
-def msg_value(val_seqx, val_type):
+def msg_value(val_seqx, val_type) -> Union[float, int, list, str]:
     """Make this the docstring."""
 
     # based upon: https://github.com/mvn23/pyotgw/blob/master/pyotgw/protocol.py
 
-    def flag8(byte, *args) -> list:
+    def flag8(byte: str, *args) -> list:
         """Split a byte (as a str) into a list of 8 bits.
 
         In the original payload (the OT specification), the lsb is bit 0 (the last bit),
@@ -969,35 +969,35 @@ def msg_value(val_seqx, val_type):
         """
         return [(bytes.fromhex(byte)[0] & (1 << x)) >> x for x in range(8)]
 
-    def u8(byte, *args) -> int:
+    def u8(byte: str, *args) -> int:
         """Convert a byte (as a str) into an unsigned int."""
         return struct.unpack(">B", bytes.fromhex(byte))[0]
 
-    def s8(byte, *args) -> int:
+    def s8(byte: str, *args) -> int:
         """Convert a byte (as a str) into a signed int."""
         return struct.unpack(">b", bytes.fromhex(byte))[0]
 
-    def f8_8(high_byte, low_byte) -> Optional[float]:
+    def f8_8(high_byte: str, low_byte: str) -> float:
         """Convert 2 bytes (as strs) into an OpenTherm f8_8 value."""
         if high_byte == low_byte == "FF":  # TODO: move up to parser?
-            return None
+            raise ValueError()
         return float(s16(high_byte, low_byte) / 256)
 
-    def u16(high_byte, low_byte) -> Optional[int]:
+    def u16(high_byte: str, low_byte: str) -> int:
         """Convert 2 bytes (as strs) into an unsigned int."""
         if high_byte == low_byte == "FF":  # TODO: move up to parser?
-            return None
+            raise ValueError()
         buf = struct.pack(">BB", u8(high_byte), u8(low_byte))
         return int(struct.unpack(">H", buf)[0])
 
-    def s16(high_byte, low_byte) -> Optional[int]:
+    def s16(high_byte: str, low_byte: str) -> int:
         """Convert 2 bytes (as strs) into a signed int."""
         if high_byte == low_byte == "FF":  # TODO: move up to parser?
-            return None
+            raise ValueError()
         buf = struct.pack(">bB", s8(high_byte), u8(low_byte))
         return int(struct.unpack(">h", buf)[0])
 
-    DATA_TYPES = {
+    DATA_TYPES: Dict[str, Callable] = {
         FLAG8: flag8,
         U8: u8,
         S8: s8,
@@ -1007,7 +1007,10 @@ def msg_value(val_seqx, val_type):
     }
 
     if val_type in DATA_TYPES:
-        return DATA_TYPES[val_type](val_seqx[:2], val_seqx[2:])
+        try:
+            return DATA_TYPES[val_type](val_seqx[:2], val_seqx[2:])
+        except ValueError:
+            pass
     return val_seqx
 
 
@@ -1022,10 +1025,9 @@ def _decode_flags(frame: str, data_id: int) -> dict:
     return flag_schema
 
 
-def decode_frame(frame: str) -> tuple[int, int, dict, str]:
-    assert (
-        isinstance(frame, str) and len(frame) == 8
-    ), f"Invalid frame (type or length): {frame}"
+def decode_frame(frame: str) -> tuple[str, int, dict, dict]:
+    if not isinstance(frame, str) or len(frame) != 8:
+        raise TypeError(f"Invalid frame (type or length): {frame}")
 
     if int(frame[:2], 16) // 0x80 != parity(int(frame, 16) & 0x7FFFFFFF):
         raise ValueError(f"Invalid parity bit: 0b{int(frame[:2], 16) // 0x80}")

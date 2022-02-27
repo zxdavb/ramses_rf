@@ -192,11 +192,10 @@ def percent(value: str, high_res: bool = True) -> Optional[float]:  # c.f. valve
         raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
     if value == "EF":  # TODO: when EF, when 7F?
         return None
-    result = int(value, 16)
-    if result & 0xF0 == 0xF0:
-        return None
-    result = result / (200 if high_res else 100)
-    if result > 1:
+    if (raw_result := int(value, 16)) & 0xF0 == 0xF0:
+        return None  # TODO: return errors
+    result = float(raw_result) / (200 if high_res else 100)
+    if result > 1.0:
         raise ValueError(f"Invalid result: {result} (0x{value}) is > 1")
     return result
 

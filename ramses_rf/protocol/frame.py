@@ -7,6 +7,7 @@ Provide the base class for commands (constructed/sent packets) and packets.
 """
 
 import logging
+from datetime import datetime as dt
 from typing import Optional, Union
 
 from .address import Address
@@ -125,25 +126,25 @@ class PacketBase:
 
     def __init__(self) -> None:
         """Create a frame."""
-        self._dtm = None
-        self._frame = None
+        self._dtm: dt
+        self._frame: str
 
-        self._rssi = None
-        self._verb = None
-        self._seqn = None
-        self._src = None
-        self._dst = None
-        self._addrs = [None] * 3
-        self._code = None
-        self._len = None
-        self._payload = None
+        self._rssi: str
+        self._verb: str
+        self._seqn: str  # TODO: or, better as int?
+        self._src: Address
+        self._dst: Address
+        self._addrs: list[Address, Address, Address]
+        self._code: str
+        self._len: int
+        self._payload: str
 
-        self._has_array_ = None
-        self._has_ctl_ = None
-        self._has_payload_ = None
-        self._ctx_ = None
-        self._hdr_ = None
-        self._idx_ = None
+        self._has_array_: bool = None  # type: ignore[assignment]
+        self._has_ctl_: bool = None  # type: ignore[assignment]
+        self._has_payload_: bool = None  # type: ignore[assignment]
+        self._ctx_: Union[str, bool] = None  # type: ignore[assignment]
+        self._hdr_: str = None  # type: ignore[assignment]
+        self._idx_: Union[str, bool] = None  # type: ignore[assignment]
 
     def __repr__(self) -> str:
         """Return a unambiguous string representation of this object."""
@@ -154,7 +155,7 @@ class PacketBase:
         return "" if self._frame is None else str(self._frame)[4:]
 
     @property
-    def rssi(self) -> str:
+    def rssi(self) -> Optional[str]:
         return self._rssi
 
     @property
@@ -337,9 +338,9 @@ class PacketBase:
 
     def _force_has_array(self) -> None:
         self._has_array_ = True
-        self._ctx_ = None
-        self._hdr_ = None
-        self._idx_ = None
+        self._ctx_ = None  # type: ignore[assignment]
+        self._hdr_ = None  # type: ignore[assignment]
+        self._idx_ = None  # type: ignore[assignment]
 
     @property
     def _ctx(self) -> Union[str, bool]:  # incl. self._idx
@@ -456,10 +457,11 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
         )
 
     if pkt.code in CODE_IDX_SIMPLE:
-        return  # False  # TODO: return None (less precise) or risk false -ves?
+        return None  # False  # TODO: return None (less precise) or risk false -ves?
 
     # mutex 4/4, CODE_IDX_UNKNOWN: an unknown code
     _LOGGER.info(f"{pkt} # Unable to determine payload index (is probably OK)")
+    return None
 
 
 def pkt_header(pkt, rx_header=None) -> Optional[str]:  # NOTE: used in command.py
@@ -479,14 +481,14 @@ def pkt_header(pkt, rx_header=None) -> Optional[str]:  # NOTE: used in command.p
             return "|".join((pkt.code, W_, pkt.src.id))
         if pkt.verb == W_:  # and pkt.src != pkt.dst:
             return "|".join((pkt.code, I_, pkt.src.id))
-        return
+        return None
 
     addr = pkt.dst if pkt.src.type == "18" else pkt.src  # DEX
     if not rx_header:
         header = "|".join((pkt.code, pkt.verb, addr.id))
 
     elif pkt.verb in (I_, RP) or pkt.src == pkt.dst:  # announcements, etc.: no response
-        return
+        return None
 
     else:  # RQ/RP, or W/I
         header = "|".join((pkt.code, RP if pkt.verb == RQ else I_, addr.id))

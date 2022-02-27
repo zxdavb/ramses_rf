@@ -138,7 +138,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-class Actuator:  # 3EF0, 3EF1
+class Actuator(HeatDevice):  # 3EF0, 3EF1
 
     ACTUATOR_CYCLE = "actuator_cycle"
     ACTUATOR_ENABLED = "actuator_enabled"  # boolean
@@ -208,7 +208,7 @@ class Actuator:  # 3EF0, 3EF1
         }
 
 
-class HeatDemand:  # 3150
+class HeatDemand(HeatDevice):  # 3150
 
     HEAT_DEMAND = ATTR_HEAT_DEMAND  # percentage valve open (0.0-1.0)
 
@@ -224,7 +224,7 @@ class HeatDemand:  # 3150
         }
 
 
-class Setpoint:  # 2309
+class Setpoint(HeatDevice):  # 2309
 
     SETPOINT = ATTR_SETPOINT  # degrees Celsius
 
@@ -626,23 +626,20 @@ class UfhController(HeatDevice):  # UFC (02):
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150|FC (there is also 3150|FA)
-        if self._heat_demand:
-            return self._heat_demand.payload[self.HEAT_DEMAND]
+        return self._msg_value_msg(self._heat_demand, key=self.HEAT_DEMAND)
 
     @property
     def heat_demands(self) -> Optional[dict]:  # 3150|ufh_idx array
-        if self._heat_demands:
-            return self._heat_demands.payload
+        return self._msg_value_msg(self._heat_demands)
+        return self._heat_demands.payload if self._heat_demands else None
 
     @property
     def relay_demand(self) -> Optional[dict]:  # 0008|FC
-        if self._relay_demand:
-            return self._relay_demand.payload[ATTR_RELAY_DEMAND]
+        return self._msg_value_msg(self._relay_demand, key=ATTR_RELAY_DEMAND)
 
     @property
     def relay_demand_fa(self) -> Optional[dict]:  # 0008|FA
-        if self._relay_demand_fa:
-            return self._relay_demand_fa.payload[ATTR_RELAY_DEMAND]
+        return self._msg_value_msg(self._relay_demand_fa, key=ATTR_RELAY_DEMAND)
 
     @property
     def setpoints(self) -> Optional[dict]:  # 22C9|ufh_idx array

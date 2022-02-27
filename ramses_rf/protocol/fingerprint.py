@@ -3,13 +3,16 @@
 #
 """RAMSES RF - RAMSES-II compatible Packet processor."""
 
+from types import SimpleNamespace
+from typing import Dict, List, Tuple
+
 from .const import DEV_KLASS
 
 __all__ = ["check_signature"]
 
 # incl. date_1. NB: date_2 can vary, and _unknown_1 can vary for R8810A
 # fmt: off
-_DEVICE_INFO = {
+_DEVICE_INFO_DB: Dict[str, Tuple[SimpleNamespace, str, str, str]] = {
     # Heating...
     "0002FF0119FFFFFFFF": (DEV_KLASS.CTL, "01", "2014-01-16", "EvoTouch Colour"),  # .              ATC928-G3-0xx Evo Mk3 - EvoTouch Colour (WiFi, 12 zones)
     "0002FF0163FFFFFFFF": (DEV_KLASS.CTL, "01", "2013-08-01", "Evo Color"),  # .                    ATP928-G2-080 Evo Mk2 - Color (no WiFi)
@@ -66,13 +69,13 @@ _DEVICE_INFO = {
 }
 # fmt: on
 
-_DEVICE_INFO = {
-    t: [k for k, v in _DEVICE_INFO.items() if v[1] == t]
-    for t in sorted(dict.fromkeys(v[1] for v in _DEVICE_INFO.values()))
+_DEVICE_INFO: Dict[str, List[str]] = {
+    t: [k for k, v in _DEVICE_INFO_DB.items() if v[1] == t]
+    for t in sorted(dict.fromkeys(v[1] for v in _DEVICE_INFO_DB.values()))
 }  # convert to {dev_type: [signature, ...]}
 
 
-def check_signature(dev_type, signature) -> None:
+def check_signature(dev_type: str, signature: str) -> None:
     """Raise ValueError if the device type is not known to have the signature."""
     if not (sigs := _DEVICE_INFO.get(dev_type)) or signature not in sigs:
         raise ValueError(

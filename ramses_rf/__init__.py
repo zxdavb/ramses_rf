@@ -86,10 +86,13 @@ class Gateway:
         _LOGGER.debug("Starting RAMSES RF, **kwargs = %s", kwargs)
 
         self._loop = loop or asyncio.get_running_loop()
-        self._tasks = []
+        self._tasks: list = []
 
         self.serial_port = serial_port
         self._input_file = kwargs.pop(INPUT_FILE, None)
+
+        self._include: dict = {}
+        self._exclude: dict = {}
 
         (self.config, self._schema, self._include, self._exclude) = load_config(
             self.serial_port, self._input_file, **kwargs

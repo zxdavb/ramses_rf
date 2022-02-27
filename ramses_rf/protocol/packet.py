@@ -9,9 +9,9 @@ Decode/process a packet (packet that was received).
 import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
-from typing import ByteString, Optional
+from typing import ByteString, Optional, Union
 
-from .address import pkt_addrs
+from .address import Address, pkt_addrs
 from .const import MESSAGE_REGEX
 from .exceptions import InvalidPacketError
 from .frame import PacketBase
@@ -144,24 +144,24 @@ class Packet(PacketBase):
         super().__init__()
 
         self._gwy = gwy
-        self._dtm = dtm
-        self._frame = frame
+        self._dtm: dt = dtm
+        self._frame: str = frame
 
-        self.comment = kwargs.get("comment")
-        self.error_text = kwargs.get("err_msg")
-        self.raw_frame = kwargs.get("raw_frame")
+        self.comment: str = kwargs.get("comment", "")
+        self.error_text: str = kwargs.get("err_msg", "")
+        self.raw_frame: str = kwargs.get("raw_frame", "")
 
-        self._rssi = frame[0:3]
-        self._verb = frame[4:6]
-        self._seqn = frame[7:10]
-        self._src = None
-        self._dst = None
-        self._addrs = None
-        self._code = frame[41:45]
-        self._len = None
-        self._payload = frame[50:]
+        self._rssi: str = frame[0:3]
+        self._verb: str = frame[4:6]
+        self._seqn: str = frame[7:10]
+        # self._src: Address = None
+        # self._dst: Address = None
+        # self._addrs: list[Address]
+        self._code: str = frame[41:45]
+        # self._len = None
+        self._payload: str = frame[50:]
 
-        self._timeout = None
+        self._timeout: Union[bool, float] = None
 
         self._src, self._dst, self._addrs, self._len = self._validate(
             self._frame[11:40]
@@ -202,10 +202,10 @@ class Packet(PacketBase):
         fragment, _, comment = pkt_line.partition("#")
         fragment, _, err_msg = fragment.partition("*")
         pkt_str, _, _ = fragment.partition("<")  # discard any parser hints
-        return map(str.strip, (pkt_str, err_msg, comment))
+        return pkt_str.strip(), err_msg.strip(), comment.strip()
 
     @property
-    def _expired(self) -> float:
+    def _expired(self) -> Union[bool, float]:
         """Return the used fraction of the packet's 'normal' lifetime.
 
         A packet is 'expired' when >1.0 (should it be tombstoned when >2.0?). Returns
@@ -223,7 +223,7 @@ class Packet(PacketBase):
 
         return fraction_expired(self._gwy._dt_now() - self.dtm, self._timeout)
 
-    def _validate(self, addr_frag) -> None:
+    def _validate(self, addr_frag) -> tuple[Address, Address, list[Address], int]:
         """Validate the packet, and parse the addresses if so (will log all packets).
 
         Raise an exception InvalidPacketError (InvalidAddrSetError) if it is not valid.
@@ -284,10 +284,10 @@ def pkt_timeout(pkt) -> Optional[td]:  # NOTE: import OtbGateway ??
         return _TD_SECONDS_000
 
     if pkt.code in (_0005, _000C, _0404, _10E0):  # 0404 expired by 0006
-        return  # TODO: exclude/remove devices caused by corrupt ADDRs?
+        return None  # TODO: exclude/remove devices caused by corrupt ADDRs?
 
     if pkt.code == _1FC9 and pkt.verb == RP:
-        return  # TODO: check other verbs, they seem variable
+        return None  # TODO: check other verbs, they seem variable
 
     if pkt.code == _1F09:  # sends I /sync_cycle
         # can't do better than 300s with reading the payload
@@ -303,7 +303,7 @@ def pkt_timeout(pkt) -> Optional[td]:  # NOTE: import OtbGateway ??
         # if pkt.payload[4:6] in WRITE_MSG_IDS and Write-Data:  # TODO
         #     return _TD_SECONDS_003
         if pkt.payload[4:6] in SCHEMA_MSG_IDS:
-            return  # SCHEMA_MSG_IDS[pkt.payload[4:6]]
+            return None  # SCHEMA_MSG_IDS[pkt.payload[4:6]]
         if pkt.payload[4:6] in PARAMS_MSG_IDS:
             return PARAMS_MSG_IDS[pkt.payload[4:6]]
         if pkt.payload[4:6] in STATUS_MSG_IDS:

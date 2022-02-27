@@ -213,7 +213,7 @@ class Message:
         return self.dtm < other.dtm
 
     @property
-    def payload(self):  # Any[dict, list[dict]]:
+    def payload(self):  # Union[dict, list[dict]]:
         """Return the payload."""
         return self._payload
 

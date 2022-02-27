@@ -454,7 +454,7 @@ class Device(DeviceBase):  # 10E0
         return self._parent
 
 
-class Fakeable:
+class Fakeable(DeviceBase):
     def __init__(self, gwy, *args, **kwargs) -> None:
         super().__init__(gwy, *args, **kwargs)
 
@@ -578,7 +578,7 @@ class Fakeable:
         }
 
 
-class BatteryState:  # 1060
+class BatteryState(DeviceBase):  # 1060
 
     BATTERY_LOW = "battery_low"  # boolean
     BATTERY_STATE = "battery_state"  # percentage (0.0-1.0)
@@ -674,7 +674,7 @@ class HgiGateway(DeviceBase):  # HGI (18:), was GWY
             self.devices.remove(dev)
             dev = None
 
-        dev = self._get_device(device_id)
+        dev = self._gwy._get_device(device_id)
         dev._make_fake(bind=True)
         return dev
 
@@ -741,8 +741,8 @@ class HgiGateway(DeviceBase):  # HGI (18:), was GWY
 class HeatDevice(Device):  # Honeywell CH/DHW or compatible (incl. UFH, Heatpumps)
     """The Device base class for Honeywell CH/DHW or compatible."""
 
-    _DEV_KLASS = DEV_KLASS.DEV
-    _DEV_TYPES = ()
+    _DEV_KLASS: str = DEV_KLASS.DEV
+    _DEV_TYPES: tuple[str] = ()
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)

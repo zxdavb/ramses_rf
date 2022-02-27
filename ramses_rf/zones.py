@@ -231,7 +231,7 @@ class ZoneBase(Entity):
         return self._ZON_KLASS
 
 
-class ZoneSchedule:  # 0404  # TODO: add for DHW
+class ZoneSchedule(ZoneBase):  # 0404  # TODO: add for DHW
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -277,7 +277,7 @@ class ZoneSchedule:  # 0404  # TODO: add for DHW
         }
 
 
-class RelayDemand:  # 0008
+class RelayDemand(ZoneBase):  # 0008
     """Not all zones call for heat."""
 
     @property

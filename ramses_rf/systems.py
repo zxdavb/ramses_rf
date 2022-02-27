@@ -423,7 +423,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         return status
 
 
-class MultiZone:  # 0005 (+/- 000C?)
+class MultiZone(SystemBase):  # 0005 (+/- 000C?)
     ZONE_TYPES = [
         _0005_ZONE.RAD,
         _0005_ZONE.UFH,
@@ -666,7 +666,7 @@ class MultiZone:  # 0005 (+/- 000C?)
         }
 
 
-class ScheduleSync:  # 0006
+class ScheduleSync(SystemBase):  # 0006
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -716,7 +716,7 @@ class ScheduleSync:  # 0006
         }
 
 
-class Language:  # 0100
+class Language(SystemBase):  # 0100
     def _discover(self, discover_flag=Discover.ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -734,7 +734,7 @@ class Language:  # 0100
         return params
 
 
-class Logbook:  # 0418
+class Logbook(SystemBase):  # 0418
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -829,7 +829,7 @@ class Logbook:  # 0418
         }
 
 
-class StoredHw:  # 10A0, 1260, 1F41
+class StoredHw(SystemBase):  # 10A0, 1260, 1F41
     MIN_SETPOINT = 30.0  # NOTE: these may be removed
     MAX_SETPOINT = 85.0
     DEFAULT_SETPOINT = 50.0
@@ -983,7 +983,7 @@ class StoredHw:  # 10A0, 1260, 1F41
         }
 
 
-class SysMode:  # 2E04
+class SysMode(SystemBase):  # 2E04
     def _discover(self, discover_flag=Discover.ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -1015,7 +1015,7 @@ class SysMode:  # 2E04
         return params
 
 
-class Datetime:  # 313F
+class Datetime(SystemBase):  # 313F
     def _discover(self, discover_flag=Discover.ALL) -> None:
         super()._discover(discover_flag=discover_flag)
 
@@ -1050,7 +1050,7 @@ class Datetime:  # 313F
         await self._gwy.async_send_cmd(Command.set_system_time(self.id, dtm))
 
 
-class UfHeating:
+class UfHeating(SystemBase):
     def _ufh_ctls(self):
         return sorted([d for d in self._ctl.devices if isinstance(d, UfhController)])
 

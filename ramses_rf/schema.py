@@ -215,7 +215,7 @@ GLOBAL_CONFIG_SCHEMA = vol.Schema(
 
 def load_config(
     serial_port, input_file, **kwargs
-) -> tuple[SimpleNamespace, dict, list, list]:
+) -> tuple[SimpleNamespace, dict, dict, dict]:
     """Process the configuration, including any filter lists."""
 
     config = GLOBAL_CONFIG_SCHEMA(kwargs)
