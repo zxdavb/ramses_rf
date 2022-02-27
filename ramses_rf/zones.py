@@ -348,12 +348,13 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
         if discover_flag & Discover.PARAMS:
             # self._send_cmd(Command.get_dhw_params(self._ctl.id))
-            [send_code(code, 15) for code in (_10A0,)]
+            send_code(_10A0, 15)
 
         if discover_flag & Discover.STATUS:
             # self._send_cmd(Command.get_dhw_mode(self._ctl.id))
             # self._send_cmd(Command.get_dhw_temp(self._ctl.id))
-            [send_code(code) for code in (_1260, _1F41)]
+            send_code(_1260)
+            send_code(_1F41)
 
         # start collecting the schedule
         # self._schedule.req_schedule()  # , restart=True) start collecting schedule
@@ -591,14 +592,16 @@ class Zone(ZoneSchedule, ZoneBase):
         if discover_flag & Discover.PARAMS:
             # self._send_cmd(Command.get_zone_config(self._ctl.id, self.idx))
             # self._send_cmd(Command.get_zone_name(self._ctl.id, self.idx))
-            [throttle_send(code, 15) for code in (_0004, _000A)]
+            throttle_send(_0004, 15)
+            throttle_send(_000A, 15)
 
         if discover_flag & Discover.STATUS:  # every 1h, CTL will not respond to a 3150
             # self._send_cmd(Command.get_zone_mode(self._ctl.id, self.idx))
             # self._send_cmd(Command.get_zone_temp(self._ctl.id, self.idx))
             # self._send_cmd(Command.get_zone_window_state(self._ctl.id, self.idx))
-            [throttle_send(code, 15) for code in (_12B0,)]
-            [throttle_send(code) for code in (_2349, _30C9)]
+            throttle_send(_12B0, 15)
+            throttle_send(_2349)
+            throttle_send(_30C9)
 
         # start collecting the schedule
         # self._schedule.req_schedule()  # , restart=True) start collecting schedule
@@ -627,13 +630,10 @@ class Zone(ZoneSchedule, ZoneBase):
             if msg.payload.get("sensor"):
                 self._set_sensor(msg.payload["sensor"])
 
-            if msg.payload.get("actuators"):
+            for d in msg.payload.get("actuators", []):
                 # TODO: confirm is/isn't an address before implementing
-                [
+                if d not in self.devices:
                     d._set_parent(self)
-                    for d in msg.payload["actuators"]
-                    if d not in self.devices
-                ]
 
         if msg.code == _000C and msg.payload["devices"]:
 
@@ -1031,16 +1031,6 @@ def _transform(valve_pos: float) -> float:
         return 0
     t0, t1, t2 = (0, 30, 70) if valve_pos <= 70 else (30, 70, 100)
     return math.floor((valve_pos - t1) * t1 / (t2 - t1) + t0 + 0.5) / 100
-
-
-def test_transform() -> None:
-    valve_pos_list = [0, 0.26, 0.30, 0.34, 0.43, 0.45, 0.48, 0.53, 0.69, 0.70, 1]
-    heat_demand_list = [0, 0, 0, 0.03, 0.10, 0.11, 0.14, 0.17, 0.29, 0.30, 1]
-    print("v_pos\tevohome\tdemand\tmatch")
-    for valve_pos, heat_demand in zip(valve_pos_list, heat_demand_list):
-        result = _transform(valve_pos)
-        status = "OK" if result == heat_demand else "Failed!"
-        print(valve_pos, "\t", heat_demand, "\t", result, "\t", status)
 
 
 _CLASS_BY_KLASS = class_by_attr(__name__, "_ZON_KLASS")  # e.g. "RAD": RadZone
