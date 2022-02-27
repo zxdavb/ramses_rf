@@ -16,7 +16,7 @@ GWY_CONFIG = {}
 class TestApisBase(unittest.IsolatedAsyncioTestCase):
     def test_transform(self) -> None:
         self.assertEqual(
-            [_transform(x[0]) for x in TRANSFORMS], [x[1] for x in TRANSFORMS]
+            [x[1] for x in TRANSFORMS], [_transform(x[0]) for x in TRANSFORMS]
         )
 
 
