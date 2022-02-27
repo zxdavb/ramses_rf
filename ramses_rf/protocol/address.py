@@ -37,7 +37,7 @@ class Address:
 
         self.id = id  # TODO: check is a valid id...
         self.type = id[:2]  # dex, NOTE: remove last
-        self._hex_id = None
+        self._hex_id: str = None  # type: ignore[assignment]
 
         if not self.is_valid(id):
             raise ValueError(f"Invalid device_id: {id}")
@@ -69,12 +69,12 @@ class Address:
     #     return {}
 
     @staticmethod
-    def is_valid(value: str) -> bool:
+    def is_valid(value: str) -> bool:  # Union[str, Match[str], None]:
 
         # if value[:2] not in DEVICE_TYPES:
         #     return False
 
-        return isinstance(value, str) and __device_id_regex__.match(value)
+        return isinstance(value, str) and __device_id_regex__.match(value)  # type: ignore[return-value]
 
     @classmethod
     def _friendly(cls, device_id: str) -> str:

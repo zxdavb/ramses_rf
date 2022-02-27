@@ -134,7 +134,7 @@ class PacketBase:
         self._seqn: str  # TODO: or, better as int?
         self._src: Address
         self._dst: Address
-        self._addrs: list[Address, Address, Address]
+        self._addrs: tuple[Address, Address, Address]
         self._code: str
         self._len: int
         self._payload: str

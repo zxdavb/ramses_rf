@@ -9,7 +9,7 @@ Decode/process a packet (packet that was received).
 import logging
 from datetime import datetime as dt
 from datetime import timedelta as td
-from typing import ByteString, Optional, Union
+from typing import Optional, Tuple, Union
 
 from .address import Address, pkt_addrs
 from .const import MESSAGE_REGEX
@@ -193,7 +193,7 @@ class Packet(PacketBase):
         return self._frame[4:] == other._frame[4:]
 
     @staticmethod
-    def _partition(pkt_line: str) -> tuple[str, str, str]:
+    def _partition(pkt_line: str) -> tuple[str, str, str]:  # map[str]
         """Partition a packet line into its three parts.
 
         Format: packet[ < parser-hint: ...][ * evofw3-err_msg][ # evofw3-comment]
@@ -202,7 +202,7 @@ class Packet(PacketBase):
         fragment, _, comment = pkt_line.partition("#")
         fragment, _, err_msg = fragment.partition("*")
         pkt_str, _, _ = fragment.partition("<")  # discard any parser hints
-        return pkt_str.strip(), err_msg.strip(), comment.strip()
+        return map(str.strip, (pkt_str, err_msg, comment))  # type: ignore[return-value]
 
     @property
     def _expired(self) -> Union[bool, float]:
@@ -223,7 +223,7 @@ class Packet(PacketBase):
 
         return fraction_expired(self._gwy._dt_now() - self.dtm, self._timeout)
 
-    def _validate(self, addr_frag) -> tuple[Address, Address, list[Address], int]:
+    def _validate(self, addr_frag) -> tuple[Address, Address, Tuple[Address, ...], int]:
         """Validate the packet, and parse the addresses if so (will log all packets).
 
         Raise an exception InvalidPacketError (InvalidAddrSetError) if it is not valid.
@@ -246,7 +246,7 @@ class Packet(PacketBase):
             src, dst, addrs = pkt_addrs(addr_frag)  # self._frame[11:40]
 
             _PKT_LOGGER.info("", extra=self.__dict__)
-            return src, dst, addrs, length
+            return src, dst, tuple(addrs), length
 
         except InvalidPacketError as exc:  # incl. InvalidAddrSetError
             if self._frame or self.error_text:
@@ -266,7 +266,7 @@ class Packet(PacketBase):
         return cls(gwy, dt.fromisoformat(dtm), frame, err_msg=err_msg, comment=comment)
 
     @classmethod
-    def from_port(cls, gwy, dtm: dt, pkt_line: str, raw_line: ByteString = None):
+    def from_port(cls, gwy, dtm: dt, pkt_line: str, raw_line: bytes = None):
         """Constructor to create a packet from a usb port (HGI80, evofw3)."""
         frame, err_msg, comment = cls._partition(pkt_line)
         return cls(

@@ -16,7 +16,7 @@ try:
     from typeguard import typechecked  # type: ignore[reportMissingImports]
 except ModuleNotFoundError:
 
-    def typechecked(fnc):
+    def typechecked(fnc):  # type: ignore[no-redef]
         def wrapper(*args, **kwargs):
 
             return fnc(*args, **kwargs)
@@ -191,9 +191,9 @@ def percent(value: str, high_res: bool = True) -> Optional[float]:  # c.f. valve
     if not isinstance(value, str) or len(value) != 2:
         raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
     if value == "EF":  # TODO: when EF, when 7F?
-        return None
+        return None  # TODO: raise NotImplementedError
     if (raw_result := int(value, 16)) & 0xF0 == 0xF0:
-        return None  # TODO: return errors
+        return None  # TODO: raise errors
     result = float(raw_result) / (200 if high_res else 100)
     if result > 1.0:
         raise ValueError(f"Invalid result: {result} (0x{value}) is > 1")
@@ -257,7 +257,7 @@ def valve_demand(value: str) -> dict:  # c.f. percent()
     if not isinstance(value, str) or len(value) != 2:
         raise ValueError(f"Invalid value: {value}, is not a 2-char hex string")
     if value == "EF":
-        return None  # not available
+        return None  # TODO: raise NotImplementedError
     result = int(value, 16)
     if result & 0xF0 == 0xF0:
         STATE_3150 = {
@@ -270,7 +270,7 @@ def valve_demand(value: str) -> dict:  # c.f. percent()
             "heat_demand": None,
             "fault": STATE_3150.get(value, "malfunction"),
         }
-    result = result / 200
+    result = result / 200  # type: ignore[assignment]
     if result > 1:
         raise ValueError(f"Invalid result: {result} (0x{value}) is > 1")
     return {"heat_demand": result}

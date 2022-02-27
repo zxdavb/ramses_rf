@@ -159,7 +159,7 @@ class DeviceBase(Entity):
         _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)
         super().__init__(gwy)
 
-        self.id = dev_addr.id
+        self.id: str = dev_addr.id
         if self.id in gwy.device_by_id:
             raise LookupError(f"Duplicate device: {self.id}")
 
@@ -230,7 +230,7 @@ class DeviceBase(Entity):
         if getattr(self, "has_battery", None) and cmd.dst.id == self.id:
             _LOGGER.info(f"{cmd} < Sending inadvisable for {self} (has a battery)")
 
-        return super(cmd, **kwargs)._send.cmd()
+        super(cmd, **kwargs)._send.cmd()
 
     def _set_ctl(self, ctl):  # self._ctl
         """Set the device's parent controller, after validating it."""

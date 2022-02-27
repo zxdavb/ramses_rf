@@ -526,14 +526,13 @@ class UfhController(HeatDevice):  # UFC (02):
 
         if discover_flag & Discover.SCHEMA:
             self._make_cmd(_0005, payload=f"00{_0005_ZONE.UFH}")
-            [
+            for ufh_idx in range(8):
                 self._make_cmd(_000C, payload=f"{ufh_idx:02X}{_000C_DEVICE.UFH}")
-                for ufh_idx in range(8)
-            ]
 
         if discover_flag & Discover.PARAMS:  # only 2309 has any potential?
-            [self._make_cmd(_000A, payload=ufh_idx) for ufh_idx in self.circuits]
-            [self._make_cmd(_2309, payload=ufh_idx) for ufh_idx in self.circuits]
+            for ufh_idx in self.circuits:
+                self._make_cmd(_000A, payload=ufh_idx)
+                self._make_cmd(_2309, payload=ufh_idx)
 
         # if discover_flag & Discover.STATUS:  # only 2309 has any potential?
         #     [self._make_cmd(_2309, payload=ufh_idx)for ufh_idx in self._circuits_alt]
@@ -782,22 +781,19 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
-            [
-                self._send_cmd(Command.get_opentherm_data(self.id, m))
-                for m in SCHEMA_MSG_IDS  # From OT v2.2: version numbers
-                if self._msgs_ot_supported.get(m) is not False
-                and (not self._msgs_ot.get(m) or self._msgs_ot[m]._expired)
-            ]
+            for m in SCHEMA_MSG_IDS:  # From OT v2.2: version numbers
+                if self._msgs_ot_supported.get(m) is not False and (
+                    not self._msgs_ot.get(m) or self._msgs_ot[m]._expired
+                ):
+                    self._send_cmd(Command.get_opentherm_data(self.id, m))
+
+        if discover_flag & Discover.PARAMS and OTB_MODE:
+            for m in PARAMS_MSG_IDS:
+                if self._msgs_ot_supported.get(m) is not False:
+                    self._send_cmd(Command.get_opentherm_data(self.id, m))
+            return
 
         if discover_flag & Discover.PARAMS:
-            if OTB_MODE:
-                [
-                    self._send_cmd(Command.get_opentherm_data(self.id, m))
-                    for m in PARAMS_MSG_IDS
-                    if self._msgs_ot_supported.get(m) is not False
-                ]
-                return
-
             for code in [v for k, v in self._CODE_MAP.items() if k in PARAMS_MSG_IDS]:
                 if self._msgs_supported.get(code) is not False:
                     self._send_cmd(Command(RQ, code, "00", self.id, retries=0))
@@ -806,14 +802,15 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
             self._send_cmd(Command(RQ, _2401, "00", self.id))  # WIP
             self._send_cmd(Command(RQ, _3EF0, "00", self.id))
 
-            if OTB_MODE:
-                for msg_id in STATUS_MSG_IDS:
-                    if self._msgs_ot_supported.get(msg_id) is not False:
-                        self._send_cmd(
-                            Command.get_opentherm_data(self.id, msg_id, retries=0)
-                        )
-                return
+        if discover_flag & Discover.STATUS and OTB_MODE:
+            for msg_id in STATUS_MSG_IDS:
+                if self._msgs_ot_supported.get(msg_id) is not False:
+                    self._send_cmd(
+                        Command.get_opentherm_data(self.id, msg_id, retries=0)
+                    )
+            return
 
+        if discover_flag & Discover.STATUS:
             self._send_cmd(Command.get_opentherm_data(self.id, "00"))
             self._send_cmd(Command.get_opentherm_data(self.id, "73"))
 
@@ -908,6 +905,7 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
     def _ot_msg_flag(self, msg_id, flag_idx) -> Optional[bool]:
         if flags := self._ot_msg_value(msg_id):
             return bool(flags[flag_idx])
+        return None
 
     @staticmethod
     def _ot_msg_name(msg) -> str:
@@ -924,6 +922,7 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
             and not msg._expired
         ):
             return msg.payload.get(VALUE)
+        return None
 
     @property
     def bit_2_4(self) -> Optional[bool]:  # 2401 - WIP
@@ -1323,6 +1322,8 @@ class BdrSwitch(Actuator, RelayDemand, HeatDevice):  # BDR (13):
         # if _1FC9 in self._msgs and self._msgs[_1FC9].verb == RP:
         #     if _3B00 in self._msgs[_1FC9].raw_payload:
         #         self._is_tpi = True
+
+        return None
 
     @property
     def tpi_params(self) -> Optional[dict]:  # 1100

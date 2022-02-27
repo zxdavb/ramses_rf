@@ -8,6 +8,7 @@ Decode/process a message (payload into JSON).
 
 import logging
 import re
+from datetime import datetime as dt
 from datetime import timedelta as td
 from functools import lru_cache
 from typing import Optional
@@ -143,20 +144,20 @@ class Message:
         self.dst = pkt.dst
         self._addrs = pkt.addrs
 
-        self.dtm = pkt.dtm
+        self.dtm: dt = pkt.dtm
 
-        self.verb = pkt.verb
-        self.seqn = pkt.seqn
-        self.code = pkt.code
-        self.len = pkt.len
+        self.verb: str = pkt.verb
+        self.seqn: str = pkt.seqn
+        self.code: str = pkt.code
+        self.len: int = pkt.len
 
         self.code_name = CODE_NAMES.get(self.code, f"unknown_{self.code}")
 
         self._payload = self._validate(self._pkt.payload)  # ? raise InvalidPacketError
 
-        self._str = None
-        self._fraction_expired = None
-        self._is_fragment = None
+        self._str: str = None
+        self._fraction_expired: float = None
+        self._is_fragment: bool = None
 
     def __repr__(self) -> str:
         """Return an unambiguous string representation of this object."""
@@ -432,11 +433,11 @@ class Message:
 
 
 @lru_cache(maxsize=256)
-def re_compile_re_match(regex, string) -> bool:
+def re_compile_re_match(regex, string) -> bool:  # Optional[Match[Any]]
     # TODO: confirm this does speed things up
     # Python has it's own caching of re.complile, _MAXCACHE = 512
     # https://github.com/python/cpython/blob/3.10/Lib/re.py
-    return re.compile(regex).match(string)
+    return re.compile(regex).match(string)  # type: ignore[return-value]
 
 
 def _check_msg_payload(msg: Message, payload) -> None:

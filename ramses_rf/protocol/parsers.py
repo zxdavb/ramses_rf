@@ -157,7 +157,7 @@ def parser_0004(payload, msg) -> Optional[dict]:
 
 
 @parser_decorator  # system_zones (add/del a zone?)
-def parser_0005(payload, msg) -> Optional[dict]:  # TODO: needs a cleanup
+def parser_0005(payload, msg) -> Union[dict, list[dict]]:  # TODO: needs a cleanup
     #  I --- 01:145038 --:------ 01:145038 0005 004 00000100
     # RP --- 02:017205 18:073736 --:------ 0005 004 0009001F
     #  I --- 34:064023 --:------ 34:064023 0005 012 000A0000-000F0000-00100000

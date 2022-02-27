@@ -28,7 +28,7 @@ from queue import Queue
 from string import printable  # ascii_letters, digits
 from threading import Lock, Thread
 from types import SimpleNamespace
-from typing import ByteString, Callable, Iterable, Optional
+from typing import Callable, Iterable, Optional
 
 from serial import SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerTransportAsync
@@ -97,7 +97,7 @@ VALID_CHARACTERS = printable  # "".join((ascii_letters, digits, ":-<*# "))
 # !FS - save autotune
 
 
-def _str(value: ByteString) -> str:
+def _str(value: bytes) -> str:
     try:
         result = "".join(
             c
@@ -330,7 +330,7 @@ class PacketProtocolBase(asyncio.Protocol):
         else:
             self._exclude = list(gwy._exclude.keys())
             self._include = []
-        self._unwanted = []  # not: [NON_DEVICE_ID, NUL_DEVICE_ID]
+        self._unwanted: list = []  # not: [NON_DEVICE_ID, NUL_DEVICE_ID]
 
         self._dt_now_ = dt_now if sys.platform == "win32" else dt.now
 
@@ -350,7 +350,7 @@ class PacketProtocolBase(asyncio.Protocol):
         """Return a precise datetime, using the curent dtm."""
         return self._dt_now_()
 
-    def connection_made(self, transport: asyncio.Transport) -> None:
+    def connection_made(self, transport: asyncio.Transport) -> None:  # type: ignore[override]
         """Called when a connection is made."""
         _LOGGER.debug(f"{self}.connection_made({transport})")
 
@@ -390,10 +390,10 @@ class PacketProtocolBase(asyncio.Protocol):
 
         self._pause_writing = False
 
-    def data_received(self, data: ByteString) -> None:
+    def data_received(self, data: bytes) -> None:
         """Called by the transport when some data (packet fragments) is received."""
 
-        def bytes_received(data: ByteString) -> Iterable[ByteString]:
+        def bytes_received(data: bytes) -> Iterable[bytes]:
             self._recv_buffer += data
             if b"\r\n" in self._recv_buffer:
                 lines = self._recv_buffer.split(b"\r\n")
@@ -417,7 +417,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 f" (active gateway: {self._hgi80[DEVICE_ID]}), this is unsupported{TIP}"
             )
 
-    def _line_received(self, dtm: dt, line: str, raw_line: ByteString) -> None:
+    def _line_received(self, dtm: dt, line: str, raw_line: bytes) -> None:
 
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
             _LOGGER.info("RF Rx: %s", raw_line)
@@ -481,7 +481,7 @@ class PacketProtocolBase(asyncio.Protocol):
             ) as exc:  # noqa: E722, broad-except
                 _LOGGER.exception("%s < exception from msg layer: %s", pkt, exc)
 
-    def _is_wanted(self, src_id: str, dst_id: str) -> Optional[bool]:
+    def _is_wanted(self, src_id: str, dst_id: str) -> bool:
         """Parse the packet, return True if the packet is not to be filtered out.
 
         An unwanted device_id will 'trump' a whitelisted device_id in the same packet
@@ -491,12 +491,12 @@ class PacketProtocolBase(asyncio.Protocol):
         for dev_id in dict.fromkeys((src_id, dst_id)):
             if dev_id in self._unwanted:  # TODO: remove entries older than (say) 1w/1d
                 _LOGGER.debug(f"Blocked {dev_id} (is unwanted){TIP}")
-                return
+                return False
 
             if dev_id in self._exclude:
                 _LOGGER.info(f"Blocking {dev_id} (in {BLOCK_LIST})")
                 self._unwanted.append(dev_id)
-                return
+                return False
 
             if dev_id in self._include or dev_id in (NON_DEVICE_ID, NUL_DEVICE_ID):
                 # _LOGGER.debug(f"Allowed {dev_id} (in {BLOCK_LIST}, or is the gateway")
@@ -517,7 +517,7 @@ class PacketProtocolBase(asyncio.Protocol):
                     f"Blocking {dev_id} (is a foreign gateway){TIP}"
                 )
                 self._unwanted.append(dev_id)
-                return
+                return False
 
             if self.enforce_include:
                 if self._exclude:
@@ -525,7 +525,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 else:
                     _LOGGER.debug(f"Blocking {dev_id} (no {BLOCK_LIST}){TIP}")
                 self._unwanted.append(dev_id)
-                return
+                return False
 
         return True
 
@@ -596,7 +596,7 @@ class PacketProtocolPort(PacketProtocolBase):
             except ValueError:
                 pass
 
-    def connection_made(self, transport: asyncio.Transport) -> None:
+    def connection_made(self, transport: asyncio.Transport) -> None:  # type: ignore[override]
         """Called when a connection is made."""
 
         super().connection_made(transport)  # self._transport = transport
@@ -633,7 +633,7 @@ class PacketProtocolPort(PacketProtocolBase):
 
         await self._send_data(str(cmd))
 
-    async def _send_data(self, data: str) -> None:  # throtled
+    async def _send_data(self, data: str) -> None:  # NOTE: is throttled
         """Send a bytearray to the transport (serial) interface."""
 
         while self._pause_writing:
