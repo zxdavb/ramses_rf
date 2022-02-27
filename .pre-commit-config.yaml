@@ -1,7 +1,7 @@
 # .pre-commit-config.yaml file for https://github.com/zxdavb
 
 # files: ^(ramses.*/.+)?[^/]+\.py$
-exclude: ^ramses.*/tests\.py$
+exclude: ^examples/.*\.py$|^tests/_.*\.py$|^utils/.*\.py$|^\.secrets
 
 repos:
   - repo: https://github.com/psf/black
@@ -32,6 +32,12 @@ repos:
     hooks:
     - id: python-check-blanket-noqa
     - id: python-check-blanket-type-ignore
+
+  # - repo: https://github.com/pre-commit/mirrors-mypy
+  #   rev: v0.931
+  #   hooks:
+  #   - id: mypy
+  #     # files: ^ramses_rf/protocol/const.*\.py
 
   # - repo: local
   #   hooks:
