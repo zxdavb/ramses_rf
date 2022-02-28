@@ -346,11 +346,11 @@ class Gateway:
 
         return self.schema, dict(sorted(pkts.items()))
 
-    async def _set_state(self, packets) -> None:
+    async def _set_state(self, packets, clear_state: bool = False) -> None:
         def clear_state() -> None:
             _LOGGER.warning("ENGINE: Clearing exisiting schema/state...")
 
-            # self.msg_protocol._prev_msg = None  # TODO: move to pause/resume?
+            self.msg_protocol._prev_msg = None  # TODO: move to pause/resume?
             self.evo = None
             self.systems = []
             self.system_by_id = {}
@@ -360,7 +360,8 @@ class Gateway:
         (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Restoring state...")
         self._pause_engine()
 
-        # clear_state()  # TODO: consider need for this (here, or at all)
+        if clear_state:
+            clear_state()
 
         _, tmp_transport = create_pkt_stack(
             self,
