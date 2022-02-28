@@ -23,6 +23,9 @@ from ..protocol.ramses import (
 from .const import SZ_ALIAS, SZ_CLASS, SZ_DEVICE_ID, SZ_FAKED, Discover, __dev_mode__
 from .entity_base import Entity, class_by_attr, discover_decorator
 
+# from .hvac import _CLASS_BY_KLASS as _HVAC_CLASS_BY_KLASS
+# from .hvac import _best_hvac_klass
+
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -230,7 +233,7 @@ class DeviceBase(Entity):
         if getattr(self, "has_battery", None) and cmd.dst.id == self.id:
             _LOGGER.info(f"{cmd} < Sending inadvisable for {self} (has a battery)")
 
-        super(cmd, **kwargs)._send.cmd()
+        super()._send_cmd(cmd, **kwargs)
 
     def _set_ctl(self, ctl):  # self._ctl
         """Set the device's parent controller, after validating it."""
@@ -359,20 +362,24 @@ class Device(DeviceBase):  # 10E0
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        # if type(self) is Device:
-        #     if (klass := _best_hvac_klass(self.id, msg)) in _HVAC_VC_PAIR_BY_CLASS:
-        #         self.__class__ = _CLASS_BY_KLASS[klass]
+        if self._klass == "DEV":
+            from .hvac import _CLASS_BY_KLASS, CODES_HVAC_ONLY, _best_hvac_klass
 
-        #     # TODO: split
-        #     # elif self.type == "30":  # self.__class__ is Device, DEX
-        #     #     # TODO: the RFG codes need checking
-        #     #     if msg.code in (_0006, _0418, _3220) and msg.verb == RQ:
-        #     #         self.__class__ = RfgGateway
-        #     #     elif msg.code in (_313F,) and msg.verb == W_:
-        #     #         self.__class__ = RfgGateway
+            if (klass := _best_hvac_klass(self.id, msg)) in _CLASS_BY_KLASS:
+                self.__class__ = _CLASS_BY_KLASS[klass]
+            elif msg.code in CODES_HVAC_ONLY:
+                self.__class__ == HvacDevice
 
-        #     if type(self) is not Device:
-        #         _LOGGER.warning(f"Promoted the device class of: {self}")
+            # TODO: split
+            # elif self.type == "30":  # self.__class__ is Device, DEX
+            #     # TODO: the RFG codes need checking
+            #     if msg.code in (_0006, _0418, _3220) and msg.verb == RQ:
+            #         self.__class__ = RfgGateway
+            #     elif msg.code in (_313F,) and msg.verb == W_:
+            #         self.__class__ = RfgGateway
+
+            if self._klass != "DEV":
+                _LOGGER.warning(f"Promoted the device class of: {self}")
 
         if not self._gwy.config.enable_eavesdrop:
             return
