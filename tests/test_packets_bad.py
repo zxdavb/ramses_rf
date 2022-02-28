@@ -6,6 +6,7 @@
 Test the Schema processor.
 """
 
+import logging
 import os
 import unittest
 
@@ -17,6 +18,8 @@ LOG_DIR = f"{os.path.dirname(__file__)}"
 LOG_FILES = ("pkts_bad_000.log",)
 
 SCHEMA_EMPTY = {"device_hints": {}, "main_controller": None, "orphans": []}
+
+logging.disable(logging.WARNING)
 
 
 class TestSetApis(unittest.IsolatedAsyncioTestCase):

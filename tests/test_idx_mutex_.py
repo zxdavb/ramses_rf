@@ -6,6 +6,7 @@
 Test the Command.put_*, Command.set_* APIs.
 """
 
+import logging
 import unittest
 
 from ramses_rf import RQ
@@ -17,6 +18,8 @@ from ramses_rf.protocol.ramses import (
     CODES_SCHEMA,
     RQ_NO_PAYLOAD,
 )
+
+logging.disable(logging.WARNING)
 
 
 class TestIdxMutexBase(unittest.IsolatedAsyncioTestCase):
