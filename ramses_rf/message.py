@@ -201,7 +201,7 @@ def _check_msg_src(msg: Message, klass: str = None) -> None:
         return
 
     if klass not in CODES_BY_DEV_KLASS:  # DEX_done, TODO: fingerprint dev class
-        if msg.code not in CODES_HVAC_ONLY:
+        if msg.code != _10E0 and msg.code not in CODES_HVAC_ONLY:
             raise InvalidPacketError(f"Unknown src type: {msg.src}")
         _LOGGER.warning(f"{msg!r} < Unknown src type: {msg.src}, is it HVAC?")
         return

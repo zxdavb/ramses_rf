@@ -10,7 +10,7 @@ from .const import DEV_KLASS
 
 __all__ = ["check_signature"]
 
-# incl. date_1. NB: date_2 can vary, and _unknown_1 can vary for R8810A
+# incl. date_1. NB: date_2 can vary (firmware date), and _unknown_1 can vary for R8810A
 # fmt: off
 _DEVICE_INFO_DB: Dict[str, Tuple[SimpleNamespace, str, str, str]] = {
     # Heating...
@@ -26,10 +26,10 @@ _DEVICE_INFO_DB: Dict[str, Tuple[SimpleNamespace, str, str, str]] = {
     "0002FF1E03FFFFFFFF": (DEV_KLASS.RFG, "30", "2017-04-21", "Internet Gateway"),
     "0001C8380A0100F1FF": (DEV_KLASS.THM, "34", "2014-11-03", "T87RF2025"),  # .                    Round
     "0001C8380F0100F1FF": (DEV_KLASS.THM, "34", "2017-05-03", "T87RF2025"),  # .                    Round
-    # ODD - Jasper
+    # Odd - Jasper kit
     "0002FF0802FFFFFFFE": (DEV_KLASS.JIM, "08", "2017-11-10", "Jasper EIM"),
     "0002FF1F02FFFFFFFF": (DEV_KLASS.JST, "31", "2016-08-04", "Jasper Stat TXXX"),
-    # FAN - some are HRU
+    # FAN - some are HRUs, others extraction only
     "000100140C06010000": (DEV_KLASS.FAN, "20", "0000-00-00", ""),  # .                             31D9
     "000100140D06130000": (DEV_KLASS.FAN, "20", "0000-00-00", ""),  # .                             31D9
     "0001001B190B010000": (DEV_KLASS.FAN, "20", "0000-00-00", ""),  # .                             31D9
@@ -39,6 +39,7 @@ _DEVICE_INFO_DB: Dict[str, Tuple[SimpleNamespace, str, str, str]] = {
     "0001001B2E1901FEFF": (DEV_KLASS.FAN, "37", "2017-11-29", "CVE-RF"),  # .                       31D9, 31DA
     "0001001B311901FEFF": (DEV_KLASS.FAN, "37", "2018-05-14", "CVE-RF"),  # .                       31D9, 31DA
     "0001001B361B01FEFF": (DEV_KLASS.FAN, "37", "2019-04-11", "CVE-RF"),  # .                       31D9, 31DA, and 12C8
+    "0001001B371B01FEFF": (DEV_KLASS.FAN, "37", "2019-08-29", "CVE-RF"),  # .                       31D9, 31DA
     "0001001B381B01FEFF": (DEV_KLASS.FAN, "37", "2020-02-14", "CVE-RF"),  # .                       31D9, 31DA (and I|042F, I|3120)
     "0001C8260A0367FFFF": (DEV_KLASS.FAN, "29", "0000-00-00", "VMC-15RP01"),
     "0001C8260D0467FFFF": (DEV_KLASS.FAN, "29", "0000-00-00", "VMC-15RP01"),  # .                   31D9

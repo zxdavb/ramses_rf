@@ -10,6 +10,7 @@
 # - brucemiranda: 3EF0, others
 
 import logging
+import re
 from datetime import datetime as dt
 from datetime import timedelta as td
 from typing import Optional, Union
@@ -704,34 +705,38 @@ def parser_10b0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # device_info
 def parser_10e0(payload, msg) -> Optional[dict]:
-    assert msg.len >= 19, msg.len  # in (19, 28, 30, 36, 38), msg.len
+    assert msg.len in (19, 28, 29, 30, 36, 38), msg.len  # >= 19, msg.len  #
+
+    payload = re.sub("(00)*$", "", payload)  # remove trailing 00s
+    assert len(payload) >= 18 * 2
 
     # if DEV_MODE:  # TODO
     try:  # DEX
         check_signature(msg.src.type, payload[2:20])
-    except AssertionError:
+    except ValueError as exc:
         _LOGGER.warning(
-            f"{msg!r} < {_INFORM_DEV_MSG}, with the make/model of device: {msg.src}"
+            f"{msg!r} < {_INFORM_DEV_MSG}, with the make/model of device: {msg.src} ({exc})"
         )
 
-    date_2 = date_from_hex(payload[20:28])  # could be 'FFFFFFFF', date_manufactured?
-    date_1 = date_from_hex(payload[28:36])  # could be 'FFFFFFFF', date_software_ver?
-    description = bytearray.fromhex(payload[36:]).split(b"\x00")[0].decode()
+    description, _, unknown = payload[36:].partition("00")
+    assert msg.verb == RP or not unknown, f"{unknown}"
 
-    return {  # TODO: add version?
-        "date_2": date_2 or "0000-00-00",
-        "date_1": date_1 or "0000-00-00",
-        # "manufacturer_group": payload[2:6],  # default is: 0001
+    result = {
+        "date_2": date_from_hex(payload[20:28]) or "0000-00-00",  # manufactured?
+        "date_1": date_from_hex(payload[28:36]) or "0000-00-00",  # firmware?
+        # # "manufacturer_group": payload[2:6],  # default is: 0001
         # "manufacturer_sub_id": payload[6:8],
-        # "product_id": payload[8:10],
+        "product_id": payload[8:10],  # if CH/DHW: matches device_type (sometimes)
         # "software_ver_id": payload[10:12],
-        # "list_ver_id": payload[12:14],
-        # "oem_code": payload[14:16],
-        # "additional_ver_a": payload[16:18],
-        # "additional_ver_b": payload[18:20],
-        "description": description,
-        "_unknown_1": payload[38 + len(description) * 2 :],
+        # "list_ver_id": payload[12:14],  # if FF/01 is CH/DHW, then 01/FF
+        "oem_code": payload[14:16],  # 00/FF is CH/DHW, 01/6x is HVAC
+        # # "additional_ver_a": payload[16:18],
+        # # "additional_ver_b": payload[18:20],
+        "description": bytearray.fromhex(description).decode(),
     }
+    if msg.verb == RP and unknown:  # TODO: why only OTBs do this?
+        result["_unknown"] = unknown
+    return result
 
 
 @parser_decorator  # device_id
