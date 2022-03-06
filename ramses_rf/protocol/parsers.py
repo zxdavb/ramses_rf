@@ -705,7 +705,7 @@ def parser_10b0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # device_info
 def parser_10e0(payload, msg) -> Optional[dict]:
-    assert msg.len in (19, 28, 29, 30, 36, 38), msg.len  # >= 19, msg.len  #
+    assert msg.len in (19, 28, 29, 30, 36, 38), msg.len  # >= 19, msg.len
 
     payload = re.sub("(00)*$", "", payload)  # remove trailing 00s
     assert len(payload) >= 18 * 2
