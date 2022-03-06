@@ -104,7 +104,7 @@ def check_signature(dev_type: str, signature: str) -> None:
 # VMN-15LF01   -
 # VMN-23LMH23  - SWI - 4 button RF Switch
 # VMS-02MC05   - CO2 -
-# VMS-12C39    - CO2 - CO2 sensor, incl. integrated control
+# VMS-12C39    - CO2 - CO2 sensor, incl. integrated control, PIR
 # VMS-15CM17   - CO2 - CO2 Sensor
 # VMS-17C01    -
 # VMS-17HB01   -
