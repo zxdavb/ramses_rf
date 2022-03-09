@@ -5,6 +5,7 @@
 
 import re
 from functools import lru_cache
+from typing import List
 
 from .const import (
     DEVICE_LOOKUP,
@@ -189,7 +190,7 @@ def is_valid_dev_id(value: str, dev_class: str = None) -> bool:
 
 @lru_cache(maxsize=256)  # there is definite benefit in caching this
 @typechecked
-def pkt_addrs(pkt_fragment: str) -> tuple[Address, Address, list[Address]]:
+def pkt_addrs(pkt_fragment: str) -> tuple[Address, Address, List[Address]]:
     """Return the address fields from (e.g): '01:078710 --:------ 01:144246'.
 
     Will raise an InvalidAddrSetError is the address fields are not valid.
