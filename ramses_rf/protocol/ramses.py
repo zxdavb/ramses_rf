@@ -400,10 +400,10 @@ CODES_SCHEMA: dict = {  # rf_unknown
         # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-3FF1-956ABD  # noqa: E501
         # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-7FE1-DD6ABD  # noqa: E501
         # RP --- 01:145038 18:013393 --:------ 1FC9 012 FF-10E0-06368E FF-1FC9-06368E
-        NAME: "rf_bind",
+        NAME: "rf_bind",  # idx-code-dev_id
         RQ: r"^00$",
-        RP: r"^((0[0-9A-F]|F[9ABCF]|90)([0-9A-F]{10}))+$",  # xx-code-dev_id
-        I_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
+        RP: r"^((0[0-9A-F]|F[9ABCF]|90)([0-9A-F]{10}))+$",  # #  NOTE: idx can be 90 (HEAT)
+        I_: r"^((0[0-9A-F]|F[9ABCF]|67)([0-9A-F]{10}))+|00$",  # NOTE: idx can be 67 (HVAC), payload can be 00
         W_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
     },
     _1FCA: {  # unknown_1fca
@@ -545,7 +545,7 @@ CODES_SCHEMA: dict = {  # rf_unknown
     _31D9: {  # ventilation_status
         NAME: "vent_status",
         # I_: r"^(00|21)[0-9A-F]{32}$",
-        I_: r"^(00|01|21)[0-9A-F]{4}(00(00|20){12}(00|08))?$",
+        I_: r"^(00|01|21)[0-9A-F]{4}((00|FE)(00|20){12}(00|08))?$",
         RQ: r"^00$",
     },
     _31DA: {  # ventilation_unknown
@@ -983,6 +983,7 @@ _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
         _12A0: {I_: {}},
         _12C8: {I_: {}},
         _1F09: {I_: {}, RP: {}},
+        _1FC9: {W_: {}},
         _3120: {I_: {}},
         _313F: {I_: {}},
         _31D9: {I_: {}, RP: {}},
@@ -993,6 +994,7 @@ _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
         _042F: {I_: {}},
         _10E0: {I_: {}, RP: {}},
         _1298: {I_: {}},
+        # _1FC9: {I_: {}},  # leave out, until see example in a packet log
         _2E10: {I_: {}},
         _3120: {I_: {}},
         _31DA: {RQ: {}},
@@ -1003,12 +1005,14 @@ _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
         _1060: {I_: {}},
         _10E0: {I_: {}},
         _12A0: {I_: {}},
+        # _1FC9: {I_: {}},  # leave out, until see example in a packet log
         _31DA: {RQ: {}},
         _31E0: {I_: {}},
     },
     DEV_KLASS.SWI: {  # HVAC: two-way switch; also an "06/22F1"?
         _1060: {I_: {}},
         _10E0: {I_: {}},
+        _1FC9: {I_: {}},
         _22F1: {I_: {}},
         _22F3: {I_: {}},
         # _31E0: {I_: {}},

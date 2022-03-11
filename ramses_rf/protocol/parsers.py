@@ -1024,9 +1024,11 @@ def parser_1fc9(payload, msg) -> list:
     # 045 RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-7FE1-DD6ABD  # noqa: E501
 
     def _parser(seqx) -> dict:
-        if seqx[:2] != "90":
+        if seqx[:2] not in ("90",):
             assert seqx[6:] == payload[6:12]  # all with same controller
         if seqx[:2] not in (
+            "67",
+            "6C",
             "90",
             "F9",
             "FA",
@@ -1511,7 +1513,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
         return result
 
     try:
-        assert payload[6:8] == "00", f"byte 3: {payload[6:8]}"
+        assert payload[6:8] in ("00", "FE"), f"byte 3: {payload[6:8]}"
         assert payload[8:32] in ("00" * 12, "20" * 12), f"byte 4: {payload[8:32]}"
         assert payload[32:] in ("00", "08"), f"byte 16: {payload[32:]}"
     except AssertionError as exc:
@@ -1519,7 +1521,7 @@ def parser_31d9(payload, msg) -> Optional[dict]:
 
     return {
         **result,
-        # "_unknown_3": payload[6:8],
+        "_unknown_3": payload[6:8],
         # "_unknown_4": payload[8:32],
         "unknown_16": payload[32:],
     }
