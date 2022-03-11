@@ -56,10 +56,14 @@ jobs:
           name: Verify git tag vs. package version
           command: python setup.py verify  # NOTE: $CIRCLE_TAG is not available to su
       - run:
-          name: Clear the DEV_MODE flag, if set
+          name: Clear the DEV_MODE flags, if set
           command: |
             sed -i -e '/__dev_mode__ =/ s/= .*/= False/' ramses_rf/const.py
             sed -i -e '/__dev_mode__ =/ s/= .*/= False/' ramses_rf/protocol/const.py
+      - run:
+          name: Clear any DEV_HACK_* flags, if set
+          command: |
+            sed -i -e '/DEV_HACK_REGEX =/ s/= .*/= False/' ramses_rf/protocol/transport.py
       - run:
           name: Build the package
           command: |

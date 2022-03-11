@@ -26,7 +26,7 @@ from .const import (
     __dev_mode__,
 )
 from .protocol import PACKET_LOG, PACKET_LOG_SCHEMA
-from .protocol.transport import SERIAL_CONFIG_SCHEMA
+from .protocol.transport import DEV_HACK_REGEX, SERIAL_CONFIG_SCHEMA
 
 DEV_MODE = __dev_mode__ and False
 
@@ -249,15 +249,24 @@ def load_config(
     update_config(config, known_list, block_list)
     config = SimpleNamespace(**config)
 
-    # config.use_regex.update(
-    #     {"( 03:.* 03:.* (1060|2389|30C9) 003) ..": "\\1 00"}
-    # )  # TODO: remove - for testing only
-
     return (config, schema, known_list, block_list)
 
 
 def update_config(config, known_list, block_list) -> dict:
     """Determine which device filter to use, if any: known_list or block_list."""
+
+    if "inbound" not in config["use_regex"]:  # TODO: move to voluptuous
+        config["use_regex"]["inbound"] = {}
+    if "outbound" not in config["use_regex"]:
+        config["use_regex"]["outbound"] = {}
+
+    if DEV_HACK_REGEX:  # HACK: for DEV/TEST convenience, not for production
+        config["use_regex"]["inbound"].update(
+            {
+                "( 03:.* 03:.* (1060|2389|30C9) 003) ..": "\\1 00",
+                "02:153425": "20:153425",
+            }
+        )
 
     if config[ENFORCE_KNOWNLIST] and not known_list:
         _LOGGER.warning(

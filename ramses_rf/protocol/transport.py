@@ -15,6 +15,9 @@ connection: &con00
     max-connections: 3
 """
 
+# TODO: https://evohome-hackers.slack.com/archives/C02SYCLATSL/p1646997554178989
+# TODO: https://evohome-hackers.slack.com/archives/C02SYCLATSL/p1646998253052939
+
 import asyncio
 import logging
 import os
@@ -50,6 +53,7 @@ from .schema import SERIAL_CONFIG_SCHEMA
 from .version import VERSION
 
 DEV_MODE = __dev_mode__ and False  # debug is_wanted, or qos_fx
+DEV_HACK_REGEX = True
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:  # or True:
@@ -140,7 +144,7 @@ def _regex_hack(pkt_line: str, regex_filters: dict) -> str:
         except re.error as exc:
             _LOGGER.warning(f"{pkt_line} < issue with regex ({k}, {v}): {exc}")
 
-    if result != pkt_line:
+    if result != pkt_line and not DEV_HACK_REGEX:
         (_LOGGER.debug if DEV_MODE else _LOGGER.warning)(
             f"{pkt_line} < Changed by use_regex to: {result}"
         )
