@@ -78,6 +78,7 @@ from .const import (  # isort: skip
     _2400,
     _2401,
     _2410,
+    _2411,
     _2420,
     _2D49,
     _2E04,
@@ -487,6 +488,10 @@ CODES_SCHEMA: dict = {  # rf_unknown
         NAME: "message_2410",
         RQ: r"^00$",
         RP: r"^00",
+    },
+    _2411: {  # unknown_2411, HVAC
+        NAME: "message_2411",
+        RQ: r"^0000[0-9A-F]{2}(00){19}$",
     },
     _2420: {  # unknown_2420, from OTB
         NAME: "message_2420",
@@ -984,6 +989,7 @@ _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
         _12C8: {I_: {}},
         _1F09: {I_: {}, RP: {}},
         _1FC9: {W_: {}},
+        _2411: {RP: {}},
         _3120: {I_: {}},
         _313F: {I_: {}},
         _31D9: {I_: {}, RP: {}},
@@ -994,7 +1000,8 @@ _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
         _042F: {I_: {}},
         _10E0: {I_: {}, RP: {}},
         _1298: {I_: {}},
-        # _1FC9: {I_: {}},  # leave out, until see example in a packet log
+        _1FC9: {I_: {}},
+        _2411: {RQ: {}},
         _2E10: {I_: {}},
         _3120: {I_: {}},
         _31DA: {RQ: {}},
@@ -1017,17 +1024,20 @@ _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
         _22F3: {I_: {}},
         # _31E0: {I_: {}},
     },  # https://www.ithodaalderop.nl/nl-NL/professional/product/536-0124
+    None: {  # unknown, TODO: make generic HVAC
+        _4401: {I_: {}},
+    },
 }
 
 CODES_BY_DEV_KLASS: Dict[SimpleNamespace, Dict] = {
     DEV_KLASS.HGI: {  # HGI80: RF to (USB) serial gateway interface
         _PUZZ: {I_: {}, RQ: {}, W_: {}},
     },  # HGI80s can do what they like
-    **_DEV_KLASSES_HVAC,
-    **_DEV_KLASSES_HEAT,
+    **{k: v for k, v in _DEV_KLASSES_HVAC.items() if k is not None},
+    **{k: v for k, v in _DEV_KLASSES_HEAT.items() if k is not None},
 }
 
-_CODES_EXCLDED = (
+_CODES_EXCLUDED = (
     _0001,
     _0002,
     _000E,
@@ -1037,13 +1047,14 @@ _CODES_EXCLDED = (
     _01D0,
     _01E9,
     _0B04,
+    _10E0,
     _1FC9,
 )
 _CODES_HEAT = dict.fromkeys(
-    c for k in _DEV_KLASSES_HEAT.values() for c in k if c not in _CODES_EXCLDED
+    c for k in _DEV_KLASSES_HEAT.values() for c in k if c not in _CODES_EXCLUDED
 )
 _CODES_HVAC = dict.fromkeys(
-    c for k in _DEV_KLASSES_HVAC.values() for c in k if c not in _CODES_EXCLDED
+    c for k in _DEV_KLASSES_HVAC.values() for c in k if c not in _CODES_EXCLUDED
 )
 CODES_HEAT_ONLY = tuple(c for c in sorted(list(_CODES_HEAT)) if c not in _CODES_HVAC)
 CODES_HVAC_ONLY = tuple(c for c in sorted(list(_CODES_HVAC)) if c not in _CODES_HEAT)
