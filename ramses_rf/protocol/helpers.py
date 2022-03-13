@@ -53,7 +53,9 @@ def dt_now() -> dt:
     This is slower, but potentially more accurate, than dt.now(), and is used mainly for
     packet timestamps.
     """
-    return dt.fromtimestamp(timestamp())
+    if sys.platform == "win32":
+        return dt.fromtimestamp(timestamp())
+    return dt.now()
 
 
 @typechecked
