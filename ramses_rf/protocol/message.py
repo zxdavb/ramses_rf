@@ -377,7 +377,7 @@ class Message:
             # TODO: only accept invalid packets to/from HGI when flag raised
             _check_msg_payload(self, self._pkt.payload)  # ? InvalidPayloadError
 
-            if not self._has_payload or (
+            if not self._has_payload and (
                 self.verb == RQ and self.code not in CODE_RQ_COMPLEX
             ):
                 # _LOGGER.error("%s", msg)
