@@ -132,34 +132,12 @@ EXPIRES = "expires"
 FUNC = "func"
 ARGS = "args"
 
-QOS = "qos"
-DISABLE_BACKOFF = "disable_backoff"
+BACKOFF = "backoff"
 PRIORITY = "priority"
 RETRIES = "retries"
 TIMEOUT = "timeout"
-QOS_KEYS = (DISABLE_BACKOFF, PRIORITY, RETRIES, TIMEOUT)
 
 Priority = SimpleNamespace(LOWEST=8, LOW=6, DEFAULT=4, HIGH=2, HIGHEST=0)
-
-# tx (from sent to gwy, to get back from gwy) seems to takes approx. 0.025s
-QOS_TX_TIMEOUT = td(seconds=0.05)  # 0.20 OK, but too high?
-QOS_TX_RETRIES = 2
-QOS_TX_DEFAULT = (Priority.DEFAULT, QOS_TX_RETRIES, QOS_TX_TIMEOUT, False)
-
-QOS_RX_TIMEOUT = td(seconds=0.50)  # 0.20 seems OK, 0.10 too low sometimes
-QOS_MAX_BACKOFF = 3  # 4 = 16x, is too many?
-
-QOS_TABLE = {  # priority, retries, timeout, disable_backoff, c.f. QOS_TX_DEFAULT
-    f"{RQ}/{_0016}": (Priority.HIGH, 5, None, None),
-    f"{RQ}/{_1F09}": (Priority.HIGH, 5, None, None),
-    f"{I_}/{_1FC9}": (Priority.HIGH, 2, td(seconds=1), True),
-    f"{I_}/{_0404}": (Priority.HIGH, 5, td(seconds=0.30), None),  # TODO: both short Tx,
-    f"{RQ}/{_0404}": (Priority.HIGH, 5, td(seconds=1.00), None),
-    f"{W_}/{_0404}": (Priority.HIGH, 5, td(seconds=0.30), None),  # TODO: but long Rx
-    f"{RQ}/{_0418}": (Priority.LOW, 3, None, None),
-    f"{RQ}/{_3220}": (Priority.DEFAULT, 1, td(seconds=1.2), True),
-    f"{W_}/{_3220}": (Priority.HIGH, 3, td(seconds=1.2), True),
-}  # The long timeeout for the OTB is for total RTT to slave (boiler)
 
 
 DEV_MODE = __dev_mode__ and False
@@ -295,12 +273,68 @@ def _normalise_until(mode, _, until, duration) -> tuple[Any, Any]:
     return until, duration
 
 
+class Qos(PacketBase):
+    """The QoS class.
+
+    This is a mess - it is the first step in cleaning up QoS.
+    """
+
+    # tx (from sent to gwy, to get back from gwy) seems to takes approx. 0.025s
+    DEFAULT_TX_TIMEOUT = td(seconds=0.05)  # 0.20 OK, but too high?
+    DEFAULT_TX_RETRIES = 2
+
+    DEFAULT_RX_TIMEOUT = td(seconds=0.50)  # 0.20 seems OK, 0.10 too low sometimes
+    MAX_BACKOFF = 3
+
+    DEFAULT = (Priority.DEFAULT, DEFAULT_TX_RETRIES, DEFAULT_TX_TIMEOUT, True)
+
+    DEFAULT_KEYS = (PRIORITY, RETRIES, TIMEOUT, BACKOFF)
+
+    DEFAULTS = {  # priority, retries, timeout, disable_backoff, c.f. DEFAULT
+        f"{RQ}|{_0016}": (Priority.HIGH, 5, None, True),
+        f"{RQ}|{_1F09}": (Priority.HIGH, 5, None, True),
+        f"{I_}|{_1FC9}": (Priority.HIGH, 2, td(seconds=1), False),
+        f"{I_}|{_0404}": (Priority.HIGH, 5, td(seconds=0.30), True),  # both short Tx,
+        f"{RQ}|{_0404}": (Priority.HIGH, 5, td(seconds=1.00), True),
+        f"{W_}|{_0404}": (Priority.HIGH, 5, td(seconds=0.30), True),  # but long Rx
+        f"{RQ}|{_0418}": (Priority.LOW, 3, None, None),
+        f"{RQ}|{_3220}": (Priority.DEFAULT, 1, td(seconds=1.2), False),
+        f"{W_}|{_3220}": (Priority.HIGH, 3, td(seconds=1.2), False),
+    }  # The long timeout for the OTB is for total RTT to slave (boiler)
+
+    def __init__(
+        self,
+        backoff=True,
+        priority=Priority.DEFAULT,
+        retries=0,
+        timeout=DEFAULT_RX_TIMEOUT,
+    ) -> None:
+
+        self.priority = priority or self.DEFAULT[0]
+        self.retries = retries or self.DEFAULT[1]
+        self.timeout = timeout or self.DEFAULT[3]
+        self.backoff = backoff or self.DEFAULT[3]
+
+    @classmethod  # constructor from verb|code pair
+    def verb_code(cls, verb, code, **kwargs) -> dict:
+        """Constructor to create a QoS based upon the defaults for a verb|code pair."""
+
+        default_qos = cls.DEFAULTS.get(f"{verb}|{code}", cls.DEFAULT)
+
+        return cls(
+            **{
+                key: kwargs.get(key, default_qos[i])
+                for i, key in enumerate(cls.DEFAULT_KEYS)
+            }
+        )
+
+
 @functools.total_ordering
 class Command(PacketBase):
     """The command class."""
 
     def __init__(
-        self, verb: str, code: str, payload: str, dest_id: str, **kwargs
+        self, verb: str, code: str, payload: str, dest_id: str, qos=None, **kwargs
     ) -> None:
         """Create a command.
 
@@ -321,11 +355,11 @@ class Command(PacketBase):
         # callback used by app layer (protocol.py)
         self.callback = kwargs.pop(CALLBACK, {})  # func, args, daemon, timeout
 
-        # qos used by pkt layer (transport.py)
-        self.qos = self._qos(**kwargs)  # disable_backoff, priority, retries, timeout
+        # qos used by pkt layer (transport.py, backoff, priority, retries, timeout)
+        self.qos = qos if qos else Qos.verb_code(self._verb, self._code, **kwargs)
 
         # priority used by msg layer for next cmd to send (protocol.py)
-        self._priority = self.qos.pop(PRIORITY, Priority.DEFAULT)
+        self._priority = self.qos.priority  # TODO: should only be a QoS attr?
         self._dtm = dt_now()
 
         self._rx_header: Optional[str] = None
@@ -337,29 +371,6 @@ class Command(PacketBase):
         """Return an unambiguous string representation of this object."""
         hdr = f' # {self._hdr}{f" ({self._ctx})" if self._ctx else ""}'
         return f"... {self}{hdr}"
-
-    def _qos(self, **kwargs) -> dict:
-        """Return the default QoS params of this (request) packet."""
-
-        qos = {k: v for k, v in kwargs.items() if k in QOS_KEYS}
-        (priority, retries, timeout, backoff) = QOS_TABLE.get(
-            f"{self.verb}/{self.code}", QOS_TX_DEFAULT
-        )
-
-        qos[PRIORITY] = qos.get(
-            PRIORITY, QOS_TX_DEFAULT[0] if priority is None else priority
-        )
-        qos[RETRIES] = qos.get(
-            RETRIES, QOS_TX_DEFAULT[1] if retries is None else retries
-        )
-        qos[TIMEOUT] = qos.get(
-            TIMEOUT, QOS_TX_DEFAULT[2] if timeout is None else timeout
-        )
-        qos[DISABLE_BACKOFF] = qos.get(
-            DISABLE_BACKOFF, QOS_TX_DEFAULT[3] if backoff is None else backoff
-        )
-
-        return qos
 
     @property
     def tx_header(self) -> str:

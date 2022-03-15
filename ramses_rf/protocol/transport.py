@@ -22,28 +22,23 @@ import asyncio
 import logging
 import os
 import re
-import sys
+from collections import deque
 from datetime import datetime as dt
 from datetime import timedelta as td
+from functools import wraps
 from io import TextIOWrapper
 from multiprocessing import Process
 from queue import Queue
 from string import printable  # ascii_letters, digits
 from threading import Lock, Thread
+from time import perf_counter
 from types import SimpleNamespace
 from typing import Callable, Iterable, Optional
 
 from serial import SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerTransportAsync
 
-from .command import (  # QOS_RX_TIMEOUT,
-    ARGS,
-    DEAMON,
-    FUNC,
-    QOS_TX_RETRIES,
-    QOS_TX_TIMEOUT,
-    Command,
-)
+from .command import ARGS, DEAMON, FUNC, Command, Qos
 from .const import HGI_DEVICE_ID, NON_DEVICE_ID, NUL_DEVICE_ID, __dev_mode__
 from .exceptions import InvalidPacketError
 from .helpers import dt_now
@@ -51,6 +46,9 @@ from .packet import Packet
 from .protocol import create_protocol_factory
 from .schema import SERIAL_CONFIG_SCHEMA
 from .version import VERSION
+
+I_ = " I"
+_1F09 = "1F09"
 
 DEV_MODE = __dev_mode__ and False  # debug is_wanted, or qos_fx
 DEV_HACK_REGEX = True
@@ -66,6 +64,8 @@ TIP = f", configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
 IS_INITIALIZED = "is_initialized"
 IS_EVOFW3 = "is_evofw3"
 DEVICE_ID = "device_id"
+
+EXPIRED = "expired"
 
 DEFAULT_SERIAL_CONFIG = SERIAL_CONFIG_SCHEMA({})
 
@@ -150,6 +150,172 @@ def _regex_hack(pkt_line: str, regex_filters: dict) -> str:
         )
 
     return result
+
+
+sync_cycles = deque()
+
+
+def track_system_syncs(fnc):
+    """Track any recent sync cycles."""
+
+    MAX_SYNCS_TRACKED = 3
+
+    def wrapper(self, pkt, *args, **kwargs):
+        global sync_cycles
+
+        def is_pending(p):
+            """Return True if a sync cycle is still pending (ignores drift)."""
+            return p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) > dt_now()
+
+        if pkt.code != _1F09 or pkt.verb != I_ or pkt.len != 3:
+            return fnc(self, pkt, *args, **kwargs)
+
+        sync_cycles = deque(
+            p for p in sync_cycles if p.src != pkt.src and is_pending(p)
+        )
+        sync_cycles.append(pkt)
+
+        if len(sync_cycles) > MAX_SYNCS_TRACKED:
+            sync_cycles.popleft()
+
+        return fnc(self, pkt, *args, **kwargs)
+
+    return wrapper
+
+
+def avoid_system_syncs(fnc):
+    """Take measures to avoid Tx when any controller is doing a sync cycle."""
+
+    SAFETY_BUFFFER = 0.2  # delay Tx for this long, usu. 0.045 for 7 zones?
+    SHORT_CYCLE = 0.01
+
+    WINDOW_LOWER = td(seconds=0)
+    WINDOW_UPPER = td(seconds=SAFETY_BUFFFER * 2)
+
+    times_0 = []  # TODO: remove
+
+    async def wrapper(*args, **kwargs):
+        global sync_cycles
+
+        def is_imminent(p):
+            """Return True if a sync cycle is imminent."""
+            return (
+                WINDOW_LOWER
+                < (p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) - dt_now())
+                < WINDOW_UPPER
+            )
+
+        start = perf_counter()
+
+        # wait for the start of the sync cycle
+        while any(is_imminent(p) for p in sync_cycles):
+            print("*** WAITING ***")  # TODO: remove
+            await asyncio.sleep(SHORT_CYCLE)
+
+        # wait for the remainder of sync cycle to complete
+        if (x := perf_counter() - start) > SHORT_CYCLE:  # TODO: remove
+            await asyncio.sleep(SAFETY_BUFFFER)
+            times_0.append(x)
+            _LOGGER.error(
+                f"*** sync cycle stats: {x:.3f}, "
+                f"avg: {sum(times_0) / len(times_0):.3f}, "
+                f"lower: {min(times_0):.3f}, "
+                f"upper: {max(times_0):.3f}, "
+                f"times: {times_0}"
+            )
+
+        return await fnc(*args, **kwargs)
+
+    return wrapper
+
+
+def limit_duty_cycle(max_duty_cycle: float, time_window: int = 60):
+    """Limit the Tx rate to the RF duty cycle regulations (e.g. 1% per hour).
+
+    max_duty_cycle: bandwidth available per observation window (%)
+    time_window: duration of the observation window (seconds)
+    """
+
+    TX_RATE_AVAIL: int = 38400  # bits per second (deemed)
+    FILL_RATE: float = TX_RATE_AVAIL * max_duty_cycle  # bits per second
+    BUCKET_CAPACITY: float = FILL_RATE * time_window
+
+    def decorator(func):
+        bits_in_bucket: float = BUCKET_CAPACITY  # start with a full bucket
+        last_time_bit_added = perf_counter()
+
+        @wraps(func)
+        async def duty_cycle_wrapper(self, packet, *args, **kwargs):
+            nonlocal bits_in_bucket
+            nonlocal last_time_bit_added
+
+            rf_frame_size = 330 + len(packet[46:]) * 10
+
+            # top-up the bit bucket
+            elapsed_time = perf_counter() - last_time_bit_added
+            bits_in_bucket = min(
+                bits_in_bucket + elapsed_time * FILL_RATE, BUCKET_CAPACITY
+            )
+            last_time_bit_added = perf_counter()
+
+            # if required, wait for the bit bucket to refill (not for SETs/PUTs)
+            if bits_in_bucket < rf_frame_size:
+                print((rf_frame_size - bits_in_bucket) / FILL_RATE)
+                await asyncio.sleep((rf_frame_size - bits_in_bucket) / FILL_RATE)
+
+            # consume the bits from the bit bucket
+            try:
+                return await func(self, packet, *args, **kwargs)
+            finally:
+                bits_in_bucket -= rf_frame_size
+
+        return duty_cycle_wrapper
+
+    return decorator
+
+
+def limit_transmit_rate(max_tokens: float, time_window: int = 60):
+    """Limit the Tx rate as # packets per time window.
+
+    Rate-limits the decorated function locally, for one process (Token Bucket).
+
+    max_tokens: maximum number of calls of function in time_window
+    time_window: duration of the observation window (seconds)
+    """
+    # thanks, kudos to: Thomas Meschede, license: MIT
+    # see: https://gist.github.com/yeus/dff02dce88c6da9073425b5309f524dd
+
+    token_fill_rate: float = max_tokens / time_window
+
+    def decorator(func):
+        token_bucket: float = max_tokens  # initialize with max tokens
+        last_time_token_added = perf_counter()
+
+        @wraps(func)
+        async def rate_limit_wrapper(*args, **kwargs):
+            nonlocal token_bucket
+            nonlocal last_time_token_added
+
+            #
+
+            # top-up the bit bucket
+            elapsed = perf_counter() - last_time_token_added
+            token_bucket = min(token_bucket + elapsed * token_fill_rate, max_tokens)
+            last_time_token_added = perf_counter()
+
+            # if required, wait for a token (not for SETs/PUTs)
+            if token_bucket < 1.0:
+                await asyncio.sleep((1 - token_bucket) / token_fill_rate)
+
+            # consume one token for every call
+            try:
+                return await func(*args, **kwargs)
+            finally:
+                token_bucket -= 1.0
+
+        return rate_limit_wrapper
+
+    return decorator
 
 
 class SerTransportRead(asyncio.ReadTransport):
@@ -336,8 +502,6 @@ class PacketProtocolBase(asyncio.Protocol):
             self._include = []
         self._unwanted: list = []  # not: [NON_DEVICE_ID, NUL_DEVICE_ID]
 
-        self._dt_now_ = dt_now if sys.platform == "win32" else dt.now
-
         self._hgi80 = {
             IS_INITIALIZED: None,
             IS_EVOFW3: None,
@@ -352,7 +516,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
     def _dt_now(self) -> dt:
         """Return a precise datetime, using the curent dtm."""
-        return self._dt_now_()
+        return dt_now()
 
     def connection_made(self, transport: asyncio.Transport) -> None:  # type: ignore[override]
         """Called when a connection is made."""
@@ -615,6 +779,11 @@ class PacketProtocolPort(PacketProtocolBase):
 
         self.resume_writing()
 
+    @track_system_syncs
+    def _pkt_received(self, pkt: Packet) -> None:
+
+        super()._pkt_received(pkt)
+
     async def send_data(self, cmd: Command) -> None:
         """Called when some data is to be sent (not a callback)."""
 
@@ -637,7 +806,9 @@ class PacketProtocolPort(PacketProtocolBase):
 
         await self._send_data(str(cmd))
 
-    async def _send_data(self, data: str) -> None:  # NOTE: is throttled
+    @avoid_system_syncs
+    @limit_duty_cycle(0.01)  # @limit_transmit_rate(45)
+    async def _send_data(self, data: str) -> None:  # NOTE: is also throttled internally
         """Send a bytearray to the transport (serial) interface."""
 
         while self._pause_writing:
@@ -657,7 +828,7 @@ class PacketProtocolPort(PacketProtocolBase):
             ).encode("ascii")
         )
 
-        await self._sem.acquire()  # try not to exceed a (reasonable) RF duty cycle
+        await self._sem.acquire()  # minimum time between Tx
 
         if _LOGGER.getEffectiveLevel() == logging.INFO:  # i.e. don't log for DEBUG
             _LOGGER.info("RF Tx:     %s", data)
@@ -778,7 +949,7 @@ class PacketProtocolQos(PacketProtocolPort):
             if self._timeout_full > self._dt_now():
                 await asyncio.sleep(_QOS_POLL_INTERVAL)
                 continue
-            elif not self._qos_cmd.qos.get("disable_backoff", False):
+            elif self._qos_cmd.qos.backoff:
                 self._backoff = min(self._backoff + 1, _QOS_MAX_BACKOFF)
 
             if self._tx_retries < self._tx_retry_limit:
@@ -816,7 +987,7 @@ class PacketProtocolQos(PacketProtocolPort):
 
         if cmd:
             self._tx_retries = 0
-            self._tx_retry_limit = cmd.qos.get("retries", QOS_TX_RETRIES)
+            self._tx_retry_limit = cmd.qos.retries
 
     def _qos_update_timeouts(self) -> None:
         """Update QoS self._timeout_full, self._timeout_half attrs."""
@@ -827,9 +998,9 @@ class PacketProtocolQos(PacketProtocolPort):
         dtm = self._dt_now()
 
         if self._tx_hdr:
-            timeout = QOS_TX_TIMEOUT  # td(seconds=0.05)
+            timeout = Qos.DEFAULT_TX_TIMEOUT
         else:
-            # timeout = self._qos_cmd.qos.get("timeout", QOS_RX_TIMEOUT)
+            # timeout = self._qos_cmd.qos.timeout
             timeout = _MIN_GAP_BETWEEN_RETRYS  # td(seconds=2.0)
 
         # timeout = min(timeout * 4 ** self._backoff, td(seconds=1))
@@ -849,11 +1020,11 @@ class PacketProtocolQos(PacketProtocolPort):
             cmd._source_entity._qos_function(cmd)
 
         hdr, callback = cmd.tx_header, cmd.callback
-        if callback and not callback.get("expired"):
+        if callback and not callback.get(EXPIRED):
             # see also: MsgTransport._pkt_receiver()
             _LOGGER.error("PktProtocolQos.send_data(%s): Expired callback", hdr)
             callback[FUNC](False, *callback.get(ARGS, ()))
-            callback["expired"] = not callback.get(DEAMON, False)  # HACK:
+            callback[EXPIRED] = not callback.get(DEAMON, False)  # HACK:
 
 
 def create_pkt_stack(
@@ -877,9 +1048,7 @@ def create_pkt_stack(
 
     def issue_warning():
         _LOGGER.warning(
-            "Windows "
-            if os.name == "nt"
-            else "This type of serial interface "
+            f"{'Windows' if os.name == 'nt' else 'This type of serial interface'} "
             "is not fully supported by this library: "
             "please don't report any Transport/Protocol errors/warnings, "
             "unless they are reproducable with a standard configuration "
