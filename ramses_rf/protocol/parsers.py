@@ -80,7 +80,7 @@ if DEV_MODE:
 def parser_decorator(fnc):
     def wrapper(payload, msg, **kwargs):
         result = fnc(payload, msg, **kwargs)
-        if msg.seqn != "---":  # 22F1/3
+        if isinstance(result, dict) and msg.seqn != "---":  # 22F1/3
             result["seqx_num"] = msg.seqn
         return result
 
