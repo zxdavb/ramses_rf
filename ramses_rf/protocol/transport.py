@@ -296,8 +296,6 @@ def limit_transmit_rate(max_tokens: float, time_window: int = 60):
             nonlocal token_bucket
             nonlocal last_time_token_added
 
-            #
-
             # top-up the bit bucket
             elapsed = perf_counter() - last_time_token_added
             token_bucket = min(token_bucket + elapsed * token_fill_rate, max_tokens)
