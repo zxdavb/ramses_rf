@@ -155,34 +155,6 @@ def _regex_hack(pkt_line: str, regex_filters: dict) -> str:
 sync_cycles = deque()
 
 
-def track_system_syncs(fnc):
-    """Track any recent sync cycles."""
-
-    MAX_SYNCS_TRACKED = 3
-
-    def wrapper(self, pkt, *args, **kwargs):
-        global sync_cycles
-
-        def is_pending(p):
-            """Return True if a sync cycle is still pending (ignores drift)."""
-            return p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) > dt_now()
-
-        if pkt.code != _1F09 or pkt.verb != I_ or pkt.len != 3:
-            return fnc(self, pkt, *args, **kwargs)
-
-        sync_cycles = deque(
-            p for p in sync_cycles if p.src != pkt.src and is_pending(p)
-        )
-        sync_cycles.append(pkt)
-
-        if len(sync_cycles) > MAX_SYNCS_TRACKED:
-            sync_cycles.popleft()
-
-        return fnc(self, pkt, *args, **kwargs)
-
-    return wrapper
-
-
 def avoid_system_syncs(fnc):
     """Take measures to avoid Tx when any controller is doing a sync cycle."""
 
@@ -216,15 +188,43 @@ def avoid_system_syncs(fnc):
         if (x := perf_counter() - start) > SHORT_CYCLE:  # TODO: remove
             await asyncio.sleep(SAFETY_BUFFFER)
             times_0.append(x)
-            _LOGGER.error(
+            _LOGGER.warning(
                 f"*** sync cycle stats: {x:.3f}, "
                 f"avg: {sum(times_0) / len(times_0):.3f}, "
                 f"lower: {min(times_0):.3f}, "
                 f"upper: {max(times_0):.3f}, "
-                f"times: {times_0}"
+                f"times: {[f'{t:.3f}' for t in times_0]}"
             )
 
         return await fnc(*args, **kwargs)
+
+    return wrapper
+
+
+def track_system_syncs(fnc):
+    """Track any recent sync cycles."""
+
+    MAX_SYNCS_TRACKED = 3
+
+    def wrapper(self, pkt, *args, **kwargs):
+        global sync_cycles
+
+        def is_pending(p):
+            """Return True if a sync cycle is still pending (ignores drift)."""
+            return p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) > dt_now()
+
+        if pkt.code != _1F09 or pkt.verb != I_ or pkt.len != 3:
+            return fnc(self, pkt, *args, **kwargs)
+
+        sync_cycles = deque(
+            p for p in sync_cycles if p.src != pkt.src and is_pending(p)
+        )
+        sync_cycles.append(pkt)
+
+        if len(sync_cycles) > MAX_SYNCS_TRACKED:
+            sync_cycles.popleft()
+
+        return fnc(self, pkt, *args, **kwargs)
 
     return wrapper
 
@@ -260,12 +260,12 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = 60):
 
             # if required, wait for the bit bucket to refill (not for SETs/PUTs)
             if bits_in_bucket < rf_frame_size:
-                print((rf_frame_size - bits_in_bucket) / FILL_RATE)
+                print((rf_frame_size - bits_in_bucket) / FILL_RATE)  # FIXME: remove
                 await asyncio.sleep((rf_frame_size - bits_in_bucket) / FILL_RATE)
 
             # consume the bits from the bit bucket
             try:
-                return await func(self, packet, *args, **kwargs)
+                await func(self, packet, *args, **kwargs)  # was return ...
             finally:
                 bits_in_bucket -= rf_frame_size
 
