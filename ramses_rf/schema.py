@@ -264,7 +264,7 @@ def update_config(config, known_list, block_list) -> dict:
         config["use_regex"]["inbound"].update(
             {
                 "( 03:.* 03:.* (1060|2389|30C9) 003) ..": "\\1 00",
-                "02:153425": "20:153425",
+                # "02:153425": "20:153425",
             }
         )
 
