@@ -33,7 +33,7 @@ from string import printable  # ascii_letters, digits
 from threading import Lock, Thread
 from time import perf_counter
 from types import SimpleNamespace
-from typing import Callable, Iterable, Optional
+from typing import Awaitable, Callable, Iterable, Optional
 
 from serial import SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerTransportAsync
@@ -155,38 +155,41 @@ def _regex_hack(pkt_line: str, regex_filters: dict) -> str:
 sync_cycles = deque()
 
 
-def avoid_system_syncs(fnc):
+def avoid_system_syncs(fnc) -> Awaitable:
     """Take measures to avoid Tx when any controller is doing a sync cycle."""
 
-    SAFETY_BUFFFER = 0.2  # delay Tx for this long, usu. 0.045 for 7 zones?
-    SHORT_CYCLE = 0.01
+    DURATION_PKT_GAP = 0.020  # 0.0200 for evohome, or 0.0127 for DTS92
+    DURATION_LONG_PKT = 0.022  # time to tx I|2309|048 (or 30C9, or 000A)
+    DURATION_SYNC_PKT = 0.010  # time to tx I|1F09|003
 
-    WINDOW_LOWER = td(seconds=0)
-    WINDOW_UPPER = td(seconds=SAFETY_BUFFFER * 2)
+    SYNC_WAIT_LONG = (DURATION_PKT_GAP + DURATION_LONG_PKT) * 2
+    SYNC_WAIT_SHORT = DURATION_SYNC_PKT
+    SYNC_WINDOW_LOWER = td(seconds=SYNC_WAIT_SHORT * 0.8)  # could be * 0
+    SYNC_WINDOW_UPPER = SYNC_WINDOW_LOWER + td(seconds=SYNC_WAIT_LONG * 1.2)  #
 
-    times_0 = []  # TODO: remove
+    times_0 = []  # FIXME: remove
 
-    async def wrapper(*args, **kwargs):
+    async def wrapper(*args, **kwargs) -> None:
         global sync_cycles
 
         def is_imminent(p):
             """Return True if a sync cycle is imminent."""
             return (
-                WINDOW_LOWER
+                SYNC_WINDOW_LOWER
                 < (p.dtm + td(seconds=int(p.payload[2:6], 16) / 10) - dt_now())
-                < WINDOW_UPPER
+                < SYNC_WINDOW_UPPER
             )
 
         start = perf_counter()
 
-        # wait for the start of the sync cycle
+        # wait for the start of the sync cycle (I|1F09|003, Tx time ~0.009)
         while any(is_imminent(p) for p in sync_cycles):
-            print("*** WAITING ***")  # TODO: remove
-            await asyncio.sleep(SHORT_CYCLE)
+            await asyncio.sleep(SYNC_WAIT_SHORT)
 
-        # wait for the remainder of sync cycle to complete
-        if (x := perf_counter() - start) > SHORT_CYCLE:  # TODO: remove
-            await asyncio.sleep(SAFETY_BUFFFER)
+        # wait for the remainder of sync cycle (I|2309/30C9) to complete
+        if (x := perf_counter() - start) > SYNC_WAIT_SHORT:
+            await asyncio.sleep(SYNC_WAIT_LONG)
+            # FIXME: remove this block
             times_0.append(x)
             _LOGGER.warning(
                 f"*** sync cycle stats: {x:.3f}, "
@@ -196,17 +199,17 @@ def avoid_system_syncs(fnc):
                 f"times: {[f'{t:.3f}' for t in times_0]}"
             )
 
-        return await fnc(*args, **kwargs)
+        await fnc(*args, **kwargs)
 
     return wrapper
 
 
-def track_system_syncs(fnc):
-    """Track any recent sync cycles."""
+def track_system_syncs(fnc) -> Callable:
+    """Track/remember the most recent sync cycle for a controller."""
 
     MAX_SYNCS_TRACKED = 3
 
-    def wrapper(self, pkt, *args, **kwargs):
+    def wrapper(self, pkt, *args, **kwargs) -> None:
         global sync_cycles
 
         def is_pending(p):
@@ -224,28 +227,29 @@ def track_system_syncs(fnc):
         if len(sync_cycles) > MAX_SYNCS_TRACKED:
             sync_cycles.popleft()
 
-        return fnc(self, pkt, *args, **kwargs)
+        fnc(self, pkt, *args, **kwargs)
 
     return wrapper
 
 
-def limit_duty_cycle(max_duty_cycle: float, time_window: int = 60):
+def limit_duty_cycle(max_duty_cycle: float, time_window: int = 60) -> Callable:
     """Limit the Tx rate to the RF duty cycle regulations (e.g. 1% per hour).
 
     max_duty_cycle: bandwidth available per observation window (%)
-    time_window: duration of the observation window (seconds)
+    time_window: duration of the sliding observation window (default 60 seconds)
     """
 
     TX_RATE_AVAIL: int = 38400  # bits per second (deemed)
     FILL_RATE: float = TX_RATE_AVAIL * max_duty_cycle  # bits per second
     BUCKET_CAPACITY: float = FILL_RATE * time_window
 
-    def decorator(func):
-        bits_in_bucket: float = BUCKET_CAPACITY  # start with a full bucket
+    def decorator(fnc) -> Awaitable:
+        # start with a full bit bucket
+        bits_in_bucket: float = BUCKET_CAPACITY
         last_time_bit_added = perf_counter()
 
-        @wraps(func)
-        async def duty_cycle_wrapper(self, packet, *args, **kwargs):
+        @wraps(fnc)
+        async def wrapper(self, packet, *args, **kwargs) -> None:
             nonlocal bits_in_bucket
             nonlocal last_time_bit_added
 
@@ -260,39 +264,38 @@ def limit_duty_cycle(max_duty_cycle: float, time_window: int = 60):
 
             # if required, wait for the bit bucket to refill (not for SETs/PUTs)
             if bits_in_bucket < rf_frame_size:
-                print((rf_frame_size - bits_in_bucket) / FILL_RATE)  # FIXME: remove
                 await asyncio.sleep((rf_frame_size - bits_in_bucket) / FILL_RATE)
 
             # consume the bits from the bit bucket
             try:
-                await func(self, packet, *args, **kwargs)  # was return ...
+                await fnc(self, packet, *args, **kwargs)  # was return ...
             finally:
                 bits_in_bucket -= rf_frame_size
 
-        return duty_cycle_wrapper
+        return wrapper
 
     return decorator
 
 
-def limit_transmit_rate(max_tokens: float, time_window: int = 60):
-    """Limit the Tx rate as # packets per time window.
+def limit_transmit_rate(max_tokens: float, time_window: int = 60) -> Callable:
+    """Limit the Tx rate as # packets per period of time.
 
     Rate-limits the decorated function locally, for one process (Token Bucket).
 
     max_tokens: maximum number of calls of function in time_window
-    time_window: duration of the observation window (seconds)
+    time_window: duration of the sliding observation window (default 60 seconds)
     """
     # thanks, kudos to: Thomas Meschede, license: MIT
     # see: https://gist.github.com/yeus/dff02dce88c6da9073425b5309f524dd
 
     token_fill_rate: float = max_tokens / time_window
 
-    def decorator(func):
+    def decorator(fnc) -> Awaitable:
         token_bucket: float = max_tokens  # initialize with max tokens
         last_time_token_added = perf_counter()
 
-        @wraps(func)
-        async def rate_limit_wrapper(*args, **kwargs):
+        @wraps(fnc)
+        async def wrapper(*args, **kwargs):
             nonlocal token_bucket
             nonlocal last_time_token_added
 
@@ -307,11 +310,11 @@ def limit_transmit_rate(max_tokens: float, time_window: int = 60):
 
             # consume one token for every call
             try:
-                return await func(*args, **kwargs)
+                await fnc(*args, **kwargs)
             finally:
                 token_bucket -= 1.0
 
-        return rate_limit_wrapper
+        return wrapper
 
     return decorator
 
