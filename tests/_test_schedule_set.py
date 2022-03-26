@@ -3,11 +3,12 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
-Test the Schema processor.
+Test the Schedule functions.
 """
 
 import asyncio
 import json
+import logging
 import os
 import unittest
 
@@ -18,6 +19,8 @@ GWY_CONFIG = {}
 
 TEST_DIR = f"{os.path.dirname(__file__)}"
 
+logging.disable(logging.WARNING)
+
 
 class TestSchedule(unittest.IsolatedAsyncioTestCase):
     def __init__(self, *args, **kwargs):
@@ -26,7 +29,7 @@ class TestSchedule(unittest.IsolatedAsyncioTestCase):
         self.maxDiff = None
         self.gwy = None
 
-    async def test_schedule_000(self):
+    async def test_schedule_set(self):
         with open(f"{TEST_DIR}/schemas/schema_000.log") as f:
             self.gwy = Gateway(
                 None, input_file=f, config=GWY_CONFIG, loop=self._asyncioTestLoop

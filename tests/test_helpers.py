@@ -17,7 +17,7 @@ GWY_CONFIG = {}
 logging.disable(logging.WARNING)
 
 
-class TestHelpers(unittest.IsolatedAsyncioTestCase):
+class TestHelpers(unittest.TestCase):
     def test_transform(self) -> None:
         self.assertEqual(
             [x[1] for x in TRANSFORMS], [_transform(x[0]) for x in TRANSFORMS]

@@ -29,7 +29,7 @@ class TestSetApis(unittest.IsolatedAsyncioTestCase):
         self.maxDiff = None
         self.gwy = None
 
-    async def _test_log_file(self, filename):
+    async def proc_log_file(self, filename):
         with open(f"{LOG_DIR}/logs/{filename}") as f:
             self.gwy = Gateway(
                 None, input_file=f, config=GWY_CONFIG, loop=self._asyncioTestLoop
@@ -39,10 +39,10 @@ class TestSetApis(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.gwy.schema, SCHEMA_EMPTY)
 
     async def test_log_000(self):
-        for filename in LOG_FILES:
-            await self._test_log_file(filename)
+        logging.disable(logging.ERROR)  # to disable logging in ramses_rf.message
 
-        self.assertEqual(self.gwy.schema, SCHEMA_EMPTY)
+        for filename in LOG_FILES:
+            await self.proc_log_file(filename)
 
 
 if __name__ == "__main__":

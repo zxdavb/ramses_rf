@@ -22,9 +22,10 @@ from ramses_rf.protocol.ramses import (
 logging.disable(logging.WARNING)
 
 
-class TestIdxMutexBase(unittest.IsolatedAsyncioTestCase):
+class TestIdxMutexBase(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
         self.maxDiff = None
 
     def _test_codes_idx_mutex(self, mutex_list, other_list):

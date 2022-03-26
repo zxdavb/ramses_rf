@@ -7,6 +7,7 @@ Test the Command.put_*, Command.set_* APIs.
 """
 
 import asyncio
+import logging
 import unittest
 from datetime import datetime as dt
 
@@ -19,15 +20,18 @@ from ramses_rf.protocol.packet import Packet
 GWY_CONFIG = {}
 
 
+logging.disable(logging.WARNING)
+
+
 class TestApisBase(unittest.IsolatedAsyncioTestCase):
 
-    _gwy = Gateway(None, loop=asyncio.get_event_loop(), config=GWY_CONFIG)
+    gwy = Gateway(None, config=GWY_CONFIG, loop=asyncio.get_event_loop())
 
     # def __init__(self, *args, **kwargs):
     #     super().__init__(*args, **kwargs)
 
     #     self._setupAsyncioLoop()
-    #     self._gwy = Gateway(None, config=GWY_CONFIG, loop=self._asyncioTestLoop)
+    #     self.gwy = Gateway(None, config=GWY_CONFIG, loop=self._asyncioTestLoop)
 
     # def _setupAsyncioLoop(self):
     #     if self._asyncioTestLoop:
@@ -35,11 +39,11 @@ class TestApisBase(unittest.IsolatedAsyncioTestCase):
     #     super()._setupAsyncioLoop()
 
     def _test_api_line(self, api, pkt_line):
-        pkt = Packet.from_port(self._gwy, dt.now(), pkt_line)
+        pkt = Packet.from_port(self.gwy, dt.now(), pkt_line)
 
         self.assertEqual(str(pkt), pkt_line[4:])
 
-        msg = Message(self._gwy, pkt)
+        msg = Message(self.gwy, pkt)
         cmd = api(msg.dst.id, **{k: v for k, v in msg.payload.items() if k[:1] != "_"})
 
         self.assertEqual(cmd.payload, pkt.payload)
@@ -71,11 +75,11 @@ class TestSetApis(TestApisBase):
     def test_set_1100(self):  # NOTE: bespoke
         # self._test_api(Command.set_tpi_params, SET_1100_GOOD)
         for pkt_line in SET_1100_GOOD:
-            pkt = Packet.from_port(self._gwy, dt.now(), pkt_line)
+            pkt = Packet.from_port(self.gwy, dt.now(), pkt_line)
 
             self.assertEqual(str(pkt), pkt_line[4:])
 
-            msg = Message(self._gwy, pkt)
+            msg = Message(self.gwy, pkt)
 
             domain_id = msg.payload.pop("domain_id", None)
             cmd = Command.set_tpi_params(
@@ -103,12 +107,12 @@ class TestSetApis(TestApisBase):
 
     def test_set_313f(self):  # NOTE: bespoke
         for pkt_line in SET_313F_GOOD:
-            pkt = Packet.from_port(self._gwy, dt.now(), pkt_line)
+            pkt = Packet.from_port(self.gwy, dt.now(), pkt_line)
 
             self.assertEqual(str(pkt)[:4], pkt_line[4:8])
             self.assertEqual(str(pkt)[6:], pkt_line[10:])
 
-            msg = Message(self._gwy, pkt)
+            msg = Message(self.gwy, pkt)
 
             cmd = Command.set_system_time(
                 msg.dst.id, **{k: v for k, v in msg.payload.items() if k[:1] != "_"}
@@ -128,11 +132,11 @@ class TestPutApis(TestApisBase):
     def test_put_3ef1(self):  # NOTE: bespoke
         # self._test_api(Command.put_actuator_cycle, PUT_3EF1_GOOD)
         for pkt_line in PUT_3EF1_GOOD:
-            pkt = Packet.from_port(self._gwy, dt.now(), pkt_line)
+            pkt = Packet.from_port(self.gwy, dt.now(), pkt_line)
 
             self.assertEqual(str(pkt), pkt_line[4:])
 
-            msg = Message(self._gwy, pkt)
+            msg = Message(self.gwy, pkt)
 
             kwargs = msg.payload
             modulation_level = kwargs.pop("modulation_level")

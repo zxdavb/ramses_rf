@@ -3,18 +3,23 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
-Test the Schema processor.
+Test the Schedule functions.
 """
 
+# import asyncio
 import json
+import logging
 import os
 import unittest
 
 from ramses_rf import Gateway
+#
 
 GWY_CONFIG = {}
 
 TEST_DIR = f"{os.path.dirname(__file__)}"
+
+logging.disable(logging.WARNING)
 
 
 class TestSetApis(unittest.IsolatedAsyncioTestCase):
@@ -24,12 +29,13 @@ class TestSetApis(unittest.IsolatedAsyncioTestCase):
         self.maxDiff = None
         self.gwy = None
 
-    async def test_log_000(self):
+    async def test_schedule_get(self):
         self.gwy = Gateway(
             None, packet_dict={}, config=GWY_CONFIG, loop=self._asyncioTestLoop
         )
         with open(f"{TEST_DIR}/logs/system_cache.json") as f:
             system_cache = json.load(f)
+
         await self.gwy._set_state(**system_cache["data"]["client_state"])
 
         # self.assertEqual(self.gwy.schema, schema)
