@@ -175,7 +175,7 @@ _DEV_REGEX_DHW = r"^07:[0-9]{6}$"
 _DEV_REGEX_HGI = r"^18:[0-9]{6}$"
 _DEV_REGEX_HTG = r"^(10|13):[0-9]{6}$"
 _DEV_REGEX_UFC = r"^02:[0-9]{6}$"
-_DEV_REGEX_SEN = r"^('01'|'03'|'04'|'12'|'22'|'34'):[0-9]{6}$"
+_DEV_REGEX_SEN = r"^(01|03|04|12|22|34):[0-9]{6}$"
 
 DEVICE_ID_REGEX = SimpleNamespace(
     ANY=_DEV_REGEX_ANY,
