@@ -15,6 +15,7 @@ connection: &con00
     max-connections: 3
 """
 
+# TODO: switch dtm from naive to aware
 # TODO: https://evohome-hackers.slack.com/archives/C02SYCLATSL/p1646997554178989
 # TODO: https://evohome-hackers.slack.com/archives/C02SYCLATSL/p1646998253052939
 
