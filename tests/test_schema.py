@@ -26,6 +26,14 @@ from ramses_rf.schema import (
     load_schema,
 )
 
+SCHEMA_DIR = f"{TEST_DIR}/schema"
+LOG_FILES = (
+    "schema_000",
+    "schema_001",
+    "schema_002",
+)
+JSN_FILES = ("schema_100",)
+
 RADIATOR_VALVE = "radiator_valve"
 
 
@@ -113,28 +121,30 @@ class TestSchemaDiscovery(unittest.IsolatedAsyncioTestCase):
         self.maxDiff = None
         self.gwy = None
 
-    async def test_from_log_file(self):
-        with open(f"{TEST_DIR}/schemas/schema_000.log") as f:
+    async def _proc_log_file(self, f_name):
+        with open(f"{SCHEMA_DIR}/{f_name}.log") as f:
             self.gwy = Gateway(
                 None, input_file=f, config=GWY_CONFIG, loop=self._asyncioTestLoop
             )
             await self.gwy.start()
 
-        with open(f"{TEST_DIR}/schemas/schema_000.json") as f:
+        with open(f"{SCHEMA_DIR}/{f_name}.json") as f:
             schema = json.load(f)
 
         # print(json.dumps(schema, indent=4))
         # print(json.dumps(self.gwy.schema, indent=4))
 
-        self.assertEqual(
-            json.dumps(self.gwy.schema, indent=4),
-            json.dumps(schema, indent=4),
-        )
+        self.assertEqual(self.gwy.schema, schema)
 
         # self.assertEqual(
         #     json.dumps(shrink(self.gwy.schema), indent=4),
         #     json.dumps(shrink(schema), indent=4),
         # )
+
+    async def test_from_log_files(self):
+        for f_name in LOG_FILES:
+            self.gwy = None
+            await self._proc_log_file(f_name)
 
 
 class TestSchemaLoad(unittest.TestCase):
@@ -146,13 +156,21 @@ class TestSchemaLoad(unittest.TestCase):
 
         self.maxDiff = None
 
-    def test_from_schema(self):
+    def _proc_jsn_file(self, f_name):
 
-        with open(f"{TEST_DIR}/schemas/schema_001.json") as f:
+        with open(f"{SCHEMA_DIR}/{f_name}.json") as f:
             schema = json.load(f)
+
         load_schema(self.gwy, **schema)
 
+        # print(json.dumps(schema, indent=4))
+        # print(json.dumps(self.gwy.schema, indent=4))
+
         self.assertEqual(shrink(schema), shrink({self.gwy.evo.id: self.gwy.evo.schema}))
+
+    def test_from_jsn_files(self):
+        for f_name in JSN_FILES:
+            self._proc_jsn_file(f_name)
 
 
 if __name__ == "__main__":
