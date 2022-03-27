@@ -8,7 +8,7 @@ import re
 from inspect import iscoroutinefunction
 
 
-def clean(value: dict, keep_falsys: bool = False, keep_hints: bool = False) -> dict:
+def shrink(value: dict, keep_falsys: bool = False, keep_hints: bool = False) -> dict:
     """Walk through a dict and remove all the meaningless items.
 
     Specifically, removes items with:

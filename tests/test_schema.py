@@ -14,7 +14,7 @@ import voluptuous as vol
 from common import GWY_CONFIG, TEST_DIR  # noqa: F401
 
 from ramses_rf import Gateway
-from ramses_rf.helpers import clean
+from ramses_rf.helpers import shrink
 from ramses_rf.schema import (
     DHW_SCHEMA,
     SZ_DEVICES,
@@ -132,8 +132,8 @@ class TestSchemaDiscovery(unittest.IsolatedAsyncioTestCase):
         )
 
         # self.assertEqual(
-        #     json.dumps(clean(self.gwy.schema), indent=4),
-        #     json.dumps(clean(schema), indent=4),
+        #     json.dumps(shrink(self.gwy.schema), indent=4),
+        #     json.dumps(shrink(schema), indent=4),
         # )
 
 
@@ -152,7 +152,7 @@ class TestSchemaLoad(unittest.TestCase):
             schema = json.load(f)
         load_schema(self.gwy, **schema)
 
-        self.assertEqual(clean(schema), clean({self.gwy.evo.id: self.gwy.evo.schema}))
+        self.assertEqual(shrink(schema), shrink({self.gwy.evo.id: self.gwy.evo.schema}))
 
 
 if __name__ == "__main__":
