@@ -1027,6 +1027,7 @@ def parser_1fc9(payload, msg) -> list:
         if seqx[:2] not in ("90",):
             assert seqx[6:] == payload[6:12]  # all with same controller
         if seqx[:2] not in (
+            "63",
             "67",
             "6C",
             "90",
@@ -1039,9 +1040,14 @@ def parser_1fc9(payload, msg) -> list:
             assert int(seqx[:2], 16) < msg._gwy.config.max_zones
         return [seqx[:2], seqx[2:6], hex_id_to_dev_id(seqx[6:])]
 
+    if payload == "00":
+        return {}
+
     assert msg.len >= 6 and msg.len % 6 == 0, msg.len  # assuming not RQ
     assert msg.verb in (I_, W_, RP), msg.verb  # devices will respond to a RQ!
-    assert msg.src.id == hex_id_to_dev_id(payload[6:12]), payload[6:12]
+    # assert (
+    #     msg.src.id == hex_id_to_dev_id(payload[6:12])
+    # ), f"{payload[6:12]} ({hex_id_to_dev_id(payload[6:12])})"  # NOTE: use_regex
     return [
         _parser(payload[i : i + 12])
         for i in range(0, len(payload), 12)

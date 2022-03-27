@@ -403,8 +403,8 @@ CODES_SCHEMA: dict = {  # rf_unknown
         # RP --- 01:145038 18:013393 --:------ 1FC9 012 FF-10E0-06368E FF-1FC9-06368E
         NAME: "rf_bind",  # idx-code-dev_id
         RQ: r"^00$",
-        RP: r"^((0[0-9A-F]|F[9ABCF]|90)([0-9A-F]{10}))+$",  # #  NOTE: idx can be 90 (HEAT)
-        I_: r"^((0[0-9A-F]|F[9ABCF]|67)([0-9A-F]{10}))+|00$",  # NOTE: idx can be 67 (HVAC), payload can be 00
+        RP: r"^((0[0-9A-F]|F[9ABCF]|90)([0-9A-F]{10}))+$",  # #     NOTE: idx can be 90 (HEAT)
+        I_: r"^((0[0-9A-F]|F[9ABCF]|63|67)([0-9A-F]{10}))+|00$",  # NOTE: idx can be 63|67 (HVAC), payload can be 00
         W_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
     },
     _1FCA: {  # unknown_1fca
@@ -965,7 +965,7 @@ _DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
     #     _30C9: {I_: {}},
     # },
 }
-
+# TODO: add 1FC9 everywhere?
 _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
     DEV_KLASS.RFS: {  # Itho spIDer: RF to Internet gateway (like a RFG100)
         _1060: {I_: {}},
