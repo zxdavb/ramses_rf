@@ -15,8 +15,18 @@ import unittest
 import voluptuous as vol
 
 from ramses_rf import Gateway
-from ramses_rf.const import SZ_DEVICES, SZ_SENSOR
-from ramses_rf.schema import SZ_CLASS, ZONE_SCHEMA, load_schema
+from ramses_rf.helpers import clean
+from ramses_rf.schema import (
+    DHW_SCHEMA,
+    SZ_DEVICES,
+    SZ_DHW_SENSOR,
+    SZ_DHW_VALVE,
+    SZ_DHW_VALVE_HTG,
+    SZ_KLASS,
+    SZ_SENSOR,
+    ZONE_SCHEMA,
+    load_schema,
+)
 
 GWY_CONFIG = {}
 
@@ -28,57 +38,78 @@ RADIATOR_VALVE = "radiator_valve"
 logging.disable(logging.WARNING)
 
 
-def clean(node) -> dict:
-    """Walk through a dict and remove all the meaningless items.
-
-    Specifically: removes uwanted keys (starting with '_') and falsey values.
-    """
-
-    if isinstance(node, dict):
-        return {k: clean(v) for k, v in node.items() if k[:1] != "_" and clean(v)}
-    elif isinstance(node, list):
-        return [clean(x) for x in node if x]
-    else:
-        return node
-
-
 class TestSchemaBits(unittest.TestCase):
+    def test_system_schema(self):
+        """Test the DHW schema.
+
+        dhw:
+            sensor: 07:777777
+            hotwater_valve: 13:111111
+            heating_valve: 13:222222
+        """
+
+        # self.assertEqual(True, False)
+
+        for dict_ in (
+            DHW_SCHEMA({}),
+            {SZ_DHW_SENSOR: None, SZ_DHW_VALVE: None, SZ_DHW_VALVE_HTG: None},
+        ):
+            self.assertEqual(
+                dict_,
+                {"sensor": None, "hotwater_valve": None, "heating_valve": None},
+            )
+
     def test_zone_schema(self):
+        """Test the zone schema.
 
-        self.assertEqual(
+        '01':
+            class: radiator_valve
+            sensor: 22:032844
+            actuators:
+            - 04:111111
+            - 04:222222
+        """
+
+        for dict_ in (
             ZONE_SCHEMA({}),
-            {SZ_CLASS: None, SZ_DEVICES: [], SZ_SENSOR: None},
-        )
+            {SZ_KLASS: None, SZ_DEVICES: [], SZ_SENSOR: None},
+        ):
+            self.assertEqual(
+                dict_,
+                {"class": None, "sensor": None, "devices": []},
+            )
 
-        for key in (SZ_CLASS, SZ_SENSOR):
+        for key in (SZ_KLASS, SZ_SENSOR):
             self.assertRaises(
                 vol.error.MultipleInvalid, ZONE_SCHEMA, {key: "_invalid_"}
             )
 
             self.assertEqual(
                 ZONE_SCHEMA({key: None}),
-                {SZ_CLASS: None, SZ_DEVICES: [], SZ_SENSOR: None},
+                {SZ_KLASS: None, SZ_DEVICES: [], SZ_SENSOR: None},
             )
 
         self.assertEqual(
-            ZONE_SCHEMA({SZ_CLASS: RADIATOR_VALVE}),
-            {SZ_CLASS: RADIATOR_VALVE, SZ_DEVICES: [], SZ_SENSOR: None},
+            ZONE_SCHEMA({SZ_KLASS: RADIATOR_VALVE}),
+            {SZ_KLASS: RADIATOR_VALVE, SZ_DEVICES: [], SZ_SENSOR: None},
         )
 
         self.assertEqual(
             ZONE_SCHEMA({SZ_SENSOR: "34:111111"}),
-            {SZ_CLASS: None, SZ_DEVICES: [], SZ_SENSOR: "34:111111"},
+            {SZ_KLASS: None, SZ_DEVICES: [], SZ_SENSOR: "34:111111"},
         )
 
-        for val in (None, ["_invalid_"], "13:111111"):
-            self.assertRaises(
-                vol.error.MultipleInvalid, ZONE_SCHEMA, {SZ_DEVICES: val}
-            )  # NOTE: should be a *list* of device_ids
+        for val in (
+            None,
+            ["_invalid_"],
+            "13:111111",
+        ):  # NOTE: should be a *list* of device_ids
+            self.assertRaises(vol.error.MultipleInvalid, ZONE_SCHEMA, {SZ_DEVICES: val})
 
         for val in ([], ["13:111111"], ["13:222222", "13:111111"]):
             self.assertEqual(
                 ZONE_SCHEMA({SZ_DEVICES: val}),
-                {SZ_CLASS: None, SZ_DEVICES: val, SZ_SENSOR: None},
+                {SZ_KLASS: None, SZ_DEVICES: val, SZ_SENSOR: None},
             )
 
 
@@ -99,7 +130,7 @@ class TestSchemaDiscovery(unittest.IsolatedAsyncioTestCase):
         with open(f"{TEST_DIR}/schemas/schema_000.json") as f:
             schema = json.load(f)
 
-        self.assertEqual(self.gwy.schema, schema)
+        self.assertEqual(schema, self.gwy.schema)
 
 
 class TestSchemaLoad(unittest.TestCase):
