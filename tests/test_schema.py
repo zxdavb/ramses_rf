@@ -127,19 +127,24 @@ class TestSchemaDiscovery(unittest.IsolatedAsyncioTestCase):
         # print(json.dumps(self.gwy.schema, indent=4))
 
         self.assertEqual(
-            json.dumps(clean(self.gwy.schema), indent=4),
-            json.dumps(clean(schema), indent=4),
+            json.dumps(self.gwy.schema, indent=4),
+            json.dumps(schema, indent=4),
         )
+
+        # self.assertEqual(
+        #     json.dumps(clean(self.gwy.schema), indent=4),
+        #     json.dumps(clean(schema), indent=4),
+        # )
 
 
 class TestSchemaLoad(unittest.TestCase):
 
     gwy = Gateway(None, config=GWY_CONFIG, loop=asyncio.get_event_loop())
 
-    # def __init__(self, *args, **kwargs):
-    #     super().__init__(*args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-    #     self.maxDiff = None
+        self.maxDiff = None
 
     def test_from_schema(self):
 
