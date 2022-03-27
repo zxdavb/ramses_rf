@@ -8,18 +8,12 @@ Test the Schedule functions.
 
 import asyncio
 import json
-import logging
-import os
 import unittest
 
 from ramses_rf import Gateway
 from ramses_rf.discovery import SET_SCHED, spawn_scripts
 
-GWY_CONFIG = {}
-
-TEST_DIR = f"{os.path.dirname(__file__)}"
-
-logging.disable(logging.WARNING)
+from common import GWY_CONFIG, TEST_DIR  # noqa: F401
 
 
 class TestSchedule(unittest.IsolatedAsyncioTestCase):

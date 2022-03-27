@@ -7,20 +7,16 @@ Test the Command.put_*, Command.set_* APIs.
 """
 
 import asyncio
-import logging
 import unittest
 from datetime import datetime as dt
+
+from common import GWY_CONFIG, TEST_DIR  # noqa: F401
 
 from ramses_rf import Gateway
 from ramses_rf.const import HGI_DEVICE_ID
 from ramses_rf.protocol.command import Command
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
-
-GWY_CONFIG = {}
-
-
-logging.disable(logging.WARNING)
 
 
 class TestApisBase(unittest.IsolatedAsyncioTestCase):

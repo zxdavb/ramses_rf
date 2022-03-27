@@ -6,15 +6,11 @@
 Test the various helper APIs.
 """
 
-import logging
 import unittest
 
+from common import GWY_CONFIG, TEST_DIR  # noqa: F401
+
 from ramses_rf.zones import _transform
-
-GWY_CONFIG = {}
-
-
-logging.disable(logging.WARNING)
 
 
 class TestHelpers(unittest.TestCase):

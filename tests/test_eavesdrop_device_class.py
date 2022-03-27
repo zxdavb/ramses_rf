@@ -6,14 +6,13 @@
 Test the Schema processor.
 """
 
-import logging
 import unittest
 from datetime import datetime as dt
 from random import shuffle
 
-from ramses_rf import Gateway
+from common import GWY_CONFIG, TEST_DIR  # noqa: F401
 
-logging.disable(logging.WARNING)
+from ramses_rf import Gateway
 
 
 class DeviceClass(unittest.IsolatedAsyncioTestCase):

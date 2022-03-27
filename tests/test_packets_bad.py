@@ -7,19 +7,16 @@ Test the Schema processor.
 """
 
 import logging
-import os
 import unittest
+
+from common import GWY_CONFIG, TEST_DIR  # noqa: F401
 
 from ramses_rf import Gateway
 
-GWY_CONFIG = {}
-
-LOG_DIR = f"{os.path.dirname(__file__)}"
+LOG_DIR = TEST_DIR
 LOG_FILES = ("pkts_bad_000.log",)
 
 SCHEMA_EMPTY = {"device_hints": {}, "main_controller": None, "orphans": []}
-
-logging.disable(logging.WARNING)
 
 
 class TestSetApis(unittest.IsolatedAsyncioTestCase):
