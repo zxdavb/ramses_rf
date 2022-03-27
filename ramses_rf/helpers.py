@@ -9,7 +9,7 @@ from inspect import iscoroutinefunction
 
 
 def shrink(value: dict, keep_falsys: bool = False, keep_hints: bool = False) -> dict:
-    """Walk through a dict and remove all the meaningless items.
+    """Return a minimized dict, after removing all the meaningless items.
 
     Specifically, removes items with:
     - uwanted keys (starting with '_')
