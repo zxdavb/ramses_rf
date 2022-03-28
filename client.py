@@ -21,6 +21,7 @@ from colorama import init as colorama_init
 from ramses_rf import Gateway, GracefulExit, is_valid_dev_id
 from ramses_rf.const import DONT_CREATE_MESSAGES
 from ramses_rf.discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
+from ramses_rf.protocol import _000A, _000C, _1F09, _30C9, I_, RP, RQ, W_, _0005, _2309
 from ramses_rf.protocol.exceptions import EvohomeError
 from ramses_rf.protocol.logger import (
     CONSOLE_COLS,
@@ -66,10 +67,10 @@ DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
 
 COLORS = {
-    " I": Fore.GREEN,
-    "RP": Fore.CYAN,
-    "RQ": Fore.CYAN,
-    " W": Style.BRIGHT + Fore.MAGENTA,
+    I_: Fore.GREEN,
+    RP: Fore.CYAN,
+    RQ: Fore.CYAN,
+    W_: Style.BRIGHT + Fore.MAGENTA,
 }
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
@@ -444,7 +445,7 @@ def print_summary(gwy, **kwargs):
     if kwargs.get("show_crazys"):
         for device in [d for d in gwy.devices if d.type == "01"]:
             for code, verbs in device._msgz.items():
-                if code in ("0005", "000C"):
+                if code in (_0005, _000C):
                     for verb in verbs.values():
                         for pkt in verb.values():
                             print(f"{pkt}")
@@ -466,7 +467,9 @@ async def main(command, lib_kwargs, **kwargs):
         )
         if msg.src and msg.src.type == "18":
             print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
-        elif msg.code == "1F09" and msg.verb == " I":
+        elif msg.code == _1F09 and msg.verb == I_:
+            print(f"{Fore.YELLOW}{dtm} {msg}"[:CONSOLE_COLS])
+        elif msg.code in (_000A, _2309, _30C9) and msg.verb == I_:
             print(f"{Fore.YELLOW}{dtm} {msg}"[:CONSOLE_COLS])
         else:
             print(f"{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
