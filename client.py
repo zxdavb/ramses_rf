@@ -65,7 +65,12 @@ PARSE = "parse"
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
 
-COLORS = {" I": Fore.GREEN, "RP": Fore.CYAN, "RQ": Fore.CYAN, " W": Fore.MAGENTA}
+COLORS = {
+    " I": Fore.GREEN,
+    "RP": Fore.CYAN,
+    "RQ": Fore.CYAN,
+    " W": Style.BRIGHT + Fore.MAGENTA,
+}
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
@@ -461,8 +466,8 @@ async def main(command, lib_kwargs, **kwargs):
         )
         if msg.src and msg.src.type == "18":
             print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
-        # elif msg.code == "3B00":  # TODO: temp
-        #     print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
+        elif msg.code == "1F09" and msg.verb == " I":
+            print(f"{Fore.YELLOW}{dtm} {msg}"[:CONSOLE_COLS])
         else:
             print(f"{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
 
