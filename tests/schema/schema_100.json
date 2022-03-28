@@ -3,15 +3,15 @@
         "system": {},
         "zones": {
             "00": {},
-            "01": {"class": null, "devices": [], "sensor": null},
+            "01": {"class": null, "actuators": [], "sensor": null},
             "02": {"class": "radiator_valve"},
-            "03": {"sensor": "03:333333", "devices": ["03:333333"]},
-            "04": {"devices": []},
-            "05": {"devices": ["04:555555"]},
-            "06": {"devices": ["04:666666", "04:060606"]},
+            "03": {"sensor": "03:333333"},
+            "04": {"actuators": []},
+            "05": {"actuators": ["04:555555"]},
+            "06": {"actuators": ["04:666666", "04:060606"]},
             "07": {
                 "class": "radiator_valve",
-                "devices": ["03:777777", "04:777777", "04:070707"],
+                "actuators": ["04:777777", "04:070707"],
                 "sensor": "03:777777"
             }
         }

@@ -17,7 +17,7 @@ from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
 from ramses_rf.schema import (
     DHW_SCHEMA,
-    SZ_DEVICES,
+    SZ_ACTUATORS,
     SZ_DHW_VALVE,
     SZ_DHW_VALVE_HTG,
     SZ_KLASS,
@@ -77,9 +77,9 @@ class TestSchemaBits(unittest.TestCase):
 
         for dict_ in (
             ZONE_SCHEMA({}),
-            {SZ_KLASS: None, SZ_DEVICES: [], SZ_SENSOR: None},
+            {SZ_KLASS: None, SZ_ACTUATORS: [], SZ_SENSOR: None},
         ):
-            self.assertEqual(dict_, {"class": None, "sensor": None, "devices": []})
+            self.assertEqual(dict_, {"class": None, "sensor": None, "actuators": []})
 
         for key in (SZ_KLASS, SZ_SENSOR):
             self.assertRaises(
@@ -87,17 +87,17 @@ class TestSchemaBits(unittest.TestCase):
             )
             self.assertEqual(
                 ZONE_SCHEMA({key: None}),
-                {SZ_KLASS: None, SZ_DEVICES: [], SZ_SENSOR: None},
+                {SZ_KLASS: None, SZ_ACTUATORS: [], SZ_SENSOR: None},
             )
 
         self.assertEqual(
             ZONE_SCHEMA({SZ_KLASS: RADIATOR_VALVE}),
-            {SZ_KLASS: RADIATOR_VALVE, SZ_DEVICES: [], SZ_SENSOR: None},
+            {SZ_KLASS: RADIATOR_VALVE, SZ_ACTUATORS: [], SZ_SENSOR: None},
         )
 
         self.assertEqual(
             ZONE_SCHEMA({SZ_SENSOR: "34:111111"}),
-            {SZ_KLASS: None, SZ_DEVICES: [], SZ_SENSOR: "34:111111"},
+            {SZ_KLASS: None, SZ_ACTUATORS: [], SZ_SENSOR: "34:111111"},
         )
 
         for val in (
@@ -105,12 +105,14 @@ class TestSchemaBits(unittest.TestCase):
             ["_invalid_"],
             "13:111111",
         ):  # NOTE: should be a *list* of device_ids
-            self.assertRaises(vol.error.MultipleInvalid, ZONE_SCHEMA, {SZ_DEVICES: val})
+            self.assertRaises(
+                vol.error.MultipleInvalid, ZONE_SCHEMA, {SZ_ACTUATORS: val}
+            )
 
         for val in ([], ["13:111111"], ["13:222222", "13:111111"]):
             self.assertEqual(
-                ZONE_SCHEMA({SZ_DEVICES: val}),
-                {SZ_KLASS: None, SZ_DEVICES: val, SZ_SENSOR: None},
+                ZONE_SCHEMA({SZ_ACTUATORS: val}),
+                {SZ_KLASS: None, SZ_ACTUATORS: val, SZ_SENSOR: None},
             )
 
 
@@ -163,8 +165,8 @@ class TestSchemaLoad(unittest.TestCase):
 
         load_schema(self.gwy, **schema)
 
-        # print(json.dumps(schema, indent=4))
-        # print(json.dumps(self.gwy.schema, indent=4))
+        print(json.dumps(schema, indent=4))
+        print(json.dumps(shrink(self.gwy.schema), indent=4))
 
         self.assertEqual(shrink(schema), shrink({self.gwy.evo.id: self.gwy.evo.schema}))
 

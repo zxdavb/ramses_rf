@@ -17,64 +17,64 @@
                 "class": "radiator_valve",
                 "sensor": "04:167740",
                 "_sensor_alt": "04:167740",
-                "devices": ["04:167740"],
-                "_actuators": ["04:167740"]
+                "_devices": ["04:167740"],
+                "actuators": ["04:167740"]
             },
             "01": {
                 "_name": "Lounge",
                 "class": "radiator_valve",
                 "sensor": "04:138068",
                 "_sensor_alt": "04:138068",
-                "devices": ["04:138068", "04:138066"],
-                "_actuators": ["04:138068", "04:138066"]
+                "_devices": ["04:138068", "04:138066"],
+                "actuators": ["04:138068", "04:138066"]
             },
             "02": {
                 "_name": "Hallway",
                 "class": "radiator_valve",
                 "sensor": null,
                 "_sensor_alt": null,
-                "devices": ["04:197688"],
-                "_actuators": ["04:197688"]
+                "_devices": ["04:197688"],
+                "actuators": ["04:197688"]
             },
             "03": {
                 "_name": "Master bed",
                 "class": "radiator_valve",
                 "sensor": "04:138054",
                 "_sensor_alt": "04:138054",
-                "devices": ["04:138054"],
-                "_actuators": ["04:138054"]
+                "_devices": ["04:138054"],
+                "actuators": ["04:138054"]
             },
             "04": {
                 "_name": "Guest bed",
                 "class": "radiator_valve",
                 "sensor": "04:138060",
                 "_sensor_alt": "04:138060",
-                "devices": ["04:138060"],
-                "_actuators": ["04:138060"]
+                "_devices": ["04:138060"],
+                "actuators": ["04:138060"]
             },
             "05": {
                 "_name": "BT Office",
                 "class": "radiator_valve",
                 "sensor": "04:167734",
                 "_sensor_alt": "04:167734",
-                "devices": ["04:167734"],
-                "_actuators": ["04:167734"]
+                "_devices": ["04:167734"],
+                "actuators": ["04:167734"]
             },
             "06": {
                 "_name": "Dining room",
                 "class": "radiator_valve",
                 "sensor": "04:197696",
                 "_sensor_alt": "04:197696",
-                "devices": ["04:197696"],
-                "_actuators": ["04:197696"]
+                "_devices": ["04:197696"],
+                "actuators": ["04:197696"]
             },
             "07": {
                 "_name": "Cloaks",
                 "class": "radiator_valve",
                 "sensor": "04:067179",
                 "_sensor_alt": "04:067179",
-                "devices": ["04:067179"],
-                "_actuators": []
+                "_devices": ["04:067179"],
+                "actuators": []
             }
         }
     },
