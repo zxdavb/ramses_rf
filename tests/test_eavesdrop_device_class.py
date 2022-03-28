@@ -3,7 +3,7 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
-Test the Schema processor.
+Test eavesdropping of a device class.
 """
 
 import unittest
