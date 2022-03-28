@@ -469,7 +469,7 @@ async def main(command, lib_kwargs, **kwargs):
             print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
         elif msg.code == _1F09 and msg.verb == I_:
             print(f"{Fore.YELLOW}{dtm} {msg}"[:CONSOLE_COLS])
-        elif msg.code in (_000A, _2309, _30C9) and msg.verb == I_:
+        elif msg.code in (_000A, _2309, _30C9) and msg._has_array:
             print(f"{Fore.YELLOW}{dtm} {msg}"[:CONSOLE_COLS])
         else:
             print(f"{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
