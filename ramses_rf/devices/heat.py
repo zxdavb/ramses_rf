@@ -538,6 +538,16 @@ class UfhController(HeatDevice):  # UFC (02):
         #     [self._make_cmd(_2309, payload=ufh_idx)for ufh_idx in self._circuits_alt]
 
     def _handle_msg(self, msg) -> None:
+        def eavesdrop_ufc_circuits(msg):
+            # assert msg.code == _22C9
+            circuits = [c["ufh_idx"] for c in msg.payload]
+
+            for ufh_idx in [f"{x:02X}" for x in range(8)]:
+                if ufh_idx not in self._circuits and ufh_idx in circuits:
+                    self._circuits[ufh_idx] = {"zone_idx": None}
+                elif ufh_idx in self._circuits and ufh_idx not in circuits:
+                    pass  # TODO: ?.pop()
+
         super()._handle_msg(msg)
 
         if msg.code == _0005:  # system_zones
@@ -581,7 +591,7 @@ class UfhController(HeatDevice):  # UFC (02):
             self._setpoints = msg
 
             if self._gwy.config.enable_eavesdrop:  # and...:
-                self._eavesdrop_ufc_circuits(msg)
+                eavesdrop_ufc_circuits(msg)
 
         elif msg.code == _3150:  # heat_demands
             if isinstance(msg.payload, list):  # the circuit demands
@@ -599,16 +609,6 @@ class UfhController(HeatDevice):  # UFC (02):
         #     print("AAA")
 
         # "0008|FA/FC", "22C9|array", "22D0|none", "3150|ZZ/array(/FC?)"
-
-    def _eavesdrop_ufc_circuits(self, msg):
-        # assert msg.code == _22C9
-        circuits = [c["ufh_idx"] for c in msg.payload]
-
-        for ufh_idx in [f"{x:02X}" for x in range(8)]:
-            if ufh_idx not in self._circuits and ufh_idx in circuits:
-                self._circuits[ufh_idx] = {"zone_idx": None}
-            elif ufh_idx in self._circuits and ufh_idx not in circuits:
-                pass  # TODO: ?.pop()
 
     def _set_parent(self, parent, domain=None) -> None:
         self._set_ctl(parent._ctl)
@@ -1235,7 +1235,7 @@ class Thermostat(BatteryState, Setpoint, Temperature, HeatDevice):  # THM (..):
             if self._iz_controller is None:
                 # _LOGGER.info(f"{msg!r} # IS_CONTROLLER (20): is TRUE")
                 self._iz_controller = msg
-                self._make_tcs_controller(msg)
+                self._make_tcs_controller(msg=msg)
             elif self._iz_controller is False:  # TODO: raise CorruptStateError
                 _LOGGER.error(f"{msg!r} # IS_CONTROLLER (21): was FALSE, now True")
 

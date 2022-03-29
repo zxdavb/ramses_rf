@@ -8,7 +8,7 @@ Heating devices.
 
 from types import SimpleNamespace
 
-from ..schema import SZ_ALIAS, SZ_CLASS, SZ_DEVICE_ID, SZ_FAKED
+from ..schema import SZ_ALIAS, SZ_DEVICE_ID, SZ_FAKED, SZ_KLASS  # FIXME
 
 # skipcq: PY-W2000
 from ..protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import

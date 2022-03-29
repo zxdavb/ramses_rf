@@ -15,7 +15,6 @@ from types import SimpleNamespace
 import voluptuous as vol
 
 from .const import (
-    ATTR_DEVICES,
     ATTR_ZONE_IDX,
     DEFAULT_MAX_ZONES,
     DEV_KLASS,
@@ -25,6 +24,7 @@ from .const import (
     SystemType,
     __dev_mode__,
 )
+from .helpers import shrink
 from .protocol import PACKET_LOG, PACKET_LOG_SCHEMA
 from .protocol.transport import DEV_HACK_REGEX, SERIAL_CONFIG_SCHEMA
 
@@ -45,21 +45,26 @@ SZ_HTG_CONTROL = "heating_control"
 SZ_ORPHANS = "orphans"
 
 SZ_DHW_SYSTEM = "stored_hotwater"
-SZ_DHW_SENSOR = "hotwater_sensor"
+SZ_DHW_SENSOR = "hotwater_sensor"  # deprecated
 SZ_DHW_VALVE = "hotwater_valve"
 SZ_DHW_VALVE_HTG = "heating_valve"
 
 SZ_ZONES = "zones"
-SZ_ZONE_TYPE = "zone_type"
-SZ_ZONE_SENSOR = "zone_sensor"
+SZ_ZONE_TYPE = "zone_type"  # deprecated
+SZ_ZONE_SENSOR = "zone_sensor"  # deprecated
 SZ_ACTUATORS = "actuators"
+SZ_DEVICES = "devices"
+SZ_SENSOR_FAKED = "sensor_faked"
+SZ_NAME = "name"
+SZ_SENSOR = "sensor"
+
 
 SZ_UFH_SYSTEM = "underfloor_heating"
 SZ_UFH_CTL = "ufh_controller"
 
 SZ_DEVICE_ID = "device_id"
 SZ_ALIAS = "alias"
-SZ_CLASS = "class"
+SZ_KLASS = "class"  # device/zone class
 SZ_FAKED = "faked"
 
 DEVICE_ID = vol.Match(DEVICE_ID_REGEX.ANY)
@@ -100,6 +105,14 @@ SERIAL_CONFIG = "serial_config"
 USE_ALIASES = "use_aliases"  # use friendly device names from known_list
 USE_SCHEMA = "use_schema"
 
+
+def renamed(new_key):
+    def func(value):
+        raise vol.Invalid(f"the key name has changed: rename it to '{new_key}'")
+
+    return func
+
+
 # 1/3: Schemas for Configuration
 
 CONFIG_SCHEMA = vol.Schema(
@@ -127,7 +140,7 @@ DEVICE_DICT = vol.Schema(
         vol.Optional(DEVICE_ID): vol.Any(
             {
                 vol.Optional(SZ_ALIAS, default=None): vol.Any(None, str),
-                vol.Optional(SZ_CLASS, default=None): vol.Any(
+                vol.Optional(SZ_KLASS, default=None): vol.Any(
                     None, *vars(DEV_KLASS).keys()
                 ),
                 vol.Optional(SZ_FAKED, default=None): vol.Any(None, bool),
@@ -150,9 +163,10 @@ HTG_SCHEMA = vol.Schema(
 )
 DHW_SCHEMA = vol.Schema(
     {
-        vol.Optional(SZ_DHW_SENSOR, default=None): vol.Any(None, DEV_REGEX_DHW),
+        vol.Optional(SZ_SENSOR, default=None): vol.Any(None, DEV_REGEX_DHW),
         vol.Optional(SZ_DHW_VALVE, default=None): vol.Any(None, DEV_REGEX_BDR),
         vol.Optional(SZ_DHW_VALVE_HTG, default=None): vol.Any(None, DEV_REGEX_BDR),
+        vol.Optional(SZ_DHW_SENSOR): renamed(SZ_SENSOR),
     }
 )
 UFC_CIRCUIT = vol.Schema(
@@ -171,15 +185,20 @@ UFH_SCHEMA = vol.Schema(
 )
 UFH_SCHEMA = vol.All(UFH_SCHEMA, vol.Length(min=1, max=3))
 
-ZONE_SCHEMA = vol.Schema(
+ZONE_SCHEMA = vol.Schema(  # vol.All([DEVICE_ID], vol.Length(min=0))(['01:123456'])
     {
-        vol.Optional(SZ_ZONE_TYPE, default=None): vol.Any(None, ZONE_TYPE_SLUGS),
-        vol.Optional(SZ_ZONE_SENSOR, default=None): vol.Any(None, SENSOR_ID),
-        vol.Optional(ATTR_DEVICES, default=[]): vol.Any([], [DEVICE_ID]),
-        # TODO: above accepts "01:123456", should be ["01:123456"]
-        # vol.Optional("faked_sensor", default=None): vol.Any(None, bool),
-    }
+        vol.Optional(SZ_KLASS, default=None): vol.Any(None, *tuple(ZONE_TYPE_SLUGS)),
+        vol.Optional(SZ_SENSOR, default=None): vol.Any(None, SENSOR_ID),
+        vol.Optional(SZ_DEVICES): renamed(SZ_ACTUATORS),
+        vol.Optional(SZ_ACTUATORS, default=[]): vol.All([DEVICE_ID], vol.Length(min=0)),
+        vol.Optional(SZ_ZONE_TYPE): renamed(SZ_KLASS),
+        vol.Optional(SZ_ZONE_SENSOR): renamed(SZ_SENSOR),
+        # vol.Optional(SZ_SENSOR_FAKED): bool,
+        vol.Optional(f"_{SZ_NAME}"): str,
+    },
+    extra=vol.PREVENT_EXTRA,
 )
+# ZONE_SCHEMA({SZ_KLASS: None, SZ_DEVICES: None})  # TODO: remove me
 ZONES_SCHEMA = vol.All(
     vol.Schema({vol.Required(ZONE_IDX): ZONE_SCHEMA}),
     vol.Length(min=1, max=DEFAULT_MAX_ZONES),
@@ -348,7 +367,9 @@ def load_schema(gwy, **kwargs) -> dict:
 
 
 def load_system(gwy, ctl_id, schema) -> tuple[dict, dict]:
-    schema = SYSTEM_SCHEMA(schema)
+    """Create a system using its schema."""
+    # print(schema)
+    # schema = ZONE_SCHEMA(schema)
 
     if (ctl := _get_device(gwy, ctl_id, ctl_id=ctl_id)) is None:
         return
@@ -358,7 +379,7 @@ def load_system(gwy, ctl_id, schema) -> tuple[dict, dict]:
 
     if dhw_schema := schema.get(SZ_DHW_SYSTEM, {}):
         dhw = ctl._evo._get_dhw()  # **dhw_schema)
-        if dev_id := dhw_schema.get(SZ_DHW_SENSOR):
+        if dev_id := dhw_schema.get(SZ_SENSOR):
             dhw._set_sensor(_get_device(gwy, dev_id, ctl_id=ctl.id))
         if dev_id := dhw_schema.get(SZ_DHW_VALVE):
             dhw._set_dhw_valve(_get_device(gwy, dev_id, ctl_id=ctl.id))
@@ -371,18 +392,18 @@ def load_system(gwy, ctl_id, schema) -> tuple[dict, dict]:
     for zone_idx, attrs in schema[SZ_ZONES].items():
         zone = ctl._evo._get_zone(zone_idx)  # , **attrs)
 
-        if dev_id := attrs.get(SZ_ZONE_SENSOR):
+        if dev_id := attrs.get(SZ_SENSOR):
             zone._set_sensor(
                 _get_device(gwy, dev_id, ctl_id=ctl.id, domain_id=zone_idx)
             )
-            if attrs.get("faked_sensor"):
+            if attrs.get(SZ_SENSOR_FAKED):
                 zone.sensor._make_fake()  # TODO: check device type here?
 
-        for dev_id in attrs.get(ATTR_DEVICES, []):
+        for dev_id in attrs.get(SZ_ACTUATORS, []):
             _get_device(gwy, dev_id, ctl_id=ctl.id, domain_id=zone_idx)
 
-        if zone_type := attrs.get(SZ_ZONE_TYPE):
-            zone._set_zone_type(zone_type)
+        if klass := attrs.get(SZ_KLASS):
+            zone._set_zone_type(klass)
 
     for dev_id in schema.get(SZ_ORPHANS, []):
         _get_device(gwy, dev_id, ctl_id=ctl.id, disable_warning=True)
@@ -390,18 +411,10 @@ def load_system(gwy, ctl_id, schema) -> tuple[dict, dict]:
     if False and DEV_MODE:
         import json
 
-        src = json.dumps(shrink_dict(schema), sort_keys=True)
-        dst = json.dumps(shrink_dict(gwy.system_by_id[ctl.id].schema), sort_keys=True)
+        src = json.dumps(shrink(schema), sort_keys=True)
+        dst = json.dumps(shrink(gwy.system_by_id[ctl.id].schema), sort_keys=True)
         # assert dst == src, "They don't match!"
         print(src)
         print(dst)
 
     return ctl
-
-
-def shrink_dict(_dict):
-    return {
-        k: shrink_dict(dict(v)) if isinstance(v, dict) else v
-        for k, v in _dict.items()
-        if bool(v)
-    }

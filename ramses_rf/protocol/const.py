@@ -342,9 +342,9 @@ ATTR_SYSTEM_MODE = "system_mode"
 ATTR_TEMP = "temperature"
 ATTR_UFH_CONTROLLERS = "ufh_controllers"
 ATTR_WINDOW_OPEN = "window_open"
-ATTR_ZONE_ACTUATORS = "zone_actuators"
+ATTR_ZONE_ACTUATORS = "zone_actuator"
 ATTR_ZONE_IDX = "zone_idx"
-ATTR_ZONE_SENSOR = "sensor"
+ATTR_ZONE_SENSOR = "zone_sensor"
 ATTR_ZONE_TYPE = "heating_type"
 ATTR_ZONES = "zones"
 
@@ -413,7 +413,7 @@ _0005_ZONE = SimpleNamespace(
 # RP --- 01:054173 18:006402 --:------ 0005 004 00100000  # after deleting the RFG
 
 _0005_ZONE_TYPE = {
-    _0005_ZONE.ALL: "zone_actuators",
+    _0005_ZONE.ALL: "zone_actuator",
     _0005_ZONE.ALL_SENSOR: "zone_sensor",
     _0005_ZONE.RAD: ATTR_RAD_VALVE,
     _0005_ZONE.UFH: ATTR_UFH_HTG,
@@ -432,20 +432,20 @@ _0005_ZONE_TYPE = {
 
 _000C_DEVICE = _0005_ZONE
 _000C_DEVICE_TYPE = {
-    _000C_DEVICE.ALL: "zone_actuators",
+    _000C_DEVICE.ALL: "zone_actuator",
     # "01": None,
     # "02": None,
     _000C_DEVICE.ALL_SENSOR: ATTR_ZONE_SENSOR,  # 03:, 04:, 34: (if is 01:, will == [], as if no sensor)  # noqa: E501
-    _000C_DEVICE.RAD: "rad_actuators",
-    _000C_DEVICE.UFH: "ufh_actuators",
-    _000C_DEVICE.VAL: "val_actuators",
-    _000C_DEVICE.MIX: "mix_actuators",
+    _000C_DEVICE.RAD: "rad_actuator",
+    _000C_DEVICE.UFH: "ufh_actuator",
+    _000C_DEVICE.VAL: "val_actuator",
+    _000C_DEVICE.MIX: "mix_actuator",
     # "0C": None,  # RFG RQs this
     _000C_DEVICE.DHW_SENSOR: ATTR_DHW_SENSOR,  # FA, z_idx 0 only
     _000C_DEVICE.DHW: ATTR_DHW_VALVE,  # FA, could be F9, ATTR_DHW_VALVE_HTG
     _000C_DEVICE.HTG: ATTR_HTG_CONTROL,  # FC, z_idx 0 only
     _000C_DEVICE.RFG: "rfg_gateway",
-    _000C_DEVICE.ELE: "ele_actuators",
+    _000C_DEVICE.ELE: "ele_actuator",
 }
 
 # Used by 0418/system_fault parser

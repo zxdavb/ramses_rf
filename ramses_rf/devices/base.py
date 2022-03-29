@@ -6,6 +6,8 @@
 Base for all devices.
 """
 
+# TODO: refactor polling
+# TODO: change xxx._evo to xxx._tcs
 import logging
 from random import randint
 from types import SimpleNamespace
@@ -20,7 +22,7 @@ from ..protocol.ramses import (
     CODES_SCHEMA,
     NAME,
 )
-from .const import SZ_ALIAS, SZ_CLASS, SZ_DEVICE_ID, SZ_FAKED, Discover, __dev_mode__
+from .const import SZ_ALIAS, SZ_DEVICE_ID, SZ_FAKED, SZ_KLASS, Discover, __dev_mode__
 from .entity_base import Entity, class_by_attr, discover_decorator
 
 # from .hvac import _CLASS_BY_KLASS as _HVAC_CLASS_BY_KLASS
@@ -134,7 +136,7 @@ BindState = SimpleNamespace(
 #       DHW/THM, TRV -> CTL     (temp, valve_position), or:
 #                CTL -> BDR/OTB (heat_demand)
 
-#            REQUEST -> WAITING
+#          [ REQUEST -> WAITING ]
 #            unbound -- unbound
 #            unbound -- listening
 #           offering -> listening
@@ -260,7 +262,7 @@ class DeviceBase(Entity):
         if not self._iz_controller and msg.code in CODES_ONLY_FROM_CTL:
             if self._iz_controller is None:
                 _LOGGER.info(f"{msg!r} # IS_CONTROLLER (00): is TRUE")
-                self._make_tcs_controller(msg)
+                self._make_tcs_controller(msg=msg)
             elif self._iz_controller is False:  # TODO: raise CorruptStateError
                 _LOGGER.error(f"{msg!r} # IS_CONTROLLER (01): was FALSE, now True")
 
@@ -305,11 +307,10 @@ class DeviceBase(Entity):
 
     def _make_tcs_controller(self, msg=None, **kwargs):  # CH/DHW
         """Create a TCS, and attach it to this controller."""
-        from ..systems import create_system  # HACK: needs sorting
 
         self._iz_controller = msg or True
         if self.type in ("01", "12", "22", "23", "34") and self._evo is None:  # DEX
-            self._evo = create_system(self._gwy, self, **kwargs)
+            self._evo = self._gwy.zx_get_heating_system(self, **kwargs)
 
     @property
     def traits(self) -> dict:
@@ -319,7 +320,7 @@ class DeviceBase(Entity):
             **(self._codes if DEV_MODE else {}),
             SZ_ALIAS: self._alias,
             # SZ_FAKED: self._faked,
-            SZ_CLASS: self._klass,
+            SZ_KLASS: self._klass,
             "supported_msgs": {
                 k: (CODES_SCHEMA[k][NAME] if k in CODES_SCHEMA else None)
                 for k in sorted(self._msgs)
@@ -393,7 +394,7 @@ class Device(DeviceBase):  # 10E0
             # TODO: is buggy - remove? how?
             self._set_parent(self._ctl._evo._get_zone(msg.payload["zone_idx"]))
 
-    def _set_parent(self, parent, domain=None):
+    def _set_parent(self, parent, domain=None, sensor=None):
         """Set the device's parent zone, after validating it.
 
         There are three possible sources for the parent zone of a device:
@@ -437,6 +438,9 @@ class Device(DeviceBase):  # 10E0
         if hasattr(self._parent, "devices") and self not in self._parent.devices:
             parent.devices.append(self)
             parent.device_by_id[self.id] = self
+            if not sensor:
+                parent.actuators.append(self)
+                parent.actuator_by_id[self.id] = self
 
         if DEV_MODE:
             _LOGGER.debug("Device %s: parent now set to %s", self, self._parent)

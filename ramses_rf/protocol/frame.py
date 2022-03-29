@@ -6,6 +6,8 @@
 Provide the base class for commands (constructed/sent packets) and packets.
 """
 
+# TODO: add _has_idx (ass func return only one type, or raise)
+
 import logging
 from datetime import datetime as dt
 from typing import Optional, Union
@@ -454,7 +456,7 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
     if pkt.payload[:2] != "00":
         raise InvalidPayloadError(
             f"Packet idx is {pkt.payload[:2]}, but expecting no idx (00) (0xAB)"
-        )
+        )  # TODO: add a test for this
 
     if pkt.code in CODE_IDX_SIMPLE:
         return None  # False  # TODO: return None (less precise) or risk false -ves?

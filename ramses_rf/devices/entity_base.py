@@ -30,7 +30,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def class_by_attr(name: str, attr: str) -> dict:
+def class_by_attr(name: str, attr: str) -> dict:  # TODO: change to __module__
     """Return a mapping of a (unique) attr of classes in a module to that class.
 
     For example:
