@@ -13,7 +13,7 @@
         "underfloor_heating": {},
         "zones": {
             "00": {
-                "_name": "CHP Office",
+                "_name": null,
                 "class": "radiator_valve",
                 "sensor": "04:167740",
                 "_sensor_alt": "04:167740",
@@ -21,7 +21,7 @@
                 "actuators": ["04:167740"]
             },
             "01": {
-                "_name": "Lounge",
+                "_name": null,
                 "class": "radiator_valve",
                 "sensor": "04:138068",
                 "_sensor_alt": "04:138068",
@@ -29,7 +29,7 @@
                 "actuators": ["04:138068", "04:138066"]
             },
             "02": {
-                "_name": "Hallway",
+                "_name": null,
                 "class": "radiator_valve",
                 "sensor": null,
                 "_sensor_alt": null,
@@ -37,7 +37,7 @@
                 "actuators": ["04:197688"]
             },
             "03": {
-                "_name": "Master bed",
+                "_name": null,
                 "class": "radiator_valve",
                 "sensor": "04:138054",
                 "_sensor_alt": "04:138054",
@@ -45,7 +45,7 @@
                 "actuators": ["04:138054"]
             },
             "04": {
-                "_name": "Guest bed",
+                "_name": null,
                 "class": "radiator_valve",
                 "sensor": "04:138060",
                 "_sensor_alt": "04:138060",
@@ -53,7 +53,7 @@
                 "actuators": ["04:138060"]
             },
             "05": {
-                "_name": "BT Office",
+                "_name": null,
                 "class": "radiator_valve",
                 "sensor": "04:167734",
                 "_sensor_alt": "04:167734",
@@ -61,7 +61,7 @@
                 "actuators": ["04:167734"]
             },
             "06": {
-                "_name": "Dining room",
+                "_name": null,
                 "class": "radiator_valve",
                 "sensor": "04:197696",
                 "_sensor_alt": "04:197696",
@@ -69,7 +69,7 @@
                 "actuators": ["04:197696"]
             },
             "07": {
-                "_name": "Cloaks",
+                "_name": null,
                 "class": "radiator_valve",
                 "sensor": "04:067179",
                 "_sensor_alt": "04:067179",
