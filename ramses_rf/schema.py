@@ -135,7 +135,7 @@ CONFIG_SCHEMA = vol.Schema(
     extra=vol.ALLOW_EXTRA,  # TODO: remove for production
 )
 
-DEVICE_DICT = vol.Schema(
+DEVICE_SCHEMA = vol.Schema(
     {
         vol.Optional(DEVICE_ID): vol.Any(
             {
@@ -225,8 +225,8 @@ GLOBAL_CONFIG_SCHEMA = vol.Schema(
                 vol.Optional(PACKET_LOG, default={}): vol.Any({}, PACKET_LOG_SCHEMA),
             }
         ),
-        vol.Optional(KNOWN_LIST, default={}): vol.All(DEVICE_DICT, vol.Length(min=0)),
-        vol.Optional(BLOCK_LIST, default={}): vol.All(DEVICE_DICT, vol.Length(min=0)),
+        vol.Optional(KNOWN_LIST, default={}): vol.All(DEVICE_SCHEMA, vol.Length(min=0)),
+        vol.Optional(BLOCK_LIST, default={}): vol.All(DEVICE_SCHEMA, vol.Length(min=0)),
     },
     extra=vol.REMOVE_EXTRA,
 )
@@ -358,7 +358,7 @@ def load_schema(gwy, **kwargs) -> dict:
         if re.match(DEVICE_ID_REGEX.ANY, ctl_id)
     ]
     if kwargs.get(SZ_MAIN_CONTROLLER):
-        gwy.evo = gwy.system_by_id.get(kwargs[SZ_MAIN_CONTROLLER])
+        gwy._tcs = gwy.system_by_id.get(kwargs[SZ_MAIN_CONTROLLER])
 
     [
         _get_device(gwy, device_id, disable_warning=True)
@@ -371,39 +371,41 @@ def load_system(gwy, ctl_id, schema) -> tuple[dict, dict]:
     # print(schema)
     # schema = ZONE_SCHEMA(schema)
 
-    if (ctl := _get_device(gwy, ctl_id, ctl_id=ctl_id)) is None:
+    if (ctl := _get_device(gwy, ctl_id)) is None:
         return
 
-    if dev_id := schema[SZ_HTG_SYSTEM].get(SZ_HTG_CONTROL):
-        ctl._evo._set_htg_control(_get_device(gwy, dev_id, ctl_id=ctl.id))
+    ctl.zx_get_heating_system(**schema)
 
-    if dhw_schema := schema.get(SZ_DHW_SYSTEM, {}):
-        dhw = ctl._evo._get_dhw()  # **dhw_schema)
-        if dev_id := dhw_schema.get(SZ_SENSOR):
-            dhw._set_sensor(_get_device(gwy, dev_id, ctl_id=ctl.id))
-        if dev_id := dhw_schema.get(SZ_DHW_VALVE):
-            dhw._set_dhw_valve(_get_device(gwy, dev_id, ctl_id=ctl.id))
-        if dev_id := dhw_schema.get(SZ_DHW_VALVE_HTG):
-            dhw._set_htg_valve(_get_device(gwy, dev_id, ctl_id=ctl.id))
+    if dev_id := schema[SZ_HTG_SYSTEM].get(SZ_HTG_CONTROL):
+        ctl._tcs._set_htg_control(_get_device(gwy, dev_id, ctl_id=ctl.id))
+
+    # if dhw_schema := schema.get(SZ_DHW_SYSTEM, {}):
+    #     dhw = ctl._tcs._get_dhw()  # **dhw_schema)
+    #     if dev_id := dhw_schema.get(SZ_SENSOR):
+    #         dhw._set_sensor(_get_device(gwy, dev_id, ctl_id=ctl.id))
+    #     if dev_id := dhw_schema.get(SZ_DHW_VALVE):
+    #         dhw._set_dhw_valve(_get_device(gwy, dev_id, ctl_id=ctl.id))
+    #     if dev_id := dhw_schema.get(SZ_DHW_VALVE_HTG):
+    #         dhw._set_htg_valve(_get_device(gwy, dev_id, ctl_id=ctl.id))
 
     for dev_id in schema.get(SZ_UFH_SYSTEM, {}).keys():  # UFH controllers
         _get_device(gwy, dev_id, ctl_id=ctl.id)  # , **_schema)
 
-    for zone_idx, attrs in schema[SZ_ZONES].items():
-        zone = ctl._evo._get_zone(zone_idx)  # , **attrs)
+    # for zone_idx, attrs in schema[SZ_ZONES].items():
+    #     zone = ctl._tcs.zx_get_heating_zone(zone_idx)  # , **attrs)
 
-        if dev_id := attrs.get(SZ_SENSOR):
-            zone._set_sensor(
-                _get_device(gwy, dev_id, ctl_id=ctl.id, domain_id=zone_idx)
-            )
-            if attrs.get(SZ_SENSOR_FAKED):
-                zone.sensor._make_fake()  # TODO: check device type here?
+    #     if dev_id := attrs.get(SZ_SENSOR):
+    #         zone._set_sensor(
+    #             _get_device(gwy, dev_id, ctl_id=ctl.id, domain_id=zone_idx)
+    #         )
+    #         if attrs.get(SZ_SENSOR_FAKED):
+    #             zone.sensor._make_fake()  # TODO: check device type here?
 
-        for dev_id in attrs.get(SZ_ACTUATORS, []):
-            _get_device(gwy, dev_id, ctl_id=ctl.id, domain_id=zone_idx)
+    #     for dev_id in attrs.get(SZ_ACTUATORS, []):
+    #         _get_device(gwy, dev_id, ctl_id=ctl.id, domain_id=zone_idx)
 
-        if klass := attrs.get(SZ_KLASS):
-            zone._set_zone_type(klass)
+    #     if klass := attrs.get(SZ_KLASS):
+    #         zone._set_zone_type(klass)
 
     for dev_id in schema.get(SZ_ORPHANS, []):
         _get_device(gwy, dev_id, ctl_id=ctl.id, disable_warning=True)

@@ -204,13 +204,13 @@ async def get_faults(gwy, ctl_id: str, start=0, limit=0x3F):
     device = gwy._get_device(ctl_id, ctl_id=ctl_id)
 
     try:
-        await device._evo.get_faultlog(start=start, limit=limit)  # 0418
+        await device._tcs.get_faultlog(start=start, limit=limit)  # 0418
     except ExpiredCallbackError as exc:
         _LOGGER.error("get_faults(): Function timed out: %s", exc)
 
 
 async def get_schedule(gwy, ctl_id: str, zone_idx: str) -> None:
-    zone = gwy._get_device(ctl_id, ctl_id=ctl_id)._evo._get_zone(zone_idx)
+    zone = gwy._get_device(ctl_id, ctl_id=ctl_id)._tcs.zx_get_heating_zone(zone_idx)
 
     try:
         await zone.get_schedule()
@@ -222,7 +222,7 @@ async def set_schedule(gwy, ctl_id, schedule) -> None:
     schedule = json.load(schedule)
     zone_idx = schedule["zone_idx"]
 
-    zone = gwy._get_device(ctl_id, ctl_id=ctl_id)._evo._get_zone(zone_idx)
+    zone = gwy._get_device(ctl_id, ctl_id=ctl_id)._tcs.zx_get_heating_zone(zone_idx)
 
     try:
         await zone.set_schedule(schedule["schedule"])  # 0404

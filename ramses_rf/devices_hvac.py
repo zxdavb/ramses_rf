@@ -7,13 +7,14 @@ HVAC devices.
 """
 
 import logging
+from symtable import Class
 from typing import Optional
 
-from ..const import BOOST_TIMER, DEV_KLASS, FAN_MODE, __dev_mode__
-from ..protocol import Message
-from ..protocol.ramses import CODES_HVAC_ONLY
-from .base import BatteryState, HvacDevice
+from .const import BOOST_TIMER, DEV_KLASS, FAN_MODE, __dev_mode__
+from .devices_base import BatteryState, HvacDevice
 from .entity_base import class_by_attr
+from .protocol import Address, Message
+from .protocol.ramses import CODES_HVAC_ONLY
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -124,7 +125,7 @@ class RfsGateway(HvacDevice):  # RFS: (spIDer gateway)
 
         self._ctl = None
         self._domain_id = "HV"
-        self._evo = None
+        self._tcs = None
 
     def _set_ctl(self, ctl) -> None:  # self._ctl
         """Set the device's parent controller, after validating it."""
@@ -289,27 +290,7 @@ class HvacVentilator(HvacDevice):  # FAN: RP/31DA, I/31D[9A]
         }
 
 
-########################################################################################
-########################################################################################
-
-_CLASS_BY_KLASS = class_by_attr(__name__, "_DEV_KLASS")  # e.g. "HUM": HvacHumidity
-
-
-def _best_hvac_klass(dev_type: str, msg: Message) -> Optional[str]:
-    """Return an approprite device klass, if the device could be from the HVAC group."""
-
-    # if msg is None and dev_type in ("02", "07", "18", "30"):
-    #     return DEV_KLASS.DEV  # work out later, despite a well-known device type
-
-    if msg is None:
-        return
-
-    if klass := _HVAC_KLASS_BY_VC_PAIR.get((msg.verb, msg.code)):
-        return klass
-
-    if msg.code in CODES_HVAC_ONLY:
-        return DEV_KLASS.DEV  # work out later (use DEV_KLASS.HVC instead?)
-
+HVAC_CLASS_BY_KLASS = class_by_attr(__name__, "_DEV_KLASS")  # e.g. "HUM": HvacHumidity
 
 _HVAC_VC_PAIR_BY_CLASS = {
     DEV_KLASS.CO2: ((I_, _1298),),
@@ -318,6 +299,27 @@ _HVAC_VC_PAIR_BY_CLASS = {
     DEV_KLASS.SWI: ((I_, _22F1), (I_, _22F3)),
 }
 _HVAC_KLASS_BY_VC_PAIR = {t: k for k, v in _HVAC_VC_PAIR_BY_CLASS.items() for t in v}
+
+
+def zx_device_factory(
+    dev_addr: Address, msg: Message = None, eavesdrop: bool = False
+) -> Class:
+    """Return a device class, only if the device must be from the HVAC group."""
+
+    if not eavesdrop:
+        raise TypeError(f"No HVAC class for: {dev_addr} (no eavesdropping)")
+
+    if msg is None:
+        raise TypeError(f"No HVAC class for: {dev_addr} (no msg)")
+
+    if klass := _HVAC_KLASS_BY_VC_PAIR.get((msg.verb, msg.code)):
+        return HVAC_CLASS_BY_KLASS[klass]
+
+    if msg.code in CODES_HVAC_ONLY:
+        return HvacDevice
+
+    raise TypeError(f"No HVAC class for: {dev_addr} (insufficient meta-data)")
+
 
 if DEV_MODE:
     assert len(_HVAC_KLASS_BY_VC_PAIR) == (

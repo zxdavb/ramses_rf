@@ -1132,7 +1132,7 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
 
         self.id = ctl.id
         self._ctl = ctl
-        # self._evo = ctl._evo
+        # self._tcs = ctl._tcs
         self._gwy = ctl._gwy
 
         self._faultlog = None

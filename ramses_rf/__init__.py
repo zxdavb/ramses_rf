@@ -18,6 +18,14 @@ from .protocol import is_valid_dev_id  # noqa: F401
 from .version import VERSION  # noqa: F401
 
 # skipcq: PY-W2000
+from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+)
+
+# skipcq: PY-W2000
 DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)

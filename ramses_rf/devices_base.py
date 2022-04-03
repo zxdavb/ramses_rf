@@ -7,23 +7,21 @@ Base for all devices.
 """
 
 # TODO: refactor polling
-# TODO: change xxx._evo to xxx._tcs
+# TODO: change xxx._tcs to xxx._tcs
 import logging
 from random import randint
 from types import SimpleNamespace
 from typing import Optional
 
-from ..const import DEV_KLASS, NUL_DEVICE_ID
-from ..protocol import Command, CorruptStateError
-from ..protocol.command import FUNC, TIMEOUT
-from ..protocol.ramses import (
-    CODES_BY_DEV_KLASS,
-    CODES_ONLY_FROM_CTL,
-    CODES_SCHEMA,
-    NAME,
-)
-from .const import SZ_ALIAS, SZ_DEVICE_ID, SZ_FAKED, SZ_KLASS, Discover, __dev_mode__
+from .const import DEV_KLASS, NUL_DEVICE_ID, Discover, __dev_mode__
 from .entity_base import Entity, class_by_attr, discover_decorator
+from .helpers import shrink
+from .protocol import Command, CorruptStateError
+from .protocol.address import Address
+from .protocol.command import FUNC, TIMEOUT
+from .protocol.ramses import CODES_BY_DEV_KLASS, CODES_ONLY_FROM_CTL, CODES_SCHEMA, NAME
+from .protocol.transport import PacketProtocolPort
+from .schema import SYSTEM_SCHEMA, SZ_ALIAS, SZ_DEVICE_ID, SZ_FAKED, SZ_KLASS
 
 # from .hvac import _CLASS_BY_KLASS as _HVAC_CLASS_BY_KLASS
 # from .hvac import _best_hvac_klass
@@ -191,6 +189,26 @@ class DeviceBase(Entity):
         if msg := kwargs.get("msg"):
             self._loop.call_soon_threadsafe(self._handle_msg, msg)
 
+    @classmethod
+    def zx_create_from_schema(cls, gwy, dev_addr: Address, **schema):
+        """Create a device (for a GWY) and set its schema attrs (aka traits).
+
+        The appropriate Device class should have been determined by a factory.
+        Schema attrs include: class (klass), alias & faked.
+        """
+
+        dev = cls(gwy, dev_addr)  # parent=parent, role=role)
+        dev._zx_update_schema(**schema)
+        return dev
+
+    def _zx_update_schema(self, **schema):
+        """Update a device with new schema attrs.
+
+        Raise an exception if the new schema is not a superset of the existing schema.
+        """
+
+        pass
+
     def __repr__(self) -> str:
         if self._STATE_ATTR:
             return f"{self.id} ({self._domain_id}): {getattr(self, self._STATE_ATTR)}"
@@ -305,13 +323,6 @@ class DeviceBase(Entity):
     def _klass(self) -> str:
         return self._DEV_KLASS
 
-    def _make_tcs_controller(self, msg=None, **kwargs):  # CH/DHW
-        """Create a TCS, and attach it to this controller."""
-
-        self._iz_controller = msg or True
-        if self.type in ("01", "12", "22", "23", "34") and self._evo is None:  # DEX
-            self._evo = self._gwy.zx_get_heating_system(self, **kwargs)
-
     @property
     def traits(self) -> dict:
         """Return the traits of the (known) device."""
@@ -364,7 +375,7 @@ class Device(DeviceBase):  # 10E0
         super()._handle_msg(msg)
 
         if self._klass == "DEV":
-            from .hvac import _CLASS_BY_KLASS, CODES_HVAC_ONLY, _best_hvac_klass
+            from .devices_hvac import _CLASS_BY_KLASS, CODES_HVAC_ONLY, _best_hvac_klass
 
             if (klass := _best_hvac_klass(self.id, msg)) in _CLASS_BY_KLASS:
                 self.__class__ = _CLASS_BY_KLASS[klass]
@@ -392,7 +403,9 @@ class Device(DeviceBase):  # 10E0
             # and msg.dst.type != "18"
         ):
             # TODO: is buggy - remove? how?
-            self._set_parent(self._ctl._evo._get_zone(msg.payload["zone_idx"]))
+            self._set_parent(
+                self._ctl._tcs.zx_get_heating_zone(msg.payload["zone_idx"])
+            )
 
     def _set_parent(self, parent, domain=None, sensor=None):
         """Set the device's parent zone, after validating it.
@@ -407,8 +420,8 @@ class Device(DeviceBase):  # 10E0
         """
 
         # NOTE: these imports are here to prevent circular references
-        from ..systems import System
-        from ..zones import DhwZone, Zone
+        from .systems import System
+        from .zones import DhwZone, Zone
 
         if self._parent is not None and self._parent is not parent:
             raise CorruptStateError(
@@ -625,7 +638,7 @@ class HgiGateway(DeviceBase):  # HGI (18:), was GWY
 
         self._ctl = None
         self._domain_id = "FF"
-        self._evo = None
+        self._tcs = None
 
         self._faked_bdr = None
         self._faked_ext = None
@@ -757,6 +770,46 @@ class HeatDevice(Device):  # Honeywell CH/DHW or compatible (incl. UFH, Heatpump
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
+
+    def _make_tcs_controller(self, msg=None, **schema):  # CH/DHW
+        """Create a TCS, and attach it to this controller."""
+
+        """Return a temperature control system (create it if required).
+
+        Raise an error if the TCS exists and a schema was provided.
+        Temperature control systems are uniquely identified by their controller ID.
+        """
+
+        from .systems import zx_system_factory
+
+        if self.type not in ("01", "12", "22", "23", "34"):
+            raise TypeError(f"Invalid device type to be a controller: {self}")
+
+        self._iz_controller = self._iz_controller or msg or True
+
+        schema = shrink(SYSTEM_SCHEMA(schema))
+
+        # Step 0: Return the object if it exists
+        if self._tcs:
+            if schema:
+                raise TypeError("a schema was provided, but the TCS exists!")
+            return self._tcs
+
+        # Step 1: Create the object (__init__ checks for unique ID)
+        self._tcs = zx_system_factory(
+            self.addr,
+            msg=msg,
+            eavesdrop=self._gwy.config.enable_eavesdropping,
+            **schema,
+        ).zx_create_from_schema(self, **schema)
+
+        # Step 3: If enabled/possible, start discovery (TODO: is messy)
+        if not self._gwy.config.disable_discovery and isinstance(
+            self._gwy.pkt_protocol, PacketProtocolPort
+        ):
+            self._tcs._start_discovery()
+
+        return self._tcs
 
     # def _set_ctl(self, ctl):  # self._ctl
     #     """Set the device's parent controller, after validating it."""

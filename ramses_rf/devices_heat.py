@@ -8,9 +8,10 @@ Heating devices.
 
 import logging
 from random import randint
+from symtable import Class
 from typing import Optional
 
-from ..const import (
+from .const import (
     _000C_DEVICE,
     _0005_ZONE,
     ATTR_HEAT_DEMAND,
@@ -20,10 +21,14 @@ from ..const import (
     ATTR_WINDOW_OPEN,
     DEV_KLASS,
     DOMAIN_TYPE_MAP,
+    Discover,
+    __dev_mode__,
 )
-from ..protocol import Command, Priority
-from ..protocol.address import NON_DEV_ADDR
-from ..protocol.opentherm import (
+from .devices_base import BatteryState, Fakeable, HeatDevice
+from .entity_base import class_by_attr, discover_decorator
+from .protocol import Address, Command, Message, Priority
+from .protocol.address import NON_DEV_ADDR
+from .protocol.opentherm import (
     MSG_ID,
     MSG_NAME,
     MSG_TYPE,
@@ -33,10 +38,7 @@ from ..protocol.opentherm import (
     STATUS_MSG_IDS,
     VALUE,
 )
-from ..protocol.ramses import CODES_ONLY_FROM_CTL, CODES_SCHEMA, NAME
-from .base import BatteryState, Fakeable, HeatDevice
-from .const import Discover, __dev_mode__
-from .entity_base import class_by_attr, discover_decorator
+from .protocol.ramses import CODES_HEAT_ONLY, CODES_ONLY_FROM_CTL, CODES_SCHEMA, NAME
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -131,7 +133,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 
 
 DEV_MODE = __dev_mode__  # and False
-OTB_MODE = False
+_OTB_MODE = False
 
 _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
@@ -366,7 +368,7 @@ class DhwTemperature(Fakeable):  # 1260
         #
 
         def callback(msg):
-            msg.src._evo.dhw._set_sensor(self)
+            msg.src._tcs.dhw._set_sensor(self)
 
         super()._bind()
         self._bind_request(_1260, callback=callback)
@@ -401,7 +403,7 @@ class Temperature(Fakeable):  # 30C9
         # I --- 34:145039 01:054173 --:------ 1FC9 006 00-30C9-8A368F
 
         def callback(msg):
-            msg.src._evo.zone_by_idx[msg.payload[0][0]]._set_sensor(self)
+            msg.src._tcs.zone_by_idx[msg.payload[0][0]]._set_sensor(self)
 
         super()._bind()
         self._bind_request(_30C9, callback=callback)
@@ -444,13 +446,13 @@ class Controller(HeatDevice):  # CTL (01):
 
         self._ctl = self  # or args[1]
         self._domain_id = "FF"
-        self._evo = None
+        self._tcs = None
 
         self._make_tcs_controller(**kwargs)
 
     # def __repr__(self) -> str:  # TODO:
-    #     if self._evo:
-    #         mode = self._evo._msg_value(_2E04, key="system_mode")
+    #     if self._tcs:
+    #         mode = self._tcs._msg_value(_2E04, key="system_mode")
     #         return f"{self.id} ({self._domain_id}): {mode}"
     #     return f"{self.id} ({self._domain_id})"
 
@@ -464,8 +466,8 @@ class Controller(HeatDevice):  # CTL (01):
             ]
 
         # Route any messages to their heating systems, TODO: create dev first?
-        if self._evo:
-            self._evo._handle_msg(msg)
+        if self._tcs:
+            self._tcs._handle_msg(msg)
 
 
 class Programmer(Controller):  # PRG (23):
@@ -583,7 +585,9 @@ class UfhController(HeatDevice):  # UFC (02):
                 # self._circuits[ufh_idx]["devices"] = dev_ids[0]  # or:
                 if ctl := self._set_ctl(self._gwy._get_device(dev_ids[0])):
                     # self._circuits[ufh_idx]["devices"] = ctl.id  # better
-                    self._set_parent(ctl._evo._get_zone(msg.payload["zone_id"]), msg)
+                    self._set_parent(
+                        ctl._tcs.zx_get_heating_zone(msg.payload["zone_id"]), msg
+                    )
 
         elif msg.code == _22C9:  # ufh_setpoints
             #  I --- 02:017205 --:------ 02:017205 22C9 024 00076C0A280101076C0A28010...
@@ -600,7 +604,7 @@ class UfhController(HeatDevice):  # UFC (02):
                 self._heat_demand = msg
             elif (
                 (zone_idx := msg.payload.get("zone_idx"))
-                and (evo := msg.dst._evo)
+                and (evo := msg.dst._tcs)
                 and (zone := evo.zone_by_idx.get(zone_idx))
             ):
                 zone._handle_msg(msg)
@@ -786,7 +790,7 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
                 ):
                     self._send_cmd(Command.get_opentherm_data(self.id, m))
 
-        if discover_flag & Discover.PARAMS and OTB_MODE:
+        if discover_flag & Discover.PARAMS and _OTB_MODE:
             for m in PARAMS_MSG_IDS:
                 if self._msgs_ot_supported.get(m) is not False:
                     self._send_cmd(Command.get_opentherm_data(self.id, m))
@@ -801,7 +805,7 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
             self._send_cmd(Command(RQ, _2401, "00", self.id))  # WIP
             self._send_cmd(Command(RQ, _3EF0, "00", self.id))
 
-        if discover_flag & Discover.STATUS and OTB_MODE:
+        if discover_flag & Discover.STATUS and _OTB_MODE:
             for msg_id in STATUS_MSG_IDS:
                 if self._msgs_ot_supported.get(msg_id) is not False:
                     self._send_cmd(
@@ -855,7 +859,7 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
                 self._send_cmd(Command.get_opentherm_data(self.id, "73"))  # oem code
 
         # TODO: this is development code - will be rationalised, eventually
-        if OTB_MODE and (code := self._CODE_MAP.get(msg_id)):
+        if _OTB_MODE and (code := self._CODE_MAP.get(msg_id)):
             self._send_cmd(Command(RQ, code, "00", self.id, retries=0))
 
         if msg._pkt.payload[6:] == "47AB" or msg._pkt.payload[4:] == "121980":
@@ -953,56 +957,56 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
 
     @property
     def boiler_output_temp(self) -> Optional[float]:  # 3200 (3220/19)
-        if OTB_MODE:
+        if _OTB_MODE:
             return self._ot_msg_value("19")
         return self._msg_value(_3200, key="temperature")
 
     @property
     def boiler_return_temp(self) -> Optional[float]:  # 3210 (3220/1C)
-        if OTB_MODE:
+        if _OTB_MODE:
             return self._ot_msg_value("1C")
         return self._msg_value(_3210, key="temperature")
 
     @property
     def boiler_setpoint(self) -> Optional[float]:  # 22D9 (3220/01)
-        if OTB_MODE:
+        if _OTB_MODE:
             return self._ot_msg_value("01")
         return self._msg_value(_22D9, key="setpoint")
 
     @property
     def ch_max_setpoint(self) -> Optional[float]:  # 1081 (3220/39)
-        if OTB_MODE:
+        if _OTB_MODE:
             return self._ot_msg_value("39")
         return self._msg_value(_1081, key="setpoint")
 
     @property
     def ch_water_pressure(self) -> Optional[float]:  # 1300 (3220/12)
-        if OTB_MODE:
+        if _OTB_MODE:
             return self._ot_msg_value("12")
         result = self._msg_value(_1300, key="pressure")
         return None if result == 25.5 else result  # HACK: to make more rigourous
 
     @property
     def dhw_flow_rate(self) -> Optional[float]:  # 12F0 (3220/13)
-        if OTB_MODE:
+        if _OTB_MODE:
             return self._ot_msg_value("13")
         return self._msg_value(_12F0, key="dhw_flow_rate")
 
     @property
     def dhw_setpoint(self) -> Optional[float]:  # 10A0 (3220/38)
-        if OTB_MODE:
+        if _OTB_MODE:
             return self._ot_msg_value("38")
         return self._msg_value(_10A0, key="setpoint")
 
     @property
     def dhw_temp(self) -> Optional[float]:  # 1260 (3220/1A)
-        if OTB_MODE:
+        if _OTB_MODE:
             return self._ot_msg_value("1A")
         return self._msg_value(_1260, key="temperature")
 
     @property
     def outside_temp(self) -> Optional[float]:  # 1290 (3220/1B)
-        if OTB_MODE:
+        if _OTB_MODE:
             return self._ot_msg_value("1B")
         return self._msg_value(_1290, key="temperature")
 
@@ -1018,35 +1022,37 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
 
     @property
     def ch_active(self) -> Optional[bool]:  # 3220/00
-        return self._ot_msg_flag("00", 8 + 1) if OTB_MODE else super().ch_active
+        return self._ot_msg_flag("00", 8 + 1) if _OTB_MODE else super().ch_active
 
     @property
     def ch_enabled(self) -> Optional[bool]:  # 3220/00
-        return self._ot_msg_flag("00", 0) if OTB_MODE else super().ch_enabled
+        return self._ot_msg_flag("00", 0) if _OTB_MODE else super().ch_enabled
 
     @property
     def dhw_active(self) -> Optional[bool]:  # 3220/00
-        return self._ot_msg_flag("00", 8 + 2) if OTB_MODE else super().dhw_active
+        return self._ot_msg_flag("00", 8 + 2) if _OTB_MODE else super().dhw_active
 
     @property
     def dhw_enabled(self) -> Optional[bool]:  # 3220/00
-        return self._ot_msg_flag("00", 1)  # if OTB_MODE else None  # TODO: super().xxx
+        return self._ot_msg_flag("00", 1)  # if _OTB_MODE else None  # TODO: super().xxx
 
     @property
     def flame_active(self) -> Optional[bool]:  # 3220/00 (flame_on)
-        return self._ot_msg_flag("00", 8 + 3) if OTB_MODE else super().flame_active
+        return self._ot_msg_flag("00", 8 + 3) if _OTB_MODE else super().flame_active
 
     @property
     def cooling_active(self) -> Optional[bool]:  # 3220/00
-        return self._ot_msg_flag("00", 8 + 4)  # if OTB_MODE else None  # TODO: super...
+        return self._ot_msg_flag(
+            "00", 8 + 4
+        )  # if _OTB_MODE else None  # TODO: super...
 
     @property
     def cooling_enabled(self) -> Optional[bool]:  # 3220/00
-        return self._ot_msg_flag("00", 2)  # if OTB_MODE else None  # TODO: super().xxx
+        return self._ot_msg_flag("00", 2)  # if _OTB_MODE else None  # TODO: super().xxx
 
     @property
     def fault_present(self) -> Optional[bool]:  # 3220/00
-        return self._ot_msg_flag("00", 8)  # if OTB_MODE else None  # TODO: super().xxx
+        return self._ot_msg_flag("00", 8)  # if _OTB_MODE else None  # TODO: super().xxx
 
     @property
     def opentherm_schema(self) -> dict:
@@ -1381,11 +1387,12 @@ class TrvActuator(
         }
 
 
-########################################################################################
-########################################################################################
+HEAT_CLASS_BY_KLASS = class_by_attr(__name__, "_DEV_KLASS")  # e.g. "CTL": Controller
 
-_CLASS_BY_KLASS = class_by_attr(__name__, "_DEV_KLASS")  # e.g. "CTL": Controller
-
+_HEAT_VC_PAIR_BY_CLASS = {
+    DEV_KLASS.DHW: ((I_, _1260),),
+    DEV_KLASS.OTB: ((I_, _3220), (RP, _3220)),
+}
 _KLASS_BY_TYPE = {
     None: DEV_KLASS.DEV,  # a generic, promotable device
     "00": DEV_KLASS.TRV,
@@ -1406,9 +1413,18 @@ _KLASS_BY_TYPE = {
 }  # these are the default device classes for Honeywell (non-HVAC) types
 
 
-#################################################
+def zx_device_factory(
+    dev_addr: Address, msg: Message = None, eavesdrop: bool = False
+) -> Class:
+    """Return a device class, only if the device must be from the CH/DHW group."""
 
-_HEAT_VC_PAIR_BY_CLASS = {
-    DEV_KLASS.DHW: ((I_, _1260),),
-    DEV_KLASS.OTB: ((I_, _3220), (RP, _3220)),
-}
+    if klass := _KLASS_BY_TYPE.get(dev_addr.type):
+        return HEAT_CLASS_BY_KLASS[klass]  # shouldn't need a get
+
+    if not eavesdrop:
+        raise TypeError(f"No CH/DHW class for: {dev_addr} (no eavesdropping)")
+
+    if msg and msg.code in CODES_HEAT_ONLY:
+        return HeatDevice
+
+    raise TypeError(f"No CH/DHW class for: {dev_addr} (unknown type: {dev_addr.type})")

@@ -204,7 +204,7 @@ class Entity:
 
     @property
     def _codes(self) -> dict:
-        from ..protocol.ramses import CODES_SCHEMA, NAME  # HACK: FIXME
+        from .protocol.ramses import CODES_SCHEMA, NAME  # HACK: FIXME
 
         return {
             k: (CODES_SCHEMA[k][NAME] if k in CODES_SCHEMA else None)
@@ -216,11 +216,11 @@ def _delete_msg(msg) -> None:
     """Remove the msg from all state databases."""
 
     entities = [msg.src]
-    if hasattr(msg.src, "_evo"):
-        entities.append(msg.src._evo)
-        if msg.src._evo._dhw:
-            entities.append(msg.src._evo._dhw)
-        entities.extend(msg.src._evo.zones)
+    if hasattr(msg.src, "_tcs"):
+        entities.append(msg.src._tcs)
+        if msg.src._tcs._dhw:
+            entities.append(msg.src._tcs._dhw)
+        entities.extend(msg.src._tcs.zones)
 
     # remove the msg from all the state DBs
     for obj in entities:

@@ -9,6 +9,7 @@ import logging
 from asyncio import Task
 from datetime import datetime as dt
 from datetime import timedelta as td
+from symtable import Class
 from threading import Lock
 from types import SimpleNamespace
 from typing import Optional
@@ -22,21 +23,21 @@ from .const import (
     ATTR_LANGUAGE,
     ATTR_SYSTEM_MODE,
     SYSTEM_MODE,
+    Discover,
     __dev_mode__,
 )
-from .devices import (  # TODO: split: use HeatDevice
-    BdrSwitch,
-    Device,
-    Discover,
-    Entity,
-    OtbGateway,
-    UfhController,
-    class_by_attr,
-    discover_decorator,
-)
-from .devices.heat import Temperature  # TODO: split: stop using?
+from .devices import Device, class_by_attr
+from .devices_heat import BdrSwitch, OtbGateway, Temperature, UfhController
+from .entity_base import Entity, discover_decorator
 from .helpers import shrink
-from .protocol import Command, CorruptStateError, ExpiredCallbackError, Priority
+from .protocol import (
+    Address,
+    Command,
+    CorruptStateError,
+    ExpiredCallbackError,
+    Message,
+    Priority,
+)
 from .protocol.transport import PacketProtocolPort
 from .schema import (
     DHW_SCHEMA,
@@ -47,13 +48,14 @@ from .schema import (
     SZ_DHW_VALVE_HTG,
     SZ_HTG_CONTROL,
     SZ_HTG_SYSTEM,
+    SZ_KLASS,
     SZ_ORPHANS,
     SZ_SENSOR,
     SZ_UFH_SYSTEM,
     SZ_ZONES,
     ZONE_SCHEMA,
 )
-from .zones import DhwZone, Zone, zx_zone_factory
+from .zones import DhwZone, Zone
 
 # skipcq: PY-W2000
 from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -155,7 +157,7 @@ if DEV_MODE:
 
 SYS_KLASS = SimpleNamespace(
     SYS="system",  # Generic (promotable?) system
-    EVO="evohome",
+    TCS="evohome",
     PRG="programmer",
 )
 
@@ -173,7 +175,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         self.id = ctl.id
         self._ctl = ctl
-        self._evo = self
+        self._tcs = self
         self._domain_id = "FF"
 
         # schema attrs
@@ -181,6 +183,32 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         # state attrs
         self._heat_demand = None
+
+    @classmethod
+    def zx_create_from_schema(cls, ctl: Device, **schema):
+        """Create a CH/DHW system for a CTL and set its schema attrs.
+
+        The appropriate System class should have been determined by a factory.
+        Schema attrs include: class (klass) & others.
+        """
+
+        tcs = cls(ctl)
+        tcs._zx_update_schema(**schema)
+        return tcs
+
+    def _zx_update_schema(self, **schema):
+        """Update a CH/DHW system with new schema attrs.
+
+        Raise an exception if the new schema is not a superset of the existing schema.
+        """
+
+        # super()._zx_update_schema(**schema)  # TODO: split out?
+
+        if _schema := (schema.get(SZ_DHW_SYSTEM)):
+            self.zx_get_stored_hotwater(**_schema)
+
+        if _schema := (schema.get(SZ_ZONES)):
+            [self.zx_get_heating_zone(idx, **s) for idx, s in _schema.items()]
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (sys_base)"
@@ -427,14 +455,6 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         return status
 
-    @classmethod
-    def zx_create_from_schema(cls, ctl: Device, **schema):
-        """Create a CH/DHW system for a CTL and set its schema attrs."""
-
-        tcs = cls(ctl)
-        tcs._zx_update_schema(**schema)
-        return tcs
-
 
 class MultiZone(SystemBase):  # 0005 (+/- 000C?)
     #
@@ -452,6 +472,8 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         Raise an error if the zone exists and a schema was provided.
         Heating zones are uniquely identified by a controller ID|zone_idx pair.
         """
+
+        from .zones import zx_zone_factory
 
         schema = shrink(ZONE_SCHEMA(schema))  # TODO: add shrink? do earlier?
 
@@ -477,18 +499,6 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
             zon._start_discovery()
 
         return zon
-
-    def _zx_update_schema(self, **schema):
-        """Update a CH/DHW system with new schema attrs.
-
-        Raise an exception if the new schema is not a superset of the existing schema.
-        """
-
-        if _schema := (schema.get(SZ_DHW_SYSTEM)):
-            self.zx_get_stored_hotwater(**_schema)
-
-        if _schema := (schema.get(SZ_ZONES)):
-            [self.zx_get_heating_zone(**s) for s in _schema]
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -661,7 +671,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
             elif zone := self.zone_by_idx.get(zone_idx):
                 zone._handle_msg(msg)
             # elif self._gwy.config.enable_eavesdrop:
-            #     self._get_zone(zone_idx)._handle_msg(msg)
+            #     self.zx_get_heating_zone(zone_idx)._handle_msg(msg)
 
         super()._handle_msg(msg)
 
@@ -889,7 +899,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
     MAX_SETPOINT = 85.0
     DEFAULT_SETPOINT = 50.0
 
-    def zx_get_stored_hotwater(self, **schema) -> DhwZone:
+    def zx_get_stored_hotwater(self, zx_zone_factory, **schema) -> DhwZone:
         """Return the DHW zone of a CH/DHW system (create it if required).
 
         Raise an error if the DHW zone exists and a schema was provided.
@@ -905,7 +915,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
             return self._dhw
 
         # Step 1: Create the object (__init__ checks for unique DHW)
-        self._dhw = zx_zone_factory(self, klass=SZ_DHW_SYSTEM).zx_create_from_schema(
+        self._dhw = zx_zone_factory(self, "HW").zx_create_from_schema(
             self, "HW", **schema
         )
 
@@ -1160,7 +1170,7 @@ class Evohome(ScheduleSync, Language, SysMode, MultiZone, UfHeating, System):
 
     # older evohome don't have zone_type=ELE
 
-    _SYS_KLASS = SYS_KLASS.EVO
+    _SYS_KLASS = SYS_KLASS.TCS
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (evohome)"
@@ -1218,17 +1228,19 @@ class Sundial(Evohome):
         return f"{self._ctl.id} (sundial)"
 
 
-def zx_system_factory(ctl, klass=None, **schema):
-    """Return the appropriate class for a controller/schema.
+_CLASS_BY_KLASS = class_by_attr(__name__, "_SYS_KLASS")  # e.g. "evohome": Evohome
 
-    Defaults to an evohome system.
-    """
 
-    CLASS_BY_KLASS = class_by_attr(__name__, "_SYS_KLASS")  # e.g. "evohome": Evohome
+def zx_system_factory(
+    ctl_addr: Address, msg: Message = None, eavesdrop: bool = False, **schema
+) -> Class:
+    """Return the system class for a given controller/schema (defaults to evohome)."""
 
-    if klass is None:
-        klass = SYS_KLASS.EVO
-    # elif klass not in CLASS_BY_KLASS:
-    #     raise TypeError(f"Invalid class for system {ctl.id}: {klass}")
+    # a specified system class always takes precidence (even if it is wrong)...
+    if klass := _CLASS_BY_KLASS[schema.get(SZ_KLASS)]:
+        _LOGGER.debug(f"Using configured system class for: {ctl_addr} ({klass})")
+        return klass
 
-    return CLASS_BY_KLASS[klass]
+    # otherwise, use the default system class...
+    _LOGGER.warning(f"Using generic system class for: {ctl_addr} ({Evohome})")
+    return Evohome

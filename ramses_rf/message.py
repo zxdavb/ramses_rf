@@ -10,7 +10,8 @@ import logging
 from datetime import timedelta as td
 
 from .const import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES, __dev_mode__
-from .devices import Device, UfhController  # TODO: split: use HeatDevice
+from .devices import Device
+from .devices_heat import UfhController
 from .protocol import (
     CODES_BY_DEV_KLASS,
     CODES_SCHEMA,

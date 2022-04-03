@@ -13,6 +13,7 @@ import math
 from asyncio import Task
 from datetime import datetime as dt
 from datetime import timedelta as td
+from symtable import Class
 from types import SimpleNamespace
 from typing import Optional
 
@@ -30,32 +31,35 @@ from .const import (
     ZONE_TYPE_SLUGS,
     __dev_mode__,
 )
-from .devices import (  # TODO: split: use HeatDevice
+from .devices import Device, class_by_attr  # TODO: split: use HeatDevice
+from .devices_heat import (
     BdrSwitch,
     Controller,
-    Device,
     DhwSensor,
     Discover,
-    Entity,
+    Temperature,
     TrvActuator,
     UfhController,
-    class_by_attr,
-    discover_decorator,
 )
-from .devices.heat import Temperature  # TODO: split: stop using
-from .protocol import CODE_API_MAP, Command, CorruptStateError, Schedule
+from .entity_base import Entity, discover_decorator
+from .protocol import (
+    CODE_API_MAP,
+    Address,
+    Command,
+    CorruptStateError,
+    Message,
+    Schedule,
+)
 from .schema import (
     SZ_ACTUATORS,
     SZ_DEVICE_ID,
     SZ_DEVICES,
     SZ_DHW_SENSOR,
-    SZ_DHW_SYSTEM,
     SZ_DHW_VALVE,
     SZ_DHW_VALVE_HTG,
     SZ_KLASS,
     SZ_NAME,
     SZ_SENSOR,
-    SZ_SENSOR_FAKED,
 )
 
 # skipcq: PY-W2000
@@ -177,10 +181,22 @@ class ZoneBase(Entity):
         super().__init__(evo._gwy)
 
         self.id, self.idx = f"{evo.id}_{zone_idx}", zone_idx
-        self._evo, self._ctl = self._set_system(evo, zone_idx)
+        self._tcs, self._ctl = self._set_system(evo, zone_idx)
 
         self._name = None
         self._zone_type = None
+
+    @classmethod
+    def zx_create_from_schema(cls, tcs, zone_idx: str, **schema):
+        """Create a CH/DHW zone for a TCS and set its schema attrs.
+
+        The appropriate Zone class should have been determined by a factory.
+        Can be a heating zone (of a klass), or the DHW subsystem (idx must be 'HW').
+        """
+
+        zon = cls(tcs, zone_idx)
+        zon._zx_update_schema(**schema)
+        return zon
 
     def __repr__(self) -> str:
         return f"{self.id} ({self.heating_type})"
@@ -234,17 +250,6 @@ class ZoneBase(Entity):
     def heating_type(self) -> Optional[str]:
         """Return the type of the zone/DHW (e.g. electric_zone, stored_dhw)."""
         return self._ZON_KLASS
-
-    @classmethod
-    def zx_create_from_schema(cls, tcs, zone_idx, **schema):
-        """Create a CH/DHW zone for a TCS and set its schema attrs.
-
-        Can be a heating zone, or the DHW subsystem.
-        """
-
-        zon = cls(tcs, zone_idx)
-        zon._zx_update_schema(**schema)
-        return zon
 
 
 class ZoneSchedule(ZoneBase):  # 0404  # TODO: add for DHW
@@ -597,6 +602,25 @@ class Zone(ZoneSchedule, ZoneBase):
         Raise an exception if the new schema is not a superset of the existing schema.
         """
 
+        def add_actuator(device: Device) -> None:  # self._sensor
+            """Set the temp sensor for this zone (one of: 01:, 03:, 04:, 12:, 22:, 34:)."""
+
+            if self._sensor is device:
+                return
+            if self._sensor is not None:
+                raise CorruptStateError(
+                    f"{self} changed {SZ_SENSOR}: {self._sensor} to {device}"
+                )
+
+            if not isinstance(device, (Controller, Temperature)):
+                # TODO: or not hasattr(device, "temperature")
+                raise TypeError(f"{self}: {SZ_SENSOR} can't be: {device}")
+
+            self.device_by_id[device.id] = device
+            self.devices.append(device)
+
+            device._set_parent(self)  # , domain=self.idx)
+
         def set_sensor(device: Device) -> None:  # self._sensor
             """Set the temp sensor for this zone (one of: 01:, 03:, 04:, 12:, 22:, 34:)."""
 
@@ -648,14 +672,10 @@ class Zone(ZoneSchedule, ZoneBase):
             set_zone_type(klass)
 
         if dev_id := schema.get(SZ_SENSOR):
-            set_sensor(self._gwy._get_device(dev_id, ctl_id=self._ctl.id))
-            if schema.get(SZ_SENSOR_FAKED):
-                self.sensor._make_fake()  # TODO: check device type here?
+            set_sensor(self._gwy._zx_get_device(dev_id))
 
-        # for dev_id in schema.get(SZ_ACTUATORS, []):
-        #     self._add_actuator(
-        #         self._gwy._get_device(dev_id, ctl_id=self._ctl.id, domain_id=self.idx)
-        #     )
+        for dev_id in schema.get(SZ_ACTUATORS, []):
+            add_actuator(self._gwy._zx_get_device(dev_id))
 
     def __init__(self, tcs, zone_idx) -> None:
         """Create a heating zone.
@@ -1105,19 +1125,28 @@ def _transform(valve_pos: float) -> float:
 _CLASS_BY_KLASS = class_by_attr(__name__, "_ZON_KLASS")  # e.g. "RAD": RadZone)
 
 
-def zx_zone_factory(tcs, zone_idx: str = None, klass=None, **schema):
-    """Return the appropriate class for a given zone_idx/klass.
+def zx_zone_factory(
+    ctl_addr: Address, idx: str, msg: Message = None, eavesdrop: bool = False, **schema
+) -> Class:
+    """Return the initial zone class for a given zone_idx/klass (Zone or DhwZone)."""
 
-    Includes the DHW zone ('DHW'), as well as the heating zones (None).
-    """
+    # # a specified zone class always takes precidence (even if it is wrong)...
+    # if klass := _CLASS_BY_KLASS[schema.get(SZ_KLASS)]:
+    #     _LOGGER.debug(f"Using configured zone class for: {ctl_addr}_{idx} ({klass})")
+    #     return klass
 
-    if klass == SZ_DHW_SYSTEM and zone_idx in (
-        None,
-        "HW",
-    ):  # or: "FA"
-        klass = ZON_KLASS.DHW
+    # or, is it a DHW zone, derived from the zone idx...
+    if idx == "HW":
+        _LOGGER.debug(f"Using default class for: {ctl_addr}_{idx} ({DhwZone})")
+        return DhwZone
 
-    elif klass is not None and klass not in _CLASS_BY_KLASS:
-        raise TypeError(f"Invalid class for zone '{tcs.id}_{zone_idx}': {klass}")
+    # TODO: try:  # or, a class eavesdropped from the message code/payload...
+    #     if klass := best_zone_klass(ctl_addr.type, msg=msg, eavesdrop=eavesdrop):
+    #         _LOGGER.warning(f"Using eavesdropped class for: {ctl_addr}_{idx} ({klass})")
+    #         return klass  # might be HvacDevice
+    # except TypeError:
+    #     pass
 
-    return _CLASS_BY_KLASS.get(klass, Zone)
+    # otherwise, use the generic heating zone klass...
+    _LOGGER.warning(f"Using generic zone class for: {ctl_addr}_{idx} ({Zone})")
+    return Zone

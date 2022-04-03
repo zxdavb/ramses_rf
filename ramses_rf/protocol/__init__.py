@@ -7,7 +7,7 @@
 
 from logging import Logger
 
-from .address import is_valid_dev_id
+from .address import Address, is_valid_dev_id
 from .command import CODE_API_MAP, Command, FaultLog, Priority
 from .exceptions import (
     CorruptStateError,
