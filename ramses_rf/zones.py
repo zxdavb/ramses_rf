@@ -1125,7 +1125,7 @@ def _transform(valve_pos: float) -> float:
 _CLASS_BY_KLASS = class_by_attr(__name__, "_ZON_KLASS")  # e.g. "RAD": RadZone)
 
 
-def zx_zone_factory(gwy, tcs, idx: str, msg: Message = None, **schema) -> Class:
+def zx_zone_factory(tcs, idx: str, msg: Message = None, **schema) -> Class:
     """Return the initial zone class for a given zone_idx/klass (Zone or DhwZone)."""
 
     def class_zon(
@@ -1164,6 +1164,6 @@ def zx_zone_factory(gwy, tcs, idx: str, msg: Message = None, **schema) -> Class:
         tcs._ctl.addr,
         idx,
         msg=msg,
-        eavesdrop=gwy.config.enable_eavesdropping,
+        eavesdrop=tcs._gwy.config.enable_eavesdropping,
         **schema,
-    )
+    ).zx_create_from_schema(tcs, idx, **schema)

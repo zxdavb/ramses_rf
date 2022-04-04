@@ -484,15 +484,11 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
             return zon
 
         # Step 1: Create the object (__init__ checks for unique ID)
-        zon = zx_zone_factory(self, zone_idx, **schema).zx_create_from_schema(
-            self, zone_idx, **schema
-        )
-
-        # Step 2: Update any internal links
+        zon = zx_zone_factory(self, zone_idx, **schema)
         self.zone_by_idx[zon.idx] = zon
         self.zones.append(zon)
 
-        # Step 3: If enabled/possible, start discovery (TODO: is messy)
+        # Step 2: If enabled/possible, start discovery (TODO: is messy)
         if not self._gwy.config.disable_discovery and isinstance(
             self._gwy.pkt_protocol, PacketProtocolPort
         ):
@@ -915,15 +911,9 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
             return self._dhw
 
         # Step 1: Create the object (__init__ checks for unique DHW)
-        self._dhw = zx_zone_factory(self, "HW").zx_create_from_schema(
-            self, "HW", **schema
-        )
+        self._dhw = zx_zone_factory(self, "HW", **schema)
 
-        # Step 2: Update any internal links
-        #
-        #
-
-        # Step 3: If enabled/possible, start discovery (TODO: is messy)
+        # Step 2: If enabled/possible, start discovery (TODO: is messy)
         if not self._gwy.config.disable_discovery and isinstance(
             self._gwy.pkt_protocol, PacketProtocolPort
         ):
@@ -1231,7 +1221,7 @@ class Sundial(Evohome):
 _CLASS_BY_KLASS = class_by_attr(__name__, "_SYS_KLASS")  # e.g. "evohome": Evohome
 
 
-def zx_system_factory(gwy, ctl, msg: Message = None, **schema) -> Class:
+def zx_system_factory(ctl, msg: Message = None, **schema) -> Class:
     """Return the system class for a given controller/schema (defaults to evohome)."""
 
     def class_tcs(
@@ -1254,6 +1244,6 @@ def zx_system_factory(gwy, ctl, msg: Message = None, **schema) -> Class:
     return class_tcs(
         ctl.addr,
         msg=msg,
-        eavesdrop=gwy.config.enable_eavesdropping,
+        eavesdrop=ctl._gwy.config.enable_eavesdropping,
         **schema,
-    )
+    ).zx_create_from_schema(ctl, **schema)

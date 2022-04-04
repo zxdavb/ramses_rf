@@ -796,14 +796,9 @@ class HeatDevice(Device):  # Honeywell CH/DHW or compatible (incl. UFH, Heatpump
             return self._tcs
 
         # Step 1: Create the object (__init__ checks for unique ID)
-        self._tcs = zx_system_factory(
-            self.addr,
-            msg=msg,
-            eavesdrop=self._gwy.config.enable_eavesdropping,
-            **schema,
-        ).zx_create_from_schema(self, **schema)
+        self._tcs = zx_system_factory(self, msg=msg, **schema)
 
-        # Step 3: If enabled/possible, start discovery (TODO: is messy)
+        # Step 2: If enabled/possible, start discovery (TODO: is messy)
         if not self._gwy.config.disable_discovery and isinstance(
             self._gwy.pkt_protocol, PacketProtocolPort
         ):

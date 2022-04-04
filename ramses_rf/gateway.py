@@ -381,19 +381,13 @@ class Gateway(Engine):
             if schema:
                 raise TypeError("a schema was provided, but the device exists!")
             return dev
-        # Step 1: Create the object (__init__ checks for unique ID)
-        dev = zx_device_factory(
-            dev_addr,
-            msg=msg,
-            eavesdrop=self.config.enable_eavesdropping,
-            **self._include.get(dev_addr.id, {}),
-        ).zx_create_from_schema(self, dev_addr, **schema)
 
-        # Step 2: Update any internal links
+        # Step 1: Create the object (__init__ checks for unique ID)
+        dev = zx_device_factory(self, dev_addr, **schema)
         self.device_by_id[dev.id] = dev
         self.devices.append(dev)
 
-        # Step 3: If enabled/possible, start discovery (TODO: is messy)
+        # Step 2: If enabled/possible, start discovery (TODO: is messy)
         if not self._gwy.config.disable_discovery and isinstance(
             self._gwy.pkt_protocol, PacketProtocolPort
         ):
