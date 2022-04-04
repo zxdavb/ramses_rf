@@ -23,9 +23,6 @@ from .protocol.ramses import CODES_BY_DEV_KLASS, CODES_ONLY_FROM_CTL, CODES_SCHE
 from .protocol.transport import PacketProtocolPort
 from .schema import SYSTEM_SCHEMA, SZ_ALIAS, SZ_DEVICE_ID, SZ_FAKED, SZ_KLASS
 
-# from .hvac import _CLASS_BY_KLASS as _HVAC_CLASS_BY_KLASS
-# from .hvac import _best_hvac_klass
-
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
@@ -160,22 +157,20 @@ class DeviceBase(Entity):
 
     def __init__(self, gwy, dev_addr, ctl=None, domain_id=None, **kwargs) -> None:
         _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)
+
+        if dev_addr.id in gwy.device_by_id:
+            raise LookupError(f"Duplicate DEV for GWY: {dev_addr.id}")
+
         super().__init__(gwy)
 
         self.id: str = dev_addr.id
-        if self.id in gwy.device_by_id:
-            raise LookupError(f"Duplicate device: {self.id}")
-
-        gwy.device_by_id[self.id] = self
-        gwy.devices.append(self)
+        self.addr = dev_addr
+        self.type = dev_addr.type  # DEX  # TODO: remove this attr
 
         self._ctl = self._set_ctl(ctl) if ctl else None
 
         self._domain_id = domain_id
         self._parent = None
-
-        self.addr = dev_addr
-        self.type = dev_addr.type  # DEX  # TODO: remove this attr
 
         self.devices = []  # [self]
         self.device_by_id = {}  # {self.id: self}
@@ -374,24 +369,17 @@ class Device(DeviceBase):  # 10E0
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if self._klass == "DEV":
-            from .devices_hvac import _CLASS_BY_KLASS, CODES_HVAC_ONLY, _best_hvac_klass
+        if self._klass is Device:  # HACK: try to get more precise device class
+            from .devices import best_device_class
 
-            if (klass := _best_hvac_klass(self.id, msg)) in _CLASS_BY_KLASS:
-                self.__class__ = _CLASS_BY_KLASS[klass]
-            elif msg.code in CODES_HVAC_ONLY:
-                self.__class__ == HvacDevice
-
-            # TODO: split
-            # elif self.type == "30":  # self.__class__ is Device, DEX
-            #     # TODO: the RFG codes need checking
-            #     if msg.code in (_0006, _0418, _3220) and msg.verb == RQ:
-            #         self.__class__ = RfgGateway
-            #     elif msg.code in (_313F,) and msg.verb == W_:
-            #         self.__class__ = RfgGateway
-
-            if self._klass != "DEV":
-                _LOGGER.warning(f"Promoted the device class of: {self}")
+            if (
+                klass := best_device_class(
+                    self.addr, msg, eavesdrop=self._gwy.config.enable_eavesdrop
+                )
+                is not Device
+            ):
+                _LOGGER.warning(f"Promoting the device class of {self} to: {klass}")
+                self.__class__ = klass
 
         if not self._gwy.config.enable_eavesdrop:
             return
@@ -650,15 +638,15 @@ class HgiGateway(DeviceBase):  # HGI (18:), was GWY
         """Set the device's parent controller, after validating it."""
         _LOGGER.debug("%s: can't (really) have a controller %s", self, ctl)
 
-    def _proc_schema(self, schema) -> None:
-        if schema.get("fake_bdr"):
-            self._faked_bdr = self._gwy._get_device(self.id, class_="BDR", faked=True)
+    # def _proc_schema(self, schema) -> None:
+    #     if schema.get("fake_bdr"):
+    #         self._faked_bdr = self._gwy._zx_get_device(self.id, class_="BDR", faked=True)
 
-        if schema.get("fake_ext"):
-            self._faked_ext = self._gwy._get_device(self.id, class_="BDR", faked=True)
+    #     if schema.get("fake_ext"):
+    #         self._faked_ext = self._gwy._zx_get_device(self.id, class_="BDR", faked=True)
 
-        if schema.get("fake_thm"):
-            self._faked_thm = self._gwy._get_device(self.id, class_="BDR", faked=True)
+    #     if schema.get("fake_thm"):
+    #         self._faked_thm = self._gwy._zx_get_device(self.id, class_="BDR", faked=True)
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:

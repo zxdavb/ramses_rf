@@ -35,7 +35,7 @@ LOG_FILES = (
     "schema_001",
     "schema_002",
 )
-JSN_FILES = ("schema_100",)
+JSN_FILES = ("schema_100",)  # , "schema_109")
 
 RADIATOR_VALVE = "radiator_valve"
 
@@ -174,10 +174,13 @@ class TestSchemaLoad(unittest.TestCase):
 
         load_schema(self.gwy, **schema)
 
-        print(json.dumps(shrink(schema), indent=4))
-        print(json.dumps(shrink(self.gwy.schema), indent=4))
+        print(json.dumps(schema, indent=4))
+        print(json.dumps(self.gwy.schema, indent=4))
 
-        self.assertEqual(shrink(schema), shrink({self.gwy.evo.id: self.gwy.evo.schema}))
+        self.assertEqual(
+            shrink(schema),
+            shrink(self.gwy.schema),
+        )
 
     def test_from_jsn_files(self):
         for f_name in JSN_FILES:

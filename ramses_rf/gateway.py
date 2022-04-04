@@ -23,7 +23,7 @@ from .const import (
     NUL_DEVICE_ID,
     __dev_mode__,
 )
-from .devices import Device, create_device, zx_device_factory
+from .devices import Device, zx_device_factory
 from .helpers import schedule_task, shrink
 from .message import Message, process_msg
 from .protocol import (
@@ -46,7 +46,6 @@ from .schema import (
     KNOWN_LIST,
     SZ_DEVICE_ID,
     SZ_FAKED,
-    SZ_KLASS,
     SZ_MAIN_CONTROLLER,
     SZ_ORPHANS,
     load_config,
@@ -388,50 +387,17 @@ class Gateway(Engine):
         self.devices.append(dev)
 
         # Step 2: If enabled/possible, start discovery (TODO: is messy)
-        if not self._gwy.config.disable_discovery and isinstance(
-            self._gwy.pkt_protocol, PacketProtocolPort
+        if not self.config.disable_discovery and isinstance(
+            self.pkt_protocol, PacketProtocolPort
         ):
             dev._start_discovery()
 
         return dev
 
     def _get_device(self, dev_id, ctl_id=None, domain_id=None, **kwargs) -> Device:
-        """Return a device (will create it if required).
+        """devices considered bound to a CTL only if/when the CTL says so"""
 
-        NB: devices are bound to a controller only when the controller says so.
-        """
-
-        def check_filter_lists(dev_id) -> None:
-            """Raise an error if a device_id is filtered."""
-            if dev_id in self._unwanted:
-                raise LookupError(f"Unwanted/Invalid device_id: {dev_id}")
-
-            if self.config.enforce_known_list and (
-                dev_id not in self._include
-                and dev_id != self.pkt_protocol._hgi80[SZ_DEVICE_ID]
-            ):
-                _LOGGER.warning(
-                    f"Won't create a non-allowed device_id: {dev_id}"
-                    f" (if required, add it to the {KNOWN_LIST})"
-                )
-                self._unwanted.append(dev_id)
-                raise LookupError
-
-            if dev_id in self._exclude:
-                _LOGGER.warning(
-                    f"Won't create a blocked device_id: {dev_id}"
-                    f" (if required, remove it from the {BLOCK_LIST})"
-                )
-                self._unwanted.append(dev_id)
-                raise LookupError
-
-        dev = self.device_by_id.get(dev_id)
-        if dev is None:
-            check_filter_lists(dev_id)
-            device_hints = self._include.get(dev_id, {})
-            dev = create_device(
-                self, dev_id, klass=device_hints.get(SZ_KLASS), **kwargs
-            )
+        dev = self._zx_get_device(Address(dev_id), **self._include.get(dev_id, {}))
 
         # update the existing device with any metadata  # TODO: messy?
         ctl = self.device_by_id.get(ctl_id)

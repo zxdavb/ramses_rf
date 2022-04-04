@@ -43,7 +43,7 @@ def class_by_attr(name: str, attr: str) -> dict:  # TODO: change to __module__
         getattr(c[1], attr): c[1]
         for c in getmembers(
             modules[name],
-            lambda m: isclass(m) and m.__module__ == name and hasattr(m, attr),
+            lambda m: isclass(m) and m.__module__ == name and getattr(m, attr, None),
         )
     }
 

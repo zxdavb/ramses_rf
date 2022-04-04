@@ -374,7 +374,7 @@ def load_system(gwy, ctl_id, schema) -> tuple[dict, dict]:
     if (ctl := _get_device(gwy, ctl_id)) is None:
         return
 
-    ctl.zx_get_heating_system(**schema)
+    ctl._make_tcs_controller(**schema)
 
     if dev_id := schema[SZ_HTG_SYSTEM].get(SZ_HTG_CONTROL):
         ctl._tcs._set_htg_control(_get_device(gwy, dev_id, ctl_id=ctl.id))

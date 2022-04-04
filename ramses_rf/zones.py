@@ -31,17 +31,17 @@ from .const import (
     ZONE_TYPE_SLUGS,
     __dev_mode__,
 )
-from .devices import Device, class_by_attr  # TODO: split: use HeatDevice
-from .devices_heat import (
+from .devices import (
     BdrSwitch,
     Controller,
+    Device,
     DhwSensor,
     Discover,
     Temperature,
     TrvActuator,
     UfhController,
 )
-from .entity_base import Entity, discover_decorator
+from .entity_base import Entity, class_by_attr, discover_decorator
 from .protocol import (
     CODE_API_MAP,
     Address,
@@ -378,7 +378,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             raise LookupError(f"Duplicate DHW for TCS: {tcs}")
 
         if zone_idx not in (None, "HW"):
-            raise ValueError(f"Invalid zone idx for DHW: {zone_idx} (not null)")
+            raise ValueError(f"Invalid zone idx for DHW: {zone_idx} (not HW/null)")
 
         super().__init__(tcs, zone_idx or "HW")
 
@@ -1140,7 +1140,7 @@ def zx_zone_factory(tcs, idx: str, msg: Message = None, **schema) -> Class:
         # NOTE: for now, zones are always promoted after instantiation
 
         # # a specified zone class always takes precidence (even if it is wrong)...
-        # if klass := _CLASS_BY_KLASS[schema.get(SZ_KLASS)]:
+        # if klass := _CLASS_BY_KLASS.get(schema.get(SZ_KLASS)):
         #     _LOGGER.debug(f"Using configured zone class for: {ctl_addr}_{idx} ({klass})")
         #     return klass
 
@@ -1164,6 +1164,6 @@ def zx_zone_factory(tcs, idx: str, msg: Message = None, **schema) -> Class:
         tcs._ctl.addr,
         idx,
         msg=msg,
-        eavesdrop=tcs._gwy.config.enable_eavesdropping,
+        eavesdrop=tcs._gwy.config.enable_eavesdrop,
         **schema,
     ).zx_create_from_schema(tcs, idx, **schema)

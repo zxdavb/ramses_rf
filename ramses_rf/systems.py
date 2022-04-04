@@ -26,9 +26,8 @@ from .const import (
     Discover,
     __dev_mode__,
 )
-from .devices import Device, class_by_attr
-from .devices_heat import BdrSwitch, OtbGateway, Temperature, UfhController
-from .entity_base import Entity, discover_decorator
+from .devices import BdrSwitch, Device, OtbGateway, Temperature, UfhController
+from .entity_base import Entity, class_by_attr, discover_decorator
 from .helpers import shrink
 from .protocol import (
     Address,
@@ -1233,7 +1232,7 @@ def zx_system_factory(ctl, msg: Message = None, **schema) -> Class:
         """Return the system class for a given CTL/schema (defaults to evohome)."""
 
         # a specified system class always takes precidence (even if it is wrong)...
-        if klass := _CLASS_BY_KLASS[schema.get(SZ_KLASS)]:
+        if klass := _CLASS_BY_KLASS.get(schema.get(SZ_KLASS)):
             _LOGGER.debug(f"Using configured system class for: {ctl_addr} ({klass})")
             return klass
 
@@ -1244,6 +1243,6 @@ def zx_system_factory(ctl, msg: Message = None, **schema) -> Class:
     return class_tcs(
         ctl.addr,
         msg=msg,
-        eavesdrop=ctl._gwy.config.enable_eavesdropping,
+        eavesdrop=ctl._gwy.config.enable_eavesdrop,
         **schema,
     ).zx_create_from_schema(ctl, **schema)
