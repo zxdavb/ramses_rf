@@ -301,10 +301,10 @@ _HVAC_VC_PAIR_BY_CLASS = {
 _HVAC_KLASS_BY_VC_PAIR = {t: k for k, v in _HVAC_VC_PAIR_BY_CLASS.items() for t in v}
 
 
-def zx_device_factory(
+def class_dev_hvac(
     dev_addr: Address, msg: Message = None, eavesdrop: bool = False
 ) -> Class:
-    """Return a device class, only if the device must be from the HVAC group."""
+    """Return a device class, but only if the device must be from the HVAC group."""
 
     if not eavesdrop:
         raise TypeError(f"No HVAC class for: {dev_addr} (no eavesdropping)")

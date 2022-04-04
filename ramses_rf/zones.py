@@ -1125,28 +1125,45 @@ def _transform(valve_pos: float) -> float:
 _CLASS_BY_KLASS = class_by_attr(__name__, "_ZON_KLASS")  # e.g. "RAD": RadZone)
 
 
-def zx_zone_factory(
-    ctl_addr: Address, idx: str, msg: Message = None, eavesdrop: bool = False, **schema
-) -> Class:
+def zx_zone_factory(gwy, tcs, idx: str, msg: Message = None, **schema) -> Class:
     """Return the initial zone class for a given zone_idx/klass (Zone or DhwZone)."""
 
-    # # a specified zone class always takes precidence (even if it is wrong)...
-    # if klass := _CLASS_BY_KLASS[schema.get(SZ_KLASS)]:
-    #     _LOGGER.debug(f"Using configured zone class for: {ctl_addr}_{idx} ({klass})")
-    #     return klass
+    def class_zon(
+        ctl_addr: Address,
+        idx: str,
+        msg: Message = None,
+        eavesdrop: bool = False,
+        **schema,
+    ) -> Class:
+        """Return the initial zone class for a given zone_idx/klass (Zone or DhwZone)."""
 
-    # or, is it a DHW zone, derived from the zone idx...
-    if idx == "HW":
-        _LOGGER.debug(f"Using default class for: {ctl_addr}_{idx} ({DhwZone})")
-        return DhwZone
+        # NOTE: for now, zones are always promoted after instantiation
 
-    # TODO: try:  # or, a class eavesdropped from the message code/payload...
-    #     if klass := best_zone_klass(ctl_addr.type, msg=msg, eavesdrop=eavesdrop):
-    #         _LOGGER.warning(f"Using eavesdropped class for: {ctl_addr}_{idx} ({klass})")
-    #         return klass  # might be HvacDevice
-    # except TypeError:
-    #     pass
+        # # a specified zone class always takes precidence (even if it is wrong)...
+        # if klass := _CLASS_BY_KLASS[schema.get(SZ_KLASS)]:
+        #     _LOGGER.debug(f"Using configured zone class for: {ctl_addr}_{idx} ({klass})")
+        #     return klass
 
-    # otherwise, use the generic heating zone klass...
-    _LOGGER.warning(f"Using generic zone class for: {ctl_addr}_{idx} ({Zone})")
-    return Zone
+        # or, is it a DHW zone, derived from the zone idx...
+        if idx == "HW":
+            _LOGGER.debug(f"Using default class for: {ctl_addr}_{idx} ({DhwZone})")
+            return DhwZone
+
+        # try:  # or, a class eavesdropped from the message code/payload...
+        #     if klass := best_zone_klass(ctl_addr.type, msg=msg, eavesdrop=eavesdrop):
+        #         _LOGGER.warning(f"Using eavesdropped class for: {ctl_addr}_{idx} ({klass})")
+        #         return klass  # might be HvacDevice
+        # except TypeError:
+        #     pass
+
+        # otherwise, use the generic heating zone klass...
+        _LOGGER.warning(f"Using generic zone class for: {ctl_addr}_{idx} ({Zone})")
+        return Zone
+
+    return class_zon(
+        tcs._ctl.addr,
+        idx,
+        msg=msg,
+        eavesdrop=gwy.config.enable_eavesdropping,
+        **schema,
+    )

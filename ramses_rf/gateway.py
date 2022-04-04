@@ -28,6 +28,7 @@ from .helpers import schedule_task, shrink
 from .message import Message, process_msg
 from .protocol import (
     POLLER_TASK,
+    Address,
     Command,
     ExpiredCallbackError,
     create_msg_stack,
@@ -341,14 +342,14 @@ class Gateway(Engine):
         self.resume()
         (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Restored state.")
 
-    def _zx_get_device(self, dev_id, msg=None, **schema) -> Device:
+    def _zx_get_device(self, dev_addr: Address, msg=None, **schema) -> Device:
         """Return a device (create it if required).
 
         Raise an error if the zone exists and a schema was provided.
         Devices are uniquely identified by a device id.
         """
 
-        def check_filter_lists(dev_id) -> None:
+        def check_filter_lists(dev_id: str) -> None:
             """Raise an error if a device_id is filtered."""
             if dev_id in self._unwanted:
                 raise LookupError(f"Unwanted/Invalid device_id: {dev_id}")
@@ -372,21 +373,21 @@ class Gateway(Engine):
                 self._unwanted.append(dev_id)
                 raise LookupError
 
-        check_filter_lists(dev_id)
+        check_filter_lists(dev_addr.id)
         schema = shrink(DEVICE_SCHEMA(schema))  # TODO: add shrink? do earlier?
 
         # Step 0: Return the object if it exists
-        if dev := self.device_by_id.get(dev_id):
+        if dev := self.device_by_id.get(dev_addr.id):
             if schema:
                 raise TypeError("a schema was provided, but the device exists!")
             return dev
         # Step 1: Create the object (__init__ checks for unique ID)
         dev = zx_device_factory(
-            dev_id,
+            dev_addr,
             msg=msg,
             eavesdrop=self.config.enable_eavesdropping,
-            **self._include.get(dev_id, {}),
-        ).zx_create_from_schema(self, dev_id, **schema)
+            **self._include.get(dev_addr.id, {}),
+        ).zx_create_from_schema(self, dev_addr, **schema)
 
         # Step 2: Update any internal links
         self.device_by_id[dev.id] = dev

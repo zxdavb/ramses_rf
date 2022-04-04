@@ -1413,10 +1413,10 @@ _KLASS_BY_TYPE = {
 }  # these are the default device classes for Honeywell (non-HVAC) types
 
 
-def zx_device_factory(
+def class_dev_heat(
     dev_addr: Address, msg: Message = None, eavesdrop: bool = False
 ) -> Class:
-    """Return a device class, only if the device must be from the CH/DHW group."""
+    """Return a device class, but only if the device must be from the CH/DHW group."""
 
     if klass := _KLASS_BY_TYPE.get(dev_addr.type):
         return HEAT_CLASS_BY_KLASS[klass]  # shouldn't need a get

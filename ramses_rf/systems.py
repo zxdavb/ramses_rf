@@ -1231,16 +1231,29 @@ class Sundial(Evohome):
 _CLASS_BY_KLASS = class_by_attr(__name__, "_SYS_KLASS")  # e.g. "evohome": Evohome
 
 
-def zx_system_factory(
-    ctl_addr: Address, msg: Message = None, eavesdrop: bool = False, **schema
-) -> Class:
+def zx_system_factory(gwy, ctl, msg: Message = None, **schema) -> Class:
     """Return the system class for a given controller/schema (defaults to evohome)."""
 
-    # a specified system class always takes precidence (even if it is wrong)...
-    if klass := _CLASS_BY_KLASS[schema.get(SZ_KLASS)]:
-        _LOGGER.debug(f"Using configured system class for: {ctl_addr} ({klass})")
-        return klass
+    def class_tcs(
+        ctl_addr: Address,
+        msg: Message = None,
+        eavesdrop: bool = False,
+        **schema,
+    ) -> Class:
+        """Return the system class for a given CTL/schema (defaults to evohome)."""
 
-    # otherwise, use the default system class...
-    _LOGGER.warning(f"Using generic system class for: {ctl_addr} ({Evohome})")
-    return Evohome
+        # a specified system class always takes precidence (even if it is wrong)...
+        if klass := _CLASS_BY_KLASS[schema.get(SZ_KLASS)]:
+            _LOGGER.debug(f"Using configured system class for: {ctl_addr} ({klass})")
+            return klass
+
+        # otherwise, use the default system class...
+        _LOGGER.warning(f"Using generic system class for: {ctl_addr} ({Evohome})")
+        return Evohome
+
+    return class_tcs(
+        ctl.addr,
+        msg=msg,
+        eavesdrop=gwy.config.enable_eavesdropping,
+        **schema,
+    )
