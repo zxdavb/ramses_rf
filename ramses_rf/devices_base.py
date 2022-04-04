@@ -812,7 +812,7 @@ class HeatDevice(Device):  # Honeywell CH/DHW or compatible (incl. UFH, Heatpump
     #     if self._ctl is ctl:
     #         return self._ctl
     #     if self._is_controller and not isinstance(self, UfhController):  # HACK: UFC
-    #         # HACK: UFC is/binds to a contlr
+    #         # HACK: UFC is/binds to a CTL
     #         return  # TODO
     #     if self._ctl is not None and not isinstance(self, UfhController):  # HACK: UFC
     #         raise CorruptStateError(f"{self} changed controller: {self._ctl} to {ctl}")
