@@ -35,7 +35,15 @@ LOG_FILES = (
     "schema_001",
     "schema_002",
 )
-JSN_FILES = ("schema_104",)  # , "schema_109")
+JSN_FILES = (
+    "schema_100",
+    "schema_101",
+    "schema_102",
+    "schema_103",
+    "schema_104",
+    "schema_105",
+    "schema_108",
+)
 
 RADIATOR_VALVE = "radiator_valve"
 
@@ -158,33 +166,38 @@ class TestSchemaDiscovery(unittest.IsolatedAsyncioTestCase):
             await self._proc_log_file(f_name)
 
 
-class TestSchemaLoad(unittest.TestCase):
+class TestSchemaLoad(unittest.IsolatedAsyncioTestCase):
 
-    gwy = Gateway(None, config=GWY_CONFIG, loop=asyncio.get_event_loop())
+    gwy = Gateway("/dev/null", config=GWY_CONFIG, loop=asyncio.get_event_loop())
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.maxDiff = None
 
-    def _proc_jsn_file(self, f_name):
+    async def _proc_jsn_file(self, f_name):
 
         with open(f"{SCHEMA_DIR}/{f_name}.json") as f:
             schema = json.load(f)
 
         load_schema(self.gwy, **schema)
 
-        print(json.dumps(schema, indent=4))
-        print(json.dumps(self.gwy.schema, indent=4))
+        # print(json.dumps(schema, indent=4))
+        # print(json.dumps(self.gwy.schema, indent=4))
 
         self.assertEqual(
             shrink(schema),
             shrink(self.gwy.schema),
         )
 
-    def test_from_jsn_files(self):
+        # HACK: await self.gwy._set_state({}, clear_state=True)
+        self.gwy._tcs = None
+        self.gwy.devices = []
+        self.gwy.device_by_id = {}
+
+    async def test_from_jsn_files(self):
         for f_name in JSN_FILES:
-            self._proc_jsn_file(f_name)
+            await self._proc_jsn_file(f_name)
 
 
 if __name__ == "__main__":

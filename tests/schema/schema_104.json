@@ -1,21 +1,32 @@
 {
-    "main_controller": "01:123456",
-    "01:123456": {
+    "main_controller": "01:111111",
+    "01:111111": {
         "system": {
-            "heating_control": "10:123456"
+            "heating_control": "10:111111"
         },
         "zones": {
-            "00": {},
-            "01": {"class": null, "actuators": [], "sensor": null},
-            "02": {"class": "radiator_valve"},
-            "03": {"sensor": "03:333333"},
-            "04": {"actuators": []},
-            "05": {"actuators": ["04:555555"]},
-            "06": {"actuators": ["04:666666", "04:060606", "04:660066"]},
-            "07": {
+            "01": {}
+        }
+    },
+    "01:222222": {
+        "system": {
+            "heating_control": "10:222222"
+        },
+        "zones": {
+            "02": {
+                "class": "radiator_valve"
+            }
+        }
+    },
+    "01:333333": {
+        "system": {
+            "heating_control": "10:333333"
+        },
+        "zones": {
+            "03": {
                 "class": "radiator_valve",
-                "actuators": ["04:777777", "04:070707", "04:770077"],
-                "sensor": "03:777777"
+                "actuators": ["04:777777"],
+                "sensor": "04:777777"
             }
         }
     }

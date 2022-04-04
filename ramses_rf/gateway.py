@@ -318,8 +318,6 @@ class Gateway(Engine):
 
             self.msg_protocol._prev_msg = None  # TODO: move to pause/resume?
             self._tcs = None
-            self.systems = []
-            self.system_by_id = {}
             self.devices = []
             self.device_by_id = {}
 

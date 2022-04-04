@@ -605,19 +605,20 @@ class Zone(ZoneSchedule, ZoneBase):
         def add_actuator(device: Device) -> None:  # self._sensor
             """Set the temp sensor for this zone (one of: 01:, 03:, 04:, 12:, 22:, 34:)."""
 
-            if self._sensor is device:
-                return
-            if self._sensor is not None:
-                raise CorruptStateError(
-                    f"{self} changed {SZ_SENSOR}: {self._sensor} to {device}"
-                )
+            # if self._sensor is device:
+            #     return
+            # if self._sensor is not None:
+            #     raise CorruptStateError(
+            #         f"{self} changed {SZ_SENSOR}: {self._sensor} to {device}"
+            #     )
 
-            if not isinstance(device, (Controller, Temperature)):
-                # TODO: or not hasattr(device, "temperature")
-                raise TypeError(f"{self}: {SZ_SENSOR} can't be: {device}")
+            if not isinstance(device, (TrvActuator, BdrSwitch, UfhController)):
+                raise TypeError(f"{self}: {device} can't be an actuator")
 
-            self.device_by_id[device.id] = device
-            self.devices.append(device)
+            if dev := self.actuator_by_id.get(device.id):
+                return dev
+            self.actuator_by_id[device.id] = device
+            self.actuators.append(device)
 
             device._set_parent(self)  # , domain=self.idx)
 
@@ -633,7 +634,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
             if not isinstance(device, (Controller, Temperature)):
                 # TODO: or not hasattr(device, "temperature")
-                raise TypeError(f"{self}: {SZ_SENSOR} can't be: {device}")
+                raise TypeError(f"{self}: {device} can't be the {SZ_SENSOR}")
 
             self._sensor = device
             device._set_parent(self, sensor=True)  # , domain=self.idx)
@@ -672,10 +673,10 @@ class Zone(ZoneSchedule, ZoneBase):
             set_zone_type(klass)
 
         if dev_id := schema.get(SZ_SENSOR):
-            set_sensor(self._gwy._zx_get_device(dev_id))
+            set_sensor(self._gwy._zx_get_device(Address(dev_id)))
 
         for dev_id in schema.get(SZ_ACTUATORS, []):
-            add_actuator(self._gwy._zx_get_device(dev_id))
+            add_actuator(self._gwy._zx_get_device(Address(dev_id)))
 
     def __init__(self, tcs, zone_idx) -> None:
         """Create a heating zone.
