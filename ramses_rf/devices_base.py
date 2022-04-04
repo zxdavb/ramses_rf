@@ -391,9 +391,7 @@ class Device(DeviceBase):  # 10E0
             # and msg.dst.type != "18"
         ):
             # TODO: is buggy - remove? how?
-            self._set_parent(
-                self._ctl._tcs.zx_get_heating_zone(msg.payload["zone_idx"])
-            )
+            self._set_parent(self._ctl._tcs.zx_get_htg_zone(msg.payload["zone_idx"]))
 
     def _set_parent(self, parent, domain=None, sensor=None):
         """Set the device's parent zone, after validating it.

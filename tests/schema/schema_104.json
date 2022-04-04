@@ -4,11 +4,6 @@
         "system": {
             "heating_control": "10:123456"
         },
-        "stored_hotwater": {
-            "sensor": "07:123456",
-            "hotwater_valve": "13:111111",
-            "heating_valve": "13:222222"
-        },
         "zones": {
             "00": {},
             "01": {"class": null, "actuators": [], "sensor": null},

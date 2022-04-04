@@ -204,10 +204,10 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         # super()._zx_update_schema(**schema)  # TODO: split out?
 
         if _schema := (schema.get(SZ_DHW_SYSTEM)):
-            self.zx_get_stored_hotwater(**_schema)
+            self.zx_get_dhw_zone(**_schema)
 
         if _schema := (schema.get(SZ_ZONES)):
-            [self.zx_get_heating_zone(idx, **s) for idx, s in _schema.items()]
+            [self.zx_get_htg_zone(idx, **s) for idx, s in _schema.items()]
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (sys_base)"
@@ -465,7 +465,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         _0005_ZONE.ELE,
     ]
 
-    def zx_get_heating_zone(self, zone_idx, **schema) -> Zone:
+    def zx_get_htg_zone(self, zone_idx, **schema) -> Zone:
         """Return a heating zone of a CH/DHW system (create it if required).
 
         Raise an error if the zone exists and a schema was provided.
@@ -666,7 +666,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
             elif zone := self.zone_by_idx.get(zone_idx):
                 zone._handle_msg(msg)
             # elif self._gwy.config.enable_eavesdrop:
-            #     self.zx_get_heating_zone(zone_idx)._handle_msg(msg)
+            #     self.zx_get_htg_zone(zone_idx)._handle_msg(msg)
 
         super()._handle_msg(msg)
 
@@ -677,7 +677,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 _0005_ZONE.ALL_SENSOR,
             ]:
                 [
-                    self.zx_get_heating_zone(f"{idx:02X}")
+                    self.zx_get_htg_zone(f"{idx:02X}")
                     for idx, flag in enumerate(msg.payload["zone_mask"])
                     if flag == 1
                 ]
@@ -687,7 +687,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 _0005_ZONE.ALL,
                 _0005_ZONE.ALL_SENSOR,
             ]:
-                self.zx_get_heating_zone(msg.payload["zone_idx"])
+                self.zx_get_htg_zone(msg.payload["zone_idx"])
 
         # Route all messages to their zones, incl. 000C, others
         if isinstance(msg.payload, dict):
@@ -894,12 +894,14 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
     MAX_SETPOINT = 85.0
     DEFAULT_SETPOINT = 50.0
 
-    def zx_get_stored_hotwater(self, zx_zone_factory, **schema) -> DhwZone:
+    def zx_get_dhw_zone(self, **schema) -> DhwZone:
         """Return the DHW zone of a CH/DHW system (create it if required).
 
         Raise an error if the DHW zone exists and a schema was provided.
         DHW zones are uniquely identified by their controller ID.
         """
+
+        from .zones import zx_zone_factory
 
         schema = shrink(DHW_SCHEMA(schema))  # TODO: add shrink? do earlier?
 
@@ -947,7 +949,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
             )  # msg.payload.get("domain_id") == "FA"
             and msg.payload["devices"]
         ):
-            self.zx_get_stored_hotwater()._handle_msg(msg)
+            self.zx_get_dhw_zone()._handle_msg(msg)
 
         if msg.code not in (_10A0, _1260, _1F41):
             # and "dhw_id" not in msg.payload and msg.payload.get("domain_id") != "FA":
@@ -956,7 +958,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         # RQ --- 18:002563 01:078710 --:------ 10A0 001 00  # every 4h
         # RP --- 01:078710 18:002563 --:------ 10A0 006 00157C0003E8
         if not self._dhw:
-            self.zx_get_stored_hotwater()
+            self.zx_get_dhw_zone()
 
         # Route any messages to the DHW (dhw_params, dhw_temp, dhw_mode)
         self._dhw._handle_msg(msg)

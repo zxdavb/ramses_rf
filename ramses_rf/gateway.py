@@ -407,7 +407,7 @@ class Gateway(Engine):
         if domain_id in ("F9", "FA", "FC", "FF"):
             dev._domain_id = domain_id
         elif domain_id is not None and ctl:
-            dev._set_parent(ctl._tcs.zx_get_heating_zone(domain_id))
+            dev._set_parent(ctl._tcs.zx_get_htg_zone(domain_id))
 
         return dev
 

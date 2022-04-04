@@ -448,7 +448,7 @@ class Controller(HeatDevice):  # CTL (01):
         self._domain_id = "FF"
         self._tcs = None
 
-        self._make_tcs_controller(**kwargs)
+        # self._make_tcs_controller(**kwargs)  # NOTE: do later
 
     # def __repr__(self) -> str:  # TODO:
     #     if self._tcs:
@@ -586,7 +586,7 @@ class UfhController(HeatDevice):  # UFC (02):
                 if ctl := self._set_ctl(self._gwy._get_device(dev_ids[0])):
                     # self._circuits[ufh_idx]["devices"] = ctl.id  # better
                     self._set_parent(
-                        ctl._tcs.zx_get_heating_zone(msg.payload["zone_id"]), msg
+                        ctl._tcs.zx_get_htg_zone(msg.payload["zone_id"]), msg
                     )
 
         elif msg.code == _22C9:  # ufh_setpoints

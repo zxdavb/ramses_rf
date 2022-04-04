@@ -392,7 +392,7 @@ def load_system(gwy, ctl_id, schema) -> tuple[dict, dict]:
         _get_device(gwy, dev_id, ctl_id=ctl.id)  # , **_schema)
 
     # for zone_idx, attrs in schema[SZ_ZONES].items():
-    #     zone = ctl._tcs.zx_get_heating_zone(zone_idx)  # , **attrs)
+    #     zone = ctl._tcs.zx_get_htg_zone(zone_idx)  # , **attrs)
 
     #     if dev_id := attrs.get(SZ_SENSOR):
     #         zone._set_sensor(

@@ -35,7 +35,7 @@ LOG_FILES = (
     "schema_001",
     "schema_002",
 )
-JSN_FILES = ("schema_100",)  # , "schema_109")
+JSN_FILES = ("schema_104",)  # , "schema_109")
 
 RADIATOR_VALVE = "radiator_valve"
 
