@@ -31,6 +31,9 @@ from .const import (
     HEATER_MODE,
     HEATER_MODES,
     SYSTEM_MODE,
+    SZ_DEVICE_CLASS,
+    SZ_DOMAIN_ID,
+    SZ_ZONE_IDX,
     ZONE_MODE,
 )
 from .exceptions import InvalidPayloadError
@@ -171,7 +174,7 @@ def parser_0005(payload, msg) -> Union[dict, list[dict]]:  # TODO: needs a clean
         else:
             zone_mask = flag8(seqx[4:6], lsb=True) + flag8(seqx[6:8], lsb=True)
         return {
-            "_device_class": seqx[2:4],
+            f"_{SZ_DEVICE_CLASS}": seqx[2:4],
             "zone_mask": zone_mask,
             "zone_type": _0005_ZONE_TYPE.get(seqx[2:4], f"unknown_{seqx[2:4]}"),
         }
@@ -184,7 +187,7 @@ def parser_0005(payload, msg) -> Union[dict, list[dict]]:  # TODO: needs a clean
 
     if msg.verb == RQ:  # RQs have a context: zone_type
         return {
-            "_device_class": payload[2:4],
+            f"_{SZ_DEVICE_CLASS}": payload[2:4],
             "zone_type": _0005_ZONE_TYPE.get(payload[2:4], f"unknown_{payload[2:4]}"),
         }
 
@@ -245,7 +248,7 @@ def parser_0009(payload, msg) -> Union[dict, list]:
     def _parser(seqx) -> dict:
         assert seqx[:2] in ("F9", "FC") or int(seqx[:2], 16) < msg._gwy.config.max_zones
         return {
-            "domain_id" if seqx[:1] == "F" else "zone_idx": seqx[:2],
+            SZ_DOMAIN_ID if seqx[:1] == "F" else SZ_ZONE_IDX: seqx[:2],
             "failsafe_enabled": {"00": False, "01": True}.get(seqx[2:4]),
             "unknown_0": seqx[4:],
         }
@@ -280,7 +283,7 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:
     if msg._has_array:  # NOTE: these arrays can span 2 pkts!
         return [
             {
-                "zone_idx": payload[i : i + 2],
+                SZ_ZONE_IDX: payload[i : i + 2],
                 **_parser(payload[i : i + 12]),
             }
             for i in range(0, len(payload), 12)
@@ -314,16 +317,16 @@ def parser_000c(payload, msg) -> Optional[dict]:
             assert (
                 int(seqx, 16) < 1 if payload[2:4] == "0D" else 2
             ), f"invalid _idx: '{seqx}' (0x01)"
-            return {"domain_id": "FA"}
+            return {SZ_DOMAIN_ID: "FA"}
 
         if payload[2:4] == _000C_DEVICE.HTG:
             assert int(seqx, 16) < 1, f"invalid _idx: '{seqx}' (0x02)"
-            return {"domain_id": "FC"}
+            return {SZ_DOMAIN_ID: "FC"}
 
         assert (
             int(seqx, 16) < msg._gwy.config.max_zones
         ), f"invalid zone_idx: '{seqx}' (0x03)"
-        return {"zone_idx": seqx}
+        return {SZ_ZONE_IDX: seqx}
 
     def _parser(seqx) -> dict:
         # TODO: this assumption that all domain_id/zones_idx are the same is wrong...
@@ -338,8 +341,8 @@ def parser_000c(payload, msg) -> Optional[dict]:
 
     result = {
         **complex_idx(payload[:2], msg),
-        "_device_class": payload[2:4],
-        "device_class": device_class,
+        f"_{SZ_DEVICE_CLASS}": payload[2:4],
+        SZ_DEVICE_CLASS: device_class,
     }
     if msg.verb == RQ:  # RQs have a context: index, zone_type
         return result
@@ -518,17 +521,17 @@ def parser_0418(payload, msg) -> Optional[dict]:
         "timestamp": dts_from_hex(payload[18:30]),
         "fault_state": _0418_FAULT_STATE.get(payload[2:4], payload[2:4]),
         "fault_type": _0418_FAULT_TYPE.get(payload[8:10], payload[8:10]),
-        "device_class": _0418_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
+        SZ_DEVICE_CLASS: _0418_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
     }
 
-    if payload[10:12] == "FC" and result["device_class"] == "actuator":
-        result["device_class"] = ATTR_HTG_CONTROL  # aka Boiler relay
+    if payload[10:12] == "FC" and result[SZ_DEVICE_CLASS] == "actuator":
+        result[SZ_DEVICE_CLASS] = ATTR_HTG_CONTROL  # aka Boiler relay
 
     if payload[12:14] != "00":  # TODO: Controller
         key_name = (
             "zone_id"  # NOTE: don't use zone_idx (for now)
             if int(payload[10:12], 16) < msg._gwy.config.max_zones
-            else "domain_id"
+            else SZ_DOMAIN_ID
         )
         result.update({key_name: payload[10:12]})
 
@@ -759,7 +762,7 @@ def parser_10e2(payload, msg) -> Optional[dict]:
 @parser_decorator  # tpi_params (domain/zone/device)  # FIXME: a bit messy
 def parser_1100(payload, msg) -> Optional[dict]:
     def complex_idx(seqx) -> dict:
-        return {"domain_id": seqx} if seqx[:1] == "F" else {}  # only FC
+        return {SZ_DOMAIN_ID: seqx} if seqx[:1] == "F" else {}  # only FC
 
     if msg.src.type == "08":  # Honeywell Japser ?HVAC, DEX
         assert msg.len == 19, msg.len
@@ -1101,7 +1104,7 @@ def parser_2249(payload, msg) -> Optional[dict]:
     if msg._has_array:
         return [
             {
-                "zone_idx": payload[i : i + 2],
+                SZ_ZONE_IDX: payload[i : i + 2],
                 **_parser(payload[i + 2 : i + 14]),
             }
             for i in range(0, len(payload), 14)
@@ -1239,7 +1242,7 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:
     if msg._has_array:
         return [
             {
-                "zone_idx": payload[i : i + 2],
+                SZ_ZONE_IDX: payload[i : i + 2],
                 "setpoint": temp_from_hex(payload[i + 2 : i + 6]),
             }
             for i in range(0, len(payload), 6)
@@ -1407,7 +1410,7 @@ def parser_30c9(payload, msg) -> Optional[dict]:
     if msg._has_array:
         return [
             {
-                "zone_idx": payload[i : i + 2],
+                SZ_ZONE_IDX: payload[i : i + 2],
                 "temperature": temp_from_hex(payload[i + 2 : i + 6]),
             }
             for i in range(0, len(payload), 6)
@@ -1486,8 +1489,8 @@ def parser_3150(payload, msg) -> Union[list, dict, None]:
 
     def complex_idx(seqx, msg) -> dict:
         # assert seqx[:2] == "FC" or (int(seqx[:2], 16) < MAX_ZONES)  # <5, 8 for UFC
-        idx_name = "ufx_idx" if msg.src.type == "02" else "zone_idx"  # DEX
-        return {"domain_id" if seqx[:1] == "F" else idx_name: seqx[:2]}
+        idx_name = "ufx_idx" if msg.src.type == "02" else SZ_ZONE_IDX  # DEX
+        return {SZ_DOMAIN_ID if seqx[:1] == "F" else idx_name: seqx[:2]}
 
     if msg._has_array:
         return [
@@ -1819,7 +1822,7 @@ def parser_3b00(payload, msg) -> Optional[dict]:
             msg.verb == I_ and msg.src.type in ("01", "23") and msg.src is msg.dst
         ):  # DEX
             assert payload[:2] == "FC"
-            return {"domain_id": "FC"}
+            return {SZ_DOMAIN_ID: "FC"}
         assert payload[:2] == "00"
         return {}
 

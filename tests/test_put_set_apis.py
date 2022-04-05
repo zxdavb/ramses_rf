@@ -13,7 +13,7 @@ from datetime import datetime as dt
 from common import GWY_CONFIG, TEST_DIR  # noqa: F401
 
 from ramses_rf import Gateway
-from ramses_rf.const import HGI_DEVICE_ID
+from ramses_rf.const import HGI_DEVICE_ID, SZ_DOMAIN_ID
 from ramses_rf.protocol.command import Command
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
@@ -77,7 +77,7 @@ class TestSetApis(TestApisBase):
 
             msg = Message(self.gwy, pkt)
 
-            domain_id = msg.payload.pop("domain_id", None)
+            domain_id = msg.payload.pop(SZ_DOMAIN_ID, None)
             cmd = Command.set_tpi_params(
                 msg.dst.id,
                 domain_id,

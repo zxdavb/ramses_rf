@@ -11,7 +11,7 @@ import json
 import unittest
 
 import voluptuous as vol
-from common import GWY_CONFIG, TEST_DIR  # noqa: F401
+from common import GWY_CONFIG, TEST_DIR, shuffle_dict  # noqa: F401
 
 from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
@@ -26,15 +26,7 @@ from ramses_rf.schema import (
     load_schema,
 )
 
-# from random import shuffle
-
-
 SCHEMA_DIR = f"{TEST_DIR}/schema"
-LOG_FILES = (
-    "schema_000",
-    "schema_001",
-    "schema_002",
-)
 JSN_FILES = (
     "schema_100",
     "schema_101",
@@ -44,12 +36,23 @@ JSN_FILES = (
     "schema_105",
     "schema_108",
 )
+LOG_FILES = (
+    "schema_201",
+    "schema_202",
+    "schema_210",
+    "schema_211",
+    "schema_212",
+    "schema_213",
+    # "schema_000",
+    # "schema_001",
+    # "schema_002",
+)
 
 RADIATOR_VALVE = "radiator_valve"
 
 
 class TestSchemaBits(unittest.TestCase):
-    def test_system_schema(self):
+    def _test_system_schema(self):
         """Test the DHW schema.
 
         dhw:
@@ -75,7 +78,7 @@ class TestSchemaBits(unittest.TestCase):
                 {SZ_SENSOR: None, SZ_DHW_VALVE: None, SZ_DHW_VALVE_HTG: None},
             )
 
-    def test_zone_schema(self):
+    def _test_zone_schema(self):
         """Test the zone schema.
 
         '01':
@@ -144,23 +147,30 @@ class TestSchemaDiscovery(unittest.IsolatedAsyncioTestCase):
         with open(f"{SCHEMA_DIR}/{f_name}.json") as f:
             schema = json.load(f)
 
-        # print(json.dumps(schema, indent=4))
         # print(json.dumps(self.gwy.schema, indent=4))
+        # print(json.dumps(schema, indent=4))
 
-        self.assertEqual(self.gwy.schema, schema)
+        self.assertEqual(
+            json.dumps(shrink(self.gwy.schema), indent=4),
+            json.dumps(shrink(schema), indent=4),
+        )
 
         # self.assertEqual(
-        #     json.dumps(shrink(self.gwy.schema), indent=4),
-        #     json.dumps(shrink(schema), indent=4),
+        #     shrink(schema),
+        #     shrink(self.gwy.schema),
         # )
 
-        # print("***")
-        # schema, packets = self.gwy._get_state(include_expired=True)
-        # shuffle(packets)
-        # self.gwy._set_state(packets, clear_state=True)
-        # print("ZZZ")
+        self.gwy.serial_port = "/dev/null"  # HACK: needed to pause engine
+        schema, packets = self.gwy._get_state(include_expired=True)
+        packets = shuffle_dict(packets)
+        await self.gwy._set_state(packets, clear_state=True)
 
-    async def _test_from_log_files(self):
+        self.assertEqual(
+            shrink(schema),
+            shrink(self.gwy.schema),
+        )
+
+    async def test_from_log_files(self):
         for f_name in LOG_FILES:
             self.gwy = None
             await self._proc_log_file(f_name)
@@ -174,6 +184,8 @@ class TestSchemaLoad(unittest.IsolatedAsyncioTestCase):
         super().__init__(*args, **kwargs)
 
         self.maxDiff = None
+
+        self.gwy.config.disable_sending = True
 
     async def _proc_jsn_file(self, f_name):
 
@@ -195,9 +207,12 @@ class TestSchemaLoad(unittest.IsolatedAsyncioTestCase):
         self.gwy.devices = []
         self.gwy.device_by_id = {}
 
-    async def test_from_jsn_files(self):
+    async def _test_from_jsn_files(self):
         for f_name in JSN_FILES:
             await self._proc_jsn_file(f_name)
+
+        # print(*self.gwy._tasks)
+        # await asyncio.gather(*self.gwy._tasks)
 
 
 if __name__ == "__main__":

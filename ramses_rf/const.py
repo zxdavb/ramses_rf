@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 from .protocol.const import (  # noqa: F401
     _000C_DEVICE,
+    _000C_DEVICE_TYPE,
     _0005_ZONE,
     ATTR_DATETIME,
     ATTR_DEVICES,
@@ -31,6 +32,9 @@ from .protocol.const import (  # noqa: F401
     NON_DEVICE_ID,
     NUL_DEVICE_ID,
     SYSTEM_MODE,
+    SZ_DEVICE_CLASS,
+    SZ_DOMAIN_ID,
+    SZ_ZONE_IDX,
     ZONE_MODE,
     ZONE_TYPE_MAP,
     ZONE_TYPE_SLUGS,

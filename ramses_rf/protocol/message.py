@@ -14,6 +14,7 @@ from functools import lru_cache
 from typing import Optional
 
 from .address import Address
+from .const import SZ_DOMAIN_ID, SZ_ZONE_IDX
 from .exceptions import InvalidPacketError, InvalidPayloadError
 from .packet import fraction_expired
 from .parsers import PAYLOAD_PARSERS, parser_unknown
@@ -253,7 +254,7 @@ class Message:
             _31D9: "hvac_id",
             _31DA: "hvac_id",
             _3220: "msg_id",
-        }  # ALSO: "domain_id", "zone_idx"
+        }  # ALSO: SZ_DOMAIN_ID, SZ_ZONE_IDX
 
         if self._pkt._idx in (True, False) or self.code in CODE_IDX_COMPLEX:
             return {}  # above was: CODE_IDX_COMPLEX + [_3150]:
@@ -309,7 +310,7 @@ class Message:
             return {}
 
         index_name = IDX_NAMES.get(
-            self.code, "domain_id" if self._pkt._idx[:1] == "F" else "zone_idx"
+            self.code, SZ_DOMAIN_ID if self._pkt._idx[:1] == "F" else SZ_ZONE_IDX
         )
 
         return {index_name: self._pkt._idx}

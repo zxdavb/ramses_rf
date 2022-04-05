@@ -1,0 +1,38 @@
+{
+    "main_controller": "01:069616",
+    "01:069616": {
+        "system": {},
+        "zones": {
+            "00": {
+                "class": "radiator_valve",
+                "actuators": ["04:167740"]
+            },
+            "01": {
+                "class": "radiator_valve",
+                "actuators": ["04:138068", "04:138066"]
+            },
+            "02": {
+                "class": "radiator_valve",
+                "actuators": ["04:197688"]
+            },
+            "03": {
+                "class": "radiator_valve",
+                "actuators": ["04:138054"]
+            },
+            "04": {
+                "class": "radiator_valve",
+                "actuators": ["04:138060"]
+            },
+            "05": {
+                "class": "radiator_valve",
+                "actuators": ["04:167734"]
+            },
+            "06": {
+                "class": "radiator_valve",
+                "actuators": ["04:197696"]
+            },
+            "07": {
+            }
+        }
+    }
+}

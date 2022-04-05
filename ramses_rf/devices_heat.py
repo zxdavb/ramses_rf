@@ -21,6 +21,9 @@ from .const import (
     ATTR_WINDOW_OPEN,
     DEV_KLASS,
     DOMAIN_TYPE_MAP,
+    SZ_DEVICE_CLASS,
+    SZ_DOMAIN_ID,
+    SZ_ZONE_IDX,
     Discover,
     __dev_mode__,
 )
@@ -303,7 +306,9 @@ class RelayDemand(Fakeable):  # 0008
             or not self._faked
             or self._domain_id is None
             or self._domain_id
-            not in (v for k, v in msg.payload.items() if k in ("domain_id", "zone_idx"))
+            not in (
+                v for k, v in msg.payload.items() if k in (SZ_DOMAIN_ID, SZ_ZONE_IDX)
+            )
         ):
             return
 
@@ -459,6 +464,9 @@ class Controller(HeatDevice):  # CTL (01):
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
+        if msg.code in (_0005, _000C):
+            self._make_tcs_controller(msg=msg)
+
         if msg.code == _000C:
             [
                 self._gwy._get_device(d, ctl_id=self._ctl.id)
@@ -546,32 +554,32 @@ class UfhController(HeatDevice):  # UFC (02):
 
             for ufh_idx in [f"{x:02X}" for x in range(8)]:
                 if ufh_idx not in self._circuits and ufh_idx in circuits:
-                    self._circuits[ufh_idx] = {"zone_idx": None}
+                    self._circuits[ufh_idx] = {SZ_ZONE_IDX: None}
                 elif ufh_idx in self._circuits and ufh_idx not in circuits:
                     pass  # TODO: ?.pop()
 
         super()._handle_msg(msg)
 
         if msg.code == _0005:  # system_zones
-            if msg.payload["_device_class"] not in ("00", "04", "09"):
+            if msg.payload[f"_{SZ_DEVICE_CLASS}"] not in ("00", "04", "09"):
                 return  # ALL, SENsor, UFH
 
             for idx, flag in enumerate(msg.payload["zone_mask"]):
                 ufh_idx = f"{idx:02X}"
                 if not flag:
                     self._circuits.pop(ufh_idx, None)
-                elif "zone_idx" not in self._circuits.get(ufh_idx, {}):
-                    self._circuits[ufh_idx] = {"zone_idx": None}
+                elif SZ_ZONE_IDX not in self._circuits.get(ufh_idx, {}):
+                    self._circuits[ufh_idx] = {SZ_ZONE_IDX: None}
                     self._make_cmd(_000C, payload=f"{ufh_idx}{_000C_DEVICE.UFH}")
 
         elif msg.code == _0008:  # relay_demand, TODO: use msg DB?
-            if msg.payload.get("domain_id") == "FC":
+            if msg.payload.get(SZ_DOMAIN_ID) == "FC":
                 self._relay_demand = msg
             else:  # FA
                 self._relay_demand_fa = msg
 
         elif msg.code == _000C:  # zone_devices
-            if msg.payload["_device_class"] not in ("00", "04", "09"):
+            if msg.payload[f"_{SZ_DEVICE_CLASS}"] not in ("00", "04", "09"):
                 return  # ALL, SENsor, UFH
 
             ufh_idx = msg.payload["ufh_idx"]
@@ -579,7 +587,7 @@ class UfhController(HeatDevice):  # UFC (02):
             if not msg.payload["zone_id"]:
                 self._circuits.pop(ufh_idx, None)
                 return
-            self._circuits[ufh_idx] = {"zone_idx": msg.payload["zone_id"]}
+            self._circuits[ufh_idx] = {SZ_ZONE_IDX: msg.payload["zone_id"]}
 
             if dev_ids := msg.payload["devices"]:
                 # self._circuits[ufh_idx]["devices"] = dev_ids[0]  # or:
@@ -600,10 +608,10 @@ class UfhController(HeatDevice):  # UFC (02):
         elif msg.code == _3150:  # heat_demands
             if isinstance(msg.payload, list):  # the circuit demands
                 self._heat_demands = msg
-            elif msg.payload.get("domain_id") == "FC":
+            elif msg.payload.get(SZ_DOMAIN_ID) == "FC":
                 self._heat_demand = msg
             elif (
-                (zone_idx := msg.payload.get("zone_idx"))
+                (zone_idx := msg.payload.get(SZ_ZONE_IDX))
                 and (evo := msg.dst._tcs)
                 and (zone := evo.zone_by_idx.get(zone_idx))
             ):
@@ -1267,7 +1275,7 @@ class BdrSwitch(Actuator, RelayDemand, HeatDevice):  # BDR (13):
     # def __init__(self, *args, **kwargs) -> None:
     #     super().__init__(*args, **kwargs)
 
-    #     if kwargs.get("domain_id") == "FC":  # TODO: F9/FA/FC, zone_idx
+    #     if kwargs.get(SZ_DOMAIN_ID) == "FC":  # TODO: F9/FA/FC, zone_idx
     #         self._ctl._set_htg_control(self)
 
     @discover_decorator

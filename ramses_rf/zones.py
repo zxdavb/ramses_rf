@@ -19,6 +19,7 @@ from typing import Optional
 
 from .const import (
     _000C_DEVICE,
+    _000C_DEVICE_TYPE,
     ATTR_HEAT_DEMAND,
     ATTR_NAME,
     ATTR_RELAY_DEMAND,
@@ -26,6 +27,9 @@ from .const import (
     ATTR_SETPOINT,
     ATTR_TEMP,
     ATTR_WINDOW_OPEN,
+    SZ_DEVICE_CLASS,
+    SZ_DOMAIN_ID,
+    SZ_ZONE_IDX,
     ZONE_MODE,
     ZONE_TYPE_MAP,
     ZONE_TYPE_SLUGS,
@@ -275,7 +279,7 @@ class ZoneSchedule(ZoneBase):  # 0404  # TODO: add for DHW
         return self.schedule
 
     async def set_schedule(self, schedule) -> None:
-        schedule = {"zone_idx": self.idx, "schedule": schedule}
+        schedule = {SZ_ZONE_IDX: self.idx, "schedule": schedule}
         await self._schedule.set_schedule(schedule)
 
     @property
@@ -469,19 +473,19 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
         if (
             msg.code != _000C
-            or msg.payload.get("domain_id") != "FA"
+            or msg.payload.get(SZ_DOMAIN_ID) != "FA"
             or not msg.payload["devices"]
         ):
             return
 
         assert len(msg.payload["devices"]) == 1
 
-        if msg.payload["device_class"] == SZ_DHW_SENSOR:
+        if msg.payload[SZ_DEVICE_CLASS] == SZ_DHW_SENSOR:
             self._zx_update_schema(**{SZ_SENSOR: msg.payload["devices"][0]})
 
-        elif msg.payload["device_class"] in (SZ_DHW_VALVE, SZ_DHW_VALVE_HTG):
+        elif msg.payload[SZ_DEVICE_CLASS] in (SZ_DHW_VALVE, SZ_DHW_VALVE_HTG):
             self._zx_update_schema(
-                **{msg.payload["device_class"]: msg.payload["devices"][0]}
+                **{msg.payload[SZ_DEVICE_CLASS]: msg.payload["devices"][0]}
             )
 
         # TODO: may need to move earlier in method
@@ -649,25 +653,41 @@ class Zone(ZoneSchedule, ZoneBase):
             Both will execute a zone.type = type (i.e. via this setter).
             """
 
-            _type = ZONE_TYPE_SLUGS.get(zone_type, zone_type)
-            if _type not in _CLASS_BY_KLASS:
-                raise ValueError(f"Not a known zone_type: {zone_type}")
-
-            if self._zone_type == _type:
-                return
-            if self._zone_type is not None and (
-                self._zone_type != "ELE" and _type != "VAL"
+            if zone_type in (
+                _000C_DEVICE_TYPE[_000C_DEVICE.ALL_SENSOR],
+                _000C_DEVICE_TYPE[_000C_DEVICE.ALL],
             ):
+                return
+
+            klass = ZONE_TYPE_SLUGS.get(zone_type, zone_type)  # incl. DHW
+
+            if klass == self._zone_type:
+                return
+
+            if klass == ZON_KLASS.DHW:
+                raise ValueError(f"Not a compatible zone class for {self}: {zone_type}")
+
+            elif klass == ZON_KLASS.VAL and self._zone_type not in (
+                None,
+                ZON_KLASS.ELE,
+            ):
+                raise ValueError(f"Not a compatible zone class for {self}: {zone_type}")
+
+            elif klass not in _CLASS_BY_KLASS:
+                raise ValueError(f"Not a known zone class (for {self}): {zone_type}")
+
+            if self._zone_type is not None:
                 raise CorruptStateError(
-                    f"{self} changed zone_type: {self._zone_type} to {_type}"
+                    f"{self} changed zone class: from {self._zone_type} to {klass}"
                 )
 
-            self._zone_type = _type
-            self.__class__ = _CLASS_BY_KLASS[_type]
+            self._zone_type = klass
+            self.__class__ = _CLASS_BY_KLASS[klass]
+            _LOGGER.error("Promoted a Zone: %s (%s)", self.id, self.__class__)
+
             self._discover(
                 discover_flag=Discover.SCHEMA
             )  # TODO: needs tidyup (ref #67)
-            _LOGGER.debug("Promoted a Zone: %s(%s)", self.id, self.__class__)
 
         if klass := schema.get(SZ_KLASS):
             set_zone_type(klass)
@@ -776,11 +796,11 @@ class Zone(ZoneSchedule, ZoneBase):
 
         assert (msg.src is self._ctl or msg.src.type == "02") and (  # DEX
             isinstance(msg.payload, dict)
-            or [d for d in msg.payload if d["zone_idx"] == self.idx]
+            or [d for d in msg.payload if d[SZ_ZONE_IDX] == self.idx]
         ), f"msg inappropriately routed to {self}"
 
         assert (msg.src is self._ctl or msg.src.type == "02") and (  # DEX
-            isinstance(msg.payload, list) or msg.payload["zone_idx"] == self.idx
+            isinstance(msg.payload, list) or msg.payload[SZ_ZONE_IDX] == self.idx
         ), f"msg inappropriately routed to {self}"
 
         super()._handle_msg(msg)
@@ -788,8 +808,11 @@ class Zone(ZoneSchedule, ZoneBase):
         if msg.code == _000C:
             # self._set_zone_type(msg.payload["zone_type"])
 
-            if msg.payload.get(SZ_SENSOR):
-                self._zx_update_schema(**{SZ_SENSOR: msg.payload[SZ_SENSOR]})
+            if (
+                msg.payload[SZ_DEVICE_CLASS] == "zone_sensor"
+                and msg.payload[SZ_DEVICES]
+            ):
+                self._zx_update_schema(**{SZ_SENSOR: msg.payload[SZ_DEVICES][0]})
 
             for d in msg.payload.get(SZ_ACTUATORS, []):
                 # TODO: confirm is/isn't an address before implementing
@@ -798,7 +821,7 @@ class Zone(ZoneSchedule, ZoneBase):
         if msg.code == _000C and msg.payload[SZ_DEVICES]:
 
             # TODO: testing this concept, hoping to learn device_id of UFC
-            if msg.payload["_device_class"] == _000C_DEVICE.UFH:
+            if msg.payload[f"_{SZ_DEVICE_CLASS}"] == _000C_DEVICE.UFH:
                 self._make_cmd(_000C, payload=f"{self.idx}{_000C_DEVICE.UFH}")
 
             # devices = [
@@ -807,10 +830,10 @@ class Zone(ZoneSchedule, ZoneBase):
             #     for d in msg.payload["devices"]
             # ]
 
-            if msg.payload["_device_class"] == _000C_DEVICE.ALL_SENSOR:
+            if msg.payload[f"_{SZ_DEVICE_CLASS}"] == _000C_DEVICE.ALL_SENSOR:
                 self._zx_update_schema(**{SZ_SENSOR: msg.payload["devices"][0]})
 
-            elif msg.payload["_device_class"] == _000C_DEVICE.ALL:
+            elif msg.payload[f"_{SZ_DEVICE_CLASS}"] == _000C_DEVICE.ALL:
                 self._zx_update_schema(**{SZ_ACTUATORS: msg.payload["devices"]})
 
         # If zone still doesn't have a zone class, maybe eavesdrop?

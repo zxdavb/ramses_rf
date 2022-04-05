@@ -16,6 +16,7 @@ from datetime import timedelta as td
 from typing import Optional
 
 from .command import FUNC, TIMEOUT, TIMER_LONG_TIMEOUT, TIMER_SHORT_SLEEP, Command
+from .const import SZ_ZONE_IDX
 from .exceptions import ExpiredCallbackError
 
 # skipcq: PY-W2000
@@ -111,7 +112,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 
-ZONE_IDX = "zone_idx"
+ZONE_IDX = SZ_ZONE_IDX
 MSG = "msg"
 
 DAY_OF_WEEK = "day_of_week"

@@ -41,7 +41,7 @@ class TestSchedule(unittest.IsolatedAsyncioTestCase):
             )
 
         zone = self.gwy.system_by_id["01:145038"].zone_by_idx["01"]
-        result = {"zone_idx": zone.idx, "schedule": zone.schedule}
+        result = {SZ_ZONE_IDX: zone.idx, "schedule": zone.schedule}
 
         self.assertEqual(result, schedule)
 

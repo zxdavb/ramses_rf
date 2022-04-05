@@ -1,5 +1,5 @@
 {
-    "zone_idx": "01",
+    SZ_ZONE_IDX: "01",
     "schedule": [
         {
             "day_of_week": 0,

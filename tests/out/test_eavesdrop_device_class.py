@@ -19,6 +19,7 @@ class DeviceClass(unittest.IsolatedAsyncioTestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        self.maxDiff = None
         self.gwy = None
 
     async def test_000(self):

@@ -11,7 +11,7 @@ from inspect import getmembers, isclass
 from sys import modules
 from typing import Optional
 
-from .const import Discover, __dev_mode__
+from .const import SZ_DOMAIN_ID, SZ_ZONE_IDX, Discover, __dev_mode__
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -132,7 +132,7 @@ class Entity:
 
         cmd._source_entity = self
         # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
-        self._gwy.send_cmd(cmd)
+        self._gwy.send_cmd(cmd)  # BUG: should be awaiting this
 
     def _msg_flag(self, code, key, idx) -> Optional[bool]:
         if flags := self._msg_value(code, key=key):
@@ -173,9 +173,9 @@ class Entity:
             _delete_msg(msg)
 
         if domain_id:
-            idx, val = "domain_id", domain_id
+            idx, val = SZ_DOMAIN_ID, domain_id
         elif zone_idx:
-            idx, val = "zone_idx", zone_idx
+            idx, val = SZ_ZONE_IDX, zone_idx
         else:
             idx = val = None
 
@@ -199,7 +199,7 @@ class Entity:
         return {
             k: v
             for k, v in msg_dict.items()
-            if k not in ("dhw_idx", "domain_id", "zone_idx") and k[:1] != "_"
+            if k not in ("dhw_idx", SZ_DOMAIN_ID, SZ_ZONE_IDX) and k[:1] != "_"
         }
 
     @property

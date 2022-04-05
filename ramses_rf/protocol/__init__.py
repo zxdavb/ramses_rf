@@ -9,6 +9,7 @@ from logging import Logger
 
 from .address import Address, is_valid_dev_id
 from .command import CODE_API_MAP, Command, FaultLog, Priority
+from .const import SZ_DEVICE_CLASS, SZ_DOMAIN_ID, SZ_ZONE_IDX
 from .exceptions import (
     CorruptStateError,
     ExpiredCallbackError,

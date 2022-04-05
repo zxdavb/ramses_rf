@@ -11,7 +11,7 @@ import json
 import logging
 import re
 
-from .const import __dev_mode__  # DEVICE_ID_REGEX,
+from .const import SZ_ZONE_IDX, __dev_mode__
 from .protocol import CODES_SCHEMA, Command, ExpiredCallbackError, Priority
 from .protocol.opentherm import OTB_MSG_IDS
 
@@ -220,7 +220,7 @@ async def get_schedule(gwy, ctl_id: str, zone_idx: str) -> None:
 
 async def set_schedule(gwy, ctl_id, schedule) -> None:
     schedule = json.load(schedule)
-    zone_idx = schedule["zone_idx"]
+    zone_idx = schedule[SZ_ZONE_IDX]
 
     zone = gwy._get_device(ctl_id, ctl_id=ctl_id)._tcs.zx_get_htg_zone(zone_idx)
 

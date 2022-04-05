@@ -19,7 +19,7 @@ from colorama import Fore, Style
 from colorama import init as colorama_init
 
 from ramses_rf import Gateway, GracefulExit, is_valid_dev_id
-from ramses_rf.const import DONT_CREATE_MESSAGES
+from ramses_rf.const import DONT_CREATE_MESSAGES, SZ_ZONE_IDX
 from ramses_rf.discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
 from ramses_rf.protocol import _000A, _000C, _1F09, _30C9, I_, RP, RQ, W_, _0005, _2309
 from ramses_rf.protocol.exceptions import EvohomeError
@@ -47,7 +47,7 @@ from ramses_rf.schema import (
 DEBUG_MODE = "debug_mode"
 
 # DEFAULT_SUMMARY can be: True, False, or None
-SHOW_SCHEMA = False
+SHOW_SCHEMA = True
 SHOW_PARAMS = False
 SHOW_STATUS = False
 SHOW_KNOWNS = False
@@ -381,7 +381,7 @@ def print_results(gwy, **kwargs):
         if schedule is None:
             print("Failed to get the schedule.")
         else:
-            result = {"zone_idx": zone_idx, "schedule": schedule}
+            result = {SZ_ZONE_IDX: zone_idx, "schedule": schedule}
             print(">>> Schedule JSON begins <<<")
             print(json.dumps(result, indent=4))
             print(">>> Schedule JSON ended <<<")
@@ -417,8 +417,8 @@ def print_summary(gwy, **kwargs):
     if kwargs.get("show_schema"):
         print(f"Schema[{repr(entity)}] = {json.dumps(entity.schema, indent=4)}\r\n")
 
-        schema = {d.id: d.schema for d in sorted(gwy.devices)}
-        print(f"Schema[devices] = {json.dumps({'schema': schema}, indent=4)}\r\n")
+        # schema = {d.id: d.schema for d in sorted(gwy.devices)}
+        # print(f"Schema[devices] = {json.dumps({'schema': schema}, indent=4)}\r\n")
 
     if kwargs.get("show_params"):
         print(f"Params[{repr(entity)}] = {json.dumps(entity.params, indent=4)}\r\n")

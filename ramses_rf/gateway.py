@@ -499,9 +499,14 @@ class Gateway(Engine):
         if self.config.disable_sending:
             raise RuntimeError("sending is disabled")
 
-        return asyncio.run_coroutine_threadsafe(
-            self.msg_protocol.send_data(cmd, callback=callback, **kwargs), self._loop
+        future = asyncio.run_coroutine_threadsafe(
+            self.msg_protocol.send_data(cmd, callback=callback, **kwargs),
+            self._loop,
         )
+
+        # TODO: add this future somewhere
+        self._tasks.append(future)
+        return future
 
     async def async_send_cmd(
         self, cmd: Command, awaitable: bool = True, **kwargs

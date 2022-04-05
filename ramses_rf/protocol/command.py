@@ -19,7 +19,14 @@ from typing import Any, Optional, Union
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
 from .const import COMMAND_REGEX
 from .const import DEVICE_ID_REGEX as _DEVICE_ID_REGEX
-from .const import HGI_DEVICE_ID, NON_DEVICE_ID, SYSTEM_MODE, ZONE_MODE
+from .const import (
+    HGI_DEVICE_ID,
+    NON_DEVICE_ID,
+    SYSTEM_MODE,
+    SZ_DOMAIN_ID,
+    SZ_ZONE_IDX,
+    ZONE_MODE,
+)
 from .exceptions import ExpiredCallbackError, InvalidPacketError
 from .frame import PacketBase, pkt_header
 from .helpers import dt_now, dtm_to_hex, str_to_hex, temp_to_hex, timestamp
@@ -184,10 +191,10 @@ def validate_api_params(has_zone=None):
         @functools.wraps(fcn)
         def wrapper(cls, dst_id, *args, **kwargs):
 
-            if "zone_idx" in kwargs:  # Cmd.get_relay_demand()
-                kwargs["zone_idx"] = validate_zone_idx(kwargs["zone_idx"])
-            if "domain_id" in kwargs:
-                kwargs["domain_id"] = validate_zone_idx(kwargs["domain_id"])
+            if SZ_ZONE_IDX in kwargs:  # Cmd.get_relay_demand()
+                kwargs[SZ_ZONE_IDX] = validate_zone_idx(kwargs[SZ_ZONE_IDX])
+            if SZ_DOMAIN_ID in kwargs:
+                kwargs[SZ_DOMAIN_ID] = validate_zone_idx(kwargs[SZ_DOMAIN_ID])
 
             return _wrapper(fcn, cls, dst_id, *args, **kwargs)
 
@@ -198,8 +205,8 @@ def validate_api_params(has_zone=None):
         def wrapper(cls, ctl_id, zone_idx, *args, **kwargs):
 
             zone_idx = validate_zone_idx(zone_idx)
-            if "domain_id" in kwargs:
-                kwargs["domain_id"] = validate_zone_idx(kwargs["domain_id"])
+            if SZ_DOMAIN_ID in kwargs:
+                kwargs[SZ_DOMAIN_ID] = validate_zone_idx(kwargs[SZ_DOMAIN_ID])
 
             return _wrapper(fcn, cls, ctl_id, zone_idx, *args, **kwargs)
 

@@ -66,7 +66,7 @@ def cli(*args, **kwargs):
 
     elif kwargs.get("set_schedule") is not None:
         kwargs["set_schedule"] = json.load(kwargs["set_schedule"])
-        config_dict["schema"]["zones"] = {kwargs["set_schedule"]["zone_idx"]: {}}
+        config_dict["schema"]["zones"] = {kwargs["set_schedule"][SZ_ZONE_IDX]: {}}
 
     asyncio.run(main(serial_port, **config_dict, **kwargs))
 
@@ -102,7 +102,7 @@ async def main(serial_port, **config):
             schedule = await zone.get_schedule()
 
         elif config.get("set_schedule") is not None:
-            zone = gwy.evo.zone_by_idx[schedule["zone_idx"]]
+            zone = gwy.evo.zone_by_idx[schedule[SZ_ZONE_IDX]]
             await zone.set_schedule(schedule["schedule"])
 
         else:
@@ -125,7 +125,7 @@ async def main(serial_port, **config):
         if schedule is None:
             print("Error: Failed to get the schedule.")
         else:
-            result = {"zone_idx": config["get_schedule"], "schedule": schedule}
+            result = {SZ_ZONE_IDX: config["get_schedule"], "schedule": schedule}
             print(json.dumps(result))  # , indent=4))
 
     elif config.get("set_schedule") is None:

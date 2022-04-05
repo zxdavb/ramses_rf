@@ -23,6 +23,9 @@ from .const import (
     ATTR_LANGUAGE,
     ATTR_SYSTEM_MODE,
     SYSTEM_MODE,
+    SZ_DEVICE_CLASS,
+    SZ_DOMAIN_ID,
+    SZ_ZONE_IDX,
     Discover,
     __dev_mode__,
 )
@@ -51,6 +54,7 @@ from .schema import (
     SZ_ORPHANS,
     SZ_SENSOR,
     SZ_UFH_SYSTEM,
+    SZ_ZONE_TYPE,
     SZ_ZONES,
     ZONE_SCHEMA,
 )
@@ -310,7 +314,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         super()._handle_msg(msg)
 
         if msg.code == _0008:
-            if (domain_id := msg.payload.get("domain_id")) and msg.verb in (I_, RP):
+            if (domain_id := msg.payload.get(SZ_DOMAIN_ID)) and msg.verb in (I_, RP):
                 self._relay_demands[domain_id] = msg
                 if domain_id == "F9":
                     device = self.dhw.heating_valve if self.dhw else None
@@ -327,12 +331,15 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                         device._make_cmd(code, qos)
 
         elif msg.code == _000C:
-            if msg.payload["device_class"] == SZ_HTG_CONTROL and msg.payload["devices"]:
+            if (
+                msg.payload[SZ_DEVICE_CLASS] == SZ_HTG_CONTROL
+                and msg.payload["devices"]
+            ):
                 self._set_htg_control(self._ctl.device_by_id[msg.payload["devices"][0]])
             return
 
         elif msg.code == _3150:
-            if msg.payload.get("domain_id") == "FC" and msg.verb in (I_, RP):
+            if msg.payload.get(SZ_DOMAIN_ID) == "FC" and msg.verb in (I_, RP):
                 self._heat_demand = msg.payload
 
         if self._gwy.config.enable_eavesdrop and not self.heating_control:
@@ -571,7 +578,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
             _LOGGER.debug("System state (before): %s", self.schema)
 
             changed_zones = {
-                z["zone_idx"]: z["temperature"]
+                z[SZ_ZONE_IDX]: z["temperature"]
                 for z in this.payload
                 if z not in prev.payload and z["temperature"] is not None
             }  # zones with changed temps
@@ -672,33 +679,37 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
         if msg.code == _0005:  # RP, and also I
-            if msg.payload.get("_device_class") in self.ZONE_TYPES + [
+            if msg.payload.get(f"_{SZ_DEVICE_CLASS}") in self.ZONE_TYPES + [
                 _0005_ZONE.ALL,
                 _0005_ZONE.ALL_SENSOR,
             ]:
                 [
-                    self.zx_get_htg_zone(f"{idx:02X}")
+                    self.zx_get_htg_zone(f"{idx:02X}")._zx_update_schema(
+                        **{SZ_KLASS: msg.payload[SZ_ZONE_TYPE]}
+                    )
                     for idx, flag in enumerate(msg.payload["zone_mask"])
                     if flag == 1
                 ]
+                return
 
         elif msg.code == _000C:  # RP, and also I
-            if msg.payload.get("_device_class") in self.ZONE_TYPES + [
+            if msg.payload.get(f"_{SZ_DEVICE_CLASS}") in self.ZONE_TYPES + [
                 _0005_ZONE.ALL,
                 _0005_ZONE.ALL_SENSOR,
             ]:
-                self.zx_get_htg_zone(msg.payload["zone_idx"])
+                # NOTE: will _zx_update_schema, below
+                self.zx_get_htg_zone(msg.payload[SZ_ZONE_IDX])
 
         # Route all messages to their zones, incl. 000C, others
         if isinstance(msg.payload, dict):
-            if zone_idx := msg.payload.get("zone_idx"):
+            if zone_idx := msg.payload.get(SZ_ZONE_IDX):
                 handle_msg_by_zone_idx(zone_idx, msg)
-            # TODO: elif msg.payload.get("domain_id") == "FA":  # DHW
+            # TODO: elif msg.payload.get(SZ_DOMAIN_ID) == "FA":  # DHW
 
         elif isinstance(msg.payload, list) and len(msg.payload):
             if isinstance(msg.payload[0], dict):  # e.g. 1FC9 is a list of lists:
-                [handle_msg_by_zone_idx(z.get("zone_idx"), msg) for z in msg.payload]
-            # TODO: elif msg.payload.get("domain_id") == "FA":  # DHW
+                [handle_msg_by_zone_idx(z.get(SZ_ZONE_IDX), msg) for z in msg.payload]
+            # TODO: elif msg.payload.get(SZ_DOMAIN_ID) == "FA":  # DHW
 
         # # If some zones still don't have a sensor, maybe eavesdrop?
         # if self._gwy.config.enable_eavesdrop and not all(z.sensor for z in self.zones):
@@ -941,18 +952,18 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
         if (
             msg.code == _000C
-            and msg.payload["device_class"]
+            and msg.payload[SZ_DEVICE_CLASS]
             in (
                 SZ_DHW_SENSOR,
                 SZ_DHW_VALVE,
                 SZ_DHW_VALVE_HTG,
-            )  # msg.payload.get("domain_id") == "FA"
+            )  # msg.payload.get(SZ_DOMAIN_ID) == "FA"
             and msg.payload["devices"]
         ):
             self.zx_get_dhw_zone()._handle_msg(msg)
 
         if msg.code not in (_10A0, _1260, _1F41):
-            # and "dhw_id" not in msg.payload and msg.payload.get("domain_id") != "FA":
+            # and "dhw_id" not in msg.payload and msg.payload.get(SZ_DOMAIN_ID) != "FA":
             return
 
         # RQ --- 18:002563 01:078710 --:------ 10A0 001 00  # every 4h
@@ -1112,8 +1123,8 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if "domain_id" in msg.payload:
-            idx = msg.payload["domain_id"]
+        if SZ_DOMAIN_ID in msg.payload:
+            idx = msg.payload[SZ_DOMAIN_ID]
             if msg.code == _0008:
                 self._relay_demands[idx] = msg
             elif msg.code == _0009:

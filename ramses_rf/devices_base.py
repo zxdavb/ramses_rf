@@ -13,7 +13,7 @@ from random import randint
 from types import SimpleNamespace
 from typing import Optional
 
-from .const import DEV_KLASS, NUL_DEVICE_ID, Discover, __dev_mode__
+from .const import DEV_KLASS, NUL_DEVICE_ID, SZ_ZONE_IDX, Discover, __dev_mode__
 from .entity_base import Entity, class_by_attr, discover_decorator
 from .helpers import shrink
 from .protocol import Command, CorruptStateError
@@ -386,19 +386,19 @@ class Device(DeviceBase):  # 10E0
 
         if (
             self._ctl is not None
-            and "zone_idx" in msg.payload
+            and SZ_ZONE_IDX in msg.payload
             and msg.src.type != "01"  # TODO: DEX, should be: if controller
             # and msg.dst.type != "18"
         ):
             # TODO: is buggy - remove? how?
-            self._set_parent(self._ctl._tcs.zx_get_htg_zone(msg.payload["zone_idx"]))
+            self._set_parent(self._ctl._tcs.zx_get_htg_zone(msg.payload[SZ_ZONE_IDX]))
 
     def _set_parent(self, parent, domain=None, sensor=None):
         """Set the device's parent zone, after validating it.
 
         There are three possible sources for the parent zone of a device:
         1. a 000C packet (from their controller) for actuators only
-        2. a message.payload["zone_idx"]
+        2. a message.payload[SZ_ZONE_IDX]
         3. the sensor-matching algorithm for zone sensors only
 
         Devices don't have parents, rather: Zones have children; a mis-configured

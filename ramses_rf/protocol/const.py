@@ -14,6 +14,10 @@ def slug(string: str) -> str:
     return re.sub(r"[\W_]+", "_", string.lower())
 
 
+SZ_DEVICE_CLASS = "device_class"
+SZ_DOMAIN_ID = "domain_id"
+SZ_ZONE_IDX = "zone_idx"
+
 DEV_KLASS = SimpleNamespace(
     DEV="DEV",  # Generic (promotable) device
     #
@@ -343,7 +347,7 @@ ATTR_TEMP = "temperature"
 ATTR_UFH_CONTROLLERS = "ufh_controllers"
 ATTR_WINDOW_OPEN = "window_open"
 ATTR_ZONE_ACTUATORS = "zone_actuator"
-ATTR_ZONE_IDX = "zone_idx"
+ATTR_ZONE_IDX = SZ_ZONE_IDX
 ATTR_ZONE_SENSOR = "zone_sensor"
 ATTR_ZONE_TYPE = "heating_type"
 ATTR_ZONES = "zones"
