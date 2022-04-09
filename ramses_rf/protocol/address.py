@@ -7,21 +7,29 @@ import re
 from functools import lru_cache
 from typing import List
 
-from .const import (
-    DEVICE_LOOKUP,
-    DEVICE_TYPES,
-    HGI_DEVICE_ID,
-    NON_DEVICE_ID,
-    NUL_DEVICE_ID,
-    __dev_mode__,
-)
+from .const import HGI_DEVICE_ID, NON_DEVICE_ID, NUL_DEVICE_ID, __dev_mode__
 from .exceptions import InvalidAddrSetError
 from .helpers import typechecked
+
+# skipcq: PY-W2000
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    DEVICE_SLUGS,
+    DEV_TYPES,
+    DEV_MAP,
+    ZONE_MAP,
+)
 
 DEV_MODE = __dev_mode__ and False
 DEV_HVAC = True
 
 __device_id_regex__ = re.compile(r"^(-{2}:-{6}|\d{2}:\d{6})$")
+
+
+DEVICE_LOOKUP = {
+    k: DEV_TYPES._hex(k) for k in DEV_TYPES.SLUGS if k not in ("JIM", "JST")
+}
+DEVICE_LOOKUP |= {"NUL": "63", "---": "--"}
+DEV_TYPES = {v: k for k, v in DEVICE_LOOKUP.items()}
 
 
 class Address:
@@ -72,7 +80,7 @@ class Address:
     @staticmethod
     def is_valid(value: str) -> bool:  # Union[str, Match[str], None]:
 
-        # if value[:2] not in DEVICE_TYPES:
+        # if value[:2] not in DEV_TYPES:
         #     return False
 
         return isinstance(value, str) and __device_id_regex__.match(value)  # type: ignore[return-value]
@@ -86,7 +94,7 @@ class Address:
 
         _type, _tmp = device_id.split(":")
 
-        return f"{DEVICE_TYPES.get(_type, f'{_type:>3}')}:{_tmp}"
+        return f"{DEV_TYPES.get(_type, f'{_type:>3}')}:{_tmp}"
 
     @classmethod
     def convert_from_hex(cls, device_hex: str, friendly_id=False) -> str:
@@ -164,7 +172,7 @@ def hex_id_to_dev_id(device_hex: str, friendly_id: bool = False) -> str:
     dev_type = f"{(_tmp & 0xFC0000) >> 18:02d}"
 
     if friendly_id:
-        dev_type = DEVICE_TYPES.get(dev_type, f"{dev_type:<3}")
+        dev_type = DEV_TYPES.get(dev_type, f"{dev_type:<3}")
 
     return f"{dev_type}:{_tmp & 0x03FFFF:06d}"
 
@@ -177,7 +185,7 @@ def is_valid_dev_id(value: str, dev_class: str = None) -> bool:
     if not isinstance(value, str) or not __device_id_regex__.match(value):
         return False
 
-    if not DEV_HVAC and value.split(":", 1)[0] not in DEVICE_TYPES:
+    if not DEV_HVAC and value.split(":", 1)[0] not in DEV_TYPES:
         return False
 
     # TODO: specify device klass (for HVAC)

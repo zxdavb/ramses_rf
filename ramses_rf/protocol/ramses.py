@@ -8,14 +8,18 @@ from datetime import timedelta as td
 from types import SimpleNamespace
 from typing import Dict
 
-from .const import DEV_KLASS
+from .const import __dev_mode__
 
-from .const import (  # isort: skip
+# skipcq: PY-W2000
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     I_,
     RP,
     RQ,
     W_,
-    __dev_mode__,
+    DEVICE_SLUGS,
+    DEV_TYPES,
+    DEV_MAP,
+    ZONE_MAP,
 )
 
 from .const import (  # isort: skip
@@ -711,7 +715,7 @@ CODE_IDX_DOMAIN = {
 # CODES_BY_DEV_KLASS - HEAT (CH/DHW) vs HVAC (ventilation)
 #
 _DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
-    DEV_KLASS.RFG: {  # RFG100: RF to Internet gateway (and others)
+    DEVICE_SLUGS.RFG: {  # RFG100: RF to Internet gateway (and others)
         _0002: {RQ: {}},
         _0004: {I_: {}, RQ: {}},
         _0005: {RQ: {}},
@@ -737,7 +741,7 @@ _DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
         _3220: {RQ: {}},
         _3EF0: {RQ: {}},
     },
-    DEV_KLASS.CTL: {  # e.g. ATC928: Evohome Colour Controller
+    DEVICE_SLUGS.CTL: {  # e.g. ATC928: Evohome Colour Controller
         _0001: {W_: {}},
         _0002: {I_: {}, RP: {}},
         _0004: {I_: {}, RP: {}},
@@ -776,7 +780,7 @@ _DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
         _3B00: {I_: {}},
         _3EF0: {RQ: {}},
     },
-    DEV_KLASS.PRG: {  # e.g. HCF82/HCW82: Room Temperature Sensor
+    DEVICE_SLUGS.PRG: {  # e.g. HCF82/HCW82: Room Temperature Sensor
         _0009: {I_: {}},
         _1090: {RP: {}},
         _10A0: {RP: {}},
@@ -788,7 +792,7 @@ _DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
         _3B00: {I_: {}},
         _3EF1: {RP: {}},
     },
-    DEV_KLASS.THM: {  # e.g. Generic Thermostat
+    DEVICE_SLUGS.THM: {  # e.g. Generic Thermostat
         _0001: {W_: {}},
         _0005: {I_: {}},
         _0008: {I_: {}},
@@ -815,7 +819,7 @@ _DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
         _3EF0: {RQ: {}},  # when bound direct to a 13:
         _3EF1: {RQ: {}},  # when bound direct to a 13:
     },
-    DEV_KLASS.UFC: {  # e.g. HCE80/HCC80: Underfloor Heating Controller
+    DEVICE_SLUGS.UFC: {  # e.g. HCE80/HCC80: Underfloor Heating Controller
         _0001: {RP: {}, W_: {}},  # TODO: Ix RP
         _0005: {RP: {}},
         _0008: {I_: {}},
@@ -828,7 +832,7 @@ _DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
         _2309: {RP: {}},
         _3150: {I_: {}},
     },
-    DEV_KLASS.TRV: {  # e.g. HR92/HR91: Radiator Controller
+    DEVICE_SLUGS.TRV: {  # e.g. HR92/HR91: Radiator Controller
         _0001: {W_: {r"^0[0-9A-F]"}},
         _0004: {RQ: {r"^0[0-9A-F]00$"}},
         _0016: {RQ: {}, RP: {}},
@@ -845,14 +849,14 @@ _DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
         _313F: {RQ: {r"^00$"}},
         _3150: {I_: {r"^0[0-9A-F]{3}$"}},
     },
-    DEV_KLASS.DHW: {  # e.g. CS92: (DHW) Cylinder Thermostat
+    DEVICE_SLUGS.DHW: {  # e.g. CS92: (DHW) Cylinder Thermostat
         _0016: {RQ: {}},
         _1060: {I_: {}},
         _10A0: {RQ: {}},  # This RQ/07/10A0 includes a payload
         _1260: {I_: {}},
         _1FC9: {I_: {}},
     },
-    DEV_KLASS.OTB: {  # e.g. R8810/R8820: OpenTherm Bridge
+    DEVICE_SLUGS.OTB: {  # e.g. R8810/R8820: OpenTherm Bridge
         _0009: {I_: {}},  # 1/24h for a R8820 (not an R8810)
         _0150: {RP: {}},  # R8820A only?
         _042F: {I_: {}, RP: {}},
@@ -883,7 +887,7 @@ _DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
         _3EF0: {I_: {}, RP: {}},
         _3EF1: {RP: {}},
     },  # see: https://www.opentherm.eu/request-details/?post_ids=2944
-    DEV_KLASS.BDR: {  # e.g. BDR91A/BDR91T: Wireless Relay Box
+    DEVICE_SLUGS.BDR: {  # e.g. BDR91A/BDR91T: Wireless Relay Box
         _0008: {RP: {}},  # doesn't RP/0009
         _0016: {RP: {}},
         # _10E0: {},  # 13: will not RP/10E0 # TODO: how to indicate that fact here
@@ -895,24 +899,24 @@ _DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
         # RP: {},  # RQ --- 01:145038 13:237335 --:------ 3EF0 001 00
         _3EF1: {RP: {}},
     },
-    DEV_KLASS.OUT: {
+    DEVICE_SLUGS.OUT: {
         _0002: {I_: {}},
         _1FC9: {I_: {}},
     },  # i.e. HB85 (ext. temperature/luminosity(lux)), HB95 (+ wind speed)
     #
-    DEV_KLASS.JIM: {  # Jasper Interface Module, 08
+    DEVICE_SLUGS.JIM: {  # Jasper Interface Module, 08
         _0008: {RQ: {}},
         _10E0: {I_: {}},
         _1100: {I_: {}},
         _3EF0: {I_: {}},
         _3EF1: {RP: {}},
     },
-    DEV_KLASS.JST: {  # Jasper Stat, 31
+    DEVICE_SLUGS.JST: {  # Jasper Stat, 31
         _0008: {I_: {}},
         _10E0: {I_: {}},
         _3EF1: {RQ: {}, RP: {}},
     },
-    # DEV_KLASS.RND: {  # e.g. TR87RF: Single (round) Zone Thermostat
+    # DEVICE_SLUGS.RND: {  # e.g. TR87RF: Single (round) Zone Thermostat
     #     _0005: {I_: {}},
     #     _0008: {I_: {}},
     #     _000A: {I_: {}, RQ: {}},
@@ -931,7 +935,7 @@ _DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
     #     _3EF0: {RQ: {}},  # when bound direct to a 13:
     #     _3EF1: {RQ: {}},  # when bound direct to a 13:
     # },
-    # DEV_KLASS.DTS: {  # e.g. DTS92(E)
+    # DEVICE_SLUGS.DTS: {  # e.g. DTS92(E)
     #     _0001: {W_: {}},
     #     _0008: {I_: {}},
     #     _0009: {I_: {}},
@@ -951,7 +955,7 @@ _DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
     #     _3B00: {I_: {}},
     #     _3EF1: {RQ: {}},
     # },
-    # DEV_KLASS.HCW: {  # e.g. HCF82/HCW82: Room Temperature Sensor
+    # DEVICE_SLUGS.HCW: {  # e.g. HCF82/HCW82: Room Temperature Sensor
     #     _0001: {W_: {}},
     #     _0002: {I_: {}},
     #     _0008: {I_: {}},
@@ -967,7 +971,7 @@ _DEV_KLASSES_HEAT: Dict[SimpleNamespace, Dict] = {
 }
 # TODO: add 1FC9 everywhere?
 _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
-    DEV_KLASS.RFS: {  # Itho spIDer: RF to Internet gateway (like a RFG100)
+    DEVICE_SLUGS.RFS: {  # Itho spIDer: RF to Internet gateway (like a RFG100)
         _1060: {I_: {}},
         _10E0: {I_: {}, RP: {}},
         _12C0: {I_: {}},
@@ -982,7 +986,7 @@ _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
         _31DA: {RQ: {}},
         _3EF0: {I_: {}},
     },
-    DEV_KLASS.FAN: {
+    DEVICE_SLUGS.FAN: {
         _10E0: {I_: {}, RP: {}},
         _1298: {I_: {}},
         _12A0: {I_: {}},
@@ -996,7 +1000,7 @@ _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
         _31DA: {I_: {}, RP: {}},
         # _31E0: {I_: {}},
     },
-    DEV_KLASS.CO2: {
+    DEVICE_SLUGS.CO2: {
         _042F: {I_: {}},
         _10E0: {I_: {}, RP: {}},
         _1298: {I_: {}},
@@ -1007,7 +1011,7 @@ _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
         _31DA: {RQ: {}},
         _31E0: {I_: {}},
     },
-    DEV_KLASS.HUM: {
+    DEVICE_SLUGS.HUM: {
         _042F: {I_: {}},
         _1060: {I_: {}},
         _10E0: {I_: {}},
@@ -1016,7 +1020,7 @@ _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
         _31DA: {RQ: {}},
         _31E0: {I_: {}},
     },
-    DEV_KLASS.SWI: {  # HVAC: two-way switch; also an "06/22F1"?
+    DEVICE_SLUGS.SWI: {  # HVAC: two-way switch; also an "06/22F1"?
         _1060: {I_: {}},
         _10E0: {I_: {}},
         _1FC9: {I_: {}},
@@ -1030,7 +1034,7 @@ _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
 }
 
 CODES_BY_DEV_KLASS: Dict[SimpleNamespace, Dict] = {
-    DEV_KLASS.HGI: {  # HGI80: RF to (USB) serial gateway interface
+    DEVICE_SLUGS.HGI: {  # HGI80: RF to (USB) serial gateway interface
         _PUZZ: {I_: {}, RQ: {}, W_: {}},
     },  # HGI80s can do what they like
     **{k: v for k, v in _DEV_KLASSES_HVAC.items() if k is not None},
@@ -1063,9 +1067,9 @@ _CODE_FROM_NON_CTL = dict.fromkeys(
     c
     for k, v1 in CODES_BY_DEV_KLASS.items()
     for c, v2 in v1.items()
-    if k != DEV_KLASS.CTL and (I_ in v2 or RP in v2)
+    if k != DEVICE_SLUGS.CTL and (I_ in v2 or RP in v2)
 )
-_CODE_FROM_CTL = _DEV_KLASSES_HEAT[DEV_KLASS.CTL].keys()
+_CODE_FROM_CTL = _DEV_KLASSES_HEAT[DEVICE_SLUGS.CTL].keys()
 
 _CODE_ONLY_FROM_CTL = tuple(c for c in _CODE_FROM_CTL if c not in _CODE_FROM_NON_CTL)
 CODES_ONLY_FROM_CTL = [_1030, _1F09, _22D0, _313F]  # I packets, TODO: 31Dx too?
@@ -1083,32 +1087,32 @@ CODES_ONLY_FROM_CTL = [_1030, _1F09, _22D0, _313F]  # I packets, TODO: 31Dx too?
 #         _2349: {I_: {}, RP: {}},
 #         _30C9: {I_: {}, RP: {}},
 #     },
-#     "RAD": {
+#     ZONE_SLUGS.RAD: {
 #         _12B0: {I_: {}, RP: {}},
 #         "3150a": {},
 #     },
-#     "ELE": {
+#     ZONE_SLUGS.ELE: {
 #         _0008: {I_: {}},
 #         _0009: {I_: {}},
 #     },
-#     "VAL": {
+#     ZONE_SLUGS.VAL: {
 #         _0008: {I_: {}},
 #         _0009: {I_: {}},
 #         "3150a": {},
 #     },
-#     "UFH": {
+#     ZONE_SLUGS.UFH: {
 #         _3150: {I_: {}},
 #     },
-#     "MIX": {
+#     ZONE_SLUGS.MIX: {
 #         _0008: {I_: {}},
 #         "3150a": {},
 #     },
-#     "DHW": {
+#     ZONE_SLUGS.DHW: {
 #         _10A0: {RQ: {}, RP: {}},
 #         _1260: {I_: {}},
 #         _1F41: {I_: {}},
 #     },
 # }
 # RAMSES_ZONES_ALL = RAMSES_ZONES.pop("ALL")
-# RAMSES_ZONES_DHW = RAMSES_ZONES["DHW"]
-# [RAMSES_ZONES[k].update(RAMSES_ZONES_ALL) for k in RAMSES_ZONES if k != "DHW"]
+# RAMSES_ZONES_DHW = RAMSES_ZONES[ZONE_SLUGS.DHW]
+# [RAMSES_ZONES[k].update(RAMSES_ZONES_ALL) for k in RAMSES_ZONES if k != ZONE_SLUGS.DHW]

@@ -12,8 +12,8 @@ import logging
 from datetime import datetime as dt
 from typing import Optional, Union
 
-from .address import Address
-from .const import NON_DEVICE_ID, NUL_DEVICE_ID
+from .address import NON_DEV_ADDR, NUL_DEV_ADDR, Address
+from .const import __dev_mode__
 from .exceptions import InvalidPayloadError
 from .ramses import CODE_IDX_COMPLEX  # used here, parsers, message(lower)
 from .ramses import CODE_IDX_DOMAIN  # only used here
@@ -30,7 +30,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    __dev_mode__,
+    DEVICE_SLUGS,
+    DEV_TYPES,
+    DEV_MAP,
+    ZONE_MAP,
 )
 
 # skipcq: PY-W2000
@@ -226,10 +229,12 @@ class PacketBase:
                 self.len % _len == 0
             ), f"{self} < array has length ({self.len}) that is not multiple of {_len}"
             assert (
-                self.src.type in ("12", "22") or self.src == self.dst  # DEX
+                self.src.type in (DEV_TYPES.DTS, DEV_TYPES.DT2)
+                or self.src == self.dst  # DEX
             ), f"{self} < array is from a non-controller (01)"
             assert (
-                self.src.type not in ("12", "22") or self.dst.id == NON_DEVICE_ID  # DEX
+                self.src.type not in (DEV_TYPES.DTS, DEV_TYPES.DT2)
+                or self.dst.id == NON_DEV_ADDR.id  # DEX
             ), f"{self} < array is from a non-controller (02)"
             self._has_array_ = True
 
@@ -263,7 +268,11 @@ class PacketBase:
         #     # _LOGGER.info("HAS controller (01)")
         #     return True
 
-        if {self.src.type, self.dst.type} & {"01", "02", "23"}:  # DEX
+        if {self.src.type, self.dst.type} & {
+            DEV_TYPES.CTL,
+            DEV_TYPES.UFC,
+            DEV_TYPES.PRG,
+        }:  # DEX
             _LOGGER.debug(f"{self} # HAS controller (10)")
             self._has_ctl_ = True
 
@@ -284,13 +293,13 @@ class PacketBase:
         #  I --- --:------ --:------ 10:050360 1FD4 003 002ABE # no ctl
         #  I 095 --:------ --:------ 12:126457 1F09 003 000BC2 # HAS ctl
         #  I --- --:------ --:------ 20:001473 31D9 003 000001 # ctl? (HVAC)
-        elif self.dst.id == NON_DEVICE_ID:
+        elif self.dst.id == NON_DEV_ADDR.id:
             _LOGGER.debug(f"{self} # HAS controller (21)")
-            self._has_ctl_ = self.src.type != "10"  # DEX
+            self._has_ctl_ = self.src.type != DEV_TYPES.OTB  # DEX
 
         #  I --- 10:037879 --:------ 12:228610 3150 002 0000   # HAS ctl
         #  I --- 04:029390 --:------ 12:126457 1060 003 01FF01 # HAS ctl
-        elif self.dst.type in ("12", "22"):  # DEX
+        elif self.dst.type in (DEV_TYPES.DTS, DEV_TYPES.DT2):  # DEX
             _LOGGER.debug(f"{self} # HAS controller (22)")
             self._has_ctl_ = True
 
@@ -309,7 +318,10 @@ class PacketBase:
         #  I --- 34:021943 63:262142 --:------ 10E0 038 000001C8380A01... # unknown
         #  I --- 32:168090 30:082155 --:------ 31E0 004 0000C800          # unknown
         if self._has_ctl_ is None:
-            if DEV_MODE and "18" not in (self.src.type, self.dst.type):  # DEX
+            if DEV_MODE and DEV_TYPES.HGI not in (
+                self.src.type,
+                self.dst.type,
+            ):  # DEX
                 _LOGGER.warning(f"{self} # has_ctl - undetermined (99)")
             self._has_ctl_ = False
 
@@ -400,13 +412,13 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
         return pkt._has_array
 
     #  I --- 10:040239 01:223036 --:------ 0009 003 000000
-    if pkt.code == _0009 and pkt.src.type == "10":  # DEX
+    if pkt.code == _0009 and pkt.src.type == DEV_TYPES.OTB:  # DEX
         return False
 
     if pkt.code == _000C:  # zone_idx/domain_id (complex, payload[0:4])
-        if pkt.payload[2:4] in ("0D", "0E"):  # ("000D", _000E, "010E")
+        if pkt.payload[2:4] in (DEV_MAP.DHW, DEV_MAP.HTG):  # ("000D", _000E, "010E")
             return "FA"
-        if pkt.payload[2:4] == "0F":  # ("000F", )
+        if pkt.payload[2:4] == DEV_MAP.RLY:  # ("000F", )
             return "FC"
         return pkt.payload[:2]
 
@@ -477,7 +489,7 @@ def pkt_header(pkt, rx_header=None) -> Optional[str]:  # NOTE: used in command.p
         #  W --- 01:145038 34:021943 --:------ 1FC9 006 00-2309-06368E  # wont know src until it arrives
         #  I --- 34:021943 01:145038 --:------ 1FC9 006 00-2309-8855B7
         if not rx_header:
-            device_id = NUL_DEVICE_ID if pkt.src == pkt.dst else pkt.dst.id
+            device_id = NUL_DEV_ADDR.id if pkt.src == pkt.dst else pkt.dst.id
             return "|".join((pkt.code, pkt.verb, device_id))
         if pkt.src == pkt.dst:  # and pkt.verb == I_:
             return "|".join((pkt.code, W_, pkt.src.id))
@@ -485,7 +497,7 @@ def pkt_header(pkt, rx_header=None) -> Optional[str]:  # NOTE: used in command.p
             return "|".join((pkt.code, I_, pkt.src.id))
         return None
 
-    addr = pkt.dst if pkt.src.type == "18" else pkt.src  # DEX
+    addr = pkt.dst if pkt.src.type == DEV_TYPES.HGI else pkt.src  # DEX
     if not rx_header:
         header = "|".join((pkt.code, pkt.verb, addr.id))
 

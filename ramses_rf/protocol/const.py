@@ -16,9 +16,12 @@ def slug(string: str) -> str:
 
 SZ_DEVICE_CLASS = "device_class"
 SZ_DOMAIN_ID = "domain_id"
+SZ_OUTSIDE_SENSOR = "outside_sensor"
 SZ_ZONE_IDX = "zone_idx"
+SZ_ZONE_SENSOR = "zone_sensor"
 
-DEV_KLASS = SimpleNamespace(
+# slugs for device object classes
+DEVICE_SLUGS = SimpleNamespace(
     DEV="DEV",  # Generic (promotable) device
     #
     HGI="HGI",  # Gateway interface (RF to USB), HGI80
@@ -46,24 +49,35 @@ DEV_KLASS = SimpleNamespace(
     JIM="JIM",  # Jasper Interface Module (EIM?)
     JST="JST",  # Jasper Stat
 )
+# slugs for zone object classes
+ZONE_SLUGS = SimpleNamespace(
+    ALL="ALL",
+    SEN="SEN",
+    DHW="DHW",
+    ELE="ELE",
+    MIX="MIX",
+    RAD="RAD",
+    UFH="UFH",
+    VAL="VAl",
+)
 DEV_KLASS_BY_TYPE = {  # only CH/DHW defaults, not HVAC
-    "00": DEV_KLASS.TRV,
-    "01": DEV_KLASS.CTL,
-    "02": DEV_KLASS.UFC,
-    "03": DEV_KLASS.THM,
-    "04": DEV_KLASS.TRV,
-    "07": DEV_KLASS.DHW,
-    "08": DEV_KLASS.JIM,
-    "10": DEV_KLASS.OTB,
-    "12": DEV_KLASS.THM,
-    "13": DEV_KLASS.BDR,
-    "17": DEV_KLASS.OUT,
-    "18": DEV_KLASS.HGI,
-    "22": DEV_KLASS.THM,
-    "23": DEV_KLASS.PRG,
-    "30": DEV_KLASS.RFG,
-    "31": DEV_KLASS.JST,
-    "34": DEV_KLASS.THM,
+    "00": DEVICE_SLUGS.TRV,
+    "01": DEVICE_SLUGS.CTL,
+    "02": DEVICE_SLUGS.UFC,
+    "03": DEVICE_SLUGS.THM,
+    "04": DEVICE_SLUGS.TRV,
+    "07": DEVICE_SLUGS.DHW,
+    "08": DEVICE_SLUGS.JIM,
+    "10": DEVICE_SLUGS.OTB,
+    "12": DEVICE_SLUGS.THM,
+    "13": DEVICE_SLUGS.BDR,
+    "17": DEVICE_SLUGS.OUT,
+    "18": DEVICE_SLUGS.HGI,
+    "22": DEVICE_SLUGS.THM,
+    "23": DEVICE_SLUGS.PRG,
+    "30": DEVICE_SLUGS.RFG,
+    "31": DEVICE_SLUGS.JST,
+    "34": DEVICE_SLUGS.THM,
     "63": None,
     "--": None,
 }
@@ -192,7 +206,7 @@ DEVICE_ID_REGEX = SimpleNamespace(
     SEN=_DEV_REGEX_SEN,
 )
 
-_OUT_DEVICE_TABLE = {
+__OUT_DEVICE_TABLE = {
     # Honeywell evohome
     "01": {
         "type": "CTL",
@@ -215,7 +229,7 @@ _OUT_DEVICE_TABLE = {
         "archetype": "HR92",  # also: HR80
     },  #
     "07": {
-        "type": "DHW",
+        "type": ZONE_SLUGS.DHW,
         "name": "DHW Sensor",
         "archetype": "CS92A",
     },
@@ -268,11 +282,11 @@ _OUT_DEVICE_TABLE = {
 # VMS includes Nuaire VMS-23HB33, VMS-23LMH23
 # What about Honeywell MT4 actuator?
 
-_OUT_DEVICE_TABLE["00"] = dict(_OUT_DEVICE_TABLE["04"])
-_OUT_DEVICE_TABLE["00"]["type"] = "TRv"
+__OUT_DEVICE_TABLE["00"] = dict(__OUT_DEVICE_TABLE["04"])
+__OUT_DEVICE_TABLE["00"]["type"] = "TRv"
 
-_OUT_DEVICE_TABLE["12"] = dict(_OUT_DEVICE_TABLE["22"])
-_OUT_DEVICE_TABLE["12"]["type"] = "THm"
+__OUT_DEVICE_TABLE["12"] = dict(__OUT_DEVICE_TABLE["22"])
+__OUT_DEVICE_TABLE["12"]["type"] = "THm"
 
 # Example of:
 #  - Sundial RF2 Pack 3: 23:(ST9420C), 07:(CS92), and 22:(DTS92(E))
@@ -280,8 +294,11 @@ _OUT_DEVICE_TABLE["12"]["type"] = "THm"
 # HCW80 has option of being wired (normally wireless)
 # ST9420C has battery back-up (as does evohome)
 
-DEVICE_TYPES = {k: v["type"] for k, v in _OUT_DEVICE_TABLE.items()}
-DEVICE_LOOKUP = {v: k for k, v in DEVICE_TYPES.items()}
+# DEV_TYPES = {k: v["type"] for k, v in __OUT_DEVICE_TABLE.items()}
+
+# DEV_TYPES  = {'01': 'CTL', '02': 'UFC', '03':...
+# DEVICE_LOOKUP = {'CTL': '01', 'UFC': '02', 'STa':...
+
 # DEVICE_CLASSES = {v["type"]: v["name"] for _, v in DEVICE_TABLE.items()}
 
 # DEVICE_HAS_BATTERY = tuple(
@@ -331,48 +348,49 @@ p = r"([0-9A-F]{2}){1,48}"  # Payload
 COMMAND_REGEX = re.compile(f"^{v} {r} {d} {d} {d} {c} {l} {p}$")
 MESSAGE_REGEX = re.compile(f"^{r} {v} {r} {d} {d} {d} {c} {l} {p}$")
 
-ATTR_DATETIME = "datetime"
-ATTR_DEVICES = "devices"
-ATTR_HEAT_DEMAND = "heat_demand"
 ATTR_HTG_PUMP = "heat_pump_control"  # same as ATTR_HTG_CONTROL, but parameters differ
-ATTR_LANGUAGE = "language"
-ATTR_NAME = "name"
-ATTR_RELAY_DEMAND = "relay_demand"
-ATTR_RELAY_FAILSAFE = "relay_failsafe"
-ATTR_SETPOINT = "setpoint"
 ATTR_STORED_HW = "stored_hotwater"
-ATTR_SYSTEM = "system"
-ATTR_SYSTEM_MODE = "system_mode"
 ATTR_TEMP = "temperature"
 ATTR_UFH_CONTROLLERS = "ufh_controllers"
-ATTR_WINDOW_OPEN = "window_open"
 ATTR_ZONE_ACTUATORS = "zone_actuator"
 ATTR_ZONE_IDX = SZ_ZONE_IDX
-ATTR_ZONE_SENSOR = "zone_sensor"
+ATTR_ZONE_SENSOR = SZ_ZONE_SENSOR
 ATTR_ZONE_TYPE = "heating_type"
-ATTR_ZONES = "zones"
+
+SZ_DATETIME = "datetime"
+SZ_DEVICES = "devices"
+SZ_HEAT_DEMAND = "heat_demand"
+SZ_LANGUAGE = "language"
+SZ_NAME = "name"
+SZ_RELAY_DEMAND = "relay_demand"
+SZ_RELAY_FAILSAFE = "relay_failsafe"
+SZ_SETPOINT = "setpoint"
+SZ_SYSTEM = "system"
+SZ_SYSTEM_MODE = "system_mode"
+SZ_WINDOW_OPEN = "window_open"
+SZ_ZONES = "zones"
 
 
 ######################
-# Zone Types
+# klasses of heating zones
 
-ATTR_RAD_VALVE = "radiator_valve"
-ATTR_UFH_HTG = "underfloor_heating"
-ATTR_ZON_VALVE = "zone_valve"
-ATTR_MIX_VALVE = "mixing_valve"
-ATTR_ELEC_HEAT = "electric_heat"
+SZ_RADIATOR_VALVE = "radiator_valve"
+SZ_UNDERFLOOR_HEATING = "underfloor_heating"
+SZ_ZONE_VALVE = "zone_valve"
+SZ_MIXING_VALVE = "mixing_valve"
+SZ_ELECTRIC_HEAT = "electric_heat"
 
 
 # Electric Heat - on/off relay (only)
 # Zone Valve    - on/off relay AND requests heat from the boiler, 3150
 
 ZONE_TABLE = {
-    "UFH": {"type": "02", "actuator": "UFC", "name": "Underfloor Heating"},
-    "RAD": {"type": "04", "actuator": "TRV", "name": "Radiator Valve"},
-    "ELE": {"type": "13", "actuator": "BDR", "name": "Electric Heat"},
-    "VAL": {"type": "x0", "actuator": "BDR", "name": "Zone Valve"},
-    "MIX": {"type": "x1", "actuator": "HM8", "name": "Mixing Valve"},
-    "DHW": {"type": "x2", "sensor": "DHW", "name": "Stored DHW"},
+    ZONE_SLUGS.UFH: {"type": "02", "actuator": "UFC", "name": "Underfloor Heating"},
+    ZONE_SLUGS.RAD: {"type": "04", "actuator": "TRV", "name": "Radiator Valve"},
+    ZONE_SLUGS.ELE: {"type": "13", "actuator": "BDR", "name": "Electric Heat"},
+    ZONE_SLUGS.VAL: {"type": "x0", "actuator": "BDR", "name": "Zone Valve"},
+    ZONE_SLUGS.MIX: {"type": "x1", "actuator": "HM8", "name": "Mixing Valve"},
+    ZONE_SLUGS.DHW: {"type": "x2", "sensor": ZONE_SLUGS.DHW, "name": "Stored DHW"},
 }
 ZONE_CLASS_MAP = {v["type"]: k for k, v in ZONE_TABLE.items()}
 ZONE_CLASS_MAP["00"] = ZONE_CLASS_MAP["04"]
@@ -386,8 +404,8 @@ _OUT_BDR_ROLES = {
     1: ATTR_HTG_PUMP,
     2: ATTR_DHW_VALVE,
     3: ATTR_DHW_VALVE_HTG,
-    4: ATTR_ZON_VALVE,
-    5: ATTR_ELEC_HEAT,
+    4: SZ_ZONE_VALVE,
+    5: SZ_ELECTRIC_HEAT,
 }
 
 _0005_ZONE = SimpleNamespace(
@@ -416,41 +434,23 @@ _0005_ZONE = SimpleNamespace(
 #  I --- 01:054173 --:------ 01:054173 0005 004 00100000  # when the RFG was deleted
 # RP --- 01:054173 18:006402 --:------ 0005 004 00100000  # after deleting the RFG
 
-_0005_ZONE_TYPE = {
+__0005_ZONE_TYPE = {
     _0005_ZONE.ALL: "zone_actuator",
-    _0005_ZONE.ALL_SENSOR: "zone_sensor",
-    _0005_ZONE.RAD: ATTR_RAD_VALVE,
-    _0005_ZONE.UFH: ATTR_UFH_HTG,
-    _0005_ZONE.VAL: ATTR_ZON_VALVE,
-    _0005_ZONE.MIX: ATTR_MIX_VALVE,
-    _0005_ZONE.OUT: "outside_sensor",
+    _0005_ZONE.ALL_SENSOR: SZ_ZONE_SENSOR,
+    _0005_ZONE.RAD: SZ_RADIATOR_VALVE,
+    _0005_ZONE.UFH: SZ_UNDERFLOOR_HEATING,
+    _0005_ZONE.VAL: SZ_ZONE_VALVE,
+    _0005_ZONE.MIX: SZ_MIXING_VALVE,
+    _0005_ZONE.OUT: SZ_OUTSIDE_SENSOR,
     _0005_ZONE.DHW_SENSOR: ATTR_DHW_SENSOR,
     _0005_ZONE.DHW: ATTR_DHW_VALVE,  # can be 0, 1 or 2 (i.e. 1,1,0,...) of them
     _0005_ZONE.HTG: ATTR_HTG_CONTROL,
     _0005_ZONE.RFG: "remote_gateway",
-    _0005_ZONE.ELE: ATTR_ELEC_HEAT,
+    _0005_ZONE.ELE: SZ_ELECTRIC_HEAT,
 }
 
 # RP|zone_devices | 000E0... || {'domain_id': 'FA', 'device_class': 'dhw_actuator', 'devices': ['13:081807']}  # noqa: E501
 # RP|zone_devices | 010E0... || {'domain_id': 'FA', 'device_class': 'dhw_actuator', 'devices': ['13:106039']}  # noqa: E501
-
-_000C_DEVICE = _0005_ZONE
-_000C_DEVICE_TYPE = {
-    _000C_DEVICE.ALL: "zone_actuator",
-    # "01": None,
-    # "02": None,
-    _000C_DEVICE.ALL_SENSOR: ATTR_ZONE_SENSOR,  # 03:, 04:, 34: (if is 01:, will == [], as if no sensor)  # noqa: E501
-    _000C_DEVICE.RAD: "rad_actuator",
-    _000C_DEVICE.UFH: "ufh_actuator",
-    _000C_DEVICE.VAL: "val_actuator",
-    _000C_DEVICE.MIX: "mix_actuator",
-    # "0C": None,  # RFG RQs this
-    _000C_DEVICE.DHW_SENSOR: ATTR_DHW_SENSOR,  # FA, z_idx 0 only
-    _000C_DEVICE.DHW: ATTR_DHW_VALVE,  # FA, could be F9, ATTR_DHW_VALVE_HTG
-    _000C_DEVICE.HTG: ATTR_HTG_CONTROL,  # FC, z_idx 0 only
-    _000C_DEVICE.RFG: "rfg_gateway",
-    _000C_DEVICE.ELE: "ele_actuator",
-}
 
 # Used by 0418/system_fault parser
 _0418_DEVICE_CLASS = {
@@ -487,7 +487,7 @@ SystemType = SimpleNamespace(
 )
 
 
-class AttrDict(dict):
+class AttrDictOld(dict):
     # NOTE: 'advanced_override' in ZONE_MODE == False
 
     @staticmethod
@@ -537,34 +537,49 @@ class AttrDict(dict):
         raise KeyError(key)
 
 
+SZ_FOLLOW_SCHEDULE = "follow_schedule"
+SZ_ADVANCED_OVERRIDE = "advanced_override"
+SZ_PERMANENT_OVERRIDE = "permanent_override"
+SZ_COUNTDOWN_OVERRIDE = "countdown_override"
+SZ_TEMPORARY_OVERRIDE = "temporary_override"
+
 _ZONE_MODES = {
-    "00": "follow_schedule",
-    "01": "advanced_override",  # until the next scheduled setpoint
-    "02": "permanent_override",  # indefinitely
-    "03": "countdown_override",  # for a number of minutes (duration, max 1,215?)
-    "04": "temporary_override",  # until a given date/time (until)
+    "00": SZ_FOLLOW_SCHEDULE,
+    "01": SZ_ADVANCED_OVERRIDE,  # until the next scheduled setpoint
+    "02": SZ_PERMANENT_OVERRIDE,  # indefinitely
+    "03": SZ_COUNTDOWN_OVERRIDE,  # for a number of minutes (duration, max 1,215?)
+    "04": SZ_TEMPORARY_OVERRIDE,  # until a given date/time (until)
 }
 
 
-class ZoneModes(AttrDict):
+class ZoneModes(AttrDictOld):
     __slots__ = [f"_{k}" for k in _ZONE_MODES] + list(_ZONE_MODES.values())
 
 
 ZONE_MODE = ZoneModes(_ZONE_MODES)
 
+SZ_AUTO = "auto"
+SZ_HEAT_OFF = "heat_off"
+SZ_ECO_BOOST = "eco_boost"
+SZ_AWAY = "away"
+SZ_DAY_OFF = "day_off"
+SZ_DAY_OFF_ECO = "day_off_eco"
+SZ_AUTO_WITH_RESET = "auto_with_reset"
+SZ_CUSTOM = "custom"
+
 _SYSTEM_MODES = {
-    "00": "auto",  # .          indef only
-    "01": "heat_off",  # .      indef only
-    "02": "eco_boost",  # .     indef, or 24h: is either Eco, or Boost
-    "03": "away",  # .          indef, or 99d (0d = end of today, 00:00)
-    "04": "day_off",  # .       indef, or 99d (rounded down to 00:00 bt CTL)
-    "05": "day_off_eco",  # .   indef, or 99d: set to Eco when DayOff ends
-    "06": "auto_with_reset",  # indef only
-    "07": "custom",  # .        indef, or 99d
+    "00": SZ_AUTO,  # .          indef only
+    "01": SZ_HEAT_OFF,  # .      indef only
+    "02": SZ_ECO_BOOST,  # .     indef, or 24h: is either Eco, or Boost
+    "03": SZ_AWAY,  # .          indef, or 99d (0d = end of today, 00:00)
+    "04": SZ_DAY_OFF,  # .       indef, or 99d (rounded down to 00:00 bt CTL)
+    "05": SZ_DAY_OFF_ECO,  # .   indef, or 99d: set to Eco when DayOff ends
+    "06": SZ_AUTO_WITH_RESET,  # indef only
+    "07": SZ_CUSTOM,  # .        indef, or 99d
 }
 
 
-class SystemModes(AttrDict):
+class SystemModes(AttrDictOld):
     __slots__ = [f"_{k}" for k in _SYSTEM_MODES] + list(_SYSTEM_MODES.values())
 
 
@@ -584,3 +599,183 @@ FAN_MODES = {
     4: "high",  # a.k.a. boost if timer on
 }
 FAN_RATE = "fan_rate"  # percentage, 0.0 - 1.0
+
+
+class AttrDict(dict):
+    @classmethod
+    def __readonly(cls, *args, **kwargs):
+        raise TypeError(f"'{cls.__class__.__name__}' object is read only")
+
+    __delitem__ = __readonly
+    __setitem__ = __readonly
+    clear = __readonly
+    pop = __readonly
+    popitem = __readonly
+    setdefault = __readonly
+    update = __readonly
+
+    del __readonly
+
+    def __init__(self, main_table, attr_table=None):
+        self._main_table = main_table
+        self._attr_table = attr_table
+        self._attr_table["SLUGS"] = tuple(main_table.keys())
+
+        self._forward = {k: v for d in main_table.values() for k, v in d.items()}
+        self._reverse = {v: k for k, v in self._forward.items()}
+
+        super().__init__(self._forward)
+
+    def __getitem__(self, key):
+        if key in self._main_table:
+            return list(self._main_table[key].values())[
+                0
+            ]  # Xxx[ZONE_SLUGS.DHW] -> "dhw_sensor"
+        # if key in self._forward:
+        #     return self._forward.__getitem__(key)  # Xxx["0D"] -> "dhw_sensor"
+        if key in self._reverse:
+            return self._reverse.__getitem__(key)  # Xxx["dhw_sensor"] -> "0D"
+        return super().__getitem__(key)
+
+    def __getattr__(self, name):
+        if isinstance(name, str):
+            if name in self._main_table:
+                return list(self._main_table[name].keys())[0]  # Xxx.DHW -> "0D"
+            if name in self._attr_table:
+                return self._attr_table[name]
+            if len(name) and name[1:] in self._forward:
+                return self._forward[name[1:]]  # Xxx._0D -> "dhw_sensor"
+            if name.isupper() and name.lower() in self._reverse:
+                return self[name.lower()]  # Xxx.DHW_SENSOR -> "0D"
+        return self.__getattribute__(name)
+
+    def _hex(self, key) -> str:
+        """Return the key (2-byte hex string) of the two-way dict."""
+        if key in self._main_table:
+            return list(self._main_table[key].keys())[0]
+        if key in self:
+            return key
+        if key in self._reverse:
+            return self._reverse[key]
+        raise KeyError(key)
+
+    def _str(self, key) -> str:
+        """Return the value (string) of the two-way dict."""
+        if key in self._main_table:
+            return list(self._main_table[key].values())[0]
+        if key in self:
+            return self[key]
+        if key in self._reverse:
+            return key
+        raise KeyError(key)
+
+
+def attr_dict_factory(main_table, attr_table=None) -> AttrDict:  # is: SlottedAttrDict
+    if attr_table is None:
+        attr_table = {}
+
+    class SlottedAttrDict(AttrDict):
+        __slots__ = (
+            list(main_table.keys())
+            + [f"_{k}" for d in main_table.values() for k in d.keys()]
+            + [v for d in main_table.values() for v in d.values()]
+            + list(attr_table.keys())
+            + ["SLUGS"]
+        )
+
+    return SlottedAttrDict(main_table, attr_table=attr_table)
+
+
+__WIP_DOMAINS = attr_dict_factory(
+    {
+        "EEE": {"F8": "zone_actuator"},
+        "FFF": {"F9": "zone_sensor"},
+        "AAA": {"FA": "trv_actuator"},
+        "BBB": {"FB": "ufh_actuator"},
+        "CCC": {"FC": "val_actuator"},
+        "DDD": {"FD": "mix_actuator"},
+    },
+    {
+        "ZONE_DEVICES": ("08", "09", "0A", "0B", "11"),
+    },
+)
+
+DEV_MAP = attr_dict_factory(
+    {
+        "ALL": {"00": "zone_actuator"},
+        "SEN": {"04": "zone_sensor"},
+        "RAD": {"08": "trv_actuator"},
+        "UFH": {"09": "ufh_actuator"},
+        "VAL": {"0A": "val_actuator"},
+        "MIX": {"0B": "mix_actuator"},
+        "OUT": {"0C": "outdoor_sensor"},
+        "DHW": {"0D": "dhw_sensor"},
+        "HTG": {"0E": "hot_water_relay"},  # can be 0, 1 or 2 (i.e. DHW+HTG relay)
+        "RLY": {"0F": "appliance_control"},  # the heat/cool source
+        "RFG": {"10": "remote_gateway"},
+        "ELE": {"11": "ele_actuator"},  # ELE(VAL)
+    },  # 03, 05, 06, 07: & >11 - no response from an 01:
+    {
+        "ZONE_DEVICES": ("08", "09", "0A", "0B", "11"),
+    },
+)
+
+DEV_TYPES = attr_dict_factory(
+    {
+        "TR0": {"00": "radiator_valve"},  # NOTE: is TRV
+        "CTL": {"01": "controller"},
+        "UFC": {"02": "ufh_controller"},
+        "THM": {"03": "thermostat"},
+        "TRV": {"04": "radiator_valve"},
+        "DHW": {"07": "dhw_sensor"},
+        "JIM": {"08": "jasper_interface"},
+        "OTB": {"10": "opentherm_bridge"},
+        "DTS": {"12": "digital_thermostat"},
+        "BDR": {"13": "electrical_relay"},
+        "OUT": {"17": "outdoor_sensor"},
+        "HGI": {"18": "gateway_interface"},
+        "JST": {"31": "jasper_stat"},
+        "DT2": {"22": "digital_thermostat"},  # NOTE: is DTS
+        "PRG": {"23": "programmer"},
+        "RFG": {"30": "rf_gateway"},
+        "RND": {"34": "round_thermostat"},
+    },
+    {
+        "HEAT_DEVICES": (
+            "00",
+            "01",
+            "02",
+            "03",
+            "04",
+            "07",
+            "10",
+            "12",
+            "13",
+            "18",
+            "22",
+            "30",
+            "34",
+        ),
+        "ZONE_SENSORS": ("00", "01", "03", "04", "12", "22", "34"),
+        "ZONE_ACTUATORS": ("00", "02", "04", "13"),
+    },
+)
+
+ZONE_MAP = attr_dict_factory(
+    {
+        ZONE_SLUGS.ALL: {
+            "00": "heating_zone"
+        },  # NOTE: not a zone type, is any actuator
+        ZONE_SLUGS.SEN: {
+            "04": "zone_sensor"
+        },  # NOTE: not a zone type, is STAs, THMs, CTLs,...
+        ZONE_SLUGS.RAD: {"08": "radiator_valve"},  # TRVs
+        ZONE_SLUGS.UFH: {"09": "underfloor_heating"},  # UFCs
+        ZONE_SLUGS.VAL: {"0A": "zone_valve"},  # BDRs
+        ZONE_SLUGS.MIX: {"0B": "mixing_valve"},  # HM8s
+        ZONE_SLUGS.ELE: {"11": "electric_heat"},  # BDRs
+    },
+    {
+        "HEATING_ZONES": ("08", "09", "0A", "0B", "11"),
+    },
+)

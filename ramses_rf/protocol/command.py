@@ -19,14 +19,7 @@ from typing import Any, Optional, Union
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
 from .const import COMMAND_REGEX
 from .const import DEVICE_ID_REGEX as _DEVICE_ID_REGEX
-from .const import (
-    HGI_DEVICE_ID,
-    NON_DEVICE_ID,
-    SYSTEM_MODE,
-    SZ_DOMAIN_ID,
-    SZ_ZONE_IDX,
-    ZONE_MODE,
-)
+from .const import SYSTEM_MODE, SZ_DOMAIN_ID, SZ_ZONE_IDX, ZONE_MODE, __dev_mode__
 from .exceptions import ExpiredCallbackError, InvalidPacketError
 from .frame import PacketBase, pkt_header
 from .helpers import dt_now, dtm_to_hex, str_to_hex, temp_to_hex, timestamp
@@ -40,7 +33,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    __dev_mode__,
+    DEVICE_SLUGS,
+    DEV_TYPES,
+    DEV_MAP,
+    ZONE_MAP,
 )
 
 # skipcq: PY-W2000
@@ -1083,13 +1079,13 @@ class Command(PacketBase):
         if not 0 < len(cmd) < 4:
             raise ValueError(f"Command is invalid: '{cmd_str}'")
         elif len(cmd) == 1:
-            addrs = (HGI_DEVICE_ID, cmd[0], NON_DEVICE_ID)
+            addrs = (HGI_DEV_ADDR.id, cmd[0], NON_DEV_ADDR.id)
         elif len(cmd) == 3:
             addrs = (cmd[0], cmd[1], cmd[2])
         elif cmd[0] == cmd[1]:
-            addrs = (cmd[0], NON_DEVICE_ID, cmd[1])
+            addrs = (cmd[0], NON_DEV_ADDR.id, cmd[1])
         else:
-            addrs = (cmd[0], cmd[1], NON_DEVICE_ID)
+            addrs = (cmd[0], cmd[1], NON_DEV_ADDR.id)
 
         return cls.packet(verb, code, payload, *addrs, seqn=seqn, **kwargs)
 

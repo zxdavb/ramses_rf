@@ -14,7 +14,7 @@ from functools import lru_cache
 from typing import Optional
 
 from .address import Address
-from .const import SZ_DOMAIN_ID, SZ_ZONE_IDX
+from .const import SZ_DOMAIN_ID, SZ_ZONE_IDX, __dev_mode__
 from .exceptions import InvalidPacketError, InvalidPayloadError
 from .packet import fraction_expired
 from .parsers import PAYLOAD_PARSERS, parser_unknown
@@ -26,7 +26,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    __dev_mode__,
+    DEVICE_SLUGS,
+    DEV_TYPES,
+    DEV_MAP,
+    ZONE_MAP,
 )
 
 # skipcq: PY-W2000
@@ -266,24 +269,24 @@ class Message:
 
         #  I --- 00:034798 --:------ 12:126457 2309 003 0201F4
         if not {self.src.type, self.dst.type} & {
-            "01",
-            "02",
-            "03",  # ?remove (see above, rare)
-            "12",
-            "18",
-            "22",
-            "23",
+            DEV_TYPES.CTL,  # "01",
+            DEV_TYPES.UFC,  # "02",
+            DEV_TYPES.THM,  # "03",  # ?remove (see above, rare)
+            DEV_TYPES.DTS,  # "12",
+            DEV_TYPES.HGI,  # "18",
+            DEV_TYPES.DT2,  # "22",
+            DEV_TYPES.PRG,  # "23",
         }:  # DEX
             assert self._pkt._idx == "00", "What!! (00)"
             return {}
 
         #  I 035 --:------ --:------ 12:126457 30C9 003 017FFF
         if self.src.type == self.dst.type and self.src.type not in (
-            "01",
-            "02",
-            "03",  # ?remove (see above, rare)
-            "18",
-            "23",
+            DEV_TYPES.CTL,  # "01",
+            DEV_TYPES.UFC,  # "02",
+            DEV_TYPES.THM,  # "03",  # ?remove (see above, rare)
+            DEV_TYPES.HGI,  # "18",
+            DEV_TYPES.PRG,  # "23",
         ):  # DEX
             assert self._pkt._idx == "00", "What!! (01)"
             return {}
@@ -417,7 +420,7 @@ class Message:
             # beware: HGI80 can send 'odd' but parseable packets +/- get invalid reply
             (
                 _LOGGER.exception
-                if DEV_MODE and self.src.type != "18"  # DEX
+                if DEV_MODE and self.src.type != DEV_TYPES.HGI  # DEX
                 else _LOGGER.exception
             )("%s < %s", self._pkt, f"{exc.__class__.__name__}({exc})")
             raise InvalidPacketError(exc)
@@ -465,7 +468,10 @@ def _check_msg_payload(msg: Message, payload) -> None:
             raise InvalidPayloadError(f"Payload doesn't match '{regex}': {payload}")
 
     except InvalidPacketError as exc:  # incl. InvalidPayloadError
-        if "18" not in (msg.src.type, msg.dst.type):  # DEX, HGI80 can do what it likes
+        if DEV_TYPES.HGI not in (
+            msg.src.type,
+            msg.dst.type,
+        ):  # DEX, HGI80 can do what it likes
             raise exc  # TODO: messy - these msgs not ignore
             _LOGGER.warning(f"{msg!r} < {exc}")
 

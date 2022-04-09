@@ -9,7 +9,7 @@ from logging import Logger
 
 from .address import Address, is_valid_dev_id
 from .command import CODE_API_MAP, Command, FaultLog, Priority
-from .const import SZ_DEVICE_CLASS, SZ_DOMAIN_ID, SZ_ZONE_IDX
+from .const import SZ_DEVICE_CLASS, SZ_DOMAIN_ID, SZ_ZONE_IDX, __dev_mode__
 from .exceptions import (
     CorruptStateError,
     ExpiredCallbackError,
@@ -31,7 +31,11 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    __dev_mode__,
+    DEVICE_SLUGS,
+    DEV_TYPES,
+    DEV_MAP,
+    ZONE_SLUGS,
+    ZONE_MAP,
 )
 
 # skipcq: PY-W2000

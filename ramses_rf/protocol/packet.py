@@ -12,7 +12,7 @@ from datetime import timedelta as td
 from typing import Optional, Tuple, Union
 
 from .address import Address, pkt_addrs
-from .const import MESSAGE_REGEX
+from .const import MESSAGE_REGEX, __dev_mode__
 from .exceptions import InvalidPacketError
 from .frame import PacketBase
 from .logger import getLogger
@@ -25,7 +25,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    __dev_mode__,
+    DEVICE_SLUGS,
+    DEV_TYPES,
+    DEV_MAP,
+    ZONE_MAP,
 )
 
 # skipcq: PY-W2000

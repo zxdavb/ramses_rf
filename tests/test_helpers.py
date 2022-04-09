@@ -10,7 +10,47 @@ import unittest
 
 from common import GWY_CONFIG, TEST_DIR  # noqa: F401
 
+from ramses_rf.const import DEV_MAP
+from ramses_rf.protocol.const import attr_dict_factory
 from ramses_rf.zones import _transform
+
+
+class TestClasses(unittest.TestCase):
+    def test_attrdict(self) -> None:
+        devices = attr_dict_factory(MAIN_DICT, attr_table=ATTR_DICT)
+
+        try:
+            devices["_08"]
+        except KeyError:
+            self.assertTrue(True)
+        else:
+            self.assertTrue(False)
+
+        self.assertEqual(DEV_MAP.DHW, "0D")
+        self.assertEqual(DEV_MAP._08, "trv_actuator")
+        self.assertEqual(DEV_MAP.ZONE_SENSOR, "04")
+
+        self.assertEqual(DEV_MAP["DHW"], "dhw_sensor")
+        self.assertEqual(DEV_MAP["08"], "trv_actuator")
+        self.assertEqual(DEV_MAP["zone_sensor"], "04")
+
+        self.assertEqual(DEV_MAP._hex("DHW"), "0D")
+        self.assertEqual(DEV_MAP._hex("zone_sensor"), "04")
+        self.assertEqual(DEV_MAP._str("04"), "zone_sensor")
+
+        self.assertTrue(
+            "DHW" not in DEV_MAP.keys()
+            and "0D" in DEV_MAP.keys()
+            and "dhw_sensor" not in DEV_MAP.keys()
+        )
+        self.assertTrue(
+            "DHW" not in DEV_MAP.values()
+            and "0D" not in DEV_MAP.values()
+            and "dhw_sensor" in DEV_MAP.values()
+        )
+
+        self.assertEqual(DEV_MAP.SLUGS, MAIN_SLUGS)
+        self.assertEqual(DEV_MAP.ZONE_DEVICES, ATTR_DICT["ZONE_DEVICES"])
 
 
 class TestHelpers(unittest.TestCase):
@@ -18,6 +58,26 @@ class TestHelpers(unittest.TestCase):
         self.assertEqual(
             [x[1] for x in TRANSFORMS], [_transform(x[0]) for x in TRANSFORMS]
         )
+
+
+MAIN_DICT = {
+    "ALL": {"00": "zone_actuator"},
+    "SEN": {"04": "zone_sensor"},
+    "RAD": {"08": "trv_actuator"},
+    "UFH": {"09": "ufh_actuator"},
+    "VAL": {"0A": "val_actuator"},
+    "MIX": {"0B": "mix_actuator"},
+    "OUT": {"0C": "outdoor_sensor"},
+    "DHW": {"0D": "dhw_sensor"},
+    "HTG": {"0E": "hot_water_relay"},
+    "RLY": {"0F": "appliance_control"},
+    "RFG": {"10": "remote_gateway"},
+    "ELE": {"11": "ele_actuator"},
+}
+ATTR_DICT = {
+    "ZONE_DEVICES": ("08", "09", "0A", "0B", "11"),
+}
+MAIN_SLUGS = tuple(MAIN_DICT.keys())
 
 
 TRANSFORMS = [

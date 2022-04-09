@@ -19,6 +19,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
+    DEVICE_SLUGS,
+    DEV_TYPES,
+    DEV_MAP,
+    ZONE_MAP,
 )
 
 _QOS_TX_LIMIT = 12  # TODO: needs work
@@ -35,7 +39,7 @@ def class_by_attr(name: str, attr: str) -> dict:  # TODO: change to __module__
 
     For example:
       {"OTB": OtbGateway, "CTL": Controller}
-      {"RAD": RadZone, "UFH": UfhZone}
+      {ZONE_SLUGS.RAD: RadZone, ZONE_SLUGS.UFH: UfhZone}
       {"evohome": Evohome}
     """
 

@@ -12,22 +12,19 @@ from symtable import Class
 from typing import Optional
 
 from .const import (
-    _000C_DEVICE,
-    _0005_ZONE,
-    ATTR_HEAT_DEMAND,
-    ATTR_RELAY_DEMAND,
-    ATTR_SETPOINT,
     ATTR_TEMP,
-    ATTR_WINDOW_OPEN,
-    DEV_KLASS,
     DOMAIN_TYPE_MAP,
     SZ_DEVICE_CLASS,
     SZ_DOMAIN_ID,
+    SZ_HEAT_DEMAND,
+    SZ_RELAY_DEMAND,
+    SZ_SETPOINT,
+    SZ_WINDOW_OPEN,
     SZ_ZONE_IDX,
     Discover,
     __dev_mode__,
 )
-from .devices_base import BatteryState, Fakeable, HeatDevice
+from .devices_base import ATTR_DEVICE_SLUG, BatteryState, Fakeable, HeatDevice
 from .entity_base import class_by_attr, discover_decorator
 from .protocol import Address, Command, Message, Priority
 from .protocol.address import NON_DEV_ADDR
@@ -49,6 +46,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
+    DEVICE_SLUGS,
+    DEV_TYPES,
+    DEV_MAP,
+    ZONE_MAP,
 )
 
 # skipcq: PY-W2000
@@ -215,7 +216,7 @@ class Actuator(HeatDevice):  # 3EF0, 3EF1
 
 class HeatDemand(HeatDevice):  # 3150
 
-    HEAT_DEMAND = ATTR_HEAT_DEMAND  # percentage valve open (0.0-1.0)
+    HEAT_DEMAND = SZ_HEAT_DEMAND  # percentage valve open (0.0-1.0)
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
@@ -231,7 +232,7 @@ class HeatDemand(HeatDevice):  # 3150
 
 class Setpoint(HeatDevice):  # 2309
 
-    SETPOINT = ATTR_SETPOINT  # degrees Celsius
+    SETPOINT = SZ_SETPOINT  # degrees Celsius
 
     @property
     def setpoint(self) -> Optional[float]:  # 2309
@@ -285,7 +286,7 @@ class Weather(Fakeable):  # 0002
 
 class RelayDemand(Fakeable):  # 0008
 
-    RELAY_DEMAND = ATTR_RELAY_DEMAND  # percentage (0.0-1.0)
+    RELAY_DEMAND = SZ_RELAY_DEMAND  # percentage (0.0-1.0)
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:
@@ -436,15 +437,15 @@ class Temperature(Fakeable):  # 30C9
 class RfgGateway(HeatDevice):  # RFG (30:)
     """The RFG100 base class."""
 
-    _DEV_KLASS = DEV_KLASS.RFG
-    _DEV_TYPES = ("30",)
+    _DEVICE_SLUG = DEVICE_SLUGS.RFG
+    _DEVICE_TYPES = (DEV_TYPES.RFG,)
 
 
 class Controller(HeatDevice):  # CTL (01):
     """The Controller base class."""
 
-    _DEV_KLASS = DEV_KLASS.CTL
-    _DEV_TYPES = ("01",)
+    _DEVICE_SLUG = DEVICE_SLUGS.CTL
+    _DEVICE_TYPES = (DEV_TYPES.CTL,)
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -481,17 +482,17 @@ class Controller(HeatDevice):  # CTL (01):
 class Programmer(Controller):  # PRG (23):
     """The Controller base class."""
 
-    _DEV_KLASS = DEV_KLASS.PRG
-    _DEV_TYPES = ("23",)
+    _DEVICE_SLUG = DEVICE_SLUGS.PRG
+    _DEVICE_TYPES = (DEV_TYPES.PRG,)
 
 
 class UfhController(HeatDevice):  # UFC (02):
     """The UFC class, the HCE80 that controls the UFH zones."""
 
-    _DEV_KLASS = DEV_KLASS.UFC
-    _DEV_TYPES = ("02",)
+    _DEVICE_SLUG = DEVICE_SLUGS.UFC
+    _DEVICE_TYPES = (DEV_TYPES.UFC,)
 
-    HEAT_DEMAND = ATTR_HEAT_DEMAND
+    HEAT_DEMAND = SZ_HEAT_DEMAND
 
     _STATE_ATTR = "heat_demand"
 
@@ -535,9 +536,9 @@ class UfhController(HeatDevice):  # UFC (02):
         # Only RPs are: 0001, 0005/000C, 10E0, 000A/2309 & 22D0
 
         if discover_flag & Discover.SCHEMA:
-            self._make_cmd(_0005, payload=f"00{_0005_ZONE.UFH}")
+            self._make_cmd(_0005, payload=f"00{DEV_MAP.UFH}")
             for ufh_idx in range(8):
-                self._make_cmd(_000C, payload=f"{ufh_idx:02X}{_000C_DEVICE.UFH}")
+                self._make_cmd(_000C, payload=f"{ufh_idx:02X}{DEV_MAP.UFH}")
 
         if discover_flag & Discover.PARAMS:  # only 2309 has any potential?
             for ufh_idx in self.circuits:
@@ -570,7 +571,7 @@ class UfhController(HeatDevice):  # UFC (02):
                     self._circuits.pop(ufh_idx, None)
                 elif SZ_ZONE_IDX not in self._circuits.get(ufh_idx, {}):
                     self._circuits[ufh_idx] = {SZ_ZONE_IDX: None}
-                    self._make_cmd(_000C, payload=f"{ufh_idx}{_000C_DEVICE.UFH}")
+                    self._make_cmd(_000C, payload=f"{ufh_idx}{DEV_MAP.UFH}")
 
         elif msg.code == _0008:  # relay_demand, TODO: use msg DB?
             if msg.payload.get(SZ_DOMAIN_ID) == "FC":
@@ -646,11 +647,11 @@ class UfhController(HeatDevice):  # UFC (02):
 
     @property
     def relay_demand(self) -> Optional[dict]:  # 0008|FC
-        return self._msg_value_msg(self._relay_demand, key=ATTR_RELAY_DEMAND)
+        return self._msg_value_msg(self._relay_demand, key=SZ_RELAY_DEMAND)
 
     @property
     def relay_demand_fa(self) -> Optional[dict]:  # 0008|FA
-        return self._msg_value_msg(self._relay_demand_fa, key=ATTR_RELAY_DEMAND)
+        return self._msg_value_msg(self._relay_demand_fa, key=SZ_RELAY_DEMAND)
 
     @property
     def setpoints(self) -> Optional[dict]:  # 22C9|ufh_idx array
@@ -680,8 +681,8 @@ class UfhController(HeatDevice):  # UFC (02):
     def status(self) -> dict:
         return {
             **super().status,
-            ATTR_HEAT_DEMAND: self.heat_demand,
-            ATTR_RELAY_DEMAND: self.relay_demand,
+            SZ_HEAT_DEMAND: self.heat_demand,
+            SZ_RELAY_DEMAND: self.relay_demand,
             "relay_demand_fa": self.relay_demand_fa,
         }
 
@@ -689,8 +690,8 @@ class UfhController(HeatDevice):  # UFC (02):
 class DhwSensor(DhwTemperature, BatteryState, HeatDevice):  # DHW (07): 10A0, 1260
     """The DHW class, such as a CS92."""
 
-    _DEV_KLASS = DEV_KLASS.DHW
-    _DEV_TYPES = ("07",)
+    _DEVICE_SLUG = DEVICE_SLUGS.DHW
+    _DEVICE_TYPES = (DEV_TYPES.DHW,)
 
     DHW_PARAMS = "dhw_params"
     TEMPERATURE = ATTR_TEMP
@@ -725,8 +726,8 @@ class DhwSensor(DhwTemperature, BatteryState, HeatDevice):  # DHW (07): 10A0, 12
 class OutSensor(Weather, HeatDevice):  # OUT: 17
     """The OUT class (external sensor), such as a HB85/HB95."""
 
-    _DEV_KLASS = DEV_KLASS.OUT
-    _DEV_TYPES = ("17",)
+    _DEVICE_SLUG = DEVICE_SLUGS.OUT
+    _DEVICE_TYPES = (DEV_TYPES.OUT,)
 
     # LUMINOSITY = "luminosity"  # lux
     # WINDSPEED = "windspeed"  # km/h
@@ -737,8 +738,8 @@ class OutSensor(Weather, HeatDevice):  # OUT: 17
 class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, others)
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
-    _DEV_KLASS = DEV_KLASS.OTB
-    _DEV_TYPES = ("10",)
+    _DEVICE_SLUG = DEVICE_SLUGS.OTB
+    _DEVICE_TYPES = (DEV_TYPES.OTB,)
 
     # BOILER_SETPOINT = "boiler_setpoint"
     # OPENTHERM_STATUS = "opentherm_status"
@@ -1211,8 +1212,13 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
 class Thermostat(BatteryState, Setpoint, Temperature, HeatDevice):  # THM (..):
     """The THM/STA class, such as a TR87RF."""
 
-    _DEV_KLASS = DEV_KLASS.THM
-    _DEV_TYPES = ("03", "12", "22", "34")
+    _DEVICE_SLUG = DEVICE_SLUGS.THM
+    _DEVICE_TYPES = (
+        DEV_TYPES.THM,
+        DEV_TYPES.DTS,
+        DEV_TYPES.DT2,
+        DEV_TYPES.RND,
+    )
 
     _STATE_ATTR = "temperature"
 
@@ -1264,8 +1270,8 @@ class BdrSwitch(Actuator, RelayDemand, HeatDevice):  # BDR (13):
     - x2 DHW thingys (F9/DHW, FA/DHW)
     """
 
-    _DEV_KLASS = DEV_KLASS.BDR
-    _DEV_TYPES = ("13",)
+    _DEVICE_SLUG = DEVICE_SLUGS.BDR
+    _DEVICE_TYPES = (DEV_TYPES.BDR,)
 
     ACTIVE = "active"
     TPI_PARAMS = "tpi_params"
@@ -1369,10 +1375,13 @@ class TrvActuator(
 ):  # TRV (04):
     """The TRV class, such as a HR92."""
 
-    _DEV_KLASS = DEV_KLASS.TRV
-    _DEV_TYPES = ("00", "04")  # TODO: keep 00?
+    _DEVICE_SLUG = DEVICE_SLUGS.TRV
+    _DEVICE_TYPES = (
+        DEV_TYPES.TR0,
+        DEV_TYPES.TRV,
+    )
 
-    WINDOW_OPEN = ATTR_WINDOW_OPEN  # boolean
+    WINDOW_OPEN = SZ_WINDOW_OPEN  # boolean
 
     _STATE_ATTR = "heat_demand"
 
@@ -1395,29 +1404,31 @@ class TrvActuator(
         }
 
 
-HEAT_CLASS_BY_KLASS = class_by_attr(__name__, "_DEV_KLASS")  # e.g. "CTL": Controller
+HEAT_CLASS_BY_KLASS = class_by_attr(
+    __name__, ATTR_DEVICE_SLUG
+)  # e.g. "CTL": Controller
 
 _HEAT_VC_PAIR_BY_CLASS = {
-    DEV_KLASS.DHW: ((I_, _1260),),
-    DEV_KLASS.OTB: ((I_, _3220), (RP, _3220)),
+    DEVICE_SLUGS.DHW: ((I_, _1260),),
+    DEVICE_SLUGS.OTB: ((I_, _3220), (RP, _3220)),
 }
 _KLASS_BY_TYPE = {
-    None: DEV_KLASS.DEV,  # a generic, promotable device
-    "00": DEV_KLASS.TRV,
-    "01": DEV_KLASS.CTL,
-    "02": DEV_KLASS.UFC,  # could be HVAC(SWI)
-    "03": DEV_KLASS.THM,
-    "04": DEV_KLASS.TRV,
-    "07": DEV_KLASS.DHW,  # could be HVAC
-    "10": DEV_KLASS.OTB,
-    "12": DEV_KLASS.THM,  # can act like a DEV_KLASS.PRG
-    "13": DEV_KLASS.BDR,
-    "17": DEV_KLASS.OUT,
-    "18": DEV_KLASS.HGI,  # could be HVAC
-    "22": DEV_KLASS.THM,  # can act like a DEV_KLASS.PRG
-    "23": DEV_KLASS.PRG,
-    "30": DEV_KLASS.RFG,  # could be HVAC
-    "34": DEV_KLASS.THM,
+    None: DEVICE_SLUGS.DEV,  # a generic, promotable device
+    "00": DEVICE_SLUGS.TRV,
+    "01": DEVICE_SLUGS.CTL,
+    "02": DEVICE_SLUGS.UFC,  # could be HVAC(SWI)
+    "03": DEVICE_SLUGS.THM,
+    "04": DEVICE_SLUGS.TRV,
+    "07": DEVICE_SLUGS.DHW,  # could be HVAC
+    "10": DEVICE_SLUGS.OTB,
+    "12": DEVICE_SLUGS.THM,  # can act like a DEVICE_SLUGS.PRG
+    "13": DEVICE_SLUGS.BDR,
+    "17": DEVICE_SLUGS.OUT,
+    "18": DEVICE_SLUGS.HGI,  # could be HVAC
+    "22": DEVICE_SLUGS.THM,  # can act like a DEVICE_SLUGS.PRG
+    "23": DEVICE_SLUGS.PRG,
+    "30": DEVICE_SLUGS.RFG,  # could be HVAC
+    "34": DEVICE_SLUGS.THM,
 }  # these are the default device classes for Honeywell (non-HVAC) types
 
 

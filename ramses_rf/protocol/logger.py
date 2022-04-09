@@ -166,7 +166,7 @@ class StdOutFilter(logging.Filter):  # record.levelno < logging.WARNING
 class TimedRotatingFileHandler(_TimedRotatingFileHandler):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        assert self.when == "MIDNIGHT"
+        assert self.when == "midnight"
         self.extMatch = re.compile(r"^\d{4}-\d{2}-\d{2}$", re.ASCII)
 
     # def emit(self, record):  # used only for debugging

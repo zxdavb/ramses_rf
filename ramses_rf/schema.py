@@ -17,9 +17,9 @@ import voluptuous as vol
 from .const import (
     ATTR_ZONE_IDX,
     DEFAULT_MAX_ZONES,
-    DEV_KLASS,
     DEVICE_ID_REGEX,
     DONT_CREATE_MESSAGES,
+    SZ_ZONE_SENSOR,
     ZONE_TYPE_SLUGS,
     SystemType,
     __dev_mode__,
@@ -27,6 +27,18 @@ from .const import (
 from .helpers import shrink
 from .protocol import PACKET_LOG, PACKET_LOG_SCHEMA
 from .protocol.transport import DEV_HACK_REGEX, SERIAL_CONFIG_SCHEMA
+
+# skipcq: PY-W2000
+from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+    DEVICE_SLUGS,
+    DEV_TYPES,
+    DEV_MAP,
+    ZONE_MAP,
+)
 
 DEV_MODE = __dev_mode__ and False
 
@@ -51,7 +63,6 @@ SZ_DHW_VALVE_HTG = "heating_valve"
 
 SZ_ZONES = "zones"
 SZ_ZONE_TYPE = "zone_type"  # deprecated
-SZ_ZONE_SENSOR = "zone_sensor"  # deprecated
 SZ_ACTUATORS = "actuators"
 SZ_DEVICES = "devices"
 SZ_SENSOR_FAKED = "sensor_faked"
@@ -141,7 +152,7 @@ DEVICE_SCHEMA = vol.Schema(
             {
                 vol.Optional(SZ_ALIAS, default=None): vol.Any(None, str),
                 vol.Optional(SZ_KLASS, default=None): vol.Any(
-                    None, *vars(DEV_KLASS).keys()
+                    None, *vars(DEVICE_SLUGS).keys()
                 ),
                 vol.Optional(SZ_FAKED, default=None): vol.Any(None, bool),
             },

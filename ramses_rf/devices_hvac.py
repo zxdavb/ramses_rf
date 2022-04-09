@@ -10,8 +10,8 @@ import logging
 from symtable import Class
 from typing import Optional
 
-from .const import BOOST_TIMER, DEV_KLASS, FAN_MODE, __dev_mode__
-from .devices_base import BatteryState, HvacDevice
+from .const import BOOST_TIMER, FAN_MODE, __dev_mode__
+from .devices_base import ATTR_DEVICE_SLUG, BatteryState, HvacDevice
 from .entity_base import class_by_attr
 from .protocol import Address, Message
 from .protocol.ramses import CODES_HVAC_ONLY
@@ -22,6 +22,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
+    DEVICE_SLUGS,
+    DEV_TYPES,
+    DEV_MAP,
+    ZONE_MAP,
 )
 
 # skipcq: PY-W2000
@@ -117,8 +121,8 @@ if DEV_MODE:
 class RfsGateway(HvacDevice):  # RFS: (spIDer gateway)
     """The HGI80 base class."""
 
-    _DEV_KLASS = DEV_KLASS.RFS
-    _DEV_TYPES = ()
+    _DEVICE_SLUG = DEVICE_SLUGS.RFS
+    _DEVICE_TYPES = ()
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -138,8 +142,8 @@ class HvacHumidity(BatteryState, HvacDevice):  # HUM: I/12A0
     The cardinal code is 12A0.
     """
 
-    _DEV_KLASS = DEV_KLASS.HUM
-    _DEV_TYPES = ()  # ("32",)
+    _DEVICE_SLUG = DEVICE_SLUGS.HUM
+    _DEVICE_TYPES = ()  # ("32",)
 
     REL_HUMIDITY = "indoor_humidity"  # percentage (0.0-1.0)
     TEMPERATURE = "temperature"  # celsius
@@ -178,8 +182,8 @@ class HvacCarbonDioxide(HvacDevice):  # CO2: I/1298
     # 22:42:23.014 050  I --- 37:154011 28:126620 --:------ 1FC9 001 00                                                                            # CO2, incl. integrated control, PIR
     # 22:42:23.876 050  I --- 37:154011 63:262142 --:------ 10E0 038 0000010028090101FEFFFFFFFFFF140107E5564D532D31324333390000000000000000000000  # VMS-12C39, oem_code == 01
 
-    _DEV_KLASS = DEV_KLASS.CO2
-    _DEV_TYPES = ()  # ("32",)
+    _DEVICE_SLUG = DEVICE_SLUGS.CO2
+    _DEVICE_TYPES = ()  # ("32",)
 
     @property
     def co2_level(self) -> Optional[float]:
@@ -208,8 +212,8 @@ class HvacSwitch(BatteryState, HvacDevice):  # SWI: I/22F[13]
     # RQ --- 32:166025 30:079129 --:------ 31DA 001 21
     # RP --- 30:079129 32:166025 --:------ 31DA 029 21EF00026036EF7FFF7FFF7FFF7FFF0002EF18FFFF000000EF7FFF7FFF
 
-    _DEV_KLASS = DEV_KLASS.SWI
-    _DEV_TYPES = ()  # ("39",)
+    _DEVICE_SLUG = DEVICE_SLUGS.SWI
+    _DEVICE_TYPES = ()  # ("39",)
 
     @property
     def fan_rate(self) -> Optional[str]:
@@ -245,8 +249,8 @@ class HvacVentilator(HvacDevice):  # FAN: RP/31DA, I/31D[9A]
     # every /30
     # 30:079129 --:------ 30:079129 31D9 017 2100FF0000000000000000000000000000
 
-    _DEV_KLASS = DEV_KLASS.FAN
-    _DEV_TYPES = ()  # ("20", "37")
+    _DEVICE_SLUG = DEVICE_SLUGS.FAN
+    _DEVICE_TYPES = ()  # ("20", "37")
 
     @property
     def boost_timer(self) -> Optional[int]:
@@ -290,13 +294,15 @@ class HvacVentilator(HvacDevice):  # FAN: RP/31DA, I/31D[9A]
         }
 
 
-HVAC_CLASS_BY_KLASS = class_by_attr(__name__, "_DEV_KLASS")  # e.g. "HUM": HvacHumidity
+HVAC_CLASS_BY_KLASS = class_by_attr(
+    __name__, ATTR_DEVICE_SLUG
+)  # e.g. "HUM": HvacHumidity
 
 _HVAC_VC_PAIR_BY_CLASS = {
-    DEV_KLASS.CO2: ((I_, _1298),),
-    DEV_KLASS.FAN: ((I_, _31D9), (I_, _31DA), (RP, _31DA)),
-    DEV_KLASS.HUM: ((I_, _12A0),),
-    DEV_KLASS.SWI: ((I_, _22F1), (I_, _22F3)),
+    DEVICE_SLUGS.CO2: ((I_, _1298),),
+    DEVICE_SLUGS.FAN: ((I_, _31D9), (I_, _31DA), (RP, _31DA)),
+    DEVICE_SLUGS.HUM: ((I_, _12A0),),
+    DEVICE_SLUGS.SWI: ((I_, _22F1), (I_, _22F3)),
 }
 _HVAC_KLASS_BY_VC_PAIR = {t: k for k, v in _HVAC_VC_PAIR_BY_CLASS.items() for t in v}
 

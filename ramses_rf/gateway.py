@@ -17,10 +17,10 @@ from threading import Lock
 from typing import Callable, Optional
 
 from .const import (
-    ATTR_DEVICES,
     DONT_CREATE_MESSAGES,
     NON_DEVICE_ID,
     NUL_DEVICE_ID,
+    SZ_DEVICES,
     __dev_mode__,
 )
 from .devices import Device, zx_device_factory
@@ -59,9 +59,13 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
+    DEVICE_SLUGS,
+    DEV_TYPES,
+    DEV_MAP,
+    ZONE_MAP,
 )
 
-# skipcq: PY-W2000
+
 DEV_MODE = __dev_mode__ and False
 
 _LOGGER = logging.getLogger(__name__)
@@ -257,14 +261,14 @@ class Gateway(Engine):
             raise RuntimeError(f"Unsupported OS for this module: {os.name}")
 
     async def start(self) -> None:
-        def initiate_discovery(devices, systems) -> None:
+        def initiate_discovery(dev_list, sys_list) -> None:
             _LOGGER.debug("ENGINE: Initiating/enabling discovery...")
 
-            # [d._start_discovery() for d in devices]
-            for d in devices:
+            # [d._start_discovery() for d in devs]
+            for d in dev_list:
                 d._start_discovery()
 
-            for system in systems:
+            for system in sys_list:
                 system._start_discovery()
                 [z._start_discovery() for z in system.zones]
                 if system._dhw:
@@ -393,7 +397,7 @@ class Gateway(Engine):
         return dev
 
     def _get_device(self, dev_id, ctl_id=None, domain_id=None, **kwargs) -> Device:
-        """devices considered bound to a CTL only if/when the CTL says so"""
+        # devices considered bound to a CTL only if/when the CTL says so
 
         dev = self._zx_get_device(Address(dev_id), **self._include.get(dev_id, {}))
 
@@ -467,11 +471,11 @@ class Gateway(Engine):
 
     @property
     def params(self) -> dict:
-        return {ATTR_DEVICES: {d.id: d.params for d in sorted(self.devices)}}
+        return {SZ_DEVICES: {d.id: d.params for d in sorted(self.devices)}}
 
     @property
     def status(self) -> dict:
-        return {ATTR_DEVICES: {d.id: d.status for d in sorted(self.devices)}}
+        return {SZ_DEVICES: {d.id: d.status for d in sorted(self.devices)}}
 
     @staticmethod
     def create_cmd(verb, device_id, code, payload, **kwargs) -> Command:

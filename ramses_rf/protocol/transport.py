@@ -39,8 +39,9 @@ from typing import Awaitable, Callable, Iterable, Optional
 from serial import SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerTransportAsync
 
+from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import ARGS, DEAMON, FUNC, Command, Qos
-from .const import HGI_DEVICE_ID, NON_DEVICE_ID, NUL_DEVICE_ID, __dev_mode__
+from .const import __dev_mode__
 from .exceptions import InvalidPacketError
 from .helpers import dt_now
 from .packet import Packet
@@ -48,8 +49,18 @@ from .protocol import create_protocol_factory
 from .schema import SERIAL_CONFIG_SCHEMA
 from .version import VERSION
 
-I_ = " I"
-_1F09 = "1F09"
+# skipcq: PY-W2000
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    _1F09,
+    I_,
+    RP,
+    RQ,
+    W_,
+    DEVICE_SLUGS,
+    DEV_TYPES,
+    DEV_MAP,
+    ZONE_MAP,
+)
 
 DEV_MODE = __dev_mode__ and False  # debug is_wanted, or qos_fx
 DEV_HACK_REGEX = True
@@ -502,7 +513,7 @@ class PacketProtocolBase(asyncio.Protocol):
         else:
             self._exclude = list(gwy._exclude.keys())
             self._include = []
-        self._unwanted: list = []  # not: [NON_DEVICE_ID, NUL_DEVICE_ID]
+        self._unwanted: list = []  # not: [NON_DEV_ADDR.id, NUL_DEV_ADDR.id]
 
         self._hgi80 = {
             IS_INITIALIZED: None,
@@ -576,7 +587,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
     def _check_set_hgi80(self, pkt):
         """Check/set HGI; log if it is a foreign HGI."""
-        assert pkt.src.type == "18" and pkt.src.id != HGI_DEVICE_ID
+        assert pkt.src.type == DEV_TYPES.HGI and pkt.src.id != HGI_DEV_ADDR.id
 
         if self._hgi80[DEVICE_ID] is None:
             self._hgi80[DEVICE_ID] = pkt.src.id
@@ -602,7 +613,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 raw_line=raw_line,
             )  # should log all? invalid pkts appropriately
 
-            if pkt.src.type == "18":  # dex: ideally should use HGI, but how?
+            if pkt.src.type == DEV_TYPES.HGI:  # dex: ideally should use HGI, but how?
                 self._check_set_hgi80(pkt)
         except InvalidPacketError as exc:
             if "# evofw" in line and self._hgi80[IS_EVOFW3] is None:
@@ -668,7 +679,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 self._unwanted.append(dev_id)
                 return False
 
-            if dev_id in self._include or dev_id in (NON_DEVICE_ID, NUL_DEVICE_ID):
+            if dev_id in self._include or dev_id in (NON_DEV_ADDR.id, NUL_DEV_ADDR.id):
                 # _LOGGER.debug(f"Allowed {dev_id} (in {BLOCK_LIST}, or is the gateway")
                 continue
 
@@ -678,11 +689,11 @@ class PacketProtocolBase(asyncio.Protocol):
                 self._include.append(dev_id)  # NOTE: only time include list is modified
                 continue
 
-            if dev_id[:2] == "18" and self._hgi80[DEVICE_ID] is None:
+            if dev_id[:2] == DEV_TYPES.HGI and self._hgi80[DEVICE_ID] is None:
                 _LOGGER.debug(f"Allowed {dev_id} (is a gateway?){TIP}")
                 continue
 
-            if dev_id[:2] == "18" and self._gwy.serial_port:  # dex
+            if dev_id[:2] == DEV_TYPES.HGI and self._gwy.serial_port:  # dex
                 (_LOGGER.debug if dev_id in self._exclude else _LOGGER.warning)(
                     f"Blocking {dev_id} (is a foreign gateway){TIP}"
                 )
@@ -743,7 +754,9 @@ class PacketProtocolFile(PacketProtocolBase):
         except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
             return
 
-        if pkt.src.type == "18" and pkt.src.id != HGI_DEVICE_ID:  # HACK 01: dex
+        if (
+            pkt.src.type == DEV_TYPES.HGI and pkt.src.id != HGI_DEV_ADDR.id
+        ):  # HACK 01: dex
             self._check_set_hgi80(pkt)
         self._pkt_received(pkt)
 
@@ -792,7 +805,7 @@ class PacketProtocolPort(PacketProtocolBase):
         if self._disable_sending or self._pause_writing:
             raise RuntimeError("Sending is disabled or writing is paused")
 
-        if cmd.src.id != HGI_DEVICE_ID:
+        if cmd.src.id != HGI_DEV_ADDR.id:
             if self._hgi80[IS_EVOFW3]:
                 _LOGGER.info(
                     "Impersonating device: %s, for pkt: %s", cmd.src.id, cmd.tx_header

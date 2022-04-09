@@ -13,7 +13,7 @@ from random import randint
 from types import SimpleNamespace
 from typing import Optional
 
-from .const import DEV_KLASS, NUL_DEVICE_ID, SZ_ZONE_IDX, Discover, __dev_mode__
+from .const import NUL_DEVICE_ID, SZ_ZONE_IDX, Discover, __dev_mode__
 from .entity_base import Entity, class_by_attr, discover_decorator
 from .helpers import shrink
 from .protocol import Command, CorruptStateError
@@ -29,6 +29,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
+    DEVICE_SLUGS,
+    DEV_TYPES,
+    DEV_MAP,
+    ZONE_MAP,
 )
 
 # skipcq: PY-W2000
@@ -147,11 +151,14 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
+ATTR_DEVICE_SLUG = "_DEVICE_SLUG"
+
+
 class DeviceBase(Entity):
     """The Device base class (good for a generic device)."""
 
-    _DEV_KLASS = None
-    _DEV_TYPES = ()  # TODO: needed?
+    _DEVICE_SLUG = None
+    _DEVICE_TYPES = ()  # TODO: needed?
 
     _STATE_ATTR = None
 
@@ -210,7 +217,9 @@ class DeviceBase(Entity):
         return f"{self.id} ({self._domain_id})"
 
     def __str__(self) -> str:
-        return self.id if self._klass is DEV_KLASS.DEV else f"{self.id} ({self._klass})"
+        return (
+            self.id if self._klass is DEVICE_SLUGS.DEV else f"{self.id} ({self._klass})"
+        )
 
     def __lt__(self, other) -> bool:
         if not hasattr(other, "id"):
@@ -305,7 +314,7 @@ class DeviceBase(Entity):
     # @property
     # def _is_parent(self) -> bool:
     #     """Return True if other devices can bind to this device."""
-    #     return self._klass in (DEV_KLASS.CTL, DEV_KLASS.PRG, DEV_KLASS.UFC)
+    #     return self._klass in (DEVICE_SLUGS.CTL, DEVICE_SLUGS.PRG, DEVICE_SLUGS.UFC)
 
     @property
     def _is_present(self) -> bool:
@@ -316,7 +325,7 @@ class DeviceBase(Entity):
 
     @property
     def _klass(self) -> str:
-        return self._DEV_KLASS
+        return self._DEVICE_SLUG
 
     @property
     def traits(self) -> dict:
@@ -355,8 +364,8 @@ class Device(DeviceBase):  # 10E0
     RF_BIND = "rf_bind"
     DEVICE_INFO = "device_info"
 
-    _DEV_KLASS = DEV_KLASS.DEV
-    _DEV_TYPES = ()
+    _DEVICE_SLUG = DEVICE_SLUGS.DEV
+    _DEVICE_TYPES = ()
 
     def _discover(self, discover_flag=Discover.ALL) -> None:
         if discover_flag & Discover.SCHEMA:
@@ -616,8 +625,8 @@ class BatteryState(DeviceBase):  # 1060
 class HgiGateway(DeviceBase):  # HGI (18:), was GWY
     """The HGI80 base class."""
 
-    _DEV_KLASS = DEV_KLASS.HGI
-    _DEV_TYPES = ("18",)
+    _DEVICE_SLUG = DEVICE_SLUGS.HGI
+    _DEVICE_TYPES = (DEV_TYPES.HGI,)
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -751,8 +760,8 @@ class HgiGateway(DeviceBase):  # HGI (18:), was GWY
 class HeatDevice(Device):  # Honeywell CH/DHW or compatible (incl. UFH, Heatpumps)
     """The Device base class for Honeywell CH/DHW or compatible."""
 
-    _DEV_KLASS: str = DEV_KLASS.DEV
-    _DEV_TYPES: tuple[str] = ()
+    _DEVICE_SLUG: str = DEVICE_SLUGS.DEV
+    _DEVICE_TYPES: tuple[str] = ()
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -818,8 +827,8 @@ class HeatDevice(Device):  # Honeywell CH/DHW or compatible (incl. UFH, Heatpump
 class HvacDevice(Device):  # HVAC (ventilation, PIV, MV/HR)
     """The Device base class for HVAC (ventilation, PIV, MV/HR)."""
 
-    # _DEV_KLASS = DEV_KLASS.DEV
-    # _DEV_TYPES = ()
+    # _DEVICE_SLUG = DEVICE_SLUGS.DEV
+    # _DEVICE_TYPES = ()
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -854,4 +863,4 @@ class HvacDevice(Device):  # HVAC (ventilation, PIV, MV/HR)
     #         self._hvac_trick()
 
 
-_CLASS_BY_KLASS = class_by_attr(__name__, "_DEV_KLASS")  # e.g. "HGI": HgiGateway
+_CLASS_BY_KLASS = class_by_attr(__name__, ATTR_DEVICE_SLUG)  # e.g. "HGI": HgiGateway

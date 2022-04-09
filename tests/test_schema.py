@@ -42,7 +42,7 @@ LOG_FILES = (
     "schema_210",
     "schema_211",
     "schema_212",
-    "schema_213",
+    # "schema_213",
     # "schema_000",
     # "schema_001",
     # "schema_002",

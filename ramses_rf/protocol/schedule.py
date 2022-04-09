@@ -16,7 +16,7 @@ from datetime import timedelta as td
 from typing import Optional
 
 from .command import FUNC, TIMEOUT, TIMER_LONG_TIMEOUT, TIMER_SHORT_SLEEP, Command
-from .const import SZ_ZONE_IDX
+from .const import SZ_ZONE_IDX, __dev_mode__
 from .exceptions import ExpiredCallbackError
 
 # skipcq: PY-W2000
@@ -25,7 +25,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    __dev_mode__,
+    DEVICE_SLUGS,
+    DEV_TYPES,
+    DEV_MAP,
+    ZONE_MAP,
 )
 
 # skipcq: PY-W2000

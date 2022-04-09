@@ -15,16 +15,14 @@ from types import SimpleNamespace
 from typing import Optional
 
 from .const import (
-    _000C_DEVICE,
-    _0005_ZONE,
-    ATTR_DATETIME,
-    ATTR_DEVICES,
-    ATTR_HEAT_DEMAND,
-    ATTR_LANGUAGE,
-    ATTR_SYSTEM_MODE,
     SYSTEM_MODE,
+    SZ_DATETIME,
     SZ_DEVICE_CLASS,
+    SZ_DEVICES,
     SZ_DOMAIN_ID,
+    SZ_HEAT_DEMAND,
+    SZ_LANGUAGE,
+    SZ_SYSTEM_MODE,
     SZ_ZONE_IDX,
     Discover,
     __dev_mode__,
@@ -66,6 +64,10 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
+    DEVICE_SLUGS,
+    DEV_TYPES,
+    DEV_MAP,
+    ZONE_MAP,
 )
 
 # skipcq: PY-W2000
@@ -243,9 +245,9 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         if discover_flag & Discover.SCHEMA:
             try:
-                _ = self._msgz[_000C][RP][f"00{_000C_DEVICE.HTG}"]
+                _ = self._msgz[_000C][RP][f"00{DEV_MAP.HTG}"]
             except KeyError:
-                self._make_cmd(_000C, payload=f"00{_000C_DEVICE.HTG}")
+                self._make_cmd(_000C, payload=f"00{DEV_MAP.HTG}")
 
         if discover_flag & Discover.PARAMS:
             self._send_cmd(Command.get_tpi_params(self.id))
@@ -381,7 +383,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150/FC
-        return self._msg_value(_3150, domain_id="FC", key=ATTR_HEAT_DEMAND)
+        return self._msg_value(_3150, domain_id="FC", key=SZ_HEAT_DEMAND)
 
     @property
     def is_calling_for_heat(self) -> Optional[bool]:
@@ -433,8 +435,8 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             _zone = {}
             if zone[SZ_SENSOR] and zone[SZ_SENSOR][:2] == "01":  # DEX
                 _zone = {SZ_SENSOR: zone[SZ_SENSOR]}
-            if devices := [d for d in zone[ATTR_DEVICES] if d[:2] == "00"]:  # DEX
-                _zone.update({ATTR_DEVICES: devices})
+            if devices := [d for d in zone[SZ_DEVICES] if d[:2] == "00"]:  # DEX
+                _zone.update({SZ_DEVICES: devices})
             if _zone:
                 zones[idx] = _zone
         if zones:
@@ -457,21 +459,12 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         status = {SZ_HTG_SYSTEM: {}}
         status[SZ_HTG_SYSTEM]["heat_demand"] = self.heat_demand
 
-        status[ATTR_DEVICES] = {d.id: d.status for d in sorted(self._ctl.devices)}
+        status[SZ_DEVICES] = {d.id: d.status for d in sorted(self._ctl.devices)}
 
         return status
 
 
 class MultiZone(SystemBase):  # 0005 (+/- 000C?)
-    #
-    ZONE_TYPES = [
-        _0005_ZONE.RAD,
-        _0005_ZONE.UFH,
-        _0005_ZONE.VAL,
-        _0005_ZONE.MIX,
-        _0005_ZONE.ELE,
-    ]
-
     def zx_get_htg_zone(self, zone_idx, **schema) -> Zone:
         """Return a heating zone of a CH/DHW system (create it if required).
 
@@ -518,7 +511,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
-            for zone_type in self.ZONE_TYPES:
+            for zone_type in ZONE_MAP.HEATING_ZONES:
                 try:
                     _ = self._msgz[_0005][RP][f"00{zone_type}"]
                 except KeyError:
@@ -680,8 +673,8 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
         if msg.code == _0005:  # RP, and also I
             if msg.payload.get(f"_{SZ_DEVICE_CLASS}") in self.ZONE_TYPES + [
-                _0005_ZONE.ALL,
-                _0005_ZONE.ALL_SENSOR,
+                DEV_MAP.ALL,
+                DEV_MAP.SEN,
             ]:
                 [
                     self.zx_get_htg_zone(f"{idx:02X}")._zx_update_schema(
@@ -694,8 +687,8 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         elif msg.code == _000C:  # RP, and also I
             if msg.payload.get(f"_{SZ_DEVICE_CLASS}") in self.ZONE_TYPES + [
-                _0005_ZONE.ALL,
-                _0005_ZONE.ALL_SENSOR,
+                DEV_MAP.ALL,
+                DEV_MAP.SEN,
             ]:
                 # NOTE: will _zx_update_schema, below
                 self.zx_get_htg_zone(msg.payload[SZ_ZONE_IDX])
@@ -796,12 +789,12 @@ class Language(SystemBase):  # 0100
 
     @property
     def language(self) -> Optional[str]:
-        return self._msg_value(_0100, key=ATTR_LANGUAGE)
+        return self._msg_value(_0100, key=SZ_LANGUAGE)
 
     @property
     def params(self) -> dict:
         params = super().params
-        params[SZ_HTG_SYSTEM][ATTR_LANGUAGE] = self.language
+        params[SZ_HTG_SYSTEM][SZ_LANGUAGE] = self.language
         return params
 
 
@@ -942,9 +935,9 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
 
         if discover_flag & Discover.SCHEMA:
             try:
-                _ = self._msgz[_000C][RP][f"00{_000C_DEVICE.DHW_SENSOR}"]
+                _ = self._msgz[_000C][RP][f"00{DEV_MAP.DHW}"]
             except KeyError:
-                self._make_cmd(_000C, payload=f"00{_000C_DEVICE.DHW_SENSOR}")
+                self._make_cmd(_000C, payload=f"00{DEV_MAP.DHW}")
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -1040,7 +1033,7 @@ class SysMode(SystemBase):  # 2E04
     @property
     def params(self) -> dict:
         params = super().params
-        params[SZ_HTG_SYSTEM][ATTR_SYSTEM_MODE] = self.system_mode
+        params[SZ_HTG_SYSTEM][SZ_SYSTEM_MODE] = self.system_mode
         return params
 
 
@@ -1068,7 +1061,7 @@ class Datetime(SystemBase):  # 313F
     @property
     def _datetime(self) -> Optional[dt]:  # 313F
         """Return the last seen datetime (NB: the packet could be from hours ago)."""
-        if dtm_str := self._msg_value(_313F, key=ATTR_DATETIME):
+        if dtm_str := self._msg_value(_313F, key=SZ_DATETIME):
             return dt.fromisoformat(dtm_str)
 
     async def get_datetime(self) -> Optional[dt]:
