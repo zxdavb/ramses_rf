@@ -85,8 +85,9 @@ MAIN_DICT = {
     "MIX": {"0B": "mix_actuator"},
     "OUT": {"0C": "out_sensor"},
     "DHW": {"0D": "dhw_sensor"},
-    "HTG": {"0E": "heating_relay"},
-    "APP": {"0F": "system_relay"},
+    "HTG": {"0E": "hotwater_valve"},
+    "HT1": {None: "heating_valve"},
+    "APP": {"0F": "appliance_control"},
     "RFG": {"10": "remote_gateway"},
     "ELE": {"11": "ele_actuator"},
 }

@@ -463,8 +463,9 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
                 self._get_dhw(sensor=this.dst)
 
         assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
-        assert (
-            msg.code != _000C or msg.payload.get(SZ_DOMAIN_ID) == "FA"
+        assert msg.code != _000C or msg.payload.get(SZ_DOMAIN_ID) in (
+            "F9",
+            "FA",
         ), f"msg inappropriately routed to {self}"
 
         super()._handle_msg(msg)

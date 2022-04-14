@@ -100,265 +100,6 @@ _4401 = "4401"
 _PUZZ = "7FFF"
 
 
-SZ_DEVICE_CLASS = "device_class"
-SZ_DOMAIN_ID = "domain_id"
-SZ_OUTSIDE_SENSOR = "outside_sensor"
-SZ_ZONE_IDX = "zone_idx"
-SZ_ZONE_SENSOR = "zone_sensor"
-SZ_ZONE_CLASS = "zone_class"
-SZ_ZONE_MASK = "zone_mask"
-SZ_ZONE_TYPE = "zone_type"
-
-
-# slugs for device/zone entity klasses, used by 0005/000C
-DEV_CLASS = SimpleNamespace(
-    #
-    # Generic device/zone classes
-    ACT="ACT",  # Generic heating zone actuator group
-    SEN="SEN",  # Generic heating zone sensor group
-    #
-    # Standard device/zone classes
-    ELE="ELE",  # zone with BDRs (no heat demand)
-    MIX="MIX",  # zone with HM8s
-    RAD="RAD",  # zone with TRVs
-    UFH="UFH",  # zone with UFC circuits
-    VAL="VAL",  # zone with BDRs
-    #
-    # DHW device/zone classes
-    DHW="DHW",  # DHW sensor (a zone, but not a heating zone)
-    HTG="HTG",  # BDR (DHW relay, HTG relay)
-    HT1="HT1",  # BDR (HTG relay)
-    #
-    # Other device/zone classes
-    OUT="OUT",  # OUT (external weather sensor)
-    RFG="RFG",  # RFG
-    APP="APP",  # BDR/OTB (appliance relay)
-)
-
-# slugs for device entity types, used in device_ids
-DEV_TYPE = SimpleNamespace(
-    #
-    # Promotable/Generic devices
-    DEV="DEV",  # xx: Promotable device
-    HEA="HEA",  # xx: Promotable Heat device, aka CH/DHW device
-    HVC="HVC",  # xx: Promotable HVAC device
-    THM="THM",  # xx: Generic thermostat
-    #
-    # Heat (CH/DHW) devices
-    BDR="BDR",  # 13: Electrical relay
-    CTL="CTL",  # 01: Controller (zoned)
-    DHW="DHW",  # 07: DHW sensor
-    DTS="DTS",  # 12: Thermostat, DTS92(E)
-    DT2="DT2",  # 22: Thermostat, DTS92(E)
-    HCW="HCW",  # 03: Thermostat - don't use STA
-    HGI="HGI",  # 18: Gateway interface (RF to USB), HGI80
-    OTB="OTB",  # 10: OpenTherm bridge
-    OUT="OUT",  # 17: External weather sensor
-    PRG="PRG",  # 23: Programmer
-    RFG="RFG",  # 30: RF gateway (RF to ethernet), RFG100
-    RND="RND",  # 34: Thermostat, TR87RF
-    TRV="TRV",  # 04: Thermostatic radiator valve
-    TR0="TR0",  # 00: Thermostatic radiator valve
-    UFC="UFC",  # 02: UFH controller
-    #
-    # Honeywell Jasper, other Heat devices
-    JIM="JIM",  # 08: Jasper Interface Module (EIM?)
-    JST="JST",  # 31: Jasper Stat
-    # HM8="HM8",  # xx: HM80 mixer valve
-    #
-    # HVAC devices, these are more like classes (i.e. no reliable device type)
-    RFS="RFS",  # ??: HVAC spIDer gateway
-    CO2="CO2",  # ??: HVAC CO2 sensor
-    FAN="FAN",  # ??: HVAC fan, 31D[9A]: 20|29|30|37 (some, e.g. 29: only 31D9)
-    HUM="HUM",  # ??: HVAC humidity sensor, 1260: 32
-    SWI="SWI",  # ??: HVAC switch, 22F[13]: 02|06|20|32|39|42|49|59 (no 20: are both)
-)
-
-# slugs for zone entity klasses, used by 0005/000C
-ZON_CLASS = SimpleNamespace(
-    #
-    # Generic device/zone classes
-    ACT="ACT",  # Generic heating zone actuator group
-    SEN="SEN",  # Generic heating zone sensor group
-    #
-    # Standard device/zone classes
-    ELE="ELE",  # heating zone with BDRs (no heat demand)
-    MIX="MIX",  # heating zone with HM8s
-    RAD="RAD",  # heating zone with TRVs
-    UFH="UFH",  # heating zone with UFC circuits
-    VAL="VAL",  # zheating one with BDRs
-    # Standard device/zone classes *not a heating zone)
-    DHW="DHW",  # DHW zone with BDRs
-)
-
-DEV_KLASS_BY_TYPE = {  # only CH/DHW defaults, not HVAC
-    "00": DEV_TYPE.TRV,
-    "01": DEV_TYPE.CTL,
-    "02": DEV_TYPE.UFC,
-    "03": DEV_TYPE.THM,
-    "04": DEV_TYPE.TRV,
-    "07": DEV_TYPE.DHW,
-    "08": DEV_TYPE.JIM,
-    "10": DEV_TYPE.OTB,
-    "12": DEV_TYPE.THM,
-    "13": DEV_TYPE.BDR,
-    "17": DEV_TYPE.OUT,
-    "18": DEV_TYPE.HGI,
-    "22": DEV_TYPE.THM,
-    "23": DEV_TYPE.PRG,
-    "30": DEV_TYPE.RFG,
-    "31": DEV_TYPE.JST,
-    "34": DEV_TYPE.THM,
-    "63": None,
-    "--": None,
-}
-
-DEFAULT_MAX_ZONES = 16 if DEV_MODE else 12
-# Evohome: 12 (0-11), older/initial version was 8
-# Hometronics: 16 (0-15), or more?
-# Sundial RF2: 2 (0-1), usually only one, but ST9520C can do two zones
-
-_DEV_REGEX_ANY = r"^[0-9]{2}:[0-9]{6}$"
-_DEV_REGEX_BDR = r"^13:[0-9]{6}$"
-_DEV_REGEX_CTL = r"^(01|23):[0-9]{6}$"
-_DEV_REGEX_DHW = r"^07:[0-9]{6}$"
-_DEV_REGEX_HGI = r"^18:[0-9]{6}$"
-_DEV_REGEX_HTG = r"^(10|13):[0-9]{6}$"
-_DEV_REGEX_UFC = r"^02:[0-9]{6}$"
-_DEV_REGEX_SEN = r"^(01|03|04|12|22|34):[0-9]{6}$"
-
-DEVICE_ID_REGEX = SimpleNamespace(
-    ANY=_DEV_REGEX_ANY,
-    BDR=_DEV_REGEX_BDR,
-    CTL=_DEV_REGEX_CTL,
-    DHW=_DEV_REGEX_DHW,
-    HGI=_DEV_REGEX_HGI,
-    HTG=_DEV_REGEX_HTG,
-    UFC=_DEV_REGEX_UFC,
-    SEN=_DEV_REGEX_SEN,
-)
-
-ATTR_DHW_SENSOR = "hotwater_sensor"
-ATTR_DHW_VALVE = "hotwater_valve"
-ATTR_HTG_VALVE = "heating_valve"
-
-ATTR_TCS_RELAY = "tcs_relay"  # aka boiler relay, heating appliance
-
-# Domains
-DOMAIN_TYPE_MAP = {
-    "F8": None,
-    "F9": ATTR_HTG_VALVE,  # DHW Heating Valve
-    "FA": ATTR_DHW_VALVE,  # DHW HW Valve (or UFH loop if src.type == DEV_TYPE_MAP.UFC?)
-    "FB": None,
-    "FC": ATTR_TCS_RELAY,  # "heat_relay": BDR (Boiler, District heating), or OTB
-    "FD": "unknown",  # seen with hometronics
-    # "FF": "system",  # TODO: remove this, is not a domain
-}  # "21": "Ventilation",
-DOMAIN_TYPE_LOOKUP = {v: k for k, v in DOMAIN_TYPE_MAP.items() if k != "FF"}
-
-DHW_STATE_MAP = {"00": "off", "01": "on"}
-DHW_STATE_LOOKUP = {v: k for k, v in DHW_STATE_MAP.items()}
-
-DTM_LONG_REGEX = re.compile(
-    r"\d{4}-[01]\d-[0-3]\d(T| )[0-2]\d:[0-5]\d:[0-5]\d\.\d{6} ?"
-)  # 2020-11-30T13:15:00.123456
-DTM_TIME_REGEX = re.compile(r"[0-2]\d:[0-5]\d:[0-5]\d\.\d{3} ?")  # 13:15:00.123
-
-# Used by packet structure validators
-r = r"(-{3}|\d{3}|\.{3})"  # RSSI, '...' was used by an older version of evofw3
-v = r"( I|RP|RQ| W)"  # Verb
-d = r"(-{2}:-{6}|\d{2}:\d{6})"  # Device ID
-c = r"[0-9A-F]{4}"  # Code
-l = r"\d{3}"  # Length # noqa: E741
-p = r"([0-9A-F]{2}){1,48}"  # Payload
-
-# DEVICE_ID_REGEX = re.compile(f"^{d}$")
-COMMAND_REGEX = re.compile(f"^{v} {r} {d} {d} {d} {c} {l} {p}$")
-MESSAGE_REGEX = re.compile(f"^{r} {v} {r} {d} {d} {d} {c} {l} {p}$")
-
-ATTR_HTG_PUMP = "heat_pump_control"  # same as ATTR_TCS_RELAY, but parameters differ
-ATTR_STORED_HW = "stored_hotwater"
-ATTR_TEMP = "temperature"
-ATTR_UFH_CONTROLLERS = "ufh_controllers"
-ATTR_ZONE_ACTUATORS = "zone_actuator"
-ATTR_ZONE_IDX = SZ_ZONE_IDX
-ATTR_ZONE_SENSOR = SZ_ZONE_SENSOR
-ATTR_ZONE_TYPE = "heating_type"
-
-SZ_DATETIME = "datetime"
-SZ_DEVICES = "devices"
-SZ_HEAT_DEMAND = "heat_demand"
-SZ_LANGUAGE = "language"
-SZ_NAME = "name"
-SZ_RELAY_DEMAND = "relay_demand"
-SZ_RELAY_FAILSAFE = "relay_failsafe"
-SZ_SETPOINT = "setpoint"
-SZ_SYSTEM = "system"
-SZ_SYSTEM_MODE = "system_mode"
-SZ_WINDOW_OPEN = "window_open"
-SZ_ZONES = "zones"
-
-
-######################
-# klasses of heating zones
-
-SZ_RADIATOR_VALVE = "radiator_valve"
-SZ_UNDERFLOOR_HEATING = "underfloor_heating"
-SZ_ZONE_VALVE = "zone_valve"
-SZ_MIXING_VALVE = "mixing_valve"
-SZ_ELECTRIC_HEAT = "electric_heat"
-
-
-ZONE_TABLE = {
-    ZON_CLASS.UFH: {"type": "02", "actuator": "UFC", "name": "Underfloor Heating"},
-    ZON_CLASS.RAD: {"type": "04", "actuator": "TRV", "name": "Radiator Valve"},
-    ZON_CLASS.ELE: {"type": "13", "actuator": "BDR", "name": "Electric Heat"},
-    ZON_CLASS.VAL: {"type": "x0", "actuator": "BDR", "name": "Zone Valve"},
-    ZON_CLASS.MIX: {"type": "x1", "actuator": "HM8", "name": "Mixing Valve"},
-    ZON_CLASS.DHW: {"type": "x2", "sensor": ZON_CLASS.DHW, "name": "Stored DHW"},
-}
-ZON_CLASS_MAP = {v["type"]: k for k, v in ZONE_TABLE.items()}
-ZON_CLASS_MAP["00"] = ZON_CLASS_MAP["04"]
-
-ZONE_TYPE_MAP = {k: slug(v["name"]) for k, v in ZONE_TABLE.items()}
-ZONE_TYPE_SLUGS = {slug(v["name"]): k for k, v in ZONE_TABLE.items()}
-
-
-# Used by 0418/system_fault parser
-_0418_DEVICE_CLASS = {
-    "00": "controller",
-    "01": "sensor",
-    "02": "setpoint",
-    "04": "actuator",  # if domain is FC, then "boiler_relay"
-    "05": "dhw_sensor",  # not ATTR_DHW_SENSOR
-    "06": "remote_gateway",
-}
-_0418_FAULT_STATE = {
-    "00": "fault",
-    "40": "restore",
-    "C0": "unknown_c0",  # C0s do not appear in the evohome UI
-}
-_0418_FAULT_TYPE = {
-    "01": "system_fault",
-    "03": "mains_low",
-    "04": "battery_low",
-    "05": "battery_error",  # actually: 'evotouch_battery_error'
-    "06": "comms_fault",
-    "07": "sensor_fault",  # seen with zone sensor
-    "0A": "sensor_error",
-    "??": "bad_value",
-}
-
-SystemType = SimpleNamespace(
-    CHRONOTHERM="chronotherm",
-    EVOHOME="evohome",
-    HOMETRONICS="hometronics",
-    PROGRAMMER="programmer",
-    SUNDIAL="sundial",
-    GENERIC="generic",
-)
-
-
 class AttrDictOld(dict):
     # NOTE: 'advanced_override' in ZONE_MODE == False
 
@@ -407,70 +148,6 @@ class AttrDictOld(dict):
         if key in self._reverse:
             return key
         raise KeyError(key)
-
-
-SZ_FOLLOW_SCHEDULE = "follow_schedule"
-SZ_ADVANCED_OVERRIDE = "advanced_override"
-SZ_PERMANENT_OVERRIDE = "permanent_override"
-SZ_COUNTDOWN_OVERRIDE = "countdown_override"
-SZ_TEMPORARY_OVERRIDE = "temporary_override"
-
-_ZONE_MODES = {
-    "00": SZ_FOLLOW_SCHEDULE,
-    "01": SZ_ADVANCED_OVERRIDE,  # until the next scheduled setpoint
-    "02": SZ_PERMANENT_OVERRIDE,  # indefinitely
-    "03": SZ_COUNTDOWN_OVERRIDE,  # for a number of minutes (duration, max 1,215?)
-    "04": SZ_TEMPORARY_OVERRIDE,  # until a given date/time (until)
-}
-
-
-class ZoneModes(AttrDictOld):
-    __slots__ = [f"_{k}" for k in _ZONE_MODES] + list(_ZONE_MODES.values())
-
-
-ZONE_MODE = ZoneModes(_ZONE_MODES)
-
-SZ_AUTO = "auto"
-SZ_HEAT_OFF = "heat_off"
-SZ_ECO_BOOST = "eco_boost"
-SZ_AWAY = "away"
-SZ_DAY_OFF = "day_off"
-SZ_DAY_OFF_ECO = "day_off_eco"
-SZ_AUTO_WITH_RESET = "auto_with_reset"
-SZ_CUSTOM = "custom"
-
-_SYSTEM_MODES = {
-    "00": SZ_AUTO,  # .          indef only
-    "01": SZ_HEAT_OFF,  # .      indef only
-    "02": SZ_ECO_BOOST,  # .     indef, or 24h: is either Eco, or Boost
-    "03": SZ_AWAY,  # .          indef, or 99d (0d = end of today, 00:00)
-    "04": SZ_DAY_OFF,  # .       indef, or 99d (rounded down to 00:00 bt CTL)
-    "05": SZ_DAY_OFF_ECO,  # .   indef, or 99d: set to Eco when DayOff ends
-    "06": SZ_AUTO_WITH_RESET,  # indef only
-    "07": SZ_CUSTOM,  # .        indef, or 99d
-}
-
-
-class SystemModes(AttrDictOld):
-    __slots__ = [f"_{k}" for k in _SYSTEM_MODES] + list(_SYSTEM_MODES.values())
-
-
-SYSTEM_MODE = SystemModes(_SYSTEM_MODES)
-
-# used by 22Fx parser, and FanSwitch devices
-BOOST_TIMER = "boost_timer"  # minutes, e.g. 10, 20, 30 minutes
-HEATER_MODE = "heater_mode"  # e.g. auto, off
-HEATER_MODES = {9: "off", 10: "auto"}  # TODO:
-
-FAN_MODE = "fan_mode"  # e.g. low. high
-FAN_MODES = {
-    0: "standby",
-    1: "auto",
-    2: "low",
-    3: "medium",
-    4: "high",  # a.k.a. boost if timer on
-}
-FAN_RATE = "fan_rate"  # percentage, 0.0 - 1.0
 
 
 class AttrDict(dict):
@@ -587,7 +264,89 @@ def attr_dict_factory(main_table, attr_table=None) -> AttrDict:  # is: SlottedAt
     return SlottedAttrDict(main_table, attr_table=attr_table)
 
 
-# these are device object types (as used in device_ids)
+# slugs for device/zone entity klasses, used by 0005/000C
+DEV_CLASS = SimpleNamespace(
+    #
+    # Generic device/zone classes
+    ACT="ACT",  # Generic heating zone actuator group
+    SEN="SEN",  # Generic heating zone sensor group
+    #
+    # Standard device/zone classes
+    ELE="ELE",  # zone with BDRs (no heat demand)
+    MIX="MIX",  # zone with HM8s
+    RAD="RAD",  # zone with TRVs
+    UFH="UFH",  # zone with UFC circuits
+    VAL="VAL",  # zone with BDRs
+    #
+    # DHW device/zone classes
+    DHW="DHW",  # DHW sensor (a zone, but not a heating zone)
+    HTG="HTG",  # BDR (DHW relay, HTG relay)
+    HT1="HT1",  # BDR (HTG relay)
+    #
+    # Other device/zone classes
+    OUT="OUT",  # OUT (external weather sensor)
+    RFG="RFG",  # RFG
+    APP="APP",  # BDR/OTB (appliance relay)
+)
+DEV_CLASS_MAP = attr_dict_factory(
+    {
+        DEV_CLASS.ACT: {"00": "zone_actuator"},
+        DEV_CLASS.SEN: {"04": "zone_sensor"},
+        DEV_CLASS.RAD: {"08": "rad_actuator"},
+        DEV_CLASS.UFH: {"09": "ufh_actuator"},
+        DEV_CLASS.VAL: {"0A": "val_actuator"},
+        DEV_CLASS.MIX: {"0B": "mix_actuator"},
+        DEV_CLASS.OUT: {"0C": "out_sensor"},
+        DEV_CLASS.DHW: {"0D": "dhw_sensor"},
+        DEV_CLASS.HTG: {"0E": "hotwater_valve"},  # payload[:4] == 000E
+        DEV_CLASS.HT1: {None: "heating_valve"},  # payload[:4] == 010E
+        DEV_CLASS.APP: {"0F": "appliance_control"},  # the heat/cool source
+        DEV_CLASS.RFG: {"10": "remote_gateway"},
+        DEV_CLASS.ELE: {"11": "ele_actuator"},  # ELE(VAL) - no RP from older evos
+    },  # 03, 05, 06, 07: & >11 - no response from an 01:
+    {
+        "HEAT_DEVICES": ("00", "04", "08", "09", "0A", "0B", "11"),
+    },
+)
+
+# slugs for device entity types, used in device_ids
+DEV_TYPE = SimpleNamespace(
+    #
+    # Promotable/Generic devices
+    DEV="DEV",  # xx: Promotable device
+    HEA="HEA",  # xx: Promotable Heat device, aka CH/DHW device
+    HVC="HVC",  # xx: Promotable HVAC device
+    THM="THM",  # xx: Generic thermostat
+    #
+    # Heat (CH/DHW) devices
+    BDR="BDR",  # 13: Electrical relay
+    CTL="CTL",  # 01: Controller (zoned)
+    DHW="DHW",  # 07: DHW sensor
+    DTS="DTS",  # 12: Thermostat, DTS92(E)
+    DT2="DT2",  # 22: Thermostat, DTS92(E)
+    HCW="HCW",  # 03: Thermostat - don't use STA
+    HGI="HGI",  # 18: Gateway interface (RF to USB), HGI80
+    OTB="OTB",  # 10: OpenTherm bridge
+    OUT="OUT",  # 17: External weather sensor
+    PRG="PRG",  # 23: Programmer
+    RFG="RFG",  # 30: RF gateway (RF to ethernet), RFG100
+    RND="RND",  # 34: Thermostat, TR87RF
+    TRV="TRV",  # 04: Thermostatic radiator valve
+    TR0="TR0",  # 00: Thermostatic radiator valve
+    UFC="UFC",  # 02: UFH controller
+    #
+    # Honeywell Jasper, other Heat devices
+    JIM="JIM",  # 08: Jasper Interface Module (EIM?)
+    JST="JST",  # 31: Jasper Stat
+    # HM8="HM8",  # xx: HM80 mixer valve
+    #
+    # HVAC devices, these are more like classes (i.e. no reliable device type)
+    RFS="RFS",  # ??: HVAC spIDer gateway
+    CO2="CO2",  # ??: HVAC CO2 sensor
+    FAN="FAN",  # ??: HVAC fan, 31D[9A]: 20|29|30|37 (some, e.g. 29: only 31D9)
+    HUM="HUM",  # ??: HVAC humidity sensor, 1260: 32
+    SWI="SWI",  # ??: HVAC switch, 22F[13]: 02|06|20|32|39|42|49|59 (no 20: are both)
+)
 DEV_TYPE_MAP = attr_dict_factory(
     {
         # Generic devices (would be promoted)
@@ -645,30 +404,22 @@ DEV_TYPE_MAP = attr_dict_factory(
     },
 )
 
-# these are used in 0005/000C packets
-DEV_CLASS_MAP = attr_dict_factory(
-    {
-        DEV_CLASS.ACT: {"00": "zone_actuator"},
-        DEV_CLASS.SEN: {"04": "zone_sensor"},
-        DEV_CLASS.RAD: {"08": "rad_actuator"},
-        DEV_CLASS.UFH: {"09": "ufh_actuator"},
-        DEV_CLASS.VAL: {"0A": "val_actuator"},
-        DEV_CLASS.MIX: {"0B": "mix_actuator"},
-        DEV_CLASS.OUT: {"0C": "out_sensor"},
-        DEV_CLASS.DHW: {"0D": "dhw_sensor"},
-        DEV_CLASS.HTG: {"0E": "hotwater_relay"},  # payload[:4] == 000E
-        DEV_CLASS.HT1: {None: "heating_relay"},  # payload[:4] == 010E
-        DEV_CLASS.APP: {"0F": "appliance_control"},  # the heat/cool source
-        DEV_CLASS.RFG: {"10": "remote_gateway"},
-        DEV_CLASS.ELE: {"11": "ele_actuator"},  # ELE(VAL) - no RP from older evos
-    },  # 03, 05, 06, 07: & >11 - no response from an 01:
-    {
-        "HEAT_DEVICES": ("00", "04", "08", "09", "0A", "0B", "11"),
-    },
+# slugs for zone entity klasses, used by 0005/000C
+ZON_CLASS = SimpleNamespace(
+    #
+    # Generic device/zone classes
+    ACT="ACT",  # Generic heating zone actuator group
+    SEN="SEN",  # Generic heating zone sensor group
+    #
+    # Standard device/zone classes
+    ELE="ELE",  # heating zone with BDRs (no heat demand)
+    MIX="MIX",  # heating zone with HM8s
+    RAD="RAD",  # heating zone with TRVs
+    UFH="UFH",  # heating zone with UFC circuits
+    VAL="VAL",  # zheating one with BDRs
+    # Standard device/zone classes *not a heating zone)
+    DHW="DHW",  # DHW zone with BDRs
 )
-
-
-# these are used in 0005/000C packets
 ZON_CLASS_MAP = attr_dict_factory(
     {
         ZON_CLASS.ACT: {"00": "heating_zone"},  # any actuator
@@ -683,6 +434,222 @@ ZON_CLASS_MAP = attr_dict_factory(
         "HEAT_ZONES": ("08", "09", "0A", "0B", "11"),
     },
 )
+
+
+SZ_DEVICE_CLASS = "device_class"
+SZ_DOMAIN_ID = "domain_id"
+SZ_OUTSIDE_SENSOR = "outside_sensor"
+SZ_ZONE_IDX = "zone_idx"
+SZ_ZONE_SENSOR = "zone_sensor"
+SZ_ZONE_CLASS = "zone_class"
+SZ_ZONE_MASK = "zone_mask"
+SZ_ZONE_TYPE = "zone_type"
+
+
+DEFAULT_MAX_ZONES = 16 if DEV_MODE else 12
+# Evohome: 12 (0-11), older/initial version was 8
+# Hometronics: 16 (0-15), or more?
+# Sundial RF2: 2 (0-1), usually only one, but ST9520C can do two zones
+
+_DEV_REGEX_ANY = r"^[0-9]{2}:[0-9]{6}$"
+_DEV_REGEX_BDR = r"^13:[0-9]{6}$"
+_DEV_REGEX_CTL = r"^(01|23):[0-9]{6}$"
+_DEV_REGEX_DHW = r"^07:[0-9]{6}$"
+_DEV_REGEX_HGI = r"^18:[0-9]{6}$"
+_DEV_REGEX_HTG = r"^(10|13):[0-9]{6}$"
+_DEV_REGEX_UFC = r"^02:[0-9]{6}$"
+_DEV_REGEX_SEN = r"^(01|03|04|12|22|34):[0-9]{6}$"
+
+DEVICE_ID_REGEX = SimpleNamespace(
+    ANY=_DEV_REGEX_ANY,
+    BDR=_DEV_REGEX_BDR,
+    CTL=_DEV_REGEX_CTL,
+    DHW=_DEV_REGEX_DHW,
+    HGI=_DEV_REGEX_HGI,
+    HTG=_DEV_REGEX_HTG,
+    UFC=_DEV_REGEX_UFC,
+    SEN=_DEV_REGEX_SEN,
+)
+
+ATTR_DHW_SENSOR = "hotwater_sensor"
+
+# Domains
+DOMAIN_TYPE_MAP = {
+    "F8": None,
+    "F9": DEV_CLASS_MAP._str("HT1"),  # DHW Heating Valve
+    "FA": DEV_CLASS_MAP._str("HTG"),  # DHW HW Valve (or UFH loop if src.type == UFC?)
+    "FB": None,
+    "FC": DEV_CLASS_MAP._str("APP"),  # appliance_control
+    "FD": "unknown",  # seen with hometronics
+    # "FF": "system",  # TODO: remove this, is not a domain
+}  # "21": "Ventilation",
+DOMAIN_TYPE_LOOKUP = {v: k for k, v in DOMAIN_TYPE_MAP.items() if k != "FF"}
+
+DHW_STATE_MAP = {"00": "off", "01": "on"}
+DHW_STATE_LOOKUP = {v: k for k, v in DHW_STATE_MAP.items()}
+
+DTM_LONG_REGEX = re.compile(
+    r"\d{4}-[01]\d-[0-3]\d(T| )[0-2]\d:[0-5]\d:[0-5]\d\.\d{6} ?"
+)  # 2020-11-30T13:15:00.123456
+DTM_TIME_REGEX = re.compile(r"[0-2]\d:[0-5]\d:[0-5]\d\.\d{3} ?")  # 13:15:00.123
+
+# Used by packet structure validators
+r = r"(-{3}|\d{3}|\.{3})"  # RSSI, '...' was used by an older version of evofw3
+v = r"( I|RP|RQ| W)"  # Verb
+d = r"(-{2}:-{6}|\d{2}:\d{6})"  # Device ID
+c = r"[0-9A-F]{4}"  # Code
+l = r"\d{3}"  # Length # noqa: E741
+p = r"([0-9A-F]{2}){1,48}"  # Payload
+
+# DEVICE_ID_REGEX = re.compile(f"^{d}$")
+COMMAND_REGEX = re.compile(f"^{v} {r} {d} {d} {d} {c} {l} {p}$")
+MESSAGE_REGEX = re.compile(f"^{r} {v} {r} {d} {d} {d} {c} {l} {p}$")
+
+ATTR_STORED_HW = "stored_hotwater"
+ATTR_TEMP = "temperature"
+ATTR_UFH_CONTROLLERS = "ufh_controllers"
+ATTR_ZONE_ACTUATORS = "zone_actuator"
+ATTR_ZONE_IDX = SZ_ZONE_IDX
+ATTR_ZONE_SENSOR = SZ_ZONE_SENSOR
+ATTR_ZONE_TYPE = "heating_type"
+
+SZ_DATETIME = "datetime"
+SZ_DEVICES = "devices"
+SZ_HEAT_DEMAND = "heat_demand"
+SZ_LANGUAGE = "language"
+SZ_NAME = "name"
+SZ_RELAY_DEMAND = "relay_demand"
+SZ_RELAY_FAILSAFE = "relay_failsafe"
+SZ_SETPOINT = "setpoint"
+SZ_SYSTEM = "system"
+SZ_SYSTEM_MODE = "system_mode"
+SZ_WINDOW_OPEN = "window_open"
+SZ_ZONES = "zones"
+
+
+######################
+# klasses of heating zones
+
+SZ_RADIATOR_VALVE = "radiator_valve"
+SZ_UNDERFLOOR_HEATING = "underfloor_heating"
+SZ_ZONE_VALVE = "zone_valve"
+SZ_MIXING_VALVE = "mixing_valve"
+SZ_ELECTRIC_HEAT = "electric_heat"
+
+
+ZONE_TABLE = {
+    ZON_CLASS.UFH: {"type": "02", "actuator": "UFC", "name": "Underfloor Heating"},
+    ZON_CLASS.RAD: {"type": "04", "actuator": "TRV", "name": "Radiator Valve"},
+    ZON_CLASS.ELE: {"type": "13", "actuator": "BDR", "name": "Electric Heat"},
+    ZON_CLASS.VAL: {"type": "x0", "actuator": "BDR", "name": "Zone Valve"},
+    ZON_CLASS.MIX: {"type": "x1", "actuator": "HM8", "name": "Mixing Valve"},
+    ZON_CLASS.DHW: {"type": "x2", "sensor": ZON_CLASS.DHW, "name": "Stored DHW"},
+}
+ZON_CLASS_MAP = {v["type"]: k for k, v in ZONE_TABLE.items()}
+ZON_CLASS_MAP["00"] = ZON_CLASS_MAP["04"]
+
+ZONE_TYPE_MAP = {k: slug(v["name"]) for k, v in ZONE_TABLE.items()}
+ZONE_TYPE_SLUGS = {slug(v["name"]): k for k, v in ZONE_TABLE.items()}
+
+
+# Used by 0418/system_fault parser
+_0418_DEVICE_CLASS = {
+    "00": "controller",
+    "01": "sensor",
+    "02": "setpoint",
+    "04": "actuator",  # if domain is FC, then "boiler_relay"
+    "05": "dhw_sensor",  # not ATTR_DHW_SENSOR
+    "06": "remote_gateway",
+}
+_0418_FAULT_STATE = {
+    "00": "fault",
+    "40": "restore",
+    "C0": "unknown_c0",  # C0s do not appear in the evohome UI
+}
+_0418_FAULT_TYPE = {
+    "01": "system_fault",
+    "03": "mains_low",
+    "04": "battery_low",
+    "05": "battery_error",  # actually: 'evotouch_battery_error'
+    "06": "comms_fault",
+    "07": "sensor_fault",  # seen with zone sensor
+    "0A": "sensor_error",
+    "??": "bad_value",
+}
+
+SystemType = SimpleNamespace(
+    CHRONOTHERM="chronotherm",
+    EVOHOME="evohome",
+    HOMETRONICS="hometronics",
+    PROGRAMMER="programmer",
+    SUNDIAL="sundial",
+    GENERIC="generic",
+)
+
+
+SZ_FOLLOW_SCHEDULE = "follow_schedule"
+SZ_ADVANCED_OVERRIDE = "advanced_override"
+SZ_PERMANENT_OVERRIDE = "permanent_override"
+SZ_COUNTDOWN_OVERRIDE = "countdown_override"
+SZ_TEMPORARY_OVERRIDE = "temporary_override"
+
+_ZONE_MODES = {
+    "00": SZ_FOLLOW_SCHEDULE,
+    "01": SZ_ADVANCED_OVERRIDE,  # until the next scheduled setpoint
+    "02": SZ_PERMANENT_OVERRIDE,  # indefinitely
+    "03": SZ_COUNTDOWN_OVERRIDE,  # for a number of minutes (duration, max 1,215?)
+    "04": SZ_TEMPORARY_OVERRIDE,  # until a given date/time (until)
+}
+
+
+class ZoneModes(AttrDictOld):
+    __slots__ = [f"_{k}" for k in _ZONE_MODES] + list(_ZONE_MODES.values())
+
+
+ZONE_MODE = ZoneModes(_ZONE_MODES)
+
+SZ_AUTO = "auto"
+SZ_HEAT_OFF = "heat_off"
+SZ_ECO_BOOST = "eco_boost"
+SZ_AWAY = "away"
+SZ_DAY_OFF = "day_off"
+SZ_DAY_OFF_ECO = "day_off_eco"
+SZ_AUTO_WITH_RESET = "auto_with_reset"
+SZ_CUSTOM = "custom"
+
+_SYSTEM_MODES = {
+    "00": SZ_AUTO,  # .          indef only
+    "01": SZ_HEAT_OFF,  # .      indef only
+    "02": SZ_ECO_BOOST,  # .     indef, or 24h: is either Eco, or Boost
+    "03": SZ_AWAY,  # .          indef, or 99d (0d = end of today, 00:00)
+    "04": SZ_DAY_OFF,  # .       indef, or 99d (rounded down to 00:00 bt CTL)
+    "05": SZ_DAY_OFF_ECO,  # .   indef, or 99d: set to Eco when DayOff ends
+    "06": SZ_AUTO_WITH_RESET,  # indef only
+    "07": SZ_CUSTOM,  # .        indef, or 99d
+}
+
+
+class SystemModes(AttrDictOld):
+    __slots__ = [f"_{k}" for k in _SYSTEM_MODES] + list(_SYSTEM_MODES.values())
+
+
+SYSTEM_MODE = SystemModes(_SYSTEM_MODES)
+
+# used by 22Fx parser, and FanSwitch devices
+BOOST_TIMER = "boost_timer"  # minutes, e.g. 10, 20, 30 minutes
+HEATER_MODE = "heater_mode"  # e.g. auto, off
+HEATER_MODES = {9: "off", 10: "auto"}  # TODO:
+
+FAN_MODE = "fan_mode"  # e.g. low. high
+FAN_MODES = {
+    0: "standby",
+    1: "auto",
+    2: "low",
+    3: "medium",
+    4: "high",  # a.k.a. boost if timer on
+}
+FAN_RATE = "fan_rate"  # percentage, 0.0 - 1.0
+
 
 # RP --- 01:054173 18:006402 --:------ 0005 004 00100000  # before adding RFG100
 #  I --- 01:054173 --:------ 01:054173 1FC9 012 0010E004D39D001FC904D39D

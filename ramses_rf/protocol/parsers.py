@@ -319,7 +319,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
             assert (
                 int(seqx, 16) < 1 if payload[2:4] == DEV_CLASS_MAP.DHW else 2
             ), f"invalid _idx: '{seqx}' (0x01)"
-            return {SZ_DOMAIN_ID: "FA" if payload[2:4] == "00" else "F9"}
+            return {SZ_DOMAIN_ID: "FA" if payload[:2] == "00" else "F9"}
 
         if payload[2:4] == DEV_CLASS_MAP.APP:
             assert int(seqx, 16) < 1, f"invalid _idx: '{seqx}' (0x02)"

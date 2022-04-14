@@ -19,7 +19,6 @@ from .protocol import (
     InvalidPacketError,
     Message,
 )
-from .protocol.const import DEV_KLASS_BY_TYPE
 from .protocol.ramses import CODES_HVAC_ONLY
 
 # skipcq: PY-W2000
@@ -205,6 +204,8 @@ def _check_msg_src(msg: Message, klass: str = None) -> None:
             msg.src, "_klass", DEV_TYPE.DEV
         )  # , None) or DEV_TYPE_MAP.slug(msg.src.type)
     if klass in (DEV_TYPE.HGI, DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC):
+        #
+        #
         return
 
     if klass not in CODES_BY_DEV_SLUG:  # DEX_done, TODO: fingerprint dev class
@@ -247,8 +248,12 @@ def _check_msg_dst(msg: Message, klass: str = None) -> None:
     """
 
     if klass is None:
-        klass = getattr(msg.dst, "_klass", None) or DEV_KLASS_BY_TYPE.get(msg.dst.type)
-    if klass in (None, "HGI", "DEV") or (msg.dst is msg.src and msg.verb == I_):
+        klass = getattr(
+            msg.dst, "_klass", None
+        )  # , None) or DEV_TYPE_MAP.slug(msg.src.type)
+    if klass in (None, DEV_TYPE.HGI, DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC) or (
+        msg.dst is msg.src and msg.verb == I_
+    ):
         return
 
     if klass not in CODES_BY_DEV_SLUG:  # DEX_done, TODO: fingerprint dev class
