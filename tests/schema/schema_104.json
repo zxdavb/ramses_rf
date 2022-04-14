@@ -2,7 +2,7 @@
     "main_controller": "01:111111",
     "01:111111": {
         "system": {
-            "tcs_relay": "10:111111"
+            "appliance_control": "10:111111"
         },
         "zones": {
             "01": {}
@@ -10,7 +10,7 @@
     },
     "01:222222": {
         "system": {
-            "tcs_relay": "10:222222"
+            "appliance_control": "10:222222"
         },
         "zones": {
             "02": {
@@ -20,7 +20,7 @@
     },
     "01:333333": {
         "system": {
-            "tcs_relay": "10:333333"
+            "appliance_control": "10:333333"
         },
         "zones": {
             "03": {

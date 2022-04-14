@@ -37,8 +37,6 @@ from .protocol.const import (  # noqa: F401
     SZ_ZONE_TYPE,
     SZ_ZONE_VALVE,
     ZONE_MODE,
-    ZONE_TYPE_MAP,
-    ZONE_TYPE_SLUGS,
     SystemType,
 )
 

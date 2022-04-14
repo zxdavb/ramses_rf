@@ -306,7 +306,8 @@ def parser_000c(payload, msg) -> Optional[dict]:
     # RP --- 01:145038 18:013393 --:------ 000C 012 01-00-00-10DAF5 01-00-00-10DAFB
 
     def complex_idx(seqx, msg) -> dict:  # complex index
-        """zone_idx, ufx_idx/zone_id or domain_id"""
+        """zone_idx, ufx_idx/zone_id or domain_id."""
+
         # TODO: 000C to a UFC should be ufh_ifx, not zone_idx
         if msg.src.type == DEV_TYPE_MAP.UFC:  # DEX
             assert int(seqx, 16) < 8, f"invalid ufh_idx: '{seqx}' (0x00)"

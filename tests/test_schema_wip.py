@@ -16,13 +16,13 @@ from common import GWY_CONFIG, TEST_DIR, shuffle_dict  # noqa: F401
 from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
 from ramses_rf.schema import (
-    DHW_SCHEMA,
+    SCHEMA_DHW,
+    SCHEMA_ZON,
     SZ_ACTUATORS,
     SZ_DHW_VALVE,
     SZ_HTG_VALVE,
     SZ_KLASS,
     SZ_SENSOR,
-    ZONE_SCHEMA,
     load_schema,
 )
 
@@ -37,15 +37,15 @@ JSN_FILES = (
     "schema_108",
 )
 LOG_FILES = (
-    # "schema_201",
+    "schema_201",
     "schema_202",
-    # "schema_210",
-    # "schema_211",
-    # "schema_212",
-    # "schema_213",
-    # "schema_000",
-    # "schema_001",
-    # "schema_002",
+    "schema_210",
+    "schema_211",
+    "schema_212",
+    "schema_213",
+    "schema_000",
+    "schema_001",
+    "schema_002",
 )
 
 RADIATOR_VALVE = "radiator_valve"
@@ -64,7 +64,7 @@ class TestSchemaBits(unittest.TestCase):
         # self.assertEqual(True, False)
 
         for dict_ in (
-            DHW_SCHEMA({}),
+            SCHEMA_DHW({}),
             {SZ_SENSOR: None, SZ_DHW_VALVE: None, SZ_HTG_VALVE: None},
         ):
             self.assertEqual(
@@ -72,13 +72,13 @@ class TestSchemaBits(unittest.TestCase):
             )
 
         for key in (SZ_SENSOR, SZ_DHW_VALVE, SZ_HTG_VALVE):
-            self.assertRaises(vol.error.MultipleInvalid, DHW_SCHEMA, {key: "99:000000"})
+            self.assertRaises(vol.error.MultipleInvalid, SCHEMA_DHW, {key: "99:000000"})
             self.assertEqual(
-                DHW_SCHEMA({key: None}),
+                SCHEMA_DHW({key: None}),
                 {SZ_SENSOR: None, SZ_DHW_VALVE: None, SZ_HTG_VALVE: None},
             )
 
-    def _test_zone_schema(self):
+    def _test_SCHEMA_ZON(self):
         """Test the zone schema.
 
         '01':
@@ -90,27 +90,25 @@ class TestSchemaBits(unittest.TestCase):
         """
 
         for dict_ in (
-            ZONE_SCHEMA({}),
+            SCHEMA_ZON({}),
             {SZ_KLASS: None, SZ_ACTUATORS: [], SZ_SENSOR: None},
         ):
             self.assertEqual(dict_, {"class": None, "sensor": None, "actuators": []})
 
         for key in (SZ_KLASS, SZ_SENSOR):
-            self.assertRaises(
-                vol.error.MultipleInvalid, ZONE_SCHEMA, {key: "99:000000"}
-            )
+            self.assertRaises(vol.error.MultipleInvalid, SCHEMA_ZON, {key: "99:000000"})
             self.assertEqual(
-                ZONE_SCHEMA({key: None}),
+                SCHEMA_ZON({key: None}),
                 {SZ_KLASS: None, SZ_ACTUATORS: [], SZ_SENSOR: None},
             )
 
         self.assertEqual(
-            ZONE_SCHEMA({SZ_KLASS: RADIATOR_VALVE}),
+            SCHEMA_ZON({SZ_KLASS: RADIATOR_VALVE}),
             {SZ_KLASS: RADIATOR_VALVE, SZ_ACTUATORS: [], SZ_SENSOR: None},
         )
 
         self.assertEqual(
-            ZONE_SCHEMA({SZ_SENSOR: "34:111111"}),
+            SCHEMA_ZON({SZ_SENSOR: "34:111111"}),
             {SZ_KLASS: None, SZ_ACTUATORS: [], SZ_SENSOR: "34:111111"},
         )
 
@@ -120,12 +118,12 @@ class TestSchemaBits(unittest.TestCase):
             "13:111111",
         ):  # NOTE: should be a *list* of device_ids
             self.assertRaises(
-                vol.error.MultipleInvalid, ZONE_SCHEMA, {SZ_ACTUATORS: val}
+                vol.error.MultipleInvalid, SCHEMA_ZON, {SZ_ACTUATORS: val}
             )
 
         for val in ([], ["13:111111"], ["13:222222", "13:111111"]):
             self.assertEqual(
-                ZONE_SCHEMA({SZ_ACTUATORS: val}),
+                SCHEMA_ZON({SZ_ACTUATORS: val}),
                 {SZ_KLASS: None, SZ_ACTUATORS: val, SZ_SENSOR: None},
             )
 
@@ -153,7 +151,7 @@ class TestSchemaDiscovery(unittest.IsolatedAsyncioTestCase):
         with open(f"{SCHEMA_DIR}/{f_name}.json") as f:
             schema = json.load(f)
 
-        print(json.dumps(self.gwy.schema, indent=4))
+        # print(json.dumps(self.gwy.schema, indent=4))
         # print(json.dumps(schema, indent=4))
 
         self.assertEqual(
@@ -213,7 +211,7 @@ class TestSchemaLoad(unittest.IsolatedAsyncioTestCase):
         self.gwy.devices = []
         self.gwy.device_by_id = {}
 
-    async def _test_from_jsn_files(self):
+    async def test_from_jsn_files(self):
         for f_name in JSN_FILES:
             await self._proc_jsn_file(f_name)
 

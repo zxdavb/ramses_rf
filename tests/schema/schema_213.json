@@ -4,34 +4,27 @@
         "system": {},
         "zones": {
             "00": {
-                "class": "radiator_valve",
-                "actuators": ["04:167740"]
+                "_name": null,
+                "class": null,
+                "sensor": null,
+                "actuators": []
             },
             "01": {
+                "_name": null,
                 "class": "radiator_valve",
-                "actuators": ["04:138068", "04:138066"]
+                "sensor": null,
+                "actuators": [
+                    "04:167740"
+                ]
             },
             "02": {
+                "_name": null,
                 "class": "radiator_valve",
-                "actuators": ["04:197688"]
-            },
-            "03": {
-                "class": "radiator_valve",
-                "actuators": ["04:138054"]
-            },
-            "04": {
-                "class": "radiator_valve",
-                "actuators": ["04:138060"]
-            },
-            "05": {
-                "class": "radiator_valve",
-                "actuators": ["04:167734"]
-            },
-            "06": {
-                "class": "radiator_valve",
-                "actuators": ["04:197696"]
-            },
-            "07": {
+                "sensor": null,
+                "actuators": [
+                    "04:138068",
+                    "04:138066"
+                ]
             }
         }
     }

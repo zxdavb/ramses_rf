@@ -40,7 +40,9 @@ from .protocol import (
 )
 from .protocol.transport import PacketProtocolPort
 from .schema import (
-    DHW_SCHEMA,
+    SCHEMA_DHW,
+    SCHEMA_SYS,
+    SCHEMA_ZON,
     SZ_CONTROLLER,
     SZ_DHW_SYSTEM,
     SZ_KLASS,
@@ -51,7 +53,6 @@ from .schema import (
     SZ_UFH_SYSTEM,
     SZ_ZONE_TYPE,
     SZ_ZONES,
-    ZONE_SCHEMA,
 )
 from .zones import DhwZone, Zone
 
@@ -203,6 +204,8 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         Raise an exception if the new schema is not a superset of the existing schema.
         """
+
+        schema = shrink(SCHEMA_SYS(schema))
 
         # super()._zx_update_schema(**schema)  # TODO: split out?
 
@@ -470,7 +473,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         from .zones import zx_zone_factory
 
-        schema = shrink(ZONE_SCHEMA(schema))  # TODO: add shrink? do earlier?
+        schema = shrink(SCHEMA_ZON(schema))  # TODO: add shrink? do earlier?
 
         # Step 0: Return the object if it exists
         if zon := self.zone_by_idx.get(zone_idx):
@@ -668,10 +671,10 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
         if msg.code == _0005:  # RP, and also I
-            if msg.payload.get(SZ_ZONE_TYPE) in ZON_CLASS_MAP:
+            if msg.payload.get(SZ_ZONE_TYPE) in ZON_CLASS_MAP.HEAT_ZONES:
                 [
                     self.zx_get_htg_zone(f"{idx:02X}")._zx_update_schema(
-                        **{SZ_KLASS: msg.payload[SZ_ZONE_TYPE]}
+                        **{SZ_KLASS: ZON_CLASS_MAP[msg.payload[SZ_ZONE_TYPE]]}
                     )
                     for idx, flag in enumerate(msg.payload["zone_mask"])
                     if flag == 1
@@ -897,7 +900,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
 
         from .zones import zx_zone_factory
 
-        schema = shrink(DHW_SCHEMA(schema))  # TODO: add shrink? do earlier?
+        schema = shrink(SCHEMA_DHW(schema))  # TODO: add shrink? do earlier?
 
         # Step 0: Return the object if it exists
         if self._dhw:

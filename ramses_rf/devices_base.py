@@ -21,7 +21,7 @@ from .protocol.address import NUL_DEV_ADDR, Address
 from .protocol.command import FUNC, TIMEOUT
 from .protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL, CODES_SCHEMA, NAME
 from .protocol.transport import PacketProtocolPort
-from .schema import SYSTEM_SCHEMA, SZ_ALIAS, SZ_DEVICE_ID, SZ_FAKED, SZ_KLASS
+from .schema import SCHEMA_DEV, SCHEMA_SYS, SZ_ALIAS, SZ_DEVICE_ID, SZ_FAKED, SZ_KLASS
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -206,6 +206,7 @@ class DeviceBase(Entity):
         Raise an exception if the new schema is not a superset of the existing schema.
         """
 
+        schema = shrink(SCHEMA_DEV(schema))
         pass
 
     def __repr__(self) -> str:
@@ -780,7 +781,7 @@ class HeatDevice(Device):  # Honeywell CH/DHW or compatible (incl. UFH, Heatpump
 
         self._iz_controller = self._iz_controller or msg or True
 
-        schema = shrink(SYSTEM_SCHEMA(schema))
+        schema = shrink(SCHEMA_SYS(schema))
 
         # Step 0: Return the object if it exists
         if self._tcs:

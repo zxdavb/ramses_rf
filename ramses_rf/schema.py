@@ -20,7 +20,6 @@ from .const import (
     DEVICE_ID_REGEX,
     DONT_CREATE_MESSAGES,
     SZ_ZONE_SENSOR,
-    ZONE_TYPE_SLUGS,
     SystemType,
     __dev_mode__,
 )
@@ -86,7 +85,7 @@ DEV_REGEX_HTG = vol.Match(DEVICE_ID_REGEX.HTG)
 DEV_REGEX_BDR = vol.Match(DEVICE_ID_REGEX.BDR)
 DEV_REGEX_UFC = vol.Match(DEVICE_ID_REGEX.UFC)
 
-ZONE_TYPE_SLUGS = list(ZONE_TYPE_SLUGS)
+HEAT_ZONES_STRS = tuple(ZON_CLASS_MAP[t] for t in ZON_CLASS_MAP.HEAT_ZONES)
 
 DOMAIN_ID = vol.Match(r"^[0-9A-F]{2}$")
 UFH_IDX_REGEX = r"^0[0-8]$"
@@ -145,7 +144,7 @@ CONFIG_SCHEMA = vol.Schema(
     extra=vol.ALLOW_EXTRA,  # TODO: remove for production
 )
 
-DEVICE_SCHEMA = vol.Schema(
+SCHEMA_DEV = vol.Schema(
     {
         vol.Optional(DEVICE_ID): vol.Any(
             {
@@ -164,14 +163,14 @@ DEVICE_SCHEMA = vol.Schema(
 SZ_SYS_KLASS = "class"
 SYSTEM_KLASS = (SystemType.EVOHOME, SystemType.HOMETRONICS, SystemType.SUNDIAL)
 
-HTG_SCHEMA = vol.Schema(
+SCHEMA_TCS = vol.Schema(
     {
         vol.Required(SZ_TCS_RELAY, default=None): vol.Any(None, DEV_REGEX_HTG),
         vol.Optional(SZ_SYS_KLASS, default=SystemType.EVOHOME): vol.Any(*SYSTEM_KLASS),
     },
     # extra=vol.ALLOW_EXTRA,  # TODO: remove me
 )
-DHW_SCHEMA = vol.Schema(
+SCHEMA_DHW = vol.Schema(
     {
         vol.Optional(SZ_SENSOR, default=None): vol.Any(None, DEV_REGEX_DHW),
         vol.Optional(SZ_DHW_VALVE, default=None): vol.Any(None, DEV_REGEX_BDR),
@@ -186,18 +185,18 @@ UFC_CIRCUIT = vol.Schema(
         ),
     }
 )
-UFH_SCHEMA = vol.Schema(
+SCHEMA_UFH = vol.Schema(
     {
         vol.Required(DEVICE_ID): vol.Any(
             None, {vol.Optional(SZ_UFH_CIRCUITS): vol.Any(None, dict)}
         )
     }
 )
-UFH_SCHEMA = vol.All(UFH_SCHEMA, vol.Length(min=1, max=3))
+SCHEMA_UFH = vol.All(SCHEMA_UFH, vol.Length(min=1, max=3))
 
-ZONE_SCHEMA = vol.Schema(  # vol.All([DEVICE_ID], vol.Length(min=0))(['01:123456'])
+SCHEMA_ZON = vol.Schema(  # vol.All([DEVICE_ID], vol.Length(min=0))(['01:123456'])
     {
-        vol.Optional(SZ_KLASS, default=None): vol.Any(None, *tuple(ZONE_TYPE_SLUGS)),
+        vol.Optional(SZ_KLASS, default=None): vol.Any(None, *HEAT_ZONES_STRS),
         vol.Optional(SZ_SENSOR, default=None): vol.Any(None, SENSOR_ID),
         vol.Optional(SZ_DEVICES): renamed(SZ_ACTUATORS),
         vol.Optional(SZ_ACTUATORS, default=[]): vol.All([DEVICE_ID], vol.Length(min=0)),
@@ -208,26 +207,26 @@ ZONE_SCHEMA = vol.Schema(  # vol.All([DEVICE_ID], vol.Length(min=0))(['01:123456
     },
     extra=vol.PREVENT_EXTRA,
 )
-# ZONE_SCHEMA({SZ_KLASS: None, SZ_DEVICES: None})  # TODO: remove me
-ZONES_SCHEMA = vol.All(
-    vol.Schema({vol.Required(ZONE_IDX): ZONE_SCHEMA}),
+# SCHEMA_ZON({SZ_KLASS: None, SZ_DEVICES: None})  # TODO: remove me
+SCHEMA_ZONES = vol.All(
+    vol.Schema({vol.Required(ZONE_IDX): SCHEMA_ZON}),
     vol.Length(min=1, max=DEFAULT_MAX_ZONES),
 )
-SYSTEM_SCHEMA = vol.Schema(
+SCHEMA_SYS = vol.Schema(
     {
         # vol.Required(SZ_CONTROLLER): DEV_REGEX_CTL,
-        vol.Optional(SZ_TCS_SYSTEM, default={}): vol.Any({}, HTG_SCHEMA),
-        vol.Optional(SZ_DHW_SYSTEM, default={}): vol.Any({}, DHW_SCHEMA),
-        vol.Optional(SZ_UFH_SYSTEM, default={}): vol.Any({}, UFH_SCHEMA),
+        vol.Optional(SZ_TCS_SYSTEM, default={}): vol.Any({}, SCHEMA_TCS),
+        vol.Optional(SZ_DHW_SYSTEM, default={}): vol.Any({}, SCHEMA_DHW),
+        vol.Optional(SZ_UFH_SYSTEM, default={}): vol.Any({}, SCHEMA_UFH),
         vol.Optional(SZ_ORPHANS, default=[]): vol.Any([], [DEVICE_ID]),
-        vol.Optional(SZ_ZONES, default={}): vol.Any({}, ZONES_SCHEMA),
+        vol.Optional(SZ_ZONES, default={}): vol.Any({}, SCHEMA_ZONES),
     },
     extra=vol.ALLOW_EXTRA,  # TODO: remove me - But: Causes an issue?
 )
 
 
 # 3/3: Global Schemas
-GLOBAL_CONFIG_SCHEMA = vol.Schema(
+SCHEMA_GLOBAL_CONFIG = vol.Schema(
     {
         vol.Required(CONFIG): CONFIG_SCHEMA.extend(
             {
@@ -235,8 +234,8 @@ GLOBAL_CONFIG_SCHEMA = vol.Schema(
                 vol.Optional(PACKET_LOG, default={}): vol.Any({}, PACKET_LOG_SCHEMA),
             }
         ),
-        vol.Optional(KNOWN_LIST, default={}): vol.All(DEVICE_SCHEMA, vol.Length(min=0)),
-        vol.Optional(BLOCK_LIST, default={}): vol.All(DEVICE_SCHEMA, vol.Length(min=0)),
+        vol.Optional(KNOWN_LIST, default={}): vol.All(SCHEMA_DEV, vol.Length(min=0)),
+        vol.Optional(BLOCK_LIST, default={}): vol.All(SCHEMA_DEV, vol.Length(min=0)),
     },
     extra=vol.REMOVE_EXTRA,
 )
@@ -247,7 +246,7 @@ def load_config(
 ) -> tuple[SimpleNamespace, dict, dict, dict]:
     """Process the configuration, including any filter lists."""
 
-    config = GLOBAL_CONFIG_SCHEMA(kwargs)
+    config = SCHEMA_GLOBAL_CONFIG(kwargs)
     schema = {k: v for k, v in kwargs.items() if k not in config and k[:1] != "_"}
 
     block_list = config.pop(BLOCK_LIST)
@@ -379,7 +378,7 @@ def load_schema(gwy, **kwargs) -> dict:
 def load_system(gwy, ctl_id, schema) -> tuple[dict, dict]:
     """Create a system using its schema."""
     # print(schema)
-    # schema = ZONE_SCHEMA(schema)
+    # schema = SCHEMA_ZON(schema)
 
     if (ctl := _get_device(gwy, ctl_id)) is None:
         return
@@ -389,13 +388,13 @@ def load_system(gwy, ctl_id, schema) -> tuple[dict, dict]:
     if dev_id := schema[SZ_TCS_SYSTEM].get(SZ_TCS_RELAY):
         ctl._tcs._set_tcs_relay(_get_device(gwy, dev_id, ctl_id=ctl.id))
 
-    # if dhw_schema := schema.get(SZ_DHW_SYSTEM, {}):
-    #     dhw = ctl._tcs._get_dhw()  # **dhw_schema)
-    #     if dev_id := dhw_schema.get(SZ_SENSOR):
+    # if SCHEMA_DHW := schema.get(SZ_DHW_SYSTEM, {}):
+    #     dhw = ctl._tcs._get_dhw()  # **SCHEMA_DHW)
+    #     if dev_id := SCHEMA_DHW.get(SZ_SENSOR):
     #         dhw._set_sensor(_get_device(gwy, dev_id, ctl_id=ctl.id))
-    #     if dev_id := dhw_schema.get(SZ_DHW_VALVE):
+    #     if dev_id := SCHEMA_DHW.get(SZ_DHW_VALVE):
     #         dhw._set_dhw_valve(_get_device(gwy, dev_id, ctl_id=ctl.id))
-    #     if dev_id := dhw_schema.get(SZ_HTG_VALVE):
+    #     if dev_id := SCHEMA_DHW.get(SZ_HTG_VALVE):
     #         dhw._set_htg_valve(_get_device(gwy, dev_id, ctl_id=ctl.id))
 
     for dev_id in schema.get(SZ_UFH_SYSTEM, {}).keys():  # UFH controllers

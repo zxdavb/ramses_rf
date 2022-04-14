@@ -27,7 +27,6 @@ from .const import (
     SZ_SETPOINT,
     SZ_WINDOW_OPEN,
     SZ_ZONE_IDX,
-    SZ_ZONE_SENSOR,
     SZ_ZONE_TYPE,
     ZONE_MODE,
     __dev_mode__,
@@ -43,6 +42,7 @@ from .devices import (
     UfhController,
 )
 from .entity_base import Entity, class_by_attr, discover_decorator
+from .helpers import shrink
 from .protocol import (
     CODE_API_MAP,
     Address,
@@ -52,6 +52,8 @@ from .protocol import (
     Schedule,
 )
 from .schema import (
+    SCHEMA_DHW,
+    SCHEMA_ZON,
     SZ_ACTUATORS,
     SZ_DEVICES,
     SZ_DHW_VALVE,
@@ -73,8 +75,6 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     ZON_CLASS,
     ZON_CLASS_MAP,
 )
-
-# ZONE_TYPE_MAP,
 
 # skipcq: PY-W2000
 from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -357,6 +357,8 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             new_dev._set_parent(self, domain=domain_id)
             return new_dev
 
+        schema = shrink(SCHEMA_DHW(schema))
+
         if dev_id := schema.get(SZ_SENSOR):
             self._dhw_sensor = set_dhw_device(dev_id, SZ_SENSOR, DhwSensor, "FA")
 
@@ -638,17 +640,17 @@ class Zone(ZoneSchedule, ZoneBase):
             self._sensor = device
             device._set_parent(self, sensor=True)  # , domain=self.idx)
 
-        def set_zone_type(zone_type: str):  # sets self._zone_slug
-            """Set the zone's type, after validating it.
+        def set_zone_type(zone_type: str):
+            """Set the zone's type (e.g. '08'), after validating it.
 
             There are two possible sources for the type of a zone:
             1. eavesdropping packet codes
             2. analyzing child devices
-
-            Both will execute a zone.type = type (i.e. via this setter).
             """
 
-            if zone_type not in ZON_CLASS_MAP.HEAT_ZONES:
+            if zone_type in (ZON_CLASS_MAP.ACT, ZON_CLASS_MAP.SEN):
+                return  # generic zone classes
+            elif zone_type not in ZON_CLASS_MAP.HEAT_ZONES:
                 raise TypeError
 
             klass = ZON_CLASS_MAP.slug(zone_type)  # not incl. DHW?
@@ -672,14 +674,16 @@ class Zone(ZoneSchedule, ZoneBase):
 
             self._zone_slug = klass
             self.__class__ = ZONE_CLASS_BY_SLUG[klass]
-            _LOGGER.error("Promoted a Zone: %s (%s)", self.id, self.__class__)
+            _LOGGER.debug("Promoted a Zone: %s (%s)", self.id, self.__class__)
 
             self._discover(
                 discover_flag=Discover.SCHEMA
             )  # TODO: needs tidyup (ref #67)
 
+        schema = shrink(SCHEMA_ZON(schema))
+
         if klass := schema.get(SZ_KLASS):
-            set_zone_type(klass)
+            set_zone_type(ZON_CLASS_MAP[klass])
 
         if dev_id := schema.get(SZ_SENSOR):
             set_sensor(self._gwy._zx_get_device(Address(dev_id)))
@@ -806,46 +810,25 @@ class Zone(ZoneSchedule, ZoneBase):
 
         super()._handle_msg(msg)
 
-        if msg.code == _000C:
-            # self._set_zone_type(msg.payload["zone_type"])
-
-            if (
-                msg.payload[SZ_DEVICE_CLASS] == SZ_ZONE_SENSOR
-                and msg.payload[SZ_DEVICES]
-            ):
-                self._zx_update_schema(**{SZ_SENSOR: msg.payload[SZ_DEVICES][0]})
-
-            if msg.payload[SZ_DEVICE_CLASS] in (
-                "rad_actuator",
-                "ufh_actuator",
-                "val_actuator",
-                "mix_actuator",
-                "ele_actuator",
-            ):
-                self._zx_update_schema(
-                    **{
-                        SZ_KLASS: msg.payload[SZ_ZONE_TYPE],
-                        SZ_ACTUATORS: msg.payload[SZ_DEVICES],
-                    }
-                )
-
-        if msg.code == _000C and msg.payload[SZ_DEVICES]:  # WIP
-
-            # TODO: testing this concept, hoping to learn device_id of UFC
-            if msg.payload[SZ_ZONE_TYPE] == DEV_CLASS_MAP.UFH:
-                self._make_cmd(_000C, payload=f"{self.idx}{DEV_CLASS_MAP.UFH}")
-
-            # devices = [
-            #     # self._gwy._get_device(d, ctl_id=msg.src.id, domain_id=...)
-            #     self._gwy._get_device(d)  # ctl_id=self._ctl.id, domain_id=self.idx)
-            #     for d in msg.payload[SZ_DEVICES]
-            # ]
+        if msg.code == _000C and msg.payload[SZ_DEVICES]:
 
             if msg.payload[SZ_ZONE_TYPE] == DEV_CLASS_MAP.SEN:
                 self._zx_update_schema(**{SZ_SENSOR: msg.payload[SZ_DEVICES][0]})
 
             elif msg.payload[SZ_ZONE_TYPE] == DEV_CLASS_MAP.ACT:
                 self._zx_update_schema(**{SZ_ACTUATORS: msg.payload[SZ_DEVICES]})
+
+            elif msg.payload[SZ_ZONE_TYPE] in ZON_CLASS_MAP.HEAT_ZONES:
+                self._zx_update_schema(
+                    **{
+                        SZ_KLASS: ZON_CLASS_MAP[msg.payload[SZ_ZONE_TYPE]],
+                        SZ_ACTUATORS: msg.payload[SZ_DEVICES],
+                    }
+                )
+
+            # TODO: testing this concept, hoping to learn device_id of UFC
+            if msg.payload[SZ_ZONE_TYPE] == DEV_CLASS_MAP.UFH:
+                self._make_cmd(_000C, payload=f"{self.idx}{DEV_CLASS_MAP.UFH}")
 
         # If zone still doesn't have a zone class, maybe eavesdrop?
         if self._gwy.config.enable_eavesdrop and self._zone_slug in (

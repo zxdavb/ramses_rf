@@ -36,9 +36,9 @@ from .protocol.transport import PacketProtocolPort
 from .schema import (
     BLOCK_LIST,
     DEBUG_MODE,
-    DEVICE_SCHEMA,
     INPUT_FILE,
     KNOWN_LIST,
+    SCHEMA_DEV,
     SZ_DEVICE_ID,
     SZ_FAKED,
     SZ_MAIN_CONTROLLER,
@@ -370,7 +370,7 @@ class Gateway(Engine):
                 raise LookupError
 
         check_filter_lists(dev_addr.id)
-        schema = shrink(DEVICE_SCHEMA(schema))  # TODO: add shrink? do earlier?
+        schema = shrink(SCHEMA_DEV(schema))  # TODO: add shrink? do earlier?
 
         # Step 0: Return the object if it exists
         if dev := self.device_by_id.get(dev_addr.id):
@@ -456,11 +456,11 @@ class Gateway(Engine):
 
         schema["device_hints"] = {}
         for d in sorted(self.devices):
-            device_schema = {}
+            dev_schema = {}
             if d.schema.get(SZ_FAKED):
-                device_schema.update({SZ_FAKED: d.schema[SZ_FAKED]})
-            if device_schema:
-                schema["device_hints"][d.id] = device_schema
+                dev_schema.update({SZ_FAKED: d.schema[SZ_FAKED]})
+            if dev_schema:
+                schema["device_hints"][d.id] = dev_schema
 
         return schema
 

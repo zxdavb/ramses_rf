@@ -537,21 +537,6 @@ SZ_MIXING_VALVE = "mixing_valve"
 SZ_ELECTRIC_HEAT = "electric_heat"
 
 
-ZONE_TABLE = {
-    ZON_CLASS.UFH: {"type": "02", "actuator": "UFC", "name": "Underfloor Heating"},
-    ZON_CLASS.RAD: {"type": "04", "actuator": "TRV", "name": "Radiator Valve"},
-    ZON_CLASS.ELE: {"type": "13", "actuator": "BDR", "name": "Electric Heat"},
-    ZON_CLASS.VAL: {"type": "x0", "actuator": "BDR", "name": "Zone Valve"},
-    ZON_CLASS.MIX: {"type": "x1", "actuator": "HM8", "name": "Mixing Valve"},
-    ZON_CLASS.DHW: {"type": "x2", "sensor": ZON_CLASS.DHW, "name": "Stored DHW"},
-}
-ZON_CLASS_MAP = {v["type"]: k for k, v in ZONE_TABLE.items()}
-ZON_CLASS_MAP["00"] = ZON_CLASS_MAP["04"]
-
-ZONE_TYPE_MAP = {k: slug(v["name"]) for k, v in ZONE_TABLE.items()}
-ZONE_TYPE_SLUGS = {slug(v["name"]): k for k, v in ZONE_TABLE.items()}
-
-
 # Used by 0418/system_fault parser
 _0418_DEVICE_CLASS = {
     "00": "controller",
