@@ -14,7 +14,7 @@ TEST_DIR = f"{os.path.dirname(__file__)}"
 
 GWY_CONFIG = {}
 
-DEBUG_MODE = True
+DEBUG_MODE = False
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
 
