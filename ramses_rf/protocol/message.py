@@ -26,10 +26,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEVICE_SLUGS,
-    DEV_TYPES,
-    DEV_MAP,
-    ZONE_MAP,
+    DEV_CLASS,
+    DEV_TYPE_MAP,
+    DEV_CLASS_MAP,
+    ZON_CLASS_MAP,
 )
 
 # skipcq: PY-W2000
@@ -269,33 +269,33 @@ class Message:
 
         #  I --- 00:034798 --:------ 12:126457 2309 003 0201F4
         if not {self.src.type, self.dst.type} & {
-            DEV_TYPES.CTL,  # "01",
-            DEV_TYPES.UFC,  # "02",
-            DEV_TYPES.THM,  # "03",  # ?remove (see above, rare)
-            DEV_TYPES.DTS,  # "12",
-            DEV_TYPES.HGI,  # "18",
-            DEV_TYPES.DT2,  # "22",
-            DEV_TYPES.PRG,  # "23",
+            DEV_TYPE_MAP.CTL,
+            DEV_TYPE_MAP.UFC,
+            DEV_TYPE_MAP.HCW,  # ?remove (see above, rare)
+            DEV_TYPE_MAP.DTS,
+            DEV_TYPE_MAP.HGI,
+            DEV_TYPE_MAP.DT2,
+            DEV_TYPE_MAP.PRG,
         }:  # DEX
-            assert self._pkt._idx == "00", "What!! (00)"
+            assert self._pkt._idx == "00", "What!! (AA)"
             return {}
 
         #  I 035 --:------ --:------ 12:126457 30C9 003 017FFF
         if self.src.type == self.dst.type and self.src.type not in (
-            DEV_TYPES.CTL,  # "01",
-            DEV_TYPES.UFC,  # "02",
-            DEV_TYPES.THM,  # "03",  # ?remove (see above, rare)
-            DEV_TYPES.HGI,  # "18",
-            DEV_TYPES.PRG,  # "23",
+            DEV_TYPE_MAP.CTL,
+            DEV_TYPE_MAP.UFC,
+            DEV_TYPE_MAP.HCW,  # ?remove (see above, rare)
+            DEV_TYPE_MAP.HGI,
+            DEV_TYPE_MAP.PRG,
         ):  # DEX
-            assert self._pkt._idx == "00", "What!! (01)"
+            assert self._pkt._idx == "00", "What!! (AB)"
             return {}
 
         #  I --- 04:029362 --:------ 12:126457 3150 002 0162
         # if not getattr(self.src, "_is_controller", True) and not getattr(
         #     self.dst, "_is_controller", True
         # ):
-        #     assert self._pkt._idx == "00", "What!! (10)"
+        #     assert self._pkt._idx == "00", "What!! (BA)"
         #     return {}
 
         #  I --- 04:029362 --:------ 12:126457 3150 002 0162
@@ -303,13 +303,13 @@ class Message:
         #     getattr(self.src, "_is_controller", True)
         #     or getattr(self.dst, "_is_controller", True)
         # ):
-        #     assert self._pkt._idx == "00", "What!! (11)"
+        #     assert self._pkt._idx == "00", "What!! (BB)"
         #     return {}
 
         if self.src.type == self.dst.type and not getattr(
             self.src, "_is_controller", True
         ):  # DEX
-            assert self._pkt._idx == "00", "What!! (12)"
+            assert self._pkt._idx == "00", "What!! (BC)"
             return {}
 
         index_name = IDX_NAMES.get(
@@ -420,7 +420,7 @@ class Message:
             # beware: HGI80 can send 'odd' but parseable packets +/- get invalid reply
             (
                 _LOGGER.exception
-                if DEV_MODE and self.src.type != DEV_TYPES.HGI  # DEX
+                if DEV_MODE and self.src.type != DEV_TYPE_MAP.HGI  # DEX
                 else _LOGGER.exception
             )("%s < %s", self._pkt, f"{exc.__class__.__name__}({exc})")
             raise InvalidPacketError(exc)
@@ -468,7 +468,7 @@ def _check_msg_payload(msg: Message, payload) -> None:
             raise InvalidPayloadError(f"Payload doesn't match '{regex}': {payload}")
 
     except InvalidPacketError as exc:  # incl. InvalidPayloadError
-        if DEV_TYPES.HGI not in (
+        if DEV_TYPE_MAP.HGI not in (
             msg.src.type,
             msg.dst.type,
         ):  # DEX, HGI80 can do what it likes

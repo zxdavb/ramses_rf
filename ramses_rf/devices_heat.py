@@ -14,17 +14,18 @@ from typing import Optional
 from .const import (
     ATTR_TEMP,
     DOMAIN_TYPE_MAP,
-    SZ_DEVICE_CLASS,
+    SZ_DEVICES,
     SZ_DOMAIN_ID,
     SZ_HEAT_DEMAND,
     SZ_RELAY_DEMAND,
     SZ_SETPOINT,
     SZ_WINDOW_OPEN,
     SZ_ZONE_IDX,
+    SZ_ZONE_TYPE,
     Discover,
     __dev_mode__,
 )
-from .devices_base import ATTR_DEVICE_SLUG, BatteryState, Fakeable, HeatDevice
+from .devices_base import BatteryState, Fakeable, HeatDevice
 from .entity_base import class_by_attr, discover_decorator
 from .protocol import Address, Command, Message, Priority
 from .protocol.address import NON_DEV_ADDR
@@ -46,10 +47,11 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEVICE_SLUGS,
-    DEV_TYPES,
-    DEV_MAP,
-    ZONE_MAP,
+    DEV_CLASS,
+    DEV_TYPE,
+    DEV_TYPE_MAP,
+    DEV_CLASS_MAP,
+    ZON_CLASS_MAP,
 )
 
 # skipcq: PY-W2000
@@ -437,15 +439,13 @@ class Temperature(Fakeable):  # 30C9
 class RfgGateway(HeatDevice):  # RFG (30:)
     """The RFG100 base class."""
 
-    _DEVICE_SLUG = DEVICE_SLUGS.RFG
-    _DEVICE_TYPES = (DEV_TYPES.RFG,)
+    _SLUG: str = DEV_TYPE.RFG
 
 
 class Controller(HeatDevice):  # CTL (01):
     """The Controller base class."""
 
-    _DEVICE_SLUG = DEVICE_SLUGS.CTL
-    _DEVICE_TYPES = (DEV_TYPES.CTL,)
+    _SLUG: str = DEV_TYPE.CTL
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -465,13 +465,13 @@ class Controller(HeatDevice):  # CTL (01):
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.code in (_0005, _000C):
+        if msg.code in (_0005, _000C) or self._gwy.config.enable_eavesdrop:
             self._make_tcs_controller(msg=msg)
 
         if msg.code == _000C:
             [
                 self._gwy._get_device(d, ctl_id=self._ctl.id)
-                for d in msg.payload["devices"]
+                for d in msg.payload[SZ_DEVICES]
             ]
 
         # Route any messages to their heating systems, TODO: create dev first?
@@ -482,15 +482,13 @@ class Controller(HeatDevice):  # CTL (01):
 class Programmer(Controller):  # PRG (23):
     """The Controller base class."""
 
-    _DEVICE_SLUG = DEVICE_SLUGS.PRG
-    _DEVICE_TYPES = (DEV_TYPES.PRG,)
+    _SLUG: str = DEV_TYPE.PRG
 
 
 class UfhController(HeatDevice):  # UFC (02):
     """The UFC class, the HCE80 that controls the UFH zones."""
 
-    _DEVICE_SLUG = DEVICE_SLUGS.UFC
-    _DEVICE_TYPES = (DEV_TYPES.UFC,)
+    _SLUG: str = DEV_TYPE.UFC
 
     HEAT_DEMAND = SZ_HEAT_DEMAND
 
@@ -536,9 +534,9 @@ class UfhController(HeatDevice):  # UFC (02):
         # Only RPs are: 0001, 0005/000C, 10E0, 000A/2309 & 22D0
 
         if discover_flag & Discover.SCHEMA:
-            self._make_cmd(_0005, payload=f"00{DEV_MAP.UFH}")
+            self._make_cmd(_0005, payload=f"00{DEV_CLASS_MAP.UFH}")
             for ufh_idx in range(8):
-                self._make_cmd(_000C, payload=f"{ufh_idx:02X}{DEV_MAP.UFH}")
+                self._make_cmd(_000C, payload=f"{ufh_idx:02X}{DEV_CLASS_MAP.UFH}")
 
         if discover_flag & Discover.PARAMS:  # only 2309 has any potential?
             for ufh_idx in self.circuits:
@@ -562,7 +560,11 @@ class UfhController(HeatDevice):  # UFC (02):
         super()._handle_msg(msg)
 
         if msg.code == _0005:  # system_zones
-            if msg.payload[f"_{SZ_DEVICE_CLASS}"] not in ("00", "04", "09"):
+            if msg.payload[SZ_ZONE_TYPE] not in (
+                ZON_CLASS_MAP.ACT,
+                ZON_CLASS_MAP.SEN,
+                ZON_CLASS_MAP.UFH,
+            ):
                 return  # ALL, SENsor, UFH
 
             for idx, flag in enumerate(msg.payload["zone_mask"]):
@@ -571,7 +573,7 @@ class UfhController(HeatDevice):  # UFC (02):
                     self._circuits.pop(ufh_idx, None)
                 elif SZ_ZONE_IDX not in self._circuits.get(ufh_idx, {}):
                     self._circuits[ufh_idx] = {SZ_ZONE_IDX: None}
-                    self._make_cmd(_000C, payload=f"{ufh_idx}{DEV_MAP.UFH}")
+                    self._make_cmd(_000C, payload=f"{ufh_idx}{DEV_CLASS_MAP.UFH}")
 
         elif msg.code == _0008:  # relay_demand, TODO: use msg DB?
             if msg.payload.get(SZ_DOMAIN_ID) == "FC":
@@ -580,7 +582,11 @@ class UfhController(HeatDevice):  # UFC (02):
                 self._relay_demand_fa = msg
 
         elif msg.code == _000C:  # zone_devices
-            if msg.payload[f"_{SZ_DEVICE_CLASS}"] not in ("00", "04", "09"):
+            if msg.payload[SZ_ZONE_TYPE] not in (
+                ZON_CLASS_MAP.ACT,
+                ZON_CLASS_MAP.SEN,
+                ZON_CLASS_MAP.UFH,
+            ):
                 return  # ALL, SENsor, UFH
 
             ufh_idx = msg.payload["ufh_idx"]
@@ -590,10 +596,10 @@ class UfhController(HeatDevice):  # UFC (02):
                 return
             self._circuits[ufh_idx] = {SZ_ZONE_IDX: msg.payload["zone_id"]}
 
-            if dev_ids := msg.payload["devices"]:
-                # self._circuits[ufh_idx]["devices"] = dev_ids[0]  # or:
+            if dev_ids := msg.payload[SZ_DEVICES]:
+                # self._circuits[ufh_idx][SZ_DEVICES] = dev_ids[0]  # or:
                 if ctl := self._set_ctl(self._gwy._get_device(dev_ids[0])):
-                    # self._circuits[ufh_idx]["devices"] = ctl.id  # better
+                    # self._circuits[ufh_idx][SZ_DEVICES] = ctl.id  # better
                     self._set_parent(
                         ctl._tcs.zx_get_htg_zone(msg.payload["zone_id"]), msg
                     )
@@ -690,8 +696,7 @@ class UfhController(HeatDevice):  # UFC (02):
 class DhwSensor(DhwTemperature, BatteryState, HeatDevice):  # DHW (07): 10A0, 1260
     """The DHW class, such as a CS92."""
 
-    _DEVICE_SLUG = DEVICE_SLUGS.DHW
-    _DEVICE_TYPES = (DEV_TYPES.DHW,)
+    _SLUG: str = DEV_TYPE.DHW
 
     DHW_PARAMS = "dhw_params"
     TEMPERATURE = ATTR_TEMP
@@ -726,8 +731,7 @@ class DhwSensor(DhwTemperature, BatteryState, HeatDevice):  # DHW (07): 10A0, 12
 class OutSensor(Weather, HeatDevice):  # OUT: 17
     """The OUT class (external sensor), such as a HB85/HB95."""
 
-    _DEVICE_SLUG = DEVICE_SLUGS.OUT
-    _DEVICE_TYPES = (DEV_TYPES.OUT,)
+    _SLUG: str = DEV_TYPE.OUT
 
     # LUMINOSITY = "luminosity"  # lux
     # WINDSPEED = "windspeed"  # km/h
@@ -738,15 +742,14 @@ class OutSensor(Weather, HeatDevice):  # OUT: 17
 class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, others)
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
-    _DEVICE_SLUG = DEVICE_SLUGS.OTB
-    _DEVICE_TYPES = (DEV_TYPES.OTB,)
+    _SLUG: str = DEV_TYPE.OTB
 
     # BOILER_SETPOINT = "boiler_setpoint"
     # OPENTHERM_STATUS = "opentherm_status"
 
     _STATE_ATTR = "rel_modulation_level"
 
-    _CODE_MAP = {
+    OT_TO_RAMSES = {
         # "00": _3EF0,  # master/slave status (actuator_state)
         "01": _22D9,  # boiler_setpoint
         "11": _3EF0,  # rel_modulation_level (actuator_state, also _3EF1)
@@ -806,7 +809,9 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
             return
 
         if discover_flag & Discover.PARAMS:
-            for code in [v for k, v in self._CODE_MAP.items() if k in PARAMS_MSG_IDS]:
+            for code in [
+                v for k, v in self.OT_TO_RAMSES.items() if k in PARAMS_MSG_IDS
+            ]:
                 if self._msgs_supported.get(code) is not False:
                     self._send_cmd(Command(RQ, code, "00", self.id, retries=0))
 
@@ -826,7 +831,9 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
             self._send_cmd(Command.get_opentherm_data(self.id, "00"))
             self._send_cmd(Command.get_opentherm_data(self.id, "73"))
 
-            for code in [v for k, v in self._CODE_MAP.items() if k in STATUS_MSG_IDS]:
+            for code in [
+                v for k, v in self.OT_TO_RAMSES.items() if k in STATUS_MSG_IDS
+            ]:
                 if self._msgs_supported.get(code) is not False:
                     self._send_cmd(Command(RQ, code, "00", self.id, retries=0))
 
@@ -855,7 +862,7 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
 
         if msg.code == _3220 and msg.payload[MSG_TYPE] != "-reserved-":
             self._handle_3220(msg)
-        elif msg.code in self._CODE_MAP.values():
+        elif msg.code in self.OT_TO_RAMSES.values():
             self._handle_code(msg)
 
     def _handle_3220(self, msg) -> None:
@@ -868,7 +875,7 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
                 self._send_cmd(Command.get_opentherm_data(self.id, "73"))  # oem code
 
         # TODO: this is development code - will be rationalised, eventually
-        if _OTB_MODE and (code := self._CODE_MAP.get(msg_id)):
+        if _OTB_MODE and (code := self.OT_TO_RAMSES.get(msg_id)):
             self._send_cmd(Command(RQ, code, "00", self.id, retries=0))
 
         if msg._pkt.payload[6:] == "47AB" or msg._pkt.payload[4:] == "121980":
@@ -1212,13 +1219,7 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
 class Thermostat(BatteryState, Setpoint, Temperature, HeatDevice):  # THM (..):
     """The THM/STA class, such as a TR87RF."""
 
-    _DEVICE_SLUG = DEVICE_SLUGS.THM
-    _DEVICE_TYPES = (
-        DEV_TYPES.THM,
-        DEV_TYPES.DTS,
-        DEV_TYPES.DT2,
-        DEV_TYPES.RND,
-    )
+    _SLUG: str = DEV_TYPE.THM
 
     _STATE_ATTR = "temperature"
 
@@ -1270,8 +1271,7 @@ class BdrSwitch(Actuator, RelayDemand, HeatDevice):  # BDR (13):
     - x2 DHW thingys (F9/DHW, FA/DHW)
     """
 
-    _DEVICE_SLUG = DEVICE_SLUGS.BDR
-    _DEVICE_TYPES = (DEV_TYPES.BDR,)
+    _SLUG: str = DEV_TYPE.BDR
 
     ACTIVE = "active"
     TPI_PARAMS = "tpi_params"
@@ -1282,7 +1282,7 @@ class BdrSwitch(Actuator, RelayDemand, HeatDevice):  # BDR (13):
     #     super().__init__(*args, **kwargs)
 
     #     if kwargs.get(SZ_DOMAIN_ID) == "FC":  # TODO: F9/FA/FC, zone_idx
-    #         self._ctl._set_htg_control(self)
+    #         self._ctl._set_tcs_relay(self)
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:
@@ -1375,11 +1375,7 @@ class TrvActuator(
 ):  # TRV (04):
     """The TRV class, such as a HR92."""
 
-    _DEVICE_SLUG = DEVICE_SLUGS.TRV
-    _DEVICE_TYPES = (
-        DEV_TYPES.TR0,
-        DEV_TYPES.TRV,
-    )
+    _SLUG: str = DEV_TYPE.TRV
 
     WINDOW_OPEN = SZ_WINDOW_OPEN  # boolean
 
@@ -1404,41 +1400,31 @@ class TrvActuator(
         }
 
 
-HEAT_CLASS_BY_KLASS = class_by_attr(
-    __name__, ATTR_DEVICE_SLUG
-)  # e.g. "CTL": Controller
+HEAT_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. CTL: Controller
 
 _HEAT_VC_PAIR_BY_CLASS = {
-    DEVICE_SLUGS.DHW: ((I_, _1260),),
-    DEVICE_SLUGS.OTB: ((I_, _3220), (RP, _3220)),
+    DEV_TYPE.DHW: ((I_, _1260),),
+    DEV_TYPE.OTB: ((I_, _3220), (RP, _3220)),
 }
-_KLASS_BY_TYPE = {
-    None: DEVICE_SLUGS.DEV,  # a generic, promotable device
-    "00": DEVICE_SLUGS.TRV,
-    "01": DEVICE_SLUGS.CTL,
-    "02": DEVICE_SLUGS.UFC,  # could be HVAC(SWI)
-    "03": DEVICE_SLUGS.THM,
-    "04": DEVICE_SLUGS.TRV,
-    "07": DEVICE_SLUGS.DHW,  # could be HVAC
-    "10": DEVICE_SLUGS.OTB,
-    "12": DEVICE_SLUGS.THM,  # can act like a DEVICE_SLUGS.PRG
-    "13": DEVICE_SLUGS.BDR,
-    "17": DEVICE_SLUGS.OUT,
-    "18": DEVICE_SLUGS.HGI,  # could be HVAC
-    "22": DEVICE_SLUGS.THM,  # can act like a DEVICE_SLUGS.PRG
-    "23": DEVICE_SLUGS.PRG,
-    "30": DEVICE_SLUGS.RFG,  # could be HVAC
-    "34": DEVICE_SLUGS.THM,
-}  # these are the default device classes for Honeywell (non-HVAC) types
 
 
 def class_dev_heat(
     dev_addr: Address, msg: Message = None, eavesdrop: bool = False
 ) -> Class:
-    """Return a device class, but only if the device must be from the CH/DHW group."""
+    """Return a device class, but only if the device must be from the CH/DHW group.
 
-    if klass := _KLASS_BY_TYPE.get(dev_addr.type):
-        return HEAT_CLASS_BY_KLASS[klass]  # shouldn't need a get
+    May return a device class, HeatDevice (which will need promotion).
+    """
+
+    if dev_addr.type in DEV_TYPE_MAP.THM_DEVICES:
+        return HEAT_CLASS_BY_SLUG[DEV_TYPE.THM]
+
+    try:
+        slug = DEV_TYPE_MAP.slug(dev_addr.type)
+    except KeyError:
+        pass
+    else:
+        return HEAT_CLASS_BY_SLUG[slug]
 
     if not eavesdrop:
         raise TypeError(f"No CH/DHW class for: {dev_addr} (no eavesdropping)")

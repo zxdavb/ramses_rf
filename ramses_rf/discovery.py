@@ -21,10 +21,10 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
-    DEVICE_SLUGS,
-    DEV_TYPES,
-    DEV_MAP,
-    ZONE_MAP,
+    DEV_CLASS,
+    DEV_TYPE_MAP,
+    DEV_CLASS_MAP,
+    ZON_CLASS_MAP,
 )
 
 # skipcq: PY-W2000
@@ -401,6 +401,7 @@ async def script_scan_otb_map(gwy, dev_id: str):  # Tested only upon a R8820A
         _22D9: "01",  # boiler setpoint        / ControlSetpoint
         _3EF1: "11",  # rel. modulation level  / RelativeModulationLevel
         _1300: "12",  # cv water pressure      / CHWaterPressure
+        _12F0: "13",  # dhw_flow_rate          / DHWFlowRate
         _3200: "19",  # boiler output temp     / BoilerWaterTemperature
         _1260: "1A",  # dhw temp               / DHWTemperature
         _1290: "1B",  # outdoor temp           / OutsideTemperature
@@ -436,7 +437,7 @@ async def script_scan_otb_ramses(gwy, dev_id: str):  # Tested only upon a R8820A
         _3200,  # boiler output temp     / BoilerWaterTemperature
         _3210,  # boiler return temp     / ReturnWaterTemperature
         _0150,
-        _12F0,  # DHW flow rate?
+        _12F0,  # dhw flow rate          / DHWFlowRate
         _1098,
         _10B0,
         _3221,

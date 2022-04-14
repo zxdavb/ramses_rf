@@ -2,14 +2,14 @@
     "main_controller": "01:222222",
     "01:111111": {
         "system": {
-            "heating_control": "10:111111"
+            "tcs_relay": "10:111111"
         },
         "stored_hotwater": {
         }
     },
     "01:222222": {
         "system": {
-            "heating_control": "10:222222"
+            "tcs_relay": "10:222222"
         },
         "stored_hotwater": {
             "sensor": "07:222222"
@@ -17,7 +17,7 @@
     },
     "01:333333": {
         "system": {
-            "heating_control": "10:333333"
+            "tcs_relay": "10:333333"
         },
         "stored_hotwater": {
             "sensor": "07:333333",

@@ -33,10 +33,11 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEVICE_SLUGS,
-    DEV_TYPES,
-    DEV_MAP,
-    ZONE_MAP,
+    DEV_CLASS,
+    DEV_CLASS_MAP,
+    DEV_TYPE,
+    DEV_TYPE_MAP,
+    ZON_CLASS_MAP,
 )
 
 # skipcq: PY-W2000
@@ -671,7 +672,7 @@ class Command(PacketBase):
         """Constructor to get the TPI params of a system (c.f. parser_1100)."""
 
         if domain_id is None:
-            domain_id = "00" if dev_id[:2] == "13" else "FC"
+            domain_id = "00" if dev_id[:2] == DEV_TYPE_MAP.BDR else "FC"
         return cls(RQ, _1100, domain_id, dev_id, **kwargs)
 
     @classmethod  # constructor for W/1100
@@ -899,7 +900,9 @@ class Command(PacketBase):
         # RP --- 13:049798 18:006402 --:------ 3EF1 007 00-0126-0126-00-FF
 
         try:  # dex
-            assert src_id[:2] == "13", "device_id should be like 13:xxxxxx"
+            assert (
+                src_id[:2] == DEV_TYPE_MAP.BDR
+            ), f"device_id should be like {DEV_TYPE_MAP.BDR}:xxxxxx"
         except AssertionError as exc:
             raise TypeError(f"Faked device {src_id} has unsupported device type: {exc}")
 
@@ -920,7 +923,9 @@ class Command(PacketBase):
         #  I --- 13:106039 --:------ 13:106039 3EF0 003 0000FF
 
         try:  # dex
-            assert dev_id[:2] == "13", "device_id should be like 13:xxxxxx"
+            assert (
+                dev_id[:2] == DEV_TYPE_MAP.BDR
+            ), f"device_id should be like {DEV_TYPE_MAP.BDR}:xxxxxx"
         except AssertionError as exc:
             raise TypeError(f"Faked device {dev_id} has unsupported device type: {exc}")
 
@@ -983,7 +988,9 @@ class Command(PacketBase):
         """
 
         try:  # dex
-            assert dev_id[:2] == "17", "device_id should be like 17:xxxxxx"
+            assert (
+                dev_id[:2] == DEV_TYPE_MAP.OUT
+            ), f"device_id should be like {DEV_TYPE_MAP.OUT}:xxxxxx"
         except AssertionError as exc:
             raise TypeError(f"Faked device {dev_id} has unsupported device type: {exc}")
 
@@ -1000,7 +1007,9 @@ class Command(PacketBase):
         #  I --- 34:021943 --:------ 34:021943 30C9 003 000C0D
 
         try:  # dex - use 03 to avoid device_id collisions
-            assert dev_id[:2] == "03", "device_id should be like 03:xxxxxx"
+            assert (
+                dev_id[:2] == DEV_TYPE_MAP.HCW
+            ), f"device_id should be like {DEV_TYPE_MAP.HCW}:xxxxxx"
         except AssertionError as exc:
             raise TypeError(f"Faked device {dev_id} has unsupported device type: {exc}")
 

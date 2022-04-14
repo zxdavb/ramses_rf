@@ -10,47 +10,63 @@ import unittest
 
 from common import GWY_CONFIG, TEST_DIR  # noqa: F401
 
-from ramses_rf.const import DEV_MAP
+from ramses_rf.const import DEV_CLASS_MAP
 from ramses_rf.protocol.const import attr_dict_factory
 from ramses_rf.zones import _transform
 
 
 class TestClasses(unittest.TestCase):
     def test_attrdict(self) -> None:
-        devices = attr_dict_factory(MAIN_DICT, attr_table=ATTR_DICT)
+        _ = attr_dict_factory(MAIN_DICT, attr_table=ATTR_DICT)
 
         try:
-            devices["_08"]
+            DEV_CLASS_MAP["_08"]
         except KeyError:
             self.assertTrue(True)
         else:
             self.assertTrue(False)
 
-        self.assertEqual(DEV_MAP.DHW, "0D")
-        self.assertEqual(DEV_MAP._08, "trv_actuator")
-        self.assertEqual(DEV_MAP.ZONE_SENSOR, "04")
+        self.assertEqual(DEV_CLASS_MAP.DHW, "0D")
+        self.assertEqual(DEV_CLASS_MAP._0D, "dhw_sensor")
+        self.assertEqual(DEV_CLASS_MAP.DHW_SENSOR, "0D")
 
-        self.assertEqual(DEV_MAP["DHW"], "dhw_sensor")
-        self.assertEqual(DEV_MAP["08"], "trv_actuator")
-        self.assertEqual(DEV_MAP["zone_sensor"], "04")
+        self.assertEqual(DEV_CLASS_MAP["RAD"], "rad_actuator")
+        self.assertEqual(DEV_CLASS_MAP["08"], "rad_actuator")
+        self.assertEqual(DEV_CLASS_MAP["rad_actuator"], "08")
 
-        self.assertEqual(DEV_MAP._hex("DHW"), "0D")
-        self.assertEqual(DEV_MAP._hex("zone_sensor"), "04")
-        self.assertEqual(DEV_MAP._str("04"), "zone_sensor")
+        self.assertEqual(DEV_CLASS_MAP._hex("SEN"), "04")
+        self.assertRaises(KeyError, DEV_CLASS_MAP._hex, "04")
+        self.assertEqual(DEV_CLASS_MAP._hex("zone_sensor"), "04")
+
+        self.assertEqual(DEV_CLASS_MAP._str("OUT"), "out_sensor")
+        self.assertEqual(DEV_CLASS_MAP._str("0C"), "out_sensor")
+        self.assertRaises(KeyError, DEV_CLASS_MAP._str, "out_sensor")
+
+        self.assertRaises(KeyError, DEV_CLASS_MAP.slug, "RFG")
+        self.assertEqual(DEV_CLASS_MAP.slug("10"), "RFG")
+        self.assertRaises(KeyError, DEV_CLASS_MAP.slug, "remote_gateway")
 
         self.assertTrue(
-            "DHW" not in DEV_MAP.keys()
-            and "0D" in DEV_MAP.keys()
-            and "dhw_sensor" not in DEV_MAP.keys()
+            "HTG" not in DEV_CLASS_MAP.keys()
+            and "0E" in DEV_CLASS_MAP.keys()
+            and "heating_relay" not in DEV_CLASS_MAP.keys()
         )
         self.assertTrue(
-            "DHW" not in DEV_MAP.values()
-            and "0D" not in DEV_MAP.values()
-            and "dhw_sensor" in DEV_MAP.values()
+            "DHW" not in DEV_CLASS_MAP.values()
+            and "0D" not in DEV_CLASS_MAP.values()
+            and "dhw_sensor" in DEV_CLASS_MAP.values()
         )
 
-        self.assertEqual(DEV_MAP.SLUGS, MAIN_SLUGS)
-        self.assertEqual(DEV_MAP.ZONE_DEVICES, ATTR_DICT["ZONE_DEVICES"])
+        self.assertTrue(
+            "DHW" in DEV_CLASS_MAP.slugs()
+            and "0D" not in DEV_CLASS_MAP.slugs()
+            and "dhw_sensor" not in DEV_CLASS_MAP.slugs()
+        )
+
+        self.assertEqual(DEV_CLASS_MAP.SLUGS, MAIN_SLUGS)
+        self.assertEqual(
+            DEV_CLASS_MAP.HEAT_DEVICES, ("00", "04", "08", "09", "0A", "0B", "11")
+        )
 
 
 class TestHelpers(unittest.TestCase):
@@ -61,23 +77,23 @@ class TestHelpers(unittest.TestCase):
 
 
 MAIN_DICT = {
-    "ALL": {"00": "zone_actuator"},
+    "ACT": {"00": "zone_actuator"},
     "SEN": {"04": "zone_sensor"},
-    "RAD": {"08": "trv_actuator"},
+    "RAD": {"08": "rad_actuator"},
     "UFH": {"09": "ufh_actuator"},
     "VAL": {"0A": "val_actuator"},
     "MIX": {"0B": "mix_actuator"},
-    "OUT": {"0C": "outdoor_sensor"},
+    "OUT": {"0C": "out_sensor"},
     "DHW": {"0D": "dhw_sensor"},
-    "HTG": {"0E": "hot_water_relay"},
-    "RLY": {"0F": "appliance_control"},
+    "HTG": {"0E": "heating_relay"},
+    "APP": {"0F": "system_relay"},
     "RFG": {"10": "remote_gateway"},
     "ELE": {"11": "ele_actuator"},
 }
 ATTR_DICT = {
-    "ZONE_DEVICES": ("08", "09", "0A", "0B", "11"),
+    "HEAT_DEVICES": ("08", "09", "0A", "0B", "11"),
 }
-MAIN_SLUGS = tuple(MAIN_DICT.keys())
+MAIN_SLUGS = tuple(sorted(MAIN_DICT.keys()))
 
 
 TRANSFORMS = [

@@ -85,7 +85,7 @@ class CorruptStateError(CorruptEvohomeError):
 
     def __str__(self) -> str:
         err_msg = "Inconsistent schema"
-        err_tip = " (try restarting the client library)"
+        err_tip = "(try restarting the client library)"
         if self.message:
             return f"{err_msg}: {self.message}{err_tip}"
         return f"{err_msg} {err_tip}"

@@ -29,15 +29,13 @@ from .protocol import PACKET_LOG, PACKET_LOG_SCHEMA
 from .protocol.transport import DEV_HACK_REGEX, SERIAL_CONFIG_SCHEMA
 
 # skipcq: PY-W2000
-from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    I_,
-    RP,
-    RQ,
-    W_,
-    DEVICE_SLUGS,
-    DEV_TYPES,
-    DEV_MAP,
-    ZONE_MAP,
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    DEV_CLASS,
+    DEV_CLASS_MAP,
+    DEV_TYPE,
+    DEV_TYPE_MAP,
+    ZON_CLASS,
+    ZON_CLASS_MAP,
 )
 
 DEV_MODE = __dev_mode__ and False
@@ -52,14 +50,14 @@ SCHEMA = "schema"
 SZ_MAIN_CONTROLLER = "main_controller"
 
 SZ_CONTROLLER = "controller"
-SZ_HTG_SYSTEM = "system"
-SZ_HTG_CONTROL = "heating_control"
+SZ_TCS_SYSTEM = "system"
+SZ_TCS_RELAY = DEV_CLASS_MAP._str(DEV_CLASS.APP)
 SZ_ORPHANS = "orphans"
 
 SZ_DHW_SYSTEM = "stored_hotwater"
-SZ_DHW_SENSOR = "hotwater_sensor"  # deprecated
-SZ_DHW_VALVE = "hotwater_valve"
-SZ_DHW_VALVE_HTG = "heating_valve"
+SZ_DHW_SENSOR = "hotwater_sensor"
+SZ_DHW_VALVE = DEV_CLASS_MAP._str(DEV_CLASS.HTG)
+SZ_HTG_VALVE = DEV_CLASS_MAP._str(DEV_CLASS.HT1)
 
 SZ_ZONES = "zones"
 SZ_ZONE_TYPE = "zone_type"  # deprecated
@@ -72,6 +70,7 @@ SZ_SENSOR = "sensor"
 
 SZ_UFH_SYSTEM = "underfloor_heating"
 SZ_UFH_CTL = "ufh_controller"
+SZ_UFH_CIRCUITS = "ufh_circuits"
 
 SZ_DEVICE_ID = "device_id"
 SZ_ALIAS = "alias"
@@ -152,7 +151,7 @@ DEVICE_SCHEMA = vol.Schema(
             {
                 vol.Optional(SZ_ALIAS, default=None): vol.Any(None, str),
                 vol.Optional(SZ_KLASS, default=None): vol.Any(
-                    None, *vars(DEVICE_SLUGS).keys()
+                    None, *vars(DEV_CLASS).keys()
                 ),
                 vol.Optional(SZ_FAKED, default=None): vol.Any(None, bool),
             },
@@ -167,7 +166,7 @@ SYSTEM_KLASS = (SystemType.EVOHOME, SystemType.HOMETRONICS, SystemType.SUNDIAL)
 
 HTG_SCHEMA = vol.Schema(
     {
-        vol.Required(SZ_HTG_CONTROL, default=None): vol.Any(None, DEV_REGEX_HTG),
+        vol.Required(SZ_TCS_RELAY, default=None): vol.Any(None, DEV_REGEX_HTG),
         vol.Optional(SZ_SYS_KLASS, default=SystemType.EVOHOME): vol.Any(*SYSTEM_KLASS),
     },
     # extra=vol.ALLOW_EXTRA,  # TODO: remove me
@@ -176,7 +175,7 @@ DHW_SCHEMA = vol.Schema(
     {
         vol.Optional(SZ_SENSOR, default=None): vol.Any(None, DEV_REGEX_DHW),
         vol.Optional(SZ_DHW_VALVE, default=None): vol.Any(None, DEV_REGEX_BDR),
-        vol.Optional(SZ_DHW_VALVE_HTG, default=None): vol.Any(None, DEV_REGEX_BDR),
+        vol.Optional(SZ_HTG_VALVE, default=None): vol.Any(None, DEV_REGEX_BDR),
         vol.Optional(SZ_DHW_SENSOR): renamed(SZ_SENSOR),
     }
 )
@@ -190,7 +189,7 @@ UFC_CIRCUIT = vol.Schema(
 UFH_SCHEMA = vol.Schema(
     {
         vol.Required(DEVICE_ID): vol.Any(
-            None, {vol.Optional("ufh_circuits"): vol.Any(None, dict)}
+            None, {vol.Optional(SZ_UFH_CIRCUITS): vol.Any(None, dict)}
         )
     }
 )
@@ -217,7 +216,7 @@ ZONES_SCHEMA = vol.All(
 SYSTEM_SCHEMA = vol.Schema(
     {
         # vol.Required(SZ_CONTROLLER): DEV_REGEX_CTL,
-        vol.Optional(SZ_HTG_SYSTEM, default={}): vol.Any({}, HTG_SCHEMA),
+        vol.Optional(SZ_TCS_SYSTEM, default={}): vol.Any({}, HTG_SCHEMA),
         vol.Optional(SZ_DHW_SYSTEM, default={}): vol.Any({}, DHW_SCHEMA),
         vol.Optional(SZ_UFH_SYSTEM, default={}): vol.Any({}, UFH_SCHEMA),
         vol.Optional(SZ_ORPHANS, default=[]): vol.Any([], [DEVICE_ID]),
@@ -387,8 +386,8 @@ def load_system(gwy, ctl_id, schema) -> tuple[dict, dict]:
 
     ctl._make_tcs_controller(**schema)
 
-    if dev_id := schema[SZ_HTG_SYSTEM].get(SZ_HTG_CONTROL):
-        ctl._tcs._set_htg_control(_get_device(gwy, dev_id, ctl_id=ctl.id))
+    if dev_id := schema[SZ_TCS_SYSTEM].get(SZ_TCS_RELAY):
+        ctl._tcs._set_tcs_relay(_get_device(gwy, dev_id, ctl_id=ctl.id))
 
     # if dhw_schema := schema.get(SZ_DHW_SYSTEM, {}):
     #     dhw = ctl._tcs._get_dhw()  # **dhw_schema)
@@ -396,7 +395,7 @@ def load_system(gwy, ctl_id, schema) -> tuple[dict, dict]:
     #         dhw._set_sensor(_get_device(gwy, dev_id, ctl_id=ctl.id))
     #     if dev_id := dhw_schema.get(SZ_DHW_VALVE):
     #         dhw._set_dhw_valve(_get_device(gwy, dev_id, ctl_id=ctl.id))
-    #     if dev_id := dhw_schema.get(SZ_DHW_VALVE_HTG):
+    #     if dev_id := dhw_schema.get(SZ_HTG_VALVE):
     #         dhw._set_htg_valve(_get_device(gwy, dev_id, ctl_id=ctl.id))
 
     for dev_id in schema.get(SZ_UFH_SYSTEM, {}).keys():  # UFH controllers

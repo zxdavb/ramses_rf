@@ -7,19 +7,19 @@ Base for all devices.
 """
 
 # TODO: refactor polling
-# TODO: change xxx._tcs to xxx._tcs
+
 import logging
 from random import randint
 from types import SimpleNamespace
 from typing import Optional
 
-from .const import NUL_DEVICE_ID, SZ_ZONE_IDX, Discover, __dev_mode__
+from .const import SZ_DEVICES, SZ_ZONE_IDX, Discover, __dev_mode__
 from .entity_base import Entity, class_by_attr, discover_decorator
 from .helpers import shrink
 from .protocol import Command, CorruptStateError
-from .protocol.address import Address
+from .protocol.address import NUL_DEV_ADDR, Address
 from .protocol.command import FUNC, TIMEOUT
-from .protocol.ramses import CODES_BY_DEV_KLASS, CODES_ONLY_FROM_CTL, CODES_SCHEMA, NAME
+from .protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL, CODES_SCHEMA, NAME
 from .protocol.transport import PacketProtocolPort
 from .schema import SYSTEM_SCHEMA, SZ_ALIAS, SZ_DEVICE_ID, SZ_FAKED, SZ_KLASS
 
@@ -29,10 +29,11 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEVICE_SLUGS,
-    DEV_TYPES,
-    DEV_MAP,
-    ZONE_MAP,
+    DEV_CLASS,
+    DEV_TYPE,
+    DEV_TYPE_MAP,
+    DEV_CLASS_MAP,
+    ZON_CLASS_MAP,
 )
 
 # skipcq: PY-W2000
@@ -151,14 +152,10 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-ATTR_DEVICE_SLUG = "_DEVICE_SLUG"
-
-
 class DeviceBase(Entity):
     """The Device base class (good for a generic device)."""
 
-    _DEVICE_SLUG = None
-    _DEVICE_TYPES = ()  # TODO: needed?
+    _SLUG: str = None
 
     _STATE_ATTR = None
 
@@ -217,9 +214,7 @@ class DeviceBase(Entity):
         return f"{self.id} ({self._domain_id})"
 
     def __str__(self) -> str:
-        return (
-            self.id if self._klass is DEVICE_SLUGS.DEV else f"{self.id} ({self._klass})"
-        )
+        return self.id if self._klass is DEV_TYPE.DEV else f"{self.id} ({self._klass})"
 
     def __lt__(self, other) -> bool:
         if not hasattr(other, "id"):
@@ -278,16 +273,6 @@ class DeviceBase(Entity):
         assert msg.src is self, f"msg inappropriately routed to {self}"
         super()._handle_msg(msg)
 
-        if msg.verb != I_ or self._iz_controller is not None:
-            return
-
-        if not self._iz_controller and msg.code in CODES_ONLY_FROM_CTL:
-            if self._iz_controller is None:
-                _LOGGER.info(f"{msg!r} # IS_CONTROLLER (00): is TRUE")
-                self._make_tcs_controller(msg=msg)
-            elif self._iz_controller is False:  # TODO: raise CorruptStateError
-                _LOGGER.error(f"{msg!r} # IS_CONTROLLER (01): was FALSE, now True")
-
     # @property
     # def controller(self):  # -> Optional[Controller]:
     #     """Return the entity's controller, if known."""
@@ -314,7 +299,7 @@ class DeviceBase(Entity):
     # @property
     # def _is_parent(self) -> bool:
     #     """Return True if other devices can bind to this device."""
-    #     return self._klass in (DEVICE_SLUGS.CTL, DEVICE_SLUGS.PRG, DEVICE_SLUGS.UFC)
+    #     return self._klass in (DEV_CLASS.CTL, DEV_CLASS.PRG, DEV_CLASS.UFC)
 
     @property
     def _is_present(self) -> bool:
@@ -325,7 +310,7 @@ class DeviceBase(Entity):
 
     @property
     def _klass(self) -> str:
-        return self._DEVICE_SLUG
+        return self._SLUG
 
     @property
     def traits(self) -> dict:
@@ -361,17 +346,16 @@ class DeviceBase(Entity):
 class Device(DeviceBase):  # 10E0
     """The Device base class - also used for unknown device types."""
 
+    _SLUG: str = DEV_TYPE.DEV
+
     RF_BIND = "rf_bind"
     DEVICE_INFO = "device_info"
-
-    _DEVICE_SLUG = DEVICE_SLUGS.DEV
-    _DEVICE_TYPES = ()
 
     def _discover(self, discover_flag=Discover.ALL) -> None:
         if discover_flag & Discover.SCHEMA:
             if not self._msgs.get(_10E0) and (
-                self._klass not in CODES_BY_DEV_KLASS
-                or RP in CODES_BY_DEV_KLASS[self._klass].get(_10E0, {})
+                self._klass not in CODES_BY_DEV_SLUG
+                or RP in CODES_BY_DEV_SLUG[self._klass].get(_10E0, {})
             ):
                 self._make_cmd(_10E0, retries=3)
 
@@ -396,8 +380,8 @@ class Device(DeviceBase):  # 10E0
         if (
             self._ctl is not None
             and SZ_ZONE_IDX in msg.payload
-            and msg.src.type != "01"  # TODO: DEX, should be: if controller
-            # and msg.dst.type != "18"
+            and msg.src.type != DEV_TYPE_MAP.CTL  # TODO: DEX, should be: if controller
+            # and msg.dst.type != DEV_TYPE_MAP.HGI
         ):
             # TODO: is buggy - remove? how?
             self._set_parent(self._ctl._tcs.zx_get_htg_zone(msg.payload[SZ_ZONE_IDX]))
@@ -443,7 +427,7 @@ class Device(DeviceBase):  # 10E0
         self._parent = parent
         self._domain_id = domain
 
-        if hasattr(self._parent, "devices") and self not in self._parent.devices:
+        if hasattr(self._parent, SZ_DEVICES) and self not in self._parent.devices:
             parent.devices.append(self)
             parent.device_by_id[self.id] = self
             if not sensor:
@@ -462,7 +446,7 @@ class Device(DeviceBase):  # 10E0
     def traits(self) -> dict:
         result = super().traits
         result.update({f"_{self.RF_BIND}": self._msg_value(_1FC9)})
-        if _10E0 in self._msgs or _10E0 in CODES_BY_DEV_KLASS.get(self._klass, []):
+        if _10E0 in self._msgs or _10E0 in CODES_BY_DEV_SLUG.get(self._klass, []):
             result.update({f"_{self.DEVICE_INFO}": self.device_info})
         return result
 
@@ -546,7 +530,7 @@ class Fakeable(DeviceBase):
         self._1fc9_state["code"] = code
         self._1fc9_state["state"] = BindState.LISTENING
         self._gwy.msg_transport._add_callback(
-            f"{_1FC9}|{I_}|{NUL_DEVICE_ID}", {FUNC: proc_offer, TIMEOUT: 300}
+            f"{_1FC9}|{I_}|{NUL_DEV_ADDR.id}", {FUNC: proc_offer, TIMEOUT: 300}
         )
 
     def _bind_request(self, code, callback=None):
@@ -625,8 +609,7 @@ class BatteryState(DeviceBase):  # 1060
 class HgiGateway(DeviceBase):  # HGI (18:), was GWY
     """The HGI80 base class."""
 
-    _DEVICE_SLUG = DEVICE_SLUGS.HGI
-    _DEVICE_TYPES = (DEV_TYPES.HGI,)
+    _SLUG: str = DEV_TYPE.HGI
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -707,7 +690,7 @@ class HgiGateway(DeviceBase):  # HGI (18:), was GWY
         """
         if device_id in (self.id, None):
             device_id = DEFAULT_BDR_ID
-        device = self._create_fake_dev("13", device_id=device_id)
+        device = self._create_fake_dev(DEV_TYPE_MAP.BDR, device_id=device_id)
 
         if device.id == DEFAULT_BDR_ID:
             self._faked_bdr = device
@@ -724,7 +707,7 @@ class HgiGateway(DeviceBase):  # HGI (18:), was GWY
 
         if device_id in (self.id, None):
             device_id = DEFAULT_EXT_ID
-        device = self._create_fake_dev("17", device_id=device_id)
+        device = self._create_fake_dev(DEV_TYPE_MAP.OUT, device_id=device_id)
 
         if device.id == DEFAULT_EXT_ID:
             self._faked_ext = device
@@ -741,7 +724,7 @@ class HgiGateway(DeviceBase):  # HGI (18:), was GWY
         """
         if device_id in (self.id, None):
             device_id = DEFAULT_THM_ID
-        device = self._create_fake_dev("03", device_id=device_id)
+        device = self._create_fake_dev(DEV_TYPE_MAP.HCW, device_id=device_id)
 
         if device.id == DEFAULT_THM_ID:
             self._faked_thm = device
@@ -760,14 +743,23 @@ class HgiGateway(DeviceBase):  # HGI (18:), was GWY
 class HeatDevice(Device):  # Honeywell CH/DHW or compatible (incl. UFH, Heatpumps)
     """The Device base class for Honeywell CH/DHW or compatible."""
 
-    _DEVICE_SLUG: str = DEVICE_SLUGS.DEV
-    _DEVICE_TYPES: tuple[str] = ()
+    _SLUG: str = DEV_TYPE.HEA
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
+        if msg.verb != I_ or self._iz_controller is not None:
+            return
+
+        if not self._iz_controller and msg.code in CODES_ONLY_FROM_CTL:
+            if self._iz_controller is None:
+                _LOGGER.info(f"{msg!r} # IS_CONTROLLER (00): is TRUE")
+                self._make_tcs_controller(msg=msg)
+            elif self._iz_controller is False:  # TODO: raise CorruptStateError
+                _LOGGER.error(f"{msg!r} # IS_CONTROLLER (01): was FALSE, now True")
+
     def _make_tcs_controller(self, msg=None, **schema):  # CH/DHW
-        """Create a TCS, and attach it to this controller."""
+        """Create a TCS, and attach it to this device (should be a controller)."""
 
         """Return a temperature control system (create it if required).
 
@@ -777,7 +769,13 @@ class HeatDevice(Device):  # Honeywell CH/DHW or compatible (incl. UFH, Heatpump
 
         from .systems import zx_system_factory
 
-        if self.type not in ("01", "12", "22", "23", "34"):
+        if self.type not in (
+            DEV_TYPE_MAP.CTL,
+            DEV_TYPE_MAP.DTS,
+            DEV_TYPE_MAP.DT2,
+            DEV_TYPE_MAP.PRG,
+            DEV_TYPE_MAP.RND,
+        ):  # potentially can be controllers
             raise TypeError(f"Invalid device type to be a controller: {self}")
 
         self._iz_controller = self._iz_controller or msg or True
@@ -827,8 +825,7 @@ class HeatDevice(Device):  # Honeywell CH/DHW or compatible (incl. UFH, Heatpump
 class HvacDevice(Device):  # HVAC (ventilation, PIV, MV/HR)
     """The Device base class for HVAC (ventilation, PIV, MV/HR)."""
 
-    # _DEVICE_SLUG = DEVICE_SLUGS.DEV
-    # _DEVICE_TYPES = ()
+    _SLUG: str = DEV_TYPE.HVC
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -848,7 +845,7 @@ class HvacDevice(Device):  # HVAC (ventilation, PIV, MV/HR)
     #     super()._handle_msg(msg)
 
     #     # if type(self) is HvacDevice:
-    #     #     if self.type == "30":  # self.__class__ is Device, DEX
+    #     #     if self.type == DEV_TYPE_MAP.RFG:  # self.__class__ is Device, DEX
     #     #         # TODO: the RFG codes need checking
     #     #         if msg.code in (_31D9, _31DA) and msg.verb in (I_, RP):
     #     #             self.__class__ = HvacVentilator
@@ -863,4 +860,4 @@ class HvacDevice(Device):  # HVAC (ventilation, PIV, MV/HR)
     #         self._hvac_trick()
 
 
-_CLASS_BY_KLASS = class_by_attr(__name__, ATTR_DEVICE_SLUG)  # e.g. "HGI": HgiGateway
+BASE_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. "HGI": HgiGateway

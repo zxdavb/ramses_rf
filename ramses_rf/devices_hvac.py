@@ -11,7 +11,7 @@ from symtable import Class
 from typing import Optional
 
 from .const import BOOST_TIMER, FAN_MODE, __dev_mode__
-from .devices_base import ATTR_DEVICE_SLUG, BatteryState, HvacDevice
+from .devices_base import BatteryState, HvacDevice
 from .entity_base import class_by_attr
 from .protocol import Address, Message
 from .protocol.ramses import CODES_HVAC_ONLY
@@ -22,10 +22,11 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEVICE_SLUGS,
-    DEV_TYPES,
-    DEV_MAP,
-    ZONE_MAP,
+    DEV_CLASS,
+    DEV_TYPE,
+    DEV_TYPE_MAP,
+    DEV_CLASS_MAP,
+    ZON_CLASS_MAP,
 )
 
 # skipcq: PY-W2000
@@ -121,8 +122,7 @@ if DEV_MODE:
 class RfsGateway(HvacDevice):  # RFS: (spIDer gateway)
     """The HGI80 base class."""
 
-    _DEVICE_SLUG = DEVICE_SLUGS.RFS
-    _DEVICE_TYPES = ()
+    _SLUG: str = DEV_TYPE.RFS
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -142,8 +142,7 @@ class HvacHumidity(BatteryState, HvacDevice):  # HUM: I/12A0
     The cardinal code is 12A0.
     """
 
-    _DEVICE_SLUG = DEVICE_SLUGS.HUM
-    _DEVICE_TYPES = ()  # ("32",)
+    _SLUG: str = DEV_TYPE.HUM
 
     REL_HUMIDITY = "indoor_humidity"  # percentage (0.0-1.0)
     TEMPERATURE = "temperature"  # celsius
@@ -182,8 +181,7 @@ class HvacCarbonDioxide(HvacDevice):  # CO2: I/1298
     # 22:42:23.014 050  I --- 37:154011 28:126620 --:------ 1FC9 001 00                                                                            # CO2, incl. integrated control, PIR
     # 22:42:23.876 050  I --- 37:154011 63:262142 --:------ 10E0 038 0000010028090101FEFFFFFFFFFF140107E5564D532D31324333390000000000000000000000  # VMS-12C39, oem_code == 01
 
-    _DEVICE_SLUG = DEVICE_SLUGS.CO2
-    _DEVICE_TYPES = ()  # ("32",)
+    _SLUG: str = DEV_TYPE.CO2
 
     @property
     def co2_level(self) -> Optional[float]:
@@ -212,8 +210,7 @@ class HvacSwitch(BatteryState, HvacDevice):  # SWI: I/22F[13]
     # RQ --- 32:166025 30:079129 --:------ 31DA 001 21
     # RP --- 30:079129 32:166025 --:------ 31DA 029 21EF00026036EF7FFF7FFF7FFF7FFF0002EF18FFFF000000EF7FFF7FFF
 
-    _DEVICE_SLUG = DEVICE_SLUGS.SWI
-    _DEVICE_TYPES = ()  # ("39",)
+    _SLUG: str = DEV_TYPE.SWI
 
     @property
     def fan_rate(self) -> Optional[str]:
@@ -249,8 +246,7 @@ class HvacVentilator(HvacDevice):  # FAN: RP/31DA, I/31D[9A]
     # every /30
     # 30:079129 --:------ 30:079129 31D9 017 2100FF0000000000000000000000000000
 
-    _DEVICE_SLUG = DEVICE_SLUGS.FAN
-    _DEVICE_TYPES = ()  # ("20", "37")
+    _SLUG: str = DEV_TYPE.FAN
 
     @property
     def boost_timer(self) -> Optional[int]:
@@ -294,15 +290,13 @@ class HvacVentilator(HvacDevice):  # FAN: RP/31DA, I/31D[9A]
         }
 
 
-HVAC_CLASS_BY_KLASS = class_by_attr(
-    __name__, ATTR_DEVICE_SLUG
-)  # e.g. "HUM": HvacHumidity
+HVAC_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. HUM: HvacHumidity
 
 _HVAC_VC_PAIR_BY_CLASS = {
-    DEVICE_SLUGS.CO2: ((I_, _1298),),
-    DEVICE_SLUGS.FAN: ((I_, _31D9), (I_, _31DA), (RP, _31DA)),
-    DEVICE_SLUGS.HUM: ((I_, _12A0),),
-    DEVICE_SLUGS.SWI: ((I_, _22F1), (I_, _22F3)),
+    DEV_TYPE.CO2: ((I_, _1298),),
+    DEV_TYPE.FAN: ((I_, _31D9), (I_, _31DA), (RP, _31DA)),
+    DEV_TYPE.HUM: ((I_, _12A0),),
+    DEV_TYPE.SWI: ((I_, _22F1), (I_, _22F3)),
 }
 _HVAC_KLASS_BY_VC_PAIR = {t: k for k, v in _HVAC_VC_PAIR_BY_CLASS.items() for t in v}
 
@@ -310,7 +304,10 @@ _HVAC_KLASS_BY_VC_PAIR = {t: k for k, v in _HVAC_VC_PAIR_BY_CLASS.items() for t 
 def class_dev_hvac(
     dev_addr: Address, msg: Message = None, eavesdrop: bool = False
 ) -> Class:
-    """Return a device class, but only if the device must be from the HVAC group."""
+    """Return a device class, but only if the device must be from the HVAC group.
+
+    May return a base clase, HvacDevice (which will need promotion).
+    """
 
     if not eavesdrop:
         raise TypeError(f"No HVAC class for: {dev_addr} (no eavesdropping)")
@@ -319,7 +316,7 @@ def class_dev_hvac(
         raise TypeError(f"No HVAC class for: {dev_addr} (no msg)")
 
     if klass := _HVAC_KLASS_BY_VC_PAIR.get((msg.verb, msg.code)):
-        return HVAC_CLASS_BY_KLASS[klass]
+        return HVAC_CLASS_BY_SLUG[klass]
 
     if msg.code in CODES_HVAC_ONLY:
         return HvacDevice

@@ -42,15 +42,12 @@ from .protocol.transport import PacketProtocolPort
 from .schema import (
     DHW_SCHEMA,
     SZ_CONTROLLER,
-    SZ_DHW_SENSOR,
     SZ_DHW_SYSTEM,
-    SZ_DHW_VALVE,
-    SZ_DHW_VALVE_HTG,
-    SZ_HTG_CONTROL,
-    SZ_HTG_SYSTEM,
     SZ_KLASS,
     SZ_ORPHANS,
     SZ_SENSOR,
+    SZ_TCS_RELAY,
+    SZ_TCS_SYSTEM,
     SZ_UFH_SYSTEM,
     SZ_ZONE_TYPE,
     SZ_ZONES,
@@ -64,10 +61,10 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
-    DEVICE_SLUGS,
-    DEV_TYPES,
-    DEV_MAP,
-    ZONE_MAP,
+    DEV_CLASS,
+    DEV_TYPE_MAP,
+    DEV_CLASS_MAP,
+    ZON_CLASS_MAP,
 )
 
 # skipcq: PY-W2000
@@ -184,7 +181,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         self._domain_id = "FF"
 
         # schema attrs
-        self._htg_control = None
+        self._tcs_relay = None
 
         # state attrs
         self._heat_demand = None
@@ -245,9 +242,9 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         if discover_flag & Discover.SCHEMA:
             try:
-                _ = self._msgz[_000C][RP][f"00{DEV_MAP.HTG}"]
+                _ = self._msgz[_000C][RP][f"00{DEV_CLASS_MAP.HTG}"]
             except KeyError:
-                self._make_cmd(_000C, payload=f"00{DEV_MAP.HTG}")
+                self._make_cmd(_000C, payload=f"00{DEV_CLASS_MAP.HTG}")
 
         if discover_flag & Discover.PARAMS:
             self._send_cmd(Command.get_tpi_params(self.id))
@@ -261,7 +258,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         #         self._make_cmd(_0008, payload=f"{domain_id:02X}00")
 
     def _handle_msg(self, msg) -> None:
-        def eavesdrop_htg_control(this, prev=None) -> None:
+        def eavesdrop_tcs_relay(this, prev=None) -> None:
             """Discover the heat relay (10: or 13:) for this system.
 
             There's' 3 ways to find a controller's heat relay (in order of reliability):
@@ -309,7 +306,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                         heater = prev.src
 
             if heater is not None:
-                self._set_htg_control(heater)
+                self._set_tcs_relay(heater)
 
         assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
 
@@ -320,10 +317,10 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                 self._relay_demands[domain_id] = msg
                 if domain_id == "F9":
                     device = self.dhw.heating_valve if self.dhw else None
-                elif domain_id == "FkA":
+                elif domain_id == "FkA":  # TODO, FIXME
                     device = self.dhw.hotwater_valve if self.dhw else None
                 elif domain_id == "FC":
-                    device = self.heating_control
+                    device = self.tcs_relay
                 else:
                     device = None
 
@@ -334,18 +331,18 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         elif msg.code == _000C:
             if (
-                msg.payload[SZ_DEVICE_CLASS] == SZ_HTG_CONTROL
-                and msg.payload["devices"]
+                msg.payload[SZ_DEVICE_CLASS] == DEV_CLASS_MAP["APP"]  # 0F
+                and msg.payload[SZ_DEVICES]
             ):
-                self._set_htg_control(self._ctl.device_by_id[msg.payload["devices"][0]])
+                self._set_tcs_relay(self._ctl.device_by_id[msg.payload[SZ_DEVICES][0]])
             return
 
         elif msg.code == _3150:
             if msg.payload.get(SZ_DOMAIN_ID) == "FC" and msg.verb in (I_, RP):
                 self._heat_demand = msg.payload
 
-        if self._gwy.config.enable_eavesdrop and not self.heating_control:
-            eavesdrop_htg_control(msg)
+        if self._gwy.config.enable_eavesdrop and not self.tcs_relay:
+            eavesdrop_tcs_relay(msg)
 
     def _make_cmd(self, code, payload="00", **kwargs) -> None:  # skipcq: PYL-W0221
         super()._make_cmd(code, self._ctl.id, payload=payload, **kwargs)
@@ -355,26 +352,27 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         return self._ctl.devices + [self._ctl]  # TODO: to sort out
 
     @property
-    def heating_control(self) -> Device:
-        if self._htg_control:
-            return self._htg_control
-        htg_control = [d for d in self._ctl.devices if d._domain_id == "FC"]
-        return htg_control[0] if len(htg_control) == 1 else None  # HACK for 10:
+    def tcs_relay(self) -> Device:
+        """The TCS relay, aka 'appliance control' (BDR or OTB)."""
+        if self._tcs_relay:
+            return self._tcs_relay
+        tcs_relay = [d for d in self._ctl.devices if d._domain_id == "FC"]
+        return tcs_relay[0] if len(tcs_relay) == 1 else None  # HACK for 10:
 
-    def _set_htg_control(self, device: Device) -> None:  # self._htg_control
-        """Set the heating control relay for this system (10: or 13:)."""
+    def _set_tcs_relay(self, device: Device) -> None:  # self._tcs_relay
+        """Set the TCS relay for this system (BDR or OTB)."""
 
-        if self._htg_control is device:
+        if self._tcs_relay is device:
             return
-        if self._htg_control is not None:
+        if self._tcs_relay is not None:
             raise CorruptStateError(
-                f"{self} changed {SZ_HTG_CONTROL}: {self._htg_control} to {device}"
+                f"{self} changed {SZ_TCS_RELAY}: {self._tcs_relay} to {device}"
             )
 
         if not isinstance(device, (BdrSwitch, OtbGateway)):
-            raise TypeError(f"{self}: {SZ_HTG_CONTROL} can't be {device}")
+            raise TypeError(f"{self}: {SZ_TCS_RELAY} can't be {device}")
 
-        self._htg_control = device
+        self._tcs_relay = device
         device._set_parent(self, domain="FC")  # TODO: _set_domain()
 
     @property
@@ -388,21 +386,17 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     @property
     def is_calling_for_heat(self) -> Optional[bool]:
         """Return True is the system is currently calling for heat."""
-        if not self._htg_control:
-            return
-
-        if self._htg_control.actuator_state:
-            return True
+        return self._tcs_relay and self._tcs_relay.actuator_state
 
     @property
     def schema(self) -> dict:
         """Return the system's schema."""
 
-        schema = {SZ_HTG_SYSTEM: {}}
-        # hema = {SZ_CONTROLLER: self._ctl.id, SZ_HTG_SYSTEM: {}}
+        schema = {SZ_TCS_SYSTEM: {}}
+        # hema = {SZ_CONTROLLER: self._ctl.id, SZ_TCS_SYSTEM: {}}
 
-        schema[SZ_HTG_SYSTEM][SZ_HTG_CONTROL] = (
-            self.heating_control.id if self.heating_control else None
+        schema[SZ_TCS_SYSTEM][SZ_TCS_RELAY] = (
+            self.tcs_relay.id if self.tcs_relay else None
         )
 
         schema[SZ_ORPHANS] = sorted(
@@ -423,19 +417,21 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         result = {SZ_CONTROLLER: self.id}
 
         try:
-            if schema[SZ_HTG_SYSTEM][SZ_HTG_CONTROL][:2] == "10":  # DEX
-                result[SZ_HTG_SYSTEM] = {
-                    SZ_HTG_CONTROL: schema[SZ_HTG_SYSTEM][SZ_HTG_CONTROL]
+            if schema[SZ_TCS_SYSTEM][SZ_TCS_RELAY][:2] == DEV_TYPE_MAP.OTB:  # DEX
+                result[SZ_TCS_SYSTEM] = {
+                    SZ_TCS_RELAY: schema[SZ_TCS_SYSTEM][SZ_TCS_RELAY]
                 }
         except (IndexError, TypeError):
-            result[SZ_HTG_SYSTEM] = {SZ_HTG_CONTROL: None}
+            result[SZ_TCS_SYSTEM] = {SZ_TCS_RELAY: None}
 
         zones = {}
         for idx, zone in schema[SZ_ZONES].items():
             _zone = {}
-            if zone[SZ_SENSOR] and zone[SZ_SENSOR][:2] == "01":  # DEX
+            if zone[SZ_SENSOR] and zone[SZ_SENSOR][:2] == DEV_TYPE_MAP.CTL:  # DEX
                 _zone = {SZ_SENSOR: zone[SZ_SENSOR]}
-            if devices := [d for d in zone[SZ_DEVICES] if d[:2] == "00"]:  # DEX
+            if devices := [
+                d for d in zone[SZ_DEVICES] if d[:2] == DEV_TYPE_MAP.TR0
+            ]:  # DEX
                 _zone.update({SZ_DEVICES: devices})
             if _zone:
                 zones[idx] = _zone
@@ -448,16 +444,16 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     def params(self) -> dict:
         """Return the system's configuration."""
 
-        params = {SZ_HTG_SYSTEM: {}}
-        params[SZ_HTG_SYSTEM]["tpi_params"] = self._msg_value(_1100)
+        params = {SZ_TCS_SYSTEM: {}}
+        params[SZ_TCS_SYSTEM]["tpi_params"] = self._msg_value(_1100)
         return params
 
     @property
     def status(self) -> dict:
         """Return the system's current state."""
 
-        status = {SZ_HTG_SYSTEM: {}}
-        status[SZ_HTG_SYSTEM]["heat_demand"] = self.heat_demand
+        status = {SZ_TCS_SYSTEM: {}}
+        status[SZ_TCS_SYSTEM]["heat_demand"] = self.heat_demand
 
         status[SZ_DEVICES] = {d.id: d.status for d in sorted(self._ctl.devices)}
 
@@ -511,7 +507,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
-            for zone_type in ZONE_MAP.HEATING_ZONES:
+            for zone_type in ZON_CLASS_MAP.HEAT_ZONES:
                 try:
                     _ = self._msgz[_0005][RP][f"00{zone_type}"]
                 except KeyError:
@@ -672,10 +668,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
         if msg.code == _0005:  # RP, and also I
-            if msg.payload.get(f"_{SZ_DEVICE_CLASS}") in self.ZONE_TYPES + [
-                DEV_MAP.ALL,
-                DEV_MAP.SEN,
-            ]:
+            if msg.payload.get(SZ_ZONE_TYPE) in ZON_CLASS_MAP:
                 [
                     self.zx_get_htg_zone(f"{idx:02X}")._zx_update_schema(
                         **{SZ_KLASS: msg.payload[SZ_ZONE_TYPE]}
@@ -686,11 +679,8 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 return
 
         elif msg.code == _000C:  # RP, and also I
-            if msg.payload.get(f"_{SZ_DEVICE_CLASS}") in self.ZONE_TYPES + [
-                DEV_MAP.ALL,
-                DEV_MAP.SEN,
-            ]:
-                # NOTE: will _zx_update_schema, below
+            if msg.payload.get(SZ_ZONE_TYPE) in ZON_CLASS_MAP:
+                # NOTE: _zx_update_schema is later, below
                 self.zx_get_htg_zone(msg.payload[SZ_ZONE_IDX])
 
         # Route all messages to their zones, incl. 000C, others
@@ -794,7 +784,7 @@ class Language(SystemBase):  # 0100
     @property
     def params(self) -> dict:
         params = super().params
-        params[SZ_HTG_SYSTEM][SZ_LANGUAGE] = self.language
+        params[SZ_TCS_SYSTEM][SZ_LANGUAGE] = self.language
         return params
 
 
@@ -935,9 +925,9 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
 
         if discover_flag & Discover.SCHEMA:
             try:
-                _ = self._msgz[_000C][RP][f"00{DEV_MAP.DHW}"]
+                _ = self._msgz[_000C][RP][f"00{DEV_CLASS_MAP.DHW}"]
             except KeyError:
-                self._make_cmd(_000C, payload=f"00{DEV_MAP.DHW}")
+                self._make_cmd(_000C, payload=f"00{DEV_CLASS_MAP.DHW}")
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -945,13 +935,12 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
         if (
             msg.code == _000C
-            and msg.payload[SZ_DEVICE_CLASS]
+            and msg.payload[SZ_ZONE_TYPE]
             in (
-                SZ_DHW_SENSOR,
-                SZ_DHW_VALVE,
-                SZ_DHW_VALVE_HTG,
-            )  # msg.payload.get(SZ_DOMAIN_ID) == "FA"
-            and msg.payload["devices"]
+                DEV_CLASS_MAP.DHW,
+                DEV_CLASS_MAP.HTG,
+            )
+            and msg.payload[SZ_DEVICES]
         ):
             self.zx_get_dhw_zone()._handle_msg(msg)
 
@@ -973,15 +962,15 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
 
     @property
     def dhw_sensor(self) -> Device:
-        return self._dhw._dhw_sensor if self._dhw else None
+        return self._dhw.sensor if self._dhw else None
 
     @property
     def hotwater_valve(self) -> Device:
-        return self._dhw._dhw_valve if self._dhw else None
+        return self._dhw.hotwater_valve if self._dhw else None
 
     @property
     def heating_valve(self) -> Device:
-        return self._dhw._htg_valve if self._dhw else None
+        return self._dhw.heating_valve if self._dhw else None
 
     @property
     def schema(self) -> dict:
@@ -1033,7 +1022,7 @@ class SysMode(SystemBase):  # 2E04
     @property
     def params(self) -> dict:
         params = super().params
-        params[SZ_HTG_SYSTEM][SZ_SYSTEM_MODE] = self.system_mode
+        params[SZ_TCS_SYSTEM][SZ_SYSTEM_MODE] = self.system_mode
         return params
 
 
@@ -1101,7 +1090,7 @@ class UfHeating(SystemBase):
 class System(StoredHw, Datetime, Logbook, SystemBase):
     """The Controller class."""
 
-    _SYS_KLASS = SYS_KLASS.PRG
+    _SLUG: str = SYS_KLASS.PRG
 
     def __init__(self, ctl, **kwargs) -> None:
         super().__init__(ctl, **kwargs)
@@ -1151,11 +1140,11 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
         """Return the system's current state."""
 
         status = super().status
-        # assert SZ_HTG_SYSTEM in status  # TODO: removeme
+        # assert SZ_TCS_SYSTEM in status  # TODO: removeme
 
-        status[SZ_HTG_SYSTEM]["heat_demands"] = self.heat_demands
-        status[SZ_HTG_SYSTEM]["relay_demands"] = self.relay_demands
-        status[SZ_HTG_SYSTEM]["relay_failsafes"] = self.relay_failsafes
+        status[SZ_TCS_SYSTEM]["heat_demands"] = self.heat_demands
+        status[SZ_TCS_SYSTEM]["relay_demands"] = self.relay_demands
+        status[SZ_TCS_SYSTEM]["relay_failsafes"] = self.relay_failsafes
 
         return status
 
@@ -1165,7 +1154,7 @@ class Evohome(ScheduleSync, Language, SysMode, MultiZone, UfHeating, System):
 
     # older evohome don't have zone_type=ELE
 
-    _SYS_KLASS = SYS_KLASS.TCS
+    _SLUG: str = SYS_KLASS.TCS
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (evohome)"
@@ -1173,7 +1162,7 @@ class Evohome(ScheduleSync, Language, SysMode, MultiZone, UfHeating, System):
 
 class Chronotherm(Evohome):
 
-    _SYS_KLASS = SYS_KLASS.SYS
+    _SLUG: str = SYS_KLASS.SYS
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (chronotherm)"
@@ -1188,7 +1177,7 @@ class Hometronics(System):
 
     # Hometronic does not react to W/2349 but rather requies W/2309
 
-    _SYS_KLASS = SYS_KLASS.SYS
+    _SLUG: str = SYS_KLASS.SYS
 
     RQ_SUPPORTED = (_0004, _000C, _2E04, _313F)  # TODO: WIP
     RQ_UNSUPPORTED = ("xxxx",)  # 10E0?
@@ -1209,7 +1198,7 @@ class Hometronics(System):
 
 class Programmer(Evohome):
 
-    _SYS_KLASS = SYS_KLASS.PRG
+    _SLUG: str = SYS_KLASS.PRG
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (programmer)"
@@ -1217,13 +1206,13 @@ class Programmer(Evohome):
 
 class Sundial(Evohome):
 
-    _SYS_KLASS = SYS_KLASS.SYS
+    _SLUG: str = SYS_KLASS.SYS
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (sundial)"
 
 
-_CLASS_BY_KLASS = class_by_attr(__name__, "_SYS_KLASS")  # e.g. "evohome": Evohome
+SYS_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. "evohome": Evohome
 
 
 def zx_system_factory(ctl, msg: Message = None, **schema) -> Class:
@@ -1238,7 +1227,7 @@ def zx_system_factory(ctl, msg: Message = None, **schema) -> Class:
         """Return the system class for a given CTL/schema (defaults to evohome)."""
 
         # a specified system class always takes precidence (even if it is wrong)...
-        if klass := _CLASS_BY_KLASS.get(schema.get(SZ_KLASS)):
+        if klass := SYS_CLASS_BY_SLUG.get(schema.get(SZ_KLASS)):
             _LOGGER.debug(f"Using configured system class for: {ctl_addr} ({klass})")
             return klass
 

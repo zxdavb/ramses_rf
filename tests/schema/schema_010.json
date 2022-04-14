@@ -2,7 +2,7 @@
     "main_controller": "01:145038",
     "01:145038": {
         "system": {
-            "heating_control": null
+            "tcs_relay": null
         },
         "orphans": [],
         "stored_hotwater": {},

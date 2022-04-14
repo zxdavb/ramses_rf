@@ -7,16 +7,16 @@ import re
 from functools import lru_cache
 from typing import List
 
-from .const import HGI_DEVICE_ID, NON_DEVICE_ID, NUL_DEVICE_ID, __dev_mode__
+from .const import __dev_mode__
 from .exceptions import InvalidAddrSetError
 from .helpers import typechecked
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    DEVICE_SLUGS,
-    DEV_TYPES,
-    DEV_MAP,
-    ZONE_MAP,
+    DEV_CLASS,
+    DEV_TYPE_MAP,
+    DEV_CLASS_MAP,
+    ZON_CLASS_MAP,
 )
 
 DEV_MODE = __dev_mode__ and False
@@ -26,20 +26,21 @@ __device_id_regex__ = re.compile(r"^(-{2}:-{6}|\d{2}:\d{6})$")
 
 
 DEVICE_LOOKUP = {
-    k: DEV_TYPES._hex(k) for k in DEV_TYPES.SLUGS if k not in ("JIM", "JST")
+    k: DEV_TYPE_MAP._hex(k) for k in DEV_TYPE_MAP.SLUGS if k not in ("JIM", "JST")
 }
 DEVICE_LOOKUP |= {"NUL": "63", "---": "--"}
-DEV_TYPES = {v: k for k, v in DEVICE_LOOKUP.items()}
+DEV_TYPE_MAP = {v: k for k, v in DEVICE_LOOKUP.items()}
+
+
+HGI_DEVICE_ID = "18:000730"  # default type and address of HGI, 18:013393
+NON_DEVICE_ID = "--:------"
+NUL_DEVICE_ID = "63:262142"  # FFFFFE - send here if not bound?
 
 
 class Address:
     """The device Address class."""
 
     DEVICE_ID_REGEX = __device_id_regex__
-
-    # HGI_DEVICE_ID = __hgi_device_id__
-    # NON_DEVICE_ID = __non_device_id__
-    # NUL_DEVICE_ID = __nul_device_id__
 
     def __init__(self, id) -> None:
         """Create an address from a valid device id."""
@@ -80,7 +81,7 @@ class Address:
     @staticmethod
     def is_valid(value: str) -> bool:  # Union[str, Match[str], None]:
 
-        # if value[:2] not in DEV_TYPES:
+        # if value[:2] not in DEV_TYPE_MAP:
         #     return False
 
         return isinstance(value, str) and __device_id_regex__.match(value)  # type: ignore[return-value]
@@ -94,7 +95,7 @@ class Address:
 
         _type, _tmp = device_id.split(":")
 
-        return f"{DEV_TYPES.get(_type, f'{_type:>3}')}:{_tmp}"
+        return f"{DEV_TYPE_MAP.get(_type, f'{_type:>3}')}:{_tmp}"
 
     @classmethod
     def convert_from_hex(cls, device_hex: str, friendly_id=False) -> str:
@@ -135,12 +136,13 @@ class Address:
 
 @lru_cache(maxsize=256)
 def id_to_address(device_id) -> Address:
+    """Factory method to cache & return device Address from device ID."""
     return Address(id=device_id)
 
 
-HGI_DEV_ADDR = id_to_address(HGI_DEVICE_ID)
-NON_DEV_ADDR = id_to_address(NON_DEVICE_ID)
-NUL_DEV_ADDR = id_to_address(NUL_DEVICE_ID)
+HGI_DEV_ADDR = Address(HGI_DEVICE_ID)
+NON_DEV_ADDR = Address(NON_DEVICE_ID)
+NUL_DEV_ADDR = Address(NUL_DEVICE_ID)
 
 
 @typechecked
@@ -172,7 +174,7 @@ def hex_id_to_dev_id(device_hex: str, friendly_id: bool = False) -> str:
     dev_type = f"{(_tmp & 0xFC0000) >> 18:02d}"
 
     if friendly_id:
-        dev_type = DEV_TYPES.get(dev_type, f"{dev_type:<3}")
+        dev_type = DEV_TYPE_MAP.get(dev_type, f"{dev_type:<3}")
 
     return f"{dev_type}:{_tmp & 0x03FFFF:06d}"
 
@@ -185,7 +187,7 @@ def is_valid_dev_id(value: str, dev_class: str = None) -> bool:
     if not isinstance(value, str) or not __device_id_regex__.match(value):
         return False
 
-    if not DEV_HVAC and value.split(":", 1)[0] not in DEV_TYPES:
+    if not DEV_HVAC and value.split(":", 1)[0] not in DEV_TYPE_MAP:
         return False
 
     # TODO: specify device klass (for HVAC)

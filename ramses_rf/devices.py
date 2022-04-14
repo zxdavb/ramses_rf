@@ -10,14 +10,34 @@ import logging
 from symtable import Class
 
 from .const import __dev_mode__
-from .devices_base import Device
-from .devices_hvac import HVAC_CLASS_BY_KLASS, class_dev_hvac
 from .protocol import Address, Message
 from .schema import SZ_KLASS
 
 # skipcq: PY-W2000
+from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+    DEV_CLASS,
+    DEV_CLASS_MAP,
+    DEV_TYPE,
+    DEV_TYPE_MAP,
+    ZON_CLASS_MAP,
+)
+
+# skipcq: PY-W2000
+from .devices_base import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    BASE_CLASS_BY_SLUG,
+    Device,
+    HeatDevice,
+    HgiGateway,
+    HvacDevice,
+)
+
+# skipcq: PY-W2000
 from .devices_heat import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    HEAT_CLASS_BY_KLASS,
+    HEAT_CLASS_BY_SLUG,
     BdrSwitch,
     Controller,
     DhwSensor,
@@ -29,6 +49,12 @@ from .devices_heat import (  # noqa: F401, isort: skip, pylint: disable=unused-i
     class_dev_heat,
 )
 
+# skipcq: PY-W2000
+from .devices_hvac import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    HVAC_CLASS_BY_SLUG,
+    class_dev_hvac,
+)
+
 DEV_MODE = __dev_mode__  # and False
 
 _LOGGER = logging.getLogger(__name__)
@@ -36,7 +62,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-_CLASS_BY_KLASS = HEAT_CLASS_BY_KLASS | HVAC_CLASS_BY_KLASS
+_CLASS_BY_SLUG = BASE_CLASS_BY_SLUG | HEAT_CLASS_BY_SLUG | HVAC_CLASS_BY_SLUG
 
 
 def best_device_class(
@@ -48,9 +74,13 @@ def best_device_class(
     """Return the best device class for a given device id/msg/schema."""
 
     # a specified device class always takes precidence (even if it is wrong)...
-    if klass := _CLASS_BY_KLASS.get(schema.get(SZ_KLASS)):
+    if klass := _CLASS_BY_SLUG.get(schema.get(SZ_KLASS)):
         _LOGGER.debug(f"Using configured dev class for: {dev_addr} ({klass})")
         return klass
+
+    if dev_addr.type == DEV_TYPE_MAP.HGI:
+        _LOGGER.debug(f"Using default dev class for: {dev_addr} ({HgiGateway})")
+        return HgiGateway
 
     try:  # or, is it a well-known CH/DHW class, derived from the device type...
         if klass := class_dev_heat(dev_addr, msg=msg, eavesdrop=eavesdrop):

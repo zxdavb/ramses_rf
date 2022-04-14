@@ -19,10 +19,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEVICE_SLUGS,
-    DEV_TYPES,
-    DEV_MAP,
-    ZONE_MAP,
+    DEV_CLASS,
+    DEV_TYPE_MAP,
+    DEV_CLASS_MAP,
+    ZON_CLASS_MAP,
 )
 
 _QOS_TX_LIMIT = 12  # TODO: needs work
@@ -39,7 +39,7 @@ def class_by_attr(name: str, attr: str) -> dict:  # TODO: change to __module__
 
     For example:
       {"OTB": OtbGateway, "CTL": Controller}
-      {ZONE_SLUGS.RAD: RadZone, ZONE_SLUGS.UFH: UfhZone}
+      {ZON_CLASS.RAD: RadZone, ZON_CLASS.UFH: UfhZone}
       {"evohome": Evohome}
     """
 
@@ -101,6 +101,8 @@ class Entity:
     #     pass
 
     def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess
+        """ "Store a msg in _msgs[code] (only latest I/RP) and _msgz[code][verb][ctx]."""
+
         if (
             self._gwy.pkt_protocol is None
             or msg.src.id != self._gwy.pkt_protocol._hgi80.get("device_id")
@@ -139,10 +141,12 @@ class Entity:
         self._gwy.send_cmd(cmd)  # BUG: should be awaiting this
 
     def _msg_flag(self, code, key, idx) -> Optional[bool]:
+
         if flags := self._msg_value(code, key=key):
             return bool(flags[idx])
 
     def _msg_value(self, code, *args, **kwargs):
+
         if isinstance(code, (str, tuple)):  # a code or a tuple of codes
             return self._msg_value_code(code, *args, **kwargs)
         return self._msg_value_msg(code, *args, **kwargs)  # assume is a Message

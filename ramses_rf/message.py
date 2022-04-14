@@ -12,7 +12,7 @@ from datetime import timedelta as td
 from .const import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES, __dev_mode__
 from .devices import Device, UfhController
 from .protocol import (
-    CODES_BY_DEV_KLASS,
+    CODES_BY_DEV_SLUG,
     CODES_SCHEMA,
     CorruptStateError,
     InvalidAddrSetError,
@@ -28,10 +28,11 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
-    DEVICE_SLUGS,
-    DEV_TYPES,
-    DEV_MAP,
-    ZONE_MAP,
+    DEV_CLASS,
+    DEV_TYPE,
+    DEV_TYPE_MAP,
+    DEV_CLASS_MAP,
+    ZON_CLASS_MAP,
 )
 
 # skipcq: PY-W2000
@@ -199,12 +200,14 @@ def _check_msg_src(msg: Message, klass: str = None) -> None:
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
     """
 
-    if klass is None:
-        klass = getattr(msg.src, "_klass", None) or DEV_KLASS_BY_TYPE.get(msg.src.type)
-    if klass in ("HGI", "DEV"):
+    if klass is None:  # FIXME: next line needs work
+        klass = getattr(
+            msg.src, "_klass", DEV_TYPE.DEV
+        )  # , None) or DEV_TYPE_MAP.slug(msg.src.type)
+    if klass in (DEV_TYPE.HGI, DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC):
         return
 
-    if klass not in CODES_BY_DEV_KLASS:  # DEX_done, TODO: fingerprint dev class
+    if klass not in CODES_BY_DEV_SLUG:  # DEX_done, TODO: fingerprint dev class
         if msg.code != _10E0 and msg.code not in CODES_HVAC_ONLY:
             raise InvalidPacketError(f"Unknown src type: {msg.src}")
         _LOGGER.warning(f"{msg!r} < Unknown src type: {msg.src}, is it HVAC?")
@@ -216,7 +219,7 @@ def _check_msg_src(msg: Message, klass: str = None) -> None:
     #
     #
 
-    if msg.code not in CODES_BY_DEV_KLASS[klass]:  # DEX_done
+    if msg.code not in CODES_BY_DEV_SLUG[klass]:  # DEX_done
         if klass != "HGI":  # DEX_done
             raise InvalidPacketError(f"Invalid code for {msg.src} to Tx: {msg.code}")
         if msg.verb in (RQ, W_):
@@ -230,8 +233,8 @@ def _check_msg_src(msg: Message, klass: str = None) -> None:
     #
 
     #
-    # (code := CODES_BY_DEV_KLASS[klass][msg.code]) and msg.verb not in code:
-    if msg.verb not in CODES_BY_DEV_KLASS[klass][msg.code]:  # DEX_done
+    # (code := CODES_BY_DEV_SLUG[klass][msg.code]) and msg.verb not in code:
+    if msg.verb not in CODES_BY_DEV_SLUG[klass][msg.code]:  # DEX_done
         raise InvalidPacketError(
             f"Invalid verb/code for {msg.src} to Tx: {msg.verb}/{msg.code}"
         )
@@ -248,7 +251,7 @@ def _check_msg_dst(msg: Message, klass: str = None) -> None:
     if klass in (None, "HGI", "DEV") or (msg.dst is msg.src and msg.verb == I_):
         return
 
-    if klass not in CODES_BY_DEV_KLASS:  # DEX_done, TODO: fingerprint dev class
+    if klass not in CODES_BY_DEV_SLUG:  # DEX_done, TODO: fingerprint dev class
         if msg.code not in CODES_HVAC_ONLY:
             raise InvalidPacketError(f"Unknown dst type: {msg.dst}")
         _LOGGER.warning(f"{msg!r} < Unknown dst type: {msg.dst}, is it HVAC?")
@@ -260,7 +263,7 @@ def _check_msg_dst(msg: Message, klass: str = None) -> None:
     if f"{klass}/{msg.verb}/{msg.code}" in (f"CTL/{RQ}/{_3EF1}",):  # DEX_done
         return  # HACK: an exception-to-the-rule that need sorting
 
-    if msg.code not in CODES_BY_DEV_KLASS[klass]:  # NOTE: not OK for Rx, DEX_done
+    if msg.code not in CODES_BY_DEV_SLUG[klass]:  # NOTE: not OK for Rx, DEX_done
         if klass != "HGI":  # NOTE: not yet needed because of 1st if, DEX_done
             raise InvalidPacketError(f"Invalid code for {msg.dst} to Rx: {msg.code}")
         if msg.verb == RP:
@@ -274,8 +277,8 @@ def _check_msg_dst(msg: Message, klass: str = None) -> None:
         return  # HACK: an exception-to-the-rule that need sorting
 
     verb = {RQ: RP, RP: RQ, W_: I_}[msg.verb]
-    # (code := CODES_BY_DEV_KLASS[klass][msg.code]) and verb not in code:
-    if verb not in CODES_BY_DEV_KLASS[klass][msg.code]:  # DEX_done
+    # (code := CODES_BY_DEV_SLUG[klass][msg.code]) and verb not in code:
+    if verb not in CODES_BY_DEV_SLUG[klass][msg.code]:  # DEX_done
         raise InvalidPacketError(
             f"Invalid verb/code for {msg.dst} to Rx: {msg.verb}/{msg.code}"
         )
@@ -312,7 +315,9 @@ def process_msg(msg: Message, prev_msg: Message = None) -> None:
     # HACK:  if CLI, double-logging with client.py proc_msg() & setLevel(DEBUG)
     if (log_level := _LOGGER.getEffectiveLevel()) < logging.INFO:
         _LOGGER.info(msg)
-    elif log_level <= logging.INFO and not (msg.verb == RQ and msg.src.type == "18"):
+    elif log_level <= logging.INFO and not (
+        msg.verb == RQ and msg.src.type == DEV_TYPE_MAP.HGI
+    ):
         _LOGGER.info(msg)
 
     msg._payload = detect_array(msg, prev_msg)  # HACK: messy, needs rethinking?

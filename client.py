@@ -21,7 +21,6 @@ from colorama import init as colorama_init
 from ramses_rf import Gateway, GracefulExit, is_valid_dev_id
 from ramses_rf.const import DONT_CREATE_MESSAGES, SZ_ZONE_IDX
 from ramses_rf.discovery import GET_FAULTS, GET_SCHED, SET_SCHED, spawn_scripts
-from ramses_rf.protocol import _000A, _000C, _1F09, _30C9, I_, RP, RQ, W_, _0005, _2309
 from ramses_rf.protocol.exceptions import EvohomeError
 from ramses_rf.protocol.logger import (
     CONSOLE_COLS,
@@ -42,6 +41,29 @@ from ramses_rf.schema import (
     PACKET_LOG_SCHEMA,
     REDUCE_PROCESSING,
     SERIAL_PORT,
+)
+
+# skipcq: PY-W2000
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    I_,
+    RP,
+    RQ,
+    W_,
+    DEV_CLASS,
+    DEV_TYPE,
+    DEV_TYPE_MAP,
+    DEV_CLASS_MAP,
+    ZON_CLASS_MAP,
+)
+
+# skipcq: PY-W2000
+from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
+    _0005,
+    _000A,
+    _000C,
+    _1F09,
+    _2309,
+    _30C9,
 )
 
 DEBUG_MODE = "debug_mode"
@@ -443,14 +465,14 @@ def print_summary(gwy, **kwargs):
         print(json.dumps(result, indent=4), "\r\n")
 
     if kwargs.get("show_crazys"):
-        for device in [d for d in gwy.devices if d.type == "01"]:
+        for device in [d for d in gwy.devices if d.type == DEV_TYPE_MAP.CTL]:
             for code, verbs in device._msgz.items():
                 if code in (_0005, _000C):
                     for verb in verbs.values():
                         for pkt in verb.values():
                             print(f"{pkt}")
             print()
-        for device in [d for d in gwy.devices if d.type == "02"]:
+        for device in [d for d in gwy.devices if d.type == DEV_TYPE_MAP.UFC]:
             for code in device._msgz.values():
                 for verb in code.values():
                     for pkt in verb.values():
@@ -465,7 +487,7 @@ async def main(command, lib_kwargs, **kwargs):
             if kwargs["long_dates"]
             else f"{msg.dtm:%H:%M:%S.%f}"[:-3]
         )
-        if msg.src and msg.src.type == "18":
+        if msg.src and msg.src.type == DEV_TYPE_MAP.HGI:
             print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
         elif msg.code == _1F09 and msg.verb == I_:
             print(f"{Fore.YELLOW}{dtm} {msg}"[:CONSOLE_COLS])

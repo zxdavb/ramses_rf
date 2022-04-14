@@ -2,7 +2,7 @@
     "main_controller": "01:069616",
     "01:069616": {
         "system": {
-            "heating_control": "13:024041"
+            "appliance_control": "13:024041"
         },
         "orphans": [],
         "stored_hotwater": {

@@ -20,17 +20,18 @@ from .const import (
     _0418_DEVICE_CLASS,
     _0418_FAULT_STATE,
     _0418_FAULT_TYPE,
-    ATTR_DHW_VALVE,
-    ATTR_DHW_VALVE_HTG,
-    ATTR_HTG_CONTROL,
     FAN_MODE,
     FAN_MODES,
     HEATER_MODE,
     HEATER_MODES,
     SYSTEM_MODE,
     SZ_DEVICE_CLASS,
+    SZ_DEVICES,
     SZ_DOMAIN_ID,
+    SZ_ZONE_CLASS,
     SZ_ZONE_IDX,
+    SZ_ZONE_MASK,
+    SZ_ZONE_TYPE,
     ZONE_MODE,
     __dev_mode__,
 )
@@ -57,10 +58,11 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEVICE_SLUGS,
-    DEV_TYPES,
-    DEV_MAP,
-    ZONE_MAP,
+    DEV_CLASS,
+    DEV_CLASS_MAP,
+    DEV_TYPE,
+    DEV_TYPE_MAP,
+    ZON_CLASS_MAP,
 )
 
 _INFORM_DEV_MSG = "Support the development of ramses_rf by reporting this packet"
@@ -143,11 +145,11 @@ def parser_0002(payload, msg) -> Optional[dict]:
     #  - 02...... for outside temp?
     #  - 03...... for other stuff?
 
-    if msg.src.type == DEV_TYPES.THM:  # payload[2:] == "03", DEX
+    if msg.src.type == DEV_TYPE_MAP.HCW:  # payload[2:] == DEV_TYPE_MAP.HCW, DEX
         assert payload == "03020105"
         return {"_unknown": payload}
 
-    # if payload[6:] == "02":  # msg.src.type == "17":
+    # if payload[6:] == "02":  # msg.src.type == DEV_TYPE_MAP.OUT:
     return {
         "temperature": temp_from_hex(payload[2:6]),
         "_unknown": payload[6:],
@@ -168,28 +170,28 @@ def parser_0005(payload, msg) -> Union[dict, list[dict]]:  # TODO: needs a clean
     #  I --- 34:064023 --:------ 34:064023 0005 012 000A0000-000F0000-00100000
 
     def _parser(seqx) -> dict:
-        if msg.src.type == DEV_TYPES.UFC:  # DEX, or use: seqx[2:4] == ...
+        if msg.src.type == DEV_TYPE_MAP.UFC:  # DEX, or use: seqx[2:4] == ...
             zone_mask = flag8(seqx[6:8], lsb=True)
         elif msg.len == 3:  # ATC928G1000 - 1st gen monochrome model, max 8 zones
             zone_mask = flag8(seqx[4:6], lsb=True)
         else:
             zone_mask = flag8(seqx[4:6], lsb=True) + flag8(seqx[6:8], lsb=True)
         return {
-            f"_{SZ_DEVICE_CLASS}": seqx[2:4],
-            "zone_mask": zone_mask,
-            "zone_type": DEV_MAP.get(seqx[2:4], f"unknown_{seqx[2:4]}"),
+            SZ_ZONE_TYPE: seqx[2:4],
+            SZ_ZONE_MASK: zone_mask,
+            SZ_ZONE_CLASS: DEV_CLASS_MAP.get(seqx[2:4], f"unknown_{seqx[2:4]}"),
         }
 
     if msg._has_array:
         assert (
-            msg.verb == I_ and msg.src.type == DEV_TYPES.RND
-        ), f"{msg!r} # expecting I/34:"  # DEX
+            msg.verb == I_ and msg.src.type == DEV_TYPE_MAP.RND
+        ), f"{msg!r} # expecting I/{DEV_TYPE_MAP.RND}:"  # DEX
         return [_parser(payload[i : i + 8]) for i in range(0, len(payload), 8)]
 
     if msg.verb == RQ:  # RQs have a context: zone_type
         return {
-            f"_{SZ_DEVICE_CLASS}": payload[2:4],
-            "zone_type": DEV_MAP.get(payload[2:4], f"unknown_{payload[2:4]}"),
+            SZ_ZONE_TYPE: payload[2:4],
+            SZ_ZONE_CLASS: DEV_CLASS_MAP.get(payload[2:4], f"unknown_{payload[2:4]}"),
         }
 
     return _parser(payload)
@@ -221,7 +223,7 @@ def parser_0008(payload, msg) -> Optional[dict]:
     # https://www.domoticaforum.eu/viewtopic.php?f=7&t=5806&start=105#p73681
     # e.g. Electric Heat Zone
 
-    if msg.src.type == DEV_TYPES.JST and msg.len == 13:  # Honeywell Japser, DEX
+    if msg.src.type == DEV_TYPE_MAP.JST:  # Honeywell Japser, DEX
         assert msg.len == 13, "expecting length 13"
         return {
             "ordinal": f"0x{payload[2:8]}",
@@ -303,24 +305,23 @@ def parser_000c(payload, msg) -> Optional[dict]:
     # RP --- 01:145038 18:013393 --:------ 000C 006 00-00-00-10DAFD
     # RP --- 01:145038 18:013393 --:------ 000C 012 01-00-00-10DAF5 01-00-00-10DAFB
 
-    # RQ payload is zz00, NOTE: aggregation of parsing taken here
-
     def complex_idx(seqx, msg) -> dict:  # complex index
+        """zone_idx, ufx_idx/zone_id or domain_id"""
         # TODO: 000C to a UFC should be ufh_ifx, not zone_idx
-        if msg.src.type == DEV_TYPES.UFC:  # DEX
+        if msg.src.type == DEV_TYPE_MAP.UFC:  # DEX
             assert int(seqx, 16) < 8, f"invalid ufh_idx: '{seqx}' (0x00)"
             return {
                 "ufh_idx": seqx,
                 "zone_id": None if payload[4:6] == "7F" else payload[4:6],
             }
 
-        if payload[2:4] in (DEV_MAP.DHW, DEV_MAP.HTG):
+        if payload[2:4] in (DEV_CLASS_MAP.DHW, DEV_CLASS_MAP.HTG):
             assert (
-                int(seqx, 16) < 1 if payload[2:4] == "0D" else 2
+                int(seqx, 16) < 1 if payload[2:4] == DEV_CLASS_MAP.DHW else 2
             ), f"invalid _idx: '{seqx}' (0x01)"
-            return {SZ_DOMAIN_ID: "FA"}
+            return {SZ_DOMAIN_ID: "FA" if payload[2:4] == "00" else "F9"}
 
-        if payload[2:4] == DEV_MAP.HTG:
+        if payload[2:4] == DEV_CLASS_MAP.APP:
             assert int(seqx, 16) < 1, f"invalid _idx: '{seqx}' (0x02)"
             return {SZ_DOMAIN_ID: "FC"}
 
@@ -329,52 +330,57 @@ def parser_000c(payload, msg) -> Optional[dict]:
         ), f"invalid zone_idx: '{seqx}' (0x03)"
         return {SZ_ZONE_IDX: seqx}
 
-    def _parser(seqx) -> dict:
-        # TODO: this assumption that all domain_id/zones_idx are the same is wrong...
-        assert seqx[:2] == payload[:2], f"{msg!r} < {seqx[:2]} != idx"
+    def _parser(seqx) -> dict:  # TODO: assumption that all id/idx are same is wrong!
+        assert seqx[:2] == payload[:2], f"{msg!r} < idx != {seqx[:2]} (seqx = {seqx})"
         assert int(seqx[:2], 16) < msg._gwy.config.max_zones
         assert seqx[4:6] == "7F" or seqx[6:] != "F" * 6
         return {hex_id_to_dev_id(seqx[6:12]): seqx[4:6]}
 
-    device_class = DEV_MAP.get(payload[2:4], f"unknown_{payload[2:4]}")
-    if device_class == ATTR_DHW_VALVE and payload[:2] == "01":
-        device_class = ATTR_DHW_VALVE_HTG
+    def is_short_000C(msg, payload) -> bool:
+        """Return True if it is a short 000C (element length is 5, not 6)."""
+
+        if msg.len != 36:
+            return msg.len % 6 != 0
+
+        if all(
+            payload[i : i + 4] == payload[:4] for i in range(0, msg.len, 12)
+        ) and any(payload[i : i + 2] != payload[2:4] for i in range(2, msg.len, 10)):
+            return False  # _len = 6
+
+        if any(
+            payload[i : i + 4] != payload[:4] for i in range(0, msg.len, 12)
+        ) and all(payload[i : i + 2] == payload[2:4] for i in range(2, msg.len, 10)):
+            return True  # _len = 5
+
+        return False  # if all else fails (unlikely), assume _len = 6
+
+    device_class = DEV_CLASS_MAP.get(payload[2:4])
+    if device_class == DEV_CLASS_MAP._str(DEV_CLASS.HTG) and payload[:2] == "01":
+        device_class = DEV_CLASS_MAP._str(DEV_CLASS.HT1)
 
     result = {
+        SZ_ZONE_TYPE: payload[2:4],
         **complex_idx(payload[:2], msg),
-        f"_{SZ_DEVICE_CLASS}": payload[2:4],
         SZ_DEVICE_CLASS: device_class,
     }
-    if msg.verb == RQ:  # RQs have a context: index, zone_type
+    if msg.verb == RQ:  # RQs have a context: index, zone_type, payload is iitt
         return result
 
-    # Both these appear valid! So collision when len = 036!
+    # NOTE: Both these are valid! So collision when len = 036!
     # RP --- 01:239474 18:198929 --:------ 000C 012 06-00-00119A99 06-00-00119B21
     # RP --- 01:069616 18:205592 --:------ 000C 011 01-00-00121B54    00-00121B52
-
     # RP --- 01:239700 18:009874 --:------ 000C 018 07-08-001099C3 07-08-001099C5 07-08-001099BF
     # RP --- 01:059885 18:010642 --:------ 000C 016 00-00-0011EDAA    00-0011ED92    00-0011EDA0
 
-    _type = 6
-    if msg.len != 36:
-        if msg.len % 6 != 0 and msg.len % 5 == 1:  # max 46 = 9 devices
-            _type = 5
-    elif any(payload[i : i + 4] != payload[:4] for i in range(0, msg.len, 12)) and all(
-        payload[i : i + 2] == payload[2:4] for i in range(2, msg.len, 10)
-    ):
-        _type = 5
-
-    if _type == 6:
-        devs = [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
-    else:  # _type == 5:
-        devs = [
-            _parser(payload[:2] + payload[i : i + 10])
-            for i in range(2, len(payload), 10)
-        ]
+    devs = (
+        [_parser(payload[:2] + payload[i : i + 10]) for i in range(2, len(payload), 10)]
+        if is_short_000C(msg, payload)
+        else [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
+    )
 
     return {
         **result,
-        "devices": [k for d in devs for k, v in d.items() if v != "7F"],
+        SZ_DEVICES: [k for d in devs for k, v in d.items() if v != "7F"],
     }
 
 
@@ -526,7 +532,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
     }
 
     if payload[10:12] == "FC" and result[SZ_DEVICE_CLASS] == "actuator":
-        result[SZ_DEVICE_CLASS] = ATTR_HTG_CONTROL  # aka Boiler relay
+        result[SZ_DEVICE_CLASS] = DEV_CLASS_MAP.str(DEV_CLASS.APP)  # boiler relay
 
     if payload[12:14] != "00":  # TODO: Controller
         key_name = (
@@ -765,7 +771,7 @@ def parser_1100(payload, msg) -> Optional[dict]:
     def complex_idx(seqx) -> dict:
         return {SZ_DOMAIN_ID: seqx} if seqx[:1] == "F" else {}  # only FC
 
-    if msg.src.type == DEV_TYPES.JIM:  # Honeywell Japser, DEX
+    if msg.src.type == DEV_TYPE_MAP.JIM:  # Honeywell Japser, DEX
         assert msg.len == 19, msg.len
         return {
             "ordinal": f"0x{payload[2:8]}",
@@ -1470,15 +1476,15 @@ def parser_313f(payload, msg) -> Optional[dict]:  # TODO: look for TZ
     # https://www.automatedhome.co.uk/vbulletin/showthread.php?5085-My-HGI80-equivalent-Domoticz-setup-without-HGI80&p=36422&viewfull=1#post36422
     # every day at ~4am TRV/RQ->CTL/RP, approx 5-10secs apart (CTL respond at any time)
 
-    assert msg.src.type != DEV_TYPES.CTL or payload[2:4] in ("F0", "FC"), payload[
+    assert msg.src.type != DEV_TYPE_MAP.CTL or (payload[2:4] in ("F0", "FC")), payload[
         2:4
     ]  # DEX
     assert (
-        msg.src.type not in (DEV_TYPES.DTS, DEV_TYPES.DT2) or payload[2:4] == "38"
+        msg.src.type not in (DEV_TYPE_MAP.DTS, DEV_TYPE_MAP.DT2) or payload[2:4] == "38"
     ), payload[
         2:4
     ]  # DEX
-    assert msg.src.type != DEV_TYPES.RFG or payload[2:4] == "60", payload[2:4]  # DEX
+    assert msg.src.type != DEV_TYPE_MAP.RFG or payload[2:4] == "60", payload[2:4]  # DEX
 
     return {
         "datetime": dtm_from_hex(payload[4:18]),
@@ -1496,7 +1502,7 @@ def parser_3150(payload, msg) -> Union[list, dict, None]:
 
     def complex_idx(seqx, msg) -> dict:
         # assert seqx[:2] == "FC" or (int(seqx[:2], 16) < MAX_ZONES)  # <5, 8 for UFC
-        idx_name = "ufx_idx" if msg.src.type == DEV_TYPES.UFC else SZ_ZONE_IDX  # DEX
+        idx_name = "ufx_idx" if msg.src.type == DEV_TYPE_MAP.UFC else SZ_ZONE_IDX  # DEX
         return {SZ_DOMAIN_ID if seqx[:1] == "F" else idx_name: seqx[:2]}
 
     if msg._has_array:
@@ -1827,7 +1833,7 @@ def parser_3b00(payload, msg) -> Optional[dict]:
     def complex_idx(payload, msg) -> dict:  # has complex idx
         if (
             msg.verb == I_
-            and msg.src.type in (DEV_TYPES.CTL, DEV_TYPES.PRG)
+            and msg.src.type in (DEV_TYPE_MAP.CTL, DEV_TYPE_MAP.PRG)
             and msg.src is msg.dst
         ):  # DEX
             assert payload[:2] == "FC"
@@ -1837,9 +1843,9 @@ def parser_3b00(payload, msg) -> Optional[dict]:
 
     assert msg.len == 2, msg.len
     assert payload[:2] == {
-        DEV_TYPES.CTL: "FC",
-        DEV_TYPES.BDR: "00",
-        DEV_TYPES.PRG: "FC",
+        DEV_TYPE_MAP.CTL: "FC",
+        DEV_TYPE_MAP.BDR: "00",
+        DEV_TYPE_MAP.PRG: "FC",
     }.get(
         msg.src.type, "00"
     )  # DEX
@@ -1854,7 +1860,7 @@ def parser_3b00(payload, msg) -> Optional[dict]:
 @parser_decorator  # actuator_state
 def parser_3ef0(payload, msg) -> dict:
 
-    if msg.src.type in DEV_TYPES.JIM:  # Honeywell Jasper, DEX
+    if msg.src.type in DEV_TYPE_MAP.JIM:  # Honeywell Jasper, DEX
         assert msg.len == 20, f"expecting len 20, got: {msg.len}"
         return {
             "ordinal": f"0x{payload[2:8]}",
@@ -1933,14 +1939,16 @@ def parser_3ef0(payload, msg) -> dict:
 @parser_decorator  # actuator_cycle
 def parser_3ef1(payload, msg) -> dict:
 
-    if msg.src.type == DEV_TYPES.JIM:  # Honeywell Jasper, DEX
+    if msg.src.type == DEV_TYPE_MAP.JIM:  # Honeywell Jasper, DEX
         assert msg.len == 18, f"expecting len 18, got: {msg.len}"
         return {
             "ordinal": f"0x{payload[2:8]}",
             "blob": payload[8:],
         }
 
-    if msg.src.type == DEV_TYPES.JST:  # and msg.len == 12:  # or (12, 20) Japser, DEX
+    if (
+        msg.src.type == DEV_TYPE_MAP.JST
+    ):  # and msg.len == 12:  # or (12, 20) Japser, DEX
         assert msg.len == 12, f"expecting len 12, got: {msg.len}"
         return {
             "ordinal": f"0x{payload[2:8]}",

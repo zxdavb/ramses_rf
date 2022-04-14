@@ -16,13 +16,7 @@ from datetime import datetime as dt
 from threading import Lock
 from typing import Callable, Optional
 
-from .const import (
-    DONT_CREATE_MESSAGES,
-    NON_DEVICE_ID,
-    NUL_DEVICE_ID,
-    SZ_DEVICES,
-    __dev_mode__,
-)
+from .const import DONT_CREATE_MESSAGES, SZ_DEVICES, __dev_mode__
 from .devices import Device, zx_device_factory
 from .helpers import schedule_task, shrink
 from .message import Message, process_msg
@@ -37,6 +31,7 @@ from .protocol import (
     set_logger_timesource,
     set_pkt_logging_config,
 )
+from .protocol.address import NON_DEV_ADDR, NUL_DEV_ADDR
 from .protocol.transport import PacketProtocolPort
 from .schema import (
     BLOCK_LIST,
@@ -59,10 +54,10 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
-    DEVICE_SLUGS,
-    DEV_TYPES,
-    DEV_MAP,
-    ZONE_MAP,
+    DEV_CLASS,
+    DEV_TYPE_MAP,
+    DEV_CLASS_MAP,
+    ZON_CLASS_MAP,
 )
 
 
@@ -207,7 +202,7 @@ class Gateway(Engine):
         (self.config, self._schema, self._include, self._exclude) = load_config(
             self.serial_port, self._input_file, **kwargs
         )
-        self._unwanted = [NON_DEVICE_ID, NUL_DEVICE_ID, "01:000001"]
+        self._unwanted = [NON_DEV_ADDR.id, NUL_DEV_ADDR.id, "01:000001"]
 
         set_pkt_logging_config(
             cc_console=self.config.reduce_processing >= DONT_CREATE_MESSAGES,

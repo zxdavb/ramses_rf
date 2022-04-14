@@ -26,7 +26,7 @@ if DEBUG_MODE:
         print(f"Debugger listening on {DEBUG_ADDR}:{DEBUG_PORT}, waiting for client...")
         debugpy.wait_for_client()
 
-logging.disable(logging.WARNING)
+logging.disable(logging.WARNING)  # usu. WARNING
 
 
 def shuffle_dict(old_dict) -> dict:

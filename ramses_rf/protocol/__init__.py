@@ -9,7 +9,15 @@ from logging import Logger
 
 from .address import Address, is_valid_dev_id
 from .command import CODE_API_MAP, Command, FaultLog, Priority
-from .const import SZ_DEVICE_CLASS, SZ_DOMAIN_ID, SZ_ZONE_IDX, __dev_mode__
+from .const import (
+    SZ_DEVICE_CLASS,
+    SZ_DOMAIN_ID,
+    SZ_ZONE_CLASS,
+    SZ_ZONE_IDX,
+    SZ_ZONE_MASK,
+    SZ_ZONE_TYPE,
+    __dev_mode__,
+)
 from .exceptions import (
     CorruptStateError,
     ExpiredCallbackError,
@@ -20,7 +28,7 @@ from .logger import set_logger_timesource, set_pkt_logging
 from .message import Message
 from .packet import _PKT_LOGGER, Packet
 from .protocol import create_msg_stack
-from .ramses import CODES_BY_DEV_KLASS, CODES_SCHEMA
+from .ramses import CODES_BY_DEV_SLUG, CODES_SCHEMA
 from .schedule import Schedule
 from .schema import PACKET_LOG, PACKET_LOG_SCHEMA, SERIAL_PORT, SERIAL_PORT_SCHEMA
 from .transport import POLLER_TASK, create_pkt_stack
@@ -31,11 +39,12 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEVICE_SLUGS,
-    DEV_TYPES,
-    DEV_MAP,
-    ZONE_SLUGS,
-    ZONE_MAP,
+    DEV_CLASS,
+    DEV_CLASS_MAP,
+    DEV_TYPE,
+    DEV_TYPE_MAP,
+    ZON_CLASS,
+    ZON_CLASS_MAP,
 )
 
 # skipcq: PY-W2000

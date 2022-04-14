@@ -56,10 +56,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEVICE_SLUGS,
-    DEV_TYPES,
-    DEV_MAP,
-    ZONE_MAP,
+    DEV_CLASS,
+    DEV_TYPE_MAP,
+    DEV_CLASS_MAP,
+    ZON_CLASS_MAP,
 )
 
 DEV_MODE = __dev_mode__ and False  # debug is_wanted, or qos_fx
@@ -587,7 +587,7 @@ class PacketProtocolBase(asyncio.Protocol):
 
     def _check_set_hgi80(self, pkt):
         """Check/set HGI; log if it is a foreign HGI."""
-        assert pkt.src.type == DEV_TYPES.HGI and pkt.src.id != HGI_DEV_ADDR.id
+        assert pkt.src.type == DEV_TYPE_MAP.HGI and pkt.src.id != HGI_DEV_ADDR.id
 
         if self._hgi80[DEVICE_ID] is None:
             self._hgi80[DEVICE_ID] = pkt.src.id
@@ -613,7 +613,9 @@ class PacketProtocolBase(asyncio.Protocol):
                 raw_line=raw_line,
             )  # should log all? invalid pkts appropriately
 
-            if pkt.src.type == DEV_TYPES.HGI:  # dex: ideally should use HGI, but how?
+            if (
+                pkt.src.type == DEV_TYPE_MAP.HGI
+            ):  # dex: ideally should use HGI, but how?
                 self._check_set_hgi80(pkt)
         except InvalidPacketError as exc:
             if "# evofw" in line and self._hgi80[IS_EVOFW3] is None:
@@ -689,11 +691,11 @@ class PacketProtocolBase(asyncio.Protocol):
                 self._include.append(dev_id)  # NOTE: only time include list is modified
                 continue
 
-            if dev_id[:2] == DEV_TYPES.HGI and self._hgi80[DEVICE_ID] is None:
+            if dev_id[:2] == DEV_TYPE_MAP.HGI and self._hgi80[DEVICE_ID] is None:
                 _LOGGER.debug(f"Allowed {dev_id} (is a gateway?){TIP}")
                 continue
 
-            if dev_id[:2] == DEV_TYPES.HGI and self._gwy.serial_port:  # dex
+            if dev_id[:2] == DEV_TYPE_MAP.HGI and self._gwy.serial_port:  # dex
                 (_LOGGER.debug if dev_id in self._exclude else _LOGGER.warning)(
                     f"Blocking {dev_id} (is a foreign gateway){TIP}"
                 )
@@ -755,7 +757,7 @@ class PacketProtocolFile(PacketProtocolBase):
             return
 
         if (
-            pkt.src.type == DEV_TYPES.HGI and pkt.src.id != HGI_DEV_ADDR.id
+            pkt.src.type == DEV_TYPE_MAP.HGI and pkt.src.id != HGI_DEV_ADDR.id
         ):  # HACK 01: dex
             self._check_set_hgi80(pkt)
         self._pkt_received(pkt)

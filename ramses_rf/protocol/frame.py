@@ -30,10 +30,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEVICE_SLUGS,
-    DEV_TYPES,
-    DEV_MAP,
-    ZONE_MAP,
+    DEV_CLASS,
+    DEV_TYPE_MAP,
+    DEV_CLASS_MAP,
+    ZON_CLASS_MAP,
 )
 
 # skipcq: PY-W2000
@@ -229,11 +229,11 @@ class PacketBase:
                 self.len % _len == 0
             ), f"{self} < array has length ({self.len}) that is not multiple of {_len}"
             assert (
-                self.src.type in (DEV_TYPES.DTS, DEV_TYPES.DT2)
+                self.src.type in (DEV_TYPE_MAP.DTS, DEV_TYPE_MAP.DT2)
                 or self.src == self.dst  # DEX
             ), f"{self} < array is from a non-controller (01)"
             assert (
-                self.src.type not in (DEV_TYPES.DTS, DEV_TYPES.DT2)
+                self.src.type not in (DEV_TYPE_MAP.DTS, DEV_TYPE_MAP.DT2)
                 or self.dst.id == NON_DEV_ADDR.id  # DEX
             ), f"{self} < array is from a non-controller (02)"
             self._has_array_ = True
@@ -269,9 +269,9 @@ class PacketBase:
         #     return True
 
         if {self.src.type, self.dst.type} & {
-            DEV_TYPES.CTL,
-            DEV_TYPES.UFC,
-            DEV_TYPES.PRG,
+            DEV_TYPE_MAP.CTL,
+            DEV_TYPE_MAP.UFC,
+            DEV_TYPE_MAP.PRG,
         }:  # DEX
             _LOGGER.debug(f"{self} # HAS controller (10)")
             self._has_ctl_ = True
@@ -295,11 +295,11 @@ class PacketBase:
         #  I --- --:------ --:------ 20:001473 31D9 003 000001 # ctl? (HVAC)
         elif self.dst.id == NON_DEV_ADDR.id:
             _LOGGER.debug(f"{self} # HAS controller (21)")
-            self._has_ctl_ = self.src.type != DEV_TYPES.OTB  # DEX
+            self._has_ctl_ = self.src.type != DEV_TYPE_MAP.OTB  # DEX
 
         #  I --- 10:037879 --:------ 12:228610 3150 002 0000   # HAS ctl
         #  I --- 04:029390 --:------ 12:126457 1060 003 01FF01 # HAS ctl
-        elif self.dst.type in (DEV_TYPES.DTS, DEV_TYPES.DT2):  # DEX
+        elif self.dst.type in (DEV_TYPE_MAP.DTS, DEV_TYPE_MAP.DT2):  # DEX
             _LOGGER.debug(f"{self} # HAS controller (22)")
             self._has_ctl_ = True
 
@@ -318,7 +318,7 @@ class PacketBase:
         #  I --- 34:021943 63:262142 --:------ 10E0 038 000001C8380A01... # unknown
         #  I --- 32:168090 30:082155 --:------ 31E0 004 0000C800          # unknown
         if self._has_ctl_ is None:
-            if DEV_MODE and DEV_TYPES.HGI not in (
+            if DEV_MODE and DEV_TYPE_MAP.HGI not in (
                 self.src.type,
                 self.dst.type,
             ):  # DEX
@@ -412,13 +412,16 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
         return pkt._has_array
 
     #  I --- 10:040239 01:223036 --:------ 0009 003 000000
-    if pkt.code == _0009 and pkt.src.type == DEV_TYPES.OTB:  # DEX
+    if pkt.code == _0009 and pkt.src.type == DEV_TYPE_MAP.OTB:  # DEX
         return False
 
     if pkt.code == _000C:  # zone_idx/domain_id (complex, payload[0:4])
-        if pkt.payload[2:4] in (DEV_MAP.DHW, DEV_MAP.HTG):  # ("000D", _000E, "010E")
+        if pkt.payload[2:4] in (
+            DEV_CLASS_MAP.DHW,
+            DEV_CLASS_MAP.HTG,
+        ):  # ("000D", _000E, "010E")
             return "FA"
-        if pkt.payload[2:4] == DEV_MAP.RLY:  # ("000F", )
+        if pkt.payload[2:4] == DEV_CLASS_MAP.APP:  # ("000F", )
             return "FC"
         return pkt.payload[:2]
 
@@ -458,7 +461,9 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
             )
         return pkt.payload[:2]
 
-    if pkt._has_ctl:  # risk of false -ves, TODO: pkt.src.type == "18" too?  # DEX
+    if (
+        pkt._has_ctl
+    ):  # risk of false -ves, TODO: pkt.src.type == DEV_TYPE_MAP.HGI too?  # DEX
         # 02:    22C9: would be picked up as an array, if len==1 counted
         # 03:    #  I 028 03:094242 --:------ 03:094242 30C9 003 010B22  # ctl
         # 12/22: 000A|1030|2309|30C9 from (addr0 --:), 1060|3150 (addr0 04:)
@@ -497,7 +502,7 @@ def pkt_header(pkt, rx_header=None) -> Optional[str]:  # NOTE: used in command.p
             return "|".join((pkt.code, I_, pkt.src.id))
         return None
 
-    addr = pkt.dst if pkt.src.type == DEV_TYPES.HGI else pkt.src  # DEX
+    addr = pkt.dst if pkt.src.type == DEV_TYPE_MAP.HGI else pkt.src  # DEX
     if not rx_header:
         header = "|".join((pkt.code, pkt.verb, addr.id))
 

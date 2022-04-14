@@ -28,9 +28,8 @@ from .const import (
     SZ_WINDOW_OPEN,
     SZ_ZONE_IDX,
     SZ_ZONE_SENSOR,
+    SZ_ZONE_TYPE,
     ZONE_MODE,
-    ZONE_TYPE_MAP,
-    ZONE_TYPE_SLUGS,
     __dev_mode__,
 )
 from .devices import (
@@ -54,11 +53,9 @@ from .protocol import (
 )
 from .schema import (
     SZ_ACTUATORS,
-    SZ_DEVICE_ID,
     SZ_DEVICES,
-    SZ_DHW_SENSOR,
     SZ_DHW_VALVE,
-    SZ_DHW_VALVE_HTG,
+    SZ_HTG_VALVE,
     SZ_KLASS,
     SZ_SENSOR,
 )
@@ -69,12 +66,15 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
-    DEVICE_SLUGS,
-    DEV_TYPES,
-    DEV_MAP,
-    ZONE_SLUGS,
-    ZONE_MAP,
+    DEV_CLASS,
+    DEV_CLASS_MAP,
+    DEV_TYPE,
+    DEV_TYPE_MAP,
+    ZON_CLASS,
+    ZON_CLASS_MAP,
 )
+
+# ZONE_TYPE_MAP,
 
 # skipcq: PY-W2000
 from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -159,8 +159,6 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     _PUZZ,
 )
 
-ATTR_ZONE_SLUG = "_ZONE_SLUG"
-
 DEV_MODE = __dev_mode__
 
 _LOGGER = logging.getLogger(__name__)
@@ -171,7 +169,7 @@ if DEV_MODE:
 class ZoneBase(Entity):
     """The Zone/DHW base class."""
 
-    # _ZONE_SLUG = None
+    # _SLUG: str = None
 
     def __init__(self, evo, zone_idx) -> None:
         _LOGGER.debug("Creating a Zone: %s_%s (%s)", evo, zone_idx, self.__class__)
@@ -181,7 +179,7 @@ class ZoneBase(Entity):
         self._tcs, self._ctl = self._set_system(evo, zone_idx)
 
         self._name = None
-        self._zone_type = None
+        self._zone_slug = None
 
     @classmethod
     def zx_create_from_schema(cls, tcs, zone_idx: str, **schema):
@@ -246,7 +244,7 @@ class ZoneBase(Entity):
     @property
     def heating_type(self) -> Optional[str]:
         """Return the type of the zone/DHW (e.g. electric_zone, stored_dhw)."""
-        return self._ZONE_SLUG
+        return self._SLUG
 
 
 class ZoneSchedule(ZoneBase):  # 0404  # TODO: add for DHW
@@ -315,7 +313,7 @@ class RelayDemand(ZoneBase):  # 0008
 class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
     """The DHW class."""
 
-    _ZONE_SLUG = ZONE_SLUGS.DHW
+    _SLUG: str = ZON_CLASS.DHW
 
     def _zx_update_schema(self, **schema):
         """Update a CH/DHW zone with new schema attrs.
@@ -362,11 +360,15 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         if dev_id := schema.get(SZ_SENSOR):
             self._dhw_sensor = set_dhw_device(dev_id, SZ_SENSOR, DhwSensor, "FA")
 
-        if dev_id := schema.get(SZ_DHW_VALVE):
-            self._dhw_valve = set_dhw_device(dev_id, SZ_DHW_VALVE, BdrSwitch, "FA")
+        if dev_id := schema.get(DEV_CLASS_MAP._str(DEV_CLASS.HTG)):
+            self._dhw_valve = set_dhw_device(
+                dev_id, DEV_CLASS_MAP._str(DEV_CLASS.HTG), BdrSwitch, "FA"
+            )
 
-        if dev_id := schema.get(SZ_DHW_VALVE_HTG):
-            self._htg_valve = set_dhw_device(dev_id, SZ_DHW_VALVE_HTG, BdrSwitch, "F9")
+        if dev_id := schema.get(DEV_CLASS_MAP._str(DEV_CLASS.HT1)):
+            self._htg_valve = set_dhw_device(
+                dev_id, DEV_CLASS_MAP._str(DEV_CLASS.HT1), BdrSwitch, "F9"
+            )
 
     def __init__(self, tcs, zone_idx="HW") -> None:
         _LOGGER.debug("Creating a DHW for TCS: %s", tcs)
@@ -384,7 +386,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         self._dhw_valve = None
         self._htg_valve = None
 
-        self._zone_type = ZONE_SLUGS.DHW
+        self._zone_slug = ZON_CLASS.DHW
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:
@@ -402,9 +404,9 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
         if discover_flag & Discover.SCHEMA:
             for dev_type in (
-                f"00{DEV_MAP.DHW}",
-                f"00{DEV_MAP.HTG}",
-                f"01{DEV_MAP.HTG}",
+                f"00{DEV_CLASS_MAP.DHW}",
+                f"00{DEV_CLASS_MAP.HTG}",
+                f"01{DEV_CLASS_MAP.HTG}",
             ):
                 try:
                     _ = self._msgz[_000C][RP][dev_type]
@@ -461,26 +463,24 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
                 self._get_dhw(sensor=this.dst)
 
         assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
+        assert (
+            msg.code != _000C or msg.payload.get(SZ_DOMAIN_ID) == "FA"
+        ), f"msg inappropriately routed to {self}"
 
         super()._handle_msg(msg)
 
-        if (
-            msg.code != _000C
-            or msg.payload.get(SZ_DOMAIN_ID) != "FA"
-            or not msg.payload["devices"]
-        ):
+        if msg.code != _000C or not msg.payload[SZ_DEVICES]:
             return
 
-        assert len(msg.payload["devices"]) == 1
+        assert len(msg.payload[SZ_DEVICES]) == 1
 
-        if msg.payload[SZ_DEVICE_CLASS] == SZ_DHW_SENSOR:
-            self._zx_update_schema(**{SZ_SENSOR: msg.payload["devices"][0]})
-
-        # TODO: use _device_class?
-        elif msg.payload[SZ_DEVICE_CLASS] in (SZ_DHW_VALVE, SZ_DHW_VALVE_HTG):
-            self._zx_update_schema(
-                **{msg.payload[SZ_DEVICE_CLASS]: msg.payload["devices"][0]}
-            )
+        if (dev_klass := msg.payload[SZ_DEVICE_CLASS]) in (
+            DEV_CLASS_MAP._str(DEV_CLASS.HTG),
+            DEV_CLASS_MAP._str(DEV_CLASS.HT1),
+        ):
+            self._zx_update_schema(**{dev_klass: msg.payload[SZ_DEVICES][0]})
+        elif dev_klass == DEV_CLASS_MAP._str(DEV_CLASS.DHW):
+            self._zx_update_schema(**{SZ_SENSOR: msg.payload[SZ_DEVICES][0]})
 
         # TODO: may need to move earlier in method
         # # If still don't have a sensor, can eavesdrop 10A0
@@ -575,7 +575,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         return {
             SZ_SENSOR: self.sensor.id if self.sensor else None,
             SZ_DHW_VALVE: self.hotwater_valve.id if self.hotwater_valve else None,
-            SZ_DHW_VALVE_HTG: self.heating_valve.id if self.heating_valve else None,
+            SZ_HTG_VALVE: self.heating_valve.id if self.heating_valve else None,
         }
 
     @property
@@ -592,7 +592,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 class Zone(ZoneSchedule, ZoneBase):
     """The Zone class for all zone types (but not DHW)."""
 
-    _ZONE_SLUG = None  # Unknown
+    _SLUG: str = None  # Unknown
 
     def _zx_update_schema(self, **schema):
         """Update a CH/DHW zone with new schema attrs.
@@ -637,7 +637,7 @@ class Zone(ZoneSchedule, ZoneBase):
             self._sensor = device
             device._set_parent(self, sensor=True)  # , domain=self.idx)
 
-        def set_zone_type(zone_type: str):  # self._zone_type
+        def set_zone_type(zone_type: str):  # sets self._zone_slug
             """Set the zone's type, after validating it.
 
             There are two possible sources for the type of a zone:
@@ -647,33 +647,30 @@ class Zone(ZoneSchedule, ZoneBase):
             Both will execute a zone.type = type (i.e. via this setter).
             """
 
-            if zone_type not in ZONE_MAP.HEATING_ZONES:
+            if zone_type not in ZON_CLASS_MAP.HEAT_ZONES:
+                raise TypeError
+
+            klass = ZON_CLASS_MAP.slug(zone_type)  # not incl. DHW?
+
+            if klass == self._zone_slug:
                 return
 
-            klass = ZONE_TYPE_SLUGS.get(zone_type, zone_type)  # incl. DHW
-
-            if klass == self._zone_type:
-                return
-
-            if klass == ZONE_SLUGS.DHW:
-                raise ValueError(f"Not a compatible zone class for {self}: {zone_type}")
-
-            elif klass == ZONE_SLUGS.VAL and self._zone_type not in (
+            if klass == ZON_CLASS.VAL and self._zone_slug not in (
                 None,
-                ZONE_SLUGS.ELE,
+                ZON_CLASS.ELE,
             ):
                 raise ValueError(f"Not a compatible zone class for {self}: {zone_type}")
 
-            elif klass not in _CLASS_BY_KLASS:
+            elif klass not in ZONE_CLASS_BY_SLUG:
                 raise ValueError(f"Not a known zone class (for {self}): {zone_type}")
 
-            if self._zone_type is not None:
+            if self._zone_slug is not None:
                 raise CorruptStateError(
-                    f"{self} changed zone class: from {self._zone_type} to {klass}"
+                    f"{self} changed zone class: from {self._zone_slug} to {klass}"
                 )
 
-            self._zone_type = klass
-            self.__class__ = _CLASS_BY_KLASS[klass]
+            self._zone_slug = klass
+            self.__class__ = ZONE_CLASS_BY_SLUG[klass]
             _LOGGER.error("Promoted a Zone: %s (%s)", self.id, self.__class__)
 
             self._discover(
@@ -712,9 +709,9 @@ class Zone(ZoneSchedule, ZoneBase):
         self._sensor = None
         self.actuators = []
         self.actuator_by_id = {}
-        self.devices = []
-        self.device_by_id = {}
-        # self._zone_type = None  # set in init
+        # self.devices = []
+        # self.device_by_id = {}
+        # self._zone_slug = None  # set in init
 
         # state attrs
         self._schedule = Schedule(self)
@@ -735,7 +732,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
         # TODO: add code to determine zone type if it doesn't have one, using 0005s
         if discover_flag & Discover.SCHEMA:
-            for dev_type in (DEV_MAP.ALL, DEV_MAP.SEN):
+            for dev_type in (DEV_CLASS_MAP.ACT, DEV_CLASS_MAP.SEN):
                 try:
                     _ = self._msgz[_000C][RP][f"{self.idx}{dev_type}"]
                 except KeyError:
@@ -769,40 +766,40 @@ class Zone(ZoneSchedule, ZoneBase):
             """
             # ELE/VAL, but not UFH (it seems)
             if this.code in (_0008, _0009):
-                assert self._zone_type in (
+                assert self._zone_slug in (
                     None,
-                    ZONE_SLUGS.ELE,
-                    ZONE_SLUGS.VAL,
-                    ZONE_SLUGS.MIX,
-                ), self._zone_type
+                    ZON_CLASS.ELE,
+                    ZON_CLASS.VAL,
+                    ZON_CLASS.MIX,
+                ), self._zone_slug
 
-                if self._zone_type is None:
+                if self._zone_slug is None:
                     self._set_zone_type(
-                        ZONE_SLUGS.ELE
-                    )  # might eventually be: ZONE_SLUGS.VAL
+                        ZON_CLASS.ELE
+                    )  # might eventually be: ZON_CLASS.VAL
 
             elif this.code == _3150:  # TODO: and this.verb in (I_, RP)?
                 # MIX/ELE don't 3150
-                assert self._zone_type in (
+                assert self._zone_slug in (
                     None,
-                    ZONE_SLUGS.RAD,
-                    ZONE_SLUGS.UFH,
-                    ZONE_SLUGS.VAL,
-                ), self._zone_type
+                    ZON_CLASS.RAD,
+                    ZON_CLASS.UFH,
+                    ZON_CLASS.VAL,
+                ), self._zone_slug
 
                 if isinstance(this.src, TrvActuator):
-                    self._set_zone_type(ZONE_SLUGS.RAD)
+                    self._set_zone_type(ZON_CLASS.RAD)
                 elif isinstance(this.src, BdrSwitch):
-                    self._set_zone_type(ZONE_SLUGS.VAL)
+                    self._set_zone_type(ZON_CLASS.VAL)
                 elif isinstance(this.src, UfhController):
-                    self._set_zone_type(ZONE_SLUGS.UFH)
+                    self._set_zone_type(ZON_CLASS.UFH)
 
-        assert (msg.src is self._ctl or msg.src.type == "02") and (  # DEX
+        assert (msg.src is self._ctl or msg.src.type == DEV_TYPE_MAP.UFC) and (  # DEX
             isinstance(msg.payload, dict)
             or [d for d in msg.payload if d[SZ_ZONE_IDX] == self.idx]
         ), f"msg inappropriately routed to {self}"
 
-        assert (msg.src is self._ctl or msg.src.type == "02") and (  # DEX
+        assert (msg.src is self._ctl or msg.src.type == DEV_TYPE_MAP.UFC) and (  # DEX
             isinstance(msg.payload, list) or msg.payload[SZ_ZONE_IDX] == self.idx
         ), f"msg inappropriately routed to {self}"
 
@@ -826,7 +823,7 @@ class Zone(ZoneSchedule, ZoneBase):
             ):
                 self._zx_update_schema(
                     **{
-                        SZ_KLASS: msg.payload[f"_{SZ_DEVICE_CLASS}"],
+                        SZ_KLASS: msg.payload[SZ_ZONE_TYPE],
                         SZ_ACTUATORS: msg.payload[SZ_DEVICES],
                     }
                 )
@@ -834,52 +831,39 @@ class Zone(ZoneSchedule, ZoneBase):
         if msg.code == _000C and msg.payload[SZ_DEVICES]:  # WIP
 
             # TODO: testing this concept, hoping to learn device_id of UFC
-            if msg.payload[f"_{SZ_DEVICE_CLASS}"] == DEV_MAP.UFH:
-                self._make_cmd(_000C, payload=f"{self.idx}{DEV_MAP.UFH}")
+            if msg.payload[SZ_ZONE_TYPE] == DEV_CLASS_MAP.UFH:
+                self._make_cmd(_000C, payload=f"{self.idx}{DEV_CLASS_MAP.UFH}")
 
             # devices = [
             #     # self._gwy._get_device(d, ctl_id=msg.src.id, domain_id=...)
             #     self._gwy._get_device(d)  # ctl_id=self._ctl.id, domain_id=self.idx)
-            #     for d in msg.payload["devices"]
+            #     for d in msg.payload[SZ_DEVICES]
             # ]
 
-            if msg.payload[f"_{SZ_DEVICE_CLASS}"] == DEV_MAP.SEN:
-                self._zx_update_schema(**{SZ_SENSOR: msg.payload["devices"][0]})
+            if msg.payload[SZ_ZONE_TYPE] == DEV_CLASS_MAP.SEN:
+                self._zx_update_schema(**{SZ_SENSOR: msg.payload[SZ_DEVICES][0]})
 
-            elif msg.payload[f"_{SZ_DEVICE_CLASS}"] == DEV_MAP.ALL:
-                self._zx_update_schema(**{SZ_ACTUATORS: msg.payload["devices"]})
+            elif msg.payload[SZ_ZONE_TYPE] == DEV_CLASS_MAP.ACT:
+                self._zx_update_schema(**{SZ_ACTUATORS: msg.payload[SZ_DEVICES]})
 
         # If zone still doesn't have a zone class, maybe eavesdrop?
-        if self._gwy.config.enable_eavesdrop and self._zone_type in (
+        if self._gwy.config.enable_eavesdrop and self._zone_slug in (
             None,
-            ZONE_SLUGS.ELE,
+            ZON_CLASS.ELE,
         ):
             eavesdrop_zone_type(msg)
 
     def _msg_value(self, *args, **kwargs):
         return super()._msg_value(*args, **kwargs, zone_idx=self.idx)
 
-    @property  # TODO:
-    def _actuators_alt(self) -> Device:
-        try:
-            return self._msgz["000C"]["RP"][f"{self.idx}00"].payload["devices"]
-        except LookupError:
-            pass
-
     @property
     def sensor(self) -> Device:
-        try:
-            return self._gwy.device_by_id[
-                self._msgz["000C"]["RP"][f"{self.idx}04"].payload["devices"][0]
-            ]
-        except LookupError:
-            return self._sensor
+        return self._sensor
 
     @property
     def heating_type(self) -> Optional[str]:
-
-        if self._zone_type is not None:  # isinstance(self, ???)
-            return ZONE_TYPE_MAP.get(self._zone_type)
+        if self._zone_slug is not None:  # isinstance(self, ???)
+            return ZON_CLASS_MAP._str(self._zone_slug)
 
     @property
     def name(self) -> Optional[str]:  # 0004
@@ -981,24 +965,12 @@ class Zone(ZoneSchedule, ZoneBase):
     @property
     def schema(self) -> dict:
         """Return the schema of the zone (type, devices)."""
-        if not self._sensor:
-            sensor_schema = None
-        elif getattr(self._sensor, "_fake_30C9", None) is None:
-            # NOTE: CTL (as sensor) won't have this attr...
-            sensor_schema = self._sensor.id
-        else:
-            sensor_schema = {
-                SZ_DEVICE_ID: self._sensor.id,
-                "is_faked": self._sensor._fake_30C9,
-            }
 
         return {
             f"_{SZ_NAME}": self.name,
             SZ_KLASS: self.heating_type,
-            SZ_SENSOR: sensor_schema,
-            f"_{SZ_SENSOR}_alt": self.sensor.id if self.sensor else None,
-            f"_{SZ_DEVICES}": [d.id for d in self.devices],
-            SZ_ACTUATORS: list(self.actuator_by_id),
+            SZ_SENSOR: self._sensor.id if self._sensor else None,
+            SZ_ACTUATORS: [d.id for d in self.actuators],
         }
 
     @property  # TODO: setpoint
@@ -1015,7 +987,7 @@ class Zone(ZoneSchedule, ZoneBase):
 class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
     """For a small electric load controlled by a relay (never calls for heat)."""
 
-    _ZONE_SLUG = ZONE_SLUGS.ELE
+    _SLUG: str = ZON_CLASS.ELE
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -1026,15 +998,15 @@ class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
 
         if discover_flag & Discover.SCHEMA:
             try:
-                _ = self._msgz[_000C][RP][f"{self.idx}{ZONE_MAP.ELE}"]
+                _ = self._msgz[_000C][RP][f"{self.idx}{ZON_CLASS_MAP.ELE}"]
             except KeyError:
-                self._make_cmd(_000C, payload=f"{self.idx}{ZONE_MAP.ELE}")
+                self._make_cmd(_000C, payload=f"{self.idx}{ZON_CLASS_MAP.ELE}")
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
         # if msg.code == _0008:  # ZON zones are ELE zones that also call for heat
-        #     self._set_zone_type(ZONE_SLUGS.VAL)
+        #     self._set_zone_type(ZON_CLASS.VAL)
         if msg.code == _3150:
             raise TypeError("WHAT 1")
         elif msg.code == _3EF0:
@@ -1052,7 +1024,7 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
     Note that HM80s are listen-only devices.
     """
 
-    _ZONE_SLUG = ZONE_SLUGS.MIX
+    _SLUG: str = ZON_CLASS.MIX
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -1063,9 +1035,9 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
 
         if discover_flag & Discover.SCHEMA:
             try:
-                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_MAP.MIX}"]
+                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_CLASS_MAP.MIX}"]
             except KeyError:
-                self._make_cmd(_000C, payload=f"{self.idx}{DEV_MAP.MIX}")
+                self._make_cmd(_000C, payload=f"{self.idx}{DEV_CLASS_MAP.MIX}")
 
         if discover_flag & Discover.PARAMS:
             self._send_cmd(Command.get_mix_valve_params(self._ctl.id, self.idx))
@@ -1085,7 +1057,7 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
 class RadZone(Zone):  # HR92/HR80
     """For radiators controlled by HR92s or HR80s (will also call for heat)."""
 
-    _ZONE_SLUG = ZONE_SLUGS.RAD
+    _SLUG: str = ZON_CLASS.RAD
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -1096,15 +1068,15 @@ class RadZone(Zone):  # HR92/HR80
 
         if discover_flag & Discover.SCHEMA:
             try:
-                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_MAP.RAD}"]
+                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_CLASS_MAP.RAD}"]
             except KeyError:
-                self._make_cmd(_000C, payload=f"{self.idx}{DEV_MAP.RAD}")
+                self._make_cmd(_000C, payload=f"{self.idx}{DEV_CLASS_MAP.RAD}")
 
 
 class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
     """For underfloor heating controlled by an HCE80/HCC80 (will also call for heat)."""
 
-    _ZONE_SLUG = ZONE_SLUGS.UFH
+    _SLUG: str = ZON_CLASS.UFH
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -1115,9 +1087,9 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
 
         if discover_flag & Discover.SCHEMA:
             try:
-                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_MAP.UFH}"]
+                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_CLASS_MAP.UFH}"]
             except KeyError:
-                self._make_cmd(_000C, payload=f"{self.idx}{DEV_MAP.UFH}")
+                self._make_cmd(_000C, payload=f"{self.idx}{DEV_CLASS_MAP.UFH}")
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
@@ -1129,7 +1101,7 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
 class ValZone(EleZone):  # BDR91A/T
     """For a motorised valve controlled by a BDR91 (will also call for heat)."""
 
-    _ZONE_SLUG = ZONE_SLUGS.VAL
+    _SLUG: str = ZON_CLASS.VAL
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -1140,9 +1112,9 @@ class ValZone(EleZone):  # BDR91A/T
 
         if discover_flag & Discover.SCHEMA:
             try:
-                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_MAP.VAL}"]
+                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_CLASS_MAP.VAL}"]
             except KeyError:
-                self._make_cmd(_000C, payload=f"{self.idx}{DEV_MAP.VAL}")
+                self._make_cmd(_000C, payload=f"{self.idx}{DEV_CLASS_MAP.VAL}")
 
     @property
     def heat_demand(self) -> Optional[float]:  # 0008 (NOTE: not 3150)
@@ -1160,7 +1132,7 @@ def _transform(valve_pos: float) -> float:
     return math.floor((valve_pos - t1) * t1 / (t2 - t1) + t0 + 0.5) / 100
 
 
-_CLASS_BY_KLASS = class_by_attr(__name__, ATTR_ZONE_SLUG)  # ZONE_SLUGS.RAD: RadZone
+ZONE_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # ZON_CLASS.RAD: RadZone
 
 
 def zx_zone_factory(tcs, idx: str, msg: Message = None, **schema) -> Class:
@@ -1178,7 +1150,7 @@ def zx_zone_factory(tcs, idx: str, msg: Message = None, **schema) -> Class:
         # NOTE: for now, zones are always promoted after instantiation
 
         # # a specified zone class always takes precidence (even if it is wrong)...
-        # if klass := _CLASS_BY_KLASS.get(schema.get(SZ_KLASS)):
+        # if klass := ZONE_CLASS_BY_SLUG.get(schema.get(SZ_KLASS)):
         #     _LOGGER.debug(f"Using configured zone class for: {ctl_addr}_{idx} ({klass})")
         #     return klass
 
@@ -1195,7 +1167,7 @@ def zx_zone_factory(tcs, idx: str, msg: Message = None, **schema) -> Class:
         #     pass
 
         # otherwise, use the generic heating zone klass...
-        _LOGGER.warning(f"Using generic zone class for: {ctl_addr}_{idx} ({Zone})")
+        _LOGGER.debug(f"Using generic zone class for: {ctl_addr}_{idx} ({Zone})")
         return Zone
 
     return class_zon(

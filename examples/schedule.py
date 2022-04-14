@@ -73,7 +73,7 @@ def cli(*args, **kwargs):
 
 def process_message(msg) -> None:
     dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
-    if msg.src.type == "18" and msg.verb == "RQ":
+    if msg.src.type == DEV_TYPE_MAP.HGI and msg.verb == "RQ":
         print(f"{Fore.YELLOW}{dtm} {msg}")
     else:
         print(f"{COLORS.get(msg.verb)}{dtm} {msg}")

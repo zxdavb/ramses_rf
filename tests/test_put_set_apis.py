@@ -13,7 +13,8 @@ from datetime import datetime as dt
 from common import GWY_CONFIG, TEST_DIR  # noqa: F401
 
 from ramses_rf import Gateway
-from ramses_rf.const import HGI_DEVICE_ID, SZ_DOMAIN_ID
+from ramses_rf.const import SZ_DOMAIN_ID
+from ramses_rf.protocol.address import HGI_DEV_ADDR
 from ramses_rf.protocol.command import Command
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
@@ -22,17 +23,6 @@ from ramses_rf.protocol.packet import Packet
 class TestApisBase(unittest.IsolatedAsyncioTestCase):
 
     gwy = Gateway(None, config=GWY_CONFIG, loop=asyncio.get_event_loop())
-
-    # def __init__(self, *args, **kwargs):
-    #     super().__init__(*args, **kwargs)
-
-    #     self._setupAsyncioLoop()
-    #     self.gwy = Gateway(None, config=GWY_CONFIG, loop=self._asyncioTestLoop)
-
-    # def _setupAsyncioLoop(self):
-    #     if self._asyncioTestLoop:
-    #         return
-    #     super()._setupAsyncioLoop()
 
     def _test_api_line(self, api, pkt_line):
         pkt = Packet.from_port(self.gwy, dt.now(), pkt_line)
@@ -50,7 +40,7 @@ class TestApisBase(unittest.IsolatedAsyncioTestCase):
         for pkt_line in packets:
             pkt, msg, cmd = self._test_api_line(api, pkt_line)
 
-            if msg.src.id == HGI_DEVICE_ID:
+            if msg.src.id == HGI_DEV_ADDR.id:
                 self.assertEqual(cmd, pkt)  # must have exact same addr set
 
 
