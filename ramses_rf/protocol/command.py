@@ -19,7 +19,7 @@ from typing import Any, Optional, Union
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
 from .const import COMMAND_REGEX
 from .const import DEVICE_ID_REGEX as _DEVICE_ID_REGEX
-from .const import SYS_MODE_MAP, SZ_DOMAIN_ID, SZ_ZONE_IDX, ZON_MODE_MAP, __dev_mode__
+from .const import SZ_DOMAIN_ID, SZ_ZONE_IDX, __dev_mode__
 from .exceptions import ExpiredCallbackError, InvalidPacketError
 from .frame import PacketBase, pkt_header
 from .helpers import dt_now, dtm_to_hex, str_to_hex, temp_to_hex, timestamp
@@ -37,8 +37,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     DEV_CLASS_MAP,
     DEV_TYPE,
     DEV_TYPE_MAP,
+    SYS_MODE_MAP,
     ZON_CLASS_MAP,
-    ZON_MODE,
+    ZON_MODE_MAP,
 )
 
 # skipcq: PY-W2000

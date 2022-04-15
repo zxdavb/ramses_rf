@@ -386,44 +386,31 @@ ZON_CLASS_MAP = attr_dict_factory(
 )
 
 # Zone modes
-ZON_MODE = SimpleNamespace(
-    FOLLOW="FOLLOW",
-    ADVANCED="ADVANCED",  # . until the next scheduled setpoint
-    PERMANENT="PERMANENT",  # indefinitely
-    COUNTDOWN="COUNTDOWN",  # for some minutes (duration, max 1,215?)
-    TEMPORARY="TEMPORARY",  # until a given date/time (until)
-)
 ZON_MODE_MAP = attr_dict_factory(
     {
-        ZON_MODE.FOLLOW: {"00": "follow_schedule"},
-        ZON_MODE.ADVANCED: {"01": "advanced_override"},
-        ZON_MODE.PERMANENT: {"02": "permanent_override"},
-        ZON_MODE.COUNTDOWN: {"03": "countdown_override"},
-        ZON_MODE.TEMPORARY: {"04": "temporary_override"},
+        "FOLLOW": {"00": "follow_schedule"},
+        "ADVANCED": {"01": "advanced_override"},  # . until the next scheduled setpoint
+        "PERMANENT": {"02": "permanent_override"},  # indefinitely, until auto_reset
+        "COUNTDOWN": {"03": "countdown_override"},  # for x mins (duration, max 1,215?)
+        "TEMPORARY": {"04": "temporary_override"},  # until a given date/time (until)
     }
 )
 
 # System modes
-SYS_MODE = SimpleNamespace(
-    AUTO="auto_00",  # .                indef only
-    HEAT_OFF="heat_off_01",  # .        indef only
-    ECO_BOOST="eco_boost_02",  # .      indef, or 24h: is either Eco, *or* Boost
-    AWAY="away_03",  # .                indef, or 99d (0d = end of today, 00:00)
-    DAY_OFF="day_off_04",  # .          indef, or 99d: rounded down to 00:00 by CTL
-    DAY_OFF_ECO="day_off_eco_05",  # .  indef, or 99d: set to Eco when DayOff ends
-    AUTO_RESET="auto_with_reset_06",  # indef only
-    CUSTOM="custom_07",  # .            indef, or 99d
-)
 SYS_MODE_MAP = attr_dict_factory(
     {
-        SYS_MODE.AUTO: {"00": "auto"},
-        SYS_MODE.HEAT_OFF: {"01": "heat_off"},
-        SYS_MODE.ECO_BOOST: {"02": "eco_boost"},
-        SYS_MODE.AWAY: {"03": "away"},
-        SYS_MODE.DAY_OFF: {"04": "day_off"},
-        SYS_MODE.DAY_OFF_ECO: {"05": "day_off_eco"},
-        SYS_MODE.AUTO_RESET: {"06": "auto_with_reset"},
-        SYS_MODE.CUSTOM: {"07": "custom"},
+        "au_00": {"00": "auto"},  # .          indef only
+        "ho_01": {"01": "heat_off"},  # .      indef only
+        "eb_02": {"02": "eco_boost"},  # .     indef, or 24h: is either Eco, *or* Boost
+        "aw_03": {"03": "away"},  # .          indef, or 99d (0d = end of today, 00:00)
+        "do_04": {
+            "04": "day_off"
+        },  # .       indef, or 99d: rounded down to 00:00 by CTL
+        "de_05": {
+            "05": "day_off_eco"
+        },  # .   indef, or 99d: set to Eco when DayOff ends
+        "ar_06": {"06": "auto_with_reset"},  # indef only
+        "cu_07": {"07": "custom"},  # .        indef, or 99d
     }
 )
 
