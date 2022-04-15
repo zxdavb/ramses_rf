@@ -10,7 +10,7 @@ import logging
 from symtable import Class
 from typing import Optional
 
-from .const import BOOST_TIMER, FAN_MODE, __dev_mode__
+from .const import BOOST_TIMER, FAN_MODE, SZ_TEMPERATURE, __dev_mode__
 from .devices_base import BatteryState, HvacDevice
 from .entity_base import class_by_attr
 from .protocol import Address, Message
@@ -145,7 +145,7 @@ class HvacHumidity(BatteryState, HvacDevice):  # HUM: I/12A0
     _SLUG: str = DEV_TYPE.HUM
 
     REL_HUMIDITY = "indoor_humidity"  # percentage (0.0-1.0)
-    TEMPERATURE = "temperature"  # celsius
+    TEMPERATURE = SZ_TEMPERATURE  # celsius
     DEWPOINT_TEMP = "dewpoint_temp"  # celsius
 
     @property

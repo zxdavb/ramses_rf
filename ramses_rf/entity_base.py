@@ -11,7 +11,7 @@ from inspect import getmembers, isclass
 from sys import modules
 from typing import Optional
 
-from .const import SZ_DOMAIN_ID, SZ_ZONE_IDX, Discover, __dev_mode__
+from .const import SZ_DEVICE_ID, SZ_DOMAIN_ID, SZ_ZONE_IDX, Discover, __dev_mode__
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -105,7 +105,7 @@ class Entity:
 
         if (
             self._gwy.pkt_protocol is None
-            or msg.src.id != self._gwy.pkt_protocol._hgi80.get("device_id")
+            or msg.src.id != self._gwy.pkt_protocol._hgi80.get(SZ_DEVICE_ID)
         ):
             self._qos_function(msg._pkt, reset=True)
 

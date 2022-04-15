@@ -18,6 +18,7 @@ from .const import (
     DEFAULT_MAX_ZONES,
     DEVICE_ID_REGEX,
     DONT_CREATE_MESSAGES,
+    SZ_DEVICE_ID,
     SZ_ZONE_IDX,
     SystemType,
     __dev_mode__,
@@ -70,7 +71,7 @@ SZ_UFH_SYSTEM = "underfloor_heating"
 SZ_UFH_CTL = "ufh_controller"
 SZ_UFH_CIRCUITS = "ufh_circuits"
 
-SZ_DEVICE_ID = "device_id"
+SZ_DEVICE_ID = SZ_DEVICE_ID
 SZ_ALIAS = "alias"
 SZ_KLASS = "class"  # device/zone class
 SZ_FAKED = "faked"

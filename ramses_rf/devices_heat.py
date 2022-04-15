@@ -12,13 +12,14 @@ from symtable import Class
 from typing import Optional
 
 from .const import (
-    ATTR_TEMP,
     DOMAIN_TYPE_MAP,
     SZ_DEVICES,
     SZ_DOMAIN_ID,
     SZ_HEAT_DEMAND,
+    SZ_PRESSURE,
     SZ_RELAY_DEMAND,
     SZ_SETPOINT,
+    SZ_TEMPERATURE,
     SZ_WINDOW_OPEN,
     SZ_ZONE_IDX,
     SZ_ZONE_TYPE,
@@ -251,7 +252,7 @@ class Setpoint(HeatDevice):  # 2309
 
 class Weather(Fakeable):  # 0002
 
-    TEMPERATURE = ATTR_TEMP  # degrees Celsius
+    TEMPERATURE = SZ_TEMPERATURE  # degrees Celsius
 
     def _bind(self):
         #
@@ -369,7 +370,7 @@ class RelayDemand(Fakeable):  # 0008
 
 class DhwTemperature(Fakeable):  # 1260
 
-    TEMPERATURE = ATTR_TEMP  # degrees Celsius
+    TEMPERATURE = SZ_TEMPERATURE  # degrees Celsius
 
     def _bind(self):
         #
@@ -404,7 +405,7 @@ class DhwTemperature(Fakeable):  # 1260
 
 class Temperature(Fakeable):  # 30C9
 
-    TEMPERATURE = ATTR_TEMP  # degrees Celsius
+    TEMPERATURE = SZ_TEMPERATURE  # degrees Celsius
 
     def _bind(self):
         # I --- 34:145039 --:------ 34:145039 1FC9 012 00-30C9-8A368F 00-1FC9-8A368F
@@ -700,9 +701,9 @@ class DhwSensor(DhwTemperature, BatteryState, HeatDevice):  # DHW (07): 10A0, 12
     _SLUG: str = DEV_TYPE.DHW
 
     DHW_PARAMS = "dhw_params"
-    TEMPERATURE = ATTR_TEMP
+    TEMPERATURE = SZ_TEMPERATURE
 
-    _STATE_ATTR = "temperature"
+    _STATE_ATTR = SZ_TEMPERATURE
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -737,7 +738,7 @@ class OutSensor(Weather, HeatDevice):  # OUT: 17
     # LUMINOSITY = "luminosity"  # lux
     # WINDSPEED = "windspeed"  # km/h
 
-    _STATE_ATTR = "temperature"
+    _STATE_ATTR = SZ_TEMPERATURE
 
 
 class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, others)
@@ -976,31 +977,31 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
     def boiler_output_temp(self) -> Optional[float]:  # 3200 (3220/19)
         if _OTB_MODE:
             return self._ot_msg_value("19")
-        return self._msg_value(_3200, key="temperature")
+        return self._msg_value(_3200, key=SZ_TEMPERATURE)
 
     @property
     def boiler_return_temp(self) -> Optional[float]:  # 3210 (3220/1C)
         if _OTB_MODE:
             return self._ot_msg_value("1C")
-        return self._msg_value(_3210, key="temperature")
+        return self._msg_value(_3210, key=SZ_TEMPERATURE)
 
     @property
     def boiler_setpoint(self) -> Optional[float]:  # 22D9 (3220/01)
         if _OTB_MODE:
             return self._ot_msg_value("01")
-        return self._msg_value(_22D9, key="setpoint")
+        return self._msg_value(_22D9, key=SZ_SETPOINT)
 
     @property
     def ch_max_setpoint(self) -> Optional[float]:  # 1081 (3220/39)
         if _OTB_MODE:
             return self._ot_msg_value("39")
-        return self._msg_value(_1081, key="setpoint")
+        return self._msg_value(_1081, key=SZ_SETPOINT)
 
     @property
     def ch_water_pressure(self) -> Optional[float]:  # 1300 (3220/12)
         if _OTB_MODE:
             return self._ot_msg_value("12")
-        result = self._msg_value(_1300, key="pressure")
+        result = self._msg_value(_1300, key=SZ_PRESSURE)
         return None if result == 25.5 else result  # HACK: to make more rigourous
 
     @property
@@ -1013,19 +1014,19 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
     def dhw_setpoint(self) -> Optional[float]:  # 10A0 (3220/38)
         if _OTB_MODE:
             return self._ot_msg_value("38")
-        return self._msg_value(_10A0, key="setpoint")
+        return self._msg_value(_10A0, key=SZ_SETPOINT)
 
     @property
     def dhw_temp(self) -> Optional[float]:  # 1260 (3220/1A)
         if _OTB_MODE:
             return self._ot_msg_value("1A")
-        return self._msg_value(_1260, key="temperature")
+        return self._msg_value(_1260, key=SZ_TEMPERATURE)
 
     @property
     def outside_temp(self) -> Optional[float]:  # 1290 (3220/1B)
         if _OTB_MODE:
             return self._ot_msg_value("1B")
-        return self._msg_value(_1290, key="temperature")
+        return self._msg_value(_1290, key=SZ_TEMPERATURE)
 
     @property
     def rel_modulation_level(self) -> Optional[float]:  # 3EF0/3EF1
@@ -1150,15 +1151,15 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
     @property
     def ramses_status(self) -> dict:
         return {
-            "boiler_output_temp": self._msg_value(_3200, key="temperature"),
-            "boiler_return_temp": self._msg_value(_3210, key="temperature"),
-            "boiler_setpoint": self._msg_value(_22D9, key="setpoint"),
-            "ch_max_setpoint": self._msg_value(_1081, key="setpoint"),
-            "ch_water_pressure": self._msg_value(_1300, key="pressure"),
+            "boiler_output_temp": self._msg_value(_3200, key=SZ_TEMPERATURE),
+            "boiler_return_temp": self._msg_value(_3210, key=SZ_TEMPERATURE),
+            "boiler_setpoint": self._msg_value(_22D9, key=SZ_SETPOINT),
+            "ch_max_setpoint": self._msg_value(_1081, key=SZ_SETPOINT),
+            "ch_water_pressure": self._msg_value(_1300, key=SZ_PRESSURE),
             "dhw_flow_rate": self._msg_value(_12F0, key="dhw_flow_rate"),
-            "dhw_setpoint": self._msg_value(_1300, key="setpoint"),
-            "dhw_temp": self._msg_value(_1260, key="temperature"),
-            "outside_temp": self._msg_value(_1290, key="temperature"),
+            "dhw_setpoint": self._msg_value(_1300, key=SZ_SETPOINT),
+            "dhw_temp": self._msg_value(_1260, key=SZ_TEMPERATURE),
+            "outside_temp": self._msg_value(_1290, key=SZ_TEMPERATURE),
             "rel_modulation_level": self.rel_modulation_level,
             #
             "ch_setpoint": super().ch_setpoint,
@@ -1222,7 +1223,7 @@ class Thermostat(BatteryState, Setpoint, Temperature, HeatDevice):  # THM (..):
 
     _SLUG: str = DEV_TYPE.THM
 
-    _STATE_ATTR = "temperature"
+    _STATE_ATTR = SZ_TEMPERATURE
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)

@@ -17,26 +17,31 @@ from typing import Optional, Union
 
 from .address import hex_id_to_dev_id
 from .const import (
-    _0418_DEVICE_CLASS,
-    _0418_FAULT_STATE,
-    _0418_FAULT_TYPE,
     FAN_MODE,
     FAN_MODES,
+    FAULT_DEVICE_TYPE,
+    FAULT_STATE,
+    FAULT_TYPE,
     HEATER_MODE,
     HEATER_MODES,
     SYS_MODE_MAP,
     SZ_DATETIME,
     SZ_DEVICE_CLASS,
+    SZ_DEVICE_ID,
     SZ_DEVICES,
     SZ_DOMAIN_ID,
+    SZ_DURATION,
     SZ_LANGUAGE,
     SZ_MODE,
     SZ_NAME,
     SZ_PAYLOAD,
+    SZ_PRESSURE,
     SZ_RELAY_DEMAND,
+    SZ_SETPOINT,
     SZ_SYSTEM_MODE,
     SZ_TEMPERATURE,
     SZ_UNKNOWN,
+    SZ_UNTIL,
     SZ_VALUE,
     SZ_WINDOW_OPEN,
     SZ_ZONE_CLASS,
@@ -526,9 +531,9 @@ def parser_0418(payload, msg) -> Optional[dict]:
         return {"log_entry": None}
 
     try:
-        assert payload[2:4] in _0418_FAULT_STATE, f"fault_state: {payload[2:4]}"
-        assert payload[8:10] in _0418_FAULT_TYPE, f"fault_type: {payload[8:10]}"
-        assert payload[12:14] in _0418_DEVICE_CLASS, f"device class: {payload[12:14]}"
+        assert payload[2:4] in FAULT_STATE, f"fault state: {payload[2:4]}"
+        assert payload[8:10] in FAULT_TYPE, f"fault type: {payload[8:10]}"
+        assert payload[12:14] in FAULT_DEVICE_TYPE, f"device class: {payload[12:14]}"
         # 1C: 'Comms fault, Actuator': seen with boiler relays
         assert int(payload[10:12], 16) < msg._gwy.config.max_zones or (
             payload[10:12] in ("1C", "F9", "FA", "FC")
@@ -540,9 +545,9 @@ def parser_0418(payload, msg) -> Optional[dict]:
 
     result = {
         "timestamp": dts_from_hex(payload[18:30]),
-        "fault_state": _0418_FAULT_STATE.get(payload[2:4], payload[2:4]),
-        "fault_type": _0418_FAULT_TYPE.get(payload[8:10], payload[8:10]),
-        SZ_DEVICE_CLASS: _0418_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
+        "state": FAULT_STATE.get(payload[2:4], payload[2:4]),
+        "type": FAULT_TYPE.get(payload[8:10], payload[8:10]),
+        "device_class": FAULT_DEVICE_TYPE.get(payload[12:14], payload[12:14]),
     }
 
     if payload[10:12] == "FC" and result[SZ_DEVICE_CLASS] == "actuator":
@@ -557,15 +562,15 @@ def parser_0418(payload, msg) -> Optional[dict]:
         result.update({key_name: payload[10:12]})
 
     if payload[38:] == "000002":  # "00:000002 for Unknown?
-        result.update({"device_id": None})
+        result.update({SZ_DEVICE_ID: None})
     elif payload[38:] not in ("000000", "000001"):  # "00:000001 for Controller?
-        result.update({"device_id": hex_id_to_dev_id(payload[38:])})
+        result.update({SZ_DEVICE_ID: hex_id_to_dev_id(payload[38:])})
 
     result.update(
         {
-            f"_{SZ_UNKNOWN}_1": payload[6:8],  # B0 ?priority
-            f"_{SZ_UNKNOWN}_2": payload[14:18],  # 0000
-            f"_{SZ_UNKNOWN}_3": payload[30:38],  # FFFF7000/1/2
+            f"_{SZ_UNKNOWN}_3": payload[6:8],  # B0 ?priority
+            f"_{SZ_UNKNOWN}_7": payload[14:18],  # 0000
+            f"_{SZ_UNKNOWN}_15": payload[30:38],  # FFFF7000/1/2
         }
     )
 
@@ -586,8 +591,8 @@ def parser_042f(payload, msg) -> Optional[dict]:
 
     return {
         "counter_1": f"0x{payload[2:6]}",
-        "counter_2": f"0x{payload[6:10]}",
-        "counter_3": f"0x{payload[10:14]}",
+        "counter_3": f"0x{payload[6:10]}",
+        "counter_5": f"0x{payload[10:14]}",
         f"{SZ_UNKNOWN}_7": f"0x{payload[14:]}",
     }
 
@@ -645,7 +650,7 @@ def parser_1060(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # max_ch_setpoint (supply high limit)
 def parser_1081(payload, msg) -> Optional[dict]:
-    return {"setpoint": temp_from_hex(payload[2:])}
+    return {SZ_SETPOINT: temp_from_hex(payload[2:])}
 
 
 @parser_decorator  # unknown_1090 (non-Evohome, e.g. ST9520C)
@@ -658,8 +663,8 @@ def parser_1090(payload, msg) -> dict:
     assert int(payload[:2], 16) < 2, _INFORM_DEV_MSG
 
     return {
-        "temp_0": temp_from_hex(payload[2:6]),
-        "temp_1": temp_from_hex(payload[6:10]),
+        f"{SZ_TEMPERATURE}_0": temp_from_hex(payload[2:6]),
+        f"{SZ_TEMPERATURE}_1": temp_from_hex(payload[6:10]),
     }
 
 
@@ -709,7 +714,7 @@ def parser_10a0(payload, msg) -> Optional[dict]:
     result = {}
     if msg.len >= 2:
         setpoint = temp_from_hex(payload[2:6])  # 255 for OTB? iff no DHW?
-        result = {"setpoint": None if setpoint == 255 else setpoint}  # 30.0-85.0 C
+        result = {SZ_SETPOINT: None if setpoint == 255 else setpoint}  # 30.0-85.0 C
     if msg.len >= 4:
         result["overrun"] = int(payload[6:8], 16)  # 0-10 minutes
     if msg.len >= 6:
@@ -769,7 +774,7 @@ def parser_10e0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # device_id
 def parser_10e1(payload, msg) -> Optional[dict]:
-    return {"device_id": hex_id_to_dev_id(payload[2:])}
+    return {SZ_DEVICE_ID: hex_id_to_dev_id(payload[2:])}
 
 
 @parser_decorator  # unknown_10e2 - HVAC
@@ -977,7 +982,7 @@ def parser_12f0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # ch_pressure
 def parser_1300(payload, msg) -> Optional[dict]:
-    return {"pressure": temp_from_hex(payload[2:])}  # is 2's complement still
+    return {SZ_PRESSURE: temp_from_hex(payload[2:])}  # is 2's complement still
 
 
 @parser_decorator  # system_sync
@@ -1013,7 +1018,7 @@ def parser_1f41(payload, msg) -> Optional[dict]:
         SZ_MODE: ZON_MODE_MAP.get(payload[4:6]),
     }
     if payload[4:6] == "04":  # temporary_override
-        result["until"] = dtm_from_hex(payload[12:24])
+        result[SZ_UNTIL] = dtm_from_hex(payload[12:24])
 
     return result
 
@@ -1173,7 +1178,7 @@ def parser_22d0(payload, msg) -> Optional[dict]:
 
 @parser_decorator  # desired boiler setpoint
 def parser_22d9(payload, msg) -> Optional[dict]:
-    return {"setpoint": temp_from_hex(payload[2:6])}
+    return {SZ_SETPOINT: temp_from_hex(payload[2:6])}
 
 
 @parser_decorator  # fan_speed (switch_mode), HVAC
@@ -1268,7 +1273,7 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:
         return [
             {
                 SZ_ZONE_IDX: payload[i : i + 2],
-                "setpoint": temp_from_hex(payload[i + 2 : i + 6]),
+                SZ_SETPOINT: temp_from_hex(payload[i + 2 : i + 6]),
             }
             for i in range(0, len(payload), 6)
         ]
@@ -1277,7 +1282,7 @@ def parser_2309(payload, msg) -> Union[dict, list, None]:
     if msg.verb == RQ and msg.len == 1:  # some RQs have a payload (why?)
         return {}
 
-    return {"setpoint": temp_from_hex(payload[2:])}
+    return {SZ_SETPOINT: temp_from_hex(payload[2:])}
 
 
 @parser_decorator  # zone_mode  # TODO: messy
@@ -1295,7 +1300,7 @@ def parser_2349(payload, msg) -> Optional[dict]:
     assert payload[6:8] in ZON_MODE_MAP, f"{SZ_UNKNOWN} zone_mode: {payload[6:8]}"
     result = {
         SZ_MODE: ZON_MODE_MAP.get(payload[6:8]),
-        "setpoint": temp_from_hex(payload[2:6]),
+        SZ_SETPOINT: temp_from_hex(payload[2:6]),
     }
 
     if msg.len >= 7:  # has a dtm if mode == "04"
@@ -1303,15 +1308,15 @@ def parser_2349(payload, msg) -> Optional[dict]:
             assert payload[6:8] != "03", f"{payload[6:8]} (0x00)"
         else:
             assert payload[6:8] == "03", f"{payload[6:8]} (0x01)"
-            result["duration"] = int(payload[8:14], 16)
+            result[SZ_DURATION] = int(payload[8:14], 16)
 
     if msg.len >= 13:
         if payload[14:] == "FF" * 6:
             assert payload[6:8] in ("00", "02"), f"{payload[6:8]} (0x02)"
-            result["until"] = None  # TODO: remove?
+            result[SZ_UNTIL] = None  # TODO: remove?
         else:
             assert payload[6:8] != "02", f"{payload[6:8]} (0x03)"
-            result["until"] = dtm_from_hex(payload[14:26])
+            result[SZ_UNTIL] = dtm_from_hex(payload[14:26])
 
     return result
 
@@ -1400,7 +1405,7 @@ def parser_2e04(payload, msg) -> Optional[dict]:
     #  I --— 01:020766 --:------ 01:020766 2E04 016 FFFFFFFFFFFFFF0000FFFFFFFFFFFF04  # Automatic/times # noqa: E501
 
     if msg.len == 8:  # evohome
-        assert payload[:2] in SYS_MODE_MAP, payload[:2]  # TODO: check AutoWithReset
+        assert payload[:2] in SYS_MODE_MAP, f"Unknown system mode: {payload[:2]}"
 
     elif msg.len == 16:  # hometronics, lifestyle ID:
         assert 0 <= int(payload[:2], 16) <= 15 or payload[:2] == "FF", payload[:2]
@@ -1413,8 +1418,8 @@ def parser_2e04(payload, msg) -> Optional[dict]:
         assert False, f"Packet length is {msg.len} (expecting 8, 16)"
 
     return {
-        SZ_SYSTEM_MODE: SYS_MODE_MAP.get(payload[:2], payload[:2]),
-        "until": dtm_from_hex(payload[2:14]) if payload[14:16] != "00" else None,
+        SZ_SYSTEM_MODE: SYS_MODE_MAP[payload[:2]],
+        SZ_UNTIL: dtm_from_hex(payload[2:14]) if payload[14:16] != "00" else None,
     }  # TODO: double-check the final "00"
 
 

@@ -38,6 +38,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     DEV_TYPE,
     DEV_TYPE_MAP,
     ZON_CLASS_MAP,
+    ZON_MODE,
 )
 
 # skipcq: PY-W2000
@@ -226,15 +227,15 @@ def _normalise_mode(mode, target, until, duration) -> str:
 
     if mode is None:
         if until:
-            mode = ZON_MODE_MAP.temporary_override
+            mode = ZON_MODE_MAP.TEMPORARY
         elif duration:
-            mode = ZON_MODE_MAP.countdown_override
+            mode = ZON_MODE_MAP.COUNTDOWN
         else:
-            mode = ZON_MODE_MAP.permanent_override  # TODO: advanced_override?
+            mode = ZON_MODE_MAP.PERMANENT  # TODO: advanced_override?
     else:  # may raise KeyError
         mode = ZON_MODE_MAP._hex(f"{mode:02X}" if isinstance(mode, int) else mode)
 
-    if mode != ZON_MODE_MAP.follow_schedule and target is None:
+    if mode != ZON_MODE_MAP.FOLLOW_SCHEDULE and target is None:
         raise ValueError(
             f"Invalid args: For {ZON_MODE_MAP._str(mode)}, setpoint/active cant be None"
         )
@@ -250,15 +251,15 @@ def _normalise_until(mode, _, until, duration) -> tuple[Any, Any]:
     # if until and duration:
     #     raise ValueError("Invalid args: Only one of until or duration can be set")
 
-    if mode == ZON_MODE_MAP.temporary_override:
+    if mode == ZON_MODE_MAP.TEMPORARY:
         if duration is not None:
             raise ValueError(
                 f"Invalid args: For {ZON_MODE_MAP._str(mode)}, duration must be None"
             )
         if until is None:
-            mode = ZON_MODE_MAP.advanced_override  # or: until = dt.now() + td(hour=1)
+            mode = ZON_MODE_MAP.ADVANCED  # or: until = dt.now() + td(hour=1)
 
-    elif mode in ZON_MODE_MAP.countdown_override:
+    elif mode in ZON_MODE_MAP.COUNTDOWN:
         if duration is None:
             raise ValueError(
                 f"Invalid args: For {ZON_MODE_MAP._str(mode)}, duration cant be None"
@@ -632,9 +633,9 @@ class Command(PacketBase):
         )  # may raise KeyError
 
         if until is not None and system_mode in (
-            SYS_MODE_MAP.auto,
-            SYS_MODE_MAP.auto_with_reset,
-            SYS_MODE_MAP.heat_off,
+            SYS_MODE_MAP.AUTO,
+            SYS_MODE_MAP.AUTO_WITH_RESET,
+            SYS_MODE_MAP.HEAT_OFF,
         ):
             raise ValueError(
                 f"Invalid args: For system_mode={SYS_MODE_MAP._str(system_mode)},"

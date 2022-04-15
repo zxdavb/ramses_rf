@@ -406,7 +406,7 @@ async def script_scan_otb_map(gwy, dev_id: str):  # Tested only upon a R8820A
         _1260: "1A",  # dhw temp               / DHWTemperature
         _1290: "1B",  # outdoor temp           / OutsideTemperature
         _3210: "1C",  # boiler return temp     / ReturnWaterTemperature
-        _10A0: "38",  # dhw params["setpoint"] / DHWSetpoint
+        _10A0: "38",  # dhw params[SZ_SETPOINT] / DHWSetpoint
         _1081: "39",  # max ch setpoint        / MaxCHWaterSetpoint
     }
 
@@ -430,7 +430,7 @@ async def script_scan_otb_ramses(gwy, dev_id: str):  # Tested only upon a R8820A
         _2420,
         _1300,  # cv water pressure      / CHWaterPressure
         _1081,  # max ch setpoint        / MaxCHWaterSetpoint
-        _10A0,  # dhw params["setpoint"] / DHWSetpoint
+        _10A0,  # dhw params[SZ_SETPOINT] / DHWSetpoint
         _22D9,  # boiler setpoint        / ControlSetpoint
         _1260,  # dhw temp               / DHWTemperature
         _1290,  # outdoor temp           / OutsideTemperature

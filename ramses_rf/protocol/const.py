@@ -100,56 +100,6 @@ _4401 = "4401"
 _PUZZ = "7FFF"
 
 
-class AttrDictOld(dict):
-    # NOTE: 'advanced_override' in ZON_MODE_MAP == False
-
-    @staticmethod
-    def __readonly__(*args, **kwargs):
-        raise RuntimeError("Cannot modify ReadOnlyDict")
-
-    __delitem__ = __readonly__
-    __setitem__ = __readonly__
-    clear = __readonly__
-    pop = __readonly__
-    popitem = __readonly__
-    setdefault = __readonly__
-    update = __readonly__
-
-    del __readonly__  # skipcq: PTC-W0043
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._reverse = {v: k for k, v in args[0].items()}
-
-    def __getitem__(self, key):
-        if key in self._reverse:
-            return self._reverse.__getitem__(key)
-        return super().__getitem__(key)
-
-    def __getattr__(self, name):
-        if name in self.__slots__:
-            if name in self._reverse:
-                return self._reverse[name]
-            return self[name[1:]]
-        return self.__getattribute__(name)
-
-    def _hex(self, key) -> str:
-        """Return the key (2-byte hex string) of the two-way dict."""
-        if key in self:
-            return key
-        if key in self._reverse:
-            return self._reverse[key]
-        raise KeyError(key)
-
-    def _str(self, key) -> str:
-        """Return the value (string) of the two-way dict."""
-        if key in self:
-            return self[key]
-        if key in self._reverse:
-            return key
-        raise KeyError(key)
-
-
 class AttrDict(dict):
     _SZ_ALIAS = "_alias"
     _SZ_SLUGS = "SLUGS"
@@ -435,31 +385,74 @@ ZON_CLASS_MAP = attr_dict_factory(
     },
 )
 
+# Zone modes
+ZON_MODE = SimpleNamespace(
+    FOLLOW="FOLLOW",
+    ADVANCED="ADVANCED",  # . until the next scheduled setpoint
+    PERMANENT="PERMANENT",  # indefinitely
+    COUNTDOWN="COUNTDOWN",  # for some minutes (duration, max 1,215?)
+    TEMPORARY="TEMPORARY",  # until a given date/time (until)
+)
+ZON_MODE_MAP = attr_dict_factory(
+    {
+        ZON_MODE.FOLLOW: {"00": "follow_schedule"},
+        ZON_MODE.ADVANCED: {"01": "advanced_override"},
+        ZON_MODE.PERMANENT: {"02": "permanent_override"},
+        ZON_MODE.COUNTDOWN: {"03": "countdown_override"},
+        ZON_MODE.TEMPORARY: {"04": "temporary_override"},
+    }
+)
 
-SZ_DEVICE_CLASS = "device_class"
-SZ_DOMAIN_ID = "domain_id"
-SZ_ZONE_IDX = "zone_idx"
-SZ_ZONE_CLASS = "zone_class"
-SZ_ZONE_MASK = "zone_mask"
-SZ_ZONE_TYPE = "zone_type"
+# System modes
+SYS_MODE = SimpleNamespace(
+    AUTO="auto_00",  # .                indef only
+    HEAT_OFF="heat_off_01",  # .        indef only
+    ECO_BOOST="eco_boost_02",  # .      indef, or 24h: is either Eco, *or* Boost
+    AWAY="away_03",  # .                indef, or 99d (0d = end of today, 00:00)
+    DAY_OFF="day_off_04",  # .          indef, or 99d: rounded down to 00:00 by CTL
+    DAY_OFF_ECO="day_off_eco_05",  # .  indef, or 99d: set to Eco when DayOff ends
+    AUTO_RESET="auto_with_reset_06",  # indef only
+    CUSTOM="custom_07",  # .            indef, or 99d
+)
+SYS_MODE_MAP = attr_dict_factory(
+    {
+        SYS_MODE.AUTO: {"00": "auto"},
+        SYS_MODE.HEAT_OFF: {"01": "heat_off"},
+        SYS_MODE.ECO_BOOST: {"02": "eco_boost"},
+        SYS_MODE.AWAY: {"03": "away"},
+        SYS_MODE.DAY_OFF: {"04": "day_off"},
+        SYS_MODE.DAY_OFF_ECO: {"05": "day_off_eco"},
+        SYS_MODE.AUTO_RESET: {"06": "auto_with_reset"},
+        SYS_MODE.CUSTOM: {"07": "custom"},
+    }
+)
 
-ATTR_TEMP = "temperature"
 
 SZ_DATETIME = "datetime"
+SZ_DEVICE_CLASS = "device_class"
+SZ_DEVICE_ID = "device_id"
 SZ_DEVICES = "devices"
+SZ_DOMAIN_ID = "domain_id"
+SZ_DURATION = "duration"
 SZ_HEAT_DEMAND = "heat_demand"
 SZ_LANGUAGE = "language"
 SZ_MODE = "mode"
 SZ_NAME = "name"
 SZ_PAYLOAD = "payload"
+SZ_PRESSURE = "pressure"
 SZ_RELAY_DEMAND = "relay_demand"
 SZ_RELAY_FAILSAFE = "relay_failsafe"
 SZ_SETPOINT = "setpoint"
 SZ_SYSTEM_MODE = "system_mode"
 SZ_TEMPERATURE = "temperature"
 SZ_UNKNOWN = "unknown"
+SZ_UNTIL = "until"
 SZ_VALUE = "value"
 SZ_WINDOW_OPEN = "window_open"
+SZ_ZONE_CLASS = "zone_class"
+SZ_ZONE_IDX = "zone_idx"
+SZ_ZONE_MASK = "zone_mask"
+SZ_ZONE_TYPE = "zone_type"
 
 
 DEFAULT_MAX_ZONES = 16 if DEV_MODE else 12
@@ -521,20 +514,20 @@ MESSAGE_REGEX = re.compile(f"^{r} {v} {r} {d} {d} {d} {c} {l} {p}$")
 
 
 # Used by 0418/system_fault parser
-_0418_DEVICE_CLASS = {
+FAULT_DEVICE_TYPE = {
     "00": "controller",
     "01": "sensor",
-    "02": "setpoint",
+    "02": SZ_SETPOINT,
     "04": "actuator",  # if domain is FC, then "boiler_relay"
     "05": "dhw_sensor",
     "06": "remote_gateway",
 }
-_0418_FAULT_STATE = {
+FAULT_STATE = {
     "00": "fault",
     "40": "restore",
     "C0": "unknown_c0",  # C0s do not appear in the evohome UI
 }
-_0418_FAULT_TYPE = {
+FAULT_TYPE = {
     "01": "system_fault",
     "03": "mains_low",
     "04": "battery_low",
@@ -553,55 +546,6 @@ SystemType = SimpleNamespace(
     SUNDIAL="sundial",
     GENERIC="generic",
 )
-
-
-SZ_FOLLOW_SCHEDULE = "follow_schedule"
-SZ_ADVANCED_OVERRIDE = "advanced_override"
-SZ_PERMANENT_OVERRIDE = "permanent_override"
-SZ_COUNTDOWN_OVERRIDE = "countdown_override"
-SZ_TEMPORARY_OVERRIDE = "temporary_override"
-
-_ZONE_MODES = {
-    "00": SZ_FOLLOW_SCHEDULE,
-    "01": SZ_ADVANCED_OVERRIDE,  # until the next scheduled setpoint
-    "02": SZ_PERMANENT_OVERRIDE,  # indefinitely
-    "03": SZ_COUNTDOWN_OVERRIDE,  # for a number of minutes (duration, max 1,215?)
-    "04": SZ_TEMPORARY_OVERRIDE,  # until a given date/time (until)
-}
-
-
-class ZoneModes(AttrDictOld):
-    __slots__ = [f"_{k}" for k in _ZONE_MODES] + list(_ZONE_MODES.values())
-
-
-ZON_MODE_MAP = ZoneModes(_ZONE_MODES)
-
-SZ_AUTO = "auto"
-SZ_HEAT_OFF = "heat_off"
-SZ_ECO_BOOST = "eco_boost"
-SZ_AWAY = "away"
-SZ_DAY_OFF = "day_off"
-SZ_DAY_OFF_ECO = "day_off_eco"
-SZ_AUTO_WITH_RESET = "auto_with_reset"
-SZ_CUSTOM = "custom"
-
-_SYSTEM_MODES = {
-    "00": SZ_AUTO,  # .          indef only
-    "01": SZ_HEAT_OFF,  # .      indef only
-    "02": SZ_ECO_BOOST,  # .     indef, or 24h: is either Eco, or Boost
-    "03": SZ_AWAY,  # .          indef, or 99d (0d = end of today, 00:00)
-    "04": SZ_DAY_OFF,  # .       indef, or 99d (rounded down to 00:00 bt CTL)
-    "05": SZ_DAY_OFF_ECO,  # .   indef, or 99d: set to Eco when DayOff ends
-    "06": SZ_AUTO_WITH_RESET,  # indef only
-    "07": SZ_CUSTOM,  # .        indef, or 99d
-}
-
-
-class SystemModes(AttrDictOld):
-    __slots__ = [f"_{k}" for k in _SYSTEM_MODES] + list(_SYSTEM_MODES.values())
-
-
-SYS_MODE_MAP = SystemModes(_SYSTEM_MODES)
 
 # used by 22Fx parser, and FanSwitch devices
 BOOST_TIMER = "boost_timer"  # minutes, e.g. 10, 20, 30 minutes

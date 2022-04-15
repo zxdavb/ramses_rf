@@ -23,6 +23,7 @@ from .const import (
     SZ_HEAT_DEMAND,
     SZ_LANGUAGE,
     SZ_SYSTEM_MODE,
+    SZ_TEMPERATURE,
     SZ_ZONE_IDX,
     Discover,
     __dev_mode__,
@@ -570,9 +571,9 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
             _LOGGER.debug("System state (before): %s", self.schema)
 
             changed_zones = {
-                z[SZ_ZONE_IDX]: z["temperature"]
+                z[SZ_ZONE_IDX]: z[SZ_TEMPERATURE]
                 for z in this.payload
-                if z not in prev.payload and z["temperature"] is not None
+                if z not in prev.payload and z[SZ_TEMPERATURE] is not None
             }  # zones with changed temps
             _LOGGER.debug("Changed zones (from 30C9): %s", changed_zones)
             if not changed_zones:
@@ -1016,11 +1017,11 @@ class SysMode(SystemBase):  # 2E04
 
     def set_auto(self) -> Task:
         """Revert system to Auto, set non-PermanentOverride zones to FollowSchedule."""
-        return self.set_mode(SYS_MODE_MAP.auto)
+        return self.set_mode(SYS_MODE_MAP.AUTO)
 
     def reset_mode(self) -> Task:
         """Revert system to Auto, force *all* zones to FollowSchedule."""
-        return self.set_mode(SYS_MODE_MAP.auto_with_reset)
+        return self.set_mode(SYS_MODE_MAP.AUTO_WITH_RESET)
 
     @property
     def params(self) -> dict:

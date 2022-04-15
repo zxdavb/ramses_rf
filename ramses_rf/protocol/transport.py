@@ -41,7 +41,7 @@ from serial_asyncio import SerialTransport as SerTransportAsync
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import ARGS, DEAMON, FUNC, Command, Qos
-from .const import __dev_mode__
+from .const import SZ_DEVICE_ID, __dev_mode__
 from .exceptions import InvalidPacketError
 from .helpers import dt_now
 from .packet import Packet
@@ -75,7 +75,7 @@ TIP = f", configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
 
 IS_INITIALIZED = "is_initialized"
 IS_EVOFW3 = "is_evofw3"
-DEVICE_ID = "device_id"
+DEVICE_ID = SZ_DEVICE_ID
 
 EXPIRED = "expired"
 
