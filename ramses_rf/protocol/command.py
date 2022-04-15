@@ -19,7 +19,7 @@ from typing import Any, Optional, Union
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
 from .const import COMMAND_REGEX
 from .const import DEVICE_ID_REGEX as _DEVICE_ID_REGEX
-from .const import SYSTEM_MODE, SZ_DOMAIN_ID, SZ_ZONE_IDX, ZONE_MODE, __dev_mode__
+from .const import SYS_MODE_MAP, SZ_DOMAIN_ID, SZ_ZONE_IDX, ZON_MODE_MAP, __dev_mode__
 from .exceptions import ExpiredCallbackError, InvalidPacketError
 from .frame import PacketBase, pkt_header
 from .helpers import dt_now, dtm_to_hex, str_to_hex, temp_to_hex, timestamp
@@ -226,17 +226,17 @@ def _normalise_mode(mode, target, until, duration) -> str:
 
     if mode is None:
         if until:
-            mode = ZONE_MODE.temporary_override
+            mode = ZON_MODE_MAP.temporary_override
         elif duration:
-            mode = ZONE_MODE.countdown_override
+            mode = ZON_MODE_MAP.countdown_override
         else:
-            mode = ZONE_MODE.permanent_override  # TODO: advanced_override?
+            mode = ZON_MODE_MAP.permanent_override  # TODO: advanced_override?
     else:  # may raise KeyError
-        mode = ZONE_MODE._hex(f"{mode:02X}" if isinstance(mode, int) else mode)
+        mode = ZON_MODE_MAP._hex(f"{mode:02X}" if isinstance(mode, int) else mode)
 
-    if mode != ZONE_MODE.follow_schedule and target is None:
+    if mode != ZON_MODE_MAP.follow_schedule and target is None:
         raise ValueError(
-            f"Invalid args: For {ZONE_MODE._str(mode)}, setpoint/active cant be None"
+            f"Invalid args: For {ZON_MODE_MAP._str(mode)}, setpoint/active cant be None"
         )
 
     return mode
@@ -250,27 +250,27 @@ def _normalise_until(mode, _, until, duration) -> tuple[Any, Any]:
     # if until and duration:
     #     raise ValueError("Invalid args: Only one of until or duration can be set")
 
-    if mode == ZONE_MODE.temporary_override:
+    if mode == ZON_MODE_MAP.temporary_override:
         if duration is not None:
             raise ValueError(
-                f"Invalid args: For {ZONE_MODE._str(mode)}, duration must be None"
+                f"Invalid args: For {ZON_MODE_MAP._str(mode)}, duration must be None"
             )
         if until is None:
-            mode = ZONE_MODE.advanced_override  # or: until = dt.now() + td(hour=1)
+            mode = ZON_MODE_MAP.advanced_override  # or: until = dt.now() + td(hour=1)
 
-    elif mode in ZONE_MODE.countdown_override:
+    elif mode in ZON_MODE_MAP.countdown_override:
         if duration is None:
             raise ValueError(
-                f"Invalid args: For {ZONE_MODE._str(mode)}, duration cant be None"
+                f"Invalid args: For {ZON_MODE_MAP._str(mode)}, duration cant be None"
             )
         if until is not None:
             raise ValueError(
-                f"Invalid args: For {ZONE_MODE._str(mode)}, until must be None"
+                f"Invalid args: For {ZON_MODE_MAP._str(mode)}, until must be None"
             )
 
     elif until is not None or duration is not None:
         raise ValueError(
-            f"Invalid args: For {ZONE_MODE._str(mode)},"
+            f"Invalid args: For {ZON_MODE_MAP._str(mode)},"
             " until and duration must both be None"
         )
 
@@ -627,17 +627,17 @@ class Command(PacketBase):
         if system_mode is None:
             raise ValueError("Invalid args: system_mode cant be None")
 
-        system_mode = SYSTEM_MODE._hex(
+        system_mode = SYS_MODE_MAP._hex(
             f"{system_mode:02X}" if isinstance(system_mode, int) else system_mode
         )  # may raise KeyError
 
         if until is not None and system_mode in (
-            SYSTEM_MODE.auto,
-            SYSTEM_MODE.auto_with_reset,
-            SYSTEM_MODE.heat_off,
+            SYS_MODE_MAP.auto,
+            SYS_MODE_MAP.auto_with_reset,
+            SYS_MODE_MAP.heat_off,
         ):
             raise ValueError(
-                f"Invalid args: For system_mode={SYSTEM_MODE._str(system_mode)},"
+                f"Invalid args: For system_mode={SYS_MODE_MAP._str(system_mode)},"
                 " until must be None"
             )
 

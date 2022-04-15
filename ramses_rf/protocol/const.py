@@ -101,7 +101,7 @@ _PUZZ = "7FFF"
 
 
 class AttrDictOld(dict):
-    # NOTE: 'advanced_override' in ZONE_MODE == False
+    # NOTE: 'advanced_override' in ZON_MODE_MAP == False
 
     @staticmethod
     def __readonly__(*args, **kwargs):
@@ -438,12 +438,28 @@ ZON_CLASS_MAP = attr_dict_factory(
 
 SZ_DEVICE_CLASS = "device_class"
 SZ_DOMAIN_ID = "domain_id"
-SZ_OUTSIDE_SENSOR = "outside_sensor"
 SZ_ZONE_IDX = "zone_idx"
-SZ_ZONE_SENSOR = "zone_sensor"
 SZ_ZONE_CLASS = "zone_class"
 SZ_ZONE_MASK = "zone_mask"
 SZ_ZONE_TYPE = "zone_type"
+
+ATTR_TEMP = "temperature"
+
+SZ_DATETIME = "datetime"
+SZ_DEVICES = "devices"
+SZ_HEAT_DEMAND = "heat_demand"
+SZ_LANGUAGE = "language"
+SZ_MODE = "mode"
+SZ_NAME = "name"
+SZ_PAYLOAD = "payload"
+SZ_RELAY_DEMAND = "relay_demand"
+SZ_RELAY_FAILSAFE = "relay_failsafe"
+SZ_SETPOINT = "setpoint"
+SZ_SYSTEM_MODE = "system_mode"
+SZ_TEMPERATURE = "temperature"
+SZ_UNKNOWN = "unknown"
+SZ_VALUE = "value"
+SZ_WINDOW_OPEN = "window_open"
 
 
 DEFAULT_MAX_ZONES = 16 if DEV_MODE else 12
@@ -470,8 +486,6 @@ DEVICE_ID_REGEX = SimpleNamespace(
     UFC=_DEV_REGEX_UFC,
     SEN=_DEV_REGEX_SEN,
 )
-
-ATTR_DHW_SENSOR = "hotwater_sensor"
 
 # Domains
 DOMAIN_TYPE_MAP = {
@@ -505,37 +519,6 @@ p = r"([0-9A-F]{2}){1,48}"  # Payload
 COMMAND_REGEX = re.compile(f"^{v} {r} {d} {d} {d} {c} {l} {p}$")
 MESSAGE_REGEX = re.compile(f"^{r} {v} {r} {d} {d} {d} {c} {l} {p}$")
 
-ATTR_STORED_HW = "stored_hotwater"
-ATTR_TEMP = "temperature"
-ATTR_UFH_CONTROLLERS = "ufh_controllers"
-ATTR_ZONE_ACTUATORS = "zone_actuator"
-ATTR_ZONE_IDX = SZ_ZONE_IDX
-ATTR_ZONE_SENSOR = SZ_ZONE_SENSOR
-ATTR_ZONE_TYPE = "heating_type"
-
-SZ_DATETIME = "datetime"
-SZ_DEVICES = "devices"
-SZ_HEAT_DEMAND = "heat_demand"
-SZ_LANGUAGE = "language"
-SZ_NAME = "name"
-SZ_RELAY_DEMAND = "relay_demand"
-SZ_RELAY_FAILSAFE = "relay_failsafe"
-SZ_SETPOINT = "setpoint"
-SZ_SYSTEM = "system"
-SZ_SYSTEM_MODE = "system_mode"
-SZ_WINDOW_OPEN = "window_open"
-SZ_ZONES = "zones"
-
-
-######################
-# klasses of heating zones
-
-SZ_RADIATOR_VALVE = "radiator_valve"
-SZ_UNDERFLOOR_HEATING = "underfloor_heating"
-SZ_ZONE_VALVE = "zone_valve"
-SZ_MIXING_VALVE = "mixing_valve"
-SZ_ELECTRIC_HEAT = "electric_heat"
-
 
 # Used by 0418/system_fault parser
 _0418_DEVICE_CLASS = {
@@ -543,7 +526,7 @@ _0418_DEVICE_CLASS = {
     "01": "sensor",
     "02": "setpoint",
     "04": "actuator",  # if domain is FC, then "boiler_relay"
-    "05": "dhw_sensor",  # not ATTR_DHW_SENSOR
+    "05": "dhw_sensor",
     "06": "remote_gateway",
 }
 _0418_FAULT_STATE = {
@@ -591,7 +574,7 @@ class ZoneModes(AttrDictOld):
     __slots__ = [f"_{k}" for k in _ZONE_MODES] + list(_ZONE_MODES.values())
 
 
-ZONE_MODE = ZoneModes(_ZONE_MODES)
+ZON_MODE_MAP = ZoneModes(_ZONE_MODES)
 
 SZ_AUTO = "auto"
 SZ_HEAT_OFF = "heat_off"
@@ -618,7 +601,7 @@ class SystemModes(AttrDictOld):
     __slots__ = [f"_{k}" for k in _SYSTEM_MODES] + list(_SYSTEM_MODES.values())
 
 
-SYSTEM_MODE = SystemModes(_SYSTEM_MODES)
+SYS_MODE_MAP = SystemModes(_SYSTEM_MODES)
 
 # used by 22Fx parser, and FanSwitch devices
 BOOST_TIMER = "boost_timer"  # minutes, e.g. 10, 20, 30 minutes

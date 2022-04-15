@@ -38,6 +38,7 @@ from .protocol.opentherm import (
     SCHEMA_MSG_IDS,
     STATUS_MSG_IDS,
     VALUE,
+    OtMsgType,
 )
 from .protocol.ramses import CODES_HEAT_ONLY, CODES_ONLY_FROM_CTL, CODES_SCHEMA, NAME
 
@@ -860,7 +861,7 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == _3220 and msg.payload[MSG_TYPE] != "-reserved-":
+        if msg.code == _3220 and msg.payload[MSG_TYPE] != OtMsgType.RESERVED:
             self._handle_3220(msg)
         elif msg.code in self.OT_TO_RAMSES.values():
             self._handle_code(msg)
@@ -891,8 +892,8 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
 
         else:
             self._msgs_ot_supported[msg_id] = msg.payload[MSG_TYPE] not in (
-                "Data-Invalid",
-                "Unknown-DataId",
+                OtMsgType.DATA_INVALID,
+                OtMsgType.UNKNOWN_DATAID,
                 "OUT-reserved-",  # TODO: remove
             )
 

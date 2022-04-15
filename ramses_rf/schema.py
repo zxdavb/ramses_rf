@@ -15,11 +15,10 @@ from types import SimpleNamespace
 import voluptuous as vol
 
 from .const import (
-    ATTR_ZONE_IDX,
     DEFAULT_MAX_ZONES,
     DEVICE_ID_REGEX,
     DONT_CREATE_MESSAGES,
-    SZ_ZONE_SENSOR,
+    SZ_ZONE_IDX,
     SystemType,
     __dev_mode__,
 )
@@ -181,7 +180,7 @@ SCHEMA_DHW = vol.Schema(
 UFC_CIRCUIT = vol.Schema(
     {
         vol.Required(UFH_IDX): vol.Any(
-            {vol.Optional(ATTR_ZONE_IDX): vol.Any(ZONE_IDX)},
+            {vol.Optional(SZ_ZONE_IDX): vol.Any(ZONE_IDX)},
         ),
     }
 )
@@ -201,7 +200,7 @@ SCHEMA_ZON = vol.Schema(  # vol.All([DEVICE_ID], vol.Length(min=0))(['01:123456'
         vol.Optional(SZ_DEVICES): renamed(SZ_ACTUATORS),
         vol.Optional(SZ_ACTUATORS, default=[]): vol.All([DEVICE_ID], vol.Length(min=0)),
         vol.Optional(SZ_ZONE_TYPE): renamed(SZ_KLASS),
-        vol.Optional(SZ_ZONE_SENSOR): renamed(SZ_SENSOR),
+        vol.Optional("zone_sensor"): renamed(SZ_SENSOR),
         # vol.Optional(SZ_SENSOR_FAKED): bool,
         vol.Optional(f"_{SZ_NAME}"): str,
     },

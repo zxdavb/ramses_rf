@@ -28,7 +28,7 @@ from .const import (
     SZ_WINDOW_OPEN,
     SZ_ZONE_IDX,
     SZ_ZONE_TYPE,
-    ZONE_MODE,
+    ZON_MODE_MAP,
     __dev_mode__,
 )
 from .devices import (
@@ -547,12 +547,14 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
     def set_boost_mode(self) -> Task:
         """Enable DHW for an hour, despite any schedule."""
         return self.set_mode(
-            mode=ZONE_MODE.temporary_override, active=True, until=dt.now() + td(hours=1)
+            mode=ZON_MODE_MAP.temporary_override,
+            active=True,
+            until=dt.now() + td(hours=1),
         )
 
     def reset_mode(self) -> Task:  # 1F41
         """Revert the DHW to following its schedule."""
-        return self.set_mode(mode=ZONE_MODE.follow_schedule)
+        return self.set_mode(mode=ZON_MODE_MAP.follow_schedule)
 
     def set_config(self, setpoint=None, overrun=None, differential=None) -> Task:
         """Set the DHW parameters (setpoint, overrun, differential)."""
@@ -928,11 +930,11 @@ class Zone(ZoneSchedule, ZoneBase):
 
     def reset_mode(self) -> Task:  # 2349
         """Revert the zone to following its schedule."""
-        return self.set_mode(mode=ZONE_MODE.follow_schedule)
+        return self.set_mode(mode=ZON_MODE_MAP.follow_schedule)
 
     def set_frost_mode(self) -> Task:  # 2349
         """Set the zone to the lowest possible setpoint, indefinitely."""
-        return self.set_mode(mode=ZONE_MODE.permanent_override, setpoint=5)  # TODO
+        return self.set_mode(mode=ZON_MODE_MAP.permanent_override, setpoint=5)  # TODO
 
     def set_mode(self, mode=None, setpoint=None, until=None) -> Task:  # 2309/2349
         """Override the zone's setpoint for a specified duration, or indefinitely."""

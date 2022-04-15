@@ -24,15 +24,26 @@ from .const import (
     FAN_MODES,
     HEATER_MODE,
     HEATER_MODES,
-    SYSTEM_MODE,
+    SYS_MODE_MAP,
+    SZ_DATETIME,
     SZ_DEVICE_CLASS,
     SZ_DEVICES,
     SZ_DOMAIN_ID,
+    SZ_LANGUAGE,
+    SZ_MODE,
+    SZ_NAME,
+    SZ_PAYLOAD,
+    SZ_RELAY_DEMAND,
+    SZ_SYSTEM_MODE,
+    SZ_TEMPERATURE,
+    SZ_UNKNOWN,
+    SZ_VALUE,
+    SZ_WINDOW_OPEN,
     SZ_ZONE_CLASS,
     SZ_ZONE_IDX,
     SZ_ZONE_MASK,
     SZ_ZONE_TYPE,
-    ZONE_MODE,
+    ZON_MODE_MAP,
     __dev_mode__,
 )
 from .exceptions import InvalidPayloadError
@@ -49,7 +60,7 @@ from .helpers import (
     temp_from_hex,
     valve_demand,
 )
-from .opentherm import EN, MSG_DESC, MSG_ID, MSG_NAME, MSG_TYPE, decode_frame
+from .opentherm import EN, MSG_DESC, MSG_ID, MSG_NAME, MSG_TYPE, OtMsgType, decode_frame
 from .version import VERSION
 
 # skipcq: PY-W2000
@@ -86,7 +97,7 @@ if DEV_MODE:
 def parser_decorator(fnc):
     def wrapper(payload, msg, **kwargs):
         result = fnc(payload, msg, **kwargs)
-        if isinstance(result, dict) and msg.seqn != "---":  # 22F1/3
+        if isinstance(result, dict) and msg.seqn.isnumeric():  # 22F1/3
             result["seqx_num"] = msg.seqn
         return result
 
@@ -132,7 +143,7 @@ def parser_0001(payload, msg) -> Optional[dict]:
     # W/--:/--:/12:/00-0000-0505 = Field strength
 
     return {
-        "payload": "-".join((payload[:2], payload[2:6], payload[6:8], payload[8:])),
+        SZ_PAYLOAD: "-".join((payload[:2], payload[2:6], payload[6:8], payload[8:])),
     }
 
 
@@ -147,12 +158,12 @@ def parser_0002(payload, msg) -> Optional[dict]:
 
     if msg.src.type == DEV_TYPE_MAP.HCW:  # payload[2:] == DEV_TYPE_MAP.HCW, DEX
         assert payload == "03020105"
-        return {"_unknown": payload}
+        return {f"_{SZ_UNKNOWN}": payload}
 
     # if payload[6:] == "02":  # msg.src.type == DEV_TYPE_MAP.OUT:
     return {
-        "temperature": temp_from_hex(payload[2:6]),
-        "_unknown": payload[6:],
+        SZ_TEMPERATURE: temp_from_hex(payload[2:6]),
+        f"_{SZ_UNKNOWN}": payload[6:],
     }
 
 
@@ -160,7 +171,7 @@ def parser_0002(payload, msg) -> Optional[dict]:
 def parser_0004(payload, msg) -> Optional[dict]:
     # RQ payload is zz00; limited to 12 chars in evohome UI? if "7F"*20: not a zone
 
-    return {} if payload[4:] == "7F" * 20 else {"name": str_from_hex(payload[4:])}
+    return {} if payload[4:] == "7F" * 20 else {SZ_NAME: str_from_hex(payload[4:])}
 
 
 @parser_decorator  # system_zones (add/del a zone?)
@@ -179,7 +190,7 @@ def parser_0005(payload, msg) -> Union[dict, list[dict]]:  # TODO: needs a clean
         return {
             SZ_ZONE_TYPE: seqx[2:4],
             SZ_ZONE_MASK: zone_mask,
-            SZ_ZONE_CLASS: DEV_CLASS_MAP.get(seqx[2:4], f"unknown_{seqx[2:4]}"),
+            SZ_ZONE_CLASS: DEV_CLASS_MAP.get(seqx[2:4], f"{SZ_UNKNOWN}_{seqx[2:4]}"),
         }
 
     if msg._has_array:
@@ -191,7 +202,9 @@ def parser_0005(payload, msg) -> Union[dict, list[dict]]:  # TODO: needs a clean
     if msg.verb == RQ:  # RQs have a context: zone_type
         return {
             SZ_ZONE_TYPE: payload[2:4],
-            SZ_ZONE_CLASS: DEV_CLASS_MAP.get(payload[2:4], f"unknown_{payload[2:4]}"),
+            SZ_ZONE_CLASS: DEV_CLASS_MAP.get(
+                payload[2:4], f"{SZ_UNKNOWN}_{payload[2:4]}"
+            ),
         }
 
     return _parser(payload)
@@ -230,7 +243,7 @@ def parser_0008(payload, msg) -> Optional[dict]:
             "blob": payload[8:],
         }
 
-    return {"relay_demand": percent(payload[2:4])}
+    return {SZ_RELAY_DEMAND: percent(payload[2:4])}
 
 
 @parser_decorator  # relay_failsafe
@@ -253,7 +266,7 @@ def parser_0009(payload, msg) -> Union[dict, list]:
         return {
             SZ_DOMAIN_ID if seqx[:1] == "F" else SZ_ZONE_IDX: seqx[:2],
             "failsafe_enabled": {"00": False, "01": True}.get(seqx[2:4]),
-            "unknown_0": seqx[4:],
+            f"{SZ_UNKNOWN}_0": seqx[4:],
         }
 
     if msg._has_array:
@@ -261,7 +274,7 @@ def parser_0009(payload, msg) -> Union[dict, list]:
 
     return {
         "failsafe_enabled": {"00": False, "01": True}.get(payload[2:4]),
-        "unknown_0": payload[4:],
+        f"{SZ_UNKNOWN}_0": payload[4:],
     }
 
 
@@ -280,7 +293,7 @@ def parser_000a(payload, msg) -> Union[dict, list, None]:
             "local_override": not bool(bitmap & 1),
             "openwindow_function": not bool(bitmap & 2),
             "multiroom_mode": not bool(bitmap & 16),
-            "_unknown_bitmap": f"0b{bitmap:08b}",  # TODO: try W with this
+            f"_{SZ_UNKNOWN}_bitmap": f"0b{bitmap:08b}",  # TODO: try W with this
         }  # cannot determine zone_type from this information
 
     if msg._has_array:  # NOTE: these arrays can span 2 pkts!
@@ -391,7 +404,7 @@ def parser_000e(payload, msg) -> Optional[dict]:
     assert payload in ("000000", "000014"), _INFORM_DEV_MSG
 
     return {
-        "payload": payload,
+        SZ_PAYLOAD: payload,
     }
 
 
@@ -422,8 +435,8 @@ def parser_0100(payload, msg) -> Optional[dict]:
         return {}
 
     return {
-        "language": str_from_hex(payload[2:6]),
-        "_unknown_0": payload[6:],
+        SZ_LANGUAGE: str_from_hex(payload[2:6]),
+        f"_{SZ_UNKNOWN}_0": payload[6:],
     }
 
 
@@ -433,7 +446,7 @@ def parser_0150(payload, msg) -> Optional[dict]:
     assert payload == "000000", _INFORM_DEV_MSG
 
     return {
-        "payload": payload,
+        SZ_PAYLOAD: payload,
     }
 
 
@@ -448,7 +461,7 @@ def parser_01d0(payload, msg) -> Optional[dict]:
 
     assert payload[2:] in ("00", "03"), _INFORM_DEV_MSG
     return {
-        "unknown_0": payload[2:],
+        f"{SZ_UNKNOWN}_0": payload[2:],
     }
 
 
@@ -459,7 +472,7 @@ def parser_01e9(payload, msg) -> Optional[dict]:
 
     assert payload[2:] in ("00", "03"), _INFORM_DEV_MSG
     return {
-        "unknown_0": payload[2:],
+        f"{SZ_UNKNOWN}_0": payload[2:],
     }
 
 
@@ -550,9 +563,9 @@ def parser_0418(payload, msg) -> Optional[dict]:
 
     result.update(
         {
-            "_unknown_1": payload[6:8],  # B0 ?priority
-            "_unknown_2": payload[14:18],  # 0000
-            "_unknown_3": payload[30:38],  # FFFF7000/1/2
+            f"_{SZ_UNKNOWN}_1": payload[6:8],  # B0 ?priority
+            f"_{SZ_UNKNOWN}_2": payload[14:18],  # 0000
+            f"_{SZ_UNKNOWN}_3": payload[30:38],  # FFFF7000/1/2
         }
     )
 
@@ -575,7 +588,7 @@ def parser_042f(payload, msg) -> Optional[dict]:
         "counter_1": f"0x{payload[2:6]}",
         "counter_2": f"0x{payload[6:10]}",
         "counter_3": f"0x{payload[10:14]}",
-        "unknown_7": f"0x{payload[14:]}",
+        f"{SZ_UNKNOWN}_7": f"0x{payload[14:]}",
     }
 
 
@@ -584,7 +597,7 @@ def parser_0b04(payload, msg) -> Optional[dict]:
     #  I --- --:------ --:------ 12:207082 0B04 002 00C8  # batch of 3, every 24h
 
     return {
-        "unknown_1": payload[2:],
+        f"{SZ_UNKNOWN}_1": payload[2:],
     }
 
 
@@ -598,7 +611,7 @@ def parser_1030(payload, msg) -> Optional[dict]:
             "C9": "min_flow_setpoint",  # 15 (0-50) C
             "CA": "valve_run_time",  # 150 (0-240) sec, aka actuator_run_time
             "CB": "pump_run_time",  # 15 (0-99) sec
-            "CC": "_unknown_0",  # ?boolean?
+            "CC": f"_{SZ_UNKNOWN}_0",  # ?boolean?
         }[seqx[:2]]
 
         return {param_name: int(seqx[4:], 16)}
@@ -656,8 +669,10 @@ def parser_1098(payload, msg) -> Optional[dict]:
     assert payload == "00C8", _INFORM_DEV_MSG
 
     return {
-        "_payload": payload,
-        "_value": {"00": False, "C8": True}.get(payload[2:], percent(payload[2:])),
+        f"_{SZ_PAYLOAD}": payload,
+        f"_{SZ_VALUE}": {"00": False, "C8": True}.get(
+            payload[2:], percent(payload[2:])
+        ),
     }
 
 
@@ -709,8 +724,10 @@ def parser_10b0(payload, msg) -> Optional[dict]:
     assert payload == "0000", _INFORM_DEV_MSG
 
     return {
-        "_payload": payload,
-        "_value": {"00": False, "C8": True}.get(payload[2:], percent(payload[2:])),
+        f"_{SZ_PAYLOAD}": payload,
+        f"_{SZ_VALUE}": {"00": False, "C8": True}.get(
+            payload[2:], percent(payload[2:])
+        ),
     }
 
 
@@ -746,7 +763,7 @@ def parser_10e0(payload, msg) -> Optional[dict]:
         "description": bytearray.fromhex(description).decode(),
     }
     if msg.verb == RP and unknown:  # TODO: why only OTBs do this?
-        result["_unknown"] = unknown
+        result[f"_{SZ_UNKNOWN}"] = unknown
     return result
 
 
@@ -796,7 +813,7 @@ def parser_1100(payload, msg) -> Optional[dict]:
             "cycle_rate": int(int(payload[2:4], 16) / 4),  # cycles/hour
             "min_on_time": int(payload[4:6], 16) / 4,  # min
             "min_off_time": int(payload[6:8], 16) / 4,  # min
-            "_unknown_0": payload[8:10],  # always 00, FF?
+            f"_{SZ_UNKNOWN}_0": payload[8:10],  # always 00, FF?
         }
 
     result = _parser(payload)
@@ -809,7 +826,7 @@ def parser_1100(payload, msg) -> Optional[dict]:
         result.update(
             {
                 "proportional_band_width": temp_from_hex(payload[10:14]),
-                "_unknown_1": payload[14:],  # always 01?
+                f"_{SZ_UNKNOWN}_1": payload[14:],  # always 01?
             }
         )
 
@@ -825,13 +842,13 @@ def parser_11f0(payload, msg) -> Optional[dict]:
     assert payload == "000009000000000000", _INFORM_DEV_MSG
 
     return {
-        "payload": payload,
+        SZ_PAYLOAD: payload,
     }
 
 
 @parser_decorator  # dhw cylinder temperature
 def parser_1260(payload, msg) -> Optional[dict]:
-    return {"temperature": temp_from_hex(payload[2:])}
+    return {SZ_TEMPERATURE: temp_from_hex(payload[2:])}
 
 
 @parser_decorator  # outdoor humidity
@@ -844,7 +861,7 @@ def parser_1280(payload, msg) -> Optional[dict]:
 
     return {
         "outdoor_humidity": rh,
-        "temperature": temp_from_hex(payload[4:8]),
+        SZ_TEMPERATURE: temp_from_hex(payload[4:8]),
         "dewpoint_temp": temp_from_hex(payload[8:12]),
     }
 
@@ -852,7 +869,7 @@ def parser_1280(payload, msg) -> Optional[dict]:
 @parser_decorator  # outdoor temperature
 def parser_1290(payload, msg) -> Optional[dict]:
     # evohome responds to an RQ
-    return {"temperature": temp_from_hex(payload[2:])}
+    return {SZ_TEMPERATURE: temp_from_hex(payload[2:])}
 
 
 @parser_decorator  # co2_level
@@ -907,7 +924,7 @@ def parser_12a0(payload, msg) -> Optional[dict]:
 
     return {
         "indoor_humidity": rh,
-        "temperature": temp_from_hex(payload[4:8]),
+        SZ_TEMPERATURE: temp_from_hex(payload[4:8]),
         "dewpoint_temp": temp_from_hex(payload[8:12]),
     }
 
@@ -917,7 +934,7 @@ def parser_12b0(payload, msg) -> Optional[dict]:
     assert payload[2:] in ("0000", "C800", "FFFF"), payload[2:]  # "FFFF" means N/A
 
     return {
-        "window_open": bool_from_hex(payload[2:4]),
+        SZ_WINDOW_OPEN: bool_from_hex(payload[2:4]),
     }
 
 
@@ -932,9 +949,9 @@ def parser_12c0(payload, msg) -> Optional[dict]:
         temp = int(payload[2:4], 16) / 2
 
     return {
-        "temperature": temp,
+        SZ_TEMPERATURE: temp,
         "units": {"00": "Fahrenheit", "01": "Celsius"}[payload[4:6]],
-        "_unknown_6": payload[6:],
+        f"_{SZ_UNKNOWN}_6": payload[6:],
     }
 
 
@@ -984,7 +1001,7 @@ def parser_1f09(payload, msg) -> Optional[dict]:
 @parser_decorator  # dhw_mode
 def parser_1f41(payload, msg) -> Optional[dict]:
     # 053 RP --- 01:145038 18:013393 --:------ 1F41 006 00FF00FFFFFF  # no stored DHW
-    assert payload[4:6] in ZONE_MODE, f"{payload[4:6]} (0xjj)"
+    assert payload[4:6] in ZON_MODE_MAP, f"{payload[4:6]} (0xjj)"
     assert payload[4:6] == "04" or msg.len == 6, f"{msg!r}: expected length 6"
     assert payload[4:6] != "04" or msg.len == 12, f"{msg!r}: expected length 12"
     assert (
@@ -993,7 +1010,7 @@ def parser_1f41(payload, msg) -> Optional[dict]:
 
     result = {
         "active": {"00": False, "01": True, "FF": None}[payload[2:4]],
-        "mode": ZONE_MODE.get(payload[4:6]),
+        SZ_MODE: ZON_MODE_MAP.get(payload[4:6]),
     }
     if payload[4:6] == "04":  # temporary_override
         result["until"] = dtm_from_hex(payload[12:24])
@@ -1071,8 +1088,8 @@ def parser_1fca(payload, msg) -> list:
     #  W --- 30:248208 34:021943 --:------ 1FCA 009 00-01FF-7BC990-FFFFFF  # sent x2
 
     return {
-        "_unknown_0": payload[:2],
-        "_unknown_1": payload[2:6],
+        f"_{SZ_UNKNOWN}_0": payload[:2],
+        f"_{SZ_UNKNOWN}_1": payload[2:6],
         "device_id_0": hex_id_to_dev_id(payload[6:12]),
         "device_id_1": hex_id_to_dev_id(payload[12:]),
     }
@@ -1084,7 +1101,7 @@ def parser_1fd0(payload, msg) -> Optional[dict]:
     assert payload == "0000000000000000", _INFORM_DEV_MSG
 
     return {
-        "payload": payload,
+        SZ_PAYLOAD: payload,
     }
 
 
@@ -1129,7 +1146,7 @@ def parser_22c9(payload, msg) -> list:
         return {
             "temp_low": temp_from_hex(seqx[2:6]),
             "temp_high": temp_from_hex(seqx[6:10]),
-            "_unknown_0": seqx[10:],
+            f"_{SZ_UNKNOWN}_0": seqx[10:],
         }
 
     if msg._has_array:
@@ -1150,7 +1167,7 @@ def parser_22d0(payload, msg) -> Optional[dict]:
     assert payload == "00000002", _INFORM_DEV_MSG
 
     return {
-        "unknown": payload[2:],
+        SZ_PAYLOAD: payload[2:],
     }
 
 
@@ -1239,7 +1256,7 @@ def parser_22f3(payload, msg) -> Optional[dict]:
         result["rate"] = parser_22f1(f"00{payload[6:10]}", msg).get("rate")
 
     if msg.len >= 7:  # fallback speed?
-        result.update({"_unknown_5": payload[10:]})
+        result.update({f"_{SZ_UNKNOWN}_5": payload[10:]})
 
     return result
 
@@ -1275,9 +1292,9 @@ def parser_2349(payload, msg) -> Optional[dict]:
 
     assert msg.len in (7, 13), f"expected len 7,13, got {msg.len}"
 
-    assert payload[6:8] in ZONE_MODE, f"unknown zone_mode: {payload[6:8]}"
+    assert payload[6:8] in ZON_MODE_MAP, f"{SZ_UNKNOWN} zone_mode: {payload[6:8]}"
     result = {
-        "mode": ZONE_MODE.get(payload[6:8]),
+        SZ_MODE: ZON_MODE_MAP.get(payload[6:8]),
         "setpoint": temp_from_hex(payload[2:6]),
     }
 
@@ -1303,7 +1320,7 @@ def parser_2349(payload, msg) -> Optional[dict]:
 def parser_2389(payload, msg) -> Optional[dict]:
 
     return {
-        "_unknown": temp_from_hex(payload[2:6]),
+        f"_{SZ_UNKNOWN}": temp_from_hex(payload[2:6]),
     }
 
 
@@ -1313,7 +1330,7 @@ def parser_2400(payload, msg) -> Optional[dict]:
     assert payload == "0000000F", _INFORM_DEV_MSG
 
     return {
-        "payload": payload,
+        SZ_PAYLOAD: payload,
     }
 
 
@@ -1328,7 +1345,7 @@ def parser_2401(payload, msg) -> Optional[dict]:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
     return {
-        "payload": payload,
+        SZ_PAYLOAD: payload,
         "_value_2": int(payload[4:6], 0x10),
         "_flags_2": flag8(payload[4:6]),
         "_percent_3": percent(payload[6:]),
@@ -1341,7 +1358,7 @@ def parser_2410(payload, msg) -> Optional[dict]:
     assert payload == "00" * 12 + "010000000100000C", _INFORM_DEV_MSG
 
     return {
-        "payload": payload,
+        SZ_PAYLOAD: payload,
     }
 
 
@@ -1351,7 +1368,7 @@ def parser_2411(payload, msg) -> Optional[dict]:
     assert payload[:4] == "0000" and payload[6:] == "00" * 19, _INFORM_DEV_MSG
 
     return {
-        "value_1": int(payload[4:6], 16),
+        f"{SZ_VALUE}_1": int(payload[4:6], 16),
     }
 
 
@@ -1361,7 +1378,7 @@ def parser_2420(payload, msg) -> Optional[dict]:
     assert payload == "00000010" + "00" * 34, _INFORM_DEV_MSG
 
     return {
-        "payload": payload,
+        SZ_PAYLOAD: payload,
     }
 
 
@@ -1383,7 +1400,7 @@ def parser_2e04(payload, msg) -> Optional[dict]:
     #  I --— 01:020766 --:------ 01:020766 2E04 016 FFFFFFFFFFFFFF0000FFFFFFFFFFFF04  # Automatic/times # noqa: E501
 
     if msg.len == 8:  # evohome
-        assert payload[:2] in SYSTEM_MODE, payload[:2]  # TODO: check AutoWithReset
+        assert payload[:2] in SYS_MODE_MAP, payload[:2]  # TODO: check AutoWithReset
 
     elif msg.len == 16:  # hometronics, lifestyle ID:
         assert 0 <= int(payload[:2], 16) <= 15 or payload[:2] == "FF", payload[:2]
@@ -1396,7 +1413,7 @@ def parser_2e04(payload, msg) -> Optional[dict]:
         assert False, f"Packet length is {msg.len} (expecting 8, 16)"
 
     return {
-        "system_mode": SYSTEM_MODE.get(payload[:2], payload[:2]),
+        SZ_SYSTEM_MODE: SYS_MODE_MAP.get(payload[:2], payload[:2]),
         "until": dtm_from_hex(payload[2:14]) if payload[14:16] != "00" else None,
     }  # TODO: double-check the final "00"
 
@@ -1408,7 +1425,7 @@ def parser_2e10(payload, msg) -> Optional[dict]:
 
     return {
         "presence_detected": bool(payload[2:4]),
-        "_unknown_4": payload[4:],
+        f"_{SZ_UNKNOWN}_4": payload[4:],
     }
 
 
@@ -1419,12 +1436,12 @@ def parser_30c9(payload, msg) -> Optional[dict]:
         return [
             {
                 SZ_ZONE_IDX: payload[i : i + 2],
-                "temperature": temp_from_hex(payload[i + 2 : i + 6]),
+                SZ_TEMPERATURE: temp_from_hex(payload[i + 2 : i + 6]),
             }
             for i in range(0, len(payload), 6)
         ]
 
-    return {"temperature": temp_from_hex(payload[2:])}
+    return {SZ_TEMPERATURE: temp_from_hex(payload[2:])}
 
 
 @parser_decorator  # unknown_3110 - HVAC
@@ -1438,7 +1455,7 @@ def parser_3110(payload, msg) -> Optional[dict]:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
     return {
-        "_unknown_1": payload[2:4],
+        f"_{SZ_UNKNOWN}_1": payload[2:4],
         "_percent_2": percent(payload[4:6]),
         "_value_3": payload[6:],
     }
@@ -1462,9 +1479,9 @@ def parser_3120(payload, msg) -> Optional[dict]:
         _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
 
     return {
-        "unknown_0": payload[2:10],
-        "unknown_5": payload[10:12],
-        "unknown_2": payload[12:],
+        f"{SZ_UNKNOWN}_0": payload[2:10],
+        f"{SZ_UNKNOWN}_5": payload[10:12],
+        f"{SZ_UNKNOWN}_2": payload[12:],
     }
 
 
@@ -1488,9 +1505,9 @@ def parser_313f(payload, msg) -> Optional[dict]:  # TODO: look for TZ
     assert msg.src.type != DEV_TYPE_MAP.RFG or payload[2:4] == "60", payload[2:4]  # DEX
 
     return {
-        "datetime": dtm_from_hex(payload[4:18]),
+        SZ_DATETIME: dtm_from_hex(payload[4:18]),
         "is_dst": True if bool(int(payload[4:6], 16) & 0x80) else None,
-        "_unknown_0": payload[2:4],
+        f"_{SZ_UNKNOWN}_0": payload[2:4],
     }
 
 
@@ -1554,9 +1571,9 @@ def parser_31d9(payload, msg) -> Optional[dict]:
 
     return {
         **result,
-        "_unknown_3": payload[6:8],
-        # "_unknown_4": payload[8:32],
-        "unknown_16": payload[32:],
+        f"_{SZ_UNKNOWN}_3": payload[6:8],
+        # f"_{SZ_UNKNOWN}_4": payload[8:32],
+        f"{SZ_UNKNOWN}_16": payload[32:],
     }
 
 
@@ -1705,18 +1722,18 @@ def parser_31e0(payload, msg) -> dict:
     return {
         "vent_demand": percent(payload[4:6]),
         "flags_1": payload[2:4],
-        "_unknown_3": payload[6:],
+        f"_{SZ_UNKNOWN}_3": payload[6:],
     }
 
 
 @parser_decorator  # supplied boiler water (flow) temp
 def parser_3200(payload, msg) -> Optional[dict]:
-    return {"temperature": temp_from_hex(payload[2:])}
+    return {SZ_TEMPERATURE: temp_from_hex(payload[2:])}
 
 
 @parser_decorator  # return (boiler) water temp
 def parser_3210(payload, msg) -> Optional[dict]:
-    return {"temperature": temp_from_hex(payload[2:])}
+    return {SZ_TEMPERATURE: temp_from_hex(payload[2:])}
 
 
 @parser_decorator  # opentherm_msg, from OTB
@@ -1730,7 +1747,7 @@ def parser_3220(payload, msg) -> Optional[dict]:
         raise InvalidPayloadError(f"OpenTherm: {exc}") from exc
 
     # NOTE: Unknown-DataId isn't an invalid payload & is useful to train the OTB device
-    if ot_schema is None and ot_type != "Unknown-DataId":
+    if ot_schema is None and ot_type != OtMsgType.UNKNOWN_DATAID:
         raise InvalidPayloadError(f"OpenTherm: Unknown data-id: {ot_id}")
 
     result = {
@@ -1741,19 +1758,20 @@ def parser_3220(payload, msg) -> Optional[dict]:
 
     if msg.verb == RQ:  # RQs have a context: msg_id (and a payload)
         assert (
-            ot_type != "Read-Data" or payload[6:10] == "0000"  # likely true for RAMSES
+            ot_type != OtMsgType.READ_DATA
+            or payload[6:10] == "0000"  # likely true for RAMSES
         ), f"OpenTherm: Invalid msg-type|data-value: {ot_type}|{payload[6:10]}"
 
-        if ot_type != "Read-Data":
+        if ot_type != OtMsgType.READ_DATA:
             assert ot_type in (
-                "Write-Data",
-                "Invalid-Data",
+                OtMsgType.WRITE_DATA,
+                OtMsgType.INVALID_DATA,
             ), f"OpenTherm: Invalid msg-type for RQ: {ot_type}"
 
             result.update(ot_value)  # TODO: find some of these packets to review
 
     else:  # if msg.verb == RP:
-        _LIST = ("Data-Invalid", "Unknown-DataId", "-reserved-")
+        _LIST = (OtMsgType.DATA_INVALID, OtMsgType.UNKNOWN_DATAID, OtMsgType.RESERVED)
         assert ot_type not in _LIST or payload[6:10] in (
             "0000",
             "FFFF",
@@ -1761,20 +1779,20 @@ def parser_3220(payload, msg) -> Optional[dict]:
 
         if ot_type not in _LIST:
             assert ot_type in (
-                "Read-Ack",
-                "Write-Ack",
+                OtMsgType.READ_ACK,
+                OtMsgType.WRITE_ACK,
             ), f"OpenTherm: Invalid msg-type for RP: {ot_type}"
 
             result.update(ot_value)
 
         try:
             assert ot_id != 0 or (
-                [result["value"][i] for i in (2, 3, 4, 5, 6, 7)] == [0] * 6
-            ), result["value"]
+                [result[SZ_VALUE][i] for i in (2, 3, 4, 5, 6, 7)] == [0] * 6
+            ), result[SZ_VALUE]
 
             assert ot_id != 0 or (
-                [result["value"][8 + i] for i in (0, 4, 5, 6, 7)] == [0] * 5
-            ), result["value"]
+                [result[SZ_VALUE][8 + i] for i in (0, 4, 5, 6, 7)] == [0] * 5
+            ), result[SZ_VALUE]
         except AssertionError:
             _LOGGER.warning(
                 f"{msg!r} < {_INFORM_DEV_MSG}, with a description of your system"
@@ -1793,8 +1811,8 @@ def parser_3221(payload, msg) -> Optional[dict]:
     assert int(payload[2:], 16) <= 0xC8, _INFORM_DEV_MSG
 
     return {
-        "_payload": payload,
-        "value": int(payload[2:], 16),
+        f"_{SZ_PAYLOAD}": payload,
+        SZ_VALUE: int(payload[2:], 16),
     }
 
 
@@ -1804,8 +1822,8 @@ def parser_3223(payload, msg) -> Optional[dict]:
     assert int(payload[2:], 16) <= 0xC8, _INFORM_DEV_MSG
 
     return {
-        "_payload": payload,
-        "value": int(payload[2:], 16),
+        f"_{SZ_PAYLOAD}": payload,
+        SZ_VALUE: int(payload[2:], 16),
     }
 
 
@@ -1902,8 +1920,8 @@ def parser_3ef0(payload, msg) -> dict:
                 "ch_active": bool(int(payload[6:8], 0x10) & 1 << 1),
                 "dhw_active": bool(int(payload[6:8], 0x10) & 1 << 2),
                 "flame_active": bool(int(payload[6:8], 0x10) & 1 << 3),  # flame_on
-                "_unknown_4": payload[8:10],
-                "_unknown_5": payload[10:12],  # rel_modulation?
+                f"_{SZ_UNKNOWN}_4": payload[8:10],
+                f"_{SZ_UNKNOWN}_5": payload[10:12],  # rel_modulation?
             }
         )
 
@@ -1980,7 +1998,7 @@ def parser_3ef1(payload, msg) -> dict:
         "modulation_level": percent(payload[10:12]),
         "actuator_countdown": int(payload[6:10], 16),
         "cycle_countdown": cycle_countdown,
-        "_unknown_0": payload[12:],
+        f"_{SZ_UNKNOWN}_0": payload[12:],
     }
 
 
@@ -2005,7 +2023,7 @@ def parser_7fff(payload, msg) -> Optional[dict]:
         _LOGGER.debug("Invalid/deprecated Puzzle packet")
         return {
             "msg_type": payload[:2],
-            "payload": str_from_hex(payload[2:]),
+            SZ_PAYLOAD: str_from_hex(payload[2:]),
         }
 
     if payload[2:4] not in LOOKUP_PUZZ:
@@ -2020,7 +2038,7 @@ def parser_7fff(payload, msg) -> Optional[dict]:
         dtm = dt.fromtimestamp(int(payload[4:16], 16) / 1000)
         result["datetime"] = dtm.isoformat(timespec="milliseconds")
 
-    msg_type = LOOKUP_PUZZ.get(payload[2:4], "unknown")
+    msg_type = LOOKUP_PUZZ.get(payload[2:4], SZ_PAYLOAD)
 
     if payload[2:4] == "11":
         msg = str_from_hex(payload[16:])
@@ -2045,14 +2063,16 @@ def parser_unknown(payload, msg) -> Optional[dict]:
     # These are generic parsers
     if msg.len == 2 and payload[:2] == "00":
         return {
-            "_payload": payload,
-            "_value": {"00": False, "C8": True}.get(payload[2:], int(payload[2:], 16)),
+            f"_{SZ_PAYLOAD}": payload,
+            f"_{SZ_VALUE}": {"00": False, "C8": True}.get(
+                payload[2:], int(payload[2:], 16)
+            ),
         }
 
     if msg.len == 3 and payload[:2] == "00":
         return {
-            "_payload": payload,
-            "_value": temp_from_hex(payload[2:]),
+            f"_{SZ_PAYLOAD}": payload,
+            f"_{SZ_VALUE}": temp_from_hex(payload[2:]),
         }
 
     raise NotImplementedError

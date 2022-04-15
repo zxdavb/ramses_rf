@@ -15,7 +15,7 @@ from types import SimpleNamespace
 from typing import Optional
 
 from .const import (
-    SYSTEM_MODE,
+    SYS_MODE_MAP,
     SZ_DATETIME,
     SZ_DEVICE_CLASS,
     SZ_DEVICES,
@@ -1016,11 +1016,11 @@ class SysMode(SystemBase):  # 2E04
 
     def set_auto(self) -> Task:
         """Revert system to Auto, set non-PermanentOverride zones to FollowSchedule."""
-        return self.set_mode(SYSTEM_MODE.auto)
+        return self.set_mode(SYS_MODE_MAP.auto)
 
     def reset_mode(self) -> Task:
         """Revert system to Auto, force *all* zones to FollowSchedule."""
-        return self.set_mode(SYSTEM_MODE.auto_with_reset)
+        return self.set_mode(SYS_MODE_MAP.auto_with_reset)
 
     @property
     def params(self) -> dict:

@@ -126,15 +126,27 @@ Sensor = SimpleNamespace(
     CO2_LEVEL="CO2 (ppm)",
 )  # all are F8_8, except COUNTER, CO2_LEVEL
 
+
+OtMsgType = SimpleNamespace(
+    READ_DATA="Read-Data",
+    WRITE_DATA="Write-Data",
+    INVALID_DATA="Invalid-Data",
+    RESERVED="-reserved-",
+    READ_ACK="Read-Ack",
+    WRITE_ACK="Write-Ack",
+    DATA_INVALID="Data-Invalid",
+    UNKNOWN_DATAID="Unknown-DataId",
+)  # all are F8_8, except COUNTER, CO2_LEVEL
+
 OPENTHERM_MSG_TYPE = {
-    0b000: "Read-Data",
-    0b001: "Write-Data",
-    0b010: "Invalid-Data",
-    0b011: "-reserved-",  # as per Unknown-DataId?
-    0b100: "Read-Ack",
-    0b101: "Write-Ack",
-    0b110: "Data-Invalid",  # e.g. sensor fault
-    0b111: "Unknown-DataId",
+    0b000: OtMsgType.READ_DATA,
+    0b001: OtMsgType.WRITE_DATA,
+    0b010: OtMsgType.INVALID_DATA,
+    0b011: OtMsgType.RESERVED,  # as per Unknown-DataId?
+    0b100: OtMsgType.READ_ACK,
+    0b101: OtMsgType.WRITE_ACK,
+    0b110: OtMsgType.DATA_INVALID,  # e.g. sensor fault
+    0b111: OtMsgType.UNKNOWN_DATAID,
 }
 
 # These must have either a FLAGS (preferred) or a VAR for their message name
