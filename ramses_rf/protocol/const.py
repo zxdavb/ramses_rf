@@ -399,18 +399,14 @@ ZON_MODE_MAP = attr_dict_factory(
 # System modes
 SYS_MODE_MAP = attr_dict_factory(
     {
-        "au_00": {"00": "auto"},  # .          indef only
-        "ho_01": {"01": "heat_off"},  # .      indef only
-        "eb_02": {"02": "eco_boost"},  # .     indef, or 24h: is either Eco, *or* Boost
-        "aw_03": {"03": "away"},  # .          indef, or 99d (0d = end of today, 00:00)
-        "do_04": {
-            "04": "day_off"
-        },  # .       indef, or 99d: rounded down to 00:00 by CTL
-        "de_05": {
-            "05": "day_off_eco"
-        },  # .   indef, or 99d: set to Eco when DayOff ends
-        "ar_06": {"06": "auto_with_reset"},  # indef only
-        "cu_07": {"07": "custom"},  # .        indef, or 99d
+        "au_00": {"00": "auto"},  # .          indef (only)
+        "ho_01": {"01": "heat_off"},  # .      indef (only)
+        "eb_02": {"02": "eco_boost"},  # .     indef/<=24h: is either Eco, *or* Boost
+        "aw_03": {"03": "away"},  # .          indef/<=99d (0d = end of today, 00:00)
+        "do_04": {"04": "day_off"},  # .       indef/<=99d: rounded down to 00:00 by CTL
+        "de_05": {"05": "day_off_eco"},  # .   indef/<=99d: set to Eco when DayOff ends
+        "ar_06": {"06": "auto_with_reset"},  # indef (only)
+        "cu_07": {"07": "custom"},  # .        indef/<=99d
     }
 )
 
