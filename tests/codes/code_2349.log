@@ -1,0 +1,5 @@
+2021-10-18T06:22:11.573795 045 RP --- 01:123456 30:123456 --:------ 2349 007 01032000FFFFFF              # {'zone_idx': '01', 'mode': 'follow_schedule',    'setpoint':  8.0}
+2022-01-27T01:12:45.525748 053 RP --- 01:123456 30:123456 --:------ 2349 007 0305DC01FFFFFF              # {'zone_idx': '03', 'mode': 'advanced_override',  'setpoint': 15.0}
+2022-01-27T01:12:45.525748 053 RP --- 01:123456 30:123456 --:------ 2349 007 0705DC02FFFFFF              # {'zone_idx': '07', 'mode': 'permanent_override', 'setpoint': 15.0}
+2020-09-16T20:17:07.685758 044  I --- 01:123456 30:123456 --:------ 2349 007 0106400300003C              # {'zone_idx': '01', 'mode': 'countdown_override', 'setpoint': 16.0, 'duration': 60}
+2022-02-03T20:36:30.509077 047 RP --- 01:123456 30:123456 --:------ 2349 013 0605DC04FFFFFF1E16030207E6  # {'zone_idx': '06', 'mode': 'temporary_override', 'setpoint': 15.0, 'until': '2022-02-03T22:30:00'}

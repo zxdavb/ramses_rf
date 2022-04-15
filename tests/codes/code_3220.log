@@ -1,0 +1,53 @@
+2021-10-26T21:57:26.863570 000 RQ --- 18:198151 10:052644 --:------ 3220 005 0000000000  # {'msg_id':   0, 'msg_type': 'Read-Data',      'msg_name': 'status_flags', 'description': 'Status'}
+2021-10-26T21:57:27.681105 070 RP --- 10:052644 18:198151 --:------ 3220 005 00C0000000  # {'msg_id':   0, 'msg_type': 'Read-Ack',       'msg_name': None, 'value': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'description': 'Status'}
+
+2022-01-11T03:15:25.787504 095 RQ --- 18:123456 10:123456 --:------ 3220 005 0080010000  # {'msg_id':   1, 'msg_type': 'Read-Data',      'msg_name': 'ControlSetpoint', 'description': 'Control setpoint'}
+2021-11-10T08:18:47.953829 050 RP --- 10:123456 18:123456 --:------ 3220 005 0040014B00  # {'msg_id':   1, 'msg_type': 'Read-Ack',       'msg_name': 'ControlSetpoint', 'value': 75.0, 'description': 'Control setpoint'}
+
+2021-10-24T17:17:36.804924 023 RQ --- 18:013393 10:048122 --:------ 3220 005 0080020000  # {'msg_id':   2, 'msg_type': 'Read-Data',      'msg_name': 'master_config_flags', 'description': 'Master configuration'}
+2021-10-24T17:17:36.828746 055 RP --- 10:048122 18:013393 --:------ 3220 005 004002010D  # {'msg_id':   2, 'msg_type': 'Read-Ack',       'msg_name': 'master_config_flags', 'value_hb': [1, 0, 0, 0, 0, 0, 0, 0], 'value_lb': 13, 'description': 'Master configuration'}
+
+2021-10-26T21:59:37.760813 069 RQ --- 30:042165 10:052644 --:------ 3220 005 0000030000  # {'msg_id':   3, 'msg_type': 'Read-Data',      'msg_name': 'slave_config_flags', 'description': 'Slave configuration'}
+2021-10-26T21:59:38.453186 070 RP --- 10:052644 30:042165 --:------ 3220 005 0040031300  # {'msg_id':   3, 'msg_type': 'Read-Ack',       'msg_name': 'slave_config_flags', 'value_hb': [1, 1, 0, 0, 1, 0, 0, 0], 'value_lb': 0, 'description': 'Slave configuration'}
+
+2021-10-26T21:56:39.182664 070 RQ --- 30:042165 10:052644 --:------ 3220 005 0000050000  # {'msg_id':   5, 'msg_type': 'Read-Data',      'msg_name': 'fault_flags', 'description': 'Fault flags & OEM fault code'}
+2021-10-26T21:56:39.662057 070 RP --- 10:052644 30:042165 --:------ 3220 005 00C0050000  # {'msg_id':   5, 'msg_type': 'Read-Ack',       'msg_name': 'fault_flags', 'value_hb': [0, 0, 0, 0, 0, 0, 0, 0], 'value_lb': 0, 'description': 'Fault flags & OEM fault code'}
+2021-10-18T22:50:12.461076 045 RP --- 10:067219 18:002563 --:------ 3220 005 00C00500FF  # {'msg_id':   5, 'msg_type': 'Read-Ack',       'msg_name': 'fault_flags', 'value_hb': [0, 0, 0, 0, 0, 0, 0, 0], 'value_lb': 255, 'description': 'Fault flags & OEM fault code'}
+
+2021-10-26T21:59:40.570737 069 RQ --- 30:042165 10:052644 --:------ 3220 005 00000F0000  # {'msg_id':  15, 'msg_type': 'Read-Data',      'msg_name': {'hb': 'MaxBoilerCapacity', 'lb': 'MinModulationLevel'}, 'description': 'Max. boiler capacity (kW) and modulation level setting (%)'}
+2021-10-26T21:59:41.626058 070 RP --- 10:052644 30:042165 --:------ 3220 005 00F00F0000  # {'msg_id':  15, 'msg_type': 'Unknown-DataId', 'msg_name': {'hb': 'MaxBoilerCapacity', 'lb': 'MinModulationLevel'}, 'description': 'Max. boiler capacity (kW) and modulation level setting (%)'}
+2021-10-16T05:48:11.576473 063 RP --- 10:051349 18:135447 --:------ 3220 005 00400F2322  # {'msg_id':  15, 'msg_type': 'Read-Ack',       'msg_name': {'hb': 'MaxBoilerCapacity', 'lb': 'MinModulationLevel'}, 'value_hb': 35, 'value_lb': 34, 'description': 'Max. boiler capacity (kW) and modulation level setting (%)'}
+
+2021-10-26T21:56:27.442767 000 RQ --- 18:198151 10:052644 --:------ 3220 005 0000110000  # {'msg_id':  17, 'msg_type': 'Read-Data',      'msg_name': 'RelativeModulationLevel', 'description': 'Relative modulation level'}
+2021-11-08T16:32:05.979303 ... RP --- 10:051349 01:169176 --:------ 3220 005 0040110B00  # {'msg_id':  17, 'msg_type': 'Read-Ack',       'msg_name': 'RelativeModulationLevel', 'value': 0.11, 'description': 'Relative modulation level'}
+
+2021-10-26T21:56:46.092570 069 RQ --- 30:042165 10:052644 --:------ 3220 005 0000120000  # {'msg_id':  18, 'msg_type': 'Read-Data',      'msg_name': 'CHWaterPressure', 'description': 'Central heating water pressure (bar)'}
+2021-10-26T21:56:46.639593 071 RP --- 10:052644 30:042165 --:------ 3220 005 00F0120000  # {'msg_id':  18, 'msg_type': 'Unknown-DataId', 'msg_name': 'CHWaterPressure', 'description': 'Central heating water pressure (bar)'}
+2021-09-14T15:32:12.512607 080 RP --- 10:124973 18:132629 --:------ 3220 005 00401200F8  # {'msg_id':  18, 'msg_type': 'Read-Ack',       'msg_name': 'CHWaterPressure', 'value': 0.9, 'description': 'Central heating water pressure (bar)'}
+
+2021-10-26T21:56:46.792091 069 RQ --- 30:042165 10:052644 --:------ 3220 005 0080130000  # {'msg_id':  19, 'msg_type': 'Read-Data',      'msg_name': 'DHWFlowRate', 'description': 'DHW flow rate (litres/minute)'}
+2021-10-26T21:56:47.184566 070 RP --- 10:052644 30:042165 --:------ 3220 005 0070130000  # {'msg_id':  19, 'msg_type': 'Unknown-DataId', 'msg_name': 'DHWFlowRate', 'description': 'DHW flow rate (litres/minute)'}
+2021-10-23T21:08:42.477018 041 RP --- 10:048122 18:006402 --:------ 3220 005 00C01347AB  # {'msg_id':  19, 'msg_type': 'Read-Ack',       'msg_name': 'DHWFlowRate', 'value': 71.66, 'description': 'DHW flow rate (litres/minute)'}
+2022-02-02T07:23:09.768800 070 RP --- 10:124973 01:081046 --:------ 3220 005 0040130AFA  # {'msg_id':  19, 'msg_type': 'Read-Ack',       'msg_name': 'DHWFlowRate', 'value': 10.97, 'description': 'DHW flow rate (litres/minute)'}
+
+2021-10-26T21:56:27.921369 000 RQ --- 18:198151 10:052644 --:------ 3220 005 0080190000  # {'msg_id':  25, 'msg_type': 'Read-Data',      'msg_name': 'BoilerWaterTemperature', 'description': 'Boiler water temperature'}
+2021-10-26T21:56:28.446037 071 RP --- 10:052644 18:198151 --:------ 3220 005 00C0193A80  # {'msg_id':  25, 'msg_type': 'Read-Ack',       'msg_name': 'BoilerWaterTemperature', 'value': 58.5, 'description': 'Boiler water temperature'}
+
+2021-10-26T21:56:47.901535 068 RQ --- 30:042165 10:052644 --:------ 3220 005 00801A0000  # {'msg_id':  26, 'msg_type': 'Read-Data',      'msg_name': 'DHWTemperature', 'description': 'DHW temperature'}
+2021-10-26T21:56:48.250070 070 RP --- 10:052644 30:042165 --:------ 3220 005 00701A0000  # {'msg_id':  26, 'msg_type': 'Unknown-DataId', 'msg_name': 'DHWTemperature', 'description': 'DHW temperature'}
+2022-02-04T17:56:48.291614 073 RP --- 10:050360 30:258720 --:------ 3220 005 00C01A1780  # {'msg_id':  26, 'msg_type': 'Read-Ack',       'msg_name': 'DHWTemperature', 'value': 23.5, 'description': 'DHW temperature'}
+
+2021-10-26T21:56:28.485538 000 RQ --- 18:198151 10:052644 --:------ 3220 005 00001B0000  # {'msg_id':  27, 'msg_type': 'Read-Data',      'msg_name': 'OutsideTemperature', 'description': 'Outside temperature'}
+2021-10-26T21:56:28.983527 068 RP --- 10:052644 18:198151 --:------ 3220 005 00601B0000  # {'msg_id':  27, 'msg_type': 'Data-Invalid',   'msg_name': 'OutsideTemperature', 'description': 'Outside temperature'}
+2021-10-23T21:08:42.686913 041 RP --- 10:048122 18:006402 --:------ 3220 005 00401B47AB  # {'msg_id':  27, 'msg_type': 'Read-Ack',       'msg_name': 'OutsideTemperature', 'value': 71.66, 'description': 'Outside temperature'}
+2021-12-23T16:23:57.928854 051 RP --- 10:062498 18:012667 --:------ 3220 005 00C01BE100  # {'msg_id':  27, 'msg_type': 'Read-Ack',       'msg_name': 'OutsideTemperature', 'value': -31.0, 'description': 'Outside temperature'}
+
+2021-10-26T21:56:29.020333 000 RQ --- 18:198151 10:052644 --:------ 3220 005 00801C0000  # {'msg_id':  28, 'msg_type': 'Read-Data',      'msg_name': 'ReturnWaterTemperature', 'description': 'Return water temperature'}
+2021-10-26T21:56:29.525542 071 RP --- 10:052644 18:198151 --:------ 3220 005 00C01C0200  # {'msg_id':  28, 'msg_type': 'Read-Ack',       'msg_name': 'ReturnWaterTemperature', 'value': 2.0, 'description': 'Return water temperature'}
+
+2021-10-26T21:59:41.770761 069 RQ --- 30:042165 10:052644 --:------ 3220 005 0080380000  # {'msg_id':  56, 'msg_type': 'Read-Data',      'msg_name': 'DHWSetpoint', 'description': 'DHW setpoint'}
+2021-10-26T21:59:43.207992 071 RP --- 10:052644 30:042165 --:------ 3220 005 00C038001A  # {'msg_id':  56, 'msg_type': 'Read-Ack',       'msg_name': 'DHWSetpoint', 'value': 0.1, 'description': 'DHW setpoint'}
+
+2021-10-26T21:56:49.001561 070 RQ --- 30:042165 10:052644 --:------ 3220 005 0080730000  # {'msg_id': 115, 'msg_type': 'Read-Data',      'msg_name': 'OEMDiagnosticCode', 'description': 'OEM diagnostic code'}
+2021-10-26T21:56:49.349562 070 RP --- 10:052644 30:042165 --:------ 3220 005 0070730000  # {'msg_id': 115, 'msg_type': 'Unknown-DataId', 'msg_name': 'OEMDiagnosticCode', 'description': 'OEM diagnostic code'}
+2022-01-03T16:27:53.612811 045 RP --- 10:048122 01:145038 --:------ 3220 005 00407300CA  # {'msg_id': 115, 'msg_type': 'Read-Ack',       'msg_name': 'OEMDiagnosticCode', 'value': 202, 'description': 'OEM diagnostic code'}
