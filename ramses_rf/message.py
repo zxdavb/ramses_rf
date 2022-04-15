@@ -27,7 +27,6 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
-    DEV_CLASS,
     DEV_TYPE,
     DEV_TYPE_MAP,
     DEV_CLASS_MAP,

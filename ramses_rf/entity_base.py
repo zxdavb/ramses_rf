@@ -19,7 +19,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEV_CLASS,
     DEV_TYPE_MAP,
     DEV_CLASS_MAP,
     ZON_CLASS_MAP,

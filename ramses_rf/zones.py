@@ -70,7 +70,6 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     W_,
     DEV_CLASS,
     DEV_CLASS_MAP,
-    DEV_TYPE,
     DEV_TYPE_MAP,
     ZON_CLASS,
     ZON_CLASS_MAP,

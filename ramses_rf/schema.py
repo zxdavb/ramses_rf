@@ -31,7 +31,6 @@ from .protocol.transport import DEV_HACK_REGEX, SERIAL_CONFIG_SCHEMA
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     DEV_CLASS,
     DEV_CLASS_MAP,
-    DEV_TYPE,
     DEV_TYPE_MAP,
     ZON_CLASS,
     ZON_CLASS_MAP,

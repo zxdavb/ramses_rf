@@ -76,7 +76,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     W_,
     DEV_CLASS,
     DEV_CLASS_MAP,
-    DEV_TYPE,
     DEV_TYPE_MAP,
     ZON_CLASS_MAP,
 )

@@ -56,7 +56,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEV_CLASS,
     DEV_TYPE_MAP,
     DEV_CLASS_MAP,
     ZON_CLASS_MAP,
@@ -75,8 +74,6 @@ TIP = f", configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
 
 IS_INITIALIZED = "is_initialized"
 IS_EVOFW3 = "is_evofw3"
-DEVICE_ID = SZ_DEVICE_ID
-
 EXPIRED = "expired"
 
 DEFAULT_SERIAL_CONFIG = SERIAL_CONFIG_SCHEMA({})
@@ -518,7 +515,7 @@ class PacketProtocolBase(asyncio.Protocol):
         self._hgi80 = {
             IS_INITIALIZED: None,
             IS_EVOFW3: None,
-            DEVICE_ID: None,
+            SZ_DEVICE_ID: None,
         }
 
     def __repr__(self) -> str:
@@ -589,13 +586,15 @@ class PacketProtocolBase(asyncio.Protocol):
         """Check/set HGI; log if it is a foreign HGI."""
         assert pkt.src.type == DEV_TYPE_MAP.HGI and pkt.src.id != HGI_DEV_ADDR.id
 
-        if self._hgi80[DEVICE_ID] is None:
-            self._hgi80[DEVICE_ID] = pkt.src.id
+        if self._hgi80[SZ_DEVICE_ID] is None:
+            self._hgi80[SZ_DEVICE_ID] = pkt.src.id
 
-        elif self._hgi80[DEVICE_ID] != pkt.src.id and pkt.src.id not in self._unwanted:
+        elif (
+            self._hgi80[SZ_DEVICE_ID] != pkt.src.id and pkt.src.id not in self._unwanted
+        ):
             _LOGGER.debug(
                 f"{pkt} < There appears to be more than one HGI80-compatible device"
-                f" (active gateway: {self._hgi80[DEVICE_ID]}), this is unsupported{TIP}"
+                f" (active gateway: {self._hgi80[SZ_DEVICE_ID]}), this is unsupported{TIP}"
             )
 
     def _line_received(self, dtm: dt, line: str, raw_line: bytes) -> None:
@@ -685,13 +684,13 @@ class PacketProtocolBase(asyncio.Protocol):
                 # _LOGGER.debug(f"Allowed {dev_id} (in {BLOCK_LIST}, or is the gateway")
                 continue
 
-            if dev_id == self._hgi80[DEVICE_ID]:
+            if dev_id == self._hgi80[SZ_DEVICE_ID]:
                 if self._include:
                     _LOGGER.warning(f"Allowing {dev_id} (is the gateway){TIP}")
                 self._include.append(dev_id)  # NOTE: only time include list is modified
                 continue
 
-            if dev_id[:2] == DEV_TYPE_MAP.HGI and self._hgi80[DEVICE_ID] is None:
+            if dev_id[:2] == DEV_TYPE_MAP.HGI and self._hgi80[SZ_DEVICE_ID] is None:
                 _LOGGER.debug(f"Allowed {dev_id} (is a gateway?){TIP}")
                 continue
 
