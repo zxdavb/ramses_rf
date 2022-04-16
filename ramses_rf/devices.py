@@ -19,7 +19,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEV_CLASS_MAP,
+    DEV_ROLE_MAP,
     DEV_TYPE_MAP,
     ZON_CLASS_MAP,
 )
@@ -63,13 +63,13 @@ if DEV_MODE:
 _CLASS_BY_SLUG = BASE_CLASS_BY_SLUG | HEAT_CLASS_BY_SLUG | HVAC_CLASS_BY_SLUG
 
 
-def device_class_best(
+def device_role_best(
     dev_addr: Address,
     msg: Message = None,
     eavesdrop: bool = False,
     **schema,
 ) -> Class:
-    """Return the best device class for a given device id/msg/schema."""
+    """Return the best device role for a given device id/msg/schema."""
 
     # a specified device class always takes precidence (even if it is wrong)...
     if klass := _CLASS_BY_SLUG.get(schema.get(SZ_KLASS)):
@@ -105,7 +105,7 @@ def zx_device_factory(gwy, dev_addr: Address, msg: Message = None, **schema) -> 
     Some devices are promotable to s compatibel sub class.
     """
 
-    return device_class_best(
+    return device_role_best(
         dev_addr,
         msg=msg,
         eavesdrop=gwy.config.enable_eavesdrop,

@@ -17,7 +17,7 @@ from typing import Optional
 from .const import (
     SYS_MODE_MAP,
     SZ_DATETIME,
-    SZ_DEVICE_CLASS,
+    SZ_DEVICE_ROLE,
     SZ_DEVICES,
     SZ_DOMAIN_ID,
     SZ_HEAT_DEMAND,
@@ -63,8 +63,8 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
+    DEV_ROLE_MAP,
     DEV_TYPE_MAP,
-    DEV_CLASS_MAP,
     ZON_CLASS_MAP,
 )
 
@@ -264,9 +264,9 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         if discover_flag & Discover.SCHEMA:
             try:
-                _ = self._msgz[_000C][RP][f"00{DEV_CLASS_MAP.HTG}"]
+                _ = self._msgz[_000C][RP][f"00{DEV_ROLE_MAP.HTG}"]
             except KeyError:
-                self._make_cmd(_000C, payload=f"00{DEV_CLASS_MAP.HTG}")
+                self._make_cmd(_000C, payload=f"00{DEV_ROLE_MAP.HTG}")
 
         if discover_flag & Discover.PARAMS:
             self._send_cmd(Command.get_tpi_params(self.id))
@@ -352,9 +352,9 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                         device._make_cmd(code, qos)
 
         elif msg.code == _000C and msg.payload[SZ_DEVICES]:
-            if (dev_class := msg.payload[SZ_DEVICE_CLASS]) == DEV_CLASS_MAP["APP"]:
+            if (dev_role := msg.payload[SZ_DEVICE_ROLE]) == DEV_ROLE_MAP["APP"]:
                 self._zx_update_schema(
-                    **{SZ_TCS_SYSTEM: {dev_class: msg.payload[SZ_DEVICES][0]}}
+                    **{SZ_TCS_SYSTEM: {dev_role: msg.payload[SZ_DEVICES][0]}}
                 )
             return
 
@@ -934,9 +934,9 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
 
         if discover_flag & Discover.SCHEMA:
             try:
-                _ = self._msgz[_000C][RP][f"00{DEV_CLASS_MAP.DHW}"]
+                _ = self._msgz[_000C][RP][f"00{DEV_ROLE_MAP.DHW}"]
             except KeyError:
-                self._make_cmd(_000C, payload=f"00{DEV_CLASS_MAP.DHW}")
+                self._make_cmd(_000C, payload=f"00{DEV_ROLE_MAP.DHW}")
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -946,8 +946,8 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
             msg.code == _000C
             and msg.payload[SZ_ZONE_TYPE]
             in (
-                DEV_CLASS_MAP.DHW,
-                DEV_CLASS_MAP.HTG,
+                DEV_ROLE_MAP.DHW,
+                DEV_ROLE_MAP.HTG,
             )
             and msg.payload[SZ_DEVICES]
         ):

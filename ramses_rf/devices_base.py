@@ -29,10 +29,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEV_CLASS,
+    DEV_ROLE,
+    DEV_ROLE_MAP,
     DEV_TYPE,
     DEV_TYPE_MAP,
-    DEV_CLASS_MAP,
     ZON_CLASS_MAP,
 )
 
@@ -360,9 +360,9 @@ class Device(DeviceBase):  # 10E0
 
         if self._SLUG in DEV_TYPE_MAP.PROMOTABLE_SLUGS:
             # HACK: can get precise class?
-            from .devices import device_class_best
+            from .devices import device_role_best
 
-            cls = device_class_best(
+            cls = device_role_best(
                 self.addr, msg, eavesdrop=self._gwy.config.enable_eavesdrop
             )
             if cls._SLUG != self._SLUG and DEV_TYPE.DEV not in (cls._SLUG, self._SLUG):

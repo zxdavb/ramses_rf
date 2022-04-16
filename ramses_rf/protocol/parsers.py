@@ -19,15 +19,17 @@ from .address import hex_id_to_dev_id
 from .const import (
     FAN_MODE,
     FAN_MODES,
-    FAULT_DEVICE_TYPE,
+    FAULT_DEVICE_CLASS,
     FAULT_STATE,
     FAULT_TYPE,
     HEATER_MODE,
     HEATER_MODES,
     SYS_MODE_MAP,
+    SZ_ACTUATOR,
     SZ_DATETIME,
     SZ_DEVICE_CLASS,
     SZ_DEVICE_ID,
+    SZ_DEVICE_ROLE,
     SZ_DEVICES,
     SZ_DOMAIN_ID,
     SZ_DURATION,
@@ -74,8 +76,8 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEV_CLASS,
-    DEV_CLASS_MAP,
+    DEV_ROLE,
+    DEV_ROLE_MAP,
     DEV_TYPE_MAP,
     ZON_CLASS_MAP,
 )
@@ -194,22 +196,17 @@ def parser_0005(payload, msg) -> Union[dict, list[dict]]:  # TODO: needs a clean
         return {
             SZ_ZONE_TYPE: seqx[2:4],
             SZ_ZONE_MASK: zone_mask,
-            SZ_ZONE_CLASS: DEV_CLASS_MAP.get(seqx[2:4], f"{SZ_UNKNOWN}_{seqx[2:4]}"),
+            SZ_ZONE_CLASS: DEV_ROLE_MAP[seqx[2:4]],
         }
+
+    if msg.verb == RQ:  # RQs have a context: zone_type
+        return {SZ_ZONE_TYPE: payload[2:4], SZ_ZONE_CLASS: DEV_ROLE_MAP[payload[2:4]]}
 
     if msg._has_array:
         assert (
             msg.verb == I_ and msg.src.type == DEV_TYPE_MAP.RND
         ), f"{msg!r} # expecting I/{DEV_TYPE_MAP.RND}:"  # DEX
         return [_parser(payload[i : i + 8]) for i in range(0, len(payload), 8)]
-
-    if msg.verb == RQ:  # RQs have a context: zone_type
-        return {
-            SZ_ZONE_TYPE: payload[2:4],
-            SZ_ZONE_CLASS: DEV_CLASS_MAP.get(
-                payload[2:4], f"{SZ_UNKNOWN}_{payload[2:4]}"
-            ),
-        }
 
     return _parser(payload)
 
@@ -333,13 +330,13 @@ def parser_000c(payload, msg) -> Optional[dict]:
                 "zone_id": None if payload[4:6] == "7F" else payload[4:6],
             }
 
-        if payload[2:4] in (DEV_CLASS_MAP.DHW, DEV_CLASS_MAP.HTG):
+        if payload[2:4] in (DEV_ROLE_MAP.DHW, DEV_ROLE_MAP.HTG):
             assert (
-                int(seqx, 16) < 1 if payload[2:4] == DEV_CLASS_MAP.DHW else 2
+                int(seqx, 16) < 1 if payload[2:4] == DEV_ROLE_MAP.DHW else 2
             ), f"invalid _idx: '{seqx}' (0x01)"
             return {SZ_DOMAIN_ID: "FA" if payload[:2] == "00" else "F9"}
 
-        if payload[2:4] == DEV_CLASS_MAP.APP:
+        if payload[2:4] == DEV_ROLE_MAP.APP:
             assert int(seqx, 16) < 1, f"invalid _idx: '{seqx}' (0x02)"
             return {SZ_DOMAIN_ID: "FC"}
 
@@ -372,14 +369,15 @@ def parser_000c(payload, msg) -> Optional[dict]:
 
         return False  # if all else fails (unlikely), assume _len = 6
 
-    dev_role = DEV_CLASS_MAP.get(payload[2:4])
-    if dev_role == DEV_CLASS_MAP._str(DEV_CLASS.HTG) and payload[:2] == "01":
-        dev_role = DEV_CLASS_MAP._str(DEV_CLASS.HT1)
+    if payload[2:4] == DEV_ROLE_MAP.HTG and payload[:2] == "01":
+        dev_role = DEV_ROLE_MAP._str(DEV_ROLE.HT1)
+    else:
+        dev_role = DEV_ROLE_MAP._str(payload[2:4])
 
     result = {
         SZ_ZONE_TYPE: payload[2:4],
         **complex_idx(payload[:2], msg),
-        SZ_DEVICE_CLASS: dev_role,
+        SZ_DEVICE_ROLE: dev_role,
     }
     if msg.verb == RQ:  # RQs have a context: index, zone_type, payload is iitt
         return result
@@ -532,11 +530,11 @@ def parser_0418(payload, msg) -> Optional[dict]:
     try:
         assert payload[2:4] in FAULT_STATE, f"fault state: {payload[2:4]}"
         assert payload[8:10] in FAULT_TYPE, f"fault type: {payload[8:10]}"
-        assert payload[12:14] in FAULT_DEVICE_TYPE, f"device class: {payload[12:14]}"
+        assert payload[12:14] in FAULT_DEVICE_CLASS, f"device class: {payload[12:14]}"
         # 1C: 'Comms fault, Actuator': seen with boiler relays
         assert int(payload[10:12], 16) < msg._gwy.config.max_zones or (
             payload[10:12] in ("1C", "F9", "FA", "FC")
-        ), f"domain_id: {payload[10:12]}"
+        ), f"domain id: {payload[10:12]}"
     except AssertionError as exc:
         _LOGGER.warning(
             f"{msg!r} < {_INFORM_DEV_MSG} ({exc}), with a photo of your fault log"
@@ -546,11 +544,15 @@ def parser_0418(payload, msg) -> Optional[dict]:
         "timestamp": dts_from_hex(payload[18:30]),
         "state": FAULT_STATE.get(payload[2:4], payload[2:4]),
         "type": FAULT_TYPE.get(payload[8:10], payload[8:10]),
-        "device_class": FAULT_DEVICE_TYPE.get(payload[12:14], payload[12:14]),
+        SZ_DEVICE_CLASS: FAULT_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
     }
 
-    if payload[10:12] == "FC" and result[SZ_DEVICE_CLASS] == "actuator":
-        result[SZ_DEVICE_CLASS] = DEV_CLASS_MAP.str(DEV_CLASS.APP)  # boiler relay
+    if payload[10:12] == "FC" and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
+        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP._str(DEV_ROLE.APP)  # actual evo UI
+    elif payload[10:12] == "FA" and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
+        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP._str(DEV_ROLE.HTG)  # speculative
+    elif payload[10:12] == "F9" and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
+        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP._str(DEV_ROLE.HT1)  # speculative
 
     if payload[12:14] != "00":  # TODO: Controller
         key_name = (

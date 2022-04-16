@@ -49,9 +49,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
+    DEV_ROLE_MAP,
     DEV_TYPE,
     DEV_TYPE_MAP,
-    DEV_CLASS_MAP,
     ZON_CLASS_MAP,
 )
 
@@ -535,9 +535,9 @@ class UfhController(HeatDevice):  # UFC (02):
         # Only RPs are: 0001, 0005/000C, 10E0, 000A/2309 & 22D0
 
         if discover_flag & Discover.SCHEMA:
-            self._make_cmd(_0005, payload=f"00{DEV_CLASS_MAP.UFH}")
+            self._make_cmd(_0005, payload=f"00{DEV_ROLE_MAP.UFH}")
             for ufh_idx in range(8):
-                self._make_cmd(_000C, payload=f"{ufh_idx:02X}{DEV_CLASS_MAP.UFH}")
+                self._make_cmd(_000C, payload=f"{ufh_idx:02X}{DEV_ROLE_MAP.UFH}")
 
         if discover_flag & Discover.PARAMS:  # only 2309 has any potential?
             for ufh_idx in self.circuits:
@@ -574,7 +574,7 @@ class UfhController(HeatDevice):  # UFC (02):
                     self._circuits.pop(ufh_idx, None)
                 elif SZ_ZONE_IDX not in self._circuits.get(ufh_idx, {}):
                     self._circuits[ufh_idx] = {SZ_ZONE_IDX: None}
-                    self._make_cmd(_000C, payload=f"{ufh_idx}{DEV_CLASS_MAP.UFH}")
+                    self._make_cmd(_000C, payload=f"{ufh_idx}{DEV_ROLE_MAP.UFH}")
 
         elif msg.code == _0008:  # relay_demand, TODO: use msg DB?
             if msg.payload.get(SZ_DOMAIN_ID) == "FC":

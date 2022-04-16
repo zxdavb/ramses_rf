@@ -129,18 +129,18 @@ def attr_dict_factory(main_table, attr_table=None) -> AttrDict:  # is: SlottedAt
 
 
 # slugs for device/zone entity klasses, used by 0005/000C
-DEV_CLASS = SimpleNamespace(
+DEV_ROLE = SimpleNamespace(
     #
     # Generic device/zone classes
     ACT="ACT",  # Generic heating zone actuator group
     SEN="SEN",  # Generic heating zone sensor group
     #
     # Standard device/zone classes
-    ELE="ELE",  # zone with BDRs (no heat demand)
-    MIX="MIX",  # zone with HM8s
-    RAD="RAD",  # zone with TRVs
-    UFH="UFH",  # zone with UFC circuits
-    VAL="VAL",  # zone with BDRs
+    ELE="ELE",  # BDRs (no heat demand)
+    MIX="MIX",  # HM8s
+    RAD="RAD",  # TRVs
+    UFH="UFH",  # UFC (circuits)
+    VAL="VAL",  # BDRs
     #
     # DHW device/zone classes
     DHW="DHW",  # DHW sensor (a zone, but not a heating zone)
@@ -152,21 +152,21 @@ DEV_CLASS = SimpleNamespace(
     RFG="RFG",  # RFG
     APP="APP",  # BDR/OTB (appliance relay)
 )
-DEV_CLASS_MAP = attr_dict_factory(
+DEV_ROLE_MAP = attr_dict_factory(
     {
-        DEV_CLASS.ACT: {"00": "zone_actuator"},
-        DEV_CLASS.SEN: {"04": "zone_sensor"},
-        DEV_CLASS.RAD: {"08": "rad_actuator"},
-        DEV_CLASS.UFH: {"09": "ufh_actuator"},
-        DEV_CLASS.VAL: {"0A": "val_actuator"},
-        DEV_CLASS.MIX: {"0B": "mix_actuator"},
-        DEV_CLASS.OUT: {"0C": "out_sensor"},
-        DEV_CLASS.DHW: {"0D": "dhw_sensor"},
-        DEV_CLASS.HTG: {"0E": "hotwater_valve"},  # payload[:4] == 000E
-        DEV_CLASS.HT1: {None: "heating_valve"},  # payload[:4] == 010E
-        DEV_CLASS.APP: {"0F": "appliance_control"},  # the heat/cool source
-        DEV_CLASS.RFG: {"10": "remote_gateway"},
-        DEV_CLASS.ELE: {"11": "ele_actuator"},  # ELE(VAL) - no RP from older evos
+        DEV_ROLE.ACT: {"00": "zone_actuator"},
+        DEV_ROLE.SEN: {"04": "zone_sensor"},
+        DEV_ROLE.RAD: {"08": "rad_actuator"},
+        DEV_ROLE.UFH: {"09": "ufh_actuator"},
+        DEV_ROLE.VAL: {"0A": "val_actuator"},
+        DEV_ROLE.MIX: {"0B": "mix_actuator"},
+        DEV_ROLE.OUT: {"0C": "out_sensor"},
+        DEV_ROLE.DHW: {"0D": "dhw_sensor"},
+        DEV_ROLE.HTG: {"0E": "hotwater_valve"},  # payload[:4] == 000E
+        DEV_ROLE.HT1: {None: "heating_valve"},  # payload[:4] == 010E
+        DEV_ROLE.APP: {"0F": "appliance_control"},  # the heat/cool source
+        DEV_ROLE.RFG: {"10": "remote_gateway"},
+        DEV_ROLE.ELE: {"11": "ele_actuator"},  # ELE(VAL) - no RP from older evos
     },  # 03, 05, 06, 07: & >11 - no response from an 01:
     {
         "HEAT_DEVICES": ("00", "04", "08", "09", "0A", "0B", "11"),
@@ -239,9 +239,9 @@ DEV_TYPE_MAP = attr_dict_factory(
         DEV_TYPE.JST: {"31": "jasper_thermostat"},
         #
         DEV_TYPE.CO2: {None: "co2_sensor"},
-        DEV_TYPE.FAN: {None: "ventilation"},  # Both Fans and HRUs
+        DEV_TYPE.FAN: {None: "ventilator"},  # Both Fans and HRUs
         DEV_TYPE.HUM: {None: "rh_sensor"},
-        DEV_TYPE.RFS: {None: "rf_gateway"},  # Spider
+        DEV_TYPE.RFS: {None: "hvac_gateway"},  # Spider
         DEV_TYPE.SWI: {None: "switch"},
     },
     {
@@ -266,6 +266,13 @@ DEV_TYPE_MAP = attr_dict_factory(
         "TRV_DEVICES": ("00", "04"),
         # "CONTROLLERS": ("01", "12", "22", "23", "34")  # potentially controllers
         "PROMOTABLE_SLUGS": (DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC),
+        "HVAC_SLUGS": (
+            DEV_TYPE.CO2,
+            DEV_TYPE.FAN,
+            DEV_TYPE.HUM,
+            DEV_TYPE.RFS,
+            DEV_TYPE.SWI,
+        ),
     },
 )
 
@@ -326,9 +333,11 @@ SYS_MODE_MAP = attr_dict_factory(
 )
 
 
+SZ_ACTUATOR = "actuator"
 SZ_DATETIME = "datetime"
-SZ_DEVICE_CLASS = "device_class"
+SZ_DEVICE_CLASS = "device_class"  # used in 0418 only?
 SZ_DEVICE_ID = "device_id"
+SZ_DEVICE_ROLE = "device_role"
 SZ_DEVICES = "devices"
 SZ_DOMAIN_ID = "domain_id"
 SZ_DURATION = "duration"
@@ -358,33 +367,25 @@ DEFAULT_MAX_ZONES = 16 if DEV_MODE else 12
 # Hometronics: 16 (0-15), or more?
 # Sundial RF2: 2 (0-1), usually only one, but ST9520C can do two zones
 
-_DEV_REGEX_ANY = r"^[0-9]{2}:[0-9]{6}$"
-_DEV_REGEX_BDR = r"^13:[0-9]{6}$"
-_DEV_REGEX_CTL = r"^(01|23):[0-9]{6}$"
-_DEV_REGEX_DHW = r"^07:[0-9]{6}$"
-_DEV_REGEX_HGI = r"^18:[0-9]{6}$"
-_DEV_REGEX_HTG = r"^(10|13):[0-9]{6}$"
-_DEV_REGEX_UFC = r"^02:[0-9]{6}$"
-_DEV_REGEX_SEN = r"^(01|03|04|12|22|34):[0-9]{6}$"
 
 DEVICE_ID_REGEX = SimpleNamespace(
-    ANY=_DEV_REGEX_ANY,
-    BDR=_DEV_REGEX_BDR,
-    CTL=_DEV_REGEX_CTL,
-    DHW=_DEV_REGEX_DHW,
-    HGI=_DEV_REGEX_HGI,
-    HTG=_DEV_REGEX_HTG,
-    UFC=_DEV_REGEX_UFC,
-    SEN=_DEV_REGEX_SEN,
+    ANY=r"^[0-9]{2}:[0-9]{6}$",
+    BDR=r"^13:[0-9]{6}$",
+    CTL=r"^(01|23):[0-9]{6}$",
+    DHW=r"^07:[0-9]{6}$",
+    HGI=r"^18:[0-9]{6}$",
+    APP=r"^(10|13):[0-9]{6}$",
+    UFC=r"^02:[0-9]{6}$",
+    SEN=r"^(01|03|04|12|22|34):[0-9]{6}$",
 )
 
 # Domains
 DOMAIN_TYPE_MAP = {
     "F8": None,
-    "F9": DEV_CLASS_MAP._str("HT1"),  # DHW Heating Valve
-    "FA": DEV_CLASS_MAP._str("HTG"),  # DHW HW Valve (or UFH loop if src.type == UFC?)
+    "F9": DEV_ROLE_MAP._str(DEV_ROLE.HT1),  # Heating Valve
+    "FA": DEV_ROLE_MAP._str(DEV_ROLE.HTG),  # HW Valve (or UFH loop if src.type == UFC?)
     "FB": None,
-    "FC": DEV_CLASS_MAP._str("APP"),  # appliance_control
+    "FC": DEV_ROLE_MAP._str(DEV_ROLE.APP),  # appliance_control
     "FD": "unknown",  # seen with hometronics
     # "FF": "system",  # TODO: remove this, is not a domain
 }  # "21": "Ventilation",
@@ -412,13 +413,13 @@ MESSAGE_REGEX = re.compile(f"^{r} {v} {r} {d} {d} {d} {c} {l} {p}$")
 
 
 # Used by 0418/system_fault parser
-FAULT_DEVICE_TYPE = {
+FAULT_DEVICE_CLASS = {
     "00": "controller",
     "01": "sensor",
-    "02": SZ_SETPOINT,
+    "02": "setpoint",
     "04": "actuator",  # if domain is FC, then "boiler_relay"
     "05": "dhw_sensor",
-    "06": "remote_gateway",
+    "06": "rf_gateway",
 }
 FAULT_STATE = {
     "00": "fault",
@@ -559,8 +560,8 @@ FAN_RATE = "fan_rate"  # percentage, 0.0 - 1.0
 #  I --- 01:054173 --:------ 01:054173 0005 004 00100000  # when the RFG was deleted
 # RP --- 01:054173 18:006402 --:------ 0005 004 00100000  # after deleting the RFG
 
-# RP|zone_devices | 000E0... || {'domain_id': 'FA', 'device_class': 'dhw_actuator', 'devices': ['13:081807']}  # noqa: E501
-# RP|zone_devices | 010E0... || {'domain_id': 'FA', 'device_class': 'dhw_actuator', 'devices': ['13:106039']}  # noqa: E501
+# RP|zone_devices | 000E0... || {'domain_id': 'FA', 'device_role': 'dhw_valve', 'devices': ['13:081807']}  # noqa: E501
+# RP|zone_devices | 010E0... || {'domain_id': 'FA', 'device_role': 'htg_valve', 'devices': ['13:106039']}  # noqa: E501
 
 # Example of:
 #  - Sundial RF2 Pack 3: 23:(ST9420C), 07:(CS92), and 22:(DTS92(E))

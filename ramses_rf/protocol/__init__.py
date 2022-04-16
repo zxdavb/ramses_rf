@@ -10,7 +10,7 @@ from logging import Logger
 from .address import Address, is_valid_dev_id
 from .command import CODE_API_MAP, Command, FaultLog, Priority
 from .const import (
-    SZ_DEVICE_CLASS,
+    SZ_DEVICE_ROLE,
     SZ_DOMAIN_ID,
     SZ_ZONE_CLASS,
     SZ_ZONE_IDX,
@@ -30,7 +30,7 @@ from .packet import _PKT_LOGGER, Packet
 from .protocol import create_msg_stack
 from .ramses import CODES_BY_DEV_SLUG, CODES_SCHEMA
 from .schedule import Schedule
-from .schema import PACKET_LOG, PACKET_LOG_SCHEMA, SERIAL_PORT, SERIAL_PORT_SCHEMA
+from .schema import PACKET_LOG, PACKET_LOG_SCHEMA, SERIAL_CONFIG_SCHEMA, SERIAL_PORT
 from .transport import POLLER_TASK, create_pkt_stack
 
 # skipcq: PY-W2000
@@ -39,8 +39,8 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEV_CLASS,
-    DEV_CLASS_MAP,
+    DEV_ROLE,
+    DEV_ROLE_MAP,
     DEV_TYPE,
     DEV_TYPE_MAP,
     ZON_CLASS,

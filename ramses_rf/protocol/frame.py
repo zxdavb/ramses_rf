@@ -30,8 +30,8 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
+    DEV_ROLE_MAP,
     DEV_TYPE_MAP,
-    DEV_CLASS_MAP,
     ZON_CLASS_MAP,
 )
 
@@ -363,7 +363,7 @@ class PacketBase:
         """
 
         if self._ctx_ is None:
-            if self.code in (_0005, _000C):  # zone_idx, zone_type (device_class)
+            if self.code in (_0005, _000C):  # zone_idx, zone_type (device_role)
                 self._ctx_ = self.payload[:4]
             elif self.code == _0404:  # zone_idx, frag_idx
                 self._ctx_ = self.payload[:2] + self.payload[10:12]
@@ -415,13 +415,15 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
         return False
 
     if pkt.code == _000C:  # zone_idx/domain_id (complex, payload[0:4])
-        if pkt.payload[2:4] in (
-            DEV_CLASS_MAP.DHW,
-            DEV_CLASS_MAP.HTG,
-        ):  # ("000D", _000E, "010E")
-            return "FA"
-        if pkt.payload[2:4] == DEV_CLASS_MAP.APP:  # ("000F", )
+        if pkt.payload[2:4] == DEV_ROLE_MAP.APP:  # "000F"
             return "FC"
+        if pkt.payload[0:4] == f"01{DEV_ROLE_MAP.HTG}":  # "010E"
+            return "F9"
+        if pkt.payload[2:4] in (
+            DEV_ROLE_MAP.DHW,
+            DEV_ROLE_MAP.HTG,
+        ):  # "000D", "000E"
+            return "FA"
         return pkt.payload[:2]
 
     # if pkt.code == _0404:  # TODO: is entry needed here, esp. for DHW?

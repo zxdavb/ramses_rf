@@ -24,13 +24,14 @@ from .const import (
     __dev_mode__,
 )
 from .helpers import shrink
-from .protocol import PACKET_LOG, PACKET_LOG_SCHEMA
-from .protocol.transport import DEV_HACK_REGEX, SERIAL_CONFIG_SCHEMA
+from .protocol import PACKET_LOG, PACKET_LOG_SCHEMA, SERIAL_CONFIG_SCHEMA
+from .protocol.transport import DEV_HACK_REGEX
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    DEV_CLASS,
-    DEV_CLASS_MAP,
+    DEV_ROLE,
+    DEV_ROLE_MAP,
+    DEV_TYPE,
     DEV_TYPE_MAP,
     ZON_CLASS,
     ZON_CLASS_MAP,
@@ -47,15 +48,15 @@ if DEV_MODE:
 SCHEMA = "schema"
 SZ_MAIN_CONTROLLER = "main_controller"
 
-SZ_CONTROLLER = "controller"
+SZ_CONTROLLER = DEV_TYPE_MAP._str(DEV_TYPE.CTL)
 SZ_TCS_SYSTEM = "system"
-SZ_APP_CNTRL = DEV_CLASS_MAP._str(DEV_CLASS.APP)
+SZ_APP_CNTRL = DEV_ROLE_MAP._str(DEV_ROLE.APP)
 SZ_ORPHANS = "orphans"
 
 SZ_DHW_SYSTEM = "stored_hotwater"
-SZ_DHW_SENSOR = "hotwater_sensor"
-SZ_DHW_VALVE = DEV_CLASS_MAP._str(DEV_CLASS.HTG)
-SZ_HTG_VALVE = DEV_CLASS_MAP._str(DEV_CLASS.HT1)
+SZ_DHW_SENSOR = DEV_ROLE_MAP._str(DEV_ROLE.DHW)
+SZ_DHW_VALVE = DEV_ROLE_MAP._str(DEV_ROLE.HTG)
+SZ_HTG_VALVE = DEV_ROLE_MAP._str(DEV_ROLE.HT1)
 
 SZ_ZONES = "zones"
 SZ_ZONE_TYPE = "zone_type"  # deprecated
@@ -67,7 +68,7 @@ SZ_SENSOR = "sensor"
 
 
 SZ_UFH_SYSTEM = "underfloor_heating"
-SZ_UFH_CTL = "ufh_controller"
+SZ_UFH_CTL = DEV_TYPE_MAP._str(DEV_TYPE.UFC)
 SZ_UFH_CIRCUITS = "ufh_circuits"
 
 SZ_DEVICE_ID = SZ_DEVICE_ID
@@ -80,7 +81,7 @@ SENSOR_ID = vol.Match(DEVICE_ID_REGEX.SEN)
 DEV_REGEX_CTL = vol.Match(DEVICE_ID_REGEX.CTL)
 DEV_REGEX_DHW = vol.Match(DEVICE_ID_REGEX.DHW)
 DEV_REGEX_HGI = vol.Match(DEVICE_ID_REGEX.HGI)
-DEV_REGEX_HTG = vol.Match(DEVICE_ID_REGEX.HTG)
+DEV_REGEX_APP = vol.Match(DEVICE_ID_REGEX.APP)
 DEV_REGEX_BDR = vol.Match(DEVICE_ID_REGEX.BDR)
 DEV_REGEX_UFC = vol.Match(DEVICE_ID_REGEX.UFC)
 
@@ -91,8 +92,6 @@ UFH_IDX_REGEX = r"^0[0-8]$"
 UFH_IDX = vol.Match(UFH_IDX_REGEX)
 ZONE_IDX = vol.Match(r"^0[0-9AB]$")  # TODO: what if > 12 zones? (e.g. hometronics)
 
-SERIAL_PORT = "serial_port"
-PORT_NAME = "port_name"
 INPUT_FILE = "input_file"
 
 # Config parameters
@@ -112,6 +111,7 @@ REDUCE_PROCESSING = "reduce_processing"
 SERIAL_CONFIG = "serial_config"
 USE_ALIASES = "use_aliases"  # use friendly device names from known_list
 USE_SCHEMA = "use_schema"
+USE_REGEX = "use_regex"
 
 
 def renamed(new_key):
@@ -138,7 +138,7 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Optional(ENFORCE_KNOWNLIST, default=None): vol.Any(None, bool),
         vol.Optional(USE_ALIASES, default=None): vol.Any(None, bool),
         vol.Optional(EVOFW_FLAG, default=None): vol.Any(None, str),
-        vol.Optional("use_regex", default={}): dict,
+        vol.Optional(USE_REGEX, default={}): dict,
     },
     extra=vol.ALLOW_EXTRA,  # TODO: remove for production
 )
@@ -149,7 +149,7 @@ SCHEMA_DEV = vol.Schema(
             {
                 vol.Optional(SZ_ALIAS, default=None): vol.Any(None, str),
                 vol.Optional(SZ_KLASS, default=None): vol.Any(
-                    None, *vars(DEV_CLASS).keys()
+                    None, *(DEV_TYPE_MAP._str(s) for s in DEV_TYPE_MAP.HVAC_SLUGS)
                 ),
                 vol.Optional(SZ_FAKED, default=None): vol.Any(None, bool),
             },
@@ -163,7 +163,7 @@ SYSTEM_KLASS = (SystemType.EVOHOME, SystemType.HOMETRONICS, SystemType.SUNDIAL)
 
 SCHEMA_TCS = vol.Schema(
     {
-        vol.Required(SZ_APP_CNTRL, default=None): vol.Any(None, DEV_REGEX_HTG),
+        vol.Required(SZ_APP_CNTRL, default=None): vol.Any(None, DEV_REGEX_APP),
         vol.Optional(SZ_KLASS, default=SystemType.EVOHOME): vol.Any(*SYSTEM_KLASS),
     },
     # extra=vol.ALLOW_EXTRA,  # TODO: remove me

@@ -23,8 +23,8 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
+    DEV_ROLE_MAP,
     DEV_TYPE_MAP,
-    DEV_CLASS_MAP,
     ZON_CLASS_MAP,
 )
 

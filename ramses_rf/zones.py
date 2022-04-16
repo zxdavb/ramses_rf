@@ -17,7 +17,7 @@ from symtable import Class
 from typing import Optional
 
 from .const import (
-    SZ_DEVICE_CLASS,
+    SZ_DEVICE_ROLE,
     SZ_DOMAIN_ID,
     SZ_HEAT_DEMAND,
     SZ_NAME,
@@ -68,8 +68,8 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
-    DEV_CLASS,
-    DEV_CLASS_MAP,
+    DEV_ROLE,
+    DEV_ROLE_MAP,
     DEV_TYPE_MAP,
     ZON_CLASS,
     ZON_CLASS_MAP,
@@ -339,10 +339,10 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             # 07:38:39.124 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
             # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
 
-            if dev_slug == DEV_CLASS.DHW:
+            if dev_slug == DEV_ROLE.DHW:
                 schema_attr = SZ_SENSOR
-            else:  # if dev_slug in (DEV_CLASS.HTG, DEV_CLASS.HT1):
-                schema_attr = DEV_CLASS_MAP._str(dev_slug)
+            else:  # if dev_slug in (DEV_ROLE.HTG, DEV_ROLE.HT1):
+                schema_attr = DEV_ROLE_MAP._str(dev_slug)
 
             new_dev = self._gwy._get_device(dev_id, ctl_id=self._ctl.id)
             old_dev = self.schema[schema_attr]
@@ -364,13 +364,13 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         schema = shrink(SCHEMA_DHW(schema))
 
         if dev_id := schema.get(SZ_SENSOR):
-            self._dhw_sensor = get_dhw_device(dev_id, DEV_CLASS.DHW, DhwSensor, "FA")
+            self._dhw_sensor = get_dhw_device(dev_id, DEV_ROLE.DHW, DhwSensor, "FA")
 
-        if dev_id := schema.get(DEV_CLASS_MAP._str(DEV_CLASS.HTG)):
-            self._dhw_valve = get_dhw_device(dev_id, DEV_CLASS.HTG, BdrSwitch, "FA")
+        if dev_id := schema.get(DEV_ROLE_MAP._str(DEV_ROLE.HTG)):
+            self._dhw_valve = get_dhw_device(dev_id, DEV_ROLE.HTG, BdrSwitch, "FA")
 
-        if dev_id := schema.get(DEV_CLASS_MAP._str(DEV_CLASS.HT1)):
-            self._htg_valve = get_dhw_device(dev_id, DEV_CLASS.HT1, BdrSwitch, "F9")
+        if dev_id := schema.get(DEV_ROLE_MAP._str(DEV_ROLE.HT1)):
+            self._htg_valve = get_dhw_device(dev_id, DEV_ROLE.HT1, BdrSwitch, "F9")
 
     def __init__(self, tcs, zone_idx="HW") -> None:
         _LOGGER.debug("Creating a DHW for TCS: %s", tcs)
@@ -406,9 +406,9 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
         if discover_flag & Discover.SCHEMA:
             for dev_type in (
-                f"00{DEV_CLASS_MAP.DHW}",
-                f"00{DEV_CLASS_MAP.HTG}",
-                f"01{DEV_CLASS_MAP.HTG}",
+                f"00{DEV_ROLE_MAP.DHW}",
+                f"00{DEV_ROLE_MAP.HTG}",
+                f"01{DEV_ROLE_MAP.HTG}",
             ):
                 try:
                     _ = self._msgz[_000C][RP][dev_type]
@@ -477,12 +477,12 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
         assert len(msg.payload[SZ_DEVICES]) == 1
 
-        if (dev_klass := msg.payload[SZ_DEVICE_CLASS]) in (
-            DEV_CLASS_MAP._str(DEV_CLASS.HTG),
-            DEV_CLASS_MAP._str(DEV_CLASS.HT1),
+        if (dev_klass := msg.payload[SZ_DEVICE_ROLE]) in (
+            DEV_ROLE_MAP._str(DEV_ROLE.HTG),
+            DEV_ROLE_MAP._str(DEV_ROLE.HT1),
         ):
             self._zx_update_schema(**{dev_klass: msg.payload[SZ_DEVICES][0]})
-        elif dev_klass == DEV_CLASS_MAP._str(DEV_CLASS.DHW):
+        elif dev_klass == DEV_ROLE_MAP._str(DEV_ROLE.DHW):
             self._zx_update_schema(**{SZ_SENSOR: msg.payload[SZ_DEVICES][0]})
 
         # TODO: may need to move earlier in method
@@ -739,7 +739,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
         # TODO: add code to determine zone type if it doesn't have one, using 0005s
         if discover_flag & Discover.SCHEMA:
-            for dev_type in (DEV_CLASS_MAP.ACT, DEV_CLASS_MAP.SEN):
+            for dev_type in (DEV_ROLE_MAP.ACT, DEV_ROLE_MAP.SEN):
                 try:
                     _ = self._msgz[_000C][RP][f"{self.idx}{dev_type}"]
                 except KeyError:
@@ -814,10 +814,10 @@ class Zone(ZoneSchedule, ZoneBase):
 
         if msg.code == _000C and msg.payload[SZ_DEVICES]:
 
-            if msg.payload[SZ_ZONE_TYPE] == DEV_CLASS_MAP.SEN:
+            if msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.SEN:
                 self._zx_update_schema(**{SZ_SENSOR: msg.payload[SZ_DEVICES][0]})
 
-            elif msg.payload[SZ_ZONE_TYPE] == DEV_CLASS_MAP.ACT:
+            elif msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.ACT:
                 self._zx_update_schema(**{SZ_ACTUATORS: msg.payload[SZ_DEVICES]})
 
             elif msg.payload[SZ_ZONE_TYPE] in ZON_CLASS_MAP.HEAT_ZONES:
@@ -829,8 +829,8 @@ class Zone(ZoneSchedule, ZoneBase):
                 )
 
             # TODO: testing this concept, hoping to learn device_id of UFC
-            if msg.payload[SZ_ZONE_TYPE] == DEV_CLASS_MAP.UFH:
-                self._make_cmd(_000C, payload=f"{self.idx}{DEV_CLASS_MAP.UFH}")
+            if msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.UFH:
+                self._make_cmd(_000C, payload=f"{self.idx}{DEV_ROLE_MAP.UFH}")
 
         # If zone still doesn't have a zone class, maybe eavesdrop?
         if self._gwy.config.enable_eavesdrop and self._zone_slug in (
@@ -1023,9 +1023,9 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
 
         if discover_flag & Discover.SCHEMA:
             try:
-                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_CLASS_MAP.MIX}"]
+                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_ROLE_MAP.MIX}"]
             except KeyError:
-                self._make_cmd(_000C, payload=f"{self.idx}{DEV_CLASS_MAP.MIX}")
+                self._make_cmd(_000C, payload=f"{self.idx}{DEV_ROLE_MAP.MIX}")
 
         if discover_flag & Discover.PARAMS:
             self._send_cmd(Command.get_mix_valve_params(self._ctl.id, self.idx))
@@ -1056,9 +1056,9 @@ class RadZone(Zone):  # HR92/HR80
 
         if discover_flag & Discover.SCHEMA:
             try:
-                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_CLASS_MAP.RAD}"]
+                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_ROLE_MAP.RAD}"]
             except KeyError:
-                self._make_cmd(_000C, payload=f"{self.idx}{DEV_CLASS_MAP.RAD}")
+                self._make_cmd(_000C, payload=f"{self.idx}{DEV_ROLE_MAP.RAD}")
 
 
 class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
@@ -1075,9 +1075,9 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
 
         if discover_flag & Discover.SCHEMA:
             try:
-                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_CLASS_MAP.UFH}"]
+                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_ROLE_MAP.UFH}"]
             except KeyError:
-                self._make_cmd(_000C, payload=f"{self.idx}{DEV_CLASS_MAP.UFH}")
+                self._make_cmd(_000C, payload=f"{self.idx}{DEV_ROLE_MAP.UFH}")
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
@@ -1100,9 +1100,9 @@ class ValZone(EleZone):  # BDR91A/T
 
         if discover_flag & Discover.SCHEMA:
             try:
-                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_CLASS_MAP.VAL}"]
+                _ = self._msgz[_000C][RP][f"{self.idx}{DEV_ROLE_MAP.VAL}"]
             except KeyError:
-                self._make_cmd(_000C, payload=f"{self.idx}{DEV_CLASS_MAP.VAL}")
+                self._make_cmd(_000C, payload=f"{self.idx}{DEV_ROLE_MAP.VAL}")
 
     @property
     def heat_demand(self) -> Optional[float]:  # 0008 (NOTE: not 3150)
