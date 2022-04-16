@@ -19,9 +19,9 @@ from ramses_rf.schema import (
     SCHEMA_DHW,
     SCHEMA_ZON,
     SZ_ACTUATORS,
+    SZ_CLASS,
     SZ_DHW_VALVE,
     SZ_HTG_VALVE,
-    SZ_KLASS,
     SZ_SENSOR,
     load_schema,
 )
@@ -69,7 +69,7 @@ class TestSchemaBits(unittest.TestCase):
             {SZ_SENSOR: None, SZ_DHW_VALVE: None, SZ_HTG_VALVE: None},
         ):
             self.assertEqual(
-                dict_, {"sensor": None, "hotwater_valve": None, "heating_valve": None}
+                dict_, {SZ_SENSOR: None, "hotwater_valve": None, "heating_valve": None}
             )
 
         for key in (SZ_SENSOR, SZ_DHW_VALVE, SZ_HTG_VALVE):
@@ -92,25 +92,25 @@ class TestSchemaBits(unittest.TestCase):
 
         for dict_ in (
             SCHEMA_ZON({}),
-            {SZ_KLASS: None, SZ_ACTUATORS: [], SZ_SENSOR: None},
+            {SZ_CLASS: None, SZ_SENSOR: None, SZ_ACTUATORS: []},
         ):
-            self.assertEqual(dict_, {"class": None, "sensor": None, "actuators": []})
+            self.assertEqual(dict_, {SZ_CLASS: None, SZ_SENSOR: None, SZ_ACTUATORS: []})
 
-        for key in (SZ_KLASS, SZ_SENSOR):
+        for key in (SZ_CLASS, SZ_SENSOR):
             self.assertRaises(vol.error.MultipleInvalid, SCHEMA_ZON, {key: "99:000000"})
             self.assertEqual(
                 SCHEMA_ZON({key: None}),
-                {SZ_KLASS: None, SZ_ACTUATORS: [], SZ_SENSOR: None},
+                {SZ_CLASS: None, SZ_SENSOR: None, SZ_ACTUATORS: []},
             )
 
         self.assertEqual(
-            SCHEMA_ZON({SZ_KLASS: RADIATOR_VALVE}),
-            {SZ_KLASS: RADIATOR_VALVE, SZ_ACTUATORS: [], SZ_SENSOR: None},
+            SCHEMA_ZON({SZ_CLASS: RADIATOR_VALVE}),
+            {SZ_CLASS: RADIATOR_VALVE, SZ_SENSOR: None, SZ_ACTUATORS: []},
         )
 
         self.assertEqual(
             SCHEMA_ZON({SZ_SENSOR: "34:111111"}),
-            {SZ_KLASS: None, SZ_ACTUATORS: [], SZ_SENSOR: "34:111111"},
+            {SZ_CLASS: None, SZ_ACTUATORS: [], SZ_SENSOR: "34:111111"},
         )
 
         for val in (
@@ -125,7 +125,7 @@ class TestSchemaBits(unittest.TestCase):
         for val in ([], ["13:111111"], ["13:222222", "13:111111"]):
             self.assertEqual(
                 SCHEMA_ZON({SZ_ACTUATORS: val}),
-                {SZ_KLASS: None, SZ_ACTUATORS: val, SZ_SENSOR: None},
+                {SZ_CLASS: None, SZ_ACTUATORS: val, SZ_SENSOR: None},
             )
 
 

@@ -16,7 +16,7 @@ from datetime import datetime as dt
 from threading import Lock
 from typing import Callable, Optional
 
-from .const import DONT_CREATE_MESSAGES, SZ_DEVICES, __dev_mode__
+from .const import DONT_CREATE_MESSAGES, SZ_DEVICE_ID, SZ_DEVICES, __dev_mode__
 from .devices import Device, zx_device_factory
 from .helpers import schedule_task, shrink
 from .message import Message, process_msg
@@ -39,7 +39,6 @@ from .schema import (
     INPUT_FILE,
     KNOWN_LIST,
     SCHEMA_DEV,
-    SZ_DEVICE_ID,
     SZ_FAKED,
     SZ_MAIN_CONTROLLER,
     SZ_ORPHANS,

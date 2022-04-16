@@ -13,7 +13,7 @@ from random import randint
 from types import SimpleNamespace
 from typing import Any, Optional
 
-from .const import SZ_DEVICES, SZ_ZONE_IDX, Discover, __dev_mode__
+from .const import SZ_DEVICE_ID, SZ_DEVICES, SZ_ZONE_IDX, Discover, __dev_mode__
 from .entity_base import Entity, class_by_attr, discover_decorator
 from .helpers import shrink
 from .protocol import Command, CorruptStateError
@@ -21,7 +21,7 @@ from .protocol.address import NUL_DEV_ADDR, Address
 from .protocol.command import FUNC, TIMEOUT
 from .protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL, CODES_SCHEMA, NAME
 from .protocol.transport import PacketProtocolPort
-from .schema import SCHEMA_DEV, SCHEMA_SYS, SZ_ALIAS, SZ_CLASS, SZ_DEVICE_ID, SZ_FAKED
+from .schema import SCHEMA_DEV, SCHEMA_SYS, SZ_ALIAS, SZ_CLASS, SZ_FAKED
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
