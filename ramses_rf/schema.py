@@ -16,9 +16,14 @@ import voluptuous as vol
 
 from .const import (
     DEFAULT_MAX_ZONES,
+    DEV_ROLE,
+    DEV_ROLE_MAP,
+    DEV_TYPE,
+    DEV_TYPE_MAP,
     DEVICE_ID_REGEX,
     DONT_CREATE_MESSAGES,
     SZ_ZONE_IDX,
+    ZON_CLASS_MAP,
     SystemType,
     __dev_mode__,
 )
@@ -35,16 +40,6 @@ from .protocol.const import (
     SZ_ZONES,
 )
 from .protocol.transport import DEV_HACK_REGEX
-
-# skipcq: PY-W2000
-from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    DEV_ROLE,
-    DEV_ROLE_MAP,
-    DEV_TYPE,
-    DEV_TYPE_MAP,
-    ZON_CLASS,
-    ZON_CLASS_MAP,
-)
 
 DEV_MODE = __dev_mode__ and False
 

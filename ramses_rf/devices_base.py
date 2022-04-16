@@ -13,13 +13,22 @@ from random import randint
 from types import SimpleNamespace
 from typing import Any, Optional
 
-from .const import SZ_DEVICE_ID, SZ_DEVICES, SZ_ZONE_IDX, Discover, __dev_mode__
+from .const import (
+    DEV_TYPE,
+    DEV_TYPE_MAP,
+    SZ_DEVICE_ID,
+    SZ_DEVICES,
+    SZ_NAME,
+    SZ_ZONE_IDX,
+    Discover,
+    __dev_mode__,
+)
 from .entity_base import Entity, class_by_attr, discover_decorator
 from .helpers import shrink
 from .protocol import Command, CorruptStateError
 from .protocol.address import NUL_DEV_ADDR, Address
 from .protocol.command import FUNC, TIMEOUT
-from .protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL, CODES_SCHEMA, NAME
+from .protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL, CODES_SCHEMA
 from .protocol.transport import PacketProtocolPort
 from .schema import SCHEMA_DEV, SCHEMA_SYS, SZ_ALIAS, SZ_CLASS, SZ_FAKED
 
@@ -29,11 +38,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEV_ROLE,
-    DEV_ROLE_MAP,
-    DEV_TYPE,
-    DEV_TYPE_MAP,
-    ZON_CLASS_MAP,
 )
 
 # skipcq: PY-W2000
@@ -318,7 +322,7 @@ class DeviceBase(Entity):
             # SZ_FAKED: self._faked,
             SZ_CLASS: self._klass,
             "supported_msgs": {
-                k: (CODES_SCHEMA[k][NAME] if k in CODES_SCHEMA else None)
+                k: (CODES_SCHEMA[k][SZ_NAME] if k in CODES_SCHEMA else None)
                 for k in sorted(self._msgs)
             },
         }

@@ -12,10 +12,14 @@ from symtable import Class
 from typing import Optional
 
 from .const import (
+    DEV_ROLE_MAP,
+    DEV_TYPE,
+    DEV_TYPE_MAP,
     DOMAIN_TYPE_MAP,
     SZ_DEVICES,
     SZ_DOMAIN_ID,
     SZ_HEAT_DEMAND,
+    SZ_NAME,
     SZ_PRESSURE,
     SZ_RELAY_DEMAND,
     SZ_SETPOINT,
@@ -23,6 +27,7 @@ from .const import (
     SZ_WINDOW_OPEN,
     SZ_ZONE_IDX,
     SZ_ZONE_TYPE,
+    ZON_CLASS_MAP,
     Discover,
     __dev_mode__,
 )
@@ -41,7 +46,7 @@ from .protocol.opentherm import (
     VALUE,
     OtMsgType,
 )
-from .protocol.ramses import CODES_HEAT_ONLY, CODES_ONLY_FROM_CTL, CODES_SCHEMA, NAME
+from .protocol.ramses import CODES_HEAT_ONLY, CODES_ONLY_FROM_CTL, CODES_SCHEMA
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -49,10 +54,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEV_ROLE_MAP,
-    DEV_TYPE,
-    DEV_TYPE_MAP,
-    ZON_CLASS_MAP,
 )
 
 # skipcq: PY-W2000
@@ -1171,7 +1172,7 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
     @property
     def _supported_msgs(self) -> dict:
         return {
-            k: (CODES_SCHEMA[k][NAME] if k in CODES_SCHEMA else None)
+            k: (CODES_SCHEMA[k][SZ_NAME] if k in CODES_SCHEMA else None)
             for k in sorted(self._msgs)
             if self._msgs_supported.get(k) is not False
         }

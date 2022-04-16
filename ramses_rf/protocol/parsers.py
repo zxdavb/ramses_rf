@@ -17,6 +17,9 @@ from typing import Optional, Union
 
 from .address import hex_id_to_dev_id
 from .const import (
+    DEV_ROLE,
+    DEV_ROLE_MAP,
+    DEV_TYPE_MAP,
     FAN_MODE,
     FAN_MODES,
     FAULT_DEVICE_CLASS,
@@ -76,10 +79,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEV_ROLE,
-    DEV_ROLE_MAP,
-    DEV_TYPE_MAP,
-    ZON_CLASS_MAP,
 )
 
 _INFORM_DEV_MSG = "Support the development of ramses_rf by reporting this packet"

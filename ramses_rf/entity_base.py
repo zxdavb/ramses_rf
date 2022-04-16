@@ -11,7 +11,14 @@ from inspect import getmembers, isclass
 from sys import modules
 from typing import Optional
 
-from .const import SZ_DEVICE_ID, SZ_DOMAIN_ID, SZ_ZONE_IDX, Discover, __dev_mode__
+from .const import (
+    SZ_DEVICE_ID,
+    SZ_DOMAIN_ID,
+    SZ_NAME,
+    SZ_ZONE_IDX,
+    Discover,
+    __dev_mode__,
+)
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -19,9 +26,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEV_ROLE_MAP,
-    DEV_TYPE_MAP,
-    ZON_CLASS_MAP,
 )
 
 _QOS_TX_LIMIT = 12  # TODO: needs work
@@ -211,10 +215,10 @@ class Entity:
 
     @property
     def _codes(self) -> dict:
-        from .protocol.ramses import CODES_SCHEMA, NAME  # HACK: FIXME
+        from .protocol.ramses import CODES_SCHEMA  # HACK: FIXME
 
         return {
-            k: (CODES_SCHEMA[k][NAME] if k in CODES_SCHEMA else None)
+            k: (CODES_SCHEMA[k][SZ_NAME] if k in CODES_SCHEMA else None)
             for k in sorted(self._msgs)
         }
 

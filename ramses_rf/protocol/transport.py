@@ -41,7 +41,7 @@ from serial_asyncio import SerialTransport as SerTransportAsync
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import ARGS, DEAMON, FUNC, Command, Qos
-from .const import SZ_DEVICE_ID, SZ_INBOUND, SZ_OUTBOUND, __dev_mode__
+from .const import DEV_TYPE_MAP, SZ_DEVICE_ID, SZ_INBOUND, SZ_OUTBOUND, __dev_mode__
 from .exceptions import InvalidPacketError
 from .helpers import dt_now
 from .packet import Packet
@@ -53,12 +53,6 @@ from .version import VERSION
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     _1F09,
     I_,
-    RP,
-    RQ,
-    W_,
-    DEV_ROLE_MAP,
-    DEV_TYPE_MAP,
-    ZON_CLASS_MAP,
 )
 
 DEV_MODE = __dev_mode__ and False  # debug is_wanted, or qos_fx

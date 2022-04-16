@@ -8,7 +8,7 @@ from datetime import timedelta as td
 from types import SimpleNamespace
 from typing import Dict
 
-from .const import __dev_mode__
+from .const import DEV_TYPE, SZ_NAME, __dev_mode__
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -16,10 +16,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEV_ROLE_MAP,
-    DEV_TYPE,
-    DEV_TYPE_MAP,
-    ZON_CLASS_MAP,
 )
 
 from .const import (  # isort: skip
@@ -116,7 +112,6 @@ if DEV_MODE:
 RQ_NULL = "rq_null"
 EXPIRES = "expires"
 
-NAME = "name"
 EXPIRY = "expiry"
 
 # The master list - all known codes are here, even if there's no corresponding parser
@@ -128,23 +123,23 @@ EXPIRY = "expiry"
 #
 CODES_SCHEMA: dict = {  # rf_unknown
     _0001: {
-        NAME: "rf_unknown",
+        SZ_NAME: "rf_unknown",
         I_: r"^00FFFF02(00|FF)$",  # loopback
         W_: r"^(0[0-9A-F]|FC|FF)000005(01|05)$",
     },  # TODO: there appears to be a dodgy? RQ/RP for UFC
     _0002: {  # WIP: outdoor_sensor - CODE_IDX_COMPLEX?
-        NAME: "outdoor_sensor",
+        SZ_NAME: "outdoor_sensor",
         I_: r"^0[0-4][0-9A-F]{4}(00|01|02|05)$",  # Domoticz sends ^02!!
         RQ: r"^00$",  # NOTE: sent by an RFG100
     },
     _0004: {  # zone_name
-        NAME: "zone_name",
+        SZ_NAME: "zone_name",
         I_: r"^0[0-9A-F]00([0-9A-F]){40}$",  # RP is same, null_rp: xxxx,7F*20
         RQ: r"^0[0-9A-F]00$",
         EXPIRES: td(days=1),
     },
     _0005: {  # system_zones
-        NAME: "system_zones",
+        SZ_NAME: "system_zones",
         #  I --- 34:092243 --:------ 34:092243 0005 012 000A0000-000F0000-00100000
         I_: r"^(00[01][0-9A-F]{5}){1,3}$",
         RQ: r"^00[01][0-9A-F]$",  # f"00{zone_type}", evohome wont respond to 00
@@ -152,19 +147,19 @@ CODES_SCHEMA: dict = {  # rf_unknown
         EXPIRES: False,
     },
     _0006: {  # schedule_sync  # TODO: what for DHW schedule?
-        NAME: "schedule_sync",
+        SZ_NAME: "schedule_sync",
         RQ: r"^00$",
         RP: r"^0005[0-9A-F]{4}$",
     },
     _0008: {  # relay_demand, TODO: check RP
-        NAME: "relay_demand",
+        SZ_NAME: "relay_demand",
         # 000 I --- 31:012319 08:006244 --:------ 0008 013 0006958C33CA6ECD2067AA53DD
         I_: r"^((0[0-9A-F]|F[9AC])[0-9A-F]{2}|00[0-9A-F]{24})$",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{2}$",  # seems only 13: RP (TODO: what about 10:, 08/31:)
     },
     _0009: {  # relay_failsafe (only is_controller, OTB send an 0009?)
-        NAME: "relay_failsafe",
+        SZ_NAME: "relay_failsafe",
         #  I --- 01:145038 --:------ 01:145038 0009 006 FC01FFF901FF
         #  I --- 01:145038 --:------ 01:145038 0009 003 0700FF
         #  I --- 10:040239 01:223036 --:------ 0009 003 000000
@@ -172,7 +167,7 @@ CODES_SCHEMA: dict = {  # rf_unknown
         I_: r"^((0[0-9A-F]|F[9AC])0[0-1](00|FF))+$",
     },
     _000A: {  # zone_params
-        NAME: "zone_params",
+        SZ_NAME: "zone_params",
         I_: r"^(0[0-9A-F][0-9A-F]{10}){1,8}$",
         W_: r"^0[0-9A-F][0-9A-F]{10}$",
         RQ: r"^0[0-9A-F]((00)?|([0-9A-F]{10})+)$",  # is: r"^0[0-9A-F]([0-9A-F]{10})+$"
@@ -184,48 +179,48 @@ CODES_SCHEMA: dict = {  # rf_unknown
         EXPIRES: td(days=1),
     },
     _000C: {  # zone_devices, TODO: needs I/RP
-        NAME: "zone_devices",
+        SZ_NAME: "zone_devices",
         # RP --- 01:145038 18:013393 --:------ 000C 012 0100-00-10DAF5,0100-00-10DAFB
         I_: r"^(0[0-9A-F][01][0-9A-F](0[0-9A-F]|7F)[0-9A-F]{6}){1,8}$",
         RQ: r"^0[0-9A-F][01][0-9A-F]$",  # TODO: f"{zone_idx}{device_type}"
         EXPIRES: False,
     },
     _000E: {  # unknown_000e
-        NAME: "message_000e",
+        SZ_NAME: "message_000e",
         I_: r"^000014$",
     },
     _0016: {  # rf_check
-        NAME: "rf_check",
+        SZ_NAME: "rf_check",
         RQ: r"^0[0-9A-F]([0-9A-F]{2})?$",  # TODO: officially: r"^0[0-9A-F]{3}$"
         RP: r"^0[0-9A-F]{3}$",
     },
     _0100: {  # language
-        NAME: "language",
+        SZ_NAME: "language",
         RQ: r"^00([0-9A-F]{4}F{4})?$",  # NOTE: RQ/04/0100 has a payload
         RP: r"^00[0-9A-F]{4}F{4}$",
         EXPIRES: td(days=1),  # TODO: make longer?
     },
     _0150: {  # unknown_0150
-        NAME: "message_0150",
+        SZ_NAME: "message_0150",
         RQ: r"^00$",
         RP: r"^000000$",
     },
     _01D0: {  # unknown_01d0, TODO: definitely a real code, zone_idx is a guess
-        NAME: "message_01d0",
+        SZ_NAME: "message_01d0",
         I_: r"^0[0-9A-F][0-9A-F]{2}$",
         W_: r"^0[0-9A-F][0-9A-F]{2}$",
         #  W --- 04:000722 01:158182 --:------ 01D0 002 0003  # is a guess, the
         #  I --- 01:158182 04:000722 --:------ 01D0 002 0003  # TRV was in zone 00
     },
     _01E9: {  # unknown_01e9, TODO: definitely a real code, zone_idx is a guess
-        NAME: "message_01e9",
+        SZ_NAME: "message_01e9",
         I_: r"^0[0-9A-F][0-9A-F]{2}$",
         W_: r"^0[0-9A-F][0-9A-F]{2}$",
         #  W --- 04:000722 01:158182 --:------ 01E9 002 0003  # is a guess, the
         #  I --- 01:158182 04:000722 --:------ 01E9 002 0000  # TRV was in zone 00
     },
     _0404: {  # zone_schedule
-        NAME: "zone_schedule",
+        SZ_NAME: "zone_schedule",
         I_: r"^0[0-9A-F](20|23)0008[0-9A-F]{6}$",
         RQ: r"^0[0-9A-F](20|23)000800[0-9A-F]{4}$",
         RP: r"^0[0-9A-F](20|23)0008[0-9A-F]{6}[0-9A-F]{2,82}$",
@@ -233,51 +228,51 @@ CODES_SCHEMA: dict = {  # rf_unknown
         EXPIRES: None,
     },
     _0418: {  # system_fault
-        NAME: "system_fault",
+        SZ_NAME: "system_fault",
         I_: r"^00(00|40|C0)[0-3][0-9A-F]B0[0-9A-F]{6}0000[0-9A-F]{12}FFFF700[012][0-9A-F]{6}$",
         RQ: r"^0000[0-3][0-9A-F]$",  # f"0000{log_idx}", no payload
     },
     _042F: {  # unknown_042f, # non-evohome are len==9, seen only once?
         # .I --- 32:168090 --:------ 32:168090 042F 009 000000100F00105050
         # RP --- 10:048122 18:006402 --:------ 042F 009 000200001400163010
-        NAME: "message_042f",
+        SZ_NAME: "message_042f",
         I_: r"^00([0-9A-F]{2}){7,8}$",
         RQ: r"^00$",
         RP: r"^00([0-9A-F]{2}){7,8}$",
     },
     _0B04: {  # unknown_0b04
         #  I --- --:------ --:------ 12:207082 0B04 002 00C8
-        NAME: "message_0b04",
+        SZ_NAME: "message_0b04",
         I_: r"^00(00|C8)$",
     },
     _1030: {  # mixvalve_params
-        NAME: "mixvalve_params",
+        SZ_NAME: "mixvalve_params",
         #  I --- --:------ --:------ 12:138834 1030 016 01C80137C9010FCA0196CB010FCC0101
         I_: r"^0[0-9A-F](C[89A-C]01[0-9A-F]{2}){5}$",
     },
     _1060: {  # device_battery
-        NAME: "device_battery",
+        SZ_NAME: "device_battery",
         I_: r"^0[0-9A-F](FF|[0-9A-F]{2})0[01]$",  # HCW: r"^(FF|0[0-9A-F]...
         EXPIRES: td(days=1),
     },
     _1081: {  # max_ch_setpoint
-        NAME: "max_ch_setpoint",
+        SZ_NAME: "max_ch_setpoint",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
     _1090: {  # unknown_1090
         # 095 RP --- 23:100224 22:219457 --:------ 1090 005 00-7FFF-01F4
-        NAME: "message_1090",
+        SZ_NAME: "message_1090",
         RQ: r"^00$",
         RP: r"^00",
     },
     _1098: {  # unknown_1098
-        NAME: "message_1098",
+        SZ_NAME: "message_1098",
         RQ: r"^00$",
         RP: r"^00",
     },
     _10A0: {  # dhw_params
-        NAME: "dhw_params",
+        SZ_NAME: "dhw_params",
         # RQ --- 07:045960 01:145038 --:------ 10A0 006 0013740003E4
         # RP --- 10:048122 18:006402 --:------ 10A0 003 001B58
         # NOTE: RFG100 uses a domain id! (00|01)
@@ -289,29 +284,29 @@ CODES_SCHEMA: dict = {  # rf_unknown
         EXPIRES: td(hours=4),
     },
     _10B0: {  # unknown_10b0
-        NAME: "message_10b0",
+        SZ_NAME: "message_10b0",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{8}$",
     },
     _10E0: {  # device_info
-        NAME: "device_info",
+        SZ_NAME: "device_info",
         I_: r"^00[0-9A-F]{30,}$",  # r"^[0-9A-F]{32,}$" might be OK
         RQ: r"^00$",  # NOTE: will accept [0-9A-F]{2}
         # RP: r"^[0-9A-F]{2}([0-9A-F]){30,}$",  # NOTE: indx same as RQ
         EXPIRES: False,
     },
     _10E1: {  # device_id
-        NAME: "device_id",
+        SZ_NAME: "device_id",
         RP: r"^00[0-9A-F]{6}$",
         RQ: r"^00$",
         EXPIRES: False,
     },
     _10E2: {  # unknown_10e2 - HVAC
-        NAME: "unknown_10e2",
+        SZ_NAME: "unknown_10e2",
         I_: r"^00[0-9A-F]{4}$",
     },
     _1100: {  # tpi_params
-        NAME: "tpi_params",
+        SZ_NAME: "tpi_params",
         # RQ --- 01:145038 13:163733 --:------ 1100 008 00180400007FFF01  # boiler relay
         # RP --- 13:163733 01:145038 --:------ 1100 008 00180400FF7FFF01
         # RQ --- 01:145038 13:035462 --:------ 1100 008 FC240428007FFF01  # not bolier relay
@@ -322,11 +317,11 @@ CODES_SCHEMA: dict = {  # rf_unknown
         EXPIRES: td(days=1),
     },
     _11F0: {  # unknown_11f0, from heatpump relay
-        NAME: "message_11f0",
+        SZ_NAME: "message_11f0",
         I_: r"^00",
     },
     _1260: {  # dhw_temp
-        NAME: "dhw_temp",
+        SZ_NAME: "dhw_temp",
         # RQ --- 30:185469 01:037519 --:------ 1260 001 00
         # RP --- 01:037519 30:185469 --:------ 1260 003 000837
         # RQ --- 18:200202 10:067219 --:------ 1260 002 0000
@@ -337,38 +332,38 @@ CODES_SCHEMA: dict = {  # rf_unknown
         EXPIRES: td(hours=1),
     },
     _1280: {  # outdoor_humidity
-        NAME: "outdoor_humidity",
+        SZ_NAME: "outdoor_humidity",
         I_: r"^00[0-9A-F]{2}[0-9A-F]{8}?$",
     },
     _1290: {  # outdoor_temp
-        NAME: "outdoor_temp",
+        SZ_NAME: "outdoor_temp",
         I_: r"^00[0-9A-F]{4}$",  # NOTE: RP is same
         RQ: r"^00$",
     },
     _1298: {  # co2_level
-        NAME: "co2_level",
+        SZ_NAME: "co2_level",
         I_: r"^00[0-9A-F]{4}$",
     },
     _12A0: {  # indoor_humidity
         # .I --- 32:168090 --:------ 32:168090 12A0 006 0030093504A8
         # .I --- 32:132125 --:------ 32:132125 12A0 007 003107B67FFF00  # only dev_id with 007
         # RP --- 20:008749 18:142609 --:------ 12A0 002 00EF
-        NAME: "indoor_humidity",
+        SZ_NAME: "indoor_humidity",
         I_: r"^00[0-9A-F]{2}([0-9A-F]{8}(00)?)?$",
         EXPIRES: td(hours=1),
     },
     _12B0: {  # window_state  (HVAC % window open)
-        NAME: "window_state",
+        SZ_NAME: "window_state",
         I_: r"^0[0-9A-F](0000|C800|FFFF)$",  # NOTE: RP is same
         RQ: r"^0[0-9A-F](00)?$",
         EXPIRES: td(hours=1),
     },
     _12C0: {  # displayed_temp (HVAC room temp)
-        NAME: "displayed_temp",  # displayed room temp
+        SZ_NAME: "displayed_temp",  # displayed room temp
         I_: r"^00[0-9A-F]{2}0[01](FF)?$",
     },
     _12C8: {  # air_quality, HVAC
-        NAME: "air_quality",
+        SZ_NAME: "air_quality",
         I_: r"^00[0-9A-F]{4}$",
     },
     _12F0: {  # dhw_flow_rate
@@ -378,24 +373,24 @@ CODES_SCHEMA: dict = {  # rf_unknown
         # 2021-11-05T06:35:20.721228 066 RP --- 10:023327 18:131597 --:------ 3220 005 0040130059
         # 2021-12-06T06:35:54.575298 073 RP --- 10:051349 18:135447 --:------ 12F0 003 00059F
         # 2021-12-06T06:35:55.949502 071 RP --- 10:051349 18:135447 --:------ 3220 005 00C0130ECC
-        NAME: "dhw_flow_rate",
+        SZ_NAME: "dhw_flow_rate",
         RQ: r"^00$",
         RP: r"^00[0-9A-F](4)$",
     },
     _1300: {  # cv water pressure (usu. for ch)
-        NAME: "ch_pressure",
+        SZ_NAME: "ch_pressure",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
     _1F09: {  # system_sync - "FF" (I), "00" (RP), "F8" (W, after 1FC9)
-        NAME: "system_sync",
+        SZ_NAME: "system_sync",
         I_: r"^(00|01|DB|FF)[0-9A-F]{4}$",  # FF is evohome, DB is Hometronics
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",  # xx-secs
         W_: r"^F8[0-9A-F]{4}$",
     },
     _1F41: {  # dhw_mode
-        NAME: "dhw_mode",
+        SZ_NAME: "dhw_mode",
         I_: r"^00(00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
         RQ: r"^00$",  # will accept: r"^00(00)$"
         W_: r"^00(00|01|FF)0[0-5]F{6}(([0-9A-F]){12})?$",
@@ -405,58 +400,58 @@ CODES_SCHEMA: dict = {  # rf_unknown
         # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-3FF1-956ABD  # noqa: E501
         # RP --- 13:035462 18:013393 --:------ 1FC9 018 00-3EF0-348A86 00-11F0-348A86 90-7FE1-DD6ABD  # noqa: E501
         # RP --- 01:145038 18:013393 --:------ 1FC9 012 FF-10E0-06368E FF-1FC9-06368E
-        NAME: "rf_bind",  # idx-code-dev_id
+        SZ_NAME: "rf_bind",  # idx-code-dev_id
         RQ: r"^00$",
         RP: r"^((0[0-9A-F]|F[9ABCF]|90)([0-9A-F]{10}))+$",  # #     NOTE: idx can be 90 (HEAT)
         I_: r"^((0[0-9A-F]|F[9ABCF]|63|67)([0-9A-F]{10}))+|00$",  # NOTE: idx can be 63|67 (HVAC), payload can be 00
         W_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
     },
     _1FCA: {  # unknown_1fca
-        NAME: "message_1fca",
+        SZ_NAME: "message_1fca",
         RQ: r"^00$",
         RP: r"^((0[0-9A-F]|F[9ABCF]|90)([0-9A-F]{10}))+$",  # xx-code-dev_id
         I_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
         W_: r"^((0[0-9A-F]|F[9ABCF])([0-9A-F]{10}))+$",
     },
     _1FD0: {  # unknown_1fd0
-        NAME: "message_1fd0",
+        SZ_NAME: "message_1fd0",
         RQ: r"^00$",
         RP: r"^00",
     },
     _1FD4: {  # opentherm_sync
-        NAME: "opentherm_sync",
+        SZ_NAME: "opentherm_sync",
         I_: r"^00([0-9A-F]{4})$",
     },
     _2249: {
-        NAME: "setpoint_now",  # setpt_now_next
+        SZ_NAME: "setpoint_now",  # setpt_now_next
         I_: r"^(0[0-9A-F]{13}){1,2}$",
     },  # TODO: This could be an array
     _22C9: {  # ufh_setpoint
         #  I --- 02:001107 --:------ 02:001107 22C9 024 0008340A2801-0108340A2801-0208340A2801-0308340A2801  # noqa: E501
         #  I --- 02:001107 --:------ 02:001107 22C9 006 04-0834-0A28-01
-        NAME: "ufh_setpoint",
+        SZ_NAME: "ufh_setpoint",
         I_: r"^(0[0-9A-F][0-9A-F]{8}0[12]){1,4}$",  # ~000A array, but max_len 24, not 48!
         # RP: Appear wont get any?,
     },
     _22D0: {  # unknown_22d0, HVAC system switch?
-        NAME: "message_22d0",
+        SZ_NAME: "message_22d0",
         I_: r"^00",
     },
     _22D9: {  # boiler_setpoint
-        NAME: "boiler_setpoint",
+        SZ_NAME: "boiler_setpoint",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
     _22F1: {  # switch_speed - TODO - change name - Sent by an UFC
-        NAME: "switch_speed",
+        SZ_NAME: "switch_speed",
         I_: r"^(00|63)(0[0-9A-F]){2}$",
     },
     _22F3: {  # switch_duration
-        NAME: "switch_duration",
+        SZ_NAME: "switch_duration",
         I_: r"^(00|63)[0-9A-F]{4}([0-9A-F]{8})?$",
     },  # minutes
     _2309: {  # setpoint
-        NAME: "setpoint",
+        SZ_NAME: "setpoint",
         I_: r"^(0[0-9A-F]{5})+$",
         W_: r"^0[0-9A-F]{5}$",
         # RQ --- 12:010740 01:145038 --:------ 2309 003 03073A # No RPs
@@ -464,7 +459,7 @@ CODES_SCHEMA: dict = {  # rf_unknown
         EXPIRES: td(minutes=30),
     },
     _2349: {  # zone_mode
-        NAME: "zone_mode",
+        SZ_NAME: "zone_mode",
         I_: r"^0[0-9A-F]{5}0[0-4][0-9A-F]{6}([0-9A-F]{12})?$",
         W_: r"^0[0-9A-F]{5}0[0-4][0-9A-F]{6}([0-9A-F]{12})?$",
         # .W --- 18:141846 01:050858 --:------ 2349 013 02-0960-04-FFFFFF-0409160607E5
@@ -475,35 +470,35 @@ CODES_SCHEMA: dict = {  # rf_unknown
     },
     _2389: {  # unknown_2389 - CODE_IDX_COMPLEX?
         #  I 024 03:052382 --:------ 03:052382 2389 003 02001B
-        NAME: "unknown_2389",
+        SZ_NAME: "unknown_2389",
         I_: r"^0[0-4][0-9A-F]{4}$",
     },
     _2400: {  # unknown_2400, from OTB
-        NAME: "message_2400",
+        SZ_NAME: "message_2400",
         RQ: r"^00$",
         RP: r"^00",
     },
     _2401: {  # unknown_2401, from OTB
-        NAME: "message_2401",
+        SZ_NAME: "message_2401",
         RQ: r"^00$",
         RP: r"^00",
     },
     _2410: {  # unknown_2410, from OTB
-        NAME: "message_2410",
+        SZ_NAME: "message_2410",
         RQ: r"^00$",
         RP: r"^00",
     },
     _2411: {  # unknown_2411, HVAC
-        NAME: "message_2411",
+        SZ_NAME: "message_2411",
         RQ: r"^0000[0-9A-F]{2}(00){19}$",
     },
     _2420: {  # unknown_2420, from OTB
-        NAME: "message_2420",
+        SZ_NAME: "message_2420",
         RQ: r"^00$",
         RP: r"^00",
     },
     _2D49: {  # unknown_2d49
-        NAME: "message_2d49",
+        SZ_NAME: "message_2d49",
         # 10:14:08.526 045  I --- 01:023389 --:------ 01:023389 2D49 003 010000
         # 10:14:12.253 047  I --- 01:023389 --:------ 01:023389 2D49 003 00C800
         # 10:14:12.272 047  I --- 01:023389 --:------ 01:023389 2D49 003 01C800
@@ -512,53 +507,53 @@ CODES_SCHEMA: dict = {  # rf_unknown
         I_: r"^(0[0-9A-F]|88|FD)[0-9A-F]{2}00$",
     },  # seen with Hometronic systems
     _2E04: {  # system_mode
-        NAME: "system_mode",
+        SZ_NAME: "system_mode",
         I_: r"^0[0-7][0-9A-F]{12}0[01]$",  # evo: r"^0[0-7][0-9A-F]{12}0[01]$",
         RQ: r"^FF$",
         W_: r"^0[0-7][0-9A-F]{12}0[01]$",
         EXPIRES: td(hours=4),
     },
     _2E10: {  # presence_detect - HVAC
-        NAME: "presence_detect",
+        SZ_NAME: "presence_detect",
         I_: r"^00(00|01)(00)?$",
     },
     _30C9: {  # temperature
-        NAME: "temperature",
+        SZ_NAME: "temperature",
         I_: r"^(0[0-9A-F][0-9A-F]{4})+$",
         RQ: r"^0[0-9A-F](00)?$",  # TODO: officially: r"^0[0-9A-F]$"
         RP: r"^0[0-9A-F][0-9A-F]{4}$",  # Null: r"^0[0-9A-F]7FFF$"
         EXPIRES: td(hours=1),
     },
     _3110: {  # unknown_3110 - HVAC
-        NAME: "message_3110",
+        SZ_NAME: "message_3110",
         I_: r"^00",
     },
     _3120: {  # unknown_3120 - Error Report?
-        NAME: "message_3120",
+        SZ_NAME: "message_3120",
         I_: r"^00[0-9A-F]{10}FF$",  # only ever: 34:/0070B0000000FF
         RQ: r"^00$",  # 20: will RP an RQ?
         # RP: r"^00[0-9A-F]{10}FF$",  # only ever: 20:/0070B000009CFF
     },
     _313F: {  # datetime (time report)
-        NAME: "datetime",
+        SZ_NAME: "datetime",
         I_: r"^00[0-9A-F]{16}$",  # NOTE: RP is same
         RQ: r"^00$",
         W_: r"^00[0-9A-F]{16}$",
         EXPIRES: td(seconds=3),
     },
     _3150: {  # heat_demand
-        NAME: "heat_demand",
+        SZ_NAME: "heat_demand",
         I_: r"^((0[0-9A-F])[0-9A-F]{2}|FC[0-9A-F]{2})+$",
         EXPIRES: td(minutes=20),
     },
     _31D9: {  # ventilation_status
-        NAME: "vent_status",
+        SZ_NAME: "vent_status",
         # I_: r"^(00|21)[0-9A-F]{32}$",
         I_: r"^(00|01|21)[0-9A-F]{4}((00|FE)(00|20){12}(00|08))?$",
         RQ: r"^00$",
     },
     _31DA: {  # ventilation_unknown
-        NAME: "vent_31da",
+        SZ_NAME: "vent_31da",
         I_: r"^(00|01|21)[0-9A-F]{56}(00)?$",
         RQ: r"^(00|01|21)$"
         # RQ --- 32:168090 30:082155 --:------ 31DA 001 21
@@ -567,40 +562,40 @@ CODES_SCHEMA: dict = {  # rf_unknown
         # 10:15:42.712 077  I --- 29:146052 32:023459 --:------ 31E0 003 0000C8
         # 10:21:18.549 078  I --- 29:146052 32:023459 --:------ 31E0 003 000000
         # 07:56:50.522 095  I --- --:------ --:------ 07:044315 31E0 004 00006E00
-        NAME: "vent_demand",
+        SZ_NAME: "vent_demand",
         I_: r"^00[0-9A-F]{4}(00|FF)?$",
     },
     _3200: {  # boiler output temp
-        NAME: "boiler_output",
+        SZ_NAME: "boiler_output",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
     _3210: {  # boiler return temp
-        NAME: "boiler_return",
+        SZ_NAME: "boiler_return",
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
     _3220: {  # opentherm_msg
-        NAME: "opentherm_msg",
+        SZ_NAME: "opentherm_msg",
         RQ: r"^00[0-9A-F]{4}0{4}$",  # is strictly: r"^00[0-9A-F]{8}$",
         RP: r"^00[0-9A-F]{8}$",
     },
     _3221: {  # unknown_3221, from OTB
-        NAME: "message_3221",
+        SZ_NAME: "message_3221",
         RQ: r"^00$",
         RP: r"^00",
     },
     _3223: {  # unknown_3223, from OTB
-        NAME: "message_3223",
+        SZ_NAME: "message_3223",
         RQ: r"^00$",
         RP: r"^00",
     },
     _3B00: {  # actuator_sync, NOTE: no RQ
-        NAME: "actuator_sync",
+        SZ_NAME: "actuator_sync",
         I_: r"^(00|FC)(00|C8)$",
     },
     _3EF0: {  # actuator_state
-        NAME: "actuator_state",
+        SZ_NAME: "actuator_state",
         # .I --- 13:106039 --:------ 13:106039 3EF0 003 00-C8FF
         # .I --- 21:038634 --:------ 21:038634 3EF0 006 00-0000-0A0200  #                            # Itho spIDer
         # .I --- 10:030051 --:------ 10:030051 3EF0 009 00-0010-000000-020A64
@@ -610,7 +605,7 @@ CODES_SCHEMA: dict = {  # rf_unknown
         RP: r"^00((00|C8)FF|[0-9A-F]{10}|[0-9A-F]{16})$",
     },
     _3EF1: {  # actuator_cycle
-        NAME: "actuator_cycle",
+        SZ_NAME: "actuator_cycle",
         # RQ --- 31:004811 13:077615 --:------ 3EF1 001 00
         # RP --- 13:077615 31:004811 --:------ 3EF1 007 00024D001300FF
         # RQ --- 22:068154 13:031208 --:------ 3EF1 002 0000
@@ -621,12 +616,12 @@ CODES_SCHEMA: dict = {  # rf_unknown
         RP: r"^00([0-9A-F]{12}|[0-9A-F]{34})$",  # NOTE: latter is Japser
     },
     _4401: {
-        NAME: "actuator_sync",
+        SZ_NAME: "actuator_sync",
         I_: r"^[0-9A-F]{40}$",
         RQ: r"^[0-9A-F]{40}$",  # NOTE: no RP!
     },
     _PUZZ: {
-        NAME: "puzzle_packet",
+        SZ_NAME: "puzzle_packet",
         I_: r"^00(([0-9A-F]){2})+$",
     },
 }

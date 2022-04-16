@@ -10,7 +10,7 @@ import logging
 from symtable import Class
 from typing import Optional
 
-from .const import BOOST_TIMER, FAN_MODE, SZ_TEMPERATURE, __dev_mode__
+from .const import BOOST_TIMER, DEV_TYPE, FAN_MODE, SZ_TEMPERATURE, __dev_mode__
 from .devices_base import BatteryState, HvacDevice
 from .entity_base import class_by_attr
 from .protocol import Address, Message
@@ -22,10 +22,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEV_ROLE_MAP,
-    DEV_TYPE,
-    DEV_TYPE_MAP,
-    ZON_CLASS_MAP,
 )
 
 # skipcq: PY-W2000

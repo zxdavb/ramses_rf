@@ -13,16 +13,18 @@ from datetime import datetime as dt
 from typing import Optional, Union
 
 from .address import NON_DEV_ADDR, NUL_DEV_ADDR, Address
-from .const import __dev_mode__
+from .const import DEV_ROLE_MAP, DEV_TYPE_MAP, __dev_mode__
 from .exceptions import InvalidPayloadError
-from .ramses import CODE_IDX_COMPLEX  # used here, parsers, message(lower)
-from .ramses import CODE_IDX_DOMAIN  # only used here
-from .ramses import CODE_IDX_NONE  # only used here
-from .ramses import CODE_IDX_SIMPLE  # only used here
-from .ramses import CODES_ONLY_FROM_CTL  # used here, devices.py
-from .ramses import CODES_WITH_ARRAYS  # only used here
-from .ramses import RQ_NO_PAYLOAD  # only used here
-from .ramses import CODES_SCHEMA
+from .ramses import (
+    CODE_IDX_COMPLEX,
+    CODE_IDX_DOMAIN,
+    CODE_IDX_NONE,
+    CODE_IDX_SIMPLE,
+    CODES_ONLY_FROM_CTL,
+    CODES_SCHEMA,
+    CODES_WITH_ARRAYS,
+    RQ_NO_PAYLOAD,
+)
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -30,9 +32,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEV_ROLE_MAP,
-    DEV_TYPE_MAP,
-    ZON_CLASS_MAP,
 )
 
 # skipcq: PY-W2000

@@ -190,6 +190,7 @@ DEV_TYPE = SimpleNamespace(
     DT2="DT2",  # 22: Thermostat, DTS92(E)
     HCW="HCW",  # 03: Thermostat - don't use STA
     HGI="HGI",  # 18: Gateway interface (RF to USB), HGI80
+    # HM8="HM8",  # xx: HM80 mixer valve (does not Tx)
     OTB="OTB",  # 10: OpenTherm bridge
     OUT="OUT",  # 17: External weather sensor
     PRG="PRG",  # 23: Programmer
@@ -202,7 +203,6 @@ DEV_TYPE = SimpleNamespace(
     # Honeywell Jasper, other Heat devices
     JIM="JIM",  # 08: Jasper Interface Module (EIM?)
     JST="JST",  # 31: Jasper Stat
-    # HM8="HM8",  # xx: HM80 mixer valve
     #
     # HVAC devices, these are more like classes (i.e. no reliable device type)
     RFS="RFS",  # ??: HVAC spIDer gateway
@@ -375,14 +375,14 @@ DEFAULT_MAX_ZONES = 16 if DEV_MODE else 12
 
 
 DEVICE_ID_REGEX = SimpleNamespace(
-    ANY=r"^[0-9]{2}:[0-9]{6}$",
-    BDR=r"^13:[0-9]{6}$",
-    CTL=r"^(01|23):[0-9]{6}$",
-    DHW=r"^07:[0-9]{6}$",
-    HGI=r"^18:[0-9]{6}$",
-    APP=r"^(10|13):[0-9]{6}$",
-    UFC=r"^02:[0-9]{6}$",
-    SEN=r"^(01|03|04|12|22|34):[0-9]{6}$",
+    ANY=re.compile(r"^[0-9]{2}:[0-9]{6}$"),
+    BDR=re.compile(r"^13:[0-9]{6}$"),
+    CTL=re.compile(r"^(01|23):[0-9]{6}$"),
+    DHW=re.compile(r"^07:[0-9]{6}$"),
+    HGI=re.compile(r"^18:[0-9]{6}$"),
+    APP=re.compile(r"^(10|13):[0-9]{6}$"),
+    UFC=re.compile(r"^02:[0-9]{6}$"),
+    SEN=re.compile(r"^(01|03|04|12|22|34):[0-9]{6}$"),
 )
 
 # Domains
@@ -454,6 +454,7 @@ SystemType = SimpleNamespace(
 
 
 I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
+F9, FA, FC, FF = "F9", "FA", "FC", "FF"
 
 _0001 = "0001"
 _0002 = "0002"

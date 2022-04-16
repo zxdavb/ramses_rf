@@ -3,29 +3,21 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser."""
 
-import re
 from functools import lru_cache
 from typing import List
 
-from .const import __dev_mode__
+from .const import DEV_TYPE, DEV_TYPE_MAP, DEVICE_ID_REGEX, __dev_mode__
 from .exceptions import InvalidAddrSetError
 from .helpers import typechecked
-
-# skipcq: PY-W2000
-from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
-    DEV_ROLE_MAP,
-    DEV_TYPE_MAP,
-    ZON_CLASS_MAP,
-)
 
 DEV_MODE = __dev_mode__ and False
 DEV_HVAC = True
 
-__device_id_regex__ = re.compile(r"^(-{2}:-{6}|\d{2}:\d{6})$")
-
 
 DEVICE_LOOKUP = {
-    k: DEV_TYPE_MAP._hex(k) for k in DEV_TYPE_MAP.SLUGS if k not in ("JIM", "JST")
+    k: DEV_TYPE_MAP._hex(k)
+    for k in DEV_TYPE_MAP.SLUGS
+    if k not in (DEV_TYPE.JIM, DEV_TYPE.JST)
 }
 DEVICE_LOOKUP |= {"NUL": "63", "---": "--"}
 DEV_TYPE_MAP = {v: k for k, v in DEVICE_LOOKUP.items()}
@@ -39,17 +31,15 @@ NUL_DEVICE_ID = "63:262142"  # FFFFFE - send here if not bound?
 class Address:
     """The device Address class."""
 
-    DEVICE_ID_REGEX = __device_id_regex__
-
-    def __init__(self, id) -> None:
+    def __init__(self, device_id) -> None:
         """Create an address from a valid device id."""
 
-        self.id = id  # TODO: check is a valid id...
-        self.type = id[:2]  # dex, NOTE: remove last
+        self.id = device_id  # TODO: check is a valid id...
+        self.type = device_id[:2]  # dex, NOTE: remove last
         self._hex_id: str = None  # type: ignore[assignment]
 
-        if not self.is_valid(id):
-            raise ValueError(f"Invalid device_id: {id}")
+        if not self.is_valid(device_id):
+            raise ValueError(f"Invalid device_id: {device_id}")
 
     def __repr__(self) -> str:
         return self._friendly(self.id).strip()
@@ -69,21 +59,15 @@ class Address:
         self._hex_id = self.convert_to_hex(self.id)
         return self._hex_id
 
-    # @property
-    # def description(self) -> str:
-    #     raise NotImplementedError
-
-    # @property
-    # def schema(self) -> dict:
-    #     return {}
-
     @staticmethod
     def is_valid(value: str) -> bool:  # Union[str, Match[str], None]:
 
         # if value[:2] not in DEV_TYPE_MAP:
         #     return False
 
-        return isinstance(value, str) and __device_id_regex__.match(value)  # type: ignore[return-value]
+        return isinstance(value, str) and (
+            value == NON_DEVICE_ID or DEVICE_ID_REGEX.ANY.match(value)
+        )  # type: ignore[return-value]
 
     @classmethod
     def _friendly(cls, device_id: str) -> str:
@@ -136,7 +120,7 @@ class Address:
 @lru_cache(maxsize=256)
 def id_to_address(device_id) -> Address:
     """Factory method to cache & return device Address from device ID."""
-    return Address(id=device_id)
+    return Address(device_id=device_id)
 
 
 HGI_DEV_ADDR = Address(HGI_DEVICE_ID)
@@ -183,15 +167,15 @@ def hex_id_to_dev_id(device_hex: str, friendly_id: bool = False) -> str:
 def is_valid_dev_id(value: str, dev_class: str = None) -> bool:
     """Return True if a device_id is valid."""
 
-    if not isinstance(value, str) or not __device_id_regex__.match(value):
+    if not isinstance(value, str) or not DEVICE_ID_REGEX.ANY.match(value):
         return False
 
     if not DEV_HVAC and value.split(":", 1)[0] not in DEV_TYPE_MAP:
         return False
 
-    # TODO: specify device klass (for HVAC)
-    # elif dev_class is not None and dev_class != value.split(":", 1)[0]:
-    #     raise TypeError(f"The device type does not match '{dev_class}'")
+    # TODO: specify device type (for HVAC)
+    # elif dev_type is not None and dev_type != value.split(":", maxsplit=1)[0]:
+    #     raise TypeError(f"The device type does not match '{dev_type}'")
 
     # assert value == hex_id_to_dev_id(dev_id_to_hex_id(value))
     return True

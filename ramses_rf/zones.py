@@ -17,6 +17,9 @@ from symtable import Class
 from typing import Optional
 
 from .const import (
+    DEV_ROLE,
+    DEV_ROLE_MAP,
+    DEV_TYPE_MAP,
     SZ_DEVICE_ROLE,
     SZ_DOMAIN_ID,
     SZ_HEAT_DEMAND,
@@ -28,6 +31,8 @@ from .const import (
     SZ_WINDOW_OPEN,
     SZ_ZONE_IDX,
     SZ_ZONE_TYPE,
+    ZON_CLASS,
+    ZON_CLASS_MAP,
     ZON_MODE_MAP,
     __dev_mode__,
 )
@@ -68,11 +73,6 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
-    DEV_ROLE,
-    DEV_ROLE_MAP,
-    DEV_TYPE_MAP,
-    ZON_CLASS,
-    ZON_CLASS_MAP,
 )
 
 # skipcq: PY-W2000

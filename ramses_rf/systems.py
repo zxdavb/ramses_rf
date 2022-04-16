@@ -32,6 +32,10 @@ from .devices import BdrSwitch, Device, OtbGateway, Temperature, UfhController
 from .entity_base import Entity, class_by_attr, discover_decorator
 from .helpers import shrink
 from .protocol import (
+    DEV_ROLE,
+    DEV_ROLE_MAP,
+    DEV_TYPE_MAP,
+    ZON_CLASS_MAP,
     Address,
     Command,
     CorruptStateError,
@@ -63,9 +67,10 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
-    DEV_ROLE_MAP,
-    DEV_TYPE_MAP,
-    ZON_CLASS_MAP,
+    F9,
+    FA,
+    FC,
+    FF,
 )
 
 # skipcq: PY-W2000
@@ -352,7 +357,9 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                         device._make_cmd(code, qos)
 
         elif msg.code == _000C and msg.payload[SZ_DEVICES]:
-            if (dev_role := msg.payload[SZ_DEVICE_ROLE]) == DEV_ROLE_MAP["APP"]:
+            if (dev_role := msg.payload[SZ_DEVICE_ROLE]) == DEV_ROLE_MAP._str(
+                DEV_ROLE.APP
+            ):
                 self._zx_update_schema(
                     **{SZ_TCS_SYSTEM: {dev_role: msg.payload[SZ_DEVICES][0]}}
                 )

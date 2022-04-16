@@ -14,7 +14,7 @@ from functools import lru_cache
 from typing import Optional
 
 from .address import Address
-from .const import SZ_DOMAIN_ID, SZ_ZONE_IDX, __dev_mode__
+from .const import DEV_TYPE_MAP, SZ_DOMAIN_ID, SZ_ZONE_IDX, __dev_mode__
 from .exceptions import InvalidPacketError, InvalidPayloadError
 from .packet import fraction_expired
 from .parsers import PAYLOAD_PARSERS, parser_unknown
@@ -26,9 +26,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEV_ROLE_MAP,
-    DEV_TYPE_MAP,
-    ZON_CLASS_MAP,
 )
 
 # skipcq: PY-W2000

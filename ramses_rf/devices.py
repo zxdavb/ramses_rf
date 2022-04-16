@@ -9,7 +9,7 @@ Heating devices.
 import logging
 from symtable import Class
 
-from .const import __dev_mode__
+from .const import DEV_TYPE_MAP, __dev_mode__
 from .protocol import Address, Message
 from .schema import SZ_CLASS
 
@@ -19,9 +19,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEV_ROLE_MAP,
-    DEV_TYPE_MAP,
-    ZON_CLASS_MAP,
 )
 
 # skipcq: PY-W2000

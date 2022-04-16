@@ -10,16 +10,22 @@ import asyncio
 import functools
 import json
 import logging
-import re
 from datetime import datetime as dt
 from datetime import timedelta as td
 from types import SimpleNamespace
 from typing import Any, Optional, Union
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR, Address, pkt_addrs
-from .const import COMMAND_REGEX
-from .const import DEVICE_ID_REGEX as _DEVICE_ID_REGEX
-from .const import SZ_DOMAIN_ID, SZ_ZONE_IDX, __dev_mode__
+from .const import (
+    COMMAND_REGEX,
+    DEV_TYPE_MAP,
+    DEVICE_ID_REGEX,
+    SYS_MODE_MAP,
+    SZ_DOMAIN_ID,
+    SZ_ZONE_IDX,
+    ZON_MODE_MAP,
+    __dev_mode__,
+)
 from .exceptions import ExpiredCallbackError, InvalidPacketError
 from .frame import PacketBase, pkt_header
 from .helpers import dt_now, dtm_to_hex, str_to_hex, temp_to_hex, timestamp
@@ -33,11 +39,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
-    DEV_ROLE_MAP,
-    DEV_TYPE_MAP,
-    SYS_MODE_MAP,
-    ZON_CLASS_MAP,
-    ZON_MODE_MAP,
 )
 
 # skipcq: PY-W2000
@@ -124,8 +125,6 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 )
 
 COMMAND_FORMAT = "{:<2} {} {} {} {} {} {:03d} {}"
-
-DEVICE_ID_REGEX = re.compile(_DEVICE_ID_REGEX.ANY)
 
 TIMER_SHORT_SLEEP = 0.05
 TIMER_LONG_TIMEOUT = td(seconds=60)
@@ -1081,7 +1080,7 @@ class Command(PacketBase):
             raise ValueError(f"Command is invalid: '{cmd_str}'")
 
         verb = cmd.pop(0)
-        seqn = "---" if DEVICE_ID_REGEX.match(cmd[0]) else cmd.pop(0)
+        seqn = "---" if DEVICE_ID_REGEX.ANY.match(cmd[0]) else cmd.pop(0)
         payload = cmd.pop()[:48]
         code = cmd.pop()
 

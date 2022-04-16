@@ -9,7 +9,13 @@ Decode/process a message (payload into JSON).
 import logging
 from datetime import timedelta as td
 
-from .const import DONT_CREATE_ENTITIES, DONT_UPDATE_ENTITIES, __dev_mode__
+from .const import (
+    DEV_TYPE,
+    DEV_TYPE_MAP,
+    DONT_CREATE_ENTITIES,
+    DONT_UPDATE_ENTITIES,
+    __dev_mode__,
+)
 from .devices import Device, UfhController
 from .protocol import (
     CODES_BY_DEV_SLUG,
@@ -27,10 +33,6 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
-    DEV_ROLE_MAP,
-    DEV_TYPE,
-    DEV_TYPE_MAP,
-    ZON_CLASS_MAP,
 )
 
 # skipcq: PY-W2000
