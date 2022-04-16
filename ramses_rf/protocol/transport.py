@@ -41,7 +41,7 @@ from serial_asyncio import SerialTransport as SerTransportAsync
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .command import ARGS, DEAMON, FUNC, Command, Qos
-from .const import SZ_DEVICE_ID, __dev_mode__
+from .const import SZ_DEVICE_ID, SZ_INBOUND, SZ_OUTBOUND, __dev_mode__
 from .exceptions import InvalidPacketError
 from .helpers import dt_now
 from .packet import Packet
@@ -608,7 +608,7 @@ class PacketProtocolBase(asyncio.Protocol):
             pkt = Packet.from_port(
                 self._gwy,
                 dtm,
-                _regex_hack(line, self._gwy.config.use_regex.get("inbound", {})),
+                _regex_hack(line, self._gwy.config.use_regex.get(SZ_INBOUND, {})),
                 raw_line=raw_line,
             )  # should log all? invalid pkts appropriately
 
@@ -749,7 +749,7 @@ class PacketProtocolFile(PacketProtocolBase):
             pkt = Packet.from_file(
                 self._gwy,
                 dtm,
-                _regex_hack(line, self._gwy.config.use_regex.get("inbound", {})),
+                _regex_hack(line, self._gwy.config.use_regex.get(SZ_INBOUND, {})),
             )  # should log all invalid pkts appropriately
 
         except (InvalidPacketError, ValueError):  # VE from dt.fromisoformat()
@@ -840,7 +840,7 @@ class PacketProtocolPort(PacketProtocolBase):
         data = bytes(
             _regex_hack(
                 data,
-                self._gwy.config.use_regex.get("outbound", {}),
+                self._gwy.config.use_regex.get(SZ_OUTBOUND, {}),
             ).encode("ascii")
         )
 

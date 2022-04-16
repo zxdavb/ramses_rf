@@ -334,6 +334,7 @@ SYS_MODE_MAP = attr_dict_factory(
 
 
 SZ_ACTUATOR = "actuator"
+SZ_ACTUATORS = "actuators"
 SZ_DATETIME = "datetime"
 SZ_DEVICE_CLASS = "device_class"  # used in 0418 only?
 SZ_DEVICE_ID = "device_id"
@@ -349,6 +350,7 @@ SZ_PAYLOAD = "payload"
 SZ_PRESSURE = "pressure"
 SZ_RELAY_DEMAND = "relay_demand"
 SZ_RELAY_FAILSAFE = "relay_failsafe"
+SZ_SENSOR = "sensor"
 SZ_SETPOINT = "setpoint"
 SZ_SYSTEM_MODE = "system_mode"
 SZ_TEMPERATURE = "temperature"
@@ -360,6 +362,10 @@ SZ_ZONE_CLASS = "zone_class"
 SZ_ZONE_IDX = "zone_idx"
 SZ_ZONE_MASK = "zone_mask"
 SZ_ZONE_TYPE = "zone_type"
+SZ_ZONES = "zones"
+
+SZ_INBOUND = "inbound"
+SZ_OUTBOUND = "outbound"
 
 
 DEFAULT_MAX_ZONES = 16 if DEV_MODE else 12

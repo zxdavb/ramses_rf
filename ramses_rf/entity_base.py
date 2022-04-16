@@ -100,7 +100,7 @@ class Entity:
     #     pass
 
     def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess
-        """ "Store a msg in _msgs[code] (only latest I/RP) and _msgz[code][verb][ctx]."""
+        """Store a msg in _msgs[code] (only latest I/RP) and _msgz[code][verb][ctx]."""
 
         if (
             self._gwy.pkt_protocol is None

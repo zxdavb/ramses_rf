@@ -21,7 +21,7 @@ from .protocol.address import NUL_DEV_ADDR, Address
 from .protocol.command import FUNC, TIMEOUT
 from .protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL, CODES_SCHEMA, NAME
 from .protocol.transport import PacketProtocolPort
-from .schema import SCHEMA_DEV, SCHEMA_SYS, SZ_ALIAS, SZ_DEVICE_ID, SZ_FAKED, SZ_KLASS
+from .schema import SCHEMA_DEV, SCHEMA_SYS, SZ_ALIAS, SZ_CLASS, SZ_DEVICE_ID, SZ_FAKED
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -316,7 +316,7 @@ class DeviceBase(Entity):
             **(self._codes if DEV_MODE else {}),
             SZ_ALIAS: self._alias,
             # SZ_FAKED: self._faked,
-            SZ_KLASS: self._klass,
+            SZ_CLASS: self._klass,
             "supported_msgs": {
                 k: (CODES_SCHEMA[k][NAME] if k in CODES_SCHEMA else None)
                 for k in sorted(self._msgs)

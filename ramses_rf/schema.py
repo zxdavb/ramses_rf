@@ -18,13 +18,22 @@ from .const import (
     DEFAULT_MAX_ZONES,
     DEVICE_ID_REGEX,
     DONT_CREATE_MESSAGES,
-    SZ_DEVICE_ID,
     SZ_ZONE_IDX,
     SystemType,
     __dev_mode__,
 )
 from .helpers import shrink
 from .protocol import PACKET_LOG, PACKET_LOG_SCHEMA, SERIAL_CONFIG_SCHEMA
+from .protocol.const import (
+    SZ_ACTUATORS,
+    SZ_DEVICES,
+    SZ_INBOUND,
+    SZ_NAME,
+    SZ_OUTBOUND,
+    SZ_SENSOR,
+    SZ_ZONE_TYPE,
+    SZ_ZONES,
+)
 from .protocol.transport import DEV_HACK_REGEX
 
 # skipcq: PY-W2000
@@ -43,7 +52,6 @@ _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
-
 # schema strings
 SCHEMA = "schema"
 SZ_MAIN_CONTROLLER = "main_controller"
@@ -58,26 +66,19 @@ SZ_DHW_SENSOR = DEV_ROLE_MAP._str(DEV_ROLE.DHW)
 SZ_DHW_VALVE = DEV_ROLE_MAP._str(DEV_ROLE.HTG)
 SZ_HTG_VALVE = DEV_ROLE_MAP._str(DEV_ROLE.HT1)
 
-SZ_ZONES = "zones"
-SZ_ZONE_TYPE = "zone_type"  # deprecated
-SZ_ACTUATORS = "actuators"
-SZ_DEVICES = "devices"
 SZ_SENSOR_FAKED = "sensor_faked"
-SZ_NAME = "name"
-SZ_SENSOR = "sensor"
 
 
 SZ_UFH_SYSTEM = "underfloor_heating"
 SZ_UFH_CTL = DEV_TYPE_MAP._str(DEV_TYPE.UFC)
 SZ_UFH_CIRCUITS = "ufh_circuits"
 
-SZ_DEVICE_ID = SZ_DEVICE_ID
 SZ_ALIAS = "alias"
-SZ_KLASS = "class"  # device/system/zone class
+SZ_CLASS = "class"  # device/system/zone class
 SZ_FAKED = "faked"
 
-DEVICE_ID = vol.Match(DEVICE_ID_REGEX.ANY)
-SENSOR_ID = vol.Match(DEVICE_ID_REGEX.SEN)
+DEV_REGEX_ANY = vol.Match(DEVICE_ID_REGEX.ANY)
+DEV_REGEX_SEN = vol.Match(DEVICE_ID_REGEX.SEN)
 DEV_REGEX_CTL = vol.Match(DEVICE_ID_REGEX.CTL)
 DEV_REGEX_DHW = vol.Match(DEVICE_ID_REGEX.DHW)
 DEV_REGEX_HGI = vol.Match(DEVICE_ID_REGEX.HGI)
@@ -106,7 +107,7 @@ DISABLE_SENDING = "disable_sending"
 ENABLE_EAVESDROP = "enable_eavesdrop"
 ENFORCE_KNOWNLIST = f"enforce_{KNOWN_LIST}"
 EVOFW_FLAG = "evofw_flag"
-MAX_ZONES = "max_zones"
+SZ_MAX_ZONES = "max_zones"
 REDUCE_PROCESSING = "reduce_processing"
 SERIAL_CONFIG = "serial_config"
 USE_ALIASES = "use_aliases"  # use friendly device names from known_list
@@ -131,7 +132,7 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Optional(REDUCE_PROCESSING, default=0): vol.All(
             int, vol.Range(min=0, max=DONT_CREATE_MESSAGES)
         ),
-        vol.Optional(MAX_ZONES, default=DEFAULT_MAX_ZONES): vol.All(
+        vol.Optional(SZ_MAX_ZONES, default=DEFAULT_MAX_ZONES): vol.All(
             int, vol.Range(min=1, max=16)
         ),
         vol.Optional(USE_SCHEMA, default=True): vol.Any(None, bool),
@@ -145,10 +146,10 @@ CONFIG_SCHEMA = vol.Schema(
 
 SCHEMA_DEV = vol.Schema(
     {
-        vol.Optional(DEVICE_ID): vol.Any(
+        vol.Optional(DEV_REGEX_ANY): vol.Any(
             {
                 vol.Optional(SZ_ALIAS, default=None): vol.Any(None, str),
-                vol.Optional(SZ_KLASS, default=None): vol.Any(
+                vol.Optional(SZ_CLASS, default=None): vol.Any(
                     None, *(DEV_TYPE_MAP._str(s) for s in DEV_TYPE_MAP.HVAC_SLUGS)
                 ),
                 vol.Optional(SZ_FAKED, default=None): vol.Any(None, bool),
@@ -164,7 +165,7 @@ SYSTEM_KLASS = (SystemType.EVOHOME, SystemType.HOMETRONICS, SystemType.SUNDIAL)
 SCHEMA_TCS = vol.Schema(
     {
         vol.Required(SZ_APP_CNTRL, default=None): vol.Any(None, DEV_REGEX_APP),
-        vol.Optional(SZ_KLASS, default=SystemType.EVOHOME): vol.Any(*SYSTEM_KLASS),
+        vol.Optional(SZ_CLASS, default=SystemType.EVOHOME): vol.Any(*SYSTEM_KLASS),
     },
     # extra=vol.ALLOW_EXTRA,  # TODO: remove me
 )
@@ -185,27 +186,29 @@ UFC_CIRCUIT = vol.Schema(
 )
 SCHEMA_UFH = vol.Schema(
     {
-        vol.Required(DEVICE_ID): vol.Any(
+        vol.Required(DEV_REGEX_UFC): vol.Any(
             None, {vol.Optional(SZ_UFH_CIRCUITS): vol.Any(None, dict)}
         )
     }
 )
 SCHEMA_UFH = vol.All(SCHEMA_UFH, vol.Length(min=1, max=3))
 
-SCHEMA_ZON = vol.Schema(  # vol.All([DEVICE_ID], vol.Length(min=0))(['01:123456'])
+SCHEMA_ZON = vol.Schema(  # vol.All([DEV_REGEX_ANY], vol.Length(min=0))(['01:123456'])
     {
-        vol.Optional(SZ_KLASS, default=None): vol.Any(None, *HEAT_ZONES_STRS),
-        vol.Optional(SZ_SENSOR, default=None): vol.Any(None, SENSOR_ID),
+        vol.Optional(SZ_CLASS, default=None): vol.Any(None, *HEAT_ZONES_STRS),
+        vol.Optional(SZ_SENSOR, default=None): vol.Any(None, DEV_REGEX_SEN),
         vol.Optional(SZ_DEVICES): renamed(SZ_ACTUATORS),
-        vol.Optional(SZ_ACTUATORS, default=[]): vol.All([DEVICE_ID], vol.Length(min=0)),
-        vol.Optional(SZ_ZONE_TYPE): renamed(SZ_KLASS),
+        vol.Optional(SZ_ACTUATORS, default=[]): vol.All(
+            [DEV_REGEX_ANY], vol.Length(min=0)
+        ),
+        vol.Optional(SZ_ZONE_TYPE): renamed(SZ_CLASS),
         vol.Optional("zone_sensor"): renamed(SZ_SENSOR),
         # vol.Optional(SZ_SENSOR_FAKED): bool,
         vol.Optional(f"_{SZ_NAME}"): str,
     },
     extra=vol.PREVENT_EXTRA,
 )
-# SCHEMA_ZON({SZ_KLASS: None, SZ_DEVICES: None})  # TODO: remove me
+# SCHEMA_ZON({SZ_CLASS: None, SZ_DEVICES: None})  # TODO: remove me
 SCHEMA_ZONES = vol.All(
     vol.Schema({vol.Required(ZONE_IDX): SCHEMA_ZON}),
     vol.Length(min=1, max=DEFAULT_MAX_ZONES),
@@ -216,7 +219,7 @@ SCHEMA_SYS = vol.Schema(
         vol.Optional(SZ_TCS_SYSTEM, default={}): vol.Any({}, SCHEMA_TCS),
         vol.Optional(SZ_DHW_SYSTEM, default={}): vol.Any({}, SCHEMA_DHW),
         vol.Optional(SZ_UFH_SYSTEM, default={}): vol.Any({}, SCHEMA_UFH),
-        vol.Optional(SZ_ORPHANS, default=[]): vol.Any([], [DEVICE_ID]),
+        vol.Optional(SZ_ORPHANS, default=[]): vol.Any([], [DEV_REGEX_ANY]),
         vol.Optional(SZ_ZONES, default={}): vol.Any({}, SCHEMA_ZONES),
     },
     extra=vol.ALLOW_EXTRA,  # TODO: remove me - But: Causes an issue?
@@ -281,13 +284,13 @@ def load_config(
 def update_config(config, known_list, block_list) -> dict:
     """Determine which device filter to use, if any: known_list or block_list."""
 
-    if "inbound" not in config["use_regex"]:  # TODO: move to voluptuous
-        config["use_regex"]["inbound"] = {}
-    if "outbound" not in config["use_regex"]:
-        config["use_regex"]["outbound"] = {}
+    if SZ_INBOUND not in config[USE_REGEX]:  # TODO: move to voluptuous
+        config[USE_REGEX][SZ_INBOUND] = {}
+    if SZ_OUTBOUND not in config[USE_REGEX]:
+        config[USE_REGEX][SZ_OUTBOUND] = {}
 
     if DEV_HACK_REGEX:  # HACK: for DEV/TEST convenience, not for production
-        config["use_regex"]["inbound"].update(
+        config[USE_REGEX][SZ_INBOUND].update(
             {
                 "( 03:.* 03:.* (1060|2389|30C9) 003) ..": "\\1 00",
                 # "02:153425": "20:153425",

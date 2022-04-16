@@ -45,9 +45,9 @@ from .schema import (
     SCHEMA_SYS,
     SCHEMA_ZON,
     SZ_APP_CNTRL,
+    SZ_CLASS,
     SZ_CONTROLLER,
     SZ_DHW_SYSTEM,
-    SZ_KLASS,
     SZ_ORPHANS,
     SZ_SENSOR,
     SZ_TCS_SYSTEM,
@@ -677,7 +677,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
             if msg.payload.get(SZ_ZONE_TYPE) in ZON_CLASS_MAP.HEAT_ZONES:
                 [
                     self.zx_get_htg_zone(f"{idx:02X}")._zx_update_schema(
-                        **{SZ_KLASS: ZON_CLASS_MAP[msg.payload[SZ_ZONE_TYPE]]}
+                        **{SZ_CLASS: ZON_CLASS_MAP[msg.payload[SZ_ZONE_TYPE]]}
                     )
                     for idx, flag in enumerate(msg.payload["zone_mask"])
                     if flag == 1
@@ -1236,7 +1236,7 @@ def zx_system_factory(ctl, msg: Message = None, **schema) -> Class:
         """Return the system class for a given CTL/schema (defaults to evohome)."""
 
         # a specified system class always takes precidence (even if it is wrong)...
-        if klass := SYS_CLASS_BY_SLUG.get(schema.get(SZ_KLASS)):
+        if klass := SYS_CLASS_BY_SLUG.get(schema.get(SZ_CLASS)):
             _LOGGER.debug(f"Using configured system class for: {ctl_addr} ({klass})")
             return klass
 

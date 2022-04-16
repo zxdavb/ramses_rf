@@ -55,10 +55,10 @@ from .schema import (
     SCHEMA_DHW,
     SCHEMA_ZON,
     SZ_ACTUATORS,
+    SZ_CLASS,
     SZ_DEVICES,
     SZ_DHW_VALVE,
     SZ_HTG_VALVE,
-    SZ_KLASS,
     SZ_SENSOR,
 )
 
@@ -684,7 +684,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
         schema = shrink(SCHEMA_ZON(schema))
 
-        if klass := schema.get(SZ_KLASS):
+        if klass := schema.get(SZ_CLASS):
             set_zone_type(ZON_CLASS_MAP[klass])
 
         if dev_id := schema.get(SZ_SENSOR):
@@ -823,7 +823,7 @@ class Zone(ZoneSchedule, ZoneBase):
             elif msg.payload[SZ_ZONE_TYPE] in ZON_CLASS_MAP.HEAT_ZONES:
                 self._zx_update_schema(
                     **{
-                        SZ_KLASS: ZON_CLASS_MAP[msg.payload[SZ_ZONE_TYPE]],
+                        SZ_CLASS: ZON_CLASS_MAP[msg.payload[SZ_ZONE_TYPE]],
                         SZ_ACTUATORS: msg.payload[SZ_DEVICES],
                     }
                 )
@@ -954,7 +954,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
         return {
             f"_{SZ_NAME}": self.name,
-            SZ_KLASS: self.heating_type,
+            SZ_CLASS: self.heating_type,
             SZ_SENSOR: self._sensor.id if self._sensor else None,
             SZ_ACTUATORS: [d.id for d in self.actuators],
         }
@@ -1141,7 +1141,7 @@ def zx_zone_factory(tcs, idx: str, msg: Message = None, **schema) -> Class:
         # NOTE: for now, zones are always promoted after instantiation
 
         # # a specified zone class always takes precidence (even if it is wrong)...
-        # if klass := ZONE_CLASS_BY_SLUG.get(schema.get(SZ_KLASS)):
+        # if klass := ZONE_CLASS_BY_SLUG.get(schema.get(SZ_CLASS)):
         #     _LOGGER.debug(f"Using configured zone class for: {ctl_addr}_{idx} ({klass})")
         #     return klass
 

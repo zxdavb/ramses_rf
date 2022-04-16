@@ -11,7 +11,7 @@ from symtable import Class
 
 from .const import __dev_mode__
 from .protocol import Address, Message
-from .schema import SZ_KLASS
+from .schema import SZ_CLASS
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -72,7 +72,7 @@ def device_role_best(
     """Return the best device role for a given device id/msg/schema."""
 
     # a specified device class always takes precidence (even if it is wrong)...
-    if klass := _CLASS_BY_SLUG.get(schema.get(SZ_KLASS)):
+    if klass := _CLASS_BY_SLUG.get(schema.get(SZ_CLASS)):
         _LOGGER.debug(f"Using configured dev class for: {dev_addr} ({klass})")
         return klass
 
