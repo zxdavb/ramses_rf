@@ -18,7 +18,7 @@ from ramses_rf.protocol.packet import Packet
 from ramses_rf.protocol.parsers import PAYLOAD_PARSERS
 
 
-PARSER_DIR = f"{TEST_DIR}/parser"
+PARSER_DIR = f"{TEST_DIR}/parsers"
 LOG_FILES = (
     "000C_long",
     "000C_short",

@@ -10,7 +10,7 @@ import unittest
 
 from common import GWY_CONFIG, TEST_DIR  # noqa: F401
 
-from ramses_rf.const import DEV_CLASS_MAP
+from ramses_rf.const import DEV_ROLE_MAP
 from ramses_rf.protocol.const import attr_dict_factory
 from ramses_rf.zones import _transform
 
@@ -20,52 +20,52 @@ class TestClasses(unittest.TestCase):
         _ = attr_dict_factory(MAIN_DICT, attr_table=ATTR_DICT)
 
         try:
-            DEV_CLASS_MAP["_08"]
+            DEV_ROLE_MAP["_08"]
         except KeyError:
             self.assertTrue(True)
         else:
             self.assertTrue(False)
 
-        self.assertEqual(DEV_CLASS_MAP.DHW, "0D")
-        self.assertEqual(DEV_CLASS_MAP._0D, "dhw_sensor")
-        self.assertEqual(DEV_CLASS_MAP.DHW_SENSOR, "0D")
+        self.assertEqual(DEV_ROLE_MAP.DHW, "0D")
+        self.assertEqual(DEV_ROLE_MAP._0D, "dhw_sensor")
+        self.assertEqual(DEV_ROLE_MAP.DHW_SENSOR, "0D")
 
-        self.assertEqual(DEV_CLASS_MAP["RAD"], "rad_actuator")
-        self.assertEqual(DEV_CLASS_MAP["08"], "rad_actuator")
-        self.assertEqual(DEV_CLASS_MAP["rad_actuator"], "08")
+        self.assertEqual(DEV_ROLE_MAP["RAD"], "rad_actuator")
+        self.assertEqual(DEV_ROLE_MAP["08"], "rad_actuator")
+        self.assertEqual(DEV_ROLE_MAP["rad_actuator"], "08")
 
-        self.assertEqual(DEV_CLASS_MAP._hex("SEN"), "04")
-        self.assertRaises(KeyError, DEV_CLASS_MAP._hex, "04")
-        self.assertEqual(DEV_CLASS_MAP._hex("zone_sensor"), "04")
+        self.assertEqual(DEV_ROLE_MAP._hex("SEN"), "04")
+        self.assertRaises(KeyError, DEV_ROLE_MAP._hex, "04")
+        self.assertEqual(DEV_ROLE_MAP._hex("zone_sensor"), "04")
 
-        self.assertEqual(DEV_CLASS_MAP._str("OUT"), "out_sensor")
-        self.assertEqual(DEV_CLASS_MAP._str("0C"), "out_sensor")
-        self.assertRaises(KeyError, DEV_CLASS_MAP._str, "out_sensor")
+        self.assertEqual(DEV_ROLE_MAP._str("OUT"), "out_sensor")
+        self.assertEqual(DEV_ROLE_MAP._str("0C"), "out_sensor")
+        self.assertRaises(KeyError, DEV_ROLE_MAP._str, "out_sensor")
 
-        self.assertRaises(KeyError, DEV_CLASS_MAP.slug, "RFG")
-        self.assertEqual(DEV_CLASS_MAP.slug("10"), "RFG")
-        self.assertRaises(KeyError, DEV_CLASS_MAP.slug, "remote_gateway")
-
-        self.assertTrue(
-            "HTG" not in DEV_CLASS_MAP.keys()
-            and "0E" in DEV_CLASS_MAP.keys()
-            and "heating_relay" not in DEV_CLASS_MAP.keys()
-        )
-        self.assertTrue(
-            "DHW" not in DEV_CLASS_MAP.values()
-            and "0D" not in DEV_CLASS_MAP.values()
-            and "dhw_sensor" in DEV_CLASS_MAP.values()
-        )
+        self.assertRaises(KeyError, DEV_ROLE_MAP.slug, "RFG")
+        self.assertEqual(DEV_ROLE_MAP.slug("10"), "RFG")
+        self.assertRaises(KeyError, DEV_ROLE_MAP.slug, "remote_gateway")
 
         self.assertTrue(
-            "DHW" in DEV_CLASS_MAP.slugs()
-            and "0D" not in DEV_CLASS_MAP.slugs()
-            and "dhw_sensor" not in DEV_CLASS_MAP.slugs()
+            "HTG" not in DEV_ROLE_MAP.keys()
+            and "0E" in DEV_ROLE_MAP.keys()
+            and "heating_relay" not in DEV_ROLE_MAP.keys()
+        )
+        self.assertTrue(
+            "DHW" not in DEV_ROLE_MAP.values()
+            and "0D" not in DEV_ROLE_MAP.values()
+            and "dhw_sensor" in DEV_ROLE_MAP.values()
         )
 
-        self.assertEqual(DEV_CLASS_MAP.SLUGS, MAIN_SLUGS)
+        self.assertTrue(
+            "DHW" in DEV_ROLE_MAP.slugs()
+            and "0D" not in DEV_ROLE_MAP.slugs()
+            and "dhw_sensor" not in DEV_ROLE_MAP.slugs()
+        )
+
+        self.assertEqual(DEV_ROLE_MAP.SLUGS, MAIN_SLUGS)
         self.assertEqual(
-            DEV_CLASS_MAP.HEAT_DEVICES, ("00", "04", "08", "09", "0A", "0B", "11")
+            DEV_ROLE_MAP.HEAT_DEVICES, ("00", "04", "08", "09", "0A", "0B", "11")
         )
 
 

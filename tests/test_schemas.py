@@ -26,7 +26,8 @@ from ramses_rf.schema import (
     load_schema,
 )
 
-SCHEMA_DIR = f"{TEST_DIR}/schema"
+SCHEMA_DIR = f"{TEST_DIR}/schemas"
+
 JSN_FILES = (
     "schema_100",
     "schema_101",
