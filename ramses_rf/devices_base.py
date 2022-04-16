@@ -11,7 +11,7 @@ Base for all devices.
 import logging
 from random import randint
 from types import SimpleNamespace
-from typing import Optional
+from typing import Any, Optional
 
 from .const import SZ_DEVICES, SZ_ZONE_IDX, Discover, __dev_mode__
 from .entity_base import Entity, class_by_attr, discover_decorator
@@ -207,7 +207,7 @@ class DeviceBase(Entity):
         """
 
         schema = shrink(SCHEMA_DEV(schema))
-        pass
+        pass  # TODO: WIP
 
     def __repr__(self) -> str:
         if self._STATE_ATTR:
@@ -215,7 +215,7 @@ class DeviceBase(Entity):
         return f"{self.id} ({self._domain_id})"
 
     def __str__(self) -> str:
-        return self.id if self._klass is DEV_TYPE.DEV else f"{self.id} ({self._klass})"
+        return f"{self.id} ({self._SLUG})"
 
     def __lt__(self, other) -> bool:
         if not hasattr(other, "id"):
@@ -297,11 +297,6 @@ class DeviceBase(Entity):
 
         return False
 
-    # @property
-    # def _is_parent(self) -> bool:
-    #     """Return True if other devices can bind to this device."""
-    #     return self._klass in (DEV_CLASS.CTL, DEV_CLASS.PRG, DEV_CLASS.UFC)
-
     @property
     def _is_present(self) -> bool:
         """Try to exclude ghost devices (as caused by corrupt packet addresses)."""
@@ -355,25 +350,24 @@ class Device(DeviceBase):  # 10E0
     def _discover(self, discover_flag=Discover.ALL) -> None:
         if discover_flag & Discover.SCHEMA:
             if not self._msgs.get(_10E0) and (
-                self._klass not in CODES_BY_DEV_SLUG
-                or RP in CODES_BY_DEV_SLUG[self._klass].get(_10E0, {})
+                self._SLUG not in CODES_BY_DEV_SLUG
+                or RP in CODES_BY_DEV_SLUG[self._SLUG].get(_10E0, {})
             ):
                 self._make_cmd(_10E0, retries=3)
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if self._klass is Device:  # HACK: try to get more precise device class
-            from .devices import best_device_class
+        if self._SLUG in DEV_TYPE_MAP.PROMOTABLE_SLUGS:
+            # HACK: can get precise class?
+            from .devices import device_class_best
 
-            if (
-                klass := best_device_class(
-                    self.addr, msg, eavesdrop=self._gwy.config.enable_eavesdrop
-                )
-                is not Device
-            ):
-                _LOGGER.warning(f"Promoting the device class of {self} to: {klass}")
-                self.__class__ = klass
+            cls = device_class_best(
+                self.addr, msg, eavesdrop=self._gwy.config.enable_eavesdrop
+            )
+            if cls._SLUG != self._SLUG and DEV_TYPE.DEV not in (cls._SLUG, self._SLUG):
+                _LOGGER.warning(f"Promoting the dev class of {self} to: {cls._SLUG}")
+                self.__class__ = cls
 
         if not self._gwy.config.enable_eavesdrop:
             return
@@ -759,13 +753,12 @@ class HeatDevice(Device):  # Honeywell CH/DHW or compatible (incl. UFH, Heatpump
             elif self._iz_controller is False:  # TODO: raise CorruptStateError
                 _LOGGER.error(f"{msg!r} # IS_CONTROLLER (01): was FALSE, now True")
 
-    def _make_tcs_controller(self, msg=None, **schema):  # CH/DHW
-        """Create a TCS, and attach it to this device (should be a controller)."""
+    def _make_tcs_controller(self, msg=None, **schema) -> Any:  # CH/DHW
+        """Return a temperature control system (create/update it as required).
 
-        """Return a temperature control system (create it if required).
-
+        TCSs are uniquely identified by a controller ID.
+        If a TCS is created, attach it to this device (which should be a CTL).
         Raise an error if the TCS exists and a schema was provided.
-        Temperature control systems are uniquely identified by their controller ID.
         """
 
         from .systems import zx_system_factory
@@ -791,6 +784,8 @@ class HeatDevice(Device):  # Honeywell CH/DHW or compatible (incl. UFH, Heatpump
 
         # Step 1: Create the object (__init__ checks for unique ID)
         self._tcs = zx_system_factory(self, msg=msg, **schema)
+        #
+        #
 
         # Step 2: If enabled/possible, start discovery (TODO: is messy)
         if not self._gwy.config.disable_discovery and isinstance(
@@ -799,28 +794,6 @@ class HeatDevice(Device):  # Honeywell CH/DHW or compatible (incl. UFH, Heatpump
             self._tcs._start_discovery()
 
         return self._tcs
-
-    # def _set_ctl(self, ctl):  # self._ctl
-    #     """Set the device's parent controller, after validating it."""
-
-    #     if self._ctl is ctl:
-    #         return self._ctl
-    #     if self._is_controller and not isinstance(self, UfhController):  # HACK: UFC
-    #         # HACK: UFC is/binds to a CTL
-    #         return  # TODO
-    #     if self._ctl is not None and not isinstance(self, UfhController):  # HACK: UFC
-    #         raise CorruptStateError(f"{self} changed controller: {self._ctl} to {ctl}")
-
-    #     #  I --- 01:078710 --:------ 01:144246 1F09 003 FF04B5  # has been seen
-    #     if not isinstance(ctl, Controller) and not ctl._is_controller:
-    #         raise TypeError(f"Device {ctl} is not a controller")
-
-    #     self._ctl = ctl
-    #     ctl.device_by_id[self.id] = self
-    #     ctl.devices.append(self)
-
-    #     _LOGGER.debug("%s: controller now set to %s", self, self._ctl)
-    #     return self._ctl
 
 
 class HvacDevice(Device):  # HVAC (ventilation, PIV, MV/HR)

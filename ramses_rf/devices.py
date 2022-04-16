@@ -63,7 +63,7 @@ if DEV_MODE:
 _CLASS_BY_SLUG = BASE_CLASS_BY_SLUG | HEAT_CLASS_BY_SLUG | HVAC_CLASS_BY_SLUG
 
 
-def best_device_class(
+def device_class_best(
     dev_addr: Address,
     msg: Message = None,
     eavesdrop: bool = False,
@@ -100,9 +100,12 @@ def best_device_class(
 
 
 def zx_device_factory(gwy, dev_addr: Address, msg: Message = None, **schema) -> Class:
-    """Return the device class for a given device id/msg/schema."""
+    """Return the initial device class for a given device id/msg/schema.
 
-    return best_device_class(
+    Some devices are promotable to s compatibel sub class.
+    """
+
+    return device_class_best(
         dev_addr,
         msg=msg,
         eavesdrop=gwy.config.enable_eavesdrop,

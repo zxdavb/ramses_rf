@@ -49,7 +49,7 @@ SZ_MAIN_CONTROLLER = "main_controller"
 
 SZ_CONTROLLER = "controller"
 SZ_TCS_SYSTEM = "system"
-SZ_TCS_RELAY = DEV_CLASS_MAP._str(DEV_CLASS.APP)
+SZ_APP_CNTRL = DEV_CLASS_MAP._str(DEV_CLASS.APP)
 SZ_ORPHANS = "orphans"
 
 SZ_DHW_SYSTEM = "stored_hotwater"
@@ -72,7 +72,7 @@ SZ_UFH_CIRCUITS = "ufh_circuits"
 
 SZ_DEVICE_ID = SZ_DEVICE_ID
 SZ_ALIAS = "alias"
-SZ_KLASS = "class"  # device/zone class
+SZ_KLASS = "class"  # device/system/zone class
 SZ_FAKED = "faked"
 
 DEVICE_ID = vol.Match(DEVICE_ID_REGEX.ANY)
@@ -159,13 +159,12 @@ SCHEMA_DEV = vol.Schema(
 )
 
 # 2/3: Schemas for Heating systems
-SZ_SYS_KLASS = "class"
 SYSTEM_KLASS = (SystemType.EVOHOME, SystemType.HOMETRONICS, SystemType.SUNDIAL)
 
 SCHEMA_TCS = vol.Schema(
     {
-        vol.Required(SZ_TCS_RELAY, default=None): vol.Any(None, DEV_REGEX_HTG),
-        vol.Optional(SZ_SYS_KLASS, default=SystemType.EVOHOME): vol.Any(*SYSTEM_KLASS),
+        vol.Required(SZ_APP_CNTRL, default=None): vol.Any(None, DEV_REGEX_HTG),
+        vol.Optional(SZ_KLASS, default=SystemType.EVOHOME): vol.Any(*SYSTEM_KLASS),
     },
     # extra=vol.ALLOW_EXTRA,  # TODO: remove me
 )
@@ -384,36 +383,8 @@ def load_system(gwy, ctl_id, schema) -> tuple[dict, dict]:
 
     ctl._make_tcs_controller(**schema)
 
-    if dev_id := schema[SZ_TCS_SYSTEM].get(SZ_TCS_RELAY):
-        ctl._tcs._set_tcs_relay(_get_device(gwy, dev_id, ctl_id=ctl.id))
-
-    # if SCHEMA_DHW := schema.get(SZ_DHW_SYSTEM, {}):
-    #     dhw = ctl._tcs._get_dhw()  # **SCHEMA_DHW)
-    #     if dev_id := SCHEMA_DHW.get(SZ_SENSOR):
-    #         dhw._set_sensor(_get_device(gwy, dev_id, ctl_id=ctl.id))
-    #     if dev_id := SCHEMA_DHW.get(SZ_DHW_VALVE):
-    #         dhw._set_dhw_valve(_get_device(gwy, dev_id, ctl_id=ctl.id))
-    #     if dev_id := SCHEMA_DHW.get(SZ_HTG_VALVE):
-    #         dhw._set_htg_valve(_get_device(gwy, dev_id, ctl_id=ctl.id))
-
     for dev_id in schema.get(SZ_UFH_SYSTEM, {}).keys():  # UFH controllers
         _get_device(gwy, dev_id, ctl_id=ctl.id)  # , **_schema)
-
-    # for zone_idx, attrs in schema[SZ_ZONES].items():
-    #     zone = ctl._tcs.zx_get_htg_zone(zone_idx)  # , **attrs)
-
-    #     if dev_id := attrs.get(SZ_SENSOR):
-    #         zone._set_sensor(
-    #             _get_device(gwy, dev_id, ctl_id=ctl.id, domain_id=zone_idx)
-    #         )
-    #         if attrs.get(SZ_SENSOR_FAKED):
-    #             zone.sensor._make_fake()  # TODO: check device type here?
-
-    #     for dev_id in attrs.get(SZ_ACTUATORS, []):
-    #         _get_device(gwy, dev_id, ctl_id=ctl.id, domain_id=zone_idx)
-
-    #     if klass := attrs.get(SZ_KLASS):
-    #         zone._set_zone_type(klass)
 
     for dev_id in schema.get(SZ_ORPHANS, []):
         _get_device(gwy, dev_id, ctl_id=ctl.id, disable_warning=True)

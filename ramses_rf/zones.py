@@ -315,12 +315,12 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
     _SLUG: str = ZON_CLASS.DHW
 
     def _zx_update_schema(self, **schema):
-        """Update a CH/DHW zone with new schema attrs.
+        """Update a DHW zone with new schema attrs.
 
         Raise an exception if the new schema is not a superset of the existing schema.
         """
 
-        def set_dhw_device(dev_id, schema_attr, dev_class, domain_id):
+        def get_dhw_device(dev_id, dev_slug, dev_class, domain_id) -> Device:
             """Set the temp sensor for this DHW zone (07: only)."""
 
             """Set the heating valve relay for this DHW zone (13: only)."""
@@ -338,6 +338,11 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
             # 07:38:39.124 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
             # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
+
+            if dev_slug == DEV_CLASS.DHW:
+                schema_attr = SZ_SENSOR
+            else:  # if dev_slug in (DEV_CLASS.HTG, DEV_CLASS.HT1):
+                schema_attr = DEV_CLASS_MAP._str(dev_slug)
 
             new_dev = self._gwy._get_device(dev_id, ctl_id=self._ctl.id)
             old_dev = self.schema[schema_attr]
@@ -359,17 +364,13 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         schema = shrink(SCHEMA_DHW(schema))
 
         if dev_id := schema.get(SZ_SENSOR):
-            self._dhw_sensor = set_dhw_device(dev_id, SZ_SENSOR, DhwSensor, "FA")
+            self._dhw_sensor = get_dhw_device(dev_id, DEV_CLASS.DHW, DhwSensor, "FA")
 
         if dev_id := schema.get(DEV_CLASS_MAP._str(DEV_CLASS.HTG)):
-            self._dhw_valve = set_dhw_device(
-                dev_id, DEV_CLASS_MAP._str(DEV_CLASS.HTG), BdrSwitch, "FA"
-            )
+            self._dhw_valve = get_dhw_device(dev_id, DEV_CLASS.HTG, BdrSwitch, "FA")
 
         if dev_id := schema.get(DEV_CLASS_MAP._str(DEV_CLASS.HT1)):
-            self._htg_valve = set_dhw_device(
-                dev_id, DEV_CLASS_MAP._str(DEV_CLASS.HT1), BdrSwitch, "F9"
-            )
+            self._htg_valve = get_dhw_device(dev_id, DEV_CLASS.HT1, BdrSwitch, "F9")
 
     def __init__(self, tcs, zone_idx="HW") -> None:
         _LOGGER.debug("Creating a DHW for TCS: %s", tcs)
@@ -599,12 +600,12 @@ class Zone(ZoneSchedule, ZoneBase):
     _SLUG: str = None  # Unknown
 
     def _zx_update_schema(self, **schema):
-        """Update a CH/DHW zone with new schema attrs.
+        """Update a heating zone with new schema attrs.
 
         Raise an exception if the new schema is not a superset of the existing schema.
         """
 
-        def add_actuator(device: Device) -> None:  # self._sensor
+        def add_actuator(device: Device) -> None:
             """Set the temp sensor for this zone (one of: 01:, 03:, 04:, 12:, 22:, 34:)."""
 
             # if self._sensor is device:
@@ -624,7 +625,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
             device._set_parent(self)  # , domain=self.idx)
 
-        def set_sensor(device: Device) -> None:  # self._sensor
+        def set_sensor(device: Device) -> None:
             """Set the sensor for this zone (one of: 01:, 03:, 04:, 12:, 22:, 34:)."""
 
             if self._sensor is device:
@@ -641,7 +642,7 @@ class Zone(ZoneSchedule, ZoneBase):
             self._sensor = device
             device._set_parent(self, sensor=True)  # , domain=self.idx)
 
-        def set_zone_type(zone_type: str):
+        def set_zone_type(zone_type: str) -> None:
             """Set the zone's type (e.g. '08'), after validating it.
 
             There are two possible sources for the type of a zone:
@@ -1123,7 +1124,10 @@ ZONE_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # ZON_CLASS.RAD: RadZone
 
 
 def zx_zone_factory(tcs, idx: str, msg: Message = None, **schema) -> Class:
-    """Return the initial zone class for a given zone_idx/klass (Zone or DhwZone)."""
+    """Return the zone class for a given zone_idx/klass (Zone or DhwZone).
+
+    Some zones are promotable to a compatible sub class (e.g. ELE->VAL).
+    """
 
     def class_zon(
         ctl_addr: Address,

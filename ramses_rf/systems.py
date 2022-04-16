@@ -44,12 +44,12 @@ from .schema import (
     SCHEMA_DHW,
     SCHEMA_SYS,
     SCHEMA_ZON,
+    SZ_APP_CNTRL,
     SZ_CONTROLLER,
     SZ_DHW_SYSTEM,
     SZ_KLASS,
     SZ_ORPHANS,
     SZ_SENSOR,
-    SZ_TCS_RELAY,
     SZ_TCS_SYSTEM,
     SZ_UFH_SYSTEM,
     SZ_ZONE_TYPE,
@@ -182,10 +182,45 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         self._domain_id = "FF"
 
         # schema attrs
-        self._tcs_relay = None
+        self._app_cntrl = None
 
         # state attrs
         self._heat_demand = None
+
+    def _zx_update_schema(self, **schema):
+        """Update a CH/DHW system with new schema attrs.
+
+        Raise an exception if the new schema is not a superset of the existing schema.
+        """
+
+        def set_app_cntrl(device: Device) -> None:  # self._app_cntrl
+            """Set the TCS relay for this system (BDR or OTB)."""
+
+            if self._app_cntrl is device:
+                return
+            if self._app_cntrl is not None:
+                raise CorruptStateError(
+                    f"{self} changed {SZ_APP_CNTRL}: {self._app_cntrl} to {device}"
+                )
+
+            if not isinstance(device, (BdrSwitch, OtbGateway)):
+                raise TypeError(f"{self}: {SZ_APP_CNTRL} can't be {device}")
+
+            self._app_cntrl = device
+            device._set_parent(self, domain="FC")  # TODO: _set_domain()
+
+        schema = shrink(SCHEMA_SYS(schema))
+
+        if schema.get(SZ_TCS_SYSTEM) and (
+            dev_id := schema[SZ_TCS_SYSTEM].get(SZ_APP_CNTRL)
+        ):
+            set_app_cntrl(self._gwy._zx_get_device(Address(dev_id)))  # self._app_cntrl
+
+        if _schema := (schema.get(SZ_DHW_SYSTEM)):
+            self.zx_get_dhw_zone(**_schema)  # self._dhw
+
+        if _schema := (schema.get(SZ_ZONES)):
+            [self.zx_get_htg_zone(idx, **s) for idx, s in _schema.items()]
 
     @classmethod
     def zx_create_from_schema(cls, ctl: Device, **schema):
@@ -198,22 +233,6 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         tcs = cls(ctl)
         tcs._zx_update_schema(**schema)
         return tcs
-
-    def _zx_update_schema(self, **schema):
-        """Update a CH/DHW system with new schema attrs.
-
-        Raise an exception if the new schema is not a superset of the existing schema.
-        """
-
-        schema = shrink(SCHEMA_SYS(schema))
-
-        # super()._zx_update_schema(**schema)  # TODO: split out?
-
-        if _schema := (schema.get(SZ_DHW_SYSTEM)):
-            self.zx_get_dhw_zone(**_schema)
-
-        if _schema := (schema.get(SZ_ZONES)):
-            [self.zx_get_htg_zone(idx, **s) for idx, s in _schema.items()]
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (sys_base)"
@@ -261,7 +280,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         #         self._make_cmd(_0008, payload=f"{domain_id:02X}00")
 
     def _handle_msg(self, msg) -> None:
-        def eavesdrop_tcs_relay(this, prev=None) -> None:
+        def eavesdrop_app_cntrl(this, prev=None) -> None:
             """Discover the heat relay (10: or 13:) for this system.
 
             There's' 3 ways to find a controller's heat relay (in order of reliability):
@@ -309,7 +328,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                         heater = prev.src
 
             if heater is not None:
-                self._set_tcs_relay(heater)
+                self._set_app_cntrl(heater)
 
         assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
 
@@ -323,7 +342,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                 elif domain_id == "FkA":  # TODO, FIXME
                     device = self.dhw.hotwater_valve if self.dhw else None
                 elif domain_id == "FC":
-                    device = self.tcs_relay
+                    device = self.appliance_control
                 else:
                     device = None
 
@@ -332,20 +351,19 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                     for code in (_0008, _3EF1):
                         device._make_cmd(code, qos)
 
-        elif msg.code == _000C:
-            if (
-                msg.payload[SZ_DEVICE_CLASS] == DEV_CLASS_MAP["APP"]  # 0F
-                and msg.payload[SZ_DEVICES]
-            ):
-                self._set_tcs_relay(self._ctl.device_by_id[msg.payload[SZ_DEVICES][0]])
+        elif msg.code == _000C and msg.payload[SZ_DEVICES]:
+            if (dev_class := msg.payload[SZ_DEVICE_CLASS]) == DEV_CLASS_MAP["APP"]:
+                self._zx_update_schema(
+                    **{SZ_TCS_SYSTEM: {dev_class: msg.payload[SZ_DEVICES][0]}}
+                )
             return
 
         elif msg.code == _3150:
             if msg.payload.get(SZ_DOMAIN_ID) == "FC" and msg.verb in (I_, RP):
                 self._heat_demand = msg.payload
 
-        if self._gwy.config.enable_eavesdrop and not self.tcs_relay:
-            eavesdrop_tcs_relay(msg)
+        if self._gwy.config.enable_eavesdrop and not self.appliance_control:
+            eavesdrop_app_cntrl(msg)
 
     def _make_cmd(self, code, payload="00", **kwargs) -> None:  # skipcq: PYL-W0221
         super()._make_cmd(code, self._ctl.id, payload=payload, **kwargs)
@@ -355,28 +373,12 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         return self._ctl.devices + [self._ctl]  # TODO: to sort out
 
     @property
-    def tcs_relay(self) -> Device:
+    def appliance_control(self) -> Device:
         """The TCS relay, aka 'appliance control' (BDR or OTB)."""
-        if self._tcs_relay:
-            return self._tcs_relay
-        tcs_relay = [d for d in self._ctl.devices if d._domain_id == "FC"]
-        return tcs_relay[0] if len(tcs_relay) == 1 else None  # HACK for 10:
-
-    def _set_tcs_relay(self, device: Device) -> None:  # self._tcs_relay
-        """Set the TCS relay for this system (BDR or OTB)."""
-
-        if self._tcs_relay is device:
-            return
-        if self._tcs_relay is not None:
-            raise CorruptStateError(
-                f"{self} changed {SZ_TCS_RELAY}: {self._tcs_relay} to {device}"
-            )
-
-        if not isinstance(device, (BdrSwitch, OtbGateway)):
-            raise TypeError(f"{self}: {SZ_TCS_RELAY} can't be {device}")
-
-        self._tcs_relay = device
-        device._set_parent(self, domain="FC")  # TODO: _set_domain()
+        if self._app_cntrl:
+            return self._app_cntrl
+        app_cntrl = [d for d in self._ctl.devices if d._domain_id == "FC"]
+        return app_cntrl[0] if len(app_cntrl) == 1 else None  # HACK for 10:
 
     @property
     def tpi_params(self) -> Optional[dict]:  # 1100
@@ -389,7 +391,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
     @property
     def is_calling_for_heat(self) -> Optional[bool]:
         """Return True is the system is currently calling for heat."""
-        return self._tcs_relay and self._tcs_relay.actuator_state
+        return self._app_cntrl and self._app_cntrl.actuator_state
 
     @property
     def schema(self) -> dict:
@@ -398,8 +400,8 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         schema = {SZ_TCS_SYSTEM: {}}
         # hema = {SZ_CONTROLLER: self._ctl.id, SZ_TCS_SYSTEM: {}}
 
-        schema[SZ_TCS_SYSTEM][SZ_TCS_RELAY] = (
-            self.tcs_relay.id if self.tcs_relay else None
+        schema[SZ_TCS_SYSTEM][SZ_APP_CNTRL] = (
+            self.appliance_control.id if self.appliance_control else None
         )
 
         schema[SZ_ORPHANS] = sorted(
@@ -420,12 +422,12 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         result = {SZ_CONTROLLER: self.id}
 
         try:
-            if schema[SZ_TCS_SYSTEM][SZ_TCS_RELAY][:2] == DEV_TYPE_MAP.OTB:  # DEX
+            if schema[SZ_TCS_SYSTEM][SZ_APP_CNTRL][:2] == DEV_TYPE_MAP.OTB:  # DEX
                 result[SZ_TCS_SYSTEM] = {
-                    SZ_TCS_RELAY: schema[SZ_TCS_SYSTEM][SZ_TCS_RELAY]
+                    SZ_APP_CNTRL: schema[SZ_TCS_SYSTEM][SZ_APP_CNTRL]
                 }
         except (IndexError, TypeError):
-            result[SZ_TCS_SYSTEM] = {SZ_TCS_RELAY: None}
+            result[SZ_TCS_SYSTEM] = {SZ_APP_CNTRL: None}
 
         zones = {}
         for idx, zone in schema[SZ_ZONES].items():
@@ -464,11 +466,12 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
 
 class MultiZone(SystemBase):  # 0005 (+/- 000C?)
-    def zx_get_htg_zone(self, zone_idx, **schema) -> Zone:
-        """Return a heating zone of a CH/DHW system (create it if required).
+    def zx_get_htg_zone(self, zone_idx, msg=None, **schema) -> Zone:
+        """Return a heating zone (create/update it as required).
 
-        Raise an error if the zone exists and a schema was provided.
         Heating zones are uniquely identified by a controller ID|zone_idx pair.
+        If a zone is created, attach it to this TCS.
+        Raise an error if the zone exists and a schema was provided.
         """
 
         from .zones import zx_zone_factory
@@ -482,7 +485,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
             return zon
 
         # Step 1: Create the object (__init__ checks for unique ID)
-        zon = zx_zone_factory(self, zone_idx, **schema)
+        zon = zx_zone_factory(self, zone_idx, msg=msg, **schema)
         self.zone_by_idx[zon.idx] = zon
         self.zones.append(zon)
 
@@ -891,11 +894,12 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
     MAX_SETPOINT = 85.0
     DEFAULT_SETPOINT = 50.0
 
-    def zx_get_dhw_zone(self, **schema) -> DhwZone:
-        """Return the DHW zone of a CH/DHW system (create it if required).
+    def zx_get_dhw_zone(self, msg=None, **schema) -> DhwZone:
+        """Return a DHW zone (create/update it as required).
 
+        DHW zones are uniquely identified by a controller ID.
+        If the DHW zone is created, attach it to this TCS.
         Raise an error if the DHW zone exists and a schema was provided.
-        DHW zones are uniquely identified by their controller ID.
         """
 
         from .zones import zx_zone_factory
@@ -909,7 +913,9 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
             return self._dhw
 
         # Step 1: Create the object (__init__ checks for unique DHW)
-        self._dhw = zx_zone_factory(self, "HW", **schema)
+        self._dhw = zx_zone_factory(self, "HW", msg=msg, **schema)
+        #
+        #
 
         # Step 2: If enabled/possible, start discovery (TODO: is messy)
         if not self._gwy.config.disable_discovery and isinstance(

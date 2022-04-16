@@ -1283,7 +1283,7 @@ class BdrSwitch(Actuator, RelayDemand, HeatDevice):  # BDR (13):
     #     super().__init__(*args, **kwargs)
 
     #     if kwargs.get(SZ_DOMAIN_ID) == "FC":  # TODO: F9/FA/FC, zone_idx
-    #         self._ctl._set_tcs_relay(self)
+    #         self._ctl._set_app_cntrl(self)
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:

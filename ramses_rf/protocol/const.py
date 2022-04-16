@@ -265,6 +265,7 @@ DEV_TYPE_MAP = attr_dict_factory(
         "THM_DEVICES": ("03", "12", "22", "34"),
         "TRV_DEVICES": ("00", "04"),
         # "CONTROLLERS": ("01", "12", "22", "23", "34")  # potentially controllers
+        "PROMOTABLE_SLUGS": (DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC),
     },
 )
 

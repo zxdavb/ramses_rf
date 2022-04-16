@@ -372,14 +372,14 @@ def parser_000c(payload, msg) -> Optional[dict]:
 
         return False  # if all else fails (unlikely), assume _len = 6
 
-    device_class = DEV_CLASS_MAP.get(payload[2:4])
-    if device_class == DEV_CLASS_MAP._str(DEV_CLASS.HTG) and payload[:2] == "01":
-        device_class = DEV_CLASS_MAP._str(DEV_CLASS.HT1)
+    dev_role = DEV_CLASS_MAP.get(payload[2:4])
+    if dev_role == DEV_CLASS_MAP._str(DEV_CLASS.HTG) and payload[:2] == "01":
+        dev_role = DEV_CLASS_MAP._str(DEV_CLASS.HT1)
 
     result = {
         SZ_ZONE_TYPE: payload[2:4],
         **complex_idx(payload[:2], msg),
-        SZ_DEVICE_CLASS: device_class,
+        SZ_DEVICE_CLASS: dev_role,
     }
     if msg.verb == RQ:  # RQs have a context: index, zone_type, payload is iitt
         return result
