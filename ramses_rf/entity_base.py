@@ -237,7 +237,7 @@ class Entity:
     def traits(self) -> dict:
         """Return the traits (codes seen) of the entity."""
 
-        return {"codes_seen": list(self._codes.keys())} if DEV_MODE else {}
+        return {"codes_seen": list(self._codes.keys())} if True else {}
 
 
 def _delete_msg(msg) -> None:

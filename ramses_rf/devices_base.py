@@ -333,7 +333,7 @@ class Device(Entity):
     def traits(self) -> dict:
         """Return the traits of the (known) device."""
 
-        result = super().traits()
+        result = super().traits
 
         result.update(
             {
@@ -489,7 +489,7 @@ class Fakeable(Device):
     @property
     def traits(self) -> dict:
 
-        result = super().traits()
+        result = super().traits
         result[SZ_FAKED] = self.is_faked
         return result
 
@@ -754,6 +754,14 @@ class DeviceHeat(
                 self._make_tcs_controller(msg=msg)
             elif self._iz_controller is False:  # TODO: raise CorruptStateError
                 _LOGGER.error(f"{msg!r} # IS_CONTROLLER (01): was FALSE, now True")
+
+    def _make_tcs_controller(self, msg=None, **schema) -> None:  # CH/DHW
+        """Attach a TCS (create/update as required) after passing it any msg."""
+
+        if self.type not in DEV_TYPE_MAP.CONTROLLERS:  # potentially can be controllers
+            raise TypeError(f"Invalid device type to be a controller: {self}")
+
+        self._iz_controller = self._iz_controller or msg or True
 
     @property
     def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]

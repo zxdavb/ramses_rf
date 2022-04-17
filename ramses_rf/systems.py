@@ -1240,7 +1240,7 @@ def zx_system_factory(ctl, msg: Message = None, **schema) -> Class:
             return klass
 
         # otherwise, use the default system class...
-        _LOGGER.warning(f"Using generic system class for: {ctl_addr} ({Evohome})")
+        _LOGGER.debug(f"Using generic system class for: {ctl_addr} ({Evohome})")
         return Evohome
 
     return best_tcs_class(

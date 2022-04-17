@@ -467,7 +467,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
         assert (
             msg.src is self._ctl
-            and msg.code in (_0005, _000C)
+            and msg.code in (_0005, _000C, _10A0, _1260, _1F41)
             or msg.payload.get(SZ_DOMAIN_ID) in ("F9", "FA")
         ), f"msg inappropriately routed to {self}"
 

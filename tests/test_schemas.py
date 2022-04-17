@@ -29,24 +29,24 @@ from ramses_rf.schema import (
 SCHEMA_DIR = f"{TEST_DIR}/schemas"
 
 JSN_FILES = (
-    # "schema_100",
-    # "schema_101",
-    # "schema_102",
-    # "schema_103",
-    # "schema_104",
-    # "schema_105",
-    # "schema_108",
+    "schema_100",
+    "schema_101",
+    "schema_102",
+    "schema_103",
+    "schema_104",
+    "schema_105",
+    "schema_108",
 )
 LOG_FILES = (
-    # "schema_201",
-    # "schema_202",
-    # "schema_210",
-    # "schema_211",
+    "schema_201",
+    "schema_202",
+    "schema_210",
+    "schema_211",
     "schema_212",
-    # "schema_213",
-    # "schema_000",
-    # "schema_001",
-    # "schema_002",
+    "schema_213",
+    "schema_000",
+    "schema_001",
+    "schema_002",
 )
 
 RADIATOR_VALVE = "radiator_valve"

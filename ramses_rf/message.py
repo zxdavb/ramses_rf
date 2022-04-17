@@ -14,6 +14,7 @@ from .const import (
     DEV_TYPE_MAP,
     DONT_CREATE_ENTITIES,
     DONT_UPDATE_ENTITIES,
+    SZ_DEVICES,
     __dev_mode__,
 )
 from .devices import Device, UfhController
@@ -348,10 +349,10 @@ def process_msg(msg: Message, prev_msg: Message = None) -> None:
         if msg.code not in (_0008, _0009, _3B00, _3EF1):  # special case: are fakeable
             return
 
+        #  I --- 22:060293 --:------ 22:060293 0008 002 000C
         #  I --- 01:054173 --:------ 01:054173 0008 002 03AA
-        if msg.dst == msg.src:
-            # this is needed for faked relays...
-            # each device will have to decide if this packet is useful
+        if msg.dst == msg.src and hasattr(msg.src, SZ_DEVICES):
+            # needed for faked relays: each device will decide if the pkt is useful
             [
                 d._handle_msg(msg)
                 for d in msg.src.devices

@@ -150,7 +150,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-class Actuator(DeviceHeat):  # 3EF0, 3EF1
+class Actuator(Fakeable, DeviceHeat):  # 3EF0, 3EF1
 
     ACTUATOR_CYCLE = "actuator_cycle"
     ACTUATOR_ENABLED = "actuator_enabled"  # boolean
@@ -252,7 +252,7 @@ class Setpoint(DeviceHeat):  # 2309
         }
 
 
-class Weather(Fakeable):  # 0002
+class Weather(Fakeable, DeviceHeat):  # 0002
 
     TEMPERATURE = SZ_TEMPERATURE  # degrees Celsius
 
@@ -290,7 +290,7 @@ class Weather(Fakeable):  # 0002
         }
 
 
-class RelayDemand(Fakeable):  # 0008
+class RelayDemand(Fakeable, DeviceHeat):  # 0008
 
     RELAY_DEMAND = SZ_RELAY_DEMAND  # percentage (0.0-1.0)
 
@@ -370,7 +370,7 @@ class RelayDemand(Fakeable):  # 0008
         }
 
 
-class DhwTemperature(Fakeable):  # 1260
+class DhwTemperature(Fakeable, DeviceHeat):  # 1260
 
     TEMPERATURE = SZ_TEMPERATURE  # degrees Celsius
 
@@ -405,7 +405,7 @@ class DhwTemperature(Fakeable):  # 1260
         }
 
 
-class Temperature(Fakeable):  # 30C9
+class Temperature(Fakeable, DeviceHeat):  # 30C9
 
     TEMPERATURE = SZ_TEMPERATURE  # degrees Celsius
 
@@ -462,7 +462,7 @@ class Controller(DeviceHeat):  # CTL (01):
         self._tcs = None  # self._make_tcs_controller(**kwargs)  # NOTE: do later
 
     def _make_tcs_controller(self, msg=None, **schema) -> None:  # CH/DHW
-        """Return a TCS (create/update as required) after passing it any msg."""
+        """Attach a TCS (create/update as required) after passing it any msg."""
 
         def zx_get_system(msg=None, **schema) -> Any:  # CH/DHW
             """Return a TCS (create/update as required) after passing it any msg.
@@ -486,10 +486,7 @@ class Controller(DeviceHeat):  # CTL (01):
                 self._tcs._handle_msg(msg)
             return self._tcs
 
-        if self.type not in DEV_TYPE_MAP.CONTROLLERS:  # potentially can be controllers
-            raise TypeError(f"Invalid device type to be a controller: {self}")
-
-        self._iz_controller = self._iz_controller or msg or True
+        super()._make_tcs_controller(msg=None, **schema)
 
         zx_get_system(msg=msg, **schema)
 
@@ -627,13 +624,14 @@ class UfhController(DeviceHeat):  # UFC (02):
                 return
             self._circuits[ufh_idx] = {SZ_ZONE_IDX: msg.payload["zone_id"]}
 
-            if dev_ids := msg.payload[SZ_DEVICES]:
-                # self._circuits[ufh_idx][SZ_DEVICES] = dev_ids[0]  # or:
-                if ctl := self._set_ctl(self._gwy._get_device(dev_ids[0])):
-                    # self._circuits[ufh_idx][SZ_DEVICES] = ctl.id  # better
-                    self._set_parent(
-                        ctl._tcs.zx_get_htg_zone(msg.payload["zone_id"]), msg
-                    )
+            # TODO: REFACTOR
+            # if dev_ids := msg.payload[SZ_DEVICES]:
+            #     # self._circuits[ufh_idx][SZ_DEVICES] = dev_ids[0]  # or:
+            #     if ctl := self._set_ctl(self._gwy._get_device(dev_ids[0])):
+            #         # self._circuits[ufh_idx][SZ_DEVICES] = ctl.id  # better
+            #         self._set_parent(
+            #             ctl._tcs.zx_get_htg_zone(msg.payload["zone_id"]), msg
+            #         )
 
         elif msg.code == _22C9:  # ufh_setpoints
             #  I --- 02:017205 --:------ 02:017205 22C9 024 00076C0A280101076C0A28010...
@@ -715,7 +713,7 @@ class UfhController(DeviceHeat):  # UFC (02):
         }
 
 
-class DhwSensor(DhwTemperature, BatteryState, DeviceHeat):  # DHW (07): 10A0, 1260
+class DhwSensor(DhwTemperature, BatteryState):  # DHW (07): 10A0, 1260
     """The DHW class, such as a CS92."""
 
     _SLUG: str = DEV_TYPE.DHW
@@ -750,7 +748,7 @@ class DhwSensor(DhwTemperature, BatteryState, DeviceHeat):  # DHW (07): 10A0, 12
         }
 
 
-class OutSensor(Weather, DeviceHeat):  # OUT: 17
+class OutSensor(Weather):  # OUT: 17
     """The OUT class (external sensor), such as a HB85/HB95."""
 
     _SLUG: str = DEV_TYPE.OUT
@@ -761,7 +759,7 @@ class OutSensor(Weather, DeviceHeat):  # OUT: 17
     _STATE_ATTR = SZ_TEMPERATURE
 
 
-class OtbGateway(Actuator, HeatDemand, DeviceHeat):  # OTB (10): 3220 (22D9, others)
+class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
     _SLUG: str = DEV_TYPE.OTB
@@ -1238,7 +1236,7 @@ class OtbGateway(Actuator, HeatDemand, DeviceHeat):  # OTB (10): 3220 (22D9, oth
         }
 
 
-class Thermostat(BatteryState, Setpoint, Temperature, DeviceHeat):  # THM (..):
+class Thermostat(BatteryState, Setpoint, Temperature):  # THM (..):
     """The THM/STA class, such as a TR87RF."""
 
     _SLUG: str = DEV_TYPE.THM
@@ -1283,7 +1281,7 @@ class Thermostat(BatteryState, Setpoint, Temperature, DeviceHeat):  # THM (..):
                 _LOGGER.error(f"{msg!r} # IS_CONTROLLER (21): was FALSE, now True")
 
 
-class BdrSwitch(Actuator, RelayDemand, DeviceHeat):  # BDR (13):
+class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
     """The BDR class, such as a BDR91.
 
     BDR91s can be used in six disctinct modes, including:
@@ -1392,9 +1390,7 @@ class BdrSwitch(Actuator, RelayDemand, DeviceHeat):  # BDR (13):
         }
 
 
-class TrvActuator(
-    BatteryState, HeatDemand, Setpoint, Temperature, DeviceHeat
-):  # TRV (04):
+class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature):  # TRV (04):
     """The TRV class, such as a HR92."""
 
     _SLUG: str = DEV_TYPE.TRV
@@ -1420,6 +1416,14 @@ class TrvActuator(
             **super().status,
             self.WINDOW_OPEN: self.window_open,
         }
+
+
+class JimDevice(Actuator):  # BDR (08):
+    _SLUG: str = DEV_TYPE.JIM
+
+
+class JstDevice(RelayDemand):  # BDR (31):
+    _SLUG: str = DEV_TYPE.JST
 
 
 HEAT_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. CTL: Controller

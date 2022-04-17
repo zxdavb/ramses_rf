@@ -1022,7 +1022,7 @@ def msg_value(val_seqx, val_type) -> Union[float, int, list, str]:
         try:
             return DATA_TYPES[val_type](val_seqx[:2], val_seqx[2:])
         except ValueError:
-            pass
+            return
     return val_seqx
 
 

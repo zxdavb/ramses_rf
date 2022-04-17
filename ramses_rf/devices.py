@@ -99,7 +99,7 @@ def best_dev_role(
         pass
 
     # otherwise, use the default device class...
-    _LOGGER.warning(f"Using a promotable HVAC class for: {dev_addr} ({DeviceHvac})")
+    _LOGGER.debug(f"Using a promotable HVAC class for: {dev_addr} ({DeviceHvac})")
     return DeviceHvac
 
 
