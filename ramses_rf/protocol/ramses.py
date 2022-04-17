@@ -508,7 +508,7 @@ CODES_SCHEMA: dict = {  # rf_unknown
     },  # seen with Hometronic systems
     _2E04: {  # system_mode
         SZ_NAME: "system_mode",
-        I_: r"^0[0-7][0-9A-F]{12}0[01]$",  # evo: r"^0[0-7][0-9A-F]{12}0[01]$",
+        I_: r"^0[0-7][0-9A-F]{12}0[01]$",
         RQ: r"^FF$",
         W_: r"^0[0-7][0-9A-F]{12}0[01]$",
         EXPIRES: td(hours=4),
@@ -1082,32 +1082,32 @@ CODES_ONLY_FROM_CTL = [_1030, _1F09, _22D0, _313F]  # I packets, TODO: 31Dx too?
 #         _2349: {I_: {}, RP: {}},
 #         _30C9: {I_: {}, RP: {}},
 #     },
-#     ZON_CLASS.RAD: {
+#     ZON_ROLE.RAD: {
 #         _12B0: {I_: {}, RP: {}},
 #         "3150a": {},
 #     },
-#     ZON_CLASS.ELE: {
+#     ZON_ROLE.ELE: {
 #         _0008: {I_: {}},
 #         _0009: {I_: {}},
 #     },
-#     ZON_CLASS.VAL: {
+#     ZON_ROLE.VAL: {
 #         _0008: {I_: {}},
 #         _0009: {I_: {}},
 #         "3150a": {},
 #     },
-#     ZON_CLASS.UFH: {
+#     ZON_ROLE.UFH: {
 #         _3150: {I_: {}},
 #     },
-#     ZON_CLASS.MIX: {
+#     ZON_ROLE.MIX: {
 #         _0008: {I_: {}},
 #         "3150a": {},
 #     },
-#     ZON_CLASS.DHW: {
+#     ZON_ROLE.DHW: {
 #         _10A0: {RQ: {}, RP: {}},
 #         _1260: {I_: {}},
 #         _1F41: {I_: {}},
 #     },
 # }
 # RAMSES_ZONES_ALL = RAMSES_ZONES.pop("ALL")
-# RAMSES_ZONES_DHW = RAMSES_ZONES[ZON_CLASS.DHW]
-# [RAMSES_ZONES[k].update(RAMSES_ZONES_ALL) for k in RAMSES_ZONES if k != ZON_CLASS.DHW]
+# RAMSES_ZONES_DHW = RAMSES_ZONES[ZON_ROLE.DHW]
+# [RAMSES_ZONES[k].update(RAMSES_ZONES_ALL) for k in RAMSES_ZONES if k != ZON_ROLE.DHW]

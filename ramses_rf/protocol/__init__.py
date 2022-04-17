@@ -47,8 +47,8 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     DEV_ROLE_MAP,
     DEV_TYPE,
     DEV_TYPE_MAP,
-    ZON_CLASS,
-    ZON_CLASS_MAP,
+    ZON_ROLE,
+    ZON_ROLE_MAP,
 )
 
 # skipcq: PY-W2000

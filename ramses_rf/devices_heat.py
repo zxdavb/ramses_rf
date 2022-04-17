@@ -9,7 +9,7 @@ Heating devices.
 import logging
 from random import randint
 from symtable import Class
-from typing import Optional
+from typing import Any, Optional
 
 from .const import (
     DEV_ROLE_MAP,
@@ -27,12 +27,13 @@ from .const import (
     SZ_WINDOW_OPEN,
     SZ_ZONE_IDX,
     SZ_ZONE_TYPE,
-    ZON_CLASS_MAP,
+    ZON_ROLE_MAP,
     Discover,
     __dev_mode__,
 )
-from .devices_base import BatteryState, Fakeable, HeatDevice
+from .devices_base import BatteryState, DeviceHeat, Fakeable
 from .entity_base import class_by_attr, discover_decorator
+from .helpers import shrink
 from .protocol import Address, Command, Message, Priority
 from .protocol.address import NON_DEV_ADDR
 from .protocol.opentherm import (
@@ -47,6 +48,7 @@ from .protocol.opentherm import (
     OtMsgType,
 )
 from .protocol.ramses import CODES_HEAT_ONLY, CODES_ONLY_FROM_CTL, CODES_SCHEMA
+from .schema import SCHEMA_SYS
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -148,7 +150,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-class Actuator(HeatDevice):  # 3EF0, 3EF1
+class Actuator(DeviceHeat):  # 3EF0, 3EF1
 
     ACTUATOR_CYCLE = "actuator_cycle"
     ACTUATOR_ENABLED = "actuator_enabled"  # boolean
@@ -218,7 +220,7 @@ class Actuator(HeatDevice):  # 3EF0, 3EF1
         }
 
 
-class HeatDemand(HeatDevice):  # 3150
+class HeatDemand(DeviceHeat):  # 3150
 
     HEAT_DEMAND = SZ_HEAT_DEMAND  # percentage valve open (0.0-1.0)
 
@@ -234,7 +236,7 @@ class HeatDemand(HeatDevice):  # 3150
         }
 
 
-class Setpoint(HeatDevice):  # 2309
+class Setpoint(DeviceHeat):  # 2309
 
     SETPOINT = SZ_SETPOINT  # degrees Celsius
 
@@ -438,13 +440,13 @@ class Temperature(Fakeable):  # 30C9
         }
 
 
-class RfgGateway(HeatDevice):  # RFG (30:)
+class RfgGateway(DeviceHeat):  # RFG (30:)
     """The RFG100 base class."""
 
     _SLUG: str = DEV_TYPE.RFG
 
 
-class Controller(HeatDevice):  # CTL (01):
+class Controller(DeviceHeat):  # CTL (01):
     """The Controller base class."""
 
     _SLUG: str = DEV_TYPE.CTL
@@ -452,29 +454,56 @@ class Controller(HeatDevice):  # CTL (01):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._ctl = self  # or args[1]
-        self._domain_id = "FF"
-        self._tcs = None
+        self.device_by_id = {}  # {self.id: self}
+        self.devices = []  # [self]
 
-        # self._make_tcs_controller(**kwargs)  # NOTE: do later
+        self._ctl = self._set_ctl(self)
+        self._ctx = "FF"
+        self._tcs = None  # self._make_tcs_controller(**kwargs)  # NOTE: do later
 
-    # def __repr__(self) -> str:  # TODO:
-    #     if self._tcs:
-    #         mode = self._tcs._msg_value(_2E04, key="system_mode")
-    #         return f"{self.id} ({self._domain_id}): {mode}"
-    #     return f"{self.id} ({self._domain_id})"
+    def _make_tcs_controller(self, msg=None, **schema) -> None:  # CH/DHW
+        """Return a TCS (create/update as required) after passing it any msg."""
+
+        def zx_get_system(msg=None, **schema) -> Any:  # CH/DHW
+            """Return a TCS (create/update as required) after passing it any msg.
+
+            Temperature control systems are uniquely identified by a controller ID.
+            If a TCS is created, attach it to this device (which should be a CTL).
+            Raise an error if the TCS exists and a schema was provided.
+            """
+
+            from .systems import zx_system_factory
+
+            schema = shrink(SCHEMA_SYS(schema))
+
+            if not self._tcs:
+                self._tcs = zx_system_factory(self, msg=msg, **schema)
+
+            elif schema:
+                self._tcs._update_schema(**schema)
+
+            if msg:
+                self._tcs._handle_msg(msg)
+            return self._tcs
+
+        if self.type not in DEV_TYPE_MAP.CONTROLLERS:  # potentially can be controllers
+            raise TypeError(f"Invalid device type to be a controller: {self}")
+
+        self._iz_controller = self._iz_controller or msg or True
+
+        zx_get_system(msg=msg, **schema)
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
-
-        if msg.code in (_0005, _000C) or self._gwy.config.enable_eavesdrop:
-            self._make_tcs_controller(msg=msg)
 
         if msg.code == _000C:
             [
                 self._gwy._get_device(d, ctl_id=self._ctl.id)
                 for d in msg.payload[SZ_DEVICES]
             ]
+        if msg.code in (_0005, _000C) or self._gwy.config.enable_eavesdrop:
+            self._make_tcs_controller(msg=msg)  # or: CODES_ONLY_FROM_CTL
+            return
 
         # Route any messages to their heating systems, TODO: create dev first?
         if self._tcs:
@@ -487,7 +516,7 @@ class Programmer(Controller):  # PRG (23):
     _SLUG: str = DEV_TYPE.PRG
 
 
-class UfhController(HeatDevice):  # UFC (02):
+class UfhController(DeviceHeat):  # UFC (02):
     """The UFC class, the HCE80 that controls the UFH zones."""
 
     _SLUG: str = DEV_TYPE.UFC
@@ -563,9 +592,9 @@ class UfhController(HeatDevice):  # UFC (02):
 
         if msg.code == _0005:  # system_zones
             if msg.payload[SZ_ZONE_TYPE] not in (
-                ZON_CLASS_MAP.ACT,
-                ZON_CLASS_MAP.SEN,
-                ZON_CLASS_MAP.UFH,
+                ZON_ROLE_MAP.ACT,
+                ZON_ROLE_MAP.SEN,
+                ZON_ROLE_MAP.UFH,
             ):
                 return  # ALL, SENsor, UFH
 
@@ -585,9 +614,9 @@ class UfhController(HeatDevice):  # UFC (02):
 
         elif msg.code == _000C:  # zone_devices
             if msg.payload[SZ_ZONE_TYPE] not in (
-                ZON_CLASS_MAP.ACT,
-                ZON_CLASS_MAP.SEN,
-                ZON_CLASS_MAP.UFH,
+                ZON_ROLE_MAP.ACT,
+                ZON_ROLE_MAP.SEN,
+                ZON_ROLE_MAP.UFH,
             ):
                 return  # ALL, SENsor, UFH
 
@@ -621,8 +650,8 @@ class UfhController(HeatDevice):  # UFC (02):
                 self._heat_demand = msg
             elif (
                 (zone_idx := msg.payload.get(SZ_ZONE_IDX))
-                and (evo := msg.dst._tcs)
-                and (zone := evo.zone_by_idx.get(zone_idx))
+                and (tcs := msg.dst._tcs)
+                and (zone := tcs.zone_by_idx.get(zone_idx))
             ):
                 zone._handle_msg(msg)
 
@@ -630,15 +659,6 @@ class UfhController(HeatDevice):  # UFC (02):
         #     print("AAA")
 
         # "0008|FA/FC", "22C9|array", "22D0|none", "3150|ZZ/array(/FC?)"
-
-    def _set_parent(self, parent, domain=None) -> None:
-        self._set_ctl(parent._ctl)
-
-        if self not in parent.devices:
-            parent.devices.append(self)
-            parent.device_by_id[self.id] = self
-
-        return parent
 
     @property
     def circuits(self) -> Optional[dict]:  # 000C
@@ -695,7 +715,7 @@ class UfhController(HeatDevice):  # UFC (02):
         }
 
 
-class DhwSensor(DhwTemperature, BatteryState, HeatDevice):  # DHW (07): 10A0, 1260
+class DhwSensor(DhwTemperature, BatteryState, DeviceHeat):  # DHW (07): 10A0, 1260
     """The DHW class, such as a CS92."""
 
     _SLUG: str = DEV_TYPE.DHW
@@ -730,7 +750,7 @@ class DhwSensor(DhwTemperature, BatteryState, HeatDevice):  # DHW (07): 10A0, 12
         }
 
 
-class OutSensor(Weather, HeatDevice):  # OUT: 17
+class OutSensor(Weather, DeviceHeat):  # OUT: 17
     """The OUT class (external sensor), such as a HB85/HB95."""
 
     _SLUG: str = DEV_TYPE.OUT
@@ -741,7 +761,7 @@ class OutSensor(Weather, HeatDevice):  # OUT: 17
     _STATE_ATTR = SZ_TEMPERATURE
 
 
-class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, others)
+class OtbGateway(Actuator, HeatDemand, DeviceHeat):  # OTB (10): 3220 (22D9, others)
     """The OTB class, specifically an OpenTherm Bridge (R8810A Bridge)."""
 
     _SLUG: str = DEV_TYPE.OTB
@@ -1218,7 +1238,7 @@ class OtbGateway(Actuator, HeatDemand, HeatDevice):  # OTB (10): 3220 (22D9, oth
         }
 
 
-class Thermostat(BatteryState, Setpoint, Temperature, HeatDevice):  # THM (..):
+class Thermostat(BatteryState, Setpoint, Temperature, DeviceHeat):  # THM (..):
     """The THM/STA class, such as a TR87RF."""
 
     _SLUG: str = DEV_TYPE.THM
@@ -1263,7 +1283,7 @@ class Thermostat(BatteryState, Setpoint, Temperature, HeatDevice):  # THM (..):
                 _LOGGER.error(f"{msg!r} # IS_CONTROLLER (21): was FALSE, now True")
 
 
-class BdrSwitch(Actuator, RelayDemand, HeatDevice):  # BDR (13):
+class BdrSwitch(Actuator, RelayDemand, DeviceHeat):  # BDR (13):
     """The BDR class, such as a BDR91.
 
     BDR91s can be used in six disctinct modes, including:
@@ -1373,7 +1393,7 @@ class BdrSwitch(Actuator, RelayDemand, HeatDevice):  # BDR (13):
 
 
 class TrvActuator(
-    BatteryState, HeatDemand, Setpoint, Temperature, HeatDevice
+    BatteryState, HeatDemand, Setpoint, Temperature, DeviceHeat
 ):  # TRV (04):
     """The TRV class, such as a HR92."""
 
@@ -1415,7 +1435,7 @@ def class_dev_heat(
 ) -> Class:
     """Return a device class, but only if the device must be from the CH/DHW group.
 
-    May return a device class, HeatDevice (which will need promotion).
+    May return a device class, DeviceHeat (which will need promotion).
     """
 
     if dev_addr.type in DEV_TYPE_MAP.THM_DEVICES:
@@ -1432,6 +1452,6 @@ def class_dev_heat(
         raise TypeError(f"No CH/DHW class for: {dev_addr} (no eavesdropping)")
 
     if msg and msg.code in CODES_HEAT_ONLY:
-        return HeatDevice
+        return DeviceHeat
 
     raise TypeError(f"No CH/DHW class for: {dev_addr} (unknown type: {dev_addr.type})")

@@ -22,20 +22,30 @@ from .const import (
     SZ_DOMAIN_ID,
     SZ_HEAT_DEMAND,
     SZ_LANGUAGE,
+    SZ_SENSOR,
     SZ_SYSTEM_MODE,
     SZ_TEMPERATURE,
     SZ_ZONE_IDX,
+    SZ_ZONE_MASK,
+    SZ_ZONE_TYPE,
+    SZ_ZONES,
     Discover,
     __dev_mode__,
 )
-from .devices import BdrSwitch, Device, OtbGateway, Temperature, UfhController
+from .devices import (
+    BdrSwitch,
+    Controller,
+    Device,
+    OtbGateway,
+    Temperature,
+    UfhController,
+)
 from .entity_base import Entity, class_by_attr, discover_decorator
 from .helpers import shrink
 from .protocol import (
-    DEV_ROLE,
     DEV_ROLE_MAP,
     DEV_TYPE_MAP,
-    ZON_CLASS_MAP,
+    ZON_ROLE_MAP,
     Address,
     Command,
     CorruptStateError,
@@ -43,7 +53,6 @@ from .protocol import (
     Message,
     Priority,
 )
-from .protocol.transport import PacketProtocolPort
 from .schema import (
     SCHEMA_DHW,
     SCHEMA_SYS,
@@ -53,11 +62,8 @@ from .schema import (
     SZ_CONTROLLER,
     SZ_DHW_SYSTEM,
     SZ_ORPHANS,
-    SZ_SENSOR,
     SZ_TCS_SYSTEM,
     SZ_UFH_SYSTEM,
-    SZ_ZONE_TYPE,
-    SZ_ZONES,
 )
 from .zones import DhwZone, Zone
 
@@ -171,28 +177,30 @@ SYS_KLASS = SimpleNamespace(
 
 
 class SystemBase(Entity):  # 3B00 (multi-relay)
-    """The Controllers base class (good for a generic controller)."""
+    """The TCS base class."""
+
+    _SLUG: str = None
 
     def __init__(self, ctl) -> None:
-        _LOGGER.debug("Creating a TCS for CTL: %s (%s)", ctl, self.__class__)
+        _LOGGER.debug("Creating a TCS for CTL: %s (%s)", ctl.id, self.__class__)
 
         if ctl.id in ctl._gwy.system_by_id:
-            raise LookupError(f"Duplicate TCS for CTL: {ctl}")
+            raise LookupError(f"Duplicate TCS for CTL: {ctl.id}")
+        if not isinstance(ctl, Controller):  # TODO
+            raise ValueError(f"Invalid CTL: {ctl} (is not a controller)")
 
         super().__init__(ctl._gwy)
 
-        self.id = ctl.id
+        self.id: str = ctl.id
+
         self._ctl = ctl
         self._tcs = self
         self._domain_id = "FF"
 
-        # schema attrs
-        self._app_cntrl = None
+        self._app_cntrl = None  # schema attr
+        self._heat_demand = None  # state attr
 
-        # state attrs
-        self._heat_demand = None
-
-    def _zx_update_schema(self, **schema):
+    def _update_schema(self, **schema):
         """Update a CH/DHW system with new schema attrs.
 
         Raise an exception if the new schema is not a superset of the existing schema.
@@ -228,7 +236,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             [self.zx_get_htg_zone(idx, **s) for idx, s in _schema.items()]
 
     @classmethod
-    def zx_create_from_schema(cls, ctl: Device, **schema):
+    def create_from_schema(cls, ctl: Device, **schema):
         """Create a CH/DHW system for a CTL and set its schema attrs.
 
         The appropriate System class should have been determined by a factory.
@@ -236,14 +244,11 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         """
 
         tcs = cls(ctl)
-        tcs._zx_update_schema(**schema)
+        tcs._update_schema(**schema)
         return tcs
 
     def __repr__(self) -> str:
         return f"{self._ctl.id} (sys_base)"
-
-    # def __str__(self) -> str:  # TODO: WIP
-    #     return json.dumps({self._ctl.id: self.schema})
 
     def _start_discovery(self) -> None:
 
@@ -339,6 +344,14 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         super()._handle_msg(msg)
 
+        if msg.code == _000C:
+            if msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.APP and (
+                msg.payload[SZ_DEVICES]
+            ):
+                _schema = {msg.payload[SZ_DEVICE_ROLE]: msg.payload[SZ_DEVICES][0]}
+                self._update_schema(**{SZ_TCS_SYSTEM: _schema})
+            return
+
         if msg.code == _0008:
             if (domain_id := msg.payload.get(SZ_DOMAIN_ID)) and msg.verb in (I_, RP):
                 self._relay_demands[domain_id] = msg
@@ -355,15 +368,6 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                     qos = {"priority": Priority.LOW, "retries": 2}
                     for code in (_0008, _3EF1):
                         device._make_cmd(code, qos)
-
-        elif msg.code == _000C and msg.payload[SZ_DEVICES]:
-            if (dev_role := msg.payload[SZ_DEVICE_ROLE]) == DEV_ROLE_MAP._str(
-                DEV_ROLE.APP
-            ):
-                self._zx_update_schema(
-                    **{SZ_TCS_SYSTEM: {dev_role: msg.payload[SZ_DEVICES][0]}}
-                )
-            return
 
         elif msg.code == _3150:
             if msg.payload.get(SZ_DOMAIN_ID) == "FC" and msg.verb in (I_, RP):
@@ -415,7 +419,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             [
                 d.id
                 for d in self._ctl.devices  # HACK: UFC
-                if not d._domain_id and d._is_present
+                if not d._domain_id and d._is_present and d is not self._ctl
             ]  # and not isinstance(d, UfhController)
         )  # devices without a parent zone, NB: CTL can be a sensor for a zone
 
@@ -474,7 +478,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
 class MultiZone(SystemBase):  # 0005 (+/- 000C?)
     def zx_get_htg_zone(self, zone_idx, msg=None, **schema) -> Zone:
-        """Return a heating zone (create/update it as required).
+        """Return a heating zone (create/update as required) after passing it any msg.
 
         Heating zones are uniquely identified by a controller ID|zone_idx pair.
         If a zone is created, attach it to this TCS.
@@ -483,25 +487,19 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         from .zones import zx_zone_factory
 
-        schema = shrink(SCHEMA_ZON(schema))  # TODO: add shrink? do earlier?
+        schema = shrink(SCHEMA_ZON(schema))
 
-        # Step 0: Return the object if it exists
-        if zon := self.zone_by_idx.get(zone_idx):
-            if schema:
-                raise TypeError("a schema was provided, but the zone exists!")
-            return zon
+        zon = self.zone_by_idx.get(zone_idx)
+        if not zon:
+            zon = zx_zone_factory(self, zone_idx, msg=msg, **schema)
+            self.zone_by_idx[zon.idx] = zon
+            self.zones.append(zon)
 
-        # Step 1: Create the object (__init__ checks for unique ID)
-        zon = zx_zone_factory(self, zone_idx, msg=msg, **schema)
-        self.zone_by_idx[zon.idx] = zon
-        self.zones.append(zon)
+        elif schema:
+            zon._update_schema(**schema)
 
-        # Step 2: If enabled/possible, start discovery (TODO: is messy)
-        if not self._gwy.config.disable_discovery and isinstance(
-            self._gwy.pkt_protocol, PacketProtocolPort
-        ):
-            zon._start_discovery()
-
+        if msg:
+            zon._handle_msg(msg)
         return zon
 
     def __init__(self, *args, **kwargs) -> None:
@@ -520,7 +518,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
-            for zone_type in ZON_CLASS_MAP.HEAT_ZONES:
+            for zone_type in list(ZON_ROLE_MAP.HEAT_ZONES) + [ZON_ROLE_MAP.SEN]:
                 try:
                     _ = self._msgz[_0005][RP][f"00{zone_type}"]
                 except KeyError:
@@ -670,9 +668,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
             _LOGGER.debug("System state (finally): %s", self.schema)
 
         def handle_msg_by_zone_idx(zone_idx: str, msg):
-            if zone_idx is None:
-                pass
-            elif zone := self.zone_by_idx.get(zone_idx):
+            if zone := self.zone_by_idx.get(zone_idx):
                 zone._handle_msg(msg)
             # elif self._gwy.config.enable_eavesdrop:
             #     self.zx_get_htg_zone(zone_idx)._handle_msg(msg)
@@ -680,21 +676,30 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         super()._handle_msg(msg)
 
         # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
-        if msg.code == _0005:  # RP, and also I
-            if msg.payload.get(SZ_ZONE_TYPE) in ZON_CLASS_MAP.HEAT_ZONES:
+        if msg.code == _0005:
+            if (zone_type := msg.payload[SZ_ZONE_TYPE]) in ZON_ROLE_MAP.HEAT_ZONES:
                 [
-                    self.zx_get_htg_zone(f"{idx:02X}")._zx_update_schema(
-                        **{SZ_CLASS: ZON_CLASS_MAP[msg.payload[SZ_ZONE_TYPE]]}
+                    self.zx_get_htg_zone(
+                        f"{idx:02X}", **{SZ_CLASS: ZON_ROLE_MAP[zone_type]}
                     )
-                    for idx, flag in enumerate(msg.payload["zone_mask"])
+                    for idx, flag in enumerate(msg.payload[SZ_ZONE_MASK])
                     if flag == 1
                 ]
-                return
+            elif zone_type in DEV_ROLE_MAP.HEAT_DEVICES:
+                [
+                    self.zx_get_htg_zone(f"{idx:02X}", msg=msg)
+                    for idx, flag in enumerate(msg.payload[SZ_ZONE_MASK])
+                    if flag == 1
+                ]
+            return
 
-        elif msg.code == _000C:  # RP, and also I
-            if msg.payload.get(SZ_ZONE_TYPE) in ZON_CLASS_MAP:
-                # NOTE: _zx_update_schema is later, below
-                self.zx_get_htg_zone(msg.payload[SZ_ZONE_IDX])
+        if msg.code == _000C:
+            if (
+                msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.HEAT_DEVICES
+                and msg.payload[SZ_DEVICES]
+            ):
+                self.zx_get_htg_zone(msg.payload[SZ_ZONE_IDX], msg=msg)
+            return
 
         # Route all messages to their zones, incl. 000C, others
         if isinstance(msg.payload, dict):
@@ -763,7 +768,7 @@ class ScheduleSync(SystemBase):  # 0006
             raise RuntimeError("Sending is disabled")
 
         # schedules based upon 'active' (not most recent) 0006 pkt
-        for zone in getattr(self, "zones", []):
+        for zone in getattr(self, SZ_ZONES, []):
             self._gwy._loop.create_task(zone.get_schedule(force_refresh=True))
         if dhw := getattr(self, "dhw", None):
             self._gwy._loop.create_task(dhw.get_schedule(force_refresh=True))
@@ -902,7 +907,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
     DEFAULT_SETPOINT = 50.0
 
     def zx_get_dhw_zone(self, msg=None, **schema) -> DhwZone:
-        """Return a DHW zone (create/update it as required).
+        """Return a DHW zone (create/update as required) after passing it any msg.
 
         DHW zones are uniquely identified by a controller ID.
         If the DHW zone is created, attach it to this TCS.
@@ -911,25 +916,16 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
 
         from .zones import zx_zone_factory
 
-        schema = shrink(SCHEMA_DHW(schema))  # TODO: add shrink? do earlier?
+        schema = shrink(SCHEMA_DHW(schema))
 
-        # Step 0: Return the object if it exists
-        if self._dhw:
-            if schema:
-                raise TypeError("a schema was provided, but the DHW zone exists!")
-            return self._dhw
+        if not self._dhw:
+            self._dhw = zx_zone_factory(self, "HW", msg=msg, **schema)
 
-        # Step 1: Create the object (__init__ checks for unique DHW)
-        self._dhw = zx_zone_factory(self, "HW", msg=msg, **schema)
-        #
-        #
+        elif schema:
+            self._dhw._update_schema(**schema)
 
-        # Step 2: If enabled/possible, start discovery (TODO: is messy)
-        if not self._gwy.config.disable_discovery and isinstance(
-            self._gwy.pkt_protocol, PacketProtocolPort
-        ):
-            self._dhw._start_discovery()
-
+        if msg:
+            self._dhw._handle_msg(msg)
         return self._dhw
 
     def __init__(self, *args, **kwargs) -> None:
@@ -946,31 +942,27 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
                 self._make_cmd(_000C, payload=f"00{DEV_ROLE_MAP.DHW}")
 
     def _handle_msg(self, msg) -> None:
+
+        #
+
+        #
+
         super()._handle_msg(msg)
 
         # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
-        if (
-            msg.code == _000C
-            and msg.payload[SZ_ZONE_TYPE]
-            in (
-                DEV_ROLE_MAP.DHW,
-                DEV_ROLE_MAP.HTG,
-            )
-            and msg.payload[SZ_DEVICES]
-        ):
-            self.zx_get_dhw_zone()._handle_msg(msg)
-
-        if msg.code not in (_10A0, _1260, _1F41):
-            # and "dhw_id" not in msg.payload and msg.payload.get(SZ_DOMAIN_ID) != "FA":
+        if msg.code == _000C:
+            if msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.DHW_DEVICES and (
+                msg.payload[SZ_DEVICES]
+            ):
+                self.zx_get_dhw_zone(msg=msg)
             return
+
+        if msg.code in (_10A0, _1260, _1F41):
+            # and "dhw_id" not in msg.payload and msg.payload.get(SZ_DOMAIN_ID) != "FA":
+            self.zx_get_dhw_zone(msg=msg)
 
         # RQ --- 18:002563 01:078710 --:------ 10A0 001 00  # every 4h
         # RP --- 01:078710 18:002563 --:------ 10A0 006 00157C0003E8
-        if not self._dhw:
-            self.zx_get_dhw_zone()
-
-        # Route any messages to the DHW (dhw_params, dhw_temp, dhw_mode)
-        self._dhw._handle_msg(msg)
 
     @property
     def dhw(self) -> DhwZone:
@@ -1234,7 +1226,7 @@ SYS_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. "evohome": Evohome
 def zx_system_factory(ctl, msg: Message = None, **schema) -> Class:
     """Return the system class for a given controller/schema (defaults to evohome)."""
 
-    def class_tcs(
+    def best_tcs_class(
         ctl_addr: Address,
         msg: Message = None,
         eavesdrop: bool = False,
@@ -1251,9 +1243,9 @@ def zx_system_factory(ctl, msg: Message = None, **schema) -> Class:
         _LOGGER.warning(f"Using generic system class for: {ctl_addr} ({Evohome})")
         return Evohome
 
-    return class_tcs(
+    return best_tcs_class(
         ctl.addr,
         msg=msg,
         eavesdrop=ctl._gwy.config.enable_eavesdrop,
         **schema,
-    ).zx_create_from_schema(ctl, **schema)
+    ).create_from_schema(ctl, **schema)

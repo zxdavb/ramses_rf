@@ -23,7 +23,7 @@ from .const import (
     DEVICE_ID_REGEX,
     DONT_CREATE_MESSAGES,
     SZ_ZONE_IDX,
-    ZON_CLASS_MAP,
+    ZON_ROLE_MAP,
     SystemType,
     __dev_mode__,
 )
@@ -81,7 +81,7 @@ DEV_REGEX_APP = vol.Match(DEVICE_ID_REGEX.APP)
 DEV_REGEX_BDR = vol.Match(DEVICE_ID_REGEX.BDR)
 DEV_REGEX_UFC = vol.Match(DEVICE_ID_REGEX.UFC)
 
-HEAT_ZONES_STRS = tuple(ZON_CLASS_MAP[t] for t in ZON_CLASS_MAP.HEAT_ZONES)
+HEAT_ZONES_STRS = tuple(ZON_ROLE_MAP[t] for t in ZON_ROLE_MAP.HEAT_ZONES)
 
 DOMAIN_ID = vol.Match(r"^[0-9A-F]{2}$")
 UFH_IDX_REGEX = r"^0[0-8]$"
@@ -160,9 +160,10 @@ SYSTEM_KLASS = (SystemType.EVOHOME, SystemType.HOMETRONICS, SystemType.SUNDIAL)
 SCHEMA_TCS = vol.Schema(
     {
         vol.Required(SZ_APP_CNTRL, default=None): vol.Any(None, DEV_REGEX_APP),
+        vol.Optional("heating_control"): renamed(SZ_APP_CNTRL),
         vol.Optional(SZ_CLASS, default=SystemType.EVOHOME): vol.Any(*SYSTEM_KLASS),
     },
-    # extra=vol.ALLOW_EXTRA,  # TODO: remove me
+    extra=vol.PREVENT_EXTRA,
 )
 SCHEMA_DHW = vol.Schema(
     {

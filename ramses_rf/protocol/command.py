@@ -1136,7 +1136,7 @@ CODE_API_MAP = {
 class FaultLog:  # 0418  # TODO: used a NamedTuple
     """The fault log of a system."""
 
-    def __init__(self, ctl, msg=None, **kwargs) -> None:
+    def __init__(self, ctl, **kwargs) -> None:
         _LOGGER.debug("FaultLog(ctl=%s).__init__()", ctl)
 
         self._loop = ctl._gwy._loop

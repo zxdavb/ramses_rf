@@ -166,7 +166,7 @@ class StdOutFilter(logging.Filter):  # record.levelno < logging.WARNING
 class TimedRotatingFileHandler(_TimedRotatingFileHandler):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        assert self.when == "midnight"
+        assert self.when == "MIDNIGHT"
         self.extMatch = re.compile(r"^\d{4}-\d{2}-\d{2}$", re.ASCII)
 
     # def emit(self, record):  # used only for debugging
@@ -260,7 +260,7 @@ def set_pkt_logging(logger, dt_now=None, cc_console=False, **kwargs) -> None:
             )
         elif bkp_count:
             handler = TimedRotatingFileHandler(
-                file_name, when="midnight", backupCount=bkp_count
+                file_name, when="MIDNIGHT", backupCount=bkp_count
             )
         else:
             handler = logging.FileHandler(file_name)

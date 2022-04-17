@@ -11,7 +11,7 @@ Base for all devices.
 import logging
 from random import randint
 from types import SimpleNamespace
-from typing import Any, Optional
+from typing import Optional
 
 from .const import (
     DEV_TYPE,
@@ -29,8 +29,7 @@ from .protocol import Command, CorruptStateError
 from .protocol.address import NUL_DEV_ADDR, Address
 from .protocol.command import FUNC, TIMEOUT
 from .protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL, CODES_SCHEMA
-from .protocol.transport import PacketProtocolPort
-from .schema import SCHEMA_DEV, SCHEMA_SYS, SZ_ALIAS, SZ_CLASS, SZ_FAKED
+from .schema import SCHEMA_DEV, SZ_ALIAS, SZ_CLASS, SZ_FAKED
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -128,6 +127,15 @@ DEFAULT_EXT_ID = "17:000730"
 DEFAULT_THM_ID = "03:000730"
 
 BindState = SimpleNamespace(
+    #       DHW/THM, TRV -> CTL     (temp, valve_position), or:
+    #                CTL -> BDR/OTB (heat_demand)
+    #          [ REQUEST -> WAITING ]
+    #            unbound -- unbound
+    #            unbound -- listening
+    #           offering -> listening
+    #           offering <- accepting
+    # (confirming) bound -> accepting
+    #              bound -- bound
     UNKNOWN=None,
     UNBOUND="unb",  # unbound
     LISTENING="l",  # waiting for offer
@@ -137,17 +145,6 @@ BindState = SimpleNamespace(
     BOUND="bound",  # bound:               rcvd confirm
 )
 
-#       DHW/THM, TRV -> CTL     (temp, valve_position), or:
-#                CTL -> BDR/OTB (heat_demand)
-
-#          [ REQUEST -> WAITING ]
-#            unbound -- unbound
-#            unbound -- listening
-#           offering -> listening
-#           offering <- accepting
-# (confirming) bound -> accepting
-#              bound -- bound
-
 
 DEV_MODE = __dev_mode__  # and False
 
@@ -156,10 +153,10 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-class DeviceBase(Entity):
-    """The Device base class (good for a generic device)."""
+class Device(Entity):
+    """The Device base class - can also be used for unknown device types."""
 
-    _SLUG: str = None
+    _SLUG: str = DEV_TYPE.DEV  # shouldn't be any of these instantiated
 
     _STATE_ATTR = None
 
@@ -167,59 +164,53 @@ class DeviceBase(Entity):
         _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)
 
         if dev_addr.id in gwy.device_by_id:
-            raise LookupError(f"Duplicate DEV for GWY: {dev_addr.id}")
+            raise LookupError(f"Duplicate DEV: {dev_addr.id}")
+        # if not check_valid(dev_addr.id):  # TODO
+        #     raise ValueError(f"Invalid device id: {dev_addr.id}")
 
         super().__init__(gwy)
 
         self.id: str = dev_addr.id
+
+        # self._tcs = None  # NOTE: Heat (CH/DHW) devices only
+        # self._ctl = None
+        # self._domain_id = None
+
         self.addr = dev_addr
-        self.type = dev_addr.type  # DEX  # TODO: remove this attr
+        self.type = dev_addr.type  # DEX  # TODO: remove this attr? use SLUG?
 
-        self._ctl = self._set_ctl(ctl) if ctl else None
+        self._alias = None  # known (schema) attr
 
-        self._domain_id = domain_id
-        self._parent = None
-
-        self.devices = []  # [self]
-        self.device_by_id = {}  # {self.id: self}
-        self._iz_controller = None
-
-        self._alias = None
-        self._faked = None
-        if self.id in gwy._include:
-            self._alias = gwy._include[self.id].get(SZ_ALIAS)
-
-        if msg := kwargs.get("msg"):
-            self._loop.call_soon_threadsafe(self._handle_msg, msg)
-
-    @classmethod
-    def zx_create_from_schema(cls, gwy, dev_addr: Address, **schema):
-        """Create a device (for a GWY) and set its schema attrs (aka traits).
-
-        The appropriate Device class should have been determined by a factory.
-        Schema attrs include: class (klass), alias & faked.
-        """
-
-        dev = cls(gwy, dev_addr)  # parent=parent, role=role)
-        dev._zx_update_schema(**schema)
-        return dev
-
-    def _zx_update_schema(self, **schema):
+    def _update_schema(self, **schema):
         """Update a device with new schema attrs.
 
         Raise an exception if the new schema is not a superset of the existing schema.
         """
 
         schema = shrink(SCHEMA_DEV(schema))
-        pass  # TODO: WIP
+
+        # if self.id in gwy._include:
+        #     self._alias = gwy._include[self.id].get(SZ_ALIAS)
+
+    @classmethod
+    def create_from_schema(cls, gwy, dev_addr: Address, **schema):
+        """Create a device (for a GWY) and set its schema attrs (aka traits).
+
+        The appropriate Device class should have been determined by a factory.
+        Schema attrs include: class (klass), alias & faked.
+        """
+
+        # if self.id in gwy._include:
+        #     self._alias = gwy._include[self.id].get(SZ_ALIAS)
+
+        dev = cls(gwy, dev_addr)  # parent=parent, role=role)
+        dev._update_schema(**schema)
+        return dev
 
     def __repr__(self) -> str:
         if self._STATE_ATTR:
             return f"{self.id} ({self._domain_id}): {getattr(self, self._STATE_ATTR)}"
         return f"{self.id} ({self._domain_id})"
-
-    def __str__(self) -> str:
-        return f"{self.id} ({self._SLUG})"
 
     def __lt__(self, other) -> bool:
         if not hasattr(other, "id"):
@@ -259,24 +250,33 @@ class DeviceBase(Entity):
 
         super()._send_cmd(cmd, **kwargs)
 
-    def _set_ctl(self, ctl):  # self._ctl
-        """Set the device's parent controller, after validating it."""
-
-        if self._ctl is ctl:
-            return self._ctl
-        if self._is_controller:
-            return  # TODO
-
-        self._ctl = ctl
-        ctl.device_by_id[self.id] = self
-        ctl.devices.append(self)
-
-        _LOGGER.debug("%s: controller now set to %s", self, self._ctl)
-        return self._ctl
-
     def _handle_msg(self, msg) -> None:
         assert msg.src is self, f"msg inappropriately routed to {self}"
+
         super()._handle_msg(msg)
+
+        if self._SLUG in DEV_TYPE_MAP.PROMOTABLE_SLUGS:
+            # HACK: can get precise class?
+            from .devices import best_dev_role
+
+            cls = best_dev_role(
+                self.addr, msg, eavesdrop=self._gwy.config.enable_eavesdrop
+            )
+            if cls._SLUG != self._SLUG and DEV_TYPE.DEV not in (cls._SLUG, self._SLUG):
+                _LOGGER.warning(f"Promoting the dev class of {self} to: {cls._SLUG}")
+                self.__class__ = cls
+
+        if not self._gwy.config.enable_eavesdrop:
+            return
+
+        if (
+            self._ctl is not None
+            and SZ_ZONE_IDX in msg.payload
+            and msg.src.type != DEV_TYPE_MAP.CTL  # TODO: DEX, should be: if controller
+            # and msg.dst.type != DEV_TYPE_MAP.HGI
+        ):
+            # TODO: is buggy - remove? how?
+            self._set_parent(self._ctl._tcs.zx_get_htg_zone(msg.payload[SZ_ZONE_IDX]))
 
     # @property
     # def controller(self):  # -> Optional[Controller]:
@@ -308,49 +308,49 @@ class DeviceBase(Entity):
             m.src == self for m in self._msgs.values() if not m._expired
         )  # TODO: needs addressing
 
-    @property
+    @property  # TODO: remove in favour of self._SLUG?
     def _klass(self) -> str:
         return self._SLUG
+
+    @property
+    def schema(self) -> dict:
+        """Return the fixed attributes of the device."""
+        return {
+            SZ_CLASS: self._klass,
+        }
+
+    @property
+    def params(self) -> dict:
+        """Return the configurable attributes of the device."""
+        return {}
+
+    @property
+    def status(self) -> dict:
+        """Return the state attributes of the device."""
+        return {}
 
     @property
     def traits(self) -> dict:
         """Return the traits of the (known) device."""
 
-        return {
-            **(self._codes if DEV_MODE else {}),
-            SZ_ALIAS: self._alias,
-            # SZ_FAKED: self._faked,
-            SZ_CLASS: self._klass,
-            "supported_msgs": {
-                k: (CODES_SCHEMA[k][SZ_NAME] if k in CODES_SCHEMA else None)
-                for k in sorted(self._msgs)
-            },
-        }
+        result = super().traits()
 
-    @property
-    def schema(self):
-        """Return the fixed attributes of the device."""
-        return {}
+        result.update(
+            {
+                SZ_ALIAS: self._alias,
+                SZ_FAKED: False,
+            }
+        )
 
-    @property
-    def params(self):
-        """Return the configurable attributes of the device."""
-        return {}
+        if _10E0 in self._msgs or _10E0 in CODES_BY_DEV_SLUG.get(self._klass, []):
+            result.update({CODES_SCHEMA[_10E0][SZ_NAME]: self.device_info})
 
-    @property
-    def status(self):
-        """Return the state attributes of the device."""
-        return {}
+        result.update({CODES_SCHEMA[_1FC9][SZ_NAME]: self._msg_value(_1FC9)})
+
+        return result
 
 
-class Device(DeviceBase):  # 10E0
-    """The Device base class - also used for unknown device types."""
-
-    _SLUG: str = DEV_TYPE.DEV
-
-    RF_BIND = "rf_bind"
-    DEVICE_INFO = "device_info"
-
+class DeviceInfo(Device):  # 10E0
     def _discover(self, discover_flag=Discover.ALL) -> None:
         if discover_flag & Discover.SCHEMA:
             if not self._msgs.get(_10E0) and (
@@ -359,106 +359,16 @@ class Device(DeviceBase):  # 10E0
             ):
                 self._make_cmd(_10E0, retries=3)
 
-    def _handle_msg(self, msg) -> None:
-        super()._handle_msg(msg)
-
-        if self._SLUG in DEV_TYPE_MAP.PROMOTABLE_SLUGS:
-            # HACK: can get precise class?
-            from .devices import device_role_best
-
-            cls = device_role_best(
-                self.addr, msg, eavesdrop=self._gwy.config.enable_eavesdrop
-            )
-            if cls._SLUG != self._SLUG and DEV_TYPE.DEV not in (cls._SLUG, self._SLUG):
-                _LOGGER.warning(f"Promoting the dev class of {self} to: {cls._SLUG}")
-                self.__class__ = cls
-
-        if not self._gwy.config.enable_eavesdrop:
-            return
-
-        if (
-            self._ctl is not None
-            and SZ_ZONE_IDX in msg.payload
-            and msg.src.type != DEV_TYPE_MAP.CTL  # TODO: DEX, should be: if controller
-            # and msg.dst.type != DEV_TYPE_MAP.HGI
-        ):
-            # TODO: is buggy - remove? how?
-            self._set_parent(self._ctl._tcs.zx_get_htg_zone(msg.payload[SZ_ZONE_IDX]))
-
-    def _set_parent(self, parent, domain=None, sensor=None):
-        """Set the device's parent zone, after validating it.
-
-        There are three possible sources for the parent zone of a device:
-        1. a 000C packet (from their controller) for actuators only
-        2. a message.payload[SZ_ZONE_IDX]
-        3. the sensor-matching algorithm for zone sensors only
-
-        Devices don't have parents, rather: Zones have children; a mis-configured
-        system could have a device as a child of two domains.
-        """
-
-        # NOTE: these imports are here to prevent circular references
-        from .systems import System
-        from .zones import DhwZone, Zone
-
-        if self._parent is not None and self._parent is not parent:
-            raise CorruptStateError(
-                f"{self} changed parent: {self._parent} to {parent}, "
-            )
-
-        if isinstance(parent, Zone):
-            if domain and domain != parent.idx:
-                raise TypeError(f"{self}: domain must be {parent.idx}, not {domain}")
-            domain = parent.idx
-
-        elif isinstance(parent, DhwZone):  # usu. FA
-            if domain not in ("F9", "FA"):  # may not be known if eavesdrop'd
-                raise TypeError(f"{self}: domain must be F9 or FA, not {domain}")
-
-        elif isinstance(parent, System):  # usu. FC
-            if domain != "FC":  # was: not in ("F9", "FA", "FC", "HW"):
-                raise TypeError(f"{self}: domain must be FC, not {domain}")
-
-        else:
-            raise TypeError(f"{self}: parent must be System, DHW or Zone, not {parent}")
-
-        self._set_ctl(parent._ctl)
-        self._parent = parent
-        self._domain_id = domain
-
-        if hasattr(self._parent, SZ_DEVICES) and self not in self._parent.devices:
-            parent.devices.append(self)
-            parent.device_by_id[self.id] = self
-            if not sensor:
-                parent.actuators.append(self)
-                parent.actuator_by_id[self.id] = self
-
-        if DEV_MODE:
-            _LOGGER.debug("Device %s: parent now set to %s", self, self._parent)
-        return self._parent
-
     @property
     def device_info(self) -> Optional[dict]:  # 10E0
         return self._msg_value(_10E0)
 
-    @property
-    def traits(self) -> dict:
-        result = super().traits
-        result.update({f"_{self.RF_BIND}": self._msg_value(_1FC9)})
-        if _10E0 in self._msgs or _10E0 in CODES_BY_DEV_SLUG.get(self._klass, []):
-            result.update({f"_{self.DEVICE_INFO}": self.device_info})
-        return result
 
-    @property
-    def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
-        """Return the device's parent zone, if known."""
-
-        return self._parent
-
-
-class Fakeable(DeviceBase):
+class Fakeable(Device):
     def __init__(self, gwy, *args, **kwargs) -> None:
         super().__init__(gwy, *args, **kwargs)
+
+        self._faked = None  # known (schema) attr
 
         self._1fc9_state = {"state": BindState.UNKNOWN}
 
@@ -573,14 +483,18 @@ class Fakeable(DeviceBase):
         self._send_cmd(cmd)
 
     @property
+    def is_faked(self) -> dict:
+        return bool(self._faked)
+
+    @property
     def traits(self) -> dict:
-        return {
-            **super().traits,
-            SZ_FAKED: self._faked,
-        }
+
+        result = super().traits()
+        result[SZ_FAKED] = self.is_faked
+        return result
 
 
-class BatteryState(DeviceBase):  # 1060
+class BatteryState(Device):  # 1060
 
     BATTERY_LOW = "battery_low"  # boolean
     BATTERY_STATE = "battery_state"  # percentage (0.0-1.0)
@@ -605,7 +519,7 @@ class BatteryState(DeviceBase):  # 1060
         }
 
 
-class HgiGateway(DeviceBase):  # HGI (18:), was GWY
+class HgiGateway(DeviceInfo, Device):  # HGI (18:), was GWY
     """The HGI80 base class."""
 
     _SLUG: str = DEV_TYPE.HGI
@@ -622,10 +536,6 @@ class HgiGateway(DeviceBase):  # HGI (18:), was GWY
         self._faked_thm = None
 
         # self. _proc_schema(**kwargs)
-
-    def _set_ctl(self, ctl) -> None:  # self._ctl
-        """Set the device's parent controller, after validating it."""
-        _LOGGER.debug("%s: can't (really) have a controller %s", self, ctl)
 
     # def _proc_schema(self, schema) -> None:
     #     if schema.get("fake_bdr"):
@@ -739,10 +649,98 @@ class HgiGateway(DeviceBase):  # HGI (18:), was GWY
         }
 
 
-class HeatDevice(Device):  # Honeywell CH/DHW or compatible (incl. UFH, Heatpumps)
+class DeviceHeat(
+    DeviceInfo, Device
+):  # Honeywell CH/DHW or compatible (incl. UFH, Heatpumps)
     """The Device base class for Honeywell CH/DHW or compatible."""
 
-    _SLUG: str = DEV_TYPE.HEA
+    _SLUG: str = DEV_TYPE.HEA  # shouldn't be any of these instantiated
+
+    def __init__(
+        self, gwy, dev_addr, ctl=None, domain_id=None, zone_idx=None, **kwargs
+    ):
+        super().__init__(gwy, dev_addr, **kwargs)
+
+        self._ctl = None
+        self._ctx = None
+        self._tcs = None
+
+        self._set_ctl(ctl, ctx=domain_id or zone_idx) if ctl else None
+
+        self._domain_id = domain_id  # TODO: deprecate
+        self._parent = None  # TODO: deprecate
+        self._iz_controller = None  # TODO: deprecate
+
+    def _set_ctl(self, ctl: Device, ctx: str = None) -> Device:  # self._ctl
+        """Set the TCS controller that this CH/DHW device is bound to.
+
+        It is assumed that a device is only bound to one controller.
+        """
+
+        if self._ctl is ctl:
+            return self._ctl
+        if self._ctl is not None:
+            raise CorruptStateError("bound to multiple controllers?")
+
+        assert ctl._SLUG == DEV_TYPE.CTL and self is ctl or self._SLUG != DEV_TYPE.CTL
+
+        self._ctl = ctl
+        self._ctx = ctx
+        self._tcs = ctl._tcs
+
+        ctl.device_by_id[self.id] = self
+        ctl.devices.append(self)
+
+        _LOGGER.debug("%s: controller now set to %s", self, self._ctl)
+        return self._ctl
+
+    def _set_parent(self, parent, domain=None, sensor=None):
+        """Set the device's parent zone, after validating it.
+
+        There are three possible sources for the parent zone of a device:
+        1. a 000C packet (from their controller) for actuators only
+        2. a message.payload[SZ_ZONE_IDX]
+        3. the sensor-matching algorithm for zone sensors only
+
+        Devices don't have parents, rather: Zones have children; a mis-configured
+        system could have a device as a child of two domains.
+        """
+
+        from .systems import System  # NOTE: here to prevent circular references
+        from .zones import DhwZone, Zone
+
+        if self._parent is not None and self._parent is not parent:
+            raise CorruptStateError(
+                f"{self} changed parent: {self._parent} to {parent}, "
+            )
+
+        if isinstance(parent, Zone):
+            if domain and domain != parent.idx:
+                raise TypeError(f"{self}: domain must be {parent.idx}, not {domain}")
+            domain = parent.idx
+        elif isinstance(parent, DhwZone):  # usu. FA
+            if domain not in ("F9", "FA"):  # may not be known if eavesdrop'd
+                raise TypeError(f"{self}: domain must be F9 or FA, not {domain}")
+        elif isinstance(parent, System):  # usu. FC
+            if domain != "FC":  # was: not in ("F9", "FA", "FC", "HW"):
+                raise TypeError(f"{self}: domain must be FC, not {domain}")
+        else:
+            raise TypeError(f"{self}: parent must be System, DHW or Zone, not {parent}")
+
+        self._set_ctl(parent._ctl)
+        self._parent = parent
+        self._domain_id = domain
+
+        if hasattr(self._parent, SZ_DEVICES) and self not in self._parent.devices:
+            parent.devices.append(self)
+            parent.device_by_id[self.id] = self
+            if not sensor:
+                parent.actuators.append(self)
+                parent.actuator_by_id[self.id] = self
+
+        if DEV_MODE:
+            _LOGGER.debug("Device %s: parent now set to %s", self, self._parent)
+        return self._parent
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -757,53 +755,17 @@ class HeatDevice(Device):  # Honeywell CH/DHW or compatible (incl. UFH, Heatpump
             elif self._iz_controller is False:  # TODO: raise CorruptStateError
                 _LOGGER.error(f"{msg!r} # IS_CONTROLLER (01): was FALSE, now True")
 
-    def _make_tcs_controller(self, msg=None, **schema) -> Any:  # CH/DHW
-        """Return a temperature control system (create/update it as required).
+    @property
+    def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]
+        """Return the device's parent zone, if known."""
 
-        TCSs are uniquely identified by a controller ID.
-        If a TCS is created, attach it to this device (which should be a CTL).
-        Raise an error if the TCS exists and a schema was provided.
-        """
-
-        from .systems import zx_system_factory
-
-        if self.type not in (
-            DEV_TYPE_MAP.CTL,
-            DEV_TYPE_MAP.DTS,
-            DEV_TYPE_MAP.DT2,
-            DEV_TYPE_MAP.PRG,
-            DEV_TYPE_MAP.RND,
-        ):  # potentially can be controllers
-            raise TypeError(f"Invalid device type to be a controller: {self}")
-
-        self._iz_controller = self._iz_controller or msg or True
-
-        schema = shrink(SCHEMA_SYS(schema))
-
-        # Step 0: Return the object if it exists
-        if self._tcs:
-            if schema:
-                raise TypeError("a schema was provided, but the TCS exists!")
-            return self._tcs
-
-        # Step 1: Create the object (__init__ checks for unique ID)
-        self._tcs = zx_system_factory(self, msg=msg, **schema)
-        #
-        #
-
-        # Step 2: If enabled/possible, start discovery (TODO: is messy)
-        if not self._gwy.config.disable_discovery and isinstance(
-            self._gwy.pkt_protocol, PacketProtocolPort
-        ):
-            self._tcs._start_discovery()
-
-        return self._tcs
+        return self._parent
 
 
-class HvacDevice(Device):  # HVAC (ventilation, PIV, MV/HR)
+class DeviceHvac(DeviceInfo, Device):  # HVAC (ventilation, PIV, MV/HR)
     """The Device base class for HVAC (ventilation, PIV, MV/HR)."""
 
-    _SLUG: str = DEV_TYPE.HVC
+    _SLUG: str = DEV_TYPE.HVC  # these may be instantiated, and promoted later on
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -822,7 +784,7 @@ class HvacDevice(Device):  # HVAC (ventilation, PIV, MV/HR)
     # def _handle_msg(self, msg) -> None:
     #     super()._handle_msg(msg)
 
-    #     # if type(self) is HvacDevice:
+    #     # if type(self) is DeviceHvac:
     #     #     if self.type == DEV_TYPE_MAP.RFG:  # self.__class__ is Device, DEX
     #     #         # TODO: the RFG codes need checking
     #     #         if msg.code in (_31D9, _31DA) and msg.verb in (I_, RP):

@@ -61,7 +61,7 @@ class AttrDict(dict):
         super().__init__(self._forward)
 
     def __getitem__(self, key):
-        if key in self._main_table:  # map[ZON_CLASS.DHW] -> "dhw_sensor"
+        if key in self._main_table:  # map[ZON_ROLE.DHW] -> "dhw_sensor"
             return list(self._main_table[key].values())[0]
         # if key in self._forward:  # map["0D"] -> "dhw_sensor"
         #     return self._forward.__getitem__(key)
@@ -170,6 +170,7 @@ DEV_ROLE_MAP = attr_dict_factory(
     },  # 03, 05, 06, 07: & >11 - no response from an 01:
     {
         "HEAT_DEVICES": ("00", "04", "08", "09", "0A", "0B", "11"),
+        "DHW_DEVICES": ("0D", "0E"),
     },
 )
 
@@ -264,7 +265,7 @@ DEV_TYPE_MAP = attr_dict_factory(
         "HEAT_ZONE_ACTUATORS": ("00", "02", "04", "13"),
         "THM_DEVICES": ("03", "12", "22", "34"),
         "TRV_DEVICES": ("00", "04"),
-        # "CONTROLLERS": ("01", "12", "22", "23", "34")  # potentially controllers
+        "CONTROLLERS": ("01", "12", "22", "23", "34"),  # potentially controllers
         "PROMOTABLE_SLUGS": (DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC),
         "HVAC_SLUGS": (
             DEV_TYPE.CO2,
@@ -277,7 +278,7 @@ DEV_TYPE_MAP = attr_dict_factory(
 )
 
 # slugs for zone entity klasses, used by 0005/000C
-ZON_CLASS = SimpleNamespace(
+ZON_ROLE = SimpleNamespace(
     #
     # Generic device/zone classes
     ACT="ACT",  # Generic heating zone actuator group
@@ -292,15 +293,17 @@ ZON_CLASS = SimpleNamespace(
     # Standard device/zone classes *not a heating zone)
     DHW="DHW",  # DHW zone with BDRs
 )
-ZON_CLASS_MAP = attr_dict_factory(
+ZON_ROLE_MAP = attr_dict_factory(
     {
-        ZON_CLASS.ACT: {"00": "heating_zone"},  # any actuator
-        ZON_CLASS.SEN: {"04": "zone_sensor"},  # any sensor
-        ZON_CLASS.RAD: {"08": "radiator_valve"},  # TRVs
-        ZON_CLASS.UFH: {"09": "underfloor_heating"},  # UFCs
-        ZON_CLASS.VAL: {"0A": "zone_valve"},  # BDRs
-        ZON_CLASS.MIX: {"0B": "mixing_valve"},  # HM8s
-        ZON_CLASS.ELE: {"11": "electric_heat"},  # BDRs
+        ZON_ROLE.ACT: {"00": "heating_zone"},  # any actuator
+        ZON_ROLE.SEN: {"04": "heating_zone"},  # any sensor
+        ZON_ROLE.RAD: {"08": "radiator_valve"},  # TRVs
+        ZON_ROLE.UFH: {"09": "underfloor_heating"},  # UFCs
+        ZON_ROLE.VAL: {"0A": "zone_valve"},  # BDRs
+        ZON_ROLE.MIX: {"0B": "mixing_valve"},  # HM8s
+        ZON_ROLE.DHW: {"0D": "stored_hotwater"},  # DHWs
+        # N_CLASS.HTG: {"0E": "stored_hotwater", AttrDict._SZ_ALIAS: ZON_ROLE.DHW},
+        ZON_ROLE.ELE: {"11": "electric_heat"},  # BDRs
     },
     {
         "HEAT_ZONES": ("08", "09", "0A", "0B", "11"),

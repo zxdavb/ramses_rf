@@ -19,6 +19,8 @@ from .const import (
     Discover,
     __dev_mode__,
 )
+from .protocol.ramses import CODES_SCHEMA
+from .protocol.transport import PacketProtocolPort
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -42,7 +44,7 @@ def class_by_attr(name: str, attr: str) -> dict:  # TODO: change to __module__
 
     For example:
       {"OTB": OtbGateway, "CTL": Controller}
-      {ZON_CLASS.RAD: RadZone, ZON_CLASS.UFH: UfhZone}
+      {ZON_ROLE.RAD: RadZone, ZON_ROLE.UFH: UfhZone}
       {"evohome": Evohome}
     """
 
@@ -77,15 +79,23 @@ class Entity:
     """
 
     def __init__(self, gwy) -> None:
-        self._loop = gwy._loop
-
         self._gwy = gwy
+        # self._loop = gwy._loop  # deprecate
+
         self.id = None
 
         self._msgs = {}  # code, should be code/ctx? ?deprecate
         self._msgz = {}  # code/verb/ctx, should be code/ctx/verb?
 
         self._qos_tx_count = 0  # the number of pkts Tx'd with no matching Rx
+
+        if not self._gwy.config.disable_discovery and isinstance(
+            self._gwy.pkt_protocol, PacketProtocolPort
+        ):
+            self._start_discovery()
+
+    def __str__(self) -> str:
+        return f"{self.id} ({self._SLUG})"
 
     def _qos_function(self, pkt, reset=False) -> None:
         if reset:
@@ -99,9 +109,11 @@ class Entity:
                 "(consider adjusting device_id filters)"
             )  # TODO: take whitelist into account
 
-    # @discover_decorator
-    # def _discover(self, discover_flag=Discover.ALL) -> None:
-    #     pass
+    def _start_discovery(self) -> None:
+        pass
+
+    def _discover(self, discover_flag=Discover.ALL) -> None:
+        pass
 
     def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess
         """Store a msg in _msgs[code] (only latest I/RP) and _msgz[code][verb][ctx]."""
@@ -215,12 +227,17 @@ class Entity:
 
     @property
     def _codes(self) -> dict:
-        from .protocol.ramses import CODES_SCHEMA  # HACK: FIXME
 
         return {
             k: (CODES_SCHEMA[k][SZ_NAME] if k in CODES_SCHEMA else None)
             for k in sorted(self._msgs)
         }
+
+    @property
+    def traits(self) -> dict:
+        """Return the traits (codes seen) of the entity."""
+
+        return {"codes_seen": list(self._codes.keys())} if DEV_MODE else {}
 
 
 def _delete_msg(msg) -> None:

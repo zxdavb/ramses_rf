@@ -26,6 +26,7 @@ from .protocol.const import (  # noqa: F401
     SZ_PRESSURE,
     SZ_RELAY_DEMAND,
     SZ_RELAY_FAILSAFE,
+    SZ_SENSOR,
     SZ_SETPOINT,
     SZ_SYSTEM_MODE,
     SZ_TEMPERATURE,
@@ -37,6 +38,7 @@ from .protocol.const import (  # noqa: F401
     SZ_ZONE_IDX,
     SZ_ZONE_MASK,
     SZ_ZONE_TYPE,
+    SZ_ZONES,
     ZON_MODE_MAP,
     SystemType,
 )
@@ -55,8 +57,8 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     DEV_ROLE_MAP,
     DEV_TYPE,
     DEV_TYPE_MAP,
-    ZON_CLASS,
-    ZON_CLASS_MAP,
+    ZON_ROLE,
+    ZON_ROLE_MAP,
 )
 
 # skipcq: PY-W2000

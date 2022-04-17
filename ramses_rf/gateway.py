@@ -230,12 +230,12 @@ class Gateway(Engine):
             _LOGGER.debug("Received a signal (%s), processing...", sig.name)
 
             if sig == signal.SIGUSR1:
-                _LOGGER.info("Schema: \r\n%s", {self.evo.id: self.evo.schema})
-                _LOGGER.info("Params: \r\n%s", {self.evo.id: self.evo.params})
-                _LOGGER.info("Status: \r\n%s", {self.evo.id: self.evo.status})
+                _LOGGER.info("Schema: \r\n%s", {self.tcs.id: self.tcs.schema})
+                _LOGGER.info("Params: \r\n%s", {self.tcs.id: self.tcs.params})
+                _LOGGER.info("Status: \r\n%s", {self.tcs.id: self.tcs.status})
 
             elif sig == signal.SIGUSR2:
-                _LOGGER.info("Status: \r\n%s", {self.evo.id: self.evo.status})
+                _LOGGER.info("Status: \r\n%s", {self.tcs.id: self.tcs.status})
 
         super()._setup_event_handlers()
 
@@ -374,7 +374,7 @@ class Gateway(Engine):
             return dev
 
         # Step 1: Create the object (__init__ checks for unique ID)
-        dev = zx_device_factory(self, dev_addr, **schema)
+        dev = zx_device_factory(self, dev_addr, msg=msg, **schema)
         self.device_by_id[dev.id] = dev
         self.devices.append(dev)
 
@@ -404,7 +404,7 @@ class Gateway(Engine):
         return dev
 
     @property
-    def evo(self) -> Optional[System]:
+    def tcs(self) -> Optional[System]:
         if self._tcs is None and self.systems:
             self._tcs = self.systems[0]
         return self._tcs
@@ -428,7 +428,7 @@ class Gateway(Engine):
 
         return {
             "gateway_id": self.hgi.id if self.hgi else None,
-            "schema": self.evo._schema_min if self.evo else None,
+            "schema": self.tcs._schema_min if self.tcs else None,
             "config": {"enforce_known_list": self.config.enforce_known_list},
             "known_list": [{k: v} for k, v in self._include.items()],
             "block_list": [{k: v} for k, v in self._exclude.items()],
@@ -440,10 +440,10 @@ class Gateway(Engine):
     def schema(self) -> dict:
         """Return the global schema."""
 
-        schema = {SZ_MAIN_CONTROLLER: self.evo._ctl.id if self.evo else None}
+        schema = {SZ_MAIN_CONTROLLER: self.tcs._ctl.id if self.tcs else None}
 
-        for evo in self.systems:
-            schema[evo._ctl.id] = evo.schema
+        for tcs in self.systems:
+            schema[tcs._ctl.id] = tcs.schema
 
         schema[SZ_ORPHANS] = [
             d.id for d in self.devices if d._ctl is None and d._is_present

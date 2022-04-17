@@ -430,25 +430,22 @@ def _print_state(gwy, **kwargs):
 
 
 def print_summary(gwy, **kwargs):
-    if gwy.evo:
-        entity, ent_id = gwy.evo, gwy.evo.id
-    else:
-        entity, ent_id = gwy, gwy.hgi.id if gwy.hgi else None
+    entity = gwy.tcs or gwy
 
     if kwargs.get("show_schema"):
-        print(f"Schema[{ent_id}] = {json.dumps(entity.schema, indent=4)}\r\n")
+        print(f"Schema[{entity}] = {json.dumps(entity.schema, indent=4)}\r\n")
 
         # schema = {d.id: d.schema for d in sorted(gwy.devices)}
         # print(f"Schema[devices] = {json.dumps({'schema': schema}, indent=4)}\r\n")
 
     if kwargs.get("show_params"):
-        print(f"Params[{ent_id}] = {json.dumps(entity.params, indent=4)}\r\n")
+        print(f"Params[{entity}] = {json.dumps(entity.params, indent=4)}\r\n")
 
         params = {d.id: d.params for d in sorted(gwy.devices)}
         print(f"Params[devices] = {json.dumps({'params': params}, indent=4)}\r\n")
 
     if kwargs.get("show_status"):
-        print(f"Status[{ent_id}] = {json.dumps(entity.status, indent=4)}\r\n")
+        print(f"Status[{entity}] = {json.dumps(entity.status, indent=4)}\r\n")
 
         status = {d.id: d.status for d in sorted(gwy.devices)}
         print(f"Status[devices] = {json.dumps({'status': status}, indent=4)}\r\n")

@@ -14,7 +14,7 @@ from asyncio import Task
 from datetime import datetime as dt
 from datetime import timedelta as td
 from symtable import Class
-from typing import Optional
+from typing import Any, Optional, Tuple
 
 from .const import (
     DEV_ROLE,
@@ -31,9 +31,9 @@ from .const import (
     SZ_WINDOW_OPEN,
     SZ_ZONE_IDX,
     SZ_ZONE_TYPE,
-    ZON_CLASS,
-    ZON_CLASS_MAP,
     ZON_MODE_MAP,
+    ZON_ROLE,
+    ZON_ROLE_MAP,
     __dev_mode__,
 )
 from .devices import (
@@ -168,20 +168,43 @@ if DEV_MODE:
 class ZoneBase(Entity):
     """The Zone/DHW base class."""
 
-    # _SLUG: str = None
+    _SLUG: str = None
 
-    def __init__(self, evo, zone_idx) -> None:
-        _LOGGER.debug("Creating a Zone: %s_%s (%s)", evo, zone_idx, self.__class__)
-        super().__init__(evo._gwy)
+    def __init__(self, tcs, zone_idx: str) -> None:
+        super().__init__(tcs._gwy)
 
-        self.id, self.idx = f"{evo.id}_{zone_idx}", zone_idx
-        self._tcs, self._ctl = self._set_system(evo, zone_idx)
+        self.id: str = f"{tcs.id}_{zone_idx}"
 
-        self._name = None
-        self._zone_slug = None
+        self._tcs = tcs
+        self._ctl = tcs._ctl
+        self._domain_id = zone_idx
+
+        self._name = None  # param attr
+
+    def _set_system(self, parent, zone_idx) -> Tuple[Any, Any]:
+        """Set the zone's parent system, after validating it."""
+
+        from .systems import System  # NOTE: here to prevent circular references
+
+        try:
+            if zone_idx != "HW" and int(zone_idx, 16) >= parent.max_zones:
+                raise ValueError(f"{self}: invalid zone_idx {zone_idx} (> max_zones")
+        except (TypeError, ValueError):
+            raise TypeError(f"{self}: invalid zone_idx {zone_idx}")
+
+        if not isinstance(parent, System):
+            raise TypeError(f"{self}: parent must be a System, not {parent}")
+
+        if zone_idx != "HW":  # or: FA?
+            parent.zone_by_idx[zone_idx] = self
+            parent.zones.append(self)
+
+        self._ctl = parent._ctl
+
+        return parent, parent._ctl
 
     @classmethod
-    def zx_create_from_schema(cls, tcs, zone_idx: str, **schema):
+    def create_from_schema(cls, tcs, zone_idx: str, **schema):
         """Create a CH/DHW zone for a TCS and set its schema attrs.
 
         The appropriate Zone class should have been determined by a factory.
@@ -189,11 +212,11 @@ class ZoneBase(Entity):
         """
 
         zon = cls(tcs, zone_idx)
-        zon._zx_update_schema(**schema)
+        zon._update_schema(**schema)
         return zon
 
     def __repr__(self) -> str:
-        return f"{self.id} ({self.heating_type})"
+        return f"{self.id} (schema={self.schema})"
 
     def __lt__(self, other) -> bool:
         if not isinstance(other, ZoneBase):
@@ -212,38 +235,18 @@ class ZoneBase(Entity):
             self._discover, discover_flag=Discover.STATUS, delay=5, period=60 * 15
         )
 
-    def _set_system(self, parent, zone_idx):
-        """Set the zone's parent system, after validating it."""
-
-        from .systems import System  # to prevent circular references
-
-        try:
-            if zone_idx != "HW" and int(zone_idx, 16) >= parent.max_zones:
-                raise ValueError(f"{self}: invalid zone_idx {zone_idx} (> max_zones")
-        except (TypeError, ValueError):
-            raise TypeError(f"{self}: invalid zone_idx {zone_idx}")
-
-        if not isinstance(parent, System):
-            raise TypeError(f"{self}: parent must be a System, not {parent}")
-
-        if zone_idx != "HW":  # or: FA?
-            if self.idx in parent.zone_by_idx:
-                raise LookupError(f"{self}: duplicate zone_idx: {zone_idx}")
-            parent.zone_by_idx[zone_idx] = self
-            parent.zones.append(self)
-
-        self._ctl = parent._ctl
-
-        return parent, parent._ctl
-
     def _make_cmd(self, code, **kwargs) -> None:  # skipcq: PYL-W0221
         payload = kwargs.pop("payload", f"{self.idx}00")
         super()._make_cmd(code, self._ctl.id, payload=payload, **kwargs)
 
     @property
-    def heating_type(self) -> Optional[str]:
+    def heating_type(self) -> str:
         """Return the type of the zone/DHW (e.g. electric_zone, stored_dhw)."""
-        return self._SLUG
+        return ZON_ROLE_MAP[self._SLUG]
+
+    @property
+    def idx(self) -> str:
+        return self._domain_id
 
 
 class ZoneSchedule(ZoneBase):  # 0404  # TODO: add for DHW
@@ -312,9 +315,25 @@ class RelayDemand(ZoneBase):  # 0008
 class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
     """The DHW class."""
 
-    _SLUG: str = ZON_CLASS.DHW
+    _SLUG: str = ZON_ROLE.DHW
 
-    def _zx_update_schema(self, **schema):
+    #
+
+    def __init__(self, tcs, zone_idx: str = "HW") -> None:
+        _LOGGER.debug("Creating a DHW for TCS: %s_HW (%s)", tcs.id, self.__class__)
+
+        if tcs._dhw:
+            raise LookupError(f"Duplicate DHW for TCS: {tcs.id}")
+        if zone_idx not in (None, "HW"):
+            raise ValueError(f"Invalid zone idx for DHW: {zone_idx} (not 'HW'/null)")
+
+        super().__init__(tcs, "HW")
+
+        self._dhw_sensor = None  # schema attr
+        self._dhw_valve = None  # schema attr
+        self._htg_valve = None  # schema attr
+
+    def _update_schema(self, **schema):
         """Update a DHW zone with new schema attrs.
 
         Raise an exception if the new schema is not a superset of the existing schema.
@@ -345,7 +364,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
                 schema_attr = DEV_ROLE_MAP._str(dev_slug)
 
             new_dev = self._gwy._get_device(dev_id, ctl_id=self._ctl.id)
-            old_dev = self.schema[schema_attr]
+            old_dev = self._ctl.device_by_id.get(self.schema[schema_attr])
 
             if old_dev is new_dev:
                 return old_dev
@@ -371,24 +390,6 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
         if dev_id := schema.get(DEV_ROLE_MAP._str(DEV_ROLE.HT1)):
             self._htg_valve = get_dhw_device(dev_id, DEV_ROLE.HT1, BdrSwitch, "F9")
-
-    def __init__(self, tcs, zone_idx="HW") -> None:
-        _LOGGER.debug("Creating a DHW for TCS: %s", tcs)
-
-        if tcs._dhw:
-            raise LookupError(f"Duplicate DHW for TCS: {tcs}")
-
-        if zone_idx not in (None, "HW"):
-            raise ValueError(f"Invalid zone idx for DHW: {zone_idx} (not HW/null)")
-
-        super().__init__(tcs, zone_idx or "HW")
-
-        # schema attrs
-        self._dhw_sensor = None
-        self._dhw_valve = None
-        self._htg_valve = None
-
-        self._zone_slug = ZON_CLASS.DHW
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.ALL) -> None:
@@ -464,10 +465,10 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             ):
                 self._get_dhw(sensor=this.dst)
 
-        assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
-        assert msg.code != _000C or msg.payload.get(SZ_DOMAIN_ID) in (
-            "F9",
-            "FA",
+        assert (
+            msg.src is self._ctl
+            and msg.code in (_0005, _000C)
+            or msg.payload.get(SZ_DOMAIN_ID) in ("F9", "FA")
         ), f"msg inappropriately routed to {self}"
 
         super()._handle_msg(msg)
@@ -481,9 +482,9 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             DEV_ROLE_MAP._str(DEV_ROLE.HTG),
             DEV_ROLE_MAP._str(DEV_ROLE.HT1),
         ):
-            self._zx_update_schema(**{dev_klass: msg.payload[SZ_DEVICES][0]})
+            self._update_schema(**{dev_klass: msg.payload[SZ_DEVICES][0]})
         elif dev_klass == DEV_ROLE_MAP._str(DEV_ROLE.DHW):
-            self._zx_update_schema(**{SZ_SENSOR: msg.payload[SZ_DEVICES][0]})
+            self._update_schema(**{SZ_SENSOR: msg.payload[SZ_DEVICES][0]})
 
         # TODO: may need to move earlier in method
         # # If still don't have a sensor, can eavesdrop 10A0
@@ -599,7 +600,33 @@ class Zone(ZoneSchedule, ZoneBase):
 
     _SLUG: str = None  # Unknown
 
-    def _zx_update_schema(self, **schema):
+    #
+
+    def __init__(self, tcs, zone_idx: str) -> None:
+        """Create a heating zone.
+
+        The type of zone may not be known at instantiation. Even when it is known, zones
+        are still created without a type before they are subsequently promoted, so that
+        both schemes (e.g. eavesdropping, vs probing) are the same.
+
+        In addition, an electric zone may subsequently turn out to be a zone valve zone.
+        """
+        _LOGGER.debug("Creating a Zone: %s_%s (%s)", tcs.id, zone_idx, self.__class__)
+
+        if zone_idx in tcs.zone_by_idx:
+            raise LookupError(f"Duplicate ZON for TCS: {tcs.id}_{zone_idx}")
+        if int(zone_idx, 16) >= tcs.max_zones:
+            raise ValueError(f"Invalid zone_idx: {zone_idx} (exceeds max_zones)")
+
+        super().__init__(tcs, zone_idx)
+
+        self._sensor = None  # schema attr
+        self.actuators = []  # schema attr
+        self.actuator_by_id = {}  # schema attr
+
+        self._schedule = Schedule(self)  # param attr
+
+    def _update_schema(self, **schema):
         """Update a heating zone with new schema attrs.
 
         Raise an exception if the new schema is not a superset of the existing schema.
@@ -650,31 +677,30 @@ class Zone(ZoneSchedule, ZoneBase):
             2. analyzing child devices
             """
 
-            if zone_type in (ZON_CLASS_MAP.ACT, ZON_CLASS_MAP.SEN):
+            if zone_type in (ZON_ROLE_MAP.ACT, ZON_ROLE_MAP.SEN):
                 return  # generic zone classes
-            elif zone_type not in ZON_CLASS_MAP.HEAT_ZONES:
+            elif zone_type not in ZON_ROLE_MAP.HEAT_ZONES:
                 raise TypeError
 
-            klass = ZON_CLASS_MAP.slug(zone_type)  # not incl. DHW?
+            klass = ZON_ROLE_MAP.slug(zone_type)  # not incl. DHW?
 
-            if klass == self._zone_slug:
+            if klass == self._SLUG:
                 return
 
-            if klass == ZON_CLASS.VAL and self._zone_slug not in (
+            if klass == ZON_ROLE.VAL and self._SLUG not in (
                 None,
-                ZON_CLASS.ELE,
+                ZON_ROLE.ELE,
             ):
                 raise ValueError(f"Not a compatible zone class for {self}: {zone_type}")
 
             elif klass not in ZONE_CLASS_BY_SLUG:
                 raise ValueError(f"Not a known zone class (for {self}): {zone_type}")
 
-            if self._zone_slug is not None:
+            if self._SLUG is not None:
                 raise CorruptStateError(
-                    f"{self} changed zone class: from {self._zone_slug} to {klass}"
+                    f"{self} changed zone class: from {self._SLUG} to {klass}"
                 )
 
-            self._zone_slug = klass
             self.__class__ = ZONE_CLASS_BY_SLUG[klass]
             _LOGGER.debug("Promoted a Zone: %s (%s)", self.id, self.__class__)
 
@@ -682,46 +708,19 @@ class Zone(ZoneSchedule, ZoneBase):
                 discover_flag=Discover.SCHEMA
             )  # TODO: needs tidyup (ref #67)
 
+        # if schema.get(SZ_CLASS) == ZON_ROLE_MAP._str(ZON_ROLE.ACT):
+        #     schema.pop(SZ_CLASS)
+
         schema = shrink(SCHEMA_ZON(schema))
 
         if klass := schema.get(SZ_CLASS):
-            set_zone_type(ZON_CLASS_MAP[klass])
+            set_zone_type(ZON_ROLE_MAP[klass])
 
         if dev_id := schema.get(SZ_SENSOR):
             set_sensor(self._gwy._zx_get_device(Address(dev_id)))
 
         for dev_id in schema.get(SZ_ACTUATORS, []):
             add_actuator(self._gwy._zx_get_device(Address(dev_id)))
-
-    def __init__(self, tcs, zone_idx) -> None:
-        """Create a heating zone.
-
-        The type of zone may not be known at instantiation. Even when it is known, zones
-        are still created without a type before they are subsequently promoted, so that
-        both schemes (e.g. eavesdropping, vs probing) are the same.
-
-        In addition, an electric zone may subsequently turn out to be a zone valve zone.
-        """
-        _LOGGER.debug("Creating a ZONE for TCS: %s (%s)", tcs, self.__class__)
-
-        if tcs.zone_by_idx.get(zone_idx):
-            raise LookupError(f"Duplicate ZON for TCS: {tcs}")
-
-        if int(zone_idx, 16) >= tcs.max_zones:
-            raise ValueError(f"Invalid zone idx: {zone_idx} (exceeds max_zones)")
-
-        super().__init__(tcs, zone_idx)
-
-        # schema attrs
-        self._sensor = None
-        self.actuators = []
-        self.actuator_by_id = {}
-        # self.devices = []
-        # self.device_by_id = {}
-        # self._zone_slug = None  # set in init
-
-        # state attrs
-        self._schedule = Schedule(self)
 
     @discover_decorator  # NOTE: can mean is double-decorated
     def _discover(self, discover_flag=Discover.ALL) -> None:
@@ -773,41 +772,43 @@ class Zone(ZoneSchedule, ZoneBase):
             """
             # ELE/VAL, but not UFH (it seems)
             if this.code in (_0008, _0009):
-                assert self._zone_slug in (
+                assert self._SLUG in (
                     None,
-                    ZON_CLASS.ELE,
-                    ZON_CLASS.VAL,
-                    ZON_CLASS.MIX,
-                ), self._zone_slug
+                    ZON_ROLE.ELE,
+                    ZON_ROLE.VAL,
+                    ZON_ROLE.MIX,
+                ), self._SLUG
 
-                if self._zone_slug is None:
+                if self._SLUG is None:
                     self._set_zone_type(
-                        ZON_CLASS.ELE
-                    )  # might eventually be: ZON_CLASS.VAL
+                        ZON_ROLE.ELE
+                    )  # might eventually be: ZON_ROLE.VAL
 
             elif this.code == _3150:  # TODO: and this.verb in (I_, RP)?
                 # MIX/ELE don't 3150
-                assert self._zone_slug in (
+                assert self._SLUG in (
                     None,
-                    ZON_CLASS.RAD,
-                    ZON_CLASS.UFH,
-                    ZON_CLASS.VAL,
-                ), self._zone_slug
+                    ZON_ROLE.RAD,
+                    ZON_ROLE.UFH,
+                    ZON_ROLE.VAL,
+                ), self._SLUG
 
                 if isinstance(this.src, TrvActuator):
-                    self._set_zone_type(ZON_CLASS.RAD)
+                    self._set_zone_type(ZON_ROLE.RAD)
                 elif isinstance(this.src, BdrSwitch):
-                    self._set_zone_type(ZON_CLASS.VAL)
+                    self._set_zone_type(ZON_ROLE.VAL)
                 elif isinstance(this.src, UfhController):
-                    self._set_zone_type(ZON_CLASS.UFH)
+                    self._set_zone_type(ZON_ROLE.UFH)
 
         assert (msg.src is self._ctl or msg.src.type == DEV_TYPE_MAP.UFC) and (  # DEX
             isinstance(msg.payload, dict)
-            or [d for d in msg.payload if d[SZ_ZONE_IDX] == self.idx]
+            or [d for d in msg.payload if d.get(SZ_ZONE_IDX) == self.idx]
         ), f"msg inappropriately routed to {self}"
 
         assert (msg.src is self._ctl or msg.src.type == DEV_TYPE_MAP.UFC) and (  # DEX
-            isinstance(msg.payload, list) or msg.payload[SZ_ZONE_IDX] == self.idx
+            isinstance(msg.payload, list)
+            or msg.code == _0005
+            or msg.payload.get(SZ_ZONE_IDX) == self.idx
         ), f"msg inappropriately routed to {self}"
 
         super()._handle_msg(msg)
@@ -815,15 +816,15 @@ class Zone(ZoneSchedule, ZoneBase):
         if msg.code == _000C and msg.payload[SZ_DEVICES]:
 
             if msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.SEN:
-                self._zx_update_schema(**{SZ_SENSOR: msg.payload[SZ_DEVICES][0]})
+                self._update_schema(**{SZ_SENSOR: msg.payload[SZ_DEVICES][0]})
 
             elif msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.ACT:
-                self._zx_update_schema(**{SZ_ACTUATORS: msg.payload[SZ_DEVICES]})
+                self._update_schema(**{SZ_ACTUATORS: msg.payload[SZ_DEVICES]})
 
-            elif msg.payload[SZ_ZONE_TYPE] in ZON_CLASS_MAP.HEAT_ZONES:
-                self._zx_update_schema(
+            elif msg.payload[SZ_ZONE_TYPE] in ZON_ROLE_MAP.HEAT_ZONES:
+                self._update_schema(
                     **{
-                        SZ_CLASS: ZON_CLASS_MAP[msg.payload[SZ_ZONE_TYPE]],
+                        SZ_CLASS: ZON_ROLE_MAP[msg.payload[SZ_ZONE_TYPE]],
                         SZ_ACTUATORS: msg.payload[SZ_DEVICES],
                     }
                 )
@@ -833,9 +834,9 @@ class Zone(ZoneSchedule, ZoneBase):
                 self._make_cmd(_000C, payload=f"{self.idx}{DEV_ROLE_MAP.UFH}")
 
         # If zone still doesn't have a zone class, maybe eavesdrop?
-        if self._gwy.config.enable_eavesdrop and self._zone_slug in (
+        if self._gwy.config.enable_eavesdrop and self._SLUG in (
             None,
-            ZON_CLASS.ELE,
+            ZON_ROLE.ELE,
         ):
             eavesdrop_zone_type(msg)
 
@@ -848,8 +849,8 @@ class Zone(ZoneSchedule, ZoneBase):
 
     @property
     def heating_type(self) -> Optional[str]:
-        if self._zone_slug is not None:  # isinstance(self, ???)
-            return ZON_CLASS_MAP._str(self._zone_slug)
+        if self._SLUG is not None:  # isinstance(self, ???)
+            return ZON_ROLE_MAP._str(self._SLUG)
 
     @property
     def name(self) -> Optional[str]:  # 0004
@@ -890,7 +891,7 @@ class Zone(ZoneSchedule, ZoneBase):
         """Return the zone's heat demand, estimated from its devices' heat demand."""
         demands = [
             d.heat_demand
-            for d in self.devices  # TODO: actuators
+            for d in self.actuators  # TODO: actuators
             if hasattr(d, SZ_HEAT_DEMAND) and d.heat_demand is not None
         ]
         return _transform(max(demands + [0])) if demands else None
@@ -975,7 +976,7 @@ class Zone(ZoneSchedule, ZoneBase):
 class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
     """For a small electric load controlled by a relay (never calls for heat)."""
 
-    _SLUG: str = ZON_CLASS.ELE
+    _SLUG: str = ZON_ROLE.ELE
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -986,15 +987,15 @@ class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
 
         if discover_flag & Discover.SCHEMA:
             try:
-                _ = self._msgz[_000C][RP][f"{self.idx}{ZON_CLASS_MAP.ELE}"]
+                _ = self._msgz[_000C][RP][f"{self.idx}{ZON_ROLE_MAP.ELE}"]
             except KeyError:
-                self._make_cmd(_000C, payload=f"{self.idx}{ZON_CLASS_MAP.ELE}")
+                self._make_cmd(_000C, payload=f"{self.idx}{ZON_ROLE_MAP.ELE}")
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
         # if msg.code == _0008:  # ZON zones are ELE zones that also call for heat
-        #     self._set_zone_type(ZON_CLASS.VAL)
+        #     self._set_zone_type(ZON_ROLE.VAL)
         if msg.code == _3150:
             raise TypeError("WHAT 1")
         elif msg.code == _3EF0:
@@ -1012,7 +1013,7 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
     Note that HM80s are listen-only devices.
     """
 
-    _SLUG: str = ZON_CLASS.MIX
+    _SLUG: str = ZON_ROLE.MIX
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -1045,7 +1046,7 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
 class RadZone(Zone):  # HR92/HR80
     """For radiators controlled by HR92s or HR80s (will also call for heat)."""
 
-    _SLUG: str = ZON_CLASS.RAD
+    _SLUG: str = ZON_ROLE.RAD
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -1064,7 +1065,7 @@ class RadZone(Zone):  # HR92/HR80
 class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
     """For underfloor heating controlled by an HCE80/HCC80 (will also call for heat)."""
 
-    _SLUG: str = ZON_CLASS.UFH
+    _SLUG: str = ZON_ROLE.UFH
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -1089,7 +1090,7 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
 class ValZone(EleZone):  # BDR91A/T
     """For a motorised valve controlled by a BDR91 (will also call for heat)."""
 
-    _SLUG: str = ZON_CLASS.VAL
+    _SLUG: str = ZON_ROLE.VAL
 
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
@@ -1111,7 +1112,7 @@ class ValZone(EleZone):  # BDR91A/T
 
 
 def _transform(valve_pos: float) -> float:
-    """Transform a valve position (0-200) into a demand (%) (as used in the evo UI)."""
+    """Transform a valve position (0-200) into a demand (%) (as used in the tcs UI)."""
     # import math
     valve_pos = valve_pos * 100
     if valve_pos <= 30:
@@ -1120,7 +1121,7 @@ def _transform(valve_pos: float) -> float:
     return math.floor((valve_pos - t1) * t1 / (t2 - t1) + t0 + 0.5) / 100
 
 
-ZONE_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # ZON_CLASS.RAD: RadZone
+ZONE_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # ZON_ROLE.RAD: RadZone
 
 
 def zx_zone_factory(tcs, idx: str, msg: Message = None, **schema) -> Class:
@@ -1129,7 +1130,7 @@ def zx_zone_factory(tcs, idx: str, msg: Message = None, **schema) -> Class:
     Some zones are promotable to a compatible sub class (e.g. ELE->VAL).
     """
 
-    def class_zon(
+    def best_zon_class(
         ctl_addr: Address,
         idx: str,
         msg: Message = None,
@@ -1153,7 +1154,7 @@ def zx_zone_factory(tcs, idx: str, msg: Message = None, **schema) -> Class:
         # try:  # or, a class eavesdropped from the message code/payload...
         #     if klass := best_zone_klass(ctl_addr.type, msg=msg, eavesdrop=eavesdrop):
         #         _LOGGER.warning(f"Using eavesdropped class for: {ctl_addr}_{idx} ({klass})")
-        #         return klass  # might be HvacDevice
+        #         return klass  # might be DeviceHvac
         # except TypeError:
         #     pass
 
@@ -1161,10 +1162,10 @@ def zx_zone_factory(tcs, idx: str, msg: Message = None, **schema) -> Class:
         _LOGGER.debug(f"Using generic zone class for: {ctl_addr}_{idx} ({Zone})")
         return Zone
 
-    return class_zon(
+    return best_zon_class(
         tcs._ctl.addr,
         idx,
         msg=msg,
         eavesdrop=tcs._gwy.config.enable_eavesdrop,
         **schema,
-    ).zx_create_from_schema(tcs, idx, **schema)
+    ).create_from_schema(tcs, idx, **schema)

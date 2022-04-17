@@ -25,9 +25,9 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
 from .devices_base import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     BASE_CLASS_BY_SLUG,
     Device,
-    HeatDevice,
+    DeviceHeat,
     HgiGateway,
-    HvacDevice,
+    DeviceHvac,
 )
 
 # skipcq: PY-W2000
@@ -60,51 +60,58 @@ if DEV_MODE:
 _CLASS_BY_SLUG = BASE_CLASS_BY_SLUG | HEAT_CLASS_BY_SLUG | HVAC_CLASS_BY_SLUG
 
 
-def device_role_best(
+def best_dev_role(
     dev_addr: Address,
     msg: Message = None,
     eavesdrop: bool = False,
     **schema,
 ) -> Class:
-    """Return the best device role for a given device id/msg/schema."""
+    """Return the best device role (object class) for a given device id/msg/schema.
+
+    Heat (CH/DHW) devices can reliably be determined by their address type (e.g. '04:').
+    Any device without a known Heat type is considered a HVAC device.
+
+    HVAC devices must be explicity typed, or fingerprinted/eavesdropped.
+    The generic HVAC class can be promoted later on, when more information is available.
+    """
 
     # a specified device class always takes precidence (even if it is wrong)...
     if klass := _CLASS_BY_SLUG.get(schema.get(SZ_CLASS)):
-        _LOGGER.debug(f"Using configured dev class for: {dev_addr} ({klass})")
+        _LOGGER.debug(f"Using explicitly-defined class for: {dev_addr} ({klass})")
         return klass
 
     if dev_addr.type == DEV_TYPE_MAP.HGI:
-        _LOGGER.debug(f"Using default dev class for: {dev_addr} ({HgiGateway})")
+        _LOGGER.debug(f"Using default class for: {dev_addr} ({HgiGateway})")
         return HgiGateway
 
     try:  # or, is it a well-known CH/DHW class, derived from the device type...
         if klass := class_dev_heat(dev_addr, msg=msg, eavesdrop=eavesdrop):
-            _LOGGER.debug(f"Using default dev class for: {dev_addr} ({klass})")
-            return klass  # includes HeatDevice
+            _LOGGER.debug(f"Using default Heat class for: {dev_addr} ({klass})")
+            return klass
     except TypeError:
         pass
 
     try:  # or, a HVAC class, eavesdropped from the message code/payload...
         if klass := class_dev_hvac(dev_addr, msg=msg, eavesdrop=eavesdrop):
-            _LOGGER.warning(f"Using eavesdropped dev class for: {dev_addr} ({klass})")
-            return klass  # includes HvacDevice
+            _LOGGER.warning(f"Using eavesdropped HVAC class for: {dev_addr} ({klass})")
+            return klass  # includes DeviceHvac
     except TypeError:
         pass
 
     # otherwise, use the default device class...
-    _LOGGER.warning(f"Using generic dev class for: {dev_addr} ({Device})")
-    return Device
+    _LOGGER.warning(f"Using a promotable HVAC class for: {dev_addr} ({DeviceHvac})")
+    return DeviceHvac
 
 
 def zx_device_factory(gwy, dev_addr: Address, msg: Message = None, **schema) -> Class:
     """Return the initial device class for a given device id/msg/schema.
 
-    Some devices are promotable to s compatibel sub class.
+    Some devices are promotable to a compatible sub class.
     """
 
-    return device_role_best(
+    return best_dev_role(
         dev_addr,
         msg=msg,
         eavesdrop=gwy.config.enable_eavesdrop,
         **schema,
-    ).zx_create_from_schema(gwy, dev_addr, **schema)
+    ).create_from_schema(gwy, dev_addr, **schema)

@@ -54,6 +54,7 @@ from .const import (
     SZ_ZONE_MASK,
     SZ_ZONE_TYPE,
     ZON_MODE_MAP,
+    ZON_ROLE_MAP,
     __dev_mode__,
 )
 from .exceptions import InvalidPayloadError
@@ -192,10 +193,11 @@ def parser_0005(payload, msg) -> Union[dict, list[dict]]:  # TODO: needs a clean
             zone_mask = flag8(seqx[4:6], lsb=True)
         else:
             zone_mask = flag8(seqx[4:6], lsb=True) + flag8(seqx[6:8], lsb=True)
+        zone_class = ZON_ROLE_MAP.get(seqx[2:4], DEV_ROLE_MAP[seqx[2:4]])
         return {
             SZ_ZONE_TYPE: seqx[2:4],
             SZ_ZONE_MASK: zone_mask,
-            SZ_ZONE_CLASS: DEV_ROLE_MAP[seqx[2:4]],
+            SZ_ZONE_CLASS: zone_class,
         }
 
     if msg.verb == RQ:  # RQs have a context: zone_type
@@ -547,7 +549,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
     }
 
     if payload[10:12] == "FC" and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
-        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP._str(DEV_ROLE.APP)  # actual evo UI
+        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP._str(DEV_ROLE.APP)  # actual evohome UI
     elif payload[10:12] == "FA" and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
         result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP._str(DEV_ROLE.HTG)  # speculative
     elif payload[10:12] == "F9" and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:

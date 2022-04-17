@@ -11,7 +11,7 @@ from symtable import Class
 from typing import Optional
 
 from .const import BOOST_TIMER, DEV_TYPE, FAN_MODE, SZ_TEMPERATURE, __dev_mode__
-from .devices_base import BatteryState, HvacDevice
+from .devices_base import BatteryState, DeviceHvac
 from .entity_base import class_by_attr
 from .protocol import Address, Message
 from .protocol.ramses import CODES_HVAC_ONLY
@@ -114,7 +114,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-class RfsGateway(HvacDevice):  # RFS: (spIDer gateway)
+class RfsGateway(DeviceHvac):  # RFS: (spIDer gateway)
     """The HGI80 base class."""
 
     _SLUG: str = DEV_TYPE.RFS
@@ -126,12 +126,8 @@ class RfsGateway(HvacDevice):  # RFS: (spIDer gateway)
         self._domain_id = "HV"
         self._tcs = None
 
-    def _set_ctl(self, ctl) -> None:  # self._ctl
-        """Set the device's parent controller, after validating it."""
-        _LOGGER.debug("%s: can't (really) have a controller %s", self, ctl)
 
-
-class HvacHumidity(BatteryState, HvacDevice):  # HUM: I/12A0
+class HvacHumidity(BatteryState, DeviceHvac):  # HUM: I/12A0
     """The Sensor class for a humidity sensor.
 
     The cardinal code is 12A0.
@@ -165,7 +161,7 @@ class HvacHumidity(BatteryState, HvacDevice):  # HUM: I/12A0
         }
 
 
-class HvacCarbonDioxide(HvacDevice):  # CO2: I/1298
+class HvacCarbonDioxide(DeviceHvac):  # CO2: I/1298
     """The Sensor class for a CO2 sensor.
 
     The cardinal code is 1298.
@@ -190,7 +186,7 @@ class HvacCarbonDioxide(HvacDevice):  # CO2: I/1298
         }
 
 
-class HvacSwitch(BatteryState, HvacDevice):  # SWI: I/22F[13]
+class HvacSwitch(BatteryState, DeviceHvac):  # SWI: I/22F[13]
     """The FAN (switch) class, such as a 4-way switch.
 
     The cardinal codes are 22F1, 22F3.
@@ -228,7 +224,7 @@ class HvacSwitch(BatteryState, HvacDevice):  # SWI: I/22F[13]
         }
 
 
-class HvacVentilator(HvacDevice):  # FAN: RP/31DA, I/31D[9A]
+class HvacVentilator(DeviceHvac):  # FAN: RP/31DA, I/31D[9A]
     """The Ventilation class.
 
     The cardinal code are 31D9, 31DA.  Signature is RP/31DA.
@@ -301,7 +297,7 @@ def class_dev_hvac(
 ) -> Class:
     """Return a device class, but only if the device must be from the HVAC group.
 
-    May return a base clase, HvacDevice (which will need promotion).
+    May return a base clase, DeviceHvac (which will need promotion).
     """
 
     if not eavesdrop:
@@ -314,7 +310,7 @@ def class_dev_hvac(
         return HVAC_CLASS_BY_SLUG[klass]
 
     if msg.code in CODES_HVAC_ONLY:
-        return HvacDevice
+        return DeviceHvac
 
     raise TypeError(f"No HVAC class for: {dev_addr} (insufficient meta-data)")
 
