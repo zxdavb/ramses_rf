@@ -53,7 +53,7 @@ RADIATOR_VALVE = "radiator_valve"
 
 
 class TestSchemaBits(unittest.TestCase):
-    def _test_system_schema(self):
+    def test_system_schema(self):
         """Test the DHW schema.
 
         dhw:
@@ -79,7 +79,7 @@ class TestSchemaBits(unittest.TestCase):
                 {SZ_SENSOR: None, SZ_DHW_VALVE: None, SZ_HTG_VALVE: None},
             )
 
-    def _test_SCHEMA_ZON(self):
+    def test_zone_schema(self):
         """Test the zone schema.
 
         '01':
@@ -143,6 +143,7 @@ class TestSchemaDiscovery(unittest.IsolatedAsyncioTestCase):
     #     logging.disable(logging.DEBUG)
 
     async def _proc_log_file(self, f_name):
+
         with open(f"{SCHEMA_DIR}/{f_name}.log") as f:
             self.gwy = Gateway(
                 None, input_file=f, config=GWY_CONFIG, loop=self._asyncioTestLoop
@@ -176,9 +177,11 @@ class TestSchemaDiscovery(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_from_log_files(self):
+
         for f_name in LOG_FILES:
-            self.gwy = None
-            await self._proc_log_file(f_name)
+            with self.subTest(f_name):
+                self.gwy = None
+                await self._proc_log_file(f_name)
 
 
 class TestSchemaLoad(unittest.IsolatedAsyncioTestCase):
@@ -192,7 +195,7 @@ class TestSchemaLoad(unittest.IsolatedAsyncioTestCase):
 
         self.gwy.config.disable_sending = True
 
-    async def _proc_jsn_file(self, f_name):
+    def _proc_jsn_file(self, f_name):
 
         with open(f"{SCHEMA_DIR}/{f_name}.json") as f:
             schema = json.load(f)
@@ -212,9 +215,10 @@ class TestSchemaLoad(unittest.IsolatedAsyncioTestCase):
         self.gwy.devices = []
         self.gwy.device_by_id = {}
 
-    async def test_from_jsn_files(self):
+    def test_from_jsn_files(self):
         for f_name in JSN_FILES:
-            await self._proc_jsn_file(f_name)
+            with self.subTest(f_name):
+                self._proc_jsn_file(f_name)
 
         # print(*self.gwy._tasks)
         # await asyncio.gather(*self.gwy._tasks)

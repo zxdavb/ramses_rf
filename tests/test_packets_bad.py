@@ -39,7 +39,8 @@ class TestSetApis(unittest.IsolatedAsyncioTestCase):
         logging.disable(logging.ERROR)  # to disable logging in ramses_rf.message
 
         for f_name in LOG_FILES:
-            await self.proc_log_file(f_name)
+            with self.subTest(f_name):
+                await self.proc_log_file(f_name)
 
 
 if __name__ == "__main__":

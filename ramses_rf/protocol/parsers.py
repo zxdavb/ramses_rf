@@ -347,7 +347,9 @@ def parser_000c(payload, msg) -> Optional[dict]:
         return {SZ_ZONE_IDX: seqx}
 
     def _parser(seqx) -> dict:  # TODO: assumption that all id/idx are same is wrong!
-        assert seqx[:2] == payload[:2], f"{msg!r} < idx != {seqx[:2]} (seqx = {seqx})"
+        assert (
+            seqx[:2] == payload[:2]
+        ), f"{msg!r} < idx != {seqx[:2]} (seqx = {seqx}), short={is_short_000C(msg, payload)}"
         assert int(seqx[:2], 16) < msg._gwy.config.max_zones
         assert seqx[4:6] == "7F" or seqx[6:] != "F" * 6
         return {hex_id_to_dev_id(seqx[6:12]): seqx[4:6]}
@@ -355,20 +357,21 @@ def parser_000c(payload, msg) -> Optional[dict]:
     def is_short_000C(msg, payload) -> bool:
         """Return True if it is a short 000C (element length is 5, not 6)."""
 
-        if msg.len != 36:
+        if (pkt_len := len(payload)) != 72:
             return msg.len % 6 != 0
 
-        if all(
-            payload[i : i + 4] == payload[:4] for i in range(0, msg.len, 12)
-        ) and any(payload[i : i + 2] != payload[2:4] for i in range(2, msg.len, 10)):
-            return False  # _len = 6
+        # 0608-001099C3 0608-001099C5 0608-001099BF 0608-001099BE 0608-001099BD 0608-001099BC  # len(element) = 6
+        # 0508-00109901 0800-10990208 0010-99030800 1099-04080010 9905-08001099 0608-00109907  # len(element) = 5
+        elif all(payload[i : i + 4] == payload[:4] for i in range(12, pkt_len, 12)):
+            return False  # len(element) = 6 (12)
 
-        if any(
-            payload[i : i + 4] != payload[:4] for i in range(0, msg.len, 12)
-        ) and all(payload[i : i + 2] == payload[2:4] for i in range(2, msg.len, 10)):
-            return True  # _len = 5
+        # 06 08-001099C3 06-08001099 C5-06080010 99-BF060800 10-99BE0608 00-1099BD06 08-001099BC  # len(element) = 6
+        # 05 08-00109901 08-00109902 08-00109903 08-00109904 08-00109905 08-00109906 08-00109907  # len(element) = 5
+        elif all(payload[i : i + 2] == payload[2:4] for i in range(12, pkt_len, 10)):
+            return True  # len(element) = 5 (10)
 
-        return False  # if all else fails (unlikely), assume _len = 6
+        raise InvalidPayloadError("Unable to determine element length")
+        return None  # if all else fails, could assume len(element) = 6 (12)
 
     if payload[2:4] == DEV_ROLE_MAP.HTG and payload[:2] == "01":
         dev_role = DEV_ROLE_MAP._str(DEV_ROLE.HT1)

@@ -37,21 +37,23 @@ class TestSchemaLoad(unittest.IsolatedAsyncioTestCase):
 
     def _proc_log_line(self, pkt_line):
 
-        pkt_line, pkt_dict = pkt_line.split("#")
-        msg = Message(
-            self.gwy, Packet.from_file(self.gwy, pkt_line[:26], pkt_line[27:])
-        )
+        pkt_line, pkt_dict = pkt_line.split("#", maxsplit=1)
+        if pkt_line[27:].strip():
+            msg = Message(
+                self.gwy, Packet.from_file(self.gwy, pkt_line[:26], pkt_line[27:])
+            )
 
-        self.assertEqual(msg.payload, eval(pkt_dict))
+            self.assertEqual(msg.payload, eval(pkt_dict))
 
     def test_from_jsn_files(self):
 
         files = Path(LOG_DIR).glob("*.log")
         for f_name in files:
-            with open(f_name) as f:
-                while line := (f.readline()):
-                    if line.strip():
-                        self._proc_log_line(line)
+            with self.subTest(f_name):
+                with open(f_name) as f:
+                    while line := (f.readline()):
+                        if line.strip():
+                            self._proc_log_line(line)
 
 
 if __name__ == "__main__":
