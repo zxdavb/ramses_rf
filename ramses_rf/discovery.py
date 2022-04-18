@@ -210,7 +210,7 @@ async def get_faults(gwy, ctl_id: str, start=0, limit=0x3F):
 
 
 async def get_schedule(gwy, ctl_id: str, zone_idx: str) -> None:
-    zone = gwy._get_device(ctl_id, ctl_id=ctl_id)._tcs.zx_get_htg_zone(zone_idx)
+    zone = gwy._get_device(ctl_id, ctl_id=ctl_id)._tcs.reap_htg_zone(zone_idx)
 
     try:
         await zone.get_schedule()
@@ -222,7 +222,7 @@ async def set_schedule(gwy, ctl_id, schedule) -> None:
     schedule = json.load(schedule)
     zone_idx = schedule[SZ_ZONE_IDX]
 
-    zone = gwy._get_device(ctl_id, ctl_id=ctl_id)._tcs.zx_get_htg_zone(zone_idx)
+    zone = gwy._get_device(ctl_id, ctl_id=ctl_id)._tcs.reap_htg_zone(zone_idx)
 
     try:
         await zone.set_schedule(schedule["schedule"])  # 0404
@@ -255,7 +255,7 @@ def script_poll_device(gwy, dev_id) -> list:
 async def script_scan_disc(gwy, dev_id: str):
     _LOGGER.warning("scan_quick() invoked...")
 
-    gwy._get_device(dev_id)._discover()  # discover_flag=Discover.ALL)
+    gwy._get_device(dev_id)._discover()  # discover_flag=Discover.DEFAULT)
 
 
 @script_decorator

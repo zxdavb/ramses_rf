@@ -148,7 +148,14 @@ __dev_mode__ = False
 # DEV_MODE = __dev_mode__
 
 Discover = SimpleNamespace(
-    NOTHING=0, SCHEMA=1, PARAMS=2, STATUS=4, FAULTS=8, SCHEDS=16, ALL=(1 + 2 + 4)
+    NOTHING=0,
+    SCHEMA=1,
+    PARAMS=2,
+    STATUS=4,
+    FAULTS=8,
+    SCHEDS=16,
+    TRAITS=32,
+    DEFAULT=(1 + 2 + 4),
 )
 
 DONT_CREATE_MESSAGES = 3

@@ -295,7 +295,7 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
     RELAY_DEMAND = SZ_RELAY_DEMAND  # percentage (0.0-1.0)
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.ALL) -> None:
+    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.STATUS and not self._faked:
@@ -459,17 +459,49 @@ class Controller(DeviceHeat):  # CTL (01):
 
         self._ctl = self._set_ctl(self)
         self._ctx = "FF"
-        self._tcs = None  # self._make_tcs_controller(**kwargs)  # NOTE: do later
+        self._tcs = None
+        # self._make_tcs_controller(**kwargs)  # NOTE: must create_from_schema first
+
+    def _start_discovery(self) -> None:  # TODO: remove
+        pass
+
+    def _discover(self, discover_flag=Discover.DEFAULT) -> None:  # TODO: remove
+        pass
+
+    def _handle_msg(self, msg) -> None:
+        super()._handle_msg(msg)
+
+        if not self._tcs:
+            self._make_tcs_controller(msg=msg)
+
+        if msg.code == _000C:
+            [
+                self._gwy._get_device(d, ctl_id=self._ctl.id)
+                for d in msg.payload[SZ_DEVICES]
+            ]
+
+        # if (
+        #     msg.code in (_0005, _000C)
+        #     or msg.code in CODES_ONLY_FROM_CTL
+        #     or self._gwy.config.enable_eavesdrop
+        # ):
+        #     self._make_tcs_controller(msg=msg)
+        #     return
+
+        # Route any messages to their heating systems
+        if self._tcs:
+            self._tcs._handle_msg(msg)  # NOTE: create dev first?
 
     def _make_tcs_controller(self, msg=None, **schema) -> None:  # CH/DHW
         """Attach a TCS (create/update as required) after passing it any msg."""
 
-        def zx_get_system(msg=None, **schema) -> Any:  # CH/DHW
-            """Return a TCS (create/update as required) after passing it any msg.
+        def reap_system(msg=None, **schema) -> Any:  # CH/DHW
+            """Return a TCS (temperature control system), create it if required.
 
-            Temperature control systems are uniquely identified by a controller ID.
+            Use the schema to create/update it, then pass it any msg to handle.
+
+            TCSs are uniquely identified by a controller ID.
             If a TCS is created, attach it to this device (which should be a CTL).
-            Raise an error if the TCS exists and a schema was provided.
             """
 
             from .systems import zx_system_factory
@@ -488,23 +520,7 @@ class Controller(DeviceHeat):  # CTL (01):
 
         super()._make_tcs_controller(msg=None, **schema)
 
-        zx_get_system(msg=msg, **schema)
-
-    def _handle_msg(self, msg) -> None:
-        super()._handle_msg(msg)
-
-        if msg.code == _000C:
-            [
-                self._gwy._get_device(d, ctl_id=self._ctl.id)
-                for d in msg.payload[SZ_DEVICES]
-            ]
-        if msg.code in (_0005, _000C) or self._gwy.config.enable_eavesdrop:
-            self._make_tcs_controller(msg=msg)  # or: CODES_ONLY_FROM_CTL
-            return
-
-        # Route any messages to their heating systems, TODO: create dev first?
-        if self._tcs:
-            self._tcs._handle_msg(msg)
+        self._tcs = reap_system(msg=msg, **schema)
 
 
 class Programmer(Controller):  # PRG (23):
@@ -557,7 +573,7 @@ class UfhController(DeviceHeat):  # UFC (02):
         )
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.ALL) -> None:
+    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
         # Only RPs are: 0001, 0005/000C, 10E0, 000A/2309 & 22D0
 
@@ -630,7 +646,7 @@ class UfhController(DeviceHeat):  # UFC (02):
             #     if ctl := self._set_ctl(self._gwy._get_device(dev_ids[0])):
             #         # self._circuits[ufh_idx][SZ_DEVICES] = ctl.id  # better
             #         self._set_parent(
-            #             ctl._tcs.zx_get_htg_zone(msg.payload["zone_id"]), msg
+            #             ctl._tcs.reap_htg_zone(msg.payload["zone_id"]), msg
             #         )
 
         elif msg.code == _22C9:  # ufh_setpoints
@@ -810,7 +826,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         )
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.ALL) -> None:
+    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
         # see: https://www.opentherm.eu/request-details/?post_ids=2944
 
         super()._discover(discover_flag=discover_flag)
@@ -1305,7 +1321,7 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
     #         self._ctl._set_app_cntrl(self)
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.ALL) -> None:
+    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
         """Discover BDRs.
 
         The BDRs have one of six roles:

@@ -127,6 +127,7 @@ DEFAULT_EXT_ID = "17:000730"
 DEFAULT_THM_ID = "03:000730"
 
 BindState = SimpleNamespace(
+    #
     #       DHW/THM, TRV -> CTL     (temp, valve_position), or:
     #                CTL -> BDR/OTB (heat_demand)
     #          [ REQUEST -> WAITING ]
@@ -136,6 +137,7 @@ BindState = SimpleNamespace(
     #           offering <- accepting
     # (confirming) bound -> accepting
     #              bound -- bound
+    #
     UNKNOWN=None,
     UNBOUND="unb",  # unbound
     LISTENING="l",  # waiting for offer
@@ -232,13 +234,11 @@ class Device(Entity):
         )
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.ALL) -> None:
+    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
         # sometimes, battery-powered devices will respond to an RQ (e.g. bind mode)
 
-        if discover_flag & Discover.SCHEMA:
+        if discover_flag & Discover.TRAITS:  # not inluded in ALl
             self._make_cmd(_1FC9, retries=3)  # rf_bind
-
-        if discover_flag & Discover.STATUS:
             self._make_cmd(_0016, retries=3)  # rf_check
 
     def _make_cmd(self, code, payload="00", **kwargs) -> None:  # skipcq: PYL-W0221
@@ -246,7 +246,7 @@ class Device(Entity):
 
     def _send_cmd(self, cmd, **kwargs) -> None:
         if getattr(self, "has_battery", None) and cmd.dst.id == self.id:
-            _LOGGER.info(f"{cmd} < Sending inadvisable for {self} (has a battery)")
+            _LOGGER.info(f"{cmd} < Sending inadvisable for {self} (it has a battery)")
 
         super()._send_cmd(cmd, **kwargs)
 
@@ -276,7 +276,7 @@ class Device(Entity):
             # and msg.dst.type != DEV_TYPE_MAP.HGI
         ):
             # TODO: is buggy - remove? how?
-            self._set_parent(self._ctl._tcs.zx_get_htg_zone(msg.payload[SZ_ZONE_IDX]))
+            self._set_parent(self._ctl._tcs.reap_htg_zone(msg.payload[SZ_ZONE_IDX]))
 
     # @property
     # def controller(self):  # -> Optional[Controller]:
@@ -351,7 +351,9 @@ class Device(Entity):
 
 
 class DeviceInfo(Device):  # 10E0
-    def _discover(self, discover_flag=Discover.ALL) -> None:
+    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+        super()._discover(discover_flag=discover_flag)
+
         if discover_flag & Discover.SCHEMA:
             if not self._msgs.get(_10E0) and (
                 self._SLUG not in CODES_BY_DEV_SLUG
@@ -539,16 +541,16 @@ class HgiGateway(DeviceInfo, Device):  # HGI (18:), was GWY
 
     # def _proc_schema(self, schema) -> None:
     #     if schema.get("fake_bdr"):
-    #         self._faked_bdr = self._gwy._zx_get_device(self.id, class_="BDR", faked=True)
+    #         self._faked_bdr = self._gwy.reap_device(self.id, class_="BDR", faked=True)
 
     #     if schema.get("fake_ext"):
-    #         self._faked_ext = self._gwy._zx_get_device(self.id, class_="BDR", faked=True)
+    #         self._faked_ext = self._gwy.reap_device(self.id, class_="BDR", faked=True)
 
     #     if schema.get("fake_thm"):
-    #         self._faked_thm = self._gwy._zx_get_device(self.id, class_="BDR", faked=True)
+    #         self._faked_thm = self._gwy.reap_device(self.id, class_="BDR", faked=True)
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.ALL) -> None:
+    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
         # of no value for a HGI80-compatible device
         return
 

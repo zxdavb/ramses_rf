@@ -59,7 +59,7 @@ def class_by_attr(name: str, attr: str) -> dict:  # TODO: change to __module__
 
 def discover_decorator(fnc):
     # NOTE: only need to Wrap top-level entities
-    def wrapper(self, discover_flag=Discover.ALL) -> None:
+    def wrapper(self, discover_flag=Discover.DEFAULT) -> None:
 
         if self._gwy.config.disable_discovery:
             return
@@ -91,8 +91,8 @@ class Entity:
 
         if not self._gwy.config.disable_discovery and isinstance(
             self._gwy.pkt_protocol, PacketProtocolPort
-        ):
-            self._start_discovery()
+        ):  # TODO: here, or in reap_xxx()?
+            gwy._loop.call_soon_threadsafe(self._start_discovery)
 
     def __str__(self) -> str:
         return f"{self.id} ({self._SLUG})"
@@ -112,7 +112,7 @@ class Entity:
     def _start_discovery(self) -> None:
         pass
 
-    def _discover(self, discover_flag=Discover.ALL) -> None:
+    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
         pass
 
     def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess

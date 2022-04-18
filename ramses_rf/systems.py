@@ -227,13 +227,13 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         if schema.get(SZ_TCS_SYSTEM) and (
             dev_id := schema[SZ_TCS_SYSTEM].get(SZ_APP_CNTRL)
         ):
-            set_app_cntrl(self._gwy._zx_get_device(Address(dev_id)))  # self._app_cntrl
+            set_app_cntrl(self._gwy.reap_device(Address(dev_id)))  # self._app_cntrl
 
         if _schema := (schema.get(SZ_DHW_SYSTEM)):
-            self.zx_get_dhw_zone(**_schema)  # self._dhw
+            self.reap_dhw_zone(**_schema)  # self._dhw
 
         if _schema := (schema.get(SZ_ZONES)):
-            [self.zx_get_htg_zone(idx, **s) for idx, s in _schema.items()]
+            [self.reap_htg_zone(idx, **s) for idx, s in _schema.items()]
 
     @classmethod
     def create_from_schema(cls, ctl: Device, **schema):
@@ -269,7 +269,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         )
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.ALL) -> None:
+    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
         # super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
@@ -477,12 +477,13 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
 
 class MultiZone(SystemBase):  # 0005 (+/- 000C?)
-    def zx_get_htg_zone(self, zone_idx, msg=None, **schema) -> Zone:
-        """Return a heating zone (create/update as required) after passing it any msg.
+    def reap_htg_zone(self, zone_idx, msg=None, **schema) -> Zone:
+        """Return a heating zone, create it if required.
+
+        First, use the schema to create/update it, then pass it any msg to handle.
 
         Heating zones are uniquely identified by a controller ID|zone_idx pair.
         If a zone is created, attach it to this TCS.
-        Raise an error if the zone exists and a schema was provided.
         """
 
         from .zones import zx_zone_factory
@@ -514,7 +515,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         self._prev_30c9 = None  # used to eavesdrop zone sensors
 
-    def _discover(self, discover_flag=Discover.ALL) -> None:
+    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
@@ -671,7 +672,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
             if zone := self.zone_by_idx.get(zone_idx):
                 zone._handle_msg(msg)
             # elif self._gwy.config.enable_eavesdrop:
-            #     self.zx_get_htg_zone(zone_idx)._handle_msg(msg)
+            #     self.reap_htg_zone(zone_idx)._handle_msg(msg)
 
         super()._handle_msg(msg)
 
@@ -679,7 +680,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         if msg.code == _0005:
             if (zone_type := msg.payload[SZ_ZONE_TYPE]) in ZON_ROLE_MAP.HEAT_ZONES:
                 [
-                    self.zx_get_htg_zone(
+                    self.reap_htg_zone(
                         f"{idx:02X}", **{SZ_CLASS: ZON_ROLE_MAP[zone_type]}
                     )
                     for idx, flag in enumerate(msg.payload[SZ_ZONE_MASK])
@@ -687,7 +688,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 ]
             elif zone_type in DEV_ROLE_MAP.HEAT_DEVICES:
                 [
-                    self.zx_get_htg_zone(f"{idx:02X}", msg=msg)
+                    self.reap_htg_zone(f"{idx:02X}", msg=msg)
                     for idx, flag in enumerate(msg.payload[SZ_ZONE_MASK])
                     if flag == 1
                 ]
@@ -698,7 +699,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.HEAT_DEVICES
                 and msg.payload[SZ_DEVICES]
             ):
-                self.zx_get_htg_zone(msg.payload[SZ_ZONE_IDX], msg=msg)
+                self.reap_htg_zone(msg.payload[SZ_ZONE_IDX], msg=msg)
             return
 
         # Route all messages to their zones, incl. 000C, others
@@ -744,7 +745,7 @@ class ScheduleSync(SystemBase):  # 0006
 
         self._active_0006 = None
 
-    def _discover(self, discover_flag=Discover.ALL) -> None:
+    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEDS:  # check the latest schedule delta
@@ -789,7 +790,7 @@ class ScheduleSync(SystemBase):  # 0006
 
 
 class Language(SystemBase):  # 0100
-    def _discover(self, discover_flag=Discover.ALL) -> None:
+    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.PARAMS:
@@ -819,7 +820,7 @@ class Logbook(SystemBase):  # 0418
         self._faultlog = None  # FaultLog(self._ctl)
         self._faultlog_outdated = None  # should be True
 
-    def _discover(self, discover_flag=Discover.ALL) -> None:
+    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.FAULTS:  # check the latest log entry
@@ -906,12 +907,13 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
     MAX_SETPOINT = 85.0
     DEFAULT_SETPOINT = 50.0
 
-    def zx_get_dhw_zone(self, msg=None, **schema) -> DhwZone:
-        """Return a DHW zone (create/update as required) after passing it any msg.
+    def reap_dhw_zone(self, msg=None, **schema) -> DhwZone:
+        """Return a DHW zone, create it if required.
+
+        First, use the schema to create/update it, then pass it any msg to handle.
 
         DHW zones are uniquely identified by a controller ID.
-        If the DHW zone is created, attach it to this TCS.
-        Raise an error if the DHW zone exists and a schema was provided.
+        If a DHW zone is created, attach it to this TCS.
         """
 
         from .zones import zx_zone_factory
@@ -932,7 +934,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         super().__init__(*args, **kwargs)
         self._dhw = None
 
-    def _discover(self, discover_flag=Discover.ALL) -> None:
+    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
@@ -954,12 +956,12 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
             if msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.DHW_DEVICES and (
                 msg.payload[SZ_DEVICES]
             ):
-                self.zx_get_dhw_zone(msg=msg)
+                self.reap_dhw_zone(msg=msg)
             return
 
         if msg.code in (_10A0, _1260, _1F41):
             # and "dhw_id" not in msg.payload and msg.payload.get(SZ_DOMAIN_ID) != "FA":
-            self.zx_get_dhw_zone(msg=msg)
+            self.reap_dhw_zone(msg=msg)
 
         # RQ --- 18:002563 01:078710 --:------ 10A0 001 00  # every 4h
         # RP --- 01:078710 18:002563 --:------ 10A0 006 00157C0003E8
@@ -1003,7 +1005,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
 
 
 class SysMode(SystemBase):  # 2E04
-    def _discover(self, discover_flag=Discover.ALL) -> None:
+    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.STATUS:
@@ -1035,7 +1037,7 @@ class SysMode(SystemBase):  # 2E04
 
 
 class Datetime(SystemBase):  # 313F
-    def _discover(self, discover_flag=Discover.ALL) -> None:
+    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.PARAMS:  # really .STATUS, but to decrease frequency
@@ -1194,7 +1196,7 @@ class Hometronics(System):
         return f"{self._ctl.id} (hometronics)"
 
     #
-    # def _discover(self, discover_flag=Discover.ALL) -> None:
+    # def _discover(self, discover_flag=Discover.DEFAULT) -> None:
     #     # super()._discover(discover_flag=discover_flag)
 
     #     # will RP to: 0005/configured_zones_alt, but not: configured_zones

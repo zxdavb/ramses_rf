@@ -24,15 +24,13 @@ from .protocol import (
     POLLER_TASK,
     Address,
     Command,
-    ExpiredCallbackError,
     create_msg_stack,
     create_pkt_stack,
     is_valid_dev_id,
     set_logger_timesource,
     set_pkt_logging_config,
 )
-from .protocol.address import NON_DEV_ADDR, NUL_DEV_ADDR
-from .protocol.transport import PacketProtocolPort
+from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .schema import (
     BLOCK_LIST,
     DEBUG_MODE,
@@ -53,6 +51,10 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
+    F9,
+    FA,
+    FC,
+    FF,
 )
 
 
@@ -222,7 +224,7 @@ class Gateway(Engine):
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
-        return json.dumps(self.schema, indent=2)
+        return f"{(self.hgi or HGI_DEV_ADDR).id} (???)"
 
     def _setup_event_handlers(self) -> None:  # HACK: for dev/test only
         async def handle_sig_posix(sig):
@@ -250,7 +252,7 @@ class Gateway(Engine):
         else:  # unsupported
             raise RuntimeError(f"Unsupported OS for this module: {os.name}")
 
-    async def start(self) -> None:
+    async def start(self, start_discovery=True) -> None:
         def initiate_discovery(dev_list, sys_list) -> None:
             _LOGGER.debug("ENGINE: Initiating/enabling discovery...")
 
@@ -266,7 +268,7 @@ class Gateway(Engine):
 
         super().start()
 
-        if self.serial_port:  # source of packets is a serial port
+        if self.serial_port and start_discovery:  # source of packets is a serial port
             initiate_discovery(self.devices, self.systems)
 
             # while not self._tasks:
@@ -333,11 +335,13 @@ class Gateway(Engine):
         self.resume()
         (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Restored state.")
 
-    def _zx_get_device(self, dev_addr: Address, msg=None, **schema) -> Device:
-        """Return a device (create it if required).
+    def reap_device(self, dev_addr: Address, msg=None, **schema) -> Device:
+        """Return a device, create it if required.
 
-        Raise an error if the zone exists and a schema was provided.
+        First, use the schema to create/update it, then pass it any msg to handle.
+
         Devices are uniquely identified by a device id.
+        If a device is created, attach it to the gateway.
         """
 
         def check_filter_lists(dev_id: str) -> None:
@@ -378,28 +382,24 @@ class Gateway(Engine):
         self.device_by_id[dev.id] = dev
         self.devices.append(dev)
 
-        # Step 2: If enabled/possible, start discovery (TODO: is messy)
-        if not self.config.disable_discovery and isinstance(
-            self.pkt_protocol, PacketProtocolPort
-        ):
-            dev._start_discovery()
-
         return dev
 
     def _get_device(self, dev_id, ctl_id=None, domain_id=None, **kwargs) -> Device:
         # devices considered bound to a CTL only if/when the CTL says so
 
-        dev = self._zx_get_device(Address(dev_id), **self._include.get(dev_id, {}))
+        dev = self.reap_device(
+            Address(dev_id), **self._include.get(dev_id, {})
+        )  # don't pass the msg here
 
         # update the existing device with any metadata  # TODO: messy?
         ctl = self.device_by_id.get(ctl_id)
         if ctl:
             dev._set_ctl(ctl)
 
-        if domain_id in ("F9", "FA", "FC", "FF"):
+        if domain_id in (F9, FA, FC, FF):
             dev._domain_id = domain_id
         elif domain_id is not None and ctl:
-            dev._set_parent(ctl._tcs.zx_get_htg_zone(domain_id))
+            dev._set_parent(ctl._tcs.reap_htg_zone(domain_id))
 
         return dev
 
@@ -510,27 +510,38 @@ class Gateway(Engine):
         Response packets, if any, follow an RQ/W (as an RP/I), and have the same code.
         This routine is thread safe.
         """
-        if awaitable is None:
-            awaitable = True
 
-        future = self.send_cmd(cmd, awaitable=awaitable, **kwargs)
+        def callback(fut):
+            print(fut.result())
 
-        await asyncio.sleep(5)
-        try:
-            result = future.result()
+        awaitable = awaitable or awaitable is None
 
-        except asyncio.TimeoutError as exc:
-            _LOGGER.warning("The command took too long, cancelling the task...")
-            future.cancel()
-            raise ExpiredCallbackError(exc)
+        fut = self.send_cmd(cmd, awaitable=awaitable, **kwargs)
+        # fut.add_done_callback(callback)
 
-        except Exception as exc:
-            _LOGGER.warning(f"The command raised an exception: {exc!r}")
-            raise ExpiredCallbackError(exc)
+        from concurrent import futures
 
-        else:
-            _LOGGER.debug(f"The command returned: {result!r}")
-            return result
+        while not fut.done():
+            await asyncio.sleep(0.05)
+
+            try:
+                result = fut.result(timeout=0.01)
+
+            except futures.TimeoutError:
+                pass
+
+            except TimeoutError:  # 3 seconds
+                _LOGGER.warning(f"The cmd timed out, cancelling the task ({cmd})")
+                fut.cancel()
+                # NOTE: dont then: raise ExpiredCallbackError(exc)
+
+            except Exception as exc:
+                _LOGGER.warning(f"The cmd raised an exception ({cmd}): {exc!r}")
+                # NOTE: dont then: raise ExpiredCallbackError(exc)
+
+            else:
+                _LOGGER.debug(f"The command returned: {result!r} ({type(result)})")
+                return result
 
     def fake_device(
         self, device_id, create_device=False, start_binding=False
