@@ -349,16 +349,16 @@ def parser_000c(payload, msg) -> Optional[dict]:
     def _parser(seqx) -> dict:  # TODO: assumption that all id/idx are same is wrong!
         assert (
             seqx[:2] == payload[:2]
-        ), f"{msg!r} < idx != {seqx[:2]} (seqx = {seqx}), short={is_short_000C(msg, payload)}"
+        ), f"idx != {payload[:2]} (seqx = {seqx}), short={is_short_000C(payload)}"
         assert int(seqx[:2], 16) < msg._gwy.config.max_zones
         assert seqx[4:6] == "7F" or seqx[6:] != "F" * 6
         return {hex_id_to_dev_id(seqx[6:12]): seqx[4:6]}
 
-    def is_short_000C(msg, payload) -> bool:
+    def is_short_000C(payload) -> bool:
         """Return True if it is a short 000C (element length is 5, not 6)."""
 
         if (pkt_len := len(payload)) != 72:
-            return msg.len % 6 != 0
+            return pkt_len % 12 != 0
 
         # 0608-001099C3 0608-001099C5 0608-001099BF 0608-001099BE 0608-001099BD 0608-001099BC  # len(element) = 6
         # 0508-00109901 0800-10990208 0010-99030800 1099-04080010 9905-08001099 0608-00109907  # len(element) = 5
@@ -394,7 +394,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
 
     devs = (
         [_parser(payload[:2] + payload[i : i + 10]) for i in range(2, len(payload), 10)]
-        if is_short_000C(msg, payload)
+        if is_short_000C(payload)
         else [_parser(payload[i : i + 12]) for i in range(0, len(payload), 12)]
     )
 
