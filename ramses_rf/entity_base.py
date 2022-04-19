@@ -7,6 +7,7 @@ Entity is the base of all RAMSES-II objects: devices and also system/zone constr
 """
 
 import logging
+import sqlite3
 from inspect import getmembers, isclass
 from sys import modules
 from typing import Optional
@@ -19,6 +20,7 @@ from .const import (
     Discover,
     __dev_mode__,
 )
+from .protocol import Message
 from .protocol.ramses import CODES_SCHEMA
 from .protocol.transport import PacketProtocolPort
 
@@ -43,8 +45,8 @@ def class_by_attr(name: str, attr: str) -> dict:  # TODO: change to __module__
     """Return a mapping of a (unique) attr of classes in a module to that class.
 
     For example:
-      {"OTB": OtbGateway, "CTL": Controller}
-      {ZON_ROLE.RAD: RadZone, ZON_ROLE.UFH: UfhZone}
+      {DEV_TYPE.OTB: OtbGateway, DEV_TYPE.CTL: Controller}
+      {ZON_ROLE.RAD: RadZone,    ZON_ROLE.UFH: UfhZone}
       {"evohome": Evohome}
     """
 
@@ -70,59 +72,17 @@ def discover_decorator(fnc):
     return wrapper
 
 
-class Entity:
-    """The ultimate base class for Devices/Zones/Systems.
-
-    This class is mainly concerned with:
-     - if the entity can Rx packets (e.g. can the HGI send it an RQ)
-     - maintaining/utilizing the entity's state database
-    """
+class MessageDB:
+    """Maintain/utilize an entity's state database."""
 
     def __init__(self, gwy) -> None:
-        self._gwy = gwy
-        # self._loop = gwy._loop  # deprecate
-
-        self.id = None
+        self.db = sqlite3.connect("file::memory:?cache=shared")
 
         self._msgs = {}  # code, should be code/ctx? ?deprecate
         self._msgz = {}  # code/verb/ctx, should be code/ctx/verb?
 
-        self._qos_tx_count = 0  # the number of pkts Tx'd with no matching Rx
-
-        if not self._gwy.config.disable_discovery and isinstance(
-            self._gwy.pkt_protocol, PacketProtocolPort
-        ):  # TODO: here, or in reap_xxx()?
-            gwy._loop.call_soon_threadsafe(self._start_discovery)
-
-    def __str__(self) -> str:
-        return f"{self.id} ({self._SLUG})"
-
-    def _qos_function(self, pkt, reset=False) -> None:
-        if reset:
-            self._qos_tx_count = 0
-            return
-
-        self._qos_tx_count += 1
-        if self._qos_tx_count == _QOS_TX_LIMIT:
-            _LOGGER.warning(
-                f"{pkt} < Sending now deprecated for {self} "
-                "(consider adjusting device_id filters)"
-            )  # TODO: take whitelist into account
-
-    def _start_discovery(self) -> None:
-        pass
-
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
-        pass
-
     def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess
         """Store a msg in _msgs[code] (only latest I/RP) and _msgz[code][verb][ctx]."""
-
-        if (
-            self._gwy.pkt_protocol is None
-            or msg.src.id != self._gwy.pkt_protocol._hgi80.get(SZ_DEVICE_ID)
-        ):
-            self._qos_function(msg._pkt, reset=True)
 
         if msg.verb in (I_, RP):
             self._msgs[msg.code] = msg
@@ -136,24 +96,36 @@ class Entity:
 
     @property
     def _msg_db(self) -> list:  # a flattened version of _msgz[code][verb][indx]
-        """Return a flattened version of _msgz[code][verb][indx]."""
+        """Return a flattened version of _msgz[code][verb][index].
+
+        The idx is one of:
+         - a simple index (e.g. zone_idx, domain_id)
+         - a compund ctx (e.g. 0005/000C/0418)
+         - True (an array of elements, each with its own idx),
+         - False (no idx, is usu. 00),
+         - None (not deteminable, rare)
+        """
         return [m for c in self._msgz.values() for v in c.values() for m in v.values()]
 
-    def _make_cmd(self, code, dest_id, payload="00", verb=RQ, **kwargs) -> None:
-        self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
+    def _get_msg_by_hdr(self, hdr) -> Optional[Message]:
+        """Return a msg, if any, that matches a header."""
 
-    def _send_cmd(self, cmd, **kwargs) -> None:
-        if self._gwy.config.disable_sending:
-            _LOGGER.info(f"{cmd} < Sending is disabled")
-            return
+        code, verb, _, *args = hdr.split("|")
 
-        if self._qos_tx_count > _QOS_TX_LIMIT:
-            _LOGGER.info(f"{cmd} < Sending is deprecated for {self}")
-            return
+        try:
+            if args and (ctx := args[0]):
+                msg = self._msgz[code][verb][ctx]
+            elif False in self._msgz[code][verb]:
+                msg = self._msgz[code][verb][False]
+            elif None in self._msgz[code][verb]:
+                msg = self._msgz[code][verb][None]
+        except KeyError:
+            return None
 
-        cmd._source_entity = self
-        # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
-        self._gwy.send_cmd(cmd)  # BUG: should be awaiting this
+        if msg._pkt._hdr != hdr:
+            raise LookupError
+
+        return msg
 
     def _msg_flag(self, code, key, idx) -> Optional[bool]:
 
@@ -224,6 +196,77 @@ class Entity:
             for k, v in msg_dict.items()
             if k not in ("dhw_idx", SZ_DOMAIN_ID, SZ_ZONE_IDX) and k[:1] != "_"
         }
+
+
+class Entity(MessageDB):
+    """The ultimate base class for Devices/Zones/Systems.
+
+    This class is mainly concerned with:
+     - if the entity can Rx packets (e.g. can the HGI send it an RQ)
+    """
+
+    _SLUG = None
+
+    def __init__(self, gwy) -> None:
+        super().__init__(gwy)
+
+        self._gwy = gwy
+        self.id = None
+
+        self._qos_tx_count = 0  # the number of pkts Tx'd with no matching Rx
+
+        if not self._gwy.config.disable_discovery and isinstance(
+            self._gwy.pkt_protocol, PacketProtocolPort
+        ):  # TODO: here, or in reap_xxx()?
+            gwy._loop.call_soon_threadsafe(self._start_discovery)
+
+    def __str__(self) -> str:
+        return f"{self.id} ({self._SLUG})"
+
+    def _qos_function(self, pkt, reset=False) -> None:
+        if reset:
+            self._qos_tx_count = 0
+            return
+
+        self._qos_tx_count += 1
+        if self._qos_tx_count == _QOS_TX_LIMIT:
+            _LOGGER.warning(
+                f"{pkt} < Sending now deprecated for {self} "
+                "(consider adjusting device_id filters)"
+            )  # TODO: take whitelist into account
+
+    def _start_discovery(self) -> None:
+        pass
+
+    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+        pass
+
+    def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess
+        """Store a msg in _msgs[code] (only latest I/RP) and _msgz[code][verb][ctx]."""
+
+        super()._handle_msg(msg)  # store the message in the database
+
+        if (
+            self._gwy.pkt_protocol is None
+            or msg.src.id != self._gwy.pkt_protocol._hgi80.get(SZ_DEVICE_ID)
+        ):
+            self._qos_function(msg._pkt, reset=True)
+
+    def _make_cmd(self, code, dest_id, payload="00", verb=RQ, **kwargs) -> None:
+        self._send_cmd(self._gwy.create_cmd(verb, dest_id, code, payload, **kwargs))
+
+    def _send_cmd(self, cmd, **kwargs) -> None:
+        if self._gwy.config.disable_sending:
+            _LOGGER.info(f"{cmd} < Sending is disabled")
+            return
+
+        if self._qos_tx_count > _QOS_TX_LIMIT:
+            _LOGGER.info(f"{cmd} < Sending is deprecated for {self}")
+            return
+
+        cmd._source_entity = self
+        # self._msgs.pop(cmd.code, None)  # NOTE: Cause of DHW bug
+        self._gwy.send_cmd(cmd)  # BUG, should be: await async_send_cmd()
 
     @property
     def _codes(self) -> dict:

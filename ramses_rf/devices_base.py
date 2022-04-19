@@ -308,15 +308,11 @@ class Device(Entity):
             m.src == self for m in self._msgs.values() if not m._expired
         )  # TODO: needs addressing
 
-    @property  # TODO: remove in favour of self._SLUG?
-    def _klass(self) -> str:
-        return self._SLUG
-
     @property
     def schema(self) -> dict:
         """Return the fixed attributes of the device."""
         return {
-            SZ_CLASS: self._klass,
+            SZ_CLASS: DEV_TYPE_MAP._str(self._SLUG),
         }
 
     @property
@@ -342,7 +338,7 @@ class Device(Entity):
             }
         )
 
-        if _10E0 in self._msgs or _10E0 in CODES_BY_DEV_SLUG.get(self._klass, []):
+        if _10E0 in self._msgs or _10E0 in CODES_BY_DEV_SLUG.get(self._SLUG, []):
             result.update({CODES_SCHEMA[_10E0][SZ_NAME]: self.device_info})
 
         result.update({CODES_SCHEMA[_1FC9][SZ_NAME]: self._msg_value(_1FC9)})
@@ -541,13 +537,9 @@ class HgiGateway(DeviceInfo, Device):  # HGI (18:), was GWY
 
     # def _proc_schema(self, schema) -> None:
     #     if schema.get("fake_bdr"):
-    #         self._faked_bdr = self._gwy.reap_device(self.id, class_="BDR", faked=True)
-
-    #     if schema.get("fake_ext"):
-    #         self._faked_ext = self._gwy.reap_device(self.id, class_="BDR", faked=True)
-
-    #     if schema.get("fake_thm"):
-    #         self._faked_thm = self._gwy.reap_device(self.id, class_="BDR", faked=True)
+    #         self._faked_bdr = self._gwy.reap_device(
+    #             self.id, class_=DEV_TYPE.BDR, faked=True
+    #         )  # also for THM, OUT
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.DEFAULT) -> None:

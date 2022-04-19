@@ -195,22 +195,22 @@ def _check_msg_addrs(msg: Message) -> None:
         )
 
 
-def _check_msg_src(msg: Message, klass: str = None) -> None:
+def _check_msg_src(msg: Message, slug: str = None) -> None:
     """Validate the packet's source device class (type) against its verb/code pair.
 
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
     """
 
-    if klass is None:  # FIXME: next line needs work
-        klass = getattr(
-            msg.src, "_klass", DEV_TYPE.DEV
+    if slug is None:  # FIXME: next line needs work
+        slug = getattr(
+            msg.src, "_SLUG", DEV_TYPE.DEV
         )  # , None) or DEV_TYPE_MAP.slug(msg.src.type)
-    if klass in (DEV_TYPE.HGI, DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC):
+    if slug in (DEV_TYPE.HGI, DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC):
         #
         #
         return
 
-    if klass not in CODES_BY_DEV_SLUG:  # DEX_done, TODO: fingerprint dev class
+    if slug not in CODES_BY_DEV_SLUG:  # DEX_done, TODO: fingerprint dev class
         if msg.code != _10E0 and msg.code not in CODES_HVAC_ONLY:
             raise InvalidPacketError(f"Unknown src type: {msg.src}")
         _LOGGER.warning(f"{msg!r} < Unknown src type: {msg.src}, is it HVAC?")
@@ -222,8 +222,8 @@ def _check_msg_src(msg: Message, klass: str = None) -> None:
     #
     #
 
-    if msg.code not in CODES_BY_DEV_SLUG[klass]:  # DEX_done
-        if klass != "HGI":  # DEX_done
+    if msg.code not in CODES_BY_DEV_SLUG[slug]:  # DEX_done
+        if slug != DEV_TYPE.DEV:  # DEX_done
             raise InvalidPacketError(f"Invalid code for {msg.src} to Tx: {msg.code}")
         if msg.verb in (RQ, W_):
             return
@@ -236,29 +236,29 @@ def _check_msg_src(msg: Message, klass: str = None) -> None:
     #
 
     #
-    # (code := CODES_BY_DEV_SLUG[klass][msg.code]) and msg.verb not in code:
-    if msg.verb not in CODES_BY_DEV_SLUG[klass][msg.code]:  # DEX_done
+    # (code := CODES_BY_DEV_SLUG[slug][msg.code]) and msg.verb not in code:
+    if msg.verb not in CODES_BY_DEV_SLUG[slug][msg.code]:  # DEX_done
         raise InvalidPacketError(
             f"Invalid verb/code for {msg.src} to Tx: {msg.verb}/{msg.code}"
         )
 
 
-def _check_msg_dst(msg: Message, klass: str = None) -> None:
+def _check_msg_dst(msg: Message, slug: str = None) -> None:
     """Validate the packet's destination device class (type) against its verb/code pair.
 
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
     """
 
-    if klass is None:
-        klass = getattr(
-            msg.dst, "_klass", None
+    if slug is None:
+        slug = getattr(
+            msg.dst, "_SLUG", None
         )  # , None) or DEV_TYPE_MAP.slug(msg.src.type)
-    if klass in (None, DEV_TYPE.HGI, DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC) or (
+    if slug in (None, DEV_TYPE.HGI, DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC) or (
         msg.dst is msg.src and msg.verb == I_
     ):
         return
 
-    if klass not in CODES_BY_DEV_SLUG:  # DEX_done, TODO: fingerprint dev class
+    if slug not in CODES_BY_DEV_SLUG:  # DEX_done, TODO: fingerprint dev class
         if msg.code not in CODES_HVAC_ONLY:
             raise InvalidPacketError(f"Unknown dst type: {msg.dst}")
         _LOGGER.warning(f"{msg!r} < Unknown dst type: {msg.dst}, is it HVAC?")
@@ -267,11 +267,11 @@ def _check_msg_dst(msg: Message, klass: str = None) -> None:
     if msg.verb == I_:  # TODO: not common, unless src=dst
         return  # receiving an I isn't currently in the schema & cant yet be tested
 
-    if f"{klass}/{msg.verb}/{msg.code}" in (f"CTL/{RQ}/{_3EF1}",):  # DEX_done
+    if f"{slug}/{msg.verb}/{msg.code}" in (f"CTL/{RQ}/{_3EF1}",):  # DEX_done
         return  # HACK: an exception-to-the-rule that need sorting
 
-    if msg.code not in CODES_BY_DEV_SLUG[klass]:  # NOTE: not OK for Rx, DEX_done
-        if klass != "HGI":  # NOTE: not yet needed because of 1st if, DEX_done
+    if msg.code not in CODES_BY_DEV_SLUG[slug]:  # NOTE: not OK for Rx, DEX_done
+        if slug != DEV_TYPE.HGI:  # NOTE: not yet needed because of 1st if, DEX_done
             raise InvalidPacketError(f"Invalid code for {msg.dst} to Rx: {msg.code}")
         if msg.verb == RP:
             return
@@ -280,12 +280,12 @@ def _check_msg_dst(msg: Message, klass: str = None) -> None:
 
     if f"{msg.verb}/{msg.code}" in (f"{W_}/{_0001}",):
         return  # HACK: an exception-to-the-rule that need sorting
-    if f"{klass}/{msg.verb}/{msg.code}" in (f"BDR/{RQ}/{_3EF0}",):  # DEX_done
+    if f"{slug}/{msg.verb}/{msg.code}" in (f"{DEV_TYPE.BDR}/{RQ}/{_3EF0}",):  # DEX_done
         return  # HACK: an exception-to-the-rule that need sorting
 
     verb = {RQ: RP, RP: RQ, W_: I_}[msg.verb]
     # (code := CODES_BY_DEV_SLUG[klass][msg.code]) and verb not in code:
-    if verb not in CODES_BY_DEV_SLUG[klass][msg.code]:  # DEX_done
+    if verb not in CODES_BY_DEV_SLUG[slug][msg.code]:  # DEX_done
         raise InvalidPacketError(
             f"Invalid verb/code for {msg.dst} to Rx: {msg.verb}/{msg.code}"
         )

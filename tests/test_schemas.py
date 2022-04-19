@@ -10,8 +10,8 @@ import asyncio
 import json
 import unittest
 
+# import pytest
 import voluptuous as vol
-from common import GWY_CONFIG, TEST_DIR, shuffle_dict  # noqa: F401
 
 from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
@@ -25,6 +25,7 @@ from ramses_rf.schema import (
     SZ_SENSOR,
     load_schema,
 )
+from tests.common import GWY_CONFIG, TEST_DIR, shuffle_dict  # noqa: F401
 
 SCHEMA_DIR = f"{TEST_DIR}/schemas"
 
@@ -182,6 +183,10 @@ class TestSchemaDiscovery(unittest.IsolatedAsyncioTestCase):
             with self.subTest(f_name):
                 self.gwy = None
                 await self._proc_log_file(f_name)
+
+    # @pytest.mark.asyncio(asyncio_mode='strict')
+    # @pytest.mark.parametrize("f_name", LOG_FILES)
+    # async def test_log_file(self, f_name):
 
 
 class TestSchemaLoad(unittest.IsolatedAsyncioTestCase):

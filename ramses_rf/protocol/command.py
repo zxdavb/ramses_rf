@@ -846,41 +846,6 @@ class Command(PacketBase):
 
         return cls(RQ, _12B0, f"{zone_idx:02X}", ctl_id, **kwargs)
 
-    @classmethod  # generic constructor
-    def packet(
-        cls,
-        verb,
-        code,
-        payload,
-        addr0=None,
-        addr1=None,
-        addr2=None,
-        seqn=None,
-        **kwargs,
-    ):
-        """Construct commands with fewer assumptions/checks than the main constructor.
-
-        For example:
-            I 056 --:------ --:------ 02:123456 99FD 003 000404
-        """
-
-        verb = I_ if verb == "I" else W_ if verb == "W" else verb
-
-        cmd = cls(verb, code, payload, NUL_DEV_ADDR.id, **kwargs)
-
-        addr0 = NON_DEV_ADDR.id if addr0 is None else addr0
-        addr1 = NON_DEV_ADDR.id if addr1 is None else addr1
-        addr2 = NON_DEV_ADDR.id if addr2 is None else addr2
-
-        if seqn in ("", "-", "--", "---"):
-            cmd._seqn = "---"
-        elif seqn is not None:
-            cmd._seqn = f"{int(seqn):03d}"
-
-        cmd._validate(f"{addr0} {addr1} {addr2}")
-
-        return cmd
-
     @classmethod  # constructor for RP/3EF1 (I/3EF1?)  # TODO: trap corrupt values?
     @validate_api_params()
     def put_actuator_cycle(
@@ -1063,6 +1028,41 @@ class Command(PacketBase):
             payload += str_to_hex(message)
 
         return cls(I_, _PUZZ, payload[:48], NUL_DEV_ADDR.id, **kwargs)
+
+    @classmethod  # generic constructor
+    def packet(
+        cls,
+        verb,
+        code,
+        payload,
+        addr0=None,
+        addr1=None,
+        addr2=None,
+        seqn=None,
+        **kwargs,
+    ):
+        """Construct commands with fewer assumptions/checks than the main constructor.
+
+        For example:
+            I 056 --:------ --:------ 02:123456 99FD 003 000404
+        """
+
+        verb = I_ if verb == "I" else W_ if verb == "W" else verb
+
+        cmd = cls(verb, code, payload, NUL_DEV_ADDR.id, **kwargs)
+
+        addr0 = addr0 or NON_DEV_ADDR.id
+        addr1 = addr1 or NON_DEV_ADDR.id
+        addr2 = addr2 or NON_DEV_ADDR.id
+
+        if seqn in ("", "-", "--", "---"):
+            cmd._seqn = "---"
+        elif seqn is not None:
+            cmd._seqn = f"{int(seqn):03d}"
+
+        cmd._validate(f"{addr0} {addr1} {addr2}")
+
+        return cmd
 
     @classmethod  # constructor for internal use only
     def from_str(cls, cmd_str: str, **kwargs):

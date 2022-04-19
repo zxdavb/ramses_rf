@@ -478,12 +478,12 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
         assert len(msg.payload[SZ_DEVICES]) == 1
 
-        if (dev_klass := msg.payload[SZ_DEVICE_ROLE]) in (
+        if (dev_role := msg.payload[SZ_DEVICE_ROLE]) in (
             DEV_ROLE_MAP._str(DEV_ROLE.HTG),
             DEV_ROLE_MAP._str(DEV_ROLE.HT1),
         ):
-            self._update_schema(**{dev_klass: msg.payload[SZ_DEVICES][0]})
-        elif dev_klass == DEV_ROLE_MAP._str(DEV_ROLE.DHW):
+            self._update_schema(**{dev_role: msg.payload[SZ_DEVICES][0]})
+        elif dev_role == DEV_ROLE_MAP._str(DEV_ROLE.DHW):
             self._update_schema(**{SZ_SENSOR: msg.payload[SZ_DEVICES][0]})
 
         # TODO: may need to move earlier in method
@@ -1150,7 +1150,7 @@ def zx_zone_factory(tcs, idx: str, msg: Message = None, **schema) -> Class:
             return DhwZone
 
         # try:  # or, a class eavesdropped from the message code/payload...
-        #     if klass := best_zone_klass(ctl_addr.type, msg=msg, eavesdrop=eavesdrop):
+        #     if klass := best_zon_class(ctl_addr.type, msg=msg, eavesdrop=eavesdrop):
         #         _LOGGER.warning(f"Using eavesdropped class for: {ctl_addr}_{idx} ({klass})")
         #         return klass  # might be DeviceHvac
         # except TypeError:

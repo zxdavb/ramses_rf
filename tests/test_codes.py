@@ -10,11 +10,10 @@ import asyncio
 import unittest
 from pathlib import Path
 
-from common import GWY_CONFIG, TEST_DIR
-
 from ramses_rf import Gateway
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
+from tests.common import GWY_CONFIG, TEST_DIR
 
 LOG_DIR = f"{TEST_DIR}/codes"
 
