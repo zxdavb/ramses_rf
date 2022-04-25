@@ -725,7 +725,7 @@ class UfhController(DeviceHeat):  # UFC (02):
             **super().status,
             SZ_HEAT_DEMAND: self.heat_demand,
             SZ_RELAY_DEMAND: self.relay_demand,
-            "relay_demand_fa": self.relay_demand_fa,
+            f"{SZ_RELAY_DEMAND}_fa": self.relay_demand_fa,
         }
 
 

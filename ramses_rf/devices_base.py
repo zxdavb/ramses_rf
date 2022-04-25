@@ -13,6 +13,8 @@ from random import randint
 from types import SimpleNamespace
 from typing import Optional
 
+from ramses_rf.protocol.const import SZ_SLUG
+
 from .const import (
     DEV_TYPE,
     DEV_TYPE_MAP,
@@ -176,12 +178,23 @@ class Device(Entity):
 
         # self._tcs = None  # NOTE: Heat (CH/DHW) devices only
         # self._ctl = None
-        # self._domain_id = None
+        self._domain_id = None
 
         self.addr = dev_addr
         self.type = dev_addr.type  # DEX  # TODO: remove this attr? use SLUG?
 
-        self._alias = None  # known (schema) attr
+        self._alias: str = None  # known (schema) attr
+        self._faked: bool = None
+
+    def __repr__(self) -> str:
+        if self._STATE_ATTR:
+            return f"{self.id} ({self._domain_id}): {getattr(self, self._STATE_ATTR)}"
+        return f"{self.id} ({self._domain_id})"
+
+    def __lt__(self, other) -> bool:
+        if not hasattr(other, "id"):
+            return NotImplemented
+        return self.id < other.id
 
     def _update_schema(self, **schema):
         """Update a device with new schema attrs.
@@ -199,7 +212,7 @@ class Device(Entity):
         """Create a device (for a GWY) and set its schema attrs (aka traits).
 
         The appropriate Device class should have been determined by a factory.
-        Schema attrs include: class (klass), alias & faked.
+        Schema attrs include: class (SLUG), alias & faked.
         """
 
         # if self.id in gwy._include:
@@ -208,16 +221,6 @@ class Device(Entity):
         dev = cls(gwy, dev_addr)  # parent=parent, role=role)
         dev._update_schema(**schema)
         return dev
-
-    def __repr__(self) -> str:
-        if self._STATE_ATTR:
-            return f"{self.id} ({self._domain_id}): {getattr(self, self._STATE_ATTR)}"
-        return f"{self.id} ({self._domain_id})"
-
-    def __lt__(self, other) -> bool:
-        if not hasattr(other, "id"):
-            return NotImplemented
-        return self.id < other.id
 
     def _start_discovery(self) -> None:
 
@@ -263,43 +266,17 @@ class Device(Entity):
                 self.addr, msg, eavesdrop=self._gwy.config.enable_eavesdrop
             )
             if cls._SLUG != self._SLUG and DEV_TYPE.DEV not in (cls._SLUG, self._SLUG):
-                _LOGGER.warning(f"Promoting the dev class of {self} to: {cls._SLUG}")
+                _LOGGER.warning(
+                    f"Promoting the device class of {self} to: {cls._SLUG}"
+                    " - use a known_list to explicitly set this device's class"
+                )
                 self.__class__ = cls
-
-        if not self._gwy.config.enable_eavesdrop:
-            return
-
-        if (
-            self._ctl is not None
-            and SZ_ZONE_IDX in msg.payload
-            and msg.src.type != DEV_TYPE_MAP.CTL  # TODO: DEX, should be: if controller
-            # and msg.dst.type != DEV_TYPE_MAP.HGI
-        ):
-            # TODO: is buggy - remove? how?
-            self._set_parent(self._ctl._tcs.reap_htg_zone(msg.payload[SZ_ZONE_IDX]))
-
-    # @property
-    # def controller(self):  # -> Optional[Controller]:
-    #     """Return the entity's controller, if known."""
-
-    #     return self._ctl  # TODO: if the controller is not known, try to find it?
 
     @property
     def has_battery(self) -> Optional[bool]:  # 1060
         """Return True if a device is battery powered (excludes battery-backup)."""
 
         return isinstance(self, BatteryState) or _1060 in self._msgz
-
-    @property
-    def _is_controller(self) -> Optional[bool]:
-
-        if self._iz_controller is not None:
-            return bool(self._iz_controller)  # True, False, or msg
-
-        if self._ctl is not None:  # TODO: messy
-            return self._ctl is self
-
-        return False
 
     @property
     def _is_present(self) -> bool:
@@ -329,14 +306,13 @@ class Device(Entity):
     def traits(self) -> dict:
         """Return the traits of the (known) device."""
 
-        result = super().traits
+        result = {
+            SZ_SLUG: self._SLUG,
+            SZ_ALIAS: self._alias,
+            SZ_FAKED: False,
+        }
 
-        result.update(
-            {
-                SZ_ALIAS: self._alias,
-                SZ_FAKED: False,
-            }
-        )
+        result.update(super().traits)
 
         if _10E0 in self._msgs or _10E0 in CODES_BY_DEV_SLUG.get(self._SLUG, []):
             result.update({CODES_SCHEMA[_10E0][SZ_NAME]: self.device_info})
@@ -749,6 +725,18 @@ class DeviceHeat(
             elif self._iz_controller is False:  # TODO: raise CorruptStateError
                 _LOGGER.error(f"{msg!r} # IS_CONTROLLER (01): was FALSE, now True")
 
+        if not self._gwy.config.enable_eavesdrop:
+            return
+
+        if (
+            self._ctl is not None
+            and SZ_ZONE_IDX in msg.payload
+            and msg.src.type != DEV_TYPE_MAP.CTL  # TODO: DEX, should be: if controller
+            # and msg.dst.type != DEV_TYPE_MAP.HGI
+        ):
+            # TODO: is buggy - remove? how?
+            self._set_parent(self._ctl._tcs.reap_htg_zone(msg.payload[SZ_ZONE_IDX]))
+
     def _make_tcs_controller(self, msg=None, **schema) -> None:  # CH/DHW
         """Attach a TCS (create/update as required) after passing it any msg."""
 
@@ -756,6 +744,23 @@ class DeviceHeat(
             raise TypeError(f"Invalid device type to be a controller: {self}")
 
         self._iz_controller = self._iz_controller or msg or True
+
+    # @property
+    # def controller(self):  # -> Optional[Controller]:
+    #     """Return the entity's controller, if known."""
+
+    #     return self._ctl  # TODO: if the controller is not known, try to find it?
+
+    @property
+    def _is_controller(self) -> Optional[bool]:
+
+        if self._iz_controller is not None:
+            return bool(self._iz_controller)  # True, False, or msg
+
+        if self._ctl is not None:  # TODO: messy
+            return self._ctl is self
+
+        return False
 
     @property
     def zone(self) -> Optional[Entity]:  # should be: Optional[Zone]

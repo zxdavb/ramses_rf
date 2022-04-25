@@ -155,7 +155,7 @@ class HvacHumidity(BatteryState, DeviceHvac):  # HUM: I/12A0
     def status(self) -> dict:
         return {
             **super().status,
-            self.REL_HUMIDITY: self.relative_humidity,
+            self.REL_HUMIDITY: self.indoor_humidity,
             self.TEMPERATURE: self.temperature,
             self.DEWPOINT_TEMP: self.dewpoint_temp,
         }
@@ -297,11 +297,11 @@ def class_dev_hvac(
 ) -> Class:
     """Return a device class, but only if the device must be from the HVAC group.
 
-    May return a base clase, DeviceHvac (which will need promotion).
+    May return a base clase, DeviceHvac, which will need promotion.
     """
 
-    if not eavesdrop:
-        raise TypeError(f"No HVAC class for: {dev_addr} (no eavesdropping)")
+    # if not eavesdrop:
+    #     raise TypeError(f"No HVAC class for: {dev_addr} (no eavesdropping)")
 
     if msg is None:
         raise TypeError(f"No HVAC class for: {dev_addr} (no msg)")

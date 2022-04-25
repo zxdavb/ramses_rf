@@ -29,8 +29,9 @@ def id_fnc(param):
 
 
 def pytest_generate_tests(metafunc):
-    file_list = Path(f"{TEST_DIR}/parsers").glob("*.log")
-    metafunc.parametrize("f_name", file_list, ids=id_fnc)
+    metafunc.parametrize(
+        "f_name", Path(f"{TEST_DIR}/parsers").glob("*.log"), ids=id_fnc
+    )
 
 
 def test_payload_from_log_files(gwy, f_name):

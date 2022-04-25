@@ -369,7 +369,9 @@ class Gateway(Engine):
                 raise LookupError
 
         check_filter_lists(dev_addr.id)
-        schema = shrink(SCHEMA_DEV(schema))  # TODO: add shrink? do earlier?
+        schema = shrink(
+            SCHEMA_DEV({dev_addr.id: schema})
+        )  # TODO: add shrink? do earlier?
 
         # Step 0: Return the object if it exists
         if dev := self.device_by_id.get(dev_addr.id):
@@ -445,9 +447,13 @@ class Gateway(Engine):
         for tcs in self.systems:
             schema[tcs._ctl.id] = tcs.schema
 
-        schema[SZ_ORPHANS] = [
-            d.id for d in self.devices if d._ctl is None and d._is_present
-        ]
+        schema[SZ_ORPHANS] = sorted(
+            [
+                d.id
+                for d in self.devices
+                if not getattr(d, "_ctl", None) and d._is_present
+            ]
+        )
 
         schema["device_hints"] = {}
         for d in sorted(self.devices):

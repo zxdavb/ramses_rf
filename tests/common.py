@@ -7,10 +7,13 @@ Test the Schema processor.
 """
 
 import logging
-import os
+
+# import os
+from pathlib import Path
 from random import shuffle
 
-TEST_DIR = f"{os.path.dirname(__file__)}"
+# TEST_DIR = f"{os.path.dirname(__file__)}"
+TEST_DIR = Path(__file__).resolve().parent
 
 GWY_CONFIG = {}
 

@@ -10,14 +10,13 @@ import asyncio
 import unittest
 from datetime import datetime as dt
 
-from common import GWY_CONFIG, TEST_DIR  # noqa: F401
-
 from ramses_rf import Gateway
 from ramses_rf.const import SZ_DOMAIN_ID
 from ramses_rf.protocol.address import HGI_DEV_ADDR
 from ramses_rf.protocol.command import Command
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
+from tests.common import GWY_CONFIG, TEST_DIR  # noqa: F401
 
 
 class TestApisBase(unittest.IsolatedAsyncioTestCase):

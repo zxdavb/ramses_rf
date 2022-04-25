@@ -75,31 +75,37 @@ def best_dev_role(
     The generic HVAC class can be promoted later on, when more information is available.
     """
 
+    cls: Device = None
+
     # a specified device class always takes precidence (even if it is wrong)...
-    if klass := _CLASS_BY_SLUG.get(schema.get(SZ_CLASS)):
-        _LOGGER.debug(f"Using explicitly-defined class for: {dev_addr} ({klass})")
-        return klass
+    if cls := _CLASS_BY_SLUG.get(schema.get(SZ_CLASS)):
+        _LOGGER.debug(
+            f"Using an explicitly-defined class for: {dev_addr} ({cls._SLUG})"
+        )
+        return cls
 
     if dev_addr.type == DEV_TYPE_MAP.HGI:
-        _LOGGER.debug(f"Using default class for: {dev_addr} ({HgiGateway})")
+        _LOGGER.debug(f"Using the default class for: {dev_addr} ({HgiGateway._SLUG})")
         return HgiGateway
 
     try:  # or, is it a well-known CH/DHW class, derived from the device type...
-        if klass := class_dev_heat(dev_addr, msg=msg, eavesdrop=eavesdrop):
-            _LOGGER.debug(f"Using default Heat class for: {dev_addr} ({klass})")
-            return klass
+        if cls := class_dev_heat(dev_addr, msg=msg, eavesdrop=eavesdrop):
+            _LOGGER.debug(f"Using the default Heat class for: {dev_addr} ({cls._SLUG})")
+            return cls
     except TypeError:
         pass
 
     try:  # or, a HVAC class, eavesdropped from the message code/payload...
-        if klass := class_dev_hvac(dev_addr, msg=msg, eavesdrop=eavesdrop):
-            _LOGGER.warning(f"Using eavesdropped HVAC class for: {dev_addr} ({klass})")
-            return klass  # includes DeviceHvac
+        if cls := class_dev_hvac(dev_addr, msg=msg, eavesdrop=eavesdrop):
+            _LOGGER.debug(
+                f"Using eavesdropped HVAC class for: {dev_addr} ({cls._SLUG})"
+            )
+            return cls  # includes DeviceHvac
     except TypeError:
         pass
 
     # otherwise, use the default device class...
-    _LOGGER.debug(f"Using a promotable HVAC class for: {dev_addr} ({DeviceHvac})")
+    _LOGGER.debug(f"Using a promotable HVAC class for: {dev_addr} ({DeviceHvac._SLUG})")
     return DeviceHvac
 
 

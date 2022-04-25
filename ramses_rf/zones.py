@@ -1140,24 +1140,32 @@ def zx_zone_factory(tcs, idx: str, msg: Message = None, **schema) -> Class:
         # NOTE: for now, zones are always promoted after instantiation
 
         # # a specified zone class always takes precidence (even if it is wrong)...
-        # if klass := ZONE_CLASS_BY_SLUG.get(schema.get(SZ_CLASS)):
-        #     _LOGGER.debug(f"Using configured zone class for: {ctl_addr}_{idx} ({klass})")
-        #     return klass
+        # if cls := ZONE_CLASS_BY_SLUG.get(schema.get(SZ_CLASS)):
+        #     _LOGGER.debug(
+        #         f"Using an explicitly-defined zone class for: {ctl_addr}_{idx} ({cls})"
+        #     )
+        #     return cls
 
         # or, is it a DHW zone, derived from the zone idx...
         if idx == "HW":
-            _LOGGER.debug(f"Using default class for: {ctl_addr}_{idx} ({DhwZone})")
+            _LOGGER.debug(
+                f"Using the default class for: {ctl_addr}_{idx} ({DhwZone._SLUG})"
+            )
             return DhwZone
 
         # try:  # or, a class eavesdropped from the message code/payload...
-        #     if klass := best_zon_class(ctl_addr.type, msg=msg, eavesdrop=eavesdrop):
-        #         _LOGGER.warning(f"Using eavesdropped class for: {ctl_addr}_{idx} ({klass})")
-        #         return klass  # might be DeviceHvac
+        #     if cls := best_zon_class(ctl_addr.type, msg=msg, eavesdrop=eavesdrop):
+        #         _LOGGER.warning(
+        #             f"Using eavesdropped zone class for: {ctl_addr}_{idx} ({cls._SLUG})"
+        #         )
+        #         return cls  # might be DeviceHvac
         # except TypeError:
         #     pass
 
-        # otherwise, use the generic heating zone klass...
-        _LOGGER.debug(f"Using generic zone class for: {ctl_addr}_{idx} ({Zone})")
+        # otherwise, use the generic heating zone class...
+        _LOGGER.debug(
+            f"Using a promotable zone class for: {ctl_addr}_{idx} ({Zone._SLUG})"
+        )
         return Zone
 
     return best_zon_class(

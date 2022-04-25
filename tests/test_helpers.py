@@ -8,11 +8,10 @@ Test the various helper APIs.
 
 import unittest
 
-from common import GWY_CONFIG, TEST_DIR  # noqa: F401
-
 from ramses_rf.const import DEV_ROLE_MAP
 from ramses_rf.protocol.const import attr_dict_factory
 from ramses_rf.zones import _transform
+from tests.common import GWY_CONFIG, TEST_DIR  # noqa: F401
 
 
 class TestClasses(unittest.TestCase):
@@ -70,7 +69,7 @@ class TestClasses(unittest.TestCase):
 
 
 class TestHelpers(unittest.TestCase):
-    def test_transform(self) -> None:
+    def test_demand_transform(self) -> None:
         self.assertEqual(
             [x[1] for x in TRANSFORMS], [_transform(x[0]) for x in TRANSFORMS]
         )

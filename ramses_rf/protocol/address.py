@@ -42,10 +42,10 @@ class Address:
             raise ValueError(f"Invalid device_id: {device_id}")
 
     def __repr__(self) -> str:
-        return self._friendly(self.id).strip()
+        return str(self.id)
 
     def __str__(self) -> str:
-        return str(self.id)
+        return self._friendly(self.id).strip()
 
     def __eq__(self, other) -> bool:
         if not hasattr(other, "id"):  # can compare Address with Device

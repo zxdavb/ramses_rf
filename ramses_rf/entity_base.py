@@ -30,6 +30,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
+    _1FC9,
 )
 
 _QOS_TX_LIMIT = 12  # TODO: needs work
@@ -167,6 +168,9 @@ class MessageDB:
         elif msg._expired:
             _delete_msg(msg)
 
+        if msg.code == _1FC9:  # NOTE: list of lists/tuples
+            return [x[1] for x in msg.payload]
+
         if domain_id:
             idx, val = SZ_DOMAIN_ID, domain_id
         elif zone_idx:
@@ -174,16 +178,17 @@ class MessageDB:
         else:
             idx = val = None
 
-        if isinstance(msg.payload, list) and idx:
+        if isinstance(msg.payload, dict):
+            msg_dict = msg.payload
+
+        elif idx:
             msg_dict = {
                 k: v for d in msg.payload for k, v in d.items() if d[idx] == val
             }
-        elif isinstance(msg.payload, list):
+        else:
             # TODO: this isn't ideal: e.g. a controller is being treated like a 'stat
             #  I 101 --:------ --:------ 12:126457 2309 006 0107D0-0207D0  # is a CTL
             msg_dict = msg.payload[0]
-        else:
-            msg_dict = msg.payload
 
         assert (
             not domain_id and not zone_idx or msg_dict.get(idx) == val

@@ -1237,12 +1237,14 @@ def zx_system_factory(ctl, msg: Message = None, **schema) -> Class:
         """Return the system class for a given CTL/schema (defaults to evohome)."""
 
         # a specified system class always takes precidence (even if it is wrong)...
-        if klass := SYS_CLASS_BY_SLUG.get(schema.get(SZ_CLASS)):
-            _LOGGER.debug(f"Using configured system class for: {ctl_addr} ({klass})")
-            return klass
+        if cls := SYS_CLASS_BY_SLUG.get(schema.get(SZ_CLASS)):
+            _LOGGER.debug(
+                f"Using an explicitly-defined system class for: {ctl_addr} ({cls._SLUG})"
+            )
+            return cls
 
         # otherwise, use the default system class...
-        _LOGGER.debug(f"Using generic system class for: {ctl_addr} ({Evohome})")
+        _LOGGER.debug(f"Using a generic system class for: {ctl_addr} ({Evohome._SLUG})")
         return Evohome
 
     return best_tcs_class(
