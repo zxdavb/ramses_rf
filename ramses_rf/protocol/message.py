@@ -6,6 +6,9 @@
 Decode/process a message (payload into JSON).
 """
 
+# TODO:
+# long-format msg.__str__ - alias columns don't line up
+
 import logging
 import re
 from datetime import datetime as dt
@@ -14,7 +17,7 @@ from functools import lru_cache
 from typing import Optional
 
 from .address import Address
-from .const import DEV_TYPE_MAP, SZ_DOMAIN_ID, SZ_ZONE_IDX, __dev_mode__
+from .const import DEV_TYPE_MAP, SZ_ALIAS, SZ_DOMAIN_ID, SZ_ZONE_IDX, __dev_mode__
 from .exceptions import InvalidPacketError, InvalidPayloadError
 from .packet import fraction_expired
 from .parsers import PAYLOAD_PARSERS, parser_unknown
@@ -173,13 +176,22 @@ class Message:
             return ctx
 
         def display_name(addr: Address) -> str:  # TODO: needs caching
-            name = None
-            if self._gwy._include.get(addr.id):
+            """Return a friendly name for an Address, or a Device.
+
+            Use the alias, if one exists, or use a slug instead of a device type.
+            """
+
+            try:
                 if self._gwy.config.use_aliases:
-                    name = self._gwy._include[addr.id].get("alias")
-                if not name and (klass := self._gwy._include[addr.id].get("class")):
-                    name = f"{klass}:{addr.id[3:]}"
-            return (name or Address._friendly(addr.id))[:18]  # HACK
+                    return self._gwy._include[addr.id][SZ_ALIAS][:18]
+            except KeyError:
+                pass
+            try:
+                return f"{addr._SLUG}:{addr.id[3:]}"
+            except AttributeError:
+                pass
+
+            return Address._friendly(addr.id)
 
         if self._str is not None:
             return self._str

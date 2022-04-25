@@ -375,6 +375,20 @@ class Command(PacketBase):
         hdr = f' # {self._hdr}{f" ({self._ctx})" if self._ctx else ""}'
         return f"... {self}{hdr}"
 
+    def __eq__(self, other) -> bool:
+        if not self._is_valid_operand(other):
+            return NotImplemented
+        return (self._priority, self._dtm) == (other._priority, other._dtm)
+
+    def __lt__(self, other) -> bool:
+        if not self._is_valid_operand(other):
+            return NotImplemented
+        return (self._priority, self._dtm) < (other._priority, other._dtm)
+
+    @staticmethod
+    def _is_valid_operand(other) -> bool:
+        return hasattr(other, "_priority") and hasattr(other, "_dtm")
+
     @property
     def tx_header(self) -> str:
         """Return the QoS header of this (request) packet."""
@@ -418,20 +432,6 @@ class Command(PacketBase):
 
         if not COMMAND_REGEX.match(self._frame[4:]):
             raise InvalidPacketError(f"{self._frame[4:]} < Invalid packet structure")
-
-    @staticmethod
-    def _is_valid_operand(other) -> bool:
-        return hasattr(other, "_priority") and hasattr(other, "_dtm")
-
-    def __eq__(self, other) -> bool:
-        if not self._is_valid_operand(other):
-            return NotImplemented
-        return (self._priority, self._dtm) == (other._priority, other._dtm)
-
-    def __lt__(self, other) -> bool:
-        if not self._is_valid_operand(other):
-            return NotImplemented
-        return (self._priority, self._dtm) < (other._priority, other._dtm)
 
     @classmethod  # constructor for RQ/1F41
     @validate_api_params()

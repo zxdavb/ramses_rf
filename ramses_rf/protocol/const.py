@@ -218,7 +218,9 @@ DEV_TYPE_MAP = attr_dict_factory(
         DEV_TYPE.DEV: {None: "generic_device"},
         DEV_TYPE.HEA: {None: "heat_device"},
         DEV_TYPE.HVC: {None: "hvac_device"},
-        #
+        # HGI80
+        DEV_TYPE.HGI: {"18": "gateway_interface"},  # HGI80
+        # Heat (CH/DHW) devices
         DEV_TYPE.TR0: {"00": "radiator_valve", AttrDict._SZ_ALIAS: DEV_TYPE.TRV},
         DEV_TYPE.CTL: {"01": "controller"},
         DEV_TYPE.UFC: {"02": "ufh_controller"},
@@ -230,15 +232,14 @@ DEV_TYPE_MAP = attr_dict_factory(
         DEV_TYPE.DTS: {"12": "digital_thermostat"},
         DEV_TYPE.BDR: {"13": "electrical_relay"},
         DEV_TYPE.OUT: {"17": "outdoor_sensor"},
-        DEV_TYPE.HGI: {"18": "gateway_interface"},  # HGI80
         DEV_TYPE.DT2: {"22": "digital_thermostat", AttrDict._SZ_ALIAS: DEV_TYPE.DTS},
         DEV_TYPE.PRG: {"23": "programmer"},
         DEV_TYPE.RFG: {"30": "rf_gateway"},  # RFG100
         DEV_TYPE.RND: {"34": "round_thermostat"},
-        #
+        # Other (jasper) devices
         DEV_TYPE.JIM: {"08": "jasper_interface"},
         DEV_TYPE.JST: {"31": "jasper_thermostat"},
-        #
+        # Ventilation devices
         DEV_TYPE.CO2: {None: "co2_sensor"},
         DEV_TYPE.FAN: {None: "ventilator"},  # Both Fans and HRUs
         DEV_TYPE.HUM: {None: "rh_sensor"},
@@ -267,13 +268,13 @@ DEV_TYPE_MAP = attr_dict_factory(
         "TRV_DEVICES": ("00", "04"),
         "CONTROLLERS": ("01", "12", "22", "23", "34"),  # potentially controllers
         "PROMOTABLE_SLUGS": (DEV_TYPE.DEV, DEV_TYPE.HEA, DEV_TYPE.HVC),
-        "HVAC_SLUGS": (
-            DEV_TYPE.CO2,
-            DEV_TYPE.FAN,
-            DEV_TYPE.HUM,
-            DEV_TYPE.RFS,
-            DEV_TYPE.SWI,
-        ),
+        "HVAC_SLUGS": {
+            DEV_TYPE.CO2: "co2_sensor",
+            DEV_TYPE.FAN: "ventilator",  # Both Fans and HRUs
+            DEV_TYPE.HUM: "rh_sensor",
+            DEV_TYPE.RFS: "hvac_gateway",  # Spider
+            DEV_TYPE.SWI: "switch",
+        },
     },
 )
 
@@ -368,6 +369,8 @@ SZ_ZONE_MASK = "zone_mask"
 SZ_ZONE_TYPE = "zone_type"
 SZ_ZONES = "zones"
 
+SZ_ALIAS = "alias"
+SZ_CLASS = "class"
 SZ_INBOUND = "inbound"
 SZ_OUTBOUND = "outbound"
 

@@ -1011,7 +1011,7 @@ _DEV_KLASSES_HVAC: Dict[SimpleNamespace, Dict] = {
         _1060: {I_: {}},
         _10E0: {I_: {}},
         _12A0: {I_: {}},
-        # _1FC9: {I_: {}},  # leave out, until see example in a packet log
+        _1FC9: {I_: {}},
         _31DA: {RQ: {}},
         _31E0: {I_: {}},
     },
