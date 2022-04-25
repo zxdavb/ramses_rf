@@ -283,7 +283,7 @@ class Entity(MessageDB):
 
     @property
     def traits(self) -> dict:
-        """Return the traits (codes seen) of the entity."""
+        """Return the codes seen by the entity."""
 
         return {"codes_seen": list(self._codes.keys())} if True else {}
 
