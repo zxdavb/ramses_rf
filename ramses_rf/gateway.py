@@ -37,6 +37,8 @@ from .schema import (
     INPUT_FILE,
     KNOWN_LIST,
     SCHEMA_DEV,
+    SZ_ALIAS,
+    SZ_CLASS,
     SZ_FAKED,
     SZ_MAIN_CONTROLLER,
     SZ_ORPHANS,
@@ -417,6 +419,14 @@ class Gateway(Engine):
             return self.device_by_id.get(self.pkt_protocol._hgi80[SZ_DEVICE_ID])
 
     @property
+    def _known_list(self) -> dict:
+        return {
+            d.id: {k: d.traits[k] for k in (SZ_CLASS, SZ_ALIAS, SZ_FAKED)}
+            for d in self.devices
+            if d.id in self._include
+        }
+
+    @property
     def system_by_id(self) -> dict:
         return {d.id: d._tcs for d in self.devices if getattr(d, "_tcs", None)}
 
@@ -430,12 +440,12 @@ class Gateway(Engine):
 
         return {
             "gateway_id": self.hgi.id if self.hgi else None,
-            "schema": self.tcs._schema_min if self.tcs else None,
+            "primary_tcs": self.tcs.id if self.tcs else None,
             "config": {"enforce_known_list": self.config.enforce_known_list},
-            "known_list": [{k: v} for k, v in self._include.items()],
+            "known_list": self._known_list,
             "block_list": [{k: v} for k, v in self._exclude.items()],
-            "other_list": sorted(self.pkt_protocol._unwanted),
-            "other_list_alt": sorted(self._unwanted),
+            "_unwanted": sorted(self.pkt_protocol._unwanted),
+            "_unwanted_alt": sorted(self._unwanted),
         }
 
     @property

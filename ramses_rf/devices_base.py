@@ -13,8 +13,6 @@ from random import randint
 from types import SimpleNamespace
 from typing import Optional
 
-from ramses_rf.protocol.const import SZ_SLUG
-
 from .const import (
     DEV_TYPE,
     DEV_TYPE_MAP,
@@ -307,9 +305,9 @@ class Device(Entity):
         """Return the traits of the (known) device."""
 
         result = {
-            SZ_SLUG: self._SLUG,
+            SZ_CLASS: DEV_TYPE_MAP._str(self._SLUG),
             SZ_ALIAS: self._alias,
-            SZ_FAKED: False,
+            SZ_FAKED: None,
         }
 
         result.update(super().traits)
