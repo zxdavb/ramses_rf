@@ -7,8 +7,7 @@ Test the Schema processor.
 """
 
 import logging
-
-# import os
+import warnings
 from pathlib import Path
 from random import shuffle
 
@@ -20,6 +19,8 @@ GWY_CONFIG = {}
 DEBUG_MODE = False
 DEBUG_ADDR = "0.0.0.0"
 DEBUG_PORT = 5678
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 if DEBUG_MODE:
     import debugpy
