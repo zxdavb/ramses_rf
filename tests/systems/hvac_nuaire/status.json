@@ -1,0 +1,25 @@
+{
+    "devices": {
+        "30:079129": {},
+        "32:166025": {
+            "co2_level": 940.0
+        },
+        "32:168240": {
+            "battery_state": {
+                "battery_low": false,
+                "battery_level": null
+            },
+            "indoor_humidity": 0.6,
+            "temperature": null,
+            "dewpoint_temp": null
+        },
+        "32:172534": {
+            "battery_state": {
+                "battery_low": false,
+                "battery_level": null
+            },
+            "fan_mode": "low",
+            "boost_timer": null
+        }
+    }
+}
