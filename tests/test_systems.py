@@ -33,11 +33,11 @@ def id_fnc(param):
 def pytest_generate_tests(metafunc):
     folders = [f for f in Path(f"{TEST_DIR}/systems").iterdir() if f.is_dir()]
 
-    metafunc.parametrize("f_name", folders, ids=id_fnc)
+    metafunc.parametrize("dir_name", folders, ids=id_fnc)
 
 
-def test_payload_from_log_files(gwy, f_name):
-    with open(f"{f_name}/packet.log") as f:
+def test_payload_from_log_files(gwy, dir_name):
+    with open(f"{dir_name}/_system.log") as f:
         while line := (f.readline()):
             if line.strip():
                 _proc_log_line(gwy, line)
@@ -50,34 +50,70 @@ def _proc_log_line(gwy, pkt_line):
         assert msg.payload == eval(pkt_dict)
 
 
-KNOWN_LIST = {"30:079129": {"class": "ventilator"}}  # TODO: or FAN
+async def test_systems_from_log_files(gwy, dir_name):
+    try:
+        with open(f"{dir_name}/_system.json") as f:
+            kwargs = json.load(f)
+    except FileNotFoundError:
+        kwargs = {}
 
-
-async def test_systems_from_log_files(gwy, f_name):
-    with open(f"{f_name}/packet.log") as f:
+    with open(f"{dir_name}/_system.log") as f:
         gwy = Gateway(
             None,
             input_file=f,
-            config=GWY_CONFIG,
-            known_list=KNOWN_LIST,
             loop=asyncio.get_event_loop(),
+            **kwargs,
         )
         await gwy.start()
 
-    with open(f"{f_name}/schema.json") as f:
+    with open(f"{dir_name}/schema.json") as f:
         schema = json.load(f)
+        assert shrink(gwy.schema) == shrink(schema)
 
-    with open(f"{f_name}/status.json") as f:
+    try:
+        with open(f"{dir_name}/params.json") as f:
+            params = json.load(f)
+            assert shrink(gwy.params) == shrink(params)
+    except FileNotFoundError:
+        pass
+
+    with open(f"{dir_name}/status.json") as f:
         status = json.load(f)
+        assert shrink(gwy.status) == shrink(status)
 
-    assert shrink(gwy.schema) == shrink(schema)
-    assert shrink(gwy.status) == shrink(status)
+
+async def test_shuffle_from_log_files(gwy, dir_name):
+    try:
+        with open(f"{dir_name}/_system.json") as f:
+            kwargs = json.load(f)
+    except FileNotFoundError:
+        kwargs = {}
+
+    with open(f"{dir_name}/_system.log") as f:
+        gwy = Gateway(
+            None,
+            input_file=f,
+            loop=asyncio.get_event_loop(),
+            **kwargs,
+        )
+        await gwy.start()
 
     gwy.serial_port = "/dev/null"  # HACK: needed to pause engine
-
     schema, packets = gwy._get_state(include_expired=True)
     packets = shuffle_dict(packets)
     await gwy._set_state(packets, clear_state=True)
 
-    assert shrink(gwy.schema) == shrink(schema)
-    # assert shrink(gwy.status) == shrink(status)  # TODO
+    with open(f"{dir_name}/schema.json") as f:
+        schema = json.load(f)
+        assert shrink(gwy.schema) == shrink(schema)
+
+    try:
+        with open(f"{dir_name}/params.json") as f:
+            params = json.load(f)
+            assert shrink(gwy.params) == shrink(params)
+    except FileNotFoundError:
+        pass
+
+    with open(f"{dir_name}/status.json") as f:
+        status = json.load(f)
+        assert shrink(gwy.status) == shrink(status)
