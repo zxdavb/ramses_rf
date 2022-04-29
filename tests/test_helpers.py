@@ -14,75 +14,81 @@ from ramses_rf.zones import _transform
 from tests.common import GWY_CONFIG, TEST_DIR  # noqa: F401
 
 
-class TestClasses(unittest.TestCase):
-    def test_attrdict(self) -> None:
-        _ = attr_dict_factory(MAIN_DICT, attr_table=ATTR_DICT)
-
-        self.assertRaises(KeyError, DEV_TYPE_MAP.slug, "_rubbish_")
-        self.assertRaises(KeyError, DEV_TYPE_MAP.slug, None)
-        # self.assertEqual(DEV_TYPE_MAP.slug(None), "DEV")
-
-        try:
-            DEV_ROLE_MAP["_08"]
-        except KeyError:
-            self.assertTrue(True)
-        else:
-            self.assertTrue(False)
-
-        self.assertEqual(DEV_ROLE_MAP.DHW, "0D")
-        self.assertEqual(DEV_ROLE_MAP._0D, "dhw_sensor")
-        self.assertEqual(DEV_ROLE_MAP.DHW_SENSOR, "0D")
-
-        self.assertEqual(DEV_ROLE_MAP["RAD"], "rad_actuator")
-        self.assertEqual(DEV_ROLE_MAP["08"], "rad_actuator")
-        self.assertEqual(DEV_ROLE_MAP["rad_actuator"], "08")
-
-        self.assertEqual(DEV_ROLE_MAP._hex("SEN"), "04")
-        self.assertRaises(KeyError, DEV_ROLE_MAP._hex, "04")
-        self.assertEqual(DEV_ROLE_MAP._hex("zone_sensor"), "04")
-
-        self.assertRaises(KeyError, DEV_ROLE_MAP._hex, "_rubbish_")
-        self.assertRaises(KeyError, DEV_ROLE_MAP._hex, None)
-
-        self.assertEqual(DEV_ROLE_MAP._str("OUT"), "out_sensor")
-        self.assertEqual(DEV_ROLE_MAP._str("0C"), "out_sensor")
-        self.assertRaises(KeyError, DEV_ROLE_MAP._str, "out_sensor")
-
-        self.assertRaises(KeyError, DEV_ROLE_MAP._str, "_rubbish_")
-        self.assertRaises(KeyError, DEV_ROLE_MAP._str, None)
-
-        self.assertRaises(KeyError, DEV_ROLE_MAP.slug, "RFG")
-        self.assertEqual(DEV_ROLE_MAP.slug("10"), "RFG")
-        self.assertEqual(DEV_ROLE_MAP.slug("remote_gateway"), "RFG")
-
-        self.assertTrue(
-            "HTG" not in DEV_ROLE_MAP.keys()
-            and "0E" in DEV_ROLE_MAP.keys()
-            and "heating_relay" not in DEV_ROLE_MAP.keys()
-        )
-        self.assertTrue(
-            "DHW" not in DEV_ROLE_MAP.values()
-            and "0D" not in DEV_ROLE_MAP.values()
-            and "dhw_sensor" in DEV_ROLE_MAP.values()
-        )
-
-        self.assertTrue(
-            "DHW" in DEV_ROLE_MAP.slugs()
-            and "0D" not in DEV_ROLE_MAP.slugs()
-            and "dhw_sensor" not in DEV_ROLE_MAP.slugs()
-        )
-
-        self.assertEqual(DEV_ROLE_MAP.SLUGS, MAIN_SLUGS)
-        self.assertEqual(
-            DEV_ROLE_MAP.HEAT_DEVICES, ("00", "04", "08", "09", "0A", "0B", "11")
-        )
+def _test_assert_raises(exception, fnc, *args):
+    try:
+        fnc(*args)
+    except exception:
+        pass
+    else:
+        assert False
 
 
-class TestHelpers(unittest.TestCase):
-    def test_demand_transform(self) -> None:
-        self.assertEqual(
-            [x[1] for x in TRANSFORMS], [_transform(x[0]) for x in TRANSFORMS]
-        )
+def test_attrdict_class() -> None:
+    _ = attr_dict_factory(MAIN_DICT, attr_table=ATTR_DICT)
+
+    _test_assert_raises(KeyError, DEV_TYPE_MAP.slug, "_rubbish_")
+    _test_assert_raises(KeyError, DEV_TYPE_MAP.slug, None)
+    # assert DEV_TYPE_MAP.slug(None), "DEV")
+
+    try:
+        DEV_ROLE_MAP["_08"]
+    except KeyError:
+        pass
+    else:
+        assert False
+
+    assert DEV_ROLE_MAP.DHW == "0D"
+    assert DEV_ROLE_MAP._0D == "dhw_sensor"
+    assert DEV_ROLE_MAP.DHW_SENSOR == "0D"
+
+    assert DEV_ROLE_MAP["RAD"] == "rad_actuator"
+    assert DEV_ROLE_MAP["08"] == "rad_actuator"
+    assert DEV_ROLE_MAP["rad_actuator"] == "08"
+
+    assert DEV_ROLE_MAP._hex("SEN") == "04"
+    _test_assert_raises(KeyError, DEV_ROLE_MAP._hex, "04")
+    assert DEV_ROLE_MAP._hex("zone_sensor") == "04"
+
+    _test_assert_raises(KeyError, DEV_ROLE_MAP._hex, "_rubbish_")
+    _test_assert_raises(KeyError, DEV_ROLE_MAP._hex, None)
+
+    assert DEV_ROLE_MAP._str("OUT") == "out_sensor"
+    assert DEV_ROLE_MAP._str("0C") == "out_sensor"
+    _test_assert_raises(KeyError, DEV_ROLE_MAP._str, "out_sensor")
+
+    _test_assert_raises(KeyError, DEV_ROLE_MAP._str, "_rubbish_")
+    _test_assert_raises(KeyError, DEV_ROLE_MAP._str, None)
+
+    _test_assert_raises(KeyError, DEV_ROLE_MAP.slug, "RFG")
+    assert DEV_ROLE_MAP.slug("10") == "RFG"
+    assert DEV_ROLE_MAP.slug("remote_gateway") == "RFG"
+
+    _test_assert_raises(KeyError, DEV_ROLE_MAP.slug, "_rubbish_")
+    _test_assert_raises(KeyError, DEV_ROLE_MAP.slug, None)
+
+    assert (
+        "HTG" not in DEV_ROLE_MAP.keys()
+        and "0E" in DEV_ROLE_MAP.keys()
+        and "heating_relay" not in DEV_ROLE_MAP.keys()
+    )
+    assert (
+        "DHW" not in DEV_ROLE_MAP.values()
+        and "0D" not in DEV_ROLE_MAP.values()
+        and "dhw_sensor" in DEV_ROLE_MAP.values()
+    )
+
+    assert (
+        "DHW" in DEV_ROLE_MAP.slugs()
+        and "0D" not in DEV_ROLE_MAP.slugs()
+        and "dhw_sensor" not in DEV_ROLE_MAP.slugs()
+    )
+
+    assert DEV_ROLE_MAP.SLUGS, MAIN_SLUGS
+    assert DEV_ROLE_MAP.HEAT_DEVICES == ("00", "04", "08", "09", "0A", "0B", "11")
+
+
+def test_demand_transform() -> None:
+    assert [x[1] for x in TRANSFORMS] == [_transform(x[0]) for x in TRANSFORMS]
 
 
 MAIN_DICT = {
