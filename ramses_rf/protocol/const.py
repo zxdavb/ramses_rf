@@ -16,6 +16,7 @@ def slug(string: str) -> str:
 
 class AttrDict(dict):
     _SZ_ALIAS = "_alias"
+    _SZ_DEFAULT = "_default"
     _SZ_SLUGS = "SLUGS"
 
     @classmethod
@@ -33,29 +34,45 @@ class AttrDict(dict):
     del __readonly
 
     def __init__(self, main_table, attr_table=None):
-        self._main_table = main_table
-        self._attr_table = attr_table
+        self._main_table: dict = main_table
+        self._attr_table: dict = attr_table
         self._attr_table[self._SZ_SLUGS] = tuple(sorted(main_table.keys()))
-        #
-        self._slug_lookup = {
-            k: t.get(self._SZ_ALIAS, s)
-            for s, t in main_table.items()
-            for k in t.keys()
-            if k not in (None, self._SZ_ALIAS)
-        }  # e.g. {'00': 'TRV', '01': 'CTL', '04': 'TRV', ...}
+
+        self._slug_lookup: dict = {
+            None: slug
+            for slug, table in main_table.items()
+            for k in table.values()
+            if isinstance(k, str) and table.get(self._SZ_DEFAULT)
+        }  # i.e. {None: 'HEA'}
+        self._slug_lookup.update(
+            {
+                k: table.get(self._SZ_ALIAS, slug)
+                for slug, table in main_table.items()
+                for k in table.keys()
+                if isinstance(k, str) and len(k) == 2
+            }  # e.g. {'00': 'TRV', '01': 'CTL', '04': 'TRV', ...}
+        )
+        self._slug_lookup.update(
+            {
+                k: slug
+                for slug, table in main_table.items()
+                for k in table.values()
+                if isinstance(k, str) and table.get(self._SZ_ALIAS) is None
+            }  # e.g. {'heat_device':'HEA', 'dhw_sensor':'DHW', ...}
+        )
 
         self._forward = {
             k: v
-            for t in main_table.values()
-            for k, v in t.items()
-            if k is not None and k[:1] != "_"
-        }  # e.g. {'00': 'radiator_valve', '02': 'ufh_controller', ...}
+            for table in main_table.values()
+            for k, v in table.items()
+            if isinstance(k, str) and k[:1] != "_"
+        }  # e.g. {'00': 'radiator_valve', '01': 'controller', ...}
         self._reverse = {
             v: k
-            for t in main_table.values()
-            for k, v in t.items()
-            if k is not None and self._SZ_ALIAS not in t
-        }  # e.g. {'radiator_valve': '00', 'ufh_controller': '00', ...}
+            for table in main_table.values()
+            for k, v in table.items()
+            if isinstance(k, str) and k[:1] != "_" and self._SZ_ALIAS not in table
+        }  # e.g. {'radiator_valve': '00', 'controller': '01', ...}
         self._forward = dict(sorted(self._forward.items(), key=lambda item: item[0]))
 
         super().__init__(self._forward)
@@ -117,13 +134,19 @@ def attr_dict_factory(main_table, attr_table=None) -> AttrDict:  # is: SlottedAt
         attr_table = {}
 
     class SlottedAttrDict(AttrDict):
-        __slots__ = (
-            list(main_table.keys())
-            + [f"_{k}" for d in main_table.values() for k in d.keys() if k is not None]
-            + [v for d in main_table.values() for v in d.values()]
-            + list(attr_table.keys())
-            + [AttrDict._SZ_ALIAS, AttrDict._SZ_SLUGS]
-        )
+        pass  # TODO: low priority
+        # __slots__ = (
+        #     list(main_table.keys())
+        #     + [
+        #         f"_{k}"
+        #         for t in main_table.values()
+        #         for k in t.keys()
+        #         if isinstance(k, str) and len(k) == 2
+        #     ]
+        #     + [v for t in main_table.values() for v in t.values()]
+        #         + list(attr_table.keys())
+        #         + [AttrDict._SZ_ALIAS, AttrDict._SZ_SLUGS]
+        # )
 
     return SlottedAttrDict(main_table, attr_table=attr_table)
 
@@ -191,7 +214,7 @@ DEV_TYPE = SimpleNamespace(
     DT2="DT2",  # 22: Thermostat, DTS92(E)
     HCW="HCW",  # 03: Thermostat - don't use STA
     HGI="HGI",  # 18: Gateway interface (RF to USB), HGI80
-    # HM8="HM8",  # xx: HM80 mixer valve (does not Tx)
+    # 8="HM8",  # xx: HM80 mixer valve (Rx-only, does not Tx)
     OTB="OTB",  # 10: OpenTherm bridge
     OUT="OUT",  # 17: External weather sensor
     PRG="PRG",  # 23: Programmer
@@ -215,7 +238,7 @@ DEV_TYPE = SimpleNamespace(
 DEV_TYPE_MAP = attr_dict_factory(
     {
         # Generic devices (would be promoted)
-        DEV_TYPE.DEV: {None: "generic_device"},
+        DEV_TYPE.DEV: {None: "generic_device"},  # , AttrDict._SZ_DEFAULT: True},
         DEV_TYPE.HEA: {None: "heat_device"},
         DEV_TYPE.HVC: {None: "hvac_device"},
         # HGI80
