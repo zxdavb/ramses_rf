@@ -18,126 +18,134 @@ from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
 from tests.common import GWY_CONFIG, TEST_DIR  # noqa: F401
 
-
-class TestApisBase(unittest.IsolatedAsyncioTestCase):
-
-    gwy = Gateway(None, config=GWY_CONFIG, loop=asyncio.get_event_loop())
-
-    def _test_api_line(self, api, pkt_line):
-        pkt = Packet.from_port(self.gwy, dt.now(), pkt_line)
-
-        self.assertEqual(str(pkt), pkt_line[4:])
-
-        msg = Message(self.gwy, pkt)
-        cmd = api(msg.dst.id, **{k: v for k, v in msg.payload.items() if k[:1] != "_"})
-
-        self.assertEqual(cmd.payload, pkt.payload)
-
-        return pkt, msg, cmd
-
-    def _test_api(self, api, packets):  # NOTE: incl. addr_set check
-        for pkt_line in packets:
-            pkt, msg, cmd = self._test_api_line(api, pkt_line)
-
-            if msg.src.id == HGI_DEV_ADDR.id:
-                self.assertEqual(cmd, pkt)  # must have exact same addr set
+gwy = Gateway(None, config=GWY_CONFIG, loop=asyncio.get_event_loop())
 
 
-class TestSetApis(TestApisBase):
-    def test_set_0004(self):
-        self._test_api(Command.set_zone_name, SET_0004_GOOD)
-        # self.assertEqual(str_from_hex(cmd.payload[4:]), msg.payload["name"])
+def _test_api_line(api, pkt_line):
+    pkt = Packet.from_port(gwy, dt.now(), pkt_line)
 
-    def test_set_000a(self):
-        self._test_api(Command.set_zone_config, SET_000A_GOOD)
+    assert str(pkt) == pkt_line[4:]
 
-    def test_set_1030(self):
-        self._test_api(Command.set_mix_valve_params, SET_1030_GOOD)
+    msg = Message(gwy, pkt)
+    cmd = api(msg.dst.id, **{k: v for k, v in msg.payload.items() if k[:1] != "_"})
 
-    def test_set_10a0(self):
-        self._test_api(Command.set_dhw_params, SET_10A0_GOOD)
+    assert cmd.payload == pkt.payload
 
-    def test_set_1100(self):  # NOTE: bespoke
-        # self._test_api(Command.set_tpi_params, SET_1100_GOOD)
-        for pkt_line in SET_1100_GOOD:
-            pkt = Packet.from_port(self.gwy, dt.now(), pkt_line)
-
-            self.assertEqual(str(pkt), pkt_line[4:])
-
-            msg = Message(self.gwy, pkt)
-
-            domain_id = msg.payload.pop(SZ_DOMAIN_ID, None)
-            cmd = Command.set_tpi_params(
-                msg.dst.id,
-                domain_id,
-                **{k: v for k, v in msg.payload.items() if k[:1] != "_"}
-            )
-
-            self.assertEqual(cmd.payload, pkt.payload)
-
-            if msg.src.id == "18:000730":
-                self.assertEqual(cmd, pkt)  # must have exact same addr set
-
-    def test_set_1f41(self):
-        self._test_api(Command.set_dhw_mode, SET_1F41_GOOD)
-
-    def test_set_2309(self):
-        self._test_api(Command.set_zone_setpoint, SET_2309_GOOD)
-
-    def test_set_2349(self):
-        self._test_api(Command.set_zone_mode, SET_2349_GOOD)
-
-    def test_set_2e04(self):
-        self._test_api(Command.set_system_mode, SET_2E04_GOOD)
-
-    def test_set_313f(self):  # NOTE: bespoke
-        for pkt_line in SET_313F_GOOD:
-            pkt = Packet.from_port(self.gwy, dt.now(), pkt_line)
-
-            self.assertEqual(str(pkt)[:4], pkt_line[4:8])
-            self.assertEqual(str(pkt)[6:], pkt_line[10:])
-
-            msg = Message(self.gwy, pkt)
-
-            cmd = Command.set_system_time(
-                msg.dst.id, **{k: v for k, v in msg.payload.items() if k[:1] != "_"}
-            )
-
-            self.assertEqual(cmd.payload[:4], pkt.payload[:4])
-            self.assertEqual(cmd.payload[6:], pkt.payload[6:])
+    return pkt, msg, cmd
 
 
-class TestPutApis(TestApisBase):
-    def test_put_30c9(self):
-        self._test_api(Command.put_sensor_temp, PUT_30C9_GOOD)
+def _test_api(api, packets):  # NOTE: incl. addr_set check
+    for pkt_line in packets:
+        pkt, msg, cmd = _test_api_line(api, pkt_line)
 
-    def test_put_3ef0(self):
-        self._test_api(Command.put_actuator_state, PUT_3EF0_GOOD)
+        if msg.src.id == HGI_DEV_ADDR.id:
+            assert cmd == pkt  # must have exact same addr set
 
-    def test_put_3ef1(self):  # NOTE: bespoke
-        # self._test_api(Command.put_actuator_cycle, PUT_3EF1_GOOD)
-        for pkt_line in PUT_3EF1_GOOD:
-            pkt = Packet.from_port(self.gwy, dt.now(), pkt_line)
 
-            self.assertEqual(str(pkt), pkt_line[4:])
+def test_put_30c9():
+    _test_api(Command.put_sensor_temp, PUT_30C9_GOOD)
 
-            msg = Message(self.gwy, pkt)
 
-            kwargs = msg.payload
-            modulation_level = kwargs.pop("modulation_level")
-            actuator_countdown = kwargs.pop("actuator_countdown")
-            cmd = Command.put_actuator_cycle(
-                msg.src.id,
-                msg.dst.id,
-                modulation_level,
-                actuator_countdown,
-                **{k: v for k, v in kwargs.items() if k[:1] != "_"}
-            )
+def test_put_3ef0():
+    _test_api(Command.put_actuator_state, PUT_3EF0_GOOD)
 
-            self.assertEqual(cmd.payload[:-2], pkt.payload[:-2])
 
-            if msg.src.id == "18:000730":
-                self.assertEqual(cmd, pkt)  # must have exact same addr set
+def test_put_3ef1():  # NOTE: bespoke
+    # _test_api(Command.put_actuator_cycle, PUT_3EF1_GOOD)
+    for pkt_line in PUT_3EF1_GOOD:
+        pkt = Packet.from_port(gwy, dt.now(), pkt_line)
+
+        assert str(pkt) == pkt_line[4:]
+
+        msg = Message(gwy, pkt)
+
+        kwargs = msg.payload
+        modulation_level = kwargs.pop("modulation_level")
+        actuator_countdown = kwargs.pop("actuator_countdown")
+        cmd = Command.put_actuator_cycle(
+            msg.src.id,
+            msg.dst.id,
+            modulation_level,
+            actuator_countdown,
+            **{k: v for k, v in kwargs.items() if k[:1] != "_"}
+        )
+
+        assert cmd.payload[:-2] == pkt.payload[:-2]
+
+        if msg.src.id == "18:000730":
+            assert cmd == pkt  # must have exact same addr set
+
+
+def test_set_0004():
+    # assert str_from_hex(cmd.payload[4:]) == msg.payload["name"]
+    _test_api(Command.set_zone_name, SET_0004_GOOD)
+
+
+def test_set_000a():
+    _test_api(Command.set_zone_config, SET_000A_GOOD)
+
+
+def test_set_1030():
+    _test_api(Command.set_mix_valve_params, SET_1030_GOOD)
+
+
+def test_set_10a0():
+    _test_api(Command.set_dhw_params, SET_10A0_GOOD)
+
+
+def test_set_1100():  # NOTE: bespoke
+    # _test_api(Command.set_tpi_params, SET_1100_GOOD)
+    for pkt_line in SET_1100_GOOD:
+        pkt = Packet.from_port(gwy, dt.now(), pkt_line)
+
+        assert str(pkt) == pkt_line[4:]
+
+        msg = Message(gwy, pkt)
+
+        domain_id = msg.payload.pop(SZ_DOMAIN_ID, None)
+        cmd = Command.set_tpi_params(
+            msg.dst.id,
+            domain_id,
+            **{k: v for k, v in msg.payload.items() if k[:1] != "_"}
+        )
+
+        assert cmd.payload, pkt.payload
+
+        if msg.src.id == "18:000730":
+            assert cmd == pkt  # must have exact same addr set
+
+
+def test_set_1f41():
+    _test_api(Command.set_dhw_mode, SET_1F41_GOOD)
+
+
+def test_set_2309():
+    _test_api(Command.set_zone_setpoint, SET_2309_GOOD)
+
+
+def test_set_2349():
+    _test_api(Command.set_zone_mode, SET_2349_GOOD)
+
+
+def test_set_2e04():
+    _test_api(Command.set_system_mode, SET_2E04_GOOD)
+
+
+def test_set_313f():  # NOTE: bespoke
+    for pkt_line in SET_313F_GOOD:
+        pkt = Packet.from_port(gwy, dt.now(), pkt_line)
+
+        assert str(pkt)[:4] == pkt_line[4:8]
+        assert str(pkt)[6:] == pkt_line[10:]
+
+        msg = Message(gwy, pkt)
+
+        cmd = Command.set_system_time(
+            msg.dst.id, **{k: v for k, v in msg.payload.items() if k[:1] != "_"}
+        )
+
+        assert cmd.payload[:4] == pkt.payload[:4]
+        assert cmd.payload[6:] == pkt.payload[6:]
 
 
 PUT_30C9_GOOD = (
