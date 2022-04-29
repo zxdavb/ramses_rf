@@ -139,18 +139,17 @@ CONFIG_SCHEMA = vol.Schema(
     extra=vol.ALLOW_EXTRA,  # TODO: remove for production
 )
 
-SCHEMA_DEV = vol.Schema(
+SCHEMA_DEV = vol.Any(
     {
-        vol.Optional(DEV_REGEX_ANY): vol.Any(
-            {
-                vol.Optional(SZ_ALIAS, default=None): vol.Any(None, str),
-                vol.Optional(SZ_CLASS, default=None): vol.Any(
-                    None, *(DEV_TYPE_MAP._str(s) for s in DEV_TYPE_MAP.HVAC_SLUGS)
-                ),
-                vol.Optional(SZ_FAKED, default=None): vol.Any(None, bool),
-            },
-        )
+        vol.Optional(SZ_ALIAS, default=None): vol.Any(None, str),
+        vol.Optional(SZ_CLASS, default=None): vol.Any(
+            None, *(DEV_TYPE_MAP._str(s) for s in DEV_TYPE_MAP.HVAC_SLUGS)
+        ),
+        vol.Optional(SZ_FAKED, default=None): vol.Any(None, bool),
     },
+)
+_SCHEMA_DEV = vol.Schema(
+    {vol.Optional(DEV_REGEX_ANY): SCHEMA_DEV},
     extra=vol.PREVENT_EXTRA,
 )
 
@@ -231,8 +230,8 @@ SCHEMA_GLOBAL_CONFIG = vol.Schema(
                 vol.Optional(PACKET_LOG, default={}): vol.Any({}, PACKET_LOG_SCHEMA),
             }
         ),
-        vol.Optional(KNOWN_LIST, default={}): vol.All(SCHEMA_DEV, vol.Length(min=0)),
-        vol.Optional(BLOCK_LIST, default={}): vol.All(SCHEMA_DEV, vol.Length(min=0)),
+        vol.Optional(KNOWN_LIST, default={}): vol.All(_SCHEMA_DEV, vol.Length(min=0)),
+        vol.Optional(BLOCK_LIST, default={}): vol.All(_SCHEMA_DEV, vol.Length(min=0)),
     },
     extra=vol.REMOVE_EXTRA,
 )
@@ -378,7 +377,10 @@ def load_system(gwy, ctl_id, schema) -> tuple[dict, dict]:
     # schema = SCHEMA_ZON(schema)
 
     if (ctl := _get_device(gwy, ctl_id)) is None:
-        return
+        raise TypeError(f"TCS not instiated: {ctl_id}")
+
+    if ctl._tcs is not None:
+        raise TypeError(f"TCS already exists: {ctl}")
 
     ctl._make_tcs_controller(**schema)
 

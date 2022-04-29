@@ -371,14 +371,12 @@ class Gateway(Engine):
                 raise LookupError
 
         check_filter_lists(dev_addr.id)
-        schema = shrink(
-            SCHEMA_DEV({dev_addr.id: schema})
-        )  # TODO: add shrink? do earlier?
+        schema = shrink(SCHEMA_DEV(schema))  # TODO: add shrink? do in caller?
 
         # Step 0: Return the object if it exists
         if dev := self.device_by_id.get(dev_addr.id):
             if schema:
-                raise TypeError("a schema was provided, but the device exists!")
+                raise TypeError("a device schema was provided, but the device exists!")
             return dev
 
         # Step 1: Create the object (__init__ checks for unique ID)

@@ -76,9 +76,14 @@ def best_dev_role(
     """
 
     cls: Device = None
+    slug: str = None
+    try:  # convert (say) 'dhw_sensor' to DHW
+        slug = DEV_TYPE_MAP.slug(schema.get(SZ_CLASS))
+    except KeyError:
+        pass
 
     # a specified device class always takes precidence (even if it is wrong)...
-    if cls := _CLASS_BY_SLUG.get(schema.get(SZ_CLASS)):
+    if cls := _CLASS_BY_SLUG.get(slug):
         _LOGGER.debug(
             f"Using an explicitly-defined class for: {dev_addr} ({cls._SLUG})"
         )
