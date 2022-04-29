@@ -1152,10 +1152,10 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         self._START = 0x00  # max 0x3E
         self._limit = 0x06
 
-    def __repr_(self) -> str:
+    def __repr__(self) -> str:
         return json.dumps(self._faultlog) if self._faultlog_done else "{}"  # TODO:
 
-    def __str_(self) -> str:
+    def __str__(self) -> str:
         return f"{self._ctl} (fault log)"
 
     # @staticmethod

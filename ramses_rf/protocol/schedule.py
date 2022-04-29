@@ -161,10 +161,10 @@ class Schedule:  # 0404
 
         self._0006 = None
 
-    def __repr_(self) -> str:
+    def __repr__(self) -> str:
         return json.dumps(self.schedule) if self._schedule_done else None
 
-    def __str_(self) -> str:
+    def __str__(self) -> str:
         return f"{self._zone} (schedule)"
 
     @property
