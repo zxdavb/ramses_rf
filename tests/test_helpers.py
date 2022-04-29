@@ -8,7 +8,7 @@ Test the various helper APIs.
 
 import unittest
 
-from ramses_rf.const import DEV_ROLE_MAP
+from ramses_rf.const import DEV_ROLE_MAP, DEV_TYPE_MAP
 from ramses_rf.protocol.const import attr_dict_factory
 from ramses_rf.zones import _transform
 from tests.common import GWY_CONFIG, TEST_DIR  # noqa: F401
@@ -17,6 +17,10 @@ from tests.common import GWY_CONFIG, TEST_DIR  # noqa: F401
 class TestClasses(unittest.TestCase):
     def test_attrdict(self) -> None:
         _ = attr_dict_factory(MAIN_DICT, attr_table=ATTR_DICT)
+
+        self.assertRaises(KeyError, DEV_TYPE_MAP.slug, "_rubbish_")
+        self.assertRaises(KeyError, DEV_TYPE_MAP.slug, None)
+        # self.assertEqual(DEV_TYPE_MAP.slug(None), "DEV")
 
         try:
             DEV_ROLE_MAP["_08"]
@@ -37,13 +41,19 @@ class TestClasses(unittest.TestCase):
         self.assertRaises(KeyError, DEV_ROLE_MAP._hex, "04")
         self.assertEqual(DEV_ROLE_MAP._hex("zone_sensor"), "04")
 
+        self.assertRaises(KeyError, DEV_ROLE_MAP._hex, "_rubbish_")
+        self.assertRaises(KeyError, DEV_ROLE_MAP._hex, None)
+
         self.assertEqual(DEV_ROLE_MAP._str("OUT"), "out_sensor")
         self.assertEqual(DEV_ROLE_MAP._str("0C"), "out_sensor")
         self.assertRaises(KeyError, DEV_ROLE_MAP._str, "out_sensor")
 
+        self.assertRaises(KeyError, DEV_ROLE_MAP._str, "_rubbish_")
+        self.assertRaises(KeyError, DEV_ROLE_MAP._str, None)
+
         self.assertRaises(KeyError, DEV_ROLE_MAP.slug, "RFG")
         self.assertEqual(DEV_ROLE_MAP.slug("10"), "RFG")
-        self.assertRaises(KeyError, DEV_ROLE_MAP.slug, "remote_gateway")
+        self.assertEqual(DEV_ROLE_MAP.slug("remote_gateway"), "RFG")
 
         self.assertTrue(
             "HTG" not in DEV_ROLE_MAP.keys()

@@ -8,226 +8,64 @@ Test the Schema processor.
 
 import asyncio
 import json
-import unittest
+from pathlib import Path
 
-# import pytest
-import voluptuous as vol
+import pytest
 
 from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
-from ramses_rf.schema import (
-    SCHEMA_DHW,
-    SCHEMA_ZON,
-    SZ_ACTUATORS,
-    SZ_CLASS,
-    SZ_DHW_VALVE,
-    SZ_HTG_VALVE,
-    SZ_SENSOR,
-    load_schema,
-)
+from ramses_rf.schema import load_schema
 from tests.common import GWY_CONFIG, TEST_DIR, shuffle_dict  # noqa: F401
 
-SCHEMA_DIR = f"{TEST_DIR}/schemas"
+WORK_DIR = f"{TEST_DIR}/schemas"
 
-JSN_FILES = (
-    "schema_100",
-    "schema_101",
-    "schema_102",
-    "schema_103",
-    "schema_104",
-    "schema_105",
-    "schema_108",
+
+@pytest.mark.parametrize(
+    "f_name", [f.stem for f in Path(f"{WORK_DIR}/log_files").glob("*.log")]
 )
-LOG_FILES = (
-    "schema_201",
-    "schema_202",
-    "schema_210",
-    "schema_211",
-    "schema_212",
-    "schema_213",
-    "schema_000",
-    "schema_001",
-    "schema_002",
+async def test_schema_discover_from_log(f_name):
+
+    with open(f"{WORK_DIR}/log_files/{f_name}.log") as f:
+        gwy = Gateway(
+            None, input_file=f, config=GWY_CONFIG, loop=asyncio.get_event_loop()
+        )
+        gwy.config.disable_sending = True
+        await gwy.start()
+
+    with open(f"{WORK_DIR}/log_files/{f_name}.json") as f:
+        schema = json.load(f)
+
+    assert json.dumps(shrink(gwy.schema), indent=4) == json.dumps(
+        shrink(schema), indent=4
+    )
+
+    gwy.serial_port = "/dev/null"  # HACK: needed to pause engine
+    schema, packets = gwy._get_state(include_expired=True)
+    packets = shuffle_dict(packets)
+    await gwy._set_state(packets, clear_state=True)
+
+    assert shrink(schema) == shrink(gwy.schema)
+
+
+@pytest.mark.parametrize(
+    "f_name", [f.stem for f in Path(f"{WORK_DIR}/jsn_files").glob("*.json")]
 )
-
-RADIATOR_VALVE = "radiator_valve"
-
-
-class TestSchemaBits(unittest.TestCase):
-    def test_system_schema(self):
-        """Test the DHW schema.
-
-        dhw:
-            sensor: 07:777777
-            hotwater_valve: 13:111111
-            heating_valve: 13:222222
-        """
-
-        # self.assertEqual(True, False)
-
-        for dict_ in (
-            SCHEMA_DHW({}),
-            {SZ_SENSOR: None, SZ_DHW_VALVE: None, SZ_HTG_VALVE: None},
-        ):
-            self.assertEqual(
-                dict_, {SZ_SENSOR: None, "hotwater_valve": None, "heating_valve": None}
-            )
-
-        for key in (SZ_SENSOR, SZ_DHW_VALVE, SZ_HTG_VALVE):
-            self.assertRaises(vol.error.MultipleInvalid, SCHEMA_DHW, {key: "99:000000"})
-            self.assertEqual(
-                SCHEMA_DHW({key: None}),
-                {SZ_SENSOR: None, SZ_DHW_VALVE: None, SZ_HTG_VALVE: None},
-            )
-
-    def test_zone_schema(self):
-        """Test the zone schema.
-
-        '01':
-            class: radiator_valve
-            sensor: 22:032844
-            actuators:
-            - 04:111111
-            - 04:222222
-        """
-
-        for dict_ in (
-            SCHEMA_ZON({}),
-            {SZ_CLASS: None, SZ_SENSOR: None, SZ_ACTUATORS: []},
-        ):
-            self.assertEqual(dict_, {SZ_CLASS: None, SZ_SENSOR: None, SZ_ACTUATORS: []})
-
-        for key in (SZ_CLASS, SZ_SENSOR):
-            self.assertRaises(vol.error.MultipleInvalid, SCHEMA_ZON, {key: "99:000000"})
-            self.assertEqual(
-                SCHEMA_ZON({key: None}),
-                {SZ_CLASS: None, SZ_SENSOR: None, SZ_ACTUATORS: []},
-            )
-
-        self.assertEqual(
-            SCHEMA_ZON({SZ_CLASS: RADIATOR_VALVE}),
-            {SZ_CLASS: RADIATOR_VALVE, SZ_SENSOR: None, SZ_ACTUATORS: []},
-        )
-
-        self.assertEqual(
-            SCHEMA_ZON({SZ_SENSOR: "34:111111"}),
-            {SZ_CLASS: None, SZ_ACTUATORS: [], SZ_SENSOR: "34:111111"},
-        )
-
-        for val in (
-            None,
-            ["_invalid_"],
-            "13:111111",
-        ):  # NOTE: should be a *list* of device_ids
-            self.assertRaises(
-                vol.error.MultipleInvalid, SCHEMA_ZON, {SZ_ACTUATORS: val}
-            )
-
-        for val in ([], ["13:111111"], ["13:222222", "13:111111"]):
-            self.assertEqual(
-                SCHEMA_ZON({SZ_ACTUATORS: val}),
-                {SZ_CLASS: None, SZ_ACTUATORS: val, SZ_SENSOR: None},
-            )
-
-
-class TestSchemaDiscovery(unittest.IsolatedAsyncioTestCase):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.maxDiff = None
-        self.gwy = None
-
-    # def setUp(self):
-    #     logging.basicConfig(level=logging.DEBUG)
-    #     logging.getLogger().setLevel(logging.DEBUG)
-
-    #     logging.disable(logging.DEBUG)
-
-    async def _proc_log_file(self, f_name):
-
-        with open(f"{SCHEMA_DIR}/{f_name}.log") as f:
-            self.gwy = Gateway(
-                None, input_file=f, config=GWY_CONFIG, loop=self._asyncioTestLoop
-            )
-            await self.gwy.start()
-
-        with open(f"{SCHEMA_DIR}/{f_name}.json") as f:
-            schema = json.load(f)
-
-        # print(json.dumps(self.gwy.schema, indent=4))
-        # print(json.dumps(schema, indent=4))
-
-        self.assertEqual(
-            json.dumps(shrink(self.gwy.schema), indent=4),
-            json.dumps(shrink(schema), indent=4),
-        )
-
-        # self.assertEqual(
-        #     shrink(schema),
-        #     shrink(self.gwy.schema),
-        # )
-
-        self.gwy.serial_port = "/dev/null"  # HACK: needed to pause engine
-        schema, packets = self.gwy._get_state(include_expired=True)
-        packets = shuffle_dict(packets)
-        await self.gwy._set_state(packets, clear_state=True)
-
-        self.assertEqual(
-            shrink(schema),
-            shrink(self.gwy.schema),
-        )
-
-    async def test_from_log_files(self):
-
-        for f_name in LOG_FILES:
-            with self.subTest(f_name):
-                self.gwy = None
-                await self._proc_log_file(f_name)
-
-    # @pytest.mark.asyncio(asyncio_mode='strict')
-    # @pytest.mark.parametrize("f_name", LOG_FILES)
-    # async def test_log_file(self, f_name):
-
-
-class TestSchemaLoad(unittest.IsolatedAsyncioTestCase):
+async def test_schema_load_from_json(f_name):
 
     gwy = Gateway("/dev/null", config=GWY_CONFIG, loop=asyncio.get_event_loop())
+    gwy.config.disable_sending = True
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    with open(f"{WORK_DIR}/jsn_files/{f_name}.json") as f:
+        schema = json.load(f)
 
-        self.maxDiff = None
+    load_schema(gwy, **schema)
 
-        self.gwy.config.disable_sending = True
+    # print(json.dumps(schema, indent=4))
+    # print(json.dumps(self.gwy.schema, indent=4))
 
-    def _proc_jsn_file(self, f_name):
+    assert shrink(schema) == shrink(gwy.schema)
 
-        with open(f"{SCHEMA_DIR}/{f_name}.json") as f:
-            schema = json.load(f)
-
-        load_schema(self.gwy, **schema)
-
-        # print(json.dumps(schema, indent=4))
-        # print(json.dumps(self.gwy.schema, indent=4))
-
-        self.assertEqual(
-            shrink(schema),
-            shrink(self.gwy.schema),
-        )
-
-        # HACK: await self.gwy._set_state({}, clear_state=True)
-        self.gwy._tcs = None
-        self.gwy.devices = []
-        self.gwy.device_by_id = {}
-
-    def test_from_jsn_files(self):
-        for f_name in JSN_FILES:
-            with self.subTest(f_name):
-                self._proc_jsn_file(f_name)
-
-        # print(*self.gwy._tasks)
-        # await asyncio.gather(*self.gwy._tasks)
-
-
-if __name__ == "__main__":
-    unittest.main()
+    # # HACK: await self.gwy._set_state({}, clear_state=True)
+    # gwy._tcs = None
+    # gwy.devices = []
+    # gwy.device_by_id = {}

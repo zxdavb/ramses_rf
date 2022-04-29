@@ -3,7 +3,7 @@
 #
 """RAMSES RF - a RAMSES-II protocol decoder & analyser.
 
-Test the payload parsers.
+Test the payload parsers and corresponding output (schema, traits, params, status).
 """
 
 import asyncio
@@ -37,7 +37,7 @@ def pytest_generate_tests(metafunc):
 
 
 def test_payload_from_log_files(gwy, dir_name):
-    with open(f"{dir_name}/_system.log") as f:
+    with open(f"{dir_name}/packet.log") as f:
         while line := (f.readline()):
             if line.strip():
                 _proc_log_line(gwy, line)
@@ -50,14 +50,14 @@ def _proc_log_line(gwy, pkt_line):
         assert msg.payload == eval(pkt_dict)
 
 
-async def test_systems_from_log_files(gwy, dir_name):
+async def _test_systems_from_log_files(gwy, dir_name):
     try:
-        with open(f"{dir_name}/_system.json") as f:
+        with open(f"{dir_name}/config.json") as f:
             kwargs = json.load(f)
     except FileNotFoundError:
         kwargs = {}
 
-    with open(f"{dir_name}/_system.log") as f:
+    with open(f"{dir_name}/packet.log") as f:
         gwy = Gateway(
             None,
             input_file=f,
@@ -82,14 +82,14 @@ async def test_systems_from_log_files(gwy, dir_name):
         assert shrink(gwy.status) == shrink(status)
 
 
-async def test_shuffle_from_log_files(gwy, dir_name):
+async def _test_shuffle_from_log_files(gwy, dir_name):
     try:
-        with open(f"{dir_name}/_system.json") as f:
+        with open(f"{dir_name}/config.json") as f:
             kwargs = json.load(f)
     except FileNotFoundError:
         kwargs = {}
 
-    with open(f"{dir_name}/_system.log") as f:
+    with open(f"{dir_name}/packet.log") as f:
         gwy = Gateway(
             None,
             input_file=f,
