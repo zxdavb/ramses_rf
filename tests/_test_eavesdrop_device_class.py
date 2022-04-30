@@ -28,24 +28,24 @@ class DeviceClass(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({d.id: d._SLUG for d in self.gwy.devices}, {})
 
         await self.gwy._set_state(
-            {dt.now().isoformat(): f"... {p}" for p in PACKET_SRC}, clear_state=True
+            {dt.now().isoformat(): f"... {p}" for p in PACKET_SRC}
         )
         self.assertEqual({d.id: d._SLUG for d in self.gwy.devices}, DEVICE_KLASS)  #
 
-        await self.gwy._set_state({}, clear_state=True)
+        await self.gwy._set_state({})
         self.assertEqual({d.id: d._SLUG for d in self.gwy.devices}, {})
 
         # shuffle(PACKET_SRC)
 
         # await self.gwy._set_state(
-        #     {dt.now().isoformat(): f"... {p}" for p in PACKET_SRC}, clear_state=True
+        #     {dt.now().isoformat(): f"... {p}" for p in PACKET_SRC}
         # )
         # self.assertEqual({d.id: d._SLUG for d in self.gwy.devices}, DEVICE_KLASS)
 
         # shuffle(PACKET_SRC)
 
         # await self.gwy._set_state(
-        #     {dt.now().isoformat(): f"... {p}" for p in PACKET_SRC}, clear_state=True
+        #     {dt.now().isoformat(): f"... {p}" for p in PACKET_SRC}
         # )
         # self.assertEqual({d.id: d._SLUG for d in self.gwy.devices}, DEVICE_KLASS)
 

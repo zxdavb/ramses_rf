@@ -278,13 +278,23 @@ class Gateway(Engine):
 
         await asyncio.gather(*self._tasks)
 
-    def pause(self):
-        self.config.disable_discovery, discovery = True, self.config.disable_discovery
-        self.config.disable_sending, sending = True, self.config.disable_sending
-        super().pause(discovery, sending)
+    def pause(self, *args) -> None:
+        """Pause the (unpaused) gateway."""
 
-    def resume(self):
-        self.config.disable_discovery, self.config.disable_sending = super().resume()
+        super().pause(self.config.disable_discovery, self.config.disable_sending, *args)
+        self.config.disable_discovery = True
+        self.config.disable_sending = True
+
+    def resume(self) -> tuple:
+        """Resume the (paused) gateway."""
+
+        (
+            self.config.disable_discovery,
+            self.config.disable_sending,
+            *args,
+        ) = super().resume()
+
+        return args
 
     def _get_state(self, include_expired=None) -> tuple[dict, dict]:
         #
@@ -310,8 +320,8 @@ class Gateway(Engine):
 
         return self.schema, dict(sorted(pkts.items()))
 
-    async def _set_state(self, packets, clear_state: bool = False) -> None:
-        def _clear_state() -> None:
+    async def _set_state(self, packets, keep_state: bool = False) -> None:
+        def clear_state() -> None:
             _LOGGER.warning("ENGINE: Clearing exisiting schema/state...")
 
             self.msg_protocol._prev_msg = None  # TODO: move to pause/resume?
@@ -322,8 +332,8 @@ class Gateway(Engine):
         (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Restoring state...")
         self.pause()
 
-        if clear_state:
-            _clear_state()
+        if not keep_state:
+            clear_state()
 
         _, tmp_transport = create_pkt_stack(
             self,
