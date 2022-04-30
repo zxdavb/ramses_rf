@@ -427,11 +427,11 @@ class Gateway(Engine):
             return self.device_by_id.get(self.pkt_protocol._hgi80[SZ_DEVICE_ID])
 
     @property
-    def _known_list(self) -> dict:
+    def known_list(self) -> dict:
         return {
             d.id: {k: d.traits[k] for k in (SZ_CLASS, SZ_ALIAS, SZ_FAKED)}
             for d in self.devices
-            if d.id in self._include
+            if not self.config.enforce_known_list or d.id in self._include
         }
 
     @property
@@ -450,7 +450,7 @@ class Gateway(Engine):
             "gateway_id": self.hgi.id if self.hgi else None,
             "primary_tcs": self.tcs.id if self.tcs else None,
             "config": {"enforce_known_list": self.config.enforce_known_list},
-            "known_list": self._known_list,
+            "known_list": self.known_list,
             "block_list": [{k: v} for k, v in self._exclude.items()],
             "_unwanted": sorted(self.pkt_protocol._unwanted),
             "_unwanted_alt": sorted(self._unwanted),
