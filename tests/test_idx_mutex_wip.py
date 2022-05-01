@@ -8,8 +8,6 @@ Test the Command.put_*, Command.set_* APIs.
 
 import unittest
 
-from common import GWY_CONFIG, TEST_DIR  # noqa: F401
-
 from ramses_rf import RQ
 from ramses_rf.protocol.const import _0418
 from ramses_rf.protocol.ramses import (

@@ -5,5 +5,3 @@
 
 Test eavesdropping of UFC circuits.
 """
-
-# import unittest

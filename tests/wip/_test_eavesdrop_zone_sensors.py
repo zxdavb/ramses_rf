@@ -5,5 +5,3 @@
 
 Test eavesdropping of a zone sensors.
 """
-
-# import unittest

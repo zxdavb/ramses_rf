@@ -5,5 +5,3 @@
 
 Test eavesdropping of a zone class.
 """
-
-# import unittest

@@ -5,5 +5,3 @@
 
 Test eavesdropping of the DHW sensor.
 """
-
-# import unittest

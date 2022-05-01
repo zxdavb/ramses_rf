@@ -6,28 +6,17 @@
 Test the various helper APIs.
 """
 
-import unittest
-
 from ramses_rf.const import DEV_ROLE_MAP, DEV_TYPE_MAP
 from ramses_rf.protocol.const import attr_dict_factory
 from ramses_rf.zones import _transform
-from tests.common import GWY_CONFIG, TEST_DIR  # noqa: F401
-
-
-def _test_assert_raises(exception, fnc, *args):
-    try:
-        fnc(*args)
-    except exception:
-        pass
-    else:
-        assert False
+from tests.common import assert_raises
 
 
 def test_attrdict_class() -> None:
     _ = attr_dict_factory(MAIN_DICT, attr_table=ATTR_DICT)
 
-    _test_assert_raises(KeyError, DEV_TYPE_MAP.slug, "_rubbish_")
-    _test_assert_raises(KeyError, DEV_TYPE_MAP.slug, None)
+    assert_raises(KeyError, DEV_TYPE_MAP.slug, "_rubbish_")
+    assert_raises(KeyError, DEV_TYPE_MAP.slug, None)
     # assert DEV_TYPE_MAP.slug(None), "DEV")
 
     try:
@@ -46,25 +35,25 @@ def test_attrdict_class() -> None:
     assert DEV_ROLE_MAP["rad_actuator"] == "08"
 
     assert DEV_ROLE_MAP._hex("SEN") == "04"
-    _test_assert_raises(KeyError, DEV_ROLE_MAP._hex, "04")
+    assert_raises(KeyError, DEV_ROLE_MAP._hex, "04")
     assert DEV_ROLE_MAP._hex("zone_sensor") == "04"
 
-    _test_assert_raises(KeyError, DEV_ROLE_MAP._hex, "_rubbish_")
-    _test_assert_raises(KeyError, DEV_ROLE_MAP._hex, None)
+    assert_raises(KeyError, DEV_ROLE_MAP._hex, "_rubbish_")
+    assert_raises(KeyError, DEV_ROLE_MAP._hex, None)
 
     assert DEV_ROLE_MAP._str("OUT") == "out_sensor"
     assert DEV_ROLE_MAP._str("0C") == "out_sensor"
-    _test_assert_raises(KeyError, DEV_ROLE_MAP._str, "out_sensor")
+    assert_raises(KeyError, DEV_ROLE_MAP._str, "out_sensor")
 
-    _test_assert_raises(KeyError, DEV_ROLE_MAP._str, "_rubbish_")
-    _test_assert_raises(KeyError, DEV_ROLE_MAP._str, None)
+    assert_raises(KeyError, DEV_ROLE_MAP._str, "_rubbish_")
+    assert_raises(KeyError, DEV_ROLE_MAP._str, None)
 
-    _test_assert_raises(KeyError, DEV_ROLE_MAP.slug, "RFG")
+    assert_raises(KeyError, DEV_ROLE_MAP.slug, "RFG")
     assert DEV_ROLE_MAP.slug("10") == "RFG"
     assert DEV_ROLE_MAP.slug("remote_gateway") == "RFG"
 
-    _test_assert_raises(KeyError, DEV_ROLE_MAP.slug, "_rubbish_")
-    _test_assert_raises(KeyError, DEV_ROLE_MAP.slug, None)
+    assert_raises(KeyError, DEV_ROLE_MAP.slug, "_rubbish_")
+    assert_raises(KeyError, DEV_ROLE_MAP.slug, None)
 
     assert (
         "HTG" not in DEV_ROLE_MAP.keys()
@@ -161,6 +150,3 @@ TRANSFORMS = [
     # (0.995, 0.99),  # needs confirming
     (1.000, 1.0),
 ]
-
-if __name__ == "__main__":
-    unittest.main()

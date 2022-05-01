@@ -8,12 +8,11 @@ Test eavesdropping of a device class.
 
 from pathlib import Path, PurePath
 
-import pytest
-
 from ramses_rf import Gateway
 from ramses_rf.message import _create_devices_from_addrs
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
+from tests.common import gwy  # noqa: F401
 from tests.common import (
     TEST_DIR,
     assert_expected,
@@ -25,13 +24,6 @@ from tests.common import (
 WORK_DIR = f"{TEST_DIR}/eavesdrop"
 
 
-@pytest.fixture
-async def gwy() -> Gateway:  # NOTE: async to get running loop
-    gwy = Gateway("/dev/null", config={})
-    gwy.config.disable_sending = True
-    return gwy
-
-
 def id_fnc(param):
     return PurePath(param).name
 
@@ -41,7 +33,7 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize("dir_name", folders, ids=id_fnc)
 
 
-def test_packets_from_log_file(gwy, dir_name):
+def test_packets_from_log_file(gwy, dir_name):  # noqa: F811
     def proc_log_line(gwy, pkt_line):
         pkt_line, dev_slugs = pkt_line.split("#", maxsplit=1)
 
@@ -63,7 +55,7 @@ def test_packets_from_log_file(gwy, dir_name):
 async def test_dev_class_from_log_file(dir_name):
 
     expected: dict = load_expected_results(dir_name)
-    gwy: Gateway = await load_test_system(dir_name)
+    gwy: Gateway = await load_test_system(dir_name)  # noqa: F811
 
     gwy.serial_port = "/dev/null"  # HACK: needed to pause engine
     schema, _ = gwy._get_state(include_expired=True)

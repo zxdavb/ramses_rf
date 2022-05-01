@@ -12,8 +12,7 @@ import unittest
 
 from ramses_rf import Gateway
 from ramses_rf.discovery import SET_SCHED, spawn_scripts
-
-from common import GWY_CONFIG, TEST_DIR  # noqa: F401
+from tests.common import TEST_DIR
 
 
 class TestSchedule(unittest.IsolatedAsyncioTestCase):
@@ -26,7 +25,7 @@ class TestSchedule(unittest.IsolatedAsyncioTestCase):
     async def test_schedule_set(self):
         with open(f"{TEST_DIR}/schemas/schema_000.log") as f:
             self.gwy = Gateway(
-                None, input_file=f, config=GWY_CONFIG, loop=self._asyncioTestLoop
+                None, input_file=f, config={}, loop=self._asyncioTestLoop
             )
             await self.gwy.start()
 

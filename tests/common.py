@@ -6,20 +6,19 @@
 Test the Schema processor.
 """
 
-import asyncio
 import json
 import logging
 import warnings
 from pathlib import Path
 from random import shuffle
 
+import pytest
+
 from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
 
 # TEST_DIR = f"{os.path.dirname(__file__)}"
 TEST_DIR = Path(__file__).resolve().parent
-
-GWY_CONFIG = {}
 
 DEBUG_MODE = False
 DEBUG_ADDR = "0.0.0.0"
@@ -38,6 +37,13 @@ if DEBUG_MODE:
 logging.disable(logging.WARNING)  # usu. WARNING
 
 
+@pytest.fixture
+async def gwy() -> Gateway:  # NOTE: async to get running loop
+    gwy = Gateway("/dev/null", config={})
+    gwy.config.disable_sending = True
+    return gwy
+
+
 def assert_expected(actual, expected: dict = None) -> None:
 
     if expected is not None:
@@ -52,6 +58,15 @@ def assert_expected_set(gwy, expected) -> None:
     # sert_expected(gwy.status, expected.get("status"))
 
 
+def assert_raises(exception, fnc, *args):
+    try:
+        fnc(*args)
+    except exception:  # as exc:
+        pass  # or: assert True
+    else:
+        assert False
+
+
 async def load_test_system(dir_name, config: dict = None) -> Gateway:
 
     try:
@@ -64,12 +79,7 @@ async def load_test_system(dir_name, config: dict = None) -> Gateway:
         kwargs.update(config)
 
     with open(f"{dir_name}/packet.log") as f:
-        gwy = Gateway(
-            None,
-            input_file=f,
-            loop=asyncio.get_event_loop(),
-            **kwargs,
-        )
+        gwy = Gateway(None, input_file=f, **kwargs)
         await gwy.start()
 
     return gwy

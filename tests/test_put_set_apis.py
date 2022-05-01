@@ -6,22 +6,17 @@
 Test the Command.put_*, Command.set_* APIs.
 """
 
-import asyncio
-import unittest
 from datetime import datetime as dt
 
-from ramses_rf import Gateway
 from ramses_rf.const import SZ_DOMAIN_ID
 from ramses_rf.protocol.address import HGI_DEV_ADDR
 from ramses_rf.protocol.command import Command
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
-from tests.common import GWY_CONFIG, TEST_DIR  # noqa: F401
-
-gwy = Gateway(None, config=GWY_CONFIG, loop=asyncio.get_event_loop())
+from tests.common import gwy  # noqa: F401
 
 
-def _test_api_line(api, pkt_line):
+def _test_api_line(gwy, api, pkt_line):  # noqa: F811
     pkt = Packet.from_port(gwy, dt.now(), pkt_line)
 
     assert str(pkt) == pkt_line[4:]
@@ -34,24 +29,24 @@ def _test_api_line(api, pkt_line):
     return pkt, msg, cmd
 
 
-def _test_api(api, packets):  # NOTE: incl. addr_set check
+def _test_api(gwy, api, packets):  # noqa: F811  # NOTE: incl. addr_set check
     for pkt_line in packets:
-        pkt, msg, cmd = _test_api_line(api, pkt_line)
+        pkt, msg, cmd = _test_api_line(gwy, api, pkt_line)
 
         if msg.src.id == HGI_DEV_ADDR.id:
             assert cmd == pkt  # must have exact same addr set
 
 
-def test_put_30c9():
-    _test_api(Command.put_sensor_temp, PUT_30C9_GOOD)
+def test_put_30c9(gwy):  # noqa: F811
+    _test_api(gwy, Command.put_sensor_temp, PUT_30C9_GOOD)
 
 
-def test_put_3ef0():
-    _test_api(Command.put_actuator_state, PUT_3EF0_GOOD)
+def test_put_3ef0(gwy):  # noqa: F811
+    _test_api(gwy, Command.put_actuator_state, PUT_3EF0_GOOD)
 
 
-def test_put_3ef1():  # NOTE: bespoke
-    # _test_api(Command.put_actuator_cycle, PUT_3EF1_GOOD)
+def test_put_3ef1(gwy):  # noqa: F811  # NOTE: bespoke
+    # _test_api(gwy, Command.put_actuator_cycle, PUT_3EF1_GOOD)
     for pkt_line in PUT_3EF1_GOOD:
         pkt = Packet.from_port(gwy, dt.now(), pkt_line)
 
@@ -76,25 +71,25 @@ def test_put_3ef1():  # NOTE: bespoke
             assert cmd == pkt  # must have exact same addr set
 
 
-def test_set_0004():
+def test_set_0004(gwy):  # noqa: F811
     # assert str_from_hex(cmd.payload[4:]) == msg.payload["name"]
-    _test_api(Command.set_zone_name, SET_0004_GOOD)
+    _test_api(gwy, Command.set_zone_name, SET_0004_GOOD)
 
 
-def test_set_000a():
-    _test_api(Command.set_zone_config, SET_000A_GOOD)
+def test_set_000a(gwy):  # noqa: F811
+    _test_api(gwy, Command.set_zone_config, SET_000A_GOOD)
 
 
-def test_set_1030():
-    _test_api(Command.set_mix_valve_params, SET_1030_GOOD)
+def test_set_1030(gwy):  # noqa: F811
+    _test_api(gwy, Command.set_mix_valve_params, SET_1030_GOOD)
 
 
-def test_set_10a0():
-    _test_api(Command.set_dhw_params, SET_10A0_GOOD)
+def test_set_10a0(gwy):  # noqa: F811
+    _test_api(gwy, Command.set_dhw_params, SET_10A0_GOOD)
 
 
-def test_set_1100():  # NOTE: bespoke
-    # _test_api(Command.set_tpi_params, SET_1100_GOOD)
+def test_set_1100(gwy):  # noqa: F811  # NOTE: bespoke
+    # _test_api(gwy, Command.set_tpi_params, SET_1100_GOOD)
     for pkt_line in SET_1100_GOOD:
         pkt = Packet.from_port(gwy, dt.now(), pkt_line)
 
@@ -115,23 +110,23 @@ def test_set_1100():  # NOTE: bespoke
             assert cmd == pkt  # must have exact same addr set
 
 
-def test_set_1f41():
-    _test_api(Command.set_dhw_mode, SET_1F41_GOOD)
+def test_set_1f41(gwy):  # noqa: F811
+    _test_api(gwy, Command.set_dhw_mode, SET_1F41_GOOD)
 
 
-def test_set_2309():
-    _test_api(Command.set_zone_setpoint, SET_2309_GOOD)
+def test_set_2309(gwy):  # noqa: F811
+    _test_api(gwy, Command.set_zone_setpoint, SET_2309_GOOD)
 
 
-def test_set_2349():
-    _test_api(Command.set_zone_mode, SET_2349_GOOD)
+def test_set_2349(gwy):  # noqa: F811
+    _test_api(gwy, Command.set_zone_mode, SET_2349_GOOD)
 
 
-def test_set_2e04():
-    _test_api(Command.set_system_mode, SET_2E04_GOOD)
+def test_set_2e04(gwy):  # noqa: F811
+    _test_api(gwy, Command.set_system_mode, SET_2E04_GOOD)
 
 
-def test_set_313f():  # NOTE: bespoke
+def test_set_313f(gwy):  # noqa: F811  # NOTE: bespoke
     for pkt_line in SET_313F_GOOD:
         pkt = Packet.from_port(gwy, dt.now(), pkt_line)
 
@@ -231,7 +226,3 @@ SET_313F_GOOD = (
     "...  W --- 30:042165 01:076010 --:------ 313F 009 006003090A0D0207E6",
     "...  W --- 30:042165 01:076010 --:------ 313F 009 0060041210040207E6",
 )
-
-
-if __name__ == "__main__":
-    unittest.main()
