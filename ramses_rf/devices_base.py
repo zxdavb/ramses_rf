@@ -204,7 +204,7 @@ class Device(Entity):
         if schema.get(SZ_FAKED):  # class & alias are done elsewhere
             if not isinstance(self, Fakeable):
                 raise TypeError(f"Device is not fakable: {self}")
-            self._make_fake
+            self._make_fake()
 
     @classmethod
     def create_from_schema(cls, gwy, dev_addr: Address, **schema):
