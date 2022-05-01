@@ -233,12 +233,12 @@ class Gateway(Engine):
             _LOGGER.debug("Received a signal (%s), processing...", sig.name)
 
             if sig == signal.SIGUSR1:
-                _LOGGER.info("Schema: \r\n%s", {self.tcz.id: self.tcz.schema})
-                _LOGGER.info("Params: \r\n%s", {self.tcz.id: self.tcz.params})
-                _LOGGER.info("Status: \r\n%s", {self.tcz.id: self.tcz.status})
+                _LOGGER.info("Schema: \r\n%s", {self.tcs.id: self.tcs.schema})
+                _LOGGER.info("Params: \r\n%s", {self.tcs.id: self.tcs.params})
+                _LOGGER.info("Status: \r\n%s", {self.tcs.id: self.tcs.status})
 
             elif sig == signal.SIGUSR2:
-                _LOGGER.info("Status: \r\n%s", {self.tcz.id: self.tcz.status})
+                _LOGGER.info("Status: \r\n%s", {self.tcs.id: self.tcs.status})
 
         super()._setup_event_handlers()
 
@@ -416,7 +416,7 @@ class Gateway(Engine):
         return dev
 
     @property
-    def tcz(self) -> Optional[System]:
+    def tcs(self) -> Optional[System]:
         """Return the primary TCS, if any."""
 
         if self._tcs is None and self.systems:
@@ -470,7 +470,7 @@ class Gateway(Engine):
 
         return {
             "_gateway_id": self.hgi.id if self.hgi else None,
-            SZ_MAIN_CONTROLLER: self.tcz.id if self.tcz else None,
+            SZ_MAIN_CONTROLLER: self.tcs.id if self.tcs else None,
             SZ_CONFIG: {ENFORCE_KNOWN_LIST: self.config.enforce_known_list},
             SZ_KNOWN_LIST: self.known_list,
             SZ_BLOCK_LIST: [{k: v} for k, v in self._exclude.items()],
@@ -487,7 +487,7 @@ class Gateway(Engine):
         just like the other devices in the schema.
         """
 
-        schema = {SZ_MAIN_CONTROLLER: self.tcz._ctl.id if self.tcz else None}
+        schema = {SZ_MAIN_CONTROLLER: self.tcs._ctl.id if self.tcs else None}
 
         for tcs in self.systems:
             schema[tcs._ctl.id] = tcs.schema
