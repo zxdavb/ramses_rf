@@ -19,8 +19,6 @@ from ramses_rf.schema import (
 )
 from tests.common import assert_raises
 
-RADIATOR_VALVE = "radiator_valve"
-
 
 def test_system_schema():
     """Test the DHW schema.
@@ -71,8 +69,8 @@ def test_zone_schema():
             SZ_ACTUATORS: [],
         }
 
-    assert SCHEMA_ZON({SZ_CLASS: RADIATOR_VALVE}) == {
-        SZ_CLASS: RADIATOR_VALVE,
+    assert SCHEMA_ZON({SZ_CLASS: "radiator_valve"}) == {
+        SZ_CLASS: "radiator_valve",
         SZ_SENSOR: None,
         SZ_ACTUATORS: [],
     }
