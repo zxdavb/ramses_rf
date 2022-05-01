@@ -361,7 +361,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             if dev_slug == DEV_ROLE.DHW:
                 schema_attr = SZ_SENSOR
             else:  # if dev_slug in (DEV_ROLE.HTG, DEV_ROLE.HT1):
-                schema_attr = DEV_ROLE_MAP._str(dev_slug)
+                schema_attr = DEV_ROLE_MAP[dev_slug]
 
             new_dev = self._gwy._get_device(dev_id, ctl_id=self.ctl.id)
             old_dev = self.ctl.device_by_id.get(self.schema[schema_attr])
@@ -385,10 +385,10 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         if dev_id := schema.get(SZ_SENSOR):
             self._dhw_sensor = get_dhw_device(dev_id, DEV_ROLE.DHW, DhwSensor, "FA")
 
-        if dev_id := schema.get(DEV_ROLE_MAP._str(DEV_ROLE.HTG)):
+        if dev_id := schema.get(DEV_ROLE_MAP[DEV_ROLE.HTG]):
             self._dhw_valve = get_dhw_device(dev_id, DEV_ROLE.HTG, BdrSwitch, "FA")
 
-        if dev_id := schema.get(DEV_ROLE_MAP._str(DEV_ROLE.HT1)):
+        if dev_id := schema.get(DEV_ROLE_MAP[DEV_ROLE.HT1]):
             self._htg_valve = get_dhw_device(dev_id, DEV_ROLE.HT1, BdrSwitch, "F9")
 
     @discover_decorator
@@ -479,11 +479,11 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         assert len(msg.payload[SZ_DEVICES]) == 1
 
         if (dev_role := msg.payload[SZ_DEVICE_ROLE]) in (
-            DEV_ROLE_MAP._str(DEV_ROLE.HTG),
-            DEV_ROLE_MAP._str(DEV_ROLE.HT1),
+            DEV_ROLE_MAP[DEV_ROLE.HTG],
+            DEV_ROLE_MAP[DEV_ROLE.HT1],
         ):
             self._update_schema(**{dev_role: msg.payload[SZ_DEVICES][0]})
-        elif dev_role == DEV_ROLE_MAP._str(DEV_ROLE.DHW):
+        elif dev_role == DEV_ROLE_MAP[DEV_ROLE.DHW]:
             self._update_schema(**{SZ_SENSOR: msg.payload[SZ_DEVICES][0]})
 
         # TODO: may need to move earlier in method
@@ -706,7 +706,7 @@ class Zone(ZoneSchedule, ZoneBase):
                 discover_flag=Discover.SCHEMA
             )  # TODO: needs tidyup (ref #67)
 
-        # if schema.get(SZ_CLASS) == ZON_ROLE_MAP._str(ZON_ROLE.ACT):
+        # if schema.get(SZ_CLASS) == ZON_ROLE_MAP[ZON_ROLE.ACT]:
         #     schema.pop(SZ_CLASS)
 
         schema = shrink(SCHEMA_ZON(schema))
@@ -848,7 +848,7 @@ class Zone(ZoneSchedule, ZoneBase):
     @property
     def heating_type(self) -> Optional[str]:
         if self._SLUG is not None:  # isinstance(self, ???)
-            return ZON_ROLE_MAP._str(self._SLUG)
+            return ZON_ROLE_MAP[self._SLUG]
 
     @property
     def name(self) -> Optional[str]:  # 0004

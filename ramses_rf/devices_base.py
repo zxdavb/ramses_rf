@@ -283,9 +283,7 @@ class Device(Entity):
     @property
     def schema(self) -> dict:
         """Return the fixed attributes of the device."""
-        return {
-            SZ_CLASS: DEV_TYPE_MAP._str(self._SLUG),
-        }
+        return {}  # SZ_CLASS: DEV_TYPE_MAP[self._SLUG]}
 
     @property
     def params(self) -> dict:
@@ -306,7 +304,7 @@ class Device(Entity):
 
         result.update(
             {
-                SZ_CLASS: DEV_TYPE_MAP._str(self._SLUG),
+                SZ_CLASS: DEV_TYPE_MAP[self._SLUG],
                 SZ_ALIAS: known_dev.get(SZ_ALIAS) if known_dev else None,
                 SZ_FAKED: None,
             }

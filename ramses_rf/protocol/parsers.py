@@ -373,9 +373,9 @@ def parser_000c(payload, msg) -> Optional[dict]:
         raise InvalidPayloadError("Unable to determine element length")  # return None
 
     if payload[2:4] == DEV_ROLE_MAP.HTG and payload[:2] == "01":
-        dev_role = DEV_ROLE_MAP._str(DEV_ROLE.HT1)
+        dev_role = DEV_ROLE_MAP[DEV_ROLE.HT1]
     else:
-        dev_role = DEV_ROLE_MAP._str(payload[2:4])
+        dev_role = DEV_ROLE_MAP[payload[2:4]]
 
     result = {
         SZ_ZONE_TYPE: payload[2:4],
@@ -551,11 +551,11 @@ def parser_0418(payload, msg) -> Optional[dict]:
     }
 
     if payload[10:12] == "FC" and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
-        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP._str(DEV_ROLE.APP)  # actual evohome UI
+        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DEV_ROLE.APP]  # actual evohome UI
     elif payload[10:12] == "FA" and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
-        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP._str(DEV_ROLE.HTG)  # speculative
+        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DEV_ROLE.HTG]  # speculative
     elif payload[10:12] == "F9" and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
-        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP._str(DEV_ROLE.HT1)  # speculative
+        result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DEV_ROLE.HT1]  # speculative
 
     if payload[12:14] != "00":  # TODO: Controller
         key_name = (

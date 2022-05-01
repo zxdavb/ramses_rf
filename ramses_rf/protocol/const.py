@@ -418,10 +418,10 @@ DEVICE_ID_REGEX = SimpleNamespace(
 # Domains
 DOMAIN_TYPE_MAP = {
     "F8": None,
-    "F9": DEV_ROLE_MAP._str(DEV_ROLE.HT1),  # Heating Valve
-    "FA": DEV_ROLE_MAP._str(DEV_ROLE.HTG),  # HW Valve (or UFH loop if src.type == UFC?)
+    "F9": DEV_ROLE_MAP[DEV_ROLE.HT1],  # Heating Valve
+    "FA": DEV_ROLE_MAP[DEV_ROLE.HTG],  # HW Valve (or UFH loop if src.type == UFC?)
     "FB": None,
-    "FC": DEV_ROLE_MAP._str(DEV_ROLE.APP),  # appliance_control
+    "FC": DEV_ROLE_MAP[DEV_ROLE.APP],  # appliance_control
     "FD": "unknown",  # seen with hometronics
     # "FF": "system",  # TODO: remove this, is not a domain
 }  # "21": "Ventilation",
