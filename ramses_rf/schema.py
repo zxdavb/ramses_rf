@@ -93,7 +93,7 @@ INPUT_FILE = "input_file"
 # Config parameters
 DEBUG_MODE = "debug_mode"
 
-CONFIG = "config"
+SZ_CONFIG = "config"
 DISABLE_DISCOVERY = "disable_discovery"
 DISABLE_SENDING = "disable_sending"
 ENABLE_EAVESDROP = "enable_eavesdrop"
@@ -221,7 +221,7 @@ SCHEMA_SYS = vol.Schema(
 # 3/3: Global Schemas
 SCHEMA_GLOBAL_CONFIG = vol.Schema(
     {
-        vol.Required(CONFIG): CONFIG_SCHEMA.extend(
+        vol.Required(SZ_CONFIG): CONFIG_SCHEMA.extend(
             {
                 vol.Optional(SERIAL_CONFIG): SERIAL_CONFIG_SCHEMA,
                 vol.Optional(PACKET_LOG, default={}): vol.Any({}, PACKET_LOG_SCHEMA),
@@ -258,7 +258,7 @@ def load_config(
 
     config = CONFIG_SCHEMA.extend(
         {vol.Optional(SERIAL_CONFIG, default={}): SERIAL_CONFIG_SCHEMA}
-    )(config[CONFIG])
+    )(config[SZ_CONFIG])
 
     if serial_port and input_file:
         _LOGGER.warning(

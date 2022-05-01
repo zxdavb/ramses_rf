@@ -30,16 +30,16 @@ from ramses_rf.protocol.logger import (
 )
 from ramses_rf.protocol.schema import SERIAL_PORT
 from ramses_rf.schema import (
-    CONFIG,
     DISABLE_DISCOVERY,
     DISABLE_SENDING,
     ENABLE_EAVESDROP,
-    ENFORCE_KNOWNLIST,
+    ENFORCE_KNOWN_LIST,
     EVOFW_FLAG,
     INPUT_FILE,
     PACKET_LOG,
     PACKET_LOG_SCHEMA,
     REDUCE_PROCESSING,
+    SZ_CONFIG,
     SZ_KNOWN_LIST,
 )
 
@@ -109,22 +109,22 @@ LIB_KEYS = (
 def normalise_config_schema(config) -> tuple[str, dict]:
     """Convert a HA config dict into the client library's own format."""
 
-    serial_port = config[CONFIG].pop(SERIAL_PORT, None)
+    serial_port = config[SZ_CONFIG].pop(SERIAL_PORT, None)
 
-    if config[CONFIG].get(PACKET_LOG):
-        if not isinstance(config[CONFIG][PACKET_LOG], dict):
-            config[CONFIG][PACKET_LOG] = PACKET_LOG_SCHEMA(
-                {LOG_FILE_NAME: config[CONFIG][PACKET_LOG]}
+    if config[SZ_CONFIG].get(PACKET_LOG):
+        if not isinstance(config[SZ_CONFIG][PACKET_LOG], dict):
+            config[SZ_CONFIG][PACKET_LOG] = PACKET_LOG_SCHEMA(
+                {LOG_FILE_NAME: config[SZ_CONFIG][PACKET_LOG]}
             )
     else:
-        config[CONFIG][PACKET_LOG] = {}
+        config[SZ_CONFIG][PACKET_LOG] = {}
 
     return serial_port, config
 
 
 def _proc_kwargs(obj, kwargs) -> tuple[dict, dict]:
     lib_kwargs, cli_kwargs = obj
-    lib_kwargs[CONFIG].update({k: v for k, v in kwargs.items() if k in LIB_KEYS})
+    lib_kwargs[SZ_CONFIG].update({k: v for k, v in kwargs.items() if k in LIB_KEYS})
     cli_kwargs.update({k: v for k, v in kwargs.items() if k not in LIB_KEYS})
     return lib_kwargs, cli_kwargs
 
@@ -221,14 +221,14 @@ def cli(ctx, config_file=None, **kwargs):
             debugpy.wait_for_client()
             print(" - debugger is now attached, continuing execution.")
 
-    lib_kwargs, cli_kwargs = _proc_kwargs(({CONFIG: {}}, {}), kwargs)
+    lib_kwargs, cli_kwargs = _proc_kwargs(({SZ_CONFIG: {}}, {}), kwargs)
 
     if config_file:
         lib_kwargs.update(json.load(config_file))
 
     lib_kwargs[DEBUG_MODE] = cli_kwargs[DEBUG_MODE] > 1
-    lib_kwargs[CONFIG][REDUCE_PROCESSING] = kwargs[REDUCE_PROCESSING]
-    lib_kwargs[CONFIG][ENABLE_EAVESDROP] = bool(cli_kwargs.pop("eavesdrop"))
+    lib_kwargs[SZ_CONFIG][REDUCE_PROCESSING] = kwargs[REDUCE_PROCESSING]
+    lib_kwargs[SZ_CONFIG][ENABLE_EAVESDROP] = bool(cli_kwargs.pop("eavesdrop"))
 
     ctx.obj = lib_kwargs, kwargs
 
@@ -288,7 +288,7 @@ def parse(obj, **kwargs):
 
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
-    lib_kwargs[INPUT_FILE] = lib_kwargs[CONFIG].pop(INPUT_FILE)
+    lib_kwargs[INPUT_FILE] = lib_kwargs[SZ_CONFIG].pop(INPUT_FILE)
 
     asyncio.run(main(PARSE, lib_kwargs, **cli_kwargs))
 
@@ -318,7 +318,7 @@ def monitor(obj, **kwargs):
         )
 
     if cli_kwargs["discover"] is not None:
-        lib_kwargs[CONFIG][DISABLE_DISCOVERY] = not cli_kwargs.pop("discover")
+        lib_kwargs[SZ_CONFIG][DISABLE_DISCOVERY] = not cli_kwargs.pop("discover")
 
     lib_kwargs[SZ_KNOWN_LIST] = lib_kwargs.get(SZ_KNOWN_LIST, {})
     # allowed = lib_kwargs[SZ_KNOWN_LIST] = lib_kwargs.get(SZ_KNOWN_LIST, {})
@@ -327,12 +327,12 @@ def monitor(obj, **kwargs):
     #     cli_kwargs[k] = _convert_to_list(cli_kwargs.pop(k))
     #     allowed.update({d: None for d in cli_kwargs[k] if d not in allowed})
 
-    # lib_kwargs[CONFIG]["poll_devices"] = _convert_to_list(
+    # lib_kwargs[SZ_CONFIG]["poll_devices"] = _convert_to_list(
     #     cli_kwargs.pop("poll_devices")
     # )
 
     # if lib_kwargs[SZ_KNOWN_LIST]:
-    #     lib_kwargs[CONFIG][ENFORCE_KNOWNLIST] = True
+    #     lib_kwargs[SZ_CONFIG][ENFORCE_KNOWN_LIST] = True
 
     asyncio.run(main(MONITOR, lib_kwargs, **cli_kwargs))
 
@@ -365,8 +365,8 @@ def execute(obj, **kwargs):
     """
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
-    if lib_kwargs[CONFIG].get(DISABLE_DISCOVERY) is None:
-        lib_kwargs[CONFIG][DISABLE_DISCOVERY] = True
+    if lib_kwargs[SZ_CONFIG].get(DISABLE_DISCOVERY) is None:
+        lib_kwargs[SZ_CONFIG][DISABLE_DISCOVERY] = True
 
     if cli_kwargs[GET_FAULTS]:
         lib_kwargs[SZ_KNOWN_LIST] = {cli_kwargs[GET_FAULTS]: {}}
@@ -378,7 +378,7 @@ def execute(obj, **kwargs):
         lib_kwargs[SZ_KNOWN_LIST] = {cli_kwargs[SET_SCHED][0]: {}}
 
     if lib_kwargs.get(SZ_KNOWN_LIST):
-        lib_kwargs[CONFIG][ENFORCE_KNOWNLIST] = True
+        lib_kwargs[SZ_CONFIG][ENFORCE_KNOWN_LIST] = True
 
     asyncio.run(main(EXECUTE, lib_kwargs, **cli_kwargs))
 
@@ -389,7 +389,7 @@ def listen(obj, **kwargs):
     """Listen to (eavesdrop only) a serial port for messages/packets."""
     lib_kwargs, cli_kwargs = _proc_kwargs(obj, kwargs)
 
-    lib_kwargs[CONFIG][DISABLE_SENDING] = True
+    lib_kwargs[SZ_CONFIG][DISABLE_SENDING] = True
 
     asyncio.run(main(LISTEN, lib_kwargs, **cli_kwargs))
 

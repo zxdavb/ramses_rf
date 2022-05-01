@@ -33,11 +33,13 @@ from .protocol import (
 from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .schema import (
     DEBUG_MODE,
+    ENFORCE_KNOWN_LIST,
     INPUT_FILE,
     SCHEMA_DEV,
     SZ_ALIAS,
     SZ_BLOCK_LIST,
     SZ_CLASS,
+    SZ_CONFIG,
     SZ_FAKED,
     SZ_KNOWN_LIST,
     SZ_MAIN_CONTROLLER,
@@ -416,12 +418,16 @@ class Gateway(Engine):
 
     @property
     def tcs(self) -> Optional[System]:
+        """Return the primary TCS, if any."""
+
         if self._tcs is None and self.systems:
             self._tcs = self.systems[0]
         return self._tcs
 
     @property
-    def hgi(self) -> Optional[Device]:  # TODO: DEVICE_ID
+    def hgi(self) -> Optional[Device]:
+        """Return the HGI80-compatible gateway device."""
+
         if self.pkt_protocol and self.pkt_protocol._hgi80[SZ_DEVICE_ID]:
             return self.device_by_id.get(self.pkt_protocol._hgi80[SZ_DEVICE_ID])
 
@@ -454,14 +460,21 @@ class Gateway(Engine):
 
     @property
     def _config(self) -> dict:
-        """Return the working configuration."""
+        """Return the working configuration.
+
+        Includes:
+         - config
+         - schema (everything else)
+         - known_list
+         - block_list
+        """
 
         return {
-            "gateway_id": self.hgi.id if self.hgi else None,
-            "primary_tcs": self.tcs.id if self.tcs else None,
-            "config": {"enforce_known_list": self.config.enforce_known_list},
-            "known_list": self.known_list,
-            "block_list": [{k: v} for k, v in self._exclude.items()],
+            "_gateway_id": self.hgi.id if self.hgi else None,
+            SZ_MAIN_CONTROLLER: self.tcs.id if self.tcs else None,
+            SZ_CONFIG: {ENFORCE_KNOWN_LIST: self.config.enforce_known_list},
+            SZ_KNOWN_LIST: self.known_list,
+            SZ_BLOCK_LIST: [{k: v} for k, v in self._exclude.items()],
             "_unwanted": sorted(self.pkt_protocol._unwanted),
             "_unwanted_alt": sorted(self._unwanted),
         }

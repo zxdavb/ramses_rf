@@ -370,8 +370,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
         elif all(payload[i : i + 2] == payload[2:4] for i in range(12, pkt_len, 10)):
             return True  # len(element) = 5 (10)
 
-        raise InvalidPayloadError("Unable to determine element length")
-        return None  # if all else fails, could assume len(element) = 6 (12)
+        raise InvalidPayloadError("Unable to determine element length")  # return None
 
     if payload[2:4] == DEV_ROLE_MAP.HTG and payload[:2] == "01":
         dev_role = DEV_ROLE_MAP._str(DEV_ROLE.HT1)

@@ -684,8 +684,8 @@ class UfhController(DeviceHeat):  # UFC (02):
 
     @property
     def heat_demands(self) -> Optional[dict]:  # 3150|ufh_idx array
+        # return self._heat_demands.payload if self._heat_demands else None
         return self._msg_value_msg(self._heat_demands)
-        return self._heat_demands.payload if self._heat_demands else None
 
     @property
     def relay_demand(self) -> Optional[dict]:  # 0008|FC

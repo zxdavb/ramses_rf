@@ -480,8 +480,8 @@ def _check_msg_payload(msg: Message, payload) -> None:
             msg.src.type,
             msg.dst.type,
         ):  # DEX, HGI80 can do what it likes
+            # _LOGGER.warning(f"{msg!r} < {exc}")
             raise exc  # TODO: messy - these msgs not ignore
-            _LOGGER.warning(f"{msg!r} < {exc}")
 
     # TODO: put this back, or leave it to the parser?
     # if msg.code == _3220:
