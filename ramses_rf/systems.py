@@ -194,7 +194,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         self.id: str = ctl.id
 
         self._ctl = ctl
-        self._tcs = self
+        self.tcs = self
         self._domain_id = "FF"
 
         self._app_cntrl = None  # schema attr

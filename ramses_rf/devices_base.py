@@ -173,7 +173,7 @@ class Device(Entity):
 
         self.id: str = dev_addr.id
 
-        # self._tcs = None  # NOTE: Heat (CH/DHW) devices only
+        # self.tcs = None  # NOTE: Heat (CH/DHW) devices only
         # self._ctl = None
         self._domain_id = None
 
@@ -501,7 +501,7 @@ class HgiGateway(DeviceInfo, Device):  # HGI (18:), was GWY
 
         self._ctl = None
         self._domain_id = "FF"
-        self._tcs = None
+        self.tcs = None
 
         self._faked_bdr = None
         self._faked_ext = None
@@ -631,7 +631,7 @@ class DeviceHeat(
 
         self._ctl = None
         self._ctx = None
-        self._tcs = None
+        self.tcs = None
 
         self._set_ctl(ctl, ctx=domain_id or zone_idx) if ctl else None
 
@@ -654,7 +654,7 @@ class DeviceHeat(
 
         self._ctl = ctl
         self._ctx = ctx
-        self._tcs = ctl._tcs
+        self.tcs = ctl.tcs
 
         ctl.device_by_id[self.id] = self
         ctl.devices.append(self)
@@ -733,7 +733,7 @@ class DeviceHeat(
             # and msg.dst.type != DEV_TYPE_MAP.HGI
         ):
             # TODO: is buggy - remove? how?
-            self._set_parent(self._ctl._tcs.reap_htg_zone(msg.payload[SZ_ZONE_IDX]))
+            self._set_parent(self._ctl.tcs.reap_htg_zone(msg.payload[SZ_ZONE_IDX]))
 
     def _make_tcs_controller(self, msg=None, **schema) -> None:  # CH/DHW
         """Attach a TCS (create/update as required) after passing it any msg."""

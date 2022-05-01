@@ -380,7 +380,7 @@ class DhwTemperature(Fakeable, DeviceHeat):  # 1260
         #
 
         def callback(msg):
-            msg.src._tcs.dhw._set_sensor(self)
+            msg.src.tcs.dhw._set_sensor(self)
 
         super()._bind()
         self._bind_request(_1260, callback=callback)
@@ -415,7 +415,7 @@ class Temperature(Fakeable, DeviceHeat):  # 30C9
         # I --- 34:145039 01:054173 --:------ 1FC9 006 00-30C9-8A368F
 
         def callback(msg):
-            msg.src._tcs.zone_by_idx[msg.payload[0][0]]._set_sensor(self)
+            msg.src.tcs.zone_by_idx[msg.payload[0][0]]._set_sensor(self)
 
         super()._bind()
         self._bind_request(_30C9, callback=callback)
@@ -459,7 +459,7 @@ class Controller(DeviceHeat):  # CTL (01):
 
         self._ctl = self._set_ctl(self)
         self._ctx = "FF"
-        self._tcs = None
+        self.tcs = None
         # self._make_tcs_controller(**kwargs)  # NOTE: must create_from_schema first
 
     def _start_discovery(self) -> None:  # TODO: remove
@@ -471,7 +471,7 @@ class Controller(DeviceHeat):  # CTL (01):
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if not self._tcs:
+        if not self.tcs:
             self._make_tcs_controller(msg=msg)
 
         if msg.code == _000C:
@@ -489,8 +489,8 @@ class Controller(DeviceHeat):  # CTL (01):
         #     return
 
         # Route any messages to their heating systems
-        if self._tcs:
-            self._tcs._handle_msg(msg)  # NOTE: create dev first?
+        if self.tcs:
+            self.tcs._handle_msg(msg)  # NOTE: create dev first?
 
     def _make_tcs_controller(self, msg=None, **schema) -> None:  # CH/DHW
         """Attach a TCS (create/update as required) after passing it any msg."""
@@ -508,19 +508,19 @@ class Controller(DeviceHeat):  # CTL (01):
 
             schema = shrink(SCHEMA_SYS(schema))
 
-            if not self._tcs:
-                self._tcs = zx_system_factory(self, msg=msg, **schema)
+            if not self.tcs:
+                self.tcs = zx_system_factory(self, msg=msg, **schema)
 
             elif schema:
-                self._tcs._update_schema(**schema)
+                self.tcs._update_schema(**schema)
 
             if msg:
-                self._tcs._handle_msg(msg)
-            return self._tcs
+                self.tcs._handle_msg(msg)
+            return self.tcs
 
         super()._make_tcs_controller(msg=None, **schema)
 
-        self._tcs = reap_system(msg=msg, **schema)
+        self.tcs = reap_system(msg=msg, **schema)
 
 
 class Programmer(Controller):  # PRG (23):
@@ -646,7 +646,7 @@ class UfhController(DeviceHeat):  # UFC (02):
             #     if ctl := self._set_ctl(self._gwy._get_device(dev_ids[0])):
             #         # self._circuits[ufh_idx][SZ_DEVICES] = ctl.id  # better
             #         self._set_parent(
-            #             ctl._tcs.reap_htg_zone(msg.payload["zone_id"]), msg
+            #             ctl.tcs.reap_htg_zone(msg.payload["zone_id"]), msg
             #         )
 
         elif msg.code == _22C9:  # ufh_setpoints
@@ -664,7 +664,7 @@ class UfhController(DeviceHeat):  # UFC (02):
                 self._heat_demand = msg
             elif (
                 (zone_idx := msg.payload.get(SZ_ZONE_IDX))
-                and (tcs := msg.dst._tcs)
+                and (tcs := msg.dst.tcs)
                 and (zone := tcs.zone_by_idx.get(zone_idx))
             ):
                 zone._handle_msg(msg)

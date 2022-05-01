@@ -175,7 +175,7 @@ class ZoneBase(Entity):
 
         self.id: str = f"{tcs.id}_{zone_idx}"
 
-        self._tcs = tcs
+        self.tcs = tcs
         self._ctl = tcs._ctl
         self._domain_id = zone_idx
 

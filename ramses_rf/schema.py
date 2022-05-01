@@ -387,7 +387,7 @@ def load_system(gwy, ctl_id, schema) -> tuple[dict, dict]:
     if (ctl := _get_device(gwy, ctl_id)) is None:
         raise TypeError(f"TCS not instiated: {ctl_id}")
 
-    if ctl._tcs is not None:
+    if ctl.tcs is not None:
         raise TypeError(f"TCS already exists: {ctl}")
 
     ctl._make_tcs_controller(**schema)

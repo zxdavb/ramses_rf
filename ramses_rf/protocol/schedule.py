@@ -148,7 +148,7 @@ class Schedule:  # 0404
         self.idx = zone.idx
 
         self._ctl = zone._ctl
-        self._tcs = zone._tcs
+        self.tcs = zone.tcs
         self._gwy = zone._gwy
 
         self._schedule = None
@@ -383,12 +383,12 @@ class Schedule:  # 0404
     async def _obtain_lock(self) -> bool:  # Lock to prevent Rx/Tx at same time
         while True:
 
-            self._tcs.zone_lock.acquire()
-            if self._tcs.zone_lock_idx is None:
-                self._tcs.zone_lock_idx = self.idx
-            self._tcs.zone_lock.release()
+            self.tcs.zone_lock.acquire()
+            if self.tcs.zone_lock_idx is None:
+                self.tcs.zone_lock_idx = self.idx
+            self.tcs.zone_lock.release()
 
-            if self._tcs.zone_lock_idx == self.idx:
+            if self.tcs.zone_lock_idx == self.idx:
                 break
 
             await asyncio.sleep(0.1)  # gives the other zone enough time
@@ -396,9 +396,9 @@ class Schedule:  # 0404
         return True
 
     def _release_lock(self) -> None:
-        self._tcs.zone_lock.acquire()
-        self._tcs.zone_lock_idx = None
-        self._tcs.zone_lock.release()
+        self.tcs.zone_lock.acquire()
+        self.tcs.zone_lock_idx = None
+        self.tcs.zone_lock.release()
 
     @classmethod  # constructor using RP/0404 tuple
     def create_from_pkts(cls, zone, packets, **kwargs):

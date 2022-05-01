@@ -124,7 +124,7 @@ class RfsGateway(DeviceHvac):  # RFS: (spIDer gateway)
 
         self._ctl = None
         self._domain_id = "HV"
-        self._tcs = None
+        self.tcs = None
 
 
 class HvacHumidity(BatteryState, DeviceHvac):  # HUM: I/12A0
