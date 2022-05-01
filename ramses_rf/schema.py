@@ -51,21 +51,21 @@ if DEV_MODE:
 SCHEMA = "schema"
 SZ_MAIN_CONTROLLER = "main_controller"
 
-SZ_CONTROLLER = DEV_TYPE_MAP._str(DEV_TYPE.CTL)
+SZ_CONTROLLER = DEV_TYPE_MAP[DEV_TYPE.CTL]
 SZ_TCS_SYSTEM = "system"
-SZ_APP_CNTRL = DEV_ROLE_MAP._str(DEV_ROLE.APP)
+SZ_APP_CNTRL = DEV_ROLE_MAP[DEV_ROLE.APP]
 SZ_ORPHANS = "orphans"
 
 SZ_DHW_SYSTEM = "stored_hotwater"
-SZ_DHW_SENSOR = DEV_ROLE_MAP._str(DEV_ROLE.DHW)
-SZ_DHW_VALVE = DEV_ROLE_MAP._str(DEV_ROLE.HTG)
-SZ_HTG_VALVE = DEV_ROLE_MAP._str(DEV_ROLE.HT1)
+SZ_DHW_SENSOR = DEV_ROLE_MAP[DEV_ROLE.DHW]
+SZ_DHW_VALVE = DEV_ROLE_MAP[DEV_ROLE.HTG]
+SZ_HTG_VALVE = DEV_ROLE_MAP[DEV_ROLE.HT1]
 
 SZ_SENSOR_FAKED = "sensor_faked"
 
 
 SZ_UFH_SYSTEM = "underfloor_heating"
-SZ_UFH_CTL = DEV_TYPE_MAP._str(DEV_TYPE.UFC)
+SZ_UFH_CTL = DEV_TYPE_MAP[DEV_TYPE.UFC]
 SZ_UFH_CIRCUITS = "ufh_circuits"
 
 SZ_ALIAS = "alias"
@@ -140,7 +140,7 @@ SCHEMA_DEV = vol.Any(
     {
         vol.Optional(SZ_ALIAS, default=None): vol.Any(None, str),
         vol.Optional(SZ_CLASS, default=None): vol.Any(
-            None, *(DEV_TYPE_MAP._str(s) for s in DEV_TYPE_MAP.HVAC_SLUGS)
+            None, *(DEV_TYPE_MAP[s] for s in DEV_TYPE_MAP.HVAC_SLUGS)
         ),
         vol.Optional(SZ_FAKED, default=None): vol.Any(None, bool),
     },
