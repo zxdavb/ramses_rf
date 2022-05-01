@@ -504,9 +504,12 @@ class Command(PacketBase):
         overrun = 5 if overrun is None else overrun
         differential = 1.0 if differential is None else differential
 
-        assert 30.0 <= setpoint <= 85.0, setpoint
-        assert 0 <= overrun <= 10, overrun
-        assert 1 <= differential <= 10, differential
+        if not (30.0 <= setpoint <= 85.0):
+            raise ValueError(f"Out of range, setpoint: {setpoint}")
+        if not (0 <= overrun <= 10):
+            raise ValueError(f"Out of range, overrun: {overrun}")
+        if not (1 <= differential <= 10):
+            raise ValueError(f"Out of range, differential: {differential}")
 
         payload = f"00{temp_to_hex(setpoint)}{overrun:02X}{temp_to_hex(differential)}"
 
@@ -540,10 +543,14 @@ class Command(PacketBase):
     ):
         """Constructor to set the mix valve params of a zone (c.f. parser_1030)."""
 
-        assert 0 <= max_flow_setpoint <= 99, max_flow_setpoint
-        assert 0 <= min_flow_setpoint <= 50, min_flow_setpoint
-        assert 0 <= valve_run_time <= 240, valve_run_time
-        assert 0 <= pump_run_time <= 99, pump_run_time
+        if not (0 <= max_flow_setpoint <= 99):
+            raise ValueError(f"Out of range, max_flow_setpoint: {max_flow_setpoint}")
+        if not (0 <= min_flow_setpoint <= 50):
+            raise ValueError(f"Out of range, min_flow_setpoint: {min_flow_setpoint}")
+        if not (0 <= valve_run_time <= 240):
+            raise ValueError(f"Out of range, valve_run_time: {valve_run_time}")
+        if not (0 <= pump_run_time <= 99):
+            raise ValueError(f"Out of range, pump_run_time: {pump_run_time}")
 
         payload = "".join(
             (
@@ -732,11 +739,16 @@ class Command(PacketBase):
     ):
         """Constructor to set the config of a zone (c.f. parser_000a)."""
 
-        assert 5 <= min_temp <= 21, min_temp
-        assert 21 <= max_temp <= 35, max_temp
-        assert isinstance(local_override, bool), local_override
-        assert isinstance(openwindow_function, bool), openwindow_function
-        assert isinstance(multiroom_mode, bool), multiroom_mode
+        if not (5 <= min_temp <= 21):
+            raise ValueError(f"Out of range, min_temp: {min_temp}")
+        if not (21 <= max_temp <= 35):
+            raise ValueError(f"Out of range, max_temp: {max_temp}")
+        if not isinstance(local_override, bool):
+            raise ValueError(f"Invalid arg, local_override: {local_override}")
+        if not isinstance(openwindow_function, bool):
+            raise ValueError(f"Invalid arg, openwindow_function: {openwindow_function}")
+        if not isinstance(multiroom_mode, bool):
+            raise ValueError(f"Invalid arg, multiroom_mode: {multiroom_mode}")
 
         bitmap = 0 if local_override else 1
         bitmap |= 0 if openwindow_function else 2
@@ -863,12 +875,11 @@ class Command(PacketBase):
         """
         # RP --- 13:049798 18:006402 --:------ 3EF1 007 00-0126-0126-00-FF
 
-        try:  # dex
-            assert (
-                src_id[:2] == DEV_TYPE_MAP.BDR
-            ), f"device_id should be like {DEV_TYPE_MAP.BDR}:xxxxxx"
-        except AssertionError as exc:
-            raise TypeError(f"Faked device {src_id} has unsupported device type: {exc}")
+        if src_id[:2] != DEV_TYPE_MAP.BDR:
+            raise TypeError(
+                f"Faked device {src_id} has unsupported device type: "
+                f"device_id should be like {DEV_TYPE_MAP.BDR}:xxxxxx"
+            )
 
         payload = "00"
         payload += f"{cycle_countdown:04X}" if cycle_countdown is not None else "7FFF"
@@ -886,12 +897,11 @@ class Command(PacketBase):
         #  I --- 13:049798 --:------ 13:049798 3EF0 003 00C8FF
         #  I --- 13:106039 --:------ 13:106039 3EF0 003 0000FF
 
-        try:  # dex
-            assert (
-                dev_id[:2] == DEV_TYPE_MAP.BDR
-            ), f"device_id should be like {DEV_TYPE_MAP.BDR}:xxxxxx"
-        except AssertionError as exc:
-            raise TypeError(f"Faked device {dev_id} has unsupported device type: {exc}")
+        if dev_id[:2] != DEV_TYPE_MAP.BDR:
+            raise TypeError(
+                f"Faked device {dev_id} has unsupported device type: "
+                f"device_id should be like {DEV_TYPE_MAP.BDR}:xxxxxx"
+            )
 
         payload = (
             "007FFF"
@@ -935,10 +945,11 @@ class Command(PacketBase):
         This is for use by a faked CS92A or similar.
         """
 
-        try:  # dex
-            assert dev_id[:2] == "07", "device_id should be like 07:xxxxxx"
-        except AssertionError as exc:
-            raise TypeError(f"Faked device {dev_id} has unsupported device type: {exc}")
+        if dev_id[:2] != DEV_TYPE_MAP.DHW:
+            raise TypeError(
+                f"Faked device {dev_id} has unsupported device type: "
+                f"device_id should be like {DEV_TYPE_MAP.DHW}:xxxxxx"
+            )
 
         payload = f"00{temp_to_hex(temperature)}"
         return cls.packet(I_, _1260, payload, addr0=dev_id, addr2=dev_id, **kwargs)
@@ -951,12 +962,11 @@ class Command(PacketBase):
         This is for use by a faked HB85 or similar.
         """
 
-        try:  # dex
-            assert (
-                dev_id[:2] == DEV_TYPE_MAP.OUT
-            ), f"device_id should be like {DEV_TYPE_MAP.OUT}:xxxxxx"
-        except AssertionError as exc:
-            raise TypeError(f"Faked device {dev_id} has unsupported device type: {exc}")
+        if dev_id[:2] != DEV_TYPE_MAP.OUT:
+            raise TypeError(
+                f"Faked device {dev_id} has unsupported device type: "
+                f"device_id should be like {DEV_TYPE_MAP.OUT}:xxxxxx"
+            )
 
         payload = f"00{temp_to_hex(temperature)}01"
         return cls.packet(I_, _0002, payload, addr0=dev_id, addr2=dev_id, **kwargs)
@@ -970,12 +980,11 @@ class Command(PacketBase):
         """
         #  I --- 34:021943 --:------ 34:021943 30C9 003 000C0D
 
-        try:  # dex - use 03 to avoid device_id collisions
-            assert (
-                dev_id[:2] == DEV_TYPE_MAP.HCW
-            ), f"device_id should be like {DEV_TYPE_MAP.HCW}:xxxxxx"
-        except AssertionError as exc:
-            raise TypeError(f"Faked device {dev_id} has unsupported device type: {exc}")
+        if dev_id[:2] != DEV_TYPE_MAP.HCW:
+            raise TypeError(
+                f"Faked device {dev_id} has unsupported device type: "
+                f"device_id should be like {DEV_TYPE_MAP.HCW}:xxxxxx"
+            )
 
         payload = f"00{temp_to_hex(temperature)}"
         return cls.packet(I_, _30C9, payload, addr0=dev_id, addr2=dev_id, **kwargs)
