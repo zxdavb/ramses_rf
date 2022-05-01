@@ -8,11 +8,10 @@ Test the payload parsers and corresponding output (schema, traits, params, statu
 
 from pathlib import Path, PurePath
 
-import pytest
-
 from ramses_rf import Gateway
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
+from tests.common import gwy  # noqa: F401
 from tests.common import (
     TEST_DIR,
     assert_expected,
@@ -25,13 +24,6 @@ from tests.common import (
 WORK_DIR = f"{TEST_DIR}/systems"
 
 
-@pytest.fixture
-async def gwy() -> Gateway:  # NOTE: async to get running loop
-    gwy = Gateway("/dev/null", config={})
-    gwy.config.disable_sending = True
-    return gwy
-
-
 def id_fnc(param):
     return PurePath(param).name
 
@@ -41,7 +33,7 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize("dir_name", folders, ids=id_fnc)
 
 
-def test_packets_from_log_file(gwy, dir_name):
+def test_packets_from_log_file(gwy, dir_name):  # noqa: F811
     def proc_log_line(gwy, pkt_line):
         pkt_line, pkt_dict = pkt_line.split("#", maxsplit=1)
 
@@ -61,7 +53,7 @@ def test_packets_from_log_file(gwy, dir_name):
 async def test_systems_from_log_file(dir_name):
 
     expected: dict = load_expected_results(dir_name)
-    gwy: Gateway = await load_test_system(dir_name)
+    gwy: Gateway = await load_test_system(dir_name)  # noqa: F811
 
     gwy.serial_port = "/dev/null"  # HACK: needed to pause engine
     schema, _ = gwy._get_state(include_expired=True)
@@ -73,7 +65,7 @@ async def test_systems_from_log_file(dir_name):
 async def test_shuffle_from_log_file(dir_name):
 
     expected: dict = load_expected_results(dir_name)
-    gwy: Gateway = await load_test_system(dir_name)
+    gwy: Gateway = await load_test_system(dir_name)  # noqa: F811
 
     gwy.serial_port = "/dev/null"  # HACK: needed to pause engine
     _, packets = gwy._get_state(include_expired=True)
@@ -87,6 +79,6 @@ async def test_shuffle_from_log_file(dir_name):
 async def test_schemax_with_log_file(dir_name):
 
     expected: dict = load_expected_results(dir_name)
-    gwy: Gateway = await load_test_system(dir_name, expected["schema"])
+    gwy: Gateway = await load_test_system(dir_name, expected["schema"])  # noqa: F811
 
     assert_expected_set(gwy, expected)

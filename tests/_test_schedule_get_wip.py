@@ -12,6 +12,8 @@ import unittest
 from ramses_rf import Gateway
 from tests.common import TEST_DIR
 
+WORK_DIR = f"{TEST_DIR}/schedules"
+
 
 class TestSchedule(unittest.IsolatedAsyncioTestCase):
     def __init__(self, *args, **kwargs):
@@ -22,7 +24,8 @@ class TestSchedule(unittest.IsolatedAsyncioTestCase):
 
     async def test_schedule_get(self):
         self.gwy = Gateway(None, packet_dict={}, config={}, loop=self._asyncioTestLoop)
-        with open(f"{TEST_DIR}/logs/system_cache.json") as f:
+
+        with open(f"{WORK_DIR}/system_cache.json") as f:
             system_cache = json.load(f)
 
         await self.gwy._set_state(**system_cache["data"]["client_state"])

@@ -15,6 +15,9 @@ from ramses_rf.discovery import SET_SCHED, spawn_scripts
 from tests.common import TEST_DIR
 
 
+WORK_DIR = f"{TEST_DIR}/schedules"
+
+
 class TestSchedule(unittest.IsolatedAsyncioTestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -31,10 +34,10 @@ class TestSchedule(unittest.IsolatedAsyncioTestCase):
 
             # self.gwy.config.disable_sending = False
 
-        with open(f"{TEST_DIR}/schedules/schedule.json") as f:
+        with open(f"{WORK_DIR}/schedule.json") as f:
             schedule = json.load(f)
 
-        with open(f"{TEST_DIR}/schedules/schedule.json") as f:
+        with open(f"{WORK_DIR}/schedule.json") as f:
             await asyncio.gather(
                 *spawn_scripts(self.gwy, **{SET_SCHED: ("01:123456", f)})
             )

@@ -10,7 +10,10 @@ from pathlib import Path, PurePath
 
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
-from tests.common import TEST_DIR, gwy  # noqa: F401
+from tests.common import gwy  # noqa: F401
+from tests.common import TEST_DIR
+
+WORK_DIR = f"{TEST_DIR}/parsers"
 
 
 def id_fnc(param):
@@ -18,9 +21,7 @@ def id_fnc(param):
 
 
 def pytest_generate_tests(metafunc):
-    metafunc.parametrize(
-        "f_name", Path(f"{TEST_DIR}/parsers").glob("*.log"), ids=id_fnc
-    )
+    metafunc.parametrize("f_name", Path(WORK_DIR).glob("*.log"), ids=id_fnc)
 
 
 def test_payload_from_log_files(gwy, f_name):  # noqa: F811

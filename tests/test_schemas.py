@@ -14,7 +14,8 @@ import pytest
 from ramses_rf import Gateway
 from ramses_rf.helpers import shrink
 from ramses_rf.schema import load_schema
-from tests.common import TEST_DIR, gwy, shuffle_dict  # noqa: F401
+from tests.common import gwy  # noqa: F401
+from tests.common import TEST_DIR, shuffle_dict
 
 WORK_DIR = f"{TEST_DIR}/schemas"
 
