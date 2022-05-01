@@ -201,7 +201,7 @@ class Device(Entity):
 
         schema = shrink(SCHEMA_DEV(schema))
 
-        if schema.get(SZ_FAKED):
+        if schema.get(SZ_FAKED):  # class & alias are done elsewhere
             if not isinstance(self, Fakeable):
                 raise TypeError(f"Device is not fakable: {self}")
             self._make_fake
@@ -214,10 +214,7 @@ class Device(Entity):
         Schema attrs include: class (SLUG), alias & faked.
         """
 
-        # if self.id in gwy._include:
-        #     self._alias = gwy._include[self.id].get(SZ_ALIAS)
-
-        dev = cls(gwy, dev_addr)  # parent=parent, role=role)
+        dev = cls(gwy, dev_addr)  # TODO: parent=parent, role=role)
         dev._update_schema(**schema)
         return dev
 

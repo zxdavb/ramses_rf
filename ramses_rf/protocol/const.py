@@ -15,7 +15,7 @@ def slug(string: str) -> str:
 
 
 class AttrDict(dict):
-    _SZ_ALIAS = "_alias"
+    _SZ_AKA_SLUG = "_root_slug"
     _SZ_DEFAULT = "_default"
     _SZ_SLUGS = "SLUGS"
 
@@ -46,7 +46,7 @@ class AttrDict(dict):
         }  # i.e. {None: 'HEA'}
         self._slug_lookup.update(
             {
-                k: table.get(self._SZ_ALIAS, slug)
+                k: table.get(self._SZ_AKA_SLUG, slug)
                 for slug, table in main_table.items()
                 for k in table.keys()
                 if isinstance(k, str) and len(k) == 2
@@ -57,7 +57,7 @@ class AttrDict(dict):
                 k: slug
                 for slug, table in main_table.items()
                 for k in table.values()
-                if isinstance(k, str) and table.get(self._SZ_ALIAS) is None
+                if isinstance(k, str) and table.get(self._SZ_AKA_SLUG) is None
             }  # e.g. {'heat_device':'HEA', 'dhw_sensor':'DHW', ...}
         )
 
@@ -71,7 +71,7 @@ class AttrDict(dict):
             v: k
             for table in main_table.values()
             for k, v in table.items()
-            if isinstance(k, str) and k[:1] != "_" and self._SZ_ALIAS not in table
+            if isinstance(k, str) and k[:1] != "_" and self._SZ_AKA_SLUG not in table
         }  # e.g. {'radiator_valve': '00', 'controller': '01', ...}
         self._forward = dict(sorted(self._forward.items(), key=lambda item: item[0]))
 
@@ -145,7 +145,7 @@ def attr_dict_factory(main_table, attr_table=None) -> AttrDict:  # is: SlottedAt
         #     ]
         #     + [v for t in main_table.values() for v in t.values()]
         #         + list(attr_table.keys())
-        #         + [AttrDict._SZ_ALIAS, AttrDict._SZ_SLUGS]
+        #         + [AttrDict._SZ_AKA_SLUG, AttrDict._SZ_SLUGS]
         # )
 
     return SlottedAttrDict(main_table, attr_table=attr_table)
@@ -244,7 +244,7 @@ DEV_TYPE_MAP = attr_dict_factory(
         # HGI80
         DEV_TYPE.HGI: {"18": "gateway_interface"},  # HGI80
         # Heat (CH/DHW) devices
-        DEV_TYPE.TR0: {"00": "radiator_valve", AttrDict._SZ_ALIAS: DEV_TYPE.TRV},
+        DEV_TYPE.TR0: {"00": "radiator_valve", AttrDict._SZ_AKA_SLUG: DEV_TYPE.TRV},
         DEV_TYPE.CTL: {"01": "controller"},
         DEV_TYPE.UFC: {"02": "ufh_controller"},
         DEV_TYPE.HCW: {"03": "analog_thermostat"},
@@ -255,7 +255,7 @@ DEV_TYPE_MAP = attr_dict_factory(
         DEV_TYPE.DTS: {"12": "digital_thermostat"},
         DEV_TYPE.BDR: {"13": "electrical_relay"},
         DEV_TYPE.OUT: {"17": "outdoor_sensor"},
-        DEV_TYPE.DT2: {"22": "digital_thermostat", AttrDict._SZ_ALIAS: DEV_TYPE.DTS},
+        DEV_TYPE.DT2: {"22": "digital_thermostat", AttrDict._SZ_AKA_SLUG: DEV_TYPE.DTS},
         DEV_TYPE.PRG: {"23": "programmer"},
         DEV_TYPE.RFG: {"30": "rf_gateway"},  # RFG100
         DEV_TYPE.RND: {"34": "round_thermostat"},
@@ -326,7 +326,7 @@ ZON_ROLE_MAP = attr_dict_factory(
         ZON_ROLE.VAL: {"0A": "zone_valve"},  # BDRs
         ZON_ROLE.MIX: {"0B": "mixing_valve"},  # HM8s
         ZON_ROLE.DHW: {"0D": "stored_hotwater"},  # DHWs
-        # N_CLASS.HTG: {"0E": "stored_hotwater", AttrDict._SZ_ALIAS: ZON_ROLE.DHW},
+        # N_CLASS.HTG: {"0E": "stored_hotwater", AttrDict._SZ_AKA_SLUG: ZON_ROLE.DHW},
         ZON_ROLE.ELE: {"11": "electric_heat"},  # BDRs
     },
     {
