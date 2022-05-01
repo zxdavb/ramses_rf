@@ -119,10 +119,10 @@ class AttrDict(dict):
 
     def slug(self, key) -> str:
         """WIP: Return master slug for a hex key/ID (e.g. 00 -> 'TRV', not 'TR0')."""
-        slug = self._slug_lookup[key]
-        # if slug in self._attr_table["_TRANSFORMS"]:
-        #     return self._attr_table["_TRANSFORMS"][slug]
-        return slug
+        slug_ = self._slug_lookup[key]
+        # if slug_ in self._attr_table["_TRANSFORMS"]:
+        #     return self._attr_table["_TRANSFORMS"][slug_]
+        return slug_
 
     def slugs(self) -> tuple:
         """Return the slugs from the main table."""
