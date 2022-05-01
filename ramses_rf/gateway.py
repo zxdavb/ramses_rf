@@ -304,17 +304,16 @@ class Gateway(Engine):
         msgs = [m for device in self.devices for m in device._msg_db]
 
         for system in self.systems:
-            msgs.extend([m for m in system._msgs.values()])
+            msgs.extend(list(system._msgs.values()))
             msgs.extend([m for z in system.zones for m in z._msgs.values()])
             # msgs.extend([m for z in system._dhw for m in z._msgs.values()])
 
-        # BUG: this assumes pkts have unique dtms: may not be true for contrived logs...
+        # BUG: assumes pkts have unique dtms: may not be true for contrived logs...
         pkts = {
             f"{repr(msg._pkt)[:26]}": f"{repr(msg._pkt)[27:]}"
             for msg in msgs
             if msg.verb in (I_, RP) and (include_expired or not msg._expired)
-        }
-        # BUG: that assumed pkts have unique dtms
+        }  # BUG: assumes pkts have unique dtms
 
         self.resume()
         (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Got schema/state.")
