@@ -21,7 +21,7 @@ from .devices import Device, zx_device_factory
 from .helpers import schedule_task, shrink
 from .message import Message, process_msg
 from .protocol import (
-    POLLER_TASK,
+    SZ_POLLER_TASK,
     Address,
     Command,
     create_msg_stack,
@@ -32,14 +32,14 @@ from .protocol import (
 )
 from .protocol.address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
 from .schema import (
-    BLOCK_LIST,
     DEBUG_MODE,
     INPUT_FILE,
-    KNOWN_LIST,
     SCHEMA_DEV,
     SZ_ALIAS,
+    SZ_BLOCK_LIST,
     SZ_CLASS,
     SZ_FAKED,
+    SZ_KNOWN_LIST,
     SZ_MAIN_CONTROLLER,
     SZ_ORPHANS,
     load_config,
@@ -128,16 +128,13 @@ class Engine:
             set_logger_timesource(self.pkt_protocol._dt_now)
             _LOGGER.warning("Datetimes maintained as most recent packet log timestamp")
 
-        if self.pkt_transport.get_extra_info(POLLER_TASK):
-            self._tasks.append(self.pkt_transport.get_extra_info(POLLER_TASK))
+        if self.pkt_transport.get_extra_info(SZ_POLLER_TASK):
+            self._tasks.append(self.pkt_transport.get_extra_info(SZ_POLLER_TASK))
 
     def pause(self, *args) -> None:  # FIXME: not atomic
         """Pause the (unpaused) engine or raise a RuntimeError."""
 
         (_LOGGER.info if DEV_MODE else _LOGGER.debug)("ENGINE: Pausing engine...")
-
-        if not self.serial_port:
-            raise RuntimeError("Unable to pause engine, no serial port configured")
 
         if not self._engine_lock.acquire(blocking=False):
             raise RuntimeError("Unable to pause engine, failed to acquire lock")
@@ -299,24 +296,26 @@ class Gateway(Engine):
     def _get_state(self, include_expired=None) -> tuple[dict, dict]:
         #
 
-        (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Saving state...")
+        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Getting state...")
         self.pause()
 
-        msgs = {m.dtm: m for device in self.devices for m in device._msg_db}
+        msgs = [m for device in self.devices for m in device._msg_db]
 
         for system in self.systems:
-            msgs.update({v.dtm: v for v in system._msgs.values()})
-            msgs.update({v.dtm: v for z in system.zones for v in z._msgs.values()})
-            # msgs.update({v.dtm: v for z in system._dhw for v in z._msgs.values()})
+            msgs.extend([m for m in system._msgs.values()])
+            msgs.extend([m for z in system.zones for m in z._msgs.values()])
+            # msgs.extend([m for z in system._dhw for m in z._msgs.values()])
 
+        # BUG: this assumes pkts have unique dtms: may not be true for contrived logs...
         pkts = {
             f"{repr(msg._pkt)[:26]}": f"{repr(msg._pkt)[27:]}"
-            for msg in msgs.values()
+            for msg in msgs
             if msg.verb in (I_, RP) and (include_expired or not msg._expired)
         }
+        # BUG: that assumed pkts have unique dtms
 
         self.resume()
-        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Saved schema/state.")
+        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Got schema/state.")
 
         return self.schema, dict(sorted(pkts.items()))
 
@@ -329,7 +328,7 @@ class Gateway(Engine):
             self.devices = []
             self.device_by_id = {}
 
-        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Restoring state...")
+        (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Setting state...")
         self.pause()
 
         if not keep_state:
@@ -340,12 +339,12 @@ class Gateway(Engine):
             self.msg_transport._pkt_receiver if self.msg_transport else None,
             packet_dict=packets,
         )
-        await tmp_transport.get_extra_info(POLLER_TASK)
+        await tmp_transport.get_extra_info(SZ_POLLER_TASK)
 
         # self.msg_transport._clear_write_buffer()  # TODO: shouldn't be needed
 
         self.resume()
-        (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Restored state.")
+        (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Set state.")
 
     def reap_device(self, dev_addr: Address, msg=None, **schema) -> Device:
         """Return a device, create it if required.
@@ -367,7 +366,7 @@ class Gateway(Engine):
             ):
                 _LOGGER.warning(
                     f"Won't create a non-allowed device_id: {dev_id}"
-                    f" (if required, add it to the {KNOWN_LIST})"
+                    f" (if required, add it to the {SZ_KNOWN_LIST})"
                 )
                 self._unwanted.append(dev_id)
                 raise LookupError
@@ -375,7 +374,7 @@ class Gateway(Engine):
             if dev_id in self._exclude:
                 _LOGGER.warning(
                     f"Won't create a blocked device_id: {dev_id}"
-                    f" (if required, remove it from the {BLOCK_LIST})"
+                    f" (if required, remove it from the {SZ_BLOCK_LIST})"
                 )
                 self._unwanted.append(dev_id)
                 raise LookupError
@@ -428,7 +427,13 @@ class Gateway(Engine):
 
     @property
     def known_list(self) -> dict:
-        """Return the working known_list (a superset of the provided known_list)."""
+        """Return the working known_list (a superset of the provided known_list).
+
+        Unlike orphans, which are always instantiated when a schema is loaded, these
+        devices may/may not exist. However, if they are ever instantiated, they should
+        be given these traits.
+        """
+
         result = self._include
         result.update(
             {
@@ -463,7 +468,12 @@ class Gateway(Engine):
 
     @property
     def schema(self) -> dict:
-        """Return the global schema."""
+        """Return the global schema.
+
+        Orphans are devices that 'exist' but don't yet have a place in the schema
+        hierachy (if ever): therefore, they are instantiated when the schema is loaded,
+        just like the other devices in the schema.
+        """
 
         schema = {SZ_MAIN_CONTROLLER: self.tcs._ctl.id if self.tcs else None}
 
@@ -477,14 +487,6 @@ class Gateway(Engine):
                 if not getattr(d, "_ctl", None) and d._is_present
             ]
         )
-
-        schema["device_hints"] = {}
-        for d in sorted(self.devices):
-            dev_schema = {}
-            if d.schema.get(SZ_FAKED):
-                dev_schema.update({SZ_FAKED: d.schema[SZ_FAKED]})
-            if dev_schema:
-                schema["device_hints"][d.id] = dev_schema
 
         return schema
 

@@ -62,9 +62,9 @@ _LOGGER = logging.getLogger(__name__)
 if DEV_MODE:  # or True:
     _LOGGER.setLevel(logging.DEBUG)  # should be INFO
 
-BLOCK_LIST = "block_list"
-KNOWN_LIST = "known_list"
-TIP = f", configure the {KNOWN_LIST}/{BLOCK_LIST} as required"
+SZ_BLOCK_LIST = "block_list"
+SZ_KNOWN_LIST = "known_list"
+TIP = f", configure the {SZ_KNOWN_LIST}/{SZ_BLOCK_LIST} as required"
 
 IS_INITIALIZED = "is_initialized"
 IS_EVOFW3 = "is_evofw3"
@@ -74,7 +74,7 @@ DEFAULT_SERIAL_CONFIG = SERIAL_CONFIG_SCHEMA({})
 
 ERR_MSG_REGEX = re.compile(r"^([0-9A-F]{2}\.)+$")
 
-POLLER_TASK = "poller_task"
+SZ_POLLER_TASK = "poller_task"
 
 _QOS_POLL_INTERVAL = 0.005
 _QOS_MAX_BACKOFF = 3
@@ -337,7 +337,7 @@ class SerTransportRead(asyncio.ReadTransport):
         self._start()
 
     def _start(self):
-        self._extra[POLLER_TASK] = self._loop.create_task(self._polling_loop())
+        self._extra[SZ_POLLER_TASK] = self._loop.create_task(self._polling_loop())
 
     async def _polling_loop(self):  # TODO: harden with try
         self._protocol.connection_made(self)
@@ -377,7 +377,7 @@ class SerTransportPoll(asyncio.Transport):
 
     def _start(self):
         self._write_queue = Queue(maxsize=self.MAX_BUFFER_SIZE)
-        self._extra[POLLER_TASK] = self._loop.create_task(self._polling_loop())
+        self._extra[SZ_POLLER_TASK] = self._loop.create_task(self._polling_loop())
 
     async def _polling_loop(self):
         self._protocol.connection_made(self)
@@ -530,15 +530,15 @@ class PacketProtocolBase(asyncio.Protocol):
 
         if self._include:  # TODO: here, or in init?
             _LOGGER.info(
-                f"Enforcing the {KNOWN_LIST} (as a whitelist): %s", self._include
+                f"Enforcing the {SZ_KNOWN_LIST} (as a whitelist): %s", self._include
             )
         elif self._exclude:
             _LOGGER.info(
-                f"Enforcing the {BLOCK_LIST} (as a blacklist): %s", self._exclude
+                f"Enforcing the {SZ_BLOCK_LIST} (as a blacklist): %s", self._exclude
             )
         else:
             _LOGGER.warning(
-                f"Not using any device filter: using a {KNOWN_LIST} (as a whitelist) "
+                f"Not using any device filter: using a {SZ_KNOWN_LIST} (as a whitelist) "
                 "is strongly recommended)"
             )
 
@@ -670,12 +670,12 @@ class PacketProtocolBase(asyncio.Protocol):
                 return False
 
             if dev_id in self._exclude:
-                _LOGGER.info(f"Blocking {dev_id} (in {BLOCK_LIST})")
+                _LOGGER.info(f"Blocking {dev_id} (in {SZ_BLOCK_LIST})")
                 self._unwanted.append(dev_id)
                 return False
 
             if dev_id in self._include or dev_id in (NON_DEV_ADDR.id, NUL_DEV_ADDR.id):
-                # _LOGGER.debug(f"Allowed {dev_id} (in {BLOCK_LIST}, or is the gateway")
+                # _LOGGER.debug(f"Allowed {dev_id} (in {SZ_BLOCK_LIST}, or is the gateway")
                 continue
 
             if dev_id == self._hgi80[SZ_DEVICE_ID]:
@@ -697,9 +697,9 @@ class PacketProtocolBase(asyncio.Protocol):
 
             if self.enforce_include:
                 if self._exclude:
-                    _LOGGER.debug(f"Blocking {dev_id} (not in {BLOCK_LIST}){TIP}")
+                    _LOGGER.debug(f"Blocking {dev_id} (not in {SZ_BLOCK_LIST}){TIP}")
                 else:
-                    _LOGGER.debug(f"Blocking {dev_id} (no {BLOCK_LIST}){TIP}")
+                    _LOGGER.debug(f"Blocking {dev_id} (no {SZ_BLOCK_LIST}){TIP}")
                 self._unwanted.append(dev_id)
                 return False
 

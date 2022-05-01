@@ -39,7 +39,7 @@ from .protocol.const import (
     SZ_ZONE_TYPE,
     SZ_ZONES,
 )
-from .protocol.transport import DEV_HACK_REGEX
+from .protocol.transport import DEV_HACK_REGEX, SZ_BLOCK_LIST, SZ_KNOWN_LIST
 
 DEV_MODE = __dev_mode__ and False
 
@@ -93,14 +93,11 @@ INPUT_FILE = "input_file"
 # Config parameters
 DEBUG_MODE = "debug_mode"
 
-BLOCK_LIST = "block_list"
-KNOWN_LIST = "known_list"
-
 CONFIG = "config"
 DISABLE_DISCOVERY = "disable_discovery"
 DISABLE_SENDING = "disable_sending"
 ENABLE_EAVESDROP = "enable_eavesdrop"
-ENFORCE_KNOWNLIST = f"enforce_{KNOWN_LIST}"
+ENFORCE_KNOWN_LIST = f"enforce_{SZ_KNOWN_LIST}"
 EVOFW_FLAG = "evofw_flag"
 SZ_MAX_ZONES = "max_zones"
 REDUCE_PROCESSING = "reduce_processing"
@@ -131,7 +128,7 @@ CONFIG_SCHEMA = vol.Schema(
             int, vol.Range(min=1, max=16)
         ),
         vol.Optional(USE_SCHEMA, default=True): vol.Any(None, bool),
-        vol.Optional(ENFORCE_KNOWNLIST, default=None): vol.Any(None, bool),
+        vol.Optional(ENFORCE_KNOWN_LIST, default=None): vol.Any(None, bool),
         vol.Optional(USE_ALIASES, default=None): vol.Any(None, bool),
         vol.Optional(EVOFW_FLAG, default=None): vol.Any(None, str),
         vol.Optional(USE_REGEX, default={}): dict,
@@ -230,8 +227,12 @@ SCHEMA_GLOBAL_CONFIG = vol.Schema(
                 vol.Optional(PACKET_LOG, default={}): vol.Any({}, PACKET_LOG_SCHEMA),
             }
         ),
-        vol.Optional(KNOWN_LIST, default={}): vol.All(_SCHEMA_DEV, vol.Length(min=0)),
-        vol.Optional(BLOCK_LIST, default={}): vol.All(_SCHEMA_DEV, vol.Length(min=0)),
+        vol.Optional(SZ_KNOWN_LIST, default={}): vol.All(
+            _SCHEMA_DEV, vol.Length(min=0)
+        ),
+        vol.Optional(SZ_BLOCK_LIST, default={}): vol.All(
+            _SCHEMA_DEV, vol.Length(min=0)
+        ),
     },
     extra=vol.REMOVE_EXTRA,
 )
@@ -252,8 +253,8 @@ def load_config(
     config = SCHEMA_GLOBAL_CONFIG(kwargs)
     schema = {k: v for k, v in kwargs.items() if k not in config and k[:1] != "_"}
 
-    block_list = config.pop(BLOCK_LIST)
-    known_list = config.pop(KNOWN_LIST)
+    block_list = config.pop(SZ_BLOCK_LIST)
+    known_list = config.pop(SZ_KNOWN_LIST)
 
     config = CONFIG_SCHEMA.extend(
         {vol.Optional(SERIAL_CONFIG, default={}): SERIAL_CONFIG_SCHEMA}
@@ -299,38 +300,38 @@ def update_config(config, known_list, block_list) -> dict:
             }
         )
 
-    if config[ENFORCE_KNOWNLIST] and not known_list:
+    if config[ENFORCE_KNOWN_LIST] and not known_list:
         _LOGGER.warning(
-            f"An empty {KNOWN_LIST} was provided, so it cant be used "
+            f"An empty {SZ_KNOWN_LIST} was provided, so it cant be used "
             f"as a whitelist (device_id filter)"
         )
-        config[ENFORCE_KNOWNLIST] = False
+        config[ENFORCE_KNOWN_LIST] = False
 
-    if config[ENFORCE_KNOWNLIST]:
+    if config[ENFORCE_KNOWN_LIST]:
         _LOGGER.info(
-            f"The {KNOWN_LIST} will be used "
+            f"The {SZ_KNOWN_LIST} will be used "
             f"as a whitelist (device_id filter), length = {len(known_list)}"
         )
         _LOGGER.debug(f"known_list = {known_list}")
 
     elif block_list:
         _LOGGER.info(
-            f"The {BLOCK_LIST} will be used "
+            f"The {SZ_BLOCK_LIST} will be used "
             f"as a blacklist (device_id filter), length = {len(block_list)}"
         )
         _LOGGER.debug(f"block_list = {block_list}")
 
     elif known_list:
         _LOGGER.warning(
-            f"It is strongly recommended to use the {KNOWN_LIST} "
-            f"as a whitelist (device_id filter), configure: {ENFORCE_KNOWNLIST} = True"
+            f"It is strongly recommended to use the {SZ_KNOWN_LIST} "
+            f"as a whitelist (device_id filter), configure: {ENFORCE_KNOWN_LIST} = True"
         )
         _LOGGER.debug(f"known_list = {known_list}")
 
     else:
         _LOGGER.warning(
-            f"It is strongly recommended to provide a {KNOWN_LIST}, and use it "
-            f"as a whitelist (device_id filter), configure: {ENFORCE_KNOWNLIST} = True"
+            f"It is strongly recommended to provide a {SZ_KNOWN_LIST}, and use it "
+            f"as a whitelist (device_id filter), configure: {ENFORCE_KNOWN_LIST} = True"
         )
 
 
@@ -343,9 +344,9 @@ def _get_device(
         raise RuntimeError
 
     if gwy.config.enforce_known_list and dev_id not in gwy._include:
-        err_msg = f"{dev_id} is in the {SCHEMA}, but not in the {KNOWN_LIST}"
+        err_msg = f"{dev_id} is in the {SCHEMA}, but not in the {SZ_KNOWN_LIST}"
     elif dev_id in gwy._exclude:
-        err_msg = f"{dev_id} is in the {SCHEMA}, but also in the {BLOCK_LIST}"
+        err_msg = f"{dev_id} is in the {SCHEMA}, but also in the {SZ_BLOCK_LIST}"
     else:
         err_msg = None
 

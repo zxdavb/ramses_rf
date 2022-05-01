@@ -37,10 +37,10 @@ from ramses_rf.schema import (
     ENFORCE_KNOWNLIST,
     EVOFW_FLAG,
     INPUT_FILE,
-    KNOWN_LIST,
     PACKET_LOG,
     PACKET_LOG_SCHEMA,
     REDUCE_PROCESSING,
+    SZ_KNOWN_LIST,
 )
 
 # skipcq: PY-W2000
@@ -65,12 +65,16 @@ from ramses_rf.const import (  # noqa: F401, isort: skip, pylint: disable=unused
 DEBUG_MODE = "debug_mode"
 
 # DEFAULT_SUMMARY can be: True, False, or None
-SHOW_SCHEMA = True
+SHOW_SCHEMA = False
 SHOW_PARAMS = False
 SHOW_STATUS = False
 SHOW_KNOWNS = False
 SHOW_TRAITS = False
 SHOW_CRAZYS = False
+
+PRINT_STATE = False  # print engine state
+# GET_STATE = False  # get engine state
+# SET_STATE = False  # set engine state
 
 # this is called after import colorlog to ensure its handlers wrap the correct streams
 logging.basicConfig(level=logging.WARNING, format=DEFAULT_FMT, datefmt=DEFAULT_DATEFMT)
@@ -151,6 +155,18 @@ class DeviceIdParamType(click.ParamType):
 @click.option("-r", "--reduce-processing", count=True, help="-rrr will give packets")
 @click.option("-ld", "--long-dates", is_flag=True, default=None)
 @click.option("-e/-ne", "--eavesdrop/--no-eavesdrop", default=None)
+@click.option(  # print_state
+    "-g/-ng",
+    "--print-state/--no-print-state",
+    default=PRINT_STATE,
+    help="display engine state (schema, packets)",
+)
+# @click.option(  # get_state
+#     "--get-state/--no-get-state", default=GET_STATE, help="get the engine state",
+# )
+# @click.option(  # set_state
+#     "--set-state/--no-set-state", default=SET_STATE, help="set the engine state",
+# )
 @click.option(  # show_schema
     "-k/-nk",
     "--show-schema/--no-show-schema",
@@ -304,8 +320,8 @@ def monitor(obj, **kwargs):
     if cli_kwargs["discover"] is not None:
         lib_kwargs[CONFIG][DISABLE_DISCOVERY] = not cli_kwargs.pop("discover")
 
-    lib_kwargs[KNOWN_LIST] = lib_kwargs.get(KNOWN_LIST, {})
-    # allowed = lib_kwargs[KNOWN_LIST] = lib_kwargs.get(KNOWN_LIST, {})
+    lib_kwargs[SZ_KNOWN_LIST] = lib_kwargs.get(SZ_KNOWN_LIST, {})
+    # allowed = lib_kwargs[SZ_KNOWN_LIST] = lib_kwargs.get(SZ_KNOWN_LIST, {})
 
     # for k in ("scan_disc", "scan_full", "scan_hard", "scan_xxxx"):
     #     cli_kwargs[k] = _convert_to_list(cli_kwargs.pop(k))
@@ -315,7 +331,7 @@ def monitor(obj, **kwargs):
     #     cli_kwargs.pop("poll_devices")
     # )
 
-    # if lib_kwargs[KNOWN_LIST]:
+    # if lib_kwargs[SZ_KNOWN_LIST]:
     #     lib_kwargs[CONFIG][ENFORCE_KNOWNLIST] = True
 
     asyncio.run(main(MONITOR, lib_kwargs, **cli_kwargs))
@@ -353,15 +369,15 @@ def execute(obj, **kwargs):
         lib_kwargs[CONFIG][DISABLE_DISCOVERY] = True
 
     if cli_kwargs[GET_FAULTS]:
-        lib_kwargs[KNOWN_LIST] = {cli_kwargs[GET_FAULTS]: {}}
+        lib_kwargs[SZ_KNOWN_LIST] = {cli_kwargs[GET_FAULTS]: {}}
 
     elif cli_kwargs[GET_SCHED][0]:
-        lib_kwargs[KNOWN_LIST] = {cli_kwargs[GET_SCHED][0]: {}}
+        lib_kwargs[SZ_KNOWN_LIST] = {cli_kwargs[GET_SCHED][0]: {}}
 
     elif cli_kwargs[SET_SCHED][0]:
-        lib_kwargs[KNOWN_LIST] = {cli_kwargs[SET_SCHED][0]: {}}
+        lib_kwargs[SZ_KNOWN_LIST] = {cli_kwargs[SET_SCHED][0]: {}}
 
-    if lib_kwargs.get(KNOWN_LIST):
+    if lib_kwargs.get(SZ_KNOWN_LIST):
         lib_kwargs[CONFIG][ENFORCE_KNOWNLIST] = True
 
     asyncio.run(main(EXECUTE, lib_kwargs, **cli_kwargs))
@@ -421,12 +437,12 @@ def _save_state(gwy):
         f.write(json.dumps(schema, indent=4))
 
 
-def _print_state(gwy, **kwargs):
+def _print_engine_state(gwy, **kwargs):
     (schema, packets) = gwy._get_state(include_expired=True)
 
-    print(f"Schema  = {json.dumps(schema, indent=4)}\r\n")
-    # print(f"Packets = {json.dumps(packets, indent=4)}\r\n")
-    [print(f"{dtm} {pkt}") for dtm, pkt in packets.items()]
+    print(f"schema: {json.dumps(schema, indent=4)}\r\n")
+    print(f"packets: {json.dumps(packets, indent=4)}\r\n")
+    # [print(f"{dtm} {pkt}") for dtm, pkt in packets.items()]
 
 
 def print_summary(gwy, **kwargs):
@@ -540,8 +556,8 @@ async def main(command, lib_kwargs, **kwargs):
 
     print("\r\nclient.py: Finished ramses_rf, results:\r\n")
 
-    if False:  # or kwargs["show_state"]:
-        _print_state(gwy, **kwargs)
+    if kwargs["print_state"]:
+        _print_engine_state(gwy, **kwargs)
 
     elif command == EXECUTE:
         print_results(gwy, **kwargs)
