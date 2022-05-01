@@ -240,7 +240,14 @@ SCHEMA_GLOBAL_CONFIG = vol.Schema(
 def load_config(
     serial_port, input_file, **kwargs
 ) -> tuple[SimpleNamespace, dict, dict, dict]:
-    """Process the configuration, including any filter lists."""
+    """Process the configuration, including any filter lists.
+
+    Returns:
+     - config (includes config.enforce_known_list)
+     - schema (processed further later on)
+     - known_list (is a dict)
+     - block_list (is a dict)
+    """
 
     config = SCHEMA_GLOBAL_CONFIG(kwargs)
     schema = {k: v for k, v in kwargs.items() if k not in config and k[:1] != "_"}

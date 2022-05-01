@@ -181,7 +181,6 @@ class Device(Entity):
         self.addr = dev_addr
         self.type = dev_addr.type  # DEX  # TODO: remove this attr? use SLUG?
 
-        self._alias: str = None  # known (schema) attr
         self._faked: bool = None
 
     def __repr__(self) -> str:
@@ -202,8 +201,10 @@ class Device(Entity):
 
         schema = shrink(SCHEMA_DEV(schema))
 
-        # if self.id in gwy._include:
-        #     self._alias = gwy._include[self.id].get(SZ_ALIAS)
+        if schema.get(SZ_FAKED):
+            if not isinstance(self, Fakeable):
+                raise TypeError(f"Device is not fakable: {self}")
+            self._make_fake
 
     @classmethod
     def create_from_schema(cls, gwy, dev_addr: Address, **schema):
@@ -302,15 +303,18 @@ class Device(Entity):
 
     @property
     def traits(self) -> dict:
-        """Return the traits of the (known) device."""
+        """Return the traits of the device."""
+        known_dev = self._gwy._include.get(self.id)
 
-        result = {
-            SZ_CLASS: DEV_TYPE_MAP._str(self._SLUG),
-            SZ_ALIAS: self._alias,
-            SZ_FAKED: None,
-        }
+        result = super().traits
 
-        result.update(super().traits)
+        result.update(
+            {
+                SZ_CLASS: DEV_TYPE_MAP._str(self._SLUG),
+                SZ_ALIAS: known_dev.get(SZ_ALIAS) if known_dev else None,
+                SZ_FAKED: None,
+            }
+        )
 
         if _10E0 in self._msgs or _10E0 in CODES_BY_DEV_SLUG.get(self._SLUG, []):
             result.update({CODES_SCHEMA[_10E0][SZ_NAME]: self.device_info})

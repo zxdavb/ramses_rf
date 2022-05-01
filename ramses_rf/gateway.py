@@ -195,8 +195,8 @@ class Gateway(Engine):
 
         self._input_file = kwargs.pop(INPUT_FILE, None)
 
-        self._include: dict = {}
-        self._exclude: dict = {}
+        self._include: dict = {}  # the provided known_list (?and used as an allow_list)
+        self._exclude: dict = {}  # the provided block_list
 
         (self.config, self._schema, self._include, self._exclude) = load_config(
             self.serial_port, self._input_file, **kwargs
@@ -428,11 +428,16 @@ class Gateway(Engine):
 
     @property
     def known_list(self) -> dict:
-        return {
-            d.id: {k: d.traits[k] for k in (SZ_CLASS, SZ_ALIAS, SZ_FAKED)}
-            for d in self.devices
-            if not self.config.enforce_known_list or d.id in self._include
-        }
+        """Return the working known_list (a superset of the provided known_list)."""
+        result = self._include
+        result.update(
+            {
+                d.id: {k: d.traits[k] for k in (SZ_CLASS, SZ_ALIAS, SZ_FAKED)}
+                for d in self.devices
+                if not self.config.enforce_known_list or d.id in self._include
+            }
+        )
+        return result
 
     @property
     def system_by_id(self) -> dict:

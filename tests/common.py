@@ -85,19 +85,19 @@ def load_expected_results(dir_name) -> dict:
 
     try:
         with open(f"{dir_name}/known_list.json") as f:
-            known_list = json.load(f).get("known_list")
+            known_list = json.load(f)["known_list"]
     except FileNotFoundError:
         known_list = None
 
     try:
         with open(f"{dir_name}/params.json") as f:
-            params = json.load(f)
+            params = json.load(f)["params"]
     except FileNotFoundError:
         params = None
 
     try:
         with open(f"{dir_name}/status.json") as f:
-            status = json.load(f)
+            status = json.load(f)["status"]
     except FileNotFoundError:
         status = None
 
