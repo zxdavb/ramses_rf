@@ -235,7 +235,7 @@ def _normalise_mode(mode, target, until, duration) -> str:
 
     if mode != ZON_MODE_MAP.FOLLOW_SCHEDULE and target is None:
         raise ValueError(
-            f"Invalid args: For {ZON_MODE_MAP._str(mode)}, setpoint/active cant be None"
+            f"Invalid args: For {ZON_MODE_MAP[mode]}, setpoint/active cant be None"
         )
 
     return mode
@@ -252,7 +252,7 @@ def _normalise_until(mode, _, until, duration) -> tuple[Any, Any]:
     if mode == ZON_MODE_MAP.TEMPORARY:
         if duration is not None:
             raise ValueError(
-                f"Invalid args: For {ZON_MODE_MAP._str(mode)}, duration must be None"
+                f"Invalid args: For {ZON_MODE_MAP[mode]}, duration must be None"
             )
         if until is None:
             mode = ZON_MODE_MAP.ADVANCED  # or: until = dt.now() + td(hour=1)
@@ -260,16 +260,16 @@ def _normalise_until(mode, _, until, duration) -> tuple[Any, Any]:
     elif mode in ZON_MODE_MAP.COUNTDOWN:
         if duration is None:
             raise ValueError(
-                f"Invalid args: For {ZON_MODE_MAP._str(mode)}, duration cant be None"
+                f"Invalid args: For {ZON_MODE_MAP[mode]}, duration cant be None"
             )
         if until is not None:
             raise ValueError(
-                f"Invalid args: For {ZON_MODE_MAP._str(mode)}, until must be None"
+                f"Invalid args: For {ZON_MODE_MAP[mode]}, until must be None"
             )
 
     elif until is not None or duration is not None:
         raise ValueError(
-            f"Invalid args: For {ZON_MODE_MAP._str(mode)},"
+            f"Invalid args: For {ZON_MODE_MAP[mode]},"
             " until and duration must both be None"
         )
 
@@ -643,7 +643,7 @@ class Command(PacketBase):
             SYS_MODE_MAP.HEAT_OFF,
         ):
             raise ValueError(
-                f"Invalid args: For system_mode={SYS_MODE_MAP._str(system_mode)},"
+                f"Invalid args: For system_mode={SYS_MODE_MAP[system_mode]},"
                 " until must be None"
             )
 
