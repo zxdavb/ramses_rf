@@ -274,18 +274,16 @@ class Entity(MessageDB):
         self._gwy.send_cmd(cmd)  # BUG, should be: await async_send_cmd()
 
     @property
-    def _codes(self) -> dict:
-
-        return {
-            k: (CODES_SCHEMA[k][SZ_NAME] if k in CODES_SCHEMA else None)
-            for k in sorted(self._msgs)
-        }
-
-    @property
     def traits(self) -> dict:
         """Return the codes seen by the entity."""
 
-        return {"codes_seen": list(self._codes.keys())} if True else {}
+        codes = {
+            k: (CODES_SCHEMA[k][SZ_NAME] if k in CODES_SCHEMA else None)
+            for k in sorted(self._msgs)
+            if self._msgs[k].src is (self if hasattr(self, "addr") else self._ctl)
+        }
+
+        return {"_sent": list(codes.keys())}
 
 
 def _delete_msg(msg) -> None:

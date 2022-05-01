@@ -18,7 +18,6 @@ from .const import (
     DEV_TYPE_MAP,
     SZ_DEVICE_ID,
     SZ_DEVICES,
-    SZ_NAME,
     SZ_ZONE_IDX,
     Discover,
     __dev_mode__,
@@ -28,7 +27,7 @@ from .helpers import shrink
 from .protocol import Command, CorruptStateError
 from .protocol.address import NUL_DEV_ADDR, Address
 from .protocol.command import FUNC, TIMEOUT
-from .protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL, CODES_SCHEMA
+from .protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
 from .schema import SCHEMA_DEV, SZ_ALIAS, SZ_CLASS, SZ_FAKED
 
 # skipcq: PY-W2000
@@ -314,9 +313,9 @@ class Device(Entity):
         )
 
         if _10E0 in self._msgs or _10E0 in CODES_BY_DEV_SLUG.get(self._SLUG, []):
-            result.update({CODES_SCHEMA[_10E0][SZ_NAME]: self.device_info})
+            result.update({"_info": self.device_info})
 
-        result.update({CODES_SCHEMA[_1FC9][SZ_NAME]: self._msg_value(_1FC9)})
+        result.update({"_bind": self._msg_value(_1FC9)})
 
         return result
 
