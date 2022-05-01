@@ -280,7 +280,7 @@ class Entity(MessageDB):
         codes = {
             k: (CODES_SCHEMA[k][SZ_NAME] if k in CODES_SCHEMA else None)
             for k in sorted(self._msgs)
-            if self._msgs[k].src is (self if hasattr(self, "addr") else self._ctl)
+            if self._msgs[k].src is (self if hasattr(self, "addr") else self.ctl)
         }
 
         return {"_sent": list(codes.keys())}

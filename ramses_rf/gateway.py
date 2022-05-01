@@ -225,7 +225,7 @@ class Gateway(Engine):
 
     def __str__(self) -> str:
         """Return a brief readable string representation of this object."""
-        return f"{(self.hgi or HGI_DEV_ADDR).id} (???)"
+        return (self.hgi or HGI_DEV_ADDR).id
 
     def _setup_event_handlers(self) -> None:  # HACK: for dev/test only
         async def handle_sig_posix(sig):
@@ -487,16 +487,16 @@ class Gateway(Engine):
         just like the other devices in the schema.
         """
 
-        schema = {SZ_MAIN_CONTROLLER: self.tcs._ctl.id if self.tcs else None}
+        schema = {SZ_MAIN_CONTROLLER: self.tcs.ctl.id if self.tcs else None}
 
         for tcs in self.systems:
-            schema[tcs._ctl.id] = tcs.schema
+            schema[tcs.ctl.id] = tcs.schema
 
         schema[SZ_ORPHANS] = sorted(
             [
                 d.id
                 for d in self.devices
-                if not getattr(d, "_ctl", None) and d._is_present
+                if not getattr(d, "ctl", None) and d._is_present
             ]
         )
 

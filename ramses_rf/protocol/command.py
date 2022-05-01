@@ -1142,7 +1142,7 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         self._loop = ctl._gwy._loop
 
         self.id = ctl.id
-        self._ctl = ctl
+        self.ctl = ctl
         # self.tcs = ctl.tcs
         self._gwy = ctl._gwy
 
@@ -1156,7 +1156,7 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
         return json.dumps(self._faultlog) if self._faultlog_done else "{}"  # TODO:
 
     def __str__(self) -> str:
-        return f"{self._ctl} (fault log)"
+        return f"{self.ctl} (fault log)"
 
     # @staticmethod
     # def _is_valid_operand(other) -> bool:
@@ -1227,7 +1227,7 @@ class FaultLog:  # 0418  # TODO: used a NamedTuple
 
         rq_callback = {FUNC: rq_callback, TIMEOUT: 10}
         self._gwy.send_cmd(
-            Command.get_system_log_entry(self._ctl.id, log_idx, callback=rq_callback)
+            Command.get_system_log_entry(self.ctl.id, log_idx, callback=rq_callback)
         )
 
     @property

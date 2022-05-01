@@ -174,7 +174,7 @@ class Device(Entity):
         self.id: str = dev_addr.id
 
         # self.tcs = None  # NOTE: Heat (CH/DHW) devices only
-        # self._ctl = None
+        # self.ctl = None
         self._domain_id = None
 
         self.addr = dev_addr
@@ -499,7 +499,7 @@ class HgiGateway(DeviceInfo, Device):  # HGI (18:), was GWY
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._ctl = None
+        self.ctl = None
         self._domain_id = "FF"
         self.tcs = None
 
@@ -545,10 +545,10 @@ class HgiGateway(DeviceInfo, Device):  # HGI (18:), was GWY
         dev = self.device_by_id.get(device_id)
         if dev:
             _LOGGER.warning("Destroying %s", dev)
-            if dev._ctl:
-                del dev._ctl.device_by_id[dev.id]
-                dev._ctl.devices.remove(dev)
-                dev._ctl = None
+            if dev.ctl:
+                del dev.ctl.device_by_id[dev.id]
+                dev.ctl.devices.remove(dev)
+                dev.ctl = None
             del self.device_by_id[dev.id]
             self.devices.remove(dev)
             dev = None
@@ -629,7 +629,7 @@ class DeviceHeat(
     ):
         super().__init__(gwy, dev_addr, **kwargs)
 
-        self._ctl = None
+        self.ctl = None
         self._ctx = None
         self.tcs = None
 
@@ -639,28 +639,28 @@ class DeviceHeat(
         self._parent = None  # TODO: deprecate
         self._iz_controller = None  # TODO: deprecate
 
-    def _set_ctl(self, ctl: Device, ctx: str = None) -> Device:  # self._ctl
+    def _set_ctl(self, ctl: Device, ctx: str = None) -> Device:  # self.ctl
         """Set the TCS controller that this CH/DHW device is bound to.
 
         It is assumed that a device is only bound to one controller.
         """
 
-        if self._ctl is ctl:
-            return self._ctl
-        if self._ctl is not None:
+        if self.ctl is ctl:
+            return self.ctl
+        if self.ctl is not None:
             raise CorruptStateError("bound to multiple controllers?")
 
         assert ctl._SLUG == DEV_TYPE.CTL and self is ctl or self._SLUG != DEV_TYPE.CTL
 
-        self._ctl = ctl
+        self.ctl = ctl
         self._ctx = ctx
         self.tcs = ctl.tcs
 
         ctl.device_by_id[self.id] = self
         ctl.devices.append(self)
 
-        _LOGGER.debug("%s: controller now set to %s", self, self._ctl)
-        return self._ctl
+        _LOGGER.debug("%s: controller now set to %s", self, self.ctl)
+        return self.ctl
 
     def _set_parent(self, parent, domain=None, sensor=None):
         """Set the device's parent zone, after validating it.
@@ -695,7 +695,7 @@ class DeviceHeat(
         else:
             raise TypeError(f"{self}: parent must be System, DHW or Zone, not {parent}")
 
-        self._set_ctl(parent._ctl)
+        self._set_ctl(parent.ctl)
         self._parent = parent
         self._domain_id = domain
 
@@ -727,13 +727,13 @@ class DeviceHeat(
             return
 
         if (
-            self._ctl is not None
+            self.ctl is not None
             and SZ_ZONE_IDX in msg.payload
             and msg.src.type != DEV_TYPE_MAP.CTL  # TODO: DEX, should be: if controller
             # and msg.dst.type != DEV_TYPE_MAP.HGI
         ):
             # TODO: is buggy - remove? how?
-            self._set_parent(self._ctl.tcs.reap_htg_zone(msg.payload[SZ_ZONE_IDX]))
+            self._set_parent(self.ctl.tcs.reap_htg_zone(msg.payload[SZ_ZONE_IDX]))
 
     def _make_tcs_controller(self, msg=None, **schema) -> None:  # CH/DHW
         """Attach a TCS (create/update as required) after passing it any msg."""
@@ -747,7 +747,7 @@ class DeviceHeat(
     # def controller(self):  # -> Optional[Controller]:
     #     """Return the entity's controller, if known."""
 
-    #     return self._ctl  # TODO: if the controller is not known, try to find it?
+    #     return self.ctl  # TODO: if the controller is not known, try to find it?
 
     @property
     def _is_controller(self) -> Optional[bool]:
@@ -755,8 +755,8 @@ class DeviceHeat(
         if self._iz_controller is not None:
             return bool(self._iz_controller)  # True, False, or msg
 
-        if self._ctl is not None:  # TODO: messy
-            return self._ctl is self
+        if self.ctl is not None:  # TODO: messy
+            return self.ctl is self
 
         return False
 

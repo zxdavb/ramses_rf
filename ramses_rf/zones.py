@@ -176,7 +176,7 @@ class ZoneBase(Entity):
         self.id: str = f"{tcs.id}_{zone_idx}"
 
         self.tcs = tcs
-        self._ctl = tcs._ctl
+        self.ctl = tcs.ctl
         self._domain_id = zone_idx
 
         self._name = None  # param attr
@@ -199,9 +199,9 @@ class ZoneBase(Entity):
             parent.zone_by_idx[zone_idx] = self
             parent.zones.append(self)
 
-        self._ctl = parent._ctl
+        self.ctl = parent.ctl
 
-        return parent, parent._ctl
+        return parent, parent.ctl
 
     @classmethod
     def create_from_schema(cls, tcs, zone_idx: str, **schema):
@@ -237,7 +237,7 @@ class ZoneBase(Entity):
 
     def _make_cmd(self, code, **kwargs) -> None:  # skipcq: PYL-W0221
         payload = kwargs.pop("payload", f"{self.idx}00")
-        super()._make_cmd(code, self._ctl.id, payload=payload, **kwargs)
+        super()._make_cmd(code, self.ctl.id, payload=payload, **kwargs)
 
     @property
     def heating_type(self) -> str:
@@ -363,8 +363,8 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             else:  # if dev_slug in (DEV_ROLE.HTG, DEV_ROLE.HT1):
                 schema_attr = DEV_ROLE_MAP._str(dev_slug)
 
-            new_dev = self._gwy._get_device(dev_id, ctl_id=self._ctl.id)
-            old_dev = self._ctl.device_by_id.get(self.schema[schema_attr])
+            new_dev = self._gwy._get_device(dev_id, ctl_id=self.ctl.id)
+            old_dev = self.ctl.device_by_id.get(self.schema[schema_attr])
 
             if old_dev is new_dev:
                 return old_dev
@@ -403,7 +403,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
                 not (msg := self._msgs.get(code))
                 or msg.dtm + td(minutes=minutes) < dt.now()
             ):
-                self._send_cmd(CODE_API_MAP[f"{RQ}/{code}"](self._ctl.id))
+                self._send_cmd(CODE_API_MAP[f"{RQ}/{code}"](self.ctl.id))
 
         if discover_flag & Discover.SCHEMA:
             for dev_type in (
@@ -417,12 +417,12 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
                     self._make_cmd(_000C, payload=dev_type)
 
         if discover_flag & Discover.PARAMS:
-            # self._send_cmd(Command.get_dhw_params(self._ctl.id))
+            # self._send_cmd(Command.get_dhw_params(self.ctl.id))
             send_code(_10A0, 15)
 
         if discover_flag & Discover.STATUS:
-            # self._send_cmd(Command.get_dhw_mode(self._ctl.id))
-            # self._send_cmd(Command.get_dhw_temp(self._ctl.id))
+            # self._send_cmd(Command.get_dhw_mode(self.ctl.id))
+            # self._send_cmd(Command.get_dhw_temp(self.ctl.id))
             send_code(_1260)
             send_code(_1F41)
 
@@ -459,14 +459,14 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
                 (
                     this.code == _10A0,
                     this.verb == RP,
-                    this.src is self._ctl,
+                    this.src is self.ctl,
                     isinstance(this.dst, DhwSensor),
                 )
             ):
                 self._get_dhw(sensor=this.dst)
 
         assert (
-            msg.src is self._ctl
+            msg.src is self.ctl
             and msg.code in (_0005, _000C, _10A0, _1260, _1F41)
             or msg.payload.get(SZ_DOMAIN_ID) in ("F9", "FA")
         ), f"msg inappropriately routed to {self}"
@@ -542,7 +542,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
     def set_mode(self, mode=None, active=None, until=None) -> Task:
         """Set the DHW mode (mode, active, until)."""
         return self._send_cmd(
-            Command.set_dhw_mode(self._ctl.id, mode=mode, active=active, until=until)
+            Command.set_dhw_mode(self.ctl.id, mode=mode, active=active, until=until)
         )
 
     def set_boost_mode(self) -> Task:
@@ -568,7 +568,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         #     setpoint = dhw_params["differential"]
 
         return self._send_cmd(
-            Command.set_dhw_params(self._ctl.id, setpoint, overrun, differential)
+            Command.set_dhw_params(self.ctl.id, setpoint, overrun, differential)
         )
 
     def reset_config(self) -> Task:  # 10A0
@@ -732,7 +732,7 @@ class Zone(ZoneSchedule, ZoneBase):
                 not (msg := self._msgs.get(code))
                 or msg.dtm + td(minutes=minutes) < dt.now()
             ):
-                self._send_cmd(CODE_API_MAP[f"{RQ}/{code}"](self._ctl.id, self.idx))
+                self._send_cmd(CODE_API_MAP[f"{RQ}/{code}"](self.ctl.id, self.idx))
 
         # TODO: add code to determine zone type if it doesn't have one, using 0005s
         if discover_flag & Discover.SCHEMA:
@@ -743,15 +743,15 @@ class Zone(ZoneSchedule, ZoneBase):
                     self._make_cmd(_000C, payload=f"{self.idx}{dev_role}")
 
         if discover_flag & Discover.PARAMS:
-            # self._send_cmd(Command.get_zone_config(self._ctl.id, self.idx))
-            # self._send_cmd(Command.get_zone_name(self._ctl.id, self.idx))
+            # self._send_cmd(Command.get_zone_config(self.ctl.id, self.idx))
+            # self._send_cmd(Command.get_zone_name(self.ctl.id, self.idx))
             throttle_send(_0004, 15)
             throttle_send(_000A, 15)
 
         if discover_flag & Discover.STATUS:  # every 1h, CTL will not respond to a 3150
-            # self._send_cmd(Command.get_zone_mode(self._ctl.id, self.idx))
-            # self._send_cmd(Command.get_zone_temp(self._ctl.id, self.idx))
-            # self._send_cmd(Command.get_zone_window_state(self._ctl.id, self.idx))
+            # self._send_cmd(Command.get_zone_mode(self.ctl.id, self.idx))
+            # self._send_cmd(Command.get_zone_temp(self.ctl.id, self.idx))
+            # self._send_cmd(Command.get_zone_window_state(self.ctl.id, self.idx))
             throttle_send(_12B0, 15)
             throttle_send(_2349)
             throttle_send(_30C9)
@@ -798,12 +798,12 @@ class Zone(ZoneSchedule, ZoneBase):
                 elif isinstance(this.src, UfhController):
                     self._set_zone_type(ZON_ROLE.UFH)
 
-        assert (msg.src is self._ctl or msg.src.type == DEV_TYPE_MAP.UFC) and (  # DEX
+        assert (msg.src is self.ctl or msg.src.type == DEV_TYPE_MAP.UFC) and (  # DEX
             isinstance(msg.payload, dict)
             or [d for d in msg.payload if d.get(SZ_ZONE_IDX) == self.idx]
         ), f"msg inappropriately routed to {self}"
 
-        assert (msg.src is self._ctl or msg.src.type == DEV_TYPE_MAP.UFC) and (  # DEX
+        assert (msg.src is self.ctl or msg.src.type == DEV_TYPE_MAP.UFC) and (  # DEX
             isinstance(msg.payload, list)
             or msg.code == _0005
             or msg.payload.get(SZ_ZONE_IDX) == self.idx
@@ -858,7 +858,7 @@ class Zone(ZoneSchedule, ZoneBase):
     @name.setter
     def name(self, value) -> Optional[str]:
         """Set the name of the zone."""
-        self._send_cmd(Command.set_zone_name(self._ctl.id, self.idx, value))
+        self._send_cmd(Command.set_zone_name(self.ctl.id, self.idx, value))
 
     @property
     def config(self) -> Optional[dict]:  # 000A
@@ -878,7 +878,7 @@ class Zone(ZoneSchedule, ZoneBase):
         if value is None:
             self.reset_mode()
         else:
-            self._send_cmd(Command.set_zone_setpoint(self._ctl.id, self.idx, value))
+            self._send_cmd(Command.set_zone_setpoint(self.ctl.id, self.idx, value))
 
     @property
     def temperature(self) -> Optional[float]:  # 30C9
@@ -901,7 +901,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
     def _get_temp(self) -> Task:  # TODO: messy - needs tidy up
         """Get the zone's latest temp from the Controller."""
-        return self._send_cmd(Command.get_zone_temp(self._ctl.id, self.idx))
+        return self._send_cmd(Command.get_zone_temp(self.ctl.id, self.idx))
 
     def reset_config(self) -> Task:  # 000A
         """Reset the zone's parameters to their default values."""
@@ -917,7 +917,7 @@ class Zone(ZoneSchedule, ZoneBase):
     ) -> Task:
         """Set the zone's parameters (min_temp, max_temp, etc.)."""
         cmd = Command.set_zone_config(
-            self._ctl.id,
+            self.ctl.id,
             self.idx,
             min_temp=min_temp,
             max_temp=max_temp,
@@ -938,14 +938,14 @@ class Zone(ZoneSchedule, ZoneBase):
     def set_mode(self, mode=None, setpoint=None, until=None) -> Task:  # 2309/2349
         """Override the zone's setpoint for a specified duration, or indefinitely."""
         if mode is None and until is None:  # Hometronics doesn't support 2349
-            cmd = Command.set_zone_setpoint(self._ctl.id, self.idx, setpoint)
+            cmd = Command.set_zone_setpoint(self.ctl.id, self.idx, setpoint)
         else:
-            cmd = Command.set_zone_mode(self._ctl.id, self.idx, mode, setpoint, until)
+            cmd = Command.set_zone_mode(self.ctl.id, self.idx, mode, setpoint, until)
         return self._send_cmd(cmd)
 
     def set_name(self, name) -> Task:
         """Set the zone's name."""
-        return self._send_cmd(Command.set_zone_name(self._ctl.id, self.idx, name))
+        return self._send_cmd(Command.set_zone_name(self.ctl.id, self.idx, name))
 
     @property
     def schema(self) -> dict:
@@ -1027,7 +1027,7 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
                 self._make_cmd(_000C, payload=f"{self.idx}{DEV_ROLE_MAP.MIX}")
 
         if discover_flag & Discover.PARAMS:
-            self._send_cmd(Command.get_mix_valve_params(self._ctl.id, self.idx))
+            self._send_cmd(Command.get_mix_valve_params(self.ctl.id, self.idx))
 
     @property
     def mix_config(self) -> dict:  # 1030
@@ -1169,7 +1169,7 @@ def zx_zone_factory(tcs, idx: str, msg: Message = None, **schema) -> Class:
         return Zone
 
     return best_zon_class(
-        tcs._ctl.addr,
+        tcs.ctl.addr,
         idx,
         msg=msg,
         eavesdrop=tcs._gwy.config.enable_eavesdrop,

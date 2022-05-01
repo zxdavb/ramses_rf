@@ -122,7 +122,7 @@ class RfsGateway(DeviceHvac):  # RFS: (spIDer gateway)
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._ctl = None
+        self.ctl = None
         self._domain_id = "HV"
         self.tcs = None
 

@@ -147,7 +147,7 @@ class Schedule:  # 0404
         self._zone = zone
         self.idx = zone.idx
 
-        self._ctl = zone._ctl
+        self.ctl = zone.ctl
         self.tcs = zone.tcs
         self._gwy = zone._gwy
 
@@ -273,11 +273,11 @@ class Schedule:  # 0404
 
         rq_callback = {FUNC: rq_callback, TIMEOUT: 1}
         cmd = Command.get_schedule_fragment(
-            self._ctl.id, self.idx, frag_idx, frag_cnt, callback=rq_callback
+            self.ctl.id, self.idx, frag_idx, frag_cnt, callback=rq_callback
         )
         self._gwy.send_cmd(cmd)
         # NOTE: have a signature of the schedule to check against future 0006 pkts
-        cmd = Command(RQ, _0006, "00", self._ctl.id, callback=oth_callback)
+        cmd = Command(RQ, _0006, "00", self.ctl.id, callback=oth_callback)
         self._gwy.send_cmd(cmd)
 
     @staticmethod
@@ -371,7 +371,7 @@ class Schedule:  # 0404
 
         tx_callback = {FUNC: tx_callback, TIMEOUT: 3}  # 1 sec too low
         cmd = Command.put_schedule_fragment(
-            self._ctl.id,
+            self.ctl.id,
             self.idx,
             frag_idx,
             len(self._tx_frags),

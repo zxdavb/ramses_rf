@@ -193,7 +193,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         self.id: str = ctl.id
 
-        self._ctl = ctl
+        self.ctl = ctl
         self.tcs = self
         self._domain_id = "FF"
 
@@ -247,8 +247,8 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         tcs._update_schema(**schema)
         return tcs
 
-    def __repr__(self) -> str:
-        return f"{self._ctl.id} (sys_base)"
+    def __str__(self) -> str:
+        return f"{self.ctl.id} ({self._SLUG})"
 
     def _start_discovery(self) -> None:
 
@@ -323,24 +323,24 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             heater = None
 
             if this.code == _3220 and this.verb == RQ:
-                if this.src is self._ctl and isinstance(this.dst, OtbGateway):
+                if this.src is self.ctl and isinstance(this.dst, OtbGateway):
                     heater = this.dst
 
             elif this.code == _3EF0 and this.verb == RQ:
-                if this.src is self._ctl and isinstance(
+                if this.src is self.ctl and isinstance(
                     this.dst, (BdrSwitch, OtbGateway)
                 ):
                     heater = this.dst
 
             elif this.code == _3B00 and this.verb == I_ and prev is not None:
-                if this.src is self._ctl and isinstance(prev.src, BdrSwitch):
+                if this.src is self.ctl and isinstance(prev.src, BdrSwitch):
                     if prev.code == this.code and prev.verb == this.verb:
                         heater = prev.src
 
             if heater is not None:
                 self._set_app_cntrl(heater)
 
-        assert msg.src is self._ctl, f"msg inappropriately routed to {self}"
+        assert msg.src is self.ctl, f"msg inappropriately routed to {self}"
 
         super()._handle_msg(msg)
 
@@ -377,18 +377,18 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             eavesdrop_app_cntrl(msg)
 
     def _make_cmd(self, code, payload="00", **kwargs) -> None:  # skipcq: PYL-W0221
-        super()._make_cmd(code, self._ctl.id, payload=payload, **kwargs)
+        super()._make_cmd(code, self.ctl.id, payload=payload, **kwargs)
 
     @property
     def devices(self) -> list[Device]:
-        return self._ctl.devices + [self._ctl]  # TODO: to sort out
+        return self.ctl.devices + [self.ctl]  # TODO: to sort out
 
     @property
     def appliance_control(self) -> Device:
         """The TCS relay, aka 'appliance control' (BDR or OTB)."""
         if self._app_cntrl:
             return self._app_cntrl
-        app_cntrl = [d for d in self._ctl.devices if d._domain_id == "FC"]
+        app_cntrl = [d for d in self.ctl.devices if d._domain_id == "FC"]
         return app_cntrl[0] if len(app_cntrl) == 1 else None  # HACK for 10:
 
     @property
@@ -409,7 +409,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         """Return the system's schema."""
 
         schema = {SZ_TCS_SYSTEM: {}}
-        # hema = {SZ_CONTROLLER: self._ctl.id, SZ_TCS_SYSTEM: {}}
+        # hema = {SZ_CONTROLLER: self.ctl.id, SZ_TCS_SYSTEM: {}}
 
         schema[SZ_TCS_SYSTEM][SZ_APP_CNTRL] = (
             self.appliance_control.id if self.appliance_control else None
@@ -418,8 +418,8 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         schema[SZ_ORPHANS] = sorted(
             [
                 d.id
-                for d in self._ctl.devices  # HACK: UFC
-                if not d._domain_id and d._is_present and d is not self._ctl
+                for d in self.ctl.devices  # HACK: UFC
+                if not d._domain_id and d._is_present and d is not self.ctl
             ]  # and not isinstance(d, UfhController)
         )  # devices without a parent zone, NB: CTL can be a sensor for a zone
 
@@ -471,7 +471,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         status = {SZ_TCS_SYSTEM: {}}
         status[SZ_TCS_SYSTEM]["heat_demand"] = self.heat_demand
 
-        status[SZ_DEVICES] = {d.id: d.status for d in sorted(self._ctl.devices)}
+        status[SZ_DEVICES] = {d.id: d.status for d in sorted(self.ctl.devices)}
 
         return status
 
@@ -597,8 +597,8 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
             testable_sensors = [
                 d
-                for d in self._gwy.devices  # NOTE: *not* self._ctl.devices
-                if d._ctl in (self._ctl, None)
+                for d in self._gwy.devices  # NOTE: *not* self.ctl.devices
+                if d.ctl in (self.ctl, None)
                 and isinstance(d, Temperature)  # d.addr.type in DEVICE_HAS_ZONE_SENSOR
                 and d.temperature is not None
                 and d._msgs[_30C9].dtm > prev.dtm  # changed during last cycle
@@ -628,7 +628,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                         _LOGGER.debug("   - matched sensor: %s", matching_sensors[0].id)
                         zone = self.zone_by_idx[zone_idx]
                         zone._set_sensor(matching_sensors[0])
-                        zone.sensor._set_ctl(self._ctl)
+                        zone.sensor._set_ctl(self.ctl)
                     elif len(matching_sensors) == 0:
                         _LOGGER.debug("   - no matching sensor (uses CTL?)")
                     else:
@@ -637,7 +637,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 _LOGGER.debug("System state (after): %s", self.schema)
 
             # now see if we can allocate the controller as a sensor...
-            if any(z for z in self.zones if z.sensor is self._ctl):
+            if any(z for z in self.zones if z.sensor is self.ctl):
                 return  # the controller is already a sensor
             if len([z for z in self.zones if z.sensor is None]) != 1:
                 return  # no single zone without a sensor
@@ -661,10 +661,10 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
             # can safely(?) assume this zone is using the CTL as a sensor...
             if len(matching_sensors) == 0:
-                _LOGGER.debug("   - assumed sensor: %s (by exclusion)", self._ctl.id)
+                _LOGGER.debug("   - assumed sensor: %s (by exclusion)", self.ctl.id)
                 zone = self.zone_by_idx[zone_idx]
-                zone._set_sensor(self._ctl)
-                zone.sensor._set_ctl(self._ctl)
+                zone._set_sensor(self.ctl)
+                zone.sensor._set_ctl(self.ctl)
 
             _LOGGER.debug("System state (finally): %s", self.schema)
 
@@ -817,14 +817,14 @@ class Logbook(SystemBase):  # 0418
         self._prev_fault = None
         self._this_fault = None
 
-        self._faultlog = None  # FaultLog(self._ctl)
+        self._faultlog = None  # FaultLog(self.ctl)
         self._faultlog_outdated = None  # should be True
 
     def _discover(self, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.FAULTS:  # check the latest log entry
-            self._send_cmd(Command.get_system_log_entry(self._ctl.id, 0))
+            self._send_cmd(Command.get_system_log_entry(self.ctl.id, 0))
             # self._gwy._tasks.append(self._loop.create_task(self.get_faultlog()))
 
     def _handle_msg(self, msg) -> None:  # NOTE: active
@@ -849,7 +849,7 @@ class Logbook(SystemBase):  # 0418
                 self._this_fault, self._prev_fault = msg, self._this_fault
 
         # if msg.payload["log_entry"][1] == "restore" and not self._this_fault:
-        #     self._send_cmd(Command.get_system_log_entry(self._ctl.id, 1))
+        #     self._send_cmd(Command.get_system_log_entry(self.ctl.id, 1))
 
         # TODO: if self._faultlog_outdated:
         #     if not self._gwy.config.disable_sending:
@@ -1073,7 +1073,7 @@ class Datetime(SystemBase):  # 313F
 
 class UfHeating(SystemBase):
     def _ufh_ctls(self):
-        return sorted([d for d in self._ctl.devices if isinstance(d, UfhController)])
+        return sorted([d for d in self.ctl.devices if isinstance(d, UfhController)])
 
     @property
     def schema(self) -> dict:
@@ -1108,9 +1108,6 @@ class System(StoredHw, Datetime, Logbook, SystemBase):
         self._heat_demands = {}
         self._relay_demands = {}
         self._relay_failsafes = {}
-
-    def __repr__(self) -> str:
-        return f"{self._ctl.id} (system)"
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -1166,16 +1163,10 @@ class Evohome(ScheduleSync, Language, SysMode, MultiZone, UfHeating, System):
 
     _SLUG: str = SYS_KLASS.TCS
 
-    def __repr__(self) -> str:
-        return f"{self._ctl.id} (evohome)"
-
 
 class Chronotherm(Evohome):
 
     _SLUG: str = SYS_KLASS.SYS
-
-    def __repr__(self) -> str:
-        return f"{self._ctl.id} (chronotherm)"
 
 
 class Hometronics(System):
@@ -1192,9 +1183,6 @@ class Hometronics(System):
     RQ_SUPPORTED = (_0004, _000C, _2E04, _313F)  # TODO: WIP
     RQ_UNSUPPORTED = ("xxxx",)  # 10E0?
 
-    def __repr__(self) -> str:
-        return f"{self._ctl.id} (hometronics)"
-
     #
     # def _discover(self, discover_flag=Discover.DEFAULT) -> None:
     #     # super()._discover(discover_flag=discover_flag)
@@ -1210,16 +1198,10 @@ class Programmer(Evohome):
 
     _SLUG: str = SYS_KLASS.PRG
 
-    def __repr__(self) -> str:
-        return f"{self._ctl.id} (programmer)"
-
 
 class Sundial(Evohome):
 
     _SLUG: str = SYS_KLASS.SYS
-
-    def __repr__(self) -> str:
-        return f"{self._ctl.id} (sundial)"
 
 
 SYS_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. "evohome": Evohome

@@ -395,7 +395,7 @@ class DhwTemperature(Fakeable, DeviceHeat):  # 1260
             raise RuntimeError(f"Can't set value for {self} (Faking is not enabled)")
 
         self._send_cmd(Command.put_dhw_temp(value))
-        # lf._send_cmd(Command.get_dhw_temp(self._ctl.id, self.zone.idx))
+        # lf._send_cmd(Command.get_dhw_temp(self.ctl.id, self.zone.idx))
 
     @property
     def status(self) -> dict:
@@ -430,7 +430,7 @@ class Temperature(Fakeable, DeviceHeat):  # 30C9
             raise RuntimeError(f"Can't set value for {self} (Faking is not enabled)")
 
         self._send_cmd(Command.put_sensor_temp(self.id, value))
-        # lf._send_cmd(Command.get_zone_temp(self._ctl.id, self.zone.idx))
+        # lf._send_cmd(Command.get_zone_temp(self.ctl.id, self.zone.idx))
 
     @property
     def status(self) -> dict:
@@ -457,7 +457,7 @@ class Controller(DeviceHeat):  # CTL (01):
         self.device_by_id = {}  # {self.id: self}
         self.devices = []  # [self]
 
-        self._ctl = self._set_ctl(self)
+        self.ctl = self._set_ctl(self)
         self._ctx = "FF"
         self.tcs = None
         # self._make_tcs_controller(**kwargs)  # NOTE: must create_from_schema first
@@ -476,7 +476,7 @@ class Controller(DeviceHeat):  # CTL (01):
 
         if msg.code == _000C:
             [
-                self._gwy._get_device(d, ctl_id=self._ctl.id)
+                self._gwy._get_device(d, ctl_id=self.ctl.id)
                 for d in msg.payload[SZ_DEVICES]
             ]
 
@@ -748,9 +748,9 @@ class DhwSensor(DhwTemperature, BatteryState):  # DHW (07): 10A0, 1260
         super()._handle_msg(msg)
 
         # The following is required, as CTLs don't send such every sync_cycle
-        if msg.code == _1260 and self._ctl and not self._gwy.config.disable_sending:
+        if msg.code == _1260 and self.ctl and not self._gwy.config.disable_sending:
             # update the controller DHW temp
-            self._send_cmd(Command.get_dhw_temp(self._ctl.id))
+            self._send_cmd(Command.get_dhw_temp(self.ctl.id))
 
     @property
     def dhw_params(self) -> Optional[dict]:  # 10A0
@@ -1318,7 +1318,7 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
     #     super().__init__(*args, **kwargs)
 
     #     if kwargs.get(SZ_DOMAIN_ID) == "FC":  # TODO: F9/FA/FC, zone_idx
-    #         self._ctl._set_app_cntrl(self)
+    #         self.ctl._set_app_cntrl(self)
 
     @discover_decorator
     def _discover(self, discover_flag=Discover.DEFAULT) -> None:
@@ -1340,7 +1340,7 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.PARAMS and not self._faked:
-            self._send_cmd(Command.get_tpi_params(self.id))  # or: self._ctl.id
+            self._send_cmd(Command.get_tpi_params(self.id))  # or: self.ctl.id
 
         if discover_flag & Discover.STATUS and not self._faked:
             # NOTE: 13: wont RP to an RQ/3EF0
