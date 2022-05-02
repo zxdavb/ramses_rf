@@ -518,7 +518,8 @@ class PacketProtocolBase(asyncio.Protocol):
     def __str__(self) -> str:
         return self.__class__.__name__
 
-    def _dt_now(self) -> dt:
+    @staticmethod
+    def _dt_now() -> dt:
         """Return a precise datetime, using the curent dtm."""
         return dt_now()
 
