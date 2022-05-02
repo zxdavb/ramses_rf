@@ -494,6 +494,9 @@ def print_summary(gwy, **kwargs):
 
 async def main(command, lib_kwargs, **kwargs):
     def process_msg(msg, prev_msg=None) -> None:
+        # print(f"{msg.dtm} ... {msg._pkt}  # {msg.payload}")
+        # return
+
         dtm = (
             msg.dtm.isoformat(timespec="microseconds")
             if kwargs["long_dates"]

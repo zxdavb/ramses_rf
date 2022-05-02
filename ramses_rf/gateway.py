@@ -331,7 +331,7 @@ class Gateway(Engine):
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Setting state...")
         self.pause()
 
-        if schema is None:
+        if schema is None:  # TODO: also for known_list (device traits)?
             schema = shrink(self.schema)
         clear_state()
         load_schema(self, **schema)

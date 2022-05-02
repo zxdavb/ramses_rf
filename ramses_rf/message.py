@@ -17,7 +17,7 @@ from .const import (
     SZ_DEVICES,
     __dev_mode__,
 )
-from .devices import Device, UfhController
+from .devices import Device, DeviceHeat, UfhController
 from .protocol import (
     CODES_BY_DEV_SLUG,
     CODES_SCHEMA,
@@ -166,6 +166,7 @@ def _create_devices_from_addrs(gwy, this: Message) -> None:
     ):  # the above can't / shouldn't be eavesdropped for dst device
         return
 
+    # HACK: what follows is not well tested
     if not isinstance(this.dst, Device):
         this.dst = gwy._get_device(this.dst.id, msg=this)
 
@@ -174,7 +175,7 @@ def _create_devices_from_addrs(gwy, this: Message) -> None:
     ):  # HACK
         gwy._get_device(this.src.id, ctl_id=this.dst.id, msg=this)  # or _set_ctl?
 
-    elif isinstance(this.dst, Device) and getattr(this.src, "_is_controller", False):
+    elif isinstance(this.dst, DeviceHeat) and getattr(this.src, "_is_controller", None):
         gwy._get_device(this.dst.id, ctl_id=this.src.id, msg=this)  # or _set_ctl?
 
 
