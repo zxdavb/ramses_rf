@@ -140,7 +140,7 @@ SCHEMA_DEV = vol.Any(
     {
         vol.Optional(SZ_ALIAS, default=None): vol.Any(None, str),
         vol.Optional(SZ_CLASS, default=None): vol.Any(
-            None, *(DEV_TYPE_MAP[s] for s in DEV_TYPE_MAP.HVAC_SLUGS)
+            None, *(DEV_TYPE_MAP[s] for s in DEV_TYPE_MAP.slugs())
         ),
         vol.Optional(SZ_FAKED, default=None): vol.Any(None, bool),
     },
@@ -214,7 +214,7 @@ SCHEMA_SYS = vol.Schema(
         vol.Optional(SZ_ORPHANS, default=[]): vol.Any([], [DEV_REGEX_ANY]),
         vol.Optional(SZ_ZONES, default={}): vol.Any({}, SCHEMA_ZONES),
     },
-    extra=vol.ALLOW_EXTRA,  # TODO: remove me - But: Causes an issue?
+    extra=vol.PREVENT_EXTRA,
 )
 
 

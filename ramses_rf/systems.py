@@ -247,7 +247,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         tcs._update_schema(**schema)
         return tcs
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         return f"{self.ctl.id} ({self._SLUG})"
 
     def _start_discovery(self) -> None:
@@ -290,7 +290,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         #         self._make_cmd(_0008, payload=f"{domain_id:02X}00")
 
     def _handle_msg(self, msg) -> None:
-        def eavesdrop_app_cntrl(this, prev=None) -> None:
+        def eavesdrop_appliance_control(this, prev=None) -> None:
             """Discover the heat relay (10: or 13:) for this system.
 
             There's' 3 ways to find a controller's heat relay (in order of reliability):
@@ -314,15 +314,13 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             # 09:03:59.693 051  I --- 13:237335 --:------ 13:237335 3B00 002 00C8
             # 09:04:02.667 045  I --- 01:145038 --:------ 01:145038 3B00 002 FCC8
 
-            assert self._gwy.config.enable_eavesdrop, "Coding error"
-
-            if this.code not in (_3220, _3B00, _3EF0):
+            if this.code not in (_22D9, _3220, _3B00, _3EF0):
                 return
 
             # note the order: most to least reliable
             heater = None
 
-            if this.code == _3220 and this.verb == RQ:
+            if this.code in (_22D9, _3220) and this.verb == RQ:  # TODO: RPs too?
                 if this.src is self.ctl and isinstance(this.dst, OtbGateway):
                     heater = this.dst
 
@@ -338,7 +336,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                         heater = prev.src
 
             if heater is not None:
-                self._set_app_cntrl(heater)
+                self._update_schema(**{SZ_TCS_SYSTEM: {SZ_APP_CNTRL: heater.id}})
 
         assert msg.src is self.ctl, f"msg inappropriately routed to {self}"
 
@@ -374,7 +372,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                 self._heat_demand = msg.payload
 
         if self._gwy.config.enable_eavesdrop and not self.appliance_control:
-            eavesdrop_app_cntrl(msg)
+            eavesdrop_appliance_control(msg)
 
     def _make_cmd(self, code, payload="00", **kwargs) -> None:  # skipcq: PYL-W0221
         super()._make_cmd(code, self.ctl.id, payload=payload, **kwargs)

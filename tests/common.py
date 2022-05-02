@@ -45,9 +45,11 @@ async def gwy() -> Gateway:  # NOTE: async to get running loop
 
 
 def assert_expected(actual, expected: dict = None) -> None:
+    def assert_expected(actual, expect) -> None:
+        assert actual == expect
 
     if expected is not None:
-        assert shrink(actual) == shrink(expected)
+        assert_expected(shrink(actual), shrink(expected))
 
 
 def assert_expected_set(gwy, expected) -> None:

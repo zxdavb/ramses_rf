@@ -320,11 +320,10 @@ class Gateway(Engine):
 
         return self.schema, dict(sorted(pkts.items()))
 
-    async def _set_state(self, packets, keep_state: bool = False) -> None:
+    async def _set_state(self, packets, schema=None) -> None:
         def clear_state() -> None:
             _LOGGER.warning("ENGINE: Clearing exisiting schema/state...")
 
-            self.msg_protocol._prev_msg = None  # TODO: move to pause/resume?
             self._tcs = None
             self.devices = []
             self.device_by_id = {}
@@ -332,8 +331,10 @@ class Gateway(Engine):
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Setting state...")
         self.pause()
 
-        if not keep_state:
-            clear_state()
+        if schema is None:
+            schema = shrink(self.schema)
+        clear_state()
+        load_schema(self, **schema)
 
         _, tmp_transport = create_pkt_stack(
             self,
@@ -343,6 +344,7 @@ class Gateway(Engine):
         await tmp_transport.get_extra_info(SZ_POLLER_TASK)
 
         # self.msg_transport._clear_write_buffer()  # TODO: shouldn't be needed
+        self.msg_protocol._prev_msg = None  # TODO: move to pause/resume?
 
         self.resume()
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Set state.")
