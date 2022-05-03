@@ -290,7 +290,7 @@ def _delete_msg(msg) -> None:
     """Remove the msg from all state databases."""
 
     entities = [msg.src]
-    if hasattr(msg.src, "tcs"):
+    if getattr(msg.src, "tcs", None):
         entities.append(msg.src.tcs)
         if msg.src.tcs.dhw:
             entities.append(msg.src.tcs.dhw)
