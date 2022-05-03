@@ -1011,8 +1011,12 @@ def parser_1f09(payload, msg) -> Optional[dict]:
 def parser_1f41(payload, msg) -> Optional[dict]:
     # 053 RP --- 01:145038 18:013393 --:------ 1F41 006 00FF00FFFFFF  # no stored DHW
     assert payload[4:6] in ZON_MODE_MAP, f"{payload[4:6]} (0xjj)"
-    assert payload[4:6] == "04" or msg.len == 6, f"{msg!r}: expected length 6"
-    assert payload[4:6] != "04" or msg.len == 12, f"{msg!r}: expected length 12"
+    assert (
+        payload[4:6] == ZON_MODE_MAP.TEMPORARY or msg.len == 6
+    ), f"{msg!r}: expected length 6"
+    assert (
+        payload[4:6] != ZON_MODE_MAP.TEMPORARY or msg.len == 12
+    ), f"{msg!r}: expected length 12"
     assert (
         payload[6:12] == "FFFFFF"
     ), f"{msg!r}: expected FFFFFF instead of '{payload[6:12]}'"
@@ -1021,7 +1025,7 @@ def parser_1f41(payload, msg) -> Optional[dict]:
         "active": {"00": False, "01": True, "FF": None}[payload[2:4]],
         SZ_MODE: ZON_MODE_MAP.get(payload[4:6]),
     }
-    if payload[4:6] == "04":  # temporary_override
+    if payload[4:6] == ZON_MODE_MAP.TEMPORARY:  # temporary_override
         result[SZ_UNTIL] = dtm_from_hex(payload[12:24])
 
     return result
@@ -1309,17 +1313,20 @@ def parser_2349(payload, msg) -> Optional[dict]:
 
     if msg.len >= 7:  # has a dtm if mode == "04"
         if payload[8:14] == "FF" * 3:  # 03/FFFFFF OK if W?
-            assert payload[6:8] != "03", f"{payload[6:8]} (0x00)"
+            assert payload[6:8] != ZON_MODE_MAP.COUNTDOWN, f"{payload[6:8]} (0x00)"
         else:
-            assert payload[6:8] == "03", f"{payload[6:8]} (0x01)"
+            assert payload[6:8] == ZON_MODE_MAP.COUNTDOWN, f"{payload[6:8]} (0x01)"
             result[SZ_DURATION] = int(payload[8:14], 16)
 
     if msg.len >= 13:
         if payload[14:] == "FF" * 6:
-            assert payload[6:8] in ("00", "02"), f"{payload[6:8]} (0x02)"
+            assert payload[6:8] in (
+                ZON_MODE_MAP.FOLLOW,
+                ZON_MODE_MAP.PERMANENT,
+            ), f"{payload[6:8]} (0x02)"
             result[SZ_UNTIL] = None  # TODO: remove?
         else:
-            assert payload[6:8] != "02", f"{payload[6:8]} (0x03)"
+            assert payload[6:8] != ZON_MODE_MAP.PERMANENT, f"{payload[6:8]} (0x03)"
             result[SZ_UNTIL] = dtm_from_hex(payload[14:26])
 
     return result
@@ -1413,8 +1420,10 @@ def parser_2e04(payload, msg) -> Optional[dict]:
 
     elif msg.len == 16:  # hometronics, lifestyle ID:
         assert 0 <= int(payload[:2], 16) <= 15 or payload[:2] == "FF", payload[:2]
-        assert payload[16:18] in ("00", "07"), payload[16:18]
-        assert payload[30:32] == "04", payload[30:32]
+        assert payload[16:18] in (SYS_MODE_MAP.AUTO, SYS_MODE_MAP.CUSTOM), payload[
+            16:18
+        ]
+        assert payload[30:32] == SYS_MODE_MAP.DAY_OFF, payload[30:32]
         # assert False
 
     else:
