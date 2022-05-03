@@ -66,6 +66,6 @@
             }
         }
     },
-    "orphans": ["18:013393"],
+    "orphans": [],
     "device_hints": {}
 }
