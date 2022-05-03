@@ -1,0 +1,29 @@
+{
+    "config": {
+        "disable_discovery": false,
+        "disable_sending": false,
+        "enable_eavesdrop": true,
+        "enforce_known_list": false,
+        "use_aliases": true
+    },
+
+    "main_controller": "01:145038",
+    "01:145038": {
+        "system": {
+            "appliance_control": "10:048122"
+        }
+    },
+
+    "block_list": {
+        "03:123001": {},
+        "07:045960": {},
+        "12:207082": {},
+        "13:035462": {},
+        "13:049798": {},
+        "13:106039": {},
+        "13:237335": {},
+        "18:140805": {},
+        "32:168090": {},
+        "34:021943": {}
+    }
+}

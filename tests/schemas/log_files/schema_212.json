@@ -1,0 +1,32 @@
+{
+    "main_controller": "01:069616",
+    "01:069616": {
+        "system": {},
+        "zones": {
+            "00": {
+                "class": "radiator_valve"
+            },
+            "01": {
+                "class": "radiator_valve"
+            },
+            "02": {
+                "class": "radiator_valve"
+            },
+            "03": {
+                "class": "radiator_valve"
+            },
+            "04": {
+                "class": "radiator_valve"
+            },
+            "05": {
+                "class": "radiator_valve"
+            },
+            "06": {
+                "class": "radiator_valve"
+            },
+            "07": {
+                "class": "radiator_valve"
+            }
+        }
+    }
+}

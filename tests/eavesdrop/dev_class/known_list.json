@@ -1,0 +1,13 @@
+{
+     "known_list": {
+        "41:111111": {"class": "switch"     },
+        "42:222222": {"class": "switch"     },
+        "43:333333": {"class": "rh_sensor"  },
+        "44:444444": {"class": "rh_sensor"  },
+        "45:555555": {"class": "co2_sensor" },
+        "46:666666": {"class": "co2_sensor" },
+        "47:777777": {"class": "hvac_device"},
+        "48:888888": {"class": "ventilator" },
+        "49:999999": {"class": "ventilator" }
+    }
+}

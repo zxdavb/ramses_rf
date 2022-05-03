@@ -1,0 +1,41 @@
+{
+    "main_controller": "01:069616",
+    "01:069616": {
+        "system": {
+            "appliance_control": "13:024041"
+        },
+        "orphans": [],
+        "stored_hotwater": {
+            "sensor": "07:016460",
+            "hotwater_valve": "13:002512",
+            "heating_valve": "13:172643"
+        },
+        "underfloor_heating": {},
+        "zones": {
+            "00": {
+                "class": "radiator_valve"
+            },
+            "01": {
+                "class": "radiator_valve"
+            },
+            "02": {
+                "class": "radiator_valve"
+            },
+            "03": {
+                "class": "radiator_valve"
+            },
+            "04": {
+                "class": "radiator_valve"
+            },
+            "05": {
+                "class": "radiator_valve"
+            },
+            "06": {
+                "class": "radiator_valve"
+            },
+            "07": {
+                "class": "radiator_valve"
+            }
+        }
+    }
+}

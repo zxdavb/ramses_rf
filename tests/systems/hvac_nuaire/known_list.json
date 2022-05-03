@@ -1,0 +1,8 @@
+{
+     "known_list": {
+        "30:079129": {"class": "ventilator", "alias": "DRI-ECO-LINK-HC PIV"},
+        "32:166025": {"class": "co2_sensor", "alias": "DRI-ECO-CO2 sensor"},
+        "32:168240": {"class": "rh_sensor",  "alias": "DRI-ECO-RH sensor"},
+        "32:172534": {"class": "switch",     "alias": "DRI-ECO-2S switch"}
+    }
+}

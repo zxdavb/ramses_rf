@@ -1,0 +1,35 @@
+{
+    "notes": {
+        "A": "single UFH zone - multiple circuits/zone",
+        "B": "has a SWI, 02:153425 !"
+    },
+    "config": {
+        "enable_eavesdrop": false,
+        "enforce_known_list": true,
+        "use_aliases": false,
+        "use_schema": false
+    },
+    "01:087939": {
+        "system": {
+            "appliance_control": "10:078099"
+        },
+        "underfloor_heating": {
+            "02:017205": {}
+        }
+    },
+     "known_list": {
+        "01:087939": {"alias": "Controller"},
+        "02:017205": {"alias": "HCE80 (Woonkamer)"},
+        "03:123001": {"alias": "???", "faked": true},
+        "04:023992": {"alias": "Kastenkamer"},
+        "04:024000": {"alias": "Slaapkamer Nova"},
+        "04:059569": {"alias": "Slaapkamer"},
+        "04:225657": {"alias": "Toilet"},
+        "04:225661": {"alias": "Badkamer"},
+        "04:225663": {"alias": "Slaapkamer Evi"},
+        "10:078099": {"alias": "Heating control"},
+        "18:073736": {"alias": "Gateway (HGI80-compatible)"},
+        "02:153425": {"class": "switch",     "alias": "Itho RFT Remote"},
+        "20:007902": {"class": "ventilator", "alias": "Itho CVE Fan"}
+    }
+}

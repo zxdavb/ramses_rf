@@ -1,0 +1,71 @@
+{
+    "main_controller": "01:145038",
+    "01:145038": {
+        "system": {
+            "appliance_control": null
+        },
+        "orphans": [],
+        "stored_hotwater": {},
+        "underfloor_heating": {},
+        "zones": {
+            "01": {
+                "_name": "Main room",
+                "class": "radiator_valve",
+                "sensor": null,
+                "_sensor_alt": null,
+                "_devices": ["04:189078"],
+                "actuators": ["04:189078"]
+            },
+            "02": {
+                "_name": "Front room",
+                "class": "radiator_valve",
+                "sensor": "34:092243",
+                "_sensor_alt": "34:092243",
+                "_devices": ["04:056057", "34:092243"],
+                "actuators": ["04:056057"]
+            },
+            "03": {
+                "_name": "Kitchen",
+                "class": "radiator_valve",
+                "sensor": "12:010740",
+                "_sensor_alt": "12:010740",
+                "_devices": ["04:056059", "12:010740"],
+                "actuators": ["04:056059"]
+            },
+            "04": {
+                "_name": "Bathroom",
+                "class": "radiator_valve",
+                "sensor": "04:056053",
+                "_sensor_alt": "04:056053",
+                "_devices": ["04:056053"],
+                "actuators": ["04:056053"]
+            },
+            "05": {
+                "_name": "Bedroom",
+                "class": "radiator_valve",
+                "sensor": "34:136285",
+                "_sensor_alt": "34:136285",
+                "_devices": ["04:189082", "34:136285"],
+                "actuators": ["04:189082"]
+            },
+            "06": {
+                "_name": "Kids room",
+                "class": "radiator_valve",
+                "sensor": "34:064023",
+                "_sensor_alt": "34:064023",
+                "_devices": ["04:189080", "34:064023"],
+                "actuators": ["04:189080"]
+            },
+            "07": {
+                "_name": "Back room",
+                "class": "radiator_valve",
+                "sensor": "34:205645",
+                "_sensor_alt": "34:205645",
+                "_devices": ["04:056061", "34:205645"],
+                "actuators": ["04:056061"]
+            }
+        }
+    },
+    "orphans": ["18:013393"],
+    "device_hints": {}
+}

@@ -1,0 +1,216 @@
+{
+    "known_list": {
+        "01:145038": {
+            "_sent": [
+                "0004",
+                "0005",
+                "0006",
+                "000A",
+                "000C",
+                "0100",
+                "0418",
+                "1100",
+                "12B0",
+                "1F09",
+                "2309",
+                "2349",
+                "2E04",
+                "30C9",
+                "313F"
+            ],
+            "class": "controller",
+            "alias": null,
+            "faked": null,
+            "_info": null,
+            "_bind": null
+        },
+        "04:056053": {
+            "_sent": [
+                "12B0",
+                "3150"
+            ],
+            "class": "radiator_valve",
+            "alias": null,
+            "faked": false,
+            "_info": null,
+            "_bind": null
+        },
+        "04:056057": {
+            "_sent": [
+                "12B0"
+            ],
+            "class": "radiator_valve",
+            "alias": null,
+            "faked": false,
+            "_info": null,
+            "_bind": null
+        },
+        "04:056059": {
+            "_sent": [],
+            "class": "radiator_valve",
+            "alias": null,
+            "faked": false,
+            "_info": null,
+            "_bind": null
+        },
+        "04:056061": {
+            "_sent": [],
+            "class": "radiator_valve",
+            "alias": null,
+            "faked": false,
+            "_info": null,
+            "_bind": null
+        },
+        "04:189078": {
+            "_sent": [
+                "3150"
+            ],
+            "class": "radiator_valve",
+            "alias": null,
+            "faked": false,
+            "_info": null,
+            "_bind": null
+        },
+        "04:189080": {
+            "_sent": [
+                "2309"
+            ],
+            "class": "radiator_valve",
+            "alias": null,
+            "faked": false,
+            "_info": null,
+            "_bind": null
+        },
+        "04:189082": {
+            "_sent": [],
+            "class": "radiator_valve",
+            "alias": null,
+            "faked": false,
+            "_info": null,
+            "_bind": null
+        },
+        "10:048122": {
+            "_sent": [
+                "1081",
+                "10A0",
+                "10E0",
+                "1260",
+                "1290",
+                "12F0",
+                "1300",
+                "1FD4",
+                "22D9",
+                "2401",
+                "3200",
+                "3210",
+                "3220",
+                "3EF0"
+            ],
+            "class": "opentherm_bridge",
+            "alias": null,
+            "faked": false,
+            "_info": {
+                "date_2": "0000-00-00",
+                "date_1": "2019-08-20",
+                "product_id": "81",
+                "oem_code": "00",
+                "description": "R8820"
+            },
+            "_bind": null,
+            "_opentherm_traits": {
+                "00": "00",
+                "05": {
+                    "lb": "OEMFaultCode"
+                },
+                "06": "06",
+                "19": "BoilerWaterTemperature",
+                "1C": "ReturnWaterTemperature",
+                "30": {
+                    "hb": "DHWUpperBound",
+                    "lb": "DHWLowerBound"
+                },
+                "31": {
+                    "hb": "CHUpperBound",
+                    "lb": "CHLowerBound"
+                },
+                "73": "OEMDiagnosticCode",
+                "7F": {
+                    "hb": "SlaveProductType",
+                    "lb": "SlaveProductVersion"
+                }
+            },
+            "_ramses_ii_traits": {
+                "1081": "max_ch_setpoint",
+                "10A0": "dhw_params",
+                "10E0": "device_info",
+                "1260": "dhw_temp",
+                "1FD4": "opentherm_sync",
+                "22D9": "boiler_setpoint",
+                "2401": "message_2401",
+                "3200": "boiler_output",
+                "3210": "boiler_return",
+                "3220": "opentherm_msg",
+                "3EF0": "actuator_state"
+            }
+        },
+        "12:010740": {
+            "_sent": [
+                "0008"
+            ],
+            "class": "thermostat",
+            "alias": null,
+            "faked": false,
+            "_info": null,
+            "_bind": null
+        },
+        "18:013393": {
+            "_sent": [
+                "7FFF"
+            ],
+            "class": "gateway_interface",
+            "alias": null,
+            "faked": null,
+            "_bind": null
+        },
+        "34:064023": {
+            "_sent": [
+                "30C9"
+            ],
+            "class": "thermostat",
+            "alias": null,
+            "faked": false,
+            "_info": null,
+            "_bind": null
+        },
+        "34:092243": {
+            "_sent": [
+                "30C9"
+            ],
+            "class": "thermostat",
+            "alias": null,
+            "faked": false,
+            "_info": null,
+            "_bind": null
+        },
+        "34:136285": {
+            "_sent": [
+                "30C9"
+            ],
+            "class": "thermostat",
+            "alias": null,
+            "faked": false,
+            "_info": null,
+            "_bind": null
+        },
+        "34:205645": {
+            "_sent": [
+                "30C9"
+            ],
+            "class": "thermostat",
+            "alias": null,
+            "faked": false,
+            "_info": null,
+            "_bind": null
+        }
+    }
+}
