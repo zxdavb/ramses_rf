@@ -4,7 +4,7 @@
         "disable_sending": false,
         "enable_eavesdrop": true,
         "enforce_known_list": false,
-        "use_aliases": true
+        "use_aliases": false
     },
 
     "main_controller": "01:145038",
