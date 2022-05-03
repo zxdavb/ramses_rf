@@ -1178,9 +1178,6 @@ class Hometronics(System):
 
     _SLUG: str = SYS_KLASS.SYS
 
-    RQ_SUPPORTED = (_0004, _000C, _2E04, _313F)  # TODO: WIP
-    RQ_UNSUPPORTED = ("xxxx",)  # 10E0?
-
     #
     # def _discover(self, discover_flag=Discover.DEFAULT) -> None:
     #     # super()._discover(discover_flag=discover_flag)
@@ -1190,6 +1187,9 @@ class Hometronics(System):
 
     #     if discover_flag & Discover.STATUS:
     #         self._make_cmd(_1F09)
+
+    RQ_SUPPORTED = (_0004, _000C, _2E04, _313F)  # TODO: WIP
+    RQ_UNSUPPORTED = ("xxxx",)  # 10E0?
 
 
 class Programmer(Evohome):
