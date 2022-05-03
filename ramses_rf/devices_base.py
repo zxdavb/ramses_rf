@@ -263,7 +263,7 @@ class Device(Entity):
             if cls._SLUG != self._SLUG and DEV_TYPE.DEV not in (cls._SLUG, self._SLUG):
                 _LOGGER.warning(
                     f"Promoting the device class of {self} to: {cls._SLUG}"
-                    f" - use a {SZ_KNOWN_LIST} to explicitly set this device's "
+                    f" - use a {SZ_KNOWN_LIST} to explicitly set this device's"
                     f" {SZ_CLASS} to '{DEV_TYPE_MAP[cls._SLUG]}'"
                 )
                 self.__class__ = cls
