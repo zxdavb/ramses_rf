@@ -292,8 +292,8 @@ def _delete_msg(msg) -> None:
     entities = [msg.src]
     if hasattr(msg.src, "tcs"):
         entities.append(msg.src.tcs)
-        if msg.src.tcs._dhw:
-            entities.append(msg.src.tcs._dhw)
+        if msg.src.tcs.dhw:
+            entities.append(msg.src.tcs.dhw)
         entities.extend(msg.src.tcs.zones)
 
     # remove the msg from all the state DBs

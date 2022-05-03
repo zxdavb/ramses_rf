@@ -230,7 +230,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
             set_app_cntrl(self._gwy.reap_device(Address(dev_id)))  # self._app_cntrl
 
         if _schema := (schema.get(SZ_DHW_SYSTEM)):
-            self.reap_dhw_zone(**_schema)  # self._dhw
+            self.reap_dhw_zone(**_schema)  # self._dhw = ...
 
         if _schema := (schema.get(SZ_ZONES)):
             [self.reap_htg_zone(idx, **s) for idx, s in _schema.items()]
@@ -905,6 +905,38 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
     MAX_SETPOINT = 85.0
     DEFAULT_SETPOINT = 50.0
 
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._dhw = None
+
+    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+        super()._discover(discover_flag=discover_flag)
+
+        if discover_flag & Discover.SCHEMA:
+            try:
+                _ = self._msgz[_000C][RP][f"00{DEV_ROLE_MAP.DHW}"]
+            except KeyError:
+                self._make_cmd(_000C, payload=f"00{DEV_ROLE_MAP.DHW}")
+
+    def _handle_msg(self, msg) -> None:
+
+        super()._handle_msg(msg)
+
+        # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
+        if msg.code == _000C:
+            if msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.DHW_DEVICES and (
+                msg.payload[SZ_DEVICES]
+            ):
+                self.reap_dhw_zone(msg=msg)
+            return
+
+        # RQ --- 18:002563 01:078710 --:------ 10A0 001 00  # every 4h
+        # RP --- 01:078710 18:002563 --:------ 10A0 006 00157C0003E8
+
+        if msg.code in (_10A0, _1260, _1F41):
+            # and "dhw_id" not in msg.payload and msg.payload.get(SZ_DOMAIN_ID) != "FA":
+            self.reap_dhw_zone(msg=msg)
+
     def reap_dhw_zone(self, msg=None, **schema) -> DhwZone:
         """Return a DHW zone, create it if required.
 
@@ -927,42 +959,6 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         if msg:
             self._dhw._handle_msg(msg)
         return self._dhw
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._dhw = None
-
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
-        super()._discover(discover_flag=discover_flag)
-
-        if discover_flag & Discover.SCHEMA:
-            try:
-                _ = self._msgz[_000C][RP][f"00{DEV_ROLE_MAP.DHW}"]
-            except KeyError:
-                self._make_cmd(_000C, payload=f"00{DEV_ROLE_MAP.DHW}")
-
-    def _handle_msg(self, msg) -> None:
-
-        #
-
-        #
-
-        super()._handle_msg(msg)
-
-        # TODO: a I/0005 may have changed zones & may need a restart (del) or not (add)
-        if msg.code == _000C:
-            if msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.DHW_DEVICES and (
-                msg.payload[SZ_DEVICES]
-            ):
-                self.reap_dhw_zone(msg=msg)
-            return
-
-        if msg.code in (_10A0, _1260, _1F41):
-            # and "dhw_id" not in msg.payload and msg.payload.get(SZ_DOMAIN_ID) != "FA":
-            self.reap_dhw_zone(msg=msg)
-
-        # RQ --- 18:002563 01:078710 --:------ 10A0 001 00  # every 4h
-        # RP --- 01:078710 18:002563 --:------ 10A0 006 00157C0003E8
 
     @property
     def dhw(self) -> DhwZone:

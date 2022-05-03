@@ -322,7 +322,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
     def __init__(self, tcs, zone_idx: str = "HW") -> None:
         _LOGGER.debug("Creating a DHW for TCS: %s_HW (%s)", tcs.id, self.__class__)
 
-        if tcs._dhw:
+        if tcs.dhw:
             raise LookupError(f"Duplicate DHW for TCS: {tcs.id}")
         if zone_idx not in (None, "HW"):
             raise ValueError(f"Invalid zone idx for DHW: {zone_idx} (not 'HW'/null)")

@@ -108,6 +108,8 @@ class Engine:
         return create_msg_stack(self, msg_handler)
 
     def start(self) -> None:
+        """Initiate ad-hoc sending, and (polled) receiving."""
+
         (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Starting poller...")
 
         if self.serial_port:  # source of packets is a serial port
@@ -258,14 +260,15 @@ class Gateway(Engine):
             _LOGGER.debug("ENGINE: Initiating/enabling discovery...")
 
             # [d._start_discovery() for d in devs]
-            for d in dev_list:
-                d._start_discovery()
+            for device in dev_list:
+                device._start_discovery()
 
             for system in sys_list:
                 system._start_discovery()
-                [z._start_discovery() for z in system.zones]
-                if system._dhw:
-                    system._dhw._start_discovery()
+                for zone in system.zones:
+                    zone._start_discovery()
+                if system.dhw:
+                    system.dhw._start_discovery()
 
         super().start()
 
@@ -306,7 +309,7 @@ class Gateway(Engine):
         for system in self.systems:
             msgs.extend(list(system._msgs.values()))
             msgs.extend([m for z in system.zones for m in z._msgs.values()])
-            # msgs.extend([m for z in system._dhw for m in z._msgs.values()])
+            # msgs.extend([m for z in system.dhw for m in z._msgs.values()])
 
         # BUG: assumes pkts have unique dtms: may not be true for contrived logs...
         pkts = {
