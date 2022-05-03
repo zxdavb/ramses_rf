@@ -8,8 +8,32 @@ Test the various helper APIs.
 
 from ramses_rf.const import DEV_ROLE_MAP, DEV_TYPE_MAP
 from ramses_rf.protocol.const import attr_dict_factory
+from ramses_rf.protocol.packet import Packet
 from ramses_rf.zones import _transform
-from tests.common import assert_raises
+from tests.common import gwy  # noqa: F401
+from tests.common import TEST_DIR, assert_raises
+
+WORK_DIR = f"{TEST_DIR}/helpers"
+
+
+def test_pkt_addr_parser(gwy):  # noqa: F811
+    def proc_log_line(gwy, pkt_line):
+        if "#" not in pkt_line:
+            return
+
+        pkt_line, pkt_dict = pkt_line.split("#", maxsplit=1)
+
+        if not pkt_line[27:].strip():
+            return
+
+        pkt = Packet.from_file(gwy, pkt_line[:26], pkt_line[27:])
+
+        assert (pkt.src.id, pkt.dst.id) == eval(pkt_dict)
+
+    with open(f"{WORK_DIR}/pkt_addrs.log") as f:
+        while line := (f.readline()):
+            if line.strip():
+                proc_log_line(gwy, line)
 
 
 def test_attrdict_class() -> None:
