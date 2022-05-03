@@ -494,7 +494,7 @@ def print_summary(gwy, **kwargs):
 
 async def main(command, lib_kwargs, **kwargs):
     def process_msg(msg, prev_msg=None) -> None:
-        # print(f"{msg.dtm.isoformat(timespec="microseconds")} ... {msg._pkt}  # {msg.payload}")
+        # print(f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg._pkt}  # {msg.payload}')
         # print(f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg._pkt}  # ("{msg._pkt.src!r}", "{msg._pkt.dst!r}")')
         # return
 
