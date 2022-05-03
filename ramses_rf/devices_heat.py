@@ -48,7 +48,7 @@ from .protocol.opentherm import (
     OtMsgType,
 )
 from .protocol.ramses import CODES_HEAT_ONLY, CODES_ONLY_FROM_CTL, CODES_SCHEMA
-from .schema import SCHEMA_SYS, SZ_CIRCUITS
+from .schema import SCHEMA_SYS, SZ_ACTUATORS, SZ_CIRCUITS
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -1414,6 +1414,19 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature):  # TRV (04):
     WINDOW_OPEN = SZ_WINDOW_OPEN  # boolean
 
     _STATE_ATTR = "heat_demand"
+
+    def _handle_msg(self, msg) -> None:
+        def eavesdrop_actuator_zone(this, prev=None) -> None:
+            zone = self.ctl.tcs.zone_by_idx.get(msg.payload.get("zone_idx"))
+
+            if self not in zone.actuators:
+                zone._update_schema(**{SZ_ACTUATORS: [self.id]})
+
+        super()._handle_msg(msg)
+
+        # Some (older) TRVs don't pick up via a 000C
+        if self._gwy.config.enable_eavesdrop and msg.code == _3150:
+            eavesdrop_actuator_zone(msg)
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150

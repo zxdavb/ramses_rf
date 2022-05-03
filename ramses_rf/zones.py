@@ -633,22 +633,15 @@ class Zone(ZoneSchedule, ZoneBase):
         def add_actuator(device: Device) -> None:
             """Set the temp sensor for this zone (one of: 01:, 03:, 04:, 12:, 22:, 34:)."""
 
-            # if self._sensor is device:
-            #     return
-            # if self._sensor is not None:
-            #     raise CorruptStateError(
-            #         f"{self} changed {SZ_SENSOR}: {self._sensor} to {device}"
-            #     )
-
             if not isinstance(device, (TrvActuator, BdrSwitch, UfhController)):
                 raise TypeError(f"{self}: {device} can't be an actuator")
 
             if dev := self.actuator_by_id.get(device.id):
                 return dev
-            self.actuator_by_id[device.id] = device
-            self.actuators.append(device)
 
             device._set_parent(self)  # , domain=self.idx)
+            self.actuator_by_id[device.id] = device
+            self.actuators.append(device)
 
         def set_sensor(device: Device) -> None:
             """Set the sensor for this zone (one of: 01:, 03:, 04:, 12:, 22:, 34:)."""
@@ -664,8 +657,8 @@ class Zone(ZoneSchedule, ZoneBase):
                 # TODO: or not hasattr(device, SZ_TEMPERATURE)
                 raise TypeError(f"{self}: {device} can't be the {SZ_SENSOR}")
 
-            self._sensor = device
             device._set_parent(self, sensor=True)  # , domain=self.idx)
+            self._sensor = device
 
         def set_zone_type(zone_type: str) -> None:
             """Set the zone's type (e.g. '08'), after validating it.
@@ -798,10 +791,12 @@ class Zone(ZoneSchedule, ZoneBase):
                 elif isinstance(this.src, UfhController):
                     self._set_zone_type(ZON_ROLE.UFH)
 
-        assert (msg.src is self.ctl or msg.src.type == DEV_TYPE_MAP.UFC) and (  # DEX
-            isinstance(msg.payload, dict)
-            or [d for d in msg.payload if d.get(SZ_ZONE_IDX) == self.idx]
-        ), f"msg inappropriately routed to {self}"
+            assert (
+                msg.src is self.ctl or msg.src.type == DEV_TYPE_MAP.UFC
+            ) and (  # DEX
+                isinstance(msg.payload, dict)
+                or [d for d in msg.payload if d.get(SZ_ZONE_IDX) == self.idx]
+            ), f"msg inappropriately routed to {self}"
 
         assert (msg.src is self.ctl or msg.src.type == DEV_TYPE_MAP.UFC) and (  # DEX
             isinstance(msg.payload, list)
