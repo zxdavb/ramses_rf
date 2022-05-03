@@ -2,7 +2,6 @@ version = 1
 
 exclude_patterns = [
   "examples/**",
-  "tests/**",
   "utils/**",
 ]
 
