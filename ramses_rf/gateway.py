@@ -113,10 +113,13 @@ class Engine:
         (_LOGGER.warning if DEV_MODE else _LOGGER.debug)("ENGINE: Starting poller...")
 
         if self.serial_port:  # source of packets is a serial port
+            pkt_receiver = (
+                self.msg_transport.get_extra_info(self.msg_transport.READER)
+                if self.msg_transport
+                else None
+            )
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
-                self,
-                self.msg_transport._pkt_receiver if self.msg_transport else None,
-                ser_port=self.serial_port,
+                self, pkt_receiver, ser_port=self.serial_port
             )
             if self.msg_transport:
                 self._tasks.append(
@@ -124,10 +127,13 @@ class Engine:
                 )
 
         else:  # if self._input_file:
+            pkt_receiver = (
+                self.msg_transport.get_extra_info(self.msg_transport.READER)
+                if self.msg_transport
+                else None
+            )
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
-                self,
-                self.msg_transport._pkt_receiver if self.msg_transport else None,
-                packet_log=self._input_file,
+                self, pkt_receiver, packet_log=self._input_file
             )
             set_logger_timesource(self.pkt_protocol._dt_now)
             _LOGGER.warning("Datetimes maintained as most recent packet log timestamp")
@@ -339,11 +345,12 @@ class Gateway(Engine):
         clear_state()
         load_schema(self, **schema)
 
-        _, tmp_transport = create_pkt_stack(
-            self,
-            self.msg_transport._pkt_receiver if self.msg_transport else None,
-            packet_dict=packets,
+        pkt_receiver = (
+            self.msg_transport.get_extra_info(self.msg_transport.READER)
+            if self.msg_transport
+            else None
         )
+        _, tmp_transport = create_pkt_stack(self, pkt_receiver, packet_dict=packets)
         await tmp_transport.get_extra_info(SZ_POLLER_TASK)
 
         # self.msg_transport._clear_write_buffer()  # TODO: shouldn't be needed

@@ -73,7 +73,9 @@ class MessageTransport(asyncio.Transport):
 
     MAX_BUFFER_SIZE = 200
     MAX_SUBSCRIBERS = 3
-    WRITER_TASK = "writer_task"
+
+    READER = "receiver_callback"
+    WRITER = "writer_task"
 
     def __init__(self, gwy, protocol, extra=None):
         super().__init__(extra=extra)
@@ -84,7 +86,9 @@ class MessageTransport(asyncio.Transport):
         self._protocols = []
         self.add_protocol(protocol)
 
-        self._extra = {} if extra is None else extra
+        self._extra = {self.READER: self._pkt_receiver}
+        if extra is not None:
+            self._extra.update(extra)
         self._is_closing = None
 
         self._write_buffer_limit_high = None
@@ -137,9 +141,9 @@ class MessageTransport(asyncio.Transport):
             [p.connection_lost(None) for p in self._protocols]
 
         self._dispatcher = dispatcher
-        self._extra[self.WRITER_TASK] = self._loop.create_task(pkt_dispatcher())
+        self._extra[self.WRITER] = self._loop.create_task(pkt_dispatcher())
 
-        return self._extra[self.WRITER_TASK]
+        return self._extra[self.WRITER]
 
     def _add_callback(self, header, callback):
         callback[EXPIRES] = (
