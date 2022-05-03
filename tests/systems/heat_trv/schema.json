@@ -1,0 +1,77 @@
+{
+    "main_controller": "01:078710",
+    "01:078710": {
+        "system": {
+            "appliance_control": "10:047707"
+        },
+        "orphans": [],
+        "stored_hotwater": {
+            "sensor":         "07:017494",
+            "hotwater_valve": "13:109598",
+            "heating_valve":  null
+        },
+        "underfloor_heating": {},
+        "zones": {
+            "00": {
+                "class": "radiator_valve",
+                "sensor":     "04:133277",
+                "actuators": ["04:133277"]
+            },
+            "01": {
+                "class": "radiator_valve",
+                "sensor":     "22:032844",
+                "actuators": ["04:057586"]
+            },
+            "02": {
+                "class": "zone_valve",
+                "sensor":     "22:060293",
+                "actuators": []
+            },
+            "03": {
+                "class": "radiator_valve",
+                "sensor":     "34:103601",
+                "actuators": ["04:061731"]
+            },
+            "04": {
+                "class": "radiator_valve",
+                "sensor":     "04:061402",
+                "actuators": ["04:061402"]
+            },
+            "05": {
+                "class": "radiator_valve",
+                "sensor":     "34:147397",
+                "actuators": ["04:057587"]
+            },
+            "06": {
+                "class": "radiator_valve",
+                "sensor":     "34:103839",
+                "actuators": ["04:061760"]
+            },
+            "07": {
+                "class": "electric_heat",
+                "sensor": null,
+                "actuators": []
+            },
+            "08": {
+                "class": "radiator_valve",
+                "sensor":     "04:098464",
+                "actuators": ["04:098464"]
+            },
+            "09": {
+                "class": "radiator_valve",
+                "sensor":     "04:098306",
+                "actuators": ["04:098306"]
+            },
+            "0A": {
+                "class": "radiator_valve",
+                "sensor":     "04:098474",
+                "actuators": ["04:098474"]
+            },
+            "0B": {
+                "class": "radiator_valve",
+                "sensor":     "04:098449",
+                "actuators": ["04:098449", "04:098455"]
+            }
+        }
+    }
+}
