@@ -28,7 +28,7 @@ from .protocol import Command, CorruptStateError
 from .protocol.address import NUL_DEV_ADDR, Address
 from .protocol.command import FUNC, TIMEOUT
 from .protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
-from .schema import SCHEMA_DEV, SZ_ALIAS, SZ_CLASS, SZ_FAKED
+from .schema import SCHEMA_DEV, SZ_ALIAS, SZ_CLASS, SZ_FAKED, SZ_KNOWN_LIST
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -263,7 +263,8 @@ class Device(Entity):
             if cls._SLUG != self._SLUG and DEV_TYPE.DEV not in (cls._SLUG, self._SLUG):
                 _LOGGER.warning(
                     f"Promoting the device class of {self} to: {cls._SLUG}"
-                    " - use a known_list to explicitly set this device's class"
+                    f" - use a {SZ_KNOWN_LIST} to explicitly set this device's "
+                    f" {SZ_CLASS} to '{DEV_TYPE_MAP[cls._SLUG]}'"
                 )
                 self.__class__ = cls
 
