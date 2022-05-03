@@ -498,7 +498,7 @@ class Gateway(Engine):
             [
                 d.id
                 for d in self.devices
-                if not getattr(d, "ctl", None) and d._is_present
+                if not getattr(d, "ctl", None) and d._is_present and d is not self.hgi
             ]
         )
 
