@@ -48,7 +48,7 @@ from .protocol.opentherm import (
     OtMsgType,
 )
 from .protocol.ramses import CODES_HEAT_ONLY, CODES_ONLY_FROM_CTL, CODES_SCHEMA
-from .schema import SCHEMA_SYS
+from .schema import SCHEMA_SYS, SZ_CIRCUITS
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -709,14 +709,14 @@ class UfhController(DeviceHeat):  # UFC (02):
     def schema(self) -> dict:
         return {
             **super().schema,
-            "circuits": self.circuits,
+            SZ_CIRCUITS: self.circuits,
         }
 
     @property  # setpoint, config, mode (not schedule)
     def params(self) -> dict:
         return {
             **super().params,
-            "circuits": self.setpoints,
+            SZ_CIRCUITS: self.setpoints,
         }
 
     @property

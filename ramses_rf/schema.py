@@ -66,7 +66,7 @@ SZ_SENSOR_FAKED = "sensor_faked"
 
 SZ_UFH_SYSTEM = "underfloor_heating"
 SZ_UFH_CTL = DEV_TYPE_MAP[DEV_TYPE.UFC]
-SZ_UFH_CIRCUITS = "ufh_circuits"
+SZ_CIRCUITS = "circuits"
 
 SZ_ALIAS = "alias"
 SZ_CLASS = "class"  # device/system/zone class
@@ -179,7 +179,7 @@ UFC_CIRCUIT = vol.Schema(
 SCHEMA_UFH = vol.Schema(
     {
         vol.Required(DEV_REGEX_UFC): vol.Any(
-            None, {vol.Optional(SZ_UFH_CIRCUITS): vol.Any(None, dict)}
+            None, {vol.Optional(SZ_CIRCUITS): vol.Any(None, dict)}
         )
     }
 )
