@@ -1,0 +1,13 @@
+{
+    "main_controller": "01:078710",
+    "01:078710": {
+        "system": {
+            "appliance_control": null
+        },
+        "orphans": [],
+        "stored_hotwater": {},
+        "underfloor_heating": {},
+        "zones": {}
+    },
+    "orphans": ["10:047707"]
+}

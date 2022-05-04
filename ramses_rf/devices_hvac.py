@@ -300,8 +300,8 @@ def class_dev_hvac(
     May return a base clase, DeviceHvac, which will need promotion.
     """
 
-    # if not eavesdrop:
-    #     raise TypeError(f"No HVAC class for: {dev_addr} (no eavesdropping)")
+    if not eavesdrop:
+        raise TypeError(f"No HVAC class for: {dev_addr} (no eavesdropping)")
 
     if msg is None:
         raise TypeError(f"No HVAC class for: {dev_addr} (no msg)")

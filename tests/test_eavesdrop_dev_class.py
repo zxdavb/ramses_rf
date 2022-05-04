@@ -6,6 +6,7 @@
 Test eavesdropping of a device class.
 """
 
+import json
 from pathlib import Path, PurePath
 
 from ramses_rf import Gateway
@@ -13,15 +14,9 @@ from ramses_rf.message import _create_devices_from_addrs
 from ramses_rf.protocol.message import Message
 from ramses_rf.protocol.packet import Packet
 from tests.common import gwy  # noqa: F401
-from tests.common import (
-    TEST_DIR,
-    assert_expected,
-    assert_expected_set,
-    load_expected_results,
-    load_test_system,
-)
+from tests.common import TEST_DIR, assert_expected
 
-WORK_DIR = f"{TEST_DIR}/eavesdrop"
+WORK_DIR = f"{TEST_DIR}/eavesdrop_dev_class"
 
 
 def id_fnc(param):
@@ -46,19 +41,48 @@ def test_packets_from_log_file(gwy, dir_name):  # noqa: F811
 
         assert msg.src._SLUG in eval(dev_slugs)
 
+    gwy.config.enable_eavesdrop = True
+
     with open(f"{dir_name}/packet.log") as f:
         while line := (f.readline()):
             if line.strip():
                 proc_log_line(gwy, line)
 
 
-async def test_dev_class_from_log_file(dir_name):
+async def test_dev_eavesdrop_off(dir_name):
 
-    expected: dict = load_expected_results(dir_name)
-    gwy: Gateway = await load_test_system(dir_name)  # noqa: F811
+    gwy: Gateway = None  # noqa: F811
 
-    gwy.serial_port = "/dev/null"  # HACK: needed to pause engine
-    schema, _ = gwy._get_state(include_expired=True)
+    with open(f"{dir_name}/packet.log") as f:
+        gwy = Gateway(None, input_file=f, config={"enable_eavesdrop": False})
+        await gwy.start()
 
-    assert_expected(gwy.known_list, expected.get("known_list"))
-    assert_expected_set(gwy, expected)
+    try:
+        with open(f"{dir_name}/known_list_eavesdrop_off.json") as f:
+            assert_expected(gwy.known_list, json.load(f).get("known_list"))
+    except FileNotFoundError:
+        pass
+
+    try:
+        with open(f"{dir_name}/schema_eavesdrop_off.json") as f:
+            assert_expected(gwy.schema, json.load(f))
+    except FileNotFoundError:
+        pass
+
+
+async def test_dev_eavesdrop_on(dir_name):
+
+    gwy: Gateway = None  # noqa: F811
+
+    with open(f"{dir_name}/packet.log") as f:
+        gwy = Gateway(None, input_file=f, config={"enable_eavesdrop": True})
+        await gwy.start()
+
+    with open(f"{dir_name}/known_list_eavesdrop_on.json") as f:
+        assert_expected(gwy.known_list, json.load(f).get("known_list"))
+
+    try:
+        with open(f"{dir_name}/schema_eavesdrop_on.json") as f:
+            assert_expected(gwy.schema, json.load(f))
+    except FileNotFoundError:
+        pass

@@ -1,0 +1,13 @@
+{
+     "known_list": {
+        "41:111111": {"class": "hvac_device"},
+        "42:222222": {"class": "hvac_device"},
+        "43:333333": {"class": "hvac_device"},
+        "44:444444": {"class": "hvac_device"},
+        "45:555555": {"class": "hvac_device"},
+        "46:666666": {"class": "hvac_device"},
+        "47:777777": {"class": "hvac_device"},
+        "48:888888": {"class": "hvac_device"},
+        "49:999999": {"class": "hvac_device"}
+    }
+}

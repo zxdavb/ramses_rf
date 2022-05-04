@@ -1,0 +1,74 @@
+{
+    "main_controller": "01:078710",
+    "01:078710": {
+        "system": {
+            "appliance_control": null
+        },
+        "orphans": [],
+        "stored_hotwater": {},
+        "underfloor_heating": {},
+        "zones": {
+            "00": {
+                "class": "radiator_valve",
+                "sensor": "04:133277",
+                "actuators": []
+            },
+            "01": {
+                "class": "radiator_valve",
+                "sensor": "22:032844",
+                "actuators": []
+            },
+            "02": {
+                "class": "zone_valve",
+                "sensor": "22:060293",
+                "actuators": ["13:114333"]
+            },
+            "03": {
+                "class": "radiator_valve",
+                "sensor": "34:103601",
+                "actuators": []
+            },
+            "04": {
+                "class": "radiator_valve",
+                "sensor": "04:061402",
+                "actuators": []
+            },
+            "05": {
+                "class": "radiator_valve",
+                "sensor": "34:147397",
+                "actuators": []
+            },
+            "06": {
+                "class": "radiator_valve",
+                "sensor": "34:103839",
+                "actuators": []
+            },
+            "07": {
+                "class": "electric_heat",
+                "sensor": null,
+                "actuators": []
+            },
+            "08": {
+                "class": "radiator_valve",
+                "sensor": "04:098464",
+                "actuators": []
+            },
+            "09": {
+                "class": "radiator_valve",
+                "sensor": "04:098306",
+                "actuators": []
+            },
+            "0A": {
+                "class": "radiator_valve",
+                "sensor": "04:098474",
+                "actuators": []
+            },
+            "0B": {
+                "class": "radiator_valve",
+                "sensor": "04:098449",
+                "actuators": []
+            }
+        }
+    },
+    "orphans": ["04:057586", "04:057587", "04:061731", "04:061760", "04:098455"]
+}
