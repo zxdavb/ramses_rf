@@ -320,6 +320,9 @@ class Message:
             assert self._pkt._idx == "00", "What!! (BC)"
             return {}
 
+        if self.code == _2309 and self.src.type == DEV_TYPE_MAP.UFC:
+            return {IDX_NAMES[_22C9]: self._pkt._idx}
+
         index_name = IDX_NAMES.get(
             self.code, SZ_DOMAIN_ID if self._pkt._idx[:1] == "F" else SZ_ZONE_IDX
         )
