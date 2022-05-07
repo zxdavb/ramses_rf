@@ -40,6 +40,7 @@ from .devices_heat import (  # noqa: F401, isort: skip, pylint: disable=unused-i
     OtbGateway,
     Temperature,
     TrvActuator,
+    UfhCircuit,
     UfhController,
     class_dev_heat,
 )

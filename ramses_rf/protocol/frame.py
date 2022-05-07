@@ -219,7 +219,14 @@ class PacketBase:
             self._has_array_ = False
 
         elif self.len == CODES_WITH_ARRAYS[self.code][0]:  # NOTE: can be false -ves
-            self._has_array_ = self.code == _22C9  # 22C9 is a reliable exception
+            self._has_array_ = False
+            if (
+                self.code in (_22C9, _3150)  # only time 22C9 is seen
+                and self.src.type == DEV_TYPE_MAP.UFC
+                and self.dst is self.src
+                and self.payload[:1] != "F"
+            ):
+                self._has_array_ = True
 
         else:
             _len = CODES_WITH_ARRAYS[self.code][0]

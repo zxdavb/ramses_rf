@@ -32,6 +32,7 @@ from .protocol.const import (  # noqa: F401
     SZ_SETPOINT,
     SZ_SYSTEM_MODE,
     SZ_TEMPERATURE,
+    SZ_UFH_IDX,
     SZ_UNKNOWN,
     SZ_UNTIL,
     SZ_VALUE,

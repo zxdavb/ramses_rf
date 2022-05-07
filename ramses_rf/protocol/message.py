@@ -17,7 +17,14 @@ from functools import lru_cache
 from typing import Optional
 
 from .address import Address
-from .const import DEV_TYPE_MAP, SZ_ALIAS, SZ_DOMAIN_ID, SZ_ZONE_IDX, __dev_mode__
+from .const import (
+    DEV_TYPE_MAP,
+    SZ_ALIAS,
+    SZ_DOMAIN_ID,
+    SZ_UFH_IDX,
+    SZ_ZONE_IDX,
+    __dev_mode__,
+)
 from .exceptions import InvalidPacketError, InvalidPayloadError
 from .packet import fraction_expired
 from .parsers import PAYLOAD_PARSERS, parser_unknown
@@ -259,7 +266,7 @@ class Message:
             _0002: "other_idx",  # non-evohome: hometronics
             _0418: "log_idx",  # can be 2 DHW zones per system
             _10A0: "dhw_idx",  # can be 2 DHW zones per system
-            _22C9: "ufh_idx",  # UFH circuit
+            _22C9: SZ_UFH_IDX,  # UFH circuit
             _2389: "other_idx",  # anachronistic
             _2D49: "other_idx",  # non-evohome: hometronics
             _31D9: "hvac_id",
@@ -320,7 +327,9 @@ class Message:
             assert self._pkt._idx == "00", "What!! (BC)"
             return {}
 
-        if self.code == _2309 and self.src.type == DEV_TYPE_MAP.UFC:
+        # TODO: also 000C (but is a complex idx)
+        # TODO: also 3150 (when not domain, and will be array if so)
+        if self.code in (_000A, _2309) and self.src.type == DEV_TYPE_MAP.UFC:
             return {IDX_NAMES[_22C9]: self._pkt._idx}
 
         index_name = IDX_NAMES.get(

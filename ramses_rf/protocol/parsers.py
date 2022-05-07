@@ -45,6 +45,7 @@ from .const import (
     SZ_SETPOINT,
     SZ_SYSTEM_MODE,
     SZ_TEMPERATURE,
+    SZ_UFH_IDX,
     SZ_UNKNOWN,
     SZ_UNTIL,
     SZ_VALUE,
@@ -327,8 +328,8 @@ def parser_000c(payload, msg) -> Optional[dict]:
         if msg.src.type == DEV_TYPE_MAP.UFC:  # DEX
             assert int(seqx, 16) < 8, f"invalid ufh_idx: '{seqx}' (0x00)"
             return {
-                "ufh_idx": seqx,
-                "zone_id": None if payload[4:6] == "7F" else payload[4:6],
+                SZ_UFH_IDX: seqx,
+                SZ_ZONE_IDX: None if payload[4:6] == "7F" else payload[4:6],
             }
 
         if payload[2:4] in (DEV_ROLE_MAP.DHW, DEV_ROLE_MAP.HTG):
@@ -559,7 +560,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
 
     if payload[12:14] != "00":  # TODO: Controller
         key_name = (
-            "zone_id"  # NOTE: don't use zone_idx (for now)
+            SZ_ZONE_IDX
             if int(payload[10:12], 16) < msg._gwy.config.max_zones
             else SZ_DOMAIN_ID
         )
@@ -1165,7 +1166,7 @@ def parser_22c9(payload, msg) -> list:
     if msg._has_array:
         return [
             {
-                "ufh_idx": payload[i : i + 2],
+                SZ_UFH_IDX: payload[i : i + 2],
                 **_parser(payload[i : i + 12]),
             }
             for i in range(0, len(payload), 12)

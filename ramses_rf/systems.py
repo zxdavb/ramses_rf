@@ -475,32 +475,6 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
 
 class MultiZone(SystemBase):  # 0005 (+/- 000C?)
-    def reap_htg_zone(self, zone_idx, msg=None, **schema) -> Zone:
-        """Return a heating zone, create it if required.
-
-        First, use the schema to create/update it, then pass it any msg to handle.
-
-        Heating zones are uniquely identified by a controller ID|zone_idx pair.
-        If a zone is created, attach it to this TCS.
-        """
-
-        from .zones import zx_zone_factory
-
-        schema = shrink(SCHEMA_ZON(schema))
-
-        zon = self.zone_by_idx.get(zone_idx)
-        if not zon:
-            zon = zx_zone_factory(self, zone_idx, msg=msg, **schema)
-            self.zone_by_idx[zon.idx] = zon
-            self.zones.append(zon)
-
-        elif schema:
-            zon._update_schema(**schema)
-
-        if msg:
-            zon._handle_msg(msg)
-        return zon
-
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -693,10 +667,9 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
             return
 
         if msg.code == _000C:
-            if (
-                msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.HEAT_DEVICES
-                and msg.payload[SZ_DEVICES]
-            ):
+            if not msg.payload[SZ_DEVICES]:
+                return
+            if msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.HEAT_DEVICES:
                 self.reap_htg_zone(msg.payload[SZ_ZONE_IDX], msg=msg)
             return
 
@@ -707,13 +680,39 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
             # TODO: elif msg.payload.get(SZ_DOMAIN_ID) == "FA":  # DHW
 
         elif isinstance(msg.payload, list) and len(msg.payload):
+            # TODO: elif msg.payload.get(SZ_DOMAIN_ID) == "FA":  # DHW
             if isinstance(msg.payload[0], dict):  # e.g. 1FC9 is a list of lists:
                 [handle_msg_by_zone_idx(z.get(SZ_ZONE_IDX), msg) for z in msg.payload]
-            # TODO: elif msg.payload.get(SZ_DOMAIN_ID) == "FA":  # DHW
 
         # # If some zones still don't have a sensor, maybe eavesdrop?
         # if self._gwy.config.enable_eavesdrop and not all(z.sensor for z in self.zones):
         #     eavesdrop_zone_sensors(msg)
+
+    def reap_htg_zone(self, zone_idx, msg=None, **schema) -> Zone:
+        """Return a heating zone, create it if required.
+
+        First, use the schema to create/update it, then pass it any msg to handle.
+
+        Heating zones are uniquely identified by a controller ID|zone_idx pair.
+        If a zone is created, attach it to this TCS.
+        """
+
+        from .zones import zx_zone_factory
+
+        schema = shrink(SCHEMA_ZON(schema))
+
+        zon = self.zone_by_idx.get(zone_idx)
+        if not zon:
+            zon = zx_zone_factory(self, zone_idx, msg=msg, **schema)
+            self.zone_by_idx[zon.idx] = zon
+            self.zones.append(zon)
+
+        elif schema:
+            zon._update_schema(**schema)
+
+        if msg:
+            zon._handle_msg(msg)
+        return zon
 
     @property
     def schema(self) -> dict:

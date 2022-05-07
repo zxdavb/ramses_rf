@@ -293,12 +293,12 @@ def _check_msg_dst(msg: Message, slug: str = None) -> None:
 
 
 def process_msg(msg: Message, prev_msg: Message = None) -> None:
-    """Process the valid packet by decoding its payload."""
+    """Decoding the packet payload and route it appropriately."""
 
     # All methods require a valid message (payload), except create_devices(), which
     # requires a valid message only for 000C.
 
-    def detect_array(this, prev) -> dict:
+    def detect_array_fragment(this, prev) -> dict:
         """Return complete array if this pkt is the latter half of an array."""
         # This will work, even if the 2nd pkt._is_array == False as 1st == True
         #  I --- 01:158182 --:------ 01:158182 000A 048 001201F409C4011101F409C40...
@@ -328,7 +328,7 @@ def process_msg(msg: Message, prev_msg: Message = None) -> None:
     ):
         _LOGGER.info(msg)
 
-    msg._payload = detect_array(msg, prev_msg)  # HACK: messy, needs rethinking?
+    msg._payload = detect_array_fragment(msg, prev_msg)  # HACK: needs rethinking?
 
     try:  # process the packet payload
 
@@ -360,7 +360,8 @@ def process_msg(msg: Message, prev_msg: Message = None) -> None:
                 if getattr(d, "_is_faked", False)  # and d.xxx = "BDR"
             ]
 
-        # RQ --- 18:006402 13:123456 --:------ 3EF1 001 00
+        # NOTE: msgs are routed only to devices here: routing to other entities (e.g.
+        # (systems, zones, circuits) is done by those devices (e.g. UFC to UfhCircuit)
         elif getattr(msg.dst, "_is_faked", False):
             msg.dst._handle_msg(msg)
 
