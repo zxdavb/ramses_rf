@@ -24,6 +24,7 @@ from .const import (
     SZ_RELAY_DEMAND,
     SZ_SETPOINT,
     SZ_TEMPERATURE,
+    SZ_UFH_IDX,
     SZ_WINDOW_OPEN,
     SZ_ZONE_IDX,
     SZ_ZONE_TYPE,
@@ -32,10 +33,11 @@ from .const import (
     __dev_mode__,
 )
 from .devices_base import BatteryState, DeviceHeat, Fakeable
-from .entity_base import class_by_attr, discover_decorator
+from .entity_base import Entity, class_by_attr, discover_decorator
 from .helpers import shrink
 from .protocol import Address, Command, Message, Priority
 from .protocol.address import NON_DEV_ADDR
+from .protocol.exceptions import InvalidPayloadError
 from .protocol.opentherm import (
     MSG_ID,
     MSG_NAME,
@@ -593,7 +595,7 @@ class UfhController(DeviceHeat):  # UFC (02):
     def _handle_msg(self, msg) -> None:
         def eavesdrop_ufc_circuits(msg):
             # assert msg.code == _22C9
-            circuits = [c["ufh_idx"] for c in msg.payload]
+            circuits = [c[SZ_UFH_IDX] for c in msg.payload]
 
             for ufh_idx in [f"{x:02X}" for x in range(8)]:
                 if ufh_idx not in self._circuits and ufh_idx in circuits:
@@ -626,6 +628,8 @@ class UfhController(DeviceHeat):  # UFC (02):
                 self._relay_demand_fa = msg
 
         elif msg.code == _000C:  # zone_devices
+            if not msg.payload[SZ_DEVICES]:
+                return
             if msg.payload[SZ_ZONE_TYPE] not in (
                 ZON_ROLE_MAP.ACT,
                 ZON_ROLE_MAP.SEN,
@@ -633,12 +637,12 @@ class UfhController(DeviceHeat):  # UFC (02):
             ):
                 return  # ALL, SENsor, UFH
 
-            ufh_idx = msg.payload["ufh_idx"]
+            ufh_idx = msg.payload[SZ_UFH_IDX]
 
-            if not msg.payload["zone_id"]:
+            if not msg.payload[SZ_ZONE_IDX]:
                 self._circuits.pop(ufh_idx, None)
                 return
-            self._circuits[ufh_idx] = {SZ_ZONE_IDX: msg.payload["zone_id"]}
+            self._circuits[ufh_idx] = {SZ_ZONE_IDX: msg.payload[SZ_ZONE_IDX]}
 
             # TODO: REFACTOR
             # if dev_ids := msg.payload[SZ_DEVICES]:
@@ -646,7 +650,7 @@ class UfhController(DeviceHeat):  # UFC (02):
             #     if ctl := self._set_ctl(self._gwy._get_device(dev_ids[0])):
             #         # self._circuits[ufh_idx][SZ_DEVICES] = ctl.id  # better
             #         self._set_parent(
-            #             ctl.tcs.reap_htg_zone(msg.payload["zone_id"]), msg
+            #             ctl.tcs.reap_htg_zone(msg.payload[SZ_ZONE_IDX]), msg
             #         )
 
         elif msg.code == _22C9:  # ufh_setpoints
@@ -701,7 +705,9 @@ class UfhController(DeviceHeat):  # UFC (02):
             return
 
         return {
-            c["ufh_idx"]: {k: v for k, v in c.items() if k in ("temp_low", "temp_high")}
+            c[SZ_UFH_IDX]: {
+                k: v for k, v in c.items() if k in ("temp_low", "temp_high")
+            }
             for c in self._setpoints.payload
         }
 
@@ -1453,6 +1459,70 @@ class JimDevice(Actuator):  # BDR (08):
 
 class JstDevice(RelayDemand):  # BDR (31):
     _SLUG: str = DEV_TYPE.JST
+
+
+class UfhCircuit(Entity):
+    """The UFH circuit class (UFC:circuit is much like CTL/TCS:zone)."""
+
+    _SLUG: str = None  # is not a zone
+
+    def __init__(self, ufc, ufh_idx: str) -> None:
+        super().__init__(ufc._gwy)
+
+        self.id: str = f"{ufc.id}_{ufh_idx}"
+
+        self.ufc: UfhController = ufc
+        self._domain_id = ufh_idx
+
+        self._ctl: Controller = None
+        self._zone = None
+
+    def __str__(self) -> str:
+        return f"{self.id} ({self._zone and self._zone._domain_id})"
+
+    def _handle_msg(self, msg) -> None:
+        super()._handle_msg(msg)
+
+        if msg.code == _0005 and msg.payload[SZ_ZONE_TYPE] in (
+            ZON_ROLE_MAP.ACT,
+            ZON_ROLE_MAP.SEN,
+            ZON_ROLE_MAP.UFH,
+        ):
+            for idx, flag in enumerate(msg.payload["SZ_ZONE_MASK"]):
+                pass  # if flag:
+
+        if msg.code == _000C and msg.payload[SZ_DEVICES]:  # zone_devices
+
+            if not (dev_ids := msg.payload[SZ_DEVICES]):
+                return
+            if len(dev_ids) != 1:
+                raise InvalidPayloadError("No devices")
+
+            # ctl = self._gwy.device_by_id.get(dev_ids[0])
+            ctl = self._gwy.reap_device(Address(dev_ids[0]))
+            if not ctl or (self._ctl and self._ctl is not ctl):
+                raise InvalidPayloadError("No CTL")
+            self._ctl = ctl
+
+            ctl._make_tcs_controller()
+            # self._set_parent(ctl.tcs)
+
+            zon = ctl.tcs.reap_htg_zone(msg.payload[SZ_ZONE_IDX])
+            if not zon or (self._zone and self._zone is not zon):
+                raise InvalidPayloadError("No Zone")
+            self._zone = zon
+
+            if self not in self._zone.actuators:
+                schema = {SZ_ACTUATORS: [self.ufc.id], SZ_CIRCUITS: [self.id]}
+                self._zone._update_schema(**schema)
+
+    @property
+    def ufx_idx(self) -> str:
+        return self._domain_id
+
+    @property
+    def zone_idx(self) -> str:
+        return self._zone_idx
 
 
 HEAT_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. CTL: Controller

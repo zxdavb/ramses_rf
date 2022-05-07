@@ -181,28 +181,6 @@ class ZoneBase(Entity):
 
         self._name = None  # param attr
 
-    def _set_system(self, parent, zone_idx) -> Tuple[Any, Any]:
-        """Set the zone's parent system, after validating it."""
-
-        from .systems import System  # NOTE: here to prevent circular references
-
-        try:
-            if zone_idx != "HW" and int(zone_idx, 16) >= parent.max_zones:
-                raise ValueError(f"{self}: invalid zone_idx {zone_idx} (> max_zones")
-        except (TypeError, ValueError):
-            raise TypeError(f"{self}: invalid zone_idx {zone_idx}")
-
-        if not isinstance(parent, System):
-            raise TypeError(f"{self}: parent must be a System, not {parent}")
-
-        if zone_idx != "HW":  # or: FA?
-            parent.zone_by_idx[zone_idx] = self
-            parent.zones.append(self)
-
-        self.ctl = parent.ctl
-
-        return parent, parent.ctl
-
     @classmethod
     def create_from_schema(cls, tcs, zone_idx: str, **schema):
         """Create a CH/DHW zone for a TCS and set its schema attrs.
@@ -210,6 +188,32 @@ class ZoneBase(Entity):
         The appropriate Zone class should have been determined by a factory.
         Can be a heating zone (of a klass), or the DHW subsystem (idx must be 'HW').
         """
+
+        # TODO: remove - is deprecated
+        def _set_system(self, parent, zone_idx) -> Tuple[Any, Any]:
+            """Set the zone's parent system, after validating it."""
+            raise RuntimeError
+
+            from .systems import System  # NOTE: here to prevent circular references
+
+            try:
+                if zone_idx != "HW" and int(zone_idx, 16) >= parent.max_zones:
+                    raise ValueError(
+                        f"{self}: invalid zone_idx {zone_idx} (> max_zones"
+                    )
+            except (TypeError, ValueError):
+                raise TypeError(f"{self}: invalid zone_idx {zone_idx}")
+
+            if not isinstance(parent, System):
+                raise TypeError(f"{self}: parent must be a System, not {parent}")
+
+            if zone_idx != "HW":  # or: FA?
+                parent.zone_by_idx[zone_idx] = self
+                parent.zones.append(self)
+
+            self.ctl = parent.ctl
+
+            return parent, parent.ctl
 
         zon = cls(tcs, zone_idx)
         zon._update_schema(**schema)
@@ -631,7 +635,7 @@ class Zone(ZoneSchedule, ZoneBase):
         """
 
         def add_actuator(device: Device) -> None:
-            """Set the temp sensor for this zone (one of: 01:, 03:, 04:, 12:, 22:, 34:)."""
+            """Add an actuator to this zone (one of: 02:, 04:, 13:)."""
 
             if not isinstance(device, (TrvActuator, BdrSwitch, UfhController)):
                 raise TypeError(f"{self}: {device} can't be an actuator")
