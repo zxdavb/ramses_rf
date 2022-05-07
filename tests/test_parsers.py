@@ -24,7 +24,7 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize("f_name", Path(WORK_DIR).glob("*.log"), ids=id_fnc)
 
 
-def test_payload_from_log_files(gwy, f_name):  # noqa: F811
+def test_parser_from_log_files(gwy, f_name):  # noqa: F811
     with open(f_name) as f:
         while line := (f.readline()):
             if line.strip():
