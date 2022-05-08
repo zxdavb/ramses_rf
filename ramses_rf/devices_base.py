@@ -661,7 +661,7 @@ class DeviceHeat(
         _LOGGER.debug("%s: controller now set to %s", self, self.ctl)
         return self.ctl
 
-    def _set_parent(self, parent, domain=None, sensor=None):
+    def _set_parent(self, parent, *, domain=None, sensor=None):
         """Set the device's parent zone, after validating it.
 
         There are three possible sources for the parent zone of a device:
