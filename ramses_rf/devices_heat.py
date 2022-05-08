@@ -27,6 +27,7 @@ from .const import (
     SZ_UFH_IDX,
     SZ_WINDOW_OPEN,
     SZ_ZONE_IDX,
+    SZ_ZONE_MASK,
     SZ_ZONE_TYPE,
     ZON_ROLE_MAP,
     Discover,
@@ -297,7 +298,7 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
     RELAY_DEMAND = SZ_RELAY_DEMAND  # percentage (0.0-1.0)
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.STATUS and not self._faked:
@@ -467,7 +468,7 @@ class Controller(DeviceHeat):  # CTL (01):
     def _start_discovery(self) -> None:  # TODO: remove
         pass
 
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:  # TODO: remove
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:  # TODO: remove
         pass
 
     def _handle_msg(self, msg) -> None:
@@ -497,7 +498,7 @@ class Controller(DeviceHeat):  # CTL (01):
     def _make_tcs_controller(self, msg=None, **schema) -> None:  # CH/DHW
         """Attach a TCS (create/update as required) after passing it any msg."""
 
-        def reap_system(msg=None, **schema) -> Any:  # CH/DHW
+        def reap_system(*, msg=None, **schema) -> Any:  # System:
             """Return a TCS (temperature control system), create it if required.
 
             Use the schema to create/update it, then pass it any msg to handle.
@@ -575,7 +576,7 @@ class UfhController(DeviceHeat):  # UFC (02):
         )
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
         # Only RPs are: 0001, 0005/000C, 10E0, 000A/2309 & 22D0
 
@@ -613,7 +614,7 @@ class UfhController(DeviceHeat):  # UFC (02):
             ):
                 return  # ALL, SENsor, UFH
 
-            for idx, flag in enumerate(msg.payload["zone_mask"]):
+            for idx, flag in enumerate(msg.payload[SZ_ZONE_MASK]):
                 ufh_idx = f"{idx:02X}"
                 if not flag:
                     self._circuits.pop(ufh_idx, None)
@@ -832,7 +833,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
         )
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         # see: https://www.opentherm.eu/request-details/?post_ids=2944
 
         super()._discover(discover_flag=discover_flag)
@@ -1327,7 +1328,7 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
     #         self.ctl._set_app_cntrl(self)
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         """Discover BDRs.
 
         The BDRs have one of six roles:
@@ -1482,14 +1483,6 @@ class UfhCircuit(Entity):
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
-
-        if msg.code == _0005 and msg.payload[SZ_ZONE_TYPE] in (
-            ZON_ROLE_MAP.ACT,
-            ZON_ROLE_MAP.SEN,
-            ZON_ROLE_MAP.UFH,
-        ):
-            for idx, flag in enumerate(msg.payload["SZ_ZONE_MASK"]):
-                pass  # if flag:
 
         if msg.code == _000C and msg.payload[SZ_DEVICES]:  # zone_devices
 

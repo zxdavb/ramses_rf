@@ -243,7 +243,7 @@ class Entity(MessageDB):
     def _start_discovery(self) -> None:
         pass
 
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         pass
 
     def _handle_msg(self, msg) -> None:  # TODO: beware, this is a mess

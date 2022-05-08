@@ -269,7 +269,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         )
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         # super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
@@ -487,7 +487,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
         self._prev_30c9 = None  # used to eavesdrop zone sensors
 
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
@@ -688,7 +688,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         # if self._gwy.config.enable_eavesdrop and not all(z.sensor for z in self.zones):
         #     eavesdrop_zone_sensors(msg)
 
-    def reap_htg_zone(self, zone_idx, msg=None, **schema) -> Zone:
+    def reap_htg_zone(self, zone_idx, *, msg=None, **schema) -> Zone:
         """Return a heating zone, create it if required.
 
         First, use the schema to create/update it, then pass it any msg to handle.
@@ -742,7 +742,7 @@ class ScheduleSync(SystemBase):  # 0006
 
         self._active_0006 = None
 
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEDS:  # check the latest schedule delta
@@ -787,7 +787,7 @@ class ScheduleSync(SystemBase):  # 0006
 
 
 class Language(SystemBase):  # 0100
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.PARAMS:
@@ -817,7 +817,7 @@ class Logbook(SystemBase):  # 0418
         self._faultlog = None  # FaultLog(self.ctl)
         self._faultlog_outdated = None  # should be True
 
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.FAULTS:  # check the latest log entry
@@ -908,7 +908,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         super().__init__(*args, **kwargs)
         self._dhw = None
 
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
@@ -936,7 +936,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
             # and "dhw_id" not in msg.payload and msg.payload.get(SZ_DOMAIN_ID) != "FA":
             self.reap_dhw_zone(msg=msg)
 
-    def reap_dhw_zone(self, msg=None, **schema) -> DhwZone:
+    def reap_dhw_zone(self, *, msg=None, **schema) -> DhwZone:
         """Return a DHW zone, create it if required.
 
         First, use the schema to create/update it, then pass it any msg to handle.
@@ -998,7 +998,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
 
 
 class SysMode(SystemBase):  # 2E04
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.STATUS:
@@ -1030,7 +1030,7 @@ class SysMode(SystemBase):  # 2E04
 
 
 class Datetime(SystemBase):  # 313F
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.PARAMS:  # really .STATUS, but to decrease frequency
@@ -1174,7 +1174,7 @@ class Hometronics(System):
     _SLUG: str = SYS_KLASS.SYS
 
     #
-    # def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    # def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
     #     # super()._discover(discover_flag=discover_flag)
 
     #     # will RP to: 0005/configured_zones_alt, but not: configured_zones

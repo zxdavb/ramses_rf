@@ -359,7 +359,7 @@ class Gateway(Engine):
         self.resume()
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Set state.")
 
-    def reap_device(self, dev_addr: Address, msg=None, **schema) -> Device:
+    def reap_device(self, dev_addr: Address, *, msg=None, **schema) -> Device:
         """Return a device, create it if required.
 
         First, use the schema to create/update it, then pass it any msg to handle.

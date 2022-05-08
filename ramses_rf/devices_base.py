@@ -232,7 +232,7 @@ class Device(Entity):
         )
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         # sometimes, battery-powered devices will respond to an RQ (e.g. bind mode)
 
         if discover_flag & Discover.TRAITS:  # not inluded in ALl
@@ -320,7 +320,7 @@ class Device(Entity):
 
 
 class DeviceInfo(Device):  # 10E0
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
 
         if discover_flag & Discover.SCHEMA:
@@ -515,7 +515,7 @@ class HgiGateway(DeviceInfo, Device):  # HGI (18:), was GWY
     #         )  # also for THM, OUT
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         # of no value for a HGI80-compatible device
         return
 

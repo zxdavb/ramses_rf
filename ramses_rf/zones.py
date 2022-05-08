@@ -259,7 +259,7 @@ class ZoneSchedule(ZoneBase):  # 0404  # TODO: add for DHW
 
         self._schedule = None
 
-    # def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    # def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
     #    super()._discover(discover_flag=discover_flag)
 
     #     if discover_flag & Discover.STATUS:  # TODO: add back in
@@ -396,7 +396,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             self._htg_valve = get_dhw_device(dev_id, DEV_ROLE.HT1, BdrSwitch, "F9")
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         def send_code(code, minutes=2) -> None:
             """Don't send an api if there is a recent msg in the database.
 
@@ -628,7 +628,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
         self._schedule = Schedule(self)  # param attr
 
-    def _update_schema(self, **schema):
+    def _update_schema(self, *, append_actuators=True, **schema):
         """Update a heating zone with new schema attrs.
 
         Raise an exception if the new schema is not a superset of the existing schema.
@@ -718,7 +718,7 @@ class Zone(ZoneSchedule, ZoneBase):
             add_actuator(self._gwy.reap_device(Address(dev_id)))
 
     @discover_decorator  # NOTE: can mean is double-decorated
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         def throttle_send(code, minutes=2) -> None:
             """Don't send an api if there is a recent msg in the database.
 
@@ -978,7 +978,7 @@ class EleZone(RelayDemand, Zone):  # BDR91A/T  # TODO: 0008/0009/3150
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super() initially
         super()._discover(discover_flag=discover_flag)
 
@@ -1015,7 +1015,7 @@ class MixZone(Zone):  # HM80  # TODO: 0008/0009/3150
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super() initially
         super()._discover(discover_flag=discover_flag)
 
@@ -1048,7 +1048,7 @@ class RadZone(Zone):  # HR92/HR80
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super() initially
         super()._discover(discover_flag=discover_flag)
 
@@ -1067,7 +1067,7 @@ class UfhZone(Zone):  # HCC80/HCE80  # TODO: needs checking
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super() initially
         super()._discover(discover_flag=discover_flag)
 
@@ -1092,7 +1092,7 @@ class ValZone(EleZone):  # BDR91A/T
     # def __init__(self, *args, **kwargs) -> None:  # can't use this here
 
     @discover_decorator
-    def _discover(self, discover_flag=Discover.DEFAULT) -> None:
+    def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         # NOTE: we create, then promote, so shouldn't (can't) super() initially
         super()._discover(discover_flag=discover_flag)
 
