@@ -1,0 +1,83 @@
+{
+    "main_controller": "01:069616",
+    "01:069616": {
+        "system": {
+            "appliance_control": "13:024041"
+        },
+        "orphans": [],
+        "stored_hotwater": {
+            "sensor": "07:016460",
+            "hotwater_valve": "13:002512",
+            "heating_valve": "13:172643"
+        },
+        "underfloor_heating": {},
+        "zones": {
+            "00": {
+                "_name": "CHP Office",
+                "class": null,
+                "sensor": "04:167740",
+                "_sensor_alt": "04:167740",
+                "_devices": ["04:167740"],
+                "actuators": ["04:167740"]
+            },
+            "01": {
+                "_name": "Lounge",
+                "class": null,
+                "sensor": "04:138068",
+                "_sensor_alt": "04:138068",
+                "_devices": ["04:138068", "04:138066"],
+                "actuators": ["04:138068", "04:138066"]
+            },
+            "02": {
+                "_name": "Hallway",
+                "class": null,
+                "sensor": null,
+                "_sensor_alt": null,
+                "_devices": ["04:197688"],
+                "actuators": ["04:197688"]
+            },
+            "03": {
+                "_name": "Master bed",
+                "class": null,
+                "sensor": "04:138054",
+                "_sensor_alt": "04:138054",
+                "_devices": ["04:138054"],
+                "actuators": ["04:138054"]
+            },
+            "04": {
+                "_name": "Guest bed",
+                "class": null,
+                "sensor": "04:138060",
+                "_sensor_alt": "04:138060",
+                "_devices": ["04:138060"],
+                "actuators": ["04:138060"]
+            },
+            "05": {
+                "_name": "BT Office",
+                "class": null,
+                "sensor": "04:167734",
+                "_sensor_alt": "04:167734",
+                "_devices": ["04:167734"],
+                "actuators": ["04:167734"]
+            },
+            "06": {
+                "_name": "Dining room",
+                "class": null,
+                "sensor": "04:197696",
+                "_sensor_alt": "04:197696",
+                "_devices": ["04:197696"],
+                "actuators": ["04:197696"]
+            },
+            "07": {
+                "_name": "Cloaks",
+                "class": null,
+                "sensor": "04:067179",
+                "_sensor_alt": "04:067179",
+                "_devices": ["04:067179"],
+                "actuators": []
+            }
+        }
+    },
+    "orphans": [],
+    "device_hints": {}
+}
