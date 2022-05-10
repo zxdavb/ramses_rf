@@ -41,6 +41,7 @@ __DEVICE_INFO_DB: Dict[str, Tuple[str, str, str, str]] = {
     "0001C8260A0367FFFF": ("FAN", "29", "0000-00-00", "VMC-15RP01"),
     "0001C8260D0467FFFF": ("FAN", "29", "0000-00-00", "VMC-15RP01"),  # .                   31D9
     "0001C83A0F0866FFFF": ("FAN", "32", "0000-00-00", "VMD-17RPS01"),  # .                  31D9, 31DA
+    "0001C87D140D67FEFF": ("FAN", "32", "2019-12-23", "VMD-15RMS64"),  # .                  31D9, 31DA (and I|042F)
     "0001C8950B0A67FEFF": ("FAN", "32", "2021-01-21", "VMD-15RMS86"),  # .                  31D9, 31DA, 12A0, 313F (and I|042F, I|3120)
     "0001C90011006CFEFF": ("FAN", "30", "2016-09-09", "BRDG-02JAS01"),  # .      NOTE: 30:  31D9, 31DA, 1F09 (a PIV)
     # CO2 - some have PIR
@@ -99,8 +100,9 @@ def check_signature(dev_type: str, signature: str) -> None:
 # CVE-RF       - FAN -
 # HRA82        -
 # VMC-15RP01   - Orcon unit (senseair.com)
-# VMD-17RPS01  -
+# VMD-15RMS64  - FAN - Orcon HRC-350 (Ventiline)
 # VMD-15RMS86  -
+# VMD-17RPS01  -
 # VMN-15LF01   -
 # VMN-23LMH23  - SWI - 4 button RF Switch
 # VMS-02MC05   - CO2 -
@@ -110,7 +112,6 @@ def check_signature(dev_type: str, signature: str) -> None:
 # VMS-17HB01   -
 # VMS-23C33    - CO2 - CO2 Sensor
 # VMS-23HB33   - HUM - RH/Temp Sensor
-
 # MVS-15RHB    - FAN - Orcon Smartline FAN (incl. Moisture sensor and transmitter)
 
 # CVD ???

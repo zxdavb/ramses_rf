@@ -1583,6 +1583,15 @@ def parser_31d9(payload, msg) -> Optional[dict]:
 
     try:
         assert payload[6:8] in ("00", "FE"), f"byte 3: {payload[6:8]}"
+    except AssertionError as exc:
+        _LOGGER.warning(f"{msg!r} < {_INFORM_DEV_MSG} ({exc})")
+
+    result.update({f"_{SZ_UNKNOWN}_3": payload[6:8]})
+
+    if msg.len == 4:  # usu: I -->20: (no seq#)
+        return result
+
+    try:
         assert payload[8:32] in ("00" * 12, "20" * 12), f"byte 4: {payload[8:32]}"
         assert payload[32:] in ("00", "08"), f"byte 16: {payload[32:]}"
     except AssertionError as exc:
@@ -1590,7 +1599,6 @@ def parser_31d9(payload, msg) -> Optional[dict]:
 
     return {
         **result,
-        f"_{SZ_UNKNOWN}_3": payload[6:8],
         # f"_{SZ_UNKNOWN}_4": payload[8:32],
         f"{SZ_UNKNOWN}_16": payload[32:],
     }
