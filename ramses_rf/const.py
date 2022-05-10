@@ -12,6 +12,7 @@ from .protocol.const import (  # noqa: F401
     DOMAIN_TYPE_MAP,
     FAN_MODE,
     SYS_MODE_MAP,
+    SZ_ACTUATORS,
     SZ_ALIAS,
     SZ_CLASS,
     SZ_DATETIME,
