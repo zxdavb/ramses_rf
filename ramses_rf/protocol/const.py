@@ -194,6 +194,7 @@ DEV_ROLE_MAP = attr_dict_factory(
     {
         "HEAT_DEVICES": ("00", "04", "08", "09", "0A", "0B", "11"),
         "DHW_DEVICES": ("0D", "0E"),
+        "SENSORS": ("04", "0C", "0D"),
     },
 )
 
