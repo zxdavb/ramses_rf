@@ -13,49 +13,41 @@
         "underfloor_heating": {},
         "zones": {
             "00": {
-                "_name": null,
                 "class": "radiator_valve",
                 "sensor": "04:167740",
                 "actuators": ["04:167740"]
             },
             "01": {
-                "_name": null,
                 "class": "radiator_valve",
                 "sensor": "04:138068",
                 "actuators": ["04:138068", "04:138066"]
             },
             "02": {
-                "_name": null,
                 "class": "radiator_valve",
                 "sensor": null,
                 "actuators": ["04:197688"]
             },
             "03": {
-                "_name": null,
                 "class": "radiator_valve",
                 "sensor": "04:138054",
                 "actuators": ["04:138054"]
             },
             "04": {
-                "_name": null,
                 "class": "radiator_valve",
                 "sensor": "04:138060",
                 "actuators": ["04:138060"]
             },
             "05": {
-                "_name": null,
                 "class": "radiator_valve",
                 "sensor": "04:167734",
                 "actuators": ["04:167734"]
             },
             "06": {
-                "_name": null,
                 "class": "radiator_valve",
                 "sensor": "04:197696",
                 "actuators": ["04:197696"]
             },
             "07": {
-                "_name": null,
                 "class": null,
                 "sensor": "04:067179",
                 "actuators": []

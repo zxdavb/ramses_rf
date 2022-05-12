@@ -9,5 +9,5 @@
         "underfloor_heating": {},
         "zones": {}
     },
-    "orphans": ["10:047707"]
+    "orphans_heat": ["10:047707"]
 }
