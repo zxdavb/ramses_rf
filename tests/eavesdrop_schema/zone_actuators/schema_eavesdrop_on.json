@@ -1,0 +1,23 @@
+{
+    "main_controller": "01:123456",
+    "01:123456": {
+        "system": {"appliance_control": null},
+        "orphans": [],
+        "stored_hotwater": {},
+        "underfloor_heating": {},
+        "zones": {
+            "00": {"actuators": ["04:666666", "04:616161"]},
+
+            "01": {"actuators": ["04:111111"]},
+            "02": {"actuators": ["04:222222"]},
+            "03": {"actuators": ["04:333333"]},
+            "04": {"actuators": ["04:444444"]},
+
+            "07": {"actuators": ["04:777777", "04:717171"]},
+            "08": {"actuators": ["04:888888", "04:818181"]},
+            "09": {"actuators": ["04:999999", "04:919191"]}
+        }
+    },
+    "orphans_heat": [],
+    "orphans_hvac": []
+}

@@ -51,7 +51,7 @@ async def test_eavesdrop_off(dir_name):
         pass
 
 
-async def test_eavesdrop_on(dir_name):
+async def test_eavesdrop_onn(dir_name):
 
     with open(f"{dir_name}/packet.log") as f:
         gwy = Gateway(None, input_file=f, config={"enable_eavesdrop": True})
