@@ -150,7 +150,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-def validate_api_params(has_zone=None):
+def validate_api_params(*, has_zone=None):
     """Decorator to protect the engine from any invalid command constructors.
 
     Additionally, validate/normalise some command arguments (e.g. 'HW' becomes 0xFA).
@@ -307,6 +307,7 @@ class Qos(PacketBase):
 
     def __init__(
         self,
+        *,
         backoff=True,
         priority=Priority.DEFAULT,
         retries=0,
@@ -337,7 +338,7 @@ class Command(PacketBase):
     """The command class."""
 
     def __init__(
-        self, verb: str, code: str, payload: str, dest_id: str, qos=None, **kwargs
+        self, verb: str, code: str, payload: str, dest_id: str, *, qos=None, **kwargs
     ) -> None:
         """Create a command.
 
@@ -445,6 +446,7 @@ class Command(PacketBase):
     def set_dhw_mode(
         cls,
         ctl_id: str,
+        *,
         mode=None,
         active: bool = None,
         until=None,
@@ -486,6 +488,7 @@ class Command(PacketBase):
     def set_dhw_params(
         cls,
         ctl_id: str,
+        *,
         setpoint: float = 50.0,
         overrun: int = 5,
         differential: int = 1,
@@ -535,6 +538,7 @@ class Command(PacketBase):
         cls,
         ctl_id: str,
         zone_idx: Union[int, str],
+        *,
         max_flow_setpoint=55,
         min_flow_setpoint=15,
         valve_run_time=150,
@@ -627,7 +631,7 @@ class Command(PacketBase):
 
     @classmethod  # constructor for W/2E04
     @validate_api_params()
-    def set_system_mode(cls, ctl_id: str, system_mode, until=None, **kwargs):
+    def set_system_mode(cls, ctl_id: str, system_mode, *, until=None, **kwargs):
         """Constructor to set/reset the mode of a system (c.f. parser_2e04)."""
 
         if system_mode is None:
@@ -674,7 +678,7 @@ class Command(PacketBase):
 
     @classmethod  # constructor for RQ/1100
     @validate_api_params()
-    def get_tpi_params(cls, dev_id: str, domain_id=None, **kwargs):
+    def get_tpi_params(cls, dev_id: str, *, domain_id=None, **kwargs):
         """Constructor to get the TPI params of a system (c.f. parser_1100)."""
 
         if domain_id is None:
@@ -687,6 +691,7 @@ class Command(PacketBase):
         cls,
         ctl_id: str,
         domain_id: Union[str, None],
+        *,
         cycle_rate: int = 3,  # TODO: check
         min_on_time: int = 5,  # TODO: check
         min_off_time: int = 5,  # TODO: check
@@ -730,8 +735,9 @@ class Command(PacketBase):
         cls,
         ctl_id: str,
         zone_idx: Union[int, str],
-        min_temp=5,
-        max_temp=35,
+        *,
+        min_temp: float = 5,
+        max_temp: float = 35,
         local_override: bool = False,
         openwindow_function: bool = False,
         multiroom_mode: bool = False,
@@ -778,6 +784,7 @@ class Command(PacketBase):
         cls,
         ctl_id: str,
         zone_idx: Union[int, str],
+        *,
         mode: str = None,
         setpoint: float = None,
         until: dt = None,
@@ -866,6 +873,7 @@ class Command(PacketBase):
         dst_id: str,
         modulation_level: float,
         actuator_countdown: int,
+        *,
         cycle_countdown: int = None,
         **kwargs,
     ):
@@ -911,7 +919,7 @@ class Command(PacketBase):
         return cls.packet(I_, _3EF0, payload, addr0=dev_id, addr2=dev_id, **kwargs)
 
     @classmethod  # constructor for 1F09 (rf_bind) 3-way handshake
-    def put_bind(cls, verb, codes, src_id, idx="00", dst_id=None, **kwargs):
+    def put_bind(cls, verb, codes, src_id, *, idx="00", dst_id=None, **kwargs):
         """Constructor for RF bind commands (1FC9), for use by faked devices."""
 
         #  I --- 34:021943 --:------ 34:021943 1FC9 024 00-2309-8855B7 00-1FC9-8855B7
@@ -1044,6 +1052,7 @@ class Command(PacketBase):
         verb,
         code,
         payload,
+        *,
         addr0=None,
         addr1=None,
         addr2=None,
