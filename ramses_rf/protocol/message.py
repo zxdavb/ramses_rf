@@ -254,7 +254,7 @@ class Message:
 
     @property
     def _idx(self) -> Optional[dict]:
-        """Return the zone_idx/domain_id of a message payload, if any.
+        """Return the domain_id/zone_idx/other_idx of a message payload, if any.
 
         Used to identify the zone/domain that a message applies to. Returns an empty
         dict if there is none such, or None if undetermined.

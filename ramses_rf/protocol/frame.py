@@ -390,7 +390,7 @@ class PacketBase:
 
     @property
     def _idx(self) -> Union[str, bool]:
-        """Return the payload's index, if any (e.g. zone_idx, domain_id, or log_idx).
+        """Return the payload's index, if any (e.g. zone_idx, domain_id  or log_idx).
 
         Used to route a packet to the correct entity's (i.e. zone/domain) msg handler.
         """
@@ -401,7 +401,7 @@ class PacketBase:
 
 
 def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
-    """Return the payload's 2-byte context (e.g. zone_idx, log_idx, domain_id).
+    """Return the payload's 2-byte context (e.g. zone_idx, domain_id or log_idx).
 
     May return a 2-byte string (usu. pkt.payload[:2]), or:
     - False if there is no context at all
