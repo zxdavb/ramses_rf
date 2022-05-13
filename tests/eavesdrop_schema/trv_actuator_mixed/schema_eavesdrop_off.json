@@ -1,0 +1,21 @@
+{
+    "main_controller": "01:078710",
+    "01:078710": {
+        "system": {
+            "appliance_control": null
+        },
+        "orphans": [],
+        "stored_hotwater": {},
+        "underfloor_heating": {},
+        "zones": {
+            "04": {
+                "_name": null,
+                "class": null,
+                "sensor": "04:061402",
+                "actuators": []
+            }
+        }
+    },
+    "orphans_heat": ["04:066666"],
+    "orphans_hvac": []
+}
