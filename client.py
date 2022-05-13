@@ -155,12 +155,7 @@ class DeviceIdParamType(click.ParamType):
 @click.option("-r", "--reduce-processing", count=True, help="-rrr will give packets")
 @click.option("-ld", "--long-dates", is_flag=True, default=None)
 @click.option("-e/-ne", "--eavesdrop/--no-eavesdrop", default=None)
-@click.option(  # print_state
-    "-g/-ng",
-    "--print-state/--no-print-state",
-    default=PRINT_STATE,
-    help="display engine state (schema, packets)",
-)
+@click.option("-g", "--print-state", count=True, help="print state (g=schema, gg=all)")
 # @click.option(  # get_state
 #     "--get-state/--no-get-state", default=GET_STATE, help="get the engine state",
 # )
@@ -440,8 +435,10 @@ def _save_state(gwy):
 def _print_engine_state(gwy, **kwargs):
     (schema, packets) = gwy._get_state(include_expired=True)
 
-    print(f"schema: {json.dumps(schema, indent=4)}\r\n")
-    print(f"packets: {json.dumps(packets, indent=4)}\r\n")
+    if kwargs["print_state"] > 0:
+        print(f"schema: {json.dumps(schema, indent=4)}\r\n")
+    if kwargs["print_state"] > 1:
+        print(f"packets: {json.dumps(packets, indent=4)}\r\n")
     # [print(f"{dtm} {pkt}") for dtm, pkt in packets.items()]
 
 
