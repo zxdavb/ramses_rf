@@ -23,6 +23,9 @@ from .const import (
     DEV_TYPE_MAP,
     DEVICE_ID_REGEX,
     DONT_CREATE_MESSAGES,
+    SZ_ALIAS,
+    SZ_CLASS,
+    SZ_FAKED,
     SZ_ZONE_IDX,
     ZON_ROLE_MAP,
     SystemType,
@@ -68,10 +71,6 @@ SZ_SENSOR_FAKED = "sensor_faked"
 SZ_UFH_SYSTEM = "underfloor_heating"
 SZ_UFH_CTL = DEV_TYPE_MAP[DEV_TYPE.UFC]
 SZ_CIRCUITS = "circuits"
-
-SZ_ALIAS = "alias"
-SZ_CLASS = "class"  # device/system/zone class
-SZ_FAKED = "faked"
 
 DEV_REGEX_ANY = vol.Match(DEVICE_ID_REGEX.ANY)
 DEV_REGEX_SEN = vol.Match(DEVICE_ID_REGEX.SEN)
@@ -336,31 +335,29 @@ def update_config(config, known_list, block_list) -> dict:
         )
 
 
-def _get_device(
-    gwy, dev_id, ctl_id=None, disable_warning=None, **kwargs
-):  # -> Optional[Device]:
-    """Get (optionally create) a device only if not filtered out."""
+def _get_device(gwy, dev_id, **kwargs) -> Any:  # Device
+    """Raise an LookupError if a device_id is filtered out by a list.
 
-    if "dev_addr" in kwargs or "ctl_addr" in kwargs:
-        raise RuntimeError
+    The underlying method is wrapped only to provide a better error message.
+    """
 
-    if gwy.config.enforce_known_list and dev_id not in gwy._include:
-        err_msg = f"{dev_id} is in the {SCHEMA}, but not in the {SZ_KNOWN_LIST}"
-    elif dev_id in gwy._exclude:
-        err_msg = f"{dev_id} is in the {SCHEMA}, but also in the {SZ_BLOCK_LIST}"
-    else:
+    def check_filter_lists(dev_id: str) -> None:
+        """Raise an LookupError if a device_id is filtered out by a list."""
+
         err_msg = None
+        if gwy.config.enforce_known_list and dev_id not in gwy._include:
+            err_msg = f"it is in the {SCHEMA}, but not in the {SZ_KNOWN_LIST}"
+        if dev_id in gwy._exclude:
+            err_msg = f"it is in the {SCHEMA}, but also in the {SZ_BLOCK_LIST}"
 
-    if err_msg:
-        (_LOGGER.info if disable_warning else _LOGGER.error)(
-            f"{err_msg}: check the lists and the {SCHEMA} (device not created)"
-        )
-        return
+        if err_msg:
+            raise LookupError(
+                f"Can't create {dev_id}: {err_msg} (check the lists and the {SCHEMA})"
+            )
 
-    return gwy._get_device(dev_id, ctl_id=ctl_id, **kwargs)
-    # **gwy._include keys may have: alias, faked, faked_thm, faked_bdr, faked_ext
-    # **kwargs keys may have: profile(systems, e.g. evohome), class(devices, e.g. BDR)
-    # return gwy._get_device(dev_id, ctl_id=ctl_id, **gwy._include.get(dev_id), **kwargs)
+    check_filter_lists(dev_id)
+
+    return gwy.get_device(dev_id, **kwargs)
 
 
 def load_schema(gwy, **kwargs) -> dict:
@@ -385,19 +382,14 @@ def load_system(gwy, ctl_id, schema) -> Any:  # System
     # print(schema)
     # schema = SCHEMA_ZON(schema)
 
-    if (ctl := _get_device(gwy, ctl_id)) is None:
-        raise TypeError(f"TCS not instiated: {ctl_id}")
-
-    # if ctl.tcs is None:
-    #     raise TypeError(f"TCS doesn't exists: {ctl}")
-
-    ctl._make_tcs_controller(**schema)
+    ctl = _get_device(gwy, ctl_id)
+    ctl.tcs._update_schema(**schema)  # TODO
 
     for dev_id in schema.get(SZ_UFH_SYSTEM, {}).keys():  # UFH controllers
-        _get_device(gwy, dev_id, ctl_id=ctl.id)  # , **_schema)
+        _get_device(gwy, dev_id, parent=ctl)  # , **_schema)
 
     for dev_id in schema.get(SZ_ORPHANS, []):
-        _get_device(gwy, dev_id, ctl_id=ctl.id, disable_warning=True)
+        _get_device(gwy, dev_id, parent=ctl)
 
     if False and DEV_MODE:
         import json

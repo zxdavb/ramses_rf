@@ -10,7 +10,7 @@ import logging
 import sqlite3
 from inspect import getmembers, isclass
 from sys import modules
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .const import (
     SZ_ACTUATORS,
@@ -447,10 +447,14 @@ class Parent:  # A System, Zone, DhwZone or a UfhController
         """Set the domain id, after validating it."""
         self._child_id = value
 
-    def _set_child(self, child: Any, *, child_id: str = None, is_sensor: bool = None):
-        """Set the device's child, after validating it.
+    def _set_child(
+        self, child: Any, *, child_id: str = None, is_sensor: bool = None
+    ) -> None:
+        """Add/Set the parent's child device, after validating the association.
 
-        This method is almost always invoked by the child's `set_parent` method.
+        Also sets various other parent-specific object references (e.g. parent._sensor).
+
+        This method should be invoked by the child's corresponding `set_parent` method.
         """
 
         # NOTE: here to prevent circular references
@@ -538,7 +542,7 @@ class Parent:  # A System, Zone, DhwZone or a UfhController
 
         elif child_id == "FF":  # System
             assert isinstance(self, System)  # TODO: remove me?
-            assert isinstance(self, (UfhController, OutSensor))
+            assert isinstance(child, (UfhController, OutSensor))
             pass
 
         else:
@@ -552,7 +556,7 @@ class Parent:  # A System, Zone, DhwZone or a UfhController
 
         if True or DEV_MODE:
             _LOGGER.warning(
-                "Parent: %s_%s, %s: %s [parent.set_child()]",
+                "parent.set_child(), Parent: %s_%s, %s: %s",
                 self.id,
                 child_id,
                 "Sensor" if is_sensor else "Device",
@@ -588,8 +592,12 @@ class Child:  # A Zone, Device or a UfhCircuit
         super()._handle_msg(msg)
 
         if not self._gwy.config.enable_eavesdrop or (
-            msg.src is msg.dst or not isinstance(msg.dst, (Controller, UfhController))
+            msg.src is msg.dst
+            or not isinstance(msg.dst, (Controller,))  # UfhController))
         ):
+            return
+
+        if isinstance(msg.src, UfhController):
             return
 
         # Eavesdrop Parent zone of a TRV (30C9 doesn't work)
@@ -600,24 +608,10 @@ class Child:  # A Zone, Device or a UfhCircuit
         if msg.code in (_1060, _12B0, _2309, _3150):
             self._set_parent(msg.dst, child_id=zone_idx)
 
-    def _set_parent(
+    def _get_parent(
         self, parent: Parent, *, child_id: str = None, is_sensor: bool = None
-    ):
-        """Set the device's parent, after validating it.
-
-        This method will then invoke the parent's `_set_child` method.
-
-        There are three possible sources for the parent zone of a device:
-        1. a 000C packet (from their controller) for actuators only
-        2. a message.payload[SZ_ZONE_IDX]
-        3. the sensor-matching algorithm for zone sensors only
-
-        Devices don't have parents, rather: domains have children; a mis-configured
-        system could easily leave a device as a child of multiple domains.
-
-        It is assumed that a device is only bound to one controller, either a (Evohome)
-        controller, or an UFH controller.
-        """
+    ) -> Tuple[Parent, str]:
+        """Get the device's parent, after validating it."""
 
         # NOTE: here to prevent circular references
         from .devices import (
@@ -635,14 +629,14 @@ class Child:  # A Zone, Device or a UfhCircuit
         from .zones import DhwZone, Zone
 
         if isinstance(self, UfhController):
-            child_id = "UF"
+            child_id = "FF"
 
         if isinstance(parent, Controller):  # A controller cant be a Parent
             parent: System = parent.tcs
 
         if isinstance(parent, System) and child_id:
             if child_id in ("F9", "FA", "HW"):
-                parent: DhwZone = parent.reap_dhw_zone(child_id)
+                parent: DhwZone = parent.reap_dhw_zone()
             # elif child_id == "FC":
             #     pass
             elif int(child_id, 16) < self._gwy.config.max_zones:
@@ -728,7 +722,7 @@ class Child:  # A Zone, Device or a UfhCircuit
                 )
 
         elif isinstance(parent, System):  # usu. FC
-            if child_id != "FC":  # was: not in ("F9", "FA", "FC", "HW"):
+            if child_id not in ("FC", "FF"):  # was: not in ("F9", "FA", "FC", "HW"):
                 raise TypeError(
                     f"{self}: cant set child_id to: {child_id} "
                     f"(for TCS, it must be FC)"
@@ -740,29 +734,52 @@ class Child:  # A Zone, Device or a UfhCircuit
                 f"(it must be System, DHW, Zone, or UfhController)"
             )
 
+        return parent, child_id
+
+    def _set_parent(
+        self, parent: Parent, *, child_id: str = None, is_sensor: bool = None
+    ) -> Parent:
+        """Set the device's parent, after validating it.
+
+        This method will then invoke the parent's corresponding `set_child` method.
+
+        Devices don't have parents, rather: parents have children; a mis-configured
+        system could easily leave a device as a child of multiple parents (or bound
+        to multiple controllers).
+
+        It is assumed that a device is only bound to one controller, either a (Evohome)
+        controller, or an UFH controller.
+        """
+
+        from .devices import UfhController  # NOTE: here to prevent circular references
+
+        parent, child_id = self._get_parent(
+            parent, child_id=child_id, is_sensor=is_sensor
+        )
+
         ctl = parent if isinstance(parent, UfhController) else parent.ctl
 
         if self.ctl and self.ctl is not ctl:
-            # NOTE: assume a device is bound to only one controller (best practice)
+            # NOTE: assume a device is bound to only one CTL (usu. best practice)
             raise CorruptStateError(
                 f"{self} cant change controller: {self.ctl} to {ctl} "
                 "(or perhaps the device has multiple controllers?"
             )
 
         parent._set_child(self, child_id=child_id, is_sensor=is_sensor)
+
         self._child_id = child_id
         self._parent = parent
-        if ctl:
-            self.ctl = ctl
-            self.tcs = ctl.tcs
+        self.ctl = ctl
+        self.tcs = ctl.tcs
 
         if True or DEV_MODE:
             _LOGGER.warning(
-                "Parent: %s_%s, %s: %s [child.set_parent()]",
+                "child._set_parent(), Parent: %s_%s, %s: %s",
                 parent.id,
                 child_id,
                 "Sensor" if is_sensor else "Device",
                 self,
             )
 
-        return self._parent
+        return parent

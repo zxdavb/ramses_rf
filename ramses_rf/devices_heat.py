@@ -473,9 +473,9 @@ class Controller(DeviceHeat):  # CTL (01):
         if msg.code == _000C and msg.payload[SZ_DEVICES]:
             child_id = msg.payload.get(SZ_DOMAIN_ID) or msg.payload.get(SZ_ZONE_IDX)
             is_sensor = msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.SENSORS
-            for d in msg.payload[SZ_DEVICES]:
-                self._gwy._get_device(
-                    d, ctl_id=self.id, child_id=child_id, is_sensor=is_sensor
+            for dev_id in msg.payload[SZ_DEVICES]:
+                self._gwy.get_device(
+                    dev_id, parent=self, child_id=child_id, is_sensor=is_sensor
                 )
 
         # Route any messages to their heating systems
@@ -625,7 +625,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
             # TODO: REFACTOR
             # if dev_ids := msg.payload[SZ_DEVICES]:
             #     # self._circuits[ufh_idx][SZ_DEVICES] = dev_ids[0]  # or:
-            #     if ctl := self._set_ctl(self._gwy._get_device(dev_ids[0])):
+            #     if ctl := self._set_ctl(self._gwy.get_device(dev_ids[0])):
             #         # self._circuits[ufh_idx][SZ_DEVICES] = ctl.id  # better
             #         self._set_parent(
             #             ctl.tcs.reap_htg_zone(msg.payload[SZ_ZONE_IDX]), msg
@@ -1483,7 +1483,7 @@ class UfhCircuit(Entity):
                 raise InvalidPayloadError("No devices")
 
             # ctl = self._gwy.device_by_id.get(dev_ids[0])
-            ctl = self._gwy.reap_device(dev_ids[0])
+            ctl = self._gwy.get_device(dev_ids[0])
             if not ctl or (self._ctl and self._ctl is not ctl):
                 raise InvalidPayloadError("No CTL")
             self._ctl = ctl

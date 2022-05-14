@@ -201,16 +201,16 @@ async def periodic(gwy, cmd, count=1, interval=None):
 
 
 async def get_faults(gwy, ctl_id: str, start=0, limit=0x3F):
-    device = gwy._get_device(ctl_id, ctl_id=ctl_id)
+    ctl = gwy.get_device(ctl_id)
 
     try:
-        await device.tcs.get_faultlog(start=start, limit=limit)  # 0418
+        await ctl.tcs.get_faultlog(start=start, limit=limit)  # 0418
     except ExpiredCallbackError as exc:
         _LOGGER.error("get_faults(): Function timed out: %s", exc)
 
 
 async def get_schedule(gwy, ctl_id: str, zone_idx: str) -> None:
-    zone = gwy._get_device(ctl_id, ctl_id=ctl_id).tcs.reap_htg_zone(zone_idx)
+    zone = gwy.get_device(ctl_id).tcs.reap_htg_zone(zone_idx)
 
     try:
         await zone.get_schedule()
@@ -222,7 +222,7 @@ async def set_schedule(gwy, ctl_id, schedule) -> None:
     schedule = json.load(schedule)
     zone_idx = schedule[SZ_ZONE_IDX]
 
-    zone = gwy._get_device(ctl_id, ctl_id=ctl_id).tcs.reap_htg_zone(zone_idx)
+    zone = gwy.get_device(ctl_id).tcs.reap_htg_zone(zone_idx)
 
     try:
         await zone.set_schedule(schedule["schedule"])  # 0404
@@ -231,11 +231,11 @@ async def set_schedule(gwy, ctl_id, schedule) -> None:
 
 
 async def script_bind_req(gwy, dev_id: str):
-    gwy._get_device(dev_id)._make_fake(bind=True)
+    gwy.get_device(dev_id)._make_fake(bind=True)
 
 
 async def script_bind_wait(gwy, dev_id: str, code=_2309, idx="00"):
-    gwy._get_device(dev_id)._make_fake(bind=True, code=code, idx=idx)
+    gwy.get_device(dev_id)._make_fake(bind=True, code=code, idx=idx)
 
 
 def script_poll_device(gwy, dev_id) -> list:
@@ -255,7 +255,7 @@ def script_poll_device(gwy, dev_id) -> list:
 async def script_scan_disc(gwy, dev_id: str):
     _LOGGER.warning("scan_quick() invoked...")
 
-    gwy._get_device(dev_id)._discover()  # discover_flag=Discover.DEFAULT)
+    gwy.get_device(dev_id)._discover()  # discover_flag=Discover.DEFAULT)
 
 
 @script_decorator

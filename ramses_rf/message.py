@@ -136,7 +136,7 @@ if DEV_MODE:
 def _create_devices_from_addrs(gwy, this: Message) -> None:
     """Discover and create any new devices using the packet addresses (not payload)."""
 
-    # prefer Devices but can still use Addresses if required...
+    # prefer Devices but can continue with Addresses if required...
     this.src = gwy.device_by_id.get(this.src.id, this.src)
     this.dst = gwy.device_by_id.get(this.dst.id, this.dst)
 
@@ -155,7 +155,7 @@ def _create_devices_from_addrs(gwy, this: Message) -> None:
     #  - eavesdrop: from packet fingerprint, incl. payloads
 
     if not isinstance(this.src, Device):
-        this.src = gwy._get_device(this.src.id, msg=this)
+        this.src = gwy.get_device(this.src.id)
         if this.dst.id == this.src.id:
             this.dst = this.src
             return
@@ -164,7 +164,7 @@ def _create_devices_from_addrs(gwy, this: Message) -> None:
         gwy.config.enable_eavesdrop and this.src != gwy.hgi
     ):  # the above can't / shouldn't be eavesdropped for dst device
         try:
-            this.dst = gwy._get_device(this.dst.id, msg=this)
+            this.dst = gwy.get_device(this.dst.id)
         except LookupError:
             pass
 

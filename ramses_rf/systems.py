@@ -49,7 +49,6 @@ from .protocol import (
     ZON_ROLE_MAP,
     Address,
     Command,
-    CorruptStateError,
     ExpiredCallbackError,
     Message,
     Priority,
@@ -207,28 +206,12 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         Raise an exception if the new schema is not a superset of the existing schema.
         """
 
-        def set_app_cntrl(device: Device) -> None:  # self._app_cntrl
-            """Set the TCS relay for this system (BDR or OTB)."""
-
-            if self._app_cntrl is device:
-                return
-            if self._app_cntrl is not None:
-                raise CorruptStateError(
-                    f"{self} changed {SZ_APP_CNTRL}: {self._app_cntrl} to {device}"
-                )
-
-            if not isinstance(device, (BdrSwitch, OtbGateway)):
-                raise TypeError(f"{self}: {SZ_APP_CNTRL} can't be {device}")
-
-            self._app_cntrl = device
-            device._set_parent(self, child_id="FC")  # NOTE: domain_id
-
         schema = shrink(SCHEMA_SYS(schema))
 
         if schema.get(SZ_TCS_SYSTEM) and (
             dev_id := schema[SZ_TCS_SYSTEM].get(SZ_APP_CNTRL)
         ):
-            set_app_cntrl(self._gwy.reap_device(dev_id))  # self._app_cntrl
+            self._app_cntrl = self._gwy.get_device(dev_id, parent=self, child_id="FC")
 
         if _schema := (schema.get(SZ_DHW_SYSTEM)):
             self.reap_dhw_zone(**_schema)  # self._dhw = ...
@@ -1197,7 +1180,7 @@ class Sundial(Evohome):
 SYS_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. "evohome": Evohome
 
 
-def zx_system_factory(ctl, msg: Message = None, **schema) -> Class:
+def zx_system_factory(ctl, msg: Message = None, **schema) -> System:
     """Return the system class for a given controller/schema (defaults to evohome)."""
 
     def best_tcs_class(

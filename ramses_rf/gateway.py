@@ -361,77 +361,62 @@ class Gateway(Engine):
         self.resume()
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Set state.")
 
-    def reap_device(self, dev_id, *, msg=None, **schema) -> Device:
+    def get_device(
+        self, dev_id, *, msg=None, parent=None, child_id=None, is_sensor=None
+    ) -> Device:  # TODO: **schema) -> Device:
         """Return a device, create it if required.
 
-        First, use the schema to create/update it, then pass it any msg to handle.
+        First, use the traits to create/update it, then pass it any msg to handle.
+        All devices have traits, but only controllers (CTL, UFC) have a schema.
 
         Devices are uniquely identified by a device id.
         If a device is created, attach it to the gateway.
         """
 
         def check_filter_lists(dev_id: str) -> None:
-            """Raise an LookupError if a device_id is filtered."""
+            """Raise an LookupError if a device_id is filtered out by a list."""
 
             if dev_id in self._unwanted:
-                raise LookupError(f"Unwanted/Invalid device_id: {dev_id}")
+                # _LOGGER.warning()
+                raise LookupError(f"Can't create {dev_id}: it unwanted or invalid")
 
             if self.config.enforce_known_list and (
                 dev_id not in self._include
                 and dev_id != self.pkt_protocol._hgi80[SZ_DEVICE_ID]
             ):
-                _LOGGER.warning(
-                    f"Won't create a non-allowed device_id: {dev_id}"
+                self._unwanted.append(dev_id)
+                raise LookupError(
+                    f"Can't create {dev_id}: it is not an allowed device_id"
                     f" (if required, add it to the {SZ_KNOWN_LIST})"
                 )
-                self._unwanted.append(dev_id)
-                raise LookupError
 
             if dev_id in self._exclude:
-                _LOGGER.warning(
-                    f"Won't create a blocked device_id: {dev_id}"
+                self._unwanted.append(dev_id)
+                raise LookupError(
+                    f"Can't create {dev_id}: it is a blocked device_id"
                     f" (if required, remove it from the {SZ_BLOCK_LIST})"
                 )
-                self._unwanted.append(dev_id)
-                raise LookupError
 
         check_filter_lists(dev_id)
-        schema = shrink(SCHEMA_DEV(schema))  # TODO: add shrink? do in caller?
+        traits = SCHEMA_DEV(self._include.get(dev_id, {}))
 
-        # Step 0: Return the object if it exists
-        if dev := self.device_by_id.get(dev_id):
-            if schema:
-                dev._update_schema(**schema)
-            return dev
+        dev = self.device_by_id.get(dev_id)
+        if not dev:
+            dev = zx_device_factory(self, Address(dev_id), msg=msg, **traits)
 
-        # Step 1: Create the object (__init__ checks for unique ID)
-        dev = zx_device_factory(self, Address(dev_id), msg=msg, **schema)
-        self.device_by_id[dev.id] = dev
-        self.devices.append(dev)
+        # TODO: the exaqct order of the follwoing may need refining...
 
-        return dev
+        # if schema:  # Step 2: Only controllers have a schema...
+        #     dev._update_schema(**schema)
 
-    def _get_device(
-        self, dev_id, *, ctl_id=None, child_id=None, is_sensor=None, **kwargs
-    ) -> Optional[Device]:
-        """child_id is either a zone_idx, or a domain_id
+        if parent or child_id:
+            dev._set_parent(parent, child_id=child_id, is_sensor=is_sensor)
 
-        Return"""
-        # devices considered bound to a CTL only if/when the CTL says so
+        if traits.get(SZ_FAKED):
+            dev._make_fake()
 
-        dev = self.reap_device(
-            dev_id, **self._include.get(dev_id, {})
-        )  # don't pass the msg here
-
-        # # update the existing device with any metadata  # TODO: messy?
-        ctl = self.device_by_id.get(ctl_id)
-        # if ctl:
-        #     dev._set_parent(ctl.tcs, child_id=child_id)
-
-        if child_id in (F9, FA, FC, FF):
-            dev._child_id = child_id
-        elif child_id is not None and ctl:
-            dev._set_parent(ctl.tcs.reap_htg_zone(child_id), is_sensor=is_sensor)
+        if msg:
+            dev._handle_msg(msg)
 
         return dev
 
@@ -634,7 +619,7 @@ class Gateway(Engine):
         elif device_id in self._exclude:
             del self._exclude[device_id]
 
-        return self._get_device(device_id)._make_fake(bind=start_binding)
+        return self.get_device(device_id)._make_fake(bind=start_binding)
 
     def add_task(self, fnc, *args, delay=None, period=None, **kwargs) -> None:
         """Start a task after delay seconds and then repeat it every period seconds."""

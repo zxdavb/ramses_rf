@@ -156,10 +156,12 @@ class Device(Entity):
     def __init__(self, gwy, dev_addr, **kwargs) -> None:
         _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)
 
-        if dev_addr.id in gwy.device_by_id:
-            raise LookupError(f"Duplicate DEV: {dev_addr.id}")
         # if not check_valid(dev_addr.id):  # TODO
         #     raise ValueError(f"Invalid device id: {dev_addr.id}")
+        if dev_addr.id in gwy.device_by_id:
+            raise LookupError(f"Duplicate DEV: {dev_addr.id}")
+        gwy.device_by_id[dev_addr.id] = self
+        gwy.devices.append(self)
 
         super().__init__(gwy)
 
@@ -241,7 +243,7 @@ class Device(Entity):
         super()._send_cmd(cmd, **kwargs)
 
     def _handle_msg(self, msg) -> None:
-        assert msg.src is self, f"msg inappropriately routed to {self}"
+        assert msg.src is self, f"msg from {msg.src} inappropriately routed to {self}"
 
         super()._handle_msg(msg)
 
@@ -502,7 +504,7 @@ class HgiGateway(DeviceInfo):  # HGI (18:), was GWY
 
     # def _proc_schema(self, schema) -> None:
     #     if schema.get("fake_bdr"):
-    #         self._faked_bdr = self._gwy.reap_device(
+    #         self._faked_bdr = self._gwy.get_device(
     #             self.id, class_=DEV_TYPE.BDR, faked=True
     #         )  # also for THM, OUT
 
@@ -529,7 +531,7 @@ class HgiGateway(DeviceInfo):  # HGI (18:), was GWY
         if msg.code in (_30C9,) and self._faked_thm:
             self._faked_thm._handle_msg(fake_addrs(msg, self._faked_thm))
 
-    def _create_fake_dev(self, dev_type, device_id) -> Device:
+    def _create_fake_dev(self, dev_type, device_id) -> Device:  # TODO:
         if device_id[:2] != dev_type:
             raise TypeError(f"Invalid device ID {device_id} for type '{dev_type}:'")
 
@@ -544,7 +546,7 @@ class HgiGateway(DeviceInfo):  # HGI (18:), was GWY
             self.devices.remove(dev)
             dev = None
 
-        dev = self._gwy._get_device(device_id)
+        dev = self._gwy.get_device(device_id)
         dev._make_fake(bind=True)
         return dev
 
@@ -618,17 +620,14 @@ class DeviceHeat(
 
     _SLUG: str = DEV_TYPE.HEA  # shouldn't be any of these instantiated
 
-    def __init__(self, gwy, dev_addr, ctl=None, child_id=None, zone_idx=None, **kwargs):
+    def __init__(self, gwy, dev_addr, **kwargs):
         super().__init__(gwy, dev_addr, **kwargs)
 
         self.ctl = None
         self.tcs = None
+        self._child_id = None  # domain_id, or zone_idx
 
-        self._child_id = child_id  # TODO: deprecate
         self._iz_controller = None  # TODO: deprecate
-
-        if ctl:
-            self._set_parent(ctl.tcs)
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)

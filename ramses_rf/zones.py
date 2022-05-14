@@ -321,8 +321,6 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
     _SLUG: str = ZON_ROLE.DHW
 
-    #
-
     def __init__(self, tcs, zone_idx: str = "HW") -> None:
         _LOGGER.debug("Creating a DHW for TCS: %s_HW (%s)", tcs.id, self.__class__)
 
@@ -336,66 +334,6 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         self._dhw_sensor = None  # schema attr
         self._dhw_valve = None  # schema attr
         self._htg_valve = None  # schema attr
-
-    def _update_schema(self, **schema):
-        """Update a DHW zone with new schema attrs.
-
-        Raise an exception if the new schema is not a superset of the existing schema.
-        """
-
-        def get_dhw_device(dev_id, dev_slug, dev_class, domain_id) -> Device:
-            """Set the temp sensor for this DHW zone (07: only)."""
-
-            """Set the heating valve relay for this DHW zone (13: only)."""
-
-            """Set the hotwater valve relay for this DHW zone (13: only).
-
-            Check and Verb the DHW sensor (07:) of this system/CTL (if there is one).
-
-            There is only 1 way to eavesdrop a controller's DHW sensor:
-            1.  The 10A0 RQ/RP *from/to a 07:* (1x/4h)
-
-            The RQ is initiated by the DHW, so is not authorative (the CTL will RP any RQ).
-            The I/1260 is not to/from a controller, so is not useful.
-            """  # noqa: D402
-
-            # 07:38:39.124 047 RQ --- 07:030741 01:102458 --:------ 10A0 006 00181F0003E4
-            # 07:38:39.140 062 RP --- 01:102458 07:030741 --:------ 10A0 006 0018380003E8
-
-            if dev_slug == DEV_ROLE.DHW:
-                schema_attr = SZ_SENSOR
-            else:  # if dev_slug in (DEV_ROLE.HTG, DEV_ROLE.HT1):
-                schema_attr = DEV_ROLE_MAP[dev_slug]
-
-            new_dev = self._gwy._get_device(dev_id, ctl_id=self.ctl.id)
-            old_dev = self.tcs.child_by_id.get(self.schema[schema_attr])
-
-            if old_dev is new_dev:
-                return old_dev
-
-            if old_dev is not None:
-                raise CorruptStateError(
-                    f"{self} changed {schema_attr}: {old_dev} to {new_dev}"
-                )
-
-            if not isinstance(new_dev, dev_class):
-                raise TypeError(f"{self}: {schema_attr} isn't a {dev_class}")
-
-            new_dev._set_parent(
-                self, child_id=domain_id, is_sensor=(dev_slug == DEV_ROLE.DHW)
-            )
-            return new_dev
-
-        schema = shrink(SCHEMA_DHW(schema))
-
-        if dev_id := schema.get(SZ_SENSOR):
-            self._dhw_sensor = get_dhw_device(dev_id, DEV_ROLE.DHW, DhwSensor, "FA")
-
-        if dev_id := schema.get(DEV_ROLE_MAP[DEV_ROLE.HTG]):
-            self._dhw_valve = get_dhw_device(dev_id, DEV_ROLE.HTG, BdrSwitch, "FA")
-
-        if dev_id := schema.get(DEV_ROLE_MAP[DEV_ROLE.HT1]):
-            self._htg_valve = get_dhw_device(dev_id, DEV_ROLE.HT1, BdrSwitch, "F9")
 
     @discover_decorator
     def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
@@ -496,6 +434,38 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         # # If still don't have a sensor, can eavesdrop 10A0
         # if self._gwy.config.enable_eavesdrop and not self.dhw_sensor:
         #     eavesdrop_dhw_sensor(msg)
+
+    def _update_schema(self, **schema):
+        """Update a DHW zone with new schema attrs.
+
+        Raise an exception if the new schema is not a superset of the existing schema.
+        """
+
+        """Set the temp sensor for this DHW zone (07: only)."""
+        """Set the heating valve relay for this DHW zone (13: only)."""
+        """Set the hotwater valve relay for this DHW zone (13: only).
+
+        Check and Verb the DHW sensor (07:) of this system/CTL (if there is one).
+
+        There is only 1 way to eavesdrop a controller's DHW sensor:
+        1.  The 10A0 RQ/RP *from/to a 07:* (1x/4h)
+
+        The RQ is initiated by the DHW, so is not authorative (the CTL will RP any RQ).
+        The I/1260 is not to/from a controller, so is not useful.
+        """  # noqa: D402
+
+        schema = shrink(SCHEMA_DHW(schema))
+
+        if dev_id := schema.get(SZ_SENSOR):
+            self._dhw_sensor = self._gwy.get_device(
+                dev_id, parent=self, child_id="FA", is_sensor=True
+            )
+
+        if dev_id := schema.get(DEV_ROLE_MAP[DEV_ROLE.HTG]):
+            self._dhw_valve = self._gwy.get_device(dev_id, parent=self, child_id="FA")
+
+        if dev_id := schema.get(DEV_ROLE_MAP[DEV_ROLE.HT1]):
+            self._htg_valve = self._gwy.get_device(dev_id, parent=self, child_id="F9")
 
     @property
     def sensor(self) -> DhwSensor:  # self._dhw_sensor
@@ -712,10 +682,10 @@ class Zone(ZoneSchedule, ZoneBase):
             set_zone_type(ZON_ROLE_MAP[klass])
 
         if dev_id := schema.get(SZ_SENSOR):
-            set_sensor(self._gwy.reap_device(dev_id))
+            set_sensor(self._gwy.get_device(dev_id))
 
         for dev_id in schema.get(SZ_ACTUATORS, []):
-            add_actuator(self._gwy.reap_device(dev_id))
+            add_actuator(self._gwy.get_device(dev_id))
 
     @discover_decorator  # NOTE: can mean is double-decorated
     def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
@@ -1121,7 +1091,7 @@ def _transform(valve_pos: float) -> float:
 ZONE_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # ZON_ROLE.RAD: RadZone
 
 
-def zx_zone_factory(tcs, idx: str, msg: Message = None, **schema) -> Class:
+def zx_zone_factory(tcs, idx: str, msg: Message = None, **schema) -> Zone:
     """Return the zone class for a given zone_idx/klass (Zone or DhwZone).
 
     Some zones are promotable to a compatible sub class (e.g. ELE->VAL).

@@ -9,9 +9,8 @@ Heating devices.
 import logging
 from symtable import Class
 
-from .const import DEV_TYPE_MAP, __dev_mode__
+from .const import DEV_TYPE_MAP, SZ_CLASS, __dev_mode__
 from .protocol import Address, Message
-from .schema import SZ_CLASS
 
 # skipcq: PY-W2000
 from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
@@ -118,7 +117,7 @@ def best_dev_role(
     return DeviceHvac
 
 
-def zx_device_factory(gwy, dev_addr: Address, msg: Message = None, **schema) -> Class:
+def zx_device_factory(gwy, dev_addr: Address, msg: Message = None, **schema) -> Device:
     """Return the initial device class for a given device id/msg/schema.
 
     Some devices are promotable to a compatible sub class.
