@@ -65,6 +65,7 @@ _CLASS_BY_SLUG = BASE_CLASS_BY_SLUG | HEAT_CLASS_BY_SLUG | HVAC_CLASS_BY_SLUG
 
 def best_dev_role(
     dev_addr: Address,
+    *,
     msg: Message = None,
     eavesdrop: bool = False,
     **schema,

@@ -11,6 +11,7 @@ Schema processor.
 import logging
 import re
 from types import SimpleNamespace
+from typing import Any
 
 import voluptuous as vol
 
@@ -379,7 +380,7 @@ def load_schema(gwy, **kwargs) -> dict:
     ]
 
 
-def load_system(gwy, ctl_id, schema) -> tuple[dict, dict]:
+def load_system(gwy, ctl_id, schema) -> Any:  # System
     """Create a system using its schema."""
     # print(schema)
     # schema = SCHEMA_ZON(schema)
@@ -387,8 +388,8 @@ def load_system(gwy, ctl_id, schema) -> tuple[dict, dict]:
     if (ctl := _get_device(gwy, ctl_id)) is None:
         raise TypeError(f"TCS not instiated: {ctl_id}")
 
-    if ctl.tcs is not None:
-        raise TypeError(f"TCS already exists: {ctl}")
+    # if ctl.tcs is None:
+    #     raise TypeError(f"TCS doesn't exists: {ctl}")
 
     ctl._make_tcs_controller(**schema)
 
@@ -407,4 +408,4 @@ def load_system(gwy, ctl_id, schema) -> tuple[dict, dict]:
         print(src)
         print(dst)
 
-    return ctl
+    return ctl.tcs

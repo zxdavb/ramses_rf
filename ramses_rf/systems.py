@@ -36,11 +36,12 @@ from .devices import (
     BdrSwitch,
     Controller,
     Device,
+    DeviceHeat,
     OtbGateway,
     Temperature,
     UfhController,
 )
-from .entity_base import Entity, class_by_attr, discover_decorator
+from .entity_base import Entity, Parent, class_by_attr, discover_decorator
 from .helpers import shrink
 from .protocol import (
     DEV_ROLE_MAP,
@@ -176,7 +177,7 @@ SYS_KLASS = SimpleNamespace(
 )
 
 
-class SystemBase(Entity):  # 3B00 (multi-relay)
+class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
     """The TCS base class."""
 
     _SLUG: str = None
@@ -195,9 +196,9 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
 
         self.ctl = ctl
         self.tcs = self
-        self._domain_id = "FF"
+        self._child_id = "FF"  # NOTE: domain_id
 
-        self._app_cntrl = None  # schema attr
+        self._app_cntrl: DeviceHeat = None  # schema attr
         self._heat_demand = None  # state attr
 
     def _update_schema(self, **schema):
@@ -220,14 +221,14 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                 raise TypeError(f"{self}: {SZ_APP_CNTRL} can't be {device}")
 
             self._app_cntrl = device
-            device._set_parent(self, domain="FC")  # TODO: _set_domain()
+            device._set_parent(self, child_id="FC")  # NOTE: domain_id
 
         schema = shrink(SCHEMA_SYS(schema))
 
         if schema.get(SZ_TCS_SYSTEM) and (
             dev_id := schema[SZ_TCS_SYSTEM].get(SZ_APP_CNTRL)
         ):
-            set_app_cntrl(self._gwy.reap_device(Address(dev_id)))  # self._app_cntrl
+            set_app_cntrl(self._gwy.reap_device(dev_id))  # self._app_cntrl
 
         if _schema := (schema.get(SZ_DHW_SYSTEM)):
             self.reap_dhw_zone(**_schema)  # self._dhw = ...
@@ -355,7 +356,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
                 self._relay_demands[domain_id] = msg
                 if domain_id == "F9":
                     device = self.dhw.heating_valve if self.dhw else None
-                elif domain_id == "FkA":  # TODO, FIXME
+                elif domain_id == "xFA":  # TODO, FIXME
                     device = self.dhw.hotwater_valve if self.dhw else None
                 elif domain_id == "FC":
                     device = self.appliance_control
@@ -378,15 +379,11 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         super()._make_cmd(code, self.ctl.id, payload=payload, **kwargs)
 
     @property
-    def devices(self) -> list[Device]:
-        return self.ctl.devices + [self.ctl]  # TODO: to sort out
-
-    @property
     def appliance_control(self) -> Device:
         """The TCS relay, aka 'appliance control' (BDR or OTB)."""
         if self._app_cntrl:
             return self._app_cntrl
-        app_cntrl = [d for d in self.ctl.devices if d._domain_id == "FC"]
+        app_cntrl = [d for d in self.childs if d._child_id == "FC"]
         return app_cntrl[0] if len(app_cntrl) == 1 else None  # HACK for 10:
 
     @property
@@ -416,8 +413,8 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         schema[SZ_ORPHANS] = sorted(
             [
                 d.id
-                for d in self.ctl.devices  # HACK: UFC
-                if not d._domain_id and d._is_present and d is not self.ctl
+                for d in self.childs  # HACK: UFC
+                if not d._child_id and d._is_present  # TODO: and d is not self.ctl
             ]  # and not isinstance(d, UfhController)
         )  # devices without a parent zone, NB: CTL can be a sensor for a zone
 
@@ -469,7 +466,7 @@ class SystemBase(Entity):  # 3B00 (multi-relay)
         status = {SZ_TCS_SYSTEM: {}}
         status[SZ_TCS_SYSTEM]["heat_demand"] = self.heat_demand
 
-        status[SZ_DEVICES] = {d.id: d.status for d in sorted(self.ctl.devices)}
+        status[SZ_DEVICES] = {d.id: d.status for d in sorted(self.childs)}
 
         return status
 
@@ -569,7 +566,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
 
             testable_sensors = [
                 d
-                for d in self._gwy.devices  # NOTE: *not* self.ctl.devices
+                for d in self._gwy.devices  # NOTE: *not* self.childs
                 if d.ctl in (self.ctl, None)
                 and isinstance(d, Temperature)  # d.addr.type in DEVICE_HAS_ZONE_SENSOR
                 and d.temperature is not None
@@ -1066,7 +1063,7 @@ class Datetime(SystemBase):  # 313F
 
 class UfHeating(SystemBase):
     def _ufh_ctls(self):
-        return sorted([d for d in self.ctl.devices if isinstance(d, UfhController)])
+        return sorted([d for d in self.childs if isinstance(d, UfhController)])
 
     @property
     def schema(self) -> dict:

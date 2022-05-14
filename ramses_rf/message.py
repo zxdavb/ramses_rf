@@ -17,7 +17,7 @@ from .const import (
     SZ_DEVICES,
     __dev_mode__,
 )
-from .devices import Device, DeviceHeat, UfhController
+from .devices import Device
 from .protocol import (
     CODES_BY_DEV_SLUG,
     CODES_SCHEMA,
@@ -141,7 +141,7 @@ def _create_devices_from_addrs(gwy, this: Message) -> None:
     this.dst = gwy.device_by_id.get(this.dst.id, this.dst)
 
     # Devices need to know their controller, ?and their location ('parent' domain)
-    # NB: only addrs prcoessed here, packet metadata is processed elsewhere
+    # NB: only addrs processed here, packet metadata is processed elsewhere
 
     # Determinging bindings to a controller:
     #  - configury; As per any schema
@@ -158,25 +158,15 @@ def _create_devices_from_addrs(gwy, this: Message) -> None:
         this.src = gwy._get_device(this.src.id, msg=this)
         if this.dst.id == this.src.id:
             this.dst = this.src
+            return
 
-    if (
-        not gwy.config.enable_eavesdrop
-        or this.dst.id in gwy._unwanted
-        or this.src == gwy.hgi
+    if not isinstance(this.dst, Device) and (
+        gwy.config.enable_eavesdrop and this.src != gwy.hgi
     ):  # the above can't / shouldn't be eavesdropped for dst device
-        return
-
-    # HACK: what follows is not well tested
-    if not isinstance(this.dst, Device):
-        this.dst = gwy._get_device(this.dst.id, msg=this)
-
-    if getattr(this.dst, "_is_controller", False) and not isinstance(
-        this.dst, UfhController
-    ):  # HACK
-        gwy._get_device(this.src.id, ctl_id=this.dst.id, msg=this)  # or _set_ctl?
-
-    elif isinstance(this.dst, DeviceHeat) and getattr(this.src, "_is_controller", None):
-        gwy._get_device(this.dst.id, ctl_id=this.src.id, msg=this)  # or _set_ctl?
+        try:
+            this.dst = gwy._get_device(this.dst.id, msg=this)
+        except LookupError:
+            pass
 
 
 def _check_msg_addrs(msg: Message) -> None:

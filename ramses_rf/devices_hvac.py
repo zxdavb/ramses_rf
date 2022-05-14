@@ -123,7 +123,7 @@ class RfsGateway(DeviceHvac):  # RFS: (spIDer gateway)
         super().__init__(*args, **kwargs)
 
         self.ctl = None
-        self._domain_id = "HV"
+        self._child_id = "hv"  # NOTE: domain_id
         self.tcs = None
 
 

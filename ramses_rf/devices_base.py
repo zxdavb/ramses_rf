@@ -13,18 +13,10 @@ from random import randint
 from types import SimpleNamespace
 from typing import Optional
 
-from .const import (
-    DEV_TYPE,
-    DEV_TYPE_MAP,
-    SZ_DEVICE_ID,
-    SZ_DEVICES,
-    SZ_ZONE_IDX,
-    Discover,
-    __dev_mode__,
-)
-from .entity_base import Entity, class_by_attr, discover_decorator
+from .const import DEV_TYPE, DEV_TYPE_MAP, SZ_DEVICE_ID, Discover, __dev_mode__
+from .entity_base import Child, Entity, class_by_attr, discover_decorator
 from .helpers import shrink
-from .protocol import Command, CorruptStateError
+from .protocol import Command
 from .protocol.address import NUL_DEV_ADDR, Address
 from .protocol.command import FUNC, TIMEOUT
 from .protocol.ramses import CODES_BY_DEV_SLUG, CODES_ONLY_FROM_CTL
@@ -161,7 +153,7 @@ class Device(Entity):
 
     _STATE_ATTR = None
 
-    def __init__(self, gwy, dev_addr, ctl=None, domain_id=None, **kwargs) -> None:
+    def __init__(self, gwy, dev_addr, **kwargs) -> None:
         _LOGGER.debug("Creating a Device: %s (%s)", dev_addr.id, self.__class__)
 
         if dev_addr.id in gwy.device_by_id:
@@ -175,7 +167,7 @@ class Device(Entity):
 
         # self.tcs = None  # NOTE: Heat (CH/DHW) devices only
         # self.ctl = None
-        self._domain_id = None
+        # self._child_id = None  # also in Child class
 
         self.addr = dev_addr
         self.type = dev_addr.type  # DEX  # TODO: remove this attr? use SLUG?
@@ -184,8 +176,8 @@ class Device(Entity):
 
     def __repr__(self) -> str:
         if self._STATE_ATTR:
-            return f"{self.id} ({self._domain_id}): {getattr(self, self._STATE_ATTR)}"
-        return f"{self.id} ({self._domain_id})"
+            return f"{self.id} ({self._child_id}): {getattr(self, self._STATE_ATTR)}"
+        return f"{self.id} ({self._child_id})"
 
     def __lt__(self, other) -> bool:
         if not hasattr(other, "id"):
@@ -258,7 +250,7 @@ class Device(Entity):
             from .devices import best_dev_role
 
             cls = best_dev_role(
-                self.addr, msg, eavesdrop=self._gwy.config.enable_eavesdrop
+                self.addr, msg=msg, eavesdrop=self._gwy.config.enable_eavesdrop
             )
             if cls._SLUG != self._SLUG and DEV_TYPE.DEV not in (cls._SLUG, self._SLUG):
                 _LOGGER.warning(
@@ -490,7 +482,7 @@ class BatteryState(Device):  # 1060
         }
 
 
-class HgiGateway(DeviceInfo, Device):  # HGI (18:), was GWY
+class HgiGateway(DeviceInfo):  # HGI (18:), was GWY
     """The HGI80 base class."""
 
     _SLUG: str = DEV_TYPE.HGI
@@ -499,7 +491,7 @@ class HgiGateway(DeviceInfo, Device):  # HGI (18:), was GWY
         super().__init__(*args, **kwargs)
 
         self.ctl = None
-        self._domain_id = "FF"
+        self._child_id = "gw"  # TODO
         self.tcs = None
 
         self._faked_bdr = None
@@ -542,12 +534,12 @@ class HgiGateway(DeviceInfo, Device):  # HGI (18:), was GWY
             raise TypeError(f"Invalid device ID {device_id} for type '{dev_type}:'")
 
         dev = self.device_by_id.get(device_id)
-        if dev:
+        if dev:  # TODO: BUG: is broken
             _LOGGER.warning("Destroying %s", dev)
-            if dev.ctl:
-                del dev.ctl.device_by_id[dev.id]
-                dev.ctl.devices.remove(dev)
-                dev.ctl = None
+            if dev._parent:
+                del dev._parent.child_by_id[dev.id]
+                dev._parent.childs.remove(dev)
+                dev._parent = None
             del self.device_by_id[dev.id]
             self.devices.remove(dev)
             dev = None
@@ -617,97 +609,26 @@ class HgiGateway(DeviceInfo, Device):  # HGI (18:), was GWY
 
 
 class DeviceHeat(
-    DeviceInfo, Device
+    Child, DeviceInfo
 ):  # Honeywell CH/DHW or compatible (incl. UFH, Heatpumps)
-    """The Device base class for Honeywell CH/DHW or compatible."""
+    """The base class for Honeywell CH/DHW-compatible devices.
+
+    Includes UFH and heatpumps (which can also cool).
+    """
 
     _SLUG: str = DEV_TYPE.HEA  # shouldn't be any of these instantiated
 
-    def __init__(
-        self, gwy, dev_addr, ctl=None, domain_id=None, zone_idx=None, **kwargs
-    ):
+    def __init__(self, gwy, dev_addr, ctl=None, child_id=None, zone_idx=None, **kwargs):
         super().__init__(gwy, dev_addr, **kwargs)
 
         self.ctl = None
-        self._ctx = None
         self.tcs = None
 
-        self._set_ctl(ctl, ctx=domain_id or zone_idx) if ctl else None
-
-        self._domain_id = domain_id  # TODO: deprecate
-        self._parent = None  # TODO: deprecate
+        self._child_id = child_id  # TODO: deprecate
         self._iz_controller = None  # TODO: deprecate
 
-    def _set_ctl(self, ctl: Device, ctx: str = None) -> Device:  # self.ctl
-        """Set the TCS controller that this CH/DHW device is bound to.
-
-        It is assumed that a device is only bound to one controller.
-        """
-
-        if self.ctl is ctl:
-            return self.ctl
-        if self.ctl is not None:
-            raise CorruptStateError("bound to multiple controllers?")
-
-        assert ctl._SLUG == DEV_TYPE.CTL and self is ctl or self._SLUG != DEV_TYPE.CTL
-
-        self.ctl = ctl
-        self._ctx = ctx
-        self.tcs = ctl.tcs
-
-        ctl.device_by_id[self.id] = self
-        ctl.devices.append(self)
-
-        _LOGGER.debug("%s: controller now set to %s", self, self.ctl)
-        return self.ctl
-
-    def _set_parent(self, parent, *, domain=None, sensor=None):
-        """Set the device's parent zone, after validating it.
-
-        There are three possible sources for the parent zone of a device:
-        1. a 000C packet (from their controller) for actuators only
-        2. a message.payload[SZ_ZONE_IDX]
-        3. the sensor-matching algorithm for zone sensors only
-
-        Devices don't have parents, rather: Zones have children; a mis-configured
-        system could have a device as a child of two domains.
-        """
-
-        from .systems import System  # NOTE: here to prevent circular references
-        from .zones import DhwZone, Zone
-
-        if self._parent is not None and self._parent is not parent:
-            raise CorruptStateError(
-                f"{self} changed parent: {self._parent} to {parent}, "
-            )
-
-        if isinstance(parent, Zone):
-            if domain and domain != parent.idx:
-                raise TypeError(f"{self}: domain must be {parent.idx}, not {domain}")
-            domain = parent.idx
-        elif isinstance(parent, DhwZone):  # usu. FA
-            if domain not in ("F9", "FA"):  # may not be known if eavesdrop'd
-                raise TypeError(f"{self}: domain must be F9 or FA, not {domain}")
-        elif isinstance(parent, System):  # usu. FC
-            if domain != "FC":  # was: not in ("F9", "FA", "FC", "HW"):
-                raise TypeError(f"{self}: domain must be FC, not {domain}")
-        else:
-            raise TypeError(f"{self}: parent must be System, DHW or Zone, not {parent}")
-
-        self._set_ctl(parent.ctl)
-        self._parent = parent
-        self._domain_id = domain
-
-        if hasattr(self._parent, SZ_DEVICES) and self not in self._parent.devices:
-            parent.devices.append(self)
-            parent.device_by_id[self.id] = self
-            if not sensor:
-                parent.actuators.append(self)
-                parent.actuator_by_id[self.id] = self
-
-        if DEV_MODE:
-            _LOGGER.debug("Device %s: parent now set to %s", self, self._parent)
-        return self._parent
+        if ctl:
+            self._set_parent(ctl.tcs)
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -721,18 +642,6 @@ class DeviceHeat(
                 self._make_tcs_controller(msg=msg)
             elif self._iz_controller is False:  # TODO: raise CorruptStateError
                 _LOGGER.error(f"{msg!r} # IS_CONTROLLER (01): was FALSE, now True")
-
-        if not self._gwy.config.enable_eavesdrop:
-            return
-
-        if (
-            self.ctl is not None
-            and SZ_ZONE_IDX in msg.payload
-            and msg.src.type != DEV_TYPE_MAP.CTL  # TODO: DEX, should be: if controller
-            # and msg.dst.type != DEV_TYPE_MAP.HGI
-        ):
-            # TODO: is buggy - remove? how?
-            self._set_parent(self.ctl.tcs.reap_htg_zone(msg.payload[SZ_ZONE_IDX]))
 
     def _make_tcs_controller(self, msg=None, **schema) -> None:  # CH/DHW
         """Attach a TCS (create/update as required) after passing it any msg."""
@@ -766,7 +675,7 @@ class DeviceHeat(
         return self._parent
 
 
-class DeviceHvac(DeviceInfo, Device):  # HVAC (ventilation, PIV, MV/HR)
+class DeviceHvac(Child, DeviceInfo):  # HVAC (ventilation, PIV, MV/HR)
     """The Device base class for HVAC (ventilation, PIV, MV/HR)."""
 
     _SLUG: str = DEV_TYPE.HVC  # these may be instantiated, and promoted later on
@@ -774,7 +683,7 @@ class DeviceHvac(DeviceInfo, Device):  # HVAC (ventilation, PIV, MV/HR)
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._domain_id = "HV"
+        self._child_id = "hv"  # TODO: domain_id/deprecate
 
     # TODO: split
     # def _hvac_trick(self):  # a HACK - remove
@@ -802,6 +711,8 @@ class DeviceHvac(DeviceInfo, Device):  # HVAC (ventilation, PIV, MV/HR)
 
     #     if msg.code in (_1298, _12A0, _22F1, _22F3):
     #         self._hvac_trick()
+
+    pass
 
 
 BASE_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. "HGI": HgiGateway

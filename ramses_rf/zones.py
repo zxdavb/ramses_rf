@@ -46,7 +46,7 @@ from .devices import (
     TrvActuator,
     UfhController,
 )
-from .entity_base import Entity, class_by_attr, discover_decorator
+from .entity_base import Child, Entity, Parent, class_by_attr, discover_decorator
 from .helpers import shrink
 from .protocol import (
     CODE_API_MAP,
@@ -165,7 +165,7 @@ if DEV_MODE:
     _LOGGER.setLevel(logging.DEBUG)
 
 
-class ZoneBase(Entity):
+class ZoneBase(Child, Parent, Entity):
     """The Zone/DHW base class."""
 
     _SLUG: str = None
@@ -177,7 +177,7 @@ class ZoneBase(Entity):
 
         self.tcs = tcs
         self.ctl = tcs.ctl
-        self._domain_id = zone_idx
+        self._child_id = zone_idx
 
         self._name = None  # param attr
 
@@ -250,7 +250,7 @@ class ZoneBase(Entity):
 
     @property
     def idx(self) -> str:
-        return self._domain_id
+        return self._child_id
 
 
 class ZoneSchedule(ZoneBase):  # 0404  # TODO: add for DHW
@@ -368,7 +368,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
                 schema_attr = DEV_ROLE_MAP[dev_slug]
 
             new_dev = self._gwy._get_device(dev_id, ctl_id=self.ctl.id)
-            old_dev = self.ctl.device_by_id.get(self.schema[schema_attr])
+            old_dev = self.tcs.child_by_id.get(self.schema[schema_attr])
 
             if old_dev is new_dev:
                 return old_dev
@@ -381,7 +381,9 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             if not isinstance(new_dev, dev_class):
                 raise TypeError(f"{self}: {schema_attr} isn't a {dev_class}")
 
-            new_dev._set_parent(self, domain=domain_id)
+            new_dev._set_parent(
+                self, child_id=domain_id, is_sensor=(dev_slug == DEV_ROLE.DHW)
+            )
             return new_dev
 
         schema = shrink(SCHEMA_DHW(schema))
@@ -643,9 +645,7 @@ class Zone(ZoneSchedule, ZoneBase):
             if dev := self.actuator_by_id.get(device.id):
                 return dev
 
-            device._set_parent(self)  # , domain=self.idx)
-            self.actuator_by_id[device.id] = device
-            self.actuators.append(device)
+            device._set_parent(self)  # , child_id=self.idx)
 
         def set_sensor(device: Device) -> None:
             """Set the sensor for this zone (one of: 01:, 03:, 04:, 12:, 22:, 34:)."""
@@ -661,7 +661,7 @@ class Zone(ZoneSchedule, ZoneBase):
                 # TODO: or not hasattr(device, SZ_TEMPERATURE)
                 raise TypeError(f"{self}: {device} can't be the {SZ_SENSOR}")
 
-            device._set_parent(self, sensor=True)  # , domain=self.idx)
+            device._set_parent(self, is_sensor=True)  # , child_id=self.idx)
             self._sensor = device
 
         def set_zone_type(zone_type: str) -> None:
@@ -712,10 +712,10 @@ class Zone(ZoneSchedule, ZoneBase):
             set_zone_type(ZON_ROLE_MAP[klass])
 
         if dev_id := schema.get(SZ_SENSOR):
-            set_sensor(self._gwy.reap_device(Address(dev_id)))
+            set_sensor(self._gwy.reap_device(dev_id))
 
         for dev_id in schema.get(SZ_ACTUATORS, []):
-            add_actuator(self._gwy.reap_device(Address(dev_id)))
+            add_actuator(self._gwy.reap_device(dev_id))
 
     @discover_decorator  # NOTE: can mean is double-decorated
     def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
@@ -954,7 +954,7 @@ class Zone(ZoneSchedule, ZoneBase):
             f"_{SZ_NAME}": self.name,
             SZ_CLASS: self.heating_type,
             SZ_SENSOR: self._sensor.id if self._sensor else None,
-            SZ_ACTUATORS: [d.id for d in self.actuators],
+            SZ_ACTUATORS: sorted([d.id for d in self.actuators]),
         }
 
     @property  # TODO: setpoint

@@ -16,6 +16,8 @@ from datetime import datetime as dt
 from threading import Lock
 from typing import Callable, Optional
 
+from ramses_rf.devices_base import DeviceHeat, DeviceHvac
+
 from .const import DONT_CREATE_MESSAGES, SZ_DEVICE_ID, SZ_DEVICES, __dev_mode__
 from .devices import Device, zx_device_factory
 from .helpers import schedule_task, shrink
@@ -329,7 +331,7 @@ class Gateway(Engine):
 
         return self.schema, dict(sorted(pkts.items()))
 
-    async def _set_state(self, packets, schema=None) -> None:
+    async def _set_state(self, packets, *, schema=None) -> None:
         def clear_state() -> None:
             _LOGGER.warning("ENGINE: Clearing exisiting schema/state...")
 
@@ -359,7 +361,7 @@ class Gateway(Engine):
         self.resume()
         (_LOGGER.warning if DEV_MODE else _LOGGER.info)("ENGINE: Set state.")
 
-    def reap_device(self, dev_addr: Address, *, msg=None, **schema) -> Device:
+    def reap_device(self, dev_id, *, msg=None, **schema) -> Device:
         """Return a device, create it if required.
 
         First, use the schema to create/update it, then pass it any msg to handle.
@@ -369,7 +371,8 @@ class Gateway(Engine):
         """
 
         def check_filter_lists(dev_id: str) -> None:
-            """Raise an error if a device_id is filtered."""
+            """Raise an LookupError if a device_id is filtered."""
+
             if dev_id in self._unwanted:
                 raise LookupError(f"Unwanted/Invalid device_id: {dev_id}")
 
@@ -392,38 +395,43 @@ class Gateway(Engine):
                 self._unwanted.append(dev_id)
                 raise LookupError
 
-        check_filter_lists(dev_addr.id)
+        check_filter_lists(dev_id)
         schema = shrink(SCHEMA_DEV(schema))  # TODO: add shrink? do in caller?
 
         # Step 0: Return the object if it exists
-        if dev := self.device_by_id.get(dev_addr.id):
+        if dev := self.device_by_id.get(dev_id):
             if schema:
-                raise TypeError("a device schema was provided, but the device exists!")
+                dev._update_schema(**schema)
             return dev
 
         # Step 1: Create the object (__init__ checks for unique ID)
-        dev = zx_device_factory(self, dev_addr, msg=msg, **schema)
+        dev = zx_device_factory(self, Address(dev_id), msg=msg, **schema)
         self.device_by_id[dev.id] = dev
         self.devices.append(dev)
 
         return dev
 
-    def _get_device(self, dev_id, ctl_id=None, domain_id=None, **kwargs) -> Device:
+    def _get_device(
+        self, dev_id, *, ctl_id=None, child_id=None, is_sensor=None, **kwargs
+    ) -> Optional[Device]:
+        """child_id is either a zone_idx, or a domain_id
+
+        Return"""
         # devices considered bound to a CTL only if/when the CTL says so
 
         dev = self.reap_device(
-            Address(dev_id), **self._include.get(dev_id, {})
+            dev_id, **self._include.get(dev_id, {})
         )  # don't pass the msg here
 
-        # update the existing device with any metadata  # TODO: messy?
+        # # update the existing device with any metadata  # TODO: messy?
         ctl = self.device_by_id.get(ctl_id)
-        if ctl:
-            dev._set_ctl(ctl)
+        # if ctl:
+        #     dev._set_parent(ctl.tcs, child_id=child_id)
 
-        if domain_id in (F9, FA, FC, FF):
-            dev._domain_id = domain_id
-        elif domain_id is not None and ctl:
-            dev._set_parent(ctl.tcs.reap_htg_zone(domain_id))
+        if child_id in (F9, FA, FC, FF):
+            dev._child_id = child_id
+        elif child_id is not None and ctl:
+            dev._set_parent(ctl.tcs.reap_htg_zone(child_id), is_sensor=is_sensor)
 
         return dev
 
@@ -504,12 +512,18 @@ class Gateway(Engine):
         for tcs in self.systems:
             schema[tcs.ctl.id] = tcs.schema
 
-        schema[SZ_ORPHANS] = sorted(
+        schema[f"{SZ_ORPHANS}_heat"] = sorted(
             [
                 d.id
                 for d in self.devices
-                if not getattr(d, "ctl", None) and d._is_present and d is not self.hgi
+                if not getattr(d, "tcs", None)
+                and isinstance(d, DeviceHeat)
+                and d._is_present
             ]
+        )
+
+        schema[f"{SZ_ORPHANS}_hvac"] = sorted(
+            [d.id for d in self.devices if isinstance(d, DeviceHvac) and d._is_present]
         )
 
         return schema

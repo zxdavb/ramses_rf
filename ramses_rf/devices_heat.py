@@ -34,7 +34,7 @@ from .const import (
     __dev_mode__,
 )
 from .devices_base import BatteryState, DeviceHeat, Fakeable
-from .entity_base import Entity, class_by_attr, discover_decorator
+from .entity_base import Entity, Parent, class_by_attr, discover_decorator
 from .helpers import shrink
 from .protocol import Address, Command, Message, Priority
 from .protocol.address import NON_DEV_ADDR
@@ -314,8 +314,8 @@ class RelayDemand(Fakeable, DeviceHeat):  # 0008
         if (
             self._gwy.config.disable_sending
             or not self._faked
-            or self._domain_id is None
-            or self._domain_id
+            or self._child_id is None
+            or self._child_id
             not in (
                 v for k, v in msg.payload.items() if k in (SZ_DOMAIN_ID, SZ_ZONE_IDX)
             )
@@ -457,13 +457,9 @@ class Controller(DeviceHeat):  # CTL (01):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self.device_by_id = {}  # {self.id: self}
-        self.devices = []  # [self]
-
-        self.ctl = self._set_ctl(self)
-        self._ctx = "FF"
-        self.tcs = None
-        # self._make_tcs_controller(**kwargs)  # NOTE: must create_from_schema first
+        # self.ctl = None
+        self.tcs = None  # TODO: = self?
+        self._make_tcs_controller(**kwargs)  # NOTE: must create_from_schema first
 
     def _start_discovery(self) -> None:  # TODO: remove
         pass
@@ -474,22 +470,13 @@ class Controller(DeviceHeat):  # CTL (01):
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if not self.tcs:
-            self._make_tcs_controller(msg=msg)
-
-        if msg.code == _000C:
-            [
-                self._gwy._get_device(d, ctl_id=self.ctl.id)
-                for d in msg.payload[SZ_DEVICES]
-            ]
-
-        # if (
-        #     msg.code in (_0005, _000C)
-        #     or msg.code in CODES_ONLY_FROM_CTL
-        #     or self._gwy.config.enable_eavesdrop
-        # ):
-        #     self._make_tcs_controller(msg=msg)
-        #     return
+        if msg.code == _000C and msg.payload[SZ_DEVICES]:
+            child_id = msg.payload.get(SZ_DOMAIN_ID) or msg.payload.get(SZ_ZONE_IDX)
+            is_sensor = msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.SENSORS
+            for d in msg.payload[SZ_DEVICES]:
+                self._gwy._get_device(
+                    d, ctl_id=self.id, child_id=child_id, is_sensor=is_sensor
+                )
 
         # Route any messages to their heating systems
         if self.tcs:
@@ -532,7 +519,7 @@ class Programmer(Controller):  # PRG (23):
     _SLUG: str = DEV_TYPE.PRG
 
 
-class UfhController(DeviceHeat):  # UFC (02):
+class UfhController(Parent, DeviceHeat):  # UFC (02):
     """The UFC class, the HCE80 that controls the UFH zones."""
 
     _SLUG: str = DEV_TYPE.UFC
@@ -550,7 +537,7 @@ class UfhController(DeviceHeat):  # UFC (02):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._domain_id = "FA"  # HACK: UFC
+        self._child_id = "FA"  # NOTE: domain_id, HACK: UFC
 
         self._circuits = {}
         self._setpoints = None
@@ -594,16 +581,6 @@ class UfhController(DeviceHeat):  # UFC (02):
         #     [self._make_cmd(_2309, payload=ufh_idx)for ufh_idx in self._circuits_alt]
 
     def _handle_msg(self, msg) -> None:
-        def eavesdrop_ufc_circuits(msg):
-            # assert msg.code == _22C9
-            circuits = [c[SZ_UFH_IDX] for c in msg.payload]
-
-            for ufh_idx in [f"{x:02X}" for x in range(8)]:
-                if ufh_idx not in self._circuits and ufh_idx in circuits:
-                    self._circuits[ufh_idx] = {SZ_ZONE_IDX: None}
-                elif ufh_idx in self._circuits and ufh_idx not in circuits:
-                    pass  # TODO: ?.pop()
-
         super()._handle_msg(msg)
 
         if msg.code == _0005:  # system_zones
@@ -659,9 +636,6 @@ class UfhController(DeviceHeat):  # UFC (02):
             #  I --- 02:017205 --:------ 02:017205 22C9 006 04076C0A2801
             self._setpoints = msg
 
-            if self._gwy.config.enable_eavesdrop:  # and...:
-                eavesdrop_ufc_circuits(msg)
-
         elif msg.code == _3150:  # heat_demands
             if isinstance(msg.payload, list):  # the circuit demands
                 self._heat_demands = msg
@@ -678,6 +652,30 @@ class UfhController(DeviceHeat):  # UFC (02):
         #     print("AAA")
 
         # "0008|FA/FC", "22C9|array", "22D0|none", "3150|ZZ/array(/FC?)"
+
+    def reap_circuit(self, cct_idx, *, msg=None, **schema) -> Any:
+        """Return a UFH circuit, create it if required.
+
+        First, use the schema to create/update it, then pass it any msg to handle.
+
+        Circuits are uniquely identified by a UFH controller ID|cct_idx pair.
+        If a circuit is created, attach it to this UFC.
+        """
+
+        schema = {}  # shrink(SCHEMA_CCT(schema))
+
+        cct = self.child_by_id.get(cct_idx)
+        if not cct:
+            cct = UfhCircuit(self, cct_idx)
+            self.child_by_id[cct_idx] = cct
+            self.childs.append(cct)
+
+        elif schema:
+            cct._update_schema(**schema)
+
+        if msg:
+            cct._handle_msg(msg)
+        return cct
 
     @property
     def circuits(self) -> Optional[dict]:  # 000C
@@ -749,7 +747,7 @@ class DhwSensor(DhwTemperature, BatteryState):  # DHW (07): 10A0, 1260
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._domain_id = "FA"
+        self._child_id = "FA"  # NOTE: domain_id
 
     def _handle_msg(self, msg) -> None:  # NOTE: active
         super()._handle_msg(msg)
@@ -809,7 +807,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._domain_id = "FC"
+        self._child_id = "FC"  # NOTE: domain_id
 
         self._msgz[_3220] = {RP: {}}  # so later, we can: self._msgz[_3220][RP][msg_id]
 
@@ -1374,8 +1372,9 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
     def role(self) -> Optional[str]:
         """Return the role of the BDR91A (there are six possibilities)."""
 
-        if self._domain_id in DOMAIN_TYPE_MAP:
-            return DOMAIN_TYPE_MAP[self._domain_id]
+        # TODO: use self._parent?
+        if self._child_id in DOMAIN_TYPE_MAP:
+            return DOMAIN_TYPE_MAP[self._child_id]
         elif self._parent:
             return self._parent.heating_type  # TODO: only applies to zones
 
@@ -1422,19 +1421,6 @@ class TrvActuator(BatteryState, HeatDemand, Setpoint, Temperature):  # TRV (04):
 
     _STATE_ATTR = "heat_demand"
 
-    def _handle_msg(self, msg) -> None:
-        def eavesdrop_actuator_zone(this, prev=None) -> None:
-            zone = self.ctl.tcs.zone_by_idx.get(msg.payload.get("zone_idx"))
-
-            if self not in zone.actuators:
-                zone._update_schema(**{SZ_ACTUATORS: [self.id]})
-
-        super()._handle_msg(msg)
-
-        # Some (older) TRVs don't pick up via a 000C
-        if self._gwy.config.enable_eavesdrop and msg.code == _3150:
-            eavesdrop_actuator_zone(msg)
-
     @property
     def heat_demand(self) -> Optional[float]:  # 3150
         if (heat_demand := super().heat_demand) is None:
@@ -1463,7 +1449,12 @@ class JstDevice(RelayDemand):  # BDR (31):
 
 
 class UfhCircuit(Entity):
-    """The UFH circuit class (UFC:circuit is much like CTL/TCS:zone)."""
+    """The UFH circuit class (UFC:circuit is much like CTL/TCS:zone).
+
+    NOTE: for circuits, there's a difference between :
+     - `self.ctl`: the UFH controller, and
+     - `self.tcs.ctl`: the Evohome controller
+    """
 
     _SLUG: str = None  # is not a zone
 
@@ -1473,13 +1464,13 @@ class UfhCircuit(Entity):
         self.id: str = f"{ufc.id}_{ufh_idx}"
 
         self.ufc: UfhController = ufc
-        self._domain_id = ufh_idx
+        self._child_id = ufh_idx
 
         self._ctl: Controller = None
         self._zone = None
 
     def __str__(self) -> str:
-        return f"{self.id} ({self._zone and self._zone._domain_id})"
+        return f"{self.id} ({self._zone and self._zone._child_id})"
 
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
@@ -1492,7 +1483,7 @@ class UfhCircuit(Entity):
                 raise InvalidPayloadError("No devices")
 
             # ctl = self._gwy.device_by_id.get(dev_ids[0])
-            ctl = self._gwy.reap_device(Address(dev_ids[0]))
+            ctl = self._gwy.reap_device(dev_ids[0])
             if not ctl or (self._ctl and self._ctl is not ctl):
                 raise InvalidPayloadError("No CTL")
             self._ctl = ctl
@@ -1511,7 +1502,7 @@ class UfhCircuit(Entity):
 
     @property
     def ufx_idx(self) -> str:
-        return self._domain_id
+        return self._child_id
 
     @property
     def zone_idx(self) -> str:
