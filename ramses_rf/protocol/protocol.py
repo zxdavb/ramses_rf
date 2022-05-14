@@ -31,7 +31,7 @@ if DEV_MODE:
 class MakeCallbackAwaitable:
     DEFAULT_TIMEOUT = 3  # in seconds
 
-    def __init__(self, loop):
+    def __init__(self, loop) -> None:
         self._loop = loop or asyncio.get_event_loop()
         self._queue = None
 
@@ -77,7 +77,7 @@ class MessageTransport(asyncio.Transport):
     READER = "receiver_callback"
     WRITER = "writer_task"
 
-    def __init__(self, gwy, protocol, extra=None):
+    def __init__(self, gwy, protocol, extra=None) -> None:
         super().__init__(extra=extra)
 
         self._loop = gwy._loop
@@ -216,7 +216,9 @@ class MessageTransport(asyncio.Transport):
                 TypeError,
                 ValueError,
             ) as exc:  # noqa: E722, broad-except
-                _LOGGER.exception("%s < exception from app layer: %s", pkt, exc)
+                if p is self._protocols[0]:
+                    raise
+                _LOGGER.error("%s < exception from app layer: %s", pkt, exc)
 
     def close(self):
         """Close the transport.
@@ -252,8 +254,8 @@ class MessageTransport(asyncio.Transport):
 
         return self._extra.get(name, default)
 
-    def add_protocol(self, protocol):
-        """Set a new protocol.
+    def add_protocol(self, protocol) -> None:
+        """Attach a new protocol.
 
         Allow multiple protocols per transport.
         """
@@ -266,7 +268,7 @@ class MessageTransport(asyncio.Transport):
             self._protocols.append(protocol)
             protocol.connection_made(self)
 
-    def get_protocol(self) -> Optional[list]:
+    def get_protocols(self) -> list:
         """Return the list of active protocols.
 
         There can be multiple protocols per transport.
@@ -275,7 +277,7 @@ class MessageTransport(asyncio.Transport):
 
         return self._protocols
 
-    def is_reading(self) -> Optional[bool]:
+    def is_reading(self) -> bool:
         """Return True if the transport is receiving new data."""
         _LOGGER.debug("MsgTransport.is_reading()")
 

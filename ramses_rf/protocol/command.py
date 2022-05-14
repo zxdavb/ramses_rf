@@ -163,15 +163,15 @@ def validate_api_params(*, has_zone=None):
         try:
             return fcn(cls, *args, **kwargs)
         except (
-            ArithmeticError,  # incl. ZeroDivisionError,
+            # ArithmeticError,  # incl. ZeroDivisionError,
             AssertionError,
-            AttributeError,
-            IndexError,
-            LookupError,  # incl. IndexError, KeyError
-            NameError,  # incl. UnboundLocalError
-            RuntimeError,  # incl. RecursionError
+            # AttributeError,
+            # IndexError,
+            # LookupError,  # incl. IndexError, KeyError
+            # NameError,  # incl. UnboundLocalError
+            # RuntimeError,  # incl. RecursionError
             TypeError,
-            ValueError,
+            # ValueError,
         ) as exc:
             _LOGGER.exception(f"{fcn.__name__}{tuple(list(args) + [kwargs])}: {exc}")
 

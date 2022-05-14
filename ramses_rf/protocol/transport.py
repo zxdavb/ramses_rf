@@ -630,7 +630,7 @@ class PacketProtocolBase(asyncio.Protocol):
             AssertionError,
             AttributeError,
             LookupError,  # incl. IndexError, KeyError
-            NameError,  # incl. UnboundLocalError
+            # NameError,  # incl. UnboundLocalError
             RuntimeError,  # incl. RecursionError
             TypeError,
             ValueError,
@@ -651,7 +651,7 @@ class PacketProtocolBase(asyncio.Protocol):
                 AssertionError,
                 AttributeError,
                 LookupError,  # incl. IndexError, KeyError
-                NameError,  # incl. UnboundLocalError
+                # NameError,  # incl. UnboundLocalError
                 RuntimeError,  # incl. RecursionError
                 TypeError,
                 ValueError,
