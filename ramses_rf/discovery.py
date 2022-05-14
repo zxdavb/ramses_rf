@@ -210,7 +210,7 @@ async def get_faults(gwy, ctl_id: str, start=0, limit=0x3F):
 
 
 async def get_schedule(gwy, ctl_id: str, zone_idx: str) -> None:
-    zone = gwy.get_device(ctl_id).tcs.reap_htg_zone(zone_idx)
+    zone = gwy.get_device(ctl_id).tcs.get_htg_zone(zone_idx)
 
     try:
         await zone.get_schedule()
@@ -222,7 +222,7 @@ async def set_schedule(gwy, ctl_id, schedule) -> None:
     schedule = json.load(schedule)
     zone_idx = schedule[SZ_ZONE_IDX]
 
-    zone = gwy.get_device(ctl_id).tcs.reap_htg_zone(zone_idx)
+    zone = gwy.get_device(ctl_id).tcs.get_htg_zone(zone_idx)
 
     try:
         await zone.set_schedule(schedule["schedule"])  # 0404

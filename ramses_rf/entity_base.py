@@ -308,7 +308,7 @@ class Entity(MessageDB):
 
         if not self._gwy.config.disable_discovery and isinstance(
             self._gwy.pkt_protocol, PacketProtocolPort
-        ):  # TODO: here, or in reap_xxx()?
+        ):  # TODO: here, or in get_xxx()?
             gwy._loop.call_soon_threadsafe(self._start_discovery)
 
     def __str__(self) -> str:
@@ -427,7 +427,7 @@ class Parent:  # A System, Zone, DhwZone or a UfhController
             circuit_idxs = [c[SZ_UFH_IDX] for c in msg.payload]
 
             for cct_idx in circuit_idxs:
-                self.reap_circuit(cct_idx, msg=msg)
+                self.get_circuit(cct_idx, msg=msg)
 
             # BUG: this will fail with > 4 circuits, as uses two pkts for this msg
             # if [c for c in self.child_by_id if c not in circuit_idxs]:
@@ -636,11 +636,11 @@ class Child:  # A Zone, Device or a UfhCircuit
 
         if isinstance(parent, System) and child_id:
             if child_id in ("F9", "FA", "HW"):
-                parent: DhwZone = parent.reap_dhw_zone()
+                parent: DhwZone = parent.get_dhw_zone()
             # elif child_id == "FC":
             #     pass
             elif int(child_id, 16) < self._gwy.config.max_zones:
-                parent: Zone = parent.reap_htg_zone(child_id)
+                parent: Zone = parent.get_htg_zone(child_id)
 
         elif isinstance(parent, Zone) and not child_id:
             child_id = child_id or parent.idx

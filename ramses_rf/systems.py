@@ -214,10 +214,10 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
             self._app_cntrl = self._gwy.get_device(dev_id, parent=self, child_id="FC")
 
         if _schema := (schema.get(SZ_DHW_SYSTEM)):
-            self.reap_dhw_zone(**_schema)  # self._dhw = ...
+            self.get_dhw_zone(**_schema)  # self._dhw = ...
 
         if _schema := (schema.get(SZ_ZONES)):
-            [self.reap_htg_zone(idx, **s) for idx, s in _schema.items()]
+            [self.get_htg_zone(idx, **s) for idx, s in _schema.items()]
 
     @classmethod
     def create_from_schema(cls, ctl: Device, **schema):
@@ -624,7 +624,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
             if zone := self.zone_by_idx.get(zone_idx):
                 zone._handle_msg(msg)
             # elif self._gwy.config.enable_eavesdrop:
-            #     self.reap_htg_zone(zone_idx)._handle_msg(msg)
+            #     self.get_htg_zone(zone_idx)._handle_msg(msg)
 
         super()._handle_msg(msg)
 
@@ -632,7 +632,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         if msg.code == _0005:
             if (zone_type := msg.payload[SZ_ZONE_TYPE]) in ZON_ROLE_MAP.HEAT_ZONES:
                 [
-                    self.reap_htg_zone(
+                    self.get_htg_zone(
                         f"{idx:02X}", **{SZ_CLASS: ZON_ROLE_MAP[zone_type]}
                     )
                     for idx, flag in enumerate(msg.payload[SZ_ZONE_MASK])
@@ -640,7 +640,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 ]
             elif zone_type in DEV_ROLE_MAP.HEAT_DEVICES:
                 [
-                    self.reap_htg_zone(f"{idx:02X}", msg=msg)
+                    self.get_htg_zone(f"{idx:02X}", msg=msg)
                     for idx, flag in enumerate(msg.payload[SZ_ZONE_MASK])
                     if flag == 1
                 ]
@@ -650,7 +650,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
             if not msg.payload[SZ_DEVICES]:
                 return
             if msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.HEAT_DEVICES:
-                self.reap_htg_zone(msg.payload[SZ_ZONE_IDX], msg=msg)
+                self.get_htg_zone(msg.payload[SZ_ZONE_IDX], msg=msg)
             return
 
         # Route all messages to their zones, incl. 000C, others
@@ -668,7 +668,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         # if self._gwy.config.enable_eavesdrop and not all(z.sensor for z in self.zones):
         #     eavesdrop_zone_sensors(msg)
 
-    def reap_htg_zone(self, zone_idx, *, msg=None, **schema) -> Zone:
+    def get_htg_zone(self, zone_idx, *, msg=None, **schema) -> Zone:
         """Return a heating zone, create it if required.
 
         First, use the schema to create/update it, then pass it any msg to handle.
@@ -906,7 +906,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
             if msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.DHW_DEVICES and (
                 msg.payload[SZ_DEVICES]
             ):
-                self.reap_dhw_zone(msg=msg)
+                self.get_dhw_zone(msg=msg)
             return
 
         # RQ --- 18:002563 01:078710 --:------ 10A0 001 00  # every 4h
@@ -914,9 +914,9 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
 
         if msg.code in (_10A0, _1260, _1F41):
             # and "dhw_id" not in msg.payload and msg.payload.get(SZ_DOMAIN_ID) != "FA":
-            self.reap_dhw_zone(msg=msg)
+            self.get_dhw_zone(msg=msg)
 
-    def reap_dhw_zone(self, *, msg=None, **schema) -> DhwZone:
+    def get_dhw_zone(self, *, msg=None, **schema) -> DhwZone:
         """Return a DHW zone, create it if required.
 
         First, use the schema to create/update it, then pass it any msg to handle.

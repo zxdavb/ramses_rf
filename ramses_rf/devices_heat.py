@@ -485,7 +485,7 @@ class Controller(DeviceHeat):  # CTL (01):
     def _make_tcs_controller(self, msg=None, **schema) -> None:  # CH/DHW
         """Attach a TCS (create/update as required) after passing it any msg."""
 
-        def reap_system(*, msg=None, **schema) -> Any:  # System:
+        def get_system(*, msg=None, **schema) -> Any:  # System:
             """Return a TCS (temperature control system), create it if required.
 
             Use the schema to create/update it, then pass it any msg to handle.
@@ -510,7 +510,7 @@ class Controller(DeviceHeat):  # CTL (01):
 
         super()._make_tcs_controller(msg=None, **schema)
 
-        self.tcs = reap_system(msg=msg, **schema)
+        self.tcs = get_system(msg=msg, **schema)
 
 
 class Programmer(Controller):  # PRG (23):
@@ -628,7 +628,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
             #     if ctl := self._set_ctl(self._gwy.get_device(dev_ids[0])):
             #         # self._circuits[ufh_idx][SZ_DEVICES] = ctl.id  # better
             #         self._set_parent(
-            #             ctl.tcs.reap_htg_zone(msg.payload[SZ_ZONE_IDX]), msg
+            #             ctl.tcs.get_htg_zone(msg.payload[SZ_ZONE_IDX]), msg
             #         )
 
         elif msg.code == _22C9:  # ufh_setpoints
@@ -653,7 +653,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
 
         # "0008|FA/FC", "22C9|array", "22D0|none", "3150|ZZ/array(/FC?)"
 
-    def reap_circuit(self, cct_idx, *, msg=None, **schema) -> Any:
+    def get_circuit(self, cct_idx, *, msg=None, **schema) -> Any:
         """Return a UFH circuit, create it if required.
 
         First, use the schema to create/update it, then pass it any msg to handle.
@@ -1491,7 +1491,7 @@ class UfhCircuit(Entity):
             ctl._make_tcs_controller()
             # self._set_parent(ctl.tcs)
 
-            zon = ctl.tcs.reap_htg_zone(msg.payload[SZ_ZONE_IDX])
+            zon = ctl.tcs.get_htg_zone(msg.payload[SZ_ZONE_IDX])
             if not zon or (self._zone and self._zone is not zon):
                 raise InvalidPayloadError("No Zone")
             self._zone = zon
