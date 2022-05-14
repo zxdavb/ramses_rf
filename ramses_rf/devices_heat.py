@@ -383,7 +383,7 @@ class DhwTemperature(Fakeable, DeviceHeat):  # 1260
         #
 
         def callback(msg):
-            msg.src.tcs.dhw._set_sensor(self)
+            self.set_parent(msg.src, child_id="FA", is_sensor=True)
 
         super()._bind()
         self._bind_request(_1260, callback=callback)
@@ -418,7 +418,7 @@ class Temperature(Fakeable, DeviceHeat):  # 30C9
         # I --- 34:145039 01:054173 --:------ 1FC9 006 00-30C9-8A368F
 
         def callback(msg):
-            msg.src.tcs.zone_by_idx[msg.payload[0][0]]._set_sensor(self)
+            self.set_parent(msg.src, child_id=msg.payload[0][0], is_sensor=True)
 
         super()._bind()
         self._bind_request(_30C9, callback=callback)

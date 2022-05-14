@@ -579,8 +579,9 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                     if len(matching_sensors) == 1:
                         _LOGGER.debug("   - matched sensor: %s", matching_sensors[0].id)
                         zone = self.zone_by_idx[zone_idx]
-                        zone._set_sensor(matching_sensors[0])
-                        zone.sensor._set_ctl(self.ctl)
+                        self._gwy.get_device(
+                            matching_sensors[0].id, parent=zone, is_sensor=True
+                        )
                     elif len(matching_sensors) == 0:
                         _LOGGER.debug("   - no matching sensor (uses CTL?)")
                     else:
@@ -615,8 +616,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
             if len(matching_sensors) == 0:
                 _LOGGER.debug("   - assumed sensor: %s (by exclusion)", self.ctl.id)
                 zone = self.zone_by_idx[zone_idx]
-                zone._set_sensor(self.ctl)
-                zone.sensor._set_ctl(self.ctl)
+                self._gwy.get_device(self.ctl.id, parent=zone, is_sensor=True)
 
             _LOGGER.debug("System state (finally): %s", self.schema)
 

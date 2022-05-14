@@ -635,7 +635,7 @@ class Child:  # A Zone, Device or a UfhCircuit
             parent: System = parent.tcs
 
         if isinstance(parent, System) and child_id:
-            if child_id in ("F9", "FA", "HW"):
+            if child_id in ("F9", "FA"):
                 parent: DhwZone = parent.get_dhw_zone()
             # elif child_id == "FC":
             #     pass

@@ -14,7 +14,7 @@ from asyncio import Task
 from datetime import datetime as dt
 from datetime import timedelta as td
 from symtable import Class
-from typing import Any, Optional, Tuple
+from typing import Optional
 
 from .const import (
     DEV_ROLE,
@@ -42,7 +42,6 @@ from .devices import (
     Device,
     DhwSensor,
     Discover,
-    Temperature,
     TrvActuator,
     UfhController,
 )
@@ -176,7 +175,7 @@ class ZoneBase(Child, Parent, Entity):
         self.id: str = f"{tcs.id}_{zone_idx}"
 
         self.tcs = tcs
-        self.ctl = tcs.ctl
+        self.ctl: Controller = tcs.ctl
         self._child_id = zone_idx
 
         self._name = None  # param attr
@@ -189,38 +188,12 @@ class ZoneBase(Child, Parent, Entity):
         Can be a heating zone (of a klass), or the DHW subsystem (idx must be 'HW').
         """
 
-        # TODO: remove - is deprecated
-        def _set_system(self, parent, zone_idx) -> Tuple[Any, Any]:
-            """Set the zone's parent system, after validating it."""
-            raise RuntimeError
-
-            from .systems import System  # NOTE: here to prevent circular references
-
-            try:
-                if zone_idx != "HW" and int(zone_idx, 16) >= parent.max_zones:
-                    raise ValueError(
-                        f"{self}: invalid zone_idx {zone_idx} (> max_zones"
-                    )
-            except (TypeError, ValueError):
-                raise TypeError(f"{self}: invalid zone_idx {zone_idx}")
-
-            if not isinstance(parent, System):
-                raise TypeError(f"{self}: parent must be a System, not {parent}")
-
-            if zone_idx != "HW":  # or: FA?
-                parent.zone_by_idx[zone_idx] = self
-                parent.zones.append(self)
-
-            self.ctl = parent.ctl
-
-            return parent, parent.ctl
-
         zon = cls(tcs, zone_idx)
         zon._update_schema(**schema)
         return zon
 
     def __repr__(self) -> str:
-        return f"{self.id} (schema={self.schema})"
+        return f"{self.id} ({self._SLUG})"
 
     def __lt__(self, other) -> bool:
         if not isinstance(other, ZoneBase):
@@ -606,34 +579,6 @@ class Zone(ZoneSchedule, ZoneBase):
         Raise an exception if the new schema is not a superset of the existing schema.
         """
 
-        def add_actuator(device: Device) -> None:
-            """Add an actuator to this zone (one of: 02:, 04:, 13:)."""
-
-            if not isinstance(device, (TrvActuator, BdrSwitch, UfhController)):
-                raise TypeError(f"{self}: {device} can't be an actuator")
-
-            if dev := self.actuator_by_id.get(device.id):
-                return dev
-
-            device.set_parent(self)  # , child_id=self.idx)
-
-        def set_sensor(device: Device) -> None:
-            """Set the sensor for this zone (one of: 01:, 03:, 04:, 12:, 22:, 34:)."""
-
-            if self._sensor is device:
-                return
-            if self._sensor is not None:
-                raise CorruptStateError(
-                    f"{self} changed {SZ_SENSOR}: {self._sensor} to {device}"
-                )
-
-            if not isinstance(device, (Controller, Temperature)):
-                # TODO: or not hasattr(device, SZ_TEMPERATURE)
-                raise TypeError(f"{self}: {device} can't be the {SZ_SENSOR}")
-
-            device.set_parent(self, is_sensor=True)  # , child_id=self.idx)
-            self._sensor = device
-
         def set_zone_type(zone_type: str) -> None:
             """Set the zone's type (e.g. '08'), after validating it.
 
@@ -682,10 +627,11 @@ class Zone(ZoneSchedule, ZoneBase):
             set_zone_type(ZON_ROLE_MAP[klass])
 
         if dev_id := schema.get(SZ_SENSOR):
-            set_sensor(self._gwy.get_device(dev_id))
+            self._sensor = self._gwy.get_device(dev_id, parent=self, is_sensor=True)
 
         for dev_id in schema.get(SZ_ACTUATORS, []):
-            add_actuator(self._gwy.get_device(dev_id))
+            # add_actuator(self._gwy.get_device(dev_id))
+            self._gwy.get_device(dev_id, parent=self)
 
     @discover_decorator  # NOTE: can mean is double-decorated
     def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
