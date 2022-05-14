@@ -410,7 +410,7 @@ class Gateway(Engine):
         #     dev._update_schema(**schema)
 
         if parent or child_id:
-            dev._set_parent(parent, child_id=child_id, is_sensor=is_sensor)
+            dev.set_parent(parent, child_id=child_id, is_sensor=is_sensor)
 
         if traits.get(SZ_FAKED):
             dev._make_fake()

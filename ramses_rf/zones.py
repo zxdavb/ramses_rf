@@ -615,7 +615,7 @@ class Zone(ZoneSchedule, ZoneBase):
             if dev := self.actuator_by_id.get(device.id):
                 return dev
 
-            device._set_parent(self)  # , child_id=self.idx)
+            device.set_parent(self)  # , child_id=self.idx)
 
         def set_sensor(device: Device) -> None:
             """Set the sensor for this zone (one of: 01:, 03:, 04:, 12:, 22:, 34:)."""
@@ -631,7 +631,7 @@ class Zone(ZoneSchedule, ZoneBase):
                 # TODO: or not hasattr(device, SZ_TEMPERATURE)
                 raise TypeError(f"{self}: {device} can't be the {SZ_SENSOR}")
 
-            device._set_parent(self, is_sensor=True)  # , child_id=self.idx)
+            device.set_parent(self, is_sensor=True)  # , child_id=self.idx)
             self._sensor = device
 
         def set_zone_type(zone_type: str) -> None:

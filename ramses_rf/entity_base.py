@@ -606,7 +606,7 @@ class Child:  # A Zone, Device or a UfhCircuit
         zone_idx = msg.payload[SZ_ZONE_IDX]
 
         if msg.code in (_1060, _12B0, _2309, _3150):
-            self._set_parent(msg.dst, child_id=zone_idx)
+            self.set_parent(msg.dst, child_id=zone_idx)
 
     def _get_parent(
         self, parent: Parent, *, child_id: str = None, is_sensor: bool = None
@@ -736,7 +736,7 @@ class Child:  # A Zone, Device or a UfhCircuit
 
         return parent, child_id
 
-    def _set_parent(
+    def set_parent(
         self, parent: Parent, *, child_id: str = None, is_sensor: bool = None
     ) -> Parent:
         """Set the device's parent, after validating it.
@@ -775,7 +775,7 @@ class Child:  # A Zone, Device or a UfhCircuit
 
         if True or DEV_MODE:
             _LOGGER.warning(
-                "child._set_parent(), Parent: %s_%s, %s: %s",
+                "child.set_parent(), Parent: %s_%s, %s: %s",
                 parent.id,
                 child_id,
                 "Sensor" if is_sensor else "Device",

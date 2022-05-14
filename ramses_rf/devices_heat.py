@@ -627,7 +627,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
             #     # self._circuits[ufh_idx][SZ_DEVICES] = dev_ids[0]  # or:
             #     if ctl := self._set_ctl(self._gwy.get_device(dev_ids[0])):
             #         # self._circuits[ufh_idx][SZ_DEVICES] = ctl.id  # better
-            #         self._set_parent(
+            #         self.set_parent(
             #             ctl.tcs.get_htg_zone(msg.payload[SZ_ZONE_IDX]), msg
             #         )
 
@@ -1489,7 +1489,7 @@ class UfhCircuit(Entity):
             self._ctl = ctl
 
             ctl._make_tcs_controller()
-            # self._set_parent(ctl.tcs)
+            # self.set_parent(ctl.tcs)
 
             zon = ctl.tcs.get_htg_zone(msg.payload[SZ_ZONE_IDX])
             if not zon or (self._zone and self._zone is not zon):
