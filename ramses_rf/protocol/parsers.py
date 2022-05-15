@@ -84,6 +84,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     F8,
     F9,
     FA,
+    FB,
     FC,
     FF,
 )
@@ -1080,7 +1081,7 @@ def parser_1fc9(payload, msg) -> list:
             "90",
             F9,
             FA,
-            "FB",
+            FB,
             FC,
             FF,
         ):  # or: not in DOMAIN_TYPE_MAP: ??
