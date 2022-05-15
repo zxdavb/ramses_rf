@@ -415,23 +415,26 @@ class Parent:  # A System, Zone, DhwZone or a UfhController
         self.childs: List[Child] = []
 
     def _handle_msg(self, msg: Message) -> None:
+        def eavesdrop_ufh_circuits():
+            if msg.code == _22C9:
+                #  I --- 02:044446 --:------ 02:044446 22C9 024 00-076C0A28-01 01-06720A28-01 02-06A40A28-01 03-06A40A2-801  # NOTE: fragments
+                #  I --- 02:044446 --:------ 02:044446 22C9 006 04-07D00A28-01                                               # [{'ufh_idx': '04',...
+                circuit_idxs = [c[SZ_UFH_IDX] for c in msg.payload]
+
+                for cct_idx in circuit_idxs:
+                    self.get_circuit(cct_idx, msg=msg)
+
+                # BUG: this will fail with > 4 circuits, as uses two pkts for this msg
+                # if [c for c in self.child_by_id if c not in circuit_idxs]:
+                #     raise CorruptStateError
+
         super()._handle_msg(msg)
 
         if not self._gwy.config.enable_eavesdrop:
             return
 
-        # Eavesdrop Child circuit of a UFC
-        if msg.code == _22C9:
-            #  I --- 02:044446 --:------ 02:044446 22C9 024 00-076C0A28-01 01-06720A28-01 02-06A40A28-01 03-06A40A2-801  # NOTE: fragments
-            #  I --- 02:044446 --:------ 02:044446 22C9 006 04-07D00A28-01                                               # [{'ufh_idx': '04',...
-            circuit_idxs = [c[SZ_UFH_IDX] for c in msg.payload]
-
-            for cct_idx in circuit_idxs:
-                self.get_circuit(cct_idx, msg=msg)
-
-            # BUG: this will fail with > 4 circuits, as uses two pkts for this msg
-            # if [c for c in self.child_by_id if c not in circuit_idxs]:
-            #     raise CorruptStateError
+        # if True:
+        eavesdrop_ufh_circuits()
 
     @property
     def zone_idx(self) -> str:
@@ -589,6 +592,16 @@ class Child:  # A Zone, Device or a UfhCircuit
     def _handle_msg(self, msg: Message) -> None:
         from .devices import Controller, UfhController
 
+        def eavesdrop_parent_zone():
+            if isinstance(msg.src, UfhController):
+                return
+
+            if SZ_ZONE_IDX not in msg.payload:
+                return
+
+            if msg.code in (_1060, _12B0, _2309, _3150):  # not 30C9
+                self.set_parent(msg.dst, child_id=msg.payload[SZ_ZONE_IDX])
+
         super()._handle_msg(msg)
 
         if not self._gwy.config.enable_eavesdrop or (
@@ -597,16 +610,8 @@ class Child:  # A Zone, Device or a UfhCircuit
         ):
             return
 
-        if isinstance(msg.src, UfhController):
-            return
-
-        # Eavesdrop Parent zone of a TRV (30C9 doesn't work)
-        if SZ_ZONE_IDX not in msg.payload:
-            return
-        zone_idx = msg.payload[SZ_ZONE_IDX]
-
-        if msg.code in (_1060, _12B0, _2309, _3150):
-            self.set_parent(msg.dst, child_id=zone_idx)
+        if True or not self._parent or not self._child_id:  # BUG:
+            eavesdrop_parent_zone()
 
     def _get_parent(
         self, parent: Parent, *, child_id: str = None, is_sensor: bool = None

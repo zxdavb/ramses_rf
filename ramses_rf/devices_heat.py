@@ -470,17 +470,7 @@ class Controller(DeviceHeat):  # CTL (01):
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
-        if msg.code == _000C and msg.payload[SZ_DEVICES]:
-            child_id = msg.payload.get(SZ_DOMAIN_ID) or msg.payload.get(SZ_ZONE_IDX)
-            is_sensor = msg.payload[SZ_ZONE_TYPE] in DEV_ROLE_MAP.SENSORS
-            for dev_id in msg.payload[SZ_DEVICES]:
-                self._gwy.get_device(
-                    dev_id, parent=self, child_id=child_id, is_sensor=is_sensor
-                )
-
-        # Route any messages to their heating systems
-        if self.tcs:
-            self.tcs._handle_msg(msg)  # NOTE: create dev first?
+        self.tcs._handle_msg(msg)
 
     def _make_tcs_controller(self, msg=None, **schema) -> None:  # CH/DHW
         """Attach a TCS (create/update as required) after passing it any msg."""

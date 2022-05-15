@@ -591,7 +591,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
             if zone_type in (ZON_ROLE_MAP.ACT, ZON_ROLE_MAP.SEN):
                 return  # generic zone classes
-            elif zone_type not in ZON_ROLE_MAP.HEAT_ZONES:
+            if zone_type not in ZON_ROLE_MAP.HEAT_ZONES:
                 raise TypeError
 
             klass = ZON_ROLE_MAP.slug(zone_type)  # not incl. DHW?
@@ -616,13 +616,10 @@ class Zone(ZoneSchedule, ZoneBase):
             self.__class__ = ZONE_CLASS_BY_SLUG[klass]
             _LOGGER.debug("Promoted a Zone: %s (%s)", self.id, self.__class__)
 
-            self._discover(
-                discover_flag=Discover.SCHEMA
-            )  # TODO: needs tidyup (ref #67)
+            self._discover(discover_flag=Discover.SCHEMA)  # TODO: tidyup (ref #67)
 
         # if schema.get(SZ_CLASS) == ZON_ROLE_MAP[ZON_ROLE.ACT]:
         #     schema.pop(SZ_CLASS)
-
         schema = shrink(SCHEMA_ZON(schema))
 
         if klass := schema.get(SZ_CLASS):
@@ -632,7 +629,6 @@ class Zone(ZoneSchedule, ZoneBase):
             self._sensor = self._gwy.get_device(dev_id, parent=self, is_sensor=True)
 
         for dev_id in schema.get(SZ_ACTUATORS, []):
-            # add_actuator(self._gwy.get_device(dev_id))
             self._gwy.get_device(dev_id, parent=self)
 
     @discover_decorator  # NOTE: can mean is double-decorated
@@ -731,12 +727,10 @@ class Zone(ZoneSchedule, ZoneBase):
         if msg.code == _000C and msg.payload[SZ_DEVICES]:
 
             if msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.SEN:
-                # self._update_schema(**{SZ_SENSOR: msg.payload[SZ_DEVICES][0]})
                 dev_id = msg.payload[SZ_DEVICES][0]
                 self._sensor = self._gwy.get_device(dev_id, parent=self, is_sensor=True)
 
             elif msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.ACT:
-                # self._update_schema(**{SZ_ACTUATORS: msg.payload[SZ_DEVICES]})
                 for dev_id in msg.payload[SZ_DEVICES]:
                     self._gwy.get_device(dev_id, parent=self)
 
