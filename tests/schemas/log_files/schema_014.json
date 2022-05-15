@@ -11,7 +11,7 @@
             },
             "01": {
                 "_name": null,
-                "class": null,
+                "class": "radiator_valve",
                 "sensor": null,
                 "actuators": [
                     "04:167740"
@@ -19,7 +19,7 @@
             },
             "02": {
                 "_name": null,
-                "class": null,
+                "class": "radiator_valve",
                 "sensor": null,
                 "actuators": [
                     "04:138068",
