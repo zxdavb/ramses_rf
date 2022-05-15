@@ -17,7 +17,6 @@ from typing import Optional
 from .const import (
     SYS_MODE_MAP,
     SZ_DATETIME,
-    SZ_DEVICE_ROLE,
     SZ_DEVICES,
     SZ_DOMAIN_ID,
     SZ_HEAT_DEMAND,
@@ -274,7 +273,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         #         self._make_cmd(_0008, payload=f"{domain_id:02X}00")
 
     def _handle_msg(self, msg) -> None:
-        def eavesdrop_appliance_control(this, prev=None) -> None:
+        def eavesdrop_appliance_control(this, *, prev=None) -> None:
             """Discover the heat relay (10: or 13:) for this system.
 
             There's' 3 ways to find a controller's heat relay (in order of reliability):
@@ -326,12 +325,14 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
 
         super()._handle_msg(msg)
 
-        if msg.code == _000C:
-            if msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.APP and (
-                msg.payload[SZ_DEVICES]
-            ):
-                _schema = {msg.payload[SZ_DEVICE_ROLE]: msg.payload[SZ_DEVICES][0]}
-                self._update_schema(**{SZ_TCS_SYSTEM: _schema})
+        if (
+            msg.code == _000C
+            and msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.APP
+            and (msg.payload[SZ_DEVICES])
+        ):
+            self._gwy.get_device(
+                msg.payload[SZ_DEVICES][0], parent=self, child_id="FC"
+            )  # sets self._app_cntrl
             return
 
         if msg.code == _0008:
@@ -478,15 +479,15 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                     self._make_cmd(_0005, payload=f"00{zone_type}")
 
     def _handle_msg(self, msg) -> None:
-        def eavesdrop_zones(this, prev=None) -> None:
+        def eavesdrop_zones(this, *, prev=None) -> None:
             [
                 self.get_htg_zone(v)
                 for d in msg.payload
                 for k, v in d.items()
-                if k == "zone_idx"
+                if k == SZ_ZONE_IDX
             ]
 
-        def eavesdrop_zone_sensors(this, prev=None) -> None:
+        def eavesdrop_zone_sensors(this, *, prev=None) -> None:
             """Determine each zone's sensor by matching zone/sensor temperatures.
 
             The temperature of each zone is reliably known (30C9 array), but the sensor
@@ -517,19 +518,11 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                     and t not in [t2 for z2, t2 in changed_zones.items() if z2 != z]
                 }  # zones with unique (non-null) temps, and no sensor
 
-            assert self._gwy.config.enable_eavesdrop, "Coding error"
-
-            if this.code != _30C9 or not isinstance(this.payload, list):
-                return
-
-            if self._prev_30c9 is None:
-                self._prev_30c9 = this
-                return
+            assert isinstance(this.payload, list), "payload is not a list"
 
             self._prev_30c9, prev = this, self._prev_30c9
-
-            if len([z for z in self.zones if z.sensor is None]) == 0:
-                return  # (currently) no zone without a sensor
+            if prev is None:
+                return
 
             # TODO: use msgz/I, not RP
             secs = self._msg_value(_1F09, key="remaining_seconds")
@@ -570,7 +563,7 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                     testable_zones,
                 )
                 _LOGGER.debug(
-                    "Testable sensors: %s (non-null temps & orphans or zoneless)",
+                    "Testable sensors: %s (non-null temps & parentless)",
                     {d.id: d.temperature for d in testable_sensors},
                 )
 
@@ -585,7 +578,13 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                     )
 
                     if len(matching_sensors) == 1:
-                        _LOGGER.debug("   - matched sensor: %s", matching_sensors[0].id)
+                        _LOGGER.debug(
+                            "   - matched sensor: %s (%s) to zone: %s (%s)",
+                            matching_sensors[0].id,
+                            matching_sensors[0].temperature,
+                            zone_idx,
+                            temp,
+                        )
                         zone = self.zone_by_idx[zone_idx]
                         self._gwy.get_device(
                             matching_sensors[0].id, parent=zone, is_sensor=True
@@ -679,7 +678,11 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 [handle_msg_by_zone_idx(z.get(SZ_ZONE_IDX), msg) for z in msg.payload]
 
         # If some zones still don't have a sensor, maybe eavesdrop?
-        if self._gwy.config.enable_eavesdrop and not all(z.sensor for z in self.zones):
+        if (
+            self._gwy.config.enable_eavesdrop
+            and msg.code == _30C9
+            and any(z for z in self.zones if not z.sensor)
+        ):
             eavesdrop_zone_sensors(msg)
 
     def get_htg_zone(self, zone_idx, *, msg=None, **schema) -> Zone:
