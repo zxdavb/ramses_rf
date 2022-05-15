@@ -478,6 +478,14 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                     self._make_cmd(_0005, payload=f"00{zone_type}")
 
     def _handle_msg(self, msg) -> None:
+        def eavesdrop_zones(this, prev=None) -> None:
+            [
+                self.get_htg_zone(v)
+                for d in msg.payload
+                for k, v in d.items()
+                if k == "zone_idx"
+            ]
+
         def eavesdrop_zone_sensors(this, prev=None) -> None:
             """Determine each zone's sensor by matching zone/sensor temperatures.
 
@@ -550,8 +558,8 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
             testable_sensors = [
                 d
                 for d in self._gwy.devices  # NOTE: *not* self.childs
-                if d.ctl in (self.ctl, None)
-                and isinstance(d, Temperature)  # d.addr.type in DEVICE_HAS_ZONE_SENSOR
+                if isinstance(d, Temperature)  # d.addr.type in DEVICE_HAS_ZONE_SENSOR
+                and d.ctl in (self.ctl, None)
                 and d.temperature is not None
                 and d._msgs[_30C9].dtm > prev.dtm  # changed during last cycle
             ]
@@ -653,6 +661,12 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
                 self.get_htg_zone(msg.payload[SZ_ZONE_IDX], msg=msg)
             return
 
+        # If some zones still don't have a sensor, maybe eavesdrop?
+        if self._gwy.config.enable_eavesdrop and (
+            msg.code in (_2309, _30C9) and msg._has_array
+        ):
+            eavesdrop_zones(msg)
+
         # Route all messages to their zones, incl. 000C, others
         if isinstance(msg.payload, dict):
             if zone_idx := msg.payload.get(SZ_ZONE_IDX):
@@ -664,9 +678,9 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
             if isinstance(msg.payload[0], dict):  # e.g. 1FC9 is a list of lists:
                 [handle_msg_by_zone_idx(z.get(SZ_ZONE_IDX), msg) for z in msg.payload]
 
-        # # If some zones still don't have a sensor, maybe eavesdrop?
-        # if self._gwy.config.enable_eavesdrop and not all(z.sensor for z in self.zones):
-        #     eavesdrop_zone_sensors(msg)
+        # If some zones still don't have a sensor, maybe eavesdrop?
+        if self._gwy.config.enable_eavesdrop and not all(z.sensor for z in self.zones):
+            eavesdrop_zone_sensors(msg)
 
     def get_htg_zone(self, zone_idx, *, msg=None, **schema) -> Zone:
         """Return a heating zone, create it if required.
