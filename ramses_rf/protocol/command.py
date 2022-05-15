@@ -686,7 +686,7 @@ class Command(PacketBase):
         """Constructor to get the TPI params of a system (c.f. parser_1100)."""
 
         if domain_id is None:
-            domain_id = "00" if dev_id[:2] == DEV_TYPE_MAP.BDR else "FC"
+            domain_id = "00" if dev_id[:2] == DEV_TYPE_MAP.BDR else FC
         return cls(RQ, _1100, domain_id, dev_id, **kwargs)
 
     @classmethod  # constructor for W/1100

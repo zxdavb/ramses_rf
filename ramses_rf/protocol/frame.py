@@ -294,7 +294,7 @@ class PacketBase:
             )
             self._has_ctl_ = any(
                 (
-                    self.code == _3B00 and self.payload[:2] == "FC",
+                    self.code == _3B00 and self.payload[:2] == FC,
                     self.code in CODES_ONLY_FROM_CTL + [_31D9, _31DA],
                 )
             )
@@ -426,7 +426,7 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
 
     if pkt.code == _000C:  # zone_idx/domain_id (complex, payload[0:4])
         if pkt.payload[2:4] == DEV_ROLE_MAP.APP:  # "000F"
-            return "FC"
+            return FC
         if pkt.payload[0:4] == f"01{DEV_ROLE_MAP.HTG}":  # "010E"
             return F9
         if pkt.payload[2:4] in (
@@ -465,7 +465,7 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
         return True  # excludes len==1 for 000A, 2309, 30C9
 
     # TODO: is this needed?: exceptions to CODE_IDX_SIMPLE
-    if pkt.payload[:2] in ("F8", F9, FA, "FC"):  # TODO: FB, FD
+    if pkt.payload[:2] in ("F8", F9, FA, FC):  # TODO: FB, FD
         if pkt.code not in CODE_IDX_DOMAIN:
             raise InvalidPayloadError(
                 f"Packet idx is {pkt.payload[:2]}, but not expecting a domain id"

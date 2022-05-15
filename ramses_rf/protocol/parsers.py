@@ -269,7 +269,7 @@ def parser_0009(payload, msg) -> Union[dict, list]:
     #  I --- 10:040239 01:223036 --:------ 0009 003 000000
 
     def _parser(seqx) -> dict:
-        assert seqx[:2] in (F9, "FC") or int(seqx[:2], 16) < msg._gwy.config.max_zones
+        assert seqx[:2] in (F9, FC) or int(seqx[:2], 16) < msg._gwy.config.max_zones
         return {
             SZ_DOMAIN_ID if seqx[:1] == "F" else SZ_ZONE_IDX: seqx[:2],
             "failsafe_enabled": {"00": False, "01": True}.get(seqx[2:4]),
@@ -344,7 +344,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
 
         if payload[2:4] == DEV_ROLE_MAP.APP:
             assert int(seqx, 16) < 1, f"invalid _idx: '{seqx}' (0x02)"
-            return {SZ_DOMAIN_ID: "FC"}
+            return {SZ_DOMAIN_ID: FC}
 
         assert (
             int(seqx, 16) < msg._gwy.config.max_zones
@@ -541,7 +541,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
         assert payload[12:14] in FAULT_DEVICE_CLASS, f"device class: {payload[12:14]}"
         # 1C: 'Comms fault, Actuator': seen with boiler relays
         assert int(payload[10:12], 16) < msg._gwy.config.max_zones or (
-            payload[10:12] in ("1C", F9, FA, "FC")
+            payload[10:12] in ("1C", F9, FA, FC)
         ), f"domain id: {payload[10:12]}"
     except AssertionError as exc:
         _LOGGER.warning(
@@ -555,7 +555,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
         SZ_DEVICE_CLASS: FAULT_DEVICE_CLASS.get(payload[12:14], payload[12:14]),
     }
 
-    if payload[10:12] == "FC" and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
+    if payload[10:12] == FC and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
         result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DEV_ROLE.APP]  # actual evohome UI
     elif payload[10:12] == FA and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
         result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DEV_ROLE.HTG]  # speculative
@@ -1080,7 +1080,7 @@ def parser_1fc9(payload, msg) -> list:
             F9,
             FA,
             "FB",
-            "FC",
+            FC,
             "FF",
         ):  # or: not in DOMAIN_TYPE_MAP: ??
             assert int(seqx[:2], 16) < msg._gwy.config.max_zones
@@ -1517,7 +1517,7 @@ def parser_313f(payload, msg) -> Optional[dict]:  # TODO: look for TZ
     # https://www.automatedhome.co.uk/vbulletin/showthread.php?5085-My-HGI80-equivalent-Domoticz-setup-without-HGI80&p=36422&viewfull=1#post36422
     # every day at ~4am TRV/RQ->CTL/RP, approx 5-10secs apart (CTL respond at any time)
 
-    assert msg.src.type != DEV_TYPE_MAP.CTL or (payload[2:4] in ("F0", "FC")), payload[
+    assert msg.src.type != DEV_TYPE_MAP.CTL or (payload[2:4] in ("F0", FC)), payload[
         2:4
     ]  # DEX
     assert (
@@ -1542,7 +1542,7 @@ def parser_3150(payload, msg) -> Union[list, dict, None]:
     #  I --- 04:136513 --:------ 01:158182 3150 002 01CA < often seen CA, artefact?
 
     def complex_idx(seqx, msg) -> dict:
-        # assert seqx[:2] == "FC" or (int(seqx[:2], 16) < MAX_ZONES)  # <5, 8 for UFC
+        # assert seqx[:2] == FC or (int(seqx[:2], 16) < MAX_ZONES)  # <5, 8 for UFC
         idx_name = "ufx_idx" if msg.src.type == DEV_TYPE_MAP.UFC else SZ_ZONE_IDX  # DEX
         return {SZ_DOMAIN_ID if seqx[:1] == "F" else idx_name: seqx[:2]}
 
@@ -1886,16 +1886,16 @@ def parser_3b00(payload, msg) -> Optional[dict]:
             and msg.src.type in (DEV_TYPE_MAP.CTL, DEV_TYPE_MAP.PRG)
             and msg.src is msg.dst
         ):  # DEX
-            assert payload[:2] == "FC"
-            return {SZ_DOMAIN_ID: "FC"}
+            assert payload[:2] == FC
+            return {SZ_DOMAIN_ID: FC}
         assert payload[:2] == "00"
         return {}
 
     assert msg.len == 2, msg.len
     assert payload[:2] == {
-        DEV_TYPE_MAP.CTL: "FC",
+        DEV_TYPE_MAP.CTL: FC,
         DEV_TYPE_MAP.BDR: "00",
-        DEV_TYPE_MAP.PRG: "FC",
+        DEV_TYPE_MAP.PRG: FC,
     }.get(
         msg.src.type, "00"
     )  # DEX

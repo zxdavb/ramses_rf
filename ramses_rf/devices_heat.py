@@ -594,7 +594,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
                     self._make_cmd(_000C, payload=f"{ufh_idx}{DEV_ROLE_MAP.UFH}")
 
         elif msg.code == _0008:  # relay_demand, TODO: use msg DB?
-            if msg.payload.get(SZ_DOMAIN_ID) == "FC":
+            if msg.payload.get(SZ_DOMAIN_ID) == FC:
                 self._relay_demand = msg
             else:  # FA
                 self._relay_demand_fa = msg
@@ -633,7 +633,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
         elif msg.code == _3150:  # heat_demands
             if isinstance(msg.payload, list):  # the circuit demands
                 self._heat_demands = msg
-            elif msg.payload.get(SZ_DOMAIN_ID) == "FC":
+            elif msg.payload.get(SZ_DOMAIN_ID) == FC:
                 self._heat_demand = msg
             elif (
                 (zone_idx := msg.payload.get(SZ_ZONE_IDX))
@@ -801,7 +801,7 @@ class OtbGateway(Actuator, HeatDemand):  # OTB (10): 3220 (22D9, others)
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._child_id = "FC"  # NOTE: domain_id
+        self._child_id = FC  # NOTE: domain_id
 
         self._msgz[_3220] = {RP: {}}  # so later, we can: self._msgz[_3220][RP][msg_id]
 
@@ -1316,7 +1316,7 @@ class BdrSwitch(Actuator, RelayDemand):  # BDR (13):
     # def __init__(self, *args, **kwargs) -> None:
     #     super().__init__(*args, **kwargs)
 
-    #     if kwargs.get(SZ_DOMAIN_ID) == "FC":  # TODO: F9/FA/FC, zone_idx
+    #     if kwargs.get(SZ_DOMAIN_ID) == FC:  # TODO: F9/FA/FC, zone_idx
     #         self.ctl._set_app_cntrl(self)
 
     @discover_decorator

@@ -210,7 +210,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         if schema.get(SZ_TCS_SYSTEM) and (
             dev_id := schema[SZ_TCS_SYSTEM].get(SZ_APP_CNTRL)
         ):
-            self._app_cntrl = self._gwy.get_device(dev_id, parent=self, child_id="FC")
+            self._app_cntrl = self._gwy.get_device(dev_id, parent=self, child_id=FC)
 
         if _schema := (schema.get(SZ_DHW_SYSTEM)):
             self.get_dhw_zone(**_schema)  # self._dhw = ...
@@ -319,7 +319,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
                         app_cntrl = prev.src
 
             if app_cntrl is not None:
-                app_cntrl.set_parent(self, child_id="FC")  # sets self._app_cntrl
+                app_cntrl.set_parent(self, child_id=FC)  # sets self._app_cntrl
 
         assert msg.src is self.ctl, f"msg inappropriately routed to {self}"
 
@@ -331,7 +331,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
             and (msg.payload[SZ_DEVICES])
         ):
             self._gwy.get_device(
-                msg.payload[SZ_DEVICES][0], parent=self, child_id="FC"
+                msg.payload[SZ_DEVICES][0], parent=self, child_id=FC
             )  # sets self._app_cntrl
             return
 
@@ -342,7 +342,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
                     device = self.dhw.heating_valve if self.dhw else None
                 elif domain_id == "xFA":  # TODO, FIXME
                     device = self.dhw.hotwater_valve if self.dhw else None
-                elif domain_id == "FC":
+                elif domain_id == FC:
                     device = self.appliance_control
                 else:
                     device = None
@@ -353,7 +353,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
                         device._make_cmd(code, qos)
 
         elif msg.code == _3150:
-            if msg.payload.get(SZ_DOMAIN_ID) == "FC" and msg.verb in (I_, RP):
+            if msg.payload.get(SZ_DOMAIN_ID) == FC and msg.verb in (I_, RP):
                 self._heat_demand = msg.payload
 
         if self._gwy.config.enable_eavesdrop and not self.appliance_control:
@@ -367,7 +367,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         """The TCS relay, aka 'appliance control' (BDR or OTB)."""
         if self._app_cntrl:
             return self._app_cntrl
-        app_cntrl = [d for d in self.childs if d._child_id == "FC"]
+        app_cntrl = [d for d in self.childs if d._child_id == FC]
         return app_cntrl[0] if len(app_cntrl) == 1 else None  # HACK for 10:
 
     @property
@@ -376,7 +376,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
 
     @property
     def heat_demand(self) -> Optional[float]:  # 3150/FC
-        return self._msg_value(_3150, domain_id="FC", key=SZ_HEAT_DEMAND)
+        return self._msg_value(_3150, domain_id=FC, key=SZ_HEAT_DEMAND)
 
     @property
     def is_calling_for_heat(self) -> Optional[bool]:

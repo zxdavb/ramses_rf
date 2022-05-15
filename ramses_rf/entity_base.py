@@ -538,7 +538,7 @@ class Parent:  # A System, Zone, DhwZone or a UfhController
                 )
             self._dhw_valve = child
 
-        elif child_id == "FC":  # Appliance Controller
+        elif child_id == FC:  # Appliance Controller
             assert isinstance(self, System)  # TODO: remove me
             assert isinstance(child, (BdrSwitch, OtbGateway))
             if self._app_cntrl and self._app_cntrl is not child:
@@ -646,7 +646,7 @@ class Child:  # A Zone, Device or a UfhCircuit
         if isinstance(parent, System) and child_id:
             if child_id in (F9, FA):
                 parent: DhwZone = parent.get_dhw_zone()
-            # elif child_id == "FC":
+            # elif child_id == FC:
             #     pass
             elif int(child_id, 16) < self._gwy.config.max_zones:
                 parent: Zone = parent.get_htg_zone(child_id)
@@ -731,7 +731,7 @@ class Child:  # A Zone, Device or a UfhCircuit
                 )
 
         elif isinstance(parent, System):  # usu. FC
-            if child_id not in ("FC", "FF"):  # was: not in (F9, FA, "FC", "HW"):
+            if child_id not in (FC, "FF"):  # was: not in (F9, FA, FC, "HW"):
                 raise TypeError(
                     f"{self}: cant set child_id to: {child_id} "
                     f"(for TCS, it must be FC)"
