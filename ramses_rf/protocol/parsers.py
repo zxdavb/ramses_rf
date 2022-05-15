@@ -1001,7 +1001,7 @@ def parser_1f09(payload, msg) -> Optional[dict]:
     # 22:51:19.321 067  I --- --:------ --:------ 12:193204 30C9 003 0108C3
 
     assert msg.len == 3, f"length is {msg.len}, expecting 3"
-    assert payload[:2] in ("00", "01", "F8", "FF")  # W/F8
+    assert payload[:2] in ("00", "01", "F8", FF)  # W/F8
 
     seconds = int(payload[2:6], 16) / 10
     next_sync = msg.dtm + td(seconds=seconds)
@@ -1081,7 +1081,7 @@ def parser_1fc9(payload, msg) -> list:
             FA,
             "FB",
             FC,
-            "FF",
+            FF,
         ):  # or: not in DOMAIN_TYPE_MAP: ??
             assert int(seqx[:2], 16) < msg._gwy.config.max_zones
         return [seqx[:2], seqx[2:6], hex_id_to_dev_id(seqx[6:])]
@@ -1424,7 +1424,7 @@ def parser_2e04(payload, msg) -> Optional[dict]:
         assert payload[:2] in SYS_MODE_MAP, f"Unknown system mode: {payload[:2]}"
 
     elif msg.len == 16:  # hometronics, lifestyle ID:
-        assert 0 <= int(payload[:2], 16) <= 15 or payload[:2] == "FF", payload[:2]
+        assert 0 <= int(payload[:2], 16) <= 15 or payload[:2] == FF, payload[:2]
         assert payload[16:18] in (SYS_MODE_MAP.AUTO, SYS_MODE_MAP.CUSTOM), payload[
             16:18
         ]

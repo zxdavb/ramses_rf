@@ -194,7 +194,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
 
         self.ctl = ctl
         self.tcs = self
-        self._child_id = "FF"  # NOTE: domain_id
+        self._child_id = FF  # NOTE: domain_id
 
         self._app_cntrl: DeviceHeat = None  # schema attr
         self._heat_demand = None  # state attr

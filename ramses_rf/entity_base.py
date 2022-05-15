@@ -547,7 +547,7 @@ class Parent:  # A System, Zone, DhwZone or a UfhController
                 )
             self._app_cntrl = child
 
-        elif child_id == "FF":  # System
+        elif child_id == FF:  # System
             assert isinstance(self, System)  # TODO: remove me?
             assert isinstance(child, (UfhController, OutSensor))
             pass
@@ -638,7 +638,7 @@ class Child:  # A Zone, Device or a UfhCircuit
         from .zones import DhwZone, Zone
 
         if isinstance(self, UfhController):
-            child_id = "FF"
+            child_id = FF
 
         if isinstance(parent, Controller):  # A controller cant be a Parent
             parent: System = parent.tcs
@@ -731,7 +731,7 @@ class Child:  # A Zone, Device or a UfhCircuit
                 )
 
         elif isinstance(parent, System):  # usu. FC
-            if child_id not in (FC, "FF"):  # was: not in (F9, FA, FC, "HW"):
+            if child_id not in (FC, FF):  # was: not in (F9, FA, FC, "HW"):
                 raise TypeError(
                     f"{self}: cant set child_id to: {child_id} "
                     f"(for TCS, it must be FC)"

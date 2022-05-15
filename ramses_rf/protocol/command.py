@@ -631,7 +631,7 @@ class Command(PacketBase):
     def get_system_mode(cls, ctl_id: str, **kwargs):
         """Constructor to get the mode of a system (c.f. parser_2e04)."""
 
-        return cls(RQ, _2E04, "FF", ctl_id, **kwargs)
+        return cls(RQ, _2E04, FF, ctl_id, **kwargs)
 
     @classmethod  # constructor for W/2E04
     @validate_api_params()

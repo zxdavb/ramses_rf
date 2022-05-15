@@ -36,6 +36,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
+    F9,
+    FA,
+    FC,
+    FF,
 )
 
 # skipcq: PY-W2000
@@ -178,7 +182,7 @@ class Message:
 
         def ctx(pkt) -> str:
             ctx = {True: "[..]", False: "", None: "??"}.get(pkt._ctx, pkt._ctx)
-            if not ctx and pkt.payload[:2] not in ("00", "FF"):
+            if not ctx and pkt.payload[:2] not in ("00", FF):
                 return f"({pkt.payload[:2]})"
             return ctx
 

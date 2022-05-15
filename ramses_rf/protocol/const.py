@@ -429,7 +429,7 @@ DOMAIN_TYPE_MAP = {
     FD: "unknown",  # seen with hometronics
     # FF: "system",  # TODO: remove this, is not a domain
 }  # "21": "Ventilation",
-DOMAIN_TYPE_LOOKUP = {v: k for k, v in DOMAIN_TYPE_MAP.items() if k != "FF"}
+DOMAIN_TYPE_LOOKUP = {v: k for k, v in DOMAIN_TYPE_MAP.items() if k != FF}
 
 DHW_STATE_MAP = {"00": "off", "01": "on"}
 DHW_STATE_LOOKUP = {v: k for k, v in DHW_STATE_MAP.items()}
