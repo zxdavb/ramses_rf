@@ -71,6 +71,10 @@ from .protocol import (  # noqa: F401, isort: skip, pylint: disable=unused-impor
     RP,
     RQ,
     W_,
+    F9,
+    FA,
+    FC,
+    FF,
 )
 
 # skipcq: PY-W2000
@@ -384,7 +388,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         assert (
             msg.src is self.ctl
             and msg.code in (_0005, _000C, _10A0, _1260, _1F41)
-            or msg.payload.get(SZ_DOMAIN_ID) in ("F9", "FA")
+            or msg.payload.get(SZ_DOMAIN_ID) in (F9, "FA")
         ), f"msg inappropriately routed to {self}"
 
         super()._handle_msg(msg)
@@ -440,7 +444,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
             self._dhw_valve = self._gwy.get_device(dev_id, parent=self, child_id="FA")
 
         if dev_id := schema.get(DEV_ROLE_MAP[DEV_ROLE.HT1]):
-            self._htg_valve = self._gwy.get_device(dev_id, parent=self, child_id="F9")
+            self._htg_valve = self._gwy.get_device(dev_id, parent=self, child_id=F9)
 
     @property
     def sensor(self) -> DhwSensor:  # self._dhw_sensor

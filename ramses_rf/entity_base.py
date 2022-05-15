@@ -34,6 +34,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
+    F9,
+    FA,
+    FC,
+    FF,
 )
 
 # skipcq: PY-W2000
@@ -516,7 +520,7 @@ class Parent:  # A System, Zone, DhwZone or a UfhController
                 self.actuators.append(child)
                 self.actuator_by_id[child.id] = child
 
-        elif child_id == "F9":  # DHW zone (HTG valve)
+        elif child_id == F9:  # DHW zone (HTG valve)
             assert isinstance(self, DhwZone)  # TODO: remove me
             assert isinstance(child, BdrSwitch)
             if self._htg_valve and self._htg_valve is not child:
@@ -640,7 +644,7 @@ class Child:  # A Zone, Device or a UfhCircuit
             parent: System = parent.tcs
 
         if isinstance(parent, System) and child_id:
-            if child_id in ("F9", "FA"):
+            if child_id in (F9, "FA"):
                 parent: DhwZone = parent.get_dhw_zone()
             # elif child_id == "FC":
             #     pass
@@ -720,14 +724,14 @@ class Child:  # A Zone, Device or a UfhCircuit
                 )
 
         elif isinstance(parent, DhwZone):  # usu. FA (HW), could be F9
-            if child_id not in ("F9", "FA"):  # may not be known if eavesdrop'd
+            if child_id not in (F9, "FA"):  # may not be known if eavesdrop'd
                 raise TypeError(
                     f"{self}: cant set child_id to: {child_id} "
                     f"(for DHW, it must be F9 or FA)"
                 )
 
         elif isinstance(parent, System):  # usu. FC
-            if child_id not in ("FC", "FF"):  # was: not in ("F9", "FA", "FC", "HW"):
+            if child_id not in ("FC", "FF"):  # was: not in (F9, "FA", "FC", "HW"):
                 raise TypeError(
                     f"{self}: cant set child_id to: {child_id} "
                     f"(for TCS, it must be FC)"

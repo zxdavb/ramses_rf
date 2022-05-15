@@ -81,6 +81,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
+    F9,
+    FA,
+    FC,
+    FF,
 )
 
 _INFORM_DEV_MSG = "Support the development of ramses_rf by reporting this packet"
@@ -265,7 +269,7 @@ def parser_0009(payload, msg) -> Union[dict, list]:
     #  I --- 10:040239 01:223036 --:------ 0009 003 000000
 
     def _parser(seqx) -> dict:
-        assert seqx[:2] in ("F9", "FC") or int(seqx[:2], 16) < msg._gwy.config.max_zones
+        assert seqx[:2] in (F9, "FC") or int(seqx[:2], 16) < msg._gwy.config.max_zones
         return {
             SZ_DOMAIN_ID if seqx[:1] == "F" else SZ_ZONE_IDX: seqx[:2],
             "failsafe_enabled": {"00": False, "01": True}.get(seqx[2:4]),
@@ -336,7 +340,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
             assert (
                 int(seqx, 16) < 1 if payload[2:4] == DEV_ROLE_MAP.DHW else 2
             ), f"invalid _idx: '{seqx}' (0x01)"
-            return {SZ_DOMAIN_ID: "FA" if payload[:2] == "00" else "F9"}
+            return {SZ_DOMAIN_ID: "FA" if payload[:2] == "00" else F9}
 
         if payload[2:4] == DEV_ROLE_MAP.APP:
             assert int(seqx, 16) < 1, f"invalid _idx: '{seqx}' (0x02)"
@@ -537,7 +541,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
         assert payload[12:14] in FAULT_DEVICE_CLASS, f"device class: {payload[12:14]}"
         # 1C: 'Comms fault, Actuator': seen with boiler relays
         assert int(payload[10:12], 16) < msg._gwy.config.max_zones or (
-            payload[10:12] in ("1C", "F9", "FA", "FC")
+            payload[10:12] in ("1C", F9, "FA", "FC")
         ), f"domain id: {payload[10:12]}"
     except AssertionError as exc:
         _LOGGER.warning(
@@ -555,7 +559,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
         result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DEV_ROLE.APP]  # actual evohome UI
     elif payload[10:12] == "FA" and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
         result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DEV_ROLE.HTG]  # speculative
-    elif payload[10:12] == "F9" and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
+    elif payload[10:12] == F9 and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
         result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DEV_ROLE.HT1]  # speculative
 
     if payload[12:14] != "00":  # TODO: Controller
@@ -1073,7 +1077,7 @@ def parser_1fc9(payload, msg) -> list:
             "67",
             "6C",
             "90",
-            "F9",
+            F9,
             "FA",
             "FB",
             "FC",

@@ -338,7 +338,7 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
         if msg.code == _0008:
             if (domain_id := msg.payload.get(SZ_DOMAIN_ID)) and msg.verb in (I_, RP):
                 self._relay_demands[domain_id] = msg
-                if domain_id == "F9":
+                if domain_id == F9:
                     device = self.dhw.heating_valve if self.dhw else None
                 elif domain_id == "xFA":  # TODO, FIXME
                     device = self.dhw.hotwater_valve if self.dhw else None

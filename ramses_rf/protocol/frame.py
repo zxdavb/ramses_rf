@@ -32,6 +32,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
+    F9,
+    FA,
+    FC,
+    FF,
 )
 
 # skipcq: PY-W2000
@@ -424,7 +428,7 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
         if pkt.payload[2:4] == DEV_ROLE_MAP.APP:  # "000F"
             return "FC"
         if pkt.payload[0:4] == f"01{DEV_ROLE_MAP.HTG}":  # "010E"
-            return "F9"
+            return F9
         if pkt.payload[2:4] in (
             DEV_ROLE_MAP.DHW,
             DEV_ROLE_MAP.HTG,
@@ -461,7 +465,7 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
         return True  # excludes len==1 for 000A, 2309, 30C9
 
     # TODO: is this needed?: exceptions to CODE_IDX_SIMPLE
-    if pkt.payload[:2] in ("F8", "F9", "FA", "FC"):  # TODO: FB, FD
+    if pkt.payload[:2] in ("F8", F9, "FA", "FC"):  # TODO: FB, FD
         if pkt.code not in CODE_IDX_DOMAIN:
             raise InvalidPayloadError(
                 f"Packet idx is {pkt.payload[:2]}, but not expecting a domain id"
