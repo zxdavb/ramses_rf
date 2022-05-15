@@ -482,7 +482,7 @@ class Parent:  # A System, Zone, DhwZone or a UfhController
                 self, (System, Zone, DhwZone, UfhController)
             )  # TODO: remove me
 
-        if is_sensor and child_id == "FA":  # DHW zone (sensor)
+        if is_sensor and child_id == FA:  # DHW zone (sensor)
             assert isinstance(self, DhwZone)  # TODO: remove me
             assert isinstance(child, DhwSensor)
             if self._dhw_sensor and self._dhw_sensor is not child:
@@ -529,7 +529,7 @@ class Parent:  # A System, Zone, DhwZone or a UfhController
                 )
             self._htg_valve = child
 
-        elif child_id == "FA":  # DHW zone (DHW valve)
+        elif child_id == FA:  # DHW zone (DHW valve)
             assert isinstance(self, DhwZone)  # TODO: remove me
             assert isinstance(child, BdrSwitch)
             if self._dhw_valve and self._dhw_valve is not child:
@@ -644,7 +644,7 @@ class Child:  # A Zone, Device or a UfhCircuit
             parent: System = parent.tcs
 
         if isinstance(parent, System) and child_id:
-            if child_id in (F9, "FA"):
+            if child_id in (F9, FA):
                 parent: DhwZone = parent.get_dhw_zone()
             # elif child_id == "FC":
             #     pass
@@ -724,14 +724,14 @@ class Child:  # A Zone, Device or a UfhCircuit
                 )
 
         elif isinstance(parent, DhwZone):  # usu. FA (HW), could be F9
-            if child_id not in (F9, "FA"):  # may not be known if eavesdrop'd
+            if child_id not in (F9, FA):  # may not be known if eavesdrop'd
                 raise TypeError(
                     f"{self}: cant set child_id to: {child_id} "
                     f"(for DHW, it must be F9 or FA)"
                 )
 
         elif isinstance(parent, System):  # usu. FC
-            if child_id not in ("FC", "FF"):  # was: not in (F9, "FA", "FC", "HW"):
+            if child_id not in ("FC", "FF"):  # was: not in (F9, FA, "FC", "HW"):
                 raise TypeError(
                     f"{self}: cant set child_id to: {child_id} "
                     f"(for TCS, it must be FC)"

@@ -39,6 +39,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
+    F9,
+    FA,
+    FC,
+    FF,
 )
 
 # skipcq: PY-W2000
@@ -177,7 +181,7 @@ def validate_api_params(*, has_zone=None):
 
     def validate_zone_idx(zone_idx) -> int:
         if isinstance(zone_idx, str):
-            zone_idx = "FA" if zone_idx == "HW" else zone_idx
+            zone_idx = FA if zone_idx == "HW" else zone_idx
         zone_idx = zone_idx if isinstance(zone_idx, int) else int(zone_idx, 16)
         if 0 > zone_idx > 15 and zone_idx != 0xFA:
             raise ValueError("Invalid value for zone_idx")

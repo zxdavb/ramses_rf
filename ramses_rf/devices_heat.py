@@ -59,6 +59,10 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
+    F9,
+    FA,
+    FC,
+    FF,
 )
 
 # skipcq: PY-W2000
@@ -383,7 +387,7 @@ class DhwTemperature(Fakeable, DeviceHeat):  # 1260
         #
 
         def callback(msg):
-            self.set_parent(msg.src, child_id="FA", is_sensor=True)
+            self.set_parent(msg.src, child_id=FA, is_sensor=True)
 
         super()._bind()
         self._bind_request(_1260, callback=callback)
@@ -527,7 +531,7 @@ class UfhController(Parent, DeviceHeat):  # UFC (02):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._child_id = "FA"  # NOTE: domain_id, HACK: UFC
+        self._child_id = FA  # NOTE: domain_id, HACK: UFC
 
         self._circuits = {}
         self._setpoints = None
@@ -737,7 +741,7 @@ class DhwSensor(DhwTemperature, BatteryState):  # DHW (07): 10A0, 1260
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._child_id = "FA"  # NOTE: domain_id
+        self._child_id = FA  # NOTE: domain_id
 
     def _handle_msg(self, msg) -> None:  # NOTE: active
         super()._handle_msg(msg)

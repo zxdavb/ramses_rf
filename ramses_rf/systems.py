@@ -670,10 +670,10 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         if isinstance(msg.payload, dict):
             if zone_idx := msg.payload.get(SZ_ZONE_IDX):
                 handle_msg_by_zone_idx(zone_idx, msg)
-            # TODO: elif msg.payload.get(SZ_DOMAIN_ID) == "FA":  # DHW
+            # TODO: elif msg.payload.get(SZ_DOMAIN_ID) == FA:  # DHW
 
         elif isinstance(msg.payload, list) and len(msg.payload):
-            # TODO: elif msg.payload.get(SZ_DOMAIN_ID) == "FA":  # DHW
+            # TODO: elif msg.payload.get(SZ_DOMAIN_ID) == FA:  # DHW
             if isinstance(msg.payload[0], dict):  # e.g. 1FC9 is a list of lists:
                 [handle_msg_by_zone_idx(z.get(SZ_ZONE_IDX), msg) for z in msg.payload]
 
@@ -930,7 +930,7 @@ class StoredHw(SystemBase):  # 10A0, 1260, 1F41
         # RP --- 01:078710 18:002563 --:------ 10A0 006 00157C0003E8
 
         if msg.code in (_10A0, _1260, _1F41):
-            # and "dhw_id" not in msg.payload and msg.payload.get(SZ_DOMAIN_ID) != "FA":
+            # and "dhw_id" not in msg.payload and msg.payload.get(SZ_DOMAIN_ID) != FA:
             self.get_dhw_zone(msg=msg)
 
     def get_dhw_zone(self, *, msg=None, **schema) -> DhwZone:

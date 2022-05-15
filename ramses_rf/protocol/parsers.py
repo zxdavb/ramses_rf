@@ -340,7 +340,7 @@ def parser_000c(payload, msg) -> Optional[dict]:
             assert (
                 int(seqx, 16) < 1 if payload[2:4] == DEV_ROLE_MAP.DHW else 2
             ), f"invalid _idx: '{seqx}' (0x01)"
-            return {SZ_DOMAIN_ID: "FA" if payload[:2] == "00" else F9}
+            return {SZ_DOMAIN_ID: FA if payload[:2] == "00" else F9}
 
         if payload[2:4] == DEV_ROLE_MAP.APP:
             assert int(seqx, 16) < 1, f"invalid _idx: '{seqx}' (0x02)"
@@ -541,7 +541,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
         assert payload[12:14] in FAULT_DEVICE_CLASS, f"device class: {payload[12:14]}"
         # 1C: 'Comms fault, Actuator': seen with boiler relays
         assert int(payload[10:12], 16) < msg._gwy.config.max_zones or (
-            payload[10:12] in ("1C", F9, "FA", "FC")
+            payload[10:12] in ("1C", F9, FA, "FC")
         ), f"domain id: {payload[10:12]}"
     except AssertionError as exc:
         _LOGGER.warning(
@@ -557,7 +557,7 @@ def parser_0418(payload, msg) -> Optional[dict]:
 
     if payload[10:12] == "FC" and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
         result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DEV_ROLE.APP]  # actual evohome UI
-    elif payload[10:12] == "FA" and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
+    elif payload[10:12] == FA and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
         result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DEV_ROLE.HTG]  # speculative
     elif payload[10:12] == F9 and result[SZ_DEVICE_CLASS] == SZ_ACTUATOR:
         result[SZ_DEVICE_CLASS] = DEV_ROLE_MAP[DEV_ROLE.HT1]  # speculative
@@ -1078,7 +1078,7 @@ def parser_1fc9(payload, msg) -> list:
             "6C",
             "90",
             F9,
-            "FA",
+            FA,
             "FB",
             "FC",
             "FF",

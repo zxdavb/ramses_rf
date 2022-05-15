@@ -433,7 +433,7 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
             DEV_ROLE_MAP.DHW,
             DEV_ROLE_MAP.HTG,
         ):  # "000D", "000E"
-            return "FA"
+            return FA
         return pkt.payload[:2]
 
     # if pkt.code == _0404:  # TODO: is entry needed here, esp. for DHW?
@@ -465,7 +465,7 @@ def _pkt_idx(pkt) -> Union[str, bool, None]:  # _has_array, _has_ctl
         return True  # excludes len==1 for 000A, 2309, 30C9
 
     # TODO: is this needed?: exceptions to CODE_IDX_SIMPLE
-    if pkt.payload[:2] in ("F8", F9, "FA", "FC"):  # TODO: FB, FD
+    if pkt.payload[:2] in ("F8", F9, FA, "FC"):  # TODO: FB, FD
         if pkt.code not in CODE_IDX_DOMAIN:
             raise InvalidPayloadError(
                 f"Packet idx is {pkt.payload[:2]}, but not expecting a domain id"

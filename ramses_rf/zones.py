@@ -388,7 +388,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         assert (
             msg.src is self.ctl
             and msg.code in (_0005, _000C, _10A0, _1260, _1F41)
-            or msg.payload.get(SZ_DOMAIN_ID) in (F9, "FA")
+            or msg.payload.get(SZ_DOMAIN_ID) in (F9, FA)
         ), f"msg inappropriately routed to {self}"
 
         super()._handle_msg(msg)
@@ -437,11 +437,11 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
         if dev_id := schema.get(SZ_SENSOR):
             self._dhw_sensor = self._gwy.get_device(
-                dev_id, parent=self, child_id="FA", is_sensor=True
+                dev_id, parent=self, child_id=FA, is_sensor=True
             )
 
         if dev_id := schema.get(DEV_ROLE_MAP[DEV_ROLE.HTG]):
-            self._dhw_valve = self._gwy.get_device(dev_id, parent=self, child_id="FA")
+            self._dhw_valve = self._gwy.get_device(dev_id, parent=self, child_id=FA)
 
         if dev_id := schema.get(DEV_ROLE_MAP[DEV_ROLE.HT1]):
             self._htg_valve = self._gwy.get_device(dev_id, parent=self, child_id=F9)
