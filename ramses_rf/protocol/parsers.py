@@ -81,6 +81,7 @@ from .const import (  # noqa: F401, isort: skip, pylint: disable=unused-import
     RP,
     RQ,
     W_,
+    F8,
     F9,
     FA,
     FC,
@@ -1001,7 +1002,7 @@ def parser_1f09(payload, msg) -> Optional[dict]:
     # 22:51:19.321 067  I --- --:------ --:------ 12:193204 30C9 003 0108C3
 
     assert msg.len == 3, f"length is {msg.len}, expecting 3"
-    assert payload[:2] in ("00", "01", "F8", FF)  # W/F8
+    assert payload[:2] in ("00", "01", F8, FF)  # W/F8
 
     seconds = int(payload[2:6], 16) / 10
     next_sync = msg.dtm + td(seconds=seconds)

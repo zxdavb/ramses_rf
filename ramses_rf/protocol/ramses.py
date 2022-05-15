@@ -382,7 +382,7 @@ CODES_SCHEMA: dict = {  # rf_unknown
         RQ: r"^00$",
         RP: r"^00[0-9A-F]{4}$",
     },
-    _1F09: {  # system_sync - FF (I), "00" (RP), "F8" (W, after 1FC9)
+    _1F09: {  # system_sync - FF (I), 00 (RP), F8 (W, after 1FC9)
         SZ_NAME: "system_sync",
         I_: r"^(00|01|DB|FF)[0-9A-F]{4}$",  # FF is evohome, DB is Hometronics
         RQ: r"^00$",
