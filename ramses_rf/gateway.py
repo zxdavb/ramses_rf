@@ -404,10 +404,10 @@ class Gateway(Engine):
         if not dev:
             dev = zx_device_factory(self, Address(dev_id), msg=msg, **traits)
 
-        # TODO: the exaqct order of the follwoing may need refining...
+        # TODO: the exact order of the follwoing may need refining...
 
         # if schema:  # Step 2: Only controllers have a schema...
-        #     dev._update_schema(**schema)
+        #     dev._update_schema(**schema)  # TODO: schema/traits
 
         if parent or child_id:
             dev.set_parent(parent, child_id=child_id, is_sensor=is_sensor)

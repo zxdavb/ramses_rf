@@ -346,7 +346,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         # self._schedule.req_schedule()  # , restart=True) start collecting schedule
 
     def _handle_msg(self, msg) -> None:
-        def eavesdrop_dhw_sensor(this, prev=None) -> None:
+        def eavesdrop_dhw_sensor(this, *, prev=None) -> None:
             """Eavesdrop packets, or pairs of packets, to maintain the system state.
 
             There are only 2 ways to to find a controller's DHW sensor:
@@ -671,7 +671,7 @@ class Zone(ZoneSchedule, ZoneBase):
         # self._schedule.req_schedule()  # , restart=True) start collecting schedule
 
     def _handle_msg(self, msg) -> None:
-        def eavesdrop_zone_type(this, prev=None) -> None:
+        def eavesdrop_zone_type(this, *, prev=None) -> None:
             """TODO.
 
             There are three ways to determine the type of a zone:

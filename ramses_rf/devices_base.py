@@ -186,15 +186,15 @@ class Device(Entity):
             return NotImplemented
         return self.id < other.id
 
-    def _update_schema(self, **schema):
+    def _update_traits(self, **traits):
         """Update a device with new schema attrs.
 
         Raise an exception if the new schema is not a superset of the existing schema.
         """
 
-        schema = shrink(SCHEMA_DEV(schema))
+        traits = shrink(SCHEMA_DEV(traits))
 
-        if schema.get(SZ_FAKED):  # class & alias are done elsewhere
+        if traits.get(SZ_FAKED):  # class & alias are done elsewhere
             if not isinstance(self, Fakeable):
                 raise TypeError(f"Device is not fakable: {self}")
             self._make_fake()
@@ -203,12 +203,14 @@ class Device(Entity):
     def create_from_schema(cls, gwy, dev_addr: Address, **schema):
         """Create a device (for a GWY) and set its schema attrs (aka traits).
 
+        All devices have traits, but also controllers (CTL, UFC) have a system schema.
+
         The appropriate Device class should have been determined by a factory.
         Schema attrs include: class (SLUG), alias & faked.
         """
 
         dev = cls(gwy, dev_addr)
-        dev._update_schema(**schema)
+        dev._update_traits(**schema)  # TODO: split traits/schema
         return dev
 
     def _start_discovery(self) -> None:
