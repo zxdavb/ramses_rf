@@ -1,0 +1,26 @@
+{
+    "main_controller": "01:145038",
+    "01:145038": {
+        "system": {"appliance_control": null},
+        "orphans": [],
+        "stored_hotwater": {},
+        "underfloor_heating": {},
+        "zones": {
+            "01": {"sensor": null},
+            "02": {"sensor": "34:092243"},
+            "03": {"sensor": "12:010740"},
+            "04": {"sensor": "04:056053"},
+            "05": {"sensor": "34:136285"},
+            "06": {"sensor": "34:064023"},
+            "07": {"sensor": "34:205645"}
+        }
+    },
+    "orphans_heat": [
+        "03:123001",
+        "04:056057",
+        "04:189078",
+        "04:189082",
+        "34:021943"
+    ],
+    "orphans_hvac": []
+}
