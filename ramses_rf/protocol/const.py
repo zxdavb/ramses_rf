@@ -418,14 +418,16 @@ DEVICE_ID_REGEX = SimpleNamespace(
 )
 
 # Domains
+F8, F9, FA, FB, FC, FD, FE, FF = (f"{x:02X}" for x in range(0xF8, 0x100))
+
 DOMAIN_TYPE_MAP = {
-    "F8": None,
-    "F9": DEV_ROLE_MAP[DEV_ROLE.HT1],  # Heating Valve
-    "FA": DEV_ROLE_MAP[DEV_ROLE.HTG],  # HW Valve (or UFH loop if src.type == UFC?)
-    "FB": None,
-    "FC": DEV_ROLE_MAP[DEV_ROLE.APP],  # appliance_control
-    "FD": "unknown",  # seen with hometronics
-    # "FF": "system",  # TODO: remove this, is not a domain
+    F8: None,
+    F9: DEV_ROLE_MAP[DEV_ROLE.HT1],  # Heating Valve
+    FA: DEV_ROLE_MAP[DEV_ROLE.HTG],  # HW Valve (or UFH loop if src.type == UFC?)
+    FB: None,
+    FC: DEV_ROLE_MAP[DEV_ROLE.APP],  # appliance_control
+    FD: "unknown",  # seen with hometronics
+    # FF: "system",  # TODO: remove this, is not a domain
 }  # "21": "Ventilation",
 DOMAIN_TYPE_LOOKUP = {v: k for k, v in DOMAIN_TYPE_MAP.items() if k != "FF"}
 
@@ -486,7 +488,6 @@ SystemType = SimpleNamespace(
 
 
 I_, RQ, RP, W_ = " I", "RQ", "RP", " W"
-F9, FA, FC, FF = "F9", "FA", "FC", "FF"
 
 _0001 = "0001"
 _0002 = "0002"
