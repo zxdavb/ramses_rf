@@ -6,7 +6,7 @@
         "stored_hotwater": {},
         "underfloor_heating": {},
         "zones": {
-            "01": {"sensor": null},
+            "01": {"sensor": "01:145038"},
             "02": {"sensor": "34:092243"},
             "03": {"sensor": "12:010740"},
             "04": {"sensor": "04:056053"},
