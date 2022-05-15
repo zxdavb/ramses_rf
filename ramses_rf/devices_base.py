@@ -207,7 +207,7 @@ class Device(Entity):
         Schema attrs include: class (SLUG), alias & faked.
         """
 
-        dev = cls(gwy, dev_addr)  # TODO: parent=parent, role=role)
+        dev = cls(gwy, dev_addr)
         dev._update_schema(**schema)
         return dev
 

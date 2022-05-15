@@ -520,7 +520,7 @@ class Parent:  # A System, Zone, DhwZone or a UfhController
                 raise CorruptStateError(
                     f"{self} changed htg_valve (from {self._htg_valve} to {child})"
                 )
-            self._app_cntrl_htg_valve = child
+            self._htg_valve = child
 
         elif child_id == "FA":  # DHW zone (DHW valve)
             assert isinstance(self, DhwZone)  # TODO: remove me
@@ -767,9 +767,12 @@ class Child:  # A Zone, Device or a UfhCircuit
             )
 
         parent._set_child(self, child_id=child_id, is_sensor=is_sensor)
+        # parent.childs.append(self)
+        # parent.child_by_id[self.id] = self
 
         self._child_id = child_id
         self._parent = parent
+
         self.ctl = ctl
         self.tcs = ctl.tcs
 

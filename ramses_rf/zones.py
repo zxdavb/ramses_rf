@@ -20,7 +20,6 @@ from .const import (
     DEV_ROLE,
     DEV_ROLE_MAP,
     DEV_TYPE_MAP,
-    SZ_DEVICE_ROLE,
     SZ_DOMAIN_ID,
     SZ_HEAT_DEMAND,
     SZ_NAME,
@@ -390,18 +389,21 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
 
         super()._handle_msg(msg)
 
-        if msg.code != _000C or not msg.payload[SZ_DEVICES]:
+        if (
+            msg.code != _000C
+            or msg.payload[SZ_ZONE_TYPE] not in (DEV_ROLE_MAP.DHW, DEV_ROLE_MAP.HTG)
+            or not msg.payload[SZ_DEVICES]
+        ):
             return
 
         assert len(msg.payload[SZ_DEVICES]) == 1
 
-        if (dev_role := msg.payload[SZ_DEVICE_ROLE]) in (
-            DEV_ROLE_MAP[DEV_ROLE.HTG],
-            DEV_ROLE_MAP[DEV_ROLE.HT1],
-        ):
-            self._update_schema(**{dev_role: msg.payload[SZ_DEVICES][0]})
-        elif dev_role == DEV_ROLE_MAP[DEV_ROLE.DHW]:
-            self._update_schema(**{SZ_SENSOR: msg.payload[SZ_DEVICES][0]})
+        self._gwy.get_device(
+            msg.payload[SZ_DEVICES][0],
+            parent=self,
+            child_id=msg.payload[SZ_DOMAIN_ID],
+            is_sensor=(msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.DHW),
+        )  # sets self._dhw_sensor/_dhw_valve/_htg_valve
 
         # TODO: may need to move earlier in method
         # # If still don't have a sensor, can eavesdrop 10A0
@@ -729,17 +731,20 @@ class Zone(ZoneSchedule, ZoneBase):
         if msg.code == _000C and msg.payload[SZ_DEVICES]:
 
             if msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.SEN:
-                self._update_schema(**{SZ_SENSOR: msg.payload[SZ_DEVICES][0]})
+                # self._update_schema(**{SZ_SENSOR: msg.payload[SZ_DEVICES][0]})
+                dev_id = msg.payload[SZ_DEVICES][0]
+                self._sensor = self._gwy.get_device(dev_id, parent=self, is_sensor=True)
 
             elif msg.payload[SZ_ZONE_TYPE] == DEV_ROLE_MAP.ACT:
-                self._update_schema(**{SZ_ACTUATORS: msg.payload[SZ_DEVICES]})
+                # self._update_schema(**{SZ_ACTUATORS: msg.payload[SZ_DEVICES]})
+                for dev_id in msg.payload[SZ_DEVICES]:
+                    self._gwy.get_device(dev_id, parent=self)
 
             elif msg.payload[SZ_ZONE_TYPE] in ZON_ROLE_MAP.HEAT_ZONES:
+                for dev_id in msg.payload[SZ_DEVICES]:
+                    self._gwy.get_device(dev_id, parent=self)
                 self._update_schema(
-                    **{
-                        SZ_CLASS: ZON_ROLE_MAP[msg.payload[SZ_ZONE_TYPE]],
-                        SZ_ACTUATORS: msg.payload[SZ_DEVICES],
-                    }
+                    **{SZ_CLASS: ZON_ROLE_MAP[msg.payload[SZ_ZONE_TYPE]]}
                 )
 
             # TODO: testing this concept, hoping to learn device_id of UFC

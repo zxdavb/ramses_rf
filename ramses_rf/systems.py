@@ -302,25 +302,25 @@ class SystemBase(Parent, Entity):  # 3B00 (multi-relay)
                 return
 
             # note the order: most to least reliable
-            heater = None
+            app_cntrl = None
 
             if this.code in (_22D9, _3220) and this.verb == RQ:  # TODO: RPs too?
                 if this.src is self.ctl and isinstance(this.dst, OtbGateway):
-                    heater = this.dst
+                    app_cntrl = this.dst
 
             elif this.code == _3EF0 and this.verb == RQ:
                 if this.src is self.ctl and isinstance(
                     this.dst, (BdrSwitch, OtbGateway)
                 ):
-                    heater = this.dst
+                    app_cntrl = this.dst
 
             elif this.code == _3B00 and this.verb == I_ and prev is not None:
                 if this.src is self.ctl and isinstance(prev.src, BdrSwitch):
                     if prev.code == this.code and prev.verb == this.verb:
-                        heater = prev.src
+                        app_cntrl = prev.src
 
-            if heater is not None:
-                self._update_schema(**{SZ_TCS_SYSTEM: {SZ_APP_CNTRL: heater.id}})
+            if app_cntrl is not None:
+                app_cntrl.set_parent(self, child_id="FC")  # sets self._app_cntrl
 
         assert msg.src is self.ctl, f"msg inappropriately routed to {self}"
 

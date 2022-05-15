@@ -1475,6 +1475,7 @@ class UfhCircuit(Entity):
     def _handle_msg(self, msg) -> None:
         super()._handle_msg(msg)
 
+        # FIXME:
         if msg.code == _000C and msg.payload[SZ_DEVICES]:  # zone_devices
 
             if not (dev_ids := msg.payload[SZ_DEVICES]):
