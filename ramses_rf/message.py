@@ -186,7 +186,7 @@ def _check_msg_addrs(msg: Message) -> None:
         )
 
 
-def _check_msg_src(msg: Message, slug: str = None) -> None:
+def _check_msg_src(msg: Message, *, slug: str = None) -> None:
     """Validate the packet's source device class (type) against its verb/code pair.
 
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
@@ -234,7 +234,7 @@ def _check_msg_src(msg: Message, slug: str = None) -> None:
         )
 
 
-def _check_msg_dst(msg: Message, slug: str = None) -> None:
+def _check_msg_dst(msg: Message, *, slug: str = None) -> None:
     """Validate the packet's destination device class (type) against its verb/code pair.
 
     Raise InvalidPacketError if the meta data is invalid, otherwise simply return.
@@ -282,7 +282,7 @@ def _check_msg_dst(msg: Message, slug: str = None) -> None:
         )
 
 
-def process_msg(msg: Message, prev_msg: Message = None) -> None:
+def process_msg(msg: Message, *, prev_msg: Message = None) -> None:
     """Decoding the packet payload and route it appropriately."""
 
     # All methods require a valid message (payload), except create_devices(), which
