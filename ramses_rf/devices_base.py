@@ -644,7 +644,7 @@ class DeviceHeat(
             elif self._iz_controller is False:  # TODO: raise CorruptStateError
                 _LOGGER.error(f"{msg!r} # IS_CONTROLLER (01): was FALSE, now True")
 
-    def _make_tcs_controller(self, msg=None, **schema) -> None:  # CH/DHW
+    def _make_tcs_controller(self, *, msg=None, **schema) -> None:  # CH/DHW
         """Attach a TCS (create/update as required) after passing it any msg."""
 
         if self.type not in DEV_TYPE_MAP.CONTROLLERS:  # potentially can be controllers

@@ -476,7 +476,7 @@ class Controller(DeviceHeat):  # CTL (01):
 
         self.tcs._handle_msg(msg)
 
-    def _make_tcs_controller(self, msg=None, **schema) -> None:  # CH/DHW
+    def _make_tcs_controller(self, *, msg=None, **schema) -> None:  # CH/DHW
         """Attach a TCS (create/update as required) after passing it any msg."""
 
         def get_system(*, msg=None, **schema) -> Any:  # System:
@@ -1513,7 +1513,7 @@ _HEAT_VC_PAIR_BY_CLASS = {
 
 
 def class_dev_heat(
-    dev_addr: Address, msg: Message = None, eavesdrop: bool = False
+    dev_addr: Address, *, msg: Message = None, eavesdrop: bool = False
 ) -> Class:
     """Return a device class, but only if the device must be from the CH/DHW group.
 

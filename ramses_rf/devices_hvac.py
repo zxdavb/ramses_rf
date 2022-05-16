@@ -293,7 +293,7 @@ _HVAC_KLASS_BY_VC_PAIR = {t: k for k, v in _HVAC_VC_PAIR_BY_CLASS.items() for t 
 
 
 def class_dev_hvac(
-    dev_addr: Address, msg: Message = None, eavesdrop: bool = False
+    dev_addr: Address, *, msg: Message = None, eavesdrop: bool = False
 ) -> Class:
     """Return a device class, but only if the device must be from the HVAC group.
 
