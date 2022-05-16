@@ -494,7 +494,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
     def relay_failsafe(self) -> Optional[float]:  # 0009
         return self._msg_value(_0009, key=SZ_RELAY_FAILSAFE)
 
-    def set_mode(self, mode=None, active=None, until=None) -> Task:
+    def set_mode(self, *, mode=None, active=None, until=None) -> Task:
         """Set the DHW mode (mode, active, until)."""
         return self._send_cmd(
             Command.set_dhw_mode(self.ctl.id, mode=mode, active=active, until=until)
@@ -512,7 +512,7 @@ class DhwZone(ZoneSchedule, ZoneBase):  # CS92A  # TODO: add Schedule
         """Revert the DHW to following its schedule."""
         return self.set_mode(mode=ZON_MODE_MAP.FOLLOW)
 
-    def set_config(self, setpoint=None, overrun=None, differential=None) -> Task:
+    def set_config(self, *, setpoint=None, overrun=None, differential=None) -> Task:
         """Set the DHW parameters (setpoint, overrun, differential)."""
         # dhw_params = self._msg_value(_10A0)
         # if setpoint is None:
@@ -827,6 +827,7 @@ class Zone(ZoneSchedule, ZoneBase):
 
     def set_config(
         self,
+        *,
         min_temp=5,
         max_temp=35,
         local_override: bool = False,
@@ -853,7 +854,7 @@ class Zone(ZoneSchedule, ZoneBase):
         """Set the zone to the lowest possible setpoint, indefinitely."""
         return self.set_mode(mode=ZON_MODE_MAP.PERMANENT, setpoint=5)  # TODO
 
-    def set_mode(self, mode=None, setpoint=None, until=None) -> Task:  # 2309/2349
+    def set_mode(self, *, mode=None, setpoint=None, until=None) -> Task:  # 2309/2349
         """Override the zone's setpoint for a specified duration, or indefinitely."""
         if mode is None and until is None:  # Hometronics doesn't support 2349
             cmd = Command.set_zone_setpoint(self.ctl.id, self.idx, setpoint)
@@ -1040,7 +1041,7 @@ def _transform(valve_pos: float) -> float:
 ZONE_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # ZON_ROLE.RAD: RadZone
 
 
-def zx_zone_factory(tcs, idx: str, msg: Message = None, **schema) -> Zone:
+def zx_zone_factory(tcs, idx: str, *, msg: Message = None, **schema) -> Zone:
     """Return the zone class for a given zone_idx/klass (Zone or DhwZone).
 
     Some zones are promotable to a compatible sub class (e.g. ELE->VAL).
@@ -1049,6 +1050,7 @@ def zx_zone_factory(tcs, idx: str, msg: Message = None, **schema) -> Zone:
     def best_zon_class(
         ctl_addr: Address,
         idx: str,
+        *,
         msg: Message = None,
         eavesdrop: bool = False,
         **schema,
