@@ -849,7 +849,7 @@ class Logbook(SystemBase):  # 0418
         #     if not self._gwy.config.disable_sending:
         #         self._loop.create_task(self.get_faultlog(force_refresh=True))
 
-    async def get_faultlog(self, start=None, limit=None, force_refresh=None) -> dict:
+    async def get_faultlog(self, *, start=None, limit=None, force_refresh=None) -> dict:
         if self._gwy.config.disable_sending:
             raise RuntimeError("Sending is disabled")
 
@@ -1005,7 +1005,7 @@ class SysMode(SystemBase):  # 2E04
     def system_mode(self) -> Optional[dict]:  # 2E04
         return self._msg_value(_2E04)
 
-    def set_mode(self, system_mode=None, until=None) -> Task:
+    def set_mode(self, *, system_mode=None, until=None) -> Task:
         """Set a system mode for a specified duration, or indefinitely."""
         return self._send_cmd(
             Command.set_system_mode(self.id, system_mode=system_mode, until=until)
@@ -1197,11 +1197,12 @@ class Sundial(Evohome):
 SYS_CLASS_BY_SLUG = class_by_attr(__name__, "_SLUG")  # e.g. "evohome": Evohome
 
 
-def zx_system_factory(ctl, msg: Message = None, **schema) -> System:
+def zx_system_factory(ctl, *, msg: Message = None, **schema) -> System:
     """Return the system class for a given controller/schema (defaults to evohome)."""
 
     def best_tcs_class(
         ctl_addr: Address,
+        *,
         msg: Message = None,
         eavesdrop: bool = False,
         **schema,
