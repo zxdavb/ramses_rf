@@ -10,6 +10,13 @@ __dev_mode__ = False
 DEV_MODE = __dev_mode__
 
 
+SZ_FRAGMENT = "fragment"
+SZ_FRAG_INDEX = "frag_index"
+SZ_FRAG_LENGTH = "frag_length"
+SZ_FRAG_TOTAL = "frag_total"
+SZ_SCHEDULE = "schedule"
+
+
 def slug(string: str) -> str:
     return re.sub(r"[\W_]+", "_", string.lower())
 

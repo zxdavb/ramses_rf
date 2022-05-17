@@ -36,6 +36,10 @@ from .const import (
     SZ_DEVICES,
     SZ_DOMAIN_ID,
     SZ_DURATION,
+    SZ_FRAG_INDEX,
+    SZ_FRAG_LENGTH,
+    SZ_FRAG_TOTAL,
+    SZ_FRAGMENT,
     SZ_LANGUAGE,
     SZ_MODE,
     SZ_NAME,
@@ -235,7 +239,7 @@ def parser_0006(payload, msg) -> Optional[dict]:
     assert payload[2:4] == "05"
 
     return {
-        "change_counter": int(payload[4:], 16),
+        "version": int(payload[4:], 16),
         "_header": payload[:4],
     }
 
@@ -506,19 +510,19 @@ def parser_0404(payload, msg) -> Optional[dict]:
     # RQ --- 30:185469 01:037519 --:------ 0404 007 00230008000303
     # RP --- 01:037519 30:185469 --:------ 0404 014 002300080703031F...
 
-    def _header(seqx) -> dict:
+    def _context(seqx) -> dict:
         return {
-            "frag_index": int(seqx[10:12], 16),
-            "frag_total": int(seqx[12:], 16),
-            "frag_length": int(seqx[8:10], 16),
+            SZ_FRAG_INDEX: int(seqx[10:12], 16),
+            SZ_FRAG_TOTAL: int(seqx[12:], 16),
+            SZ_FRAG_LENGTH: int(seqx[8:10], 16),
         }
 
-    if msg.verb == RQ:  # RQs have a context: index, fragment_idx
-        return _header(payload[:14])
+    if msg.verb == RQ:  # RQs have a context: index|fragment_idx
+        return _context(payload)
 
     return {
-        **_header(payload[:14]),
-        "fragment": payload[14:],
+        **_context(payload[:14]),
+        SZ_FRAGMENT: payload[14:],
     }
 
 

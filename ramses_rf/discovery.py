@@ -11,7 +11,7 @@ import json
 import logging
 import re
 
-from .const import SZ_ZONE_IDX, __dev_mode__
+from .const import SZ_SCHEDULE, SZ_ZONE_IDX, __dev_mode__
 from .protocol import CODES_SCHEMA, Command, ExpiredCallbackError, Priority
 from .protocol.opentherm import OTB_MSG_IDS
 
@@ -225,7 +225,7 @@ async def set_schedule(gwy, ctl_id, schedule) -> None:
     zone = gwy.get_device(ctl_id).tcs.get_htg_zone(zone_idx)
 
     try:
-        await zone.set_schedule(schedule["schedule"])  # 0404
+        await zone.set_schedule(schedule[SZ_SCHEDULE])  # 0404
     except ExpiredCallbackError as exc:
         _LOGGER.error("set_schedule(): Function timed out: %s", exc)
 
