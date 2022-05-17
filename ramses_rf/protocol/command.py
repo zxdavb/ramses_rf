@@ -597,8 +597,8 @@ class Command(PacketBase):
         """Constructor to get the current version (change counter) of the schedules.
 
         This number is increased whenever any zone's schedule is changed (incl. the DHW
-        zone), and is used to avoid the expense of downloading a schedule, only to see
-        that it hasn't changed.
+        zone), and is used to avoid the relatively large expense of downloading a
+        schedule, only to see that it hasn't changed.
         """
 
         return cls(RQ, _0006, "00", ctl_id, **kwargs)
