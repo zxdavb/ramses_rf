@@ -10,8 +10,9 @@ import json
 from pathlib import Path, PurePath
 
 from ramses_rf import Gateway
+from ramses_rf.const import SZ_SCHEDULE
 from tests.common import gwy  # noqa: F401
-from tests.common import TEST_DIR, assert_expected, load_test_system
+from tests.common import TEST_DIR, load_test_system
 
 WORK_DIR = f"{TEST_DIR}/schedules"
 
@@ -33,4 +34,5 @@ async def test_schedule_get(dir_name):
 
     gwy: Gateway = await load_test_system(dir_name)  # noqa: F811
 
-    assert_expected(gwy.tcs.zones[0].schedule, schedule)
+    zone = gwy.tcs.zones[0]
+    assert zone.schedule == schedule[SZ_SCHEDULE]
