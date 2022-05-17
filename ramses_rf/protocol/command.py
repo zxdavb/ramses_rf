@@ -299,11 +299,12 @@ class Qos(PacketBase):
 
     DEFAULTS = {  # priority, retries, timeout, disable_backoff, c.f. DEFAULT
         f"{RQ}|{_0016}": (Priority.HIGH, 5, None, True),
+        f"{RQ}|{_0006}": (Priority.HIGH, 5, None, True),
         f"{RQ}|{_1F09}": (Priority.HIGH, 5, None, True),
         f"{I_}|{_1FC9}": (Priority.HIGH, 2, td(seconds=1), False),
-        f"{I_}|{_0404}": (Priority.HIGH, 5, td(seconds=0.30), True),  # both short Tx,
-        f"{RQ}|{_0404}": (Priority.HIGH, 5, td(seconds=1.00), True),
-        f"{W_}|{_0404}": (Priority.HIGH, 5, td(seconds=0.30), True),  # but long Rx
+        f"{I_}|{_0404}": (Priority.HIGH, 3, td(seconds=0.30), True),  # both short Tx,
+        f"{RQ}|{_0404}": (Priority.HIGH, 3, td(seconds=1.00), True),
+        f"{W_}|{_0404}": (Priority.HIGH, 3, td(seconds=0.30), True),  # but long Rx
         f"{RQ}|{_0418}": (Priority.LOW, 3, None, None),
         f"{RQ}|{_3220}": (Priority.DEFAULT, 1, td(seconds=1.2), False),
         f"{W_}|{_3220}": (Priority.HIGH, 3, td(seconds=1.2), False),
@@ -589,6 +590,18 @@ class Command(PacketBase):
 
         payload = "00" if zone_idx is None else f"{zone_idx:02X}"
         return cls(RQ, _0008, payload, dev_id, **kwargs)
+
+    @classmethod  # constructor for RQ/0006
+    @validate_api_params()
+    def get_schedule_version(cls, ctl_id: str, **kwargs):
+        """Constructor to get the current version (change counter) of the schedules.
+
+        This number is increased whenever any zone's schedule is changed (incl. the DHW
+        zone), and is used to avoid the expense of downloading a schedule, only to see
+        that it hasn't changed.
+        """
+
+        return cls(RQ, _0006, "00", ctl_id, **kwargs)
 
     @classmethod  # constructor for RQ/0404
     @validate_api_params(has_zone=True)
