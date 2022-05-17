@@ -29,7 +29,7 @@ def id_fnc(param):
 
 
 def pytest_generate_tests(metafunc):
-    folders = [f for f in Path(WORK_DIR).iterdir() if f.is_dir()]
+    folders = [f for f in Path(WORK_DIR).iterdir() if f.is_dir() and f.name[:1] != "_"]
     metafunc.parametrize("dir_name", folders, ids=id_fnc)
 
 
@@ -64,6 +64,7 @@ async def test_schemax_with_log_file(dir_name):
 
 
 async def test_systems_from_log_file(dir_name):
+    """Compare the system built from a log file with the expected results."""
 
     expected: dict = load_expected_results(dir_name)
     gwy: Gateway = await load_test_system(dir_name)  # noqa: F811

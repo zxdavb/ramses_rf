@@ -39,6 +39,7 @@ logging.disable(logging.WARNING)  # usu. WARNING
 
 @pytest.fixture
 async def gwy() -> Gateway:  # NOTE: async to get running loop
+    """Return a vanilla system (with a known, minimal state)."""
     gwy = Gateway("/dev/null", config={})
     gwy.config.disable_sending = True
     return gwy
@@ -53,11 +54,12 @@ def assert_expected(actual, expected: dict = None) -> None:
 
 
 def assert_expected_set(gwy, expected) -> None:
+    """Test the actual system state against the expected system state."""
 
     assert_expected(gwy.schema, expected.get("schema"))
-    assert_expected(gwy.known_list, expected.get("known_list"))
     assert_expected(gwy.params, expected.get("params"))
     # sert_expected(gwy.status, expected.get("status"))
+    assert_expected(gwy.known_list, expected.get("known_list"))
 
 
 def assert_raises(exception, fnc, *args):
@@ -70,6 +72,7 @@ def assert_raises(exception, fnc, *args):
 
 
 async def load_test_system(dir_name, config: dict = None) -> Gateway:
+    """Create a system state from a packet log (using an optional configuration)."""
 
     try:
         with open(f"{dir_name}/config.json") as f:
@@ -88,6 +91,7 @@ async def load_test_system(dir_name, config: dict = None) -> Gateway:
 
 
 def load_expected_results(dir_name) -> dict:
+    """Return the expected (global) schema/params/status & traits (aka known_list)."""
 
     try:
         with open(f"{dir_name}/schema.json") as f:
