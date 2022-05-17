@@ -153,7 +153,7 @@ class DeviceIdParamType(click.ParamType):
 @click.option("-c", "--config-file", type=click.File("r"))
 @click.option("-rc", "--restore-cache", type=click.File("r"))
 @click.option("-r", "--reduce-processing", count=True, help="-rrr will give packets")
-@click.option("-ld", "--long-dates", is_flag=True, default=None)
+@click.option("-lf", "--long-format", is_flag=True, help="dont truncate STDOUT")
 @click.option("-e/-ne", "--eavesdrop/--no-eavesdrop", default=None)
 @click.option("-g", "--print-state", count=True, help="print state (g=schema, gg=all)")
 # @click.option(  # get_state
@@ -491,23 +491,33 @@ def print_summary(gwy, **kwargs):
 
 async def main(command, lib_kwargs, **kwargs):
     def process_msg(msg, prev_msg=None) -> None:
-        # print(f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg._pkt}  # {msg.payload}')
-        # print(f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg._pkt}  # ("{msg._pkt.src!r}", "{msg._pkt.dst!r}")')
-        # return
+        """Process the message as it arrives (a callback).
 
-        dtm = (
-            msg.dtm.isoformat(timespec="microseconds")
-            if kwargs["long_dates"]
-            else f"{msg.dtm:%H:%M:%S.%f}"[:-3]
-        )
-        if msg.src and msg.src.type == DEV_TYPE_MAP.HGI:
-            print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
-        elif msg.code == _1F09 and msg.verb == I_:
-            print(f"{Fore.YELLOW}{dtm} {msg}"[:CONSOLE_COLS])
-        elif msg.code in (_000A, _2309, _30C9) and msg._has_array:
-            print(f"{Fore.YELLOW}{dtm} {msg}"[:CONSOLE_COLS])
+        In this case, the message is merely printed.
+        """
+
+        # if kwargs["long_format"]:  # HACK for test/dev
+        #     print(
+        #         f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg._pkt}  # {msg.payload}'
+        #     )
+        #     # print(f'{msg.dtm.isoformat(timespec="microseconds")} ... {msg._pkt}  # ("{msg._pkt.src!r}", "{msg._pkt.dst!r}")')
+        #     return
+
+        if kwargs["long_format"]:
+            dtm = msg.dtm.isoformat(timespec="microseconds")
+            con_cols = CONSOLE_COLS
         else:
-            print(f"{COLORS.get(msg.verb)}{dtm} {msg}"[:CONSOLE_COLS])
+            dtm = f"{msg.dtm:%H:%M:%S.%f}"[:-3]
+            con_cols = None
+
+        if msg.src and msg.src.type == DEV_TYPE_MAP.HGI:
+            print(f"{Style.BRIGHT}{COLORS.get(msg.verb)}{dtm} {msg}"[:con_cols])
+        elif msg.code == _1F09 and msg.verb == I_:
+            print(f"{Fore.YELLOW}{dtm} {msg}"[:con_cols])
+        elif msg.code in (_000A, _2309, _30C9) and msg._has_array:
+            print(f"{Fore.YELLOW}{dtm} {msg}"[:con_cols])
+        else:
+            print(f"{COLORS.get(msg.verb)}{dtm} {msg}"[:con_cols])
 
     print("\r\nclient.py: Starting ramses_rf...")
 
