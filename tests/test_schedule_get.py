@@ -11,7 +11,7 @@ from pathlib import Path, PurePath
 
 from ramses_rf import Gateway
 from tests.common import gwy  # noqa: F401
-from tests.common import TEST_DIR, assert_expected_set, load_test_system
+from tests.common import TEST_DIR, assert_expected, load_test_system
 
 WORK_DIR = f"{TEST_DIR}/schedules"
 
@@ -33,4 +33,4 @@ async def test_schedule_get(dir_name):
 
     gwy: Gateway = await load_test_system(dir_name)  # noqa: F811
 
-    assert_expected_set(gwy, schedule)
+    assert_expected(gwy.tcs.zones[0].schedule, schedule)

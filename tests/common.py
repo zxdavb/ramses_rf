@@ -46,6 +46,8 @@ async def gwy() -> Gateway:  # NOTE: async to get running loop
 
 
 def assert_expected(actual, expected: dict = None) -> None:
+    """Compare an actual system state dict against the corresponding expected state."""
+
     def assert_expected(actual, expect) -> None:
         assert actual == expect
 
@@ -54,7 +56,7 @@ def assert_expected(actual, expected: dict = None) -> None:
 
 
 def assert_expected_set(gwy, expected) -> None:
-    """Test the actual system state against the expected system state."""
+    """Compare the actual system state against the expected system state."""
 
     assert_expected(gwy.schema, expected.get("schema"))
     assert_expected(gwy.params, expected.get("params"))
