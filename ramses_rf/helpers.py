@@ -24,7 +24,10 @@ def shrink(value: dict, keep_falsys: bool = False, keep_hints: bool = False) -> 
                 if (keep_hints or k[:1] != "_") and (keep_falsys or walk(v))
             }
         elif isinstance(node, list):
-            return sorted([walk(x) for x in node if x])
+            try:
+                return sorted([walk(x) for x in node if x])
+            except TypeError:  # if a list of dicts
+                return [walk(x) for x in node if x]
         else:
             return node
 
