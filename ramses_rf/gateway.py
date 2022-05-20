@@ -122,7 +122,7 @@ class Engine:
             )
             self.pkt_protocol, self.pkt_transport = create_pkt_stack(
                 self, pkt_receiver, ser_port=self.serial_port
-            )
+            )  # TODO: can raise SerialException
             if self.msg_transport:
                 self._tasks.append(
                     self.msg_transport._set_dispatcher(self.pkt_protocol.send_data)

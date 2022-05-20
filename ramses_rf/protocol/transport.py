@@ -36,7 +36,7 @@ from time import perf_counter
 from types import SimpleNamespace
 from typing import Awaitable, Callable, Iterable, Optional
 
-from serial import SerialException, serial_for_url
+from serial import SerialBase, SerialException, serial_for_url
 from serial_asyncio import SerialTransport as SerTransportAsync
 
 from .address import HGI_DEV_ADDR, NON_DEV_ADDR, NUL_DEV_ADDR
@@ -1057,6 +1057,33 @@ def create_pkt_stack(
      - MsgTransport.write (pkt_dispatcher) to (pkt_protocol) PktProtocol.send_data
     """
 
+    def get_serial_instance(ser_name, ser_config) -> SerialBase:
+
+        # For example:
+        # - python client.py monitor 'rfc2217://localhost:5001'
+        # - python client.py monitor 'alt:///dev/ttyUSB0?class=PosixPollSerial'
+
+        ser_config = {**DEFAULT_SERIAL_CONFIG, **ser_config}
+
+        try:
+            ser_obj = serial_for_url(ser_name, **ser_config)
+        except SerialException as exc:
+            _LOGGER.exception(
+                "Failed to open %s (config: %s): %s", ser_name, ser_config, exc
+            )
+            raise
+
+        try:  # FTDI on Posix/Linux would be a common environment for this library...
+            ser_obj.set_low_latency_mode(True)
+        except (
+            AttributeError,
+            NotImplementedError,
+            ValueError,
+        ):  # Wrong OS/Platform/not FTDI
+            pass
+
+        return ser_obj
+
     def issue_warning():
         _LOGGER.warning(
             f"{'Windows' if os.name == 'nt' else 'This type of serial interface'} "
@@ -1077,30 +1104,15 @@ def create_pkt_stack(
     if len([x for x in (packet_dict, packet_log, ser_port) if x is not None]) != 1:
         raise TypeError("serial port, log file & dict should be mutually exclusive")
 
+    ser_instance = (
+        get_serial_instance(ser_port, gwy.config.serial_config) if ser_port else None
+    )  # do this first, in case raises a SerialException
+
     pkt_protocol = (protocol_factory or protocol_factory_)()
 
-    if (log_file := packet_log or packet_dict) is not None:  # {} is a processable log
-        pkt_transport = SerTransportRead(gwy._loop, pkt_protocol, log_file)
-        return (pkt_protocol, pkt_transport)
-
-    ser_config = {**DEFAULT_SERIAL_CONFIG, **gwy.config.serial_config}
-
-    # For example:
-    # - python client.py monitor 'rfc2217://localhost:5001'
-    # - python client.py monitor 'alt:///dev/ttyUSB0?class=PosixPollSerial'
-    try:
-        ser_instance = serial_for_url(ser_port, **ser_config)
-    except SerialException as exc:
-        _LOGGER.error("Failed to open %s (config: %s): %s", ser_port, ser_config, exc)
-        raise
-
-    try:  # FTDI on Posix/Linux would be a common environment for this library...
-        ser_instance.set_low_latency_mode(True)
-    except (AttributeError, NotImplementedError, ValueError):  # Wrong OS/Platform/FTDI
-        pass
-
-    # TODO: remove SerTransportPoll hack
-    if os.name == "nt" or ser_port[:8] == "rfc2217:" or ser_port[:7] == "socket:":
+    if (pkt_source := packet_log or packet_dict) is not None:  # {} is a processable log
+        pkt_transport = SerTransportRead(gwy._loop, pkt_protocol, pkt_source)
+    elif os.name == "nt" or ser_port[:8] == "rfc2217:" or ser_port[:7] == "socket:":
         issue_warning()
         pkt_transport = SerTransportPoll(gwy._loop, pkt_protocol, ser_instance)
     else:  # use the standard serial_asyncio library
