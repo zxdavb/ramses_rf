@@ -777,7 +777,7 @@ class ScheduleSync(SystemBase):  # 0006
             return self._msg_0006.payload[SZ_CHANGE_COUNTER]
 
         old_0006 = self._msg_0006
-        self._msg_0006 = await self.gwy.async_send_cmd(
+        self._msg_0006 = await self._gwy.async_send_cmd(
             Command.get_schedule_version(self.ctl.id)
         )
 
