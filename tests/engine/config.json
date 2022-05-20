@@ -1,16 +1,16 @@
 {
     "config": {
-        "disable_discovery": false,
+        "disable_discovery": true,
         "disable_sending": false,
-        "enable_eavesdrop": true,
+        "enable_eavesdrop": false,
         "enforce_known_list": false,
         "use_aliases": false
     },
 
-    "main_controller": "01:078710",
-    "01:078710": {
+    "main_controller": "01:145038",
+    "01:145038": {
         "system": {
-            "appliance_control": "10:047707"
+            "appliance_control": "10:123456"
         }
     },
 
