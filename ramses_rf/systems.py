@@ -16,6 +16,7 @@ from typing import Optional
 
 from .const import (
     SYS_MODE_MAP,
+    SZ_CHANGE_COUNTER,
     SZ_DATETIME,
     SZ_DEVICES,
     SZ_DOMAIN_ID,
@@ -463,9 +464,6 @@ class MultiZone(SystemBase):  # 0005 (+/- 000C?)
         self.zone_by_idx = {}
         self.max_zones = self._gwy.config.max_zones
 
-        self.zone_lock = Lock()
-        self.zone_lock_idx = None
-
         self._prev_30c9 = None  # used to eavesdrop zone sensors
 
     def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
@@ -737,7 +735,11 @@ class ScheduleSync(SystemBase):  # 0006
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._active_0006 = None
+        self._msg_0006: Message = None
+        self._sched_dated: bool = True
+
+        self.zone_lock = Lock()  # used to stop concurrent get_schedules
+        self.zone_lock_idx = None
 
     def _discover(self, *, discover_flag=Discover.DEFAULT) -> None:
         super()._discover(discover_flag=discover_flag)
@@ -746,19 +748,46 @@ class ScheduleSync(SystemBase):  # 0006
             self._make_cmd(_0006)
 
     def _handle_msg(self, msg) -> None:  # NOTE: active
+        """Periodically retreive the latest global change counter."""
         super()._handle_msg(msg)
 
         if msg.code == _0006:
-            # change counter checked every 60s, but updated only every 180s
-            if self.schedule_outdated and (
-                not self._active_0006
-                or dt.now() - self._active_0006.dtm > td(minutes=3)
-            ):
-                self._active_0006 = msg  # TODO: what happens if the following fails?
-                # if not self._gwy.config.disable_sending:  # TODO
-                #     self._get_schedules()
+            self._sched_dated = self._msg_0006 is None or (
+                msg.payload[SZ_CHANGE_COUNTER]
+                > self._msg_0006.payload[SZ_CHANGE_COUNTER]
+            )
+            self._msg_0006 = msg
 
-    def _get_schedules(self) -> None:
+    async def get_schedule_version(self, *, force_update: bool = False) -> int:
+        """Return the latest schedule version number (global change counter).
+
+        If it hasn't been doen very recently, or if `force_update`, then RQ the latest
+        change counter from the TCS.
+        """
+
+        # RQ --- 30:185469 01:037519 --:------ 0006 001 00
+        # RP --- 01:037519 30:185469 --:------ 0006 004 000500E6
+
+        if (
+            not force_update
+            and self._msg_0006
+            and self._msg_0006.dtm > dt.now() - td(minutes=3)
+        ):
+            self._sched_dated = False
+            return self._msg_0006.payload[SZ_CHANGE_COUNTER]
+
+        old_0006 = self._msg_0006
+        self._msg_0006 = await self.gwy.async_send_cmd(
+            Command.get_schedule_version(self.ctl.id)
+        )
+
+        self._sched_dated = old_0006 is None or (
+            self._msg_0006.payload[SZ_CHANGE_COUNTER]
+            > old_0006.payload[SZ_CHANGE_COUNTER]
+        )
+        return self._msg_0006.payload[SZ_CHANGE_COUNTER]
+
+    def _refresh_schedules(self) -> None:
         if self._gwy.config.disable_sending:
             raise RuntimeError("Sending is disabled")
 
@@ -768,18 +797,38 @@ class ScheduleSync(SystemBase):  # 0006
         if dhw := getattr(self, "dhw", None):
             self._gwy._loop.create_task(dhw.get_schedule(force_refresh=True))
 
+    async def _obtain_lock(self, zone_idx) -> bool:
+        while True:
+
+            self.zone_lock.acquire()
+            if self.zone_lock_idx is None:
+                self.zone_lock_idx = zone_idx
+            self.zone_lock.release()
+
+            if self.zone_lock_idx == zone_idx:
+                break
+
+            # await asyncio.sleep(0.1)  # gives the other zone enough time
+
+        return True
+
+    def _release_lock(self) -> None:
+        self.zone_lock.acquire()
+        self.zone_lock_idx = None
+        self.zone_lock.release()
+
     @property
-    def schedule_outdated(self) -> bool:
-        return not self._active_0006 or (
-            self._msg_value(self._active_0006, key="change_counter")
-            != self._msg_value(_0006, key="change_counter")
-        )  # TODO: also check if any zone/dhw has no schedule?
+    def params(self) -> dict:
+        return {
+            **super().params,
+            SZ_CHANGE_COUNTER: self._msg_value(_0006, SZ_CHANGE_COUNTER),
+        }
 
     @property
     def status(self) -> dict:
         return {
             **super().status,
-            "schedule_outdated": self.schedule_outdated,
+            "schedule_outdated": self._sched_dated,
         }
 
 

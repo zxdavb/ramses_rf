@@ -29,7 +29,6 @@ from .message import Message
 from .packet import _PKT_LOGGER, Packet
 from .protocol import create_msg_stack
 from .ramses import CODES_BY_DEV_SLUG, CODES_SCHEMA
-from .schedule import Schedule
 from .schema import PACKET_LOG, PACKET_LOG_SCHEMA, SERIAL_CONFIG_SCHEMA, SERIAL_PORT
 from .transport import SZ_POLLER_TASK, create_pkt_stack
 

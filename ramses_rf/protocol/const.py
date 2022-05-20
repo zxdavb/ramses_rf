@@ -15,6 +15,7 @@ SZ_FRAG_INDEX = "frag_index"
 SZ_FRAG_LENGTH = "frag_length"
 SZ_FRAG_TOTAL = "frag_total"
 SZ_SCHEDULE = "schedule"
+SZ_CHANGE_COUNTER = "change_counter"
 
 
 def slug(string: str) -> str:

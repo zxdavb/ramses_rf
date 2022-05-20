@@ -25,6 +25,7 @@ from .const import (
     SZ_NAME,
     SZ_RELAY_DEMAND,
     SZ_RELAY_FAILSAFE,
+    SZ_SCHEDULE,
     SZ_SETPOINT,
     SZ_TEMPERATURE,
     SZ_WINDOW_OPEN,
@@ -46,14 +47,8 @@ from .devices import (
 )
 from .entity_base import Child, Entity, Parent, class_by_attr, discover_decorator
 from .helpers import shrink
-from .protocol import (
-    CODE_API_MAP,
-    Address,
-    Command,
-    CorruptStateError,
-    Message,
-    Schedule,
-)
+from .protocol import CODE_API_MAP, Address, Command, CorruptStateError, Message
+from .schedule import Schedule
 from .schema import (
     SCHEMA_DHW,
     SCHEMA_ZON,
@@ -240,19 +235,20 @@ class ZoneSchedule(ZoneBase):  # 0404  # TODO: add for DHW
 
     #     if discover_flag & Discover.STATUS:  # TODO: add back in
     #         self._loop.create_task(self.get_schedule())  # 0404
+    pass
 
-    #     def _handle_msg(self, msg) -> None:
-    #     super()._handle_msg(msg)
+    def _handle_msg(self, msg) -> None:
+        super()._handle_msg(msg)
 
-    #     if msg.code == _0404 and msg.verb != RQ:
-    #         _LOGGER.debug("Zone(%s): Received RP/0404 (schedule) pkt", self)
+        if msg.code == _0404:
+            self._schedule._handle_msg(msg)
 
     async def get_schedule(self, force_refresh=None) -> Optional[dict]:
         await self._schedule.get_schedule(force_refresh=force_refresh)
         return self.schedule
 
     async def set_schedule(self, schedule) -> None:
-        schedule = {SZ_ZONE_IDX: self.idx, "schedule": schedule}
+        schedule = {SZ_ZONE_IDX: self.idx, SZ_SCHEDULE: schedule}
         await self._schedule.set_schedule(schedule)
 
     @property
@@ -265,13 +261,13 @@ class ZoneSchedule(ZoneBase):  # 0404  # TODO: add for DHW
                 self._schedule = Schedule(self)
 
         if self._schedule.schedule:
-            return self._schedule.schedule.get("schedule")
+            return self._schedule.schedule.get(SZ_SCHEDULE)
 
     @property
     def status(self) -> dict:
         return {
             **super().status,
-            "schedule": self.schedule,
+            SZ_SCHEDULE: self.schedule,
         }
 
 

@@ -29,6 +29,7 @@ from .const import (
     HEATER_MODES,
     SYS_MODE_MAP,
     SZ_ACTUATOR,
+    SZ_CHANGE_COUNTER,
     SZ_DATETIME,
     SZ_DEVICE_CLASS,
     SZ_DEVICE_ID,
@@ -239,7 +240,7 @@ def parser_0006(payload, msg) -> Optional[dict]:
     assert payload[2:4] == "05"
 
     return {
-        "version": int(payload[4:], 16),
+        SZ_CHANGE_COUNTER: int(payload[4:], 16),
         "_header": payload[:4],
     }
 

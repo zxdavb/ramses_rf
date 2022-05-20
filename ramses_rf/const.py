@@ -14,6 +14,7 @@ from .protocol.const import (  # noqa: F401
     SYS_MODE_MAP,
     SZ_ACTUATORS,
     SZ_ALIAS,
+    SZ_CHANGE_COUNTER,
     SZ_CLASS,
     SZ_DATETIME,
     SZ_DEVICE_ID,
